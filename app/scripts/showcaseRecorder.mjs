@@ -6,7 +6,7 @@ import { APP_TABS } from '../frontend/src/lib/tabs.js';
 import { RUN_BACK } from '../frontend/src/lib/runPages.js';
 
 const require = createRequire(import.meta.url);
-const { SHOWCASE_HEADER, SHOWCASE_READ_ONLY, showcaseCanRead } = require('../backend/lib/showcase.js');
+const { SHOWCASE_GENIE_ASK, SHOWCASE_HEADER, SHOWCASE_READ_ONLY, showcaseCanRead } = require('../backend/lib/showcase.js');
 const { demoView } = require('../backend/lib/showcaseRecord.js');
 
 const TYPES = {
@@ -95,11 +95,13 @@ export async function watchOffline(context, origins) {
   };
 }
 
-export async function readOnlyInspire(page, origin, blocked) {
+export async function readOnlyInspire(page, origin, blocked, reads = new Set()) {
   await page.route((u) => u.origin === origin && u.pathname.startsWith('/api/'), (route) => {
     const request = route.request();
     const { pathname } = new URL(request.url());
-    if (!showcaseCanRead(request.method(), pathname) || pathname.startsWith('/api/genie/')) return refuse(route, blocked, request.method(), pathname);
+    const key = `${request.method()} ${pathname}`;
+    const read = reads.has(key) || (showcaseCanRead(request.method(), pathname) && key !== SHOWCASE_GENIE_ASK);
+    if (!read) return refuse(route, blocked, request.method(), pathname);
     return route.continue();
   });
 }
@@ -251,7 +253,7 @@ async function walkMonitor(page, settle) {
   return { steps: shown > 0 };
 }
 
-export async function walkRun(page, settle) {
+export async function walkRun(page, settle, onPage = null) {
   await openTab(page, settle, 'run');
   const list = page.locator('[data-run-page-root]');
   await list.waitFor({ timeout: 120000 });
@@ -261,6 +263,7 @@ export async function walkRun(page, settle) {
   for (let i = 0; i < n; i += 1) {
     await pages.nth(i).click();
     await settle();
+    if (onPage) await onPage(i);
     if (!(await page.locator('[data-run-full]').count())) continue;
     const toggle = page.locator('[data-run-control-toggle]');
     if (await toggle.getAttribute('aria-expanded') !== 'true') await toggle.click();

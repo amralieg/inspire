@@ -1093,7 +1093,7 @@ test('a build that finishes bursts confetti from the bundled package, never for 
     made.state.history = [built({ spec_version: 2 }), built()];
     await pollNow(page);
     await mvpPanel(page, 'app').waitFor({ timeout: 15000 });
-    await page.waitForTimeout(800);
+    await page.clock.runFor(800);
     assert.equal(await canvases(), 0, 'no burst for a person who asked for less motion');
 
     await page.emulateMedia({ reducedMotion: 'no-preference' });

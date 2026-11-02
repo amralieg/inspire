@@ -204,6 +204,18 @@ export async function until(check, what, timeout = 10000) {
   throw new Error(`timed out waiting for ${what}`);
 }
 
+export function watchAsks(page, pick = () => true) {
+  const sent = [];
+  const open = new Set();
+  page.on('request', (r) => { if (pick(r)) { sent.push(r); open.add(r); } });
+  for (const done of ['requestfinished', 'requestfailed']) page.on(done, (r) => { open.delete(r); });
+  const quiet = async (ms) => {
+    await page.clock.runFor(ms);
+    await until(() => open.size === 0, 'every ask is answered');
+  };
+  return { sent, quiet };
+}
+
 export async function lowContrast(page, selectors = ['[data-mvp-panel]', '[role="dialog"]']) {
   return page.evaluate((rootSelectors) => {
     document.getAnimations().filter((a) => a instanceof CSSTransition).forEach((a) => a.finish());

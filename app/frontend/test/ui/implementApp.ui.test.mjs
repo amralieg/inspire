@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
-import { assertFitsScreen, closeBrowser, dataToResults, lowContrast, onStep, openUi, setDark, settled, startMvp, toAppAccess, toVibes, wizardFit } from './uiSupport.mjs';
+import { assertFitsScreen, closeBrowser, dataToResults, lowContrast, onStep, openUi, setDark, settled, startMvp, toAppAccess, toVibes, watchAsks, wizardFit } from './uiSupport.mjs';
 
 const { appShellCatalog } = createRequire(import.meta.url)('../../../backend/lib/appShell.js');
 const SHELL = appShellCatalog();
@@ -613,10 +613,13 @@ test('a new use case joins the App made for its domain by default, Create new st
     assert.deepEqual(Object.fromEntries(fits), { 'inspire-acme-customer': 'Recommended', 'ops-desk': 'Recommended', 'care-desk': 'Not recommended', 'globex-desk': 'Not recommended' });
     assert.match(await placeStep(page).locator('[data-app-target="globex-desk"]').textContent(),
       /It holds use cases of Globex, another business, so the people who use it could see that business's data\./);
+    await page.clock.install();
+    const asks = watchAsks(page);
     await placeStep(page).getByRole('radio', { name: /^Create a new App/ }).check();
     await page.getByLabel('App name').waitFor();
     assert.equal(await page.getByLabel('App name').inputValue(), 'inspire-acme-customer-2', 'a new App never takes the name of one Inspire built');
-    await page.waitForTimeout(800);
+    await asks.quiet(800);
+    await page.clock.resume();
     assert.equal(await placeStep(page).getByRole('radio', { name: /^Create a new App/ }).isChecked(), true, 'the person chose Create new, so the default does not come back');
     await targetRadio(page, 'inspire-acme-customer').check();
     await toVibes(page);
