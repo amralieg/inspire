@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { BarsCard } from './ChartCard.jsx';
 import { Tiles } from './Kpis.jsx';
-import { HubExplainNote, ReviewLink, UseCaseName, hubExplain, weekCard } from './Home.jsx';
+import { HubExplainNote, ReviewLink, ScopeNote, UseCaseName, hubExplain, weekCard } from './Home.jsx';
 import { wholeMoney } from './format.js';
 import { Icon } from './icons.jsx';
 import Fx from './Fx.jsx';
@@ -124,6 +124,7 @@ function UseCaseImpact({ app, page, entry, currency, kind, figures, meaning, onO
         <div>
           <h2><button type="button" className="lnk" onClick={() => onOpen(page.id)}><UseCaseName page={page} /></button></h2>
           <p className={entry?.error ? 'tile-err tile-err--flat' : ''}>{note}</p>
+          {run?.scope_text && <p className="kpi-scope" data-scope={page.id}>{run.scope_text}</p>}
         </div>
         <ReviewLink page={page} app={app} />
       </header>
@@ -160,6 +161,7 @@ export default function Impact({ app, hub, hubError, summaries, onOpen, onExplai
       <div className="pg-h"><div><h1>Impact</h1><p>What the use cases delivered. Estimated, reported and measured amounts stay apart and are never added together.</p></div></div>
       {hubError && <p className="tile-err" role="alert"><Icon name="info" size={14} />The weekly impact could not load: {hubError}</p>}
       <Tiles tiles={impactTiles(rows)} loading={loading} label="Impact" />
+      <ScopeNote pages={pages} summaries={summaries} />
       <section className="charts">
         <BarsCard {...weekCard(pairs, pages, summaries, !hub && !hubError, 'Measured on fixes a later run confirmed, by week')} onExplain={explain} genieBusy={genieBusy} />
         <BarsCard id="measured_by_use_case" title="Measured, by use case" hint="So far." action="Click a bar to open the use case." loading={loading} onPick={onOpen}

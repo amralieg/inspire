@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { getRuns } from './api.js';
+import { getRuns, runSettingsNow, saveSetting } from './api.js';
 import { formatValue, integer, kindOf, unitOf } from './format.js';
 import Fx from './Fx.jsx';
 import { Icon } from './icons.jsx';
@@ -96,7 +96,7 @@ function runColumns(isOpen, toggle) {
       render: (run) => { const flag = runFlag(run.status); return <span className={`run-st run-st--${flag.tone}`}><i aria-hidden="true" />{flag.text}</span>; },
     },
     { key: 'trigger', label: 'Started by', className: 'nowrap', sortValue: (run) => triggerText(run.trigger), render: (run) => <>{triggerText(run.trigger)}{run.by && <span className="runs-sub-t">{run.by}</span>}</> },
-    { key: 'segments', label: 'What it covered', className: 'wrap', sortValue: (run) => coveredText(run.segments), render: (run) => coveredText(run.segments) },
+    { key: 'segments', label: 'What it covered', className: 'wrap', sortValue: (run) => coveredText(run.segments), render: (run) => <>{coveredText(run.segments)}{run.scope_text && <span className="runs-sub-t">{run.scope_text}</span>}</> },
     { key: 'records', label: 'Records', num: true, render: (run) => (run.records ? integer(run.records) : <None />) },
     { key: 'to_fix', label: 'To fix', num: true, render: (run) => count(run.to_fix) },
     {
@@ -105,6 +105,31 @@ function runColumns(isOpen, toggle) {
         : <Fx formula={couldSaveRunFormula(run)}>{formatValue(run.could_save, unitOf(run) ? 'currency' : 'number', unitOf(run), undefined, kindOf(run))}</Fx>),
     },
   ];
+}
+
+function ScopeFacts({ page, run }) {
+  const [busy, setBusy] = useState(false);
+  const [said, setSaid] = useState('');
+  const everything = async () => {
+    setBusy(true);
+    try {
+      await saveSetting({ page: page.id, name: 'run_scope', value: 'all', was: run.scope?.scope || '', note: 'Run on everything' });
+      const started = await runSettingsNow(page.id);
+      setSaid(`The run on everything is ${started.state || 'starting'}; schedules now cover all the records too.`);
+    } catch (err) {
+      setSaid(err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <section className="card runs-scope" aria-label="First run">
+      <p>{run.facts.covered}</p>
+      {run.facts.everything && <p>{run.facts.everything}</p>}
+      <button className="btn" onClick={everything} disabled={busy}>Run on everything</button>
+      {said && <p role="status">{said}</p>}
+    </section>
+  );
 }
 
 function emptyText(page, job) {
@@ -120,6 +145,7 @@ export default function Runs({ page, runs, offset, onOffset, onExplain, genieBus
   const size = data?.limit || RUNS_PAGE;
   const errors = data?.errors || {};
   const details = errors.summary || errors.details;
+  const scoped = list.find((r) => r.facts && r.facts.covered);
   const isOpen = (run) => open.has(runKey(run));
   const toggle = (run) => setOpen((was) => {
     const next = new Set(was);
@@ -135,6 +161,7 @@ export default function Runs({ page, runs, offset, onOffset, onExplain, genieBus
           loading={busy && !data} bars={runBars(list)} empty="No run listed below wrote a count of things to fix." x="Run" measure="To fix"
           onExplain={onExplain} genieBusy={genieBusy} />
       )}
+      {scoped && <ScopeFacts page={page} run={scoped} />}
       <section className="card card--table runs" aria-label="Runs" aria-busy={busy}>
         <header className="card-h">
           <div>

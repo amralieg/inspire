@@ -220,6 +220,15 @@ export function nothingReason(entry, summary) {
   return 'no record reached Act now or Review in the last update';
 }
 
+export function scopedPages(pages, summaries) {
+  return (pages || []).map((page) => [page, String(summaries?.[page.id]?.run?.scope_text || '').trim()]).filter(([, text]) => text);
+}
+
+export function scopeNoteText(scoped) {
+  if (!scoped?.length) return '';
+  return `${scoped.map(([page, text]) => `${page.title} counts only its ${text}`).join('; ')}. Run on everything from ${scoped.length === 1 ? 'its' : 'each'} Runs tab.`;
+}
+
 export function reliableText(reason) {
   const text = String(reason || '').trim();
   return text ? `${NOT_RELIABLE}: ${text}` : '';

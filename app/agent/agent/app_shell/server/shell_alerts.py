@@ -169,7 +169,7 @@ def runbook_rows_step(tiers: str = "", url: str = "") -> str:
             "each row's recommended action says what to do with it.")
 
 
-def runbook(fired: str, threshold: str, checked: str, guide=None, clears: bool = True, first=(), more=()) -> str:
+def runbook(fired: str, threshold: str, checked: str, guide=None, clears: bool = True, first=(), more=(), scoped: bool = False) -> str:
     guide = guide if isinstance(guide, dict) else {}
     steps = [step for step in first if step]
     if guide.get("decision"):
@@ -178,7 +178,8 @@ def runbook(fired: str, threshold: str, checked: str, guide=None, clears: bool =
         steps.append(f"How the use case acts on it: {guide['solution']}")
     if guide.get("genie"):
         steps.append(f"Ask the Genie Agent ({guide['genie']}) why a row is on the list or how it compares with earlier runs.")
-    lines = [f"What fired: {sentence(fired)}", f"Why this threshold: {sentence(threshold)}", f"How often it checks: {sentence(checked)}"]
+    lines = ([f"What fired: {sentence(fired)}"] + ([shell_sql.SCOPE_TEMPLATE] if scoped else [])
+             + [f"Why this threshold: {sentence(threshold)}", f"How often it checks: {sentence(checked)}"])
     if steps:
         lines += ["What to do first:"] + [f"{number}. {sentence(step)}" for number, step in enumerate(steps, 1)]
     looks = [(label, guide[key]) for key, label in RUNBOOK_LINKS if guide.get(key)]
@@ -363,7 +364,7 @@ def page_guide(page: dict, link: str = "") -> dict:
                          link, stamped.get("kpi"))
 
 
-def watch_texts(page: dict, meta: dict, link: str) -> tuple:
+def watch_texts(page: dict, meta: dict, link: str, scoped: bool = False) -> tuple:
     watch = meta["watch"]
     label, rule, scope = measure_of(page, watch["what"]).get("label") or watch["what"], rule_words(watch), scope_text(page, watch)
     title = page.get("title") or page["id"]
@@ -371,7 +372,7 @@ def watch_texts(page: dict, meta: dict, link: str) -> tuple:
     first = ([runbook_rows_step(watch_tiers(page, watch), link)] if watch["what"] == shell_sql.ALERT_RECORDS
              else [f"Open the App page{f' ({link})' if link else ''} and look at {label} and the rows behind it."])
     description = runbook(fired, watch_reason(watch, meta["by"]), SCHEDULES[meta["schedule"]][1], page_guide(page, link),
-                          meta.get("notify_on_ok") is not False, first, [f"Set up in the App by {meta['by']}"])
+                          meta.get("notify_on_ok") is not False, first, [f"Set up in the App by {meta['by']}"], scoped)
     return cut_text(f"{meta['name']}: {label} {rule}", SUMMARY_LIMIT), description
 
 
@@ -424,7 +425,7 @@ def plan_save(page: dict, data: dict, person: str, admin: bool, entries, warehou
     emails = resolve(data.get("emails"))
     meta = {"v": META_VERSION, "kind": WATCH, "page": page["id"], "by": by, "name": name, "watch": watch, "schedule": schedule, "token": token,
             "notify_on_ok": notify}
-    summary, description = watch_texts(page, meta, link)
+    summary, description = watch_texts(page, meta, link, bool(query.get("scoped")))
     return {"id": ident, "meta": meta,
             "body": watch_body(query, meta, summary, description, emails, SCHEDULES[schedule][0], paused, warehouse)}
 
@@ -699,8 +700,8 @@ class Alerts:
         host = str(headers.get("x-forwarded-host") or "").split(",")[0].strip()
         return f"https://{host}/?open={urllib.parse.quote(page['id'], safe='')}" if re.match(r"^[A-Za-z0-9.-]{1,253}(:\d{1,5})?$", host) else ""
 
-    def watch_texts(self, page: dict, meta: dict, link: str) -> tuple:
-        return watch_texts(page, meta, link)
+    def watch_texts(self, page: dict, meta: dict, link: str, scoped: bool = False) -> tuple:
+        return watch_texts(page, meta, link, scoped)
 
     def body(self, query: dict, meta: dict, summary: str, description: str, emails: list, cron: str, paused: bool, retrigger: int = 0) -> dict:
         return watch_body(query, meta, summary, description, emails, cron, paused, self.shell.warehouse, retrigger)

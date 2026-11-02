@@ -14,9 +14,10 @@ export function kpiHues(pageHue, count) {
   return Array.from({ length: count }, (_, i) => HUES[(start + i) % HUES.length]);
 }
 
-function Delta({ kpi, data }) {
+function Delta({ kpi, data, scope }) {
   if (!kpi.compare) return <div className="kpi-s">{kpi.caption || '\u00a0'}</div>;
-  if (data?.before == null) return <div className="kpi-s">{kpi.caption ? `${kpi.caption} · ${kpi.words.none}` : kpi.words.none}</div>;
+  const none = scope?.note || kpi.words.none;
+  if (data?.before == null) return <div className="kpi-s">{kpi.caption ? `${kpi.caption} · ${none}` : none}</div>;
   const d = change(data?.now, data?.before);
   if (d == null) return <div className="kpi-s">{kpi.caption || '\u00a0'}</div>;
   const { way, text } = changeParts(d, kpi.words);
@@ -28,7 +29,7 @@ function Delta({ kpi, data }) {
   );
 }
 
-export default function Kpis({ page, data, errors, loading, plan }) {
+export default function Kpis({ page, data, errors, loading, plan, scope }) {
   const fold = useFold('kpis');
   const hues = kpiHues(page.hue, page.kpis.length);
   const entries = withBlocks(page.kpis, plan);
@@ -47,7 +48,8 @@ export default function Kpis({ page, data, errors, loading, plan }) {
             {loading ? <Skeleton height={30} width="60%" /> : error ? <p className="tile-err"><Icon name="info" size={12} />{error}</p> : (
               <>
                 <div className="kpi-v">{kpiValue(kpi, data?.[kpi.id])}</div>
-                <Delta kpi={kpi} data={data?.[kpi.id]} />
+                <Delta kpi={kpi} data={data?.[kpi.id]} scope={scope} />
+                {scope?.text && <div className="kpi-scope">{scope.text}</div>}
               </>
             )}
           </div>

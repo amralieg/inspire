@@ -16,7 +16,7 @@ export function settingProblem(setting, value) {
     const choices = (setting.choices || []).map(String);
     const picked = setting.many ? text.split(',').map((p) => p.trim()).filter(Boolean) : [text];
     const allowed = setting.many ? [...choices, ALL] : choices;
-    if (!text || (choices.length && picked.some((p) => !allowed.includes(p)))) {
+    if ((!text && !setting.optional) || (choices.length && picked.some((p) => !allowed.includes(p)))) {
       return `${name} is '${text}'; allowed: ${choices.length ? allowed.join(', ') : 'any text'}`;
     }
     const alone = picked.filter((p) => (setting.solo || []).includes(p));

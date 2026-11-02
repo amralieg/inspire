@@ -194,7 +194,7 @@ def _genie_tries(agent_ns, verdicts, route, responder=None, status=None):
         inst._implement_carried = lambda target: (dict(REBUILT_CARRIED), _left_by(2, json.loads(json.dumps(status))))
     previews = [_preview(f"r-{n}") for n in range(1, 5)]
     inst._implement_preview = lambda *args: previews.pop(0)
-    inst._implement_cell_problems = lambda path, training_sample=False, grouping=None: []
+    inst._implement_cell_problems = lambda path, training_sample=False, grouping=None, sources=(): []
     inst._implement_import_notebook = lambda path, text: None
     runner = _FakeRunner([{"exit": 0, "final": _fill()} for _ in range(3)])
     inst._implement_runner = lambda uc: runner

@@ -40,6 +40,17 @@ SHAPES = {
                                          f"ORDER BY MAX(o.value) DESC LIMIT 1"),
     "subquery_on_another_table_only": (f"SELECT o.record_key, o.value FROM {RESULT} AS o WHERE {CURRENT} AND o.record_key IN "
                                        f"(SELECT s.record_key FROM {DIM} AS s, {DIM} AS t WHERE t.record_key = s.record_key)"),
+    "comma_self_join": (f"SELECT o.record_key, o.value, p.value AS peer FROM {RESULT} AS o, {RESULT} AS p WHERE o.category = p.category "
+                        f"AND o.record_key <> p.record_key AND {CURRENT} AND p.is_current AND p.change_source <> 'delete'"),
+    "cross_join_of_two_carrying_ctes": (f"WITH cur AS (SELECT o.record_key, o.value FROM {RESULT} AS o WHERE {CURRENT}), "
+                                        f"top AS (SELECT MAX(value) AS best FROM cur) SELECT c.record_key, c.value, t.best FROM cur AS c "
+                                        f"CROSS JOIN top AS t"),
+    "using_join_of_two_carrying_ctes": (f"WITH cur AS (SELECT o.record_key, o.value, o.category FROM {RESULT} AS o WHERE {CURRENT}), "
+                                        f"sizes AS (SELECT category, COUNT(*) AS n FROM cur GROUP BY category) "
+                                        f"SELECT c.record_key, c.value, s.n FROM cur AS c JOIN sizes AS s USING (category)"),
+    "bare_join_of_two_carrying_ctes": (f"WITH cur AS (SELECT o.record_key, o.value FROM {RESULT} AS o WHERE {CURRENT}), "
+                                       f"total AS (SELECT SUM(value) AS whole FROM cur) SELECT c.record_key, c.value / t.whole AS share "
+                                       f"FROM cur AS c JOIN total AS t"),
 }
 EDGE_COLUMNS = ["record_key", "valid_from", "valid_to", "is_current", "change_source", "changed_by", "run_id", "window", "sort", "over"]
 EDGE_ROWS = [("a", "10:00", "11:00", 0, "run", "job", "r1", 1.0, 2.0, 3.0), ("b", "10:00", None, 1, "run", "job", "r1", 4.0, 5.0, 6.0),
@@ -49,10 +60,10 @@ EDGE = (f"SELECT o.record_key, o.window, o.sort, o.over, SUM(o.over) OVER (ORDER
 
 
 def _runs(db, sql):
-    cursor = db.execute(_local_dim(sql))
+    cursor = db.execute(_local_dim(sql).replace(" EXCEPT (`_inspire_top_row`)", ""))
     names = [c[0] for c in cursor.description]
     at = names.index("_inspire_run")
-    keep = [i for i, name in enumerate(names) if name not in ("_inspire_run", "_inspire_row")]
+    keep = [i for i, name in enumerate(names) if name not in ("_inspire_run", "_inspire_top_row")]
     got = {}
     for row in cursor.fetchall():
         got.setdefault(row[at], []).append(tuple("" if row[i] is None else row[i] for i in keep))
@@ -101,8 +112,9 @@ def test_columns_named_window_sort_and_over_are_columns_not_clauses():
 
 def test_a_limit_keeps_each_run_s_own_top_rows():
     sql = shell_sql.runs_compare_sql(SHAPES["limit_with_order"], RESULT, COLS)
-    assert "ROW_NUMBER() OVER (PARTITION BY o.`_inspire_run` ORDER BY o.value DESC) AS `_inspire_row`" in sql
-    assert sql.endswith("AS `_inspire_top` WHERE `_inspire_row` > 0 AND `_inspire_row` <= 2") and " LIMIT " not in sql
+    assert "ROW_NUMBER() OVER (PARTITION BY o.`_inspire_run` ORDER BY o.value DESC) AS `_inspire_top_row`" in sql
+    assert "SELECT * EXCEPT (`_inspire_top_row`) FROM (" in sql and " LIMIT " not in sql
+    assert sql.endswith("AS `_inspire_top` WHERE `_inspire_top_row` > 0 AND `_inspire_top_row` <= 2")
     got = _runs(_db(ROWS), sql)
     assert got[shell_sql.RUN_LATEST] == [("a", 5.0), ("d", 7.0)] and got[shell_sql.RUN_PREVIOUS] == [("b", 4.0), ("c", 2.0)]
 
@@ -176,6 +188,28 @@ def test_the_baseline_alert_reads_its_measured_row_once_so_the_dataset_runs_once
     assert len(re.findall(r"\bFROM runs\b", alert.split(f"\n{name} AS (SELECT ", 1)[1])) == 1, alert
     assert alert.count("FROM history") == 1 and re.search(r"FROM baseline t$", alert), alert
     assert alert.count(HISTORY) == 1 and len(alert) < 20000
+
+
+@pytest.mark.parametrize("sql", [
+    f"WITH top (k, v) AS (SELECT o.record_key, o.value FROM {RESULT} AS o WHERE {CURRENT} ORDER BY o.value DESC LIMIT 2) SELECT t.k, t.v FROM top AS t",
+    f"SELECT d.* FROM (SELECT o.record_key, o.value FROM {RESULT} AS o WHERE {CURRENT} ORDER BY o.value DESC LIMIT 2) AS d "
+    f"UNION ALL SELECT p.record_key, p.value FROM {RESULT} AS p WHERE p.is_current AND p.change_source <> 'delete'",
+])
+def test_a_limit_under_a_column_list_or_a_star_keeps_only_the_dataset_s_columns(sql):
+    compiled = shell_sql.runs_compare_sql(sql, RESULT, COLS)
+    assert "SELECT * EXCEPT (`_inspire_top_row`) FROM (" in compiled and compiled.count("`_inspire_top_row`") == 4, compiled
+    assert "top (k, v, `_inspire_run`) AS (" in compiled or "UNION ALL" in compiled
+
+
+@pytest.mark.parametrize("join,joined", [
+    ("comma_self_join", "FROM `_inspire_runs` AS o JOIN  `_inspire_runs` AS p ON p.`_inspire_run` = o.`_inspire_run`"),
+    ("cross_join_of_two_carrying_ctes", "JOIN top AS t ON t.`_inspire_run` = c.`_inspire_run`"),
+    ("using_join_of_two_carrying_ctes", "JOIN sizes AS s USING (category, `_inspire_run`)"),
+    ("bare_join_of_two_carrying_ctes", "JOIN total AS t ON t.`_inspire_run` = c.`_inspire_run`"),
+])
+def test_comma_cross_using_and_bare_joins_of_two_run_carrying_reads_match_on_their_run(join, joined):
+    compiled = " ".join(shell_sql.runs_compare_sql(SHAPES[join], RESULT, COLS).split()).replace("\x00", "")
+    assert " ".join(joined.split()) in compiled and "CROSS JOIN" not in compiled.split("\n)\n", 1)[-1], compiled
 
 
 def test_a_named_window_clause_is_partitioned_by_run():

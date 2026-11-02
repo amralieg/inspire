@@ -163,6 +163,15 @@ GUIDE_PREFIX = "How to read:"
 GUIDE_TITLES = 2
 RUN_COLUMN = "_inspire_run"
 RUN_LATEST = "latest"
+RUN_SCOPES = "run_scopes"
+SCOPE_KEY_PATTERN = '"key": "([^"]*)"'
+SCOPE_ALL_TEXT = "All records"
+SCOPE_FIRST_RUN = "First run: "
+SCOPE_PART = "part of the records"
+SCOPE_SENTENCE = " The latest run covered only "
+SCOPE_SCHEMA = "ARRAY<STRUCT<scope: STRING, text: STRING>>"
+SCOPE_COLUMN = "run_scope"
+SCOPE_TEMPLATE = "{{#QUERY_RESULT_ROWS}}{{" + SCOPE_COLUMN + "}}{{/QUERY_RESULT_ROWS}}"
 RUN_PREVIOUS = "previous"
 REASONS_KEPT = ("as_of_date", "priority_tier", "run_id")
 REASON_NUMBERS = r"[0-9]+([.,][0-9]+)*"
@@ -355,7 +364,7 @@ def expression_problems(where: str, expression) -> list:
     if not text:
         return [f"{where} has no expression"]
     if len(text) > EXPRESSION_CHARS:
-        return [f"{where} expression is longer than {EXPRESSION_CHARS} characters"]
+        return [f"{where} expression is longer than {plural(EXPRESSION_CHARS, 'character')}"]
     bare = strip_sql_text(text)
     if ";" in bare or "--" in text or "/*" in text:
         return [f"{where} expression holds a statement separator or a comment"]
@@ -860,7 +869,7 @@ def html_problems(where: str, html) -> list:
     if not isinstance(html, str) or not html.strip():
         return [f"{where} is an html block, so its content is the HTML and CSS it shows"]
     if len(html) > CAPS["block_html"]:
-        return [f"{where} html is longer than {CAPS['block_html']} characters"]
+        return [f"{where} html is longer than {plural(CAPS['block_html'], 'character')}"]
     scan = _HtmlScan(where)
     scan.feed(html)
     scan.close()
@@ -870,7 +879,7 @@ def html_problems(where: str, html) -> list:
 def markdown_problems(where: str, text) -> list:
     if not isinstance(text, str) or not text.strip():
         return [f"{where} is a text block, so its content is the Markdown text it shows"]
-    problems = [] if len(text) <= CAPS["block_text"] else [f"{where} text is longer than {CAPS['block_text']} characters"]
+    problems = [] if len(text) <= CAPS["block_text"] else [f"{where} text is longer than {plural(CAPS['block_text'], 'character')}"]
     if _MARKDOWN_TAG.search(text):
         problems.append(f"{where} text holds HTML tags; a text block is Markdown, so put HTML in an html block")
     for image, _label, url in _MARKDOWN_LINK.findall(text):
@@ -1425,7 +1434,8 @@ def records_query(page: dict, values: dict) -> tuple:
 
 
 def alert_query(measure: str, operator: str, threshold, basis: str = "fixed", source: str = "", conditions=(), table: str = "", columns=(),
-                name: str = ALERT_WATCHED, extra=(), condition: str = "", hold: str = "", threshold_sql: str = "", history=None) -> dict:
+                name: str = ALERT_WATCHED, extra=(), condition: str = "", hold: str = "", threshold_sql: str = "", history=None,
+                scopes=False, scope_sql: str = "") -> dict:
     if operator not in ALERT_OPERATORS:
         raise ValueError(f"an alert compares with one of {', '.join(ALERT_OPERATORS)}, not {operator!r}")
     if basis not in ALERT_BASES:
@@ -1453,7 +1463,7 @@ def alert_query(measure: str, operator: str, threshold, basis: str = "fixed", so
         measured = ", ".join([f"{run_measure(measure, RUN_LATEST)} AS {name}"]
                              + [f"{run_measure(expression, RUN_LATEST)} AS {alias}" for expression, alias in extra]
                              + [f"{previous_run_measure(measure, back)} AS v{back}" for back in backs])
-        base = (f"WITH runs AS (SELECT * FROM ({runs_compare_sql(source, table, columns, range(ALERT_BASELINE_RUNS + 1), history)}) "
+        base = (f"WITH runs AS (SELECT * FROM ({runs_compare_sql(source, table, columns, range(ALERT_BASELINE_RUNS + 1), history, scopes)}) "
                 f"AS d{tail}),\n"
                 f"{name} AS (SELECT {measured} FROM runs)")
     else:
@@ -1461,9 +1471,11 @@ def alert_query(measure: str, operator: str, threshold, basis: str = "fixed", so
         base = f"WITH latest AS (SELECT * FROM ({source}) AS d{tail}),\n{name} AS (SELECT {measured} FROM latest)"
     user = re.sub(r"--[^\n]*", " ", str(condition or "")).strip().rstrip(";").strip()
     held = str(hold or "").strip()
+    scoped = {"scoped": True} if scope_sql else {}
+    scope_shown = [f"{scope_sql} AS {SCOPE_COLUMN}"] if scope_sql else []
     if not user and not baseline and not held and not threshold_sql:
-        return {"query": f"{base}\nSELECT {', '.join(labels)} FROM {name}", "column": name, "operator": ALERT_OPERATORS[operator],
-                "threshold": number}
+        return dict({"query": f"{base}\nSELECT {', '.join(labels + scope_shown)} FROM {name}", "column": name,
+                     "operator": ALERT_OPERATORS[operator], "threshold": number}, **scoped)
     limit = f"({threshold_sql})" if threshold_sql else repr(number)
     rule, shown, joins, read = f"t.{name} {operator} {limit}", [f"t.{label}" for label in labels], "", name
     if threshold_sql and not baseline:
@@ -1491,8 +1503,8 @@ def alert_query(measure: str, operator: str, threshold, basis: str = "fixed", so
     if held:
         rule = f"({rule}) AND NOT COALESCE(({held}), FALSE)"
         shown.append(f"COALESCE(({held}), FALSE) AS {ALERT_HELD}")
-    return {"query": f"{base}\nSELECT CASE WHEN {rule} THEN 1 ELSE 0 END AS {ALERT_FIRED}, {', '.join(shown)} FROM {read} t{joins}",
-            "column": ALERT_FIRED, "operator": ALERT_OPERATORS[">="], "threshold": 1.0}
+    return dict({"query": f"{base}\nSELECT CASE WHEN {rule} THEN 1 ELSE 0 END AS {ALERT_FIRED}, {', '.join(shown + scope_shown)} FROM "
+                          f"{read} t{joins}", "column": ALERT_FIRED, "operator": ALERT_OPERATORS[">="], "threshold": 1.0}, **scoped)
 
 
 def watch_measures(page: dict) -> list:
@@ -1519,13 +1531,14 @@ def watch_query(page: dict, watch: dict, names=(), history=None) -> dict:
             raise ValueError(f"the filter {f.get('label')} does not reach {label}, so it cannot narrow this alert")
     operator, threshold, basis = watch.get("operator"), watch.get("threshold"), watch.get("basis") or "fixed"
     source, conditions = _dataset(page, dataset), _conditions(page, dataset, values, _Literals())
+    scope_sql = scope_line_sql(page["result_table"], str(page.get("use_case_id") or "")) if page_scopes(page) and page.get("result_table") else ""
     if basis != "baseline":
-        return alert_query(measure, operator, threshold, basis, source=source, conditions=conditions)
+        return alert_query(measure, operator, threshold, basis, source=source, conditions=conditions, scope_sql=scope_sql)
     problem = baseline_problem(page, measured, names)
     if problem:
         raise ValueError(problem)
     return alert_query(measure, operator, threshold, basis, source=source, conditions=conditions, table=page["result_table"],
-                       columns=list(names), history=history)
+                       columns=list(names), history=history, scopes=page_scopes(page), scope_sql=scope_sql)
 
 
 def baseline_problem(page: dict, measured: dict, columns) -> str:
@@ -1653,6 +1666,7 @@ def list_context(page: dict, columns, fields, decisions: bool) -> dict:
             "tier": records.get("tier") if records.get("tier") in names else None,
             "tie": "record_key" if "record_key" in columns else key, "ai": ai,
             "categories": [n for n in ai if AI_CATEGORY.match(n)],
+            "scopes": table_name(str(page["result_table"]).strip() + SUMMARY_SUFFIX) if join and page_scopes(page) else None,
             "unjoined": "" if join else unjoined_reason(page, columns, fields)}
 
 
@@ -1882,18 +1896,27 @@ def facts_run(facts, key: str):
     return None if value is None else str(value)
 
 
-def _runs_ctes(table: str, history=None, facts=None) -> dict:
+def _runs_ctes(table: str, history=None, facts=None, scopes=None) -> dict:
     if facts and history:
         latest, previous = facts_run(facts, "latest"), facts_run(facts, "previous")
         typed = lambda value: "CAST(NULL AS STRING)" if value is None else f"CAST({sql_text(value)} AS {history['run_type']})"
         return {"n": f"SELECT {typed(latest)} AS `_inspire_latest`, {typed(previous)} AS `_inspire_previous`"}
     source, ran, only = ((history["log"], "`ran_at`", "") if history else
                          (table, "`valid_from`", " WHERE `change_source` = 'run'"))
-    return {"r": f"SELECT `run_id` AS `_inspire_run`, MIN({ran}) AS `_inspire_ran`, MAX({ran}) AS `_inspire_ended` "
-                 f"FROM {source}{only} GROUP BY `run_id`",
+    runs = (f"SELECT `run_id` AS `_inspire_run`, MIN({ran}) AS `_inspire_ran`, MAX({ran}) AS `_inspire_ended` "
+            f"FROM {source}{only} GROUP BY `run_id`")
+    if scopes:
+        runs = f"SELECT `_inspire_run`, `_inspire_ran`, `_inspire_ended` FROM {_scoped_runs(f'({runs}) AS r', scopes)}"
+    return {"r": runs,
             "n": "SELECT MAX(IF(`_inspire_nth` = 1, `_inspire_run`, NULL)) AS `_inspire_latest`, MAX(IF(`_inspire_nth` = 2, "
                  "`_inspire_run`, NULL)) AS `_inspire_previous` FROM (SELECT `_inspire_run`, ROW_NUMBER() OVER (ORDER BY `_inspire_ran` "
                  "DESC) AS `_inspire_nth` FROM r) AS q"}
+
+
+def _compare_ctes(context: dict) -> dict:
+    scopes = context.get("scopes")
+    facts = None if scopes and not logged_changes(context) else context.get("facts")
+    return _runs_ctes(context["table"], context.get("history"), facts, scopes)
 
 
 RUNS_CTE = "`_inspire_runs`"
@@ -1910,12 +1933,28 @@ _RUNS_FIX = {"pivot": "PIVOT on the result table mixes runs; pivot with CASE WHE
 _RUNS_NOT_ALIAS = frozenset(("on", "using", "lateral", "tablesample", "pivot", "unpivot")) | _RUNS_JOINS | _RUNS_CLAUSES | _RUNS_SETS
 _SQL_COMMENTS = re.compile(r"('(?:[^'\\]|\\.)*'|\"(?:[^\"\\]|\\.)*\"|`(?:[^`]|``)*`)|--[^\n]*|/\*.*?\*/", re.S)
 _RUNS_MARK = "\x00"
+_RUNS_TOP = "`_inspire_top_row`"
 _RUNS_WITH = "its WITH clause is not a list of name AS (query); write each query as name AS (SELECT ...)"
 _RUNS_HIDDEN = ("it reads the result table in a subquery outside its FROM, such as in its SELECT list or WHERE; join that query in its FROM "
                 "instead and match it on the columns the subquery compared")
 
 
-def _runs_rows(table: str, columns, backs, history=None) -> str:
+def _scoped_runs(runs: str, scopes) -> str:
+    if not scopes:
+        return runs
+    keyed = (f"SELECT r.*, k.`_inspire_scope` FROM {runs} LEFT JOIN (SELECT CAST(`run_id` AS STRING) AS `_inspire_scope_run`, "
+             f"MAX(regexp_extract(`run_segments`, '{SCOPE_KEY_PATTERN}', 1)) AS `_inspire_scope` FROM {scopes} GROUP BY CAST(`run_id` AS STRING)) "
+             "AS k ON CAST(r.`_inspire_run` AS STRING) = k.`_inspire_scope_run`")
+    return (f"(SELECT * FROM (SELECT s.*, FIRST_VALUE(s.`_inspire_scope`) OVER (ORDER BY s.`_inspire_ran` DESC) AS `_inspire_latest_scope` "
+            f"FROM ({keyed}) AS s) AS s WHERE COALESCE(s.`_inspire_scope`, '') = COALESCE(s.`_inspire_latest_scope`, '')) AS r")
+
+
+def _runs_ranked(table: str, history=None, scopes=None) -> str:
+    runs = _scoped_runs(f"({_runs_ctes(table, history)['r']}) AS r", scopes)
+    return f"SELECT `_inspire_run`, `_inspire_ended`, ROW_NUMBER() OVER (ORDER BY `_inspire_ran` DESC) AS `_inspire_nth` FROM {runs}"
+
+
+def _runs_rows(table: str, columns, backs, history=None, scopes=None) -> str:
     run, listed = quote(RUN_COLUMN), ", ".join(quote(c) for c in columns)
     parts = [f"SELECT {listed}, '{RUN_LATEST}' AS {run} FROM {table}"] if 0 in backs else []
     earlier = [str(back + 1) for back in backs if back]
@@ -1923,8 +1962,7 @@ def _runs_rows(table: str, columns, backs, history=None) -> str:
         kept = ", ".join("TRUE AS `is_current`" if c == "is_current" else f"t.{quote(c)}" for c in columns)
         of = "`_inspire_run` AS `_inspire_run_id`, " if history else ""
         ends = (f"SELECT {of}`_inspire_ended`, CASE WHEN `_inspire_nth` = 2 THEN '{RUN_PREVIOUS}' ELSE '{RUN_PREVIOUS}_' || "
-                f"CAST(`_inspire_nth` - 1 AS STRING) END AS {run} FROM (SELECT `_inspire_run`, `_inspire_ended`, ROW_NUMBER() OVER (ORDER BY "
-                f"`_inspire_ran` DESC) AS `_inspire_nth` FROM ({_runs_ctes(table, history)['r']}) AS r) AS q WHERE `_inspire_nth` IN "
+                f"CAST(`_inspire_nth` - 1 AS STRING) END AS {run} FROM ({_runs_ranked(table, history, scopes)}) AS q WHERE `_inspire_nth` IN "
                 f"({', '.join(earlier)})")
         if history:
             parts.append(f"SELECT {kept}, e.{run} FROM {versions_source(table, history)} AS t JOIN ({ends}) AS e ON t.`change_source` = 'run' "
@@ -1945,7 +1983,6 @@ def _runs_zero(tokens: list, start: int, end: int) -> list:
         if tokens[index] == "(":
             depth += 1
     return out
-
 
 def _runs_word(tokens: list, at: int, end: int) -> str:
     at = _measure_skip(tokens, at, end)
@@ -2116,9 +2153,10 @@ def _runs_select(tokens: list, start: int, end: int, table: str, ctes=frozenset(
                 index = last
         index += 1
     if found is not None:
+        joint = None
         for mark_start, mark_end, mark_kind in marks + [(stop, stop, "")]:
-            items.append(dict(_runs_item(tokens, at, mark_start, table, ctes, put), kind=kind))
-            at, kind = mark_end, mark_kind
+            items.append(dict(_runs_item(tokens, at, mark_start, table, ctes, put), kind=kind, joint=joint))
+            at, kind, joint = mark_end, mark_kind, (mark_start, mark_end)
     derived = {item["opened"] for item in items}
     for opened, close in _runs_subqueries(tokens, start, end):
         if opened not in derived and _runs_query(tokens, opened + 1, close, table, ctes)[1]:
@@ -2136,12 +2174,20 @@ def _runs_select(tokens: list, start: int, end: int, table: str, ctes=frozenset(
     if runs:
         first = runs[0]["alias"]
         for item in runs[1:]:
-            on = item["rest"]
-            if item["kind"] in ("", ",") or {"cross", "natural"} & set(item["kind"].split()) or on >= item["end"] or tokens[on].lower() != "on":
-                raise ValueError("it reads the result table twice without JOIN ... ON; write the second read as JOIN ... ON with the "
-                                 "condition that matches its rows")
-            put(on, on + 1, f"{tokens[on]} (")
-            add(item["end"], f") AND {item['alias']}.{run} = {first}.{run} ")
+            on, kinds, match = item["rest"], set(item["kind"].split()), f"{item['alias']}.{run} = {first}.{run}"
+            word = tokens[on].lower() if on < item["end"] else ""
+            if "natural" in kinds:
+                continue
+            if word == "on":
+                put(on, on + 1, f"{tokens[on]} (")
+                add(item["end"], f") AND {match} ")
+            elif word == "using":
+                opened = _measure_skip(tokens, on + 1, item["end"])
+                add(_measure_close(tokens, opened, item["end"]), f", {run}")
+            else:
+                if item["kind"] == "," or "cross" in kinds:
+                    put(*item["joint"], " JOIN " if item["kind"] == "," else "JOIN")
+                add(item["end"], f" ON {match} ")
         listed = _measure_skip(tokens, select + 1, found)
         distinct = tokens[listed].lower() == "distinct"
         listed += tokens[listed].lower() in ("distinct", "all")
@@ -2218,7 +2264,7 @@ def _runs_select(tokens: list, start: int, end: int, table: str, ctes=frozenset(
                 if lead.isdigit() or aliases.get(lead.strip("`").lower(), lead.strip("`").lower()) != lead.strip("`").lower():
                     raise ValueError("its ORDER BY before LIMIT names a position or a SELECT alias; order by the source columns, as in "
                                      "ORDER BY o.value DESC")
-            add(found, f", ROW_NUMBER() OVER (PARTITION BY {first}.{run} ORDER BY {', '.join(p.strip() for p in sorting)}) AS `_inspire_row` ")
+            add(found, f", ROW_NUMBER() OVER (PARTITION BY {first}.{run} ORDER BY {', '.join(p.strip() for p in sorting)}) AS {_RUNS_TOP} ")
             put(order, end, "")
             top = (int(skipped), int(count) if count else None)
     text = "".join("".join(before.get(k, ())) + piece for k, piece in enumerate(out))
@@ -2226,8 +2272,8 @@ def _runs_select(tokens: list, start: int, end: int, table: str, ctes=frozenset(
     if reads_table(text, table) or hidden:
         raise ValueError(_RUNS_HIDDEN)
     if top:
-        text = (f"SELECT * FROM ({text}) AS `_inspire_top` WHERE `_inspire_row` > {top[0]}"
-                + (f" AND `_inspire_row` <= {top[0] + top[1]}" if top[1] is not None else ""))
+        text = (f"SELECT * EXCEPT ({_RUNS_TOP}) FROM ({text}) AS `_inspire_top` WHERE {_RUNS_TOP} > {top[0]}"
+                + (f" AND {_RUNS_TOP} <= {top[0] + top[1]}" if top[1] is not None else ""))
     return text, bool(runs)
 
 
@@ -2242,7 +2288,7 @@ def reads_table(sql: str, table: str) -> bool:
     return any(match.group(1) for match in _table_reads(table).finditer(str(sql or "")))
 
 
-def runs_compare_sql(sql: str, table: str, columns, backs=(0, 1), history=None) -> str:
+def runs_compare_sql(sql: str, table: str, columns, backs=(0, 1), history=None, scopes=False) -> str:
     backs = sorted(set(backs))
     if not backs or any(isinstance(b, bool) or not isinstance(b, int) or not 0 <= b <= ALERT_BASELINE_RUNS for b in backs):
         raise ValueError(f"the runs to read are 0, the latest, to {ALERT_BASELINE_RUNS} runs before it, not {backs!r}")
@@ -2250,7 +2296,8 @@ def runs_compare_sql(sql: str, table: str, columns, backs=(0, 1), history=None) 
     text, carries = _runs_query(tokens, 0, len(tokens), table)
     if not carries:
         raise ValueError(f"it does not read the result table {table} in its FROM, the one table that keeps earlier runs")
-    rows, text = f"{RUNS_CTE} AS (\n{_runs_rows(table_name(table), columns, backs, history)}\n)", text.replace(_RUNS_MARK, "")
+    summary = table_name(str(table).strip() + SUMMARY_SUFFIX) if scopes else None
+    rows, text = f"{RUNS_CTE} AS (\n{_runs_rows(table_name(table), columns, backs, history, summary)}\n)", text.replace(_RUNS_MARK, "")
     return f"WITH {rows},\n{text[len('WITH '):]}" if text.startswith("WITH ") else f"WITH {rows}\n{text}"
 
 
@@ -2266,7 +2313,7 @@ def previous_rows(page: dict, name: str, columns, history=None):
     sql, table = _dataset(page, name), page.get("result_table")
     if not table or not columns or not reads_table(sql, table):
         return None
-    return runs_compare_sql(sql, table, columns, (1,), history)
+    return runs_compare_sql(sql, table, columns, (1,), history, page_scopes(page))
 
 
 def previous_value(expression, rows: str = "COUNT(*)") -> str:
@@ -2496,10 +2543,11 @@ def _change_ctes(context: dict, within: str = "", key: str = "_inspire_key") -> 
     if context.get("history"):
         table = versions_source(table, context["history"])
     tier_sql = f", CAST(t.{quote(tier)} AS STRING) AS `_inspire_tier`" if tier else ""
+    compared = " AND t.`run_id` IN (SELECT `_inspire_run` FROM r)" if context.get("scopes") else ""
     out = {"l": f"SELECT t.`record_key` AS `_inspire_lk`{tier_sql} FROM {table} AS t JOIN n ON t.`run_id` = n.`_inspire_latest` "
                 f"WHERE t.`change_source` = 'run' AND n.`_inspire_previous` IS NOT NULL{scope}",
            "o": f"SELECT DISTINCT t.`record_key` AS `_inspire_ok` FROM {table} AS t JOIN n ON t.`run_id` <> n.`_inspire_latest` "
-                f"WHERE t.`change_source` = 'run'{scope}"}
+                f"WHERE t.`change_source` = 'run'{compared}{scope}"}
     if tier:
         out["p"] = (f"SELECT t.`record_key` AS `_inspire_pk`, CAST(t.{quote(tier)} AS STRING) AS `_inspire_was` FROM {table} AS t "
                     f"JOIN n ON t.`run_id` = n.`_inspire_previous` WHERE t.`change_source` = 'run'{scope}")
@@ -2664,7 +2712,7 @@ def _list_plan(page: dict, values: dict, request: dict, context: dict, editor: s
         conditions.append(f"COALESCE(c.`_inspire_key`, '') NOT IN (SELECT explode(from_json("
                           f"{params.add(json.dumps(request['exclude'], ensure_ascii=False))}, 'ARRAY<STRING>')))")
     if context["changes"] and not _latest_log(context):
-        ctes.update(_runs_ctes(context["table"], context.get("history"), context.get("facts")))
+        ctes.update(_compare_ctes(context))
     if request["mine"]:
         conditions.append(f"lower(c.`_inspire_owner`) = lower({params.add(editor)})")
         early.add("c")
@@ -3229,7 +3277,7 @@ def setting_problem(setting: dict, value) -> str:
         choices = [str(c) for c in setting.get("choices") or []]
         picked = [part.strip() for part in text.split(",") if part.strip()] if setting.get("many") else [text]
         allowed = choices + ([SETTING_ALL] if setting.get("many") else [])
-        if not text or [part for part in picked if choices and part not in allowed]:
+        if (not text and not setting.get("optional")) or [part for part in picked if choices and part not in allowed]:
             return f"{name} is '{text}'; allowed: {', '.join(allowed) if choices else 'any text'}"
         alone = [part for part in picked if part in (setting.get("solo") or [])]
         if alone and len(picked) > 1:
@@ -3571,12 +3619,27 @@ def _reason_sql(reason: str) -> str:
             f"ELSE {reason} END")
 
 
-def run_status_query(summary_table: str, use_case: str = "") -> str:
+def _covered_sql(segments: str) -> str:
+    parts = f"from_json({segments}, {sql_text(SCOPE_SCHEMA)})"
+    shown = f"CASE WHEN TRIM(COALESCE(s.`text`, '')) = '' THEN {sql_text(SCOPE_PART)} ELSE TRIM(s.`text`) END"
+    return f"COALESCE(array_join(transform(filter({parts}, s -> s.`scope` IS NOT NULL AND s.`scope` <> 'all'), s -> {shown}), '; '), '')"
+
+
+def scope_line_sql(table: str, use_case: str = "") -> str:
     scope = f" WHERE `use_case_id` = {sql_text(use_case)}" if use_case else ""
+    covered = _covered_sql("l.`segments`")
+    return (f"COALESCE((SELECT CASE WHEN {covered} = '' THEN '' ELSE concat({sql_text(SCOPE_SENTENCE.lstrip())}, {covered}, '.') END FROM "
+            f"(SELECT CAST(`run_segments` AS STRING) AS `segments` FROM {table_name(str(table).strip() + SUMMARY_SUFFIX)}{scope} ORDER BY "
+            f"`updated_at` DESC NULLS LAST LIMIT 1) AS l), '')")
+
+
+def run_status_query(summary_table: str, use_case: str = "", scopes: bool = False) -> str:
+    scope = f" WHERE `use_case_id` = {sql_text(use_case)}" if use_case else ""
+    segments = ", CAST(`run_segments` AS STRING) AS `segments`" if scopes else ""
     latest = (f"SELECT 1 AS `seen`, CAST(`not_reliable` AS STRING) AS `unreliable`, CAST(`nothing_to_act` AS STRING) AS `nothing`, "
               f"CAST(`act_now_records` AS BIGINT) AS `act`, CAST(`over_capacity_records` AS BIGINT) AS `over`, "
-              f"CAST(`act_now_capacity` AS BIGINT) AS `cap` FROM {table_name(summary_table)}{scope} ORDER BY `updated_at` DESC NULLS LAST "
-              f"LIMIT 1")
+              f"CAST(`act_now_capacity` AS BIGINT) AS `cap`{segments} FROM {table_name(summary_table)}{scope} ORDER BY `updated_at` DESC "
+              f"NULLS LAST LIMIT 1")
     act, over = "COALESCE(l.`act`, 0)", "COALESCE(l.`over`, 0)"
     held = (f"concat('; ', format_number({over}, 0), {_plural_sql(over, ' more record would', ' more records would')}, "
             f"' qualify for Act now, but the team capacity of ', format_number(l.`cap`, 0), ' a run holds ', "
@@ -3588,11 +3651,15 @@ def run_status_query(summary_table: str, use_case: str = "") -> str:
                 f"concat('Not reliable yet: ', l.`unreliable`) WHEN {act} = 0 THEN concat('Nothing to act on yet, because ', {nothing}) "
                 f"ELSE concat(format_number({act}, 0), {_plural_sql(act, ' record to act on now', ' records to act on now')}, "
                 f"CASE WHEN {over} > 0 THEN {held} ELSE '' END, '.') END")
+    if scopes:
+        covered = _covered_sql("l.`segments`")
+        sentence = (f"concat({sentence}, CASE WHEN l.`seen` IS NULL OR {covered} = '' THEN '' ELSE concat({sql_text(SCOPE_SENTENCE)}, "
+                    f"{covered}, '.') END)")
     return f"SELECT {headline} AS `headline`, {sentence} AS `sentence` FROM (SELECT 1 AS `one`) AS z LEFT JOIN ({latest}) AS l ON TRUE"
 
 
 def digest_query(table: str, fields: list, tier: str = "priority_tier", label=None, use_case: str = "", impact=None,
-                 since: str = "date_sub(current_date(), 7)", model=None, status_table: str = "", history=None) -> str:
+                 since: str = "date_sub(current_date(), 7)", model=None, status_table: str = "", history=None, scopes: bool = False) -> str:
     impact = impact or impact_of(None)
     currency = impact["unit"]
     names = {f["name"] for f in fields}
@@ -3621,7 +3688,7 @@ def digest_query(table: str, fields: list, tier: str = "priority_tier", label=No
                   f"({_sql_list((DONE, COULD_NOT))}) AND CAST(v.`_inspire_closed` AS DATE) >= {since}")
     sources = {0: "st", 2: "hz CROSS JOIN ha"}
     if status_table:
-        ctes["st"] = run_status_query(status_table, use_case)
+        ctes["st"] = run_status_query(status_table, use_case, scopes)
     rows = ([(0, "'Latest run'", "`headline`", "`sentence`")] if status_table else []) + [
         (1, sql_text(f"{stake_label(impact)} now (estimated)"), _digest_money("est", currency, priced),
          f"concat({sql_text(stake_label(impact) + ' on the ')}, {_digest_count('est_n')}, ' open records flagged Act now or Review, added up')"),
@@ -3720,7 +3787,7 @@ def list_summary_queries(context: dict) -> dict:
         return out
     current = f"SELECT `record_key` FROM {table} WHERE `is_current` AND `change_source` <> 'delete'"
     if context["changes"]:
-        runs = _runs_ctes(table, history, context.get("facts"))
+        runs = _compare_ctes(context)
         source, only = (history["log"], "") if history else (table, " WHERE p.`change_source` = 'run'")
         out["left"] = (f"{_with(runs, ['r', 'n'])} SELECT COUNT(DISTINCT p.`record_key`) AS left_n FROM {source} AS p JOIN n ON "
                        f"p.`run_id` = n.`_inspire_previous` LEFT ANTI JOIN ({current}) AS c ON c.`record_key` = p.`record_key`"
@@ -4100,3 +4167,67 @@ def run_health(rows: list, today: datetime.date) -> dict:
     since = (today - dates[-1]).days if dates else None
     return {"runs": list(reversed(ordered)), "cadence_days": cadence, "last_as_of_date": dates[-1].isoformat() if dates else None,
             "days_since": since, "overdue": bool(cadence and since is not None and since > 1.5 * cadence)}
+
+
+def page_scopes(page) -> bool:
+    return bool((page or {}).get(RUN_SCOPES)) or any(isinstance(s, dict) and s.get("name") == "run_scope" for s in (page or {}).get("settings") or [])
+
+
+def run_scope(segments):
+    for item in segments if isinstance(segments, list) else []:
+        if isinstance(item, dict) and item.get("scope"):
+            return item
+    return None
+
+
+def scope_text(scope) -> str:
+    if not isinstance(scope, dict) or not scope.get("scope") or scope["scope"] == "all":
+        return SCOPE_ALL_TEXT
+    return SCOPE_FIRST_RUN + (" ".join(str(scope.get("text") or "").split()) or SCOPE_PART)
+
+
+def summary_scope(row):
+    try:
+        parsed = json.loads(str((row or {}).get("run_segments") or ""))
+    except ValueError:
+        parsed = None
+    return run_scope(parsed)
+
+
+def scoped_text(row) -> str:
+    scope = summary_scope(row)
+    return scope_text(scope) if scope and scope.get("scope") != "all" else ""
+
+
+def scope_note(latest, previous) -> str:
+    if latest is None or previous is None:
+        return ""
+    return "" if str(latest.get("key") or "") == str(previous.get("key") or "") else "The previous run covered a different scope."
+
+
+def scope_facts(scope, tables, duration_s) -> dict:
+    if not isinstance(scope, dict) or not scope.get("scope"):
+        return {}
+    if scope["scope"] == "all":
+        return {"covered": "", "everything": ""}
+    main = str(scope.get("table") or "").lower()
+    entry = next((t for t in tables or [] if str(t.get("table") or "").lower() == main), None)
+    read, total = (entry or {}).get("rows"), (entry or {}).get("rows_total")
+    if read is None or total is None:
+        return {"covered": "", "everything": ""}
+    minutes = None if duration_s is None else max(duration_s, 0) / 60
+    extent = {"groups": f" ({plural(len(scope.get('values') or []), 'group')})",
+              "recent": f" ({scope.get('column')} since {(scope.get('values') or [''])[0]})",
+              "records": ""}.get(scope["scope"], "")
+    took = "" if minutes is None else f" in {plural(max(1, round(minutes)), 'minute')}"
+    covered = f"The first run covered {read:,} of {plural(total, 'record')}{extent}{took}."
+    if minutes is None or not read:
+        return {"covered": covered, "everything": f"Run on everything covers all {plural(total, 'record')}."}
+    return {"covered": covered, "everything": (f"Run on everything covers all {plural(total, 'record')}, about "
+                                               f"{plural(max(1, round(minutes * total / read)), 'minute')} at this run's pace.")}
+
+
+def scope_view(rows) -> dict:
+    scopes = [summary_scope(row) for row in list(rows or [])[:2]]
+    latest = scopes[0] if scopes else None
+    return {"text": scope_text(latest) if latest else "", "note": scope_note(latest, scopes[1] if len(scopes) > 1 else None)}

@@ -617,7 +617,7 @@ def test_run_health_lists_the_job_runs_with_the_stats_of_the_run_versions_they_w
     assert out == {"runs": rows, "total": 7, "offset": 0, "limit": 20, "job": {"id": JOB, "url": JOB_URL, "error": ""}, "errors": {}}
     assert set(rows[0]) == {"run_id", "job_run_id", "url", "started", "ended", "duration_s", "status", "trigger", "by", "segments", "tables",
                             "stages", "grouping", "records", "to_fix", "could_save", "currency", "unit", "impact_kind", "summary",
-                            "nothing_to_act", "error", "error_code"}
+                            "nothing_to_act", "error", "error_code", "scope", "scope_text", "facts"}
     assert rows[0]["grouping"] is None, "a run with no run_grouping record shows no grouping"
     assert not any("AS people" in q for q, _p, _l in sp.sql), "the Runs tab no longer counts people, so the App does not ask"
 
@@ -695,8 +695,10 @@ def test_runs_join_each_run_summary_by_run_id_to_its_job_run_and_say_what_it_cov
     assert latest["error"] == MISSING and latest["nothing_to_act"].startswith("No record has 1000 USD") and latest["summary"] == ""
     assert scheduled["segments"] == [{"column": "category", "label": "Category", "values": ["Books", "Music"], "more": 0},
                                      {"column": "store_id", "label": "Store id", "values": ["12", "4"], "more": 0}]
-    assert scheduled["tables"] == [{"table": "main.pricing.items", "rows": 1200, "updated_at": "2026-10-25T05:00:00Z"},
-                                   {"table": "main.pricing.loss_trend", "rows": 88, "updated_at": None}]
+    unscoped = {"rows_total": None, "scoped": False}
+    assert scheduled["tables"] == [dict(unscoped, table="main.pricing.items", rows=1200, updated_at="2026-10-25T05:00:00Z"),
+                                   dict(unscoped, table="main.pricing.loss_trend", rows=88, updated_at=None)]
+    assert (scheduled["scope"], scheduled["scope_text"], scheduled["facts"]) == (None, "", {}), "a run that recorded no scope states none"
     assert (scheduled["records"], scheduled["to_fix"], scheduled["could_save"], scheduled["currency"], scheduled["unit"],
             scheduled["impact_kind"]) == (40, 5, 1200.5, "USD", "USD", "money"), "a run from before the impact unit is money in its currency"
     assert (scheduled["status"], scheduled["trigger"], scheduled["error"]) == ("done", "schedule", "")
@@ -830,8 +832,13 @@ def test_run_segments_and_tables_read_what_the_run_wrote_and_never_guess():
     assert tables("[]") == [] and tables(None) is None and tables("{bad") is None and tables('[{"rows": 1}]') is None
     read = tables(json.dumps([{"table": " main.s.t ", "rows": True}, {"table": "main.s.u", "rows": -1, "updated_at": ""},
                               {"table": "main.s.v", "rows": 2.0}, {"table": "main.s.w", "rows": "x"}, {"table": ""}, "main.s.z"]))
-    assert read == [{"table": "main.s.t", "rows": None, "updated_at": None}, {"table": "main.s.u", "rows": None, "updated_at": None},
-                    {"table": "main.s.v", "rows": 2, "updated_at": None}, {"table": "main.s.w", "rows": None, "updated_at": None}]
+    none = {"rows_total": None, "scoped": False, "updated_at": None}
+    assert read == [dict(none, table="main.s.t", rows=None), dict(none, table="main.s.u", rows=None), dict(none, table="main.s.v", rows=2),
+                    dict(none, table="main.s.w", rows=None)]
+    scoped = tables(json.dumps([{"table": "main.s.t", "rows": 900, "rows_total": 48000, "scoped": True}, {"table": "main.s.u", "scoped": "yes"}]))
+    assert [(t["rows"], t["rows_total"], t["scoped"]) for t in scoped] == [(900, 48000, True), (None, None, False)]
+    assert seg(page, json.dumps([{"column": "category", "values": ["Books"]}, {"scope": "records", "key": "records:x", "records": 1000}])) == [
+        {"column": "category", "label": "Category", "values": ["Books"], "more": 0}], "the First run scope is no segment of the run"
 
 
 def test_a_run_says_what_started_it_and_how_it_ended_from_the_summary_first_then_the_job():
