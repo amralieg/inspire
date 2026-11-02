@@ -5,19 +5,26 @@ const { pathToFileURL } = require('node:url');
 
 const libUrl = pathToFileURL(path.resolve(__dirname, '..', '..', 'frontend', 'src', 'lib', 'artifactFiles.js')).href;
 
-test('the artifact browser hides JSON files and keeps folders and documents', async () => {
+test('the artifact browser shows the JSON catalog, hides every other JSON file and keeps folders and documents', async () => {
   const { visibleArtifactFiles } = await import(libUrl);
   const files = [
     { name: 'Acme-dbx_inspire.json', path: '/w/docs/Acme-dbx_inspire.json', is_directory: false },
+    { name: 'Acme Corp-DBX_INSPIRE.JSON', path: '/w/docs/Acme Corp-DBX_INSPIRE.JSON', is_directory: false },
     { name: 'ailogs.jsonl', path: '/w/.inspire_logs/ailogs.jsonl', is_directory: false },
     { name: 'REPORT.JSON', path: '/w/docs/REPORT.JSON', is_directory: false },
+    { name: 'genie_space.json', path: '/w/n01/genie_space.json', is_directory: false },
+    { name: 'dbx_inspire.json', path: '/w/docs/dbx_inspire.json', is_directory: false },
+    { name: 'Acme-dbx_inspire.json.bak', path: '/w/docs/Acme-dbx_inspire.json.bak', is_directory: false },
     { name: 'Acme-dbx_inspire_en.pdf', path: '/w/docs/Acme-dbx_inspire_en.pdf', is_directory: false },
     { name: 'log.log', path: '/w/.inspire_logs/log.log', is_directory: false },
     { name: 'exports.json', path: '/w/exports.json', is_directory: true },
     null,
   ];
-  assert.deepEqual(visibleArtifactFiles(files).map((f) => f.name), ['Acme-dbx_inspire_en.pdf', 'log.log', 'exports.json']);
+  assert.deepEqual(visibleArtifactFiles(files).map((f) => f.name), ['Acme-dbx_inspire.json', 'Acme Corp-DBX_INSPIRE.JSON',
+    'Acme-dbx_inspire.json.bak', 'Acme-dbx_inspire_en.pdf', 'log.log', 'exports.json']);
   assert.deepEqual(visibleArtifactFiles(undefined), []);
+  const agent = require('node:fs').readFileSync(path.resolve(__dirname, '..', '..', 'agent', 'agent', 'dbx_inspire_ai_agent.ipynb'), 'utf8');
+  assert.ok(agent.includes('f\\"{self.business_name}-dbx_inspire.json\\"'), 'the agent names its JSON catalog with the suffix the browser shows');
 });
 
 test('Quick access lists PDF, Excel and CSV files, and leaves CSV out when an Excel file is there', async () => {
