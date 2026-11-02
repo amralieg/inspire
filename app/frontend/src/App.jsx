@@ -94,6 +94,7 @@ export default function App() {
   const [runId, setRunId] = useState(null);
   const [implement, setImplement] = useState({ sessionId: null, focus: null });
   const [showcases, setShowcases] = useState([]);
+  const [setupManaged, setSetupManaged] = useState(false);
   const [demo, setDemo] = useState({ showcase: null, focus: null });
 
   useEffect(() => {
@@ -225,6 +226,7 @@ export default function App() {
           resolved.inspireDatabase
         );
         const envSkipsSetupWizard = !!defaults.envSkipsSetupWizard;
+        setSetupManaged(envSkipsSetupWizard || installerReady);
         if (envSkipsSetupWizard) {
           try {
             localStorage.setItem('db_setup_complete', '1');
@@ -439,7 +441,7 @@ export default function App() {
         {page === 'landing' && (
           <LandingPage
             onStart={() => nav('choose')}
-            onOpenSetup={() => nav('setup')}
+            onOpenSetup={setupManaged ? undefined : () => nav('setup')}
             onDemo={showcases.length ? () => openDemo(showcases[0]) : undefined}
           />
         )}

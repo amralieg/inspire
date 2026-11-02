@@ -673,20 +673,20 @@ export default function LandingPage({ onStart, onOpenSetup, onDemo }) {
 
                 <LandingActions onStart={onStart} onDemo={onDemo} />
 
-                <aside className="mt-5 max-w-lg space-y-3" aria-label="Setup and legal disclaimer">
-                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm" style={{ color: C.textFaint }}>
-                    <Globe2 size={14} className="shrink-0" />
-                    <span>Use the setup wizard for host, token, warehouse, and Inspire database.</span>
-                    {onOpenSetup && (
+                <aside className="mt-5 max-w-lg space-y-3" aria-label={onOpenSetup ? 'Setup and legal disclaimer' : 'Legal disclaimer'}>
+                  {onOpenSetup && (
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm" style={{ color: C.textFaint }}>
+                      <Globe2 size={14} className="shrink-0" />
+                      <span>Change the workspace, warehouse or Inspire database this App uses in</span>
                       <button
                         type="button"
                         onClick={onOpenSetup}
-                        className="text-db-red-fg font-medium hover:underline ml-1"
+                        className="text-db-red-fg font-medium hover:underline"
                       >
                         Workspace setup
                       </button>
-                    )}
-                  </div>
+                    </div>
+                  )}
                   <p
                     className="text-[10px] sm:text-[11px] leading-relaxed border-t border-white/8 pt-3"
                     style={{ color: C.textFaint }}
