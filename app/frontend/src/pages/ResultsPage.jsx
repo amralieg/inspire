@@ -34,7 +34,6 @@ import {
   ShieldAlert,
   Boxes,
 } from 'lucide-react';
-import AnimatedCounter from '../components/AnimatedCounter';
 import GenieMarkdownPreview from '../components/GenieMarkdownPreview';
 import GlassCard from '../components/GlassCard';
 import DomainSunburst from '../components/DomainSunburst';
@@ -2416,7 +2415,7 @@ function StatCard({ label, value, icon: Icon, renderValue }) {
         <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-text-tertiary">{label}</span>
       </div>
       <div data-stat-value="" className="text-2xl font-bold text-text-primary tabular-nums tracking-tight">
-        {renderValue != null ? renderValue : <AnimatedCounter value={Number(value) || 0} />}
+        {renderValue != null ? renderValue : Number(value) || 0}
       </div>
     </GlassCard>
   );

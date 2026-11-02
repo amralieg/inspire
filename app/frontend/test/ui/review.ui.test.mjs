@@ -33,6 +33,26 @@ function outsideHosts(page) {
   return sent;
 }
 
+test('on a small screen the figures of the run below the fold already read their numbers before anyone scrolls to them', async () => {
+  const ui = await openUi('results', REVIEW_STATE, '', { init: (page) => page.setViewportSize({ width: 390, height: 260 }) });
+  const { page } = ui;
+  try {
+    await ready(page);
+    const tile = (label) => page.locator(`[aria-label="Figures of this run"] [data-stat="${label}"]`);
+    const below = await tile('Live assets').evaluate((el) => el.getBoundingClientRect().top >= window.innerHeight);
+    assert.equal(below, true, 'the last figure starts below the fold, so the check covers a tile nobody has scrolled to');
+    await settled(page, '[aria-label="Figures of this run"]');
+    await page.waitForTimeout(1500);
+    const read = async (label) => (await tile(label).locator('[data-stat-value]').innerText()).trim();
+    assert.equal(await read('Best of Best'), '2');
+    assert.equal(await read('Subdomains'), '5');
+    assert.equal(await read('Live assets'), '4');
+    assert.deepEqual(ui.pageErrors, []);
+  } finally {
+    await ui.close();
+  }
+});
+
 test('Review heads the open run with its catalog, business and date, shows each figure of this run once, and no totals across runs', async () => {
   const ui = await openUi('results', REVIEW_STATE);
   const { page } = ui;
