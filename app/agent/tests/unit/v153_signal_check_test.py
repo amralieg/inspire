@@ -46,7 +46,7 @@ def uc(uc_id, technique, tables=SALES, domain="Sales", score=4.0):
 
 
 def answer(uc_id, roles, table=SALES, **extra):
-    return {"No": uc_id, "table": table, "roles": roles, "user_requested": False, "note": "", **extra}
+    return {"No": uc_id, "table": table, "roles": roles, "note": "", **extra}
 
 
 def deep_inspire(agent_ns, answers, responder, rows=1000, **attrs):
@@ -211,14 +211,18 @@ def test_a_user_domain_left_empty_and_a_requested_use_case_stay_and_say_the_data
     ucs = [uc("N01-U01", "Optimization", domain="Pricing"), uc("N01-U02", "Optimization", domain="Sales"),
            uc("N01-U03", "Optimization", domain="Sales")]
     lever = {"lever": "sales_price", "outcome": "quantity"}
-    answers = [{"results": [answer("N01-U01", lever), answer("N01-U02", lever, user_requested=True), answer("N01-U03", lever)]}]
-    inst, _agent, _spark = deep_inspire(agent_ns, answers, responder_for({"lever": FLAT_PRICE}), user_business_domains=["Pricing"])
+    ucs[1]["user_request"] = "R1"
+    answers = [{"results": [answer("N01-U01", lever), answer("N01-U02", lever), answer("N01-U03", lever)]}]
+    inst, _agent, _spark = deep_inspire(agent_ns, answers, responder_for({"lever": FLAT_PRICE}), user_business_domains=["Pricing"],
+                                        parsed_generation_instructions={"use_case_requests": [
+                                            {"id": "R1", "ask": "a markdown pricing model", "minimum": 1}]})
     kept, dropped = inst._check_data_signal(ucs, [])
     assert [u["No"] for u in kept] == ["N01-U01", "N01-U02"] and [u["No"] for u in dropped] == ["N01-U03"]
     assert ucs[0]["data_signal"]["status"] == "no_signal"
     assert ucs[0]["data_signal"]["reason"].startswith("The data shows no signal: quantity does not move with sales_price")
     assert "business domain Pricing" in ucs[0]["data_signal"]["reason"]
-    assert "the instructions ask for it" in ucs[1]["data_signal"]["reason"]
+    assert ("the instructions ask for a markdown pricing model (at least 1) and only 0 of 1 such use case are kept on the "
+            "data, so it ships with thin data") in ucs[1]["data_signal"]["reason"]
 
 
 def test_a_column_outside_the_table_is_never_read_and_the_use_case_is_kept_unchecked(agent_ns):

@@ -192,8 +192,8 @@ def test_b20_domain_finder_example_uses_no_banned_name(ns):
 def test_b21_interpreter_category_count_matches_categories(ns):
     prompt = _prompt(ns, "GENERAL_INSTRUCTION_INTERPRETER_PROMPT")
     assert "into 4 structured categories" not in prompt
-    assert "into the 8 structured categories" in prompt
-    assert len(re.findall(r"^\*\*\d\. ", prompt, re.MULTILINE)) == 8
+    assert "into the 10 structured categories" in prompt
+    assert len(re.findall(r"^\*\*\d+\. ", prompt, re.MULTILINE)) == 10
 
 
 def test_b23_translate_column_counts_are_consistent(ns):
