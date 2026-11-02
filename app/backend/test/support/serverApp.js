@@ -35,7 +35,7 @@ const state = {
 function reset(overrides = {}) {
   Object.assign(state, {
     managers: [], managerGroups: [], personGroups: [], aclStatus: 200, personAppsScope: true, launchers: {}, sessionLaunchers: {}, history: [], calls: [],
-    launches: [], knownSessions: [], ledgerSessions: [], nextRunId: 501, sessionRows: {}, groupParents: {}, indirectGroups: [],
+    launches: [], knownSessions: [], ledgerSessions: [], nextRunId: 501, sessionRows: {}, groupParents: {}, indirectGroups: [], conflictOn: null,
     ...folderModel({ folders: { '/Shared/demos': { id: 7, writers: '*' } } }),
   }, overrides);
 }
@@ -53,6 +53,8 @@ const HISTORY_COLUMNS = ['session_id', 'use_case_id', 'spec_version', 'status', 
 
 function answerSql(body) {
   const sql = String(body.statement || '');
+  const conflict = state.conflictOn ? state.conflictOn(sql) : '';
+  if (conflict) return { statement_id: 's1', status: { state: 'FAILED', error: { message: conflict } } };
   if (/^\s*INSERT INTO\b/i.test(sql) && sql.includes('__inspire_launch')) {
     const row = Object.fromEntries((body.parameters || []).map((p) => [p.name, p.value]));
     state.launches.push(row);
@@ -174,14 +176,13 @@ function writableBy(parent, token) {
 
 let started = null;
 
-async function startServer() {
+function startServer() {
   if (started) return started;
   Object.assign(process.env, ENV);
   global.fetch = stubFetch;
   for (const level of ['log', 'info', 'warn', 'error']) console[level] = (...args) => { state.logs.push(args.map(String).join(' ')); };
   const { app } = require('../../server');
-  const server = await new Promise((resolve) => { const s = http.createServer(app).listen(0, '127.0.0.1', () => resolve(s)); });
-  started = { server, port: server.address().port };
+  started = new Promise((resolve) => { const s = http.createServer(app).listen(0, '127.0.0.1', () => resolve({ server: s, port: s.address().port })); });
   return started;
 }
 
@@ -213,7 +214,7 @@ async function request(method, path, { person = 'nonowner@example.com', body, he
 }
 
 async function stopServer() {
-  if (started) await new Promise((resolve) => started.server.close(resolve));
+  if (started) { const { server } = await started; await new Promise((resolve) => server.close(resolve)); }
   started = null;
 }
 

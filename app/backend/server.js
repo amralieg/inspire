@@ -485,36 +485,6 @@ async function requireToken(req, res, next) {
 
 const executeSql = createExecuteSql(dbFetch);
 
-/** Delta optimistic concurrency (notebook + UI can touch __inspire_usecases at once). */
-function isDeltaConcurrentWriteConflict(message) {
-  const m = String(message || '');
-  return (
-    /DELTA_CONCURRENT_APPEND|ROW_LEVEL_CHANGES|Transaction conflict|ConcurrentTransaction|concurrent update|Cannot write.*conflict|CONCURRENT_APPEND/i.test(
-      m,
-    )
-  );
-}
-
-/** Re-run the same SQL statement after short backoff when Delta reports a row-level conflict. */
-async function executeSqlWithDeltaRetry(host, token, warehouseId, sql, options = {}) {
-  const maxAttempts = options.maxAttempts ?? 6;
-  const baseDelayMs = options.baseDelayMs ?? 100;
-  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    try {
-      return await executeSql(host, token, warehouseId, sql, options.parameters || null);
-    } catch (e) {
-      const msg = e.message || String(e);
-      if (!isDeltaConcurrentWriteConflict(msg) || attempt === maxAttempts) {
-        throw e;
-      }
-      const jitter = baseDelayMs * attempt + Math.floor(Math.random() * baseDelayMs);
-      console.warn(`   🔄 Delta conflict, SQL retry ${attempt}/${maxAttempts - 1} in ${jitter}ms`);
-      await new Promise((r) => setTimeout(r, jitter));
-    }
-  }
-  throw new Error('executeSqlWithDeltaRetry: unreachable');
-}
-
 // Helper: convert SQL result to array of objects
 function sqlResultToObjects(result) {
   const columns = result.manifest?.schema?.columns;
@@ -627,7 +597,7 @@ async function runRoute1GenieFlagUpdates(host, token, warehouseId, catalog, sche
         WHERE session_id = ${sidStr}`;
 
   const runOnce = async () => {
-    await executeSqlWithDeltaRetry(host, token, warehouseId, flagSql, { maxAttempts: 6, baseDelayMs: 120 });
+    await executeSql(host, token, warehouseId, flagSql);
   };
 
   await ensureUsecasesGenieRoute1Columns(host, token, warehouseId, ucTable);
@@ -804,7 +774,7 @@ async function recordLaunch(host, record) {
       launchTableReady = true;
     }
     const insert = L.launchInsertStatement(table, record);
-    await executeSqlWithDeltaRetry(host, token, DEFAULT_WAREHOUSE_ID, insert.sql, { parameters: insert.parameters });
+    await executeSql(host, token, DEFAULT_WAREHOUSE_ID, insert.sql, insert.parameters);
     return { recorded: true };
   } catch (err) {
     console.warn(`launch record write failed for run ${record.runId}: ${err.message}`);
@@ -2645,8 +2615,7 @@ app.post('/api/inspire/feedback', requireToken, async (req, res) => {
     const sessionRows = sqlResultToObjects(await executeSql(req.dbHost, req.dbToken, warehouse_id, lookup.sql, lookup.parameters));
     if (!sessionRows.length) return res.status(404).json({ error: `Session ${values.sessionId} not found.` });
     const insert = feedbackInsertStatement(tables.feedback, values, sessionRows[0].business_name, (await personOf(req)).username);
-    await executeSqlWithDeltaRetry(req.dbHost, req.dbToken, warehouse_id, insert.sql,
-      { maxAttempts: 6, baseDelayMs: 120, parameters: insert.parameters });
+    await executeSql(req.dbHost, req.dbToken, warehouse_id, insert.sql, insert.parameters);
     res.json({ success: true, available: true, status: values.status, use_case_key: values.useCaseKey });
   } catch (err) {
     if (err.statusCode === 400) return res.status(400).json({ error: err.message });
@@ -2675,7 +2644,6 @@ app.get('/api/inspire/feedback', requireToken, async (req, res) => {
 const implementApi = registerImplementRoutes(app, {
   requireToken,
   executeSql,
-  executeSqlWithDeltaRetry,
   sqlResultToObjects,
   dbFetch,
   fetchInspireSessionWidgetRow,

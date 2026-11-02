@@ -2594,7 +2594,7 @@ class Shell:
         except QueryError as error:
             if NOT_ALLOWED.search(str(error)):
                 raise self.write_refused(shell_sql.table_name(page["result_table"]), error) from error
-            if not shell_sql.CONCURRENT.search(str(error)):
+            if not shell_db.CONCURRENT.search(str(error)):
                 raise
             result = {"rows": [{"num_inserted_rows": 0}]}
         row = (result.get("rows") or [{}])[0]

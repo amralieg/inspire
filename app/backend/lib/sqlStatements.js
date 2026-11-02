@@ -2,6 +2,10 @@ const { AsyncLocalStorage } = require('node:async_hooks');
 
 const PAGE_SQL_DEADLINE_MS = 240000;
 const READ_ONLY_SQL_RE = /^\s*(SELECT|WITH|SHOW|DESCRIBE|DESC|EXPLAIN)\b/i;
+const DELTA_WRITE_CONFLICT_RE =
+  /DELTA_CONCURRENT_\w+|DELTA_(METADATA|PROTOCOL)_CHANGED|CONCURRENT_(APPEND|DELETE|TRANSACTION|WRITE)|Concurrent\w*Exception|(Metadata|Protocol)ChangedException/i;
+const CONFLICT_ATTEMPTS = 6;
+const CONFLICT_BASE_DELAY_MS = 100;
 const SLOW_WAREHOUSE_MESSAGE =
   `The SQL warehouse did not answer within ${PAGE_SQL_DEADLINE_MS / 60000} minutes, so Inspire stopped the query. ` +
   'The warehouse may be starting or waiting for compute. Try again in a minute.';
@@ -22,7 +26,11 @@ function sqlDeadlineError(statementId) {
   return Object.assign(new Error(SLOW_WAREHOUSE_MESSAGE), { code: 'SQL_DEADLINE', statementId });
 }
 
-function createExecuteSql(dbFetch, { now = Date.now, sleep = (ms) => new Promise((r) => setTimeout(r, ms)) } = {}) {
+function isDeltaWriteConflict(message) {
+  return DELTA_WRITE_CONFLICT_RE.test(String(message || ''));
+}
+
+function createExecuteSql(dbFetch, { now = Date.now, sleep = (ms) => new Promise((r) => setTimeout(r, ms)), random = Math.random } = {}) {
   async function cancelStatement(host, token, statementId) {
     try {
       const resp = await dbFetch(host, token, `/api/2.0/sql/statements/${statementId}/cancel`, { method: 'POST' });
@@ -32,7 +40,7 @@ function createExecuteSql(dbFetch, { now = Date.now, sleep = (ms) => new Promise
     }
   }
 
-  return async function executeSql(host, token, warehouseId, sql, parameters = null) {
+  async function runOnce(host, token, warehouseId, sql, parameters) {
     console.log(`   🔶 SQL: ${sql.substring(0, 150)}...`);
     const deadline = readDeadline(sql);
     if (deadline !== null && now() >= deadline) throw sqlDeadlineError(null);
@@ -95,11 +103,26 @@ function createExecuteSql(dbFetch, { now = Date.now, sleep = (ms) => new Promise
     const rowCount = result.result?.data_array?.length ?? 0;
     console.log(`   ✅ SQL done: ${rowCount} rows`);
     return result;
+  }
+
+  return async function executeSql(host, token, warehouseId, sql, parameters = null) {
+    for (let attempt = 1; ; attempt += 1) {
+      try {
+        return await runOnce(host, token, warehouseId, sql, parameters);
+      } catch (err) {
+        if (attempt >= CONFLICT_ATTEMPTS || !isDeltaWriteConflict(err.message)) throw err;
+        const wait = CONFLICT_BASE_DELAY_MS * attempt + Math.floor(random() * CONFLICT_BASE_DELAY_MS);
+        console.warn(`   🔄 Delta write conflict, SQL retry ${attempt}/${CONFLICT_ATTEMPTS - 1} in ${wait}ms`);
+        await sleep(wait);
+      }
+    }
   };
 }
 
 module.exports = {
   createExecuteSql,
+  isDeltaWriteConflict,
+  CONFLICT_ATTEMPTS,
   runWithRequestDeadline,
   readDeadline,
   PAGE_SQL_DEADLINE_MS,
