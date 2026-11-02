@@ -109,6 +109,9 @@ SETTING_WORDS = ("Sign in so the App can record who changed the setting",
 RUN_WORDS = ("Sign in so the App can record who asked for the run",
              f"No one can run this use case from the App, because the App names no owner of it; {shell_sql.rebuild_action()}",
              "Only the owners of this use case can run it now")
+UNDO_WORDS = ("Sign in so the App can record who undid the act",
+              "Only the person who made this act can undo it, because the App names no owner of this use case",
+              "Only the person who made this act or an owner of this use case can undo it")
 ADMIN_WORDS = ("Sign in so the App can check that you own it before it opens Admin",
                f"No one can open Admin in this App, because it names no owner; {shell_sql.rebuild_action()}",
                "Only the owners of this App can open Admin")
@@ -2754,6 +2757,15 @@ class Shell:
             raise HttpError(400, "send the batch_id of the act to undo, as GET records/batches lists it")
         ws, who = self.workspace(headers)
         fields = self.change_table(ws, who, page)
+        sql, params = shell_sql.batches_query(page, 1, batch_id=undone)
+        made = (self.execute(ws, sql, params, 1, delta=True)["rows"] or [None])[0]
+        if made is None:
+            raise HttpError(404, f"no act with batch_id {undone} changed a record of this page")
+        author = str(made.get("editor") or "").strip()
+        if author.lower() not in self.signed_in(headers):
+            refusal = self.owner_refusal(headers, page, UNDO_WORDS)
+            if refusal:
+                raise HttpError(403, f"{refusal}; {author or 'someone else'} made it")
         batch = {"id": uuid.uuid4().hex, "values": json.dumps({shell_sql.UNDO_KEY: undone}, sort_keys=True)}
         row = self.write_versions(ws, page, fields, "action", [], editor, {}, batch=batch, undo=undone)
         restored = int(row.get("num_inserted_rows", row.get("num_affected_rows")) or 0)
