@@ -11,7 +11,11 @@
     "test:ui": "node --test 'test/ui/*.test.mjs'"
   },
   "dependencies": {
+    "@codemirror/lang-sql": "^6.10.0",
+    "@codemirror/language": "^6.13.1",
+    "@lezer/highlight": "^1.2.5",
     "canvas-confetti": "1.9.4",
+    "codemirror": "^6.0.2",
     "lucide-react": "^0.575.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",

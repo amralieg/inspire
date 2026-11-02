@@ -75,7 +75,7 @@ export default function RunScope({ page, settings }) {
       <RunScopeLine facts={facts} all />
       {view.why && <p data-settings-why="" className={NOTE}>{view.why}</p>}
       {runs.why && <p data-run-scope-why="" className={NOTE}>{runs.why}</p>}
-      <ScopeSection settings={scopeList} editable={view.editable === true} scope={profile} onSave={save} />
+      <ScopeSection settings={scopeList} editable={view.editable === true} scope={profile} onSave={save} apiPostJson={apiPostJson} />
       {scope !== GROUP_ALL && (
         <div className="flex flex-wrap items-center gap-2">
           <button type="button" disabled={busy || !canRun} onClick={runEverything}

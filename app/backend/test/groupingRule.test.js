@@ -1,28 +1,16 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
 const R = require('../lib/groupingRule');
 
-const FIXTURE = path.join(__dirname, 'fixtures', 'implement_grouping_cases.json');
-const AGENT_BLOB = 'e6dabffae716ada657e1879e6da3ddadab7671bd';
-const AGENT_SHA256 = '717174b64958bdf4ab80b3430b0d5896ab7fcfd3ef8548a8223754a2d14d1dbb';
+const FIXTURE = path.resolve(__dirname, '..', '..', 'agent', 'tests', 'fixtures', 'implement_grouping_cases.json');
 const bytes = () => fs.readFileSync(FIXTURE);
 const data = () => JSON.parse(bytes().toString('utf8'));
-const gitBlob = (buf) => crypto.createHash('sha1').update(Buffer.concat([Buffer.from(`blob ${buf.length}\0`), buf])).digest('hex');
 
-test('the App copy of the shared grouping cases is the agent copy byte for byte, in the agent serialization', () => {
-  const buf = bytes();
-  assert.equal(gitBlob(buf), AGENT_BLOB, 'git blob id of tests/fixtures/implement_grouping_cases.json in the agent repo');
-  assert.equal(crypto.createHash('sha256').update(buf).digest('hex'), AGENT_SHA256);
-  assert.equal(`${JSON.stringify(data(), null, 2)}\n`, buf.toString('utf8'), 'json.dumps(indent=2, ensure_ascii=False) plus a new line, as the agent test pins');
-});
-
-test('one changed byte gives another blob id, so the byte check can fail (must-fail)', () => {
-  const buf = Buffer.from(bytes());
-  buf[buf.indexOf('30')] = '3'.charCodeAt(0) + 1;
-  assert.notEqual(gitBlob(buf), AGENT_BLOB);
+test('the App runs the agent own shared grouping cases file, with no App copy of it', () => {
+  assert.equal(`${JSON.stringify(data(), null, 2)}\n`, bytes().toString('utf8'), 'json.dumps(indent=2, ensure_ascii=False) plus a new line, as the agent test pins');
+  assert.equal(fs.existsSync(path.join(__dirname, 'fixtures', 'implement_grouping_cases.json')), false, 'no second copy that can drift');
 });
 
 test('the names, constants, labels and techniques of the shared cases are the ones the App rule uses', () => {

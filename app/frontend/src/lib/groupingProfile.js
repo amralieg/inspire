@@ -44,5 +44,5 @@ export function useGroupingProfile({ apiPostJson, inspireDatabase, sessionId, us
     if (got?.key === key) return profileState(key, got);
     return profileState(key, pending.current.key === key ? await pending.current.promise : null);
   };
-  return { ...profileState(key, got), wait };
+  return { ...profileState(key, got), key, wait };
 }

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { Suspense, lazy, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { counted } from '../lib/plural';
 import { PROFILE_READING } from '../lib/groupingProfile';
@@ -8,6 +8,8 @@ import {
   SCOPE_RECORDS, SCOPE_SAVE_LABEL, firstRunChoices, groupByColumns, groupingChoices, groupingExampleText, groupingMovesUpText, profileHeldText, sameGrouping,
   isScopeSetting, scopeChanges, scopeProblems, scopeValues, suggestedGroups,
 } from '../lib/runScope';
+
+const GroupingSqlEditor = lazy(() => import('./GroupingSqlEditor'));
 
 const ROW = 'flex items-start gap-2 rounded-lg border border-border bg-surface px-3 py-2 text-[12px] text-text-primary';
 const NUMBER = 'w-24 px-2 py-1 text-[12px] border border-border rounded-md bg-surface text-text-primary';
@@ -25,7 +27,7 @@ function ProfileNote({ state, error }) {
   return null;
 }
 
-function GroupingPart({ values, onChange, profile, settings, editable, onCustom }) {
+function GroupingPart({ values, onChange, profile, settings, editable, custom }) {
   const setting = settings.find((s) => s.name === GROUP_BY);
   const current = values[GROUP_BY] || GROUP_ALL;
   const isCustom = String(current).toLowerCase() === GROUP_CUSTOM;
@@ -44,7 +46,7 @@ function GroupingPart({ values, onChange, profile, settings, editable, onCustom 
         {choices.map((c) => (
           <label key={c.value} data-grouping-choice={c.value} className={`${ROW} ${editable ? 'cursor-pointer' : ''}`}>
             <input type="radio" name="inspire-grouping" className="mt-0.5" checked={pickedOf(c)} disabled={!editable}
-              onChange={() => { onChange(GROUP_BY, c.value); if (c.value === GROUP_CUSTOM && onCustom) onCustom(); }} />
+              onChange={() => { onChange(GROUP_BY, c.value); if (c.value === GROUP_CUSTOM) custom?.onPicked?.(); }} />
             <span className="min-w-0">
               <span className="font-medium">{c.label}</span>
               {c.recommended && <span data-grouping-recommended="" className="text-text-secondary"> · Recommended</span>}
@@ -52,6 +54,12 @@ function GroupingPart({ values, onChange, profile, settings, editable, onCustom 
           </label>
         ))}
       </div>
+      {isCustom && custom && (
+        <Suspense fallback={<p data-grouping-sql-loading="" className={`${NOTE} inline-flex items-center gap-1.5`}><Loader2 size={12} className="animate-spin" aria-hidden /> Opening the SQL editor</p>}>
+          <GroupingSqlEditor apiPostJson={custom.apiPostJson} profileKey={custom.profileKey} profile={profile} resultTable={custom.resultTable || ''}
+            saved={custom.saved || null} editable={editable} onSaved={custom.onSaved} />
+        </Suspense>
+      )}
     </fieldset>
   );
 }
@@ -124,13 +132,13 @@ function FirstRunPart({ values, onChange, profile, settings, editable }) {
 }
 
 export default function ScopeSettings({
-  part = 'both', values, onChange, profile = null, profileState = 'off', profileError = '', settings = [], editable = true, onCustom = null, children = null,
+  part = 'both', values, onChange, profile = null, profileState = 'off', profileError = '', settings = [], editable = true, custom = null, children = null,
 }) {
-  const problems = scopeProblems(values, profile, part);
+  const problems = scopeProblems(values, profile, part, custom);
   return (
     <section aria-label="Grouping and First run" data-scope-settings={part} className="space-y-3">
       <ProfileNote state={profileState} error={profileError} />
-      {part !== 'first_run' && <GroupingPart values={values} onChange={onChange} profile={profile} settings={settings} editable={editable} onCustom={onCustom} />}
+      {part !== 'first_run' && <GroupingPart values={values} onChange={onChange} profile={profile} settings={settings} editable={editable} custom={custom} />}
       {part !== 'grouping' && <FirstRunPart values={values} onChange={onChange} profile={profile} settings={settings} editable={editable} />}
       {problems.length > 0 && <ul className="space-y-0.5">{problems.map((p) => <li key={p} data-scope-problem="" className="text-[11px] text-error-fg">{p}</li>)}</ul>}
       {children}
@@ -138,11 +146,15 @@ export default function ScopeSettings({
   );
 }
 
-export function ScopeSection({ settings, editable, scope = null, onSave, children = null }) {
+export function ScopeSection({ settings, editable, scope = null, onSave, apiPostJson = null, children = null }) {
   const [draft, setDraft] = useState(null);
   const [note, setNote] = useState('');
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
+  const [customSaved, setCustomSaved] = useState(undefined);
+  const custom = apiPostJson && scope?.key ? {
+    apiPostJson, profileKey: scope.key, saved: customSaved, onSaved: setCustomSaved, onPicked: () => setCustomSaved((was) => was || null),
+  } : null;
   const list = (settings || []).filter(isScopeSetting);
   if (!list.length) return null;
   const has = (name) => list.some((s) => s.name === name);
@@ -151,7 +163,7 @@ export function ScopeSection({ settings, editable, scope = null, onSave, childre
   const shown = draft || saved;
   const changed = scopeChanges(saved, shown).filter(has);
   const canEdit = Boolean(editable) && list.some((s) => s.editable !== false);
-  const blocked = scopeProblems(shown, scope?.profile || null, part).length > 0;
+  const blocked = scopeProblems(shown, scope?.profile || null, part, custom).length > 0;
   const save = async () => {
     setSaving(true);
     setMessage('');
@@ -170,7 +182,7 @@ export function ScopeSection({ settings, editable, scope = null, onSave, childre
     <div data-setting-group="run_scope" className="space-y-2">
       <h4 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-text-secondary">Grouping and First run</h4>
       <ScopeSettings part={part} values={shown} onChange={(name, value) => setDraft({ ...shown, [name]: value })}
-        profile={scope?.profile || null} profileState={scope?.state || 'off'} profileError={scope?.error || ''} settings={list} editable={canEdit}>
+        profile={scope?.profile || null} profileState={scope?.state || 'off'} profileError={scope?.error || ''} settings={list} editable={canEdit} custom={custom}>
         {canEdit && changed.length > 0 && (
           <div className="flex flex-wrap items-center gap-2">
             <input aria-label="Note for the Grouping and First run change" placeholder="Why, for the history (optional)" maxLength={300}

@@ -119,6 +119,41 @@ test('the wizard shows Grouping only when the profile says it applies, First run
   assert.deepEqual(S.scopeProblems(values, PROFILE), [records, grouping]);
 });
 
+test('a custom grouping picked now blocks until its SQL is used, and a saved one blocks again when the results move to another table (must-exclude)', async () => {
+  const S = await lib('runScope.js');
+  const custom = { ...S.scopeValues(() => undefined), group_by: 'custom' };
+  const saved = { result_table: 'main.out.risk', group_sql: 'SELECT 1' };
+  const moved = 'The custom grouping is saved for main.out.risk, but the results now go to main.out.other; press Preview, then Use this grouping again';
+  assert.deepEqual(S.scopeProblems(custom, PROFILE, 'grouping', { saved: null }), [S.GROUPING_CUSTOM_UNSAVED]);
+  assert.deepEqual(S.scopeProblems(custom, PROFILE, 'grouping', { saved, resultTable: 'main.out.risk' }), []);
+  assert.deepEqual(S.scopeProblems(custom, PROFILE, 'grouping', { saved, resultTable: 'MAIN.out.`risk`' }), [], 'the same table written another way');
+  assert.deepEqual(S.scopeProblems(custom, PROFILE, 'grouping', { saved, resultTable: 'main.out.other' }), [moved]);
+  assert.deepEqual(S.scopeProblems(custom, PROFILE, 'grouping', { saved }), [], 'a built use case saves where it writes, so no table to compare');
+  assert.deepEqual(S.scopeProblems(custom, PROFILE, 'grouping', { saved: undefined }), [], 'custom chosen before this visit is not blocked');
+  assert.deepEqual(S.scopeProblems(custom, PROFILE, 'grouping'), []);
+  assert.deepEqual(S.scopeProblems({ ...custom, group_by: 'country' }, PROFILE, 'grouping', { saved: null }), [], 'only custom needs its SQL');
+  assert.deepEqual(S.scopeProblems(custom, PROFILE, 'first_run', { saved: null }), [], 'the First run step names only its own problems');
+});
+
+test('the editor helpers send the use case, table, key columns and SQL, suggest the table columns, and allow Use only for the previewed SQL', async () => {
+  const G = await lib('groupingSql.js');
+  const base = { inspire_database: 'main.inspire', session_id: '42', use_case_id: 'N01-U01', warehouse_id: 'wh1' };
+  const profile = { ...PROFILE, prefill: { key_columns: ['order_id', ' ', null], sql: 'x' } };
+  assert.deepEqual(G.groupingSqlRequest(base, profile, 'SELECT 1'), { ...base, main_table: 'main.sales.orders', key_columns: ['order_id'], sql: 'SELECT 1' });
+  assert.deepEqual(G.groupingSqlRequest(base, profile, 'SELECT 1', ' main.out.risk '), { ...base, main_table: 'main.sales.orders', key_columns: ['order_id'], sql: 'SELECT 1',
+    result_table: 'main.out.risk' });
+  assert.deepEqual(G.groupingSqlRequest(base, null, null), { ...base, main_table: '', key_columns: [], sql: '' });
+  assert.deepEqual(G.groupingSqlSchema(profile), { 'main.sales.orders': ['order_id', 'region', 'country'] });
+  assert.deepEqual(G.groupingSqlSchema({ table: 'orders' }), {}, 'no schema for a name that is not catalog.schema.table');
+  const sql = 'SELECT o.order_id, o.region AS group_name FROM main.sales.orders o';
+  const checked = G.checkGroupingSql(`${sql} -- note`);
+  assert.equal(G.groupingPreviewFits({ ok: true, sql }, checked), true);
+  assert.equal(G.groupingPreviewFits({ ok: false, sql }, checked), false, 'a preview that fails its rules');
+  assert.equal(G.groupingPreviewFits({ ok: true, sql: `${sql} WHERE 1 = 1` }, checked), false, 'a preview of other SQL');
+  assert.equal(G.groupingPreviewFits({ ok: true, sql: '' }, G.checkGroupingSql('DROP TABLE a.b.c')), false, 'refused SQL never fits');
+  assert.equal(G.groupingPreviewFits(null, checked), false);
+});
+
 test('a scoped run states its scope with the App\u2019s own words, and a run after another scope says so as a fact', async () => {
   const S = await lib('runScope.js');
   const groups = { run_id: 'r3', scope: { scope: 'groups', key: 'g1' }, scope_text: 'First run: 2 groups of country (USA, Spain)',

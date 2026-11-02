@@ -41,11 +41,12 @@ export function makeApiFetch({ token, databricksHost, showcase = '' } = {}) {
 }
 
 export function makeApiPostJson({ token, databricksHost, showcase = '' } = {}) {
-  return async (url, body) => {
+  return async (url, body, { signal } = {}) => {
     const resp = await fetch(url, {
       method: 'POST',
       headers: requestHeaders(token, databricksHost, { 'Content-Type': 'application/json' }, showcase),
       body: JSON.stringify(body),
+      signal,
     });
     if (!resp.ok) throw await responseError(resp);
     return resp.json();
