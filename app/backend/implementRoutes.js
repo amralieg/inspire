@@ -1207,10 +1207,11 @@ function registerImplementRoutes(app, deps) {
       const { catalog, schema } = dbOf(req, splitInspireDatabase);
       const [pages, person] = await Promise.all([loadRunPages(req, warehouseId, catalog, schema), personOf(req)]);
       if (hostedRun) hostedRun.setListed(I.runPagesServed(pages), runContext(req, warehouseId, catalog, schema));
+      const forwarded = Boolean(P.forwardedTokenOf(req));
       res.json({
         pages: I.runPagesView(pages, { who: person.username, stateOf: hostedRun ? hostedRun.stateOf : null }),
-        user_authorization: Boolean(P.forwardedTokenOf(req)),
-        user_authorization_note: HOSTED_NO_TOKEN,
+        user_authorization: forwarded,
+        ...(forwarded ? {} : { user_authorization_note: HOSTED_NO_TOKEN }),
       });
     } catch (err) {
       sendError(res, err);
