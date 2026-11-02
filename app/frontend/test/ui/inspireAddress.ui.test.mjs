@@ -20,7 +20,7 @@ test('the wizard sends the Inspire address for every App placement, so each App 
     const { page, made } = ui;
     try {
       await onStep(page, 'Choose');
-      for (const step of ['Data', 'Results', 'Delivery', 'App placement']) {
+      for (const step of ['Data', 'First run', 'Results', 'Delivery', 'App placement']) {
         await page.getByRole('button', { name: 'Next' }).click();
         await onStep(page, step);
       }
@@ -48,7 +48,7 @@ test('the wizard sends the Inspire address for a dashboard with no App, and none
     const what = untick.map(String).join(' ');
     try {
       await onStep(page, 'Choose');
-      for (const step of ['Data', 'Results', 'Delivery']) {
+      for (const step of ['Data', 'First run', 'Results', 'Delivery']) {
         await page.getByRole('button', { name: 'Next' }).click();
         await onStep(page, step);
       }

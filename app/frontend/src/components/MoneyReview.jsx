@@ -4,6 +4,7 @@ import {
   previewSampleText, tiersText,
 } from '../lib/moneyReview';
 import { liveImpact, stakeCurrency, stakeLabel, stakeWords } from '../lib/targetKpi';
+import { RunScopeLine } from './RunScope';
 
 export function NothingToActCard({ run }) {
   const text = nothingToActText(run);
@@ -17,7 +18,7 @@ export function NothingToActCard({ run }) {
   );
 }
 
-export default function MoneyReview({ money, error = '', impact = null }) {
+export default function MoneyReview({ money, error = '', impact = null, scope = null }) {
   const stake = liveImpact(money?.run, impact);
   const words = stakeWords(stake);
   if (error) return <p role="alert" className="text-[12px] text-error-fg">Inspire could not read the {words} of the last run: {error}</p>;
@@ -44,6 +45,7 @@ export default function MoneyReview({ money, error = '', impact = null }) {
   return (
     <section aria-label={`${stakeLabel(stake)} review`} className="space-y-2.5 rounded-lg border border-border bg-bg-subtle/50 p-3 text-[12px]">
       <h5 className="text-[13px] font-semibold text-text-primary">How Genie counts the {words}</h5>
+      <RunScopeLine facts={scope} />
       {model.parts.length > 0 && (
         <p data-formula="" className="text-[13px] text-text-primary">
           Each row: {model.parts.map((p, i) => (p.text != null ? <span key={i}>{p.text}</span>

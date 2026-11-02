@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { Loader2, Pencil, Play, SlidersHorizontal } from 'lucide-react';
 import { PANEL_CLASS, SectionTitle } from './BuildUi';
+import { ScopeSection } from './ScopeSettings';
 import { SETTINGS_NEXT_RUN, SETTINGS_SAVED, SETTING_GROUPS, settingGroupTitle, settingHistoryLine } from '../lib/useCaseSettings';
+import { isScopeSetting } from '../lib/runScope';
 
 const BUTTON = 'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold disabled:opacity-50';
 const INPUT = 'px-2 py-1 text-[12px] border border-border rounded-md bg-surface text-text-primary w-28';
@@ -27,7 +29,7 @@ function SettingRow({ setting, editable, draft, onDraft }) {
   );
 }
 
-export default function UseCaseSettings({ view, error = '', readOnly = false, impact = null, onPreview, onSave, onRun, onEdit, children = null }) {
+export default function UseCaseSettings({ view, error = '', readOnly = false, impact = null, scope = null, onPreview, onSave, onRun, onEdit, children = null }) {
   const [draft, setDraft] = useState(null);
   const [note, setNote] = useState('');
   const [preview, setPreview] = useState(null);
@@ -63,7 +65,8 @@ export default function UseCaseSettings({ view, error = '', readOnly = false, im
   }
   if (!view) return null;
   const settings = Array.isArray(view.settings) ? view.settings : [];
-  const groups = [...SETTING_GROUPS, ''].map((group) => [group, settings.filter((s) => (group ? s.group === group : !SETTING_GROUPS.includes(s.group)))])
+  const plain = settings.filter((s) => !isScopeSetting(s));
+  const groups = [...SETTING_GROUPS, ''].map((group) => [group, plain.filter((s) => (group ? s.group === group : !SETTING_GROUPS.includes(s.group)))])
     .filter(([, list]) => list.length);
   const history = Array.isArray(view.history) ? view.history.slice(0, 8) : [];
   const save = async () => {
@@ -97,6 +100,7 @@ export default function UseCaseSettings({ view, error = '', readOnly = false, im
       <SectionTitle icon={SlidersHorizontal} title="Settings" hint="How this use case counts what is at stake and flags records; owners change them" />
       <div className="p-4 space-y-3 text-[12px]">
         {view.why && <p data-settings-why="" className="text-text-secondary">{view.why}</p>}
+        <ScopeSection settings={settings} editable={editable} scope={scope} onSave={onSave} />
         {groups.map(([group, list]) => (
           <div key={group || 'other'} data-setting-group={group || 'other'} className="space-y-2">
             <h4 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-text-secondary">{settingGroupTitle(group, impact)}</h4>

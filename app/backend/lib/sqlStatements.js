@@ -22,6 +22,10 @@ function sqlDeadlineError(statementId) {
   return Object.assign(new Error(SLOW_WAREHOUSE_MESSAGE), { code: 'SQL_DEADLINE', statementId });
 }
 
+function sqlCancelledError(statementId) {
+  return Object.assign(new Error('The query was cancelled, so Inspire stopped it.'), { code: 'SQL_CANCELLED', statementId });
+}
+
 function createExecuteSql(dbFetch, { now = Date.now, sleep = (ms) => new Promise((r) => setTimeout(r, ms)) } = {}) {
   async function cancelStatement(host, token, statementId) {
     try {
@@ -32,20 +36,24 @@ function createExecuteSql(dbFetch, { now = Date.now, sleep = (ms) => new Promise
     }
   }
 
-  return async function executeSql(host, token, warehouseId, sql, parameters = null) {
+  return async function executeSql(host, token, warehouseId, sql, parameters = null, options = {}) {
     console.log(`   🔶 SQL: ${sql.substring(0, 150)}...`);
     const deadline = readDeadline(sql);
     if (deadline !== null && now() >= deadline) throw sqlDeadlineError(null);
+    const { rowLimit = null, byteLimit = null, waitTimeout = '50s', signal = null } = options || {};
+    if (signal && signal.aborted) throw sqlCancelledError(null);
 
     const body = {
       warehouse_id: warehouseId,
       statement: sql,
-      wait_timeout: '50s',
+      wait_timeout: waitTimeout,
       on_wait_timeout: 'CONTINUE',
       disposition: 'INLINE',
       format: 'JSON_ARRAY',
     };
     if (Array.isArray(parameters) && parameters.length) body.parameters = parameters;
+    if (Number.isInteger(rowLimit) && rowLimit > 0) body.row_limit = rowLimit;
+    if (Number.isInteger(byteLimit) && byteLimit > 0) body.byte_limit = byteLimit;
     const submitResp = await dbFetch(host, token, '/api/2.0/sql/statements', {
       method: 'POST',
       body: JSON.stringify(body),
@@ -60,6 +68,11 @@ function createExecuteSql(dbFetch, { now = Date.now, sleep = (ms) => new Promise
 
     let pollCount = 0;
     while (result.status?.state === 'PENDING' || result.status?.state === 'RUNNING') {
+      if (signal && signal.aborted) {
+        await cancelStatement(host, token, result.statement_id);
+        console.warn(`   ⏹️ SQL cancelled by the caller: ${result.statement_id}`);
+        throw sqlCancelledError(result.statement_id);
+      }
       if (deadline !== null && now() >= deadline) {
         await cancelStatement(host, token, result.statement_id);
         console.warn(`   ⏱️ SQL stopped at the page deadline: ${result.statement_id}`);
@@ -100,6 +113,7 @@ function createExecuteSql(dbFetch, { now = Date.now, sleep = (ms) => new Promise
 
 module.exports = {
   createExecuteSql,
+  sqlCancelledError,
   runWithRequestDeadline,
   readDeadline,
   PAGE_SQL_DEADLINE_MS,

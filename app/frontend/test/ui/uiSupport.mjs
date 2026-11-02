@@ -47,8 +47,8 @@ export async function openUi(open, overrides = {}, query = '', { mount, init } =
   };
 }
 
-export async function openBuild(state) {
-  const ui = await openUi('implement', state);
+export async function openBuild(state, { init } = {}) {
+  const ui = await openUi('implement', state, '', { init });
   try {
     const tab = ui.page.locator('[data-mvp-tab="build"]');
     await tab.waitFor({ timeout: 15000 });
@@ -75,6 +75,23 @@ export async function onStep(page, label) {
   } catch (e) {
     const shown = await page.locator('[role="alert"] p').allTextContents();
     throw new Error(`the wizard did not reach "${label}": ${shown.join(' | ') || e.message}`);
+  }
+}
+
+export async function stepsAre(page, expected) {
+  const want = expected.join('\n');
+  try {
+    await page.waitForFunction((w) => [...document.querySelectorAll('[data-wizard-header] ol li')].map((li) => li.textContent).join('\n') === w,
+      want, { timeout: 15000 });
+  } catch {
+    assert.deepEqual(await page.locator('[data-wizard-header] ol li').allTextContents(), expected);
+  }
+}
+
+export async function dataToResults(page, { grouping = false } = {}) {
+  for (const label of [...(grouping ? ['Grouping'] : []), 'First run', 'Results']) {
+    await page.getByRole('button', { name: 'Next' }).click();
+    await onStep(page, label);
   }
 }
 

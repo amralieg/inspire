@@ -22,6 +22,19 @@ export const SETTINGS_NOTE_MAX = 300;
 export const SETTINGS_NOTE_LABEL = 'Note for the settings change';
 export const SETTINGS_NOTE_PLACEHOLDER = 'Why, saved with each setting this version changes (optional)';
 
+export const SETTINGS_ROUTES = {
+  read: '/api/inspire/implement/settings',
+  preview: '/api/inspire/implement/settings/preview',
+  save: '/api/inspire/implement/settings/save',
+  run: '/api/inspire/implement/settings/run',
+  runs: '/api/inspire/implement/runs',
+};
+
+export function settingsViewSaved(prev, view) {
+  return { ...prev, settings: view.settings || [], history: view.history || [], editable: view.editable === true, can_run: view.can_run === true,
+    why: String(view.why || '') };
+}
+
 const HIDDEN_WIDGETS = ['dbx_inspire_ai_child_run', 'refresh_requested_by'];
 const SETTING_NUMBER_RE = /^-?[0-9]+(?:\.[0-9]+)?$/;
 export const WIDGET_NUMBER_RE = SETTING_NUMBER_RE;

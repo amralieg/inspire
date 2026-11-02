@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { closeBrowser, openUi, onStep, startMvp, toAppAccess } from './uiSupport.mjs';
+import { closeBrowser, dataToResults, openUi, onStep, startMvp, toAppAccess } from './uiSupport.mjs';
 
 const OWNER = ['owner', 'example.com'].join('@');
 const PAT = ['pat', 'example.com'].join('@');
@@ -19,8 +19,7 @@ async function toResults(page) {
   await onStep(page, 'Choose');
   await next(page);
   await onStep(page, 'Data');
-  await next(page);
-  await onStep(page, 'Results');
+  await dataToResults(page);
 }
 
 async function startWhenReady(page) {
@@ -77,7 +76,7 @@ test('Measure impact on Results is off until ticked, takes a share from 1% to 50
     await impact.getByText(SHARE_PROBLEM, { exact: true }).waitFor();
     await next(page);
     await page.locator('[role="alert"] p', { hasText: SHARE_PROBLEM }).waitFor();
-    assert.equal(await page.locator('[aria-current="step"]').textContent(), '3. Results', 'a share above half the records keeps the person on Results');
+    assert.equal(await page.locator('[aria-current="step"]').textContent(), '4. Results', 'a share above half the records keeps the person on Results');
     await share.fill('');
     await page.locator('[role="alert"] p', { hasText: SHARE_PROBLEM }).waitFor();
     await box.uncheck();
@@ -171,7 +170,7 @@ test('App owners are typed under Advanced settings like alert recipients, checke
     assert.equal(await owners.inputValue(), `${PAT}, nope`);
     await next(page);
     await page.locator('[role="alert"] p', { hasText: 'App owners must be email addresses: nope' }).waitFor();
-    assert.equal(await page.locator('[aria-current="step"]').textContent(), '4. Delivery');
+    assert.equal(await page.locator('[aria-current="step"]').textContent(), '5. Delivery');
     await owners.fill(`${PAT}, ${PAT.toUpperCase()}, ${LEE}`);
     await throughApp(page);
     await startWhenReady(page);

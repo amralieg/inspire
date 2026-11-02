@@ -224,3 +224,36 @@ test('without the person\u2019s own sign-in, an App or a Databricks App address,
     assert.deepEqual([got.data.source, got.data.settings, got.data.why], ['recorded', [], I.IMPLEMENT_SETTINGS_NOT_BUILT]);
   });
 });
+
+test('the Run tab reads the last two runs of the use case\u2019s App with the person\u2019s own sign-in, and says why when it cannot', async () => {
+  const run = (id, scope) => ({ run_id: id, status: 'succeeded', scope: { scope, key: scope }, scope_text: scope === 'all' ? 'All records' : 'First run: 2 groups of country (USA, Spain)',
+    facts: scope === 'all' ? { covered: '', everything: '' } : { covered: 'The first run covered 19,600 of 48,210 records (2 groups) in 4 minutes.',
+      everything: 'Run on everything covers all 48,210 records, about 10 minutes at this run\u2019s pace.' } });
+  const appApi = { 'GET /api/runs': [{ runs: [run('r3', 'groups'), run('r2', 'all'), run('r1', 'all')], total: 3, offset: 0, limit: 20 }] };
+  await withApp({ forwardedToken: PERSON, appApi }, async (url, made) => {
+    const got = await call(url, `/api/inspire/implement/runs?${Q}`);
+    assert.equal(got.status, 200, JSON.stringify(got.data));
+    assert.deepEqual(got.data.runs.map((r) => r.run_id), ['r3', 'r2'], 'the latest run and the one before it, enough to say whether the scope changed');
+    assert.equal(got.data.runs[0].facts.everything, 'Run on everything covers all 48,210 records, about 10 minutes at this run\u2019s pace.');
+    assert.equal(got.data.why, '');
+    assert.deepEqual(made.appCalls.map((c) => [c.method, c.url, c.headers.Authorization]), [['GET', `${APP_URL}/api/runs?page=n01_u01`, `Bearer ${PERSON}`]]);
+  });
+  await withApp({}, async (url, made) => {
+    const got = await call(url, `/api/inspire/implement/runs?${Q}`);
+    assert.deepEqual([got.status, got.data.runs, got.data.why], [200, [], I.IMPLEMENT_SETTINGS_NO_SIGN_IN]);
+    assert.equal(made.appCalls.length, 0);
+  });
+  await withApp({ forwardedToken: PERSON, appApi: { 'GET /api/runs': [{ error: 'Only the owners of this use case can read its runs' }, 403] } }, async (url) => {
+    const got = await call(url, `/api/inspire/implement/runs?${Q}`);
+    assert.deepEqual([got.data.runs, got.data.why], [[], 'Only the owners of this use case can read its runs']);
+  });
+  await withApp({ forwardedToken: PERSON, appThrows: 'connect ECONNREFUSED' }, async (url) => {
+    const got = await call(url, `/api/inspire/implement/runs?${Q}`);
+    assert.equal(got.data.why, 'The App\u2019s runs could not be read: connect ECONNREFUSED');
+  });
+  await withApp({ forwardedToken: PERSON, history: [builtRow({ app_url: 'https://evil.example.com' })] }, async (url, made) => {
+    const got = await call(url, `/api/inspire/implement/runs?${Q}`);
+    assert.equal(got.data.why, I.IMPLEMENT_SETTINGS_NOT_APP_URL);
+    assert.equal(made.appCalls.length, 0, 'an address that is not a Databricks App never receives the person\u2019s token');
+  });
+});

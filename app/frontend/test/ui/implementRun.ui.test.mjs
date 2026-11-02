@@ -162,7 +162,7 @@ test('the wizard offers Inside Inspire as not recommended, then locks per-user a
   const next = () => page.getByRole('button', { name: 'Next' }).click();
   try {
     await onStep(page, 'Choose');
-    for (const step of ['Data', 'Results', 'Delivery', 'App placement']) {
+    for (const step of ['Data', 'First run', 'Results', 'Delivery', 'App placement']) {
       await next();
       await onStep(page, step);
     }
@@ -253,7 +253,7 @@ const MOVE_NOTE = "churn-desk is left as it is and no longer refreshed; Inspire 
 
 async function toPlacement(page) {
   await onStep(page, 'Choose');
-  for (const step of ['Data', 'Results', 'Delivery', 'App placement']) {
+  for (const step of ['Data', 'First run', 'Results', 'Delivery', 'App placement']) {
     await page.getByRole('button', { name: 'Next' }).click();
     await onStep(page, step);
   }

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { closeBrowser, openUi, onStep, startMvp, until } from './uiSupport.mjs';
+import { closeBrowser, openUi, onStep, startMvp, dataToResults, until } from './uiSupport.mjs';
 import { STUDIO_STATE } from './implementFixtures.js';
 
 const OWNER = ['owner', 'example.com'].join('@');
@@ -44,8 +44,7 @@ test('the wizard groups the rows by the use case\'s subject, suggests a team cap
     await grain.getByRole('button', { name: 'Group by customer_id' }).click();
     await grain.getByText('One row of the result is one customer (main.s.orders.customer_id).').waitFor();
     assert.equal(await grain.getByRole('combobox', { name: 'Entity key' }).inputValue(), 'main.s.orders.customer_id');
-    await next(page);
-    await onStep(page, 'Results');
+    await dataToResults(page);
     const capacity = page.getByRole('group', { name: 'Team capacity' });
     const box = capacity.getByRole('textbox', { name: 'Rows the team can act on each run' });
     assert.equal(await box.inputValue(), '50', 'a weekly run over 12,400 rows gets the suggested 50');
@@ -104,8 +103,7 @@ test('removing an App another use case shares offers to take this use case\'s pa
     await onStep(page, 'Choose');
     await next(page);
     await onStep(page, 'Data');
-    await next(page);
-    await onStep(page, 'Results');
+    await dataToResults(page);
     await next(page);
     await onStep(page, 'Delivery');
     await page.getByRole('checkbox', { name: /^App / }).uncheck();
@@ -146,8 +144,7 @@ test('Edit MVP on the Build page hands the wizard its live check, so a shared Ap
     await onStep(page, 'Choose');
     await next(page);
     await onStep(page, 'Data');
-    await next(page);
-    await onStep(page, 'Results');
+    await dataToResults(page);
     await next(page);
     await onStep(page, 'Delivery');
     await page.getByRole('checkbox', { name: /^App / }).uncheck();

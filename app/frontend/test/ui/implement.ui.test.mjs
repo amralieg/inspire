@@ -6,7 +6,9 @@ import { buildAgainHint, lostTablesText } from '../../src/lib/implementWizard.js
 import {
   HARNESS_USE_CASE, HARNESS_SETTINGS, HARNESS_SESSION_ID, OWNER, RESULT_TABLE, STUDIO_STATE, built, builtSpec,
 } from './implementFixtures.js';
-import { FAKE_CLOCK, closeBrowser, lowContrast, onStep, openUi, painted, pollNow, settled, setDark, startMvp, toAppAccess, toVibes, until } from './uiSupport.mjs';
+import {
+  FAKE_CLOCK, closeBrowser, lowContrast, onStep, openUi, painted, pollNow, settled, setDark, startMvp, stepsAre, toAppAccess, dataToResults, toVibes, until,
+} from './uiSupport.mjs';
 
 const GONE = '[TABLE_OR_VIEW_NOT_FOUND] The table or view `main`.`s`.`returns` cannot be found. Verify the spelling. SQLSTATE: 42P01';
 
@@ -55,8 +57,7 @@ async function toData(page) {
   await onStep(page, 'Data');
 }
 async function toDelivery(page) {
-  await next(page);
-  await onStep(page, 'Results');
+  await dataToResults(page);
   await next(page);
   await onStep(page, 'Delivery');
 }
@@ -81,10 +82,10 @@ function submittedSpec(made) {
 test('the wizard starts with the dashboard, Genie Agent and App ticked, drops App access and App look while the App is unticked, and Start MVP launches one run', async () => {
   const ui = await openUi('wizard', { me: { userName: OWNER, displayName: 'Owner' } });
   const { page, made } = ui;
-  const withApp = ['1. Choose', '2. Data', '3. Results', '4. Delivery', '5. App placement', '6. App access', '7. App look', '8. Settings', '9. Vibes'];
+  const withApp = ['1. Choose', '2. Data', '3. First run', '4. Results', '5. Delivery', '6. App placement', '7. App access', '8. App look', '9. Settings', '10. Vibes'];
   try {
     await onStep(page, 'Choose');
-    assert.deepEqual(await page.locator('ol li').allTextContents(), withApp);
+    await stepsAre(page, withApp);
     const summary = page.getByRole('region', { name: 'Executive summary' });
     await summary.getByText('Cut churn in the top segment').waitFor();
     await summary.getByText('Head of Retention').waitFor();
@@ -100,10 +101,10 @@ test('the wizard starts with the dashboard, Genie Agent and App ticked, drops Ap
     for (const name of [/^Dashboard/, /^Genie Agent/, /^App /]) assert.equal(await page.getByRole('checkbox', { name }).isChecked(), true, String(name));
     assert.equal(await page.getByRole('checkbox', { name: /^Alert/ }).isChecked(), false, 'the alert is the one output left off');
     await page.getByRole('checkbox', { name: /^App / }).uncheck();
-    assert.deepEqual(await page.locator('ol li').allTextContents(), ['1. Choose', '2. Data', '3. Results', '4. Delivery', '5. Settings', '6. Vibes']);
+    await stepsAre(page, ['1. Choose', '2. Data', '3. First run', '4. Results', '5. Delivery', '6. Settings', '7. Vibes']);
     assert.equal(await page.getByRole('button', { name: 'Start MVP', exact: true }).count(), 0, 'without an App, Delivery leads on to Vibes');
     await page.getByRole('checkbox', { name: /^App / }).check();
-    assert.deepEqual(await page.locator('ol li').allTextContents(), withApp);
+    await stepsAre(page, withApp);
     assert.equal(await page.getByLabel('App name').count(), 0, 'the App name waits for App placement');
     await page.getByRole('checkbox', { name: /^Alert/ }).check();
     await page.getByText(`Emails ${OWNER} when Act now rows in the latest run >= 1.`).waitFor();
@@ -308,8 +309,7 @@ test('a use case that trains a model stops on Results until Inspire may register
     const { page } = ui;
     try {
       await toData(page);
-      await next(page);
-      await onStep(page, 'Results');
+      await dataToResults(page);
       await next(page);
       const check = page.getByLabel('Result table check');
       if (blocked) {
@@ -1601,7 +1601,7 @@ test('a use case with no MVP offers to start one, reads no result table, and the
     await onStep(never.page, 'Choose');
     assert.equal(await never.page.getByRole('region', { name: 'Executive summary' }).locator('h3').innerText(), HARNESS_USE_CASE.Name);
     const header = never.page.locator('[data-wizard-header]');
-    for (const label of ['Choose', 'Data', 'Results', 'Delivery']) {
+    for (const label of ['Choose', 'Data', 'First run', 'Results', 'Delivery']) {
       if (label !== 'Choose') {
         await next(never.page);
         await onStep(never.page, label);

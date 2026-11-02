@@ -40,17 +40,14 @@ import GenieFeed from '../components/GenieFeed';
 import MoneyReview, { NothingToActCard } from '../components/MoneyReview';
 import TargetKpiCard from '../components/TargetKpiCard';
 import UseCaseSettings from '../components/UseCaseSettings';
+import { useGroupingProfile } from '../lib/groupingProfile';
+import { isScopeSetting, runScopeFacts } from '../lib/runScope';
+import { SETTINGS_ROUTES, settingsViewSaved } from '../lib/useCaseSettings';
 import UseCaseAlerts from '../components/UseCaseAlerts';
 import UseCaseTables from '../components/UseCaseTables';
 import { liveImpact, rowImpact, targetKpiView, trackedKpiOf } from '../lib/targetKpi';
 import { SHOWCASE_DASHBOARD_NOTE, SHOWCASE_GENIE_NOTE, SHOWCASE_NO_MVP, SHOWCASE_OPEN_APP, readOnlyReason } from '../lib/showcase';
 import { buildFilterText } from '../lib/reviewFigures';
-
-const SETTINGS_ROUTES = {
-  preview: '/api/inspire/implement/settings/preview',
-  save: '/api/inspire/implement/settings/save',
-  run: '/api/inspire/implement/settings/run',
-};
 
 const OUTPUT_ICONS = { notebook: NotebookPen, dashboard: LayoutDashboard, genie_space: GenieLogo, app: AppWindow, alert: BellRing };
 const OUTPUT_NAMES = { dashboard: 'Dashboard', genie_space: 'Genie Agent', app: 'App', alert: 'Alert' };
@@ -697,7 +694,7 @@ function HeldAsks({ asset, collected, readOnly, onRemove, onKeep }) {
   );
 }
 
-function AssetCard({ asset, collected, locked, lockedReason, readOnly, active, error, money = null, moneyError = '', onRemoveAsk, onKeepAsk, onTryAgain, onRollback }) {
+function AssetCard({ asset, collected, locked, lockedReason, readOnly, active, error, money = null, moneyError = '', scope = null, onRemoveAsk, onKeepAsk, onTryAgain, onRollback }) {
   const [pending, setPending] = useState('');
   const busy = asset.building;
   const send = async (kind, run) => {
@@ -727,7 +724,7 @@ function AssetCard({ asset, collected, locked, lockedReason, readOnly, active, e
             {asset.live ? `Version ${asset.live.version}, built ${formatWhen(asset.live.at, asset.live.at) || 'on an earlier run'}` : 'Its last build failed, so no version of it is live'}
           </p>
           {active && !busy && <p className="font-medium text-text-primary">A version is building now; roll backs apply after it finishes, and the asks you add or remove wait for Edit MVP.</p>}
-          {asset.id === 'value_formula' && <MoneyReview money={money} error={moneyError} impact={asset.impact} />}
+          {asset.id === 'value_formula' && <MoneyReview money={money} error={moneyError} impact={asset.impact} scope={scope} />}
           {asset.rebuild && <HeldAsks asset={asset} collected={collected} readOnly={readOnly} onRemove={onRemoveAsk} onKeep={onKeepAsk} />}
           {busy?.rollback && (
             <p data-rolling-back="" className="flex items-center gap-2 text-[13px] font-semibold text-text-primary">
@@ -857,20 +854,33 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
   useEffect(() => {
     if (!hasMvp) return undefined;
     let live = true;
-    apiFetch(`/api/inspire/implement/settings?${qBase}&use_case_id=${encodeURIComponent(useCaseId)}`)
+    apiFetch(`${SETTINGS_ROUTES.read}?${qBase}&use_case_id=${encodeURIComponent(useCaseId)}`)
       .then((data) => { if (live) { setSettingsView(data); setSettingsError(''); } })
       .catch((e) => { if (live) setSettingsError(e.message); });
     return () => { live = false; };
   }, [hasMvp, apiFetch, qBase, useCaseId, moneyKey, refreshKey]);
+  const [runsView, setRunsView] = useState(null);
+  useEffect(() => {
+    if (!hasMvp || readOnly) return undefined;
+    let live = true;
+    apiFetch(`${SETTINGS_ROUTES.runs}?${qBase}&use_case_id=${encodeURIComponent(useCaseId)}`)
+      .then((data) => { if (live) setRunsView(data); })
+      .catch((e) => { if (live) setRunsView({ runs: [], error: e.message }); });
+    return () => { live = false; };
+  }, [hasMvp, readOnly, apiFetch, qBase, useCaseId, moneyKey, refreshKey]);
+  const scopeFacts = useMemo(() => (runsView?.error ? { error: runsView.error } : runScopeFacts(runsView?.runs)), [runsView]);
   const settingsPost = useCallback((action, body) => apiPostJson(`${SETTINGS_ROUTES[action]}?${qBase}&use_case_id=${encodeURIComponent(useCaseId)}`, body),
     [apiPostJson, qBase, useCaseId]);
   const previewSetting = useCallback((name, value) => settingsPost('preview', { name, value }), [settingsPost]);
   const saveSetting = useCallback(async (name, value, was, note) => {
     const view = await settingsPost('save', { name, value, was, note });
-    setSettingsView((prev) => ({ ...prev, settings: view.settings || [], history: view.history || [], editable: view.editable === true,
-      can_run: view.can_run === true, why: String(view.why || '') }));
+    setSettingsView((prev) => settingsViewSaved(prev, view));
   }, [settingsPost]);
   const runSettings = useCallback(() => settingsPost('run', {}), [settingsPost]);
+  const scopeProfile = useGroupingProfile({
+    apiPostJson, inspireDatabase: settings.inspireDatabase, sessionId, useCaseId, warehouseId: settings.warehouseId,
+    enabled: !readOnly && Boolean(settingsView?.settings?.some(isScopeSetting)),
+  });
   const [tablesView, setTablesView] = useState(null);
   useEffect(() => {
     if (!hasMvp) return undefined;
@@ -1178,6 +1188,7 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
             error={cardFailed ? error : ''}
             money={money}
             moneyError={moneyError}
+            scope={scopeFacts}
             onTryAgain={fromCard(tryAgain)}
             onRollback={fromCard(rollbackOutput)}
           />
@@ -1196,8 +1207,8 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
           )}
           <VibeChecklist checklist={checklist} assets={latest?.asset_status} readOnly={readOnly} locked={locked} lockedReason={lockedReason} busy={submitBusy}
             onSendAgain={buildAgain ? () => submitNext(buildAgainChanges(latest)) : undefined} onEdit={onEdit ? editMvp : undefined} />
-          <TargetKpiCard view={kpiView} readOnly={readOnly} builtBefore={IMPLEMENT_DONE_STATUSES.includes(String(latest?.status || ''))} />
-          <UseCaseSettings view={settingsView} error={settingsError} readOnly={readOnly} impact={liveImpact(money?.run, tracked?.impact || rowImpact(latest))}
+          <TargetKpiCard view={kpiView} readOnly={readOnly} builtBefore={IMPLEMENT_DONE_STATUSES.includes(String(latest?.status || ''))} scope={scopeFacts} />
+          <UseCaseSettings view={settingsView} error={settingsError} readOnly={readOnly} impact={liveImpact(money?.run, tracked?.impact || rowImpact(latest))} scope={scopeProfile}
             onPreview={previewSetting} onSave={saveSetting} onRun={runSettings} onEdit={onEdit ? () => onEdit({ step: 'settings' }, live) : undefined}>
             <UseCaseTables key={String(latest?.spec_version ?? '')} uc={item.uc} latest={latest} view={tablesView} readOnly={readOnly} locked={locked}
               onSwaps={tableSwaps} onClassify={tableChange} onSave={submitSpec} />

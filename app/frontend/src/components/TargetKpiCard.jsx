@@ -1,5 +1,6 @@
 import { Target } from 'lucide-react';
 import { PANEL_CLASS, SectionTitle } from './BuildUi';
+import { RunScopeLine } from './RunScope';
 import { impactText, kpiLine } from '../lib/targetKpi';
 
 const NOTE_TONE = {
@@ -15,7 +16,7 @@ export function TargetKpiLine({ view }) {
   return <p data-kpi-line="" className={view.status === 'failed' ? 'text-error-fg' : 'text-text-secondary'}>{kpiLine(view)}</p>;
 }
 
-export default function TargetKpiCard({ view, builtBefore = false, readOnly = false }) {
+export default function TargetKpiCard({ view, builtBefore = false, readOnly = false, scope = null }) {
   if (!view && !builtBefore) return null;
   if (!view) {
     return (
@@ -37,6 +38,7 @@ export default function TargetKpiCard({ view, builtBefore = false, readOnly = fa
       <SectionTitle icon={Target} title="Target KPI" hint={view.version == null ? 'Measured on every run of the notebook' : `Tracked since v${view.version}, measured on every run of the notebook`} />
       <div className="p-4 space-y-3 text-[12px]">
         <h4 className="text-[15px] font-semibold text-text-primary">Target KPI: {view.name}</h4>
+        <RunScopeLine facts={scope} />
         {view.why && <p data-kpi-why="" className="text-text-secondary">{view.why}</p>}
         <dl className="grid grid-cols-2 gap-3 sm:grid-cols-5">
           {facts.map(([label, value, on]) => (

@@ -1,0 +1,279 @@
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const { makeApp, listen } = require('./support/implementApp');
+const G = require('../lib/groupingSql');
+const R = require('../lib/groupingRule');
+const GP = require('../lib/groupingProfile');
+const RP = require('../lib/routePolicy');
+const U = require('../lib/ucReads');
+
+const PERSON = 'person-tok';
+const INJECTED = 'seg`) AS x FROM main.hr.salaries; DROP TABLE main.sales.orders; --';
+const ASK = { inspire_database: 'main.inspire', session_id: '42', use_case_id: 'N01-U01', warehouse_id: 'wh1' };
+const COLUMNS = [['order_id', 'STRING'], ['region', 'STRING'], ['country', 'STRING'], ['city', 'STRING'], ['sku', 'STRING'], [INJECTED, 'STRING'],
+  ['ragged', 'STRING'], ['order_date', 'DATE'], ['amount', 'DOUBLE'], ['notes', 'STRING']].map(([column_name, data_type], i) => ({ column_name, data_type,
+  ordinal_position: i + 1 }));
+const COUNTRIES = [['EMEA', 'France', 2000], ['EMEA', 'Germany', 1963], ['EMEA', 'Cyprus', 12], ['EMEA', 'Malta', 25], ['AMER', 'USA', 3000],
+  ['AMER', 'Canada', 500], ['APAC', 'Japan', 2380], ['APAC', 'Fiji', 20], ['LATAM', 'Brazil', 70], ['MEA', 'UAE', 30]];
+const REGIONS = [['EMEA', 4000], ['AMER', 3500], ['APAC', 2400], ['LATAM', 70], ['MEA', 30]];
+const AT = { region: 0, country: 1, city: 2, sku: 3, injected: 4, ragged: 5 };
+
+function stats(over = {}) {
+  return { records: '10000', d0: '5', n0: '0', d1: '10', n1: '0', d2: '900', n2: '0', d3: '501', n3: '0', d4: '600', n4: '0', d5: '3', n5: '6000',
+    recent: '850', ...over };
+}
+
+function sample() {
+  const size = (at, groups) => ({ kind: 'size', coarse: String(at), fine: '-1', groups: String(groups), records: '10000' });
+  const nests = [];
+  for (let a = 0; a < 6; a += 1) {
+    for (let b = 0; b < 6; b += 1) if (a !== b) nests.push({ kind: 'nest', coarse: String(a), fine: String(b), groups: a === 0 && b === 1 ? '1' : '2', records: '0' });
+  }
+  return [size(0, 5), size(1, 10), size(2, 900), size(3, 501), size(4, 600), size(5, 4), ...nests];
+}
+
+function values() {
+  const rows = [...REGIONS.map(([v, n]) => ({ col: '0', value: v, records: String(n) })), ...COUNTRIES.map(([, v, n]) => ({ col: '1', value: v, records: String(n) }))];
+  for (let i = 0; i < 501; i += 1) rows.push({ col: '3', value: `sku-${i}`, records: i < 481 ? '20' : '19' });
+  rows.push({ col: '5', value: null, records: '6000' }, { col: '5', value: 'A', records: '2000' }, { col: '5', value: 'B', records: '1000' }, { col: '5', value: '', records: '1000' });
+  return rows;
+}
+
+function runner(over = {}) {
+  const answers = {
+    'information_schema.table_constraints': [{ constraint_type: 'PRIMARY KEY', constraint_name: 'pk', column_name: 'order_id', ordinal_position: '1' },
+      { constraint_type: 'FOREIGN KEY', constraint_name: 'fk', column_name: 'customer_id', ordinal_position: '1', ref_catalog: 'main', ref_schema: 'crm',
+        ref_table: 'customers', ref_column: 'id' }],
+    'information_schema.columns': COLUMNS,
+    approx_count_distinct: [stats()],
+    'WITH s AS (SELECT': sample(),
+    'AS col, left(': values(),
+    'AS p0': COUNTRIES.map(([p0, p1, n]) => ({ p0, p1, records: String(n) })),
+    ...over,
+  };
+  return Object.fromEntries(Object.entries(answers).map(([needle, out]) => [needle, (sql, _p, token) => {
+    if (token !== PERSON) throw new Error(`the App token must never read the use case table: ${sql}`);
+    if (typeof out === 'function') return out(sql);
+    return { rows: out, manifest: {} };
+  }]));
+}
+
+function profiled(over = {}, answers = {}) {
+  return makeApp({ forwardedToken: PERSON, forwardedEmail: 'amr@x', useCase: { id: 'N01-U01', primary_table: 'main.sales.orders',
+    tables_involved: 'main.sales.orders, main.sales.stores', analytics_technique: 'Anomaly Detection' }, statements: runner(answers), ...over });
+}
+
+async function post(srv, body, signal) {
+  const resp = await fetch(`${srv.url}/api/grouping/profile`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal });
+  return { status: resp.status, data: await resp.json() };
+}
+
+async function withApp(made, fn) {
+  const srv = await listen(made.app);
+  try {
+    return await fn(srv);
+  } finally {
+    await srv.close();
+  }
+}
+
+const tableReads = (calls) => calls.filter((c) => !c.sql.includes('__inspire_usecases') && !c.sql.includes('__inspire_implement'));
+
+test('the profile reads the main table with the person token only, bounded, and answers the agreed shape', async () => {
+  const made = profiled();
+  await withApp(made, async (srv) => {
+    const got = await post(srv, ASK);
+    assert.equal(got.status, 200, JSON.stringify(got.data));
+    const d = got.data;
+    assert.deepEqual(Object.keys(d), ['table', 'records', 'qualifies', 'reason', 'standalone', 'columns', 'recommended', 'example', 'time_column', 'recent',
+      'suggested_groups', 'first_run', 'default_scope', 'prefill', 'read_at']);
+    assert.deepEqual([d.table, d.records, d.qualifies, d.standalone], ['main.sales.orders', 10000, true, false]);
+    assert.equal(d.reason, 'Grouping applies: Anomaly Detection compares each record with the records like it, and region, country can group main.sales.orders.');
+    assert.deepEqual(d.columns, [
+      { name: 'region', type: 'STRING', distinct: 5, smallest: 30, largest: 4000, nulls: 0, parent: null },
+      { name: 'country', type: 'STRING', distinct: 10, smallest: 12, largest: 3000, nulls: 0, parent: 'region' },
+      { name: 'ragged', type: 'STRING', distinct: 3, smallest: 1000, largest: 7000, nulls: 6000, parent: null },
+    ]);
+    assert.deepEqual(d.recommended, ['region', 'country']);
+    assert.deepEqual(d.example, { column: 'country', small_groups: [{ value: 'Malta', records: 25 }, { value: 'Cyprus', records: 12 }], moves_to: 'EMEA' });
+    assert.deepEqual([d.time_column, d.recent], ['order_date', { days: 30, records: 850 }]);
+    assert.deepEqual(d.suggested_groups, [{ value: 'USA', records: 3000, kind: 'biggest' }, { value: 'Germany', records: 1963, kind: 'typical' },
+      { value: 'UAE', records: 30, kind: 'smallest' }]);
+    assert.deepEqual(d.first_run, { all: 10000, groups: 4993, recent: 850, records: null });
+    assert.equal(d.default_scope, 'groups', 'more than 1,000 records, so the First run is the default (decision 5B)');
+    assert.deepEqual(d.prefill.key_columns, ['order_id']);
+    assert.deepEqual(d.prefill.joins, [{ column: 'customer_id', ref_table: 'main.crm.customers', ref_column: 'id', source: 'unity_catalog' }]);
+    assert.equal(d.prefill.sql, 'SELECT m.`order_id`, m.`country` AS group_name\nFROM `main`.`sales`.`orders` m\nLEFT JOIN `main`.`crm`.`customers` j1 ON m.`customer_id` = j1.`id`');
+    assert.equal(G.checkGroupingSql(d.prefill.sql).ok, true, 'the starting SQL passes the grouping SQL check');
+    assert.ok(!Number.isNaN(Date.parse(d.read_at)));
+    const reads = tableReads(made.sqlCalls);
+    assert.equal(reads.length, 6, reads.map((c) => c.sql.slice(0, 60)).join('\n'));
+    assert.ok(reads.every((c) => c.token === PERSON), 'every read of the use case table is the person token');
+    assert.ok(reads.every((c) => c.options.signal && c.options.byteLimit === G.GROUPING_BYTE_LIMIT && c.options.rowLimit > 0 && c.options.waitTimeout === '10s'));
+    assert.ok(made.sqlCalls.filter((c) => c.sql.includes('__inspire_usecases')).every((c) => c.token === 'tok'), 'the use case record is read with the App token');
+    const stat = reads.find((c) => c.sql.includes('approx_count_distinct'));
+    assert.match(stat.sql, /^SELECT COUNT\(\*\) AS records, approx_count_distinct\(`region`\) AS d0/);
+    assert.match(stat.sql, /COUNT_IF\(`order_date` >= date_sub\(current_date\(\), 30\)\) AS recent FROM `main`\.`sales`\.`orders`$/);
+    assert.match(reads.find((c) => c.sql.startsWith('WITH s AS')).sql, /LIMIT 100000\)/, 'the coarse-to-fine check reads a bounded sample');
+  });
+});
+
+test('saved Discover joins come before the Unity Catalog keys in the starting SQL (decision 5A)', async () => {
+  const joins = JSON.stringify([{ table: '`main`.`sales`.`orders`', column: 'store_id', ref_table: 'main.sales.stores', ref_column: 'store_id', source: 'declared' },
+    { table: 'main.sales.orders', column: 'x', ref_table: 'stores', ref_column: 'x' }]);
+  const made = profiled({ useCase: { id: 'N01-U01', primary_table: 'main.sales.orders', analytics_technique: 'Anomaly Detection', table_joins: joins } });
+  await withApp(made, async (srv) => {
+    const got = await post(srv, ASK);
+    assert.deepEqual(got.data.prefill.joins, [{ column: 'store_id', ref_table: 'main.sales.stores', ref_column: 'store_id', source: 'declared' }],
+      'a join to a table that is not catalog.schema.table is dropped');
+    assert.match(got.data.prefill.sql, /\nLEFT JOIN `main`\.`sales`\.`stores` j1 ON m\.`store_id` = j1\.`store_id`$/);
+  });
+});
+
+test('with only the App token the profile is a 401 with the shared sign-in answer and reads nothing (must-refuse)', async () => {
+  const made = profiled({ forwardedToken: '', tokenKind: 'app' });
+  await withApp(made, async (srv) => {
+    const got = await post(srv, ASK);
+    assert.equal(got.status, 401);
+    assert.deepEqual(got.data, RP.noPersonTokenBody());
+    assert.deepEqual(made.sqlCalls, []);
+  });
+});
+
+test('a column name that carries SQL stays one quoted name in every statement (must-refuse)', async () => {
+  const made = profiled();
+  await withApp(made, async (srv) => {
+    assert.equal((await post(srv, ASK)).status, 200);
+    const asked = tableReads(made.sqlCalls).filter((c) => c.sql.includes('salaries'));
+    assert.ok(asked.length >= 2, 'the statistics and the sample name the column');
+    for (const c of asked) {
+      assert.ok(c.sql.includes('`seg``) AS x FROM main.hr.salaries; DROP TABLE main.sales.orders; --`'), c.sql);
+      const outside = c.sql.replace(/`(?:[^`]|``)*`/g, '');
+      assert.doesNotMatch(outside, /;|DROP|salaries|--/, outside);
+    }
+    assert.ok(!made.sqlCalls.some((c) => /^\s*DROP/i.test(c.sql)));
+  });
+});
+
+test('a column of 501 groups and one of about 900 are left out, and the second is never counted exactly (must-exclude)', async () => {
+  const made = profiled();
+  await withApp(made, async (srv) => {
+    const got = await post(srv, ASK);
+    const names = got.data.columns.map((c) => c.name);
+    assert.ok(!names.includes('sku') && !names.includes('city') && !got.data.recommended.includes('sku'));
+    const exact = tableReads(made.sqlCalls).find((c) => c.sql.includes('AS col, left('));
+    assert.match(exact.sql, /GROUP BY `sku`/, 'about 501 approximate values is counted exactly and then refused at 501');
+    assert.doesNotMatch(exact.sql, /`city`/, 'about 900 approximate values is never grouped over the whole table');
+    assert.ok(exact.options.rowLimit >= GP.PROFILE_VALUE_ROWS);
+  });
+});
+
+test('a column with more than half its records empty is listed but never recommended (must-exclude)', () => {
+  const base = { table: 'main.sales.orders', technique: 'Churn Prediction', columns: [{ column_name: 'ragged', data_type: 'STRING' }], candidates: ['ragged'],
+    sample: [{ kind: 'size', coarse: '0', fine: '-1', groups: '3', records: '10000' }], paths: null, timeColumn: null, days: 30, keys: { primary: [], joins: [] },
+    joins: [], readAt: 'now', values: [{ col: '0', value: 'A', records: '2000' }, { col: '0', value: 'B', records: '2000' }, { col: '0', value: null, records: '6000' }] };
+  const heavy = GP.profileView({ ...base, stats: { records: '10000', d0: '2', n0: '6000' } });
+  assert.deepEqual([heavy.columns.map((c) => c.name), heavy.recommended, heavy.qualifies], [['ragged'], [], false]);
+  assert.match(heavy.reason, /^Grouping does not apply: no column of main\.sales\.orders makes 2 to 500 groups/);
+  const filled = GP.profileView({ ...base, stats: { records: '10000', d0: '2', n0: '4000' } });
+  assert.deepEqual([filled.recommended, filled.qualifies], [['ragged'], true], 'the same column at 40% empty is recommended');
+});
+
+test('a person who cannot read the table gets a 403 that says so plainly, and nothing more runs', async () => {
+  const hidden = profiled({}, { 'information_schema.columns': [] });
+  await withApp(hidden, async (srv) => {
+    const got = await post(srv, ASK);
+    assert.deepEqual([got.status, got.data.error], [403, `${U.runUnreadableText(['main.sales.orders'])}.`]);
+    assert.ok(!tableReads(hidden.sqlCalls).some((c) => c.sql.includes('approx_count_distinct')));
+  });
+  const denied = profiled({}, { approx_count_distinct: () => { throw new Error('[INSUFFICIENT_PERMISSIONS] User does not have SELECT on Table main.sales.orders.'); } });
+  await withApp(denied, async (srv) => {
+    const got = await post(srv, ASK);
+    assert.deepEqual([got.status, got.data.error], [403, `${U.runUnreadableText(['main.sales.orders'])}.`]);
+    assert.doesNotMatch(got.data.error, /INSUFFICIENT|\n/);
+    assert.ok(!tableReads(denied.sqlCalls).some((c) => c.sql.includes('AS col, left(')));
+  });
+});
+
+test('reads past the 60 second deadline are a 504 that says Inspire stopped', async () => {
+  const made = profiled({}, { approx_count_distinct: () => { throw Object.assign(new Error('slow'), { code: 'SQL_DEADLINE' }); } });
+  await withApp(made, async (srv) => {
+    const got = await post(srv, ASK);
+    assert.equal(got.status, 504);
+    assert.equal(got.data.error, 'Inspire read main.sales.orders for the Grouping for 60 seconds with no answer, so it stopped; try again once the warehouse is running.');
+  });
+});
+
+test('when the caller leaves, the running read gets the cancel signal', { timeout: 10000 }, async () => {
+  let release;
+  let reached;
+  const waiting = new Promise((resolve) => { reached = resolve; });
+  const made = profiled({}, { approx_count_distinct: () => new Promise((resolve) => { release = resolve; reached(); }) });
+  await withApp(made, async (srv) => {
+    const leave = new AbortController();
+    const asked = post(srv, ASK, leave.signal).catch((err) => err);
+    let timer;
+    await Promise.race([waiting, new Promise((_r, reject) => { timer = setTimeout(() => reject(new Error('the statistics read never started')), 5000); })])
+      .finally(() => clearTimeout(timer));
+    leave.abort();
+    const signal = made.sqlCalls.find((c) => c.sql.includes('approx_count_distinct')).options.signal;
+    for (let i = 0; i < 200 && !signal.aborted; i += 1) await new Promise((r) => setTimeout(r, 5));
+    assert.equal(signal.aborted, true);
+    release({ rows: [stats()], manifest: {} });
+    assert.equal((await asked).name, 'AbortError');
+  });
+});
+
+test('a small table runs everything, and a standalone technique with no group and no time column first runs on 1,000 records', async () => {
+  const small = profiled({}, { approx_count_distinct: [stats({ records: '900' })] });
+  await withApp(small, async (srv) => assert.equal((await post(srv, ASK)).data.default_scope, 'all'));
+  const alone = profiled({ useCase: { id: 'N01-U01', primary_table: 'main.sales.orders', analytics_technique: 'Text Classification' } },
+    { 'information_schema.columns': COLUMNS.filter((c) => c.data_type !== 'DATE'), 'AS col, left(': [] });
+  await withApp(alone, async (srv) => {
+    const got = await post(srv, ASK);
+    assert.deepEqual([got.data.standalone, got.data.qualifies, got.data.time_column, got.data.recent, got.data.suggested_groups], [true, false, null, null, []]);
+    assert.deepEqual(got.data.first_run, { all: 10000, groups: null, recent: null, records: 1000 });
+    assert.equal(got.data.default_scope, 'records');
+    assert.match(got.data.reason, /^Grouping does not apply: Text Classification looks at each record on its own/);
+  });
+});
+
+test('a built use case is profiled on the table its build swapped in, and bad input reads nothing', async () => {
+  const swapped = profiled({ history: [{ session_id: '42', use_case_id: 'N01-U01', spec_version: 1, status: 'ready', created_by: 'amr@x',
+    spec_json: JSON.stringify({ use_case_id: 'N01-U01', data: { tables: { 'Main.Sales.Orders': 'main.sales.orders_v2' } } }) }] });
+  await withApp(swapped, async (srv) => {
+    const got = await post(srv, ASK);
+    assert.equal(got.data.table, 'main.sales.orders_v2', JSON.stringify(got.data));
+    assert.ok(tableReads(swapped.sqlCalls).filter((c) => c.sql.includes('approx_count_distinct')).every((c) => c.sql.includes('`orders_v2`')));
+  });
+  for (const [body, said] of [[{ ...ASK, scope_days: 0 }, /^scope_days must be/], [{ ...ASK, scope_days: 'x' }, /^scope_days must be/],
+    [{ ...ASK, session_id: 'abc' }, /^session_id must be/], [{ ...ASK, use_case_id: 'a b' }, /^use_case_id must match/]]) {
+    const made = profiled();
+    await withApp(made, async (srv) => {
+      const got = await post(srv, body);
+      assert.equal(got.status, 400, JSON.stringify(body));
+      assert.match(got.data.error, said);
+      assert.deepEqual(made.sqlCalls, []);
+    });
+  }
+  const none = profiled({ useCase: { id: 'N01-U01', primary_table: 'orders', analytics_technique: 'Anomaly Detection' } });
+  await withApp(none, async (srv) => {
+    const got = await post(srv, ASK);
+    assert.equal(got.status, 400);
+    assert.equal(got.data.error, 'Use case N01-U01 names no main table as catalog.schema.table, so Inspire cannot read it for the Grouping.');
+    assert.deepEqual(tableReads(none.sqlCalls), []);
+  });
+});
+
+test('the profile helpers follow the agent: category columns only, the event date as time column, three suggested groups and a key guess', () => {
+  assert.deepEqual(R.groupingCandidates(COLUMNS, { entity_id: 'main.sales.orders.order_id', segment: 'main.sales.orders.ragged' }, 'main.sales.orders'),
+    ['ragged', 'region', 'country', 'city', 'sku', INJECTED]);
+  assert.equal(R.timeColumnOf(COLUMNS, {}, 'main.sales.orders'), 'order_date');
+  assert.equal(R.timeColumnOf([...COLUMNS, { column_name: 'shipped', data_type: 'TIMESTAMP' }], { event_date: 'main.sales.orders.shipped' }, 'main.sales.orders'), 'shipped');
+  assert.equal(R.timeColumnOf([{ column_name: 'a', data_type: 'STRING' }]), null);
+  assert.deepEqual(R.suggestedGroups([{ value: 'a', records: 29 }, { value: 'b', records: 40 }]), [{ value: 'b', records: 40, kind: 'biggest' }],
+    'a group under 30 records is never suggested');
+  assert.deepEqual(R.keyColumnGuess([{ column_name: 'name' }, { column_name: 'customer_id' }]), ['customer_id']);
+  assert.equal(GP.scopeDaysOf(undefined), 30);
+  assert.equal(GP.scopeDaysOf(3651), null);
+});

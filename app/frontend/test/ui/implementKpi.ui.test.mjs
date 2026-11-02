@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { HARNESS_USE_CASE, OWNER, built } from './implementFixtures.js';
-import { closeBrowser, lowContrast, onStep, openUi, startMvp, until } from './uiSupport.mjs';
+import { closeBrowser, dataToResults, lowContrast, onStep, openUi, startMvp, until } from './uiSupport.mjs';
 
 test.after(closeBrowser);
 
@@ -61,8 +61,7 @@ test('the Results step offers the use case\u2019s own KPIs with Let Inspire pick
       await onStep(page, 'Choose');
       await next(page);
       await onStep(page, 'Data');
-      await next(page);
-      await onStep(page, 'Results');
+      await dataToResults(page);
       const box = page.getByRole('group', { name: 'Target KPI', exact: true });
       await box.waitFor();
       assert.deepEqual(await picker(page).locator('option').allTextContents(), ['Let Inspire pick', 'Churn rate (%)', 'Hours saved (hours)']);
@@ -89,8 +88,7 @@ test('the picker shows the KPI the built version tracks, its unit and how record
     await onStep(page, 'Choose');
     await next(page);
     await onStep(page, 'Data');
-    await next(page);
-    await onStep(page, 'Results');
+    await dataToResults(page);
     const box = page.getByRole('group', { name: 'Target KPI', exact: true });
     assert.equal(await box.locator('[data-kpi-tracked]').textContent(),
       'v1 tracks Hours saved, in hours, and counts each record in hours at stake. Inspire picked it: it is the first KPI of this use case Inspire can compute from its tables.');
@@ -108,8 +106,7 @@ test('the picker shows the KPI the built version tracks, its unit and how record
     await onStep(none.page, 'Choose');
     await next(none.page);
     await onStep(none.page, 'Data');
-    await next(none.page);
-    await onStep(none.page, 'Results');
+    await dataToResults(none.page);
     assert.deepEqual(await picker(none.page).locator('option').allTextContents(), ['Let Inspire pick']);
     await none.page.getByText('This use case has no Inspire KPI yet, so Inspire evaluates the best KPIs for it from its tables when it builds. After the build you can pick one of them here.').waitFor();
     assert.deepEqual(none.pageErrors, []);

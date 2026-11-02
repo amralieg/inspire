@@ -1,0 +1,768 @@
+{
+  "settings": {
+    "group_by": {
+      "name": "group_by",
+      "label": "Grouping",
+      "all": "all",
+      "custom": "custom",
+      "format": "comma-separated column names, coarse to fine, or all, or custom",
+      "solo": [
+        "all",
+        "custom"
+      ]
+    },
+    "custom": {
+      "group_sql": "group_sql",
+      "group_sql_tables": "group_sql_tables",
+      "group_sql_hash": "group_sql_hash",
+      "group_sql_checked_by": "group_sql_checked_by",
+      "group_sql_checked_at": "group_sql_checked_at",
+      "group_name": "group_name",
+      "max_chars": 20000
+    }
+  },
+  "constants": {
+    "group_min_records": 30,
+    "group_min_periods": 30,
+    "group_max_groups": 500,
+    "group_min_groups": 2
+  },
+  "techniques": {
+    "grouping": [
+      "anomal",
+      "outlier",
+      "forecast",
+      "predict",
+      "threshold",
+      "benchmark",
+      "rank",
+      "propensity",
+      "churn",
+      "cluster",
+      "segment",
+      "baseline",
+      "deviation",
+      "trend"
+    ],
+    "standalone_records": [
+      "classif",
+      "extract",
+      "summar",
+      "sentiment",
+      "tag",
+      "categor",
+      "entity",
+      "translat",
+      "document"
+    ]
+  },
+  "labels": {
+    "global": "Global",
+    "other": "Other groups",
+    "no_group": "No group",
+    "separator": " / ",
+    "missing": "no {column}",
+    "group_column": "inspire_group",
+    "level_column": "inspire_group_level",
+    "custom_level": "custom",
+    "all_level": "all"
+  },
+  "run_record": {
+    "column": "run_grouping",
+    "keys": [
+      "mode",
+      "group_by",
+      "time_column",
+      "minimum",
+      "groups",
+      "levels",
+      "hash",
+      "sql_tables",
+      "other_groups"
+    ],
+    "modes": [
+      "all",
+      "columns",
+      "custom"
+    ]
+  },
+  "applies": [
+    {
+      "technique": "Anomaly Detection",
+      "applies": true
+    },
+    {
+      "technique": "Isolation Forest outlier scoring",
+      "applies": true
+    },
+    {
+      "technique": "Time Series Forecasting",
+      "applies": true
+    },
+    {
+      "technique": "Churn Prediction",
+      "applies": true
+    },
+    {
+      "technique": "Customer Segmentation (K-Means)",
+      "applies": true
+    },
+    {
+      "technique": "Trend Analysis",
+      "applies": true
+    },
+    {
+      "technique": "Peer Benchmarking",
+      "applies": true
+    },
+    {
+      "technique": "Ranking",
+      "applies": true
+    },
+    {
+      "technique": "Text Classification",
+      "applies": false
+    },
+    {
+      "technique": "Document Summarization",
+      "applies": false
+    },
+    {
+      "technique": "Named Entity Extraction",
+      "applies": false
+    },
+    {
+      "technique": "Sentiment Analysis",
+      "applies": false
+    },
+    {
+      "technique": "Market Basket Analysis",
+      "applies": false
+    },
+    {
+      "technique": "Pareto Analysis",
+      "applies": false
+    },
+    {
+      "technique": "",
+      "applies": false
+    }
+  ],
+  "parse": [
+    {
+      "text": "region, country",
+      "mode": "columns",
+      "columns": [
+        "region",
+        "country"
+      ]
+    },
+    {
+      "text": " Region ,region, city ",
+      "mode": "columns",
+      "columns": [
+        "Region",
+        "city"
+      ]
+    },
+    {
+      "text": "all",
+      "mode": "all",
+      "columns": []
+    },
+    {
+      "text": "ALL",
+      "mode": "all",
+      "columns": []
+    },
+    {
+      "text": "",
+      "mode": "all",
+      "columns": []
+    },
+    {
+      "text": "custom",
+      "mode": "custom",
+      "columns": []
+    },
+    {
+      "text": "region, all",
+      "mode": "mixed",
+      "columns": []
+    },
+    {
+      "text": "custom, region",
+      "mode": "mixed",
+      "columns": []
+    }
+  ],
+  "recommend": [
+    {
+      "name": "a region and the countries inside it, a city too fine and a column with one value",
+      "columns": [
+        {
+          "column": "region",
+          "groups": 5,
+          "records": 10000
+        },
+        {
+          "column": "country",
+          "groups": 40,
+          "records": 10000
+        },
+        {
+          "column": "city",
+          "groups": 900,
+          "records": 10000
+        },
+        {
+          "column": "channel",
+          "groups": 1,
+          "records": 10000
+        }
+      ],
+      "nests": [
+        [
+          "region",
+          "country",
+          true
+        ],
+        [
+          "country",
+          "city",
+          true
+        ]
+      ],
+      "recommended": [
+        "region",
+        "country"
+      ]
+    },
+    {
+      "name": "a country that does not sit inside one region stays out",
+      "columns": [
+        {
+          "column": "region",
+          "groups": 5,
+          "records": 10000
+        },
+        {
+          "column": "country",
+          "groups": 40,
+          "records": 10000
+        }
+      ],
+      "nests": [
+        [
+          "region",
+          "country",
+          false
+        ]
+      ],
+      "recommended": [
+        "region"
+      ]
+    },
+    {
+      "name": "a column whose groups average under 30 records is not usable",
+      "columns": [
+        {
+          "column": "store",
+          "groups": 450,
+          "records": 9000
+        },
+        {
+          "column": "brand",
+          "groups": 12,
+          "records": 9000
+        }
+      ],
+      "nests": [
+        [
+          "brand",
+          "store",
+          true
+        ]
+      ],
+      "recommended": [
+        "brand"
+      ]
+    },
+    {
+      "name": "no usable column recommends nothing, so the Grouping stays all",
+      "columns": [
+        {
+          "column": "channel",
+          "groups": 1,
+          "records": 500
+        },
+        {
+          "column": "sku",
+          "groups": 480,
+          "records": 500
+        }
+      ],
+      "nests": [],
+      "recommended": []
+    }
+  ],
+  "effective": [
+    {
+      "name": "small countries move up to their region, and a region still too small moves up to Global",
+      "group_by": "region, country",
+      "time_series": false,
+      "groups": [
+        {
+          "path": [
+            "EMEA",
+            "France"
+          ],
+          "records": 120
+        },
+        {
+          "path": [
+            "EMEA",
+            "Cyprus"
+          ],
+          "records": 12
+        },
+        {
+          "path": [
+            "EMEA",
+            "Malta"
+          ],
+          "records": 25
+        },
+        {
+          "path": [
+            "AMER",
+            "USA"
+          ],
+          "records": 400
+        },
+        {
+          "path": [
+            "AMER",
+            "Canada"
+          ],
+          "records": 10
+        },
+        {
+          "path": [
+            "APAC",
+            "Japan"
+          ],
+          "records": 5
+        },
+        {
+          "path": [
+            "APAC",
+            null
+          ],
+          "records": 40
+        }
+      ],
+      "expected": [
+        {
+          "path": [
+            "EMEA",
+            "France"
+          ],
+          "group": "EMEA / France",
+          "level": "country"
+        },
+        {
+          "path": [
+            "EMEA",
+            "Cyprus"
+          ],
+          "group": "EMEA",
+          "level": "region"
+        },
+        {
+          "path": [
+            "EMEA",
+            "Malta"
+          ],
+          "group": "EMEA",
+          "level": "region"
+        },
+        {
+          "path": [
+            "AMER",
+            "USA"
+          ],
+          "group": "AMER / USA",
+          "level": "country"
+        },
+        {
+          "path": [
+            "AMER",
+            "Canada"
+          ],
+          "group": "Global",
+          "level": "all"
+        },
+        {
+          "path": [
+            "APAC",
+            "Japan"
+          ],
+          "group": "Global",
+          "level": "all"
+        },
+        {
+          "path": [
+            "APAC",
+            null
+          ],
+          "group": "APAC / no country",
+          "level": "country"
+        }
+      ]
+    },
+    {
+      "name": "all puts every record in one Global group",
+      "group_by": "all",
+      "time_series": false,
+      "groups": [
+        {
+          "path": [
+            "EMEA",
+            "France"
+          ],
+          "records": 120
+        },
+        {
+          "path": [
+            "AMER",
+            "USA"
+          ],
+          "records": 400
+        }
+      ],
+      "expected": [
+        {
+          "path": [
+            "EMEA",
+            "France"
+          ],
+          "group": "Global",
+          "level": "all"
+        },
+        {
+          "path": [
+            "AMER",
+            "USA"
+          ],
+          "group": "Global",
+          "level": "all"
+        }
+      ]
+    },
+    {
+      "name": "one column: a group too small goes straight to Global",
+      "group_by": "country",
+      "time_series": false,
+      "groups": [
+        {
+          "path": [
+            "France"
+          ],
+          "records": 120
+        },
+        {
+          "path": [
+            "Cyprus"
+          ],
+          "records": 12
+        },
+        {
+          "path": [
+            "USA"
+          ],
+          "records": 30
+        }
+      ],
+      "expected": [
+        {
+          "path": [
+            "France"
+          ],
+          "group": "France",
+          "level": "country"
+        },
+        {
+          "path": [
+            "Cyprus"
+          ],
+          "group": "Global",
+          "level": "all"
+        },
+        {
+          "path": [
+            "USA"
+          ],
+          "group": "USA",
+          "level": "country"
+        }
+      ]
+    },
+    {
+      "name": "three levels: small cities join their country, small countries join their region",
+      "group_by": "region, country, city",
+      "time_series": false,
+      "groups": [
+        {
+          "path": [
+            "EMEA",
+            "France",
+            "Paris"
+          ],
+          "records": 50
+        },
+        {
+          "path": [
+            "EMEA",
+            "France",
+            "Lyon"
+          ],
+          "records": 10
+        },
+        {
+          "path": [
+            "EMEA",
+            "France",
+            "Nice"
+          ],
+          "records": 25
+        },
+        {
+          "path": [
+            "EMEA",
+            "Spain",
+            "Madrid"
+          ],
+          "records": 20
+        },
+        {
+          "path": [
+            "EMEA",
+            "Italy",
+            "Rome"
+          ],
+          "records": 15
+        }
+      ],
+      "expected": [
+        {
+          "path": [
+            "EMEA",
+            "France",
+            "Paris"
+          ],
+          "group": "EMEA / France / Paris",
+          "level": "city"
+        },
+        {
+          "path": [
+            "EMEA",
+            "France",
+            "Lyon"
+          ],
+          "group": "EMEA / France",
+          "level": "country"
+        },
+        {
+          "path": [
+            "EMEA",
+            "France",
+            "Nice"
+          ],
+          "group": "EMEA / France",
+          "level": "country"
+        },
+        {
+          "path": [
+            "EMEA",
+            "Spain",
+            "Madrid"
+          ],
+          "group": "EMEA",
+          "level": "region"
+        },
+        {
+          "path": [
+            "EMEA",
+            "Italy",
+            "Rome"
+          ],
+          "group": "EMEA",
+          "level": "region"
+        }
+      ]
+    },
+    {
+      "name": "the same city name in two countries stays two groups",
+      "group_by": "region, country, city",
+      "time_series": false,
+      "groups": [
+        {
+          "path": [
+            "EMEA",
+            "UK",
+            "London"
+          ],
+          "records": 40
+        },
+        {
+          "path": [
+            "AMER",
+            "Canada",
+            "London"
+          ],
+          "records": 40
+        }
+      ],
+      "expected": [
+        {
+          "path": [
+            "EMEA",
+            "UK",
+            "London"
+          ],
+          "group": "EMEA / UK / London",
+          "level": "city"
+        },
+        {
+          "path": [
+            "AMER",
+            "Canada",
+            "London"
+          ],
+          "group": "AMER / Canada / London",
+          "level": "city"
+        }
+      ]
+    },
+    {
+      "name": "a time series counts periods, not records: many records over few periods still move up",
+      "group_by": "region, country",
+      "time_series": true,
+      "groups": [
+        {
+          "path": [
+            "EMEA",
+            "France"
+          ],
+          "records": 500,
+          "periods": [
+            1,
+            40
+          ]
+        },
+        {
+          "path": [
+            "EMEA",
+            "Cyprus"
+          ],
+          "records": 900,
+          "periods": [
+            1,
+            20
+          ]
+        },
+        {
+          "path": [
+            "EMEA",
+            "Malta"
+          ],
+          "records": 900,
+          "periods": [
+            15,
+            35
+          ]
+        },
+        {
+          "path": [
+            "AMER",
+            "USA"
+          ],
+          "records": 1000,
+          "periods": [
+            1,
+            10
+          ]
+        }
+      ],
+      "expected": [
+        {
+          "path": [
+            "EMEA",
+            "France"
+          ],
+          "group": "EMEA / France",
+          "level": "country"
+        },
+        {
+          "path": [
+            "EMEA",
+            "Cyprus"
+          ],
+          "group": "EMEA",
+          "level": "region"
+        },
+        {
+          "path": [
+            "EMEA",
+            "Malta"
+          ],
+          "group": "EMEA",
+          "level": "region"
+        },
+        {
+          "path": [
+            "AMER",
+            "USA"
+          ],
+          "group": "Global",
+          "level": "all"
+        }
+      ]
+    }
+  ],
+  "custom": [
+    {
+      "name": "groups under 30 records combine into Other groups, and records with no group are a group of their own",
+      "sizes": {
+        "North": 40,
+        "South": 30,
+        "East": 29,
+        "West": 1,
+        "No group": 5
+      },
+      "expected": {
+        "North": "North",
+        "South": "South",
+        "East": "Other groups",
+        "West": "Other groups",
+        "No group": "Other groups"
+      },
+      "groups": 3,
+      "other_groups": 3
+    },
+    {
+      "name": "a large No group stays a group",
+      "sizes": {
+        "North": 40,
+        "No group": 31
+      },
+      "expected": {
+        "North": "North",
+        "No group": "No group"
+      },
+      "groups": 2,
+      "other_groups": 0
+    }
+  ]
+}
