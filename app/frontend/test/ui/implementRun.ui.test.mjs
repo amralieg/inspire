@@ -64,7 +64,15 @@ test('the Run tab sits right after Build in the header', async () => {
   }
 });
 
-test('Run lists every deployed use case by domain, opens an Inside Inspire page in an iframe under its banner, and an App of its own with Open App', async () => {
+const onFull = (page, id) => page.locator(`[data-run-full="inspire:${id}"]`).waitFor({ timeout: 20000 });
+const toggle = (page) => page.locator('[data-run-control-toggle]');
+const backToInspire = async (page) => {
+  if (await toggle(page).getAttribute('aria-expanded') !== 'true') await toggle(page).click();
+  await page.getByRole('button', { name: 'Back to Inspire', exact: true }).click();
+  await page.locator('[data-run-page-root]').waitFor({ timeout: 20000 });
+};
+
+test('Run lists every deployed use case by domain, opens an Inside Inspire page full window with its banner in the Inspire menu, and an App of its own with Open App', async () => {
   const ui = await openRun({ registry: REGISTRY, useCaseScope: SCOPE, hostedRun: hostedFake({ state: 'ready' }) },
     { 'x-forwarded-access-token': 'user-token', 'x-forwarded-email': OWNER });
   const { page } = ui;
@@ -73,10 +81,21 @@ test('Run lists every deployed use case by domain, opens an Inside Inspire page 
     assert.deepEqual(await page.locator('[data-run-domain]').evaluateAll((els) => els.map((e) => e.dataset.runDomain)), ['Operations', 'Retention']);
     assert.equal((await page.locator('[data-run-banner]').textContent()).trim(), RUN_BANNER);
     assert.equal(await page.locator('[data-run-state]').textContent(), 'Ready');
+    assert.equal(await page.locator('[data-run-frame]').count(), 0, 'the list never squeezes the page into a frame beside it');
+    const newTab = page.locator('[data-run-new-tab="n01-u01-a"]');
+    assert.deepEqual([await newTab.getAttribute('href'), await newTab.getAttribute('target'), (await newTab.textContent()).trim()],
+      ['/run/n01-u01-a/#/n01_u01', '_blank', 'Open in a new tab']);
+    await page.locator('[data-run-open="n01-u01-a"]').click();
+    await onFull(page, 'n01-u01-a');
     const frame = page.locator('[data-run-frame]');
     assert.equal(await frame.getAttribute('src'), '/run/n01-u01-a/#/n01_u01');
     await page.frameLocator('[data-run-frame]').locator('[data-hosted="n01-u01-a"]').waitFor({ timeout: 15000 });
+    assert.equal(await page.locator('[data-run-page-root]').count(), 0);
+    await toggle(page).click();
+    assert.equal((await page.locator('[data-run-full] [data-run-banner]').textContent()).trim(), RUN_BANNER, 'the Inspire menu still says it is only for testing');
+    assert.equal(await page.locator('[data-run-full] [data-run-state]').textContent(), 'Ready');
     assert.equal(await page.locator('[data-run-no-token]').count(), 0, 'Inspire may act as this viewer');
+    await backToInspire(page);
     await page.locator('[data-run-page="app:43:N02-U01"]').click();
     const open = page.locator('[data-run-open-app]');
     await open.waitFor();
@@ -84,6 +103,7 @@ test('Run lists every deployed use case by domain, opens an Inside Inspire page 
       ['https://inspire-hub-acme.example.com', '_blank', 'Open App']);
     assert.equal(await page.locator('[data-run-frame]').count(), 0, 'an App of its own opens outside Inspire');
     assert.equal(await page.locator('[data-run-banner]').count(), 0);
+    assert.equal(await page.locator('[data-run-full]').count(), 0, 'an App of its own never opens full window inside Inspire');
     assert.deepEqual(ui.pageErrors, []);
   } finally {
     await ui.close();
@@ -98,6 +118,12 @@ test('Run shows a page that cannot start as Failed with its reason, the stderr l
     await owner.page.locator('[data-run-state="failed"]').waitFor({ timeout: 15000 });
     assert.equal(await owner.page.locator('[data-run-state]').textContent(), 'Failed: the page stopped with exit code 1');
     assert.equal(await owner.page.locator('[data-run-stderr]').textContent(), 'Traceback (most recent call last):\nValueError: no pages');
+    await owner.page.locator('[data-run-open="n01-u01-a"]').click();
+    await onFull(owner.page, 'n01-u01-a');
+    assert.equal(await owner.page.getByRole('status', { name: 'Run full window' }).textContent(), 'yes', 'the page tells its host it fills the window');
+    assert.equal(await toggle(owner.page).getAttribute('aria-expanded'), 'true', 'a page that failed opens the Inspire menu so its reason shows');
+    assert.equal(await owner.page.locator('[data-run-control-state]').textContent(), 'Failed');
+    assert.equal(await owner.page.locator('[data-run-full] [data-run-stderr]').textContent(), 'Traceback (most recent call last):\nValueError: no pages');
   } finally {
     await owner.close();
   }
@@ -108,6 +134,10 @@ test('Run shows a page that cannot start as Failed with its reason, the stderr l
     assert.deepEqual(fake.asked.at(-1), ['n01-u01-a', false], 'the server asks for the state as a person who does not own the use case');
     assert.equal(await viewer.page.locator('[data-run-stderr]').count(), 0, 'someone who does not own the use case never sees its stderr');
     assert.equal(await viewer.page.locator('[data-run-no-token]').textContent(), HOSTED_NO_TOKEN);
+    await viewer.page.locator('[data-run-open="n01-u01-a"]').click();
+    await onFull(viewer.page, 'n01-u01-a');
+    assert.equal(await toggle(viewer.page).getAttribute('aria-expanded'), 'true');
+    assert.equal(await viewer.page.locator('[data-run-full] [data-run-no-token]').textContent(), HOSTED_NO_TOKEN, 'the Inspire menu says why the page cannot open');
     assert.deepEqual(viewer.pageErrors, []);
   } finally {
     await viewer.close();
@@ -195,16 +225,21 @@ test('a #/run/<id> link opens the Run tab on that page, and a link to a page tha
     });
     const { page } = ui;
     try {
-      await page.locator('[data-run-page-root]').waitFor({ timeout: 20000 });
-      await page.locator('[data-run-domain]').first().waitFor({ timeout: 15000 });
-      const active = await page.locator('header nav button', { hasText: 'Run' }).getAttribute('class');
-      assert.ok(active.includes('text-db-red-fg'), `${hash}: the Run tab is the open one`);
       if (reason) {
+        await page.locator('[data-run-page-root]').waitFor({ timeout: 20000 });
+        await page.locator('[data-run-domain]').first().waitFor({ timeout: 15000 });
+        const active = await page.locator('header nav button', { hasText: 'Run' }).getAttribute('class');
+        assert.ok(active.includes('text-db-red-fg'), `${hash}: the Run tab is the open one`);
         assert.equal(await page.locator('[data-run-unknown]').textContent(), reason, hash);
       } else {
-        assert.equal(await page.locator('[data-run-unknown]').count(), 0, hash);
+        await onFull(page, 'n01-u01-a');
         assert.equal(await page.locator('[data-run-frame]').getAttribute('src'), '/run/n01-u01-a/#/n01_u01');
+        assert.equal(await page.locator('header').count(), 0, `${hash}: the link opens the page full window, with no Inspire header over it`);
+        await backToInspire(page);
+        assert.equal(await page.locator('[data-run-unknown]').count(), 0, hash);
         assert.equal(await page.locator('[data-run-page="inspire:n01-u01-a"]').getAttribute('aria-current'), 'true');
+        const active = await page.locator('header nav button', { hasText: 'Run' }).getAttribute('class');
+        assert.ok(active.includes('text-db-red-fg'), `${hash}: Back to Inspire lands on the Run tab`);
       }
       assert.deepEqual([...missing], [], `${hash}: nothing the App asks for is missing`);
       assert.deepEqual(ui.pageErrors, [], hash);
@@ -277,7 +312,7 @@ test('a use case whose page sits in an App shared with others says that App keep
 
 const VIEWER_HEADERS = { 'x-forwarded-access-token': 'user-token', 'x-forwarded-email': OWNER };
 const runState = () => ({ registry: REGISTRY, useCaseScope: SCOPE, hostedRun: hostedFake({ state: 'ready' }) });
-const onRunPage = (page, id) => page.locator(`[data-run-page="inspire:${id}"][aria-current="true"]`).waitFor({ timeout: 20000 });
+const onRunPage = (page, id) => onFull(page, id);
 const address = (page) => page.evaluate(() => [window.location.search, window.location.hash]);
 const toResults = async (page) => {
   await page.locator('header nav button', { hasText: 'Review' }).click();
@@ -293,10 +328,15 @@ test('the email link ?run=<id> that a sign-in keeps opens its page on the Run ta
     assert.equal(await page.locator('[data-run-frame]').getAttribute('src'), '/run/n01-u01-a/#/n01_u01');
     await page.reload();
     await onRunPage(page, 'n01-u01-a');
-    await page.locator('[data-run-page="app:43:N02-U01"]').click();
+    await backToInspire(page);
     await page.waitForFunction(() => window.location.hash === '');
+    await page.locator('[data-run-page="app:43:N02-U01"]').click();
+    await page.locator('[data-run-open-app]').waitFor();
+    assert.equal(await page.evaluate(() => window.location.hash), '');
     await page.locator('[data-run-page="inspire:n01-u01-a"]').click();
+    await onRunPage(page, 'n01-u01-a');
     await page.waitForFunction(() => window.location.hash === '#/run/n01-u01-a');
+    await backToInspire(page);
     assert.deepEqual(ui.pageErrors, []);
     await toResults(page);
     await page.waitForFunction(() => window.location.hash === '');
@@ -321,8 +361,9 @@ test('a second run link in a tab that is already open moves the Run tab to that 
     await toResults(page);
     await page.evaluate(() => { window.location.hash = '#/run/n01-u01-a'; });
     await onRunPage(page, 'n01-u01-a');
-    assert.equal(await page.locator('[data-run-unknown]').count(), 0);
     assert.deepEqual(await address(page), ['?open=app', '#/run/n01-u01-a']);
+    await backToInspire(page);
+    assert.equal(await page.locator('[data-run-unknown]').count(), 0);
   } finally {
     await ui.close();
   }
@@ -347,6 +388,121 @@ test('a run link opened before Inspire is set up waits through setup and then op
     assert.deepEqual(await address(page), ['?open=app', '#/run/n01-u01-a'], 'the link waits in the address while setup shows');
     await skip.click();
     await onRunPage(page, 'n01-u01-a');
+  } finally {
+    await ui.close();
+  }
+});
+
+const VH_PAGE = '<!doctype html><title>Hosted</title><style>html,body{margin:0}</style><div data-vh style="height:100vh"></div>';
+const sizedApp = (app) => {
+  app.get('/api/defaults', (_req, res) => res.json(DEFAULTS));
+  app.get('/api/showcase', (_req, res) => res.json({}));
+  app.get('/run/:id/{*rest}', (_req, res) => res.type('html').send(VH_PAGE));
+};
+const windowOf = (el) => ({ w: window.innerWidth, h: window.innerHeight, vh: Math.round(el.getBoundingClientRect().height) });
+
+for (const [width, height] of [[1440, 900], [1920, 1080]]) {
+  test(`at ${width}x${height} an Inside Inspire page fills the whole window, the same size as the page opened on its own, with no Inspire frame around it`, async () => {
+    const ui = await openUi('app', runState(), '#/run/n01-u01-a', {
+      mount: sizedApp,
+      init: async (page) => {
+        await page.setViewportSize({ width, height });
+        await page.setExtraHTTPHeaders(VIEWER_HEADERS);
+      },
+    });
+    const { page } = ui;
+    try {
+      await onFull(page, 'n01-u01-a');
+      const inside = page.frameLocator('[data-run-frame]').locator('[data-vh]');
+      await inside.waitFor({ timeout: 15000 });
+      const host = await page.evaluate(() => {
+        const frame = document.querySelector('[data-run-frame]');
+        const r = frame.getBoundingClientRect();
+        const capped = [];
+        for (let el = frame; el; el = el.parentElement) {
+          const s = getComputedStyle(el);
+          if (s.maxWidth !== 'none' || s.maxHeight !== 'none' || s.gridTemplateColumns !== 'none') capped.push(`${el.tagName} ${el.className}`);
+        }
+        const root = document.scrollingElement;
+        return {
+          box: [r.left, r.top, r.width, r.height], capped, scroll: [root.scrollWidth, root.scrollHeight], client: [root.clientWidth, root.clientHeight],
+          list: document.querySelectorAll('[data-run-page-root]').length, header: document.querySelectorAll('header').length, cls: frame.className,
+        };
+      });
+      const framed = await inside.evaluate(windowOf);
+      await page.goto(`${ui.origin}/run/n01-u01-a/#/n01_u01`);
+      const standalone = await page.locator('[data-vh]').evaluate(windowOf);
+      assert.deepEqual(standalone, { w: width, h: height, vh: height }, 'the page opened on its own fills the window');
+      assert.deepEqual(framed, standalone, 'Inside Inspire the page sees the same window, and its 100vh is the real window height');
+      assert.deepEqual(host.box, [0, 0, width, height], 'the frame covers the whole window');
+      assert.deepEqual(host.capped, [], 'no max-width wrapper, use case column or height cap sits around the frame');
+      assert.doesNotMatch(host.cls, /72vh|max-w/);
+      assert.deepEqual(host.scroll, host.client, 'Inspire itself does not scroll, so there is never a second scrollbar');
+      assert.deepEqual([host.list, host.header], [0, 0], 'the Run list and the Inspire header are not drawn behind the page');
+      assert.deepEqual(ui.pageErrors, []);
+    } finally {
+      await ui.close();
+    }
+  });
+}
+
+const SECOND = { ...hostedRecord, id: 'n03-u01-b', page: 'n03_u01', version: 1 };
+const TWO_PAGES = {
+  registry: [...REGISTRY, registryRow('44', 'N03-U01', 1, { app: { placement: 'inspire', hosted: SECOND, app_name: '', app_url: '' }, name: 'Plan routes' })],
+  useCaseScope: [...SCOPE, { session_id: '44', use_case_id: 'N03-U01', domain: 'Operations' }],
+  hostedRun: hostedFake({ state: 'ready' }),
+};
+const hashOf = (page) => page.evaluate(() => window.location.hash);
+const switchItems = (page) => page.getByRole('navigation', { name: 'Switch use case' }).locator('[data-run-switch]')
+  .evaluateAll((els) => els.map((e) => [e.dataset.runSwitch, e.getAttribute('aria-current')]));
+
+test('full window, the Inspire menu switches use case, opens the page in a new tab and goes back to Inspire, and browser back and forward move between them', async () => {
+  const ui = await openUi('app', TWO_PAGES, '#/run/n01-u01-a', { mount: inspireApp, init: (page) => page.setExtraHTTPHeaders(VIEWER_HEADERS) });
+  const { page } = ui;
+  try {
+    await onFull(page, 'n01-u01-a');
+    assert.equal(await toggle(page).getAttribute('aria-expanded'), 'false', 'a ready page starts with the menu folded away');
+    assert.equal(await toggle(page).getAttribute('aria-label'), 'Inspire menu: back to Inspire, switch use case, or open in a new tab');
+    await toggle(page).click();
+    assert.deepEqual(await switchItems(page), [['inspire:n03-u01-b', null], ['inspire:n01-u01-a', 'true']],
+      'every page Inside Inspire is one click away, in the order the Run list shows them');
+    await page.keyboard.press('Escape');
+    await page.waitForFunction(() => document.querySelector('[data-run-control-toggle]').getAttribute('aria-expanded') === 'false');
+    await toggle(page).click();
+    await page.locator('[data-run-switch="inspire:n03-u01-b"]').click();
+    await onFull(page, 'n03-u01-b');
+    assert.equal(await page.locator('[data-run-frame]').getAttribute('src'), '/run/n03-u01-b/#/n03_u01');
+    await page.frameLocator('[data-run-frame]').locator('[data-hosted="n03-u01-b"]').waitFor({ timeout: 15000 });
+    assert.equal(await hashOf(page), '#/run/n03-u01-b', 'the address names the page shown, so it can be shared');
+    assert.equal(await toggle(page).getAttribute('aria-expanded'), 'false');
+
+    await toggle(page).click();
+    const link = page.locator('[data-run-full] [data-run-new-tab="n03-u01-b"]');
+    assert.deepEqual([await link.getAttribute('href'), await link.getAttribute('target')], ['/run/n03-u01-b/#/n03_u01', '_blank']);
+    const [tab] = await Promise.all([page.context().waitForEvent('page'), link.click()]);
+    await tab.locator('[data-hosted="n03-u01-b"]').waitFor({ timeout: 15000 });
+    assert.equal(new URL(tab.url()).pathname, '/run/n03-u01-b/', 'the new tab holds the page alone, the way an App of its own shows it');
+    await tab.close();
+
+    await backToInspire(page);
+    assert.equal(await hashOf(page), '');
+    assert.equal(await page.locator('[data-run-page="inspire:n03-u01-b"]').getAttribute('aria-current'), 'true', 'Inspire shows the page you came back from');
+    assert.equal(await page.locator('header').count(), 1);
+    await page.goBack();
+    await onFull(page, 'n03-u01-b');
+    assert.equal(await hashOf(page), '#/run/n03-u01-b', 'browser back returns to the page');
+    await page.goForward();
+    await page.locator('[data-run-page-root]').waitFor({ timeout: 20000 });
+    assert.equal(await page.locator('[data-run-full]').count(), 0, 'browser forward returns to the Run list');
+
+    await page.locator('[data-run-page="inspire:n01-u01-a"]').click();
+    await onFull(page, 'n01-u01-a');
+    assert.equal(await hashOf(page), '#/run/n01-u01-a');
+    await page.goBack();
+    await page.locator('[data-run-page-root]').waitFor({ timeout: 20000 });
+    assert.equal(await page.locator('[data-run-full]').count(), 0, 'browser back from a page opened from the list closes it');
+    assert.equal(await hashOf(page), '');
+    assert.deepEqual(ui.pageErrors, []);
   } finally {
     await ui.close();
   }

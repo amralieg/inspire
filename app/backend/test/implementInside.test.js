@@ -264,6 +264,25 @@ test('Run groups pages by domain and words their state; only a safe /run path be
   assert.equal(R.RUN_BANNER, 'Inside Inspire, only for testing. Give it its own App for real use.');
 });
 
+test('only a page with a safe frame source opens full window; an App of its own, an unsafe path or an unknown key never does', async () => {
+  const R = await lib('runPages.js');
+  const a = { kind: 'inspire', id: 'n01-u01-a', path: '/run/n01-u01-a/#/n01_u01' };
+  const unsafe = { kind: 'inspire', id: 'n02-u01-b', path: 'https://evil.example.com/run/n02-u01-b/' };
+  const own = { kind: 'app', session_id: '43', use_case_id: 'N02-U01', app_url: 'https://inspire-hub-acme.example.com' };
+  const demo = { kind: R.RUN_DEMO_KIND, id: 'N01-U01', path: '/showcase/demo/mvp/n01/' };
+  const pages = [own, a, unsafe, demo];
+  assert.equal(R.runFullPage(pages, 'inspire:n01-u01-a'), a);
+  assert.equal(R.runFullPage(pages, 'inspire:n02-u01-b'), null, 'a page whose path is not a safe /run path never fills the window');
+  assert.equal(R.runFullPage(pages, 'app:43:N02-U01'), null, 'an App of its own opens outside Inspire');
+  assert.equal(R.runFullPage(pages, 'inspire:n09-u09-x'), null);
+  assert.equal(R.runFullPage(pages, ''), null);
+  assert.equal(R.runFullPage(null, 'inspire:n01-u01-a'), null);
+  assert.equal(R.runFullPage(pages, 'demo:N01-U01'), demo);
+  assert.equal(R.runFullPage([{ ...demo, path: '/showcase/demo/mvp/n01/../../api/' }], 'demo:N01-U01'), null);
+  assert.deepEqual(R.runFramedPages(pages), [a, demo], 'Switch use case lists only pages that can fill the window');
+  assert.deepEqual(R.runFramedPages(undefined), []);
+});
+
 async function submitted(outputs, { headers = {}, appUrl, proxy } = {}) {
   const made = makeApp(proxy === undefined ? {} : { forwardedHost: proxy });
   const srv = await listen(made.app);

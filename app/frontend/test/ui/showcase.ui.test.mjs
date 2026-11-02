@@ -279,11 +279,29 @@ test('the demo replays every view from the bundle with no workspace call, refuse
     await settle();
 
     await page.locator('header nav').getByRole('button', { name: /Run$/ }).click();
+    const openFull = page.locator('[data-run-open="N01-U01"]');
+    await openFull.waitFor();
+    assert.equal(await page.locator('[data-run-frame]').count(), 0, 'the demo Run list never squeezes the MVP into a frame beside it');
+    assert.equal(await page.locator('[data-run-page="demo:N01-U01"]').innerText().then((t) => t.includes('Predict churn')), true);
+    assert.equal(await page.locator('[data-run-new-tab="N01-U01"]').getAttribute('href'), HOSTED);
+    await openFull.click();
+    await page.locator('[data-run-full="demo:N01-U01"]').waitFor();
     const runFrame = page.locator('[data-run-frame="N01-U01"]');
-    await runFrame.waitFor();
     assert.equal(await runFrame.getAttribute('src'), HOSTED, 'the demo Run tab opens the MVP App hosted in Inspire');
     await page.frameLocator('[data-run-frame="N01-U01"]').locator('.app', { hasText: 'Churn desk' }).waitFor();
-    assert.equal(await page.locator('[data-run-page="demo:N01-U01"]').innerText().then((t) => t.includes('Predict churn')), true);
+    const viewport = page.viewportSize();
+    assert.deepEqual(await runFrame.evaluate((el) => { const r = el.getBoundingClientRect(); return [r.left, r.top, r.width, r.height]; }),
+      [0, 0, viewport.width, viewport.height], 'the demo MVP fills the whole window, as it does on its own');
+    assert.equal(await demoBar(page).count(), 0, 'the demo bar steps aside while the MVP fills the window');
+    await page.locator('[data-run-control-toggle]').click();
+    assert.equal(await page.locator('[data-run-full]').getByRole('note', { name: 'Demo' }).count(), 1, 'the Inspire menu still says it is a demo');
+    await page.getByRole('button', { name: 'Back to Inspire', exact: true }).click();
+    await page.locator('[data-run-page-root]').waitFor();
+    await page.goBack();
+    await page.locator('[data-run-full="demo:N01-U01"]').waitFor();
+    await page.goForward();
+    await page.locator('[data-run-page-root]').waitFor();
+    assert.equal(await page.locator('[data-run-full]').count(), 0, 'browser back and forward move between the MVP and the Run list');
     await demoBar(page).getByText(SHOWCASE_NOTE).waitFor();
     await settle();
 
