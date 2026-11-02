@@ -411,12 +411,14 @@ test('the alert step copies every App shell module its rules import, so a module
   assert.deepEqual(uncopied(A.ALERT_RULE_FILES), []);
   assert.deepEqual(uncopied(A.ALERT_RULE_FILES.filter((name) => name !== 'shell_facts.py')), ['shell_sql.py imports shell_facts.py'],
     'a module the rules import but the step does not copy is caught');
+  assert.deepEqual(uncopied(A.ALERT_RULE_FILES.filter((name) => name !== 'shell_redact.py')),
+    ['shell_sql.py imports shell_redact.py', 'shell_db.py imports shell_redact.py'], 'and so is one imported from two places');
 });
 
 test('the alert steps run in a plain Python process with no token in its environment and stop after the timeout', async () => {
   const seen = [];
   const rules = A.createAlertRules({
-    files: () => ({ 'shell_alerts.py': 'def cli():\n    pass\n', 'shell_sql.py': '', 'shell_facts.py': '', 'shell_db.py': '' }),
+    files: () => ({ 'shell_alerts.py': 'def cli():\n    pass\n', 'shell_sql.py': '', 'shell_facts.py': '', 'shell_db.py': '', 'shell_redact.py': '' }),
     tmpRoot: fs.mkdtempSync(path.join(os.tmpdir(), 'alert-rules-unit-')),
     env: { PATH: '/usr/bin', DATABRICKS_TOKEN: 'never', DATABRICKS_CLIENT_SECRET: 'never' },
     pickPython: async () => '/usr/bin/python3',
@@ -436,7 +438,7 @@ test('the alert steps run in a plain Python process with no token in its environ
   assert.deepEqual(args.slice(0, 4), ['-B', '-E', '-s', '-c']);
   assert.deepEqual(Object.keys(opts.env).sort(), ['LANG', 'PATH'], 'Python plans the alert and never sees a token');
   assert.deepEqual(JSON.parse(text), { v: 1, op: 'listing', args: { page: {} } });
-  const old = A.createAlertRules({ files: () => ({ 'shell_alerts.py': 'class Alerts:\n    pass\n', 'shell_sql.py': '', 'shell_facts.py': '', 'shell_db.py': '' }),
+  const old = A.createAlertRules({ files: () => ({ 'shell_alerts.py': 'class Alerts:\n    pass\n', 'shell_sql.py': '', 'shell_facts.py': '', 'shell_db.py': '', 'shell_redact.py': '' }),
     tmpRoot: fs.mkdtempSync(path.join(os.tmpdir(), 'alert-rules-old-')), pickPython: async () => '/usr/bin/python3' });
   await assert.rejects(old.run('listing', {}), (err) => err.statusCode === 503 && err.message === A.ALERT_TEXT.noRules);
 });
