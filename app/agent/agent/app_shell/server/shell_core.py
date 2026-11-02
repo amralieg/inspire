@@ -6,6 +6,7 @@ import math
 import os
 import re
 import statistics
+import sys
 import threading
 import time
 import uuid
@@ -28,10 +29,9 @@ THEMES = ("light", "dark")
 PALETTES = ("default", "muted", "vivid", "ocean", "sunset", "earth", "jewel", "nordic", "berry", "pop", "neon", "solid", "mono")
 OPTIONS = ("modify", "replace_edits", "decisions", "alerts")
 SCREENS = ("runs", "impact")
-USER_OFF = ("decisions", "alerts")
+USER_OFF = ("alerts",)
 OFF_WHEN_UNSET = ("alerts",)
-USER_OFF_PROBLEMS = {"decisions": "an App where each viewer sees only their own data cannot record decisions",
-                     "alerts": "an App where each viewer sees only their own data cannot send alerts"}
+USER_OFF_PROBLEMS = {"alerts": "an App where each viewer sees only their own data cannot send alerts"}
 CACHE_TTL_S = 60
 OPTIONS_TTL_S = 600
 CACHE_ENTRIES = 1000
@@ -152,6 +152,10 @@ INSIDE = "inspire"
 USER_JOBS = ("This page runs inside Inspire with no service principal of its own, so it never reads or starts the use case's job: it "
              "shows the runs the use case recorded, and Refresh now is off; the job's schedule still refreshes it")
 INSIDE_SP = "A page inside Inspire has no service principal, so it reads and acts only as the person signed in"
+INSIDE_DECISIONS = ("A page inside Inspire records decisions through Inspire, and the Inspire App serving this page cannot record them; "
+                    "update the Inspire App, then open the page again from the Run tab")
+CLI_VERSION = 1
+CLI_ROUTES = ("records/act", "records/undo")
 JOB_RUNS_RECENT = 25
 STAGE_RUNS = 10
 RUN_TIMEOUT_S = 14400
@@ -196,6 +200,14 @@ def conflict_text(current) -> str:
     verb = "deleted" if current.get("change_source") == "delete" else "changed"
     return (f"{who_changed(current)} {verb} this record on {when_changed(current)}, after you opened it. Reload it to see that "
             "change, then make yours again")
+
+
+def unreadable_text(count: int) -> str:
+    if count == 1:
+        return ("you cannot read this record in Unity Catalog, or it is no longer in the result table, so the App records no decision "
+                "on it")
+    return (f"you cannot read these {count:,} records in Unity Catalog, or they are no longer in the result table, so the App records "
+            "no decision on them")
 
 
 def same_value(stored, sent) -> bool:
@@ -652,6 +664,67 @@ def sp_workspace_factory():
 
 def user_workspace_factory(host: str, token: str):
     return Workspace(host, lambda: {"Authorization": f"Bearer {token}"})
+
+
+class OnWarehouse:
+    def __init__(self, ws, warehouse: str):
+        self.ws, self.warehouse = ws, warehouse
+
+    def run_sql(self, _warehouse: str, statement: str, parameters=None, limit: int = 5000) -> dict:
+        return self.ws.run_sql(self.warehouse, statement, parameters, limit=limit)
+
+
+def _cli_text(request: dict, key: str) -> str:
+    value = request.get(key)
+    if not isinstance(value, str) or not value.strip():
+        raise HttpError(400, f"send {key} as text")
+    return value.strip()
+
+
+def cli_answer(request: dict, user_factory=user_workspace_factory) -> tuple:
+    try:
+        return _cli_step(request, user_factory)
+    except HttpError as error:
+        return error.status, error_body(error.message, error.code, error.extra)
+
+
+def _cli_step(request: dict, user_factory) -> tuple:
+    if not isinstance(request, dict) or request.get("v") != CLI_VERSION:
+        raise HttpError(400, f"send a decision step of version {CLI_VERSION}")
+    route = str(request.get("route") or "")
+    if route not in CLI_ROUTES:
+        raise HttpError(404, f"there is no decision step {route!r}; the steps are {', '.join(CLI_ROUTES)}")
+    host, writer = _cli_text(request, "host"), request.get("writer")
+    if not isinstance(writer, dict):
+        raise HttpError(400, "send writer with the token and SQL warehouse Inspire records decisions with")
+    token, warehouse = _cli_text(writer, "token"), _cli_text(writer, "warehouse")
+    body, headers = request.get("body"), request.get("headers")
+    if not isinstance(body, dict) or not isinstance(headers, dict):
+        raise HttpError(400, "send body and headers as objects")
+    shell = Shell(_cli_text(request, "root"), env={"DATABRICKS_HOST": host, "DATABRICKS_WAREHOUSE_ID": _cli_text(request, "warehouse")},
+                  sp_factory=None, user_factory=user_factory, writer_factory=lambda: OnWarehouse(user_factory(host, token), warehouse))
+    if not shell.inside or shell.settings["auth"] != "user":
+        raise HttpError(409, "Inspire records decisions only for a page inside Inspire that signs viewers in as themselves")
+    page = shell.page(body.get("page"))
+    built = _cli_text(request, "result_table")
+    if not page.get("result_table") or shell_pg.uc_key(page["result_table"]) != shell_pg.uc_key(built):
+        raise HttpError(409, f"this page names a result table Inspire did not build for it, so Inspire records no decision on it; "
+                             f"{shell_sql.rebuild_action('the use case')}")
+    sent = {str(k).lower(): str(v) for k, v in headers.items() if isinstance(v, str)}
+    return shell.handle("POST", route, {}, dict(sent, **{"content-type": "application/json"}), json.dumps(body).encode("utf-8"))
+
+
+def cli(stdin=None, stdout=None) -> int:
+    stdin, stdout = stdin or sys.stdin, stdout or sys.stdout
+    try:
+        status, answer = cli_answer(json.loads(stdin.read() or "{}"))
+    except (ValueError, KeyError, TypeError) as error:
+        status, answer = 400, {"error": str(error)}
+    except OSError as error:
+        status, answer = 500, {"error": f"Inspire could not read the page files: {error}"}
+    stdout.write(json.dumps({"status": status, "body": answer}, ensure_ascii=False, separators=(",", ":"), default=str))
+    stdout.flush()
+    return 0
 
 
 def who_changed(version: dict) -> str:
@@ -1243,12 +1316,12 @@ def list_cursors(request: dict, context: dict, rows: list, total: int) -> dict:
 
 class Shell:
     def __init__(self, root: str, env=None, sp_factory=sp_workspace_factory, user_factory=user_workspace_factory, clock=time.time,
-                 timer=time.monotonic, lakebase_factory=shell_pg.Lakebase, strict: bool = False):
+                 timer=time.monotonic, lakebase_factory=shell_pg.Lakebase, strict: bool = False, writer_factory=None):
         self.env = dict(os.environ if env is None else env)
         self.settings, self.pages = load_app(root)
         self.inside = self.settings.get("host") == INSIDE
-        self.sp_factory, self.user_factory = sp_factory, user_factory
-        self._sp = None
+        self.sp_factory, self.user_factory, self.writer_factory = sp_factory, user_factory, writer_factory
+        self._sp, self._writer = None, None
         self.clock, self.timer = clock, timer
         self.strict = strict
         self.backend = self.settings.get("backend") or {"kind": "delta"}
@@ -1299,6 +1372,30 @@ class Shell:
         if self._sp is None:
             self._sp = self.sp_factory()
         return self._sp
+
+    def decision_writer(self, ws):
+        if self.settings["auth"] != "user":
+            return ws
+        if self.writer_factory is not None:
+            if self._writer is None:
+                self._writer = self.writer_factory()
+            return self._writer
+        if self.inside:
+            raise HttpError(403, INSIDE_DECISIONS)
+        return self.service()
+
+    def readable_versions(self, ws, page: dict, keys: list) -> dict:
+        try:
+            return self.current_versions(ws, page, keys)
+        except QueryError as error:
+            if NO_ACCESS.search(str(error)):
+                raise self.read_refused(page, error, "Nothing was saved") from error
+            raise
+
+    @staticmethod
+    def read_refused(page: dict, error, nothing: str) -> HttpError:
+        return HttpError(403, f"{nothing}: you cannot read {shell_sql.table_name(page['result_table'])} in Unity Catalog ({error}), so the "
+                              "App records no decision on its records")
 
     def host(self) -> str:
         return normalize_host(self.env.get("DATABRICKS_HOST") or "")
@@ -2129,10 +2226,14 @@ class Shell:
             self.cache.put(key, model, CACHE_TTL_S)
         return model
 
-    def write_refused(self, table: str, error) -> HttpError:
-        if self.settings["auth"] == "user":
+    def write_refused(self, table: str, error, as_app: bool = False) -> HttpError:
+        if self.settings["auth"] == "user" and not as_app:
             return HttpError(403, f"Nothing was saved: you may not change {table} in Unity Catalog ({error}). Ask the owner of that "
                                   "table for SELECT and MODIFY on it")
+        if as_app and self.inside:
+            return HttpError(403, f"Nothing was saved: Inspire's service principal records the decisions of this page and may not change "
+                                  f"{table} in Unity Catalog ({error}). Ask the owner of that table to grant Inspire's service principal "
+                                  f"SELECT and MODIFY on it, or {shell_sql.rebuild_action('the use case')}")
         return HttpError(403, f"Nothing was saved: this App's service principal may not change {table} in Unity Catalog ({error}). "
                               f"Ask the person who built the App to {shell_sql.rebuild_action()}, so Inspire grants the service principal SELECT and "
                               "MODIFY on that table, or ask the owner of that table to grant them")
@@ -2647,7 +2748,8 @@ class Shell:
             if self.option("modify"):
                 problems += [f"{where}: people cannot change its records: {p}" for p in self.write_problems(headers, page)]
             if self.option("decisions"):
-                problems += [f"{where}: people cannot record decisions on its records: {p}" for p in self.write_problems(headers, page)]
+                problems += [f"{where}: people cannot record decisions on its records: {p}"
+                             for p in self.write_problems(headers, page, decisions=True)]
             problems += slow_problems(where, probe.seconds)
         return problems
 
@@ -2672,10 +2774,12 @@ class Shell:
         self.forget()
         return out
 
-    def write_problems(self, headers: dict, page: dict) -> list:
+    def write_problems(self, headers: dict, page: dict, decisions: bool = False) -> list:
         try:
             ws, who = self.workspace(headers)
             self.change_table(ws, who, page)
+            if decisions and self.settings["auth"] == "user" and not self.inside:
+                self.change_table(self.decision_writer(ws), "sp", page)
         except (HttpError, QueryError) as error:
             return [getattr(error, "message", None) or str(error)]
         return []
@@ -2895,14 +2999,14 @@ class Shell:
         return self.history_of(ws, who, page, fields, record_key, True)
 
     def write_versions(self, ws, page: dict, fields: list, source: str, records: list, editor: str, values: dict, batch=None,
-                       match=None, undo=None) -> dict:
+                       match=None, undo=None, only=None, as_app: bool = False) -> dict:
         sql, params = shell_sql.version_write(page["result_table"], fields, source, records, editor, values, batch=batch, match=match,
-                                              undo=undo)
+                                              undo=undo, only=only)
         try:
             result = self.execute(ws, sql, params, 1, delta=True)
         except QueryError as error:
             if NOT_ALLOWED.search(str(error)):
-                raise self.write_refused(shell_sql.table_name(page["result_table"]), error) from error
+                raise self.write_refused(shell_sql.table_name(page["result_table"]), error, as_app) from error
             if not shell_db.CONCURRENT.search(str(error)):
                 raise
             result = {"rows": [{"num_inserted_rows": 0}]}
@@ -2964,17 +3068,27 @@ class Shell:
         keys, seen, match = self.act_target(data)
         values = shell_sql.action_values(data.get("values"), self.now().date())
         ws, who = self.workspace(headers)
+        writer = self.decision_writer(ws)
         fields = self.change_table(ws, who, page)
         batch = {"id": uuid.uuid4().hex, "values": batch_values(data["values"], values)}
         if match is not None:
-            out = self.act_on_match(ws, who, page, fields, match, editor, values, batch)
+            out = self.act_on_match(ws, writer, who, page, fields, match, editor, values, batch)
         else:
-            out = self.act_on_keys(ws, page, fields, keys, seen, editor, values, batch)
+            out = self.act_on_keys(ws, writer, page, fields, keys, seen, editor, values, batch)
         notice = self.alerts.assigned(headers, page, values.get("action_owner"), editor) if values.get("action_owner") else ""
         return dict(out, **({"notice": notice} if notice else {}))
 
-    def act_on_keys(self, ws, page: dict, fields: list, keys: list, seen: dict, editor: str, values: dict, batch: dict) -> dict:
-        row = self.write_versions(ws, page, fields, "action", [(k, str(seen[k])) for k in keys], editor, values, batch=batch)
+    def act_on_keys(self, ws, writer, page: dict, fields: list, keys: list, seen: dict, editor: str, values: dict, batch: dict) -> dict:
+        as_app, left_out = self.settings["auth"] == "user", []
+        if as_app:
+            readable = self.readable_versions(ws, page, keys)
+            left_out = [k for k in keys if k not in readable]
+            keys = [k for k in keys if k in readable]
+            if not keys:
+                raise HttpError(403, f"Nothing was saved: {unreadable_text(len(left_out))}",
+                                {"written": [], "conflicts": [], "conflicts_count": 0, "left_out": len(left_out), "batch_id": None})
+        row = self.write_versions(writer, page, fields, "action", [(k, str(seen[k])) for k in keys], editor, values, batch=batch,
+                                  as_app=as_app)
         if row.get("num_inserted_rows") == len(keys):
             written, conflicts = keys, []
         else:
@@ -2984,9 +3098,10 @@ class Shell:
                           conflict_text(current.get(k))} for k in keys if k not in written]
         if not written:
             message = conflicts[0]["error"] if len(keys) == 1 else f"none of the {shell_sql.plural(len(keys), 'record')} changed: {conflicts[0]['error']}"
-            raise HttpError(409, message, {"written": [], "conflicts": conflicts, "conflicts_count": len(conflicts), "batch_id": None},
-                            code=STALE_RECORD)
-        return {"written": written, "conflicts": conflicts, "conflicts_count": len(conflicts), "batch_id": batch["id"]}
+            raise HttpError(409, message, {"written": [], "conflicts": conflicts, "conflicts_count": len(conflicts),
+                                           "left_out": len(left_out), "batch_id": None}, code=STALE_RECORD)
+        return {"written": written, "conflicts": conflicts, "conflicts_count": len(conflicts), "left_out": len(left_out),
+                "batch_id": batch["id"]}
 
     def match_plan(self, ws, who, page: dict, filters: dict, view: dict, editor: str) -> tuple:
         problems = shell_sql.filter_values_problems(page, filters)
@@ -3003,21 +3118,32 @@ class Shell:
             raise HttpError(401, "sign in so the App can act on the records you own")
         return context, request, fields
 
-    def act_on_match(self, ws, who, page: dict, fields: list, match: dict, editor: str, values: dict, batch: dict) -> dict:
+    def act_on_match(self, ws, writer, who, page: dict, fields: list, match: dict, editor: str, values: dict, batch: dict) -> dict:
+        as_app = self.settings["auth"] == "user"
         context, request, _fields = self.match_plan(ws, who, page, match["filters"], match["view"], editor)
         version = self.as_of_version(ws, page, int(match["as_of_us"]))
         counted = shell_sql.list_match_query(page, match["filters"], request, context, editor)
         matched = int(((self.execute(ws, counted["total"], counted["params"].items, 1, delta=True)["rows"] or [{}])[0].get("total")) or 0)
-        cap = shell_sql.CAPS["act_match"]
+        cap = shell_sql.CAPS["act_match_user" if as_app else "act_match"]
         if matched > cap:
             raise HttpError(409, f"the filters match {shell_sql.plural(matched, 'record')}; act on at most {cap:,} at once: narrow the filters",
                             {"matched": matched, "cap": cap}, code=OVER_CAP)
         if not matched:
             raise HttpError(409, "no record matches these filters any more; reload the list", {"matched": 0}, code=NO_MATCH)
         plan = shell_sql.list_match_query(page, match["filters"], request, context, editor)
-        row = self.write_versions(ws, page, fields, "action", [], editor, values, batch=batch,
-                                  match={"keys": plan["keys"], "params": plan["params"],
-                                         "before": shell_sql.snapshot_of(page["result_table"], version)})
+        before = shell_sql.snapshot_of(page["result_table"], version)
+        if as_app:
+            found = self.execute(ws, plan["keys"], plan["params"].items, cap, delta=True)
+            if found.get("truncated"):
+                raise HttpError(409, f"the filters match more than {cap:,} records; act on at most {cap:,} at once: narrow the filters",
+                                {"matched": cap + 1, "cap": cap}, code=OVER_CAP)
+            keys = [str(r["_inspire_key"]) for r in found["rows"] if r.get("_inspire_key") is not None]
+            if not keys:
+                raise HttpError(409, "no record matches these filters any more; reload the list", {"matched": 0}, code=NO_MATCH)
+            plan = shell_sql.keys_match(keys, before)
+        else:
+            plan = dict(plan, before=before)
+        row = self.write_versions(writer, page, fields, "action", [], editor, values, batch=batch, match=plan, as_app=as_app)
         written = int(row.get("num_inserted_rows", row.get("num_affected_rows")) or 0)
         held = "held_back" in {f["name"] for f in fields}
         probe = shell_sql.list_match_query(page, match["filters"], request, context, editor)
@@ -3026,7 +3152,7 @@ class Shell:
         conflicts = [{"record_key": str(r.get("record_key")), "error": HELD_TEXT if r.get("held_back") is True else conflict_text(r)}
                      for r in rows]
         counted_conflicts = int((rows[0].get("_inspire_n") if rows else 0) or 0)
-        out = {"written": written, "matched": matched, "conflicts": conflicts, "conflicts_count": counted_conflicts,
+        out = {"written": written, "matched": matched, "conflicts": conflicts, "conflicts_count": counted_conflicts, "left_out": 0,
                "batch_id": batch["id"] if written else None}
         if not written:
             first = conflicts[0]["error"] if conflicts else "another change landed at the same time; reload the list and try again"
@@ -3063,6 +3189,7 @@ class Shell:
         if not shell_sql.BATCH_ID.match(undone):
             raise HttpError(400, "send the batch_id of the act to undo, as GET records/batches lists it")
         ws, who = self.workspace(headers)
+        writer = self.decision_writer(ws)
         fields = self.change_table(ws, who, page)
         sql, params = shell_sql.batches_query(page, 1, batch_id=undone)
         made = (self.execute(ws, sql, params, 1, delta=True)["rows"] or [None])[0]
@@ -3071,18 +3198,42 @@ class Shell:
         refusal = self.undo_refusal(headers, page, made.get("editor"))
         if refusal:
             raise HttpError(403, refusal)
+        as_app, only = self.settings["auth"] == "user", None
+        if as_app:
+            only = self.readable_batch(ws, page, undone)
         batch = {"id": uuid.uuid4().hex, "values": json.dumps({shell_sql.UNDO_KEY: undone}, sort_keys=True)}
-        row = self.write_versions(ws, page, fields, "action", [], editor, {}, batch=batch, undo=undone)
+        row = self.write_versions(writer, page, fields, "action", [], editor, {}, batch=batch, undo=undone, only=only, as_app=as_app)
         restored = int(row.get("num_inserted_rows", row.get("num_affected_rows")) or 0)
         sql, params = shell_sql.batch_records_query(page, undone, batch["id"])
         rows = self.execute(ws, sql, params, shell_sql.CAPS["conflicts_shown"], delta=True)["rows"]
         if not rows:
             raise HttpError(404, f"no act with batch_id {undone} changed a record of this page")
         total = int(rows[0].get("_inspire_n") or 0)
+        left_out = 0
+        if as_app:
+            counted = self.execute(writer, sql, params, 1, delta=True)["rows"]
+            left_out = max(int((counted[0].get("_inspire_n") if counted else 0) or 0) - total, 0)
         skipped = [{"record_key": str(r.get("record_key")), "error": conflict_text(r if r.get("change_source") else None)}
                    for r in rows if not count_of(r.get("_inspire_done"))]
-        return {"restored": restored, "skipped": max(total - restored, 0), "skipped_sample": skipped,
+        return {"restored": restored, "skipped": max(total - restored, 0), "skipped_sample": skipped, "left_out": left_out,
                 "batch_id": batch["id"] if restored else None, "undoes": undone}
+
+    def readable_batch(self, ws, page: dict, batch_id: str) -> list:
+        cap = shell_sql.CAPS["act_match_user"]
+        sql, params = shell_sql.batch_keys_query(page, batch_id)
+        try:
+            found = self.execute(ws, sql, params, cap, delta=True)
+        except QueryError as error:
+            if NO_ACCESS.search(str(error)):
+                raise self.read_refused(page, error, "Nothing was undone") from error
+            raise
+        if found.get("truncated"):
+            raise HttpError(409, f"this act changed more than {cap:,} records you can read, and the App undoes at most {cap:,} at once",
+                            {"cap": cap}, code=OVER_CAP)
+        keys = [str(r["record_key"]) for r in found["rows"] if r.get("record_key") is not None]
+        if not keys:
+            raise HttpError(404, f"no act with batch_id {batch_id} changed a record of this page you can read")
+        return keys
 
     def similar(self, headers: dict, query: dict) -> dict:
         page = self.page(query.get("page"))

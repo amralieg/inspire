@@ -54,7 +54,7 @@
   "act_keys": {
     "request": {"method": "POST", "path": "records/act", "body": {"page": "n01_u05", "record_keys": ["k1"], "seen": {"k1": "1001"},
                                                                  "values": {"action_status": "In progress", "note": "Called the store"}}},
-    "response": {"written": ["k1"], "conflicts": [], "conflicts_count": 0, "batch_id": "0123456789abcdef0123456789abcdef"}
+    "response": {"written": ["k1"], "conflicts": [], "conflicts_count": 0, "left_out": 0, "batch_id": "0123456789abcdef0123456789abcdef"}
   },
   "act_match": {
     "request": {"method": "POST", "path": "records/act", "body": {"page": "n01_u05", "match": {"filters": {"category": ["Books"]},
@@ -62,7 +62,7 @@
                                                                                              "as_of_us": "111122223333444"},
                                                                  "values": {"action_status": "Done", "note": "Repriced the shelf"}}},
     "response": {"written": 2, "matched": 3, "conflicts": [{"record_key": "k3", "error": "Someone changed this record"}],
-                 "conflicts_count": 1, "batch_id": "0123456789abcdef0123456789abcdef"},
+                 "conflicts_count": 1, "left_out": 0, "batch_id": "0123456789abcdef0123456789abcdef"},
     "over_cap": {"status": 409, "body": {"error": "the filters match 100,001 records; act on at most 100,000 at once: narrow the filters",
                                          "matched": 100001, "cap": 100000, "code": "over_cap"}}
   },
@@ -86,7 +86,7 @@
   },
   "undo": {
     "request": {"method": "POST", "path": "records/undo", "body": {"page": "n01_u05", "batch_id": "0123456789abcdef0123456789abcdef"}},
-    "response": {"restored": 1, "skipped": 1, "skipped_sample": [{"record_key": "k2", "error": "Someone changed this record"}],
+    "response": {"restored": 1, "skipped": 1, "skipped_sample": [{"record_key": "k2", "error": "Someone changed this record"}], "left_out": 0,
                  "batch_id": "fedcba9876543210fedcba9876543210", "undoes": "0123456789abcdef0123456789abcdef"}
   },
   "errors": {
@@ -98,6 +98,6 @@
     "no_window": {"status": 400, "body": {"error": "this decision list keeps no actions, so it has no window of actions to show", "code": "no_window"}},
     "stale_record": {"status": 409, "body": {"error": "dana changed this record on Oct 27, 2026 at 09:10 UTC, after you opened it. Reload it to see that change, then make yours again",
                                              "written": [], "conflicts": [{"record_key": "k1", "error": "dana changed this record on Oct 27, 2026 at 09:10 UTC, after you opened it. Reload it to see that change, then make yours again"}],
-                                             "conflicts_count": 1, "batch_id": null, "code": "stale_record"}}
+                                             "conflicts_count": 1, "left_out": 0, "batch_id": null, "code": "stale_record"}}
   }
 }

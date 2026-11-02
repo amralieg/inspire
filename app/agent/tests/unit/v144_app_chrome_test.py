@@ -41,15 +41,15 @@ def test_settings_refuse_an_option_the_app_does_not_offer(tmp_path, key, value):
         shell_core.load_app(app_dir(tmp_path, old))
 
 
-def test_settings_keep_the_options_and_the_per_user_decisions_rule():
+def test_settings_keep_the_options_and_let_a_per_user_app_record_decisions():
     assert shell_core.OPTIONS == ("modify", "replace_edits", "decisions", "alerts")
-    assert shell_core.USER_OFF == ("decisions", "alerts")
+    assert shell_core.USER_OFF == ("alerts",)
     assert shell_core.settings_problems(SETTINGS, [PAGE]) == []
     missing = dict(SETTINGS, options={"modify": False, "decisions": False})
     assert shell_core.settings_problems(missing, [PAGE]) == ["the App options must set modify, replace_edits, decisions to true or false, "
                                                              "and alerts to true or false when they set it"]
     per_user = dict(SETTINGS, auth="user", options=dict(SETTINGS["options"], decisions=True))
-    assert shell_core.settings_problems(per_user, [PAGE]) == ["an App where each viewer sees only their own data cannot record decisions"]
+    assert shell_core.settings_problems(per_user, [PAGE]) == []
     assert shell_core.settings_problems(dict(per_user, options=SETTINGS["options"]), [PAGE]) == []
 
 

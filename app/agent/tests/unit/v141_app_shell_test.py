@@ -444,7 +444,9 @@ def call(s, method, path, query=None, headers=None, body=None):
 def test_settings_problems():
     assert shell_core.settings_problems(SETTINGS, [PAGE]) == []
     user_decisions = dict(SETTINGS, auth="user", options=dict(SETTINGS["options"], decisions=True))
-    assert any("cannot record decisions" in p for p in shell_core.settings_problems(user_decisions, [PAGE]))
+    assert shell_core.settings_problems(user_decisions, [PAGE]) == []
+    user_alerts = dict(user_decisions, options=dict(user_decisions["options"], alerts=True), alert_folder="/Workspace/Shared/a")
+    assert any("cannot send alerts" in p for p in shell_core.settings_problems(user_alerts, [PAGE]))
     assert any("genie_note" in p for p in shell_core.settings_problems(dict(SETTINGS, genie=None), [PAGE]))
     assert shell_core.settings_problems(dict(SETTINGS, genie=None, genie_note="The Genie Agent failed to build"), [PAGE]) == []
     assert any("every page id" in p for p in shell_core.settings_problems(dict(SETTINGS, pages=["other"]), [PAGE]))

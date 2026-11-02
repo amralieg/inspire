@@ -211,7 +211,7 @@ CAPS = {"kpis": (3, 6), "charts": (3, 8), "tables": (0, 3), "filters": (1, 8), "
         "realized_note_chars": 500, "realized_value": 10 ** 15, "impact_rows": 100, "promised_chars": 1000, "benefits": 5, "usage_rows": 2000,
         "range_number": 10 ** 15, "blocks": (0, 8), "block_text": 4000, "block_html": 20000, "image_bytes": 2 * 1024 * 1024,
         "image_height": (40, 1200), "url_chars": 2000, "kpi_rows": 2, "count_cap": 10000, "changed_keys": 500, "act_match": 100000,
-        "note_chars": 500, "snooze_days": 365, "conflicts_shown": 20, "similar_sample": 5, "similar_by": 3, "batches": 20,
+        "act_match_user": 10000, "note_chars": 500, "snooze_days": 365, "conflicts_shown": 20, "similar_sample": 5, "similar_by": 3, "batches": 20,
         "exclude_keys": 50, "window_limit": 1000, "act_history": 200, "closers_today": 200, "my_work_rows": 50, "my_work_export": 10000,
         "my_work_days": 366}
 MY_WORK_DEFAULT = "week"
@@ -3910,11 +3910,28 @@ def list_keys_query(page: dict, values: dict, columns) -> tuple:
             f"{_where(page, RECORDS_DATASET, values, params)}", params.items)
 
 
+def _key_list(params, keys: list) -> str:
+    return f"SELECT explode(from_json({params.add(json.dumps([str(k) for k in keys], ensure_ascii=False))}, 'ARRAY<STRING>'))"
+
+
 def current_query(table: str, keys: list) -> tuple:
     params = _Params()
-    holder = params.add(json.dumps([str(k) for k in keys], ensure_ascii=False))
     return (f"SELECT *, CAST(unix_micros(`valid_from`) AS STRING) AS `{VERSION_COLUMN}` FROM {table_name(table)} WHERE `is_current` "
-            f"AND `record_key` IN (SELECT explode(from_json({holder}, 'ARRAY<STRING>')))", params.items)
+            f"AND `record_key` IN ({_key_list(params, keys)})", params.items)
+
+
+def keys_match(keys: list, before: str) -> dict:
+    params = _Params()
+    return {"keys": f"{_key_list(params, keys)} AS `_inspire_key`", "params": params, "before": before}
+
+
+def _batch_keys(table: str, params, batch_id: str) -> str:
+    return f"SELECT DISTINCT `record_key` FROM {table} WHERE `change_source` = 'action' AND `{BATCH_COLUMN}` = {params.add(str(batch_id))}"
+
+
+def batch_keys_query(page: dict, batch_id: str) -> tuple:
+    params = _Params()
+    return _batch_keys(table_name(page["result_table"]), params, batch_id), params.items
 
 
 def snapshot_of(table: str, version) -> str:
@@ -3946,8 +3963,7 @@ def batches_query(page: dict, limit: int = CAPS["batches"], batch_id: str = None
 
 def batch_records_query(page: dict, batch_id: str, restored_by: str) -> tuple:
     table, params = table_name(page["result_table"]), _Params()
-    wrote = (f"SELECT DISTINCT `record_key` FROM {table} WHERE `change_source` = 'action' AND `{BATCH_COLUMN}` = "
-             f"{params.add(str(batch_id))}")
+    wrote = _batch_keys(table, params, batch_id)
     done = f"CASE WHEN c.`change_source` = 'action' AND c.`{BATCH_COLUMN}` <=> {params.add(str(restored_by))} THEN 1 ELSE 0 END"
     return (f"SELECT x.`record_key`, c.`change_source`, c.`changed_by`, c.`valid_from`, {done} AS `_inspire_done`, COUNT(*) OVER () AS "
             f"`_inspire_n` FROM ({wrote}) AS x LEFT JOIN {table} AS c ON c.`record_key` = x.`record_key` AND c.`is_current` "
@@ -4134,8 +4150,8 @@ def field_value(field: dict, raw, params: _Params) -> str:
 
 
 def version_write(table: str, fields: list, source: str, records: list, editor: str, values=None, batch=None, match=None,
-                  undo=None) -> tuple:
-    staged, params = version_staged(table, fields, source, records, editor, values, batch, match, undo)
+                  undo=None, only=None) -> tuple:
+    staged, params = version_staged(table, fields, source, records, editor, values, batch, match, undo, only)
     names = [f["name"] for f in fields]
     target = table_name(table)
     columns = ", ".join(quote(n) for n in names)
@@ -4149,11 +4165,13 @@ def version_write(table: str, fields: list, source: str, records: list, editor: 
 
 
 def version_staged(table: str, fields: list, source: str, records: list, editor: str, values=None, batch=None, match=None,
-                   undo=None) -> tuple:
+                   undo=None, only=None) -> tuple:
     if source not in PEOPLE_SOURCES:
         raise ValueError(f"the App writes edit, add, delete or action versions, not {source!r}")
     if not records and match is None and undo is None:
         raise ValueError("name the record to change")
+    if only is not None and (undo is None or not only):
+        raise ValueError("only narrows an undo to the records named, so name at least one")
     names = [f["name"] for f in fields]
     odd = [n for n in names if not IDENT.match(n) or n == MERGE_KEY]
     if odd:
@@ -4194,7 +4212,8 @@ def version_staged(table: str, fields: list, source: str, records: list, editor:
                 f"(SELECT 1 FROM {target} AS c WHERE c.`record_key` = {key} AND c.`is_current` AND c.`change_source` <> 'delete')")
     elif undo is not None:
         base = (f"FROM {target} AS b JOIN {target} AS p ON p.`record_key` = b.`record_key` AND p.`valid_to` = b.`valid_from` "
-                f"WHERE b.`is_current` AND b.`change_source` = 'action' AND b.`{BATCH_COLUMN}` = {params.add(str(undo))}")
+                f"WHERE b.`is_current` AND b.`change_source` = 'action' AND b.`{BATCH_COLUMN}` = {params.add(str(undo))}"
+                f"{f' AND b.`record_key` IN ({_key_list(params, only)})' if only is not None else ''}")
     elif match is not None:
         base = (f"FROM {target} AS b JOIN ({match['keys']}) AS w ON b.`record_key` = w.`_inspire_key` JOIN {match['before']} AS a ON "
                 f"a.`record_key` = b.`record_key` AND a.`valid_from` = b.`valid_from` AND a.`is_current` WHERE b.`is_current` AND "

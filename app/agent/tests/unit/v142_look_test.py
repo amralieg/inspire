@@ -23,23 +23,28 @@ def _outputs(**changes):
     return dict(VALID["outputs"], **changes)
 
 
-def test_choices_default_to_the_c1_look_with_every_option_off(agent_ns):
+def test_choices_default_to_the_c1_look_with_decisions_on_and_every_other_option_off(agent_ns):
     choices, errors = agent_ns["implement_app_choices"]({"app_access": "sp"})
     assert errors == []
     assert choices == {"app_access": "sp", "app_look": {"style": "a", "layout": "sidebar", "palette": "default", "theme": "light"},
-                       "app_options": {"modify": False, "replace_edits": False, "decisions": False, "alerts": False},
+                       "app_options": {"modify": False, "replace_edits": False, "decisions": True, "alerts": False},
                        "app_backend": "delta", "app_charts": [], "app_pages": {"runs": True, "impact": True}, "app_placement": ""}
     choices, errors = agent_ns["implement_app_choices"]({"app_access": " SP ", "app_look": {"palette": "Berry", "theme": None, "style": ""},
                                                           "app_options": {"modify": True}})
     assert errors == [] and choices["app_access"] == "sp" and choices["app_options"]["modify"] is True
     assert choices["app_look"] == {"style": "a", "layout": "sidebar", "palette": "berry", "theme": "light"}
+    for access in ("sp", "user"):
+        kept = agent_ns["implement_app_choices"]({"app_access": access, "app_look": USER_LOOK, "app_options": {"decisions": False}})[0]
+        assert kept["app_options"]["decisions"] is False, "a spec that turned decisions off keeps them off"
+        unset = agent_ns["implement_app_choices"]({"app_access": access, "app_look": USER_LOOK, "app_options": {"decisions": None}})[0]
+        assert unset["app_options"]["decisions"] is True, "an option left unset takes its default"
 
 
-def test_a_per_user_app_never_records_decisions_even_when_asked(agent_ns):
+def test_a_per_user_app_records_decisions_when_asked_but_never_sends_alerts(agent_ns):
     asked = {"modify": True, "replace_edits": True, "decisions": True, "alerts": True}
     choices, errors = agent_ns["implement_app_choices"]({"app_access": "user", "app_look": USER_LOOK, "app_options": asked})
     assert errors == []
-    assert choices["app_options"] == {"modify": True, "replace_edits": True, "decisions": False, "alerts": False}
+    assert choices["app_options"] == {"modify": True, "replace_edits": True, "decisions": True, "alerts": False}
     assert choices["app_look"] == USER_LOOK
     shared, _ = agent_ns["implement_app_choices"]({"app_access": "sp", "app_options": asked})
     assert shared["app_options"] == asked, "a shared-view App keeps every option the user ticked"
@@ -78,7 +83,7 @@ def test_the_spec_carries_the_app_choices_and_refuses_bad_ones_before_anything_b
     spec, errors = _spec(agent_ns, outputs=_outputs(app_access="user", app_look=USER_LOOK, app_options={"modify": True, "decisions": True}))
     assert errors == []
     assert spec["outputs"]["app_access"] == "user" and spec["outputs"]["app_look"] == USER_LOOK
-    assert spec["outputs"]["app_options"] == {"modify": True, "replace_edits": False, "decisions": False, "alerts": False}
+    assert spec["outputs"]["app_options"] == {"modify": True, "replace_edits": False, "decisions": True, "alerts": False}
     no_access = _spec(agent_ns, outputs={k: v for k, v in VALID["outputs"].items() if k != "app_access"})[1]
     assert any("choose who the App reads its data as" in e for e in no_access), no_access
     bad = _spec(agent_ns, outputs=_outputs(app_look={"palette": "rainbow"}))[1]
@@ -97,7 +102,7 @@ def test_settings_follow_the_spec_and_pass_the_shell_check(agent_ns, tmp_path):
     outputs = {"app_access": "user", "app_look": USER_LOOK, "app_options": {"decisions": True, "modify": True}}
     mine = settings(core.SETTINGS_VERSION, "N01-U01 Predict churn", [page["id"]], None, "off", "t", outputs)
     assert (mine["style"], mine["layout"], mine["palette"], mine["theme"], mine["auth"]) == ("c", "tabs", "ocean", "dark", "user")
-    assert mine["options"] == {"modify": True, "replace_edits": False, "decisions": False, "alerts": False}
+    assert mine["options"] == {"modify": True, "replace_edits": False, "decisions": True, "alerts": False}
     assert core.settings_problems(mine, [page]) == []
     shared = settings(core.SETTINGS_VERSION, "N01-U01 Predict churn", [page["id"]], None, "off", "t",
                       {"app_access": "sp", "app_options": {"modify": True, "decisions": True}})
@@ -116,14 +121,14 @@ def test_the_built_app_writes_the_wizard_choices_into_its_settings(agent_ns, tmp
     assert seen["errors"] == []
     settings = json.loads(seen["deployed"][0][1]["inspire_app.json"])
     assert (settings["auth"], settings["style"], settings["layout"], settings["palette"], settings["theme"]) == ("user", "c", "tabs", "ocean", "dark")
-    assert settings["options"] == {"modify": True, "replace_edits": True, "decisions": False, "alerts": False}
+    assert settings["options"] == {"modify": True, "replace_edits": True, "decisions": True, "alerts": False}
 
 
 def test_a_look_or_access_change_rebuilds_the_app_and_nothing_else(agent_ns):
     validate, plan_fn = agent_ns["validate_implement_spec"], agent_ns["implement_plan"]
     before = validate(VALID)[0]
     assets = {"dashboard": "d1", "genie_space": "g1", "app": "churn-desk", "preview_run_id": 7}
-    for change in ({"app_look": {"palette": "ocean"}}, {"app_access": "user"}, {"app_options": {"decisions": True}}):
+    for change in ({"app_look": {"palette": "ocean"}}, {"app_access": "user"}, {"app_options": {"decisions": False}}):
         after = validate(dict(VALID, outputs=_outputs(**change)))[0]
         assert agent_ns["classify_implement_change"](before, after) == ["outputs"], change
         plan = plan_fn(before, after, assets, has_built_notebook=True)
@@ -168,7 +173,7 @@ def test_a_per_user_app_is_created_with_its_scopes_and_its_service_principal_rea
     created = {"compute_status": {"state": "ACTIVE"}, "service_principal_client_id": "sp-1"}
     read = dict(created, user_api_scopes=["sql:restricted-query", "genie"])
     inst, context, calls, _imported = _deploy_inspire(agent_ns, NEW_APP + [created, read] + DEPLOYED, access=[])
-    fields = inst._implement_deploy_app(_user_context(agent_ns, context), "churn-desk", SHELL_FILES, READS, "g1", poll_s=0)
+    fields = inst._implement_deploy_app(_user_context(agent_ns, context, decisions=False), "churn-desk", SHELL_FILES, READS, "g1", poll_s=0)
     assert fields["app_url"] == "https://churn-desk.example" and "_warnings" not in fields
     assert [c[:2] for c in calls] == [("GET", "/api/2.0/apps/churn-desk"), ("POST", "/api/2.0/apps"), ("GET", "/api/2.0/apps/churn-desk"),
                                       ("POST", "/api/2.0/apps/churn-desk/deployments"), ("GET", "/api/2.0/apps/churn-desk")]
@@ -371,7 +376,7 @@ def test_sharing_a_per_user_app_lets_people_use_the_warehouse(agent_ns):
     assert [g for g in grants if g[0] == "sql/warehouses"] == [], "a shared-view App reads with its own identity"
 
 
-def test_the_shell_server_refuses_decisions_and_has_no_download_for_a_per_user_app(tmp_path):
+def test_the_shell_server_offers_decisions_and_has_no_download_for_a_per_user_app(tmp_path):
     user = dict(SETTINGS, auth="user")
     s, _sp, _user, _made = shell(tmp_path, user)
     headers = {"x-forwarded-access-token": "tok", "x-forwarded-email": "viewer-a"}
@@ -379,10 +384,12 @@ def test_the_shell_server_refuses_decisions_and_has_no_download_for_a_per_user_a
     assert status == 404 and out == {"error": "no API route POST /api/download"}
     status, info = call(s, "GET", "app", headers=headers)
     assert "download" not in info["options"] and info["options"]["decisions"] is False and info["image_export"] is False
-    s.settings["options"] = dict(s.settings["options"], decisions=True)
-    assert s.option("decisions") is False
-    bad = dict(user, options=dict(SETTINGS["options"], decisions=True))
-    assert any("cannot record decisions" in p for p in shell_core.settings_problems(bad, [PAGE]))
+    s.settings["options"] = dict(s.settings["options"], decisions=True, alerts=True)
+    assert s.option("decisions") is True and s.option("alerts") is False
+    good = dict(user, options=dict(SETTINGS["options"], decisions=True))
+    assert not any("decisions" in p for p in shell_core.settings_problems(good, [PAGE]))
+    bad = dict(user, options=dict(SETTINGS["options"], alerts=True))
+    assert any("cannot send alerts" in p for p in shell_core.settings_problems(bad, [PAGE]))
 
 
 def test_the_shell_server_offers_decisions_only_when_the_option_is_on(tmp_path):

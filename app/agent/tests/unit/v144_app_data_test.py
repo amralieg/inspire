@@ -242,7 +242,7 @@ def test_a_dataset_without_record_key_joins_the_table_on_the_list_key(tmp_path):
     assert "ORDER BY `rank` ASC NULLS LAST, `entity_id` ASC" in sql
 
 
-def test_per_user_apps_read_the_list_as_the_signed_in_person_and_offer_no_actions(tmp_path):
+def test_per_user_apps_read_the_list_as_the_signed_in_person_and_offer_actions_only_with_decisions_on(tmp_path):
     settings = dict(SETTINGS, auth="user")
     s, ws, made = shell(tmp_path, settings=settings)
     assert records(s, headers={})[0] == 401
@@ -252,9 +252,92 @@ def test_per_user_apps_read_the_list_as_the_signed_in_person_and_offer_no_action
     assert "action_owner" not in ws.queries(" OFFSET ")[0][0]
     status, out = records(s, headers=headers, mine=True)
     assert status == 400 and "cannot show your actions" in out["error"]
-    s.settings["options"] = dict(s.settings["options"], decisions=True)
+    (tmp_path / "on").mkdir()
+    s, ws, made = shell(tmp_path / "on", settings=dict(DECIDE, auth="user"))
     status, out = records(s, headers=headers)
-    assert out["actions"] is False, "a per-user App never records decisions, whatever its settings file says"
+    assert status == 200 and out["actions"] is True and made["user"] == ["tok-a"]
+    assert call(s, "GET", "app", headers=headers)[1]["options"]["decisions"] is True
+    assert "action_owner" in ws.queries(" OFFSET ")[0][0]
+
+
+TOKEN = {"x-forwarded-access-token": "tok-a"}
+
+
+class Unreadable(DataWorkspace):
+    def answer(self, sql, params):
+        if "SELECT explode(from_json(" in sql and not sql.startswith("MERGE INTO"):
+            raise shell_db.QueryError("[INSUFFICIENT_PERMISSIONS] User does not have SELECT on Table 'main.pricing.loss_desk_out'")
+        return super().answer(sql, params)
+
+
+def person_shell(tmp_path, reader, writer, settings=None):
+    made = {"user": [], "sp": 0}
+
+    def user_factory(host, token):
+        made["user"].append(token)
+        return reader
+
+    def sp_factory():
+        made["sp"] += 1
+        return writer
+
+    s = shell_core.Shell(app_dir(tmp_path, settings or dict(DECIDE, auth="user"), [edit_page()]),
+                         env={"DATABRICKS_WAREHOUSE_ID": "wh1", "DATABRICKS_HOST": "dbc-1.example.com"},
+                         sp_factory=sp_factory, user_factory=user_factory)
+    return s, made
+
+
+def test_a_per_user_app_checks_the_person_can_read_the_record_then_records_the_decision_as_the_app_in_their_name(tmp_path):
+    reader = DataWorkspace(current=[current("k1", "run", "run 7")])
+    writer = DataWorkspace()
+    s, made = person_shell(tmp_path, reader, writer)
+    status, out = act(s, values={"action_status": "Done", "action_owner": OTHER}, headers=dict(EDITOR, **TOKEN))
+    assert status == 200 and out == {"written": ["k1"], "conflicts": [], "conflicts_count": 0, "left_out": 0, "batch_id": writer.batch}
+    (check, check_params), = reader.queries("SELECT explode(from_json(")
+    assert json.loads(check_params[0]["value"]) == ["k1"] and "`is_current`" in check
+    assert reader.queries("MERGE INTO") == [], "the person's token never writes the decision"
+    (sql, params), = writer.queries("MERGE INTO")
+    by_value = {p["value"]: p for p in params}
+    assert by_value["action"]["type"] == "STRING" and PERSON in by_value and OTHER in by_value
+    assert re.search(r":p\d+ AS `changed_by`", sql) and json.loads(params[-1]["value"]) == [{"k": "k1", "v": 101}]
+    assert made["sp"] == 1 and set(made["user"]) == {"tok-a"}
+    assert [q.split(" ", 2)[:2] for q, _p, _l in writer.sql] == [["MERGE", "INTO"]], "the App's identity runs only the write"
+
+
+def test_a_per_user_viewer_who_cannot_read_the_record_is_refused_and_nothing_is_written(tmp_path):
+    reader, writer = DataWorkspace(current=[]), DataWorkspace()
+    s, made = person_shell(tmp_path, reader, writer)
+    status, out = act(s, headers=dict(EDITOR, **TOKEN))
+    assert status == 403 and out["error"] == ("Nothing was saved: you cannot read this record in Unity Catalog, or it is no longer in the "
+                                              "result table, so the App records no decision on it")
+    assert (out["written"], out["left_out"], out["batch_id"]) == ([], 1, None)
+    assert writer.sql == [] and reader.queries("MERGE INTO") == []
+    status, out = act(s, keys=["k1", "k2"], headers=dict(EDITOR, **TOKEN))
+    assert status == 403 and "you cannot read these 2 records" in out["error"] and out["left_out"] == 2 and writer.sql == []
+    (tmp_path / "denied").mkdir()
+    s, _made = person_shell(tmp_path / "denied", Unreadable(), writer)
+    status, out = act(s, headers=dict(EDITOR, **TOKEN))
+    assert status == 403 and out["error"].startswith("Nothing was saved: you cannot read `main`.`pricing`.`loss_desk_out` in Unity Catalog")
+    assert writer.sql == []
+
+
+def test_a_per_user_bulk_act_writes_only_the_records_the_person_can_read_and_counts_the_rest(tmp_path):
+    reader = DataWorkspace(current=[current("k1", "run", "run 7"), current("k3", "run", "run 7")])
+    writer = DataWorkspace()
+    s, _made = person_shell(tmp_path, reader, writer)
+    status, out = act(s, keys=["k1", "k2", "k3"], values={"action_owner": OTHER}, headers=dict(EDITOR, **TOKEN))
+    assert status == 200 and out["written"] == ["k1", "k3"] and out["left_out"] == 1 and out["conflicts"] == []
+    (_sql, params), = writer.queries("MERGE INTO")
+    assert [r["k"] for r in json.loads(params[-1]["value"])] == ["k1", "k3"]
+    assert "k2" not in json.dumps(params)
+
+
+def test_a_per_user_decision_the_app_may_not_write_names_the_app_identity_not_the_person(tmp_path):
+    reader = DataWorkspace(current=[current("k1", "run", "run 7")])
+    writer = DataWorkspace(fail={"merge": shell_db.QueryError("PERMISSION_DENIED: no MODIFY")})
+    s, _made = person_shell(tmp_path, reader, writer)
+    status, out = act(s, headers=dict(EDITOR, **TOKEN))
+    assert status == 403 and out["error"].startswith("Nothing was saved: this App's service principal may not change ")
 
 
 def test_a_failed_list_query_is_a_502_and_a_failed_summary_query_is_reported_without_failing_the_list(tmp_path):
@@ -353,13 +436,12 @@ def test_records_fields_mark_which_action_columns_exist_and_the_list_says_whethe
     assert records(s)[1]["actions"] is False
 
 
-def test_acting_is_refused_while_decisions_are_off_and_in_per_user_apps(tmp_path):
+def test_acting_is_refused_while_decisions_are_off_in_shared_and_per_user_apps(tmp_path):
     s, ws, _made = shell(tmp_path, settings=MODIFY)
     status, out = act(s)
     assert status == 403 and out == {"error": "this App does not let people record decisions on its records"}
     (tmp_path / "user").mkdir()
-    s, ws2, _made = shell(tmp_path / "user", settings=dict(SETTINGS, auth="user"))
-    s.settings["options"] = dict(s.settings["options"], decisions=True)
+    s, ws2, _made = shell(tmp_path / "user", settings=dict(MODIFY, auth="user"))
     assert act(s, headers=dict(EDITOR, **{"x-forwarded-access-token": "tok"}))[0] == 403
     assert ws.sql == [] and ws2.sql == []
 
@@ -406,7 +488,7 @@ def test_an_act_writes_every_record_as_an_action_version_in_one_merge(tmp_path):
     s, ws, _made = shell(tmp_path)
     status, out = act(s, keys=keys, values={"action_owner": f" {OTHER} ", "action_status": "Done", "action_due": "2026-11-01",
                                             "action_note": "Called the store"}, seen={k: str(1000 + i) for i, k in enumerate(keys)})
-    assert status == 200 and out == {"written": keys, "conflicts": [], "conflicts_count": 0, "batch_id": ws.batch}
+    assert status == 200 and out == {"written": keys, "conflicts": [], "conflicts_count": 0, "left_out": 0, "batch_id": ws.batch}
     assert re.fullmatch(r"[0-9a-f]{32}", out["batch_id"])
     (sql, params), = ws.queries("MERGE INTO")
     assert f":p2 AS `action_batch`" in sql and "CAST(NULL AS STRING) AS `action_batch_note`" in sql

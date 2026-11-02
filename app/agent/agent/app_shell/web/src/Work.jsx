@@ -54,7 +54,7 @@ export function useActs({ pageId, similarBy, onActed, labelOf }) {
       ...(outcome.batch ? [{ label: 'Undo', run: () => undo(outcome.batch) }] : []),
       ...(compareValues(countOf(found?.count), 0) > 0 && found.match ? [{ label: `Apply to ${integer(found.count)} similar`, run: () => setSimilar({ ...found, values, about }) }] : []),
     ];
-    toast(withNotice(said && !outcome.conflicts ? said : actedText(outcome, values), out), 'info', { actions, ms: UNDO_MS });
+    toast(withNotice(said && !outcome.conflicts && !outcome.leftOut ? said : actedText(outcome, values), out), 'info', { actions, ms: UNDO_MS });
     onActed();
     return outcome;
   };

@@ -3124,6 +3124,7 @@ def test_app_deploy_imports_the_shell_as_files_and_grants_every_table_the_page_a
         RuntimeError("RESOURCE_DOES_NOT_EXIST: app churn-desk"),
         {"compute_status": {"state": "ACTIVE"}, "service_principal_client_id": "sp-1"},
         {"deployment_id": "dep1", "status": {"state": "SUCCEEDED"}}, {"url": "https://churn-desk.example/"}])
+    context["spec"]["outputs"]["app_options"]["decisions"] = False
     fields = inst._implement_deploy_app(context, "churn-desk", SHELL_FILES, READS, "g1", poll_s=0)
     assert {k: v for k, v in fields.items() if k != "_grants"} == {
         "app_name": "churn-desk", "app_url": "https://churn-desk.example",
@@ -3215,7 +3216,8 @@ def test_an_existing_app_is_redeployed_and_unverifiable_access_is_a_warning(agen
     assert [c[:2] for c in calls] == [("GET", "/api/2.0/apps/churn-desk"), ("POST", "/api/2.0/apps/churn-desk/deployments"),
                                       ("GET", "/api/2.0/apps/churn-desk")]
     grants = [s for s in inst.spark.statements if s.startswith("GRANT")]
-    assert grants == [GRANT_SELECT.format("sp-2"), GRANT_ORDERS.format("sp-2")]
+    assert grants == [GRANT_SELECT.format("sp-2"), GRANT_ORDERS.format("sp-2"), "GRANT MODIFY ON TABLE `main`.`inspire`.`churn_out` TO `sp-2`"], (
+        "record decisions starts on, so the App may write its decisions to the result table")
     gap = [dict(GAP_CATALOG), dict(GAP_SCHEMA, object="`main`.`s`")]
     assert fields["_warnings"] == [
         "App: " + agent_ns["implement_access_gap_message"]("sp-2", [GAP_CATALOG, GAP_SCHEMA]),
@@ -5147,14 +5149,14 @@ def test_page_ids_and_catalog_fields_come_from_inspire_not_genie(agent_ns):
         agent_ns["implement_app_page"]([1], "N01-U05", {})
 
 
-def test_the_app_settings_start_with_every_option_off_and_say_why_ask_genie_is_off(agent_ns, tmp_path):
+def test_the_app_settings_start_with_decisions_on_and_every_other_option_off_and_say_why_ask_genie_is_off(agent_ns, tmp_path):
     payload, modules = _app_shell(agent_ns, tmp_path)
     core = modules["shell_core"]
     page = agent_ns["implement_app_page"](_churn_page(agent_ns), "N01-U01", {})
     settings = agent_ns["implement_app_settings"]
     off = settings(core.SETTINGS_VERSION, " N01-U01   Predict churn ", [page["id"]], None, "no agent", "2026-10-27T00:00:00Z",
                    {"app_access": "sp"})
-    assert off["options"] == {"modify": False, "replace_edits": False, "decisions": False, "alerts": False}
+    assert off["options"] == {"modify": False, "replace_edits": False, "decisions": True, "alerts": False}
     assert (off["title"], off["style"], off["layout"], off["palette"], off["theme"], off["auth"]) == (
         "N01-U01 Predict churn", "a", "sidebar", "default", "light", "sp")
     assert off["genie"] is None and off["genie_note"] == "no agent"
@@ -5468,7 +5470,7 @@ def test_the_app_check_runs_every_query_as_inspire_and_returns_the_shell_problem
     core = modules["shell_core"]
     page = agent_ns["implement_app_page"](_churn_page(agent_ns), "N01-U01", {})
     settings = agent_ns["implement_app_settings"](core.SETTINGS_VERSION, "N01-U01 Predict churn", [page["id"]], None, "off", "t",
-                                                  {"app_access": "sp"})
+                                                  {"app_access": "sp", "app_options": {"decisions": False}})
     files = agent_ns["implement_app_source"](payload["files"], core.SETTINGS_FILE, core.PAGES_DIR, settings, [page])
     inst = _inspire(agent_ns, FakeSpark())
     auth = lambda: {"Authorization": "Bearer inspire"}

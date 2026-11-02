@@ -3,6 +3,8 @@ it reads and acts only as the signed-in viewer, with the job features it cannot 
 App of its own has its own service principal, which keeps reading and starting the use case's job for the person who built it,
 offline."""
 import inspect
+import io
+import json
 import os
 import re
 import sys
@@ -17,6 +19,7 @@ if SERVER not in sys.path:
 import shell_core  # noqa: E402
 from v141_app_shell_test import app_dir, call  # noqa: E402
 from v142_edits_test import edit_page  # noqa: E402
+from v144_app_data_test import DECIDE, DataWorkspace, current  # noqa: E402
 from v144_app_ops_test import ASKED, DANA, HOST, JOB, LEE, OWNER, WEEKLY, JobsWorkspace, job_run, ops_settings, signed  # noqa: E402
 
 PAGE = "n01_u05"
@@ -128,6 +131,96 @@ def test_a_shared_view_app_still_reads_and_refreshes_its_job_through_its_service
     assert call(s, "GET", "freshness", query={"page": PAGE}, headers=signed(DANA))[1]["can_refresh"] is True
     assert call(s, "POST", "refresh", headers=signed(DANA), body={"page": PAGE})[0] == 200
     assert sp.jobs_calls("run-now") and sp.jobs_calls("list")
+
+
+def test_a_page_inside_inspire_with_decisions_on_refuses_them_without_inspire_s_writer_and_never_reaches_a_service_principal(tmp_path):
+    sp_calls, user = [], AnyWorkspace()
+
+    def sp():
+        sp_calls.append("sp")
+        raise SpUsed()
+
+    s = _shell(tmp_path, _inside(options=dict(DECIDE["options"])), sp, user)
+    for path in ("records/act", "records/undo"):
+        body = json.dumps({"page": PAGE, "record_keys": ["k1"], "seen": {"k1": "1"}, "values": {"action_status": "Done"}} if path ==
+                          "records/act" else {"page": PAGE, "batch_id": "a" * 32}).encode("utf-8")
+        status, out = s.handle("POST", path, {}, dict(signed(DANA, "tok-dana"), **{"content-type": "application/json"}), body)
+        assert (status, out) == (403, {"error": shell_core.INSIDE_DECISIONS}), path
+    assert sp_calls == [] and not any("MERGE INTO" in str(c) for c in user.calls)
+
+
+class Warehoused(DataWorkspace):
+    def __init__(self, **kw):
+        super().__init__(**kw)
+        self.warehouses = []
+
+    def run_sql(self, warehouse, statement, parameters=None, limit=5000):
+        self.warehouses.append(warehouse)
+        return super().run_sql(warehouse, statement, parameters, limit=limit)
+
+
+TABLE = edit_page()["result_table"]
+
+
+def _step(root, **changes):
+    request = {"v": shell_core.CLI_VERSION, "route": "records/act", "root": root, "host": HOST, "warehouse": "wh1", "result_table": TABLE,
+               "writer": {"token": "tok-inspire", "warehouse": "wh-inspire"}, "headers": {"X-Forwarded-Email": DANA,
+                                                                                         "X-Forwarded-Access-Token": "tok-dana"},
+               "body": {"page": PAGE, "record_keys": ["k1"], "seen": {"k1": "101"}, "values": {"action_status": "Done"}}}
+    request.update(changes)
+    return request
+
+
+def _factory(reader, writer, asked):
+    def make(host, token):
+        asked.append((host, token))
+        return {"tok-dana": reader, "tok-inspire": writer}[token]
+    return make
+
+
+def test_inspire_records_a_decision_for_a_page_inside_it_as_its_own_identity_after_the_viewer_s_read(tmp_path):
+    reader, writer, asked = Warehoused(current=[current("k1", "run", "run 7")]), Warehoused(), []
+    root = app_dir(tmp_path, _inside(options=dict(DECIDE["options"])), [edit_page()])
+    status, out = shell_core.cli_answer(_step(root), user_factory=_factory(reader, writer, asked))
+    assert status == 200 and out["written"] == ["k1"] and out["left_out"] == 0, out
+    assert set(asked) == {(HOST, "tok-dana"), (HOST, "tok-inspire")}
+    assert reader.queries("MERGE INTO") == [] and set(reader.warehouses) == {"wh1"}
+    (sql, params), = writer.queries("MERGE INTO")
+    assert writer.warehouses == ["wh-inspire"] and DANA in [p["value"] for p in params] and re.search(r":p\d+ AS `changed_by`", sql)
+    reader.current = []
+    writer.sql.clear()
+    status, out = shell_core.cli_answer(_step(root), user_factory=_factory(reader, writer, asked))
+    assert status == 403 and out["left_out"] == 1 and writer.sql == [], "a record the viewer cannot read gets no decision"
+
+
+@pytest.mark.parametrize("changes, status, fragment", [
+    ({"result_table": "main.pricing.other_out"}, 409, "names a result table Inspire did not build for it"),
+    ({"v": 2}, 400, "send a decision step of version 1"),
+    ({"route": "records"}, 404, "there is no decision step 'records'"),
+    ({"writer": {"token": "", "warehouse": "wh-inspire"}}, 400, "send token as text"),
+    ({"writer": "tok"}, 400, "send writer with the token"),
+    ({"headers": []}, 400, "send body and headers as objects"),
+    ({"host": " "}, 400, "send host as text"),
+], ids=["other_table", "version", "route", "token", "writer", "headers", "host"])
+def test_the_decision_step_refuses_a_request_it_cannot_trust_before_any_sql(tmp_path, changes, status, fragment):
+    reader, writer, asked = Warehoused(current=[current("k1", "run", "run 7")]), Warehoused(), []
+    root = app_dir(tmp_path, _inside(options=dict(DECIDE["options"])), [edit_page()])
+    got = shell_core.cli_answer(_step(root, **changes), user_factory=_factory(reader, writer, asked))
+    assert got[0] == status and fragment in got[1]["error"], got
+    assert reader.sql == [] and writer.sql == []
+
+
+def test_the_decision_step_runs_only_for_a_per_user_page_inside_inspire_and_answers_as_json(tmp_path):
+    reader, writer, asked = Warehoused(current=[current("k1", "run", "run 7")]), Warehoused(), []
+    own = app_dir(tmp_path, ops_settings(auth="user", options=dict(DECIDE["options"])), [edit_page()])
+    assert shell_core.cli_answer(_step(own), user_factory=_factory(reader, writer, asked))[0] == 409 and writer.sql == []
+    out = io.StringIO()
+    assert shell_core.cli(io.StringIO("not json"), out) == 0
+    assert json.loads(out.getvalue())["status"] == 400
+    out = io.StringIO()
+    shell_core.cli(io.StringIO(json.dumps(_step(own))), out)
+    assert json.loads(out.getvalue()) == {"status": 409, "body": {
+        "error": "Inspire records decisions only for a page inside Inspire that signs viewers in as themselves"}}
 
 
 @pytest.mark.parametrize("changes,problem", [

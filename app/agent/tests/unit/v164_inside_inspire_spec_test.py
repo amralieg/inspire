@@ -52,7 +52,8 @@ def test_a_page_inside_inspire_with_per_viewer_access_delta_and_a_warehouse_is_k
     assert outputs["merge"]["app"] == "" and agent_ns["implement_app_hosted"](outputs) is True
     assert agent_ns["implement_app_hosted"](_validated(agent_ns)[0]["outputs"]) is False
     assert agent_ns["implement_app_hosted"](dict(outputs, app=False)) is False, "a placement without an App hosts nothing"
-    assert outputs["app_options"]["decisions"] is False and outputs["app_options"]["alerts"] is False
+    assert outputs["app_options"]["decisions"] is True and outputs["app_options"]["alerts"] is False, (
+        "a page inside Inspire records decisions in each viewer's name and sends no alerts")
 
 
 @pytest.mark.parametrize("changes,problem", [

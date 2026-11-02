@@ -490,12 +490,14 @@ def test_the_rewritten_instruction_tells_genie_to_move_its_write_step(agent_ns, 
             assert text.index("## Implementation Choices") < text.index(choice)
 
 
-def test_app_options_parse_with_false_defaults_and_drive_the_edit_setting(agent_ns):
+def test_app_options_parse_with_decisions_on_by_default_and_drive_the_edit_setting(agent_ns):
     spec, errors = _spec(agent_ns)
-    assert errors == [] and spec["outputs"]["app_options"] == {"modify": False, "replace_edits": False, "decisions": False, "alerts": False}
+    assert errors == [] and spec["outputs"]["app_options"] == {"modify": False, "replace_edits": False, "decisions": True, "alerts": False}
     assert agent_ns["implement_replace_edits"](spec) is False
     chosen = _spec(agent_ns, outputs={**VALID["outputs"], "app_options": {"replace_edits": True, "modify": True}})[0]
-    assert chosen["outputs"]["app_options"] == {"modify": True, "replace_edits": True, "decisions": False, "alerts": False}
+    assert chosen["outputs"]["app_options"] == {"modify": True, "replace_edits": True, "decisions": True, "alerts": False}
+    off = _spec(agent_ns, outputs={**VALID["outputs"], "app_options": {"decisions": False}})[0]
+    assert off["outputs"]["app_options"]["decisions"] is False, "a saved spec that turned decisions off keeps them off"
     assert "the App option modify must be true or false, not 'true'" in " ".join(
         _spec(agent_ns, outputs={**VALID["outputs"], "app_options": {"modify": "true"}})[1])
     assert agent_ns["implement_replace_edits"](chosen) is True

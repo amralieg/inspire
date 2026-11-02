@@ -7,7 +7,8 @@ import { build } from 'vite';
 import react from '@vitejs/plugin-react';
 import { CURRENT, DECIDE, F, FIELDS, FILTERS, HISTORY, LABEL, OTHER, PERSON, ROWS, SUMMARY, TABLE, appInfo, lister, openApp, serveDist, tracked, until }
   from './harness.mjs';
-import { actionForm, actionProblem, actionValues, changeBadge, explainContext, impactText, leftText, pageText, recordRef } from '../src/records.js';
+import { actOutcome, actedText, actionForm, actionProblem, actionValues, changeBadge, explainContext, impactText, leftText, pageText, recordRef, undoText }
+  from '../src/records.js';
 import { matching, searchHint } from '../src/filters.js';
 
 const SRC = join(dirname(fileURLToPath(import.meta.url)), '..', 'src');
@@ -217,8 +218,52 @@ test('a filter with 500 choices searches the server and keeps the picked values 
   await context.close();
 });
 
-test('without the decisions option, and in a per-user App, the list offers no action tracker', async () => {
-  for (const info of [appInfo({ options: { modify: true, replace_edits: false, decisions: false } }, 1, TABLE), appInfo({ auth: 'user' }, 1, TABLE)]) {
+test('a decision on records the viewer cannot read says how many were left out, in the act and the undo text', () => {
+  const outcome = actOutcome({ written: ['R1'], conflicts: [], conflicts_count: 0, left_out: 2, batch_id: 'b' });
+  assert.equal(outcome.leftOut, 2);
+  assert.equal(actedText(outcome, { action_status: 'Done' }), '1 record marked as fixed. 2 records you cannot read were left out.');
+  assert.equal(actedText(actOutcome({ written: ['R1'], conflicts_count: 1, left_out: 1 }), { action_status: 'Done' }),
+    '1 record marked as fixed. 1 record changed since you loaded it and was left as it is. 1 record you cannot read was left out.');
+  assert.equal(actOutcome({ written: ['R1'] }).leftOut, 0, 'an older server that sends no count leaves nothing out');
+  assert.equal(undoText({ restored: 1, skipped: 0, left_out: 1 }), 'Undone: 1 record is back as it was. 1 record you cannot read was left out.');
+  assert.equal(undoText({ restored: 2, skipped: 1, skipped_sample: [{ record_key: 'R3' }], left_out: 3 }),
+    'Undone: 2 records are back as they were. 1 record changed since and was left as it is: R3. 3 records you cannot read were left out.');
+  assert.equal(undoText({ restored: 1, skipped: 0 }), 'Undone: 1 record is back as it was.');
+});
+
+test('in a per-user App with decisions on the list offers the tracker, and a bulk act says how many records were left out', async () => {
+  const info = appInfo({ ...DECIDE, auth: 'user' }, 1, TABLE);
+  assert.equal(info.auth, 'user');
+  assert.equal(info.options.decisions, true, 'a per-user App keeps decisions on');
+  const { calls, routes } = tracked({
+    'records/act': ({ route, json }) => {
+      const body = route.request().postDataJSON();
+      calls.acts.push(body);
+      return json(200, { written: body.record_keys.slice(1), conflicts: [], conflicts_count: 0, left_out: 1, batch_id: 'a'.repeat(32) });
+    },
+  });
+  const { page, seen, context } = await open(info, routes);
+  await page.waitForFunction(() => document.querySelectorAll('.card--table tbody input[type="checkbox"]').length === 25);
+  assert.equal(await page.getByRole('button', { name: 'My actions' }).count(), 1);
+  assert.equal(await page.locator('.impact').count(), 1);
+  await page.getByRole('checkbox', { name: `Select ${LABEL}` }).check();
+  await page.getByRole('checkbox', { name: 'Select Item number 2 with a long descriptive name' }).check();
+  await page.getByRole('button', { name: 'Assign to…' }).click();
+  await page.locator('input[name="bulk_owner"]').fill(OTHER);
+  await page.getByRole('button', { name: 'Assign 2 records' }).click();
+  await until(() => calls.acts.length === 1);
+  assert.deepEqual(calls.acts[0].record_keys, ['R001', 'R002']);
+  await page.waitForFunction((who) => document.querySelector('.toast .toast-t')?.textContent
+    === `1 record given to ${who}. 1 record you cannot read was left out.`, OTHER);
+  await page.locator('.cell-t').first().click();
+  await page.locator('dialog.drawer .dr-act').waitFor();
+  assert.deepEqual(seen.errors, []);
+  await context.close();
+});
+
+test('without the decisions option the list offers no action tracker, in a shared or a per-user App', async () => {
+  const off = { options: { modify: true, replace_edits: false, decisions: false } };
+  for (const info of [appInfo(off, 1, TABLE), appInfo({ ...off, auth: 'user' }, 1, TABLE)]) {
     const { calls, routes } = tracked();
     const { page, seen, context } = await open(info, routes);
     await page.waitForFunction(() => document.querySelector('.card--table tbody .cell-t'));

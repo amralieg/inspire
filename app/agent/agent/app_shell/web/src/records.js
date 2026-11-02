@@ -76,7 +76,7 @@ export function changeWords(values) {
 export function actOutcome(out) {
   const sample = Array.isArray(out?.conflicts) ? out.conflicts.slice(0, CONFLICTS_SHOWN) : [];
   return { written: howMany(out?.written), conflicts: out?.conflicts_count == null ? howMany(out?.conflicts) : countOf(out.conflicts_count), sample,
-    batch: String(out?.batch_id || ''), matched: out?.matched == null ? null : countOf(out.matched) };
+    batch: String(out?.batch_id || ''), matched: out?.matched == null ? null : countOf(out.matched), leftOut: countOf(out?.left_out) };
 }
 
 export function conflictText(n) {
@@ -84,11 +84,15 @@ export function conflictText(n) {
   return n === 1 ? '1 record changed since you loaded it and was left as it is' : `${count(n)} records changed since you loaded them and were left as they are`;
 }
 
+function leftOutText(n) {
+  if (!n) return '';
+  return n === 1 ? '1 record you cannot read was left out' : `${count(n)} records you cannot read were left out`;
+}
+
 export function actedText(outcome, values) {
   const who = outcome.matched > outcome.written
     ? `${count(outcome.written)} of ${count(outcome.matched)} matching ${outcome.matched === 1 ? 'record' : 'records'}` : recordsText(outcome.written);
-  const done = `${who} ${changeWords(values)}.`;
-  return outcome.conflicts ? `${done} ${conflictText(outcome.conflicts)}.` : done;
+  return [`${who} ${changeWords(values)}.`, ...[conflictText(outcome.conflicts), leftOutText(outcome.leftOut)].filter(Boolean).map((t) => `${t}.`)].join(' ');
 }
 
 export const STALE_LIST = 'The list changed since you loaded it. Reload and try again.';
@@ -119,11 +123,13 @@ export function undoText(out, nameOf = (s) => String(s?.record_key ?? '')) {
   const restored = howMany(out?.restored);
   const skipped = howMany(out?.skipped);
   const back = restored ? `Undone: ${recordsText(restored)} ${restored === 1 ? 'is' : 'are'} back as ${restored === 1 ? 'it was' : 'they were'}.` : 'Nothing was undone.';
-  if (!skipped) return back;
+  const hidden = leftOutText(countOf(out?.left_out));
+  const tail = hidden ? ` ${hidden}.` : '';
+  if (!skipped) return `${back}${tail}`;
   const left = skipped === 1 ? '1 record changed since and was left as it is' : `${count(skipped)} records changed since and were left as they are`;
   const names = (Array.isArray(out?.skipped_sample) ? out.skipped_sample : []).slice(0, skipped).map(nameOf).filter(Boolean);
   const listed = names.length ? `: ${names.join(', ')}${skipped > names.length ? `, and ${count(skipped - names.length)} more` : ''}` : '';
-  return `${back} ${left}${listed}.`;
+  return `${back} ${left}${listed}.${tail}`;
 }
 
 export function matchOf(body, asOf) {

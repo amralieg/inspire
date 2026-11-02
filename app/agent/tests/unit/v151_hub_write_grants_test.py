@@ -10,13 +10,30 @@ MODIFY_OWN = GRANT.format("MODIFY", "TABLE `main`.`inspire`.`churn_out`")
 MODIFY_OTHER = GRANT.format("MODIFY", "TABLE `main`.`inspire`.`sales_out`")
 
 
-def _deploy(agent_ns, options, page_tables):
+def _deploy(agent_ns, options, page_tables, access="sp"):
     spark = Catalog(schema=[("entity_id", "string")])
-    inst, context, _calls, _imported = _deploy_inspire(agent_ns, list(NEW_APP))
+    scoped = [dict(NEW_APP[1], user_api_scopes=["sql", "genie"])] if access == "user" else []
+    inst, context, _calls, _imported = _deploy_inspire(agent_ns, NEW_APP[:2] + scoped + NEW_APP[2:])
     inst.spark = spark
-    context["spec"] = dict(context["spec"], outputs=dict(context["spec"]["outputs"], app_options=options))
+    context["spec"] = dict(context["spec"], outputs=dict(context["spec"]["outputs"], app_options=options, app_access=access))
     fields = inst._implement_deploy_app(context, "churn-desk", SHELL_FILES, READS, poll_s=0, page_tables=page_tables)
     return spark, fields
+
+
+def test_a_per_user_app_that_records_decisions_gets_read_and_modify_on_every_page_result_table_and_nothing_else(agent_ns, sdk_stub):
+    spark, fields = _deploy(agent_ns, {"modify": True, "decisions": True}, ["main.inspire.churn_out", OTHER, OTHER], access="user")
+    for table in ("`main`.`inspire`.`churn_out`", "`main`.`inspire`.`sales_out`"):
+        assert spark.statements.count(GRANT.format("SELECT", f"TABLE {table}")) == 1, table
+        assert spark.statements.count(GRANT.format("MODIFY", f"TABLE {table}")) == 1, table
+    granted = {s.split(" ON ", 1)[1].split(" TO ")[0] for s in spark.statements if s.startswith("GRANT") and " ON TABLE " in s}
+    assert granted == {"TABLE `main`.`inspire`.`churn_out`", "TABLE `main`.`inspire`.`sales_out`"}, \
+        "a per-user App reads its other tables as the viewer, so its service principal gets only the decision tables"
+    assert "_warnings" not in fields
+
+
+def test_a_per_user_app_that_records_no_decisions_gets_no_table_grant(agent_ns, sdk_stub):
+    spark, _fields = _deploy(agent_ns, {"modify": True, "decisions": False}, ["main.inspire.churn_out", OTHER], access="user")
+    assert not any(s.startswith("GRANT") and " ON TABLE " in s for s in spark.statements)
 
 
 @pytest.mark.parametrize("options", [{"modify": False, "decisions": True}, {"modify": True, "decisions": False}])

@@ -634,8 +634,8 @@ def test_a_look_only_edit_keeps_the_jobs_names_the_builder_and_drops_downloads(a
 def test_a_spec_that_names_a_data_download_is_refused(agent_ns, options):
     errors = _spec(agent_ns, outputs={**VALID["outputs"], "app_options": options})[1]
     assert "the App has no option 'download'; its options are modify, replace_edits, decisions, alerts" in errors
-    assert agent_ns["IMPLEMENT_APP_OPTIONS"] == {"modify": False, "replace_edits": False, "decisions": False, "alerts": False}
-    assert agent_ns["IMPLEMENT_APP_USER_OFF"] == ("decisions", "alerts")
+    assert agent_ns["IMPLEMENT_APP_OPTIONS"] == {"modify": False, "replace_edits": False, "decisions": True, "alerts": False}
+    assert agent_ns["IMPLEMENT_APP_USER_OFF"] == ("alerts",)
     with pytest.raises(agent_ns["ImplementBlocked"], match="the App has no option 'download'"):
         agent_ns["implement_app_settings"](1, "t", ["n01_u01"], None, "off", "t", {"app_access": "sp", "app_options": options})
 

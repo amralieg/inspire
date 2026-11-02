@@ -797,6 +797,101 @@ def test_undo_restores_the_values_before_the_batch_as_new_versions_and_reports_w
     assert status == 404
 
 
+class PersonReader(UsableWorkspace):
+    def __init__(self, keys=(), truncated=False, **kw):
+        super().__init__(**kw)
+        self.keys, self.truncated = list(keys), truncated
+
+    def answer(self, sql, params):
+        if sql.startswith("MERGE INTO"):
+            raise AssertionError("the person's token never writes a decision")
+        if "SELECT DISTINCT `_inspire_key` FROM" in sql:
+            return {"columns": [], "rows": [{"_inspire_key": k} for k in self.keys], "truncated": self.truncated}
+        if sql.startswith("SELECT DISTINCT `record_key` FROM"):
+            return {"columns": [], "rows": [{"record_key": k} for k in self.keys], "truncated": self.truncated}
+        return super().answer(sql, params)
+
+
+def person_shell(tmp_path, reader, writer):
+    return shell_core.Shell(app_dir(tmp_path, dict(DECIDE, auth="user"), [edit_page(similar_by=["category"])]),
+                            env={"DATABRICKS_WAREHOUSE_ID": "wh1", "DATABRICKS_HOST": "dbc-1.example.com"},
+                            sp_factory=lambda: writer, user_factory=lambda host, token: reader, clock=lambda: NOW.timestamp())
+
+
+SIGNED_IN = dict(EDITOR, **{"x-forwarded-access-token": "tok-a"})
+
+
+def test_a_per_user_match_reads_the_matching_keys_as_the_person_and_the_app_writes_only_those_keys(tmp_path):
+    reader, writer = PersonReader(matched=2, keys=["k1", "k2"]), UsableWorkspace(inserted=2)
+    s = person_shell(tmp_path, reader, writer)
+    status, out = post(s, "records/act", match_body(), headers=SIGNED_IN)
+    assert status == 200, out
+    same_shape(out, CONTRACT["act_match"]["response"])
+    assert (out["written"], out["matched"], out["left_out"]) == (2, 2, 0)
+    assert reader.history_reads and not writer.history_reads, "the person's own read picks the table version"
+    (sql, params), = writer.queries("MERGE INTO")
+    assert sql.count("JOIN (SELECT explode(from_json(:p0, 'ARRAY<STRING>')) AS `_inspire_key`) AS w") == 2
+    assert json.loads(params[0]["value"]) == ["k1", "k2"] and PERSON in [p["value"] for p in params]
+    assert "VERSION AS OF 41" in sql and "CAST(`category` AS STRING)" not in sql, "the App never runs the person's filters itself"
+    assert [q for q, _p, _l in writer.sql if not q.startswith("MERGE INTO")] == []
+    assert reader.queries("CAST(`category` AS STRING) IN (")
+
+
+def test_a_per_user_match_over_its_cap_or_with_nothing_readable_writes_nothing(tmp_path):
+    cap = shell_sql.CAPS["act_match_user"]
+    reader, writer = PersonReader(matched=cap + 1), UsableWorkspace(inserted=0)
+    s = person_shell(tmp_path, reader, writer)
+    status, out = post(s, "records/act", match_body(), headers=SIGNED_IN)
+    assert status == 409 and (out["code"], out["cap"], out["matched"]) == ("over_cap", cap, cap + 1)
+    reader.matched, reader.keys, reader.truncated = 3, ["k1"] * cap, True
+    status, out = post(s, "records/act", match_body(), headers=SIGNED_IN)
+    assert status == 409 and out["code"] == "over_cap" and out["cap"] == cap
+    reader.keys, reader.truncated = [], False
+    status, out = post(s, "records/act", match_body(), headers=SIGNED_IN)
+    assert status == 409 and out["code"] == "no_match"
+    assert writer.sql == []
+
+
+def test_a_per_user_undo_restores_only_the_records_the_person_can_read_and_counts_the_rest(tmp_path):
+    mine = [{"record_key": "k1", "change_source": "action", "changed_by": PERSON, "valid_from": "2026-10-27T09:25:00.000Z", "_inspire_done": 1,
+             "_inspire_n": 1}]
+    reader = PersonReader(keys=["k1"], batch_records=mine)
+    writer = UsableWorkspace(inserted=1, batch_records=[dict(mine[0], _inspire_n=3)])
+    s = person_shell(tmp_path, reader, writer)
+    status, out = post(s, "records/undo", {"batch_id": "a" * 32}, headers=SIGNED_IN)
+    assert status == 200, out
+    assert sorted(out) == sorted(CONTRACT["undo"]["response"])
+    assert (out["restored"], out["skipped"], out["skipped_sample"], out["left_out"]) == (1, 0, [], 2)
+    (sql, params), = writer.queries("MERGE INTO")
+    assert "b.`action_batch` = :p" in sql and "AND b.`record_key` IN (SELECT explode(from_json(:p" in sql
+    assert ["k1"] in [json.loads(p["value"]) for p in params if str(p["value"]).startswith("[")]
+    reader.keys = []
+    writer.sql.clear()
+    status, out = post(s, "records/undo", {"batch_id": "b" * 32}, headers=SIGNED_IN)
+    assert status == 404 and "you can read" in out["error"] and writer.sql == []
+
+
+def test_a_page_inside_inspire_without_inspire_s_writer_refuses_decisions_and_with_it_writes_as_inspire(tmp_path):
+    reader, writer = DataWorkspace(current=[current("k1", "run", "run 7")]), DataWorkspace()
+    inside = dict(DECIDE, auth="user", host="inspire")
+    s = shell_core.Shell(app_dir(tmp_path, inside, [edit_page()]), env={"DATABRICKS_WAREHOUSE_ID": "wh1", "DATABRICKS_HOST": "dbc-1.example.com"},
+                         sp_factory=lambda: pytest.fail("a page inside Inspire has no service principal"),
+                         user_factory=lambda host, token: reader)
+    body = {"record_keys": ["k1"], "seen": {"k1": "101"}, "values": {"action_status": "Done"}}
+    status, out = post(s, "records/act", body, headers=SIGNED_IN)
+    assert status == 403 and out["error"] == shell_core.INSIDE_DECISIONS and writer.sql == [] and reader.queries("MERGE INTO") == []
+    (tmp_path / "hosted").mkdir()
+    s = shell_core.Shell(app_dir(tmp_path / "hosted", inside, [edit_page()]),
+                         env={"DATABRICKS_WAREHOUSE_ID": "wh1", "DATABRICKS_HOST": "dbc-1.example.com"},
+                         sp_factory=lambda: pytest.fail("a page inside Inspire has no service principal"),
+                         user_factory=lambda host, token: reader, writer_factory=lambda: writer)
+    status, out = post(s, "records/act", body, headers=SIGNED_IN)
+    assert status == 200 and out["written"] == ["k1"] and len(writer.queries("MERGE INTO")) == 1 and reader.queries("MERGE INTO") == []
+    writer.fail["merge"] = shell_core.QueryError("PERMISSION_DENIED: no MODIFY")
+    status, out = post(s, "records/act", body, headers=SIGNED_IN)
+    assert status == 403 and out["error"].startswith("Nothing was saved: Inspire's service principal records the decisions of this page")
+
+
 def test_similar_records_come_from_the_page_s_grouping_columns_and_feed_one_match(tmp_path):
     ws = UsableWorkspace(similar="Books", total=1, rows=[{"_inspire_key": "k2", "entity_label": "Item 2", "_inspire_version": "1001"}])
     s = usable_shell(tmp_path, ws)

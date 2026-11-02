@@ -90,26 +90,36 @@ def test_a_shared_app_gets_select_and_modify_on_the_assumptions_table_it_writes(
         GRANT.format("USE CATALOG", "CATALOG `main`"), GRANT.format("USE SCHEMA", "SCHEMA `main`.`inspire`"),
         GRANT.format("SELECT", "TABLE `main`.`inspire`.`churn_out`"), GRANT.format("USE CATALOG", "CATALOG `main`"),
         GRANT.format("USE SCHEMA", "SCHEMA `main`.`s`"), GRANT.format("SELECT", "TABLE `main`.`s`.`orders`"),
-        "DESCRIBE TABLE `main`.`inspire`.`churn_out`", CREATE, "DESCRIBE TABLE `main`.`inspire`.`churn_out_assumptions`",
+        GRANT.format("MODIFY", "TABLE `main`.`inspire`.`churn_out`"), "DESCRIBE TABLE `main`.`inspire`.`churn_out`", CREATE, "DESCRIBE TABLE `main`.`inspire`.`churn_out_assumptions`",
         GRANT.format("SELECT", "TABLE `main`.`inspire`.`churn_out_assumptions`"),
         GRANT.format("MODIFY", "TABLE `main`.`inspire`.`churn_out_assumptions`")], \
         "the assumptions table is read after the result table's grants, so its catalog and schema are not granted again"
-    assert not any("MODIFY" in s and "`churn_out`" in s for s in spark.statements), "the App only reads its records unless edits are on"
+    reading = Catalog()
+    _deploy(agent_ns, reading, {"app_options": {"modify": False, "decisions": False}})
+    assert not any("MODIFY" in s and "`churn_out`" in s for s in reading.statements), \
+        "the App only reads its records unless edits or decisions are on"
 
 
 def test_a_table_without_money_at_stake_gets_no_assumptions_table(agent_ns, sdk_stub):
     spark = Catalog(schema=[("entity_id", "string"), ("priority_tier", "string")])
-    _inst, fields = _deploy(agent_ns, spark)
+    _inst, fields = _deploy(agent_ns, spark, {"app_options": {"modify": False, "decisions": False}})
     assert "_warnings" not in fields
     assert not any(s.startswith("CREATE TABLE") or "assumptions" in s or "MODIFY" in s for s in spark.statements)
 
 
-def test_a_per_user_app_gets_no_service_principal_grant(agent_ns, sdk_stub):
-    spark = Catalog()
+def test_a_per_user_app_gets_a_service_principal_grant_only_on_the_table_it_records_decisions_in(agent_ns, sdk_stub):
     answers = [NEW_APP[0], NEW_APP[1], dict(NEW_APP[1], user_api_scopes=["sql:restricted-query", "genie"])] + NEW_APP[2:]
-    _inst, fields = _deploy(agent_ns, spark, {"app_access": "user"}, answers)
+    spark = Catalog()
+    _inst, fields = _deploy(agent_ns, spark, {"app_access": "user", "app_options": {"decisions": False}}, answers)
     assert fields["app_url"] == "https://churn-desk.example"
     assert not any(s.startswith(("GRANT", "CREATE TABLE", "DESCRIBE")) for s in spark.statements), spark.statements
+    spark = Catalog()
+    _inst, fields = _deploy(agent_ns, spark, {"app_access": "user"}, answers)
+    assert "_warnings" not in fields
+    assert [s for s in spark.statements if s.startswith(("GRANT", "CREATE TABLE", "DESCRIBE"))] == [
+        GRANT.format("USE CATALOG", "CATALOG `main`"), GRANT.format("USE SCHEMA", "SCHEMA `main`.`inspire`"),
+        GRANT.format("SELECT", "TABLE `main`.`inspire`.`churn_out`"), GRANT.format("MODIFY", "TABLE `main`.`inspire`.`churn_out`")], \
+        "a per-user App records decisions as its service principal, so it gets read and change on the result table and nothing else"
 
 
 @pytest.mark.parametrize("fail,reason", [
