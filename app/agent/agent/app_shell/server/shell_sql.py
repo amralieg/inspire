@@ -3279,13 +3279,23 @@ def use_case_scope(page: dict, params) -> str:
     return f"`use_case_id` = {params.add(str(page['use_case_id']))}" if page.get("use_case_id") else ""
 
 
-def closed_query(page: dict, table: str, keys: list, names: set, history=None) -> tuple:
+def closed_query(page: dict, table: str, keys: list, names: set, history=None, facts=None, changed_keys=None) -> tuple:
     params = _Params()
-    within = use_case_scope(page, params)
+    facts = facts if facts_ready(facts) else None
+    within = facts_scope(facts, params) if facts else use_case_scope(page, params)
     scope = f"{within + ' AND ' if within else ''}`record_key` IN ({', '.join(params.add(str(k)) for k in keys)})"
-    ctes = closing_ctes(table, names, scope=scope, history=history)
+    if facts:
+        acted = f"(SELECT * FROM {table_name(facts['acted'])} WHERE {scope})"
+        if changed_keys is not None and not {str(k) for k in keys} & {str(k) for k in changed_keys}:
+            ctes = {"av": f"SELECT {', '.join(quote(c) for c in facts['columns'])} FROM {acted} AS a"}
+        else:
+            ctes = facts_ctes(facts, table, params, scope=scope, acted=acted)
+        ctes.update(closing_ctes(table, names, source="av"))
+        order = ("qp", "q", "av", "hx", "hk")
+    else:
+        ctes, order = closing_ctes(table, names, scope=scope, history=history), ("hx", "hk")
     picked = ", ".join(f"z.`{source}` AS `{field}`" for field, source in CLOSED_FIELDS.items())
-    return (f"{_with(ctes, ['hx', 'hk'])} SELECT z.`_inspire_kk` AS `record_key`, z.`_inspire_closed_as` AS `_inspire_status`, {picked} FROM hk AS z "
+    return (f"{_with(ctes, order)} SELECT z.`_inspire_kk` AS `record_key`, z.`_inspire_closed_as` AS `_inspire_status`, {picked} FROM hk AS z "
             f"WHERE z.`_inspire_kth` = 1", params.items)
 
 
@@ -3590,10 +3600,10 @@ def facts_ready(facts) -> bool:
     return not shell_facts.facts_problem(facts)
 
 
-def facts_ctes(facts: dict, table: str, params) -> dict:
+def facts_ctes(facts: dict, table: str, params, scope=None, acted=None) -> dict:
     people = [(params.add(str(k)), params.add(str(int(v)), "BIGINT")) for k, v in facts.get("people") or []]
-    ctes = shell_facts.change_ctes(table, facts["stamp_us"], people, facts["names"], facts_scope(facts, params))
-    ctes["av"] = shell_facts.acted_source(table_name(facts["acted"]), facts["columns"])
+    ctes = shell_facts.change_ctes(table, facts["stamp_us"], people, facts["names"], facts_scope(facts, params) if scope is None else scope)
+    ctes["av"] = shell_facts.acted_source(acted or table_name(facts["acted"]), facts["columns"])
     return ctes
 
 

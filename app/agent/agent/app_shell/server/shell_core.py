@@ -389,6 +389,11 @@ class Cache:
             self.items.pop(key, None)
             return None
 
+    def left(self, key) -> float:
+        with self.lock:
+            hit = self.items.get(key)
+            return max(hit[0] - self.clock(), 0.0) if hit else 0.0
+
     def put(self, key, value, ttl: int):
         with self.lock:
             self.items[key] = (self.clock() + ttl, value)
@@ -1337,20 +1342,31 @@ class Shell:
         key = ("state", who, page["id"])
         held = self.cache.get(key)
         if held is not None:
+            if self.cache.left(key) < STAMP_TTL_S / 2:
+                with self.stamp_lock:
+                    ahead = key not in self.lookups
+                    if ahead:
+                        running = self.lookups[key] = Future()
+                if ahead:
+                    self.stamp_pool.submit(self.settle_state, ws, page, key, running)
             return held
         with self.stamp_lock:
             running = self.lookups.get(key)
             mine = running is None
             if mine:
                 running = self.lookups[key] = Future()
-        if not mine:
-            return running.result()
+        return self.settle_state(ws, page, key, running) if mine else running.result()
+
+    def settle_state(self, ws, page: dict, key, running: Future) -> dict:
         try:
             state = self.read_state(ws, page)
+            self.cache.put(key, state, STAMP_TTL_S)
+        except BaseException as error:
+            running.set_exception(error)
+            raise
         finally:
             with self.stamp_lock:
                 self.lookups.pop(key, None)
-        self.cache.put(key, state, STAMP_TTL_S)
         running.set_result(state)
         return state
 
@@ -1864,13 +1880,17 @@ class Shell:
     def with_closes(self, headers: dict, ws, who, page: dict, context: dict, fields, rows: list, failures: dict) -> list:
         keys = list(dict.fromkeys(str(r["_inspire_key"]) for r in rows
                                   if r.get("_inspire_key") is not None and r.get("_inspire_status") in shell_sql.CLOSED_STATUSES))
-        closes = {}
-        if keys:
-            sql, params = shell_sql.closed_query(page, context["table"], keys, {f["name"] for f in fields or []}, context.get("history"))
-            try:
-                closes = {str(r.get("record_key")): r for r in self.run(ws, who, sql, params, len(keys), delta=True)["rows"]}
-            except QueryError as error:
-                failures["closed"] = str(error)
+        closes, names, status = {}, {f["name"] for f in fields or []}, {str(r.get("_inspire_key")): r.get("_inspire_status") for r in rows}
+        read = lambda wanted, changed: {str(r.get("record_key")): r for r in self.run(
+            ws, who, *shell_sql.closed_query(page, context["table"], wanted, names, context.get("history"), context.get("facts"), changed),
+            len(wanted), delta=True)["rows"]}
+        try:
+            closes = read(keys, context.get("changed_keys")) if keys else {}
+            missed = [k for k in keys if (closes.get(k) or {}).get("_inspire_status") != status[k]]
+            if missed and context.get("facts") and context.get("changed_keys") is not None:
+                closes.update(read(missed, None))
+        except QueryError as error:
+            failures["closed"] = str(error)
         out = []
         for row in rows:
             close = closes.get(str(row.get("_inspire_key")))

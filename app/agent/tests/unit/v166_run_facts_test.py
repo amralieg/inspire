@@ -494,6 +494,7 @@ class FactsWarehouse:
         from v148_app_hub_test import COLUMNS as HUB_COLUMNS, TYPES as HUB_TYPES
         self.facts, self.sql, self.floor_rows, self.changed_n, self.miss = facts, [], floor_rows, changed_n, False
         self.keys, self.missed, self.broken = None, 0, None
+        self.status, self.closes, self.changed_closes = {}, {}, {}
         self.money = dict(money or {})
         self.fields = [{"name": n, "type": HUB_TYPES.get(n, "STRING"), "type_text": HUB_TYPES.get(n, "STRING")} for n in HUB_COLUMNS]
 
@@ -502,6 +503,10 @@ class FactsWarehouse:
         rows = lambda found: {"columns": [], "rows": found, "truncated": False}
         if "DESCRIBE HISTORY" in sql.upper():
             raise AssertionError("no request may read a table's Delta history")
+        if "z.`_inspire_closed_as` AS `_inspire_status`" in sql:
+            seen = dict(self.closes, **(self.changed_closes if " q AS (" in sql else {}))
+            asked = {p["value"] for p in params}
+            return rows([dict(seen[k], record_key=k, _inspire_status="Done") for k in sorted(asked & set(seen))])
         if sql.startswith(f"SELECT * FROM {shell_facts.table_name(HUB_TABLE + '_summary')}"):
             summary = {k: v for k, v in self.money.items() if k != "edits"}
             return rows([dict({"run_id": "r5", "updated_at": "2026-09-29T06:10:00Z", "run_facts": json.dumps(self.facts),
@@ -534,8 +539,11 @@ class FactsWarehouse:
             return rows([{"kind": "counts", "n": 0, "hits": 0}, {"kind": "changed", "n": 0, "hits": 0, "money": None},
                          {"kind": "missed", "n": missed}])
         if "`value_at_stake` >=" in sql or "`rank` <=" in sql:
-            return rows([{"record_key": f"k{i}", "_inspire_key": None if self.miss and i == 3 else f"k{i}"} for i in range(self.floor_rows)])
-        return rows([{"record_key": f"k{i}", "_inspire_key": f"k{i}"} for i in range(min(limit, 25))])
+            return rows([self.row(i, None if self.miss and i == 3 else f"k{i}") for i in range(self.floor_rows)])
+        return rows([self.row(i, f"k{i}") for i in range(min(limit, 25))])
+
+    def row(self, i, key):
+        return dict({"record_key": f"k{i}", "_inspire_key": key}, **({"_inspire_status": self.status[key]} if key in self.status else {}))
 
 
 def _facts_shell(tmp_path, facts, floor_rows=25, changed_n=0, money=None):
@@ -924,3 +932,136 @@ def test_lakebase_reads_set_a_short_statement_timeout_inside_their_transaction()
     lb.query("SELECT category FROM big", {}, 5)
     assert (f"SET LOCAL statement_timeout = {shell_pg.READ_TIMEOUT_MS}", None) in conn.executed
     assert shell_pg.READ_TIMEOUT_MS < shell_pg.STATEMENT_TIMEOUT_MS
+
+
+def _closes(engine, keys, facts=None, changed=None):
+    sql, params = shell_sql.closed_query({"use_case_id": "U1"}, shell_facts.table_name(TABLE), keys, NAMES, HISTORY, facts, changed)
+    return sorted(engine["rows"](sql, params), key=lambda r: r["record_key"])
+
+
+def test_the_closing_of_the_listed_records_read_from_the_run_facts_equals_the_closing_read_live_before_and_after_new_actions(engine):
+    quoted = shell_facts.table_name(TABLE)
+    engine["write"]("facts_out", COLUMNS, SNAPSHOT)
+    columns = shell_facts.acted_columns(NAMES, "entity_label")
+    engine["write"]("facts_out_acted", [c for c in COLUMNS if c[0] in columns],
+                    engine["rows"](shell_facts.acted_versions_sql(quoted, NAMES, "entity_label", SCOPE, HISTORY)))
+    keys, facts = ["a", "b", "c", "e"], _facts()
+    try:
+        live = _closes(engine, keys)
+        assert [r["record_key"] for r in live] == ["c"] and live[0]["_inspire_closed_by"] == "pat", live
+        assert _closes(engine, keys, facts, []) == _closes(engine, keys, facts, None) == live, \
+            "nothing changed since the run, so the records people acted on give the closing the full history gives"
+        engine["write"]("facts_out", COLUMNS, after_writes())
+        live = _closes(engine, keys)
+        assert [r["record_key"] for r in live] == ["a", "c"], live
+        assert _closes(engine, keys, facts, ["a", "e", "f"]) == _closes(engine, keys, facts, None) == live, \
+            "a was marked Done after the run, so the closing reads the changes since the run with the records people acted on"
+        assert _closes(engine, ["c"], facts, ["a", "e", "f"]) == [r for r in live if r["record_key"] == "c"], \
+            "c did not change since the run, so the records people acted on alone give its closing"
+        assert [r["record_key"] for r in _closes(engine, keys, facts, [])] == ["c"], \
+            "a key list read before a was marked Done misses a, so the App must read the records it missed again"
+    finally:
+        engine["write"]("facts_out", COLUMNS, SNAPSHOT)
+
+
+def _closes_read(ws):
+    return [(sql, sorted(p["value"] for p in params if p["value"] != "N01-U05")) for sql, params, _l in ws.sql
+            if "z.`_inspire_closed_as` AS `_inspire_status`" in sql]
+
+
+@pytest.mark.parametrize("changed, reads", [
+    (["k9"], [("acted", ["k1", "k2"])]),
+    (["k1"], [("changes", ["k1", "k2"])]),
+    (None, [("changes", ["k1", "k2"])]),
+])
+def test_the_closing_of_the_listed_records_reads_the_records_people_acted_on_and_the_changes_only_when_one_of_them_changed(
+        tmp_path, changed, reads):
+    s, ws = _facts_shell(tmp_path, _ready_facts(), changed_n=1)
+    ws.keys, ws.status = changed, {"k1": "Done", "k2": "Done"}
+    ws.closes = {"k1": {"_inspire_closed_by": "pat@example.com"}, "k2": {"_inspire_closed_by": "sam@example.com"}}
+    status, out = call(s, "POST", "records", body={"page": "n01_u05", "sort": {"key": "rank", "dir": "asc"}, "limit": 25})
+    assert status == 200 and not out["errors"], out
+    found = _closes_read(ws)
+    assert [("changes" if " q AS (" in sql else "acted", keys) for sql, keys in found] == reads, found
+    for sql, _keys in found:
+        assert f"FROM {shell_facts.table_name(HUB_TABLE + '_acted')} WHERE " in sql and "_run_log" not in sql, \
+            "the closing reads the records people acted on, never the run log"
+        assert (shell_facts.table_name(HUB_TABLE) in sql) == (" q AS (" in sql), \
+            "the result table is read only for the changes since the run"
+    by = {r["_inspire_key"]: r.get("_inspire_closed_by") for r in out["rows"]}
+    assert by["k1"] == "pat@example.com" and by["k2"] == "sam@example.com" and by["k3"] is None, by
+
+
+def test_a_closed_record_the_key_list_missed_is_read_again_with_the_changes_since_the_run(tmp_path):
+    s, ws = _facts_shell(tmp_path, _ready_facts(), changed_n=1)
+    ws.keys, ws.status = ["k9"], {"k1": "Done", "k2": "Done"}
+    ws.closes, ws.changed_closes = {"k1": {"_inspire_closed_by": "pat@example.com"}}, {"k2": {"_inspire_closed_by": "sam@example.com"}}
+    status, out = call(s, "POST", "records", body={"page": "n01_u05", "sort": {"key": "rank", "dir": "asc"}, "limit": 25})
+    assert status == 200 and not out["errors"], out
+    found = _closes_read(ws)
+    assert [(" q AS (" in sql, keys) for sql, keys in found] == [(False, ["k1", "k2"]), (True, ["k2"])], \
+        "k2 was closed after the key list was read, so only k2 is read again with the changes since the run"
+    by = {r["_inspire_key"]: r.get("_inspire_closed_by") for r in out["rows"]}
+    assert by["k1"] == "pat@example.com" and by["k2"] == "sam@example.com", by
+
+
+def _state_reads(ws):
+    return [sql for sql, _p, _l in ws.sql if sql.startswith(f"SELECT * FROM {shell_facts.table_name(HUB_TABLE + '_summary')}")
+            or sql.startswith("SELECT COUNT(*) AS `n`, unix_micros(GREATEST(")]
+
+
+def test_the_page_state_is_read_again_in_the_background_once_half_its_life_is_gone_so_no_request_waits_for_it(tmp_path):
+    from v165_scale_test import Recorder
+    now = [1_000.0]
+    s, ws = _facts_shell(tmp_path, _ready_facts(), changed_n=1)
+    s.cache, s.stamp_pool, page = shell_core.Cache(clock=lambda: now[0]), Recorder(), s.page("n01_u05")
+    first = s.page_state(ws, "sp", page)
+    assert len(_state_reads(ws)) == 2 and not s.stamp_pool.jobs, "a cold page reads the summary and the changes since the run"
+    now[0] += shell_core.STAMP_TTL_S / 2 - 1
+    assert s.page_state(ws, "sp", page) is first and len(_state_reads(ws)) == 2, "a young state is served as it is"
+    s.lookups[("state", "sp", page["id"])] = shell_core.Future()
+    now[0] += 2
+    assert s.page_state(ws, "sp", page) is first and not s.stamp_pool.jobs, "a state already being read again is not read twice"
+    s.lookups.clear()
+    assert s.page_state(ws, "sp", page) is first and len(s.stamp_pool.jobs) == 1, "an old state is served while it is read again"
+    assert len(_state_reads(ws)) == 4 and s.cache.left(("state", "sp", page["id"])) == shell_core.STAMP_TTL_S
+    renewed = s.page_state(ws, "sp", page)
+    assert renewed is not first and renewed == first and not s.lookups, "the next request gets the state read in the background"
+    now[0] += shell_core.STAMP_TTL_S + 1
+    assert s.page_state(ws, "sp", page) is not renewed and len(_state_reads(ws)) == 6, "an expired state is read in the request"
+
+
+def test_requests_waiting_on_a_page_state_read_that_fails_get_its_error_instead_of_waiting_forever(tmp_path, monkeypatch):
+    import threading
+    s, ws = _facts_shell(tmp_path, _ready_facts())
+    page, started, gate, waiting = s.page("n01_u05"), threading.Event(), threading.Event(), threading.Event()
+
+    class Watched(shell_core.Future):
+        def result(self, timeout=None):
+            waiting.set()
+            return super().result(timeout)
+
+    def broken(_ws, _page):
+        started.set()
+        gate.wait(5)
+        raise RuntimeError("the summary read broke")
+
+    monkeypatch.setattr(shell_core, "Future", Watched)
+    s.read_state, errors = broken, []
+
+    def ask():
+        try:
+            s.page_state(ws, "sp", page)
+        except RuntimeError as error:
+            errors.append(str(error))
+
+    first, second = threading.Thread(target=ask, daemon=True), threading.Thread(target=ask, daemon=True)
+    first.start()
+    assert started.wait(5)
+    second.start()
+    assert waiting.wait(5)
+    gate.set()
+    first.join(5)
+    second.join(5)
+    assert not second.is_alive() and errors == ["the summary read broke"] * 2, errors
+    assert not s.lookups, "a failed read leaves no lookup behind, so the next request reads again"
