@@ -8,6 +8,7 @@ import tarfile
 import tempfile
 import types
 import unittest
+from unittest import mock
 
 import support
 
@@ -303,6 +304,21 @@ class AssetsTest(unittest.TestCase):
         _, said = self.install()
         self.assertIn("(1 copied, 2 already there)", said)
         self.assertEqual((self.root / "fonts" / "inter-400.ttf").read_bytes(), self.files["fonts/inter-400.ttf"])
+
+    def test_both_cpu_builds_of_each_cli_land_whatever_machine_the_installer_runs_on(self):
+        shutil.rmtree(self.assets)
+        self.assets.mkdir()
+        builds = {f"cli/{name}-{machine}.{kind}": f"{name} {machine}".encode() * 50
+                  for name, kind in (("genie-code-cli", "tar.gz"), ("databricks-cli", "zip")) for machine in ("x86_64", "aarch64")}
+        support.make_assets(self.assets, files=builds)
+        support.release.write_assets_tar(self.assets, "v1.3.0", self.tar, support.release.load_starter())
+        for machine in ("aarch64", "x86_64", "arm64"):
+            shutil.rmtree(self.root.parent, ignore_errors=True)
+            with mock.patch("platform.machine", return_value=machine):
+                _, said = self.install()
+            self.assertEqual({name: (self.root / name).read_bytes() for name in builds}, builds, machine)
+            self.assertEqual(json.loads((self.root / "manifest.json").read_text()), json.loads((self.assets / "manifest.json").read_text()))
+            self.assertIn("(4 copied, 0 already there)", said)
 
     def test_a_tar_whose_file_does_not_match_its_manifest_copies_nothing(self):
         bad = self.tmp / "bad.tar"
