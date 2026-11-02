@@ -54,17 +54,21 @@ def test_every_function_the_contract_refuses_is_refused_as_a_call_and_not_as_a_c
     assert check(f"SELECT k, {name} AS group_name FROM a.b.c")["ok"] is True
 
 
-def test_the_wrap_puts_a_new_line_before_the_closing_parenthesis_so_a_trailing_comment_cannot_eat_it(agent_ns):
-    wrap = agent_ns["implement_grouping_sql_wrap"]
-    assert wrap("SELECT 1 -- note") == "(SELECT 1 -- note\n)"
+def test_the_run_wraps_the_sql_with_a_new_line_before_the_closing_parenthesis_so_a_trailing_comment_cannot_eat_it(agent_ns):
+    statement = agent_ns["inspire_group_sql_statement"]
+    assert statement({"sql": "SELECT 1 -- note"}) == "SELECT * FROM (SELECT 1 -- note\n) AS _inspire_custom_groups"
     checked = agent_ns["implement_grouping_sql_check"]("SELECT k, g AS group_name FROM a.b.c -- note")
-    assert wrap(checked["sql"]) == "(SELECT k, g AS group_name FROM a.b.c\n)"
+    assert statement(checked) == "SELECT * FROM (SELECT k, g AS group_name FROM a.b.c\n) AS _inspire_custom_groups"
 
 
-def test_the_check_reads_only_the_text_it_is_given_and_calls_no_spark_no_sql_and_no_model():
-    tree = ast.parse(agent_source())
-    mine = [n for n in tree.body if isinstance(n, (ast.FunctionDef, ast.ClassDef)) and "grouping_sql" in n.name.lower()]
+def test_the_check_reads_only_the_text_it_is_given_and_calls_no_spark_no_sql_and_no_model(agent_ns):
+    source = agent_ns["IMPLEMENT_RESULT_HISTORY_SOURCE"]
+    tree = ast.parse(source)
+    mine = [n for n in tree.body if isinstance(n, (ast.FunctionDef, ast.ClassDef))
+            and ("grouping_sql" in n.name.lower() or n.name.startswith("_inspire_group_sql_") or n.name == "InspireGroupSqlRefused")]
     assert len(mine) >= 20
+    assert not [n.name for n in ast.parse(agent_source()).body if isinstance(n, (ast.FunctionDef, ast.ClassDef))
+                and "grouping_sql" in n.name.lower()], "the agent and the run notebook share the one check in the Run controls source"
     names = {x.id for n in mine for x in ast.walk(n) if isinstance(x, ast.Name)}
     attrs = {x.attr for n in mine for x in ast.walk(n) if isinstance(x, ast.Attribute)}
     assert not {"spark", "dbutils", "requests", "open", "exec", "eval", "w_client"} & names

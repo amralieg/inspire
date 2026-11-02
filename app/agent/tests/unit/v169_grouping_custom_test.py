@@ -76,7 +76,7 @@ def test_a_custom_grouping_runs_the_saved_sql_wrapped_joins_it_by_key_and_merges
     printed = []
     out = fresh_ns["inspire_group_records"](_records(pd), out=printed.append)
     ran = [s for s in spark.statements if "_inspire_custom_groups" in s]
-    assert ran == ["SELECT * FROM (\nSELECT m.order_id, c.region AS group_name  \nFROM main.sales.orders m LEFT JOIN main.geo.stores c "
+    assert ran == ["SELECT * FROM (SELECT m.order_id, c.region AS group_name \nFROM main.sales.orders m LEFT JOIN main.geo.stores c "
                    "ON m.store_id = c.store_id\n) AS _inspire_custom_groups"], "exactly the saved SQL, comments out, wrapped"
     assert len(out) == 100 and list(out["order_id"]) == [f"o{i}" for i in range(100)]
     counts = out["inspire_group"].value_counts().to_dict()
