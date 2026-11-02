@@ -6,6 +6,7 @@ import { HighlightStyle, syntaxHighlighting } from '@codemirror/language';
 import { tags } from '@lezer/highlight';
 import { counted } from '../lib/plural';
 import { profileBody } from '../lib/groupingProfile';
+import DataGrid from './DataGrid';
 import {
   GROUPING_PREVIEW_ROUTE, GROUPING_SAVE_ROUTE, checkGroupingSql, groupingKeysOf, groupingPreviewFits, groupingSqlRequest, groupingSqlSchema,
 } from '../lib/groupingSql';
@@ -36,6 +37,12 @@ const SQL_LOOK = EditorView.theme({
   '.cm-tooltip-autocomplete ul li[aria-selected]': { backgroundColor: 'var(--t-info-bg)', color: 'var(--t-text-primary)' },
 });
 
+const PREVIEW_COLUMNS = [
+  { key: 'group', label: 'Group', value: (g) => (g.group_name == null ? 'No group' : g.group_name), className: 'py-0.5 break-all' },
+  { key: 'records', label: 'Records', kind: 'number', value: (g) => g.records, render: (g) => counted(g.records, 'record'),
+    headClassName: 'font-medium py-0.5 text-right', className: 'py-0.5 text-right tabular-nums' },
+];
+
 function aborted(e) {
   return e?.name === 'AbortError';
 }
@@ -50,19 +57,9 @@ function PreviewView({ data }) {
       </ul>
       {data.text && <p data-grouping-sql-shown="" className={NOTE}>{data.text}</p>}
       {(data.top || []).length > 0 && (
-        <table className="w-full text-[12px]">
-          <thead>
-            <tr className="text-left text-text-secondary"><th className="font-medium py-0.5">Group</th><th className="font-medium py-0.5 text-right">Records</th></tr>
-          </thead>
-          <tbody>
-            {data.top.map((g, i) => (
-              <tr key={`${g.group_name ?? ''}|${i}`} data-grouping-sql-group="" className="border-t border-border-subtle text-text-primary">
-                <td className="py-0.5 break-all">{g.group_name == null ? 'No group' : g.group_name}</td>
-                <td className="py-0.5 text-right tabular-nums">{counted(g.records, 'record')}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <DataGrid columns={PREVIEW_COLUMNS} rows={data.top} rowKey={(g, i) => `${g.group_name ?? ''}|${i}`} label="Records per group"
+          grid="grouping:preview" tableClassName="w-full text-[12px]" headRowClassName="text-left text-text-secondary"
+          headClassName="font-medium py-0.5" rowProps={() => ({ 'data-grouping-sql-group': '', className: 'border-t border-border-subtle text-text-primary' })} />
       )}
       {data.truncated && <p data-grouping-sql-truncated="" className={NOTE}>Databricks returned only part of the answer, so these numbers may be low.</p>}
     </div>

@@ -5,6 +5,7 @@ import { HubExplainNote, ReviewLink, UseCaseName, hubExplain, weekCard } from '.
 import { wholeMoney } from './format.js';
 import { Icon } from './icons.jsx';
 import Fx from './Fx.jsx';
+import DataTable from './DataTable.jsx';
 import { getImpact } from './api.js';
 import { NOT_MEASURED, pageCurrency, pageKind, shortDay, visiblePages } from './hub.js';
 import { closedRows, figuresOf, heldShare, holdoutOffText, holdoutView, impactTiles, promisedView, targetKpiView } from './impact.js';
@@ -82,28 +83,19 @@ function Reasons({ entry }) {
   );
 }
 
-function Closed({ entry, currency, kind }) {
+const CLOSED_COLUMNS = [
+  { key: 'label', label: 'Record' },
+  { key: 'outcome', label: 'Outcome', className: 'nw' },
+  { key: 'state', label: 'What a later run found' },
+  { key: 'measured', label: 'Measured', num: true, sortValue: (r) => r.amounts.measured, render: (r) => r.measured || '\u00a0' },
+  { key: 'reported', label: 'Reported', num: true, sortValue: (r) => r.amounts.reported, render: (r) => <>{r.reported}{r.note && <small>{r.note}</small>}</> },
+  { key: 'closed', label: 'Closed', date: true, className: 'nw', sortValue: (r) => r.amounts.closed },
+];
+
+function Closed({ entry, currency, kind, pageId }) {
   const rows = closedRows(entry, currency, kind);
   if (!rows.length) return null;
-  return (
-    <div className="tbl-wrap">
-      <table className="tbl tbl--closed">
-        <thead><tr><th>Record</th><th>Outcome</th><th>What a later run found</th><th className="num">Measured</th><th className="num">Reported</th><th>Closed</th></tr></thead>
-        <tbody>
-          {rows.map((r) => (
-            <tr key={r.key}>
-              <td>{r.label}</td>
-              <td className="nw">{r.outcome}</td>
-              <td>{r.state}</td>
-              <td className="num">{r.measured || '\u00a0'}</td>
-              <td className="num">{r.reported}{r.note && <small>{r.note}</small>}</td>
-              <td className="nw">{r.closed}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
+  return <DataTable label="Closed records" tableClass="tbl--closed" columns={CLOSED_COLUMNS} rows={rows} rowKey={(r) => r.key} grid={`impact:${pageId}:closed`} />;
 }
 
 function TargetKpi({ run }) {
@@ -142,7 +134,7 @@ function UseCaseImpact({ app, page, entry, currency, kind, figures, meaning, onO
       <TargetKpi run={run} />
       <Holdout entry={entry} meaning={meaning} />
       <Reasons entry={entry} />
-      <Closed entry={entry} currency={currency} kind={kind} />
+      <Closed entry={entry} currency={currency} kind={kind} pageId={page.id} />
     </section>
   );
 }

@@ -145,11 +145,11 @@ test('the Overview tiles count the things to fix, their money with its formula, 
 
 test('the Owner and Show filters narrow the tiles and the list, and Clear filters brings them back', async () => {
   const { page, seen, context } = await open(INFO());
-  await page.getByLabel('Owner').selectOption('me');
+  await page.getByRole('combobox', { name: 'Owner' }).selectOption('me');
   assert.deepEqual((await tileTexts(page)).slice(0, 2), [['To fix', '3', '3 of them are yours'], ['Could save', '$21,350', 'Money at stake on the 3 things to fix, added up']]);
   assert.deepEqual(await whatColumn(page), ['Blue denim jacket, store 12', 'Supplier 3381, invoice 77188', 'Leather boots, store 2']);
-  await page.getByLabel('Owner').selectOption('none');
-  await page.getByLabel('Show').selectOption('all');
+  await page.getByRole('combobox', { name: 'Owner' }).selectOption('none');
+  await page.getByRole('combobox', { name: 'Show' }).selectOption('all');
   assert.deepEqual(await whatColumn(page), ['Wool coat, store 4', 'Supplier 1150, invoice 66102', 'Linen trousers, store 12']);
   assert.equal(await page.locator('.tbl--things .look').innerText(), 'worth a look');
   await page.getByRole('button', { name: 'Clear filters' }).click();
@@ -621,8 +621,8 @@ test('Your work lists what is assigned to me, overdue first, with its status and
   assert.equal(await work.getByRole('button', { name: /^Ask Genie/ }).count(), 0, 'each record keeps one Ask Genie button, on the things to fix');
   assert.ok(await page.evaluate(() => Boolean(document.querySelector('[aria-label="Your work"]').compareDocumentPosition(document.querySelector('.fbar'))
     & Node.DOCUMENT_POSITION_FOLLOWING)), 'your work comes before the filters');
-  await page.getByLabel('Owner').selectOption('none');
-  await page.getByLabel('Show').selectOption('all');
+  await page.getByRole('combobox', { name: 'Owner' }).selectOption('none');
+  await page.getByRole('combobox', { name: 'Show' }).selectOption('all');
   assert.equal(await work.locator('tbody tr').count(), 3, 'the Owner and Show filters narrow the things to fix, not your work');
   await work.locator('tbody tr').first().click();
   await page.waitForFunction(() => document.querySelector('.ph h1')?.textContent === 'Second desk 1');

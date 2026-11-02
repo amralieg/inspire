@@ -730,9 +730,11 @@ export default function Records({ meta, app, pageId, filters, ai, onFilter, hist
   }, [cursorKey]);
   const stop = (fn) => (e) => { e.stopPropagation(); fn(); };
   const hosted = meta.sublabel && meta.sublabel !== meta.label ? { [meta.label]: [meta.sublabel] } : {};
+  const metas = (columnMeta || []).flatMap((f) => (!f.action ? [f] : !tracker ? []
+    : f.column === 'action_owner' ? [{ ...f, options: [...new Set([...(f.options || []), ...owners])].sort(compareValues) }] : [f]));
   const columns = withColumnFilters([
     ...(tracker ? [{
-      key: '_pick', sortable: false, className: 'pick-c',
+      key: '_pick', fixed: true, className: 'pick-c',
       label: <input type="checkbox" checked={allPicked || !!matching} onChange={() => pickRows(!allPicked, allPicked ? pickable : actable)} aria-label="Select every record on this page" disabled={!pickable.length} />,
       render: (r) => (
         <label className="pick-l" onClick={(e) => e.stopPropagation()}>
@@ -776,7 +778,7 @@ export default function Records({ meta, app, pageId, filters, ai, onFilter, hist
       },
     ] : []),
     ...(canModify ? [{
-      key: '_actions', label: 'Actions', hideLabel: true, sortable: false, className: 'act',
+      key: '_actions', label: 'Actions', hideLabel: true, fixed: true, className: 'act',
       render: (r) => {
         const name = plainText(r[meta.label]);
         return (
@@ -788,7 +790,7 @@ export default function Records({ meta, app, pageId, filters, ai, onFilter, hist
         );
       },
     }] : []),
-  ], columnMeta, columnValues, onColumn, pageId, null, hosted);
+  ], metas, columnValues, onColumn, pageId, null, hosted);
   const left = [leftText(data?.summary?.left), keptText(data?.summary?.kept)].filter(Boolean).join(' · ');
   const impact = tracker ? impactText(data?.summary) : '';
   const narrowedAny = Object.keys(narrowed).length > 0 || Object.values(filters || {}).some((v) => Array.isArray(v) && v.length)
@@ -805,7 +807,7 @@ export default function Records({ meta, app, pageId, filters, ai, onFilter, hist
           {left && <p className="left-n"><Icon name="trend" size={13} />{left}</p>}
         </div>
         <div className="tbar">
-          <ColumnFilterStatus filters={columnMeta} values={columnValues} onClear={onClearColumns} />
+          <ColumnFilterStatus filters={metas} values={columnValues} onClear={onClearColumns} />
           <label className="search"><Icon name="search" size={14} /><input ref={searchBox} value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search the list" aria-label="Search the list" maxLength={200} /></label>
           {(tracker || mine) && <button className={`pick-i ${mine ? 'is-on' : ''}`} aria-pressed={mine} onClick={() => setMine(!mine)}><Icon name="users" size={13} />My actions</button>}
           {(data?.changes || changed) && <button className={`pick-i ${changed ? 'is-on' : ''}`} aria-pressed={changed} onClick={() => setChanged(!changed)}><Icon name="trend" size={13} />Changed since the last run</button>}
@@ -848,7 +850,7 @@ export default function Records({ meta, app, pageId, filters, ai, onFilter, hist
       {data && (
         <>
           {late.late > 0 && <p className="late-n" data-overdue><Icon name="calendar" size={13} />Overdue: {recordsText(late.late)} on this page, shown first.</p>}
-          <DataTable label={meta.title} columns={columns} rows={tableRows} rowKey={keyOf} onRow={setOpen} paged={false}
+          <DataTable label={meta.title} columns={columns} rows={tableRows} rowKey={keyOf} onRow={setOpen} paged={false} filtering="server" grid={`page:${pageId}:records`}
             empty={emptyState({ search, mine, changed, fresh, windowed: narrowWindow(prefs) ? windowLabel(prefs.window) : '', narrowedAny,
               ranged: Object.values(filters || {}).some((v) => v && typeof v === 'object' && !Array.isArray(v)), onClear: clearAll,
               onWide: () => update((p) => ({ ...p, window: 'all' })) })}

@@ -593,7 +593,7 @@ test('the Build page has one tab per output after Build, opens a ready MVP on it
     assert.equal(await page.getByRole('button', { name: /^(Genie Code notebook|Dashboard|Genie Agent|App|Alert) details$/ }).count(), 0, 'no button opens a Details drawer');
     await shot(page, 'build-page-ready');
 
-    const appRows = await appFacts.locator('table tr').evaluateAll((rows) => rows.map((r) => [...r.querySelectorAll('td')].map((td) => td.textContent)));
+    const appRows = await appFacts.locator('dl > div').evaluateAll((rows) => rows.map((r) => [...r.querySelectorAll('dt, dd')].map((cell) => cell.textContent)));
     assert.deepEqual(appRows.slice(0, 3), [
       ['App', 'RUNNING: App is running'],
       ['Compute', 'ACTIVE'],

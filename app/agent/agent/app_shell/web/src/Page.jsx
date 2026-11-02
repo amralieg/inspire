@@ -36,19 +36,19 @@ const VIEWS = [['overview', 'Things to fix'], ['runs', 'Runs'], ['alerts', 'Aler
 const UNFILTERED = ['runs', 'alerts'];
 const pageViews = (app) => VIEWS.filter(([id]) => (id !== 'alerts' || !!app.alerting?.on) && (id !== 'runs' || app.screens?.runs !== false));
 
-export function usePageData(pageId, state, ready, nonce = 0) {
+export function usePageData(pageId, state, ready, nonce = 0, sorts = null) {
   const [data, setData] = useState(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const seq = useRef(0);
-  const key = JSON.stringify({ filters: apiValues(state), tables: apiTables(state) });
+  const key = JSON.stringify({ filters: apiValues(state), tables: apiTables(state), sorts: sorts || {} });
   useEffect(() => {
     if (!ready) return undefined;
     const mine = ++seq.current;
     setBusy(true);
     const timer = setTimeout(() => {
       const asked = JSON.parse(key);
-      getPage(pageId, asked.filters, asked.tables)
+      getPage(pageId, asked.filters, asked.tables, asked.sorts)
         .then((d) => { if (mine === seq.current) { setData(d); setError(''); } })
         .catch((e) => { if (mine === seq.current) setError(e.message); })
         .finally(() => { if (mine === seq.current) setBusy(false); });
@@ -76,8 +76,10 @@ function usePageHub(pageId, state, ready, nonce, on) {
   return out;
 }
 
-function TableCard({ table, result, error, loading, onFilter, pageId, filters, values, onColumn, onClear }) {
+function TableCard({ table, result, error, loading, onFilter, pageId, filters, values, onColumn, onClear, sort, onSort }) {
   const columns = withColumnFilters(table.columns.map((c) => columnOf(c, onFilter)), filters, values, onColumn, pageId, table.id);
+  const cut = !!result?.truncated;
+  const served = cut || !!sort ? { sort: sort ? { key: sort.key, dir: sort.dir === 'desc' ? -1 : 1 } : null, onSort: (s) => onSort({ key: s.key, dir: s.dir > 0 ? 'asc' : 'desc' }) } : {};
   return (
     <section className="card card--table" aria-label={table.title}>
       <header className="card-h">
@@ -86,7 +88,8 @@ function TableCard({ table, result, error, loading, onFilter, pageId, filters, v
       </header>
       {loading && <div style={{ padding: 16, display: 'grid', gap: 10 }}>{[1, 2, 3].map((i) => <Skeleton key={i} height={22} />)}</div>}
       {error && <p className="tile-err"><Icon name="info" size={14} />This table could not load: {error}</p>}
-      {!loading && !error && <DataTable label={table.title} columns={columns} rows={result?.rows || []} />}
+      {!loading && !error && <DataTable label={table.title} columns={columns} rows={result?.rows || []} filtering="server" grid={`page:${pageId}:table:${table.id}`} {...served} />}
+      {!loading && !error && cut && <p className="more" data-cut>Showing the first {integer(result.rows.length)} rows. Sorting and the column filters use every row.</p>}
     </section>
   );
 }
@@ -222,7 +225,8 @@ export default function Page({ app, page, meta, state, onState, themeKey, onAsk,
   const [freshKey, setFreshKey] = useState(0);
   const [settings, setSettings] = useSettings(page.id, nonce);
   const listed = !!(page.history && page.records);
-  const { data, busy, error } = usePageData(page.id, state, ready, nonce);
+  const [sorts, setSorts] = useState({});
+  const { data, busy, error } = usePageData(page.id, state, ready, nonce, sorts);
   const live = usePageHub(page.id, state, ready, nonce, listed);
   const hubPage = listed && !!(live.data?.tracked || live.data?.empty || hubEntry?.tracked || hubEntry?.empty || !live.done);
   const [question, setQuestion] = useState('');
@@ -371,7 +375,8 @@ export default function Page({ app, page, meta, state, onState, themeKey, onAsk,
             <Placed key={table.id} slots={slotsOf(plan, table.id)}>
               <TableCard table={table} result={data?.tables?.[table.id]} error={errors[`table:${table.id}`]} loading={loading} onFilter={pick}
                 pageId={page.id} filters={meta?.columns?.tables?.[table.id]} values={columnValues(state, table.id)}
-                onColumn={(column, value) => onState(setColumnValue(state, table.id, column, value))} onClear={() => onState(clearColumnValues(state, table.id))} />
+                onColumn={(column, value) => onState(setColumnValue(state, table.id, column, value))} onClear={() => onState(clearColumnValues(state, table.id))}
+                sort={sorts[table.id]} onSort={(s) => setSorts((all) => ({ ...all, [table.id]: s }))} />
             </Placed>
           ))}
           {page.records && !unreliable && (

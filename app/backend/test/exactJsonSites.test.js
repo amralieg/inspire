@@ -49,6 +49,7 @@ const BROWSER_ALLOWED = [
   ['lib/implementControl.js', 'JSON.parse(storage?.getItem(COLLECTED_VIBES_KEY)', 'the vibes this browser stored itself'],
   ['lib/useCaseFields.js', 'JSON.parse(rawFp)', 'the favorites this browser stored itself'],
   ['lib/useCaseFields.js', "JSON.parse(storage.getItem('inspire_favorites')", 'the favorites this browser stored itself'],
+  ['lib/dataGrid.js', 'JSON.parse(storage?.getItem(GRID_ORDER_KEY)', 'the column order this browser stored itself, which names no id'],
   ['lib/useCaseFields.js', 'JSON.parse(flags)', 'the selection flags of a use case, which name no id'],
   ['lib/implementWizard.js', "JSON.parse(String(raw || ''))", 'the elite assessment of a use case, which names no id'],
   ['lib/v130UseCase.js', 'JSON.parse(text)', 'the strategy alignment and data evidence of a use case, which name no id'],

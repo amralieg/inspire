@@ -5,7 +5,8 @@ export const EVERYTHING = 'everything';
 export const WINDOWS = [['hour', 'This hour'], ['today', 'Today'], ['week', 'This week'], ['month', 'This month'], ['all', 'All open'], [EVERYTHING, 'Everything']];
 export const LIMITS = [10, 25, 50, 100, 200];
 export const DENSITIES = [['comfortable', 'Comfortable'], ['compact', 'Compact']];
-export const DEFAULT_PREFS = { window: 'all', limit: 0, density: 'comfortable', rows: PAGE_SIZES[0], folds: {}, seen: {} };
+export const DEFAULT_PREFS = { window: 'all', limit: 0, density: 'comfortable', rows: PAGE_SIZES[0], folds: {}, seen: {}, columns: {} };
+export const GRID_CAPS = { grids: 200, keys: 100, chars: 200 };
 const DAY_MS = 86400000;
 
 const isObject = (x) => x !== null && typeof x === 'object' && !Array.isArray(x);
@@ -27,6 +28,19 @@ function cleanSeen(raw) {
   return Object.fromEntries(Object.entries(raw).filter(([, at]) => typeof at === 'number' && Number.isFinite(at) && at > 0));
 }
 
+const shortText = (x) => typeof x === 'string' && x.length > 0 && x.length <= GRID_CAPS.chars;
+
+function cleanColumns(raw) {
+  if (!isObject(raw)) return {};
+  const out = {};
+  Object.entries(raw).slice(-GRID_CAPS.grids).forEach(([grid, keys]) => {
+    if (!shortText(grid) || !Array.isArray(keys)) return;
+    const kept = [...new Set(keys.filter(shortText))].slice(0, GRID_CAPS.keys);
+    if (kept.length) out[grid] = kept;
+  });
+  return out;
+}
+
 export function cleanPrefs(raw) {
   const p = isObject(raw) ? raw : {};
   return {
@@ -36,7 +50,17 @@ export function cleanPrefs(raw) {
     rows: PAGE_SIZES.includes(p.rows) ? p.rows : DEFAULT_PREFS.rows,
     folds: cleanFolds(p.folds),
     seen: cleanSeen(p.seen),
+    columns: cleanColumns(p.columns),
   };
+}
+
+export const columnOrder = (prefs, grid) => prefs.columns?.[grid] || null;
+
+export function setColumnOrder(prefs, grid, order) {
+  const columns = { ...(prefs.columns || {}) };
+  delete columns[grid];
+  if (order?.length) columns[grid] = order;
+  return { ...prefs, columns };
 }
 
 function readAll(storage) {

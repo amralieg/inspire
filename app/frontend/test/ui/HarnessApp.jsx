@@ -11,6 +11,7 @@ import LaunchPage from '../../src/pages/LaunchPage';
 import SetupWizard from '../../src/pages/SetupWizard';
 import MonitorPage from '../../src/pages/MonitorPage';
 import App from '../../src/App';
+import DataGrid from '../../src/components/DataGrid';
 import { RESULTS_FRAME } from '../../src/lib/layout';
 import { ThemeProvider } from '../../src/ThemeContext';
 import { makeApiFetch, makeApiPostJson } from '../../src/lib/apiClient';
@@ -64,6 +65,7 @@ function HarnessContent({ open, discoveryType, demo, step, run }) {
     );
   }
   if (open === 'launch') return <LaunchHarness />;
+  if (open === 'grid') return <GridHarness wide={step === 'wide'} />;
   if (open === 'header') {
     return (
       <ThemeProvider>
@@ -104,6 +106,33 @@ function CardHarness() {
         </div>
       ))}
       <output aria-label="Clicks">{clicks.join(',')}</output>
+    </div>
+  );
+}
+
+const GRID_ROWS = [
+  { id: 'N01-U01', name: 'Predict churn', domain: 'Retention', score: '4.5', due: '2026-10-01' },
+  { id: 'N01-U02', name: 'Score upsell', domain: 'Growth', score: '2', due: '2026-09-01' },
+  { id: 'N01-U03', name: 'Segment shoppers', domain: 'Growth', score: '10', due: '' },
+  { id: 'N02-U01', name: 'Forecast stock', domain: 'Inventory', score: '', due: '2026-11-15' },
+];
+
+function GridHarness({ wide }) {
+  const [picked, setPicked] = useState('');
+  const columns = [
+    { key: 'id', label: 'No', fixed: true },
+    { key: 'name', label: 'Use case' },
+    { key: 'domain', label: 'Domain' },
+    { key: 'score', label: 'Score' },
+    ...(wide ? [{ key: 'owner', label: 'Owner', value: (r) => (r.domain === 'Growth' ? 'Ana' : 'Ben') }] : []),
+    { key: 'due', label: 'Due' },
+    { key: 'pick', label: 'Pick', fixed: true, render: (r) => <button type="button" onClick={() => setPicked(r.id)}>Pick {r.id}</button> },
+  ];
+  return (
+    <div className="p-6">
+      <DataGrid label="Sample use cases" grid="harness:use_cases" columns={columns} rows={GRID_ROWS} rowKey={(r) => r.id} pageSize={3}
+        headClassName="px-2 py-1 text-left text-[11px]" cellClassName="px-2 py-1 text-[12px]" />
+      <output aria-label="Picked">{picked}</output>
     </div>
   );
 }

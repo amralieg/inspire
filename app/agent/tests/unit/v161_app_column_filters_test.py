@@ -17,6 +17,7 @@ if SERVER not in sys.path:
     sys.path.insert(0, SERVER)
 
 import shell_core  # noqa: E402
+import shell_db  # noqa: E402
 import shell_pg  # noqa: E402
 import shell_sql  # noqa: E402
 from v141_app_shell_test import PAGE, SETTINGS, call  # noqa: E402
@@ -96,14 +97,19 @@ def plan(page, columns=None, context=None, values=None):
     return shell_sql.list_queries(page, values or {}, request, context)
 
 
+EVERY = ("rank", "entity_label", "category", "priority_tier", "channel", "return_reason", "value_at_stake")
+
+
 def test_the_returns_page_with_a_filter_on_every_column_of_its_action_plan_passes_the_shell():
     page = returns_page()
     assert shell_sql.spec_problems(page) == []
     assert shell_sql.list_column_filters(page) == [
-        {"column": "channel", "type": "multi_select", "label": "Channel"},
-        {"column": "return_reason", "type": "multi_select", "label": "Return reason"},
+        {"column": "rank", "type": "number_range", "label": "Rank", "implied": True},
+        {"column": "entity_label", "type": "multi_select", "label": "Item", "implied": True},
         {"column": "category", "type": "multi_select", "label": "Category"},
         {"column": "priority_tier", "type": "multi_select", "label": "Tier"},
+        {"column": "channel", "type": "multi_select", "label": "Channel"},
+        {"column": "return_reason", "type": "multi_select", "label": "Return reason"},
         {"column": "value_at_stake", "type": "number_range", "label": "Loss at stake"}]
     shown = shell_sql.list_shown(page["records"])
     assert list(shown) == ["rank", "entity_label", "category", "priority_tier", "channel", "return_reason", "value_at_stake"]
@@ -125,7 +131,10 @@ def test_the_returns_page_with_a_filter_on_every_column_of_its_action_plan_passe
     ([{"column": "channel", "type": "slider"}], "column filter channel type must be one of multi_select, number_range, date_range"),
     ([{"name": "channel"}], "needs a column name"),
     (["channel"], "needs a column name"),
-    ("channel", "column_filters must be a list of the columns that get a filter"),
+    ("channel", "column_filters must be false, which turns every column filter off, or a list of the columns whose filter it sets"),
+    (True, "column_filters must be false"),
+    ([{"column": "channel", "off": "yes"}], "column filter channel off must be true or false"),
+    ([{"column": "nope", "off": True}], "has a column filter on nope, which it does not show"),
 ])
 def test_a_column_filter_on_a_column_the_list_does_not_show_or_of_the_wrong_kind_is_refused(entries, needle):
     problems = shell_sql.spec_problems(returns_page(column_filters=entries))
@@ -142,15 +151,119 @@ def test_a_table_column_filter_names_one_of_its_columns_with_the_kind_its_format
     assert shell_sql.spec_problems(with_table(returns_page(), column_filters=[{"column": "event_date", "type": "date_range"}])) == []
 
 
-def test_a_page_without_column_filters_validates_and_queries_exactly_as_before():
+def test_a_page_without_column_filters_gets_a_filter_on_every_column_it_shows_and_queries_as_before():
     plain = copy.deepcopy(returns_page())
     del plain["records"]["column_filters"]
-    assert shell_sql.spec_problems(plain) == [] and shell_sql.list_column_filters(plain) == []
-    assert shell_sql.page_column_filters(plain) == {"list": [], "tables": {}}
+    assert shell_sql.spec_problems(plain) == []
+    assert [(f["column"], f["type"], f.get("implied")) for f in shell_sql.list_column_filters(plain)] == [
+        ("rank", "number_range", True), ("entity_label", "multi_select", True), ("category", "multi_select", True),
+        ("priority_tier", "multi_select", True), ("channel", "multi_select", True), ("return_reason", "multi_select", True),
+        ("value_at_stake", "number_range", True)]
+    tabled = with_table(plain)
+    del tabled["tables"][0]["column_filters"]
+    assert [f["column"] for f in shell_sql.page_column_filters(tabled)["tables"]["worst"]] == ["category", "loss_amount", "event_date"]
     values = {"run_date": {"from": "2026-01-01", "to": "2026-10-15"}, "channel": ["Web"]}
     assert plan(plain, values=values) == plan(returns_page(), values=values) == plan(returns_page(), {}, values=values)
     assert "WHERE CAST(`as_of_date` AS DATE) BETWEEN :p0 AND :p1 AND CAST(`channel` AS STRING) IN (:p2)" in plan(plain, values=values)["rows"][0]
     assert shell_sql.table_query(with_table(plain), "worst", values) == shell_sql.table_query(with_table(plain), "worst", values, {})
+
+
+def test_a_column_filter_turned_off_or_every_filter_turned_off_is_respected():
+    page = returns_page(column_filters=[{"column": "channel", "off": True}, {"column": "value_at_stake"}])
+    assert shell_sql.spec_problems(page) == []
+    assert [f["column"] for f in shell_sql.list_column_filters(page)] == [c for c in EVERY if c != "channel"]
+    problems = shell_sql.column_values_problems(shell_sql.list_column_filters(page), {"channel": ["Web"]}, "the decision list")
+    assert problems and "the decision list has no column filter 'channel'" in problems[0]
+    none = returns_page(column_filters=False)
+    assert shell_sql.spec_problems(none) == [] and shell_sql.list_column_filters(none) == []
+    assert shell_sql.list_column_filters(none, {"channel": "STRING"}, actions=True) == []
+    assert shell_sql.page_column_filters(with_table(none, column_filters=False)) == {"list": [], "tables": {}}
+
+
+def test_an_implied_filter_takes_its_kind_from_the_column_type_and_a_column_it_cannot_filter_gets_none():
+    page = returns_page(column_filters=None)
+    types = {"rank": "STRING", "entity_label": "ARRAY<STRING>", "category": "DECIMAL(10,2)", "priority_tier": "BOOLEAN",
+             "channel": "TIMESTAMP_NTZ", "return_reason": "MAP<STRING, STRING>"}
+    assert [(f["column"], f["type"]) for f in shell_sql.list_column_filters(page, types)] == [
+        ("rank", "multi_select"), ("category", "number_range"), ("priority_tier", "multi_select"), ("channel", "date_range"),
+        ("value_at_stake", "number_range")]
+    stated = returns_page(column_filters=[{"column": "rank"}])
+    assert next(f for f in shell_sql.list_column_filters(stated, types) if f["column"] == "rank") == \
+        {"column": "rank", "type": "number_range", "label": "Rank"}, "a filter the spec names keeps the kind its format gives"
+    assert shell_sql.field_filter("LONG") == "number_range" and shell_sql.field_filter("binary") == "" and shell_sql.field_filter(None) == ""
+
+
+def test_a_filter_on_a_column_the_spec_never_named_narrows_the_list_and_a_table_in_sql():
+    page = returns_page(column_filters=None)
+    sql, params = plan(page, {"return_reason": ["Damaged"], "rank": {"max": 5}})["rows"]
+    assert "AS d WHERE CAST(`rank` AS DOUBLE) <= :p0 AND CAST(`return_reason` AS STRING) IN (:p1))" in sql
+    assert [p["value"] for p in params] == ["5.0", "Damaged"]
+    tabled = with_table(page)
+    del tabled["tables"][0]["column_filters"]
+    sql, params = shell_sql.table_query(tabled, "worst", {}, {"loss_amount": {"min": 10}}, {"loss_amount": "DOUBLE"})
+    assert "WHERE CAST(`loss_amount` AS DOUBLE) >= :p0" in sql and [p["value"] for p in params] == ["10.0"]
+
+
+@pytest.mark.parametrize("columns", [{"channel` = 1 OR 1=1 --": ["x"]}, {"confidence_level": ["High"]},
+                                     {"rank); DROP TABLE t; --": {"min": 1}}, {"action_status": ["Done"]}])
+def test_a_column_filter_on_an_unknown_or_injected_column_is_refused(columns):
+    problems = shell_sql.list_values_problems(returns_page(column_filters=None), columns, {"types": {}, "actions": False})
+    assert problems and "the decision list has no column filter" in problems[0], problems
+
+
+def test_a_column_filter_value_reaches_the_sql_only_as_a_parameter():
+    sql, params = plan(returns_page(column_filters=None), {"entity_label": ["x' OR '1'='1"]})["rows"]
+    assert "OR '1'='1" not in sql and "CAST(`entity_label` AS STRING) IN (:p0)" in sql
+    assert [p["value"] for p in params] == ["x' OR '1'='1"]
+
+
+def test_the_owner_and_status_filters_narrow_the_joined_actions_of_a_decision_list():
+    context = {"table": "`main`.`shop`.`returns_out`", "join": "record_key", "actions": True, "changes": False}
+    page = returns_page()
+    assert shell_sql.list_values_problems(page, {"action_status": ["Done"], "action_owner": ["Ana"]}, context) == []
+    sql, params = plan(page, {"action_status": ["New", "Done"], "action_owner": ["Ana"]}, context=context)["rows"]
+    assert "_inspire_status" not in sql.split(", c AS (")[0], "the dataset query never reads the joined actions"
+    assert "WHERE CAST(c.`_inspire_owner` AS STRING) IN (:p0) AND CAST(COALESCE(c.`_inspire_status`, 'New') AS STRING) IN (:p1, :p2)" in sql
+    assert [p["value"] for p in params][:3] == ["Ana", "New", "Done"]
+
+
+@pytest.mark.parametrize("sort, needle", [
+    ({"key": "loss_amount; DROP TABLE t", "dir": "asc"}, "table worst cannot sort by 'loss_amount; DROP TABLE t'; sort by one of its columns: "
+                                                         "category, loss_amount, event_date"),
+    ({"key": "channel"}, "table worst cannot sort by 'channel'"),
+    ({"key": "loss_amount", "dir": "asc; DROP TABLE t"}, "table worst sort dir must be asc or desc"),
+    ("loss_amount", "table worst cannot sort by 'loss_amount'"),
+])
+def test_a_table_sort_on_an_unknown_column_or_an_injected_direction_is_refused(sort, needle):
+    page = with_table(returns_page())
+    assert any(needle in p for p in shell_sql.table_sorts_problems(page, {"worst": sort}))
+    with pytest.raises(ValueError):
+        shell_sql.table_query(page, "worst", {}, None, None, sort)
+
+
+def test_a_table_sorts_on_the_server_by_the_column_the_person_asks_for():
+    page = with_table(returns_page())
+    assert shell_sql.table_sorts_problems(page, {"worst": {"key": "event_date", "dir": "desc"}}) == []
+    assert shell_sql.table_sorts_problems(page, {"nope": {"key": "event_date"}}) == ["the page has no table 'nope'"]
+    assert shell_sql.table_sorts_problems(page, ["worst"]) == ["table_sorts must be an object of table id to its sort, as "
+                                                               "{\"key\": column, \"dir\": \"asc\" or \"desc\"}"]
+    sql, _params = shell_sql.table_query(page, "worst", {}, None, None, {"key": "event_date", "dir": "desc"})
+    assert sql.endswith("ORDER BY `event_date` DESC NULLS LAST LIMIT 5001")
+    sql, _params = shell_sql.table_query(page, "worst", {}, None, None, {"key": "category"})
+    assert "ORDER BY `category` ASC NULLS LAST" in sql
+
+
+def test_a_table_reads_one_row_past_the_cap_so_a_cut_table_is_marked_truncated_and_a_spec_limit_is_kept():
+    page = with_table(returns_page())
+    assert shell_sql.table_query(page, "worst", {})[0].endswith(f"LIMIT {shell_sql.CAPS['table_rows'] + 1}")
+    page["tables"][0]["limit"] = 10
+    assert shell_sql.table_query(page, "worst", {})[0].endswith("LIMIT 10")
+    cap = shell_sql.CAPS["table_rows"]
+    found = {"manifest": {"schema": {"columns": [{"name": "n", "type_name": "INT"}]}}}
+    workspace = shell_db.Workspace("https://h", dict, session=object())
+    cut = workspace._collect({**found, "result": {"data_array": [[str(i)] for i in range(cap + 1)]}}, cap)
+    whole = workspace._collect({**found, "result": {"data_array": [[str(i)] for i in range(cap)]}}, cap)
+    assert (len(cut["rows"]), cut["truncated"], len(whole["rows"]), whole["truncated"]) == (cap, True, cap, False)
 
 
 def test_the_act_now_tier_filter_narrows_the_rows_the_total_and_the_ai_counts_in_the_same_dataset_query():
@@ -198,8 +311,8 @@ def test_the_loss_at_stake_range_filters_the_money_the_list_shows_when_the_app_w
 
 
 @pytest.mark.parametrize("columns, needle", [
-    ({"confidence_level": ["High"]}, "the decision list has no column filter 'confidence_level'; its column filters: channel, return_reason, "
-                                     "category, priority_tier, value_at_stake"),
+    ({"confidence_level": ["High"]}, "the decision list has no column filter 'confidence_level'; its column filters: rank, entity_label, "
+                                     "category, priority_tier, channel, return_reason, value_at_stake"),
     ({"value_at_stake": {"min": 5000, "max": 100}}, "the decision list column filter value_at_stake runs from 5000 to 100; its min must not "
                                                     "be above its max"),
     ({"value_at_stake": {"min": "100"}}, "the decision list column filter value_at_stake: '100' is not a number"),
@@ -294,14 +407,41 @@ def test_the_filter_list_names_each_column_filter_with_its_choices_and_the_check
     assert status == 200
     assert [f["id"] for f in out["filters"]] == ["run_date", "channel", "return_reason", "category", "priority_tier"]
     listed = {f["column"]: f for f in out["columns"]["list"]}
-    assert list(listed) == list(SHOWN)
+    assert list(listed) == list(EVERY)
     assert listed["priority_tier"] == {"column": "priority_tier", "type": "multi_select", "label": "Tier", "options": ["Act now", "Monitor", "Review"],
                                        "searchable": False}
     assert listed["value_at_stake"] == {"column": "value_at_stake", "type": "number_range", "label": "Loss at stake"}
+    assert listed["rank"] == {"column": "rank", "type": "number_range", "label": "Rank", "implied": True}
+    assert listed["entity_label"] == {"column": "entity_label", "type": "multi_select", "label": "Item", "implied": True, "options": [],
+                                      "searchable": True, "lazy": True}
     assert [f["column"] for f in out["columns"]["tables"]["worst"]] == ["category", "loss_amount", "event_date"]
     asked = [sql for sql, _p, _l in ws.sql if sql.startswith("SELECT v FROM")]
     assert any("`priority_tier`" in sql and RECORDS_SQL in sql and "return_lines" not in sql for sql in asked), \
         "a column filter offers the values of its own table's dataset, not every dataset a page filter reaches"
+    assert not any("`entity_label`" in sql for sql in asked), "a filter the spec never named loads its choices only when it opens"
+
+
+def test_a_decision_list_that_keeps_actions_offers_owner_and_status_filters(tmp_path):
+    s, _ws, _made = column_shell(tmp_path, settings=DECIDE)
+    status, out = call(s, "GET", "filters", query={"page": "n09_u03"}, headers=EDITOR)
+    assert status == 200
+    listed = {f["column"]: f for f in out["columns"]["list"]}
+    assert list(listed)[-2:] == ["action_owner", "action_status"]
+    assert listed["action_status"]["options"] == list(shell_sql.ACTION_STATUSES) and listed["action_owner"]["options"] == []
+    status, out = call(s, "GET", "filters/options", query={"page": "n09_u03", "column": "action_owner", "q": "a"}, headers=EDITOR)
+    assert status == 404, "owners come with the list, never from a query over the dataset"
+
+
+def test_the_list_filters_and_options_on_a_column_the_spec_never_named(tmp_path):
+    page = returns_page(column_filters=None)
+    s, ws, _made = column_shell(tmp_path, pages=[page], options=["Damaged"])
+    status, found = call(s, "GET", "filters/options", query={"page": "n09_u03", "column": "return_reason", "q": "dam"}, headers=EDITOR)
+    assert status == 200 and found["options"] == ["Damaged"]
+    status, out = records(s, page="n09_u03", column_filters={"rank": {"max": 3}})
+    assert status == 200, out
+    (rows_sql, _p), = [q for q in ws.queries(" OFFSET ") if "CAST(`rank` AS DOUBLE) <=" in q[0]]
+    status, out = call(s, "GET", "filters/options", query={"page": "n09_u03", "column": "rank", "q": "1"}, headers=EDITOR)
+    assert status == 404, "a number column has no choices"
 
 
 def test_filter_options_search_a_column_filter_and_refuse_one_the_table_does_not_have(tmp_path):
@@ -326,6 +466,12 @@ def test_a_table_filter_narrows_only_its_own_table_and_a_bad_one_is_refused(tmp_
     tables = [sql for sql, _p, _l in ws.sql if sql.startswith("SELECT `category`, `loss_amount`, `event_date`")]
     assert len(tables) == 1 and "CAST(`category` AS STRING) IN (:p1)" in tables[0]
     assert not any("CAST(`category` AS STRING) IN" in sql for sql, _p, _l in ws.sql if "'now' AS period" in sql or "GROUP BY" in sql)
+    sorted_body = dict(body, table_sorts={"worst": {"key": "loss_amount", "dir": "desc"}})
+    status, out = call(s, "POST", "page", body=sorted_body, headers=EDITOR)
+    assert status == 200 and any("ORDER BY `loss_amount` DESC NULLS LAST" in sql for sql, _p, _l in ws.sql)
+    for sorts in ({"worst": {"key": "channel"}}, {"worst": {"key": "loss_amount`; DROP TABLE t; --"}}, {"nope": {"key": "x"}}):
+        status, out = call(s, "POST", "page", body=dict(body, table_sorts=sorts), headers=EDITOR)
+        assert status == 400, out
     for tables, needle in (({"nope": {}}, "the page has no table 'nope'"), ({"worst": {"channel": ["Web"]}}, "table worst has no column filter"),
                            ({"worst": {"loss_amount": {"min": 3, "max": 1}}}, "its min must not be above its max"),
                            ("worst", "table_filters must be an object")):
@@ -362,7 +508,7 @@ def test_the_http_adapter_passes_column_and_table_filters_through(tmp_path, monk
     from v141_app_shell_http_test import client
     c = client(tmp_path, monkeypatch)
     r = c.post("/api/records", json={"page": "n01_u05", "column_filters": {"region": ["North"]}})
-    assert r.status_code == 400 and "the decision list has no column filter 'region'; it has no column filters" in r.json()["error"]
+    assert r.status_code == 400 and "the decision list has no column filter 'region'; its column filters: " in r.json()["error"]
     r = c.post("/api/page", json={"page": "n01_u05", "table_filters": {"worst": {}}})
     assert r.status_code == 400 and r.json()["error"] == "the page has no table 'worst'"
 
@@ -431,8 +577,13 @@ def test_on_lakebase_the_act_now_filter_and_the_loss_range_shrink_the_rows_and_t
     narrowed = listed(category=["Music"])
     assert narrowed[:2] == (music, len(music)) and narrowed[2] == everything[2]
     status, meta = call(s, "GET", "filters", query={"page": "n01_u05"})
-    assert status == 200 and {f["column"]: f.get("options") for f in meta["columns"]["list"]} == {
+    offered = {f["column"]: f.get("options") for f in meta["columns"]["list"]}
+    assert status == 200 and {k: offered[k] for k in ("priority_tier", "value", "category")} == {
         "priority_tier": ["Act now", "Monitor", "Review"], "value": None, "category": ["Books", "Games", "Music"]}
+    assert offered["action_status"] == list(shell_sql.ACTION_STATUSES)
+    fresh = listed(action_status=["New"])[1]
+    assert 0 < fresh < len(ITEMS) and listed(action_status=[*shell_sql.ACTION_STATUSES, "Open"])[1] == len(ITEMS), \
+        "every record without an action reads as New, so the statuses it holds together cover every record"
     status, found = call(s, "GET", "filters/options", query={"page": "n01_u05", "column": "category", "q": "us"})
     assert status == 200 and found["options"] == ["Music"]
     assert s.check({}) == []
@@ -447,7 +598,10 @@ def _app_prompt(ns, tmp_path, **outputs):
 
 def test_the_app_guidance_tells_genie_a_table_carries_its_own_column_filters_and_a_table_ask_goes_on_that_table(agent_ns, tmp_path):
     prompt = _app_prompt(agent_ns, tmp_path, dashboard=False)
-    rule = next(line for line in prompt.splitlines() if line.startswith("- A table can carry its own column filters"))
+    rule = next(line for line in prompt.splitlines() if line.startswith("- Every column a table shows carries a filter in its column header"))
+    assert "the user can sort and move each column" in rule and "takes its filter from the type of its values" in rule
+    assert '{"column": "<column>", "off": true} turns that column\'s filter off, and "column_filters": false turns every filter' in rule
+    assert "do either only when the user asks for it" in rule
     assert f'take "{shell_sql.COLUMN_FILTERS}": [{{"column": "<a column the table shows>"}}, ...]' in rule
     assert "type is optional; when you set it, it is the one the format gives: " + ", ".join(shell_sql.COLUMN_FILTER_TYPES[:2]) + " or " \
            + shell_sql.COLUMN_FILTER_TYPES[2] + "." in rule
@@ -455,8 +609,8 @@ def test_the_app_guidance_tells_genie_a_table_carries_its_own_column_filters_and
                       ("date or month column", "date range")):
         assert fmt in rule and kind in rule
     assert {fmt for fmt in shell_sql.FORMAT_FILTERS} == {"text", "number", "integer", "currency", "percent", "date", "month"}
-    assert ("When the user asks for a filter on a table, or to pick values in a table's column, put it in that table's column_filters, never "
-            "in the page filters") in rule
+    assert ("When the user asks for a filter on a table, or to pick values in a table's column, show that column in the table and put it "
+            "in that table's column_filters, never in the page filters") in rule
     assert "A filter on all of a table's columns is one entry for each column the table shows." in rule
     assert "never its detail" in rule and "dashboard" not in rule
     both = _app_prompt(agent_ns, tmp_path / "dash", dashboard=True)

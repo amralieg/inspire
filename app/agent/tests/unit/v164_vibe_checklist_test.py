@@ -91,8 +91,12 @@ def test_each_page_gate_decides_from_the_built_page_and_records_its_name_and_res
 def test_a_table_column_filter_gate_uses_the_shell_s_own_filter_reading(agent_ns):
     import shell_sql
     gate = agent_ns["implement_column_filter_gate"]
-    with_filter, without = returns_page(column_filters=[{"column": "channel"}]), returns_page(column_filters=[])
-    assert shell_sql.list_column_filters(with_filter) and not shell_sql.list_column_filters(without)
+    with_filter, without = returns_page(column_filters=[{"column": "channel"}]), returns_page(column_filters=[{"column": "channel", "off": True}])
+    assert "channel" in {f["column"] for f in shell_sql.list_column_filters(with_filter)}
+    assert "channel" not in {f["column"] for f in shell_sql.list_column_filters(without)}
+    assert gate("channel", returns_page(column_filters=[]), "App page n09_u03", shell_sql, "records")[0] is True, \
+        "a table filters every column it shows unless its column_filters turns one off"
+    assert gate("channel", returns_page(column_filters=False), "App page n09_u03", shell_sql, "records")[0] is False
     assert gate("channel", with_filter, "App page n09_u03", shell_sql, "records")[0] is True
     assert gate("Channel", without, "App page n09_u03", shell_sql, "records")[0] is False
     assert gate("channel", with_filter, "App page n09_u03", None, "records") is None, "with no shell the judge decides"

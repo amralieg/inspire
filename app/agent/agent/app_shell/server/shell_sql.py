@@ -158,6 +158,10 @@ COLUMN_FILTERS = "column_filters"
 COLUMN_FILTER_TYPES = ("multi_select", "number_range", "date_range")
 FORMAT_FILTERS = {"number": "number_range", "integer": "number_range", "currency": "number_range", "percent": "number_range",
                   "text": "multi_select", "date": "date_range", "month": "date_range"}
+FIELD_FILTERS = {"text": "multi_select", "boolean": "multi_select", "integer": "number_range", "decimal": "number_range",
+                 "date": "date_range", "timestamp": "date_range"}
+COLUMN_FILTER_OFF = "off"
+ACTION_FILTERS = (("action_owner", "Owner", "c.`_inspire_owner`"), ("action_status", "Status", "COALESCE(c.`_inspire_status`, 'New')"))
 RANGE_EDGES = {"number_range": ("min", "max"), "date_range": ("from", "to")}
 FILTER_FIELD_KINDS = {"number_range": ("integer", "decimal"), "date_range": ("date", "timestamp")}
 FORMAT_FITS = {"text": "text", "boolean": "text", "integer": "number", "decimal": "number", "date": "date", "timestamp": "date"}
@@ -647,10 +651,11 @@ def table_shown(table: dict) -> dict:
 
 
 def column_filter_problems(where: str, entries, shown: dict) -> list:
-    if entries is None:
+    if entries is None or entries is False:
         return []
     if not isinstance(entries, list):
-        return [f"{where} {COLUMN_FILTERS} must be a list of the columns that get a filter, each as {{\"column\": name}}"]
+        return [f"{where} {COLUMN_FILTERS} must be false, which turns every column filter off, or a list of the columns whose filter "
+                f"it sets, each as {{\"column\": name}} or {{\"column\": name, \"{COLUMN_FILTER_OFF}\": true}}"]
     problems, seen = [], set()
     for entry in entries:
         column = entry.get("column") if isinstance(entry, dict) else None
@@ -665,8 +670,11 @@ def column_filter_problems(where: str, entries, shown: dict) -> list:
             problems.append(f"{where} has a column filter on {column}, which it does not show; filter one of the columns it shows: "
                             f"{', '.join(shown)}")
             continue
+        if not isinstance(entry.get(COLUMN_FILTER_OFF, False), bool):
+            problems.append(f"{where} column filter {column} {COLUMN_FILTER_OFF} must be true or false")
+            continue
         kind = FORMAT_FILTERS.get(shown[column][1])
-        if kind is None:
+        if kind is None or entry.get(COLUMN_FILTER_OFF):
             continue
         stated = entry.get("type", kind)
         if stated not in COLUMN_FILTER_TYPES:
@@ -676,28 +684,48 @@ def column_filter_problems(where: str, entries, shown: dict) -> list:
     return problems
 
 
-def column_filters(entries, shown: dict) -> list:
+def field_filter(held) -> str:
+    base = re.match(r"^[A-Z_]+", str(held or "").upper())
+    return FIELD_FILTERS.get(FIELD_KINDS.get(base.group(0) if base else ""), "")
+
+
+def column_filters(entries, shown: dict, types=None) -> list:
+    if entries is False:
+        return []
+    stated = {e["column"]: e for e in entries if isinstance(e, dict) and isinstance(e.get("column"), str)} if isinstance(entries, list) else {}
     out = []
-    for entry in entries if isinstance(entries, list) else []:
-        column = entry.get("column") if isinstance(entry, dict) else None
-        kind = FORMAT_FILTERS.get(shown[column][1]) if isinstance(column, str) and column in shown else None
-        if kind and column not in {f["column"] for f in out}:
-            out.append({"column": column, "type": kind, "label": shown[column][0]})
+    for column, (label, shown_as) in shown.items():
+        entry = stated.get(column)
+        if entry is not None and entry.get(COLUMN_FILTER_OFF) is True:
+            continue
+        typed = entry is None and types is not None and column in types
+        kind = field_filter(types[column]) if typed else FORMAT_FILTERS.get(shown_as)
+        if kind:
+            out.append(dict({"column": column, "type": kind, "label": label}, **({"implied": True} if entry is None else {})))
     return out
 
 
-def list_column_filters(page: dict) -> list:
+def list_column_filters(page: dict, types=None, actions: bool = False) -> list:
     records = page.get("records")
-    return column_filters(records.get(COLUMN_FILTERS), list_shown(records)) if isinstance(records, dict) else []
+    if not isinstance(records, dict):
+        return []
+    found = column_filters(records.get(COLUMN_FILTERS), list_shown(records), types)
+    taken = {f["column"] for f in found}
+    offered = actions and records.get(COLUMN_FILTERS) is not False
+    return found + [{"column": column, "type": "multi_select", "label": label, "implied": True, "action": True}
+                    for column, label, _target in ACTION_FILTERS if offered and column not in taken]
 
 
-def table_column_filters(table: dict) -> list:
-    return column_filters(table.get(COLUMN_FILTERS), table_shown(table))
+def table_column_filters(table: dict, types=None) -> list:
+    return column_filters(table.get(COLUMN_FILTERS), table_shown(table), types)
 
 
-def page_column_filters(page: dict) -> dict:
-    return {"list": list_column_filters(page),
-            "tables": {t["id"]: table_column_filters(t) for t in page.get("tables") or [] if table_column_filters(t)}}
+def page_column_filters(page: dict, types=None) -> dict:
+    known = types or {}
+    typed = lambda found: (found or {}) if types is not None else None
+    tables = {t["id"]: table_column_filters(t, typed((known.get("tables") or {}).get(t["id"]))) for t in page.get("tables") or []}
+    return {"list": list_column_filters(page, typed(known.get("list")), bool(known.get("actions"))),
+            "tables": {ident: found for ident, found in tables.items() if found}}
 
 
 def column_type_problems(where: str, filters: list, columns) -> list:
@@ -1131,7 +1159,12 @@ def column_values_problems(filters: list, values, where: str) -> list:
     return problems
 
 
-def table_values_problems(page: dict, tables) -> list:
+def list_values_problems(page: dict, values, context: dict) -> list:
+    filters = list_column_filters(page, context.get("types"), bool(context.get("actions")))
+    return column_values_problems(filters, values, "the decision list")
+
+
+def table_values_problems(page: dict, tables, types=None) -> list:
     if tables is None:
         return []
     if not isinstance(tables, dict):
@@ -1142,7 +1175,27 @@ def table_values_problems(page: dict, tables) -> list:
         if ident not in known:
             problems.append(f"the page has no table {ident!r}")
         else:
-            problems += column_values_problems(table_column_filters(known[ident]), values, f"table {ident}")
+            problems += column_values_problems(table_column_filters(known[ident], (types or {}).get(ident)), values, f"table {ident}")
+    return problems
+
+
+def table_sorts_problems(page: dict, sorts) -> list:
+    if sorts is None:
+        return []
+    if not isinstance(sorts, dict):
+        return ["table_sorts must be an object of table id to its sort, as {\"key\": column, \"dir\": \"asc\" or \"desc\"}"]
+    known = {t.get("id"): t for t in page.get("tables") or []}
+    problems = []
+    for ident, sort in sorts.items():
+        if ident not in known:
+            problems.append(f"the page has no table {ident!r}")
+            continue
+        shown = list(table_shown(known[ident]))
+        if not isinstance(sort, dict) or sort.get("key") not in shown:
+            key = sort.get("key") if isinstance(sort, dict) else sort
+            problems.append(f"table {ident} cannot sort by {key!r}; sort by one of its columns: {', '.join(shown)}")
+        elif sort.get("dir", "asc") not in LIST_DIRS:
+            problems.append(f"table {ident} sort dir must be asc or desc")
     return problems
 
 
@@ -1299,16 +1352,20 @@ def chart_query(page: dict, ident: str, values: dict) -> tuple:
     return text, params.items
 
 
-def table_query(page: dict, ident: str, values: dict, columns=None) -> tuple:
+def table_query(page: dict, ident: str, values: dict, columns=None, types=None, asked=None) -> tuple:
     table = _item(page, "tables", ident)
     sql, params = _dataset(page, table["dataset"]), _Params()
     picked = ", ".join(quote(c["column"]) for c in table["columns"])
-    sort = table.get("sort") or {}
+    problems = table_sorts_problems(page, {ident: asked}) if asked else []
+    if problems:
+        raise ValueError(problems[0])
+    sort = {"column": asked["key"], "desc": asked.get("dir") == "desc"} if asked else table.get("sort") or {}
     order = f" ORDER BY {quote(sort['column'])} {'DESC' if sort.get('desc', True) else 'ASC'} NULLS LAST" if sort.get("column") else ""
     limit = min(int(table.get("limit", CAPS["table_rows"])), CAPS["table_rows"])
-    conditions = _conditions(page, table["dataset"], values, params) + column_conditions(table_column_filters(table), columns, params)
+    fetched = limit + 1 if limit == CAPS["table_rows"] else limit
+    conditions = _conditions(page, table["dataset"], values, params) + column_conditions(table_column_filters(table, types), columns, params)
     where = f" WHERE {' AND '.join(conditions)}" if conditions else ""
-    return f"SELECT {picked} FROM ({sql}) AS d{where}{order} LIMIT {limit}", params.items
+    return f"SELECT {picked} FROM ({sql}) AS d{where}{order} LIMIT {fetched}", params.items
 
 
 def records_sql(table: str) -> str:
@@ -1470,20 +1527,24 @@ def options_query(page: dict, ident: str, search: str = "", limit: int = CAPS["o
     return _choice_query(page, _item(page, "filters", ident)["columns"].items(), search, limit)
 
 
-def column_filter(page: dict, table, column: str, kind: str = "") -> tuple:
+def column_filter(page: dict, table, column: str, kind: str = "", types=None) -> tuple:
     if table is None:
-        dataset, filters, where = RECORDS_DATASET, list_column_filters(page), "the decision list"
+        dataset, filters, where = RECORDS_DATASET, list_column_filters(page, types), "the decision list"
     else:
         item = _item(page, "tables", table)
-        dataset, filters, where = item["dataset"], table_column_filters(item), f"table {table}"
+        dataset, filters, where = item["dataset"], table_column_filters(item, types), f"table {table}"
     found = next((f for f in filters if f["column"] == column and (not kind or f["type"] == kind)), None)
     if found is None:
         raise KeyError(f"{where} has no {'choice ' if kind == 'multi_select' else ''}column filter {column!r}")
     return dataset, found
 
 
-def column_options_query(page: dict, table, column: str, search: str = "", limit: int = CAPS["options"]) -> tuple:
-    dataset, _found = column_filter(page, table, column, "multi_select")
+def column_dataset(page: dict, table) -> str:
+    return RECORDS_DATASET if table is None else _item(page, "tables", table)["dataset"]
+
+
+def column_options_query(page: dict, table, column: str, search: str = "", limit: int = CAPS["options"], types=None) -> tuple:
+    dataset, _found = column_filter(page, table, column, "multi_select", types)
     return _choice_query(page, [(dataset, column)], search, limit)
 
 
@@ -1505,10 +1566,11 @@ def default_values(page: dict, bounds: dict) -> dict:
     return values
 
 
-def page_queries(page: dict, values: dict, tables=None, previous=None) -> list:
+def page_queries(page: dict, values: dict, tables=None, previous=None, types=None, sorts=None) -> list:
     out = [("kpi", k["id"]) + kpi_query(page, k["id"], values, (previous or {}).get(k["dataset"])) for k in page.get("kpis") or []]
     out += [("chart", c["id"]) + chart_query(page, c["id"], values) for c in page.get("charts") or []]
-    out += [("table", t["id"]) + table_query(page, t["id"], values, (tables or {}).get(t["id"])) for t in page.get("tables") or []]
+    out += [("table", t["id"]) + table_query(page, t["id"], values, (tables or {}).get(t["id"]), (types or {}).get(t["id"]),
+                                             (sorts or {}).get(t["id"])) for t in page.get("tables") or []]
     return out
 
 
@@ -2475,12 +2537,12 @@ def _with(ctes: dict, names) -> str:
 
 
 def _listed(page: dict, values: dict, columns, context: dict, params) -> tuple:
-    priced = bool(context.get("money"))
-    filters = list_column_filters(page)
+    filters = list_column_filters(page, context.get("types"), bool(context.get("actions")))
+    joined = dict({MONEY_COLUMN: LISTED_MONEY} if context.get("money") else {},
+                  **({column: target for column, _label, target in ACTION_FILTERS} if context.get("actions") else {}))
     found = _conditions(page, RECORDS_DATASET, values, params) + column_conditions(
-        [f for f in filters if not (priced and f["column"] == MONEY_COLUMN)], columns, params)
-    money = column_conditions([f for f in filters if priced and f["column"] == MONEY_COLUMN], columns, params,
-                              {MONEY_COLUMN: LISTED_MONEY})
+        [f for f in filters if f["column"] not in joined], columns, params)
+    money = column_conditions([f for f in filters if f["column"] in joined], columns, params, joined)
     where = f" WHERE {' AND '.join(found)}" if found else ""
     return f"SELECT * FROM ({_dataset(page, RECORDS_DATASET)}) AS d{where}", money
 

@@ -156,6 +156,8 @@ button,input,select,textarea{font:inherit;color:inherit}
 .cursor{display:inline-block;width:7px;height:14px;margin-left:2px;background:var(--brand);vertical-align:-2px;animation:blink 1s steps(2) infinite}
 @keyframes blink{50%{opacity:0}}
 .msg-t{margin-top:8px;overflow-x:auto;border:1px solid var(--line);border-radius:8px}
+.msg-t .tbl-wrap{margin:0}
+.msg-t .pager,.msg-t .tbl-tools{padding:4px 8px}
 .msg-t table{width:100%;border-collapse:collapse;font-size:12px}
 .msg-t th{text-align:left;font-weight:700;padding:6px 8px;background:var(--well);color:var(--muted)}
 .msg-t td{padding:6px 8px;border-top:1px solid var(--line);white-space:nowrap}

@@ -31,7 +31,8 @@ const json = async (method, path, body) => (await send(method, path, body)).json
 export const getApp = () => json('GET', 'app');
 export const getFilters = (page) => json('GET', `filters?page=${encodeURIComponent(page)}`);
 export const getDefaults = (page) => json('GET', `defaults?page=${encodeURIComponent(page)}`);
-export const getPage = (page, filters, tables) => json('POST', 'page', { page, filters, ...(tables && Object.keys(tables).length ? { table_filters: tables } : {}) });
+export const getPage = (page, filters, tables, sorts) => json('POST', 'page', { page, filters, ...(tables && Object.keys(tables).length ? { table_filters: tables } : {}),
+  ...(sorts && Object.keys(sorts).length ? { table_sorts: sorts } : {}) });
 export const askGenie = (page, question, conversationId, about) =>
   json('POST', 'genie/ask', { page, question, conversation_id: conversationId || '', ...(about ? { record_key: about.recordKey } : {}) });
 export const explainGenie = (body) => json('POST', 'genie/explain', { ...body, conversation_id: body.conversation_id || '' });

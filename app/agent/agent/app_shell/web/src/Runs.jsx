@@ -5,12 +5,12 @@ import Fx from './Fx.jsx';
 import { Icon } from './icons.jsx';
 import { Skeleton } from './ui.jsx';
 import { BarsCard } from './ChartCard.jsx';
+import DataTable from './DataTable.jsx';
 import {
   RUNS_PAGE, couldSaveRunFormula, coveredText, errorText, foundText, lastedText, runBars, runFlag, runKey, runsPageText, stampText, stepsText, triggerText,
 } from './freshness.js';
 
 const STOPPED = ['failed', 'canceled', 'skipped'];
-const COLUMNS = 8;
 const slug = (text) => String(text).toLowerCase().replace(/[^a-z0-9]+/g, '-');
 const None = () => <span className="none">none</span>;
 const count = (n) => (n == null ? <None /> : integer(n));
@@ -38,25 +38,16 @@ export function runCounts(data) {
   return { overview: latest ? latest.to_fix : null, runs: data.total };
 }
 
+const TABLE_COLUMNS = [
+  { key: 'table', label: 'Table', className: 'nowrap', render: (t) => <code>{t.table}</code> },
+  { key: 'rows', label: 'Rows read', num: true, render: (t) => (t.rows == null ? <None /> : integer(t.rows)) },
+  { key: 'updated_at', label: 'Last updated', date: true, className: 'nowrap', render: (t) => (t.updated_at ? stampText(t.updated_at) : <None />) },
+];
+
 function Tables({ tables }) {
   if (tables == null) return <p className="none">This run did not record the tables it used.</p>;
   if (!tables.length) return <p className="none">This run recorded no tables.</p>;
-  return (
-    <div className="tbl-wrap">
-      <table className="tbl runs-sub" aria-label="Tables this run used">
-        <thead><tr><th>Table</th><th className="num">Rows read</th><th>Last updated</th></tr></thead>
-        <tbody>
-          {tables.map((t, i) => (
-            <tr key={`${t.table}#${i}`}>
-              <td className="nowrap"><code>{t.table}</code></td>
-              <td className="num">{t.rows == null ? <None /> : integer(t.rows)}</td>
-              <td className="nowrap">{t.updated_at ? stampText(t.updated_at) : <None />}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
+  return <DataTable label="Tables this run used" tableClass="runs-sub" columns={TABLE_COLUMNS} rows={tables} rowKey={(t) => t.table} grid="runs:tables" />;
 }
 
 function Details({ run, id }) {
@@ -82,30 +73,38 @@ function Details({ run, id }) {
   );
 }
 
-function RunRow({ run, open, onToggle }) {
-  const flag = runFlag(run.status);
-  const id = `run-d-${slug(runKey(run))}`;
-  const when = run.started ? stampText(run.started) : 'Not recorded';
-  return (
-    <>
-      <tr className={`is-click${open ? ' is-open' : ''}`} onClick={onToggle}>
-        <td className="runs-x">
-          <button className="ibtn ibtn--sm runs-tog" aria-expanded={open} aria-controls={open ? id : undefined}
-            aria-label={`${open ? 'Hide' : 'Show'} the run of ${when}`} onClick={(e) => { e.stopPropagation(); onToggle(); }}>
+const detailsId = (run) => `run-d-${slug(runKey(run))}`;
+const whenText = (run) => (run.started ? stampText(run.started) : 'Not recorded');
+
+function runColumns(isOpen, toggle) {
+  return [
+    {
+      key: '_open', label: 'Details', hideLabel: true, fixed: true, className: 'runs-x',
+      render: (run) => {
+        const open = isOpen(run);
+        return (
+          <button className="ibtn ibtn--sm runs-tog" aria-expanded={open} aria-controls={open ? detailsId(run) : undefined}
+            aria-label={`${open ? 'Hide' : 'Show'} the run of ${whenText(run)}`} onClick={(e) => { e.stopPropagation(); toggle(run); }}>
             <Icon name="right" size={14} />
           </button>
-        </td>
-        <td className="nowrap"><b>{when}</b><span className="runs-sub-t">{lastedText(run)}</span></td>
-        <td className="nowrap"><span className={`run-st run-st--${flag.tone}`}><i aria-hidden="true" />{flag.text}</span></td>
-        <td className="nowrap">{triggerText(run.trigger)}{run.by && <span className="runs-sub-t">{run.by}</span>}</td>
-        <td className="wrap">{coveredText(run.segments)}</td>
-        <td className="num">{run.records ? integer(run.records) : <None />}</td>
-        <td className="num">{count(run.to_fix)}</td>
-        <td className="num money">{run.could_save == null ? <None /> : <Fx formula={couldSaveRunFormula(run)}>{formatValue(run.could_save, unitOf(run) ? 'currency' : 'number', unitOf(run), undefined, kindOf(run))}</Fx>}</td>
-      </tr>
-      {open && <tr className="runs-d"><td colSpan={COLUMNS}><Details run={run} id={id} /></td></tr>}
-    </>
-  );
+        );
+      },
+    },
+    { key: 'started', label: 'When', date: true, className: 'nowrap', render: (run) => <><b>{whenText(run)}</b><span className="runs-sub-t">{lastedText(run)}</span></> },
+    {
+      key: 'status', label: 'Status', className: 'nowrap', sortValue: (run) => runFlag(run.status).text,
+      render: (run) => { const flag = runFlag(run.status); return <span className={`run-st run-st--${flag.tone}`}><i aria-hidden="true" />{flag.text}</span>; },
+    },
+    { key: 'trigger', label: 'Started by', className: 'nowrap', sortValue: (run) => triggerText(run.trigger), render: (run) => <>{triggerText(run.trigger)}{run.by && <span className="runs-sub-t">{run.by}</span>}</> },
+    { key: 'segments', label: 'What it covered', className: 'wrap', sortValue: (run) => coveredText(run.segments), render: (run) => coveredText(run.segments) },
+    { key: 'records', label: 'Records', num: true, render: (run) => (run.records ? integer(run.records) : <None />) },
+    { key: 'to_fix', label: 'To fix', num: true, render: (run) => count(run.to_fix) },
+    {
+      key: 'could_save', label: 'Could save', num: true, className: 'money',
+      render: (run) => (run.could_save == null ? <None />
+        : <Fx formula={couldSaveRunFormula(run)}>{formatValue(run.could_save, unitOf(run) ? 'currency' : 'number', unitOf(run), undefined, kindOf(run))}</Fx>),
+    },
+  ];
 }
 
 function emptyText(page, job) {
@@ -121,12 +120,14 @@ export default function Runs({ page, runs, offset, onOffset, onExplain, genieBus
   const size = data?.limit || RUNS_PAGE;
   const errors = data?.errors || {};
   const details = errors.summary || errors.details;
-  const toggle = (key) => setOpen((was) => {
+  const isOpen = (run) => open.has(runKey(run));
+  const toggle = (run) => setOpen((was) => {
     const next = new Set(was);
-    if (next.has(key)) next.delete(key);
-    else next.add(key);
+    if (next.has(runKey(run))) next.delete(runKey(run));
+    else next.add(runKey(run));
     return next;
   });
+  const columns = runColumns(isOpen, toggle);
   return (
     <>
       {((busy && !data) || list.length > 0) && (
@@ -148,21 +149,9 @@ export default function Runs({ page, runs, offset, onOffset, onExplain, genieBus
         {details && <p className="tile-err" role="alert"><Icon name="info" size={14} />The details of each run could not load, so the list shows what the job recorded: {details}</p>}
         {data && (
           <>
-            <div className="tbl-wrap">
-              <table className="tbl runs-tbl" aria-label="Runs of this use case">
-                <thead>
-                  <tr>
-                    <th className="runs-x"><span className="sr">Details</span></th>
-                    <th>When</th><th>Status</th><th>Started by</th><th>What it covered</th>
-                    <th className="num">Records</th><th className="num">To fix</th><th className="num">Could save</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {list.map((run) => <RunRow key={runKey(run)} run={run} open={open.has(runKey(run))} onToggle={() => toggle(runKey(run))} />)}
-                </tbody>
-              </table>
-            </div>
-            {!list.length && <p className="more">{total ? runsPageText(data.offset, 0, total) : emptyText(page, data.job && !data.job.error ? data.job : null)}</p>}
+            <DataTable label="Runs of this use case" tableClass="runs-tbl" columns={columns} rows={list} rowKey={runKey} paged={false} grid={`page:${page.id}:runs`}
+              onRow={toggle} rowClass={(run) => (isOpen(run) ? 'is-open' : '')} detail={(run) => (isOpen(run) ? <Details run={run} id={detailsId(run)} /> : null)} detailClass="runs-d"
+              empty={total ? runsPageText(data.offset, 0, total) : emptyText(page, data.job && !data.job.error ? data.job : null)} />
             {total > size && (
               <div className="pager">
                 <span className="pager-n">{runsPageText(data.offset, list.length, total)}</span>

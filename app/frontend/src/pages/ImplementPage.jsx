@@ -1116,13 +1116,11 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
     if (id === 'app') {
       if (!latest?.app_url) return null;
       return (
-        <table className="text-[12px]">
-          <tbody>
-            {appStatusRows(status?.app_status, latest?.asset_status?.app).map(([label, value]) => (
-              <tr key={label}><td className="pr-3 py-0.5 text-text-secondary">{label}</td><td>{value}</td></tr>
-            ))}
-          </tbody>
-        </table>
+        <dl className="grid grid-cols-[max-content_1fr] gap-x-3 gap-y-0.5 text-[12px]">
+          {appStatusRows(status?.app_status, latest?.asset_status?.app).map(([label, value]) => (
+            <div key={label} className="contents"><dt className="text-text-secondary">{label}</dt><dd>{value}</dd></div>
+          ))}
+        </dl>
       );
     }
     if (id !== 'alert') return null;

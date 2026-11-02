@@ -5,6 +5,15 @@ import {
 } from '../lib/moneyReview';
 import { liveImpact, stakeCurrency, stakeLabel, stakeWords } from '../lib/targetKpi';
 import { RunScopeLine } from './RunScope';
+import DataGrid from './DataGrid';
+
+const setByText = (a) => (a.changed_by ? `${a.changed_by} in the App` : 'Genie, in the notebook');
+
+const assumptionColumns = (currency) => [
+  { key: 'name', label: 'Assumption', value: (a) => assumptionLabel(a.name), className: 'py-1 pr-3 text-text-primary' },
+  { key: 'value', label: 'Value', kind: 'number', value: (a) => a.value, render: (a) => amountText(a.value, a.kind, currency), className: 'py-1 pr-3 font-mono text-text-primary' },
+  { key: 'set_by', label: 'Set by', value: setByText, className: 'py-1 text-text-secondary' },
+];
 
 export function NothingToActCard({ run }) {
   const text = nothingToActText(run);
@@ -53,18 +62,9 @@ export default function MoneyReview({ money, error = '', impact = null, scope = 
         </p>
       )}
       {model.assumptions.length > 0 && (
-        <table aria-label="Assumptions" className="w-full text-left">
-          <thead><tr className="text-text-secondary"><th className="py-1 pr-3 font-semibold">Assumption</th><th className="py-1 pr-3 font-semibold">Value</th><th className="py-1 font-semibold">Set by</th></tr></thead>
-          <tbody>
-            {model.assumptions.map((a) => (
-              <tr key={a.name} data-assumption={a.name} className="border-t border-border">
-                <td className="py-1 pr-3 text-text-primary">{assumptionLabel(a.name)}</td>
-                <td className="py-1 pr-3 font-mono text-text-primary">{amountText(a.value, a.kind, currency)}</td>
-                <td className="py-1 text-text-secondary">{a.changed_by ? `${a.changed_by} in the App` : 'Genie, in the notebook'}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <DataGrid label="Assumptions" grid="money:assumptions" columns={assumptionColumns(currency)} rows={model.assumptions} rowKey={(a) => a.name}
+          rowProps={(a) => ({ 'data-assumption': a.name })} rowClassName={() => 'border-t border-border'} tableClassName="w-full text-left"
+          headRowClassName="text-text-secondary" headClassName="py-1 pr-3 font-semibold" />
       )}
       {model.changed && <p className="text-text-primary">Owners changed an assumption in the App after the last run, so the next run uses the values above.</p>}
       {tiers && <p data-tiers="" className="text-text-secondary">{tiers}</p>}

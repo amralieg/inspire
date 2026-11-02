@@ -78,6 +78,8 @@ SHELL_ENTRY_POINTS = {
     ("implement_app_page_problems", "shell_sql.spec_problems"),
     ("implement_block_images", "shell_sql.image_blocks"),
     ("implement_chart_kind_problems", "shell_sql.kind_problems"),
+    ("_implement_holder_filters", "shell_sql.list_column_filters"),
+    ("_implement_holder_filters", "shell_sql.table_column_filters"),
     ("implement_column_filter_gate", "shell_sql.list_column_filters"),
     ("implement_column_filter_gate", "shell_sql.list_shown"),
     ("implement_column_filter_gate", "shell_sql.table_column_filters"),

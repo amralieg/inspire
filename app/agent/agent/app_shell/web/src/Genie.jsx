@@ -2,7 +2,8 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
 import { GenieMark, Icon } from './icons.jsx';
 import { askGenie, explainGenie, genieMessage } from './api.js';
 import { reducedMotion } from './theme.js';
-import { formatValue, plainText } from './format.js';
+import { formatValue, integer, plainText } from './format.js';
+import DataTable from './DataTable.jsx';
 import Markdown from './Markdown.jsx';
 import { BUSY_TITLE, explainBody } from './explain.js';
 import { GENIE_DEFAULT, GENIE_MIN, clampGenie, genieMax, keyWidth, rememberGenieWidth, storedGenieWidth } from './genieWidth.js';
@@ -11,6 +12,14 @@ import { GENIE_ASK, genieKey, genieOf, genieOn } from './genieAsk.js';
 const POLL_MS = 1500;
 const GIVE_UP_MS = 180000;
 const WORDS_PER_SECOND = 14;
+
+function answerColumns(answer) {
+  const rows = answer.rows || [];
+  return (answer.columns || []).map((c) => {
+    const num = rows.some((r) => typeof r[c.name] === 'number') && rows.every((r) => r[c.name] == null || typeof r[c.name] === 'number');
+    return { key: c.name, label: c.name, num, render: (r) => (typeof r[c.name] === 'number' ? formatValue(r[c.name]) : plainText(r[c.name])) };
+  });
+}
 
 const recordQuestions = (entity) => [`Show the history of this ${entity}`, 'Are there others like this?', 'What happens if we do nothing?'];
 
@@ -195,19 +204,15 @@ function Answer({ message, url, onTick }) {
   const a = message.answer;
   const words = String(a.text || '').split(/(\s+)/).length;
   const done = message.shown >= words;
-  const columns = (a.columns || []).slice(0, 8);
   return (
     <div className="msg-b">
       <Typing message={message} onTick={onTick} />
       {done && a.rows?.length > 0 && (
         <div className="msg-t">
-          <table>
-            <thead><tr>{columns.map((c) => <th key={c.name}>{c.name}</th>)}</tr></thead>
-            <tbody>{a.rows.slice(0, 12).map((r, i) => <tr key={i}>{columns.map((c) => <td key={c.name}>{typeof r[c.name] === 'number' ? formatValue(r[c.name]) : plainText(r[c.name])}</td>)}</tr>)}</tbody>
-          </table>
+          <DataTable label="Genie's answer" columns={answerColumns(a)} rows={a.rows} />
         </div>
       )}
-      {done && a.rows?.length > 12 && <p className="g-foot" style={{ padding: '6px 0 0' }}>Showing 12 of {a.rows.length}{a.truncated ? '+' : ''} rows.</p>}
+      {done && a.truncated && <p className="g-foot" style={{ padding: '6px 0 0' }}>Showing the first {integer(a.rows.length)} rows of the answer.</p>}
       {done && a.result_error && <p className="g-foot g-err" style={{ padding: '6px 0 0' }}>The answer's table could not load: {a.result_error}</p>}
       {done && a.sql && (
         <details className="msg-sql"><summary><Icon name="code" size={13} />The SQL Genie ran</summary><pre>{a.sql}</pre></details>

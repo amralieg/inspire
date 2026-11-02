@@ -101,8 +101,9 @@ test('promised reads the catalog business value and benefits, and each closed re
   assert.equal(promisedView({}), null);
   assert.deepEqual(closedRows(ENTRY, 'USD'), [
     { key: 'k7', label: 'Wool coat, store 4', outcome: 'Fixed', state: 'No longer flagged', measured: '$1,200 when fixed minus $100 now = $1,100', reported: '$900',
-      note: 'Repriced on Monday', closed: 'Oct 6' },
-    { key: 'k6', label: 'Linen trousers', outcome: 'Not a real issue', state: 'The store closed', measured: '', reported: '', note: '', closed: 'Oct 5' }]);
+      note: 'Repriced on Monday', closed: 'Oct 6', amounts: { measured: 1100, reported: 900, closed: '2026-10-06T06:00:00.000Z' } },
+    { key: 'k6', label: 'Linen trousers', outcome: 'Not a real issue', state: 'The store closed', measured: '', reported: '', note: '', closed: 'Oct 5',
+      amounts: { measured: null, reported: null, closed: '2026-10-05T09:00:00.000Z' } }]);
 });
 
 test('closing a record as fixed can carry the money it saved and how you know, and only a fix does', () => {

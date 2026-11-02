@@ -5,6 +5,7 @@ import { stampText } from './freshness.js';
 import { plural } from './hub.js';
 import { Icon } from './icons.jsx';
 import { Failure, Skeleton, useToast } from './ui.jsx';
+import DataTable from './DataTable.jsx';
 import {
   blankForm, capText, capped, defaultName, filtersText, formFrom, formProblem, measureOf, operatorLabel, operatorsOf, parseEmails,
   previewText, reachable, ruleText, stateFlag, watchOf,
@@ -145,12 +146,9 @@ function AlertForm({ listing, meta, page, start, onDone, onCancel }) {
   );
 }
 
-function AlertRow({ alert, listing, meta, onEdit, onChanged }) {
+function AlertActions({ alert, onEdit, onChanged }) {
   const toast = useToast();
   const [busy, setBusy] = useState(false);
-  const flag = stateFlag(alert.state);
-  const scope = alert.kind === 'watch' ? filtersText(alert.watch, meta?.filters) : '';
-  const schedule = (listing.schedules.find((s) => s.id === alert.schedule)?.label) || 'every hour';
   const run = async (action, said) => {
     setBusy(true);
     try {
@@ -165,18 +163,7 @@ function AlertRow({ alert, listing, meta, onEdit, onChanged }) {
   };
   const paused = alert.state === 'paused';
   return (
-    <tr>
-      <td className="wrap">
-        <b>{alert.name}</b>
-        <span className="runs-sub-t">
-          {alert.kind === 'watch' ? `${ruleText(alert.watch, listing.measures)}${scope ? ` (${scope})` : ''}` : `Emails ${alert.owner} when records are assigned to them`}
-        </span>
-      </td>
-      <td className="nowrap"><span className={`run-st run-st--${flag.tone || 'idle'}`}><i aria-hidden="true" />{flag.text}</span></td>
-      <td className="nowrap">{alert.checked ? stampText(alert.checked) : <span className="none">Not yet</span>}</td>
-      <td className="nowrap">{schedule[0].toUpperCase() + schedule.slice(1)}</td>
-      <td className="nowrap">{alert.kind === 'watch' ? alert.by : 'The App'}<span className="runs-sub-t">{alert.email_count} {alert.email_count === 1 ? 'person' : 'people'}</span></td>
-      <td className="act">
+    <>
         {alert.can_change && alert.kind === 'watch' && (
           <button className="link" onClick={() => onEdit(alert)} disabled={busy} aria-label={`Change ${alert.name}`}><Icon name="edit" size={13} />Change</button>
         )}
@@ -192,9 +179,44 @@ function AlertRow({ alert, listing, meta, onEdit, onChanged }) {
             <Icon name="trash" size={13} />Delete
           </button>
         )}
-      </td>
-    </tr>
+    </>
   );
+}
+
+const scheduleText = (alert, listing) => {
+  const label = listing.schedules.find((s) => s.id === alert.schedule)?.label || 'every hour';
+  return label[0].toUpperCase() + label.slice(1);
+};
+const ownerText = (alert) => (alert.kind === 'watch' ? alert.by : 'The App');
+
+function alertColumns(listing, meta, onEdit, onChanged) {
+  return [
+    {
+      key: 'name', label: 'Alert', className: 'wrap',
+      render: (alert) => {
+        const scope = alert.kind === 'watch' ? filtersText(alert.watch, meta?.filters) : '';
+        return (
+          <>
+            <b>{alert.name}</b>
+            <span className="runs-sub-t">
+              {alert.kind === 'watch' ? `${ruleText(alert.watch, listing.measures)}${scope ? ` (${scope})` : ''}` : `Emails ${alert.owner} when records are assigned to them`}
+            </span>
+          </>
+        );
+      },
+    },
+    {
+      key: 'state', label: 'State', className: 'nowrap', sortValue: (alert) => stateFlag(alert.state).text,
+      render: (alert) => { const flag = stateFlag(alert.state); return <span className={`run-st run-st--${flag.tone || 'idle'}`}><i aria-hidden="true" />{flag.text}</span>; },
+    },
+    { key: 'checked', label: 'Last checked', date: true, className: 'nowrap', render: (alert) => (alert.checked ? stampText(alert.checked) : <span className="none">Not yet</span>) },
+    { key: 'schedule', label: 'Checks', className: 'nowrap', sortValue: (alert) => scheduleText(alert, listing), render: (alert) => scheduleText(alert, listing) },
+    {
+      key: 'owner', label: 'Owner', className: 'nowrap', sortValue: ownerText,
+      render: (alert) => <>{ownerText(alert)}<span className="runs-sub-t">{alert.email_count} {alert.email_count === 1 ? 'person' : 'people'}</span></>,
+    },
+    { key: '_actions', label: 'Actions', hideLabel: true, fixed: true, className: 'act', render: (alert) => <AlertActions alert={alert} onEdit={onEdit} onChanged={onChanged} /> },
+  ];
 }
 
 export default function Alerts({ app, page, meta }) {
@@ -222,12 +244,8 @@ export default function Alerts({ app, page, meta }) {
       {listing && (
         <>
           {listing.alerts.length > 0 ? (
-            <div className="tbl-wrap">
-              <table className="tbl alerts-tbl" aria-label="Alerts of this use case">
-                <thead><tr><th>Alert</th><th>State</th><th>Last checked</th><th>Checks</th><th>Owner</th><th className="act"><span className="sr">Actions</span></th></tr></thead>
-                <tbody>{listing.alerts.map((a) => <AlertRow key={a.id} alert={a} listing={listing} meta={meta} onEdit={(x) => setForm(formFrom(x))} onChanged={load} />)}</tbody>
-              </table>
-            </div>
+            <DataTable label="Alerts of this use case" tableClass="alerts-tbl" columns={alertColumns(listing, meta, (x) => setForm(formFrom(x)), load)} rows={listing.alerts}
+              rowKey={(a) => a.id} grid={`page:${page.id}:alerts`} />
           ) : !form && <p className="more">No alerts on this page yet.</p>}
           {listing.unread > 0 && <p className="note" role="status"><Icon name="info" size={14} />{plural(listing.unread, 'alert')} could not be read just now.</p>}
           <p className="more alerts-foot">

@@ -315,6 +315,16 @@ test('value tracking shows a KPI the agent did not measure as Not measured with 
     assert.equal(await kept.locator('[data-tracking-note]').count(), 0);
     const contrast = await lowContrast(page, ['[data-tracking-status]']);
     assert.deepEqual(contrast.low, []);
+    const value = page.getByRole('table', { name: 'Value of implemented use cases' });
+    const order = () => value.locator('tbody tr').evaluateAll((rows) => rows.map((r) => r.dataset.trackingStatus));
+    assert.deepEqual(await order(), ['not_measured', 'measured']);
+    await value.locator('[data-grid-sort]', { hasText: 'Change' }).click();
+    assert.deepEqual(await order(), ['measured', 'not_measured'], 'a KPI with no change sorts after one that has a change');
+    await value.getByRole('button', { name: 'Filter Use case' }).click();
+    await page.getByRole('dialog', { name: 'Filter Use case' }).getByLabel('Spot loss-making orders').check();
+    await page.keyboard.press('Escape');
+    assert.deepEqual(await order(), ['not_measured']);
+    assert.equal(await value.getByRole('button', { name: 'Move the KPI column' }).count(), 1);
     assert.deepEqual(ui.pageErrors.filter((e) => !/status of (404|500)/.test(e)), []);
   } finally {
     await ui.close();
