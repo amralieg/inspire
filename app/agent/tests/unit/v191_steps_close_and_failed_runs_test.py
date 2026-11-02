@@ -168,7 +168,7 @@ def test_a_pipeline_step_closes_on_every_way_out(agent_ns):
             raise KeyboardInterrupt()
     cancelled = obj.atomic_writer.final()[stopped.step_id]
     assert cancelled["status"] == "ended_error"
-    assert cancelled["result_json"]["error"] == agent_ns["inspire_run_stop_reason"](KeyboardInterrupt())
+    assert cancelled["result_json"]["error"] == agent_ns["INSPIRE_RUN_CANCELLED"] == agent_ns["inspire_run_stop_reason"](KeyboardInterrupt())
     assert len(obj.atomic_writer.final()) == 4
     assert not obj._pipeline_open_steps()
 
@@ -303,6 +303,7 @@ def test_a_cancelled_run_is_finalized_as_failed_before_the_cancel_goes_on():
     calls = [node for node in ast.walk(handlers[0]) if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
              and node.func.attr == "finalize_atomic_writer"]
     assert len(calls) == 1
-    success = _keyword(calls[0], "success")
+    success, reason = _keyword(calls[0], "success"), _keyword(calls[0], "error_message")
     assert isinstance(success, ast.Constant) and success.value is False
+    assert isinstance(reason, ast.Name) and reason.id == "INSPIRE_RUN_CANCELLED", "a cancel carries no error text to redact"
     assert isinstance(handlers[0].body[-1], ast.Raise)
