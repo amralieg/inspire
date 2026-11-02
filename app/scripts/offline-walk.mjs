@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { apiWatch, readOnlyInspire, recordMvpApp, tabButton, walkMvpTabs, walkRun, watchOffline } from './showcaseRecorder.mjs';
 import { SHOWCASE_BUTTON } from '../frontend/src/lib/showcase.js';
 import { START_MVP_LABEL } from '../frontend/src/lib/implementWizard.js';
+import { SCOPE_WALK_READS, checkRunScope, checkScope, checkWizardSteps, profileWatch } from './scopeWalk.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const require = createRequire(import.meta.url);
@@ -31,14 +32,16 @@ const origins = new Set([origin]);
 const sections = [];
 const blocked = [];
 const mvpUrls = new Set();
+const scope = [];
 const log = (line) => console.log(`[offline] ${line}`);
 
 const browser = await chromium.launch();
 const context = await browser.newContext({ viewport: { width: 1440, height: 1000 }, extraHTTPHeaders: { Authorization: `Bearer ${token}` } });
-context.setDefaultTimeout(30000);
+context.setDefaultTimeout(10000);
 const watch = await watchOffline(context, origins);
 const page = await context.newPage();
-await readOnlyInspire(page, origin, blocked);
+await readOnlyInspire(page, origin, blocked, SCOPE_WALK_READS);
+const scopeProfile = profileWatch(page);
 page.on('response', async (resp) => {
   if (!resp.url().startsWith(`${origin}/api/`) || resp.status() >= 300 || !/json/i.test(resp.headers()['content-type'] || '')) return;
   const text = await resp.text().catch(() => '');
@@ -54,7 +57,10 @@ async function section(name, run) {
     sections.push({ name, ok: true, detail: detail || '', seconds: Math.round((Date.now() - started) / 1000) });
     log(`${name}: ok${detail ? ` (${detail})` : ''}`);
   } catch (err) {
-    sections.push({ name, ok: false, detail: String(err.message).split('\n')[0].slice(0, 300), seconds: Math.round((Date.now() - started) / 1000) });
+    fs.mkdirSync(out, { recursive: true });
+    await page.screenshot({ path: path.join(out, `${name.replace(/[^A-Za-z0-9]+/g, '_')}.png`) }).catch(() => null);
+    const header = await page.locator('header button').allInnerTexts().catch(() => []);
+    sections.push({ name, ok: false, detail: String(err.message).split('\n')[0].slice(0, 300), header: header.map((t) => t.trim()).filter(Boolean).slice(0, 12), seconds: Math.round((Date.now() - started) / 1000) });
     log(`${name}: ${String(err.message).split('\n')[0]}`);
   }
 }
@@ -67,6 +73,22 @@ const home = async () => {
 
 try {
   await section('Home', home);
+  await section('Header pages', async () => {
+    const bar = page.locator('header, nav').first();
+    const labels = [...new Set((await bar.getByRole('button').or(bar.getByRole('link')).allInnerTexts())
+      .map((t) => t.trim()).filter(Boolean))];
+    const opened = [];
+    for (const label of labels) {
+      watch.at(`Header ${label}`);
+      const item = bar.getByRole('button', { name: label, exact: true }).or(bar.getByRole('link', { name: label, exact: true }));
+      if (!(await item.count())) continue;
+      await item.first().click();
+      await settle();
+      opened.push(`${label} ${await page.evaluate(() => location.hash || location.pathname)}`);
+    }
+    await home();
+    return opened.join(', ');
+  });
   await section('Setup', async () => {
     await page.getByRole('button', { name: 'Workspace setup' }).click();
     await settle();
@@ -128,7 +150,11 @@ try {
     await settle();
     const seen = [];
     for (let i = 0; i < 10; i += 1) {
-      seen.push((await page.locator('[aria-current="step"]').first().innerText().catch(() => '?')).trim());
+      const step = (await page.locator('[aria-current="step"]').first().innerText().catch(() => '?')).trim().replace(/^\d+\.\s*/, '');
+      seen.push(step);
+      if (/^(Grouping|First run)$/.test(step)) {
+        for (const c of await checkScope(dialog.first(), scopeProfile.profile, { part: step === 'Grouping' ? 'grouping' : 'first_run' })) scope.push({ where: `wizard ${step}`, ...c });
+      }
       const next = page.getByRole('button', { name: 'Next', exact: true });
       if (!(await next.count()) || await next.isDisabled()) break;
       await next.click();
@@ -136,9 +162,12 @@ try {
     }
     await page.keyboard.press('Escape');
     await settle();
+    for (const c of checkWizardSteps(seen, scopeProfile.profile)) scope.push({ where: 'wizard', ...c });
     return `steps ${seen.join(' > ')}, not started`;
   });
-  await section('Run', async () => `${await walkRun(page, settle)} pages`);
+  await section('Run', async () => `${await walkRun(page, settle, async (i) => {
+    for (const c of await checkRunScope(page)) scope.push({ where: `Run page ${i + 1}`, ...c });
+  })} pages`);
   await section('Monitor', async () => {
     await tabButton(page, 'monitor').click();
     await page.getByRole('heading', { name: 'Pipeline Monitor' }).waitFor({ timeout: 120000 });
@@ -171,10 +200,11 @@ try {
   await browser.close();
 }
 
-const report = { inspire: origin, mvpApps: [...mvpUrls].sort().map((u) => new URL(u).origin), sections, blocked: [...new Set(blocked)], ...watch.report() };
+const report = { inspire: origin, mvpApps: [...mvpUrls].sort().map((u) => new URL(u).origin), sections, scope, blocked: [...new Set(blocked)], ...watch.report() };
 fs.mkdirSync(out, { recursive: true });
 fs.writeFileSync(path.join(out, 'offline_walk.json'), `${JSON.stringify(report, null, 1)}\n`);
 const rows = [['page', 'outside host', 'path', 'initiator']].concat(report.outside.map((o) => [o.page, o.host, o.path, o.initiator]));
 const errors = [['page', 'kind', 'error']].concat(report.pageErrors.map((e) => [e.page, 'page error', e.error]), report.consoleErrors.map((e) => [e.page, 'console error', e.error]));
 fs.writeFileSync(path.join(out, 'offline_walk.tsv'), `${rows.map((r) => r.join('\t')).join('\n')}\n\n${errors.map((r) => r.join('\t')).join('\n')}\n`);
+log(`scope checks: ${scope.filter((c) => c.ok === true).length} passed, ${scope.filter((c) => c.ok === false).length} failed, ${scope.filter((c) => c.ok === null).length} not checkable`);
 log(`${report.outside.length} outside requests, ${report.pageErrors.length} page errors, ${report.consoleErrors.length} console errors, ${sections.filter((s) => !s.ok).length} of ${sections.length} sections failed; wrote ${out}`);

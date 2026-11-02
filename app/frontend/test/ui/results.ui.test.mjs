@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
-import { closeBrowser, lowContrast, lowContrastThroughAnimations, openUi, setDark, settled, until } from './uiSupport.mjs';
+import { FAKE_CLOCK, closeBrowser, lowContrast, lowContrastThroughAnimations, openUi, setDark, settled, until, watchAsks } from './uiSupport.mjs';
 import { RESULTS } from './implementFixtures.js';
 
 const { SLOW_WAREHOUSE_MESSAGE } = createRequire(import.meta.url)('../../../backend/lib/sqlStatements.js');
@@ -324,26 +324,24 @@ test('value tracking shows a KPI the agent did not measure as Not measured with 
 test('a use case whose notebook cannot be exported asks once for each path, says why, and asks again only when the person presses Preview', async () => {
   const notebook = ['', 'Users', ['owner', 'example.com'].join('@'), 'inspire', 'Acme', 'N01-U03'].join('/');
   const results = { ...RESULTS, domains: RESULTS.domains.map((d) => ({ ...d, use_cases: d.use_cases.map((u) => (u.No === 'N01-U03' ? { ...u, notebook_path: notebook } : u)) })) };
-  const ui = await openUi('results', { ...STATE, results });
+  const ui = await openUi('results', { ...STATE, results }, '', FAKE_CLOCK);
   const { page } = ui;
-  const asked = [];
-  page.on('request', (r) => {
-    const url = new URL(r.url());
-    if (url.pathname === '/api/workspace/export') asked.push(url.searchParams.get('path'));
-  });
+  const exports = watchAsks(page, (r) => new URL(r.url()).pathname === '/api/workspace/export');
+  const paths = () => exports.sent.map((r) => new URL(r.url()).searchParams.get('path'));
+  const quiet = () => exports.quiet(1000);
   try {
     await ready(page);
     await card(page, 'Segment shoppers').click();
     const failed = page.getByText('Could not load the notebook because the export failed.', { exact: false });
     await failed.waitFor({ timeout: 15000 });
-    assert.deepEqual(asked, [notebook, `/Workspace${notebook}`], 'each path the notebook may live at is asked once');
-    await page.waitForTimeout(1000);
-    assert.equal(asked.length, 2, `a failed export is never asked again on its own: ${asked.length} asks`);
+    assert.deepEqual(paths(), [notebook, `/Workspace${notebook}`], 'each path the notebook may live at is asked once');
+    await quiet();
+    assert.equal(exports.sent.length, 2, `a failed export is never asked again on its own: ${exports.sent.length} asks`);
     await page.getByRole('button', { name: 'Preview', exact: true }).click();
-    await until(() => asked.length === 4, 'the asks Preview sends');
+    await until(() => exports.sent.length === 4, 'the asks Preview sends');
     await failed.waitFor({ timeout: 15000 });
-    await page.waitForTimeout(1000);
-    assert.equal(asked.length, 4, 'Preview asks each path once more and stops');
+    await quiet();
+    assert.equal(exports.sent.length, 4, 'Preview asks each path once more and stops');
   } finally {
     await ui.close();
   }

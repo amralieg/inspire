@@ -210,6 +210,7 @@ test('a card with a count of 0 is shown, says why, and never navigates or filter
   const ui = await openStart(ZERO);
   const { page } = ui;
   try {
+    await page.clock.install();
     for (const [key, why] of [['alerts', 'No MVP has an alert yet.'], ['genie_spaces', 'No MVP has a Genie Agent yet.']]) {
       const off = card(page, key);
       assert.equal(await off.evaluate((el) => el.tagName), 'DIV', `${key} at 0 is no button`);
@@ -218,11 +219,12 @@ test('a card with a count of 0 is shown, says why, and never navigates or filter
       assert.equal(await off.locator('[data-card-why]').innerText(), why);
       assert.equal(await off.evaluate((el) => el.tabIndex), -1, 'the keyboard skips it');
       await off.click();
-      await page.waitForTimeout(500);
+      await page.clock.runFor(500);
       assert.equal(await page.getByRole('heading', { name: 'Build', exact: true }).count(), 0, `${key} at 0 never opens Build`);
       assert.equal(await page.locator('[data-run-filter], [data-build-filter]').count(), 0, `${key} at 0 sets no filter`);
       assert.deepEqual(await rows(page), ['42', '41', '50', '51', '60']);
     }
+    await page.clock.resume();
     assert.equal(await totals(page).getByRole('button').count(), 9, 'the 9 cards with a count are buttons');
     for (const dark of [false, true]) {
       await setDark(page, dark);

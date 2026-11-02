@@ -220,6 +220,7 @@ function registerShowcaseRoutes(app, { dir = SHOWCASE_DIR, shellFiles, log = con
 }
 
 module.exports = {
+  SHOWCASE_GENIE_ASK,
   SHOWCASE_VERSION,
   SHOWCASE_HEADER,
   SHOWCASE_DIR,
