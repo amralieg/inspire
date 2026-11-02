@@ -1,10 +1,10 @@
-import { APP_INSIDE, APP_INSIDE_PLACEMENT } from './implementWizard.js';
+import { APP_INSIDE, APP_INSIDE_PLACEMENT, OPEN_ALL_SETTINGS, VIBE_FEATURES_LABEL } from './implementWizard.js';
 import { SHOWCASE_BUTTON } from './showcase.js';
 
 export const RUN_TAB = 'run';
 export const RUN_BANNER = 'Inside Inspire, only for testing. Give it its own App for real use.';
-export const RUN_EMPTY = 'No use case is deployed yet. To try a page Inside Inspire, open the use case in Build, press Edit MVP, and on App placement pick '
-  + `${APP_INSIDE_PLACEMENT.label}. Use cases with an App of their own show up here too.`;
+export const RUN_EMPTY = `No use case is deployed yet. To try a page Inside Inspire, open the use case in Build, press ${VIBE_FEATURES_LABEL}, then ${OPEN_ALL_SETTINGS}, `
+  + `and on App placement pick ${APP_INSIDE_PLACEMENT.label}. Use cases with an App of their own show up here too.`;
 export const RUN_NO_DOMAIN = 'No domain';
 export const RUN_OPEN_APP = 'Open App';
 export const RUN_POLL_MS = 3000;

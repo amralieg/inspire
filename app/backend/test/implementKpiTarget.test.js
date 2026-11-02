@@ -191,7 +191,7 @@ test('a submitted target KPI must be one of the use case\u2019s KPIs: a bad name
   });
 });
 
-test('Edit MVP, Try again and Publish anyway keep the target KPI through the one shared helper, and the backend writes it', async () => {
+test('Vibe/Add/Remove Features, Try again and Publish anyway keep the target KPI through the one shared helper, and the backend writes it', async () => {
   const W = await lib('implementWizard.js');
   const K = await lib('targetKpi.js');
   const stored = { ...clean({ vibes: 'Count returns by week', vibe_previous: 'keep', based_on_version: 1 }),
@@ -204,8 +204,8 @@ test('Edit MVP, Try again and Publish anyway keep the target KPI through the one
   const fallback = W.defaultSpecFromUseCase({ id: 'N01-U01', primary_table: 'main.s.orders', tables_involved: 'main.s.orders' }, { warehouseId: 'wh1', inspireDatabase: 'main.inspire' });
   assert.equal(Object.hasOwn(fallback, 'kpi'), false, 'a new MVP starts on Let Inspire pick');
   const edit = W.specFromLatest(held, fallback);
-  assert.equal(K.kpiTargetOf(edit), 'Hours saved', 'Edit MVP of a held version');
-  assert.equal(K.kpiTargetOf(W.specFromLatest({ ...held, status: 'ready' }, fallback)), 'Hours saved', 'Edit MVP of a built version');
+  assert.equal(K.kpiTargetOf(edit), 'Hours saved', 'Vibe/Add/Remove Features of a held version');
+  assert.equal(K.kpiTargetOf(W.specFromLatest({ ...held, status: 'ready' }, fallback)), 'Hours saved', 'Vibe/Add/Remove Features of a built version');
   assert.deepEqual(W.sentSpec(edit, null, 1).kpi, { target: 'Hours saved' }, 'the wizard sends only the target, never the fields the agent recorded');
   assert.equal(Object.hasOwn(W.sentSpec(K.withKpiTarget(edit, ''), null, 1), 'kpi'), false, 'Let Inspire pick sends no target');
   assert.deepEqual(K.withKpiTarget(edit, 'Churn rate').kpi, { target: 'Churn rate' });

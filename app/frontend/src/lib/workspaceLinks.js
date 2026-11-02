@@ -48,11 +48,20 @@ export function workspaceWebUiHashPath(fsPath) {
   return `/Workspace${n}`;
 }
 
+function workspaceOrigin(databricksHost) {
+  const base = databricksHost.replace(/\/+$/, '').replace(/^http:\/\//i, 'https://');
+  return base.startsWith('http') ? base : `https://${base}`;
+}
+
 export function workspaceNotebookUrl(databricksHost, notebookPath) {
   if (!notebookPath || !databricksHost) return '';
-  const base = databricksHost.replace(/\/+$/, '').replace(/^http:\/\//i, 'https://');
-  const origin = base.startsWith('http') ? base : `https://${base}`;
   const path = workspaceWebUiHashPath(notebookPath);
   const pathSeg = path.startsWith('/') ? path : `/${path}`;
-  return `${origin}/#workspace${pathSeg}`;
+  return `${workspaceOrigin(databricksHost)}/#workspace${pathSeg}`;
+}
+
+export function workspaceJobUrl(databricksHost, jobId) {
+  const id = String(jobId ?? '').trim();
+  if (!/^\d+$/.test(id) || !databricksHost) return '';
+  return `${workspaceOrigin(databricksHost)}/#job/${id}`;
 }

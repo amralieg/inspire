@@ -594,7 +594,7 @@ def test_a_job_resource_the_app_cannot_get_is_a_warning_and_the_app_still_deploy
     assert fields["app_url"] == "https://churn-desk.example"
     assert fields["_warnings"] == ["App: Refresh now cannot start a run of job 77, because Inspire could not give the App's service "
                                    "principal CAN MANAGE RUN on it: PERMISSION_DENIED: no CAN MANAGE on job 77. Give it CAN MANAGE RUN on "
-                                   "the job, or build the App again with Edit MVP on the Build page"]
+                                   "the job, or build the App again with Vibe/Add/Remove Features on the Build page"]
 
 
 def test_a_failed_build_gives_the_app_back_the_resources_it_held(agent_ns, sdk_stub):
@@ -1081,7 +1081,7 @@ def test_run_controls_that_cannot_be_rebuilt_are_a_warning_and_the_notebook_is_l
     warnings = []
     inst._implement_refresh_run_controls("N01-U01", (5150, "N01-U01", 3), uc, spec_nb, NB, status, warnings)
     assert len(warnings) == 1 and warnings[0].startswith(f"Notebook: Inspire could not bring the Run controls of {NB} up to date")
-    assert reason in warnings[0] and warnings[0].endswith("build the notebook again with Edit MVP on the Build page")
+    assert reason in warnings[0] and warnings[0].endswith("build the notebook again with Vibe/Add/Remove Features on the Build page")
     assert workspace.imported == [] and inst.updates == [] and status["notebook"]["modified_at"] == 1000
 
 

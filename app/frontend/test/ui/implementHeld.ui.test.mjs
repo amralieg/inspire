@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { defaultSpecFromUseCase, specFromHeld } from '../../src/lib/implementWizard.js';
 import { HARNESS_INSPIRE_URL, HARNESS_USE_CASE, HARNESS_SETTINGS, HARNESS_SESSION_ID } from './implementFixtures.js';
-import { closeBrowser, lowContrast, openUi, startMvp, until } from './uiSupport.mjs';
+import { closeAsset, closeBrowser, lowContrast, openAsset, openSettings, openUi, startMvp, until } from './uiSupport.mjs';
 
 const SELF_FIX = createRequire(import.meta.url)('../../../backend/test/fixtures/implement_self_fix_cases.json');
 const HELD_CASES = createRequire(import.meta.url)('../../../backend/test/fixtures/implement_held_cases.json');
@@ -40,18 +40,18 @@ test('a held version reads Vibes not met in the rail, the chip and the history, 
   const { page } = ui;
   try {
     const nav = page.getByRole('navigation', { name: 'Use cases' });
-    const group = nav.getByRole('region', { name: 'Vibes not met' });
+    const group = nav.getByRole('region', { name: 'Needs attention' });
     await group.getByText('Predict churn').waitFor({ timeout: 15000 });
-    for (const other of ['Ready', 'Failed', 'In progress']) {
+    for (const other of ['Ready', 'Building', 'Not built']) {
       assert.equal(await nav.getByRole('region', { name: other }).getByText('Predict churn').count(), 0, `never listed as ${other}`);
     }
     const progress = page.locator('[data-mvp-progress]');
     await progress.getByText(LIVE_REASON, { exact: true }).waitFor({ timeout: 15000 });
     await progress.getByText('Vibes not met', { exact: true }).first().waitFor();
-    const said = await progress.textContent();
+    const said = await progressLine(page);
     for (const phrase of ['is published', 'stays live', 'Publish anyway']) assert.equal(said.split(phrase).length - 1, 1, `${phrase} once in: ${said}`);
     assert.equal(await progress.getByText(/^(Ready|Failed)$/).count(), 0);
-    const pane = page.getByRole('region', { name: 'History', exact: true });
+    const pane = (await openAsset(page, 'job')).getByRole('region', { name: 'History', exact: true });
     const toggle = pane.getByRole('button', { name: /^History/ });
     if (await toggle.getAttribute('aria-expanded') !== 'true') await toggle.click();
     await pane.getByText('v2 · vibes not met, not published · vibe').waitFor();
@@ -72,7 +72,7 @@ test('a held first build says nothing is live yet', async () => {
   try {
     const progress = page.locator('[data-mvp-progress]');
     await progress.getByText(FIRST_REASON, { exact: true }).waitFor({ timeout: 15000 });
-    const said = await progress.textContent();
+    const said = await progressLine(page);
     for (const phrase of ['is published', 'nothing is live yet']) assert.equal(said.split(phrase).length - 1, 1, `${phrase} once in: ${said}`);
     assert.deepEqual(ui.pageErrors, []);
   } finally {
@@ -126,13 +126,16 @@ function leafDiff(want, got, at = []) {
   return JSON.stringify(want) === JSON.stringify(got) ? [] : [at.join('.')];
 }
 
+const progressLine = (page) => page.locator('[data-mvp-progress]').evaluate((box) => {
+  const line = box.cloneNode(true);
+  line.querySelector('[data-build-log]')?.remove();
+  return line.textContent;
+});
+
 async function openHeld(state, version = 2) {
   const ui = await openUi('implement', state);
   try {
     await ui.page.getByRole('heading', { name: 'Build', exact: true }).waitFor();
-    await ui.page.getByRole('tablist', { name: 'MVP views' }).waitFor({ timeout: 15000 });
-    const tab = ui.page.locator('[data-mvp-tab="build"]');
-    if (await tab.getAttribute('aria-selected') !== 'true') await tab.click();
     await heldBox(ui.page, version).waitFor({ timeout: 15000 });
   } catch (e) {
     await ui.close();
@@ -191,12 +194,12 @@ test('Publish anyway sends the held spec as stored with publish_held and based_o
   }
 });
 
-test('Edit MVP after a hold starts the wizard from every leaf of the held spec as stored, and Start MVP sends them all', async () => {
+test('Open all settings after a hold starts the wizard from every leaf of the held spec as stored, and Start MVP sends them all', async () => {
   const ui = await openHeld(mvpState());
   const { page, made } = ui;
   const sent = bodiesTo(page, '/api/inspire/implement/submit');
   try {
-    await page.locator('[data-edit-mvp]').click();
+    await openSettings(page);
     await startMvp(page);
     await until(() => made.jobs.length === 1, 'the edited run');
     assert.equal(sent.length, 1);
@@ -263,6 +266,7 @@ test('a hold that mixes a missed ask and one Inspire could not check counts as t
     await box.waitFor();
     await page.waitForFunction(() => document.querySelector('[data-vibe-box="mvp"] textarea')?.value === 'Answer in euros', null, { timeout: 10000 });
     assert.equal(await box.inputValue(), 'Answer in euros', 'Rephrase fills only the missed ask');
+    await closeAsset(page);
     await held.getByRole('button', { name: 'Publish anyway', exact: true }).click();
     const confirm = held.getByRole('group', { name: 'Confirm publishing v2 anyway' });
     await confirm.getByText('Publish v2 anyway? These 2 asks are not met or could not be checked:', { exact: true }).waitFor();
@@ -357,7 +361,7 @@ for (const prefix of ['an ask met in round 2 of 3', 'one ask missed in every rou
       assert.equal(times(prose, c.live ? `v${c.live} stays live` : 'nothing is live yet'), 1);
       assert.deepEqual([await held.locator('[data-held-text]').count(), await held.locator('[data-held-next]').count()], [0, 0]);
       assert.equal(await held.locator('[data-held-parts]').textContent(), 'Held: the Dashboard.');
-      const progress = await page.locator('[data-mvp-progress]').textContent();
+      const progress = await progressLine(page);
       assert.equal(times(progress, 'is published'), 1, `the progress line says it once too: ${progress}`);
       assert.deepEqual(ui.pageErrors, []);
     } finally {

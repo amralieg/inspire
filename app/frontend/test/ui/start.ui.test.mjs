@@ -162,7 +162,11 @@ test('the MVP, App, dashboard, Genie Agent and alert cards open Build filtered t
       assert.deepEqual(await pressed(), asset, `${key} presses its asset filter`);
       const listed = await page.locator('nav[aria-label="Use cases"] section button').evaluateAll((els) => els.map((el) => el.querySelector('.font-mono')?.textContent));
       assert.deepEqual(listed, ['N01-U01'], `${key} lists only the use case that has one`);
-      if (asset.length) await page.locator(`[data-mvp-panel="${asset[0]}"]`).waitFor({ timeout: 15000 });
+      if (asset.length) {
+        const tile = page.locator(`[data-asset-tiles] [data-asset-tile="${asset[0]}"]`);
+        await tile.waitFor({ timeout: 15000 });
+        assert.notEqual(await tile.getAttribute('data-tile-kind'), 'off', `${key} shows the ${asset[0]} tile of the use case as part of its MVP`);
+      }
       if (runNames.length) assert.deepEqual(await runButtons(strip), runNames, `${key} lists each run that holds it`);
       else assert.equal(await strip.getByRole('group').count(), 0, `one run holds ${key}, so there is no run to pick`);
       await toStart();

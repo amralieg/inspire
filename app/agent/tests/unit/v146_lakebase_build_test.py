@@ -21,7 +21,7 @@ APPS_POSTGRES_ENV = {"PGAPPNAME", "PGDATABASE", "PGHOST", "PGPORT", "PGSSLMODE",
 CHOICE_ERROR = ("choose where the App reads its data: 'lakebase' (its pages load instantly) or 'delta' (Delta tables, its pages take a "
                 "few seconds to load), not {}")
 FALLBACK = ("App: it reads Delta tables, so its pages take a few seconds to load, because Inspire could not set up Lakebase: {}. Build the "
-            "App again with Edit MVP on the Build page, or pick Lakebase again in the wizard, to switch it to Lakebase")
+            "App again with Vibe/Add/Remove Features on the Build page, or pick Lakebase again in the wizard, to switch it to Lakebase")
 SP_NOTE = ("App: it reads Delta tables, not Lakebase, because each viewer signs in as themselves and Lakebase does not carry Unity "
            "Catalog row filters, column masks or grants to each viewer")
 
@@ -371,7 +371,7 @@ def test_a_job_that_cannot_take_the_sync_task_and_a_copy_that_cannot_be_removed_
     inst, fields, _calls = _after(agent_ns, held=old, answers=[RuntimeError("PERMISSION_DENIED: job 77"),
                                                                 RuntimeError("TEMPORARILY_UNAVAILABLE: busy")])
     assert fields["_warnings"] == ["App: Lakebase copies the result only when someone saves a change in the App, because Inspire could "
-                                   "not add the Lakebase sync to job 77: PERMISSION_DENIED: job 77. Build the App again with Edit MVP on the Build page to add it"]
+                                   "not add the Lakebase sync to job 77: PERMISSION_DENIED: job 77. Build the App again with Vibe/Add/Remove Features on the Build page to add it"]
     assert any("the Lakebase copy churn_desk.old_t, which the App no longer reads, could not be removed: TEMPORARILY_UNAVAILABLE"
                in w for w in _lines(inst, "WARNING"))
 

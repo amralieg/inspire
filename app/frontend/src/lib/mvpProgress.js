@@ -1,4 +1,4 @@
-import { IMPLEMENT_OUTPUTS, IMPLEMENT_ACTIVE_STATUSES, IMPLEMENT_DONE_STATUSES, IMPLEMENT_VIBE_NOT_MET, joinWords, partLabel } from './implementWizard.js';
+import { IMPLEMENT_OUTPUTS, IMPLEMENT_ACTIVE_STATUSES, IMPLEMENT_DONE_STATUSES, IMPLEMENT_VIBE_NOT_MET, heldAsks, joinWords, partLabel, statusChip } from './implementWizard.js';
 import { formatDuration, formatWhen } from './formatWhen.js';
 import { plural } from './plural.js';
 import { rowImpact } from './targetKpi.js';
@@ -351,8 +351,65 @@ export function mvpProgressSummary(stages, latest, { now = Date.now(), stalled =
   };
 }
 
+export function railProgress(chip, summary) {
+  return { percent: progressPercent(chip, summary), step: String(summary?.headline || '').replace(/…$/, '') };
+}
+
+export function statusProgress(data, now = Date.now()) {
+  const latest = data?.latest || null;
+  const stalled = data?.stalled || null;
+  const stages = mvpStages(data?.steps, latest, { now, stalled });
+  const summary = mvpProgressSummary(stages, latest, { now, stalled, repair: mvpRepairOf(data?.steps, latest) });
+  return railProgress(statusChip(latest?.status, stalled), summary);
+}
+
 export function stagesRecorded(stages) {
   return (stages || []).some((s) => s.id !== FINISH_STAGE.id && s.state !== 'skipped');
+}
+
+const STEP_OF = {
+  [VIBE_STAGE.id]: 'Plan', [PLAN_PHASE]: 'Plan', Instruction: 'Plan', Settings: 'Plan',
+  'Genie Code': 'Notebook', 'Genie build': 'Notebook', 'Preview run': 'Job',
+  [SELF_FIX_PHASE]: 'Finish', [FINISH_STAGE.id]: 'Finish',
+};
+const SETTLED = ['done', 'warning', 'skipped'];
+
+function stepState(states) {
+  for (const state of ['error', 'running', 'next']) if (states.includes(state)) return state;
+  if (states.every((s) => SETTLED.includes(s))) {
+    if (states.every((s) => s === 'skipped')) return 'skipped';
+    return states.includes('warning') ? 'warning' : 'done';
+  }
+  return states.includes('not_reached') ? 'not_reached' : 'waiting';
+}
+
+function stepSpan(members) {
+  const timed = (t) => t !== null && t !== undefined;
+  return formatDuration(members.reduce((sum, s) => (timed(s.started) && timed(s.ended) && s.ended >= s.started ? sum + s.ended - s.started : sum), 0));
+}
+
+export function stageSteps(stages) {
+  const steps = [];
+  for (const stage of stages || []) {
+    const id = STEP_OF[stage.id] || stage.id;
+    const last = steps[steps.length - 1];
+    if (last && last.id === id) last.stages.push(stage);
+    else steps.push({ id, stages: [stage] });
+  }
+  return steps.map(({ id, stages: members }) => {
+    const state = stepState(members.map((s) => s.state));
+    const now = members.find((s) => s.state === state) || members[members.length - 1];
+    const elapsed = ['running', 'next'].includes(state) ? now.elapsed : ['done', 'warning', 'error'].includes(state) ? stepSpan(members) : '';
+    return { id, label: id, title: members.map((s) => s.label).join(', '), state, elapsed };
+  }).filter((step) => step.state !== 'skipped');
+}
+
+export function sortedTo(steps, latest) {
+  const routing = vibeRouting(steps, latest);
+  if (!routing || routing.state !== 'routed' || !routing.routes.length) return null;
+  const parts = [...new Set(routing.routes.map((r) => r.label))];
+  const count = heldAsks(routing.text).length || routing.routes.length;
+  return { count, parts, text: `This build carries ${plural(count, 'change')}. Inspire sorted ${count === 1 ? 'it' : 'them'} to: ${parts.join(', ')}.` };
 }
 
 const VIBE_HEADINGS = {

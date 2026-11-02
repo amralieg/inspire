@@ -18,7 +18,7 @@ const SYMBOLS = { USD: '$', EUR: '\u20ac', GBP: '\u00a3', AED: 'AED ', SAR: 'SAR
 
 const spaced = pySpaced;
 const isMap = (value) => Boolean(value) && typeof value === 'object' && !Array.isArray(value);
-const capital = (text) => (text ? text.charAt(0).toUpperCase() + text.slice(1) : text);
+export const capital = (text) => (text ? text.charAt(0).toUpperCase() + text.slice(1) : text);
 const lower = (text) => (/^[A-Z][a-z]/.test(text) ? text.charAt(0).toLowerCase() + text.slice(1) : text);
 const sentence = (text) => capital(/[.!?]$/.test(text) ? text : `${text}.`);
 const finite = (value) => (value == null || value === '' || !Number.isFinite(Number(value)) ? null : Number(value));

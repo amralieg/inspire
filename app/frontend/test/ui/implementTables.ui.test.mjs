@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { REMOVE_TABLE, pickedTable } from '../../src/lib/implementWizard.js';
 import { OWNER, built, builtSpec } from './implementFixtures.js';
 import { createRequire } from 'node:module';
-import { closeBrowser, lowContrast, onStep, openBuild, openUi, until } from './uiSupport.mjs';
+import { closeBrowser, lowContrast, onStep, openAsset, openBuild, openUi, until } from './uiSupport.mjs';
 
 const { NO_PERSON_TOKEN } = createRequire(import.meta.url)('../../../backend/lib/routePolicy.js');
 
@@ -31,13 +31,13 @@ const UNREAD = 'Inspire could not compare the tables: Inspire cannot read the co
 const NO_SIGN_IN = 'Inspire looks for similar tables with your own sign-in, and this request carries none, so it suggests none';
 const SECRET = { table_schema: 'hr', table_name: 'salaries', matched: '4', total: '4' };
 
-const tablesOf = (page) => page.locator('[data-mvp-panel="build"]').getByRole('region', { name: 'Settings', exact: true }).locator('[data-settings-tables]');
+const tablesOf = async (page) => (await openAsset(page, 'notebook')).getByRole('region', { name: 'Settings', exact: true }).locator('[data-settings-tables]');
 
 test('an owner changes a table from the Settings panel and is told before Save whether it is a settings change or a rebuild', async () => {
   const ui = await openBuild({ me: { userName: OWNER, displayName: 'Owner' }, ...STATE });
   const { page, made } = ui;
   try {
-    const tables = tablesOf(page);
+    const tables = await tablesOf(page);
     await tables.locator('[data-table="main.s.orders"]').waitFor({ timeout: 15000 });
     assert.deepEqual(await tables.locator('[data-table]').evaluateAll((list) => list.map((t) => t.dataset.table)), ['main.s.orders', 'main.s.returns']);
     assert.equal(await tables.locator('[data-table-change]').count(), 0, 'nothing to say before a change');
@@ -79,7 +79,7 @@ test('anyone but an owner sees the tables read only, with the owners text and no
   const ui = await openBuild({ me: { userName: OTHER, displayName: 'Someone' }, ...STATE });
   const { page } = ui;
   try {
-    const tables = tablesOf(page);
+    const tables = await tablesOf(page);
     await tables.locator('[data-tables-why]').waitFor({ timeout: 15000 });
     assert.equal(await tables.locator('[data-tables-why]').textContent(), OWNERS_ONLY);
     assert.deepEqual(await tables.locator('[data-table]').evaluateAll((list) => list.map((t) => t.dataset.table)), ['main.s.orders', 'main.s.returns']);
@@ -97,7 +97,7 @@ test('an owner stops using a table from the Settings panel, is told it rebuilds,
   const ui = await openBuild({ me: { userName: OWNER, displayName: 'Owner' }, ...STATE });
   const { page, made } = ui;
   try {
-    const tables = tablesOf(page);
+    const tables = await tablesOf(page);
     const card = (table) => tables.locator(`[data-table="${table}"]`);
     await card('main.s.returns').waitFor({ timeout: 15000 });
     await card('main.s.orders').getByRole('button', { name: 'Change', exact: true }).click();
@@ -152,7 +152,7 @@ test('when Inspire cannot compare the tables the Settings panel says why on the 
   const ui = await openBuild({ me: { userName: OWNER, displayName: 'Owner' }, ...STATE, columnsByTable: unread });
   const { page, made } = ui;
   try {
-    const tables = tablesOf(page);
+    const tables = await tablesOf(page);
     await tables.locator('[data-table="main.s.orders"]').getByRole('button', { name: 'Change', exact: true }).click({ timeout: 15000 });
     const pick = tables.getByLabel('Table to use for main.s.orders');
     await pick.locator('option', { hasText: 'main.s.orders_v2 (4 of 4 columns match)' }).waitFor({ state: 'attached', timeout: 15000 });
@@ -178,7 +178,7 @@ test('similar tables come from the person\u2019s own sign-in: a table only the A
   const me = { userName: OWNER, displayName: 'Owner' };
   let ui = await openBuild({ me, ...STATE, swapRowsByToken: seen });
   try {
-    const tables = tablesOf(ui.page);
+    const tables = await tablesOf(ui.page);
     await tables.locator('[data-table="main.s.orders"]').getByRole('button', { name: 'Change', exact: true }).click({ timeout: 15000 });
     const pick = tables.getByLabel('Table to use for main.s.orders');
     await pick.locator('option', { hasText: 'main.s.orders_v2 (4 of 4 columns match)' }).waitFor({ state: 'attached', timeout: 15000 });
@@ -195,7 +195,7 @@ test('similar tables come from the person\u2019s own sign-in: a table only the A
   const appOnly = { me, ...STATE, forwardedToken: '', forwardedEmail: OWNER, tokenKind: 'app', swapRowsByToken: seen };
   ui = await openBuild(appOnly);
   try {
-    const tables = tablesOf(ui.page);
+    const tables = await tablesOf(ui.page);
     await tables.locator('[data-table="main.s.orders"]').getByRole('button', { name: 'Change', exact: true }).click({ timeout: 15000 });
     const why = tables.locator('[data-swaps-why]');
     await why.waitFor({ timeout: 15000 });

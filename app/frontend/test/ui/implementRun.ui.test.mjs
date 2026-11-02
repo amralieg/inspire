@@ -5,7 +5,8 @@ import { closeBrowser, onStep, openUi, startMvp, toVibes, until } from './uiSupp
 
 const HOSTED_NO_TOKEN = 'Inspire needs permission to act as you to show this page; a workspace admin turns on user authorization for Apps, then reopen Inspire';
 const RUN_BANNER = 'Inside Inspire, only for testing. Give it its own App for real use.';
-const RUN_EMPTY = 'No use case is deployed yet. To try a page Inside Inspire, open the use case in Build, press Edit MVP, and on App placement pick '
+const RUN_EMPTY = 'No use case is deployed yet. To try a page Inside Inspire, open the use case in Build, press Vibe/Add/Remove Features, then Open all settings, '
+  + 'and on App placement pick '
   + 'Inside Inspire. Use cases with an App of their own show up here too.';
 const INSIDE_BLURB = 'Inspire runs the page in its Run tab, with no App of its own. Each viewer sees only the data they may read. Use it to try a page, '
   + 'then give it its own App.';
@@ -149,7 +150,7 @@ test('with nothing deployed Run says how to put a page Inside Inspire from the B
   try {
     await ui.page.locator('[data-run-empty]').waitFor({ timeout: 15000 });
     assert.equal(await ui.page.locator('[data-run-empty]').textContent(), RUN_EMPTY);
-    assert.match(RUN_EMPTY, /Edit MVP, and on App placement pick Inside Inspire/);
+    assert.match(RUN_EMPTY, /Vibe\/Add\/Remove Features, then Open all settings, and on App placement pick Inside Inspire/);
     assert.deepEqual(ui.pageErrors, []);
   } finally {
     await ui.close();

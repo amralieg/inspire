@@ -4,13 +4,12 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { createRequire } from 'node:module';
-import { RESULTS, STUDIO_STATE, built, builtSpec } from './implementFixtures.js';
+import { MVP_JOB, RESULTS, STUDIO_STATE, built, builtSpec } from './implementFixtures.js';
 import { REVIEW_PORTFOLIO, REVIEW_SESSIONS, REVIEW_STATE } from './reviewFixtures.js';
-import { closeBrowser, openUi, until } from './uiSupport.mjs';
-import { apiWatch, keepToOrigins, readOnlyInspire, recordMvpApp, routeInspireDemo, tabButton, walkInspireDemo, walkMvpTabs, watchOffline } from '../../../scripts/showcaseRecorder.mjs';
+import { closeAsset, closeBrowser, openAsset, openUi, until } from './uiSupport.mjs';
+import { apiWatch, keepToOrigins, readOnlyInspire, recordMvpApp, routeInspireDemo, tabButton, walkInspireDemo, walkMvpViews, watchOffline } from '../../../scripts/showcaseRecorder.mjs';
 import { DEMO_READS, DEMO_READS_WHEN, routeOf, unrecorded } from '../../../scripts/showcaseRoutes.mjs';
 import { SHOWCASE_BUTTON, SHOWCASE_DASHBOARD_NOTE, SHOWCASE_GENIE_NOTE, SHOWCASE_NOTE, SHOWCASE_OPEN_APP, SHOWCASE_PAGES } from '../../src/lib/showcase.js';
-import { BUILD_TAB, MVP_TABS } from '../../src/lib/implementControl.js';
 import { START_MVP_LABEL } from '../../src/lib/implementWizard.js';
 import { APP_TABS } from '../../src/lib/tabs.js';
 import { PORTFOLIO_GROUPS } from '../../src/lib/reviewFigures.js';
@@ -71,24 +70,25 @@ const serveDefaults = (app) => app.get('/api/defaults', (_req, res) => res.json(
 const besidesRefusals = (errors) => errors.filter((e) => !/status of 403 \(Forbidden\)/.test(e));
 const demoBar = (page) => page.getByRole('region', { name: 'Demo' });
 const list = (page) => page.getByRole('region', { name: 'Use case list' });
-const MVP_TAB_IDS = MVP_TABS.map((t) => t.id);
-const BUILD_REGIONS = ['Settings', 'Target KPI', 'Build and job', "Genie's build messages", 'Run and schedule', 'History'];
+const MVP_VIEW_IDS = ['build', 'app', 'dashboard', 'genie_space', 'alert', 'notebook', 'job'];
+const VIEW_REGIONS = { build: ["Genie's build messages"], notebook: ['Settings', 'Target KPI'], job: ['Build and job', 'Run and schedule', 'History'] };
 const FACTS_NOTES = { dashboard: SHOWCASE_DASHBOARD_NOTE, genie_space: SHOWCASE_GENIE_NOTE };
 const HOSTED_OUTPUTS = ['app', 'dashboard', 'genie_space'];
-const showTab = async (page, id) => {
-  await page.locator(`[data-mvp-tab="${id}"]`).click();
-  await page.locator(`[data-mvp-panel="${id}"]`).waitFor();
+const showView = async (page, id) => {
+  if (id !== 'build') return openAsset(page, id);
+  if (await page.locator('[data-mvp-panel]').count()) await closeAsset(page);
+  return page.locator('[data-mvp-progress]');
 };
-const showBuildTab = (page) => showTab(page, BUILD_TAB);
 const runPane = (page) => page.getByRole('region', { name: 'Run and schedule', exact: true });
 const demoWrite = (page, pathname) => page.evaluate(async ([to, header, id]) => {
   const r = await fetch(to, { method: 'POST', headers: { [header]: id, 'Content-Type': 'application/json' }, body: '{}' });
   return { status: r.status, error: (await r.json()).error };
 }, [pathname, SHOWCASE_HEADER, DEMO.id]);
-const READ_CONTROLS = ['Use case details', 'Check the live status now', 'Jump to latest', 'Search use cases'];
+const READ_CONTROLS = ['Use case details', 'Check the live status now', 'Jump to latest', 'Search use cases', 'Close'];
+const READ_NAMES = [/^Versions of the /, /^Close the /, /\. Show (why|the build progress)$/];
 const READ_PLACES = ['tab', 'use case list', 'asset filter', 'History'];
-const readsOnly = (c) => READ_PLACES.includes(c.place) || READ_CONTROLS.includes(c.name) || /^Open the .+ tab$/.test(c.name);
-const controlsOf = (page) => page.locator('[data-implement-page]').evaluate((root) => [...root.querySelectorAll('button, input, select, textarea')].map((el) => {
+const readsOnly = (c) => READ_PLACES.includes(c.place) || READ_CONTROLS.includes(c.name) || READ_NAMES.some((name) => name.test(c.name));
+const controlsOf = (page) => page.evaluate(() => [...document.querySelectorAll('[data-implement-page], [data-mvp-panel]')].flatMap((root) => [...root.querySelectorAll('button, input, select, textarea')]).map((el) => {
   const own = (node) => [...(node?.childNodes || [])].filter((n) => n.nodeType === 3).map((n) => n.textContent.trim()).join(' ').trim();
   const name = (el.getAttribute('aria-label') || own(el.labels?.[0]) || el.textContent || el.tagName).replace(/\s+/g, ' ').trim();
   const place = el.getAttribute('role') === 'tab' ? 'tab'
@@ -121,8 +121,8 @@ test('recording the demo walks every Results and Build view through the read-onl
     assert.equal(walk.runs, 1, 'the walk saw only the demo run under Change run, never the other runs of the workspace');
     assert.equal(walk.results, 6, 'the walk opened every use case on the Results page');
     assert.equal(walk.build.length, 6, 'the walk opened every use case on the Build page');
-    assert.deepEqual(walk.build.filter((b) => b.tabs.length).map(({ name, tabs }) => ({ name, tabs })), [{ name: 'Predict churn', tabs: MVP_TAB_IDS }],
-      'the walk opened every tab of the one MVP, and a use case with no MVP has no tabs');
+    assert.deepEqual(walk.build.filter((b) => b.tabs.length).map(({ name, tabs }) => ({ name, tabs })), [{ name: 'Predict churn', tabs: MVP_VIEW_IDS }],
+      'the walk opened Build progress and every asset of the one MVP, and a use case with no MVP has none');
     assert.deepEqual([...walk.build.find((b) => b.tabs.length).panels].sort(),
       ['Alerts of this use case', 'Build and job', 'History', 'Run and schedule', 'Settings', 'Target KPI'],
       'the walk saw the Settings and Alerts panels and every Build panel of the MVP');
@@ -136,7 +136,7 @@ test('recording the demo walks every Results and Build view through the read-onl
     await tabButton(page, 'implement').click();
     await page.locator('nav[aria-label="Use cases"] section button', { hasText: 'Predict churn' }).click();
     await settle();
-    await showBuildTab(page);
+    await showView(page, 'job');
     assert.equal(await runPane(page).getByRole('button', { name: 'Preview re-run' }).isDisabled(), true, 'the demo offers no re-run');
     assert.deepEqual(await demoWrite(page, '/api/inspire/implement/rerun'), { status: 403, error: SHOWCASE_READ_ONLY });
     assert.deepEqual(blocked, ['POST /api/inspire/implement/rerun'], 'the recorder refuses a write before it reaches the workspace');
@@ -212,21 +212,21 @@ test('the demo replays every view from the bundle with no workspace call, refuse
     await list(page).getByRole('button', { name: 'Open MVP' }).click();
     await page.getByRole('heading', { name: 'Build', exact: true }).waitFor();
     await page.locator('nav[aria-label="Use cases"] section button').first().waitFor();
-    await page.getByRole('tablist', { name: 'MVP views' }).waitFor();
+    await page.locator('[data-asset-tiles]').waitFor();
     await settle();
     assert.equal((await page.locator('[data-pinned-name] h2').textContent()).trim(), 'Predict churn');
     await page.locator('[data-mvp-progress]').waitFor();
-    assert.equal(await page.locator('[data-mvp-tab][aria-selected="true"]').getAttribute('data-mvp-tab'), 'app', 'a ready MVP opens on its App');
-    for (const name of ['Edit MVP', 'Uninstall all', START_MVP_LABEL]) assert.equal(await page.getByRole('button', { name, exact: true }).count(), 0, name);
-    assert.equal(await page.locator('[data-edit-mvp]').count(), 0, 'no Edit MVP, with or without vibes waiting');
+    assert.equal(await page.locator('[data-mvp-panel]').count(), 0, 'a ready MVP opens on its tiles and its Build progress, with no drawer open');
+    for (const name of ['Vibe/Add/Remove Features (0)', 'Uninstall all', START_MVP_LABEL]) assert.equal(await page.getByRole('button', { name, exact: true }).count(), 0, name);
+    assert.equal(await page.locator('[data-vibe-features]').count(), 0, 'no Vibe/Add/Remove Features, with or without vibes waiting');
 
     let vibeCards = 0;
     const toMvp = [];
     let alertFacts = '';
-    const tabs = await walkMvpTabs(page, settle, async (id, panel) => {
-      assert.equal(await page.getByRole('button', { name: /Uninstall/ }).count(), 0, `no Uninstall on the ${id} tab`);
-      assert.equal(await page.locator('textarea').count(), 0, `no vibe box on the ${id} tab, nor above the tabs`);
-      assert.equal(await page.getByRole('button', { name: /^(Add|Update) vibes$|^Take it out$|^(Remove|Keep) “/ }).count(), 0, `no ask to add or remove on the ${id} tab`);
+    const tabs = await walkMvpViews(page, settle, async (id, panel) => {
+      assert.equal(await page.getByRole('button', { name: /Uninstall/ }).count(), 0, `no Uninstall on the ${id} view`);
+      assert.equal(await page.locator('textarea').count(), 0, `no vibe box on the ${id} view`);
+      assert.equal(await page.getByRole('button', { name: /^(Add|Update) vibes?$|^Take it out$|^(Remove|Keep) “/ }).count(), 0, `no ask to add or remove on the ${id} view`);
       assert.equal(await page.locator('[data-vibe-box]').count(), 0);
       vibeCards += await panel.locator('[data-vibe-card]').count();
       if (id === 'alert') {
@@ -239,15 +239,15 @@ test('the demo replays every view from the bundle with no workspace call, refuse
         assert.equal(await alerts.locator('form').count(), 0);
       }
       const hrefs = await panel.locator('a[href]').evaluateAll((links) => links.map((a) => a.getAttribute('href')));
-      assert.deepEqual(hrefs.filter((href) => href.startsWith(DEMO_HOST)), [], `no link on the ${id} tab opens the made-up demo workspace`);
-      if (id === BUILD_TAB) {
-        for (const name of BUILD_REGIONS) await panel.getByRole('region', { name, exact: true }).waitFor();
+      assert.deepEqual(hrefs.filter((href) => href.startsWith(DEMO_HOST)), [], `no link on the ${id} view opens the made-up demo workspace`);
+      for (const name of VIEW_REGIONS[id] || []) await panel.getByRole('region', { name, exact: true }).waitFor();
+      if (id === 'notebook') {
         const tables = panel.locator('[data-settings-tables]');
         await tables.locator('[data-table]').first().waitFor();
         assert.equal(await tables.locator('[data-demo-note]').innerText(), SHOWCASE_NOTE, 'the tables of the MVP show read-only with the demo reason');
         assert.equal(await tables.getByRole('button').count() + await tables.locator('select').count(), 0, 'and offer no table change');
-        return;
       }
+      if (VIEW_REGIONS[id]) return;
       const asset = panel.locator(`[data-asset-panel="${id}"]`);
       await asset.waitFor();
       if (HOSTED_OUTPUTS.includes(id)) {
@@ -264,15 +264,16 @@ test('the demo replays every view from the bundle with no workspace call, refuse
       await mvp.close();
       toMvp.push(id);
     });
-    assert.deepEqual(tabs, MVP_TAB_IDS, 'the demo shows every tab of the MVP');
-    assert.deepEqual(toMvp, ['dashboard', 'genie_space'], 'the Dashboard and the Agent tabs open the MVP App');
+    assert.deepEqual(tabs, MVP_VIEW_IDS, 'the demo shows Build progress and every asset of the MVP');
+    assert.deepEqual(toMvp, ['dashboard', 'genie_space'], 'the Dashboard and the Agent drawers open the MVP App');
     assert.ok(vibeCards > 0, 'the part vibe cards show, read-only');
     assert.match(alertFacts, /Fires when: Act now rows in the latest run >= 1/, 'the demo shows what fires the alert though its link is blanked');
     assert.match(alertFacts, /Notifies: owner@example\.com/);
     assert.doesNotMatch(alertFacts, /No alert on this version/);
 
-    await showBuildTab(page);
+    await showView(page, 'job');
     assert.equal(await runPane(page).getByRole('button', { name: 'Preview re-run' }).isDisabled(), true, 'the demo offers no re-run');
+    await closeAsset(page);
     await demoBar(page).getByText(SHOWCASE_NOTE).waitFor();
     assert.deepEqual(await demoWrite(page, '/api/inspire/implement/rerun'), { status: 403, error: SHOWCASE_READ_ONLY },
       'a write sent anyway is refused in plain words');
@@ -400,8 +401,6 @@ test('the demo replays every view from the bundle with no workspace call, refuse
 
 const checksOf = (...items) => items.map(([ask, status, evidence]) => ({ ask, status, evidence }));
 const BASE_ASSETS = JSON.parse(STUDIO_STATE.history[0].asset_status);
-const MVP_JOB = { job_id: 77, settings: { tags: { dbx_inspire_ai_run_type: 'implement', dbx_inspire_ai_session_id: '42', dbx_inspire_ai_usecase_id: 'N01-U01' },
-  schedule: { quartz_cron_expression: '0 0 6 * * ?', timezone_id: 'UTC', pause_status: 'UNPAUSED' } } };
 const WARNED_SPEC = { ...builtSpec(), outputs: { ...builtSpec().outputs, app_access: 'sp', app_backend: 'lakebase', dashboard_vibes: 'Put the weekly trend first\nArabic labels' } };
 const WARNED = [
   built({
@@ -424,10 +423,11 @@ const EDITED_NOTEBOOK = built({
   asset_status: JSON.stringify({ ...BASE_ASSETS, notebook: { modified_at: 1, spec_version: 1, state: 'edited', edited_at: Date.UTC(2026, 9, 25, 5) } }),
 });
 const DEMO_WRITES = {
-  build: [/^(Pause|Resume) the schedule$/, /^Remove v1$/, /^Top K$/, /^Preview re-run$/, /^Schedule on$/, /^Retry the Genie Agent$/],
+  build: [/^Retry the Genie Agent$/],
   app: [/^Stop the App$/, /^Switch to Lakebase$/],
   dashboard: [/^Unpublish$/, /^Roll back to version 1$/, /^Try again with the missing thing$/],
   genie_space: [/^Retry the Genie Agent$/],
+  job: [/^(Pause|Resume) the schedule$/, /^Remove v1$/, /^Top K$/, /^Preview re-run$/, /^Schedule on$/],
 };
 
 async function openDemoBuild(history) {
@@ -449,7 +449,7 @@ async function openDemoBuild(history) {
     await list(ui.page).locator('[aria-expanded]').filter({ hasText: 'Predict churn' }).click();
     await settle();
     await list(ui.page).getByRole('button', { name: 'Open MVP' }).click();
-    await ui.page.getByRole('tablist', { name: 'MVP views' }).waitFor();
+    await ui.page.locator('[data-asset-tiles]').waitFor();
     await settle();
   } catch (e) {
     await ui.close();
@@ -458,60 +458,60 @@ async function openDemoBuild(history) {
   return { ...ui, settle, blocked };
 }
 
-async function sweepTab(page, id) {
+async function sweepView(page, id) {
   const controls = await controlsOf(page);
   const offending = controls.filter((c) => c.enabled && !readsOnly(c)).map((c) => c.name);
-  assert.deepEqual(offending, [], `the ${id} tab: every enabled control only reads`);
+  assert.deepEqual(offending, [], `the ${id} view: every enabled control only reads`);
   const unexplained = controls.filter((c) => !c.enabled && !readsOnly(c) && c.title !== SHOWCASE_NOTE).map((c) => `${c.name}: ${c.title || 'no title'}`);
-  assert.deepEqual(unexplained, [], `the ${id} tab: every disabled write says why, in the words of the demo bar`);
-  assert.equal(await page.locator('[data-vibe-box]').count(), 0, `the ${id} tab has no vibe box, nor one above the tabs`);
-  assert.equal(await page.locator('textarea').count(), 0, `the ${id} tab has no box to type in`);
-  assert.equal(await page.getByRole('button', { name: /^(Add vibes|(Remove|Keep) “)/ }).count(), 0, `the ${id} tab has no Add vibes and no Remove on an ask`);
+  assert.deepEqual(unexplained, [], `the ${id} view: every disabled write says why, in the words of the demo bar`);
+  assert.equal(await page.locator('[data-vibe-box], [data-vibe-features], [data-vibe-features-dialog]').count(), 0, `the ${id} view has no vibe box and no Vibe/Add/Remove Features`);
+  assert.equal(await page.locator('textarea').count(), 0, `the ${id} view has no box to type in`);
+  assert.equal(await page.getByRole('button', { name: /^(Add vibes?|(Remove|Keep) “)/ }).count(), 0, `the ${id} view has no Add vibe and no Remove on an ask`);
   return controls;
 }
 
-test('the demo disables every control that writes on every Build tab, hides the vibe boxes, and leaves only the controls that read', async () => {
+test('the demo disables every control that writes in Build progress, on every tile and in every asset drawer, hides the vibe boxes, and leaves only the controls that read', async () => {
   const ui = await openDemoBuild(WARNED);
   const { page, made, settle, blocked } = ui;
   try {
-    await page.locator('[data-asset-panel="app"][data-tile-kind="live"]').getByText('Running', { exact: true }).waitFor({ timeout: 20000 });
+    await page.locator('[data-asset-tile="app"][data-tile-kind="live"]').getByText('Running', { exact: true }).waitFor({ timeout: 20000 });
     const seen = {};
     const reads = new Set();
-    for (const id of MVP_TAB_IDS) {
-      await showTab(page, id);
+    for (const id of MVP_VIEW_IDS) {
+      await showView(page, id);
       await settle();
-      const controls = await sweepTab(page, id);
+      const controls = await sweepView(page, id);
       seen[id] = controls.filter((c) => !c.enabled).map((c) => c.name);
-      for (const c of controls.filter((x) => x.enabled)) reads.add(c.place || c.name);
-      for (const want of DEMO_WRITES[id] || []) assert.ok(seen[id].some((name) => want.test(name)), `the ${id} tab shows ${want} and it is disabled: ${seen[id].join(' | ')}`);
+      for (const c of controls.filter((x) => x.enabled)) reads.add(c.place || c.name.replace(/(Versions of|Close) the .+/, '$1 the asset'));
+      for (const want of DEMO_WRITES[id] || []) assert.ok(seen[id].some((name) => want.test(name)), `the ${id} view shows ${want} and it is disabled: ${seen[id].join(' | ')}`);
     }
-    await showTab(page, BUILD_TAB);
-    assert.equal(await page.locator(`[data-mvp-panel="${BUILD_TAB}"]`).getByRole('region', { name: 'Target KPI', exact: true }).locator('p').textContent(),
-      'No target KPI yet: this version was built before Inspire tracked one. The next version Inspire builds picks one.', 'the demo never points at Edit MVP, which it disables');
-    assert.deepEqual([...reads].sort(), ['Check the live status now', 'History', 'Open the Agent tab', 'Search use cases', 'Use case details', 'asset filter', 'tab', 'use case list'],
-      'the controls left enabled are the ones that read');
-    await showTab(page, 'dashboard');
-    assert.equal(await page.locator('[data-vibe-card="dashboard"]').count(), 1, 'the dashboard card still shows what was asked and how it was checked');
-    await page.locator('[data-vibe-card="dashboard"] [data-checks]').getByText('You asked for 2 things. Done: 1 of 2.', { exact: true }).waitFor();
-    const builtWith = page.locator('[data-vibe-card="dashboard"] [data-built-with]');
-    await builtWith.getByText('Built with', { exact: true }).waitFor({ timeout: 5000 });
-    assert.deepEqual(await builtWith.locator('[data-held-ask] > span').allTextContents(), ['“Put the weekly trend first”', '“Arabic labels”'],
-      'the demo shows each ask the dashboard was built with');
-    assert.equal(await builtWith.getByRole('button').count(), 0, 'and offers no Remove on them');
+    await showView(page, 'notebook');
+    assert.equal(await page.locator('[data-mvp-panel="notebook"]').getByRole('region', { name: 'Target KPI', exact: true }).locator('p').textContent(),
+      'No target KPI yet: this version was built before Inspire tracked one. The next version Inspire builds picks one.', 'the demo never points at Vibe/Add/Remove Features, which it hides');
+    assert.deepEqual([...reads].sort(), ['Check the live status now', 'Close', 'Close the asset', 'Genie Agent: Failed. Show why', 'History', 'Search use cases',
+      'Use case details', 'Versions of the asset', 'asset filter', 'use case list'], 'the controls left enabled are the ones that read');
+    await showView(page, 'dashboard');
+    const card = page.locator('[data-vibe-card="dashboard"]');
+    assert.equal(await card.count(), 1, 'the dashboard card still shows what was asked and how it was checked');
+    const checks = card.locator('[data-checks]');
+    await checks.getByText('You asked for 2 things. Done: 1 of 2.', { exact: true }).waitFor();
+    assert.deepEqual(await checks.getByRole('listitem').evaluateAll((items) => items.map((li) => li.dataset.check)), ['done', 'missing'],
+      'the demo shows each ask the dashboard was built with and how it was checked');
+    assert.equal(await card.locator('[data-built-with], [data-held-ask]').count(), 0, 'and offers no Remove on them');
     assert.deepEqual(blocked, [], 'the demo sent no write');
     assert.equal(made.jobs.length, 0);
     assert.deepEqual(besidesRefusals(ui.pageErrors), []);
   } finally {
     await ui.close();
   }
-  for (const [history, write] of [[[built({ status: 'failed', status_message: 'Genie stopped the build: no approved model yet', ...NOTHING_BUILT })], 'Build again'],
+  for (const [history, write] of [[[built({ status: 'failed', status_message: 'Genie stopped the build: no approved model yet', ...NOTHING_BUILT })], 'Try again'],
     [[EDITED_NOTEBOOK, built()], 'Rebuild and overwrite the edits']]) {
     const failed = await openDemoBuild(history);
     try {
-      await failed.page.locator(`[data-mvp-panel="${BUILD_TAB}"]`).waitFor();
+      await failed.page.locator('[data-mvp-progress]').waitFor();
       await failed.page.getByRole('button', { name: write }).waitFor();
       assert.equal(await failed.page.getByRole('button', { name: write }).isDisabled(), true, `${write} waits outside the demo`);
-      await sweepTab(failed.page, `${BUILD_TAB} (${write})`);
+      await sweepView(failed.page, `build (${write})`);
       assert.deepEqual(failed.blocked, []);
       assert.deepEqual(besidesRefusals(failed.pageErrors), []);
     } finally {

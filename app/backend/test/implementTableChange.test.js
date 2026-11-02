@@ -161,7 +161,7 @@ test('a table change is refused to anyone but an owner, without a sign-in, and f
   });
 });
 
-test('an owner\u2019s compatible swap saves as a settings change with no rebuild, while anyone else\u2019s same swap through Edit MVP still rebuilds as before', async () => {
+test('an owner\u2019s compatible swap saves as a settings change with no rebuild, while anyone else\u2019s same swap through Vibe/Add/Remove Features still rebuilds as before', async () => {
   const body = { ...DB, spec: swapped({ 'main.s.orders': 'main.s.orders_v2' }) };
   await withApp({}, async (url, made) => {
     const plan = await call(url, '/api/inspire/implement/plan', { method: 'POST', body });

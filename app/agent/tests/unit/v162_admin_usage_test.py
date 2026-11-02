@@ -118,7 +118,7 @@ def test_every_owner_named_by_the_build_may_open_admin_and_an_app_with_none_says
     assert (status, out) == (403, {"error": "Only the owners of this App can open Admin"}), \
         "the person who built the App is not an owner by that alone"
     status, out = admin(tmp_path / "none", UsageWorkspace(), {"x-forwarded-email": OWNER}, settings={"use_case_owners": {}})
-    assert (status, out) == (403, {"error": "No one can open Admin in this App, because it names no owner; build it again with Edit MVP on Inspire's Build page"})
+    assert (status, out) == (403, {"error": "No one can open Admin in this App, because it names no owner; build it again with Vibe/Add/Remove Features on Inspire's Build page"})
 
 
 def test_a_part_that_cannot_load_says_so_and_the_rest_still_counts(tmp_path):

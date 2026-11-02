@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { HARNESS_USE_CASE, OWNER, built } from './implementFixtures.js';
-import { closeBrowser, lowContrast, onStep, openBuild, openUi, setDark, settled, toVibes, until, wizardFits } from './uiSupport.mjs';
+import { closeBrowser, lowContrast, onStep, openAsset, openBuild, openUi, setDark, settled, toVibes, until, wizardFits } from './uiSupport.mjs';
 
 test.after(closeBrowser);
 
@@ -39,7 +39,7 @@ async function toStep(page, label) {
 
 const settingRow = (page, name) => page.locator(`[data-setting="${name}"]`);
 
-test('Edit MVP has a Settings step with the settings the built notebook reads, their ranges, and the agent\u2019s refusal; the values go where the agent reads them and rebuild nothing', async () => {
+test('all settings has a Settings step with the settings the built notebook reads, their ranges, and the agent\u2019s refusal; the values go where the agent reads them and rebuild nothing', async () => {
   const ui = await openUi('wizard', { me: ME, history: [withModel()] });
   const { page, made } = ui;
   try {
@@ -241,7 +241,7 @@ test('an owner changes a setting on the Build page through the App: a live previ
   const ui = await openBuild({ history: [withModel()], forwardedToken: PERSON, appApi });
   const { page, made } = ui;
   try {
-    const panel = page.locator('[data-mvp-panel="build"]').getByRole('region', { name: 'Settings', exact: true });
+    const panel = (await openAsset(page, 'notebook')).getByRole('region', { name: 'Settings', exact: true });
     await panel.locator('[data-setting="act_now_share"]').waitFor({ timeout: 15000 });
     assert.equal(await panel.locator('[data-setting="act_now_share"] [data-setting-value]').textContent(), '0.08');
     assert.equal(await panel.locator('[data-setting="act_now_share"] [data-setting-source]').textContent(), 'Saved by an owner');
@@ -278,7 +278,7 @@ test('the Build page shows the settings as built, read only, with the reason, wh
   for (const [name, state, why] of cases) {
     const ui = await openBuild({ history: [withModel()], ...state });
     try {
-      const panel = ui.page.locator('[data-mvp-panel="build"]').getByRole('region', { name: 'Settings', exact: true });
+      const panel = (await openAsset(ui.page, 'notebook')).getByRole('region', { name: 'Settings', exact: true });
       await panel.locator('[data-settings-why]').waitFor({ timeout: 15000 });
       assert.equal(await panel.locator('[data-settings-why]').textContent(), why, name);
       assert.equal(await panel.getByRole('textbox').count(), 0, `${name}: nothing to type in`);
@@ -291,14 +291,14 @@ test('the Build page shows the settings as built, read only, with the reason, wh
   const noApp = { ...withModel(), app_url: null, app_name: null };
   const ui = await openBuild({ history: [noApp], forwardedToken: PERSON });
   try {
-    const panel = ui.page.locator('[data-mvp-panel="build"]').getByRole('region', { name: 'Settings', exact: true });
+    const panel = (await openAsset(ui.page, 'notebook')).getByRole('region', { name: 'Settings', exact: true });
     await panel.locator('[data-setting="act_now_share"]').waitFor({ timeout: 15000 });
     assert.equal(await panel.locator('[data-settings-why]').textContent(),
-      'This MVP has no App, so its settings change in Edit MVP, where the Settings step saves them without rebuilding the notebook.');
+      'This MVP has no App, so its settings change in all settings (Vibe/Add/Remove Features, then Open all settings), where the Settings step saves them without rebuilding the notebook.');
     assert.equal(await panel.locator('[data-setting="act_now_share"] [data-setting-value]').textContent(), '0.05');
     assert.equal(await panel.locator('[data-setting="act_now_share"] [data-setting-source]').textContent(),
       "Inspire's default: the top 5% of the records that pass the decision test are Act now and the next 15% Review");
-    await panel.getByRole('button', { name: 'Change them in Edit MVP', exact: true }).waitFor();
+    await panel.getByRole('button', { name: 'Change them in all settings', exact: true }).waitFor();
     assert.equal(ui.made.appCalls.length, 0);
     assert.deepEqual(ui.pageErrors, []);
   } finally {

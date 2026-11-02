@@ -51,25 +51,31 @@ function scene({ alert = false } = {}) {
   };
 }
 
-async function openAlertTab(state) {
+async function openAlertDrawer(state) {
   const ui = await openUi('implement', state);
-  await ui.page.getByRole('tablist', { name: 'MVP views' }).waitFor({ timeout: 20000 });
-  await ui.page.locator('[data-mvp-tab="alert"]').click();
-  await ui.page.locator('[data-mvp-panel="alert"]').waitFor();
+  try {
+    const open = ui.page.locator('[data-asset-tile="alert"]').locator('[data-tile-versions], [data-tile-add]').first();
+    await open.waitFor({ timeout: 20000 });
+    await open.click();
+    await ui.page.locator('[data-mvp-panel="alert"]').waitFor({ timeout: 15000 });
+  } catch (e) {
+    await ui.close();
+    throw e;
+  }
   return ui;
 }
 
 const alertsPanel = (page) => page.getByRole('region', { name: 'Alerts of this use case' });
 
-test('Add alert on the Alert tab opens the alert form on the page, never the MVP wizard', { skip }, async () => {
+test('Add alert in the Alert drawer opens the alert form on the page, never the MVP wizard', { skip }, async () => {
   const { state } = scene();
-  const ui = await openAlertTab(state);
+  const ui = await openAlertDrawer(state);
   const { page } = ui;
   try {
     const panel = page.locator('[data-mvp-panel="alert"]');
     await panel.getByRole('button', { name: /^Add (the )?alert$/i }).first().click();
     await page.getByRole('form', { name: 'New alert' }).waitFor({ timeout: 15000 });
-    assert.equal(await page.getByRole('dialog').count(), 0, 'the wizard did not open');
+    assert.equal(await page.getByRole('dialog', { name: /^Start Use Case MVP with Genie/ }).count(), 0, 'the wizard did not open');
     assert.deepEqual(ui.pageErrors, []);
   } finally {
     await ui.close();
@@ -78,7 +84,7 @@ test('Add alert on the Alert tab opens the alert form on the page, never the MVP
 
 test('a person sets up an alert on the tiers to act on, it is created in Databricks as them, and they pause, resume, edit and delete it on the tab', { skip }, async () => {
   const { state, ws } = scene();
-  const ui = await openAlertTab(state);
+  const ui = await openAlertDrawer(state);
   const { page, made } = ui;
   try {
     const panel = alertsPanel(page);
@@ -141,7 +147,7 @@ test('a person sets up an alert on the tiers to act on, it is created in Databri
 
 test('the alert Genie built with the MVP stays listed, labeled as built by Genie, next to the alerts people set up', { skip }, async () => {
   const { state } = scene({ alert: true });
-  const ui = await openAlertTab(state);
+  const ui = await openAlertDrawer(state);
   const { page } = ui;
   try {
     const builtRow = alertsPanel(page).locator('[data-alert-built]');
@@ -161,7 +167,7 @@ test('the alert Genie built with the MVP stays listed, labeled as built by Genie
 
 test('without the forwarded sign-in the tab says why it cannot add an alert and offers no button', { skip }, async () => {
   const { state } = scene();
-  const ui = await openAlertTab({ ...state, forwardedToken: '' });
+  const ui = await openAlertDrawer({ ...state, forwardedToken: '' });
   const { page } = ui;
   try {
     await alertsPanel(page).getByText('Inspire saves alerts as you, and this request carries no sign-in of yours.', { exact: false }).waitFor({ timeout: 20000 });

@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { defaultSpecFromUseCase } from '../../src/lib/implementWizard.js';
 import { HARNESS_INSPIRE_URL, HARNESS_USE_CASE, HARNESS_SETTINGS, HARNESS_SESSION_ID } from './implementFixtures.js';
-import { closeBrowser, lowContrast, openUi, setDark, until } from './uiSupport.mjs';
+import { closeBrowser, lowContrast, openAsset, openUi, setDark, until } from './uiSupport.mjs';
 
 const OWNER = ['owner', 'example.com'].join('@');
 const START = 'Start Use Case MVP with Genie';
@@ -57,10 +57,10 @@ async function openBuild(state = STATE) {
   return ui;
 }
 
-async function toBuildTab(page) {
-  const tab = page.locator('[data-mvp-tab="build"]');
-  if (await tab.getAttribute('aria-selected') !== 'true') await tab.click();
-  await page.getByRole('region', { name: 'History', exact: true }).getByText(/^\d+ spec versions? · /).waitFor({ timeout: 15000 });
+async function toJobDrawer(page) {
+  await page.locator('[data-asset-tile="job"] [data-tile-versions]').waitFor({ timeout: 15000 });
+  const drawer = await openAsset(page, 'job');
+  await drawer.getByRole('region', { name: 'History', exact: true }).getByText(/^\d+ spec versions? · /).waitFor({ timeout: 15000 });
 }
 
 test('a version an earlier vibe kept live is removed only once the use case id is typed, and the earlier vibe is never sent again', async () => {
@@ -71,8 +71,8 @@ test('a version an earlier vibe kept live is removed only once the use case id i
   const ui = await openBuild({ ...STATE, history: [versionRow(3, { change_classes: 'vibe', assets: { ...LIVE, vibe: routed, kept } }), versionRow(2), versionRow(1)] });
   const { page, made } = ui;
   try {
-    await toBuildTab(page);
-    const row = page.locator('[data-mvp-panel="build"]').getByRole('region', { name: 'Kept live from earlier versions' }).locator('[data-kept-version="2"]');
+    await toJobDrawer(page);
+    const row = (await openAsset(page, 'job')).getByRole('region', { name: 'Kept live from earlier versions' }).locator('[data-kept-version="2"]');
     assert.equal(await row.getByRole('link', { name: /Churn desk v2/ }).getAttribute('href'), 'https://workspace.example.com/dashboardsv3/d0/published');
     await row.getByRole('button', { name: 'Remove v2', exact: true }).click();
     const dialog = page.getByRole('dialog', { name: 'Remove v2' });
@@ -147,7 +147,7 @@ test('an uninstalled MVP says what is kept, offers Start again with no Uninstall
     const notebook = page.locator('[data-asset-panel="notebook"]');
     assert.equal(await notebook.getByRole('link', { name: 'Open the notebook', exact: true }).getAttribute('href'),
       'https://workspace.example.com/#workspace/Workspace/Users/owner@example.com/inspire/Acme/N01-U01', 'the notebook Discover wrote stays and still opens');
-    assert.equal(await page.getByRole('tablist', { name: 'MVP views' }).count(), 0, 'an uninstalled MVP has no output tabs');
+    assert.equal(await page.locator('[data-asset-tiles]').count(), 0, 'an uninstalled MVP has no asset tiles');
     assert.equal(await page.locator('[data-vibe-box]').count(), 0, 'and nothing to vibe');
 
     const filters = page.getByRole('group', { name: 'Show use cases with' });

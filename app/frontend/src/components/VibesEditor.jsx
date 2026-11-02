@@ -32,7 +32,26 @@ function heightOfText(el, text) {
   return Math.min(need, most);
 }
 
-export default function VibesEditor({ id, value, onChange, autoFocus = false, label = '', heading = '', disabled = false, placeholder = '' }) {
+export function VibePrevious({ built, choices, value, onPick }) {
+  if (!choices.length) return null;
+  return (
+    <fieldset data-vibe-previous="" className="space-y-2">
+      <legend className="text-[13px] font-semibold text-text-primary">What happens to v{built}?</legend>
+      {choices.map((choice) => (
+        <label key={choice.id}
+          className={`flex items-start gap-2.5 rounded-lg border px-3 py-2.5 text-[12px] cursor-pointer ${value === choice.id ? 'border-db-red/40 bg-bg-subtle' : 'border-border'}`}>
+          <input type="radio" name="vibe-previous" value={choice.id} checked={value === choice.id} onChange={() => onPick(choice.id)} className="mt-0.5" />
+          <span className="min-w-0">
+            <span className="block font-semibold text-text-primary">{choice.label}</span>
+            <span className="block text-text-secondary">{choice.text}</span>
+          </span>
+        </label>
+      ))}
+    </fieldset>
+  );
+}
+
+export default function VibesEditor({ id, value, onChange, autoFocus = false, label = '', heading = '', disabled = false, placeholder = '', minPx = 0 }) {
   const hint = useId();
   const box = useId();
   const ref = useRef(null);
@@ -43,7 +62,7 @@ export default function VibesEditor({ id, value, onChange, autoFocus = false, la
     if (!el || !example) return undefined;
     let frame = 0;
     const fit = () => {
-      if (el.offsetWidth) el.style.minHeight = `${heightOfText(el, example)}px`;
+      if (el.offsetWidth) el.style.minHeight = `${Math.max(minPx, heightOfText(el, example))}px`;
     };
     fit();
     if (typeof ResizeObserver === 'undefined') return undefined;
@@ -56,7 +75,7 @@ export default function VibesEditor({ id, value, onChange, autoFocus = false, la
       cancelAnimationFrame(frame);
       watch.disconnect();
     };
-  }, [example]);
+  }, [example, minPx]);
   return (
     <div className="space-y-1">
       {heading && <label htmlFor={box} className="block text-[13px] font-semibold text-text-primary">{heading}</label>}

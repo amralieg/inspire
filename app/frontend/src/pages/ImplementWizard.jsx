@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Loader2, NotebookPen, X, ChevronLeft, ChevronRight, ChevronDown, LayoutDashboard, Sparkles, AppWindow, Bell, Lock, UserRound, KeyRound } from 'lucide-react';
 import BodyPortal from '../components/BodyPortal';
-import VibesEditor from '../components/VibesEditor';
+import VibesEditor, { VibePrevious } from '../components/VibesEditor';
 import SourceTables from '../components/SourceTables';
 import TabStrip, { tabPanel } from '../components/TabStrip';
 import AppSample, { paletteVars, pv } from '../components/AppSample';
@@ -1662,21 +1662,7 @@ function VibesPanel({ spec, built, next, onChange, onPrevious }) {
       <div data-vibes="mvp">
         <VibesEditor id="mvp" label="MVP" value={spec.vibes ?? ''} onChange={onChange} autoFocus />
       </div>
-      {choices.length > 0 && (
-        <fieldset data-vibe-previous="" className="space-y-2">
-          <legend className="text-[13px] font-semibold text-text-primary">What happens to v{built}?</legend>
-          {choices.map((choice) => (
-            <label key={choice.id}
-              className={`flex items-start gap-2.5 rounded-lg border px-3 py-2.5 text-[12px] cursor-pointer ${spec.vibe_previous === choice.id ? 'border-db-red/40 bg-bg-subtle' : 'border-border'}`}>
-              <input type="radio" name="vibe-previous" value={choice.id} checked={spec.vibe_previous === choice.id} onChange={() => onPrevious(choice.id)} className="mt-0.5" />
-              <span className="min-w-0">
-                <span className="block font-semibold text-text-primary">{choice.label}</span>
-                <span className="block text-text-secondary">{choice.text}</span>
-              </span>
-            </label>
-          ))}
-        </fieldset>
-      )}
+      <VibePrevious built={built} choices={choices} value={spec.vibe_previous} onPick={onPrevious} />
       {skipped && <p data-vibes-skipped="" className="text-[11px] text-text-secondary">{skipped}</p>}
     </section>
   );

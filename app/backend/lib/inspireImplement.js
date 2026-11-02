@@ -43,7 +43,8 @@ const INSPIRE_FAMILY_FLAGGING = { A: ['min_probability'], B: ['alert_quantile', 
   E: ['min_deviation'], F: [], G: [], H: [] };
 const IMPLEMENT_SETTINGS_NO_SIGN_IN = 'Inspire reaches the App\u2019s settings with your own sign-in, and this request carries none, so they show here as built. '
   + 'Open the App to change them.';
-const IMPLEMENT_SETTINGS_NO_APP = 'This MVP has no App, so its settings change in Edit MVP, where the Settings step saves them without rebuilding the notebook.';
+const IMPLEMENT_ALL_SETTINGS = 'all settings (Vibe/Add/Remove Features, then Open all settings)';
+const IMPLEMENT_SETTINGS_NO_APP = `This MVP has no App, so its settings change in ${IMPLEMENT_ALL_SETTINGS}, where the Settings step saves them without rebuilding the notebook.`;
 const IMPLEMENT_SETTINGS_NOT_APP_URL = 'The App\u2019s address is not a Databricks App address, so Inspire does not send your sign-in to it.';
 const IMPLEMENT_SETTINGS_NOT_BUILT = 'Nothing of this MVP is built yet, so it has no settings to change here; the wizard\u2019s Settings step sets the first values.';
 const IMPLEMENT_RUN_PROFILES = ['preview', 'full'];
@@ -1914,7 +1915,7 @@ function planSubmission(history, spec, stalled = null, { requester = null, table
   const built = rows.find((r) => IMPLEMENT_DONE_STATUSES.includes(r.status)) || null;
   if (built && spec.based_on_version != null && built.spec_version > spec.based_on_version) {
     throw badRequest(`v${built.spec_version} was built after the version you edited (v${spec.based_on_version}); `
-      + 'reopen Edit MVP to see it and submit again', 409);
+      + 'reopen Vibe/Add/Remove Features to see it and rebuild again', 409);
   }
   const parts = [...partProblems(built, spec), ...mvpActionProblems(rows, spec)];
   if (parts.length) throw badRequest(parts.join('; '));
@@ -2199,7 +2200,7 @@ function rerunParams(widgetNames, overrides) {
   for (const [name, value] of Object.entries(isPlainObject(overrides) ? overrides : {})) {
     if (name === 'run_profile') continue;
     if (name.toLowerCase() === 'result_table') {
-      throw badRequest('the result table is part of the spec; change it with Edit MVP, which checks the table before any run writes to it');
+      throw badRequest(`the result table is part of the spec; change it in ${IMPLEMENT_ALL_SETTINGS}, which checks the table before any run writes to it`);
     }
     if (!allowed.has(name)) throw badRequest(`'${name}' is not a widget of this notebook`);
     params[name] = str(value);
@@ -3260,6 +3261,7 @@ module.exports = {
   INSPIRE_TIER_SETTINGS,
   INSPIRE_FAMILY_FLAGGING,
   IMPLEMENT_SETTINGS_NO_SIGN_IN,
+  IMPLEMENT_ALL_SETTINGS,
   IMPLEMENT_SETTINGS_NO_APP,
   IMPLEMENT_SETTINGS_NOT_APP_URL,
   IMPLEMENT_SETTINGS_NOT_BUILT,

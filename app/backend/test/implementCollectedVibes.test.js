@@ -101,7 +101,7 @@ test('the wizard puts every collected ask in its one box, once and trimmed, and 
   assert.equal(next.vibes, 'Dark header\nAdd a CSV export\nAnswer in Arabic\nRows first,\nthen a map by region');
   assert.deepEqual([next.outputs.app_vibes, next.outputs.genie_space_vibes, next.data.notes], ['Dark header', '', ''], 'the parts keep what they hold');
   assert.equal(spec.vibes, 'Dark header', 'the spec it starts from is not changed');
-  assert.deepEqual(W.withCollectedVibes(next, entries).added, 0, 'opening Edit MVP again adds nothing twice');
+  assert.deepEqual(W.withCollectedVibes(next, entries).added, 0, 'opening Vibe/Add/Remove Features again adds nothing twice');
   assert.deepEqual(served(next).errors, [], 'the backend takes the box as the wizard sends it');
   assert.deepEqual(W.withCollectedVibes(SPEC, null), { spec: { ...SPEC, data: { ...SPEC.data }, outputs: { ...SPEC.outputs } }, added: 0, removed: 0, gone: [] });
   assert.equal(W.collectedVibesText({ added: 3 }), 'The 3 asks you collected are in the box below. Check them, then build.');

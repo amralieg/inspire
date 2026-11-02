@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import {
-  AlertTriangle, AppWindow, Ban, Bell, Briefcase, ExternalLink, Eye, EyeOff, Hammer, LayoutDashboard, Loader2, NotebookPen, Pause, Play, PlayCircle, Plus,
+  AlertTriangle, AppWindow, Ban, Bell, Briefcase, ExternalLink, Eye, EyeOff, Hammer, History, LayoutDashboard, Loader2, NotebookPen, Pause, Play, PlayCircle, Plus,
   RefreshCw, RotateCcw, Square, Trash2, Zap,
 } from 'lucide-react';
 import BodyPortal from './BodyPortal';
@@ -14,7 +14,7 @@ import { readOnlyReason } from '../lib/showcase';
 import { RUN_LINK_LABEL } from '../lib/implementWizard';
 
 const ACTION_ICONS = { stop: Square, start: Play, unpublish: EyeOff, publish: Eye, cancel: Ban };
-const ASSET_ICONS = { build: Hammer, job: Briefcase, dashboard: LayoutDashboard, genie_space: GenieLogo, app: AppWindow, alert: Bell };
+const ASSET_ICONS = { build: Hammer, job: Briefcase, dashboard: LayoutDashboard, genie_space: GenieLogo, app: AppWindow, alert: Bell, notebook: NotebookPen };
 const TONE_CHIP = { success: 'success', error: 'error', warning: 'warning', busy: 'red', idle: 'idle' };
 const BUTTON = 'inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium disabled:opacity-50';
 
@@ -23,7 +23,7 @@ export function ConfirmDialog({ title, confirmLabel, useCaseId, busy, onCancel, 
   const ok = removeConfirmed(typed, useCaseId);
   return (
     <BodyPortal>
-      <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
+      <div className="fixed inset-0 z-[80] bg-black/40 flex items-center justify-center p-4">
         <div role="dialog" aria-modal="true" aria-label={title} className="bg-surface border border-border rounded-xl shadow-elevated w-full max-w-md p-5 space-y-3">
           <h3 className="text-sm font-semibold text-text-primary">{title}</h3>
           <div className="text-[12px] text-text-secondary space-y-2">{children}</div>
@@ -138,13 +138,141 @@ const PENDING_LOOK = {
   held: (tile) => ({ tone: 'warning', text: tile.note }),
 };
 
+function useAssetControls({ output, row, uninstall, useCaseId, submitBusy, actionBusy, onAction, onRemove }) {
+  const [removing, setRemoving] = useState(false);
+  const [confirming, setConfirming] = useState(null);
+  const canRemove = Boolean(row?.removable && uninstall && onRemove);
+  const confirm = async () => {
+    if (await onRemove(output.id)) setRemoving(false);
+  };
+  const act = (a) => (sharedControlAsks(a, uninstall) ? setConfirming(a) : onAction(a));
+  const confirmShared = async () => {
+    const a = confirming;
+    setConfirming(null);
+    await onAction(a, { confirmShared: true });
+  };
+  const dialogs = (
+    <>
+      {removing && (
+        <ConfirmDialog title={uninstall.others.length && uninstall.target ? `Remove this use case from ${uninstall.target}` : `Uninstall the ${output.label}`}
+          confirmLabel={uninstall.label} useCaseId={useCaseId} busy={submitBusy}
+          onCancel={() => setRemoving(false)} onConfirm={confirm}>
+          <p>{uninstallText(output, row, uninstall)}</p>
+        </ConfirmDialog>
+      )}
+      {confirming && (
+        <ConfirmDialog title={`${confirming.label} for every use case in it`} confirmLabel={confirming.label} useCaseId={useCaseId} busy={actionBusy !== ''}
+          onCancel={() => setConfirming(null)} onConfirm={confirmShared}>
+          <p>{sharedControlText(confirming, uninstall)}</p>
+        </ConfirmDialog>
+      )}
+    </>
+  );
+  return { canRemove, act, ask: () => setRemoving(true), dialogs };
+}
+
+const TILE_LOOK = {
+  off: { label: 'Not in this MVP', tone: 'idle' },
+  planning: { label: 'Planning', tone: 'idle' },
+  checking: { label: 'Checking', tone: 'idle' },
+  missing: { label: 'Not built', tone: 'warning' },
+  held: { label: 'Not published', tone: 'warning' },
+  failed: { label: 'Failed', tone: 'error' },
+};
+
+function tileState(tile) {
+  if (tile.kind === 'live') return tile.building?.now ? { label: 'Building', tone: 'busy' } : tile.row.state;
+  if (tile.kind === 'building') return tile.now ? { label: 'Building', tone: 'busy' } : { label: 'Waiting', tone: 'idle' };
+  return TILE_LOOK[tile.kind];
+}
+
+const TO_BUILD = ['building', 'failed', 'planning', 'held'];
+const TILE_BUTTON = `${BUTTON} border border-border bg-surface text-text-primary`;
+
+export function AssetTile({
+  id, label, icon = null, tile = null, state = null, href = '', reason = '', row = null, uninstall = null, removeLabel = '', onUninstall = null, failed = null,
+  active, actionBusy, submitBusy, readOnly = false, useCaseId, onAction, onToggleSchedule, onRetry, onRemove, onAdd = null, onVersions, onShowBuild, onOpenRun = null,
+}) {
+  const output = tile?.output || { id, label };
+  const kind = tile?.kind || (!state ? 'off' : state.tone === 'error' ? 'failed' : 'live');
+  const failing = kind === 'failed' || Boolean(failed);
+  const shown = failed || tile?.kind === 'failed' ? TILE_LOOK.failed : tile ? tileState(tile) : state || TILE_LOOK.off;
+  const live = tile ? tile.row || null : row;
+  const controls = useAssetControls({ output, row: live, uninstall, useCaseId, submitBusy, actionBusy, onAction, onRemove });
+  const Icon = icon || ASSET_ICONS[id];
+  const off = kind === 'off';
+  const busy = kind === 'building' ? tile : tile?.building || null;
+  const toReason = failing && Boolean(onVersions);
+  const toBuild = !toReason && (failing || TO_BUILD.includes(kind) || Boolean(tile?.building));
+  const link = !toBuild && !toReason && (href || live?.url || '');
+  const locked = readOnly || active || submitBusy;
+  const lockedReason = readOnlyReason(readOnly);
+  const head = (
+    <>
+      <IconChip icon={Icon} tone={off ? 'idle' : TONE_CHIP[shown.tone] || 'idle'} size="sm" />
+      <span className="min-w-0 flex-1">
+        <span className="flex items-center gap-1 text-[13px] font-semibold text-text-primary">
+          {label}{link && <ExternalLink size={11} aria-hidden className="shrink-0 text-text-secondary" />}
+        </span>
+        <span data-tile-state="" title={shown.label} className={`block truncate text-[11px] font-medium ${off ? 'text-text-secondary' : shown.tone === 'error' ? 'text-error-fg' : 'text-text-secondary'}`}>
+          {shown.label}
+        </span>
+        {off && tile?.note && <span data-asset-note="" className="mt-0.5 block line-clamp-3 text-[11px] text-text-secondary">{tile.note}</span>}
+      </span>
+    </>
+  );
+  const headClass = 'flex items-start gap-2 min-w-0 rounded-lg -m-1 p-1 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-db-red/40';
+  return (
+    <li data-asset-tile={id} data-tile-kind={kind} data-tile-building={busy ? (busy.now ? 'now' : 'waiting') : undefined} title={reason || undefined}
+      className={`flex flex-col gap-2 rounded-xl border p-3 text-[12px] ${off ? 'border-dashed border-border-strong bg-bg-subtle/60' : 'border-border bg-surface shadow-sm'}`}>
+      {link ? (
+        <a data-tile-open="asset" href={link} target="_blank" rel="noreferrer" aria-label={`Open the ${label}`} className={`${headClass} hover:bg-bg-subtle`}>{head}</a>
+      ) : toReason ? (
+        <button type="button" data-tile-open="reason" onClick={onVersions} aria-label={`${label}: ${shown.label}. Show why`} className={`${headClass} hover:bg-bg-subtle`}>{head}</button>
+      ) : toBuild ? (
+        <button type="button" data-tile-open="build" onClick={onShowBuild} aria-label={`${label}: ${shown.label}. Show the build progress`} className={`${headClass} hover:bg-bg-subtle`}>{head}</button>
+      ) : (
+        <div className={headClass}>{head}</div>
+      )}
+      <div className="mt-auto flex flex-wrap items-center gap-1">
+        {live && (
+          <RowControls row={{ ...live, url: '' }} active={active} actionBusy={actionBusy} submitBusy={submitBusy} readOnly={readOnly} failed={failed}
+            onAction={controls.act} onToggleSchedule={onToggleSchedule} onRetry={() => onRetry(output.id)} onOpenRun={onOpenRun} />
+        )}
+        {!live && failed && <RetryButton failed={failed} disabled={locked} lockedReason={lockedReason} onRetry={() => onRetry(output.id)} />}
+        {off && onAdd && (
+          <button type="button" data-tile-add="" disabled={active} onClick={onAdd} aria-label={`Add the ${label}`} className={TILE_BUTTON}><Plus size={11} /> Add</button>
+        )}
+        {!off && onVersions && (
+          <button type="button" data-tile-versions="" onClick={onVersions} aria-label={`Versions of the ${label}`} className={TILE_BUTTON}>
+            <History size={11} /> Versions
+          </button>
+        )}
+        {controls.canRemove && (
+          <button type="button" data-tile-uninstall="" disabled={locked || Boolean(uninstall.blocked)} title={uninstall.blocked || lockedReason || undefined}
+            onClick={controls.ask} aria-label={`${uninstall.label} the ${label}`} className={`${BUTTON} border border-error/40 bg-surface text-error-fg`}>
+            <Trash2 size={11} /> {uninstall.label}
+          </button>
+        )}
+        {onUninstall && (
+          <button type="button" data-tile-uninstall="" disabled={locked} title={lockedReason || undefined} onClick={onUninstall}
+            aria-label={`${removeLabel} the ${label}`} className={`${BUTTON} border border-error/40 bg-surface text-error-fg`}>
+            <Trash2 size={11} /> {removeLabel}
+          </button>
+        )}
+      </div>
+      {controls.dialogs}
+    </li>
+  );
+}
+
 export function AssetPanel({
   tile, liveError, active, actionBusy, submitBusy, readOnly = false, failed = null, uninstall = null, builtBy = null, useCaseId, onAction, onToggleSchedule, onRetry, onRemove, onAddOutput,
   onOpenRun = null,
 }) {
-  const [removing, setRemoving] = useState(false);
-  const [confirming, setConfirming] = useState(null);
   const { output, kind } = tile;
+  const row = kind === 'live' ? tile.row : null;
+  const controls = useAssetControls({ output, row, uninstall, useCaseId, submitBusy, actionBusy, onAction, onRemove });
   const Icon = ASSET_ICONS[output.id];
   if (kind === 'off') {
     return (
@@ -167,24 +295,14 @@ export function AssetPanel({
       </section>
     );
   }
-  const row = kind === 'live' ? tile.row : null;
   const busy = kind === 'building' ? tile : tile.building || null;
   const failure = failed ? `The ${failed.label} failed on v${failed.spec_version}: ${failed.error || 'no error text was recorded'}` : '';
   const look = row ? (busy ? PENDING_LOOK.building(busy) : null) : kind === 'failed' && failure ? { tone: 'error', text: failure } : PENDING_LOOK[kind](tile, liveError);
   const warned = row?.warnings?.length > 0;
   const tone = row ? (warned && row.state.tone === 'success' ? 'warning' : TONE_CHIP[row.state.tone] || 'idle') : look.tone;
-  const canRemove = Boolean(row?.removable && uninstall && onRemove);
+  const { canRemove, act } = controls;
   const locked = readOnly || active || submitBusy;
   const retry = () => onRetry(output.id);
-  const confirm = async () => {
-    if (await onRemove(output.id)) setRemoving(false);
-  };
-  const act = (a) => (sharedControlAsks(a, uninstall) ? setConfirming(a) : onAction(a));
-  const confirmShared = async () => {
-    const a = confirming;
-    setConfirming(null);
-    await onAction(a, { confirmShared: true });
-  };
   const note = row ? sharedNote(output.id, uninstall, builtBy) : '';
   return (
     <section data-asset-panel={output.id} data-tile-kind={kind} data-control={row ? row.id : undefined} data-tile-building={busy ? (busy.now ? 'now' : 'waiting') : undefined}
@@ -229,26 +347,14 @@ export function AssetPanel({
         {row && <RowControls row={row} active={active} actionBusy={actionBusy} submitBusy={submitBusy} readOnly={readOnly} failed={failed} onAction={act} onToggleSchedule={onToggleSchedule} onRetry={retry} onOpenRun={onOpenRun} />}
         {!row && failed && <RetryButton failed={failed} disabled={locked} lockedReason={readOnlyReason(readOnly)} onRetry={retry} />}
         {canRemove && (
-          <button type="button" disabled={locked || Boolean(uninstall.blocked)} onClick={() => setRemoving(true)}
+          <button type="button" disabled={locked || Boolean(uninstall.blocked)} onClick={controls.ask}
             className={`${BUTTON} border border-error/40 bg-surface text-error-fg`}>
             <Trash2 size={11} /> {uninstall.label}
           </button>
         )}
       </div>
       {canRemove && uninstall.blocked && <p data-uninstall-blocked="" className="text-[11px] text-text-secondary">{uninstall.blocked}</p>}
-      {removing && (
-        <ConfirmDialog title={uninstall.others.length && uninstall.target ? `Remove this use case from ${uninstall.target}` : `Uninstall the ${output.label}`}
-          confirmLabel={uninstall.label} useCaseId={useCaseId} busy={submitBusy}
-          onCancel={() => setRemoving(false)} onConfirm={confirm}>
-          <p>{uninstallText(output, row, uninstall)}</p>
-        </ConfirmDialog>
-      )}
-      {confirming && (
-        <ConfirmDialog title={`${confirming.label} for every use case in it`} confirmLabel={confirming.label} useCaseId={useCaseId} busy={actionBusy !== ''}
-          onCancel={() => setConfirming(null)} onConfirm={confirmShared}>
-          <p>{sharedControlText(confirming, uninstall)}</p>
-        </ConfirmDialog>
-      )}
+      {controls.dialogs}
     </section>
   );
 }

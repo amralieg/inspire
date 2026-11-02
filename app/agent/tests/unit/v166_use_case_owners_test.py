@@ -14,7 +14,7 @@ OTHER_JOB = "4343"
 REFUSED = {"settings": "Only the owners of this use case can change its settings",
            "run": "Only the owners of this use case can run it now",
            "assumptions": "Only the owners of this use case can change its assumptions"}
-UNNAMED = "No one can change the settings of this use case, because the App names no owner of it; build it again with Edit MVP on Inspire's Build page"
+UNNAMED = "No one can change the settings of this use case, because the App names no owner of it; build it again with Vibe/Add/Remove Features on Inspire's Build page"
 
 
 def _hub_settings(**changes):
@@ -73,7 +73,7 @@ def test_the_app_names_no_owner_of_a_use_case_it_holds_no_record_for_and_never_f
     assert s.page_editors(s.page(A)) == set() and s.page_editors(s.page(B)) == set()
     assert s.owner_refusal(signed(OWNER), s.page(A), shell_core.SETTING_WORDS) == UNNAMED, "the admin is no owner of a use case"
     assert call(s, "POST", "refresh", headers=signed(OWNER), body={"page": A}) == (
-        403, {"error": "No one can run this use case from the App, because the App names no owner of it; build it again with Edit MVP on Inspire's Build page"})
+        403, {"error": "No one can run this use case from the App, because the App names no owner of it; build it again with Vibe/Add/Remove Features on Inspire's Build page"})
     assert sp.jobs_calls("run-now") == []
 
 

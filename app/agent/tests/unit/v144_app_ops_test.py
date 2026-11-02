@@ -542,7 +542,7 @@ def test_refresh_in_user_mode_starts_for_an_owner_of_the_use_case_named_by_email
 
 @pytest.mark.parametrize("auth", ["user", "sp"])
 def test_an_app_that_names_no_owner_says_no_one_can_refresh_it_in_either_mode(tmp_path, auth):
-    unnamed = "No one can run this use case from the App, because the App names no owner of it; build it again with Edit MVP on Inspire's Build page"
+    unnamed = "No one can run this use case from the App, because the App names no owner of it; build it again with Vibe/Add/Remove Features on Inspire's Build page"
     sp = JobsWorkspace(job_runs=[job_run(1, "2026-10-25T06:00:00Z", "2026-10-25T06:05:00Z")])
     s, _sp, _now = ops_shell(tmp_path, sp, user=TableWorkspace(runs=WEEKLY), settings=ops_settings(auth=auth, admin="  ", use_case_owners={}))
     for who in (DANA, OWNER):

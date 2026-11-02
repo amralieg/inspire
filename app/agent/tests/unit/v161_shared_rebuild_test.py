@@ -137,7 +137,7 @@ def test_a_builder_rebuild_that_cannot_tell_another_use_cases_genie_part_apart_c
         inst._implement_genie_space(context, runner)
     assert str(raised.value) == ("Inspire has no record of which tables, instructions and sample questions use case N01-U07 added to Churn "
                                  "questions (g1), so Inspire did not rebuild it, which would drop their part: build use case N01-U07 and "
-                                 "then this use case again with Edit MVP on the Build page, so Inspire records its part first")
+                                 "then this use case again with Vibe/Add/Remove Features on the Build page, so Inspire records its part first")
     assert [c[0] for c in calls] == ["GET"]
 
 

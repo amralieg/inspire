@@ -2,8 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { defaultSpecFromUseCase } from '../../src/lib/implementWizard.js';
-import { HARNESS_INSPIRE_URL, HARNESS_USE_CASE, HARNESS_SETTINGS, HARNESS_SESSION_ID } from './implementFixtures.js';
-import { closeBrowser, lowContrast, onStep, openUi, painted, setDark, until } from './uiSupport.mjs';
+import { HARNESS_INSPIRE_URL, HARNESS_USE_CASE, HARNESS_SETTINGS, HARNESS_SESSION_ID, MVP_JOB } from './implementFixtures.js';
+import { closeAsset, closeBrowser, featuresBox, featuresHeld, featuresText, lowContrast, openAsset, openFeatures, openSettings, openUi, painted, setDark, until } from './uiSupport.mjs';
 
 const OWNER = ['owner', 'example.com'].join('@');
 const PAGE = 'app:page:decisions';
@@ -83,17 +83,19 @@ function insertsOf(made) {
 }
 
 const OUTPUT_OF = (id) => (id.startsWith('app:') ? 'app' : id.startsWith('dashboard:') ? 'dashboard' : ['ai_reasoning', 'value_formula'].includes(id) ? 'notebook' : id);
-const mvpTab = (page, output) => page.locator(`[data-mvp-tab="${output}"]`);
+const TILE_ORDER = ['app', 'dashboard', 'genie_space', 'alert', 'notebook', 'job'];
 const panel = (page) => page.locator('[data-mvp-panel]');
 const partsOf = (page) => panel(page).getByRole('tablist', { name: 'Pick a part', exact: true });
-const editMvp = (page) => page.locator('[data-edit-mvp]');
-async function showTab(page, output) {
-  const tab = mvpTab(page, output);
-  if (await tab.getAttribute('aria-selected') !== 'true') await tab.click();
-  await page.locator(`[data-mvp-panel="${output}"]`).waitFor();
+const features = (page) => page.locator('[data-vibe-features]');
+async function showAsset(page, output) {
+  if (output !== 'build') {
+    await openAsset(page, output);
+    return;
+  }
+  if (await panel(page).count()) await closeAsset(page);
 }
 async function pick(page, id) {
-  await showTab(page, OUTPUT_OF(id));
+  await showAsset(page, OUTPUT_OF(id));
   const part = partsOf(page).locator(`[data-tab="${id}"]`);
   if (await part.count()) await part.click();
   const card = panel(page).locator(`[data-vibe-card="${id}"]`);
@@ -101,11 +103,13 @@ async function pick(page, id) {
   return card;
 }
 const picked = (page, id) => panel(page).locator(`[data-vibe-card="${id}"]`);
-const vibeBox = (page) => page.locator('[data-vibe-box="mvp"]');
-const mvpBox = (page) => vibeBox(page).getByRole('textbox', { name: 'Vibes for the MVP', exact: true });
-const addVibes = (page) => vibeBox(page).getByRole('button', { name: 'Add vibes', exact: true });
-const waiting = (page) => vibeBox(page).locator('[data-waiting]').evaluateAll((items) => items.map((li) => [li.dataset.waiting, li.querySelector('span').textContent]));
-const heldOf = (card) => card.locator('[data-held-ask]').evaluateAll((items) => items.map((li) => [li.dataset.heldAsk, li.querySelector('span').textContent]));
+const dialog = (page) => page.locator('[data-vibe-features-dialog]');
+const vibeBox = featuresBox;
+const mvpBox = featuresText;
+const addVibes = (page) => vibeBox(page).getByRole('button', { name: 'Add vibe', exact: true });
+const rebuildButton = (page) => dialog(page).locator('[data-rebuild]');
+const waiting = (page) => dialog(page).locator('[data-waiting]').evaluateAll((items) => items.map((li) => [li.dataset.waiting, li.querySelector('span').textContent]));
+const heldOf = featuresHeld;
 const text = async (el) => (await el.textContent()).trim();
 const storedVibes = (page) => page.evaluate(() => JSON.parse(localStorage.getItem('inspire.collected_vibes.v1') || '{}'));
 
@@ -113,9 +117,10 @@ async function openTower(state = STATE) {
   const ui = await openUi('implement', state);
   try {
     await ui.page.getByRole('heading', { name: 'Build', exact: true }).waitFor();
-    await ui.page.getByRole('tablist', { name: 'MVP views' }).waitFor({ timeout: 15000 });
-    await showTab(ui.page, 'build');
+    await ui.page.locator('[data-asset-tiles]').waitFor({ timeout: 15000 });
+    await openAsset(ui.page, 'job');
     await ui.page.getByRole('region', { name: 'History', exact: true }).getByText(/^\d+ spec versions? · /).waitFor({ timeout: 15000 });
+    await closeAsset(ui.page);
   } catch (e) {
     await ui.close();
     throw e;
@@ -123,14 +128,15 @@ async function openTower(state = STATE) {
   return ui;
 }
 
-test('the build page has one tab per output in a fixed order; each output tab lists only its own parts with their pills, the first is picked, and picking another shows it', async () => {
+test('the build page has one tile per asset in a fixed order; each asset opens a drawer that lists only its own parts with their pills, the first is picked, and picking another shows it', async () => {
   const ui = await openTower();
   const { page } = ui;
   try {
-    assert.deepEqual(await page.getByRole('tablist', { name: 'MVP views' }).getByRole('tab').allTextContents(), ['Build', 'App', 'Dashboard', 'Alert', 'Agent', 'Notebook']);
-    assert.equal(await page.locator('[data-details-drawer]').count(), 0, 'no drawer: every output has its own tab');
+    assert.deepEqual(await page.locator('[data-asset-tiles] [data-asset-tile]').evaluateAll((tiles) => tiles.map((t) => t.dataset.assetTile)), TILE_ORDER);
+    assert.equal(await page.getByRole('tablist', { name: 'MVP views' }).count(), 0, 'the tiles replace the tabs');
+    assert.equal(await panel(page).count(), 0, 'no drawer until a tile opens one');
     assert.equal(await page.getByRole('dialog').count(), 0);
-    await showTab(page, 'app');
+    await showAsset(page, 'app');
     assert.deepEqual(await partsOf(page).getByRole('tab').evaluateAll((items) => items.map((b) => [b.dataset.tab, b.getAttribute('aria-label'), b.getAttribute('aria-selected')])), [
       ['app', 'The whole App, Ready', 'true'], [PAGE, 'Page: Decisions, Ready', 'false'], ['app:page:detail', 'Page: Row detail, Ready', 'false'],
     ], 'the whole App first, picked from the start, then one tab per page of this App only');
@@ -140,11 +146,11 @@ test('the build page has one tab per output in a fixed order; each output tab li
     const live = panel(page).locator('[data-asset-panel="app"]');
     await live.getByRole('link', { name: /^Open/ }).waitFor();
     await live.getByRole('button', { name: 'Uninstall', exact: true }).waitFor();
-    await showTab(page, 'genie_space');
+    await showAsset(page, 'genie_space');
     const agent = panel(page).locator('[data-asset-panel="genie_space"]');
     assert.equal(await agent.getByRole('button', { name: 'Uninstall', exact: true }).isDisabled(), true, 'the Agent waits for the App that asks it');
     assert.match(await agent.locator('[data-uninstall-blocked]').textContent(), /Uninstall the App first\.$/);
-    await showTab(page, 'app');
+    await showAsset(page, 'app');
     const card = await pick(page, PAGE);
     const part = panel(page).getByRole('tabpanel');
     assert.equal(await part.getAttribute('aria-labelledby'), await partsOf(page).locator(`[data-tab="${PAGE}"]`).getAttribute('id'), 'the card is the picked part\'s panel');
@@ -152,9 +158,7 @@ test('the build page has one tab per output in a fixed order; each output tab li
     assert.equal(await card.getByRole('heading').textContent(), 'Page: Decisions');
     await card.getByText('The rows to act on, with their filters', { exact: true }).waitFor();
     assert.match(await card.locator('[data-live]').textContent(), /^Version 3, built .+/);
-    assert.deepEqual(await heldOf(card), [['held', '“Dark header”'], ['held', '“Rows to act on first”']], 'Built with lists each ask the page holds, one per line');
-    await card.locator('[data-built-with]').getByText('Built with', { exact: true }).waitFor();
-    assert.deepEqual(await card.locator('[data-held-ask] button').allTextContents(), [' Remove', ' Remove'], 'each held ask can be removed');
+    assert.equal(await card.locator('[data-built-with], [data-held-ask]').count(), 0, 'the asks a part holds are listed in Vibe/Add/Remove Features, not on the part');
     assert.equal(await card.locator('textarea').count(), 0);
     const versions = panel(page).getByRole('region', { name: 'Versions' });
     await versions.getByText('Roll back puts the whole App of an earlier version live again').waitFor();
@@ -174,7 +178,7 @@ test('the build page has one tab per output in a fixed order; each output tab li
 
     const parts = {};
     for (const [output, first] of [['notebook', 'notebook'], ['dashboard', 'dashboard'], ['genie_space', 'genie_space'], ['alert', 'alert']]) {
-      await showTab(page, output);
+      await showAsset(page, output);
       await panel(page).locator(`[data-vibe-card="${first}"]`).waitFor();
       parts[output] = await partsOf(page).getByRole('tab').evaluateAll((items) => items.map((b) => b.getAttribute('aria-label')));
       assert.equal(await panel(page).locator('[data-vibe-card]').count(), 1, `${output}: one card at a time`);
@@ -184,71 +188,74 @@ test('the build page has one tab per output in a fixed order; each output tab li
       dashboard: ['The whole dashboard, Ready with warnings', 'Chart: Weekly trend, Ready with warnings'], genie_space: [], alert: [],
     }, 'a tab with one part shows its card with no picker, and the whole dashboard comes before its charts');
 
-    for (const [id, built, held] of [
-      ['genie_space', /^Version 1, built /, ['“Answer in euros, name the rows you counted and add a question about returns”']],
-      ['value_formula', /^Version 2, built /, []],
-      ['ai_reasoning', /^Version 2, built /, []],
-      [CHART, /^Version 3, built /, ['“Bars by week”', '“A map by region”']],
-    ]) {
+    for (const [id, built] of [['genie_space', /^Version 1, built /], ['value_formula', /^Version 2, built /], ['ai_reasoning', /^Version 2, built /], [CHART, /^Version 3, built /]]) {
       const shown = await pick(page, id);
       assert.match(await shown.locator('[data-live]').textContent(), built, id);
-      assert.deepEqual((await heldOf(shown)).map(([, ask]) => ask), held, id);
       assert.equal(await shown.locator('textarea').count(), 0, id);
     }
+    await openFeatures(page);
+    const held = await dialog(page).locator('[data-built-with] ul').evaluateAll((lists) => lists.map((ul) => [ul.getAttribute('aria-label'), ul.querySelectorAll('[data-held-ask]').length]));
+    assert.deepEqual(held, [['Asks the Decisions page holds', 2], ['Asks the Dashboard holds', 2], ['Asks the Weekly trend chart holds', 2], ['Asks the Genie Agent holds', 1]],
+      'Built with lists the asks each part holds, part by part');
+    assert.deepEqual(await heldOf(page, 'Decisions page'), [['held', 'Decisions page: “Dark header”'], ['held', 'Decisions page: “Rows to act on first”']]);
+    assert.deepEqual(await dialog(page).getByRole('list', { name: 'Asks the Decisions page holds' }).locator('button').allTextContents(), [' Remove', ' Remove'], 'each held ask can be removed');
     assert.deepEqual(ui.pageErrors, []);
   } finally {
     await ui.close();
   }
 });
 
-test('the one vibe box sits above the tabs on every tab: Add vibes keeps an ask in this browser, spaces, a repeat and an ask over the limit add nothing, nothing is written or started, Edit MVP counts it, and Take it out lets it go', async () => {
+test('Vibe/Add/Remove Features opens one tall box for the whole use case: Add vibe keeps an ask in this browser, spaces, a repeat and an ask over the limit add nothing, nothing is written or started, the button counts it, and Take it out lets it go', async () => {
   const ui = await openTower();
   const { page, made } = ui;
   try {
     await page.emulateMedia({ reducedMotion: 'no-preference' });
-    for (const output of ['build', 'app', 'dashboard', 'alert', 'genie_space', 'notebook']) {
-      await showTab(page, output);
-      assert.equal(await vibeBox(page).count(), 1, `${output}: the one box`);
-      assert.equal(await panel(page).locator('textarea').count(), 0, `${output}: no tab has a vibe box of its own`);
+    for (const output of TILE_ORDER) {
+      await showAsset(page, output);
+      assert.equal(await panel(page).locator('textarea').count(), 0, `${output}: no drawer has a vibe box of its own`);
+      assert.equal(await panel(page).getByRole('button', { name: /^Add vibes?$/ }).count(), 0, `${output}: and no Add vibe`);
     }
-    const [boxAt, tabsAt] = await Promise.all([vibeBox(page).boundingBox(), page.locator('[data-pinned-tabs]').boundingBox()]);
-    assert.ok(boxAt.y + boxAt.height <= tabsAt.y + 1, `the box sits above the tabs (${Math.round(boxAt.y + boxAt.height)} <= ${Math.round(tabsAt.y)})`);
-    await vibeBox(page).getByRole('heading', { name: 'Vibe this MVP', exact: true }).waitFor();
-    await vibeBox(page).getByText('Say what to change, in your own words. Inspire sends each ask to the part it changes, and an ask that changes the analysis rebuilds the notebook and every part after it.', { exact: true }).waitFor();
-    assert.deepEqual(await mvpBox(page).evaluate((el) => [el.rows, getComputedStyle(el).resize]), [8, 'vertical'], 'the same tall box as the wizard, which the person can make taller');
+    await showAsset(page, 'build');
+    assert.equal(await page.locator('textarea').count(), 0, 'no vibe box on the page itself');
+    assert.equal(await text(features(page)), 'Vibe/Add/Remove Features (0)');
+    assert.equal(await features(page).getAttribute('data-collected'), '0');
+    assert.doesNotMatch(await features(page).getAttribute('class'), /edit-mvp-invite/, 'no invitation while nothing waits');
+    await openFeatures(page);
+    await dialog(page).getByRole('heading', { name: `Vibe/Add/Remove Features: ${HARNESS_USE_CASE.Name}`, exact: true }).waitFor();
+    assert.equal(await dialog(page).locator('textarea').count(), 1, 'one box for the whole use case');
+    const size = await mvpBox(page).evaluate((el) => ({ height: el.getBoundingClientRect().height, resize: getComputedStyle(el).resize }));
+    assert.ok(size.height >= 220, `the box is at least 220 px tall (${size.height})`);
+    assert.equal(size.resize, 'vertical', 'and the person can make it taller');
     assert.equal(await mvpBox(page).getAttribute('placeholder'), 'For example: put the rows to act on first on the App, answer in euros in the Genie Agent, and count returns by week');
+    await dialog(page).getByText('No changes waiting yet.', { exact: true }).waitFor();
+    assert.equal(await text(rebuildButton(page)), 'Rebuild', 'with nothing waiting the primary is plain Rebuild');
     await mvpBox(page).fill('   ');
     assert.equal(await addVibes(page).isDisabled(), true, 'only spaces is nothing to add');
-    assert.equal(await editMvp(page).getAttribute('data-collected'), null);
-    assert.equal((await editMvp(page).textContent()).trim(), 'Edit MVP');
-    assert.doesNotMatch(await editMvp(page).getAttribute('class'), /edit-mvp-invite|(^| )0( |$)/, 'no invitation and no stray class while nothing waits');
     await mvpBox(page).fill('Put the rows to act on first');
-    await showTab(page, 'dashboard');
-    assert.equal(await mvpBox(page).inputValue(), 'Put the rows to act on first', 'what is typed stays when the tab changes');
     await addVibes(page).click();
     assert.equal(await mvpBox(page).inputValue(), '', 'the box empties for the next ask');
     assert.deepEqual(await waiting(page), [['ask', '“Put the rows to act on first”']]);
-    assert.equal(await editMvp(page).getAttribute('aria-label'), 'Edit MVP, 1 ask waiting');
-    assert.equal(await editMvp(page).getAttribute('data-collected'), '1');
-    assert.match(await editMvp(page).getAttribute('class'), /edit-mvp-invite/);
-    assert.equal(await editMvp(page).evaluate((el) => getComputedStyle(el).animationName), 'editMvpInvite', 'Edit MVP pulses to invite the click');
-    assert.equal(await page.locator('[data-collected-note]').textContent(), 'One ask is waiting. Edit MVP opens it in the Vibes step so one build carries it.');
+    assert.equal(await text(rebuildButton(page)), 'Rebuild with 1 vibe');
     assert.deepEqual(Object.values(await storedVibes(page)), [[{ kind: 'ask', text: 'Put the rows to act on first' }]]);
-    assert.deepEqual(await page.getByRole('tablist', { name: 'MVP views' }).getByRole('tab').allTextContents(), ['Build', 'App', 'Dashboard', 'Alert', 'Agent', 'Notebook'],
-      'no tab counts asks: they belong to the whole MVP');
     assert.equal(made.jobs.length, 0, 'adding an ask starts nothing');
     assert.deepEqual(insertsOf(made), [], 'and writes nothing');
-
-    await page.emulateMedia({ reducedMotion: 'reduce' });
-    assert.equal(await editMvp(page).evaluate((el) => getComputedStyle(el).animationName), 'none', 'no pulse for a person who asked for less motion');
-    assert.notEqual(await editMvp(page).evaluate((el) => getComputedStyle(el).boxShadow), 'none', 'it still stands out with a still ring');
-
     await mvpBox(page).fill('put the rows to act on FIRST');
     await addVibes(page).click();
     assert.deepEqual(await waiting(page), [['ask', '“Put the rows to act on first”']], 'the same ask twice is kept once');
-    await vibeBox(page).getByRole('button', { name: 'Take it out', exact: true }).click();
-    await editMvp(page).and(page.locator(':not([data-collected])')).waitFor();
-    assert.equal(await page.locator('[data-collected-note]').count(), 0);
+
+    await closeAsset(page);
+    assert.equal(await text(features(page)), 'Vibe/Add/Remove Features (1)');
+    assert.equal(await features(page).getAttribute('data-collected'), '1');
+    assert.match(await features(page).getAttribute('class'), /edit-mvp-invite/);
+    assert.equal(await features(page).evaluate((el) => getComputedStyle(el).animationName), 'editMvpInvite', 'the button pulses to invite the click');
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    assert.equal(await features(page).evaluate((el) => getComputedStyle(el).animationName), 'none', 'no pulse for a person who asked for less motion');
+    assert.notEqual(await features(page).evaluate((el) => getComputedStyle(el).boxShadow), 'none', 'it still stands out with a still ring');
+
+    await openFeatures(page);
+    await dialog(page).getByRole('button', { name: 'Take it out', exact: true }).click();
+    await dialog(page).getByText('No changes waiting yet.', { exact: true }).waitFor();
+    assert.equal(await features(page).getAttribute('data-collected'), '0');
     assert.deepEqual(await storedVibes(page), {}, 'the browser keeps nothing once the last ask is taken out');
 
     await mvpBox(page).fill('x'.repeat(2001));
@@ -258,57 +265,49 @@ test('the one vibe box sits above the tabs on every tab: Add vibes keeps an ask 
     await addVibes(page).click();
     await mvpBox(page).fill('b'.repeat(600));
     await vibeBox(page).getByText('with the asks waiting, the MVP vibes would be 2101 characters; at most 2000 are allowed', { exact: true }).waitFor();
-    assert.equal(await addVibes(page).isDisabled(), true, 'the asks waiting and the new one must fit the one box Edit MVP sends');
+    assert.equal(await addVibes(page).isDisabled(), true, 'the asks waiting and the new one must fit the one box a build sends');
     assert.deepEqual(ui.pageErrors, []);
   } finally {
     await ui.close();
   }
 });
 
-test('the asks you add and the held asks you remove survive a reload; Edit MVP puts the asks in its one box with the removals applied, asks what happens to the live version, and builds it all in one version', async () => {
+test('the asks you add and the held asks you remove survive a reload; Rebuild with N vibes asks what happens to the live version, then builds them all in one version with the removals applied', async () => {
   const ui = await openTower();
   const { page, made } = ui;
   try {
+    await openFeatures(page);
     await mvpBox(page).fill('  Put the rows to act on first,\n  then a map by region  ');
     await addVibes(page).click();
     await mvpBox(page).fill('Show the last 12 weeks');
     await addVibes(page).click();
-    const dash = await pick(page, 'dashboard');
-    await dash.getByRole('button', { name: 'Remove “Arabic labels”', exact: true }).click();
+    await dialog(page).getByRole('button', { name: 'Remove “Arabic labels”', exact: true }).click();
     await page.reload();
-    await page.getByRole('tablist', { name: 'MVP views' }).waitFor({ timeout: 15000 });
-    await editMvp(page).and(page.locator('[data-collected="3"]')).waitFor({ timeout: 15000 });
-    assert.equal(await page.locator('[data-collected-note]').textContent(),
-      '3 asks are waiting, 1 of them to take out. Edit MVP opens them in the Vibes step so one build carries them all.');
+    await features(page).and(page.locator('[data-collected="3"]')).waitFor({ timeout: 15000 });
+    assert.equal(await text(features(page)), 'Vibe/Add/Remove Features (3)');
+    await openFeatures(page);
     assert.deepEqual(await waiting(page), [['ask', '“Put the rows to act on first,\n  then a map by region”'], ['ask', '“Show the last 12 weeks”'],
       ['remove', 'Take out of the Dashboard: “Arabic labels”']], 'the browser kept them');
-    assert.deepEqual(await heldOf(await pick(page, 'dashboard')), [['held', '“Put the weekly trend first”'], ['removing', '“Arabic labels”, taken out when Edit MVP builds']]);
-
-    await editMvp(page).click();
-    const wizard = page.getByRole('dialog', { name: /^Start Use Case MVP with Genie/ });
-    await wizard.waitFor();
-    await onStep(page, 'Vibes');
-    assert.equal(await wizard.locator('[data-collected-vibes]').textContent(),
-      'The 2 asks you collected are in the box below. Check them, then build. Inspire also takes out the earlier ask you removed.');
-    assert.equal(await wizard.getByRole('textbox', { name: 'Vibes for the MVP', exact: true }).inputValue(), 'Put the rows to act on first,\nthen a map by region\nShow the last 12 weeks');
-    assert.equal(await wizard.getByRole('region', { name: 'Vibes' }).locator('textarea').count(), 1, 'one box, no box per asset');
-    const choice = wizard.getByRole('group', { name: 'What happens to v3?' });
+    assert.deepEqual(await heldOf(page, 'Dashboard'), [['held', 'Dashboard: “Put the weekly trend first”'],
+      ['removing', 'Dashboard: “Arabic labels”, taken out on the next build']]);
+    assert.equal(await text(rebuildButton(page)), 'Rebuild with 3 vibes');
+    const choice = dialog(page).getByRole('group', { name: 'What happens to v3?' });
     await choice.getByRole('radio', { name: /^Keep v3 live/ }).waitFor();
-    await page.getByRole('button', { name: 'Start MVP', exact: true }).click();
-    await page.locator('[role="alert"]').waitFor();
-    assert.deepEqual(await page.locator('[role="alert"] p').allTextContents(), ['choose what happens to v3, the version before this vibe: keep it live or remove it']);
-    assert.equal(await page.evaluate(() => document.activeElement?.name), 'vibe-previous', 'Start moves the focus to the choice');
+    await rebuildButton(page).click();
+    const problem = dialog(page).getByRole('alert');
+    await problem.waitFor();
+    assert.equal(await text(problem), 'Rebuild needs one more thing: choose what happens to v3, the version before this vibe: keep it live or remove it.');
     assert.equal(made.jobs.length, 0, 'nothing is built until the choice is made');
     await choice.getByRole('radio', { name: /^Remove v3 once v4 is ready/ }).check();
-    await page.getByRole('button', { name: 'Start MVP', exact: true }).click();
+    await rebuildButton(page).click();
     await until(() => made.jobs.length === 1, 'the build with every ask');
     const [built] = insertsOf(made);
     assert.deepEqual([built.spec.vibes, built.spec.vibe_previous], ['Put the rows to act on first,\nthen a map by region\nShow the last 12 weeks', 'remove']);
     assert.equal(built.spec.outputs.dashboard_vibes, 'Put the weekly trend first', 'the removed ask leaves the part that held it');
     for (const key of ['genie_space_vibes', `${PAGE}_vibes`, `${CHART}_vibes`]) assert.equal(built.spec.outputs[key], V3_OUTPUTS[key], `${key} is carried as it was`);
     assert.ok(built.classes.split(',').includes('vibe'), built.classes);
-    await wizard.waitFor({ state: 'detached' });
-    await editMvp(page).and(page.locator(':not([data-collected])')).waitFor({ timeout: 15000 });
+    await dialog(page).waitFor({ state: 'detached' });
+    await features(page).and(page.locator('[data-collected="0"]')).waitFor({ timeout: 15000 });
     assert.deepEqual(await storedVibes(page), {}, 'a build that took them clears them');
     assert.deepEqual(ui.pageErrors, []);
   } finally {
@@ -316,18 +315,20 @@ test('the asks you add and the held asks you remove survive a reload; Edit MVP p
   }
 });
 
-test('closing Edit MVP without building keeps every ask you added', async () => {
+test('closing Vibe/Add/Remove Features or the settings it opens without building keeps every ask you added, and Open all settings carries them to the Vibes step', async () => {
   const ui = await openTower();
   const { page, made } = ui;
   try {
+    await openFeatures(page);
     await mvpBox(page).fill('Answer in Arabic');
     await addVibes(page).click();
-    await editMvp(page).click();
-    const wizard = page.getByRole('dialog', { name: /^Start Use Case MVP with Genie/ });
-    await onStep(page, 'Vibes');
+    await closeAsset(page);
+    assert.equal(await features(page).getAttribute('data-collected'), '1');
+    const wizard = await openSettings(page);
+    assert.equal(await wizard.getByRole('textbox', { name: 'Vibes for the MVP', exact: true }).inputValue(), 'Answer in Arabic');
     await wizard.getByRole('button', { name: 'Close', exact: true }).click();
     await wizard.waitFor({ state: 'detached' });
-    assert.equal(await editMvp(page).getAttribute('data-collected'), '1');
+    assert.equal(await features(page).getAttribute('data-collected'), '1');
     assert.equal(Object.values(await storedVibes(page))[0][0].text, 'Answer in Arabic');
     assert.equal(made.jobs.length, 0);
     assert.deepEqual(ui.pageErrors, []);
@@ -336,31 +337,26 @@ test('closing Edit MVP without building keeps every ask you added', async () => 
   }
 });
 
-test('a part lists the asks it holds with Remove on each: a removed ask waits for Edit MVP, Keep it brings it back, and the build takes it out of that part alone', async () => {
+test('Built with lists the asks each part holds with Remove on each: a removed ask waits for the next build, Keep it brings it back, and Rebuild takes it out of that part alone', async () => {
   const ui = await openTower();
   const { page, made } = ui;
   try {
-    const chart = await pick(page, CHART);
-    assert.deepEqual(await heldOf(chart), [['held', '“Bars by week”'], ['held', '“A map by region”']]);
-    await chart.getByRole('button', { name: 'Remove “A map by region”', exact: true }).click();
-    assert.deepEqual(await heldOf(chart), [['held', '“Bars by week”'], ['removing', '“A map by region”, taken out when Edit MVP builds']]);
-    await chart.getByText('Edit MVP builds the next version without the asks you remove.', { exact: true }).waitFor();
+    await openFeatures(page);
+    assert.deepEqual(await heldOf(page, 'Weekly trend chart'), [['held', 'Weekly trend chart: “Bars by week”'], ['held', 'Weekly trend chart: “A map by region”']]);
+    await dialog(page).getByRole('button', { name: 'Remove “A map by region”', exact: true }).click();
+    assert.deepEqual((await heldOf(page, 'Weekly trend chart')).map(([state]) => state), ['held', 'removing']);
     assert.deepEqual(await waiting(page), [['remove', 'Take out of the Weekly trend chart: “A map by region”']]);
-    assert.equal(await editMvp(page).getAttribute('aria-label'), 'Edit MVP, 1 ask waiting');
+    assert.equal(await text(features(page)), 'Vibe/Add/Remove Features (1)');
     assert.deepEqual(Object.values(await storedVibes(page)), [[{ kind: 'remove', id: CHART, label: 'Weekly trend chart', text: 'A map by region' }]]);
-    assert.deepEqual([made.jobs.length, insertsOf(made).length], [0, 0], 'Remove writes nothing until Edit MVP builds');
-    await chart.getByRole('button', { name: 'Keep “A map by region”', exact: true }).click();
-    assert.deepEqual(await heldOf(chart), [['held', '“Bars by week”'], ['held', '“A map by region”']]);
-    await editMvp(page).and(page.locator(':not([data-collected])')).waitFor();
+    assert.deepEqual([made.jobs.length, insertsOf(made).length], [0, 0], 'Remove writes nothing until Rebuild');
+    await dialog(page).getByRole('button', { name: 'Keep “A map by region”', exact: true }).click();
+    assert.deepEqual((await heldOf(page, 'Weekly trend chart')).map(([state]) => state), ['held', 'held']);
+    assert.equal(await features(page).getAttribute('data-collected'), '0');
 
-    await chart.getByRole('button', { name: 'Remove “A map by region”', exact: true }).click();
-    await editMvp(page).click();
-    const wizard = page.getByRole('dialog', { name: /^Start Use Case MVP with Genie/ });
-    await onStep(page, 'Vibes');
-    assert.equal(await wizard.locator('[data-collected-vibes]').textContent(), 'Inspire takes out the earlier ask you removed.');
-    assert.equal(await wizard.getByRole('textbox', { name: 'Vibes for the MVP', exact: true }).inputValue(), '');
-    assert.equal(await wizard.getByRole('group', { name: 'What happens to v3?' }).count(), 0, 'no vibe, so no choice for the live version');
-    await page.getByRole('button', { name: 'Start MVP', exact: true }).click();
+    await dialog(page).getByRole('button', { name: 'Remove “A map by region”', exact: true }).click();
+    assert.equal(await text(rebuildButton(page)), 'Rebuild with 1 vibe');
+    assert.equal(await dialog(page).getByRole('group', { name: 'What happens to v3?' }).count(), 0, 'no new ask, so no choice for the live version');
+    await rebuildButton(page).click();
     await until(() => made.jobs.length === 1, 'the build without the removed ask');
     const [built] = insertsOf(made);
     assert.deepEqual([built.spec.outputs[`${CHART}_vibes`], built.spec.retry_outputs, 'vibes' in built.spec, 'vibe_previous' in built.spec],
@@ -482,7 +478,7 @@ test('a missing ask reads not done yet with the asset ready with warnings, and T
   }
 });
 
-test('while a version rebuilds the picked asset, it reads Rebuilding with the three steps and the asks being built, Edit MVP waits, and a vibe can still be added for later', async () => {
+test('while a version rebuilds the picked asset, it reads Rebuilding with the three steps, Rebuild waits greyed with the reason, and a vibe can still be added for later', async () => {
   const building = versionRow(4, {
     status: 'building_outputs', implement_run_id: '5555555555555555', updated_at: new Date().toISOString(), change_classes: 'retry',
     outputs: { ...V3_OUTPUTS, [`${PAGE}_vibes`]: 'Rows first, then a map by region and a filter' }, top: { retry_outputs: [PAGE] }, assets: {},
@@ -501,18 +497,21 @@ test('while a version rebuilds the picked asset, it reads Rebuilding with the th
       ['now', '2Rebuilding the Decisions page only. Nothing else changes.'],
       ['next', '3Checking each thing you asked for'],
     ]);
-    assert.deepEqual(await heldOf(card), [['held', '“Rows first, then a map by region and a filter”']], 'the asks being built show');
     assert.equal(await card.locator('[data-checks]').count(), 0, 'the checklist comes back once the build ends');
-    assert.equal(await editMvp(page).isDisabled(), true, 'Edit MVP waits for the build');
     const detail = await pick(page, 'app:page:detail');
-    await detail.getByText('A version is building now; roll backs apply after it finishes, and the asks you add or remove wait for Edit MVP.').waitFor();
-    await vibeBox(page).getByText('A version is building now; the asks you add wait for Edit MVP.', { exact: true }).waitFor();
+    await detail.getByText('A version is building now; roll backs apply after it finishes.').waitFor();
+    await openFeatures(page);
+    assert.equal(await rebuildButton(page).isDisabled(), true, 'Rebuild waits for the build');
+    assert.match(await rebuildButton(page).getAttribute('class'), /cursor-not-allowed/, 'and reads greyed');
+    assert.equal(await rebuildButton(page).getAttribute('title'), 'A build is running. Vibes you add wait for the next build.');
+    assert.equal(await text(dialog(page).locator('[data-rebuild-waits]')), 'A build is running. Vibes you add wait for the next build.');
     await mvpBox(page).fill('Add a filter by region');
     await addVibes(page).click();
-    assert.equal(await page.locator('[data-collected-note]').textContent(),
-      'One ask is waiting. After this build finishes, Edit MVP opens it in the Vibes step so one build carries it.');
-    assert.equal(await editMvp(page).isDisabled(), true);
-    assert.doesNotMatch(await editMvp(page).getAttribute('class'), /edit-mvp-invite/, 'no invitation to click a button that is waiting');
+    assert.deepEqual(await waiting(page), [['ask', '“Add a filter by region”']], 'the ask waits for the next build');
+    assert.equal(await rebuildButton(page).isDisabled(), true);
+    await closeAsset(page);
+    assert.equal(await text(features(page)), 'Vibe/Add/Remove Features (1)');
+    assert.doesNotMatch(await features(page).getAttribute('class'), /edit-mvp-invite/, 'no invitation while the build runs');
     assert.equal(made.jobs.length, 0);
     assert.deepEqual(ui.pageErrors, []);
   } finally {
@@ -530,21 +529,19 @@ test('an App this use case was taken out of says whose App it was and who keeps 
   const ui = await openTower({ ...STATE, history: [takenOut, ...HISTORY] });
   const { page } = ui;
   try {
-    await showTab(page, 'app');
-    const off = page.locator('[data-asset-panel="app"][data-tile-kind="off"]');
-    await off.getByText('App: not in this MVP', { exact: true }).waitFor();
+    const off = page.locator('[data-asset-tile="app"][data-tile-kind="off"]');
+    await off.getByText('Not in this MVP', { exact: true }).waitFor();
     assert.equal(await off.locator('[data-asset-note]').textContent(),
       "This use case's pages were taken out of sales-hub, which stays for Forecast demand and Score leads.");
     for (const dark of [false, true]) {
       await setDark(page, dark);
-      const result = await lowContrast(page, ['[data-asset-panel="app"]']);
+      const result = await lowContrast(page, ['[data-asset-tile="app"]']);
       assert.ok(result.checked >= 3, `measured ${result.checked} elements`);
       assert.deepEqual(result.low, [], dark ? 'dark' : 'light');
     }
     await page.evaluate(() => document.documentElement.classList.remove('dark'));
-    await showTab(page, 'alert');
-    const alert = page.locator('[data-asset-panel="alert"][data-tile-kind="off"]');
-    await alert.getByText('Alert: not in this MVP', { exact: true }).waitFor();
+    const alert = page.locator('[data-asset-tile="alert"][data-tile-kind="off"]');
+    await alert.getByText('Not in this MVP', { exact: true }).waitFor();
     assert.equal(await alert.locator('[data-asset-note]').count(), 0, 'an alert this use case deleted was not taken out of anything');
     assert.deepEqual(ui.pageErrors, []);
   } finally {
@@ -552,50 +549,60 @@ test('an App this use case was taken out of says whose App it was and who keeps 
   }
 });
 
-test('the use case list sits on the left; on the right the name, then its MVP progress, then Use case details, Edit MVP and Uninstall all, then the tabs', async () => {
+test('the use case list sits on the left; on the right the name, then Use case details, Vibe/Add/Remove Features and Uninstall all, then one row of tiles, then Build progress filling the rest', async () => {
   const ui = await openTower();
   const { page } = ui;
   try {
-    await page.setViewportSize({ width: 1440, height: 900 });
-    const pane = page.getByRole('region', { name: 'Use case', exact: true });
-    const [list, right] = [await page.locator('[data-implement-rail]').boundingBox(), await pane.boundingBox()];
-    assert.ok(list.x + list.width <= right.x, `the list is left of the use case (${Math.round(list.x + list.width)} <= ${Math.round(right.x)})`);
-    const name = pane.locator('[data-pinned-name]');
-    assert.equal(await name.locator('h2').textContent(), HARNESS_USE_CASE.Name);
-    assert.equal(await name.locator('[data-pinned-percent]').textContent(), '100% built');
-    const buttons = await Promise.all(['Use case details', 'Edit MVP', 'Uninstall all']
-      .map((label) => pane.getByRole('button', { name: label, exact: true }).boundingBox()));
-    const [nameBox, progress, tabs] = await Promise.all([name, pane.locator('[data-mvp-progress]'), pane.locator('[data-pinned-tabs]')].map((el) => el.boundingBox()));
-    assert.ok(nameBox.y < progress.y, 'the MVP progress is right below the name');
-    assert.ok(progress.y + progress.height <= buttons[0].y, 'the buttons are below the MVP progress');
-    assert.ok(buttons.every((b) => Math.abs(b.y - buttons[0].y) <= 1), 'the three buttons share one row');
-    assert.ok(buttons[0].x < buttons[1].x && buttons[1].x < buttons[2].x, 'in the order Use case details, Edit MVP, Uninstall all');
-    assert.ok(buttons[0].y + buttons[0].height <= tabs.y, 'the tabs are below the buttons');
+    for (const [width, height] of [[1440, 900], [1920, 1080]]) {
+      await page.setViewportSize({ width, height });
+      await painted(page);
+      const pane = page.getByRole('region', { name: 'Use case', exact: true });
+      const [list, right] = [await page.locator('[data-implement-rail]').boundingBox(), await pane.boundingBox()];
+      assert.ok(list.x + list.width <= right.x, `the list is left of the use case (${Math.round(list.x + list.width)} <= ${Math.round(right.x)})`);
+      const name = pane.locator('[data-pinned-name]');
+      assert.equal(await name.locator('h2').textContent(), HARNESS_USE_CASE.Name);
+      assert.equal(await name.getByRole('progressbar').count(), 0, 'no progress bar while nothing builds');
+      const buttons = await Promise.all(['Use case details', 'Vibe/Add/Remove Features (0)', 'Uninstall all']
+        .map((label) => name.getByRole('button', { name: label, exact: true }).boundingBox()));
+      assert.equal(await pane.getByRole('button', { name: /^Edit MVP/ }).count(), 0, 'Vibe/Add/Remove Features replaces Edit MVP');
+      const [heading, tiles, progress] = await Promise.all([name.locator('h2'), pane.locator('[data-asset-tiles]'), pane.locator('[data-mvp-progress]')].map((el) => el.boundingBox()));
+      assert.ok(buttons.every((b) => Math.abs(b.y - buttons[0].y) <= 1), 'the three buttons share one row');
+      assert.ok(buttons[0].x < buttons[1].x && buttons[1].x < buttons[2].x, 'in the order Use case details, Vibe/Add/Remove Features, Uninstall all');
+      assert.ok(heading.y < tiles.y && buttons[0].y + buttons[0].height <= tiles.y, 'the tiles sit below the header');
+      const rows = new Set(await pane.locator('[data-asset-tile]').evaluateAll((items) => items.map((li) => Math.round(li.getBoundingClientRect().top))));
+      assert.equal(rows.size, 1, `the six tiles share one row at ${width}`);
+      assert.ok(tiles.y + tiles.height <= progress.y, 'Build progress sits below the tiles');
+      assert.ok(Math.abs(progress.y + progress.height - (right.y + right.height)) <= 2, `Build progress fills the rest of the pane (${Math.round(progress.y + progress.height)} vs ${Math.round(right.y + right.height)})`);
+      assert.equal(await page.evaluate(() => document.scrollingElement.scrollHeight <= window.innerHeight + 1), true, `no second page scrollbar at ${width}`);
+    }
     assert.deepEqual(ui.pageErrors, []);
   } finally {
     await ui.close();
   }
 });
 
-test('every output tab has its Open link and its Uninstall and no vibe box of its own, and the one box above the tabs serves them all', async () => {
-  const ui = await openTower({ ...STATE, useCase: { ...HARNESS_USE_CASE, has_genie_code: 'Y', notebook_path: '/Users/owner@example.com/inspire/Acme/N01-U01' } });
+test('every tile opens its asset in a new tab and has its Versions and per-asset actions, a drawer never carries a vibe box, and the Notebook tile has its Uninstall', async () => {
+  const ui = await openTower({ ...STATE, job: MVP_JOB, useCase: { ...HARNESS_USE_CASE, has_genie_code: 'Y', notebook_path: '/Users/owner@example.com/inspire/Acme/N01-U01' } });
   const { page } = ui;
   try {
+    await page.locator('[data-asset-tile="notebook"] [data-tile-open="asset"]').waitFor({ timeout: 15000 });
+    await page.locator('[data-asset-tile="job"] [data-tile-open="asset"]').waitFor({ timeout: 15000 });
     const seen = {};
-    for (const id of ['app', 'dashboard', 'alert', 'genie_space', 'notebook']) {
-      await showTab(page, id);
-      const tabPanel = page.locator(`[data-mvp-panel="${id}"]`);
-      await tabPanel.getByRole('link', { name: /^Open( the notebook)?$/ }).first().waitFor({ timeout: 15000 });
+    for (const id of TILE_ORDER) {
+      const tile = page.locator(`[data-asset-tile="${id}"]`);
+      const open = tile.locator('[data-tile-open="asset"]');
       seen[id] = {
-        open: await tabPanel.getByRole('link', { name: /^Open( the notebook)?$/ }).count() >= 1,
-        uninstall: await tabPanel.getByRole('button', { name: /^(Uninstall|Remove from .+)$/ }).count(),
-        box: await tabPanel.locator('textarea').count(),
-        add: await tabPanel.getByRole('button', { name: 'Add vibes', exact: true }).count(),
-        mvp: await vibeBox(page).count(),
+        open: [await open.getAttribute('target'), Boolean(await open.getAttribute('href'))],
+        versions: await tile.locator('[data-tile-versions]').count(),
+        uninstall: await tile.locator('[data-tile-uninstall]').count(),
       };
+      await showAsset(page, id);
+      seen[id].box = await panel(page).locator('textarea').count();
+      seen[id].add = await panel(page).getByRole('button', { name: /^Add vibes?$/ }).count();
     }
-    const each = { open: true, uninstall: 1, box: 0, add: 0, mvp: 1 };
-    assert.deepEqual(seen, { app: each, dashboard: each, alert: each, genie_space: each, notebook: each });
+    const each = { open: ['_blank', true], versions: 1, uninstall: 1, box: 0, add: 0 };
+    assert.deepEqual(seen, { app: each, dashboard: each, genie_space: each, alert: each, notebook: each, job: { ...each, uninstall: 0 } });
+    assert.match(await page.locator('[data-asset-tile="job"] [data-tile-open="asset"]').getAttribute('href'), /#job\/77$/);
     assert.deepEqual(ui.pageErrors, []);
   } finally {
     await ui.close();
@@ -614,9 +621,9 @@ test('the App tab of an App another use case shares offers Remove from it, says 
   });
   const { page, made } = ui;
   try {
-    await showTab(page, 'dashboard');
+    await showAsset(page, 'dashboard');
     await page.locator('[data-asset-panel="dashboard"]').getByRole('button', { name: 'Uninstall', exact: true }).waitFor({ timeout: 15000 });
-    await showTab(page, 'app');
+    await showAsset(page, 'app');
     const app = page.locator('[data-asset-panel="app"]');
     const remove = app.getByRole('button', { name: 'Remove from churn-desk', exact: true });
     await remove.waitFor({ timeout: 15000 });
@@ -658,7 +665,7 @@ test('a use case that joined another use case\'s App reads it live as part of a 
   const controls = [];
   page.on('request', (r) => { if (r.url().includes('/api/inspire/implement/control')) controls.push(JSON.parse(r.postData() || '{}')); });
   try {
-    await showTab(page, 'app');
+    await showAsset(page, 'app');
     const app = page.locator('[data-asset-panel="app"]');
     await app.locator('[data-shared-note]').waitFor({ timeout: 15000 });
     assert.equal(await app.getAttribute('data-tile-kind'), 'live');
@@ -685,7 +692,7 @@ test('a use case that joined another use case\'s App reads it live as part of a 
     await until(() => made.fetches.some((f) => f.path === '/api/2.0/apps/sales-hub/stop'), 'the confirmed stop');
     assert.deepEqual(controls, [{ asset: 'app', action: 'stop', confirm_shared: true }]);
 
-    await showTab(page, 'dashboard');
+    await showAsset(page, 'dashboard');
     const board = page.locator('[data-asset-panel="dashboard"]');
     assert.equal(await board.locator('[data-shared-note]').textContent(), 'Dashboard also holds the pages of Forecast demand.');
     await board.getByRole('button', { name: 'Unpublish', exact: true }).click();
@@ -706,7 +713,7 @@ test('when Inspire cannot read who else holds a joined App, its tab names only w
   const controls = [];
   page.on('request', (r) => { if (r.url().includes('/api/inspire/implement/control')) controls.push(JSON.parse(r.postData() || '{}')); });
   try {
-    await showTab(page, 'app');
+    await showAsset(page, 'app');
     const app = page.locator('[data-asset-panel="app"]');
     await app.locator('[data-shared-note]').waitFor({ timeout: 15000 });
     assert.equal(await app.locator('[data-shared-note]').textContent(), "This use case's pages are part of sales-hub, which Forecast demand built.");
@@ -758,7 +765,9 @@ const vibeVersion = (status) => versionRow(4, {
   outputs: V3_OUTPUTS, top: { vibes: VIBE, vibe_previous: 'remove' }, assets: V3_ASSETS,
 });
 const stagesOf = (page) => page.locator('[data-mvp-progress] [aria-label="Build stages"] > li')
-  .evaluateAll((items) => items.map((li) => [li.dataset.stage, li.querySelector('[data-stage-label]').textContent, li.dataset.stageState]));
+  .evaluateAll((items) => items.map((li) => [li.dataset.stage, li.querySelector('[title]').title, li.dataset.stageState]));
+const arrowsOf = (page) => page.locator('[data-mvp-progress] [aria-label="Build stages"] [data-stage-arrow]')
+  .evaluateAll((items) => items.map((arrow) => arrow.dataset.stageArrow));
 
 test('a vibe Inspire sent to the App alone rebuilds only the App: the stepper, the kept line and the tiles follow the recorded plan', async () => {
   const lines = [`sent to App: ${VIBE}`];
@@ -776,12 +785,23 @@ test('a vibe Inspire sent to the App alone rebuilds only the App: the stepper, t
     const progress = page.locator('[data-mvp-progress]');
     await progress.locator('[data-stage="App"][data-stage-state="running"]').waitFor({ timeout: 15000 });
     assert.deepEqual(await stagesOf(page), [
-      ['Vibe', 'Vibe', 'done'], ['Plan', 'Plan', 'done'], ['Genie Code', 'Start Genie Code', 'done'], ['App', 'Rebuild the App', 'running'], ['Done', 'Done', 'waiting'],
-    ]);
-    for (const absent of ['Dashboard', 'Genie Agent', 'Alert', 'Instruction', 'Genie build', 'Preview run']) {
+      ['Plan', 'Vibe, Plan', 'done'], ['Notebook', 'Start Genie Code', 'done'], ['App', 'Rebuild the App', 'running'], ['Finish', 'Done', 'waiting'],
+    ], 'only the planned stages, each a chip');
+    assert.deepEqual(await arrowsOf(page), ['done', 'done', 'todo'], 'a dark arrow after each done stage, a grey one before what is still to come');
+    for (const absent of ['Dashboard', 'Genie Agent', 'Alert', 'Job', 'Vibe', 'Instruction', 'Genie build', 'Preview run']) {
       assert.equal(await progress.locator(`[data-stage="${absent}"]`).count(), 0, `the ${absent} stage must not show`);
     }
-    await progress.getByText('Genie is rebuilding the App…', { exact: true }).waitFor();
+    const [stop, chips] = await Promise.all([progress.locator('[data-stop-build]'), progress.getByRole('list', { name: 'Build stages' })].map((el) => el.boundingBox()));
+    assert.ok(stop.y + stop.height <= chips.y + 1, 'Stop the build sits at the top, above the stages');
+    assert.equal(await text(progress.locator('[data-stop-build]')), 'Stop the build');
+    assert.equal(await text(progress.locator('[data-sorted-to]')), 'This build carries 1 change. Inspire sorted it to: App.');
+    const pulse = (id) => progress.locator(`[data-stage="${id}"] [class*="animate-pulse"]`);
+    assert.deepEqual([await pulse('App').count(), await pulse('Plan').count()], [1, 0], 'only the current stage pulses');
+    await page.emulateMedia({ reducedMotion: 'no-preference' });
+    assert.notEqual(await pulse('App').evaluate((el) => getComputedStyle(el).animationName), 'none');
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    assert.equal(await pulse('App').evaluate((el) => getComputedStyle(el).animationName), 'none', 'and holds still for a person who asked for less motion');
+    await progress.locator('[data-build-headline]').getByText('Genie is rebuilding the App…', { exact: true }).waitFor();
     assert.equal(await text(progress.locator('[data-scope-note="kept"]')), 'Kept as is: the notebook, the Dashboard, the Genie Agent and the Alert');
     assert.equal(await progress.locator('[data-scope-note="refill"]').count(), 0, 'an App vibe never says the notebook is rebuilt');
     assert.equal(await text(progress.locator('[data-vibe-route="route"]')), `Sent to the App: “${VIBE}”`);
@@ -789,14 +809,13 @@ test('a vibe Inspire sent to the App alone rebuilds only the App: the stepper, t
 
     const building = {};
     for (const id of ['app', 'dashboard', 'genie_space', 'alert']) {
-      await showTab(page, id);
-      const tile = page.locator(`[data-asset-panel="${id}"]`);
-      await tile.waitFor();
-      await page.waitForFunction((which) => document.querySelector(`[data-asset-panel="${which}"]`)?.dataset.tileKind === 'live', id, { timeout: 20000 });
-      building[id] = await tile.getAttribute('data-tile-building');
+      await page.waitForFunction((which) => document.querySelector(`[data-asset-tile="${which}"]`)?.dataset.tileKind === 'live', id, { timeout: 20000 });
+      building[id] = await page.locator(`[data-asset-tile="${id}"]`).getAttribute('data-tile-building');
     }
     assert.deepEqual(building, { app: 'now', dashboard: null, genie_space: null, alert: null }, 'only the App tile is building');
-    await showTab(page, 'app');
+    await page.locator('[data-asset-tile="app"] [data-tile-open="build"]').click();
+    assert.equal(await panel(page).count(), 0, 'a building tile shows Build progress, not a drawer');
+    await showAsset(page, 'app');
     await page.locator('[data-asset-panel="app"]').getByText('Genie is rebuilding it now', { exact: true }).waitFor();
     const whole = await pick(page, 'app');
     const appSteps = whole.getByRole('list', { name: 'Rebuilding the App' }).getByRole('listitem');
@@ -815,20 +834,19 @@ test('before the plan lands, the stepper shows only the vibe and the plan, and e
   const { page } = ui;
   try {
     const progress = page.locator('[data-mvp-progress]');
-    await progress.locator('[data-stage="Vibe"][data-stage-state="running"]').waitFor({ timeout: 15000 });
-    assert.deepEqual(await stagesOf(page), [['Vibe', 'Vibe', 'running'], ['Plan', 'Plan', 'waiting']], 'never the full list');
-    await progress.getByText('Inspire is reading your vibe to send each ask to the part it changes…', { exact: true }).waitFor();
+    await progress.locator('[data-stage="Plan"][data-stage-state="running"]').waitFor({ timeout: 15000 });
+    assert.deepEqual(await stagesOf(page), [['Plan', 'Vibe, Plan', 'running']], 'never the full list');
+    await progress.locator('[data-build-headline]').getByText('Inspire is reading your vibe to send each ask to the part it changes…', { exact: true }).waitFor();
     assert.equal(await page.getByRole('progressbar', { name: 'Build progress' }).getAttribute('aria-valuenow'), '0');
-    await showTab(page, 'dashboard');
-    await page.waitForFunction(() => document.querySelector('[data-asset-panel="dashboard"]')?.dataset.tileKind === 'live', null, { timeout: 20000 });
-    assert.equal(await page.locator('[data-asset-panel="dashboard"]').getAttribute('data-tile-building'), null);
+    await page.waitForFunction(() => document.querySelector('[data-asset-tile="dashboard"]')?.dataset.tileKind === 'live', null, { timeout: 20000 });
+    assert.equal(await page.locator('[data-asset-tile="dashboard"]').getAttribute('data-tile-building'), null);
     assert.deepEqual(ui.pageErrors, []);
   } finally {
     await ui.close();
   }
 });
 
-test('when Inspire puts back what no ask targets, the stepper shows a done Self-fix stage before Done and the live checklist reads it in green', async () => {
+test('when Inspire puts back what no ask targets, the stepper shows the Self-fix stage in Finish, before Done, and the live checklist reads it in green', async () => {
   const fixture = createRequire(import.meta.url)('../../../backend/test/fixtures/implement_self_fix_cases.json');
   const agent = fixture.cases.find((c) => c.name.startsWith('Inspire put back two'));
   const fix = agent.steps.find((s) => s.step_name === fixture.self_fix_step);
@@ -846,11 +864,10 @@ test('when Inspire puts back what no ask targets, the stepper shows a done Self-
   const { page } = ui;
   try {
     const progress = page.locator('[data-mvp-progress]');
-    await progress.locator('[data-stage="Self-fix"][data-stage-state="done"]').waitFor({ timeout: 15000 });
+    await progress.locator('[data-stage="App"][data-stage-state="done"]').waitFor({ timeout: 15000 });
     assert.deepEqual(await stagesOf(page), [
-      ['Vibe', 'Vibe', 'done'], ['Plan', 'Plan', 'done'], ['Genie Code', 'Start Genie Code', 'done'], ['App', 'Rebuild the App', 'done'],
-      ['Self-fix', 'Self-fix', 'done'], ['Done', 'Done', 'next'],
-    ]);
+      ['Plan', 'Vibe, Plan', 'done'], ['Notebook', 'Start Genie Code', 'done'], ['App', 'Rebuild the App', 'done'], ['Finish', 'Self-fix, Done', 'next'],
+    ], 'the Self-fix stage sits in Finish, before Done');
     const list = page.getByRole('region', { name: 'Vibe checklist of v4', exact: true });
     await list.waitFor({ timeout: 15000 });
     assert.deepEqual(await list.locator('[data-requirement]').evaluateAll((rows) => rows.map((r) => r.dataset.requirement)), ['self_fixed', 'self_fixed']);
@@ -984,7 +1001,7 @@ test('a Try again on a part the build no longer has is refused with a clear mess
     assert.equal((await alert.textContent()).trim(), NOT_BUILT);
     assert.equal(made.jobs.length, 0);
     assert.deepEqual(insertsOf(made), []);
-    await showTab(page, 'notebook');
+    await showAsset(page, 'notebook');
     assert.equal(await panel(page).getByRole('alert').count(), 0, 'another tab does not carry the card error');
     assert.deepEqual(ui.pageErrors.filter((e) => !/status of 400/.test(e)), []);
   } finally {
@@ -992,29 +1009,28 @@ test('a Try again on a part the build no longer has is refused with a clear mess
   }
 });
 
-test('the name, its percent and the tabs stay pinned while the page scrolls, the use case list stays in view and resizes, and its width survives a reload', async () => {
+test('the name and the tiles stay in view while the Genie feed scrolls inside Build progress, the use case list stays in view and resizes, and its width survives a reload', async () => {
   const ui = await openTower();
   const { page } = ui;
   try {
     await page.setViewportSize({ width: 1440, height: 520 });
     const name = page.locator('[data-pinned-name]');
-    const tabs = page.locator('[data-pinned-tabs]');
+    const tiles = page.locator('[data-asset-tiles]');
     const rail = page.locator('[data-implement-rail]');
-    assert.equal(await name.locator('[data-pinned-percent]').textContent(), '100% built');
-    const past = await tabs.evaluate((el) => {
-      const goal = el.getBoundingClientRect().top + window.scrollY - 104 + 60;
-      return { goal, room: document.scrollingElement.scrollHeight - window.innerHeight };
-    });
-    assert.ok(past.room >= past.goal, `the page can scroll past the tabs (${JSON.stringify(past)})`);
-    await page.evaluate((y) => window.scrollTo(0, y), past.goal);
-    await page.waitForFunction((y) => Math.round(window.scrollY) === Math.round(y), past.goal);
+    const log = page.locator('[data-mvp-progress] [data-build-log]');
     await painted(page);
-    const at = async (el) => (await el.boundingBox()).y;
-    assert.equal(await page.evaluate(() => Math.round(window.scrollY)), Math.round(past.goal), 'the page scrolled 60 px past where the tabs sit');
-    assert.ok(Math.abs(await at(name) - 56) <= 1, `the name sits under the header (${await at(name)})`);
-    assert.ok(Math.abs(await at(tabs) - 104) <= 1, `the tabs sit under the name (${await at(tabs)})`);
-    assert.ok(Math.abs(await at(rail) - 72) <= 1, `the use case list stays in view (${await at(rail)})`);
-    assert.equal(await name.evaluate((el) => el.scrollWidth <= el.clientWidth + 1), true, 'the name keeps to one line');
+    const before = await Promise.all([name, tiles, rail].map(async (el) => (await el.boundingBox()).y));
+    const room = await log.evaluate((el) => {
+      el.append(Object.assign(document.createElement('div'), { style: 'height:2000px' }));
+      el.scrollTop = 600;
+      return { top: el.scrollTop, page: document.scrollingElement.scrollHeight - window.innerHeight, overflow: getComputedStyle(el).overflowY };
+    });
+    await painted(page);
+    assert.deepEqual([room.top, room.overflow], [600, 'auto'], 'the feed scrolls inside Build progress');
+    assert.ok(room.page <= 1, `the page itself never grows a second scrollbar (${room.page})`);
+    const after = await Promise.all([name, tiles, rail].map(async (el) => (await el.boundingBox()).y));
+    assert.deepEqual(after, before, 'the name, the tiles and the use case list stay where they are');
+    assert.equal(await name.locator('h2').evaluate((el) => el.scrollWidth <= el.clientWidth + 1), true, 'the name keeps to one line');
 
     const handle = page.getByRole('separator', { name: 'Resize the use case list' });
     assert.equal(await handle.getAttribute('aria-valuenow'), '320');
@@ -1050,7 +1066,7 @@ test('on a phone the use case list sits above the use case, which keeps the widt
     await page.setViewportSize({ width: 390, height: 844 });
     const rail = page.locator('[data-implement-rail]');
     const pane = page.getByRole('region', { name: 'Use case', exact: true });
-    await page.locator('[data-mvp-panel]').waitFor();
+    await page.locator('[data-asset-tiles]').waitFor();
     const box = async (el) => el.boundingBox();
     const [list, detail] = [await box(rail), await box(pane)];
     assert.ok(detail.width >= 330, `the use case is as wide as the screen allows (${Math.round(detail.width)} px)`);
@@ -1078,10 +1094,16 @@ test('a use case that is building sits at the top of the list and pulses in colo
   try {
     await page.emulateMedia({ reducedMotion: 'no-preference' });
     const list = page.getByRole('navigation', { name: 'Use cases' });
-    assert.equal(await list.locator('section').first().getAttribute('aria-label'), 'In progress', 'the building group is first');
-    const item = list.getByRole('region', { name: 'In progress' }).locator('[data-building]');
+    assert.equal(await list.locator('section').first().getAttribute('aria-label'), 'Building', 'the building group is first');
+    const item = list.getByRole('region', { name: 'Building' }).locator('[data-building]');
     assert.equal(await item.count(), 1, 'the use case that builds is in it');
     await item.waitFor();
+    await page.waitForFunction(() => {
+      const rail = document.querySelector('[data-building] [data-rail-progress]')?.dataset.railProgress;
+      return rail && `${rail}%` === document.querySelector('[data-progress-percent]')?.textContent.trim();
+    }, null, { timeout: 15000 });
+    const step = await page.locator('[data-progress-step]').textContent();
+    assert.ok(step && (await item.locator('[data-rail-progress]').textContent()).includes(step.replace(/…$/, '')), 'the list shows the step the progress bar shows');
     assert.equal(await item.evaluate((el) => getComputedStyle(el).animationName), 'railBuilding');
     const shades = new Set(await item.evaluate((el) => {
       const pulse = el.getAnimations().find((a) => a.animationName === 'railBuilding');

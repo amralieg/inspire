@@ -50,14 +50,48 @@ export async function openUi(open, overrides = {}, query = '', { mount, init } =
 export async function openBuild(state) {
   const ui = await openUi('implement', state);
   try {
-    const tab = ui.page.locator('[data-mvp-tab="build"]');
-    await tab.waitFor({ timeout: 15000 });
-    if (await tab.getAttribute('aria-selected') !== 'true') await tab.click();
+    await ui.page.locator('[data-mvp-progress]').waitFor({ timeout: 15000 });
     return ui;
   } catch (e) {
     await ui.close();
     throw e;
   }
+}
+
+export async function openAsset(page, id) {
+  const drawer = page.locator(`[data-mvp-panel="${id}"]`);
+  if (await drawer.count()) return drawer;
+  if (await page.locator('[data-mvp-panel]').count()) await closeAsset(page);
+  await page.locator(`[data-asset-tile="${id}"] [data-tile-versions]`).click();
+  await drawer.waitFor({ timeout: 15000 });
+  return drawer;
+}
+
+export async function closeAsset(page) {
+  await page.keyboard.press('Escape');
+  await page.locator('[data-mvp-panel], [data-vibe-features-dialog]').first().waitFor({ state: 'detached' });
+}
+
+export async function openFeatures(page) {
+  const dialog = page.locator('[data-vibe-features-dialog]');
+  if (await dialog.count()) return dialog;
+  if (await page.locator('[data-mvp-panel]').count()) await closeAsset(page);
+  await page.locator('[data-vibe-features]').click();
+  await dialog.waitFor({ timeout: 15000 });
+  return dialog;
+}
+
+export const featuresBox = (page) => page.locator('[data-vibe-features-dialog] [data-vibe-box="mvp"]');
+export const featuresText = (page) => featuresBox(page).getByRole('textbox', { name: 'Vibes for the MVP', exact: true });
+export const featuresHeld = (page, label) => page.locator('[data-vibe-features-dialog]').getByRole('list', { name: `Asks the ${label} holds`, exact: true })
+  .locator('[data-held-ask]').evaluateAll((items) => items.map((li) => [li.dataset.heldAsk, li.querySelector('span').textContent]));
+
+export async function openSettings(page) {
+  const dialog = await openFeatures(page);
+  await dialog.getByRole('button', { name: 'Need more than words? Open all settings', exact: true }).click();
+  await dialog.waitFor({ state: 'detached' });
+  await onStep(page, 'Vibes');
+  return page.getByRole('dialog', { name: /^Start Use Case MVP with Genie/ });
 }
 
 export const FAKE_CLOCK = { init: (page) => page.clock.install() };
@@ -187,7 +221,7 @@ export async function until(check, what, timeout = 10000) {
   throw new Error(`timed out waiting for ${what}`);
 }
 
-export async function lowContrast(page, selectors = ['[data-mvp-panel]', '[role="dialog"]']) {
+export async function lowContrast(page, selectors = ['[data-use-case-pane]', '[data-mvp-panel]', '[role="dialog"]']) {
   return page.evaluate((rootSelectors) => {
     document.getAnimations().filter((a) => a instanceof CSSTransition).forEach((a) => a.finish());
     const ctx = document.createElement('canvas').getContext('2d', { willReadFrequently: true });
@@ -232,7 +266,8 @@ export async function lowContrast(page, selectors = ['[data-mvp-panel]', '[role=
       }
       return bases;
     };
-    const roots = rootSelectors.map((sel) => document.querySelector(sel)).filter(Boolean);
+    const found = rootSelectors.flatMap((sel) => [...document.querySelectorAll(sel)]);
+    const roots = found.filter((el, i) => found.indexOf(el) === i && !found.some((other) => other !== el && other.contains(el)));
     const low = [];
     let checked = 0;
     const opacityOf = (el) => {

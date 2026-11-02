@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { closeBrowser, openUi, onStep, startMvp, until } from './uiSupport.mjs';
+import { closeBrowser, openAsset, openSettings, openUi, onStep, startMvp, until } from './uiSupport.mjs';
 import { STUDIO_STATE } from './implementFixtures.js';
 
 const OWNER = ['owner', 'example.com'].join('@');
@@ -129,7 +129,7 @@ test('removing an App another use case shares offers to take this use case\'s pa
   }
 });
 
-test('Edit MVP on the Build page hands the wizard its live check, so a shared App reads take-out before anything is picked', async () => {
+test('Open all settings on the Build page hands the wizard its live check, so a shared App reads take-out before anything is picked', async () => {
   const ui = await openUi('implement', {
     ...STUDIO_STATE,
     me: { userName: OWNER, displayName: 'Owner' },
@@ -139,16 +139,14 @@ test('Edit MVP on the Build page hands the wizard its live check, so a shared Ap
   const { page, pageErrors } = ui;
   try {
     await page.getByRole('heading', { name: 'Build', exact: true }).waitFor();
-    await page.locator('[data-mvp-tab="app"]').click({ timeout: 15000 });
-    await page.locator('[data-asset-panel="app"]').getByRole('button', { name: 'Remove from churn-desk' }).waitFor({ timeout: 15000 });
-    await page.locator('[data-mvp-tab="build"]').click();
-    await page.locator('[data-edit-mvp]').click();
-    await onStep(page, 'Choose');
-    await next(page);
-    await onStep(page, 'Data');
-    await next(page);
-    await onStep(page, 'Results');
-    await next(page);
+    await page.locator('[data-asset-tile="app"] [data-tile-versions]').waitFor({ timeout: 15000 });
+    await (await openAsset(page, 'app')).getByRole('button', { name: 'Remove from churn-desk' }).waitFor({ timeout: 15000 });
+    await openSettings(page);
+    for (let i = 0; i < 9 && await page.locator('[aria-current="step"]', { hasText: 'Delivery' }).count() === 0; i += 1) {
+      const from = await page.locator('[aria-current="step"]').innerText();
+      await page.getByRole('button', { name: 'Back', exact: true }).click();
+      await page.waitForFunction((was) => document.querySelector('[aria-current="step"]')?.innerText !== was, from, { timeout: 15000 });
+    }
     await onStep(page, 'Delivery');
     await page.getByRole('checkbox', { name: /^App / }).uncheck();
     const tile = page.locator('[data-output="app"]');

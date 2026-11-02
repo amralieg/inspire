@@ -1114,12 +1114,12 @@ test('the Implement page groups every use case in a fixed order, keeps MVPs of u
     { use_case_id: 'N09-U09', use_case_name: 'Removed from the catalog', status: 'ready' },
   ];
   const groups = w.implementGroups(useCases, latest, RUN('running'));
-  assert.deepEqual(groups.map((g) => g.label), ['In progress', 'Ready', 'Failed', 'Not started'], 'the Vibes not met group shows only when a use case is held');
-  assert.deepEqual(groups.map((g) => g.items.map((i) => i.id)), [['N01-U01', 'N02-U01'], ['N01-U02', 'N09-U09'], ['N02-U02'], []]);
-  assert.equal(groups[1].items[1].name, 'Removed from the catalog');
+  assert.deepEqual(groups.map((g) => g.label), ['Building', 'Needs attention', 'Ready', 'Not built'], 'four groups, building first');
+  assert.deepEqual(groups.map((g) => g.items.map((i) => i.id)), [['N01-U01', 'N02-U01'], ['N02-U02'], ['N01-U02', 'N09-U09'], []]);
+  assert.equal(groups[2].items[1].name, 'Removed from the catalog');
   assert.equal(groups[0].items[1].state.label, 'Notebook running');
   const afterRun = w.implementGroups(useCases, [], RUN('failed', { result_state: 'FAILED' }));
-  assert.deepEqual(afterRun.map((g) => g.items.map((i) => i.id)), [[], ['N01-U02'], ['N02-U01'], ['N01-U01', 'N02-U02']]);
+  assert.deepEqual(afterRun.map((g) => g.items.map((i) => i.id)), [[], ['N02-U01'], ['N01-U02'], ['N01-U01', 'N02-U02']]);
   const search = (q) => w.implementGroups(useCases, latest, null, q).flatMap((g) => g.items.map((i) => i.id));
   assert.deepEqual(search('churn'), ['N01-U01']);
   assert.deepEqual(search('  SUPPLY  '), ['N02-U01']);
@@ -1203,7 +1203,7 @@ test('a stalled version reads as stopped, frees the Implement page actions, says
   assert.deepEqual(w.statusChip('filling', stalled), { label: 'Stopped', tone: 'error' });
   assert.deepEqual(w.statusChip('building_outputs'), { label: 'building outputs', tone: 'busy' });
   assert.deepEqual(w.statusChip('ready', stalled), { label: 'Ready', tone: 'success' });
-  assert.equal(w.statusReason(latest, stalled), 'the run building v4 ended (CANCELED) while v4 was still filling. Edit MVP submits a new version.');
+  assert.equal(w.statusReason(latest, stalled), 'the run building v4 ended (CANCELED) while v4 was still filling. Rebuild in Vibe/Add/Remove Features submits a new version.');
   assert.equal(w.statusReason(latest), '');
   assert.equal(w.statusReason({ status: 'failed', status_message: 'boom' }, stalled), 'boom');
   assert.equal(w.historyStatus({ spec_version: 3, status: 'previewing' }, latest), 'stopped before it finished');
@@ -1327,7 +1327,7 @@ test('the MVP counts add up: started is live plus building plus held plus failed
   assert.deepEqual(w.mvpCounts(undefined), { useCases: 0, has: 0, none: 0, live: 0, building: 0, held: 0, failed: 0 });
 });
 
-test('Build again is offered on a failed or stopped version, never on an uninstall, a hand-edited notebook or missing source tables', async () => {
+test('Try again is offered on a failed or stopped version, never on an uninstall, a hand-edited notebook or missing source tables', async () => {
   const w = await load();
   const failed = (top = {}) => ({ spec_version: 2, status: 'failed', spec_json: {}, ...top });
   assert.equal(w.canBuildAgain(failed()), true);
@@ -1341,10 +1341,10 @@ test('Build again is offered on a failed or stopped version, never on an uninsta
   assert.equal(w.canBuildAgain(failed(), { missing: ['main.s.orders'] }), false);
   assert.equal(w.canBuildAgain(failed(), { missing: null }), true);
   assert.equal(w.buildAgainHint(failed({ spec_version: '2' })),
-    'Build again asks for v2 again as v3, with the same choices, and Inspire repairs what it can on the way.');
+    'Try again asks for v2 again as v3, with the same choices, and Inspire repairs what it can on the way.');
 });
 
-test('Build again sends the failed version as the next one with every ask it made, and the backend builds it instead of refusing it', async () => {
+test('Try again sends the failed version as the next one with every ask it made, and the backend builds it instead of refusing it', async () => {
   const w = await load();
   const choices = served({
     use_case_id: 'N01-U01', use_case_name: 'Predict churn', config: { warehouse_id: 'wh1', result_table: 'main.inspire.churn_out' },

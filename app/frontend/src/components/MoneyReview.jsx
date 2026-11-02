@@ -4,6 +4,9 @@ import {
   previewSampleText, tiersText,
 } from '../lib/moneyReview';
 import { liveImpact, stakeCurrency, stakeLabel, stakeWords } from '../lib/targetKpi';
+import { VIBE_FEATURES_LABEL } from '../lib/implementWizard';
+
+const VIBE_TO_COUNT = `To change how it is counted, add a vibe in ${VIBE_FEATURES_LABEL} and Rebuild builds it.`;
 
 export function NothingToActCard({ run }) {
   const text = nothingToActText(run);
@@ -72,8 +75,8 @@ export default function MoneyReview({ money, error = '', impact = null }) {
       {lines.length > 0 && <ul aria-label="Assumption changes" className="list-disc pl-5 text-text-secondary">{lines.map((l, i) => <li key={i}>{l}</li>)}</ul>}
       <p data-change-how="" className="text-text-secondary">
         {model.assumptions.length > 0
-          ? 'To change how it is counted, add a vibe in the box above the tabs and Edit MVP builds it. Owners of the App can change the assumption values there.'
-          : 'This formula uses only each row\u2019s own numbers, so the App has no assumption to change. To change how it is counted, add a vibe in the box above the tabs and Edit MVP builds it.'}
+          ? `${VIBE_TO_COUNT} Owners of the App can change the assumption values there.`
+          : `This formula uses only each row\u2019s own numbers, so the App has no assumption to change. ${VIBE_TO_COUNT}`}
       </p>
     </section>
   );

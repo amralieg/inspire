@@ -4,7 +4,7 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
-import { apiWatch, readOnlyInspire, recordMvpApp, tabButton, walkMvpTabs, walkRun, watchOffline } from './showcaseRecorder.mjs';
+import { apiWatch, readOnlyInspire, recordMvpApp, tabButton, walkMvpViews, walkRun, watchOffline } from './showcaseRecorder.mjs';
 import { SHOWCASE_BUTTON } from '../frontend/src/lib/showcase.js';
 import { START_MVP_LABEL } from '../frontend/src/lib/implementWizard.js';
 
@@ -115,7 +115,7 @@ try {
     for (let i = 0; i < m; i += 1) {
       await rail.nth(i).click();
       await settle();
-      for (const id of await walkMvpTabs(page, settle)) tabs.add(id);
+      for (const id of await walkMvpViews(page, settle)) tabs.add(id);
     }
     return `${m} use cases, tabs ${[...tabs].join(' ')}`;
   });

@@ -1213,7 +1213,7 @@ test('an Implement page re-run refuses to override the result table and drops bl
     for (const name of ['result_table', 'RESULT_TABLE']) {
       const got = await call(url, `/api/inspire/implement/rerun?${Q}`, { method: 'POST', body: { overrides: { [name]: 'main.other.t' } } });
       assert.equal(got.status, 400);
-      assert.equal(got.data.error, 'the result table is part of the spec; change it with Edit MVP, which checks the table before any run writes to it');
+      assert.equal(got.data.error, 'the result table is part of the spec; change it in all settings (Vibe/Add/Remove Features, then Open all settings), which checks the table before any run writes to it');
     }
     assert.ok(!made.fetches.some((f) => f.path === '/api/2.1/jobs/run-now'));
     const blank = await call(url, `/api/inspire/implement/rerun?${Q}`, { method: 'POST', body: { overrides: { top_k: '   ', as_of_date: '' } } });

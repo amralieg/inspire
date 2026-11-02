@@ -156,7 +156,7 @@ def test_an_app_that_no_longer_holds_this_use_cases_page_is_refused_with_the_rea
     inst, context, seen = _flow(agent_ns, tmp_path, monkeypatch, _host_files(agent_ns, tmp_path), app=HOST_APP,
                                 outputs={"merge": {"app": "sales-desk"}})
     with pytest.raises(agent_ns["ImplementBlocked"], match="the App sales-desk holds no page for this use case, so Inspire could not "
-                                                            "point it at the Genie Agent; build the App again with Edit MVP on the Build page"):
+                                                            "point it at the Genie Agent; build the App again with Vibe/Add/Remove Features on the Build page"):
         inst._implement_app(context, None)
     assert seen["deployed"] == []
 

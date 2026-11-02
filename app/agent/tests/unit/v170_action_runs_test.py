@@ -15,7 +15,7 @@ SERVER = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.ab
 SECOND_WORDING = re.compile(r"(?<!not )(?<!Genie )(?<!Genie Code )\b[Rr]ebuild (?:it|the App|the use case|the notebook|its money|those use cases|"
                             r"that use case)\b(?! with them)(?!' if plan)|build (?:it|the notebook) again so |; try again\b|so Genie fixes it|"
                             r"retry the \{|\b[Bb]uild (?:use cases? \{[^}]*\}|this use case|that use case|those use cases|the App|the notebook|"
-                            r"it) again\b(?! with Edit MVP)")
+                            r"it) again\b(?! with Vibe/Add/Remove Features)")
 CASES = ("held_reason_two_unchecked_asks", "held_reason_one_ask", "checklist_row_could_not_check", "problems_with_edit_mvp_action",
          "run_controls_warning", "stop_message", "joined_status_line")
 
@@ -33,7 +33,7 @@ def test_every_build_again_try_again_and_submit_again_sentence_goes_through_its_
     assert _second_wordings(_server_text()) == []
 
 
-@pytest.mark.parametrize("planted", ["; rebuild the App to fix them", "; rebuild it from Inspire", "the edits: rebuild it with Edit MVP",
+@pytest.mark.parametrize("planted", ["; rebuild the App to fix them", "; rebuild it from Inspire", "the edits: rebuild it with Vibe/Add/Remove Features",
                                      "{error}; try again", "; build the notebook again so the App's settings apply",
                                      "; retry the {label} to build it again",
                                      "part: build use case {', '.join(unknown)} again, which records its part, then build this use case again",
@@ -45,7 +45,7 @@ def test_the_wording_scan_catches_a_sentence_that_words_the_action_itself(plante
 def test_the_wording_scan_keeps_facts_that_name_a_rebuild():
     assert _second_wordings("so this version did not rebuild it; have Genie rebuild the notebook; list it in retry_outputs to rebuild it "
                             "with them; Inspire rebuilds only this page") == []
-    assert _second_wordings('Build the notebook so this does not happen again. f"build {what} again with Edit MVP on the Build page"') == []
+    assert _second_wordings('Build the notebook so this does not happen again. f"build {what} again with Vibe/Add/Remove Features on the Build page"') == []
 
 
 def test_the_app_shell_and_the_notebook_word_the_rebuild_alike(agent_ns):
@@ -91,7 +91,7 @@ def test_the_ready_status_message_and_the_done_event_name_the_rebuild_once(agent
     message = inst.updates[-1]["status_message"]
     done = [e["message"] for e in inst.emitted if e["step_name"] == "Done"][-1]
     for text in (message, done):
-        assert text.count("Edit MVP") == 1, text
+        assert text.count("Vibe/Add/Remove Features") == 1, text
         assert all(fact in text for fact in facts), text
 
 
@@ -107,8 +107,8 @@ def test_the_sharing_event_names_the_rebuild_once(agent_ns, n):
     inst._implement_grant = lambda *a, **k: []
     warnings = type(inst)._implement_share(inst, "N01-U01", "main.inspire.churn_out", spec, {}, None)
     shared = [e["message"] for e in inst.emitted if e["step_name"] == "Sharing"][-1]
-    assert len([w for w in warnings if "Edit MVP" in w]) == n
-    assert shared.count("Edit MVP") == 1, shared
+    assert len([w for w in warnings if "Vibe/Add/Remove Features" in w]) == n
+    assert shared.count("Vibe/Add/Remove Features") == 1, shared
     assert all(f"people-{i} cannot read the reasons view" in shared for i in range(n)), shared
 
 
@@ -127,7 +127,7 @@ def test_the_uninstall_status_message_and_its_done_event_name_the_rebuild_once(a
     message = inst.updates[-1]["status_message"]
     done = [e["message"] for e in inst.emitted if e["step_name"] == "Done"][-1]
     for text in (message, done):
-        assert text.count("Edit MVP") == 1, text
+        assert text.count("Vibe/Add/Remove Features") == 1, text
         assert all(f"the dashboard problem {i}" in text for i in range(n)), text
 
 
@@ -138,14 +138,14 @@ def test_the_app_read_cases_match_the_fixture_byte_for_byte(agent_ns):
     cases = json.loads(written)
     assert tuple(sorted(cases)) == tuple(sorted(CASES))
     assert not re.search(r"\d{12,}", written)
-    assert all(str(value).count("Edit MVP") <= 1 and str(value).count("Try again") <= 1 for value in cases.values())
+    assert all(str(value).count("Vibe/Add/Remove Features") <= 1 and str(value).count("Try again") <= 1 for value in cases.values())
 
 
 def test_each_case_is_a_real_render_and_changes_when_the_source_does(agent_ns):
     cases = action_once_cases(agent_ns)
     assert cases["checklist_row_could_not_check"]["evidence"] == cases["checklist_row_could_not_check"]["fact"] + ": press Try again to check it again"
-    assert cases["joined_status_line"].endswith("; build the notebook and the App again with Edit MVP on the Build page")
-    assert cases["stop_message"].count("Build the notebook again with Edit MVP on the Build page") == 1
+    assert cases["joined_status_line"].endswith("; build the notebook and the App again with Vibe/Add/Remove Features on the Build page")
+    assert cases["stop_message"].count("Build the notebook again with Vibe/Add/Remove Features on the Build page") == 1
 
 
 def test_the_held_reason_is_the_rows_facts_joined_plus_the_one_action(agent_ns):

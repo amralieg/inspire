@@ -87,6 +87,9 @@ export const built = (extra = {}) => ({
   ...extra,
 });
 
+export const MVP_JOB = { job_id: 77, settings: { tags: { dbx_inspire_ai_run_type: 'implement', dbx_inspire_ai_session_id: '42', dbx_inspire_ai_usecase_id: 'N01-U01' },
+  schedule: { quartz_cron_expression: '0 0 6 * * ?', timezone_id: 'UTC', pause_status: 'UNPAUSED' } } };
+
 export const STUDIO_STATE = {
   history: [built()],
   appExists: true,

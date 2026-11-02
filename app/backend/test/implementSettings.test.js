@@ -108,7 +108,7 @@ test('a setting value and an assumption range are decided exactly as the agent d
       tables.INSPIRE_SETTING_GROUPS]);
 });
 
-test('a value-only settings change from Edit MVP saves without a rebuild and only for an owner, while a value for a widget the notebook does not read still rebuilds', async () => {
+test('a value-only settings change from Vibe/Add/Remove Features saves without a rebuild and only for an owner, while a value for a widget the notebook does not read still rebuilds', async () => {
   await withApp({}, async (url, made) => {
     const plan = await call(url, '/api/inspire/implement/plan', { method: 'POST', body: { ...DB, spec: editOf({ widgets: { act_now_share: '0.1' } }) } });
     assert.equal(plan.status, 200, JSON.stringify(plan.data));
