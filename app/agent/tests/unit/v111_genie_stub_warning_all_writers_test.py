@@ -18,11 +18,17 @@ from _agentload import agent_source, load_agent_namespace
 POSITIVE_ANCHORS = (
     "Genie Code",
     "\u2318K",
-    "stub",
-    "runnable",
+    "Next step",
+    "Operation = Generate Use Cases",
 )
 
 NEGATIVE_ANCHORS = (
+    "\u26a0",
+    "stub",
+    "runnable",
+    "Warning",
+    "error",
+    "failed",
     "consumption dashboard",
     "dashboard",
     "billing",
@@ -87,8 +93,16 @@ def test_B_all_three_writers_carry_positive_anchors():
         missing = [a for a in POSITIVE_ANCHORS if a not in htr]
         assert not missing, (
             f"v1.1.2 P33: in {fn_name}, how_to_run_source is missing positive anchors "
-            f"{missing!r}. Every writer's warning MUST name Genie Code, ⌘K, stub, runnable."
+            f"{missing!r}. The how-to MUST name the next step, Genie Code, ⌘K and the Generate operation."
         )
+
+
+def test_B2_a_healthy_skeleton_never_reads_as_a_failure():
+    released = "> ## \u26a0\ufe0f This notebook is a Genie Code stub, not a runnable pipeline\n"
+    assert {"\u26a0", "stub", "runnable"} <= {n for n in NEGATIVE_ANCHORS if n in released}
+    for fn_name in WRITER_FUNCTIONS:
+        htr = _how_to_run_slice(_fn_body(agent_source(), fn_name))
+        assert "\u26a0" not in htr and "stub" not in htr.lower(), fn_name
 
 
 def test_C_no_writer_leaks_internal_jargon():
