@@ -163,7 +163,8 @@ test('GET /api/inspire/results says whether the Inspire Database has the run, ke
   assert.equal(broken.status, 500, 'any other failure is not a missing permission');
   reset(null, null);
   const latest = await app.get('/api/inspire/results?inspire_database=c.s&warehouse_id=w1');
-  assert.ok(statements()[0].includes('WHERE completed_on IS NOT NULL ORDER BY completed_on DESC LIMIT 1'), 'with no run named, the newest finished run');
+  assert.ok(statements()[0].includes("WHERE completed_on IS NOT NULL AND COALESCE(LOWER(processing_status), '') <> 'failed' ORDER BY completed_on DESC LIMIT 1"),
+    'with no run named, the newest run that finished without failing');
   assert.equal(latest.body.results, null);
 });
 

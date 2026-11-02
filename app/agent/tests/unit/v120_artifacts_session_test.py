@@ -104,7 +104,7 @@ def test_a_generate_run_on_an_existing_session_keeps_its_row(agent_ns, tmp_path,
     try:
         writer.initialize_session()
         assert writer.attached_to_existing_session is True
-        writer._update_session_ready("2026-10-24 12:01:00", 5.0)
+        writer._update_session_ready("2026-10-24 12:01:00")
         assert writer._finalize_session("2026-10-24 12:05:00", final_results_json={"ailogs_check": {"passed": 7}}) is True
     finally:
         writer._session_writer.stop(drain_timeout=5.0)

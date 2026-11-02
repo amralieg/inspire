@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Loader2, Pencil, Play, SlidersHorizontal } from 'lucide-react';
 import { PANEL_CLASS, SectionTitle } from './BuildUi';
 import { ScopeSection } from './ScopeSettings';
-import { SETTINGS_NEXT_RUN, SETTINGS_SAVED, SETTING_GROUPS, settingGroupTitle, settingHistoryLine } from '../lib/useCaseSettings';
+import { SETTINGS_NEXT_RUN, SETTINGS_SAVED, SETTING_GROUPS, settingGroupTitle, settingHistoryLine, settingValueText } from '../lib/useCaseSettings';
 import { isScopeSetting } from '../lib/runScope';
 
 const BUTTON = 'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold disabled:opacity-50';
@@ -20,7 +20,7 @@ function SettingRow({ setting, editable, draft, onDraft }) {
           {setting.allowed && <> · Allowed: {setting.allowed}</>}
         </p>
       </div>
-      <span className="font-mono text-[13px] text-text-primary"><span data-setting-value="">{value}</span>{setting.unit ? ` ${setting.unit}` : ''}</span>
+      <span className="font-mono text-[13px] text-text-primary"><span data-setting-value="">{settingValueText(setting, value)}</span></span>
       {editable && setting.editable !== false && (
         <input aria-label={setting.label || setting.name} className={INPUT} value={draft?.name === setting.name ? draft.value : value}
           onChange={(e) => onDraft({ name: setting.name, value: e.target.value, was: value, label: setting.label || setting.name })} />

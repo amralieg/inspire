@@ -108,6 +108,23 @@ test('a setting value and an assumption range are decided exactly as the agent d
       tables.INSPIRE_SETTING_GROUPS]);
 });
 
+test('a percent setting reads as a whole percent and is never shown as a raw fraction with a percent sign', async () => {
+  const S = await lib('useCaseSettings.js');
+  const percent = { name: 'act_now_share', kind: 'percent', unit: '%' };
+  for (const [value, text] of [['0.99', '99%'], ['0.08', '8%'], ['0.1', '10%'], [0.05, '5%'], ['0.125', '12.5%'], ['1', '100%'], ['0', '0%'], ['0.07', '7%']]) {
+    assert.equal(S.settingValueText(percent, value), text, String(value));
+  }
+  assert.equal(S.settingValueText(percent, 'n/a'), 'n/a', 'text that is not a number is shown as it is');
+  assert.equal(S.settingValueText(percent, ''), '');
+  assert.equal(S.settingValueText({ kind: 'number', unit: '%' }, '12'), '12%', 'a value already in percent keeps its number');
+  assert.equal(S.settingValueText({ kind: 'number', unit: 'days' }, '30'), '30 days');
+  assert.equal(S.settingValueText({ kind: 'number' }, '3'), '3');
+  assert.equal(S.settingUnitLabel(percent), '', 'the field label names no unit for a percent the text already shows');
+  assert.equal(S.settingUnitLabel({ kind: 'number', unit: 'days' }), ' (days)');
+  assert.equal(S.settingHistoryLine({ name: 'act_now_share', kind: 'percent', value: '0.08', changed_by: OWNER }, [{ ...percent, label: 'Act now share' }]),
+    `${OWNER} set Act now share to 8%`);
+});
+
 test('a value-only settings change from Edit MVP saves without a rebuild and only for an owner, while a value for a widget the notebook does not read still rebuilds', async () => {
   await withApp({}, async (url, made) => {
     const plan = await call(url, '/api/inspire/implement/plan', { method: 'POST', body: { ...DB, spec: editOf({ widgets: { act_now_share: '0.1' } }) } });
