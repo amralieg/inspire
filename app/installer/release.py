@@ -117,19 +117,20 @@ def assets_entries(assets, version, starter):
     return manifest_path, data["files"]
 
 
-def write_assets_tar(assets, version, target, starter):
-    manifest_path, files = assets_entries(assets, version, starter)
-
-    def add(tar, name, path):
-        info = tarfile.TarInfo(name)
-        info.size, info.mtime, info.mode, info.uid, info.gid, info.uname, info.gname = path.stat().st_size, 0, 0o644, 0, 0, "", ""
-        with open(path, "rb") as handle:
-            tar.addfile(info, handle)
-
+def write_tar(target, names, open_member):
     with tarfile.open(target, "w", format=tarfile.PAX_FORMAT) as tar:
-        add(tar, ASSETS_MANIFEST, manifest_path)
-        for entry in sorted(files, key=lambda e: e["file"]):
-            add(tar, entry["file"], assets / entry["file"])
+        for name in [ASSETS_MANIFEST] + sorted(set(names) - {ASSETS_MANIFEST}):
+            with open_member(name) as handle:
+                size = handle.seek(0, os.SEEK_END)
+                handle.seek(0)
+                info = tarfile.TarInfo(name)
+                info.size, info.mtime, info.mode, info.uid, info.gid, info.uname, info.gname = size, 0, 0o644, 0, 0, "", ""
+                tar.addfile(info, handle)
+
+
+def write_assets_tar(assets, version, target, starter):
+    files = assets_entries(assets, version, starter)[1]
+    write_tar(target, [entry["file"] for entry in files], lambda name: open(assets / name, "rb"))
     return len(files)
 
 
