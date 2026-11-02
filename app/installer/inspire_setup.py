@@ -21,13 +21,17 @@ BELOW_CATALOG_VIEWS = (("schema", "schema_privileges", "schema_name", "schema_na
 REAL_GRANTS_SHOWN = 10
 
 
-_WIDGET_PLACEHOLDER = "Please select"
+_WIDGET_PLACEHOLDER = "Pick from the list or type"
+_LEGACY_PLACEHOLDER = "Please select"
+_LEGACY_WAREHOUSE_CHOICE = re.compile(r"(?P<name>.*) \[[A-Z_?]+\] (?P<id>\S+)")
 
 
 W_WH = "00_sql_warehouse"
+W_WH_LABEL = "1) SQL warehouse for grants & app default"
 
 
 W_CAT = "01_inspire_catalog"
+W_CAT_LABEL = "2) Unity Catalog for Inspire tracking tables (_inspire)"
 
 
 def _get_widget_value(name):
@@ -37,14 +41,53 @@ def _get_widget_value(name):
         return ""
 
 
-def _reset_dropdown(name, label, choices, current_value):
-    try:
-        dbutils.widgets.remove(name)
-    except Exception:
-        pass
+def _unpicked(value):
+    return not value or value in (_WIDGET_PLACEHOLDER, _LEGACY_PLACEHOLDER)
 
-    default_value = current_value if current_value in choices else _WIDGET_PLACEHOLDER
-    dbutils.widgets.dropdown(name, default_value, choices, label)
+
+def _warehouse_choice(wh):
+    return f"{wh.name or wh.id} ({wh.id})"
+
+
+def resolve_warehouse(value, warehouses):
+    text = (value or "").strip()
+    if _unpicked(text):
+        return None, f"Pick or type a SQL warehouse in {W_WH}."
+    legacy = _LEGACY_WAREHOUSE_CHOICE.fullmatch(text)
+    for found in ([wh for wh in warehouses if _warehouse_choice(wh) == text], [wh for wh in warehouses if wh.id == text],
+                  [wh for wh in warehouses if legacy and wh.id == legacy.group("id")]):
+        if found:
+            return found[0], None
+    named = [wh for wh in warehouses if (wh.name or "") == text]
+    if len(named) == 1:
+        return named[0], None
+    if named:
+        return None, f"{len(named)} SQL warehouses are named {text!r}. Pick one from the list in {W_WH} or type its id."
+    return None, (f"No SQL warehouse you can use has the name or id {text!r}. "
+                  f"Pick one from the list in {W_WH}, or type its exact name or id.")
+
+
+def resolve_catalog(value, catalogs):
+    text = (value or "").strip()
+    if _unpicked(text):
+        return None, f"Pick or type a catalog in {W_CAT}."
+    if text in catalogs:
+        return text, None
+    folded = [name for name in catalogs if name.casefold() == text.casefold()]
+    if len(folded) == 1:
+        return folded[0], None
+    return None, f"No catalog you can use is named {text!r}. Pick one from the list in {W_CAT}, or type its exact name."
+
+
+def _place_picker(name, label, choices, value, picked):
+    if picked is None and (value == _LEGACY_PLACEHOLDER or _LEGACY_WAREHOUSE_CHOICE.fullmatch(value or "")):
+        try:
+            dbutils.widgets.remove(name)
+            return False
+        except Exception:
+            pass
+    dbutils.widgets.combobox(name, picked or _WIDGET_PLACEHOLDER, [_WIDGET_PLACEHOLDER] + list(choices), label)
+    return True
 
 
 def show_warning_banner(title, message):
@@ -70,25 +113,18 @@ def show_warning_banner(title, message):
     )
 
 
-def ensure_parameter_widgets(warehouse_choices=None, catalog_choices=None):
-    warehouse_choices = warehouse_choices or [_WIDGET_PLACEHOLDER]
-    catalog_choices = catalog_choices or [_WIDGET_PLACEHOLDER]
-
-    _reset_dropdown(
-        W_WH,
-        "1) SQL warehouse for grants & app default",
-        warehouse_choices,
-        _get_widget_value(W_WH),
-    )
-    _reset_dropdown(
-        W_CAT,
-        "2) Unity Catalog for Inspire tracking tables (_inspire)",
-        catalog_choices,
-        _get_widget_value(W_CAT),
-    )
-
-    print("Notebook parameters are ready above.")
-    print("Run the last cell to continue after choosing values.")
+def ensure_parameter_widgets(warehouses, catalogs):
+    values = {W_WH: _get_widget_value(W_WH), W_CAT: _get_widget_value(W_CAT)}
+    warehouse, warehouse_problem = resolve_warehouse(values[W_WH], warehouses)
+    catalog, catalog_problem = resolve_catalog(values[W_CAT], catalogs)
+    placed = [
+        _place_picker(W_WH, W_WH_LABEL, [_warehouse_choice(wh) for wh in warehouses], values[W_WH],
+                      _warehouse_choice(warehouse) if warehouse else None),
+        _place_picker(W_CAT, W_CAT_LABEL, catalogs, values[W_CAT], catalog),
+    ]
+    print("Notebook parameters are ready above: pick a value from each list or type it.")
+    return {"warehouse": warehouse, "catalog": catalog, "warehouse_problem": warehouse_problem, "catalog_problem": catalog_problem,
+            "replaced": not all(placed)}
 
 
 def _wh_sort_key(wh):
@@ -437,15 +473,7 @@ def build_runtime_context(env):
     all_warehouses = [wh for wh in w.warehouses.list() if getattr(wh, "id", None)]
     all_warehouses.sort(key=_wh_sort_key)
 
-    warehouse_labels = []
-    warehouse_ids_list = []
-    for wh in all_warehouses:
-        st = wh.state.value if wh.state else "?"
-        nm = wh.name or wh.id
-        warehouse_labels.append(f"{nm} [{st}] {wh.id}")
-        warehouse_ids_list.append(wh.id)
-
-    if not warehouse_ids_list:
+    if not all_warehouses:
         raise RuntimeError("No SQL warehouses found. Create a SQL warehouse in this workspace, then re-run.")
 
     available_catalogs = []
@@ -459,57 +487,35 @@ def build_runtime_context(env):
         available_catalogs = ["workspace"]
     available_catalogs = sorted(set(available_catalogs))
 
-    ensure_parameter_widgets(
-        warehouse_choices=[_WIDGET_PLACEHOLDER] + warehouse_labels,
-        catalog_choices=[_WIDGET_PLACEHOLDER] + available_catalogs,
-    )
-
-    picked_wh = _get_widget_value(W_WH)
-    picked_cat = _get_widget_value(W_CAT)
+    pickers = ensure_parameter_widgets(all_warehouses, available_catalogs)
+    picked_wh, picked_cat = pickers["warehouse"], pickers["catalog"]
     missing_messages = []
 
-    warehouse_id = None
-    warehouse_name = None
     if warehouse_override:
-        if warehouse_override not in warehouse_ids_list:
-            raise ValueError(
-                f"WAREHOUSE_OVERRIDE={warehouse_override!r} not in warehouse ids (showing first 5): {warehouse_ids_list[:5]}"
-            )
-        warehouse_id = warehouse_override
-        warehouse_name = warehouse_id
-        for wh in all_warehouses:
-            if wh.id == warehouse_id:
-                warehouse_name = wh.name or warehouse_id
-                break
-    else:
-        if not picked_wh or picked_wh == _WIDGET_PLACEHOLDER:
-            missing_messages.append(f"Pick a value for {W_WH}.")
-        elif picked_wh not in warehouse_labels:
-            missing_messages.append(f"Pick a valid value for {W_WH}.")
-        else:
-            wh_idx = warehouse_labels.index(picked_wh)
-            warehouse_id = warehouse_ids_list[wh_idx]
-            warehouse_name = all_warehouses[wh_idx].name or warehouse_id
+        picked_wh = next((wh for wh in all_warehouses if wh.id == warehouse_override), None)
+        if picked_wh is None:
+            raise ValueError(f"warehouse_id {warehouse_override!r} in the test setting is not a SQL warehouse you can use "
+                             f"(showing first 5 ids): {[wh.id for wh in all_warehouses[:5]]}")
+    elif picked_wh is None:
+        missing_messages.append(pickers["warehouse_problem"])
 
-    catalog = None
     if catalog_override:
-        if catalog_override not in available_catalogs:
-            raise ValueError(f"CATALOG_OVERRIDE={catalog_override!r} not in catalogs: {available_catalogs}")
-        catalog = catalog_override
-    else:
-        if not picked_cat or picked_cat == _WIDGET_PLACEHOLDER:
-            missing_messages.append(f"Pick a value for {W_CAT}.")
-        elif picked_cat not in available_catalogs:
-            missing_messages.append(f"Pick a valid value for {W_CAT}.")
-        else:
-            catalog = picked_cat
+        picked_cat = resolve_catalog(catalog_override, available_catalogs)[0]
+        if picked_cat is None:
+            raise ValueError(f"catalog {catalog_override!r} in the test setting is not in the catalogs you can use: {available_catalogs}")
+    elif picked_cat is None:
+        missing_messages.append(pickers["catalog_problem"])
 
     if missing_messages:
-        show_warning_banner(
-            "Choose notebook parameter values first",
-            "Select both dropdown values at the top of the notebook, then run this installer again.\n\n" + "\n".join(missing_messages),
-        )
+        steps = ("The pickers at the top of the notebook are now lists you can also type into. Run this installer again to show them, "
+                 "then pick or type both values." if pickers["replaced"] else
+                 "Pick a value from each list at the top of the notebook, or type it, then run this installer again.")
+        show_warning_banner("Choose notebook parameter values first", steps + "\n\n" + "\n".join(missing_messages))
         return {"ready": False}
+
+    warehouse_id = picked_wh.id
+    warehouse_name = picked_wh.name or warehouse_id
+    catalog = picked_cat
 
     schema = "_inspire"
     inspire_db = f"{catalog}.{schema}"
@@ -1160,6 +1166,8 @@ def step_render_done(ctx):
     app_url = _app_url(api_get(f"/api/2.0/apps/{app_name}")) or ctx.get("app_url", "")
     ctx["app_url"] = app_url
     not_reported = f"Databricks has not reported the App URL yet: open it from Compute → Apps → {app_name}"
+    new_address = ("A new App's address can take a few minutes to start working. If the page does not open, "
+                   "wait a few minutes and try again.")
 
     print("=" * 60)
     print(f"  Inspire AI {version} is ready")
@@ -1167,6 +1175,7 @@ def step_render_done(ctx):
     print(f"  Databricks App: {app_name}  (Compute → Apps → {app_name})")
     print("  Open this URL to use Inspire AI (Apps runtime, not this notebook):")
     print(f"  URL:         {app_url or not_reported}")
+    print(f"  {new_address}")
     link = (
         f'<a href="{app_url}" target="_blank" style="display:inline-block;padding:14px 36px;background:linear-gradient(135deg,#ff6b35,#f7931e);'
         'color:white;text-decoration:none;border-radius:8px;font-size:18px;font-weight:600;box-shadow:0 4px 15px rgba(255,107,53,0.3)">'
@@ -1188,6 +1197,7 @@ def step_render_done(ctx):
         <p style="color:#aaa;font-size:13px;margin-bottom:8px">Installer finished. Run the product from the <strong>Databricks App</strong> below (hosted Apps compute + <code>start.sh</code>).</p>
         <p style="color:#888;font-size:12px;margin-bottom:20px">Do not rely on this notebook for day-to-day use: open the App.</p>
         {link}
+        <p style="color:#aaa;font-size:12px;margin-top:14px">{new_address}</p>
         </div>"""
     )
 

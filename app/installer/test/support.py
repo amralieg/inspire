@@ -85,6 +85,48 @@ def v130_manifest(manifest, part_bytes=4096):
     return old
 
 
+class FakeWidgets:
+    def __init__(self, existing=None):
+        self.state = {name: dict(widget) for name, widget in (existing or {}).items()}
+        self.removed_this_cell = set()
+        self.calls = []
+
+    def new_cell(self):
+        self.removed_this_cell.clear()
+
+    def _create(self, kind, name, default, choices, label):
+        self.calls.append(("create", kind, name, default))
+        if kind == "dropdown" and default not in choices:
+            raise ValueError(f"Default value {default!r} is not one of the choices of {name}")
+        if name in self.removed_this_cell or name in self.state:
+            return None
+        self.state[name] = {"kind": kind, "value": default, "choices": list(choices), "label": label}
+        return None
+
+    def dropdown(self, name, default, choices, label=None):
+        return self._create("dropdown", name, default, choices, label)
+
+    def combobox(self, name, default, choices, label=None):
+        return self._create("combobox", name, default, choices, label)
+
+    def get(self, name):
+        if name not in self.state:
+            raise ValueError(f"InputWidgetNotDefined: {name}")
+        return self.state[name]["value"]
+
+    def remove(self, name):
+        self.calls.append(("remove", name))
+        if name not in self.state:
+            raise ValueError(f"InputWidgetNotDefined: {name}")
+        del self.state[name]
+        self.removed_this_cell.add(name)
+
+    def pick(self, name, value):
+        if self.state[name]["kind"] == "dropdown" and value not in self.state[name]["choices"]:
+            raise ValueError(f"{value!r} is not a choice of the dropdown {name}")
+        self.state[name]["value"] = value
+
+
 def load_starter(stage):
     ns = release.load_starter()
     ns["STAGE"] = str(stage)

@@ -8,7 +8,7 @@ Install the **inspire-ai** Databricks App with **`inspire_installer.py`** from t
 
 1. Download **`inspire_installer.py`** from the latest release: `https://github.com/amralieg/inspire/releases/latest/download/inspire_installer.py`.
 2. Import it into a folder of your workspace (**Workspace, Import, File**).
-3. Open it, attach **Serverless**, and **Run All**. Pick the **warehouse** and **catalog** in the widgets, then run it again.
+3. Open it, attach **Serverless**, and **Run All**. Pick the **warehouse** and **catalog** from the lists in the widgets, or type the exact name (or the warehouse id), then run it again.
 
 The installer downloads the latest release from GitHub, checks the size and sha256 of every file, installs the agent assets into **`/Workspace/Shared/inspire-ai/assets/<version>/`**, deploys the App and grants its service principal. Open **Compute, Apps, inspire-ai**.
 
@@ -51,8 +51,8 @@ python3 installer/release.py check --base https://github.com/amralieg/inspire/re
 
 | Widget | What to choose |
 |--------|----------------|
-| **00_sql_warehouse** | The SQL warehouse used for SQL statements, grants, and the value written into the app as **INSPIRE_WAREHOUSE_ID**. |
-| **01_inspire_catalog** | The Unity Catalog where Inspire uses schema **_inspire** for session and tracking tables. |
+| **00_sql_warehouse** | The SQL warehouse used for SQL statements, grants, and the value written into the app as **INSPIRE_WAREHOUSE_ID**. Pick it from the list or type its exact name or id. |
+| **01_inspire_catalog** | The Unity Catalog where Inspire uses schema **_inspire** for session and tracking tables. Pick it from the list or type its exact name. |
 
 **Jobs / automation (no UI):** put `inspire_installer_test.json` next to the installer with `warehouse_id` and `catalog` so the widgets are skipped. It also takes `app_name` and `release` (a pre-release of the test fork).
 
