@@ -1263,6 +1263,7 @@ class Shell:
                 if self.strict:
                     raise QueryError(f"Lakebase could not run it: {error}") from error
                 self.lakebase.noted(f"Lakebase could not run a query, so the App read Delta tables instead: {error}")
+                print(f"[lakebase] read Delta once instead: {error}", flush=True)
         if not self.warehouse:
             raise HttpError(500, "the App has no SQL warehouse; add the sql-warehouse resource")
         return dict(ws.run_sql(self.warehouse, sql, params, limit=limit), served="delta")

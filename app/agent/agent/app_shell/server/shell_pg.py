@@ -18,6 +18,7 @@ ROW_COLUMN = "_inspire_row"
 POOL_SIZE = 8
 CONNECT_TIMEOUT_S = 15
 STATEMENT_TIMEOUT_MS = 30000
+READ_TIMEOUT_MS = 2500
 READ_CURSOR = "inspire_read"
 TOKEN_SLACK_S = 300
 TOKEN_LIFE_S = 3600
@@ -835,10 +836,13 @@ class Lakebase:
         for attempt in (0, 1):
             conn = self._take()
             try:
-                with conn.transaction(), conn.cursor(name=READ_CURSOR) as cur:
-                    cur.execute(text, values)
-                    rows = cur.fetchmany(limit + 1)
-                    description = list(cur.description or [])
+                with conn.transaction():
+                    with conn.cursor() as setup:
+                        setup.execute(f"SET LOCAL statement_timeout = {READ_TIMEOUT_MS}")
+                    with conn.cursor(name=READ_CURSOR) as cur:
+                        cur.execute(text, values)
+                        rows = cur.fetchmany(limit + 1)
+                        description = list(cur.description or [])
                 names = [c.name for c in description]
                 types = [self._type_name(conn, c.type_code) for c in description]
             except Exception as error:

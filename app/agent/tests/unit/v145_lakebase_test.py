@@ -553,7 +553,10 @@ def test_a_connection_is_read_only_with_a_statement_timeout_and_is_reused():
                      "sslmode": "require", "connect_timeout": shell_pg.CONNECT_TIMEOUT_S, "autocommit": True}]
     assert [t for t, _v in conn.executed[:3]] == ["SET statement_timeout = 30000", "SET default_transaction_read_only = on",
                                                   "SET TIME ZONE 'UTC'"]
-    assert sum(1 for t, _v in conn.executed if t.startswith("SET ")) == 3, "the pooled connection is reused, not reopened"
+    assert sum(1 for t, _v in conn.executed if t.startswith("SET ") and not t.startswith("SET LOCAL ")) == 3, \
+        "the pooled connection is reused, not reopened"
+    assert [t for t, _v in conn.executed if t.startswith("SET LOCAL ")] == [f"SET LOCAL statement_timeout = {shell_pg.READ_TIMEOUT_MS}"] * 2, \
+        "each read of the App waits at most the short interactive timeout"
 
 
 def test_column_types_come_from_unity_catalog_and_unknown_columns_from_postgres():
