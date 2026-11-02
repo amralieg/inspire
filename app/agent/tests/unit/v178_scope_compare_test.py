@@ -126,6 +126,8 @@ def test_the_run_page_states_what_the_first_run_covered_and_what_everything_woul
     assert shell_sql.scope_facts({"scope": "all", "key": "all"}, tables, 240) == {"covered": "", "everything": ""}
     assert shell_sql.scope_facts(scope, [], 240) == {"covered": "", "everything": ""}, "no count, no invented numbers"
     assert shell_sql.scope_facts(scope, tables, None)["covered"] == "The first run covered 900 of 48,000 records (3 groups)."
+    one = shell_sql.scope_facts(dict(scope, scope="records"), [{"table": "main.sales.orders", "rows": 1, "rows_total": 1}], None)
+    assert one == {"covered": "The first run covered 1 of 1 record.", "everything": "Run on everything covers all 1 record."}
     view = shell_core.run_view({"run_id": "r3"}, {"run_segments": json.dumps([{"column": "channel", "values": ["web"]}, scope]),
                                                   "run_tables": json.dumps(tables), "run_started_at": None}, {"filters": []})
     assert view["scope"] == scope and view["scope_text"] == "First run: the 3 groups EMEA, AMER, APAC of region"

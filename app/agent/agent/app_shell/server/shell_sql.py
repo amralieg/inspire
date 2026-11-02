@@ -3956,10 +3956,10 @@ def scope_facts(scope, tables, duration_s) -> dict:
               "recent": f" ({scope.get('column')} since {(scope.get('values') or [''])[0]})",
               "records": ""}.get(scope["scope"], "")
     took = "" if minutes is None else f" in {plural(max(1, round(minutes)), 'minute')}"
-    covered = f"The first run covered {read:,} of {total:,} records{extent}{took}."
+    covered = f"The first run covered {read:,} of {plural(total, 'record')}{extent}{took}."
     if minutes is None or not read:
-        return {"covered": covered, "everything": f"Run on everything covers all {total:,} records."}
-    return {"covered": covered, "everything": (f"Run on everything covers all {total:,} records, about "
+        return {"covered": covered, "everything": f"Run on everything covers all {plural(total, 'record')}."}
+    return {"covered": covered, "everything": (f"Run on everything covers all {plural(total, 'record')}, about "
                                                f"{plural(max(1, round(minutes * total / read)), 'minute')} at this run's pace.")}
 
 

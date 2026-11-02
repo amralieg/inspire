@@ -95,6 +95,8 @@ def test_the_record_count_comes_from_table_metadata_and_never_from_a_scan_of_a_n
     assert counted([write("MERGE", "", 12), write("CREATE TABLE AS SELECT", "", 900)]) is None, "a merge leaves the count unknown"
     assert counted([write("WRITE", "Append", 5)]) is None, "history cut before the table was made leaves the count unknown"
     assert counted([write("CREATE TABLE AS SELECT", "", None)]) is None
+    assert [counted([write(op, "", 77)]) for op in ("CREATE TABLE AS SELECT", "REPLACE TABLE AS SELECT", "CREATE OR REPLACE TABLE AS SELECT")] == [77, 77, 77]
+    assert counted([write("RESTORE", "", 5), {"operation": "CREATE TABLE"}]) is None, "only a table built from a query replaces the count"
     for answer in ([], [write("DELETE", "", None)]):
         unknown = FakeSpark(responder=lambda s, answer=answer: answer if s.startswith("DESCRIBE HISTORY") else [])
         assert agent_ns["inspire_metadata_rows"](unknown, ORDERS) is None
