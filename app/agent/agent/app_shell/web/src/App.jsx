@@ -7,6 +7,8 @@ import { ToastProvider } from './ui.jsx';
 import Page from './Page.jsx';
 import Home, { hubToday } from './Home.jsx';
 import Impact from './Impact.jsx';
+import MyWorkPage from './MyWorkPage.jsx';
+import { MY_WORK_ROUTE } from './mywork.js';
 import Admin, { AdminLink } from './Admin.jsx';
 import { ADMIN_ROUTE } from './admin.js';
 import GeniePanel, { useGenie } from './Genie.jsx';
@@ -19,7 +21,7 @@ import { DEFAULT_VIEW, hubTimes, useCaseState, visiblePages } from './hub.js';
 import logo from './databricks-logo.png?inline';
 
 const THEME_KEY = 'inspire-app-theme';
-const HUB_ROUTES = ['home', 'overview', 'impact', 'results', ADMIN_ROUTE];
+const HUB_ROUTES = ['home', 'overview', MY_WORK_ROUTE, 'impact', 'results', ADMIN_ROUTE];
 const IMPACT_ROUTES = ['impact', 'results'];
 const TONES = { stale: 'bad', error: 'bad', wait: 'warn' };
 
@@ -99,7 +101,8 @@ function Shell({ app }) {
   const single = pages.length === 1;
   const routed = pages.find((p) => p.id === route);
   const impactOn = app.screens?.impact !== false;
-  const screen = route === ADMIN_ROUTE ? 'admin' : routed ? 'page' : impactOn && IMPACT_ROUTES.includes(route) ? 'impact' : single ? 'page' : 'overview';
+  const screen = route === ADMIN_ROUTE ? 'admin' : routed ? 'page' : route === MY_WORK_ROUTE ? 'mywork'
+    : impactOn && IMPACT_ROUTES.includes(route) ? 'impact' : single ? 'page' : 'overview';
   const page = screen === 'page' ? routed || pages[0] : null;
   const genie = useGenie(app, page ? page.id : screen, () => setGenieOpen(true));
   const { hub, error: hubError, summaries, load: loadHub } = useHub(pages, JSON.stringify(windowParams(prefs)));
@@ -113,7 +116,8 @@ function Shell({ app }) {
     return () => window.removeEventListener('hashchange', onHash);
   }, []);
   useEffect(() => {
-    document.title = page ? `${page.title} · ${app.title}` : screen === 'impact' ? `Impact · ${app.title}` : screen === 'admin' ? `Admin · ${app.title}` : app.title;
+    const named = { impact: 'Impact', admin: 'Admin', mywork: 'My work' }[screen];
+    document.title = page ? `${page.title} · ${app.title}` : named ? `${named} · ${app.title}` : app.title;
   }, [page, screen, app.title]);
   useEffect(() => { if (screen !== 'page') loadHub(); }, [screen, loadHub]);
   useUnknownPageNotice(route, pages, HUB_ROUTES);
@@ -162,6 +166,8 @@ function Shell({ app }) {
   const state = (p) => useCaseState(hub?.pages?.[p.id], summaries[p.id]);
   const impactTab = <button className={`tab ${screen === 'impact' ? 'is-on' : ''}`} onClick={() => go('impact')} aria-current={screen === 'impact' ? 'page' : undefined}><Icon name="trend" size={14} />Impact</button>;
   const impactItem = <NavItem on={screen === 'impact'} icon="trend" title="Impact" small={single ? 'What the use case delivered' : 'What the use cases delivered'} hue="green" onClick={() => go('impact')} />;
+  const workTab = <button className={`tab ${screen === 'mywork' ? 'is-on' : ''}`} onClick={() => go(MY_WORK_ROUTE)} aria-current={screen === 'mywork' ? 'page' : undefined}><Icon name="check" size={14} />My work</button>;
+  const workItem = <NavItem on={screen === 'mywork'} icon="check" title="My work" small="What you did, and when" hue="teal" onClick={() => go(MY_WORK_ROUTE)} />;
 
   return (
     <div className="stage">
@@ -175,8 +181,10 @@ function Shell({ app }) {
           {app.layout === 'tabs' && (
             <nav className="tabs" aria-label="Use cases">
               {!single && <button className={`tab ${screen === 'overview' ? 'is-on' : ''}`} onClick={() => go('overview')} aria-current={screen === 'overview' ? 'page' : undefined}><Icon name="home" size={14} />Overview</button>}
+              {!single && workTab}
               {!single && impactOn && impactTab}
               {shown.map((p) => <button key={p.id} className={`tab ${page?.id === p.id ? 'is-on' : ''}`} onClick={() => go(p.id)} aria-current={page?.id === p.id ? 'page' : undefined}><Icon name={p.icon} size={14} />{p.title}</button>)}
+              {single && workTab}
               {single && impactOn && impactTab}
             </nav>
           )}
@@ -193,6 +201,7 @@ function Shell({ app }) {
         <div className="body">
           <nav className={`side ${navOpen ? 'is-open' : ''}`} aria-label="Use cases">
             {!single && <NavItem on={screen === 'overview'} icon="home" title="Overview" small="All use cases" hue="slate" onClick={() => go('overview')} />}
+            {!single && workItem}
             {!single && impactOn && impactItem}
             {!single && <div className="side-sep" />}
             <div className="side-h">{single ? 'Use case' : 'Use cases'}</div>
@@ -200,13 +209,15 @@ function Shell({ app }) {
               <NavItem key={p.id} on={page?.id === p.id} icon={p.icon} title={p.title} hue={p.hue || 'blue'} onClick={() => go(p.id)}
                 small={state(p).text || [p.use_case_id, p.domain].filter(Boolean).join(' · ')} tone={TONES[state(p).kind]} />
             ))}
-            {single && impactOn && <div className="side-sep" />}
+            {single && <div className="side-sep" />}
+            {single && workItem}
             {single && impactOn && impactItem}
           </nav>
           {navOpen && <div className="scrim" onClick={() => setNavOpen(false)} />}
           <main className="main" tabIndex={-1}>
             {screen === 'overview' && <Home app={app} hub={hub} hubError={hubError} summaries={summaries} view={view} onView={setView} onOpen={go} onRecord={openRecord}
-              onChanges={(id) => { window.location.hash = `#/${encodeURIComponent(id)}?changed=1`; leave(); }} />}
+              onChanges={(id) => { window.location.hash = `#/${encodeURIComponent(id)}?changed=1`; leave(); }} onMyWork={() => go(MY_WORK_ROUTE)} />}
+            {screen === 'mywork' && <MyWorkPage app={app} hub={hub} hubError={hubError} summaries={summaries} onRecord={openRecord} />}
             {screen === 'impact' && <Impact app={app} hub={hub} hubError={hubError} summaries={summaries} onOpen={go} onExplain={explain} genieBusy={genie.busy} />}
             {screen === 'admin' && <Admin />}
             {page && (

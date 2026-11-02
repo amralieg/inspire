@@ -25,6 +25,7 @@ export function settingProblem(setting, value) {
     }
     return '';
   }
+  if (!text && setting?.optional) return '';
   const num = (v) => (v === null || v === undefined || v === '' || !Number.isFinite(Number(v)) ? null : Number(v));
   const low = num(setting?.low);
   const high = num(setting?.high);
@@ -58,6 +59,9 @@ export function valueText(setting, value) {
   const shown = n.toLocaleString('en-US', { maximumFractionDigits: 4 });
   return setting.unit && setting.unit !== '%' ? `${shown} ${setting.unit}` : shown;
 }
+
+export const savedText = (setting, value) => `${setting.label} is ${valueText(setting, value)} now. `
+  + (setting.applies === 'app' ? 'My work uses it at once.' : 'The next run uses it.');
 
 export const ownerSettings = (data) => !!(data?.editable && data.settings?.length);
 

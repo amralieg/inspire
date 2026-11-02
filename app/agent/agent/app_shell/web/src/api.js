@@ -51,6 +51,7 @@ export const getRuns = (page, offset = 0) => json('GET', `runs?${new URLSearchPa
 export const getFreshness = (page) => json('GET', `freshness?page=${encodeURIComponent(page)}`);
 export const refreshPage = (page) => json('POST', 'refresh', { page });
 export const getOverview = (body = {}) => json('POST', 'overview', body);
+export const getMyWork = (body) => json('POST', 'my_work', body);
 export const getSummary = (page) => json('GET', `summary?page=${encodeURIComponent(page)}`);
 export const getMoney = (page) => json('GET', `money?page=${encodeURIComponent(page)}`);
 export const changeAssumption = (body) => json('POST', 'money/assumption', body);
