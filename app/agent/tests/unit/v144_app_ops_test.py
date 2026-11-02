@@ -91,7 +91,11 @@ class JobsWorkspace(TableWorkspace):
         return {"columns": [], "rows": rows[:limit], "truncated": False}
 
     def summary_reads(self, index):
-        return [(sql, params) for sql, params, _limit in self.sql if f"FROM {SUMMARY_TABLE}" in sql and ("AS `run_id`" in sql) == index]
+        return [(sql, params) for sql, params, _limit in self.sql if f"FROM {SUMMARY_TABLE}" in sql and ("AS `run_id`" in sql) == index
+                and (index or "IN (SELECT explode(" in sql)]
+
+    def state_reads(self):
+        return [(sql, params) for sql, params, _limit in self.sql if sql == shell_sql.summary_query(edit_page(), 1)[0]]
 
     def _jobs_call(self, *call_):
         with self.guard:
@@ -704,6 +708,7 @@ def test_runs_join_each_run_summary_by_run_id_to_its_job_run_and_say_what_it_cov
     assert sql == (f"SELECT * FROM {SUMMARY_TABLE} WHERE `use_case_id` = :p0 AND CAST(`run_id` AS STRING) IN (SELECT explode(from_json(:p1, "
                    f"'ARRAY<STRING>'))) ORDER BY `updated_at` DESC NULLS LAST LIMIT 2")
     assert params[0]["value"] == "N01-U05" and json.loads(params[1]["value"]) == ["u4", "u3"]
+    assert len(sp.state_reads()) == 1, "the table's runs come from the counts the latest run kept in its summary row, read once"
     assert all("INSERT" not in q.upper() and "MERGE" not in q.upper() for q, _p, _l in sp.sql)
 
 
@@ -800,7 +805,7 @@ def test_the_run_history_always_reads_delta(tmp_path):
     real = s.execute
     s.execute = lambda ws, sql, params, limit, delta=False: (seen.append((SUMMARY_TABLE in sql, delta)), real(ws, sql, params, limit, delta))[1]
     call(s, "GET", "runs", query={"page": "n01_u05"}, headers=signed(DANA))
-    assert sorted(d for summary, d in seen if summary) == [True, True]
+    assert sorted(d for summary, d in seen if summary) == [True, True, True], "the index, the latest run's kept counts and the details"
 
 
 def test_the_run_history_statements_parse_as_databricks_sql():

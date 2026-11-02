@@ -26,10 +26,12 @@ SHELL_ENTRY_POINTS = {
     ("_implement_app_block_files", "shell_sql.image_blocks"),
     ("_implement_app_block_images", "_implement_app_shell"),
     ("_implement_app_check", "shell_core.Shell"),
+    ("_implement_app_check", "shell_core.HttpError"),
     ("_implement_app_check", "shell_core.Shell.check"),
     ("_implement_app_check", "shell_core.Shell.hub_pool"),
     ("_implement_app_check", "shell_core.Shell.lakebase"),
     ("_implement_app_check", "shell_core.Shell.pool"),
+    ("_implement_app_check", "shell_core.Shell.speed"),
     ("_implement_app_check", "shell_core.Shell.stamp_pool"),
     ("_implement_app_check", "shell_db.QueryError"),
     ("_implement_app_check", "shell_db.Workspace"),
@@ -131,10 +133,18 @@ class _ShellFlow:
     def __init__(self, tree, modules, files):
         self.modules = tuple(modules)
         self.members, self.classes = {}, {}
-        for module in self.modules:
-            body = ast.parse(files[f"{module}.py"]).body
+        bodies = {module: ast.parse(files[f"{module}.py"]).body for module in self.modules}
+        for module, body in bodies.items():
             self.members[module] = {n.name for n in body if isinstance(n, (*FUNCTIONS, ast.ClassDef))}
             self.classes[module] = {n.name for n in body if isinstance(n, ast.ClassDef)}
+        for module, body in bodies.items():
+            for node in body:
+                if isinstance(node, ast.ImportFrom) and node.module in bodies:
+                    for alias in node.names:
+                        if alias.name in self.members[node.module]:
+                            self.members[module].add(alias.asname or alias.name)
+                        if alias.name in self.classes[node.module]:
+                            self.classes[module].add(alias.asname or alias.name)
         self.parent = {child: node for node in ast.walk(tree) for child in ast.iter_child_nodes(node)}
         self.functions = [n for n in ast.walk(tree) if isinstance(n, FUNCTIONS)]
         self.by_name = {}
@@ -276,6 +286,8 @@ def test_every_place_agent_code_calls_into_the_app_shell_is_on_the_list(shell_fl
      ("_describe_table_columns", "shell_core.Shell.check")),
     ('        _describe_with_shell(self._implement_app_shell()[1]["shell_sql"])\n',
      ("_describe_with_shell", "shell_sql.spec_problems")),
+    ('        self._implement_app_shell()[1]["shell_sql"].quote(table)\n',
+     ("_describe_table_columns", "shell_sql.quote")),
 ])
 def test_a_new_call_into_the_app_shell_is_caught(agent_ns, line, entry):
     anchor = "    def _describe_table_columns(self, catalog, schema, table):\n"
@@ -472,6 +484,9 @@ def test_an_error_the_shell_raises_after_reading_a_row_comes_back_without_the_ro
             if stage == "start":
                 stop(self.factory)
 
+        def speed(self, headers):
+            return {}
+
         def check(self, headers):
             stop(self.factory)
 
@@ -533,6 +548,9 @@ def test_the_check_reads_lakebase_rows_through_the_same_watch(agent_ns, tmp_path
             self.pool, self.lakebase = types.SimpleNamespace(shutdown=lambda wait: None), None
             self.hub_pool = self.stamp_pool = types.SimpleNamespace(shutdown=lambda wait: None)
             self.hub_pool = self.stamp_pool = self.pool
+
+        def speed(self, headers):
+            return {}
 
         def check(self, headers):
             reader = caught["lakebase_factory"]({"kind": "lakebase"}, {}, None)

@@ -101,6 +101,10 @@ def test_the_list_carries_the_reasoning_and_categories_of_each_record_s_current_
               {"f": "ai_cat_driver", "v": "Not explained yet", "n": 7}, {"f": "ai_cat_fix", "v": "Not explained yet", "n": 13}]
     s, ws, _made = shell(tmp_path, ws=AiWorkspace(counts=counts))
     status, out = records(s)
+    assert status == 200 and not ws.queries(" AS f, COALESCE(") and out["ai"]["counted"] is False, \
+        "no screen shows the counts, so a plain list read never scans every record to count them"
+    assert out["ai"]["categories"] == [{"name": "ai_cat_driver", "options": []}, {"name": "ai_cat_fix", "options": []}]
+    status, out = records(s, ai_counts=True)
     assert status == 200
     (sql, _params), = ws.queries(" OFFSET ")
     assert ("CAST(`ai_explanation` AS STRING) AS `_inspire_ai_explanation`, CAST(`confidence_level` AS STRING) AS "
@@ -114,14 +118,15 @@ def test_the_list_carries_the_reasoning_and_categories_of_each_record_s_current_
                          "categories": [{"name": "ai_cat_driver", "options": [{"value": "Not explained yet", "n": 7},
                                                                               {"value": "Price", "n": 3}, {"value": "Volume", "n": 3}]},
                                         {"name": "ai_cat_fix", "options": [{"value": "Not explained yet", "n": 13}]}],
-                         "picked": {}}
+                         "picked": {}, "counted": True}
+    assert records(s, ai_counts="yes") == (400, {"error": "mine, changed and ai_counts take true or false"})
 
 
 def test_an_ai_filter_narrows_the_list_before_it_pages_and_never_reaches_the_counts(tmp_path):
     s, ws, _made = shell(tmp_path, ws=AiWorkspace())
-    status, _out = records(s, search="tea", ai={"ai_cat_driver": ["Price", "Not explained yet", "Price"], "ai_cat_fix": []})
+    status, _out = records(s, search="tea", ai={"ai_cat_driver": ["Price", "Not explained yet", "Price"], "ai_cat_fix": []}, ai_counts=True)
     assert status == 200
-    (sql, params), (total, total_params) = ws.queries(" OFFSET ")[-1], ws.queries("AS total FROM f")[-1]
+    (sql, params), (total, total_params) = ws.queries(" OFFSET ")[-1], ws.queries("AS total FROM (SELECT 1 FROM f LIMIT")[-1]
     for text in (sql, total):
         assert f"FROM d LEFT JOIN c ON c.`_inspire_key` = d.`record_key` WHERE (" in text and f"AND {PICK.replace(':p0', ':p1').replace(':p1)', ':p2)')}" in text
     assert [p["value"] for p in params] == [p["value"] for p in total_params] == ["%tea%", "Price", "Not explained yet"]
@@ -149,7 +154,7 @@ def test_a_bad_ai_filter_is_refused_before_any_list_query(tmp_path, ai, message)
 def test_a_table_without_ai_columns_lists_as_before_and_offers_no_ai_filter(tmp_path):
     s, ws, _made = shell(tmp_path)
     status, out = records(s)
-    assert status == 200 and out["ai"] == {"columns": {}, "categories": [], "picked": {}}
+    assert status == 200 and out["ai"] == {"columns": {}, "categories": [], "picked": {}, "counted": False}
     assert not ws.queries(" AS f, COALESCE(") and "_inspire_ai" not in ws.queries(" OFFSET ")[0][0]
     assert records(s, ai={"ai_cat_driver": ["Price"]}) == (
         400, {"error": "the decision list has no AI category 'ai_cat_driver'; its AI categories: none"})
@@ -157,7 +162,7 @@ def test_a_table_without_ai_columns_lists_as_before_and_offers_no_ai_filter(tmp_
 
 def test_a_failed_count_is_reported_without_failing_the_list_and_check_names_it(tmp_path):
     s, _ws, _made = shell(tmp_path, ws=AiWorkspace(fail={"ai": shell_db.QueryError("warehouse stopped")}))
-    status, out = records(s)
+    status, out = records(s, ai_counts=True)
     assert status == 200 and out["errors"] == {"ai": "warehouse stopped"} and out["ai"]["categories"][0]["options"] == []
     problems = s.check({})
     assert "page n01_u05: the AI category counts failed: warehouse stopped" in problems
@@ -207,6 +212,34 @@ def test_the_ai_filter_and_counts_select_the_right_records_on_a_sql_engine():
     assert _sqlite_run(*plan["total"], tables) == [{"total": 4}]
     counted = {(r["f"], r["v"]): r["n"] for r in _sqlite_run(*shell_sql.ai_counts_query(page, {}, context), tables)}
     assert counted == {("ai_cat_driver", "Price"): 2, ("ai_cat_driver", "Volume"): 1, ("ai_cat_driver", "Not explained yet"): 2}
+
+
+def test_a_count_sorted_by_an_action_reads_only_the_list_yet_counts_every_row_the_list_shows_on_a_sql_engine():
+    page = edit_page(datasets=[{"name": "records", "sql": f"SELECT * FROM {TABLE} WHERE is_current AND change_source <> 'delete'"}],
+                     filters=[], kpis=[], charts=[], records=dict(edit_page()["records"], columns=[]))
+    fields = shell_sql.change_fields([{"name": n, "type": HISTORY_TYPES.get(n, "STRING")} for n in (
+        "record_key", "entity_id", "entity_label", "priority_tier", "rank", "run_id", "valid_from", "valid_to", "is_current", "change_source",
+        "changed_by")] + ACTION_COLUMNS)
+    listed = {"record_key", "entity_id", "entity_label", "priority_tier", "rank"}
+    context = shell_sql.list_context(page, listed, fields, True)
+    owned = lambda key, who, status, **kw: dict(_version(key, None, **kw), action_owner=who, action_status=status, valid_to=None,
+                                                changed_by="run", run_id="r1")
+    tables = {"loss_desk_out": [owned("k1", "pat", "Open"), owned("k2", "sam", "Done"), owned("k3", None, None),
+                                owned("k4", "pat", "Open", current=False), owned("k4", "sam", "Open"), owned("k5", "pat", "Open", source="delete")]}
+    plan = lambda ctx, body, who="": shell_sql.list_queries(page, {}, shell_sql.list_request(page, body, ctx), ctx, who)
+    by_owner = {"sort": {"key": "action_owner", "dir": "asc"}}
+    for body in (by_owner, {"sort": {"key": "action_status", "dir": "desc"}}):
+        sorted_plan = plan(context, body)
+        assert " c AS (" not in sorted_plan["total"][0] and "JOIN c ON" not in sorted_plan["total"][0], \
+            "sorting by an action never needs the current actions to count the list"
+        assert _sqlite_run(*sorted_plan["total"], tables) == [{"total": len(_sqlite_run(*sorted_plan["rows"], tables))}] == [{"total": 4}]
+    mine = plan(context, dict(by_owner, mine=True), "pat")
+    assert "JOIN c ON" in mine["total"][0], "the records a person owns are counted from the current actions"
+    assert _sqlite_run(*mine["total"], tables) == [{"total": len(_sqlite_run(*mine["rows"], tables))}] == [{"total": 1}], \
+        "k4 belonged to pat in an older version only"
+    keyed = shell_sql.list_context(page, listed - {"record_key"}, fields, True)
+    assert keyed["join"] == "entity_id" and "JOIN c ON" in plan(keyed, by_owner)["total"][0], \
+        "a list joined by another key may hold more than one current row per key, so its count keeps the join"
 
 
 def test_every_new_statement_parses_as_databricks_sql_and_renders_for_lakebase():

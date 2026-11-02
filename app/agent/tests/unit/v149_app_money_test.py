@@ -7,6 +7,7 @@ import pytest
 from v141_app_shell_test import SETTINGS, call
 from v148_app_hub_test import COLUMNS, PERSON, ROWS, TABLE, TYPES, SqliteWorkspace, hub_page, hub_shell, overview, to_sqlite
 import shell_core
+import shell_facts
 import shell_pg
 import shell_sql
 
@@ -135,6 +136,42 @@ def test_the_list_and_the_overview_show_the_money_an_assumption_change_gives(tmp
     assert sorts, "sorting by the money sorts by the money the App shows"
 
 
+def test_after_an_assumption_change_the_money_order_joins_only_the_top_records_and_reads_every_record_when_they_leave_the_page_short(
+        tmp_path, monkeypatch):
+    ws = MoneyWorkspace(edits=[("N01-U05", "PRICE", 30.0, SAM, "2026-10-23 09:00:00", "")])
+    s, ws, _made = _shell(tmp_path, ws)
+    headers, body = {"x-forwarded-email": PERSON}, {"page": "n01_u05", "limit": 3, "sort": {"key": "value_at_stake", "dir": "desc"}}
+    status, out = call(s, "POST", "records", headers=headers, body=body)
+    assert status == 200 and [r["record_key"] for r in out["rows"]] == ["k2", "k6", "k1"], out
+    cut = "AS c0 ORDER BY `_inspire_money` DESC NULLS LAST, `_inspire_key` ASC LIMIT 1000)"
+    listed = [sql for sql, _p in ws.queries(" OFFSET 0)")]
+    assert len(listed) == 1 and cut in listed[0] and " FROM d JOIN c ON " in listed[0], \
+        "the list joins only the top thousand current records by the money it shows, never every record"
+    monkeypatch.setattr(shell_facts, "FLOOR_DEPTHS", (3,))
+    monkeypatch.setattr(shell_facts, "FLOOR_MARGIN", 1)
+    ws.sql.clear()
+    status, out = call(s, "POST", "records", headers=headers, body=dict(body, filters={"run_date": {"from": "2026-10-01", "to": "2026-10-31"}}))
+    assert status == 200 and [r["record_key"] for r in out["rows"]] == ["k2", "k1", "k9"], out
+    listed = [sql for sql, _p in ws.queries(" OFFSET 0)")]
+    assert len(listed) == 2 and "AS c0 ORDER BY `_inspire_money` DESC NULLS LAST, `_inspire_key` ASC LIMIT 3)" in listed[0] and " AS c0 " not in listed[1], \
+        "k6 is in the top three but outside the dates, so the page is short and the App reads every record once more"
+
+
+@pytest.mark.parametrize("route", ["filters", "defaults"])
+def test_opening_a_page_reads_what_its_list_needs_so_the_first_records_wait_on_no_schema_or_assumption_read(tmp_path, route):
+    from v165_scale_test import Recorder
+    s, ws, _made = _shell(tmp_path)
+    s.stamp_pool = Recorder()
+    headers = {"x-forwarded-email": PERSON}
+    assert call(s, "GET", route, query={"page": "n01_u05"}, headers=headers)[0] == 200
+    assert len(ws.queries("LIMIT 0")) == 2 and len(ws.queries("`loss_desk_out_assumptions`")) == 1, ws.sql
+    ws.sql.clear()
+    status, out = call(s, "POST", "records", headers=headers, body={"page": "n01_u05", "limit": 25})
+    assert status == 200 and out["rows"], out
+    assert not ws.queries("LIMIT 0") and not ws.queries("`loss_desk_out_assumptions`"), \
+        "the page open already read the list's columns, the table's columns and the assumptions"
+
+
 @pytest.mark.parametrize("order", [(26.0, 30.0), (30.0, 26.0)])
 def test_two_edits_of_one_assumption_at_the_same_instant_give_one_value_in_the_panel_and_the_money(tmp_path, order):
     ws = MoneyWorkspace(edits=[("N01-U05", "PRICE", value, who, "2026-10-23 09:00:00", "") for value, who in zip(order, (SAM, OWNER))])
@@ -223,7 +260,8 @@ def test_the_money_queries_parse_as_databricks_sql_and_render_for_lakebase():
     for sql, params in (plan["rows"], plan["total"], (overview_sql, overview_params), shell_sql.assumptions_query(page)):
         sqlglot.parse_one(re.sub(r":p\d+", "'x'", sql), read="databricks")
         text, _values, _read = shell_pg.render(sql, params, held)
-        assert "GREATEST(" in text or "assumptions" in text
+        assert ("GREATEST(" in text or "assumptions" in text) is (sql != plan["total"][0]), \
+            "every money statement carries the money the App shows, and the count of a list sorted by the money carries none"
     sql, params = shell_sql.assumption_write(page, "PRICE", 30.0, OWNER, "")
     sqlglot.parse_one(re.sub(r":p\d+", "'x'", sql), read="databricks")
     assert params[2] == {"name": "p2", "value": "30.0", "type": "DOUBLE"}

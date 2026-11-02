@@ -252,6 +252,8 @@ def test_the_two_parsers_share_one_grammar_and_one_length_limit(agent_ns):
     assert tuple(agent_ns["INSPIRE_VALUE_EXPRESSION_FUNCTIONS"]) == tuple(shell_sql.VALUE_FUNCTIONS)
     assert agent_ns["INSPIRE_VALUE_FORMULA_MAX_CHARS"] == shell_sql.VALUE_EXPRESSION_CHARS
     assert "^" + agent_ns["INSPIRE_VALUE_NAME"] + "$" == shell_sql.IDENT.pattern
+    assert tuple(agent_ns["INSPIRE_VALUE_TOLERANCE"]) == shell_sql.VALUE_TOLERANCE, \
+        "the App widens a stored stake floor by the rounding the run is allowed, so both read one tolerance"
 
 
 def test_an_expression_without_an_assumption_checks_the_run_but_gives_the_app_nothing_to_change(agent_ns):

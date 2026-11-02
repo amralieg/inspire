@@ -256,15 +256,56 @@ def test_a_records_history_rebuilt_from_the_run_log_is_the_history_one_version_p
     names = {n for n, _t, _pg in COLUMNS}
     old_close = shell_sql.closing_ctes(shell_sql.table_name(RESULT), names)
     new_close = shell_sql.closing_ctes(shell_sql.table_name(RESULT), names, history=history)
-    for name in ("hx", "hk", "hr", "hf", "ho"):
-        sql_old = f"WITH {', '.join(f'{n} AS ({old_close[n]})' for n in ('hx', 'hk', 'hr', 'hf', 'ho'))} SELECT * FROM {name}"
-        sql_new = f"WITH {', '.join(f'{n} AS ({new_close[n]})' for n in ('hx', 'hk', 'hr', 'hf', 'ho'))} SELECT * FROM {name}"
+    chain = ("hx", "hw", "hu", "ho")
+    for name in chain:
+        sql_old = f"WITH {', '.join(f'{n} AS ({old_close[n]})' for n in chain)} SELECT * FROM {name}"
+        sql_new = f"WITH {', '.join(f'{n} AS ({new_close[n]})' for n in chain)} SELECT * FROM {name}"
         old, new = _rows(layouts("loss_old"), sql_old, []), _rows(layouts("loss_new"), sql_new, [])
         assert sorted(old, key=lambda r: json.dumps(r, default=str)) == sorted(new, key=lambda r: json.dumps(r, default=str)), name
-    first = next(r for r in _rows(layouts("loss_new"), f"WITH {', '.join(f'{n} AS ({new_close[n]})' for n in ('hx', 'hk', 'hf'))} "
-                                  "SELECT * FROM hf", []))
-    assert first["_inspire_ok"] == "2026-09-15T06:00:00.000Z", \
+    closed = _rows(layouts("loss_new"), f"WITH {', '.join(f'{n} AS ({new_close[n]})' for n in chain)} SELECT * FROM ho", [])
+    assert "2026-09-15T06:00:00.000Z" in [r["_inspire_seen"] for r in closed], \
         "the fix is resolved from the first run after it, whose values the later runs kept without a new version"
+
+
+def test_the_change_marks_on_a_page_are_the_same_whether_the_log_is_read_by_the_page_keys_or_by_the_joined_page_on_a_real_postgres(
+        postgres):  # noqa: F811
+    def local(**kwargs):
+        return psycopg.connect(host=postgres["host"], port=postgres["port"], dbname="postgres", user="inspire",
+                               connect_timeout=kwargs["connect_timeout"], autocommit=kwargs["autocommit"])
+
+    shown = [version("a", "r5", 29, 1, "Act now", 900.0, current=True), version("d", "r5", 29, 2, "Act now", 800.0, source="delete", current=True),
+             version("b", "r5", 29, 3, "Act now", 700.0, current=True), version("e", "r5", 29, 4, "Review", 600.0, current=True)]
+    logged = [dict(LOG_ROWS[0], run_id="r5", record_key=k, change=change, moved_to=moved, tier=tier)
+              for k, change, moved, tier in (("a", "new", None, "Act now"), ("d", "new", None, "Act now"), ("b", "moved", "Act now", "Act now"),
+                                             ("e", "new", None, "Review"))]
+    with local(connect_timeout=10, autocommit=True) as conn, conn.cursor() as cur:
+        _table(cur, "loss_keyed", COLUMNS, shown)
+        _table(cur, "loss_keyed_run_log", LOG_COLUMNS, logged)
+    typed = lambda columns: [{"name": n, "type": t, "type_text": t} for n, t, _pg in columns] + [
+        {"name": shell_pg.ROW_COLUMN, "type": "LONG", "type_text": "BIGINT"}]
+    tables = {RESULT: {"pg": f"{PG_SCHEMA}.loss_keyed", "columns": typed(COLUMNS)},
+              LOG: {"pg": f"{PG_SCHEMA}.loss_keyed_run_log", "columns": typed(LOG_COLUMNS)}}
+    page = {"id": "p", "result_table": RESULT, "datasets": [{"name": "records", "sql": f"SELECT * FROM {RESULT} WHERE is_current"}],
+            "records": {"key": "record_key", "rank": "rank", "label": "record_key", "tier": "priority_tier"}}
+    history = {"log": shell_sql.table_name(LOG), "tier": "priority_tier", "columns": [n for n, _t, _pg in COLUMNS], "run_type": "STRING"}
+    context = {"table": shell_sql.table_name(RESULT), "join": "record_key", "actions": False, "changes": True, "tier": "priority_tier",
+               "tie": "record_key", "ai": [], "categories": [], "money": [], "history": history, "facts": {"latest": "r5", "previous": "r4"},
+               "unjoined": ""}
+    request = {"sort": "rank", "dir": "asc", "offset": 0, "limit": 3, "search": "", "mine": False, "changed": False, "ai": {},
+               "columns": {}, "cursor": None}
+    sql, params = shell_sql.list_queries(page, {}, request, context)["rows"]
+    joined = sql.replace("t.`record_key` IN (SELECT `record_key` FROM s)", "t.`record_key` IN (SELECT `_inspire_key` FROM k)")
+    assert joined != sql and sql.count(" FROM k") == 1
+    lb = shell_pg.Lakebase({"pipeline_id": "pipeline-1", "tables": tables, "datasets": {}}, PG_ENV, lambda: CredentialWorkspace(),
+                           connect=local)
+    try:
+        by_keys, by_join = _rows(lb, sql, params), _rows(lb, joined, params)
+    finally:
+        lb.close()
+    assert by_keys == by_join
+    assert [(r["record_key"], r["_inspire_key"], r["_inspire_change"], r["_inspire_moved_to"]) for r in by_keys] == [
+        ("a", "a", "new", None), ("d", None, None, None), ("b", "b", "moved", "Act now")], \
+        "a deleted record the list still shows takes no change mark, and a record off the page never reaches it"
 
 
 def test_each_earlier_run_read_for_a_comparison_is_the_same_rows_on_the_run_log_layout_on_a_real_postgres(layouts):
@@ -348,45 +389,3 @@ def test_a_strict_lakebase_check_reads_the_history_lakebase_does_not_copy_from_d
         else:
             assert s.execute(ws, "SELECT 1", [], 1)["served"] == "delta", table
 
-
-from v142_edits_test import TableWorkspace  # noqa: E402
-
-
-class FactsWorkspace(TableWorkspace):
-    def __init__(self, facts, history):
-        super().__init__()
-        self.facts, self.versions, self.asked = facts, history, []
-
-    def table_properties(self, name):
-        return dict(LOG_PROPS, **{"inspire.run_log": "main.pricing.loss_desk_out_run_log"}) if name == "main.pricing.loss_desk_out" else {}
-
-    def table_history(self, warehouse, name, limit=20):
-        return self.versions.get(name) or []
-
-    def run_sql(self, warehouse, sql, params, limit=5000):
-        self.asked.append(sql)
-        if "`run_facts`" in sql:
-            return {"columns": [], "rows": [{"run_facts": json.dumps(self.facts)}], "truncated": False}
-        return super().run_sql(warehouse, sql, params, limit)
-
-
-def test_the_list_reads_stored_run_counts_while_the_table_is_unchanged_and_counts_live_after_any_data_change(tmp_path):
-    from v141_app_shell_test import app_dir
-    from v142_edits_test import MODIFY, edit_page
-    facts = {"log": "main.pricing.loss_desk_out_run_log", "version": 7, "log_version": 3, "latest": "r7", "previous": "r6",
-             "left_n": 4, "open_n": 2, "done_n": 5, "resolved_n": 3, "owners": ["pat@example.com"], "runs": []}
-    unchanged = {"main.pricing.loss_desk_out": [{"version": 8, "operation": "OPTIMIZE"}, {"version": 7, "operation": "MERGE"}],
-                 "main.pricing.loss_desk_out_run_log": [{"version": 3, "operation": "WRITE"}]}
-    ws = FactsWorkspace(facts, unchanged)
-    settings = dict(MODIFY, options=dict(MODIFY["options"], decisions=True))
-    s = shell_core.Shell(app_dir(tmp_path, settings, [edit_page()]), env={"DATABRICKS_WAREHOUSE_ID": "wh1"}, sp_factory=lambda: ws,
-                         user_factory=lambda h, t: ws)
-    status, out = call(s, "POST", "records", body={"page": "n01_u05", "filters": {}})
-    assert status == 200, out
-    assert out["summary"] == {"left": 4, "open": 2, "done": 5, "resolved": 3, "owners": ["pat@example.com"]}
-    assert not [q for q in ws.asked if "AS left_n" in q], "the stored count answers the list"
-    ws.versions["main.pricing.loss_desk_out"] = [{"version": 9, "operation": "MERGE"}] + unchanged["main.pricing.loss_desk_out"]
-    s.forget()
-    status, out = call(s, "POST", "records", body={"page": "n01_u05", "filters": {}})
-    assert status == 200, out
-    assert [q for q in ws.asked if "AS left_n" in q], "a change after the run is counted live"

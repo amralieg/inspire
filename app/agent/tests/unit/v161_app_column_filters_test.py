@@ -357,7 +357,7 @@ class ColumnWorkspace(DataWorkspace):
         super().__init__(listed=kwargs.pop("listed", LISTED), options=kwargs.pop("options", ["Act now", "Monitor", "Review"]), **kwargs)
 
     def answer(self, sql, params):
-        if " OFFSET " in sql or "AS total FROM f" in sql:
+        if " OFFSET " in sql or "AS total FROM (SELECT 1 FROM f LIMIT" in sql:
             tiers = [p["value"] for p in params if p["value"] in ("Act now", "Review", "Monitor")]
             rows = [r for r in self.all_rows if not tiers or r["priority_tier"] in tiers]
             return {"columns": [], "rows": rows if " OFFSET " in sql else [{"total": len(rows)}], "truncated": False}
@@ -620,12 +620,14 @@ def test_the_app_guidance_tells_genie_a_table_carries_its_own_column_filters_and
 @pytest.mark.parametrize("carried", [False, True])
 def test_the_page_check_genie_runs_with_this_shell_refuses_a_filter_on_a_column_the_list_does_not_show(agent_ns, tmp_path, carried):
     if carried:
-        source = agent_ns["implement_app_shell_payload"](agent_ns["_INSPIRE_APP_SHELL"])["files"]["shell_sql.py"]
+        files = agent_ns["implement_app_shell_payload"](agent_ns["_INSPIRE_APP_SHELL"])["files"]
     else:
-        with open(os.path.join(SERVER, "shell_sql.py"), encoding="utf-8") as handle:
-            source = handle.read()
+        files = {}
+        for name in ("shell_sql.py", "shell_facts.py"):
+            with open(os.path.join(SERVER, name), encoding="utf-8") as handle:
+                files[name] = handle.read()
     work = tmp_path / "work"
-    agent_ns["implement_write_files"](str(work), agent_ns["implement_app_check_files"](source, False, []))
+    agent_ns["implement_write_files"](str(work), agent_ns["implement_app_check_files"](files, False, []))
     for name, page, code in (("bad", returns_page(column_filters=[{"column": "confidence_level"}]), 1), ("good", returns_page(), 0)):
         (work / "page.json").write_text(json.dumps(page))
         done = subprocess.run([sys.executable, str(work / ".inspire_check" / "check_page.py")], cwd=str(tmp_path), capture_output=True, text=True,

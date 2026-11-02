@@ -226,14 +226,20 @@ def test_a_run_marks_the_records_it_keeps_after_its_merge_and_says_how_many_are_
     counted = tables.index("SELECT COUNT(*) AS kept")
     assert counted > merges[1], "the counts are read after both merges, so they say what the table holds now"
     assert ("kept 3 records people changed in the App, since runs keep those changes; 2 of them are not in this run, so the App tags "
-            "them 'Not in the latest run'") in printed[-3]
+            "them 'Not in the latest run'") in _business_line(printed)
 
 
 def test_a_run_that_replaces_edits_marks_nothing(agent_ns):
     tables = _Tables(agent_ns, target=CORE + HISTORY, properties={"inspire.replace_edits": "true"})
     _rows, printed = tables.run()
     assert len([s for s in tables.spark.statements if s.startswith(f"MERGE INTO {QUOTED} ")]) == 1
-    assert tables.index("SELECT COUNT(*) AS kept") is None and "runs replace the records people changed in the App" in printed[-3]
+    assert tables.index("SELECT COUNT(*) AS kept") is None and "runs replace the records people changed in the App" in _business_line(printed)
+
+
+def _business_line(printed):
+    lines = [p for p in printed if p.startswith("Business output: run ")]
+    assert len(lines) == 1, printed
+    return lines[0]
 
 
 def test_a_new_result_table_keeps_the_marks_and_the_run_owns_them(agent_ns):

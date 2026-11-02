@@ -1,4 +1,5 @@
 import os
+import time
 
 from fastapi import FastAPI, Request
 from fastapi.concurrency import run_in_threadpool
@@ -41,10 +42,12 @@ def health():
 
 @app.api_route("/api/{path:path}", methods=["GET", "POST"])
 async def api(path: str, request: Request):
+    started = time.perf_counter()
     body = await request.body()
     status, payload = await run_in_threadpool(shell.handle, request.method, path, dict(request.query_params),
                                               {k.lower(): v for k, v in request.headers.items()}, body)
-    return JSONResponse(payload, status_code=status, headers={"Cache-Control": "no-store"})
+    spent = (time.perf_counter() - started) * 1000
+    return JSONResponse(payload, status_code=status, headers={"Cache-Control": "no-store", "Server-Timing": f"app;dur={spent:.1f}"})
 
 
 @app.get("/")

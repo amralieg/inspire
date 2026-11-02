@@ -44,9 +44,11 @@ SUMMARY = [("use_case_id", "string"), ("run_id", "string"), ("as_of_date", "date
 OUTCOME = {"act_now_records": 1, "review_records": 1, "records": 3}
 OUTCOME_LINE = "Business output: 1 Act now and 1 Review of 3 current records"
 RUN_LOG_LINE = "Run log: run r-2 was started by the build and read 0 tables with all their data"
-FACTS_LINE = "Run facts: kept the counts of run r-2 for the App (0 run and tier rows, 0 records left since the run before, 0 owners)"
+FACTS_LINE = ("Run facts: kept the counts of run r-2 for the App (0 run and tier rows, 0 current records, 0 left since the run before, "
+              "and 0 versions of the records people acted on in main.inspire.churn_out_acted)")
 LOG_READY_LINE = (f"Run log: {TABLE}_run_log now lists the records of every run of {TABLE}, so a run writes a new version of a record "
                   "only when its values change")
+LAYOUT_LINE = f"Layout: clustered the versions this run wrote to {TABLE}, so the App's first records read only the files that hold them"
 NOW_US = 1_793_000_000_000_000
 NOW = f"timestamp_micros({NOW_US})"
 QUOTED_LOG = "`main`.`inspire`.`churn_out_run_log`"
@@ -152,9 +154,10 @@ def test_a_first_run_creates_the_table_with_its_change_history_and_no_backup(age
         "a new table needs no copy and no merge"
     assert tables.index(f"INSERT INTO {QUOTED_LOG} SELECT n.*") > tables.index(f"CREATE TABLE {QUOTED} "), "the run log lists the first run"
     assert printed == [LOG_READY_LINE, f"Business output: created {TABLE} with the 3 rows of run r-2 as the current version of each "
-                       "record, keyed by entity_id", OUTCOME_LINE, RUN_LOG_LINE, FACTS_LINE]
+                       "record, keyed by entity_id", OUTCOME_LINE, RUN_LOG_LINE, FACTS_LINE, LAYOUT_LINE]
     outcome, log, facts = [s for s in tables.spark.statements if s.startswith(f"MERGE INTO {QUOTED_SUMMARY} ")]
-    assert "UPDATE SET `run_facts` = '" in facts and facts == tables.spark.statements[-1]
+    assert "UPDATE SET `run_facts` = '" in facts and tables.spark.statements[-2:] == [facts, f"OPTIMIZE {QUOTED}"], \
+        "the run clusters what it wrote last, after the App's counts are kept"
     assert outcome.startswith(f"MERGE INTO {QUOTED_SUMMARY} AS s USING (SELECT 'N01-U01' AS use_case_id, 'r-2' AS run_id)")
     assert ("UPDATE SET `act_now_records` = 1, `review_records` = 1, `records` = 3, `nothing_to_act` = NULL, updated_at"
             in outcome), "an old notebook's run records its counts and no money fields"
@@ -199,12 +202,21 @@ def test_a_run_writes_a_new_version_only_for_a_changed_record_and_keeps_the_tabl
     statements = " ".join(tables.spark.statements)
     assert "INSERT OVERWRITE" not in statements and "DELETE FROM" not in statements and not tables.spark.writes, \
         "a run never overwrites or deletes the table's rows"
-    assert printed[-3:] == [OUTCOME_LINE, RUN_LOG_LINE, FACTS_LINE]
-    assert printed[-4] == (f"Business output: run r-2 wrote 3 new versions to {TABLE} for the records that are new or changed and kept "
+    assert printed[-4:] == [OUTCOME_LINE, RUN_LOG_LINE, FACTS_LINE, LAYOUT_LINE]
+    assert tables.spark.statements[-1] == f"OPTIMIZE {QUOTED}", "the versions this run wrote are clustered before the next read"
+    assert printed[-5] == (f"Business output: run r-2 wrote 3 new versions to {TABLE} for the records that are new or changed and kept "
                            f"0 records unchanged, closing 2 earlier ones, keyed by entity_id; kept 2 records people "
                            "changed in the App, since runs keep those changes; kept 0 dismissed records in Monitor (0 out of "
                            "Act now), and wrote 0 outcomes for records people marked Done (0 Resolved, 0 Still flagged); the table as it "
                            f"was before this run is its version {VERSION}, which RESTORE TABLE {TABLE} TO VERSION AS OF {VERSION} brings back")
+
+
+def test_a_run_that_cannot_cluster_what_it_wrote_says_so_and_still_writes_its_rows(agent_ns):
+    tables = _Tables(agent_ns, target=CORE + HISTORY, properties=LOGGED, fail="OPTIMIZE")
+    rows, printed = tables.run()
+    assert rows == 3 and printed[-2] == FACTS_LINE
+    assert printed[-1] == (f"Layout: Inspire could not cluster the versions this run wrote to {TABLE}, so the App's first records read more "
+                           "files until a later run clusters them: PERMISSION_DENIED: OPTIMIZE")
 
 
 @pytest.mark.parametrize("properties,replace", [({}, False), ({"inspire.replace_edits": "false"}, False),
@@ -717,11 +729,18 @@ HISTORY_OBJECTS = {"{inspire_table_name(table)}", "{inspire_table_name(inspire_r
                    "{source}", "{inspire_ai_work_table(table, suffix, 'work')}", "{inspire_ai_work_table(table, suffix, 'reply')}",
                    "{inspire_ai_work_table(table, suffix, 'checked')}", "{inspire_ai_work_table(table, suffix, part)}",
                    "{inspire_table_name(inspire_ai_summary_table(table))}", "{inspire_table_name(inspire_assumptions_table(table))}",
+                   "{pinned}", "{inspire_table_name(inspire_acted_table(table))}", "{inspire_table_name(inspire_closed_table(table))}",
                    "{inspire_table_name(result_table)}", "{inspire_table_name(inspire_run_log_table(result_table))}",
                    "{inspire_table_name(inspire_ai_summary_table(result_table))}",
-                   "{inspire_table_name(inspire_assumptions_table(result_table))}"}
+                   "{inspire_table_name(inspire_assumptions_table(result_table))}",
+                   "{inspire_table_name(inspire_changes_table(table))}"}
 HISTORY_BOUND = {"target": "inspire_table_name(table)", "source": "inspire_table_name(stage)",
-                 "log": "inspire_table_name(inspire_run_log_table(table))"}
+                 "log": "inspire_table_name(inspire_run_log_table(table))", "pinned": "f'{target} VERSION AS OF {int(version)}'"}
+FACTS_TABLES = {"target": "inspire_table_name(table)", "pinned": "f'{target} VERSION AS OF {int(version)}'",
+                "log": "inspire_run_log_table(table)"}
+FACTS_PLAIN = {"names", "tier", "scope", "version", "previous", "label", "history", "bool", "inspire_sql_literal", "inspire_table_name",
+               "inspire_shell_facts", "floored", "int", "str", "table", "inspire_acted_table", "inspire_closed_table", "inspire_changes_table",
+               "order"}
 HISTORY_COUNTED = "{inspire_table_name(read_table)}"
 KPI_READ = ("inspire_save_kpi", "spark.sql(query)", {"str(kpi.get('query') or '')"}, "_inspire_re.fullmatch(INSPIRE_KPI_QUERY, query)")
 HISTORY_CLONED = {"{inspire_table_name(table)}", "{inspire_table_name(result_table)}"}
@@ -761,7 +780,9 @@ def _history_problems(history):
         problems += [f"{{{name}}} in {function} is {sorted(_bound(scope, name))}" for name, bound in HISTORY_BOUND.items()
                      if f"{{{name}}}" in sql and _bound(scope, name) != {bound}]
         problems += [f"clones {found}" for found in CLONE_SOURCE.findall(sql) if found not in HISTORY_CLONED]
-    for _, function, call, _ in unresolved:
+    for line, function, call, _ in unresolved:
+        if _facts_built(functions.get(function, tree), line):
+            continue
         if (function, call) == KPI_READ[:2] and _bound(functions[function], "query") == KPI_READ[2] \
                 and KPI_READ[3] in ast.unparse(functions[function]):
             continue
@@ -772,6 +793,24 @@ def _history_problems(history):
         if not name or name.group(1) not in built:
             problems.append(f"untraced {call} in {function}")
     return sorted(set(problems))
+
+
+def _facts_built(scope, line) -> bool:
+    calls = [node for node in ast.walk(scope) if isinstance(node, ast.Call) and getattr(node, "lineno", None) == line
+             and ast.unparse(node.func) == "spark.sql"]
+    if len(calls) != 1:
+        return False
+    built = {node.targets[0].id: node.value for node in ast.walk(scope) if isinstance(node, ast.Assign) and len(node.targets) == 1
+             and isinstance(node.targets[0], ast.Name)}
+    argument = calls[0].args[0]
+    if isinstance(argument, ast.Name) and argument.id in built:
+        argument = built[argument.id]
+    facts = [node for node in ast.walk(argument) if isinstance(node, ast.Call) and ast.unparse(node.func).startswith("inspire_shell_facts.")]
+    if not facts:
+        return False
+    names = {node.id for node in ast.walk(argument) if isinstance(node, ast.Name)}
+    tables = {name for name in names if name not in FACTS_PLAIN}
+    return all(_bound(scope, name) == {FACTS_TABLES.get(name)} for name in tables) and all(name in FACTS_TABLES for name in tables)
 
 
 def _clone_sources(tree):

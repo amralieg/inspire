@@ -124,6 +124,7 @@ USAGE_PARTS = {"changes": "The changes people made", "assumptions": "The assumpt
 IDENTITY_HEADERS = ("x-forwarded-email", "x-forwarded-preferred-username")
 OVERVIEW_LIMIT = shell_sql.CAPS["overview_rows"] + shell_sql.OVERVIEW_RUNS + OVERVIEW_WEEKS * 7 + 6 + shell_sql.CAPS["closers_today"]
 IMPACT_LIMIT = shell_sql.CAPS["impact_rows"] + shell_sql.IMPACT_REASONS + 20
+FACT_ROWS = 50
 HELD_TEXT = f"{shell_sql.HELD_MEANING} The App records no action on this one."
 ALERTS_HOME = "/sql/alerts"
 LIST_LABELS = {"rows": "the decision list", "total": "the decision list count", "keys": "the decision list keys",
@@ -1078,6 +1079,22 @@ def overview_view(rows: list, today: datetime.date, since: datetime.date, measur
                      "stale": health["overdue"], "count": len(runs), "failed": False}}
 
 
+def fact_runs(facts) -> list:
+    if not facts:
+        return []
+    seen = {}
+    for row in shell_sql.facts_runs(facts):
+        seen.setdefault(row["run_id"], {"kind": "run", "k": row["run_id"], "at": row["ran_at"], "day": row["as_of_date"]})
+    return list(seen.values())[: shell_sql.OVERVIEW_RUNS]
+
+
+def fact_impact_rows(numbers: dict, money: bool) -> list:
+    rows = [{"kind": "current", "n": numbers["current_n"], "hits": numbers["held_n"]}]
+    rows += [{"kind": "estimated", "tier": tier, "n": v["n"], "money": v["money"]} for tier, v in numbers["estimated"].items() if money]
+    rows += [{"kind": "holdout", "state": state, "n": v["n"], "hits": v["hits"]} for state, v in numbers["holdout"].items()]
+    return rows
+
+
 def impact_view(rows: list) -> dict:
     by = {}
     for row in rows:
@@ -1202,7 +1219,7 @@ class Shell:
         self.by_id = {p["id"]: p for p in self.pages}
         self.cache = Cache(clock=clock)
         self.stamps, self.reads, self.stamp_lock, self.inflight = {}, collections.OrderedDict(), threading.Lock(), {}
-        self.lookups, self.reads_of, self.stamp_pool = {}, {}, ThreadPoolExecutor(max_workers=STAMP_WORKERS)
+        self.lookups, self.owners, self.stamp_pool = {}, {}, ThreadPoolExecutor(max_workers=STAMP_WORKERS)
         self.pool = ThreadPoolExecutor(max_workers=WORKERS)
         self.hub_pool = ThreadPoolExecutor(max_workers=HUB_WORKERS)
         self.warehouse = str(self.env.get("DATABRICKS_WAREHOUSE_ID") or "")
@@ -1316,82 +1333,85 @@ class Shell:
             self.stamps[(who, table)] = (self.clock() + STAMP_TTL_S, found)
         return found
 
-    def table_changes(self, ws, who, table: str):
-        key = ("changes", who, table)
+    def page_state(self, ws, who, page: dict) -> dict:
+        key = ("state", who, page["id"])
+        held = self.cache.get(key)
+        if held is not None:
+            return held
         with self.stamp_lock:
-            held = self.stamps.get(key)
-            if held and held[0] > self.clock():
-                return held[1]
             running = self.lookups.get(key)
             mine = running is None
             if mine:
                 running = self.lookups[key] = Future()
         if not mine:
             return running.result()
-        lookup = getattr(ws, "table_history", None)
         try:
-            found = (lookup(self.warehouse, table) if lookup and self.warehouse else None) or None
-        except QueryError:
-            found = None
+            state = self.read_state(ws, page)
         finally:
             with self.stamp_lock:
                 self.lookups.pop(key, None)
-        with self.stamp_lock:
-            self.stamps[key] = (self.clock() + STAMP_TTL_S, found)
-        running.set_result(found)
-        return found
+        self.cache.put(key, state, STAMP_TTL_S)
+        running.set_result(state)
+        return state
 
-    def page_reads(self, page: dict) -> list:
-        found = self.reads_of.get(page["id"])
+    def read_state(self, ws, page: dict) -> dict:
+        if not page.get("result_table"):
+            return {"row": None, "facts": None, "stamp": None, "error": ""}
+        try:
+            rows = self.execute(ws, *shell_sql.summary_query(page), 1, delta=True)["rows"]
+        except QueryError as error:
+            gone = bool(NO_TABLE.search(str(error)))
+            return {"row": None, "facts": None, "stamp": None, "error": "" if gone else str(error)}
+        row = dict(rows[0]) if rows else None
+        facts = shell_sql.state_facts(row, page["result_table"])
+        if not facts:
+            return {"row": row, "facts": None, "stamp": None, "error": ""}
+        try:
+            changed = (self.execute(ws, *shell_sql.changed_query(page, facts), 1, delta=True)["rows"] or [{}])[0]
+        except QueryError as error:
+            return {"row": row, "facts": None, "stamp": None, "error": str(error)}
+        return {"row": row, "facts": facts, "error": "", "changed": int(changed.get("n") or 0), "keys": shell_sql.changed_keys_of(changed),
+                "stamp": (str(row.get("run_id")), str(row.get("updated_at")), str(changed.get("n")), str(changed.get("us")))}
+
+    def owned_by(self, table: str) -> set:
+        found = self.owners.get(table)
         if found is None:
             found = set()
-            if page.get("result_table"):
-                result = shell_pg.uc_key(page["result_table"])
-                found |= {result + suffix for suffix in ("", shell_sql.SUMMARY_SUFFIX, "_assumptions", "_run_log")}
-            for dataset in page.get("datasets") or []:
-                found |= set(self.read_tables(dataset.get("sql") or "") or ())
-            found = self.reads_of[page["id"]] = sorted(found)
+            for page in self.pages:
+                if page.get("result_table"):
+                    result = shell_pg.uc_key(page["result_table"])
+                    if table in {result + suffix for suffix in shell_sql.INSPIRE_SUFFIXES}:
+                        found.add(page["id"])
+            self.owners[table] = found
         return found
 
-    def warm_versions(self, ws, who, page: dict) -> None:
-        if who is None or not getattr(ws, "table_history", None):
-            return
-        for table in self.page_reads(page):
-            self.stamp_pool.submit(self.table_changes, ws, who, table)
+    def warm_state(self, ws, who, page: dict) -> None:
+        if who is not None and page.get("result_table"):
+            self.stamp_pool.submit(self.page_state, ws, who, page)
 
-    def table_version(self, ws, who, table: str):
-        changes = self.table_changes(ws, who, table)
-        return str(changes[0]["version"]) if changes else None
+    def warm_open(self, ws, who, page: dict) -> None:
+        self.warm_state(ws, who, page)
+        if who is not None and page.get("records"):
+            self.prefetch(*self.list_reads(ws, who, page).values())
+            if page.get("result_table"):
+                self.prefetch(lambda: self.warm_summary(ws, who, page))
+
+    def warm_summary(self, ws, who, page: dict) -> None:
+        context, _facts, fresh = self.list_base(ws, who, page, self.list_columns(ws, who, page), self.table_fields(ws, who, page))
+        self.prefetch(*self.summary_reads(ws, who, context, fresh).values())
 
     def history_for(self, ws, who, page: dict, fields):
         if not page.get("result_table") or fields is None:
             return None
+        facts = self.page_state(ws, who, page)["facts"]
+        if facts:
+            switched = {shell_sql.RUN_LOG_PROPERTY: facts["log"], shell_sql.RUN_LOG_TIER_PROPERTY: facts.get("tier") or ""}
+            return shell_sql.history_layout(switched if facts.get("switched") else {}, fields)
         return shell_sql.history_layout(self.table_meta(ws, who, shell_pg.uc_key(page["result_table"])), fields)
 
-    def unchanged_since(self, ws, who, table: str, version) -> bool:
-        changes = self.table_changes(ws, who, table)
-        try:
-            since = int(version)
-        except (TypeError, ValueError):
-            return False
-        if not changes or changes[-1]["version"] > since + 1 and changes[0]["version"] > since:
-            return False
-        return all(c["operation"].upper() in shell_sql.NON_DATA_OPERATIONS for c in changes if c["version"] > since)
-
     def run_facts(self, ws, who, page: dict, history) -> tuple:
-        if not history:
-            return None, {"runs": False, "records": False}
-        try:
-            rows = self.run(ws, who, *shell_sql.facts_query(page), 1, delta=True)["rows"]
-            raw = (rows[0] if rows else {}).get(shell_sql.RUN_FACTS_COLUMN)
-            facts = json.loads(raw) if raw else None
-        except (QueryError, ValueError, TypeError):
-            facts = None
-        if not isinstance(facts, dict) or shell_pg.uc_key(facts.get("log")) != shell_pg.uc_key(history["log"]):
-            return None, {"runs": False, "records": False}
-        logged = self.unchanged_since(ws, who, shell_pg.uc_key(history["log"]), facts.get("log_version"))
-        table = self.unchanged_since(ws, who, shell_pg.uc_key(page["result_table"]), facts.get("version"))
-        return facts, {"runs": logged, "records": logged and table}
+        facts = self.page_state(ws, who, page)["facts"] if page.get("result_table") else None
+        return facts, {"runs": bool(facts), "records": False}
 
     def stamp(self, ws, who, sql: str, delta: bool):
         tables = None if LIVE_SQL.search(sql) else self.read_tables(sql)
@@ -1401,8 +1421,11 @@ class Shell:
             marker = getattr(self.lakebase, "synced_marker", None)
             synced = marker() if marker else None
             return None if synced is None else (("lakebase", synced),)
-        versions = [(t, self.table_version(ws, who, t)) for t in sorted(tables)]
-        return None if any(v is None for _t, v in versions) else tuple(versions)
+        owners = [self.owned_by(shell_pg.uc_key(t)) for t in tables]
+        if not all(owners):
+            return None
+        stamps = tuple((ident, self.page_state(ws, who, self.by_id[ident])["stamp"]) for ident in sorted(set().union(*owners)))
+        return None if any(stamp is None for _ident, stamp in stamps) else stamps
 
     def run(self, ws, who, sql: str, params: list, limit: int, ttl: int = CACHE_TTL_S, delta: bool = False) -> dict:
         return self.read_at(ws, who, sql, params, limit, ttl, delta)[0]
@@ -1565,7 +1588,7 @@ class Shell:
     def filters(self, headers: dict, ident, probe=None) -> dict:
         page = self.page(ident)
         ws, who = self.session(headers, probe)
-        self.warm_versions(ws, who, page)
+        self.warm_open(ws, who, page)
         jobs = {}
         for f in page.get("filters") or []:
             builder = shell_sql.bounds_query if f["type"] == "date_range" else shell_sql.options_query
@@ -1616,7 +1639,7 @@ class Shell:
     def defaults(self, headers: dict, ident) -> dict:
         page = self.page(ident)
         ws, who = self.workspace(headers)
-        self.warm_versions(ws, who, page)
+        self.warm_open(ws, who, page)
         done, errors = self.bounds(ws, who, page)
         out = {}
         for f in page.get("filters") or []:
@@ -1670,7 +1693,7 @@ class Shell:
         problems = shell_sql.table_values_problems(page, tables, {t: types.get(t, {}) for t in filtered})
         if problems:
             raise HttpError(400, "; ".join(problems))
-        self.warm_versions(ws, who, page)
+        self.warm_state(ws, who, page)
         compared = {("kpi", k["id"]) for k in page.get("kpis") or [] if k.get("compare")}
         try:
             previous, failed = self.previous_datasets(ws, who, page), {}
@@ -1723,6 +1746,28 @@ class Shell:
         sql, params = shell_sql.schema_query(page["result_table"])
         return shell_sql.change_fields(self.run(ws, who, sql, params, 1, OPTIONS_TTL_S)["columns"])
 
+    def list_reads(self, ws, who, page: dict) -> dict:
+        reads = {("list", "columns"): lambda: self.list_columns(ws, who, page)}
+        if page.get("result_table"):
+            reads[("list", "fields")] = lambda: self.table_fields(ws, who, page)
+            if who is not None:
+                reads[("list", "money")] = lambda: self.money_inputs(ws, who, page)
+        return reads
+
+    def list_base(self, ws, who, page: dict, columns: dict, fields, delta: bool = False) -> tuple:
+        context = shell_sql.list_context(page, columns, fields, self.option("decisions"))
+        history = self.history_for(ws, who, page, fields) if context["join"] else None
+        facts, fresh = self.run_facts(ws, who, page, history)
+        context.update(types=columns, history=history, facts=facts if fresh["runs"] else None,
+                       **({} if delta else self.lakebase_copies(page)),
+                       changed_keys=self.page_state(ws, who, page).get("keys") if facts else None)
+        return context, facts, fresh
+
+    def summary_reads(self, ws, who, context: dict, fresh: dict) -> dict:
+        plan = shell_sql.list_summary_queries(context) if context["join"] and not fresh["records"] else {}
+        return {("list", name): (lambda q=query, n=shell_sql.CAPS["owners"] if name == "owners" else 1: self.read_at(ws, who, *q, n))
+                for name, query in plan.items()}
+
     def records(self, headers: dict, data: dict, probe=None) -> dict:
         page = self.page(data.get("page"))
         if not page.get("records"):
@@ -1733,13 +1778,10 @@ class Shell:
         if problems:
             raise HttpError(400, "; ".join(problems))
         ws, who = self.session(headers, probe)
-        self.warm_versions(ws, who, page)
+        self.warm_state(ws, who, page)
         if page.get("result_table") and who is not None:
             self.stamp_pool.submit(self.table_meta, ws, who, shell_pg.uc_key(page["result_table"]))
-        reads = {("list", "columns"): lambda: self.list_columns(ws, who, page)}
-        if page.get("result_table"):
-            reads[("list", "fields")] = lambda: self.table_fields(ws, who, page)
-        read, unread = self._parallel(reads, probe)
+        read, unread = self._parallel(self.list_reads(ws, who, page), probe)
         if ("list", "columns") in unread:
             raise HttpError(502, unread[("list", "columns")])
         columns, fields, failures = read[("list", "columns")], read.get(("list", "fields")), {}
@@ -1755,25 +1797,33 @@ class Shell:
         if request["mine"] and not editor:
             raise HttpError(401, "sign in so the App can show the records you own")
         plan = shell_sql.list_queries(page, values, request, context, editor)
-        plan.update(shell_sql.list_summary_queries(context) if context["join"] and not fresh["records"] else {})
-        if context["categories"]:
+        whole = shell_sql.unfiltered(values, request)
+        floor = shell_sql.list_floor(page, request, context, facts, model, not whole)
+        if floor is not None:
+            plan["rows"] = shell_sql.list_queries(page, values, request, dict(context, floor=floor), editor)["rows"]
+        if whole and facts:
+            plan["total"] = shell_sql.facts_total_query(facts, context["table"], {f["name"] for f in fields or []})
+        if context["categories"] and request["ai_counts"]:
             plan["ai"] = shell_sql.ai_counts_query(page, values, context, request["columns"])
-        limits = {"rows": request["limit"], "owners": shell_sql.CAPS["owners"], "ai": shell_sql.CAPS["options"]}
+        limits = {"rows": request["limit"], "ai": shell_sql.CAPS["options"]}
         jobs = {("list", name): (lambda q=query, n=limits.get(name, 1): self.read_at(ws, who, *q, n)) for name, query in plan.items()}
+        jobs.update(self.summary_reads(ws, who, context, fresh))
         read, errors = self._parallel(jobs, probe)
         for name in ("rows", "total"):
             if ("list", name) in errors:
                 raise HttpError(502, errors[("list", name)])
         done = {key: result for key, (result, _at) in read.items()}
         read_at = min(read[("list", name)][1] for name in ("rows", "total"))
+        stale = [key for key in (("list", "left"), ("list", "impact")) if key in done and shell_sql.summary_missed(done[key]["rows"])]
+        if stale:
+            again = shell_sql.list_summary_queries(dict(context, changed_keys=None))
+            redone, failed = self._parallel({key: (lambda q=again[key[1]]: self.run(ws, who, *q, 1)) for key in stale}, probe)
+            done.update(redone)
+            errors.update(failed)
+            for key in failed:
+                done.pop(key)
         first = lambda name: ((done.get(("list", name)) or {}).get("rows") or [{}])[0]
         summary = {}
-        if fresh["records"]:
-            if context["actions"]:
-                summary.update(open=int(facts.get("open_n") or 0), done=int(facts.get("done_n") or 0),
-                               resolved=int(facts.get("resolved_n") or 0), owners=[o for o in facts.get("owners") or [] if o])
-            if context["changes"]:
-                summary["left"] = int(facts.get("left_n") or 0)
         if ("list", "impact") in done:
             summary.update(open=int(first("impact").get("open_n") or 0), done=int(first("impact").get("done_n") or 0),
                            resolved=int(first("impact").get("resolved_n") or 0))
@@ -1789,13 +1839,20 @@ class Shell:
             counted.setdefault(row.get("f"), []).append({"value": row.get("v"), "n": int(row.get("n") or 0)})
         ai = {"columns": {name: shell_sql.ai_alias(name) for name in context["ai"]},
               "categories": [{"name": name, "options": sorted(counted.get(name, []), key=lambda o: (-o["n"], str(o["value"])))}
-                             for name in context["categories"]], "picked": request["ai"]}
-        rows, total = done[("list", "rows")]["rows"], int(first("total").get("total") or 0)
+                             for name in context["categories"]], "picked": request["ai"], "counted": request["ai_counts"]}
+        rows = done[("list", "rows")]["rows"]
+        total, more = (int(first("total").get("total") or 0), False) if whole and facts else shell_sql.counted_total(first("total"))
+        missed = floor is not None and floor["on"] == "d" and any(r.get("_inspire_key") is None for r in rows)
+        if floor is not None and (missed or (len(rows) < request["limit"] and (more or total > request["offset"] + len(rows)))):
+            rows = self.run(ws, who, *shell_sql.list_queries(page, values, request, context, editor)["rows"], request["limit"])["rows"]
         if context["actions"] and not request["window"]:
             rows = self.with_closes(headers, ws, who, page, context, fields, rows, failures)
         window = request["window"]
-        shown = min(total, window["limit"]) if window and window.get("limit") else total
-        return {"rows": rows, "total": total, "offset": request["offset"], "cursors": list_cursors(request, context, rows, shown),
+        limited = bool(window and window.get("limit"))
+        shown = min(total, window["limit"]) if limited else total
+        reach = shown if limited or not more else shell_sql.CAPS["list_offset"]
+        return {"rows": rows, "total": total, "total_more": more, "offset": request["offset"],
+                "cursors": list_cursors(request, context, rows, reach),
                 "limit": request["limit"], "sort": {"key": request["sort"], "dir": request["dir"]} if not request["ranked"] else
                 {"key": RANKED_SORT, "dir": "desc"}, "actions": context["actions"],
                 "changes": context["changes"], "summary": summary or None, "errors": failures, "served": served_by(done),
@@ -1830,7 +1887,10 @@ class Shell:
         if not page.get("result_table"):
             return {"run": None, "categories": {}, "note": "this page names no result table, so it has no run summary"}
         ws, who = self.workspace(headers)
-        rows = self.summary_rows(ws, who, shell_sql.summary_query(page), 1)
+        state = self.page_state(ws, who, page)
+        if state["error"]:
+            raise HttpError(502, state["error"])
+        rows = [state["row"]] if state["row"] else []
         if not rows:
             return {"run": None, "categories": {}, "note": NO_SUMMARY}
         named = summary_config(rows[0]).get("categories")
@@ -1858,7 +1918,7 @@ class Shell:
         ws, who = self.workspace(headers)
         editor = str(headers.get("x-forwarded-email") or "").strip()
         for page in pages:
-            self.warm_versions(ws, who, page)
+            self.warm_state(ws, who, page)
         today = datetime.date.fromisoformat(day["today"])
         quarter, since = quarter_start(today), week_start(today) - datetime.timedelta(weeks=OVERVIEW_WEEKS - 1)
         between = (day["start_us"], day["end_us"])
@@ -1884,24 +1944,29 @@ class Shell:
                 return None, {"visible": True, "tracked": False, "empty": True, "note": NO_RESULTS}
             raise
 
+    def prefetch(self, *jobs) -> None:
+        for job in jobs:
+            self.stamp_pool.submit(job)
+
     def overview_page(self, ws, who, page: dict, values: dict, ai, today: datetime.date, quarter: datetime.date,
                       since: datetime.date, window=None, editor: str = "", between: tuple = ()) -> dict:
+        if page.get("records") and page.get("result_table"):
+            self.prefetch(lambda: self.list_columns(ws, who, page), lambda: self.last_run_failed(page))
         fields, untracked = self.tracked_fields(ws, who, page)
         if untracked:
             return untracked
-        context = shell_sql.list_context(page, self.list_columns(ws, who, page), fields, self.option("decisions"))
-        context["history"] = self.history_for(ws, who, page, fields) if context["join"] else None
-        facts, fresh = self.run_facts(ws, who, page, context["history"])
-        context.update(facts=facts if fresh["runs"] else None, **self.lakebase_copies(page))
+        context, _facts, _fresh = self.list_base(ws, who, page, self.list_columns(ws, who, page), fields)
         if not context["join"]:
             return {"visible": True, "tracked": False, "note": "the decision list's key is not a column of the result table, so the App "
                                                                "cannot track its records"}
-        money = shell_sql.MONEY_COLUMN in {f["name"] for f in fields}
+        names = {f["name"] for f in fields}
+        money = shell_sql.MONEY_COLUMN in names
         model = self.money_model(ws, who, page, fields)
+        context["changed_closing"] = self.changed_closing(ws, who, page, context["facts"], names)
         sql, params = shell_sql.overview_query(page, values, shell_sql.ai_request(ai, context), context, fields, quarter.isoformat(),
                                                since.isoformat(), model, window, done_between=between)
         result = self.run(ws, who, sql, params, OVERVIEW_LIMIT)
-        view = overview_view(result["rows"], today, since, money, editor)
+        view = overview_view(result["rows"] + fact_runs(context["facts"]), today, since, money, editor)
         view["runs"]["failed"] = self.last_run_failed(page)
         view["runs"]["active"] = self.run_progress(ws, who, page)
         return dict(view, visible=True, tracked=True, money=money, categories=context["categories"],
@@ -1915,6 +1980,13 @@ class Shell:
                 return []
             raise
 
+    def money_inputs(self, ws, who, page: dict) -> tuple:
+        state = self.page_state(ws, who, page)
+        if state["error"]:
+            raise QueryError(state["error"])
+        summary = state["row"]
+        return summary, (self.assumption_rows(ws, who, page) if summary and summary.get("value_assumptions") else [])
+
     def money_model(self, ws, who, page: dict, fields: list):
         if not page.get("result_table") or shell_sql.MONEY_COLUMN not in {f["name"] for f in fields or []}:
             return None
@@ -1923,8 +1995,7 @@ class Shell:
         if held is not None:
             return held
         try:
-            summary = (self.summary_rows(ws, who, shell_sql.summary_query(page), 1) or [None])[0]
-            edits = self.assumption_rows(ws, who, page) if summary and summary.get("value_assumptions") else []
+            summary, edits = self.money_inputs(ws, who, page)
         except QueryError as error:
             return dict(shell_sql.money_model(None, fields),
                         problem=f"the App could not read how the {shell_sql.stake_words(None)} is worked out: {error}")
@@ -2105,7 +2176,10 @@ class Shell:
 
     def preview_setting(self, headers: dict, data: dict) -> dict:
         page, ws, who, setting, text, model, names, settings = self.setting_change(headers, data)
-        summary = (self.summary_rows(ws, who, shell_sql.summary_query(page), 1) or [None])[0] or {}
+        state = self.page_state(ws, who, page)
+        if state["error"]:
+            raise QueryError(state["error"])
+        summary = state["row"] or {}
         basis = str(summary.get("decision_basis") or "")
         ran = {n: shell_sql.as_number(summary.get(n)) for n in shell_sql.TIER_CUTOFFS + shell_sql.TIER_SHARES}
         values = {s["name"]: s["value"] if s.get("saved") or ran.get(s["name"]) is None else shell_sql.number_text(ran[s["name"]])
@@ -2240,17 +2314,59 @@ class Shell:
         page = self.page(ident)
         promised = page.get("promised") or None
         ws, who = self.session(headers, probe)
+        self.warm_state(ws, who, page)
         fields, untracked = self.tracked_fields(ws, who, page)
         if untracked:
             return dict(untracked, promised=promised)
         names = {f["name"] for f in fields}
         quarter = quarter_start(self.now().date())
         model = self.money_model(ws, who, page, fields) if shell_sql.MONEY_COLUMN in names else None
-        sql, params = shell_sql.impact_query(page, fields, quarter.isoformat(), model, self.history_for(ws, who, page, fields))
-        result = self.run(ws, who, sql, params, IMPACT_LIMIT)
-        return dict(impact_view(result["rows"]), visible=True, tracked=True, since=quarter.isoformat(), promised=promised,
+        facts = self.impact_facts(ws, who, page, names)
+        history = self.history_for(ws, who, page, fields)
+
+        def impact_rows():
+            changed = self.changed_closing(ws, who, page, facts, names)
+            return self.run(ws, who, *shell_sql.impact_query(page, fields, quarter.isoformat(), model, history, facts, changed), IMPACT_LIMIT)
+
+        jobs = {"impact": impact_rows}
+        if facts:
+            tier = (page.get("records") or {}).get("tier")
+            table, shown = shell_sql.table_name(page["result_table"]), tier if tier in names else None
+            keys = self.page_state(ws, who, page).get("keys")
+
+            def numbers():
+                found = self.run(ws, who, *shell_sql.facts_numbers_query(facts, table, names, shown, keys), FACT_ROWS, delta=True)
+                if keys is not None and shell_sql.numbers_missed(found["rows"]):
+                    return self.run(ws, who, *shell_sql.facts_numbers_query(facts, table, names, shown), FACT_ROWS, delta=True)
+                return found
+
+            jobs["numbers"] = numbers
+        done, errors = self._parallel(jobs)
+        if errors:
+            raise QueryError(next(iter(errors.values())))
+        result = done["impact"]
+        rows = result["rows"] + (fact_impact_rows(shell_sql.facts_numbers(facts, done["numbers"]["rows"]), not shell_sql.money_changed(model))
+                                 if facts else [])
+        return dict(impact_view(rows), visible=True, tracked=True, since=quarter.isoformat(), promised=promised,
                     money=shell_sql.MONEY_COLUMN in names, holds=all(n in names for n in shell_sql.HOLDOUT_TYPES),
                     served=result.get("served"))
+
+    def changed_closing(self, ws, who, page: dict, facts, names: set):
+        if not facts or not all(n in names for n in shell_sql.ACTION_TYPES):
+            return None
+        if self.page_state(ws, who, page).get("changed") == 0:
+            return []
+        cap = shell_sql.CAPS["changed_keys"]
+        rows = self.run(ws, who, *shell_sql.changed_closing_query(facts, shell_sql.table_name(page["result_table"]), names), cap + 1,
+                        delta=True)["rows"]
+        return None if len(rows) > cap else rows
+
+    def impact_facts(self, ws, who, page: dict, names: set):
+        facts, _fresh = self.run_facts(ws, who, page, None)
+        label = (page.get("records") or {}).get("label")
+        if not facts or (label and label in names and label != facts.get("label")):
+            return None
+        return facts
 
     def last_run_failed(self, page: dict) -> bool:
         job_id = self.job_of(page)
@@ -2273,7 +2389,7 @@ class Shell:
 
     def check_records(self, headers: dict, page: dict, values: dict, probe, where: str) -> list:
         try:
-            out = self.records(headers, {"page": page["id"], "filters": values}, probe)
+            out = self.records(headers, {"page": page["id"], "filters": values, "ai_counts": True}, probe)
         except (HttpError, QueryError, ValueError) as error:
             return [f"{where}: {shell_sql.RECORDS_DATASET}:{shell_sql.RECORDS_DATASET} failed: {getattr(error, 'message', None) or error}"]
         problems = [f"{where}: {LIST_LABELS[name]} failed: {message}" for name, message in sorted(out["errors"].items())]
@@ -2407,6 +2523,27 @@ class Shell:
             problems += slow_problems(where, probe.seconds)
         return problems
 
+    def speed(self, headers: dict) -> dict:
+        out = {}
+        for page in self.pages:
+            if not page.get("records"):
+                continue
+            meta = self.filters(headers, page["id"])
+            bounds = {f["id"]: (f.get("low"), f.get("high")) for f in meta["filters"] if f["type"] == "date_range"}
+            defaults = shell_sql.default_values(page, bounds)
+            picked = next((f for f in meta["filters"] if f["type"] == "multi_select" and len(f.get("options") or []) >= 2), None)
+            seen = {}
+            for name, values in (("first", defaults), ("filter", dict(defaults, **{picked["id"]: picked["options"][:2]}) if picked else None)):
+                if values is None:
+                    continue
+                self.forget()
+                started = self.timer()
+                self.records(headers, {"page": page["id"], "filters": values})
+                seen[name] = round(self.timer() - started, 2)
+            out[page["id"]] = dict(seen, filter_on=picked["label"] if picked else None)
+        self.forget()
+        return out
+
     def write_problems(self, headers: dict, page: dict) -> list:
         try:
             ws, who = self.workspace(headers)
@@ -2461,7 +2598,7 @@ class Shell:
         ws, who = self.workspace(headers)
         try:
             fields = self.change_table(ws, who, page)
-            found = self.readable_record(ws, page, fields, value)
+            found = self.readable_record(ws, who, page, fields, value)
         except QueryError as error:
             if NO_ACCESS.search(str(error)):
                 raise HttpError(403, f"{refused}{reader} cannot read it in Unity Catalog ({error})") from error
@@ -2483,19 +2620,19 @@ class Shell:
             return ""
         try:
             ws, who = self.workspace(headers)
-            rows = self.summary_rows(ws, who, shell_sql.summary_query(page), 1)
+            row = self.page_state(ws, who, page)["row"]
         except (QueryError, HttpError):
             return ""
-        return str(summary_config(rows[0] if rows else None).get("context") or "")
+        return str(summary_config(row).get("context") or "")
 
-    def readable_record(self, ws, page: dict, fields: list, value: str) -> dict:
+    def readable_record(self, ws, who, page: dict, fields: list, value: str) -> dict:
         list_key = (page.get("records") or {}).get("key") or "record_key"
         try:
-            found = self.history_of(ws, page, fields, value, True)
+            found = self.history_of(ws, who, page, fields, value, True)
         except HttpError as error:
             if error.status != 404 or list_key == "record_key" or list_key not in {f["name"] for f in fields}:
                 raise
-            found = self.history_of(ws, page, fields, value, False)
+            found = self.history_of(ws, who, page, fields, value, False)
         if found["current"] is None:
             raise HttpError(404, "no current record has this key")
         return found
@@ -2533,8 +2670,8 @@ class Shell:
             raise HttpError(409, "this page names no result table, so its records keep no history")
         return self.table_fields(ws, who, page)
 
-    def versions(self, ws, page: dict, value, by_record_key: bool, delta: bool = False, fields=None) -> list:
-        sql, params = shell_sql.history_query(page, value, by_record_key, self.history_for(ws, None, page, fields))
+    def versions(self, ws, who, page: dict, value, by_record_key: bool, delta: bool = False, fields=None) -> list:
+        sql, params = shell_sql.history_query(page, value, by_record_key, self.history_for(ws, who, page, fields))
         out = []
         for row in reversed(self.execute(ws, sql, params, shell_sql.CAPS["history_rows"], delta)["rows"]):
             version = {k: v for k, v in row.items() if k != shell_sql.VERSION_COLUMN}
@@ -2542,12 +2679,12 @@ class Shell:
             out.append(version)
         return out
 
-    def history_of(self, ws, page: dict, fields: list, value, by_record_key: bool) -> dict:
+    def history_of(self, ws, who, page: dict, fields: list, value, by_record_key: bool) -> dict:
         list_key = (page.get("records") or {}).get("key") or "record_key"
         if not by_record_key and list_key not in {f["name"] for f in fields}:
             raise HttpError(409, f"the decision list's key {list_key} is not a column of the result table, so the App cannot find "
                                  "its records there")
-        versions = self.versions(ws, page, value, by_record_key, fields=fields)
+        versions = self.versions(ws, who, page, value, by_record_key, fields=fields)
         keys = {str(v.get("record_key")) for v in versions}
         if not versions:
             raise HttpError(404, "no current record has this key")
@@ -2566,7 +2703,7 @@ class Shell:
         if not value or len(value) > RECORD_KEY_CHARS:
             raise HttpError(400, "name the record by its record_key, or by its key on the decision list")
         ws, who = self.workspace(headers)
-        return self.history_of(ws, page, self.change_table(ws, who, page), value, bool(record_key))
+        return self.history_of(ws, who, page, self.change_table(ws, who, page), value, bool(record_key))
 
     def record_fields(self, headers: dict, ident) -> dict:
         page = self.page(ident)
@@ -2626,8 +2763,8 @@ class Shell:
         if written is None:
             raise QueryError("the warehouse did not say how many rows the change wrote; reopen the record to check it")
         if not written:
-            raise HttpError(409, self.conflict(ws, page, record_key, source), code=STALE_RECORD)
-        return self.history_of(ws, page, fields, record_key, True)
+            raise HttpError(409, self.conflict(ws, who, page, record_key, source), code=STALE_RECORD)
+        return self.history_of(ws, who, page, fields, record_key, True)
 
     def write_versions(self, ws, page: dict, fields: list, source: str, records: list, editor: str, values: dict, batch=None,
                        match=None, undo=None) -> dict:
@@ -2775,10 +2912,7 @@ class Shell:
         return self.context_of(ws, who, page, columns, fields, delta)[0], fields
 
     def context_of(self, ws, who, page: dict, columns, fields, delta: bool) -> tuple:
-        context = shell_sql.list_context(page, columns, fields, self.option("decisions"))
-        history = self.history_for(ws, who, page, fields) if context["join"] else None
-        facts, fresh = self.run_facts(ws, who, page, history)
-        context.update(types=columns, history=history, facts=facts if fresh["runs"] else None, **({} if delta else self.lakebase_copies(page)))
+        context, _facts, fresh = self.list_base(ws, who, page, columns, fields, delta)
         model = self.money_model(ws, who, page, fields) if context["join"] else None
         context["money"] = shell_sql.money_columns(model)
         return context, model, fresh
@@ -2906,8 +3040,8 @@ class Shell:
             out[str(row.get("record_key"))] = dict(version, valid_from_us=str(row.get(shell_sql.VERSION_COLUMN) or ""))
         return out
 
-    def conflict(self, ws, page: dict, record_key: str, source: str) -> str:
-        versions = self.versions(ws, page, record_key, True, delta=True)
+    def conflict(self, ws, who, page: dict, record_key: str, source: str) -> str:
+        versions = self.versions(ws, who, page, record_key, True, delta=True)
         current = next((v for v in reversed(versions) if v.get("is_current")), None)
         if source == "add":
             if current and current.get("change_source") != "delete":
@@ -2919,12 +3053,12 @@ class Shell:
         return datetime.datetime.fromtimestamp(self.clock(), UTC)
 
     def run_rows(self, ws, who: str, page: dict) -> list:
+        facts, _fresh = self.run_facts(ws, who, page, None)
+        tier = (page.get("records") or {}).get("tier")
+        if facts and (tier not in facts["names"] or tier == facts.get("tier")):
+            return shell_sql.facts_runs(facts)[: shell_sql.CAPS["runs_rows"]]
         fields = self.change_table(ws, who, page)
         history = self.history_for(ws, who, page, fields)
-        facts, fresh = self.run_facts(ws, who, page, history)
-        tier = (page.get("records") or {}).get("tier")
-        if fresh["runs"] and (tier not in {f["name"] for f in fields} or tier == history.get("tier")):
-            return shell_sql.facts_runs(facts)[: shell_sql.CAPS["runs_rows"]]
         try:
             sql, params = shell_sql.runs_query(page, fields, history)
         except ValueError as error:

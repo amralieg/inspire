@@ -12,7 +12,7 @@ from _nbload import AGENT_NB, ROOT, notebook_cells, packed_text
 
 PYTHON_310 = "/opt/homebrew/bin/python3.10"
 SHIPPED_FILES = ("agent/**/*.py", "demos/**/*.py", "inspire_installer.py", "app/installer/**/*.py", "release/**/*.py")
-SHELL_MODULES = ("shell_sql", "shell_db", "shell_pg", "shell_alerts", "shell_core")
+SHELL_MODULES = ("shell_sql", "shell_facts", "shell_db", "shell_pg", "shell_alerts", "shell_core")
 BASE64 = re.compile(r"^[A-Za-z0-9+/=\s]{400,}$")
 MARKER = re.compile(r"@@[A-Z_]+@@")
 CODE = (ast.Import, ast.ImportFrom, ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef, ast.Assign, ast.AugAssign,
@@ -260,7 +260,7 @@ def rendered(agent_ns):
     inst._assemble_genie_code_notebook(make_uc(genie_instruction=INSTRUCTION, genie_instruction_status="success"), {})
     cells = [(f"generated use-case notebook cell {index}", "".join(cell["source"]))
              for index, cell in enumerate(writes[-1]["cells"]) if cell["cell_type"] == "code"]
-    checks = agent_ns["implement_app_check_files"](_embedded_shell_files()["shell_sql.py"], True, ["trend", "bars"])
+    checks = agent_ns["implement_app_check_files"](_embedded_shell_files(), True, ["trend", "bars"])
     return cells + [(f"App check file {name}", body) for name, body in checks.items() if name.endswith(".py")]
 
 

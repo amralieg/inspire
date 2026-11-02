@@ -6,31 +6,34 @@ import re
 import zoneinfo
 from html.parser import HTMLParser
 
+import shell_facts
+from shell_facts import CLOSING_ORDER, closing_ctes, quote, table_name, versions_source
+
 SPEC_VERSION = 1
 RECORDS_DATASET = "records"
-IDENT = re.compile(r"^[A-Za-z_][A-Za-z0-9_]{0,62}$")
+IDENT = shell_facts.IDENT
 REVIEW_LINK = re.compile(r"^https://[a-z0-9.-]{1,253}/\?review=[A-Za-z0-9%._~-]{1,600}&uc=[A-Za-z0-9%._~-]{1,600}$")
-TABLE_PART = re.compile(r"^[^`.\x00-\x1f]{1,255}$")
+TABLE_PART = shell_facts.TABLE_PART
 HISTORY_COLUMNS = ("record_key", "valid_from", "valid_to", "is_current", "change_source", "changed_by")
 RUN_COLUMNS = ("run_id", "use_case_id", "as_of_date")
 ID_COLUMN = "entity_id"
 CHANGE_SOURCES = ("run", "edit", "add", "delete", "action")
 PEOPLE_SOURCES = CHANGE_SOURCES[1:]
-BATCH_COLUMN = "action_batch"
-BATCH_NOTE = "action_batch_note"
-BATCH_VALUES = "action_batch_values"
+BATCH_COLUMN = shell_facts.BATCH_COLUMN
+BATCH_NOTE = shell_facts.BATCH_NOTE
+BATCH_VALUES = shell_facts.BATCH_VALUES
 SNOOZE_COLUMN = "snooze_until"
 JOINED_COLUMN = "joined_at"
 ACTION_TYPES = {"action_owner": "STRING", "action_status": "STRING", "action_due": "DATE", "action_note": "STRING",
                 "dismiss_reason": "STRING", "action_outcome": "STRING", SNOOZE_COLUMN: "DATE", BATCH_COLUMN: "STRING",
                 BATCH_NOTE: "STRING", BATCH_VALUES: "STRING", JOINED_COLUMN: "TIMESTAMP"}
-BATCH_TYPES = (BATCH_COLUMN, BATCH_NOTE, BATCH_VALUES)
-CLOSE_TYPES = {"realized_value": "DOUBLE", "realized_note": "STRING"}
-HOLDOUT_TYPES = {"held_back": "BOOLEAN", "run_tier": "STRING"}
+BATCH_TYPES = shell_facts.BATCH_TYPES
+CLOSE_TYPES = shell_facts.CLOSE_TYPES
+HOLDOUT_TYPES = shell_facts.HOLDOUT_TYPES
 KEPT_TYPES = {"edited_by_person": "BOOLEAN", "not_listed_since": "TIMESTAMP"}
-KEPT_SINCE = "not_listed_since"
+KEPT_SINCE = shell_facts.KEPT_SINCE
 NOT_IN_RUN = "Not in the latest run"
-GONE_STATES = ("left", "missing", "resolved")
+GONE_STATES = shell_facts.GONE_STATES
 ACTION_EDITABLE = ("action_owner", "action_status", "action_due", "action_note", "dismiss_reason", SNOOZE_COLUMN) + tuple(CLOSE_TYPES)
 UNDONE_KEYS = ("action_owner", "action_status", "action_due", "action_note", "dismiss_reason", SNOOZE_COLUMN) + tuple(CLOSE_TYPES)
 ACT_NOTE = "note"
@@ -39,20 +42,20 @@ ZONE_NAME = re.compile(r"^[A-Za-z][A-Za-z0-9_+-]{0,30}(/[A-Za-z0-9_+-]{1,30}){0,
 EPOCH = datetime.datetime(1970, 1, 1, tzinfo=datetime.timezone.utc)
 NO_WINDOW = "no_window"
 BATCH_ID = re.compile(r"^[0-9a-f]{32}$")
-UNDO_KEY = "undo"
+UNDO_KEY = shell_facts.UNDO_KEY
 ACTION_STATUSES = ("New", "In progress", "Done", "Dismissed", "Could not fix")
-OPEN_STATUSES = ("New", "In progress")
-DISMISSED = "Dismissed"
-DONE = "Done"
-COULD_NOT = "Could not fix"
-CLOSED_STATUSES = (DONE, DISMISSED, COULD_NOT)
-RESOLVED = "Resolved"
-STILL_FLAGGED = "Still flagged"
-FLAGGED_TIERS = ("Act now", "Review")
+OPEN_STATUSES = shell_facts.OPEN_STATUSES
+DISMISSED = shell_facts.DISMISSED
+DONE = shell_facts.DONE
+COULD_NOT = shell_facts.COULD_NOT
+CLOSED_STATUSES = shell_facts.CLOSED_STATUSES
+RESOLVED = shell_facts.RESOLVED
+STILL_FLAGGED = shell_facts.STILL_FLAGGED
+FLAGGED_TIERS = shell_facts.FLAGGED_TIERS
 HELD_BACK = "Held back"
 HELD_MEANING = ("Held back records were flagged Act now or Review but are kept off the to fix list on purpose, so later runs can compare "
                 "them with the records people acted on.")
-MONEY_COLUMN = "value_at_stake"
+MONEY_COLUMN = shell_facts.MONEY_COLUMN
 MONEY_VALUES = "hv"
 LISTED_MONEY = f"COALESCE(c.`_inspire_money`, CAST(d.`{MONEY_COLUMN}` AS DOUBLE))"
 IMPACT_COLUMNS = (("k", "STRING"), ("label", "STRING"), ("status", "STRING"), ("state", "STRING"), ("reason", "STRING"), ("note", "STRING"),
@@ -75,11 +78,13 @@ VALUE_KINDS = ("money", "number", "percent")
 VALUE_TOKEN = re.compile(r"\s*(?:([0-9]+(?:\.[0-9]+)?)|([A-Za-z_][A-Za-z0-9_]*)|([-+*/(),]))")
 VALUE_FUNCTIONS = ("greatest", "least")
 VALUE_EXPRESSION_CHARS = 300
+VALUE_TOLERANCE = (0.01, 0.0001)
 ASSUMPTIONS_SUFFIX = "_assumptions"
 AI_CATEGORY = re.compile(r"^ai_cat_[a-z0-9_]{1,40}$")
 AI_LISTED = ("ai_explanation", "confidence_level")
 AI_UNEXPLAINED = "Not explained yet"
 SUMMARY_SUFFIX = "_summary"
+INSPIRE_SUFFIXES = ("",) + shell_facts.COMPANION_SUFFIXES
 SEEN_TYPE = "ARRAY<STRUCT<k: STRING, v: BIGINT>>"
 LIKE_ESCAPE = "!"
 LIST_DIRS = ("asc", "desc")
@@ -90,13 +95,11 @@ MERGE_KEY = "_inspire_merge"
 VERSION_COLUMN = "_inspire_version"
 RUN_LOG_PROPERTY = "inspire.run_log"
 RUN_LOG_TIER_PROPERTY = "inspire.run_log_tier"
-RUN_FACTS_COLUMN = "run_facts"
+RUN_FACTS_COLUMN = shell_facts.FACTS_COLUMN
 STAGE_PROPERTY = "inspire.run_stage"
 STAGES_MAX = 10
 STAGE_STATES = ("running", "done", "stopped")
 STAGE_REASON_CHARS = 300
-NON_DATA_OPERATIONS = ("OPTIMIZE", "VACUUM START", "VACUUM END", "SET TBLPROPERTIES", "UNSET TBLPROPERTIES", "ANALYZE",
-                       "COMPUTE STATISTICS", "CLUSTER BY", "UPGRADE PROTOCOL")
 FIELD_KINDS = {"STRING": "text", "CHAR": "text", "VARCHAR": "text", "BYTE": "integer", "SHORT": "integer", "INT": "integer",
                "LONG": "integer", "FLOAT": "decimal", "DOUBLE": "decimal", "DECIMAL": "decimal", "BOOLEAN": "boolean", "DATE": "date",
                "TIMESTAMP": "timestamp", "TIMESTAMP_NTZ": "timestamp"}
@@ -182,9 +185,9 @@ CAPS = {"kpis": (3, 6), "charts": (3, 8), "tables": (0, 3), "filters": (1, 8), "
         "owner_chars": 254, "reason_chars": 300, "overview_rows": 500, "assumption_rows": 200, "assumption_limit": 1e15,
         "realized_note_chars": 500, "realized_value": 10 ** 15, "impact_rows": 100, "promised_chars": 1000, "benefits": 5, "usage_rows": 2000,
         "range_number": 10 ** 15, "blocks": (0, 8), "block_text": 4000, "block_html": 20000, "image_bytes": 2 * 1024 * 1024,
-        "image_height": (40, 1200), "url_chars": 2000, "kpi_rows": 2, "act_match": 100000, "note_chars": 500, "snooze_days": 365,
-        "conflicts_shown": 20, "similar_sample": 5, "similar_by": 3, "batches": 20, "exclude_keys": 50, "window_limit": 1000,
-        "utc_offset_min": 840, "act_history": 200, "closers_today": 200}
+        "image_height": (40, 1200), "url_chars": 2000, "kpi_rows": 2, "count_cap": 10000, "changed_keys": 500, "act_match": 100000,
+        "note_chars": 500, "snooze_days": 365, "conflicts_shown": 20, "similar_sample": 5, "similar_by": 3, "batches": 20,
+        "exclude_keys": 50, "window_limit": 1000, "utc_offset_min": 840, "act_history": 200, "closers_today": 200}
 ALERT_OPERATORS = {">=": "GREATER_THAN_OR_EQUAL", ">": "GREATER_THAN", "=": "EQUAL", "!=": "NOT_EQUAL", "<": "LESS_THAN",
                    "<=": "LESS_THAN_OR_EQUAL"}
 ALERT_BASES = ("fixed", "baseline")
@@ -250,19 +253,6 @@ AGGREGATE_FUNCTIONS = frozenset((
 _NILADIC = frozenset(("current_date", "current_timestamp", "current_timezone", "current_user", "current_catalog", "current_schema"))
 _AGGREGATE_TOKENS = re.compile(r"`[^`]*`|(?<![\w.])[A-Za-z_][A-Za-z0-9_]*|\(|\)")
 _WINDOW = re.compile(r"\bover\s*\(", re.I)
-
-
-def quote(name: str) -> str:
-    if not IDENT.match(str(name or "")):
-        raise ValueError(f"{name!r} is not a column or dataset name")
-    return f"`{name}`"
-
-
-def table_name(name) -> str:
-    parts = [p.strip() for p in str(name or "").split(".")]
-    if len(parts) != 3 or not all(TABLE_PART.match(p) for p in parts):
-        raise ValueError(f"{name!r} is not a catalog.schema.table name")
-    return ".".join(f"`{p}`" for p in parts)
 
 
 def strip_sql_text(sql: str, keep_names: bool = False) -> str:
@@ -1744,15 +1734,16 @@ def _list_request(page: dict, data: dict, context: dict, allowed: list) -> dict:
     search = data.get("search") or ""
     if not isinstance(search, str) or len(search) > CAPS["search_chars"]:
         raise ValueError(f"search for text of at most {CAPS['search_chars']} characters")
-    mine, changed = data.get("mine", False), data.get("changed", False)
-    if not isinstance(mine, bool) or not isinstance(changed, bool):
-        raise ValueError("mine and changed take true or false")
+    mine, changed, counts = data.get("mine", False), data.get("changed", False), data.get("ai_counts", False)
+    if not isinstance(mine, bool) or not isinstance(changed, bool) or not isinstance(counts, bool):
+        raise ValueError("mine, changed and ai_counts take true or false")
     if mine and not context["actions"]:
         raise ValueError("this decision list keeps no action owners, so it cannot show your actions")
     if changed and not context["changes"]:
         raise ValueError("this decision list keeps no runs to compare, so it cannot show what changed since the last run")
     return {"sort": key, "dir": direction, "offset": offset, "limit": limit, "search": search.strip(), "mine": mine, "changed": changed,
-            "ai": ai_request(data.get("ai"), context), "columns": data.get(COLUMN_FILTERS) or {}, "cursor": list_cursor_value(data.get("cursor"))}
+            "ai": ai_request(data.get("ai"), context), "columns": data.get(COLUMN_FILTERS) or {}, "cursor": list_cursor_value(data.get("cursor")),
+            "ai_counts": counts}
 
 
 def _cursor_cell(value) -> bool:
@@ -1829,25 +1820,6 @@ def history_layout(properties, fields):
     types = {f["name"]: f.get("type") for f in fields}
     return {"log": quoted, "tier": str((properties or {}).get(RUN_LOG_TIER_PROPERTY) or "").strip() or None,
             "columns": [f["name"] for f in fields], "run_type": SQL_TYPES.get(str(types.get("run_id") or "").upper(), "STRING")}
-
-
-def versions_source(table: str, history: dict, keys: str = "") -> str:
-    log = history["log"]
-    stamped = {"run_id": "g.`_g_run`", "as_of_date": "g.`_g_date`", "rank": "g.`_g_rank`", "valid_from": "g.`_g_ran`",
-               "valid_to": "g.`_g_next`", "is_current": "FALSE", "changed_by": "concat('run ', CAST(g.`_g_run` AS STRING))"}
-    plain = ", ".join(quote(c) for c in history["columns"])
-    picked = ", ".join(f"{stamped[c]} AS {quote(c)}" if c in stamped else f"v.{quote(c)}" for c in history["columns"])
-    within = f" WHERE `record_key` IN ({keys})" if keys else ""
-    logged = f" WHERE l.`record_key` IN ({keys})" if keys else ""
-    found = (f"SELECT g.*, v.`valid_from` AS `_g_from`, ROW_NUMBER() OVER (PARTITION BY g.`_g_key`, g.`_g_run` ORDER BY v.`valid_from`) "
-             f"AS `_g_nth` FROM (SELECT l.`use_case_id` AS `_g_uc`, l.`run_id` AS `_g_run`, l.`as_of_date` AS `_g_date`, l.`rank` AS `_g_rank`, "
-             f"l.`ran_at` AS `_g_ran`, l.`record_key` AS `_g_key`, LEAD(l.`ran_at`) OVER (PARTITION BY l.`use_case_id`, l.`record_key` ORDER BY "
-             f"l.`ran_at`) AS `_g_next` FROM {log} AS l{logged}) AS g LEFT ANTI JOIN {table} AS x ON x.`record_key` = g.`_g_key` AND "
-             f"x.`use_case_id` <=> g.`_g_uc` AND x.`run_id` <=> g.`_g_run` AND x.`change_source` = 'run' JOIN {table} AS v ON "
-             f"v.`record_key` = g.`_g_key` AND v.`use_case_id` <=> g.`_g_uc` AND v.`change_source` = 'run' AND v.`valid_from` > g.`_g_ran`")
-    return (f"(SELECT {plain} FROM {table}{within} UNION ALL SELECT {picked} FROM ({found}) AS g JOIN {table} AS v ON "
-            f"v.`record_key` = g.`_g_key` AND v.`use_case_id` <=> g.`_g_uc` AND v.`change_source` = 'run' AND v.`valid_from` = g.`_g_from` "
-            f"WHERE g.`_g_nth` = 1)")
 
 
 def facts_run(facts, key: str):
@@ -2447,12 +2419,22 @@ def logged_changes(context: dict) -> bool:
     return bool(history) and (context["tier"] is None or context["tier"] == history.get("tier"))
 
 
-def _change_ctes(context: dict, within: str = "") -> dict:
+def _latest_log(context: dict) -> str:
+    facts = context.get("facts") or {}
+    log = context.get("latest_log") or (table_name(facts["changes"]) if facts.get("changes") else "")
+    if not (log and logged_changes(context)):
+        return ""
+    run = f" AND CAST(t.`run_id` AS STRING) = {literal(facts['latest'])}" if facts.get("latest") is not None else ""
+    return f"{log} AS t WHERE TRUE{run}"
+
+
+def _change_ctes(context: dict, within: str = "", key: str = "_inspire_key") -> dict:
     table, tier = context["table"], context["tier"]
-    scope = f" AND t.`record_key` IN (SELECT `_inspire_key` FROM {within})" if within else ""
-    if logged_changes(context) and context.get("latest_log"):
+    scope = f" AND t.`record_key` IN (SELECT {quote(key)} FROM {within})" if within else ""
+    latest = _latest_log(context)
+    if latest:
         return {"l": f"SELECT t.`record_key` AS `_inspire_lk`, t.`change` AS `_inspire_ch`, t.`moved_to` AS `_inspire_mt` FROM "
-                     f"{context['latest_log']} AS t WHERE TRUE{scope}"}
+                     f"{latest}{scope}"}
     if logged_changes(context):
         return {"l": f"SELECT t.`record_key` AS `_inspire_lk`, t.`change` AS `_inspire_ch`, t.`moved_to` AS `_inspire_mt` FROM "
                      f"{context['history']['log']} AS t JOIN n ON t.`run_id` = n.`_inspire_latest` WHERE n.`_inspire_previous` IS NOT NULL{scope}"}
@@ -2500,8 +2482,13 @@ def _current_cte(context: dict, extra=()) -> str:
     owned = ", `action_owner` AS `_inspire_owner`, `action_status` AS `_inspire_status`" if actions else ""
     explained = "".join(f", CAST({quote(n)} AS STRING) AS {quote(ai_alias(n))}" for n in context["ai"])
     more = "".join(f", {e}" for e in [*extra, f"CAST({quote(KEPT_SINCE)} AS TIMESTAMP) AS `_inspire_missing`", *context.get("money", [])])
-    return (f"SELECT `record_key` AS `_inspire_key`{mapped}, CAST(unix_micros(`valid_from`) AS STRING) AS `_inspire_version`{owned}"
-            f"{explained}{more} FROM {context.get('current') or context['table']} WHERE `is_current` AND `change_source` <> 'delete'")
+    held = context.get("floor") or {}
+    floor = f" AND {_floored(held, '')}" if held.get("column") else ""
+    current = (f"SELECT `record_key` AS `_inspire_key`{mapped}, CAST(unix_micros(`valid_from`) AS STRING) AS `_inspire_version`{owned}"
+               f"{explained}{more} FROM {context.get('current') or context['table']} WHERE `is_current` AND `change_source` <> 'delete'{floor}")
+    if held.get("top"):
+        return f"SELECT * FROM ({current}) AS c0 ORDER BY `_inspire_money` DESC NULLS LAST, `_inspire_key` ASC LIMIT {int(held['top'])}"
+    return current
 
 
 def _current_on(context: dict, alias: str) -> str:
@@ -2514,8 +2501,13 @@ def _current_join(context: dict, alias: str) -> tuple:
     columns = ["c.`_inspire_key`", "c.`_inspire_version`"] + (["c.`_inspire_owner`", "c.`_inspire_status`"] if context["actions"] else [])
     money = ["c.`_inspire_money`", "c.`_inspire_fx`"] if context.get("money") else []
     windowed = (list(WINDOW_PICKED) + (["c.`_inspire_held`"] if context.get("held") else [])) if context.get("windowed") else []
-    return (f" LEFT JOIN c ON {_current_on(context, alias)}",
+    joined = " JOIN" if (context.get("floor") or {}).get("on") == "c" else " LEFT JOIN"
+    return (f"{joined} c ON {_current_on(context, alias)}",
             columns + [f"c.{quote(ai_alias(n))}" for n in context["ai"]] + money + ["c.`_inspire_missing`"] + windowed)
+
+
+def _floored(floor: dict, alias: str) -> str:
+    return f"{alias + '.' if alias else ''}{quote(floor['column'])} {floor['op']} {float(floor['value'])!r}"
 
 
 def _window_extra(context: dict) -> list:
@@ -2571,12 +2563,13 @@ def list_queries(page: dict, values: dict, request: dict, context: dict, editor:
         ctes["k"] = f"SELECT s.*, {', '.join(columns)} FROM s{join}"
         shown = "k"
     if context["changes"] and "h" not in early:
-        ctes.update(_change_ctes(context, shown))
+        ctes.update(_change_ctes(context, *(("s", "record_key") if shown == "k" and context["join"] == "record_key" else (shown,))))
         late = _change_columns(context)
     outer = f"SELECT {', '.join([f'{shown}.*'] + late)} FROM {shown}" + (_change_joins(context, f"{shown}.`_inspire_key`") if late else "")
+    counting = dict(ctes, f=plan["plain"]) if plan["plain"] else ctes
     return {"rows": (f"{_with(ctes, ['d', 'c', 'r', 'n', 'l0', 'o0', 'p0', 'f', 'w', 's', 'k', 'l', 'o', 'p'])} {outer} ORDER BY {order}",
                      params.items),
-            "total": (f"{_with(ctes, counted)} SELECT COUNT(*) AS total FROM f", counted_params)}
+            "total": (f"{_with(counting, counted)} {capped_count('f')}", counted_params)}
 
 
 def list_match_query(page: dict, values: dict, request: dict, context: dict, editor: str = "", params=None) -> dict:
@@ -2601,7 +2594,7 @@ def _list_plan(page: dict, values: dict, request: dict, context: dict, editor: s
     context = dict(context, windowed=bool(window))
     listed, money = _listed(page, values, request.get("columns"), context, params)
     ctes = {"d": listed}
-    conditions = list(money)
+    conditions = list(money) + ([_floored(context["floor"], "d")] if (context.get("floor") or {}).get("on") == "d" else [])
     if request["search"]:
         holder = params.add(contains_pattern(request["search"]))
         searched = list(dict.fromkeys(c for c in (records.get("label"), records.get("key"), records.get("sublabel")) if c))
@@ -2615,15 +2608,13 @@ def _list_plan(page: dict, values: dict, request: dict, context: dict, editor: s
     if request.get("exclude"):
         conditions.append(f"COALESCE(c.`_inspire_key`, '') NOT IN (SELECT explode(from_json("
                           f"{params.add(json.dumps(request['exclude'], ensure_ascii=False))}, 'ARRAY<STRING>')))")
-    if context["join"]:
-        ctes["c"] = _current_cte(context, _window_extra(context) if window else ())
-    if context["changes"] and not (logged_changes(context) and context.get("latest_log")):
+    if context["changes"] and not _latest_log(context):
         ctes.update(_runs_ctes(context["table"], context.get("history"), context.get("facts")))
     if request["mine"]:
         conditions.append(f"lower(c.`_inspire_owner`) = lower({params.add(editor)})")
         early.add("c")
     money_sort = request["sort"] == MONEY_COLUMN and bool(context.get("money"))
-    if request["sort"] in ACTION_SORTS or money_sort or money:
+    if money:
         early.add("c")
     for name, picked in request["ai"].items():
         conditions.append(f"{_ai_value(name)} IN ({', '.join(params.add(v) for v in picked)})")
@@ -2634,6 +2625,13 @@ def _list_plan(page: dict, values: dict, request: dict, context: dict, editor: s
         conditions.append(f"l.`_inspire_ch` IN ({wanted})" if logged_changes(context)
                           else f"(l.`_inspire_lk` IS NOT NULL AND (o.`_inspire_ok` IS NULL OR {_moved(context)}))")
         early |= {"c", "h"}
+    filtering = set(early)
+    if request["sort"] in ACTION_SORTS or money_sort:
+        early.add("c")
+    if context["join"]:
+        held = context.get("floor")
+        ctes["c"] = _current_cte(dict(context, floor=held if held and (held["on"] == "c" or "c" not in early) else None),
+                                 _window_extra(context) if window else ())
     picked, joins = ["d.*"], ""
     if "c" in early:
         join, columns = _current_join(context, "d")
@@ -2642,8 +2640,62 @@ def _list_plan(page: dict, values: dict, request: dict, context: dict, editor: s
         picked, joins = picked + _change_columns(context), joins + _change_joins(context, "c.`_inspire_key`", "0")
     where = f" WHERE {' AND '.join(conditions)}" if conditions else ""
     ctes["f"] = f"SELECT {', '.join(picked)} FROM d{joins}{where}"
-    counted = ["d"] + (["c"] if "c" in early else []) + (["r", "n", "l0", "o0", "p0"] if "h" in early else []) + ["f"]
-    return {"ctes": ctes, "context": context, "early": early, "counted": counted, "today": today}
+    lean = "c" in early and "c" not in filtering and context["join"] == "record_key"
+    counted = ["d"] + (["c"] if "c" in early and not lean else []) + (["r", "n", "l0", "o0", "p0"] if "h" in early else []) + ["f"]
+    return {"ctes": ctes, "context": context, "early": early, "counted": counted, "today": today,
+            "plain": f"SELECT d.* FROM d{where}" if lean else None}
+
+
+def capped_count(relation: str) -> str:
+    return f"SELECT COUNT(*) AS total FROM (SELECT 1 FROM {relation} LIMIT {int(CAPS['count_cap']) + 1}) AS z"
+
+
+def counted_total(row) -> tuple:
+    found = int((row or {}).get("total") or 0)
+    return min(found, CAPS["count_cap"]), found > CAPS["count_cap"]
+
+
+def unfiltered(values: dict, request: dict) -> bool:
+    return (not any(v not in (None, "", [], {}) for v in (values or {}).values()) and not request["search"] and not request["mine"]
+            and not request["changed"] and not request["ai"] and not request["columns"] and not request.get("window")
+            and not request.get("exclude"))
+
+
+def facts_total_query(facts: dict, table: str, names: set) -> tuple:
+    params = _Params()
+    ctes = facts_ctes(facts, table, params)
+    base = int(facts["numbers"].get("current_n") or 0)
+    return (f"{_with(ctes, shell_facts.CHANGE_ORDER)} SELECT {base} + d.`_inspire_n` AS total FROM ({shell_facts.count_delta_sql(names)}) AS d",
+            params.items)
+
+
+def list_floor(page: dict, request: dict, context: dict, facts, model, filtered: bool):
+    if not context["join"] or request.get("cursor") or request["search"]:
+        return None
+    types, priced, ready = context.get("types") or {}, bool(context.get("money")), facts_ready(facts)
+    by_money = request.get("ranked") or (request["sort"] == MONEY_COLUMN and request["dir"] == "desc")
+    live = bool(priced and model and model.get("recomputes") and model.get("changed"))
+    scaled = live and ready and money_scale(model) is not None
+    if live and by_money and not scaled:
+        selective = (request["mine"] or request["changed"] or request["ai"] or request.get("ranked")
+                     or MONEY_COLUMN in (request.get("columns") or {}))
+        if selective or context["join"] != "record_key":
+            return None
+        depth = shell_facts.floor_depth(shell_facts.FLOOR_DEPTHS, int(request["offset"]) + int(request["limit"]), filtered)
+        return None if depth is None else {"top": depth, "on": "c"}
+    if not ready:
+        return None
+    stored = priced or MONEY_COLUMN in types
+    if stored and by_money:
+        name, column, op, on = "open" if request.get("ranked") else "all", MONEY_COLUMN, ">=", "c" if priced else "d"
+    elif request["sort"] == "rank" == (page.get("records") or {}).get("rank") and request["dir"] == "asc" and "rank" in types:
+        name, column, op, on = "rank", "rank", "<=", "d"
+    else:
+        return None
+    value = shell_facts.floor_for(facts.get("floors"), name, int(request["offset"]) + int(request["limit"]), filtered)
+    if value is None:
+        return None
+    return {"column": column, "op": op, "value": stake_floor(value) if scaled and column == MONEY_COLUMN else value, "on": on}
 
 
 def ai_counts_query(page: dict, values: dict, context: dict, columns=None) -> tuple:
@@ -2656,11 +2708,43 @@ def ai_counts_query(page: dict, values: dict, context: dict, columns=None) -> tu
     return f"{_with(ctes, ['d', 'c'])} {counts}", params.items
 
 
-def facts_query(page: dict) -> tuple:
-    params = _Params()
-    scope = f"`use_case_id` = {params.add(str(page['use_case_id']))} AND " if page.get("use_case_id") else ""
-    return (f"SELECT `{RUN_FACTS_COLUMN}` FROM {table_name(str(page['result_table']).strip() + SUMMARY_SUFFIX)} WHERE {scope}"
-            f"`{RUN_FACTS_COLUMN}` IS NOT NULL ORDER BY `updated_at` DESC NULLS LAST LIMIT 1", params.items)
+def changed_query(page: dict, facts: dict) -> tuple:
+    at = f"timestamp_micros({int(facts['stamp_us'])})"
+    return (f"SELECT COUNT(*) AS `n`, unix_micros(GREATEST(MAX(`valid_from`), COALESCE(MAX(`valid_to`), MAX(`valid_from`)))) AS `us`, "
+            f"CASE WHEN COUNT(DISTINCT `record_key`) <= {int(CAPS['changed_keys'])} THEN to_json(array_sort(collect_set(CAST(`record_key` AS "
+            f"STRING)))) END AS `keys` FROM {table_name(page['result_table'])} WHERE `valid_from` > {at} OR `valid_to` > {at}", [])
+
+
+def changed_keys_of(row) -> list | None:
+    try:
+        keys = json.loads((row or {}).get("keys") or "null")
+    except (TypeError, ValueError):
+        return None
+    return [str(k) for k in keys] if isinstance(keys, list) else None
+
+
+def changed_keys(keys) -> tuple:
+    if keys is None:
+        return shell_facts.CHANGED_KEYS, "0"
+    if not keys:
+        return "CAST(NULL AS STRING)", "(SELECT COUNT(*) FROM qk)"
+    listed = ", ".join(literal(k) for k in keys)
+    return listed, f"(SELECT COUNT(*) FROM qk WHERE CAST(`_q_key` AS STRING) NOT IN ({listed}))"
+
+
+def state_facts(row, result_table: str = "") -> dict:
+    try:
+        facts = json.loads((row or {}).get(RUN_FACTS_COLUMN) or "null")
+    except (TypeError, ValueError):
+        facts = None
+    if not facts_ready(facts) or str(facts.get("latest")) != str((row or {}).get("run_id")):
+        return None
+    base = ".".join(p.strip() for p in str(result_table or "").split(".")).lower()
+    owned = {key: base + suffix for key, suffix in (("log", shell_facts.RUN_LOG_SUFFIX), ("acted", shell_facts.ACTED_SUFFIX),
+                                                    ("closed", shell_facts.CLOSED_SUFFIX))}
+    changes = str(facts.get("changes") or "").lower()
+    return (facts if not base or (all(str(facts.get(k) or "").lower() == v for k, v in owned.items())
+                                  and changes in ("", base + shell_facts.CHANGES_SUFFIX)) else None)
 
 
 def facts_runs(facts) -> list:
@@ -2882,6 +2966,52 @@ def money_model(summary, fields, edits=()) -> dict:
         else:
             model.update(expression=text, recomputes=True, _tree=tree)
     return model
+
+
+ANY_SCALE = "any"
+
+
+def _scale_of(tree, by_name):
+    kind = tree[0]
+    if kind == "number":
+        return ANY_SCALE if tree[1] == 0 else 1.0
+    if kind == "name":
+        held = by_name.get(tree[1])
+        if held is None:
+            return 1.0
+        return held["value"] / held["run_value"] if held["run_value"] else None
+    if kind == "negative":
+        return _scale_of(tree[1], by_name)
+    parts = [_scale_of(part, by_name) for part in (tree[2] if kind == "call" else tree[2:])]
+    if None in parts:
+        return None
+    if kind == "operation" and tree[1] == "*":
+        return ANY_SCALE if ANY_SCALE in parts else parts[0] * parts[1]
+    if kind == "operation" and tree[1] == "/":
+        if parts[1] == ANY_SCALE or parts[1] == 0:
+            return None
+        return ANY_SCALE if parts[0] == ANY_SCALE else parts[0] / parts[1]
+    known = [p for p in parts if p != ANY_SCALE]
+    if not known:
+        return ANY_SCALE
+    return known[0] if all(math.isclose(p, known[0], rel_tol=1e-12) for p in known) else None
+
+
+def money_scale(model):
+    if not model or not model.get("recomputes") or model.get("_tree") is None:
+        return None
+    scale = _scale_of(model["_tree"], {a["name"]: a for a in model.get("assumptions") or []})
+    return scale if scale != ANY_SCALE and scale is not None and math.isfinite(scale) and scale > 0 else None
+
+
+def stake_floor(value: float) -> float:
+    gap, share = VALUE_TOLERANCE
+    off = lambda x: max(gap, abs(x) * share)
+    low = float(value) - off(float(value))
+    floor = low - off(low)
+    while floor + off(floor) > low:
+        floor -= off(floor)
+    return floor
 
 
 def number_text(value) -> str:
@@ -3139,69 +3269,11 @@ def _overview_select(kind: str, cells: dict, columns=OVERVIEW_COLUMNS) -> str:
     return "SELECT " + ", ".join([f"'{kind}' AS `kind`"] + [f"{p} AS {quote(name)}" for p, (name, _k) in zip(picked, columns)])
 
 
-def _count(condition: str) -> str:
-    return f"COUNT(CASE WHEN {condition} THEN 1 END)"
-
-
-def _sql_list(values) -> str:
-    return ", ".join(f"'{v}'" for v in values)
-
-
-def closing_ctes(table: str, names: set, label=None, scope: str = "", history=None) -> dict:
-    within = f"{scope} AND " if scope else ""
-    acted = f"SELECT `record_key` FROM {table} WHERE {within}`action_status` IS NOT NULL"
-    versions = f"{versions_source(table, history, acted)} AS hv" if history else table
-    stake = money_sql(None) if MONEY_COLUMN in names else "CAST(NULL AS DOUBLE)"
-    named = f"CAST({quote(label)} AS STRING)" if label and label in names else "CAST(NULL AS STRING)"
-    comment = "CAST(`action_note` AS STRING)" if "action_note" in names else "CAST(NULL AS STRING)"
-    batched = all(n in names for n in BATCH_TYPES)
-    batch = (f"CAST(`{BATCH_COLUMN}` AS STRING) AS `_inspire_batch`, NULLIF(TRIM(`{BATCH_NOTE}`), '') AS `_inspire_batch_note`, "
-             f"COALESCE(`{BATCH_VALUES}` LIKE '%\"{UNDO_KEY}\"%', FALSE) AS `_inspire_batch_undo`" if batched else
-             "CAST(NULL AS STRING) AS `_inspire_batch`, CAST(NULL AS STRING) AS `_inspire_batch_note`, FALSE AS `_inspire_batch_undo`")
-    first = "hk.`_inspire_kk` = hx.`record_key` AND hk.`_inspire_kth` = 1"
-    gone = _sql_list(GONE_STATES)
-    return {
-        "hx": (f"SELECT `record_key`, `is_current`, `change_source`, `changed_by`, `action_status`, `action_outcome`, `valid_from`, `valid_to`, "
-               f"{stake} AS `_inspire_stake`, CAST(`realized_value` AS DOUBLE) AS `_inspire_realized`, CAST(`realized_note` AS STRING) AS "
-               f"`_inspire_note`, CAST(`dismiss_reason` AS STRING) AS `_inspire_reason`, {comment} AS `_inspire_comment`, {batch}, "
-               f"{named} AS `_inspire_label`, CAST({quote(KEPT_SINCE)} AS TIMESTAMP) AS `_inspire_missing`, "
-               f"ROW_NUMBER() OVER (PARTITION BY `record_key` ORDER BY `valid_from` DESC) AS `_inspire_nth`, LAG(`action_status`) OVER "
-               f"(PARTITION BY `record_key` ORDER BY `valid_from`) AS `_inspire_was` FROM {versions} WHERE {within}`record_key` IN ({acted})"),
-        "hk": (f"SELECT `record_key` AS `_inspire_kk`, `action_status` AS `_inspire_closed_as`, `valid_from` AS `_inspire_closed`, "
-               f"`changed_by` AS `_inspire_closer`, `_inspire_stake` AS `_inspire_at_close`, `_inspire_batch` AS `_inspire_closed_batch`, "
-               f"`_inspire_batch_undo` AS `_inspire_closed_undo`, `_inspire_batch_note` AS `_inspire_closed_note`, NULLIF(TRIM(`_inspire_reason`), "
-               f"'') AS `_inspire_closed_reason`, NULLIF(TRIM(`_inspire_comment`), '') AS `_inspire_closed_comment`, ROW_NUMBER() OVER "
-               f"(PARTITION BY `record_key` ORDER BY `valid_from` DESC) AS `_inspire_kth` FROM hx WHERE `change_source` = 'action' AND "
-               f"`action_status` IN ({_sql_list(CLOSED_STATUSES)}) AND COALESCE(`_inspire_was`, '') <> `action_status`"),
-        "hr": (f"SELECT hx.`record_key` AS `_inspire_rk`, hx.`_inspire_stake` AS `_inspire_after`, hx.`action_outcome` AS `_inspire_found`, "
-               f"ROW_NUMBER() OVER (PARTITION BY hx.`record_key` ORDER BY hx.`valid_from` DESC) AS `_inspire_rth` FROM hx JOIN hk ON {first} "
-               f"WHERE hx.`change_source` = 'run' AND hx.`valid_from` > hk.`_inspire_closed`"),
-        "hf": (f"SELECT hx.`record_key` AS `_inspire_fk`, MIN(hx.`valid_from`) AS `_inspire_ok` FROM hx JOIN hk ON {first} WHERE "
-               f"hx.`change_source` = 'run' AND hx.`action_outcome` = '{RESOLVED}' AND hx.`valid_from` > hk.`_inspire_closed` "
-               f"GROUP BY hx.`record_key`"),
-        "ho": (f"SELECT l.`record_key` AS `_inspire_k`, l.`_inspire_label`, l.`action_status` AS `_inspire_status`, k.`_inspire_closed`, "
-               f"k.`_inspire_closer`, k.`_inspire_at_close`, l.`_inspire_realized`, NULLIF(TRIM(l.`_inspire_note`), '') AS `_inspire_note`, "
-               f"NULLIF(TRIM(l.`_inspire_reason`), '') AS `_inspire_reason`, CASE WHEN NOT l.`is_current` THEN 'left' WHEN "
-               f"l.`_inspire_missing` IS NOT NULL THEN 'missing' WHEN r.`_inspire_found` = '{RESOLVED}' THEN 'resolved' WHEN "
-               f"r.`_inspire_found` = '{STILL_FLAGGED}' THEN 'flagged' ELSE 'unchecked' END AS `_inspire_state`, CASE WHEN NOT "
-               f"l.`is_current` OR l.`_inspire_missing` IS NOT NULL THEN 0 ELSE r.`_inspire_after` END AS `_inspire_now`, "
-               f"COALESCE(f.`_inspire_ok`, CASE WHEN NOT l.`is_current` THEN l.`valid_to` ELSE l.`_inspire_missing` END) AS `_inspire_seen` "
-               f"FROM hx AS l JOIN hk AS k "
-               f"ON k.`_inspire_kk` = l.`record_key` AND k.`_inspire_kth` = 1 AND k.`_inspire_closed_as` = l.`action_status` LEFT JOIN hr AS r "
-               f"ON r.`_inspire_rk` = l.`record_key` AND r.`_inspire_rth` = 1 LEFT JOIN hf AS f ON f.`_inspire_fk` = l.`record_key` WHERE "
-               f"l.`_inspire_nth` = 1 AND l.`change_source` <> 'delete'"),
-        "hm": (f"SELECT o.*, CASE WHEN o.`_inspire_status` = '{DONE}' AND o.`_inspire_state` IN ({gone}) THEN 1 ELSE 0 END AS "
-               f"`_inspire_measured_ok`, CASE WHEN o.`_inspire_status` = '{DONE}' AND o.`_inspire_state` IN ({gone}) AND "
-               f"o.`_inspire_at_close` IS NOT NULL THEN GREATEST(o.`_inspire_at_close` - COALESCE(o.`_inspire_now`, 0), 0) END AS "
-               f"`_inspire_measured` FROM ho AS o"),
-    }
-
-
-CLOSING_ORDER = ("hx", "hk", "hr", "hf", "ho", "hm")
+_count = shell_facts.count_when
+_sql_list = shell_facts.sql_list
 CLOSED_FIELDS = {"_inspire_closed_by": "_inspire_closer", "_inspire_closed_at": "_inspire_closed", "_inspire_closed_batch": "_inspire_closed_batch",
                  "_inspire_closed_undo": "_inspire_closed_undo", "_inspire_closed_note": "_inspire_closed_note",
                  "_inspire_closed_reason": "_inspire_closed_reason", "_inspire_closed_comment": "_inspire_closed_comment"}
-
 
 def use_case_scope(page: dict, params) -> str:
     return f"`use_case_id` = {params.add(str(page['use_case_id']))}" if page.get("use_case_id") else ""
@@ -3255,7 +3327,15 @@ def overview_query(page: dict, values: dict, picked: dict, context: dict, fields
                  f"ORDER BY {ranked} LIMIT {top}")
     branches = ["SELECT * FROM i"]
     history = context.get("history")
-    ctes.update(closing_ctes(table, names, scope=use_case_scope(page, params), history=history))
+    facts = context.get("facts") if facts_ready(context.get("facts")) else None
+    changed = context.get("changed_closing") if facts else None
+    if changed is not None:
+        ctes["hm"] = shell_facts.closed_now_sql(table_name(facts["closed"]), changed, params.add)
+    elif facts:
+        ctes.update(facts_ctes(facts, table, params))
+        ctes.update(closing_ctes(table, names, history=history, source="av", closed=table_name(facts["closed"])))
+    else:
+        ctes.update(closing_ctes(table, names, scope=use_case_scope(page, params), history=history))
     start, first = params.add(quarter, "DATE"), params.add(since, "DATE")
     fixed, gone, ok = f"v.`_inspire_status` = '{DONE}'", f"v.`_inspire_status` = '{DISMISSED}'", "v.`_inspire_measured_ok` = 1"
     acted, saved = f"CAST(v.`_inspire_closed` AS DATE) >= {start}", f"CAST(v.`_inspire_seen` AS DATE) >= {start}"
@@ -3276,34 +3356,34 @@ def overview_query(page: dict, values: dict, picked: dict, context: dict, fields
         ctes["hn"] = (f"SELECT {who} AS `_inspire_who`, COUNT(*) AS `_inspire_n` FROM hm AS v WHERE {fixed} AND {closed} >= {since_us} AND "
                       f"{closed} < {until_us} GROUP BY {who} ORDER BY `_inspire_n` DESC, `_inspire_who` ASC LIMIT {CAPS['closers_today']}")
         branches.append(f"{_overview_select('mine', {'k': 'n.`_inspire_who`', 'n': 'n.`_inspire_n`'})} FROM hn AS n")
-    source, ran, only = (history["log"], "`ran_at`", "") if history else (table, "`valid_from`", " WHERE `change_source` = 'run'")
-    ctes["r"] = (f"SELECT CAST(`run_id` AS STRING) AS `_inspire_run`, MIN({ran}) AS `_inspire_ran`, MAX(CAST(`as_of_date` AS DATE)) "
-                 f"AS `_inspire_day` FROM {source}{only} GROUP BY CAST(`run_id` AS STRING) ORDER BY "
-                 f"`_inspire_ran` DESC LIMIT {OVERVIEW_RUNS}")
-    branches.append(f"{_overview_select('run', {'k': 'r.`_inspire_run`', 'at': 'r.`_inspire_ran`', 'day': 'r.`_inspire_day`'})} FROM r")
-    return f"{_with(ctes, ['d', 'c', 'i', *CLOSING_ORDER, 'hn', 'r'])} {' UNION ALL '.join(branches)}", params.items
+    if not facts:
+        source, ran, only = (history["log"], "`ran_at`", "") if history else (table, "`valid_from`", " WHERE `change_source` = 'run'")
+        ctes["r"] = (f"SELECT CAST(`run_id` AS STRING) AS `_inspire_run`, MIN({ran}) AS `_inspire_ran`, MAX(CAST(`as_of_date` AS DATE)) "
+                     f"AS `_inspire_day` FROM {source}{only} GROUP BY CAST(`run_id` AS STRING) ORDER BY "
+                     f"`_inspire_ran` DESC LIMIT {OVERVIEW_RUNS}")
+        branches.append(f"{_overview_select('run', {'k': 'r.`_inspire_run`', 'at': 'r.`_inspire_ran`', 'day': 'r.`_inspire_day`'})} FROM r")
+    return (f"{_with(ctes, ['d', 'c', 'i', *shell_facts.CHANGE_ORDER, 'av', *CLOSING_ORDER, 'hn', 'r'])} {' UNION ALL '.join(branches)}",
+            params.items)
 
 
 def impact_ctes(table: str, names: set, tier, label, scope: str, since: str, listed: bool = True, model=None, values: str = "",
-                history=None) -> tuple:
-    within = f"{scope} AND " if scope else ""
+                history=None, facts_source: str = "", live_money: bool = False, closed: str = "", settled: str = "") -> tuple:
     priced = MONEY_COLUMN in names
-    stake = money_sql(model, live=bool(values)) if priced else "CAST(NULL AS DOUBLE)"
     held = all(n in names for n in HOLDOUT_TYPES)
-    live = f"{within}`is_current` AND `change_source` <> 'delete'"
-    ctes = {"hc": f"SELECT COUNT(*) AS `_inspire_n`, {_count('`held_back`') if held else '0'} AS `_inspire_held` FROM {table} WHERE {live}"}
-    branches = [f"{_overview_select('current', {'n': '`_inspire_n`', 'hits': '`_inspire_held`'}, IMPACT_COLUMNS)} FROM hc"]
-    if tier:
-        shown = f"CAST({quote(tier)} AS STRING)"
-        opened = f" AND COALESCE(`action_status`, 'New') IN ({_sql_list(OPEN_STATUSES)})"
+    rows = f"(SELECT * FROM {table}{' WHERE ' + scope if scope else ''})"
+    ctes, branches = {}, []
+    if not facts_source:
+        ctes["hc"] = shell_facts.counts_sql(rows, names)
+        branches.append(f"{_overview_select('current', {'n': '`_inspire_n`', 'hits': '`_inspire_held`'}, IMPACT_COLUMNS)} FROM hc")
+    if tier and (not facts_source or live_money):
         joined = f" CROSS JOIN {MONEY_VALUES}" if values and priced else ""
         if joined:
             ctes[MONEY_VALUES] = values
-        ctes["he"] = (f"SELECT {shown} AS `_inspire_tier`, COUNT(*) AS `_inspire_n`, SUM({stake}) AS `_inspire_money` FROM {table}{joined} "
-                      f"WHERE {live} AND {shown} IN ({_sql_list(FLAGGED_TIERS)}){opened} GROUP BY {shown}")
+        stake = money_sql(model, "c", live=bool(values)) if priced else "CAST(NULL AS DOUBLE)"
+        ctes["he"] = shell_facts.estimated_sql(rows, names, tier, stake, joined)
         branches.append(f"{_overview_select('estimated', {'tier': '`_inspire_tier`', 'n': '`_inspire_n`', 'money': '`_inspire_money`'}, IMPACT_COLUMNS)} "
                         f"FROM he")
-    ctes.update(closing_ctes(table, names, label, scope, history))
+    ctes.update({"hm": settled} if settled else closing_ctes(table, names, label, scope, history, source=facts_source, closed=closed))
     fixed, ok = f"v.`_inspire_status` = '{DONE}'", "v.`_inspire_measured_ok` = 1"
     closed, seen = f"CAST(v.`_inspire_closed` AS DATE) >= {since}", f"CAST(v.`_inspire_seen` AS DATE) >= {since}"
     reported = f"{fixed} AND v.`_inspire_realized` IS NOT NULL"
@@ -3332,34 +3412,33 @@ def impact_ctes(table: str, names: set, tier, label, scope: str, since: str, lis
                  "reason": "`_inspire_reason`", "note": "`_inspire_note`", "before": "`_inspire_at_close`", "after": "`_inspire_now`",
                  "money": "`_inspire_measured`", "reported": "`_inspire_realized`", "at": "`_inspire_closed`"}
         branches.append(f"{_overview_select('record', cells, IMPACT_COLUMNS)} FROM hl")
-    if held and tier:
-        flagged = _sql_list(FLAGGED_TIERS)
-        ctes["hh"] = (f"SELECT `record_key` AS `_inspire_hk`, MAX(CASE WHEN `held_back` THEN 1 ELSE 0 END) AS `_inspire_held`, MAX(CASE WHEN "
-                      f"`run_tier` IN ({flagged}) THEN 1 ELSE 0 END) AS `_inspire_flagged` FROM "
-                      + (f"{history['log']} WHERE {within}" if history else f"{table} WHERE {within}`change_source` = 'run' AND ")
-                      + "`held_back` IS NOT NULL GROUP BY `record_key`")
-        ctes["hn"] = (f"SELECT `record_key` AS `_inspire_nk`, `run_tier` AS `_inspire_tier`, `change_source` AS `_inspire_src`, "
-                      f"CAST({quote(KEPT_SINCE)} AS TIMESTAMP) AS `_inspire_missing` FROM {table} WHERE {within}`is_current`")
-        left = (f"hn.`_inspire_nk` IS NULL OR hn.`_inspire_missing` IS NOT NULL OR NOT COALESCE(hn.`_inspire_tier` IN ({flagged}), "
-                f"FALSE)")
-        ctes["hq"] = (f"SELECT hh.`_inspire_held`, COUNT(*) AS `_inspire_n`, {_count(left)} AS `_inspire_hits` FROM hh LEFT JOIN hn ON "
-                      f"hn.`_inspire_nk` = hh.`_inspire_hk` WHERE hh.`_inspire_flagged` = 1 AND COALESCE(hn.`_inspire_src`, '') <> 'delete' "
-                      f"GROUP BY hh.`_inspire_held`")
+    if held and tier and not facts_source:
+        logged = (history["log"], scope) if history else (table, f"{scope + ' AND ' if scope else ''}`change_source` = 'run'")
+        ctes["hq"] = shell_facts.holdout_sql(shell_facts.held_ctes(*logged), rows, names | {KEPT_SINCE})
         state = "CASE WHEN `_inspire_held` = 1 THEN 'held' ELSE 'shown' END"
         branches.append(f"{_overview_select('holdout', {'state': state, 'n': '`_inspire_n`', 'hits': '`_inspire_hits`'}, IMPACT_COLUMNS)} FROM hq")
     return ctes, branches
 
 
-IMPACT_ORDER = (MONEY_VALUES, "hc", "he", *CLOSING_ORDER, "hs", "hd", "hl", "hh", "hn", "hq")
+IMPACT_ORDER = (MONEY_VALUES, "hc", "he", *CLOSING_ORDER, "hs", "hd", "hl", "hq")
 
 
-def impact_query(page: dict, fields: list, since: str, model=None, history=None) -> tuple:
+def money_changed(model) -> bool:
+    return bool((model or {}).get("changed"))
+
+
+def impact_query(page: dict, fields: list, since: str, model=None, history=None, facts=None, changed=None) -> tuple:
     names, records, params = {f["name"] for f in fields}, page.get("records") or {}, _Params()
     tier = records.get("tier") if records.get("tier") in names else None
     scope = use_case_scope(page, params)
-    ctes, branches = impact_ctes(table_name(page["result_table"]), names, tier, records.get("label"), scope, params.add(since, "DATE"),
-                                 model=model, history=history)
-    return f"{_with(ctes, IMPACT_ORDER)} {' UNION ALL '.join(branches)}", params.items
+    table = table_name(page["result_table"])
+    settled = shell_facts.closed_now_sql(table_name(facts["closed"]), changed, params.add) if facts and changed is not None else ""
+    early = facts_ctes(facts, table, params) if facts and not settled else {}
+    ctes, branches = impact_ctes(table, names, tier, records.get("label"), scope, params.add(since, "DATE"), model=model, history=history,
+                                 facts_source="av" if facts else "", live_money=money_changed(model),
+                                 closed=table_name(facts["closed"]) if facts else "", settled=settled)
+    return (f"{_with(dict(early, **ctes), (*shell_facts.CHANGE_ORDER, 'av', *IMPACT_ORDER))} {' UNION ALL '.join(branches)}",
+            params.items)
 
 
 def sql_text(value) -> str:
@@ -3507,8 +3586,73 @@ def digest_query(table: str, fields: list, tier: str = "priority_tier", label=No
             f"FROM hy ORDER BY `position`")
 
 
+def facts_ready(facts) -> bool:
+    return not shell_facts.facts_problem(facts)
+
+
+def facts_ctes(facts: dict, table: str, params) -> dict:
+    people = [(params.add(str(k)), params.add(str(int(v)), "BIGINT")) for k, v in facts.get("people") or []]
+    ctes = shell_facts.change_ctes(table, facts["stamp_us"], people, facts["names"], facts_scope(facts, params))
+    ctes["av"] = shell_facts.acted_source(table_name(facts["acted"]), facts["columns"])
+    return ctes
+
+
+def changed_closing_query(facts: dict, table: str, names: set) -> tuple:
+    params = _Params()
+    ctes = facts_ctes(facts, table, params)
+    steps, select = shell_facts.changed_closing_sql(table, names, facts.get("label"), CAPS["changed_keys"] + 1)
+    ctes.update(steps)
+    return f"{_with(ctes, (*shell_facts.CHANGE_ORDER, 'av', 'avd', 'hx', 'hw', 'hu', 'ho', 'hm'))} {select}", params.items
+
+
+def facts_scope(facts: dict, params) -> str:
+    return f"`use_case_id` = {params.add(str(facts['scope']))}" if facts.get("scope") else ""
+
+
+def facts_numbers_query(facts: dict, table: str, names: set, tier, keys=None) -> tuple:
+    params = _Params()
+    ctes = facts_ctes(facts, table, params)
+    previous = None if facts.get("previous") is None else params.add(str(facts["previous"]))
+    sql = shell_facts.delta_numbers_sql(names, tier, table_name(facts["log"]), previous, shell_facts.stake_of(names, "n"),
+                                        shell_facts.stake_of(names, "t"), facts_scope(facts, params), *changed_keys(keys))
+    return f"{_with(ctes, shell_facts.CHANGE_ORDER)} {sql}", params.items
+
+
+def numbers_missed(rows) -> int:
+    return shell_facts.numbers_of(rows)["missed"]
+
+
+def facts_numbers(facts: dict, rows) -> dict:
+    delta = shell_facts.numbers_of(rows)
+    return dict(shell_facts.added_numbers(facts["numbers"], delta), changed=delta["changed"])
+
+
+def summary_missed(rows) -> int:
+    return int(((rows or [{}])[0] or {}).get(shell_facts.MISSED) or 0)
+
+
 def list_summary_queries(context: dict) -> dict:
-    table, out, history = context["table"], {}, context.get("history")
+    table, out, history, facts = context["table"], {}, context.get("history"), context.get("facts")
+    if facts_ready(facts):
+        keys, missed = changed_keys(context.get("changed_keys"))
+
+        def statement(order, select) -> tuple:
+            params = _Params()
+            ctes = facts_ctes(facts, table, params)
+            return f"{_with(ctes, order)} {select(params)}", params.items
+
+        def left(params) -> str:
+            delta = shell_facts.left_delta_sql(table_name(facts["log"]), params.add(str(facts["previous"])), facts_scope(facts, params), keys)
+            return shell_facts.missed_sql(f"SELECT {int(facts['numbers'].get('left_n') or 0)} + l.`_inspire_left` AS left_n FROM ({delta}) AS l",
+                                          missed)
+
+        if context["changes"] and facts.get("previous") is not None:
+            out["left"] = statement(shell_facts.CHANGE_ORDER, left)
+        if context["actions"]:
+            out["impact"] = statement(shell_facts.CHANGE_ORDER, lambda _params: shell_facts.missed_sql(
+                shell_facts.action_delta_sql(table_name(facts["acted"]), facts["actions"], keys), missed))
+            out["owners"] = statement((*shell_facts.CHANGE_ORDER, "av"), lambda _params: shell_facts.owners_sql("av", CAPS["owners"]))
+        return out
     current = f"SELECT `record_key` FROM {table} WHERE `is_current` AND `change_source` <> 'delete'"
     if context["changes"]:
         runs = _runs_ctes(table, history, context.get("facts"))
@@ -3519,15 +3663,8 @@ def list_summary_queries(context: dict) -> dict:
     out["kept"] = (f"SELECT COUNT(*) AS kept_n FROM {table} WHERE `is_current` AND `change_source` <> 'delete' AND "
                    f"{quote(KEPT_SINCE)} IS NOT NULL", [])
     if context["actions"]:
-        opened = ", ".join(f"'{s}'" for s in OPEN_STATUSES)
-        out["impact"] = (f"SELECT COUNT_IF(a.`is_current` AND a.`action_status` IN ({opened})) AS open_n, "
-                         f"COUNT_IF(a.`action_status` = 'Done') AS done_n, COUNT_IF(a.`action_status` = 'Done' AND "
-                         f"(NOT a.`is_current` OR a.`action_outcome` = 'Resolved')) AS resolved_n FROM (SELECT `is_current`, "
-                         f"`change_source`, `action_status`, `action_outcome` FROM {table} WHERE `record_key` IN (SELECT `record_key` "
-                         f"FROM {table} WHERE `action_status` IS NOT NULL) QUALIFY ROW_NUMBER() OVER (PARTITION BY `record_key` "
-                         f"ORDER BY `valid_from` DESC) = 1) AS a WHERE a.`change_source` <> 'delete'", [])
-        out["owners"] = (f"SELECT `action_owner` AS v FROM {context.get('current') or table} WHERE `is_current` AND `change_source` <> 'delete' AND "
-                         f"TRIM(`action_owner`) <> '' GROUP BY `action_owner` ORDER BY COUNT(*) DESC, v LIMIT {CAPS['owners']}", [])
+        out["impact"] = (shell_facts.action_counts_sql(table), [])
+        out["owners"] = (shell_facts.owners_sql(context.get("current") or table, CAPS["owners"]), [])
     return out
 
 

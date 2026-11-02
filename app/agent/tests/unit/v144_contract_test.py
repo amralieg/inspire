@@ -10,7 +10,7 @@ from v140_implement_test import (CHURN_UC, OURS_APP, READS, SHELL_FILES, VALID, 
                                  _NotebookWorkspace, _notebook_inspire, _output_context, _spec, sdk_stub)  # noqa: F401
 from v141_app_shell_test import PAGE
 from v142_merge_test import OWN_SOURCE, _host_files, _host_page, _merge_flow, _restyle_inspire
-from v142_scd_test import (CORE, FACTS_LINE, HISTORY, LOGGED, NOW, OUTCOME_LINE, QUOTED, QUOTED_STAGE, RUN_LOG_LINE, TABLE, VERSION, _describe,
+from v142_scd_test import (CORE, FACTS_LINE, HISTORY, LAYOUT_LINE, LOGGED, NOW, OUTCOME_LINE, QUOTED, QUOTED_STAGE, RUN_LOG_LINE, TABLE, VERSION, _describe,
                            _Tables)
 import shell_sql
 
@@ -84,8 +84,8 @@ def test_a_use_case_that_lets_runs_replace_edits_still_carries_the_actions(agent
     assert REPLACEABLE not in sql
     assert CARRIED_VALUES in sql and DISMISSED_TIER in sql
     assert tables.index("SELECT COUNT(*) AS kept") is None
-    assert "runs replace the records people changed in the App" in printed[-4]
-    assert printed[-3:] == [OUTCOME_LINE, RUN_LOG_LINE, FACTS_LINE]
+    assert "runs replace the records people changed in the App" in printed[-5]
+    assert printed[-4:] == [OUTCOME_LINE, RUN_LOG_LINE, FACTS_LINE, LAYOUT_LINE]
 
 
 def test_a_run_without_a_priority_tier_still_carries_the_actions_and_writes_no_tier(agent_ns):
@@ -136,8 +136,8 @@ def test_the_run_line_reports_the_dismissed_records_kept_out_of_act_now_and_the_
     tables, _sql, printed = _merge(agent_ns, counts=[{"dismissed": 4, "kept_out": 3, "resolved": 2, "still_flagged": 1}])
     assert ("; kept 4 dismissed records in Monitor (3 out of Act now), and wrote 3 outcomes for records people marked Done "
             f"(2 Resolved, 1 Still flagged); the table as it was before this run is its version {VERSION}, which RESTORE TABLE {TABLE} TO "
-            f"VERSION AS OF {VERSION} brings back") in printed[-4]
-    assert printed[-3:] == [OUTCOME_LINE, RUN_LOG_LINE, FACTS_LINE]
+            f"VERSION AS OF {VERSION} brings back") in printed[-5]
+    assert printed[-4:] == [OUTCOME_LINE, RUN_LOG_LINE, FACTS_LINE, LAYOUT_LINE]
     counted = [s for s in tables.spark.statements if s.startswith(COUNTS)]
     assert counted == [agent_ns["inspire_action_counts_sql"](TABLE, "main.inspire.churn_out_inspire_stage",
                                                              [n for n, _k in CORE], ("entity_id",))]
@@ -151,8 +151,9 @@ def test_the_run_line_reports_the_dismissed_records_kept_out_of_act_now_and_the_
 
     _tables, _sql, failed = _merge(agent_ns, counts=broken)
     assert ("the actions people took in the App were carried forward, but Inspire could not count them: PERMISSION_DENIED: no "
-            "SELECT") in failed[-4], "a count that fails never fails the run that already merged"
-    assert failed[-3:] == [OUTCOME_LINE, RUN_LOG_LINE, FACTS_LINE], "the run goes on to write its outcome, its run log and its facts"
+            "SELECT") in failed[-5], "a count that fails never fails the run that already merged"
+    assert failed[-4:] == [OUTCOME_LINE, RUN_LOG_LINE, FACTS_LINE, LAYOUT_LINE], \
+        "the run goes on to write its outcome, its run log, its facts and its layout"
 
 
 def test_the_build_records_only_the_edit_choice_and_never_adds_a_column(agent_ns):
@@ -746,6 +747,16 @@ def test_the_cluster_columns_are_the_filters_in_the_result_table_and_the_run_dat
     assert columns({}, CORE) == ["as_of_date"], "a table without its change history clusters on the run date alone"
     assert columns(FILTERED, None) == [] and columns({}, [("entity_id", "string")]) == []
     assert agent_ns["implement_cluster_sql"](TABLE, ["as_of_date", "region"]) == f"ALTER TABLE {QUOTED} CLUSTER BY (`as_of_date`, `region`)"
+    assert agent_ns["implement_recluster_sql"](TABLE) == f"OPTIMIZE {QUOTED} FULL"
+
+
+def test_a_table_with_money_at_stake_clusters_on_it_alone_so_the_first_records_read_one_file(agent_ns):
+    columns = agent_ns["implement_cluster_columns"]
+    staked = CLUSTER_SCHEMA + [("Value_At_Stake", "double")]
+    assert columns(FILTERED, staked) == ["Value_At_Stake"], \
+        "the list opens on the largest money at stake, and each extra key spreads those records over more files"
+    assert columns(FILTERED, CLUSTER_SCHEMA + [("value_at_stake", "array<double>")]) == ["as_of_date", "region", "segment_or_item", "channel"], \
+        "a stake Delta keeps no statistics on is no clustering key"
 
 
 def _cluster_inspire(ns, detail, fail=None):
@@ -784,6 +795,11 @@ def test_the_result_table_is_clustered_for_the_app_unless_it_already_is_and_a_fa
     context = _output_context(agent_ns)
     assert inst._implement_cluster_result(context, FILTERED) == (([warning] if warning else []), ([note] if note else []))
     assert (CLUSTER_ALTER in inst.spark.statements) is altered
+    recluster = f"OPTIMIZE {QUOTED} FULL"
+    assert (recluster in inst.spark.statements) is (altered and fail is None), \
+        "new clustering columns only order the files written from now on, so the build rewrites the versions already there once"
+    if altered and fail is None:
+        assert inst.spark.statements.index(recluster) == inst.spark.statements.index(CLUSTER_ALTER) + 1
 
 
 def test_an_app_build_clusters_the_table_after_it_deploys_and_never_blocks_on_it(agent_ns, tmp_path):
@@ -858,8 +874,8 @@ def test_filter_columns_past_the_32_with_statistics_get_statistics_before_the_ta
                in message for level, message in inst.logger.records)
 
 
-@pytest.mark.parametrize("properties", [{"delta.dataSkippingStatsColumns": "change_source,record_key,as_of_date,region,"
-                                                                          "segment_or_item,channel"},
+@pytest.mark.parametrize("properties", [{"delta.dataSkippingStatsColumns": "change_source,record_key,valid_from,valid_to,as_of_date,"
+                                                                          "region,segment_or_item,channel"},
                                         {"delta.dataSkippingNumIndexedCols": "-1"}, {"delta.dataSkippingNumIndexedCols": "60"}])
 def test_a_table_that_already_keeps_statistics_on_the_filter_columns_is_clustered_without_changing_them(agent_ns, properties):
     inst = _wide_cluster_inspire(agent_ns, properties)
@@ -873,11 +889,11 @@ def test_a_table_without_statistics_on_its_change_history_gets_them_so_the_curre
     assert inst._implement_cluster_result(_output_context(agent_ns), FILTERED) == ([], [])
     altered = [s for s in inst.spark.statements if s.startswith(("ALTER TABLE", "ANALYZE TABLE"))]
     assert altered[0] == (f"ALTER TABLE {QUOTED} SET TBLPROPERTIES ('delta.dataSkippingStatsColumns' = "
-                          "'`as_of_date`,`segment_or_item`,`region`,`channel`,`change_source`,`record_key`')")
+                          "'`as_of_date`,`segment_or_item`,`region`,`channel`,`change_source`,`record_key`,`valid_from`,`valid_to`')")
     assert altered[1:] == [f"ANALYZE TABLE {QUOTED} COMPUTE DELTA STATISTICS",
                            f"ALTER TABLE {QUOTED} CLUSTER BY (`as_of_date`, `region`, `segment_or_item`, `channel`)"]
     done = _wide_cluster_inspire(agent_ns, {"delta.dataSkippingStatsColumns": "as_of_date,region,segment_or_item,channel,change_source,"
-                                                                              "record_key"})
+                                                                              "record_key,valid_from,valid_to"})
     done.spark.responder = (lambda inner: lambda s: [dict(inner(s)[0], clusteringColumns=["as_of_date", "region", "segment_or_item",
                                                                                           "channel"])]
                             if s.startswith("DESCRIBE DETAIL") else inner(s))(done.spark.responder)

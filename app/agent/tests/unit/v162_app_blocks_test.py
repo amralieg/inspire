@@ -583,9 +583,9 @@ def test_genie_is_told_to_put_an_ask_the_page_cannot_show_into_a_block_where_the
 
 def test_the_page_check_genie_runs_refuses_a_script_block_with_the_shell_this_notebook_carries(agent_ns, tmp_path):
     import subprocess
-    source = agent_ns["implement_app_shell_payload"](agent_ns["_INSPIRE_APP_SHELL"])["files"]["shell_sql.py"]
+    files = agent_ns["implement_app_shell_payload"](agent_ns["_INSPIRE_APP_SHELL"])["files"]
     work = tmp_path / "work"
-    agent_ns["implement_write_files"](str(work), agent_ns["implement_app_check_files"](source, False, []))
+    agent_ns["implement_write_files"](str(work), agent_ns["implement_app_check_files"](files, False, []))
     for name, page, code in (("bad", with_blocks(_html("<script>alert(1)</script>")), 1), ("good", with_blocks(block("b1")), 0)):
         (work / "page.json").write_text(json.dumps(page))
         done = subprocess.run([sys.executable, str(work / ".inspire_check" / "check_page.py")], cwd=str(tmp_path), capture_output=True,

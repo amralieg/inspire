@@ -228,7 +228,7 @@ def test_the_alert_steps_answer_every_bad_request_with_a_status_and_a_message():
 
 
 def test_the_alert_steps_run_as_a_plain_python_process_from_the_shell_files_with_no_web_server_and_no_token(tmp_path):
-    for name in ("shell_alerts.py", "shell_sql.py", "shell_db.py"):
+    for name in ("shell_alerts.py", "shell_sql.py", "shell_facts.py", "shell_db.py"):
         (tmp_path / name).write_text(open(os.path.join(SERVER, name), encoding="utf-8").read(), encoding="utf-8")
     request = json.dumps({"v": 1, "op": "page", "args": {"table": TABLE, "manifest": manifest(), "page_id": "n01_u05"}})
     done = subprocess.run([sys.executable, "-B", "-E", "-s", "-c", "import sys; sys.path.insert(0, sys.argv[1]); import shell_alerts; "
@@ -236,7 +236,7 @@ def test_the_alert_steps_run_as_a_plain_python_process_from_the_shell_files_with
                           env={"PATH": os.environ.get("PATH", ""), "LANG": "C.UTF-8"}, timeout=60)
     assert done.returncode == 0, done.stderr
     assert json.loads(done.stdout)["result"]["id"] == "n01_u05"
-    assert sorted(p.name for p in tmp_path.iterdir()) == ["shell_alerts.py", "shell_db.py", "shell_sql.py"], "no bytecode left behind"
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["shell_alerts.py", "shell_db.py", "shell_facts.py", "shell_sql.py"], "no bytecode left behind"
 
 
 def test_the_hub_app_rows_now_say_the_rule_and_who_owns_the_alert_in_databricks(tmp_path):

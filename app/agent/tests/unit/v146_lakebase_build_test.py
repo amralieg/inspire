@@ -937,3 +937,30 @@ def test_the_copies_are_indexed_on_the_record_key_and_on_each_sort_of_the_decisi
                   '"churn_desk"."n01_u01__d_records_b" ("entity_label", "record_key")',
                   '"churn_desk"."n01_u01__d_records_b" ("region", "record_key")'], "a tier the copy lacks is not indexed"
     assert all(t.startswith('CREATE INDEX IF NOT EXISTS "ix_') for t in texts), "an index a later sync kept is never built twice"
+
+
+def test_lakebase_answers_the_app_in_time_up_to_its_capacity_and_a_larger_table_keeps_the_delta_tables_naming_both_sizes(agent_ns):
+    size, rows_cap, bytes_cap = (agent_ns[n] for n in ("implement_lakebase_size", "IMPLEMENT_LAKEBASE_ROWS_PER_CU", "IMPLEMENT_LAKEBASE_BYTES_PER_CU"))
+    assert size(rows_cap, bytes_cap, rows_cap, 1) == "", "a table at exactly what one capacity unit answers in time reads Lakebase"
+    assert size(2 * rows_cap, 2 * bytes_cap, 2 * rows_cap, 2) == ""
+    assert size(rows_cap, 2 * bytes_cap, 2 * rows_cap, 1) == "", "only the current records' share of the table's bytes counts"
+    assert size(10000000, 2100000000, 10000000, 1) == (
+        "App: it reads Delta tables, not Lakebase: the current records in its result table number 10,000,000 (2.1 GB), and Lakebase at its "
+        "1 capacity unit answers the App's first records within 3 s and a filter change within 2 s for at most 1,000,000 records (1.5 GB). "
+        "Raise the Lakebase capacity of the inspire-apps project, or keep the App on Delta tables")
+    assert "and Lakebase at its 0.5 capacity units answers" in size(rows_cap, bytes_cap, rows_cap, 0.5)
+    assert size(rows_cap, 2 * bytes_cap, 0, 1).startswith(
+        "App: it reads Delta tables, not Lakebase: the current records in its result table number 1,000,000 (3.0 GB)"), \
+        "a table whose rows were not counted is sized by all its bytes"
+
+
+def test_a_page_slower_than_its_target_on_the_real_tables_is_named_with_its_backend_and_a_page_at_the_target_is_not(agent_ns):
+    warnings = agent_ns["implement_app_speed_warnings"]
+    speeds = {"n02_u01": {"first": 3.0, "filter": 2.6, "filter_on": "channel"}, "n01_u01": {"first": 4.24, "filter": 2.0, "filter_on": "region"},
+              "n03_u01": {"first": None, "filter": "slow"}, "n04_u01": "not measured", "_error": "the check could not reach the App"}
+    assert warnings(speeds, "Delta tables") == [
+        "App: on Delta tables, the decision list's first records took 4.2 s on the real tables at the default filters, over the 3 s target; "
+        "a larger SQL warehouse or fewer rows on the list brings it under",
+        "App: on Delta tables, a filter change (channel, 2 values) took 2.6 s on the real tables at the default filters, over the 2 s target; "
+        "a larger SQL warehouse or fewer rows on the list brings it under"]
+    assert warnings(None, "Lakebase") == [] and warnings({"_error": "timed out"}, "Lakebase") == []

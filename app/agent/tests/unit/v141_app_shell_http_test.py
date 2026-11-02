@@ -48,6 +48,14 @@ def test_health_index_assets_and_api(tmp_path, monkeypatch):
     assert r.status_code == 200 and r.json()["kpis"]["total_loss"]["now"] == 120.0
 
 
+def test_every_api_answer_says_how_long_the_app_spent_on_it_so_network_time_can_be_told_apart(tmp_path, monkeypatch):
+    c = client(tmp_path, monkeypatch)
+    for r in (c.get("/api/app"), c.post("/api/page", json={"page": "n01_u05", "filters": {}}), c.get("/api/nope")):
+        timing = r.headers.get("server-timing") or ""
+        assert timing.startswith("app;dur=") and float(timing.split("=", 1)[1]) >= 0, (r.status_code, timing)
+    assert "server-timing" not in c.get("/health").headers, "only the API answers carry the App's time"
+
+
 def test_errors_are_json_and_specs_are_never_served(tmp_path, monkeypatch):
     c = client(tmp_path, monkeypatch)
     r = c.get("/api/nope")

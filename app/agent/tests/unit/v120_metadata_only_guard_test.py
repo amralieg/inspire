@@ -13,7 +13,10 @@ reads are collected separately and must stay inside that class. The Implement Us
 and probe source tables with zero-row reads (LIMIT 0); nowhere else.
 """
 import ast
+import base64
+import json
 import re
+import zlib
 
 import pytest
 
@@ -49,6 +52,8 @@ LOG_METHODS = {"debug", "info", "warning", "error", "critical", "exception"}
 LOG_FUNCTIONS = {"log_print", "print"}
 QUEUED_SQL_WORKERS = {"_drain_loop", "_worker_loop", "_run", "_writer_loop"}
 RUNTIME_RUNNERS = ("exec", "compile", "eval")
+EMBEDDED_SOURCES = {"files['shell_facts.py']": ("_INSPIRE_APP_SHELL", "shell_facts.py")}
+SHARED_SOURCES = ("REDACT_SOURCE", "_INSPIRE_APP_SHELL:shell_facts.py")
 MODULE_LEVEL = "<module>"
 
 
@@ -352,6 +357,17 @@ def identifier(node):
     return None
 
 
+def embedded_file(texts, given):
+    held = EMBEDDED_SOURCES.get(ast.unparse(given)) if given is not None else None
+    if held is None or len(texts.get(held[0], ())) != 1:
+        return None
+    try:
+        files = json.loads(zlib.decompress(base64.b64decode(texts[held[0]][0])).decode("utf-8")).get("files") or {}
+    except (ValueError, zlib.error):
+        return None
+    return (f"{held[0]}:{held[1]}", files[held[1]]) if isinstance(files.get(held[1]), str) else None
+
+
 def runtime_sources(source):
     tree = ast.parse(source)
     texts = {}
@@ -369,10 +385,14 @@ def runtime_sources(source):
             wrapped.add(id(given))
             given = given.args[0] if given.args else None
         name = identifier(given)
+        space = node.args[1] if node.func.id != "compile" and len(node.args) > 1 else None
+        embedded = embedded_file(texts, given) if name is None else None
+        if embedded:
+            found[embedded[0]] = (embedded[1], ast.unparse(space) if space is not None else "globals()")
+            continue
         if name is None or len(texts.get(name, ())) != 1:
             unreadable.append((node.lineno, ast.unparse(node)[:120]))
             continue
-        space = node.args[1] if node.func.id != "compile" and len(node.args) > 1 else None
         found[name] = (texts[name][0], ast.unparse(space) if space is not None else "globals()")
     return found, unreadable
 
@@ -732,6 +752,12 @@ def _bad_targets(report):
     return {entry[-2] for entry in report["bad"]}
 
 
+def _own_bad(report):
+    assert all(report["checked"][name] == 0 for name in SHARED_SOURCES), \
+        "a source the others share only builds text, so it must run no SQL itself"
+    return [entry for entry in report["bad"] if entry[0] not in SHARED_SOURCES]
+
+
 @pytest.fixture(scope="module")
 def runtime_report():
     return runtime_audit(agent_source())
@@ -739,8 +765,9 @@ def runtime_report():
 
 def test_guard_reads_every_source_the_agent_compiles_at_runtime(runtime_report):
     assert not runtime_report["unreadable"], runtime_report["unreadable"]
-    assert all(other == "REDACT_SOURCE" for _name, other, _names in runtime_report["crossed"]), \
+    assert all(other in SHARED_SOURCES for _name, other, _names in runtime_report["crossed"]), \
         f"a runtime source uses another one's definitions: {runtime_report['crossed']}"
+    assert {other for _name, other, _names in runtime_report["crossed"]} == set(SHARED_SOURCES), runtime_report["crossed"]
     assert {"IMPLEMENT_RESULT_HISTORY_SOURCE", "GENIE_NUMBER_TEXT_SOURCE", "_JOB_LAUNCHER_CLASS_SOURCE",
             "REDACT_SOURCE"} <= set(runtime_report["sources"]), runtime_report["sources"]
     assert runtime_report["checked"]["REDACT_SOURCE"] == 0, "the one redaction the other runtime sources share runs no SQL"
@@ -753,11 +780,21 @@ def test_guard_reads_every_source_the_agent_compiles_at_runtime(runtime_report):
 
 
 def test_runtime_sources_read_no_user_table_rows(runtime_report):
-    assert not runtime_report["bad"], "SQL in a runtime source that reads or writes a non-metadata, non-Inspire object:\n" + "\n".join(
-        f"{name} line {line}: {kind} {target!r} in: {sql}" for name, line, kind, target, sql in runtime_report["bad"])
+    own = _own_bad(runtime_report)
+    assert not own, "SQL in a runtime source that reads or writes a non-metadata, non-Inspire object:\n" + "\n".join(
+        f"{name} line {line}: {kind} {target!r} in: {sql}" for name, line, kind, target, sql in own)
     assert not runtime_report["unresolved"], runtime_report["unresolved"]
     assert not runtime_report["dataframe"], runtime_report["dataframe"]
     assert not runtime_report["deep"], "only the agent's own DeepEvidence class may read customer data"
+
+
+def test_only_a_shared_source_that_runs_no_sql_is_spared_the_row_read_check():
+    facts = "_INSPIRE_APP_SHELL:shell_facts.py"
+    bad = [(facts, 1, "read", "qk", "SELECT `_q_key` FROM qk"), ("IMPLEMENT_RESULT_HISTORY_SOURCE", 2, "read", "x", "SELECT * FROM x")]
+    quiet = {name: 0 for name in SHARED_SOURCES}
+    assert _own_bad({"checked": quiet, "bad": bad}) == [bad[1]]
+    with pytest.raises(AssertionError, match="run no SQL"):
+        _own_bad({"checked": dict(quiet, **{facts: 1}), "bad": bad})
 
 
 def test_runtime_implement_reads_name_the_result_table(runtime_report):
@@ -785,10 +822,18 @@ def test_guard_flags_a_runtime_source_it_cannot_read():
     assert [call for _, call in report["unreadable"]] == ["exec(compile(self._loaded, '<x>', 'exec'), globals())"], report["unreadable"]
 
 
+def test_guard_reads_the_shared_facts_module_from_the_embedded_app_shell_and_flags_any_other_embedded_file(runtime_report):
+    facts = runtime_report["sources"].get("_INSPIRE_APP_SHELL:shell_facts.py")
+    assert facts and "def closing_ctes(" in facts, "the run's facts module is audited from the App shell the notebook embeds"
+    assert runtime_sources(facts) == ({}, []), "the facts module compiles nothing of its own"
+    report = runtime_audit(_inject(agent_source(), (PLAIN_CALLER_ANCHOR, "        exec(compile(files['shell_core.py'], 'x', 'exec'), globals())\n")))
+    assert [call for _, call in report["unreadable"]] == ["exec(compile(files['shell_core.py'], 'x', 'exec'), globals())"], report["unreadable"]
+
+
 def test_guard_accepts_a_result_read_and_a_zero_row_probe_only_implement_code_reaches():
     source = _with_probe_helper(agent_source())
     accepted = runtime_audit(_inject(source, (IMPLEMENT_CALLER_ANCHOR, "        inspire_guard_probe(self.spark, result_table, uc_id)\n")))
-    assert not accepted["bad"], accepted["bad"]
+    assert not _own_bad(accepted), accepted["bad"]
     assert {entry[3] for entry in accepted["implement"] if entry[-1] == "inspire_guard_probe"} == PROBE_TARGETS
     refused = runtime_audit(_inject(source, (PLAIN_CALLER_ANCHOR, "        inspire_guard_probe(self.spark, table, table)\n")))
     assert PROBE_TARGETS <= _bad_targets(refused), refused["bad"]

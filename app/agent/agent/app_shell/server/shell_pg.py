@@ -6,6 +6,7 @@ import re
 import threading
 import time
 
+import shell_facts
 from shell_db import BROWSER_SAFE_WHOLE, QueryError, browser_whole, stamp_of
 
 KINDS = ("lakebase", "delta")
@@ -183,7 +184,7 @@ def delta_by_design(pages: list, backend: dict) -> set:
     for page in pages:
         if page.get("result_table") and current_copy(backend, page["result_table"]):
             result = uc_key(page["result_table"])
-            out |= {result, f"{result}_run_log", f"{result}_summary", f"{result}_assumptions"}
+            out |= {result} | {result + suffix for suffix in shell_facts.COMPANION_SUFFIXES}
     return out
 
 

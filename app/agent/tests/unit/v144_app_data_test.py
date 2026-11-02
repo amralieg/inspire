@@ -14,6 +14,7 @@ if SERVER not in sys.path:
 
 import shell_core
 import shell_db
+import shell_facts
 import shell_sql
 from v141_app_shell_test import PAGE, SETTINGS, FakeWorkspace, app_dir, call
 from v142_edits_test import COLUMNS, edit_page
@@ -73,7 +74,7 @@ class DataWorkspace(FakeWorkspace):
         if "SELECT explode(from_json(" in sql:
             rows = [dict(r, action_batch=getattr(self, "batch", None)) if r.get("action_batch") == THIS_BATCH else r for r in self.current]
             return {"columns": [], "rows": rows, "truncated": False}
-        for marker, name, value in (("AS total FROM f", "total", lambda: [{"total": self.total}]),
+        for marker, name, value in (("AS total FROM (SELECT 1 FROM f LIMIT", "total", lambda: [{"total": self.total}]),
                                     ("AS open_n", "impact", lambda: [self.impact]),
                                     ("AS left_n", "left", lambda: [{"left_n": self.left}]),
                                     ("`action_owner` AS v", "owners", lambda: [{"v": v} for v in self.owners]),
@@ -131,13 +132,14 @@ def test_the_list_pages_in_sql_by_the_sort_column_then_record_key_with_the_count
     s, ws, _made = shell(tmp_path, ws=ws)
     status, out = records(s, offset=50, limit=50, filters={"run_date": {"from": "2026-01-01", "to": "2026-10-15"}})
     assert status == 200, out
-    assert (out["total"], out["offset"], out["limit"], len(out["rows"])) == (2341882, 50, 50, 50)
+    assert (out["total"], out["total_more"], out["offset"], out["limit"], len(out["rows"])) == (shell_sql.CAPS["count_cap"], True, 50, 50, 50), \
+        "a filtered list counts up to the cap and says there are more, never a count of millions per request"
     assert out["sort"] == {"key": "rank", "dir": "asc"}
     (rows_sql, params), = ws.queries(" OFFSET ")
     assert "s AS (SELECT * FROM f ORDER BY `rank` ASC NULLS LAST, `record_key` ASC LIMIT 50 OFFSET 50)" in rows_sql
     assert rows_sql.endswith("ORDER BY `rank` ASC NULLS LAST, `record_key` ASC")
-    (total_sql, total_params), = ws.queries("AS total FROM f")
-    assert total_sql.endswith("SELECT COUNT(*) AS total FROM f") and " OFFSET " not in total_sql
+    (total_sql, total_params), = ws.queries("AS total FROM (SELECT 1 FROM f LIMIT")
+    assert total_sql.endswith(f"SELECT COUNT(*) AS total FROM (SELECT 1 FROM f LIMIT {shell_sql.CAPS['count_cap'] + 1}) AS z") and " OFFSET " not in total_sql
     assert params == total_params == [{"name": "p0", "value": "2026-01-01", "type": "DATE"}, {"name": "p1", "value": "2026-10-15", "type": "DATE"}]
     status, out = records(s, sort={"key": "value", "dir": "desc"}, limit=100)
     assert status == 200 and "ORDER BY `value` DESC NULLS LAST, `record_key` ASC LIMIT 100 OFFSET 0" in ws.queries(" OFFSET ")[-1][0]
@@ -157,7 +159,7 @@ def test_a_sort_key_not_in_the_list_is_refused_before_any_list_query(tmp_path, s
     assert status == 400 and fragment in out["error"], out
     assert "sort by one of its columns: rank, entity_label, priority_tier, entity_id, category, value" in out["error"] or "dir" in fragment \
         or "object" in fragment
-    assert ws.queries(" OFFSET ") == [] and ws.queries("AS total FROM f") == []
+    assert ws.queries(" OFFSET ") == [] and ws.queries("AS total FROM (SELECT 1 FROM f LIMIT") == []
 
 
 @pytest.mark.parametrize("field, value, ok", [("limit", 100, True), ("limit", 1, True), ("limit", 101, False), ("limit", 0, False),
@@ -187,7 +189,7 @@ def test_search_is_one_escaped_parameter_across_the_label_key_and_segment(tmp_pa
     s, ws, _made = shell(tmp_path)
     status, out = records(s, search=f"  {text} ")
     assert status == 200, out
-    for sql, params in ws.queries(" OFFSET ") + ws.queries("AS total FROM f"):
+    for sql, params in ws.queries(" OFFSET ") + ws.queries("AS total FROM (SELECT 1 FROM f LIMIT"):
         assert text not in sql
         assert [p["value"] for p in params] == [pattern]
         assert ("(CAST(d.`entity_label` AS STRING) ILIKE :p0 ESCAPE '!' OR CAST(d.`entity_id` AS STRING) ILIKE :p0 ESCAPE '!' OR "
@@ -221,9 +223,10 @@ def test_the_table_join_decorates_only_the_page_of_rows(tmp_path):
     (sql, _params), = ws.queries(" OFFSET ")
     assert ("k AS (SELECT s.*, c.`_inspire_key`, c.`_inspire_version`, c.`_inspire_owner`, c.`_inspire_status`, c.`_inspire_missing` FROM s "
             "LEFT JOIN c ON c.`_inspire_key` = s.`record_key`)") in sql
-    assert sql.count("t.`record_key` IN (SELECT `_inspire_key` FROM k)") == 3
+    assert sql.count("t.`record_key` IN (SELECT `record_key` FROM s)") == 3 and "FROM k)" not in sql
+    assert sql.count(" FROM k") == 1, "the joined page is read once, so the warehouse does not scan the list and the table again per change"
     assert "f AS (SELECT d.* FROM d)" in sql
-    (total, _p), = ws.queries("AS total FROM f")
+    (total, _p), = ws.queries("AS total FROM (SELECT 1 FROM f LIMIT")
     assert "c AS (" not in total and "_inspire_latest" not in total
 
 
@@ -234,6 +237,8 @@ def test_a_dataset_without_record_key_joins_the_table_on_the_list_key(tmp_path):
     (sql, _params), = ws.queries(" OFFSET ")
     assert "CAST(`entity_id` AS STRING) AS `_inspire_join`" in sql
     assert "LEFT JOIN c ON c.`_inspire_join` = CAST(s.`entity_id` AS STRING)" in sql
+    assert sql.count("t.`record_key` IN (SELECT `_inspire_key` FROM k)") == 3 and "FROM s)" not in sql, \
+        "a list keyed on another column finds its change rows by the table key the join brought in"
     assert "ORDER BY `rank` ASC NULLS LAST, `entity_id` ASC" in sql
 
 
@@ -289,7 +294,7 @@ def test_filter_options_search_the_server_with_one_escaped_parameter_and_return_
 def test_check_names_every_query_slower_than_20_seconds_with_the_cache_bypassed(tmp_path):
     clock = Clock()
     spent = {"GROUP BY `category` ORDER BY 2 DESC": 34.0, "`region` AS STRING) AS v": 21.4, " OFFSET ": 25.0, "SUM(y0) OVER": 20.0,
-             "`channel` AS STRING) AS v": 19.6, "AS total FROM f": 20.4}
+             "`channel` AS STRING) AS v": 19.6, "AS total FROM (SELECT 1 FROM f LIMIT": 20.4}
     ws = DataWorkspace(clock=clock, slow=lambda sql: next((v for k, v in spent.items() if k in sql), 0.5))
     s, ws, _made = shell(tmp_path, settings=SETTINGS, pages=[copy.deepcopy(PAGE)], ws=ws, timer=clock)
     problems = s.check(EDITOR)
@@ -489,7 +494,7 @@ def test_the_list_carries_owner_status_and_version_and_my_actions_filters_in_sql
     assert status == 200 and out["actions"] is True and out["summary"]["owners"] == [OTHER, PERSON]
     status, out = records(s, mine=True, sort={"key": "action_status", "dir": "desc"})
     assert status == 200
-    (sql, params), (total, total_params) = ws.queries(" OFFSET ")[-1], ws.queries("AS total FROM f")[-1]
+    (sql, params), (total, total_params) = ws.queries(" OFFSET ")[-1], ws.queries("AS total FROM (SELECT 1 FROM f LIMIT")[-1]
     for text in (sql, total):
         assert ("f AS (SELECT d.*, c.`_inspire_key`, c.`_inspire_version`, c.`_inspire_owner`, c.`_inspire_status`, c.`_inspire_missing` FROM d "
                 "LEFT JOIN c") in text
@@ -507,9 +512,13 @@ def test_the_impact_line_counts_from_the_latest_version_of_each_record(tmp_path)
         "open": 14, "done": 9, "resolved": 6, "left": 12}
     (sql, params), = ws.queries("AS open_n")
     assert params == []
-    assert "COUNT_IF(a.`is_current` AND a.`action_status` IN ('New', 'In progress')) AS open_n" in sql
-    assert "COUNT_IF(a.`action_status` = 'Done' AND (NOT a.`is_current` OR a.`action_outcome` = 'Resolved')) AS resolved_n" in sql
-    assert "QUALIFY ROW_NUMBER() OVER (PARTITION BY `record_key` ORDER BY `valid_from` DESC) = 1) AS a WHERE a.`change_source` <> 'delete'" in sql
+    assert sql == shell_facts.action_counts_sql("`main`.`pricing`.`loss_desk_out`"), \
+        "the live count and the count a run keeps are one definition"
+    assert ("COALESCE(SUM(CASE WHEN a.`change_source` <> 'delete' AND a.`is_current` AND a.`action_status` IN ('New', 'In progress') "
+            "THEN 1 ELSE 0 END), 0) AS open_n") in sql
+    assert ("COALESCE(SUM(CASE WHEN a.`change_source` <> 'delete' AND a.`action_status` = 'Done' AND (NOT a.`is_current` OR "
+            "a.`action_outcome` = 'Resolved') THEN 1 ELSE 0 END), 0) AS resolved_n") in sql
+    assert "QUALIFY ROW_NUMBER() OVER (PARTITION BY `record_key` ORDER BY `valid_from` DESC) = 1) AS a" in sql
     (tmp_path / "off").mkdir()
     s, ws, _made = shell(tmp_path / "off", settings=SETTINGS)
     status, out = records(s)
@@ -528,7 +537,7 @@ def test_change_badges_compare_the_latest_run_with_the_previous_one_in_sql(tmp_p
     assert "WHEN o.`_inspire_ok` IS NULL THEN 'new' WHEN p.`_inspire_pk` IS NOT NULL AND NOT (l.`_inspire_tier` <=> p.`_inspire_was`) THEN 'moved'" in sql
     assert "THEN l.`_inspire_tier` END AS `_inspire_moved_to`" in sql
     assert records(s, changed=True)[0] == 200
-    sql, total = ws.queries(" OFFSET ")[-1][0], ws.queries("AS total FROM f")[-1][0]
+    sql, total = ws.queries(" OFFSET ")[-1][0], ws.queries("AS total FROM (SELECT 1 FROM f LIMIT")[-1][0]
     for text in (sql, total):
         assert "LEFT JOIN l0 AS l ON l.`_inspire_lk` = c.`_inspire_key`" in text
         assert "WHERE (l.`_inspire_lk` IS NOT NULL AND (o.`_inspire_ok` IS NULL OR p.`_inspire_pk` IS NOT NULL" in text

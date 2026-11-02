@@ -384,29 +384,29 @@ def _spark(fail=False):
     return holder, recorder
 
 
-def test_the_notebook_marks_each_step_once_on_the_summary_table_and_a_failed_mark_never_stops_the_run(agent_ns, monkeypatch):
+def test_the_notebook_marks_each_step_once_on_the_summary_table_and_a_failed_mark_never_stops_the_run(fresh_ns, monkeypatch):
     spark, seen = _spark()
-    monkeypatch.setitem(agent_ns, "spark", spark)
-    monkeypatch.setitem(agent_ns, "inspire_ensure_summary", lambda session, table: seen.sql.append(f"ENSURE {table}"))
+    monkeypatch.setitem(fresh_ns, "spark", spark)
+    monkeypatch.setitem(fresh_ns, "inspire_ensure_summary", lambda session, table: seen.sql.append(f"ENSURE {table}"))
     printed = []
-    log = agent_ns["inspire_run_log_start"]("child", "main.pricing.loss_desk_out")
-    first = agent_ns["inspire_run_stage"]("Writing the results", rows_done=0, rows_total=42, out=printed.append)
-    again = agent_ns["inspire_run_stage"]("Writing the results", rows_done=0, rows_total=42, out=printed.append)
+    log = fresh_ns["inspire_run_log_start"]("child", "main.pricing.loss_desk_out")
+    first = fresh_ns["inspire_run_stage"]("Writing the results", rows_done=0, rows_total=42, out=printed.append)
+    again = fresh_ns["inspire_run_stage"]("Writing the results", rows_done=0, rows_total=42, out=printed.append)
     assert first["index"] == 3 and first["total"] == 5 and first["rows_total"] == 42 and again is None
     altered = [t for t in seen.sql if "TBLPROPERTIES" in t]
     assert len(altered) == 1 and altered[0].startswith("ALTER TABLE `main`.`pricing`.`loss_desk_out_summary` SET TBLPROPERTIES ('inspire.run_stage' = '")
     assert seen.sql[0] == "ENSURE main.pricing.loss_desk_out", "the summary table exists before its first mark"
-    assert agent_ns["inspire_run_stage"]("Not a step", out=printed.append) is None
+    assert fresh_ns["inspire_run_stage"]("Not a step", out=printed.append) is None
     log["written"].append(("main.pricing.loss_desk_out", "N01-U05", "r1"))
-    agent_ns["inspire_run_log_end"](log, out=printed.append)
+    fresh_ns["inspire_run_log_end"](log, out=printed.append)
     done = [t for t in seen.sql if "TBLPROPERTIES" in t][-1]
     assert '"state": "done"' in done and '"reason": ""' in done
     merged = next(t for t in seen.sql if t.startswith("MERGE INTO") and "run_stages" in t)
     assert "run_ended_at" in merged and "Writing the results" in merged
     failing, _ = _spark(fail=True)
-    monkeypatch.setitem(agent_ns, "spark", failing)
-    agent_ns["inspire_run_log_start"]("child", "main.pricing.loss_desk_out")
-    assert agent_ns["inspire_run_stage"]("Checking the settings", out=printed.append) is None
+    monkeypatch.setitem(fresh_ns, "spark", failing)
+    fresh_ns["inspire_run_log_start"]("child", "main.pricing.loss_desk_out")
+    assert fresh_ns["inspire_run_stage"]("Checking the settings", out=printed.append) is None
     assert any(p.startswith("Run progress: Inspire could not record step 1 of 5 for the App") and "the run goes on" in p for p in printed)
 
 
@@ -477,8 +477,19 @@ class UsableWorkspace(DataWorkspace):
         if "NOT IN (SELECT explode(from_json(" in sql and "MERGE INTO" not in sql:
             if " OFFSET " in sql:
                 return {"columns": [], "rows": self.rows, "truncated": False}
-            if "AS total FROM f" in sql:
+            if "AS total FROM (SELECT 1 FROM f LIMIT" in sql:
                 return {"columns": [], "rows": [{"total": self.total}], "truncated": False}
+        return super().answer(sql, params)
+
+
+class RunFactsWorkspace(UsableWorkspace):
+    def answer(self, sql, params):
+        from v166_run_facts_test import _ready_facts
+        if sql.startswith(f"SELECT * FROM {shell_sql.table_name(SUMMARY)}"):
+            return {"columns": [], "rows": [{"run_id": "r5", "updated_at": "2026-10-27T06:10:00Z",
+                                             shell_sql.RUN_FACTS_COLUMN: json.dumps(_ready_facts())}], "truncated": False}
+        if sql.startswith("SELECT COUNT(*) AS `n`, unix_micros(GREATEST("):
+            return {"columns": [], "rows": [{"n": 0, "us": None, "keys": "[]"}], "truncated": False}
         return super().answer(sql, params)
 
 
@@ -523,7 +534,7 @@ def test_the_delta_list_ranks_its_window_by_stake_with_the_bounds_as_parameters(
     same_shape({k: out[k] for k in fields}, fields)
     assert out["sort"] == fields["sort"] and out["window"] == fields["window"]
     assert out["as_of_us"] == str(us(NOW) - shell_pg.CLOCK_SKEW_S * 1000000)
-    (rows, params), (total, total_params) = ws.queries(" OFFSET ")[-1], ws.queries("AS total FROM f")[-1]
+    (rows, params), (total, total_params) = ws.queries(" OFFSET ")[-1], ws.queries("AS total FROM (SELECT 1 FROM f LIMIT")[-1]
     for text in (rows, total):
         assert "COALESCE(c.`_inspire_status`, 'New') IN ('New', 'In progress')" in text
         assert "(c.`_inspire_snooze` IS NULL OR c.`_inspire_snooze` <= :p0)" in text
@@ -670,18 +681,35 @@ def test_the_as_of_a_list_gives_is_when_its_rows_were_read_not_when_it_was_serve
     assert status == 200 and len(ws.queries(" OFFSET ")) == 1, "the second read is the cached one"
     assert out["as_of_us"] == first == str(us(NOW) - shell_pg.CLOCK_SKEW_S * 1000000), \
         "a list cached without a table version is as old as its read, so a change in between is a conflict"
-    (tmp_path / "stamped").mkdir()
-    clock[0] = NOW.timestamp()
-    stamped = UsableWorkspace(total=3)
-    s = shell_core.Shell(app_dir(tmp_path / "stamped", DECIDE, [edit_page(similar_by=["category"])]),
-                         env={"DATABRICKS_WAREHOUSE_ID": "wh1", "DATABRICKS_HOST": "dbc-1.example.com"},
-                         sp_factory=lambda: stamped, user_factory=lambda host, token: stamped, clock=lambda: clock[0])
-    post(s, "records", {})
-    clock[0] += 50
-    status, out = post(s, "records", {})
-    assert status == 200 and len(stamped.queries(" OFFSET ")) == 1
-    assert out["as_of_us"] == str(us(NOW) + (50 - shell_core.STAMP_TTL_S - shell_pg.CLOCK_SKEW_S) * 1000000), \
-        "a list cached under a table version the App checked at most 15 s ago is as current as that check"
+    for folder, page, expected, why in (
+            ("stamped", result_only_page(), us(NOW) + (50 - shell_core.STAMP_TTL_S - shell_pg.CLOCK_SKEW_S) * 1000000,
+             "a list cached under a table version the App checked at most 15 s ago is as current as that check"),
+            ("joined", edit_page(similar_by=["category"]), us(NOW) - shell_pg.CLOCK_SKEW_S * 1000000,
+             "a list that also reads an input table has no version a run keeps, so it is as old as its read")):
+        clock[0] = NOW.timestamp()
+        s, stamped = run_facts_shell(tmp_path / folder, page, clock)
+        post(s, "records", {})
+        clock[0] += 50
+        status, out = post(s, "records", {})
+        assert status == 200 and len(stamped.queries(" OFFSET ")) == 1
+        assert out["as_of_us"] == str(expected), why
+
+
+def result_only_page():
+    page = edit_page(similar_by=["category"])
+    records = page["datasets"][1]
+    records["sql"] = records["sql"].replace("i.category, i.channel, i.region", "o.category, o.channel, o.region").replace(
+        " JOIN main.pricing.items AS i ON i.item_id = o.entity_id", "")
+    assert "items" not in records["sql"], records["sql"]
+    return page
+
+
+def run_facts_shell(folder, page, clock):
+    folder.mkdir()
+    ws = RunFactsWorkspace(total=3)
+    s = shell_core.Shell(app_dir(folder, DECIDE, [page]), env={"DATABRICKS_WAREHOUSE_ID": "wh1", "DATABRICKS_HOST": "dbc-1.example.com"},
+                         sp_factory=lambda: ws, user_factory=lambda host, token: ws, clock=lambda: clock[0])
+    return s, ws
 
 
 def test_an_act_over_the_cap_is_refused_with_the_exact_count_and_writes_nothing(tmp_path):

@@ -55,21 +55,6 @@ def test_the_workspace_reads_a_tables_last_changes_from_its_delta_history():
     assert ws.asked == [("wh1", "DESCRIBE HISTORY `main`.`s`.`t` LIMIT 20", 20)]
 
 
-def test_facts_stay_fresh_through_a_compaction_and_go_stale_on_any_data_change(tmp_path):
-    now = [1_000.0]
-    s, ws = versioned_shell(tmp_path, lambda: now[0])
-    history = {"main.pricing.loss_desk_out": [{"version": 9, "operation": "OPTIMIZE"}, {"version": 8, "operation": "SET TBLPROPERTIES"},
-                                              {"version": 7, "operation": "MERGE"}]}
-    ws.table_history = lambda warehouse, name, limit=20: history[name]
-    assert s.unchanged_since(ws, "sp", "main.pricing.loss_desk_out", 7) is True
-    assert s.unchanged_since(ws, "sp", "main.pricing.loss_desk_out", 6) is False, "the run's own merge came after these facts"
-    assert s.unchanged_since(ws, "sp", "main.pricing.loss_desk_out", 9) is True
-    assert s.unchanged_since(ws, "sp", "main.pricing.loss_desk_out", "x") is False
-    history["main.pricing.loss_desk_out"] = [{"version": 30 - i, "operation": "OPTIMIZE"} for i in range(20)]
-    now[0] += 60
-    assert s.unchanged_since(ws, "sp", "main.pricing.loss_desk_out", 7) is False, "commits it cannot see may have changed data"
-
-
 class Recorder:
     def __init__(self):
         self.jobs = []
@@ -190,9 +175,13 @@ def test_a_cursor_on_a_sort_it_cannot_seek_falls_back_to_the_offset_and_a_bad_cu
 def test_the_default_filters_come_from_the_date_bounds_alone_and_match_what_the_filter_bar_starts_with(tmp_path):
     ws = FakeWorkspace()
     s = shell_core.Shell(app_dir(tmp_path), env={"DATABRICKS_WAREHOUSE_ID": "wh1"}, sp_factory=lambda: ws, user_factory=lambda h, t: ws)
+    s.stamp_pool = Recorder()
     status, out = call(s, "GET", "defaults", {"page": "n01_u05"})
     assert status == 200 and out["errors"] == {}
-    assert [sql for sql, _p, _l in ws.sql] and all("MIN(v) AS low" in sql for sql, _p, _l in ws.sql), "only the date bounds run"
+    bounds = [sql for sql, _p, _l in ws.sql if "MIN(v) AS low" in sql]
+    warmed = [sql for sql, _p, _l in ws.sql if sql.endswith(") AS d LIMIT 0")]
+    assert bounds and len(warmed) == 1 and len(bounds) + len(warmed) == len(ws.sql), \
+        "only the date bounds run, while the list's columns warm up for the first records"
     status, meta = call(s, "GET", "filters", {"page": "n01_u05"})
     assert status == 200
     for f in meta["filters"]:
@@ -226,44 +215,19 @@ def test_the_same_query_asked_twice_at_once_runs_once(tmp_path):
     assert len(out) == 2 and out[0] is out[1] and len(ws.sql) == 1
 
 
-def test_a_write_through_the_app_forgets_the_table_versions_it_read_so_stored_counts_are_checked_again(tmp_path):
+def test_a_write_through_the_app_forgets_the_page_state_it_read_so_the_counts_take_the_change_in(tmp_path):
     from v142_edits_test import EDITOR, MODIFY, TableWorkspace, edit_body, edit_page
     ws = TableWorkspace()
     s = shell_core.Shell(app_dir(tmp_path, MODIFY, [edit_page()]), env={"DATABRICKS_WAREHOUSE_ID": "wh1"}, sp_factory=lambda: ws,
                          user_factory=lambda h, t: ws)
-    s.stamps[("changes", "sp", "main.pricing.loss_desk_out")] = (s.clock() + 60, [{"version": 7, "operation": "MERGE"}])
+    page = s.page(edit_page()["id"])
+    s.cache.put(("state", "sp", page["id"]), {"row": None, "facts": None, "stamp": ("r1", "t", "0", "None"), "error": ""}, 60)
     s.cache.put("kept", 1, 60)
     status, out = call(s, "POST", "records/edit", headers=EDITOR, body=edit_body())
     assert status == 200, out
-    assert ("changes", "sp", "main.pricing.loss_desk_out") not in s.stamps and s.cache.get("kept") is None, \
-        "the App's own write makes it read the table's last change again"
-
-
-def test_a_page_asks_for_each_tables_last_change_once_in_parallel_before_its_queries_need_it(tmp_path):
-    import threading
-    gate, asked = threading.Event(), []
-
-    class SlowHistory(FakeWorkspace):
-        def table_history(self, warehouse, name, limit=20):
-            asked.append(name)
-            gate.wait(5)
-            return [{"version": 3, "operation": "MERGE"}]
-
-    ws = SlowHistory()
-    s = shell_core.Shell(app_dir(tmp_path), env={"DATABRICKS_WAREHOUSE_ID": "wh1"}, sp_factory=lambda: ws, user_factory=lambda h, t: ws)
-    page = s.page("n01_u05")
-    s.warm_versions(ws, "sp", page)
-    waiting = [threading.Thread(target=lambda: s.table_changes(ws, "sp", "main.pricing.loss_trend")) for _ in range(3)]
-    for thread in waiting:
-        thread.start()
-    gate.set()
-    for thread in waiting:
-        thread.join(5)
-    s.stamp_pool.shutdown(wait=True)
-    assert sorted(asked) == sorted(set(asked)), "each table is asked once however many queries need it at the same moment"
-    assert set(s.page_reads(page)) <= set(asked) and "main.pricing.loss_trend" in asked
-    kept = s.page_reads(dict(page, id="with_result", result_table="main.pricing.loss_desk_out"))
-    assert {"main.pricing.loss_desk_out_run_log", "main.pricing.loss_desk_out_summary", "main.pricing.loss_desk_out_assumptions"} <= set(kept)
+    held = s.cache.get(("state", "sp", page["id"]))
+    assert held is not None and held["stamp"] != ("r1", "t", "0", "None") and s.cache.get("kept") is None, \
+        "the App's own write makes it read the run's state and the changes since again"
 
 
 def test_the_cache_drops_the_least_recently_used_entry_and_never_the_newest():
@@ -278,20 +242,29 @@ def test_the_cache_drops_the_least_recently_used_entry_and_never_the_newest():
     assert cache.get("b") is None and cache.get("a") == "a", "the least recently read entry goes first"
 
 
-def test_a_cached_page_stays_until_a_table_it_reads_changes(tmp_path):
+def test_no_request_reads_the_delta_history_of_a_table(tmp_path):
+    now = [1_000.0]
+    s, ws = versioned_shell(tmp_path, lambda: now[0])
+    body = {"page": "n01_u05", "filters": {"run_date": {"from": "2026-01-01", "to": "2026-10-01"}}}
+    for method, route, payload in (("GET", "filters", None), ("GET", "defaults", None), ("POST", "page", body)):
+        assert call(s, method, route, body=payload, query={"page": "n01_u05"})[0] == 200
+    s.stamp_pool.shutdown(wait=True)
+    assert ws.lookups == [], "a page never asks a table's Delta history, so no request waits on DESCRIBE HISTORY"
+    assert not [sql for sql, _p, _l in ws.sql if "DESCRIBE HISTORY" in sql.upper()]
+
+
+def test_a_query_on_input_tables_is_cached_for_the_timed_minute_and_read_again_after_it(tmp_path):
     now = [1_000.0]
     s, ws = versioned_shell(tmp_path, lambda: now[0])
     body = {"page": "n01_u05", "filters": {"run_date": {"from": "2026-01-01", "to": "2026-10-01"}}}
     assert call(s, "POST", "page", body=body)[0] == 200
     first = len(ws.sql)
-    now[0] += shell_core.CACHE_TTL_S + 30
+    now[0] += shell_core.CACHE_TTL_S - 5
     assert call(s, "POST", "page", body=body)[0] == 200
-    assert len(ws.sql) == first, "no table changed, so the App answers from its cache after the minute"
-    ws.versions["main.pricing.loss_trend"] = 8
-    now[0] += 30
+    assert len(ws.sql) == first, "within the minute the App answers from its cache"
+    now[0] += 10
     assert call(s, "POST", "page", body=body)[0] == 200
-    again = [sql for sql, _p, _l in ws.sql[first:]]
-    assert again and all("loss_trend" in sql for sql in again), "only the queries that read the changed table run again"
+    assert len(ws.sql) == 2 * first, "the page reads tables Inspire does not write, which carry no run stamp, so after the minute it reads them again"
 
 
 def test_a_lakebase_statement_timeout_runs_once_and_falls_back_as_a_query_error_keeping_the_pool():
