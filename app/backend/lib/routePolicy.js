@@ -146,6 +146,7 @@ const ROUTE_POLICY = {
   'GET /api/inspire/portfolio': tracked('read the portfolio of a database'),
   'GET /api/inspire/implement/tables': tracked('read whether its tables can change'),
   'GET /api/inspire/implement/settings': tracked('read the settings of its App'),
+  'GET /api/inspire/implement/runs': tracked('read the last runs of its App'),
   'GET /api/inspire/implement/alerts': tracked('read its alerts'),
   'GET /api/inspire/implement/output-check': { ...builders('check the output table of a build'), why: BUILD_CHECK, appDatabase: true },
   'GET /api/inspire/implement/preflight': { ...builders('check a build before it starts'), why: BUILD_CHECK, appDatabase: true },
@@ -165,6 +166,10 @@ const ROUTE_POLICY = {
   'POST /api/inspire/implement/alerts/pause': owners('pause its alert'),
   'POST /api/inspire/implement/alerts/delete': owners('delete its alert'),
   'POST /api/inspire/implement/table-change': owners('change its tables'),
+  'POST /api/grouping/profile': tracked('read the main table of a use case for its Grouping',
+    'reads the use case record from the Inspire tracking tables in the App database, and reads the use case table only with your own sign-in'),
+  'POST /api/grouping/preview': yours('preview a custom grouping SQL', ['sql']),
+  'POST /api/grouping/save': { ...builders('save a custom grouping for it'), appDatabase: true },
 };
 
 function routeKey(method, path) {

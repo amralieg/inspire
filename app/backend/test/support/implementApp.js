@@ -59,8 +59,8 @@ function makeApp(overrides = {}, { mount } = {}) {
       if (state.tokenKind) req.dbTokenKind = state.tokenKind;
       next();
     },
-    executeSql: async (_h, token, warehouse, sql, parameters) => {
-      sqlCalls.push({ sql, parameters, token, warehouse });
+    executeSql: async (_h, token, warehouse, sql, parameters, options) => {
+      sqlCalls.push({ sql, parameters, token, warehouse, options });
       for (const [needle, message] of Object.entries(state.sqlErrors || {})) if (sql.includes(needle)) throw new Error(message);
       for (const [needle, out] of Object.entries(state.statements || {})) {
         if (sql.includes(needle)) return typeof out === 'function' ? out(sql, parameters, token) : out;

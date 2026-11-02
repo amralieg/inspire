@@ -1,6 +1,7 @@
 import { subtitleOfUseCase } from './useCaseFields.js';
 import { plural } from './plural.js';
 import { kpiTargetOf, kpiTargetProblems, stakeWords, withKpiTarget } from './targetKpi.js';
+import { scopeProblems, scopeValues } from './runScope.js';
 import {
   allowedRule, allowedText, isSettingWidget, numberText, settingsModelOf, settingsProblems, widgetSetProblems, widgetValueProblem, wizardSettings,
   withSettingsNote,
@@ -35,6 +36,12 @@ export const SETTINGS_STEP = { id: 'settings', label: 'Settings', sections: ['se
 
 export const VIBES_STEP = { id: 'vibes', label: 'Vibes', sections: ['vibes'], advanced: [] };
 
+export const GROUPING_STEP = { id: 'grouping', label: 'Grouping', sections: ['grouping'], advanced: [] };
+
+export const FIRST_RUN_STEP = { id: 'first_run', label: 'First run', sections: ['first_run'], advanced: [] };
+
+export const NO_SCOPE_STEPS = { grouping: false, firstRun: false };
+
 export const NOTEBOOK_STEPS = [
   CHOOSE_STEP,
   { id: 'data', label: 'Data', sections: [], advanced: [] },
@@ -50,10 +57,12 @@ export function contextSettings(context, spec) {
     family: context?.family || '', editing: Boolean(context?.latest) });
 }
 
-export function wizardSteps(mode, spec = null, settings = []) {
+export function wizardSteps(mode, spec = null, settings = [], scope = NO_SCOPE_STEPS) {
   if (mode === 'mvp') {
     const app = Boolean(spec?.outputs?.app);
-    return [...IMPLEMENT_STEPS, ...(app ? [APP_PLACE_STEP] : []), ...(app && !joinsApp(spec) ? APP_STEPS : []),
+    const [choose, data, ...rest] = IMPLEMENT_STEPS;
+    return [choose, data, ...(scope?.grouping ? [GROUPING_STEP] : []), ...(scope?.firstRun ? [FIRST_RUN_STEP] : []), ...rest,
+      ...(app ? [APP_PLACE_STEP] : []), ...(app && !joinsApp(spec) ? APP_STEPS : []),
       ...((settings || []).length ? [SETTINGS_STEP] : []), VIBES_STEP];
   }
   if (mode === 'notebook') return NOTEBOOK_STEPS;
@@ -1457,6 +1466,9 @@ export function sectionErrors(section, spec, extras = {}) {
   if (section === 'vibes') errors.push(...vibesProblems(spec, extras.built ?? null));
   if (section === 'kpi') errors.push(...kpiTargetProblems(spec, extras.kpiOptions || []));
   if (section === 'settings') errors.push(...settingsProblems(spec, extras.settings || []));
+  if (section === 'grouping' || section === 'first_run') {
+    errors.push(...scopeProblems(scopeValues((name) => spec.config?.widgets?.[name]), extras.scopeProfile || null, section));
+  }
   if (section === 'holdout') errors.push(...holdoutProblems(spec), ...capacityProblems(spec));
   if (section === 'app_owners' && spec.outputs.app && !joinsApp(spec)) errors.push(...appOwnerProblems(spec.outputs.app_owners));
   if (section === 'alert' && spec.outputs.alert) {
@@ -1491,18 +1503,18 @@ function mergePickProblems(spec, extras, names) {
   }).map((name) => `pick a ${IMPLEMENT_OUTPUTS.find((o) => o.id === name).label} Inspire built to add to, or choose Create new`);
 }
 
-function stepOf(id, mode, spec, settings) {
-  const step = wizardSteps(mode, spec, settings).find((s) => s.id === id);
+function stepOf(id, mode, spec, settings, scope) {
+  const step = wizardSteps(mode, spec, settings, scope).find((s) => s.id === id);
   if (!step) throw new Error(`unknown wizard step '${id}'`);
   return step;
 }
 
 export function stepErrors(step, spec, extras = {}, mode = 'mvp') {
-  return stepOf(step, mode, spec, extras.settings).sections.flatMap((section) => sectionErrors(section, spec, extras));
+  return stepOf(step, mode, spec, extras.settings, extras.scopeSteps).sections.flatMap((section) => sectionErrors(section, spec, extras));
 }
 
 export function advancedErrors(step, spec, extras = {}, mode = 'mvp') {
-  return stepOf(step, mode, spec, extras.settings).advanced.flatMap((section) => sectionErrors(section, spec, extras));
+  return stepOf(step, mode, spec, extras.settings, extras.scopeSteps).advanced.flatMap((section) => sectionErrors(section, spec, extras));
 }
 
 const APP_LOOK_LISTS = { style: 'styles', layout: 'layouts', palette: 'palettes', theme: 'themes' };
@@ -2172,13 +2184,22 @@ export function lostTablesText(missing) {
     + 'Swap each for a table with the same role, or remove it.';
 }
 
-export function initialStepIndex(focus, mode = 'mvp', spec = null, settings = []) {
-  const steps = wizardSteps(mode, spec, settings);
+export function initialStepIndex(focus, mode = 'mvp', spec = null, settings = [], scope = NO_SCOPE_STEPS) {
+  const steps = wizardSteps(mode, spec, settings, scope);
   const want = focus?.step;
   if (want === 'review') return steps.length - 1;
   const index = steps.findIndex((s) => s.id === want || s.sections.includes(want));
-  if (index < 0 && want === SETTINGS_STEP.id) return Math.max(0, steps.findIndex((s) => s.id === VIBES_STEP.id));
-  return index < 0 ? 0 : index;
+  return index < 0 ? stepIndexOf(steps, want) : index;
+}
+
+export function initialStepId(focus, mode = 'mvp', spec = null, settings = [], scope = NO_SCOPE_STEPS) {
+  return wizardSteps(mode, spec, settings, scope)[initialStepIndex(focus, mode, spec, settings, scope)].id;
+}
+
+export function stepIndexOf(steps, id) {
+  const index = steps.findIndex((s) => s.id === id);
+  if (index < 0 && id === SETTINGS_STEP.id) return Math.max(0, steps.findIndex((s) => s.id === VIBES_STEP.id));
+  return Math.max(0, index);
 }
 
 const flagYes = (value) => ['Y', 'YES', 'TRUE'].includes(String(value ?? '').trim().toUpperCase());

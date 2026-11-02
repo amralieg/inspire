@@ -58,6 +58,11 @@ const SAMPLES = [
   { key: 'POST /api/inspire/implement/plan', rule: 'any', method: 'POST', path: '/api/inspire/implement/plan', body: {} },
   { key: 'POST /api/inspire/implement/submit', rule: 'any', name: 'first build', method: 'POST',
     path: `/api/inspire/implement/submit?${qs({ ...UC, use_case_id: 'N09-U09' })}`, body: { spec: { use_case_id: 'N09-U09' } } },
+  { key: 'POST /api/grouping/save', rule: 'owners', method: 'POST', path: '/api/grouping/save',
+    body: { ...UC, sql: 'SELECT o.id, o.region AS group_name FROM main.sales.orders o', main_table: 'main.sales.orders', key_columns: ['id'] } },
+  { key: 'POST /api/grouping/preview', rule: 'any', method: 'POST', path: '/api/grouping/preview',
+    body: { ...UC, sql: 'SELECT o.id, o.region AS group_name FROM main.sales.orders o', main_table: 'main.sales.orders', key_columns: ['id'] } },
+  { key: 'POST /api/grouping/profile', rule: 'any', method: 'POST', path: '/api/grouping/profile', body: { ...UC } },
   { key: 'ALL /run/:id/{*rest}', rule: 'delegated', method: 'POST', path: '/run/missing-page/api/refresh', body: {} },
   { key: 'ALL /showcase/:id/mvp/:mvp/api/*rest', rule: 'any', method: 'POST', path: '/showcase/missing/mvp/missing/api/page', body: {} },
 ];

@@ -9,6 +9,7 @@ import {
 } from '../lib/runPages';
 import { PANEL_CLASS } from '../components/BuildUi';
 import BodyPortal from '../components/BodyPortal';
+import RunScope from '../components/RunScope';
 
 const STATE_TONE = { ready: 'text-success-fg', starting: 'text-text-secondary', stopped: 'text-text-secondary', failed: 'text-error-fg' };
 const LINK_CLASS = 'inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold';
@@ -304,6 +305,7 @@ export default function RunPage({ settings, focusId = null, onFocus = ignore, on
           </nav>
           <section aria-label={chosen ? chosen.name : 'Deployed use case'} className={`${PANEL_CLASS} p-4 space-y-3`}>
             {chosen && <h2 className="text-[15px] font-semibold text-text-primary">{chosen.name}</h2>}
+            {chosen && !showcase && chosen.kind !== RUN_DEMO_KIND && chosen.session_id && <RunScope key={chosenKey} page={chosen} settings={settings} />}
             {chosen && runFrameSrc(chosen) && <FrameDetail page={chosen} userAuthorization={userAuthorization} note={note} onOpen={open} />}
             {chosen && !runFrameSrc(chosen) && (chosen.kind === APP_INSIDE || chosen.kind === RUN_DEMO_KIND) && (
               <FrameStatus page={chosen} userAuthorization={userAuthorization} note={note} />

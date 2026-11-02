@@ -13,6 +13,10 @@ const A = require('./lib/useCaseAlerts');
 const P = require('./lib/requestPerson');
 const RP = require('./lib/routePolicy');
 const U = require('./lib/ucReads');
+const G = require('./lib/groupingSql');
+const GR = require('./lib/groupingRule');
+const GP = require('./lib/groupingProfile');
+const { runWithRequestDeadline } = require('./lib/sqlStatements');
 
 function sendError(res, err) {
   const code = err && Number.isFinite(err.statusCode) ? err.statusCode : 500;
@@ -1297,6 +1301,24 @@ function registerImplementRoutes(app, deps) {
     }
   });
 
+  app.get('/api/inspire/implement/runs', requireToken, async (req, res) => {
+    try {
+      const { target, refusal } = await settingsContext(req);
+      const none = (why) => res.json({ runs: [], why });
+      if (refusal) return none(refusal[1]);
+      let got;
+      try {
+        got = await callApp(req, target, 'GET', `/api/runs?page=${encodeURIComponent(target.page)}`);
+      } catch (err) {
+        return none(`The App\u2019s runs could not be read: ${err.message}`);
+      }
+      if (!got.ok) return none(String(got.data.error || `The App answered ${got.status} for its runs`));
+      return res.json({ runs: Array.isArray(got.data.runs) ? got.data.runs.slice(0, 2) : [], why: '' });
+    } catch (err) {
+      return sendError(res, err);
+    }
+  });
+
   const settingsAction = (action, keys) => async (req, res) => {
     try {
       const { target, refusal } = await settingsContext(req);
@@ -1317,6 +1339,189 @@ function registerImplementRoutes(app, deps) {
   app.post('/api/inspire/implement/settings/preview', requireToken, settingsAction('preview', ['name', 'value']));
   app.post('/api/inspire/implement/settings/save', requireToken, settingsAction('save', ['name', 'value', 'was', 'note']));
   app.post('/api/inspire/implement/settings/run', requireToken, settingsAction('run', []));
+
+  function groupingAsked(req) {
+    const body = req.body && typeof req.body === 'object' ? req.body : {};
+    const checked = G.checkGroupingSql(body.sql);
+    if (!checked.ok) throw Object.assign(I.badRequest(checked.text), { details: { refused: { rule: checked.rule, at: checked.at } } });
+    const main = G.groupingMainTable(body.main_table);
+    if (!main) throw I.badRequest('main_table must name the use case table as catalog.schema.table.');
+    if (!checked.tables.includes(main.canonical)) {
+      throw I.badRequest(`The grouping SQL does not read ${main.canonical}, the use case table; read it, so every record can get a group.`);
+    }
+    const keys = G.groupingKeyColumns(body.key_columns);
+    if (!keys) throw I.badRequest('key_columns must list 1 to 8 different record key column names, none of them group_name.');
+    return { checked, main, keys };
+  }
+
+  function sqlFailure(err, texts) {
+    if (err && err.statusCode) return err;
+    const message = String((err && err.message) || err);
+    const submitted = /^SQL failed \((\d{3})\)/.exec(message);
+    const kind = err && err.code === 'SQL_DEADLINE' ? 'deadline'
+      : submitted && submitted[1] === '401' ? 'sign_in'
+        : I.isReadDenied(message) || (submitted && submitted[1] === '403') ? 'denied'
+          : submitted ? 'submitted' : isMissingTableError(err) ? 'missing' : 'failed';
+    const [status, text] = texts[kind](message);
+    return I.badRequest(text, status);
+  }
+
+  const GROUPING_FAILURES = {
+    deadline: () => [504, `The grouping SQL did not finish within ${G.GROUPING_PREVIEW_MS / 1000} seconds, so Inspire stopped it; make it lighter, `
+      + 'or try again once the warehouse is running.'],
+    sign_in: (m) => [401, `Databricks did not accept your sign-in for the grouping SQL: ${m}`],
+    denied: (m) => [403, `${G.GROUPING_DENIED}: ${m}`],
+    submitted: (m) => [502, `Databricks could not run the grouping SQL: ${m}`],
+    missing: (m) => [400, `Databricks found no table the grouping SQL reads, or you cannot see it with your own sign-in: ${m}`],
+    failed: (m) => [400, `The grouping SQL failed: ${m}`],
+  };
+  const groupingFailure = (err) => sqlFailure(err, GROUPING_FAILURES);
+
+  const profileFailures = (table) => ({
+    deadline: () => [504, `Inspire read ${table} for the Grouping for ${GP.PROFILE_MS / 1000} seconds with no answer, so it stopped; `
+      + 'try again once the warehouse is running.'],
+    sign_in: (m) => [401, `Databricks did not accept your sign-in to read ${table} for the Grouping: ${m}`],
+    denied: () => [403, `${U.runUnreadableText([table])}.`],
+    submitted: (m) => [502, `Databricks could not read ${table} for the Grouping: ${m}`],
+    missing: () => [403, `${U.runUnreadableText([table])}.`],
+    failed: (m) => [400, `Inspire could not read ${table} for the Grouping: ${m}`],
+  });
+
+  const groupingColumns = (result) => (result.manifest?.schema?.columns || []).map((c) => c.name);
+
+  app.post('/api/grouping/preview', requireToken, async (req, res) => {
+    const token = P.personTokenOf(req);
+    if (!token) return res.status(401).json({ error: G.GROUPING_NO_SIGN_IN });
+    const stop = new AbortController();
+    res.on('close', () => {
+      if (!res.writableEnded) stop.abort();
+    });
+    try {
+      const warehouseId = warehouseOf(req);
+      const { checked, main, keys } = groupingAsked(req);
+      const options = { rowLimit: G.GROUPING_ROW_LIMIT, byteLimit: G.GROUPING_BYTE_LIMIT, waitTimeout: '10s', signal: stop.signal };
+      const run = (sql) => executeSql(req.dbHost, token, warehouseId, sql, null, options);
+      const view = await runWithRequestDeadline(async () => {
+        const columns = groupingColumns(await run(G.groupingShapeSql(checked.sql)));
+        const problem = G.shapeProblem(columns, keys);
+        if (problem) throw I.badRequest(problem);
+        const [top, totals] = await Promise.all([run(G.groupingTopSql(checked.sql)), run(G.groupingTotalsSql(checked.sql, main, keys))]);
+        const shown = G.groupingPreviewView(sqlResultToObjects(top), sqlResultToObjects(totals)[0] || {});
+        return { ...shown, columns, truncated: Boolean(top.manifest?.truncated || totals.manifest?.truncated) };
+      }, G.GROUPING_PREVIEW_MS);
+      return res.json({ sql: checked.sql, tables: checked.tables, hash: checked.hash, main_table: main.canonical, key_columns: keys, ...view });
+    } catch (err) {
+      stop.abort();
+      if (err && err.code === 'SQL_CANCELLED') return undefined;
+      return sendError(res, groupingFailure(err));
+    }
+  });
+
+  app.post('/api/grouping/save', requireToken, async (req, res) => {
+    const token = P.personTokenOf(req);
+    if (!token) return res.status(401).json({ error: G.GROUPING_NO_SIGN_IN });
+    try {
+      const sid = sessionIdOf(req);
+      const warehouseId = warehouseOf(req);
+      const { catalog, schema } = dbOf(req, splitInspireDatabase);
+      const useCaseId = I.validateUseCaseId(q(req, 'use_case_id'));
+      const { checked, main, keys } = groupingAsked(req);
+      const [person, useCase, history] = await Promise.all([personOf(req), loadUseCase(req.dbHost, req.dbToken, warehouseId, catalog, schema, sid, useCaseId),
+        loadHistory(req.dbHost, req.dbToken, warehouseId, catalog, schema, sid, useCaseId)]);
+      if (!person.username) throw I.badRequest(`Inspire could not tell who you are, so it saved no grouping: ${P.personProblem(person)}.`, 403);
+      if (!useCase) throw I.badRequest(`No use case ${useCaseId} in this session.`, 404);
+      const before = I.previousBuilt(history);
+      const refused = before ? I.implementSettingsOwnerRefusal(before, person.username) : null;
+      if (refused) throw I.badRequest(refused.message, refused.status);
+      const shape = await runWithRequestDeadline(() => executeSql(req.dbHost, token, warehouseId, G.groupingShapeSql(checked.sql), null,
+        { rowLimit: 1, waitTimeout: '10s' }), G.GROUPING_PREVIEW_MS);
+      const problem = G.shapeProblem(groupingColumns(shape), keys);
+      if (problem) throw I.badRequest(problem);
+      const table = G.groupingTableName(catalog, schema);
+      const checkedAt = new Date().toISOString();
+      const insert = G.groupingInsertStatement(table, { sessionId: sid, useCaseId, sql: checked.sql, tables: checked.tables, hash: checked.hash,
+        mainTable: main.canonical, keys, checkedBy: person.username, checkedAt });
+      await executeSql(req.dbHost, req.dbToken, warehouseId, G.groupingCreateSql(table));
+      await executeSql(req.dbHost, req.dbToken, warehouseId, insert.sql, insert.parameters);
+      return res.json({ saved: true, setting: { group_by: 'custom', group_sql: checked.sql, group_sql_tables: checked.tables, group_sql_hash: checked.hash,
+        group_sql_checked_by: person.username, group_sql_checked_at: checkedAt, main_table: main.canonical, key_columns: keys } });
+    } catch (err) {
+      return sendError(res, groupingFailure(err));
+    }
+  });
+
+  function builtData(history) {
+    const built = I.previousBuilt(history);
+    const spec = built && built.spec_json && typeof built.spec_json === 'object' ? built.spec_json : {};
+    return spec.data && typeof spec.data === 'object' ? spec.data : {};
+  }
+
+  function profiledTable(useCase, data) {
+    const primary = I.primaryTableOf(useCase) || I.useCaseTables(useCase)[0] || '';
+    const swaps = data.tables && typeof data.tables === 'object' ? data.tables : {};
+    const swapped = Object.keys(swaps).find((k) => k.replace(/`/g, '').toLowerCase() === primary.replace(/`/g, '').toLowerCase());
+    return swapped === undefined ? primary : String(swaps[swapped] || primary).trim();
+  }
+
+  app.post('/api/grouping/profile', requireToken, async (req, res) => {
+    const token = P.personTokenOf(req);
+    if (!token) return res.status(401).json(RP.noPersonTokenBody(req.policyKey));
+    const stop = new AbortController();
+    res.on('close', () => {
+      if (!res.writableEnded) stop.abort();
+    });
+    let table = '';
+    try {
+      const sid = sessionIdOf(req);
+      const warehouseId = warehouseOf(req);
+      const { catalog, schema } = dbOf(req, splitInspireDatabase);
+      const useCaseId = I.validateUseCaseId(q(req, 'use_case_id'));
+      const days = GP.scopeDaysOf(req.body?.scope_days ?? req.query.scope_days);
+      if (days === null) throw I.badRequest(`scope_days must be a whole number of days from 1 to ${GP.PROFILE_DAYS_MAX}.`);
+      const [useCase, history] = await Promise.all([loadUseCase(req.dbHost, req.dbToken, warehouseId, catalog, schema, sid, useCaseId),
+        loadHistory(req.dbHost, req.dbToken, warehouseId, catalog, schema, sid, useCaseId)]);
+      if (!useCase) throw I.badRequest(`No use case ${useCaseId} in this session.`, 404);
+      const data = builtData(history);
+      table = profiledTable(useCase, data);
+      const main = G.groupingMainTable(table);
+      if (!main || !/^[^`]+\.[^`]+\.[^`]+$/.test(table)) {
+        throw I.badRequest(`Use case ${useCaseId} names no main table as catalog.schema.table, so Inspire cannot read it for the Grouping.`);
+      }
+      const options = (rowLimit) => ({ rowLimit, byteLimit: G.GROUPING_BYTE_LIMIT, waitTimeout: '10s', signal: stop.signal });
+      const rows = async (sql, parameters, rowLimit) => sqlResultToObjects(await executeSql(req.dbHost, token, warehouseId, sql, parameters, options(rowLimit)));
+      const view = await runWithRequestDeadline(async () => {
+        const [cat, sch, tbl] = table.split('.');
+        const columnsAsked = I.columnsStatement(table);
+        const keysAsked = GP.keysStatement(cat, sch, tbl);
+        const [columns, keyRows] = await Promise.all([rows(columnsAsked.sql, columnsAsked.parameters, GP.PROFILE_META_ROWS),
+          rows(keysAsked.sql, keysAsked.parameters, GP.PROFILE_META_ROWS).catch((err) => {
+            if (['SQL_DEADLINE', 'SQL_CANCELLED'].includes(err && err.code)) throw err;
+            console.warn(`grouping profile: the declared keys of ${table} could not be read, so the grouping SQL starts with no key: ${err.message}`);
+            return [];
+          })]);
+        if (!columns.length) throw I.badRequest(`${U.runUnreadableText([table])}.`, 403);
+        const roles = data.column_roles && typeof data.column_roles === 'object' ? data.column_roles : {};
+        const candidates = GR.groupingCandidates(columns, roles, table).filter((name) => !name.includes(',')).slice(0, GR.GROUP_PROFILED);
+        const timeColumn = GR.timeColumnOf(columns, roles, table);
+        const [statRows, sample] = await Promise.all([rows(GP.statsSql(main, candidates, timeColumn, days), null, 1),
+          candidates.length ? rows(GP.sampleSql(main, candidates), null, GP.PROFILE_META_ROWS) : []]);
+        const stats = statRows[0] || {};
+        const picked = GP.profiledColumns(stats, candidates);
+        const values = picked.length ? await rows(GP.valuesSql(main, picked), null, GP.PROFILE_VALUE_ROWS) : [];
+        const draft = (paths) => GP.profileView({ table, technique: useCase.analytics_technique, columns, candidates, stats, sample, values, paths,
+          timeColumn, days, keys: GP.declaredKeys(keyRows), joins: GP.savedJoins(useCase.table_joins, table), readAt: new Date().toISOString() });
+        const first = draft(null);
+        if (first.recommended.length < 2) return first;
+        const paths = await rows(GP.pathsSql(main, first.recommended), null, GP.PROFILE_PATH_ROWS);
+        return draft(paths);
+      }, GP.PROFILE_MS);
+      return res.json(view);
+    } catch (err) {
+      stop.abort();
+      if (err && err.code === 'SQL_CANCELLED') return undefined;
+      return sendError(res, sqlFailure(err, profileFailures(table || 'the use case table')));
+    }
+  });
 
   const useCaseAlerts = deps.useCaseAlerts || A.createUseCaseAlerts();
 

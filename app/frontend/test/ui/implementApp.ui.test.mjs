@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
-import { assertFitsScreen, closeBrowser, lowContrast, onStep, openUi, setDark, settled, startMvp, toAppAccess, toVibes, wizardFit } from './uiSupport.mjs';
+import { assertFitsScreen, closeBrowser, dataToResults, lowContrast, onStep, openUi, setDark, settled, startMvp, toAppAccess, toVibes, wizardFit } from './uiSupport.mjs';
 
 const { appShellCatalog } = createRequire(import.meta.url)('../../../backend/lib/appShell.js');
 const SHELL = appShellCatalog();
@@ -20,8 +20,7 @@ async function toDelivery(page) {
   await onStep(page, 'Choose');
   await next(page);
   await onStep(page, 'Data');
-  await next(page);
-  await onStep(page, 'Results');
+  await dataToResults(page);
   await next(page);
   await onStep(page, 'Delivery');
 }
@@ -425,8 +424,7 @@ test('Where results live picks a catalog and a schema from Unity Catalog, offers
     await next(page);
     await onStep(page, 'Data');
     assert.equal(await page.getByLabel('Output table').count(), 0, 'the result table left the Data step');
-    await next(page);
-    await onStep(page, 'Results');
+    await dataToResults(page);
     const step = page.getByRole('region', { name: 'Where the result table lives' });
     await step.getByRole('heading', { name: 'Where should the result table live?' }).waitFor();
     const catalog = step.getByLabel('Catalog');
@@ -500,7 +498,7 @@ const ownersShown = async (page) => {
   return page.getByLabel('App owners (comma separated)').count();
 };
 
-const PLACE_UC = { id: 'N01-U01', use_case: 'Predict churn', business_domain: 'Customer', genie_instruction: '## Parameters\n| top_k | text | 25 | Top K |\n' };
+const PLACE_UC = { id: 'N01-U01', use_case: 'Predict churn', business_domain: 'Customer', primary_table: 'main.s.orders', tables_involved: 'main.s.orders', genie_instruction: '## Parameters\n| top_k | text | 25 | Top K |\n' };
 const PLACE_SCOPE = [
   { session_id: '42', use_case_id: 'N01-U02', business: 'Acme', domain: 'Customer' },
   { session_id: '42', use_case_id: 'N01-U03', business: 'Acme', domain: 'Finance' },
@@ -694,6 +692,10 @@ test('every wizard step fits a 1440x900 screen with nothing to scroll, the App s
     await next(page);
     await onStep(page, 'Data');
     await fits('2-data');
+    await next(page);
+    await onStep(page, 'First run');
+    await fits('2-first-run');
+    await readable('first run');
     await next(page);
     await onStep(page, 'Results');
     await page.getByRole('region', { name: 'Where the result table lives' }).getByLabel('Catalog').locator('option[value="main"]').waitFor({ state: 'attached' });

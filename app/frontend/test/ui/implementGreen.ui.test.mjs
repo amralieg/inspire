@@ -50,7 +50,7 @@ test('App look turns the trend chart off with one line when the input tables car
   const open = async (columns) => {
     const ui = await openUi('wizard', { me: { userName: 'owner@example.com', displayName: 'Owner' }, columns });
     const { page } = ui;
-    for (const [step, go] of [['Choose', true], ['Data', true], ['Results', true], ['Delivery', false]]) {
+    for (const [step, go] of [['Choose', true], ['Data', true], ['First run', true], ['Results', true], ['Delivery', false]]) {
       await onStep(page, step);
       if (go) await next(page);
     }
@@ -88,7 +88,7 @@ test('a business with an App for all its use cases joins it, cannot create a sec
   const hubSpec = JSON.stringify({ use_case_id: 'N01-U02', use_case_name: 'Forecast demand', outputs: { app: true, app_access: 'sp', app_placement: 'business' } });
   const state = {
     me: { userName: 'owner@example.com', displayName: 'Owner' },
-    useCase: { id: 'N01-U01', use_case: 'Predict churn', business_domain: 'Customer', genie_instruction: '## Parameters\n| top_k | text | 25 | Top K |\n' },
+    useCase: { id: 'N01-U01', use_case: 'Predict churn', business_domain: 'Customer', primary_table: 'main.s.orders', tables_involved: 'main.s.orders', genie_instruction: '## Parameters\n| top_k | text | 25 | Top K |\n' },
     useCaseScope: [{ session_id: '42', use_case_id: 'N01-U02', business: 'Acme', domain: 'Finance' }],
     registry: [{ session_id: '42', use_case_id: 'N01-U02', spec_version: 1, status: 'ready', updated_at: '2026-10-26T00:00:00Z', asset_status: null,
       spec_json: hubSpec, dashboard_id: null, genie_space_id: null, app_name: 'inspire-hub-acme' }],
@@ -98,7 +98,7 @@ test('a business with an App for all its use cases joins it, cannot create a sec
   const { page } = ui;
   const next = () => page.getByRole('button', { name: 'Next' }).click();
   try {
-    for (const step of ['Choose', 'Data', 'Results']) {
+    for (const step of ['Choose', 'Data', 'First run', 'Results']) {
       await onStep(page, step);
       await next();
     }

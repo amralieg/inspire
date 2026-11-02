@@ -1019,6 +1019,44 @@ test('Edit opens the wizard on the step it was asked for, and on Choose otherwis
   assert.equal(w.initialStepIndex({ step: 'delivery' }, 'notebook'), 0);
 });
 
+test('Grouping and First run come right after Data, Grouping only when the profile says it applies, and the step a person is on keeps its place when they appear', async () => {
+  const w = await load();
+  const both = { grouping: true, firstRun: true };
+  const S = [{ name: 'top_k', source: 'widget' }];
+  assert.deepEqual([w.GROUPING_STEP.label, w.FIRST_RUN_STEP.label], ['Grouping', 'First run']);
+  assert.deepEqual(w.wizardSteps('mvp', null, S, both).map((s) => s.id), ['choose', 'data', 'grouping', 'first_run', 'results', 'delivery', 'settings', 'vibes']);
+  assert.deepEqual(w.wizardSteps('mvp', null, [], both).map((s) => s.id), ['choose', 'data', 'grouping', 'first_run', 'results', 'delivery', 'vibes'],
+    'with no settings left after First run takes its own, the Settings step goes away');
+  assert.deepEqual(w.wizardSteps('mvp', null, S, { grouping: false, firstRun: true }).map((s) => s.id),
+    ['choose', 'data', 'first_run', 'results', 'delivery', 'settings', 'vibes'], 'a technique grouping does not apply to still asks for the first run');
+  assert.deepEqual(w.wizardSteps('mvp', null, S).map((s) => s.id), ['choose', 'data', 'results', 'delivery', 'settings', 'vibes'], 'no profile, no new steps');
+  assert.deepEqual(w.wizardSteps('mvp', { outputs: { app: true } }, S, both).map((s) => s.id),
+    ['choose', 'data', 'grouping', 'first_run', 'results', 'delivery', 'app_place', 'app_access', 'app_look', 'settings', 'vibes']);
+  assert.deepEqual(w.wizardSteps('notebook', null, S, both).map((s) => s.id), ['choose', 'data', 'notebook'], 'Notebook only runs nothing, so it asks neither');
+  const before = w.wizardSteps('mvp', null, S);
+  const after = w.wizardSteps('mvp', null, S, both);
+  assert.equal(w.stepIndexOf(before, 'results'), 2);
+  assert.equal(w.stepIndexOf(after, 'results'), 4, 'the person on Results stays on Results when the two steps appear before it');
+  assert.equal(after[2].id, 'grouping', 'the old index 2 would now be Grouping, which is why the wizard keeps the id');
+  assert.equal(w.stepIndexOf(before, 'grouping'), 0, 'an id the list does not have lands on Choose');
+  assert.equal(w.stepIndexOf(w.wizardSteps('mvp'), 'settings'), 4, 'a person on Settings when the settings go away lands on Vibes');
+  assert.equal(w.initialStepId({ step: 'settings' }, 'mvp', null, S), 'settings');
+  assert.equal(w.initialStepId({ step: 'settings' }), 'vibes', 'a Settings link with no settings lands on Vibes');
+  assert.equal(w.initialStepId({ step: 'review' }, 'mvp', null, S, both), 'vibes');
+  assert.equal(w.initialStepId(null), 'choose');
+  assert.equal(w.initialStepIndex({ step: 'first_run' }, 'mvp', null, S, both), 3);
+  const spec = w.defaultSpecFromUseCase(UC, { warehouseId: '', inspireDatabase: 'main.inspire' });
+  const extras = { scopeSteps: both, scopeProfile: { standalone: false } };
+  assert.deepEqual(w.stepErrors('grouping', spec, extras), []);
+  assert.deepEqual(w.stepErrors('first_run', spec, extras), []);
+  const mixed = { ...spec, config: { ...spec.config, widgets: { group_by: 'all, country', run_scope: 'records' } } };
+  assert.deepEqual(w.stepErrors('grouping', mixed, extras), ["Grouping is 'all, country'; choose all, custom or column names, not a mix"]);
+  assert.deepEqual(w.stepErrors('first_run', mixed, extras),
+    ['A first run on a number of records works only when each record stands alone; choose chosen groups, a recent period or everything']);
+  assert.deepEqual(w.stepErrors('first_run', mixed, { ...extras, scopeProfile: { standalone: true } }), []);
+  assert.throws(() => w.stepErrors('grouping', spec, {}), /unknown wizard step 'grouping'/, 'without the profile the step does not exist');
+});
+
 test('Full MVP is the first mode, and Notebook only swaps Delivery for a Notebook step with nothing to check', async () => {
   const w = await load();
   assert.deepEqual(w.IMPLEMENT_MODES.map((m) => [m.id, m.label]), [['mvp', 'Full MVP'], ['notebook', 'Notebook only']]);

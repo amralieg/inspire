@@ -5,7 +5,7 @@ import { createRequire } from 'node:module';
 import path from 'node:path';
 import { defaultSpecFromUseCase } from '../../src/lib/implementWizard.js';
 import { HARNESS_USE_CASE, HARNESS_SETTINGS, HARNESS_SESSION_ID } from './implementFixtures.js';
-import { clippedExamples, closeBrowser, lowContrast, onStep, openUi, setDark, startMvp, toAppAccess, toVibes, until, wizardFits } from './uiSupport.mjs';
+import { clippedExamples, closeBrowser, lowContrast, onStep, openUi, setDark, startMvp, toAppAccess, dataToResults, toVibes, until, wizardFits } from './uiSupport.mjs';
 
 const OWNER = ['owner', 'example.com'].join('@');
 const SHOTS = process.env.VIBES_SHOTS || '';
@@ -22,8 +22,7 @@ async function toDelivery(page) {
   await onStep(page, 'Choose');
   await next(page);
   await onStep(page, 'Data');
-  await next(page);
-  await onStep(page, 'Results');
+  await dataToResults(page);
   await next(page);
   await onStep(page, 'Delivery');
 }
@@ -50,7 +49,7 @@ async function readable(page, selectors, name) {
   await page.evaluate(() => document.documentElement.classList.remove('dark'));
 }
 
-const STEPS_WITH_APP = ['1. Choose', '2. Data', '3. Results', '4. Delivery', '5. App placement', '6. App access', '7. App look', '8. Settings', '9. Vibes'];
+const STEPS_WITH_APP = ['1. Choose', '2. Data', '3. First run', '4. Results', '5. Delivery', '6. App placement', '7. App access', '8. App look', '9. Settings', '10. Vibes'];
 const boxLabels = (panel) => panel.locator('textarea').evaluateAll((boxes) => boxes.map((b) => b.getAttribute('aria-label')));
 
 async function grayExamples(page, panel) {
@@ -79,7 +78,7 @@ test('Vibes is the last step: Delivery asks for no vibes, the step has one box f
     assert.equal(await page.getByRole('textbox', { name: /vibes/i }).count(), 0, 'Delivery has no vibes box');
     assert.equal(await page.getByRole('region', { name: 'Vibes' }).count(), 0);
     await page.getByRole('checkbox', { name: /^App / }).uncheck();
-    assert.deepEqual(await page.locator('ol li').allTextContents(), ['1. Choose', '2. Data', '3. Results', '4. Delivery', '5. Settings', '6. Vibes'], 'Vibes stays last without an App');
+    assert.deepEqual(await page.locator('ol li').allTextContents(), ['1. Choose', '2. Data', '3. First run', '4. Results', '5. Delivery', '6. Settings', '7. Vibes'], 'Vibes stays last without an App');
     await toVibes(page);
     const panel = page.getByRole('region', { name: 'Vibes' });
     await panel.getByRole('heading', { name: 'Anything else Genie should build in?' }).waitFor();

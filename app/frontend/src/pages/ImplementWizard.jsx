@@ -55,7 +55,8 @@ import {
   nextAppName,
   widgetValueProblem,
   profileFieldProblem,
-  initialStepIndex,
+  initialStepId,
+  stepIndexOf,
   lostTablesText,
   APP_READ_ACTION,
   NEW_APPS_ACCESS_ACTION,
@@ -192,6 +193,9 @@ import {
   isSettingWidget, settingGroupTitle, settingIssue, settingValue, settingsModelOf, settingsNoteOf, settingsNoteProblem, widgetSetProblems,
   withSetting, withSettingsNote,
 } from '../lib/useCaseSettings';
+import ScopeSettings from '../components/ScopeSettings';
+import { PROFILE_WAITING, useGroupingProfile } from '../lib/groupingProfile';
+import { FIRST_RUN_TITLE, GROUPING_TITLE, isScopeSetting, scopeChanges, scopeStepsOf, scopeValues, withScopeDefaults } from '../lib/runScope';
 
 const ICONS = { notebook: NotebookPen, dashboard: LayoutDashboard, genie_space: Sparkles, app: AppWindow, alert: Bell };
 const ASSET_NOUNS = { dashboard: 'a dashboard', genie_space: 'a Genie Agent', app: 'an App', alert: 'an alert' };
@@ -201,6 +205,12 @@ const COLUMN_ROLES = ['entity_id', 'event_date', 'measure', 'label', 'segment'];
 const ALL_FEATURES = { apps: true, genie_spaces: true, alerts: true };
 const TILE_CHECKS = { app: ['app_access', 'apps'], genie_space: ['genie_spaces'], alert: ['alerts'] };
 const PLACE_CHECKS = ['app_name'];
+
+function withFirstRunDefault(spec, profile) {
+  const before = scopeValues((name) => spec.config.widgets?.[name]);
+  const after = withScopeDefaults(before, profile);
+  return scopeChanges(before, after).reduce((next, name) => withSetting(next, { name, source: 'widget' }, after[name]), spec);
+}
 const ACCESS_CHECKS = ['app_warehouse'];
 const TILE_CHECK_KEYS = [...Object.values(TILE_CHECKS).flat(), ...PLACE_CHECKS, ...ACCESS_CHECKS];
 
@@ -315,7 +325,7 @@ export default function ImplementWizard({
   const warehouseId = settings.warehouseId;
   const inspireDatabase = settings.inspireDatabase;
   const [mode, setMode] = useState('mvp');
-  const [step, setStep] = useState(() => initialStepIndex(focus));
+  const [step, setStep] = useState(() => initialStepId(focus));
   const [spec, setSpec] = useState(() => defaultSpecFromUseCase(uc, { warehouseId, inspireDatabase, sessionId }));
   const [context, setContext] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -371,9 +381,14 @@ export default function ImplementWizard({
   const placeChosen = useRef(false);
   const settingsModel = useMemo(() => settingsModelOf(context?.history), [context?.history]);
   const alertOn = Boolean(spec.outputs.alert);
-  const settingsList = useMemo(() => contextSettings(context, { outputs: { alert: alertOn } }), [context, alertOn]);
-  const steps = wizardSteps(mode, spec, settingsList);
-  const stepIndex = Math.min(step, steps.length - 1);
+  const everySetting = useMemo(() => contextSettings(context, { outputs: { alert: alertOn } }), [context, alertOn]);
+  const scopeProfile = useGroupingProfile({ apiPostJson, inspireDatabase, sessionId, useCaseId: spec.use_case_id, warehouseId, enabled: mode === 'mvp' });
+  const scopeSteps = scopeStepsOf(scopeProfile.state, scopeProfile.profile);
+  const scopeSettingList = useMemo(() => everySetting.filter(isScopeSetting), [everySetting]);
+  const settingsFor = useCallback((scope) => (scope.firstRun ? everySetting.filter((s) => !isScopeSetting(s)) : everySetting), [everySetting]);
+  const settingsList = useMemo(() => settingsFor({ firstRun: scopeSteps.firstRun }), [settingsFor, scopeSteps.firstRun]);
+  const steps = wizardSteps(mode, spec, settingsList, scopeSteps);
+  const stepIndex = stepIndexOf(steps, step);
   const stepId = steps[stepIndex].id;
   const lastStep = stepIndex === steps.length - 1;
 
@@ -440,7 +455,7 @@ export default function ImplementWizard({
         if (!next.config.warehouse_id) next.config.warehouse_id = warehouseId;
         setSpec(next);
         setMissingTables(missing);
-        if (['review', 'vibes', 'settings'].includes(focus?.step)) setStep(initialStepIndex(focus, 'mvp', next, contextSettings(data, next)));
+        if (['review', 'vibes', 'settings'].includes(focus?.step)) setStep(initialStepId(focus, 'mvp', next, contextSettings(data, next)));
         const same = (a, b) => String(a || '').toLowerCase() === String(b || '').toLowerCase();
         const chosenOf = (t) => ((next.data.removed_tables || []).some((r) => same(r, t)) ? ''
           : next.data.tables[Object.keys(next.data.tables).find((k) => same(k, t))] || t);
@@ -499,11 +514,12 @@ export default function ImplementWizard({
   const exclusionRefs = (spec.data.filters || []).filter((f) => f.op === 'not in').map((f) => `${f.table}.${f.column}`);
   const built = builtVersion(context?.history);
   const kpiOptions = useMemo(() => kpiTargetOptions(ucRow, context?.history), [ucRow, context?.history]);
+  const scopeShown = scopeValues((name) => spec.config.widgets?.[name]);
   const trackedKpi = trackedKpiOf(context?.history);
   const chosenKpi = kpiTargetOf(spec);
   const sampleStake = trackedKpi && (!chosenKpi || kpiKey(chosenKpi) === kpiKey(trackedKpi.record.name)) ? trackedKpi.impact : null;
   const extras = { columnsByTable, widgets: context?.widgets || [], trainsModel, mergeTargets: targets, held: context?.assets || {}, appLook: look, built,
-    lakebase, warehouses, kpiOptions, settings: settingsList, sourceTables };
+    lakebase, warehouses, kpiOptions, settings: settingsList, sourceTables, scopeSteps, scopeProfile: scopeProfile.profile };
   const chartDates = appInputDates(columnsByTable, sourceTables);
   const ownErrors = stepErrors(stepId, spec, extras, mode);
 
@@ -568,7 +584,7 @@ export default function ImplementWizard({
   const goNext = async () => {
     setErrors([]);
     if (stepId === 'choose' || mode === 'notebook') {
-      setStep(stepIndex + 1);
+      setStep(steps[stepIndex + 1].id);
       return;
     }
     if (blockedBy(stepId)) return;
@@ -602,7 +618,18 @@ export default function ImplementWizard({
           return;
         }
       }
-      setStep(stepIndex + 1);
+      let list = steps;
+      let profile = scopeProfile.profile;
+      if (stepId === 'data' && scopeProfile.state === 'loading') {
+        setChecking(PROFILE_WAITING);
+        const done = await scopeProfile.wait();
+        const doneSteps = scopeStepsOf(done.state, done.profile);
+        list = wizardSteps(mode, spec, settingsFor(doneSteps), doneSteps);
+        profile = done.profile;
+      }
+      const next = list[stepIndexOf(list, stepId) + 1];
+      if (next.id === 'first_run' && !context?.latest) setSpec((prev) => withFirstRunDefault(prev, profile));
+      setStep(next.id);
     } catch (e) {
       setErrors([e.message]);
     } finally {
@@ -1151,6 +1178,14 @@ export default function ImplementWizard({
           </>
         )}
 
+        {(stepId === 'grouping' || stepId === 'first_run') && (
+          <section aria-label={stepId === 'grouping' ? GROUPING_TITLE : FIRST_RUN_TITLE} data-scope-step={stepId} className="space-y-3">
+            <h3 className="text-sm font-semibold text-text-primary">{stepId === 'grouping' ? GROUPING_TITLE : FIRST_RUN_TITLE}</h3>
+            <ScopeSettings part={stepId} values={scopeShown} profile={scopeProfile.profile} profileState={scopeProfile.state} profileError={scopeProfile.error}
+              settings={scopeSettingList} onChange={(name, value) => setSpec((prev) => withSetting(prev, { name, source: 'widget' }, value))} />
+          </section>
+        )}
+
         {stepId === 'results' && (
           <>
             <ResultTableStep
@@ -1592,7 +1627,7 @@ export default function ImplementWizard({
             type="button"
             className={`inline-flex items-center gap-1 text-xs text-text-secondary ${stepIndex === 0 ? 'invisible' : ''}`}
             disabled={stepIndex === 0 || busy}
-            onClick={() => { setErrors([]); setStep(stepIndex - 1); }}
+            onClick={() => { setErrors([]); setStep(steps[stepIndex - 1].id); }}
           >
             <ChevronLeft size={14} /> Back
           </button>
