@@ -2,6 +2,7 @@ const express = require('express');
 const { registerImplementRoutes } = require('../../implementRoutes');
 const { IMPLEMENT_COLUMNS } = require('../../lib/inspireImplement');
 const { noPersonTokenBody } = require('../../lib/routePolicy');
+const { sqlCancelledError } = require('../../lib/sqlStatements');
 
 function sqlResultToObjects(result) {
   return result.rows || [];
@@ -60,6 +61,7 @@ function makeApp(overrides = {}, { mount } = {}) {
       next();
     },
     executeSql: async (_h, token, warehouse, sql, parameters, options) => {
+      if (options && options.signal && options.signal.aborted) throw sqlCancelledError(null);
       sqlCalls.push({ sql, parameters, token, warehouse, options });
       for (const [needle, message] of Object.entries(state.sqlErrors || {})) if (sql.includes(needle)) throw new Error(message);
       for (const [needle, out] of Object.entries(state.statements || {})) {

@@ -11,8 +11,11 @@ const SQL = 'SELECT o.order_id, coalesce(c.segment, \'None\') AS group_name FROM
 const HIDDEN = 'SELECT o.order_id, s.band AS group_name FROM main.sales.orders o JOIN main.hr.salaries s ON o.rep = s.rep';
 const DENIED = '[INSUFFICIENT_PERMISSIONS] Insufficient privileges: User does not have SELECT on Table \'main.hr.salaries\'.';
 const ASK = { inspire_database: 'main.inspire', session_id: '42', use_case_id: 'N01-U01', warehouse_id: 'wh1', main_table: 'main.sales.orders', key_columns: ['order_id'] };
+const SAVE = { ...ASK, result_table: 'main.sales.order_risk' };
+const ASSUMPTIONS = '`main`.`sales`.`order_risk_assumptions`';
+const BUILT_ASSUMPTIONS = '`main`.`out`.`built_risk_assumptions`';
 const BUILT = { session_id: '42', use_case_id: 'N01-U01', spec_version: 1, status: 'ready', created_by: OWNER, updated_at: '2026-10-21T04:00:00Z',
-  spec_json: JSON.stringify({ use_case_id: 'N01-U01', outputs: {} }) };
+  spec_json: JSON.stringify({ use_case_id: 'N01-U01', outputs: {}, config: { result_table: 'main.out.built_risk' } }) };
 
 function warehouse(sql, _parameters, token) {
   if (token !== PERSON) throw new Error('the App token must never run a grouping SQL');
@@ -46,6 +49,7 @@ async function withApp(made, fn) {
 }
 
 const groupingCalls = (sqlCalls) => sqlCalls.filter((c) => c.sql.includes('AS group_name'));
+const stored = (made, table = ASSUMPTIONS) => made.sqlCalls.filter((c) => c.sql.includes(table));
 
 test('a preview runs the checked SQL wrapped, with the person token only, capped, and answers the 10 largest groups, the totals and the pass rules', async () => {
   const made = grouped();
@@ -132,63 +136,128 @@ test('a preview past 120 seconds is a 504 that says Inspire stopped it', async (
   });
 });
 
-test('saving re-runs the check with the person token, then stores the exact SQL, its tables, hash, checker and time with the App token', async () => {
+test('saving re-runs the check with the person token, then stores the exact SQL, its tables, hash, checker and time as the run settings the agent reads', async () => {
   const made = grouped({ history: [] });
   await withApp(made, async (srv) => {
-    const got = await post(srv, '/api/grouping/save', { ...ASK, sql: `/* mine */ ${SQL};` });
+    const got = await post(srv, '/api/grouping/save', { ...SAVE, sql: `/* mine */ ${SQL};` });
     assert.equal(got.status, 200, JSON.stringify(got.data));
     const { setting } = got.data;
     assert.deepEqual({ ...setting, group_sql_checked_at: 'when' }, { group_by: 'custom', group_sql: SQL, group_sql_tables: ['main.crm.customers', 'main.sales.orders'],
       group_sql_hash: crypto.createHash('sha256').update(SQL).digest('hex'), group_sql_checked_by: ME, group_sql_checked_at: 'when', main_table: 'main.sales.orders',
       key_columns: ['order_id'] });
+    assert.equal(got.data.result_table, 'main.sales.order_risk');
     const shape = groupingCalls(made.sqlCalls);
     assert.deepEqual(shape.map((c) => [c.token, c.sql]), [[PERSON, G.groupingShapeSql(SQL)]]);
-    const insert = made.sqlCalls.find((c) => c.sql.startsWith('INSERT INTO `main`.`inspire`.`__inspire_grouping`'));
-    assert.equal(insert.token, 'tok', 'the tracking table is written with the App token');
+    assert.equal(stored(made).length, 2, 'one create and one insert');
+    assert.deepEqual(stored(made).map((c) => c.token), [PERSON, PERSON], 'the result table settings are written with the person token');
+    assert.ok(stored(made).every((c) => c.options && c.options.signal), 'the writes stop when the caller leaves');
+    assert.equal(stored(made)[0].sql, G.groupingSettingsCreateSql(G.groupingSettingsTable('main.sales.order_risk')));
+    const insert = stored(made)[1];
+    assert.ok(insert.sql.startsWith(`INSERT INTO ${ASSUMPTIONS} (use_case_id, name, value, changed_by, changed_at, note, text_value) VALUES`));
     const value = (name) => insert.parameters.find((p) => p.name === name).value;
-    assert.deepEqual([value('group_sql'), value('group_sql_hash'), value('group_sql_checked_by'), value('group_sql_checked_at')],
-      [SQL, setting.group_sql_hash, ME, setting.group_sql_checked_at]);
-    assert.ok(made.sqlCalls.some((c) => c.sql.startsWith('CREATE TABLE IF NOT EXISTS `main`.`inspire`.`__inspire_grouping`')));
+    assert.deepEqual(G.GROUPING_SETTINGS.map((_n, i) => value(`v${i}`)),
+      [SQL, JSON.stringify(setting.group_sql_tables), setting.group_sql_hash, ME, setting.group_sql_checked_at]);
+    assert.deepEqual([value('use_case_id'), value('changed_by'), value('changed_at')], ['N01-U01', ME, setting.group_sql_checked_at]);
+    assert.equal(made.sqlCalls.filter((c) => c.sql.includes('__inspire_grouping')).length, 0, 'no side table that no run reads');
   });
+});
+
+test('before the first build a save must name the result table, and a bad one stores nothing (must-refuse)', async () => {
+  for (const result_table of [undefined, '', 'main.sales', 'main.sales.out; DROP TABLE main.sales.orders']) {
+    const made = grouped({ history: [] });
+    await withApp(made, async (srv) => {
+      const got = await post(srv, '/api/grouping/save', { ...ASK, result_table, sql: SQL });
+      assert.equal(got.status, 400, String(result_table));
+      assert.match(got.data.error, /^result_table must name the use case result table/);
+      assert.deepEqual(groupingCalls(made.sqlCalls), [], 'the SQL never ran');
+      assert.deepEqual(stored(made), []);
+    });
+  }
 });
 
 test('a CAN_USE person cannot save a SQL that reads a table they cannot read, and nothing is stored (must-exclude)', async () => {
   const made = grouped({ history: [] });
   await withApp(made, async (srv) => {
-    const got = await post(srv, '/api/grouping/save', { ...ASK, sql: HIDDEN });
+    const got = await post(srv, '/api/grouping/save', { ...SAVE, sql: HIDDEN });
     assert.equal(got.status, 403);
     assert.equal(got.data.error, `${G.GROUPING_DENIED}: ${DENIED}`);
-    assert.equal(made.sqlCalls.filter((c) => c.sql.includes('__inspire_grouping')).length, 0);
+    assert.deepEqual(stored(made), []);
   });
 });
 
-test('once the use case is built, only the people who may change its run settings can save a grouping; its owner can', async () => {
+test('once the use case is built, only the people who may change its run settings can save a grouping; its owner can, into the built result table', async () => {
   const other = grouped({ history: [BUILT] });
   await withApp(other, async (srv) => {
     const got = await post(srv, '/api/grouping/save', { ...ASK, sql: SQL });
     assert.equal(got.status, 403);
     assert.match(got.data.error, /^Only the owners of this use case can change its settings/);
     assert.equal(groupingCalls(other.sqlCalls).length, 0, 'the SQL never ran for a person who may not change the settings');
-    assert.equal(other.sqlCalls.filter((c) => c.sql.includes('__inspire_grouping')).length, 0);
+    assert.deepEqual(stored(other, BUILT_ASSUMPTIONS), []);
   });
   const owner = grouped({ history: [BUILT], forwardedEmail: OWNER });
   await withApp(owner, async (srv) => {
     const got = await post(srv, '/api/grouping/save', { ...ASK, sql: SQL });
     assert.equal(got.status, 200, JSON.stringify(got.data));
     assert.equal(got.data.setting.group_sql_checked_by, OWNER);
+    assert.equal(got.data.result_table, 'main.out.built_risk');
+    assert.equal(stored(owner, BUILT_ASSUMPTIONS).length, 2);
+  });
+  const moved = grouped({ history: [BUILT], forwardedEmail: OWNER });
+  await withApp(moved, async (srv) => {
+    const got = await post(srv, '/api/grouping/save', { ...SAVE, sql: SQL });
+    assert.equal(got.status, 409, 'a built use case keeps its grouping next to its own result table (must-refuse)');
+    assert.match(got.data.error, /writes its results to main\.out\.built_risk, so its grouping is saved there and not in main\.sales\.order_risk/);
+    assert.deepEqual(groupingCalls(moved.sqlCalls), []);
+    assert.deepEqual([...stored(moved), ...stored(moved, BUILT_ASSUMPTIONS)], []);
   });
 });
+
+test('a save past 120 seconds is a 504 that says Inspire stopped it, and stores nothing', async () => {
+  const made = grouped({ history: [], statements: { 'LIMIT 0': () => { throw Object.assign(new Error('slow'), { code: 'SQL_DEADLINE' }); } } });
+  await withApp(made, async (srv) => {
+    const got = await post(srv, '/api/grouping/save', { ...SAVE, sql: SQL });
+    assert.equal(got.status, 504);
+    assert.match(got.data.error, /did not finish within 120 seconds, so Inspire stopped it/);
+    assert.deepEqual(stored(made), []);
+  });
+});
+
+for (const route of ['preview', 'save']) {
+  test(`when the caller leaves a ${route}, the running read gets the cancel signal and nothing is stored`, { timeout: 10000 }, async () => {
+    let release;
+    let reached;
+    const waiting = new Promise((resolve) => { reached = resolve; });
+    const made = grouped({ history: [], statements: { 'LIMIT 0': () => new Promise((resolve) => { release = resolve; reached(); }) } });
+    await withApp(made, async (srv) => {
+      const leave = new AbortController();
+      const asked = fetch(`${srv.url}/api/grouping/${route}`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...SAVE, sql: SQL }), signal: leave.signal }).catch((err) => err);
+      let timer;
+      await Promise.race([waiting, new Promise((_r, reject) => { timer = setTimeout(() => reject(new Error('the check read never started')), 5000); })])
+        .finally(() => clearTimeout(timer));
+      leave.abort();
+      const signal = made.sqlCalls.find((c) => c.sql.endsWith('LIMIT 0')).options.signal;
+      for (let i = 0; i < 200 && !signal.aborted; i += 1) await new Promise((r) => setTimeout(r, 5));
+      assert.equal(signal.aborted, true);
+      release({ rows: [], manifest: { schema: { columns: [{ name: 'order_id' }, { name: 'group_name' }] } } });
+      assert.equal((await asked).name, 'AbortError');
+      for (let i = 0; i < 20; i += 1) await new Promise((r) => setTimeout(r, 5));
+      assert.deepEqual(stored(made), [], 'a caller who left saves nothing');
+      assert.equal(made.sqlCalls.filter((c) => c.sql.startsWith('SELECT group_name') || c.sql.startsWith('WITH inspire_grouping')).length, 0);
+    });
+  });
+}
 
 test('saving without the person token is a 401 and stores nothing, and a refused SQL is a 400 that stores nothing', async () => {
   const none = grouped({ forwardedToken: '', tokenKind: 'app', history: [] });
   await withApp(none, async (srv) => {
-    const got = await post(srv, '/api/grouping/save', { ...ASK, sql: SQL });
+    const got = await post(srv, '/api/grouping/save', { ...SAVE, sql: SQL });
     assert.deepEqual([got.status, got.data.error], [401, G.GROUPING_NO_SIGN_IN]);
     assert.deepEqual(none.sqlCalls, []);
   });
   const refused = grouped({ history: [] });
   await withApp(refused, async (srv) => {
-    const got = await post(srv, '/api/grouping/save', { ...ASK, sql: 'UPDATE main.sales.orders SET region = 1' });
+    const got = await post(srv, '/api/grouping/save', { ...SAVE, sql: 'UPDATE main.sales.orders SET region = 1' });
     assert.equal(got.status, 400);
     assert.equal(got.data.refused.rule, 'first_keyword');
     assert.deepEqual(refused.sqlCalls, []);

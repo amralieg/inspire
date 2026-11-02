@@ -113,6 +113,7 @@ function createExecuteSql(dbFetch, { now = Date.now, sleep = (ms) => new Promise
 
 module.exports = {
   createExecuteSql,
+  sqlCancelledError,
   runWithRequestDeadline,
   readDeadline,
   PAGE_SQL_DEADLINE_MS,

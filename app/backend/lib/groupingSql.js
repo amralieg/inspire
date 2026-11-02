@@ -416,7 +416,11 @@ const GROUPING_NAME_CHARS = 200;
 const GROUPING_PREVIEW_MS = 120000;
 const GROUPING_ROW_LIMIT = 100;
 const GROUPING_BYTE_LIMIT = 1048576;
-const GROUPING_TABLE = '__inspire_grouping';
+const GROUPING_SETTINGS = ['group_sql', 'group_sql_tables', 'group_sql_hash', 'group_sql_checked_by', 'group_sql_checked_at'];
+const GROUPING_ASSUMPTIONS_SUFFIX = '_assumptions';
+const GROUPING_ASSUMPTION_COLUMNS = [['use_case_id', 'STRING'], ['name', 'STRING'], ['value', 'DOUBLE'], ['changed_by', 'STRING'], ['changed_at', 'TIMESTAMP'],
+  ['note', 'STRING'], ['text_value', 'STRING']];
+const GROUPING_SAVED_NOTE = 'Custom grouping SQL checked and saved in Inspire';
 const GROUPING_NO_SIGN_IN = 'Inspire runs a custom grouping with your own sign-in, and this request carries none, so it ran nothing; '
   + 'ask an App manager to re-run the Inspire installer, which turns on user authorization with the sql scope';
 const GROUPING_DENIED = 'You cannot read every table this grouping SQL reads with your own sign-in, so Inspire ran nothing and saved nothing';
@@ -512,24 +516,24 @@ function groupingPreviewView(top, totalsRow) {
   return { ok: one && range, top: shown, totals, rules, text };
 }
 
-function groupingTableName(catalog, schema) {
-  return [catalog, schema, GROUPING_TABLE].map(quotedIdent).join('.');
+function groupingSettingsTable(resultTable) {
+  const table = groupingMainTable(resultTable);
+  if (!table) return null;
+  return { sql: `${table.sql.slice(0, -1)}${GROUPING_ASSUMPTIONS_SUFFIX}\`` };
 }
 
-function groupingCreateSql(table) {
-  return `CREATE TABLE IF NOT EXISTS ${table} (session_id STRING, use_case_id STRING, group_by STRING, group_sql STRING, group_sql_tables STRING, `
-    + 'group_sql_hash STRING, main_table STRING, key_columns STRING, group_sql_checked_by STRING, group_sql_checked_at TIMESTAMP)';
+function groupingSettingsCreateSql(table) {
+  return `CREATE TABLE IF NOT EXISTS ${table.sql} (${GROUPING_ASSUMPTION_COLUMNS.map(([name, kind]) => `${name} ${kind}`).join(', ')})`;
 }
 
-function groupingInsertStatement(table, row) {
-  const p = (name, value) => ({ name, value: String(value), type: 'STRING' });
+function groupingSettingsInsert(table, row) {
+  const values = [row.sql, JSON.stringify(row.tables), row.hash, row.checkedBy, String(row.checkedAt)];
   return {
-    sql: `INSERT INTO ${table} (session_id, use_case_id, group_by, group_sql, group_sql_tables, group_sql_hash, main_table, key_columns, `
-      + 'group_sql_checked_by, group_sql_checked_at) VALUES (:session_id, :use_case_id, \'custom\', :group_sql, :group_sql_tables, :group_sql_hash, '
-      + ':main_table, :key_columns, :group_sql_checked_by, :group_sql_checked_at)',
-    parameters: [p('session_id', row.sessionId), p('use_case_id', row.useCaseId), p('group_sql', row.sql), p('group_sql_tables', JSON.stringify(row.tables)),
-      p('group_sql_hash', row.hash), p('main_table', row.mainTable), p('key_columns', JSON.stringify(row.keys)), p('group_sql_checked_by', row.checkedBy),
-      { name: 'group_sql_checked_at', value: String(row.checkedAt), type: 'TIMESTAMP' }],
+    sql: `INSERT INTO ${table.sql} (use_case_id, name, value, changed_by, changed_at, note, text_value) VALUES `
+      + GROUPING_SETTINGS.map((name, i) => `(:use_case_id, '${name}', NULL, :changed_by, :changed_at, :note, :v${i})`).join(', '),
+    parameters: [{ name: 'use_case_id', value: String(row.useCaseId), type: 'STRING' }, { name: 'changed_by', value: String(row.checkedBy), type: 'STRING' },
+      { name: 'changed_at', value: String(row.checkedAt), type: 'TIMESTAMP' }, { name: 'note', value: GROUPING_SAVED_NOTE, type: 'STRING' },
+      ...values.map((value, i) => ({ name: `v${i}`, value: String(value), type: 'STRING' }))],
   };
 }
 
@@ -544,7 +548,9 @@ module.exports = {
   GROUPING_PREVIEW_MS,
   GROUPING_ROW_LIMIT,
   GROUPING_BYTE_LIMIT,
-  GROUPING_TABLE,
+  GROUPING_SETTINGS,
+  GROUPING_ASSUMPTION_COLUMNS,
+  GROUPING_SAVED_NOTE,
   GROUPING_NO_SIGN_IN,
   GROUPING_DENIED,
   checkGroupingSql,
@@ -557,7 +563,7 @@ module.exports = {
   groupingTotalsSql,
   shapeProblem,
   groupingPreviewView,
-  groupingTableName,
-  groupingCreateSql,
-  groupingInsertStatement,
+  groupingSettingsTable,
+  groupingSettingsCreateSql,
+  groupingSettingsInsert,
 };

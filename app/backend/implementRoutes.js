@@ -1389,6 +1389,20 @@ function registerImplementRoutes(app, deps) {
 
   const groupingColumns = (result) => (result.manifest?.schema?.columns || []).map((c) => c.name);
 
+  function groupingResultTable(built, asked) {
+    const spec = built && built.spec_json && typeof built.spec_json === 'object' ? built.spec_json : {};
+    const builtName = String(spec.config?.result_table || '').trim();
+    const name = builtName || String(asked || '').trim();
+    const named = G.groupingMainTable(name);
+    if (!named) throw I.badRequest('result_table must name the use case result table as catalog.schema.table, so its run reads the saved grouping.');
+    const wanted = builtName && asked ? G.groupingMainTable(asked) : null;
+    if (wanted && wanted.canonical !== named.canonical) {
+      throw I.badRequest(`This use case writes its results to ${named.canonical}, so its grouping is saved there and not in ${wanted.canonical}; `
+        + 'reload the page and save again.', 409);
+    }
+    return { result: named.canonical, table: G.groupingSettingsTable(name) };
+  }
+
   app.post('/api/grouping/preview', requireToken, async (req, res) => {
     const token = P.personTokenOf(req);
     if (!token) return res.status(401).json({ error: G.GROUPING_NO_SIGN_IN });
@@ -1420,6 +1434,10 @@ function registerImplementRoutes(app, deps) {
   app.post('/api/grouping/save', requireToken, async (req, res) => {
     const token = P.personTokenOf(req);
     if (!token) return res.status(401).json({ error: G.GROUPING_NO_SIGN_IN });
+    const stop = new AbortController();
+    res.on('close', () => {
+      if (!res.writableEnded) stop.abort();
+    });
     try {
       const sid = sessionIdOf(req);
       const warehouseId = warehouseOf(req);
@@ -1433,19 +1451,23 @@ function registerImplementRoutes(app, deps) {
       const before = I.previousBuilt(history);
       const refused = before ? I.implementSettingsOwnerRefusal(before, person.username) : null;
       if (refused) throw I.badRequest(refused.message, refused.status);
-      const shape = await runWithRequestDeadline(() => executeSql(req.dbHost, token, warehouseId, G.groupingShapeSql(checked.sql), null,
-        { rowLimit: 1, waitTimeout: '10s' }), G.GROUPING_PREVIEW_MS);
-      const problem = G.shapeProblem(groupingColumns(shape), keys);
-      if (problem) throw I.badRequest(problem);
-      const table = G.groupingTableName(catalog, schema);
+      const { result, table } = groupingResultTable(before, q(req, 'result_table'));
       const checkedAt = new Date().toISOString();
-      const insert = G.groupingInsertStatement(table, { sessionId: sid, useCaseId, sql: checked.sql, tables: checked.tables, hash: checked.hash,
-        mainTable: main.canonical, keys, checkedBy: person.username, checkedAt });
-      await executeSql(req.dbHost, req.dbToken, warehouseId, G.groupingCreateSql(table));
-      await executeSql(req.dbHost, req.dbToken, warehouseId, insert.sql, insert.parameters);
-      return res.json({ saved: true, setting: { group_by: 'custom', group_sql: checked.sql, group_sql_tables: checked.tables, group_sql_hash: checked.hash,
-        group_sql_checked_by: person.username, group_sql_checked_at: checkedAt, main_table: main.canonical, key_columns: keys } });
+      const options = { waitTimeout: '10s', signal: stop.signal };
+      await runWithRequestDeadline(async () => {
+        const shape = await executeSql(req.dbHost, token, warehouseId, G.groupingShapeSql(checked.sql), null, { ...options, rowLimit: 1 });
+        const problem = G.shapeProblem(groupingColumns(shape), keys);
+        if (problem) throw I.badRequest(problem);
+        const insert = G.groupingSettingsInsert(table, { useCaseId, sql: checked.sql, tables: checked.tables, hash: checked.hash, checkedBy: person.username, checkedAt });
+        await executeSql(req.dbHost, token, warehouseId, G.groupingSettingsCreateSql(table), null, options);
+        await executeSql(req.dbHost, token, warehouseId, insert.sql, insert.parameters, options);
+      }, G.GROUPING_PREVIEW_MS);
+      return res.json({ saved: true, result_table: result, setting: { group_by: 'custom', group_sql: checked.sql,
+        group_sql_tables: checked.tables, group_sql_hash: checked.hash, group_sql_checked_by: person.username, group_sql_checked_at: checkedAt,
+        main_table: main.canonical, key_columns: keys } });
     } catch (err) {
+      stop.abort();
+      if (err && err.code === 'SQL_CANCELLED') return undefined;
       return sendError(res, groupingFailure(err));
     }
   });

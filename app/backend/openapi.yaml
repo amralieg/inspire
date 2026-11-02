@@ -865,8 +865,10 @@ paths:
       summary: Save a custom grouping for a use case
       description: |
         Runs the same check and a read of the wrapped SQL with your own sign-in, then stores the exact SQL Inspire runs, its tables,
-        its sha256, who checked it and when in the App database table __inspire_grouping, written with the App token. Once the use case
-        is built, only the people who may change its run settings can save. Runs execute only that SQL over those tables.
+        its sha256, who checked it and when as the run settings group_sql, group_sql_tables, group_sql_hash, group_sql_checked_by and
+        group_sql_checked_at in the result table's _assumptions table, which every run reads, written with your own sign-in within
+        120 seconds. Inspire stops the statements when you cancel. Once the use case is built, its result table decides where the
+        grouping is saved and only the people who may change its run settings can save. Runs execute only that SQL over those tables.
       requestBody:
         required: true
         content:
@@ -883,9 +885,24 @@ paths:
                       type: string
                     use_case_id:
                       type: string
+                    result_table:
+                      type: string
+                      description: catalog.schema.table the use case writes its results to; required before the first build
       responses:
         '200':
-          description: The saved grouping setting (group_by custom, group_sql, group_sql_tables, group_sql_hash, group_sql_checked_by, group_sql_checked_at)
+          description: The saved grouping setting (group_by custom, group_sql, group_sql_tables, group_sql_hash, group_sql_checked_by, group_sql_checked_at) and the result table it was saved for
+        '409':
+          description: The use case is built and writes its results to another table than the one named, so nothing was saved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '504':
+          description: The check read or the save did not finish within 120 seconds, so Inspire stopped it
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
         '400':
           description: The SQL was refused by the check, or it returns no group_name or key column
           content:

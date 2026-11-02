@@ -1,6 +1,8 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const crypto = require('node:crypto');
+const fs = require('node:fs');
+const path = require('node:path');
 const G = require('../lib/groupingSql');
 const { createExecuteSql } = require('../lib/sqlStatements');
 const FIXTURE = require('./fixtures/implement_grouping_sql_cases.json');
@@ -89,18 +91,33 @@ test('the preview passes only one row per record and 2 to 500 groups, and says h
   assert.deepEqual([long.top[0].group_name.length, long.top[0].cut, long.top[1].group_name], [203, true, null]);
 });
 
-test('the saved check is written with parameters only, never with the SQL spliced into the statement', () => {
-  const table = G.groupingTableName('main', 'inspire');
-  assert.equal(table, '`main`.`inspire`.`__inspire_grouping`');
+test('the saved check is written as the run settings the agent reads, with parameters only, never with the SQL spliced into the statement', () => {
+  const table = G.groupingSettingsTable('Main.sales.Results');
+  assert.equal(table.sql, '`Main`.`sales`.`Results_assumptions`');
+  assert.equal(G.groupingSettingsTable('main.`we``ird`.out').sql, '`main`.`we``ird`.`out_assumptions`');
+  for (const bad of ['main.sales', 'main.sales.out; DROP TABLE x', '', 'a.b.c.d']) assert.equal(G.groupingSettingsTable(bad), null, bad);
   const sql = "SELECT k, ':x'' ; DROP' AS group_name FROM a.b.c";
-  const insert = G.groupingInsertStatement(table, { sessionId: '42', useCaseId: 'N01-U01', sql, tables: ['a.b.c'], hash: sha(sql), mainTable: 'a.b.c',
-    keys: ['k'], checkedBy: 'amr@x', checkedAt: '2026-11-01T12:00:00.000Z' });
-  assert.ok(!insert.sql.includes('DROP') && !insert.sql.includes('a.b.c'));
-  assert.deepEqual(insert.parameters.map((p) => p.name), ['session_id', 'use_case_id', 'group_sql', 'group_sql_tables', 'group_sql_hash', 'main_table', 'key_columns',
-    'group_sql_checked_by', 'group_sql_checked_at']);
-  assert.equal(insert.parameters.find((p) => p.name === 'group_sql').value, sql);
-  assert.equal(insert.parameters.find((p) => p.name === 'group_sql_checked_at').type, 'TIMESTAMP');
-  assert.match(G.groupingCreateSql(table), /^CREATE TABLE IF NOT EXISTS `main`\.`inspire`\.`__inspire_grouping` \(session_id STRING/);
+  const insert = G.groupingSettingsInsert(table, { useCaseId: 'N01-U01', sql, tables: ['a.b.c'], hash: sha(sql), checkedBy: 'amr@x', checkedAt: '2026-11-01T12:00:00.000Z' });
+  assert.ok(!insert.sql.includes('DROP') && !insert.sql.includes('a.b.c') && !insert.sql.includes('amr@x'));
+  assert.equal(insert.sql, 'INSERT INTO `Main`.`sales`.`Results_assumptions` (use_case_id, name, value, changed_by, changed_at, note, text_value) VALUES '
+    + G.GROUPING_SETTINGS.map((name, i) => `(:use_case_id, '${name}', NULL, :changed_by, :changed_at, :note, :v${i})`).join(', '));
+  const value = (name) => insert.parameters.find((p) => p.name === name);
+  assert.deepEqual(G.GROUPING_SETTINGS.map((_n, i) => value(`v${i}`).value), [sql, '["a.b.c"]', sha(sql), 'amr@x', '2026-11-01T12:00:00.000Z']);
+  assert.deepEqual([value('use_case_id').value, value('changed_by').value, value('changed_at').type, value('note').value],
+    ['N01-U01', 'amr@x', 'TIMESTAMP', G.GROUPING_SAVED_NOTE]);
+  assert.equal(G.groupingSettingsCreateSql(table), 'CREATE TABLE IF NOT EXISTS `Main`.`sales`.`Results_assumptions` (use_case_id STRING, name STRING, '
+    + 'value DOUBLE, changed_by STRING, changed_at TIMESTAMP, note STRING, text_value STRING)');
+});
+
+test('the run settings, the assumptions table and its columns are the ones the bundled agent reads', () => {
+  const cells = JSON.parse(fs.readFileSync(path.resolve(__dirname, '..', '..', 'dbx_inspire_ai_agent.ipynb'), 'utf8')).cells;
+  const source = cells.map((c) => [].concat(c.source).join('')).join('\n');
+  const columns = /^INSPIRE_ASSUMPTION_COLUMNS = \(([\s\S]*?\))\)\n/m.exec(source);
+  assert.ok(columns, 'the bundled agent declares INSPIRE_ASSUMPTION_COLUMNS');
+  assert.deepEqual([...columns[1].matchAll(/\("(\w+)", "(\w+)"\)/g)].map((m) => [m[1], m[2]]), G.GROUPING_ASSUMPTION_COLUMNS);
+  assert.equal(/^INSPIRE_ASSUMPTIONS_SUFFIX = "(\w+)"$/m.exec(source)?.[1], '_assumptions');
+  const settings = /^INSPIRE_GROUP_SQL_SETTINGS = \(([^)]*)\)$/m.exec(source);
+  if (settings) assert.deepEqual([...settings[1].matchAll(/"(\w+)"/g)].map((m) => m[1]), G.GROUPING_SETTINGS);
 });
 
 test('the one SQL runner sends row and byte caps when asked and cancels a running statement when the caller stops', async () => {
