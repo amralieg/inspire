@@ -1,0 +1,65 @@
+const S = require('./serverApp');
+
+const DB = S.APP_DB;
+const WH = S.APP_WAREHOUSE;
+const ME = 'nonowner@example.com';
+const BOSS = 'manager@example.com';
+const qs = (o) => new URLSearchParams(o).toString();
+const UC = { inspire_database: DB, warehouse_id: WH, session_id: '1001', use_case_id: 'N01-U01' };
+const someoneElsesBuild = [{ session_id: '1001', use_case_id: 'N01-U01', spec_version: 1, status: 'ready', created_by: 'builder@example.com' }];
+
+const SAMPLES = [
+  { key: 'POST /api/setup/create-database', rule: 'managers', method: 'POST', path: '/api/setup/create-database',
+    body: { inspire_database: 'missing_catalog.missing_schema', warehouse_id: WH } },
+  { key: 'POST /api/notebook/republish', rule: 'managers', method: 'POST', path: '/api/notebook/republish', body: {} },
+  { key: 'POST /api/publish', rule: 'managers', method: 'POST', path: '/api/publish', body: { destination_path: 'relative/path' } },
+  { key: 'POST /api/publish/upload', rule: 'managers', method: 'POST', path: '/api/publish/upload', body: { destination_path: 'relative/path' } },
+  { key: 'POST /api/demo-data/start', rule: 'managers', method: 'POST', path: '/api/demo-data/start', body: {} },
+  { key: 'POST /api/inspire/sync-genie-flags', rule: 'managers', method: 'POST', path: '/api/inspire/sync-genie-flags',
+    body: { inspire_database: 'missing_catalog.missing_schema', warehouse_id: WH, session_id: '1', use_case_ids: ['N01-U01'] } },
+  { key: 'POST /api/inspire/implement/submit', rule: 'managers', name: 'uninstall', method: 'POST',
+    path: `/api/inspire/implement/submit?${qs(UC)}`, body: { spec: { use_case_id: 'N01-U01', uninstall: true } } },
+  { key: 'POST /api/run/:runId/cancel', rule: 'launcher', method: 'POST', path: '/api/run/77/cancel', body: {}, launcher: { run: '77' } },
+  { key: 'DELETE /api/inspire/session', rule: 'launcher', method: 'DELETE',
+    path: `/api/inspire/session?${qs({ inspire_database: DB, warehouse_id: WH, session_id: '1001' })}`, launcher: { session: '1001' } },
+  { key: 'POST /api/inspire/generate-genie', rule: 'owners', method: 'POST', path: '/api/inspire/generate-genie',
+    body: { inspire_database: DB, warehouse_id: WH, session_id: '1001', use_case_ids: ['N01-U01'] } },
+  { key: 'POST /api/inspire/generate_genie', rule: 'owners', method: 'POST', path: '/api/inspire/generate_genie',
+    body: { inspire_database: DB, warehouse_id: WH, session_id: '1001', use_case_ids: ['N01-U01'] } },
+  { key: 'POST /api/inspire/implement/publish', rule: 'owners', method: 'POST', path: `/api/inspire/implement/publish?${qs(UC)}`,
+    body: { spec: { use_case_id: 'N01-U01', publish_held: 2 } } },
+  { key: 'POST /api/inspire/implement/control', rule: 'owners', name: 'stop App', method: 'POST',
+    path: `/api/inspire/implement/control?${qs({ ...UC, asset: 'app', action: 'stop' })}`, body: {} },
+  { key: 'POST /api/inspire/implement/control', rule: 'owners', name: 'cancel build', method: 'POST',
+    path: `/api/inspire/implement/control?${qs({ ...UC, asset: 'build', action: 'cancel' })}`, body: {} },
+  { key: 'POST /api/inspire/implement/rerun', rule: 'owners', method: 'POST', path: `/api/inspire/implement/rerun?${qs(UC)}`, body: {} },
+  { key: 'POST /api/inspire/implement/submit', rule: 'owners', name: 'new version of a built MVP', method: 'POST',
+    path: `/api/inspire/implement/submit?${qs(UC)}`, body: { spec: { use_case_id: 'N01-U01' } } },
+  { key: 'POST /api/inspire/implement/settings/save', rule: 'owners', method: 'POST', path: `/api/inspire/implement/settings/save?${qs(UC)}`,
+    body: { name: 'act_now_share', value: '0.1' } },
+  { key: 'POST /api/inspire/implement/settings/run', rule: 'owners', method: 'POST', path: `/api/inspire/implement/settings/run?${qs(UC)}`, body: {} },
+  { key: 'POST /api/inspire/implement/alerts/save', rule: 'owners', method: 'POST', path: `/api/inspire/implement/alerts/save?${qs(UC)}`, body: { name: 'x' } },
+  { key: 'POST /api/inspire/implement/alerts/pause', rule: 'owners', method: 'POST', path: `/api/inspire/implement/alerts/pause?${qs(UC)}`, body: { id: 'a1' } },
+  { key: 'POST /api/inspire/implement/alerts/delete', rule: 'owners', method: 'POST', path: `/api/inspire/implement/alerts/delete?${qs(UC)}`, body: { id: 'a1' } },
+  { key: 'POST /api/inspire/implement/table-change', rule: 'owners', method: 'POST', path: `/api/inspire/implement/table-change?${qs(UC)}`,
+    body: { spec: { use_case_id: 'N01-U01' } } },
+  { key: 'POST /api/inspire/implement/settings/preview', rule: 'any', method: 'POST', path: `/api/inspire/implement/settings/preview?${qs(UC)}`,
+    body: { name: 'act_now_share', value: '0.1' } },
+  { key: 'POST /api/inspire/implement/alerts/preview', rule: 'any', method: 'POST', path: `/api/inspire/implement/alerts/preview?${qs(UC)}`, body: { watch: {} } },
+  { key: 'POST /api/run', rule: 'any', method: 'POST', path: '/api/run', body: { params: {} } },
+  { key: 'POST /api/output-folder/check', rule: 'any', method: 'POST', path: '/api/output-folder/check', body: { generation_path: './../demos/' } },
+  { key: 'POST /api/inspire/ack', rule: 'any', method: 'POST', path: '/api/inspire/ack', body: {} },
+  { key: 'POST /api/inspire/feedback', rule: 'any', method: 'POST', path: '/api/inspire/feedback', body: {} },
+  { key: 'POST /api/auth/sp-token', rule: 'any', method: 'POST', path: '/api/auth/sp-token', body: {} },
+  { key: 'POST /api/setup/verify', rule: 'managers', method: 'POST', path: '/api/setup/verify', body: {} },
+  { key: 'POST /api/inspire/implement/swaps', rule: 'any', method: 'POST', path: '/api/inspire/implement/swaps', body: {} },
+  { key: 'POST /api/inspire/implement/readiness', rule: 'any', method: 'POST', path: '/api/inspire/implement/readiness', body: {} },
+  { key: 'POST /api/inspire/implement/grant-access', rule: 'any', method: 'POST', path: '/api/inspire/implement/grant-access?kind=source_tables', body: { tables: ['main.sales.orders'] } },
+  { key: 'POST /api/inspire/implement/plan', rule: 'any', method: 'POST', path: '/api/inspire/implement/plan', body: {} },
+  { key: 'POST /api/inspire/implement/submit', rule: 'any', name: 'first build', method: 'POST',
+    path: `/api/inspire/implement/submit?${qs({ ...UC, use_case_id: 'N09-U09' })}`, body: { spec: { use_case_id: 'N09-U09' } } },
+  { key: 'ALL /run/:id/{*rest}', rule: 'delegated', method: 'POST', path: '/run/missing-page/api/refresh', body: {} },
+  { key: 'ALL /showcase/:id/mvp/:mvp/api/*rest', rule: 'any', method: 'POST', path: '/showcase/missing/mvp/missing/api/page', body: {} },
+];
+
+module.exports = { SAMPLES, DB, WH, ME, BOSS, qs, UC, someoneElsesBuild };

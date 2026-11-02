@@ -1,0 +1,152 @@
+[
+ {
+  "page": "taxi_demand_a",
+  "dataset": "forecast",
+  "table": "main.inspire_demo.taxi_demand_a_result",
+  "sql": "SELECT as_of_date, record_key, entity_id, entity_label, entity_label AS pickup_zone, priority_tier, `rank`, CAST(SUBSTRING(segment_or_item, 1, 16) AS TIMESTAMP) AS forecast_hour, TO_DATE(SUBSTRING(segment_or_item, 1, 10)) AS forecast_date, DATE_FORMAT(CAST(SUBSTRING(segment_or_item, 1, 16) AS TIMESTAMP), 'EEEE') AS day_of_week, CASE WHEN HOUR(CAST(SUBSTRING(segment_or_item, 1, 16) AS TIMESTAMP)) BETWEEN 5 AND 9 THEN 'Morning' WHEN HOUR(CAST(SUBSTRING(segment_or_item, 1, 16) AS TIMESTAMP)) BETWEEN 10 AND 15 THEN 'Midday' WHEN HOUR(CAST(SUBSTRING(segment_or_item, 1, 16) AS TIMESTAMP)) BETWEEN 16 AND 21 THEN 'Evening' ELSE 'Late night' END AS hour_band, value AS forecast_trips, value_at_stake, CASE WHEN priority_tier IN ('Act now', 'Review') THEN 1 ELSE 0 END AS actionable_target, CASE WHEN data_quality_flag <> 'ok' THEN 1 ELSE 0 END AS quality_issue, CASE WHEN segment_or_item LIKE '% | pooled' THEN 'Pooled forecast' ELSE 'ZIP-specific forecast' END AS forecast_source, confidence_level FROM main.inspire_demo.taxi_demand_a_result WHERE is_current AND change_source <> 'delete'",
+  "kpis": [
+   {
+    "id": "forecast_trips",
+    "expression": "SUM(forecast_trips)"
+   }
+  ]
+ },
+ {
+  "page": "taxi_demand_a",
+  "dataset": "records",
+  "table": "main.inspire_demo.taxi_demand_a_result",
+  "sql": "WITH zip_history AS (SELECT CAST(pickup_zip AS STRING) AS entity_id, COUNT(*) AS history_trips, PERCENTILE_APPROX(CASE WHEN fare_amount > 0 THEN fare_amount END, 0.5) AS median_positive_fare FROM samples.nyctaxi.trips WHERE pickup_zip IS NOT NULL GROUP BY CAST(pickup_zip AS STRING)) SELECT o.record_key, o.entity_id, o.entity_label, o.entity_label AS pickup_zone, o.priority_tier, o.`rank`, ARRAY_JOIN(o.top_reasons, ' · ') AS top_reasons, o.recommended_action, o.value, o.value_at_stake, o.as_of_date, CAST(SUBSTRING(o.segment_or_item, 1, 16) AS TIMESTAMP) AS forecast_hour, SUBSTRING(o.segment_or_item, 1, 16) AS forecast_hour_label, DATE_FORMAT(CAST(SUBSTRING(o.segment_or_item, 1, 16) AS TIMESTAMP), 'EEEE') AS day_of_week, CASE WHEN HOUR(CAST(SUBSTRING(o.segment_or_item, 1, 16) AS TIMESTAMP)) BETWEEN 5 AND 9 THEN 'Morning' WHEN HOUR(CAST(SUBSTRING(o.segment_or_item, 1, 16) AS TIMESTAMP)) BETWEEN 10 AND 15 THEN 'Midday' WHEN HOUR(CAST(SUBSTRING(o.segment_or_item, 1, 16) AS TIMESTAMP)) BETWEEN 16 AND 21 THEN 'Evening' ELSE 'Late night' END AS hour_band, CASE WHEN o.segment_or_item LIKE '% | pooled' THEN 'Pooled forecast' ELSE 'ZIP-specific forecast' END AS forecast_source, o.confidence_level, o.data_quality_flag, z.history_trips, z.median_positive_fare FROM main.inspire_demo.taxi_demand_a_result AS o LEFT JOIN zip_history AS z ON z.entity_id = o.entity_id WHERE o.is_current AND o.change_source <> 'delete'",
+  "kpis": []
+ },
+ {
+  "page": "taxi_fare_check_b",
+  "dataset": "records",
+  "table": "main.inspire_demo.taxi_fare_check_b_result",
+  "sql": "WITH trips_keyed AS (SELECT t.*, concat(date_format(tpep_pickup_datetime, 'yyyyMMddHHmmss'), '-', row_number() OVER (PARTITION BY tpep_pickup_datetime ORDER BY tpep_dropoff_datetime, trip_distance, fare_amount, pickup_zip, dropoff_zip)) AS entity_id FROM samples.nyctaxi.trips AS t) SELECT o.record_key, o.entity_id, o.entity_label, o.priority_tier, o.`rank`, array_join(o.top_reasons, ' · ') AS top_reasons, o.recommended_action, o.value, o.value_at_stake, o.fare_amount, o.expected_fare, o.as_of_date, o.data_quality_flag, o.confidence_level, o.method, coalesce(o.ai_cat_cause, 'Not classified') AS cause, to_date(t.tpep_pickup_datetime) AS event_date, t.tpep_pickup_datetime AS pickup_time, t.tpep_dropoff_datetime AS dropoff_time, t.trip_distance, coalesce(cast(t.pickup_zip AS STRING), 'Unknown') AS pickup_area, coalesce(cast(t.dropoff_zip AS STRING), 'Unknown') AS dropoff_area, CASE WHEN t.pickup_zip IS NULL AND t.dropoff_zip IS NULL THEN 'Unknown route' WHEN t.pickup_zip IS NULL THEN concat('To ', cast(t.dropoff_zip AS STRING)) WHEN t.dropoff_zip IS NULL THEN concat('From ', cast(t.pickup_zip AS STRING)) ELSE concat(cast(t.pickup_zip AS STRING), ' to ', cast(t.dropoff_zip AS STRING)) END AS route FROM main.inspire_demo.taxi_fare_check_b_result AS o JOIN trips_keyed AS t ON t.entity_id = o.entity_id WHERE o.is_current AND o.change_source <> 'delete'",
+  "kpis": [
+   {
+    "id": "total_stake",
+    "expression": "SUM(value_at_stake)"
+   },
+   {
+    "id": "flagged_trips",
+    "expression": "COUNT(CASE WHEN priority_tier IN ('Act now', 'Review') THEN 1 END)"
+   },
+   {
+    "id": "flagged_rate",
+    "expression": "COUNT(CASE WHEN priority_tier IN ('Act now', 'Review') THEN 1 END) / NULLIF(COUNT(*), 0) * 100"
+   }
+  ]
+ },
+ {
+  "page": "taxi_fare_outlier_a",
+  "dataset": "records",
+  "table": "main.inspire_demo.taxi_fare_outlier_a_result",
+  "sql": "WITH numbered_trips AS (SELECT t.*, concat(cast(t.tpep_pickup_datetime AS STRING), '|', cast(t.tpep_dropoff_datetime AS STRING), '|', cast(t.pickup_zip AS STRING), '|', cast(t.dropoff_zip AS STRING)) AS trip_key, row_number() OVER (PARTITION BY t.tpep_pickup_datetime, t.tpep_dropoff_datetime, t.pickup_zip, t.dropoff_zip ORDER BY t.fare_amount, t.trip_distance) AS record_number FROM samples.nyctaxi.trips AS t) SELECT o.record_key, o.entity_id, o.entity_label, o.priority_tier, o.`rank`, array_join(o.top_reasons, ' · ') AS top_reasons, o.recommended_action, o.value, o.value_at_stake, o.as_of_date, to_date(t.tpep_pickup_datetime) AS event_date, concat('zip ', cast(t.pickup_zip AS STRING)) AS pickup_area, concat('zip ', cast(t.dropoff_zip AS STRING)) AS dropoff_area, lpad(cast(hour(t.tpep_pickup_datetime) AS STRING), 2, '0') AS pickup_hour, o.ai_cat_driver AS unusual_signal, o.ai_cat_check AS investigation_check, o.confidence_level, o.data_quality_flag, o.method, t.fare_amount, t.trip_distance, timestampdiff(MINUTE, t.tpep_pickup_datetime, t.tpep_dropoff_datetime) AS duration_minutes FROM main.inspire_demo.taxi_fare_outlier_a_result AS o LEFT JOIN numbered_trips AS t ON t.trip_key = o.entity_id AND t.record_number = CASE WHEN o.segment_or_item LIKE 'record %' THEN cast(regexp_extract(o.segment_or_item, '^record ([0-9]+)', 1) AS INT) ELSE 1 END WHERE o.is_current AND o.change_source <> 'delete' ORDER BY o.`rank` ASC",
+  "kpis": [
+   {
+    "id": "fare_exposure",
+    "expression": "SUM(value_at_stake)"
+   }
+  ]
+ },
+ {
+  "page": "taxi_takings_b",
+  "dataset": "records",
+  "table": "main.inspire_demo.taxi_takings_b_result",
+  "sql": "WITH trip_days AS (SELECT to_date(tpep_pickup_datetime) AS event_date, COUNT(*) AS reference_trips, SUM(fare_amount) AS reference_fare, AVG(trip_distance) AS reference_distance FROM samples.nyctaxi.trips GROUP BY to_date(tpep_pickup_datetime)) SELECT o.record_key, o.entity_id, o.entity_label, o.priority_tier, o.`rank`, array_join(o.top_reasons, ' · ') AS top_reasons, o.recommended_action, o.value, o.value_at_stake, o.as_of_date, o.confidence_level, o.data_quality_flag, o.revenue_low, o.revenue_expected, o.currency, o.ai_cat_driver, o.ai_cat_direction, coalesce(o.ai_cat_driver, 'No material driver') AS main_driver, coalesce(o.ai_cat_direction, 'No material shift') AS forecast_direction, to_date(o.segment_or_item) AS forecast_date, date_format(to_date(o.segment_or_item), 'MMM d') AS forecast_date_label, d.event_date, d.reference_trips, d.reference_fare, d.reference_distance FROM main.inspire_demo.taxi_takings_b_result AS o LEFT JOIN trip_days AS d ON d.event_date = date_sub(to_date(o.segment_or_item), 7) WHERE o.is_current AND o.change_source <> 'delete'",
+  "kpis": [
+   {
+    "id": "expected_takings",
+    "expression": "SUM(value)"
+   },
+   {
+    "id": "cash_buffer",
+    "expression": "SUM(value_at_stake)"
+   }
+  ]
+ },
+ {
+  "page": "taxi_route_gap_b",
+  "dataset": "trend",
+  "table": "main.inspire_demo.taxi_route_gap_b_result",
+  "sql": "WITH current_estimates AS (SELECT as_of_date, CAST(regexp_extract(entity_label, 'pickup zip ([0-9]+)', 1) AS INT) AS pickup_zip, CAST(regexp_extract(entity_label, 'dropoff zip ([0-9]+)', 1) AS INT) AS dropoff_zip, CAST(regexp_extract(segment_or_item, 'hour ([0-9]+)', 1) AS INT) AS trip_hour FROM main.inspire_demo.taxi_route_gap_b_result WHERE is_current AND change_source <> 'delete'), trip_daily AS (SELECT CAST(tpep_pickup_datetime AS DATE) AS trip_date, pickup_zip, dropoff_zip, HOUR(tpep_pickup_datetime) AS trip_hour, COUNT(*) AS trip_count, SUM(fare_amount) AS total_fare, SUM(trip_distance) AS total_distance FROM samples.nyctaxi.trips GROUP BY CAST(tpep_pickup_datetime AS DATE), pickup_zip, dropoff_zip, HOUR(tpep_pickup_datetime)) SELECT e.as_of_date, t.trip_date, t.pickup_zip, t.dropoff_zip, t.trip_hour, t.trip_count, t.total_fare, t.total_distance FROM trip_daily t INNER JOIN current_estimates e ON e.pickup_zip = t.pickup_zip AND e.dropoff_zip = t.dropoff_zip AND e.trip_hour = t.trip_hour",
+  "kpis": []
+ },
+ {
+  "page": "taxi_route_gap_b",
+  "dataset": "records",
+  "table": "main.inspire_demo.taxi_route_gap_b_result",
+  "sql": "WITH trip_keys AS (SELECT pickup_zip, dropoff_zip, HOUR(tpep_pickup_datetime) AS trip_hour, MAX(CAST(tpep_pickup_datetime AS DATE)) AS trip_date FROM samples.nyctaxi.trips GROUP BY pickup_zip, dropoff_zip, HOUR(tpep_pickup_datetime)) SELECT o.record_key, o.entity_id, o.entity_label, o.priority_tier, o.`rank`, array_join(o.top_reasons, ' · ') AS top_reasons, o.recommended_action, o.value, o.value_at_stake, o.absolute_effect, o.fit_trips, o.as_of_date, o.confidence_level, o.data_quality_flag, o.ai_cat_direction, o.ai_cat_driver, o.segment_or_item, CAST(regexp_extract(o.entity_label, 'pickup zip ([0-9]+)', 1) AS INT) AS pickup_zip, CAST(regexp_extract(o.entity_label, 'dropoff zip ([0-9]+)', 1) AS INT) AS dropoff_zip, CAST(regexp_extract(o.segment_or_item, 'hour ([0-9]+)', 1) AS INT) AS trip_hour, k.trip_date FROM main.inspire_demo.taxi_route_gap_b_result o LEFT JOIN trip_keys k ON k.pickup_zip = CAST(regexp_extract(o.entity_label, 'pickup zip ([0-9]+)', 1) AS INT) AND k.dropoff_zip = CAST(regexp_extract(o.entity_label, 'dropoff zip ([0-9]+)', 1) AS INT) AND k.trip_hour = CAST(regexp_extract(o.segment_or_item, 'hour ([0-9]+)', 1) AS INT) WHERE o.is_current AND o.change_source <> 'delete' ORDER BY o.`rank`",
+  "kpis": [
+   {
+    "id": "fare_impact",
+    "expression": "SUM(value_at_stake)"
+   },
+   {
+    "id": "typical_gap",
+    "expression": "AVG(absolute_effect)"
+   }
+  ]
+ },
+ {
+  "page": "taxi_hourly_forecast",
+  "dataset": "records",
+  "table": "main.inspire_demo.taxi_hourly_forecast_result",
+  "sql": "SELECT o.record_key, o.as_of_date, o.entity_id, o.entity_label, o.priority_tier, o.`rank`, array_join(o.top_reasons, ' · ') AS top_reasons, o.recommended_action, o.value, o.value_at_stake, o.yhat_trips, o.confidence_level, o.data_quality_flag, to_timestamp(o.segment_or_item, 'yyyy-MM-dd HH:mm') AS forecast_hour, to_date(to_timestamp(o.segment_or_item, 'yyyy-MM-dd HH:mm')) AS trip_date, CASE WHEN hour(to_timestamp(o.segment_or_item, 'yyyy-MM-dd HH:mm')) < 6 THEN 'Overnight' WHEN hour(to_timestamp(o.segment_or_item, 'yyyy-MM-dd HH:mm')) < 10 THEN 'Morning peak' WHEN hour(to_timestamp(o.segment_or_item, 'yyyy-MM-dd HH:mm')) < 16 THEN 'Midday' WHEN hour(to_timestamp(o.segment_or_item, 'yyyy-MM-dd HH:mm')) < 20 THEN 'Evening peak' ELSE 'Late evening' END AS time_of_day, CASE WHEN coalesce(o.yhat_trips, 0) = 0 THEN 'No demand' WHEN o.yhat_trips < 3 THEN 'Moderate demand' ELSE 'High demand' END AS demand_band, CASE WHEN o.data_quality_flag = 'ok' THEN 'Forecast ready' ELSE 'Needs attention' END AS quality_status FROM main.inspire_demo.taxi_hourly_forecast_result AS o WHERE o.is_current AND o.change_source <> 'delete' ORDER BY o.`rank`",
+  "kpis": [
+   {
+    "id": "projected_fares",
+    "expression": "SUM(value_at_stake)"
+   },
+   {
+    "id": "projected_trips",
+    "expression": "SUM(yhat_trips)"
+   },
+   {
+    "id": "fare_per_trip",
+    "expression": "SUM(value_at_stake) / NULLIF(SUM(yhat_trips), 0)"
+   }
+  ]
+ },
+ {
+  "page": "taxi_staging_b",
+  "dataset": "records",
+  "table": "main.inspire_demo.taxi_staging_b_result",
+  "sql": "SELECT o.record_key, o.entity_id, o.entity_label, o.priority_tier, o.`rank`, array_join(o.top_reasons, ' · ') AS top_reasons, o.recommended_action, o.value, o.value_at_stake, o.as_of_date, o.data_quality_flag, o.method, o.confidence_level, to_timestamp(substring(o.segment_or_item, 1, 16), 'yyyy-MM-dd HH:mm') AS forecast_time, CAST(to_timestamp(substring(o.segment_or_item, 1, 16), 'yyyy-MM-dd HH:mm') AS DATE) AS forecast_date, date_format(to_timestamp(substring(o.segment_or_item, 1, 16), 'yyyy-MM-dd HH:mm'), 'HH:00') AS forecast_hour, CASE WHEN hour(to_timestamp(substring(o.segment_or_item, 1, 16), 'yyyy-MM-dd HH:mm')) BETWEEN 6 AND 10 THEN 'Morning peak' WHEN hour(to_timestamp(substring(o.segment_or_item, 1, 16), 'yyyy-MM-dd HH:mm')) BETWEEN 11 AND 15 THEN 'Midday' WHEN hour(to_timestamp(substring(o.segment_or_item, 1, 16), 'yyyy-MM-dd HH:mm')) BETWEEN 16 AND 20 THEN 'Evening peak' ELSE 'Overnight' END AS demand_window, CASE WHEN o.priority_tier = 'Act now' THEN 'Add vehicles' WHEN o.priority_tier = 'Review' THEN 'Hold vehicles' ELSE 'Reduce vehicles' END AS staging_move, CASE WHEN o.segment_or_item LIKE '%own series' THEN 'Own series' ELSE 'Pooled zip' END AS series_type, input.event_date FROM main.inspire_demo.taxi_staging_b_result AS o CROSS JOIN (SELECT MAX(CAST(tpep_pickup_datetime AS DATE)) AS event_date FROM samples.nyctaxi.trips) AS input WHERE o.is_current AND o.change_source <> 'delete'",
+  "kpis": [
+   {
+    "id": "forecast_pickups",
+    "expression": "SUM(value)"
+   },
+   {
+    "id": "expected_fare",
+    "expression": "SUM(value_at_stake)"
+   }
+  ]
+ },
+ {
+  "page": "retail_return_loss",
+  "dataset": "returns",
+  "table": "main.inspire_demo.retail_return_loss_result",
+  "sql": "WITH runs AS (SELECT DISTINCT as_of_date FROM main.inspire_demo.retail_return_loss_result WHERE is_current AND change_source <> 'delete'), lines AS (SELECT 'Store' AS channel, date_from_unix_date(sr_returned_date_sk - 2440588) AS event_date, sr_reason_sk AS reason_sk, sr_item_sk AS item_sk, GREATEST(COALESCE(sr_net_loss, 0D), 0D) AS loss_amount FROM samples.tpcds_sf1.store_returns UNION ALL SELECT 'Catalog' AS channel, date_from_unix_date(cr_returned_date_sk - 2440588) AS event_date, cr_reason_sk AS reason_sk, cr_item_sk AS item_sk, GREATEST(COALESCE(cr_net_loss, 0D), 0D) AS loss_amount FROM samples.tpcds_sf1.catalog_returns UNION ALL SELECT 'Web' AS channel, date_from_unix_date(wr_returned_date_sk - 2440588) AS event_date, wr_reason_sk AS reason_sk, wr_item_sk AS item_sk, GREATEST(COALESCE(wr_net_loss, 0D), 0D) AS loss_amount FROM samples.tpcds_sf1.web_returns) SELECT runs.as_of_date, lines.event_date, lines.channel, reason.r_reason_desc AS return_reason, item.i_category AS category, item.i_class AS item_class, lines.loss_amount, 1 AS return_line FROM lines JOIN samples.tpcds_sf1.reason AS reason ON reason.r_reason_sk = lines.reason_sk JOIN samples.tpcds_sf1.item AS item ON item.i_item_sk = lines.item_sk CROSS JOIN runs",
+  "kpis": [
+   {
+    "id": "total_return_loss",
+    "expression": "SUM(loss_amount)"
+   }
+  ]
+ },
+ {
+  "page": "retail_return_loss",
+  "dataset": "records",
+  "table": "main.inspire_demo.retail_return_loss_result",
+  "sql": "WITH line_keys AS (SELECT 'Store' AS channel, date_from_unix_date(sr_returned_date_sk - 2440588) AS event_date, sr_reason_sk AS reason_sk, sr_item_sk AS item_sk FROM samples.tpcds_sf1.store_returns UNION ALL SELECT 'Catalog' AS channel, date_from_unix_date(cr_returned_date_sk - 2440588) AS event_date, cr_reason_sk AS reason_sk, cr_item_sk AS item_sk FROM samples.tpcds_sf1.catalog_returns UNION ALL SELECT 'Web' AS channel, date_from_unix_date(wr_returned_date_sk - 2440588) AS event_date, wr_reason_sk AS reason_sk, wr_item_sk AS item_sk FROM samples.tpcds_sf1.web_returns), latest_event AS (SELECT line_keys.channel, reason.r_reason_desc AS return_reason, item.i_category AS category, MAX(line_keys.event_date) AS event_date FROM line_keys JOIN samples.tpcds_sf1.reason AS reason ON reason.r_reason_sk = line_keys.reason_sk JOIN samples.tpcds_sf1.item AS item ON item.i_item_sk = line_keys.item_sk GROUP BY line_keys.channel, reason.r_reason_desc, item.i_category), current_rows AS (SELECT o.*, split_part(o.entity_id, '|', 1) AS channel, split_part(o.entity_id, '|', 2) AS return_reason, split_part(o.entity_id, '|', 3) AS category FROM main.inspire_demo.retail_return_loss_result AS o WHERE o.is_current AND o.change_source <> 'delete') SELECT o.record_key, o.entity_id, o.entity_label, o.priority_tier, o.rank, array_join(o.top_reasons, ' · ') AS top_reasons, o.recommended_action, o.value, o.value_at_stake, o.as_of_date, e.event_date, o.channel, o.return_reason, o.category, o.confidence_level, o.data_quality_flag, CASE WHEN o.priority_tier = 'Act now' THEN 1 ELSE 0 END AS act_now_row, CASE WHEN o.data_quality_flag <> 'ok' THEN 1 ELSE 0 END AS issue_row FROM current_rows AS o LEFT JOIN latest_event AS e ON e.channel = o.channel AND e.return_reason = o.return_reason AND e.category = o.category",
+  "kpis": [
+   {
+    "id": "planned_loss",
+    "expression": "SUM(value_at_stake)"
+   }
+  ]
+ }
+]

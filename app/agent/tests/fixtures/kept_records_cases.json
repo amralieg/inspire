@@ -1,0 +1,18 @@
+{
+  "about": "What a run does to one record the people of the App touched, decided by the agent's run merge and the App shell's version writes together",
+  "cases": [
+    {"name": "a run version the newest run no longer lists is closed", "versions": ["run"], "replace_edits": false, "listed": false, "expect": "closed"},
+    {"name": "an action version the newest run no longer lists is closed", "versions": ["run", "action"], "replace_edits": false, "listed": false, "expect": "closed"},
+    {"name": "an edited record the newest run no longer lists is kept and tagged", "versions": ["run", "edit"], "replace_edits": false, "listed": false, "expect": "tagged"},
+    {"name": "an edited record a person then acted on is kept and tagged", "versions": ["run", "edit", "action"], "replace_edits": false, "listed": false, "expect": "tagged"},
+    {"name": "an added record no run lists is kept and tagged", "versions": ["add"], "replace_edits": false, "listed": false, "expect": "tagged"},
+    {"name": "an edited record the newest run lists keeps the edit and no tag", "versions": ["run", "edit"], "replace_edits": false, "listed": true, "expect": "kept"},
+    {"name": "an edited record a person then acted on keeps the edit when the run lists it", "versions": ["run", "edit", "action"], "replace_edits": false, "listed": true, "expect": "kept"},
+    {"name": "a tagged record the newest run lists again loses the tag", "versions": ["run", "edit"], "replace_edits": false, "listed": true, "left_before": true, "expect": "kept"},
+    {"name": "a tagged record that stays off the list keeps the day it left", "versions": ["run", "edit"], "replace_edits": false, "listed": false, "left_before": true, "expect": "tagged"},
+    {"name": "an action version the newest run lists is written again by the run", "versions": ["run", "action"], "replace_edits": false, "listed": true, "expect": "rewritten"},
+    {"name": "an edited record the newest run no longer lists is closed when runs replace edits", "versions": ["run", "edit"], "replace_edits": true, "listed": false, "expect": "closed"},
+    {"name": "an edited record the newest run lists is written again when runs replace edits", "versions": ["run", "edit"], "replace_edits": true, "listed": true, "expect": "rewritten"},
+    {"name": "a deleted record stays deleted and is never tagged", "versions": ["run", "delete"], "replace_edits": false, "listed": false, "expect": "deleted"}
+  ]
+}

@@ -1,0 +1,540 @@
+{
+ "schema_version": 2,
+ "corpus": "samples.tpcds_sf1",
+ "status": "approved: Amr's sign-off on 2026-10-21; gates every release",
+ "source": "public retail analytics practice; no customer content",
+ "release_gate": {
+  "rule": "On a Discover run without a customer strategy, found must not drop below the previous release, same workspace and judge. On the frozen candidate pool, the release's grading may hold at most frozen_pool.top_tolerance fewer must-find use cases in the top 25 than the reference release's grading, both graded by one endpoint in one session. A single live run's top 25 is reported, not gated: two identical generations of the same inputs held 10 and 5.",
+  "baseline": {
+   "version": "v1.2.1",
+   "found": 18,
+   "found_top": 11,
+   "judge": "databricks-claude-sonnet-4-6",
+   "measured_on": "2026-10-21",
+   "run": "Discover on samples.tpcds_sf1, priority Increase Revenue, no strategy, all tables, Good quality"
+  },
+  "frozen_pool": {
+   "pool": "tests/regression/tpcds_sf1_frozen_pool.json",
+   "reference_tag": "v1.2.1",
+   "top_tolerance": 1,
+   "grader": "databricks-claude-opus-4-8"
+  }
+ },
+ "entries": [
+  {
+   "id": "G01",
+   "title": "Weekly store-item demand forecast",
+   "decision": "Set next week's replenishment quantity for each item in each store",
+   "owner": "Store replenishment planner",
+   "required_tables": [
+    "store_sales",
+    "date_dim"
+   ],
+   "any_of": [],
+   "signal_columns": [
+    "store_sales.ss_item_sk",
+    "store_sales.ss_store_sk",
+    "store_sales.ss_quantity",
+    "date_dim.d_week_seq"
+   ],
+   "why": "Fewer stock-outs and less excess stock on the highest-volume channel."
+  },
+  {
+   "id": "G02",
+   "title": "Warehouse reorder points from on-hand stock",
+   "decision": "Set the reorder point and order quantity per item and warehouse",
+   "owner": "Inventory manager",
+   "required_tables": [
+    "inventory"
+   ],
+   "any_of": [],
+   "signal_columns": [
+    "inventory.inv_quantity_on_hand",
+    "inventory.inv_item_sk",
+    "inventory.inv_warehouse_sk",
+    "inventory.inv_date_sk"
+   ],
+   "why": "Avoids stock-outs and cuts the cash tied up in slow stock."
+  },
+  {
+   "id": "G03",
+   "title": "Return rate by item and reason",
+   "decision": "Fix, delist or relabel the items with the highest return rates and their main return reasons",
+   "owner": "Category manager",
+   "required_tables": [
+    "reason"
+   ],
+   "any_of": [
+    [
+     "store_returns",
+     "web_returns",
+     "catalog_returns"
+    ]
+   ],
+   "signal_columns": [
+    "reason.r_reason_desc",
+    "store_returns.sr_reason_sk",
+    "store_returns.sr_return_quantity",
+    "store_returns.sr_item_sk"
+   ],
+   "why": "Returns erase margin; the top reasons point to quality or description fixes."
+  },
+  {
+   "id": "G04",
+   "title": "Suspicious return behavior per customer",
+   "decision": "Flag customers or tickets whose return pattern looks abusive for review before refunding",
+   "owner": "Loss prevention lead",
+   "required_tables": [
+    "store_returns",
+    "store_sales"
+   ],
+   "any_of": [],
+   "signal_columns": [
+    "store_returns.sr_customer_sk",
+    "store_returns.sr_return_amt",
+    "store_returns.sr_ticket_number",
+    "store_sales.ss_ticket_number"
+   ],
+   "why": "Return abuse is a direct and recurring loss."
+  },
+  {
+   "id": "G05",
+   "title": "Customer lapse risk from purchase recency and frequency",
+   "decision": "Choose which customers get a win-back offer this week",
+   "owner": "CRM manager",
+   "required_tables": [
+    "customer"
+   ],
+   "any_of": [
+    [
+     "store_sales",
+     "web_sales",
+     "catalog_sales"
+    ]
+   ],
+   "signal_columns": [
+    "customer.c_customer_sk",
+    "store_sales.ss_customer_sk",
+    "store_sales.ss_sold_date_sk",
+    "store_sales.ss_net_paid"
+   ],
+   "why": "Retaining existing customers costs less than acquiring new ones."
+  },
+  {
+   "id": "G06",
+   "title": "Customer lifetime value across channels",
+   "decision": "Set the service level and marketing budget per customer tier",
+   "owner": "Head of customer marketing",
+   "required_tables": [
+    "customer"
+   ],
+   "any_of": [
+    [
+     "store_sales",
+     "web_sales",
+     "catalog_sales"
+    ]
+   ],
+   "signal_columns": [
+    "customer.c_customer_sk",
+    "store_sales.ss_net_profit",
+    "web_sales.ws_net_profit",
+    "catalog_sales.cs_net_profit"
+   ],
+   "why": "Spending follows value; channel-blind value hides the best customers."
+  },
+  {
+   "id": "G07",
+   "title": "Customer segments from demographics and spend",
+   "decision": "Pick the segments to target with each campaign",
+   "owner": "Marketing analyst",
+   "required_tables": [
+    "customer_demographics"
+   ],
+   "any_of": [
+    [
+     "store_sales",
+     "web_sales",
+     "catalog_sales"
+    ]
+   ],
+   "signal_columns": [
+    "customer_demographics.cd_gender",
+    "customer_demographics.cd_marital_status",
+    "customer_demographics.cd_education_status",
+    "store_sales.ss_cdemo_sk"
+   ],
+   "why": "Targeted campaigns convert better than broadcast ones."
+  },
+  {
+   "id": "G08",
+   "title": "Promotion effectiveness by channel",
+   "decision": "Keep, change or stop each promotion based on incremental sales against its cost",
+   "owner": "Promotions manager",
+   "required_tables": [
+    "promotion"
+   ],
+   "any_of": [
+    [
+     "store_sales",
+     "web_sales",
+     "catalog_sales"
+    ]
+   ],
+   "signal_columns": [
+    "promotion.p_cost",
+    "promotion.p_channel_tv",
+    "store_sales.ss_promo_sk",
+    "store_sales.ss_ext_sales_price"
+   ],
+   "why": "Promotion spend that does not lift sales is pure margin loss."
+  },
+  {
+   "id": "G09",
+   "title": "Price elasticity and markdown depth",
+   "decision": "Set the markdown depth per item category",
+   "owner": "Pricing manager",
+   "required_tables": [
+    "item"
+   ],
+   "any_of": [
+    [
+     "store_sales",
+     "web_sales",
+     "catalog_sales"
+    ]
+   ],
+   "signal_columns": [
+    "item.i_category",
+    "store_sales.ss_list_price",
+    "store_sales.ss_sales_price",
+    "store_sales.ss_quantity"
+   ],
+   "why": "Too-deep markdowns give away margin; too-shallow ones leave stock unsold."
+  },
+  {
+   "id": "G10",
+   "title": "Cross-channel cannibalization",
+   "decision": "Decide channel-specific assortment and pricing where one channel takes sales from another",
+   "owner": "Omnichannel director",
+   "required_tables": [
+    "store_sales",
+    "web_sales"
+   ],
+   "any_of": [],
+   "signal_columns": [
+    "store_sales.ss_item_sk",
+    "web_sales.ws_item_sk",
+    "store_sales.ss_sold_date_sk",
+    "web_sales.ws_sold_date_sk"
+   ],
+   "why": "Channel conflict can grow costs without growing total sales."
+  },
+  {
+   "id": "G11",
+   "title": "Market basket affinity for cross-sell",
+   "decision": "Choose product pairs for placement and bundles",
+   "owner": "Merchandising manager",
+   "required_tables": [
+    "item"
+   ],
+   "any_of": [
+    [
+     "store_sales",
+     "web_sales",
+     "catalog_sales"
+    ]
+   ],
+   "signal_columns": [
+    "item.i_class",
+    "item.i_category",
+    "store_sales.ss_ticket_number",
+    "store_sales.ss_item_sk"
+   ],
+   "why": "Bundles and adjacency lift basket size."
+  },
+  {
+   "id": "G12",
+   "title": "Store productivity benchmarking",
+   "decision": "Target the stores below their peers on sales per square foot and per employee",
+   "owner": "Regional operations manager",
+   "required_tables": [
+    "store_sales",
+    "store"
+   ],
+   "any_of": [],
+   "signal_columns": [
+    "store.s_floor_space",
+    "store.s_number_employees",
+    "store_sales.ss_net_paid",
+    "store_sales.ss_store_sk"
+   ],
+   "why": "Peer benchmarks expose fixable underperformance."
+  },
+  {
+   "id": "G13",
+   "title": "Shipping cost by ship mode and carrier",
+   "decision": "Renegotiate or switch carriers and ship modes with the worst cost per order",
+   "owner": "Logistics manager",
+   "required_tables": [
+    "ship_mode"
+   ],
+   "any_of": [
+    [
+     "web_sales",
+     "catalog_sales"
+    ]
+   ],
+   "signal_columns": [
+    "ship_mode.sm_carrier",
+    "ship_mode.sm_type",
+    "web_sales.ws_ext_ship_cost",
+    "web_sales.ws_ship_mode_sk"
+   ],
+   "why": "Shipping is a large and negotiable cost line."
+  },
+  {
+   "id": "G14",
+   "title": "Order-to-ship lag by warehouse",
+   "decision": "Fix the warehouses and ship modes with the longest order-to-ship lag",
+   "owner": "Fulfillment manager",
+   "required_tables": [
+    "warehouse"
+   ],
+   "any_of": [
+    [
+     "catalog_sales",
+     "web_sales"
+    ]
+   ],
+   "signal_columns": [
+    "warehouse.w_warehouse_name",
+    "catalog_sales.cs_sold_date_sk",
+    "catalog_sales.cs_ship_date_sk",
+    "catalog_sales.cs_warehouse_sk"
+   ],
+   "why": "Slow fulfillment drives cancellations and returns."
+  },
+  {
+   "id": "G15",
+   "title": "Call center return handling",
+   "decision": "Coach or staff the call centers with the highest return amounts",
+   "owner": "Customer service director",
+   "required_tables": [
+    "catalog_returns",
+    "call_center"
+   ],
+   "any_of": [],
+   "signal_columns": [
+    "catalog_returns.cr_call_center_sk",
+    "catalog_returns.cr_return_amount",
+    "call_center.cc_employees",
+    "call_center.cc_name"
+   ],
+   "why": "Return handling quality varies by center and costs money."
+  },
+  {
+   "id": "G16",
+   "title": "Catalog page effectiveness",
+   "decision": "Drop or redesign the catalog pages that sell least for their department",
+   "owner": "Catalog marketing manager",
+   "required_tables": [
+    "catalog_sales",
+    "catalog_page"
+   ],
+   "any_of": [],
+   "signal_columns": [
+    "catalog_sales.cs_catalog_page_sk",
+    "catalog_sales.cs_ext_sales_price",
+    "catalog_page.cp_department",
+    "catalog_page.cp_type"
+   ],
+   "why": "Print pages have a fixed cost each and should earn it."
+  },
+  {
+   "id": "G17",
+   "title": "Web page content and sales",
+   "decision": "Change the page types and content that underperform on sales",
+   "owner": "Ecommerce manager",
+   "required_tables": [
+    "web_sales",
+    "web_page"
+   ],
+   "any_of": [],
+   "signal_columns": [
+    "web_sales.ws_web_page_sk",
+    "web_sales.ws_net_paid",
+    "web_page.wp_type",
+    "web_page.wp_image_count"
+   ],
+   "why": "Page content changes are cheap and testable."
+  },
+  {
+   "id": "G18",
+   "title": "Margin by brand and category",
+   "decision": "Rationalize the assortment: drop or reprice low-margin brands",
+   "owner": "Category manager",
+   "required_tables": [
+    "item"
+   ],
+   "any_of": [
+    [
+     "store_sales",
+     "web_sales",
+     "catalog_sales"
+    ]
+   ],
+   "signal_columns": [
+    "item.i_brand",
+    "item.i_category",
+    "store_sales.ss_net_profit",
+    "store_sales.ss_ext_wholesale_cost"
+   ],
+   "why": "Shelf space should go to the products that earn margin."
+  },
+  {
+   "id": "G19",
+   "title": "Staffing by hour from sales by time of day",
+   "decision": "Set store staffing per shift from expected traffic",
+   "owner": "Store operations manager",
+   "required_tables": [
+    "store_sales",
+    "time_dim"
+   ],
+   "any_of": [],
+   "signal_columns": [
+    "store_sales.ss_sold_time_sk",
+    "store_sales.ss_store_sk",
+    "time_dim.t_hour",
+    "time_dim.t_shift"
+   ],
+   "why": "Labor is the largest controllable store cost."
+  },
+  {
+   "id": "G20",
+   "title": "Holiday and seasonal demand planning",
+   "decision": "Set holiday-period orders and staffing per category",
+   "owner": "Demand planner",
+   "required_tables": [
+    "date_dim"
+   ],
+   "any_of": [
+    [
+     "store_sales",
+     "web_sales",
+     "catalog_sales"
+    ]
+   ],
+   "signal_columns": [
+    "date_dim.d_holiday",
+    "date_dim.d_moy",
+    "date_dim.d_weekend",
+    "store_sales.ss_quantity"
+   ],
+   "why": "Peak periods carry a large share of yearly sales."
+  },
+  {
+   "id": "G21",
+   "title": "Store site selection from customer geography",
+   "decision": "Choose the regions for the next store openings",
+   "owner": "Real estate director",
+   "required_tables": [
+    "customer_address",
+    "store"
+   ],
+   "any_of": [],
+   "signal_columns": [
+    "customer_address.ca_state",
+    "customer_address.ca_county",
+    "store.s_state",
+    "store.s_county"
+   ],
+   "why": "Opening near demand that is underserved today grows sales."
+  },
+  {
+   "id": "G22",
+   "title": "Purchasing power by income band",
+   "decision": "Set the price tiers and assortment per income band",
+   "owner": "Assortment planner",
+   "required_tables": [
+    "household_demographics",
+    "income_band"
+   ],
+   "any_of": [
+    [
+     "store_sales",
+     "web_sales",
+     "catalog_sales"
+    ]
+   ],
+   "signal_columns": [
+    "household_demographics.hd_income_band_sk",
+    "income_band.ib_lower_bound",
+    "income_band.ib_upper_bound",
+    "store_sales.ss_hdemo_sk"
+   ],
+   "why": "Matching price tiers to buying power lifts conversion."
+  },
+  {
+   "id": "G23",
+   "title": "Coupon and discount leakage",
+   "decision": "Tighten coupon rules where discounts exceed their intended share of sales",
+   "owner": "Finance controller",
+   "required_tables": [],
+   "any_of": [
+    [
+     "store_sales",
+     "web_sales",
+     "catalog_sales"
+    ]
+   ],
+   "signal_columns": [
+    "store_sales.ss_coupon_amt",
+    "store_sales.ss_ext_discount_amt",
+    "store_sales.ss_net_paid",
+    "web_sales.ws_coupon_amt"
+   ],
+   "why": "Discount leakage erodes margin quietly."
+  },
+  {
+   "id": "G24",
+   "title": "Inventory balancing across warehouses",
+   "decision": "Move stock between warehouses to match demand",
+   "owner": "Supply chain planner",
+   "required_tables": [
+    "inventory",
+    "warehouse"
+   ],
+   "any_of": [],
+   "signal_columns": [
+    "inventory.inv_warehouse_sk",
+    "inventory.inv_quantity_on_hand",
+    "warehouse.w_warehouse_sq_ft",
+    "warehouse.w_state"
+   ],
+   "why": "Rebalancing cuts both stock-outs and overstock."
+  },
+  {
+   "id": "G25",
+   "title": "Refund method cost on returns",
+   "decision": "Steer refunds toward store credit where it cuts net loss",
+   "owner": "Returns policy owner",
+   "required_tables": [],
+   "any_of": [
+    [
+     "store_returns",
+     "web_returns",
+     "catalog_returns"
+    ]
+   ],
+   "signal_columns": [
+    "store_returns.sr_refunded_cash",
+    "store_returns.sr_store_credit",
+    "store_returns.sr_net_loss",
+    "catalog_returns.cr_store_credit"
+   ],
+   "why": "Store credit keeps revenue that a cash refund loses."
+  }
+ ],
+ "matching": "a candidate's tables include every required table and at least one table of each any_of group"
+}

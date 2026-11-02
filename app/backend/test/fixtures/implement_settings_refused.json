@@ -1,0 +1,134 @@
+{
+ "source": "final-agent 7219d5d",
+ "kind": "settings_refused",
+ "step": "Vibe checklist",
+ "owner_refusal": "",
+ "rows": [
+  {
+   "name": "a person who is not an owner of the App",
+   "refusal": "Only the owners of this use case can change its settings: the person who asked for v2 and the App owners it names, and someone.else@example.com, who asked for v3, is not one of them, so Inspire applied nothing of v3 and v2 stays live",
+   "asked": [
+    "Set act_now_share to 0.1",
+    "Set WEEKS_LEFT to 20"
+   ],
+   "entries": [
+    {
+     "n": 1,
+     "kind": "settings_refused",
+     "requirement": "Set act_now_share to 0.1",
+     "part": "",
+     "where": "Settings",
+     "status": "refused",
+     "evidence": "Only the owners of this use case can change its settings: the person who asked for v2 and the App owners it names, and someone.else@example.com, who asked for v3, is not one of them, so Inspire applied nothing of v3 and v2 stays live",
+     "rounds": 0,
+     "tried": [],
+     "checks": [],
+     "published_anyway": null
+    },
+    {
+     "n": 2,
+     "kind": "settings_refused",
+     "requirement": "Set WEEKS_LEFT to 20",
+     "part": "",
+     "where": "Settings",
+     "status": "refused",
+     "evidence": "Only the owners of this use case can change its settings: the person who asked for v2 and the App owners it names, and someone.else@example.com, who asked for v3, is not one of them, so Inspire applied nothing of v3 and v2 stays live",
+     "rounds": 0,
+     "tried": [],
+     "checks": [],
+     "published_anyway": null
+    }
+   ],
+   "summary": {
+    "met": 0,
+    "total": 2,
+    "refused": 2
+   },
+   "step_message": "0 of 2 settings changes applied: Only the owners of this use case can change its settings: the person who asked for v2 and the App owners it names, and someone.else@example.com, who asked for v3, is not one of them, so Inspire applied nothing of v3 and v2 stays live"
+  },
+  {
+   "name": "a person who is not an owner of the MVP",
+   "refusal": "Only the owners of this use case can change its settings: the person who asked for v2 and the App owners it names, and someone.else@example.com, who asked for v3, is not one of them, so Inspire applied nothing of v3 and v2 stays live",
+   "asked": [
+    "Set act_now_share to 0.1",
+    "Set WEEKS_LEFT to 20"
+   ],
+   "entries": [
+    {
+     "n": 1,
+     "kind": "settings_refused",
+     "requirement": "Set act_now_share to 0.1",
+     "part": "",
+     "where": "Settings",
+     "status": "refused",
+     "evidence": "Only the owners of this use case can change its settings: the person who asked for v2 and the App owners it names, and someone.else@example.com, who asked for v3, is not one of them, so Inspire applied nothing of v3 and v2 stays live",
+     "rounds": 0,
+     "tried": [],
+     "checks": [],
+     "published_anyway": null
+    },
+    {
+     "n": 2,
+     "kind": "settings_refused",
+     "requirement": "Set WEEKS_LEFT to 20",
+     "part": "",
+     "where": "Settings",
+     "status": "refused",
+     "evidence": "Only the owners of this use case can change its settings: the person who asked for v2 and the App owners it names, and someone.else@example.com, who asked for v3, is not one of them, so Inspire applied nothing of v3 and v2 stays live",
+     "rounds": 0,
+     "tried": [],
+     "checks": [],
+     "published_anyway": null
+    }
+   ],
+   "summary": {
+    "met": 0,
+    "total": 2,
+    "refused": 2
+   },
+   "step_message": "0 of 2 settings changes applied: Only the owners of this use case can change its settings: the person who asked for v2 and the App owners it names, and someone.else@example.com, who asked for v3, is not one of them, so Inspire applied nothing of v3 and v2 stays live"
+  },
+  {
+   "name": "a run that names no requester",
+   "refusal": "Only the owners of this use case can change its settings: the person who asked for v2 and the App owners it names, and this run does not name who asked for it, so Inspire cannot check that they are one of them; it applied nothing of v3 and v2 stays live. Submit the change again from the Inspire App, which records who asks",
+   "asked": [
+    "Set act_now_share to 0.1",
+    "Set WEEKS_LEFT to 20"
+   ],
+   "entries": [
+    {
+     "n": 1,
+     "kind": "settings_refused",
+     "requirement": "Set act_now_share to 0.1",
+     "part": "",
+     "where": "Settings",
+     "status": "refused",
+     "evidence": "Only the owners of this use case can change its settings: the person who asked for v2 and the App owners it names, and this run does not name who asked for it, so Inspire cannot check that they are one of them; it applied nothing of v3 and v2 stays live. Submit the change again from the Inspire App, which records who asks",
+     "rounds": 0,
+     "tried": [],
+     "checks": [],
+     "published_anyway": null
+    },
+    {
+     "n": 2,
+     "kind": "settings_refused",
+     "requirement": "Set WEEKS_LEFT to 20",
+     "part": "",
+     "where": "Settings",
+     "status": "refused",
+     "evidence": "Only the owners of this use case can change its settings: the person who asked for v2 and the App owners it names, and this run does not name who asked for it, so Inspire cannot check that they are one of them; it applied nothing of v3 and v2 stays live. Submit the change again from the Inspire App, which records who asks",
+     "rounds": 0,
+     "tried": [],
+     "checks": [],
+     "published_anyway": null
+    }
+   ],
+   "summary": {
+    "met": 0,
+    "total": 2,
+    "refused": 2
+   },
+   "step_message": "0 of 2 settings changes applied: Only the owners of this use case can change its settings: the person who asked for v2 and the App owners it names, and this run does not name who asked for it, so Inspire cannot check that they are one of them; it applied nothing of v3 and v2 stays live. Submit the change again from the Inspire App, which records who asks"
+  }
+ ]
+}

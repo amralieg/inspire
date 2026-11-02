@@ -1,0 +1,39 @@
+{
+ "release": "main 4407364",
+ "reason": "released main 4407364 text",
+ "run_controls_functions": "def inspire_outcome_text(outcome):\n    if outcome is None:\n        return \"run_use_case() returned no outcome, so this run's printed summary is its only record\"\n    if isinstance(outcome, dict) and outcome.get(\"status\") == \"written\":\n        return (f\"wrote {outcome.get('rows_written')} row(s) for as_of_date {outcome.get('as_of_date')} \"\n                f\"with run_id {outcome.get('run_id')}\")\n    if isinstance(outcome, dict) and outcome.get(\"status\") == \"stopped\":\n        return f\"stopped without writing: {outcome.get('stop_reason') or 'no reason given'}\"\n    return str(outcome)\n\n\nclass InspireTee:\n    def __init__(self, stream, copy):\n        self.stream, self.copy = stream, copy\n\n    def write(self, text):\n        self.copy.write(text)\n        return self.stream.write(text)\n\n    def flush(self):\n        self.stream.flush()\n\n    def __getattr__(self, name):\n        return getattr(self.stream, name)\n\n\ndef inspire_exit_text(headline, printed, limit=100000):\n    printed = (printed or \"\").strip()\n    if not printed:\n        return headline\n    if len(printed) > limit:\n        head = limit // 5\n        printed = (f\"{printed[:head]}\\n... ({len(printed) - limit} characters of the printed log left out) ...\\n\"\n                   f\"{printed[-(limit - head):]}\")\n    return f\"{headline}\\n\\nPrinted log of this run:\\n{printed}\"\n\n\n",
+ "job_exit_line": "dbu.notebook.exit(f\"Job run finished: {headline}. Results table: {run['result_table']}. Run: {link}{newline}{printed}\")",
+ "outputs": [
+  {
+   "outcome": {
+    "status": "written",
+    "rows_written": 812,
+    "as_of_date": "2026-10-01",
+    "run_id": "1b2c3d4e-0000-4000-8000-000000000000"
+   },
+   "printed": "Readiness row_count: 812 measured; 30 required",
+   "exit": "wrote 812 row(s) for as_of_date 2026-10-01 with run_id 1b2c3d4e-0000-4000-8000-000000000000\n\nPrinted log of this run:\nReadiness row_count: 812 measured; 30 required",
+   "job_exit": "Job run finished: wrote 812 row(s) for as_of_date 2026-10-01 with run_id 1b2c3d4e-0000-4000-8000-000000000000. Results table: main.inspire.churn_out. Run: https://example.invalid/jobs/1/runs/7"
+  },
+  {
+   "outcome": {
+    "status": "written",
+    "rows_written": 1,
+    "as_of_date": "2026-10-01",
+    "run_id": "0123abcd-0000"
+   },
+   "printed": "",
+   "exit": "wrote 1 row(s) for as_of_date 2026-10-01 with run_id 0123abcd-0000",
+   "job_exit": "Job run finished: wrote 1 row(s) for as_of_date 2026-10-01 with run_id 0123abcd-0000. Results table: main.inspire.churn_out. Run: https://example.invalid/jobs/1/runs/7"
+  },
+  {
+   "outcome": {
+    "status": "stopped",
+    "stop_reason": "History covers 1 closed outcome window(s); at least 3 are needed to test on unseen time."
+   },
+   "printed": "",
+   "exit": "stopped without writing: History covers 1 closed outcome window(s); at least 3 are needed to test on unseen time.",
+   "job_exit": "Job run finished: stopped without writing: History covers 1 closed outcome window(s); at least 3 are needed to test on unseen time.. Results table: main.inspire.churn_out. Run: https://example.invalid/jobs/1/runs/7"
+  }
+ ]
+}

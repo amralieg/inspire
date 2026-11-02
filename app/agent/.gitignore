@@ -1,0 +1,85 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+__MACOSX
+
+# Thumbnails
+Icon?
+Thumbs.db
+
+# macOS Finder
+.fseventsd
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+*.egg
+dist/
+build/
+.eggs/
+*.whl
+.venv/
+venv/
+env/
+
+# Jupyter/Databricks
+.ipynb_checkpoints/
+*.pyc
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Raw volume-log mirrors (large; the source of truth is the UC Volume)
+run_logs/*/logs/
+run_logs/**/logs/*.log
+
+# Transient audit + process artifacts (see CLAUDE.md §1a)
+HALT-*.md
+PROGRESS-*.md
+PATCH_*.md
+RESCORED-*.md
+FULL-AUDIT-*.md
+V*-ROOT-CAUSE-*.md
+INTERACTIVE_VERIFY_*.md
+RELEASE-NOTES-v*.md
+STATUS-*.md
+
+# Per-run job spec + session ID tracking
+run_logs/
+
+# Local logs, pulse tickers, temp reports
+*.log
+*.pulse
+/tmp/
+
+# Security: prevent accidental secret commits
+.env
+.env.*
+.databrickscfg
+.databrickscfg.*
+*.pem
+*.key
+*.p12
+*.pfx
+credentials*.json
+service-account*.json
+.aws/
+.gcloud/
+secrets*
+
+# Inspire App shell build tree
+agent/app_shell/web/node_modules/

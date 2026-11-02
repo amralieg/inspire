@@ -1,0 +1,56 @@
+{
+  "version": 1,
+  "id": "n01_u05",
+  "use_case_id": "N01-U05",
+  "title": "Price-loss decision desk",
+  "question": "Which items lose the most margin to discounts, and what should we do about each one?",
+  "sponsor": "Head of Pricing",
+  "domain": "Pricing",
+  "subdomain": "Markdown control",
+  "icon": "tag",
+  "hue": "coral",
+  "story": "Discounts cost {total_loss} in the selected period; the list holds {items} items, {items:change} on the previous run.",
+  "questions": ["Which category lost the most to discounts last quarter?", "How did the loss rate move by channel?"],
+  "datasets": [
+    {"name": "trend", "sql": "SELECT as_of_date, month, category, channel, region, loss, revenue, discounts FROM main.pricing.loss_trend"},
+    {"name": "records", "sql": "SELECT o.record_key, o.entity_id, o.entity_label, o.priority_tier, o.`rank`, o.top_reasons, o.recommended_action, o.value, o.as_of_date, i.category, i.channel, i.region FROM main.pricing.loss_desk_out AS o JOIN main.pricing.items AS i ON i.item_id = o.entity_id WHERE o.is_current AND o.change_source <> 'delete'"}
+  ],
+  "filters": [
+    {"id": "run_date", "type": "date_range", "label": "Run date", "grain": "month", "default": "12m",
+     "columns": {"trend": "as_of_date", "records": "as_of_date"}},
+    {"id": "category", "type": "multi_select", "label": "Category", "columns": {"trend": "category", "records": "category"}},
+    {"id": "channel", "type": "multi_select", "label": "Channel", "columns": {"trend": "channel", "records": "channel"}},
+    {"id": "region", "type": "multi_select", "label": "Region", "columns": {"trend": "region", "records": "region"}}
+  ],
+  "kpis": [
+    {"id": "total_loss", "label": "Loss to discounts", "dataset": "trend", "expression": "SUM(loss)", "format": "currency", "currency": "USD",
+     "good": "down"},
+    {"id": "loss_rate", "label": "Loss rate", "dataset": "trend", "expression": "SUM(loss) / NULLIF(SUM(revenue), 0) * 100", "format": "percent",
+     "good": "down"},
+    {"id": "items", "label": "Items on the list", "dataset": "records", "expression": "COUNT(*)", "format": "integer", "good": "neutral",
+     "compare": true, "caption": "from the latest run"}
+  ],
+  "charts": [
+    {"id": "loss_trend", "title": "Loss to discounts by month", "hint": "Each point is one month of discount loss.", "type": "line",
+     "dataset": "trend", "x": {"column": "month", "kind": "time", "label": "Month"},
+     "y": [{"label": "Loss", "expression": "SUM(loss)", "format": "currency", "currency": "USD"}], "span": 2},
+    {"id": "by_category", "title": "Where the loss sits", "hint": "Categories of the listed items, ranked by their loss.",
+     "type": "horizontal_bar", "dataset": "records", "x": {"column": "category", "kind": "category", "label": "Category"},
+     "y": [{"label": "Loss", "expression": "SUM(value)", "format": "currency", "currency": "USD"}], "limit": 10, "driver": true},
+    {"id": "channel_mix", "title": "Loss by channel over time", "hint": "Monthly loss split by sales channel.", "type": "stacked_bar",
+     "dataset": "trend", "x": {"column": "month", "kind": "time", "label": "Month"}, "series": {"column": "channel", "top": 4},
+     "y": [{"label": "Loss", "expression": "SUM(loss)", "format": "currency", "currency": "USD"}]},
+    {"id": "pareto", "title": "How concentrated the loss is", "hint": "Categories largest first, with their running share.",
+     "type": "pareto", "dataset": "trend", "x": {"column": "category", "kind": "category", "label": "Category"},
+     "y": [{"label": "Loss", "expression": "SUM(loss)", "format": "currency", "currency": "USD"}], "limit": 20}
+  ],
+  "tables": [],
+  "records": {
+    "title": "Decision list", "hint": "Items from the latest run, ranked by loss.", "key": "entity_id", "label": "entity_label",
+    "sublabel": "category", "rank": "rank", "tier": "priority_tier", "reasons": "top_reasons", "action": "recommended_action",
+    "columns": [{"column": "category", "label": "Category", "format": "text"},
+                {"column": "value", "label": "Loss", "format": "currency", "currency": "USD"}],
+    "detail": [{"column": "value", "label": "Loss", "format": "currency", "currency": "USD"},
+               {"column": "channel", "label": "Channel", "format": "text"}, {"column": "region", "label": "Region", "format": "text"}]
+  }
+}

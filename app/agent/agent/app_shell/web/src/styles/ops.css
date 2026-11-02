@@ -1,0 +1,56 @@
+.fresh{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;margin-top:10px;font-size:12.5px;color:var(--muted);max-width:100%}
+.fresh-t{display:inline-flex;align-items:center;gap:6px;min-width:0;overflow-wrap:anywhere}
+.fresh-t>svg{flex:none}
+.fresh-flag{display:inline-block;margin-left:2px;padding:1px 8px;border-radius:999px;border:1px solid var(--amber-bd);background:var(--amber-bg);color:var(--amber-ink);font-size:11px;font-weight:700}
+.fresh--late .fresh-t{color:var(--amber-ink)}
+.fresh-busy{display:inline-flex;flex-wrap:wrap;align-items:center;gap:4px 8px;min-width:0;color:var(--ink);font-size:13px}
+.fresh-busy[data-tone="progress"]>b{color:var(--green-ink)}
+.fresh-busy[data-tone="warn"]>b,.fresh-busy[data-tone="warn"]>svg{color:var(--amber-ink)}
+.fresh-busy .fresh-asof{color:var(--muted)}
+.fresh-go{font-size:12.5px}
+.fresh-busy b{font-weight:650}
+.fresh-busy small{font-size:12px;color:var(--muted)}
+.fresh-dots{display:inline-flex;gap:3px}
+.fresh-dots i{width:5px;height:5px;border-radius:50%;background:var(--green-line);animation:pulse 1s ease-in-out infinite}
+.fresh-dots i:nth-child(2){animation-delay:.15s}
+.fresh-dots i:nth-child(3){animation-delay:.3s}
+.fresh-act{display:inline-flex;flex-wrap:wrap;align-items:center;gap:4px 10px;min-width:0}
+.fresh-btn:disabled{cursor:default;background:var(--well);border-color:var(--line);color:var(--muted)}
+.fresh-btn:disabled:hover{background:var(--well)}
+.fresh-why{min-width:0;max-width:420px;font-size:12px;color:var(--muted);overflow-wrap:anywhere}
+.fresh-note{display:flex;align-items:flex-start;gap:6px;flex-basis:100%;min-width:0;padding:5px 8px;border-radius:8px;background:var(--well);color:var(--ink);overflow-wrap:anywhere}
+.fresh-note>svg{flex:none;margin-top:2px}
+.fresh-note[data-tone="bad"]{background:var(--danger-bg);color:var(--danger)}
+.runs{margin-top:0}
+.card+.runs{margin-top:14px}
+.runs[aria-busy="true"] .tbl-wrap{opacity:.62;transition:opacity .2s}
+.tbl .runs-x{width:40px;padding-right:0}
+.runs-tog svg{transition:transform .15s}
+.runs-tog[aria-expanded="true"] svg{transform:rotate(90deg)}
+.runs-tbl tr.is-open>td,.runs-tbl tbody tr.runs-d>td,.runs-tbl tbody tr.runs-d:hover>td{background:var(--well)}
+.runs-sub-t{display:block;font-size:12px;color:var(--muted);font-weight:500}
+.run-st{display:inline-flex;align-items:center;gap:6px;font-weight:650;white-space:nowrap}
+.run-st i{width:8px;height:8px;border-radius:50%;background:var(--slate-line)}
+.run-st--ok i{background:var(--green-line)}
+.run-st--warn{color:var(--amber-ink)}
+.run-st--warn i{background:var(--amber-line)}
+.run-st--bad{color:var(--danger)}
+.run-st--bad i{background:var(--danger)}
+.tbl .runs-d>td{padding:14px 16px}
+.runs-g{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:16px;white-space:normal}
+.runs-g section{min-width:0}
+.runs-g h3{margin:0 0 6px;font-size:11.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted)}
+.runs-g p{margin:0;font-size:13.5px;line-height:1.5;overflow-wrap:anywhere}
+.runs-g .tbl-wrap{margin:0}
+.runs-sub{background:var(--card);border:1px solid var(--line);border-radius:8px}
+.runs-sub code{font-size:12px}
+.run-err{display:flex;flex-direction:column;gap:4px;padding:10px 12px;border-radius:8px;background:var(--danger-bg);border:1px solid var(--brand-bd);font-size:13.5px;line-height:1.5;overflow-wrap:anywhere}
+.run-err small{font-size:12px;color:var(--muted)}
+.run-link{color:var(--brand-ink);font-weight:600;font-size:12.5px}
+.none{color:var(--faint)}
+@container app (max-width: 860px){.runs-g{grid-template-columns:minmax(0,1fr)}}
+@container app (max-width: 560px){.fresh-why{max-width:none}.tbl .runs-d>td{padding:12px}}
+@media (prefers-reduced-motion: reduce){.fresh-dots i{animation:none}.runs-tog svg{transition:none}}
+@media print{.fresh-act{display:none}}
+.refused{display:flex;gap:8px;align-items:flex-start;margin:12px 0;padding:12px 14px;border-radius:10px;background:var(--slate-bg);color:var(--slate-ink);border:1px solid var(--slate-bd);font-size:14px}
+.tbl--usage td small.usage-err{display:block;margin-top:3px;color:var(--danger);font-size:12px}

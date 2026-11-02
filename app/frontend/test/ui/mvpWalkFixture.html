@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>MVP walk fixture</title>
+    <style>
+      .drawer { position: fixed; inset: 0; margin: 0; width: 100%; height: 100%; border: 0; background: rgba(0, 0, 0, 0.2); }
+    </style>
+  </head>
+  <body>
+    <div class="app">
+      <nav class="side">
+        <button type="button" data-to="#/overview">Overview</button>
+        <button type="button" data-to="#/detail">Detail</button>
+      </nav>
+      <main class="main"></main>
+    </div>
+    <script type="module">
+      const main = document.querySelector('main');
+      const seen = (screen, row) => fetch(`/api/walk-seen?screen=${screen}&row=${row}`);
+      const table = (screen, onRow) => {
+        const rows = [0, 1, 2].map((n) => `<tr class="is-click" data-row="${n}"><td>${screen} row ${n}</td></tr>`).join('');
+        main.insertAdjacentHTML('beforeend', `<table class="tbl"><tbody>${rows}</tbody></table>`);
+        for (const tr of main.querySelectorAll('tr.is-click')) tr.addEventListener('click', () => onRow(Number(tr.dataset.row)));
+      };
+      const drawer = (label, closesOnEscape) => {
+        const d = document.createElement('dialog');
+        d.className = 'drawer panel';
+        d.setAttribute('open', '');
+        d.setAttribute('aria-label', label);
+        d.textContent = label;
+        main.appendChild(d);
+        if (closesOnEscape) document.addEventListener('keydown', function off(e) { if (e.key === 'Escape') { d.remove(); document.removeEventListener('keydown', off); } });
+      };
+      const render = () => {
+        const [route, query] = location.hash.split('?');
+        main.innerHTML = '';
+        if (route === '#/detail') {
+          main.insertAdjacentHTML('beforeend', '<h1>Detail</h1>');
+          table('detail', (n) => { seen('detail', n); drawer(`detail record ${n}`, true); });
+          const rec = new URLSearchParams(query || '').get('rec');
+          if (rec !== null) drawer(`record ${rec}`, false);
+          return;
+        }
+        main.insertAdjacentHTML('beforeend', '<h1>Overview</h1>');
+        table('overview', (n) => { seen('overview', n); location.hash = `#/detail?rec=${n}`; });
+      };
+      for (const b of document.querySelectorAll('nav.side button')) b.addEventListener('click', () => { location.hash = b.dataset.to; });
+      window.addEventListener('hashchange', render);
+      if (!location.hash) location.hash = '#/overview';
+      render();
+    </script>
+  </body>
+</html>

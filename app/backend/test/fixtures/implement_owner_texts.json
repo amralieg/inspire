@@ -1,0 +1,124 @@
+{
+ "settings_source": "final-agent 7219d5d",
+ "kpi_source": "final-agent 7219d5d",
+ "settings_owners": "Only the owners of this use case can change its settings: the person who asked for v{live} and the App owners it names",
+ "refusals": [
+  {
+   "live": 1,
+   "requester": "someone.else@example.com",
+   "refusal": "Only the owners of this use case can change its settings: the person who asked for v1 and the App owners it names, and someone.else@example.com, who asked for v2, is not one of them, so Inspire applied nothing of v2 and v1 stays live"
+  },
+  {
+   "live": 7,
+   "requester": null,
+   "refusal": "Only the owners of this use case can change its settings: the person who asked for v7 and the App owners it names, and this run does not name who asked for it, so Inspire cannot check that they are one of them; it applied nothing of v8 and v7 stays live. Submit the change again from the Inspire App, which records who asks"
+  },
+  {
+   "live": 2,
+   "requester": "owner@example.com",
+   "refusal": ""
+  }
+ ],
+ "owners": [
+  {
+   "row": {
+    "created_by": "owner@example.com",
+    "spec_json": {
+     "outputs": {
+      "app_owners": [
+       "lee@example.com"
+      ]
+     }
+    }
+   },
+   "owners": [
+    "owner@example.com",
+    "lee@example.com"
+   ]
+  },
+  {
+   "row": {
+    "created_by": "\u0085Owner@Example.com\u3000",
+    "spec_json": {
+     "outputs": {
+      "app_owners": [
+       " OWNER@example.com",
+       "\u001cLee@Example.com\u2028",
+       "",
+       null,
+       "lee@example.com"
+      ]
+     }
+    }
+   },
+   "owners": [
+    "owner@example.com",
+    "lee@example.com"
+   ]
+  },
+  {
+   "row": {
+    "created_by": "\ufeffbom@example.com",
+    "spec_json": {
+     "outputs": {
+      "app_owners": "\u200bzero@example.com"
+     }
+    }
+   },
+   "owners": [
+    "\ufeffbom@example.com"
+   ]
+  },
+  {
+   "row": {
+    "created_by": null,
+    "spec_json": {
+     "outputs": {
+      "app_owners": [
+       5,
+       true,
+       "\u00a0pat@example.com\u00a0"
+      ]
+     }
+    }
+   },
+   "owners": [
+    "5",
+    "true",
+    "pat@example.com"
+   ]
+  },
+  {
+   "row": {
+    "created_by": "  ",
+    "spec_json": "not a spec"
+   },
+   "owners": []
+  },
+  {
+   "row": {
+    "spec_json": {
+     "outputs": null
+    }
+   },
+   "owners": []
+  }
+ ],
+ "run_words": [
+  "Sign in so the App can record who asked for the run",
+  "No one can run this use case from the App, because the App names no owner of it; build it again with Edit MVP on Inspire's Build page",
+  "Only the owners of this use case can run it now"
+ ],
+ "setting_words": [
+  "Sign in so the App can record who changed the setting",
+  "No one can change the settings of this use case, because the App names no owner of it; build it again with Edit MVP on Inspire's Build page",
+  "Only the owners of this use case can change its settings"
+ ],
+ "assumption_words": [
+  "Sign in so the App can record who changed the assumption",
+  "No one can change the assumptions of this use case, because the App names no owner of it; build it again with Edit MVP on Inspire's Build page",
+  "Only the owners of this use case can change its assumptions"
+ ],
+ "use_case_owners_max": 51,
+ "kept_tag": "Not in the latest run"
+}

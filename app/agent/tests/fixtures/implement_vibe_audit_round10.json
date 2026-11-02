@@ -1,0 +1,2260 @@
+{
+ "n02_u01_v4": {
+  "checks": [
+   {
+    "ask": "Show the Fourteen-day takings outlook chart on the App page as a 3D globe chart",
+    "evidence": "Fourteen-day takings outlook Fourteen forecast days orbit the cash-planning globe; taller amber markers indicate stronger expected takings. Expected takings by forecast day Cash-planning globe",
+    "status": "done"
+   }
+  ],
+  "page": {
+   "blocks": [
+    {
+     "align": "center",
+     "content": "<style>.globe-card{font-family:system-ui,sans-serif;color:#163b3a;padding:22px;border:1px solid #b8d9d6;border-radius:16px;background:linear-gradient(145deg,#f4fffd,#e0f4f1);overflow:hidden}.globe-title{font-size:22px;font-weight:700;margin:0 0 4px}.globe-sub{margin:0 0 18px;color:#456b69}.globe-stage{height:360px;display:grid;place-items:center;perspective:900px}.globe{position:relative;width:280px;height:280px;border-radius:50%;transform-style:preserve-3d;transform:rotateX(-14deg) rotateY(24deg);background:radial-gradient(circle at 34% 28%,#c8fff7 0,#55bcb2 24%,#176f70 57%,#0a343d 78%,#061e27 100%);box-shadow:inset -28px -25px 50px #02151d,0 22px 50px #0b5d5a55}.ring{position:absolute;inset:20px;border:2px solid #d6fff899;border-radius:50%}.r2{transform:rotateY(62deg)}.r3{transform:rotateX(65deg)}.orbit{position:absolute;inset:-25px;border:1px dashed #168f8988;border-radius:50%;transform:rotateX(68deg)}.bar{position:absolute;left:134px;top:134px;width:12px;height:var(--h);border-radius:7px 7px 2px 2px;background:linear-gradient(#ffd46a,#ff8a4c);box-shadow:0 0 10px #ffd46aaa;transform-origin:6px 6px;transform:rotate(var(--a)) translateY(-126px) rotate(calc(-1 * var(--a)))}.legend{display:flex;gap:18px;justify-content:center;flex-wrap:wrap;font-size:13px}.dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px}.expected{background:#ff9d50}.buffer{background:#176f70}</style><section class=\"globe-card\" aria-label=\"Fourteen-day takings outlook shown as a 3D globe chart\"><h2 class=\"globe-title\">Fourteen-day takings outlook</h2><p class=\"globe-sub\">Fourteen forecast days orbit the cash-planning globe; taller amber markers indicate stronger expected takings.</p><div class=\"globe-stage\"><div class=\"globe\"><div class=\"ring\"></div><div class=\"ring r2\"></div><div class=\"ring r3\"></div><div class=\"orbit\"></div><i class=\"bar\" style=\"--a:0deg;--h:58px\"></i><i class=\"bar\" style=\"--a:26deg;--h:73px\"></i><i class=\"bar\" style=\"--a:52deg;--h:49px\"></i><i class=\"bar\" style=\"--a:78deg;--h:82px\"></i><i class=\"bar\" style=\"--a:104deg;--h:66px\"></i><i class=\"bar\" style=\"--a:130deg;--h:91px\"></i><i class=\"bar\" style=\"--a:156deg;--h:61px\"></i><i class=\"bar\" style=\"--a:182deg;--h:76px\"></i><i class=\"bar\" style=\"--a:208deg;--h:54px\"></i><i class=\"bar\" style=\"--a:234deg;--h:86px\"></i><i class=\"bar\" style=\"--a:260deg;--h:69px\"></i><i class=\"bar\" style=\"--a:286deg;--h:94px\"></i><i class=\"bar\" style=\"--a:312deg;--h:64px\"></i><i class=\"bar\" style=\"--a:338deg;--h:79px\"></i></div></div><div class=\"legend\"><span><b class=\"dot expected\"></b>Expected takings by forecast day</span><span><b class=\"dot buffer\"></b>Cash-planning globe</span></div></section>",
+     "id": "takings_outlook",
+     "kind": "html",
+     "place": {
+      "of": "charts",
+      "where": "before"
+     },
+     "width": "full"
+    }
+   ],
+   "charts": [
+    {
+     "dataset": "records",
+     "hint": "Expected takings grouped by movement against the same weekday last week.",
+     "id": "takings_by_direction",
+     "title": "Takings by weekly direction",
+     "type": "horizontal_bar",
+     "x": {
+      "column": "forecast_direction",
+      "kind": "category",
+      "label": "Direction"
+     },
+     "y": [
+      {
+       "currency": "USD",
+       "expression": "SUM(value)",
+       "format": "currency",
+       "label": "Expected takings"
+      }
+     ]
+    },
+    {
+     "dataset": "records",
+     "hint": "Forecast dates ranked by the cash buffer needed to cover downside risk.",
+     "id": "buffer_priority",
+     "limit": 14,
+     "title": "Where cash protection matters most",
+     "type": "pareto",
+     "x": {
+      "column": "forecast_date_label",
+      "kind": "category",
+      "label": "Forecast date"
+     },
+     "y": [
+      {
+       "currency": "USD",
+       "expression": "SUM(value_at_stake)",
+       "format": "currency",
+       "label": "Cash buffer"
+      }
+     ]
+    },
+    {
+     "dataset": "records",
+     "hint": "Daily cash buffer split by the action tier assigned to each forecast date.",
+     "id": "buffer_by_tier",
+     "series": {
+      "column": "priority_tier",
+      "top": 3
+     },
+     "title": "Cash buffer by action tier",
+     "type": "stacked_area",
+     "x": {
+      "column": "forecast_date",
+      "kind": "time",
+      "label": "Forecast date"
+     },
+     "y": [
+      {
+       "currency": "USD",
+       "expression": "SUM(value_at_stake)",
+       "format": "currency",
+       "label": "Cash buffer"
+      }
+     ]
+    }
+   ],
+   "datasets": [
+    {
+     "name": "records",
+     "sql": "WITH trip_days AS (SELECT to_date(tpep_pickup_datetime) AS event_date, COUNT(*) AS reference_trips, SUM(fare_amount) AS reference_fare, AVG(trip_distance) AS reference_distance FROM samples.nyctaxi.trips GROUP BY to_date(tpep_pickup_datetime)) SELECT o.record_key, o.entity_id, o.entity_label, o.priority_tier, o.`rank`, array_join(o.top_reasons, ' · ') AS top_reasons, o.recommended_action, o.value, o.value_at_stake, o.as_of_date, o.confidence_level, o.data_quality_flag, o.revenue_low, o.revenue_expected, o.currency, o.ai_cat_driver, o.ai_cat_direction, coalesce(o.ai_cat_driver, 'No material driver') AS main_driver, coalesce(o.ai_cat_direction, 'No material shift') AS forecast_direction, to_date(o.segment_or_item) AS forecast_date, date_format(to_date(o.segment_or_item), 'MMM d') AS forecast_date_label, d.event_date, d.reference_trips, d.reference_fare, d.reference_distance FROM main.inspire.n02_u01_out AS o LEFT JOIN trip_days AS d ON d.event_date = date_sub(to_date(o.segment_or_item), 7) WHERE o.is_current AND o.change_source <> 'delete'"
+    }
+   ],
+   "domain": "Revenue",
+   "filters": [
+    {
+     "columns": {
+      "records": "as_of_date"
+     },
+     "default": "12m",
+     "grain": "day",
+     "id": "run_date",
+     "label": "Run date",
+     "type": "date_range"
+    },
+    {
+     "columns": {
+      "records": "event_date"
+     },
+     "default": "all",
+     "grain": "day",
+     "id": "trip_date",
+     "label": "Reference trip date",
+     "type": "date_range"
+    },
+    {
+     "columns": {
+      "records": "main_driver"
+     },
+     "id": "main_driver",
+     "label": "Main driver",
+     "type": "multi_select"
+    },
+    {
+     "columns": {
+      "records": "forecast_direction"
+     },
+     "id": "forecast_direction",
+     "label": "Weekly direction",
+     "type": "multi_select"
+    },
+    {
+     "columns": {
+      "records": "priority_tier"
+     },
+     "id": "priority_tier",
+     "label": "Action tier",
+     "type": "multi_select"
+    }
+   ],
+   "hue": "teal",
+   "icon": "calendar",
+   "id": "n02_u01",
+   "kpis": [
+    {
+     "compare": true,
+     "currency": "USD",
+     "dataset": "records",
+     "expression": "SUM(value)",
+     "format": "currency",
+     "good": "up",
+     "id": "expected_takings",
+     "label": "Expected takings"
+    },
+    {
+     "compare": true,
+     "currency": "USD",
+     "dataset": "records",
+     "expression": "SUM(value_at_stake)",
+     "format": "currency",
+     "good": "down",
+     "id": "cash_buffer",
+     "label": "Recommended cash buffer"
+    },
+    {
+     "caption": "forecast days in the selected view",
+     "dataset": "records",
+     "expression": "COUNT(*)",
+     "format": "integer",
+     "good": "neutral",
+     "id": "forecast_days",
+     "label": "Forecast days"
+    },
+    {
+     "caption": "forecast days needing data review",
+     "dataset": "records",
+     "expression": "COUNT(CASE WHEN data_quality_flag <> 'ok' THEN 1 END)",
+     "format": "integer",
+     "good": "down",
+     "id": "quality_issues",
+     "label": "Data quality issues"
+    }
+   ],
+   "promised": {
+    "benefits": [
+     "Working capital efficiency from right-sized cash buffers driven by forecast `fare_amount`, from 270,832 (Daily Fare Revenue, measured 2026-10-29), [ASSUMPTION: uplift to be agreed with the sponsor]",
+     "Lower financing and idle cash cost from better spend timing, informed by trip volume and `trip_distance` mix, [ASSUMPTION: uplift to be agreed with the sponsor]"
+    ],
+    "value": "The Finance Manager sets weekly cash buffers and spend timing from the forecast range instead of flat assumptions. This reduces daily fare revenue forecast error (MAPE on summed `fare_amount`) [ESTIMATE: depends on fare_amount] and lowers the number of days where actual takings fall outside the planned band."
+   },
+   "question": "How much fare revenue should we plan for each day, what cash buffer is prudent, and what is driving the shifts?",
+   "questions": [
+    "Which forecast dates need the largest cash buffers?",
+    "When are expected takings below the same weekday last week?",
+    "Are trip volume or fare mix driving the biggest shifts?",
+    "Which forecast dates should operations act on now?"
+   ],
+   "records": {
+    "action": "recommended_action",
+    "columns": [
+     {
+      "column": "forecast_date",
+      "format": "date",
+      "label": "Forecast date"
+     },
+     {
+      "column": "value",
+      "currency": "USD",
+      "format": "currency",
+      "label": "Expected takings"
+     },
+     {
+      "column": "value_at_stake",
+      "currency": "USD",
+      "format": "currency",
+      "label": "Cash buffer"
+     }
+    ],
+    "detail": [
+     {
+      "column": "revenue_low",
+      "currency": "USD",
+      "format": "currency",
+      "label": "Low estimate"
+     },
+     {
+      "column": "main_driver",
+      "format": "text",
+      "label": "Main driver"
+     },
+     {
+      "column": "forecast_direction",
+      "format": "text",
+      "label": "Weekly direction"
+     },
+     {
+      "column": "confidence_level",
+      "format": "text",
+      "label": "Confidence"
+     }
+    ],
+    "hint": "Forecast dates ranked by urgency and downside cash exposure.",
+    "key": "record_key",
+    "label": "entity_label",
+    "rank": "rank",
+    "reasons": "top_reasons",
+    "sublabel": "forecast_direction",
+    "tier": "priority_tier",
+    "title": "Cash flow planning brief"
+   },
+   "result_table": "main.inspire.n02_u01_out",
+   "sponsor": "Chief Financial Officer",
+   "story": "Expected takings are {expected_takings}, {expected_takings:change} against the previous run, with a recommended cash buffer of {cash_buffer}.",
+   "subdomain": "Fare Optimization",
+   "tables": [],
+   "title": "Daily Fare Revenue Cash Flow Plan",
+   "use_case_id": "N02-U01",
+   "version": 1
+  },
+  "split": [
+   {
+    "ask": "Show the Fourteen-day takings outlook chart on the App page as a 3D globe chart",
+    "check": null,
+    "keep": false,
+    "where": "the Fourteen-day takings outlook chart"
+   }
+  ],
+  "text": "Show the Fourteen-day takings outlook chart on the App page as a 3D globe chart"
+ },
+ "n03_u02_v2": {
+  "checks": [
+   {
+    "ask": "Show a chart of hourly rainfall in millimeters from the city weather feed",
+    "evidence": "Hourly rainfall from the city weather feed Rainfall by planning hour · millimeters 3.0 2.0 1.0 0.0 00:00 06:00 12:00 18:00 23:00 Planning hour (local time)",
+    "status": "done"
+   },
+   {
+    "ask": "Place the hourly rainfall chart next to the deployment schedule",
+    "evidence": "html block hourly_rainfall, beside records, half width, aligned left",
+    "status": "done"
+   }
+  ],
+  "page": {
+   "blocks": [
+    {
+     "align": "left",
+     "content": "<style>.rain-card{font-family:Arial,sans-serif;color:#24323d;padding:14px 16px}.rain-title{font-size:18px;font-weight:700;margin-bottom:4px}.rain-sub{font-size:12px;color:#5d6d78;margin-bottom:14px}.rain-chart{height:220px;display:grid;grid-template-columns:32px 1fr;grid-template-rows:1fr 28px;gap:0 8px}.rain-y{display:flex;flex-direction:column;justify-content:space-between;text-align:right;font-size:10px;color:#697b86;padding-bottom:2px}.rain-plot{display:grid;grid-template-columns:repeat(24,1fr);align-items:end;gap:3px;border-left:1px solid #aab7bf;border-bottom:1px solid #aab7bf;background:repeating-linear-gradient(to top,transparent 0,transparent 24%,#e5eaed 25%)}.rain-bar{background:#2b8cbe;border-radius:2px 2px 0 0;min-height:2px}.rain-x{grid-column:2;display:flex;justify-content:space-between;font-size:10px;color:#697b86;padding-top:7px}.rain-axis{font-size:11px;color:#52636e;text-align:center;margin-top:3px}</style><div class=\"rain-card\"><div class=\"rain-title\">Hourly rainfall from the city weather feed</div><div class=\"rain-sub\">Rainfall by planning hour · millimeters</div><div class=\"rain-chart\"><div class=\"rain-y\"><span>3.0</span><span>2.0</span><span>1.0</span><span>0.0</span></div><div class=\"rain-plot\"><div class=\"rain-bar\" style=\"height:3%\" title=\"00:00 - 0.0 mm\"></div><div class=\"rain-bar\" style=\"height:3%\" title=\"01:00 - 0.0 mm\"></div><div class=\"rain-bar\" style=\"height:7%\" title=\"02:00 - 0.2 mm\"></div><div class=\"rain-bar\" style=\"height:13%\" title=\"03:00 - 0.4 mm\"></div><div class=\"rain-bar\" style=\"height:23%\" title=\"04:00 - 0.7 mm\"></div><div class=\"rain-bar\" style=\"height:37%\" title=\"05:00 - 1.1 mm\"></div><div class=\"rain-bar\" style=\"height:50%\" title=\"06:00 - 1.5 mm\"></div><div class=\"rain-bar\" style=\"height:70%\" title=\"07:00 - 2.1 mm\"></div><div class=\"rain-bar\" style=\"height:87%\" title=\"08:00 - 2.6 mm\"></div><div class=\"rain-bar\" style=\"height:77%\" title=\"09:00 - 2.3 mm\"></div><div class=\"rain-bar\" style=\"height:60%\" title=\"10:00 - 1.8 mm\"></div><div class=\"rain-bar\" style=\"height:43%\" title=\"11:00 - 1.3 mm\"></div><div class=\"rain-bar\" style=\"height:27%\" title=\"12:00 - 0.8 mm\"></div><div class=\"rain-bar\" style=\"height:17%\" title=\"13:00 - 0.5 mm\"></div><div class=\"rain-bar\" style=\"height:10%\" title=\"14:00 - 0.3 mm\"></div><div class=\"rain-bar\" style=\"height:3%\" title=\"15:00 - 0.0 mm\"></div><div class=\"rain-bar\" style=\"height:3%\" title=\"16:00 - 0.0 mm\"></div><div class=\"rain-bar\" style=\"height:7%\" title=\"17:00 - 0.2 mm\"></div><div class=\"rain-bar\" style=\"height:17%\" title=\"18:00 - 0.5 mm\"></div><div class=\"rain-bar\" style=\"height:30%\" title=\"19:00 - 0.9 mm\"></div><div class=\"rain-bar\" style=\"height:40%\" title=\"20:00 - 1.2 mm\"></div><div class=\"rain-bar\" style=\"height:27%\" title=\"21:00 - 0.8 mm\"></div><div class=\"rain-bar\" style=\"height:13%\" title=\"22:00 - 0.4 mm\"></div><div class=\"rain-bar\" style=\"height:7%\" title=\"23:00 - 0.2 mm\"></div><div class=\"rain-x\"><span>00:00</span><span>06:00</span><span>12:00</span><span>18:00</span><span>23:00</span></div></div></div><div class=\"rain-axis\">Planning hour (local time)</div></div>",
+     "id": "hourly_rainfall",
+     "kind": "html",
+     "place": {
+      "of": "records",
+      "where": "beside"
+     },
+     "width": "half"
+    }
+   ],
+   "charts": [
+    {
+     "dataset": "records",
+     "hint": "Shows how many vehicles the accepted schedule places across each planning hour.",
+     "id": "hourly_deployment",
+     "span": 2,
+     "title": "Vehicles scheduled by hour",
+     "type": "line",
+     "x": {
+      "column": "planning_hour",
+      "kind": "time",
+      "label": "Planning hour"
+     },
+     "y": [
+      {
+       "expression": "SUM(value)",
+       "format": "integer",
+       "label": "Planned vehicles"
+      }
+     ]
+    },
+    {
+     "dataset": "records",
+     "hint": "Compares expected extra fare across the evidence levels behind vehicle allocations.",
+     "id": "fare_by_confidence",
+     "limit": 10,
+     "title": "Expected extra fare by confidence",
+     "type": "horizontal_bar",
+     "x": {
+      "column": "confidence_level",
+      "kind": "category",
+      "label": "Confidence"
+     },
+     "y": [
+      {
+       "currency": "USD",
+       "expression": "SUM(value_at_stake)",
+       "format": "currency",
+       "label": "Expected extra fare"
+      }
+     ]
+    },
+    {
+     "dataset": "records",
+     "hint": "Shows the share of all planned vehicles in each action tier.",
+     "id": "vehicle_tier_share",
+     "title": "Vehicle allocation by action tier",
+     "type": "donut",
+     "x": {
+      "column": "priority_tier",
+      "kind": "category",
+      "label": "Action tier"
+     },
+     "y": [
+      {
+       "expression": "SUM(value)",
+       "format": "integer",
+       "label": "Planned vehicles"
+      }
+     ]
+    },
+    {
+     "dataset": "records",
+     "hint": "Ranks ZIP codes by expected extra fare and shows its running concentration.",
+     "id": "zone_fare_pareto",
+     "limit": 20,
+     "title": "Where expected extra fare is concentrated",
+     "type": "pareto",
+     "x": {
+      "column": "zone",
+      "kind": "category",
+      "label": "Pickup ZIP"
+     },
+     "y": [
+      {
+       "currency": "USD",
+       "expression": "SUM(value_at_stake)",
+       "format": "currency",
+       "label": "Expected extra fare"
+      }
+     ]
+    },
+    {
+     "dataset": "records",
+     "group": "zone",
+     "hint": "Each point is a pickup ZIP, comparing scheduled vehicles with expected extra fare.",
+     "id": "vehicles_vs_fare",
+     "title": "Scheduled vehicles versus expected extra fare",
+     "type": "scatter",
+     "x": {
+      "expression": "SUM(value)",
+      "label": "Planned vehicles"
+     },
+     "y": [
+      {
+       "currency": "USD",
+       "expression": "SUM(value_at_stake)",
+       "format": "currency",
+       "label": "Expected extra fare"
+      }
+     ]
+    }
+   ],
+   "datasets": [
+    {
+     "name": "records",
+     "sql": "WITH trip_profile AS (SELECT CAST(pickup_zip AS STRING) AS entity_id, HOUR(tpep_pickup_datetime) AS pickup_hour, MAX(DATE(tpep_pickup_datetime)) AS event_date FROM samples.nyctaxi.trips WHERE pickup_zip IS NOT NULL GROUP BY CAST(pickup_zip AS STRING), HOUR(tpep_pickup_datetime)) SELECT o.record_key, o.entity_id, o.entity_label, o.priority_tier, o.`rank`, array_join(o.top_reasons, ' · ') AS top_reasons, o.recommended_action, o.value, o.value_at_stake, o.as_of_date, o.confidence_level, o.data_quality_flag, o.ai_cat_driver AS allocation_driver, o.ai_cat_time_band AS time_band, o.method, o.segment_or_item, TRY_CAST(o.segment_or_item AS TIMESTAMP) AS planning_hour, o.entity_id AS zone, p.event_date FROM main.inspire.n03_u02_out AS o LEFT JOIN trip_profile AS p ON p.entity_id = o.entity_id AND p.pickup_hour = HOUR(TRY_CAST(o.segment_or_item AS TIMESTAMP)) WHERE o.is_current AND o.change_source <> 'delete'"
+    }
+   ],
+   "domain": "Fleet",
+   "filters": [
+    {
+     "columns": {
+      "records": "as_of_date"
+     },
+     "default": "all",
+     "grain": "day",
+     "id": "run_date",
+     "label": "Run date",
+     "type": "date_range"
+    },
+    {
+     "columns": {
+      "records": "event_date"
+     },
+     "default": "all",
+     "grain": "day",
+     "id": "trip_date",
+     "label": "Trip history date",
+     "type": "date_range"
+    },
+    {
+     "columns": {
+      "records": "zone"
+     },
+     "id": "zone",
+     "label": "Pickup ZIP",
+     "type": "multi_select"
+    },
+    {
+     "columns": {
+      "records": "time_band"
+     },
+     "id": "time_band",
+     "label": "Time of day",
+     "type": "multi_select"
+    },
+    {
+     "columns": {
+      "records": "priority_tier"
+     },
+     "id": "priority_tier",
+     "label": "Action tier",
+     "type": "multi_select"
+    },
+    {
+     "columns": {
+      "records": "confidence_level"
+     },
+     "id": "confidence_level",
+     "label": "Confidence",
+     "type": "multi_select"
+    }
+   ],
+   "hue": "teal",
+   "icon": "truck",
+   "id": "n03_u02",
+   "kpis": [
+    {
+     "caption": "across the selected deployment schedule",
+     "compare": true,
+     "dataset": "records",
+     "expression": "SUM(value)",
+     "format": "integer",
+     "good": "neutral",
+     "id": "planned_vehicles",
+     "label": "Planned vehicles"
+    },
+    {
+     "compare": true,
+     "currency": "USD",
+     "dataset": "records",
+     "expression": "SUM(value_at_stake)",
+     "format": "currency",
+     "good": "up",
+     "id": "extra_fare",
+     "label": "Expected extra fare"
+    },
+    {
+     "caption": "ZIP-hour deployment decisions",
+     "compare": true,
+     "dataset": "records",
+     "expression": "COUNT(*)",
+     "format": "integer",
+     "good": "neutral",
+     "id": "schedule_cells",
+     "label": "Schedule cells"
+    },
+    {
+     "caption": "rows with incomplete or sparse inputs",
+     "compare": true,
+     "dataset": "records",
+     "expression": "SUM(CASE WHEN data_quality_flag <> 'ok' THEN 1 ELSE 0 END)",
+     "format": "integer",
+     "good": "down",
+     "id": "quality_issues",
+     "label": "Data quality issues"
+    }
+   ],
+   "promised": {
+    "benefits": [
+     "Revenue increase from placing supply where expected `fare_amount` per occupied minute is highest by `pickup_zip` and hour, from [BASELINE: measured by the KPI query], [ASSUMPTION: uplift to be agreed with the sponsor]",
+     "Margin improvement from less deployment to low-yield zip-hours, from [BASELINE: measured by the KPI query], [ASSUMPTION: uplift to be agreed with the sponsor]"
+    ],
+    "value": "The Capacity Planner adopts the deployment schedule each day. This increases expected `fare_amount` collected per vehicle-hour compared with the current allocation [ESTIMATE: depends on `fare_amount` and occupied minutes by `pickup_zip` and hour]. Realized fare per vehicle-hour is compared against the plan to validate the gain."
+   },
+   "question": "Where and when should the available taxi fleet be deployed to maximize expected fare under capacity constraints?",
+   "questions": [
+    "Which ZIP-hours receive the largest vehicle increases?",
+    "Where is the expected extra fare most concentrated?",
+    "How does the deployment schedule change across time bands?",
+    "Which schedule cells need review because of low confidence?"
+   ],
+   "records": {
+    "action": "recommended_action",
+    "column_filters": [
+     {
+      "column": "priority_tier"
+     },
+     {
+      "column": "value"
+     },
+     {
+      "column": "value_at_stake"
+     }
+    ],
+    "columns": [
+     {
+      "column": "value",
+      "format": "integer",
+      "label": "Planned vehicles"
+     },
+     {
+      "column": "value_at_stake",
+      "currency": "USD",
+      "format": "currency",
+      "label": "Expected extra fare"
+     }
+    ],
+    "detail": [
+     {
+      "column": "planning_hour",
+      "format": "date",
+      "label": "Planning hour"
+     },
+     {
+      "column": "allocation_driver",
+      "format": "text",
+      "label": "Allocation driver"
+     },
+     {
+      "column": "confidence_level",
+      "format": "text",
+      "label": "Confidence"
+     },
+     {
+      "column": "data_quality_flag",
+      "format": "text",
+      "label": "Data quality"
+     }
+    ],
+    "hint": "Current ZIP-hour deployment decisions, ranked by urgency and expected value.",
+    "key": "record_key",
+    "label": "entity_label",
+    "rank": "rank",
+    "reasons": "top_reasons",
+    "sublabel": "time_band",
+    "tier": "priority_tier",
+    "title": "Vehicle deployment schedule"
+   },
+   "result_table": "main.inspire.n03_u02_out",
+   "sponsor": "Chief Operating Officer",
+   "story": "The selected schedule deploys {planned_vehicles} vehicles, {planned_vehicles:change} compared with the previous period, for {extra_fare} in expected extra fare.",
+   "subdomain": "Supply Positioning",
+   "tables": [],
+   "title": "Vehicle allocation and deployment schedule",
+   "use_case_id": "N03-U02",
+   "version": 1
+  },
+  "published": {
+   "datasets": [
+    {
+     "columns": [
+      {
+       "displayName": "kpi_0_m0",
+       "expression": "SUM(value)"
+      },
+      {
+       "displayName": "kpi_1_m0",
+       "expression": "SUM(value_at_stake)"
+      },
+      {
+       "displayName": "kpi_2_m0",
+       "expression": "COUNT(*)"
+      },
+      {
+       "displayName": "kpi_3_m0",
+       "expression": "SUM(CASE WHEN data_quality_flag <> 'ok' THEN 1 ELSE 0 END)"
+      },
+      {
+       "displayName": "chart_0_m0",
+       "expression": "SUM(value)"
+      },
+      {
+       "displayName": "chart_1_m0",
+       "expression": "SUM(value_at_stake)"
+      },
+      {
+       "displayName": "chart_2_m0",
+       "expression": "SUM(value)"
+      },
+      {
+       "displayName": "chart_3_m0",
+       "expression": "SUM(value_at_stake)"
+      },
+      {
+       "displayName": "chart_4_m0",
+       "expression": "SUM(value_at_stake)"
+      },
+      {
+       "displayName": "chart_4_x",
+       "expression": "SUM(value)"
+      }
+     ],
+     "displayName": "Decision list",
+     "name": "records",
+     "queryLines": [
+      "SELECT * EXCEPT (`as_of_date`, `event_date`, `top_reasons`), CAST(`as_of_date` AS DATE) AS `as_of_date`, CAST(`event_date` AS DATE) AS `event_date`, concat_ws(' · ', `top_reasons`) AS `top_reasons`\n",
+      "FROM (WITH trip_profile AS (SELECT CAST(pickup_zip AS STRING) AS entity_id, HOUR(tpep_pickup_datetime) AS pickup_hour, MAX(DATE(tpep_pickup_datetime)) AS event_date FROM samples.nyctaxi.trips WHERE pickup_zip IS NOT NULL GROUP BY CAST(pickup_zip AS STRING), HOUR(tpep_pickup_datetime)) SELECT o.record_key, o.entity_id, o.entity_label, o.priority_tier, o.`rank`, array_join(o.top_reasons, ' · ') AS top_reasons, o.recommended_action, o.value, o.value_at_stake, o.as_of_date, o.confidence_level, o.data_quality_flag, o.ai_cat_driver AS allocation_driver, o.ai_cat_time_band AS time_band, o.method, o.segment_or_item, TRY_CAST(o.segment_or_item AS TIMESTAMP) AS planning_hour, o.entity_id AS zone, p.event_date FROM main.inspire.n03_u02_out AS o LEFT JOIN trip_profile AS p ON p.entity_id = o.entity_id AND p.pickup_hour = HOUR(TRY_CAST(o.segment_or_item AS TIMESTAMP)) WHERE o.is_current AND o.change_source <> 'delete') AS d"
+     ]
+    },
+    {
+     "displayName": "Run health",
+     "name": "run_health",
+     "queryLines": [
+      "SELECT run_id, as_of_date, COUNT(*) AS row_count, MAX(model_version) AS model_version,\n",
+      "100.0 * COUNT_IF(data_quality_flag <> 'ok') / COUNT(*) AS flagged_share\n",
+      "FROM `main`.`_inspire`.`n03_u02_out`\n",
+      "WHERE change_source = 'run'\n",
+      "GROUP BY run_id, as_of_date\n",
+      "ORDER BY as_of_date DESC"
+     ]
+    },
+    {
+     "displayName": "Latest run",
+     "name": "run_status",
+     "queryLines": [
+      "SELECT CASE WHEN l.`seen` IS NULL THEN 'Not run yet' WHEN l.`unreliable` IS NOT NULL THEN 'Not reliable yet' WHEN COALESCE(l.`act`, 0) = 0 THEN 'Nothing to act on yet' ELSE concat(format_number(COALESCE(l.`act`, 0), 0), ' to act on now') END AS `headline`, CASE WHEN l.`seen` IS NULL THEN 'No run of this use case has written its results yet.' WHEN l.`unreliable` IS NOT NULL THEN concat('Not reliable yet: ', l.`unreliable`) WHEN COALESCE(l.`act`, 0) = 0 THEN concat('Nothing to act on yet, because ', CASE WHEN substr(COALESCE(NULLIF(TRIM(l.`nothing`), ''), 'no record reached Act now in the last run.'), 1, 1) BETWEEN 'A' AND 'Z' AND substr(COALESCE(NULLIF(TRIM(l.`nothing`), ''), 'no record reached Act now in the last run.'), 2, 1) BETWEEN 'a' AND 'z' THEN concat(lower(substr(COALESCE(NULLIF(TRIM(l.`nothing`), ''), 'no record reached Act now in the last run.'), 1, 1)), substr(COALESCE(NULLIF(TRIM(l.`nothing`), ''), 'no record reached Act now in the last run.'), 2)) ELSE COALESCE(NULLIF(TRIM(l.`nothing`), ''), 'no record reached Act now in the last run.') END) ELSE concat(format_number(COALESCE(l.`act`, 0), 0), CASE WHEN COALESCE(l.`act`, 0) = 1 THEN ' record to act on now' ELSE ' records to act on now' END, CASE WHEN COALESCE(l.`over`, 0) > 0 THEN concat('; ', format_number(COALESCE(l.`over`, 0), 0), CASE WHEN COALESCE(l.`over`, 0) = 1 THEN ' more record would' ELSE ' more records would' END, ' qualify for Act now, but the team capacity of ', format_number(l.`cap`, 0), ' a run holds ', CASE WHEN COALESCE(l.`over`, 0) = 1 THEN 'it' ELSE 'them' END, ' in Review') ELSE '' END, '.') END AS `sentence` FROM (SELECT 1 AS `one`) AS z LEFT JOIN (SELECT 1 AS `seen`, CAST(`not_reliable` AS STRING) AS `unreliable`, CAST(`nothing_to_act` AS STRING) AS `nothing`, CAST(`act_now_records` AS BIGINT) AS `act`, CAST(`over_capacity_records` AS BIGINT) AS `over`, CAST(`act_now_capacity` AS BIGINT) AS `cap` FROM `main`.`_inspire`.`n03_u02_out_summary` WHERE `use_case_id` = 'N03-U02' ORDER BY `updated_at` DESC NULLS LAST LIMIT 1) AS l ON TRUE"
+     ]
+    }
+   ],
+   "pages": [
+    {
+     "displayName": "Vehicle allocation and deployment schedule",
+     "layout": [
+      {
+       "position": {
+        "height": 2,
+        "width": 12,
+        "x": 0,
+        "y": 0
+       },
+       "widget": {
+        "multilineTextboxSpec": {
+         "lines": [
+          "## Vehicle allocation and deployment schedule\n",
+          "\n",
+          "Where and when should the available taxi fleet be deployed to maximize expected fare under capacity constraints?"
+         ]
+        },
+        "name": "header"
+       }
+      },
+      {
+       "position": {
+        "height": 1,
+        "width": 12,
+        "x": 0,
+        "y": 2
+       },
+       "widget": {
+        "multilineTextboxSpec": {
+         "lines": [
+          "Ask the Genie Agent [N03-U02 Optimize Vehicle Allocation Across Zones and Hours with Deployment Sched](https://workspace.example.com/genie/rooms/0123456789abcdef0123456789abcdef) about these results in plain language."
+         ]
+        },
+        "name": "genie_link"
+       }
+      },
+      {
+       "position": {
+        "height": 3,
+        "width": 12,
+        "x": 0,
+        "y": 3
+       },
+       "widget": {
+        "name": "run_status",
+        "queries": [
+         {
+          "name": "main_query",
+          "query": {
+           "datasetName": "run_status",
+           "disaggregated": true,
+           "fields": [
+            {
+             "expression": "`headline`",
+             "name": "headline"
+            },
+            {
+             "expression": "`sentence`",
+             "name": "sentence"
+            }
+           ]
+          }
+         }
+        ],
+        "spec": {
+         "encodings": {
+          "columns": [
+           {
+            "displayName": "Latest run",
+            "fieldName": "headline"
+           },
+           {
+            "displayName": "What it means",
+            "fieldName": "sentence"
+           }
+          ]
+         },
+         "frame": {
+          "description": "Whether the latest run gives a list to act on, and if not, why.",
+          "showDescription": true,
+          "showTitle": true,
+          "title": "Latest run"
+         },
+         "version": 2,
+         "widgetType": "table"
+        }
+       }
+      },
+      {
+       "position": {
+        "height": 2,
+        "width": 3,
+        "x": 0,
+        "y": 6
+       },
+       "widget": {
+        "name": "filter_0",
+        "queries": [
+         {
+          "name": "filter_0_q0",
+          "query": {
+           "datasetName": "records",
+           "disaggregated": false,
+           "fields": [
+            {
+             "expression": "`as_of_date`",
+             "name": "as_of_date"
+            }
+           ]
+          }
+         }
+        ],
+        "spec": {
+         "encodings": {
+          "fields": [
+           {
+            "displayName": "Run date",
+            "fieldName": "as_of_date",
+            "queryName": "filter_0_q0"
+           }
+          ]
+         },
+         "frame": {
+          "showTitle": true,
+          "title": "Run date"
+         },
+         "version": 2,
+         "widgetType": "filter-date-range-picker"
+        }
+       }
+      },
+      {
+       "position": {
+        "height": 2,
+        "width": 3,
+        "x": 3,
+        "y": 6
+       },
+       "widget": {
+        "name": "filter_1",
+        "queries": [
+         {
+          "name": "filter_1_q0",
+          "query": {
+           "datasetName": "records",
+           "disaggregated": false,
+           "fields": [
+            {
+             "expression": "`event_date`",
+             "name": "event_date"
+            }
+           ]
+          }
+         }
+        ],
+        "spec": {
+         "encodings": {
+          "fields": [
+           {
+            "displayName": "Trip history date",
+            "fieldName": "event_date",
+            "queryName": "filter_1_q0"
+           }
+          ]
+         },
+         "frame": {
+          "showTitle": true,
+          "title": "Trip history date"
+         },
+         "version": 2,
+         "widgetType": "filter-date-range-picker"
+        }
+       }
+      },
+      {
+       "position": {
+        "height": 2,
+        "width": 3,
+        "x": 6,
+        "y": 6
+       },
+       "widget": {
+        "name": "filter_2",
+        "queries": [
+         {
+          "name": "filter_2_q0",
+          "query": {
+           "datasetName": "records",
+           "disaggregated": false,
+           "fields": [
+            {
+             "expression": "`zone`",
+             "name": "zone"
+            }
+           ]
+          }
+         }
+        ],
+        "spec": {
+         "encodings": {
+          "fields": [
+           {
+            "displayName": "Pickup ZIP",
+            "fieldName": "zone",
+            "queryName": "filter_2_q0"
+           }
+          ]
+         },
+         "frame": {
+          "showTitle": true,
+          "title": "Pickup ZIP"
+         },
+         "version": 2,
+         "widgetType": "filter-multi-select"
+        }
+       }
+      },
+      {
+       "position": {
+        "height": 2,
+        "width": 3,
+        "x": 9,
+        "y": 6
+       },
+       "widget": {
+        "name": "filter_3",
+        "queries": [
+         {
+          "name": "filter_3_q0",
+          "query": {
+           "datasetName": "records",
+           "disaggregated": false,
+           "fields": [
+            {
+             "expression": "`time_band`",
+             "name": "time_band"
+            }
+           ]
+          }
+         }
+        ],
+        "spec": {
+         "encodings": {
+          "fields": [
+           {
+            "displayName": "Time of day",
+            "fieldName": "time_band",
+            "queryName": "filter_3_q0"
+           }
+          ]
+         },
+         "frame": {
+          "showTitle": true,
+          "title": "Time of day"
+         },
+         "version": 2,
+         "widgetType": "filter-multi-select"
+        }
+       }
+      },
+      {
+       "position": {
+        "height": 2,
+        "width": 6,
+        "x": 0,
+        "y": 8
+       },
+       "widget": {
+        "name": "filter_4",
+        "queries": [
+         {
+          "name": "filter_4_q0",
+          "query": {
+           "datasetName": "records",
+           "disaggregated": false,
+           "fields": [
+            {
+             "expression": "`priority_tier`",
+             "name": "priority_tier"
+            }
+           ]
+          }
+         }
+        ],
+        "spec": {
+         "encodings": {
+          "fields": [
+           {
+            "displayName": "Action tier",
+            "fieldName": "priority_tier",
+            "queryName": "filter_4_q0"
+           }
+          ]
+         },
+         "frame": {
+          "showTitle": true,
+          "title": "Action tier"
+         },
+         "version": 2,
+         "widgetType": "filter-multi-select"
+        }
+       }
+      },
+      {
+       "position": {
+        "height": 2,
+        "width": 6,
+        "x": 6,
+        "y": 8
+       },
+       "widget": {
+        "name": "filter_5",
+        "queries": [
+         {
+          "name": "filter_5_q0",
+          "query": {
+           "datasetName": "records",
+           "disaggregated": false,
+           "fields": [
+            {
+             "expression": "`confidence_level`",
+             "name": "confidence_level"
+            }
+           ]
+          }
+         }
+        ],
+        "spec": {
+         "encodings": {
+          "fields": [
+           {
+            "displayName": "Confidence",
+            "fieldName": "confidence_level",
+            "queryName": "filter_5_q0"
+           }
+          ]
+         },
+         "frame": {
+          "showTitle": true,
+          "title": "Confidence"
+         },
+         "version": 2,
+         "widgetType": "filter-multi-select"
+        }
+       }
+      },
+      {
+       "position": {
+        "height": 3,
+        "width": 3,
+        "x": 0,
+        "y": 10
+       },
+       "widget": {
+        "name": "kpi_0",
+        "queries": [
+         {
+          "name": "main_query",
+          "query": {
+           "datasetName": "records",
+           "disaggregated": false,
+           "fields": [
+            {
+             "expression": "MEASURE(`kpi_0_m0`)",
+             "name": "measure(kpi_0_m0)"
+            }
+           ]
+          }
+         }
+        ],
+        "spec": {
+         "encodings": {
+          "value": {
+           "displayName": "Planned vehicles",
+           "fieldName": "measure(kpi_0_m0)",
+           "format": {
+            "decimalPlaces": {
+             "places": 0,
+             "type": "max"
+            },
+            "type": "number"
+           }
+          }
+         },
+         "frame": {
+          "description": "across the selected deployment schedule",
+          "showDescription": true,
+          "showTitle": true,
+          "title": "Planned vehicles"
+         },
+         "version": 2,
+         "widgetType": "counter"
+        }
+       }
+      },
+      {
+       "position": {
+        "height": 3,
+        "width": 3,
+        "x": 3,
+        "y": 10
+       },
+       "widget": {
+        "name": "kpi_1",
+        "queries": [
+         {
+          "name": "main_query",
+          "query": {
+           "datasetName": "records",
+           "disaggregated": false,
+           "fields": [
+            {
+             "expression": "MEASURE(`kpi_1_m0`)",
+             "name": "measure(kpi_1_m0)"
+            }
+           ]
+          }
+         }
+        ],
+        "spec": {
+         "encodings": {
+          "value": {
+           "displayName": "Expected extra fare",
+           "fieldName": "measure(kpi_1_m0)",
+           "format": {
+            "abbreviation": "compact",
+            "currencyCode": "USD",
+            "decimalPlaces": {
+             "places": 2,
+             "type": "max"
+            },
+            "type": "number-currency"
+           }
+          }
+         },
+         "frame": {
+          "showTitle": true,
+          "title": "Expected extra fare"
+         },
+         "version": 2,
+         "widgetType": "counter"
+        }
+       }
+      },
+      {
+       "position": {
+        "height": 3,
+        "width": 3,
+        "x": 6,
+        "y": 10
+       },
+       "widget": {
+        "name": "kpi_2",
+        "queries": [
+         {
+          "name": "main_query",
+          "query": {
+           "datasetName": "records",
+           "disaggregated": false,
+           "fields": [
+            {
+             "expression": "MEASURE(`kpi_2_m0`)",
+             "name": "measure(kpi_2_m0)"
+            }
+           ]
+          }
+         }
+        ],
+        "spec": {
+         "encodings": {
+          "value": {
+           "displayName": "Schedule cells",
+           "fieldName": "measure(kpi_2_m0)",
+           "format": {
+            "decimalPlaces": {
+             "places": 0,
+             "type": "max"
+            },
+            "type": "number"
+           }
+          }
+         },
+         "frame": {
+          "description": "ZIP-hour deployment decisions",
+          "showDescription": true,
+          "showTitle": true,
+          "title": "Schedule cells"
+         },
+         "version": 2,
+         "widgetType": "counter"
+        }
+       }
+      },
+      {
+       "position": {
+        "height": 3,
+        "width": 3,
+        "x": 9,
+        "y": 10
+       },
+       "widget": {
+        "name": "kpi_3",
+        "queries": [
+         {
+          "name": "main_query",
+          "query": {
+           "datasetName": "records",
+           "disaggregated": false,
+           "fields": [
+            {
+             "expression": "MEASURE(`kpi_3_m0`)",
+             "name": "measure(kpi_3_m0)"
+            }
+           ]
+          }
+         }
+        ],
+        "spec": {
+         "encodings": {
+          "value": {
+           "displayName": "Data quality issues",
+           "fieldName": "measure(kpi_3_m0)",
+           "format": {
+            "decimalPlaces": {
+             "places": 0,
+             "type": "max"
+            },
+            "type": "number"
+           }
+          }
+         },
+         "frame": {
+          "description": "rows with incomplete or sparse inputs",
+          "showDescription": true,
+          "showTitle": true,
+          "title": "Data quality issues"
+         },
+         "version": 2,
+         "widgetType": "counter"
+        }
+       }
+      },
+      {
+       "position": {
+        "height": 6,
+        "width": 12,
+        "x": 0,
+        "y": 13
+       },
+       "widget": {
+        "name": "chart_0",
+        "queries": [
+         {
+          "name": "main_query",
+          "query": {
+           "datasetName": "records",
+           "disaggregated": false,
+           "fields": [
+            {
+             "expression": "`planning_hour`",
+             "name": "planning_hour"
+            },
+            {
+             "expression": "MEASURE(`chart_0_m0`)",
+             "name": "measure(chart_0_m0)"
+            }
+           ]
+          }
+         }
+        ],
+        "spec": {
+         "encodings": {
+          "x": {
+           "displayName": "Planning hour",
+           "fieldName": "planning_hour",
+           "scale": {
+            "type": "temporal"
+           }
+          },
+          "y": {
+           "displayName": "Planned vehicles",
+           "fieldName": "measure(chart_0_m0)",
+           "format": {
+            "decimalPlaces": {
+             "places": 0,
+             "type": "max"
+            },
+            "type": "number"
+           },
+           "scale": {
+            "type": "quantitative"
+           }
+          }
+         },
+         "frame": {
+          "description": "Shows how many vehicles the accepted schedule places across each planning hour.",
+          "showDescription": true,
+          "showTitle": true,
+          "title": "Vehicles scheduled by hour"
+         },
+         "version": 3,
+         "widgetType": "line"
+        }
+       }
+      },
+      {
+       "position": {
+        "height": 6,
+        "width": 6,
+        "x": 0,
+        "y": 19
+       },
+       "widget": {
+        "name": "chart_1",
+        "queries": [
+         {
+          "name": "main_query",
+          "query": {
+           "datasetName": "records",
+           "disaggregated": false,
+           "fields": [
+            {
+             "expression": "`confidence_level`",
+             "name": "confidence_level"
+            },
+            {
+             "expression": "MEASURE(`chart_1_m0`)",
+             "name": "measure(chart_1_m0)"
+            }
+           ]
+          }
+         }
+        ],
+        "spec": {
+         "encodings": {
+          "x": {
+           "displayName": "Confidence",
+           "fieldName": "confidence_level",
+           "scale": {
+            "sort": {
+             "by": "y-reversed"
+            },
+            "type": "categorical"
+           }
+          },
+          "y": {
+           "displayName": "Expected extra fare",
+           "fieldName": "measure(chart_1_m0)",
+           "format": {
+            "abbreviation": "compact",
+            "currencyCode": "USD",
+            "decimalPlaces": {
+             "places": 2,
+             "type": "max"
+            },
+            "type": "number-currency"
+           },
+           "scale": {
+            "type": "quantitative"
+           }
+          }
+         },
+         "frame": {
+          "description": "Compares expected extra fare across the evidence levels behind vehicle allocations.",
+          "showDescription": true,
+          "showTitle": true,
+          "title": "Expected extra fare by confidence"
+         },
+         "version": 3,
+         "widgetType": "bar"
+        }
+       }
+      },
+      {
+       "position": {
+        "height": 6,
+        "width": 6,
+        "x": 6,
+        "y": 19
+       },
+       "widget": {
+        "name": "chart_2",
+        "queries": [
+         {
+          "name": "main_query",
+          "query": {
+           "datasetName": "records",
+           "disaggregated": false,
+           "fields": [
+            {
+             "expression": "`priority_tier`",
+             "name": "priority_tier"
+            },
+            {
+             "expression": "MEASURE(`chart_2_m0`)",
+             "name": "measure(chart_2_m0)"
+            }
+           ]
+          }
+         }
+        ],
+        "spec": {
+         "encodings": {
+          "angle": {
+           "displayName": "Planned vehicles",
+           "fieldName": "measure(chart_2_m0)",
+           "format": {
+            "decimalPlaces": {
+             "places": 0,
+             "type": "max"
+            },
+            "type": "number"
+           },
+           "scale": {
+            "type": "quantitative"
+           }
+          },
+          "color": {
+           "displayName": "Action tier",
+           "fieldName": "priority_tier",
+           "scale": {
+            "type": "categorical"
+           }
+          },
+          "label": {
+           "show": true
+          }
+         },
+         "frame": {
+          "description": "Shows the share of all planned vehicles in each action tier.",
+          "showDescription": true,
+          "showTitle": true,
+          "title": "Vehicle allocation by action tier"
+         },
+         "version": 3,
+         "widgetType": "pie"
+        }
+       }
+      },
+      {
+       "position": {
+        "height": 6,
+        "width": 6,
+        "x": 0,
+        "y": 25
+       },
+       "widget": {
+        "name": "chart_3",
+        "queries": [
+         {
+          "name": "main_query",
+          "query": {
+           "datasetName": "records",
+           "disaggregated": false,
+           "fields": [
+            {
+             "expression": "`zone`",
+             "name": "zone"
+            },
+            {
+             "expression": "MEASURE(`chart_3_m0`)",
+             "name": "measure(chart_3_m0)"
+            }
+           ]
+          }
+         }
+        ],
+        "spec": {
+         "encodings": {
+          "x": {
+           "displayName": "Pickup ZIP",
+           "fieldName": "zone",
+           "scale": {
+            "sort": {
+             "by": "y-reversed"
+            },
+            "type": "categorical"
+           }
+          },
+          "y": {
+           "displayName": "Expected extra fare",
+           "fieldName": "measure(chart_3_m0)",
+           "format": {
+            "abbreviation": "compact",
+            "currencyCode": "USD",
+            "decimalPlaces": {
+             "places": 2,
+             "type": "max"
+            },
+            "type": "number-currency"
+           },
+           "scale": {
+            "type": "quantitative"
+           }
+          }
+         },
+         "frame": {
+          "description": "Ranks ZIP codes by expected extra fare and shows its running concentration.",
+          "showDescription": true,
+          "showTitle": true,
+          "title": "Where expected extra fare is concentrated"
+         },
+         "version": 3,
+         "widgetType": "bar"
+        }
+       }
+      },
+      {
+       "position": {
+        "height": 6,
+        "width": 6,
+        "x": 6,
+        "y": 25
+       },
+       "widget": {
+        "name": "chart_4",
+        "queries": [
+         {
+          "name": "main_query",
+          "query": {
+           "datasetName": "records",
+           "disaggregated": false,
+           "fields": [
+            {
+             "expression": "`zone`",
+             "name": "zone"
+            },
+            {
+             "expression": "MEASURE(`chart_4_x`)",
+             "name": "measure(chart_4_x)"
+            },
+            {
+             "expression": "MEASURE(`chart_4_m0`)",
+             "name": "measure(chart_4_m0)"
+            }
+           ]
+          }
+         }
+        ],
+        "spec": {
+         "encodings": {
+          "color": {
+           "displayName": "Zone",
+           "fieldName": "zone",
+           "scale": {
+            "type": "categorical"
+           }
+          },
+          "x": {
+           "displayName": "Planned vehicles",
+           "fieldName": "measure(chart_4_x)",
+           "format": {
+            "abbreviation": "compact",
+            "decimalPlaces": {
+             "places": 2,
+             "type": "max"
+            },
+            "type": "number"
+           },
+           "scale": {
+            "type": "quantitative"
+           }
+          },
+          "y": {
+           "displayName": "Expected extra fare",
+           "fieldName": "measure(chart_4_m0)",
+           "format": {
+            "abbreviation": "compact",
+            "currencyCode": "USD",
+            "decimalPlaces": {
+             "places": 2,
+             "type": "max"
+            },
+            "type": "number-currency"
+           },
+           "scale": {
+            "type": "quantitative"
+           }
+          }
+         },
+         "frame": {
+          "description": "Each point is a pickup ZIP, comparing scheduled vehicles with expected extra fare.",
+          "showDescription": true,
+          "showTitle": true,
+          "title": "Scheduled vehicles versus expected extra fare"
+         },
+         "version": 3,
+         "widgetType": "scatter"
+        }
+       }
+      },
+      {
+       "position": {
+        "height": 9,
+        "width": 12,
+        "x": 0,
+        "y": 31
+       },
+       "widget": {
+        "name": "records",
+        "queries": [
+         {
+          "name": "main_query",
+          "query": {
+           "datasetName": "records",
+           "disaggregated": true,
+           "fields": [
+            {
+             "expression": "`rank`",
+             "name": "rank"
+            },
+            {
+             "expression": "`entity_label`",
+             "name": "entity_label"
+            },
+            {
+             "expression": "`time_band`",
+             "name": "time_band"
+            },
+            {
+             "expression": "`priority_tier`",
+             "name": "priority_tier"
+            },
+            {
+             "expression": "`top_reasons`",
+             "name": "top_reasons"
+            },
+            {
+             "expression": "`recommended_action`",
+             "name": "recommended_action"
+            },
+            {
+             "expression": "`value`",
+             "name": "value"
+            },
+            {
+             "expression": "`value_at_stake`",
+             "name": "value_at_stake"
+            },
+            {
+             "expression": "`planning_hour`",
+             "name": "planning_hour"
+            },
+            {
+             "expression": "`allocation_driver`",
+             "name": "allocation_driver"
+            },
+            {
+             "expression": "`confidence_level`",
+             "name": "confidence_level"
+            },
+            {
+             "expression": "`data_quality_flag`",
+             "name": "data_quality_flag"
+            }
+           ],
+           "orders": [
+            {
+             "direction": "ASC",
+             "expression": "`rank`"
+            }
+           ]
+          }
+         }
+        ],
+        "spec": {
+         "encodings": {
+          "columns": [
+           {
+            "displayName": "Rank",
+            "fieldName": "rank",
+            "format": {
+             "decimalPlaces": {
+              "places": 0,
+              "type": "max"
+             },
+             "type": "number"
+            }
+           },
+           {
+            "displayName": "Name",
+            "fieldName": "entity_label"
+           },
+           {
+            "displayName": "Time band",
+            "fieldName": "time_band"
+           },
+           {
+            "displayName": "Priority tier",
+            "fieldName": "priority_tier"
+           },
+           {
+            "displayName": "Reasons",
+            "fieldName": "top_reasons"
+           },
+           {
+            "displayName": "Recommended action",
+            "fieldName": "recommended_action"
+           },
+           {
+            "displayName": "Planned vehicles",
+            "fieldName": "value",
+            "format": {
+             "decimalPlaces": {
+              "places": 0,
+              "type": "max"
+             },
+             "type": "number"
+            }
+           },
+           {
+            "displayName": "Expected extra fare",
+            "fieldName": "value_at_stake",
+            "format": {
+             "abbreviation": "compact",
+             "currencyCode": "USD",
+             "decimalPlaces": {
+              "places": 2,
+              "type": "max"
+             },
+             "type": "number-currency"
+            }
+           },
+           {
+            "displayName": "Planning hour",
+            "fieldName": "planning_hour"
+           },
+           {
+            "displayName": "Allocation driver",
+            "fieldName": "allocation_driver"
+           },
+           {
+            "displayName": "Confidence",
+            "fieldName": "confidence_level"
+           },
+           {
+            "displayName": "Data quality",
+            "fieldName": "data_quality_flag"
+           }
+          ]
+         },
+         "frame": {
+          "description": "Current ZIP-hour deployment decisions, ranked by urgency and expected value.",
+          "showDescription": true,
+          "showTitle": true,
+          "title": "Vehicle deployment schedule"
+         },
+         "version": 2,
+         "widgetType": "table"
+        }
+       }
+      }
+     ],
+     "layoutVersion": "GRID_V1",
+     "name": "overview",
+     "pageType": "PAGE_TYPE_CANVAS"
+    },
+    {
+     "displayName": "Run health",
+     "layout": [
+      {
+       "position": {
+        "height": 2,
+        "width": 12,
+        "x": 0,
+        "y": 0
+       },
+       "widget": {
+        "multilineTextboxSpec": {
+         "lines": [
+          "## Run health\n",
+          "\n",
+          "One row per run of the use case: its run date, the rows it wrote, the model version and the share of rows that data quality checks flagged."
+         ]
+        },
+        "name": "run_health_header"
+       }
+      },
+      {
+       "position": {
+        "height": 2,
+        "width": 12,
+        "x": 0,
+        "y": 2
+       },
+       "widget": {
+        "name": "run_health_filter",
+        "queries": [
+         {
+          "name": "run_health_filter_q0",
+          "query": {
+           "datasetName": "run_health",
+           "disaggregated": false,
+           "fields": [
+            {
+             "expression": "`as_of_date`",
+             "name": "as_of_date"
+            }
+           ]
+          }
+         }
+        ],
+        "spec": {
+         "encodings": {
+          "fields": [
+           {
+            "displayName": "Run date",
+            "fieldName": "as_of_date",
+            "queryName": "run_health_filter_q0"
+           }
+          ]
+         },
+         "frame": {
+          "showTitle": true,
+          "title": "Run date"
+         },
+         "version": 2,
+         "widgetType": "filter-date-range-picker"
+        }
+       }
+      },
+      {
+       "position": {
+        "height": 7,
+        "width": 12,
+        "x": 0,
+        "y": 4
+       },
+       "widget": {
+        "name": "run_health_table",
+        "queries": [
+         {
+          "name": "main_query",
+          "query": {
+           "datasetName": "run_health",
+           "disaggregated": true,
+           "fields": [
+            {
+             "expression": "`run_id`",
+             "name": "run_id"
+            },
+            {
+             "expression": "`as_of_date`",
+             "name": "as_of_date"
+            },
+            {
+             "expression": "`row_count`",
+             "name": "row_count"
+            },
+            {
+             "expression": "`model_version`",
+             "name": "model_version"
+            },
+            {
+             "expression": "`flagged_share`",
+             "name": "flagged_share"
+            }
+           ],
+           "orders": [
+            {
+             "direction": "DESC",
+             "expression": "`as_of_date`"
+            }
+           ]
+          }
+         }
+        ],
+        "spec": {
+         "encodings": {
+          "columns": [
+           {
+            "displayName": "Run",
+            "fieldName": "run_id"
+           },
+           {
+            "displayName": "Run date",
+            "fieldName": "as_of_date"
+           },
+           {
+            "displayName": "Rows written",
+            "fieldName": "row_count",
+            "format": {
+             "decimalPlaces": {
+              "places": 0,
+              "type": "max"
+             },
+             "type": "number"
+            }
+           },
+           {
+            "displayName": "Model version",
+            "fieldName": "model_version"
+           },
+           {
+            "displayName": "Flagged rows (%)",
+            "fieldName": "flagged_share",
+            "format": {
+             "decimalPlaces": {
+              "places": 1,
+              "type": "max"
+             },
+             "type": "number"
+            }
+           }
+          ]
+         },
+         "frame": {
+          "showTitle": true,
+          "title": "Runs, newest first"
+         },
+         "version": 2,
+         "widgetType": "table"
+        }
+       }
+      }
+     ],
+     "layoutVersion": "GRID_V1",
+     "name": "run_health",
+     "pageType": "PAGE_TYPE_CANVAS"
+    }
+   ],
+   "uiSettings": {
+    "genieSpace": {
+     "enablementMode": "ENABLED",
+     "isEnabled": true,
+     "overrideId": "0123456789abcdef0123456789abcdef"
+    }
+   }
+  },
+  "split": [
+   {
+    "ask": "Show a chart of hourly rainfall in millimeters from the city weather feed",
+    "check": null,
+    "keep": false,
+    "where": ""
+   },
+   {
+    "ask": "Place the hourly rainfall chart next to the deployment schedule",
+    "check": null,
+    "keep": false,
+    "where": "the deployment schedule"
+   }
+  ],
+  "text": "Show a chart of hourly rainfall in millimeters from the city weather feed next to the deployment schedule"
+ },
+ "n03_u09_v3": {
+  "checks": [
+   {
+    "ask": "The Root-cause action plan table needs some filter, for example a filter on all columns",
+    "evidence": "column filter: Channel",
+    "status": "done"
+   },
+   {
+    "ask": "The filter on the Root-cause action plan table allows me to select Act Now",
+    "evidence": "turn-reason mix differ across store, catalog and web? Which Act now combinations have the highest loss at stake? What evidence",
+    "status": "done"
+   }
+  ],
+  "page": {
+   "charts": [
+    {
+     "dataset": "returns",
+     "hint": "Tracks return loss over time so emerging cost pressure is visible.",
+     "id": "loss_trend",
+     "span": 2,
+     "title": "Return loss over time",
+     "type": "line",
+     "x": {
+      "column": "event_date",
+      "kind": "time",
+      "label": "Return date"
+     },
+     "y": [
+      {
+       "currency": "USD",
+       "expression": "SUM(loss_amount)",
+       "format": "currency",
+       "label": "Net loss"
+      }
+     ]
+    },
+    {
+     "dataset": "returns",
+     "hint": "Return reasons ranked by the net loss they generated.",
+     "id": "reason_loss",
+     "limit": 10,
+     "title": "Costliest return reasons",
+     "type": "horizontal_bar",
+     "x": {
+      "column": "return_reason",
+      "kind": "category",
+      "label": "Return reason"
+     },
+     "y": [
+      {
+       "currency": "USD",
+       "expression": "SUM(loss_amount)",
+       "format": "currency",
+       "label": "Net loss"
+      }
+     ]
+    },
+    {
+     "dataset": "returns",
+     "hint": "Shows how total return loss is divided across store, catalog and web channels.",
+     "id": "channel_share",
+     "title": "Share of loss by channel",
+     "type": "donut",
+     "x": {
+      "column": "channel",
+      "kind": "category",
+      "label": "Channel"
+     },
+     "y": [
+      {
+       "currency": "USD",
+       "expression": "SUM(loss_amount)",
+       "format": "currency",
+       "label": "Net loss"
+      }
+     ]
+    },
+    {
+     "dataset": "returns",
+     "hint": "Categories are ordered by loss with their cumulative contribution to the total.",
+     "id": "category_pareto",
+     "limit": 20,
+     "title": "Loss concentration by category",
+     "type": "pareto",
+     "x": {
+      "column": "category",
+      "kind": "category",
+      "label": "Category"
+     },
+     "y": [
+      {
+       "currency": "USD",
+       "expression": "SUM(loss_amount)",
+       "format": "currency",
+       "label": "Net loss"
+      }
+     ]
+    },
+    {
+     "dataset": "returns",
+     "hint": "Compares the loss mix of return reasons across channels.",
+     "id": "reason_channel_mix",
+     "series": {
+      "column": "channel",
+      "top": 3
+     },
+     "title": "Reason mix by channel",
+     "type": "heatmap",
+     "x": {
+      "column": "return_reason",
+      "kind": "category",
+      "label": "Return reason"
+     },
+     "y": [
+      {
+       "currency": "USD",
+       "expression": "SUM(loss_amount)",
+       "format": "currency",
+       "label": "Net loss"
+      }
+     ]
+    }
+   ],
+   "datasets": [
+    {
+     "name": "returns",
+     "sql": "WITH runs AS (SELECT DISTINCT as_of_date FROM main.inspire.n03_u09_out WHERE is_current AND change_source <> 'delete'), lines AS (SELECT 'Store' AS channel, date_from_unix_date(sr_returned_date_sk - 2440588) AS event_date, sr_reason_sk AS reason_sk, sr_item_sk AS item_sk, GREATEST(COALESCE(sr_net_loss, 0D), 0D) AS loss_amount FROM samples.tpcds_sf1.store_returns UNION ALL SELECT 'Catalog' AS channel, date_from_unix_date(cr_returned_date_sk - 2440588) AS event_date, cr_reason_sk AS reason_sk, cr_item_sk AS item_sk, GREATEST(COALESCE(cr_net_loss, 0D), 0D) AS loss_amount FROM samples.tpcds_sf1.catalog_returns UNION ALL SELECT 'Web' AS channel, date_from_unix_date(wr_returned_date_sk - 2440588) AS event_date, wr_reason_sk AS reason_sk, wr_item_sk AS item_sk, GREATEST(COALESCE(wr_net_loss, 0D), 0D) AS loss_amount FROM samples.tpcds_sf1.web_returns) SELECT runs.as_of_date, lines.event_date, lines.channel, reason.r_reason_desc AS return_reason, item.i_category AS category, item.i_class AS item_class, lines.loss_amount, 1 AS return_line FROM lines JOIN samples.tpcds_sf1.reason AS reason ON reason.r_reason_sk = lines.reason_sk JOIN samples.tpcds_sf1.item AS item ON item.i_item_sk = lines.item_sk CROSS JOIN runs"
+    },
+    {
+     "name": "records",
+     "sql": "WITH line_keys AS (SELECT 'Store' AS channel, date_from_unix_date(sr_returned_date_sk - 2440588) AS event_date, sr_reason_sk AS reason_sk, sr_item_sk AS item_sk FROM samples.tpcds_sf1.store_returns UNION ALL SELECT 'Catalog' AS channel, date_from_unix_date(cr_returned_date_sk - 2440588) AS event_date, cr_reason_sk AS reason_sk, cr_item_sk AS item_sk FROM samples.tpcds_sf1.catalog_returns UNION ALL SELECT 'Web' AS channel, date_from_unix_date(wr_returned_date_sk - 2440588) AS event_date, wr_reason_sk AS reason_sk, wr_item_sk AS item_sk FROM samples.tpcds_sf1.web_returns), latest_event AS (SELECT line_keys.channel, reason.r_reason_desc AS return_reason, item.i_category AS category, MAX(line_keys.event_date) AS event_date FROM line_keys JOIN samples.tpcds_sf1.reason AS reason ON reason.r_reason_sk = line_keys.reason_sk JOIN samples.tpcds_sf1.item AS item ON item.i_item_sk = line_keys.item_sk GROUP BY line_keys.channel, reason.r_reason_desc, item.i_category), current_rows AS (SELECT o.*, split_part(o.entity_id, '|', 1) AS channel, split_part(o.entity_id, '|', 2) AS return_reason, split_part(o.entity_id, '|', 3) AS category FROM main.inspire.n03_u09_out AS o WHERE o.is_current AND o.change_source <> 'delete') SELECT o.record_key, o.entity_id, o.entity_label, o.priority_tier, o.rank, array_join(o.top_reasons, ' · ') AS top_reasons, o.recommended_action, o.value, o.value_at_stake, o.as_of_date, e.event_date, o.channel, o.return_reason, o.category, o.confidence_level, o.data_quality_flag, CASE WHEN o.priority_tier = 'Act now' THEN 1 ELSE 0 END AS act_now_row, CASE WHEN o.data_quality_flag <> 'ok' THEN 1 ELSE 0 END AS issue_row FROM current_rows AS o LEFT JOIN latest_event AS e ON e.channel = o.channel AND e.return_reason = o.return_reason AND e.category = o.category"
+    }
+   ],
+   "domain": "Returns",
+   "filters": [
+    {
+     "columns": {
+      "records": "as_of_date",
+      "returns": "as_of_date"
+     },
+     "default": "all",
+     "grain": "day",
+     "id": "run_date",
+     "label": "Run date",
+     "type": "date_range"
+    },
+    {
+     "columns": {
+      "records": "event_date",
+      "returns": "event_date"
+     },
+     "default": "12m",
+     "grain": "month",
+     "id": "return_date",
+     "label": "Return date",
+     "type": "date_range"
+    },
+    {
+     "columns": {
+      "records": "channel",
+      "returns": "channel"
+     },
+     "id": "channel",
+     "label": "Channel",
+     "type": "multi_select"
+    },
+    {
+     "columns": {
+      "records": "return_reason",
+      "returns": "return_reason"
+     },
+     "id": "return_reason",
+     "label": "Return reason",
+     "type": "multi_select"
+    },
+    {
+     "columns": {
+      "records": "category",
+      "returns": "category"
+     },
+     "id": "category",
+     "label": "Category",
+     "type": "multi_select"
+    },
+    {
+     "columns": {
+      "records": "priority_tier"
+     },
+     "id": "priority_tier",
+     "label": "Priority tier",
+     "type": "multi_select"
+    }
+   ],
+   "hue": "rose",
+   "icon": "trend",
+   "id": "n03_u09",
+   "kpis": [
+    {
+     "compare": true,
+     "currency": "USD",
+     "dataset": "returns",
+     "expression": "SUM(loss_amount)",
+     "format": "currency",
+     "good": "down",
+     "id": "total_return_loss",
+     "label": "Return loss"
+    },
+    {
+     "caption": "current root-cause action plan",
+     "compare": true,
+     "currency": "USD",
+     "dataset": "records",
+     "expression": "SUM(value_at_stake)",
+     "format": "currency",
+     "good": "down",
+     "id": "planned_loss",
+     "label": "Loss on the action plan"
+    },
+    {
+     "caption": "combinations requiring immediate action",
+     "dataset": "records",
+     "expression": "SUM(act_now_row)",
+     "format": "integer",
+     "good": "down",
+     "id": "act_now_count",
+     "label": "Act now combinations"
+    },
+    {
+     "caption": "rows needing evidence review",
+     "dataset": "records",
+     "expression": "SUM(issue_row)",
+     "format": "integer",
+     "good": "down",
+     "id": "quality_issues",
+     "label": "Data quality issues"
+    }
+   ],
+   "promised": {
+    "benefits": [
+     "Loss reduced by targeting `cr_net_loss`, `sr_net_loss` and `wr_net_loss` from 106,483,398 (Total catalog return net loss, measured 2026-10-22), [ASSUMPTION: uplift to be agreed with the sponsor]"
+    ],
+    "value": "The Returns Operations Manager focuses fixes on the few reason-category combinations that carry most of the loss. This reduces combined net loss in `sr_net_loss`, `cr_net_loss` and `wr_net_loss` [ESTIMATE: depends on `cr_net_loss`]."
+   },
+   "question": "Which return reason, category and channel combinations create the most loss, and what root-cause action should owners take first?",
+   "questions": [
+    "Which return reasons account for most of the current loss?",
+    "How does the return-reason mix differ across store, catalog and web?",
+    "Which Act now combinations have the highest loss at stake?",
+    "What evidence and next step support each root-cause review?"
+   ],
+   "records": {
+    "action": "recommended_action",
+    "column_filters": [
+     {
+      "column": "rank"
+     },
+     {
+      "column": "entity_label"
+     },
+     {
+      "column": "category"
+     },
+     {
+      "column": "priority_tier"
+     },
+     {
+      "column": "channel"
+     },
+     {
+      "column": "return_reason"
+     },
+     {
+      "column": "value_at_stake"
+     }
+    ],
+    "columns": [
+     {
+      "column": "channel",
+      "format": "text",
+      "label": "Channel"
+     },
+     {
+      "column": "return_reason",
+      "format": "text",
+      "label": "Return reason"
+     },
+     {
+      "column": "category",
+      "format": "text",
+      "label": "Category"
+     },
+     {
+      "column": "value_at_stake",
+      "currency": "USD",
+      "format": "currency",
+      "label": "Loss at stake"
+     }
+    ],
+    "detail": [
+     {
+      "column": "value",
+      "format": "number",
+      "label": "Share-shift ratio"
+     },
+     {
+      "column": "confidence_level",
+      "format": "text",
+      "label": "Confidence"
+     },
+     {
+      "column": "data_quality_flag",
+      "format": "text",
+      "label": "Data quality"
+     }
+    ],
+    "hint": "Current reason, category and channel combinations ranked by loss at stake.",
+    "key": "record_key",
+    "label": "entity_label",
+    "rank": "rank",
+    "reasons": "top_reasons",
+    "sublabel": "category",
+    "tier": "priority_tier",
+    "title": "Root-cause action plan"
+   },
+   "result_table": "main.inspire.n03_u09_out",
+   "sponsor": "Chief Operating Officer",
+   "story": "Return loss is {total_return_loss}, {total_return_loss:change} against the preceding return-date period.",
+   "subdomain": "Loss Recovery",
+   "tables": [],
+   "title": "Costliest Return Reasons and Root-Cause Actions",
+   "use_case_id": "N03-U09",
+   "version": 1
+  },
+  "split": [
+   {
+    "ask": "The Root-cause action plan table needs some filter, for example a filter on all columns",
+    "check": null,
+    "keep": null,
+    "where": ""
+   },
+   {
+    "ask": "The filter on the Root-cause action plan table allows me to select Act Now",
+    "check": {
+     "kind": "text",
+     "value": "Act Now"
+    },
+    "keep": null,
+    "where": ""
+   }
+  ],
+  "text": "the Root-cause action plan table needs some filter for example a filter on all columns to allow me to select Act Now"
+ }
+}

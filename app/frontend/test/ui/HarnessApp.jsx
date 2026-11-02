@@ -1,0 +1,178 @@
+import { useMemo, useState } from 'react';
+import ImplementWizard from '../../src/pages/ImplementWizard';
+import ImplementPage from '../../src/pages/ImplementPage';
+import ResultsPage from '../../src/pages/ResultsPage';
+import ImplementCardActions from '../../src/components/ImplementCardActions';
+import Header from '../../src/components/Header';
+import LandingPage from '../../src/pages/LandingPage';
+import RunPage from '../../src/pages/RunPage';
+import ChoosePage from '../../src/pages/ChoosePage';
+import LaunchPage from '../../src/pages/LaunchPage';
+import SetupWizard from '../../src/pages/SetupWizard';
+import MonitorPage from '../../src/pages/MonitorPage';
+import App from '../../src/App';
+import { RESULTS_FRAME } from '../../src/lib/layout';
+import { ThemeProvider } from '../../src/ThemeContext';
+import { makeApiFetch, makeApiPostJson } from '../../src/lib/apiClient';
+import { caseIdOf, implementState, notebookStatus } from '../../src/lib/implementWizard';
+import { HARNESS_USE_CASE, HARNESS_SETTINGS, HARNESS_SESSION_ID } from './implementFixtures.js';
+
+const AUTH = { token: 'tok', databricksHost: 'https://workspace.example.com' };
+const SETTINGS = { ...HARNESS_SETTINGS, ...AUTH };
+
+export default function HarnessApp({ open, nest, discoveryType, demo = true, step = '', run = '' }) {
+  const content = <HarnessContent open={open} discoveryType={discoveryType} demo={demo} step={step} run={run} />;
+  if (!nest) return content;
+  return (
+    <>
+      <header data-harness-header="" className="sticky top-0 z-40 h-16 bg-surface border-b border-border">App header</header>
+      <main className="page-enter">
+        <div style={{ transform: 'translateZ(0)' }}>
+          <div style={{ height: 2400 }}>A long results page</div>
+          {content}
+        </div>
+      </main>
+    </>
+  );
+}
+
+function LandingHarness({ demo }) {
+  const [clicks, setClicks] = useState([]);
+  const push = (what) => setClicks((prev) => [...prev, what]);
+  return (
+    <ThemeProvider>
+      <LandingPage onStart={() => push('start')} onOpenSetup={() => push('setup')} onDemo={demo ? () => push('demo') : undefined} />
+      <output aria-label="Landing clicks" className="sr-only">{clicks.join(',')}</output>
+    </ThemeProvider>
+  );
+}
+
+function HarnessContent({ open, discoveryType, demo, step, run }) {
+  if (open === 'app') return <App />;
+  if (open === 'card') return <CardHarness />;
+  if (open === 'run') {
+    return (
+      <ThemeProvider>
+        <RunPage settings={SETTINGS} />
+      </ThemeProvider>
+    );
+  }
+  if (open === 'results') return <ResultsHarness />;
+  if (open === 'landing') return <LandingHarness demo={demo} />;
+  if (open === 'choose') return <ChooseHarness />;
+  if (open === 'setup') return <SetupHarness />;
+  if (open === 'monitor') {
+    return (
+      <ThemeProvider>
+        <MonitorPage settings={SETTINGS} update={() => {}} sessionId={HARNESS_SESSION_ID} runId={run === 'none' ? null : '777'} onComplete={() => {}}
+          onResultsSession={() => {}} onOpenImplement={() => {}} />
+      </ThemeProvider>
+    );
+  }
+  if (open === 'launch') return <LaunchHarness />;
+  if (open === 'header') {
+    return (
+      <ThemeProvider>
+        <Header page="results" setPage={() => {}} canMonitor canResults canImplement={false} />
+      </ThemeProvider>
+    );
+  }
+  return <PageHarness open={open} discoveryType={discoveryType} step={step} />;
+}
+
+function CardHarness() {
+  const [clicks, setClicks] = useState([]);
+  const push = (what) => setClicks((prev) => [...prev, what]);
+  const cards = [
+    ['not-started', implementState(null, null), true],
+    ['running', implementState({ status: 'filling' }, null), true],
+    ['notebook', implementState(null, notebookStatus({ has_genie_code: 'Y' }, null)), true],
+    ['no-session', implementState({ status: 'ready' }, null), false],
+    ['uninstalled', implementState({ status: 'uninstalled' }, null), true],
+  ];
+  return (
+    <div className="p-6 space-y-3">
+      {cards.map(([id, status, canStart]) => (
+        <div key={id} data-card={id} onClick={() => push(`card:${id}`)} className="border border-border rounded-lg py-3">
+          <ImplementCardActions status={status} onImplement={canStart ? () => push(`start:${id}`) : undefined}
+            onOpen={canStart ? () => push(`open:${id}`) : undefined} notebookUrl={canStart ? `https://workspace.example.com/#workspace/nb/${id}` : ''} />
+        </div>
+      ))}
+      <output aria-label="Clicks">{clicks.join(',')}</output>
+    </div>
+  );
+}
+
+function ChooseHarness() {
+  const [opened, setOpened] = useState([]);
+  return (
+    <ThemeProvider>
+      <ChoosePage settings={SETTINGS} onNewExperiment={() => {}} onNoData={() => {}} onViewResults={(sid) => setOpened((list) => [...list, String(sid)])} />
+      <output aria-label="Opened runs">{opened.join(',')}</output>
+    </ThemeProvider>
+  );
+}
+
+function LaunchHarness() {
+  const [launched, setLaunched] = useState('');
+  return (
+    <ThemeProvider>
+      <LaunchPage settings={{ ...SETTINGS, serverEnvHasPat: true }} update={() => {}} onLaunched={(sid, runId) => setLaunched(`${sid}:${runId}`)} onOpenResults={() => {}}
+        onNoData={() => {}} />
+      <output aria-label="Launched">{launched}</output>
+    </ThemeProvider>
+  );
+}
+
+function SetupHarness() {
+  const [settings, setSettings] = useState({ ...SETTINGS, notebookPath: '' });
+  const [done, setDone] = useState(false);
+  return (
+    <ThemeProvider>
+      <SetupWizard settings={settings} update={(key, value) => setSettings((prev) => ({ ...prev, [key]: value }))} onComplete={() => setDone(true)} />
+      <output aria-label="Setup done">{done ? 'yes' : 'no'}</output>
+    </ThemeProvider>
+  );
+}
+
+function ResultsHarness() {
+  const [opened, setOpened] = useState('');
+  return (
+    <div className={RESULTS_FRAME}>
+      <ResultsPage
+        settings={SETTINGS}
+        update={() => {}}
+        sessionId={HARNESS_SESSION_ID}
+        onOpenImplement={(sid, id) => setOpened(`${sid}:${id}`)}
+      />
+      <output aria-label="Opened in Implement">{opened}</output>
+    </div>
+  );
+}
+
+function PageHarness({ open, discoveryType, step }) {
+  const [implemented, setImplemented] = useState(open === 'implement' ? caseIdOf(HARNESS_USE_CASE) : null);
+  if (implemented) return <ImplementPage settings={SETTINGS} sessionId={HARNESS_SESSION_ID} focusId={implemented} />;
+  return <WizardOnly discoveryType={discoveryType} step={step} onImplemented={(data) => setImplemented(data.use_case_id)} />;
+}
+
+function WizardOnly({ discoveryType, step, onImplemented }) {
+  const apiFetch = useMemo(() => makeApiFetch(AUTH), []);
+  const apiPostJson = useMemo(() => makeApiPostJson(AUTH), []);
+  const [closed, setClosed] = useState(false);
+  if (closed) return <p>The wizard is closed.</p>;
+  return (
+    <ImplementWizard
+      uc={HARNESS_USE_CASE}
+      sessionId={HARNESS_SESSION_ID}
+      settings={SETTINGS}
+      discoveryType={discoveryType}
+      apiFetch={apiFetch}
+      apiPostJson={apiPostJson}
+      focus={step ? { step } : null}
+      onClose={() => setClosed(true)}
+      onImplemented={onImplemented}
+      onOpenBuild={(useCaseId) => onImplemented({ use_case_id: useCaseId })}
+    />
+  );
+}

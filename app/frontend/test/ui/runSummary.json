@@ -1,0 +1,13 @@
+{
+  "summary_dict": {
+    "Executive": "\n<p>Acme can keep its best customers and stock the right products.</p><p>Start with churn: it pays back first.</p>  ",
+    "Customer": "<p>Keep the customers who buy most.</p>"
+  },
+  "results_json": {
+    "executive_summary": "<p>Acme can keep its best customers and stock the right products.</p><p>Start with churn: it pays back first.</p>"
+  },
+  "paragraphs": [
+    "Acme can keep its best customers and stock the right products.",
+    "Start with churn: it pays back first."
+  ]
+}

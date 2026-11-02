@@ -1,0 +1,205 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { closeBrowser, openUi, until } from './uiSupport.mjs';
+
+test.after(closeBrowser);
+
+const MINUTE = 60 * 1000;
+const ago = (ms) => new Date(Date.now() - ms).toISOString();
+const clock = (iso) => iso.slice(11, 16);
+
+const step = (id, status, stage, name, sub, at, eventAt = null) => ({
+  step_id: String(id), session_id: '42', stage_name: stage, step_name: name, sub_step_name: sub, status, message: '', progress_increment: 0,
+  last_updated: at, result_json: eventAt ? { event_at: eventAt } : {},
+});
+
+function sessionBackend({ session, steps = [], run = null }) {
+  const calls = { acks: 0 };
+  const mount = (app) => {
+    app.get('/api/inspire/session', (_req, res) => res.json({ session: { session_id: '42', business_name: 'Acme Retail', create_at: ago(90 * MINUTE), ...session() } }));
+    app.get('/api/inspire/steps', (req, res) => res.json({ steps: req.query.since ? [] : steps }));
+    app.post('/api/inspire/ack', (_req, res) => { calls.acks += 1; res.json({ success: true }); });
+    if (run) {
+      app.get('/api/run/777/cancel', (_req, res) => res.json({ allowed: true }));
+      app.get('/api/run/777', (_req, res) => res.json({ run_id: 777, run_name: 'Inspire Discover', ...run }));
+    }
+  };
+  return { calls, mount };
+}
+
+async function openMonitor(backend, { sessionOnly = true } = {}) {
+  return openUi('monitor', {}, sessionOnly ? '&run=none' : '', { mount: backend.mount });
+}
+
+async function statusCard(page) {
+  const card = page.locator('div.rounded-xl.p-5.mb-6').first();
+  await card.waitFor({ timeout: 10000 });
+  return card;
+}
+
+const badges = (page, text) => page.locator('span').filter({ hasText: new RegExp(`^${text}$`) }).count();
+
+async function detailLine(page) {
+  const heading = page.getByRole('heading', { name: 'Detailed Steps' });
+  await heading.waitFor({ timeout: 10000 });
+  return heading.locator('xpath=following-sibling::p').innerText();
+}
+
+for (const [label, processing, percent] of [['after the App acknowledged it', 'done', 37], ['before the App acknowledged it', 'ready', 37], ['just after it started', 'done', 1]]) {
+  test(`a Discover run opened from Start with no run id shows Running and its percent ${label}`, async () => {
+    const backend = sessionBackend({ session: () => ({ processing_status: processing, completed_percent: percent, completed_on: null, last_updated: ago(MINUTE) }) });
+    const ui = await openMonitor(backend);
+    try {
+      const card = await statusCard(ui.page);
+      await card.getByText('Running', { exact: true }).waitFor({ timeout: 10000 });
+      assert.equal(await card.getByText(`${percent}% complete`, { exact: true }).count(), 1);
+      assert.equal(await card.getByText('Initializing', { exact: true }).count(), 0);
+      if (processing === 'ready') await until(() => backend.calls.acks > 0, 'the ack of the new progress');
+      assert.deepEqual(ui.pageErrors, []);
+    } finally {
+      await ui.close();
+    }
+  });
+}
+
+test('a run with no news for longer than the bound shows a calm No news line instead of Running, even while processing_status is ready', async () => {
+  const last = ago(40 * MINUTE);
+  const backend = sessionBackend({ session: () => ({ processing_status: 'ready', completed_percent: 62, completed_on: null, last_updated: last }) });
+  const ui = await openMonitor(backend);
+  try {
+    const card = await statusCard(ui.page);
+    const line = card.getByText(/^No news from this run since /);
+    await line.waitFor({ timeout: 10000 });
+    assert.match(await line.innerText(), new RegExp(`^No news from this run since ([A-Z][a-z]{2} \\d{1,2}, )?${clock(last)} UTC\\.$`));
+    assert.equal(await card.getByText('Running', { exact: true }).count(), 0, 'a quiet run is not shown as running');
+    assert.equal(await card.getByText('Quiet', { exact: true }).count(), 1);
+    assert.equal(await card.getByText('62%', { exact: true }).count(), 0);
+    assert.deepEqual(ui.pageErrors, []);
+  } finally {
+    await ui.close();
+  }
+});
+
+test('a run whose last news is inside the bound still shows Running', async () => {
+  const backend = sessionBackend({ session: () => ({ processing_status: 'done', completed_percent: 55, completed_on: null, last_updated: ago(25 * MINUTE) }) });
+  const ui = await openMonitor(backend);
+  try {
+    const card = await statusCard(ui.page);
+    await card.getByText('Running', { exact: true }).waitFor({ timeout: 10000 });
+    assert.equal(await card.getByText(/^No news from this run/).count(), 0);
+  } finally {
+    await ui.close();
+  }
+});
+
+const T = '2026-11-02T03:00:00.000Z';
+const OPEN_MARKERS = [
+  step(1, 'started', 'Setup', 'Inspire is working on database setup', 'In progress: main.inspire', T, '2026-11-02T03:00:00.100000+00:00'),
+  step(1, 'ended_success', 'Setup', 'Inspire is working on database setup', 'Completed: main.inspire', '2026-11-02T03:00:02.000Z', '2026-11-02T03:00:01.500000+00:00'),
+  step(2, 'started', 'Data Preparation', 'Inspire is working on filter business tables', 'In progress: started', '2026-11-02T03:00:04.000Z'),
+  step(3, 'started', 'Final Gate', 'Inspire is working on phase l production checks', 'In progress: started', '2026-11-02T03:00:06.000Z'),
+  step(4, 'ended_success', 'Final Gate', 'Inspire is working on phase l production checks', 'Completed: complete', '2026-11-02T03:00:08.000Z'),
+];
+
+async function openSteps(page) {
+  await page.getByRole('button', { name: /Detailed Steps/ }).click();
+  for (const stage of ['Setup', 'Data Preparation', 'Final Gate']) {
+    await page.getByRole('button', { name: new RegExp(`^${stage}`) }).filter({ has: page.locator('h3') }).click();
+  }
+}
+
+test('a completed run opened from Start shows no step in progress when the agent left start markers open', async () => {
+  const backend = sessionBackend({
+    session: () => ({ processing_status: 'ready', completed_percent: 100, completed_on: ago(MINUTE), last_updated: ago(MINUTE) }), steps: OPEN_MARKERS,
+  });
+  const ui = await openMonitor(backend);
+  try {
+    const card = await statusCard(ui.page);
+    await card.getByText('Completed', { exact: true }).waitFor({ timeout: 10000 });
+    const line = await detailLine(ui.page);
+    assert.match(line, /3 stages · 4 steps/);
+    assert.doesNotMatch(line, /in progress/);
+    await openSteps(ui.page);
+    assert.equal(await badges(ui.page, 'In Progress'), 0);
+    assert.equal(await badges(ui.page, 'No end recorded'), 2, 'the two steps the agent never closed');
+    assert.deepEqual(ui.pageErrors, []);
+  } finally {
+    await ui.close();
+  }
+});
+
+test('a run that ended with SUCCESS shows no step in progress when the agent left start markers open', async () => {
+  const backend = sessionBackend({
+    session: () => ({ processing_status: 'done', completed_percent: 100, completed_on: ago(MINUTE), last_updated: ago(MINUTE) }), steps: OPEN_MARKERS,
+    run: { life_cycle_state: 'TERMINATED', result_state: 'SUCCESS' },
+  });
+  const ui = await openMonitor(backend, { sessionOnly: false });
+  try {
+    const card = await statusCard(ui.page);
+    await card.getByText('Completed', { exact: true }).waitFor({ timeout: 10000 });
+    assert.doesNotMatch(await detailLine(ui.page), /in progress/);
+    assert.deepEqual(ui.pageErrors, []);
+  } finally {
+    await ui.close();
+  }
+});
+
+test('while the run is live, a step with only its start recorded is still counted in progress', async () => {
+  const backend = sessionBackend({
+    session: () => ({ processing_status: 'ready', completed_percent: 40, completed_on: null, last_updated: ago(MINUTE) }), steps: OPEN_MARKERS,
+  });
+  const ui = await openMonitor(backend);
+  try {
+    const card = await statusCard(ui.page);
+    await card.getByText('Running', { exact: true }).waitFor({ timeout: 10000 });
+    assert.match(await detailLine(ui.page), /· 2 in progress/);
+    await openSteps(ui.page);
+    assert.equal(await badges(ui.page, 'In Progress'), 2);
+    assert.equal(await badges(ui.page, 'No end recorded'), 0);
+  } finally {
+    await ui.close();
+  }
+});
+
+for (const [label, withEventAt] of [['by the time of each event', true], ['when two rows share one flush time', false]]) {
+  test(`a step whose end arrives before its start in one answer still shows its end, ${label}`, async () => {
+    const flushed = ago(2 * MINUTE);
+    const rows = [
+      step(9, 'ended_success', 'Scoring', 'Scoring the use cases', 'Completed: batch 1', flushed, withEventAt ? '2026-11-02T03:10:05.250000+00:00' : null),
+      step(9, 'started', 'Scoring', 'Scoring the use cases', 'In progress: batch 1', flushed, withEventAt ? '2026-11-02T03:10:01.000000+00:00' : null),
+    ];
+    const backend = sessionBackend({ session: () => ({ processing_status: 'ready', completed_percent: 50, completed_on: null, last_updated: ago(MINUTE) }), steps: rows });
+    const ui = await openMonitor(backend);
+    try {
+      const card = await statusCard(ui.page);
+      await card.getByText('Running', { exact: true }).waitFor({ timeout: 10000 });
+      const line = await detailLine(ui.page);
+      assert.match(line, /1 stage · 1 step/);
+      assert.doesNotMatch(line, /in progress/);
+    } finally {
+      await ui.close();
+    }
+  });
+}
+
+test('Start lists a run with no news for longer than the bound as No news, not In Progress, and leaves it out of the in progress count', async () => {
+  const run = (sid, extra) => ({ session_id: sid, business_name: `Biz ${sid}`, widget_values: { business: `Biz ${sid}` }, create_at: ago(5 * 60 * MINUTE), ...extra });
+  const sessions = [
+    run('70', { completed_percent: 100, completed_on: ago(4 * 60 * MINUTE), last_updated: ago(4 * 60 * MINUTE) }),
+    run('71', { completed_percent: 20, completed_on: null, last_updated: ago(MINUTE), processing_status: 'done' }),
+    run('72', { completed_percent: 40, completed_on: null, last_updated: ago(2 * 60 * MINUTE), processing_status: 'ready' }),
+  ];
+  const ui = await openUi('choose', { sessions });
+  try {
+    const row = (sid) => ui.page.locator(`[data-run="${sid}"]`).first();
+    await row('72').waitFor({ timeout: 10000 });
+    assert.equal(await row('70').getByText('Completed', { exact: true }).count(), 1);
+    assert.equal(await row('71').getByText('In Progress', { exact: true }).count(), 1);
+    assert.equal(await row('72').getByText('In Progress', { exact: true }).count(), 0, 'a quiet run is not in progress');
+    assert.equal(await row('72').getByText('No news', { exact: true }).count(), 1);
+    assert.equal(await ui.page.getByText('1 completed · 1 in progress', { exact: true }).count(), 1);
+    assert.deepEqual(ui.pageErrors, []);
+  } finally {
+    await ui.close();
+  }
+});

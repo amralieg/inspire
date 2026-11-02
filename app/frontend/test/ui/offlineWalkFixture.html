@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Offline walk fixture</title>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400" />
+  </head>
+  <body>
+    <main><h1>Offline walk fixture</h1></main>
+    <script type="module">
+      window.walked = {};
+      window.walked.outside = await fetch('https://telemetry.example.com/ping').then((r) => r.status, () => 'refused');
+      window.walked.write = await fetch('/api/inspire/implement/submit', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }).then((r) => r.status);
+      window.walked.read = await fetch('/test/ui/offlineWalkFixture.html').then((r) => r.status);
+      console.error('fixture console error');
+      setTimeout(() => { throw new Error('fixture page error'); }, 0);
+    </script>
+  </body>
+</html>

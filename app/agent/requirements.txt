@@ -1,0 +1,24 @@
+# Inspire AI runs as a Databricks notebook — these are the key runtime dependencies.
+# All are pre-installed in Databricks Runtime 15.4 LTS+.
+# Listed here for reference and local development.
+databricks-sdk>=0.20.0
+pyspark>=3.5.0
+fpdf2>=2.7.0
+python-pptx>=0.6.21
+openpyxl>=3.1.0
+plotly>=5.18.0
+pandas>=2.0.0
+
+# WeasyPrint renders the PDF catalog. It is not in serverless environment 4, so it ships in the
+# Inspire assets download and loads from there with no pip. 70.0 is the floor: earlier releases free the Fontconfig configuration
+# twice and segfault the process when a rendered PDF is garbage-collected (WeasyPrint #2843).
+weasyprint>=70.0
+
+fastapi>=0.115.0
+httpx>=0.27.0
+sqlglot==30.11.0
+psycopg[binary]==3.3.6
+duckdb>=1.0.0
+pytz
+pyyaml>=6.0
+scikit-learn>=1.3.0

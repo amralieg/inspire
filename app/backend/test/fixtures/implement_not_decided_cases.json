@@ -1,0 +1,336 @@
+{
+ "source": "final-agent 7219d5d",
+ "kind": "not_decided",
+ "cases": [
+  {
+   "name": "the router keeps failing with a call that names the host and a token",
+   "version": 3,
+   "status_message": "Inspire did not decide which part each ask of your vibe changes, because the vibe router failed 3 times, the last with: timed out calling https://<host>/serving-endpoints/router/invocations with <redacted>, so it built nothing of v3: send the vibe again from the vibe box on the Build page",
+   "entries": [
+    {
+     "n": 1,
+     "kind": "not_decided",
+     "requirement": "Put the riskiest customers first.",
+     "part": "",
+     "where": "",
+     "status": "not_decided",
+     "evidence": "Inspire did not decide which part each ask of your vibe changes, because the vibe router failed 3 times, the last with: timed out calling https://<host>/serving-endpoints/router/invocations with <redacted>, so it built nothing of v3: send the vibe again from the vibe box on the Build page",
+     "fact": "Inspire did not decide which part each ask of your vibe changes, because the vibe router failed 3 times, the last with: timed out calling https://<host>/serving-endpoints/router/invocations with <redacted>, so it built nothing of v3",
+     "rounds": 0,
+     "tried": [],
+     "checks": [],
+     "published_anyway": null
+    },
+    {
+     "n": 2,
+     "kind": "not_decided",
+     "requirement": "Only check on weekdays.",
+     "part": "",
+     "where": "",
+     "status": "not_decided",
+     "evidence": "Inspire did not decide which part each ask of your vibe changes, because the vibe router failed 3 times, the last with: timed out calling https://<host>/serving-endpoints/router/invocations with <redacted>, so it built nothing of v3: send the vibe again from the vibe box on the Build page",
+     "fact": "Inspire did not decide which part each ask of your vibe changes, because the vibe router failed 3 times, the last with: timed out calling https://<host>/serving-endpoints/router/invocations with <redacted>, so it built nothing of v3",
+     "rounds": 0,
+     "tried": [],
+     "checks": [],
+     "published_anyway": null
+    }
+   ],
+   "summary": {
+    "met": 0,
+    "total": 2,
+    "not_decided": 2
+   },
+   "steps": [
+    {
+     "step_name": "Vibe",
+     "status": "started",
+     "message": "reading your vibe to send each ask to the part it changes",
+     "result_json": {
+      "spec_version": 3,
+      "asks": [
+       "Put the riskiest customers first.",
+       "Only check on weekdays."
+      ],
+      "use_case_id": "N01-U01",
+      "phase": "Vibe"
+     }
+    },
+    {
+     "step_name": "Vibe",
+     "status": "ended_error",
+     "message": "the vibe router is out, so Inspire built nothing of v3: the vibe router failed 3 times, the last with: timed out calling https://<host>/serving-endpoints/router/invocations with <redacted>",
+     "result_json": {
+      "spec_version": 3,
+      "checklist": [
+       {
+        "n": 1,
+        "kind": "not_decided",
+        "requirement": "Put the riskiest customers first.",
+        "part": "",
+        "where": "",
+        "status": "not_decided",
+        "evidence": "Inspire did not decide which part each ask of your vibe changes, because the vibe router failed 3 times, the last with: timed out calling https://<host>/serving-endpoints/router/invocations with <redacted>, so it built nothing of v3: send the vibe again from the vibe box on the Build page",
+        "fact": "Inspire did not decide which part each ask of your vibe changes, because the vibe router failed 3 times, the last with: timed out calling https://<host>/serving-endpoints/router/invocations with <redacted>, so it built nothing of v3",
+        "rounds": 0,
+        "tried": [],
+        "checks": [],
+        "published_anyway": null
+       },
+       {
+        "n": 2,
+        "kind": "not_decided",
+        "requirement": "Only check on weekdays.",
+        "part": "",
+        "where": "",
+        "status": "not_decided",
+        "evidence": "Inspire did not decide which part each ask of your vibe changes, because the vibe router failed 3 times, the last with: timed out calling https://<host>/serving-endpoints/router/invocations with <redacted>, so it built nothing of v3: send the vibe again from the vibe box on the Build page",
+        "fact": "Inspire did not decide which part each ask of your vibe changes, because the vibe router failed 3 times, the last with: timed out calling https://<host>/serving-endpoints/router/invocations with <redacted>, so it built nothing of v3",
+        "rounds": 0,
+        "tried": [],
+        "checks": [],
+        "published_anyway": null
+       }
+      ],
+      "use_case_id": "N01-U01",
+      "phase": "Vibe"
+     }
+    }
+   ],
+   "unmet": []
+  },
+  {
+   "name": "the router keeps leaving an ask out",
+   "version": 3,
+   "status_message": "Inspire did not decide which part each ask of your vibe changes, because the vibe router failed 3 times, the last with: the router sent ask 2 ('Only check on weekdays.') to no part, so it built nothing of v3: send the vibe again from the vibe box on the Build page",
+   "entries": [
+    {
+     "n": 1,
+     "kind": "not_decided",
+     "requirement": "Put the riskiest customers first.",
+     "part": "",
+     "where": "",
+     "status": "not_decided",
+     "evidence": "Inspire did not decide which part each ask of your vibe changes, because the vibe router failed 3 times, the last with: the router sent ask 2 ('Only check on weekdays.') to no part, so it built nothing of v3: send the vibe again from the vibe box on the Build page",
+     "fact": "Inspire did not decide which part each ask of your vibe changes, because the vibe router failed 3 times, the last with: the router sent ask 2 ('Only check on weekdays.') to no part, so it built nothing of v3",
+     "rounds": 0,
+     "tried": [],
+     "checks": [],
+     "published_anyway": null
+    },
+    {
+     "n": 2,
+     "kind": "not_decided",
+     "requirement": "Only check on weekdays.",
+     "part": "",
+     "where": "",
+     "status": "not_decided",
+     "evidence": "Inspire did not decide which part each ask of your vibe changes, because the vibe router failed 3 times, the last with: the router sent ask 2 ('Only check on weekdays.') to no part, so it built nothing of v3: send the vibe again from the vibe box on the Build page",
+     "fact": "Inspire did not decide which part each ask of your vibe changes, because the vibe router failed 3 times, the last with: the router sent ask 2 ('Only check on weekdays.') to no part, so it built nothing of v3",
+     "rounds": 0,
+     "tried": [],
+     "checks": [],
+     "published_anyway": null
+    }
+   ],
+   "summary": {
+    "met": 0,
+    "total": 2,
+    "not_decided": 2
+   },
+   "steps": [
+    {
+     "step_name": "Vibe",
+     "status": "started",
+     "message": "reading your vibe to send each ask to the part it changes",
+     "result_json": {
+      "spec_version": 3,
+      "asks": [
+       "Put the riskiest customers first.",
+       "Only check on weekdays."
+      ],
+      "use_case_id": "N01-U01",
+      "phase": "Vibe"
+     }
+    },
+    {
+     "step_name": "Vibe",
+     "status": "ended_error",
+     "message": "the vibe router is out, so Inspire built nothing of v3: the vibe router failed 3 times, the last with: the router sent ask 2 ('Only check on weekdays.') to no part",
+     "result_json": {
+      "spec_version": 3,
+      "checklist": [
+       {
+        "n": 1,
+        "kind": "not_decided",
+        "requirement": "Put the riskiest customers first.",
+        "part": "",
+        "where": "",
+        "status": "not_decided",
+        "evidence": "Inspire did not decide which part each ask of your vibe changes, because the vibe router failed 3 times, the last with: the router sent ask 2 ('Only check on weekdays.') to no part, so it built nothing of v3: send the vibe again from the vibe box on the Build page",
+        "fact": "Inspire did not decide which part each ask of your vibe changes, because the vibe router failed 3 times, the last with: the router sent ask 2 ('Only check on weekdays.') to no part, so it built nothing of v3",
+        "rounds": 0,
+        "tried": [],
+        "checks": [],
+        "published_anyway": null
+       },
+       {
+        "n": 2,
+        "kind": "not_decided",
+        "requirement": "Only check on weekdays.",
+        "part": "",
+        "where": "",
+        "status": "not_decided",
+        "evidence": "Inspire did not decide which part each ask of your vibe changes, because the vibe router failed 3 times, the last with: the router sent ask 2 ('Only check on weekdays.') to no part, so it built nothing of v3: send the vibe again from the vibe box on the Build page",
+        "fact": "Inspire did not decide which part each ask of your vibe changes, because the vibe router failed 3 times, the last with: the router sent ask 2 ('Only check on weekdays.') to no part, so it built nothing of v3",
+        "rounds": 0,
+        "tried": [],
+        "checks": [],
+        "published_anyway": null
+       }
+      ],
+      "use_case_id": "N01-U01",
+      "phase": "Vibe"
+     }
+    }
+   ],
+   "unmet": []
+  },
+  {
+   "name": "one ask and a busy router",
+   "version": 3,
+   "status_message": "Inspire did not decide which part each ask of your vibe changes, because the vibe router failed 3 times, the last with: the endpoint is busy, so it built nothing of v3: send the vibe again from the vibe box on the Build page",
+   "entries": [
+    {
+     "n": 1,
+     "kind": "not_decided",
+     "requirement": "Add a map of the regions.",
+     "part": "",
+     "where": "",
+     "status": "not_decided",
+     "evidence": "Inspire did not decide which part each ask of your vibe changes, because the vibe router failed 3 times, the last with: the endpoint is busy, so it built nothing of v3: send the vibe again from the vibe box on the Build page",
+     "fact": "Inspire did not decide which part each ask of your vibe changes, because the vibe router failed 3 times, the last with: the endpoint is busy, so it built nothing of v3",
+     "rounds": 0,
+     "tried": [],
+     "checks": [],
+     "published_anyway": null
+    }
+   ],
+   "summary": {
+    "met": 0,
+    "total": 1,
+    "not_decided": 1
+   },
+   "steps": [
+    {
+     "step_name": "Vibe",
+     "status": "started",
+     "message": "reading your vibe to send each ask to the part it changes",
+     "result_json": {
+      "spec_version": 3,
+      "asks": [
+       "Add a map of the regions."
+      ],
+      "use_case_id": "N01-U01",
+      "phase": "Vibe"
+     }
+    },
+    {
+     "step_name": "Vibe",
+     "status": "ended_error",
+     "message": "the vibe router is out, so Inspire built nothing of v3: the vibe router failed 3 times, the last with: the endpoint is busy",
+     "result_json": {
+      "spec_version": 3,
+      "checklist": [
+       {
+        "n": 1,
+        "kind": "not_decided",
+        "requirement": "Add a map of the regions.",
+        "part": "",
+        "where": "",
+        "status": "not_decided",
+        "evidence": "Inspire did not decide which part each ask of your vibe changes, because the vibe router failed 3 times, the last with: the endpoint is busy, so it built nothing of v3: send the vibe again from the vibe box on the Build page",
+        "fact": "Inspire did not decide which part each ask of your vibe changes, because the vibe router failed 3 times, the last with: the endpoint is busy, so it built nothing of v3",
+        "rounds": 0,
+        "tried": [],
+        "checks": [],
+        "published_anyway": null
+       }
+      ],
+      "use_case_id": "N01-U01",
+      "phase": "Vibe"
+     }
+    }
+   ],
+   "unmet": []
+  },
+  {
+   "name": "a router failure longer than the agent keeps",
+   "version": 3,
+   "status_message": "Inspire did not decide which part each ask of your vibe changes, because the vibe router failed 3 times, the last with: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx, so it built nothing of v3: send the vibe again from the vibe box on the Build page",
+   "entries": [
+    {
+     "n": 1,
+     "kind": "not_decided",
+     "requirement": "Put the riskiest customers first.",
+     "part": "",
+     "where": "",
+     "status": "not_decided",
+     "evidence": "Inspire did not decide which part each ask of your vibe changes, because the vibe router failed 3 times, the last with: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx, so it built nothing of v3: send the vibe again from the vibe box on the Build page",
+     "fact": "Inspire did not decide which part each ask of your vibe changes, because the vibe router failed 3 times, the last with: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx, so it built nothing of v3",
+     "rounds": 0,
+     "tried": [],
+     "checks": [],
+     "published_anyway": null
+    }
+   ],
+   "summary": {
+    "met": 0,
+    "total": 1,
+    "not_decided": 1
+   },
+   "steps": [
+    {
+     "step_name": "Vibe",
+     "status": "started",
+     "message": "reading your vibe to send each ask to the part it changes",
+     "result_json": {
+      "spec_version": 3,
+      "asks": [
+       "Put the riskiest customers first."
+      ],
+      "use_case_id": "N01-U01",
+      "phase": "Vibe"
+     }
+    },
+    {
+     "step_name": "Vibe",
+     "status": "ended_error",
+     "message": "the vibe router is out, so Inspire built nothing of v3: the vibe router failed 3 times, the last with: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+     "result_json": {
+      "spec_version": 3,
+      "checklist": [
+       {
+        "n": 1,
+        "kind": "not_decided",
+        "requirement": "Put the riskiest customers first.",
+        "part": "",
+        "where": "",
+        "status": "not_decided",
+        "evidence": "Inspire did not decide which part each ask of your vibe changes, because the vibe router failed 3 times, the last with: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx, so it built nothing of v3: send the vibe again from the vibe box on the Build page",
+        "fact": "Inspire did not decide which part each ask of your vibe changes, because the vibe router failed 3 times, the last with: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx, so it built nothing of v3",
+        "rounds": 0,
+        "tried": [],
+        "checks": [],
+        "published_anyway": null
+       }
+      ],
+      "use_case_id": "N01-U01",
+      "phase": "Vibe"
+     }
+    }
+   ],
+   "unmet": []
+  }
+ ]
+}

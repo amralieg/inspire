@@ -1,0 +1,103 @@
+{
+  "version": 1,
+  "about": "Request and response shapes of the App server for run progress, action windows, acting on a set, notes, snooze, batches, undo and similar records. A match acts on the records whose current version is the one the table held at as_of_us, the as_of_us the list or the similar read returned. The server tests assert the server answers with exactly these shapes; the web tests serve these bodies.",
+  "freshness": {
+    "request": {"method": "GET", "path": "freshness", "query": {"page": "n01_u05"}},
+    "response": {
+      "has_job": true, "source": "job", "last_success": null, "last_run": null, "overdue": false, "cadence_days": 7,
+      "data_through": "2026-10-25", "can_refresh": false, "reason": "A refresh is already running, started 09:00 UTC by the schedule",
+      "run_url": "", "typical_s": 1500,
+      "active": {
+        "run_id": "301", "trigger": "scheduled", "by": "the schedule", "started": "2026-10-27T09:00:00Z", "ended": null,
+        "duration_s": null, "state": "running", "result": "running", "message": "", "url": "", "source": "job", "confirmed": true,
+        "stage": "Explaining the records", "stage_index": 4, "stage_total": 5, "rows_done": 0, "rows_total": 900, "percent": 81,
+        "eta_s": 360, "silent_since": null
+      }
+    },
+    "inside_active": {
+      "run_id": null, "trigger": null, "by": "", "started": "2026-10-27T09:00:00Z", "ended": null, "duration_s": null,
+      "state": "running", "result": "running", "message": "", "url": "", "source": "marker", "confirmed": false,
+      "stage": "Running the use case", "stage_index": 2, "stage_total": 5, "rows_done": null, "rows_total": null, "percent": 20,
+      "eta_s": null, "silent_since": null
+    },
+    "silent_active": {
+      "run_id": null, "trigger": null, "by": "", "started": "2026-10-27T09:00:30Z", "ended": null, "duration_s": null,
+      "state": "silent", "result": "unknown", "message": "No news from this run since 09:08 UTC. It may have stopped.", "url": "",
+      "source": "marker", "confirmed": false, "stage": "Running the use case", "stage_index": 2, "stage_total": 5, "rows_done": null,
+      "rows_total": null, "percent": null, "eta_s": null, "silent_since": "2026-10-27T09:08:20Z"
+    },
+    "inside_last_run": {
+      "run_id": null, "trigger": null, "by": "", "started": "2026-10-27T09:00:30Z", "ended": "2026-10-27T09:12:00Z", "duration_s": 690,
+      "state": "stopped", "result": "failed", "message": "The run stopped on RuntimeError: the model step failed", "url": "",
+      "source": "marker"
+    }
+  },
+  "runs": {
+    "request": {"method": "GET", "path": "runs", "query": {"page": "n01_u05"}},
+    "run_fields": {"stages": [{"stage": "Checking the settings", "spent_s": 60, "rows_total": null},
+                              {"stage": "Writing the results", "spent_s": 240, "rows_total": 600}]}
+  },
+  "records_window": {
+    "request": {"method": "POST", "path": "records", "body": {"page": "n01_u05", "window": "today", "window_limit": 25,
+                                                             "time_zone": "Asia/Dubai", "limit": 25, "offset": 0}},
+    "response_fields": {
+      "sort": {"key": "stake", "dir": "desc"},
+      "window": {"window": "today", "limit": 25, "shown": 3, "more": 0, "today": "2026-10-27"},
+      "as_of_us": "5555555555555555"
+    }
+  },
+  "overview_window": {
+    "request": {"method": "POST", "path": "overview", "body": {"window": "week", "window_limit": 10, "time_zone": "Asia/Dubai"}},
+    "response_fields": {"window": {"window": "week", "limit": 10, "today": "2026-10-27"}},
+    "page_fields": {"window_note": "", "done": {"mine_today": 3}}
+  },
+  "act_keys": {
+    "request": {"method": "POST", "path": "records/act", "body": {"page": "n01_u05", "record_keys": ["k1"], "seen": {"k1": "1001"},
+                                                                 "values": {"action_status": "In progress", "note": "Called the store"}}},
+    "response": {"written": ["k1"], "conflicts": [], "conflicts_count": 0, "batch_id": "0123456789abcdef0123456789abcdef"}
+  },
+  "act_match": {
+    "request": {"method": "POST", "path": "records/act", "body": {"page": "n01_u05", "match": {"filters": {"category": ["Books"]},
+                                                                                             "view": {"window": "all"},
+                                                                                             "as_of_us": "111122223333444"},
+                                                                 "values": {"action_status": "Done", "note": "Repriced the shelf"}}},
+    "response": {"written": 2, "matched": 3, "conflicts": [{"record_key": "k3", "error": "Someone changed this record"}],
+                 "conflicts_count": 1, "batch_id": "0123456789abcdef0123456789abcdef"},
+    "over_cap": {"status": 409, "body": {"error": "the filters match 100,001 records; act on at most 100,000 at once: narrow the filters",
+                                         "matched": 100001, "cap": 100000, "code": "over_cap"}}
+  },
+  "snooze": {
+    "request": {"method": "POST", "path": "records/act", "body": {"page": "n01_u05", "record_keys": ["k1"], "seen": {"k1": "1001"},
+                                                                 "values": {"snooze_until": "2026-11-03"}}}
+  },
+  "similar": {
+    "request": {"method": "GET", "path": "records/similar", "query": {"page": "n01_u05", "record_key": "k1", "by": "category"}},
+    "response": {"by": [{"filter": "category", "label": "Category", "value": "Books"}], "count": 1,
+                 "sample": [{"record_key": "k2", "label": "Item 2", "valid_from_us": "1001"}],
+                 "match": {"filters": {"category": ["Books"]}, "view": {"window": "all", "exclude": ["k1"]},
+                           "as_of_us": "5555555555555555"}}
+  },
+  "batches": {
+    "request": {"method": "GET", "path": "records/batches", "query": {"page": "n01_u05"}},
+    "response": {"batches": [{"batch_id": "0123456789abcdef0123456789abcdef", "editor": "dana", "at": "2026-10-27T09:10:00.000Z",
+                              "count": 2, "values": {"action_status": "Done"}, "undoes": null, "note": "Repriced the shelf",
+                              "undone": false}],
+                 "limit": 20}
+  },
+  "undo": {
+    "request": {"method": "POST", "path": "records/undo", "body": {"page": "n01_u05", "batch_id": "0123456789abcdef0123456789abcdef"}},
+    "response": {"restored": 1, "skipped": 1, "skipped_sample": [{"record_key": "k2", "error": "Someone changed this record"}],
+                 "batch_id": "fedcba9876543210fedcba9876543210", "undoes": "0123456789abcdef0123456789abcdef"}
+  },
+  "errors": {
+    "bad_window": {"status": 400, "body": {"error": "window must be one of hour, today, week, month, all"}},
+    "bad_batch": {"status": 400, "body": {"error": "send the batch_id of the act to undo, as GET records/batches lists it"}},
+    "stale_list": {"status": 409, "body": {"error": "main.pricing.loss_desk_out changed more than 2 times since you loaded the list, or the App cannot tell when; reload the list and try again", "code": "stale_list"}},
+    "unknown_copy": {"status": 409, "body": {"error": "the list came from a copy that has not said when it last caught up, so the App cannot tell what changed since you loaded it: reload the list and try again", "code": "unknown_copy"}},
+    "no_match": {"status": 409, "body": {"error": "no record matches these filters any more; reload the list", "matched": 0, "code": "no_match"}},
+    "no_window": {"status": 400, "body": {"error": "this decision list keeps no actions, so it has no window of actions to show", "code": "no_window"}},
+    "stale_record": {"status": 409, "body": {"error": "dana changed this record on Oct 27, 2026 at 09:10 UTC, after you opened it. Reload it to see that change, then make yours again",
+                                             "written": [], "conflicts": [{"record_key": "k1", "error": "dana changed this record on Oct 27, 2026 at 09:10 UTC, after you opened it. Reload it to see that change, then make yours again"}],
+                                             "conflicts_count": 1, "batch_id": null, "code": "stale_record"}}
+  }
+}

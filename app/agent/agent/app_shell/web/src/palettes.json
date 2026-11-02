@@ -1,0 +1,2472 @@
+{
+ "default": {
+  "light": {
+   "base": {
+    "bg": "#f4f6f8",
+    "card": "#fff",
+    "ink": "#1b1f24",
+    "muted": "#5b6570",
+    "faint": "#858e98",
+    "line": "#e3e7ec",
+    "line-strong": "#cfd5dc",
+    "well": "#f3f5f8",
+    "panel": "#f6f4f2",
+    "brand": "#ff3621",
+    "brand-ink": "#c0261a",
+    "brand-soft": "#f7cfc7",
+    "brand-wash": "#fff6f4",
+    "brand-bd": "#f6b6ac",
+    "danger": "#b42318",
+    "danger-bg": "#fff2f0"
+   },
+   "hues": {
+    "coral": {
+     "line": "#914636",
+     "head": "#854e42",
+     "bd": "#e2beb6",
+     "bg": "#fbf1ef",
+     "tile": "#f5ded8",
+     "ink": "#7d3f31"
+    },
+    "amber": {
+     "line": "#917036",
+     "head": "#856c42",
+     "bd": "#e2d2b6",
+     "bg": "#fbf6ef",
+     "tile": "#f5ebd8",
+     "ink": "#7d6131"
+    },
+    "green": {
+     "line": "#369157",
+     "head": "#418359",
+     "bd": "#b6e2c6",
+     "bg": "#effbf3",
+     "tile": "#d8f5e3",
+     "ink": "#307a4b"
+    },
+    "teal": {
+     "line": "#368b91",
+     "head": "#418085",
+     "bd": "#b6dfe2",
+     "bg": "#effafb",
+     "tile": "#d8f3f5",
+     "ink": "#30767b"
+    },
+    "blue": {
+     "line": "#365691",
+     "head": "#425985",
+     "bd": "#b6c5e2",
+     "bg": "#eff3fb",
+     "tile": "#d8e3f5",
+     "ink": "#314b7d"
+    },
+    "slate": {
+     "line": "#556172",
+     "head": "#425f85",
+     "bd": "#c5cbd3",
+     "bg": "#f3f5f7",
+     "tile": "#e2e6ec",
+     "ink": "#4a5563"
+    },
+    "violet": {
+     "line": "#5d3691",
+     "head": "#5f4285",
+     "bd": "#c9b6e2",
+     "bg": "#f4effb",
+     "tile": "#e5d8f5",
+     "ink": "#52317d"
+    },
+    "plum": {
+     "line": "#913676",
+     "head": "#854271",
+     "bd": "#e2b6d5",
+     "bg": "#fbeff7",
+     "tile": "#f5d8ed",
+     "ink": "#7d3166"
+    },
+    "rose": {
+     "line": "#913646",
+     "head": "#85424e",
+     "bd": "#e2b6be",
+     "bg": "#fbeff1",
+     "tile": "#f5d8de",
+     "ink": "#7d313f"
+    }
+   }
+  },
+  "dark": {
+   "base": {
+    "bg": "#0c1015",
+    "card": "#161b22",
+    "ink": "#e7edf3",
+    "muted": "#a6b2be",
+    "faint": "#7f8c9a",
+    "line": "#2b323c",
+    "line-strong": "#3d4650",
+    "well": "#1d242d",
+    "panel": "#141a21",
+    "brand": "#ff5c47",
+    "brand-ink": "#ff8877",
+    "brand-soft": "#5e241c",
+    "brand-wash": "#241310",
+    "brand-bd": "#7a2c22",
+    "danger": "#ff7b6b",
+    "danger-bg": "#241310"
+   },
+   "hues": {
+    "coral": {
+     "line": "#d07e6c",
+     "head": "#854e42",
+     "bd": "#64423a",
+     "bg": "#261613",
+     "tile": "#3d241e",
+     "ink": "#e6a799"
+    },
+    "amber": {
+     "line": "#d0ac6c",
+     "head": "#856c42",
+     "bd": "#64553a",
+     "bg": "#261f13",
+     "tile": "#3d321e",
+     "ink": "#e6c999"
+    },
+    "green": {
+     "line": "#6cd091",
+     "head": "#418359",
+     "bd": "#3a644a",
+     "bg": "#13261a",
+     "tile": "#1e3d29",
+     "ink": "#99e6b5"
+    },
+    "teal": {
+     "line": "#6ccad0",
+     "head": "#418085",
+     "bd": "#3a6164",
+     "bg": "#132426",
+     "tile": "#1e3b3d",
+     "ink": "#99e0e6"
+    },
+    "blue": {
+     "line": "#6c8fd0",
+     "head": "#425985",
+     "bd": "#3a4964",
+     "bg": "#131926",
+     "tile": "#1e293d",
+     "ink": "#99b4e6"
+    },
+    "slate": {
+     "line": "#929cab",
+     "head": "#425f85",
+     "bd": "#4a4e54",
+     "bg": "#1a1c1e",
+     "tile": "#2a2d31",
+     "ink": "#b6bec9"
+    },
+    "violet": {
+     "line": "#976cd0",
+     "head": "#5f4285",
+     "bd": "#4c3a64",
+     "bg": "#1b1326",
+     "tile": "#2b1e3d",
+     "ink": "#ba99e6"
+    },
+    "plum": {
+     "line": "#d06cb2",
+     "head": "#854271",
+     "bd": "#643a57",
+     "bg": "#261320",
+     "tile": "#3d1e34",
+     "ink": "#e699cf"
+    },
+    "rose": {
+     "line": "#d06c7e",
+     "head": "#85424e",
+     "bd": "#643a42",
+     "bg": "#261316",
+     "tile": "#3d1e24",
+     "ink": "#e699a7"
+    }
+   }
+  }
+ },
+ "berry": {
+  "light": {
+   "base": {
+    "bg": "#f4f6f8",
+    "card": "#fff",
+    "ink": "#1b1f24",
+    "muted": "#5b6570",
+    "faint": "#858e98",
+    "line": "#e3e7ec",
+    "line-strong": "#cfd5dc",
+    "well": "#f3f5f8",
+    "panel": "#f6f4f2",
+    "brand": "#ff3621",
+    "brand-ink": "#c0261a",
+    "brand-soft": "#f7cfc7",
+    "brand-wash": "#fff6f4",
+    "brand-bd": "#f6b6ac",
+    "danger": "#b42318",
+    "danger-bg": "#fff2f0"
+   },
+   "hues": {
+    "coral": {
+     "line": "#2d993e",
+     "head": "#398544",
+     "bd": "#b2e6b9",
+     "bg": "#eefcf0",
+     "tile": "#d6f8db",
+     "ink": "#277c34"
+    },
+    "amber": {
+     "line": "#2d996e",
+     "head": "#398466",
+     "bd": "#b2e6d1",
+     "bg": "#eefcf6",
+     "tile": "#d6f8ea",
+     "ink": "#277b5a"
+    },
+    "green": {
+     "line": "#512d99",
+     "head": "#563c8b",
+     "bd": "#c3b2e6",
+     "bg": "#f2eefc",
+     "tile": "#e1d6f8",
+     "ink": "#482a84"
+    },
+    "teal": {
+     "line": "#992d96",
+     "head": "#8b3c89",
+     "bd": "#e6b2e5",
+     "bg": "#fceefc",
+     "tile": "#f8d6f7",
+     "ink": "#842a81"
+    },
+    "blue": {
+     "line": "#992d57",
+     "head": "#8b3c5a",
+     "bd": "#e6b2c6",
+     "bg": "#fceef3",
+     "tile": "#f8d6e3",
+     "ink": "#842a4c"
+    },
+    "slate": {
+     "line": "#725562",
+     "head": "#854261",
+     "bd": "#d3c5cc",
+     "bg": "#f7f3f5",
+     "tile": "#ece2e7",
+     "ink": "#634a56"
+    },
+    "violet": {
+     "line": "#99592d",
+     "head": "#8b5b3c",
+     "bd": "#e6c7b2",
+     "bg": "#fcf3ee",
+     "tile": "#f8e4d6",
+     "ink": "#844e2a"
+    },
+    "plum": {
+     "line": "#7b972d",
+     "head": "#6b7e36",
+     "bd": "#d8e6b2",
+     "bg": "#f8fcee",
+     "tile": "#eff8d6",
+     "ink": "#627826"
+    },
+    "rose": {
+     "line": "#45992d",
+     "head": "#498439",
+     "bd": "#bde6b2",
+     "bg": "#f1fcee",
+     "tile": "#ddf8d6",
+     "ink": "#3a7c27"
+    }
+   }
+  },
+  "dark": {
+   "base": {
+    "bg": "#0c1015",
+    "card": "#161b22",
+    "ink": "#e7edf3",
+    "muted": "#a6b2be",
+    "faint": "#7f8c9a",
+    "line": "#2b323c",
+    "line-strong": "#3d4650",
+    "well": "#1d242d",
+    "panel": "#141a21",
+    "brand": "#ff5c47",
+    "brand-ink": "#ff8877",
+    "brand-soft": "#5e241c",
+    "brand-wash": "#241310",
+    "brand-bd": "#7a2c22",
+    "danger": "#ff7b6b",
+    "danger-bg": "#241310"
+   },
+   "hues": {
+    "coral": {
+     "line": "#63da74",
+     "head": "#398544",
+     "bd": "#37673e",
+     "bg": "#112714",
+     "tile": "#1b4021",
+     "ink": "#92eca0"
+    },
+    "amber": {
+     "line": "#63daaa",
+     "head": "#398466",
+     "bd": "#376754",
+     "bg": "#11271e",
+     "tile": "#1b4031",
+     "ink": "#92ecc8"
+    },
+    "green": {
+     "line": "#8a63da",
+     "head": "#563c8b",
+     "bd": "#473767",
+     "bg": "#181127",
+     "tile": "#271b40",
+     "ink": "#b092ec"
+    },
+    "teal": {
+     "line": "#da63d6",
+     "head": "#8b3c89",
+     "bd": "#673766",
+     "bg": "#271127",
+     "tile": "#401b3e",
+     "ink": "#ec92e9"
+    },
+    "blue": {
+     "line": "#da6390",
+     "head": "#8b3c5a",
+     "bd": "#673749",
+     "bg": "#271119",
+     "tile": "#401b29",
+     "ink": "#ec92b5"
+    },
+    "slate": {
+     "line": "#ab929d",
+     "head": "#854261",
+     "bd": "#544a4f",
+     "bg": "#1e1a1c",
+     "tile": "#312a2d",
+     "ink": "#c9b6bf"
+    },
+    "violet": {
+     "line": "#da9263",
+     "head": "#8b5b3c",
+     "bd": "#674a37",
+     "bg": "#271a11",
+     "tile": "#402a1b",
+     "ink": "#ecb692"
+    },
+    "plum": {
+     "line": "#bada63",
+     "head": "#6b7e36",
+     "bd": "#5a6737",
+     "bg": "#212711",
+     "tile": "#36401b",
+     "ink": "#d4ec92"
+    },
+    "rose": {
+     "line": "#7cda63",
+     "head": "#498439",
+     "bd": "#416737",
+     "bg": "#162711",
+     "tile": "#23401b",
+     "ink": "#a6ec92"
+    }
+   }
+  }
+ },
+ "earth": {
+  "light": {
+   "base": {
+    "bg": "#f4f6f8",
+    "card": "#fff",
+    "ink": "#1b1f24",
+    "muted": "#5b6570",
+    "faint": "#858e98",
+    "line": "#e3e7ec",
+    "line-strong": "#cfd5dc",
+    "well": "#f3f5f8",
+    "panel": "#f6f4f2",
+    "brand": "#ff3621",
+    "brand-ink": "#c0261a",
+    "brand-soft": "#f7cfc7",
+    "brand-wash": "#fff6f4",
+    "brand-bd": "#f6b6ac",
+    "danger": "#b42318",
+    "danger-bg": "#fff2f0"
+   },
+   "hues": {
+    "coral": {
+     "line": "#876940",
+     "head": "#7e6849",
+     "bd": "#decfba",
+     "bg": "#f5f1ea",
+     "tile": "#ede5da",
+     "ink": "#745c39"
+    },
+    "amber": {
+     "line": "#858740",
+     "head": "#787947",
+     "bd": "#dcdeba",
+     "bg": "#f5f5ea",
+     "tile": "#ededda",
+     "ink": "#6c6e36"
+    },
+    "green": {
+     "line": "#408776",
+     "head": "#497e72",
+     "bd": "#baded5",
+     "bg": "#eaf5f3",
+     "tile": "#daede9",
+     "ink": "#387366"
+    },
+    "teal": {
+     "line": "#406687",
+     "head": "#49657e",
+     "bd": "#bacdde",
+     "bg": "#eaf0f5",
+     "tile": "#dae4ed",
+     "ink": "#395974"
+    },
+    "blue": {
+     "line": "#434087",
+     "head": "#4c497e",
+     "bd": "#bcbade",
+     "bg": "#ebeaf5",
+     "tile": "#dbdaed",
+     "ink": "#3c3974"
+    },
+    "slate": {
+     "line": "#555672",
+     "head": "#424485",
+     "bd": "#c5c5d3",
+     "bg": "#edeef2",
+     "tile": "#dfe0e8",
+     "ink": "#4a4b63"
+    },
+    "violet": {
+     "line": "#7b4087",
+     "head": "#75497e",
+     "bd": "#d8bade",
+     "bg": "#f3eaf5",
+     "tile": "#eadaed",
+     "ink": "#6b3974"
+    },
+    "plum": {
+     "line": "#874055",
+     "head": "#7e4959",
+     "bd": "#debac5",
+     "bg": "#f5eaee",
+     "tile": "#eddae0",
+     "ink": "#74394b"
+    },
+    "rose": {
+     "line": "#874f40",
+     "head": "#7e5549",
+     "bd": "#dec2ba",
+     "bg": "#f5edea",
+     "tile": "#eddeda",
+     "ink": "#744639"
+    }
+   }
+  },
+  "dark": {
+   "base": {
+    "bg": "#0c1015",
+    "card": "#161b22",
+    "ink": "#e7edf3",
+    "muted": "#a6b2be",
+    "faint": "#7f8c9a",
+    "line": "#2b323c",
+    "line-strong": "#3d4650",
+    "well": "#1d242d",
+    "panel": "#141a21",
+    "brand": "#ff5c47",
+    "brand-ink": "#ff8877",
+    "brand-soft": "#5e241c",
+    "brand-wash": "#241310",
+    "brand-bd": "#7a2c22",
+    "danger": "#ff7b6b",
+    "danger-bg": "#241310"
+   },
+   "hues": {
+    "coral": {
+     "line": "#c5a577",
+     "head": "#7e6849",
+     "bd": "#5f523f",
+     "bg": "#292219",
+     "tile": "#3c3325",
+     "ink": "#ddc4a1"
+    },
+    "amber": {
+     "line": "#c3c577",
+     "head": "#787947",
+     "bd": "#5e5f3f",
+     "bg": "#282919",
+     "tile": "#3b3c25",
+     "ink": "#dbdda1"
+    },
+    "green": {
+     "line": "#77c5b3",
+     "head": "#497e72",
+     "bd": "#3f5f58",
+     "bg": "#192925",
+     "tile": "#253c37",
+     "ink": "#a1ddcf"
+    },
+    "teal": {
+     "line": "#77a1c5",
+     "head": "#49657e",
+     "bd": "#3f505f",
+     "bg": "#192229",
+     "tile": "#25323c",
+     "ink": "#a1c1dd"
+    },
+    "blue": {
+     "line": "#7b77c5",
+     "head": "#4c497e",
+     "bd": "#413f5f",
+     "bg": "#1a1929",
+     "tile": "#26253c",
+     "ink": "#a4a1dd"
+    },
+    "slate": {
+     "line": "#9292ab",
+     "head": "#424485",
+     "bd": "#4a4a54",
+     "bg": "#1f1f24",
+     "tile": "#2d2d34",
+     "ink": "#b6b6c9"
+    },
+    "violet": {
+     "line": "#b877c5",
+     "head": "#75497e",
+     "bd": "#5a3f5f",
+     "bg": "#261929",
+     "tile": "#38253c",
+     "ink": "#d3a1dd"
+    },
+    "plum": {
+     "line": "#c5778e",
+     "head": "#7e4959",
+     "bd": "#5f3f49",
+     "bg": "#29191e",
+     "tile": "#3c252c",
+     "ink": "#dda1b3"
+    },
+    "rose": {
+     "line": "#c58877",
+     "head": "#7e5549",
+     "bd": "#5f463f",
+     "bg": "#291d19",
+     "tile": "#3c2a25",
+     "ink": "#ddaea1"
+    }
+   }
+  }
+ },
+ "jewel": {
+  "light": {
+   "base": {
+    "bg": "#f4f6f8",
+    "card": "#fff",
+    "ink": "#1b1f24",
+    "muted": "#5b6570",
+    "faint": "#858e98",
+    "line": "#e3e7ec",
+    "line-strong": "#cfd5dc",
+    "well": "#f3f5f8",
+    "panel": "#f6f4f2",
+    "brand": "#ff3621",
+    "brand-ink": "#c0261a",
+    "brand-soft": "#f7cfc7",
+    "brand-wash": "#fff6f4",
+    "brand-bd": "#f6b6ac",
+    "danger": "#b42318",
+    "danger-bg": "#fff2f0"
+   },
+   "hues": {
+    "coral": {
+     "line": "#a30008",
+     "head": "#943237",
+     "bd": "#ee777d",
+     "bg": "#fbd5d7",
+     "tile": "#f7b4b8",
+     "ink": "#8e1f25"
+    },
+    "amber": {
+     "line": "#a34100",
+     "head": "#945a32",
+     "bd": "#eea777",
+     "bg": "#fbe4d5",
+     "tile": "#f7cfb4",
+     "ink": "#8e4c1f"
+    },
+    "green": {
+     "line": "#00a316",
+     "head": "#2e873a",
+     "bd": "#77ee87",
+     "bg": "#d5fbda",
+     "tile": "#b4f7bd",
+     "ink": "#1b7827"
+    },
+    "teal": {
+     "line": "#009f85",
+     "head": "#2d8375",
+     "bd": "#77eeda",
+     "bg": "#d5fbf4",
+     "tile": "#b4f7ec",
+     "ink": "#1a7767"
+    },
+    "blue": {
+     "line": "#005fa3",
+     "head": "#326c94",
+     "bd": "#77bcee",
+     "bg": "#d5ebfb",
+     "tile": "#b4dbf7",
+     "ink": "#1f608e"
+    },
+    "slate": {
+     "line": "#45565e",
+     "head": "#426f85",
+     "bd": "#aab5bb",
+     "bg": "#e5e9eb",
+     "tile": "#d1d7db",
+     "ink": "#4f595f"
+    },
+    "violet": {
+     "line": "#2100a3",
+     "head": "#463294",
+     "bd": "#8f77ee",
+     "bg": "#ddd5fb",
+     "tile": "#c2b4f7",
+     "ink": "#361f8e"
+    },
+    "plum": {
+     "line": "#a30098",
+     "head": "#94328e",
+     "bd": "#ee77e6",
+     "bg": "#fbd5f8",
+     "tile": "#f7b4f3",
+     "ink": "#8e1f87"
+    },
+    "rose": {
+     "line": "#a30044",
+     "head": "#94325b",
+     "bd": "#ee77a9",
+     "bg": "#fbd5e5",
+     "tile": "#f7b4d0",
+     "ink": "#8e1f4d"
+    }
+   }
+  },
+  "dark": {
+   "base": {
+    "bg": "#0c1015",
+    "card": "#161b22",
+    "ink": "#e7edf3",
+    "muted": "#a6b2be",
+    "faint": "#7f8c9a",
+    "line": "#2b323c",
+    "line-strong": "#3d4650",
+    "well": "#1d242d",
+    "panel": "#141a21",
+    "brand": "#ff5c47",
+    "brand-ink": "#ff8877",
+    "brand-soft": "#5e241c",
+    "brand-wash": "#241310",
+    "brand-bd": "#7a2c22",
+    "danger": "#ff7b6b",
+    "danger-bg": "#241310"
+   },
+   "hues": {
+    "coral": {
+     "line": "#ff2934",
+     "head": "#943237",
+     "bd": "#8c2227",
+     "bg": "#3e0a0c",
+     "tile": "#5b0f12",
+     "ink": "#f7888d"
+    },
+    "amber": {
+     "line": "#ff7e29",
+     "head": "#945a32",
+     "bd": "#8c4c22",
+     "bg": "#3e1f0a",
+     "tile": "#5b2d0f",
+     "ink": "#f7b488"
+    },
+    "green": {
+     "line": "#29ff45",
+     "head": "#2e873a",
+     "bd": "#228c30",
+     "bg": "#0a3e11",
+     "tile": "#0f5b19",
+     "ink": "#88f797"
+    },
+    "teal": {
+     "line": "#29ffdb",
+     "head": "#2d8375",
+     "bd": "#228c7a",
+     "bg": "#0a3e35",
+     "tile": "#0f5b4f",
+     "ink": "#88f7e4"
+    },
+    "blue": {
+     "line": "#29a6ff",
+     "head": "#326c94",
+     "bd": "#22608c",
+     "bg": "#0a283e",
+     "tile": "#0f3b5b",
+     "ink": "#88c8f7"
+    },
+    "slate": {
+     "line": "#8699a2",
+     "head": "#426f85",
+     "bd": "#50595d",
+     "bg": "#202527",
+     "tile": "#30373a",
+     "ink": "#b8c2c6"
+    },
+    "violet": {
+     "line": "#6e4aff",
+     "head": "#463294",
+     "bd": "#37228c",
+     "bg": "#140a3e",
+     "tile": "#1e0f5b",
+     "ink": "#9e88f7"
+    },
+    "plum": {
+     "line": "#ff29f1",
+     "head": "#94328e",
+     "bd": "#8c2284",
+     "bg": "#3e0a3a",
+     "tile": "#5b0f56",
+     "ink": "#f788ef"
+    },
+    "rose": {
+     "line": "#ff2982",
+     "head": "#94325b",
+     "bd": "#8c224e",
+     "bg": "#3e0a1f",
+     "tile": "#5b0f2f",
+     "ink": "#f788b6"
+    }
+   }
+  }
+ },
+ "mono": {
+  "light": {
+   "base": {
+    "bg": "#f4f6f8",
+    "card": "#fff",
+    "ink": "#1f1f1f",
+    "muted": "#616161",
+    "faint": "#8c8c8c",
+    "line": "#e6e6e6",
+    "line-strong": "#d4d4d4",
+    "well": "#f4f4f4",
+    "panel": "#f5f5f5",
+    "brand": "#4a4a4a",
+    "brand-ink": "#3a3a3a",
+    "brand-soft": "#dedede",
+    "brand-wash": "#f6f6f6",
+    "brand-bd": "#c9c9c9",
+    "danger": "#b42318",
+    "danger-bg": "#fff2f0"
+   },
+   "hues": {
+    "coral": {
+     "line": "#404040",
+     "head": "#585858",
+     "bd": "#b5b5b5",
+     "bg": "#dedede",
+     "tile": "#d0d0d0",
+     "ink": "#404040"
+    },
+    "amber": {
+     "line": "#333333",
+     "head": "#565656",
+     "bd": "#b0b0b0",
+     "bg": "#d9d9d9",
+     "tile": "#cbcbcb",
+     "ink": "#3b3b3b"
+    },
+    "green": {
+     "line": "#8c8c8c",
+     "head": "#676767",
+     "bd": "#d2d2d2",
+     "bg": "#fbfbfb",
+     "tile": "#ededed",
+     "ink": "#5d5d5d"
+    },
+    "teal": {
+     "line": "#848484",
+     "head": "#646464",
+     "bd": "#cdcdcd",
+     "bg": "#f6f6f6",
+     "tile": "#e8e8e8",
+     "ink": "#585858"
+    },
+    "blue": {
+     "line": "#767676",
+     "head": "#616161",
+     "bd": "#c8c8c8",
+     "bg": "#f1f1f1",
+     "tile": "#e3e3e3",
+     "ink": "#535353"
+    },
+    "slate": {
+     "line": "#556172",
+     "head": "#425f85",
+     "bd": "#c5cbd3",
+     "bg": "#f3f5f7",
+     "tile": "#e2e6ec",
+     "ink": "#4a5563"
+    },
+    "violet": {
+     "line": "#686868",
+     "head": "#5f5f5f",
+     "bd": "#c3c3c3",
+     "bg": "#ececec",
+     "tile": "#dedede",
+     "ink": "#4e4e4e"
+    },
+    "plum": {
+     "line": "#5a5a5a",
+     "head": "#5d5d5d",
+     "bd": "#bebebe",
+     "bg": "#e7e7e7",
+     "tile": "#d9d9d9",
+     "ink": "#494949"
+    },
+    "rose": {
+     "line": "#4d4d4d",
+     "head": "#5a5a5a",
+     "bd": "#bababa",
+     "bg": "#e2e2e2",
+     "tile": "#d4d4d4",
+     "ink": "#444444"
+    }
+   }
+  },
+  "dark": {
+   "base": {
+    "bg": "#0c1015",
+    "card": "#1a1a1a",
+    "ink": "#eeeeee",
+    "muted": "#b0b0b0",
+    "faint": "#8c8c8c",
+    "line": "#333333",
+    "line-strong": "#474747",
+    "well": "#242424",
+    "panel": "#191919",
+    "brand": "#cfcfcf",
+    "brand-ink": "#e2e2e2",
+    "brand-soft": "#444444",
+    "brand-wash": "#1e1e1e",
+    "brand-bd": "#5a5a5a",
+    "danger": "#ff7b6b",
+    "danger-bg": "#241310"
+   },
+   "hues": {
+    "coral": {
+     "line": "#e1e1e1",
+     "head": "#606060",
+     "bd": "#494949",
+     "bg": "#161616",
+     "tile": "#272727",
+     "ink": "#b9b9b9"
+    },
+    "amber": {
+     "line": "#f7f7f7",
+     "head": "#5d5d5d",
+     "bd": "#434343",
+     "bg": "#101010",
+     "tile": "#212121",
+     "ink": "#b3b3b3"
+    },
+    "green": {
+     "line": "#787878",
+     "head": "#6c6c6c",
+     "bd": "#606060",
+     "bg": "#2d2d2d",
+     "tile": "#3e3e3e",
+     "ink": "#d0d0d0"
+    },
+    "teal": {
+     "line": "#878787",
+     "head": "#6a6a6a",
+     "bd": "#5d5d5d",
+     "bg": "#2a2a2a",
+     "tile": "#3b3b3b",
+     "ink": "#cdcdcd"
+    },
+    "blue": {
+     "line": "#969696",
+     "head": "#686868",
+     "bd": "#595959",
+     "bg": "#262626",
+     "tile": "#373737",
+     "ink": "#c9c9c9"
+    },
+    "slate": {
+     "line": "#929cab",
+     "head": "#425f85",
+     "bd": "#4a4e54",
+     "bg": "#1a1c1e",
+     "tile": "#2a2d31",
+     "ink": "#b6bec9"
+    },
+    "violet": {
+     "line": "#a7a7a7",
+     "head": "#676767",
+     "bd": "#555555",
+     "bg": "#222222",
+     "tile": "#343434",
+     "ink": "#c6c6c6"
+    },
+    "plum": {
+     "line": "#b9b9b9",
+     "head": "#656565",
+     "bd": "#525252",
+     "bg": "#1f1f1f",
+     "tile": "#303030",
+     "ink": "#c2c2c2"
+    },
+    "rose": {
+     "line": "#cccccc",
+     "head": "#636363",
+     "bd": "#4d4d4d",
+     "bg": "#1a1a1a",
+     "tile": "#2c2c2c",
+     "ink": "#bebebe"
+    }
+   }
+  }
+ },
+ "muted": {
+  "light": {
+   "base": {
+    "bg": "#f4f6f8",
+    "card": "#fff",
+    "ink": "#1b1f24",
+    "muted": "#5b6570",
+    "faint": "#858e98",
+    "line": "#e3e7ec",
+    "line-strong": "#cfd5dc",
+    "well": "#f3f5f8",
+    "panel": "#f6f4f2",
+    "brand": "#ff3621",
+    "brand-ink": "#c0261a",
+    "brand-soft": "#f7cfc7",
+    "brand-wash": "#fff6f4",
+    "brand-bd": "#f6b6ac",
+    "danger": "#b42318",
+    "danger-bg": "#fff2f0"
+   },
+   "hues": {
+    "coral": {
+     "line": "#805147",
+     "head": "#78564e",
+     "bd": "#dac3be",
+     "bg": "#f9f2f1",
+     "tile": "#f0e1de",
+     "ink": "#6e483f"
+    },
+    "amber": {
+     "line": "#806b47",
+     "head": "#78694e",
+     "bd": "#dad0be",
+     "bg": "#f9f6f1",
+     "tile": "#f0e9de",
+     "ink": "#6e5d3f"
+    },
+    "green": {
+     "line": "#47805c",
+     "head": "#4e785e",
+     "bd": "#bedac8",
+     "bg": "#f1f9f4",
+     "tile": "#def0e5",
+     "ink": "#3f6e50"
+    },
+    "teal": {
+     "line": "#477c80",
+     "head": "#4e7678",
+     "bd": "#bed8da",
+     "bg": "#f1f8f9",
+     "tile": "#deeff0",
+     "ink": "#3f6b6e"
+    },
+    "blue": {
+     "line": "#475b80",
+     "head": "#4e5d78",
+     "bd": "#bec8da",
+     "bg": "#f1f4f9",
+     "tile": "#dee4f0",
+     "ink": "#3f506e"
+    },
+    "slate": {
+     "line": "#556172",
+     "head": "#425f85",
+     "bd": "#c5cbd3",
+     "bg": "#f3f5f7",
+     "tile": "#e2e6ec",
+     "ink": "#4a5563"
+    },
+    "violet": {
+     "line": "#604780",
+     "head": "#614e78",
+     "bd": "#cabeda",
+     "bg": "#f4f1f9",
+     "tile": "#e6def0",
+     "ink": "#543f6e"
+    },
+    "plum": {
+     "line": "#80476f",
+     "head": "#784e6c",
+     "bd": "#dabed2",
+     "bg": "#f9f1f6",
+     "tile": "#f0deeb",
+     "ink": "#6e3f60"
+    },
+    "rose": {
+     "line": "#804751",
+     "head": "#784e56",
+     "bd": "#dabec3",
+     "bg": "#f9f1f2",
+     "tile": "#f0dee1",
+     "ink": "#6e3f48"
+    }
+   }
+  },
+  "dark": {
+   "base": {
+    "bg": "#0c1015",
+    "card": "#161b22",
+    "ink": "#e7edf3",
+    "muted": "#a6b2be",
+    "faint": "#7f8c9a",
+    "line": "#2b323c",
+    "line-strong": "#3d4650",
+    "well": "#1d242d",
+    "panel": "#141a21",
+    "brand": "#ff5c47",
+    "brand-ink": "#ff8877",
+    "brand-soft": "#5e241c",
+    "brand-wash": "#241310",
+    "brand-bd": "#7a2c22",
+    "danger": "#ff7b6b",
+    "danger-bg": "#241310"
+   },
+   "hues": {
+    "coral": {
+     "line": "#bd8a7f",
+     "head": "#78564e",
+     "bd": "#5c4742",
+     "bg": "#221816",
+     "tile": "#372724",
+     "ink": "#d7b0a8"
+    },
+    "amber": {
+     "line": "#bda67f",
+     "head": "#78694e",
+     "bd": "#5c5242",
+     "bg": "#221e16",
+     "tile": "#373024",
+     "ink": "#d7c6a8"
+    },
+    "green": {
+     "line": "#7fbd96",
+     "head": "#4e785e",
+     "bd": "#425c4c",
+     "bg": "#16221a",
+     "tile": "#24372b",
+     "ink": "#a8d7b9"
+    },
+    "teal": {
+     "line": "#7fb9bd",
+     "head": "#4e7678",
+     "bd": "#425a5c",
+     "bg": "#162122",
+     "tile": "#243637",
+     "ink": "#a8d4d7"
+    },
+    "blue": {
+     "line": "#7f95bd",
+     "head": "#4e5d78",
+     "bd": "#424b5c",
+     "bg": "#161a22",
+     "tile": "#242b37",
+     "ink": "#a8b8d7"
+    },
+    "slate": {
+     "line": "#929cab",
+     "head": "#425f85",
+     "bd": "#4a4e54",
+     "bg": "#1a1c1e",
+     "tile": "#2a2d31",
+     "ink": "#b6bec9"
+    },
+    "violet": {
+     "line": "#9a7fbd",
+     "head": "#614e78",
+     "bd": "#4d425c",
+     "bg": "#1b1622",
+     "tile": "#2c2437",
+     "ink": "#bca8d7"
+    },
+    "plum": {
+     "line": "#bd7fab",
+     "head": "#784e6c",
+     "bd": "#5c4254",
+     "bg": "#22161e",
+     "tile": "#372431",
+     "ink": "#d7a8c9"
+    },
+    "rose": {
+     "line": "#bd7f8a",
+     "head": "#784e56",
+     "bd": "#5c4247",
+     "bg": "#221618",
+     "tile": "#372427",
+     "ink": "#d7a8b0"
+    }
+   }
+  }
+ },
+ "neon": {
+  "light": {
+   "base": {
+    "bg": "#f4f6f8",
+    "card": "#fff",
+    "ink": "#1b1f24",
+    "muted": "#5b6570",
+    "faint": "#858e98",
+    "line": "#e3e7ec",
+    "line-strong": "#cfd5dc",
+    "well": "#f3f5f8",
+    "panel": "#f6f4f2",
+    "brand": "#ff3621",
+    "brand-ink": "#c0261a",
+    "brand-soft": "#f7cfc7",
+    "brand-wash": "#fff6f4",
+    "brand-bd": "#f6b6ac",
+    "danger": "#b42318",
+    "danger-bg": "#fff2f0"
+   },
+   "hues": {
+    "coral": {
+     "line": "#0076d6",
+     "head": "#206aa7",
+     "bd": "#9fd0f9",
+     "bg": "#e0f1ff",
+     "tile": "#c8e6ff",
+     "ink": "#0a5ea3"
+    },
+    "amber": {
+     "line": "#0015d6",
+     "head": "#202da7",
+     "bd": "#9fa8f9",
+     "bg": "#e0e3ff",
+     "tile": "#c8ceff",
+     "ink": "#0a1aa3"
+    },
+    "green": {
+     "line": "#d6004f",
+     "head": "#a72051",
+     "bd": "#f99fc0",
+     "bg": "#ffe0ec",
+     "tile": "#ffc8dc",
+     "ink": "#a30a42"
+    },
+    "teal": {
+     "line": "#d64700",
+     "head": "#a74d20",
+     "bd": "#f9bd9f",
+     "bg": "#ffebe0",
+     "tile": "#ffdac8",
+     "ink": "#a33d0a"
+    },
+    "blue": {
+     "line": "#9c8f00",
+     "head": "#817819",
+     "bd": "#f9f19f",
+     "bg": "#fffce0",
+     "tile": "#fff7a4",
+     "ink": "#7b7108"
+    },
+    "slate": {
+     "line": "#7b765b",
+     "head": "#827740",
+     "bd": "#d0cec8",
+     "bg": "#f2f1ed",
+     "tile": "#e8e6df",
+     "ink": "#5d5b50"
+    },
+    "violet": {
+     "line": "#31a200",
+     "head": "#3b871a",
+     "bd": "#baf99f",
+     "bg": "#eaffe0",
+     "tile": "#d3ffc0",
+     "ink": "#2c7f08"
+    },
+    "plum": {
+     "line": "#00a35c",
+     "head": "#1a8758",
+     "bd": "#9ff9d2",
+     "bg": "#e0fff2",
+     "tile": "#c2ffe4",
+     "ink": "#087f4c"
+    },
+    "rose": {
+     "line": "#009cab",
+     "head": "#1b828c",
+     "bd": "#9ff1f9",
+     "bg": "#e0fcff",
+     "tile": "#c5faff",
+     "ink": "#087984"
+    }
+   }
+  },
+  "dark": {
+   "base": {
+    "bg": "#0c1015",
+    "card": "#161b22",
+    "ink": "#e7edf3",
+    "muted": "#a6b2be",
+    "faint": "#7f8c9a",
+    "line": "#2b323c",
+    "line-strong": "#3d4650",
+    "well": "#1d242d",
+    "panel": "#141a21",
+    "brand": "#ff5c47",
+    "brand-ink": "#ff8877",
+    "brand-soft": "#5e241c",
+    "brand-wash": "#241310",
+    "brand-bd": "#7a2c22",
+    "danger": "#ff7b6b",
+    "danger-bg": "#241310"
+   },
+   "hues": {
+    "coral": {
+     "line": "#52b1ff",
+     "head": "#206aa7",
+     "bd": "#265378",
+     "bg": "#002442",
+     "tile": "#003662",
+     "ink": "#99d1ff"
+    },
+    "amber": {
+     "line": "#5263ff",
+     "head": "#202da7",
+     "bd": "#262e78",
+     "bg": "#000742",
+     "tile": "#000a62",
+     "ink": "#99a3ff"
+    },
+    "green": {
+     "line": "#ff5291",
+     "head": "#a72051",
+     "bd": "#782644",
+     "bg": "#420018",
+     "tile": "#620024",
+     "ink": "#ff99be"
+    },
+    "teal": {
+     "line": "#ff8b52",
+     "head": "#a74d20",
+     "bd": "#784126",
+     "bg": "#421600",
+     "tile": "#622100",
+     "ink": "#ffbb99"
+    },
+    "blue": {
+     "line": "#fff152",
+     "head": "#817819",
+     "bd": "#787126",
+     "bg": "#423d00",
+     "tile": "#625900",
+     "ink": "#fff699"
+    },
+    "slate": {
+     "line": "#b4b09d",
+     "head": "#827740",
+     "bd": "#52514c",
+     "bg": "#24231e",
+     "tile": "#35332d",
+     "ink": "#d2d0c6"
+    },
+    "violet": {
+     "line": "#86ff52",
+     "head": "#3b871a",
+     "bd": "#3f7826",
+     "bg": "#144200",
+     "tile": "#1d6200",
+     "ink": "#b8ff99"
+    },
+    "plum": {
+     "line": "#52ffb4",
+     "head": "#1a8758",
+     "bd": "#267855",
+     "bg": "#004226",
+     "tile": "#006237",
+     "ink": "#99ffd3"
+    },
+    "rose": {
+     "line": "#52f1ff",
+     "head": "#1b828c",
+     "bd": "#267178",
+     "bg": "#003d42",
+     "tile": "#005962",
+     "ink": "#99f6ff"
+    }
+   }
+  }
+ },
+ "nordic": {
+  "light": {
+   "base": {
+    "bg": "#f4f6f8",
+    "card": "#fff",
+    "ink": "#1b1f24",
+    "muted": "#5b6570",
+    "faint": "#858e98",
+    "line": "#e3e7ec",
+    "line-strong": "#cfd5dc",
+    "well": "#f3f5f8",
+    "panel": "#f6f4f2",
+    "brand": "#ff3621",
+    "brand-ink": "#c0261a",
+    "brand-soft": "#f7cfc7",
+    "brand-wash": "#fff6f4",
+    "brand-bd": "#f6b6ac",
+    "danger": "#b42318",
+    "danger-bg": "#fff2f0"
+   },
+   "hues": {
+    "coral": {
+     "line": "#7b4c74",
+     "head": "#755270",
+     "bd": "#d8c0d4",
+     "bg": "#f8f2f7",
+     "tile": "#eedfec",
+     "ink": "#6b4365"
+    },
+    "amber": {
+     "line": "#7b4c5f",
+     "head": "#755260",
+     "bd": "#d8c0ca",
+     "bg": "#f8f2f4",
+     "tile": "#eedfe5",
+     "ink": "#6b4353"
+    },
+    "green": {
+     "line": "#6b7b4c",
+     "head": "#697552",
+     "bd": "#d0d8c0",
+     "bg": "#f6f8f2",
+     "tile": "#e9eedf",
+     "ink": "#5d6b43"
+    },
+    "teal": {
+     "line": "#4c7b4d",
+     "head": "#527553",
+     "bd": "#c0d8c1",
+     "bg": "#f2f8f2",
+     "tile": "#dfeee0",
+     "ink": "#436b44"
+    },
+    "blue": {
+     "line": "#4c7b69",
+     "head": "#527568",
+     "bd": "#c0d8cf",
+     "bg": "#f2f8f6",
+     "tile": "#dfeee9",
+     "ink": "#436b5b"
+    },
+    "slate": {
+     "line": "#557264",
+     "head": "#418364",
+     "bd": "#c5d3cc",
+     "bg": "#f3f7f5",
+     "tile": "#e2ece7",
+     "ink": "#4a6358"
+    },
+    "violet": {
+     "line": "#4c687b",
+     "head": "#526775",
+     "bd": "#c0ced8",
+     "bg": "#f2f5f8",
+     "tile": "#dfe8ee",
+     "ink": "#435b6b"
+    },
+    "plum": {
+     "line": "#584c7b",
+     "head": "#5b5275",
+     "bd": "#c7c0d8",
+     "bg": "#f3f2f8",
+     "tile": "#e3dfee",
+     "ink": "#4d436b"
+    },
+    "rose": {
+     "line": "#714c7b",
+     "head": "#6d5275",
+     "bd": "#d3c0d8",
+     "bg": "#f7f2f8",
+     "tile": "#ebdfee",
+     "ink": "#62436b"
+    }
+   }
+  },
+  "dark": {
+   "base": {
+    "bg": "#0c1015",
+    "card": "#161b22",
+    "ink": "#e7edf3",
+    "muted": "#a6b2be",
+    "faint": "#7f8c9a",
+    "line": "#2b323c",
+    "line-strong": "#3d4650",
+    "well": "#1d242d",
+    "panel": "#141a21",
+    "brand": "#ff5c47",
+    "brand-ink": "#ff8877",
+    "brand-soft": "#5e241c",
+    "brand-wash": "#241310",
+    "brand-bd": "#7a2c22",
+    "danger": "#ff7b6b",
+    "danger-bg": "#241310"
+   },
+   "hues": {
+    "coral": {
+     "line": "#b884b0",
+     "head": "#755270",
+     "bd": "#5a4457",
+     "bg": "#211720",
+     "tile": "#352533",
+     "ink": "#d3abcd"
+    },
+    "amber": {
+     "line": "#b88499",
+     "head": "#755260",
+     "bd": "#5a444d",
+     "bg": "#21171b",
+     "tile": "#35252c",
+     "ink": "#d3abbb"
+    },
+    "green": {
+     "line": "#a7b884",
+     "head": "#697552",
+     "bd": "#535a44",
+     "bg": "#1e2117",
+     "tile": "#303525",
+     "ink": "#c6d3ab"
+    },
+    "teal": {
+     "line": "#84b886",
+     "head": "#527553",
+     "bd": "#445a45",
+     "bg": "#172117",
+     "tile": "#253526",
+     "ink": "#abd3ad"
+    },
+    "blue": {
+     "line": "#84b8a4",
+     "head": "#527568",
+     "bd": "#445a52",
+     "bg": "#17211d",
+     "tile": "#25352f",
+     "ink": "#abd3c4"
+    },
+    "slate": {
+     "line": "#92ab9f",
+     "head": "#418364",
+     "bd": "#4a544f",
+     "bg": "#1a1e1c",
+     "tile": "#2a312e",
+     "ink": "#b6c9c0"
+    },
+    "violet": {
+     "line": "#84a3b8",
+     "head": "#526775",
+     "bd": "#44515a",
+     "bg": "#171d21",
+     "tile": "#252f35",
+     "ink": "#abc3d3"
+    },
+    "plum": {
+     "line": "#9284b8",
+     "head": "#5b5275",
+     "bd": "#4a445a",
+     "bg": "#1a1721",
+     "tile": "#2a2535",
+     "ink": "#b6abd3"
+    },
+    "rose": {
+     "line": "#ad84b8",
+     "head": "#6d5275",
+     "bd": "#55445a",
+     "bg": "#1f1721",
+     "tile": "#322535",
+     "ink": "#cbabd3"
+    }
+   }
+  }
+ },
+ "ocean": {
+  "light": {
+   "base": {
+    "bg": "#f4f6f8",
+    "card": "#fff",
+    "ink": "#1b1f24",
+    "muted": "#5b6570",
+    "faint": "#858e98",
+    "line": "#e3e7ec",
+    "line-strong": "#cfd5dc",
+    "well": "#f3f5f8",
+    "panel": "#f6f4f2",
+    "brand": "#ff3621",
+    "brand-ink": "#c0261a",
+    "brand-soft": "#f7cfc7",
+    "brand-wash": "#fff6f4",
+    "brand-bd": "#f6b6ac",
+    "danger": "#b42318",
+    "danger-bg": "#fff2f0"
+   },
+   "hues": {
+    "coral": {
+     "line": "#91365f",
+     "head": "#854260",
+     "bd": "#e2b6ca",
+     "bg": "#fbeff4",
+     "tile": "#f5d8e5",
+     "ink": "#7d3153"
+    },
+    "amber": {
+     "line": "#913636",
+     "head": "#854242",
+     "bd": "#e2b6b6",
+     "bg": "#fbefef",
+     "tile": "#f5d8d8",
+     "ink": "#7d3131"
+    },
+    "green": {
+     "line": "#4e9136",
+     "head": "#528240",
+     "bd": "#c2e2b6",
+     "bg": "#f2fbef",
+     "tile": "#e0f5d8",
+     "ink": "#43792f"
+    },
+    "teal": {
+     "line": "#36915d",
+     "head": "#41835e",
+     "bd": "#b6e2c9",
+     "bg": "#effbf4",
+     "tile": "#d8f5e5",
+     "ink": "#2f7a50"
+    },
+    "blue": {
+     "line": "#369091",
+     "head": "#408081",
+     "bd": "#b6e2e2",
+     "bg": "#effbfb",
+     "tile": "#d8f5f5",
+     "ink": "#2f7779"
+    },
+    "slate": {
+     "line": "#557270",
+     "head": "#40817d",
+     "bd": "#c5d3d2",
+     "bg": "#f3f7f7",
+     "tile": "#e2eceb",
+     "ink": "#4a6361"
+    },
+    "violet": {
+     "line": "#364891",
+     "head": "#424f85",
+     "bd": "#b6bfe2",
+     "bg": "#eff1fb",
+     "tile": "#d8def5",
+     "ink": "#31407d"
+    },
+    "plum": {
+     "line": "#733691",
+     "head": "#6f4285",
+     "bd": "#d3b6e2",
+     "bg": "#f7effb",
+     "tile": "#ecd8f5",
+     "ink": "#63317d"
+    },
+    "rose": {
+     "line": "#913680",
+     "head": "#854279",
+     "bd": "#e2b6da",
+     "bg": "#fbeff9",
+     "tile": "#f5d8f0",
+     "ink": "#7d316f"
+    }
+   }
+  },
+  "dark": {
+   "base": {
+    "bg": "#0c1015",
+    "card": "#161b22",
+    "ink": "#e7edf3",
+    "muted": "#a6b2be",
+    "faint": "#7f8c9a",
+    "line": "#2b323c",
+    "line-strong": "#3d4650",
+    "well": "#1d242d",
+    "panel": "#141a21",
+    "brand": "#ff5c47",
+    "brand-ink": "#ff8877",
+    "brand-soft": "#5e241c",
+    "brand-wash": "#241310",
+    "brand-bd": "#7a2c22",
+    "danger": "#ff7b6b",
+    "danger-bg": "#241310"
+   },
+   "hues": {
+    "coral": {
+     "line": "#d06c99",
+     "head": "#854260",
+     "bd": "#643a4d",
+     "bg": "#26131b",
+     "tile": "#3d1e2c",
+     "ink": "#e699bb"
+    },
+    "amber": {
+     "line": "#d06c6c",
+     "head": "#854242",
+     "bd": "#643a3a",
+     "bg": "#261313",
+     "tile": "#3d1e1e",
+     "ink": "#e69999"
+    },
+    "green": {
+     "line": "#87d06c",
+     "head": "#528240",
+     "bd": "#45643a",
+     "bg": "#182613",
+     "tile": "#263d1e",
+     "ink": "#ade699"
+    },
+    "teal": {
+     "line": "#6cd097",
+     "head": "#41835e",
+     "bd": "#3a644c",
+     "bg": "#13261b",
+     "tile": "#1e3d2b",
+     "ink": "#99e6ba"
+    },
+    "blue": {
+     "line": "#6ccfd0",
+     "head": "#408081",
+     "bd": "#3a6364",
+     "bg": "#132526",
+     "tile": "#1e3c3d",
+     "ink": "#99e4e6"
+    },
+    "slate": {
+     "line": "#92aba9",
+     "head": "#40817d",
+     "bd": "#4a5454",
+     "bg": "#1a1e1e",
+     "tile": "#2a3131",
+     "ink": "#b6c9c8"
+    },
+    "violet": {
+     "line": "#6c80d0",
+     "head": "#424f85",
+     "bd": "#3a4364",
+     "bg": "#131626",
+     "tile": "#1e243d",
+     "ink": "#99a8e6"
+    },
+    "plum": {
+     "line": "#af6cd0",
+     "head": "#6f4285",
+     "bd": "#563a64",
+     "bg": "#1f1326",
+     "tile": "#331e3d",
+     "ink": "#cc99e6"
+    },
+    "rose": {
+     "line": "#d06cbe",
+     "head": "#854279",
+     "bd": "#643a5c",
+     "bg": "#261322",
+     "tile": "#3d1e37",
+     "ink": "#e699d7"
+    }
+   }
+  }
+ },
+ "pop": {
+  "light": {
+   "base": {
+    "bg": "#f4f6f8",
+    "card": "#fff",
+    "ink": "#1b1f24",
+    "muted": "#5b6570",
+    "faint": "#858e98",
+    "line": "#e3e7ec",
+    "line-strong": "#cfd5dc",
+    "well": "#f3f5f8",
+    "panel": "#f6f4f2",
+    "brand": "#ff3621",
+    "brand-ink": "#c0261a",
+    "brand-soft": "#f7cfc7",
+    "brand-wash": "#fff6f4",
+    "brand-bd": "#f6b6ac",
+    "danger": "#b42318",
+    "danger-bg": "#fff2f0"
+   },
+   "hues": {
+    "coral": {
+     "line": "#3fa218",
+     "head": "#428527",
+     "bd": "#bcf0a8",
+     "bg": "#e5ffdb",
+     "tile": "#cdffb9",
+     "ink": "#337d15"
+    },
+    "amber": {
+     "line": "#18a42f",
+     "head": "#278838",
+     "bd": "#a8f0b4",
+     "bg": "#dbffe1",
+     "tile": "#bfffca",
+     "ink": "#157e27"
+    },
+    "green": {
+     "line": "#1928ae",
+     "head": "#2d389a",
+     "bd": "#a8aff0",
+     "bg": "#dbdfff",
+     "tile": "#c5cbff",
+     "ink": "#192594"
+    },
+    "teal": {
+     "line": "#7219ae",
+     "head": "#6e2d9a",
+     "bd": "#d3a8f0",
+     "bg": "#f1dbff",
+     "tile": "#e8c5ff",
+     "ink": "#631994"
+    },
+    "blue": {
+     "line": "#ae1992",
+     "head": "#9a2d86",
+     "bd": "#f0a8e3",
+     "bg": "#ffdbf8",
+     "tile": "#ffc5f4",
+     "ink": "#94197e"
+    },
+    "slate": {
+     "line": "#72556f",
+     "head": "#85427f",
+     "bd": "#d3c5d2",
+     "bg": "#f2e9f1",
+     "tile": "#e9dae8",
+     "ink": "#634a61"
+    },
+    "violet": {
+     "line": "#ae191e",
+     "head": "#9a2d30",
+     "bd": "#f0a8aa",
+     "bg": "#ffdbdc",
+     "tile": "#ffc5c7",
+     "ink": "#94191d"
+    },
+    "plum": {
+     "line": "#a48c18",
+     "head": "#867627",
+     "bd": "#f0e4a8",
+     "bg": "#fff9db",
+     "tile": "#fff3b9",
+     "ink": "#806e15"
+    },
+    "rose": {
+     "line": "#6d9b17",
+     "head": "#618025",
+     "bd": "#d7f0a8",
+     "bg": "#f3ffdb",
+     "tile": "#e1ffaa",
+     "ink": "#577a15"
+    }
+   }
+  },
+  "dark": {
+   "base": {
+    "bg": "#0c1015",
+    "card": "#161b22",
+    "ink": "#e7edf3",
+    "muted": "#a6b2be",
+    "faint": "#7f8c9a",
+    "line": "#2b323c",
+    "line-strong": "#3d4650",
+    "well": "#1d242d",
+    "panel": "#141a21",
+    "brand": "#ff5c47",
+    "brand-ink": "#ff8877",
+    "brand-soft": "#5e241c",
+    "brand-wash": "#241310",
+    "brand-bd": "#7a2c22",
+    "danger": "#ff7b6b",
+    "danger-bg": "#241310"
+   },
+   "hues": {
+    "coral": {
+     "line": "#7bf04c",
+     "head": "#428527",
+     "bd": "#41702e",
+     "bg": "#1a430a",
+     "tile": "#235b0d",
+     "ink": "#a4fd81"
+    },
+    "amber": {
+     "line": "#4cf068",
+     "head": "#278838",
+     "bd": "#2e7039",
+     "bg": "#0a4313",
+     "tile": "#0d5b1a",
+     "ink": "#81fd96"
+    },
+    "green": {
+     "line": "#4c5df0",
+     "head": "#2d389a",
+     "bd": "#2e3470",
+     "bg": "#0a0f43",
+     "tile": "#0d155b",
+     "ink": "#818efd"
+    },
+    "teal": {
+     "line": "#ae4cf0",
+     "head": "#6e2d9a",
+     "bd": "#562e70",
+     "bg": "#2c0a43",
+     "tile": "#3c0d5b",
+     "ink": "#cc81fd"
+    },
+    "blue": {
+     "line": "#f04cd2",
+     "head": "#9a2d86",
+     "bd": "#702e64",
+     "bg": "#430a38",
+     "tile": "#5b0d4d",
+     "ink": "#fd81e6"
+    },
+    "slate": {
+     "line": "#ab92a8",
+     "head": "#85427f",
+     "bd": "#544a53",
+     "bg": "#2b222a",
+     "tile": "#3a2e39",
+     "ink": "#c9b6c7"
+    },
+    "violet": {
+     "line": "#f04c52",
+     "head": "#9a2d30",
+     "bd": "#702e30",
+     "bg": "#430a0c",
+     "tile": "#5b0d10",
+     "ink": "#fd8185"
+    },
+    "plum": {
+     "line": "#f0d54c",
+     "head": "#867627",
+     "bd": "#70652e",
+     "bg": "#43390a",
+     "tile": "#5b4e0d",
+     "ink": "#fde981"
+    },
+    "rose": {
+     "line": "#b7f04c",
+     "head": "#618025",
+     "bd": "#59702e",
+     "bg": "#2f430a",
+     "tile": "#405b0d",
+     "ink": "#d2fd81"
+    }
+   }
+  }
+ },
+ "solid": {
+  "light": {
+   "base": {
+    "bg": "#f4f6f8",
+    "card": "#fff",
+    "ink": "#1b1f24",
+    "muted": "#5b6570",
+    "faint": "#858e98",
+    "line": "#e3e7ec",
+    "line-strong": "#cfd5dc",
+    "well": "#f3f5f8",
+    "panel": "#f6f4f2",
+    "brand": "#ff3621",
+    "brand-ink": "#c0261a",
+    "brand-soft": "#f7cfc7",
+    "brand-wash": "#fff6f4",
+    "brand-bd": "#f6b6ac",
+    "danger": "#b42318",
+    "danger-bg": "#fff2f0"
+   },
+   "hues": {
+    "coral": {
+     "line": "#9f3e28",
+     "head": "#8f4837",
+     "bd": "#dd765f",
+     "bg": "#f5d3cc",
+     "tile": "#eeb3a6",
+     "ink": "#863625"
+    },
+    "amber": {
+     "line": "#9f7328",
+     "head": "#8f6f37",
+     "bd": "#ddaf5f",
+     "bg": "#f5e6cc",
+     "tile": "#eed3a6",
+     "ink": "#785821"
+    },
+    "green": {
+     "line": "#289f54",
+     "head": "#348552",
+     "bd": "#5fdd8d",
+     "bg": "#ccf5db",
+     "tile": "#a6eec0",
+     "ink": "#1f703d"
+    },
+    "teal": {
+     "line": "#28979f",
+     "head": "#348187",
+     "bd": "#5fd5dd",
+     "bg": "#ccf2f5",
+     "tile": "#a6e9ee",
+     "ink": "#1f6c72"
+    },
+    "blue": {
+     "line": "#28529f",
+     "head": "#37568f",
+     "bd": "#5f8bdd",
+     "bg": "#ccdaf5",
+     "tile": "#a6bfee",
+     "ink": "#254888"
+    },
+    "slate": {
+     "line": "#556172",
+     "head": "#425f85",
+     "bd": "#8e9cae",
+     "bg": "#dbe0e6",
+     "tile": "#c1c9d3",
+     "ink": "#4a5563"
+    },
+    "violet": {
+     "line": "#5c289f",
+     "head": "#5e378f",
+     "bd": "#965fdd",
+     "bg": "#deccf5",
+     "tile": "#c5a6ee",
+     "ink": "#502588"
+    },
+    "plum": {
+     "line": "#9f287b",
+     "head": "#8f3775",
+     "bd": "#dd5fb7",
+     "bg": "#f5cce9",
+     "tile": "#eea6d8",
+     "ink": "#852468"
+    },
+    "rose": {
+     "line": "#9f283e",
+     "head": "#8f3748",
+     "bd": "#dd5f76",
+     "bg": "#f5ccd3",
+     "tile": "#eea6b3",
+     "ink": "#882537"
+    }
+   }
+  },
+  "dark": {
+   "base": {
+    "bg": "#0c1015",
+    "card": "#161b22",
+    "ink": "#e7edf3",
+    "muted": "#a6b2be",
+    "faint": "#7f8c9a",
+    "line": "#2b323c",
+    "line-strong": "#3d4650",
+    "well": "#1d242d",
+    "panel": "#141a21",
+    "brand": "#ff5c47",
+    "brand-ink": "#ff8877",
+    "brand-soft": "#5e241c",
+    "brand-wash": "#241310",
+    "brand-bd": "#7a2c22",
+    "danger": "#ff7b6b",
+    "danger-bg": "#241310"
+   },
+   "hues": {
+    "coral": {
+     "line": "#e0755d",
+     "head": "#8f4837",
+     "bd": "#934939",
+     "bg": "#4a2017",
+     "tile": "#652d20",
+     "ink": "#f1a08e"
+    },
+    "amber": {
+     "line": "#e0b05d",
+     "head": "#8f6f37",
+     "bd": "#937239",
+     "bg": "#4a3717",
+     "tile": "#654c20",
+     "ink": "#f1cd8e"
+    },
+    "green": {
+     "line": "#5de08d",
+     "head": "#348552",
+     "bd": "#39935a",
+     "bg": "#174a2a",
+     "tile": "#206539",
+     "ink": "#8ef1b2"
+    },
+    "teal": {
+     "line": "#5dd7e0",
+     "head": "#348187",
+     "bd": "#398d93",
+     "bg": "#17464a",
+     "tile": "#206165",
+     "ink": "#8eeaf1"
+    },
+    "blue": {
+     "line": "#5d8ae0",
+     "head": "#37568f",
+     "bd": "#395893",
+     "bg": "#17294a",
+     "tile": "#203865",
+     "ink": "#8eb0f1"
+    },
+    "slate": {
+     "line": "#929cab",
+     "head": "#425f85",
+     "bd": "#5d656f",
+     "bg": "#2c3035",
+     "tile": "#3c4249",
+     "ink": "#b6bec9"
+    },
+    "violet": {
+     "line": "#955de0",
+     "head": "#5e378f",
+     "bd": "#603993",
+     "bg": "#2d174a",
+     "tile": "#3e2065",
+     "ink": "#b98ef1"
+    },
+    "plum": {
+     "line": "#e05db8",
+     "head": "#8f3775",
+     "bd": "#933978",
+     "bg": "#4a173b",
+     "tile": "#652051",
+     "ink": "#f18ed3"
+    },
+    "rose": {
+     "line": "#e05d75",
+     "head": "#8f3748",
+     "bd": "#933949",
+     "bg": "#4a1720",
+     "tile": "#65202d",
+     "ink": "#f18ea0"
+    }
+   }
+  }
+ },
+ "sunset": {
+  "light": {
+   "base": {
+    "bg": "#f4f6f8",
+    "card": "#fff",
+    "ink": "#1b1f24",
+    "muted": "#5b6570",
+    "faint": "#858e98",
+    "line": "#e3e7ec",
+    "line-strong": "#cfd5dc",
+    "well": "#f3f5f8",
+    "panel": "#f6f4f2",
+    "brand": "#ff3621",
+    "brand-ink": "#c0261a",
+    "brand-soft": "#f7cfc7",
+    "brand-wash": "#fff6f4",
+    "brand-bd": "#f6b6ac",
+    "danger": "#b42318",
+    "danger-bg": "#fff2f0"
+   },
+   "hues": {
+    "coral": {
+     "line": "#319676",
+     "head": "#3c836d",
+     "bd": "#b3e5d5",
+     "bg": "#eefcf7",
+     "tile": "#d7f7ed",
+     "ink": "#2b7a61"
+    },
+    "amber": {
+     "line": "#318896",
+     "head": "#3e7f89",
+     "bd": "#b3dee5",
+     "bg": "#eefafc",
+     "tile": "#d7f3f7",
+     "ink": "#2d7581"
+    },
+    "green": {
+     "line": "#883196",
+     "head": "#7f3e89",
+     "bd": "#deb3e5",
+     "bg": "#faeefc",
+     "tile": "#f3d7f7",
+     "ink": "#752d81"
+    },
+    "teal": {
+     "line": "#96315d",
+     "head": "#893e5e",
+     "bd": "#e5b3c9",
+     "bg": "#fceef4",
+     "tile": "#f7d7e5",
+     "ink": "#812d51"
+    },
+    "blue": {
+     "line": "#964031",
+     "head": "#89493e",
+     "bd": "#e5bbb3",
+     "bg": "#fcf0ee",
+     "tile": "#f7dcd7",
+     "ink": "#81392d"
+    },
+    "slate": {
+     "line": "#725755",
+     "head": "#854642",
+     "bd": "#d3c6c5",
+     "bg": "#f7f3f3",
+     "tile": "#ece3e2",
+     "ink": "#634c4a"
+    },
+    "violet": {
+     "line": "#968f31",
+     "head": "#7d7939",
+     "bd": "#e5e1b3",
+     "bg": "#fcfbee",
+     "tile": "#f7f5d7",
+     "ink": "#777129"
+    },
+    "plum": {
+     "line": "#459631",
+     "head": "#4b843c",
+     "bd": "#bde5b3",
+     "bg": "#f1fcee",
+     "tile": "#ddf7d7",
+     "ink": "#3b7b2b"
+    },
+    "rose": {
+     "line": "#319651",
+     "head": "#3c8453",
+     "bd": "#b3e5c3",
+     "bg": "#eefcf2",
+     "tile": "#d7f7e1",
+     "ink": "#2b7b44"
+    }
+   }
+  },
+  "dark": {
+   "base": {
+    "bg": "#0c1015",
+    "card": "#161b22",
+    "ink": "#e7edf3",
+    "muted": "#a6b2be",
+    "faint": "#7f8c9a",
+    "line": "#2b323c",
+    "line-strong": "#3d4650",
+    "well": "#1d242d",
+    "panel": "#141a21",
+    "brand": "#ff5c47",
+    "brand-ink": "#ff8877",
+    "brand-soft": "#5e241c",
+    "brand-wash": "#241310",
+    "brand-bd": "#7a2c22",
+    "danger": "#ff7b6b",
+    "danger-bg": "#241310"
+   },
+   "hues": {
+    "coral": {
+     "line": "#67d6b2",
+     "head": "#3c836d",
+     "bd": "#386657",
+     "bg": "#122720",
+     "tile": "#1c3e34",
+     "ink": "#95e9cf"
+    },
+    "amber": {
+     "line": "#67c7d6",
+     "head": "#3e7f89",
+     "bd": "#386066",
+     "bg": "#122427",
+     "tile": "#1c3a3e",
+     "ink": "#95dee9"
+    },
+    "green": {
+     "line": "#c767d6",
+     "head": "#7f3e89",
+     "bd": "#603866",
+     "bg": "#241227",
+     "tile": "#3a1c3e",
+     "ink": "#de95e9"
+    },
+    "teal": {
+     "line": "#d66797",
+     "head": "#893e5e",
+     "bd": "#66384c",
+     "bg": "#27121b",
+     "tile": "#3e1c2b",
+     "ink": "#e995ba"
+    },
+    "blue": {
+     "line": "#d67767",
+     "head": "#89493e",
+     "bd": "#663f38",
+     "bg": "#271512",
+     "tile": "#3e221c",
+     "ink": "#e9a295"
+    },
+    "slate": {
+     "line": "#ab9392",
+     "head": "#854642",
+     "bd": "#544b4a",
+     "bg": "#1e1a1a",
+     "tile": "#312a2a",
+     "ink": "#c9b7b6"
+    },
+    "violet": {
+     "line": "#d6ce67",
+     "head": "#7d7939",
+     "bd": "#666338",
+     "bg": "#272512",
+     "tile": "#3e3c1c",
+     "ink": "#e9e495"
+    },
+    "plum": {
+     "line": "#7dd667",
+     "head": "#4b843c",
+     "bd": "#416638",
+     "bg": "#162712",
+     "tile": "#233e1c",
+     "ink": "#a6e995"
+    },
+    "rose": {
+     "line": "#67d68a",
+     "head": "#3c8453",
+     "bd": "#386647",
+     "bg": "#122718",
+     "tile": "#1c3e27",
+     "ink": "#95e9b0"
+    }
+   }
+  }
+ },
+ "vivid": {
+  "light": {
+   "base": {
+    "bg": "#f4f6f8",
+    "card": "#fff",
+    "ink": "#1b1f24",
+    "muted": "#5b6570",
+    "faint": "#858e98",
+    "line": "#e3e7ec",
+    "line-strong": "#cfd5dc",
+    "well": "#f3f5f8",
+    "panel": "#f6f4f2",
+    "brand": "#ff3621",
+    "brand-ink": "#c0261a",
+    "brand-soft": "#f7cfc7",
+    "brand-wash": "#fff6f4",
+    "brand-bd": "#f6b6ac",
+    "danger": "#b42318",
+    "danger-bg": "#fff2f0"
+   },
+   "hues": {
+    "coral": {
+     "line": "#aa371d",
+     "head": "#98422f",
+     "bd": "#efb6a9",
+     "bg": "#feefeb",
+     "tile": "#fdd9d1",
+     "ink": "#92311c"
+    },
+    "amber": {
+     "line": "#aa761d",
+     "head": "#96702f",
+     "bd": "#efd5a9",
+     "bg": "#fef7eb",
+     "tile": "#fdedd1",
+     "ink": "#8f651b"
+    },
+    "green": {
+     "line": "#1ba34d",
+     "head": "#2a864c",
+     "bd": "#a9efc3",
+     "bg": "#ebfef2",
+     "tile": "#d1fde1",
+     "ink": "#187f3e"
+    },
+    "teal": {
+     "line": "#1c9ca6",
+     "head": "#2a8289",
+     "bd": "#a9eaef",
+     "bg": "#ebfdfe",
+     "tile": "#d1fafd",
+     "ink": "#187a81"
+    },
+    "blue": {
+     "line": "#1d4eaa",
+     "head": "#2f5498",
+     "bd": "#a9c2ef",
+     "bg": "#ebf2fe",
+     "tile": "#d1e0fd",
+     "ink": "#1c4592"
+    },
+    "slate": {
+     "line": "#556172",
+     "head": "#425f85",
+     "bd": "#c5cbd3",
+     "bg": "#f3f5f7",
+     "tile": "#e2e6ec",
+     "ink": "#4a5563"
+    },
+    "violet": {
+     "line": "#5a1daa",
+     "head": "#5c2f98",
+     "bd": "#c7a9ef",
+     "bg": "#f4ebfe",
+     "tile": "#e4d1fd",
+     "ink": "#4f1c92"
+    },
+    "plum": {
+     "line": "#aa1d80",
+     "head": "#982f78",
+     "bd": "#efa9da",
+     "bg": "#feebf9",
+     "tile": "#fdd1f0",
+     "ink": "#921c6e"
+    },
+    "rose": {
+     "line": "#aa1d37",
+     "head": "#982f42",
+     "bd": "#efa9b6",
+     "bg": "#feebef",
+     "tile": "#fdd1d9",
+     "ink": "#921c31"
+    }
+   }
+  },
+  "dark": {
+   "base": {
+    "bg": "#0c1015",
+    "card": "#161b22",
+    "ink": "#e7edf3",
+    "muted": "#a6b2be",
+    "faint": "#7f8c9a",
+    "line": "#2b323c",
+    "line-strong": "#3d4650",
+    "well": "#1d242d",
+    "panel": "#141a21",
+    "brand": "#ff5c47",
+    "brand-ink": "#ff8877",
+    "brand-soft": "#5e241c",
+    "brand-wash": "#241310",
+    "brand-bd": "#7a2c22",
+    "danger": "#ff7b6b",
+    "danger-bg": "#241310"
+   },
+   "hues": {
+    "coral": {
+     "line": "#ec6d50",
+     "head": "#98422f",
+     "bd": "#6f3b2f",
+     "bg": "#2b130d",
+     "tile": "#451e15",
+     "ink": "#fb9a84"
+    },
+    "amber": {
+     "line": "#ecb350",
+     "head": "#96702f",
+     "bd": "#6f582f",
+     "bg": "#2b200d",
+     "tile": "#453415",
+     "ink": "#fbcf84"
+    },
+    "green": {
+     "line": "#50ec89",
+     "head": "#2a864c",
+     "bd": "#2f6f47",
+     "bg": "#0d2b18",
+     "tile": "#154527",
+     "ink": "#84fbaf"
+    },
+    "teal": {
+     "line": "#50e2ec",
+     "head": "#2a8289",
+     "bd": "#2f6b6f",
+     "bg": "#0d292b",
+     "tile": "#154245",
+     "ink": "#84f3fb"
+    },
+    "blue": {
+     "line": "#5087ec",
+     "head": "#2f5498",
+     "bd": "#2f456f",
+     "bg": "#0d182b",
+     "tile": "#152645",
+     "ink": "#84adfb"
+    },
+    "slate": {
+     "line": "#929cab",
+     "head": "#425f85",
+     "bd": "#4a4e54",
+     "bg": "#1a1c1e",
+     "tile": "#2a2d31",
+     "ink": "#b6bec9"
+    },
+    "violet": {
+     "line": "#9450ec",
+     "head": "#5c2f98",
+     "bd": "#4b2f6f",
+     "bg": "#1a0d2b",
+     "tile": "#2a1545",
+     "ink": "#b784fb"
+    },
+    "plum": {
+     "line": "#ec50bd",
+     "head": "#982f78",
+     "bd": "#6f2f5c",
+     "bg": "#2b0d22",
+     "tile": "#451537",
+     "ink": "#fb84d7"
+    },
+    "rose": {
+     "line": "#ec506d",
+     "head": "#982f42",
+     "bd": "#6f2f3b",
+     "bg": "#2b0d13",
+     "tile": "#45151e",
+     "ink": "#fb849a"
+    }
+   }
+  }
+ }
+}

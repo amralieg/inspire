@@ -1,0 +1,736 @@
+{
+ "source": "final-agent 7219d5d",
+ "cases": [
+  {
+   "name": "an ask met in round 2 of 3 and missed again in round 3, beside one missed in every round and one met",
+   "version": 3,
+   "live": 2,
+   "entries": [
+    {
+     "n": 1,
+     "requirement": "Put the top 10 first",
+     "part": "dashboard",
+     "where": "",
+     "status": "not_met",
+     "evidence": "the top 10 moved below the trend chart",
+     "fact": "the top 10 moved below the trend chart",
+     "rounds": 3,
+     "tried": [
+      "round 1: the chart sorts by name",
+      "round 3: the top 10 moved below the trend chart"
+     ],
+     "checks": [],
+     "published_anyway": null
+    },
+    {
+     "n": 2,
+     "requirement": "Show the region",
+     "part": "dashboard",
+     "where": "",
+     "status": "not_met",
+     "evidence": "the map still has no region",
+     "fact": "the map still has no region",
+     "rounds": 3,
+     "tried": [
+      "round 1: no chart shows a region",
+      "round 2: no chart shows a region",
+      "round 3: the map still has no region"
+     ],
+     "checks": [],
+     "published_anyway": null
+    },
+    {
+     "n": 3,
+     "requirement": "Sort by value",
+     "part": "dashboard",
+     "where": "",
+     "status": "met",
+     "evidence": "the table sorts by value",
+     "fact": "the table sorts by value",
+     "rounds": 3,
+     "tried": [],
+     "checks": [],
+     "published_anyway": null
+    }
+   ],
+   "summary": {
+    "met": 1,
+    "total": 3
+   },
+   "steps": [
+    {
+     "step_name": "Vibe checklist",
+     "status": "ended_warning",
+     "message": "1 of 3 vibe requirements met",
+     "result_json": {
+      "checklist": [
+       {
+        "n": 1,
+        "requirement": "Put the top 10 first",
+        "part": "dashboard",
+        "where": "",
+        "status": "not_met",
+        "evidence": "the top 10 moved below the trend chart",
+        "fact": "the top 10 moved below the trend chart",
+        "rounds": 3,
+        "tried": [
+         "round 1: the chart sorts by name",
+         "round 3: the top 10 moved below the trend chart"
+        ],
+        "checks": [],
+        "published_anyway": null
+       },
+       {
+        "n": 2,
+        "requirement": "Show the region",
+        "part": "dashboard",
+        "where": "",
+        "status": "not_met",
+        "evidence": "the map still has no region",
+        "fact": "the map still has no region",
+        "rounds": 3,
+        "tried": [
+         "round 1: no chart shows a region",
+         "round 2: no chart shows a region",
+         "round 3: the map still has no region"
+        ],
+        "checks": [],
+        "published_anyway": null
+       },
+       {
+        "n": 3,
+        "requirement": "Sort by value",
+        "part": "dashboard",
+        "where": "",
+        "status": "met",
+        "evidence": "the table sorts by value",
+        "fact": "the table sorts by value",
+        "rounds": 3,
+        "tried": [],
+        "checks": [],
+        "published_anyway": null
+       }
+      ],
+      "met": 1,
+      "total": 3,
+      "use_case_id": "N01-U01",
+      "phase": "Vibe checklist"
+     }
+    }
+   ],
+   "unmet": [
+    {
+     "n": 1,
+     "requirement": "Put the top 10 first",
+     "part": "dashboard",
+     "where": "",
+     "status": "not_met",
+     "evidence": "the top 10 moved below the trend chart",
+     "fact": "the top 10 moved below the trend chart",
+     "rounds": 3,
+     "tried": [
+      "round 1: the chart sorts by name",
+      "round 3: the top 10 moved below the trend chart"
+     ],
+     "checks": [],
+     "published_anyway": null
+    },
+    {
+     "n": 2,
+     "requirement": "Show the region",
+     "part": "dashboard",
+     "where": "",
+     "status": "not_met",
+     "evidence": "the map still has no region",
+     "fact": "the map still has no region",
+     "rounds": 3,
+     "tried": [
+      "round 1: no chart shows a region",
+      "round 2: no chart shows a region",
+      "round 3: the map still has no region"
+     ],
+     "checks": [],
+     "published_anyway": null
+    }
+   ],
+   "held_reason": "2 asks are not met, so nothing of v3 is published and v2 stays live: Dashboard: Put the top 10 first: Genie could not do it in 3 build rounds: the top 10 moved below the trend chart; Dashboard: Show the region: Genie could not do it in 3 build rounds: the map still has no region. Rephrase the asks or press Try again, or press Publish anyway"
+  },
+  {
+   "name": "one ask missed in every round of a first build",
+   "version": 1,
+   "live": null,
+   "entries": [
+    {
+     "n": 1,
+     "requirement": "Put the top 10 first",
+     "part": "dashboard",
+     "where": "",
+     "status": "not_met",
+     "evidence": "the chart sorts by name",
+     "fact": "the chart sorts by name",
+     "rounds": 3,
+     "tried": [
+      "round 1: the chart sorts by name",
+      "round 2: the chart sorts by name",
+      "round 3: the chart sorts by name"
+     ],
+     "checks": [],
+     "published_anyway": null
+    }
+   ],
+   "summary": {
+    "met": 0,
+    "total": 1
+   },
+   "steps": [
+    {
+     "step_name": "Vibe checklist",
+     "status": "ended_warning",
+     "message": "0 of 1 vibe requirement met",
+     "result_json": {
+      "checklist": [
+       {
+        "n": 1,
+        "requirement": "Put the top 10 first",
+        "part": "dashboard",
+        "where": "",
+        "status": "not_met",
+        "evidence": "the chart sorts by name",
+        "fact": "the chart sorts by name",
+        "rounds": 3,
+        "tried": [
+         "round 1: the chart sorts by name",
+         "round 2: the chart sorts by name",
+         "round 3: the chart sorts by name"
+        ],
+        "checks": [],
+        "published_anyway": null
+       }
+      ],
+      "met": 0,
+      "total": 1,
+      "use_case_id": "N01-U01",
+      "phase": "Vibe checklist"
+     }
+    }
+   ],
+   "unmet": [
+    {
+     "n": 1,
+     "requirement": "Put the top 10 first",
+     "part": "dashboard",
+     "where": "",
+     "status": "not_met",
+     "evidence": "the chart sorts by name",
+     "fact": "the chart sorts by name",
+     "rounds": 3,
+     "tried": [
+      "round 1: the chart sorts by name",
+      "round 2: the chart sorts by name",
+      "round 3: the chart sorts by name"
+     ],
+     "checks": [],
+     "published_anyway": null
+    }
+   ],
+   "held_reason": "1 ask is not met, so nothing of v1 is published and nothing is live yet: Dashboard: Put the top 10 first: Genie could not do it in 3 build rounds: the chart sorts by name. Rephrase the ask or press Try again, or press Publish anyway"
+  },
+  {
+   "name": "two asks Inspire could not check",
+   "version": 3,
+   "live": 2,
+   "entries": [
+    {
+     "n": 1,
+     "requirement": "Put the top 10 first",
+     "part": "dashboard",
+     "where": "",
+     "status": "not_met",
+     "evidence": "Inspire could not check this ask: the judge did not answer. Nothing shows the ask was missed: press Try again to check it again",
+     "fact": "Inspire could not check this ask: the judge did not answer. Nothing shows the ask was missed",
+     "rounds": 3,
+     "tried": [
+      "round 1: Inspire could not check this ask: the judge did not answer",
+      "round 2: Inspire could not check this ask: the judge did not answer",
+      "round 3: Inspire could not check this ask: the judge did not answer"
+     ],
+     "checks": [],
+     "published_anyway": null,
+     "unchecked": true
+    },
+    {
+     "n": 2,
+     "requirement": "Show the region",
+     "part": "dashboard",
+     "where": "",
+     "status": "not_met",
+     "evidence": "Inspire could not check this ask: the judge did not answer. Nothing shows the ask was missed: press Try again to check it again",
+     "fact": "Inspire could not check this ask: the judge did not answer. Nothing shows the ask was missed",
+     "rounds": 3,
+     "tried": [
+      "round 1: Inspire could not check this ask: the judge did not answer",
+      "round 2: Inspire could not check this ask: the judge did not answer",
+      "round 3: Inspire could not check this ask: the judge did not answer"
+     ],
+     "checks": [],
+     "published_anyway": null,
+     "unchecked": true
+    }
+   ],
+   "summary": {
+    "met": 0,
+    "total": 2
+   },
+   "steps": [
+    {
+     "step_name": "Vibe checklist",
+     "status": "ended_warning",
+     "message": "0 of 2 vibe requirements met",
+     "result_json": {
+      "checklist": [
+       {
+        "n": 1,
+        "requirement": "Put the top 10 first",
+        "part": "dashboard",
+        "where": "",
+        "status": "not_met",
+        "evidence": "Inspire could not check this ask: the judge did not answer. Nothing shows the ask was missed: press Try again to check it again",
+        "fact": "Inspire could not check this ask: the judge did not answer. Nothing shows the ask was missed",
+        "rounds": 3,
+        "tried": [
+         "round 1: Inspire could not check this ask: the judge did not answer",
+         "round 2: Inspire could not check this ask: the judge did not answer",
+         "round 3: Inspire could not check this ask: the judge did not answer"
+        ],
+        "checks": [],
+        "published_anyway": null,
+        "unchecked": true
+       },
+       {
+        "n": 2,
+        "requirement": "Show the region",
+        "part": "dashboard",
+        "where": "",
+        "status": "not_met",
+        "evidence": "Inspire could not check this ask: the judge did not answer. Nothing shows the ask was missed: press Try again to check it again",
+        "fact": "Inspire could not check this ask: the judge did not answer. Nothing shows the ask was missed",
+        "rounds": 3,
+        "tried": [
+         "round 1: Inspire could not check this ask: the judge did not answer",
+         "round 2: Inspire could not check this ask: the judge did not answer",
+         "round 3: Inspire could not check this ask: the judge did not answer"
+        ],
+        "checks": [],
+        "published_anyway": null,
+        "unchecked": true
+       }
+      ],
+      "met": 0,
+      "total": 2,
+      "use_case_id": "N01-U01",
+      "phase": "Vibe checklist"
+     }
+    }
+   ],
+   "unmet": [
+    {
+     "n": 1,
+     "requirement": "Put the top 10 first",
+     "part": "dashboard",
+     "where": "",
+     "status": "not_met",
+     "evidence": "Inspire could not check this ask: the judge did not answer. Nothing shows the ask was missed: press Try again to check it again",
+     "fact": "Inspire could not check this ask: the judge did not answer. Nothing shows the ask was missed",
+     "rounds": 3,
+     "tried": [
+      "round 1: Inspire could not check this ask: the judge did not answer",
+      "round 2: Inspire could not check this ask: the judge did not answer",
+      "round 3: Inspire could not check this ask: the judge did not answer"
+     ],
+     "checks": [],
+     "published_anyway": null,
+     "unchecked": true
+    },
+    {
+     "n": 2,
+     "requirement": "Show the region",
+     "part": "dashboard",
+     "where": "",
+     "status": "not_met",
+     "evidence": "Inspire could not check this ask: the judge did not answer. Nothing shows the ask was missed: press Try again to check it again",
+     "fact": "Inspire could not check this ask: the judge did not answer. Nothing shows the ask was missed",
+     "rounds": 3,
+     "tried": [
+      "round 1: Inspire could not check this ask: the judge did not answer",
+      "round 2: Inspire could not check this ask: the judge did not answer",
+      "round 3: Inspire could not check this ask: the judge did not answer"
+     ],
+     "checks": [],
+     "published_anyway": null,
+     "unchecked": true
+    }
+   ],
+   "held_reason": "2 asks could not be checked, so nothing of v3 is published and v2 stays live: Dashboard: Put the top 10 first: Inspire could not check this ask: the judge did not answer. Nothing shows the ask was missed; Dashboard: Show the region: Inspire could not check this ask: the judge did not answer. Nothing shows the ask was missed. Press Try again to check them again, or press Publish anyway"
+  },
+  {
+   "name": "one ask missed on v2 while v1 stays live",
+   "version": 2,
+   "live": 1,
+   "entries": [
+    {
+     "n": 1,
+     "requirement": "Put the top 10 first",
+     "part": "dashboard",
+     "where": "",
+     "status": "not_met",
+     "evidence": "the chart sorts by name",
+     "fact": "the chart sorts by name",
+     "rounds": 3,
+     "tried": [
+      "round 1: the chart sorts by name",
+      "round 2: the chart sorts by name",
+      "round 3: the chart sorts by name"
+     ],
+     "checks": [],
+     "published_anyway": null
+    }
+   ],
+   "summary": {
+    "met": 0,
+    "total": 1
+   },
+   "steps": [
+    {
+     "step_name": "Vibe checklist",
+     "status": "ended_warning",
+     "message": "0 of 1 vibe requirement met",
+     "result_json": {
+      "checklist": [
+       {
+        "n": 1,
+        "requirement": "Put the top 10 first",
+        "part": "dashboard",
+        "where": "",
+        "status": "not_met",
+        "evidence": "the chart sorts by name",
+        "fact": "the chart sorts by name",
+        "rounds": 3,
+        "tried": [
+         "round 1: the chart sorts by name",
+         "round 2: the chart sorts by name",
+         "round 3: the chart sorts by name"
+        ],
+        "checks": [],
+        "published_anyway": null
+       }
+      ],
+      "met": 0,
+      "total": 1,
+      "use_case_id": "N01-U01",
+      "phase": "Vibe checklist"
+     }
+    }
+   ],
+   "unmet": [
+    {
+     "n": 1,
+     "requirement": "Put the top 10 first",
+     "part": "dashboard",
+     "where": "",
+     "status": "not_met",
+     "evidence": "the chart sorts by name",
+     "fact": "the chart sorts by name",
+     "rounds": 3,
+     "tried": [
+      "round 1: the chart sorts by name",
+      "round 2: the chart sorts by name",
+      "round 3: the chart sorts by name"
+     ],
+     "checks": [],
+     "published_anyway": null
+    }
+   ],
+   "held_reason": "1 ask is not met, so nothing of v2 is published and v1 stays live: Dashboard: Put the top 10 first: Genie could not do it in 3 build rounds: the chart sorts by name. Rephrase the ask or press Try again, or press Publish anyway"
+  },
+  {
+   "name": "a missed ask and one Inspire could not check",
+   "version": 3,
+   "live": 2,
+   "entries": [
+    {
+     "n": 1,
+     "requirement": "Put the top 10 first",
+     "part": "dashboard",
+     "where": "",
+     "status": "not_met",
+     "evidence": "the chart sorts by name",
+     "fact": "the chart sorts by name",
+     "rounds": 3,
+     "tried": [
+      "round 1: the chart sorts by name",
+      "round 2: the chart sorts by name",
+      "round 3: the chart sorts by name"
+     ],
+     "checks": [],
+     "published_anyway": null
+    },
+    {
+     "n": 2,
+     "requirement": "Show the region",
+     "part": "dashboard",
+     "where": "",
+     "status": "not_met",
+     "evidence": "Inspire could not check this ask: the judge did not answer. Nothing shows the ask was missed: press Try again to check it again",
+     "fact": "Inspire could not check this ask: the judge did not answer. Nothing shows the ask was missed",
+     "rounds": 3,
+     "tried": [
+      "round 1: Inspire could not check this ask: the judge did not answer",
+      "round 2: Inspire could not check this ask: the judge did not answer",
+      "round 3: Inspire could not check this ask: the judge did not answer"
+     ],
+     "checks": [],
+     "published_anyway": null,
+     "unchecked": true
+    }
+   ],
+   "summary": {
+    "met": 0,
+    "total": 2
+   },
+   "steps": [
+    {
+     "step_name": "Vibe checklist",
+     "status": "ended_warning",
+     "message": "0 of 2 vibe requirements met",
+     "result_json": {
+      "checklist": [
+       {
+        "n": 1,
+        "requirement": "Put the top 10 first",
+        "part": "dashboard",
+        "where": "",
+        "status": "not_met",
+        "evidence": "the chart sorts by name",
+        "fact": "the chart sorts by name",
+        "rounds": 3,
+        "tried": [
+         "round 1: the chart sorts by name",
+         "round 2: the chart sorts by name",
+         "round 3: the chart sorts by name"
+        ],
+        "checks": [],
+        "published_anyway": null
+       },
+       {
+        "n": 2,
+        "requirement": "Show the region",
+        "part": "dashboard",
+        "where": "",
+        "status": "not_met",
+        "evidence": "Inspire could not check this ask: the judge did not answer. Nothing shows the ask was missed: press Try again to check it again",
+        "fact": "Inspire could not check this ask: the judge did not answer. Nothing shows the ask was missed",
+        "rounds": 3,
+        "tried": [
+         "round 1: Inspire could not check this ask: the judge did not answer",
+         "round 2: Inspire could not check this ask: the judge did not answer",
+         "round 3: Inspire could not check this ask: the judge did not answer"
+        ],
+        "checks": [],
+        "published_anyway": null,
+        "unchecked": true
+       }
+      ],
+      "met": 0,
+      "total": 2,
+      "use_case_id": "N01-U01",
+      "phase": "Vibe checklist"
+     }
+    }
+   ],
+   "unmet": [
+    {
+     "n": 1,
+     "requirement": "Put the top 10 first",
+     "part": "dashboard",
+     "where": "",
+     "status": "not_met",
+     "evidence": "the chart sorts by name",
+     "fact": "the chart sorts by name",
+     "rounds": 3,
+     "tried": [
+      "round 1: the chart sorts by name",
+      "round 2: the chart sorts by name",
+      "round 3: the chart sorts by name"
+     ],
+     "checks": [],
+     "published_anyway": null
+    },
+    {
+     "n": 2,
+     "requirement": "Show the region",
+     "part": "dashboard",
+     "where": "",
+     "status": "not_met",
+     "evidence": "Inspire could not check this ask: the judge did not answer. Nothing shows the ask was missed: press Try again to check it again",
+     "fact": "Inspire could not check this ask: the judge did not answer. Nothing shows the ask was missed",
+     "rounds": 3,
+     "tried": [
+      "round 1: Inspire could not check this ask: the judge did not answer",
+      "round 2: Inspire could not check this ask: the judge did not answer",
+      "round 3: Inspire could not check this ask: the judge did not answer"
+     ],
+     "checks": [],
+     "published_anyway": null,
+     "unchecked": true
+    }
+   ],
+   "held_reason": "2 asks are not met or could not be checked, so nothing of v3 is published and v2 stays live: Dashboard: Put the top 10 first: Genie could not do it in 3 build rounds: the chart sorts by name; Dashboard: Show the region: Inspire could not check this ask: the judge did not answer. Nothing shows the ask was missed. Rephrase the asks or press Try again, or press Publish anyway"
+  }
+ ],
+ "plural": [
+  [
+   0,
+   "ask",
+   null,
+   "0 asks"
+  ],
+  [
+   0,
+   "element",
+   null,
+   "0 elements"
+  ],
+  [
+   0,
+   "batch",
+   "batches",
+   "0 batches"
+  ],
+  [
+   0,
+   "more widget keeps its default",
+   "more widgets keep their defaults",
+   "0 more widgets keep their defaults"
+  ],
+  [
+   1,
+   "ask",
+   null,
+   "1 ask"
+  ],
+  [
+   1,
+   "element",
+   null,
+   "1 element"
+  ],
+  [
+   1,
+   "batch",
+   "batches",
+   "1 batch"
+  ],
+  [
+   1,
+   "more widget keeps its default",
+   "more widgets keep their defaults",
+   "1 more widget keeps its default"
+  ],
+  [
+   2,
+   "ask",
+   null,
+   "2 asks"
+  ],
+  [
+   2,
+   "element",
+   null,
+   "2 elements"
+  ],
+  [
+   2,
+   "batch",
+   "batches",
+   "2 batches"
+  ],
+  [
+   2,
+   "more widget keeps its default",
+   "more widgets keep their defaults",
+   "2 more widgets keep their defaults"
+  ],
+  [
+   1.0,
+   "ask",
+   null,
+   "1 ask"
+  ],
+  [
+   1.0,
+   "element",
+   null,
+   "1 element"
+  ],
+  [
+   1.0,
+   "batch",
+   "batches",
+   "1 batch"
+  ],
+  [
+   1.0,
+   "more widget keeps its default",
+   "more widgets keep their defaults",
+   "1 more widget keeps its default"
+  ],
+  [
+   1.5,
+   "ask",
+   null,
+   "1.5 asks"
+  ],
+  [
+   1.5,
+   "element",
+   null,
+   "1.5 elements"
+  ],
+  [
+   1.5,
+   "batch",
+   "batches",
+   "1.5 batches"
+  ],
+  [
+   1.5,
+   "more widget keeps its default",
+   "more widgets keep their defaults",
+   "1.5 more widgets keep their defaults"
+  ],
+  [
+   1234,
+   "ask",
+   null,
+   "1234 asks"
+  ],
+  [
+   1234,
+   "element",
+   null,
+   "1234 elements"
+  ],
+  [
+   1234,
+   "batch",
+   "batches",
+   "1234 batches"
+  ],
+  [
+   1234,
+   "more widget keeps its default",
+   "more widgets keep their defaults",
+   "1234 more widgets keep their defaults"
+  ]
+ ]
+}

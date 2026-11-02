@@ -1,0 +1,78 @@
+{
+ "use_case_id": "N01-U01",
+ "session_id": "42",
+ "released": {
+  "source": "released main 4407364",
+  "log": "2026-01-02 10:05:00 - __main__ - INFO - [GENIE N01-U01] [Genie build] Genie ran: python run.py (exit 0) [in <command-77>:412]\n2026-01-02 10:05:01 - __main__ - INFO - [GENIE N01-U01] [Genie build] Genie ran: pytest (exit 2) [in <command-77>:412]\n2026-01-02 10:05:02 - __main__ - INFO - [GENIE N01-U01] [Genie build] Genie: Built the notebook and ran it [in <command-77>:412]\n2026-01-02 10:05:03 - __main__ - INFO - [GENIE N01-U01] [Genie build] Genie: Stopped: the table has no date column [in <command-77>:412]\n2026-01-02 10:05:04 - __main__ - INFO - [GENIE N01-U01] [Genie build] Genie edited: /Workspace/x/N01-U01.py, /Workspace/x/notes.md [in <command-77>:412]\n2026-01-02 10:05:05 - __main__ - INFO - [GENIE N01-U01] [Genie build] Genie error: the model is busy [in <command-77>:412]\n2026-01-02 10:05:06 - __main__ - INFO - [GENIE N01-U01] [Genie build] Genie turn completed (input tokens 10, output tokens 4) [in <command-77>:412]\n2026-01-02 10:05:07 - __main__ - INFO - [IMPLEMENT N01-U01]   [60s] job run 2222222222222222222: RUNNING [in <command-77>:412]\n2026-01-02 10:05:08 - __main__ - INFO - [IMPLEMENT N01-U01]   [60s] job run 2222222222222222222: TERMINATED / SUCCESS [in <command-77>:412]\n2026-01-02 10:05:09 - __main__ - ERROR - [IMPLEMENT-FAILED] N01-U01 spec 3: the preview run did not write rows: stopped [in <command-77>:412]\n2026-01-02 10:05:10 - __main__ - INFO - [IMPLEMENT-NOTEBOOK] N01-U01: wrote /Workspace/Users/someone/inspire/N01-U01 [in <command-77>:412]\n",
+  "messages": [
+   "[GENIE N01-U01] [Genie build] Genie ran: python run.py (exit 0)",
+   "[GENIE N01-U01] [Genie build] Genie ran: pytest (exit 2)",
+   "[GENIE N01-U01] [Genie build] Genie: Built the notebook and ran it",
+   "[GENIE N01-U01] [Genie build] Genie: Stopped: the table has no date column",
+   "[GENIE N01-U01] [Genie build] Genie edited: /Workspace/x/N01-U01.py, /Workspace/x/notes.md",
+   "[GENIE N01-U01] [Genie build] Genie error: the model is busy",
+   "[GENIE N01-U01] [Genie build] Genie turn completed (input tokens 10, output tokens 4)",
+   "[IMPLEMENT N01-U01]   [60s] job run 2222222222222222222: RUNNING",
+   "[IMPLEMENT N01-U01]   [60s] job run 2222222222222222222: TERMINATED / SUCCESS",
+   "[IMPLEMENT-FAILED] N01-U01 spec 3: the preview run did not write rows: stopped",
+   "[IMPLEMENT-NOTEBOOK] N01-U01: wrote /Workspace/Users/someone/inspire/N01-U01"
+  ],
+  "ready_messages": [
+   "ready: preview wrote 0 row(s)",
+   "ready: preview wrote 1 row(s)",
+   "ready: preview wrote 3 row(s)",
+   "ready: no new preview was needed; the last preview wrote 0 row(s)",
+   "ready: no new preview was needed; the last preview wrote 1 row(s)",
+   "ready: no new preview was needed; the last preview wrote 3 row(s)"
+  ],
+  "step_name": "Inspire is working on genie build",
+  "app_tag": "Inspire use case N01-U01 (session 42)",
+  "mandates": {
+   "A": "Execution pattern: family A, Supervised scoring.",
+   "B": "Execution pattern: family B, Anomaly scoring.",
+   "C": "Execution pattern: family C, Segmentation.",
+   "D": "Execution pattern: family D, Recommendation.",
+   "E": "Execution pattern: family E, Forecasting.",
+   "F": "Execution pattern: family F, Analytical refresh.",
+   "G": "Execution pattern: family G, AI text processing.",
+   "H": "Execution pattern: family H, Optimization and simulation."
+  }
+ },
+ "agent": {
+  "source": "final-agent 7219d5d",
+  "log": "2026-01-02 10:05:00 - __main__ - INFO - [GENIE N01-U01] [Genie build] Genie ran: python run.py (exit 0) [in <command-77>:412]\n2026-01-02 10:05:01 - __main__ - INFO - [GENIE N01-U01] [Genie build] Genie ran: pytest (exit 2) [in <command-77>:412]\n2026-01-02 10:05:02 - __main__ - INFO - [GENIE N01-U01] [Genie build] Genie: Built the notebook and ran it [in <command-77>:412]\n2026-01-02 10:05:03 - __main__ - INFO - [GENIE N01-U01] [Genie build] Genie: Stopped: the table has no date column [in <command-77>:412]\n2026-01-02 10:05:04 - __main__ - INFO - [GENIE N01-U01] [Genie build] Genie edited: /Workspace/x/N01-U01.py, /Workspace/x/notes.md [in <command-77>:412]\n2026-01-02 10:05:05 - __main__ - INFO - [GENIE N01-U01] [Genie build] Genie error: the model is busy [in <command-77>:412]\n2026-01-02 10:05:06 - __main__ - INFO - [GENIE N01-U01] [Genie build] Genie turn completed (input tokens 10, output tokens 4) [in <command-77>:412]\n2026-01-02 10:05:07 - __main__ - INFO - [IMPLEMENT N01-U01]   [60s] job run 2222222222222222222: RUNNING [in <command-77>:412]\n2026-01-02 10:05:08 - __main__ - INFO - [IMPLEMENT N01-U01]   [60s] job run 2222222222222222222: TERMINATED / SUCCESS [in <command-77>:412]\n2026-01-02 10:05:09 - __main__ - ERROR - [IMPLEMENT-FAILED] N01-U01 spec 3: the preview run did not write rows: stopped [in <command-77>:412]\n2026-01-02 10:05:10 - __main__ - INFO - [IMPLEMENT-NOTEBOOK] N01-U01: wrote /Workspace/Users/someone/inspire/N01-U01 [in <command-77>:412]\n",
+  "messages": [
+   "[GENIE N01-U01] [Genie build] Genie ran: python run.py (exit 0)",
+   "[GENIE N01-U01] [Genie build] Genie ran: pytest (exit 2)",
+   "[GENIE N01-U01] [Genie build] Genie: Built the notebook and ran it",
+   "[GENIE N01-U01] [Genie build] Genie: Stopped: the table has no date column",
+   "[GENIE N01-U01] [Genie build] Genie edited: /Workspace/x/N01-U01.py, /Workspace/x/notes.md",
+   "[GENIE N01-U01] [Genie build] Genie error: the model is busy",
+   "[GENIE N01-U01] [Genie build] Genie turn completed (input tokens 10, output tokens 4)",
+   "[IMPLEMENT N01-U01]   [60s] job run 2222222222222222222: RUNNING",
+   "[IMPLEMENT N01-U01]   [60s] job run 2222222222222222222: TERMINATED / SUCCESS",
+   "[IMPLEMENT-FAILED] N01-U01 spec 3: the preview run did not write rows: stopped",
+   "[IMPLEMENT-NOTEBOOK] N01-U01: wrote /Workspace/Users/someone/inspire/N01-U01"
+  ],
+  "ready_messages": [
+   "ready: preview wrote 0 rows",
+   "ready: preview wrote 1 row",
+   "ready: preview wrote 3 rows",
+   "ready: no new preview was needed; the last preview wrote 0 rows",
+   "ready: no new preview was needed; the last preview wrote 1 row",
+   "ready: no new preview was needed; the last preview wrote 3 rows"
+  ],
+  "step_name": "Inspire is working on genie build",
+  "app_tag": "Inspire use case N01-U01 (session 42)",
+  "mandates": {
+   "A": "Execution pattern: family A, Supervised scoring.",
+   "B": "Execution pattern: family B, Anomaly scoring.",
+   "C": "Execution pattern: family C, Segmentation.",
+   "D": "Execution pattern: family D, Recommendation.",
+   "E": "Execution pattern: family E, Forecasting.",
+   "F": "Execution pattern: family F, Analytical refresh.",
+   "G": "Execution pattern: family G, AI text processing.",
+   "H": "Execution pattern: family H, Optimization and simulation."
+  }
+ }
+}

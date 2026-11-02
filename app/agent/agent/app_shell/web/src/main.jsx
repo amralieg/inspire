@@ -1,0 +1,21 @@
+import { createRoot } from 'react-dom/client';
+import './styles/fonts.css';
+import './styles/shell.css';
+import './styles/looks.css';
+import './styles/app.css';
+import './styles/edits.css';
+import './styles/daily.css';
+import './styles/data.css';
+import './styles/chrome.css';
+import './styles/ops.css';
+import './styles/money.css';
+import './styles/impact.css';
+import './styles/alerts.css';
+import './styles/blocks.css';
+import './styles/work.css';
+import App from './App.jsx';
+import { openedLink } from './links.js';
+
+const opened = openedLink(window.location);
+if (opened) window.history.replaceState(window.history.state, '', opened);
+createRoot(document.getElementById('root')).render(<App />);

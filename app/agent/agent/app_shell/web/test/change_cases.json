@@ -1,0 +1,17 @@
+[
+  {"now": 100.00000001, "before": 100, "way": "same"},
+  {"now": 99.99999999, "before": 100, "way": "same"},
+  {"now": 250.0000001, "before": 250, "way": "same"},
+  {"now": 12, "before": 12, "way": "same"},
+  {"now": 100.04, "before": 100, "way": "same"},
+  {"now": 0, "before": 0, "way": "same"},
+  {"now": 100.1, "before": 100, "way": "up", "size": "0.1"},
+  {"now": 99.9, "before": 100, "way": "down", "size": "0.1"},
+  {"now": 100.06, "before": 100, "way": "up", "size": "0.1"},
+  {"now": 48, "before": 40, "way": "up", "size": "20.0"},
+  {"now": -90, "before": -100, "way": "up", "size": "10.0"},
+  {"now": 5, "before": 0, "way": "up", "size": null},
+  {"now": -5, "before": 0, "way": "down", "size": null},
+  {"now": 48, "before": null, "way": null},
+  {"now": null, "before": 40, "way": null}
+]

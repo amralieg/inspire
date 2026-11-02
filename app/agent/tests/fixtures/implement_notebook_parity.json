@@ -1,0 +1,5434 @@
+{
+ "source": "agent-kpi 21ce6b8",
+ "stake": [
+  {
+   "impact": null,
+   "words": "amount at stake",
+   "label": "amount at stake formula",
+   "part": [
+    "notebook",
+    "amount at stake formula"
+   ],
+   "ai_reasoning": "AI reasoning"
+  },
+  {
+   "impact": {
+    "kind": "money",
+    "unit": "USD"
+   },
+   "words": "money at stake",
+   "label": "money at stake formula",
+   "part": [
+    "notebook",
+    "money at stake formula"
+   ],
+   "ai_reasoning": "AI reasoning"
+  },
+  {
+   "impact": {
+    "kind": "hours",
+    "unit": "hours"
+   },
+   "words": "hours at stake",
+   "label": "hours at stake formula",
+   "part": [
+    "notebook",
+    "hours at stake formula"
+   ],
+   "ai_reasoning": "AI reasoning"
+  },
+  {
+   "impact": {
+    "kind": "count",
+    "unit": "late shipments"
+   },
+   "words": "late shipments at stake",
+   "label": "late shipments at stake formula",
+   "part": [
+    "notebook",
+    "late shipments at stake formula"
+   ],
+   "ai_reasoning": "AI reasoning"
+  },
+  {
+   "impact": {
+    "kind": "percent",
+    "unit": ""
+   },
+   "words": "percent at stake",
+   "label": "percent at stake formula",
+   "part": [
+    "notebook",
+    "percent at stake formula"
+   ],
+   "ai_reasoning": "AI reasoning"
+  },
+  {
+   "impact": {
+    "kind": "Money",
+    "unit": "AED"
+   },
+   "words": "money at stake",
+   "label": "money at stake formula",
+   "part": [
+    "notebook",
+    "money at stake formula"
+   ],
+   "ai_reasoning": "AI reasoning"
+  },
+  {
+   "impact": {
+    "kind": "HOURS",
+    "unit": ""
+   },
+   "words": "hours at stake",
+   "label": "hours at stake formula",
+   "part": [
+    "notebook",
+    "hours at stake formula"
+   ],
+   "ai_reasoning": "AI reasoning"
+  },
+  {
+   "impact": {
+    "kind": "weird",
+    "unit": "x"
+   },
+   "words": "amount at stake",
+   "label": "amount at stake formula",
+   "part": [
+    "notebook",
+    "amount at stake formula"
+   ],
+   "ai_reasoning": "AI reasoning"
+  },
+  {
+   "impact": {
+    "kind": "number",
+    "unit": "  staff   visits "
+   },
+   "words": "staff visits at stake",
+   "label": "staff visits at stake formula",
+   "part": [
+    "notebook",
+    "staff visits at stake formula"
+   ],
+   "ai_reasoning": "AI reasoning"
+  },
+  {
+   "impact": {
+    "unit": "hours"
+   },
+   "words": "amount at stake",
+   "label": "amount at stake formula",
+   "part": [
+    "notebook",
+    "amount at stake formula"
+   ],
+   "ai_reasoning": "AI reasoning"
+  },
+  {
+   "impact": {},
+   "words": "amount at stake",
+   "label": "amount at stake formula",
+   "part": [
+    "notebook",
+    "amount at stake formula"
+   ],
+   "ai_reasoning": "AI reasoning"
+  }
+ ],
+ "validator": [
+  {
+   "name": "the value formula vibes are too long",
+   "spec": {
+    "use_case_id": "N01-U01",
+    "use_case_name": "Basket",
+    "confirm_notebook_overwrite": false,
+    "based_on_version": 1,
+    "use_case": {
+     "goal": "grow basket",
+     "decision_owner": "ops lead",
+     "success_measures": [
+      "basket size"
+     ]
+    },
+    "data": {
+     "tables": {
+      "c.s.orders": "c.s.orders_v2"
+     },
+     "removed_tables": [
+      "c.s.old"
+     ],
+     "filters": [
+      {
+       "table": "c.s.orders",
+       "column": "region",
+       "op": "=",
+       "values": [
+        "EU"
+       ]
+      }
+     ],
+     "run_profile": "preview",
+     "column_roles": {
+      "entity_id": "c.s.orders.order_id"
+     },
+     "window": {
+      "start": "2024-01-01",
+      "end": "2024-02-01"
+     },
+     "notes": "keep it short"
+    },
+    "config": {
+     "widgets": {
+      "top_k": "10"
+     },
+     "assumptions": {},
+     "result_table": "c.s.out",
+     "ai_endpoint": "ep",
+     "warehouse_id": "wh1",
+     "profiles": {
+      "training": {
+       "window_days": 30,
+       "sample_entities": 100,
+       "stratify_by": "region"
+      },
+      "full_load": {
+       "window_days": 365
+      },
+      "preview": {
+       "entity_cap": 50
+      },
+      "retrain": {
+       "every_runs": 4,
+       "drift_threshold": 0.2
+      }
+     }
+    },
+    "schedule": {
+     "enabled": true,
+     "cron": "0 0 6 ? * MON",
+     "timezone": "UTC",
+     "failure_emails": [
+      "a@b.co"
+     ]
+    },
+    "outputs": {
+     "genie_space": true,
+     "dashboard": true,
+     "app": true,
+     "alert": true,
+     "app_name": "my-app",
+     "dashboard_name": "D",
+     "dashboard_filters": [
+      "top_k"
+     ],
+     "genie_space_name": "G",
+     "genie_questions": [
+      "why?"
+     ],
+     "app_purpose": "act",
+     "alert_name": "A",
+     "alert_tiers": "act_now",
+     "alert_operator": ">",
+     "alert_threshold": 0.0,
+     "alert_threshold_basis": "fixed",
+     "alert_condition_text": "too many",
+     "alert_recipients": [
+      "a@b.co"
+     ],
+     "alert_destinations": [
+      {
+       "id": "01234567-89ab-cdef-0123-456789abcdef",
+       "name": "ops"
+      }
+     ],
+     "merge": {
+      "dashboard": "",
+      "genie_space": "",
+      "app": ""
+     },
+     "app_access": "sp",
+     "app_look": {
+      "style": "a",
+      "layout": "sidebar",
+      "palette": "default",
+      "theme": "light"
+     },
+     "app_options": {
+      "modify": false,
+      "replace_edits": false,
+      "decisions": false,
+      "alerts": false
+     },
+     "app_backend": "lakebase",
+     "app_placement": "",
+     "app_owners": [],
+     "app_warehouse_id": "",
+     "app_charts": [],
+     "app_pages": {
+      "runs": true,
+      "impact": true
+     },
+     "genie_space_vibes": "",
+     "dashboard_vibes": "",
+     "app_vibes": "",
+     "alert_vibes": "",
+     "value_formula_vibes": "vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv"
+    },
+    "removed_outputs": {
+     "dashboard": "keep"
+    },
+    "retry_outputs": [],
+    "rollback_outputs": {},
+    "sharing": {
+     "principals": [
+      {
+       "type": "user",
+       "name": "a@b.co"
+      }
+     ]
+    }
+   },
+   "impact": null,
+   "errors": [
+    "the amount at stake formula vibes are 2001 characters; at most 2000 are allowed"
+   ]
+  },
+  {
+   "name": "an ask to try again on the value formula is too long",
+   "spec": {
+    "use_case_id": "N01-U01",
+    "use_case_name": "Basket",
+    "confirm_notebook_overwrite": false,
+    "based_on_version": 1,
+    "use_case": {
+     "goal": "grow basket",
+     "decision_owner": "ops lead",
+     "success_measures": [
+      "basket size"
+     ]
+    },
+    "data": {
+     "tables": {
+      "c.s.orders": "c.s.orders_v2"
+     },
+     "removed_tables": [
+      "c.s.old"
+     ],
+     "filters": [
+      {
+       "table": "c.s.orders",
+       "column": "region",
+       "op": "=",
+       "values": [
+        "EU"
+       ]
+      }
+     ],
+     "run_profile": "preview",
+     "column_roles": {
+      "entity_id": "c.s.orders.order_id"
+     },
+     "window": {
+      "start": "2024-01-01",
+      "end": "2024-02-01"
+     },
+     "notes": "keep it short"
+    },
+    "config": {
+     "widgets": {
+      "top_k": "10"
+     },
+     "assumptions": {},
+     "result_table": "c.s.out",
+     "ai_endpoint": "ep",
+     "warehouse_id": "wh1",
+     "profiles": {
+      "training": {
+       "window_days": 30,
+       "sample_entities": 100,
+       "stratify_by": "region"
+      },
+      "full_load": {
+       "window_days": 365
+      },
+      "preview": {
+       "entity_cap": 50
+      },
+      "retrain": {
+       "every_runs": 4,
+       "drift_threshold": 0.2
+      }
+     }
+    },
+    "schedule": {
+     "enabled": true,
+     "cron": "0 0 6 ? * MON",
+     "timezone": "UTC",
+     "failure_emails": [
+      "a@b.co"
+     ]
+    },
+    "outputs": {
+     "genie_space": true,
+     "dashboard": true,
+     "app": true,
+     "alert": true,
+     "app_name": "my-app",
+     "dashboard_name": "D",
+     "dashboard_filters": [
+      "top_k"
+     ],
+     "genie_space_name": "G",
+     "genie_questions": [
+      "why?"
+     ],
+     "app_purpose": "act",
+     "alert_name": "A",
+     "alert_tiers": "act_now",
+     "alert_operator": ">",
+     "alert_threshold": 0.0,
+     "alert_threshold_basis": "fixed",
+     "alert_condition_text": "too many",
+     "alert_recipients": [
+      "a@b.co"
+     ],
+     "alert_destinations": [
+      {
+       "id": "01234567-89ab-cdef-0123-456789abcdef",
+       "name": "ops"
+      }
+     ],
+     "merge": {
+      "dashboard": "",
+      "genie_space": "",
+      "app": ""
+     },
+     "app_access": "sp",
+     "app_look": {
+      "style": "a",
+      "layout": "sidebar",
+      "palette": "default",
+      "theme": "light"
+     },
+     "app_options": {
+      "modify": false,
+      "replace_edits": false,
+      "decisions": false,
+      "alerts": false
+     },
+     "app_backend": "lakebase",
+     "app_placement": "",
+     "app_owners": [],
+     "app_warehouse_id": "",
+     "app_charts": [],
+     "app_pages": {
+      "runs": true,
+      "impact": true
+     },
+     "genie_space_vibes": "",
+     "dashboard_vibes": "",
+     "app_vibes": "",
+     "alert_vibes": ""
+    },
+    "removed_outputs": {
+     "dashboard": "keep"
+    },
+    "retry_outputs": [
+     "value_formula"
+    ],
+    "rollback_outputs": {},
+    "sharing": {
+     "principals": [
+      {
+       "type": "user",
+       "name": "a@b.co"
+      }
+     ]
+    },
+    "retry_asks": {
+     "value_formula": [
+      "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+     ]
+    }
+   },
+   "impact": null,
+   "errors": [
+    "each ask to try again on the amount at stake formula must be at most 2000 characters"
+   ]
+  },
+  {
+   "name": "the value formula vibes are too long",
+   "spec": {
+    "use_case_id": "N01-U01",
+    "use_case_name": "Basket",
+    "confirm_notebook_overwrite": false,
+    "based_on_version": 1,
+    "use_case": {
+     "goal": "grow basket",
+     "decision_owner": "ops lead",
+     "success_measures": [
+      "basket size"
+     ]
+    },
+    "data": {
+     "tables": {
+      "c.s.orders": "c.s.orders_v2"
+     },
+     "removed_tables": [
+      "c.s.old"
+     ],
+     "filters": [
+      {
+       "table": "c.s.orders",
+       "column": "region",
+       "op": "=",
+       "values": [
+        "EU"
+       ]
+      }
+     ],
+     "run_profile": "preview",
+     "column_roles": {
+      "entity_id": "c.s.orders.order_id"
+     },
+     "window": {
+      "start": "2024-01-01",
+      "end": "2024-02-01"
+     },
+     "notes": "keep it short"
+    },
+    "config": {
+     "widgets": {
+      "top_k": "10"
+     },
+     "assumptions": {},
+     "result_table": "c.s.out",
+     "ai_endpoint": "ep",
+     "warehouse_id": "wh1",
+     "profiles": {
+      "training": {
+       "window_days": 30,
+       "sample_entities": 100,
+       "stratify_by": "region"
+      },
+      "full_load": {
+       "window_days": 365
+      },
+      "preview": {
+       "entity_cap": 50
+      },
+      "retrain": {
+       "every_runs": 4,
+       "drift_threshold": 0.2
+      }
+     }
+    },
+    "schedule": {
+     "enabled": true,
+     "cron": "0 0 6 ? * MON",
+     "timezone": "UTC",
+     "failure_emails": [
+      "a@b.co"
+     ]
+    },
+    "outputs": {
+     "genie_space": true,
+     "dashboard": true,
+     "app": true,
+     "alert": true,
+     "app_name": "my-app",
+     "dashboard_name": "D",
+     "dashboard_filters": [
+      "top_k"
+     ],
+     "genie_space_name": "G",
+     "genie_questions": [
+      "why?"
+     ],
+     "app_purpose": "act",
+     "alert_name": "A",
+     "alert_tiers": "act_now",
+     "alert_operator": ">",
+     "alert_threshold": 0.0,
+     "alert_threshold_basis": "fixed",
+     "alert_condition_text": "too many",
+     "alert_recipients": [
+      "a@b.co"
+     ],
+     "alert_destinations": [
+      {
+       "id": "01234567-89ab-cdef-0123-456789abcdef",
+       "name": "ops"
+      }
+     ],
+     "merge": {
+      "dashboard": "",
+      "genie_space": "",
+      "app": ""
+     },
+     "app_access": "sp",
+     "app_look": {
+      "style": "a",
+      "layout": "sidebar",
+      "palette": "default",
+      "theme": "light"
+     },
+     "app_options": {
+      "modify": false,
+      "replace_edits": false,
+      "decisions": false,
+      "alerts": false
+     },
+     "app_backend": "lakebase",
+     "app_placement": "",
+     "app_owners": [],
+     "app_warehouse_id": "",
+     "app_charts": [],
+     "app_pages": {
+      "runs": true,
+      "impact": true
+     },
+     "genie_space_vibes": "",
+     "dashboard_vibes": "",
+     "app_vibes": "",
+     "alert_vibes": "",
+     "value_formula_vibes": "vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv"
+    },
+    "removed_outputs": {
+     "dashboard": "keep"
+    },
+    "retry_outputs": [],
+    "rollback_outputs": {},
+    "sharing": {
+     "principals": [
+      {
+       "type": "user",
+       "name": "a@b.co"
+      }
+     ]
+    }
+   },
+   "impact": {
+    "kind": "money",
+    "unit": "USD"
+   },
+   "errors": [
+    "the money at stake formula vibes are 2001 characters; at most 2000 are allowed"
+   ]
+  },
+  {
+   "name": "an ask to try again on the value formula is too long",
+   "spec": {
+    "use_case_id": "N01-U01",
+    "use_case_name": "Basket",
+    "confirm_notebook_overwrite": false,
+    "based_on_version": 1,
+    "use_case": {
+     "goal": "grow basket",
+     "decision_owner": "ops lead",
+     "success_measures": [
+      "basket size"
+     ]
+    },
+    "data": {
+     "tables": {
+      "c.s.orders": "c.s.orders_v2"
+     },
+     "removed_tables": [
+      "c.s.old"
+     ],
+     "filters": [
+      {
+       "table": "c.s.orders",
+       "column": "region",
+       "op": "=",
+       "values": [
+        "EU"
+       ]
+      }
+     ],
+     "run_profile": "preview",
+     "column_roles": {
+      "entity_id": "c.s.orders.order_id"
+     },
+     "window": {
+      "start": "2024-01-01",
+      "end": "2024-02-01"
+     },
+     "notes": "keep it short"
+    },
+    "config": {
+     "widgets": {
+      "top_k": "10"
+     },
+     "assumptions": {},
+     "result_table": "c.s.out",
+     "ai_endpoint": "ep",
+     "warehouse_id": "wh1",
+     "profiles": {
+      "training": {
+       "window_days": 30,
+       "sample_entities": 100,
+       "stratify_by": "region"
+      },
+      "full_load": {
+       "window_days": 365
+      },
+      "preview": {
+       "entity_cap": 50
+      },
+      "retrain": {
+       "every_runs": 4,
+       "drift_threshold": 0.2
+      }
+     }
+    },
+    "schedule": {
+     "enabled": true,
+     "cron": "0 0 6 ? * MON",
+     "timezone": "UTC",
+     "failure_emails": [
+      "a@b.co"
+     ]
+    },
+    "outputs": {
+     "genie_space": true,
+     "dashboard": true,
+     "app": true,
+     "alert": true,
+     "app_name": "my-app",
+     "dashboard_name": "D",
+     "dashboard_filters": [
+      "top_k"
+     ],
+     "genie_space_name": "G",
+     "genie_questions": [
+      "why?"
+     ],
+     "app_purpose": "act",
+     "alert_name": "A",
+     "alert_tiers": "act_now",
+     "alert_operator": ">",
+     "alert_threshold": 0.0,
+     "alert_threshold_basis": "fixed",
+     "alert_condition_text": "too many",
+     "alert_recipients": [
+      "a@b.co"
+     ],
+     "alert_destinations": [
+      {
+       "id": "01234567-89ab-cdef-0123-456789abcdef",
+       "name": "ops"
+      }
+     ],
+     "merge": {
+      "dashboard": "",
+      "genie_space": "",
+      "app": ""
+     },
+     "app_access": "sp",
+     "app_look": {
+      "style": "a",
+      "layout": "sidebar",
+      "palette": "default",
+      "theme": "light"
+     },
+     "app_options": {
+      "modify": false,
+      "replace_edits": false,
+      "decisions": false,
+      "alerts": false
+     },
+     "app_backend": "lakebase",
+     "app_placement": "",
+     "app_owners": [],
+     "app_warehouse_id": "",
+     "app_charts": [],
+     "app_pages": {
+      "runs": true,
+      "impact": true
+     },
+     "genie_space_vibes": "",
+     "dashboard_vibes": "",
+     "app_vibes": "",
+     "alert_vibes": ""
+    },
+    "removed_outputs": {
+     "dashboard": "keep"
+    },
+    "retry_outputs": [
+     "value_formula"
+    ],
+    "rollback_outputs": {},
+    "sharing": {
+     "principals": [
+      {
+       "type": "user",
+       "name": "a@b.co"
+      }
+     ]
+    },
+    "retry_asks": {
+     "value_formula": [
+      "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+     ]
+    }
+   },
+   "impact": {
+    "kind": "money",
+    "unit": "USD"
+   },
+   "errors": [
+    "each ask to try again on the money at stake formula must be at most 2000 characters"
+   ]
+  },
+  {
+   "name": "the value formula vibes are too long",
+   "spec": {
+    "use_case_id": "N01-U01",
+    "use_case_name": "Basket",
+    "confirm_notebook_overwrite": false,
+    "based_on_version": 1,
+    "use_case": {
+     "goal": "grow basket",
+     "decision_owner": "ops lead",
+     "success_measures": [
+      "basket size"
+     ]
+    },
+    "data": {
+     "tables": {
+      "c.s.orders": "c.s.orders_v2"
+     },
+     "removed_tables": [
+      "c.s.old"
+     ],
+     "filters": [
+      {
+       "table": "c.s.orders",
+       "column": "region",
+       "op": "=",
+       "values": [
+        "EU"
+       ]
+      }
+     ],
+     "run_profile": "preview",
+     "column_roles": {
+      "entity_id": "c.s.orders.order_id"
+     },
+     "window": {
+      "start": "2024-01-01",
+      "end": "2024-02-01"
+     },
+     "notes": "keep it short"
+    },
+    "config": {
+     "widgets": {
+      "top_k": "10"
+     },
+     "assumptions": {},
+     "result_table": "c.s.out",
+     "ai_endpoint": "ep",
+     "warehouse_id": "wh1",
+     "profiles": {
+      "training": {
+       "window_days": 30,
+       "sample_entities": 100,
+       "stratify_by": "region"
+      },
+      "full_load": {
+       "window_days": 365
+      },
+      "preview": {
+       "entity_cap": 50
+      },
+      "retrain": {
+       "every_runs": 4,
+       "drift_threshold": 0.2
+      }
+     }
+    },
+    "schedule": {
+     "enabled": true,
+     "cron": "0 0 6 ? * MON",
+     "timezone": "UTC",
+     "failure_emails": [
+      "a@b.co"
+     ]
+    },
+    "outputs": {
+     "genie_space": true,
+     "dashboard": true,
+     "app": true,
+     "alert": true,
+     "app_name": "my-app",
+     "dashboard_name": "D",
+     "dashboard_filters": [
+      "top_k"
+     ],
+     "genie_space_name": "G",
+     "genie_questions": [
+      "why?"
+     ],
+     "app_purpose": "act",
+     "alert_name": "A",
+     "alert_tiers": "act_now",
+     "alert_operator": ">",
+     "alert_threshold": 0.0,
+     "alert_threshold_basis": "fixed",
+     "alert_condition_text": "too many",
+     "alert_recipients": [
+      "a@b.co"
+     ],
+     "alert_destinations": [
+      {
+       "id": "01234567-89ab-cdef-0123-456789abcdef",
+       "name": "ops"
+      }
+     ],
+     "merge": {
+      "dashboard": "",
+      "genie_space": "",
+      "app": ""
+     },
+     "app_access": "sp",
+     "app_look": {
+      "style": "a",
+      "layout": "sidebar",
+      "palette": "default",
+      "theme": "light"
+     },
+     "app_options": {
+      "modify": false,
+      "replace_edits": false,
+      "decisions": false,
+      "alerts": false
+     },
+     "app_backend": "lakebase",
+     "app_placement": "",
+     "app_owners": [],
+     "app_warehouse_id": "",
+     "app_charts": [],
+     "app_pages": {
+      "runs": true,
+      "impact": true
+     },
+     "genie_space_vibes": "",
+     "dashboard_vibes": "",
+     "app_vibes": "",
+     "alert_vibes": "",
+     "value_formula_vibes": "vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv"
+    },
+    "removed_outputs": {
+     "dashboard": "keep"
+    },
+    "retry_outputs": [],
+    "rollback_outputs": {},
+    "sharing": {
+     "principals": [
+      {
+       "type": "user",
+       "name": "a@b.co"
+      }
+     ]
+    }
+   },
+   "impact": {
+    "kind": "hours",
+    "unit": "hours"
+   },
+   "errors": [
+    "the hours at stake formula vibes are 2001 characters; at most 2000 are allowed"
+   ]
+  },
+  {
+   "name": "an ask to try again on the value formula is too long",
+   "spec": {
+    "use_case_id": "N01-U01",
+    "use_case_name": "Basket",
+    "confirm_notebook_overwrite": false,
+    "based_on_version": 1,
+    "use_case": {
+     "goal": "grow basket",
+     "decision_owner": "ops lead",
+     "success_measures": [
+      "basket size"
+     ]
+    },
+    "data": {
+     "tables": {
+      "c.s.orders": "c.s.orders_v2"
+     },
+     "removed_tables": [
+      "c.s.old"
+     ],
+     "filters": [
+      {
+       "table": "c.s.orders",
+       "column": "region",
+       "op": "=",
+       "values": [
+        "EU"
+       ]
+      }
+     ],
+     "run_profile": "preview",
+     "column_roles": {
+      "entity_id": "c.s.orders.order_id"
+     },
+     "window": {
+      "start": "2024-01-01",
+      "end": "2024-02-01"
+     },
+     "notes": "keep it short"
+    },
+    "config": {
+     "widgets": {
+      "top_k": "10"
+     },
+     "assumptions": {},
+     "result_table": "c.s.out",
+     "ai_endpoint": "ep",
+     "warehouse_id": "wh1",
+     "profiles": {
+      "training": {
+       "window_days": 30,
+       "sample_entities": 100,
+       "stratify_by": "region"
+      },
+      "full_load": {
+       "window_days": 365
+      },
+      "preview": {
+       "entity_cap": 50
+      },
+      "retrain": {
+       "every_runs": 4,
+       "drift_threshold": 0.2
+      }
+     }
+    },
+    "schedule": {
+     "enabled": true,
+     "cron": "0 0 6 ? * MON",
+     "timezone": "UTC",
+     "failure_emails": [
+      "a@b.co"
+     ]
+    },
+    "outputs": {
+     "genie_space": true,
+     "dashboard": true,
+     "app": true,
+     "alert": true,
+     "app_name": "my-app",
+     "dashboard_name": "D",
+     "dashboard_filters": [
+      "top_k"
+     ],
+     "genie_space_name": "G",
+     "genie_questions": [
+      "why?"
+     ],
+     "app_purpose": "act",
+     "alert_name": "A",
+     "alert_tiers": "act_now",
+     "alert_operator": ">",
+     "alert_threshold": 0.0,
+     "alert_threshold_basis": "fixed",
+     "alert_condition_text": "too many",
+     "alert_recipients": [
+      "a@b.co"
+     ],
+     "alert_destinations": [
+      {
+       "id": "01234567-89ab-cdef-0123-456789abcdef",
+       "name": "ops"
+      }
+     ],
+     "merge": {
+      "dashboard": "",
+      "genie_space": "",
+      "app": ""
+     },
+     "app_access": "sp",
+     "app_look": {
+      "style": "a",
+      "layout": "sidebar",
+      "palette": "default",
+      "theme": "light"
+     },
+     "app_options": {
+      "modify": false,
+      "replace_edits": false,
+      "decisions": false,
+      "alerts": false
+     },
+     "app_backend": "lakebase",
+     "app_placement": "",
+     "app_owners": [],
+     "app_warehouse_id": "",
+     "app_charts": [],
+     "app_pages": {
+      "runs": true,
+      "impact": true
+     },
+     "genie_space_vibes": "",
+     "dashboard_vibes": "",
+     "app_vibes": "",
+     "alert_vibes": ""
+    },
+    "removed_outputs": {
+     "dashboard": "keep"
+    },
+    "retry_outputs": [
+     "value_formula"
+    ],
+    "rollback_outputs": {},
+    "sharing": {
+     "principals": [
+      {
+       "type": "user",
+       "name": "a@b.co"
+      }
+     ]
+    },
+    "retry_asks": {
+     "value_formula": [
+      "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+     ]
+    }
+   },
+   "impact": {
+    "kind": "hours",
+    "unit": "hours"
+   },
+   "errors": [
+    "each ask to try again on the hours at stake formula must be at most 2000 characters"
+   ]
+  },
+  {
+   "name": "the value formula vibes are too long",
+   "spec": {
+    "use_case_id": "N01-U01",
+    "use_case_name": "Basket",
+    "confirm_notebook_overwrite": false,
+    "based_on_version": 1,
+    "use_case": {
+     "goal": "grow basket",
+     "decision_owner": "ops lead",
+     "success_measures": [
+      "basket size"
+     ]
+    },
+    "data": {
+     "tables": {
+      "c.s.orders": "c.s.orders_v2"
+     },
+     "removed_tables": [
+      "c.s.old"
+     ],
+     "filters": [
+      {
+       "table": "c.s.orders",
+       "column": "region",
+       "op": "=",
+       "values": [
+        "EU"
+       ]
+      }
+     ],
+     "run_profile": "preview",
+     "column_roles": {
+      "entity_id": "c.s.orders.order_id"
+     },
+     "window": {
+      "start": "2024-01-01",
+      "end": "2024-02-01"
+     },
+     "notes": "keep it short"
+    },
+    "config": {
+     "widgets": {
+      "top_k": "10"
+     },
+     "assumptions": {},
+     "result_table": "c.s.out",
+     "ai_endpoint": "ep",
+     "warehouse_id": "wh1",
+     "profiles": {
+      "training": {
+       "window_days": 30,
+       "sample_entities": 100,
+       "stratify_by": "region"
+      },
+      "full_load": {
+       "window_days": 365
+      },
+      "preview": {
+       "entity_cap": 50
+      },
+      "retrain": {
+       "every_runs": 4,
+       "drift_threshold": 0.2
+      }
+     }
+    },
+    "schedule": {
+     "enabled": true,
+     "cron": "0 0 6 ? * MON",
+     "timezone": "UTC",
+     "failure_emails": [
+      "a@b.co"
+     ]
+    },
+    "outputs": {
+     "genie_space": true,
+     "dashboard": true,
+     "app": true,
+     "alert": true,
+     "app_name": "my-app",
+     "dashboard_name": "D",
+     "dashboard_filters": [
+      "top_k"
+     ],
+     "genie_space_name": "G",
+     "genie_questions": [
+      "why?"
+     ],
+     "app_purpose": "act",
+     "alert_name": "A",
+     "alert_tiers": "act_now",
+     "alert_operator": ">",
+     "alert_threshold": 0.0,
+     "alert_threshold_basis": "fixed",
+     "alert_condition_text": "too many",
+     "alert_recipients": [
+      "a@b.co"
+     ],
+     "alert_destinations": [
+      {
+       "id": "01234567-89ab-cdef-0123-456789abcdef",
+       "name": "ops"
+      }
+     ],
+     "merge": {
+      "dashboard": "",
+      "genie_space": "",
+      "app": ""
+     },
+     "app_access": "sp",
+     "app_look": {
+      "style": "a",
+      "layout": "sidebar",
+      "palette": "default",
+      "theme": "light"
+     },
+     "app_options": {
+      "modify": false,
+      "replace_edits": false,
+      "decisions": false,
+      "alerts": false
+     },
+     "app_backend": "lakebase",
+     "app_placement": "",
+     "app_owners": [],
+     "app_warehouse_id": "",
+     "app_charts": [],
+     "app_pages": {
+      "runs": true,
+      "impact": true
+     },
+     "genie_space_vibes": "",
+     "dashboard_vibes": "",
+     "app_vibes": "",
+     "alert_vibes": "",
+     "value_formula_vibes": "vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv"
+    },
+    "removed_outputs": {
+     "dashboard": "keep"
+    },
+    "retry_outputs": [],
+    "rollback_outputs": {},
+    "sharing": {
+     "principals": [
+      {
+       "type": "user",
+       "name": "a@b.co"
+      }
+     ]
+    }
+   },
+   "impact": {
+    "kind": "count",
+    "unit": "late shipments"
+   },
+   "errors": [
+    "the late shipments at stake formula vibes are 2001 characters; at most 2000 are allowed"
+   ]
+  },
+  {
+   "name": "an ask to try again on the value formula is too long",
+   "spec": {
+    "use_case_id": "N01-U01",
+    "use_case_name": "Basket",
+    "confirm_notebook_overwrite": false,
+    "based_on_version": 1,
+    "use_case": {
+     "goal": "grow basket",
+     "decision_owner": "ops lead",
+     "success_measures": [
+      "basket size"
+     ]
+    },
+    "data": {
+     "tables": {
+      "c.s.orders": "c.s.orders_v2"
+     },
+     "removed_tables": [
+      "c.s.old"
+     ],
+     "filters": [
+      {
+       "table": "c.s.orders",
+       "column": "region",
+       "op": "=",
+       "values": [
+        "EU"
+       ]
+      }
+     ],
+     "run_profile": "preview",
+     "column_roles": {
+      "entity_id": "c.s.orders.order_id"
+     },
+     "window": {
+      "start": "2024-01-01",
+      "end": "2024-02-01"
+     },
+     "notes": "keep it short"
+    },
+    "config": {
+     "widgets": {
+      "top_k": "10"
+     },
+     "assumptions": {},
+     "result_table": "c.s.out",
+     "ai_endpoint": "ep",
+     "warehouse_id": "wh1",
+     "profiles": {
+      "training": {
+       "window_days": 30,
+       "sample_entities": 100,
+       "stratify_by": "region"
+      },
+      "full_load": {
+       "window_days": 365
+      },
+      "preview": {
+       "entity_cap": 50
+      },
+      "retrain": {
+       "every_runs": 4,
+       "drift_threshold": 0.2
+      }
+     }
+    },
+    "schedule": {
+     "enabled": true,
+     "cron": "0 0 6 ? * MON",
+     "timezone": "UTC",
+     "failure_emails": [
+      "a@b.co"
+     ]
+    },
+    "outputs": {
+     "genie_space": true,
+     "dashboard": true,
+     "app": true,
+     "alert": true,
+     "app_name": "my-app",
+     "dashboard_name": "D",
+     "dashboard_filters": [
+      "top_k"
+     ],
+     "genie_space_name": "G",
+     "genie_questions": [
+      "why?"
+     ],
+     "app_purpose": "act",
+     "alert_name": "A",
+     "alert_tiers": "act_now",
+     "alert_operator": ">",
+     "alert_threshold": 0.0,
+     "alert_threshold_basis": "fixed",
+     "alert_condition_text": "too many",
+     "alert_recipients": [
+      "a@b.co"
+     ],
+     "alert_destinations": [
+      {
+       "id": "01234567-89ab-cdef-0123-456789abcdef",
+       "name": "ops"
+      }
+     ],
+     "merge": {
+      "dashboard": "",
+      "genie_space": "",
+      "app": ""
+     },
+     "app_access": "sp",
+     "app_look": {
+      "style": "a",
+      "layout": "sidebar",
+      "palette": "default",
+      "theme": "light"
+     },
+     "app_options": {
+      "modify": false,
+      "replace_edits": false,
+      "decisions": false,
+      "alerts": false
+     },
+     "app_backend": "lakebase",
+     "app_placement": "",
+     "app_owners": [],
+     "app_warehouse_id": "",
+     "app_charts": [],
+     "app_pages": {
+      "runs": true,
+      "impact": true
+     },
+     "genie_space_vibes": "",
+     "dashboard_vibes": "",
+     "app_vibes": "",
+     "alert_vibes": ""
+    },
+    "removed_outputs": {
+     "dashboard": "keep"
+    },
+    "retry_outputs": [
+     "value_formula"
+    ],
+    "rollback_outputs": {},
+    "sharing": {
+     "principals": [
+      {
+       "type": "user",
+       "name": "a@b.co"
+      }
+     ]
+    },
+    "retry_asks": {
+     "value_formula": [
+      "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+     ]
+    }
+   },
+   "impact": {
+    "kind": "count",
+    "unit": "late shipments"
+   },
+   "errors": [
+    "each ask to try again on the late shipments at stake formula must be at most 2000 characters"
+   ]
+  },
+  {
+   "name": "the AI reasoning keeps its label",
+   "spec": {
+    "use_case_id": "N01-U01",
+    "use_case_name": "Basket",
+    "confirm_notebook_overwrite": false,
+    "based_on_version": 1,
+    "use_case": {
+     "goal": "grow basket",
+     "decision_owner": "ops lead",
+     "success_measures": [
+      "basket size"
+     ]
+    },
+    "data": {
+     "tables": {
+      "c.s.orders": "c.s.orders_v2"
+     },
+     "removed_tables": [
+      "c.s.old"
+     ],
+     "filters": [
+      {
+       "table": "c.s.orders",
+       "column": "region",
+       "op": "=",
+       "values": [
+        "EU"
+       ]
+      }
+     ],
+     "run_profile": "preview",
+     "column_roles": {
+      "entity_id": "c.s.orders.order_id"
+     },
+     "window": {
+      "start": "2024-01-01",
+      "end": "2024-02-01"
+     },
+     "notes": "keep it short"
+    },
+    "config": {
+     "widgets": {
+      "top_k": "10"
+     },
+     "assumptions": {},
+     "result_table": "c.s.out",
+     "ai_endpoint": "ep",
+     "warehouse_id": "wh1",
+     "profiles": {
+      "training": {
+       "window_days": 30,
+       "sample_entities": 100,
+       "stratify_by": "region"
+      },
+      "full_load": {
+       "window_days": 365
+      },
+      "preview": {
+       "entity_cap": 50
+      },
+      "retrain": {
+       "every_runs": 4,
+       "drift_threshold": 0.2
+      }
+     }
+    },
+    "schedule": {
+     "enabled": true,
+     "cron": "0 0 6 ? * MON",
+     "timezone": "UTC",
+     "failure_emails": [
+      "a@b.co"
+     ]
+    },
+    "outputs": {
+     "genie_space": true,
+     "dashboard": true,
+     "app": true,
+     "alert": true,
+     "app_name": "my-app",
+     "dashboard_name": "D",
+     "dashboard_filters": [
+      "top_k"
+     ],
+     "genie_space_name": "G",
+     "genie_questions": [
+      "why?"
+     ],
+     "app_purpose": "act",
+     "alert_name": "A",
+     "alert_tiers": "act_now",
+     "alert_operator": ">",
+     "alert_threshold": 0.0,
+     "alert_threshold_basis": "fixed",
+     "alert_condition_text": "too many",
+     "alert_recipients": [
+      "a@b.co"
+     ],
+     "alert_destinations": [
+      {
+       "id": "01234567-89ab-cdef-0123-456789abcdef",
+       "name": "ops"
+      }
+     ],
+     "merge": {
+      "dashboard": "",
+      "genie_space": "",
+      "app": ""
+     },
+     "app_access": "sp",
+     "app_look": {
+      "style": "a",
+      "layout": "sidebar",
+      "palette": "default",
+      "theme": "light"
+     },
+     "app_options": {
+      "modify": false,
+      "replace_edits": false,
+      "decisions": false,
+      "alerts": false
+     },
+     "app_backend": "lakebase",
+     "app_placement": "",
+     "app_owners": [],
+     "app_warehouse_id": "",
+     "app_charts": [],
+     "app_pages": {
+      "runs": true,
+      "impact": true
+     },
+     "genie_space_vibes": "",
+     "dashboard_vibes": "",
+     "app_vibes": "",
+     "alert_vibes": "",
+     "ai_reasoning_vibes": "rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr"
+    },
+    "removed_outputs": {
+     "dashboard": "keep"
+    },
+    "retry_outputs": [],
+    "rollback_outputs": {},
+    "sharing": {
+     "principals": [
+      {
+       "type": "user",
+       "name": "a@b.co"
+      }
+     ]
+    }
+   },
+   "impact": {
+    "kind": "hours",
+    "unit": "hours"
+   },
+   "errors": [
+    "the AI reasoning vibes are 2001 characters; at most 2000 are allowed"
+   ]
+  }
+ ],
+ "part_problems": [
+  {
+   "name": "not built",
+   "asset_status": {
+    "notebook": {
+     "state": "ready",
+     "impact": null
+    }
+   },
+   "previous": {
+    "use_case_id": "N01-U01",
+    "use_case_name": "Basket",
+    "confirm_notebook_overwrite": false,
+    "based_on_version": 1,
+    "use_case": {
+     "goal": "grow basket",
+     "decision_owner": "ops lead",
+     "success_measures": [
+      "basket size"
+     ]
+    },
+    "data": {
+     "tables": {
+      "c.s.orders": "c.s.orders_v2"
+     },
+     "removed_tables": [
+      "c.s.old"
+     ],
+     "filters": [
+      {
+       "table": "c.s.orders",
+       "column": "region",
+       "op": "=",
+       "values": [
+        "EU"
+       ]
+      }
+     ],
+     "run_profile": "preview",
+     "column_roles": {
+      "entity_id": "c.s.orders.order_id"
+     },
+     "window": {
+      "start": "2024-01-01",
+      "end": "2024-02-01"
+     },
+     "notes": "keep it short"
+    },
+    "config": {
+     "widgets": {
+      "top_k": "10"
+     },
+     "assumptions": {},
+     "result_table": "c.s.out",
+     "ai_endpoint": "ep",
+     "warehouse_id": "wh1",
+     "profiles": {
+      "training": {
+       "window_days": 30,
+       "sample_entities": 100,
+       "stratify_by": "region"
+      },
+      "full_load": {
+       "window_days": 365
+      },
+      "preview": {
+       "entity_cap": 50
+      },
+      "retrain": {
+       "every_runs": 4,
+       "drift_threshold": 0.2
+      }
+     }
+    },
+    "schedule": {
+     "enabled": true,
+     "cron": "0 0 6 ? * MON",
+     "timezone": "UTC",
+     "failure_emails": [
+      "a@b.co"
+     ]
+    },
+    "outputs": {
+     "genie_space": true,
+     "dashboard": true,
+     "app": true,
+     "alert": true,
+     "app_name": "my-app",
+     "dashboard_name": "D",
+     "dashboard_filters": [
+      "top_k"
+     ],
+     "genie_space_name": "G",
+     "genie_questions": [
+      "why?"
+     ],
+     "app_purpose": "act",
+     "alert_name": "A",
+     "alert_tiers": "act_now",
+     "alert_operator": ">",
+     "alert_threshold": 0.0,
+     "alert_threshold_basis": "fixed",
+     "alert_condition_text": "too many",
+     "alert_recipients": [
+      "a@b.co"
+     ],
+     "alert_destinations": [
+      {
+       "id": "01234567-89ab-cdef-0123-456789abcdef",
+       "name": "ops"
+      }
+     ],
+     "merge": {
+      "dashboard": "",
+      "genie_space": "",
+      "app": ""
+     },
+     "app_access": "sp",
+     "app_look": {
+      "style": "a",
+      "layout": "sidebar",
+      "palette": "default",
+      "theme": "light"
+     },
+     "app_options": {
+      "modify": false,
+      "replace_edits": false,
+      "decisions": false,
+      "alerts": false
+     },
+     "app_backend": "lakebase",
+     "app_placement": "",
+     "app_owners": [],
+     "app_warehouse_id": "",
+     "app_charts": [],
+     "app_pages": {
+      "runs": true,
+      "impact": true
+     },
+     "genie_space_vibes": "",
+     "dashboard_vibes": "",
+     "app_vibes": "",
+     "alert_vibes": ""
+    },
+    "removed_outputs": {
+     "dashboard": "keep"
+    },
+    "retry_outputs": [],
+    "rollback_outputs": {},
+    "sharing": {
+     "principals": [
+      {
+       "type": "user",
+       "name": "a@b.co"
+      }
+     ]
+    }
+   },
+   "spec": {
+    "use_case_id": "N01-U01",
+    "use_case_name": "Basket",
+    "confirm_notebook_overwrite": false,
+    "based_on_version": 1,
+    "use_case": {
+     "goal": "grow basket",
+     "decision_owner": "ops lead",
+     "success_measures": [
+      "basket size"
+     ]
+    },
+    "data": {
+     "tables": {
+      "c.s.orders": "c.s.orders_v2"
+     },
+     "removed_tables": [
+      "c.s.old"
+     ],
+     "filters": [
+      {
+       "table": "c.s.orders",
+       "column": "region",
+       "op": "=",
+       "values": [
+        "EU"
+       ]
+      }
+     ],
+     "run_profile": "preview",
+     "column_roles": {
+      "entity_id": "c.s.orders.order_id"
+     },
+     "window": {
+      "start": "2024-01-01",
+      "end": "2024-02-01"
+     },
+     "notes": "keep it short"
+    },
+    "config": {
+     "widgets": {
+      "top_k": "10"
+     },
+     "assumptions": {},
+     "result_table": "c.s.out",
+     "ai_endpoint": "ep",
+     "warehouse_id": "wh1",
+     "profiles": {
+      "training": {
+       "window_days": 30,
+       "sample_entities": 100,
+       "stratify_by": "region"
+      },
+      "full_load": {
+       "window_days": 365
+      },
+      "preview": {
+       "entity_cap": 50
+      },
+      "retrain": {
+       "every_runs": 4,
+       "drift_threshold": 0.2
+      }
+     }
+    },
+    "schedule": {
+     "enabled": true,
+     "cron": "0 0 6 ? * MON",
+     "timezone": "UTC",
+     "failure_emails": [
+      "a@b.co"
+     ]
+    },
+    "outputs": {
+     "genie_space": true,
+     "dashboard": true,
+     "app": true,
+     "alert": true,
+     "app_name": "my-app",
+     "dashboard_name": "D",
+     "dashboard_filters": [
+      "top_k"
+     ],
+     "genie_space_name": "G",
+     "genie_questions": [
+      "why?"
+     ],
+     "app_purpose": "act",
+     "alert_name": "A",
+     "alert_tiers": "act_now",
+     "alert_operator": ">",
+     "alert_threshold": 0.0,
+     "alert_threshold_basis": "fixed",
+     "alert_condition_text": "too many",
+     "alert_recipients": [
+      "a@b.co"
+     ],
+     "alert_destinations": [
+      {
+       "id": "01234567-89ab-cdef-0123-456789abcdef",
+       "name": "ops"
+      }
+     ],
+     "merge": {
+      "dashboard": "",
+      "genie_space": "",
+      "app": ""
+     },
+     "app_access": "sp",
+     "app_look": {
+      "style": "a",
+      "layout": "sidebar",
+      "palette": "default",
+      "theme": "light"
+     },
+     "app_options": {
+      "modify": false,
+      "replace_edits": false,
+      "decisions": false,
+      "alerts": false
+     },
+     "app_backend": "lakebase",
+     "app_placement": "",
+     "app_owners": [],
+     "app_warehouse_id": "",
+     "app_charts": [],
+     "app_pages": {
+      "runs": true,
+      "impact": true
+     },
+     "genie_space_vibes": "",
+     "dashboard_vibes": "",
+     "app_vibes": "",
+     "alert_vibes": "",
+     "value_formula_vibes": "Count only open cases"
+    },
+    "removed_outputs": {
+     "dashboard": "keep"
+    },
+    "retry_outputs": [],
+    "rollback_outputs": {},
+    "sharing": {
+     "principals": [
+      {
+       "type": "user",
+       "name": "a@b.co"
+      }
+     ]
+    }
+   },
+   "problems": [
+    "Inspire has not built the amount at stake formula on this MVP, so it cannot rebuild it with your vibes; pick one this MVP built"
+   ]
+  },
+  {
+   "name": "built and not listed to rebuild",
+   "asset_status": {
+    "notebook": {
+     "state": "ready",
+     "impact": null
+    },
+    "value_formula": {
+     "state": "ready"
+    }
+   },
+   "previous": {
+    "use_case_id": "N01-U01",
+    "use_case_name": "Basket",
+    "confirm_notebook_overwrite": false,
+    "based_on_version": 1,
+    "use_case": {
+     "goal": "grow basket",
+     "decision_owner": "ops lead",
+     "success_measures": [
+      "basket size"
+     ]
+    },
+    "data": {
+     "tables": {
+      "c.s.orders": "c.s.orders_v2"
+     },
+     "removed_tables": [
+      "c.s.old"
+     ],
+     "filters": [
+      {
+       "table": "c.s.orders",
+       "column": "region",
+       "op": "=",
+       "values": [
+        "EU"
+       ]
+      }
+     ],
+     "run_profile": "preview",
+     "column_roles": {
+      "entity_id": "c.s.orders.order_id"
+     },
+     "window": {
+      "start": "2024-01-01",
+      "end": "2024-02-01"
+     },
+     "notes": "keep it short"
+    },
+    "config": {
+     "widgets": {
+      "top_k": "10"
+     },
+     "assumptions": {},
+     "result_table": "c.s.out",
+     "ai_endpoint": "ep",
+     "warehouse_id": "wh1",
+     "profiles": {
+      "training": {
+       "window_days": 30,
+       "sample_entities": 100,
+       "stratify_by": "region"
+      },
+      "full_load": {
+       "window_days": 365
+      },
+      "preview": {
+       "entity_cap": 50
+      },
+      "retrain": {
+       "every_runs": 4,
+       "drift_threshold": 0.2
+      }
+     }
+    },
+    "schedule": {
+     "enabled": true,
+     "cron": "0 0 6 ? * MON",
+     "timezone": "UTC",
+     "failure_emails": [
+      "a@b.co"
+     ]
+    },
+    "outputs": {
+     "genie_space": true,
+     "dashboard": true,
+     "app": true,
+     "alert": true,
+     "app_name": "my-app",
+     "dashboard_name": "D",
+     "dashboard_filters": [
+      "top_k"
+     ],
+     "genie_space_name": "G",
+     "genie_questions": [
+      "why?"
+     ],
+     "app_purpose": "act",
+     "alert_name": "A",
+     "alert_tiers": "act_now",
+     "alert_operator": ">",
+     "alert_threshold": 0.0,
+     "alert_threshold_basis": "fixed",
+     "alert_condition_text": "too many",
+     "alert_recipients": [
+      "a@b.co"
+     ],
+     "alert_destinations": [
+      {
+       "id": "01234567-89ab-cdef-0123-456789abcdef",
+       "name": "ops"
+      }
+     ],
+     "merge": {
+      "dashboard": "",
+      "genie_space": "",
+      "app": ""
+     },
+     "app_access": "sp",
+     "app_look": {
+      "style": "a",
+      "layout": "sidebar",
+      "palette": "default",
+      "theme": "light"
+     },
+     "app_options": {
+      "modify": false,
+      "replace_edits": false,
+      "decisions": false,
+      "alerts": false
+     },
+     "app_backend": "lakebase",
+     "app_placement": "",
+     "app_owners": [],
+     "app_warehouse_id": "",
+     "app_charts": [],
+     "app_pages": {
+      "runs": true,
+      "impact": true
+     },
+     "genie_space_vibes": "",
+     "dashboard_vibes": "",
+     "app_vibes": "",
+     "alert_vibes": ""
+    },
+    "removed_outputs": {
+     "dashboard": "keep"
+    },
+    "retry_outputs": [],
+    "rollback_outputs": {},
+    "sharing": {
+     "principals": [
+      {
+       "type": "user",
+       "name": "a@b.co"
+      }
+     ]
+    }
+   },
+   "spec": {
+    "use_case_id": "N01-U01",
+    "use_case_name": "Basket",
+    "confirm_notebook_overwrite": false,
+    "based_on_version": 1,
+    "use_case": {
+     "goal": "grow basket",
+     "decision_owner": "ops lead",
+     "success_measures": [
+      "basket size"
+     ]
+    },
+    "data": {
+     "tables": {
+      "c.s.orders": "c.s.orders_v2"
+     },
+     "removed_tables": [
+      "c.s.old"
+     ],
+     "filters": [
+      {
+       "table": "c.s.orders",
+       "column": "region",
+       "op": "=",
+       "values": [
+        "EU"
+       ]
+      }
+     ],
+     "run_profile": "preview",
+     "column_roles": {
+      "entity_id": "c.s.orders.order_id"
+     },
+     "window": {
+      "start": "2024-01-01",
+      "end": "2024-02-01"
+     },
+     "notes": "keep it short"
+    },
+    "config": {
+     "widgets": {
+      "top_k": "10"
+     },
+     "assumptions": {},
+     "result_table": "c.s.out",
+     "ai_endpoint": "ep",
+     "warehouse_id": "wh1",
+     "profiles": {
+      "training": {
+       "window_days": 30,
+       "sample_entities": 100,
+       "stratify_by": "region"
+      },
+      "full_load": {
+       "window_days": 365
+      },
+      "preview": {
+       "entity_cap": 50
+      },
+      "retrain": {
+       "every_runs": 4,
+       "drift_threshold": 0.2
+      }
+     }
+    },
+    "schedule": {
+     "enabled": true,
+     "cron": "0 0 6 ? * MON",
+     "timezone": "UTC",
+     "failure_emails": [
+      "a@b.co"
+     ]
+    },
+    "outputs": {
+     "genie_space": true,
+     "dashboard": true,
+     "app": true,
+     "alert": true,
+     "app_name": "my-app",
+     "dashboard_name": "D",
+     "dashboard_filters": [
+      "top_k"
+     ],
+     "genie_space_name": "G",
+     "genie_questions": [
+      "why?"
+     ],
+     "app_purpose": "act",
+     "alert_name": "A",
+     "alert_tiers": "act_now",
+     "alert_operator": ">",
+     "alert_threshold": 0.0,
+     "alert_threshold_basis": "fixed",
+     "alert_condition_text": "too many",
+     "alert_recipients": [
+      "a@b.co"
+     ],
+     "alert_destinations": [
+      {
+       "id": "01234567-89ab-cdef-0123-456789abcdef",
+       "name": "ops"
+      }
+     ],
+     "merge": {
+      "dashboard": "",
+      "genie_space": "",
+      "app": ""
+     },
+     "app_access": "sp",
+     "app_look": {
+      "style": "a",
+      "layout": "sidebar",
+      "palette": "default",
+      "theme": "light"
+     },
+     "app_options": {
+      "modify": false,
+      "replace_edits": false,
+      "decisions": false,
+      "alerts": false
+     },
+     "app_backend": "lakebase",
+     "app_placement": "",
+     "app_owners": [],
+     "app_warehouse_id": "",
+     "app_charts": [],
+     "app_pages": {
+      "runs": true,
+      "impact": true
+     },
+     "genie_space_vibes": "",
+     "dashboard_vibes": "",
+     "app_vibes": "",
+     "alert_vibes": "",
+     "value_formula_vibes": "Count only open cases"
+    },
+    "removed_outputs": {
+     "dashboard": "keep"
+    },
+    "retry_outputs": [],
+    "rollback_outputs": {},
+    "sharing": {
+     "principals": [
+      {
+       "type": "user",
+       "name": "a@b.co"
+      }
+     ]
+    }
+   },
+   "problems": [
+    "the vibes for the amount at stake formula changed, so list value_formula in retry_outputs to rebuild it with them"
+   ]
+  },
+  {
+   "name": "not built",
+   "asset_status": {
+    "notebook": {
+     "state": "ready",
+     "impact": {
+      "kind": "money",
+      "unit": "USD"
+     }
+    }
+   },
+   "previous": {
+    "use_case_id": "N01-U01",
+    "use_case_name": "Basket",
+    "confirm_notebook_overwrite": false,
+    "based_on_version": 1,
+    "use_case": {
+     "goal": "grow basket",
+     "decision_owner": "ops lead",
+     "success_measures": [
+      "basket size"
+     ]
+    },
+    "data": {
+     "tables": {
+      "c.s.orders": "c.s.orders_v2"
+     },
+     "removed_tables": [
+      "c.s.old"
+     ],
+     "filters": [
+      {
+       "table": "c.s.orders",
+       "column": "region",
+       "op": "=",
+       "values": [
+        "EU"
+       ]
+      }
+     ],
+     "run_profile": "preview",
+     "column_roles": {
+      "entity_id": "c.s.orders.order_id"
+     },
+     "window": {
+      "start": "2024-01-01",
+      "end": "2024-02-01"
+     },
+     "notes": "keep it short"
+    },
+    "config": {
+     "widgets": {
+      "top_k": "10"
+     },
+     "assumptions": {},
+     "result_table": "c.s.out",
+     "ai_endpoint": "ep",
+     "warehouse_id": "wh1",
+     "profiles": {
+      "training": {
+       "window_days": 30,
+       "sample_entities": 100,
+       "stratify_by": "region"
+      },
+      "full_load": {
+       "window_days": 365
+      },
+      "preview": {
+       "entity_cap": 50
+      },
+      "retrain": {
+       "every_runs": 4,
+       "drift_threshold": 0.2
+      }
+     }
+    },
+    "schedule": {
+     "enabled": true,
+     "cron": "0 0 6 ? * MON",
+     "timezone": "UTC",
+     "failure_emails": [
+      "a@b.co"
+     ]
+    },
+    "outputs": {
+     "genie_space": true,
+     "dashboard": true,
+     "app": true,
+     "alert": true,
+     "app_name": "my-app",
+     "dashboard_name": "D",
+     "dashboard_filters": [
+      "top_k"
+     ],
+     "genie_space_name": "G",
+     "genie_questions": [
+      "why?"
+     ],
+     "app_purpose": "act",
+     "alert_name": "A",
+     "alert_tiers": "act_now",
+     "alert_operator": ">",
+     "alert_threshold": 0.0,
+     "alert_threshold_basis": "fixed",
+     "alert_condition_text": "too many",
+     "alert_recipients": [
+      "a@b.co"
+     ],
+     "alert_destinations": [
+      {
+       "id": "01234567-89ab-cdef-0123-456789abcdef",
+       "name": "ops"
+      }
+     ],
+     "merge": {
+      "dashboard": "",
+      "genie_space": "",
+      "app": ""
+     },
+     "app_access": "sp",
+     "app_look": {
+      "style": "a",
+      "layout": "sidebar",
+      "palette": "default",
+      "theme": "light"
+     },
+     "app_options": {
+      "modify": false,
+      "replace_edits": false,
+      "decisions": false,
+      "alerts": false
+     },
+     "app_backend": "lakebase",
+     "app_placement": "",
+     "app_owners": [],
+     "app_warehouse_id": "",
+     "app_charts": [],
+     "app_pages": {
+      "runs": true,
+      "impact": true
+     },
+     "genie_space_vibes": "",
+     "dashboard_vibes": "",
+     "app_vibes": "",
+     "alert_vibes": ""
+    },
+    "removed_outputs": {
+     "dashboard": "keep"
+    },
+    "retry_outputs": [],
+    "rollback_outputs": {},
+    "sharing": {
+     "principals": [
+      {
+       "type": "user",
+       "name": "a@b.co"
+      }
+     ]
+    }
+   },
+   "spec": {
+    "use_case_id": "N01-U01",
+    "use_case_name": "Basket",
+    "confirm_notebook_overwrite": false,
+    "based_on_version": 1,
+    "use_case": {
+     "goal": "grow basket",
+     "decision_owner": "ops lead",
+     "success_measures": [
+      "basket size"
+     ]
+    },
+    "data": {
+     "tables": {
+      "c.s.orders": "c.s.orders_v2"
+     },
+     "removed_tables": [
+      "c.s.old"
+     ],
+     "filters": [
+      {
+       "table": "c.s.orders",
+       "column": "region",
+       "op": "=",
+       "values": [
+        "EU"
+       ]
+      }
+     ],
+     "run_profile": "preview",
+     "column_roles": {
+      "entity_id": "c.s.orders.order_id"
+     },
+     "window": {
+      "start": "2024-01-01",
+      "end": "2024-02-01"
+     },
+     "notes": "keep it short"
+    },
+    "config": {
+     "widgets": {
+      "top_k": "10"
+     },
+     "assumptions": {},
+     "result_table": "c.s.out",
+     "ai_endpoint": "ep",
+     "warehouse_id": "wh1",
+     "profiles": {
+      "training": {
+       "window_days": 30,
+       "sample_entities": 100,
+       "stratify_by": "region"
+      },
+      "full_load": {
+       "window_days": 365
+      },
+      "preview": {
+       "entity_cap": 50
+      },
+      "retrain": {
+       "every_runs": 4,
+       "drift_threshold": 0.2
+      }
+     }
+    },
+    "schedule": {
+     "enabled": true,
+     "cron": "0 0 6 ? * MON",
+     "timezone": "UTC",
+     "failure_emails": [
+      "a@b.co"
+     ]
+    },
+    "outputs": {
+     "genie_space": true,
+     "dashboard": true,
+     "app": true,
+     "alert": true,
+     "app_name": "my-app",
+     "dashboard_name": "D",
+     "dashboard_filters": [
+      "top_k"
+     ],
+     "genie_space_name": "G",
+     "genie_questions": [
+      "why?"
+     ],
+     "app_purpose": "act",
+     "alert_name": "A",
+     "alert_tiers": "act_now",
+     "alert_operator": ">",
+     "alert_threshold": 0.0,
+     "alert_threshold_basis": "fixed",
+     "alert_condition_text": "too many",
+     "alert_recipients": [
+      "a@b.co"
+     ],
+     "alert_destinations": [
+      {
+       "id": "01234567-89ab-cdef-0123-456789abcdef",
+       "name": "ops"
+      }
+     ],
+     "merge": {
+      "dashboard": "",
+      "genie_space": "",
+      "app": ""
+     },
+     "app_access": "sp",
+     "app_look": {
+      "style": "a",
+      "layout": "sidebar",
+      "palette": "default",
+      "theme": "light"
+     },
+     "app_options": {
+      "modify": false,
+      "replace_edits": false,
+      "decisions": false,
+      "alerts": false
+     },
+     "app_backend": "lakebase",
+     "app_placement": "",
+     "app_owners": [],
+     "app_warehouse_id": "",
+     "app_charts": [],
+     "app_pages": {
+      "runs": true,
+      "impact": true
+     },
+     "genie_space_vibes": "",
+     "dashboard_vibes": "",
+     "app_vibes": "",
+     "alert_vibes": "",
+     "value_formula_vibes": "Count only open cases"
+    },
+    "removed_outputs": {
+     "dashboard": "keep"
+    },
+    "retry_outputs": [],
+    "rollback_outputs": {},
+    "sharing": {
+     "principals": [
+      {
+       "type": "user",
+       "name": "a@b.co"
+      }
+     ]
+    }
+   },
+   "problems": [
+    "Inspire has not built the money at stake formula on this MVP, so it cannot rebuild it with your vibes; pick one this MVP built"
+   ]
+  },
+  {
+   "name": "built and not listed to rebuild",
+   "asset_status": {
+    "notebook": {
+     "state": "ready",
+     "impact": {
+      "kind": "money",
+      "unit": "USD"
+     }
+    },
+    "value_formula": {
+     "state": "ready"
+    }
+   },
+   "previous": {
+    "use_case_id": "N01-U01",
+    "use_case_name": "Basket",
+    "confirm_notebook_overwrite": false,
+    "based_on_version": 1,
+    "use_case": {
+     "goal": "grow basket",
+     "decision_owner": "ops lead",
+     "success_measures": [
+      "basket size"
+     ]
+    },
+    "data": {
+     "tables": {
+      "c.s.orders": "c.s.orders_v2"
+     },
+     "removed_tables": [
+      "c.s.old"
+     ],
+     "filters": [
+      {
+       "table": "c.s.orders",
+       "column": "region",
+       "op": "=",
+       "values": [
+        "EU"
+       ]
+      }
+     ],
+     "run_profile": "preview",
+     "column_roles": {
+      "entity_id": "c.s.orders.order_id"
+     },
+     "window": {
+      "start": "2024-01-01",
+      "end": "2024-02-01"
+     },
+     "notes": "keep it short"
+    },
+    "config": {
+     "widgets": {
+      "top_k": "10"
+     },
+     "assumptions": {},
+     "result_table": "c.s.out",
+     "ai_endpoint": "ep",
+     "warehouse_id": "wh1",
+     "profiles": {
+      "training": {
+       "window_days": 30,
+       "sample_entities": 100,
+       "stratify_by": "region"
+      },
+      "full_load": {
+       "window_days": 365
+      },
+      "preview": {
+       "entity_cap": 50
+      },
+      "retrain": {
+       "every_runs": 4,
+       "drift_threshold": 0.2
+      }
+     }
+    },
+    "schedule": {
+     "enabled": true,
+     "cron": "0 0 6 ? * MON",
+     "timezone": "UTC",
+     "failure_emails": [
+      "a@b.co"
+     ]
+    },
+    "outputs": {
+     "genie_space": true,
+     "dashboard": true,
+     "app": true,
+     "alert": true,
+     "app_name": "my-app",
+     "dashboard_name": "D",
+     "dashboard_filters": [
+      "top_k"
+     ],
+     "genie_space_name": "G",
+     "genie_questions": [
+      "why?"
+     ],
+     "app_purpose": "act",
+     "alert_name": "A",
+     "alert_tiers": "act_now",
+     "alert_operator": ">",
+     "alert_threshold": 0.0,
+     "alert_threshold_basis": "fixed",
+     "alert_condition_text": "too many",
+     "alert_recipients": [
+      "a@b.co"
+     ],
+     "alert_destinations": [
+      {
+       "id": "01234567-89ab-cdef-0123-456789abcdef",
+       "name": "ops"
+      }
+     ],
+     "merge": {
+      "dashboard": "",
+      "genie_space": "",
+      "app": ""
+     },
+     "app_access": "sp",
+     "app_look": {
+      "style": "a",
+      "layout": "sidebar",
+      "palette": "default",
+      "theme": "light"
+     },
+     "app_options": {
+      "modify": false,
+      "replace_edits": false,
+      "decisions": false,
+      "alerts": false
+     },
+     "app_backend": "lakebase",
+     "app_placement": "",
+     "app_owners": [],
+     "app_warehouse_id": "",
+     "app_charts": [],
+     "app_pages": {
+      "runs": true,
+      "impact": true
+     },
+     "genie_space_vibes": "",
+     "dashboard_vibes": "",
+     "app_vibes": "",
+     "alert_vibes": ""
+    },
+    "removed_outputs": {
+     "dashboard": "keep"
+    },
+    "retry_outputs": [],
+    "rollback_outputs": {},
+    "sharing": {
+     "principals": [
+      {
+       "type": "user",
+       "name": "a@b.co"
+      }
+     ]
+    }
+   },
+   "spec": {
+    "use_case_id": "N01-U01",
+    "use_case_name": "Basket",
+    "confirm_notebook_overwrite": false,
+    "based_on_version": 1,
+    "use_case": {
+     "goal": "grow basket",
+     "decision_owner": "ops lead",
+     "success_measures": [
+      "basket size"
+     ]
+    },
+    "data": {
+     "tables": {
+      "c.s.orders": "c.s.orders_v2"
+     },
+     "removed_tables": [
+      "c.s.old"
+     ],
+     "filters": [
+      {
+       "table": "c.s.orders",
+       "column": "region",
+       "op": "=",
+       "values": [
+        "EU"
+       ]
+      }
+     ],
+     "run_profile": "preview",
+     "column_roles": {
+      "entity_id": "c.s.orders.order_id"
+     },
+     "window": {
+      "start": "2024-01-01",
+      "end": "2024-02-01"
+     },
+     "notes": "keep it short"
+    },
+    "config": {
+     "widgets": {
+      "top_k": "10"
+     },
+     "assumptions": {},
+     "result_table": "c.s.out",
+     "ai_endpoint": "ep",
+     "warehouse_id": "wh1",
+     "profiles": {
+      "training": {
+       "window_days": 30,
+       "sample_entities": 100,
+       "stratify_by": "region"
+      },
+      "full_load": {
+       "window_days": 365
+      },
+      "preview": {
+       "entity_cap": 50
+      },
+      "retrain": {
+       "every_runs": 4,
+       "drift_threshold": 0.2
+      }
+     }
+    },
+    "schedule": {
+     "enabled": true,
+     "cron": "0 0 6 ? * MON",
+     "timezone": "UTC",
+     "failure_emails": [
+      "a@b.co"
+     ]
+    },
+    "outputs": {
+     "genie_space": true,
+     "dashboard": true,
+     "app": true,
+     "alert": true,
+     "app_name": "my-app",
+     "dashboard_name": "D",
+     "dashboard_filters": [
+      "top_k"
+     ],
+     "genie_space_name": "G",
+     "genie_questions": [
+      "why?"
+     ],
+     "app_purpose": "act",
+     "alert_name": "A",
+     "alert_tiers": "act_now",
+     "alert_operator": ">",
+     "alert_threshold": 0.0,
+     "alert_threshold_basis": "fixed",
+     "alert_condition_text": "too many",
+     "alert_recipients": [
+      "a@b.co"
+     ],
+     "alert_destinations": [
+      {
+       "id": "01234567-89ab-cdef-0123-456789abcdef",
+       "name": "ops"
+      }
+     ],
+     "merge": {
+      "dashboard": "",
+      "genie_space": "",
+      "app": ""
+     },
+     "app_access": "sp",
+     "app_look": {
+      "style": "a",
+      "layout": "sidebar",
+      "palette": "default",
+      "theme": "light"
+     },
+     "app_options": {
+      "modify": false,
+      "replace_edits": false,
+      "decisions": false,
+      "alerts": false
+     },
+     "app_backend": "lakebase",
+     "app_placement": "",
+     "app_owners": [],
+     "app_warehouse_id": "",
+     "app_charts": [],
+     "app_pages": {
+      "runs": true,
+      "impact": true
+     },
+     "genie_space_vibes": "",
+     "dashboard_vibes": "",
+     "app_vibes": "",
+     "alert_vibes": "",
+     "value_formula_vibes": "Count only open cases"
+    },
+    "removed_outputs": {
+     "dashboard": "keep"
+    },
+    "retry_outputs": [],
+    "rollback_outputs": {},
+    "sharing": {
+     "principals": [
+      {
+       "type": "user",
+       "name": "a@b.co"
+      }
+     ]
+    }
+   },
+   "problems": [
+    "the vibes for the money at stake formula changed, so list value_formula in retry_outputs to rebuild it with them"
+   ]
+  },
+  {
+   "name": "not built",
+   "asset_status": {
+    "notebook": {
+     "state": "ready",
+     "impact": {
+      "kind": "hours",
+      "unit": "hours"
+     }
+    }
+   },
+   "previous": {
+    "use_case_id": "N01-U01",
+    "use_case_name": "Basket",
+    "confirm_notebook_overwrite": false,
+    "based_on_version": 1,
+    "use_case": {
+     "goal": "grow basket",
+     "decision_owner": "ops lead",
+     "success_measures": [
+      "basket size"
+     ]
+    },
+    "data": {
+     "tables": {
+      "c.s.orders": "c.s.orders_v2"
+     },
+     "removed_tables": [
+      "c.s.old"
+     ],
+     "filters": [
+      {
+       "table": "c.s.orders",
+       "column": "region",
+       "op": "=",
+       "values": [
+        "EU"
+       ]
+      }
+     ],
+     "run_profile": "preview",
+     "column_roles": {
+      "entity_id": "c.s.orders.order_id"
+     },
+     "window": {
+      "start": "2024-01-01",
+      "end": "2024-02-01"
+     },
+     "notes": "keep it short"
+    },
+    "config": {
+     "widgets": {
+      "top_k": "10"
+     },
+     "assumptions": {},
+     "result_table": "c.s.out",
+     "ai_endpoint": "ep",
+     "warehouse_id": "wh1",
+     "profiles": {
+      "training": {
+       "window_days": 30,
+       "sample_entities": 100,
+       "stratify_by": "region"
+      },
+      "full_load": {
+       "window_days": 365
+      },
+      "preview": {
+       "entity_cap": 50
+      },
+      "retrain": {
+       "every_runs": 4,
+       "drift_threshold": 0.2
+      }
+     }
+    },
+    "schedule": {
+     "enabled": true,
+     "cron": "0 0 6 ? * MON",
+     "timezone": "UTC",
+     "failure_emails": [
+      "a@b.co"
+     ]
+    },
+    "outputs": {
+     "genie_space": true,
+     "dashboard": true,
+     "app": true,
+     "alert": true,
+     "app_name": "my-app",
+     "dashboard_name": "D",
+     "dashboard_filters": [
+      "top_k"
+     ],
+     "genie_space_name": "G",
+     "genie_questions": [
+      "why?"
+     ],
+     "app_purpose": "act",
+     "alert_name": "A",
+     "alert_tiers": "act_now",
+     "alert_operator": ">",
+     "alert_threshold": 0.0,
+     "alert_threshold_basis": "fixed",
+     "alert_condition_text": "too many",
+     "alert_recipients": [
+      "a@b.co"
+     ],
+     "alert_destinations": [
+      {
+       "id": "01234567-89ab-cdef-0123-456789abcdef",
+       "name": "ops"
+      }
+     ],
+     "merge": {
+      "dashboard": "",
+      "genie_space": "",
+      "app": ""
+     },
+     "app_access": "sp",
+     "app_look": {
+      "style": "a",
+      "layout": "sidebar",
+      "palette": "default",
+      "theme": "light"
+     },
+     "app_options": {
+      "modify": false,
+      "replace_edits": false,
+      "decisions": false,
+      "alerts": false
+     },
+     "app_backend": "lakebase",
+     "app_placement": "",
+     "app_owners": [],
+     "app_warehouse_id": "",
+     "app_charts": [],
+     "app_pages": {
+      "runs": true,
+      "impact": true
+     },
+     "genie_space_vibes": "",
+     "dashboard_vibes": "",
+     "app_vibes": "",
+     "alert_vibes": ""
+    },
+    "removed_outputs": {
+     "dashboard": "keep"
+    },
+    "retry_outputs": [],
+    "rollback_outputs": {},
+    "sharing": {
+     "principals": [
+      {
+       "type": "user",
+       "name": "a@b.co"
+      }
+     ]
+    }
+   },
+   "spec": {
+    "use_case_id": "N01-U01",
+    "use_case_name": "Basket",
+    "confirm_notebook_overwrite": false,
+    "based_on_version": 1,
+    "use_case": {
+     "goal": "grow basket",
+     "decision_owner": "ops lead",
+     "success_measures": [
+      "basket size"
+     ]
+    },
+    "data": {
+     "tables": {
+      "c.s.orders": "c.s.orders_v2"
+     },
+     "removed_tables": [
+      "c.s.old"
+     ],
+     "filters": [
+      {
+       "table": "c.s.orders",
+       "column": "region",
+       "op": "=",
+       "values": [
+        "EU"
+       ]
+      }
+     ],
+     "run_profile": "preview",
+     "column_roles": {
+      "entity_id": "c.s.orders.order_id"
+     },
+     "window": {
+      "start": "2024-01-01",
+      "end": "2024-02-01"
+     },
+     "notes": "keep it short"
+    },
+    "config": {
+     "widgets": {
+      "top_k": "10"
+     },
+     "assumptions": {},
+     "result_table": "c.s.out",
+     "ai_endpoint": "ep",
+     "warehouse_id": "wh1",
+     "profiles": {
+      "training": {
+       "window_days": 30,
+       "sample_entities": 100,
+       "stratify_by": "region"
+      },
+      "full_load": {
+       "window_days": 365
+      },
+      "preview": {
+       "entity_cap": 50
+      },
+      "retrain": {
+       "every_runs": 4,
+       "drift_threshold": 0.2
+      }
+     }
+    },
+    "schedule": {
+     "enabled": true,
+     "cron": "0 0 6 ? * MON",
+     "timezone": "UTC",
+     "failure_emails": [
+      "a@b.co"
+     ]
+    },
+    "outputs": {
+     "genie_space": true,
+     "dashboard": true,
+     "app": true,
+     "alert": true,
+     "app_name": "my-app",
+     "dashboard_name": "D",
+     "dashboard_filters": [
+      "top_k"
+     ],
+     "genie_space_name": "G",
+     "genie_questions": [
+      "why?"
+     ],
+     "app_purpose": "act",
+     "alert_name": "A",
+     "alert_tiers": "act_now",
+     "alert_operator": ">",
+     "alert_threshold": 0.0,
+     "alert_threshold_basis": "fixed",
+     "alert_condition_text": "too many",
+     "alert_recipients": [
+      "a@b.co"
+     ],
+     "alert_destinations": [
+      {
+       "id": "01234567-89ab-cdef-0123-456789abcdef",
+       "name": "ops"
+      }
+     ],
+     "merge": {
+      "dashboard": "",
+      "genie_space": "",
+      "app": ""
+     },
+     "app_access": "sp",
+     "app_look": {
+      "style": "a",
+      "layout": "sidebar",
+      "palette": "default",
+      "theme": "light"
+     },
+     "app_options": {
+      "modify": false,
+      "replace_edits": false,
+      "decisions": false,
+      "alerts": false
+     },
+     "app_backend": "lakebase",
+     "app_placement": "",
+     "app_owners": [],
+     "app_warehouse_id": "",
+     "app_charts": [],
+     "app_pages": {
+      "runs": true,
+      "impact": true
+     },
+     "genie_space_vibes": "",
+     "dashboard_vibes": "",
+     "app_vibes": "",
+     "alert_vibes": "",
+     "value_formula_vibes": "Count only open cases"
+    },
+    "removed_outputs": {
+     "dashboard": "keep"
+    },
+    "retry_outputs": [],
+    "rollback_outputs": {},
+    "sharing": {
+     "principals": [
+      {
+       "type": "user",
+       "name": "a@b.co"
+      }
+     ]
+    }
+   },
+   "problems": [
+    "Inspire has not built the hours at stake formula on this MVP, so it cannot rebuild it with your vibes; pick one this MVP built"
+   ]
+  },
+  {
+   "name": "built and not listed to rebuild",
+   "asset_status": {
+    "notebook": {
+     "state": "ready",
+     "impact": {
+      "kind": "hours",
+      "unit": "hours"
+     }
+    },
+    "value_formula": {
+     "state": "ready"
+    }
+   },
+   "previous": {
+    "use_case_id": "N01-U01",
+    "use_case_name": "Basket",
+    "confirm_notebook_overwrite": false,
+    "based_on_version": 1,
+    "use_case": {
+     "goal": "grow basket",
+     "decision_owner": "ops lead",
+     "success_measures": [
+      "basket size"
+     ]
+    },
+    "data": {
+     "tables": {
+      "c.s.orders": "c.s.orders_v2"
+     },
+     "removed_tables": [
+      "c.s.old"
+     ],
+     "filters": [
+      {
+       "table": "c.s.orders",
+       "column": "region",
+       "op": "=",
+       "values": [
+        "EU"
+       ]
+      }
+     ],
+     "run_profile": "preview",
+     "column_roles": {
+      "entity_id": "c.s.orders.order_id"
+     },
+     "window": {
+      "start": "2024-01-01",
+      "end": "2024-02-01"
+     },
+     "notes": "keep it short"
+    },
+    "config": {
+     "widgets": {
+      "top_k": "10"
+     },
+     "assumptions": {},
+     "result_table": "c.s.out",
+     "ai_endpoint": "ep",
+     "warehouse_id": "wh1",
+     "profiles": {
+      "training": {
+       "window_days": 30,
+       "sample_entities": 100,
+       "stratify_by": "region"
+      },
+      "full_load": {
+       "window_days": 365
+      },
+      "preview": {
+       "entity_cap": 50
+      },
+      "retrain": {
+       "every_runs": 4,
+       "drift_threshold": 0.2
+      }
+     }
+    },
+    "schedule": {
+     "enabled": true,
+     "cron": "0 0 6 ? * MON",
+     "timezone": "UTC",
+     "failure_emails": [
+      "a@b.co"
+     ]
+    },
+    "outputs": {
+     "genie_space": true,
+     "dashboard": true,
+     "app": true,
+     "alert": true,
+     "app_name": "my-app",
+     "dashboard_name": "D",
+     "dashboard_filters": [
+      "top_k"
+     ],
+     "genie_space_name": "G",
+     "genie_questions": [
+      "why?"
+     ],
+     "app_purpose": "act",
+     "alert_name": "A",
+     "alert_tiers": "act_now",
+     "alert_operator": ">",
+     "alert_threshold": 0.0,
+     "alert_threshold_basis": "fixed",
+     "alert_condition_text": "too many",
+     "alert_recipients": [
+      "a@b.co"
+     ],
+     "alert_destinations": [
+      {
+       "id": "01234567-89ab-cdef-0123-456789abcdef",
+       "name": "ops"
+      }
+     ],
+     "merge": {
+      "dashboard": "",
+      "genie_space": "",
+      "app": ""
+     },
+     "app_access": "sp",
+     "app_look": {
+      "style": "a",
+      "layout": "sidebar",
+      "palette": "default",
+      "theme": "light"
+     },
+     "app_options": {
+      "modify": false,
+      "replace_edits": false,
+      "decisions": false,
+      "alerts": false
+     },
+     "app_backend": "lakebase",
+     "app_placement": "",
+     "app_owners": [],
+     "app_warehouse_id": "",
+     "app_charts": [],
+     "app_pages": {
+      "runs": true,
+      "impact": true
+     },
+     "genie_space_vibes": "",
+     "dashboard_vibes": "",
+     "app_vibes": "",
+     "alert_vibes": ""
+    },
+    "removed_outputs": {
+     "dashboard": "keep"
+    },
+    "retry_outputs": [],
+    "rollback_outputs": {},
+    "sharing": {
+     "principals": [
+      {
+       "type": "user",
+       "name": "a@b.co"
+      }
+     ]
+    }
+   },
+   "spec": {
+    "use_case_id": "N01-U01",
+    "use_case_name": "Basket",
+    "confirm_notebook_overwrite": false,
+    "based_on_version": 1,
+    "use_case": {
+     "goal": "grow basket",
+     "decision_owner": "ops lead",
+     "success_measures": [
+      "basket size"
+     ]
+    },
+    "data": {
+     "tables": {
+      "c.s.orders": "c.s.orders_v2"
+     },
+     "removed_tables": [
+      "c.s.old"
+     ],
+     "filters": [
+      {
+       "table": "c.s.orders",
+       "column": "region",
+       "op": "=",
+       "values": [
+        "EU"
+       ]
+      }
+     ],
+     "run_profile": "preview",
+     "column_roles": {
+      "entity_id": "c.s.orders.order_id"
+     },
+     "window": {
+      "start": "2024-01-01",
+      "end": "2024-02-01"
+     },
+     "notes": "keep it short"
+    },
+    "config": {
+     "widgets": {
+      "top_k": "10"
+     },
+     "assumptions": {},
+     "result_table": "c.s.out",
+     "ai_endpoint": "ep",
+     "warehouse_id": "wh1",
+     "profiles": {
+      "training": {
+       "window_days": 30,
+       "sample_entities": 100,
+       "stratify_by": "region"
+      },
+      "full_load": {
+       "window_days": 365
+      },
+      "preview": {
+       "entity_cap": 50
+      },
+      "retrain": {
+       "every_runs": 4,
+       "drift_threshold": 0.2
+      }
+     }
+    },
+    "schedule": {
+     "enabled": true,
+     "cron": "0 0 6 ? * MON",
+     "timezone": "UTC",
+     "failure_emails": [
+      "a@b.co"
+     ]
+    },
+    "outputs": {
+     "genie_space": true,
+     "dashboard": true,
+     "app": true,
+     "alert": true,
+     "app_name": "my-app",
+     "dashboard_name": "D",
+     "dashboard_filters": [
+      "top_k"
+     ],
+     "genie_space_name": "G",
+     "genie_questions": [
+      "why?"
+     ],
+     "app_purpose": "act",
+     "alert_name": "A",
+     "alert_tiers": "act_now",
+     "alert_operator": ">",
+     "alert_threshold": 0.0,
+     "alert_threshold_basis": "fixed",
+     "alert_condition_text": "too many",
+     "alert_recipients": [
+      "a@b.co"
+     ],
+     "alert_destinations": [
+      {
+       "id": "01234567-89ab-cdef-0123-456789abcdef",
+       "name": "ops"
+      }
+     ],
+     "merge": {
+      "dashboard": "",
+      "genie_space": "",
+      "app": ""
+     },
+     "app_access": "sp",
+     "app_look": {
+      "style": "a",
+      "layout": "sidebar",
+      "palette": "default",
+      "theme": "light"
+     },
+     "app_options": {
+      "modify": false,
+      "replace_edits": false,
+      "decisions": false,
+      "alerts": false
+     },
+     "app_backend": "lakebase",
+     "app_placement": "",
+     "app_owners": [],
+     "app_warehouse_id": "",
+     "app_charts": [],
+     "app_pages": {
+      "runs": true,
+      "impact": true
+     },
+     "genie_space_vibes": "",
+     "dashboard_vibes": "",
+     "app_vibes": "",
+     "alert_vibes": "",
+     "value_formula_vibes": "Count only open cases"
+    },
+    "removed_outputs": {
+     "dashboard": "keep"
+    },
+    "retry_outputs": [],
+    "rollback_outputs": {},
+    "sharing": {
+     "principals": [
+      {
+       "type": "user",
+       "name": "a@b.co"
+      }
+     ]
+    }
+   },
+   "problems": [
+    "the vibes for the hours at stake formula changed, so list value_formula in retry_outputs to rebuild it with them"
+   ]
+  }
+ ],
+ "plans": [
+  {
+   "name": "retrying only the AI reasoning previews and refills nothing",
+   "previous": {
+    "use_case_id": "N01-U01",
+    "use_case_name": "Basket",
+    "confirm_notebook_overwrite": false,
+    "based_on_version": 1,
+    "use_case": {
+     "goal": "grow basket",
+     "decision_owner": "ops lead",
+     "success_measures": [
+      "basket size"
+     ]
+    },
+    "data": {
+     "tables": {
+      "c.s.orders": "c.s.orders_v2"
+     },
+     "removed_tables": [
+      "c.s.old"
+     ],
+     "filters": [
+      {
+       "table": "c.s.orders",
+       "column": "region",
+       "op": "=",
+       "values": [
+        "EU"
+       ]
+      }
+     ],
+     "run_profile": "preview",
+     "column_roles": {
+      "entity_id": "c.s.orders.order_id"
+     },
+     "window": {
+      "start": "2024-01-01",
+      "end": "2024-02-01"
+     },
+     "notes": "keep it short"
+    },
+    "config": {
+     "widgets": {
+      "top_k": "10"
+     },
+     "assumptions": {},
+     "result_table": "c.s.out",
+     "ai_endpoint": "ep",
+     "warehouse_id": "wh1",
+     "profiles": {
+      "training": {
+       "window_days": 30,
+       "sample_entities": 100,
+       "stratify_by": "region"
+      },
+      "full_load": {
+       "window_days": 365
+      },
+      "preview": {
+       "entity_cap": 50
+      },
+      "retrain": {
+       "every_runs": 4,
+       "drift_threshold": 0.2
+      }
+     }
+    },
+    "schedule": {
+     "enabled": true,
+     "cron": "0 0 6 ? * MON",
+     "timezone": "UTC",
+     "failure_emails": [
+      "a@b.co"
+     ]
+    },
+    "outputs": {
+     "genie_space": true,
+     "dashboard": true,
+     "app": true,
+     "alert": true,
+     "app_name": "my-app",
+     "dashboard_name": "D",
+     "dashboard_filters": [
+      "top_k"
+     ],
+     "genie_space_name": "G",
+     "genie_questions": [
+      "why?"
+     ],
+     "app_purpose": "act",
+     "alert_name": "A",
+     "alert_tiers": "act_now",
+     "alert_operator": ">",
+     "alert_threshold": 0.0,
+     "alert_threshold_basis": "fixed",
+     "alert_condition_text": "too many",
+     "alert_recipients": [
+      "a@b.co"
+     ],
+     "alert_destinations": [
+      {
+       "id": "01234567-89ab-cdef-0123-456789abcdef",
+       "name": "ops"
+      }
+     ],
+     "merge": {
+      "dashboard": "",
+      "genie_space": "",
+      "app": ""
+     },
+     "app_access": "sp",
+     "app_look": {
+      "style": "a",
+      "layout": "sidebar",
+      "palette": "default",
+      "theme": "light"
+     },
+     "app_options": {
+      "modify": false,
+      "replace_edits": false,
+      "decisions": false,
+      "alerts": false
+     },
+     "app_backend": "lakebase",
+     "app_placement": "",
+     "app_owners": [],
+     "app_warehouse_id": "",
+     "app_charts": [],
+     "app_pages": {
+      "runs": true,
+      "impact": true
+     },
+     "genie_space_vibes": "",
+     "dashboard_vibes": "",
+     "app_vibes": "",
+     "alert_vibes": ""
+    },
+    "removed_outputs": {
+     "dashboard": "keep"
+    },
+    "retry_outputs": [],
+    "rollback_outputs": {},
+    "sharing": {
+     "principals": [
+      {
+       "type": "user",
+       "name": "a@b.co"
+      }
+     ]
+    }
+   },
+   "current": {
+    "use_case_id": "N01-U01",
+    "use_case_name": "Basket",
+    "confirm_notebook_overwrite": false,
+    "based_on_version": 1,
+    "use_case": {
+     "goal": "grow basket",
+     "decision_owner": "ops lead",
+     "success_measures": [
+      "basket size"
+     ]
+    },
+    "data": {
+     "tables": {
+      "c.s.orders": "c.s.orders_v2"
+     },
+     "removed_tables": [
+      "c.s.old"
+     ],
+     "filters": [
+      {
+       "table": "c.s.orders",
+       "column": "region",
+       "op": "=",
+       "values": [
+        "EU"
+       ]
+      }
+     ],
+     "run_profile": "preview",
+     "column_roles": {
+      "entity_id": "c.s.orders.order_id"
+     },
+     "window": {
+      "start": "2024-01-01",
+      "end": "2024-02-01"
+     },
+     "notes": "keep it short"
+    },
+    "config": {
+     "widgets": {
+      "top_k": "10"
+     },
+     "assumptions": {},
+     "result_table": "c.s.out",
+     "ai_endpoint": "ep",
+     "warehouse_id": "wh1",
+     "profiles": {
+      "training": {
+       "window_days": 30,
+       "sample_entities": 100,
+       "stratify_by": "region"
+      },
+      "full_load": {
+       "window_days": 365
+      },
+      "preview": {
+       "entity_cap": 50
+      },
+      "retrain": {
+       "every_runs": 4,
+       "drift_threshold": 0.2
+      }
+     }
+    },
+    "schedule": {
+     "enabled": true,
+     "cron": "0 0 6 ? * MON",
+     "timezone": "UTC",
+     "failure_emails": [
+      "a@b.co"
+     ]
+    },
+    "outputs": {
+     "genie_space": true,
+     "dashboard": true,
+     "app": true,
+     "alert": true,
+     "app_name": "my-app",
+     "dashboard_name": "D",
+     "dashboard_filters": [
+      "top_k"
+     ],
+     "genie_space_name": "G",
+     "genie_questions": [
+      "why?"
+     ],
+     "app_purpose": "act",
+     "alert_name": "A",
+     "alert_tiers": "act_now",
+     "alert_operator": ">",
+     "alert_threshold": 0.0,
+     "alert_threshold_basis": "fixed",
+     "alert_condition_text": "too many",
+     "alert_recipients": [
+      "a@b.co"
+     ],
+     "alert_destinations": [
+      {
+       "id": "01234567-89ab-cdef-0123-456789abcdef",
+       "name": "ops"
+      }
+     ],
+     "merge": {
+      "dashboard": "",
+      "genie_space": "",
+      "app": ""
+     },
+     "app_access": "sp",
+     "app_look": {
+      "style": "a",
+      "layout": "sidebar",
+      "palette": "default",
+      "theme": "light"
+     },
+     "app_options": {
+      "modify": false,
+      "replace_edits": false,
+      "decisions": false,
+      "alerts": false
+     },
+     "app_backend": "lakebase",
+     "app_placement": "",
+     "app_owners": [],
+     "app_warehouse_id": "",
+     "app_charts": [],
+     "app_pages": {
+      "runs": true,
+      "impact": true
+     },
+     "genie_space_vibes": "",
+     "dashboard_vibes": "",
+     "app_vibes": "",
+     "alert_vibes": ""
+    },
+    "removed_outputs": {
+     "dashboard": "keep"
+    },
+    "retry_outputs": [
+     "ai_reasoning"
+    ],
+    "rollback_outputs": {},
+    "sharing": {
+     "principals": [
+      {
+       "type": "user",
+       "name": "a@b.co"
+      }
+     ]
+    }
+   },
+   "assets": {
+    "dashboard": "d1",
+    "genie_space": "g1",
+    "app": "churn-desk",
+    "alert": "a1"
+   },
+   "has_built_notebook": true,
+   "summary": {
+    "classes": [
+     "retry"
+    ],
+    "refill": false,
+    "build": [],
+    "refresh": [],
+    "rollback": [],
+    "delete": [],
+    "keep_unmanaged": [],
+    "schedule": false
+   }
+  },
+  {
+   "name": "retrying the value formula refills the notebook",
+   "previous": {
+    "use_case_id": "N01-U01",
+    "use_case_name": "Basket",
+    "confirm_notebook_overwrite": false,
+    "based_on_version": 1,
+    "use_case": {
+     "goal": "grow basket",
+     "decision_owner": "ops lead",
+     "success_measures": [
+      "basket size"
+     ]
+    },
+    "data": {
+     "tables": {
+      "c.s.orders": "c.s.orders_v2"
+     },
+     "removed_tables": [
+      "c.s.old"
+     ],
+     "filters": [
+      {
+       "table": "c.s.orders",
+       "column": "region",
+       "op": "=",
+       "values": [
+        "EU"
+       ]
+      }
+     ],
+     "run_profile": "preview",
+     "column_roles": {
+      "entity_id": "c.s.orders.order_id"
+     },
+     "window": {
+      "start": "2024-01-01",
+      "end": "2024-02-01"
+     },
+     "notes": "keep it short"
+    },
+    "config": {
+     "widgets": {
+      "top_k": "10"
+     },
+     "assumptions": {},
+     "result_table": "c.s.out",
+     "ai_endpoint": "ep",
+     "warehouse_id": "wh1",
+     "profiles": {
+      "training": {
+       "window_days": 30,
+       "sample_entities": 100,
+       "stratify_by": "region"
+      },
+      "full_load": {
+       "window_days": 365
+      },
+      "preview": {
+       "entity_cap": 50
+      },
+      "retrain": {
+       "every_runs": 4,
+       "drift_threshold": 0.2
+      }
+     }
+    },
+    "schedule": {
+     "enabled": true,
+     "cron": "0 0 6 ? * MON",
+     "timezone": "UTC",
+     "failure_emails": [
+      "a@b.co"
+     ]
+    },
+    "outputs": {
+     "genie_space": true,
+     "dashboard": true,
+     "app": true,
+     "alert": true,
+     "app_name": "my-app",
+     "dashboard_name": "D",
+     "dashboard_filters": [
+      "top_k"
+     ],
+     "genie_space_name": "G",
+     "genie_questions": [
+      "why?"
+     ],
+     "app_purpose": "act",
+     "alert_name": "A",
+     "alert_tiers": "act_now",
+     "alert_operator": ">",
+     "alert_threshold": 0.0,
+     "alert_threshold_basis": "fixed",
+     "alert_condition_text": "too many",
+     "alert_recipients": [
+      "a@b.co"
+     ],
+     "alert_destinations": [
+      {
+       "id": "01234567-89ab-cdef-0123-456789abcdef",
+       "name": "ops"
+      }
+     ],
+     "merge": {
+      "dashboard": "",
+      "genie_space": "",
+      "app": ""
+     },
+     "app_access": "sp",
+     "app_look": {
+      "style": "a",
+      "layout": "sidebar",
+      "palette": "default",
+      "theme": "light"
+     },
+     "app_options": {
+      "modify": false,
+      "replace_edits": false,
+      "decisions": false,
+      "alerts": false
+     },
+     "app_backend": "lakebase",
+     "app_placement": "",
+     "app_owners": [],
+     "app_warehouse_id": "",
+     "app_charts": [],
+     "app_pages": {
+      "runs": true,
+      "impact": true
+     },
+     "genie_space_vibes": "",
+     "dashboard_vibes": "",
+     "app_vibes": "",
+     "alert_vibes": ""
+    },
+    "removed_outputs": {
+     "dashboard": "keep"
+    },
+    "retry_outputs": [],
+    "rollback_outputs": {},
+    "sharing": {
+     "principals": [
+      {
+       "type": "user",
+       "name": "a@b.co"
+      }
+     ]
+    }
+   },
+   "current": {
+    "use_case_id": "N01-U01",
+    "use_case_name": "Basket",
+    "confirm_notebook_overwrite": false,
+    "based_on_version": 1,
+    "use_case": {
+     "goal": "grow basket",
+     "decision_owner": "ops lead",
+     "success_measures": [
+      "basket size"
+     ]
+    },
+    "data": {
+     "tables": {
+      "c.s.orders": "c.s.orders_v2"
+     },
+     "removed_tables": [
+      "c.s.old"
+     ],
+     "filters": [
+      {
+       "table": "c.s.orders",
+       "column": "region",
+       "op": "=",
+       "values": [
+        "EU"
+       ]
+      }
+     ],
+     "run_profile": "preview",
+     "column_roles": {
+      "entity_id": "c.s.orders.order_id"
+     },
+     "window": {
+      "start": "2024-01-01",
+      "end": "2024-02-01"
+     },
+     "notes": "keep it short"
+    },
+    "config": {
+     "widgets": {
+      "top_k": "10"
+     },
+     "assumptions": {},
+     "result_table": "c.s.out",
+     "ai_endpoint": "ep",
+     "warehouse_id": "wh1",
+     "profiles": {
+      "training": {
+       "window_days": 30,
+       "sample_entities": 100,
+       "stratify_by": "region"
+      },
+      "full_load": {
+       "window_days": 365
+      },
+      "preview": {
+       "entity_cap": 50
+      },
+      "retrain": {
+       "every_runs": 4,
+       "drift_threshold": 0.2
+      }
+     }
+    },
+    "schedule": {
+     "enabled": true,
+     "cron": "0 0 6 ? * MON",
+     "timezone": "UTC",
+     "failure_emails": [
+      "a@b.co"
+     ]
+    },
+    "outputs": {
+     "genie_space": true,
+     "dashboard": true,
+     "app": true,
+     "alert": true,
+     "app_name": "my-app",
+     "dashboard_name": "D",
+     "dashboard_filters": [
+      "top_k"
+     ],
+     "genie_space_name": "G",
+     "genie_questions": [
+      "why?"
+     ],
+     "app_purpose": "act",
+     "alert_name": "A",
+     "alert_tiers": "act_now",
+     "alert_operator": ">",
+     "alert_threshold": 0.0,
+     "alert_threshold_basis": "fixed",
+     "alert_condition_text": "too many",
+     "alert_recipients": [
+      "a@b.co"
+     ],
+     "alert_destinations": [
+      {
+       "id": "01234567-89ab-cdef-0123-456789abcdef",
+       "name": "ops"
+      }
+     ],
+     "merge": {
+      "dashboard": "",
+      "genie_space": "",
+      "app": ""
+     },
+     "app_access": "sp",
+     "app_look": {
+      "style": "a",
+      "layout": "sidebar",
+      "palette": "default",
+      "theme": "light"
+     },
+     "app_options": {
+      "modify": false,
+      "replace_edits": false,
+      "decisions": false,
+      "alerts": false
+     },
+     "app_backend": "lakebase",
+     "app_placement": "",
+     "app_owners": [],
+     "app_warehouse_id": "",
+     "app_charts": [],
+     "app_pages": {
+      "runs": true,
+      "impact": true
+     },
+     "genie_space_vibes": "",
+     "dashboard_vibes": "",
+     "app_vibes": "",
+     "alert_vibes": ""
+    },
+    "removed_outputs": {
+     "dashboard": "keep"
+    },
+    "retry_outputs": [
+     "value_formula"
+    ],
+    "rollback_outputs": {},
+    "sharing": {
+     "principals": [
+      {
+       "type": "user",
+       "name": "a@b.co"
+      }
+     ]
+    }
+   },
+   "assets": {
+    "dashboard": "d1",
+    "genie_space": "g1",
+    "app": "churn-desk",
+    "alert": "a1"
+   },
+   "has_built_notebook": true,
+   "summary": {
+    "classes": [
+     "retry"
+    ],
+    "refill": true,
+    "build": [],
+    "refresh": [
+     "alert",
+     "app",
+     "dashboard",
+     "genie_space"
+    ],
+    "rollback": [],
+    "delete": [],
+    "keep_unmanaged": [],
+    "schedule": true
+   }
+  },
+  {
+   "name": "retrying the notebook refills it",
+   "previous": {
+    "use_case_id": "N01-U01",
+    "use_case_name": "Basket",
+    "confirm_notebook_overwrite": false,
+    "based_on_version": 1,
+    "use_case": {
+     "goal": "grow basket",
+     "decision_owner": "ops lead",
+     "success_measures": [
+      "basket size"
+     ]
+    },
+    "data": {
+     "tables": {
+      "c.s.orders": "c.s.orders_v2"
+     },
+     "removed_tables": [
+      "c.s.old"
+     ],
+     "filters": [
+      {
+       "table": "c.s.orders",
+       "column": "region",
+       "op": "=",
+       "values": [
+        "EU"
+       ]
+      }
+     ],
+     "run_profile": "preview",
+     "column_roles": {
+      "entity_id": "c.s.orders.order_id"
+     },
+     "window": {
+      "start": "2024-01-01",
+      "end": "2024-02-01"
+     },
+     "notes": "keep it short"
+    },
+    "config": {
+     "widgets": {
+      "top_k": "10"
+     },
+     "assumptions": {},
+     "result_table": "c.s.out",
+     "ai_endpoint": "ep",
+     "warehouse_id": "wh1",
+     "profiles": {
+      "training": {
+       "window_days": 30,
+       "sample_entities": 100,
+       "stratify_by": "region"
+      },
+      "full_load": {
+       "window_days": 365
+      },
+      "preview": {
+       "entity_cap": 50
+      },
+      "retrain": {
+       "every_runs": 4,
+       "drift_threshold": 0.2
+      }
+     }
+    },
+    "schedule": {
+     "enabled": true,
+     "cron": "0 0 6 ? * MON",
+     "timezone": "UTC",
+     "failure_emails": [
+      "a@b.co"
+     ]
+    },
+    "outputs": {
+     "genie_space": true,
+     "dashboard": true,
+     "app": true,
+     "alert": true,
+     "app_name": "my-app",
+     "dashboard_name": "D",
+     "dashboard_filters": [
+      "top_k"
+     ],
+     "genie_space_name": "G",
+     "genie_questions": [
+      "why?"
+     ],
+     "app_purpose": "act",
+     "alert_name": "A",
+     "alert_tiers": "act_now",
+     "alert_operator": ">",
+     "alert_threshold": 0.0,
+     "alert_threshold_basis": "fixed",
+     "alert_condition_text": "too many",
+     "alert_recipients": [
+      "a@b.co"
+     ],
+     "alert_destinations": [
+      {
+       "id": "01234567-89ab-cdef-0123-456789abcdef",
+       "name": "ops"
+      }
+     ],
+     "merge": {
+      "dashboard": "",
+      "genie_space": "",
+      "app": ""
+     },
+     "app_access": "sp",
+     "app_look": {
+      "style": "a",
+      "layout": "sidebar",
+      "palette": "default",
+      "theme": "light"
+     },
+     "app_options": {
+      "modify": false,
+      "replace_edits": false,
+      "decisions": false,
+      "alerts": false
+     },
+     "app_backend": "lakebase",
+     "app_placement": "",
+     "app_owners": [],
+     "app_warehouse_id": "",
+     "app_charts": [],
+     "app_pages": {
+      "runs": true,
+      "impact": true
+     },
+     "genie_space_vibes": "",
+     "dashboard_vibes": "",
+     "app_vibes": "",
+     "alert_vibes": ""
+    },
+    "removed_outputs": {
+     "dashboard": "keep"
+    },
+    "retry_outputs": [],
+    "rollback_outputs": {},
+    "sharing": {
+     "principals": [
+      {
+       "type": "user",
+       "name": "a@b.co"
+      }
+     ]
+    }
+   },
+   "current": {
+    "use_case_id": "N01-U01",
+    "use_case_name": "Basket",
+    "confirm_notebook_overwrite": false,
+    "based_on_version": 1,
+    "use_case": {
+     "goal": "grow basket",
+     "decision_owner": "ops lead",
+     "success_measures": [
+      "basket size"
+     ]
+    },
+    "data": {
+     "tables": {
+      "c.s.orders": "c.s.orders_v2"
+     },
+     "removed_tables": [
+      "c.s.old"
+     ],
+     "filters": [
+      {
+       "table": "c.s.orders",
+       "column": "region",
+       "op": "=",
+       "values": [
+        "EU"
+       ]
+      }
+     ],
+     "run_profile": "preview",
+     "column_roles": {
+      "entity_id": "c.s.orders.order_id"
+     },
+     "window": {
+      "start": "2024-01-01",
+      "end": "2024-02-01"
+     },
+     "notes": "keep it short"
+    },
+    "config": {
+     "widgets": {
+      "top_k": "10"
+     },
+     "assumptions": {},
+     "result_table": "c.s.out",
+     "ai_endpoint": "ep",
+     "warehouse_id": "wh1",
+     "profiles": {
+      "training": {
+       "window_days": 30,
+       "sample_entities": 100,
+       "stratify_by": "region"
+      },
+      "full_load": {
+       "window_days": 365
+      },
+      "preview": {
+       "entity_cap": 50
+      },
+      "retrain": {
+       "every_runs": 4,
+       "drift_threshold": 0.2
+      }
+     }
+    },
+    "schedule": {
+     "enabled": true,
+     "cron": "0 0 6 ? * MON",
+     "timezone": "UTC",
+     "failure_emails": [
+      "a@b.co"
+     ]
+    },
+    "outputs": {
+     "genie_space": true,
+     "dashboard": true,
+     "app": true,
+     "alert": true,
+     "app_name": "my-app",
+     "dashboard_name": "D",
+     "dashboard_filters": [
+      "top_k"
+     ],
+     "genie_space_name": "G",
+     "genie_questions": [
+      "why?"
+     ],
+     "app_purpose": "act",
+     "alert_name": "A",
+     "alert_tiers": "act_now",
+     "alert_operator": ">",
+     "alert_threshold": 0.0,
+     "alert_threshold_basis": "fixed",
+     "alert_condition_text": "too many",
+     "alert_recipients": [
+      "a@b.co"
+     ],
+     "alert_destinations": [
+      {
+       "id": "01234567-89ab-cdef-0123-456789abcdef",
+       "name": "ops"
+      }
+     ],
+     "merge": {
+      "dashboard": "",
+      "genie_space": "",
+      "app": ""
+     },
+     "app_access": "sp",
+     "app_look": {
+      "style": "a",
+      "layout": "sidebar",
+      "palette": "default",
+      "theme": "light"
+     },
+     "app_options": {
+      "modify": false,
+      "replace_edits": false,
+      "decisions": false,
+      "alerts": false
+     },
+     "app_backend": "lakebase",
+     "app_placement": "",
+     "app_owners": [],
+     "app_warehouse_id": "",
+     "app_charts": [],
+     "app_pages": {
+      "runs": true,
+      "impact": true
+     },
+     "genie_space_vibes": "",
+     "dashboard_vibes": "",
+     "app_vibes": "",
+     "alert_vibes": ""
+    },
+    "removed_outputs": {
+     "dashboard": "keep"
+    },
+    "retry_outputs": [
+     "notebook"
+    ],
+    "rollback_outputs": {},
+    "sharing": {
+     "principals": [
+      {
+       "type": "user",
+       "name": "a@b.co"
+      }
+     ]
+    }
+   },
+   "assets": {
+    "dashboard": "d1",
+    "genie_space": "g1",
+    "app": "churn-desk",
+    "alert": "a1"
+   },
+   "has_built_notebook": true,
+   "summary": {
+    "classes": [
+     "retry"
+    ],
+    "refill": true,
+    "build": [],
+    "refresh": [
+     "alert",
+     "app",
+     "dashboard",
+     "genie_space"
+    ],
+    "rollback": [],
+    "delete": [],
+    "keep_unmanaged": [],
+    "schedule": true
+   }
+  },
+  {
+   "name": "no change on a notebook that can be reused is nothing to do",
+   "previous": {
+    "use_case_id": "N01-U01",
+    "use_case_name": "Basket",
+    "confirm_notebook_overwrite": false,
+    "based_on_version": 1,
+    "use_case": {
+     "goal": "grow basket",
+     "decision_owner": "ops lead",
+     "success_measures": [
+      "basket size"
+     ]
+    },
+    "data": {
+     "tables": {
+      "c.s.orders": "c.s.orders_v2"
+     },
+     "removed_tables": [
+      "c.s.old"
+     ],
+     "filters": [
+      {
+       "table": "c.s.orders",
+       "column": "region",
+       "op": "=",
+       "values": [
+        "EU"
+       ]
+      }
+     ],
+     "run_profile": "preview",
+     "column_roles": {
+      "entity_id": "c.s.orders.order_id"
+     },
+     "window": {
+      "start": "2024-01-01",
+      "end": "2024-02-01"
+     },
+     "notes": "keep it short"
+    },
+    "config": {
+     "widgets": {
+      "top_k": "10"
+     },
+     "assumptions": {},
+     "result_table": "c.s.out",
+     "ai_endpoint": "ep",
+     "warehouse_id": "wh1",
+     "profiles": {
+      "training": {
+       "window_days": 30,
+       "sample_entities": 100,
+       "stratify_by": "region"
+      },
+      "full_load": {
+       "window_days": 365
+      },
+      "preview": {
+       "entity_cap": 50
+      },
+      "retrain": {
+       "every_runs": 4,
+       "drift_threshold": 0.2
+      }
+     }
+    },
+    "schedule": {
+     "enabled": true,
+     "cron": "0 0 6 ? * MON",
+     "timezone": "UTC",
+     "failure_emails": [
+      "a@b.co"
+     ]
+    },
+    "outputs": {
+     "genie_space": true,
+     "dashboard": true,
+     "app": true,
+     "alert": true,
+     "app_name": "my-app",
+     "dashboard_name": "D",
+     "dashboard_filters": [
+      "top_k"
+     ],
+     "genie_space_name": "G",
+     "genie_questions": [
+      "why?"
+     ],
+     "app_purpose": "act",
+     "alert_name": "A",
+     "alert_tiers": "act_now",
+     "alert_operator": ">",
+     "alert_threshold": 0.0,
+     "alert_threshold_basis": "fixed",
+     "alert_condition_text": "too many",
+     "alert_recipients": [
+      "a@b.co"
+     ],
+     "alert_destinations": [
+      {
+       "id": "01234567-89ab-cdef-0123-456789abcdef",
+       "name": "ops"
+      }
+     ],
+     "merge": {
+      "dashboard": "",
+      "genie_space": "",
+      "app": ""
+     },
+     "app_access": "sp",
+     "app_look": {
+      "style": "a",
+      "layout": "sidebar",
+      "palette": "default",
+      "theme": "light"
+     },
+     "app_options": {
+      "modify": false,
+      "replace_edits": false,
+      "decisions": false,
+      "alerts": false
+     },
+     "app_backend": "lakebase",
+     "app_placement": "",
+     "app_owners": [],
+     "app_warehouse_id": "",
+     "app_charts": [],
+     "app_pages": {
+      "runs": true,
+      "impact": true
+     },
+     "genie_space_vibes": "",
+     "dashboard_vibes": "",
+     "app_vibes": "",
+     "alert_vibes": ""
+    },
+    "removed_outputs": {
+     "dashboard": "keep"
+    },
+    "retry_outputs": [],
+    "rollback_outputs": {},
+    "sharing": {
+     "principals": [
+      {
+       "type": "user",
+       "name": "a@b.co"
+      }
+     ]
+    }
+   },
+   "current": {
+    "use_case_id": "N01-U01",
+    "use_case_name": "Basket",
+    "confirm_notebook_overwrite": false,
+    "based_on_version": 1,
+    "use_case": {
+     "goal": "grow basket",
+     "decision_owner": "ops lead",
+     "success_measures": [
+      "basket size"
+     ]
+    },
+    "data": {
+     "tables": {
+      "c.s.orders": "c.s.orders_v2"
+     },
+     "removed_tables": [
+      "c.s.old"
+     ],
+     "filters": [
+      {
+       "table": "c.s.orders",
+       "column": "region",
+       "op": "=",
+       "values": [
+        "EU"
+       ]
+      }
+     ],
+     "run_profile": "preview",
+     "column_roles": {
+      "entity_id": "c.s.orders.order_id"
+     },
+     "window": {
+      "start": "2024-01-01",
+      "end": "2024-02-01"
+     },
+     "notes": "keep it short"
+    },
+    "config": {
+     "widgets": {
+      "top_k": "10"
+     },
+     "assumptions": {},
+     "result_table": "c.s.out",
+     "ai_endpoint": "ep",
+     "warehouse_id": "wh1",
+     "profiles": {
+      "training": {
+       "window_days": 30,
+       "sample_entities": 100,
+       "stratify_by": "region"
+      },
+      "full_load": {
+       "window_days": 365
+      },
+      "preview": {
+       "entity_cap": 50
+      },
+      "retrain": {
+       "every_runs": 4,
+       "drift_threshold": 0.2
+      }
+     }
+    },
+    "schedule": {
+     "enabled": true,
+     "cron": "0 0 6 ? * MON",
+     "timezone": "UTC",
+     "failure_emails": [
+      "a@b.co"
+     ]
+    },
+    "outputs": {
+     "genie_space": true,
+     "dashboard": true,
+     "app": true,
+     "alert": true,
+     "app_name": "my-app",
+     "dashboard_name": "D",
+     "dashboard_filters": [
+      "top_k"
+     ],
+     "genie_space_name": "G",
+     "genie_questions": [
+      "why?"
+     ],
+     "app_purpose": "act",
+     "alert_name": "A",
+     "alert_tiers": "act_now",
+     "alert_operator": ">",
+     "alert_threshold": 0.0,
+     "alert_threshold_basis": "fixed",
+     "alert_condition_text": "too many",
+     "alert_recipients": [
+      "a@b.co"
+     ],
+     "alert_destinations": [
+      {
+       "id": "01234567-89ab-cdef-0123-456789abcdef",
+       "name": "ops"
+      }
+     ],
+     "merge": {
+      "dashboard": "",
+      "genie_space": "",
+      "app": ""
+     },
+     "app_access": "sp",
+     "app_look": {
+      "style": "a",
+      "layout": "sidebar",
+      "palette": "default",
+      "theme": "light"
+     },
+     "app_options": {
+      "modify": false,
+      "replace_edits": false,
+      "decisions": false,
+      "alerts": false
+     },
+     "app_backend": "lakebase",
+     "app_placement": "",
+     "app_owners": [],
+     "app_warehouse_id": "",
+     "app_charts": [],
+     "app_pages": {
+      "runs": true,
+      "impact": true
+     },
+     "genie_space_vibes": "",
+     "dashboard_vibes": "",
+     "app_vibes": "",
+     "alert_vibes": ""
+    },
+    "removed_outputs": {
+     "dashboard": "keep"
+    },
+    "retry_outputs": [],
+    "rollback_outputs": {},
+    "sharing": {
+     "principals": [
+      {
+       "type": "user",
+       "name": "a@b.co"
+      }
+     ]
+    }
+   },
+   "assets": {
+    "dashboard": "d1",
+    "genie_space": "g1",
+    "app": "churn-desk",
+    "alert": "a1"
+   },
+   "has_built_notebook": true,
+   "summary": {
+    "classes": [],
+    "refill": false,
+    "build": [],
+    "refresh": [],
+    "rollback": [],
+    "delete": [],
+    "keep_unmanaged": [],
+    "schedule": false
+   }
+  },
+  {
+   "name": "no change without a notebook that can be reused refills it",
+   "previous": {
+    "use_case_id": "N01-U01",
+    "use_case_name": "Basket",
+    "confirm_notebook_overwrite": false,
+    "based_on_version": 1,
+    "use_case": {
+     "goal": "grow basket",
+     "decision_owner": "ops lead",
+     "success_measures": [
+      "basket size"
+     ]
+    },
+    "data": {
+     "tables": {
+      "c.s.orders": "c.s.orders_v2"
+     },
+     "removed_tables": [
+      "c.s.old"
+     ],
+     "filters": [
+      {
+       "table": "c.s.orders",
+       "column": "region",
+       "op": "=",
+       "values": [
+        "EU"
+       ]
+      }
+     ],
+     "run_profile": "preview",
+     "column_roles": {
+      "entity_id": "c.s.orders.order_id"
+     },
+     "window": {
+      "start": "2024-01-01",
+      "end": "2024-02-01"
+     },
+     "notes": "keep it short"
+    },
+    "config": {
+     "widgets": {
+      "top_k": "10"
+     },
+     "assumptions": {},
+     "result_table": "c.s.out",
+     "ai_endpoint": "ep",
+     "warehouse_id": "wh1",
+     "profiles": {
+      "training": {
+       "window_days": 30,
+       "sample_entities": 100,
+       "stratify_by": "region"
+      },
+      "full_load": {
+       "window_days": 365
+      },
+      "preview": {
+       "entity_cap": 50
+      },
+      "retrain": {
+       "every_runs": 4,
+       "drift_threshold": 0.2
+      }
+     }
+    },
+    "schedule": {
+     "enabled": true,
+     "cron": "0 0 6 ? * MON",
+     "timezone": "UTC",
+     "failure_emails": [
+      "a@b.co"
+     ]
+    },
+    "outputs": {
+     "genie_space": true,
+     "dashboard": true,
+     "app": true,
+     "alert": true,
+     "app_name": "my-app",
+     "dashboard_name": "D",
+     "dashboard_filters": [
+      "top_k"
+     ],
+     "genie_space_name": "G",
+     "genie_questions": [
+      "why?"
+     ],
+     "app_purpose": "act",
+     "alert_name": "A",
+     "alert_tiers": "act_now",
+     "alert_operator": ">",
+     "alert_threshold": 0.0,
+     "alert_threshold_basis": "fixed",
+     "alert_condition_text": "too many",
+     "alert_recipients": [
+      "a@b.co"
+     ],
+     "alert_destinations": [
+      {
+       "id": "01234567-89ab-cdef-0123-456789abcdef",
+       "name": "ops"
+      }
+     ],
+     "merge": {
+      "dashboard": "",
+      "genie_space": "",
+      "app": ""
+     },
+     "app_access": "sp",
+     "app_look": {
+      "style": "a",
+      "layout": "sidebar",
+      "palette": "default",
+      "theme": "light"
+     },
+     "app_options": {
+      "modify": false,
+      "replace_edits": false,
+      "decisions": false,
+      "alerts": false
+     },
+     "app_backend": "lakebase",
+     "app_placement": "",
+     "app_owners": [],
+     "app_warehouse_id": "",
+     "app_charts": [],
+     "app_pages": {
+      "runs": true,
+      "impact": true
+     },
+     "genie_space_vibes": "",
+     "dashboard_vibes": "",
+     "app_vibes": "",
+     "alert_vibes": ""
+    },
+    "removed_outputs": {
+     "dashboard": "keep"
+    },
+    "retry_outputs": [],
+    "rollback_outputs": {},
+    "sharing": {
+     "principals": [
+      {
+       "type": "user",
+       "name": "a@b.co"
+      }
+     ]
+    }
+   },
+   "current": {
+    "use_case_id": "N01-U01",
+    "use_case_name": "Basket",
+    "confirm_notebook_overwrite": false,
+    "based_on_version": 1,
+    "use_case": {
+     "goal": "grow basket",
+     "decision_owner": "ops lead",
+     "success_measures": [
+      "basket size"
+     ]
+    },
+    "data": {
+     "tables": {
+      "c.s.orders": "c.s.orders_v2"
+     },
+     "removed_tables": [
+      "c.s.old"
+     ],
+     "filters": [
+      {
+       "table": "c.s.orders",
+       "column": "region",
+       "op": "=",
+       "values": [
+        "EU"
+       ]
+      }
+     ],
+     "run_profile": "preview",
+     "column_roles": {
+      "entity_id": "c.s.orders.order_id"
+     },
+     "window": {
+      "start": "2024-01-01",
+      "end": "2024-02-01"
+     },
+     "notes": "keep it short"
+    },
+    "config": {
+     "widgets": {
+      "top_k": "10"
+     },
+     "assumptions": {},
+     "result_table": "c.s.out",
+     "ai_endpoint": "ep",
+     "warehouse_id": "wh1",
+     "profiles": {
+      "training": {
+       "window_days": 30,
+       "sample_entities": 100,
+       "stratify_by": "region"
+      },
+      "full_load": {
+       "window_days": 365
+      },
+      "preview": {
+       "entity_cap": 50
+      },
+      "retrain": {
+       "every_runs": 4,
+       "drift_threshold": 0.2
+      }
+     }
+    },
+    "schedule": {
+     "enabled": true,
+     "cron": "0 0 6 ? * MON",
+     "timezone": "UTC",
+     "failure_emails": [
+      "a@b.co"
+     ]
+    },
+    "outputs": {
+     "genie_space": true,
+     "dashboard": true,
+     "app": true,
+     "alert": true,
+     "app_name": "my-app",
+     "dashboard_name": "D",
+     "dashboard_filters": [
+      "top_k"
+     ],
+     "genie_space_name": "G",
+     "genie_questions": [
+      "why?"
+     ],
+     "app_purpose": "act",
+     "alert_name": "A",
+     "alert_tiers": "act_now",
+     "alert_operator": ">",
+     "alert_threshold": 0.0,
+     "alert_threshold_basis": "fixed",
+     "alert_condition_text": "too many",
+     "alert_recipients": [
+      "a@b.co"
+     ],
+     "alert_destinations": [
+      {
+       "id": "01234567-89ab-cdef-0123-456789abcdef",
+       "name": "ops"
+      }
+     ],
+     "merge": {
+      "dashboard": "",
+      "genie_space": "",
+      "app": ""
+     },
+     "app_access": "sp",
+     "app_look": {
+      "style": "a",
+      "layout": "sidebar",
+      "palette": "default",
+      "theme": "light"
+     },
+     "app_options": {
+      "modify": false,
+      "replace_edits": false,
+      "decisions": false,
+      "alerts": false
+     },
+     "app_backend": "lakebase",
+     "app_placement": "",
+     "app_owners": [],
+     "app_warehouse_id": "",
+     "app_charts": [],
+     "app_pages": {
+      "runs": true,
+      "impact": true
+     },
+     "genie_space_vibes": "",
+     "dashboard_vibes": "",
+     "app_vibes": "",
+     "alert_vibes": ""
+    },
+    "removed_outputs": {
+     "dashboard": "keep"
+    },
+    "retry_outputs": [],
+    "rollback_outputs": {},
+    "sharing": {
+     "principals": [
+      {
+       "type": "user",
+       "name": "a@b.co"
+      }
+     ]
+    }
+   },
+   "assets": {
+    "dashboard": "d1",
+    "genie_space": "g1",
+    "app": "churn-desk",
+    "alert": "a1"
+   },
+   "has_built_notebook": false,
+   "summary": {
+    "classes": [],
+    "refill": true,
+    "build": [],
+    "refresh": [
+     "alert",
+     "app",
+     "dashboard",
+     "genie_space"
+    ],
+    "rollback": [],
+    "delete": [],
+    "keep_unmanaged": [],
+    "schedule": true
+   }
+  },
+  {
+   "name": "a new schedule without a notebook that can be reused refills it",
+   "previous": {
+    "use_case_id": "N01-U01",
+    "use_case_name": "Basket",
+    "confirm_notebook_overwrite": false,
+    "based_on_version": 1,
+    "use_case": {
+     "goal": "grow basket",
+     "decision_owner": "ops lead",
+     "success_measures": [
+      "basket size"
+     ]
+    },
+    "data": {
+     "tables": {
+      "c.s.orders": "c.s.orders_v2"
+     },
+     "removed_tables": [
+      "c.s.old"
+     ],
+     "filters": [
+      {
+       "table": "c.s.orders",
+       "column": "region",
+       "op": "=",
+       "values": [
+        "EU"
+       ]
+      }
+     ],
+     "run_profile": "preview",
+     "column_roles": {
+      "entity_id": "c.s.orders.order_id"
+     },
+     "window": {
+      "start": "2024-01-01",
+      "end": "2024-02-01"
+     },
+     "notes": "keep it short"
+    },
+    "config": {
+     "widgets": {
+      "top_k": "10"
+     },
+     "assumptions": {},
+     "result_table": "c.s.out",
+     "ai_endpoint": "ep",
+     "warehouse_id": "wh1",
+     "profiles": {
+      "training": {
+       "window_days": 30,
+       "sample_entities": 100,
+       "stratify_by": "region"
+      },
+      "full_load": {
+       "window_days": 365
+      },
+      "preview": {
+       "entity_cap": 50
+      },
+      "retrain": {
+       "every_runs": 4,
+       "drift_threshold": 0.2
+      }
+     }
+    },
+    "schedule": {
+     "enabled": true,
+     "cron": "0 0 6 ? * MON",
+     "timezone": "UTC",
+     "failure_emails": [
+      "a@b.co"
+     ]
+    },
+    "outputs": {
+     "genie_space": true,
+     "dashboard": true,
+     "app": true,
+     "alert": true,
+     "app_name": "my-app",
+     "dashboard_name": "D",
+     "dashboard_filters": [
+      "top_k"
+     ],
+     "genie_space_name": "G",
+     "genie_questions": [
+      "why?"
+     ],
+     "app_purpose": "act",
+     "alert_name": "A",
+     "alert_tiers": "act_now",
+     "alert_operator": ">",
+     "alert_threshold": 0.0,
+     "alert_threshold_basis": "fixed",
+     "alert_condition_text": "too many",
+     "alert_recipients": [
+      "a@b.co"
+     ],
+     "alert_destinations": [
+      {
+       "id": "01234567-89ab-cdef-0123-456789abcdef",
+       "name": "ops"
+      }
+     ],
+     "merge": {
+      "dashboard": "",
+      "genie_space": "",
+      "app": ""
+     },
+     "app_access": "sp",
+     "app_look": {
+      "style": "a",
+      "layout": "sidebar",
+      "palette": "default",
+      "theme": "light"
+     },
+     "app_options": {
+      "modify": false,
+      "replace_edits": false,
+      "decisions": false,
+      "alerts": false
+     },
+     "app_backend": "lakebase",
+     "app_placement": "",
+     "app_owners": [],
+     "app_warehouse_id": "",
+     "app_charts": [],
+     "app_pages": {
+      "runs": true,
+      "impact": true
+     },
+     "genie_space_vibes": "",
+     "dashboard_vibes": "",
+     "app_vibes": "",
+     "alert_vibes": ""
+    },
+    "removed_outputs": {
+     "dashboard": "keep"
+    },
+    "retry_outputs": [],
+    "rollback_outputs": {},
+    "sharing": {
+     "principals": [
+      {
+       "type": "user",
+       "name": "a@b.co"
+      }
+     ]
+    }
+   },
+   "current": {
+    "use_case_id": "N01-U01",
+    "use_case_name": "Basket",
+    "confirm_notebook_overwrite": false,
+    "based_on_version": 1,
+    "use_case": {
+     "goal": "grow basket",
+     "decision_owner": "ops lead",
+     "success_measures": [
+      "basket size"
+     ]
+    },
+    "data": {
+     "tables": {
+      "c.s.orders": "c.s.orders_v2"
+     },
+     "removed_tables": [
+      "c.s.old"
+     ],
+     "filters": [
+      {
+       "table": "c.s.orders",
+       "column": "region",
+       "op": "=",
+       "values": [
+        "EU"
+       ]
+      }
+     ],
+     "run_profile": "preview",
+     "column_roles": {
+      "entity_id": "c.s.orders.order_id"
+     },
+     "window": {
+      "start": "2024-01-01",
+      "end": "2024-02-01"
+     },
+     "notes": "keep it short"
+    },
+    "config": {
+     "widgets": {
+      "top_k": "10"
+     },
+     "assumptions": {},
+     "result_table": "c.s.out",
+     "ai_endpoint": "ep",
+     "warehouse_id": "wh1",
+     "profiles": {
+      "training": {
+       "window_days": 30,
+       "sample_entities": 100,
+       "stratify_by": "region"
+      },
+      "full_load": {
+       "window_days": 365
+      },
+      "preview": {
+       "entity_cap": 50
+      },
+      "retrain": {
+       "every_runs": 4,
+       "drift_threshold": 0.2
+      }
+     }
+    },
+    "schedule": {
+     "enabled": true,
+     "cron": "0 0 6 * * ?",
+     "timezone": "UTC",
+     "failure_emails": [
+      "a@b.co"
+     ]
+    },
+    "outputs": {
+     "genie_space": true,
+     "dashboard": true,
+     "app": true,
+     "alert": true,
+     "app_name": "my-app",
+     "dashboard_name": "D",
+     "dashboard_filters": [
+      "top_k"
+     ],
+     "genie_space_name": "G",
+     "genie_questions": [
+      "why?"
+     ],
+     "app_purpose": "act",
+     "alert_name": "A",
+     "alert_tiers": "act_now",
+     "alert_operator": ">",
+     "alert_threshold": 0.0,
+     "alert_threshold_basis": "fixed",
+     "alert_condition_text": "too many",
+     "alert_recipients": [
+      "a@b.co"
+     ],
+     "alert_destinations": [
+      {
+       "id": "01234567-89ab-cdef-0123-456789abcdef",
+       "name": "ops"
+      }
+     ],
+     "merge": {
+      "dashboard": "",
+      "genie_space": "",
+      "app": ""
+     },
+     "app_access": "sp",
+     "app_look": {
+      "style": "a",
+      "layout": "sidebar",
+      "palette": "default",
+      "theme": "light"
+     },
+     "app_options": {
+      "modify": false,
+      "replace_edits": false,
+      "decisions": false,
+      "alerts": false
+     },
+     "app_backend": "lakebase",
+     "app_placement": "",
+     "app_owners": [],
+     "app_warehouse_id": "",
+     "app_charts": [],
+     "app_pages": {
+      "runs": true,
+      "impact": true
+     },
+     "genie_space_vibes": "",
+     "dashboard_vibes": "",
+     "app_vibes": "",
+     "alert_vibes": ""
+    },
+    "removed_outputs": {
+     "dashboard": "keep"
+    },
+    "retry_outputs": [],
+    "rollback_outputs": {},
+    "sharing": {
+     "principals": [
+      {
+       "type": "user",
+       "name": "a@b.co"
+      }
+     ]
+    }
+   },
+   "assets": {
+    "dashboard": "d1",
+    "genie_space": "g1",
+    "app": "churn-desk",
+    "alert": "a1"
+   },
+   "has_built_notebook": false,
+   "summary": {
+    "classes": [
+     "schedule"
+    ],
+    "refill": true,
+    "build": [],
+    "refresh": [
+     "alert",
+     "app",
+     "dashboard",
+     "genie_space"
+    ],
+    "rollback": [],
+    "delete": [],
+    "keep_unmanaged": [],
+    "schedule": true
+   }
+  }
+ ]
+}

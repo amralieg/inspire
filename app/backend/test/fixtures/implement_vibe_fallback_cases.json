@@ -1,0 +1,119 @@
+{
+ "source": "final-agent 7219d5d",
+ "cases": [
+  {
+   "name": "an ask that names a part this MVP does not build goes to the notebook",
+   "version": 3,
+   "record": {
+    "state": "routed",
+    "text": "Put the riskiest customers first. Add a map of the regions.",
+    "previous": "keep",
+    "asks": [
+     "Put the riskiest customers first.",
+     "Add a map of the regions."
+    ],
+    "routes": {
+     "dashboard": "Put the riskiest customers first",
+     "notebook": "Add a map of the regions"
+    },
+    "fallback": [
+     {
+      "ask": "Add a map of the regions.",
+      "reason": "it names maps, which Inspire did not build for this use case",
+      "asset": "notebook"
+     }
+    ],
+    "spec_version": 3
+   },
+   "steps": [
+    {
+     "step_name": "Vibe",
+     "status": "started",
+     "message": "reading your vibe to send each ask to the part it changes",
+     "result_json": {
+      "spec_version": 3,
+      "asks": [
+       "Put the riskiest customers first.",
+       "Add a map of the regions."
+      ],
+      "use_case_id": "N01-U01",
+      "phase": "Vibe"
+     }
+    },
+    {
+     "step_name": "Vibe",
+     "status": "ended_warning",
+     "message": "sent to Dashboard: Put the riskiest customers first\nsent to Notebook: Add a map of the regions; this ask changes the analysis, so Inspire rebuilds the notebook and every part after it\n'Add a map of the regions.' went to the notebook, because it names maps, which Inspire did not build for this use case, so Genie tries it there with up to 3 rounds",
+     "result_json": {
+      "spec_version": 3,
+      "lines": [
+       "sent to Dashboard: Put the riskiest customers first",
+       "sent to Notebook: Add a map of the regions; this ask changes the analysis, so Inspire rebuilds the notebook and every part after it",
+       "'Add a map of the regions.' went to the notebook, because it names maps, which Inspire did not build for this use case, so Genie tries it there with up to 3 rounds"
+      ],
+      "use_case_id": "N01-U01",
+      "phase": "Vibe"
+     }
+    }
+   ],
+   "fallback_lines": [
+    "'Add a map of the regions.' went to the notebook, because it names maps, which Inspire did not build for this use case, so Genie tries it there with up to 3 rounds"
+   ]
+  },
+  {
+   "name": "an ask that names an output not ticked for this use case goes to the notebook",
+   "version": 3,
+   "record": {
+    "state": "routed",
+    "text": "Only check on weekdays.",
+    "previous": "keep",
+    "asks": [
+     "Only check on weekdays."
+    ],
+    "routes": {
+     "notebook": "Only check on weekdays"
+    },
+    "fallback": [
+     {
+      "ask": "Only check on weekdays.",
+      "reason": "it names the Alert, which is not ticked for this use case",
+      "asset": "notebook"
+     }
+    ],
+    "spec_version": 3
+   },
+   "steps": [
+    {
+     "step_name": "Vibe",
+     "status": "started",
+     "message": "reading your vibe to send each ask to the part it changes",
+     "result_json": {
+      "spec_version": 3,
+      "asks": [
+       "Only check on weekdays."
+      ],
+      "use_case_id": "N01-U01",
+      "phase": "Vibe"
+     }
+    },
+    {
+     "step_name": "Vibe",
+     "status": "ended_warning",
+     "message": "sent to Notebook: Only check on weekdays; this ask changes the analysis, so Inspire rebuilds the notebook and every part after it\n'Only check on weekdays.' went to the notebook, because it names the Alert, which is not ticked for this use case, so Genie tries it there with up to 3 rounds",
+     "result_json": {
+      "spec_version": 3,
+      "lines": [
+       "sent to Notebook: Only check on weekdays; this ask changes the analysis, so Inspire rebuilds the notebook and every part after it",
+       "'Only check on weekdays.' went to the notebook, because it names the Alert, which is not ticked for this use case, so Genie tries it there with up to 3 rounds"
+      ],
+      "use_case_id": "N01-U01",
+      "phase": "Vibe"
+     }
+    }
+   ],
+   "fallback_lines": [
+    "'Only check on weekdays.' went to the notebook, because it names the Alert, which is not ticked for this use case, so Genie tries it there with up to 3 rounds"
+   ]
+  }
+ ]
+}

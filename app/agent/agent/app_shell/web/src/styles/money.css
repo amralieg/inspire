@@ -1,0 +1,27 @@
+.fx-n,[data-fx]{cursor:help}
+.fx-n{border-bottom:1px dotted currentColor;outline-offset:2px}
+.fx-tip{display:none;position:fixed;z-index:60;max-width:340px;padding:9px 11px;border-radius:9px;background:var(--ink,#1b1f24);color:var(--card,#fff);font-size:12.5px;font-weight:450;line-height:1.45;text-align:left;white-space:normal;box-shadow:0 8px 24px rgba(0,0,0,.18);pointer-events:none;font-variant-numeric:tabular-nums}
+.fx-tip.is-on{display:block}
+.kpi-v[data-fx]{width:fit-content;border-bottom:1px dotted currentColor}
+.money{margin-top:14px;padding:16px 18px;border-radius:12px;background:var(--card);border:1px solid var(--line)}
+.money h2{margin:0 0 4px;font-size:15.5px}
+.money .rule{margin:0 0 10px;font-size:14px;line-height:1.5}
+.money .rule b{font-variant-numeric:tabular-nums}
+.money table{width:100%;border-collapse:collapse;font-size:13.5px}
+.money th,.money td{padding:7px 6px;text-align:left;border-top:1px solid var(--line);vertical-align:top}
+.money th{font-weight:600;color:var(--muted);font-size:12.5px;border-top:0}
+.money td.num{font-variant-numeric:tabular-nums;white-space:nowrap}
+.money .edit{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end}
+.money .edit input{width:9em}
+.money .edit input.note{width:18em}
+.money .why,.money .tiers,.money .hist{margin:10px 0 0;font-size:13px;color:var(--muted);line-height:1.5}
+.money .hist ul{margin:4px 0 0;padding-left:18px}
+.money .err{color:var(--danger,#b42318);font-size:13px;margin:6px 0 0}
+.nothing{margin:0;padding:12px 16px;display:grid;gap:8px}
+.nothing p{margin:0;font-size:14px;line-height:1.5}
+.settings .set-head{display:flex;align-items:center;gap:8px}
+.settings .set-head h2{flex:1;margin:0}
+.settings h3{margin:14px 0 4px;font-size:14px}
+.settings td small{color:var(--muted);font-size:12px;line-height:1.4}
+.settings .set-many{display:flex;flex-wrap:wrap;gap:6px 12px;font-size:13px}
+.settings .preview{margin:6px 0 0;font-size:13px;flex-basis:100%}

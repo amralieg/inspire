@@ -1,0 +1,233 @@
+import hashlib
+import json
+import os
+
+import pytest
+
+from v148_run_log_test import ORDERS, TABLE, _merge_values, _spark, _unquote
+
+FIXTURE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "fixtures", "implement_grouping_cases.json")
+
+
+def _cases():
+    with open(FIXTURE, encoding="utf-8") as handle:
+        text = handle.read()
+    return text, json.loads(text)
+
+
+def test_the_shared_grouping_fixture_is_stable_and_names_what_the_agent_uses(agent_ns):
+    text, data = _cases()
+    assert json.dumps(data, indent=2, ensure_ascii=False) + "\n" == text
+    names, constants, labels = data["settings"]["group_by"], data["constants"], data["labels"]
+    assert (names["name"], names["label"], names["all"], names["custom"]) == (
+        agent_ns["INSPIRE_GROUP_BY"], agent_ns["INSPIRE_GROUP_LABEL"], agent_ns["INSPIRE_SETTING_ALL"], agent_ns["INSPIRE_GROUP_CUSTOM"])
+    assert names["solo"] == [agent_ns["INSPIRE_SETTING_ALL"], agent_ns["INSPIRE_GROUP_CUSTOM"]]
+    custom = data["settings"]["custom"]
+    assert [custom[k] for k in ("group_sql", "group_sql_tables", "group_sql_hash", "group_sql_checked_by", "group_sql_checked_at")] == list(
+        agent_ns["INSPIRE_GROUP_SQL_SETTINGS"])
+    assert (custom["group_name"], custom["max_chars"]) == (agent_ns["INSPIRE_GROUP_SQL_NAME"], agent_ns["INSPIRE_GROUP_SQL_MAX_CHARS"])
+    assert (constants["group_min_records"], constants["group_min_periods"], constants["group_max_groups"], constants["group_min_groups"]) == (
+        agent_ns["INSPIRE_GROUP_MIN_RECORDS"], agent_ns["INSPIRE_GROUP_MIN_PERIODS"], agent_ns["INSPIRE_GROUP_MAX_GROUPS"],
+        agent_ns["INSPIRE_GROUP_MIN_GROUPS"])
+    assert data["techniques"]["grouping"] == list(agent_ns["INSPIRE_GROUP_TECHNIQUES"])
+    assert data["techniques"]["standalone_records"] == list(agent_ns["INSPIRE_STANDALONE_TECHNIQUES"])
+    assert (labels["global"], labels["other"], labels["no_group"], labels["separator"], labels["group_column"], labels["level_column"],
+            labels["custom_level"], labels["all_level"]) == (
+        agent_ns["INSPIRE_GROUP_GLOBAL"], agent_ns["INSPIRE_GROUP_OTHER"], agent_ns["INSPIRE_GROUP_NONE"], agent_ns["INSPIRE_GROUP_SEPARATOR"],
+        agent_ns["INSPIRE_GROUP_COLUMN"], agent_ns["INSPIRE_GROUP_LEVEL_COLUMN"], agent_ns["INSPIRE_GROUP_CUSTOM"], agent_ns["INSPIRE_SETTING_ALL"])
+    assert agent_ns["inspire_group_part"]("country", None) == labels["missing"].format(column="country")
+    assert data["run_record"]["keys"] == list(agent_ns["INSPIRE_GROUP_RECORD_KEYS"])
+    assert data["run_record"]["column"] in [name for name, _kind in agent_ns["INSPIRE_RUN_LOG_COLUMNS"]]
+
+
+def test_the_technique_decides_where_grouping_applies(agent_ns):
+    _text, data = _cases()
+    for case in data["applies"]:
+        assert agent_ns["inspire_grouping_applies"](case["technique"]) is case["applies"], case["technique"]
+    assert any(c["applies"] for c in data["applies"]) and any(not c["applies"] for c in data["applies"])
+
+
+def test_the_grouping_text_parses_coarse_to_fine_and_all_and_custom_stand_alone(agent_ns):
+    _text, data = _cases()
+    for case in data["parse"]:
+        mode, picked = agent_ns["inspire_group_by_mode"](case["text"])
+        assert mode == case["mode"], case["text"]
+        assert agent_ns["inspire_group_by_columns"](case["text"]) == case["columns"], case["text"]
+
+
+def test_the_recommended_columns_are_usable_and_nest_coarse_to_fine(agent_ns):
+    _text, data = _cases()
+    for case in data["recommend"]:
+        assert agent_ns["inspire_group_recommendation"](case["columns"], [tuple(n) for n in case["nests"]]) == case["recommended"], case["name"]
+    assert agent_ns["inspire_group_column_usable"]({"groups": 2, "records": 60})
+    assert not agent_ns["inspire_group_column_usable"]({"groups": 2, "records": 59}), "an average group under 30 records is refused"
+    assert not agent_ns["inspire_group_column_usable"]({"groups": 501, "records": 10 ** 6}), "more than 500 groups is refused"
+
+
+def test_small_groups_move_up_a_level_exactly_as_the_shared_cases_say(agent_ns):
+    _text, data = _cases()
+    for case in data["effective"]:
+        got = agent_ns["inspire_effective_groups"](case["group_by"], case["groups"], case["time_series"])
+        assert got == case["expected"], case["name"]
+
+
+def _frame(case):
+    pd = pytest.importorskip("pandas")
+    columns = _columns(case)
+    rows = []
+    for item in case["groups"]:
+        lo, hi = item.get("periods") or (1, 1)
+        span = list(range(lo, hi + 1))
+        for at in range(item["records"]):
+            rows.append(dict(zip(columns, item["path"]), day=span[at % len(span)], path=json.dumps(item["path"])))
+    return pd.DataFrame(rows)
+
+
+def _columns(case):
+    return [part.strip() for part in case["group_by"].split(",")] if case["group_by"] != "all" else ["region", "country"]
+
+
+def test_the_pandas_run_helper_gives_each_record_the_shared_cases_group_and_records_the_run(fresh_ns):
+    _text, data = _cases()
+    for case in data["effective"]:
+        frame = _frame(case)
+        printed = []
+        out = fresh_ns["inspire_group_records"](frame, group_by=case["group_by"], time_column="day" if case["time_series"] else None,
+                                                out=printed.append)
+        assert len(out) == len(frame), "every record keeps its row"
+        for expected in case["expected"]:
+            picked = out[out["path"] == json.dumps(expected["path"])]
+            got = picked[["inspire_group", "inspire_group_level"]].drop_duplicates().values.tolist()
+            assert got == [[expected["group"], expected["level"]]], (case["name"], expected)
+        record = fresh_ns["INSPIRE_RUN_GROUPING"]
+        assert set(record) <= set(fresh_ns["INSPIRE_GROUP_RECORD_KEYS"]) and record["groups"] == len({x["group"] for x in case["expected"]})
+        assert printed and printed[0].startswith("Grouping: ")
+
+
+def test_the_run_record_of_all_is_one_global_group_and_a_grouping_hash_tells_groupings_apart(fresh_ns):
+    pd = pytest.importorskip("pandas")
+    frame = pd.DataFrame({"region": ["EMEA"] * 40 + ["AMER"] * 40, "sales": range(80)})
+    printed = []
+    out = fresh_ns["inspire_group_records"](frame, group_by="all", out=printed.append)
+    record = fresh_ns["INSPIRE_RUN_GROUPING"]
+    assert set(out["inspire_group"]) == {"Global"} and set(out["inspire_group_level"]) == {"all"}
+    assert (record["mode"], record["group_by"], record["groups"]) == ("all", "all", 1)
+    assert printed == ["Grouping: 1 group, Global, since the Grouping is all"]
+    fresh_ns["inspire_group_records"](frame, group_by="region", out=printed.append)
+    by_region = fresh_ns["INSPIRE_RUN_GROUPING"]
+    assert (by_region["mode"], by_region["group_by"], by_region["groups"]) == ("columns", ["region"], 2)
+    assert by_region["hash"] != record["hash"] and len(by_region["hash"]) == 64
+    fresh_ns["inspire_group_records"](frame, group_by=" REGION ", out=printed.append)
+    assert fresh_ns["INSPIRE_RUN_GROUPING"]["hash"] == by_region["hash"], "the same grouping in other spelling has the same hash"
+    assert fresh_ns["INSPIRE_RUN_GROUPING"]["group_by"] == ["region"], "the record names the records' own column"
+
+
+def test_the_run_helper_reads_the_grouping_widget_when_it_is_not_passed(fresh_ns):
+    pd = pytest.importorskip("pandas")
+    frame = pd.DataFrame({"region": ["EMEA"] * 30 + ["AMER"] * 30})
+    fresh_ns["INSPIRE_SETTINGS_APPLIED"] = {"group_by": "region"}
+    out = fresh_ns["inspire_group_records"](frame, out=lambda *_a: None)
+    assert sorted(set(out["inspire_group"])) == ["AMER", "EMEA"]
+    fresh_ns["INSPIRE_SETTINGS_APPLIED"] = {"group_by": "all"}
+    assert set(fresh_ns["inspire_group_records"](frame, out=lambda *_a: None)["inspire_group"]) == {"Global"}
+
+
+def test_the_run_helper_refuses_a_column_the_records_lack_and_a_mixed_grouping(fresh_ns):
+    pd = pytest.importorskip("pandas")
+    frame = pd.DataFrame({"region": ["EMEA"] * 30})
+    with pytest.raises(ValueError, match="have no column country"):
+        fresh_ns["inspire_group_records"](frame, group_by="region, country", out=lambda *_a: None)
+    with pytest.raises(fresh_ns["InspireRunStop"], match="all and custom each stand alone"):
+        fresh_ns["inspire_group_records"](frame, group_by="region, all", out=lambda *_a: None)
+    with pytest.raises(TypeError):
+        fresh_ns["inspire_group_records"]([1, 2], group_by="all", out=lambda *_a: None)
+    assert not issubclass(fresh_ns["InspireRunStop"], Exception), "a broad except Exception in Genie's code cannot swallow the stop"
+
+
+def test_custom_groups_under_30_records_combine_into_other_groups(agent_ns):
+    _text, data = _cases()
+    for case in data["custom"]:
+        names = agent_ns["inspire_custom_group_names"](case["sizes"])
+        assert names == case["expected"], case["name"]
+        assert len(set(names.values())) == case["groups"]
+        assert sum(1 for size in case["sizes"].values() if size < 30) == case["other_groups"]
+
+
+@pytest.mark.parametrize("sql,why", [
+    ("DELETE FROM main.sales.orders", "start with SELECT or WITH"),
+    ("SELECT 1 AS group_name FROM main.sales.orders; DROP TABLE main.sales.orders", "more than one statement"),
+    ("SELECT id, region AS group_name FROM main.sales.orders WHERE x IN (SELECT 1) UNION SELECT 1, 'a'; ", None),
+    ("SELECT * FROM read_files('/Volumes/a/b/c')", "calls read_files"),
+    ("SELECT id AS group_name FROM range(10)", "table function range"),
+    ("SELECT m.id, t.x AS group_name FROM main.sales.orders m JOIN main.sales.explode_me(m.id) t", "table function main.sales.explode_me"),
+    ("SELECT id, secret('scope', 'key') AS group_name FROM main.sales.orders", "calls secret"),
+    ("SELECT id, ai_classify(region, array('a')) AS group_name FROM main.sales.orders", "calls ai_classify"),
+    ("SELECT id, region AS group_name FROM orders", "name every table as catalog.schema.table"),
+    ("SELECT id, region AS group_name FROM sales.orders", "name every table as catalog.schema.table"),
+    ("SELECT id /* nested /* DROP */ still a comment */, region AS group_name FROM main.sales.orders", None),
+    ("SELECT id, region AS group_name FROM main.sales.orders /* never closed", "never closed"),
+    ("SELECT id, 'it is; fine' AS group_name FROM main.sales.orders", None),
+    ("SELECT id, `drop` AS group_name FROM main.sales.orders", None),
+    ("SELECT id, region AS group_name FROM main.sales.orders WHERE id = :id", "parameter"),
+    ("SELECT id, region AS group_name FROM main.sales.orders WHERE id = ?", "parameter"),
+    ("SELECT id, raw:country::string AS group_name FROM main.sales.orders", None),
+    ("SELECT id, region AS group_name FROM main.sales.orders --", None),
+    ("UPDATE main.sales.orders SET region = 'x'", "start with SELECT or WITH"),
+    ("WITH t AS (SELECT * FROM main.sales.orders) SELECT id, region AS group_name FROM t", None),
+    ("WITH t AS (SELECT * FROM main.sales.orders) MERGE INTO main.sales.orders USING t ON 1=1", "uses MERGE"),
+    ("SELECT id, EXTRACT(YEAR FROM order_date) AS group_name FROM main.sales.orders", None),
+    ("SELECT id, region AS group_name FROM `main`.`sales`.`orders` m LEFT JOIN main.geo.countries c ON m.cc = c.cc", None),
+    ("SELECT id, region AS group_name FROM main.sales.orders, main.geo.countries", None),
+    ("SELECT id, region AS group_name FROM main.sales.orders, countries", "name every table as catalog.schema.table"),
+    ("SELECT 1 AS group_name", "reads no catalog.schema.table table"),
+    ("SELECT id, region AS group_name FROM main.sales.orders WHERE note = 'unclosed", "never closed"),
+    ("", "empty"),
+])
+def test_the_grouping_sql_check_stub_refuses_what_a_grouping_never_needs(agent_ns, sql, why):
+    check = agent_ns["implement_grouping_sql_check"](sql)
+    if why is None:
+        assert check["ok"], (sql, check["reason"])
+        assert check["hash"] == hashlib.sha256(check["sql"].encode("utf-8")).hexdigest()
+        assert "/*" not in check["sql"] and "--" not in check["sql"] and not check["sql"].endswith(";")
+    else:
+        assert not check["ok"] and why in check["reason"], (sql, check)
+
+
+def test_the_grouping_sql_check_records_the_tables_it_saw(agent_ns):
+    check = agent_ns["implement_grouping_sql_check"](
+        "SELECT m.id, c.region AS group_name FROM `Main`.`Sales`.`Orders` m LEFT JOIN main.geo.countries c ON m.cc = c.cc;")
+    assert check["ok"] and check["tables"] == ["main.geo.countries", "main.sales.orders"]
+    assert agent_ns["inspire_group_sql_tables"]('["main.geo.countries", "`main`.`sales`.`orders`"]') == check["tables"]
+    assert agent_ns["inspire_group_sql_tables"]("main.sales.orders, main.geo.countries") == check["tables"]
+    long = "SELECT id, region AS group_name FROM main.sales.orders WHERE " + " OR ".join(["id = 1"] * 4000)
+    assert not agent_ns["implement_grouping_sql_check"](long)["ok"], "more than 20,000 characters is refused"
+
+
+def test_each_run_records_its_grouping_and_a_new_run_starts_without_the_last_one(fresh_ns):
+    pd = pytest.importorskip("pandas")
+    fresh_ns["INSPIRE_RUN"] = {"source_tables": [ORDERS], "segments": []}
+    fresh_ns["inspire_run_log_start"]("here", TABLE)
+    assert "INSPIRE_RUN_GROUPING" not in fresh_ns
+    frame = pd.DataFrame({"region": ["EMEA"] * 40 + ["AMER"] * 40 + ["APAC"] * 5})
+    fresh_ns["inspire_group_records"](frame, group_by="region", out=lambda *_a: None)
+    spark = _spark()
+    fresh_ns["inspire_save_run_log"](spark, TABLE, "N01-U01", "r-9", lambda *_a: None)
+    record = json.loads(_unquote(_merge_values(spark.statements[-1])["run_grouping"]))
+    assert record == fresh_ns["INSPIRE_RUN_GROUPING"]
+    assert (record["mode"], record["group_by"], record["groups"], record["minimum"]) == ("columns", ["region"], 3, 30)
+    assert record["levels"] == [{"level": "region", "groups": 2, "records": 80}, {"level": "all", "groups": 1, "records": 5}]
+    fresh_ns["inspire_run_log_start"]("here", TABLE)
+    assert "INSPIRE_RUN_GROUPING" not in fresh_ns, "a later run in the same session never carries this run's grouping"
+
+
+class _ServerlessSparkContext:
+    def __getattr__(self, name):
+        raise NotImplementedError("sc is not supported on serverless compute, consider using `spark` instead.")
+
+
+def test_the_settings_read_check_never_touches_attributes_of_serverless_proxies_in_the_notebook(fresh_ns):
+    scope = {"__name__": "__main__", "sc": _ServerlessSparkContext(), "group_by": "region"}
+    exec(compile("def run_use_case():\n    return group_by\n", "cell", "exec"), scope)
+    assert "group_by" in fresh_ns["inspire_read_names"](scope)
+    run = {"settings_read": True, "settings": [{"name": "group_by", "kind": "choice", "many": True, "choices": ["region"]}]}
+    assert fresh_ns["inspire_check_settings_read"](run, "build", scope=scope) == []

@@ -1,0 +1,259 @@
+{
+ "ALL /run/:id/{*rest}": [
+  "C02",
+  "O06",
+  "O07",
+  "O08"
+ ],
+ "ALL /showcase/:id/mvp/:mvp/api/*rest": [
+  "G26"
+ ],
+ "DELETE /api/inspire/session": [
+  "C04",
+  "O23",
+  "O24"
+ ],
+ "GET /api/catalogs": [
+  "B08"
+ ],
+ "GET /api/catalogs/:catalog/schemas": [
+  "G05"
+ ],
+ "GET /api/connection-test": [
+  "G03"
+ ],
+ "GET /api/dbc/info": [
+  "G08"
+ ],
+ "GET /api/defaults": [
+  "L02"
+ ],
+ "GET /api/demo-data/templates": [
+  "G09"
+ ],
+ "GET /api/health": [
+  "L03"
+ ],
+ "GET /api/inspire/feedback": [
+  "S07"
+ ],
+ "GET /api/inspire/genie-progress": [
+  "G12"
+ ],
+ "GET /api/inspire/implement/alerts": [
+  "B11"
+ ],
+ "GET /api/inspire/implement/app-look": [
+  "B04"
+ ],
+ "GET /api/inspire/implement/columns": [
+  "G16"
+ ],
+ "GET /api/inspire/implement/context": [
+  "B02"
+ ],
+ "GET /api/inspire/implement/destinations": [
+  "G22"
+ ],
+ "GET /api/inspire/implement/history": [
+  "B01"
+ ],
+ "GET /api/inspire/implement/lakebase": [
+  "G15"
+ ],
+ "GET /api/inspire/implement/live": [
+  "B05"
+ ],
+ "GET /api/inspire/implement/merge-targets": [
+  "B07"
+ ],
+ "GET /api/inspire/implement/money": [
+  "B06"
+ ],
+ "GET /api/inspire/implement/output-check": [
+  "G20"
+ ],
+ "GET /api/inspire/implement/preflight": [
+  "G21"
+ ],
+ "GET /api/inspire/implement/principals": [
+  "G19"
+ ],
+ "GET /api/inspire/implement/serving-endpoints": [
+  "G18"
+ ],
+ "GET /api/inspire/implement/settings": [
+  "V02"
+ ],
+ "GET /api/inspire/implement/status": [
+  "B03"
+ ],
+ "GET /api/inspire/implement/tables": [
+  "V01"
+ ],
+ "GET /api/inspire/implement/values": [
+  "G17"
+ ],
+ "GET /api/inspire/portfolio": [
+  "S08"
+ ],
+ "GET /api/inspire/results": [
+  "S05"
+ ],
+ "GET /api/inspire/session": [
+  "S02"
+ ],
+ "GET /api/inspire/sessions": [
+  "S01"
+ ],
+ "GET /api/inspire/step-results": [
+  "S06"
+ ],
+ "GET /api/inspire/steps": [
+  "S03"
+ ],
+ "GET /api/inspire/usecases": [
+  "S04"
+ ],
+ "GET /api/me": [
+  "L04"
+ ],
+ "GET /api/notebook": [
+  "G04"
+ ],
+ "POST /api/output-folder/check": [
+  "G27",
+  "G27b"
+ ],
+ "GET /api/run/:runId": [
+  "G10"
+ ],
+ "GET /api/run/:runId/cancel": [
+  "R01",
+  "R02"
+ ],
+ "GET /api/run/:runId/output": [
+  "G11"
+ ],
+ "GET /api/run/pages": [
+  "B10"
+ ],
+ "GET /api/showcase": [
+  "G23"
+ ],
+ "GET /api/tables/:catalog/:schema": [
+  "G06"
+ ],
+ "GET /api/warehouses": [
+  "B09"
+ ],
+ "GET /api/workspace/export": [
+  "X01"
+ ],
+ "GET /api/workspace/list": [
+  "X02"
+ ],
+ "GET /api/workspace/status": [
+  "G14"
+ ],
+ "GET /run/:id": [
+  "G01"
+ ],
+ "GET /showcase/:id/mvp/:mvp": [
+  "G24"
+ ],
+ "GET /showcase/:id/mvp/:mvp/*rest": [
+  "G25"
+ ],
+ "GET {*path}": [
+  "L01"
+ ],
+ "POST /api/auth/sp-token": [
+  "C06"
+ ],
+ "POST /api/demo-data/start": [
+  "O17"
+ ],
+ "POST /api/grouping/preview": [
+  "G28"
+ ],
+ "POST /api/grouping/save": [
+  "O26"
+ ],
+ "POST /api/inspire/ack": [
+  "C08"
+ ],
+ "POST /api/inspire/feedback": [
+  "C09"
+ ],
+ "POST /api/inspire/generate-genie": [
+  "O14"
+ ],
+ "POST /api/inspire/generate_genie": [
+  "O14b"
+ ],
+ "POST /api/inspire/implement/alerts/delete": [
+  "O02"
+ ],
+ "POST /api/inspire/implement/alerts/save": [
+  "O01"
+ ],
+ "POST /api/inspire/implement/control": [
+  "O11",
+  "O12"
+ ],
+ "POST /api/inspire/implement/plan": [
+  "C01"
+ ],
+ "POST /api/inspire/implement/publish": [
+  "O09"
+ ],
+ "POST /api/inspire/implement/readiness": [
+  "C11"
+ ],
+ "POST /api/inspire/implement/rerun": [
+  "C05",
+  "O13"
+ ],
+ "POST /api/inspire/implement/settings/run": [
+  "O04"
+ ],
+ "POST /api/inspire/implement/settings/save": [
+  "O03"
+ ],
+ "POST /api/inspire/implement/submit": [
+  "O10",
+  "O12b"
+ ],
+ "POST /api/inspire/implement/swaps": [
+  "C10"
+ ],
+ "POST /api/inspire/implement/table-change": [
+  "O05"
+ ],
+ "POST /api/inspire/sync-genie-flags": [
+  "O22"
+ ],
+ "POST /api/notebook/republish": [
+  "O15"
+ ],
+ "POST /api/publish": [
+  "O19"
+ ],
+ "POST /api/publish/upload": [
+  "O20"
+ ],
+ "POST /api/run": [
+  "O16"
+ ],
+ "POST /api/run/:runId/cancel": [
+  "O18"
+ ],
+ "POST /api/setup/create-database": [
+  "C03",
+  "O21"
+ ],
+ "POST /api/setup/verify": [
+  "O25"
+ ]
+}

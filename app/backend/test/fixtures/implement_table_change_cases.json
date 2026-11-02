@@ -1,0 +1,1751 @@
+{
+  "cases": [
+    {
+      "name": "every column the use case uses is on the new table with the same type, so the next run reads it with no rebuild",
+      "previous": {
+        "tables": {},
+        "removed_tables": [],
+        "filters": [],
+        "run_profile": "preview",
+        "column_roles": {},
+        "window": {
+          "start": "",
+          "end": ""
+        },
+        "notes": ""
+      },
+      "next": {
+        "tables": {
+          "main.s.orders": "main.s.orders_v2"
+        },
+        "removed_tables": [],
+        "filters": [],
+        "run_profile": "preview",
+        "column_roles": {},
+        "window": {
+          "start": "",
+          "end": ""
+        },
+        "notes": ""
+      },
+      "used": {
+        "main.s.orders": [
+          "order_id",
+          "customer_id",
+          "order_date",
+          "amount",
+          "status"
+        ]
+      },
+      "columns": {
+        "main.s.orders": [
+          {
+            "column_name": "order_id",
+            "data_type": "STRING"
+          },
+          {
+            "column_name": "customer_id",
+            "data_type": "STRING"
+          },
+          {
+            "column_name": "order_date",
+            "data_type": "DATE"
+          },
+          {
+            "column_name": "amount",
+            "data_type": "DECIMAL(10,2)"
+          },
+          {
+            "column_name": "status",
+            "data_type": "STRING"
+          }
+        ],
+        "main.s.orders_v2": [
+          {
+            "column_name": "order_id",
+            "data_type": "STRING"
+          },
+          {
+            "column_name": "customer_id",
+            "data_type": "STRING"
+          },
+          {
+            "column_name": "order_date",
+            "data_type": "DATE"
+          },
+          {
+            "column_name": "amount",
+            "data_type": "DECIMAL(10,2)"
+          },
+          {
+            "column_name": "status",
+            "data_type": "STRING"
+          },
+          {
+            "column_name": "channel",
+            "data_type": "STRING"
+          }
+        ]
+      },
+      "expected": {
+        "class": "settings",
+        "missing": []
+      }
+    },
+    {
+      "name": "one column the use case uses is missing on the new table, so Genie rebuilds and the missing column is named",
+      "previous": {
+        "tables": {},
+        "removed_tables": [],
+        "filters": [],
+        "run_profile": "preview",
+        "column_roles": {},
+        "window": {
+          "start": "",
+          "end": ""
+        },
+        "notes": ""
+      },
+      "next": {
+        "tables": {
+          "main.s.orders": "main.s.orders_lite"
+        },
+        "removed_tables": [],
+        "filters": [],
+        "run_profile": "preview",
+        "column_roles": {},
+        "window": {
+          "start": "",
+          "end": ""
+        },
+        "notes": ""
+      },
+      "used": {
+        "main.s.orders": [
+          "order_id",
+          "customer_id",
+          "order_date",
+          "amount",
+          "status"
+        ]
+      },
+      "columns": {
+        "main.s.orders": [
+          {
+            "column_name": "order_id",
+            "data_type": "STRING"
+          },
+          {
+            "column_name": "customer_id",
+            "data_type": "STRING"
+          },
+          {
+            "column_name": "order_date",
+            "data_type": "DATE"
+          },
+          {
+            "column_name": "amount",
+            "data_type": "DECIMAL(10,2)"
+          },
+          {
+            "column_name": "status",
+            "data_type": "STRING"
+          }
+        ],
+        "main.s.orders_lite": [
+          {
+            "column_name": "order_id",
+            "data_type": "STRING"
+          },
+          {
+            "column_name": "customer_id",
+            "data_type": "STRING"
+          },
+          {
+            "column_name": "order_date",
+            "data_type": "DATE"
+          },
+          {
+            "column_name": "status",
+            "data_type": "STRING"
+          }
+        ]
+      },
+      "expected": {
+        "class": "data",
+        "missing": [
+          {
+            "table": "main.s.orders_lite",
+            "columns": [
+              "amount"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "a column the use case uses is on the new table with another type, so it does not count as held",
+      "previous": {
+        "tables": {},
+        "removed_tables": [],
+        "filters": [],
+        "run_profile": "preview",
+        "column_roles": {},
+        "window": {
+          "start": "",
+          "end": ""
+        },
+        "notes": ""
+      },
+      "next": {
+        "tables": {
+          "main.s.orders": "main.s.orders_double"
+        },
+        "removed_tables": [],
+        "filters": [],
+        "run_profile": "preview",
+        "column_roles": {},
+        "window": {
+          "start": "",
+          "end": ""
+        },
+        "notes": ""
+      },
+      "used": {
+        "main.s.orders": [
+          "order_id",
+          "customer_id",
+          "order_date",
+          "amount",
+          "status"
+        ]
+      },
+      "columns": {
+        "main.s.orders": [
+          {
+            "column_name": "order_id",
+            "data_type": "STRING"
+          },
+          {
+            "column_name": "customer_id",
+            "data_type": "STRING"
+          },
+          {
+            "column_name": "order_date",
+            "data_type": "DATE"
+          },
+          {
+            "column_name": "amount",
+            "data_type": "DECIMAL(10,2)"
+          },
+          {
+            "column_name": "status",
+            "data_type": "STRING"
+          }
+        ],
+        "main.s.orders_double": [
+          {
+            "column_name": "order_id",
+            "data_type": "STRING"
+          },
+          {
+            "column_name": "customer_id",
+            "data_type": "STRING"
+          },
+          {
+            "column_name": "order_date",
+            "data_type": "DATE"
+          },
+          {
+            "column_name": "amount",
+            "data_type": "DOUBLE"
+          },
+          {
+            "column_name": "status",
+            "data_type": "STRING"
+          }
+        ]
+      },
+      "expected": {
+        "class": "data",
+        "missing": [
+          {
+            "table": "main.s.orders_double",
+            "columns": [
+              "amount"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "a removed table is a core change, with nothing missing on a new table",
+      "previous": {
+        "tables": {},
+        "removed_tables": [],
+        "filters": [],
+        "run_profile": "preview",
+        "column_roles": {},
+        "window": {
+          "start": "",
+          "end": ""
+        },
+        "notes": ""
+      },
+      "next": {
+        "tables": {},
+        "removed_tables": [
+          "main.s.returns"
+        ],
+        "filters": [],
+        "run_profile": "preview",
+        "column_roles": {},
+        "window": {
+          "start": "",
+          "end": ""
+        },
+        "notes": ""
+      },
+      "used": {
+        "main.s.orders": [
+          "order_id",
+          "customer_id",
+          "order_date",
+          "amount",
+          "status"
+        ],
+        "main.s.returns": [
+          "return_id",
+          "order_id",
+          "returned_on"
+        ]
+      },
+      "columns": {
+        "main.s.orders": [
+          {
+            "column_name": "order_id",
+            "data_type": "STRING"
+          },
+          {
+            "column_name": "customer_id",
+            "data_type": "STRING"
+          },
+          {
+            "column_name": "order_date",
+            "data_type": "DATE"
+          },
+          {
+            "column_name": "amount",
+            "data_type": "DECIMAL(10,2)"
+          },
+          {
+            "column_name": "status",
+            "data_type": "STRING"
+          }
+        ],
+        "main.s.returns": [
+          {
+            "column_name": "return_id",
+            "data_type": "STRING"
+          },
+          {
+            "column_name": "order_id",
+            "data_type": "STRING"
+          },
+          {
+            "column_name": "returned_on",
+            "data_type": "DATE"
+          }
+        ]
+      },
+      "expected": {
+        "class": "data",
+        "missing": []
+      }
+    },
+    {
+      "name": "a table used again after it was removed is a core change",
+      "previous": {
+        "tables": {},
+        "removed_tables": [
+          "main.s.returns"
+        ],
+        "filters": [],
+        "run_profile": "preview",
+        "column_roles": {},
+        "window": {
+          "start": "",
+          "end": ""
+        },
+        "notes": ""
+      },
+      "next": {
+        "tables": {},
+        "removed_tables": [],
+        "filters": [],
+        "run_profile": "preview",
+        "column_roles": {},
+        "window": {
+          "start": "",
+          "end": ""
+        },
+        "notes": ""
+      },
+      "used": {
+        "main.s.returns": [
+          "return_id",
+          "order_id",
+          "returned_on"
+        ]
+      },
+      "columns": {
+        "main.s.returns": [
+          {
+            "column_name": "return_id",
+            "data_type": "STRING"
+          },
+          {
+            "column_name": "order_id",
+            "data_type": "STRING"
+          },
+          {
+            "column_name": "returned_on",
+            "data_type": "DATE"
+          }
+        ]
+      },
+      "expected": {
+        "class": "data",
+        "missing": []
+      }
+    },
+    {
+      "name": "a swap back to the table Inspire picked, which holds every column used, rebuilds nothing",
+      "previous": {
+        "tables": {
+          "main.s.orders": "main.s.orders_v2"
+        },
+        "removed_tables": [],
+        "filters": [],
+        "run_profile": "preview",
+        "column_roles": {},
+        "window": {
+          "start": "",
+          "end": ""
+        },
+        "notes": ""
+      },
+      "next": {
+        "tables": {},
+        "removed_tables": [],
+        "filters": [],
+        "run_profile": "preview",
+        "column_roles": {},
+        "window": {
+          "start": "",
+          "end": ""
+        },
+        "notes": ""
+      },
+      "used": {
+        "main.s.orders": [
+          "order_id",
+          "customer_id",
+          "order_date",
+          "amount",
+          "status"
+        ]
+      },
+      "columns": {
+        "main.s.orders": [
+          {
+            "column_name": "order_id",
+            "data_type": "STRING"
+          },
+          {
+            "column_name": "customer_id",
+            "data_type": "STRING"
+          },
+          {
+            "column_name": "order_date",
+            "data_type": "DATE"
+          },
+          {
+            "column_name": "amount",
+            "data_type": "DECIMAL(10,2)"
+          },
+          {
+            "column_name": "status",
+            "data_type": "STRING"
+          }
+        ],
+        "main.s.orders_v2": [
+          {
+            "column_name": "order_id",
+            "data_type": "STRING"
+          },
+          {
+            "column_name": "customer_id",
+            "data_type": "STRING"
+          },
+          {
+            "column_name": "order_date",
+            "data_type": "DATE"
+          },
+          {
+            "column_name": "amount",
+            "data_type": "DECIMAL(10,2)"
+          },
+          {
+            "column_name": "status",
+            "data_type": "STRING"
+          },
+          {
+            "column_name": "channel",
+            "data_type": "STRING"
+          }
+        ]
+      },
+      "expected": {
+        "class": "settings",
+        "missing": []
+      }
+    },
+    {
+      "name": "two swaps where only one new table holds the columns used is a core change that names only the other table",
+      "previous": {
+        "tables": {},
+        "removed_tables": [],
+        "filters": [],
+        "run_profile": "preview",
+        "column_roles": {},
+        "window": {
+          "start": "",
+          "end": ""
+        },
+        "notes": ""
+      },
+      "next": {
+        "tables": {
+          "main.s.orders": "main.s.orders_v2",
+          "main.s.returns": "main.s.returns_partial"
+        },
+        "removed_tables": [],
+        "filters": [],
+        "run_profile": "preview",
+        "column_roles": {},
+        "window": {
+          "start": "",
+          "end": ""
+        },
+        "notes": ""
+      },
+      "used": {
+        "main.s.orders": [
+          "order_id",
+          "customer_id",
+          "order_date",
+          "amount",
+          "status"
+        ],
+        "main.s.returns": [
+          "return_id",
+          "order_id",
+          "returned_on"
+        ]
+      },
+      "columns": {
+        "main.s.orders": [
+          {
+            "column_name": "order_id",
+            "data_type": "STRING"
+          },
+          {
+            "column_name": "customer_id",
+            "data_type": "STRING"
+          },
+          {
+            "column_name": "order_date",
+            "data_type": "DATE"
+          },
+          {
+            "column_name": "amount",
+            "data_type": "DECIMAL(10,2)"
+          },
+          {
+            "column_name": "status",
+            "data_type": "STRING"
+          }
+        ],
+        "main.s.orders_v2": [
+          {
+            "column_name": "order_id",
+            "data_type": "STRING"
+          },
+          {
+            "column_name": "customer_id",
+            "data_type": "STRING"
+          },
+          {
+            "column_name": "order_date",
+            "data_type": "DATE"
+          },
+          {
+            "column_name": "amount",
+            "data_type": "DECIMAL(10,2)"
+          },
+          {
+            "column_name": "status",
+            "data_type": "STRING"
+          },
+          {
+            "column_name": "channel",
+            "data_type": "STRING"
+          }
+        ],
+        "main.s.returns": [
+          {
+            "column_name": "return_id",
+            "data_type": "STRING"
+          },
+          {
+            "column_name": "order_id",
+            "data_type": "STRING"
+          },
+          {
+            "column_name": "returned_on",
+            "data_type": "DATE"
+          }
+        ],
+        "main.s.returns_partial": [
+          {
+            "column_name": "return_id",
+            "data_type": "STRING"
+          },
+          {
+            "column_name": "returned_on",
+            "data_type": "DATE"
+          }
+        ]
+      },
+      "expected": {
+        "class": "data",
+        "missing": [
+          {
+            "table": "main.s.returns_partial",
+            "columns": [
+              "order_id"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "two swaps that both hold every column used rebuild nothing",
+      "previous": {
+        "tables": {},
+        "removed_tables": [],
+        "filters": [],
+        "run_profile": "preview",
+        "column_roles": {},
+        "window": {
+          "start": "",
+          "end": ""
+        },
+        "notes": ""
+      },
+      "next": {
+        "tables": {
+          "main.s.orders": "main.prod.orders",
+          "main.s.returns": "main.s.returns_v2"
+        },
+        "removed_tables": [],
+        "filters": [],
+        "run_profile": "preview",
+        "column_roles": {},
+        "window": {
+          "start": "",
+          "end": ""
+        },
+        "notes": ""
+      },
+      "used": {
+        "main.s.orders": [
+          "order_id",
+          "customer_id",
+          "order_date",
+          "amount",
+          "status"
+        ],
+        "main.s.returns": [
+          "return_id",
+          "order_id",
+          "returned_on"
+        ]
+      },
+      "columns": {
+        "main.s.orders": [
+          {
+            "column_name": "order_id",
+            "data_type": "STRING"
+          },
+          {
+            "column_name": "customer_id",
+            "data_type": "STRING"
+          },
+          {
+            "column_name": "order_date",
+            "data_type": "DATE"
+          },
+          {
+            "column_name": "amount",
+            "data_type": "DECIMAL(10,2)"
+          },
+          {
+            "column_name": "status",
+            "data_type": "STRING"
+          }
+        ],
+        "main.prod.orders": [
+          {
+            "column_name": "order_id",
+            "data_type": "STRING"
+          },
+          {
+            "column_name": "customer_id",
+            "data_type": "STRING"
+          },
+          {
+            "column_name": "order_date",
+            "data_type": "DATE"
+          },
+          {
+            "column_name": "amount",
+            "data_type": "DECIMAL(10,2)"
+          },
+          {
+            "column_name": "status",
+            "data_type": "STRING"
+          }
+        ],
+        "main.s.returns": [
+          {
+            "column_name": "return_id",
+            "data_type": "STRING"
+          },
+          {
+            "column_name": "order_id",
+            "data_type": "STRING"
+          },
+          {
+            "column_name": "returned_on",
+            "data_type": "DATE"
+          }
+        ],
+        "main.s.returns_v2": [
+          {
+            "column_name": "return_id",
+            "data_type": "STRING"
+          },
+          {
+            "column_name": "order_id",
+            "data_type": "STRING"
+          },
+          {
+            "column_name": "returned_on",
+            "data_type": "DATE"
+          },
+          {
+            "column_name": "reason",
+            "data_type": "STRING"
+          }
+        ]
+      },
+      "expected": {
+        "class": "settings",
+        "missing": []
+      }
+    },
+    {
+      "name": "column names and types that differ only in case are the same columns",
+      "previous": {
+        "tables": {},
+        "removed_tables": [],
+        "filters": [],
+        "run_profile": "preview",
+        "column_roles": {},
+        "window": {
+          "start": "",
+          "end": ""
+        },
+        "notes": ""
+      },
+      "next": {
+        "tables": {
+          "main.s.orders": "main.s.orders_upper"
+        },
+        "removed_tables": [],
+        "filters": [],
+        "run_profile": "preview",
+        "column_roles": {},
+        "window": {
+          "start": "",
+          "end": ""
+        },
+        "notes": ""
+      },
+      "used": {
+        "main.s.orders": [
+          "order_id",
+          "customer_id",
+          "order_date",
+          "amount",
+          "status"
+        ]
+      },
+      "columns": {
+        "main.s.orders": [
+          {
+            "column_name": "order_id",
+            "data_type": "STRING"
+          },
+          {
+            "column_name": "customer_id",
+            "data_type": "STRING"
+          },
+          {
+            "column_name": "order_date",
+            "data_type": "DATE"
+          },
+          {
+            "column_name": "amount",
+            "data_type": "DECIMAL(10,2)"
+          },
+          {
+            "column_name": "status",
+            "data_type": "STRING"
+          }
+        ],
+        "main.s.orders_upper": [
+          {
+            "column_name": "ORDER_ID",
+            "data_type": "string"
+          },
+          {
+            "column_name": "Customer_Id",
+            "data_type": "STRING"
+          },
+          {
+            "column_name": "ORDER_DATE",
+            "data_type": "date"
+          },
+          {
+            "column_name": "AMOUNT",
+            "data_type": "decimal(10,2)"
+          },
+          {
+            "column_name": "Status",
+            "data_type": "string"
+          }
+        ]
+      },
+      "expected": {
+        "class": "settings",
+        "missing": []
+      }
+    },
+    {
+      "name": "a filter column on the replaced table counts as used, so a new table without it is a core change",
+      "previous": {
+        "tables": {},
+        "removed_tables": [],
+        "filters": [
+          {
+            "table": "main.s.orders",
+            "column": "status",
+            "op": "in",
+            "values": [
+              "open"
+            ]
+          }
+        ],
+        "run_profile": "preview",
+        "column_roles": {},
+        "window": {
+          "start": "",
+          "end": ""
+        },
+        "notes": ""
+      },
+      "next": {
+        "tables": {
+          "main.s.orders": "main.s.orders_nostatus"
+        },
+        "removed_tables": [],
+        "filters": [
+          {
+            "table": "main.s.orders",
+            "column": "status",
+            "op": "in",
+            "values": [
+              "open"
+            ]
+          }
+        ],
+        "run_profile": "preview",
+        "column_roles": {},
+        "window": {
+          "start": "",
+          "end": ""
+        },
+        "notes": ""
+      },
+      "used": {
+        "main.s.orders": [
+          "order_id",
+          "order_date"
+        ]
+      },
+      "columns": {
+        "main.s.orders": [
+          {
+            "column_name": "order_id",
+            "data_type": "STRING"
+          },
+          {
+            "column_name": "customer_id",
+            "data_type": "STRING"
+          },
+          {
+            "column_name": "order_date",
+            "data_type": "DATE"
+          },
+          {
+            "column_name": "amount",
+            "data_type": "DECIMAL(10,2)"
+          },
+          {
+            "column_name": "status",
+            "data_type": "STRING"
+          }
+        ],
+        "main.s.orders_nostatus": [
+          {
+            "column_name": "order_id",
+            "data_type": "STRING"
+          },
+          {
+            "column_name": "customer_id",
+            "data_type": "STRING"
+          },
+          {
+            "column_name": "order_date",
+            "data_type": "DATE"
+          },
+          {
+            "column_name": "amount",
+            "data_type": "DECIMAL(10,2)"
+          }
+        ]
+      },
+      "expected": {
+        "class": "data",
+        "missing": [
+          {
+            "table": "main.s.orders_nostatus",
+            "columns": [
+              "status"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "a column role on the replaced table counts as used, so a new table without it is a core change",
+      "previous": {
+        "tables": {},
+        "removed_tables": [],
+        "filters": [],
+        "run_profile": "preview",
+        "column_roles": {
+          "entity_id": "main.s.orders.customer_id"
+        },
+        "window": {
+          "start": "",
+          "end": ""
+        },
+        "notes": ""
+      },
+      "next": {
+        "tables": {
+          "main.s.orders": "main.s.orders_nocustomer"
+        },
+        "removed_tables": [],
+        "filters": [],
+        "run_profile": "preview",
+        "column_roles": {
+          "entity_id": "main.s.orders.customer_id"
+        },
+        "window": {
+          "start": "",
+          "end": ""
+        },
+        "notes": ""
+      },
+      "used": {
+        "main.s.orders": [
+          "order_id",
+          "order_date"
+        ]
+      },
+      "columns": {
+        "main.s.orders": [
+          {
+            "column_name": "order_id",
+            "data_type": "STRING"
+          },
+          {
+            "column_name": "customer_id",
+            "data_type": "STRING"
+          },
+          {
+            "column_name": "order_date",
+            "data_type": "DATE"
+          },
+          {
+            "column_name": "amount",
+            "data_type": "DECIMAL(10,2)"
+          },
+          {
+            "column_name": "status",
+            "data_type": "STRING"
+          }
+        ],
+        "main.s.orders_nocustomer": [
+          {
+            "column_name": "order_id",
+            "data_type": "STRING"
+          },
+          {
+            "column_name": "order_date",
+            "data_type": "DATE"
+          },
+          {
+            "column_name": "amount",
+            "data_type": "DECIMAL(10,2)"
+          },
+          {
+            "column_name": "status",
+            "data_type": "STRING"
+          }
+        ]
+      },
+      "expected": {
+        "class": "data",
+        "missing": [
+          {
+            "table": "main.s.orders_nocustomer",
+            "columns": [
+              "customer_id"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "a column role on the table a swap put in its place counts too",
+      "previous": {
+        "tables": {
+          "main.s.orders": "main.s.orders_v2"
+        },
+        "removed_tables": [],
+        "filters": [],
+        "run_profile": "preview",
+        "column_roles": {
+          "segment": "main.s.orders_v2.channel"
+        },
+        "window": {
+          "start": "",
+          "end": ""
+        },
+        "notes": ""
+      },
+      "next": {
+        "tables": {
+          "main.s.orders": "main.prod.orders"
+        },
+        "removed_tables": [],
+        "filters": [],
+        "run_profile": "preview",
+        "column_roles": {
+          "segment": "main.s.orders_v2.channel"
+        },
+        "window": {
+          "start": "",
+          "end": ""
+        },
+        "notes": ""
+      },
+      "used": {
+        "main.s.orders": [
+          "order_id"
+        ]
+      },
+      "columns": {
+        "main.s.orders_v2": [
+          {
+            "column_name": "order_id",
+            "data_type": "STRING"
+          },
+          {
+            "column_name": "customer_id",
+            "data_type": "STRING"
+          },
+          {
+            "column_name": "order_date",
+            "data_type": "DATE"
+          },
+          {
+            "column_name": "amount",
+            "data_type": "DECIMAL(10,2)"
+          },
+          {
+            "column_name": "status",
+            "data_type": "STRING"
+          },
+          {
+            "column_name": "channel",
+            "data_type": "STRING"
+          }
+        ],
+        "main.prod.orders": [
+          {
+            "column_name": "order_id",
+            "data_type": "STRING"
+          },
+          {
+            "column_name": "customer_id",
+            "data_type": "STRING"
+          },
+          {
+            "column_name": "order_date",
+            "data_type": "DATE"
+          },
+          {
+            "column_name": "amount",
+            "data_type": "DECIMAL(10,2)"
+          },
+          {
+            "column_name": "status",
+            "data_type": "STRING"
+          }
+        ]
+      },
+      "expected": {
+        "class": "data",
+        "missing": [
+          {
+            "table": "main.prod.orders",
+            "columns": [
+              "channel"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "nothing changed has no class",
+      "previous": {
+        "tables": {
+          "main.s.orders": "main.s.orders_v2"
+        },
+        "removed_tables": [],
+        "filters": [],
+        "run_profile": "preview",
+        "column_roles": {},
+        "window": {
+          "start": "",
+          "end": ""
+        },
+        "notes": ""
+      },
+      "next": {
+        "tables": {
+          "main.s.orders": "main.s.orders_v2"
+        },
+        "removed_tables": [],
+        "filters": [],
+        "run_profile": "preview",
+        "column_roles": {},
+        "window": {
+          "start": "",
+          "end": ""
+        },
+        "notes": ""
+      },
+      "used": {
+        "main.s.orders": [
+          "order_id",
+          "customer_id",
+          "order_date",
+          "amount",
+          "status"
+        ]
+      },
+      "columns": {
+        "main.s.orders": [
+          {
+            "column_name": "order_id",
+            "data_type": "STRING"
+          },
+          {
+            "column_name": "customer_id",
+            "data_type": "STRING"
+          },
+          {
+            "column_name": "order_date",
+            "data_type": "DATE"
+          },
+          {
+            "column_name": "amount",
+            "data_type": "DECIMAL(10,2)"
+          },
+          {
+            "column_name": "status",
+            "data_type": "STRING"
+          }
+        ],
+        "main.s.orders_v2": [
+          {
+            "column_name": "order_id",
+            "data_type": "STRING"
+          },
+          {
+            "column_name": "customer_id",
+            "data_type": "STRING"
+          },
+          {
+            "column_name": "order_date",
+            "data_type": "DATE"
+          },
+          {
+            "column_name": "amount",
+            "data_type": "DECIMAL(10,2)"
+          },
+          {
+            "column_name": "status",
+            "data_type": "STRING"
+          },
+          {
+            "column_name": "channel",
+            "data_type": "STRING"
+          }
+        ]
+      },
+      "expected": {
+        "class": null,
+        "missing": []
+      }
+    },
+    {
+      "name": "a swap to the same table written in other case is no change",
+      "previous": {
+        "tables": {},
+        "removed_tables": [],
+        "filters": [],
+        "run_profile": "preview",
+        "column_roles": {},
+        "window": {
+          "start": "",
+          "end": ""
+        },
+        "notes": ""
+      },
+      "next": {
+        "tables": {
+          "main.s.orders": "MAIN.S.ORDERS"
+        },
+        "removed_tables": [],
+        "filters": [],
+        "run_profile": "preview",
+        "column_roles": {},
+        "window": {
+          "start": "",
+          "end": ""
+        },
+        "notes": ""
+      },
+      "used": {
+        "main.s.orders": [
+          "order_id",
+          "customer_id",
+          "order_date",
+          "amount",
+          "status"
+        ]
+      },
+      "columns": {
+        "main.s.orders": [
+          {
+            "column_name": "order_id",
+            "data_type": "STRING"
+          },
+          {
+            "column_name": "customer_id",
+            "data_type": "STRING"
+          },
+          {
+            "column_name": "order_date",
+            "data_type": "DATE"
+          },
+          {
+            "column_name": "amount",
+            "data_type": "DECIMAL(10,2)"
+          },
+          {
+            "column_name": "status",
+            "data_type": "STRING"
+          }
+        ]
+      },
+      "expected": {
+        "class": null,
+        "missing": []
+      }
+    },
+    {
+      "name": "a compatible swap together with a changed filter is a core change",
+      "previous": {
+        "tables": {},
+        "removed_tables": [],
+        "filters": [
+          {
+            "table": "main.s.orders",
+            "column": "status",
+            "op": "in",
+            "values": [
+              "open"
+            ]
+          }
+        ],
+        "run_profile": "preview",
+        "column_roles": {},
+        "window": {
+          "start": "",
+          "end": ""
+        },
+        "notes": ""
+      },
+      "next": {
+        "tables": {
+          "main.s.orders": "main.s.orders_v2"
+        },
+        "removed_tables": [],
+        "filters": [
+          {
+            "table": "main.s.orders",
+            "column": "status",
+            "op": "in",
+            "values": [
+              "open",
+              "late"
+            ]
+          }
+        ],
+        "run_profile": "preview",
+        "column_roles": {},
+        "window": {
+          "start": "",
+          "end": ""
+        },
+        "notes": ""
+      },
+      "used": {
+        "main.s.orders": [
+          "order_id",
+          "customer_id",
+          "order_date",
+          "amount",
+          "status"
+        ]
+      },
+      "columns": {
+        "main.s.orders": [
+          {
+            "column_name": "order_id",
+            "data_type": "STRING"
+          },
+          {
+            "column_name": "customer_id",
+            "data_type": "STRING"
+          },
+          {
+            "column_name": "order_date",
+            "data_type": "DATE"
+          },
+          {
+            "column_name": "amount",
+            "data_type": "DECIMAL(10,2)"
+          },
+          {
+            "column_name": "status",
+            "data_type": "STRING"
+          }
+        ],
+        "main.s.orders_v2": [
+          {
+            "column_name": "order_id",
+            "data_type": "STRING"
+          },
+          {
+            "column_name": "customer_id",
+            "data_type": "STRING"
+          },
+          {
+            "column_name": "order_date",
+            "data_type": "DATE"
+          },
+          {
+            "column_name": "amount",
+            "data_type": "DECIMAL(10,2)"
+          },
+          {
+            "column_name": "status",
+            "data_type": "STRING"
+          },
+          {
+            "column_name": "channel",
+            "data_type": "STRING"
+          }
+        ]
+      },
+      "expected": {
+        "class": "data",
+        "missing": []
+      }
+    },
+    {
+      "name": "a swap with no column known to be used cannot be shown to hold them, so it is a core change",
+      "previous": {
+        "tables": {},
+        "removed_tables": [],
+        "filters": [],
+        "run_profile": "preview",
+        "column_roles": {},
+        "window": {
+          "start": "",
+          "end": ""
+        },
+        "notes": ""
+      },
+      "next": {
+        "tables": {
+          "main.s.orders": "main.s.orders_v2"
+        },
+        "removed_tables": [],
+        "filters": [],
+        "run_profile": "preview",
+        "column_roles": {},
+        "window": {
+          "start": "",
+          "end": ""
+        },
+        "notes": ""
+      },
+      "used": {},
+      "columns": {
+        "main.s.orders": [
+          {
+            "column_name": "order_id",
+            "data_type": "STRING"
+          },
+          {
+            "column_name": "customer_id",
+            "data_type": "STRING"
+          },
+          {
+            "column_name": "order_date",
+            "data_type": "DATE"
+          },
+          {
+            "column_name": "amount",
+            "data_type": "DECIMAL(10,2)"
+          },
+          {
+            "column_name": "status",
+            "data_type": "STRING"
+          }
+        ],
+        "main.s.orders_v2": [
+          {
+            "column_name": "order_id",
+            "data_type": "STRING"
+          },
+          {
+            "column_name": "customer_id",
+            "data_type": "STRING"
+          },
+          {
+            "column_name": "order_date",
+            "data_type": "DATE"
+          },
+          {
+            "column_name": "amount",
+            "data_type": "DECIMAL(10,2)"
+          },
+          {
+            "column_name": "status",
+            "data_type": "STRING"
+          },
+          {
+            "column_name": "channel",
+            "data_type": "STRING"
+          }
+        ]
+      },
+      "expected": {
+        "class": "data",
+        "missing": []
+      }
+    },
+    {
+      "name": "a used column the replaced table does not have is not read, so it is not asked of the new table",
+      "previous": {
+        "tables": {},
+        "removed_tables": [],
+        "filters": [],
+        "run_profile": "preview",
+        "column_roles": {},
+        "window": {
+          "start": "",
+          "end": ""
+        },
+        "notes": ""
+      },
+      "next": {
+        "tables": {
+          "main.s.orders": "main.s.orders_v2"
+        },
+        "removed_tables": [],
+        "filters": [],
+        "run_profile": "preview",
+        "column_roles": {},
+        "window": {
+          "start": "",
+          "end": ""
+        },
+        "notes": ""
+      },
+      "used": {
+        "main.s.orders": [
+          "order_id",
+          "customer_id",
+          "order_date",
+          "amount",
+          "status",
+          "legacy_flag"
+        ]
+      },
+      "columns": {
+        "main.s.orders": [
+          {
+            "column_name": "order_id",
+            "data_type": "STRING"
+          },
+          {
+            "column_name": "customer_id",
+            "data_type": "STRING"
+          },
+          {
+            "column_name": "order_date",
+            "data_type": "DATE"
+          },
+          {
+            "column_name": "amount",
+            "data_type": "DECIMAL(10,2)"
+          },
+          {
+            "column_name": "status",
+            "data_type": "STRING"
+          }
+        ],
+        "main.s.orders_v2": [
+          {
+            "column_name": "order_id",
+            "data_type": "STRING"
+          },
+          {
+            "column_name": "customer_id",
+            "data_type": "STRING"
+          },
+          {
+            "column_name": "order_date",
+            "data_type": "DATE"
+          },
+          {
+            "column_name": "amount",
+            "data_type": "DECIMAL(10,2)"
+          },
+          {
+            "column_name": "status",
+            "data_type": "STRING"
+          },
+          {
+            "column_name": "channel",
+            "data_type": "STRING"
+          }
+        ]
+      },
+      "expected": {
+        "class": "settings",
+        "missing": []
+      }
+    },
+    {
+      "name": "a new table whose columns are unknown holds none of the columns used",
+      "previous": {
+        "tables": {},
+        "removed_tables": [],
+        "filters": [],
+        "run_profile": "preview",
+        "column_roles": {},
+        "window": {
+          "start": "",
+          "end": ""
+        },
+        "notes": ""
+      },
+      "next": {
+        "tables": {
+          "main.s.orders": "main.s.orders_v2"
+        },
+        "removed_tables": [],
+        "filters": [],
+        "run_profile": "preview",
+        "column_roles": {},
+        "window": {
+          "start": "",
+          "end": ""
+        },
+        "notes": ""
+      },
+      "used": {
+        "main.s.orders": [
+          "order_id",
+          "amount"
+        ]
+      },
+      "columns": {
+        "main.s.orders": [
+          {
+            "column_name": "order_id",
+            "data_type": "STRING"
+          },
+          {
+            "column_name": "customer_id",
+            "data_type": "STRING"
+          },
+          {
+            "column_name": "order_date",
+            "data_type": "DATE"
+          },
+          {
+            "column_name": "amount",
+            "data_type": "DECIMAL(10,2)"
+          },
+          {
+            "column_name": "status",
+            "data_type": "STRING"
+          }
+        ]
+      },
+      "expected": {
+        "class": "data",
+        "missing": [
+          {
+            "table": "main.s.orders_v2",
+            "columns": [
+              "amount",
+              "order_id"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "a replaced table whose columns are unknown gives no type to compare, so every column used is missing",
+      "previous": {
+        "tables": {},
+        "removed_tables": [],
+        "filters": [],
+        "run_profile": "preview",
+        "column_roles": {},
+        "window": {
+          "start": "",
+          "end": ""
+        },
+        "notes": ""
+      },
+      "next": {
+        "tables": {
+          "main.s.orders": "main.s.orders_v2"
+        },
+        "removed_tables": [],
+        "filters": [],
+        "run_profile": "preview",
+        "column_roles": {},
+        "window": {
+          "start": "",
+          "end": ""
+        },
+        "notes": ""
+      },
+      "used": {
+        "main.s.orders": [
+          "order_id",
+          "Amount"
+        ]
+      },
+      "columns": {
+        "main.s.orders_v2": [
+          {
+            "column_name": "order_id",
+            "data_type": "STRING"
+          },
+          {
+            "column_name": "customer_id",
+            "data_type": "STRING"
+          },
+          {
+            "column_name": "order_date",
+            "data_type": "DATE"
+          },
+          {
+            "column_name": "amount",
+            "data_type": "DECIMAL(10,2)"
+          },
+          {
+            "column_name": "status",
+            "data_type": "STRING"
+          },
+          {
+            "column_name": "channel",
+            "data_type": "STRING"
+          }
+        ]
+      },
+      "expected": {
+        "class": "data",
+        "missing": [
+          {
+            "table": "main.s.orders_v2",
+            "columns": [
+              "Amount",
+              "order_id"
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

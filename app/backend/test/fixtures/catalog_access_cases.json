@@ -1,0 +1,158 @@
+{
+  "catalog": "main",
+  "below_sql": "SELECT 'schema' AS level, schema_name AS schema_name, schema_name AS object_name, privilege_type AS privilege FROM `main`.information_schema.schema_privileges WHERE lower(grantee) = 'account users' UNION ALL SELECT 'table' AS level, table_schema AS schema_name, table_name AS object_name, privilege_type AS privilege FROM `main`.information_schema.table_privileges WHERE lower(grantee) = 'account users' UNION ALL SELECT 'volume' AS level, volume_schema AS schema_name, volume_name AS object_name, privilege_type AS privilege FROM `main`.information_schema.volume_privileges WHERE lower(grantee) = 'account users' UNION ALL SELECT 'function' AS level, routine_schema AS schema_name, routine_name AS object_name, privilege_type AS privilege FROM `main`.information_schema.routine_privileges WHERE lower(grantee) = 'account users'",
+  "grant_sql": "GRANT USE CATALOG ON CATALOG `main` TO `account users`",
+  "app": { "name": "inspire-manual", "id": "app-sp-id" },
+  "source_tables": [
+    {
+      "name": "the person owns the catalog and the App holds only USE CATALOG and BROWSE",
+      "table": "sales.booking.leg",
+      "rows": [
+        { "level": "catalog", "privilege": "OWNER", "principal": "amr@x", "mine": "true" },
+        { "level": "catalog", "privilege": "USE_CATALOG", "principal": "app-sp-id", "mine": "false" },
+        { "level": "catalog", "privilege": "BROWSE", "principal": "app-sp-id", "mine": "false" },
+        { "level": "schema", "privilege": "OWNER", "principal": "data-eng", "mine": "false" },
+        { "level": "table", "privilege": "OWNER", "principal": "data-eng", "mine": "false" }
+      ],
+      "grants": ["GRANT USE SCHEMA ON SCHEMA `sales`.`booking` TO `app-sp-id`", "GRANT SELECT ON TABLE `sales`.`booking`.`leg` TO `app-sp-id`"],
+      "can_grant": true
+    },
+    {
+      "name": "the person holds MANAGE on the catalog and account users hold USE CATALOG",
+      "table": "sales.booking.leg",
+      "rows": [
+        { "level": "catalog", "privilege": "OWNER", "principal": "admins", "mine": "false" },
+        { "level": "catalog", "privilege": "MANAGE", "principal": "amr@x", "mine": "true" },
+        { "level": "catalog", "privilege": "USE_CATALOG", "principal": "account users", "mine": "true" },
+        { "level": "schema", "privilege": "OWNER", "principal": "data-eng", "mine": "false" },
+        { "level": "table", "privilege": "OWNER", "principal": "data-eng", "mine": "false" }
+      ],
+      "grants": ["GRANT USE SCHEMA ON SCHEMA `sales`.`booking` TO `app-sp-id`", "GRANT SELECT ON TABLE `sales`.`booking`.`leg` TO `app-sp-id`"],
+      "can_grant": true
+    },
+    {
+      "name": "the person manages only the schema, so the catalog grant is the owner's",
+      "table": "sales.booking.leg",
+      "rows": [
+        { "level": "catalog", "privilege": "OWNER", "principal": "admins", "mine": "false" },
+        { "level": "schema", "privilege": "OWNER", "principal": "data-eng", "mine": "false" },
+        { "level": "schema", "privilege": "MANAGE", "principal": "amr@x", "mine": "true" },
+        { "level": "table", "privilege": "OWNER", "principal": "data-eng", "mine": "false" }
+      ],
+      "grants": ["GRANT USE CATALOG ON CATALOG `sales` TO `app-sp-id`", "GRANT USE SCHEMA ON SCHEMA `sales`.`booking` TO `app-sp-id`",
+        "GRANT SELECT ON TABLE `sales`.`booking`.`leg` TO `app-sp-id`"],
+      "can_grant": false
+    },
+    {
+      "name": "the person cannot grant",
+      "table": "sales.booking.leg",
+      "rows": [
+        { "level": "catalog", "privilege": "OWNER", "principal": "admins", "mine": "false" },
+        { "level": "catalog", "privilege": "SELECT", "principal": "amr@x", "mine": "true" },
+        { "level": "schema", "privilege": "OWNER", "principal": "data-eng", "mine": "false" },
+        { "level": "table", "privilege": "OWNER", "principal": "data-eng", "mine": "false" }
+      ],
+      "grants": ["GRANT USE CATALOG ON CATALOG `sales` TO `app-sp-id`", "GRANT USE SCHEMA ON SCHEMA `sales`.`booking` TO `app-sp-id`",
+        "GRANT SELECT ON TABLE `sales`.`booking`.`leg` TO `app-sp-id`"],
+      "can_grant": false
+    },
+    {
+      "name": "the App already holds every grant",
+      "table": "sales.booking.leg",
+      "rows": [
+        { "level": "catalog", "privilege": "OWNER", "principal": "amr@x", "mine": "true" },
+        { "level": "catalog", "privilege": "USE_CATALOG", "principal": "app-sp-id", "mine": "false" },
+        { "level": "schema", "privilege": "OWNER", "principal": "data-eng", "mine": "false" },
+        { "level": "schema", "privilege": "USE_SCHEMA", "principal": "app-sp-id", "mine": "false" },
+        { "level": "table", "privilege": "OWNER", "principal": "data-eng", "mine": "false" },
+        { "level": "table", "privilege": "SELECT", "principal": "app-sp-id", "mine": "false" }
+      ],
+      "grants": [],
+      "can_grant": false
+    }
+  ],
+  "new_apps": [
+    {
+      "name": "no grant to account users, the person holds MANAGE",
+      "setting": "account users", "account_users": [], "person": ["USE_CATALOG", "MANAGE"], "below": [], "inspire_manages": false,
+      "decision": "grant", "real": []
+    },
+    {
+      "name": "only the system grants of information_schema",
+      "setting": "account users", "account_users": ["BROWSE"], "person": ["OWNER"],
+      "below": [
+        { "level": "schema", "schema_name": "information_schema", "object_name": "information_schema", "privilege": "USE_SCHEMA" },
+        { "level": "table", "schema_name": "information_schema", "object_name": "tables", "privilege": "SELECT" },
+        { "level": "table", "schema_name": "Information_Schema", "object_name": "columns", "privilege": "SELECT" }
+      ],
+      "inspire_manages": false, "decision": "grant", "real": []
+    },
+    {
+      "name": "BROWSE below the catalog opens no data",
+      "setting": "account users", "account_users": [], "person": ["MANAGE"],
+      "below": [{ "level": "table", "schema_name": "sales", "object_name": "orders", "privilege": "BROWSE" }],
+      "inspire_manages": false, "decision": "grant", "real": []
+    },
+    {
+      "name": "a real schema grant",
+      "setting": "account users", "account_users": [], "person": ["OWNER"],
+      "below": [
+        { "level": "schema", "schema_name": "sales", "object_name": "sales", "privilege": "USE_SCHEMA" },
+        { "level": "table", "schema_name": "information_schema", "object_name": "tables", "privilege": "SELECT" }
+      ],
+      "inspire_manages": false, "decision": "below", "real": ["USE SCHEMA on schema main.sales"]
+    },
+    {
+      "name": "a real table grant",
+      "setting": "account users", "account_users": [], "person": ["MANAGE"],
+      "below": [{ "level": "table", "schema_name": "sales", "object_name": "orders", "privilege": "SELECT" }],
+      "inspire_manages": false, "decision": "below", "real": ["SELECT on table main.sales.orders"]
+    },
+    {
+      "name": "real volume and function grants, each named once",
+      "setting": "account users", "account_users": [], "person": ["MANAGE"],
+      "below": [
+        { "level": "volume", "schema_name": "raw", "object_name": "files", "privilege": "READ_VOLUME" },
+        { "level": "function", "schema_name": "raw", "object_name": "mask_email", "privilege": "EXECUTE" },
+        { "level": "function", "schema_name": "raw", "object_name": "mask_email", "privilege": "EXECUTE" }
+      ],
+      "inspire_manages": false, "decision": "below", "real": ["READ VOLUME on volume main.raw.files", "EXECUTE on function main.raw.mask_email"]
+    },
+    {
+      "name": "a data grant on the catalog itself waits for USE CATALOG",
+      "setting": "account users", "account_users": ["BROWSE", "SELECT"], "person": ["OWNER"], "below": [], "inspire_manages": false,
+      "decision": "below", "real": ["SELECT on catalog main"]
+    },
+    {
+      "name": "account users already hold USE CATALOG",
+      "setting": "account users", "account_users": ["USE_CATALOG"], "person": [], "below": [], "inspire_manages": false,
+      "decision": "held", "real": []
+    },
+    {
+      "name": "account users hold ALL PRIVILEGES",
+      "setting": "off", "account_users": ["ALL PRIVILEGES"], "person": [], "below": [], "inspire_manages": false,
+      "decision": "held", "real": []
+    },
+    {
+      "name": "the catalog owner",
+      "setting": "account users", "account_users": [], "person": ["OWNER"], "below": [], "inspire_manages": false,
+      "decision": "grant", "real": []
+    },
+    {
+      "name": "the Inspire service principal manages the catalog",
+      "setting": "account users", "account_users": [], "person": [], "below": [], "inspire_manages": true,
+      "decision": "inspire", "real": []
+    },
+    {
+      "name": "the person cannot grant",
+      "setting": "account users", "account_users": [], "person": ["USE_CATALOG", "SELECT"],
+      "below": [{ "level": "table", "schema_name": "sales", "object_name": "orders", "privilege": "SELECT" }],
+      "inspire_manages": false, "decision": "owner", "real": []
+    },
+    {
+      "name": "the setting is off",
+      "setting": "off", "account_users": [], "person": ["OWNER"], "below": [], "inspire_manages": false,
+      "decision": "off", "real": []
+    }
+  ]
+}

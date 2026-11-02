@@ -1,0 +1,536 @@
+{
+ "source": "final-agent 7219d5d",
+ "self_fix_kind": "self_fix",
+ "unrequested_kind": "unrequested_change",
+ "self_fix_step": "Self-fix",
+ "checklist_step": "Vibe checklist",
+ "cases": [
+  {
+   "name": "Inspire put back two elements no ask targets",
+   "found": {
+    "app": {
+     "version": 3,
+     "restored": [
+      {
+       "key": "charts:buffer_by_tier",
+       "change": "changed",
+       "label": "Cash buffer by action tier chart",
+       "what": "changed the Cash buffer by action tier chart: its type from stacked_bar to stacked_area"
+      },
+      {
+       "key": "charts:buffer_priority",
+       "change": "removed",
+       "label": "Buffer priority chart",
+       "what": "removed the Buffer priority chart"
+      }
+     ],
+     "blocked": [],
+     "rounds": 3
+    }
+   },
+   "version": 4,
+   "entries": [
+    {
+     "n": 1,
+     "requirement": "Keep the Cash buffer by action tier chart as v3 built it: no ask of v4 targets it",
+     "part": "app",
+     "where": "the Cash buffer by action tier chart",
+     "status": "met",
+     "kind": "self_fix",
+     "evidence": "Genie changed the Cash buffer by action tier chart: its type from stacked_bar to stacked_area; Inspire put it back as v3 built it",
+     "fact": "Genie changed the Cash buffer by action tier chart: its type from stacked_bar to stacked_area; Inspire put it back as v3 built it",
+     "rounds": 0,
+     "tried": [],
+     "checks": [],
+     "published_anyway": null
+    },
+    {
+     "n": 2,
+     "requirement": "Keep the Buffer priority chart as v3 built it: no ask of v4 targets it",
+     "part": "app",
+     "where": "the Buffer priority chart",
+     "status": "met",
+     "kind": "self_fix",
+     "evidence": "Genie removed the Buffer priority chart; Inspire put it back as v3 built it",
+     "fact": "Genie removed the Buffer priority chart; Inspire put it back as v3 built it",
+     "rounds": 0,
+     "tried": [],
+     "checks": [],
+     "published_anyway": null
+    }
+   ],
+   "summary": {
+    "met": 0,
+    "total": 0,
+    "self_fixed": 2
+   },
+   "steps": [
+    {
+     "step_name": "Vibe checklist",
+     "status": "ended_success",
+     "message": "0 of 0 vibe requirements met; Inspire put back 2 elements no ask targets",
+     "result_json": {
+      "checklist": [
+       {
+        "n": 1,
+        "requirement": "Keep the Cash buffer by action tier chart as v3 built it: no ask of v4 targets it",
+        "part": "app",
+        "where": "the Cash buffer by action tier chart",
+        "status": "met",
+        "kind": "self_fix",
+        "evidence": "Genie changed the Cash buffer by action tier chart: its type from stacked_bar to stacked_area; Inspire put it back as v3 built it",
+        "fact": "Genie changed the Cash buffer by action tier chart: its type from stacked_bar to stacked_area; Inspire put it back as v3 built it",
+        "rounds": 0,
+        "tried": [],
+        "checks": [],
+        "published_anyway": null
+       },
+       {
+        "n": 2,
+        "requirement": "Keep the Buffer priority chart as v3 built it: no ask of v4 targets it",
+        "part": "app",
+        "where": "the Buffer priority chart",
+        "status": "met",
+        "kind": "self_fix",
+        "evidence": "Genie removed the Buffer priority chart; Inspire put it back as v3 built it",
+        "fact": "Genie removed the Buffer priority chart; Inspire put it back as v3 built it",
+        "rounds": 0,
+        "tried": [],
+        "checks": [],
+        "published_anyway": null
+       }
+      ],
+      "met": 0,
+      "total": 0,
+      "use_case_id": "N02-U01",
+      "phase": "Vibe checklist"
+     }
+    },
+    {
+     "step_name": "Self-fix",
+     "status": "ended_success",
+     "message": "Genie changed the Cash buffer by action tier chart: its type from stacked_bar to stacked_area; Inspire put it back as v3 built it; Genie removed the Buffer priority chart; Inspire put it back as v3 built it",
+     "result_json": {
+      "spec_version": 4,
+      "self_fixed": [
+       {
+        "n": 1,
+        "requirement": "Keep the Cash buffer by action tier chart as v3 built it: no ask of v4 targets it",
+        "part": "app",
+        "where": "the Cash buffer by action tier chart",
+        "status": "met",
+        "kind": "self_fix",
+        "evidence": "Genie changed the Cash buffer by action tier chart: its type from stacked_bar to stacked_area; Inspire put it back as v3 built it",
+        "fact": "Genie changed the Cash buffer by action tier chart: its type from stacked_bar to stacked_area; Inspire put it back as v3 built it",
+        "rounds": 0,
+        "tried": [],
+        "checks": [],
+        "published_anyway": null
+       },
+       {
+        "n": 2,
+        "requirement": "Keep the Buffer priority chart as v3 built it: no ask of v4 targets it",
+        "part": "app",
+        "where": "the Buffer priority chart",
+        "status": "met",
+        "kind": "self_fix",
+        "evidence": "Genie removed the Buffer priority chart; Inspire put it back as v3 built it",
+        "fact": "Genie removed the Buffer priority chart; Inspire put it back as v3 built it",
+        "rounds": 0,
+        "tried": [],
+        "checks": [],
+        "published_anyway": null
+       }
+      ],
+      "use_case_id": "N02-U01",
+      "phase": "Self-fix"
+     }
+    }
+   ],
+   "unmet": [],
+   "held_reason": ""
+  },
+  {
+   "name": "Inspire put back one element and could not put back another after three rounds",
+   "found": {
+    "app": {
+     "version": 3,
+     "restored": [
+      {
+       "key": "charts:buffer_priority",
+       "change": "removed",
+       "label": "Buffer priority chart",
+       "what": "removed the Buffer priority chart"
+      }
+     ],
+     "blocked": [
+      {
+       "key": "charts:buffer_by_tier",
+       "change": "removed",
+       "label": "Cash buffer by action tier chart",
+       "what": "removed the Cash buffer by action tier chart",
+       "reason": "its dataset outlook is gone for the asks of the Fourteen-day takings outlook chart"
+      }
+     ],
+     "rounds": 3
+    }
+   },
+   "version": 4,
+   "entries": [
+    {
+     "n": 1,
+     "requirement": "Keep the Buffer priority chart as v3 built it: no ask of v4 targets it",
+     "part": "app",
+     "where": "the Buffer priority chart",
+     "status": "met",
+     "kind": "self_fix",
+     "evidence": "Genie removed the Buffer priority chart; Inspire put it back as v3 built it",
+     "fact": "Genie removed the Buffer priority chart; Inspire put it back as v3 built it",
+     "rounds": 0,
+     "tried": [],
+     "checks": [],
+     "published_anyway": null
+    },
+    {
+     "n": 2,
+     "requirement": "Keep the Cash buffer by action tier chart as v3 built it: no ask of v4 targets it",
+     "part": "app",
+     "where": "the Cash buffer by action tier chart",
+     "status": "not_met",
+     "kind": "unrequested_change",
+     "evidence": "Genie removed the Cash buffer by action tier chart, and Inspire could not put it back because its dataset outlook is gone for the asks of the Fourteen-day takings outlook chart",
+     "fact": "Genie removed the Cash buffer by action tier chart, and Inspire could not put it back because its dataset outlook is gone for the asks of the Fourteen-day takings outlook chart",
+     "rounds": 3,
+     "tried": [],
+     "checks": [],
+     "published_anyway": null
+    }
+   ],
+   "summary": {
+    "met": 0,
+    "total": 1,
+    "self_fixed": 1
+   },
+   "steps": [
+    {
+     "step_name": "Vibe checklist",
+     "status": "ended_warning",
+     "message": "0 of 1 vibe requirement met; Inspire put back 1 element no ask targets",
+     "result_json": {
+      "checklist": [
+       {
+        "n": 1,
+        "requirement": "Keep the Buffer priority chart as v3 built it: no ask of v4 targets it",
+        "part": "app",
+        "where": "the Buffer priority chart",
+        "status": "met",
+        "kind": "self_fix",
+        "evidence": "Genie removed the Buffer priority chart; Inspire put it back as v3 built it",
+        "fact": "Genie removed the Buffer priority chart; Inspire put it back as v3 built it",
+        "rounds": 0,
+        "tried": [],
+        "checks": [],
+        "published_anyway": null
+       },
+       {
+        "n": 2,
+        "requirement": "Keep the Cash buffer by action tier chart as v3 built it: no ask of v4 targets it",
+        "part": "app",
+        "where": "the Cash buffer by action tier chart",
+        "status": "not_met",
+        "kind": "unrequested_change",
+        "evidence": "Genie removed the Cash buffer by action tier chart, and Inspire could not put it back because its dataset outlook is gone for the asks of the Fourteen-day takings outlook chart",
+        "fact": "Genie removed the Cash buffer by action tier chart, and Inspire could not put it back because its dataset outlook is gone for the asks of the Fourteen-day takings outlook chart",
+        "rounds": 3,
+        "tried": [],
+        "checks": [],
+        "published_anyway": null
+       }
+      ],
+      "met": 0,
+      "total": 1,
+      "use_case_id": "N02-U01",
+      "phase": "Vibe checklist"
+     }
+    },
+    {
+     "step_name": "Self-fix",
+     "status": "ended_success",
+     "message": "Genie removed the Buffer priority chart; Inspire put it back as v3 built it",
+     "result_json": {
+      "spec_version": 4,
+      "self_fixed": [
+       {
+        "n": 1,
+        "requirement": "Keep the Buffer priority chart as v3 built it: no ask of v4 targets it",
+        "part": "app",
+        "where": "the Buffer priority chart",
+        "status": "met",
+        "kind": "self_fix",
+        "evidence": "Genie removed the Buffer priority chart; Inspire put it back as v3 built it",
+        "fact": "Genie removed the Buffer priority chart; Inspire put it back as v3 built it",
+        "rounds": 0,
+        "tried": [],
+        "checks": [],
+        "published_anyway": null
+       }
+      ],
+      "use_case_id": "N02-U01",
+      "phase": "Self-fix"
+     }
+    }
+   ],
+   "unmet": [
+    {
+     "n": 2,
+     "requirement": "Keep the Cash buffer by action tier chart as v3 built it: no ask of v4 targets it",
+     "part": "app",
+     "where": "the Cash buffer by action tier chart",
+     "status": "not_met",
+     "kind": "unrequested_change",
+     "evidence": "Genie removed the Cash buffer by action tier chart, and Inspire could not put it back because its dataset outlook is gone for the asks of the Fourteen-day takings outlook chart",
+     "fact": "Genie removed the Cash buffer by action tier chart, and Inspire could not put it back because its dataset outlook is gone for the asks of the Fourteen-day takings outlook chart",
+     "rounds": 3,
+     "tried": [],
+     "checks": [],
+     "published_anyway": null
+    }
+   ],
+   "held_reason": "1 ask is not met, so nothing of v4 is published and v3 stays live: App (the Cash buffer by action tier chart): Keep the Cash buffer by action tier chart as v3 built it: no ask of v4 targets it: Genie could not do it in 3 build rounds: Genie removed the Cash buffer by action tier chart, and Inspire could not put it back because its dataset outlook is gone for the asks of the Fourteen-day takings outlook chart. Rephrase the ask or press Try again, or press Publish anyway"
+  },
+  {
+   "name": "Inspire could not put back an element with no round left on a version it does not name",
+   "found": {
+    "dashboard": {
+     "version": null,
+     "restored": [],
+     "blocked": [
+      {
+       "key": "widgets:late_count",
+       "change": "moved",
+       "label": "Late orders counter",
+       "what": "moved the Late orders counter",
+       "reason": "it now sits where an ask placed a new chart"
+      }
+     ],
+     "rounds": 0
+    }
+   },
+   "version": 4,
+   "entries": [
+    {
+     "n": 1,
+     "requirement": "Keep the Late orders counter as the version before built it: no ask of v4 targets it",
+     "part": "dashboard",
+     "where": "the Late orders counter",
+     "status": "not_met",
+     "kind": "unrequested_change",
+     "evidence": "Genie moved the Late orders counter, and Inspire could not put it back because it now sits where an ask placed a new chart",
+     "fact": "Genie moved the Late orders counter, and Inspire could not put it back because it now sits where an ask placed a new chart",
+     "rounds": 0,
+     "tried": [],
+     "checks": [],
+     "published_anyway": null
+    }
+   ],
+   "summary": {
+    "met": 0,
+    "total": 1
+   },
+   "steps": [
+    {
+     "step_name": "Vibe checklist",
+     "status": "ended_warning",
+     "message": "0 of 1 vibe requirement met",
+     "result_json": {
+      "checklist": [
+       {
+        "n": 1,
+        "requirement": "Keep the Late orders counter as the version before built it: no ask of v4 targets it",
+        "part": "dashboard",
+        "where": "the Late orders counter",
+        "status": "not_met",
+        "kind": "unrequested_change",
+        "evidence": "Genie moved the Late orders counter, and Inspire could not put it back because it now sits where an ask placed a new chart",
+        "fact": "Genie moved the Late orders counter, and Inspire could not put it back because it now sits where an ask placed a new chart",
+        "rounds": 0,
+        "tried": [],
+        "checks": [],
+        "published_anyway": null
+       }
+      ],
+      "met": 0,
+      "total": 1,
+      "use_case_id": "N02-U01",
+      "phase": "Vibe checklist"
+     }
+    }
+   ],
+   "unmet": [
+    {
+     "n": 1,
+     "requirement": "Keep the Late orders counter as the version before built it: no ask of v4 targets it",
+     "part": "dashboard",
+     "where": "the Late orders counter",
+     "status": "not_met",
+     "kind": "unrequested_change",
+     "evidence": "Genie moved the Late orders counter, and Inspire could not put it back because it now sits where an ask placed a new chart",
+     "fact": "Genie moved the Late orders counter, and Inspire could not put it back because it now sits where an ask placed a new chart",
+     "rounds": 0,
+     "tried": [],
+     "checks": [],
+     "published_anyway": null
+    }
+   ],
+   "held_reason": "1 ask is not met, so nothing of v4 is published and v3 stays live: Dashboard (the Late orders counter): Keep the Late orders counter as the version before built it: no ask of v4 targets it: Genie moved the Late orders counter, and Inspire could not put it back because it now sits where an ask placed a new chart. Rephrase the ask or press Try again, or press Publish anyway"
+  },
+  {
+   "name": "A held v2 whose App lost a v1 chart and got another back",
+   "found": {
+    "app": {
+     "version": 1,
+     "restored": [
+      {
+       "key": "charts:buffer_priority",
+       "change": "removed",
+       "label": "Buffer priority chart",
+       "what": "removed the Buffer priority chart"
+      }
+     ],
+     "blocked": [
+      {
+       "key": "charts:buffer_by_tier",
+       "change": "removed",
+       "label": "Cash buffer by action tier chart",
+       "what": "removed the Cash buffer by action tier chart",
+       "reason": "its dataset outlook is gone for the asks of the Fourteen-day takings outlook chart"
+      }
+     ],
+     "rounds": 3
+    }
+   },
+   "version": 2,
+   "entries": [
+    {
+     "n": 1,
+     "requirement": "Keep the Buffer priority chart as v1 built it: no ask of v2 targets it",
+     "part": "app",
+     "where": "the Buffer priority chart",
+     "status": "met",
+     "kind": "self_fix",
+     "evidence": "Genie removed the Buffer priority chart; Inspire put it back as v1 built it",
+     "fact": "Genie removed the Buffer priority chart; Inspire put it back as v1 built it",
+     "rounds": 0,
+     "tried": [],
+     "checks": [],
+     "published_anyway": null
+    },
+    {
+     "n": 2,
+     "requirement": "Keep the Cash buffer by action tier chart as v1 built it: no ask of v2 targets it",
+     "part": "app",
+     "where": "the Cash buffer by action tier chart",
+     "status": "not_met",
+     "kind": "unrequested_change",
+     "evidence": "Genie removed the Cash buffer by action tier chart, and Inspire could not put it back because its dataset outlook is gone for the asks of the Fourteen-day takings outlook chart",
+     "fact": "Genie removed the Cash buffer by action tier chart, and Inspire could not put it back because its dataset outlook is gone for the asks of the Fourteen-day takings outlook chart",
+     "rounds": 3,
+     "tried": [],
+     "checks": [],
+     "published_anyway": null
+    }
+   ],
+   "summary": {
+    "met": 0,
+    "total": 1,
+    "self_fixed": 1
+   },
+   "steps": [
+    {
+     "step_name": "Vibe checklist",
+     "status": "ended_warning",
+     "message": "0 of 1 vibe requirement met; Inspire put back 1 element no ask targets",
+     "result_json": {
+      "checklist": [
+       {
+        "n": 1,
+        "requirement": "Keep the Buffer priority chart as v1 built it: no ask of v2 targets it",
+        "part": "app",
+        "where": "the Buffer priority chart",
+        "status": "met",
+        "kind": "self_fix",
+        "evidence": "Genie removed the Buffer priority chart; Inspire put it back as v1 built it",
+        "fact": "Genie removed the Buffer priority chart; Inspire put it back as v1 built it",
+        "rounds": 0,
+        "tried": [],
+        "checks": [],
+        "published_anyway": null
+       },
+       {
+        "n": 2,
+        "requirement": "Keep the Cash buffer by action tier chart as v1 built it: no ask of v2 targets it",
+        "part": "app",
+        "where": "the Cash buffer by action tier chart",
+        "status": "not_met",
+        "kind": "unrequested_change",
+        "evidence": "Genie removed the Cash buffer by action tier chart, and Inspire could not put it back because its dataset outlook is gone for the asks of the Fourteen-day takings outlook chart",
+        "fact": "Genie removed the Cash buffer by action tier chart, and Inspire could not put it back because its dataset outlook is gone for the asks of the Fourteen-day takings outlook chart",
+        "rounds": 3,
+        "tried": [],
+        "checks": [],
+        "published_anyway": null
+       }
+      ],
+      "met": 0,
+      "total": 1,
+      "use_case_id": "N02-U01",
+      "phase": "Vibe checklist"
+     }
+    },
+    {
+     "step_name": "Self-fix",
+     "status": "ended_success",
+     "message": "Genie removed the Buffer priority chart; Inspire put it back as v1 built it",
+     "result_json": {
+      "spec_version": 2,
+      "self_fixed": [
+       {
+        "n": 1,
+        "requirement": "Keep the Buffer priority chart as v1 built it: no ask of v2 targets it",
+        "part": "app",
+        "where": "the Buffer priority chart",
+        "status": "met",
+        "kind": "self_fix",
+        "evidence": "Genie removed the Buffer priority chart; Inspire put it back as v1 built it",
+        "fact": "Genie removed the Buffer priority chart; Inspire put it back as v1 built it",
+        "rounds": 0,
+        "tried": [],
+        "checks": [],
+        "published_anyway": null
+       }
+      ],
+      "use_case_id": "N02-U01",
+      "phase": "Self-fix"
+     }
+    }
+   ],
+   "unmet": [
+    {
+     "n": 2,
+     "requirement": "Keep the Cash buffer by action tier chart as v1 built it: no ask of v2 targets it",
+     "part": "app",
+     "where": "the Cash buffer by action tier chart",
+     "status": "not_met",
+     "kind": "unrequested_change",
+     "evidence": "Genie removed the Cash buffer by action tier chart, and Inspire could not put it back because its dataset outlook is gone for the asks of the Fourteen-day takings outlook chart",
+     "fact": "Genie removed the Cash buffer by action tier chart, and Inspire could not put it back because its dataset outlook is gone for the asks of the Fourteen-day takings outlook chart",
+     "rounds": 3,
+     "tried": [],
+     "checks": [],
+     "published_anyway": null
+    }
+   ],
+   "held_reason": "1 ask is not met, so nothing of v2 is published and v1 stays live: App (the Cash buffer by action tier chart): Keep the Cash buffer by action tier chart as v1 built it: no ask of v2 targets it: Genie could not do it in 3 build rounds: Genie removed the Cash buffer by action tier chart, and Inspire could not put it back because its dataset outlook is gone for the asks of the Fourteen-day takings outlook chart. Rephrase the ask or press Try again, or press Publish anyway"
+  }
+ ]
+}
