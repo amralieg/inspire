@@ -138,6 +138,20 @@ def test_both_clis_come_from_local_copies_of_the_assets_with_no_download(fresh_n
     assert sorted(os.listdir(assets.local)) == copied, "a second install reuses what the first one unpacked"
 
 
+@pytest.mark.parametrize("machine,named", [("x86_64", "x86_64"), ("amd64", "x86_64"), ("ppc64le", "ppc64le")])
+def test_a_run_off_the_cli_machine_gets_one_plain_message_and_copies_nothing(fresh_ns, tmp_path, machine, named):
+    assert fresh_ns["INSPIRE_ASSET_CLI_MACHINE"] == "aarch64"
+    assets = make_assets(fresh_ns, tmp_path / "assets", cli_entries(fresh_ns, "x86_64") + cli_entries(fresh_ns), machine=machine)
+    runner = fresh_ns["GenieCodeRunner"]("https://h", "t", CapturingLogger(), root=str(tmp_path / "root"), assets=assets)
+    with pytest.raises(fresh_ns["InspireAssetError"]) as raised:
+        runner.install()
+    assert str(raised.value) == (f"This run landed on {named} compute, and Inspire installs genie-code-cli only for aarch64, the CPU "
+                                 "Databricks serverless runs Inspire on, so Genie Code cannot run here. Run it again so it lands on "
+                                 "aarch64 compute.")
+    assert not os.path.exists(assets.local) or os.listdir(assets.local) == []
+    assert not os.path.exists(tmp_path / "root" / "bin" / "genie")
+
+
 def test_a_cli_missing_from_the_assets_names_the_manifest_and_the_install_step(fresh_ns, tmp_path):
     root = tmp_path / "assets"
     assets = make_assets(fresh_ns, root, cli_entries(fresh_ns)[1:])

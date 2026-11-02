@@ -1248,11 +1248,17 @@ def _assets_listing(tar, version):
     if data.get("inspire_version") != version:
         raise RuntimeError(f"{ASSETS_TAR} is for Inspire {str(data.get('inspire_version'))[:40]}, not {version}, so the files "
                            "come from two releases. Download every file of one release again.")
+    cli_machine = data.get("cli_machine")
+    if not isinstance(cli_machine, str) or not cli_machine:
+        raise RuntimeError(f"{ASSETS_TAR} names no CPU for its command line tools in its {ASSETS_MANIFEST}. Download the release again.")
     for entry in data["files"]:
         file = str((entry or {}).get("file") or "") if isinstance(entry, dict) else ""
         if not _safe_relative(file) or file == ASSETS_MANIFEST or not isinstance(entry.get("size"), int) \
                 or not re.fullmatch(r"[0-9a-f]{64}", str(entry.get("sha256") or "")):
             raise RuntimeError(f"{ASSETS_TAR} lists an entry this installer refuses: {file[:120]!r}. Download the release again.")
+        if entry.get("kind") == "cli" and entry.get("machine") != cli_machine:
+            raise RuntimeError(f"{ASSETS_TAR} lists {file[:120]} for {str(entry.get('machine'))[:40]}, and the release installs its "
+                               f"command line tools only for {cli_machine[:40]}. Download the release again.")
     return manifest_member, data["files"]
 
 
