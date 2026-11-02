@@ -3966,9 +3966,11 @@ def test_a_probe_error_counts_as_a_lost_table_only_when_it_says_so_and_names_tha
 
 def test_the_lost_table_message_names_every_table_and_its_reason(agent_ns):
     assert agent_ns["implement_missing_tables_message"]([{"table": "main.s.a", "reason": "not found"},
-                                                         {"table": "main.s.b", "reason": "no read access"}]) == (
-        "the preview cannot run because these source tables are missing or not readable: main.s.a (not found), main.s.b (no read access). "
-        "Open Edit, Data step, to swap each for a table with the same role or remove it")
+                                                         {"table": "main.s.b", "reason": "no read access"}], "runner@example.com") == (
+        "the preview cannot run because this source table is missing: main.s.a, so open Edit, Data step, and swap it for a table with "
+        "the same role or remove it, and this run reads source tables as runner@example.com, which cannot read main.s.b. Ask the "
+        "owner of that table to run: GRANT USE CATALOG ON CATALOG `main` TO `runner@example.com`; GRANT USE SCHEMA ON SCHEMA "
+        "`main`.`s` TO `runner@example.com`; GRANT SELECT ON TABLE `main`.`s`.`b` TO `runner@example.com`")
 
 
 def _probe_inspire(ns, responder, carried_status):
@@ -3988,11 +3990,16 @@ def _probe_inspire(ns, responder, carried_status):
     return inst
 
 
-@pytest.mark.parametrize("error,reason", [
-    ("[TABLE_OR_VIEW_NOT_FOUND] The table or view `main`.`s`.`returns` cannot be found. SQLSTATE: 42P01", "not found"),
-    ("[INSUFFICIENT_PERMISSIONS] Insufficient privileges: User does not have SELECT on Table 'main.s.returns'.", "no read access"),
+@pytest.mark.parametrize("error,reason,said", [
+    ("[TABLE_OR_VIEW_NOT_FOUND] The table or view `main`.`s`.`returns` cannot be found. SQLSTATE: 42P01", "not found",
+     "the preview cannot run because this source table is missing: main.s.returns, so open Edit, Data step, and swap it for a table "
+     "with the same role or remove it"),
+    ("[INSUFFICIENT_PERMISSIONS] Insufficient privileges: User does not have SELECT on Table 'main.s.returns'.", "no read access",
+     "the preview cannot run because this run reads source tables as runner@example.com, which cannot read main.s.returns. Ask the "
+     "owner of that table to run: GRANT USE CATALOG ON CATALOG `main` TO `runner@example.com`; GRANT USE SCHEMA ON SCHEMA `main`.`s` "
+     "TO `runner@example.com`; GRANT SELECT ON TABLE `main`.`s`.`returns` TO `runner@example.com`"),
 ])
-def test_a_lost_source_table_stops_the_run_before_genie_or_a_preview_and_names_the_table(agent_ns, error, reason):
+def test_a_lost_source_table_stops_the_run_before_genie_or_a_preview_and_names_the_table(agent_ns, error, reason, said):
     def responder(statement):
         if statement == "SELECT * FROM `main`.`s`.`returns` LIMIT 0":
             raise RuntimeError(error)
@@ -4001,11 +4008,12 @@ def test_a_lost_source_table_stops_the_run_before_genie_or_a_preview_and_names_t
     inst._implement_runner = lambda uc: pytest.fail("no Genie work starts while a source table is lost")
     inst._implement_fill_and_preview = lambda *a: pytest.fail("no preview runs while a source table is lost")
     inst._implement_dashboard = inst._implement_genie_space = inst._implement_app = lambda c, r: pytest.fail("no output is built")
+    inst._implement_builder = lambda: "runner@example.com"
+    inst._implement_builder_label = lambda: "Runner"
     with pytest.raises(agent_ns["ImplementBlocked"]) as raised:
         inst._implement_one_locked({"session_id": 5150, "use_case_id": "N01-U01", "spec_version": 3, "spec_json": dict(VALID)},
                                    (5150, "N01-U01", 3))
-    assert str(raised.value) == (f"the preview cannot run because these source tables are missing or not readable: main.s.returns ({reason}). "
-                                 "Open Edit, Data step, to swap each for a table with the same role or remove it")
+    assert str(raised.value) == said
     status = inst.updates[-1]["asset_status"]
     assert status["dashboard"] == {"state": "ready", "spec_version": 2}
     assert status["data"]["state"] == "failed" and status["data"]["spec_version"] == 3
