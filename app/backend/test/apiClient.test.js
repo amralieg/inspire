@@ -33,6 +33,18 @@ test('both helpers send the token and workspace host headers, and POST sends JSO
   });
 });
 
+test('a POST passes the caller abort signal to fetch, so leaving a page cancels it', async () => {
+  const { makeApiPostJson } = await load();
+  await withFetch(() => ({ text: '{}' }), async (calls) => {
+    const stop = new AbortController();
+    const post = makeApiPostJson({ token: 'tok', databricksHost: 'https://h' });
+    await post('/api/b', {}, { signal: stop.signal });
+    await post('/api/c', {});
+    assert.equal(calls[0].opts.signal, stop.signal);
+    assert.equal(calls[1].opts.signal, undefined);
+  });
+});
+
 test('a demo request names the demo and sends no token or workspace host', async () => {
   const { makeApiFetch, makeApiPostJson, requestHeaders, SHOWCASE_HEADER } = await load();
   await withFetch(() => ({ text: '{}' }), async (calls) => {

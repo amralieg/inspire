@@ -418,3 +418,28 @@ export function groupingMainTable(name) {
   const parts = [0, 2, 4].map((k) => nameOf(tokens[k]));
   return { canonical: parts.map(canonicalPart).join('.'), sql: parts.map(quotedIdent).join('.') };
 }
+
+export const GROUPING_PREVIEW_ROUTE = '/api/grouping/preview';
+export const GROUPING_SAVE_ROUTE = '/api/grouping/save';
+
+export function groupingKeysOf(profile) {
+  const keys = profile?.prefill?.key_columns;
+  return Array.isArray(keys) ? keys.map((k) => String(k ?? '').trim()).filter(Boolean) : [];
+}
+
+export function groupingSqlRequest(base, profile, sql, resultTable = '') {
+  const body = { ...base, main_table: String(profile?.table ?? '').trim(), key_columns: groupingKeysOf(profile), sql: String(sql ?? '') };
+  const result = String(resultTable ?? '').trim();
+  return result ? { ...body, result_table: result } : body;
+}
+
+export function groupingSqlSchema(profile) {
+  const table = groupingMainTable(profile?.table);
+  if (!table) return {};
+  const columns = (Array.isArray(profile.columns) ? profile.columns : []).map((c) => String(c?.name ?? '').trim()).filter(Boolean);
+  return { [table.canonical]: [...new Set([...groupingKeysOf(profile), ...columns])] };
+}
+
+export function groupingPreviewFits(preview, checked) {
+  return Boolean(preview && preview.ok === true && checked && checked.ok && preview.sql === checked.sql);
+}

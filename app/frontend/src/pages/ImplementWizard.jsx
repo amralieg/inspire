@@ -383,6 +383,7 @@ export default function ImplementWizard({
   const alertOn = Boolean(spec.outputs.alert);
   const everySetting = useMemo(() => contextSettings(context, { outputs: { alert: alertOn } }), [context, alertOn]);
   const scopeProfile = useGroupingProfile({ apiPostJson, inspireDatabase, sessionId, useCaseId: spec.use_case_id, warehouseId, enabled: mode === 'mvp' });
+  const [groupingSaved, setGroupingSaved] = useState(undefined);
   const scopeSteps = scopeStepsOf(scopeProfile.state, scopeProfile.profile);
   const scopeSettingList = useMemo(() => everySetting.filter(isScopeSetting), [everySetting]);
   const settingsFor = useCallback((scope) => (scope.firstRun ? everySetting.filter((s) => !isScopeSetting(s)) : everySetting), [everySetting]);
@@ -519,7 +520,9 @@ export default function ImplementWizard({
   const chosenKpi = kpiTargetOf(spec);
   const sampleStake = trackedKpi && (!chosenKpi || kpiKey(chosenKpi) === kpiKey(trackedKpi.record.name)) ? trackedKpi.impact : null;
   const extras = { columnsByTable, widgets: context?.widgets || [], trainsModel, mergeTargets: targets, held: context?.assets || {}, appLook: look, built,
-    lakebase, warehouses, kpiOptions, settings: settingsList, sourceTables, scopeSteps, scopeProfile: scopeProfile.profile };
+    lakebase, warehouses, kpiOptions, settings: settingsList, sourceTables, scopeSteps, scopeProfile: scopeProfile.profile, groupingSaved };
+  const customGrouping = { apiPostJson, profileKey: scopeProfile.key, resultTable: spec.config.result_table, saved: groupingSaved, onSaved: setGroupingSaved,
+    onPicked: () => setGroupingSaved((was) => was || null) };
   const chartDates = appInputDates(columnsByTable, sourceTables);
   const ownErrors = stepErrors(stepId, spec, extras, mode);
 
@@ -1182,7 +1185,8 @@ export default function ImplementWizard({
           <section aria-label={stepId === 'grouping' ? GROUPING_TITLE : FIRST_RUN_TITLE} data-scope-step={stepId} className="space-y-3">
             <h3 className="text-sm font-semibold text-text-primary">{stepId === 'grouping' ? GROUPING_TITLE : FIRST_RUN_TITLE}</h3>
             <ScopeSettings part={stepId} values={scopeShown} profile={scopeProfile.profile} profileState={scopeProfile.state} profileError={scopeProfile.error}
-              settings={scopeSettingList} onChange={(name, value) => setSpec((prev) => withSetting(prev, { name, source: 'widget' }, value))} />
+              settings={scopeSettingList} onChange={(name, value) => setSpec((prev) => withSetting(prev, { name, source: 'widget' }, value))}
+              custom={stepId === 'grouping' ? customGrouping : null} />
           </section>
         )}
 

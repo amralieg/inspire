@@ -1,4 +1,5 @@
 import { counted } from './plural.js';
+import { groupingMainTable } from './groupingSql.js';
 
 export const GROUP_BY = 'group_by';
 export const RUN_SCOPE = 'run_scope';
@@ -148,9 +149,24 @@ export function firstRunChoices(profile, values) {
   ];
 }
 
-export function scopeProblems(values, profile = null, part = 'both') {
+export const GROUPING_CUSTOM_UNSAVED = 'Grouping is custom; write the grouping SQL, press Preview, then press Use this grouping';
+
+export function customGroupingProblem(values, custom) {
+  if (!custom || custom.saved === undefined || text(values?.[GROUP_BY]).toLowerCase() !== GROUP_CUSTOM) return '';
+  if (!custom.saved) return GROUPING_CUSTOM_UNSAVED;
+  const savedFor = text(custom.saved.result_table);
+  const now = text(custom.resultTable) ? groupingMainTable(custom.resultTable)?.canonical || text(custom.resultTable) : '';
+  if (now && now !== savedFor) {
+    return `The custom grouping is saved for ${savedFor || 'another result table'}, but the results now go to ${now}; press Preview, then Use this grouping again`;
+  }
+  return '';
+}
+
+export function scopeProblems(values, profile = null, part = 'both', custom = null) {
   const problems = [];
   const grouping = [];
+  const unsaved = customGroupingProblem(values, custom);
+  if (unsaved) grouping.push(unsaved);
   const scope = text(values?.[RUN_SCOPE]);
   if (scope && !RUN_SCOPES.includes(scope)) problems.push(`First run is '${scope}'; allowed: ${RUN_SCOPES.join(', ')}`);
   if (scope === 'records' && isMap(profile) && profile.standalone !== true) {
