@@ -6,6 +6,7 @@ import {
 } from '../lib/v130UseCase';
 import { scoreText } from '../lib/reviewFigures';
 import { plural } from '../lib/plural';
+import DataGrid from './DataGrid';
 
 const LIST_PREVIEW = 5;
 const COVERAGE_PREVIEW = 8;
@@ -332,9 +333,39 @@ export function FoundationsPanel({ foundations, deliveryOrder, describe, onOpenU
   );
 }
 
-function valueText(point) {
-  return point && point.value != null && Number.isFinite(Number(point.value)) ? formatBaseline(point.value) : 'n/a';
+function pointValue(point) {
+  return point && point.value != null && Number.isFinite(Number(point.value)) ? Number(point.value) : null;
 }
+
+function valueText(point) {
+  const value = pointValue(point);
+  return value == null ? 'n/a' : formatBaseline(value);
+}
+
+function nowText(t) {
+  if (t.status === 'measured') return valueText(t.current);
+  return t.status === 'query_only' ? 'Query only' : t.status === 'not_measured' ? KPI_TRACKING_NOT_MEASURED : 'Unavailable';
+}
+
+const TRACKING_COLUMNS = [
+  { key: 'title', label: 'Use case', className: 'py-1 pr-2 text-text-primary' },
+  {
+    key: 'kpi', label: 'KPI', className: 'py-1 pr-2 text-text-secondary',
+    render: (t) => {
+      const note = trackedKpiNote(t);
+      return <>{t.kpi}{note && <span data-tracking-note="" className="block text-[10px] text-text-secondary">{note}</span>}</>;
+    },
+  },
+  { key: 'baseline', label: 'Baseline', kind: 'number', value: (t) => pointValue(trackedKpiValue(t).baseline), render: (t) => valueText(trackedKpiValue(t).baseline) },
+  { key: 'now', label: 'Now', kind: 'number', value: (t) => (t.status === 'measured' ? pointValue(t.current) : null), render: nowText },
+  {
+    key: 'change', label: 'Change', kind: 'number', className: 'py-1 font-mono text-text-secondary', value: (t) => trackedKpiValue(t).change,
+    render: (t) => {
+      const { change } = trackedKpiValue(t);
+      return change != null ? formatBaseline(change) : 'n/a';
+    },
+  },
+];
 
 function feedbackParts(results, feedback) {
   const excluded = Array.isArray(results?.excluded_by_feedback) ? results.excluded_by_feedback : [];
@@ -400,42 +431,10 @@ export function FeedbackPanel({ results, feedback }) {
       {tracking.length > 0 && (
         <div>
           <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-text-tertiary mb-1">Value of implemented use cases</p>
-          <div className="overflow-x-auto">
-            <table className="w-full text-[11px]">
-              <thead>
-                <tr className="text-left text-[9px] uppercase tracking-[0.14em] text-text-tertiary">
-                  <th className="py-1 pr-2 font-semibold">Use case</th>
-                  <th className="py-1 pr-2 font-semibold">KPI</th>
-                  <th className="py-1 pr-2 font-semibold">Baseline</th>
-                  <th className="py-1 pr-2 font-semibold">Now</th>
-                  <th className="py-1 font-semibold">Change</th>
-                </tr>
-              </thead>
-              <tbody>
-                {tracking.map((t, i) => {
-                  const shown = trackedKpiValue(t);
-                  const note = trackedKpiNote(t);
-                  return (
-                  <tr key={`${t.use_case_key}-${i}`} className="border-t border-border align-top" data-tracking-status={t.status || ''}>
-                    <td className="py-1 pr-2 text-text-primary">{t.title}</td>
-                    <td className="py-1 pr-2 text-text-secondary">
-                      {t.kpi}
-                      {note && <span data-tracking-note="" className="block text-[10px] text-text-secondary">{note}</span>}
-                    </td>
-                    <td className="py-1 pr-2 font-mono text-text-secondary">{valueText(shown.baseline)}</td>
-                    <td className="py-1 pr-2 font-mono text-text-secondary">
-                      {t.status === 'measured' ? valueText(t.current) : t.status === 'query_only' ? 'Query only'
-                        : t.status === 'not_measured' ? KPI_TRACKING_NOT_MEASURED : 'Unavailable'}
-                    </td>
-                    <td className="py-1 font-mono text-text-secondary">
-                      {shown.change != null ? formatBaseline(shown.change) : 'n/a'}
-                    </td>
-                  </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+          <DataGrid label="Value of implemented use cases" grid="results:value_tracking" columns={TRACKING_COLUMNS} rows={tracking}
+            rowKey={(t, i) => `${t.use_case_key}-${i}`} rowProps={(t) => ({ 'data-tracking-status': t.status || '' })} tableClassName="w-full text-[11px]"
+            headRowClassName="text-left text-[9px] uppercase tracking-[0.14em] text-text-tertiary" headClassName="py-1 pr-2 font-semibold" rowClassName={() => 'border-t border-border align-top'}
+            cellClassName="py-1 pr-2 font-mono text-text-secondary" />
           {tracking.some((t) => t.status === 'query_only' && t.query) && (
             <div className="mt-2 space-y-1">
               <p className="text-[10px] text-text-tertiary">A Standard run never reads data. Run these queries to measure the KPIs now.</p>

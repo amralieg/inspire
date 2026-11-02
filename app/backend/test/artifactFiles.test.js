@@ -32,7 +32,7 @@ test('Quick access lists PDF, Excel and CSV files, and leaves CSV out when an Ex
   assert.equal(fileExtension({ name: 'Report.Final.PDF' }), 'pdf');
 });
 
-test('an Excel sheet previews as text cells: blanks stay blank, dates read as days, and at most 50 rows show', async () => {
+test('an Excel sheet previews as text cells: blanks stay blank, dates read as days, and at most PREVIEW_ROWS rows are read', async () => {
   const A = await import(libUrl);
   assert.equal(typeof A.sheetPreview, 'function');
   const day = new Date(Date.UTC(2026, 9, 31));
@@ -40,11 +40,37 @@ test('an Excel sheet previews as text cells: blanks stay blank, dates read as da
   assert.deepEqual(got.headers, ['No', 'Score', '']);
   assert.deepEqual(got.rows, [['N01-U01', '4.6', '2026-10-31'], ['N01-U02', 'true', ''], []]);
   assert.equal(got.totalRows, 3);
-  const many = A.sheetPreview([['h'], ...Array.from({ length: 80 }, (_, i) => [i])]);
-  assert.equal(many.rows.length, A.SHEET_PREVIEW_ROWS);
-  assert.equal(many.totalRows, 80);
+  const many = A.sheetPreview([['h'], ...Array.from({ length: A.PREVIEW_ROWS + 80 }, (_, i) => [i])]);
+  assert.equal(many.rows.length, A.PREVIEW_ROWS);
+  assert.equal(many.totalRows, A.PREVIEW_ROWS + 80);
+  assert.ok(A.PREVIEW_ROWS > A.PREVIEW_PAGE_ROWS, 'the preview sorts and filters more rows than one page shows');
   assert.deepEqual(A.sheetPreview(undefined), { headers: [], rows: [], totalRows: 0 });
   assert.doesNotMatch(A.EXCEL_UNREADABLE + A.EXCEL_OLD_FORMAT, /[\u2013\u2014]/);
+});
+
+test('a CSV previews with quoted commas, quotes and line breaks kept inside their cell, a byte order mark dropped and blank lines skipped', async () => {
+  const A = await import(libUrl);
+  const text = '\uFEFFNo,Name,Note\r\nN01-U01,"Churn, early","Say ""hi""\nthen leave"\r\n\r\n N01-U02 ,Upsell,\rN01-U03,Cross sell,last';
+  assert.deepEqual(A.csvRows(text), [
+    ['No', 'Name', 'Note'],
+    ['N01-U01', 'Churn, early', 'Say "hi"\nthen leave'],
+    ['N01-U02', 'Upsell', ''],
+    ['N01-U03', 'Cross sell', 'last'],
+  ]);
+  const got = A.csvPreview(text);
+  assert.deepEqual(got.headers, ['No', 'Name', 'Note']);
+  assert.equal(got.totalRows, 3);
+  assert.deepEqual(A.csvRows(''), []);
+});
+
+test('a preview grid gives every column a unique key, names blank headers, keeps extra cells and numbers each row from the file', async () => {
+  const A = await import(libUrl);
+  const { columns, rows } = A.previewGrid({ headers: ['Name', '', 'Name', 'Name (2)'], rows: [['a', 'b', 'c', 'd', 'e'], ['f']], totalRows: 2 });
+  assert.deepEqual(columns.map((c) => c.label), ['Name', 'Column 2', 'Name (2)', 'Name (2) (2)', 'Column 5']);
+  assert.equal(new Set(columns.map((c) => c.key)).size, 5);
+  assert.deepEqual(rows[0], { '#': 1, 'h:Name': 'a', 'h:Column 2': 'b', 'h:Name (2)': 'c', 'h:Name (2) (2)': 'd', 'h:Column 5': 'e' });
+  assert.deepEqual(rows[1], { '#': 2, 'h:Name': 'f', 'h:Column 2': '', 'h:Name (2)': '', 'h:Name (2) (2)': '', 'h:Column 5': '' });
+  assert.deepEqual(A.previewGrid(undefined), { columns: [], rows: [] });
 });
 
 test('the Results page builds Quick access from quickAccessFiles and keeps no extension list of its own', () => {
@@ -52,4 +78,7 @@ test('the Results page builds Quick access from quickAccessFiles and keeps no ex
   const src = fs.readFileSync(path.resolve(__dirname, '..', '..', 'frontend', 'src', 'pages', 'ResultsPage.jsx'), 'utf8');
   assert.match(src, /const previewableFiles = quickAccessFiles\(artifactFiles\);/);
   assert.doesNotMatch(src, /\['pdf', 'csv', 'xlsx', 'xls'\]\.includes/);
+  assert.equal((src.match(/<table/g) || []).length, 0, 'both file previews draw through FilePreview, never a table of their own');
+  assert.equal((src.match(/<FilePreview /g) || []).length, 2);
+  assert.doesNotMatch(src, /parseCsvLine/);
 });

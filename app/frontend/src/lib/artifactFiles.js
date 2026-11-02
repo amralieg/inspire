@@ -16,7 +16,8 @@ export function fileExtension(file) {
   return name.includes('.') ? name.split('.').pop() : '';
 }
 
-export const SHEET_PREVIEW_ROWS = 50;
+export const PREVIEW_ROWS = 5000;
+export const PREVIEW_PAGE_ROWS = 50;
 export const EXCEL_UNREADABLE = 'Inspire could not read this Excel file. Download it instead.';
 export const EXCEL_OLD_FORMAT = 'Inspire previews .xlsx files only. Download this .xls file instead.';
 
@@ -30,9 +31,52 @@ export function sheetPreview(rows) {
   const list = Array.isArray(rows) ? rows : [];
   return {
     headers: (list[0] || []).map(cellText),
-    rows: list.slice(1, SHEET_PREVIEW_ROWS + 1).map((row) => (Array.isArray(row) ? row : []).map(cellText)),
+    rows: list.slice(1, PREVIEW_ROWS + 1).map((row) => (Array.isArray(row) ? row : []).map(cellText)),
     totalRows: Math.max(0, list.length - 1),
   };
+}
+
+export function csvRows(text) {
+  const s = String(text ?? '').replace(/^\uFEFF/, '');
+  const rows = [];
+  let row = [];
+  let cell = '';
+  let quoted = false;
+  const endCell = () => { row.push(cell.trim()); cell = ''; };
+  const endRow = () => {
+    endCell();
+    if (row.some((c) => c !== '')) rows.push(row);
+    row = [];
+  };
+  for (let i = 0; i < s.length; i += 1) {
+    const ch = s[i];
+    if (quoted) {
+      if (ch === '"' && s[i + 1] === '"') { cell += '"'; i += 1; } else if (ch === '"') quoted = false;
+      else cell += ch;
+    } else if (ch === '"') quoted = true;
+    else if (ch === ',') endCell();
+    else if (ch === '\n') endRow();
+    else if (ch === '\r') { if (s[i + 1] !== '\n') endRow(); } else cell += ch;
+  }
+  if (cell !== '' || row.length) endRow();
+  return rows;
+}
+
+export const csvPreview = (text) => sheetPreview(csvRows(text));
+
+export function previewGrid(preview) {
+  const taken = new Set();
+  const headers = preview?.headers || [];
+  const wide = Math.max(headers.length, ...(preview?.rows || []).map((cells) => cells.length));
+  const columns = Array.from({ length: wide }, (_, i) => headers[i]).map((header, i) => {
+    const name = String(header ?? '').trim() || `Column ${i + 1}`;
+    let label = name;
+    for (let n = 2; taken.has(label); n += 1) label = `${name} (${n})`;
+    taken.add(label);
+    return { key: `h:${label}`, label, at: i };
+  });
+  const rows = (preview?.rows || []).map((cells, r) => Object.fromEntries([['#', r + 1], ...columns.map((c) => [c.key, cells[c.at] ?? ''])]));
+  return { columns, rows };
 }
 
 export function quickAccessFiles(files) {

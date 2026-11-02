@@ -328,6 +328,9 @@ test('an Excel catalog previews from the code Inspire ships, with no script from
     await table.waitFor({ timeout: 15000 });
     assert.deepEqual((await table.locator('thead th').allInnerTexts()).map((t) => t.trim()), ['#', 'No', 'Name', 'Score']);
     assert.deepEqual((await table.locator('tbody tr').first().locator('td').allInnerTexts()).map((t) => t.trim()), ['1', 'N01-U01', 'Predict churn', '4.6']);
+    assert.deepEqual(await table.locator('[data-grid-move]').evaluateAll((els) => els.map((b) => b.getAttribute('aria-label'))),
+      ['Move the No column', 'Move the Name column', 'Move the Score column'], 'every sheet column moves, the row number stays first');
+    assert.equal(await table.getByRole('button', { name: 'Filter Score' }).count(), 1);
     await fileRow('broken.xlsx').getByRole('button', { name: /Preview/ }).click();
     await quick.getByText(A.EXCEL_UNREADABLE).waitFor({ timeout: 15000 });
     assert.deepEqual(outside, [], 'nothing came from an outside host');

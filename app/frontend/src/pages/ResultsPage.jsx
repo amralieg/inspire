@@ -73,7 +73,8 @@ import {
   sponsorFromUc,
   trackingIdOf,
 } from '../lib/useCaseFields';
-import { EXCEL_OLD_FORMAT, EXCEL_UNREADABLE, fileExtension, quickAccessFiles, sheetPreview, visibleArtifactFiles } from '../lib/artifactFiles';
+import { EXCEL_OLD_FORMAT, EXCEL_UNREADABLE, csvPreview, fileExtension, quickAccessFiles, sheetPreview, visibleArtifactFiles } from '../lib/artifactFiles';
+import FilePreview from '../components/FilePreview';
 import { generationFolder, workspaceNotebookUrl, workspaceWebUiHashPath } from '../lib/workspaceLinks';
 import ImplementWizard from './ImplementWizard';
 import { MVP_FILTERS, implementState, mvpCounts, mvpFilterMatches, notebookRunEnded, notebookStatus, versionActive } from '../lib/implementWizard';
@@ -200,8 +201,6 @@ export default function ResultsPage({
   const [previewFile, setPreviewFile] = useState(null); // path of currently previewed file
   const [previewData, setPreviewData] = useState(null); // { type: 'pdf'|'csv', url?, rows?, headers? }
   const [previewLoading, setPreviewLoading] = useState(false);
-  const [expandedCells, setExpandedCells] = useState({}); // { "row-col": true }
-
   // Subdomain expansion state
   const [expandedDomains, setExpandedDomains] = useState({});
   const [domainPanelOpen, setDomainPanelOpen] = useState(false);
@@ -862,7 +861,6 @@ export default function ResultsPage({
     setPreviewFile(filePath);
     setPreviewData(null);
     setPreviewLoading(true);
-    setExpandedCells({});
     const headers = artifactHeaders();
     try {
       const resp = await fetch(`/api/workspace/export?path=${encodeURIComponent(filePath)}`, { headers });
@@ -872,31 +870,7 @@ export default function ResultsPage({
         const blob = new Blob([await resp.blob()], { type: 'application/pdf' });
         setPreviewData({ type: 'pdf', url: URL.createObjectURL(blob) });
       } else if (ext === 'csv') {
-        const text = await resp.text();
-        // CSV parser that handles quoted fields with commas and newlines
-        const parseCsvLine = (line) => {
-          const cells = [];
-          let current = '';
-          let inQuotes = false;
-          for (let i = 0; i < line.length; i++) {
-            const ch = line[i];
-            if (inQuotes) {
-              if (ch === '"' && line[i + 1] === '"') { current += '"'; i++; }
-              else if (ch === '"') inQuotes = false;
-              else current += ch;
-            } else {
-              if (ch === '"') inQuotes = true;
-              else if (ch === ',') { cells.push(current.trim()); current = ''; }
-              else current += ch;
-            }
-          }
-          cells.push(current.trim());
-          return cells;
-        };
-        const lines = text.split(/\r?\n/).filter(l => l.trim());
-        const csvHeaders = parseCsvLine(lines[0] || '');
-        const rows = lines.slice(1, 51).map(l => parseCsvLine(l));
-        setPreviewData({ type: 'csv', headers: csvHeaders, rows, totalRows: lines.length - 1 });
+        setPreviewData({ type: 'csv', ...csvPreview(await resp.text()) });
       } else if (ext === 'xlsx') {
         const buf = await resp.arrayBuffer();
         try {
@@ -1423,61 +1397,7 @@ export default function ResultsPage({
                       {/* Inline file preview */}
                       {!isDir && previewFile === f.path && (
                         <div className="ml-6 mr-2 my-2">
-                          {previewLoading && (
-                            <div className="flex items-center gap-2 py-4 justify-center">
-                              <Loader2 size={12} className="animate-spin text-text-tertiary" />
-                              <span className="text-[10px] text-text-secondary">Loading preview...</span>
-                            </div>
-                          )}
-                          {previewData?.type === 'pdf' && (
-                            <iframe src={previewData.url} className="w-full h-[500px] rounded-lg border border-border" title="PDF Preview" />
-                          )}
-                          {previewData?.type === 'csv' && (
-                            <div className="rounded-xl border border-border overflow-hidden shadow-sm">
-                              {/* Table header bar */}
-                              <div className="flex items-center justify-between px-4 py-2 bg-bg-subtle border-b border-border">
-                                <span className="text-[10px] font-semibold text-text-secondary">{previewData.headers.length} columns · {previewData.totalRows} rows</span>
-                                <span className="text-[9px] text-text-tertiary">Showing first {Math.min(50, previewData.totalRows)}</span>
-                              </div>
-                              <div className="max-h-[400px] overflow-auto">
-                                <table className="w-full border-collapse">
-                                  <thead className="sticky top-0 z-10">
-                                    <tr className="bg-bg-subtle">
-                                      <th className="px-3 py-2 text-[9px] text-text-tertiary font-mono text-right border-b border-r border-border w-8">#</th>
-                                      {previewData.headers.map((h, i) => (
-                                        <th key={i} className="px-3 py-2 text-left text-[10px] text-text-primary font-semibold border-b border-border whitespace-nowrap">{h}</th>
-                                      ))}
-                                    </tr>
-                                  </thead>
-                                  <tbody>
-                                    {previewData.rows.map((row, ri) => (
-                                      <tr key={ri} className={`${ri % 2 === 0 ? 'bg-surface' : 'bg-bg-subtle/30'} hover:bg-db-red-50/30 transition-colors`}>
-                                        <td className="px-3 py-1.5 text-[9px] text-text-tertiary font-mono text-right border-r border-border/50 w-8">{ri + 1}</td>
-                                        {row.map((cell, ci) => (
-                                          <td
-                                            key={ci}
-                                            className={`px-3 py-1.5 text-[11px] text-text-primary border-b border-border/30 ${expandedCells[`${ri}-${ci}`] ? 'whitespace-normal break-words' : 'whitespace-nowrap max-w-[250px] truncate'} ${cell.length > 30 ? 'cursor-pointer hover:bg-db-red-50/20' : ''}`}
-                                            onClick={cell.length > 30 ? () => setExpandedCells(prev => ({ ...prev, [`${ri}-${ci}`]: !prev[`${ri}-${ci}`] })) : undefined}
-                                            title={cell.length > 30 && !expandedCells[`${ri}-${ci}`] ? 'Click to expand' : undefined}
-                                          >{cell}</td>
-                                        ))}
-                                      </tr>
-                                    ))}
-                                  </tbody>
-                                </table>
-                              </div>
-                              {previewData.totalRows > 50 && (
-                                <div className="flex items-center justify-center gap-2 py-2.5 bg-bg-subtle border-t border-border text-[10px] text-text-tertiary">
-                                  <span>Showing 50 of {previewData.totalRows} rows</span>
-                                  <span className="text-text-disabled">·</span>
-                                  <span>Download for full data</span>
-                                </div>
-                              )}
-                            </div>
-                          )}
-                          {previewData?.type === 'error' && (
-                            <p className="text-[10px] text-error-fg py-2">{previewData.message}</p>
-                          )}
+                          <FilePreview name={f.name} loading={previewLoading} data={previewData} />
                         </div>
                       )}
                       {isDir && isOpen && (
@@ -1641,55 +1561,8 @@ export default function ResultsPage({
                 {/* Inline preview */}
                 {previewFile && previewableFiles.some(f => f.path === previewFile) && (
                   <div className="mt-4">
-                    {previewLoading && (
-                      <div className="flex items-center gap-2 py-6 justify-center rounded-xl border border-border bg-bg-subtle/30">
-                        <Loader2 size={14} className="animate-spin text-text-tertiary" />
-                        <span className="text-xs text-text-secondary">Loading preview...</span>
-                      </div>
-                    )}
-                    {previewData?.type === 'pdf' && (
-                      <iframe src={previewData.url} className="w-full h-[600px] rounded-xl border border-border shadow-sm" title="PDF Preview" />
-                    )}
-                    {previewData?.type === 'csv' && (
-                      <div className="rounded-xl border border-border overflow-hidden shadow-sm">
-                        <div className="flex items-center justify-between px-4 py-2 bg-bg-subtle border-b border-border">
-                          <span className="text-[10px] font-semibold text-text-secondary">{previewData.headers.length} columns · {previewData.totalRows} rows</span>
-                          <span className="text-[9px] text-text-tertiary">Showing first {Math.min(50, previewData.totalRows)}</span>
-                        </div>
-                        <div className="max-h-[400px] overflow-auto">
-                          <table className="w-full border-collapse">
-                            <thead className="sticky top-0 z-10">
-                              <tr className="bg-bg-subtle">
-                                <th className="px-3 py-2 text-[9px] text-text-tertiary font-mono text-right border-b border-r border-border w-8">#</th>
-                                {previewData.headers.map((h, i) => (
-                                  <th key={i} className="px-3 py-2 text-left text-[10px] text-text-primary font-semibold border-b border-border whitespace-nowrap">{h}</th>
-                                ))}
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {previewData.rows.map((row, ri) => (
-                                <tr key={ri} className={`${ri % 2 === 0 ? 'bg-surface' : 'bg-bg-subtle/30'} hover:bg-db-red-50/30 transition-colors`}>
-                                  <td className="px-3 py-1.5 text-[9px] text-text-tertiary font-mono text-right border-r border-border/50 w-8">{ri + 1}</td>
-                                  {row.map((cell, ci) => (
-                                    <td key={ci} className="px-3 py-1.5 text-[11px] text-text-primary border-b border-border/30 whitespace-normal break-words max-w-[400px]">{cell}</td>
-                                  ))}
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                        {previewData.totalRows > 50 && (
-                          <div className="flex items-center justify-center gap-2 py-2.5 bg-bg-subtle border-t border-border text-[10px] text-text-tertiary">
-                            <span>Showing 50 of {previewData.totalRows} rows</span>
-                            <span className="text-text-disabled">·</span>
-                            <span>Download for full data</span>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                    {previewData?.type === 'error' && (
-                      <p className="text-[10px] text-error-fg py-2">{previewData.message}</p>
-                    )}
+                    <FilePreview name={previewableFiles.find((f) => f.path === previewFile).name} loading={previewLoading} data={previewData}
+                      pdfClassName="h-[600px] rounded-xl shadow-sm" />
                   </div>
                 )}
               </div>

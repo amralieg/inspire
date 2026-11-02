@@ -122,6 +122,14 @@ test('the wizard Grouping step: Custom opens a SQL editor prefilled from the tab
       [['one_row_per_record', 'yes'], ['group_count', 'yes'], ['small_groups', 'yes'], ['no_group', 'yes']]);
     assert.deepEqual(await shown.locator('[data-grouping-sql-group]').evaluateAll((rows) => rows.map((r) => r.innerText.split('\t').map((s) => s.trim()))),
       [['Enterprise', '700 records'], ['SMB', '480 records'], ['No group', '20 records']]);
+    for (const name of ['Move the Group column', 'Move the Records column', 'Filter Group', 'Filter Records']) {
+      assert.equal(await shown.getByRole('button', { name, exact: true }).count(), 1, `the preview offers ${name}`);
+    }
+    await shown.locator('th[data-col="records"] [data-grid-sort]').click();
+    assert.deepEqual(await shown.locator('[data-grouping-sql-group] td:first-child').allInnerTexts(), ['Enterprise', 'SMB', 'No group'],
+      'records sort biggest first');
+    await shown.locator('th[data-col="records"] [data-grid-sort]').click();
+    assert.deepEqual(await shown.locator('[data-grouping-sql-group] td:first-child').allInnerTexts(), ['No group', 'SMB', 'Enterprise']);
     assert.deepEqual(sqlRuns(made).map((c) => c.token), [PERSON, PERSON, PERSON], 'the preview runs with the person token only');
 
     await typeSql(page, editor, `${GOOD} WHERE o.order_id IS NOT NULL`);
