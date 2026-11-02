@@ -97,6 +97,8 @@ REVIEWED = {
         ('_implement_deploy_app', 'state'),
         ('_implement_genie_loop', "result.get('exit')"),
         ('_implement_genie_smoke', 'status'),
+        ('_implement_lakebase_project', 'deleted'),
+        ('_implement_lakebase_project', 'until'),
         ('_implement_lakebase_source', 'synced'),
         ('_implement_lakebase_synced', "copy['synced']"),
         ('_with_metadata_retries', 'kind'),

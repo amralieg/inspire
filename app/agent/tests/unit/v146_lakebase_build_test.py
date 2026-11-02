@@ -712,6 +712,70 @@ def test_lakebase_that_cannot_be_used_says_why(agent_ns, routes, needle):
     assert str(raised.value) == needle
 
 
+DELETED_PROJECT = {"name": "projects/inspire-apps", "delete_time": "2026-11-02T09:37:40Z", "purge_time": "2026-11-09T09:37:40Z"}
+DELETED_REASON = ("the Lakebase project inspire-apps was deleted on 2026-11-02 and keeps its name until it is purged on 2026-11-09; "
+                  "restore it in Lakebase to build Apps on Lakebase again")
+
+
+@pytest.mark.parametrize("project,reason", [
+    (DELETED_PROJECT, DELETED_REASON),
+    ({"name": "projects/inspire-apps", "delete_time": "2026-11-02T09:37:40Z"},
+     "the Lakebase project inspire-apps was deleted on 2026-11-02 and keeps its name until it is purged; "
+     "restore it in Lakebase to build Apps on Lakebase again"),
+], ids=["purge_date", "no_purge_date"])
+def test_a_deleted_lakebase_project_is_refused_at_once_instead_of_waiting_for_an_endpoint_it_will_never_get(agent_ns, project, reason):
+    import time
+    inst, calls = _routed(agent_ns, _ready_routes({("GET", "/api/2.0/postgres/projects/inspire-apps"): project,
+                                                     ("GET", ENDPOINT): NOT_FOUND}))
+    inst._implement_builder = lambda: "builder"
+    with pytest.raises(agent_ns["ImplementLakebaseUnavailable"]) as raised:
+        inst._implement_lakebase_ready(time.time() + 1)
+    assert str(raised.value) == reason
+    assert [c[:2] for c in calls] == [("GET", "/api/2.0/postgres/projects"), ("GET", "/api/2.0/postgres/projects/inspire-apps")], \
+        "no create, no endpoint wait, no catalog"
+
+
+def test_a_live_project_with_an_empty_delete_time_is_still_used(agent_ns):
+    import time
+    inst, _calls = _routed(agent_ns, _ready_routes({("GET", "/api/2.0/postgres/projects/inspire-apps"):
+                                                        {"name": "projects/inspire-apps", "delete_time": ""},
+                                                    ("GET", CATALOG): [{"status": {"branch": BRANCH,
+                                                                                   "postgres_database": "databricks_postgres"}}]}))
+    inst._implement_builder = lambda: "builder"
+    assert inst._implement_lakebase_ready(time.time() + 60) == ENV
+
+
+def test_taking_back_reads_on_a_deleted_project_says_why_at_once(agent_ns):
+    inst, calls = _routed(agent_ns, {("GET", "/api/2.0/postgres/projects/inspire-apps"): DELETED_PROJECT})
+    inst._require_asset_package = lambda *a: pytest.fail("a deleted project needs no Lakebase driver")
+    gone, failed, warnings = inst._implement_lakebase_revoke(None, ["a", "b"], "sp-1")
+    assert (gone, failed) == ([], ["a", "b"])
+    assert warnings == [f"App: Inspire could not reach Lakebase, so the App's service principal sp-1 may still read the Lakebase copies "
+                        f"a and b: {DELETED_REASON}"]
+    assert len(calls) == 1
+
+
+def test_taking_back_reads_on_a_purged_project_counts_every_copy_gone(agent_ns):
+    inst, _calls = _routed(agent_ns, {("GET", "/api/2.0/postgres/projects/inspire-apps"): NOT_FOUND})
+    assert inst._implement_lakebase_revoke(None, ["a", "b"], "sp-1") == (["a", "b"], [], [])
+
+
+def test_waiting_for_lakebase_logs_a_heartbeat_every_minute_and_still_times_out(agent_ns, monkeypatch):
+    import time
+    inst, _calls = _routed(agent_ns, {})
+    clock = [1000.0]
+    monkeypatch.setattr(time, "time", lambda: clock[0])
+    monkeypatch.setattr(time, "sleep", lambda s: clock.__setitem__(0, clock[0] + s))
+    reads = iter(["", "", "", "", "", "", "", "pg.example"])
+    assert inst._implement_lakebase_until(lambda: next(reads), "the endpoint", clock[0] + 600) == "pg.example"
+    beats = [m for m in _lines(inst, "INFO") if m.startswith("[WAIT-HEARTBEAT]")]
+    assert beats == ["[WAIT-HEARTBEAT] waiting for the endpoint: 0/1 done, 1 in progress, 60s elapsed of 600s"]
+    clock[0] = 5000.0
+    with pytest.raises(agent_ns["ImplementLakebaseUnavailable"]) as raised:
+        inst._implement_lakebase_until(lambda: "", "the endpoint", clock[0] + 25)
+    assert str(raised.value) == "the endpoint was not ready after 30 minutes"
+
+
 COPIES = [{"synced": "inspire_lakebase.s.a", "view": "main.inspire.a__lb"}, {"synced": "inspire_lakebase.s.b", "view": "main.inspire.b__lb"}]
 SYNCED = "/api/2.0/postgres/synced_tables"
 UC_TABLES = "/api/2.1/unity-catalog/tables"
