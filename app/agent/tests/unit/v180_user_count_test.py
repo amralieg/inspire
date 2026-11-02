@@ -172,6 +172,17 @@ def test_with_no_user_count_selection_is_unchanged(agent_ns):
     assert len(selected) == 12 and not any(s["stage"] == "user_count" for s in inst.funnel_ledger)
 
 
+def test_user_domains_that_outnumber_an_exact_count_are_all_kept_and_the_excess_is_a_warning(agent_ns):
+    domains = ["Sales", "Operations", "Finance", "Legal"]
+    ucs = _ucs(12, domains=tuple(domains))
+    inst, (selected, _rejected) = _select(agent_ns, {"count": 2, "mode": "exactly"}, ucs, domains=domains)
+    assert sorted({uc["Business Domain"] for uc in selected}) == sorted(domains) and len(selected) == 4
+    warned = [m for m in _messages(inst, "WARNING") if m.startswith("[USE-CASE-COUNT FIRED]")]
+    assert len(warned) == 1 and "more use cases than asked are kept" in warned[0] and "never pads" not in warned[0]
+    inst, (selected, _rejected) = _select(agent_ns, {"count": 4, "mode": "exactly"}, _ucs(12, domains=tuple(domains)), domains=domains)
+    assert len(selected) == 4 and not [m for m in _messages(inst, "WARNING") if m.startswith("[USE-CASE-COUNT FIRED]")]
+
+
 def test_a_shortfall_is_logged_and_never_padded(agent_ns):
     inst, (selected, _rejected) = _select(agent_ns, {"count": 30, "mode": "about"}, _ucs(12, domains=("Sales",)))
     assert len(selected) == 12
