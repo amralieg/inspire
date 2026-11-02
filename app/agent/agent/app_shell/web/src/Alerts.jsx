@@ -197,11 +197,16 @@ function AlertRow({ alert, listing, meta, onEdit, onChanged }) {
   );
 }
 
-export default function Alerts({ app, page, meta }) {
+export default function Alerts({ app, page, meta, compose = false, onComposed }) {
   const { data, error, load } = useAlerts(page.id);
   const [form, setForm] = useState(null);
   const listing = data;
   const full = capped(listing?.caps);
+  useEffect(() => {
+    if (!compose || !listing) return;
+    onComposed?.();
+    if (!full && listing.measures.length > 0) setForm((now) => now || blankForm(listing, app.user));
+  }, [compose, listing, full, app.user, onComposed]);
   const done = () => { setForm(null); load(); };
   return (
     <section className="card card--table alerts" aria-label="Alerts">
