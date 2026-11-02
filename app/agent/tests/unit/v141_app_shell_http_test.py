@@ -20,7 +20,7 @@ from v141_app_shell_test import PAGE, SETTINGS, FakeWorkspace  # noqa: E402
 
 
 def client(tmp_path, monkeypatch, **settings):
-    for name in ("app.py", "app.yaml", "shell_core.py", "shell_db.py", "shell_sql.py"):
+    for name in ("app.py", "app.yaml", "shell_core.py", "shell_db.py", "shell_redact.py", "shell_sql.py"):
         shutil.copy(os.path.join(SERVER, name), tmp_path / name)
     (tmp_path / "pages").mkdir()
     (tmp_path / "pages" / "n01_u05.json").write_text(json.dumps(PAGE))

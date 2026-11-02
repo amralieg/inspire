@@ -12,7 +12,7 @@ from _nbload import AGENT_NB, ROOT, notebook_cells, packed_text
 
 PYTHON_310 = "/opt/homebrew/bin/python3.10"
 SHIPPED_FILES = ("agent/**/*.py", "demos/**/*.py", "inspire_installer.py", "app/installer/**/*.py", "release/**/*.py")
-SHELL_MODULES = ("shell_sql", "shell_db", "shell_pg", "shell_alerts", "shell_core")
+SHELL_MODULES = ("shell_redact", "shell_sql", "shell_db", "shell_pg", "shell_alerts", "shell_core")
 BASE64 = re.compile(r"^[A-Za-z0-9+/=\s]{400,}$")
 MARKER = re.compile(r"@@[A-Z_]+@@")
 CODE = (ast.Import, ast.ImportFrom, ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef, ast.Assign, ast.AugAssign,
@@ -288,6 +288,23 @@ def test_every_regular_expression_in_shipped_python_compiles_on_python_310(sourc
     assert len(patterns) > 100
     failures = regex_failures(patterns)
     assert failures == [], f"{len(failures)} pattern(s) need Python 3.11 or later:\n" + "\n".join(failures[:40])
+
+
+def fromisoformat_calls(sources: list) -> list:
+    out = []
+    for label, text in sources:
+        tree = _tree(text)
+        out += [f"{label} line {node.lineno}: {ast.unparse(node)[:120]}" for node in (ast.walk(tree) if tree else ())
+                if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr == "fromisoformat"]
+    return out
+
+
+def test_shipped_python_reads_dates_and_times_only_through_the_one_helper(sources, rendered):
+    found = fromisoformat_calls([(label, text) for label, text in sources + rendered if not label.startswith("demos/")])
+    assert found == [], f"{len(found)} fromisoformat call(s), which read a trailing Z, an offset without a colon or a fraction " \
+        "of other than 3 or 6 digits on Python 3.11 and later but not on 3.10; use inspire_parse_time:\n" + "\n".join(found[:40])
+    assert fromisoformat_calls([("p", "import datetime\nday = datetime.date.fromisoformat(text)\n")]) == \
+        ["p line 2: datetime.date.fromisoformat(text)"]
 
 
 def test_shipped_python_uses_no_standard_library_name_added_after_python_310(sources, rendered):

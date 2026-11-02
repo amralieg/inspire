@@ -46,8 +46,8 @@ def _name(func):
 
 
 class Routes:
-    def __init__(self, source, label="agent"):
-        self.label = label
+    def __init__(self, source, label="agent", sinks=SINKS, quiet=QUIET):
+        self.label, self.sinks, self.quiet = label, sinks, quiet
         self.tree = ast.parse(source)
         self.parents, self.owner, self.defs, self.methods = {}, {}, {}, {}
         for node in ast.walk(self.tree):
@@ -80,7 +80,7 @@ class Routes:
     def _inside_sink(self, node):
         while node in self.parents:
             node = self.parents[node]
-            if isinstance(node, ast.Call) and _name(node.func) in SINKS:
+            if isinstance(node, ast.Call) and _name(node.func) in self.sinks:
                 return True
             if isinstance(node, ast.stmt):
                 return False
@@ -88,7 +88,8 @@ class Routes:
 
     def _own_only(self, handler):
         caught = [] if handler.type is None else handler.type.elts if isinstance(handler.type, ast.Tuple) else [handler.type]
-        return bool(caught) and all(isinstance(c, ast.Name) and c.id in self.own for c in caught)
+        return bool(caught) and all((isinstance(c, ast.Name) and c.id in self.own) or (isinstance(c, ast.Attribute) and c.attr in self.own)
+                                    for c in caught)
 
     def sites(self):
         found = []
@@ -199,7 +200,7 @@ class Routes:
         while True:
             parent = self.parents[child]
             kept = raw and child is node
-            if isinstance(parent, ast.Call) and _name(parent.func) in SINKS and child is not parent.func:
+            if isinstance(parent, ast.Call) and _name(parent.func) in self.sinks and child is not parent.func:
                 return []
             if isinstance(parent, ast.Compare) or (isinstance(parent, ast.Raise) and child in (parent.cause, parent.exc)):
                 return []
@@ -223,7 +224,7 @@ class Routes:
             elif isinstance(parent, ast.Call):
                 name = _name(parent.func)
                 if child is not parent.func:
-                    if name in QUIET:
+                    if name in self.quiet:
                         return []
                     if name in LOGGER:
                         return [self._where(parent, via)]
@@ -331,6 +332,59 @@ def test_every_site_in_the_notebook_and_the_code_it_runs_turns_errors_into_text_
     assert set(pasted_sources(source)) == {"GENIE_RUN_CONTROLS_TEMPLATE"}
     found = notebook_sites(source)
     assert found == [], _report(found)
+
+
+SHELL_SINKS = SINKS + ("error_text",)
+SHELL_QUIET = QUIET | {"set_exception"}
+SHELL_FILES = ("shell_redact.py", "shell_sql.py", "shell_db.py", "shell_pg.py", "shell_alerts.py", "shell_core.py", "app.py")
+
+
+def shell_library(files=None):
+    from _nbload import ROOT
+    library, spans = "", []
+    for name in SHELL_FILES:
+        if files is None:
+            with open(os.path.join(ROOT, "agent", "app_shell", "server", name), encoding="utf-8") as handle:
+                text = handle.read()
+        else:
+            text = files[name]
+        start = library.count("\n")
+        library += text.rstrip("\n") + "\n\n\n"
+        spans.append((start, library.count("\n"), name))
+    return library, spans
+
+
+def shell_sites(files=None):
+    library, spans = shell_library(files)
+    found = []
+    for _label, line, fn, via in Routes(library, "shell", SHELL_SINKS, SHELL_QUIET).sites():
+        home = next(((name, line - start) for start, end, name in spans if start < line <= end), ("shell", line))
+        found.append((home[0], home[1], fn, via))
+    return sorted(set(found))
+
+
+def test_every_site_in_the_app_shell_turns_errors_into_text_only_through_the_one_redaction():
+    found = shell_sites()
+    assert found == [], _report(found)
+
+
+@pytest.mark.parametrize("name,old,new,flagged", [
+    ("shell_db.py", "did not answer: {error_text(error, self.secrets)}", "did not answer: {error}", ("shell_db.py", "call")),
+    ("shell_pg.py", "could not connect to Lakebase: {error_text(error, self.secrets())}", "could not connect to Lakebase: {error}",
+     ("shell_pg.py", "_psycopg")),
+    ("shell_core.py", "            return 400, error_body(shell_sql.error_text(error), getattr(error, \"code\", \"\"))",
+     "            return 400, error_body(str(error), getattr(error, \"code\", \"\"))", ("shell_db.py", "error_body")),
+    ("shell_alerts.py", "\"error\": shell_sql.error_text(error)}", "\"error\": str(error)}", ("shell_alerts.py", "cli")),
+], ids=["platform_reply", "driver_error", "builtin_error_in_a_response", "builtin_error_in_cli_output"])
+def test_an_unrouted_site_in_the_app_shell_fails_the_suite(name, old, new, flagged):
+    from _nbload import ROOT
+    files = {}
+    for file in SHELL_FILES:
+        with open(os.path.join(ROOT, "agent", "app_shell", "server", file), encoding="utf-8") as handle:
+            files[file] = handle.read()
+    assert files[name].count(old) == 1
+    files[name] = files[name].replace(old, new)
+    assert [(label, fn) for label, _line, fn, _via in shell_sites(files)] == [flagged]
 
 
 @pytest.mark.parametrize("anchor,method,label,flagged", [
@@ -508,11 +562,35 @@ def test_there_is_one_redaction_path():
     assert found["patterns"] == {"inspire_redact_secrets"}, found["patterns"]
     assert found["callers"] == {"inspire_redact_text", "redact"}, found["callers"]
     assert found["values"] <= {"<module>", "inspire_redact_text", "spark", "quoted"}, found["values"]
+    shell = {}
+    _tree_masks(ast.parse(shell_library()[0]), shell)
+    assert shell["marks"] == {"inspire_redact_secrets"} and shell["patterns"] == {"inspire_redact_secrets"}, shell
+    assert shell["callers"] == {"inspire_redact_text"} and shell["values"] <= {"<module>", "inspire_redact_text", "spark", "quoted"}, shell
 
 
 def test_a_second_redaction_helper_is_caught():
     helper = 'def implement_hide_token(text, token):\n    return str(text).replace(token, "<redacted>")\n\n\n'
     assert "implement_hide_token" in _masks(helper + agent_source(ROUTE_NOTEBOOK))["marks"]
+
+
+def test_the_app_shell_ships_the_notebook_s_one_redaction_byte_for_byte(agent_ns):
+    import importlib.util
+    from _nbload import ROOT
+    spec = importlib.util.spec_from_file_location("inspire_app_shell_embed_v169", os.path.join(ROOT, "agent", "app_shell", "embed.py"))
+    embed = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(embed)
+    with open(os.path.join(embed.SERVER, "shell_redact.py"), encoding="utf-8") as handle:
+        shipped = handle.read()
+    assert shipped == agent_ns["REDACT_SOURCE"], "agent/app_shell/server/shell_redact.py differs from the notebook's REDACT_SOURCE"
+    assert embed.embedded()["files"]["shell_redact.py"] == agent_ns["REDACT_SOURCE"]
+    assert agent_ns["IMPLEMENT_APP_SHELL_MODULES"][0] == "shell_redact"
+    checks = agent_ns["implement_app_check_files"]("", False)
+    assert [text for name, text in checks.items() if name.endswith("/shell_redact.py")] == [agent_ns["REDACT_SOURCE"]]
+    namespace = {}
+    exec(compile(shipped, "shell_redact", "exec"), namespace)
+    assert namespace["inspire_redact_text"]("could not read 'alice@example.com' from main.sales.orders", set(), "") == \
+        agent_ns["inspire_redact_text"]("could not read 'alice@example.com' from main.sales.orders", set(), "")
+    assert agent_ns["raised_by_inspire"].__globals__["inspire_raised_by"] is agent_ns["inspire_raised_by"]
 
 
 def test_genie_stderr_loses_its_secrets_and_values_and_keeps_its_frames(agent_ns, tmp_path):

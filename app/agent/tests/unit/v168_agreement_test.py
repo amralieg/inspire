@@ -168,8 +168,9 @@ def test_the_plural_helper_at_zero_one_and_two(agent_ns, n, one, many, expected)
 
 
 @pytest.mark.parametrize("n,expected", [(0, "0 rows"), (1, "1 row"), (2, "2 rows"), (100001, "100,001 rows")])
-def test_the_app_shell_plural_helper_at_zero_one_and_two(n, expected):
+def test_the_app_shell_plural_helper_at_zero_one_and_two(n, expected, monkeypatch):
     import importlib.util
+    monkeypatch.syspath_prepend(SHELL_SERVER)
     spec = importlib.util.spec_from_file_location("v168_shell_sql", os.path.join(SHELL_SERVER, "shell_sql.py"))
     shell_sql = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(shell_sql)

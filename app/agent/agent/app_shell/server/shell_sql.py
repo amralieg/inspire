@@ -2,9 +2,25 @@ import datetime
 import functools
 import json
 import math
+import os
 import re
 import zoneinfo
 from html.parser import HTMLParser
+
+from shell_redact import inspire_parse_time, inspire_raised_by, inspire_redact_text
+
+SHELL_MODULES = ("shell_redact", "shell_sql", "shell_db", "shell_pg", "shell_alerts", "shell_core", "app")
+SHELL_FILES = tuple(os.path.join(os.path.dirname(__file__), f"{name}.py") for name in SHELL_MODULES)
+
+
+def error_text(error, secrets=(), known: str = "") -> str:
+    own = inspire_raised_by(error, SHELL_FILES, SHELL_MODULES)
+    text = getattr(error, "message", None)
+    if text is None:
+        text = error.args[0] if own and isinstance(error, KeyError) and len(error.args) == 1 else error
+    text = str(text).strip() or type(error).__name__
+    return text if own else inspire_redact_text(text, set(), known, secrets)
+
 
 SPEC_VERSION = 1
 RECORDS_DATASET = "records"
@@ -420,7 +436,7 @@ def spec_problems(page: dict) -> list:
         try:
             table_name(result)
         except ValueError as error:
-            problems.append(f"the page result_table: {error}")
+            problems.append(f"the page result_table: {error_text(error)}")
             result = None
     datasets = page.get("datasets")
     if not isinstance(datasets, list) or not datasets:
@@ -1068,7 +1084,7 @@ def _date(value) -> datetime.date:
     text = str(value or "")
     try:
         if _DATE.match(text):
-            return datetime.date.fromisoformat(text)
+            return inspire_parse_time(text).date()
     except ValueError:
         pass
     raise ValueError(f"{value!r} is not a YYYY-MM-DD date")
@@ -1167,7 +1183,7 @@ def _value_problems(kind, where: str, value, open_ends: bool = False) -> list:
                 _date(value.get(low))
                 _date(value.get(high))
             except ValueError as error:
-                return [f"{where}: {error}"]
+                return [f"{where}: {error_text(error)}"]
             return []
         unknown = sorted(set(value) - {low, high})
         if unknown:
@@ -1175,7 +1191,7 @@ def _value_problems(kind, where: str, value, open_ends: bool = False) -> list:
         try:
             start, end = _edge(kind, value.get(low)), _edge(kind, value.get(high))
         except ValueError as error:
-            return [f"{where}: {error}"]
+            return [f"{where}: {error_text(error)}"]
         if start is not None and end is not None and start > end:
             return [f"{where} runs from {value[low]} to {value[high]}; its {low} must not be above its {high}"]
         return []
@@ -2169,7 +2185,7 @@ def runs_problem(sql: str, table: str) -> str:
     try:
         runs_compare_sql(sql, table, HISTORY_COLUMNS + ("run_id",))
     except ValueError as error:
-        return str(error)
+        return error_text(error)
     return ""
 
 
@@ -2347,7 +2363,7 @@ def run_split_problem(expression) -> str:
     try:
         run_measure(expression, RUN_PREVIOUS)
     except ValueError as error:
-        return f"{error}; write it so every column sits inside an aggregate such as SUM, COUNT, AVG, MIN or MAX"
+        return f"{error_text(error)}; write it so every column sits inside an aggregate such as SUM, COUNT, AVG, MIN or MAX"
     return ""
 
 
@@ -2805,7 +2821,7 @@ def money_model(summary, fields, edits=()) -> dict:
         try:
             tree = _expression_tree(text)
         except ValueError as error:
-            model["problem"] = f"the {stake} arithmetic cannot be read: {error}"
+            model["problem"] = f"the {stake} arithmetic cannot be read: {error_text(error)}"
             return model
         names = list(dict.fromkeys(_expression_names(tree)))
         unknown = [n for n in names if n.lower() not in numeric and n not in by_name]
@@ -3687,11 +3703,11 @@ def field_value(field: dict, raw, params: _Params) -> str:
         try:
             return params.add(_date(text).isoformat(), "DATE")
         except ValueError as error:
-            raise ValueError(f"{name}: {error}") from error
+            raise ValueError(f"{name}: {error_text(error)}") from error
     if kind == "timestamp":
         match = _TIMESTAMP.match(text)
         try:
-            stamp = datetime.datetime.fromisoformat(f"{match.group(1)} {match.group(2)}{match.group(3) or ':00'}") if match else None
+            stamp = inspire_parse_time(f"{match.group(1)} {match.group(2)}{match.group(3) or ':00'}").replace(tzinfo=None) if match else None
         except ValueError:
             stamp = None
         if stamp is None:
