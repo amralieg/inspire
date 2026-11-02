@@ -249,7 +249,7 @@ def _csv_rows(ns, grouped):
     obj = make_inspire(ns)
     obj._normalize_usecase = lambda usecase, name: usecase
     obj._generate_csv_catalog("English", "en", grouped)
-    text = next(iter(obj.w_client.workspace.files.values())).decode("utf-8")
+    text = next(iter(obj.w_client.workspace.files.values())).decode("utf-8-sig")
     return list(csv.reader(io.StringIO(text)))
 
 
@@ -351,8 +351,8 @@ def test_english_documents_reuse_the_run_summary_instead_of_asking_again(ranked)
     calls, received = [], []
     obj._get_salesy_summary = lambda grouped, name, lang, t: calls.append(lang) or ({"Executive": "a second summary"}, name)
     obj.translation_service = types.SimpleNamespace(get_translations=lambda lang: english(ranked))
-    obj._generate_markdown_catalog = lambda lang, abbr, grouped, summary, name: received.append((summary, name))
-    obj._generate_csv_catalog = lambda lang, abbr, grouped: None
+    obj._generate_markdown_catalog = lambda lang, abbr, grouped, summary, name, translations=None: received.append((summary, name))
+    obj._generate_csv_catalog = lambda lang, abbr, grouped, translations=None: None
     obj.generate_catalog_pdf = lambda *a: received.append(a[3])
     obj._emit_pipeline_status = lambda **kw: 1
     summary = {"Executive": "the summary run() already produced"}

@@ -63,23 +63,19 @@ def test_vibe_lang_force_pdf_sentinel_present(ns):
         "must emit [VIBE-LANG FORCE-PDF FIRED] when PDF was forced (not user-selected)"
 
 
-def test_english_md_still_unconditional_inside_english_block(ns):
-    """Regression guard: English MD scheduling must remain unconditional inside
-    the `if lang == "English":` block of the artifact-writing loop."""
+def test_md_and_csv_are_scheduled_unconditionally_for_every_language(ns):
+    """Regression guard: Markdown and CSV are scheduled for every language of the
+    artifact-writing loop, with no language or choice gate before them."""
     body = _notebook_body()
     anchor = "Submitting writing jobs for {lang}..."
     pos = body.find(anchor)
     assert pos != -1, f"artifact-writing anchor not found: {anchor}"
     region = body[pos:pos + 4000]
-    assert "writer_ctx.submit(self._generate_markdown_catalog" in region, \
-        "English MD must be scheduled unconditionally inside artifact-writing English block"
     md_pos = region.find("writer_ctx.submit(self._generate_markdown_catalog")
-    prefix = region[:md_pos]
-    if_lang_pos = prefix.rfind('if lang == \\"English\\":')
-    assert if_lang_pos != -1, "MD must be inside the `if lang == English:` block"
-    between = prefix[if_lang_pos:md_pos]
-    assert "if " not in between[len('if lang == \\"English\\":'):], \
-        "no extra `if` guard between the English gate and MD scheduling (regression guard)"
+    csv_pos = region.find("writer_ctx.submit(self._generate_csv_catalog")
+    assert md_pos != -1 and csv_pos != -1, "Markdown and CSV must be scheduled in the artifact-writing loop"
+    assert "if " not in region[:max(md_pos, csv_pos)], \
+        "no `if` guard between the loop anchor and the Markdown and CSV scheduling"
 
 
 def test_artifact_successes_set_declared(ns):
@@ -102,18 +98,22 @@ def test_vibe_lang_missing_artifacts_sentinel(ns):
         "failure sentinel [VIBE-LANG missing-artifacts] must be logged"
 
 
-def test_post_audit_gate_conditioned_on_english_in_target_languages(ns):
+def test_post_audit_covers_every_target_language(ns):
     body = _notebook_body()
-    assert 'if \\"English\\" in target_languages:' in body, \
-        "post-audit block must gate on English in target_languages"
+    assert "self._check_language_artifacts(target_languages, skip_excel_langs, scheduled_jobs, _artifact_successes, pack_failures)" in body, \
+        "post-audit must check every target language, not English only"
 
 
 def test_post_audit_uses_actual_success_set_not_just_scheduling(ns):
-    """The audit must reflect actual completion, not just scheduling — an
-    empty write failure must still trigger missing-artifacts."""
-    body = _notebook_body()
-    assert "_english_md_ok = _english_md_scheduled and (\\\"English Markdown\\\" in _artifact_successes)" in body
-    assert "_english_pdf_ok = _english_pdf_scheduled and (\\\"English PDF\\\" in _artifact_successes)" in body
+    """The audit must reflect actual completion, not just scheduling: a
+    scheduled writer that failed is still a missing artifact."""
+    from v120_artifacts_support import make_inspire
+    obj = make_inspire(ns, generate_choices=[])
+    obj._emit_pipeline_status = lambda **kw: 1
+    gaps = obj._check_language_artifacts(["English"], ["English"], {"English Markdown", "English CSV", "English PDF"},
+                                         {"English CSV", "English PDF"})
+    assert gaps == {"English": ["Markdown Catalog"]}
+    assert obj.logger.matching("[VIBE-LANG missing-artifacts] language=English", level="WARNING")
 
 
 def test_docs_only_pdf_gate_matches_normal_pdf_gate(ns):

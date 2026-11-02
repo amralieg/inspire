@@ -287,6 +287,9 @@ def test_agent_child_launch_passes_the_marker_and_the_concurrency_settings(agent
         def finalize_atomic_writer(self, success=True, error_message=None):
             return None
 
+        def run_exit_value(self):
+            return ""
+
     monkeypatch.setitem(agent_ns, "dbutils", FakeDbutils(widget_values(**{"14_session_id": ""})))
     monkeypatch.setitem(agent_ns, "_detect_is_job_context", lambda: False)
     monkeypatch.setitem(agent_ns, "JobLauncher", _RecordingLauncher)
