@@ -322,7 +322,7 @@ def watch_plan_query(page: dict, watch: dict, names, history=None) -> dict:
             return shell_sql.watch_query(page, watch)
         return shell_sql.watch_query(page, watch, names(), history() if history else None)
     except ValueError as error:
-        raise HttpError(400, str(error)) from error
+        raise HttpError(400, shell_sql.error_text(error)) from error
 
 
 def recipient_list(raw) -> list:
@@ -585,7 +585,7 @@ def cli(stdin=None, stdout=None) -> int:
     except HttpError as error:
         out = {"ok": False, "status": error.status, "error": error.message}
     except (ValueError, KeyError, TypeError) as error:
-        out = {"ok": False, "status": 400, "error": str(error)}
+        out = {"ok": False, "status": 400, "error": shell_sql.error_text(error)}
     stdout.write(json.dumps(out, ensure_ascii=False, separators=(",", ":"), default=str))
     stdout.flush()
     return 0
@@ -624,7 +624,7 @@ class Alerts:
         try:
             listed = ws.call("GET", "/api/2.0/workspace/list", params={"path": self.folder()})
         except QueryError as error:
-            raise HttpError(503, f"{UNREACHABLE}: {error}") from error
+            raise HttpError(503, f"{UNREACHABLE}: {shell_sql.error_text(error)}") from error
         ids = [str(o.get("object_id")) for o in listed.get("objects") or [] if o.get("object_type") == "ALERT" and o.get("object_id")]
         done, errors = self.shell._parallel({ident: (lambda i=ident: ws.call("GET", f"/api/2.0/alerts/{i}")) for ident in ids})
         out = {"items": entries_of([done[ident] for ident in ids if done.get(ident) is not None]), "unread": sorted(errors)}

@@ -8,10 +8,13 @@ import time
 
 import shell_facts
 from shell_db import BROWSER_SAFE_WHOLE, QueryError, browser_whole, stamp_of
+from shell_redact import inspire_parse_time
+from shell_sql import error_text
 
 KINDS = ("lakebase", "delta")
 LAKEBASE = "lakebase"
 PG_NAME = re.compile(r"^[A-Za-z0-9_]{1,63}$")
+PG_QUOTED = re.compile(r'"((?:[^"]|"")+)"')
 PIPELINE_ID = re.compile(r"^[A-Za-z0-9-]{1,64}$")
 UC_PART = re.compile(r"^[^`.\x00-\x1f]{1,255}$")
 ENV_KEYS = ("PGHOST", "PGDATABASE", "PGUSER", "LAKEBASE_ENDPOINT")
@@ -131,7 +134,7 @@ def backend_problems(backend, auth: str, pages: list) -> list:
         try:
             uc_name(name)
         except ValueError as error:
-            problems.append(f"the Lakebase backend holds {error}")
+            problems.append(f"the Lakebase backend holds {error_text(error)}")
         parts = str((entry or {}).get("pg") if isinstance(entry, dict) else "").split(".")
         if len(parts) != 2 or not all(PG_NAME.match(p) for p in parts):
             problems.append(f"the Lakebase copy of {name} must be a Postgres schema.table of letters, digits and underscores")
@@ -555,7 +558,7 @@ def param_value(param: dict):
     if value is None:
         return None
     if kind == "DATE":
-        return datetime.date.fromisoformat(str(value)[:10])
+        return inspire_parse_time(str(value)[:10]).date()
     if kind in INTEGER_PARAMS:
         return int(value)
     if kind in ("FLOAT", "DOUBLE"):
@@ -589,7 +592,7 @@ def _overlay(entry: dict, overlay: dict, index: int, values: dict):
         values[keys] = json.dumps(sorted(overlay["keys"]), allow_nan=False)
         values[rows] = json.dumps(overlay["rows"], allow_nan=False, default=str)
     except ValueError as error:
-        raise NotServed(f"the latest changes to {entry['pg']} cannot be shown on top of Lakebase: {error}") from error
+        raise NotServed(f"the latest changes to {entry['pg']} cannot be shown on top of Lakebase: {error_text(error)}") from error
     return sqlglot.parse_one(
         f"SELECT {names} FROM {pg_ident(schema)}.{pg_ident(name)} AS \"_c\" WHERE NOT EXISTS (SELECT 1 FROM "
         f"JSONB_ARRAY_ELEMENTS_TEXT(CAST(%({keys})s AS JSONB)) AS \"_k\"(\"v\") WHERE \"_k\".\"v\" = CAST(\"_c\".{pg_ident(overlay['column'])} "
@@ -604,7 +607,7 @@ def render(sql: str, params, tables: dict, held=(), overlays=None) -> tuple:
     try:
         tree = sqlglot.parse_one(sql, read="databricks")
     except SqlglotError as error:
-        raise NotServed(f"the query is not one Lakebase can read: {error}") from error
+        raise NotServed(f"the query is not one Lakebase can read: {error_text(error)}") from error
     refuse_unserved(tree)
     read, values = set(), {p["name"]: param_value(p) for p in params or []}
     for table in list(tree.find_all(exp.Table)):
@@ -638,7 +641,7 @@ def render(sql: str, params, tables: dict, held=(), overlays=None) -> tuple:
     try:
         text = tree.sql(dialect=_dialect(), identify=True, unsupported_level=ErrorLevel.RAISE)
     except SqlglotError as error:
-        raise NotServed(f"the query uses SQL Lakebase cannot run: {error}") from error
+        raise NotServed(f"the query uses SQL Lakebase cannot run: {error_text(error)}") from error
     return escape_percent(text), values, read
 
 
@@ -768,6 +771,9 @@ class Lakebase:
         self.note, self.noted_at, self.synced_at = "", 0.0, None
         self.synced_iso, self.synced_read = None, float("-inf")
 
+    def secrets(self) -> tuple:
+        return self.host, self.user, self.token
+
     def credential(self) -> str:
         with self.lock:
             if self.token and self.clock() < self.expires - TOKEN_SLACK_S:
@@ -775,7 +781,7 @@ class Lakebase:
         try:
             body = self.service().call("POST", "/api/2.0/postgres/credentials", {"endpoint": self.endpoint})
         except QueryError as error:
-            raise LakebaseError(f"the App could not get a Lakebase password: {error}") from error
+            raise LakebaseError(f"the App could not get a Lakebase password: {error_text(error, self.secrets())}") from error
         token = str(body.get("token") or "")
         if not token:
             raise LakebaseError("Lakebase gave the App no password")
@@ -798,7 +804,7 @@ class Lakebase:
                 cur.execute("SET default_transaction_read_only = on")
                 cur.execute("SET TIME ZONE 'UTC'")
         except psycopg.Error as error:
-            raise LakebaseError(f"the App could not connect to Lakebase: {error}") from error
+            raise LakebaseError(f"the App could not connect to Lakebase: {error_text(error, self.secrets())}") from error
         return conn
 
     def _take(self):
@@ -850,7 +856,7 @@ class Lakebase:
                 lost = self._lost(error)
                 if not lost:
                     self._give(conn)
-                    raise QueryError(str(error).strip() or type(error).__name__) from error
+                    raise QueryError(error_text(error, self.secrets(), " ".join(PG_QUOTED.findall(text)))) from error
                 try:
                     conn.close()
                 except Exception:
@@ -858,7 +864,7 @@ class Lakebase:
                 self.close()
                 if attempt == 0:
                     continue
-                raise LakebaseError(f"Lakebase did not answer: {error}") from error
+                raise LakebaseError(f"Lakebase did not answer: {error_text(error, self.secrets())}") from error
             self._give(conn)
             return names, types, rows
         raise LakebaseError("Lakebase did not answer")
@@ -961,7 +967,7 @@ class Lakebase:
                 for table in tables:
                     self.stuck[table] = max(self.stuck.get(table, at), at)
             self.noted(f"the App reads your latest changes from Delta tables until Lakebase syncs them, because it could not "
-                       f"read them back: {error}")
+                       f"read them back: {error_text(error, self.secrets())}")
             return
         with self.lock:
             if self.synced_at is not None and self.synced_at >= at - CLOCK_SKEW_S:

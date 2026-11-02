@@ -9,7 +9,7 @@ from _agentload import agent_source
 from v120_metadata_only_guard_test import runtime_sources
 from v169_one_redaction_test import pasted_sources
 
-SINKS = {"inspire_redact_text", "redact_error", "inspire_redact_secrets", "_implement_redacted"}
+SINKS = {"inspire_redact_text", "redact_error", "inspire_redact_secrets", "_implement_redacted", "error_text"}
 UPPER = re.compile(r"^[A-Z_][A-Z0-9_]*$")
 BUILTIN_SAFE = {"len", "sorted", "list", "set", "tuple", "sum", "min", "max", "round", "abs", "int", "repr", "str", "join", "chr",
                 "type", "bool", "float", "any", "all", "frozenset", "dict"}
@@ -593,6 +593,15 @@ def test_the_one_redaction_reads_the_whole_text_before_a_message_cuts_it():
     assert [found for text in texts for found in _cut_before_redaction(text)] == []
     probe = "def implement_probe_cut(failure):\n    raise ValueError(f\"failed: {inspire_redact_text(failure[:800], set(), '')}\")\n\n\n"
     assert _cut_before_redaction(source.replace(ANCHOR, probe + ANCHOR)) == ["inspire_redact_text(failure[:800], set(), '')"]
+
+
+def test_the_app_shell_redacts_the_whole_text_before_it_cuts_it():
+    from v169_one_redaction_test import shell_library
+    library, _spans = shell_library()
+    assert "inspire_redact_text(message, set(), '', self.secrets)[:400]" in ast.unparse(ast.parse(library))
+    assert _cut_before_redaction(library) == []
+    probe = "def shell_probe(response):\n    return error_text(response.text[:400])\n"
+    assert _cut_before_redaction(library + probe) == ["error_text(response.text[:400])"]
 
 
 def test_the_implement_redaction_keeps_the_words_inspire_wrote_and_hides_a_value_beside_them(agent_ns):

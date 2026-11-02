@@ -16,6 +16,7 @@ import shell_db
 import shell_pg
 import shell_sql
 from shell_db import HttpError, QueryError, Workspace, error_body, normalize_host, stamp_of
+from shell_redact import inspire_parse_time, inspire_redact_text
 
 SETTINGS_FILE = "inspire_app.json"
 PAGES_DIR = "pages"
@@ -715,7 +716,7 @@ def job_run_view(run: dict, job_url: str) -> dict:
     return {"run_id": run_id, "trigger": TRIGGERS.get(trigger, trigger.lower().replace("_", " ") or None),
             "by": requested_by(run), "started": started, "ended": ended,
             "duration_s": round(int(duration) / 1000) if duration else None, "state": life.lower(), "result": outcome,
-            "message": str(details.get("message") or state.get("state_message") or "") if outcome in ("failed", "canceled", "skipped") else "",
+            "message": inspire_redact_text(details.get("message") or state.get("state_message"), set(), "") if outcome in ("failed", "canceled", "skipped") else "",
             "url": f"{job_url}/runs/{run_id}" if job_url and run_id else ""}
 
 
@@ -1068,7 +1069,7 @@ def overview_view(rows: list, today: datetime.date, since: datetime.date, measur
         start = since + datetime.timedelta(weeks=i)
         end = start + datetime.timedelta(weeks=1)
         weeks.append({"week": start.isoformat(),
-                      "saved": round(sum(v for d, v in days.items() if d and start <= datetime.date.fromisoformat(d) < end), 2)})
+                      "saved": round(sum(v for d, v in days.items() if d and start <= inspire_parse_time(d).date() < end), 2)})
     runs = [{"run_id": r.get("k"), "as_of_date": day_text(r.get("day")), "ran_at": r.get("at"), "n": 0} for r in by.get("run", [])]
     health = shell_sql.run_health(runs, today)
     stamps = [s for s in (stamp_of(r["ran_at"]) for r in runs if r["ran_at"]) if s is not None]
@@ -1218,7 +1219,7 @@ class Shell:
             except shell_pg.LakebaseError as error:
                 if strict:
                     raise
-                self.backend_note = str(error)
+                self.backend_note = shell_sql.error_text(error)
             else:
                 self.pages = [shell_pg.served_page(p, self.backend) for p in self.pages]
         self.by_id = {p["id"]: p for p in self.pages}
@@ -1280,7 +1281,7 @@ class Shell:
                 return dict(self.lakebase.run(sql, params, limit), served=shell_pg.LAKEBASE)
             except shell_pg.NotServed as reason:
                 if self.strict and reason.table not in self.on_delta:
-                    raise QueryError(f"Lakebase cannot serve it: {reason}") from reason
+                    raise QueryError(f"Lakebase cannot serve it: {shell_sql.error_text(reason)}") from reason
             except QueryError as error:
                 if self.strict:
                     raise QueryError(f"Lakebase could not run it: {error}") from error
@@ -1377,7 +1378,7 @@ class Shell:
             rows = self.execute(ws, *shell_sql.summary_query(page), 1, delta=True)["rows"]
         except QueryError as error:
             gone = bool(NO_TABLE.search(str(error)))
-            return {"row": None, "facts": None, "stamp": None, "error": "" if gone else str(error)}
+            return {"row": None, "facts": None, "stamp": None, "error": "" if gone else shell_sql.error_text(error)}
         row = dict(rows[0]) if rows else None
         facts = shell_sql.state_facts(row, page["result_table"])
         if not facts:
@@ -1385,7 +1386,7 @@ class Shell:
         try:
             changed = (self.execute(ws, *shell_sql.changed_query(page, facts), 1, delta=True)["rows"] or [{}])[0]
         except QueryError as error:
-            return {"row": row, "facts": None, "stamp": None, "error": str(error)}
+            return {"row": row, "facts": None, "stamp": None, "error": shell_sql.error_text(error)}
         return {"row": row, "facts": facts, "error": "", "changed": int(changed.get("n") or 0), "keys": shell_sql.changed_keys_of(changed),
                 "stamp": (str(row.get("run_id")), str(row.get("updated_at")), str(changed.get("n")), str(changed.get("us")))}
 
@@ -1555,9 +1556,9 @@ class Shell:
         except HttpError as error:
             return error.status, error_body(error.message, error.code, error.extra)
         except QueryError as error:
-            return 502, {"error": str(error)}
+            return 502, {"error": shell_sql.error_text(error)}
         except (ValueError, KeyError) as error:
-            return 400, error_body(str(error), getattr(error, "code", ""))
+            return 400, error_body(shell_sql.error_text(error), getattr(error, "code", ""))
 
     def genie_info(self, page: dict, host: str) -> dict:
         genie, note = page_genie(self.settings, self.pages, page)
@@ -1598,7 +1599,7 @@ class Shell:
             try:
                 done[key] = future.result()
             except (QueryError, HttpError, ValueError, KeyError) as error:
-                errors[key] = getattr(error, "message", None) or str(error)
+                errors[key] = shell_sql.error_text(error)
         return done, errors
 
     def filters(self, headers: dict, ident, probe=None) -> dict:
@@ -1681,14 +1682,14 @@ class Shell:
         try:
             dataset = None if column is None else shell_sql.column_dataset(page, table)
         except KeyError as error:
-            raise HttpError(404, f"page {page['id']}: {error.args[0]}") from error
+            raise HttpError(404, f"page {page['id']}: {shell_sql.error_text(error)}") from error
         ws, who = self.workspace(headers)
         if column is not None:
             types = self.list_columns(ws, who, page, dataset)
             try:
                 shell_sql.column_filter(page, table, ident, "multi_select", types)
             except KeyError as error:
-                raise HttpError(404, f"page {page['id']}: {error.args[0]}") from error
+                raise HttpError(404, f"page {page['id']}: {shell_sql.error_text(error)}") from error
         limit = shell_sql.CAPS["option_matches"]
         sql, params = (shell_sql.options_query(page, ident, text, limit) if column is None
                        else shell_sql.column_options_query(page, table, ident, text, limit, types))
@@ -1939,7 +1940,7 @@ class Shell:
         editor = str(headers.get("x-forwarded-email") or "").strip()
         for page in pages:
             self.warm_state(ws, who, page)
-        today = datetime.date.fromisoformat(day["today"])
+        today = inspire_parse_time(day["today"]).date()
         quarter, since = quarter_start(today), week_start(today) - datetime.timedelta(weeks=OVERVIEW_WEEKS - 1)
         between = (day["start_us"], day["end_us"])
         out = {"today": today.isoformat(), "quarter": quarter.isoformat(), "since": since.isoformat(), "pages": {}, "errors": {},
@@ -2411,7 +2412,7 @@ class Shell:
         try:
             out = self.records(headers, {"page": page["id"], "filters": values, "ai_counts": True}, probe)
         except (HttpError, QueryError, ValueError) as error:
-            return [f"{where}: {shell_sql.RECORDS_DATASET}:{shell_sql.RECORDS_DATASET} failed: {getattr(error, 'message', None) or error}"]
+            return [f"{where}: {shell_sql.RECORDS_DATASET}:{shell_sql.RECORDS_DATASET} failed: {shell_sql.error_text(error)}"]
         problems = [f"{where}: {LIST_LABELS[name]} failed: {message}" for name, message in sorted(out["errors"].items())]
         if not out["rows"]:
             problems.append(f"{where}: the decision list returned no rows at the default filters")
@@ -2450,7 +2451,7 @@ class Shell:
             self._timed(lambda: self.overview_page(probe.ws, None, page, {}, None, today, quarter_start(today), since), ("overview", "hub"),
                         probe)
         except (HttpError, QueryError, ValueError) as error:
-            return [f"{where}: the Overview's things to fix failed: {getattr(error, 'message', None) or error}"]
+            return [f"{where}: the Overview's things to fix failed: {shell_sql.error_text(error)}"]
         return []
 
     def check_lakebase_reads(self, headers: dict, page: dict, values: dict, where: str) -> list:
@@ -2482,7 +2483,7 @@ class Shell:
         try:
             self._timed(lambda: self.impact({}, page["id"], probe), ("impact", "page"), probe)
         except (HttpError, QueryError, ValueError) as error:
-            return [f"{where}: the Impact page failed: {getattr(error, 'message', None) or error}"]
+            return [f"{where}: the Impact page failed: {shell_sql.error_text(error)}"]
         return []
 
     def check(self, headers: dict) -> list:
@@ -3082,7 +3083,7 @@ class Shell:
         try:
             sql, params = shell_sql.runs_query(page, fields, history)
         except ValueError as error:
-            raise HttpError(409, str(error)) from error
+            raise HttpError(409, shell_sql.error_text(error)) from error
         return self.run(ws, who, sql, params, shell_sql.CAPS["runs_rows"])["rows"]
 
     def job_of(self, page: dict) -> str:
@@ -3231,7 +3232,7 @@ class Shell:
                 actives, _more = self.job_views(job_id, True, JOB_RUNS_RECENT)
                 recent, _more = self.job_views(job_id, False, JOB_RUNS_RECENT)
             except (QueryError, ValueError) as error:
-                out["reason"] = f"The App cannot read this page's job, so it cannot refresh it: {error}"
+                out["reason"] = f"The App cannot read this page's job, so it cannot refresh it: {shell_sql.error_text(error)}"
             else:
                 done = finished(recent)
                 successes = [v for v in done if v["result"] == "succeeded"]

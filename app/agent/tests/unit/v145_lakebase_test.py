@@ -587,9 +587,9 @@ def test_a_lost_connection_is_retried_once_and_a_sql_error_keeps_the_connection(
     lb, made, _clock = lakebase(password_service("t1"), gone)
     with pytest.raises(shell_pg.LakebaseError, match="Lakebase did not answer: gone again"):
         lb.run(f"SELECT `category` FROM {TREND_VIEW}", [], 5)
-    bad = FakeConn(errors=[psycopg.errors.UndefinedColumn('column "nope" does not exist')])
+    bad = FakeConn(errors=[psycopg.errors.UndefinedColumn('column "category" does not exist near "Books"')])
     lb, made, _clock = lakebase(password_service("t1"), [bad])
-    with pytest.raises(shell_db.QueryError, match='column "nope" does not exist') as raised:
+    with pytest.raises(shell_db.QueryError, match='column "category" does not exist near "a data value"') as raised:
         lb.run(f"SELECT `category` FROM {TREND_VIEW}", [], 5)
     assert not isinstance(raised.value, shell_pg.LakebaseError)
     assert not bad.closed and lb.pool.qsize() == 1, "a SQL error leaves the connection usable"

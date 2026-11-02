@@ -3,6 +3,9 @@ import json
 import time
 import urllib.parse
 
+from shell_redact import inspire_parse_time, inspire_redact_text
+from shell_sql import error_text
+
 NUMBER_TYPES = ("BYTE", "SHORT", "INT", "LONG", "FLOAT", "DOUBLE", "DECIMAL")
 WHOLE_TYPES = ("BYTE", "SHORT", "INT", "LONG")
 BROWSER_SAFE_WHOLE = 2 ** 53 - 1
@@ -24,10 +27,10 @@ class QueryError(RuntimeError):
 
 def stamp_of(value):
     try:
-        stamp = datetime.datetime.fromisoformat(str(value or "").strip().replace("Z", "+00:00"))
+        stamp = inspire_parse_time(value)
     except ValueError:
         return None
-    return stamp.astimezone(datetime.timezone.utc) if stamp.tzinfo else stamp.replace(tzinfo=datetime.timezone.utc)
+    return stamp.astimezone(datetime.timezone.utc)
 
 
 class HttpError(Exception):
@@ -105,6 +108,7 @@ def rows_of(manifest: dict, chunks: list, limit: int) -> dict:
 class Workspace:
     def __init__(self, host: str, auth_headers, session=None, sleep=time.sleep, clock=time.time):
         self.host = normalize_host(host)
+        self.secrets = (self.host, urllib.parse.urlsplit(self.host).netloc)
         self.auth_headers = auth_headers
         self.sleep, self.clock = sleep, clock
         if session is None:
@@ -119,13 +123,14 @@ class Workspace:
             response = self.session.request(method, f"{self.host}{path}", headers=headers, params=params,
                                             data=None if body is None else json.dumps(body), timeout=timeout)
         except OSError as error:
-            raise QueryError(f"{method} {path.split('?')[0]} did not answer: {error}") from error
+            raise QueryError(f"{method} {path.split('?')[0]} did not answer: {error_text(error, self.secrets)}") from error
         if response.status_code >= 400:
             try:
                 detail = response.json()
-                message = detail.get("message") or detail.get("error") or json.dumps(detail)[:400]
+                message = detail.get("message") or detail.get("error") or json.dumps(detail)
             except ValueError:
-                message = response.text[:400]
+                message = response.text
+            message = inspire_redact_text(message, set(), "", self.secrets)[:400]
             raise QueryError(f"{method} {path.split('?')[0]} answered HTTP {response.status_code}: {message}")
         if not response.content:
             return {}
@@ -150,7 +155,7 @@ class Workspace:
         status = response.get("status") or {}
         if status.get("state") != "SUCCEEDED":
             error = status.get("error") or {}
-            raise QueryError(error.get("message") or f"the query ended {status.get('state')}")
+            raise QueryError(inspire_redact_text(error.get("message"), set(), "", self.secrets) or f"the query ended {status.get('state')}")
         return self._collect(response, limit)
 
     def _collect(self, response: dict, limit: int) -> dict:
@@ -181,7 +186,8 @@ class Workspace:
         message = self.call("GET", base)
         status = str(message.get("status") or "")
         if status in GENIE_FAILED:
-            return {"state": "failed", "error": (message.get("error") or {}).get("error") or f"Genie ended {status.lower()}"}
+            return {"state": "failed", "error": inspire_redact_text((message.get("error") or {}).get("error"), set(), "", self.secrets)
+                    or f"Genie ended {status.lower()}"}
         if status not in GENIE_DONE:
             return {"state": "running", "step": GENIE_STEPS.get(status, "Working on it")}
         texts, sql, description, attachment = [], "", "", ""
