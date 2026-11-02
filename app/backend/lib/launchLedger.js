@@ -88,6 +88,47 @@ function checkedOutputStatement(appDatabase) {
   };
 }
 
+const STARTING_LIMIT = 10;
+const LIVE_RUN_STATES = ['QUEUED', 'PENDING', 'BLOCKED', 'WAITING_FOR_RETRY', 'RUNNING'];
+
+function startingLaunchStatement(table, inspireDatabase) {
+  if (!splitInspireDatabase(inspireDatabase)) return null;
+  return {
+    sql: `SELECT CAST(run_id AS STRING) AS run_id, session_id, launched_at FROM ${table} WHERE inspire_database = :inspire_database `
+      + `AND run_type = 'discovery' AND opened_session AND launched_at > current_timestamp() - INTERVAL 1 DAY ORDER BY launched_at DESC LIMIT ${STARTING_LIMIT}`,
+    parameters: [{ name: 'inspire_database', value: String(inspireDatabase).trim().toLowerCase(), type: 'STRING' }],
+  };
+}
+
+function sessionsSeenStatement(inspireDatabase, sessionIds) {
+  const sessions = quoted(inspireDatabase, '__inspire_session');
+  const ids = [...new Set((sessionIds || []).map(String))].filter((id) => /^\d+$/.test(id));
+  if (!sessions || !ids.length) return null;
+  return {
+    sql: `SELECT CAST(session_id AS STRING) AS session_id FROM ${sessions} WHERE session_id IN (${ids.map((_, i) => `:s${i}`).join(', ')})`,
+    parameters: ids.map((value, i) => ({ name: `s${i}`, value, type: 'BIGINT' })),
+  };
+}
+
+function startingSessionRow(launch, run, inspireDatabase) {
+  if (!run || !LIVE_RUN_STATES.includes(String(run.state?.life_cycle_state || ''))) return null;
+  const task = (run.tasks || []).find((t) => t.notebook_task) || {};
+  const params = { ...(task.notebook_task?.base_parameters || {}), ...(run.overriding_parameters?.notebook_params || {}) };
+  if (String(params['14_session_id'] || launch.session_id) !== String(launch.session_id)) return null;
+  return {
+    session_id: String(launch.session_id),
+    run_id: String(launch.run_id),
+    starting: true,
+    business_name: String(params['00_business_name'] || ''),
+    inspire_database_name: String(inspireDatabase).trim(),
+    operation_mode: String(params['15_operation'] || ''),
+    generation_path: String(params['11_generation_path'] || ''),
+    completed_percent: 0,
+    create_at: launch.launched_at,
+    last_updated: launch.launched_at,
+  };
+}
+
 function launcherOf(rows) {
   const who = rows && rows[0] ? String(rows[0].launched_by || '').trim().toLowerCase() : '';
   return who || null;
@@ -103,5 +144,8 @@ module.exports = {
   sessionLauncherStatement,
   sessionKnownStatements,
   checkedOutputStatement,
+  startingLaunchStatement,
+  sessionsSeenStatement,
+  startingSessionRow,
   launcherOf,
 };

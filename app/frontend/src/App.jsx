@@ -451,8 +451,13 @@ export default function App() {
             settings={pageSettings}
             onNewExperiment={() => nav('launch')}
             onNoData={() => nav('generate-data')}
-            onViewResults={(sid) => {
+            onViewResults={(sid, rid) => {
               if (sid && !inDemo) setSessionId(sid);
+              if (rid && !inDemo) {
+                setRunId(rid);
+                nav('monitor');
+                return;
+              }
               nav('results');
             }}
             onOpenBuild={openBuildFilter}

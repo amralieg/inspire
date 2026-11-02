@@ -600,7 +600,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
   useEffect(() => {
     const name = String(params['00_business_name'] || '').trim().toLowerCase();
     if (!name || !warehouseId || !previewDb || (discoveryTouched && strategyTouched)) return undefined;
-    const match = sessionsList.find((s) => String(s.business_name || '').trim().toLowerCase() === name);
+    const match = sessionsList.find((s) => !s.starting && String(s.business_name || '').trim().toLowerCase() === name);
     if (!match) return undefined;
     let cancelled = false;
     const timer = setTimeout(async () => {

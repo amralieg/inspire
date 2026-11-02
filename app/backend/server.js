@@ -763,6 +763,32 @@ async function sessionIsNew(host, inspireDatabase, sessionId) {
   return true;
 }
 
+async function startingSessions(req, inspireDatabase, warehouseId, listed) {
+  if (req.dbTokenKind === PERSON_TOKEN) return [];
+  const table = L.launchTableName(DEFAULT_INSPIRE_DB);
+  const statement = table && DEFAULT_WAREHOUSE_ID ? L.startingLaunchStatement(table, inspireDatabase) : null;
+  if (!statement) return [];
+  try {
+    const host = resolveHost(req);
+    const shown = new Set(listed.map((s) => String(s.session_id)));
+    let launches = (await launchSql(host, statement)).filter((l) => /^\d+$/.test(String(l.session_id || '')) && !shown.has(String(l.session_id)));
+    const seen = L.sessionsSeenStatement(inspireDatabase, launches.map((l) => l.session_id));
+    if (!seen) return [];
+    const known = new Set(sqlResultToObjects(await executeSql(req.dbHost, req.dbToken, warehouseId, seen.sql, seen.parameters)).map((r) => String(r.session_id)));
+    launches = launches.filter((l) => !known.has(String(l.session_id)));
+    if (!launches.length) return [];
+    const token = await appOwnToken();
+    const rows = await Promise.all(launches.map(async (launch) => {
+      const resp = await dbFetch(host, token, `/api/2.1/jobs/runs/get?run_id=${encodeURIComponent(launch.run_id)}`);
+      return resp.ok ? L.startingSessionRow(launch, await resp.json(), inspireDatabase) : null;
+    }));
+    return rows.filter(Boolean);
+  } catch (err) {
+    if (!isMissingTableError(err)) console.warn(`[sessions] the runs that are still starting could not be read, so Start lists only runs that wrote their first row: ${err.message}`);
+    return [];
+  }
+}
+
 async function recordLaunch(host, record) {
   const table = L.launchTableName(DEFAULT_INSPIRE_DB);
   if (!table || !DEFAULT_WAREHOUSE_ID) {
@@ -2842,6 +2868,7 @@ app.get('/api/inspire/sessions', requireToken, async (req, res) => {
       table,
       sessionListCap(req.query.all === '1'),
     );
+    sessions.unshift(...await startingSessions(req, inspire_database, warehouse_id, sessions));
 
     for (const s of sessions) {
       // Reconstruct widget_values from individual columns

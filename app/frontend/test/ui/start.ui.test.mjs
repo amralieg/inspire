@@ -39,6 +39,38 @@ async function openStart(state = REVIEW_STATE) {
   return ui;
 }
 
+test('a run still starting shows on Start as Starting, and opening it follows that run on Monitor', async () => {
+  const STARTING = { session_id: '7001', run_id: '701', starting: true, business_name: 'Acme', completed_percent: 0, create_at: '2026-11-02T10:00:00Z',
+    last_updated: new Date().toISOString(), widget_values: { business: 'Acme', operation_mode: 'Discover Use Cases' } };
+  const runReads = [];
+  const ui = await openUi('app', { ...REVIEW_STATE, sessions: [STARTING, ...REVIEW_STATE.sessions] }, '', {
+    mount: (app) => {
+      mount(app);
+      app.get('/api/run/:runId/cancel', (_req, res) => res.json({ allowed: true }));
+      app.get('/api/run/:runId', (req, res) => { runReads.push(req.params.runId); res.json({ run_id: Number(req.params.runId), life_cycle_state: 'PENDING', tasks: [] }); });
+    },
+  });
+  const { page } = ui;
+  const missing = [];
+  page.on('response', (r) => { if (r.status() === 404) missing.push(new URL(r.url()).pathname); });
+  try {
+    await page.getByRole('button', { name: 'Get Started', exact: true }).first().click();
+    const row = page.locator('[data-run="7001"]');
+    await row.waitFor({ timeout: 20000 });
+    assert.match(await row.innerText(), /Acme[\s\S]*Starting/);
+    assert.doesNotMatch(await page.locator('[data-run="42"]').innerText(), /Starting/, 'a run that wrote its rows keeps its own status');
+    const runRead = page.waitForResponse((r) => new URL(r.url()).pathname === '/api/run/701', { timeout: 15000 });
+    await row.getByRole('button').first().click();
+    await page.getByRole('heading', { name: 'Pipeline Monitor', level: 1 }).waitFor({ timeout: 15000 });
+    await runRead;
+    assert.ok(runReads.includes('701'), `Monitor reads the run: ${runReads.join(', ')}`);
+    assert.deepEqual(missing, []);
+    assert.deepEqual(ui.pageErrors, []);
+  } finally {
+    await ui.close();
+  }
+});
+
 test('Start shows the totals above the runs list from three aggregate reads, and every card is a button that says what it does', async () => {
   const ui = await openStart();
   const { page, made } = ui;
