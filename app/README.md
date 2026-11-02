@@ -29,7 +29,7 @@ npm run dev            # backend :8080 + Vite (see terminal for URL)
 
 ## Build a release
 
-Every build ships as a GitHub Release with the same file names: `inspire_installer.py`, `manifest.json`, `SHA256SUMS`, `inspire-app.zip` (the App with its agent notebooks and the install steps in `installer/inspire_setup.py`), `inspire-assets.tar` (the agent assets folder with its `manifest.json`), and both again as parts under 10 MB named `inspire-app.partNN` and `inspire-assets.partNN`.
+Every build ships as a GitHub Release with the same 4 files: `inspire_installer.py`, `manifest.json` (version, size and sha256 of every file), `inspire-app.zip` (the App with its agent notebooks and the install steps in `installer/inspire_setup.py`) and `inspire-assets.tar` (the agent assets folder with its `manifest.json`).
 
 ```bash
 cd app
@@ -37,7 +37,7 @@ python3 installer/release.py build --assets <agent assets folder> --out dist/rel
 python3 installer/release.py check --base https://github.com/amralieg/inspire/releases/latest/download
 ```
 
-`build` packs the App with `scripts/package-for-workspace.sh` (or takes `--app-zip`), checks every asset against its manifest, and writes the manifest, the sums and the parts. `check` downloads every file through the given links, checks each sha256 and exits non-zero on any mismatch.
+`build` packs the App with `scripts/package-for-workspace.sh` (or takes `--app-zip`), checks every asset against its manifest, and writes exactly the 4 release files. `check` downloads every file through the given links, checks each sha256, confirms the release carries no other file name, and exits non-zero on any mismatch.
 
 ## Install a local build (optional)
 
@@ -46,6 +46,6 @@ cd app
 INSPIRE_ASSETS_DIR=<agent assets folder> INSPIRE_WAREHOUSE_ID=<warehouse id> INSPIRE_CATALOG=<catalog> npm run deploy
 ```
 
-Builds a release, imports the installer, `manifest.json` and the parts into `/Workspace/Users/<you>/inspire-install`, and runs the installer there once as a serverless job, offline from those files.
+Builds a release, imports the installer, `manifest.json`, `inspire-app.zip` and `inspire-assets.tar` into `/Workspace/Users/<you>/inspire-install`, and runs the installer there once as a serverless job, offline from those files.
 
 See [deployment.md](deployment.md) for details.

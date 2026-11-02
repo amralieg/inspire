@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Install a local build: build a release, import inspire_installer.py, manifest.json and the parts into
+# Install a local build: build a release, import inspire_installer.py, manifest.json, inspire-app.zip and inspire-assets.tar into
 # /Workspace/Users/<you>/inspire-install, then run the installer there once as a serverless job, offline from those files.
 #
 # Prereqs: Databricks CLI, .env with DATABRICKS_HOST + DATABRICKS_TOKEN (or DATABRICKS_CONFIG_PROFILE with valid auth).
@@ -51,16 +51,19 @@ python3 -c "import json, os, sys; json.dump({k: v for k, v in {'warehouse_id': o
 OFFLINE_INSTALLER="$(mktemp)"
 python3 -c "import sys; text = open(sys.argv[1], encoding='utf-8').read(); text.count('INTERNET_BLOCKED = False') == 1 or sys.exit('INTERNET_BLOCKED = False is not in the installer exactly once'); open(sys.argv[2], 'w', encoding='utf-8').write(text.replace('INTERNET_BLOCKED = False', 'INTERNET_BLOCKED = True'))" "$RELEASE_DIR/inspire_installer.py" "$OFFLINE_INSTALLER"
 
-echo "==> 2) Import the installer (INTERNET_BLOCKED = True, so it installs this build), manifest.json and the parts into $FOLDER"
+echo "==> 2) Import the installer (INTERNET_BLOCKED = True, so it installs this build), manifest.json, inspire-app.zip and inspire-assets.tar into $FOLDER"
 "${DB[@]}" workspace delete "$FOLDER" --recursive || true
 "${DB[@]}" workspace mkdirs "$FOLDER"
 "${DB[@]}" workspace import "$FOLDER/inspire_installer" --file "$OFFLINE_INSTALLER" --format SOURCE --language PYTHON --overwrite
 rm -f "$OFFLINE_INSTALLER"
-for file in "$RELEASE_DIR"/manifest.json "$RELEASE_DIR"/*.part[0-9][0-9]; do
-  "${DB[@]}" workspace import "$FOLDER/$(basename "$file")" --file "$file" --format RAW --overwrite
+STAGE="$(mktemp -d)"
+for name in manifest.json inspire-app.zip inspire-assets.tar; do
+  cp "$RELEASE_DIR/$name" "$STAGE/$name"
 done
-"${DB[@]}" workspace import "$FOLDER/inspire_installer_test.json" --file "$SETTINGS" --format RAW --overwrite
+cp "$SETTINGS" "$STAGE/inspire_installer_test.json"
 rm -f "$SETTINGS"
+"${DB[@]}" workspace import-dir "$STAGE" "$FOLDER" --overwrite
+rm -rf "$STAGE"
 
 echo "==> 3) Run the installer once as a serverless job"
 SUBMIT_JSON="$(mktemp)"

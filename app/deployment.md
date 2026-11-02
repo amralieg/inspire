@@ -12,7 +12,7 @@ Install the **inspire-ai** Databricks App with **`inspire_installer.py`** from t
 
 The installer downloads the latest release from GitHub, checks the size and sha256 of every file, installs the agent assets into **`/Workspace/Shared/inspire-ai/assets/<version>/`**, deploys the App and grants its service principal. Open **Compute, Apps, inspire-ai**.
 
-**A workspace that cannot reach GitHub:** the installer then uses the release files imported next to it (`manifest.json` with `inspire-app.zip` and `inspire-assets.tar`, or the `.partNN` parts when the workspace refuses files over 10 MB). When those are missing, it shows a page with the download commands for macOS, Linux and Windows, the exact folder to import the files into, and direct links with sizes. It never mixes files of two releases and never uses a partial download.
+**A workspace that cannot reach GitHub:** the installer then uses the release files imported next to it (`manifest.json`, `inspire-app.zip` and `inspire-assets.tar`; it also accepts the folder the workspace makes when it unzips `inspire-app.zip` on import). When those are missing, it shows a page with the commands for macOS, Linux and Windows that download the 4 release files and check each sha256 against `manifest.json`, the exact folder to import the files into, and direct links with sizes. It never mixes files of two releases and never uses a partial download.
 
 ---
 
@@ -33,7 +33,7 @@ Confirm the following so the run does not fail halfway. The installer checks the
 
 ## 1. What a release holds
 
-Every build is a GitHub Release with the same file names: `inspire_installer.py`, `manifest.json` (version, `starter_min_version`, the install entry point, and the size, sha256 and parts of every file), `SHA256SUMS`, `inspire-app.zip` (the App, its agent notebooks and the install steps in `installer/inspire_setup.py`), `inspire-assets.tar` (the agent assets folder with its own `manifest.json`), and both again as parts under 10 MB named `inspire-app.partNN` and `inspire-assets.partNN`.
+Every build is a GitHub Release with the same 4 files: `inspire_installer.py`, `manifest.json` (version, `starter_min_version`, the install entry point, and the size and sha256 of every file), `inspire-app.zip` (the App, its agent notebooks and the install steps in `installer/inspire_setup.py`) and `inspire-assets.tar` (the agent assets folder with its own `manifest.json`).
 
 Build and check one on a machine with **Node.js** and Python 3:
 
@@ -43,7 +43,7 @@ python3 installer/release.py build --assets <agent assets folder> --out dist/rel
 python3 installer/release.py check --base https://github.com/amralieg/inspire/releases/latest/download
 ```
 
-`check` downloads every file through the given links, checks each sha256 against `SHA256SUMS` and `manifest.json`, and exits non-zero on any mismatch.
+`check` downloads every file through the given links, checks each sha256 against `manifest.json`, confirms the release carries no other file name, and exits non-zero on any mismatch.
 
 ---
 
@@ -140,7 +140,7 @@ If you have no UC tables yet, use **I don’t have data, generate demo tables in
 2. Set **INSPIRE_ASSETS_DIR** (the agent assets folder with its `manifest.json`), **INSPIRE_WAREHOUSE_ID** and **INSPIRE_CATALOG**, and optionally **INSPIRE_APP_NAME**.
 3. Run **npm run deploy** from `app/`.
 
-The script builds a release, imports `inspire_installer.py` with `INTERNET_BLOCKED = True` (so it installs this build, not the latest release), `manifest.json` and the parts into **`/Workspace/Users/<you>/inspire-install`**, writes `inspire_installer_test.json` there with the warehouse and catalog, and runs the installer once as a serverless job.
+The script builds a release, imports `inspire_installer.py` with `INTERNET_BLOCKED = True` (so it installs this build, not the latest release), `manifest.json`, `inspire-app.zip` and `inspire-assets.tar` into **`/Workspace/Users/<you>/inspire-install`**, writes `inspire_installer_test.json` there with the warehouse and catalog, and runs the installer once as a serverless job.
 
 ---
 

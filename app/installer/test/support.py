@@ -63,7 +63,7 @@ def make_assets(folder, version=VERSION, files=None):
     return files
 
 
-def build_release(tmp, name="release", version=VERSION, part_bytes=4096, module=FAKE_MODULE, assets=None, extra=None):
+def build_release(tmp, name="release", version=VERSION, module=FAKE_MODULE, assets=None, extra=None):
     tmp = pathlib.Path(tmp)
     app_zip = tmp / f"{name}-app.zip"
     make_app_zip(app_zip, version, module, extra)
@@ -71,8 +71,18 @@ def build_release(tmp, name="release", version=VERSION, part_bytes=4096, module=
     assets_dir.mkdir()
     make_assets(assets_dir, version, assets)
     out = tmp / name
-    release.build(str(app_zip), str(assets_dir), str(out), part_bytes)
+    release.build(str(app_zip), str(assets_dir), str(out))
     return out
+
+
+def v130_manifest(manifest, part_bytes=4096):
+    old = json.loads(json.dumps(manifest))
+    for entry in old["files"]:
+        stem = entry["name"].split(".", 1)[0]
+        count = max(1, -(-entry["size"] // part_bytes))
+        sizes = [part_bytes] * (count - 1) + [entry["size"] - part_bytes * (count - 1)]
+        entry["parts"] = [{"name": f"{stem}.part{i:02d}", "size": size, "sha256": "0" * 64} for i, size in enumerate(sizes, 1)]
+    return old
 
 
 def load_starter(stage):
