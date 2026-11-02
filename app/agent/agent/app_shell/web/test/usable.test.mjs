@@ -145,8 +145,13 @@ test('the progress line says the step, the rows and the time left only from what
 
 test('an act says how many records it wrote and how many it left as they were, and Undo says what came back', () => {
   const most = actOutcome({ written: 28, conflicts_count: 2, conflicts: [{ record_key: 'R4' }, { record_key: 'R9' }], batch_id: 'b-1' });
-  assert.deepEqual(most, { written: 28, conflicts: 2, sample: [{ record_key: 'R4' }, { record_key: 'R9' }], batch: 'b-1', matched: null });
-  assert.deepEqual(actOutcome({ written: ['R1', 'R2'], conflicts: [] }), { written: 2, conflicts: 0, sample: [], batch: '', matched: null });
+  assert.deepEqual(most, { written: 28, conflicts: 2, sample: [{ record_key: 'R4' }, { record_key: 'R9' }], batch: 'b-1', matched: null, leftOut: 0 });
+  assert.deepEqual(actOutcome({ written: ['R1', 'R2'], conflicts: [] }), { written: 2, conflicts: 0, sample: [], batch: '', matched: null, leftOut: 0 });
+  const hidden = actOutcome({ written: 5, conflicts: [], left_out: 3 });
+  assert.equal(hidden.leftOut, 3);
+  assert.equal(actedText(hidden, { action_status: 'Done' }), '5 records marked as fixed. 3 records you cannot read were left out.');
+  assert.equal(actedText(actOutcome({ written: 1, left_out: 1 }), { action_status: 'Done' }), '1 record marked as fixed. 1 record you cannot read was left out.');
+  assert.equal(undoText({ restored: 2, skipped: [], left_out: 4 }), 'Undone: 2 records are back as they were. 4 records you cannot read were left out.');
   assert.equal(actOutcome({ written: 1, conflicts_count: 900, conflicts: Array.from({ length: 30 }, (_, i) => ({ record_key: `k${i}` })) }).sample.length, 20);
   assert.equal(actedText(most, { action_status: 'Done', note: 'Closed the promo' }),
     '28 records marked as fixed. 2 records changed since you loaded them and were left as they are.');
