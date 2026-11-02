@@ -30,6 +30,7 @@ def test_the_agent_words_every_placeholder_like_the_shared_cases(agent_ns):
         assert not LEFTOVER.search(words(case["text"])), case["text"]
     unset = agent_ns["_PLACEHOLDER_UNSET_TARGET_RE"]
     assert [bool(unset.search(c["text"])) for c in CASES["unset_target"]] == [c["unset"] for c in CASES["unset_target"]]
+    assert [words(v) for v in (0, 0.0, False, None, "")] == ["0", "0.0", "False", "", ""], "a zero score or a false flag is a value, only nothing is empty"
 
 
 def test_a_key_result_whose_target_the_sponsor_has_not_set_is_no_target_and_never_a_raw_tag(agent_ns):
