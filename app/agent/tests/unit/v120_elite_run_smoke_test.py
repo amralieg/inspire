@@ -11,14 +11,13 @@ and the same funnel ledger minus the `value_scoring` stage, with the ids reassig
 import json
 import os
 import re
-import subprocess
 import sys
 import threading
 
 import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from _agentload import load_agent_namespace  # noqa: E402
+from _agentload import load_agent_namespace, reference_notebook  # noqa: E402
 from v120_run_offline_smoke_test import _build, quiet_root_logger  # noqa: E402,F401
 
 BASE_COMMIT = "3e2543e"
@@ -272,16 +271,8 @@ def test_good_and_high_run_the_shared_sequence_and_one_final_renumber(agent_ns, 
     assert all(u["quality_mode"] == mode and "elite_score" not in u for u in final)
 
 
-def _base_namespace(tmp_path):
-    root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    try:
-        blob = subprocess.run(["git", "show", f"{BASE_COMMIT}:agent/dbx_inspire_ai_agent.ipynb"], cwd=root,
-                              capture_output=True, check=True, timeout=60).stdout
-    except (OSError, subprocess.SubprocessError):
-        pytest.skip(f"base commit {BASE_COMMIT} is not available in this checkout")
-    path = tmp_path / "base_agent.ipynb"
-    path.write_bytes(blob)
-    return load_agent_namespace(str(path))
+def _base_namespace():
+    return load_agent_namespace(str(reference_notebook(BASE_COMMIT)))
 
 
 BY_DESIGN = ("No", "result_table", "quality_mode", "value_scoring_status")
@@ -307,7 +298,7 @@ def _comparable_run(ns, tmp_path, mode, acceptable, user_domains):
                                               ("High", {"High", "Very High", "Ultra High"})])
 def test_good_and_high_keep_the_base_use_cases_and_renumber_them_in_final_rank_order(
         agent_ns, tmp_path, quiet_root_logger, mode, acceptable, user_domains):
-    base = _base_namespace(tmp_path)
+    base = _base_namespace()
     expected = _comparable_run(base, tmp_path / "base", mode, acceptable, user_domains)
     actual = _comparable_run(agent_ns, tmp_path / "head", mode, acceptable, user_domains)
     assert len(expected[0]) == 4 and len(expected[1]) >= 10 and expected[2], "the base run must produce a portfolio"

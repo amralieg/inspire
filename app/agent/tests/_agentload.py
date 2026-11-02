@@ -22,6 +22,7 @@ Scope and limitations, stated up front so no test claims more coverage than it h
 import ast
 import hashlib
 import os
+import pathlib
 import re
 
 import _nbload
@@ -30,6 +31,7 @@ from _nbload import (AGENT_NB, ROOT, code_cells, install_stubs,  # noqa: F401
 
 IMPL_CELL_INDEX = 1
 EXPECTED_CELL_COUNT = 3
+REFERENCE_DIR = pathlib.Path(ROOT) / "tests" / "regression" / "reference"
 
 _CODE_CACHE = {}
 _NS_CACHE = {}
@@ -37,6 +39,13 @@ _NS_CACHE = {}
 
 def agent_notebook_path(notebook_path=None):
     return os.path.abspath(notebook_path or AGENT_NB)
+
+
+def reference_notebook(ref):
+    path = REFERENCE_DIR / f"agent_{ref}.ipynb"
+    if not path.is_file():
+        raise FileNotFoundError(f"no reference notebook for {ref}: add the agent notebook of {ref} as {path.relative_to(ROOT)}")
+    return path
 
 
 def agent_source(notebook_path=None):

@@ -19,7 +19,6 @@ PROMPT = "COMBINED_VALUE_QUALITY_SCORE_PROMPT"
 GOOD_LABELS = frozenset({"Medium", "High", "Very High", "Ultra High"})
 GRADE_SQL = "SELECT ai_query('{endpoint}', :prompt, modelParameters => named_struct('max_tokens', 64000)) AS answer"
 NOTEBOOK = "agent/dbx_inspire_ai_agent.ipynb"
-REFERENCE = REPO / "tests" / "regression" / "reference"
 
 
 def load_namespace(notebook: Path) -> dict:
@@ -28,10 +27,8 @@ def load_namespace(notebook: Path) -> dict:
 
 
 def reference_notebook(tag: str) -> Path:
-    path = REFERENCE / f"agent_{tag}.ipynb"
-    if not path.is_file():
-        raise FileNotFoundError(f"no reference notebook for {tag}: add the released notebook of {tag} as {path.relative_to(REPO)}")
-    return path
+    import _agentload
+    return _agentload.reference_notebook(tag)
 
 
 def _instance(ns: dict):

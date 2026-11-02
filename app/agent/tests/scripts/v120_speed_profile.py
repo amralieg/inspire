@@ -120,7 +120,7 @@ def prompt_name(text):
 def notebook_path(ref):
     if os.path.exists(ref):
         return os.path.abspath(ref)
-    blob = subprocess.run(["git", "show", f"{ref}:agent/dbx_inspire_ai_agent.ipynb"], cwd=ROOT,
+    blob = subprocess.run(["git", "show", f"{ref}:./agent/dbx_inspire_ai_agent.ipynb"], cwd=ROOT,
                           capture_output=True, check=True).stdout
     path = os.path.join(tempfile.mkdtemp(prefix="inspire_speed_"), "agent.ipynb")
     with open(path, "wb") as fh:
