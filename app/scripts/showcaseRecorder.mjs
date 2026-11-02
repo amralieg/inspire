@@ -3,6 +3,7 @@ import path from 'node:path';
 import { createRequire } from 'node:module';
 import { SHOWCASE_BUTTON } from '../frontend/src/lib/showcase.js';
 import { APP_TABS } from '../frontend/src/lib/tabs.js';
+import { RUN_BACK } from '../frontend/src/lib/runPages.js';
 
 const require = createRequire(import.meta.url);
 const { SHOWCASE_HEADER, SHOWCASE_READ_ONLY, showcaseCanRead } = require('../backend/lib/showcase.js');
@@ -250,13 +251,21 @@ async function walkMonitor(page, settle) {
   return { steps: shown > 0 };
 }
 
-async function walkRun(page, settle) {
+export async function walkRun(page, settle) {
   await openTab(page, settle, 'run');
-  await page.locator('[data-run-page-root]').waitFor({ timeout: 120000 });
+  const list = page.locator('[data-run-page-root]');
+  await list.waitFor({ timeout: 120000 });
+  await settle();
   const pages = page.locator('[data-run-page]');
   const n = await pages.count();
   for (let i = 0; i < n; i += 1) {
     await pages.nth(i).click();
+    await settle();
+    if (!(await page.locator('[data-run-full]').count())) continue;
+    const toggle = page.locator('[data-run-control-toggle]');
+    if (await toggle.getAttribute('aria-expanded') !== 'true') await toggle.click();
+    await page.getByRole('button', { name: RUN_BACK, exact: true }).click();
+    await list.waitFor({ timeout: 120000 });
     await settle();
   }
   return n;

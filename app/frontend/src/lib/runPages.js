@@ -10,6 +10,13 @@ export const RUN_OPEN_APP = 'Open App';
 export const RUN_POLL_MS = 3000;
 export const RUN_STATE_LABELS = { starting: 'Starting', ready: 'Ready', stopped: 'Stopped', failed: 'Failed' };
 export const RUN_STOPPED_FIRST = 'Opening it starts it';
+export const RUN_OPEN = 'Open full window';
+export const RUN_BACK = 'Back to Inspire';
+export const RUN_NEW_TAB = 'Open in a new tab';
+export const RUN_SWITCH = 'Switch use case';
+export const RUN_CONTROL = 'Inspire menu: back to Inspire, switch use case, or open in a new tab';
+export const RUN_FULL_STATE = 'inspireRunFull';
+export const RUN_OPENING = 'Opening the page';
 const RUN_PATH_RE = /^\/run\/[a-z0-9-]{1,63}\/#\/[A-Za-z0-9_%-]{1,192}$/;
 
 export const RUN_DEMO_KIND = 'demo';
@@ -128,6 +135,15 @@ export function runFrameSrc(page) {
   const path = String(page?.path || '');
   if (page?.kind === RUN_DEMO_KIND) return RUN_DEMO_PATH_RE.test(path) ? path : '';
   return page?.kind === APP_INSIDE && RUN_PATH_RE.test(path) ? path : '';
+}
+
+export function runFullPage(pages, key) {
+  if (!key) return null;
+  return (Array.isArray(pages) ? pages : []).find((p) => runKey(p) === key && runFrameSrc(p)) || null;
+}
+
+export function runFramedPages(pages) {
+  return runGroups(pages).flatMap((g) => g.pages).filter((p) => runFrameSrc(p));
 }
 
 export function runAppUrl(page) {
