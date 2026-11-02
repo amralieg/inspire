@@ -2,7 +2,7 @@
 
 Evidence from v1.0.0 4-corpus swarm on <internal-cli-profile> (2026-08-10T06:30 - 06:47 UTC):
 - run_id=123456789000015, session_id=123456789000000016 (bakehouse), volume log
-  /Volumes/<catalog>/<schema>/vol_root/logs/bakehouse_v100_e2e_545646/session_545646363769261212/log.log
+  /Volumes/<catalog>/<schema>/vol_root/logs/bakehouse_v100_e2e_545646/session_123456789000000016/log.log
 
 Log line evidence:
   2026-08-10 06:40:35 - ERROR - [BASE_USE_CASE_GEN_PROMPT] LLM call timed out

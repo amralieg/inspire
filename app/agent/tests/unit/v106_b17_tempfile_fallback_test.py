@@ -3,7 +3,7 @@
 Customer reproducer on v1.0.5 (Bakehouse, session_id='1234567890000000025',
 FRESH session — B14's stale-file heal was a no-op):
 
-    Main execution failed: [Errno 13] Permission denied: '/tmp/bakehouse_6431771510560148226/log.txt'
+    Main execution failed: [Errno 13] Permission denied: '/tmp/bakehouse_1234567890000000025/log.txt'
 
 Root cause: Databricks Serverless UI standard-access-mode restricts file
 creation directly under /tmp/ even when os.makedirs succeeds. B14's chmod +

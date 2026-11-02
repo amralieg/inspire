@@ -3,7 +3,7 @@
 Prior v1.0.4 customer crash on <internal-cli-profile> (TPCDH, job 123456789000021, run
 123456789000022):
 
-  Main execution failed: [Errno 13] Permission denied: '/tmp/tpcdh_8531238286453129415/log.txt'
+  Main execution failed: [Errno 13] Permission denied: '/tmp/tpcdh_1234567890000000023/log.txt'
 
 Root cause: `setup_logging` (agent/dbx_inspire_ai_agent.ipynb:4795) opens
 `logging.FileHandler(log_file_path, mode='w')` immediately after
