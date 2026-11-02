@@ -490,13 +490,14 @@ test('All open names its window to the Overview, and a use case that keeps no ac
 
 const BATCH_DONE = 'a'.repeat(32);
 const DONE = { ...ROWS[1], _inspire_status: 'Done', _inspire_owner: OTHER, _inspire_closed_by: OTHER, _inspire_closed_at: '2026-10-26T15:20:00.000Z',
-  _inspire_closed_batch: BATCH_DONE, _inspire_closed_undo: false, _inspire_closed_note: 'Repriced the shelf', _inspire_closed_reason: null, _inspire_closed_comment: 'Called the store' };
+  _inspire_closed_batch: BATCH_DONE, _inspire_closed_undo: false, _inspire_closed_can_undo: true, _inspire_closed_note: 'Repriced the shelf', _inspire_closed_reason: null,
+  _inspire_closed_comment: 'Called the store' };
 const GONE = { ...ROWS[2], _inspire_status: 'Dismissed', _inspire_closed_by: PERSON, _inspire_closed_at: '2026-10-25T08:00:00.000Z', _inspire_closed_batch: 'b'.repeat(32),
-  _inspire_closed_undo: true, _inspire_closed_note: null, _inspire_closed_reason: 'Known issue', _inspire_closed_comment: null };
+  _inspire_closed_undo: true, _inspire_closed_can_undo: true, _inspire_closed_note: null, _inspire_closed_reason: 'Known issue', _inspire_closed_comment: null };
 const OPEN = { ...ROWS[0], _inspire_status: 'New' };
 
-function everything(calls) {
-  const all = [OPEN, DONE, GONE];
+function everything(calls, done = DONE) {
+  const all = [OPEN, done, GONE];
   const byKey = Object.fromEntries(all.map((r) => [r.record_key, r]));
   return tracked({
     records: ({ route, json, seen }) => {
@@ -571,6 +572,22 @@ test('a closed record undoes the change that closed it from its own page, after 
   await page.locator('.cell-t').nth(2).click();
   await drawer.locator('[data-closed-by]').waitFor();
   assert.equal(await drawer.getByRole('button', { name: 'Undo this change' }).count(), 0, 'the close was itself an undo, so it is not undone from the record');
+  assert.deepEqual(seen.errors, []);
+  await context.close();
+});
+
+test('a record someone else closed offers no Undo to a person who owns no part of the use case, and says who can undo it', async () => {
+  const calls = { undos: [] };
+  const { routes } = everything(calls, { ...DONE, _inspire_closed_can_undo: false });
+  const { page, seen, context } = await openWith(appInfo(EDIT_TOO, 1, TABLE), routes, { prefs: { window: 'everything' } });
+  await page.waitForFunction(() => document.querySelectorAll('.card--table tbody tr').length === 3);
+  await page.locator('.cell-t').nth(1).click();
+  const drawer = page.locator('dialog.drawer');
+  await drawer.locator('[data-read-only]').waitFor();
+  assert.equal(await drawer.locator('[data-read-only]').innerText(),
+    'Read-only in Everything. Only the person who made this change or an owner of this use case can undo it.');
+  assert.deepEqual(await drawer.locator('.panel-f button').allInnerTexts(), ['Close']);
+  assert.equal(calls.undos.length, 0);
   assert.deepEqual(seen.errors, []);
   await context.close();
 });

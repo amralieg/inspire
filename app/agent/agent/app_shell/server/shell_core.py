@@ -1760,7 +1760,7 @@ class Shell:
                              for name in context["categories"]], "picked": request["ai"]}
         rows, total = done[("list", "rows")]["rows"], int(first("total").get("total") or 0)
         if context["actions"] and not request["window"]:
-            rows = self.with_closes(ws, who, page, context, fields, rows, failures)
+            rows = self.with_closes(headers, ws, who, page, context, fields, rows, failures)
         window = request["window"]
         shown = min(total, window["limit"]) if window and window.get("limit") else total
         return {"rows": rows, "total": total, "offset": request["offset"], "cursors": list_cursors(request, context, rows, shown),
@@ -1772,7 +1772,7 @@ class Shell:
                            "today": window["today"]} if window else None,
                 "as_of_us": self.as_of_us(served_by(done), read_at)}
 
-    def with_closes(self, ws, who, page: dict, context: dict, fields, rows: list, failures: dict) -> list:
+    def with_closes(self, headers: dict, ws, who, page: dict, context: dict, fields, rows: list, failures: dict) -> list:
         keys = list(dict.fromkeys(str(r["_inspire_key"]) for r in rows
                                   if r.get("_inspire_key") is not None and r.get("_inspire_status") in shell_sql.CLOSED_STATUSES))
         closes = {}
@@ -1788,6 +1788,8 @@ class Shell:
             same = close is not None and close.get("_inspire_status") == row.get("_inspire_status")
             picked = {name: close.get(name) if same else None for name in shell_sql.CLOSED_FIELDS}
             picked["_inspire_closed_undo"] = bool(picked["_inspire_closed_undo"])
+            picked["_inspire_closed_can_undo"] = bool(picked["_inspire_closed_batch"]) and not self.undo_refusal(
+                headers, page, picked["_inspire_closed_by"])
             out.append(dict(row, **picked))
         return out
 
@@ -1930,6 +1932,13 @@ class Shell:
 
     def owner_refusal(self, headers: dict, page: dict, words: tuple = ASSUMPTION_WORDS) -> str:
         return self.editors_refusal(headers, self.page_editors(page), words)
+
+    def undo_refusal(self, headers: dict, page: dict, author) -> str:
+        author = str(author or "").strip()
+        if author.lower() in self.signed_in(headers):
+            return ""
+        refusal = self.owner_refusal(headers, page, UNDO_WORDS)
+        return f"{refusal}; {author or 'someone else'} made it" if refusal else ""
 
     def usage(self, headers: dict) -> dict:
         refusal = self.editors_refusal(headers, self.app_editors(), ADMIN_WORDS)
@@ -2745,7 +2754,8 @@ class Shell:
         self.change_table(ws, who, page)
         sql, params = shell_sql.batches_query(page)
         rows = self.execute(ws, sql, params, shell_sql.CAPS["batches"], delta=True)["rows"]
-        return {"batches": [batch_view(r) for r in rows], "limit": shell_sql.CAPS["batches"]}
+        return {"batches": [dict(batch_view(r), can_undo=not self.undo_refusal(headers, page, r.get("editor"))) for r in rows],
+                "limit": shell_sql.CAPS["batches"]}
 
     def undo(self, headers: dict, data: dict) -> dict:
         if not self.option("decisions"):
@@ -2761,11 +2771,9 @@ class Shell:
         made = (self.execute(ws, sql, params, 1, delta=True)["rows"] or [None])[0]
         if made is None:
             raise HttpError(404, f"no act with batch_id {undone} changed a record of this page")
-        author = str(made.get("editor") or "").strip()
-        if author.lower() not in self.signed_in(headers):
-            refusal = self.owner_refusal(headers, page, UNDO_WORDS)
-            if refusal:
-                raise HttpError(403, f"{refusal}; {author or 'someone else'} made it")
+        refusal = self.undo_refusal(headers, page, made.get("editor"))
+        if refusal:
+            raise HttpError(403, refusal)
         batch = {"id": uuid.uuid4().hex, "values": json.dumps({shell_sql.UNDO_KEY: undone}, sort_keys=True)}
         row = self.write_versions(ws, page, fields, "action", [], editor, {}, batch=batch, undo=undone)
         restored = int(row.get("num_inserted_rows", row.get("num_affected_rows")) or 0)

@@ -138,6 +138,47 @@ def test_without_a_signed_in_person_no_write_happens_whatever_the_body_says(tmp_
     assert status == 401 and ws.queries("MERGE INTO") == [], out
 
 
+@pytest.mark.parametrize("viewer, settings, can", [
+    (PERSON, None, True),
+    (PERSON.upper(), None, True),
+    (OTHER, None, False),
+    (OWNER, OWNED, True),
+    (OTHER, OWNED, False),
+])
+def test_recent_changes_says_for_each_act_whether_the_signed_in_person_may_undo_it(tmp_path, viewer, settings, can):
+    s, _ws = undo_shell(tmp_path, PERSON, settings=settings)
+    status, out = call(s, "GET", "records/batches", headers={"x-forwarded-email": viewer}, query={"page": "n01_u05"})
+    assert status == 200, out
+    assert [(b["batch_id"], b["can_undo"]) for b in out["batches"]] == [(BATCH, can)]
+    status, undone = post(s, "records/undo", {"batch_id": BATCH}, headers={"x-forwarded-email": viewer})
+    assert (status == 200) is can, undone
+
+
+def test_an_act_with_no_recorded_author_is_undoable_only_by_an_owner(tmp_path):
+    s, _ws = undo_shell(tmp_path, PERSON, settings=OWNED)
+    assert s.undo_refusal({"x-forwarded-email": OTHER}, s.page("n01_u05"), "") == f"{shell_core.UNDO_WORDS[2]}; someone else made it"
+    assert s.undo_refusal({"x-forwarded-email": OWNER}, s.page("n01_u05"), "") == ""
+    assert s.undo_refusal({}, s.page("n01_u05"), PERSON) == f"{shell_core.UNDO_WORDS[0]}; {PERSON} made it"
+
+
+def test_a_closed_record_says_whether_the_signed_in_person_may_undo_its_close(tmp_path):
+    pytest.importorskip("sqlglot")
+    from v148_app_hub_test import SqliteWorkspace, hub_shell
+    from v168_everything_list_test import DECIDE as LIST_DECIDE, ROWS, SAM
+
+    def flags(folder, viewer, settings):
+        folder.mkdir()
+        s, _ws, _made = hub_shell(folder, settings=settings, ws=SqliteWorkspace(tables={"loss_desk_out": ROWS}))
+        status, out = call(s, "POST", "records", headers={"x-forwarded-email": viewer}, body={"page": "n01_u05", "limit": 25})
+        assert status == 200, out
+        return {r["record_key"]: r["_inspire_closed_can_undo"] for r in out["rows"]}
+
+    assert flags(tmp_path / "author", SAM, LIST_DECIDE) == {"r1": True, "r2": False, "r3": False, "r4": False, "r5": False}
+    assert flags(tmp_path / "other", FORGED, LIST_DECIDE) == {"r1": False, "r2": False, "r3": False, "r4": False, "r5": False}
+    owned = dict(LIST_DECIDE, use_case_owners={"n01_u05": [OWNER]})
+    assert flags(tmp_path / "owner", OWNER, owned) == {"r1": True, "r2": True, "r3": False, "r4": True, "r5": False}
+
+
 def test_batches_query_filters_one_batch_only_when_asked():
     page = {"result_table": "main.pricing.loss_desk_out", "use_case_id": "N01-U05"}
     every, _ = shell_sql.batches_query(page)

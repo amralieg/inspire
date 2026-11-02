@@ -25,7 +25,8 @@ import {
   aiValue, askQuestions, changeBadge, doneText, dueText, explainContext, heldBack, heldText, impactText, initials, isOverdue, keptText, leftText, matchOf,
   missingSince, NOT_IN_RUN, notInRunText, overdueFirst, pageText, recordCurrency, recordKeyOf, recordRef, recordView, recordsText, savingText, statusClass,
   statusLabel, actError, withoutWindow, NO_AS_OF, listAsOf,
-  CODES, isStaleRecord, closedText, undoBatchOf, UNDO_CLOSE, isClosed, skippedText, READ_ONLY, READ_ONLY_KEPT, CLOSED_PICK,
+  CODES, isStaleRecord, closedText, closedBatchOf, undoBatchOf, UNDO_CLOSE, isClosed, skippedText, READ_ONLY, READ_ONLY_KEPT, READ_ONLY_THEIRS,
+  CLOSED_PICK,
 } from './records.js';
 
 const tierClass = (t) => `tier tier--${String(t).toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
@@ -280,6 +281,7 @@ function Drawer({ meta, row: given, onClose, history, canModify, tracker, owners
   const closed = acting && CLOSED_STATUSES.includes(current.action_status);
   const closedBy = closed ? closedText({ ...given, _inspire_status: current.action_status }) : '';
   const undoBatch = closed ? undoBatchOf({ ...given, _inspire_status: current.action_status }, person) : '';
+  const theirs = closed && !undoBatch && !!closedBatchOf({ ...given, _inspire_status: current.action_status });
   const readOnly = closed && !!closedReadOnly;
   const [undoAsk, setUndoAsk] = useState(false);
   useEffect(() => { setUndoAsk(false); }, [linkKey, undoBatch]);
@@ -346,7 +348,7 @@ function Drawer({ meta, row: given, onClose, history, canModify, tracker, owners
             {!deleted && missingSince(row) && <div className="kept" role="status"><Icon name="info" size={14} />{notInRunText(missingSince(row))}</div>}
             {closed && (
               <div className="done" role="status">{doneText(current, shownUnit(unit, recordCurrency(meta, current, row), kind), kind)}{closedBy && <small className="done-by" data-closed-by>{closedBy}</small>}
-                {readOnly && <small className="done-by" data-read-only>{undoBatch ? READ_ONLY : READ_ONLY_KEPT}</small>}</div>
+                {readOnly && <small className="done-by" data-read-only>{undoBatch ? READ_ONLY : theirs ? READ_ONLY_THEIRS : READ_ONLY_KEPT}</small>}</div>
             )}
             {saving && (
               <section className="sec" aria-label="Could save">

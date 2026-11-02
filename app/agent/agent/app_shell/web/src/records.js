@@ -429,8 +429,12 @@ export function closedText(row) {
 
 const BATCH = /^[0-9a-f]{32}$/;
 
-export const undoBatchOf = (row, person) => (CLOSED_STATUSES.includes(row?._inspire_status) && String(person || '').trim()
+export const closedBatchOf = (row) => (CLOSED_STATUSES.includes(row?._inspire_status)
   && BATCH.test(String(row?._inspire_closed_batch ?? '')) && !row?._inspire_closed_undo ? String(row._inspire_closed_batch) : '');
+
+export const undoBatchOf = (row, person) => (String(person || '').trim() && row?._inspire_closed_can_undo === true ? closedBatchOf(row) : '');
+
+export const UNDO_THEIRS = 'Only the person who made this change or an owner of this use case can undo it.';
 
 export const UNDO_CLOSE = 'Undo puts back every record this change touched, as they were before it, and keeps both versions in their history.';
 
@@ -440,6 +444,7 @@ export const skippedText = (n) => `Skipped ${recordsText(n)} already closed: fix
 
 export const READ_ONLY = 'Read-only in Everything. To reopen it, undo this change.';
 export const READ_ONLY_KEPT = 'Read-only in Everything. This change cannot be undone here, so the record stays closed.';
+export const READ_ONLY_THEIRS = `Read-only in Everything. ${UNDO_THEIRS}`;
 export const CLOSED_PICK = 'Already closed, so it cannot be selected';
 
 function versionLine(meta, { version, changes }, unit = '', kind = '') {
