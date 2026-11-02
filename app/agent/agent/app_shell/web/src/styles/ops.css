@@ -29,6 +29,9 @@
 .runs-tog[aria-expanded="true"] svg{transform:rotate(90deg)}
 .runs-tbl tr.is-open>td,.runs-tbl tbody tr.runs-d>td,.runs-tbl tbody tr.runs-d:hover>td{background:var(--well)}
 .runs-sub-t{display:block;font-size:12px;color:var(--muted);font-weight:500}
+.runs-scope{display:grid;gap:8px;padding:14px 16px;margin-bottom:14px}
+.runs-scope p{margin:0}
+.runs-scope .btn{justify-self:start}
 .run-st{display:inline-flex;align-items:center;gap:6px;font-weight:650;white-space:nowrap}
 .run-st i{width:8px;height:8px;border-radius:50%;background:var(--slate-line)}
 .run-st--ok i{background:var(--green-line)}

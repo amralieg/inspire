@@ -723,6 +723,8 @@ HISTORY_OBJECTS = {"{inspire_table_name(table)}", "{inspire_table_name(inspire_r
 HISTORY_BOUND = {"target": "inspire_table_name(table)", "source": "inspire_table_name(stage)",
                  "log": "inspire_table_name(inspire_run_log_table(table))"}
 HISTORY_COUNTED = "{inspire_table_name(read_table)}"
+HISTORY_SCOPED = "{inspire_table_name(source_table)}"
+HISTORY_SCOPED_READS = ("SELECT CAST(", "WITH dated AS (SELECT CAST(")
 KPI_READ = ("inspire_save_kpi", "spark.sql(query)", {"str(kpi.get('query') or '')"}, "_inspire_re.fullmatch(INSPIRE_KPI_QUERY, query)")
 HISTORY_CLONED = {"{inspire_table_name(table)}", "{inspire_table_name(result_table)}"}
 CLONE_SOURCE = re.compile(rf"\bCLONE\s+({guard.TARGET})", re.I)
@@ -755,7 +757,8 @@ def _history_problems(history):
     _, unresolved, bad, frames = guard.audit(history)
     problems = [f"reads rows through the DataFrame API: {frame}" for frame in frames]
     problems += [f"{kind} {target}" for _, kind, target, sql in bad if target not in HISTORY_OBJECTS
-                 and not (kind == "read" and target == HISTORY_COUNTED and sql.startswith(f"SELECT COUNT(*) AS n FROM {HISTORY_COUNTED}"))]
+                 and not (kind == "read" and target == HISTORY_COUNTED and sql.startswith(f"SELECT COUNT(*) AS n FROM {HISTORY_COUNTED}"))
+                 and not (kind == "read" and target == HISTORY_SCOPED and sql.startswith(HISTORY_SCOPED_READS))]
     for _, sql, _, function in guard.SqlIndex(tree).sql_literals():
         scope = functions.get(function, tree)
         problems += [f"{{{name}}} in {function} is {sorted(_bound(scope, name))}" for name, bound in HISTORY_BOUND.items()
@@ -816,6 +819,8 @@ def test_the_history_helpers_touch_only_the_result_table_its_run_log_and_its_sta
      f"write {{inspire_table_name(inspire_ai_summary_table({USER_TABLE[1:-1]}))}}"),
     (f'    spark.sql(f"SELECT * FROM {HISTORY_COUNTED} LIMIT 5")\n', f"read {HISTORY_COUNTED}"),
     (f'    spark.sql(f"INSERT INTO {HISTORY_COUNTED} SELECT 1")\n', f"write {HISTORY_COUNTED}"),
+    (f'    spark.sql(f"SELECT * FROM {HISTORY_SCOPED} LIMIT 5")\n', f"read {HISTORY_SCOPED}"),
+    (f'    spark.sql(f"INSERT INTO {HISTORY_SCOPED} SELECT 1")\n', f"write {HISTORY_SCOPED}"),
 ])
 def test_the_history_guard_rejects_any_other_object(history_source, line, problem):
     assert history_source.count(ENSURE) == 1
@@ -829,6 +834,16 @@ def test_the_agent_clones_only_the_result_table_it_built_before(agent_tree):
     assert source.count(old) == 1
     injected = ast.parse(source.replace(old, f"DEEP CLONE {USER_TABLE}"))
     assert _clone_sources(injected) == {("implement_result_copy_sql", USER_TABLE)}
+
+
+def test_the_first_run_reads_a_source_table_only_for_group_counts_newest_dates_and_through_the_one_read_helper(history_source):
+    tree = ast.parse(history_source)
+    functions = {node.name: node for node in ast.walk(tree) if isinstance(node, ast.FunctionDef)}
+    scoped = sorted(name for name, node in functions.items() if HISTORY_SCOPED in ast.unparse(node))
+    assert scoped == ["inspire_scope_groups_sql", "inspire_scope_recent_sql"], scoped
+    frames = sorted({owner for owner, node in ((name, node) for name, function in functions.items() for node in ast.walk(function))
+                     if isinstance(node, ast.Attribute) and node.attr in ("table", "read", "readStream") and ast.unparse(node.value) != "dbu.widgets"})
+    assert frames == ["inspire_read_source"], frames
 
 
 def test_the_kpi_step_is_the_one_read_of_source_rows_and_only_after_its_query_is_one_select(history_source):

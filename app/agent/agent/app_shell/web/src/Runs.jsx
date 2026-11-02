@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { getRuns } from './api.js';
+import { getRuns, runSettingsNow, saveSetting } from './api.js';
 import { formatValue, integer, kindOf, unitOf } from './format.js';
 import Fx from './Fx.jsx';
 import { Icon } from './icons.jsx';
@@ -98,13 +98,38 @@ function RunRow({ run, open, onToggle }) {
         <td className="nowrap"><b>{when}</b><span className="runs-sub-t">{lastedText(run)}</span></td>
         <td className="nowrap"><span className={`run-st run-st--${flag.tone}`}><i aria-hidden="true" />{flag.text}</span></td>
         <td className="nowrap">{triggerText(run.trigger)}{run.by && <span className="runs-sub-t">{run.by}</span>}</td>
-        <td className="wrap">{coveredText(run.segments)}</td>
+        <td className="wrap">{coveredText(run.segments)}{run.scope_text && <span className="runs-sub-t">{run.scope_text}</span>}</td>
         <td className="num">{run.records ? integer(run.records) : <None />}</td>
         <td className="num">{count(run.to_fix)}</td>
         <td className="num money">{run.could_save == null ? <None /> : <Fx formula={couldSaveRunFormula(run)}>{formatValue(run.could_save, unitOf(run) ? 'currency' : 'number', unitOf(run), undefined, kindOf(run))}</Fx>}</td>
       </tr>
       {open && <tr className="runs-d"><td colSpan={COLUMNS}><Details run={run} id={id} /></td></tr>}
     </>
+  );
+}
+
+function ScopeFacts({ page, run }) {
+  const [busy, setBusy] = useState(false);
+  const [said, setSaid] = useState('');
+  const everything = async () => {
+    setBusy(true);
+    try {
+      await saveSetting({ page: page.id, name: 'run_scope', value: 'all', was: run.scope?.scope || '', note: 'Run on everything' });
+      const started = await runSettingsNow(page.id);
+      setSaid(`The run on everything is ${started.state || 'starting'}; schedules now cover all the records too.`);
+    } catch (err) {
+      setSaid(err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <section className="card runs-scope" aria-label="First run">
+      <p>{run.facts.covered}</p>
+      {run.facts.everything && <p>{run.facts.everything}</p>}
+      <button className="btn" onClick={everything} disabled={busy}>Run on everything</button>
+      {said && <p role="status">{said}</p>}
+    </section>
   );
 }
 
@@ -121,6 +146,7 @@ export default function Runs({ page, runs, offset, onOffset, onExplain, genieBus
   const size = data?.limit || RUNS_PAGE;
   const errors = data?.errors || {};
   const details = errors.summary || errors.details;
+  const scoped = list.find((r) => r.facts && r.facts.covered);
   const toggle = (key) => setOpen((was) => {
     const next = new Set(was);
     if (next.has(key)) next.delete(key);
@@ -134,6 +160,7 @@ export default function Runs({ page, runs, offset, onOffset, onExplain, genieBus
           loading={busy && !data} bars={runBars(list)} empty="No run listed below wrote a count of things to fix." x="Run" measure="To fix"
           onExplain={onExplain} genieBusy={genieBusy} />
       )}
+      {scoped && <ScopeFacts page={page} run={scoped} />}
       <section className="card card--table runs" aria-label="Runs" aria-busy={busy}>
         <header className="card-h">
           <div>

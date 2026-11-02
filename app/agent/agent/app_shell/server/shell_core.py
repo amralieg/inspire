@@ -811,6 +811,8 @@ def run_segments(page: dict, value):
         return None
     out, odd = [], 0
     for item in items:
+        if isinstance(item, dict) and item.get("scope"):
+            continue
         column = str(item.get("column") or "").strip() if isinstance(item, dict) else ""
         values = item.get("values") if column else None
         if not column or not isinstance(values, list):
@@ -825,7 +827,8 @@ def run_tables(value):
     items = json_list(value)
     if items is None:
         return None
-    out = [{"table": str(t["table"]).strip(), "rows": count_of(t.get("rows")), "updated_at": str(t.get("updated_at") or "") or None}
+    out = [{"table": str(t["table"]).strip(), "rows": count_of(t.get("rows")), "rows_total": count_of(t.get("rows_total")),
+            "scoped": t.get("scoped") is True, "updated_at": str(t.get("updated_at") or "") or None}
            for t in items if isinstance(t, dict) and str(t.get("table") or "").strip()]
     return None if items and not out else out
 
@@ -896,7 +899,10 @@ def run_view(entry: dict, summary, page: dict) -> dict:
     records = count_of(s.get("records"))
     stake = s.get("value_at_stake")
     status = run_state(job, s)
+    scope, tables = shell_sql.run_scope(json_list(s.get("run_segments"))), run_tables(s.get("run_tables"))
+    lasted = j["duration_s"] if j.get("duration_s") is not None else span_s(s.get("run_started_at"), s.get("run_ended_at"))
     return {"run_id": entry.get("run_id"), "job_run_id": j.get("run_id"), "url": j.get("url") or "",
+            "scope": scope, "scope_text": shell_sql.scope_text(scope) if scope else "", "facts": shell_sql.scope_facts(scope, tables, lasted),
             "started": j.get("started") or s.get("run_started_at") or seen_at(entry), "ended": j.get("ended") or s.get("run_ended_at"),
             "duration_s": j["duration_s"] if j.get("duration_s") is not None else span_s(s.get("run_started_at"), s.get("run_ended_at")),
             "status": status, "trigger": run_trigger(job, s), "by": j["by"] if job and j["by"] not in (BY_SCHEDULE, BY_BUILD) else "",
@@ -1662,9 +1668,14 @@ class Shell:
             if (kind, item_id) not in failed:
                 limit = shell_sql.CAPS["kpi_rows" if kind == "kpi" else "chart_rows"]
                 jobs[(kind, item_id)] = (lambda s=sql, p=params, n=limit: self.run(ws, who, s, p, n))
+        if page.get(shell_sql.RUN_SCOPES) and page.get("result_table"):
+            jobs[("scope", "runs")] = lambda: self.summary_rows(ws, who, shell_sql.summary_query(page, 2), 2)
         done, errors = self._parallel(jobs, probe)
+        scoped = done.pop(("scope", "runs"), None)
+        errors.pop(("scope", "runs"), None)
         errors.update(failed)
-        out = {"kpis": {}, "charts": {}, "tables": {}, "errors": {}, "served": served_by(done), "catching_up": self.catching_up()}
+        out = {"kpis": {}, "charts": {}, "tables": {}, "errors": {}, "served": served_by(done), "catching_up": self.catching_up(),
+               "scope": shell_sql.scope_view(scoped) if scoped is not None else None}
         for (kind, item_id), result in done.items():
             if kind == "kpi":
                 by = {r.get("period"): r.get("value") for r in result["rows"]}
@@ -1807,7 +1818,8 @@ class Shell:
                       for name, spec in (named if isinstance(named, dict) else {}).items()
                       if isinstance(spec, dict) and shell_sql.AI_CATEGORY.match(str(name))}
         impact = shell_sql.impact_of(rows[0])
-        return {"run": dict({k: rows[0].get(k) for k in RUN_SUMMARY_FIELDS}, unit=impact["unit"], impact_kind=impact["kind"]),
+        scoped = {"scope_text": shell_sql.scoped_text(rows[0])} if shell_sql.page_scopes(page) else {}
+        return {"run": dict({k: rows[0].get(k) for k in RUN_SUMMARY_FIELDS}, unit=impact["unit"], impact_kind=impact["kind"], **scoped),
                 "categories": categories,
                 "note": ""}
 

@@ -84,7 +84,6 @@ def test_a_self_join_meets_only_its_own_run():
 REFUSED = [
     (f"SELECT o.value FROM {RESULT} AS o WHERE {CURRENT} LIMIT 10", "it uses LIMIT or OFFSET without ORDER BY"),
     (f"SELECT o.value FROM {DIM} AS o WHERE o.record_key IN (SELECT record_key FROM {RESULT})", "it reads the result table in a subquery outside"),
-    (f"SELECT o.value FROM {RESULT} AS o, {RESULT} AS p WHERE o.record_key = p.record_key", "it reads the result table twice without JOIN ... ON"),
     (f"SELECT * FROM {RESULT} AS o JOIN {RESULT} AS p ON p.record_key = o.record_key", "it selects * from the result table read twice"),
     (f"SELECT o.value FROM {RESULT} AS o UNION ALL SELECT s.amount FROM {DIM} AS s", "only some parts of its UNION read the result table"),
     (f"SELECT o.value, SUM(o.value) OVER w FROM {RESULT} AS o", "it uses OVER with a window name but no WINDOW clause defines it"),

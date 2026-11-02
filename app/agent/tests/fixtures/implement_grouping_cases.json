@@ -764,5 +764,516 @@
       "groups": 2,
       "other_groups": 0
     }
-  ]
+  ],
+  "first_run": {
+    "spec": {
+      "table": "main.sales.orders",
+      "records": 48000,
+      "technique": "Anomaly Detection",
+      "time_series": false,
+      "time_column": "order_date",
+      "group_column": "region",
+      "key_column": "order_id",
+      "period": "day",
+      "default": "groups"
+    },
+    "settings": [
+      [
+        "run_scope",
+        "First run",
+        "choice"
+      ],
+      [
+        "scope_groups",
+        "Groups to run on",
+        "choice"
+      ],
+      [
+        "scope_days",
+        "Days to run on",
+        "days"
+      ],
+      [
+        "scope_records",
+        "Records to run on",
+        "integer"
+      ]
+    ],
+    "default": [
+      {
+        "name": "1,000 records run on all of them",
+        "records": 1000,
+        "technique": "Anomaly Detection",
+        "time_series": false,
+        "time_column": "order_date",
+        "group_column": "region",
+        "expected": "all"
+      },
+      {
+        "name": "a count the metadata does not hold runs on all",
+        "records": null,
+        "technique": "Anomaly Detection",
+        "time_series": false,
+        "time_column": "order_date",
+        "group_column": "region",
+        "expected": "all"
+      },
+      {
+        "name": "1,001 records of a standalone technique run first on records",
+        "records": 1001,
+        "technique": "Text Classification",
+        "time_series": false,
+        "time_column": "order_date",
+        "group_column": "region",
+        "expected": "records"
+      },
+      {
+        "name": "a time series with a date column runs first on a recent period",
+        "records": 5000,
+        "technique": "Time Series Forecasting",
+        "time_series": true,
+        "time_column": "order_date",
+        "group_column": "region",
+        "expected": "recent"
+      },
+      {
+        "name": "a technique with a group column runs first on groups",
+        "records": 5000,
+        "technique": "Anomaly Detection",
+        "time_series": false,
+        "time_column": "order_date",
+        "group_column": "region",
+        "expected": "groups"
+      },
+      {
+        "name": "a date column alone gives a recent period",
+        "records": 5000,
+        "technique": "Pareto Analysis",
+        "time_series": false,
+        "time_column": "order_date",
+        "group_column": "",
+        "expected": "recent"
+      },
+      {
+        "name": "nothing to run first on runs on all",
+        "records": 5000,
+        "technique": "Pareto Analysis",
+        "time_series": false,
+        "time_column": "",
+        "group_column": "",
+        "expected": "all"
+      }
+    ],
+    "refused": [
+      {
+        "name": "records for a technique that reads records together",
+        "settings": {
+          "run_scope": "records"
+        },
+        "spec": {
+          "technique": "Anomaly Detection"
+        },
+        "reason": "First run on a number of records works only when each record stands alone"
+      },
+      {
+        "name": "a recent period without a date column",
+        "settings": {
+          "run_scope": "recent"
+        },
+        "spec": {
+          "time_column": ""
+        },
+        "reason": "First run on a recent period needs the date column of main.sales.orders"
+      },
+      {
+        "name": "groups without a group column",
+        "settings": {
+          "run_scope": "groups"
+        },
+        "spec": {
+          "group_column": ""
+        },
+        "reason": "First run on groups needs a column of main.sales.orders that groups its records"
+      },
+      {
+        "name": "a scope that does not exist",
+        "settings": {
+          "run_scope": "everything"
+        },
+        "spec": {},
+        "reason": "First run is 'everything', which is not one of all, groups, recent, records"
+      }
+    ],
+    "build_check": [
+      {
+        "name": "spark.table on a source table",
+        "code": "def load():\n    return spark.table(\"main.sales.orders\")\n",
+        "refused": true,
+        "said": "cell 3 line 2 names main.sales.orders outside inspire_read_source"
+      },
+      {
+        "name": "a SQL string that reads a source table",
+        "code": "def load(x):\n    return spark.sql(f\"SELECT * FROM main.sales.orders WHERE amount > {x}\")\n",
+        "refused": true,
+        "said": "cell 3 line 2 names main.sales.orders outside inspire_read_source"
+      },
+      {
+        "name": "a backticked name",
+        "code": "def load():\n    return spark.sql(\"SELECT * FROM `main`.`sales`.`stores`\")\n",
+        "refused": true,
+        "said": "cell 3 line 2 names main.sales.stores outside inspire_read_source"
+      },
+      {
+        "name": "a two-part name",
+        "code": "def load():\n    return spark.read.table(\"sales.orders\")\n",
+        "refused": true,
+        "said": "cell 3 line 2 names main.sales.orders outside inspire_read_source"
+      },
+      {
+        "name": "the helper",
+        "code": "def load():\n    return inspire_read_source(\"main.sales.orders\")\n",
+        "refused": false
+      },
+      {
+        "name": "a docstring and a print",
+        "code": "def load():\n    \"\"\"Reads main.sales.orders.\"\"\"\n    print(\"reading main.sales.orders\")\n    return inspire_read_source(\"main.sales.orders\")\n",
+        "refused": false
+      },
+      {
+        "name": "a table whose name only starts the same",
+        "code": "def load():\n    return spark.table(\"main.sales.orders_archive\")\n",
+        "refused": false
+      }
+    ],
+    "scope_column": [
+      {
+        "name": "the finest column of a Grouping of columns",
+        "group_by": "region, country",
+        "expected": "country"
+      },
+      {
+        "name": "a Grouping of all falls back to the use case group column",
+        "group_by": "all",
+        "expected": "region"
+      },
+      {
+        "name": "no Grouping falls back to the use case group column",
+        "group_by": "",
+        "expected": "region"
+      },
+      {
+        "name": "a custom Grouping has no column to run on",
+        "group_by": "custom",
+        "refused": "First run on groups runs on values of the finest column of the Grouping"
+      }
+    ],
+    "compare": {
+      "runs": [
+        {
+          "run": "g1",
+          "ran_at": "10:00",
+          "tiers": {
+            "a": "Review"
+          }
+        },
+        {
+          "run": "e1",
+          "ran_at": "11:00",
+          "tiers": {
+            "a": "Monitor",
+            "b": "Act now"
+          }
+        },
+        {
+          "run": "g2",
+          "ran_at": "12:00",
+          "tiers": {
+            "a": "Review",
+            "b": "Act now",
+            "c": "Review"
+          }
+        }
+      ],
+      "keys": {
+        "g1": "groups:aaaa",
+        "e1": "all"
+      },
+      "logged": [
+        {
+          "name": "a scoped run against the earlier run on its scope",
+          "keys": {
+            "g1": "groups:aaaa",
+            "e1": "all"
+          },
+          "key": "groups:aaaa",
+          "marks": [
+            [
+              "a",
+              "g1",
+              null,
+              null
+            ],
+            [
+              "b",
+              "e1",
+              "new",
+              null
+            ],
+            [
+              "c",
+              "g2",
+              "new",
+              null
+            ]
+          ],
+          "previous": [
+            "g2",
+            "g1"
+          ]
+        },
+        {
+          "name": "a use case without the First run, as before",
+          "keys": null,
+          "key": "",
+          "marks": [
+            [
+              "a",
+              "g1",
+              "moved",
+              "Review"
+            ],
+            [
+              "b",
+              "e1",
+              null,
+              null
+            ],
+            [
+              "c",
+              "g2",
+              "new",
+              null
+            ]
+          ],
+          "previous": [
+            "g2",
+            "e1"
+          ]
+        },
+        {
+          "name": "a run without a scope skips an earlier run that recorded one",
+          "keys": {
+            "g1": "",
+            "e1": "all"
+          },
+          "key": "",
+          "marks": [
+            [
+              "a",
+              "g1",
+              null,
+              null
+            ],
+            [
+              "b",
+              "e1",
+              "new",
+              null
+            ],
+            [
+              "c",
+              "g2",
+              "new",
+              null
+            ]
+          ],
+          "previous": [
+            "g2",
+            "g1"
+          ]
+        },
+        {
+          "name": "a run on everything against the earlier run on everything",
+          "keys": {
+            "g1": "groups:aaaa",
+            "e1": "all"
+          },
+          "key": "all",
+          "marks": [
+            [
+              "a",
+              "g1",
+              "moved",
+              "Review"
+            ],
+            [
+              "b",
+              "e1",
+              null,
+              null
+            ],
+            [
+              "c",
+              "g2",
+              "new",
+              null
+            ]
+          ],
+          "previous": [
+            "g2",
+            "e1"
+          ]
+        },
+        {
+          "name": "the first run on a scope marks nothing",
+          "keys": {
+            "g1": "groups:aaaa",
+            "e1": "all"
+          },
+          "key": "groups:bbbb",
+          "marks": [
+            [
+              "a",
+              "g1",
+              null,
+              null
+            ],
+            [
+              "b",
+              "e1",
+              null,
+              null
+            ],
+            [
+              "c",
+              "g2",
+              null,
+              null
+            ]
+          ],
+          "previous": [
+            "g2"
+          ]
+        },
+        {
+          "name": "unreadable scopes mark nothing",
+          "keys": null,
+          "key": "groups:aaaa",
+          "marks": [
+            [
+              "a",
+              "g1",
+              null,
+              null
+            ],
+            [
+              "b",
+              "e1",
+              null,
+              null
+            ],
+            [
+              "c",
+              "g2",
+              null,
+              null
+            ]
+          ],
+          "previous": [
+            "g2"
+          ]
+        }
+      ],
+      "rebuilt": {
+        "unscoped": [
+          [
+            "e1",
+            "a",
+            "g1",
+            "moved",
+            "Monitor"
+          ],
+          [
+            "e1",
+            "b",
+            "e1",
+            "new",
+            null
+          ],
+          [
+            "g1",
+            "a",
+            "g1",
+            null,
+            null
+          ],
+          [
+            "g2",
+            "a",
+            "g1",
+            "moved",
+            "Review"
+          ],
+          [
+            "g2",
+            "b",
+            "e1",
+            null,
+            null
+          ],
+          [
+            "g2",
+            "c",
+            "g2",
+            "new",
+            null
+          ]
+        ],
+        "scoped": [
+          [
+            "e1",
+            "a",
+            "g1",
+            null,
+            null
+          ],
+          [
+            "e1",
+            "b",
+            "e1",
+            null,
+            null
+          ],
+          [
+            "g1",
+            "a",
+            "g1",
+            null,
+            null
+          ],
+          [
+            "g2",
+            "a",
+            "g1",
+            null,
+            null
+          ],
+          [
+            "g2",
+            "b",
+            "e1",
+            "new",
+            null
+          ],
+          [
+            "g2",
+            "c",
+            "g2",
+            "new",
+            null
+          ]
+        ]
+      }
+    }
+  }
 }

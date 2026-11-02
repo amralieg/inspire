@@ -16,7 +16,7 @@ import { pickedWindow } from './prefs.js';
 import SettingsPanel, { SettingsButton } from './Settings.jsx';
 import {
   DEFAULT_VIEW, NOT_MEASURED, REVIEW, WORK_SHOWN, couldSaveFormula, couldSaveText, doneDay, doneTodayOf, dueText, hubItems, limitText, initialsOf, isMine, isOverdue,
-  measured, moneyText, myWork, myWorkText, nothingReason, nothingText, ownerName, pageCurrency, pageKind, plural, reliableText, savedTile, tickOf, totals,
+  measured, moneyText, myWork, myWorkText, nothingReason, nothingText, ownerName, pageCurrency, pageKind, plural, reliableText, savedTile, scopeNoteText, scopedPages, tickOf, totals,
   useCaseState, viewIsDefault, viewRows, viewWords, visiblePages, weekBars, windowNoteText,
 } from './hub.js';
 
@@ -46,6 +46,11 @@ export function Owner({ owner }) {
 
 export function hubToday(hub) {
   return hub?.today || new Date().toISOString().slice(0, 10);
+}
+
+export function ScopeNote({ pages, summaries }) {
+  const text = scopeNoteText(scopedPages(pages, summaries));
+  return text ? <p className="note" data-scope><Icon name="info" size={14} />{text}</p> : null;
 }
 
 export function HubExplainNote({ app }) {
@@ -222,6 +227,7 @@ export default function Home({ app, hub, hubError, summaries, view, onView, onOp
       {hubError && <p className="tile-err" role="alert"><Icon name="info" size={14} />The Overview could not load: {hubError}</p>}
       {problems.map(([title, message]) => <p key={title} className="tile-err" role="alert"><Icon name="info" size={14} />{title} could not load: {message}</p>)}
       <Tiles tiles={tiles} loading={loading} />
+      <ScopeNote pages={pages} summaries={summaries} />
       <MyWork items={items} user={app.user} today={today} loading={loading} failed={!hub && !!hubError} owners={tracked} partial={problems.length > 0}
         cut={pairs.some(([id, e]) => e.truncated && !keptIds.has(id))} done={done} unwindowed={unwindowed} capped={capped} onRecord={onRecord} />
       <FilterBar view={view} onView={onView} />

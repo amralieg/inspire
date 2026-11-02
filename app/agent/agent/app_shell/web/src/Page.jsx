@@ -359,7 +359,7 @@ export default function Page({ app, page, meta, state, onState, themeKey, onAsk,
           {error && <p className="tile-err" role="alert"><Icon name="info" size={14} />{error}</p>}
           {!hubPage && (
             <Placed slots={slotsOf(plan, 'kpis')}>
-              <Kpis page={page} data={data?.kpis} errors={errors} loading={loading} plan={plan} />
+              <Kpis page={page} data={data?.kpis} errors={errors} loading={loading} plan={plan} scope={data?.scope} />
             </Placed>
           )}
           {!hubPage && <Placed slots={moreSlots}><section className="charts">{chartCards(page.charts.filter((c) => !c.driver))}</section></Placed>}

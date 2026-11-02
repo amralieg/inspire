@@ -103,8 +103,10 @@ def test_the_run_log_records_its_start_trigger_slices_and_tables(fresh_ns):
     assert json.loads(_unquote(written["run_segments"])) == [{"column": "region", "values": ["EU", "UK"]},
                                                              {"column": "amount", "values": ["100"], "op": ">="},
                                                              {"column": "channel", "values": ["online"]}]
-    assert json.loads(_unquote(written["run_tables"])) == [{"table": ORDERS, "rows": 1240, "updated_at": "2026-10-27T06:30:05Z"},
-                                                           {"table": STORES, "rows": 12, "updated_at": "2026-10-01T00:00:00Z"}]
+    unscoped = {"scoped": False, "read_by_helper": False}
+    assert json.loads(_unquote(written["run_tables"])) == [
+        dict(unscoped, table=ORDERS, rows=1240, rows_total=1240, updated_at="2026-10-27T06:30:05Z"),
+        dict(unscoped, table=STORES, rows=12, rows_total=12, updated_at="2026-10-01T00:00:00Z")]
     assert values == {k: written[k] for k in ("run_started_at", "run_trigger", "run_segments", "run_tables", "run_grouping")}
     assert written["run_grouping"] == "NULL", "a run that grouped nothing records no grouping"
     assert printed == ["Run log: run r-2 was started by a refresh and read 2 tables for region in EU, UK; amount >= 100; "
@@ -134,7 +136,7 @@ def test_a_failed_count_history_or_summary_write_never_stops_the_run(fresh_ns):
     spark, printed = _spark(fail="SELECT COUNT(*)"), []
     fresh_ns["inspire_save_run_log"](spark, TABLE, "N01-U01", "r-2", printed.append)
     assert json.loads(_unquote(_merge_values(spark.statements[-1])["run_tables"])) == [
-        {"table": ORDERS, "rows": None, "updated_at": "2026-10-27T06:30:05Z"}]
+        {"table": ORDERS, "rows": None, "rows_total": None, "scoped": False, "read_by_helper": False, "updated_at": "2026-10-27T06:30:05Z"}]
     assert printed[0] == "Run log: Inspire could not count the rows of main.sales.orders this run covered: PERMISSION_DENIED: SELECT COUNT(*)"
     broken, printed = _spark(fail="MERGE INTO"), []
     assert fresh_ns["inspire_save_run_log"](broken, TABLE, "N01-U01", "r-2", printed.append) is None
@@ -298,7 +300,7 @@ def test_a_summary_row_shaped_like_the_notebook_table_fills_every_run_field_and_
     assert (view["started"], view["ended"], view["duration_s"], view["status"], view["trigger"]) == (
         "2026-10-27T06:00:00Z", "2026-10-27T06:01:30Z", 90, "done", "refresh")
     assert view["segments"] == [{"column": "region", "label": "Region", "values": ["EU"], "more": 0}]
-    assert view["tables"] == [{"table": ORDERS, "rows": 1240, "updated_at": "2026-10-27T05:00:00Z"}]
+    assert view["tables"] == [{"table": ORDERS, "rows": 1240, "rows_total": None, "scoped": False, "updated_at": "2026-10-27T05:00:00Z"}]
     assert view["stages"] == [{"stage": "Checking the settings", "spent_s": 30, "rows_total": None},
                               {"stage": "Writing the results", "spent_s": 60, "rows_total": 1240}]
     assert view["grouping"] == {"mode": "columns", "group_by": ["region", "country"], "groups": 12,
