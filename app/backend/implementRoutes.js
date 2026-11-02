@@ -13,6 +13,7 @@ const A = require('./lib/useCaseAlerts');
 const P = require('./lib/requestPerson');
 const RP = require('./lib/routePolicy');
 const U = require('./lib/ucReads');
+const { fsApiPath } = require('./lib/workspacePaths');
 
 function sendError(res, err) {
   const code = err && Number.isFinite(err.statusCode) ? err.statusCode : 500;
@@ -1131,7 +1132,7 @@ function registerImplementRoutes(app, deps) {
       const sessionLog = I.liveLogPath(`${catalog}.${schema}`, session?.business_name, sid);
       let logPath = runLog;
       let feed = [];
-      const readLog = (path) => jsonOf(dbFetch, req.dbHost, req.dbToken, `/api/2.0/fs/files${path}`).catch((err) => {
+      const readLog = (path) => jsonOf(dbFetch, req.dbHost, req.dbToken, fsApiPath('files', path)).catch((err) => {
         console.warn(`[implement] live log read ended early, the feed keeps its last messages: ${path}: ${err.message}`);
         return { ok: false, status: 0, data: {} };
       });

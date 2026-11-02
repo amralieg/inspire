@@ -127,7 +127,7 @@ test('every person route takes its token through requireToken, so its declared i
   const tails = registrationTails(mountedFiles(SERVER));
   const person = [...tails.keys()].filter((key) => P.ROUTE_POLICY[key] && P.ROUTE_POLICY[key].identity === 'person');
   assert.ok(person.length >= 10, `${person.length} person routes`);
-  assert.deepEqual(person.filter((key) => !/^\s*,\s*requireToken\b/.test(tails.get(key))), []);
+  assert.deepEqual(person.filter((key) => !/^\s*,\s*(rejectUnsafeQueryPath\s*,\s*)?requireToken\b/.test(tails.get(key))), []);
 });
 
 test('a registration whose path is not a literal, or is built at run time, fails the parse', () => {

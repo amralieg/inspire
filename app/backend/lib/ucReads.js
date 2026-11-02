@@ -3,6 +3,7 @@ const I = require('./inspireImplement');
 const P = require('./requestPerson');
 const RP = require('./routePolicy');
 const { DEFAULT_GENERATION_PATH } = require('./inspireJobParams');
+const { fsApiPath } = require('./workspacePaths');
 
 const RUN_NO_SIGN_IN = 'Inspire checks with your own sign-in that you can read every table and file a run reads, and this request carries none, '
   + 'so it starts no run';
@@ -89,7 +90,7 @@ function tableReadable(dbFetch, host, token, table) {
 
 function fileReadable(dbFetch, host, token, path) {
   if (path.startsWith('/Volumes/')) {
-    return canRead(dbFetch, host, token, `/api/2.0/fs/files${path.split('/').map(encodeURIComponent).join('/')}`, { method: 'HEAD' });
+    return canRead(dbFetch, host, token, fsApiPath('files', path), { method: 'HEAD' });
   }
   const asked = path.startsWith('/Workspace/') ? path.slice('/Workspace'.length) : path;
   return canRead(dbFetch, host, token, `/api/2.0/workspace/get-status?path=${encodeURIComponent(asked)}`);
@@ -200,7 +201,7 @@ const scopeMissing = (got) => SCOPE_RE.test(String(got.data.message || got.data.
 const probeName = () => `${PROBE_PREFIX}${crypto.randomUUID().replace(/-/g, '')}`;
 const leftover = (entry) => entry.directory && String(entry.path || '').split('/').pop().startsWith(PROBE_PREFIX);
 const json = (method, body) => ({ method, body: JSON.stringify(body) });
-const fsDirectory = (path) => `/api/2.0/fs/directories${path.split('/').map(encodeURIComponent).join('/')}`;
+const fsDirectory = (path) => fsApiPath('directories', path);
 
 function discoverWrites(params, notebookPath) {
   const values = params && typeof params === 'object' ? params : {};

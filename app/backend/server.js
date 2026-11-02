@@ -53,6 +53,7 @@ const {
 const { createHostedRun, workspaceFiles } = require('./lib/hostedRun');
 const RP = require('./lib/routePolicy');
 const L = require('./lib/launchLedger');
+const { workspacePathProblem, rejectUnsafeQueryPath, fsApiPath } = require('./lib/workspacePaths');
 const { staticHeaders } = require('./lib/assetTypes');
 
 const app = express();
@@ -1176,22 +1177,10 @@ app.post('/api/auth/sp-token', async (req, res) => {
 //  Workspace File Operations (list & download artifacts)
 // ═══════════════════════════════════════════════════
 
-/** Collapse /./ and /../ so `/Shared/../demos/x` → `/demos/x`. Leaves /Volumes/ unchanged. */
 function normalizeWorkspaceApiPath(input) {
   if (!input || typeof input !== 'string') return '';
-  const t = input.trim().replace(/\/+/g, '/');
-  if (!t) return '';
-  if (t.startsWith('/Volumes/')) return t;
-  if (!t.startsWith('/')) return t;
-  const segments = t.split('/').filter(Boolean);
-  const stack = [];
-  for (const seg of segments) {
-    if (seg === '.') continue;
-    if (seg === '..') {
-      if (stack.length) stack.pop();
-    } else stack.push(seg);
-  }
-  return stack.length ? `/${stack.join('/')}` : '/';
+  const segments = input.trim().split('/').filter(Boolean);
+  return segments.length ? `/${segments.join('/')}` : '/';
 }
 
 /**
@@ -1206,7 +1195,6 @@ function workspaceApiPathCandidates(input) {
     if (y && !out.includes(y)) out.push(y);
   };
   add(n);
-  if (!n.startsWith('/')) return out;
   if (n.startsWith('/Volumes/')) return out;
   if (!n.startsWith('/Workspace')) add(`/Workspace${n}`);
   if (n.startsWith('/Workspace/')) {
@@ -1216,11 +1204,9 @@ function workspaceApiPathCandidates(input) {
   return out;
 }
 
-app.get('/api/workspace/list', requireToken, async (req, res) => {
+app.get('/api/workspace/list', rejectUnsafeQueryPath, requireToken, async (req, res) => {
   try {
     const rawPath = req.query.path;
-    if (!rawPath) return res.status(400).json({ error: 'path query param required.' });
-
     const candidates = workspaceApiPathCandidates(rawPath);
     let lastErr = 'not found';
     let lastStatus = 404;
@@ -1228,7 +1214,7 @@ app.get('/api/workspace/list', requireToken, async (req, res) => {
     for (const wsPath of candidates) {
       // Handle Volumes paths via Files API
       if (wsPath.startsWith('/Volumes/')) {
-        const response = await dbFetch(req.dbHost, req.dbToken, `/api/2.0/fs/directories${wsPath}`);
+        const response = await dbFetch(req.dbHost, req.dbToken, fsApiPath('directories', wsPath));
         if (!response.ok) {
           lastStatus = response.status;
           lastErr = await response.text();
@@ -1267,11 +1253,9 @@ app.get('/api/workspace/list', requireToken, async (req, res) => {
   }
 });
 
-app.get('/api/workspace/export', requireToken, async (req, res) => {
+app.get('/api/workspace/export', rejectUnsafeQueryPath, requireToken, async (req, res) => {
   try {
     const rawPath = req.query.path;
-    if (!rawPath) return res.status(400).json({ error: 'path query param required.' });
-
     const candidates = workspaceApiPathCandidates(rawPath);
     const baseName = (normalizeWorkspaceApiPath(rawPath).split('/').pop() || 'file');
     let lastErr = 'not found';
@@ -1279,7 +1263,7 @@ app.get('/api/workspace/export', requireToken, async (req, res) => {
 
     for (const wsPath of candidates) {
       if (wsPath.startsWith('/Volumes/')) {
-        const response = await dbFetch(req.dbHost, req.dbToken, `/api/2.0/fs/files${wsPath}`);
+        const response = await dbFetch(req.dbHost, req.dbToken, fsApiPath('files', wsPath));
         if (!response.ok) {
           lastStatus = response.status;
           lastErr = await response.text();
@@ -1768,9 +1752,8 @@ app.get('/api/warehouses', requireToken, async (req, res) => {
 app.post('/api/publish', requireToken, async (req, res) => {
   try {
     const { destination_path } = req.body;
-    if (!destination_path) {
-      return res.status(400).json({ error: 'destination_path is required.' });
-    }
+    const problem = workspacePathProblem('destination_path', destination_path);
+    if (problem) return res.status(400).json({ error: problem });
 
     if (!fs.existsSync(BUNDLED_NOTEBOOK_PATH)) {
       return res.status(404).json({ error: 'Bundled notebook file not found on server.' });
@@ -1828,7 +1811,8 @@ app.post('/api/publish', requireToken, async (req, res) => {
 app.post('/api/publish/upload', requireToken, upload.single('file'), async (req, res) => {
   try {
     const { destination_path } = req.body;
-    if (!destination_path) return res.status(400).json({ error: 'destination_path is required.' });
+    const problem = workspacePathProblem('destination_path', destination_path);
+    if (problem) return res.status(400).json({ error: problem });
     if (!req.file) return res.status(400).json({ error: 'No file uploaded.' });
 
     const base64Content = req.file.buffer.toString('base64');
@@ -2941,10 +2925,9 @@ app.delete('/api/inspire/session', requireToken, async (req, res) => {
 //  Workspace status check
 // ═══════════════════════════════════════════════════
 
-app.get('/api/workspace/status', requireToken, async (req, res) => {
+app.get('/api/workspace/status', rejectUnsafeQueryPath, requireToken, async (req, res) => {
   try {
-    const notebookPath = req.query.path;
-    if (!notebookPath) return res.status(400).json({ error: 'path query param required.' });
+    const notebookPath = req.query.path.trim();
     const response = await dbFetch(req.dbHost, req.dbToken, `/api/2.0/workspace/get-status?path=${encodeURIComponent(notebookPath)}`);
     if (!response.ok) {
       if (response.status === 404) return res.json({ exists: false });

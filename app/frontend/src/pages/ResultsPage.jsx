@@ -763,13 +763,7 @@ export default function ResultsPage({
     setArtifactsRootFiles(null);
     const headers = artifactHeaders();
 
-    const candidates = [...expandWorkspaceListCandidates(genPath)];
-    if (!genPath.startsWith('/')) {
-      candidates.push(`/Workspace/${genPath.replace(/^\.\//, '')}`);
-      candidates.push(`/Shared/${genPath.replace(/^\.\//, '')}`);
-    }
-
-    for (const path of candidates) {
+    for (const path of expandWorkspaceListCandidates(genPath)) {
       try {
         const resp = await fetch(`/api/workspace/list?path=${encodeURIComponent(path)}`, { headers });
         if (resp.ok) {
