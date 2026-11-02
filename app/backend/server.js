@@ -2665,6 +2665,7 @@ const implementApi = registerImplementRoutes(app, {
   runRoute1GenieFlagUpdates,
   hostedRun,
   runDefaults: () => ({ inspireDatabase: DEFAULT_INSPIRE_DB, warehouseId: DEFAULT_WAREHOUSE_ID }),
+  appToken: appOwnToken,
 });
 
 /**

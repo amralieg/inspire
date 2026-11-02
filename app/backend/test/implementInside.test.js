@@ -178,6 +178,39 @@ test('/api/run/pages lists every deployed use case through the implement record 
   assert.deepEqual(none.data.pages, []);
 });
 
+test('a decision on a page Inside Inspire is checked against the live page of its use case and written with Inspire\'s own sign-in', async () => {
+  const page = hosted('n01-u01-a', 2);
+  const built = (rec, config = { result_table: 'main.inspire.churn_out' }) => {
+    const r = row('42', 'N01-U01', 2, 'ready', { app: insideApp(rec) });
+    return { ...r, spec_json: { ...r.spec_json, config } };
+  };
+  const handlerOf = (state) => {
+    let handler = null;
+    const made = makeApp({ ...state, hostedRun: { ...fakeHosted(), useDecisions: (fn) => { handler = fn; } } });
+    return { handler, made };
+  };
+  const req = { dbHost: 'https://workspace.example.com', dbToken: 'user-token', headers: { 'x-forwarded-access-token': 'user-token', 'x-forwarded-email': OWNER } };
+  const entry = (rec = page, extra = {}) => ({ record: rec, session_id: '42', use_case_id: 'N01-U01',
+    ctx: { key: 'db', warehouseId: 'wh1', catalog: 'main', schema: 'inspire' }, ...extra });
+  const refused = async (state, held, pattern, status = 409) => {
+    const { handler } = handlerOf(state);
+    await assert.rejects(handler(req, held), (err) => err.statusCode === status && pattern.test(err.message));
+  };
+
+  const { handler, made } = handlerOf({ history: [built(page)], appToken: 'inspire-own-token' });
+  assert.deepEqual(await handler(req, entry()), { result_table: 'main.inspire.churn_out', writer: { token: 'inspire-own-token', warehouse: 'wh1' } });
+  const reads = made.sqlCalls.filter((c) => String(c.sql).includes('__inspire_implement'));
+  assert.ok(reads.length >= 1 && reads.every((c) => c.token === 'user-token'), 'the viewer reads the use case record; only the write is Inspire\'s');
+
+  await refused({ history: [built(hosted('n01-u01-b', 2))], appToken: 'x' }, entry(), /no longer the live page of its use case/);
+  await refused({ history: [built(hosted('n01-u01-a', 3))], appToken: 'x' }, entry(), /no longer the live page of its use case/);
+  await refused({ history: [], appToken: 'x' }, entry(), /no longer the live page of its use case/);
+  await refused({ history: [built(page, {})], appToken: 'x' }, entry(), /names no result table in its settings/);
+  await refused({ history: [built(page)] }, entry(), /^Inspire has no sign-in of its own here/, 503);
+  await refused({ history: [built(page)], appToken: 'x' }, entry(page, { ctx: {} }), /cannot tell which use case this page belongs to/);
+  await refused({ history: [built(page)], appToken: 'x' }, entry(page, { session_id: '' }), /cannot tell which use case this page belongs to/);
+});
+
 test('two use cases that claim one page id: Run serves the newest and shows the other as failed with the reason, and never proxies it', async () => {
   const registry = [
     row('42', 'N01-U01', 2, 'ready', { app: insideApp(hosted('n01-u01', 2)), name: 'Predict churn' }),

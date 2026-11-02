@@ -1429,14 +1429,16 @@ test('App look lists every page with its switch: Things to fix and Ask Genie alw
   const withOutputs = (patch, options = {}) => ({ ...spec, outputs: { ...spec.outputs, ...patch, app_options: { ...spec.outputs.app_options, ...options } } });
   assert.deepEqual(state(spec), [['fix', true, true, ''], ['runs', true, false, ''], ['alerts', false, false, ''], ['impact', true, false, ''], ['genie', true, true, '']],
     'the default App: every page on but Alerts, which waits for Send alerts');
-  assert.doesNotMatch(fixText(spec), /edit a record|own, track and dismiss/);
+  assert.doesNotMatch(fixText(spec), /edit a record/);
+  assert.match(fixText(spec), /People own, track and dismiss each flagged record\.$/, 'the default App records decisions');
+  assert.doesNotMatch(fixText(withOutputs({}, { decisions: false })), /own, track and dismiss/, 'decisions turned off: the page says nothing about them');
   const all = withOutputs({ app_access: 'sp' }, { modify: true, decisions: true, alerts: true });
   assert.equal(w.appPagesOf(all).find((p) => p.id === 'alerts').on, true);
   assert.match(fixText(all), /People can edit a record, and Inspire keeps who changed what\. People own, track and dismiss each flagged record\.$/);
   const perUser = withOutputs({ app_access: 'user' }, { modify: true, decisions: true, alerts: true });
   assert.deepEqual(state(perUser)[2], ['alerts', false, false, w.PER_USER_REASON], 'a per-user App has Alerts off, with the reason');
   assert.match(fixText(perUser), /People can edit a record/);
-  assert.doesNotMatch(fixText(perUser), /own, track and dismiss/, 'a per-user App records no decisions');
+  assert.match(fixText(perUser), /own, track and dismiss/, 'a per-user App records decisions on the records each person can read');
   for (const empty of [undefined, null, {}, { outputs: null }]) {
     assert.deepEqual(state(empty).map(([id, on]) => [id, on]), [['fix', true], ['runs', true], ['alerts', false], ['impact', true], ['genie', true]], JSON.stringify(empty));
   }

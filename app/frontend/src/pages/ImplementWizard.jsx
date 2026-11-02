@@ -2262,7 +2262,7 @@ function AppAccessStep({ spec, lakebase, warehouses, warehousesError, warehouseC
       </AppBackendChoice>
       <fieldset className="space-y-2">
         <legend className={LEGEND}>
-          What people can do in the App<span className="ml-2 normal-case tracking-normal font-normal text-[11px]">Each one stays off unless you turn it on.</span>
+          What people can do in the App<span className="ml-2 normal-case tracking-normal font-normal text-[11px]">Record decisions starts on; the others stay off unless you turn them on.</span>
         </legend>
         <div className="space-y-2.5 pt-1">
           {APP_OPTIONS.filter((o) => appOptionShown(spec, o.id)).map((o) => (

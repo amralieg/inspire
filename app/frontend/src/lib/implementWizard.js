@@ -176,8 +176,9 @@ export function withAppBackend(spec, backend) {
   return { ...spec, outputs: { ...spec.outputs, app_backend: backend } };
 }
 
-export const APP_OPTION_KEYS = ['modify', 'replace_edits', 'decisions', 'alerts'];
-export const PER_USER_OFF = ['decisions', 'alerts'];
+export const APP_OPTION_DEFAULTS = { modify: false, replace_edits: false, decisions: true, alerts: false };
+export const APP_OPTION_KEYS = Object.keys(APP_OPTION_DEFAULTS);
+export const PER_USER_OFF = ['alerts'];
 export const APP_OPTIONS = [
   { id: 'modify', label: 'Let people edit data', blurb: 'People can change records in the App, and Inspire keeps who changed what.' },
   { id: 'decisions', label: 'Record decisions',
@@ -196,7 +197,7 @@ export const REPLACE_EDITS_CHOICES = [
   { id: true, label: 'Yes', blurb: 'A new run writes its own results over edited records.' },
 ];
 export const PER_USER_REASON = 'Each person signs in as themselves, so the App keeps every row inside their own access: '
-  + 'it offers no recorded decisions, no alerts and no chart image export.';
+  + 'people record decisions only on the records they can read, and the App sends no alerts and offers no chart image export.';
 export const APP_OWNERS_MAX = 50;
 const APP_OWNER_MAX_CHARS = 254;
 export const APP_OWNERS_LABEL = 'App owners (comma separated)';
@@ -319,7 +320,7 @@ export function appPagesOf(spec) {
   const screens = appScreensOf(spec);
   const fix = ['What needs action: the totals, the charts you pick, and every flagged record with the reason Inspire flagged it.'];
   if (options.modify) fix.push('People can edit a record, and Inspire keeps who changed what.');
-  if (options.decisions && shared) fix.push('People own, track and dismiss each flagged record.');
+  if (options.decisions) fix.push('People own, track and dismiss each flagged record.');
   return [
     { id: 'fix', label: 'Things to fix', blurb: fix.join(' '), on: true, fixed: true },
     { id: 'runs', label: 'Runs', blurb: 'Every run of the notebook: when it ran, the data it read and the records it flagged.', on: screens.runs },
@@ -904,7 +905,7 @@ export function defaultSpecFromUseCase(uc, { warehouseId, inspireDatabase, sessi
       app_purpose: '',
       app_access: APP_ACCESS_DEFAULT,
       app_look: { ...APP_LOOK_DEFAULT },
-      app_options: Object.fromEntries(APP_OPTION_KEYS.map((key) => [key, false])),
+      app_options: { ...APP_OPTION_DEFAULTS },
       app_backend: '',
       app_owners: [],
       app_warehouse_id: '',

@@ -5,10 +5,8 @@ const crypto = require('crypto');
 const childProcess = require('child_process');
 const I = require('./inspireImplement');
 const { appShellPayload, bundledNotebookText } = require('./appShell');
-const { pythonFor, redactSecrets } = require('./hostedRun');
+const { pythonFor, runPythonJson } = require('./hostedRun');
 const { forwardedTokenOf } = require('./requestPerson');
-const { parseExactJson } = require('./exactJson');
-
 const ALERT_RULE_FILES = ['shell_alerts.py', 'shell_sql.py', 'shell_db.py'];
 const ALERT_RULES_VERSION = 1;
 const ALERT_RULES_SCRIPT = 'import sys; sys.path.insert(0, sys.argv[1]); import shell_alerts; sys.exit(shell_alerts.cli())';
@@ -16,6 +14,7 @@ const ALERT_RULES_TIMEOUT_MS = 30000;
 const ALERT_RULES_MAX_BYTES = 8 * 1024 * 1024;
 const ALERT_RULES_TMP = path.join(os.tmpdir(), 'inspire_alert_rules');
 const ALERT_PYTHON_CHECK = 'import json, math, re, uuid, html.parser';
+const ALERT_STEP_TEXT = { stopped: 'Inspire stopped planning the alert', step: 'the alert step', purpose: 'to plan the alert' };
 const ALERT_LIST_CAP = 100;
 const ALERTS_DIR = 'alerts';
 const ALERT_SAVE_KEYS = ['id', 'name', 'watch', 'schedule', 'emails', 'paused', 'notify_on_ok'];
@@ -91,48 +90,9 @@ function createAlertRules(options = {}) {
   }
 
   function call(python, dir, request) {
-    return new Promise((resolve, reject) => {
-      const child = spawn(python, ['-B', '-E', '-s', '-c', ALERT_RULES_SCRIPT, dir], {
-        cwd: dir, env: { PATH: str(env.PATH), LANG: 'C.UTF-8' }, stdio: ['pipe', 'pipe', 'pipe'],
-      });
-      let out = '';
-      let err = '';
-      let size = 0;
-      let done = false;
-      const finish = (settle, value) => {
-        if (done) return;
-        done = true;
-        clearTimeout(timer);
-        settle(value);
-      };
-      const timer = setTimeout(() => {
-        child.kill('SIGKILL');
-        finish(reject, coded(504, `Inspire stopped planning the alert after ${Math.round(timeoutMs / 1000)} seconds`));
-      }, timeoutMs);
-      if (timer.unref) timer.unref();
-      child.stdout.on('data', (chunk) => {
-        size += chunk.length;
-        if (size > ALERT_RULES_MAX_BYTES) {
-          child.kill('SIGKILL');
-          finish(reject, coded(502, 'the alert step answered with more text than Inspire reads'));
-        } else {
-          out += chunk;
-        }
-      });
-      child.stderr.on('data', (chunk) => { if (err.length < 4000) err += chunk; });
-      child.on('error', (e) => finish(reject, coded(503, `Inspire could not start Python to plan the alert: ${e.message}`)));
-      child.on('close', (code) => {
-        let parsed;
-        try {
-          parsed = parseExactJson(out);
-        } catch {
-          finish(reject, coded(502, `the alert step ended without an answer (exit ${code}): ${redactSecrets(err).trim().slice(-600)}`));
-          return;
-        }
-        finish(resolve, parsed);
-      });
-      child.stdin.on('error', () => {});
-      child.stdin.end(request);
+    return runPythonJson(spawn, python, {
+      script: ALERT_RULES_SCRIPT, args: [dir], cwd: dir, env: { PATH: str(env.PATH), LANG: 'C.UTF-8' }, input: request, timeoutMs,
+      maxBytes: ALERT_RULES_MAX_BYTES, text: ALERT_STEP_TEXT,
     });
   }
 

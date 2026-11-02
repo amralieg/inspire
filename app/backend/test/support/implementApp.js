@@ -219,6 +219,7 @@ function makeApp(overrides = {}, { mount } = {}) {
       flagged.push({ warehouseId, catalog, schema, sid, ids });
     },
     hostedRun: state.hostedRun || null,
+    appToken: async () => state.appToken || '',
     useCaseAlerts: state.useCaseAlerts,
     runDefaults: () => state.runDefaults || {},
     appFetch: async (url, opts = {}) => {

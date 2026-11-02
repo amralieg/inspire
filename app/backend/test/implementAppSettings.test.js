@@ -43,7 +43,7 @@ test('the bundled agent notebook carries the App shell, and its lists and palett
   if (SHELL.user_off) {
     assert.deepEqual(SHELL.user_off.filter((o) => o !== 'download'), I.IMPLEMENT_PER_USER_OFF, 'the options a per-user App turns off are the shell\'s');
   }
-  const userOff = S.appShellLook({ version: 1, files: { 'shell_core.py': `${core.replace(/^USER_OFF = .*$/m, '')}\nUSER_OFF = ("decisions", "alerts")\n`, 'static/assets/app.js': S.appShellPayload(S.bundledNotebookText()).files['static/assets/app.js'] } });
+  const userOff = S.appShellLook({ version: 1, files: { 'shell_core.py': `${core.replace(/^USER_OFF = .*$/m, '')}\nUSER_OFF = ("alerts",)\n`, 'static/assets/app.js': S.appShellPayload(S.bundledNotebookText()).files['static/assets/app.js'] } });
   assert.deepEqual(userOff.user_off, I.IMPLEMENT_PER_USER_OFF);
 });
 
@@ -111,7 +111,7 @@ test('a notebook without the App shell, or with a broken one, is refused with th
     'a spec without an App never needs the shell');
 });
 
-test('an App needs its access chosen: a missing or unknown app_access is an error, and per-user turns record decisions off', () => {
+test('an App needs its access chosen: a missing or unknown app_access is an error, and per-user keeps record decisions and turns alerts off', () => {
   const choose = "choose who the App reads its data as: 'user' (each person sees only the rows and columns their Unity Catalog grants allow) or 'sp' (everyone sees the same data through the App's service principal)";
   const missing = check({ app_access: undefined });
   assert.ok(missing.errors.includes(choose), JSON.stringify(missing.errors));
@@ -126,9 +126,10 @@ test('an App needs its access chosen: a missing or unknown app_access is an erro
   const user = check({ app_access: 'USER', app_options: all });
   assert.deepEqual(user.errors, []);
   assert.equal(user.spec.outputs.app_access, 'user');
-  assert.deepEqual(user.spec.outputs.app_options, { modify: true, replace_edits: true, decisions: false, alerts: false }, 'per-user sends no alerts and records no decisions');
+  assert.deepEqual(user.spec.outputs.app_options, { modify: true, replace_edits: true, decisions: true, alerts: false }, 'per-user sends no alerts and still records decisions');
+  assert.deepEqual(check({ app_access: 'user', app_options: { decisions: false } }).spec.outputs.app_options.decisions, false, 'an explicit off is kept');
   assert.deepEqual(check({ app_options: { replace_edits: true } }).spec.outputs.app_options,
-    { modify: false, replace_edits: false, decisions: false, alerts: false }, 'replacing edits means nothing while edits are off');
+    { modify: false, replace_edits: false, decisions: true, alerts: false }, 'replacing edits means nothing while edits are off');
   const off = I.validateImplementSpec({ ...BASE, outputs: { dashboard: true, app: false, app_access: 'nobody', app_options: { download: 'yes' }, inspire_url: 'https://inspire.example.com' } });
   assert.deepEqual(off.errors, [], 'App settings are not checked while the App is unticked');
   assert.deepEqual([off.spec.outputs.app_access, off.spec.outputs.app_look, off.spec.outputs.app_options], ['', {}, {}]);
@@ -142,7 +143,7 @@ test('App options are true or false only, and an unknown option, download among 
   for (const value of [true, false, 'yes', null]) {
     const got = check({ app_options: { download: value, modify: true } });
     assert.deepEqual(got.errors, [unknown('download')], `download ${JSON.stringify(value)} is refused as an option the App does not have`);
-    assert.deepEqual(got.spec.outputs.app_options, { modify: true, replace_edits: false, decisions: false, alerts: false });
+    assert.deepEqual(got.spec.outputs.app_options, { modify: true, replace_edits: false, decisions: true, alerts: false });
   }
   assert.deepEqual(check({ app_access: 'user', app_options: { download: false } }).errors, [unknown('download')], 'per-user refuses it too');
   assert.ok(check({ app_options: ['modify'] }).errors.includes('outputs.app_options must be an object'));
@@ -507,7 +508,7 @@ test('a version saved while the App offered downloads is read without them, so E
     'a saved value that is not an object is left for the check to report');
   assert.deepEqual(I.parseImplementRow({ spec_json: JSON.stringify({ outputs: { dashboard: true } }) }).spec_json, { outputs: { dashboard: true } });
   assert.equal(I.parseImplementRow({ spec_json: null }).spec_json, null);
-  const offRow = I.parseImplementRow({ ...old, spec_json: JSON.stringify(saved({ download: false, modify: false, replace_edits: false, decisions: false })) });
+  const offRow = I.parseImplementRow({ ...old, spec_json: JSON.stringify(saved({ download: false, modify: false, replace_edits: false, decisions: true })) });
   assert.equal(I.planSubmission([offRow], { ...check({}).spec, based_on_version: 1 }).unchanged, true, 'the same choices without the download are no change');
 
   const { app, sqlCalls, jobs } = makeApp({ history: [old] });
@@ -537,7 +538,9 @@ test('alerts are off unless asked for, a shared App keeps them on, and a per-use
   assert.equal(on.spec.outputs.app_options.alerts, true);
   const user = check({ app_access: 'user', app_options: { alerts: true, decisions: true } });
   assert.deepEqual(user.errors, []);
-  assert.deepEqual([user.spec.outputs.app_options.alerts, user.spec.outputs.app_options.decisions], [false, false]);
+  assert.deepEqual([user.spec.outputs.app_options.alerts, user.spec.outputs.app_options.decisions], [false, true]);
+  assert.equal(check({}).spec.outputs.app_options.decisions, true, 'record decisions starts on');
+  assert.equal(check({ app_options: { decisions: null } }).spec.outputs.app_options.decisions, true, 'an unset choice keeps the default');
   assert.ok(check({ app_options: { alerts: 'yes' } }).errors.includes("the App option alerts must be true or false, not 'yes'"));
   assert.ok(SHELL.options.includes('alerts'), 'the bundled App shell offers alerts');
   assert.ok(SHELL.user_off.includes('alerts'), 'the bundled App shell turns alerts off for a per-user App');

@@ -103,6 +103,7 @@ function registerImplementRoutes(app, deps) {
     runRoute1GenieFlagUpdates,
     hostedRun = null,
     runDefaults = () => ({}),
+    appToken = async () => '',
     appBaseUrl = (req) => I.inspireBaseUrl(process.env.DATABRICKS_APP_URL)
       || I.inspireBaseUrl(String(req.headers['x-forwarded-host'] || '').split(',')[0]),
   } = deps;
@@ -1608,6 +1609,35 @@ function registerImplementRoutes(app, deps) {
           { statusCode: 409 });
       }
       return alertsFor(req, at.warehouseId, at.catalog, at.schema, String(entry.session_id), I.validateUseCaseId(entry.use_case_id), step, body);
+    });
+  }
+
+  if (hostedRun && hostedRun.useDecisions) {
+    hostedRun.useDecisions(async (req, entry) => {
+      const at = entry.ctx || {};
+      if (!at.warehouseId || !at.catalog || !at.schema || !/^\d+$/.test(String(entry.session_id || ''))) {
+        throw Object.assign(new Error('Inspire cannot tell which use case this page belongs to, so it records no decision on it; open it from the Run tab'),
+          { statusCode: 409 });
+      }
+      const useCaseId = I.validateUseCaseId(entry.use_case_id);
+      const history = await loadHistory(req.dbHost, req.dbToken, at.warehouseId, at.catalog, at.schema, String(entry.session_id), useCaseId);
+      const live = I.previousBuilt(history);
+      const hosted = live ? I.hostedRecord(live) : null;
+      if (!hosted || hosted.id !== entry.record.id || hosted.version !== entry.record.version) {
+        throw Object.assign(new Error('this page is no longer the live page of its use case, so Inspire records no decision on it; open it again from the Run tab'),
+          { statusCode: 409 });
+      }
+      const resultTable = String((live.spec_json && live.spec_json.config && live.spec_json.config.result_table) || '').trim();
+      if (!resultTable) {
+        throw Object.assign(new Error('this MVP names no result table in its settings, so Inspire cannot check which table its decisions belong to; '
+          + 'pick the result table in Edit MVP and build it again'), { statusCode: 409 });
+      }
+      const token = await appToken();
+      if (!token) {
+        throw Object.assign(new Error('Inspire has no sign-in of its own here, so it cannot record decisions for this page; '
+          + 'open the page from the Inspire App in Databricks'), { statusCode: 503 });
+      }
+      return { result_table: resultTable, writer: { token, warehouse: at.warehouseId } };
     });
   }
 

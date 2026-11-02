@@ -64,7 +64,7 @@ test('a new spec has the dashboard, Genie Agent and App on and the alert off, re
   assert.match(w.APP_ACCESS_NOTE, /service principal, so its pages load at once from Lakebase\. Pick per-user when each person must see only/);
   assert.match(w.APP_ACCESS_CHOICES.find((c) => c.id === 'sp').blurb, /^Everyone sees the same rows/);
   assert.deepEqual(fresh.outputs.app_look, { style: 'a', layout: 'sidebar', palette: 'default', theme: 'light' });
-  assert.deepEqual(fresh.outputs.app_options, { modify: false, replace_edits: false, decisions: false, alerts: false }, 'alerts start off');
+  assert.deepEqual(fresh.outputs.app_options, { modify: false, replace_edits: false, decisions: true, alerts: false }, 'record decisions start on, alerts start off');
   assert.deepEqual(fresh.outputs.merge, { app: '', dashboard: '', genie_space: '' });
   assert.deepEqual(served(spec).errors, []);
   const unchosen = { ...spec, outputs: { ...spec.outputs, app_access: '' } };
@@ -74,13 +74,16 @@ test('a new spec has the dashboard, Genie Agent and App on and the alert off, re
   assert.deepEqual(served(chosen).spec.outputs.app_look, fresh.outputs.app_look);
 });
 
-test('per-user sign-in hides and clears record decisions, and the replace question shows only while edits are on', async () => {
+test('per-user sign-in keeps record decisions, hides and clears alerts, and the replace question shows only while edits are on', async () => {
   const { w, spec } = await appSpec({ app_access: 'sp', app_options: { modify: false, replace_edits: false, decisions: true, alerts: true } });
   assert.deepEqual(['modify', 'decisions', 'replace_edits', 'alerts'].map((k) => w.appOptionShown(spec, k)), [true, true, false, true]);
   const perUser = w.withAppAccess(spec, 'user');
-  assert.deepEqual(perUser.outputs.app_options, { modify: false, replace_edits: false, decisions: false, alerts: false });
-  assert.deepEqual(['modify', 'decisions', 'alerts'].map((k) => w.appOptionShown(perUser, k)), [true, false, false]);
-  assert.match(w.PER_USER_REASON, /: it offers no recorded decisions, no alerts and no chart image export\.$/);
+  assert.deepEqual(perUser.outputs.app_options, { modify: false, replace_edits: false, decisions: true, alerts: false });
+  assert.deepEqual(['modify', 'decisions', 'alerts'].map((k) => w.appOptionShown(perUser, k)), [true, true, false]);
+  assert.equal(w.withAppAccess(w.withAppOption(spec, 'decisions', false), 'user').outputs.app_options.decisions, false,
+    'switching to per-user keeps a decisions choice that was turned off');
+  assert.match(w.PER_USER_REASON, /people record decisions only on the records they can read, and the App sends no alerts and offers no chart image export\.$/);
+  assert.doesNotMatch(w.PER_USER_REASON, /[\u2013\u2014]/);
   assert.doesNotMatch(w.PER_USER_REASON, /download/i);
   const core = appShellPayload(bundledNotebookText()).files['shell_core.py'];
   if (/image_export/.test(core)) assert.match(core, /"image_export": s\["auth"\] == "sp"/, 'the App shell offers chart image export only to a shared App');
@@ -271,7 +274,10 @@ test('Edit of a version the old wizard saved gets every new App setting with its
     app_look: { palette: 'mono' }, app_options: { modify: true }, merge: 'bad' } } }, fallback);
   assert.equal(saved.outputs.app_access, 'user');
   assert.deepEqual(saved.outputs.app_look, { ...w.APP_LOOK_DEFAULT, palette: 'mono' });
-  assert.deepEqual(saved.outputs.app_options, { modify: true, replace_edits: false, decisions: false, alerts: false });
+  assert.deepEqual(saved.outputs.app_options, { modify: true, replace_edits: false, decisions: true, alerts: false });
+  const savedOff = w.specFromLatest({ spec_version: 2, spec_json: { ...fallback, outputs: { ...fallback.outputs, app: true, app_access: 'user',
+    app_options: { modify: false, replace_edits: false, decisions: false, alerts: false } } } }, fallback);
+  assert.equal(savedOff.outputs.app_options.decisions, false, 'a version saved with decisions turned off keeps them off');
   assert.deepEqual(saved.outputs.merge, { app: '', dashboard: '', genie_space: '' }, 'a merge that is not an object is dropped');
 });
 

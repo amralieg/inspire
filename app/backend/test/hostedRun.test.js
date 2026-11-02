@@ -72,14 +72,33 @@ async function upstream() {
   return { seen, port: server.address().port, close: () => new Promise((resolve) => server.close(resolve)) };
 }
 
-async function setup({ folders = {}, health = async () => true, max, idleMs, healthMs, retryMs } = {}) {
+function stepChild(answer, steps, cmd, args, opts) {
+  const child = new EventEmitter();
+  child.stdout = new EventEmitter();
+  child.stderr = new EventEmitter();
+  child.kill = () => true;
+  child.stdin = Object.assign(new EventEmitter(), {
+    end(input) {
+      steps.push({ cmd, args, opts, request: JSON.parse(input) });
+      setImmediate(() => {
+        child.stdout.emit('data', Buffer.from(answer(JSON.parse(input))));
+        child.emit('close', 0);
+      });
+    },
+  });
+  return child;
+}
+
+async function setup({ folders = {}, health = async () => true, max, idleMs, healthMs, retryMs, step = null } = {}) {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'hosted-run-test-'));
   const spawned = [];
+  const steps = [];
   const reads = [];
   const up = await upstream();
   const clock = { at: 1000 };
   const hosted = H.createHostedRun({
     spawn: (cmd, args, opts) => {
+      if (args.includes('-c')) return stepChild(step, steps, cmd, args, opts);
       const child = fakeChild();
       spawned.push({ cmd, args, opts, child });
       return child;
@@ -108,7 +127,7 @@ async function setup({ folders = {}, health = async () => true, max, idleMs, hea
     await up.close();
     fs.rmSync(tmp, { recursive: true, force: true });
   };
-  return { hosted, spawned, reads, up, clock, tmp, base, close };
+  return { hosted, spawned, steps, reads, up, clock, tmp, base, close };
 }
 
 function call(base, url, { method = 'GET', headers = {}, body } = {}) {
@@ -470,6 +489,78 @@ test('the alerts of a page are answered by Inspire from the raw request before a
     assert.equal(Number(info.headers['content-length']), Buffer.byteLength(info.text));
     const other2 = await call(s.base, `/run/${rec.id}/api/records`, { headers: TOKEN });
     assert.deepEqual(JSON.parse(other2.text), { ok: true, url: '/api/records' }, 'every other answer passes through untouched');
+  } finally {
+    await s.close();
+  }
+});
+
+test('a decision on a page Inside Inspire runs the page\'s own shell as a step with Inspire\'s writer and the viewer\'s headers, never through the page process', async () => {
+  const rec = record('n01-u01-decide');
+  const answers = { 'records/act': { status: 200, body: { written: ['k1'], left_out: 1 } }, 'records/undo': { status: 403, body: { error: 'you cannot read it' } } };
+  const s = await setup({ folders: folderOf(rec), step: (request) => JSON.stringify(answers[request.route]) });
+  const asked = [];
+  s.hosted.useDecisions(async (req, held) => {
+    asked.push({ id: held.record.id, session_id: held.session_id, token: req.headers['x-forwarded-access-token'] });
+    if (held.session_id === 'gone') throw Object.assign(new Error('this page is no longer the live page of its use case'), { statusCode: 409 });
+    return { result_table: 'main.inspire.churn_out', writer: { token: 'inspire-own-token', warehouse: 'wh1' } };
+  });
+  try {
+    s.hosted.setListed([{ ...entry(rec), session_id: '42', use_case_id: 'N01-U01' }], { key: 'db' });
+    const json = { ...TOKEN, 'content-type': 'application/json', 'x-forwarded-preferred-username': 'Owner', cookie: 'never=sent' };
+    const body = { page: 'n01_u01', record_keys: ['k1', 'k2'], values: { action_status: 'Done' } };
+    const acted = await call(s.base, `/run/${rec.id}/api/records/act`, { method: 'POST', headers: json, body: JSON.stringify(body) });
+    assert.deepEqual([acted.status, JSON.parse(acted.text)], [200, { written: ['k1'], left_out: 1 }]);
+    assert.equal(acted.headers['content-security-policy'], H.hostedCsp(s.base, rec.id));
+    const undone = await call(s.base, `/run/${rec.id}/api/records/undo`, { method: 'POST', headers: json, body: JSON.stringify({ page: 'n01_u01', batch_id: 'b1' }) });
+    assert.deepEqual([undone.status, JSON.parse(undone.text)], [403, { error: 'you cannot read it' }], 'the shell\'s refusal reaches the viewer as it is');
+    assert.equal(s.spawned.length, 0, 'the page process never starts to record a decision');
+    assert.deepEqual(s.up.seen, []);
+    const dir = path.join(s.tmp, rec.id, 'v1');
+    const [first, second] = s.steps;
+    assert.equal(first.cmd, '/opt/venv/bin/python3');
+    assert.deepEqual(first.args.slice(0, 4), ['-B', '-E', '-s', '-c']);
+    assert.equal(first.args[5], dir);
+    assert.match(first.args[4], /import shell_core/);
+    assert.equal(first.opts.cwd, dir);
+    assert.deepEqual(Object.keys(first.opts.env).sort(), [...H.HOSTED_CHILD_ENV].sort(), 'the step gets the page environment and no credential of Inspire');
+    for (const name of FORBIDDEN) assert.ok(!(name in first.opts.env), name);
+    assert.deepEqual(first.request, {
+      v: 1, route: 'records/act', root: dir, host: 'https://workspace.example.com', warehouse: 'wh2', result_table: 'main.inspire.churn_out',
+      writer: { token: 'inspire-own-token', warehouse: 'wh1' },
+      headers: { 'x-forwarded-access-token': 'user-token', 'x-forwarded-email': OWNER, 'x-forwarded-preferred-username': 'Owner', 'content-type': 'application/json' },
+      body,
+    });
+    assert.equal(second.request.route, 'records/undo');
+    assert.ok(fs.existsSync(path.join(dir, 'app.py')), 'the step runs on the page files Inspire synced');
+    assert.deepEqual(asked, [{ id: rec.id, session_id: '42', token: 'user-token' }, { id: rec.id, session_id: '42', token: 'user-token' }]);
+
+    s.hosted.setListed([{ ...entry(rec), session_id: 'gone', use_case_id: 'N01-U01' }], { key: 'db' });
+    const stale = await call(s.base, `/run/${rec.id}/api/records/act`, { method: 'POST', headers: json, body: JSON.stringify(body) });
+    assert.deepEqual([stale.status, JSON.parse(stale.text)], [409, { error: 'this page is no longer the live page of its use case' }]);
+    const broken = await call(s.base, `/run/${rec.id}/api/records/act`, { method: 'POST', headers: json, body: '{not json' });
+    assert.deepEqual([broken.status, JSON.parse(broken.text)], [400, { error: 'send the request as JSON' }]);
+    assert.equal(s.steps.length, 2, 'a refused or unreadable request runs no step');
+    const noToken = await call(s.base, `/run/${rec.id}/api/records/act`, { method: 'POST', headers: { 'x-forwarded-email': OWNER }, body: '{}' });
+    assert.deepEqual([noToken.status, noToken.text], [401, H.HOSTED_NO_TOKEN]);
+    const read = await call(s.base, `/run/${rec.id}/api/records/batches?page=n01_u01`, { headers: TOKEN });
+    assert.deepEqual(JSON.parse(read.text), { ok: true, url: '/api/records/batches?page=n01_u01' }, 'reads still go to the page as the viewer');
+  } finally {
+    await s.close();
+  }
+});
+
+test('a decision step that answers with nothing Inspire can read is a plain error, and without a decisions handler the page answers', async () => {
+  const rec = record('n01-u01-decide-bad');
+  const s = await setup({ folders: folderOf(rec), step: () => '[1]' });
+  try {
+    s.hosted.setListed([{ ...entry(rec), session_id: '42', use_case_id: 'N01-U01' }], { key: 'db' });
+    const json = { ...TOKEN, 'content-type': 'application/json' };
+    const plainPage = await call(s.base, `/run/${rec.id}/api/records/act`, { method: 'POST', headers: json, body: '{}' });
+    assert.deepEqual(JSON.parse(plainPage.text), { ok: true, url: '/api/records/act' }, 'with no handler the page records it, or refuses it, itself');
+    s.hosted.useDecisions(async () => ({ result_table: 't', writer: { token: 'x', warehouse: 'wh1' } }));
+    const bad = await call(s.base, `/run/${rec.id}/api/records/act`, { method: 'POST', headers: json, body: '{}' });
+    assert.equal(bad.status, 502);
+    assert.match(JSON.parse(bad.text).error, /^the decision step gave no answer Inspire can read; build the use case again with Edit MVP/);
   } finally {
     await s.close();
   }

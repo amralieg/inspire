@@ -6,6 +6,7 @@ const http = require('http');
 const childProcess = require('child_process');
 const { IMPLEMENT_APP_HOSTED_ID_RE: HOSTED_ID_RE } = require('./inspireImplement');
 const { forwardedTokenOf } = require('./requestPerson');
+const { parseExactJson } = require('./exactJson');
 const HOSTED_MAX_CHILDREN = 3;
 const HOSTED_IDLE_MS = 15 * 60 * 1000;
 const HOSTED_HEALTH_MS = 60 * 1000;
@@ -35,6 +36,14 @@ const HOSTED_ALERT_ROUTES = {
   'POST /api/alerts/delete': 'delete',
 };
 const HOSTED_ALERT_BODY_BYTES = 1024 * 1024;
+const HOSTED_DECISION_ROUTES = { 'POST /api/records/act': 'records/act', 'POST /api/records/undo': 'records/undo' };
+const HOSTED_DECISION_SCRIPT = ['import json, sys', 'sys.path.insert(0, sys.argv[1])', 'import shell_core',
+  'if hasattr(shell_core, "cli"):', '    sys.exit(shell_core.cli())', 'print(json.dumps({"status": 409, "body": {"error": sys.argv[2]}}))'].join('\n');
+const HOSTED_DECISION_VERSION = 1;
+const HOSTED_DECISION_TIMEOUT_MS = 120 * 1000;
+const HOSTED_DECISION_MAX_BYTES = 8 * 1024 * 1024;
+const HOSTED_DECISION_TEXT = { stopped: 'Inspire stopped recording the decision', step: 'the decision step', purpose: 'to record the decision' };
+const HOSTED_DECISION_REBUILD = 'build the use case again with Edit MVP on the Build page so its page carries the current App shell';
 const HOSTED_TMP_ROOT = path.join(os.tmpdir(), 'inspire_hosted');
 const SECRET_PATTERNS = [
   /\bBearer\s+\S+/gi,
@@ -211,6 +220,54 @@ function healthy(port) {
 
 const wait = (ms) => new Promise((resolve) => { setTimeout(resolve, ms).unref?.(); });
 
+function stepError(statusCode, message) {
+  return Object.assign(new Error(message), { statusCode });
+}
+
+function runPythonJson(spawn, python, { script, args = [], cwd, env, input, timeoutMs, maxBytes, text }) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(python, ['-B', '-E', '-s', '-c', script, ...args], { cwd, env, stdio: ['pipe', 'pipe', 'pipe'] });
+    let out = '';
+    let err = '';
+    let size = 0;
+    let done = false;
+    const finish = (settle, value) => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      settle(value);
+    };
+    const timer = setTimeout(() => {
+      child.kill('SIGKILL');
+      finish(reject, stepError(504, `${text.stopped} after ${Math.round(timeoutMs / 1000)} seconds`));
+    }, timeoutMs);
+    if (timer.unref) timer.unref();
+    child.stdout.on('data', (chunk) => {
+      size += chunk.length;
+      if (size > maxBytes) {
+        child.kill('SIGKILL');
+        finish(reject, stepError(502, `${text.step} answered with more text than Inspire reads`));
+      } else {
+        out += chunk;
+      }
+    });
+    child.stderr.on('data', (chunk) => { if (err.length < 4000) err += chunk; });
+    child.on('error', (e) => finish(reject, stepError(503, `Inspire could not start Python ${text.purpose}: ${e.message}`)));
+    child.on('close', (code) => {
+      let parsed;
+      try {
+        parsed = parseExactJson(out);
+      } catch {
+        finish(reject, stepError(502, `${text.step} ended without an answer (exit ${code}): ${redactSecrets(err).trim().slice(-600)}`));
+        return;
+      }
+      finish(resolve, parsed);
+    });
+    child.stdin.on('error', () => {});
+    child.stdin.end(input);
+  });
+}
+
 function createHostedRun(options = {}) {
   const {
     spawn = childProcess.spawn,
@@ -230,11 +287,13 @@ function createHostedRun(options = {}) {
     staleMs = HOSTED_STALE_MS,
     retryMs = HOSTED_RETRY_MS,
     killGraceMs = HOSTED_KILL_GRACE_MS,
+    decisionMs = HOSTED_DECISION_TIMEOUT_MS,
   } = options;
   const listed = new Map();
   const runs = new Map();
   let reader = null;
   let alerts = null;
+  let decisions = null;
   let python = null;
 
   const idDir = (id) => safeLocalPath(tmpRoot, id);
@@ -247,6 +306,10 @@ function createHostedRun(options = {}) {
 
   function useAlerts(fn) {
     alerts = fn;
+  }
+
+  function useDecisions(fn) {
+    decisions = fn;
   }
 
   function setListed(entries, ctx = {}) {
@@ -376,16 +439,21 @@ function createHostedRun(options = {}) {
     }
   }
 
-  async function startRun(run, record, ws) {
+  async function pageRuntime(record, ws) {
     const dir = await syncSource(record, ws);
     if (python == null) python = await pickPython();
     if (!python) throw new Error('Inspire found no Python with fastapi and uvicorn to run the page');
     const home = path.join(idDir(record.id), 'home');
     fs.mkdirSync(home, { recursive: true });
+    return { dir, python, env: childEnv(env, { python, home, warehouseId: record.warehouse_id, cwd }) };
+  }
+
+  async function startRun(run, record, ws) {
+    const { dir, env: pageEnv } = await pageRuntime(record, ws);
     run.port = await port();
     const child = spawn(python, ['-m', 'uvicorn', 'app:app', '--host', '127.0.0.1', '--port', String(run.port)], {
       cwd: dir,
-      env: childEnv(env, { python, home, warehouseId: record.warehouse_id, cwd }),
+      env: pageEnv,
       stdio: ['ignore', 'ignore', 'pipe'],
     });
     run.child = child;
@@ -529,6 +597,30 @@ function createHostedRun(options = {}) {
     }
   }
 
+  async function answerDecisions(req, res, entry, route) {
+    try {
+      const body = await readBody(req);
+      if (!files) throw stepError(500, 'Inspire cannot read the page files');
+      const runtime = await pageRuntime(entry.record, files(req.dbHost, req.dbToken));
+      const asked = await decisions(req, entry);
+      const request = {
+        v: HOSTED_DECISION_VERSION, route, root: runtime.dir, host: req.dbHost, warehouse: entry.record.warehouse_id,
+        result_table: asked.result_table, writer: asked.writer, headers: forwardedHeaders(req.headers), body,
+      };
+      const answer = await runPythonJson(spawn, runtime.python, {
+        script: HOSTED_DECISION_SCRIPT, args: [runtime.dir, `this page was built before Inspire recorded decisions inside Inspire; ${HOSTED_DECISION_REBUILD}`],
+        cwd: runtime.dir, env: runtime.env, input: JSON.stringify(request),
+        timeoutMs: decisionMs, maxBytes: HOSTED_DECISION_MAX_BYTES, text: HOSTED_DECISION_TEXT,
+      });
+      if (!answer || typeof answer !== 'object' || !Number.isInteger(answer.status) || !answer.body || typeof answer.body !== 'object') {
+        throw stepError(502, `${HOSTED_DECISION_TEXT.step} gave no answer Inspire can read; ${HOSTED_DECISION_REBUILD}`);
+      }
+      return sendJson(res, answer.status, answer.body);
+    } catch (err) {
+      return sendJson(res, Number.isInteger(err.statusCode) ? err.statusCode : 500, { error: err.message || String(err) });
+    }
+  }
+
   function alertingOn(text) {
     try {
       const info = JSON.parse(text);
@@ -598,6 +690,8 @@ function createHostedRun(options = {}) {
     if (!entry) return plain(res, 404, `Inspire has no page ${id} Inside Inspire; open it from the Run tab`);
     const step = alerts ? HOSTED_ALERT_ROUTES[`${req.method} ${rest.split('?')[0]}`] : null;
     if (step) return answerAlerts(req, res, entry, step, rest);
+    const decision = decisions ? HOSTED_DECISION_ROUTES[`${req.method} ${rest.split('?')[0]}`] : null;
+    if (decision) return answerDecisions(req, res, entry, decision);
     if (!files) return plain(res, 500, 'Inspire cannot read the page files');
     let run;
     try {
@@ -637,7 +731,7 @@ function createHostedRun(options = {}) {
     return timer;
   }
 
-  return { listed, runs, useReader, useAlerts, setListed, forget, stop, stopAll, sweep, ensure, stateOf, refresh, viewerGate, proxy, redirect,
+  return { listed, runs, useReader, useAlerts, useDecisions, setListed, forget, stop, stopAll, sweep, ensure, stateOf, refresh, viewerGate, proxy, redirect,
     installLifecycle };
 }
 
@@ -658,7 +752,10 @@ module.exports = {
   HOSTED_NO_TOKEN,
   HOSTED_TMP_ROOT,
   HOSTED_ALERT_ROUTES,
+  HOSTED_DECISION_ROUTES,
+  HOSTED_DECISION_REBUILD,
   redactSecrets,
+  runPythonJson,
   pythonFor,
   childEnv,
   forwardedHeaders,

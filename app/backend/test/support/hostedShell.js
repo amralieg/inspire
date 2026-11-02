@@ -3,13 +3,13 @@ const { appShellFiles, appShellPayload, bundledNotebookText } = require('../../l
 
 const HOSTED_OWNER = ['owner', 'example.com'].join('@');
 
-function shellFolder(root, { title = 'Hosted test' } = {}) {
+function shellFolder(root, { title = 'Hosted test', settings: changes = {}, page: pageChanges = {} } = {}) {
   const payload = appShellPayload(bundledNotebookText());
-  const page = { ...payload.example };
+  const page = { ...payload.example, ...pageChanges };
   const settings = {
     version: 2, title, style: 'a', layout: 'sidebar', auth: 'user', theme: 'light', palette: 'default',
     options: { modify: false, replace_edits: false, decisions: false }, pages: [page.id], admin: HOSTED_OWNER, jobs: {}, genie: null,
-    genie_note: 'Ask Genie is off in this test',
+    genie_note: 'Ask Genie is off in this test', ...changes,
   };
   const files = { ...appShellFiles(payload), 'inspire_app.json': JSON.stringify(settings), [`pages/${page.id}.json`]: JSON.stringify(page) };
   return { page, files: Object.fromEntries(Object.entries(files).map(([rel, body]) => [`${root}/${rel}`, Buffer.isBuffer(body) ? body : Buffer.from(String(body))])) };

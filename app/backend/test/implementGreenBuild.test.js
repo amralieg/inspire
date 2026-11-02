@@ -68,7 +68,7 @@ test('a use case added to an existing App takes that App\'s look and sign-in, so
   assert.equal(joined.outputs.app_access, 'sp', 'while editing, the use case keeps its own access choice, so another App can still be picked');
   const sent = w.sentSpec(joined, null, null, { app: [hub] });
   assert.deepEqual([sent.outputs.app_look, sent.outputs.app_access], [hub.look, 'user'], 'the spec the build gets carries the hub\'s values');
-  assert.deepEqual([sent.outputs.app_options.decisions, sent.outputs.app_options.alerts], [false, false], 'per-user turns off what it cannot do');
+  assert.deepEqual([sent.outputs.app_options.decisions, sent.outputs.app_options.alerts], [true, false], 'per-user keeps decisions and turns alerts off');
   const stale = { ...joined, outputs: { ...joined.outputs, app_look: { style: 'b', layout: 'sidebar', palette: 'default', theme: 'light' } } };
   assert.deepEqual(w.sentSpec(stale, null, null, { app: [hub] }).outputs.app_look, hub.look, 'a reopened join with an old look sends the hub\'s look');
   assert.deepEqual(w.sentSpec(stale, null, null, { app: [] }).outputs.app_look, stale.outputs.app_look,

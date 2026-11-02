@@ -67,8 +67,9 @@ const IMPLEMENT_OUTPUT_OPTIONS = {
 };
 const IMPLEMENT_APP_LOOK_DEFAULT = { style: 'a', layout: 'sidebar', palette: 'default', theme: 'light' };
 const IMPLEMENT_APP_LOOK_LISTS = { style: 'styles', layout: 'layouts', palette: 'palettes', theme: 'themes' };
-const IMPLEMENT_APP_OPTION_KEYS = ['modify', 'replace_edits', 'decisions', 'alerts'];
-const IMPLEMENT_PER_USER_OFF = ['decisions', 'alerts'];
+const IMPLEMENT_APP_OPTION_DEFAULTS = { modify: false, replace_edits: false, decisions: true, alerts: false };
+const IMPLEMENT_APP_OPTION_KEYS = Object.keys(IMPLEMENT_APP_OPTION_DEFAULTS);
+const IMPLEMENT_PER_USER_OFF = ['alerts'];
 const IMPLEMENT_APP_CHARTS_MIN = 3;
 const IMPLEMENT_MERGE_OUTPUTS = ['dashboard', 'genie_space', 'app'];
 const IMPLEMENT_MERGE_NOUNS = { app: 'an App', dashboard: 'a dashboard', genie_space: 'a Genie Agent' };
@@ -1101,7 +1102,7 @@ function appWarehouseLock(target, asked) {
 
 function appSettings(outputs, on, shell, errors, legacyAccess = '') {
   const look = { ...IMPLEMENT_APP_LOOK_DEFAULT };
-  const options = Object.fromEntries(IMPLEMENT_APP_OPTION_KEYS.map((key) => [key, false]));
+  const options = { ...IMPLEMENT_APP_OPTION_DEFAULTS };
   if (!on) return { access: '', look: {}, options: {}, backend: '', charts: [], pages: {}, placement: '' };
   const catalog = shell || appShellCatalog();
   if (!catalog.ok) {
@@ -1133,8 +1134,8 @@ function appSettings(outputs, on, shell, errors, legacyAccess = '') {
       errors.push(`the App has no option ${shownValue(key)}; its options are ${IMPLEMENT_APP_OPTION_KEYS.join(', ')}`);
     } else if (value != null && typeof value !== 'boolean') {
       errors.push(`the App option ${key} must be true or false, not ${shownValue(value)}`);
-    } else {
-      options[key] = value === true;
+    } else if (value != null) {
+      options[key] = value;
     }
   }
   if (access === 'user') for (const key of IMPLEMENT_PER_USER_OFF) options[key] = false;
