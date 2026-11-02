@@ -391,6 +391,8 @@ class VersionTextTest(unittest.TestCase):
             setup.displayHTML = saved
         self.assertIn("Inspire AI v1.3.0 is ready", printed.getvalue())
         self.assertIn("Inspire AI v1.3.0: Databricks App ready", shown[-1])
+        for body in (printed.getvalue(), shown[-1]):
+            self.assertIn("A new App's address can take a few minutes to start working. If the page does not open, wait a few minutes", body)
         source = pathlib.Path(setup.__file__).read_text()
         self.assertEqual([line.strip() for line in source.splitlines() if "Inspire AI v" in line], [])
 
@@ -743,28 +745,148 @@ class AppUrlTest(unittest.TestCase):
 
 class RuntimeContextTest(unittest.TestCase):
     def setUp(self):
-        self.saved = (setup.WorkspaceClient, setup._unpack_bundle, getattr(setup, "dbutils", None))
+        self.saved = (setup.WorkspaceClient, setup._unpack_bundle, getattr(setup, "dbutils", None), getattr(setup, "displayHTML", None))
+        self.shown = []
+        setup.displayHTML = self.shown.append
 
     def tearDown(self):
-        setup.WorkspaceClient, setup._unpack_bundle, setup.dbutils = self.saved
+        setup.WorkspaceClient, setup._unpack_bundle, setup.dbutils, setup.displayHTML = self.saved
 
-    def context(self, env):
-        widgets = {"00_sql_warehouse": "Shared [RUNNING] wh1", "01_inspire_catalog": "main"}
-        setup.dbutils = types.SimpleNamespace(widgets=types.SimpleNamespace(
-            get=lambda name: widgets.get(name, ""), remove=lambda name: None, dropdown=lambda *a: None))
+    @staticmethod
+    def warehouse(wid="wh1", name="Shared", state="RUNNING"):
+        return types.SimpleNamespace(id=wid, name=name, state=types.SimpleNamespace(value=state), enable_serverless_compute=True)
+
+    def context(self, env, widgets=None, warehouses=None, catalogs=("main", "sales")):
+        if widgets is None:
+            widgets = support.FakeWidgets({"00_sql_warehouse": {"kind": "combobox", "value": "Shared (wh1)"},
+                                           "01_inspire_catalog": {"kind": "combobox", "value": "main"}})
+        setup.dbutils = types.SimpleNamespace(widgets=widgets)
         me = types.SimpleNamespace(user_name="someone@example.com", groups=[types.SimpleNamespace(display="admins")])
-        warehouse = types.SimpleNamespace(id="wh1", name="Shared", state=types.SimpleNamespace(value="RUNNING"), enable_serverless_compute=True)
+        listed = warehouses or [self.warehouse()]
 
         class Client:
             current_user = types.SimpleNamespace(me=lambda: me)
             config = types.SimpleNamespace(host="https://workspace.example.com", authenticate=lambda: {"Authorization": "Bearer x"})
-            warehouses = types.SimpleNamespace(list=lambda: [warehouse])
-            catalogs = types.SimpleNamespace(list=lambda: [types.SimpleNamespace(name="main")])
+            warehouses = types.SimpleNamespace(list=lambda: listed)
+            catalogs = types.SimpleNamespace(list=lambda: [types.SimpleNamespace(name=name) for name in catalogs])
         setup.WorkspaceClient = Client
         unpacked = []
         setup._unpack_bundle = lambda source, root: unpacked.append((source, root)) or f"{root}/bundle_1"
         with contextlib.redirect_stdout(io.StringIO()):
             return setup.build_runtime_context(env), unpacked
+
+    ENV = {"manifest": {"version": "v1.3.0"}, "files": {"inspire-app.zip": "/z", "inspire-assets.tar": "/t"}, "folders": {}, "settings": {}}
+
+    def run_with(self, widgets, **kwargs):
+        widgets.new_cell()
+        widgets.calls.clear()
+        ctx, _ = self.context(dict(self.ENV), widgets, **kwargs)
+        for index, call in enumerate(widgets.calls):
+            if call[0] == "remove":
+                later = [c for c in widgets.calls[index + 1:] if c[0] == "create" and c[2] == call[1]]
+                self.assertEqual(later, [], f"{call[1]} is removed and created again in the same cell")
+        return ctx
+
+    def banner(self):
+        return self.shown[-1] if self.shown else ""
+
+    def test_a_first_run_shows_both_pickers_as_lists_you_can_type_into_and_waits(self):
+        widgets = support.FakeWidgets()
+        ctx = self.run_with(widgets, warehouses=[self.warehouse(), self.warehouse("wh2", "Analytics", "STOPPED")])
+        self.assertEqual(ctx, {"ready": False})
+        self.assertEqual(widgets.state["00_sql_warehouse"]["kind"], "combobox")
+        self.assertEqual(widgets.state["01_inspire_catalog"]["kind"], "combobox")
+        self.assertEqual(widgets.state["00_sql_warehouse"]["choices"], ["Pick from the list or type", "Shared (wh1)", "Analytics (wh2)"])
+        self.assertEqual(widgets.state["01_inspire_catalog"]["choices"], ["Pick from the list or type", "main", "sales"])
+        self.assertIn("Choose notebook parameter values first", self.banner())
+        self.assertIn("Pick or type a SQL warehouse in 00_sql_warehouse.", self.banner())
+        self.assertIn("Pick or type a catalog in 01_inspire_catalog.", self.banner())
+
+    def test_a_value_picked_from_each_list_installs_with_that_warehouse_and_catalog(self):
+        widgets = support.FakeWidgets()
+        self.run_with(widgets, warehouses=[self.warehouse(), self.warehouse("wh2", "Analytics", "STOPPED")])
+        widgets.pick("00_sql_warehouse", "Analytics (wh2)")
+        widgets.pick("01_inspire_catalog", "sales")
+        ctx = self.run_with(widgets, warehouses=[self.warehouse(), self.warehouse("wh2", "Analytics", "STOPPED")])
+        self.assertEqual((ctx["WAREHOUSE_ID"], ctx["WAREHOUSE_NAME"], ctx["CATALOG"], ctx["INSPIRE_DB"]),
+                         ("wh2", "Analytics", "sales", "sales._inspire"))
+
+    def test_a_typed_exact_warehouse_name_or_id_and_a_typed_catalog_name_in_any_case_are_used(self):
+        listed = [self.warehouse(), self.warehouse("wh2", "Analytics", "STOPPED")]
+        for typed_wh, typed_cat, expected in (("Analytics", "sales", ("wh2", "sales")), ("wh2", "SALES", ("wh2", "sales")),
+                                              ("  wh1 ", "Main", ("wh1", "main")), ("Shared [RUNNING] wh1", "main", ("wh1", "main"))):
+            widgets = support.FakeWidgets()
+            self.run_with(widgets, warehouses=listed)
+            widgets.pick("00_sql_warehouse", typed_wh)
+            widgets.pick("01_inspire_catalog", typed_cat)
+            ctx = self.run_with(widgets, warehouses=listed)
+            self.assertEqual((ctx.get("WAREHOUSE_ID"), ctx.get("CATALOG")), expected, (typed_wh, typed_cat))
+
+    def test_a_saved_warehouse_still_matches_after_the_warehouse_stops_or_starts(self):
+        widgets = support.FakeWidgets()
+        self.run_with(widgets, warehouses=[self.warehouse(state="RUNNING")])
+        widgets.pick("00_sql_warehouse", "Shared (wh1)")
+        widgets.pick("01_inspire_catalog", "main")
+        for state in ("RUNNING", "STOPPED", "STARTING"):
+            ctx = self.run_with(widgets, warehouses=[self.warehouse(state=state)])
+            self.assertEqual(ctx.get("WAREHOUSE_ID"), "wh1", state)
+            self.assertEqual(widgets.state["00_sql_warehouse"]["value"], "Shared (wh1)")
+        legacy = support.FakeWidgets({"00_sql_warehouse": {"kind": "dropdown", "value": "Shared [RUNNING] wh1",
+                                                          "choices": ["Please select", "Shared [RUNNING] wh1"]},
+                                      "01_inspire_catalog": {"kind": "dropdown", "value": "main", "choices": ["Please select", "main"]}})
+        ctx = self.run_with(legacy, warehouses=[self.warehouse(state="STOPPED")])
+        self.assertEqual((ctx.get("WAREHOUSE_ID"), ctx.get("CATALOG")), ("wh1", "main"))
+        self.assertNotIn(("remove", "00_sql_warehouse"), legacy.calls)
+
+    def test_a_typed_unknown_catalog_is_refused_in_the_banner_and_nothing_proceeds(self):
+        widgets = support.FakeWidgets()
+        self.run_with(widgets)
+        widgets.pick("00_sql_warehouse", "Shared (wh1)")
+        widgets.pick("01_inspire_catalog", "sale")
+        self.assertEqual(self.run_with(widgets), {"ready": False})
+        self.assertIn("No catalog you can use is named &#x27;sale&#x27;. Pick one from the list in 01_inspire_catalog, or type its exact name.",
+                      self.banner())
+        self.assertNotIn("SQL warehouse you can use", self.banner())
+
+    def test_a_typed_unknown_or_shared_warehouse_name_is_refused_in_the_banner_and_nothing_proceeds(self):
+        listed = [self.warehouse(), self.warehouse("wh2", "Shared", "STOPPED")]
+        for typed, words in (("Sharedd", "No SQL warehouse you can use has the name or id &#x27;Sharedd&#x27;."),
+                             ("wh9", "No SQL warehouse you can use has the name or id &#x27;wh9&#x27;."),
+                             ("Old [RUNNING] wh9", "No SQL warehouse you can use has the name or id &#x27;Old [RUNNING] wh9&#x27;."),
+                             ("Shared", "2 SQL warehouses are named &#x27;Shared&#x27;. Pick one from the list in 00_sql_warehouse or type its id.")):
+            widgets = support.FakeWidgets()
+            self.run_with(widgets, warehouses=listed)
+            widgets.pick("00_sql_warehouse", typed)
+            widgets.pick("01_inspire_catalog", "main")
+            self.assertEqual(self.run_with(widgets, warehouses=listed), {"ready": False}, typed)
+            self.assertIn(words, self.banner())
+
+    def test_a_legacy_dropdown_with_no_usable_value_becomes_a_list_you_can_type_into_on_the_next_run(self):
+        widgets = support.FakeWidgets({"00_sql_warehouse": {"kind": "dropdown", "value": "Please select", "choices": ["Please select"]},
+                                       "01_inspire_catalog": {"kind": "dropdown", "value": "main", "choices": ["Please select", "main"]}})
+        self.assertEqual(self.run_with(widgets), {"ready": False})
+        self.assertNotIn("00_sql_warehouse", widgets.state)
+        self.assertIn("now lists you can also type into. Run this installer again to show them", self.banner())
+        self.run_with(widgets)
+        self.assertEqual(widgets.state["00_sql_warehouse"]["kind"], "combobox")
+        widgets.pick("00_sql_warehouse", "Shared")
+        self.assertEqual(self.run_with(widgets).get("WAREHOUSE_ID"), "wh1")
+
+    def test_a_widget_that_cannot_be_removed_is_still_offered_as_a_list_you_can_type_into(self):
+        class Stuck(support.FakeWidgets):
+            def remove(self, name):
+                self.calls.append(("remove", name))
+                raise ValueError("cannot remove")
+        widgets = Stuck({"00_sql_warehouse": {"kind": "combobox", "value": "Gone [STOPPED] wh9", "choices": []}})
+        self.assertEqual(self.context(dict(self.ENV), widgets)[0], {"ready": False})
+        self.assertEqual([c for c in widgets.calls if "00_sql_warehouse" in c],
+                         [("remove", "00_sql_warehouse"), ("create", "combobox", "00_sql_warehouse", "Pick from the list or type")])
+        self.assertIn("No SQL warehouse you can use has the name or id &#x27;Gone [STOPPED] wh9&#x27;.", self.banner())
+        self.assertIn("Pick a value from each list at the top of the notebook, or type it", self.banner())
+
+    def test_the_test_setting_picks_the_warehouse_and_catalog_without_any_widget_value(self):
+        ctx, _ = self.context(dict(self.ENV, settings={"warehouse_id": "wh1", "catalog": "SALES"}), support.FakeWidgets())
+        self.assertEqual((ctx["WAREHOUSE_ID"], ctx["CATALOG"]), ("wh1", "sales"))
 
     def test_the_bundle_and_the_assets_come_from_the_checked_release_and_nothing_is_written_yet(self):
         files = {"inspire-app.zip": "/tmp/r/inspire-app.zip", "inspire-assets.tar": "/tmp/r/inspire-assets.tar"}

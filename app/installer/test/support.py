@@ -63,7 +63,7 @@ def make_assets(folder, version=VERSION, files=None):
     return files
 
 
-def build_release(tmp, name="release", version=VERSION, part_bytes=4096, module=FAKE_MODULE, assets=None, extra=None):
+def build_release(tmp, name="release", version=VERSION, module=FAKE_MODULE, assets=None, extra=None):
     tmp = pathlib.Path(tmp)
     app_zip = tmp / f"{name}-app.zip"
     make_app_zip(app_zip, version, module, extra)
@@ -71,8 +71,60 @@ def build_release(tmp, name="release", version=VERSION, part_bytes=4096, module=
     assets_dir.mkdir()
     make_assets(assets_dir, version, assets)
     out = tmp / name
-    release.build(str(app_zip), str(assets_dir), str(out), part_bytes)
+    release.build(str(app_zip), str(assets_dir), str(out))
     return out
+
+
+def v130_manifest(manifest, part_bytes=4096):
+    old = json.loads(json.dumps(manifest))
+    for entry in old["files"]:
+        stem = entry["name"].split(".", 1)[0]
+        count = max(1, -(-entry["size"] // part_bytes))
+        sizes = [part_bytes] * (count - 1) + [entry["size"] - part_bytes * (count - 1)]
+        entry["parts"] = [{"name": f"{stem}.part{i:02d}", "size": size, "sha256": "0" * 64} for i, size in enumerate(sizes, 1)]
+    return old
+
+
+class FakeWidgets:
+    def __init__(self, existing=None):
+        self.state = {name: dict(widget) for name, widget in (existing or {}).items()}
+        self.removed_this_cell = set()
+        self.calls = []
+
+    def new_cell(self):
+        self.removed_this_cell.clear()
+
+    def _create(self, kind, name, default, choices, label):
+        self.calls.append(("create", kind, name, default))
+        if kind == "dropdown" and default not in choices:
+            raise ValueError(f"Default value {default!r} is not one of the choices of {name}")
+        if name in self.removed_this_cell or name in self.state:
+            return None
+        self.state[name] = {"kind": kind, "value": default, "choices": list(choices), "label": label}
+        return None
+
+    def dropdown(self, name, default, choices, label=None):
+        return self._create("dropdown", name, default, choices, label)
+
+    def combobox(self, name, default, choices, label=None):
+        return self._create("combobox", name, default, choices, label)
+
+    def get(self, name):
+        if name not in self.state:
+            raise ValueError(f"InputWidgetNotDefined: {name}")
+        return self.state[name]["value"]
+
+    def remove(self, name):
+        self.calls.append(("remove", name))
+        if name not in self.state:
+            raise ValueError(f"InputWidgetNotDefined: {name}")
+        del self.state[name]
+        self.removed_this_cell.add(name)
+
+    def pick(self, name, value):
+        if self.state[name]["kind"] == "dropdown" and value not in self.state[name]["choices"]:
+            raise ValueError(f"{value!r} is not a choice of the dropdown {name}")
+        self.state[name]["value"] = value
 
 
 def load_starter(stage):

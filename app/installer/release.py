@@ -10,6 +10,7 @@ import subprocess
 import sys
 import tarfile
 import tempfile
+import urllib.error
 import zipfile
 
 APP = pathlib.Path(__file__).resolve().parents[1]
@@ -22,10 +23,8 @@ MODULE = "installer/inspire_setup.py"
 AGENT = "dbx_inspire_ai_agent.ipynb"
 UNZIP_FOLDER = "inspire-app"
 DEV_ONLY = ("installer/test/", "installer/release.py")
-PART_BYTES = 9 * 1024 * 1024
-PART_LIMIT = 10 * 1000 * 1000
 STARTER_MIN_VERSION = 1
-SUMS_LINE = re.compile(r"([0-9a-f]{64})  ([A-Za-z0-9][A-Za-z0-9._-]*)")
+LEFT_OUT = ("SHA256SUMS", "inspire-app.part01", "inspire-assets.part01")
 
 
 class ReleaseFailure(SystemExit):
@@ -134,27 +133,19 @@ def write_assets_tar(assets, version, target, starter):
     return len(files)
 
 
-def split(path, out, part_bytes):
-    if not 0 < part_bytes < PART_LIMIT:
-        raise ReleaseFailure(f"a part must be under {PART_LIMIT} bytes, {part_bytes} was asked")
-    stem = path.name.split(".", 1)[0]
-    parts = []
-    with open(path, "rb") as handle:
-        while True:
-            chunk = handle.read(part_bytes)
-            if not chunk and parts:
-                break
-            if len(parts) == 99:
-                raise ReleaseFailure(f"{path.name} needs more than 99 parts of {part_bytes} bytes")
-            name = f"{stem}.part{len(parts) + 1:02d}"
-            (out / name).write_bytes(chunk)
-            parts.append({"name": name, "size": len(chunk), "sha256": sha256_bytes(chunk)})
-            if len(chunk) < part_bytes:
-                break
-    return parts
+def four_files(manifest, starter):
+    names = [entry.get("name") for entry in manifest.get("files") or []]
+    if sorted(names) != sorted(starter["WHOLE_FILES"]):
+        raise ReleaseFailure(f"{starter['MANIFEST']} lists {names}, a release lists exactly {list(starter['WHOLE_FILES'])}")
+    split = [entry["name"] for entry in manifest["files"] if "parts" in entry]
+    if split:
+        raise ReleaseFailure(f"{starter['MANIFEST']} lists parts of {split}, a release carries whole files only")
+    if (manifest.get("installer") or {}).get("name") != starter["INSTALLER"]:
+        raise ReleaseFailure(f"{starter['MANIFEST']} names no {starter['INSTALLER']}")
+    return manifest
 
 
-def build(app_zip, assets, out, part_bytes=PART_BYTES, starter_path=STARTER):
+def build(app_zip, assets, out, starter_path=STARTER):
     starter = load_starter(starter_path)
     if STARTER_MIN_VERSION > starter["STARTER_VERSION"]:
         raise ReleaseFailure(f"the installer is version {starter['STARTER_VERSION']}, the release needs {STARTER_MIN_VERSION}")
@@ -178,31 +169,22 @@ def build(app_zip, assets, out, part_bytes=PART_BYTES, starter_path=STARTER):
     files = []
     for path, extra in ((zip_path, {"unzip_folder": UNZIP_FOLDER, "unzip_marker": module, "contents": contents}), (tar_path, {})):
         digest, size = starter["file_digest"](str(path))
-        files.append({"name": path.name, "size": size, "sha256": digest, "parts": split(path, out, part_bytes), **extra})
+        files.append({"name": path.name, "size": size, "sha256": digest, **extra})
     installer = out / starter["INSTALLER"]
     shutil.copyfile(starter_path, installer)
     digest, size = starter["file_digest"](str(installer))
     manifest = {"format": 1, "version": version, "starter_min_version": STARTER_MIN_VERSION,
                 "installer": {"name": installer.name, "size": size, "sha256": digest},
                 "entry": {"file": APP_ZIP, "module": module, "function": "run"}, "files": files}
-    starter["check_manifest"](manifest)
+    four_files(starter["check_manifest"](manifest), starter)
     (out / starter["MANIFEST"]).write_text(json.dumps(manifest, indent=1) + "\n", encoding="utf-8")
-    lines = [f"{starter['file_digest'](str(path))[0]}  {path.name}" for path in sorted(out.iterdir()) if path.name != starter["SUMS"]]
-    (out / starter["SUMS"]).write_text("\n".join(lines) + "\n", encoding="utf-8")
+    written = sorted(path.name for path in out.iterdir())
+    if written != sorted(starter["RELEASE_FILES"]):
+        raise ReleaseFailure(f"{out} holds {written}, a release holds exactly {sorted(starter['RELEASE_FILES'])}")
     summary = {"version": version, "assets": asset_count, "files": [
-        {"name": e["name"], "size": e["size"], "parts": len(e["parts"]), "largest_part": max(p["size"] for p in e["parts"])} for e in files]}
+        {"name": name, "size": (out / name).stat().st_size} for name in starter["RELEASE_FILES"]]}
     print(json.dumps(summary, indent=1))
     return manifest
-
-
-def parse_sums(text):
-    sums = {}
-    for line in text.splitlines():
-        found = SUMS_LINE.fullmatch(line)
-        if not found or found.group(2) in sums:
-            raise ReleaseFailure(f"SHA256SUMS holds a line it should not: {line[:160]!r}")
-        sums[found.group(2)] = found.group(1)
-    return sums
 
 
 def check(base, opener=None, work=None):
@@ -212,40 +194,41 @@ def check(base, opener=None, work=None):
     work = pathlib.Path(work or tempfile.mkdtemp(prefix="inspire_release_check_"))
     download = starter["download"]
     rows, failures = [], []
-    sums_path, manifest_path = work / starter["SUMS"], work / starter["MANIFEST"]
-    download(f"{base}/{starter['SUMS']}", str(sums_path), repo, opener=opener, limit=1 << 20)
+    manifest_path = work / starter["MANIFEST"]
     download(f"{base}/{starter['MANIFEST']}", str(manifest_path), repo, opener=opener, limit=1 << 20)
-    sums = parse_sums(sums_path.read_text(encoding="utf-8"))
     manifest = starter["check_manifest"](starter["read_json"](str(manifest_path), starter["MANIFEST"]))
-    sizes = {manifest["installer"]["name"]: (manifest["installer"]["size"], manifest["installer"]["sha256"])}
-    for entry in manifest["files"]:
-        sizes[entry["name"]] = (entry["size"], entry["sha256"])
-        sizes.update({part["name"]: (part["size"], part["sha256"]) for part in entry["parts"]})
-    expected = set(sizes) | {starter["MANIFEST"]}
-    if set(sums) != expected:
-        failures.append(f"SHA256SUMS and manifest.json list different files: {sorted(set(sums) ^ expected)}")
-    if starter["file_digest"](str(manifest_path))[0] != sums.get(starter["MANIFEST"]):
-        failures.append("manifest.json does not match its line in SHA256SUMS")
+    try:
+        four_files(manifest, starter)
+    except ReleaseFailure as exc:
+        failures.append(str(exc).removeprefix("release: "))
+    listed = [manifest.get("installer") or {}] + manifest["files"]
+    sizes = {entry["name"]: (entry["size"], entry["sha256"]) for entry in listed if entry.get("name")}
+    rows.append(f"OK    {starter['MANIFEST']}  {manifest_path.stat().st_size} bytes  read through its link")
     for name in sorted(sizes):
         size, digest = sizes[name]
-        if sums.get(name) != digest:
-            failures.append(f"{name}: manifest.json and SHA256SUMS name different sha256")
         try:
-            download(f"{base}/{name}", str(work / name), repo, size, sums.get(name), opener=opener)
+            download(f"{base}/{name}", str(work / name), repo, size, digest, opener=opener)
             rows.append(f"OK    {name}  {size} bytes  {digest[:16]}")
         except Exception as exc:
             failures.append(f"{name}: {exc}")
             rows.append(f"FAIL  {name}  {exc}")
-    for entry in manifest["files"]:
-        joined = hashlib.sha256()
-        for part in entry["parts"]:
-            path = work / part["name"]
-            if path.is_file():
-                joined.update(path.read_bytes())
-        if joined.hexdigest() != entry["sha256"]:
-            failures.append(f"the parts of {entry['name']} do not join into its sha256")
+    for name in LEFT_OUT:
+        carried = f"the release carries {name}, a release carries exactly {', '.join(starter['RELEASE_FILES'])}"
+        unknown = f"{name}: %s, so the check cannot tell whether the release carries it"
+        try:
+            download(f"{base}/{name}", str(work / "left_out" / name), repo, opener=opener, limit=1 << 24)
+            failures.append(carried)
+        except urllib.error.HTTPError as exc:
+            if exc.code != 404:
+                failures.append(unknown % f"HTTP {exc.code}")
+        except starter["InspireTrustError"] as exc:
+            failures.append(unknown % exc)
+        except starter["InspireReleaseError"]:
+            failures.append(carried)
+        except Exception as exc:
+            failures.append(unknown % exc)
     print("\n".join(rows))
-    print(f"release check {base}: {len(rows) - len([r for r in rows if r.startswith('FAIL')])} of {len(sizes)} files OK, "
+    print(f"release check {base}: {len([r for r in rows if r.startswith('OK')])} of {len(starter['RELEASE_FILES'])} files OK, "
           f"{len(failures)} failure{'s' if len(failures) != 1 else ''}")
     for failure in failures:
         print(f"  FAIL {failure}")
@@ -259,12 +242,11 @@ def main(argv=None):
     make.add_argument("--assets", required=True)
     make.add_argument("--out", required=True)
     make.add_argument("--app-zip")
-    make.add_argument("--part-bytes", type=int, default=PART_BYTES)
     verify = commands.add_parser("check")
     verify.add_argument("--base", default=load_starter()["LATEST_BASE"])
     args = parser.parse_args(argv)
     if args.command == "build":
-        build(args.app_zip, args.assets, args.out, args.part_bytes)
+        build(args.app_zip, args.assets, args.out)
         return 0
     return 1 if check(args.base) else 0
 

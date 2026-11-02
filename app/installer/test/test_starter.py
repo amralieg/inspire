@@ -1,7 +1,9 @@
 import ast
+import html
 import json
 import os
 import pathlib
+import re
 import shutil
 import socket
 import subprocess
@@ -138,8 +140,7 @@ class ManifestTest(StarterCase):
         for change in (lambda m: m.update(format=2), lambda m: m.update(version="v1.10.0"), lambda m: m.update(version="1.3.0"),
                        lambda m: m.pop("starter_min_version"), lambda m: m.update(files=[]),
                        lambda m: m["files"][0].update(name="../inspire-app.zip"), lambda m: m["files"][0].update(sha256="x"),
-                       lambda m: m["files"][0]["parts"][0].update(name="inspire-app.part02"),
-                       lambda m: m["files"][0]["parts"][0].update(size=m["files"][0]["parts"][0]["size"] + 1),
+                       lambda m: m["files"][0].update(name="manifest.json"), lambda m: m["files"][0].update(size=-1),
                        lambda m: m["files"][0]["contents"][0].update(path="/etc/passwd"),
                        lambda m: m["entry"].update(file="other.zip"), lambda m: m["entry"].update(module="../x.py"),
                        lambda m: m["files"][1].update(name="inspire-app.zip")):
@@ -149,6 +150,19 @@ class ManifestTest(StarterCase):
                 check(manifest)
             broken.append(1)
         self.assertEqual(len(broken), 13)
+
+    def test_a_v130_manifest_that_lists_parts_is_read_and_its_parts_are_never_asked_for(self):
+        out = self.release()
+        old = support.v130_manifest(self.manifest(out))
+        self.assertIs(self.ns["check_manifest"](old), old)
+        (out / "manifest.json").write_text(json.dumps(old))
+        github = support.FakeGitHub(LATEST, out)
+        got = self.acquire({}, github)
+        self.assertEqual(github.requested, ["manifest.json", "inspire-app.zip", "inspire-assets.tar"])
+        self.copy(out, ["manifest.json", "inspire-app.zip", "inspire-assets.tar"])
+        local = self.acquire({}, support.FakeGitHub(LATEST, fail=urllib.error.URLError("no route")))
+        self.assertEqual((got["source"], local["source"]), ("online", "local"))
+        self.assertEqual(sorted(local["files"]), ["inspire-app.zip", "inspire-assets.tar"])
 
     def test_a_starter_older_than_the_release_needs_shows_the_latest_installer_link_and_stops(self):
         out = self.release()
@@ -281,26 +295,16 @@ class LocalTest(StarterCase):
         finally:
             socket.getaddrinfo, socket.socket.connect, socket.socket.connect_ex, socket.create_connection = guarded
 
-    def test_parts_alone_are_joined_in_order_and_checked(self):
+    def test_part_files_next_to_the_installer_are_never_joined_and_the_whole_file_is_asked_for(self):
         out = self.release()
-        manifest = self.manifest(out)
-        names = [part["name"] for entry in manifest["files"] for part in entry["parts"]]
-        self.assertGreater(len(names), 4)
-        self.copy(out, ["manifest.json"] + list(reversed(names)))
-        got = self.acquire({}, self.unreachable())
-        for entry in manifest["files"]:
-            self.assertEqual(pathlib.Path(got["files"][entry["name"]]).read_bytes(), (out / entry["name"]).read_bytes())
-
-    def test_two_parts_swapped_are_refused_as_not_one_release(self):
-        out = self.release()
-        parts = self.manifest(out)["files"][1]["parts"]
-        self.copy(out, ["manifest.json", "inspire-app.zip"])
-        for index, part in enumerate(parts):
-            source = parts[1 - index]["name"] if index < 2 else part["name"]
-            shutil.copyfile(out / source, self.folder / part["name"])
-        with self.assertRaises(self.ns["InspireNotInstalled"]) as caught:
+        old = support.v130_manifest(self.manifest(out), part_bytes=1 << 30)
+        (self.folder / "manifest.json").write_text(json.dumps(old))
+        shutil.copyfile(out / "inspire-app.zip", self.folder / "inspire-app.zip")
+        shutil.copyfile(out / "inspire-assets.tar", self.folder / "inspire-assets.part01")
+        with self.assertRaises(self.ns["InspireNotInstalled"]):
             self.acquire({}, self.unreachable())
-        self.assertIn("not one Inspire release", str(caught.exception))
+        self.assertIn("inspire-assets.tar is missing", self.ns["shown"][-1])
+        self.assertNotIn("part01", self.ns["shown"][-1])
 
     def test_a_set_mixed_across_two_releases_is_refused_with_a_plain_message(self):
         old = self.release("old", assets={"fonts/inter-400.ttf": b"old font"})
@@ -315,17 +319,20 @@ class LocalTest(StarterCase):
         self.assertIn("Download every file of one release again", message)
         self.assertIn("not one Inspire release", self.ns["shown"][-1])
 
-    def test_a_missing_part_is_never_used_and_the_page_names_it(self):
+    def test_a_missing_tar_is_named_and_the_links_list_the_four_files_with_the_sizes_of_the_local_manifest(self):
         out = self.release()
         manifest = self.manifest(out)
-        parts = [part["name"] for part in manifest["files"][1]["parts"]]
-        self.copy(out, ["manifest.json", "inspire-app.zip"] + parts[:-1])
+        self.copy(out, ["manifest.json", "inspire-app.zip"])
         with self.assertRaises(self.ns["InspireNotInstalled"]):
             self.acquire({}, self.unreachable())
         page = self.ns["shown"][-1]
-        self.assertIn(f"{parts[-1]} is missing", page)
-        self.assertIn(f"{parts[0]}</a>", page)
-        self.assertIn(f"{manifest['files'][1]['parts'][0]['size']} bytes", page, "with a local manifest the links carry exact sizes")
+        self.assertIn("inspire-assets.tar is missing", page)
+        links = re.findall(r'<a href="[^"]+/([^"/]+)" target="_blank">\1</a></td><td style="padding:3px 0">([^<]+)</td>', page)
+        sizes = {entry["name"]: entry["size"] for entry in [manifest["installer"]] + manifest["files"]}
+        self.assertEqual([name for name, _ in links], ["manifest.json", "inspire_installer.py", "inspire-app.zip", "inspire-assets.tar"])
+        self.assertEqual(links[0][1], "size on the release page")
+        for name, text in links[1:]:
+            self.assertIn(f"({sizes[name]} bytes)", text, name)
 
     def unzip(self, out, into):
         with zipfile.ZipFile(out / "inspire-app.zip") as archive:
@@ -366,7 +373,7 @@ class LocalTest(StarterCase):
             self.acquire({}, self.unreachable())
         self.assertIn("inspire-app.zip is missing", self.ns["shown"][-1])
 
-    def test_a_folder_the_workspace_unzipped_without_its_plain_files_is_refused_and_the_parts_are_asked_for(self):
+    def test_a_folder_the_workspace_unzipped_without_its_plain_files_is_refused_and_an_import_as_one_file_is_advised(self):
         out = self.release()
         self.copy(out, ["manifest.json", "inspire-assets.tar"])
         unzipped = self.folder / "inspire-app"
@@ -374,7 +381,8 @@ class LocalTest(StarterCase):
         with self.assertRaises(self.ns["InspireNotInstalled"]):
             self.ns["acquire"](str(self.folder), "/n", {}, opener=self.unreachable(), exporter=lambda stem, kind: None)
         self.assertIn("kept 0 of 5 files", self.ns["shown"][-1])
-        self.assertIn("import the inspire-app.partNN files instead", self.ns["shown"][-1])
+        self.assertIn(f"databricks workspace import-dir &lt;that folder&gt; &quot;{self.folder}&quot;", self.ns["shown"][-1])
+        self.assertNotIn("part", self.ns["shown"][-1].replace("partial", ""))
 
 
 class OfflinePageTest(StarterCase):
@@ -387,25 +395,76 @@ class OfflinePageTest(StarterCase):
         page, text = self.ns["shown"][-1], printed[-1]
         for body in (page, text):
             for words in ("I am not able to connect to GitHub to download the Inspire code", "curl -fL --retry 3",
-                          "shasum -a 256 -c SHA256SUMS", "sha256sum -c SHA256SUMS", "Invoke-WebRequest", "Get-FileHash",
-                          "Windows PowerShell", "refuses files over 10 MB", "part[0-9]", str(self.folder), "run this installer again",
-                          f"{LATEST}/inspire-app.zip", f"{LATEST}/inspire-assets.tar", f"{LATEST}/SHA256SUMS",
+                          "plutil -extract", "| shasum -a 256 -c", "| sha256sum -c", "Invoke-WebRequest", "Get-FileHash", "ConvertFrom-Json",
+                          "macOS", "Linux", "Windows PowerShell", str(self.folder), "run this installer again",
+                          "download the 4 release files (manifest.json, inspire_installer.py, inspire-app.zip, inspire-assets.tar)",
+                          "check the sha256 of each against manifest.json",
+                          "Import manifest.json, inspire-app.zip, inspire-assets.tar into this workspace folder",
+                          "leave that folder as it is: the installer checks every file in it",
+                          f"{LATEST}/manifest.json", f"{LATEST}/inspire_installer.py", f"{LATEST}/inspire-app.zip", f"{LATEST}/inspire-assets.tar",
                           "no answer in 10 seconds", "No manifest.json is next to this installer"):
-                self.assertIn(words.replace('"', "&quot;") if body is page else words, body)
+                self.assertIn(html.escape(words) if body is page else words, body)
+            for gone in ("SHA256SUMS", ".part", "partNN", "10 MB"):
+                self.assertNotIn(gone, body)
         self.assertIn("https://github.com/amralieg/inspire/releases/latest", page)
-        order = [page.index(words) for words in ("curl -fL", "refuses files over 10 MB", "<h3>2. Import the files into this workspace folder",
-                                                 "<h3>3. Then run this installer again", "If the commands fail")]
-        self.assertEqual(order, sorted(order), "whole files, then the parts, then the folder, then run again, then the links")
+        order = [page.index(words) for words in ("<b>macOS</b>", "<b>Linux</b>", "<b>Windows PowerShell</b>",
+                                                 "<h3>2. Import the files into this workspace folder", "<h3>3. Then run this installer again",
+                                                 "If the commands fail")]
+        self.assertEqual(order, sorted(order), "the commands per system, then the folder, then run again, then the links")
         self.assertIn(f">{self.folder}</pre>", page)
         self.assertNotIn("<script", page)
+        self.assertFalse(re.search("[\u2013\u2014]", page + text), "no en or em dash")
 
     def test_the_unix_commands_parse_in_bash(self):
-        for system, whole, split in self.ns["download_commands"](LATEST):
-            if system == "Windows PowerShell":
-                continue
-            for lines in (whole, split):
-                run = subprocess.run(["bash", "-n", "-c", "\n".join(lines)], capture_output=True, text=True)
+        commands = self.ns["download_commands"](LATEST)
+        self.assertEqual([system for system, _ in commands], ["macOS", "Linux", "Windows PowerShell"])
+        for system, lines in commands[:2]:
+            run = subprocess.run(["bash", "-n", "-c", "\n".join(lines)], capture_output=True, text=True)
+            self.assertEqual(run.returncode, 0, run.stderr)
+
+    def verify_lines(self, system, out):
+        lines = dict(self.ns["download_commands"](f"file://{out}"))[system]
+        tool = {"macOS": "plutil", "Linux": "sha256sum"}[system]
+        if not shutil.which(tool) or not shutil.which("curl") or (system == "Linux" and not shutil.which("python3")):
+            self.skipTest(f"{tool} is not on this computer")
+        return lines
+
+    def run_unix(self, lines):
+        where = self.tmp / f"dl{len(list(self.tmp.iterdir()))}"
+        where.mkdir()
+        return subprocess.run(["bash", "-e", "-c", "\n".join(lines)], cwd=where, capture_output=True, text=True)
+
+    def test_the_macos_and_linux_commands_download_the_four_files_and_check_each_sha256_against_the_manifest(self):
+        out = self.release()
+        for system in ("macOS", "Linux"):
+            with self.subTest(system):
+                lines = self.verify_lines(system, out)
+                run = self.run_unix(lines)
                 self.assertEqual(run.returncode, 0, run.stderr)
+                self.assertEqual(sorted(re.findall(r"^(\S+): OK$", run.stdout, re.M)),
+                                 ["inspire-app.zip", "inspire-assets.tar", "inspire_installer.py"])
+
+    def test_the_macos_and_linux_commands_fail_on_a_changed_file(self):
+        out = self.release()
+        (out / "inspire-assets.tar").write_bytes(b"x" + (out / "inspire-assets.tar").read_bytes()[1:])
+        for system in ("macOS", "Linux"):
+            with self.subTest(system):
+                run = self.run_unix(self.verify_lines(system, out))
+                self.assertNotEqual(run.returncode, 0)
+                self.assertRegex(run.stdout, r"inspire-assets.tar: FAILED")
+
+    def test_the_powershell_commands_name_every_file_and_check_against_the_manifest(self):
+        lines = dict(self.ns["download_commands"](LATEST))["Windows PowerShell"]
+        script = "\n".join(lines)
+        self.assertIn('@("manifest.json", "inspire_installer.py", "inspire-app.zip", "inspire-assets.tar")', script)
+        self.assertIn("$m = Get-Content manifest.json -Raw | ConvertFrom-Json", script)
+        self.assertIn("foreach ($e in @($m.installer) + @($m.files))", script)
+        self.assertIn('Write-Error "$($e.name) does not match manifest.json"', script)
+        self.assertEqual(script.count("{"), script.count("}"))
+        if shutil.which("pwsh"):
+            run = subprocess.run(["pwsh", "-NoProfile", "-Command", f"$null = [ScriptBlock]::Create(@'\n{script}\n'@)"],
+                                 capture_output=True, text=True)
+            self.assertEqual(run.returncode, 0, run.stderr)
 
     def test_the_page_escapes_what_it_shows(self):
         page, _ = self.ns["offline_page"](LATEST, "/Workspace/Users/a<b>/x", "/n", ["<script>alert(1)</script>"])

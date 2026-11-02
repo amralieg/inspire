@@ -7,7 +7,7 @@
 # MAGIC - When this workspace cannot reach GitHub, it uses the release files imported next to this notebook.
 # MAGIC - When those are missing too, it shows the commands that download them on your computer and the folder to import them into.
 # MAGIC
-# MAGIC After the first run, pick the **SQL warehouse** and the **Inspire catalog** in the widgets at the top, then run it again.
+# MAGIC After the first run, pick or type the **SQL warehouse** and the **Inspire catalog** in the widgets at the top, then run it again.
 # MAGIC
 # MAGIC **SCAN_CATALOGS** in the next cell picks the catalogs the Inspire App may read besides the Inspire catalog, with USE CATALOG, USE SCHEMA, SELECT and BROWSE, because builds run as the App and read their source tables: `"all"` grants it every catalog you can see and grant on (you own it, hold MANAGE on it, or are a metastore admin) and names each catalog it skips, and a list such as `["main", "sales"]` grants only those and stops before any change if you cannot grant on one. The installer prints every grant before it runs one.
 # MAGIC
@@ -21,7 +21,6 @@ import importlib.util
 import json
 import os
 import re
-import shutil
 import socket
 import ssl
 import tempfile
@@ -40,8 +39,8 @@ TEST_BASE = re.compile(re.escape(f"https://github.com/{RELEASE_REPO}/releases/do
 DOWNLOAD_HOSTS = ("github.com", "objects.githubusercontent.com", "release-assets.githubusercontent.com")
 INSTALLER = "inspire_installer.py"
 MANIFEST = "manifest.json"
-SUMS = "SHA256SUMS"
 WHOLE_FILES = ("inspire-app.zip", "inspire-assets.tar")
+RELEASE_FILES = (MANIFEST, INSTALLER) + WHOLE_FILES
 SETTINGS = "inspire_installer_test.json"
 SETTING_KEYS = ("release", "app_name", "warehouse_id", "catalog")
 REACH_TIMEOUT_S = 10
@@ -177,10 +176,6 @@ def safe_path(path):
     return bool(path) and not path.startswith("/") and "\\" not in path and all(p not in ("", ".", "..") for p in path.split("/"))
 
 
-def part_stem(name):
-    return name.split(".", 1)[0]
-
-
 def check_manifest(manifest):
     def bad(why):
         return InspireReleaseError(f"{MANIFEST} is not an Inspire release manifest this installer reads ({why}). Download it again.")
@@ -197,19 +192,10 @@ def check_manifest(manifest):
     names = []
     for entry in files:
         if not isinstance(entry, dict) or not SAFE_NAME.fullmatch(str(entry.get("name") or "")) \
-                or entry["name"] in (MANIFEST, SUMS, INSTALLER) or entry["name"] in names:
+                or entry["name"] in (MANIFEST, INSTALLER) or entry["name"] in names:
             raise bad("a file name")
         if not isinstance(entry.get("size"), int) or entry["size"] < 0 or not SHA256.fullmatch(str(entry.get("sha256") or "")):
             raise bad(f"the size or sha256 of {entry['name']}")
-        parts = entry.get("parts")
-        if not isinstance(parts, list) or not parts:
-            raise bad(f"the parts of {entry['name']}")
-        for index, part in enumerate(parts, 1):
-            if not isinstance(part, dict) or part.get("name") != f"{part_stem(entry['name'])}.part{index:02d}" \
-                    or not isinstance(part.get("size"), int) or part["size"] < 0 or not SHA256.fullmatch(str(part.get("sha256") or "")):
-                raise bad(f"part {index} of {entry['name']}")
-        if sum(part["size"] for part in parts) != entry["size"]:
-            raise bad(f"the parts of {entry['name']} do not add up to its size")
         for item in entry.get("contents") or []:
             if not isinstance(item, dict) or not safe_path(item.get("path")) or not isinstance(item.get("size"), int) \
                     or not SHA256.fullmatch(str(item.get("sha256") or "")) or item.get("notebook") not in (None, "jupyter", "source") \
@@ -251,27 +237,12 @@ def notebook_code_sha256(kind, data):
     return hashlib.sha256(code.encode("utf-8")).hexdigest()
 
 
-def join_parts(entry, paths, stage, version):
-    target = os.path.join(stage, entry["name"])
-    if matches(target, entry):
-        return target
-    os.makedirs(stage, exist_ok=True)
-    partial = target + ".partial"
-    try:
-        with open(partial, "wb") as out:
-            for path in paths:
-                with open(path, "rb") as handle:
-                    shutil.copyfileobj(handle, out, 1 << 20)
-        if file_digest(partial) != (entry["sha256"], entry["size"]):
-            raise mixed(f"the joined parts of {entry['name']}", version)
-        os.replace(partial, target)
-        return target
-    finally:
-        if os.path.exists(partial):
-            os.remove(partial)
+def import_as_file(name, folder):
+    return (f"put {name} alone in a folder on your computer and run: databricks workspace import-dir <that folder> \"{folder}\" "
+            f"(the Databricks CLI keeps {name} as one file)")
 
 
-def check_unzipped(entry, root, exporter, version, stage):
+def check_unzipped(entry, root, folder, exporter, version, stage):
     contents = entry.get("contents") or []
     absent, changed, found = [], [], {}
     for item in contents:
@@ -296,7 +267,7 @@ def check_unzipped(entry, root, exporter, version, stage):
         kept = len(contents) - len(absent)
         raise InspireIncomplete(
             f"The workspace unzipped {entry['name']} into {root} and kept {kept} of {len(contents)} files (missing "
-            f"{', '.join(absent[:5]) or 'its file list'}). Delete those files and import the {part_stem(entry['name'])}.partNN files instead.")
+            f"{', '.join(absent[:5]) or 'its file list'}). Delete what it unzipped, then {import_as_file(entry['name'], folder)}.")
     target = os.path.join(stage, "unzipped", entry["name"])
     os.makedirs(os.path.dirname(target), exist_ok=True)
     with zipfile.ZipFile(target, "w", zipfile.ZIP_DEFLATED) as archive:
@@ -311,20 +282,11 @@ def local_entry(entry, folder, stage, version, exporter=None):
         if matches(whole, entry):
             return "file", whole
         raise mixed(entry["name"], version)
-    paths = [os.path.join(folder, part["name"]) for part in entry["parts"]]
-    for part, path in zip(entry["parts"], paths):
-        if os.path.isfile(path) and not matches(path, part):
-            raise mixed(part["name"], version)
-    present = [path for path in paths if os.path.isfile(path)]
-    if present and len(present) == len(paths):
-        return "file", join_parts(entry, paths, stage, version)
-    if present:
-        return "missing", [part["name"] for part, path in zip(entry["parts"], paths) if not os.path.isfile(path)]
     unzipped = os.path.join(folder, str(entry.get("unzip_folder") or ""))
     if entry.get("unzip_folder") and os.path.isdir(unzipped):
-        return "folder", check_unzipped(entry, unzipped, exporter, version, stage)
+        return "folder", check_unzipped(entry, unzipped, folder, exporter, version, stage)
     if entry.get("unzip_marker") and os.path.isfile(os.path.join(folder, entry["unzip_marker"])):
-        return "folder", check_unzipped(entry, folder, exporter, version, stage)
+        return "folder", check_unzipped(entry, folder, folder, exporter, version, stage)
     return "missing", [entry["name"]]
 
 
@@ -399,43 +361,34 @@ def describe(exc):
 
 
 def download_commands(base):
-    whole = " ".join((SUMS, MANIFEST) + WHOLE_FILES)
-    parts_unix = f"for f in $(awk '{{print $2}}' {SUMS} | grep -E '\\.part[0-9]{{2}}$'); do curl -fL --retry 3 -O \"$base/$f\"; done"
-    unix = ["mkdir -p inspire-release && cd inspire-release", f'base="{base}"']
-    whole_unix = unix + [f'for f in {whole}; do curl -fL --retry 3 -O "$base/$f"; done']
-    split_unix = unix + [f'for f in {SUMS} {MANIFEST}; do curl -fL --retry 3 -O "$base/$f"; done', parts_unix]
-    shell = [
+    unix = ["mkdir -p inspire-release && cd inspire-release", f'base="{base}"',
+            f'for f in {" ".join(RELEASE_FILES)}; do curl -fL --retry 3 -O "$base/$f"; done']
+    mac = unix + [
+        f'field() {{ plutil -extract "$1" raw -o - {MANIFEST}; }}',
+        '{ echo "$(field installer.sha256)  $(field installer.name)"; i=0; while [ "$i" -lt "$(field files)" ]; do '
+        'echo "$(field files.$i.sha256)  $(field files.$i.name)"; i=$((i + 1)); done; } | shasum -a 256 -c',
+    ]
+    linux = unix + [
+        f"python3 -c 'import json; m = json.load(open(\"{MANIFEST}\")); "
+        "print(\"\\n\".join(e[\"sha256\"] + \"  \" + e[\"name\"] for e in [m[\"installer\"]] + m[\"files\"]))' | sha256sum -c -",
+    ]
+    listed = ", ".join(f'"{name}"' for name in RELEASE_FILES)
+    windows = [
         '$ProgressPreference = "SilentlyContinue"',
         "New-Item -ItemType Directory -Force -Path inspire-release | Out-Null; Set-Location inspire-release",
         f'$base = "{base}"',
+        f'foreach ($f in @({listed})) {{ Invoke-WebRequest -UseBasicParsing -Uri "$base/$f" -OutFile $f }}',
+        f"$m = Get-Content {MANIFEST} -Raw | ConvertFrom-Json",
+        'foreach ($e in @($m.installer) + @($m.files)) { if ((Get-FileHash -Algorithm SHA256 $e.name).Hash -eq $e.sha256) '
+        f'{{ "OK $($e.name)" }} else {{ Write-Error "$($e.name) does not match {MANIFEST}" }} }}',
     ]
-    check_ps = (f'Get-Content {SUMS} | ForEach-Object {{ $hash, $name = $_ -split "\\s+", 2; if (Test-Path $name) {{ '
-                'if ((Get-FileHash -Algorithm SHA256 $name).Hash -eq $hash) { "OK $name" } else { Write-Error "$name does not match '
-                f'{SUMS}" }} }} }}')
-    listed = ", ".join(f'"{name}"' for name in (SUMS, MANIFEST) + WHOLE_FILES)
-    whole_ps = shell + [f'foreach ($f in @({listed})) {{ Invoke-WebRequest -UseBasicParsing -Uri "$base/$f" -OutFile $f }}', check_ps]
-    split_ps = shell + [
-        f'foreach ($f in @("{SUMS}", "{MANIFEST}")) {{ Invoke-WebRequest -UseBasicParsing -Uri "$base/$f" -OutFile $f }}',
-        f'$parts = Get-Content {SUMS} | ForEach-Object {{ ($_ -split "\\s+", 2)[1] }} | Where-Object {{ $_ -match "\\.part\\d{{2}}$" }}',
-        'foreach ($f in $parts) { Invoke-WebRequest -UseBasicParsing -Uri "$base/$f" -OutFile $f }',
-        check_ps,
-    ]
-    return [
-        ("macOS", whole_unix + [f"shasum -a 256 -c {SUMS} --ignore-missing"], split_unix + [f"shasum -a 256 -c {SUMS} --ignore-missing"]),
-        ("Linux", whole_unix + [f"sha256sum -c {SUMS} --ignore-missing"], split_unix + [f"sha256sum -c {SUMS} --ignore-missing"]),
-        ("Windows PowerShell", whole_ps, split_ps),
-    ]
+    return [("macOS", mac), ("Linux", linux), ("Windows PowerShell", windows)]
 
 
 def direct_links(base, manifest=None):
-    if not manifest:
-        return [(name, f"{base}/{name}", None) for name in (MANIFEST, SUMS) + WHOLE_FILES]
-    rows = [(MANIFEST, f"{base}/{MANIFEST}", None), (SUMS, f"{base}/{SUMS}", None)]
-    for entry in manifest["files"]:
-        rows.append((entry["name"], f"{base}/{entry['name']}", entry["size"]))
-    for entry in manifest["files"]:
-        rows.extend((part["name"], f"{base}/{part['name']}", part["size"]) for part in entry["parts"])
-    return rows
+    listed = [manifest.get("installer") or {}] + manifest["files"] if manifest else []
+    sizes = {entry.get("name"): entry.get("size") for entry in listed}
+    return [(name, f"{base}/{name}", sizes.get(name)) for name in RELEASE_FILES]
 
 
 def size_text(size):
@@ -448,16 +401,17 @@ def offline_page(base, folder, notebook, reasons, manifest=None):
     commands = download_commands(base)
     links = direct_links(base, manifest)
     page = release_page(base)
+    step1 = (f"Run the commands for your system. They download the {len(RELEASE_FILES)} release files "
+             f"({', '.join(RELEASE_FILES)}) and check the sha256 of each against {MANIFEST}.")
+    step2 = [f"Import {', '.join((MANIFEST,) + WHOLE_FILES)} into this workspace folder, next to this installer.",
+             f"If the workspace unzips {WHOLE_FILES[0]} into a folder, leave that folder as it is: the installer checks every file in it.",
+             f"You already have {INSTALLER} here. Import the downloaded one in place of this notebook only when this installer says it is too old."]
     text = [NOT_REACHED, ""] + [f"  {reason}" for reason in reasons] + ["",
-            "1. On a computer that can reach GitHub, run the commands for your system. They download the release and check every sha256.", ""]
-    for system, whole, _ in commands:
-        text += [f"   {system}:"] + [f"     {line}" for line in whole] + [""]
-    text += ["   If your workspace refuses files over 10 MB, download the parts instead:", ""]
-    for system, _, split in commands:
-        text += [f"   {system}:"] + [f"     {line}" for line in split] + [""]
-    text += [f"2. Import the downloaded files into this workspace folder, next to this installer: {folder}",
-             f"   If the workspace unzips {WHOLE_FILES[0]} into a folder, delete that folder and import the {part_stem(WHOLE_FILES[0])}.partNN files instead.",
-             f"3. Then run this installer again: {notebook}", "",
+            f"1. On a computer that can reach GitHub: {step1}", ""]
+    for system, lines in commands:
+        text += [f"   {system}:"] + [f"     {line}" for line in lines] + [""]
+    text += [f"2. {step2[0]} The folder: {folder}"] + [f"   {line}" for line in step2[1:]]
+    text += [f"3. Then run this installer again: {notebook}", "",
              f"If the commands fail, download each file from these links (release page: {page}):"]
     text += [f"   {name}  {size_text(size)}  {url}" for name, url, size in links]
     esc = html.escape
@@ -468,18 +422,15 @@ def offline_page(base, folder, notebook, reasons, manifest=None):
         f'<h2 style="margin:0 0 10px 0;color:#7a4b00">{esc(NOT_REACHED)}</h2>',
         "<ul>" + "".join(f"<li>{esc(reason)}</li>" for reason in reasons) + "</ul>",
         "<h3>1. Download the release on a computer that can reach GitHub</h3>",
-        "<p>Run the commands for your system. They download the release and check every sha256 against the SHA256SUMS file of the release.</p>",
+        f"<p>{esc(step1)}</p>",
     ]
-    for system, whole, _ in commands:
-        parts += [f"<p><b>{esc(system)}</b></p>", block(whole)]
-    parts += ["<p>If your workspace refuses files over 10 MB, download the parts instead (each part is under 10 MB):</p>"]
-    for system, _, split in commands:
-        parts += [f"<p><b>{esc(system)}</b></p>", block(split)]
+    for system, lines in commands:
+        parts += [f"<p><b>{esc(system)}</b></p>", block(lines)]
     parts += [
         "<h3>2. Import the files into this workspace folder, next to this installer</h3>",
+        f"<p>{esc(step2[0])}</p>",
         block([folder]),
-        f"<p>If the workspace unzips {esc(WHOLE_FILES[0])} into a folder, delete that folder and import the "
-        f"{esc(part_stem(WHOLE_FILES[0]))}.partNN files instead.</p>",
+        "".join(f"<p>{esc(line)}</p>" for line in step2[1:]),
         f"<h3>3. Then run this installer again</h3><p><code>{esc(notebook)}</code></p>",
         f'<h3>If the commands fail, download each file from these links</h3><p>Release page: <a href="{esc(page)}" target="_blank">{esc(page)}</a></p>',
         "<table style=\"border-collapse:collapse;font-size:13px\">"
