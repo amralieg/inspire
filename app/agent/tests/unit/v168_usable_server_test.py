@@ -855,7 +855,8 @@ def test_a_per_user_match_over_its_cap_or_with_nothing_readable_writes_nothing(t
 def test_a_per_user_undo_restores_only_the_records_the_person_can_read_and_counts_the_rest(tmp_path):
     mine = [{"record_key": "k1", "change_source": "action", "changed_by": PERSON, "valid_from": "2026-10-27T09:25:00.000Z", "_inspire_done": 1,
              "_inspire_n": 1}]
-    reader = PersonReader(keys=["k1"], batch_records=mine)
+    made = [{"batch_id": "a" * 32, "editor": PERSON, "at": "2026-10-27T09:10:00.000Z", "n": 3, "batch_values": "{}", "note": None, "undone": 0}]
+    reader = PersonReader(keys=["k1"], batch_records=mine, batches=made)
     writer = UsableWorkspace(inserted=1, batch_records=[dict(mine[0], _inspire_n=3)])
     s = person_shell(tmp_path, reader, writer)
     status, out = post(s, "records/undo", {"batch_id": "a" * 32}, headers=SIGNED_IN)
