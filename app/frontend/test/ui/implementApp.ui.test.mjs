@@ -42,7 +42,7 @@ const rgb = (hex) => {
   return `rgb(${parseInt(full.slice(0, 2), 16)}, ${parseInt(full.slice(2, 4), 16)}, ${parseInt(full.slice(4, 6), 16)})`;
 };
 
-test('the App starts on with its Genie Agent locked on and the alert off, App access starts on the App\'s service principal, per-user hides record decisions, and App look previews every style, layout and palette', async () => {
+test('the App starts on with its Genie Agent locked on and the alert off, App access starts on the App\'s service principal, per-user keeps record decisions and hides alerts, and App look previews every style, layout and palette', async () => {
   const ui = await openUi('wizard', { me: { userName: OWNER, displayName: 'Owner' }, columns: DATED });
   const { page, made } = ui;
   try {
@@ -60,7 +60,7 @@ test('the App starts on with its Genie Agent locked on and the alert off, App ac
     assert.deepEqual([await perUser.isChecked(), await internal.isChecked()], [false, true], 'the App starts reading as its service principal');
     await access.getByText('Everyone sees the same rows, read with the App\'s own access.', { exact: false }).waitFor();
     assert.deepEqual(await access.getByRole('checkbox').evaluateAll((boxes) => boxes.map((b) => [b.closest('label').querySelector('span span').textContent, b.checked])),
-      [['Let people edit data', false], ['Record decisions', false], ['Send alerts', false]], 'every option starts off, and none is a download');
+      [['Let people edit data', false], ['Record decisions', true], ['Send alerts', false]], 'record decisions start on, the other options off, and none is a download');
     await access.locator('label', { hasText: 'Record decisions' })
       .getByText('They own, track and dismiss each flagged record (the action tracker).', { exact: false }).waitFor();
     assert.equal(await access.locator('label', { hasText: 'Let people edit data' }).getByText('action tracker', { exact: false }).count(), 0);
@@ -68,12 +68,12 @@ test('the App starts on with its Genie Agent locked on and the alert off, App ac
     await offers.getByText('Refresh now: only the owners of this use case can run it now, the person who asks for this version and the App owners it names. '
       + 'One refresh runs at a time.', { exact: true }).waitFor();
     await offers.getByText('The App offers no data downloads.', { exact: true }).waitFor();
-    await access.getByRole('checkbox', { name: /^Record decisions/ }).check();
+    await access.getByRole('checkbox', { name: /^Send alerts/ }).check();
     await perUser.check();
-    assert.equal(await access.getByRole('checkbox', { name: /^Record decisions/ }).count(), 0, 'per-user hides record decisions');
+    assert.equal(await access.getByRole('checkbox', { name: /^Record decisions/ }).isChecked(), true, 'per-user keeps record decisions');
     assert.equal(await access.getByRole('checkbox', { name: /^Send alerts/ }).count(), 0, 'per-user hides alerts');
     const hidden = access.getByRole('note', { name: 'Why some options are hidden' });
-    await hidden.getByText(/: it offers no recorded decisions, no alerts and no chart image export\.$/).waitFor();
+    await hidden.getByText(/people record decisions only on the records they can read, and the App sends no alerts and offers no chart image export\.$/).waitFor();
     assert.doesNotMatch(await hidden.textContent(), /download/i);
     await offers.getByText('The App offers no data downloads.', { exact: true }).waitFor();
     const replace = access.getByRole('radiogroup', { name: 'Should a new run replace edited records?' });
@@ -122,7 +122,7 @@ test('the App starts on with its Genie Agent locked on and the alert off, App ac
     const spec = submittedSpec(made);
     assert.deepEqual([spec.outputs.app, spec.outputs.genie_space, spec.outputs.app_access], [true, true, 'user']);
     assert.deepEqual(spec.outputs.app_look, { style: 'c', layout: 'home', palette: 'nordic', theme: 'dark' });
-    assert.deepEqual(spec.outputs.app_options, { modify: true, replace_edits: false, decisions: false, alerts: false });
+    assert.deepEqual(spec.outputs.app_options, { modify: true, replace_edits: false, decisions: true, alerts: false }, 'per-user sends decisions on and alerts off');
     assert.deepEqual(spec.outputs.app_charts, ['trend', 'bars', 'split', 'pareto'], 'the build gets the kinds of chart picked');
     assert.deepEqual(spec.outputs.app_pages, { runs: false, impact: true }, 'and the pages turned off');
     assert.deepEqual(ui.pageErrors, []);
@@ -229,8 +229,8 @@ test('App look has Style, Palette, Layout, Charts and Pages tabs over a sample p
     assert.deepEqual(await pageState(), [['fix', 'Always on', false], ['runs', 'on', false], ['alerts', 'off', true], ['impact', 'on', false], ['genie', 'Always on', false]],
       'Things to fix and Ask Genie are always on, and Alerts waits for Send alerts');
     assert.equal(await pages.getByRole('button', { name: /^Things to fix/ }).getAttribute('aria-pressed'), 'true');
-    assert.match(await blurb.textContent(), /^What needs action: the totals, the charts you pick, and every flagged record with the reason Inspire flagged it\.$/,
-      'no edits and no decisions while those App options are off');
+    assert.match(await blurb.textContent(), /^What needs action: the totals, the charts you pick, and every flagged record with the reason Inspire flagged it\. People own, track and dismiss each flagged record\.$/,
+      'no edits while that App option is off, and the decisions that start on');
     await look.locator('[data-app-page="impact"]').getByRole('switch').uncheck();
     await shown({ 'app-sample': 'fix' });
     assert.equal(await sample.getByText('Impact', { exact: true }).count(), 0, 'the sample drops Impact when it is off');
