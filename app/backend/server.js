@@ -2830,7 +2830,7 @@ app.get('/api/inspire/results', requireToken, async (req, res) => {
       sql = `SELECT results_json, completed_on, session_id FROM ${table} WHERE session_id = ${session_id} LIMIT 1`;
     } else {
       // Get latest completed session
-      sql = `SELECT results_json, completed_on, session_id FROM ${table} WHERE completed_on IS NOT NULL ORDER BY completed_on DESC LIMIT 1`;
+      sql = `SELECT results_json, completed_on, session_id FROM ${table} WHERE completed_on IS NOT NULL AND COALESCE(LOWER(processing_status), '') <> 'failed' ORDER BY completed_on DESC LIMIT 1`;
     }
 
     const result = await executeSql(req.dbHost, req.dbToken, warehouse_id, sql);

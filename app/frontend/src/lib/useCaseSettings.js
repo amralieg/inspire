@@ -202,6 +202,18 @@ function chosenValue(spec, setting) {
 
 const shown = (value) => (value == null ? '' : typeof value === 'number' ? numberText(value) : String(value));
 
+export function settingValueText(setting, value) {
+  const text = shown(value).trim();
+  if (!text) return '';
+  if (setting?.kind === 'percent') return WIDGET_NUMBER_RE.test(text) ? `${numberText(Number((Number(text) * 100).toPrecision(12)))}%` : text;
+  if (setting?.unit === '%') return `${text}%`;
+  return setting?.unit ? `${text} ${setting.unit}` : text;
+}
+
+export function settingUnitLabel(setting) {
+  return setting?.unit && setting.kind !== 'percent' ? ` (${setting.unit})` : '';
+}
+
 export function settingValue(spec, setting) {
   const chosen = chosenValue(spec, setting);
   return shown(chosen === undefined || chosen === '' ? setting.default : chosen);
@@ -258,5 +270,5 @@ export function settingHistoryLine(entry, settings) {
   const known = (settings || []).find((s) => s.name === entry.name);
   const label = known ? known.label || entry.name : entry.name;
   const note = String(entry.note || '').trim();
-  return `${entry.changed_by || 'Someone'} set ${label} to ${shown(entry.value)}${note ? `: ${note}` : ''}`;
+  return `${entry.changed_by || 'Someone'} set ${label} to ${settingValueText(known || entry, entry.value)}${note ? `: ${note}` : ''}`;
 }

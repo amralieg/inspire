@@ -21,7 +21,7 @@ import {
 import ResultsPage from './ResultsPage';
 import { countEntries, parseStrategicContext, treeDepth } from '../lib/strategyContext';
 import { formatDuration } from '../lib/formatWhen';
-import { mergeSteps, quietLine, sessionFinished, sessionQuietSince, stepCategory } from '../lib/monitorState';
+import { mergeSteps, quietLine, sessionFailed, sessionFinished, sessionQuietSince, sessionSucceeded, stepCategory } from '../lib/monitorState';
 import { requestHeaders, responseError } from '../lib/apiClient';
 import StopRunControl from '../components/StopRunControl';
 
@@ -173,16 +173,16 @@ export default function MonitorPage({ settings, update, sessionId, runId, onComp
   const sessionOnly = !runId;
   const isStaleSession = !sessionOnly && session?.completed_on && runPhase !== PHASE_TERMINATED;
   const percent = isStaleSession ? 0 : (session?.completed_percent || 0);
-  const isFailed = runInfo?.result_state === 'FAILED' || runInfo?.life_cycle_state === 'INTERNAL_ERROR';
+  const isFailed = runInfo?.result_state === 'FAILED' || runInfo?.life_cycle_state === 'INTERNAL_ERROR' || (!isStaleSession && sessionFailed(session));
   const isStopped = runInfo?.life_cycle_state === 'TERMINATED' && runInfo?.result_state === 'CANCELED';
   const quietSince = sessionOnly ? sessionQuietSince(session, now) : null;
   const isQuiet = Boolean(quietSince);
   const isComplete = sessionOnly
-    ? sessionFinished(session)
-    : (!isFailed && !isStaleSession && runPhase === PHASE_TERMINATED && runInfo?.result_state === 'SUCCESS' && sessionFinished(session));
+    ? sessionSucceeded(session)
+    : (!isFailed && !isStaleSession && runPhase === PHASE_TERMINATED && runInfo?.result_state === 'SUCCESS' && sessionSucceeded(session));
   const isPending = sessionOnly ? (!session) : (runPhase === PHASE_PENDING);
   const isRunning = sessionOnly
-    ? (Boolean(session) && !isComplete && !isQuiet)
+    ? (Boolean(session) && !isComplete && !isQuiet && !isFailed)
     : (runPhase === PHASE_RUNNING && !isComplete && !isFailed);
   const stepsLive = isPending || isRunning;
 

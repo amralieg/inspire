@@ -190,7 +190,7 @@ import {
 } from '../lib/targetKpi';
 import {
   SETTINGS_ASSUMPTIONS_LATER, SETTINGS_NOTE_LABEL, SETTINGS_NOTE_PLACEHOLDER, SETTINGS_ON_THEIR_STEP, SETTINGS_STEP_NOTE, SETTING_GROUPS,
-  isSettingWidget, settingGroupTitle, settingIssue, settingValue, settingsModelOf, settingsNoteOf, settingsNoteProblem, widgetSetProblems,
+  isSettingWidget, settingGroupTitle, settingIssue, settingUnitLabel, settingValue, settingsModelOf, settingsNoteOf, settingsNoteProblem, widgetSetProblems,
   withSetting, withSettingsNote,
 } from '../lib/useCaseSettings';
 import ScopeSettings from '../components/ScopeSettings';
@@ -2054,7 +2054,7 @@ function SettingInput({ setting, value, problem, showChange, onChange }) {
       <div className="flex items-center gap-2">
         <div className="min-w-0 flex-1">
           <span className="block text-[12px] leading-4 text-text-primary" title={setting.help || undefined}>
-            {setting.label}{setting.unit ? ` (${setting.unit})` : ''}
+            {setting.label}{settingUnitLabel(setting)}
           </span>
           <span className="block text-[10px] leading-[14px] text-text-secondary">
             <span data-setting-allowed="">Allowed: {allowed}</span>

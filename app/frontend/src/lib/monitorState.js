@@ -10,6 +10,16 @@ export function sessionFinished(session) {
   return Boolean(session) && (Boolean(session.completed_on) || Number(session.completed_percent) >= 100);
 }
 
+export const SESSION_FAILED = 'failed';
+
+export function sessionFailed(session) {
+  return sessionFinished(session) && String(session.processing_status || '').toLowerCase() === SESSION_FAILED;
+}
+
+export function sessionSucceeded(session) {
+  return sessionFinished(session) && !sessionFailed(session);
+}
+
 export function sessionQuietSince(session, now, quietAfter = SESSION_QUIET_AFTER_MS) {
   if (!session || sessionFinished(session) || !Number.isFinite(now)) return null;
   const last = utcDate(session.last_updated) || utcDate(session.create_at);
@@ -18,6 +28,7 @@ export function sessionQuietSince(session, now, quietAfter = SESSION_QUIET_AFTER
 
 export function sessionStatus(session, now) {
   if (!session) return 'none';
+  if (sessionFailed(session)) return 'failed';
   if (sessionFinished(session)) return 'finished';
   return sessionQuietSince(session, now) ? 'quiet' : 'running';
 }

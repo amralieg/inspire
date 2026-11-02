@@ -7,10 +7,11 @@ import LatestRunBadge from '../components/LatestRunBadge';
 import PortfolioCards, { usePortfolio } from '../components/PortfolioCards';
 import { makeApiFetch, requestHeaders } from '../lib/apiClient';
 import { buildFilterOf, portfolioCard, runBusiness, runFilterText, runsOfCard } from '../lib/reviewFigures';
-import { sessionFinished, sessionStatus } from '../lib/monitorState';
+import { sessionStatus, sessionSucceeded } from '../lib/monitorState';
 
 const STATUS_CONFIG = {
   finished: { label: 'Completed', bg: 'bg-success-bg', text: 'text-success-fg', dot: 'bg-success' },
+  failed:   { label: 'Failed', bg: 'bg-error-bg', text: 'text-error-fg', dot: 'bg-error' },
   running:  { label: 'In Progress', bg: 'bg-info-bg', text: 'text-info-fg', dot: 'bg-info' },
   quiet:    { label: 'No news', bg: 'bg-bg-subtle', text: 'text-text-secondary', dot: 'bg-text-tertiary' },
 };
@@ -276,7 +277,7 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onView
     );
   }
 
-  const completedCount = sessions.filter(sessionFinished).length;
+  const completedCount = sessions.filter(sessionSucceeded).length;
   const inProgressCount = sessions.filter((s) => sessionStatus(s, loadedAt) === 'running').length;
   const filtered = runFilter ? runsOfCard(runFilter, sessions, portfolio) : sessions;
   const listed = runFilter || showAll ? filtered : filtered.slice(0, 5);
@@ -431,6 +432,8 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onView
                       <div className={`w-10 h-10 rounded-lg ${cfg.bg} flex items-center justify-center`}>
                         {status === 'finished' ? (
                           <CheckCircle2 size={18} className={cfg.text} />
+                        ) : status === 'failed' ? (
+                          <AlertCircle size={18} className={cfg.text} />
                         ) : status === 'running' ? (
                           <Loader2 size={18} className={`${cfg.text} animate-spin`} />
                         ) : (

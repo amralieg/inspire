@@ -48,6 +48,23 @@ test('sessionStatus names each state and a quiet run is not running', async () =
   assert.equal(M.sessionStatus({ completed_percent: 100, completed_on: at(40 * MINUTE), processing_status: 'ready', last_updated: at(40 * MINUTE) }, NOW), 'finished');
 });
 
+test('a run that ended with an error is failed, never completed, and its completed_on only means it ended', async () => {
+  const M = await lib('monitorState.js');
+  assert.equal(M.SESSION_FAILED, 'failed');
+  const failed = { completed_percent: 42, completed_on: at(MINUTE), processing_status: 'failed', last_updated: at(MINUTE) };
+  assert.deepEqual([M.sessionFinished(failed), M.sessionFailed(failed), M.sessionSucceeded(failed)], [true, true, false]);
+  assert.equal(M.sessionStatus(failed, NOW), 'failed');
+  assert.equal(M.sessionStatus({ ...failed, processing_status: 'FAILED' }, NOW), 'failed', 'the status is read without case');
+  for (const processing of ['ready', 'done', null]) {
+    const ended = { ...failed, processing_status: processing };
+    assert.deepEqual([M.sessionFailed(ended), M.sessionSucceeded(ended)], [false, true], String(processing));
+    assert.equal(M.sessionStatus(ended, NOW), 'finished', String(processing));
+  }
+  const open = { completed_percent: 42, completed_on: null, processing_status: 'failed', last_updated: at(MINUTE) };
+  assert.deepEqual([M.sessionFailed(open), M.sessionSucceeded(open)], [false, false], 'a run still open has not failed yet');
+  assert.deepEqual([M.sessionFailed(null), M.sessionSucceeded(null)], [false, false]);
+});
+
 test('the quiet line names the UTC time, and the day when it is not today', async () => {
   const M = await lib('monitorState.js');
   assert.equal(M.quietLine('2026-11-02T03:04:59Z', NOW), 'No news from this run since 03:04 UTC.');

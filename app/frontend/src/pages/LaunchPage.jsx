@@ -45,7 +45,7 @@ import { useOutputFolderCheck } from '../lib/outputFolderCheck';
 import { parseDocumentLanguages, formatDocumentLanguages } from '../constants/documentLanguages';
 import { interpretUcPermissionError, parseApiErrorMessage } from '../lib/ucPermissionErrors';
 import { formatWhen } from '../lib/formatWhen';
-import { sessionFinished } from '../lib/monitorState';
+import { sessionFailed, sessionFinished } from '../lib/monitorState';
 import { responseError } from '../lib/apiClient';
 
 /* ─── Constants — notebook v1.2.0 widget `05_use_cases_quality` ─── */
@@ -908,13 +908,17 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                             <span className="text-[10px] font-mono text-text-tertiary bg-bg-subtle px-1.5 py-0.5 rounded border border-border shrink-0">
                               {sidStr}
                             </span>
-                            {sessionFinished(s) ? (
+                            {sessionFailed(s) ? (
+                              <span className="text-[10px] font-medium text-error-fg bg-error-bg px-1.5 py-0.5 rounded border border-error/20">
+                                Failed at {Math.round(pct)}%
+                              </span>
+                            ) : sessionFinished(s) ? (
                               <span className="text-[10px] font-medium text-success-fg bg-success-bg px-1.5 py-0.5 rounded border border-success/20">
                                 Complete
                               </span>
                             ) : (
                               <span className="text-[10px] font-medium text-text-secondary bg-bg-subtle px-1.5 py-0.5 rounded border border-border">
-                                {pct}% done
+                                {Math.round(pct)}% done
                               </span>
                             )}
                             <span className="text-[10px] text-text-tertiary">

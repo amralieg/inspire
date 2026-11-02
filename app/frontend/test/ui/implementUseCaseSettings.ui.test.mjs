@@ -243,10 +243,10 @@ test('an owner changes a setting on the Build page through the App: a live previ
   try {
     const panel = page.locator('[data-mvp-panel="build"]').getByRole('region', { name: 'Settings', exact: true });
     await panel.locator('[data-setting="act_now_share"]').waitFor({ timeout: 15000 });
-    assert.equal(await panel.locator('[data-setting="act_now_share"] [data-setting-value]').textContent(), '0.08');
+    assert.equal(await panel.locator('[data-setting="act_now_share"] [data-setting-value]').textContent(), '8%');
     assert.equal(await panel.locator('[data-setting="act_now_share"] [data-setting-source]').textContent(), 'Saved by an owner');
     assert.deepEqual(await panel.getByRole('list', { name: 'Setting changes' }).getByRole('listitem').allTextContents(),
-      [`${OWNER} set Act now share to 0.08: more to act on`]);
+      [`${OWNER} set Act now share to 8%: more to act on`]);
     await panel.getByText('Stored results follow at the next run.', { exact: true }).waitFor();
     const input = panel.locator('[data-setting="act_now_share"]').getByRole('textbox', { name: 'Act now share' });
     await input.fill('0.1');
@@ -254,7 +254,7 @@ test('an owner changes a setting on the Build page through the App: a live previ
     await panel.getByRole('textbox', { name: 'Note for the change' }).fill('more to act on');
     await panel.getByRole('button', { name: 'Save Act now share', exact: true }).click();
     await until(() => made.appCalls.some((c) => c.url.endsWith('/api/settings/save')), 'the save');
-    await panel.locator('[data-setting="act_now_share"] [data-setting-value]').getByText('0.1', { exact: true }).waitFor();
+    await panel.locator('[data-setting="act_now_share"] [data-setting-value]').getByText('10%', { exact: true }).waitFor();
     await panel.getByRole('button', { name: 'Run now', exact: true }).click();
     await until(() => made.appCalls.some((c) => c.url.endsWith('/api/settings/run')), 'Run now');
     const save = made.appCalls.find((c) => c.url.endsWith('/api/settings/save'));
@@ -295,7 +295,7 @@ test('the Build page shows the settings as built, read only, with the reason, wh
     await panel.locator('[data-setting="act_now_share"]').waitFor({ timeout: 15000 });
     assert.equal(await panel.locator('[data-settings-why]').textContent(),
       'This MVP has no App, so its settings change in Edit MVP, where the Settings step saves them without rebuilding the notebook.');
-    assert.equal(await panel.locator('[data-setting="act_now_share"] [data-setting-value]').textContent(), '0.05');
+    assert.equal(await panel.locator('[data-setting="act_now_share"] [data-setting-value]').textContent(), '5%');
     assert.equal(await panel.locator('[data-setting="act_now_share"] [data-setting-source]').textContent(),
       "Inspire's default: the top 5% of the records that pass the decision test are Act now and the next 15% Review");
     await panel.getByRole('button', { name: 'Change them in Edit MVP', exact: true }).waitFor();

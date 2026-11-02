@@ -80,7 +80,7 @@ import { MVP_FILTERS, implementState, mvpCounts, mvpFilterMatches, notebookRunEn
 import { buildUseCaseList } from '../lib/useCaseList';
 import { makeApiFetch, makeApiPostJson, requestHeaders } from '../lib/apiClient';
 import { reviewLinkText } from '../lib/runPages';
-import { sessionFinished } from '../lib/monitorState';
+import { sessionFailed, sessionFinished, sessionSucceeded } from '../lib/monitorState';
 
 /* ── Date formatter for session display ── */
 function formatSessionDate(dateStr) {
@@ -391,7 +391,7 @@ export default function ResultsPage({
 
       // Auto-select & auto-load results ONLY on mount auto-load
       if (autoLoad && !linkRef.current) {
-        const completed = loadedSessions.find(sessionFinished);
+        const completed = loadedSessions.find(sessionSucceeded);
         const target = propSessionId
           ? loadedSessions.find((s) => String(s.session_id) === String(propSessionId))
           : completed;
@@ -1140,6 +1140,7 @@ export default function ResultsPage({
                 {sessions.map((s) => {
                   const selected =
                     String(selectedSessionId) === String(s.session_id);
+                  const isFailed = sessionFailed(s);
                   const isDone = sessionFinished(s);
                   const figures = runFigureParts(runFiguresOf(s, portfolio));
                   return (
@@ -1176,12 +1177,16 @@ export default function ResultsPage({
                       </div>
                       <span
                         className={`text-[10px] px-2.5 py-1 rounded-full font-semibold border tabular-nums ${
-                          isDone
+                          isFailed
+                            ? 'bg-error-bg text-error-fg border-error/20'
+                            : isDone
                             ? 'bg-success-bg text-success-fg border-success/20'
                             : 'bg-warning-bg text-warning-fg border-warning/20'
                         }`}
                       >
-                        {isDone
+                        {isFailed
+                          ? `Failed at ${Math.round(s.completed_percent)}%`
+                          : isDone
                           ? 'Complete'
                           : `${Math.round(s.completed_percent)}% · Preview`}
                       </span>
