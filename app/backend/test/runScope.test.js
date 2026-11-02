@@ -140,7 +140,7 @@ test('the profile hook state names loading, ready, a missing route and a refusal
   const key = G.profileKey({ inspireDatabase: 'main.inspire', sessionId: 2222222222222222222n, useCaseId: 'N01-U01', warehouseId: 'w1' });
   assert.deepEqual(G.profileBody(key), { inspire_database: 'main.inspire', session_id: '2222222222222222222', use_case_id: 'N01-U01', warehouse_id: 'w1' },
     'a session id keeps every digit');
-  for (const id of ['N01 U01', 'a/b & c+d', 'حالة 1', 'x\ny']) {
+  for (const id of ['N01 U01', 'a/b & c+d', 'حالة 1', 'x\ny', 'a=b&session_id=9', '["x","y"]', 'p%20q']) {
     assert.equal(G.profileBody(G.profileKey({ inspireDatabase: 'main.inspire', sessionId: '1', useCaseId: id, warehouseId: 'w1' })).use_case_id, id,
       'the use case id reaches the route exactly as written');
   }

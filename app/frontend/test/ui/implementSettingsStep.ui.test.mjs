@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { HARNESS_USE_CASE } from './implementFixtures.js';
-import { closeBrowser, onStep, openUi } from './uiSupport.mjs';
+import { closeBrowser, dataToResults, onStep, openUi } from './uiSupport.mjs';
 
 test.after(closeBrowser);
 
@@ -10,21 +10,22 @@ const NO_SETTINGS = { ...HARNESS_USE_CASE, genie_instruction: '' };
 const steps = (page) => page.locator('ol li').allTextContents();
 
 async function toDelivery(page) {
-  for (const step of ['Choose', 'Data', 'Results']) {
-    await onStep(page, step);
-    await page.getByRole('button', { name: 'Next' }).click();
-  }
+  await onStep(page, 'Choose');
+  await page.getByRole('button', { name: 'Next' }).click();
+  await onStep(page, 'Data');
+  await dataToResults(page);
+  await page.getByRole('button', { name: 'Next' }).click();
   await onStep(page, 'Delivery');
 }
 
-test('a first build of a use case with no settings shows 8 steps ending in Vibes, and no Settings step', async () => {
+test('a first build of a use case with no settings shows 9 steps ending in Vibes, and no Settings step', async () => {
   const ui = await openUi('wizard', { me: { userName: OWNER, displayName: 'Owner' }, useCase: NO_SETTINGS });
   const { page } = ui;
   try {
     await toDelivery(page);
-    assert.deepEqual(await steps(page), ['1. Choose', '2. Data', '3. Results', '4. Delivery', '5. App placement', '6. App access', '7. App look', '8. Vibes']);
+    assert.deepEqual(await steps(page), ['1. Choose', '2. Data', '3. First run', '4. Results', '5. Delivery', '6. App placement', '7. App access', '8. App look', '9. Vibes']);
     await page.getByRole('checkbox', { name: /^App / }).uncheck();
-    assert.deepEqual(await steps(page), ['1. Choose', '2. Data', '3. Results', '4. Delivery', '5. Vibes']);
+    assert.deepEqual(await steps(page), ['1. Choose', '2. Data', '3. First run', '4. Results', '5. Delivery', '6. Vibes']);
     assert.equal(await page.getByText('This use case has no settings yet', { exact: false }).count(), 0);
     assert.deepEqual(ui.pageErrors, []);
   } finally {
@@ -37,7 +38,7 @@ test('a use case with settings keeps the Settings step right before Vibes', asyn
   const { page } = ui;
   try {
     await toDelivery(page);
-    assert.deepEqual(await steps(page), ['1. Choose', '2. Data', '3. Results', '4. Delivery', '5. App placement', '6. App access', '7. App look', '8. Settings', '9. Vibes']);
+    assert.deepEqual(await steps(page), ['1. Choose', '2. Data', '3. First run', '4. Results', '5. Delivery', '6. App placement', '7. App access', '8. App look', '9. Settings', '10. Vibes']);
     assert.deepEqual(ui.pageErrors, []);
   } finally {
     await ui.close();

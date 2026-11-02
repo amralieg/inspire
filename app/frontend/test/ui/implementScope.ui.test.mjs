@@ -73,6 +73,10 @@ test('a first build asks Grouping after Data with a real example, then First run
     await toStep(page, 'Grouping');
     assert.deepEqual(await stepBar(page), ['1. Choose', '2. Data', '3. Grouping', '4. First run', '5. Results', '6. Delivery', '7. App placement', '8. App access',
       '9. App look', '10. Settings', '11. Vibes']);
+    await page.setViewportSize({ width: 1440, height: 900 });
+    assert.deepEqual(await page.locator('[data-wizard-header] ol').evaluate((ol) => ({ overflow: ol.scrollWidth > ol.clientWidth + 1,
+      rows: new Set([...ol.children].map((li) => Math.round(li.getBoundingClientRect().top))).size })), { overflow: false, rows: 1 },
+    'all eleven steps on one line at 1440x900');
     const asked = calls.length;
     assert.ok(asked >= 1 && calls.every((c) => JSON.stringify(c) === JSON.stringify(calls[0])), JSON.stringify(calls));
     assert.deepEqual(Object.keys(calls[0]).sort(), ['inspire_database', 'session_id', 'use_case_id', 'warehouse_id']);

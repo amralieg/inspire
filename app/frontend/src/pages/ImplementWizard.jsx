@@ -2639,7 +2639,7 @@ function Overlay({ title, uc, steps, step, onClose, children }) {
   return (
     <BodyPortal>
       <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" data-implement-overlay="">
-        <div role="dialog" aria-modal="true" aria-label={title ? `${START_MVP_LABEL}: ${title}` : START_MVP_LABEL} className="bg-surface border border-border rounded-xl shadow-elevated w-full max-w-3xl max-h-full flex flex-col overflow-hidden">
+        <div role="dialog" aria-modal="true" aria-label={title ? `${START_MVP_LABEL}: ${title}` : START_MVP_LABEL} className="bg-surface border border-border rounded-xl shadow-elevated w-full max-w-4xl max-h-full flex flex-col overflow-hidden">
           <header className="px-6 pt-4 pb-3 border-b border-border space-y-3" data-wizard-header="">
             <div className="flex items-start justify-between gap-4">
               <div className="min-w-0">
@@ -2664,7 +2664,7 @@ function Overlay({ title, uc, steps, step, onClose, children }) {
                 <li
                   key={item.id}
                   aria-current={i === step ? 'step' : undefined}
-                  className={`shrink-0 whitespace-nowrap px-2 py-1 rounded-full ${i === step ? 'bg-db-red-50 text-db-red-fg font-semibold' : i < step ? 'text-text-primary' : 'text-text-tertiary'}`}
+                  className={`shrink-0 whitespace-nowrap px-1.5 py-1 rounded-full ${i === step ? 'bg-db-red-50 text-db-red-fg font-semibold' : i < step ? 'text-text-primary' : 'text-text-tertiary'}`}
                 >
                   {i + 1}. {item.label}
                 </li>

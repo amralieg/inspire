@@ -5,13 +5,13 @@ export const PROFILE_READING = 'Inspire is reading the table to suggest a groupi
 export const PROFILE_WAITING = 'Reading the table';
 
 export function profileKey({ inspireDatabase, sessionId, useCaseId, warehouseId, enabled = true }) {
-  const parts = [inspireDatabase, sessionId, useCaseId, warehouseId].map((part) => String(part ?? '').trim());
-  return enabled && parts[0] && parts[1] && parts[2] ? JSON.stringify(parts) : '';
+  const [db, sid, uc, wh] = [inspireDatabase, sessionId, useCaseId, warehouseId].map((part) => String(part ?? '').trim());
+  if (!enabled || !db || !sid || !uc) return '';
+  return new URLSearchParams({ inspire_database: db, session_id: sid, use_case_id: uc, warehouse_id: wh }).toString();
 }
 
 export function profileBody(key) {
-  const [inspireDatabase, sessionId, useCaseId, warehouseId] = JSON.parse(key);
-  return { inspire_database: inspireDatabase, session_id: sessionId, use_case_id: useCaseId, warehouse_id: warehouseId };
+  return Object.fromEntries(new URLSearchParams(key));
 }
 
 export function profileState(key, got) {

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { APP_READ_ACTION, NEW_APPS_ACCESS_ACTION } from '../../src/lib/implementWizard.js';
-import { closeBrowser, onStep, openUi, until } from './uiSupport.mjs';
+import { closeBrowser, dataToResults, onStep, openUi, until } from './uiSupport.mjs';
 
 test.after(closeBrowser);
 
@@ -137,10 +137,11 @@ test('the App tile offers to let new Apps use the result table catalog, grants w
   const { page } = ui;
   const CATALOG_GRANT = 'GRANT USE CATALOG ON CATALOG `main` TO `account users`';
   try {
-    for (const step of ['Choose', 'Data', 'Results']) {
-      await onStep(page, step);
-      await page.getByRole('button', { name: 'Next' }).click();
-    }
+    await onStep(page, 'Choose');
+    await page.getByRole('button', { name: 'Next' }).click();
+    await onStep(page, 'Data');
+    await dataToResults(page);
+    await page.getByRole('button', { name: 'Next' }).click();
     await onStep(page, 'Delivery');
     const tile = page.locator('[data-output="app"]');
     await tile.getByText(/^Inspire cannot create this App: /).waitFor({ timeout: 15000 });
