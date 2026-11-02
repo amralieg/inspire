@@ -95,7 +95,7 @@ class BuildTest(unittest.TestCase):
         self.assertEqual(tars[0], tars[1])
         with tarfile.open(self.tmp / "assets0.tar") as tar:
             members = tar.getmembers()
-        self.assertEqual([m.name for m in members], ["manifest.json", "cli/databricks-cli-x86_64.zip", "fonts/inter-400.ttf", "licenses/inter.txt"])
+        self.assertEqual([m.name for m in members], ["manifest.json", "cli/databricks-cli-aarch64.zip", "fonts/inter-400.ttf", "licenses/inter.txt"])
         self.assertEqual({(m.mtime, m.mode, m.uid, m.gid, m.uname, m.gname, m.type) for m in members}, {(0, 0o644, 0, 0, "", "", tarfile.REGTYPE)})
 
     def test_a_damaged_assets_folder_or_another_version_is_never_released(self):
