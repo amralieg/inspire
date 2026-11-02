@@ -429,6 +429,95 @@ def test_a_real_stop_still_ends_the_build_at_once(agent_ns, family, reason):
     assert outcome == {"status": "stopped", "stop_reason": reason, "stopped_by": "genie"} and len(runner.prompts) == 1
 
 
+DRIVER_ASK = "each driver's name and license number next to every flagged trip"
+DRIVER_STOP = "The review queue cannot show each driver's name because the source table has no driver columns; no rows were written."
+
+
+def _vibed(agent_ns, notes=DRIVER_ASK, state="ready", **outputs):
+    spec = agent_ns["validate_implement_spec"](dict(VALID, data=dict(VALID["data"], notes=notes),
+                                                    outputs=dict(VALID["outputs"], **outputs)))[0]
+    built = {"notebook": {"state": state, "spec_version": 1}} if state else {}
+    return spec, {"_implement_vibe_state": {"asset_status": built, "vibes_split": {}, "notebook_before": None}}
+
+
+def _vibe_flow(agent_ns, previews, fills):
+    inst = _b_flow(agent_ns, previews, family="F")
+    inst._implement_notebook_round_vibes = lambda *a: None
+    return inst, _FakeRunner(fills)
+
+
+def _fill_and_preview(inst, spec, use_case, runner, refill=True):
+    return inst._implement_fill_and_preview("N01-U01", (5150, "N01-U01", 2), use_case, spec, None, "/W/nb",
+                                            ["result_table", "run_profile"], runner, refill)
+
+
+def test_a_genie_stop_on_an_ask_of_a_notebook_that_wrote_rows_goes_back_to_genie_to_do_the_other_asks(agent_ns):
+    spec, use_case = _vibed(agent_ns)
+    inst, runner = _vibe_flow(agent_ns, [({"status": "written", "rows_written": 40}, 11, 101)],
+                              [{"exit": 0, "final": dict(_fill(), status="stopped", stop_reason=DRIVER_STOP)}, {"exit": 0, "final": _fill()}])
+    outcome, _job, fill = _fill_and_preview(inst, spec, use_case, runner)
+    assert outcome["status"] == "written" and outcome["rows_written"] == 40 and len(runner.prompts) == 2
+    assert agent_ns["IMPLEMENT_ASK_STOP_REPAIR"] in runner.prompts[1]
+    assert "an ask that cannot be done is never a reason to stop the run or write nothing" in runner.prompts[1]
+    sent = [e for e in inst.emitted if e["step_name"] == "Genie build" and (e.get("result_json") or {}).get("failure")]
+    assert len(sent) == 1 and sent[0]["message"].startswith("round 1/3: the run stopped, but this notebook ran and wrote its rows")
+
+
+@pytest.mark.parametrize("notes,state,outputs", [
+    ("", "ready", {}),
+    ("   ", "ready", {}),
+    (DRIVER_ASK, None, {}),
+    (DRIVER_ASK, "failed", {}),
+], ids=["no_asks", "blank_notes", "first_build", "never_wrote"])
+def test_a_stop_without_a_notebook_ask_or_a_notebook_that_wrote_rows_still_ends_the_build_at_once(agent_ns, notes, state, outputs):
+    spec, use_case = _vibed(agent_ns, notes=notes, state=state, **outputs)
+    inst, runner = _vibe_flow(agent_ns, [], [{"exit": 0, "final": dict(_fill(), status="stopped", stop_reason=DRIVER_STOP)}])
+    outcome, _job, _f = _fill_and_preview(inst, spec, use_case, runner)
+    assert outcome == {"status": "stopped", "stop_reason": DRIVER_STOP, "stopped_by": "genie"} and len(runner.prompts) == 1
+
+
+def test_an_ai_reasoning_ask_alone_also_counts_as_a_notebook_ask(agent_ns):
+    spec, use_case = _vibed(agent_ns, notes="", ai_reasoning_vibes="Name the driver in every reason")
+    assert agent_ns["implement_notebook_asks"](spec) == {"ai_reasoning": "Name the driver in every reason"}
+    inst, runner = _vibe_flow(agent_ns, [({"status": "written", "rows_written": 5}, 11, 101)],
+                              [{"exit": 0, "final": dict(_fill(), status="stopped", stop_reason=DRIVER_STOP)}, {"exit": 0, "final": _fill()}])
+    outcome, _job, _f = _fill_and_preview(inst, spec, use_case, runner)
+    assert outcome["status"] == "written" and len(runner.prompts) == 2
+
+
+def test_a_genie_that_keeps_stopping_on_an_ask_ends_the_build_saying_it_was_sent_back(agent_ns):
+    spec, use_case = _vibed(agent_ns)
+    inst, runner = _vibe_flow(agent_ns, [], [{"exit": 0, "final": dict(_fill(), status="stopped", stop_reason=DRIVER_STOP)}] * 3)
+    outcome, _job, _f = _fill_and_preview(inst, spec, use_case, runner)
+    assert len(runner.prompts) == 3 and outcome["status"] == "stopped" and outcome["sent_back"] is True
+    assert agent_ns["implement_stop_message"](outcome, spec) == (
+        "Genie stopped the build: " + DRIVER_STOP.rstrip(".") + ". Inspire sent it back to Genie, and it still stopped: "
+        + agent_ns["IMPLEMENT_ASK_STOP_REPAIR"])
+
+
+def test_a_preview_stop_on_an_ask_goes_back_to_genie_only_when_genie_builds(agent_ns):
+    spec, use_case = _vibed(agent_ns)
+    inst, runner = _vibe_flow(agent_ns, [({"status": "stopped", "stop_reason": DRIVER_STOP}, 11, 101),
+                                         ({"status": "written", "rows_written": 9}, 11, 102)],
+                              [{"exit": 0, "final": _fill()}, {"exit": 0, "final": _fill()}])
+    outcome, _job, _f = _fill_and_preview(inst, spec, use_case, runner)
+    assert outcome["status"] == "written" and outcome["rows_written"] == 9 and len(runner.prompts) == 2
+    assert "run_profile=preview after your last attempt, and the run stopped, but this notebook ran" in runner.prompts[1]
+    inst, _runner = _vibe_flow(agent_ns, [({"status": "stopped", "stop_reason": DRIVER_STOP}, 11, 101)], [])
+    outcome, _job, _f = _fill_and_preview(inst, spec, use_case, None, refill=False)
+    assert outcome == {"status": "stopped", "stop_reason": DRIVER_STOP}, "a preview-only run has no Genie round to send it back to"
+
+
+def test_the_notebook_asks_tell_genie_an_ask_it_cannot_do_is_never_a_stop(agent_ns):
+    spec, _use_case = _vibed(agent_ns)
+    text = agent_ns["implement_choices_markdown"](spec)
+    assert f'- The customer\'s asks for this notebook, word for word: """{DRIVER_ASK}"""' in text
+    assert ("Inspire's checks on the notebook still run, and an ask that cannot be done is never a reason to stop the run or write "
+            "nothing: do every other ask, keep the notebook writing its rows and leave that ask undone, and Inspire tells the user "
+            "which asks were not met.") in text
+    assert "never a reason to stop" not in agent_ns["implement_choices_markdown"](_vibed(agent_ns, notes="")[0])
+
+
 def test_only_the_stop_phrase_of_a_pattern_that_writes_rows_is_not_a_stop(agent_ns):
     inst, _uc, spec_b = _spec(agent_ns, "B")
     _inst, _uc, spec_h = _spec(agent_ns, "H")
