@@ -3,9 +3,11 @@ const assert = require('node:assert/strict');
 const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
+const { pathToFileURL } = require('node:url');
 const G = require('../lib/groupingSql');
 const { createExecuteSql } = require('../lib/sqlStatements');
-const FIXTURE = require('./fixtures/implement_grouping_sql_cases.json');
+const FIXTURE_PATH = path.resolve(__dirname, '..', '..', 'agent', 'tests', 'fixtures', 'implement_grouping_sql_cases.json');
+const FIXTURE = JSON.parse(fs.readFileSync(FIXTURE_PATH, 'utf8'));
 
 const CONTRACT_KEYWORDS = ('INSERT UPDATE DELETE MERGE DROP CREATE ALTER TRUNCATE REPLACE GRANT REVOKE COPY REFRESH OPTIMIZE VACUUM CALL EXECUTE EXEC SET '
   + 'RESET USE MSCK REPAIR CACHE UNCACHE ANALYZE LOAD PUT GET REMOVE LIST DECLARE BEGIN COMMIT ROLLBACK').split(' ');
@@ -22,6 +24,48 @@ test('the App gives every shared grouping SQL case the verdict, offset, text, ta
     } else {
       assert.deepEqual(got, { ok: false, sql: '', tables: [], hash: '', rule: c.rule, at: c.at, text: c.text }, c.id);
     }
+  }
+});
+
+test('the check the browser runs is the one module the server runs: every shared case gets the same verdict, and only the server adds the hash', async () => {
+  const browser = await import(pathToFileURL(path.resolve(__dirname, '..', '..', 'frontend', 'src', 'lib', 'groupingSql.js')).href);
+  assert.equal(browser.checkGroupingSql, require('../../frontend/src/lib/groupingSql.js').checkGroupingSql, 'one module, not a copy');
+  let refused = 0;
+  for (const c of FIXTURE.cases) {
+    const { hash, ...server } = G.checkGroupingSql(c.sql);
+    assert.deepEqual(browser.checkGroupingSql(c.sql), server, c.id);
+    assert.equal(server.ok, c.ok, c.id);
+    assert.equal(hash, c.ok ? sha(c.sql_out) : '', c.id);
+    if (!server.ok) refused += 1;
+  }
+  assert.deepEqual([FIXTURE.cases.length, refused], [174, 115], 'the agent case file the App reads');
+});
+
+test('must-refuse: writes, schema changes, more than one statement, a statement hidden by a comment or a string, and reads outside the tables', () => {
+  const browser = require('../../frontend/src/lib/groupingSql.js');
+  const BASE = 'SELECT o.order_id, o.region AS group_name FROM main.sales.orders o';
+  for (const [sql, rule] of [
+    ['DROP TABLE main.sales.orders', 'first_keyword'], ['CREATE TABLE main.sales.x AS SELECT 1', 'first_keyword'],
+    ['ALTER TABLE main.sales.orders ADD COLUMN x INT', 'first_keyword'], ['TRUNCATE TABLE main.sales.orders', 'first_keyword'],
+    ['INSERT INTO main.sales.orders SELECT * FROM main.sales.orders', 'first_keyword'], ['UPDATE main.sales.orders SET region = 1', 'first_keyword'],
+    ['DELETE FROM main.sales.orders', 'first_keyword'], ['MERGE INTO main.sales.orders t USING main.sales.x s ON t.k = s.k WHEN MATCHED THEN DELETE', 'first_keyword'],
+    ['WITH x AS (SELECT 1 AS k) INSERT INTO main.sales.orders SELECT * FROM x', 'keyword'], [`${BASE}; DROP TABLE main.sales.orders`, 'statements'],
+    [`${BASE};\nSELECT 1`, 'statements'], [`${BASE} /* ; */; DELETE FROM main.sales.orders`, 'statements'], [`${BASE} -- ;\n; GRANT ALL ON main TO x`, 'statements'],
+    [`${BASE} /* unclosed ; DROP TABLE x`, 'unterminated'], [`${BASE} WHERE o.region = 'a'; DROP TABLE x; --'`, 'statements'],
+    [`${BASE} WHERE o.region = 'it''s'; DROP TABLE main.sales.orders`, 'statements'], [`${BASE} WHERE o.region = "x\\"; DROP TABLE y"; DELETE FROM z`, 'statements'],
+    [`${BASE} WHERE o.region = 'unterminated; DROP TABLE main.sales.orders`, 'unterminated'], [`${BASE} WHERE o.region = '\${secret}'`, 'substitution'],
+    [`${BASE} WHERE secret('scope', 'key') = 'x'`, 'function'], ['SELECT k, g AS group_name FROM read_files(\'/Volumes/a/b/c\')', 'function'], ['SELECT id AS k, \'a\' AS group_name FROM range(10)', 'table_function'],
+    [`${BASE} WHERE o.region = ?`, 'parameter'], [`${BASE} WHERE o.k = :k`, 'parameter'], ['SELECT k, g AS group_name FROM orders', 'table_name'],
+    [`${BASE}\u202e`, 'character'], ['', 'empty'], ['-- only a comment', 'empty'],
+  ]) {
+    for (const check of [G.checkGroupingSql, browser.checkGroupingSql]) {
+      const got = check(sql);
+      assert.deepEqual([got.ok, got.rule], [false, rule], sql);
+      assert.equal(got.sql, '', sql);
+    }
+  }
+  for (const sql of [`${BASE} WHERE o.region <> 'DROP TABLE x; DELETE'`, `${BASE} -- DELETE FROM x; DROP TABLE y`, `${BASE} /* UPDATE x SET y = 1 */`, `${BASE};`]) {
+    assert.equal(browser.checkGroupingSql(sql).ok, true, `${sql} is one read; the words are inside a string or a comment`);
   }
 });
 
