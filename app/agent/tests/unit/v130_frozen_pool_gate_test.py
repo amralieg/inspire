@@ -15,8 +15,8 @@ FEASIBILITY = ("data_availability", "data_accessibility", "architecture_fitness"
 
 
 @pytest.fixture(scope="module")
-def v121_ns(tmp_path_factory):
-    return fpg.load_namespace(fpg.notebook_at_tag("v1.2.1", tmp_path_factory.mktemp("reference")))
+def v121_ns():
+    return fpg.load_namespace(fpg.reference_notebook("v1.2.1"))
 
 
 def _answer(prompt, priority=9.9, label="High"):
@@ -110,7 +110,7 @@ def test_the_command_grades_both_versions_on_one_endpoint_and_exits_on_the_verdi
         return lambda prompt: sent.append(prompt) or _answer(prompt)
 
     monkeypatch.setattr(fpg, "sql_grader", grader)
-    monkeypatch.setattr(fpg, "notebook_at_tag", lambda tag, folder: fpg.REPO / fpg.NOTEBOOK)
+    monkeypatch.setattr(fpg, "reference_notebook", lambda tag: fpg.REPO / fpg.NOTEBOOK)
     monkeypatch.setattr(fpg, "load_namespace", lambda notebook: agent_ns)
     out = tmp_path / "report.json"
     assert fpg.main(["--endpoint", "databricks-claude-opus-4-8", "--out", str(out)]) == 0
@@ -130,3 +130,18 @@ def test_the_good_mode_labels_match_the_release(agent_ns):
     from _agentload import agent_source
     good = re.search(r'"Good": (\{[^}]*\})', agent_source()).group(1)
     assert eval(good) == set(fpg.GOOD_LABELS)
+
+
+def test_a_reference_tag_with_no_vendored_notebook_fails_the_gate_with_its_path(monkeypatch, tmp_path, capsys):
+    with pytest.raises(FileNotFoundError, match=r"tests/regression/reference/agent_v0\.0\.0\.ipynb"):
+        fpg.reference_notebook("v0.0.0")
+    gold = tmp_path / "gold.json"
+    gold.write_text(json.dumps({"release_gate": {"frozen_pool": {"reference_tag": "v0.0.0"}}}), encoding="utf-8")
+    monkeypatch.setattr(fpg, "sql_grader", lambda endpoint: pytest.fail("graded with no reference"))
+    assert fpg.main(["--endpoint", "e", "--gold", str(gold)]) == 1
+    assert "[FROZEN POOL GATE] FAIL: no reference notebook for v0.0.0" in capsys.readouterr().out
+
+
+def test_the_vendored_reference_is_the_released_notebook_of_its_tag(v121_ns):
+    assert fpg.reference_notebook("v1.2.1").parent == fpg.REPO / "tests" / "regression" / "reference"
+    assert v121_ns["__AGENT_VERSION__"] == "v1.2.1"

@@ -4,9 +4,7 @@ import argparse
 import json
 import logging
 import string
-import subprocess
 import sys
-import tempfile
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
@@ -21,6 +19,7 @@ PROMPT = "COMBINED_VALUE_QUALITY_SCORE_PROMPT"
 GOOD_LABELS = frozenset({"Medium", "High", "Very High", "Ultra High"})
 GRADE_SQL = "SELECT ai_query('{endpoint}', :prompt, modelParameters => named_struct('max_tokens', 64000)) AS answer"
 NOTEBOOK = "agent/dbx_inspire_ai_agent.ipynb"
+REFERENCE = REPO / "tests" / "regression" / "reference"
 
 
 def load_namespace(notebook: Path) -> dict:
@@ -28,10 +27,10 @@ def load_namespace(notebook: Path) -> dict:
     return _agentload.fresh_agent_namespace(str(notebook))
 
 
-def notebook_at_tag(tag: str, folder: Path) -> Path:
-    out = subprocess.run(["git", "-C", str(REPO), "show", f"{tag}:{NOTEBOOK}"], capture_output=True, check=True)
-    path = folder / f"agent_{tag}.ipynb"
-    path.write_bytes(out.stdout)
+def reference_notebook(tag: str) -> Path:
+    path = REFERENCE / f"agent_{tag}.ipynb"
+    if not path.is_file():
+        raise FileNotFoundError(f"no reference notebook for {tag}: add the released notebook of {tag} as {path.relative_to(REPO)}")
     return path
 
 
@@ -149,11 +148,14 @@ def main(argv=None) -> int:
     if not frozen.get("reference_tag"):
         print("[FROZEN POOL GATE] FAIL: the gold set has no release_gate.frozen_pool.reference_tag")
         return 1
+    try:
+        reference_path = reference_notebook(frozen["reference_tag"])
+    except FileNotFoundError as exc:
+        print(f"[FROZEN POOL GATE] FAIL: {exc}")
+        return 1
     pool = json.loads(args.pool.read_text(encoding="utf-8"))
     ask = sql_grader(args.endpoint)
-    with tempfile.TemporaryDirectory() as folder:
-        reference_ns = load_namespace(notebook_at_tag(frozen["reference_tag"], Path(folder)))
-        reference = measure(reference_ns, pool, ask)
+    reference = measure(load_namespace(reference_path), pool, ask)
     release = measure(load_namespace(args.release), pool, ask)
     passed, reasons = frozen_pool_gate(release, reference, int(frozen.get("top_tolerance", 1)), len(pool["use_cases"]))
     report = {"endpoint": args.endpoint, "release": release, "reference": reference, "passed": passed, "reasons": reasons}
