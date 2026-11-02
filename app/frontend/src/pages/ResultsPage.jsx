@@ -81,6 +81,7 @@ import { buildUseCaseList } from '../lib/useCaseList';
 import { makeApiFetch, makeApiPostJson, requestHeaders } from '../lib/apiClient';
 import { reviewLinkText } from '../lib/runPages';
 import { sessionFinished } from '../lib/monitorState';
+import { placeholderWords } from '../lib/placeholderWords';
 
 /* ── Date formatter for session display ── */
 function formatSessionDate(dateStr) {
@@ -629,7 +630,7 @@ export default function ResultsPage({
   }
   const bizPriorityOptions = bizPriorities
     .filter((bp) => bizPriorityCounts[bp])
-    .map((bp) => ({ value: bp, label: bp, count: bizPriorityCounts[bp] }));
+    .map((bp) => ({ value: bp, label: placeholderWords(bp), count: bizPriorityCounts[bp] }));
   const foundationsList = results?.foundations;
   const foundationsById = useMemo(
     () => new Map((Array.isArray(foundationsList) ? foundationsList : []).map((f) => [String(f.id), f])),

@@ -96,7 +96,7 @@ test('with holdout off the Impact page says plainly that nothing is held back, a
 });
 
 test('promised reads the catalog business value and benefits, and each closed record shows how its measured amount was worked out', () => {
-  assert.deepEqual(promisedView({ promised: PROMISED }), { value: PROMISED.value, benefits: PROMISED.benefits });
+  assert.deepEqual(promisedView({ promised: PROMISED }), { value: PROMISED.value, benefits: ['Recover margin on discounted items (estimate: depends on value)'] });
   assert.equal(promisedView({ promised: { value: ' ', benefits: [] } }), null);
   assert.equal(promisedView({}), null);
   assert.deepEqual(closedRows(ENTRY, 'USD'), [

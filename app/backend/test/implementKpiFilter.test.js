@@ -77,10 +77,11 @@ test('a baseline a refused KPI measured is cleared in every wording the agent cl
 
 test('the KPI line, its shown baseline and the benefits that quote a stale or mismatched baseline read as the agent writes them', async () => {
   const V = await lib('v130UseCase.js');
+  const { placeholderWords } = await lib('placeholderWords.js');
   for (const c of FIXTURE.kpi_text) assert.equal(V.kpiText(c.spec), c.text, JSON.stringify(c.spec.name));
   assert.ok(FIXTURE.kpi_text.some((c) => c.text.endsWith(': not measured, because its filter does not match its name')));
   for (const c of FIXTURE.baseline_shown) assert.deepEqual(V.kpiBaselineShown(c.baseline, c.spec), c.shown, JSON.stringify(c));
-  for (const c of FIXTURE.stale) assert.deepEqual(V.v130View({ KPIs: c.kpis, 'Financial Benefits': c.items }).financial, c.out, JSON.stringify(c.items));
+  for (const c of FIXTURE.stale) assert.deepEqual(V.v130View({ KPIs: c.kpis, 'Financial Benefits': c.items }).financial, c.out.map(placeholderWords), JSON.stringify(c.items));
   const view = V.v130View({ KPIs: [STORED, RIGHT] });
   assert.deepEqual(view.kpis.map((k) => k.baseline), [null, RIGHT.baseline], 'the mismatched KPI shows no baseline, the right one keeps its own');
 });

@@ -280,7 +280,8 @@ def test_a_stored_kpi_whose_filter_does_not_match_its_name_is_never_measured_as_
     note = obj._kpi_baseline_note(STORED, STORED["baseline"])
     uc = value_uc(**{"KPIs": [STORED, RIGHT], "Financial Benefits": [f"Margin back from {note}"]})
     benefits = obj._use_case_items(uc, "Financial Benefits", "lines", {}, "English")[0]
-    assert benefits == [f"Margin back from {agent_ns['DatabricksInspire']._BASELINE_MISMATCH}"]
+    assert benefits == [agent_ns["inspire_placeholder_words"](f"Margin back from {agent_ns['DatabricksInspire']._BASELINE_MISMATCH}")]
+    assert benefits == ["Margin back from the current value (not measured, because the KPI's filter does not match its name)"]
     source = obj._genie_kpi_source(uc)
     assert "`ws_net_profit` = '0'" not in source and "`ws_net_profit` < 0" in source and f"  - {said}\n" in source
 
@@ -488,20 +489,24 @@ def test_a_stale_zero_baseline_in_the_old_wording_reads_as_measured_by_the_kpi_q
 def test_the_target_kpi_text_never_quotes_the_baseline_of_a_refused_kpi(agent_ns):
     mismatch = agent_ns["DatabricksInspire"]._BASELINE_MISMATCH
     record = agent_ns["implement_tracked_kpi"](STORED, "inspire", "inspire", [STALE_KR])
-    assert record["target_text"] == f"Reduce Share of negative-profit web orders from {mismatch} to [TARGET] within [WINDOW]"
+    assert record["target_text"] == "", "a key result whose target the sponsor has not set is no target"
     assert record["target"] is None and record["computable"] is False
+    worded = agent_ns["implement_tracked_kpi"](STORED, "inspire", "inspire", [dict(STALE_KR, statement=STALE_KR["statement"].replace(
+        "to [TARGET] within [WINDOW]", "steadily"))])
+    assert worded["target_text"] == agent_ns["inspire_placeholder_words"](f"Reduce Share of negative-profit web orders from {mismatch} steadily")
     spark = FakeSpark(responder=lambda s: _describe(SUMMARY) if s.startswith("DESCRIBE") else [])
-    agent_ns["inspire_save_kpi"](spark, TABLE, "N01-U03", "r-1", run={"target_kpi": agent_ns["implement_run_kpi"](record)},
+    agent_ns["inspire_save_kpi"](spark, TABLE, "N01-U03", "r-1", run={"target_kpi": agent_ns["implement_run_kpi"](worded)},
                                  out=[].append)
     written = _merge_values([s for s in spark.statements if s.startswith("MERGE INTO")][-1])
     assert "0.03" not in written["kpi_target_text"] and "does not match its name" in written["kpi_target_text"]
+    assert "[BASELINE" not in written["kpi_target_text"]
     kept = {"id": None, "statement": f"Reduce Share of web orders with negative profit from {RIGHT_NOTE} to 1.5", "source": "proposed"}
     right = agent_ns["implement_tracked_kpi"](RIGHT, "inspire", "inspire", [kept])
     assert (right["target_text"], right["target"]) == (kept["statement"], 1.5)
 
 
 def test_the_app_page_promise_never_quotes_the_baseline_of_a_refused_kpi(agent_ns):
-    mismatch = agent_ns["DatabricksInspire"]._BASELINE_MISMATCH
+    mismatch = agent_ns["inspire_placeholder_words"](agent_ns["DatabricksInspire"]._BASELINE_MISMATCH)
     benefits = [f"Margin back from {OLD_NOTE}", f"Loss down from {RIGHT_NOTE}"]
     for raw in (benefits, json.dumps(benefits)):
         promised = agent_ns["implement_promised"]({"Business Value": "Fewer losing orders", "KPIs": [STORED, RIGHT],
@@ -512,11 +517,11 @@ def test_the_app_page_promise_never_quotes_the_baseline_of_a_refused_kpi(agent_n
 
 
 def test_the_catalog_and_the_genie_instruction_clear_an_old_wording_baseline_of_a_refused_kpi(agent_ns):
-    obj, mismatch = make_inspire(agent_ns), agent_ns["DatabricksInspire"]._BASELINE_MISMATCH
+    obj, mismatch = make_inspire(agent_ns), agent_ns["inspire_placeholder_words"](agent_ns["DatabricksInspire"]._BASELINE_MISMATCH)
     uc = value_uc(**{"KPIs": [STORED, RIGHT], "Financial Benefits": [f"Margin back from {OLD_NOTE}"],
                      "Expected Key Results": [STALE_KR]})
     assert obj._use_case_items(uc, "Financial Benefits", "lines", {}, "English")[0] == [f"Margin back from {mismatch}"]
     assert obj._use_case_items(uc, "Expected Key Results", "key_results", {}, "English")[0] == [
-        f"Reduce Share of negative-profit web orders from {mismatch} to [TARGET] within [WINDOW]"]
+        f"Reduce Share of negative-profit web orders from {mismatch} to a target the sponsor sets within a time frame the sponsor sets"]
     source = obj._genie_kpi_source(uc)
     assert OLD_NOTE not in source and "0.03" not in source and mismatch in source

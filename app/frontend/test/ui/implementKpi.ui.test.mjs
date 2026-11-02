@@ -165,6 +165,29 @@ test('a KPI Inspire could not measure says Not measured with the reason, and a f
   }
 });
 
+test('a target KPI whose key result still carries placeholder tags reads in plain words on the card and the notebook panel, and its unset target reads No target set', async () => {
+  const LEFTOVER = new RegExp(createRequire(import.meta.url)('../../../agent/tests/fixtures/placeholder_words_cases.json').leftover_tag, 'i');
+  const tagged = 'Raise hours saved from [BASELINE] to [TARGET] within [WINDOW]';
+  const kpi = { ...TRACKED, computable: false, query: null, baseline: null, baseline_on: null, target: null, target_text: tagged,
+    reason: 'its definition names no measure, table or column Inspire can aggregate, so it is tracked as text' };
+  const ui = await openBuild({ history: [builtWith(kpi)], moneySummary: [{ ...SUMMARY, kpi_status: 'not_measured', kpi_latest: null, kpi_baseline: null,
+    kpi_measured_at: null, kpi_target: null, kpi_target_text: tagged, kpi_reason: kpi.reason }] });
+  try {
+    const card = ui.page.locator('[data-mvp-panel="build"]').getByRole('region', { name: 'Target KPI', exact: true });
+    await card.waitFor({ timeout: 15000 });
+    assert.equal(await card.locator('[data-kpi-fact]').nth(3).locator('dd').textContent(), 'No target set');
+    const shown = await card.textContent();
+    assert.equal(LEFTOVER.test(shown), false, shown);
+    await ui.page.locator('[data-mvp-tab="notebook"]').click();
+    const line = ui.page.locator('[data-asset-panel="notebook"] [data-kpi-line]');
+    await line.waitFor({ timeout: 15000 });
+    assert.equal(LEFTOVER.test(await line.textContent()), false, await line.textContent());
+    assert.deepEqual(ui.pageErrors, []);
+  } finally {
+    await ui.close();
+  }
+});
+
 test('a baseline taken on another table than the one the KPI is measured on now is flagged on the card and on the notebook panel', async () => {
   const swapped = 'its baseline was measured on main.s.orders, but it is measured now on main.s.orders_v2, which you chose in its place, '
     + 'so the baseline and the latest value come from different tables';
