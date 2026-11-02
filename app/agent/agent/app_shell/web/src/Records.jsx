@@ -547,6 +547,7 @@ export default function Records({ meta, app, pageId, filters, ai, onFilter, hist
   const acts = useActs({ pageId, similarBy, onActed: acted, labelOf });
   const total = data?.total || 0;
   const shownTotal = cap && compareValues(total, cap) > 0 ? cap : total;
+  const capped = !!data?.total_more && !cap;
   const freshCount = rows.filter(isNew).length;
   const late = overdueFirst(fresh ? rows.filter(isNew) : rows, today);
   const tableRows = late.rows;
@@ -577,7 +578,7 @@ export default function Records({ meta, app, pageId, filters, ai, onFilter, hist
       toast(NO_AS_OF, 'error', { actions: [{ label: 'Reload the list', run: () => setRefresh((n) => n + 1) }] });
       return;
     }
-    setPicks({ scope, keys: picked, all: { total: shownTotal, as_of_us: asOf } });
+    setPicks({ scope, keys: picked, all: { total: shownTotal, capped, as_of_us: asOf } });
   };
   const actOn = async (values) => {
     setActing(true);
@@ -613,7 +614,7 @@ export default function Records({ meta, app, pageId, filters, ai, onFilter, hist
     onClearFilters?.();
   };
   const goTo = (at, from) => setPaging({ scope: pageScope, offset: at, cursor: at > 0 ? from || null : null });
-  const more = offset + rows.length < shownTotal;
+  const more = capped ? rows.length >= size : offset + rows.length < shownTotal;
   const startWork = () => {
     const first = tableRows[0];
     if (!first) return;
@@ -803,7 +804,7 @@ export default function Records({ meta, app, pageId, filters, ai, onFilter, hist
       <header className="card-h">
         <div>
           <h2>{meta.title}</h2>
-          <p>{!data ? 'Loading the list…' : `${integer(total)} ${total === 1 ? 'record' : 'records'}${meta.hint ? `. ${meta.hint}` : ''}`}</p>
+          <p>{!data ? 'Loading the list…' : `${capped ? `More than ${integer(total)}` : integer(total)} ${total === 1 && !capped ? 'record' : 'records'}${meta.hint ? `. ${meta.hint}` : ''}`}</p>
           {left && <p className="left-n"><Icon name="trend" size={13} />{left}</p>}
         </div>
         <div className="tbar">
@@ -842,7 +843,7 @@ export default function Records({ meta, app, pageId, filters, ai, onFilter, hist
       )}
       <ConflictNote conflicts={acts.conflicts} labelOf={labelOf} onClose={acts.clearConflicts} />
       {(picked.size > 0 || matching) && (
-        <BulkBar picked={picked} matching={matching} total={shownTotal} allOnPage={allPicked} owners={owners} person={person} busy={acting} tomorrow={tomorrow}
+        <BulkBar picked={picked} matching={matching} total={shownTotal} capped={capped} allOnPage={allPicked} owners={owners} person={person} busy={acting} tomorrow={tomorrow}
           canMatch={!everything} onAct={actOn} onAll={selectAll} onClear={clearPicks} />
       )}
       {!data && list.busy && <div style={{ padding: 16, display: 'grid', gap: 10 }}>{[1, 2, 3, 4].map((i) => <Skeleton key={i} height={22} />)}</div>}
@@ -868,7 +869,7 @@ export default function Records({ meta, app, pageId, filters, ai, onFilter, hist
                 {PAGE_SIZES.map((n) => <option key={n} value={n}>{n}</option>)}
               </select>
               <span className="sp" />
-              <span className="pager-n">{pageText(data.offset, rows.length, shownTotal)}</span>
+              <span className="pager-n">{pageText(data.offset, rows.length, shownTotal, capped)}</span>
               <button className="ibtn ibtn--sm" onClick={() => goTo(Math.max(0, offset - size), data.cursors?.prev)} disabled={offset === 0} aria-label="Previous page"><Icon name="left" size={15} /></button>
               <button className="ibtn ibtn--sm" onClick={() => goTo(offset + size, data.cursors?.next)} disabled={!more} aria-label="Next page"><Icon name="right" size={15} /></button>
             </div>

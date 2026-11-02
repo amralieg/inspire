@@ -35,6 +35,8 @@ test('the list text, badges and impact line read like a person wrote them', () =
   assert.equal(pageText(25, 5, 30), 'Showing 26 to 30 of 30');
   assert.equal(pageText(0, 0, 0), 'No records');
   assert.equal(pageText(1000, 0, 30), 'No records on this page; the list has 30');
+  assert.equal(pageText(0, 25, 10000, true), 'Showing 1 to 25 of more than 10,000');
+  assert.equal(pageText(20000, 0, 10000, true), 'No records on this page; the list has more than 10,000');
   assert.equal(impactText({ open: 14, done: 9, resolved: 6 }), 'Actions: 14 open · 9 done · 6 resolved by a later run (6/9)');
   assert.equal(impactText({ open: 3, done: 0, resolved: 0 }), 'Actions: 3 open · 0 done');
   assert.equal(impactText(null), '');

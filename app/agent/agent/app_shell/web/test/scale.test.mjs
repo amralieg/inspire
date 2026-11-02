@@ -55,6 +55,29 @@ test('the pager sends the cursor of the row it pages from, and the first page re
   await context.close();
 });
 
+test('a list counted only up to the cap says more than the cap and still pages past it', async () => {
+  const routes = {
+    records: ({ route, json, seen }) => {
+      const body = route.request().postDataJSON();
+      seen.records.push(body);
+      const offset = body.offset || 0;
+      const rows = Array.from({ length: body.limit }, (_, i) => ({ record_key: `r${offset + i}`, entity_id: `r${offset + i}`,
+        entity_label: `Item ${offset + i}`, rank: offset + i + 1, priority_tier: 'Review' }));
+      return json(200, { rows, total: 25, total_more: true, offset, limit: body.limit, cursors: { next: null, prev: null }, actions: false,
+        changes: false, summary: null, errors: {} });
+    },
+  };
+  const { page, seen, context } = await openApp(browser, served.base, appInfo({}, 1, TABLE), { routes });
+  await page.locator('.pager-n').waitFor();
+  assert.equal(await page.locator('.pager-n').textContent(), 'Showing 1 to 25 of more than 25');
+  await page.getByText(/^More than 25 records/).waitFor();
+  await page.getByRole('button', { name: 'Next page' }).click();
+  await page.waitForFunction(() => document.querySelector('.pager-n')?.textContent.startsWith('Showing 26'));
+  assert.equal(seen.records.at(-1).offset, 25);
+  assert.deepEqual(seen.errors, []);
+  await context.close();
+});
+
 test('the decision list and the page start with the stored default dates while the filter bar still loads, and do not load again when it lands', async () => {
   const marks = {};
   const routes = {

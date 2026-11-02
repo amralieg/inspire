@@ -35,10 +35,14 @@ export function recordRef(meta, row) {
 
 const count = (n) => grouped(n || 0);
 
-export function pageText(offset, shown, total) {
+export function totalText(total, more) {
+  return more ? `more than ${count(total)}` : count(total);
+}
+
+export function pageText(offset, shown, total, more = false) {
   if (!total) return 'No records';
-  if (!shown) return `No records on this page; the list has ${count(total)}`;
-  return `Showing ${count(offset + 1)} to ${count(offset + shown)} of ${count(total)}`;
+  if (!shown) return `No records on this page; the list has ${totalText(total, more)}`;
+  return `Showing ${count(offset + 1)} to ${count(offset + shown)} of ${totalText(total, more)}`;
 }
 
 export function impactText(summary) {

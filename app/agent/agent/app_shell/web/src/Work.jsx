@@ -84,7 +84,7 @@ export function ConflictNote({ conflicts, labelOf, onClose }) {
   );
 }
 
-export function BulkBar({ picked, matching, total, allOnPage, owners, person, busy, tomorrow, canMatch = true, onAct, onAll, onClear }) {
+export function BulkBar({ picked, matching, total, capped = false, allOnPage, owners, person, busy, tomorrow, canMatch = true, onAct, onAll, onClear }) {
   const anchors = { done: useRef(null), assign: useRef(null), status: useRef(null), snooze: useRef(null) };
   const [open, setOpen] = useState('');
   const [owner, setOwner] = useState(person);
@@ -94,7 +94,8 @@ export function BulkBar({ picked, matching, total, allOnPage, owners, person, bu
   const [until, setUntil] = useState(tomorrow);
   const close = useCallback(() => setOpen(''), []);
   const n = matching ? matching.total : picked.size;
-  const what = recordsText(n);
+  const over = matching?.capped ? 'more than ' : '';
+  const what = `${over}${recordsText(n)}`;
   const problem = actionProblem({ status, reason });
   const submit = (values) => (e) => {
     e.preventDefault();
@@ -106,12 +107,12 @@ export function BulkBar({ picked, matching, total, allOnPage, owners, person, bu
   const note500 = <NoteField name="bulk_note" value={note} onChange={setNote} />;
   return (
     <div className="bulk" role="region" aria-label="Selected records">
-      {matching ? <b>All {integer(matching.total)} matching records selected</b> : <b>{n} selected:</b>}
+      {matching ? <b>All {over}{integer(matching.total)} matching records selected</b> : <b>{n} selected:</b>}
       <button ref={anchors.done} className="btn" onClick={toggle('done')} aria-expanded={open === 'done'} disabled={busy}><Icon name="check" size={14} />Mark done…</button>
       <button ref={anchors.assign} className="btn" onClick={toggle('assign')} aria-expanded={open === 'assign'} disabled={busy}>Assign to…</button>
       <button ref={anchors.status} className="btn" onClick={toggle('status')} aria-expanded={open === 'status'} disabled={busy}>Set status…</button>
       <button ref={anchors.snooze} className="btn" onClick={toggle('snooze')} aria-expanded={open === 'snooze'} disabled={busy}>Snooze…</button>
-      {!matching && canMatch && allOnPage && total > picked.size && <button className="link" onClick={onAll}>Select all {integer(total)} matching</button>}
+      {!matching && canMatch && allOnPage && total > picked.size && <button className="link" onClick={onAll}>Select all {capped ? 'more than ' : ''}{integer(total)} matching</button>}
       <span className="sp" />
       <button className="link" onClick={onClear}>Clear selection</button>
       {matching && <small className="bulk-asof">As of {asOfText(matching.as_of_us)}. A record that changes after that is left as it is.</small>}
