@@ -20,6 +20,12 @@
 .cf-b.is-on{background:var(--brand-wash);border-color:var(--brand-bd);color:var(--brand-ink)}
 .cf-b--named{margin-left:8px}
 .cf-n{font-size:12.5px;font-weight:600;color:var(--brand-ink)}
+.th-in{display:inline-flex;flex-wrap:wrap;align-items:center;gap:2px;max-width:100%;vertical-align:middle}
+.tbl th .th-move{display:inline-grid;place-items:center;padding:6px 2px;margin-left:-6px;border-radius:5px;color:var(--muted);cursor:grab;touch-action:none}
+.tbl th .th-move:hover,.tbl th .th-move:focus-visible{color:var(--ink);background:var(--well)}
+.tbl th .th-move:active{cursor:grabbing}
+.tbl th.is-drop{box-shadow:inset 3px 0 0 var(--brand)}
+.tbl-tools{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin:8px 0 0}
 .cf-form{display:flex;flex-direction:column;gap:10px;padding:6px}
 .cf-acts{display:flex;justify-content:space-between;align-items:center;gap:8px}
 .cf-acts .btn{height:30px}

@@ -30,9 +30,10 @@ function memory(start = {}) {
 
 test('My view starts at All open with no limit, drops what storage holds that it does not know, and keeps each person apart', () => {
   assert.deepEqual(cleanPrefs(null), DEFAULT_PREFS);
-  assert.deepEqual(DEFAULT_PREFS, { window: 'all', limit: 0, density: 'comfortable', rows: 25, folds: {}, seen: {} });
-  assert.deepEqual(cleanPrefs({ window: 'decade', limit: 7, density: 'tiny', rows: 30, folds: { p: { a: true, b: 'yes', c: false }, q: 3, r: {} }, seen: { p: -1, q: 'x', r: 5 } }),
-    { window: 'all', limit: 0, density: 'comfortable', rows: 25, folds: { p: { a: true } }, seen: { r: 5 } });
+  assert.deepEqual(DEFAULT_PREFS, { window: 'all', limit: 0, density: 'comfortable', rows: 25, folds: {}, seen: {}, columns: {} });
+  assert.deepEqual(cleanPrefs({ window: 'decade', limit: 7, density: 'tiny', rows: 30, folds: { p: { a: true, b: 'yes', c: false }, q: 3, r: {} }, seen: { p: -1, q: 'x', r: 5 },
+    columns: { g: ['b', 'a', 'b', 7, ''], h: 'a', i: [] } }),
+  { window: 'all', limit: 0, density: 'comfortable', rows: 25, folds: { p: { a: true } }, seen: { r: 5 }, columns: { g: ['b', 'a'] } });
   assert.equal(cleanPrefs({ rows: 100 }).rows, 100);
   const store = memory();
   assert.equal(writePrefs(store, ME, { ...DEFAULT_PREFS, window: 'week', limit: 25 }), true);

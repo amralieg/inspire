@@ -58,9 +58,18 @@ export function matching(options, query) {
   return (options || []).map(String).filter((v) => !q || v.toLowerCase().includes(q));
 }
 
+export const CHOICES_SHOWN = 200;
+
+export const choicesHint = (count) => (count > CHOICES_SHOWN ? `Showing ${CHOICES_SHOWN} of ${plural(count, 'choice')}. Type to narrow them.` : '');
+
 export function searchHint(filter, query, found) {
   if (!filter?.searchable) return '';
   const q = String(query || '').trim();
+  if (!q && filter.lazy) {
+    if (found.error) return `The choices could not load: ${found.error}`;
+    if (found.busy || found.options == null) return 'Loading the choices…';
+    return found.options.length >= OPTION_MATCHES ? `Showing the first ${plural(OPTION_MATCHES, 'choice')}. Type to search all of them.` : '';
+  }
   if (!q) return `Showing the first ${plural((filter.options || []).length, 'choice')}. Type to search all of them.`;
   if (found.busy || found.q !== q) return 'Searching all the choices…';
   if (found.error) return `The search failed: ${found.error}`;
@@ -95,12 +104,14 @@ function withColumnValues(state, table, own) {
   return { ...state, columns: { list: table == null ? own : { ...(state?.columns?.list || {}) }, tables } };
 }
 
-export function setColumnValue(state, table, column, value) {
-  const own = { ...columnValues(state, table) };
+export function withValue(values, column, value) {
+  const own = { ...(values || {}) };
   if (columnFilterOn(value)) own[column] = value;
   else delete own[column];
-  return withColumnValues(state, table, own);
+  return own;
 }
+
+export const setColumnValue = (state, table, column, value) => withColumnValues(state, table, withValue(columnValues(state, table), column, value));
 
 export const clearColumnValues = (state, table) => withColumnValues(state, table, {});
 

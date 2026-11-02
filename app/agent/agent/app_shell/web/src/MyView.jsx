@@ -29,11 +29,11 @@ export function MyViewProvider({ person, children }) {
     writePrefs(storage(), person, next);
     setPrefs(next);
   }, [person]);
-  const value = useMemo(() => ({ prefs, update }), [prefs, update]);
+  const value = useMemo(() => ({ prefs, update, stored: true }), [prefs, update]);
   return <PrefsContext.Provider value={value}>{children}</PrefsContext.Provider>;
 }
 
-const ALONE = { prefs: cleanPrefs(null), update: () => {} };
+const ALONE = { prefs: cleanPrefs(null), update: () => {}, stored: false };
 export const useMyView = () => useContext(PrefsContext) || ALONE;
 
 export function FoldScope({ pageId, children }) {

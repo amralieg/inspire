@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { GenieMark, Icon } from './icons.jsx';
 import { Popover, useDebounced } from './ui.jsx';
 import { getFilterOptions } from './api.js';
-import { choosePreset, clearSelections, hasSelections, matching, searchHint, setRangeEdge, setSelection } from './filters.js';
+import { CHOICES_SHOWN, choicesHint, choosePreset, clearSelections, hasSelections, matching, searchHint, setRangeEdge, setSelection } from './filters.js';
 import { DEFAULT_VIEW, OWNER_CHOICES, SHOW_CHOICES, hasReasons, setReason, viewIsDefault } from './hub.js';
 
 function useOptionSearch(pageId, filter, query) {
@@ -12,7 +12,7 @@ function useOptionSearch(pageId, filter, query) {
   const which = JSON.stringify(filter.which || { filter: filter.id });
   useEffect(() => {
     const mine = ++seq.current;
-    if (!filter.searchable || !q) {
+    if (!filter.searchable || (!q && !filter.lazy)) {
       setFound({ q: '', options: null, busy: false, error: '' });
       return;
     }
@@ -20,7 +20,7 @@ function useOptionSearch(pageId, filter, query) {
     getFilterOptions(pageId, JSON.parse(which), q)
       .then((d) => { if (mine === seq.current) setFound({ q, options: (d.options || []).map(String), busy: false, error: '' }); })
       .catch((e) => { if (mine === seq.current) setFound({ q, options: [], busy: false, error: e.message }); });
-  }, [pageId, which, filter.searchable, q]);
+  }, [pageId, which, filter.searchable, filter.lazy, q]);
   return found;
 }
 
@@ -34,7 +34,8 @@ export function ChoicePopover({ anchor, filter, selected, onChange, onClose, pag
     const pool = found.options && found.q === query.trim() ? found.options : local;
     return [...selected, ...pool.filter((v) => !selected.includes(v))];
   }, [filter.options, filter.searchable, query, found, selected]);
-  const hint = searchHint(filter, query, found);
+  const hint = searchHint(filter, query, found) || choicesHint(options.length);
+  const shown = options.slice(0, CHOICES_SHOWN);
   const searching = (filter.options || []).length > 8 || filter.searchable;
   useEffect(() => { if (!searching) body.current?.querySelector('input')?.focus({ preventScroll: true }); }, []);
   return (
@@ -45,7 +46,7 @@ export function ChoicePopover({ anchor, filter, selected, onChange, onClose, pag
         )}
         {hint && <p className="msel-hint" role="status">{hint}</p>}
         <div className="msel-pop" role="listbox" aria-multiselectable="true" aria-label={filter.label}>
-          {options.map((v) => (
+          {shown.map((v) => (
             <label key={v} className="opt">
               <input type="checkbox" checked={selected.includes(String(v))} onChange={() => onChange(selected.includes(String(v)) ? selected.filter((x) => x !== String(v)) : [...selected, String(v)])} />
               <span className="trunc">{String(v)}</span>
@@ -54,7 +55,7 @@ export function ChoicePopover({ anchor, filter, selected, onChange, onClose, pag
           {!options.length && <p className="msel-none">No choice matches.</p>}
         </div>
         <div className="msel-acts">
-          <button className="link" onClick={() => onChange(options.slice(0, 200).map(String))}>Select shown</button>
+          <button className="link" onClick={() => onChange(shown.map(String))}>Select shown</button>
           <button className="link" onClick={() => onChange([])}>Clear</button>
         </div>
       </div>

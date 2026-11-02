@@ -151,5 +151,6 @@ export function closedRows(entry, currency, kind = '') {
   return (entry?.records || []).map((r) => ({
     key: r.key, label: r.label || r.key, outcome: statusLabel(r.status), state: r.status === 'Dismissed' ? (r.reason || 'No reason given') : STATES[r.state] || '',
     measured: measuredText(r, currency, kind), reported: r.reported == null ? '' : wholeMoney(r.reported, currency, kind), note: r.note || '', closed: shortDay(r.closed),
+    amounts: { measured: r.measured ?? null, reported: r.reported ?? null, closed: r.closed ?? null },
   }));
 }

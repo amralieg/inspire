@@ -32,7 +32,9 @@ test('the usage view counts each kind of change per use case and per person, in 
   assert.deepEqual(view.pages[0].cells, ['11', '1', '1', '1', '2', '2']);
   assert.equal(view.pages[1].last, NO_USE);
   assert.deepEqual(view.pages[1].errors, USAGE.pages[1].errors);
-  assert.deepEqual(view.people[0], { who: PERSON, pages: 'Price-loss desk', cells: ['11', '0', '0', '1', '0', '2'], total: '14', last: 'Oct 23, 2026' });
+  assert.deepEqual(view.people[0], { who: PERSON, pages: 'Price-loss desk', cells: ['11', '0', '0', '1', '0', '2'], total: '14', last: 'Oct 23, 2026',
+    amounts: { lead: ['Price-loss desk'], cells: [11, 0, 0, 1, 0, 2], total: 14, last: '2026-10-23T08:00:00Z' } });
+  assert.deepEqual(view.pages[0].amounts, { lead: [3], cells: [11, 1, 1, 1, 2, 2], total: 18, last: '2026-10-23T08:00:00Z' }, 'each count keeps its number for sorting');
   assert.deepEqual(Object.keys(USAGE_LABELS), KINDS);
   assert.ok(/does not record who opens a page or asks Genie/.test(USAGE_UNRECORDED));
 });

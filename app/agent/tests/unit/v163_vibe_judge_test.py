@@ -19,7 +19,7 @@ V1 = {"id": "n01_u01", "title": "Costliest loss reasons and fixes", "question": 
       "charts": [{"id": "loss_trend", "type": "line", "title": "Loss trend by month", "hint": "Loss over time", "dataset": "records",
                   "x": {"column": "event_date", "label": "Month"}, "y": [{"expression": "SUM(loss)", "label": "Loss"}]}],
       "records": {"title": "Fix plan", "hint": "Combinations ranked by loss", "key": "record_key", "label": "entity_label",
-                  "rank": "rank", "tier": "priority_tier",
+                  "rank": "rank", "tier": "priority_tier", "column_filters": False,
                   "columns": [{"column": "channel", "label": "Channel"}, {"column": "value_at_stake", "label": "Loss at stake"}]}}
 V2 = dict(V1, filters=V1["filters"] + [{"id": "priority_tier", "type": "multi_select", "label": "Priority tier",
                                         "columns": {"records": "priority_tier"}}])

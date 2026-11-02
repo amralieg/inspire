@@ -72,7 +72,7 @@ test('the decision list puts a filter in each filterable column header, and pick
   const list = card(page, LIST);
   assert.deepEqual(await list.locator('thead .cf-b').evaluateAll((all) => all.map((b) => b.getAttribute('aria-label'))),
     ['Filter Category', 'Filter Tier', 'Filter Loss']);
-  assert.equal(await list.locator('thead th', { has: page.locator('.cf-b--named') }).locator('button').first().textContent(), 'Item');
+  assert.equal(await list.locator('thead th', { has: page.locator('.cf-b--named') }).locator('.th-sort').textContent(), 'Item');
   assert.match(await list.locator('.card-h p').first().innerText(), /^30 records/);
   const tier = list.getByRole('button', { name: 'Filter Tier' });
   await tier.focus();

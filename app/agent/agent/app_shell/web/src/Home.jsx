@@ -3,7 +3,7 @@ import { BarsCard } from './ChartCard.jsx';
 import { RunningNow } from './Freshness.jsx';
 import { Tiles } from './Kpis.jsx';
 import FilterBar from './FilterBar.jsx';
-import { RowAsk } from './DataTable.jsx';
+import DataTable, { RowAsk } from './DataTable.jsx';
 import { genieOn } from './genieAsk.js';
 import { hueVars } from './theme.js';
 import { addCounts, compact, compareValues, countOf, integer, largestFirst, money, stakeName, wholeMoney } from './format.js';
@@ -99,38 +99,37 @@ function ThingMoney({ r }) {
   return <Fx formula={shown.formula}>{wholeMoney(r.money, r.currency, r.kind)}</Fx>;
 }
 
+const thingName = (r) => String(r.label || r.key);
+
+function thingColumns(today, mine, genie) {
+  return [
+    {
+      key: 'label', label: 'What', sortValue: thingName,
+      render: (r) => <div className="it"><b>{r.label || r.key}{r.tier === REVIEW && <span className="look">worth a look</span>}{missingSince(r) && <span className="chg-b chg-b--missing">{NOT_IN_RUN}</span>}</b>{r.why && <small>{r.why}</small>}</div>,
+    },
+    { key: 'use_case', label: 'Use case', className: 'c-uc', sortValue: (r) => r.page.title, render: (r) => <UseCaseName page={r.page} wrap /> },
+    mine
+      ? { key: 'status', label: 'Status', className: 'nw c-status', sortValue: (r) => statusLabel(r.status || 'New'), render: (r) => <span className={statusClass(r.status || 'New')}>{statusLabel(r.status || 'New')}</span> }
+      : { key: 'owner', label: 'Owner', className: 'nw c-owner', sortValue: (r) => ownerName(r.owner) || 'Nobody yet', render: (r) => <Owner owner={r.owner} /> },
+    {
+      key: 'due', label: 'Due', date: true, className: 'nw c-due', cellClass: (r) => { const due = dueText(r.due, today); return [due.late ? 'late' : '', due.none ? 'faint' : ''].filter(Boolean).join(' '); },
+      render: (r) => dueText(r.due, today).text,
+    },
+    { key: 'money', label: 'Could save', num: true, className: 'money c-money', render: (r) => (r.money == null ? NOT_MEASURED : <ThingMoney r={r} />) },
+    ...(mine ? [] : [{
+      key: '_ask', label: 'Ask Genie', hideLabel: true, fixed: true, className: 'c-ask',
+      render: (r) => (genie?.(r.page.id) ? <RowAsk about={{ pageId: r.page.id, recordKey: String(r.key), label: thingName(r) }} /> : null),
+    }]),
+  ];
+}
+
 function ThingRows({ rows, today, user, onRecord, genie, mine = false }) {
+  const open = (r) => onRecord(r.page.id, r.key);
   return (
-    <div className="tbl-wrap">
-      <table className={`tbl tbl--work ${mine ? 'tbl--mine' : 'tbl--things'}`}>
-        <thead>
-          <tr>
-            <th>What</th><th className="c-uc">Use case</th>{mine ? <th className="c-status">Status</th> : <th className="c-owner">Owner</th>}
-            <th className="c-due">Due</th><th className="num c-money">Could save</th>
-            {!mine && <th className="c-ask"><span className="sr">Ask Genie</span></th>}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((r) => {
-            const due = dueText(r.due, today);
-            const open = () => onRecord(r.page.id, r.key);
-            return (
-              <tr key={`${r.page.id}:${r.key}`} className={`is-click ${isMine(r.owner, user) ? 'is-mine' : ''} ${due.late ? 'is-late' : ''}`} tabIndex={0} onClick={open}
-                onKeyDown={(e) => { if (e.key === 'Enter') open(); }} aria-label={`Open ${r.label || r.key} in ${r.page.title}`}>
-                <td><div className="it"><b>{r.label || r.key}{r.tier === REVIEW && <span className="look">worth a look</span>}{missingSince(r) && <span className="chg-b chg-b--missing">{NOT_IN_RUN}</span>}</b>{r.why && <small>{r.why}</small>}</div></td>
-                <td className="c-uc"><UseCaseName page={r.page} wrap /></td>
-                {mine
-                  ? <td className="nw c-status"><span className={statusClass(r.status || 'New')}>{statusLabel(r.status || 'New')}</span></td>
-                  : <td className="nw c-owner"><Owner owner={r.owner} /></td>}
-                <td className={`nw c-due ${due.late ? 'late' : ''} ${due.none ? 'faint' : ''}`}>{due.text}</td>
-                <td className="num money c-money">{r.money == null ? NOT_MEASURED : <ThingMoney r={r} />}</td>
-                {!mine && <td className="c-ask">{genie?.(r.page.id) && <RowAsk about={{ pageId: r.page.id, recordKey: String(r.key), label: r.label || String(r.key) }} />}</td>}
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </div>
+    <DataTable label={mine ? 'Your work' : 'Things to fix'} tableClass={`tbl--work ${mine ? 'tbl--mine' : 'tbl--things'}`} columns={thingColumns(today, mine, genie)} rows={rows}
+      rowKey={(r) => `${r.page.id}:${r.key}`} paged={false} grid={mine ? 'overview:mine' : 'overview:things'} onRow={open}
+      rowClass={(r) => [isMine(r.owner, user) ? 'is-mine' : '', dueText(r.due, today).late ? 'is-late' : ''].filter(Boolean).join(' ')}
+      rowProps={(r) => ({ tabIndex: 0, onKeyDown: (e) => { if (e.key === 'Enter' && e.target === e.currentTarget) open(r); }, 'aria-label': `Open ${thingName(r)} in ${r.page.title}` })} />
   );
 }
 

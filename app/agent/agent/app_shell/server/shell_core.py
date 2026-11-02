@@ -329,8 +329,8 @@ def click_filters(page: dict) -> dict:
     return out
 
 
-def column_scopes(page: dict) -> list:
-    columns = shell_sql.page_column_filters(page)
+def column_scopes(page: dict, types=None) -> list:
+    columns = shell_sql.page_column_filters(page, types)
     out = [(("column", f["column"]), None, f) for f in columns["list"]]
     return out + [(("column", f"{table}.{f['column']}"), table, f) for table, filters in columns["tables"].items() for f in filters]
 
@@ -1457,7 +1457,8 @@ class Shell:
             if route == ("GET", "defaults"):
                 return 200, self.defaults(headers, query.get("page"))
             if route == ("POST", "page"):
-                return 200, self.page_data(headers, data.get("page"), data.get("filters"), tables=data.get("table_filters"))
+                return 200, self.page_data(headers, data.get("page"), data.get("filters"), tables=data.get("table_filters"),
+                                           sorts=data.get("table_sorts"))
             if route == ("POST", "records"):
                 return 200, self.records(headers, data)
             if route == ("POST", "records/act"):
@@ -1569,9 +1570,9 @@ class Shell:
             builder = shell_sql.bounds_query if f["type"] == "date_range" else shell_sql.options_query
             sql, params = builder(page, f["id"])
             jobs[("filter", f["id"])] = (lambda s=sql, p=params: self.run(ws, who, s, p, shell_sql.CAPS["options"], OPTIONS_TTL_S))
-        scoped = column_scopes(page)
+        scoped = column_scopes(page, self.page_types(ws, who, page, probe))
         for key, table, f in scoped:
-            if f["type"] == "multi_select":
+            if f["type"] == "multi_select" and not f.get("implied"):
                 sql, params = shell_sql.column_options_query(page, table, f["column"])
                 jobs[key] = (lambda s=sql, p=params: self.run(ws, who, s, p, shell_sql.CAPS["options"], OPTIONS_TTL_S))
         done, errors = self._parallel(jobs, probe)
@@ -1592,7 +1593,11 @@ class Shell:
         columns = {"list": [], "tables": {}}
         for key, table, f in scoped:
             item = dict(f)
-            if f["type"] == "multi_select":
+            if f.get("action"):
+                item.update(options=list(shell_sql.ACTION_STATUSES) if f["column"] == "action_status" else [], searchable=False)
+            elif f["type"] == "multi_select" and f.get("implied"):
+                item.update(options=[], searchable=True, lazy=True)
+            elif f["type"] == "multi_select":
                 choice_options(item, done.get(key))
             if key in errors:
                 item["error"] = errors[key]
@@ -1629,28 +1634,41 @@ class Shell:
         ident = str(column if column is not None else query.get("filter") or "")
         if column is None and not any(f.get("id") == ident and f.get("type") == "multi_select" for f in page.get("filters") or []):
             raise HttpError(404, f"page {page['id']} has no choice filter {ident!r}")
-        if column is not None:
-            try:
-                shell_sql.column_filter(page, table, ident, "multi_select")
-            except KeyError as error:
-                raise HttpError(404, f"page {page['id']}: {error.args[0]}") from error
         text = str(query.get("q") or "").strip()
         if len(text) > shell_sql.CAPS["value_chars"]:
             raise HttpError(400, f"search for at most {shell_sql.CAPS['value_chars']} characters")
+        types = None
+        try:
+            dataset = None if column is None else shell_sql.column_dataset(page, table)
+        except KeyError as error:
+            raise HttpError(404, f"page {page['id']}: {error.args[0]}") from error
         ws, who = self.workspace(headers)
+        if column is not None:
+            types = self.list_columns(ws, who, page, dataset)
+            try:
+                shell_sql.column_filter(page, table, ident, "multi_select", types)
+            except KeyError as error:
+                raise HttpError(404, f"page {page['id']}: {error.args[0]}") from error
         limit = shell_sql.CAPS["option_matches"]
         sql, params = (shell_sql.options_query(page, ident, text, limit) if column is None
-                       else shell_sql.column_options_query(page, table, ident, text, limit))
+                       else shell_sql.column_options_query(page, table, ident, text, limit, types))
         rows = self.run(ws, who, sql, params, limit, OPTIONS_TTL_S)["rows"]
         return dict({"filter": ident, "q": text, "options": [r.get("v") for r in rows]},
                     **({} if column is None else {"column": ident, "table": table}))
 
-    def page_data(self, headers: dict, ident, values, probe=None, tables=None) -> dict:
+    def page_data(self, headers: dict, ident, values, probe=None, tables=None, sorts=None) -> dict:
         page = self.page(ident)
-        problems = shell_sql.filter_values_problems(page, values) + shell_sql.table_values_problems(page, tables)
+        problems = shell_sql.filter_values_problems(page, values) + shell_sql.table_sorts_problems(page, sorts)
+        if not problems and tables is not None and not isinstance(tables, dict):
+            problems = shell_sql.table_values_problems(page, tables)
         if problems:
             raise HttpError(400, "; ".join(problems))
         ws, who = self.session(headers, probe)
+        filtered = {t for t, v in (tables or {}).items() if v}
+        types = self.page_types(ws, who, page, probe, filtered)["tables"] if filtered else {}
+        problems = shell_sql.table_values_problems(page, tables, {t: types.get(t, {}) for t in filtered})
+        if problems:
+            raise HttpError(400, "; ".join(problems))
         self.warm_versions(ws, who, page)
         compared = {("kpi", k["id"]) for k in page.get("kpis") or [] if k.get("compare")}
         try:
@@ -1658,9 +1676,9 @@ class Shell:
         except (QueryError, HttpError) as error:
             previous, failed = {}, {key: getattr(error, "message", None) or str(error) for key in compared}
         jobs = {}
-        for kind, item_id, sql, params in shell_sql.page_queries(page, values or {}, tables, previous):
+        for kind, item_id, sql, params in shell_sql.page_queries(page, values or {}, tables, previous, types, sorts):
             if (kind, item_id) not in failed:
-                limit = shell_sql.CAPS["kpi_rows" if kind == "kpi" else "chart_rows"]
+                limit = shell_sql.CAPS["kpi_rows" if kind == "kpi" else "table_rows" if kind == "table" else "chart_rows"]
                 jobs[(kind, item_id)] = (lambda s=sql, p=params, n=limit: self.run(ws, who, s, p, n))
         done, errors = self._parallel(jobs, probe)
         errors.update(failed)
@@ -1686,9 +1704,19 @@ class Shell:
         history = self.history_for(ws, who, page, fields)
         return {name: shell_sql.previous_rows(page, name, [f["name"] for f in fields], history) for name in names}
 
-    def list_columns(self, ws, who, page: dict) -> dict:
-        sql, params = shell_sql.dataset_columns_query(page, shell_sql.RECORDS_DATASET)
+    def list_columns(self, ws, who, page: dict, dataset: str = shell_sql.RECORDS_DATASET) -> dict:
+        sql, params = shell_sql.dataset_columns_query(page, dataset)
         return {c.get("name"): str(c.get("type") or "").upper() for c in self.run(ws, who, sql, params, 1, OPTIONS_TTL_S)["columns"]}
+
+    def page_types(self, ws, who, page: dict, probe=None, tables=None) -> dict:
+        wanted = [t for t in page.get("tables") or [] if tables is None or t["id"] in tables]
+        jobs = {("table", t["id"]): (lambda d=t["dataset"]: self.list_columns(ws, who, page, d)) for t in wanted}
+        if page.get("records") and tables is None:
+            jobs[("list", "types")] = lambda: self.list_columns(ws, who, page)
+        done, _errors = self._parallel(jobs, probe)
+        actions = bool(page.get("records") and page.get("result_table") and self.option("decisions"))
+        return {"list": done.get(("list", "types")), "actions": actions,
+                "tables": {ident: found for (kind, ident), found in done.items() if kind == "table"}}
 
     def table_fields(self, ws, who, page: dict) -> list:
         sql, params = shell_sql.schema_query(page["result_table"])
@@ -1699,8 +1727,8 @@ class Shell:
         if not page.get("records"):
             raise HttpError(404, f"page {page['id']} has no decision list")
         values = data.get("filters") or {}
-        problems = shell_sql.filter_values_problems(page, values) + shell_sql.column_values_problems(
-            shell_sql.list_column_filters(page), data.get(shell_sql.COLUMN_FILTERS), "the decision list")
+        problems = shell_sql.filter_values_problems(page, values) + shell_sql.list_values_problems(
+            page, data.get(shell_sql.COLUMN_FILTERS), {"actions": True})
         if problems:
             raise HttpError(400, "; ".join(problems))
         ws, who = self.session(headers, probe)
@@ -1717,6 +1745,9 @@ class Shell:
         if ("list", "fields") in unread:
             failures["table"] = unread[("list", "fields")]
         context, model, fresh = self.context_of(ws, who, page, columns, fields, False)
+        problems = shell_sql.list_values_problems(page, data.get(shell_sql.COLUMN_FILTERS), context)
+        if problems:
+            raise HttpError(400, "; ".join(problems))
         facts = context["facts"]
         request = shell_sql.list_request(page, data, context, self.now())
         editor = str(headers.get("x-forwarded-email") or "").strip()
@@ -2263,7 +2294,7 @@ class Shell:
         scopes = ([(None, columns["list"])] if columns["list"] else []) + list(columns["tables"].items())
         problems = []
         for table, filters in scopes:
-            dataset = shell_sql.column_filter(page, table, filters[0]["column"])[0]
+            dataset = shell_sql.column_dataset(page, table)
             named = "the decision list" if table is None else f"table {table}"
             problems += [f"{where}: {named} column filter {f['column']} failed: {f['error']}" for f in filters if f.get("error")]
             sql, params = shell_sql.dataset_columns_query(page, dataset)
@@ -2696,6 +2727,9 @@ class Shell:
         if problems:
             raise HttpError(400, "; ".join(problems))
         context, fields = self.list_context(ws, who, page, delta=True)
+        problems = shell_sql.list_values_problems(page, (view or {}).get(shell_sql.COLUMN_FILTERS), context)
+        if problems:
+            raise HttpError(400, "; ".join(problems))
         if not context["actions"]:
             raise HttpError(409, "this decision list keeps no actions, so the App cannot act on its records")
         request = shell_sql.list_request(page, dict(view, limit=1), context, self.now())

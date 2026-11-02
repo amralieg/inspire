@@ -44,7 +44,8 @@ def _round(agent_ns, asset, text, split, artifact, verdicts=(), before=None, too
 
 
 def _without_tier_filter(page):
-    records = dict(page["records"], column_filters=[f for f in page["records"]["column_filters"] if f["column"] != "priority_tier"])
+    records = dict(page["records"], column_filters=[f for f in page["records"]["column_filters"] if f["column"] != "priority_tier"]
+                   + [{"column": "priority_tier", "off": True}])
     return dict(page, records=records, genie=GENIE)
 
 
@@ -215,7 +216,8 @@ def test_the_dashboard_view_draws_what_the_dashboard_builder_draws(agent_ns):
     assert (checks[0]["status"], checks[0]["evidence"]) == ("done", "chart fare_by_confidence: type horizontal_bar"), checks
     view = agent_ns["implement_dashboard_drawn"](page)
     assert view["blocks"] == [] and "questions" not in view and "story" not in view
-    assert "column_filters" not in view["records"]
+    assert view["records"]["column_filters"] is False and shell_sql.list_column_filters(view) == []
+    assert all(t["column_filters"] is False for t in view["tables"])
     assert [c["type"] for c in view["charts"]] == ["line", "horizontal_bar", "pie", "pareto", "scatter"], \
         "horizontal bars and paretos are drawn as the dashboard draws them, and a donut as the dashboard's pie"
     assert [c["type"] for c in agent_ns["implement_dashboard_drawn"](page, U02["published"])["charts"]] == [
@@ -270,7 +272,8 @@ def test_round10_a_filter_on_all_columns_lists_every_column_it_checked(agent_ns)
     assert checks[0]["evidence"] == ("the Root-cause action plan table has a column filter on each of its 7 columns: Rank, Item, "
                                      "Category, Tier, Channel, Return reason, Loss at stake"), checks
     page = _page(U09)
-    page["records"]["column_filters"] = [f for f in page["records"]["column_filters"] if f["column"] != "value_at_stake"]
+    page["records"]["column_filters"] = [f for f in page["records"]["column_filters"] if f["column"] != "value_at_stake"] + [
+        {"column": "value_at_stake", "off": True}]
     checks, _judged = _round(agent_ns, U09_ASSET, U09["text"], [ALL_COLUMNS], page, tools=tools,
                              verdicts=[{"status": "done", "evidence": "column filter: Channel", "where": "records"}])
     assert checks[0]["status"] == "missing" and "the Root-cause action plan table has no column filter on value_at_stake" in \
@@ -398,6 +401,18 @@ def test_a_filter_ask_on_a_named_table_with_no_filter_of_its_own_is_not_met(agen
     assert checked(ask, "app:page:n01_u01", SWEEP, seen("app:page:n01_u01", SWEEP), None, None, "App page n01_u01") == (
         "missing", "the built Fix plan table on the App page n01_u01 has no filter on region; its filters are none"), \
         "the region filter in the page filter bar is another element"
+
+
+@pytest.mark.parametrize("filters, status", [(None, "done"), ([{"column": "channel"}], "done"),
+                                             ([{"column": "channel", "off": True}], "missing"), (False, "missing")])
+def test_a_filter_ask_on_a_table_reads_the_filters_the_app_turns_on_from_its_columns(agent_ns, filters, status):
+    checked, seen = agent_ns["implement_vibes_checked"], agent_ns["implement_vibes_seen"]
+    ask = {"ask": "Filter the Fix plan table by channel", "check": {"kind": "filter", "value": "channel"}, "keep": False,
+           "where": "the Fix plan table"}
+    page = dict(SWEEP, records=SWEEP["records"] if filters is None else dict(SWEEP["records"], column_filters=filters))
+    shown = seen("app:page:n01_u01", page, shell_sql)
+    assert checked(ask, "app:page:n01_u01", page, shown, None, None, "App page n01_u01", (), shell_sql)[0] == status
+    assert ("column filter: Channel" in shown["records"]["lines"]) is (status == "done"), shown["records"]["lines"]
 
 
 def test_one_element_finder_ranks_every_candidate_and_the_vibe_check_reads_the_closest(agent_ns):

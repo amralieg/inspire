@@ -12,14 +12,16 @@ const whole = (n) => grouped(n || 0);
 export function usageView(data) {
   const kinds = (data?.kinds || Object.keys(USAGE_LABELS)).filter((k) => USAGE_LABELS[k]);
   const cells = (counts) => kinds.map((k) => whole(counts?.[k]));
+  const amounts = (p, lead) => ({ lead: [lead], cells: kinds.map((k) => p.counts?.[k] || 0), total: p.total || 0, last: p.last || null });
   return {
     title: `Usage in the last ${data?.days ?? 30} days`,
     since: data?.since ? `Since ${dayLabel(data.since)}` : '',
     kinds: kinds.map((k) => ({ id: k, label: USAGE_LABELS[k] })),
     pages: (data?.pages || []).map((p) => ({
       id: p.id, title: p.title || p.id, people: whole(p.people), cells: cells(p.counts), total: whole(p.total),
-      last: p.last ? dayLabel(p.last) : NO_USE, errors: p.errors || [],
+      last: p.last ? dayLabel(p.last) : NO_USE, errors: p.errors || [], amounts: amounts(p, p.people || 0),
     })),
-    people: (data?.people || []).map((p) => ({ who: p.who, pages: (p.pages || []).join(', '), cells: cells(p.counts), total: whole(p.total), last: p.last ? dayLabel(p.last) : '' })),
+    people: (data?.people || []).map((p) => ({ who: p.who, pages: (p.pages || []).join(', '), cells: cells(p.counts), total: whole(p.total), last: p.last ? dayLabel(p.last) : '',
+      amounts: amounts(p, (p.pages || []).join(', ')) })),
   };
 }
