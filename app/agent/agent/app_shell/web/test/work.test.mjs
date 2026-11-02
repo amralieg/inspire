@@ -177,9 +177,11 @@ test('Apply to similar shows the count and five of the records the server found,
 
 test('Recent changes lists each change newest first, and Undo on one says what it put back and what it left', async () => {
   const batches = [
-    { batch_id: 'b-3', editor: 'dana', at: '2026-10-27T09:20:00Z', count: 1, values: { action_status: 'New' }, undoes: 'b-0', note: '', undone: false },
-    { batch_id: 'b-2', editor: ['pat.lee', 'example.com'].join('@'), at: '2026-10-27T09:10:00Z', count: 30, values: { action_status: 'Done' }, undoes: null, note: 'Closed the promo', undone: false },
-    { batch_id: 'b-1', editor: OTHER, at: '2026-10-26T16:00:00Z', count: 2, values: { action_owner: OTHER }, undoes: null, note: '', undone: true },
+    { batch_id: 'b-4', editor: OTHER, at: '2026-10-27T09:30:00Z', count: 3, values: { action_status: 'Done' }, undoes: null, note: '', undone: false, can_undo: false },
+    { batch_id: 'b-3', editor: 'dana', at: '2026-10-27T09:20:00Z', count: 1, values: { action_status: 'New' }, undoes: 'b-0', note: '', undone: false, can_undo: true },
+    { batch_id: 'b-2', editor: ['pat.lee', 'example.com'].join('@'), at: '2026-10-27T09:10:00Z', count: 30, values: { action_status: 'Done' }, undoes: null, note: 'Closed the promo', undone: false,
+      can_undo: true },
+    { batch_id: 'b-1', editor: OTHER, at: '2026-10-26T16:00:00Z', count: 2, values: { action_owner: OTHER }, undoes: null, note: '', undone: true, can_undo: true },
   ];
   const { routes } = routesFor({ undo: { restored: 29, skipped: 1, skipped_sample: [{ record_key: 'R003', error: 'changed' }], batch_id: 'u-2', undoes: 'b-2' } },
     { 'records/batches': ({ json }) => json(200, { batches, limit: 20 }) });
@@ -188,12 +190,16 @@ test('Recent changes lists each change newest first, and Undo on one says what i
   const dialog = page.getByRole('dialog', { name: 'Recent changes' });
   await dialog.locator('.batches li').first().waitFor();
   assert.deepEqual(await dialog.locator('.batches li > span').allInnerTexts(), [
+    `Oct 27, 2026, 09:30 AM UTC, ${OTHER}: 3 records marked as fixed`,
     'Oct 27, 2026, 09:20 AM UTC, dana: undid an earlier change on 1 record',
-    `Oct 27, 2026, 09:10 AM UTC, ${batches[1].editor}: 30 records marked as fixed. Note: Closed the promo`,
+    `Oct 27, 2026, 09:10 AM UTC, ${batches[2].editor}: 30 records marked as fixed. Note: Closed the promo`,
     `Oct 26, 2026, 04:00 PM UTC, ${OTHER}: 2 records given to ${OTHER}`]);
   assert.equal(await dialog.locator('[data-batch="b-1"] button').count(), 0, 'an undone change offers no second Undo');
   assert.equal(await dialog.locator('[data-batch="b-3"] button').count(), 0, 'an undo is not undone from here');
   assert.equal(await dialog.locator('[data-batch="b-1"] small').innerText(), 'Undone');
+  assert.equal(await dialog.locator('[data-batch="b-4"] button').count(), 0, 'someone else made it and the person owns no part of this use case');
+  assert.equal(await dialog.locator('[data-batch="b-4"] [data-undo-theirs]').innerText(),
+    'Only the person who made this change or an owner of this use case can undo it.');
   await dialog.locator('[data-batch="b-2"]').getByRole('button', { name: 'Undo' }).click();
   await until(() => seen.undos?.length === 1);
   assert.deepEqual(seen.undos[0], { page: 'n01_u05', batch_id: 'b-2' });

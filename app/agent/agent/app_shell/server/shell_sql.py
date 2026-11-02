@@ -3497,16 +3497,17 @@ def match_conflicts_query(table: str, match: dict, batch_id: str, held: bool) ->
             f"LIMIT {CAPS['conflicts_shown']}", params.items)
 
 
-def batches_query(page: dict, limit: int = CAPS["batches"]) -> tuple:
+def batches_query(page: dict, limit: int = CAPS["batches"], batch_id: str = None) -> tuple:
     table, params = table_name(page["result_table"]), _Params()
     scope = f" AND `use_case_id` = {params.add(str(page['use_case_id']))}" if page.get("use_case_id") else ""
+    only = f" AND b.`{BATCH_COLUMN}` = {params.add(str(batch_id))}" if batch_id else ""
     undo = (f"SELECT DISTINCT get_json_object(`{BATCH_VALUES}`, '$.{UNDO_KEY}') AS `_inspire_undo` FROM {table} WHERE "
             f"`change_source` = 'action' AND `{BATCH_VALUES}` LIKE '%\"{UNDO_KEY}\"%'{scope}")
     return (f"SELECT b.`{BATCH_COLUMN}` AS `batch_id`, MAX(b.`changed_by`) AS `editor`, MIN(b.`valid_from`) AS `at`, "
             f"COUNT(DISTINCT b.`record_key`) AS `n`, MAX(b.`{BATCH_VALUES}`) AS `batch_values`, MAX(b.`{BATCH_NOTE}`) AS `note`, "
             f"MAX(CASE WHEN u.`_inspire_undo` IS NOT NULL THEN 1 ELSE 0 END) AS `undone` FROM {table} AS b LEFT JOIN ({undo}) AS u ON "
             f"u.`_inspire_undo` = b.`{BATCH_COLUMN}` WHERE b.`change_source` = 'action' AND b.`{BATCH_COLUMN}` IS NOT NULL"
-            f"{scope.replace('`use_case_id`', 'b.`use_case_id`')} GROUP BY b.`{BATCH_COLUMN}` ORDER BY `at` DESC LIMIT {int(limit)}",
+            f"{scope.replace('`use_case_id`', 'b.`use_case_id`')}{only} GROUP BY b.`{BATCH_COLUMN}` ORDER BY `at` DESC LIMIT {int(limit)}",
             params.items)
 
 

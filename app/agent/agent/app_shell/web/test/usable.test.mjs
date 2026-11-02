@@ -10,7 +10,7 @@ import {
 import { isQuiet, progressShare, progressText, stepText, untilText } from '../src/freshness.js';
 import {
   CODES, NO_AS_OF, STALE_LIST, UNDO_CLOSE, actError, actOutcome, actedText, asOfText, batchText, byWords, changeWords, closedText, conflictText, isOverdue, isStaleRecord,
-  listAsOf, matchOf, overdueFirst, recordsText, undoBatchOf, undoText,
+  listAsOf, matchOf, overdueFirst, recordsText, undoBatchOf, undoText, closedBatchOf, UNDO_THEIRS,
 } from '../src/records.js';
 import { doneDay, doneTodayOf, limitText, myWorkText } from '../src/hub.js';
 import { blockTitle } from '../src/blocks.js';
@@ -79,7 +79,8 @@ test('Everything is kept like any window, sends the list no window and no limit,
 
 test('a closed record says who closed it, when and why, and offers Undo only for a close that was not itself an undo', () => {
   const row = { _inspire_status: 'Done', _inspire_closed_by: SAM, _inspire_closed_at: '2026-10-26T15:20:00.000Z', _inspire_closed_batch: 'a'.repeat(32),
-    _inspire_closed_undo: false, _inspire_closed_note: ' Repriced the shelf ', _inspire_closed_reason: null, _inspire_closed_comment: 'Called the store' };
+    _inspire_closed_undo: false, _inspire_closed_can_undo: true, _inspire_closed_note: ' Repriced the shelf ', _inspire_closed_reason: null,
+    _inspire_closed_comment: 'Called the store' };
   assert.equal(closedText(row), `By ${SAM} on Oct 26, 2026, 03:20 PM UTC. Note: Repriced the shelf`);
   assert.equal(closedText({ ...row, _inspire_closed_note: '' }), `By ${SAM} on Oct 26, 2026, 03:20 PM UTC. Note: Called the store`, 'the note on the record when no note came with the act');
   assert.equal(closedText({ ...row, _inspire_status: 'Dismissed', _inspire_closed_reason: 'Known issue' }),
@@ -89,7 +90,13 @@ test('a closed record says who closed it, when and why, and offers Undo only for
   assert.equal(closedText({ _inspire_status: 'Done' }), '', 'a closed record with no close found says nothing rather than guess');
   assert.equal(undoBatchOf(row, ME), 'a'.repeat(32));
   for (const [r, who] of [[{ ...row, _inspire_closed_undo: true }, ME], [row, ''], [row, '  '], [{ ...row, _inspire_closed_batch: 'nope' }, ME],
-    [{ ...row, _inspire_closed_batch: null }, ME], [{ ...row, _inspire_status: 'New' }, ME]]) assert.equal(undoBatchOf(r, who), '', JSON.stringify([r?._inspire_closed_batch, who]));
+    [{ ...row, _inspire_closed_batch: null }, ME], [{ ...row, _inspire_status: 'New' }, ME], [{ ...row, _inspire_closed_can_undo: false }, ME],
+    [{ ...row, _inspire_closed_can_undo: undefined }, ME], [{ ...row, _inspire_closed_can_undo: 'yes' }, ME]]) {
+    assert.equal(undoBatchOf(r, who), '', JSON.stringify([r?._inspire_closed_batch, r?._inspire_closed_can_undo, who]));
+  }
+  assert.equal(closedBatchOf({ ...row, _inspire_closed_can_undo: false }), 'a'.repeat(32), 'the close is still undoable by its author or an owner');
+  for (const r of [{ ...row, _inspire_closed_undo: true }, { ...row, _inspire_status: 'New' }, { ...row, _inspire_closed_batch: 'nope' }]) assert.equal(closedBatchOf(r), '');
+  assert.equal(UNDO_THEIRS, 'Only the person who made this change or an owner of this use case can undo it.');
   assert.equal(UNDO_CLOSE, 'Undo puts back every record this change touched, as they were before it, and keeps both versions in their history.');
 });
 

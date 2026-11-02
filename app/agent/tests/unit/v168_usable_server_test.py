@@ -732,7 +732,8 @@ def test_undo_restores_the_values_before_the_batch_as_new_versions_and_reports_w
     done = [{"record_key": "k2", "change_source": "edit", "changed_by": "sam", "valid_from": "2026-10-27T09:20:00.000Z", "_inspire_done": 0,
              "_inspire_n": 2}, {"record_key": "k1", "change_source": "action", "changed_by": PERSON, "valid_from": "2026-10-27T09:25:00.000Z",
                                 "_inspire_done": 1, "_inspire_n": 2}]
-    ws = UsableWorkspace(batch_records=done, inserted=1)
+    made = [{"batch_id": "a" * 32, "editor": PERSON, "at": "2026-10-27T09:10:00.000Z", "n": 2, "batch_values": "{}", "note": None, "undone": 0}]
+    ws = UsableWorkspace(batch_records=done, inserted=1, batches=made)
     s = usable_shell(tmp_path, ws)
     status, out = post(s, "records/undo", {"batch_id": "a" * 32})
     assert status == 200, out

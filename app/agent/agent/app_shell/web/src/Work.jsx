@@ -6,7 +6,7 @@ import { Icon } from './icons.jsx';
 import { Popover, useDialog, useToast } from './ui.jsx';
 import {
   NOTE_CHARS, REASON_CHARS, SIMILAR_SHOWN, STATUSES, UNDO_MS, actOutcome, actedText, actionProblem, asOfText, batchText, byWords, conflictText,
-  recordsText, statusLabel, undoText,
+  recordsText, statusLabel, undoText, UNDO_THEIRS,
 } from './records.js';
 
 export const SHORTCUTS = [
@@ -245,7 +245,9 @@ export function BatchesDialog({ pageId, onClose, onUndo, labelOf }) {
                 <li key={b.batch_id} data-batch={b.batch_id}>
                   <span>{batchText(b)}</span>
                   {b.undone ? <small className="faint">Undone</small> : undone[b.batch_id] ? <small role="status">{undone[b.batch_id]}</small>
-                    : !b.undoes && <button type="button" className="btn" onClick={() => undo(b.batch_id)}><Icon name="undo" size={13} />Undo</button>}
+                    : !b.undoes && (b.can_undo
+                      ? <button type="button" className="btn" onClick={() => undo(b.batch_id)}><Icon name="undo" size={13} />Undo</button>
+                      : <small className="faint" data-undo-theirs>{UNDO_THEIRS}</small>)}
                 </li>
               ))}
             </ul>
