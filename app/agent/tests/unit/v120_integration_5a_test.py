@@ -322,7 +322,7 @@ def test_final_results_json_survives_the_sql_literal(agent_ns, tmp_path, monkeyp
     finalize = next(s for s in spark.statements if "results_json = parse_json(" in s)
     parsed = [json.loads(v) for v in literal_values(finalize, quote_quote_is_escape) if v.startswith("{")]
     assert parsed == [payload, payload]
-    writer._update_session_ready("2026-10-05 05:00:00", 1.0)
+    writer._update_session_ready("2026-10-05 05:00:00")
     ready = spark.statements[-1]
     assert [json.loads(v) for v in literal_values(ready, quote_quote_is_escape) if v.startswith("{")] == [
         {"last_flush": "2026-10-05 05:00:00"}]
