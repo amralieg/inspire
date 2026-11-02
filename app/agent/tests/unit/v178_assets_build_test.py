@@ -1,9 +1,10 @@
+import ast
 import hashlib
 import importlib.util
 import json
 import os
 import sys
-import zipfile
+import tarfile
 
 import pytest
 
@@ -81,45 +82,111 @@ def test_a_wheel_without_a_license_file_stops_the_build():
         build.wheel_license(wheel({"zqvmod/__init__.py": "x"}), "zqv-dist")
 
 
-def _bundle(build, pins):
+FOUND = {"machine": "aarch64", "version": "3.12.3 (main) [GCC]"}
+LICENSED_WHEEL = wheel(LICENSED)
+
+
+def _release():
+    spec = importlib.util.spec_from_file_location("inspire_release_for_assets", os.path.join(os.path.dirname(ROOT), "installer", "release.py"))
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def _bundle(build, pins, cli_byte=0):
     bundle = build.Bundle(pins)
-    data = wheel(LICENSED)
+    data = LICENSED_WHEEL
     bundle.add("python", "zqv-dist", "1.0", pins["inspire_asset_file"]("python", "zqv-dist"), data,
                bundle.license("zqv-dist", "1.0", build.wheel_license(data, "zqv-dist")), machine="any", python="any")
-    big = os.urandom(300_000)
+    big = bytes([cli_byte]) + bytes(range(256)) * 1200
     bundle.add("cli", "genie-code-cli", pins["GENIE_CODE_CLI_VERSION"], pins["inspire_asset_file"]("cli", "genie-code-cli", "aarch64"), big,
                bundle.license("genie-code-cli", pins["GENIE_CODE_CLI_VERSION"], "Databricks License\n\nNOTICE"), machine="aarch64")
     return bundle
 
 
-def test_the_build_writes_a_manifest_with_size_sha256_and_license_for_every_file_and_parts_that_rejoin(tmp_path):
+def _sha(path):
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def test_the_build_writes_one_tar_with_the_manifest_first_then_every_file_by_name_and_no_zip_or_parts(tmp_path):
     build = _build()
     pins = build.notebook_pins()
-    found = {"machine": "aarch64", "version": "3.12.3 (main) [GCC]"}
-    sizes = build.write(_bundle(build, pins), pins, str(tmp_path), 100_000, found, ["aarch64"], ["x86_64", "aarch64"])
+    sizes = build.write(_bundle(build, pins), pins, str(tmp_path), FOUND, ["aarch64"], ["x86_64", "aarch64"])
     manifest = json.loads((tmp_path / "manifest.json").read_text())
     assert manifest["inspire_version"] == pins["__AGENT_VERSION__"] and manifest["probe"] == {"machine": "aarch64", "python": "3.12.3"}
     files = {entry["file"]: entry for entry in manifest["files"]}
     assert sorted(files) == ["cli/genie-code-cli-aarch64.tar.gz", "licenses/genie-code-cli.txt", "licenses/zqv-dist.txt", "python/zqv-dist.whl"]
     assert all({"name", "version", "size", "sha256", "license"} <= set(entry) and entry["license"] in files for entry in manifest["files"])
-    parts = json.loads((tmp_path / "parts.json").read_text())
-    assert [p["file"] for p in parts["parts"]] == [f"inspire-assets.part{n:03d}" for n in range(1, len(parts["parts"]) + 1)]
-    assert len(parts["parts"]) == sizes["parts"] >= 4 and max(p["size"] for p in parts["parts"]) <= 100_000
-    joined = b"".join((tmp_path / p["file"]).read_bytes() for p in parts["parts"])
-    assert joined == (tmp_path / "inspire-assets.zip").read_bytes() and hashlib.sha256(joined).hexdigest() == parts["sha256"]
-    assert all(hashlib.sha256((tmp_path / p["file"]).read_bytes()).hexdigest() == p["sha256"] for p in parts["parts"])
-    assert not any(name.endswith(".zip") and name != "inspire-assets.zip" for name in os.listdir(tmp_path)), "no part is named .zip"
-    build.write(_bundle(build, pins), pins, str(tmp_path), 0, found, ["aarch64"], ["aarch64"])
-    assert not [n for n in os.listdir(tmp_path) if n.startswith("inspire-assets.part") or n == "parts.json"], "a rebuild leaves no old part"
+    assert sorted(os.listdir(tmp_path)) == ["inspire-assets.tar", "manifest.json"], "no zip, no parts and no parts.json"
+    with tarfile.open(tmp_path / "inspire-assets.tar") as tar:
+        members = tar.getmembers()
+        assert [m.name for m in members] == ["manifest.json"] + sorted(files)
+        assert all(m.isfile() and (m.mtime, m.mode, m.uid, m.gid, m.uname, m.gname) == (0, 0o644, 0, 0, "", "") for m in members)
+        assert tar.extractfile("manifest.json").read() == (tmp_path / "manifest.json").read_bytes()
+        assert all(hashlib.sha256(tar.extractfile(name).read()).hexdigest() == entry["sha256"] for name, entry in files.items())
+    assert (sizes["archive"], sizes["sha256"], sizes["files"]) == ((tmp_path / "inspire-assets.tar").stat().st_size,
+                                                                  _sha(tmp_path / "inspire-assets.tar"), 4)
+    assert not hasattr(build, "PART_BYTES") and not hasattr(build, "PARTS")
+    with pytest.raises(SystemExit):
+        build.main(["--out", str(tmp_path / "x"), "--probe", "p.json", "--part-bytes", "0"])
+
+
+def test_two_builds_of_the_same_inputs_are_byte_identical_whatever_the_clock_and_umask_and_one_changed_byte_is_not(tmp_path, monkeypatch):
+    build = _build()
+    pins = build.notebook_pins()
+    clock = [1_700_000_000.0]
+    monkeypatch.setattr(build.time, "time", lambda: clock[0])
+    first = build.write(_bundle(build, pins), pins, str(tmp_path / "a"), FOUND, ["aarch64"], ["aarch64"])
+    clock[0] += 3 * 86400 + 7
+    old = os.umask(0o077)
+    try:
+        second = build.write(_bundle(build, pins), pins, str(tmp_path / "b"), FOUND, ["aarch64"], ["aarch64"])
+    finally:
+        os.umask(old)
+    assert (first["archive"], first["sha256"]) == (second["archive"], second["sha256"])
+    assert _sha(tmp_path / "a" / "inspire-assets.tar") == _sha(tmp_path / "b" / "inspire-assets.tar") == first["sha256"]
+    assert (tmp_path / "a" / "inspire-assets.tar").read_bytes() == (tmp_path / "b" / "inspire-assets.tar").read_bytes()
+    build.write(_bundle(build, pins), pins, str(tmp_path / "a"), FOUND, ["aarch64"], ["aarch64"])
+    assert _sha(tmp_path / "a" / "inspire-assets.tar") == first["sha256"], "a rebuild into the same folder writes the same bytes"
+    changed = build.write(_bundle(build, pins, cli_byte=1), pins, str(tmp_path / "c"), FOUND, ["aarch64"], ["aarch64"])
+    assert changed["sha256"] != first["sha256"], "one changed input byte must change the archive"
+    other = build.write(_bundle(build, pins), pins, str(tmp_path / "d"), dict(FOUND, machine="x86_64"), ["aarch64"], ["aarch64"])
+    assert other["sha256"] != first["sha256"], "another probe result is another input"
+
+
+def test_release_py_rebuilds_the_identical_tar_from_the_extracted_build(tmp_path):
+    build, release = _build(), _release()
+    pins = build.notebook_pins()
+    built = build.write(_bundle(build, pins), pins, str(tmp_path / "out"), FOUND, ["aarch64"], ["aarch64"])
+    folder = tmp_path / "extracted"
+    with tarfile.open(tmp_path / "out" / "inspire-assets.tar") as tar:
+        tar.extractall(folder, filter="data")
+    for path in folder.rglob("*"):
+        os.utime(path, (1_234_567_890, 1_234_567_890))
+    (folder / "cli" / "genie-code-cli-aarch64.tar.gz").chmod(0o600)
+    target = tmp_path / "release.tar"
+    release.write_assets_tar(folder, pins["__AGENT_VERSION__"], target, release.load_starter())
+    assert _sha(target) == built["sha256"], "release.py and the assets build write one archive the same way"
+
+
+def test_the_notebook_the_build_release_py_and_the_installer_name_the_assets_alike(agent_ns):
+    release = _release()
+    with open(os.path.join(os.path.dirname(ROOT), "installer", "inspire_setup.py"), encoding="utf-8") as handle:
+        setup = {node.targets[0].id: ast.literal_eval(node.value) for node in ast.parse(handle.read()).body
+                 if isinstance(node, ast.Assign) and len(node.targets) == 1 and getattr(node.targets[0], "id", "").startswith("ASSETS_")}
+    assert agent_ns["INSPIRE_ASSETS_MANIFEST"] == release.ASSETS_MANIFEST == setup["ASSETS_MANIFEST"] == "manifest.json"
+    assert release.ASSETS_TAR == setup["ASSETS_TAR"] == "inspire-assets.tar"
+    assert agent_ns["INSPIRE_ASSETS_FORMAT"] == setup["ASSETS_FORMAT"] == 1
+    assert agent_ns["INSPIRE_ASSETS_FOLDER"] == setup["ASSETS_PARENT"]
 
 
 def test_what_the_build_writes_is_what_the_agent_loader_reads(agent_ns, tmp_path, monkeypatch):
     build = _build()
     pins = build.notebook_pins()
-    build.write(_bundle(build, pins), pins, str(tmp_path / "out"), 0, {"machine": "aarch64", "version": "3.12.3"}, ["aarch64"], ["aarch64"])
+    build.write(_bundle(build, pins), pins, str(tmp_path / "out"), {"machine": "aarch64", "version": "3.12.3"}, ["aarch64"], ["aarch64"])
     root = tmp_path / "assets" / pins["__AGENT_VERSION__"]
-    with zipfile.ZipFile(tmp_path / "out" / "inspire-assets.zip") as archive:
-        archive.extractall(root)
+    with tarfile.open(tmp_path / "out" / "inspire-assets.tar") as archive:
+        archive.extractall(root, filter="data")
     monkeypatch.setitem(agent_ns["INSPIRE_ASSET_MODULES"], "zqvmod", ("zqv-dist",))
     monkeypatch.setitem(agent_ns["INSPIRE_ASSET_WHEELS"], "zqv-dist", "1.0")
     monkeypatch.delitem(sys.modules, "zqvmod", raising=False)
@@ -137,7 +204,7 @@ def test_the_build_ships_both_serverless_machines_unless_told_otherwise(tmp_path
     monkeypatch.setattr(build, "add_python", lambda bundle, pins, python, machines, names: seen["python"].append((python, list(machines))))
     monkeypatch.setattr(build, "add_fonts", lambda bundle, pins: None)
     monkeypatch.setattr(build, "add_clis", lambda bundle, pins, machines: seen.__setitem__("cli", list(machines)))
-    monkeypatch.setattr(build, "write", lambda *a, **k: {"archive": 0, "parts": 0, "largest_part": 0, "files": 0, "payload": 0})
+    monkeypatch.setattr(build, "write", lambda *a, **k: {"path": "", "archive": 0, "sha256": "", "files": 0, "payload": 0})
     probe = tmp_path / "probe.json"
     probe.write_text(json.dumps({"machine": "aarch64", "version": "3.12.3 (main)"}))
     assert build.main(["--out", str(tmp_path / "out"), "--probe", str(probe)]) == 0

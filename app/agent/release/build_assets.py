@@ -1,6 +1,7 @@
 import argparse
 import ast
 import hashlib
+import importlib.util
 import io
 import json
 import os
@@ -15,11 +16,8 @@ import zipfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 NOTEBOOK = os.path.join(ROOT, "agent", "dbx_inspire_ai_agent.ipynb")
+RELEASE = os.path.join(os.path.dirname(ROOT), "installer", "release.py")
 PYPI = os.environ.get("INSPIRE_ASSETS_PYPI", "https://pypi.org").rstrip("/")
-ARCHIVE = "inspire-assets.zip"
-PARTS = "parts.json"
-PART_PREFIX = "inspire-assets.part"
-PART_BYTES = 9 * 1024 * 1024
 ATTEMPTS = 8
 FONT_LICENSE_COMMIT = "6c1dbe27dcf7d817d4b62cec033ba77fa8e2a5ec"
 FONT_FILES = {
@@ -291,7 +289,15 @@ def add_clis(bundle: Bundle, pins: dict, machines: list) -> None:
             log(f"cli {name} {version} {machine}: {len(data):,} bytes")
 
 
-def write(bundle: Bundle, pins: dict, out: str, part_bytes: int, found: dict, machines: list, app_machines: list) -> dict:
+def release_module():
+    spec = importlib.util.spec_from_file_location("inspire_release", RELEASE)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def write(bundle: Bundle, pins: dict, out: str, found: dict, machines: list, app_machines: list) -> dict:
+    release = release_module()
     os.makedirs(out, exist_ok=True)
     manifest = {"format": pins["INSPIRE_ASSETS_FORMAT"], "inspire_version": pins["__AGENT_VERSION__"],
                 "environment_version": pins["GENIE_NOTEBOOK_ENV_VERSION"], "python": pins["INSPIRE_ASSETS_PYTHON"],
@@ -299,45 +305,25 @@ def write(bundle: Bundle, pins: dict, out: str, part_bytes: int, found: dict, ma
                 "probe": {"machine": found["machine"], "python": found["version"].split()[0]},
                 "files": sorted(bundle.entries, key=lambda e: e["file"])}
     body = json.dumps(manifest, indent=1, sort_keys=True).encode("utf-8")
-    archive = os.path.join(out, ARCHIVE)
-    with zipfile.ZipFile(archive, "w") as handle:
-        handle.writestr(pins["INSPIRE_ASSETS_MANIFEST"], body, compress_type=zipfile.ZIP_DEFLATED)
-        for file in sorted(bundle.files):
-            packed = file.endswith((".whl", ".zip", ".tar.gz"))
-            handle.writestr(file, bundle.files[file], compress_type=zipfile.ZIP_STORED if packed else zipfile.ZIP_DEFLATED)
-    with open(archive, "rb") as handle:
-        whole = handle.read()
-    for old in os.listdir(out):
-        if old.startswith(PART_PREFIX) or old == PARTS:
-            os.remove(os.path.join(out, old))
-    parts = []
-    if part_bytes:
-        for number, start in enumerate(range(0, len(whole), part_bytes), 1):
-            chunk = whole[start:start + part_bytes]
-            name = f"{PART_PREFIX}{number:03d}"
-            with open(os.path.join(out, name), "wb") as handle:
-                handle.write(chunk)
-            parts.append({"file": name, "size": len(chunk), "sha256": sha256(chunk)})
-        with open(os.path.join(out, PARTS), "w", encoding="utf-8") as handle:
-            json.dump({"format": 1, "inspire_version": pins["__AGENT_VERSION__"], "archive": ARCHIVE, "size": len(whole),
-                       "sha256": sha256(whole), "parts": parts}, handle, indent=1)
-            handle.write("\n")
-    with open(os.path.join(out, pins["INSPIRE_ASSETS_MANIFEST"]), "wb") as handle:
+    members = dict(bundle.files, **{release.ASSETS_MANIFEST: body})
+    archive = os.path.join(out, release.ASSETS_TAR)
+    release.write_tar(archive, list(members), lambda name: io.BytesIO(members[name]))
+    with open(os.path.join(out, release.ASSETS_MANIFEST), "wb") as handle:
         handle.write(body)
-    return {"archive": len(whole), "parts": len(parts), "largest_part": max((p["size"] for p in parts), default=0),
-            "files": len(bundle.entries), "payload": sum(len(d) for d in bundle.files.values())}
+    digest, size = release.load_starter()["file_digest"](archive)
+    return {"path": archive, "archive": size, "sha256": digest, "files": len(bundle.entries),
+            "payload": sum(len(d) for d in bundle.files.values())}
 
 
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(prog="build_assets.py", description="Build the Inspire assets download on a machine with internet.")
-    parser.add_argument("--out", required=True, help="folder for inspire-assets.zip, its parts, parts.json and manifest.json")
+    parser.add_argument("--out", required=True, help="folder for inspire-assets.tar and a copy of the manifest.json it holds")
     parser.add_argument("--profile", help="Databricks CLI profile of a workspace to probe the serverless machine and Python")
     parser.add_argument("--probe", help="a saved probe JSON with machine and version, instead of a live probe")
     parser.add_argument("--machines", default="x86_64,aarch64",
                         help="comma list of CPU architectures for the agent; serverless runs on either and can change between runs")
     parser.add_argument("--cache", default="", help="a folder that keeps downloads by sha256 so a rebuild fetches only what changed")
     parser.add_argument("--app-machines", default="x86_64,aarch64", help="comma list of CPU architectures for built Apps")
-    parser.add_argument("--part-bytes", type=int, default=PART_BYTES, help="split size; 0 writes no parts")
     args = parser.parse_args(argv)
     if args.cache:
         os.makedirs(args.cache, exist_ok=True)
@@ -365,11 +351,11 @@ def main(argv=None) -> int:
     add_python(bundle, pins, pins["INSPIRE_APP_ASSETS_PYTHON"], app_machines, pins["INSPIRE_APP_ASSET_WHEELS"])
     add_fonts(bundle, pins)
     add_clis(bundle, pins, machines)
-    sizes = write(bundle, pins, args.out, args.part_bytes, found, machines, app_machines)
+    sizes = write(bundle, pins, args.out, found, machines, app_machines)
     for entry in sorted(bundle.entries, key=lambda e: -e["size"]):
         print(f"{entry['size']:>13,}  {entry['file']}  {entry['name']} {entry['version']}")
     print(f"{sizes['payload']:>13,}  payload in {sizes['files']} files")
-    print(f"{sizes['archive']:>13,}  {ARCHIVE}, in {sizes['parts']} parts of at most {sizes['largest_part']:,} bytes")
+    print(f"{sizes['archive']:>13,}  {sizes['path']}, sha256 {sizes['sha256']}")
     return 0
 
 

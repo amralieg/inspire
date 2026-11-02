@@ -7,6 +7,7 @@ import re
 import shutil
 import subprocess
 import sys
+import tarfile
 import tempfile
 import unittest
 import urllib.error
@@ -76,6 +77,26 @@ class BuildTest(unittest.TestCase):
     def test_the_assets_tar_is_the_assets_folder_with_its_manifest_and_builds_the_same_twice(self):
         first, second = self.build(), self.build(name="again")
         self.assertEqual((first / "inspire-assets.tar").read_bytes(), (second / "inspire-assets.tar").read_bytes())
+
+    def test_the_assets_tar_ignores_file_times_modes_and_owners_on_disk_and_follows_the_manifest_not_the_folder(self):
+        starter, tars = release.load_starter(), []
+        for number, (stamp, mode) in enumerate(((1_000_000_000, 0o600), (1_900_000_000, 0o755))):
+            assets = self.tmp / f"assets{number}"
+            assets.mkdir()
+            support.make_assets(assets)
+            (assets / "stray.bin").write_bytes(b"not listed")
+            for path in assets.rglob("*"):
+                if path.is_file():
+                    path.chmod(mode)
+                    os.utime(path, (stamp, stamp))
+            target = self.tmp / f"assets{number}.tar"
+            self.assertEqual(release.write_assets_tar(assets, "v1.3.0", target, starter), 3)
+            tars.append(target.read_bytes())
+        self.assertEqual(tars[0], tars[1])
+        with tarfile.open(self.tmp / "assets0.tar") as tar:
+            members = tar.getmembers()
+        self.assertEqual([m.name for m in members], ["manifest.json", "cli/databricks-cli-x86_64.zip", "fonts/inter-400.ttf", "licenses/inter.txt"])
+        self.assertEqual({(m.mtime, m.mode, m.uid, m.gid, m.uname, m.gname, m.type) for m in members}, {(0, 0o644, 0, 0, "", "", tarfile.REGTYPE)})
 
     def test_a_damaged_assets_folder_or_another_version_is_never_released(self):
         assets = self.tmp / "assets"
