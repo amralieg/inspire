@@ -6,6 +6,7 @@ import pathlib
 import sys
 import types
 import urllib.error
+import urllib.parse
 import zipfile
 
 HERE = pathlib.Path(__file__).resolve().parent
@@ -136,3 +137,92 @@ class FakeGitHub:
         if name not in self.files:
             raise urllib.error.HTTPError(url, 404, "Not Found", {}, None)
         return FakeResponse(self.files[name], url)
+
+
+class FakeReleases:
+    REPO = "amralieg/inspire"
+    MISSING = (404, {"message": "Not Found"})
+
+    def __init__(self):
+        self.releases, self.assets, self.data = [], {}, {}
+        self.calls, self.downloads = [], []
+        self.latest, self.ids, self.damage_uploads = None, iter(range(101, 1000000)), False
+
+    def release(self, tag, files=None, prerelease=True, draft=False, latest=False, digests=None):
+        rid = next(self.ids)
+        self.releases.append({"id": rid, "tag_name": tag, "prerelease": prerelease, "draft": draft,
+                              "upload_url": f"https://uploads.github.com/repos/{self.REPO}/releases/{rid}/assets{{?name,label}}"})
+        self.assets[rid] = []
+        if latest:
+            self.latest = rid
+        for name, data in (files or {}).items():
+            self.add(rid, name, data, (digests or {}).get(name))
+        return rid
+
+    def add(self, rid, name, data, digest=None):
+        tag = next(item["tag_name"] for item in self.releases if item["id"] == rid)
+        asset = {"id": next(self.ids), "name": name, "size": len(data), "state": "uploaded",
+                 "digest": f"sha256:{digest or sha(data)}",
+                 "browser_download_url": f"https://github.com/{self.REPO}/releases/download/{tag}/{name}"}
+        self.assets[rid].append(asset)
+        self.data[asset["id"]] = data
+        return asset
+
+    def names(self, rid):
+        return sorted(asset["name"] for asset in self.assets[rid])
+
+    def bytes_of(self, rid):
+        return {asset["name"]: self.data[asset["id"]] for asset in self.assets[rid]}
+
+    def writes(self):
+        return [call for call in self.calls if call[0] != "GET"]
+
+    def call(self, method, url, body=None, content_type="application/json", size=None):
+        parts = urllib.parse.urlsplit(url if url.startswith("https://") else f"https://api.github.com{url}")
+        query = urllib.parse.parse_qs(parts.query)
+        self.calls.append((method, parts.path, query.get("name", [None])[0]))
+        prefix = f"/repos/{self.REPO}/releases"
+        if not parts.path.startswith(prefix):
+            return self.MISSING
+        bits = parts.path[len(prefix):].strip("/").split("/")
+        page, per_page = int(query.get("page", ["1"])[0]), int(query.get("per_page", ["30"])[0])
+
+        def paged(items):
+            return 200, [dict(item) for item in items[(page - 1) * per_page:page * per_page]]
+
+        if method == "GET" and bits == [""]:
+            return paged(self.releases)
+        if method == "GET" and bits == ["latest"]:
+            found = [dict(item) for item in self.releases if item["id"] == self.latest]
+            return (200, found[0]) if found else self.MISSING
+        if method == "GET" and len(bits) == 2 and bits[0] == "tags":
+            found = [dict(item) for item in self.releases if item["tag_name"] == urllib.parse.unquote(bits[1])]
+            return (200, found[0]) if found else self.MISSING
+        if method == "DELETE" and len(bits) == 2 and bits[0] == "assets":
+            for items in self.assets.values():
+                for asset in items:
+                    if str(asset["id"]) == bits[1]:
+                        items.remove(asset)
+                        return 204, None
+            return self.MISSING
+        if len(bits) == 2 and bits[1] == "assets" and bits[0].isdigit() and int(bits[0]) in self.assets:
+            rid = int(bits[0])
+            if method == "GET" and parts.hostname == "api.github.com":
+                return paged(self.assets[rid])
+            if method == "POST" and parts.hostname == "uploads.github.com":
+                name = query["name"][0]
+                if name in self.names(rid):
+                    return 422, {"message": "Validation Failed", "errors": [{"code": "already_exists"}]}
+                data = body.read()
+                if len(data) != size or content_type != "application/octet-stream":
+                    return 400, {"message": "Bad Request"}
+                return 201, dict(self.add(rid, name, data + b"!" if self.damage_uploads else data))
+        return self.MISSING
+
+    def __call__(self, url, repo, timeout):
+        self.downloads.append(url)
+        for items in self.assets.values():
+            for asset in items:
+                if asset["browser_download_url"] == url:
+                    return FakeResponse(self.data[asset["id"]], url)
+        raise urllib.error.HTTPError(url, 404, "Not Found", {}, io.BytesIO(b"Not Found"))

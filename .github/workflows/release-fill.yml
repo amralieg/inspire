@@ -1,0 +1,41 @@
+name: release-fill
+
+on:
+  push:
+    branches:
+      - 'rc/fill-**'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-fill-${{ github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  fill:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Tag from the branch name
+        id: tag
+        env:
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          tag="${BRANCH#rc/fill-}"
+          if [[ "$BRANCH" != rc/fill-* || ( ! "$tag" =~ ^v[0-9]\.[0-9]\.[0-9](-rc\.[0-9])?$ && ! "$tag" =~ ^v0\.0\.0-filltest\.[0-9]$ ) ]]; then
+            echo "release-fill: the branch $BRANCH names no tag vN.N.N, vN.N.N-rc.N or v0.0.0-filltest.N"
+            exit 1
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+      - name: Fill the pre-release from the files GitHub already holds
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: python3 app/installer/release.py fill --repo "$GITHUB_REPOSITORY" --tag "$TAG"
