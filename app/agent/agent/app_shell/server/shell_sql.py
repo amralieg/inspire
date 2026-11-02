@@ -256,11 +256,51 @@ _WINDOW = re.compile(r"\bover\s*\(", re.I)
 
 
 def strip_sql_text(sql: str, keep_names: bool = False) -> str:
-    text = re.sub(r"--[^\n]*", " ", str(sql or ""))
-    text = re.sub(r"/\*.*?\*/", " ", text, flags=re.S)
-    text = re.sub(r"'(?:[^'\\]|\\.)*'", "''", text)
-    text = re.sub(r'"(?:[^"\\]|\\.)*"', '""', text)
-    return text if keep_names else re.sub(r"`[^`]*`", "``", text)
+    text, out, i = str(sql or ""), [], 0
+    n = len(text)
+    while i < n:
+        c, nxt = text[i], text[i + 1:i + 2]
+        raw = c in "rR" and nxt in ("'", '"') and not (i and (text[i - 1].isalnum() or text[i - 1] == "_"))
+        if c == "-" and nxt == "-":
+            end = text.find("\n", i)
+            out.append(" ")
+            i = n if end < 0 else end
+        elif c == "/" and nxt == "*":
+            depth, j = 1, i + 2
+            while j < n and depth:
+                pair = text[j:j + 2]
+                if pair in ("/*", "*/"):
+                    depth, j = depth + (1 if pair == "/*" else -1), j + 2
+                else:
+                    j += 1
+            if depth:
+                out.append(text[i:])
+                break
+            out.append(" ")
+            i = j
+        elif c in ("'", '"') or raw:
+            quote = nxt if raw else c
+            j = i + 2 if raw else i + 1
+            while j < n and text[j] != quote:
+                j += 2 if text[j] == "\\" and not raw else 1
+            if j >= n:
+                out.append(text[i:])
+                break
+            out.append(quote + quote)
+            i = j + 1
+        elif c == "`":
+            j = i + 1
+            while j < n and (text[j] != "`" or text[j + 1:j + 2] == "`"):
+                j += 2 if text[j] == "`" else 1
+            if j >= n:
+                out.append(text[i:])
+                break
+            out.append(text[i:j + 1] if keep_names else "``")
+            i = j + 1
+        else:
+            out.append(c)
+            i += 1
+    return "".join(out)
 
 
 def dataset_sql_problems(name: str, sql: str) -> list:

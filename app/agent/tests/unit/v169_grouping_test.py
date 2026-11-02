@@ -153,44 +153,45 @@ def test_custom_groups_under_30_records_combine_into_other_groups(agent_ns):
         assert sum(1 for size in case["sizes"].values() if size < 30) == case["other_groups"]
 
 
-@pytest.mark.parametrize("sql,why", [
-    ("DELETE FROM main.sales.orders", "start with SELECT or WITH"),
-    ("SELECT 1 AS group_name FROM main.sales.orders; DROP TABLE main.sales.orders", "more than one statement"),
+@pytest.mark.parametrize("sql,rule", [
+    ("DELETE FROM main.sales.orders", "first_keyword"),
+    ("SELECT 1 AS group_name FROM main.sales.orders; DROP TABLE main.sales.orders", "statements"),
     ("SELECT id, region AS group_name FROM main.sales.orders WHERE x IN (SELECT 1) UNION SELECT 1, 'a'; ", None),
-    ("SELECT * FROM read_files('/Volumes/a/b/c')", "calls read_files"),
-    ("SELECT id AS group_name FROM range(10)", "table function range"),
-    ("SELECT m.id, t.x AS group_name FROM main.sales.orders m JOIN main.sales.explode_me(m.id) t", "table function main.sales.explode_me"),
-    ("SELECT id, secret('scope', 'key') AS group_name FROM main.sales.orders", "calls secret"),
-    ("SELECT id, ai_classify(region, array('a')) AS group_name FROM main.sales.orders", "calls ai_classify"),
-    ("SELECT id, region AS group_name FROM orders", "name every table as catalog.schema.table"),
-    ("SELECT id, region AS group_name FROM sales.orders", "name every table as catalog.schema.table"),
+    ("SELECT * FROM read_files('/Volumes/a/b/c')", "function"),
+    ("SELECT id AS group_name FROM range(10)", "table_function"),
+    ("SELECT m.id, t.x AS group_name FROM main.sales.orders m JOIN main.sales.explode_me(m.id) t", "function"),
+    ("SELECT id, secret('scope', 'key') AS group_name FROM main.sales.orders", "function"),
+    ("SELECT id, ai_classify(region, array('a')) AS group_name FROM main.sales.orders", "function"),
+    ("SELECT id, region AS group_name FROM orders", "table_name"),
+    ("SELECT id, region AS group_name FROM sales.orders", "table_name"),
     ("SELECT id /* nested /* DROP */ still a comment */, region AS group_name FROM main.sales.orders", None),
-    ("SELECT id, region AS group_name FROM main.sales.orders /* never closed", "never closed"),
+    ("SELECT id, region AS group_name FROM main.sales.orders /* never closed", "unterminated"),
     ("SELECT id, 'it is; fine' AS group_name FROM main.sales.orders", None),
     ("SELECT id, `drop` AS group_name FROM main.sales.orders", None),
     ("SELECT id, region AS group_name FROM main.sales.orders WHERE id = :id", "parameter"),
     ("SELECT id, region AS group_name FROM main.sales.orders WHERE id = ?", "parameter"),
     ("SELECT id, raw:country::string AS group_name FROM main.sales.orders", None),
     ("SELECT id, region AS group_name FROM main.sales.orders --", None),
-    ("UPDATE main.sales.orders SET region = 'x'", "start with SELECT or WITH"),
+    ("UPDATE main.sales.orders SET region = 'x'", "first_keyword"),
     ("WITH t AS (SELECT * FROM main.sales.orders) SELECT id, region AS group_name FROM t", None),
-    ("WITH t AS (SELECT * FROM main.sales.orders) MERGE INTO main.sales.orders USING t ON 1=1", "uses MERGE"),
+    ("WITH t AS (SELECT * FROM main.sales.orders) MERGE INTO main.sales.orders USING t ON 1=1", "keyword"),
     ("SELECT id, EXTRACT(YEAR FROM order_date) AS group_name FROM main.sales.orders", None),
     ("SELECT id, region AS group_name FROM `main`.`sales`.`orders` m LEFT JOIN main.geo.countries c ON m.cc = c.cc", None),
     ("SELECT id, region AS group_name FROM main.sales.orders, main.geo.countries", None),
-    ("SELECT id, region AS group_name FROM main.sales.orders, countries", "name every table as catalog.schema.table"),
-    ("SELECT 1 AS group_name", "reads no catalog.schema.table table"),
-    ("SELECT id, region AS group_name FROM main.sales.orders WHERE note = 'unclosed", "never closed"),
+    ("SELECT id, region AS group_name FROM main.sales.orders, countries", "table_name"),
+    ("SELECT * FROM VALUES ('N', 'North'), ('S', 'South') AS t(region_code, group_name)", "table_function"),
+    ("SELECT 1 AS group_name", None),
+    ("SELECT id, region AS group_name FROM main.sales.orders WHERE note = 'unclosed", "unterminated"),
     ("", "empty"),
 ])
-def test_the_grouping_sql_check_stub_refuses_what_a_grouping_never_needs(agent_ns, sql, why):
+def test_the_grouping_sql_check_refuses_what_a_grouping_never_needs(agent_ns, sql, rule):
     check = agent_ns["implement_grouping_sql_check"](sql)
-    if why is None:
-        assert check["ok"], (sql, check["reason"])
+    if rule is None:
+        assert check["ok"], (sql, check["text"])
         assert check["hash"] == hashlib.sha256(check["sql"].encode("utf-8")).hexdigest()
         assert "/*" not in check["sql"] and "--" not in check["sql"] and not check["sql"].endswith(";")
     else:
-        assert not check["ok"] and why in check["reason"], (sql, check)
+        assert not check["ok"] and check["rule"] == rule and check["text"], (sql, check)
 
 
 def test_the_grouping_sql_check_records_the_tables_it_saw(agent_ns):
