@@ -6,7 +6,8 @@ import { Icon } from './icons.jsx';
 import { Skeleton } from './ui.jsx';
 import { BarsCard } from './ChartCard.jsx';
 import {
-  RUNS_PAGE, couldSaveRunFormula, coveredText, errorText, foundText, lastedText, runBars, runFlag, runKey, runsPageText, stampText, stepsText, triggerText,
+  RUNS_PAGE, couldSaveRunFormula, coveredText, errorText, foundText, groupingText, lastedText, runBars, runFlag, runKey, runsPageText, stampText, stepsText,
+  triggerText,
 } from './freshness.js';
 
 const STOPPED = ['failed', 'canceled', 'skipped'];
@@ -98,7 +99,7 @@ function RunRow({ run, open, onToggle }) {
         <td className="nowrap"><b>{when}</b><span className="runs-sub-t">{lastedText(run)}</span></td>
         <td className="nowrap"><span className={`run-st run-st--${flag.tone}`}><i aria-hidden="true" />{flag.text}</span></td>
         <td className="nowrap">{triggerText(run.trigger)}{run.by && <span className="runs-sub-t">{run.by}</span>}</td>
-        <td className="wrap">{coveredText(run.segments)}{run.scope_text && <span className="runs-sub-t">{run.scope_text}</span>}</td>
+        <td className="wrap">{coveredText(run.segments)}{run.scope_text && <span className="runs-sub-t">{run.scope_text}</span>}{groupingText(run.grouping) && <span className="runs-sub-t" data-grouping>{groupingText(run.grouping)}</span>}</td>
         <td className="num">{run.records ? integer(run.records) : <None />}</td>
         <td className="num">{count(run.to_fix)}</td>
         <td className="num money">{run.could_save == null ? <None /> : <Fx formula={couldSaveRunFormula(run)}>{formatValue(run.could_save, unitOf(run) ? 'currency' : 'number', unitOf(run), undefined, kindOf(run))}</Fx>}</td>

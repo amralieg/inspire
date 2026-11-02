@@ -3,8 +3,8 @@ import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
 import { FILTERS, LOST, NO_JOB, SILENT, TABLE, appInfo, openApp, serveDist, until } from './harness.mjs';
 import {
-  BUSY, RUN_STATES, activeState, agoText, bannerText, couldSaveRunFormula, coveredText, errorText, foundText, lastRunNote, lastRunText, lastedText, progressText, runBars,
-  runFlag, runState, runsPageText, spanText, stampText, toastTone, triggerText,
+  BUSY, RUN_STATES, activeState, agoText, bannerText, couldSaveRunFormula, coveredText, errorText, foundText, groupingText, lastRunNote, lastRunText, lastedText,
+  progressText, runBars, runFlag, runState, runsPageText, spanText, stampText, toastTone, triggerText,
 } from '../src/freshness.js';
 
 const NOW = Date.parse('2026-10-27T09:30:00Z');
@@ -535,6 +535,34 @@ test('the Runs tab lists each run: when, how it ended, who started it, what it c
   assert.match(await mainRows(page).nth(2).innerText(), /^\s*Oct 4, 06:00 AM UTC\s+Done\s+Not recorded\s+Not recorded\s+10\s+10\s+none\s*$/);
   assert.equal(await page.locator('.runs .pager').count(), 0, 'three runs fit on one page');
   assert.equal(await page.locator('.fbar').count(), 0, 'the filters do not apply to the runs');
+  assert.doesNotMatch(await page.locator('.runs').innerText(), /[\u2013\u2014]/);
+  assert.deepEqual(seen.errors, []);
+  await context.close();
+});
+
+const BY_COUNTRY = { mode: 'columns', group_by: ['region', 'country'], groups: 9, levels: [{ level: 'country', groups: 7 }, { level: 'region', groups: 2 }],
+  hash: 'h3', tables: [], other_groups: null };
+const BY_SQL = { mode: 'custom', group_by: [], groups: 12, levels: [{ level: 'custom', groups: 12 }], hash: 'h2', tables: ['main.geo.countries'], other_groups: 3 };
+const AS_ONE = { mode: 'all', group_by: [], groups: 1, levels: [{ level: 'Global', groups: 1 }], hash: 'h1', tables: [], other_groups: null };
+
+test('a run says how it grouped its records in plain words, and says nothing when it recorded no grouping', () => {
+  assert.equal(groupingText(BY_COUNTRY), 'Grouping: 9 groups by region, country (7 by country, 2 by region)');
+  assert.equal(groupingText({ ...BY_COUNTRY, group_by: ['country'], groups: 1, levels: [{ level: 'country', groups: 1 }] }), 'Grouping: 1 group by country');
+  assert.equal(groupingText(BY_SQL), 'Grouping: 12 groups from the saved grouping SQL over main.geo.countries, 3 small groups combined into Other groups');
+  assert.equal(groupingText({ ...BY_SQL, tables: [], other_groups: 0 }), 'Grouping: 12 groups from the saved grouping SQL');
+  assert.equal(groupingText(AS_ONE), 'Grouping: all records as one group');
+  for (const none of [null, undefined, {}, { ...BY_COUNTRY, groups: null }]) assert.equal(groupingText(none), '');
+  assert.equal(groupingText({ ...BY_COUNTRY, groups: 1234 }), 'Grouping: 1,234 groups by region, country (7 by country, 2 by region)');
+});
+
+test('the Runs tab shows each run grouping under what it covered, and an older run without one shows only what it covered', async () => {
+  const runs = [run({ run_id: 'g3', started: '2026-10-27T06:00:00Z', segments: [], grouping: BY_COUNTRY }),
+    run({ run_id: 'g2', started: '2026-10-26T06:00:00Z', segments: [], grouping: BY_SQL }),
+    run({ run_id: 'g1', started: '2026-10-25T06:00:00Z', segments: [], grouping: AS_ONE }), run({ run_id: 'g0', started: '2026-10-24T06:00:00Z', segments: [] })];
+  const { page, seen, context } = await openRuns(history({ runs, total: 4 }), appInfo({}, 1, TABLE), { clock: NOW });
+  const cells = await mainRows(page).evaluateAll((rows) => rows.map((r) => r.cells[4].querySelector('[data-grouping]')?.textContent ?? null));
+  assert.deepEqual(cells, [groupingText(BY_COUNTRY), groupingText(BY_SQL), groupingText(AS_ONE), null]);
+  assert.match(await mainRows(page).nth(3).innerText(), /All data/);
   assert.doesNotMatch(await page.locator('.runs').innerText(), /[\u2013\u2014]/);
   assert.deepEqual(seen.errors, []);
   await context.close();

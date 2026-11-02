@@ -36,6 +36,8 @@ UNDONE_KEYS = ("action_owner", "action_status", "action_due", "action_note", "di
 ACT_NOTE = "note"
 WINDOWS = ("hour", "today", "week", "month", "all")
 ZONE_NAME = re.compile(r"^[A-Za-z][A-Za-z0-9_+-]{0,30}(/[A-Za-z0-9_+-]{1,30}){0,2}$")
+FIXED_OFFSET_GONE = ("send time_zone, the name of a time zone such as Asia/Dubai, instead of utc_offset_min: a fixed offset counts the "
+                     "wrong day on the other side of a clock change")
 EPOCH = datetime.datetime(1970, 1, 1, tzinfo=datetime.timezone.utc)
 NO_WINDOW = "no_window"
 BATCH_ID = re.compile(r"^[0-9a-f]{32}$")
@@ -189,7 +191,7 @@ CAPS = {"kpis": (3, 6), "charts": (3, 8), "tables": (0, 3), "filters": (1, 8), "
         "range_number": 10 ** 15, "blocks": (0, 8), "block_text": 4000, "block_html": 20000, "image_bytes": 2 * 1024 * 1024,
         "image_height": (40, 1200), "url_chars": 2000, "kpi_rows": 2, "act_match": 100000, "note_chars": 500, "snooze_days": 365,
         "conflicts_shown": 20, "similar_sample": 5, "similar_by": 3, "batches": 20, "exclude_keys": 50, "window_limit": 1000,
-        "utc_offset_min": 840, "act_history": 200, "closers_today": 200}
+        "act_history": 200, "closers_today": 200}
 ALERT_OPERATORS = {">=": "GREATER_THAN_OR_EQUAL", ">": "GREATER_THAN", "=": "EQUAL", "!=": "NOT_EQUAL", "<": "LESS_THAN",
                    "<=": "LESS_THAN_OR_EQUAL"}
 ALERT_BASES = ("fixed", "baseline")
@@ -1587,7 +1589,9 @@ def time_zone_of(data: dict) -> tuple:
 
 
 def window_params(data: dict, now: datetime.datetime):
-    window, top, offset = data.get("window"), data.get("window_limit"), data.get("utc_offset_min", 0)
+    if "utc_offset_min" in data:
+        raise ValueError(FIXED_OFFSET_GONE)
+    window, top = data.get("window"), data.get("window_limit")
     zone, _name, zoned = time_zone_of(data)
     if window is None:
         if top is not None:
@@ -1597,9 +1601,7 @@ def window_params(data: dict, now: datetime.datetime):
         raise ValueError(f"window must be one of {', '.join(WINDOWS)}")
     if top is not None and not _whole(top, 1, CAPS["window_limit"]):
         raise ValueError(f"window_limit must be a whole number from 1 to {CAPS['window_limit']}")
-    if not _whole(offset, -CAPS["utc_offset_min"], CAPS["utc_offset_min"]):
-        raise ValueError(f"utc_offset_min must be a whole number of minutes from -{CAPS['utc_offset_min']} to {CAPS['utc_offset_min']}")
-    return dict(window_bounds(window, now, offset, zone if zoned else None), limit=top)
+    return dict(window_bounds(window, now, zone if zoned else None), limit=top)
 
 
 class Refusal(ValueError):
@@ -1615,8 +1617,8 @@ def window_request(data: dict, context: dict, now: datetime.datetime):
     return window
 
 
-def window_bounds(window: str, now: datetime.datetime, offset_min: int = 0, zone=None) -> dict:
-    zone = zone or datetime.timezone(datetime.timedelta(minutes=offset_min))
+def window_bounds(window: str, now: datetime.datetime, zone=None) -> dict:
+    zone = zone or datetime.timezone.utc
     local = (now if now.tzinfo else now.replace(tzinfo=datetime.timezone.utc)).astimezone(zone).replace(tzinfo=None)
     today = local.date()
     out = {"window": window, "today": today.isoformat()}

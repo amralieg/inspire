@@ -429,7 +429,7 @@ def test_every_window_starts_and_ends_where_the_person_lives():
     assert bounds("today", NOW) == {"window": "today", "today": "2026-10-27", "start_day": "2026-10-27", "end_day": "2026-10-28",
                                     "start_us": us(datetime.datetime(2026, 10, 27, tzinfo=UTC)),
                                     "end_us": us(datetime.datetime(2026, 10, 28, tzinfo=UTC))}
-    dubai = bounds("today", datetime.datetime(2026, 10, 27, 21, 30, tzinfo=UTC), 240)
+    dubai = bounds("today", datetime.datetime(2026, 10, 27, 21, 30, tzinfo=UTC), shell_sql.time_zone_of({"time_zone": "Asia/Dubai"})[0])
     assert dubai["today"] == "2026-10-28" and dubai["start_us"] == us(datetime.datetime(2026, 10, 27, 20, tzinfo=UTC))
     hour = bounds("hour", NOW)
     assert (hour["start_day"], hour["end_day"]) == ("2026-10-27", "2026-10-28")
@@ -492,7 +492,7 @@ def post(s, path, body, headers=EDITOR):
     ({"window": "today", "window_limit": 1001}, "window_limit must be a whole number from 1 to 1000"),
     ({"window": "today", "window_limit": "5"}, "window_limit must be a whole number from 1 to 1000"),
     ({"window_limit": 5}, "window_limit goes with a window"),
-    ({"window": "today", "utc_offset_min": 900}, "utc_offset_min must be a whole number of minutes from -840 to 840"),
+    ({"window": "today", "utc_offset_min": 900}, shell_sql.FIXED_OFFSET_GONE),
     ({"exclude": ["k"] * 51}, "exclude takes a list of at most 50 record keys"),
 ])
 def test_a_bad_window_is_refused_with_400_before_any_list_query(tmp_path, body, fragment):
@@ -504,6 +504,21 @@ def test_a_bad_window_is_refused_with_400_before_any_list_query(tmp_path, body, 
     if "window" in body and body["window"] == "year":
         status, out = post(s, "overview", {k: v for k, v in body.items()})
         assert status == 400
+
+
+@pytest.mark.parametrize("path, body", [
+    ("records", {"window": "today", "utc_offset_min": 240}),
+    ("records", {"window": "today", "utc_offset_min": 240, "time_zone": "Asia/Dubai"}),
+    ("overview", {"window": "week", "utc_offset_min": 0}),
+])
+def test_a_fixed_utc_offset_is_refused_with_the_time_zone_to_send_instead(tmp_path, path, body):
+    ws = UsableWorkspace()
+    s = usable_shell(tmp_path, ws)
+    status, out = post(s, path, body)
+    assert (status, out["error"]) == (400, shell_sql.FIXED_OFFSET_GONE), out
+    assert ws.queries(" OFFSET ") == [] and "utc_offset_min" not in shell_core.MATCH_VIEW and "utc_offset_min" not in shell_sql.CAPS
+    status, out = post(s, "records", {"window": "today", "time_zone": "Asia/Dubai"})
+    assert status == 200, out
 
 
 def test_a_window_on_a_list_that_keeps_no_actions_is_refused(tmp_path):
