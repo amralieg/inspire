@@ -1,25 +1,38 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, AppWindow, ExternalLink, Loader2, PlayCircle, RefreshCw } from 'lucide-react';
+import { AlertTriangle, AppWindow, ArrowLeft, ExternalLink, Loader2, Maximize2, Menu, PlayCircle, RefreshCw } from 'lucide-react';
 import { makeApiFetch } from '../lib/apiClient';
 import { APP_INSIDE, APP_INSIDE_PLACEMENT } from '../lib/implementWizard';
 import {
-  RUN_BANNER, RUN_DEMO_KIND, RUN_DEMO_NOTE, RUN_EMPTY, RUN_OPEN_APP, RUN_POLL_MS, demoRunPages, runAppUrl, runFrameSrc, runGroups, runKey, runPicked,
-  runPolling, runStateText, runUnknownText,
+  RUN_BACK, RUN_BANNER, RUN_CONTROL, RUN_DEMO_KIND, RUN_DEMO_NOTE, RUN_EMPTY, RUN_FULL_STATE, RUN_NEW_TAB, RUN_OPEN, RUN_OPEN_APP, RUN_OPENING, RUN_POLL_MS,
+  RUN_STATE_LABELS, RUN_SWITCH,
+  demoRunPages, runAppUrl, runFrameSrc, runFramedPages, runFullPage, runGroups, runKey, runPicked, runPolling, runStateText, runUnknownText,
 } from '../lib/runPages';
 import { PANEL_CLASS } from '../components/BuildUi';
+import BodyPortal from '../components/BodyPortal';
 
 const STATE_TONE = { ready: 'text-success-fg', starting: 'text-text-secondary', stopped: 'text-text-secondary', failed: 'text-error-fg' };
+const LINK_CLASS = 'inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold';
+const PRIMARY_CLASS = `${LINK_CLASS} text-white bg-db-red-solid hover:opacity-90`;
+const SECONDARY_CLASS = `${LINK_CLASS} border border-border bg-surface text-text-primary hover:border-border-strong`;
 
 function pageDetail(page) {
   if (page.kind === RUN_DEMO_KIND) return `${page.use_case_id} · MVP App`;
   return `${page.use_case_id} · v${page.version} · ${page.kind === APP_INSIDE ? APP_INSIDE_PLACEMENT.label : page.app_name}`;
 }
 
+function frameTitle(page) {
+  return page.kind === RUN_DEMO_KIND ? `${page.name}, MVP App` : `${page.name}, ${APP_INSIDE_PLACEMENT.label}`;
+}
+
+function frameKey(page) {
+  return page.kind === RUN_DEMO_KIND ? page.id : `${page.id}:${page.version}`;
+}
+
 function PageItem({ page, on, onPick }) {
   const framed = page.kind === APP_INSIDE || page.kind === RUN_DEMO_KIND;
   return (
     <li>
-      <button type="button" onClick={() => onPick(runKey(page))} aria-current={on ? 'true' : undefined} data-run-page={runKey(page)}
+      <button type="button" onClick={() => onPick(page)} aria-current={on ? 'true' : undefined} data-run-page={runKey(page)}
         className={`w-full text-left rounded-lg border px-3 py-2 text-[12px] glow-focus ${on ? 'border-db-red/50 bg-db-red-50/40' : 'border-border hover:border-border-strong'}`}>
         <span className="flex items-center gap-1.5 font-semibold text-text-primary">
           {framed ? <PlayCircle size={13} aria-hidden /> : <AppWindow size={13} aria-hidden />} {page.name}
@@ -30,20 +43,12 @@ function PageItem({ page, on, onPick }) {
   );
 }
 
-function DemoView({ page }) {
+function FrameStatus({ page, userAuthorization, note }) {
+  if (page.kind === RUN_DEMO_KIND) {
+    return <p role="note" aria-label="Demo" className="rounded-lg bg-info-bg px-3 py-2 text-[12px] font-medium text-info-fg ring-1 ring-inset ring-info/30">{RUN_DEMO_NOTE}</p>;
+  }
   return (
-    <div className="space-y-2">
-      <p role="note" aria-label="Demo" className="rounded-lg bg-info-bg px-3 py-2 text-[12px] font-medium text-info-fg ring-1 ring-inset ring-info/30">{RUN_DEMO_NOTE}</p>
-      <iframe key={page.id} title={`${page.name}, MVP App`} src={runFrameSrc(page)} data-run-frame={page.id}
-        className="w-full h-[72vh] rounded-xl border border-border bg-surface" />
-    </div>
-  );
-}
-
-function HostedView({ page, userAuthorization, note }) {
-  const src = runFrameSrc(page);
-  return (
-    <div className="space-y-2">
+    <>
       <p role="note" aria-label="Inside Inspire" data-run-banner="" className="flex items-start gap-2 rounded-lg bg-warning-bg px-3 py-2 text-[12px] font-medium text-warning-fg ring-1 ring-inset ring-warning/30">
         <AlertTriangle size={14} className="mt-px shrink-0" aria-hidden /> {RUN_BANNER}
       </p>
@@ -57,10 +62,28 @@ function HostedView({ page, userAuthorization, note }) {
         </pre>
       )}
       {!userAuthorization && <p role="alert" data-run-no-token="" className="text-[12px] text-error-fg">{note}</p>}
-      {src && (
-        <iframe key={`${page.id}:${page.version}`} title={`${page.name}, ${APP_INSIDE_PLACEMENT.label}`} src={src} data-run-frame={page.id}
-          className="w-full h-[72vh] rounded-xl border border-border bg-surface" />
-      )}
+    </>
+  );
+}
+
+function NewTabLink({ page, className }) {
+  return (
+    <a href={runFrameSrc(page)} target="_blank" rel="noreferrer" data-run-new-tab={page.id} className={className}>
+      {RUN_NEW_TAB} <ExternalLink size={11} aria-hidden />
+    </a>
+  );
+}
+
+function FrameDetail({ page, userAuthorization, note, onOpen }) {
+  return (
+    <div className="space-y-2">
+      <FrameStatus page={page} userAuthorization={userAuthorization} note={note} />
+      <div className="flex flex-wrap items-center gap-2 pt-1">
+        <button type="button" onClick={() => onOpen(page)} data-run-open={page.id} className={PRIMARY_CLASS}>
+          <Maximize2 size={11} aria-hidden /> {RUN_OPEN}
+        </button>
+        <NewTabLink page={page} className={SECONDARY_CLASS} />
+      </div>
     </div>
   );
 }
@@ -71,8 +94,7 @@ function OwnAppView({ page }) {
     <div className="space-y-2 text-[12px]">
       <p className="text-text-secondary">{page.name} runs in its own App, {page.app_name}.</p>
       {url ? (
-        <a href={url} target="_blank" rel="noreferrer" data-run-open-app={page.app_name}
-          className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-db-red-solid hover:opacity-90">
+        <a href={url} target="_blank" rel="noreferrer" data-run-open-app={page.app_name} className={PRIMARY_CLASS}>
           {RUN_OPEN_APP} <ExternalLink size={11} />
         </a>
       ) : (
@@ -82,13 +104,93 @@ function OwnAppView({ page }) {
   );
 }
 
-export default function RunPage({ settings, focusId = null, onFocus = () => {}, showcase = null, notice = '' }) {
+function RunControl({ page, pages, userAuthorization, note, onSwitch, onBack }) {
+  const attention = page.kind === APP_INSIDE && (page.state === 'failed' || !userAuthorization);
+  const [open, setOpen] = useState(attention);
+  useEffect(() => {
+    if (!open) return undefined;
+    const onKey = (e) => { if (e.key === 'Escape') setOpen(false); };
+    const onBlur = () => setOpen(false);
+    window.addEventListener('keydown', onKey);
+    window.addEventListener('blur', onBlur);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      window.removeEventListener('blur', onBlur);
+    };
+  }, [open]);
+  const others = runFramedPages(pages);
+  const busy = page.kind === APP_INSIDE && page.state !== 'ready';
+  return (
+    <div className="absolute left-3 bottom-3 z-10 flex flex-col items-start gap-2" data-run-control="">
+      {open && (
+        <div id="run-control-menu" aria-label={`${page.name}, ${pageDetail(page)}`} role="region"
+          className="w-80 max-w-[calc(100vw-1.5rem)] max-h-[calc(100vh-5rem)] overflow-auto rounded-xl border border-border bg-surface p-3 space-y-2 shadow-elevated">
+          <p className="text-[13px] font-semibold text-text-primary">{page.name}</p>
+          <p className="text-[11px] text-text-secondary">{pageDetail(page)}</p>
+          <FrameStatus page={page} userAuthorization={userAuthorization} note={note} />
+          <div className="flex flex-wrap items-center gap-2 pt-1">
+            <button type="button" onClick={onBack} data-run-back="" className={PRIMARY_CLASS}>
+              <ArrowLeft size={11} aria-hidden /> {RUN_BACK}
+            </button>
+            <NewTabLink page={page} className={SECONDARY_CLASS} />
+          </div>
+          {others.length > 1 && (
+            <nav aria-label={RUN_SWITCH} className="space-y-1 border-t border-border pt-2">
+              <h2 className="text-[10px] font-bold uppercase tracking-[0.18em] text-text-tertiary">{RUN_SWITCH}</h2>
+              <ul className="space-y-1">
+                {others.map((other) => {
+                  const on = runKey(other) === runKey(page);
+                  return (
+                    <li key={runKey(other)}>
+                      <button type="button" onClick={() => { setOpen(false); onSwitch(other); }} aria-current={on ? 'true' : undefined} data-run-switch={runKey(other)}
+                        className={`w-full text-left rounded-lg border px-2.5 py-1.5 text-[12px] ${on ? 'border-db-red/50 bg-db-red-50/40' : 'border-border hover:border-border-strong'}`}>
+                        <span className="block font-semibold text-text-primary">{other.name}</span>
+                        <span className="block text-text-secondary">{pageDetail(other)}</span>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            </nav>
+          )}
+        </div>
+      )}
+      <button type="button" onClick={() => setOpen((v) => !v)} aria-expanded={open} aria-controls="run-control-menu" aria-label={RUN_CONTROL} title={RUN_CONTROL}
+        data-run-control-toggle=""
+        className="inline-flex items-center gap-1.5 rounded-full border border-border bg-surface px-3 py-1.5 text-[12px] font-semibold text-text-primary shadow-elevated hover:border-border-strong glow-focus">
+        <Menu size={13} aria-hidden /> Inspire
+        {busy && (
+          <span data-run-control-state={page.state} className={`inline-flex items-center gap-1 font-medium ${STATE_TONE[page.state] || 'text-text-secondary'}`}>
+            {page.state === 'starting' && <Loader2 size={11} className="motion-safe:animate-spin" aria-hidden />}
+            {RUN_STATE_LABELS[page.state] || RUN_STATE_LABELS.stopped}
+          </span>
+        )}
+      </button>
+    </div>
+  );
+}
+
+function FullView({ page, pages, userAuthorization, note, onSwitch, onBack }) {
+  return (
+    <BodyPortal>
+      <div data-run-full={runKey(page)} role="region" aria-label={frameTitle(page)} className="fixed inset-0 z-[90] bg-surface">
+        <iframe key={frameKey(page)} title={frameTitle(page)} src={runFrameSrc(page)} data-run-frame={page.id} className="block h-full w-full border-0 bg-surface" />
+        <RunControl key={runKey(page)} page={page} pages={pages} userAuthorization={userAuthorization} note={note} onSwitch={onSwitch} onBack={onBack} />
+      </div>
+    </BodyPortal>
+  );
+}
+
+const ignore = () => {};
+
+export default function RunPage({ settings, focusId = null, onFocus = ignore, onFull = ignore, showcase = null, notice = '' }) {
   const { token, databricksHost, inspireDatabase, warehouseId } = settings || {};
   const apiFetch = useMemo(() => makeApiFetch({ token, databricksHost }), [token, databricksHost]);
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
   const [picked, setPicked] = useState(focusId ? `${APP_INSIDE}:${focusId}` : '');
   const [asked, setAsked] = useState(focusId);
+  const [demoFull, setDemoFull] = useState('');
   const [tick, setTick] = useState(0);
   const query = `inspire_database=${encodeURIComponent(inspireDatabase || '')}&warehouse_id=${encodeURIComponent(warehouseId || '')}`;
   useEffect(() => {
@@ -103,7 +205,10 @@ export default function RunPage({ settings, focusId = null, onFocus = () => {}, 
   const demoData = useMemo(() => (showcase ? { pages: demoRunPages(showcase), user_authorization: true } : null), [showcase]);
   const shown = demoData || data;
   const pages = useMemo(() => shown?.pages || [], [shown]);
-  const chosen = runPicked(pages, picked);
+  const wanted = showcase ? demoFull : focusId ? `${APP_INSIDE}:${focusId}` : '';
+  const full = runFullPage(pages, wanted);
+  const opening = Boolean(wanted) && !shown && !error;
+  const chosen = full || runPicked(pages, picked);
   const chosenKey = chosen ? runKey(chosen) : '';
   const polling = runPolling(pages, chosenKey);
   useEffect(() => {
@@ -111,12 +216,62 @@ export default function RunPage({ settings, focusId = null, onFocus = () => {}, 
     const timer = setTimeout(load, RUN_POLL_MS);
     return () => clearTimeout(timer);
   }, [polling, data, load]);
+  const isFull = Boolean(full) || opening;
+  useEffect(() => {
+    onFull(isFull);
+    return () => onFull(false);
+  }, [isFull, onFull]);
+  useEffect(() => {
+    if (!showcase) return undefined;
+    const onPop = () => {
+      const key = window.history.state?.[RUN_FULL_STATE];
+      setDemoFull(typeof key === 'string' && key.startsWith(`${RUN_DEMO_KIND}:`) ? key : '');
+    };
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, [showcase]);
   const missing = asked != null && Boolean(data) && !pages.some((p) => p.kind === APP_INSIDE && p.id === asked);
-  const pick = (key) => {
+  const userAuthorization = shown?.user_authorization !== false;
+  const note = shown?.user_authorization_note;
+  const showDemo = (key, push) => {
+    const state = { ...window.history.state, [RUN_FULL_STATE]: key };
+    if (push) window.history.pushState(state, '', window.location.href);
+    else window.history.replaceState(state, '', window.location.href);
+    setDemoFull(key);
+  };
+  const show = (page, { push }) => {
+    const key = runKey(page);
     setPicked(key);
     setAsked(null);
-    onFocus(key.startsWith(`${APP_INSIDE}:`) ? key.slice(APP_INSIDE.length + 1) : null);
+    if (page.kind === RUN_DEMO_KIND) showDemo(key, push);
+    else onFocus(page.id, { push });
   };
+  const open = (page) => show(page, { push: true });
+  const pick = (page) => {
+    if (runFrameSrc(page)) {
+      open(page);
+      return;
+    }
+    setPicked(runKey(page));
+    setAsked(null);
+    onFocus(null);
+  };
+  const back = () => {
+    if (showcase) showDemo('', true);
+    else onFocus(null, { push: true });
+  };
+  if (full) {
+    return <FullView page={full} pages={pages} userAuthorization={userAuthorization} note={note} onSwitch={(page) => show(page, { push: false })} onBack={back} />;
+  }
+  if (opening) {
+    return (
+      <BodyPortal>
+        <div data-run-opening="" className="fixed inset-0 z-[90] grid place-items-center bg-surface text-[12px] text-text-secondary">
+          <p><Loader2 size={12} className="inline mr-1 animate-spin" aria-hidden /> {RUN_OPENING}</p>
+        </div>
+      </BodyPortal>
+    );
+  }
   return (
     <div className="max-w-screen-xl mx-auto px-6 py-8 space-y-4" data-run-page-root="">
       <div className="flex items-start justify-between gap-3">
@@ -149,8 +304,10 @@ export default function RunPage({ settings, focusId = null, onFocus = () => {}, 
           </nav>
           <section aria-label={chosen ? chosen.name : 'Deployed use case'} className={`${PANEL_CLASS} p-4 space-y-3`}>
             {chosen && <h2 className="text-[15px] font-semibold text-text-primary">{chosen.name}</h2>}
-            {chosen && chosen.kind === APP_INSIDE && <HostedView page={chosen} userAuthorization={shown.user_authorization !== false} note={shown.user_authorization_note} />}
-            {chosen && chosen.kind === RUN_DEMO_KIND && <DemoView page={chosen} />}
+            {chosen && runFrameSrc(chosen) && <FrameDetail page={chosen} userAuthorization={userAuthorization} note={note} onOpen={open} />}
+            {chosen && !runFrameSrc(chosen) && (chosen.kind === APP_INSIDE || chosen.kind === RUN_DEMO_KIND) && (
+              <FrameStatus page={chosen} userAuthorization={userAuthorization} note={note} />
+            )}
             {chosen && chosen.kind !== APP_INSIDE && chosen.kind !== RUN_DEMO_KIND && <OwnAppView page={chosen} />}
           </section>
         </div>

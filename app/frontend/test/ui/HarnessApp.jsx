@@ -50,13 +50,7 @@ function LandingHarness({ demo }) {
 function HarnessContent({ open, discoveryType, demo, step, run }) {
   if (open === 'app') return <App />;
   if (open === 'card') return <CardHarness />;
-  if (open === 'run') {
-    return (
-      <ThemeProvider>
-        <RunPage settings={SETTINGS} />
-      </ThemeProvider>
-    );
-  }
+  if (open === 'run') return <RunHarness />;
   if (open === 'results') return <ResultsHarness />;
   if (open === 'landing') return <LandingHarness demo={demo} />;
   if (open === 'choose') return <ChooseHarness />;
@@ -78,6 +72,17 @@ function HarnessContent({ open, discoveryType, demo, step, run }) {
     );
   }
   return <PageHarness open={open} discoveryType={discoveryType} step={step} />;
+}
+
+function RunHarness() {
+  const [focus, setFocus] = useState(null);
+  const [full, setFull] = useState(false);
+  return (
+    <ThemeProvider>
+      <RunPage settings={SETTINGS} focusId={focus} onFocus={setFocus} onFull={setFull} />
+      <output aria-label="Run full window" className="sr-only">{full ? 'yes' : 'no'}</output>
+    </ThemeProvider>
+  );
 }
 
 function CardHarness() {

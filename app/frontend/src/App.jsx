@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, Component } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef, Component } from 'react';
 import { ThemeProvider } from './ThemeContext';
 import Header from './components/Header';
 import LandingPage from './pages/LandingPage';
@@ -116,6 +116,14 @@ export default function App() {
     setImplement((prev) => ({ ...prev, focus: id }));
   }, []);
   const [runFocus, setRunFocus] = useState(null);
+  const [runFull, setRunFull] = useState(false);
+  const pushRun = useRef(false);
+  const focusRun = useCallback((id, { push = false } = {}) => {
+    setRunFocus((prev) => {
+      pushRun.current = push && id !== prev;
+      return id;
+    });
+  }, []);
   const [runLink, setRunLink] = useState({ n: 0, notice: '' });
   const [reviewLink, setReviewLink] = useState({ n: 0, link: null, notice: '' });
   const takeReviewLink = useCallback((link, notice) => {
@@ -298,7 +306,10 @@ export default function App() {
     setTransitioning(true);
     setTimeout(() => {
       if (leaving) setDemo({ showcase: null, focus: null });
-      if (p !== 'run') setRunLink((prev) => (prev.notice ? { ...prev, notice: '' } : prev));
+      if (p !== 'run') {
+        setRunLink((prev) => (prev.notice ? { ...prev, notice: '' } : prev));
+        setRunFocus(null);
+      }
       if (p !== REVIEW_TAB) setReviewLink((prev) => (prev.notice || prev.link ? { ...prev, link: null, notice: '' } : prev));
       setPage(p);
       setTransitioning(false);
@@ -324,9 +335,9 @@ export default function App() {
   }, []);
 
   const openRun = useCallback((id) => {
-    setRunFocus(id || null);
+    focusRun(id || null, { push: true });
     nav('run');
-  }, [nav]);
+  }, [nav, focusRun]);
 
   const openRunLink = useCallback((id) => {
     setRunFocus(id);
@@ -345,8 +356,10 @@ export default function App() {
 
   useEffect(() => {
     const onHash = () => {
+      if (page === 'loading' || page === 'setup') return;
       const link = hashLink(window.location.hash);
-      if (link && page !== 'loading' && page !== 'setup') openLink(link);
+      if (link) openLink(link);
+      else if (page === 'run') setRunFocus(null);
     };
     window.addEventListener('hashchange', onHash);
     return () => window.removeEventListener('hashchange', onHash);
@@ -354,8 +367,13 @@ export default function App() {
 
   useEffect(() => {
     if (page === 'loading' || page === 'setup') return;
-    const next = runHashLink(window.location, page === 'run' && !inDemo ? runFocus : null);
-    if (next !== null) window.history.replaceState(window.history.state, '', next);
+    const onRun = page === 'run' && !inDemo;
+    const push = onRun && pushRun.current;
+    if (onRun) pushRun.current = false;
+    const next = runHashLink(window.location, onRun ? runFocus : null);
+    if (next === null) return;
+    if (push) window.history.pushState(window.history.state, '', next);
+    else window.history.replaceState(window.history.state, '', next);
   }, [page, runFocus, inDemo]);
 
   const openDemo = useCallback((showcase) => {
@@ -383,13 +401,14 @@ export default function App() {
   const canResults = true;
   const implementSessionId = inDemo ? demo.showcase.session_id : implement.sessionId || (sessionId ? String(sessionId) : null);
   const implementFocus = inDemo ? demo.focus : implement.focus;
+  const bare = page === 'run' && runFull;
 
   return (
     <ThemeProvider>
     <div className="min-h-screen bg-bg text-text-primary relative">
-      <ParticleField count={40} />
+      {!bare && <ParticleField count={40} />}
 
-      {page !== 'landing' && page !== 'loading' && page !== 'setup' && (
+      {!bare && page !== 'landing' && page !== 'loading' && page !== 'setup' && (
         <Header
           page={page}
           setPage={nav}
@@ -399,7 +418,7 @@ export default function App() {
           canImplement={Boolean(implementSessionId)}
         />
       )}
-      {inDemo && page !== 'landing' && (
+      {!bare && inDemo && page !== 'landing' && (
         <ShowcaseBar showcase={demo.showcase} onGetStarted={() => nav('choose', { leaveDemo: true })} onLeave={() => nav('landing')} />
       )}
 
@@ -520,7 +539,8 @@ export default function App() {
               key={inDemo ? `demo-${demo.showcase.id}` : `workspace-${runLink.n}`}
               settings={inDemo ? pageSettings : settings}
               focusId={inDemo ? null : runFocus}
-              onFocus={inDemo ? noop : setRunFocus}
+              onFocus={inDemo ? noop : focusRun}
+              onFull={setRunFull}
               showcase={inDemo ? demo.showcase : null}
               notice={inDemo ? '' : runLink.notice}
             />
@@ -528,7 +548,7 @@ export default function App() {
         )}
       </main>
 
-      {page !== 'landing' && page !== 'setup' && <ScrollProgressRing />}
+      {!bare && page !== 'landing' && page !== 'setup' && <ScrollProgressRing />}
     </div>
     </ThemeProvider>
   );

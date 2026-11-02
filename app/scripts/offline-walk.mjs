@@ -4,7 +4,7 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
-import { apiWatch, readOnlyInspire, recordMvpApp, tabButton, walkMvpTabs, watchOffline } from './showcaseRecorder.mjs';
+import { apiWatch, readOnlyInspire, recordMvpApp, tabButton, walkMvpTabs, walkRun, watchOffline } from './showcaseRecorder.mjs';
 import { SHOWCASE_BUTTON } from '../frontend/src/lib/showcase.js';
 import { START_MVP_LABEL } from '../frontend/src/lib/implementWizard.js';
 
@@ -138,18 +138,7 @@ try {
     await settle();
     return `steps ${seen.join(' > ')}, not started`;
   });
-  await section('Run', async () => {
-    await tabButton(page, 'run').click();
-    await page.locator('[data-run-page-root]').waitFor({ timeout: 120000 });
-    await settle();
-    const pages = page.locator('[data-run-page]');
-    const n = await pages.count();
-    for (let i = 0; i < n; i += 1) {
-      await pages.nth(i).click();
-      await settle();
-    }
-    return `${n} pages`;
-  });
+  await section('Run', async () => `${await walkRun(page, settle)} pages`);
   await section('Monitor', async () => {
     await tabButton(page, 'monitor').click();
     await page.getByRole('heading', { name: 'Pipeline Monitor' }).waitFor({ timeout: 120000 });
