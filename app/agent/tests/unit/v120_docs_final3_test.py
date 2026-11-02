@@ -65,7 +65,7 @@ def test_the_same_title_field_names_the_use_case_on_every_surface_in_every_langu
     assert f">{html_lib.escape(AR_NAME)}</div>" in card_ar
     assert page_ar.count(html_lib.escape(AR_HEADLINE)) >= 3
     _, prs = deck(docs, {"المبيعات": [arabic]}, summary(), language="Arabic")
-    texts = slide_texts(prs)
+    texts = [text.replace("\u2066", "").replace("\u2069", "") for text in slide_texts(prs)]
     card = next(text for text in texts if "N01-U01 · " in text and AR_NAME in text)
     assert AR_HEADLINE in card
     assert sum(AR_HEADLINE in text for text in texts) >= 3

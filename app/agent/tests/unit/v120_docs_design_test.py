@@ -133,7 +133,7 @@ def test_pptx_domain_slide_carries_the_domain_narrative(docs):
 def test_domain_page_without_a_summary_uses_a_translated_data_overview(docs, captured_html):
     _, html = pdf_html(docs, captured_html, portfolio(), {"Executive": "<p>x</p>"}, language="Arabic")
     opener = section(html, 'id="domain-1">', '<section class="cards">')
-    assert "يجمع هذا المجال حالات استخدام عبر Promotion، Pricing، وعددها 6." in opener
+    assert "يجمع هذا المجال حالات استخدام عبر \u2066Promotion\u2069، \u2066Pricing\u2069، وعددها \u20666\u2069." in opener
     assert "Summary generation failed" not in html and "{count}" not in html and "{subdomains}" not in html
 
 
@@ -321,7 +321,7 @@ def test_arabic_pdf_is_rtl_with_isolated_dates_and_page_numbers(docs, captured_h
     _, html = pdf_html(docs, captured_html, grouped, summary_dict, language="Arabic")
     assert '<html lang="ar" dir="rtl" class="rtl nocaps"' in html
     assert f'<p class="first" dir="ltr">{SALES_PROSE}</p>' in html and '<p class="first" dir="ltr">Exec one.</p>' in html
-    assert '<p class="">ملخص تنفيذي للأعمال.</p>' in html and '<p class="">Databricks Genie Code يحلل بيانات المبيعات اليومية.</p>' in html
+    assert '<p class="">ملخص تنفيذي للأعمال.</p>' in html and '<p class="">\u2066Databricks Genie Code\u2069 يحلل بيانات المبيعات اليومية.</p>' in html
     card = section(html, 'id="uc-N01-U01"', "</article>")
     assert '<td><span dir="ltr">Reduce Cost (waste)</span></td>' in card and "<td>مدير المتجر</td>" in card
     assert '<span dir="ltr">Sales</span></h2>' in html

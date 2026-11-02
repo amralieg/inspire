@@ -87,44 +87,23 @@ def test_short_form_alias_expansion_present_in_init(source):
     assert "self.generate_choices.append(_long)" in source
 
 
-def test_outer_gate_json_mode_honours_english_force(source):
-    """JSON-mode entry gate (~line 17585) must fire when English is in
-    self.output_languages, so MD + PDF land for Discover Use Cases runs
-    that only requested Markdown/CSV via short-form widget."""
-    m = re.search(
-        r'if "PDF Catalog" in self\.generate_choices or "Presentation" in self\.generate_choices'
-        r' or "Use Cases Catalog PDF" in self\.generate_choices or "English" in self\.output_languages:',
-        source,
-    )
-    assert m is not None, (
-        "JSON-mode outer gate must OR the English-in-output_languages force rule")
+def test_outer_gate_json_mode_opens_for_every_output_language(source):
+    """JSON-mode entry gate opens whenever there is an output language: Markdown, CSV and Excel are
+    written for every language in output_languages, so no PDF or slides choice may close it."""
+    assert re.search(r"\n {16}if self\.output_languages:\n {20}self\._generate_documents_for_all_languages\(", source), (
+        "JSON-mode outer gate must open on output_languages alone")
 
 
-def test_outer_gate_main_flow_honours_english_force(source):
-    """Main-flow parallel-doc-gen gate (~line 19241) must fire when English
-    is in target_langs (Fix #4 force rule)."""
-    m = re.search(
-        r'if final_consolidated_use_cases and target_langs and'
-        r' \("PDF Catalog" in self\.generate_choices or "Presentation" in self\.generate_choices'
-        r' or "Use Cases Catalog PDF" in self\.generate_choices or "English" in target_langs\):',
-        source,
-    )
-    assert m is not None, (
-        "main-flow outer gate must OR the English-in-target_langs force rule")
+def test_outer_gate_main_flow_opens_for_every_output_language(source):
+    """Main-flow parallel-doc-gen gate opens whenever there are target languages."""
+    assert "        if final_consolidated_use_cases and target_langs:\n" in source, (
+        "main-flow outer gate must open on target_langs alone")
 
 
-def test_outer_gate_post_notebook_fallback_honours_english_force(source):
-    """Post-notebook fallback gate (~line 19373) must fire when English is
-    in target_langs — otherwise, if the parallel path was never started
-    because Fix #4's inner logic wasn't reachable, the fallback also
-    never runs."""
-    m = re.search(
-        r'if target_langs and \("PDF Catalog" in self\.generate_choices or "Presentation" in self\.generate_choices'
-        r' or "Use Cases Catalog PDF" in self\.generate_choices or "English" in target_langs\):',
-        source,
-    )
-    assert m is not None, (
-        "post-notebook fallback outer gate must OR the English-in-target_langs force rule")
+def test_outer_gate_post_notebook_fallback_opens_for_every_output_language(source):
+    """Post-notebook fallback gate opens whenever there are target languages."""
+    assert "            if target_langs:\n" in source, (
+        "post-notebook fallback outer gate must open on target_langs alone")
 
 
 def test_weasyprint_install_gate_honours_english_force(source):
@@ -214,19 +193,22 @@ def test_english_force_rule_bypasses_choices_entirely():
     assert post_fix_gate(generate_choices, target_langs) is True
 
 
-def test_english_force_rule_does_not_over_run_for_non_english_only():
-    """Safety check: the English-force rule must not force the doc pipeline
-    to run when English is NOT one of the target languages. (Prevents a
-    silent regression that would always fire the doc phase.)"""
-    generate_choices = ["Genie Code"]  # nothing that produces PDF/PPTX
+def test_a_non_english_only_run_still_opens_the_doc_pipeline():
+    """A French-only run with no PDF or slides choice still needs its French Markdown, CSV and Excel,
+    so the gate opens on the languages alone (CLAUDE.md user vibes: output_languages)."""
+    generate_choices = ["Genie Code"]
     target_langs = ["French"]
 
-    def post_fix_gate(gc, tl):
+    def old_gate(gc, tl):
         return ("PDF Catalog" in gc or "Presentation" in gc or
                 "Use Cases Catalog PDF" in gc or "English" in tl)
 
-    assert post_fix_gate(generate_choices, target_langs) is False, (
-        "gate must remain False when neither long-form choices nor English present")
+    def gate(gc, tl):
+        return bool(tl)
+
+    assert old_gate(generate_choices, target_langs) is False
+    assert gate(generate_choices, target_langs) is True
+    assert gate(generate_choices, []) is False
 
 
 def test_sentinel_fires_for_override_and_reinforce_scenarios():
@@ -267,24 +249,18 @@ def test_sentinel_fires_for_override_and_reinforce_scenarios():
     assert pre_fix_sentinel(_pdf_requested=True, _force_english_pdf=False) is None
 
 
-def test_md_writer_still_unconditional_inside_english_block():
-    """Regression guard for Fix #4's original invariant: English MD is
-    scheduled unconditionally inside the ``if lang == "English":`` block
-    of the artifact-writing loop — v1.0.2 must not gate MD on any
-    generate_choices membership."""
+def test_md_writer_still_unconditional_for_every_language():
+    """Regression guard for Fix #4's original invariant, widened to every
+    language: MD is scheduled unconditionally in the artifact-writing loop,
+    never gated on a language or a generate_choices membership."""
     body = _notebook_body()
     anchor = "Submitting writing jobs for {lang}..."
     pos = body.find(anchor)
     assert pos != -1
     region = body[pos:pos + 4000]
     md_pos = region.find("writer_ctx.submit(self._generate_markdown_catalog")
-    assert md_pos != -1, "MD writer must still be scheduled inside artifact-writing English block"
-    prefix = region[:md_pos]
-    if_lang_pos = prefix.rfind('if lang == \\"English\\":')
-    assert if_lang_pos != -1, "MD must be inside the `if lang == English:` block"
-    between = prefix[if_lang_pos:md_pos]
-    assert "if " not in between[len('if lang == \\"English\\":'):], (
-        "no extra if-guard between the English gate and MD scheduling (regression guard)")
+    assert md_pos != -1, "MD writer must still be scheduled in the artifact-writing loop"
+    assert "if " not in region[:md_pos], "no if-guard between the loop anchor and MD scheduling (regression guard)"
 
 
 def test_pdf_writer_scheduling_reachable_for_v101_widget_and_english(ns, source):

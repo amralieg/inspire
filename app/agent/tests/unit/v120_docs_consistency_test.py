@@ -248,7 +248,7 @@ def test_disclaimer_page_in_pdf_deck_and_markdown(docs, captured_html, language)
     assert html_lib.escape(title) in page[page.index('id="sec-disclaimer"') - 400:page.index('id="sec-disclaimer"') + 400]
     assert all(html_lib.escape(p) in block for p in paragraphs)
     _, prs = deck(docs, ultra_portfolio(), summary(), language=language)
-    texts = slide_texts(prs)
+    texts = [s.replace("\u2066", "").replace("\u2069", "") for s in slide_texts(prs)]
     page_text = next(s for s in texts if title in s and paragraphs[1] in s)
     assert all(p in page_text for p in paragraphs) and texts.index(page_text) == len(texts) - 2
 
@@ -409,9 +409,9 @@ def test_a_slow_language_is_cancelled_alone_and_the_others_still_render(agent_ns
         with lock:
             written.append(lang)
     obj.generate_catalog_pdf = record
-    obj._generate_markdown_catalog = lambda *a: None
-    obj._generate_csv_catalog = lambda *a: None
-    obj._generate_use_case_excel = lambda *a: None
+    obj._generate_markdown_catalog = lambda *a, **k: None
+    obj._generate_csv_catalog = lambda *a, **k: None
+    obj._generate_use_case_excel = lambda *a, **k: None
     obj._emit_pipeline_status = lambda **kw: 1
     uc = make_uc("N01-U01")
     started = time.time()
@@ -440,9 +440,9 @@ def test_each_translated_language_gets_an_equal_share_of_the_translation_workers
     obj._python_package_status = {"weasyprint": (True, "")}
     obj.translation_service = types.SimpleNamespace(get_translations=lambda lang: {})
     obj.generate_catalog_pdf = lambda *a: None
-    obj._generate_markdown_catalog = lambda *a: None
-    obj._generate_csv_catalog = lambda *a: None
-    obj._generate_use_case_excel = lambda *a: None
+    obj._generate_markdown_catalog = lambda *a, **k: None
+    obj._generate_csv_catalog = lambda *a, **k: None
+    obj._generate_use_case_excel = lambda *a, **k: None
     obj._emit_pipeline_status = lambda **kw: 1
     uc = make_uc("N01-U01")
     obj._generate_documents_for_all_languages([uc], english_grouped_data={"Sales": [uc]}, summary_dict={"Executive": "x"},

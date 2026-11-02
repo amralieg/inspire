@@ -82,6 +82,9 @@ def run_main(agent_ns, monkeypatch, is_job, **over):
         def finalize_atomic_writer(self, success=True, error_message=None):
             return None
 
+        def run_exit_value(self):
+            return ""
+
     monkeypatch.setitem(agent_ns, "dbutils", FakeDbutils(widget_values(**over)))
     monkeypatch.setitem(agent_ns, "_detect_is_job_context", lambda: is_job)
     monkeypatch.setitem(agent_ns, "JobLauncher", CapturingLauncher)
