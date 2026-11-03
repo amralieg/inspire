@@ -85,7 +85,7 @@ def test_a_version_1_page_loads_as_a_decision_queue_and_a_version_2_page_must_na
     assert any("version must be" in p or "version" in p for p in shell_sql.spec_problems(dict(PAGE, version=3)))
 
 
-@pytest.mark.parametrize("name, fragment", [("nowhere", "is not one of"), ("network_explorer", "is not served yet")])
+@pytest.mark.parametrize("name, fragment", [("nowhere", "is not one of"), ("monitor_triage", "is not served yet")])
 def test_an_unknown_or_unserved_layout_is_refused(name, fragment):
     assert any(fragment in p for p in shell_sql.spec_problems(forecast(layout=name)))
 

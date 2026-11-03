@@ -196,7 +196,7 @@ function Typing({ message, onTick }) {
   return <Markdown text={words.slice(0, shown).join('')} cursor={typing} />;
 }
 
-function Answer({ message, url, onTick }) {
+export function Answer({ message, url, onTick }) {
   const a = message.answer;
   const words = String(a.text || '').split(/(\s+)/).length;
   const done = message.shown >= words;

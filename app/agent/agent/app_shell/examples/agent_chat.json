@@ -1,0 +1,93 @@
+{
+  "version": 2,
+  "layout": "agent_chat",
+  "id": "n09_u01",
+  "use_case_id": "N09-U01",
+  "title": "Ask the finance data",
+  "question": "What do you want to know about revenue, cost and margin this quarter?",
+  "sponsor": "Chief Financial Officer",
+  "domain": "Finance",
+  "subdomain": "Management reporting",
+  "icon": "grid",
+  "hue": "violet",
+  "result_table": "main.finance.ledger_agent_out",
+  "story": "Genie answers from {rows} rows of the latest run across {accounts} accounts.",
+  "questions": [
+    "What was the margin by region last quarter?",
+    "Which cost lines grew fastest this year?",
+    "Which customers paid late most often?",
+    "How does revenue this month compare with the same month last year?",
+    "Which products lost money after discounts?"
+  ],
+  "datasets": [
+    {
+      "name": "ledger",
+      "sql": "SELECT o.entity_id AS account, o.value AS amount, o.as_of_date, a.region, a.cost_center FROM main.finance.ledger_agent_out AS o JOIN main.finance.accounts AS a ON a.account_id = o.entity_id WHERE o.is_current AND o.change_source <> 'delete'"
+    }
+  ],
+  "filters": [
+    {
+      "id": "run_date",
+      "type": "date_range",
+      "label": "Run date",
+      "grain": "day",
+      "default": "12m",
+      "columns": {
+        "ledger": "as_of_date"
+      }
+    },
+    {
+      "id": "region",
+      "type": "multi_select",
+      "label": "Region",
+      "columns": {
+        "ledger": "region"
+      }
+    },
+    {
+      "id": "account",
+      "type": "multi_select",
+      "label": "Account",
+      "columns": {
+        "ledger": "account"
+      }
+    },
+    {
+      "id": "cost_center",
+      "type": "multi_select",
+      "label": "Cost center",
+      "columns": {
+        "ledger": "cost_center"
+      }
+    }
+  ],
+  "kpis": [
+    {
+      "id": "rows",
+      "label": "Rows in the latest run",
+      "dataset": "ledger",
+      "expression": "COUNT(*)",
+      "format": "integer",
+      "good": "neutral"
+    },
+    {
+      "id": "accounts",
+      "label": "Accounts",
+      "dataset": "ledger",
+      "expression": "COUNT(DISTINCT account)",
+      "format": "integer",
+      "good": "neutral"
+    },
+    {
+      "id": "net",
+      "label": "Net amount",
+      "dataset": "ledger",
+      "expression": "SUM(amount)",
+      "format": "currency",
+      "currency": "USD",
+      "good": "up"
+    }
+  ],
+  "charts": [],
+  "tables": []
+}

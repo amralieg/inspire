@@ -1,0 +1,236 @@
+{
+  "version": 2,
+  "layout": "network_explorer",
+  "id": "n08_u01",
+  "use_case_id": "N08-U01",
+  "title": "Linked accounts that may be a ring",
+  "question": "Which accounts are linked into a ring, which are central to it, and which should we block, investigate or clear?",
+  "sponsor": "Head of Fraud",
+  "domain": "Risk",
+  "subdomain": "Fraud rings",
+  "icon": "users",
+  "hue": "rose",
+  "result_table": "main.risk.ring_out",
+  "story": "{accounts} accounts sit in {rings} linked groups; {central} of them are central.",
+  "questions": [
+    "Which group moved the most money?",
+    "Which accounts share a device with a blocked account?"
+  ],
+  "datasets": [
+    {
+      "name": "records",
+      "sql": "SELECT o.record_key, o.entity_id, o.entity_label, o.priority_tier, o.`rank`, o.top_reasons, o.recommended_action, o.value, o.as_of_date, n.node, n.community, n.centrality, n.metric FROM main.risk.ring_out AS o JOIN main.risk.ring_out__nodes AS n ON n.node = o.entity_id WHERE o.is_current AND o.change_source <> 'delete'"
+    },
+    {
+      "name": "links",
+      "sql": "SELECT e.src, e.dst, e.weight, a.community AS src_community, b.community AS dst_community FROM main.risk.ring_out__edges AS e JOIN main.risk.ring_out__nodes AS a ON a.node = e.src JOIN main.risk.ring_out__nodes AS b ON b.node = e.dst"
+    },
+    {
+      "name": "nodes",
+      "sql": "SELECT n.node, n.label, n.community, n.centrality, n.metric FROM main.risk.ring_out__nodes AS n"
+    }
+  ],
+  "filters": [
+    {
+      "id": "run_date",
+      "type": "date_range",
+      "label": "Run date",
+      "grain": "day",
+      "default": "12m",
+      "columns": {
+        "records": "as_of_date"
+      }
+    },
+    {
+      "id": "priority",
+      "type": "multi_select",
+      "label": "Priority",
+      "columns": {
+        "records": "priority_tier"
+      }
+    },
+    {
+      "id": "account",
+      "type": "multi_select",
+      "label": "Account",
+      "columns": {
+        "records": "node",
+        "links": "src"
+      }
+    },
+    {
+      "id": "ring",
+      "type": "multi_select",
+      "label": "Linked group",
+      "columns": {
+        "records": "community",
+        "links": "src_community",
+        "nodes": "community"
+      }
+    }
+  ],
+  "kpis": [
+    {
+      "id": "accounts",
+      "label": "Linked accounts",
+      "dataset": "nodes",
+      "expression": "COUNT(*)",
+      "format": "integer",
+      "good": "down"
+    },
+    {
+      "id": "rings",
+      "label": "Linked groups",
+      "dataset": "nodes",
+      "expression": "COUNT(DISTINCT community)",
+      "format": "integer",
+      "good": "down"
+    },
+    {
+      "id": "central",
+      "label": "Central accounts",
+      "dataset": "nodes",
+      "expression": "COUNT(CASE WHEN centrality >= 0.5 THEN 1 END)",
+      "format": "integer",
+      "good": "down"
+    }
+  ],
+  "fewer_charts": "The network is one picture; the lists under it carry the rest.",
+  "charts": [
+    {
+      "id": "graph",
+      "section": "graph",
+      "title": "Who is linked to whom",
+      "type": "graph",
+      "dataset": "links",
+      "hint": "Each color is a linked group; a bigger dot has more links.",
+      "so_what": "Click an account to drill into its neighbors.",
+      "x": {
+        "column": "src",
+        "kind": "category",
+        "label": "Account"
+      },
+      "series": {
+        "column": "dst",
+        "top": 8
+      },
+      "y": [
+        {
+          "label": "Shared links",
+          "expression": "SUM(weight)",
+          "format": "integer"
+        },
+        {
+          "label": "Group",
+          "expression": "MAX(src_community)",
+          "format": "text"
+        },
+        {
+          "label": "Linked group",
+          "expression": "MAX(dst_community)",
+          "format": "text"
+        }
+      ]
+    }
+  ],
+  "tables": [
+    {
+      "id": "neighbors",
+      "section": "neighbors",
+      "title": "Neighbors of the account you picked",
+      "hint": "Click an account on the network to fill this list.",
+      "dataset": "links",
+      "columns": [
+        {
+          "column": "src",
+          "label": "Account",
+          "format": "text"
+        },
+        {
+          "column": "dst",
+          "label": "Linked to",
+          "format": "text"
+        },
+        {
+          "column": "weight",
+          "label": "Shared links",
+          "format": "integer"
+        },
+        {
+          "column": "dst_community",
+          "label": "Their group",
+          "format": "text"
+        }
+      ],
+      "sort": {
+        "column": "weight",
+        "desc": true
+      }
+    },
+    {
+      "id": "pairs",
+      "section": "match_pairs",
+      "title": "Pairs to review",
+      "hint": "The strongest links between two accounts.",
+      "dataset": "links",
+      "columns": [
+        {
+          "column": "src",
+          "label": "Account",
+          "format": "text"
+        },
+        {
+          "column": "dst",
+          "label": "Matched with",
+          "format": "text"
+        },
+        {
+          "column": "weight",
+          "label": "Shared links",
+          "format": "integer"
+        }
+      ],
+      "sort": {
+        "column": "weight",
+        "desc": true
+      },
+      "limit": 50
+    }
+  ],
+  "records": {
+    "title": "Most central accounts",
+    "hint": "Most central first; block the ring leaders, investigate the rest, or clear the ones that are not a ring.",
+    "key": "entity_id",
+    "label": "entity_label",
+    "sublabel": "community",
+    "rank": "rank",
+    "tier": "priority_tier",
+    "reasons": "top_reasons",
+    "action": "recommended_action",
+    "columns": [
+      {
+        "column": "community",
+        "label": "Group",
+        "format": "text"
+      },
+      {
+        "column": "centrality",
+        "label": "Centrality",
+        "format": "number"
+      },
+      {
+        "column": "metric",
+        "label": "Money moved",
+        "format": "currency",
+        "currency": "USD"
+      }
+    ],
+    "detail": [
+      {
+        "column": "node",
+        "label": "Account",
+        "format": "text"
+      }
+    ]
+  }
+}

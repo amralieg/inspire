@@ -1,6 +1,7 @@
 import { addCounts, axisValue, dayLabel, formatValue, largestFirst, numberOf, shortMonth, sumOf } from './format.js';
 import { TIERS } from './theme.js';
 import { labelTilt } from './layout.js';
+import { KIND_CHARTS } from './kindCharts.js';
 
 const BAR_MAX = 36;
 const isMonthStart = (v) => /^\d{4}-\d{2}-01/.test(String(v ?? ''));
@@ -173,7 +174,7 @@ function bulletOption({ chart, rows, P, valueFmt, axisFmt }) {
 }
 
 const LAYOUT_CHARTS = { band: bandOption, control: controlOption, tornado: tornadoOption, bridge: bridgeOption, bullet: bulletOption,
-  treemap: treemapOption, radar: radarOption, sankey: sankeyOption };
+  treemap: treemapOption, radar: radarOption, sankey: sankeyOption, ...KIND_CHARTS };
 
 export function chartOption(chart, rows, P, { reduced = false } = {}) {
   const y0 = chart.y[0] || {};

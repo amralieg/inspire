@@ -112,7 +112,8 @@ test('every element kind on every page in examples shows a visible Ask Genie, on
     for (const settings of [example.settings, { ...example.settings, ...GENIE_OFF }]) {
       const info = appInfo(settings, 1, {}, `examples/${file}`);
       const least = kindsOf(info.pages[0]);
-      assert.ok(least.card > 0 && least.kpi > 0 && least.row > 0, `${file} declares cards, key numbers and rows: ${JSON.stringify(least)}`);
+      const rowless = info.pages[0].layout?.id === 'agent_chat';
+      assert.ok(least.card > 0 && least.kpi > 0 && (least.row > 0) !== rowless, `${file} declares cards, key numbers and ${rowless ? 'no rows' : 'rows'}: ${JSON.stringify(least)}`);
       const { page, seen, context } = await open(info, { routes: example.routes() });
       await example.ready(page);
       await page.waitForFunction(() => !document.querySelector('.skel, [aria-busy="true"]'), null, { timeout: 15000 });

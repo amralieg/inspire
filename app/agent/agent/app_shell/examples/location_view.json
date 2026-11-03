@@ -1,0 +1,250 @@
+{
+  "version": 2,
+  "layout": "location_view",
+  "id": "n07_u01",
+  "use_case_id": "N07-U01",
+  "title": "Where to open the next stores",
+  "question": "Which candidate sites sit closest to unmet demand, and which should we shortlist or reject?",
+  "sponsor": "Head of Network Planning",
+  "domain": "Retail",
+  "subdomain": "Store network",
+  "icon": "home",
+  "hue": "green",
+  "result_table": "main.retail.site_pick_out",
+  "story": "{sites} candidate sites score {demand} of unmet demand; {strong} of them score in the top band.",
+  "questions": [
+    "Which country has the most unmet demand?",
+    "Which shortlisted sites are close to each other?"
+  ],
+  "datasets": [
+    {
+      "name": "records",
+      "sql": "SELECT o.record_key, o.entity_id, o.entity_label, o.priority_tier, o.`rank`, o.top_reasons, o.recommended_action, o.value, o.as_of_date, g.lat, g.lon, g.region_code, g.metric, s.city, s.format FROM main.retail.site_pick_out AS o JOIN main.retail.site_pick_out__geo AS g ON g.entity = o.entity_id JOIN main.retail.candidate_sites AS s ON s.site_id = o.entity_id WHERE o.is_current AND o.change_source <> 'delete'"
+    },
+    {
+      "name": "geo",
+      "sql": "SELECT g.entity, g.lat, g.lon, g.region_code, g.metric, s.city, s.format FROM main.retail.site_pick_out__geo AS g JOIN main.retail.candidate_sites AS s ON s.site_id = g.entity"
+    }
+  ],
+  "filters": [
+    {
+      "id": "run_date",
+      "type": "date_range",
+      "label": "Run date",
+      "grain": "day",
+      "default": "12m",
+      "columns": {
+        "records": "as_of_date"
+      }
+    },
+    {
+      "id": "country",
+      "type": "multi_select",
+      "label": "Country",
+      "columns": {
+        "records": "region_code",
+        "geo": "region_code"
+      }
+    },
+    {
+      "id": "site",
+      "type": "multi_select",
+      "label": "Site",
+      "columns": {
+        "records": "entity_id",
+        "geo": "entity"
+      }
+    },
+    {
+      "id": "format",
+      "type": "multi_select",
+      "label": "Store format",
+      "columns": {
+        "records": "format",
+        "geo": "format"
+      }
+    }
+  ],
+  "kpis": [
+    {
+      "id": "sites",
+      "label": "Candidate sites",
+      "dataset": "geo",
+      "expression": "COUNT(*)",
+      "format": "integer",
+      "good": "neutral"
+    },
+    {
+      "id": "demand",
+      "label": "Unmet demand",
+      "dataset": "geo",
+      "expression": "SUM(metric)",
+      "format": "currency",
+      "currency": "USD",
+      "good": "up"
+    },
+    {
+      "id": "strong",
+      "label": "Sites in the top band",
+      "dataset": "geo",
+      "expression": "COUNT(CASE WHEN metric >= 50000 THEN 1 END)",
+      "format": "integer",
+      "good": "up"
+    }
+  ],
+  "charts": [
+    {
+      "id": "countries",
+      "section": "map",
+      "title": "Unmet demand by country",
+      "type": "map_regions",
+      "dataset": "geo",
+      "hint": "Darker countries hold more unmet demand near a candidate site.",
+      "so_what": "Click a country to list its sites below.",
+      "x": {
+        "column": "region_code",
+        "kind": "category",
+        "label": "Country"
+      },
+      "limit": 200,
+      "y": [
+        {
+          "label": "Unmet demand",
+          "expression": "SUM(metric)",
+          "format": "currency",
+          "currency": "USD"
+        }
+      ]
+    },
+    {
+      "id": "points",
+      "section": "map",
+      "title": "Candidate sites",
+      "type": "map_points",
+      "dataset": "geo",
+      "hint": "Each dot is a site; a bigger dot is more unmet demand.",
+      "so_what": "Click a site to see it in the ranked list.",
+      "x": {
+        "column": "entity",
+        "kind": "category",
+        "label": "Site"
+      },
+      "limit": 500,
+      "y": [
+        {
+          "label": "Unmet demand",
+          "expression": "SUM(metric)",
+          "format": "currency",
+          "currency": "USD"
+        },
+        {
+          "label": "Latitude",
+          "expression": "MAX(lat)",
+          "format": "number"
+        },
+        {
+          "label": "Longitude",
+          "expression": "MAX(lon)",
+          "format": "number"
+        }
+      ]
+    },
+    {
+      "id": "density",
+      "section": "density",
+      "title": "Sites by country and format",
+      "type": "heatmap",
+      "dataset": "geo",
+      "hint": "How many candidate sites each country has in each store format.",
+      "so_what": "A dark cell is a crowded choice: shortlist only the best one or two.",
+      "x": {
+        "column": "region_code",
+        "kind": "category",
+        "label": "Country"
+      },
+      "series": {
+        "column": "format",
+        "top": 6
+      },
+      "y": [
+        {
+          "label": "Sites",
+          "expression": "COUNT(*)",
+          "format": "integer"
+        }
+      ]
+    }
+  ],
+  "tables": [
+    {
+      "id": "listed",
+      "section": "linked_list",
+      "title": "What the map shows",
+      "hint": "Every site on the map, filtered by your click.",
+      "dataset": "geo",
+      "columns": [
+        {
+          "column": "entity",
+          "label": "Site",
+          "format": "text"
+        },
+        {
+          "column": "city",
+          "label": "City",
+          "format": "text"
+        },
+        {
+          "column": "region_code",
+          "label": "Country",
+          "format": "text"
+        },
+        {
+          "column": "metric",
+          "label": "Unmet demand",
+          "format": "currency",
+          "currency": "USD"
+        }
+      ],
+      "sort": {
+        "column": "metric",
+        "desc": true
+      }
+    }
+  ],
+  "records": {
+    "title": "Rank the candidate sites",
+    "hint": "Best first by unmet demand; shortlist the ones to visit and reject the rest with a reason.",
+    "key": "entity_id",
+    "label": "entity_label",
+    "sublabel": "city",
+    "rank": "rank",
+    "tier": "priority_tier",
+    "reasons": "top_reasons",
+    "action": "recommended_action",
+    "columns": [
+      {
+        "column": "city",
+        "label": "City",
+        "format": "text"
+      },
+      {
+        "column": "region_code",
+        "label": "Country",
+        "format": "text"
+      },
+      {
+        "column": "metric",
+        "label": "Unmet demand",
+        "format": "currency",
+        "currency": "USD"
+      }
+    ],
+    "detail": [
+      {
+        "column": "format",
+        "label": "Store format",
+        "format": "text"
+      }
+    ]
+  }
+}

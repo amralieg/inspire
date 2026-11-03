@@ -283,7 +283,7 @@
    "id": "process_flow",
    "label": "Process flow",
    "tab_label": "Flow",
-   "enabled": false,
+   "enabled": true,
    "contract": "process",
    "sections": [
     "todo",
@@ -297,13 +297,36 @@
    "min_items": {
     "process_map": 3,
     "breach_risk_cases": 20
-   }
+   },
+   "choices": [
+    {
+     "id": "expedite",
+     "label": "Expedite",
+     "status": "In progress"
+    },
+    {
+     "id": "reassign",
+     "label": "Reassign",
+     "status": "In progress"
+    },
+    {
+     "id": "accept",
+     "label": "Accept delay",
+     "status": "Dismissed",
+     "reasons": [
+      "The customer agreed to the new date",
+      "Waiting on the customer",
+      "Still within the agreed terms",
+      "It cannot go faster"
+     ]
+    }
+   ]
   },
   {
    "id": "location_view",
    "label": "Location view",
    "tab_label": "Map",
-   "enabled": false,
+   "enabled": true,
    "contract": "location",
    "sections": [
     "todo",
@@ -315,13 +338,31 @@
    ],
    "min_items": {
     "ranked_sites": 3
-   }
+   },
+   "choices": [
+    {
+     "id": "shortlist",
+     "label": "Shortlist",
+     "status": "In progress"
+    },
+    {
+     "id": "reject",
+     "label": "Reject",
+     "status": "Dismissed",
+     "reasons": [
+      "Too far from demand",
+      "Costs too much",
+      "Not enough room",
+      "Already served nearby"
+     ]
+    }
+   ]
   },
   {
    "id": "network_explorer",
    "label": "Network explorer",
    "tab_label": "Network",
-   "enabled": false,
+   "enabled": true,
    "contract": "network",
    "sections": [
     "todo",
@@ -333,15 +374,40 @@
    ],
    "min_items": {
     "centrality_list": 10
-   }
+   },
+   "choices": [
+    {
+     "id": "block",
+     "label": "Block",
+     "status": "Done"
+    },
+    {
+     "id": "investigate",
+     "label": "Investigate",
+     "status": "In progress"
+    },
+    {
+     "id": "not_ring",
+     "label": "Not a ring",
+     "status": "Dismissed",
+     "reasons": [
+      "Family or household link",
+      "Shared business address",
+      "Known partner",
+      "Data error"
+     ]
+    }
+   ]
   },
   {
    "id": "agent_chat",
    "label": "Data agent",
    "tab_label": "Ask",
-   "enabled": false,
+   "enabled": true,
    "contract": null,
    "sections": [
+    "todo",
+    "kpis",
     "conversation",
     "suggested_questions",
     "cited_sql",

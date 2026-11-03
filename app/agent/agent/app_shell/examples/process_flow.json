@@ -1,0 +1,255 @@
+{
+  "version": 2,
+  "layout": "process_flow",
+  "id": "n06_u01",
+  "use_case_id": "N06-U01",
+  "title": "Claims process flow",
+  "question": "Where do claims wait, which steps send them back, and which open claims will breach their deadline?",
+  "sponsor": "Head of Claims Operations",
+  "domain": "Operations",
+  "subdomain": "Claims handling",
+  "icon": "trend",
+  "hue": "blue",
+  "result_table": "main.operations.claims_flow_out",
+  "story": "{open} claims are open; {at_risk} of them may breach their deadline.",
+  "questions": [
+    "Which step adds the most waiting time?",
+    "Why are claims sent back from review?"
+  ],
+  "datasets": [
+    {
+      "name": "records",
+      "sql": "SELECT o.record_key, o.entity_id, o.entity_label, o.priority_tier, o.`rank`, o.top_reasons, o.recommended_action, o.value, o.as_of_date, c.step, c.age_hours, c.breach_risk, k.variant, k.region FROM main.operations.claims_flow_out AS o JOIN main.operations.claims_flow_out__cases AS c ON c.case_id = o.entity_id JOIN main.operations.claims AS k ON k.claim_id = o.entity_id WHERE o.is_current AND o.change_source <> 'delete'"
+    },
+    {
+      "name": "moves",
+      "sql": "SELECT t.from_step, t.to_step, t.cases, t.median_hours, t.p90_hours, t.rework FROM main.operations.claims_flow_out__transitions AS t"
+    },
+    {
+      "name": "cases",
+      "sql": "SELECT c.case_id, c.step, c.age_hours, c.breach_risk, k.variant, k.region FROM main.operations.claims_flow_out__cases AS c JOIN main.operations.claims AS k ON k.claim_id = c.case_id"
+    }
+  ],
+  "filters": [
+    {
+      "id": "run_date",
+      "type": "date_range",
+      "label": "Run date",
+      "grain": "day",
+      "default": "12m",
+      "columns": {
+        "records": "as_of_date"
+      }
+    },
+    {
+      "id": "step",
+      "type": "multi_select",
+      "label": "Step",
+      "columns": {
+        "records": "step",
+        "moves": "from_step",
+        "cases": "step"
+      }
+    },
+    {
+      "id": "variant",
+      "type": "multi_select",
+      "label": "Claim type",
+      "columns": {
+        "records": "variant",
+        "cases": "variant"
+      }
+    },
+    {
+      "id": "region",
+      "type": "multi_select",
+      "label": "Region",
+      "columns": {
+        "records": "region",
+        "cases": "region"
+      }
+    }
+  ],
+  "kpis": [
+    {
+      "id": "open",
+      "label": "Open claims",
+      "dataset": "cases",
+      "expression": "COUNT(*)",
+      "format": "integer",
+      "good": "down"
+    },
+    {
+      "id": "at_risk",
+      "label": "May breach the deadline",
+      "dataset": "cases",
+      "expression": "COUNT(CASE WHEN breach_risk >= 0.7 THEN 1 END)",
+      "format": "integer",
+      "good": "down"
+    },
+    {
+      "id": "age",
+      "label": "Median age, hours",
+      "dataset": "cases",
+      "expression": "MEDIAN(age_hours)",
+      "format": "number",
+      "good": "down"
+    }
+  ],
+  "charts": [
+    {
+      "id": "map",
+      "section": "process_map",
+      "title": "How claims move between steps",
+      "type": "flow",
+      "dataset": "moves",
+      "hint": "Each arrow is a move: thicker means more claims, red means slow, dashed means sent back.",
+      "so_what": "Click a step to list the claims waiting there, then expedite or reassign the ones at risk.",
+      "x": {
+        "column": "from_step",
+        "kind": "category",
+        "label": "From step"
+      },
+      "series": {
+        "column": "to_step",
+        "top": 8
+      },
+      "y": [
+        {
+          "label": "Claims",
+          "expression": "SUM(cases)",
+          "format": "integer"
+        },
+        {
+          "label": "Median hours",
+          "expression": "MAX(median_hours)",
+          "format": "number"
+        }
+      ]
+    },
+    {
+      "id": "bottlenecks",
+      "section": "bottleneck_ranking",
+      "title": "Slowest steps",
+      "type": "horizontal_bar",
+      "dataset": "moves",
+      "hint": "Hours the slowest 1 in 10 claims spend before they leave each step.",
+      "so_what": "The top step is where an extra hand saves the most time.",
+      "x": {
+        "column": "from_step",
+        "kind": "category",
+        "label": "Step"
+      },
+      "y": [
+        {
+          "label": "Slowest 1 in 10, hours",
+          "expression": "MAX(p90_hours)",
+          "format": "number"
+        }
+      ]
+    },
+    {
+      "id": "rework",
+      "section": "rework_loops",
+      "title": "Claims sent back",
+      "type": "bar",
+      "dataset": "moves",
+      "hint": "Claims each step sent back to an earlier step.",
+      "so_what": "A step that sends many claims back needs a clearer checklist upstream.",
+      "x": {
+        "column": "from_step",
+        "kind": "category",
+        "label": "Step"
+      },
+      "y": [
+        {
+          "label": "Claims sent back",
+          "expression": "SUM(CASE WHEN rework THEN cases ELSE 0 END)",
+          "format": "integer"
+        }
+      ]
+    },
+    {
+      "id": "cycle",
+      "section": "cycle_time_box",
+      "title": "Age of open claims by claim type",
+      "type": "box",
+      "dataset": "cases",
+      "hint": "The box holds the middle half of the claims; the line in it is the median.",
+      "so_what": "A claim type with a long box is unpredictable: give it its own deadline.",
+      "x": {
+        "column": "variant",
+        "kind": "category",
+        "label": "Claim type"
+      },
+      "y": [
+        {
+          "label": "Low",
+          "expression": "MIN(age_hours)",
+          "format": "number"
+        },
+        {
+          "label": "First quartile",
+          "expression": "PERCENTILE_APPROX(age_hours, 0.25)",
+          "format": "number"
+        },
+        {
+          "label": "Median",
+          "expression": "MEDIAN(age_hours)",
+          "format": "number"
+        },
+        {
+          "label": "Third quartile",
+          "expression": "PERCENTILE_APPROX(age_hours, 0.75)",
+          "format": "number"
+        },
+        {
+          "label": "High",
+          "expression": "MAX(age_hours)",
+          "format": "number"
+        }
+      ]
+    }
+  ],
+  "tables": [],
+  "records": {
+    "title": "Open claims at breach risk",
+    "hint": "Click a step on the process map to list the claims waiting there; the ★ choice follows the suggested action.",
+    "key": "entity_id",
+    "label": "entity_label",
+    "sublabel": "step",
+    "rank": "rank",
+    "tier": "priority_tier",
+    "reasons": "top_reasons",
+    "action": "recommended_action",
+    "columns": [
+      {
+        "column": "step",
+        "label": "Waiting at",
+        "format": "text"
+      },
+      {
+        "column": "age_hours",
+        "label": "Age, hours",
+        "format": "number"
+      },
+      {
+        "column": "breach_risk",
+        "label": "Breach risk",
+        "format": "percent"
+      }
+    ],
+    "detail": [
+      {
+        "column": "variant",
+        "label": "Claim type",
+        "format": "text"
+      },
+      {
+        "column": "region",
+        "label": "Region",
+        "format": "text"
+      }
+    ]
+  }
+}
