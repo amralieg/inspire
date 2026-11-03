@@ -1,0 +1,68 @@
+{
+ "source": "samples.bakehouse Unity Catalog table metadata (public Databricks sample, metadata only)",
+ "tables": {
+  "media_customer_reviews": [
+   "review",
+   "franchiseID",
+   "review_date",
+   "new_id"
+  ],
+  "media_gold_reviews_chunked": [
+   "franchiseID",
+   "review_date",
+   "chunked_text",
+   "chunk_id",
+   "review_uri"
+  ],
+  "sales_customers": [
+   "customerID",
+   "first_name",
+   "last_name",
+   "email_address",
+   "phone_number",
+   "address",
+   "city",
+   "state",
+   "country",
+   "continent",
+   "postal_zip_code",
+   "gender"
+  ],
+  "sales_franchises": [
+   "franchiseID",
+   "name",
+   "city",
+   "district",
+   "zipcode",
+   "country",
+   "size",
+   "longitude",
+   "latitude",
+   "supplierID"
+  ],
+  "sales_suppliers": [
+   "supplierID",
+   "name",
+   "ingredient",
+   "continent",
+   "city",
+   "district",
+   "size",
+   "longitude",
+   "latitude",
+   "approved"
+  ],
+  "sales_transactions": [
+   "transactionID",
+   "customerID",
+   "franchiseID",
+   "dateTime",
+   "product",
+   "quantity",
+   "unitPrice",
+   "totalPrice",
+   "paymentMethod",
+   "cardNumber"
+  ]
+ }
+}

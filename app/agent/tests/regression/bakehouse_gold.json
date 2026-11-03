@@ -1,0 +1,353 @@
+{
+ "schema_version": 3,
+ "corpus": "samples.bakehouse",
+ "status": "draft: written for the v1.4.0 kind recall gate; awaiting Amr's sign-off",
+ "source": "public analytics practice on a public Databricks sample; no customer content",
+ "release_gate": {
+  "rule": "On a v1.4.0 Discover run without a customer strategy: at least 80% of the must-find use cases are found with their kind, at least 6 families appear (fewer only when fewer families have a must-find entry), no must-reject entry is selected, and the kind-floor picks average no more than 0.5 Best-of-Best below the portfolio."
+ },
+ "matching": "a candidate's tables include every required table and at least one table of each any_of group; a gold entry counts for kind recall when a matched use case carries its kind or one of its also_kinds; a must-reject entry is selected when a use case covers its tables and its name or statement matches a pattern and no unless pattern",
+ "entries": [
+  {
+   "id": "B01",
+   "title": "Next franchise sites from customer and franchise locations",
+   "decision": "Choose the areas for the next franchise openings",
+   "owner": "Franchise development manager",
+   "kind": "site_territory",
+   "also_kinds": [
+    "location_intelligence"
+   ],
+   "required_tables": [
+    "sales_franchises"
+   ],
+   "any_of": [
+    [
+     "sales_customers",
+     "sales_transactions"
+    ]
+   ],
+   "signal_columns": [
+    "sales_franchises.latitude",
+    "sales_franchises.longitude",
+    "sales_franchises.city",
+    "sales_customers.city"
+   ],
+   "why": "A site opened where customers already travel far to buy wins sales others cannot reach."
+  },
+  {
+   "id": "B02",
+   "title": "Sales by place and the areas that stand out",
+   "decision": "Show franchise sales by area and name the areas that need a regional plan",
+   "owner": "Regional manager",
+   "kind": "location_intelligence",
+   "also_kinds": [
+    "site_territory",
+    "peer_benchmarking"
+   ],
+   "required_tables": [
+    "sales_franchises",
+    "sales_transactions"
+   ],
+   "any_of": [],
+   "signal_columns": [
+    "sales_franchises.latitude",
+    "sales_franchises.longitude",
+    "sales_franchises.country",
+    "sales_transactions.totalPrice"
+   ],
+   "why": "Regional plans built on the map put effort where sales are thin."
+  },
+  {
+   "id": "B03",
+   "title": "Recurring complaint reasons from reviews",
+   "decision": "Fix the top growing complaint reasons in reviews, each with an owner",
+   "owner": "Customer experience manager",
+   "kind": "reason_codes",
+   "also_kinds": [
+    "data_agent"
+   ],
+   "required_tables": [],
+   "any_of": [
+    [
+     "media_customer_reviews",
+     "media_gold_reviews_chunked"
+    ]
+   ],
+   "signal_columns": [
+    "media_customer_reviews.review",
+    "media_customer_reviews.review_date",
+    "media_gold_reviews_chunked.chunked_text"
+   ],
+   "why": "A growing complaint caught early costs a recipe change; caught late it costs customers."
+  },
+  {
+   "id": "B04",
+   "title": "Franchises below the network on review sentiment",
+   "decision": "Coach the franchises whose review sentiment runs below their peers",
+   "owner": "Franchise operations manager",
+   "kind": "peer_benchmarking",
+   "also_kinds": [
+    "reason_codes"
+   ],
+   "required_tables": [],
+   "any_of": [
+    [
+     "media_customer_reviews",
+     "media_gold_reviews_chunked"
+    ]
+   ],
+   "signal_columns": [
+    "media_customer_reviews.franchiseID",
+    "media_customer_reviews.review",
+    "media_gold_reviews_chunked.franchiseID"
+   ],
+   "why": "Sentiment below peers predicts lost repeat customers at that franchise."
+  },
+  {
+   "id": "B05",
+   "title": "Daily demand forecast per franchise and product",
+   "decision": "Set each franchise's daily bake quantity per product",
+   "owner": "Franchise operations manager",
+   "kind": "forecast",
+   "also_kinds": [
+    "inventory_replenishment"
+   ],
+   "required_tables": [
+    "sales_transactions"
+   ],
+   "any_of": [],
+   "signal_columns": [
+    "sales_transactions.dateTime",
+    "sales_transactions.franchiseID",
+    "sales_transactions.product",
+    "sales_transactions.quantity"
+   ],
+   "why": "Over-baking is waste and under-baking is lost sales, every day."
+  },
+  {
+   "id": "B06",
+   "title": "Franchises that depend on one supplier",
+   "decision": "Qualify a second supplier for the franchises and ingredients that depend on one supplier",
+   "owner": "Supply chain manager",
+   "kind": "network_dependency",
+   "also_kinds": [
+    "controls_testing"
+   ],
+   "required_tables": [
+    "sales_franchises",
+    "sales_suppliers"
+   ],
+   "any_of": [],
+   "signal_columns": [
+    "sales_franchises.supplierID",
+    "sales_suppliers.supplierID",
+    "sales_suppliers.ingredient",
+    "sales_suppliers.approved"
+   ],
+   "why": "One supplier failing stops every franchise that depends on it."
+  },
+  {
+   "id": "B07",
+   "title": "Customer lapse risk from purchase history",
+   "decision": "Choose which customers get a win-back offer this week",
+   "owner": "Marketing manager",
+   "kind": "risk_propensity",
+   "also_kinds": [
+    "time_to_event",
+    "lifetime_value"
+   ],
+   "required_tables": [
+    "sales_transactions"
+   ],
+   "any_of": [],
+   "signal_columns": [
+    "sales_transactions.customerID",
+    "sales_transactions.dateTime",
+    "sales_transactions.totalPrice",
+    "sales_transactions.franchiseID"
+   ],
+   "why": "Winning back a lapsing customer costs less than finding a new one."
+  },
+  {
+   "id": "B08",
+   "title": "Customer segments from purchase behavior",
+   "decision": "Pick the customer segments for each loyalty offer",
+   "owner": "Marketing manager",
+   "kind": "segmentation",
+   "also_kinds": [
+    "lifetime_value"
+   ],
+   "required_tables": [
+    "sales_transactions"
+   ],
+   "any_of": [],
+   "signal_columns": [
+    "sales_transactions.customerID",
+    "sales_transactions.quantity",
+    "sales_transactions.totalPrice",
+    "sales_transactions.product"
+   ],
+   "why": "Offers tuned per segment earn more than one offer for all."
+  },
+  {
+   "id": "B09",
+   "title": "Next product to offer each customer",
+   "decision": "Choose the next product to offer each customer",
+   "owner": "Marketing manager",
+   "kind": "next_best_action",
+   "also_kinds": [
+    "assortment"
+   ],
+   "required_tables": [
+    "sales_transactions"
+   ],
+   "any_of": [],
+   "signal_columns": [
+    "sales_transactions.customerID",
+    "sales_transactions.product",
+    "sales_transactions.quantity"
+   ],
+   "why": "A relevant next offer lifts basket size; an irrelevant one trains customers to ignore offers."
+  },
+  {
+   "id": "B10",
+   "title": "Staffing per franchise by hour",
+   "decision": "Set staff per franchise and hour from expected traffic",
+   "owner": "Franchise operations manager",
+   "kind": "staffing_queueing",
+   "also_kinds": [
+    "capacity_planning",
+    "forecast"
+   ],
+   "required_tables": [
+    "sales_transactions"
+   ],
+   "any_of": [],
+   "signal_columns": [
+    "sales_transactions.dateTime",
+    "sales_transactions.franchiseID",
+    "sales_transactions.transactionID"
+   ],
+   "why": "Queues at peak hours lose sales; idle staff off-peak lose margin."
+  },
+  {
+   "id": "B11",
+   "title": "Payment cards shared across customers",
+   "decision": "Review the card numbers used by many customers or franchises before the next payout",
+   "owner": "Payments risk analyst",
+   "kind": "fraud_rings",
+   "also_kinds": [
+    "anomaly",
+    "controls_testing",
+    "entity_matching"
+   ],
+   "required_tables": [
+    "sales_transactions"
+   ],
+   "any_of": [],
+   "signal_columns": [
+    "sales_transactions.cardNumber",
+    "sales_transactions.customerID",
+    "sales_transactions.franchiseID",
+    "sales_transactions.paymentMethod"
+   ],
+   "why": "Cards shared across many customers point to fraud or data errors, and both need a person to look."
+  },
+  {
+   "id": "B12",
+   "title": "Customer lifetime value",
+   "decision": "Set the loyalty investment per customer value tier",
+   "owner": "Marketing manager",
+   "kind": "lifetime_value",
+   "also_kinds": [
+    "segmentation"
+   ],
+   "required_tables": [
+    "sales_transactions"
+   ],
+   "any_of": [
+    [
+     "sales_customers"
+    ]
+   ],
+   "signal_columns": [
+    "sales_transactions.customerID",
+    "sales_transactions.totalPrice",
+    "sales_transactions.dateTime"
+   ],
+   "why": "Loyalty spend on low-value customers is taken from the ones worth keeping."
+  },
+  {
+   "id": "B13",
+   "title": "Revenue change by price, volume and product mix",
+   "decision": "Explain each month's revenue change by price, volume and mix per franchise",
+   "owner": "Finance manager",
+   "kind": "driver_breakdown",
+   "also_kinds": [
+    "pricing",
+    "variance_to_plan"
+   ],
+   "required_tables": [
+    "sales_transactions"
+   ],
+   "any_of": [],
+   "signal_columns": [
+    "sales_transactions.unitPrice",
+    "sales_transactions.quantity",
+    "sales_transactions.product",
+    "sales_transactions.dateTime"
+   ],
+   "why": "Without the split, a mix shift looks like a demand problem."
+  }
+ ],
+ "must_reject": [
+  {
+   "id": "R01",
+   "title": "Total sales per franchise",
+   "why": "A sum by franchise; no owner or action.",
+   "required_tables": [
+    "sales_transactions"
+   ],
+   "any_of": [],
+   "patterns": [
+    "\\b(total|sum of)\\s+(sales|revenue)\\s+(by|per|for each)\\s+franchise\\b"
+   ],
+   "unless": [
+    "\\b(forecast|predict|benchmark|peer|anomal|optimi|target|plan)"
+   ]
+  },
+  {
+   "id": "R02",
+   "title": "Count of customers by country",
+   "why": "A headcount by a column; no decision changes.",
+   "required_tables": [
+    "sales_customers"
+   ],
+   "any_of": [],
+   "patterns": [
+    "\\b(count|number)\\s+of\\s+customers\\s+(by|per|in each)\\s+(country|city|state|continent)\\b"
+   ],
+   "unless": [
+    "\\b(site|open|expan|segment|target)"
+   ]
+  },
+  {
+   "id": "R03",
+   "title": "Number of reviews per franchise",
+   "why": "A count of rows; says nothing about what customers say.",
+   "required_tables": [],
+   "any_of": [
+    [
+     "media_customer_reviews",
+     "media_gold_reviews_chunked"
+    ]
+   ],
+   "patterns": [
+    "\\b(count|number)\\s+of\\s+reviews\\s+(by|per|for each)\\s+franchise\\b"
+   ],
+   "unless": [
+    "\\b(sentiment|reason|complain|theme|topic)"
+   ]
+  }
+ ]
+}

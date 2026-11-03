@@ -1,10 +1,10 @@
 {
- "schema_version": 2,
+ "schema_version": 3,
  "corpus": "samples.tpcds_sf1",
  "status": "approved: Amr's sign-off on 2026-10-21; gates every release",
  "source": "public retail analytics practice; no customer content",
  "release_gate": {
-  "rule": "On a Discover run without a customer strategy, found must not drop below the previous release, same workspace and judge. On the frozen candidate pool, the release's grading may hold at most frozen_pool.top_tolerance fewer must-find use cases in the top 25 than the reference release's grading, both graded by one endpoint in one session. A single live run's top 25 is reported, not gated: two identical generations of the same inputs held 10 and 5.",
+  "rule": "On a Discover run without a customer strategy, found must not drop below the previous release, same workspace and judge. On the frozen candidate pool, the release's grading may hold at most frozen_pool.top_tolerance fewer must-find use cases in the top 25 than the reference release's grading, both graded by one endpoint in one session. A single live run's top 25 is reported, not gated: two identical generations of the same inputs held 10 and 5. From v1.4.0 a live run must also find at least min_found must-find use cases, label at least 80% of them with their kind, show at least 6 families, select no must-reject entry, and keep its kind-floor picks within 0.5 Best-of-Best of the portfolio.",
   "baseline": {
    "version": "v1.2.1",
    "found": 18,
@@ -18,7 +18,8 @@
    "reference_tag": "v1.2.1",
    "top_tolerance": 1,
    "grader": "databricks-claude-opus-4-8"
-  }
+  },
+  "min_found": 21
  },
  "entries": [
   {
@@ -26,6 +27,7 @@
    "title": "Weekly store-item demand forecast",
    "decision": "Set next week's replenishment quantity for each item in each store",
    "owner": "Store replenishment planner",
+   "kind": "forecast",
    "required_tables": [
     "store_sales",
     "date_dim"
@@ -44,6 +46,7 @@
    "title": "Warehouse reorder points from on-hand stock",
    "decision": "Set the reorder point and order quantity per item and warehouse",
    "owner": "Inventory manager",
+   "kind": "inventory_replenishment",
    "required_tables": [
     "inventory"
    ],
@@ -61,6 +64,10 @@
    "title": "Return rate by item and reason",
    "decision": "Fix, delist or relabel the items with the highest return rates and their main return reasons",
    "owner": "Category manager",
+   "kind": "driver_breakdown",
+   "also_kinds": [
+    "reason_codes"
+   ],
    "required_tables": [
     "reason"
    ],
@@ -84,6 +91,11 @@
    "title": "Suspicious return behavior per customer",
    "decision": "Flag customers or tickets whose return pattern looks abusive for review before refunding",
    "owner": "Loss prevention lead",
+   "kind": "anomaly",
+   "also_kinds": [
+    "risk_propensity",
+    "controls_testing"
+   ],
    "required_tables": [
     "store_returns",
     "store_sales"
@@ -102,6 +114,10 @@
    "title": "Customer lapse risk from purchase recency and frequency",
    "decision": "Choose which customers get a win-back offer this week",
    "owner": "CRM manager",
+   "kind": "risk_propensity",
+   "also_kinds": [
+    "time_to_event"
+   ],
    "required_tables": [
     "customer"
    ],
@@ -125,6 +141,7 @@
    "title": "Customer lifetime value across channels",
    "decision": "Set the service level and marketing budget per customer tier",
    "owner": "Head of customer marketing",
+   "kind": "lifetime_value",
    "required_tables": [
     "customer"
    ],
@@ -148,6 +165,7 @@
    "title": "Customer segments from demographics and spend",
    "decision": "Pick the segments to target with each campaign",
    "owner": "Marketing analyst",
+   "kind": "segmentation",
    "required_tables": [
     "customer_demographics"
    ],
@@ -171,6 +189,10 @@
    "title": "Promotion effectiveness by channel",
    "decision": "Keep, change or stop each promotion based on incremental sales against its cost",
    "owner": "Promotions manager",
+   "kind": "promotion_lift",
+   "also_kinds": [
+    "experiment_readout"
+   ],
    "required_tables": [
     "promotion"
    ],
@@ -194,6 +216,7 @@
    "title": "Price elasticity and markdown depth",
    "decision": "Set the markdown depth per item category",
    "owner": "Pricing manager",
+   "kind": "pricing",
    "required_tables": [
     "item"
    ],
@@ -217,6 +240,7 @@
    "title": "Cross-channel cannibalization",
    "decision": "Decide channel-specific assortment and pricing where one channel takes sales from another",
    "owner": "Omnichannel director",
+   "kind": "assortment",
    "required_tables": [
     "store_sales",
     "web_sales"
@@ -235,6 +259,7 @@
    "title": "Market basket affinity for cross-sell",
    "decision": "Choose product pairs for placement and bundles",
    "owner": "Merchandising manager",
+   "kind": "next_best_action",
    "required_tables": [
     "item"
    ],
@@ -258,6 +283,7 @@
    "title": "Store productivity benchmarking",
    "decision": "Target the stores below their peers on sales per square foot and per employee",
    "owner": "Regional operations manager",
+   "kind": "peer_benchmarking",
    "required_tables": [
     "store_sales",
     "store"
@@ -276,6 +302,7 @@
    "title": "Shipping cost by ship mode and carrier",
    "decision": "Renegotiate or switch carriers and ship modes with the worst cost per order",
    "owner": "Logistics manager",
+   "kind": "cost_to_serve",
    "required_tables": [
     "ship_mode"
    ],
@@ -298,6 +325,10 @@
    "title": "Order-to-ship lag by warehouse",
    "decision": "Fix the warehouses and ship modes with the longest order-to-ship lag",
    "owner": "Fulfillment manager",
+   "kind": "sla_aging",
+   "also_kinds": [
+    "process_mining"
+   ],
    "required_tables": [
     "warehouse"
    ],
@@ -320,6 +351,10 @@
    "title": "Call center return handling",
    "decision": "Coach or staff the call centers with the highest return amounts",
    "owner": "Customer service director",
+   "kind": "peer_benchmarking",
+   "also_kinds": [
+    "staffing_queueing"
+   ],
    "required_tables": [
     "catalog_returns",
     "call_center"
@@ -338,6 +373,10 @@
    "title": "Catalog page effectiveness",
    "decision": "Drop or redesign the catalog pages that sell least for their department",
    "owner": "Catalog marketing manager",
+   "kind": "peer_benchmarking",
+   "also_kinds": [
+    "assortment"
+   ],
    "required_tables": [
     "catalog_sales",
     "catalog_page"
@@ -356,6 +395,10 @@
    "title": "Web page content and sales",
    "decision": "Change the page types and content that underperform on sales",
    "owner": "Ecommerce manager",
+   "kind": "driver_breakdown",
+   "also_kinds": [
+    "experiment_readout"
+   ],
    "required_tables": [
     "web_sales",
     "web_page"
@@ -374,6 +417,11 @@
    "title": "Margin by brand and category",
    "decision": "Rationalize the assortment: drop or reprice low-margin brands",
    "owner": "Category manager",
+   "kind": "assortment",
+   "also_kinds": [
+    "pricing",
+    "cost_to_serve"
+   ],
    "required_tables": [
     "item"
    ],
@@ -397,6 +445,7 @@
    "title": "Staffing by hour from sales by time of day",
    "decision": "Set store staffing per shift from expected traffic",
    "owner": "Store operations manager",
+   "kind": "staffing_queueing",
    "required_tables": [
     "store_sales",
     "time_dim"
@@ -415,6 +464,10 @@
    "title": "Holiday and seasonal demand planning",
    "decision": "Set holiday-period orders and staffing per category",
    "owner": "Demand planner",
+   "kind": "forecast",
+   "also_kinds": [
+    "capacity_planning"
+   ],
    "required_tables": [
     "date_dim"
    ],
@@ -438,6 +491,10 @@
    "title": "Store site selection from customer geography",
    "decision": "Choose the regions for the next store openings",
    "owner": "Real estate director",
+   "kind": "site_territory",
+   "also_kinds": [
+    "location_intelligence"
+   ],
    "required_tables": [
     "customer_address",
     "store"
@@ -456,6 +513,10 @@
    "title": "Purchasing power by income band",
    "decision": "Set the price tiers and assortment per income band",
    "owner": "Assortment planner",
+   "kind": "segmentation",
+   "also_kinds": [
+    "pricing"
+   ],
    "required_tables": [
     "household_demographics",
     "income_band"
@@ -480,6 +541,11 @@
    "title": "Coupon and discount leakage",
    "decision": "Tighten coupon rules where discounts exceed their intended share of sales",
    "owner": "Finance controller",
+   "kind": "leakage_reconciliation",
+   "also_kinds": [
+    "controls_testing",
+    "anomaly"
+   ],
    "required_tables": [],
    "any_of": [
     [
@@ -501,6 +567,10 @@
    "title": "Inventory balancing across warehouses",
    "decision": "Move stock between warehouses to match demand",
    "owner": "Supply chain planner",
+   "kind": "allocation",
+   "also_kinds": [
+    "inventory_replenishment"
+   ],
    "required_tables": [
     "inventory",
     "warehouse"
@@ -519,6 +589,10 @@
    "title": "Refund method cost on returns",
    "decision": "Steer refunds toward store credit where it cuts net loss",
    "owner": "Returns policy owner",
+   "kind": "driver_breakdown",
+   "also_kinds": [
+    "cost_to_serve"
+   ],
    "required_tables": [],
    "any_of": [
     [
@@ -536,5 +610,58 @@
    "why": "Store credit keeps revenue that a cash refund loses."
   }
  ],
- "matching": "a candidate's tables include every required table and at least one table of each any_of group"
+ "matching": "a candidate's tables include every required table and at least one table of each any_of group; a gold entry counts for kind recall when a matched use case carries its kind or one of its also_kinds; a must-reject entry is selected when a use case covers its tables and its name or statement matches a pattern and no unless pattern",
+ "must_reject": [
+  {
+   "id": "R01",
+   "title": "Total sales by store",
+   "why": "A report of a column sum already in the data; no decision changes.",
+   "required_tables": [
+    "store_sales",
+    "store"
+   ],
+   "any_of": [],
+   "patterns": [
+    "\\b(total|sum of|aggregate)\\s+(net\\s+)?(sales|revenue)\\s+(by|per|for each)\\s+store\\b"
+   ],
+   "unless": [
+    "\\b(forecast|predict|benchmark|peer|anomal|optimi|target)"
+   ]
+  },
+  {
+   "id": "R02",
+   "title": "Count of customers by state",
+   "why": "A headcount by a column; no owner or action.",
+   "required_tables": [
+    "customer"
+   ],
+   "any_of": [
+    [
+     "customer_address",
+     "customer_demographics"
+    ]
+   ],
+   "patterns": [
+    "\\b(count|number)\\s+of\\s+customers\\s+(by|per|in each)\\s+(state|county|country|gender|city)\\b"
+   ],
+   "unless": [
+    "\\b(site|open|expan|segment|target)"
+   ]
+  },
+  {
+   "id": "R03",
+   "title": "List items that are out of stock",
+   "why": "Restates a filter on inv_quantity_on_hand = 0 (T2).",
+   "required_tables": [
+    "inventory"
+   ],
+   "any_of": [],
+   "patterns": [
+    "\\b(list|show|report|display|flag)\\w*\\b[^.]{0,40}\\b(out of stock|zero (stock|inventory|on.hand)|no (stock|inventory))\\b"
+   ],
+   "unless": [
+    "\\b(forecast|predict|reorder|replenish|risk|before)"
+   ]
+  }
+ ]
 }

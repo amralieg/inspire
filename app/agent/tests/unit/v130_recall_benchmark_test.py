@@ -28,11 +28,11 @@ def row(uc_id, name, tables, score, statement="", bob=None):
 
 
 GOLD = {"corpus": "fixture", "entries": [
-    {"id": "G1", "title": "Demand", "decision": "Set weekly orders", "owner": "Planner", "why": "Stock",
+    {"id": "G1", "title": "Demand", "decision": "Set weekly orders", "owner": "Planner", "why": "Stock", "kind": "forecast",
      "required_tables": ["store_sales", "date_dim"], "signal_columns": ["store_sales.ss_quantity"]},
-    {"id": "G2", "title": "Returns", "decision": "Fix returned items", "owner": "Category manager", "why": "Margin",
+    {"id": "G2", "title": "Returns", "decision": "Fix returned items", "owner": "Category manager", "why": "Margin", "kind": "driver_breakdown",
      "required_tables": ["store_returns"], "signal_columns": ["store_returns.sr_return_quantity"]},
-    {"id": "G3", "title": "Payroll", "decision": "Plan payroll", "owner": "HR", "why": "Cost",
+    {"id": "G3", "title": "Payroll", "decision": "Plan payroll", "owner": "HR", "why": "Cost", "kind": "allocation",
      "required_tables": ["payroll"], "signal_columns": []},
 ]}
 
@@ -159,8 +159,13 @@ def test_query_waits_while_the_statement_is_still_running(monkeypatch):
         pull_uc_dump.query("SELECT 1")
 
 
+PASSING_KINDS = {"kind_recall": 0.84, "kind_missed": [], "families_hit": ["a", "b", "c", "d", "e", "f"], "families_required": 6,
+                 "families_eligible": [], "families_produced": [], "must_reject_selected": [],
+                 "floor": {"recorded": True, "picks": 0, "gap": None}}
+
+
 def _gate_report(found, found_top, errors=0):
-    return {"found": found, "found_top": found_top, "judge_errors": errors, "gold": 25}
+    return {"found": found, "found_top": found_top, "judge_errors": errors, "gold": 25, "kinds": PASSING_KINDS}
 
 
 def test_the_live_gate_holds_total_recall_and_only_reports_the_noisy_single_run_top_25():
@@ -169,15 +174,19 @@ def test_the_live_gate_holds_total_recall_and_only_reports_the_noisy_single_run_
     assert baseline["version"] == "v1.2.1" and "top_tolerance" not in gold["release_gate"]
     assert gold["release_gate"]["frozen_pool"]["reference_tag"] == "v1.2.1"
     builtin = {"strategic_context": {"source": "builtin"}}
-    assert rb.release_gate(gold, _gate_report(baseline["found"], baseline["found_top"] - 1), builtin) == (True, [])
-    assert rb.release_gate(gold, _gate_report(baseline["found"], 0), {}) == (True, []), "the frozen pool gates the top 25"
+    floor = gold["release_gate"]["min_found"]
+    assert floor == 21 and floor > baseline["found"]
+    assert rb.release_gate(gold, _gate_report(floor, baseline["found_top"] - 1), builtin) == (True, [])
+    assert rb.release_gate(gold, _gate_report(floor, 0), {}) == (True, []), "the frozen pool gates the top 25"
+    passed, reasons = rb.release_gate(gold, _gate_report(floor - 1, baseline["found_top"]), builtin)
+    assert not passed and reasons == ["found 20 of 25 is below the gate of 21"]
     passed, reasons = rb.release_gate(gold, _gate_report(baseline["found"] - 1, baseline["found_top"]), builtin)
     assert not passed and "below the v1.2.1 baseline" in reasons[0]
     passed, reasons = rb.release_gate(gold, _gate_report(25, 25), {"strategic_context": {"source": "customer"}})
     assert not passed and "customer strategy" in reasons[0]
     assert not rb.release_gate(gold, _gate_report(25, 25), None)[0], "the gate cannot confirm the run without the catalog"
     assert not rb.release_gate(gold, _gate_report(25, 25, errors=1), builtin)[0]
-    assert rb.release_gate({"entries": []}, _gate_report(25, 25), builtin) == (False, ["the gold set has no release_gate baseline"])
+    assert rb.release_gate({"entries": []}, _gate_report(25, 25), builtin) == (False, ["the gold set has no release_gate"])
 
 
 def test_the_gate_flag_makes_the_command_exit_non_zero_on_failure(tmp_path, capsys):

@@ -11,6 +11,14 @@ same business decision. Recall is reported overall and within the top 25 by Insp
 `--judge none` reports the pre-filter alone, an upper bound. Judge answers are cached by the
 SHA-256 of the prompt, so a re-score with the same cache makes no new LLM call.
 
+Every gold entry names its use-case kind from app_shell/kinds.json. A use case's kind is its labeled
+use_case_kind (id, label or number), else the kind of its Analytics Technique. Kind recall counts the gold
+entries matched by a use case of the entry's kind or one of its also_kinds. A must-reject entry is selected
+when a use case covers its tables and its name or statement matches one of its patterns and none of its
+unless patterns. `--gate` also needs 80% kind recall, 6 families among the families with a must-find entry
+(fewer when fewer have one, and only detected ones when --detected-kinds is given), no must-reject entry
+selected, and kind-floor picks averaging no more than 0.5 Best-of-Best below the portfolio.
+
 Environment: DATABRICKS_CONFIG_PROFILE, INSPIRE_WAREHOUSE and INSPIRE_DB, as in pull_uc_dump.py.
 """
 
@@ -28,6 +36,10 @@ import pull_uc_dump  # noqa: E402
 
 TOP_N = 25
 MAX_CANDIDATES = 12
+KIND_RECALL_MIN = 0.8
+MIN_FAMILIES = 6
+FLOOR_MAX_AVG_GAP = 0.5
+KINDS_PATH = Path(__file__).resolve().parents[2] / "agent" / "app_shell" / "kinds.json"
 ENDPOINT_RE = re.compile(r"^[A-Za-z0-9._-]+$")
 JUDGE_SQL = ("SELECT ai_query('{endpoint}', :prompt, "
              "modelParameters => named_struct('temperature', CAST(0.0 AS DOUBLE))) AS answer")
@@ -58,7 +70,38 @@ def normalize_uc(row: dict) -> dict:
         bob = None
     return {"id": str(_first(row, "id", "No")), "name": str(_first(row, "use_case", "Name", "usecase")),
             "statement": str(_first(row, "statement", "Statement")), "solution": str(_first(row, "solution", "Solution")),
-            "tables": sorted({short_table(t) for t in tables}), "score": score, "bob": bob}
+            "tables": sorted({short_table(t) for t in tables}), "score": score, "bob": bob,
+            "kind_label": str(_first(row, "use_case_kind", "Use Case Kind")),
+            "technique": str(_first(row, "analytics_technique", "Analytics Technique")),
+            "basis": str(_first(row, "selection_basis", "Selection Basis")).strip().lower()}
+
+
+def load_registry(path: Path = KINDS_PATH) -> dict:
+    return json.loads(Path(path).read_text(encoding="utf-8"))
+
+
+def _kind_key(value) -> str:
+    return re.sub(r"[^a-z0-9]+", "_", str(value if value is not None else "").casefold()).strip("_")
+
+
+def resolve_kind(uc: dict, registry: dict) -> tuple:
+    """(kind id, "labeled" | "technique" | "") for one normalized use case."""
+    index = {}
+    for kind in registry["kinds"]:
+        for name in (kind["id"], kind.get("label"), kind.get("num")):
+            if _kind_key(name):
+                index.setdefault(_kind_key(name), kind["id"])
+    label = _kind_key(uc.get("kind_label"))
+    found = index.get(label) or index.get(re.sub(r"^\d+_", "", label))
+    if found:
+        return found, "labeled"
+    by_technique = {_kind_key(name): kind_id for name, kind_id in (registry.get("technique_kind") or {}).items()}
+    found = by_technique.get(_kind_key(uc.get("technique")))
+    return (found, "technique") if found else ("", "")
+
+
+def entry_kinds(entry: dict) -> list:
+    return [entry["kind"]] + [k for k in entry.get("also_kinds") or [] if k != entry["kind"]]
 
 
 def rank(use_cases: list) -> list:
@@ -131,9 +174,64 @@ def sql_judge(endpoint: str):
     return ask
 
 
-def score(gold: dict, use_cases: list, ask=None, cache: dict | None = None) -> dict:
+def must_reject_hits(gold: dict, use_cases: list) -> list:
+    """The must-reject entries a portfolio selected, each with the use cases that restate it (T7)."""
+    hits = []
+    for entry in gold.get("must_reject") or []:
+        patterns = [re.compile(p, re.I) for p in entry.get("patterns") or []]
+        unless = [re.compile(p, re.I) for p in entry.get("unless") or []]
+        chosen = []
+        for u in use_cases:
+            text = f"{u['name']}. {u['statement']}"
+            if covers(entry, set(u["tables"])) and any(p.search(text) for p in patterns) and not any(p.search(text) for p in unless):
+                chosen.append(u["id"])
+        if chosen:
+            hits.append({"id": entry["id"], "title": entry["title"], "selected": chosen})
+    return hits
+
+
+def floor_gap(use_cases: list) -> dict:
+    """How far the kind-floor picks sit below the portfolio on Best-of-Best (D7)."""
+    recorded = any(u.get("basis") for u in use_cases)
+    portfolio = [u["bob"] for u in use_cases if u["bob"] is not None]
+    floor = [u["bob"] for u in use_cases if u.get("basis") == "kind_floor" and u["bob"] is not None]
+    gap = round(sum(portfolio) / len(portfolio) - sum(floor) / len(floor), 3) if floor and portfolio else None
+    return {"recorded": recorded, "picks": sum(1 for u in use_cases if u.get("basis") == "kind_floor"),
+            "portfolio_bob": round(sum(portfolio) / len(portfolio), 3) if portfolio else None,
+            "floor_bob": round(sum(floor) / len(floor), 3) if floor else None, "gap": gap}
+
+
+def kind_summary(gold: dict, ranked: list, rows: list, registry: dict, detected: list | None = None) -> dict:
+    family = {kind["id"]: kind["family"] for kind in registry["kinds"]}
+    total = len(rows) or 1
+    kind_found = [r["id"] for r in rows if r["kind_matches"]]
+    eligible = {family[e["kind"]] for e in gold["entries"]}
+    if detected is not None:
+        eligible &= {family[k] for k in detected if k in family}
+    produced = {family[u["kind"]] for u in ranked if u["kind"] in family}
+    hit = eligible & produced
+    return {"kind_found": len(kind_found), "kind_recall": round(len(kind_found) / total, 4),
+            "kind_missed": [r["id"] for r in rows if not r["kind_matches"]],
+            "families_eligible": sorted(eligible), "families_produced": sorted(produced), "families_hit": sorted(hit),
+            "families_required": min(MIN_FAMILIES, len(eligible)),
+            "kinds_produced": sorted({u["kind"] for u in ranked if u["kind"]}),
+            "kind_from_technique": sum(1 for u in ranked if u["kind_source"] == "technique"),
+            "kind_unknown": sum(1 for u in ranked if not u["kind"]),
+            "must_reject_selected": must_reject_hits(gold, ranked), "floor": floor_gap(ranked)}
+
+
+def score(gold: dict, use_cases: list, ask=None, cache: dict | None = None, registry: dict | None = None,
+          detected: list | None = None) -> dict:
     """Recall report. `ask` is None for the pre-filter alone; `cache` maps prompt SHA-256 to an answer."""
+    registry = registry if registry is not None else load_registry()
+    known = {kind["id"] for kind in registry["kinds"]}
+    for entry in gold["entries"]:
+        if entry.get("kind") not in known or any(k not in known for k in entry.get("also_kinds") or []):
+            raise ValueError(f"gold entry {entry['id']} has no kind from the registry: {entry.get('kind')!r}")
     ranked = rank([normalize_uc(u) for u in use_cases])
+    for u in ranked:
+        u["kind"], u["kind_source"] = resolve_kind(u, registry)
+    kind_of = {u["id"]: u["kind"] for u in ranked}
     top = {u["id"] for u in ranked[:TOP_N]}
     cache = cache if cache is not None else {}
     rows, errors = [], 0
@@ -149,15 +247,18 @@ def score(gold: dict, use_cases: list, ask=None, cache: dict | None = None) -> d
                 cache[key] = ask(prompt)
             matched, error = parse_judge(cache[key], pool)
             errors += 1 if error else 0
-        rows.append({"id": entry["id"], "title": entry["title"], "candidates": [u["id"] for u in pool],
-                     "matches": matched, "in_top": [m for m in matched if m in top], "error": error})
+        accepted = entry_kinds(entry)
+        rows.append({"id": entry["id"], "title": entry["title"], "kind": entry["kind"], "candidates": [u["id"] for u in pool],
+                     "matches": matched, "in_top": [m for m in matched if m in top],
+                     "kind_matches": [m for m in matched if kind_of.get(m) in accepted], "error": error})
     total = len(rows) or 1
     found = sum(1 for r in rows if r["matches"])
     found_top = sum(1 for r in rows if r["in_top"])
     return {"corpus": gold.get("corpus"), "judge": "none" if ask is None else "llm", "use_cases": len(ranked),
             "gold": len(rows), "found": found, "recall": round(found / total, 4), "found_top": found_top,
             "recall_top": round(found_top / total, 4), "top_n": TOP_N, "judge_errors": errors,
-            "missed": [r["id"] for r in rows if not r["matches"]], "entries": rows}
+            "missed": [r["id"] for r in rows if not r["matches"]],
+            "kinds": kind_summary(gold, ranked, rows, registry, detected), "entries": rows}
 
 
 def load_catalog_use_cases(path: Path) -> list:
@@ -165,11 +266,30 @@ def load_catalog_use_cases(path: Path) -> list:
     return [uc for domain in data.get("domains") or [] for uc in domain.get("use_cases") or []]
 
 
+def kind_gate(kinds: dict | None) -> list:
+    if not kinds:
+        return ["the report has no kind measures"]
+    reasons = []
+    if kinds["kind_recall"] < KIND_RECALL_MIN:
+        reasons.append(f"kind recall {kinds['kind_recall']:.0%} is below {KIND_RECALL_MIN:.0%} (missed {kinds['kind_missed']})")
+    if len(kinds["families_hit"]) < kinds["families_required"]:
+        reasons.append(f"{len(kinds['families_hit'])} of the {kinds['families_required']} required families appear "
+                       f"(eligible {kinds['families_eligible']}, produced {kinds['families_produced']})")
+    for hit in kinds["must_reject_selected"]:
+        reasons.append(f"must-reject {hit['id']} ({hit['title']}) selected as {hit['selected']}")
+    floor = kinds["floor"]
+    if not floor["recorded"]:
+        reasons.append("no use case records selection_basis; measure the floor gate on a v1.4.0 run")
+    elif floor["gap"] is not None and floor["gap"] > FLOOR_MAX_AVG_GAP:
+        reasons.append(f"kind-floor picks average {floor['gap']:.2f} Best-of-Best below the portfolio, above {FLOOR_MAX_AVG_GAP}")
+    return reasons
+
+
 def release_gate(gold: dict, report: dict, catalog: dict | None) -> tuple:
     gate = gold.get("release_gate") or {}
+    if not gate:
+        return False, ["the gold set has no release_gate"]
     baseline = gate.get("baseline") or {}
-    if not baseline:
-        return False, ["the gold set has no release_gate baseline"]
     reasons = []
     strategy = (catalog or {}).get("strategic_context")
     if catalog is None:
@@ -178,8 +298,11 @@ def release_gate(gold: dict, report: dict, catalog: dict | None) -> tuple:
         reasons.append("the run used a customer strategy; measure the gate on a run without one")
     if report["judge_errors"]:
         reasons.append(f"{report['judge_errors']} judge error(s)")
-    if report["found"] < baseline["found"]:
+    if baseline and report["found"] < baseline["found"]:
         reasons.append(f"found {report['found']} is below the {baseline['version']} baseline of {baseline['found']}")
+    if gate.get("min_found") is not None and report["found"] < gate["min_found"]:
+        reasons.append(f"found {report['found']} of {report['gold']} is below the gate of {gate['min_found']}")
+    reasons += kind_gate(report.get("kinds"))
     return not reasons, reasons
 
 
@@ -194,13 +317,17 @@ def main(argv=None) -> int:
     parser.add_argument("--cache", type=Path)
     parser.add_argument("--out", type=Path)
     parser.add_argument("--gate", action="store_true")
+    parser.add_argument("--registry", type=Path, default=KINDS_PATH)
+    parser.add_argument("--detected-kinds", default=None,
+                        help="comma-separated kind ids the run detected; families outside them are not required")
     args = parser.parse_args(argv)
     gold = json.loads(args.gold.read_text(encoding="utf-8"))
     use_cases = (pull_uc_dump.fetch_ucs(args.session_id) if args.session_id
                  else load_catalog_use_cases(args.catalog_json))
     ask = None if args.judge == "none" else sql_judge(args.endpoint)
     cache = json.loads(args.cache.read_text(encoding="utf-8")) if args.cache and args.cache.exists() else {}
-    report = score(gold, use_cases, ask, cache)
+    detected = [k.strip() for k in args.detected_kinds.split(",") if k.strip()] if args.detected_kinds is not None else None
+    report = score(gold, use_cases, ask, cache, load_registry(args.registry), detected)
     if args.cache:
         args.cache.write_text(json.dumps(cache, indent=1, sort_keys=True) + "\n", encoding="utf-8")
     text = json.dumps(report, indent=1)
@@ -209,6 +336,11 @@ def main(argv=None) -> int:
     print(f"[recall] {report['found']}/{report['gold']} = {report['recall']:.0%} found; "
           f"{report['found_top']}/{report['gold']} = {report['recall_top']:.0%} in the top {TOP_N}; "
           f"judge errors {report['judge_errors']}; missed {report['missed']}")
+    kinds = report["kinds"]
+    print(f"[KIND RECALL] {kinds['kind_found']}/{report['gold']} = {kinds['kind_recall']:.0%} with their kind; "
+          f"families {len(kinds['families_hit'])}/{kinds['families_required']} required {kinds['families_hit']}; "
+          f"must-reject selected {[h['id'] for h in kinds['must_reject_selected']]}; floor {kinds['floor']}; "
+          f"kind from technique {kinds['kind_from_technique']}, unknown {kinds['kind_unknown']}")
     if not args.gate:
         return 0
     catalog = json.loads(args.catalog_json.read_text(encoding="utf-8")) if args.catalog_json else None

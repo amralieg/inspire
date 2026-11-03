@@ -1,0 +1,378 @@
+{
+ "schema_version": 3,
+ "corpus": "samples.tpch",
+ "status": "draft: written for the v1.4.0 kind recall gate; awaiting Amr's sign-off",
+ "source": "public analytics practice on a public Databricks sample; no customer content",
+ "release_gate": {
+  "rule": "On a v1.4.0 Discover run without a customer strategy: at least 80% of the must-find use cases are found with their kind, at least 6 families appear (fewer only when fewer families have a must-find entry), no must-reject entry is selected, and the kind-floor picks average no more than 0.5 Best-of-Best below the portfolio."
+ },
+ "matching": "a candidate's tables include every required table and at least one table of each any_of group; a gold entry counts for kind recall when a matched use case carries its kind or one of its also_kinds; a must-reject entry is selected when a use case covers its tables and its name or statement matches a pattern and no unless pattern",
+ "entries": [
+  {
+   "id": "H01",
+   "title": "Late delivery risk on open order lines",
+   "decision": "Choose which open order lines to expedite before they miss their commit date",
+   "owner": "Fulfillment manager",
+   "kind": "sla_aging",
+   "also_kinds": [
+    "risk_propensity",
+    "time_to_event"
+   ],
+   "required_tables": [
+    "lineitem"
+   ],
+   "any_of": [],
+   "signal_columns": [
+    "lineitem.l_shipdate",
+    "lineitem.l_commitdate",
+    "lineitem.l_receiptdate",
+    "lineitem.l_shipmode"
+   ],
+   "why": "Late lines cost penalties and repeat business; acting before the commit date is cheaper than apologizing after."
+  },
+  {
+   "id": "H02",
+   "title": "Order-to-receipt flow and where lines wait",
+   "decision": "Fix the step between order, ship and receipt where order lines wait longest",
+   "owner": "Operations manager",
+   "kind": "process_mining",
+   "also_kinds": [
+    "sla_aging",
+    "journey_path"
+   ],
+   "required_tables": [
+    "lineitem",
+    "orders"
+   ],
+   "any_of": [],
+   "signal_columns": [
+    "orders.o_orderdate",
+    "lineitem.l_shipdate",
+    "lineitem.l_receiptdate",
+    "orders.o_orderpriority"
+   ],
+   "why": "Cycle time is set by the slowest step; naming it tells the team where to add capacity."
+  },
+  {
+   "id": "H03",
+   "title": "Supplier on-time performance against peers",
+   "decision": "Put the suppliers that deliver late more often than their peers on a review plan",
+   "owner": "Procurement manager",
+   "kind": "peer_benchmarking",
+   "also_kinds": [
+    "sla_aging"
+   ],
+   "required_tables": [
+    "lineitem",
+    "supplier"
+   ],
+   "any_of": [],
+   "signal_columns": [
+    "lineitem.l_suppkey",
+    "lineitem.l_commitdate",
+    "lineitem.l_receiptdate",
+    "supplier.s_nationkey"
+   ],
+   "why": "A few suppliers drive most late receipts; benchmarking against peers makes the review fair."
+  },
+  {
+   "id": "H04",
+   "title": "Revenue change split into price, discount and volume",
+   "decision": "Explain each month's revenue change by price, discount and volume so the right owner acts",
+   "owner": "Finance business partner",
+   "kind": "driver_breakdown",
+   "also_kinds": [
+    "variance_to_plan"
+   ],
+   "required_tables": [
+    "lineitem"
+   ],
+   "any_of": [],
+   "signal_columns": [
+    "lineitem.l_extendedprice",
+    "lineitem.l_discount",
+    "lineitem.l_quantity",
+    "lineitem.l_shipdate"
+   ],
+   "why": "Without the split, a discount-driven drop looks like a demand problem."
+  },
+  {
+   "id": "H05",
+   "title": "Discount depth per market segment",
+   "decision": "Set the maximum discount per market segment and order priority",
+   "owner": "Pricing manager",
+   "kind": "pricing",
+   "also_kinds": [
+    "driver_scenarios"
+   ],
+   "required_tables": [
+    "lineitem",
+    "orders",
+    "customer"
+   ],
+   "any_of": [],
+   "signal_columns": [
+    "lineitem.l_discount",
+    "lineitem.l_extendedprice",
+    "customer.c_mktsegment",
+    "orders.o_orderpriority"
+   ],
+   "why": "Discounts given where they do not move volume are pure margin loss."
+  },
+  {
+   "id": "H06",
+   "title": "Supplier choice per part from supply cost and availability",
+   "decision": "Pick the supplier and quantity per part that meets demand at the lowest supply cost",
+   "owner": "Sourcing manager",
+   "kind": "allocation",
+   "also_kinds": [
+    "inventory_replenishment",
+    "assortment"
+   ],
+   "required_tables": [
+    "partsupp"
+   ],
+   "any_of": [
+    [
+     "lineitem",
+     "supplier"
+    ]
+   ],
+   "signal_columns": [
+    "partsupp.ps_supplycost",
+    "partsupp.ps_availqty",
+    "partsupp.ps_partkey",
+    "partsupp.ps_suppkey"
+   ],
+   "why": "Supply cost differs by supplier for the same part; the split decides the cost of goods."
+  },
+  {
+   "id": "H07",
+   "title": "Customer segments from market segment, balance and order value",
+   "decision": "Pick the customer segments for each sales program",
+   "owner": "Sales operations lead",
+   "kind": "segmentation",
+   "also_kinds": [
+    "lifetime_value"
+   ],
+   "required_tables": [
+    "customer",
+    "orders"
+   ],
+   "any_of": [],
+   "signal_columns": [
+    "customer.c_mktsegment",
+    "customer.c_acctbal",
+    "orders.o_totalprice",
+    "orders.o_custkey"
+   ],
+   "why": "One program for every customer wastes effort on those who would buy anyway."
+  },
+  {
+   "id": "H08",
+   "title": "Customer lifetime value from order history",
+   "decision": "Set the account coverage and service level per customer value tier",
+   "owner": "Account management lead",
+   "kind": "lifetime_value",
+   "also_kinds": [
+    "segmentation"
+   ],
+   "required_tables": [
+    "customer",
+    "orders"
+   ],
+   "any_of": [],
+   "signal_columns": [
+    "orders.o_custkey",
+    "orders.o_totalprice",
+    "orders.o_orderdate",
+    "customer.c_custkey"
+   ],
+   "why": "Coverage spent on low-value accounts is taken from high-value ones."
+  },
+  {
+   "id": "H09",
+   "title": "Weekly demand forecast per part type",
+   "decision": "Set next weeks' supply orders per part type and brand",
+   "owner": "Demand planner",
+   "kind": "forecast",
+   "also_kinds": [
+    "inventory_replenishment",
+    "capacity_planning"
+   ],
+   "required_tables": [
+    "lineitem",
+    "part"
+   ],
+   "any_of": [],
+   "signal_columns": [
+    "lineitem.l_quantity",
+    "lineitem.l_shipdate",
+    "part.p_type",
+    "part.p_brand"
+   ],
+   "why": "Supply ordered on last week's volume runs short at peaks and long after them."
+  },
+  {
+   "id": "H10",
+   "title": "Return risk per order line",
+   "decision": "Choose which order lines get a quality check before they ship",
+   "owner": "Quality manager",
+   "kind": "risk_propensity",
+   "also_kinds": [
+    "anomaly"
+   ],
+   "required_tables": [
+    "lineitem"
+   ],
+   "any_of": [
+    [
+     "part",
+     "supplier"
+    ]
+   ],
+   "signal_columns": [
+    "lineitem.l_returnflag",
+    "lineitem.l_partkey",
+    "lineitem.l_suppkey",
+    "lineitem.l_shipmode"
+   ],
+   "why": "A return costs freight both ways plus the refund; checking the riskiest lines first prevents most of it."
+  },
+  {
+   "id": "H11",
+   "title": "Parts that depend on one supplier",
+   "decision": "List the parts whose supply depends on one supplier or one nation and qualify a second source",
+   "owner": "Supply risk manager",
+   "kind": "network_dependency",
+   "also_kinds": [
+    "stress_test"
+   ],
+   "required_tables": [
+    "partsupp",
+    "supplier"
+   ],
+   "any_of": [],
+   "signal_columns": [
+    "partsupp.ps_partkey",
+    "partsupp.ps_suppkey",
+    "supplier.s_nationkey",
+    "partsupp.ps_availqty"
+   ],
+   "why": "A single-source part stops production when its supplier stops."
+  },
+  {
+   "id": "H12",
+   "title": "Order desk staffing by day",
+   "decision": "Set the number of clerks per day from expected order arrivals",
+   "owner": "Order desk supervisor",
+   "kind": "staffing_queueing",
+   "also_kinds": [
+    "capacity_planning"
+   ],
+   "required_tables": [
+    "orders"
+   ],
+   "any_of": [],
+   "signal_columns": [
+    "orders.o_clerk",
+    "orders.o_orderdate",
+    "orders.o_orderpriority",
+    "orders.o_orderkey"
+   ],
+   "why": "Orders wait when clerks are short and clerks wait when orders are few."
+  },
+  {
+   "id": "H13",
+   "title": "Unusual discounts per supplier and customer",
+   "decision": "Review the order lines whose discount breaks the usual range for their part and customer",
+   "owner": "Revenue assurance analyst",
+   "kind": "anomaly",
+   "also_kinds": [
+    "controls_testing",
+    "leakage_reconciliation"
+   ],
+   "required_tables": [
+    "lineitem"
+   ],
+   "any_of": [],
+   "signal_columns": [
+    "lineitem.l_discount",
+    "lineitem.l_extendedprice",
+    "lineitem.l_partkey",
+    "lineitem.l_suppkey"
+   ],
+   "why": "Out-of-range discounts are either errors or policy breaches; both lose money."
+  },
+  {
+   "id": "H14",
+   "title": "Credit hold for customers with a negative balance",
+   "decision": "Choose which customers go on credit hold before their next order",
+   "owner": "Credit controller",
+   "kind": "working_capital",
+   "also_kinds": [
+    "risk_propensity"
+   ],
+   "required_tables": [
+    "customer",
+    "orders"
+   ],
+   "any_of": [],
+   "signal_columns": [
+    "customer.c_acctbal",
+    "orders.o_totalprice",
+    "orders.o_orderstatus",
+    "orders.o_orderdate"
+   ],
+   "why": "Shipping to accounts that do not pay ties up cash and ends in write-offs."
+  }
+ ],
+ "must_reject": [
+  {
+   "id": "R01",
+   "title": "Count of orders by status",
+   "why": "A count by a status column; no decision changes.",
+   "required_tables": [
+    "orders"
+   ],
+   "any_of": [],
+   "patterns": [
+    "\\b(count|number|total)\\s+of\\s+orders\\s+(by|per|for each)\\s+(order\\s+)?status\\b"
+   ],
+   "unless": [
+    "\\b(predict|forecast|risk|aging|age)"
+   ]
+  },
+  {
+   "id": "R02",
+   "title": "List of late order lines",
+   "why": "Restates l_receiptdate > l_commitdate as a filter (T2).",
+   "required_tables": [
+    "lineitem"
+   ],
+   "any_of": [],
+   "patterns": [
+    "\\b(list|show|report|display)\\w*\\b[^.]{0,40}\\blate\\b[^.]{0,30}\\b(lines|order lines|shipments|deliveries|orders)\\b"
+   ],
+   "unless": [
+    "\\b(predict|risk|forecast|before|expedite|probab)"
+   ]
+  },
+  {
+   "id": "R03",
+   "title": "Revenue by nation report",
+   "why": "A sum by a dimension; no owner or action.",
+   "required_tables": [
+    "lineitem",
+    "nation"
+   ],
+   "any_of": [],
+   "patterns": [
+    "\\b(total|sum of)?\\s*(revenue|sales)\\s+(by|per|for each)\\s+(nation|region|country)\\b"
+   ],
+   "unless": [
+    "\\b(forecast|predict|benchmark|peer|anomal|optimi|target|plan)"
+   ]
+  }
+ ]
+}

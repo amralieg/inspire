@@ -1,0 +1,243 @@
+{
+ "schema_version": 3,
+ "corpus": "samples.nyctaxi",
+ "status": "draft: written for the v1.4.0 kind recall gate; awaiting Amr's sign-off",
+ "source": "public analytics practice on a public Databricks sample; no customer content",
+ "release_gate": {
+  "rule": "On a v1.4.0 Discover run without a customer strategy: at least 80% of the must-find use cases are found with their kind, at least 6 families appear (fewer only when fewer families have a must-find entry), no must-reject entry is selected, and the kind-floor picks average no more than 0.5 Best-of-Best below the portfolio."
+ },
+ "matching": "a candidate's tables include every required table and at least one table of each any_of group; a gold entry counts for kind recall when a matched use case carries its kind or one of its also_kinds; a must-reject entry is selected when a use case covers its tables and its name or statement matches a pattern and no unless pattern",
+ "entries": [
+  {
+   "id": "N01",
+   "title": "Hourly pickup demand forecast per zip",
+   "decision": "Set next hours' expected pickups per zip so supply is placed ahead of demand",
+   "owner": "Fleet dispatcher",
+   "kind": "forecast",
+   "also_kinds": [
+    "capacity_planning"
+   ],
+   "required_tables": [
+    "trips"
+   ],
+   "any_of": [],
+   "signal_columns": [
+    "trips.tpep_pickup_datetime",
+    "trips.pickup_zip"
+   ],
+   "why": "Cars placed where the demand is next hour earn more per shift."
+  },
+  {
+   "id": "N02",
+   "title": "Drivers per zone and hour",
+   "decision": "Set the number of drivers per zone and hour to meet the pickup wait target",
+   "owner": "Fleet operations manager",
+   "kind": "staffing_queueing",
+   "also_kinds": [
+    "allocation",
+    "forecast"
+   ],
+   "required_tables": [
+    "trips"
+   ],
+   "any_of": [],
+   "signal_columns": [
+    "trips.tpep_pickup_datetime",
+    "trips.tpep_dropoff_datetime",
+    "trips.pickup_zip"
+   ],
+   "why": "Too few drivers lose rides; too many lose driver income."
+  },
+  {
+   "id": "N03",
+   "title": "Fares that break their expected range",
+   "decision": "Review the trips whose fare is far from what distance and duration predict",
+   "owner": "Revenue assurance analyst",
+   "kind": "anomaly",
+   "also_kinds": [
+    "controls_testing"
+   ],
+   "required_tables": [
+    "trips"
+   ],
+   "any_of": [],
+   "signal_columns": [
+    "trips.fare_amount",
+    "trips.trip_distance",
+    "trips.tpep_pickup_datetime",
+    "trips.tpep_dropoff_datetime"
+   ],
+   "why": "Mis-metered fares cost revenue or customer trust."
+  },
+  {
+   "id": "N04",
+   "title": "Fare and trips by zip and the hot areas",
+   "decision": "Name the zip areas that stand out on trips and fare per mile for the zone plan",
+   "owner": "Fleet operations manager",
+   "kind": "location_intelligence",
+   "also_kinds": [
+    "site_territory"
+   ],
+   "required_tables": [
+    "trips"
+   ],
+   "any_of": [],
+   "signal_columns": [
+    "trips.pickup_zip",
+    "trips.dropoff_zip",
+    "trips.fare_amount"
+   ],
+   "why": "Zone plans built on the map put cars where trips pay."
+  },
+  {
+   "id": "N05",
+   "title": "Pickup to drop-off flows between zones",
+   "decision": "Find the hub zones most trips pass through and plan cover when they jam",
+   "owner": "Network planner",
+   "kind": "network_dependency",
+   "also_kinds": [
+    "location_intelligence"
+   ],
+   "required_tables": [
+    "trips"
+   ],
+   "any_of": [],
+   "signal_columns": [
+    "trips.pickup_zip",
+    "trips.dropoff_zip"
+   ],
+   "why": "A jam at a hub zone delays trips across the network."
+  },
+  {
+   "id": "N06",
+   "title": "Fare change by distance, duration and time of day",
+   "decision": "Explain each week's fare per trip change by distance, duration and time of day",
+   "owner": "Pricing analyst",
+   "kind": "driver_breakdown",
+   "also_kinds": [
+    "pricing"
+   ],
+   "required_tables": [
+    "trips"
+   ],
+   "any_of": [],
+   "signal_columns": [
+    "trips.fare_amount",
+    "trips.trip_distance",
+    "trips.tpep_pickup_datetime",
+    "trips.tpep_dropoff_datetime"
+   ],
+   "why": "A fare drop from shorter trips needs a different response than one from slower traffic."
+  },
+  {
+   "id": "N07",
+   "title": "Trip duration prediction",
+   "decision": "Quote each trip's expected duration at pickup and flag the ones likely to run long",
+   "owner": "Customer service lead",
+   "kind": "time_to_event",
+   "also_kinds": [
+    "risk_propensity",
+    "forecast"
+   ],
+   "required_tables": [
+    "trips"
+   ],
+   "any_of": [],
+   "signal_columns": [
+    "trips.tpep_pickup_datetime",
+    "trips.tpep_dropoff_datetime",
+    "trips.trip_distance",
+    "trips.pickup_zip"
+   ],
+   "why": "Accurate arrival times cut complaints and cancellations."
+  },
+  {
+   "id": "N08",
+   "title": "Fare levels by zone and hour",
+   "decision": "Set the fare adjustment per zone and hour within the allowed range",
+   "owner": "Pricing manager",
+   "kind": "pricing",
+   "also_kinds": [
+    "driver_scenarios"
+   ],
+   "required_tables": [
+    "trips"
+   ],
+   "any_of": [],
+   "signal_columns": [
+    "trips.fare_amount",
+    "trips.trip_distance",
+    "trips.pickup_zip",
+    "trips.tpep_pickup_datetime"
+   ],
+   "why": "Fares matched to demand fill idle hours and ration peak hours."
+  },
+  {
+   "id": "N09",
+   "title": "Trip segments by distance, fare and time",
+   "decision": "Pick the trip segments for each service offer such as airport or short hops",
+   "owner": "Product manager",
+   "kind": "segmentation",
+   "also_kinds": [
+    "next_best_action"
+   ],
+   "required_tables": [
+    "trips"
+   ],
+   "any_of": [],
+   "signal_columns": [
+    "trips.trip_distance",
+    "trips.fare_amount",
+    "trips.tpep_pickup_datetime"
+   ],
+   "why": "Offers built per trip segment fit the riders who take them."
+  }
+ ],
+ "must_reject": [
+  {
+   "id": "R01",
+   "title": "Average fare by zip",
+   "why": "A mean by a column; no owner or action.",
+   "required_tables": [
+    "trips"
+   ],
+   "any_of": [],
+   "patterns": [
+    "\\baverage\\s+fare\\s+(amount\\s+)?(by|per|for each)\\s+(pickup\\s+|dropoff\\s+|drop.off\\s+)?(zip|zone|area)\\b"
+   ],
+   "unless": [
+    "\\b(forecast|predict|anomal|optimi|benchmark|plan)"
+   ]
+  },
+  {
+   "id": "R02",
+   "title": "Count of trips per day",
+   "why": "A count by date; no decision changes.",
+   "required_tables": [
+    "trips"
+   ],
+   "any_of": [],
+   "patterns": [
+    "\\b(count|number|total)\\s+of\\s+trips\\s+(by|per|for each)\\s+(day|hour|week|month)\\b"
+   ],
+   "unless": [
+    "\\b(forecast|predict|staff|driver|anomal)"
+   ]
+  },
+  {
+   "id": "R03",
+   "title": "Total distance per zip",
+   "why": "A sum by a column; says nothing a planner acts on.",
+   "required_tables": [
+    "trips"
+   ],
+   "any_of": [],
+   "patterns": [
+    "\\b(total|sum of)\\s+(trip\\s+)?distance\\s+(by|per|for each)\\s+(pickup\\s+|dropoff\\s+)?(zip|zone)\\b"
+   ],
+   "unless": [
+    "\\b(forecast|predict|anomal|optimi)"
+   ]
+  }
+ ]
+}

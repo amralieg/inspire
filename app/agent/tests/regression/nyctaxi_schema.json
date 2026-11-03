@@ -1,0 +1,13 @@
+{
+ "source": "samples.nyctaxi Unity Catalog table metadata (public Databricks sample, metadata only)",
+ "tables": {
+  "trips": [
+   "tpep_pickup_datetime",
+   "tpep_dropoff_datetime",
+   "trip_distance",
+   "fare_amount",
+   "pickup_zip",
+   "dropoff_zip"
+  ]
+ }
+}
