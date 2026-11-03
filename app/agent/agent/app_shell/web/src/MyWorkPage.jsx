@@ -9,7 +9,7 @@ import { statusClass, statusLabel } from './records.js';
 import { UseCaseName, YourWork, yourWorkProps } from './Home.jsx';
 import { plural } from './hub.js';
 import {
-  CUSTOM, DEFAULT_PERIOD, PAGE_ROWS, PERIODS, activityText, aiQuestion, checkedAnswer, closeText, periodBody, periodProblem, rateText,
+  CUSTOM, DEFAULT_PERIOD, PAGE_ROWS, PERIODS, activityText, aiQuestion, answerProblem, checkedAnswer, closeText, periodBody, periodProblem, rateText,
   scopeText, templateText, whenText, workFacts,
 } from './mywork.js';
 
@@ -67,9 +67,9 @@ function Summary({ app, facts }) {
       const started = await askGenie(target.id, aiQuestion(facts), '');
       const msg = await genieAnswer(target.id, started, { alive: () => alive.current });
       if (!msg) return;
-      const text = checkedAnswer(msg.text, facts);
-      setSaid(text ? { state: 'ai', text, note: 'Genie wrote this from your numbers; every number in it is one of them.' }
-        : { state: 'plain', text: '', note: 'Genie wrote a number that is not one of yours, so this is the plain summary.' });
+      const problem = answerProblem(msg.text, facts);
+      setSaid(problem ? { state: 'plain', text: '', note: `${problem}, so this is the plain summary.` }
+        : { state: 'ai', text: checkedAnswer(msg.text, facts), note: 'Genie wrote this from your numbers; every number in it is one of them.' });
     } catch (error) {
       if (alive.current) setSaid({ state: 'plain', text: '', note: `Genie could not write it: ${error.message}` });
     }

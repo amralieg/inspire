@@ -91,6 +91,20 @@ export function scopeText(facts) {
   return `Counts only the records you changed yourself, ${facts.period}, in the ${uses}. Money stays in each use case's own unit and is never added across units.`;
 }
 
+export function notableOf(facts) {
+  if (!facts.worked.records) return null;
+  if (facts.best) return { name: facts.best.label, line: `${facts.best.label} in ${facts.best.page.title}, ${facts.best.text} ${facts.best.basis}` };
+  const most = (key) => facts.rows.filter((r) => r.worked[key] > 0).sort((a, b) => b.worked[key] - a.worked[key])[0];
+  const fixed = most('fixed');
+  if (fixed?.best) {
+    const label = fixed.best.label || String(fixed.best.key);
+    return { name: label, line: `${label} in ${fixed.page.title}, ${fixed.best.text} ${fixed.best.basis}` };
+  }
+  if (fixed) return { name: fixed.page.title, line: `${plural(fixed.worked.fixed, 'record')} fixed in ${fixed.page.title}` };
+  const changed = most('records');
+  return changed ? { name: changed.page.title, line: `${plural(changed.worked.records, 'record')} changed in ${changed.page.title}` } : null;
+}
+
 export function factLines(facts) {
   const w = facts.worked;
   const lines = [`Period: ${facts.period}`, `Records changed: ${grouped(w.records)}`, `Fixed: ${grouped(w.fixed)}`,
@@ -103,6 +117,8 @@ export function factLines(facts) {
   });
   if (facts.best) lines.push(`Largest closed record: ${facts.best.label}, ${facts.best.text} ${facts.best.basis}`);
   if (facts.saved) lines.push(`Estimated time saved: ${hoursText(facts.saved.hours)}`);
+  const notable = notableOf(facts);
+  if (notable) lines.push(`Notable example: ${notable.line}`);
   return lines;
 }
 
@@ -118,18 +134,28 @@ export function templateText(facts) {
 }
 
 export function aiQuestion(facts) {
-  return ['Write two short plain sentences that sum up this person\'s own work, speaking to them as "you".',
+  const notable = notableOf(facts);
+  return ['Write two short plain sentences to this person about their own work, speaking to them as "you".',
+    'The first sentence praises their work for what it achieved in this period, warmly and without exaggeration.',
+    ...(notable ? [`The second sentence names this one notable example: ${notable.line}. Write its name exactly as it is written here.`] : []),
     'Use only the facts below. Copy every number exactly as it is written here, write no other number, and run no query.',
     ...factLines(facts)].join('\n');
 }
 
 const numbers = (text) => (String(text || '').match(NUMBER) || []).map((n) => n.replace(/,/g, ''));
 
-export function checkedAnswer(answer, facts) {
+export function answerProblem(answer, facts) {
   const text = String(answer || '').trim();
-  if (!text || text.length > AI_CHARS) return '';
+  if (!text) return 'Genie wrote nothing';
+  if (text.length > AI_CHARS) return 'Genie wrote more than a short summary';
+  const notable = notableOf(facts);
+  if (notable && !text.toLowerCase().includes(notable.name.toLowerCase())) return `Genie did not name your notable example, ${notable.name}`;
   const allowed = new Set(numbers(factLines(facts).join('\n')));
-  return numbers(text).every((n) => allowed.has(n)) ? text : '';
+  return numbers(text).every((n) => allowed.has(n)) ? '' : 'Genie wrote a number that is not one of yours';
+}
+
+export function checkedAnswer(answer, facts) {
+  return answerProblem(answer, facts) ? '' : String(answer).trim();
 }
 
 export function whenText(at, zone = browserZone()) {

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
 import { DECIDE, PERSON, TABLE, appInfo, openApp, serveDist, until } from './harness.mjs';
 import {
-  CUSTOM, activityText, aiQuestion, checkedAnswer, factLines, periodBody, periodProblem, periodText, scopeText, templateText, whenText, workFacts,
+  CUSTOM, activityText, aiQuestion, checkedAnswer, factLines, notableOf, periodBody, periodProblem, periodText, scopeText, templateText, whenText, workFacts,
 } from '../src/mywork.js';
 import { savedText, settingProblem } from '../src/settings.js';
 
@@ -81,12 +81,34 @@ test('a Genie answer is kept only when every number in it is one of the facts', 
   const facts = workFacts({ period: WEEK, pages: { n01_u05: entry() } }, PAGES, {});
   assert.match(aiQuestion(facts), /Copy every number exactly/);
   assert.ok(factLines(facts).includes('Measured savings on your fixes: $900 on 1 fix'));
-  assert.equal(checkedAnswer('You fixed 2 records and saved $900, measured.', facts), 'You fixed 2 records and saved $900, measured.');
-  assert.equal(checkedAnswer('You fixed 3 records this week.', facts), '', 'an invented 3 drops the answer');
-  assert.equal(checkedAnswer('You saved about $1,000 overall.', facts), '', 'a rounded 1,000 is not a fact');
-  assert.equal(checkedAnswer('Nice work this week.', facts), 'Nice work this week.');
+  assert.equal(checkedAnswer('You fixed 2 records and saved $900 on Item a1, measured.', facts), 'You fixed 2 records and saved $900 on Item a1, measured.');
+  assert.equal(checkedAnswer('You fixed 3 records this week, Item a1 among them.', facts), '', 'an invented 3 drops the answer');
+  assert.equal(checkedAnswer('You saved about $1,000 overall, most on Item a1.', facts), '', 'a rounded 1,000 is not a fact');
+  assert.equal(checkedAnswer('Nice work this week.', facts), '', 'an answer that names no notable example is not the summary asked for');
   assert.equal(checkedAnswer('', facts), '');
   assert.equal(checkedAnswer('a'.repeat(601), facts), '', 'a long answer is not a short summary');
+});
+
+test('the Genie summary praises the person and names one notable example: the largest closed record, else the use case they fixed most in', () => {
+  const facts = workFacts({ period: WEEK, pages: { n01_u05: entry() } }, PAGES, {});
+  assert.deepEqual(notableOf(facts), { name: 'Item a1', line: 'Item a1 in Pricing desk, $900 measured' });
+  const asked = aiQuestion(facts);
+  assert.match(asked, /praises? (the person|them|their work)/i);
+  assert.match(asked, /names? this one notable example: Item a1 in Pricing desk, \$900 measured/);
+  assert.ok(factLines(facts).includes('Notable example: Item a1 in Pricing desk, $900 measured'));
+  const good = 'Great work this week: you fixed 2 records and saved $900, measured. Item a1 in Pricing desk stands out, with $900 measured.';
+  assert.equal(checkedAnswer(good, facts), good);
+  assert.equal(checkedAnswer('Great work: you fixed 2 records and saved $900, measured.', facts), '', 'praise alone, with no example, falls back');
+  const mixed = workFacts({ period: WEEK, pages: { n01_u05: entry({ worked: { ...WORKED, fixed: 1 } }), n02_u01: entry({ best: { key: 'b7', label: 'Item b7', basis: 'reported', money: 5000 } }) } }, PAGES, {});
+  assert.equal(mixed.best, null);
+  assert.deepEqual(notableOf(mixed), { name: 'Item b7', line: 'Item b7 in Second desk 1, €5,000 reported' }, 'two currencies: the use case with the most fixes gives its largest record');
+  const unpriced = workFacts({ period: WEEK, pages: { n01_u05: entry({ best: null }), n02_u01: entry({ best: null, worked: { ...WORKED, fixed: 4 } }) } }, PAGES, {});
+  assert.deepEqual(notableOf(unpriced), { name: 'Second desk 1', line: '4 records fixed in Second desk 1' });
+  assert.equal(checkedAnswer('Well done. Second desk 1 is where you fixed 4 records.', unpriced), 'Well done. Second desk 1 is where you fixed 4 records.');
+  const noFix = workFacts({ period: WEEK, pages: { n01_u05: entry({ best: null, worked: { ...WORKED, fixed: 0 } }) } }, PAGES, {});
+  assert.deepEqual(notableOf(noFix), { name: 'Pricing desk', line: '6 records changed in Pricing desk' });
+  const idle = workFacts({ period: WEEK, pages: { n01_u05: entry({ best: null, worked: { ...WORKED, records: 0, fixed: 0 } }) } }, PAGES, {});
+  assert.equal(notableOf(idle), null);
 });
 
 test('each change reads as what the person did, and its time reads in their zone', () => {
@@ -124,7 +146,7 @@ function workRoutes(seen, { answer } = {}) {
         activity: ALL.slice(offset, offset + size) });
     },
     'genie/ask': ({ route, json }) => { (seen.asks ||= []).push(route.request().postDataJSON()); return json(200, { conversation_id: 'c1', message_id: 'm1' }); },
-    'genie/message': ({ json }) => json(200, { state: 'done', text: answer || 'You fixed 2 records and saved $900, measured.' }),
+    'genie/message': ({ json }) => json(200, { state: 'done', text: answer || 'Great work: you fixed 2 records. Item a1 stands out.' }),
   };
 }
 
@@ -160,7 +182,8 @@ test('My work sits under the Overview in the side panel and shows the person\'s 
 });
 
 test('Genie writes the summary only with the person\'s own numbers, and an invented number falls back to the plain sentence', async () => {
-  for (const [answer, kept] of [['You fixed 2 records and saved $900, measured.', true], ['You fixed 7 records.', false]]) {
+  for (const [answer, kept, why] of [['Great work this week: you fixed 2 records and saved 900, measured. Item a1 stands out, with 900 measured.', true, /every number in it is one of them/],
+    ['You fixed 7 records, and Item a1 stands out.', false, /not one of yours/], ['Great work: you fixed 2 records and saved 900, measured.', false, /did not name your notable example, Item a1/]]) {
     const seen = {};
     const { page, seen: app, context } = await openApp(browser, served.base, appInfo(DECIDE, 2, TABLE), { routes: workRoutes(seen, { answer }) });
     await page.evaluate(() => { window.location.hash = '#/mywork'; });
@@ -171,8 +194,10 @@ test('Genie writes the summary only with the person\'s own numbers, and an inven
     await page.waitForSelector(kept ? '[data-summary-text="ai"]' : '[data-summary-text="plain"]');
     assert.equal(seen.asks[0].page, 'n01_u05');
     assert.match(seen.asks[0].question, /Fixed: 2\n/);
+    assert.match(seen.asks[0].question, /praises their work/);
+    assert.match(seen.asks[0].question, /names this one notable example: Item a1 in Price-loss decision desk, 900 measured\./);
     assert.equal(await page.locator('[data-summary-text]').innerText(), kept ? answer : plain);
-    assert.match(await page.locator('[data-summary]').innerText(), kept ? /every number in it is one of them/ : /not one of yours/);
+    assert.match(await page.locator('[data-summary]').innerText(), why);
     assert.deepEqual(app.errors, []);
     await context.close();
   }
