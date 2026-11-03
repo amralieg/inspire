@@ -6,6 +6,7 @@ import { wholeMoney } from './format.js';
 import { Icon } from './icons.jsx';
 import Fx from './Fx.jsx';
 import DataTable from './DataTable.jsx';
+import { fieldsOf } from './explain.js';
 import { getImpact } from './api.js';
 import { NOT_MEASURED, pageCurrency, pageKind, shortDay, visiblePages } from './hub.js';
 import { closedRows, figuresOf, heldShare, holdoutOffText, holdoutView, impactTiles, promisedView, targetKpiView } from './impact.js';
@@ -95,7 +96,8 @@ const CLOSED_COLUMNS = [
 function Closed({ entry, currency, kind, pageId }) {
   const rows = closedRows(entry, currency, kind);
   if (!rows.length) return null;
-  return <DataTable label="Closed records" tableClass="tbl--closed" columns={CLOSED_COLUMNS} rows={rows} rowKey={(r) => r.key} grid={`impact:${pageId}:closed`} />;
+  return <DataTable label="Closed records" tableClass="tbl--closed" columns={CLOSED_COLUMNS} rows={rows} rowKey={(r) => r.key} grid={`impact:${pageId}:closed`}
+    askRow={(r) => ({ title: String(r.label || r.key), page: pageId, context: { hint: 'A closed record of this use case.', fields: fieldsOf(r, CLOSED_COLUMNS) } })} />;
 }
 
 function TargetKpi({ run }) {

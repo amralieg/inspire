@@ -7,6 +7,9 @@ import { Tiles } from './Kpis.jsx';
 import { Failure } from './ui.jsx';
 import { statusClass, statusLabel } from './records.js';
 import { UseCaseName, YourWork, yourWorkProps } from './Home.jsx';
+import { RowGenie } from './DataTable.jsx';
+import { AskGenie } from './AskGenie.jsx';
+import { tableContext } from './explain.js';
 import { plural } from './hub.js';
 import {
   CUSTOM, DEFAULT_PERIOD, PAGE_ROWS, PERIODS, activityText, aiQuestion, answerProblem, checkedAnswer, closeText, periodBody, periodProblem, rateText,
@@ -90,15 +93,29 @@ function Summary({ app, facts }) {
   );
 }
 
+const useCaseFields = (r) => ({
+  'Use case': r.page.title, Changed: r.worked.records || 0, Fixed: r.worked.fixed || 0, 'Not a real issue': r.worked.dismissed || 0, 'Could not fix': r.worked.could_not || 0,
+  Assigned: r.worked.assigned || 0, Notes: r.worked.notes || 0, Pace: rateText(r), 'Time to close': closeText(r),
+  'Largest closed': r.best ? `${r.best.label || r.best.key}, ${r.best.text} ${r.best.basis}` : 'none',
+});
+
+const activityFields = (a, page) => ({
+  When: whenText(a.at), 'Use case': page?.title || a.page, Record: a.label || a.key, 'What you did': activityText(a), Status: a.status ? statusLabel(a.status) : '',
+  ...(a.note && a.kind === 'note' ? { Note: a.note } : {}),
+});
+
 function ByUseCase({ facts, onRecord }) {
   return (
     <section className="card card--table" aria-label="By use case">
-      <header className="card-h"><div><h2>By use case</h2><p>Each use case in its own unit, so they are compared side by side and never added up.</p></div></header>
+      <header className="card-h">
+        <div><h2>By use case</h2><p>Each use case in its own unit, so they are compared side by side and never added up.</p></div>
+        <AskGenie kind="table" title="By use case" context={tableContext('What you did in each use case, each in its own unit.', facts.rows, useCaseFields)} />
+      </header>
       <div className="tbl-wrap">
         <table className="tbl" data-by-use-case>
           <thead>
             <tr><th>Use case</th><th className="num">Changed</th><th className="num">Fixed</th><th className="num">Not a real issue</th><th className="num">Could not fix</th>
-              <th className="num">Assigned</th><th className="num">Notes</th><th>Pace</th><th>Time to close</th><th>Largest closed</th></tr>
+              <th className="num">Assigned</th><th className="num">Notes</th><th>Pace</th><th>Time to close</th><th>Largest closed</th><th className="ask-c"><span className="sr">Ask Genie</span></th></tr>
           </thead>
           <tbody>
             {facts.rows.map((r) => (
@@ -110,6 +127,7 @@ function ByUseCase({ facts, onRecord }) {
                 <td>{r.best
                   ? <button type="button" className="lnk" onClick={() => onRecord(r.page.id, r.best.key)}>{`${r.best.label || r.best.key}, ${r.best.text} ${r.best.basis}`}</button>
                   : 'none'}</td>
+                <td className="ask-c"><RowGenie element={{ title: r.page.title, page: r.page.id, context: { hint: 'What you did in this use case.', fields: useCaseFields(r) } }} /></td>
               </tr>
             ))}
           </tbody>
@@ -125,11 +143,12 @@ function Activity({ app, data, onMore, onRecord }) {
     <section className="card card--table" aria-label="What you did">
       <header className="card-h">
         <div><h2>What you did</h2><p>{`Every change you made, newest first: ${grouped(data.activity.length)} of ${plural(data.total, 'change')}`}</p></div>
+        <AskGenie kind="table" title="What you did" context={tableContext('Every change you made, newest first.', data.activity, (a) => activityFields(a, title(a.page)), data.total)} />
       </header>
       {data.activity.length === 0 ? <div className="nomatch">You changed no records in this period.</div> : (
         <div className="tbl-wrap">
           <table className="tbl tbl--work" data-activity>
-            <thead><tr><th>When</th><th className="c-uc">Use case</th><th>Record</th><th>What you did</th><th className="c-status">Status</th></tr></thead>
+            <thead><tr><th>When</th><th className="c-uc">Use case</th><th>Record</th><th>What you did</th><th className="c-status">Status</th><th className="ask-c"><span className="sr">Ask Genie</span></th></tr></thead>
             <tbody>
               {data.activity.map((a, i) => {
                 const page = title(a.page);
@@ -142,6 +161,8 @@ function Activity({ app, data, onMore, onRecord }) {
                     <td><div className="it"><b>{a.label || a.key}</b>{a.note && a.kind === 'note' && <small>{a.note}</small>}</div></td>
                     <td>{activityText(a)}</td>
                     <td className="nw c-status">{a.status ? <span className={statusClass(a.status)}>{statusLabel(a.status)}</span> : ''}</td>
+                    <td className="ask-c"><RowGenie about={genieOn(app, a.page) ? { pageId: a.page, recordKey: String(a.key), label: a.label || a.key } : null}
+                      element={{ title: a.label || a.key, page: a.page, context: { hint: 'A change you made to this record.', fields: activityFields(a, page) } }} /></td>
                   </tr>
                 );
               })}

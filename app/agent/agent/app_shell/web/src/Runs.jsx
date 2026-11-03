@@ -6,6 +6,8 @@ import { Icon } from './icons.jsx';
 import { Skeleton } from './ui.jsx';
 import { BarsCard } from './ChartCard.jsx';
 import DataTable from './DataTable.jsx';
+import { fieldsOf, tableContext } from './explain.js';
+import { AskGenie } from './AskGenie.jsx';
 import {
   RUNS_PAGE, couldSaveRunFormula, coveredText, errorText, foundText, groupingText, lastedText, runBars, runFlag, runKey, runsPageText, stampText, stepsText,
   triggerText,
@@ -48,7 +50,8 @@ const TABLE_COLUMNS = [
 function Tables({ tables }) {
   if (tables == null) return <p className="none">This run did not record the tables it used.</p>;
   if (!tables.length) return <p className="none">This run recorded no tables.</p>;
-  return <DataTable label="Tables this run used" tableClass="runs-sub" columns={TABLE_COLUMNS} rows={tables} rowKey={(t) => t.table} grid="runs:tables" />;
+  return <DataTable label="Tables this run used" tableClass="runs-sub" columns={TABLE_COLUMNS} rows={tables} rowKey={(t) => t.table} grid="runs:tables"
+    askRow={(t) => ({ title: t.table, context: { hint: 'A table this run used.', fields: fieldsOf(t, TABLE_COLUMNS) } })} />;
 }
 
 function Details({ run, id }) {
@@ -169,6 +172,7 @@ export default function Runs({ page, runs, offset, onOffset, onExplain, genieBus
             <h2>Runs</h2>
             <p>Newest first. Click a run to see the tables it used. Refresh now updates all the data.</p>
           </div>
+          <AskGenie kind="table" title="Runs" context={tableContext('The runs of this use case, newest first.', list, (run) => fieldsOf(run, columns), total)} />
         </header>
         {busy && !data && <div style={{ padding: 16, display: 'grid', gap: 10 }}>{[1, 2, 3].map((i) => <Skeleton key={i} height={22} />)}</div>}
         {error && <p className="tile-err" role="alert"><Icon name="info" size={14} />The runs could not load: {error}</p>}
@@ -178,6 +182,7 @@ export default function Runs({ page, runs, offset, onOffset, onExplain, genieBus
         {data && (
           <>
             <DataTable label="Runs of this use case" tableClass="runs-tbl" columns={columns} rows={list} rowKey={runKey} paged={false} grid={`page:${page.id}:runs`}
+              askRow={(run) => ({ title: `The run of ${whenText(run)}`, context: { hint: 'A run of this use case.', fields: fieldsOf(run, columns) } })}
               onRow={toggle} rowClass={(run) => (isOpen(run) ? 'is-open' : '')} detail={(run) => (isOpen(run) ? <Details run={run} id={detailsId(run)} /> : null)} detailClass="runs-d"
               empty={total ? runsPageText(data.offset, 0, total) : emptyText(page, data.job && !data.job.error ? data.job : null)} />
             {total > size && (

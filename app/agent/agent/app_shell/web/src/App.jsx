@@ -25,7 +25,7 @@ const THEME_KEY = 'inspire-app-theme';
 const HUB_ROUTES = ['home', 'overview', MY_WORK_ROUTE, 'impact', 'results', ADMIN_ROUTE];
 const IMPACT_ROUTES = ['impact', 'results'];
 const TONES = { stale: 'bad', error: 'bad', wait: 'warn' };
-const HUB_SCOPES = { overview: { page: 'overview', filters: '' }, impact: { page: 'impact', filters: '' } };
+const HUB_SCOPES = { overview: { page: 'overview', filters: '' }, mywork: { page: MY_WORK_ROUTE, filters: '' }, impact: { page: 'impact', filters: '' } };
 
 function readRoute() {
   return parseHash(window.location.hash).route;
@@ -221,7 +221,7 @@ function Shell({ app }) {
           <main className="main" tabIndex={-1}>
             {screen === 'overview' && <GenieScope.Provider value={HUB_SCOPES.overview}><Home app={app} hub={hub} hubError={hubError} summaries={summaries} view={view} onView={setView} onOpen={go} onRecord={openRecord}
               onChanges={(id) => { window.location.hash = `#/${encodeURIComponent(id)}?changed=1`; leave(); }} onMyWork={() => go(MY_WORK_ROUTE)} /></GenieScope.Provider>}
-            {screen === 'mywork' && <MyWorkPage app={app} hub={hub} hubError={hubError} summaries={summaries} onRecord={openRecord} />}
+            {screen === 'mywork' && <GenieScope.Provider value={HUB_SCOPES.mywork}><MyWorkPage app={app} hub={hub} hubError={hubError} summaries={summaries} onRecord={openRecord} /></GenieScope.Provider>}
             {screen === 'impact' && (
               <GenieScope.Provider value={HUB_SCOPES.impact}>
                 <Impact app={app} hub={hub} hubError={hubError} summaries={summaries} onOpen={go} onExplain={explain} genieBusy={genie.busy} />

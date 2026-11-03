@@ -1,7 +1,7 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
-import { DECIDE, PERSON, TABLE, appInfo, openApp, serveDist, until } from './harness.mjs';
+import { ASK_GROUPS, DECIDE, PERSON, TABLE, appInfo, askAudit, openApp, serveDist, until } from './harness.mjs';
 import {
   CUSTOM, activityText, aiQuestion, checkedAnswer, factLines, notableOf, periodBody, periodProblem, periodText, scopeText, templateText, whenText, workFacts,
 } from '../src/mywork.js';
@@ -212,4 +212,52 @@ test('a single use case App lists My work under the use case, and the tabs layou
   const tabs = await openApp(browser, served.base, appInfo({ ...DECIDE, layout: 'tabs' }, 2, TABLE), { routes: workRoutes({}) });
   assert.deepEqual((await tabs.page.$$eval('nav.tabs .tab', (els) => els.map((e) => e.textContent))).slice(0, 3), ['Overview', 'My work', 'Impact']);
   await tabs.context.close();
+});
+
+function askWork(seen) {
+  return {
+    ...workRoutes(seen),
+    'genie/explain': ({ route, json }) => { (seen.explain ||= []).push(route.request().postDataJSON()); return json(200, { conversation_id: 'c1', message_id: 'm1', question: 'Sent.' }); },
+    'genie/message': ({ json }) => json(200, { state: 'done', text: 'Genie answered.', sql: 'SELECT 1', columns: [], rows: [], truncated: false }),
+  };
+}
+
+async function askBox(page, name, question) {
+  await page.getByRole('button', { name: `Ask Genie about ${name}`, exact: true }).first().click();
+  await page.getByLabel(`Your question about ${name}`).fill(question);
+  await page.locator('form.ask-box button[type="submit"]').click();
+}
+
+test('every card, key number and row on My work shows a visible Ask Genie, and a use case row sends its own numbers to that use case Genie', async () => {
+  const seen = {};
+  const { page, seen: app, context } = await openApp(browser, served.base, appInfo(DECIDE, 2, TABLE), { routes: askWork(seen) });
+  await page.click('[data-my-work-open]');
+  await page.waitForSelector('[data-activity] tbody tr');
+  const found = await page.evaluate(askAudit, ASK_GROUPS);
+  assert.deepEqual([found.missing, found.hidden], [[], []], 'My work: 0 missing, 0 hidden');
+  assert.ok(found.counts.row >= 51 && found.counts.kpi === 5, JSON.stringify(found.counts));
+  assert.equal(await page.locator('[data-activity] tbody tr .row-ask').count(), 50, 'with Genie on, each change asks about its record');
+  await askBox(page, 'Price-loss decision desk', 'Why so many notes?');
+  await until(() => (seen.explain || []).length === 1);
+  const sent = seen.explain[0];
+  assert.deepEqual([sent.kind, sent.page, sent.title, sent.question, sent.context.hint], ['record', 'n01_u05', 'Price-loss decision desk', 'Why so many notes?', 'What you did in this use case.']);
+  assert.deepEqual([sent.context.fields.Changed, sent.context.fields.Fixed, sent.context.fields['Could not fix'], sent.context.fields['Largest closed']], [6, 2, 1, 'Item a1, 900 measured']);
+  await page.locator('aside.genie .msg-sql').waitFor({ timeout: 15000 });
+  assert.match(await page.locator('aside.genie .g-h small').innerText(), /^Answers from the Genie Agent/, 'the panel shows the answer of that use case');
+  assert.deepEqual(app.errors, []);
+  await context.close();
+});
+
+test('in a single use case App a My work number asks the My work screen, which the server answers with that use case Genie', async () => {
+  const seen = {};
+  const { page, seen: app, context } = await openApp(browser, served.base, appInfo(DECIDE, 1, TABLE), { routes: askWork(seen) });
+  await page.evaluate(() => { window.location.hash = '#/mywork'; });
+  await page.waitForSelector('[data-my-work] .kpi .ask-genie');
+  const name = (await page.locator('[data-my-work] .kpi .ask-genie').first().getAttribute('aria-label')).replace('Ask Genie about ', '');
+  await askBox(page, name, 'Is this a lot?');
+  await until(() => (seen.explain || []).length === 1);
+  assert.deepEqual([seen.explain[0].kind, seen.explain[0].page], ['kpi', 'mywork']);
+  await page.locator('aside.genie .msg-sql').waitFor({ timeout: 15000 });
+  assert.deepEqual(app.errors, []);
+  await context.close();
 });

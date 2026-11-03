@@ -3,7 +3,9 @@ import { BarsCard } from './ChartCard.jsx';
 import { RunningNow } from './Freshness.jsx';
 import { Tiles } from './Kpis.jsx';
 import FilterBar from './FilterBar.jsx';
-import DataTable, { RowAsk } from './DataTable.jsx';
+import DataTable, { RowGenie } from './DataTable.jsx';
+import { fieldsOf, tableContext } from './explain.js';
+import { AskGenie } from './AskGenie.jsx';
 import { genieOn } from './genieAsk.js';
 import { hueVars } from './theme.js';
 import { addCounts, compact, compareValues, countOf, integer, largestFirst, money, stakeName, wholeMoney } from './format.js';
@@ -107,7 +109,7 @@ function ThingMoney({ r }) {
 const thingName = (r) => String(r.label || r.key);
 
 function thingColumns(today, mine, genie) {
-  return [
+  const shown = [
     {
       key: 'label', label: 'What', sortValue: thingName,
       render: (r) => <div className="it"><b>{r.label || r.key}{r.tier === REVIEW && <span className="look">worth a look</span>}{missingSince(r) && <span className="chg-b chg-b--missing">{NOT_IN_RUN}</span>}</b>{r.why && <small>{r.why}</small>}</div>,
@@ -121,11 +123,12 @@ function thingColumns(today, mine, genie) {
       render: (r) => dueText(r.due, today).text,
     },
     { key: 'money', label: 'Could save', num: true, className: 'money c-money', render: (r) => (r.money == null ? NOT_MEASURED : <ThingMoney r={r} />) },
-    ...(mine ? [] : [{
-      key: '_ask', label: 'Ask Genie', hideLabel: true, fixed: true, className: 'c-ask',
-      render: (r) => (genie?.(r.page.id) ? <RowAsk about={{ pageId: r.page.id, recordKey: String(r.key), label: thingName(r) }} /> : null),
-    }]),
   ];
+  return [...shown, {
+    key: '_ask', label: 'Ask Genie', hideLabel: true, fixed: true, className: 'c-ask',
+    render: (r) => <RowGenie about={genie?.(r.page.id) ? { pageId: r.page.id, recordKey: String(r.key), label: thingName(r) } : null}
+      element={{ title: thingName(r), page: r.page.id, context: { hint: `A record ${mine ? 'on your work list' : 'to fix'} from ${r.page.title}.`, fields: fieldsOf(r, shown) } }} />,
+  }];
 }
 
 function ThingRows({ rows, today, user, onRecord, genie, mine = false }) {
@@ -167,10 +170,11 @@ export function yourWorkProps(app, hub, hubError, summaries) {
     owners: pairs.some(([, e]) => e.tracked), partial: Object.keys(hub?.errors || {}).length > 0,
     cut: pairs.some(([id, e]) => e.truncated && !keptIds.has(id)), done: doneTodayOf(pairs.map(([, e]) => e), hub?.time_zone),
     unwindowed: pairs.filter(([, e]) => e.window_note).map(([id]) => title(id)), capped: limitText(kept.map(([id, e]) => [title(id), e.items.length, e.total])),
+    genie: (id) => genieOn(app, id),
   };
 }
 
-export function YourWork({ items, user, today, loading, failed, owners, partial, cut, done, unwindowed, capped, onRecord, onMore }) {
+export function YourWork({ items, user, today, loading, failed, owners, partial, cut, done, unwindowed, capped, genie, onRecord, onMore }) {
   const [all, setAll] = useState(false);
   const { prefs } = useMyView();
   const work = myWork(items, user, today);
@@ -179,19 +183,18 @@ export function YourWork({ items, user, today, loading, failed, owners, partial,
     <section className="card card--table" aria-label="Your work">
       <header className="card-h">
         <div><h2>Your work</h2><p data-today>{work.rows.length ? myWorkText(work, done) : 'Things assigned to you, overdue and due today first'}</p></div>
-        {((owners && signedIn) || onMore) && (
-          <div className="tbar">
-            {owners && signedIn && <WindowChips />}
-            {onMore && <button type="button" className="btn" onClick={onMore} data-my-work-open><Icon name="right" size={14} />See all your work</button>}
-          </div>
-        )}
+        <div className="tbar">
+          {owners && signedIn && <WindowChips />}
+          {onMore && <button type="button" className="btn" onClick={onMore} data-my-work-open><Icon name="right" size={14} />See all your work</button>}
+          <AskGenie kind="table" title="Your work" context={tableContext('The records assigned to you, overdue and due today first.', work.rows, (r) => fieldsOf(r, thingColumns(today, true)))} />
+        </div>
       </header>
       {loading && <p className="more">Loading your work…</p>}
       {!loading && !work.rows.length && (
         <div className="nomatch">{workEmpty({ failed, signedIn, owners, partial })}{done?.n ? ` You marked ${integer(done.n)} done ${doneDay(done)}.` : ''}</div>
       )}
       {!loading && work.rows.length > 0 && (
-        <ThingRows rows={all ? work.rows : work.rows.slice(0, WORK_SHOWN)} today={today} user={user} onRecord={onRecord} mine />
+        <ThingRows rows={all ? work.rows : work.rows.slice(0, WORK_SHOWN)} today={today} user={user} onRecord={onRecord} genie={genie} mine />
       )}
       {!loading && work.rows.length > WORK_SHOWN && (
         <p className="more"><button className="lnk" onClick={() => setAll(!all)}>{all ? 'Show fewer' : `Show all ${integer(work.rows.length)}`}</button></p>
@@ -251,14 +254,20 @@ export default function Home({ app, hub, hubError, summaries, view, onView, onOp
       </section>
       <HubExplainNote app={app} />
       <section className="card card--table" aria-label="Things to fix">
-        <header className="card-h"><div><h2>Things to fix</h2><p>Click one to see why it was flagged and what to do</p></div></header>
+        <header className="card-h">
+          <div><h2>Things to fix</h2><p>Click one to see why it was flagged and what to do</p></div>
+          <AskGenie kind="table" title="Things to fix" context={tableContext('The records to fix across the use cases, for these filters.', shown, (r) => fieldsOf(r, thingColumns(today, false)))} />
+        </header>
         {cut.map(([title, e]) => <p key={title} className="more">Showing the {integer(e.items.length)} biggest of {e.total_more ? 'at least ' : ''}{integer(e.total)} in {title}.</p>)}
         {loading ? <p className="more">Loading the things to fix…</p>
           : <Things rows={shown} today={today} user={app.user} onRecord={onRecord} genie={(id) => genieOn(app, id)} filtered={!viewIsDefault(view)} onClear={() => onView(DEFAULT_VIEW)} />}
       </section>
       {quiet.length > 0 && (
         <section className="card card--table" aria-label="Nothing to act on yet">
-          <header className="card-h"><div><h2>Nothing to act on yet</h2><p>{plural(quiet.length, 'use case')} with nothing to fix, and why</p></div></header>
+          <header className="card-h">
+            <div><h2>Nothing to act on yet</h2><p>{plural(quiet.length, 'use case')} with nothing to fix, and why</p></div>
+            <AskGenie kind="table" title="Nothing to act on yet" context={tableContext('The use cases with nothing to fix, and why.', quiet, (q) => ({ 'Use case': q.page.title, Why: q.text }))} />
+          </header>
           <div className="nothing">
             {quiet.map(({ page, text }) => <p key={page.id} data-nothing={page.id}><UseCaseName page={page} /> {text}</p>)}
           </div>

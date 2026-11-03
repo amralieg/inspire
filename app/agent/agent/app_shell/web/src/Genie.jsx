@@ -31,6 +31,7 @@ function aboutOf(detail) {
 export function useGenie(app, current, onOpen) {
   const [threads, setThreads] = useState({});
   const [about, setAbout] = useState(null);
+  const [pinned, setPinned] = useState('');
   const [draft, setDraft] = useState('');
   const conversations = useRef({});
   const alive = useRef(true);
@@ -38,9 +39,10 @@ export function useGenie(app, current, onOpen) {
   const opener = useRef(onOpen);
   const running = useRef(false);
   const shown = useRef(app);
-  const key = about ? about.pageId : genieKey(app, current);
+  const key = about ? about.pageId : pinned || genieKey(app, current);
   const keyNow = useRef(key);
   useEffect(() => () => { alive.current = false; }, []);
+  useEffect(() => { setPinned(''); }, [current]);
   useEffect(() => { opener.current = onOpen; shown.current = app; keyNow.current = key; });
   const edit = (k, change) => setThreads((all) => ({ ...all, [k]: change(all[k] || []) }));
   const update = (k, n, patch) => edit(k, (t) => t.map((m) => (m.n === n ? { ...m, ...patch } : m)));
@@ -66,13 +68,15 @@ export function useGenie(app, current, onOpen) {
     if (text) send(k, { text, about: target }, (id) => askGenie(k, text, id, target));
   }, [send]);
 
-  const choose = useCallback((next) => { subject.current = next; setAbout(next); }, []);
+  const choose = useCallback((next) => { subject.current = next; setAbout(next); setPinned(''); }, []);
   const clearAbout = useCallback(() => choose(null), [choose]);
 
   const explain = useCallback(({ kind, page, title, context, question }) => {
     const body = explainBody(kind, page, title, context, question);
     const you = body.question ? { text: body.question, about: { label: body.title } } : { text: `Explain “${body.title}”`, explain: true };
-    send(genieKey(shown.current, page), you, (id) => explainGenie({ ...body, conversation_id: id }));
+    const k = genieKey(shown.current, page);
+    setPinned(k);
+    send(k, you, (id) => explainGenie({ ...body, conversation_id: id }));
   }, [send]);
 
   useEffect(() => {

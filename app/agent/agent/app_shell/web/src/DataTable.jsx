@@ -36,15 +36,15 @@ export function RowAsk({ about }) {
   );
 }
 
+export function RowGenie({ about, element }) {
+  if (about) return <RowAsk about={about} />;
+  return element ? <AskGenie kind="record" title={element.title} context={element.context} page={element.page} /> : null;
+}
+
 function askColumn(askAbout, askRow) {
   return {
     key: '_ask', label: 'Ask Genie', hideLabel: true, fixed: true, className: 'ask-c',
-    render: (row) => {
-      const about = askAbout?.(row);
-      if (about) return <RowAsk about={about} />;
-      const element = askRow?.(row);
-      return element ? <AskGenie kind="record" title={element.title} context={element.context} /> : null;
-    },
+    render: (row) => <RowGenie about={askAbout?.(row)} element={askRow?.(row)} />,
   };
 }
 

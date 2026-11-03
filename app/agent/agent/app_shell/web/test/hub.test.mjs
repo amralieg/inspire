@@ -1,7 +1,7 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
-import { TABLE, appInfo, chartsDrawn, openApp, serveDist, until } from './harness.mjs';
+import { ASK_GROUPS, TABLE, appInfo, askAudit, chartsDrawn, openApp, serveDist, until } from './harness.mjs';
 import { wholeMoney } from '../src/format.js';
 import {
   DEFAULT_VIEW, WORK_SHOWN, dueText, hubTimes, isMine, moneyText, myWork, myWorkText, nothingText, ownerName, pickReason, reasonFilters,
@@ -206,8 +206,9 @@ test('a record link opens that record on its use case page, and closing it takes
 
 test('the Genie button on a thing to fix asks Genie about that record by click or Enter, and the Overview stays open', async () => {
   const { page, seen, context } = await open(INFO());
-  assert.equal(await page.getByRole('button', { name: 'Ask Genie about Supplier 3381, invoice 77188' }).innerText(), 'Ask Genie', 'the button reads Ask Genie');
-  await page.getByRole('button', { name: 'Ask Genie about Supplier 3381, invoice 77188' }).focus();
+  const things = page.getByRole('table', { name: 'Things to fix' });
+  assert.equal(await things.getByRole('button', { name: 'Ask Genie about Supplier 3381, invoice 77188' }).innerText(), 'Ask Genie', 'the button reads Ask Genie');
+  await things.getByRole('button', { name: 'Ask Genie about Supplier 3381, invoice 77188' }).focus();
   await page.keyboard.press('Enter');
   await page.locator('aside.genie').waitFor();
   assert.equal(await page.locator('.g-chip-t').innerText(), 'About: Supplier 3381, invoice 77188');
@@ -219,7 +220,7 @@ test('the Genie button on a thing to fix asks Genie about that record by click o
   await page.waitForTimeout(300);
   assert.equal(await page.locator('.pg-h h1').innerText(), 'Overview', 'Enter on the Genie button does not open the record');
   assert.doesNotMatch(await hashOf(page), /rec=/);
-  await page.getByRole('button', { name: 'Ask Genie about Wool coat, store 4' }).click();
+  await things.getByRole('button', { name: 'Ask Genie about Wool coat, store 4' }).click();
   assert.equal(await page.locator('.g-chip-t').innerText(), 'About: Wool coat, store 4');
   assert.equal(await page.locator('aside.genie .msg').count(), 0, 'a record of another use case opens that use case chat');
   await page.getByRole('button', { name: 'Stop asking about Wool coat, store 4' }).click();
@@ -670,14 +671,14 @@ test('Your work lists what is assigned to me, overdue first, with its status and
   const work = page.getByRole('region', { name: 'Your work' });
   await work.locator('tbody tr').first().waitFor();
   assert.equal(await work.locator('.card-h p').innerText(), '3 assigned to you · 1 overdue · 1 due today');
-  assert.deepEqual(await work.locator('thead th').allTextContents(), ['What', 'Use case', 'Status', 'Due', 'Could save']);
+  assert.deepEqual(await work.locator('thead th').allTextContents(), ['What', 'Use case', 'Status', 'Due', 'Could save', 'Ask Genie']);
   assert.deepEqual(await workRows(page), [
-    ['Supplier 3381, invoice 77188', 'Second desk 1', 'New', '2 days late', '$6,950'],
-    [`Blue denim jacket, store 12\n${DESK[0].why}`, 'Price-loss decision desk', 'In progress', 'Today', '$8,400'],
-    ['Leather boots, store 2', 'Price-loss decision desk', 'New', 'Fri, Oct 30', '$6,000']]);
+    ['Supplier 3381, invoice 77188', 'Second desk 1', 'New', '2 days late', '$6,950', 'Ask Genie'],
+    [`Blue denim jacket, store 12\n${DESK[0].why}`, 'Price-loss decision desk', 'In progress', 'Today', '$8,400', 'Ask Genie'],
+    ['Leather boots, store 2', 'Price-loss decision desk', 'New', 'Fri, Oct 30', '$6,000', 'Ask Genie']]);
   assert.equal(await work.locator('td.c-due.late').innerText(), '2 days late');
   assert.equal(await work.locator('.status--in-progress').innerText(), 'In progress');
-  assert.equal(await work.getByRole('button', { name: /^Ask Genie/ }).count(), 0, 'each record keeps one Ask Genie button, on the things to fix');
+  assert.equal(await work.getByRole('button', { name: /^Ask Genie/ }).count(), 4, 'the table and each of its 3 records have their own Ask Genie');
   assert.ok(await page.evaluate(() => Boolean(document.querySelector('[aria-label="Your work"]').compareDocumentPosition(document.querySelector('.fbar'))
     & Node.DOCUMENT_POSITION_FOLLOWING)), 'your work comes before the filters');
   await page.getByRole('combobox', { name: 'Owner' }).selectOption('none');
@@ -760,6 +761,65 @@ function explainHub() {
   };
   return { calls, routes, release: () => { release = true; } };
 }
+
+async function askRow(page, calls, scope, name, question) {
+  await scope.getByRole('button', { name: `Ask Genie about ${name}`, exact: true }).click();
+  await page.getByLabel(`Your question about ${name}`).fill(question);
+  await page.locator('form.ask-box button[type="submit"]').click();
+  await until(() => calls.explain.length > 0);
+  return calls.explain.pop();
+}
+
+test('every card, key number, row and the filter bar on the Overview and on a Runs view shows a visible Ask Genie, and each row sends Genie its own record', async () => {
+  const { calls, routes, release } = explainHub();
+  release();
+  const { page, seen, context } = await open(INFO(), { routes: { ...routes, runs: ({ json }) => json(200, ORDER_RUNS) } });
+  await page.locator('.tbl--things tbody tr').first().waitFor();
+  await page.locator('.tbl--mine tbody tr').first().waitFor();
+  const overview = await page.evaluate(askAudit, ASK_GROUPS);
+  assert.deepEqual([overview.missing, overview.hidden], [[], []], 'the Overview: 0 missing, 0 hidden');
+  assert.ok(overview.counts.row === 8 && overview.counts.card >= 4 && overview.counts.kpi === 4, JSON.stringify(overview.counts));
+  const work = page.getByRole('region', { name: 'Your work' });
+  assert.equal(await work.locator('tbody .row-ask').count(), 3, 'with Genie on, each of your records asks about itself, like a thing to fix');
+  await work.getByRole('button', { name: 'Ask Genie about Leather boots, store 2', exact: true }).click();
+  assert.equal(await page.locator('.g-chip-t').innerText(), 'About: Leather boots, store 2');
+  assert.match(await page.locator('aside.genie .g-h small').innerText(), /^Answers from the Genie Agent/);
+  await page.getByRole('button', { name: 'Stop asking about Leather boots, store 2' }).click();
+  await page.getByRole('region', { name: 'Things to fix' }).getByRole('button', { name: 'Ask Genie about Things to fix', exact: true }).click();
+  await page.locator('aside.genie .g-pick-list').waitFor();
+  assert.equal(await page.locator('form.ask-box').count(), 0, 'a table across use cases has no Genie Agent, so it opens the use case picker');
+  assert.equal(calls.explain.length, 0);
+  await page.goto(`${served.base}#/n01_u05`);
+  await page.waitForFunction(() => document.querySelector('.ph h1')?.textContent === 'Price-loss decision desk');
+  await page.locator('[data-view="runs"]').click();
+  await page.locator('.runs-tbl tbody tr').first().waitFor();
+  const runs = await page.evaluate(askAudit, ASK_GROUPS);
+  assert.deepEqual([runs.missing, runs.hidden, runs.counts.row], [[], [], 2], 'the Runs view: 0 missing, 0 hidden');
+  const name = await page.locator('.runs-tbl tbody tr').first().locator('.ask-genie').getAttribute('aria-label');
+  const one = await askRow(page, calls, page.locator('.runs-tbl tbody tr').first(), name.replace('Ask Genie about ', ''), 'Why did it find 3?');
+  assert.deepEqual([one.kind, one.page, one.context.hint, one.context.fields.Status, one.context.fields.Records, one.context.fields['To fix'], one.context.fields.When],
+    ['record', 'n01_u05', 'A run of this use case.', 'Done', 40, 3, '2026-10-20T06:00:00Z']);
+  assert.deepEqual(seen.errors, []);
+  await context.close();
+});
+
+test('a record of a use case with Ask Genie off still shows Ask Genie on the Overview, and it opens the panel on why with nothing sent', async () => {
+  const { calls, routes } = explainHub();
+  const info = INFO();
+  info.pages[0].genie = { enabled: false, title: '', url: '', note: 'The Genie Agent of this use case did not build.' };
+  const { page, seen, context } = await open(info, { routes });
+  await page.locator('.tbl--mine tbody tr').first().waitFor();
+  const found = await page.evaluate(askAudit, ASK_GROUPS);
+  assert.deepEqual([found.missing, found.hidden], [[], []]);
+  const work = page.getByRole('region', { name: 'Your work' });
+  assert.deepEqual([await work.locator('tbody .row-ask').count(), await work.locator('tbody .ask-genie').count()], [1, 2], 'its 2 records keep a visible Ask Genie');
+  await work.getByRole('button', { name: 'Ask Genie about Leather boots, store 2', exact: true }).click();
+  await page.locator('aside.genie').waitFor();
+  assert.equal(await page.locator('form.ask-box').count(), 0);
+  assert.equal(calls.explain.length, 0);
+  assert.deepEqual(seen.errors, []);
+  await context.close();
+});
 
 const HUB_NOTE = 'Each use case has its own Genie Agent. Open a use case to ask Genie about it or to explain its charts.';
 

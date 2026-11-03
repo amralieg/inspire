@@ -520,19 +520,19 @@ test('the Runs tab lists each run: when, how it ended, who started it, what it c
   assert.deepEqual(await texts(page.locator('.view > span')), ['Things to fix', 'Runs']);
   assert.deepEqual(await texts(page.locator('.view small')), ['5', '3'], 'the latest finished run had 5 things to fix, and there are 3 runs');
   assert.equal(await page.locator('.runs .card-h p').innerText(), 'Newest first. Click a run to see the tables it used. Refresh now updates all the data.');
-  assert.deepEqual(await texts(page.locator('.runs-tbl > thead th')), ['Details', 'When', 'Status', 'Started by', 'What it covered', 'Records', 'To fix', 'Could save']);
+  assert.deepEqual(await texts(page.locator('.runs-tbl > thead th')), ['Details', 'When', 'Status', 'Started by', 'What it covered', 'Records', 'To fix', 'Could save', 'Ask Genie']);
   assert.equal(await mainRows(page).count(), 3);
   assert.equal(await page.locator('.runs-d').count(), 0, 'every run starts closed');
   assert.match(await mainRows(page).nth(0).innerText(),
-    new RegExp(`^\\s*Oct 27, 08:00 AM UTC\\s+6 min\\s+Failed\\s+Refresh now\\s+${SAM.replace('.', '\\.')}\\s+All data\\s+none\\s+none\\s+none\\s*$`));
+    new RegExp(`^\\s*Oct 27, 08:00 AM UTC\\s+6 min\\s+Failed\\s+Refresh now\\s+${SAM.replace('.', '\\.')}\\s+All data\\s+none\\s+none\\s+none\\s+Ask Genie\\s*$`));
   assert.equal(await mainRows(page).nth(0).locator('.run-st--bad').innerText(), 'Failed');
-  assert.match(await mainRows(page).nth(1).innerText(), /^\s*Oct 25, 06:00 AM UTC\s+3 min\s+Done\s+Scheduled\s+Category: Books, Music\s+40\s+5\s+\$1\.2K\s*$/);
+  assert.match(await mainRows(page).nth(1).innerText(), /^\s*Oct 25, 06:00 AM UTC\s+3 min\s+Done\s+Scheduled\s+Category: Books, Music\s+40\s+5\s+\$1\.2K\s+Ask Genie\s*$/);
   assert.equal(await mainRows(page).nth(1).locator('.run-st--ok').innerText(), 'Done');
   const saving = mainRows(page).nth(1).locator('td.money [data-fx]');
   assert.equal(await page.locator(`[id="${await saving.getAttribute('aria-describedby')}"]`).textContent(),
     'Money at stake on its 5 things to fix in Act now and Review, added up when the run ended = $1.2K', 'every money cell shows its formula');
   assert.equal(await mainRows(page).nth(2).locator('td.money [data-fx]').count(), 0, 'a run with no money has no formula');
-  assert.match(await mainRows(page).nth(2).innerText(), /^\s*Oct 4, 06:00 AM UTC\s+Done\s+Not recorded\s+Not recorded\s+10\s+10\s+none\s*$/);
+  assert.match(await mainRows(page).nth(2).innerText(), /^\s*Oct 4, 06:00 AM UTC\s+Done\s+Not recorded\s+Not recorded\s+10\s+10\s+none\s+Ask Genie\s*$/);
   assert.equal(await page.locator('.runs .pager').count(), 0, 'three runs fit on one page');
   assert.equal(await page.locator('.fbar').count(), 0, 'the filters do not apply to the runs');
   assert.doesNotMatch(await page.locator('.runs').innerText(), /[\u2013\u2014]/);
@@ -680,8 +680,8 @@ test('opening a run shows the tables it used and what it found, and for a failed
   assert.equal(await toggle.getAttribute('aria-label'), 'Hide the run of Oct 25, 06:00 AM UTC');
   const details = page.locator(`#${await toggle.getAttribute('aria-controls')}`);
   assert.deepEqual(await texts(details.locator('h3')), ['Tables it used', 'What it found']);
-  assert.deepEqual(await texts(details.locator('.runs-sub thead th')), ['Table', 'Rows read', 'Last updated']);
-  assert.deepEqual(await details.locator('.runs-sub tbody tr').allInnerTexts(), ['main.pricing.items\t1,200\tOct 25, 05:00 AM UTC', 'main.pricing.loss_trend\tnone\tnone']);
+  assert.deepEqual(await texts(details.locator('.runs-sub thead th')), ['Table', 'Rows read', 'Last updated', 'Ask Genie']);
+  assert.deepEqual(await details.locator('.runs-sub tbody tr').allInnerTexts(), ['main.pricing.items\t1,200\tOct 25, 05:00 AM UTC\t\nAsk Genie', 'main.pricing.loss_trend\tnone\tnone\t\nAsk Genie']);
   assert.equal(await details.locator('section').nth(1).locator('p').innerText(), 'Discount loss fell 4% since the run before. It covered Category: Books, Music, 40 records.');
   assert.equal(await details.getByRole('link').count(), 0, 'a run that ended well needs no workspace link');
   await mainRows(page).nth(0).locator('td').nth(3).click();
@@ -690,7 +690,7 @@ test('opening a run shows the tables it used and what it found, and for a failed
   assert.match(await failed.locator('.run-err').innerText(), /^A table this use case reads is missing\s+Details: \[TABLE_OR_VIEW_NOT_FOUND\][\s\S]+Open the run$/);
   assert.equal(await failed.getByRole('link', { name: 'Open the run' }).getAttribute('href'), `${JOB_URL}/runs/408`);
   assert.equal(await failed.locator('section').first().locator('p').innerText(), 'This run recorded no tables.');
-  await mainRows(page).nth(2).getByRole('button').click();
+  await mainRows(page).nth(2).locator('.runs-tog').click();
   const old = page.locator('.runs-d').nth(2);
   assert.equal(await old.locator('section').first().locator('p').innerText(), 'This run did not record the tables it used.');
   assert.equal(await old.locator('section').nth(1).locator('p').innerText(), 'No record has 1000 USD or more at stake. It checked 10 records.');
@@ -698,7 +698,7 @@ test('opening a run shows the tables it used and what it found, and for a failed
   await toggle.click();
   assert.equal(await toggle.getAttribute('aria-expanded'), 'false');
   assert.equal(await page.locator('.runs-d').count(), 2);
-  await mainRows(page).nth(0).getByRole('button').focus();
+  await mainRows(page).nth(0).locator('.runs-tog').focus();
   await page.keyboard.press('Enter');
   assert.equal(await page.locator('.runs-d').count(), 1, 'the keyboard opens and closes a run too');
   assert.deepEqual(seen.errors, []);
@@ -782,7 +782,7 @@ test('Refresh now shows the new run in the Runs tab when it starts and again whe
   await page.clock.fastForward(10000);
   await until(() => asked.offsets.length === 3);
   await page.waitForFunction(() => /Failed/.test(document.querySelector('.runs-tbl > tbody > tr')?.textContent || ''));
-  await mainRows(page).first().getByRole('button').click();
+  await mainRows(page).first().locator('.runs-tog').click();
   assert.match(await page.locator('.run-err').innerText(), /^The computer that runs the job could not start\s+Details: Cluster did not start$/);
   await page.waitForTimeout(300);
   assert.equal(seen.pages.length, loads, 'a failed refresh changed no data, so only the runs reload');
@@ -814,7 +814,7 @@ test('the tab is part of the link: a link opens the Runs tab and Things to fix c
 
 test('on a phone the Runs tab scrolls its own table, never the page', async () => {
   const { page, seen, context } = await openRuns(history(), appInfo({}, 1, TABLE), { width: 375, height: 800 });
-  await mainRows(page).nth(1).getByRole('button').click();
+  await mainRows(page).nth(1).locator('.runs-tog').click();
   await page.locator('.runs-d').waitFor();
   const fit = await page.evaluate(() => ({ scroll: document.documentElement.scrollWidth - window.innerWidth,
     wrap: document.querySelector('.runs .tbl-wrap').scrollWidth > document.querySelector('.runs .tbl-wrap').clientWidth }));

@@ -3,7 +3,7 @@ import { getOverview, getPage } from './api.js';
 import { apiTables, apiValues, clearColumnValues, clearSelections, columnValues, setColumnValue, toggleValue } from './filters.js';
 import { ColumnFilterStatus, withColumnFilters } from './ColumnFilters.jsx';
 import { addCounts, cap, dayLabel, integer, largestFirst, savedVerb, wholeMoney } from './format.js';
-import { EXPLAIN_ROWS, fieldsOf, filterWords, rowTitle } from './explain.js';
+import { fieldsOf, filterWords, rowTitle, tableContext } from './explain.js';
 import { hueVars } from './theme.js';
 import { parseHash } from './links.js';
 import { Block, Placed } from './Blocks.jsx';
@@ -87,8 +87,7 @@ function TableCard({ table, result, error, loading, onFilter, pageId, filters, v
       <header className="card-h">
         <div><h2>{table.title}</h2>{table.hint && <p>{table.hint}</p>}</div>
         {filters?.length > 0 && <div className="tbar"><ColumnFilterStatus filters={filters} values={values} onClear={onClear} /></div>}
-        <AskGenie kind="table" title={table.title} context={{ hint: table.hint || '', rows: (result?.rows || []).slice(0, EXPLAIN_ROWS).map((row) => fieldsOf(row, columns)),
-          row_count: result?.rows?.length || 0 }} />
+        <AskGenie kind="table" title={table.title} context={tableContext(table.hint || '', result?.rows || [], (row) => fieldsOf(row, columns))} />
       </header>
       {loading && <div style={{ padding: 16, display: 'grid', gap: 10 }}>{[1, 2, 3].map((i) => <Skeleton key={i} height={22} />)}</div>}
       {error && <p className="tile-err"><Icon name="info" size={14} />This table could not load: {error}</p>}

@@ -1,7 +1,7 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
-import { TABLE, appInfo, openApp, pageData, serveDist, until } from './harness.mjs';
+import { ASK_GROUPS, TABLE, appInfo, askAudit, openApp, pageData, serveDist, until } from './harness.mjs';
 import {
   blankForm, capText, capped, defaultName, filtersText, formFrom, formProblem, operatorLabel, parseEmails, previewText, ruleText, stateFlag, watchOf,
   withNotice,
@@ -144,7 +144,7 @@ test('the Alerts tab lists each alert with its state, last check, schedule and o
     [`Assigned to ${PERSON}\nEmails ${PERSON} when records are assigned to them`, 'Paused', 'Not yet', 'Every hour', 'The App\n1 person'],
   ]);
   assert.equal(await page.getByRole('button', { name: 'Change Books pile up' }).count(), 1);
-  assert.equal(await page.getByRole('button', { name: /Loss jumps$/ }).count(), 0, 'someone else\u2019s alert offers no buttons');
+  assert.equal(await page.locator('.alerts-tbl td.act').getByRole('button', { name: /Loss jumps$/ }).count(), 0, 'someone else\u2019s alert offers no buttons to change it');
   assert.equal(await page.getByRole('button', { name: `Change Assigned to ${PERSON}` }).count(), 0, 'an assignment email is paused or deleted, never edited');
   assert.equal(await page.getByRole('button', { name: `Resume Assigned to ${PERSON}` }).count(), 1);
   assert.equal(await page.locator('.alerts-foot').innerText(),
@@ -152,6 +152,29 @@ test('the Alerts tab lists each alert with its state, last check, schedule and o
   assert.equal(await page.locator('.alerts-foot a').getAttribute('href'), BUILT);
   assert.equal(await page.locator('.fbar').count(), 0, 'alerts carry their own filters, so the page filter bar is hidden');
   assert.doesNotMatch(await page.locator('section.alerts').innerText(), /[\u2013\u2014]/);
+  assert.deepEqual(seen.errors, []);
+  await context.close();
+});
+
+test('every alert and the Alerts card show a visible Ask Genie, and an alert sends Genie what it checks, its state and its owner', async () => {
+  const { routes } = alertRoutes();
+  const explained = [];
+  routes['genie/explain'] = ({ route, json }) => { explained.push(route.request().postDataJSON()); return json(200, { conversation_id: 'c1', message_id: 'm1', question: 'Sent.' }); };
+  routes['genie/message'] = ({ json }) => json(200, { state: 'done', text: 'Genie answered.', sql: 'SELECT 1', columns: [], rows: [], truncated: false });
+  const { page, seen, context } = await open(appInfo(ON, 1, TABLE), routes);
+  await alertsTab(page);
+  await page.locator('.alerts-tbl tbody tr').nth(2).waitFor();
+  const found = await page.evaluate(askAudit, { card: 'section.card--table', row: '.alerts-tbl tbody tr' });
+  assert.deepEqual([found.missing, found.hidden, found.counts], [[], [], { card: 1, row: 3 }]);
+  await page.getByRole('button', { name: 'Ask Genie about Loss jumps', exact: true }).click();
+  await page.getByLabel('Your question about Loss jumps').fill('Why is it OK?');
+  await page.locator('form.ask-box button[type="submit"]').click();
+  await until(() => explained.length === 1);
+  const sent = explained[0];
+  assert.deepEqual([sent.kind, sent.page, sent.title, sent.context.hint], ['record', 'n01_u05', 'Loss jumps', 'An alert of this use case.']);
+  assert.deepEqual([sent.context.fields.Alert, sent.context.fields.State, sent.context.fields['What it checks']], ['Loss jumps', 'OK', 'Total loss is above 250000']);
+  await page.getByRole('button', { name: 'Ask Genie about Alerts', exact: true }).click();
+  assert.match(await page.locator('form.ask-box [data-receives]').innerText(), /3 rows/);
   assert.deepEqual(seen.errors, []);
   await context.close();
 });

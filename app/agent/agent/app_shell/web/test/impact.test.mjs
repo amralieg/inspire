@@ -1,7 +1,7 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
-import { TABLE, appInfo, openApp, pageData, serveDist, toastSays, until } from './harness.mjs';
+import { ASK_GROUPS, TABLE, appInfo, askAudit, openApp, pageData, serveDist, toastSays, until } from './harness.mjs';
 import { closedRows, estimatedFigure, figuresOf, heldShare, holdoutOffText, holdoutView, impactTiles, measuredFigure, promisedView, reportedFigure, wrongFigure } from '../src/impact.js';
 import { actionForm, actionProblem, actionValues, doneText, statusLabel } from '../src/records.js';
 
@@ -159,7 +159,7 @@ test('the Impact page shows estimated, reported and measured apart, promised aga
   assert.equal(await card.locator('.imp-hold > p:not(.imp-why)').first().innerText(), '20 records of 200 (10%) are held back now');
   assert.deepEqual(await card.locator('.imp-reasons li').allInnerTexts(), ['The store closed\n2']);
   const rows = await card.locator('.tbl--closed tbody tr').evaluateAll((trs) => trs.map((tr) => [...tr.querySelectorAll('td')].map((td) => td.innerText)));
-  assert.deepEqual(rows[0], ['Wool coat, store 4', 'Fixed', 'No longer flagged', '$1,200 when fixed minus $100 now = $1,100', '$900\nRepriced on Monday', 'Oct 6']);
+  assert.deepEqual(rows[0], ['Wool coat, store 4', 'Fixed', 'No longer flagged', '$1,200 when fixed minus $100 now = $1,100', '$900\nRepriced on Monday', 'Oct 6', 'Ask Genie']);
   const other = page.locator('.imp[data-page="n02_u01"]');
   assert.equal(await other.locator('.card-h p').innerText(), 'no run of this use case has written its results yet');
   assert.deepEqual(await other.locator('.imp-figs b').allInnerTexts(), Array(4).fill('Not measured yet'));
@@ -329,6 +329,34 @@ test('the weekly email link ?open=impact opens the Impact page after sign-in, an
   assert.deepEqual(await page.evaluate(() => [window.location.search, window.location.hash]), ['', '#/impact']);
   await page.reload();
   await page.waitForFunction(() => document.querySelector('.pg-h h1')?.textContent === 'Impact');
+  assert.deepEqual(seen.errors, []);
+  await context.close();
+});
+
+test('every card, key number and closed record on Impact shows a visible Ask Genie, and a closed record sends its own figures to its use case Genie', async () => {
+  const explained = [];
+  const routes = {
+    impact: ({ json, url }) => json(200, url.searchParams.get('page') === 'n01_u05' ? ENTRY : { visible: true, tracked: false, note: 'no run of this use case has written its results yet', promised: null }),
+    summary: ({ json }) => json(200, SUMMARY),
+    'genie/explain': ({ route, json }) => { explained.push(route.request().postDataJSON()); return json(200, { conversation_id: 'c1', message_id: 'm1', question: 'Sent.' }); },
+    'genie/message': ({ json }) => json(200, { state: 'done', text: 'Genie answered.', sql: 'SELECT 1', columns: [], rows: [], truncated: false }),
+  };
+  const { page, seen, context } = await openApp(browser, served.base, appInfo({}, 2, { ...TABLE, promised: PROMISED }), { width: 1440, routes });
+  await page.goto(`${served.base}#/impact`);
+  await page.waitForSelector('.tbl--closed tbody tr');
+  const found = await page.evaluate(askAudit, ASK_GROUPS);
+  assert.deepEqual([found.missing, found.hidden], [[], []], 'Impact: 0 missing, 0 hidden');
+  assert.equal(found.counts.row, 2);
+  await page.getByRole('button', { name: 'Ask Genie about Wool coat, store 4', exact: true }).click();
+  await page.getByLabel('Your question about Wool coat, store 4').fill('Did the fix hold?');
+  await page.locator('form.ask-box button[type="submit"]').click();
+  await until(() => explained.length === 1);
+  const sent = explained[0];
+  assert.deepEqual([sent.kind, sent.page, sent.title, sent.question, sent.context.hint], ['record', 'n01_u05', 'Wool coat, store 4', 'Did the fix hold?', 'A closed record of this use case.']);
+  assert.deepEqual(sent.context.fields, { Record: 'Wool coat, store 4', Outcome: 'Fixed', 'What a later run found': 'No longer flagged', Measured: 1100, Reported: 900,
+    Closed: '2026-10-06T06:00:00.000Z' });
+  await page.locator('aside.genie .msg-sql').waitFor({ timeout: 15000 });
+  assert.match(await page.locator('aside.genie .g-h small').innerText(), /^Answers from the Genie Agent/);
   assert.deepEqual(seen.errors, []);
   await context.close();
 });

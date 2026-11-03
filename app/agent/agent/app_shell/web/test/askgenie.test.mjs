@@ -1,7 +1,7 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
-import { appInfo, chartsDrawn, openApp, pageData, resizeTo, serveDist, until } from './harness.mjs';
+import { ASK_GROUPS as GROUPS, appInfo, askAudit as audit, chartsDrawn, openApp, pageData, resizeTo, serveDist, until } from './harness.mjs';
 import { ASK_CHARS, BUSY_TITLE, SUGGESTIONS, cutText, receives, rowTitle, scoped } from '../src/explain.js';
 
 let served;
@@ -24,32 +24,6 @@ const WORST = { id: 'worst', title: 'Worst categories', hint: 'The categories th
 const WORST_ROWS = [{ category: 'Books', loss: 300000, comment: 'Steady' }, { category: 'Music', loss: 260000, comment: PLANTED }];
 const NOTE = { id: 'note', kind: 'text', place: { where: 'after', of: 'filters' }, width: 'full', align: 'left', content: '## How to read this page\nStart with the biggest loss.' };
 const CHANGES = { tables: [WORST], blocks: [NOTE] };
-const GROUPS = {
-  card: '[data-card], [data-bars], section.card--table',
-  kpi: '.kpi',
-  text: '.story, .blk--text, .blk--html, .sum',
-  controls: '.fbar',
-  row: '.main tbody tr',
-};
-
-function audit(groups) {
-  const shown = (el) => el.checkVisibility({ opacityProperty: true, visibilityProperty: true }) && el.getBoundingClientRect().width > 0
-    && el.getBoundingClientRect().height > 0;
-  const own = (el) => (el.matches('[data-card], [data-bars], section.card--table') ? el.querySelector(':scope > .card-h .ask-genie') : el.querySelector('.ask-genie, .row-ask'));
-  const out = { counts: {}, missing: [], hidden: [] };
-  Object.entries(groups).forEach(([group, selector]) => {
-    const items = [...document.querySelectorAll(selector)].filter((el) => shown(el) && !(el.matches('tr') && el.querySelectorAll('td').length < 2));
-    out.counts[group] = items.length;
-    items.forEach((el) => {
-      const name = el.getAttribute('aria-label') || el.dataset.card || el.dataset.bars || el.className;
-      const ask = own(el);
-      if (!ask) out.missing.push(`${group}: ${name}`);
-      else if (!shown(ask)) out.hidden.push(`${group}: ${name}`);
-    });
-  });
-  return out;
-}
-
 function genieRoutes() {
   const calls = { explain: [] };
   let hold = false;

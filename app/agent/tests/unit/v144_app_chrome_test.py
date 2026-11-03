@@ -161,7 +161,7 @@ def test_a_chart_on_the_overview_or_the_impact_page_explains_without_a_use_case_
     assert call(s, "POST", "genie/explain", body=record) == (404, {"error": "the App has no page 'overview'"}), "a record always has its page"
     assert call(s, "POST", "genie/explain", body=explain_body(page="home")) == (404, {"error": "the App has no page 'home'"})
     assert call(s, "POST", "genie/explain", body=explain_body(page=None)) == (404, {"error": "the App has no page None"})
-    assert len(sp_ws.genie) == 2
+    assert len(sp_ws.genie) == len(shell_core.HUB_SCREENS)
 
 
 def test_a_use_case_page_named_like_a_hub_screen_keeps_its_own_explain(tmp_path):
@@ -179,8 +179,9 @@ def test_the_hub_screens_the_browser_explains_from_are_the_ones_the_server_knows
         sent[name] = set(re.findall(r"hubExplain\(app, onExplain, '([a-z]+)'\)", text))
         notes[name] = "<HubExplainNote app={app} />" in text
     with open(APP_JSX, encoding="utf-8") as handle:
-        routes = set(re.findall(r"'([a-z]+)'", re.search(r"const HUB_ROUTES = \[([^\]]+)\]", handle.read()).group(1)))
-    assert set(shell_core.HUB_SCREENS) == {"overview", "impact"} <= routes
+        routes_text = re.search(r"const HUB_ROUTES = \[([^\]]+)\]", handle.read()).group(1)
+    routes = set(re.findall(r"'([a-z]+)'", routes_text))
+    assert set(shell_core.HUB_SCREENS) == {"overview", "mywork", "impact"} and {"overview", "impact"} <= routes and "MY_WORK_ROUTE" in routes_text
     assert sent == {"overview": set(), "impact": {"impact"}}, "only Impact explains, since a one-page App shows Impact but never the Overview"
     assert notes == {"overview": True, "impact": True}
 

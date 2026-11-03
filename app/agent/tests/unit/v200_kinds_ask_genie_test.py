@@ -147,7 +147,19 @@ def test_the_overview_and_impact_screens_answer_about_their_numbers_text_filters
     for screen, title in shell_core.HUB_SCREENS.items():
         status, out = call(s, "POST", "genie/explain", body=element_body(kind, page=screen, question="Why?"))
         assert status == 200 and f'from the App "Pricing desk", on the page "{title}".\n' in out["question"]
-    assert len(sp_ws.genie) == 2
+    assert len(sp_ws.genie) == len(shell_core.HUB_SCREENS) == 3
+
+
+def test_my_work_is_a_hub_screen_its_numbers_ask_in_a_one_page_app_and_never_pick_one_use_case_in_a_hub(tmp_path):
+    s, sp_ws, _user, _made = shell(tmp_path)
+    status, out = call(s, "POST", "genie/explain", body=element_body("kpi", page="mywork", question="Is this a lot?"))
+    assert status == 200 and out["question"].startswith('A question about a key number from the App "Pricing desk", on the page "My work".\n')
+    assert call(s, "POST", "genie/explain", body=element_body("record", page="mywork")) == (404, {"error": "the App has no page 'mywork'"})
+    two = dict(SETTINGS, pages=["n01_u05", "n02_u01"])
+    (tmp_path / "hub").mkdir()
+    hub_s, hub_ws, _user, _made = shell(tmp_path / "hub", two, [PAGE, dict(PAGE, id="n02_u01", use_case_id="N02-U01", title="Second desk")])
+    assert call(hub_s, "POST", "genie/explain", body=element_body("kpi", page="mywork")) == (409, {"error": shell_core.HUB_GENIE_NOTE})
+    assert len(sp_ws.genie) == 1 and hub_ws.genie == []
 
 
 @pytest.mark.parametrize("kind", ["record", "plan_line", "series", "node"])

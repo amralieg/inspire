@@ -118,4 +118,4 @@ def test_a_one_page_app_still_explains_its_overview_and_impact_charts_with_its_o
         status, out = call(s, "POST", "genie/explain", body=explain_body(page=screen, title="Could save, by use case"))
         assert status == 200 and out["question"].startswith(f'Explain a chart from the App "Pricing desk", on the page "{title}"')
     assert call(s, "POST", "genie/ask", body={"question": "Why?"})[0] == 200
-    assert [g[0] for g in sp_ws.genie] == [FIRST_SPACE] * 3
+    assert [g[0] for g in sp_ws.genie] == [FIRST_SPACE] * (len(shell_core.HUB_SCREENS) + 1)

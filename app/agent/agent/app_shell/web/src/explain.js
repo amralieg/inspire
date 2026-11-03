@@ -1,4 +1,5 @@
 import { compareValues, countOf, dayLabel, plainText } from './format.js';
+import { cellValue } from './grid.js';
 import { plural } from './hub.js';
 
 export const EXPLAIN_TITLE_CHARS = 120;
@@ -82,8 +83,12 @@ function capped(kind, context) {
   return { ...context, ...lines, ...cappedFields(context), ...(context.rows ? cappedRows(context) : {}) };
 }
 
+export function tableContext(hint, rows, fields, count = rows.length) {
+  return { hint, rows: rows.slice(0, EXPLAIN_ROWS).map(fields), row_count: count };
+}
+
 export function fieldsOf(row, columns) {
-  return Object.fromEntries(columns.map((c) => [typeof c.label === 'string' && c.label ? c.label : c.key, row[c.key]]).filter(([, v]) => v !== undefined));
+  return Object.fromEntries(columns.map((c) => [typeof c.label === 'string' && c.label ? c.label : c.key, cellValue(c)(row)]).filter(([, v]) => v !== undefined));
 }
 
 function version(value) {

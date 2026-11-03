@@ -4,7 +4,7 @@ import DataTable, { columnOf } from './DataTable.jsx';
 import { GenieMark, Icon } from './icons.jsx';
 import { ExplainButton } from './Genie.jsx';
 import { askGenie, genieOn } from './genieAsk.js';
-import { BUSY_TITLE, EXPLAIN_ROWS, fieldsOf } from './explain.js';
+import { BUSY_TITLE, fieldsOf, tableContext } from './explain.js';
 import { AskGenie } from './AskGenie.jsx';
 import { withRecord, withoutRecord } from './links.js';
 import { addCounts, addedParts, cap, compareValues, dayLabel, formatValue, integer, kindOf, plainText, savedWords, shownUnit, unitOf } from './format.js';
@@ -815,7 +815,7 @@ export default function Records({ meta, app, pageId, filters, ai, onFilter, hist
           {(tracker || mine) && <button className={`pick-i ${mine ? 'is-on' : ''}`} aria-pressed={mine} onClick={() => setMine(!mine)}><Icon name="users" size={13} />My actions</button>}
           {(data?.changes || changed) && <button className={`pick-i ${changed ? 'is-on' : ''}`} aria-pressed={changed} onClick={() => setChanged(!changed)}><Icon name="trend" size={13} />Changed since the last run</button>}
           {canModify && <button className="btn btn--pri" onClick={() => setForm({ mode: 'add' })}><Icon name="plus" size={14} />Add record</button>}
-          <AskGenie kind="table" title={meta.title} context={{ hint: meta.hint || '', rows: tableRows.slice(0, EXPLAIN_ROWS).map(shownFields), row_count: total || 0 }} />
+          <AskGenie kind="table" title={meta.title} context={tableContext(meta.hint || '', tableRows, shownFields, total || 0)} />
         </div>
       </header>
       {data && (

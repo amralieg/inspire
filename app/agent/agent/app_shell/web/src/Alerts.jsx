@@ -6,6 +6,8 @@ import { plural } from './hub.js';
 import { Icon } from './icons.jsx';
 import { Failure, Skeleton, useToast } from './ui.jsx';
 import DataTable from './DataTable.jsx';
+import { AskGenie } from './AskGenie.jsx';
+import { fieldsOf, tableContext } from './explain.js';
 import {
   blankForm, capText, capped, defaultName, filtersText, formFrom, formProblem, measureOf, operatorLabel, operatorsOf, parseEmails,
   previewText, reachable, ruleText, stateFlag, watchOf,
@@ -219,6 +221,12 @@ function alertColumns(listing, meta, onEdit, onChanged) {
   ];
 }
 
+function alertFields(alert, columns, listing, meta) {
+  const checks = alert.kind === 'watch' ? [ruleText(alert.watch, listing.measures), filtersText(alert.watch, meta?.filters)].filter(Boolean).join(', ')
+    : `Emails ${alert.owner} when records are assigned to them`;
+  return { ...fieldsOf(alert, columns), 'What it checks': checks };
+}
+
 export default function Alerts({ app, page, meta, compose = false, onComposed }) {
   const { data, error, load } = useAlerts(page.id);
   const [form, setForm] = useState(null);
@@ -230,6 +238,8 @@ export default function Alerts({ app, page, meta, compose = false, onComposed })
     if (!full && listing.measures.length > 0) setForm((now) => now || blankForm(listing, app.user));
   }, [compose, listing, full, app.user, onComposed]);
   const done = () => { setForm(null); load(); };
+  const columns = listing ? alertColumns(listing, meta, (x) => setForm(formFrom(x)), load) : [];
+  const fields = (alert) => alertFields(alert, columns, listing, meta);
   return (
     <section className="card card--table alerts" aria-label="Alerts">
       <header className="card-h">
@@ -242,6 +252,7 @@ export default function Alerts({ app, page, meta, compose = false, onComposed })
             <Icon name="plus" size={14} />New alert
           </button>
         )}
+        <AskGenie kind="table" title="Alerts" context={tableContext('The alerts of this use case.', listing?.alerts || [], fields)} />
       </header>
       {!listing && !error && <div style={{ padding: 16, display: 'grid', gap: 10 }}>{[1, 2].map((i) => <Skeleton key={i} height={22} />)}</div>}
       {error && <p className="tile-err" role="alert"><Icon name="info" size={14} />The alerts could not load: {error}</p>}
@@ -249,8 +260,8 @@ export default function Alerts({ app, page, meta, compose = false, onComposed })
       {listing && (
         <>
           {listing.alerts.length > 0 ? (
-            <DataTable label="Alerts of this use case" tableClass="alerts-tbl" columns={alertColumns(listing, meta, (x) => setForm(formFrom(x)), load)} rows={listing.alerts}
-              rowKey={(a) => a.id} grid={`page:${page.id}:alerts`} />
+            <DataTable label="Alerts of this use case" tableClass="alerts-tbl" columns={columns} rows={listing.alerts}
+              rowKey={(a) => a.id} grid={`page:${page.id}:alerts`} askRow={(a) => ({ title: a.name, context: { hint: 'An alert of this use case.', fields: fields(a) } })} />
           ) : !form && <p className="more">No alerts on this page yet.</p>}
           {listing.unread > 0 && <p className="note" role="status"><Icon name="info" size={14} />{plural(listing.unread, 'alert')} could not be read just now.</p>}
           <p className="more alerts-foot">

@@ -238,7 +238,7 @@ test('the Runs tab opens from the keyboard and hides the filters', async () => {
   assert.equal(await page.locator('.fbar').count(), 0);
   assert.equal(await page.locator('.runs tbody tr').count(), 4);
   assert.deepEqual(await page.locator('.runs tbody .run-st').allInnerTexts(), ['Done', 'Done', 'Done', 'Done']);
-  assert.match(await page.locator('.runs tbody tr').first().innerText(), /^\s*Oct 17, 06:00 AM UTC\s+1 min\s+Done\s+Scheduled\s+All data\s+50\s+20\s+none\s*$/);
+  assert.match(await page.locator('.runs tbody tr').first().innerText(), /^\s*Oct 17, 06:00 AM UTC\s+1 min\s+Done\s+Scheduled\s+All data\s+50\s+20\s+none\s+Ask Genie\s*$/);
   assert.deepEqual(seen.errors, []);
   await context.close();
 });
