@@ -40,6 +40,8 @@ KIND_RECALL_MIN = 0.8
 MIN_FAMILIES = 6
 FLOOR_MAX_AVG_GAP = 0.5
 KINDS_PATH = Path(__file__).resolve().parents[2] / "agent" / "app_shell" / "kinds.json"
+AGENT_TESTS = Path(__file__).resolve().parents[1]
+_AGENT = {}
 ENDPOINT_RE = re.compile(r"^[A-Za-z0-9._-]+$")
 JUDGE_SQL = ("SELECT ai_query('{endpoint}', :prompt, "
              "modelParameters => named_struct('temperature', CAST(0.0 AS DOUBLE))) AS answer")
@@ -80,24 +82,22 @@ def load_registry(path: Path = KINDS_PATH) -> dict:
     return json.loads(Path(path).read_text(encoding="utf-8"))
 
 
-def _kind_key(value) -> str:
-    return re.sub(r"[^a-z0-9]+", "_", str(value if value is not None else "").casefold()).strip("_")
+def notebook_kind_resolver():
+    if "kind" not in _AGENT:
+        sys.path.insert(0, str(AGENT_TESTS))
+        import _agentload
+        _AGENT["kind"] = _agentload.load_agent_namespace()["inspire_use_case_kind"]
+    return _AGENT["kind"]
 
 
-def resolve_kind(uc: dict, registry: dict) -> tuple:
-    """(kind id, "labeled" | "technique" | "") for one normalized use case."""
-    index = {}
-    for kind in registry["kinds"]:
-        for name in (kind["id"], kind.get("label"), kind.get("num")):
-            if _kind_key(name):
-                index.setdefault(_kind_key(name), kind["id"])
-    label = _kind_key(uc.get("kind_label"))
-    found = index.get(label) or index.get(re.sub(r"^\d+_", "", label))
-    if found:
-        return found, "labeled"
-    by_technique = {_kind_key(name): kind_id for name, kind_id in (registry.get("technique_kind") or {}).items()}
-    found = by_technique.get(_kind_key(uc.get("technique")))
-    return (found, "technique") if found else ("", "")
+def resolve_kind(uc: dict) -> tuple:
+    """(kind id, "labeled" | "technique" | "") for one normalized use case, decided by the agent notebook's resolver."""
+    resolve = notebook_kind_resolver()
+    labeled = resolve({"use_case_kind": uc.get("kind_label")}) if str(uc.get("kind_label") or "").strip() else None
+    if labeled:
+        return labeled["id"], "labeled"
+    by_technique = resolve({"Analytics Technique": uc.get("technique")})
+    return (by_technique["id"], "technique") if by_technique else ("", "")
 
 
 def entry_kinds(entry: dict) -> list:
@@ -230,7 +230,7 @@ def score(gold: dict, use_cases: list, ask=None, cache: dict | None = None, regi
             raise ValueError(f"gold entry {entry['id']} has no kind from the registry: {entry.get('kind')!r}")
     ranked = rank([normalize_uc(u) for u in use_cases])
     for u in ranked:
-        u["kind"], u["kind_source"] = resolve_kind(u, registry)
+        u["kind"], u["kind_source"] = resolve_kind(u)
     kind_of = {u["id"]: u["kind"] for u in ranked}
     top = {u["id"] for u in ranked[:TOP_N]}
     cache = cache if cache is not None else {}

@@ -125,18 +125,48 @@ def test_must_reject_needs_the_tables_and_honors_unless():
     assert rb.must_reject_hits(gold, ucs) == [{"id": "R1", "title": "Total sales by store", "selected": ["A"]}]
 
 
+def _kind_probes():
+    probes = []
+    for kind in REGISTRY["kinds"]:
+        for label in (kind["id"], kind["label"], str(kind["num"]), f"{kind['num']}. {kind['label']}", kind["label"].upper() + ".",
+                      kind["id"].replace("_", "-"), f"{kind['num']}) {kind['label']}"):
+            probes.append((label, ""))
+    for technique in REGISTRY["technique_kind"]:
+        probes += [("", technique), ("nonsense", technique), ("", technique.lower() + " ")]
+    return probes + [("", "Astrology"), ("", ""), ("Forecast", "Clustering")]
+
+
+def test_the_benchmark_resolves_every_kind_exactly_as_the_agent_notebook(agent_ns):
+    resolve = agent_ns["inspire_use_case_kind"]
+    disagree = []
+    for label, technique in _kind_probes():
+        labeled = resolve({"use_case_kind": label}) if label else None
+        by_technique = resolve({"Analytics Technique": technique})
+        expected = (labeled["id"], "labeled") if labeled else ((by_technique["id"], "technique") if by_technique else ("", ""))
+        got = rb.resolve_kind(rb.normalize_uc(uc("X", "n", "c.s.t", kind=label, technique=technique)))
+        if got != expected:
+            disagree.append((label, technique, got, expected))
+    assert disagree == []
+    assert rb.notebook_kind_resolver() is resolve
+
+
+def test_the_benchmark_carries_no_kind_matcher_of_its_own():
+    source = open(rb.__file__, encoding="utf-8").read()
+    assert "_kind_key" not in source and "technique_kind" not in source
+
+
 def test_kind_resolution_reads_the_label_then_the_technique():
     norm = lambda **kw: rb.normalize_uc(uc("X", "n", "c.s.t", **kw))
-    assert rb.resolve_kind(norm(kind="process_mining"), REGISTRY) == ("process_mining", "labeled")
-    assert rb.resolve_kind(norm(kind="Process mining"), REGISTRY) == ("process_mining", "labeled")
-    assert rb.resolve_kind(norm(kind="34"), REGISTRY) == ("process_mining", "labeled")
-    assert rb.resolve_kind(norm(kind="34. Process mining"), REGISTRY) == ("process_mining", "labeled")
-    assert rb.resolve_kind(norm(kind="", technique="Forecasting"), REGISTRY) == ("forecast", "technique")
-    assert rb.resolve_kind(norm(kind="nonsense", technique="Statistical Process Control"), REGISTRY) == ("process_control", "technique")
-    assert rb.resolve_kind(norm(kind="", technique="Astrology"), REGISTRY) == ("", "")
+    assert rb.resolve_kind(norm(kind="process_mining")) == ("process_mining", "labeled")
+    assert rb.resolve_kind(norm(kind="Process mining")) == ("process_mining", "labeled")
+    assert rb.resolve_kind(norm(kind="34")) == ("process_mining", "labeled")
+    assert rb.resolve_kind(norm(kind="34. Process mining")) == ("process_mining", "labeled")
+    assert rb.resolve_kind(norm(kind="", technique="Forecasting")) == ("forecast", "technique")
+    assert rb.resolve_kind(norm(kind="nonsense", technique="Statistical Process Control")) == ("process_control", "technique")
+    assert rb.resolve_kind(norm(kind="", technique="Astrology")) == ("", "")
     catalog = rb.normalize_uc({"No": "N01", "Name": "n", "Use Case Kind": "Forecast", "Analytics Technique": "Clustering",
                                "selection_basis": "Kind_Floor"})
-    assert rb.resolve_kind(catalog, REGISTRY) == ("forecast", "labeled") and catalog["basis"] == "kind_floor"
+    assert rb.resolve_kind(catalog) == ("forecast", "labeled") and catalog["basis"] == "kind_floor"
 
 
 def test_a_gold_entry_without_a_kind_is_refused():
