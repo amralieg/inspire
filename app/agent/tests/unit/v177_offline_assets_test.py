@@ -138,16 +138,29 @@ def test_both_clis_come_from_local_copies_of_the_assets_with_no_download(fresh_n
     assert sorted(os.listdir(assets.local)) == copied, "a second install reuses what the first one unpacked"
 
 
-@pytest.mark.parametrize("machine,named", [("x86_64", "x86_64"), ("amd64", "x86_64"), ("ppc64le", "ppc64le")])
-def test_a_run_off_the_cli_machine_gets_one_plain_message_and_copies_nothing(fresh_ns, tmp_path, machine, named):
-    assert fresh_ns["INSPIRE_ASSET_CLI_MACHINE"] == "aarch64"
-    assets = make_assets(fresh_ns, tmp_path / "assets", cli_entries(fresh_ns, "x86_64") + cli_entries(fresh_ns), machine=machine)
+@pytest.mark.parametrize("machine,named", [("x86_64", "x86_64"), ("amd64", "x86_64"), ("aarch64", "aarch64"), ("arm64", "aarch64")])
+def test_a_run_unpacks_the_cli_builds_of_the_cpu_it_landed_on(fresh_ns, tmp_path, monkeypatch, machine, named):
+    monkeypatch.setattr(fresh_ns["os"], "symlink", os.symlink)
+    assets = make_assets(fresh_ns, tmp_path / "assets", cli_entries(fresh_ns, "x86_64") + cli_entries(fresh_ns, "aarch64"), machine=machine)
+    read = []
+    original = assets.local_copy
+    assets.local_copy = lambda entry: read.append(entry["file"]) or original(entry)
+    runner = fresh_ns["GenieCodeRunner"]("https://h", "t", CapturingLogger(), root=str(tmp_path / "root"), assets=assets)
+    paths = runner.install()
+    assert os.path.exists(paths["genie"]) and os.path.exists(paths["cli"])
+    assert read == [f"cli/genie-code-cli-{named}.tar.gz", f"cli/databricks-cli-{named}.zip"]
+    assert assets.cli("genie-code-cli") == original(assets.entry("cli", "genie-code-cli", fresh_ns["GENIE_CODE_CLI_VERSION"]))
+
+
+@pytest.mark.parametrize("machine,held", [("x86_64", "aarch64"), ("aarch64", "x86_64"), ("ppc64le", "x86_64")])
+def test_a_run_on_a_cpu_the_assets_hold_no_cli_build_for_names_that_cpu_and_copies_nothing(fresh_ns, tmp_path, machine, held):
+    root = tmp_path / "assets"
+    assets = make_assets(fresh_ns, root, cli_entries(fresh_ns, held), machine=machine)
     runner = fresh_ns["GenieCodeRunner"]("https://h", "t", CapturingLogger(), root=str(tmp_path / "root"), assets=assets)
     with pytest.raises(fresh_ns["InspireAssetError"]) as raised:
         runner.install()
-    assert str(raised.value) == (f"This run landed on {named} compute, and Inspire installs genie-code-cli only for aarch64, the CPU "
-                                 "Databricks serverless runs Inspire on, so Genie Code cannot run here. Run it again so it lands on "
-                                 "aarch64 compute.")
+    assert str(raised.value) == (f"The Inspire assets file {root}/manifest.json lists no genie-code-cli for {machine}. "
+                                 + _install_step(fresh_ns, str(root)))
     assert not os.path.exists(assets.local) or os.listdir(assets.local) == []
     assert not os.path.exists(tmp_path / "root" / "bin" / "genie")
 

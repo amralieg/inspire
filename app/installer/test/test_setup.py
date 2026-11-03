@@ -305,41 +305,20 @@ class AssetsTest(unittest.TestCase):
         self.assertIn("(1 copied, 2 already there)", said)
         self.assertEqual((self.root / "fonts" / "inter-400.ttf").read_bytes(), self.files["fonts/inter-400.ttf"])
 
-    def _cli_tar(self, machines, cli_machine="aarch64"):
+    def test_both_cpu_builds_of_each_cli_land_whatever_machine_the_installer_runs_on(self):
         shutil.rmtree(self.assets)
         self.assets.mkdir()
         builds = {f"cli/{name}-{machine}.{kind}": f"{name} {machine}".encode() * 50
-                  for name, kind in (("genie-code-cli", "tar.gz"), ("databricks-cli", "zip")) for machine in machines}
-        support.make_assets(self.assets, files=builds, cli_machine=cli_machine)
+                  for name, kind in (("genie-code-cli", "tar.gz"), ("databricks-cli", "zip")) for machine in ("x86_64", "aarch64")}
+        support.make_assets(self.assets, files=builds)
         support.release.write_assets_tar(self.assets, "v1.3.0", self.tar, support.release.load_starter())
-        return builds
-
-    def test_only_the_aarch64_build_of_each_cli_lands_whatever_machine_the_installer_runs_on(self):
-        builds = self._cli_tar(("aarch64",))
         for machine in ("aarch64", "x86_64", "arm64"):
             shutil.rmtree(self.root.parent, ignore_errors=True)
             with mock.patch("platform.machine", return_value=machine):
                 _, said = self.install()
-            self.assertEqual(sorted(p.relative_to(self.root).as_posix() for p in self.root.rglob("*") if p.is_file()),
-                             ["cli/databricks-cli-aarch64.zip", "cli/genie-code-cli-aarch64.tar.gz", "manifest.json"], machine)
             self.assertEqual({name: (self.root / name).read_bytes() for name in builds}, builds, machine)
-            self.assertIn("(2 copied, 0 already there)", said)
-
-    def test_a_tar_listing_an_x86_64_cli_is_refused_and_copies_nothing(self):
-        self._cli_tar(("x86_64", "aarch64"))
-        with self.assertRaises(RuntimeError) as caught:
-            self.install()
-        self.assertIn("lists cli/genie-code-cli-x86_64.tar.gz for x86_64, and the release installs its command line tools only for "
-                      "aarch64", str(caught.exception))
-        self.assertFalse(self.root.exists())
-
-    def test_a_tar_whose_manifest_names_no_cli_cpu_is_refused(self):
-        for value in (None, "", 7):
-            self._cli_tar(("aarch64",), cli_machine=value)
-            with self.assertRaises(RuntimeError) as caught:
-                self.install()
-            self.assertIn("names no CPU for its command line tools", str(caught.exception))
-            self.assertFalse(self.root.exists())
+            self.assertEqual(json.loads((self.root / "manifest.json").read_text()), json.loads((self.assets / "manifest.json").read_text()))
+            self.assertIn("(4 copied, 0 already there)", said)
 
     def test_a_tar_whose_file_does_not_match_its_manifest_copies_nothing(self):
         bad = self.tmp / "bad.tar"

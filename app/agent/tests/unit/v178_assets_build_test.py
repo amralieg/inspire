@@ -27,7 +27,7 @@ LICENSED = {"zqvmod/__init__.py": "VALUE = 7\n", "zqv_dist-1.0.dist-info/METADAT
 def test_the_build_reads_every_pin_and_the_file_names_from_the_notebook(agent_ns):
     pins = _build().notebook_pins()
     for name in ("__AGENT_VERSION__", "INSPIRE_ASSETS_PYTHON", "INSPIRE_ASSET_WHEELS", "INSPIRE_ASSET_MODULES", "INSPIRE_APP_ASSET_WHEELS",
-                 "INSPIRE_ASSET_CLIS", "GENIE_NOTEBOOK_ENV_VERSION", "INSPIRE_ASSET_CLI_MACHINE"):
+                 "INSPIRE_ASSET_CLIS", "GENIE_NOTEBOOK_ENV_VERSION"):
         assert pins[name] == agent_ns[name], name
     for args in (("python", "lxml", "aarch64", "3.12"), ("python", "weasyprint"), ("cli", "genie-code-cli", "x86_64"), ("license", "Noto Sans JP")):
         assert pins["inspire_asset_file"](*args) == agent_ns["inspire_asset_file"](*args), "the build and the loader name files alike"
@@ -198,45 +198,18 @@ def test_what_the_build_writes_is_what_the_agent_loader_reads(agent_ns, tmp_path
     sys.modules.pop("zqvmod", None)
 
 
-def test_the_build_ships_python_wheels_for_both_machines_and_the_clis_only_for_the_notebook_cli_machine(tmp_path, monkeypatch, capsys):
+def test_the_build_ships_both_serverless_machines_unless_told_otherwise(tmp_path, monkeypatch):
     build = _build()
-    seen = {"python": [], "cli": []}
+    seen = {"python": []}
     monkeypatch.setattr(build, "add_python", lambda bundle, pins, python, machines, names: seen["python"].append((python, list(machines))))
     monkeypatch.setattr(build, "add_fonts", lambda bundle, pins: None)
-    monkeypatch.setattr(build, "add_clis", lambda bundle, pins: seen["cli"].append(pins["INSPIRE_ASSET_CLI_MACHINE"]))
+    monkeypatch.setattr(build, "add_clis", lambda bundle, pins, machines: seen.__setitem__("cli", list(machines)))
     monkeypatch.setattr(build, "write", lambda *a, **k: {"path": "", "archive": 0, "sha256": "", "files": 0, "payload": 0})
     probe = tmp_path / "probe.json"
     probe.write_text(json.dumps({"machine": "aarch64", "version": "3.12.3 (main)"}))
     assert build.main(["--out", str(tmp_path / "out"), "--probe", str(probe)]) == 0
-    assert seen["cli"] == ["aarch64"]
+    assert seen["cli"] == ["x86_64", "aarch64"], "a run of 10 probes saw aarch64 and the next one ran on x86_64"
     assert seen["python"] == [("3.12", ["x86_64", "aarch64"]), ("3.11", ["x86_64", "aarch64"])]
-    assert "warning" not in capsys.readouterr().out
-    probe.write_text(json.dumps({"machine": "x86_64", "version": "3.12.3 (main)"}))
-    assert build.main(["--out", str(tmp_path / "out"), "--probe", str(probe)]) == 0
-    assert ("warning: the probe ran on x86_64, and the CLIs ship only for aarch64, so Genie Code cannot run on x86_64 serverless compute"
-            in capsys.readouterr().out)
-
-
-def test_add_clis_fetches_and_the_tar_holds_only_the_aarch64_build_of_every_cli(tmp_path, monkeypatch):
-    build = _build()
-    pins = build.notebook_pins()
-    asked = []
-    monkeypatch.setattr(build, "fetch", lambda url, accept="", sha="": asked.append(url.rsplit("/", 1)[1]) or b"cli bytes")
-    monkeypatch.setattr(build, "release_sha256", lambda source, version, asset: hashlib.sha256(b"cli bytes").hexdigest())
-    bundle = build.Bundle(pins)
-    build.add_clis(bundle, pins)
-    clis = [e for e in bundle.entries if e["kind"] == "cli"]
-    assert sorted((e["name"], e["machine"], e["file"]) for e in clis) == [
-        ("databricks-cli", "aarch64", "cli/databricks-cli-aarch64.zip"), ("genie-code-cli", "aarch64", "cli/genie-code-cli-aarch64.tar.gz")]
-    downloads = [name for name in asked if name not in ("LICENSE", "NOTICE")]
-    assert downloads and not any(t in name for name in downloads for t in ("x86_64", "amd64")), downloads
-    build.write(bundle, pins, str(tmp_path), FOUND, ["x86_64", "aarch64"], ["x86_64", "aarch64"])
-    with tarfile.open(tmp_path / "inspire-assets.tar") as tar:
-        names = tar.getnames()
-        manifest = json.loads(tar.extractfile("manifest.json").read())
-    assert sorted(n for n in names if n.startswith("cli/")) == ["cli/databricks-cli-aarch64.zip", "cli/genie-code-cli-aarch64.tar.gz"]
-    assert not any("x86_64" in n for n in names)
-    assert manifest["cli_machine"] == pins["INSPIRE_ASSET_CLI_MACHINE"] == "aarch64"
 
 
 def test_a_rebuild_takes_a_download_with_the_same_sha256_from_the_cache_and_fetches_a_changed_one_again(tmp_path, monkeypatch):

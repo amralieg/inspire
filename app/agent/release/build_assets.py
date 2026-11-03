@@ -80,8 +80,7 @@ dbutils.notebook.exit(json.dumps({"machine": platform.machine(), "version": sys.
 """
 NAMES = ("__AGENT_VERSION__", "GENIE_NOTEBOOK_ENV_VERSION", "GENIE_CODE_CLI_VERSION", "GENIE_DATABRICKS_CLI_VERSION",
          "INSPIRE_ASSETS_FORMAT", "INSPIRE_ASSETS_MANIFEST", "INSPIRE_ASSETS_PYTHON", "INSPIRE_APP_ASSETS_PYTHON",
-         "INSPIRE_ASSET_MACHINES", "INSPIRE_ASSET_WHEELS", "INSPIRE_ASSET_MODULES", "INSPIRE_APP_ASSET_WHEELS", "INSPIRE_ASSET_CLIS",
-         "INSPIRE_ASSET_CLI_MACHINE")
+         "INSPIRE_ASSET_MACHINES", "INSPIRE_ASSET_WHEELS", "INSPIRE_ASSET_MODULES", "INSPIRE_APP_ASSET_WHEELS", "INSPIRE_ASSET_CLIS")
 FUNCTIONS = ("inspire_asset_slug", "inspire_asset_file")
 
 
@@ -273,21 +272,21 @@ def release_sha256(source: dict, version: str, asset: str) -> str:
     return found[0].lower()
 
 
-def add_clis(bundle: Bundle, pins: dict) -> None:
-    machine = pins["INSPIRE_ASSET_CLI_MACHINE"]
+def add_clis(bundle: Bundle, pins: dict, machines: list) -> None:
     for name, (version, _suffix) in pins["INSPIRE_ASSET_CLIS"].items():
         source = CLI_SOURCES[name]
         text = "\n\n".join(fetch(CLI_LICENSE.format(repo=source["repo"], version=version, name=part)).decode("utf-8").strip()
                            for part in ("LICENSE", "NOTICE")) + "\n"
         license_file = bundle.license(name, version, text)
-        asset = source["asset"].format(target=source["targets"][machine], version=version)
-        digest = release_sha256(source, version, asset)
-        data = fetch(CLI_RELEASE.format(repo=source["repo"], version=version, name=asset), sha=digest)
-        if sha256(data) != digest:
-            raise SystemExit(f"{asset} does not match the sha256 the release publishes")
-        bundle.add("cli", name, version, pins["inspire_asset_file"]("cli", name, machine), data, license_file, machine=machine,
-                   source=asset)
-        log(f"cli {name} {version} {machine}: {len(data):,} bytes")
+        for machine in machines:
+            asset = source["asset"].format(target=source["targets"][machine], version=version)
+            digest = release_sha256(source, version, asset)
+            data = fetch(CLI_RELEASE.format(repo=source["repo"], version=version, name=asset), sha=digest)
+            if sha256(data) != digest:
+                raise SystemExit(f"{asset} does not match the sha256 the release publishes")
+            bundle.add("cli", name, version, pins["inspire_asset_file"]("cli", name, machine), data, license_file, machine=machine,
+                       source=asset)
+            log(f"cli {name} {version} {machine}: {len(data):,} bytes")
 
 
 def release_module():
@@ -303,7 +302,7 @@ def write(bundle: Bundle, pins: dict, out: str, found: dict, machines: list, app
     manifest = {"format": pins["INSPIRE_ASSETS_FORMAT"], "inspire_version": pins["__AGENT_VERSION__"],
                 "environment_version": pins["GENIE_NOTEBOOK_ENV_VERSION"], "python": pins["INSPIRE_ASSETS_PYTHON"],
                 "app_python": pins["INSPIRE_APP_ASSETS_PYTHON"], "machines": machines, "app_machines": app_machines,
-                "cli_machine": pins["INSPIRE_ASSET_CLI_MACHINE"], "probe": {"machine": found["machine"], "python": found["version"].split()[0]},
+                "probe": {"machine": found["machine"], "python": found["version"].split()[0]},
                 "files": sorted(bundle.entries, key=lambda e: e["file"])}
     body = json.dumps(manifest, indent=1, sort_keys=True).encode("utf-8")
     members = dict(bundle.files, **{release.ASSETS_MANIFEST: body})
@@ -322,8 +321,7 @@ def main(argv=None) -> int:
     parser.add_argument("--profile", help="Databricks CLI profile of a workspace to probe the serverless machine and Python")
     parser.add_argument("--probe", help="a saved probe JSON with machine and version, instead of a live probe")
     parser.add_argument("--machines", default="x86_64,aarch64",
-                        help="comma list of CPU architectures for the agent's Python wheels; the CLIs ship only for the notebook's "
-                             "INSPIRE_ASSET_CLI_MACHINE")
+                        help="comma list of CPU architectures for the agent; serverless runs on either and can change between runs")
     parser.add_argument("--cache", default="", help="a folder that keeps downloads by sha256 so a rebuild fetches only what changed")
     parser.add_argument("--app-machines", default="x86_64,aarch64", help="comma list of CPU architectures for built Apps")
     args = parser.parse_args(argv)
@@ -347,15 +345,12 @@ def main(argv=None) -> int:
     app_machines = [m.strip() for m in args.app_machines.split(",") if m.strip()]
     if probed not in machines:
         raise SystemExit(f"the probe ran on {probed}, which --machines {','.join(machines)} leaves out")
-    if probed != pins["INSPIRE_ASSET_CLI_MACHINE"]:
-        log(f"warning: the probe ran on {probed}, and the CLIs ship only for {pins['INSPIRE_ASSET_CLI_MACHINE']}, so Genie Code "
-            f"cannot run on {probed} serverless compute")
     bundle = Bundle(pins)
     agent = sorted({d for dists in pins["INSPIRE_ASSET_MODULES"].values() for d in dists})
     add_python(bundle, pins, pins["INSPIRE_ASSETS_PYTHON"], machines, agent)
     add_python(bundle, pins, pins["INSPIRE_APP_ASSETS_PYTHON"], app_machines, pins["INSPIRE_APP_ASSET_WHEELS"])
     add_fonts(bundle, pins)
-    add_clis(bundle, pins)
+    add_clis(bundle, pins, machines)
     sizes = write(bundle, pins, args.out, found, machines, app_machines)
     for entry in sorted(bundle.entries, key=lambda e: -e["size"]):
         print(f"{entry['size']:>13,}  {entry['file']}  {entry['name']} {entry['version']}")
