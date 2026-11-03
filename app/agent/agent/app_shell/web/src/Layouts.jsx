@@ -56,6 +56,7 @@ export function todoSteps(page, list, genie, modify = false) {
   } else if (!decides(page)) {
     steps.push({ id: 'read', text: page.question || page.title, action: null });
     steps.push({ id: 'so_what', text: 'Read the “So what” line under each chart: it says what to do with it.', action: null });
+    if (page.filters?.length) steps.push({ id: 'filters', text: 'Use the filters at the top to narrow every chart to the part you own.', action: null });
   } else if (first) {
     steps.push({ id: 'first', text: `Start with ${first[label] ?? recordKeyOf(first)}: it is first in the list because it matters most.`, action: 'Show me', to });
     steps.push(page.plan

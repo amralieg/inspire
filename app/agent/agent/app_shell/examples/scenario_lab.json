@@ -23,7 +23,7 @@
     },
     {
       "name": "scenarios",
-      "sql": "SELECT s.scenario_id, s.lever_values, s.outcome, s.p10, s.p50, s.p90, s.prob_target FROM main.finance.margin_out__scenarios AS s"
+      "sql": "SELECT s.scenario_id, s.lever_values, s.outcome, s.p10, s.p50, s.p90, s.prob_target, 100 * s.prob_target AS chance_pct FROM main.finance.margin_out__scenarios AS s"
     },
     {
       "name": "sensitivity",
@@ -68,7 +68,7 @@
       "id": "base_chance",
       "label": "Chance of the target",
       "dataset": "scenarios",
-      "expression": "MAX(CASE WHEN scenario_id = 'base' THEN prob_target END)",
+      "expression": "MAX(CASE WHEN scenario_id = 'base' THEN chance_pct END)",
       "format": "percent",
       "good": "up"
     },
@@ -146,7 +146,7 @@
           "currency": "USD"
         },
         {
-          "column": "prob_target",
+          "column": "chance_pct",
           "label": "Chance of the target",
           "format": "percent"
         }

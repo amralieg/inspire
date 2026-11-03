@@ -1,0 +1,325 @@
+{
+  "version": 2,
+  "layout": "performance_explainer",
+  "id": "n03_u01",
+  "use_case_id": "N03-U01",
+  "title": "Plan to actual explainer",
+  "question": "Which units missed plan outside tolerance this month, and what moved the result from plan to actual?",
+  "sponsor": "Head of Financial Planning",
+  "domain": "Finance",
+  "subdomain": "Performance management",
+  "icon": "trend",
+  "hue": "blue",
+  "result_table": "main.finance.unit_perf_out",
+  "story": "Actual landed {variance} against plan; {outside_n} units sit outside the 3% tolerance.",
+  "questions": [
+    "Which units moved most against plan, and why?",
+    "Which units trail their peer median the most?"
+  ],
+  "datasets": [
+    {
+      "name": "records",
+      "sql": "SELECT o.record_key, o.entity_id, o.entity_label, o.priority_tier, o.`rank`, o.top_reasons, o.recommended_action, o.value, o.as_of_date, v.period, v.actual, v.plan, v.variance, v.tolerance, u.region, u.segment, u.channel FROM main.finance.unit_perf_out AS o JOIN main.finance.unit_perf_out__variance AS v ON v.unit = o.entity_id JOIN main.finance.units AS u ON u.unit_id = o.entity_id WHERE o.is_current AND o.change_source <> 'delete'"
+    },
+    {
+      "name": "walk",
+      "sql": "SELECT b.step, b.label, b.value, b.step_type FROM main.finance.unit_perf_out__bridge AS b"
+    },
+    {
+      "name": "peers",
+      "sql": "SELECT p.unit, u.unit_label, p.peer_group, p.metric, p.peer_median, p.gap, p.peer_median + p.gap AS unit_value, u.region, u.segment, u.channel FROM main.finance.unit_perf_out__peers AS p JOIN main.finance.units AS u ON u.unit_id = p.unit"
+    },
+    {
+      "name": "comments",
+      "sql": "SELECT c.unit_id, u.unit_label, c.period, c.author, c.note AS remark, c.reason, u.region, u.segment, u.channel FROM main.finance.variance_comments AS c JOIN main.finance.units AS u ON u.unit_id = c.unit_id"
+    }
+  ],
+  "filters": [
+    {
+      "id": "run_date",
+      "type": "date_range",
+      "label": "Run date",
+      "grain": "day",
+      "default": "12m",
+      "columns": {
+        "records": "as_of_date"
+      }
+    },
+    {
+      "id": "region",
+      "type": "multi_select",
+      "label": "Region",
+      "columns": {
+        "records": "region",
+        "peers": "region",
+        "comments": "region"
+      }
+    },
+    {
+      "id": "segment",
+      "type": "multi_select",
+      "label": "Segment",
+      "columns": {
+        "records": "segment",
+        "peers": "segment",
+        "comments": "segment"
+      }
+    },
+    {
+      "id": "channel",
+      "type": "multi_select",
+      "label": "Channel",
+      "columns": {
+        "records": "channel",
+        "peers": "channel",
+        "comments": "channel"
+      }
+    }
+  ],
+  "kpis": [
+    {
+      "id": "actual",
+      "label": "Actual",
+      "dataset": "records",
+      "expression": "SUM(actual)",
+      "good": "up",
+      "format": "currency",
+      "currency": "USD"
+    },
+    {
+      "id": "plan",
+      "label": "Plan",
+      "dataset": "records",
+      "expression": "SUM(plan)",
+      "good": "neutral",
+      "format": "currency",
+      "currency": "USD"
+    },
+    {
+      "id": "variance",
+      "label": "Actual vs plan",
+      "dataset": "records",
+      "expression": "SUM(variance)",
+      "good": "up",
+      "format": "currency",
+      "currency": "USD"
+    },
+    {
+      "id": "outside_n",
+      "label": "Units outside tolerance",
+      "dataset": "records",
+      "expression": "SUM(CASE WHEN ABS(variance) > tolerance THEN 1 ELSE 0 END)",
+      "format": "integer",
+      "good": "down"
+    }
+  ],
+  "charts": [
+    {
+      "id": "walk",
+      "section": "bridge",
+      "title": "Plan to actual",
+      "hint": "Each step adds up from plan to actual.",
+      "so_what": "The biggest step is where to look first; click it to see the units behind it.",
+      "type": "bridge",
+      "dataset": "walk",
+      "x": {
+        "column": "label",
+        "kind": "category",
+        "label": "Step",
+        "order": "step"
+      },
+      "y": [
+        {
+          "format": "currency",
+          "currency": "USD",
+          "label": "Change",
+          "expression": "SUM(value)"
+        }
+      ],
+      "span": 2
+    },
+    {
+      "id": "vs_peers",
+      "section": "peer_scatter",
+      "title": "Each unit against its peer median",
+      "hint": "Above the line beats peers; below it trails them.",
+      "so_what": "Units far below their peers need a plan, not only an explanation.",
+      "type": "scatter",
+      "dataset": "peers",
+      "group": "unit_label",
+      "x": {
+        "format": "currency",
+        "currency": "USD",
+        "expression": "AVG(peer_median)",
+        "label": "Peer median"
+      },
+      "y": [
+        {
+          "format": "currency",
+          "currency": "USD",
+          "label": "This unit",
+          "expression": "AVG(unit_value)"
+        }
+      ]
+    },
+    {
+      "id": "drivers",
+      "section": "driver_tornado",
+      "title": "What moved the result",
+      "hint": "Each driver step of the bridge, the widest swing first.",
+      "so_what": "Ask the owner of the top driver to confirm it before the month closes.",
+      "type": "tornado",
+      "dataset": "walk",
+      "x": {
+        "column": "label",
+        "kind": "category",
+        "label": "Driver"
+      },
+      "y": [
+        {
+          "format": "currency",
+          "currency": "USD",
+          "label": "Down",
+          "expression": "SUM(CASE WHEN step_type = 'driver' AND value < 0 THEN value ELSE 0 END)"
+        },
+        {
+          "format": "currency",
+          "currency": "USD",
+          "label": "Up",
+          "expression": "SUM(CASE WHEN step_type = 'driver' AND value > 0 THEN value ELSE 0 END)"
+        }
+      ]
+    }
+  ],
+  "tables": [
+    {
+      "id": "peer_gaps",
+      "section": "peer_table",
+      "title": "Gap to the peer median",
+      "hint": "Each unit against the median of its peer group.",
+      "so_what": "The widest gaps are the units to compare with their best peer.",
+      "dataset": "peers",
+      "columns": [
+        {
+          "column": "unit_label",
+          "label": "Unit",
+          "format": "text"
+        },
+        {
+          "column": "peer_group",
+          "label": "Peer group",
+          "format": "text"
+        },
+        {
+          "column": "metric",
+          "label": "Metric",
+          "format": "text"
+        },
+        {
+          "format": "currency",
+          "currency": "USD",
+          "column": "peer_median",
+          "label": "Peer median"
+        },
+        {
+          "format": "currency",
+          "currency": "USD",
+          "column": "gap",
+          "label": "Gap"
+        }
+      ],
+      "sort": {
+        "column": "gap",
+        "desc": false
+      }
+    },
+    {
+      "id": "said",
+      "section": "quote_cards",
+      "title": "What the owners said",
+      "hint": "Comments the unit owners left on this month's variance.",
+      "so_what": "A reason that repeats across units points at a plan change, not a miss.",
+      "dataset": "comments",
+      "columns": [
+        {
+          "column": "unit_label",
+          "label": "Unit",
+          "format": "text"
+        },
+        {
+          "column": "reason",
+          "label": "Reason",
+          "format": "text"
+        },
+        {
+          "column": "remark",
+          "label": "Comment",
+          "format": "text"
+        },
+        {
+          "column": "author",
+          "label": "Owner",
+          "format": "text"
+        }
+      ],
+      "sort": {
+        "column": "period",
+        "desc": true
+      }
+    }
+  ],
+  "records": {
+    "title": "Units against plan",
+    "hint": "Units from the latest run, the largest variance first. Tolerance is ±3%.",
+    "key": "entity_id",
+    "label": "entity_label",
+    "sublabel": "segment",
+    "rank": "rank",
+    "tier": "priority_tier",
+    "reasons": "top_reasons",
+    "action": "recommended_action",
+    "columns": [
+      {
+        "format": "currency",
+        "currency": "USD",
+        "column": "actual",
+        "label": "Actual"
+      },
+      {
+        "format": "currency",
+        "currency": "USD",
+        "column": "plan",
+        "label": "Plan"
+      },
+      {
+        "format": "currency",
+        "currency": "USD",
+        "column": "variance",
+        "label": "Variance"
+      },
+      {
+        "format": "currency",
+        "currency": "USD",
+        "column": "tolerance",
+        "label": "Tolerance"
+      }
+    ],
+    "detail": [
+      {
+        "column": "region",
+        "label": "Region",
+        "format": "text"
+      },
+      {
+        "column": "channel",
+        "label": "Channel",
+        "format": "text"
+      },
+      {
+        "column": "period",
+        "label": "Period",
+        "format": "date"
+      }
+    ]
+  }
+}

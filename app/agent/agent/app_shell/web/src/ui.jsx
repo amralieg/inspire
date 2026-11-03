@@ -127,6 +127,8 @@ export function Menu({ anchor, onClose, items, label }) {
   );
 }
 
+export const SoWhat = ({ text }) => (text ? <p className="so-what" data-so-what><b>So what:</b> {text}</p> : null);
+
 export function Skeleton({ height = 16, width = '100%', radius = 8 }) {
   return <span className="skel" style={{ height, width, borderRadius: radius }} aria-hidden="true" />;
 }

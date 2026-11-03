@@ -1,0 +1,249 @@
+{
+  "version": 2,
+  "layout": "monitor_triage",
+  "id": "n04_u02",
+  "use_case_id": "N04-U02",
+  "title": "Billing exceptions monitor",
+  "question": "Which accounts were billed outside their expected range, and which exception do we clear first?",
+  "sponsor": "Head of Billing Operations",
+  "domain": "Finance",
+  "subdomain": "Billing assurance",
+  "icon": "filter",
+  "hue": "amber",
+  "result_table": "main.finance.billing_out",
+  "story": "{open_n} exceptions are open with {exposure} billed outside the expected range.",
+  "questions": [
+    "Which rule raised the most exceptions this month?",
+    "Which open exceptions are older than 30 days?"
+  ],
+  "datasets": [
+    {
+      "name": "records",
+      "sql": "SELECT o.record_key, o.entity_id, o.entity_label, o.priority_tier, o.`rank`, o.top_reasons, o.recommended_action, o.value, o.exception_rule, o.age_days, o.as_of_date, a.region, a.segment, a.channel FROM main.finance.billing_out AS o JOIN main.finance.accounts AS a ON a.account_id = o.entity_id WHERE o.is_current AND o.change_source <> 'delete'"
+    },
+    {
+      "name": "signal",
+      "sql": "SELECT s.series, s.period, s.value, s.expected, s.lower, s.upper, s.is_anomaly, s.rule, a.region, a.segment, a.channel FROM main.finance.billing_out__signal AS s JOIN main.finance.accounts AS a ON a.account_id = s.series"
+    },
+    {
+      "name": "open_items",
+      "sql": "SELECT o.exception_rule, o.age_days, CASE WHEN o.age_days <= 7 THEN '0-7 days' WHEN o.age_days <= 30 THEN '8-30 days' WHEN o.age_days <= 90 THEN '31-90 days' ELSE 'Over 90 days' END AS age_bucket, o.value, a.region, a.segment, a.channel FROM main.finance.billing_out AS o JOIN main.finance.accounts AS a ON a.account_id = o.entity_id WHERE o.is_current AND o.change_source <> 'delete'"
+    }
+  ],
+  "filters": [
+    {
+      "id": "run_date",
+      "type": "date_range",
+      "label": "Run date",
+      "grain": "day",
+      "default": "12m",
+      "columns": {
+        "records": "as_of_date"
+      }
+    },
+    {
+      "id": "region",
+      "type": "multi_select",
+      "label": "Region",
+      "columns": {
+        "records": "region",
+        "signal": "region",
+        "open_items": "region"
+      }
+    },
+    {
+      "id": "segment",
+      "type": "multi_select",
+      "label": "Segment",
+      "columns": {
+        "records": "segment",
+        "signal": "segment",
+        "open_items": "segment"
+      }
+    },
+    {
+      "id": "channel",
+      "type": "multi_select",
+      "label": "Channel",
+      "columns": {
+        "records": "channel",
+        "signal": "channel",
+        "open_items": "channel"
+      }
+    }
+  ],
+  "kpis": [
+    {
+      "id": "open_n",
+      "label": "Open exceptions",
+      "dataset": "records",
+      "expression": "COUNT(*)",
+      "format": "integer",
+      "good": "down"
+    },
+    {
+      "id": "exposure",
+      "label": "Exposure",
+      "dataset": "records",
+      "expression": "SUM(value)",
+      "format": "currency",
+      "currency": "USD",
+      "good": "down"
+    },
+    {
+      "id": "anomalies",
+      "label": "Points outside the range",
+      "dataset": "signal",
+      "expression": "SUM(CASE WHEN is_anomaly THEN 1 ELSE 0 END)",
+      "format": "integer",
+      "good": "down"
+    },
+    {
+      "id": "old_n",
+      "label": "Open over 30 days",
+      "dataset": "open_items",
+      "expression": "SUM(CASE WHEN age_days > 30 THEN 1 ELSE 0 END)",
+      "format": "integer",
+      "good": "down"
+    }
+  ],
+  "charts": [
+    {
+      "id": "signal",
+      "section": "signal_band",
+      "title": "Billed against contract, with the expected range",
+      "hint": "Expected and its range come from the contract and the shipped weight.",
+      "so_what": "Points outside the range are the exceptions in the queue below.",
+      "type": "control",
+      "dataset": "signal",
+      "x": {
+        "column": "period",
+        "kind": "time",
+        "label": "Day"
+      },
+      "y": [
+        {
+          "label": "Billed",
+          "expression": "SUM(value)",
+          "format": "currency",
+          "currency": "USD"
+        },
+        {
+          "label": "Expected",
+          "expression": "SUM(expected)",
+          "format": "currency",
+          "currency": "USD"
+        },
+        {
+          "label": "Low",
+          "expression": "SUM(lower)",
+          "format": "currency",
+          "currency": "USD"
+        },
+        {
+          "label": "High",
+          "expression": "SUM(upper)",
+          "format": "currency",
+          "currency": "USD"
+        }
+      ],
+      "span": 2
+    },
+    {
+      "id": "by_rule",
+      "section": "exceptions_by_rule",
+      "title": "Exceptions by rule",
+      "hint": "Open exceptions by the rule that raised them.",
+      "so_what": "Fix the top rule at its source and most of the queue clears.",
+      "type": "pareto",
+      "dataset": "open_items",
+      "x": {
+        "column": "exception_rule",
+        "kind": "category",
+        "label": "Rule"
+      },
+      "y": [
+        {
+          "label": "Open exceptions",
+          "expression": "COUNT(*)",
+          "format": "integer"
+        }
+      ],
+      "limit": 10
+    },
+    {
+      "id": "by_age",
+      "section": "aging_buckets",
+      "title": "Age of the open exceptions",
+      "hint": "Open exceptions by days since they were raised.",
+      "so_what": "Clear the oldest first: they are the hardest to recover from the account.",
+      "type": "bar",
+      "dataset": "open_items",
+      "x": {
+        "column": "age_bucket",
+        "kind": "category",
+        "label": "Age"
+      },
+      "y": [
+        {
+          "label": "Open exceptions",
+          "expression": "COUNT(*)",
+          "format": "integer"
+        },
+        {
+          "label": "Exposure",
+          "expression": "SUM(value)",
+          "format": "currency",
+          "currency": "USD"
+        }
+      ]
+    }
+  ],
+  "tables": [],
+  "records": {
+    "title": "Triage queue",
+    "hint": "Open exceptions from the latest run, ranked by exposure.",
+    "key": "entity_id",
+    "label": "entity_label",
+    "sublabel": "exception_rule",
+    "rank": "rank",
+    "tier": "priority_tier",
+    "reasons": "top_reasons",
+    "action": "recommended_action",
+    "columns": [
+      {
+        "column": "exception_rule",
+        "label": "Rule",
+        "format": "text"
+      },
+      {
+        "column": "age_days",
+        "label": "Age (days)",
+        "format": "integer"
+      },
+      {
+        "column": "value",
+        "label": "Exposure",
+        "format": "currency",
+        "currency": "USD"
+      }
+    ],
+    "detail": [
+      {
+        "column": "region",
+        "label": "Region",
+        "format": "text"
+      },
+      {
+        "column": "segment",
+        "label": "Segment",
+        "format": "text"
+      },
+      {
+        "column": "channel",
+        "label": "Channel",
+        "format": "text"
+      }
+    ]
+  }
+}

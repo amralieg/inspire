@@ -1,0 +1,222 @@
+{
+  "version": 2,
+  "layout": "dashboard",
+  "id": "n05_u04",
+  "use_case_id": "N05-U04",
+  "title": "Sales performance overview",
+  "question": "How are sales moving this quarter, and which products and regions drive the change?",
+  "sponsor": "Head of Sales Operations",
+  "domain": "Sales",
+  "subdomain": "Performance reporting",
+  "icon": "grid",
+  "hue": "teal",
+  "result_table": "main.sales.performance_out",
+  "story": "Sales reached {revenue} this period, {growth} against the same period last year.",
+  "questions": [
+    "Which region grew fastest this quarter?",
+    "Which products lost the most sales against last year?"
+  ],
+  "datasets": [
+    {
+      "name": "summary",
+      "sql": "SELECT o.entity_id, o.entity_label, o.value AS revenue, o.prior_value, o.value - o.prior_value AS change, o.as_of_date, o.region, o.segment, o.channel FROM main.sales.performance_out AS o WHERE o.is_current AND o.change_source <> 'delete'"
+    },
+    {
+      "name": "months",
+      "sql": "SELECT m.month, m.revenue, m.prior_revenue, m.region, m.segment, m.channel FROM main.sales.monthly_sales AS m"
+    }
+  ],
+  "filters": [
+    {
+      "id": "run_date",
+      "type": "date_range",
+      "label": "Run date",
+      "grain": "day",
+      "default": "12m",
+      "columns": {
+        "summary": "as_of_date"
+      }
+    },
+    {
+      "id": "region",
+      "type": "multi_select",
+      "label": "Region",
+      "columns": {
+        "summary": "region",
+        "months": "region"
+      }
+    },
+    {
+      "id": "segment",
+      "type": "multi_select",
+      "label": "Segment",
+      "columns": {
+        "summary": "segment",
+        "months": "segment"
+      }
+    },
+    {
+      "id": "channel",
+      "type": "multi_select",
+      "label": "Channel",
+      "columns": {
+        "summary": "channel",
+        "months": "channel"
+      }
+    }
+  ],
+  "kpis": [
+    {
+      "id": "revenue",
+      "label": "Sales",
+      "dataset": "summary",
+      "expression": "SUM(revenue)",
+      "good": "up",
+      "format": "currency",
+      "currency": "USD"
+    },
+    {
+      "id": "prior",
+      "label": "Sales last year",
+      "dataset": "summary",
+      "expression": "SUM(prior_value)",
+      "good": "neutral",
+      "format": "currency",
+      "currency": "USD"
+    },
+    {
+      "id": "growth",
+      "label": "Growth",
+      "dataset": "summary",
+      "expression": "100 * (SUM(revenue) / NULLIF(SUM(prior_value), 0) - 1)",
+      "format": "percent",
+      "good": "up"
+    }
+  ],
+  "charts": [
+    {
+      "id": "trend",
+      "section": "charts",
+      "title": "The main trend",
+      "hint": "Monthly sales against the same month last year.",
+      "so_what": "A gap that widens two months running is the trend to act on; ask Genie which region drives it.",
+      "type": "line",
+      "dataset": "months",
+      "x": {
+        "column": "month",
+        "kind": "time",
+        "label": "Month"
+      },
+      "y": [
+        {
+          "format": "currency",
+          "currency": "USD",
+          "label": "Sales",
+          "expression": "SUM(revenue)"
+        },
+        {
+          "format": "currency",
+          "currency": "USD",
+          "label": "Last year",
+          "expression": "SUM(prior_revenue)"
+        }
+      ],
+      "span": 2
+    },
+    {
+      "id": "movers",
+      "section": "charts",
+      "title": "Biggest movers",
+      "hint": "Products with the largest change against last year.",
+      "so_what": "Talk to the owners of the top three movers before the next forecast.",
+      "type": "horizontal_bar",
+      "dataset": "summary",
+      "x": {
+        "column": "entity_label",
+        "kind": "category",
+        "label": "Product"
+      },
+      "y": [
+        {
+          "format": "currency",
+          "currency": "USD",
+          "label": "Change",
+          "expression": "SUM(change)"
+        }
+      ],
+      "limit": 10
+    },
+    {
+      "id": "by_region",
+      "section": "charts",
+      "title": "Breakdown by region",
+      "hint": "Sales by region for the filters you set.",
+      "so_what": "A region well below its share of last year needs its own review.",
+      "type": "bar",
+      "dataset": "summary",
+      "x": {
+        "column": "region",
+        "kind": "category",
+        "label": "Region"
+      },
+      "y": [
+        {
+          "format": "currency",
+          "currency": "USD",
+          "label": "Sales",
+          "expression": "SUM(revenue)"
+        },
+        {
+          "format": "currency",
+          "currency": "USD",
+          "label": "Last year",
+          "expression": "SUM(prior_value)"
+        }
+      ]
+    }
+  ],
+  "tables": [
+    {
+      "id": "rows",
+      "section": "tables",
+      "title": "Rows behind each chart",
+      "hint": "Each product with its sales and change.",
+      "so_what": "Sort by change to find the products behind the movers chart.",
+      "dataset": "summary",
+      "columns": [
+        {
+          "column": "entity_label",
+          "label": "Product",
+          "format": "text"
+        },
+        {
+          "column": "region",
+          "label": "Region",
+          "format": "text"
+        },
+        {
+          "format": "currency",
+          "currency": "USD",
+          "column": "revenue",
+          "label": "Sales"
+        },
+        {
+          "format": "currency",
+          "currency": "USD",
+          "column": "prior_value",
+          "label": "Last year"
+        },
+        {
+          "format": "currency",
+          "currency": "USD",
+          "column": "change",
+          "label": "Change"
+        }
+      ],
+      "sort": {
+        "column": "change",
+        "desc": true
+      }
+    }
+  ]
+}

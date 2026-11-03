@@ -204,6 +204,8 @@ SECTIONS = {
     "peer_scatter": {"charts": ("scatter",), "words": "a scatter against peers"},
     "driver_tornado": {"charts": ("tornado", "horizontal_bar"), "words": "a tornado chart of the drivers"},
     "cohort_triangle": {"charts": ("heatmap",), "words": "a cohort triangle"},
+    "funnel": {"charts": ("horizontal_bar", "bar", "pareto"), "words": "a funnel of the steps from start to finish"},
+    "quote_cards": {"tables": True, "words": "a table of the comments behind the numbers"},
     "effect_card": {"tables": True, "suffix": "__effect", "words": "the effect with its interval"},
     "counterfactual_band": {"charts": ("band",), "suffix": "__effect_series", "words": "actual against the counterfactual"},
     "incrementality_waterfall": {"charts": ("bridge",), "words": "an incrementality waterfall"},
@@ -237,6 +239,7 @@ SCENARIO_SWING = 0.1
 SCENARIO_SAVE = ("name", "levers", "outcome")
 DRAWN_CHARTS = {"scenario": 2, "target": 1}
 SO_WHAT_LAYOUTS = ("dashboard",)
+RUN_LEVEL_SUFFIXES = ("__bridge",)
 PLAN_FIELDS = ("title", "hint", "current", "recommended", "delta", "override", "format", "currency")
 CHART_KINDS = ("trend", "bars", "split", "pareto", "scatter")
 CHART_KIND_TYPES = {"trend": ("line", "area", "stacked_area"), "bars": ("bar", "horizontal_bar", "stacked_bar"), "split": ("donut",),
@@ -1182,7 +1185,7 @@ def quality_problems(page: dict, event_date: bool = False) -> list:
     if event_date and len(dates) < 2:
         problems.append("an input table has a date column, so add a second date range on that event date")
     whole = run_level_datasets(page)
-    if not whole and len(segments) < SEGMENT_FILTERS_MIN:
+    if not scenario_layout(page) and len(segments) < SEGMENT_FILTERS_MIN:
         problems.append(f"the page has {plural(len(segments), 'segment filter')}; add at least {SEGMENT_FILTERS_MIN} people can slice by")
     covered = {d for f in filters for d in (f.get("columns") or {})} | whole
     for kind, items in (("KPI", page.get("kpis") or []), ("chart", page.get("charts") or []), ("table", page.get("tables") or [])):
@@ -1434,12 +1437,16 @@ def scenario_problems(scenario, names: set, wanted: bool) -> list:
     return problems
 
 
+def scenario_layout(page: dict) -> bool:
+    return any((SECTIONS.get(s) or {}).get("holds") == "levers" for s in (layouts().get(page_layout(page)) or {}).get("sections") or [])
+
+
 def run_level_datasets(page: dict) -> set:
-    holds = {(SECTIONS.get(s) or {}).get("holds") for s in (layouts().get(page_layout(page)) or {}).get("sections") or []}
     result = page.get("result_table")
-    if "levers" not in holds or not result:
+    if not result:
         return set()
-    tables = [f"{result}{suffix}" for suffix in layout_contract(page)]
+    whole = scenario_layout(page)
+    tables = [f"{result}{suffix}" for suffix in layout_contract(page) if whole or suffix in RUN_LEVEL_SUFFIXES]
     return {str(d.get("name")) for d in page.get("datasets") or [] if isinstance(d, dict)
             and any(reads_table(d.get("sql"), table) for table in tables)}
 

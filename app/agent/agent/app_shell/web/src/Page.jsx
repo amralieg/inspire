@@ -21,7 +21,7 @@ import { genieOn } from './genieAsk.js';
 import PageLink from './PageLink.jsx';
 import Freshness from './Freshness.jsx';
 import { backendNotes, backendText } from './freshness.js';
-import { Skeleton } from './ui.jsx';
+import { Skeleton, SoWhat } from './ui.jsx';
 import MoneyCard from './Money.jsx';
 import SettingsPanel, { SettingsButton, useSettings } from './Settings.jsx';
 import { ownerSettings } from './settings.js';
@@ -85,7 +85,7 @@ function TableCard({ table, result, error, loading, onFilter, pageId, filters, v
   return (
     <section className="card card--table" aria-label={table.title}>
       <header className="card-h">
-        <div><h2>{table.title}</h2>{table.hint && <p>{table.hint}</p>}</div>
+        <div><h2>{table.title}</h2>{table.hint && <p>{table.hint}</p>}<SoWhat text={table.so_what} /></div>
         {filters?.length > 0 && <div className="tbar"><ColumnFilterStatus filters={filters} values={values} onClear={onClear} /></div>}
         <AskGenie kind="table" title={table.title} context={tableContext(table.hint || '', result?.rows || [], (row) => fieldsOf(row, columns))} />
       </header>

@@ -29,6 +29,12 @@ with open(os.path.join(SHELL, "examples", "scenario_lab.json"), encoding="utf-8"
     SCENARIO = json.load(_handle)
 with open(os.path.join(SHELL, "kinds.json"), encoding="utf-8") as _handle:
     KINDS = json.load(_handle)
+with open(os.path.join(SHELL, "examples", "monitor_triage.json"), encoding="utf-8") as _handle:
+    MONITOR = json.load(_handle)
+with open(os.path.join(SHELL, "examples", "performance_explainer.json"), encoding="utf-8") as _handle:
+    EXPLAINER = json.load(_handle)
+with open(os.path.join(SHELL, "examples", "dashboard.json"), encoding="utf-8") as _handle:
+    DASHBOARD = json.load(_handle)
 
 
 def forecast(**changes):
@@ -86,8 +92,14 @@ def test_a_version_1_page_loads_as_a_decision_queue_and_a_version_2_page_must_na
 
 
 @pytest.mark.parametrize("name, fragment", [("nowhere", "is not one of"), ("monitor_triage", "is not served yet")])
-def test_an_unknown_or_unserved_layout_is_refused(name, fragment):
+def test_an_unknown_or_unserved_layout_is_refused(name, fragment, monkeypatch):
+    registry = copy.deepcopy(shell_sql.kinds_registry())
+    for item in registry["layouts"]:
+        if item["id"] == "monitor_triage":
+            item["enabled"] = False
+    monkeypatch.setitem(shell_sql._REGISTRY, "data", registry)
     assert any(fragment in p for p in shell_sql.spec_problems(forecast(layout=name)))
+    assert "monitor_triage" not in shell_sql.enabled_layouts()
 
 
 def test_a_decision_queue_page_still_needs_a_drivers_chart_and_a_forecast_page_does_not():
@@ -277,6 +289,77 @@ def test_the_planner_example_reads_its_plan_and_constraints_companions_and_refus
     assert public["layout"]["tab_label"] == "Plan" and public["plan"]["recommended"] == "recommended_value"
 
 
+def test_the_monitor_example_draws_its_signal_from_the_signal_companion_and_needs_twenty_rows_in_its_triage_queue(capsys):
+    assert problems(MONITOR) == []
+    assert shell_sql.row_minimums(MONITOR) == [("triage_queue", 20, ("records", "records"))]
+    assert shell_sql.row_problems(MONITOR, {("records", "records"): 19})
+    assert shell_sql.row_problems(MONITOR, {("records", "records"): 20}) == []
+    capsys.readouterr()
+    moved = copy.deepcopy(MONITOR)
+    signal = next(d for d in moved["datasets"] if d["name"] == "signal")
+    signal["sql"] = signal["sql"].replace("billing_out__signal", "billing_signal")
+    found = shell_sql.quality_problems(moved)
+    assert any("signal_band section" in p and "reads main.finance.billing_out__signal" in p for p in found), found
+    listless = copy.deepcopy(MONITOR)
+    listless.pop("records")
+    assert any("triage_queue section" in p for p in shell_sql.spec_problems(listless))
+    public = shell_core.public_page(MONITOR)
+    assert public["layout"]["tab_label"] == "Triage" and public["layout"]["decides"] is True
+
+
+def test_the_explainer_reads_its_variance_bridge_and_peer_companions_and_refuses_a_variance_list_that_does_not():
+    assert problems(EXPLAINER) == []
+    assert shell_sql.row_minimums(EXPLAINER) == [("variance_table", 10, ("records", "records")), ("bridge", 3, ("chart", "walk"))]
+    for name, table in (("records", "unit_perf_out__variance"), ("walk", "unit_perf_out__bridge"), ("peers", "unit_perf_out__peers")):
+        broken = copy.deepcopy(EXPLAINER)
+        dataset = next(d for d in broken["datasets"] if d["name"] == name)
+        dataset["sql"] = dataset["sql"].replace(table, table.replace("__", "_old_"))
+        found = shell_sql.quality_problems(broken)
+        assert any(f"reads main.finance.{table}" in p for p in found), (name, found)
+    walkless = copy.deepcopy(EXPLAINER)
+    walkless["charts"] = [c for c in walkless["charts"] if c["section"] != "bridge"]
+    assert any("bridge section" in p for p in shell_sql.spec_problems(walkless))
+
+
+def test_the_bridge_is_one_walk_per_run_so_no_filter_needs_to_reach_it_but_every_other_dataset_still_does():
+    assert shell_sql.run_level_datasets(EXPLAINER) == {"walk"}
+    assert shell_sql.run_level_datasets(MONITOR) == set() and shell_sql.run_level_datasets(DASHBOARD) == set()
+    loose = copy.deepcopy(EXPLAINER)
+    for f in loose["filters"]:
+        f["columns"].pop("peers", None)
+    found = shell_sql.quality_problems(loose)
+    assert any("no filter reaches chart vs_peers" in p for p in found) and not any("dataset walk" in p for p in found), found
+    thin = copy.deepcopy(EXPLAINER)
+    thin["filters"] = [f for f in thin["filters"] if f["type"] == "date_range"]
+    assert any("segment filter" in p for p in shell_sql.quality_problems(thin)), "a bridge does not excuse the page from its segment filters"
+
+
+def test_the_dashboard_records_no_decisions_and_each_chart_and_table_needs_its_so_what_line():
+    assert problems(DASHBOARD) == [] and "records" not in DASHBOARD
+    public = shell_core.public_page(DASHBOARD)
+    assert public["layout"]["decides"] is False and public["layout"]["tab_label"] == "Overview"
+    assert all(item["so_what"] for group in ("charts", "tables") for item in public[group])
+    for group in ("charts", "tables"):
+        bare = copy.deepcopy(DASHBOARD)
+        bare[group][0].pop("so_what")
+        assert any(f"{group[:-1]} {DASHBOARD[group][0]['id']} has no so_what" in p for p in shell_sql.spec_problems(bare)), shell_sql.spec_problems(bare)
+    one = copy.deepcopy(DASHBOARD)
+    one["charts"] = one["charts"][:1]
+    assert any("needs 2 items in its charts section" in p for p in shell_sql.spec_problems(one)), shell_sql.spec_problems(one)
+
+
+def test_the_funnel_takes_bars_and_the_quote_cards_take_a_table():
+    page = copy.deepcopy(EXPLAINER)
+    page["tables"][1]["section"] = "funnel"
+    assert any("table said names section 'funnel'" in p for p in shell_sql.spec_problems(page))
+    page = copy.deepcopy(EXPLAINER)
+    page["charts"].append({"id": "steps", "section": "funnel", "title": "From lead to order", "hint": "Units at each step.", "type": "horizontal_bar", "dataset": "peers",
+                           "x": {"column": "metric", "kind": "category"}, "y": [{"label": "Units", "expression": "COUNT(*)", "format": "integer"}]})
+    assert shell_sql.spec_problems(page) == []
+    page["charts"][-1]["section"] = "quote_cards"
+    assert any("chart steps names section 'quote_cards'" in p for p in shell_sql.spec_problems(page))
+
+
 def test_a_section_counted_in_rows_needs_its_minimum_rows_at_the_default_filters(capsys):
     assert shell_sql.row_minimums(FORECAST) == [("at_risk_series", 5, ("records", "records"))]
     found = shell_sql.row_problems(FORECAST, {("records", "records"): 3})
@@ -414,9 +497,15 @@ def test_the_notebook_ships_the_kind_registry_with_the_app_its_modules_and_the_p
     ({"Analytics Technique": "Classification"}, "", "decision_queue"),
     ({"use_case_kind": "driver_scenarios", "Analytics Technique": "Classification"}, "", "scenario_lab"),
     ({"use_case_kind": "allocation"}, "", "planner"),
-    ({"app_layout": "dashboard", "use_case_kind": "allocation"}, "", "planner"),
+    ({"app_layout": "dashboard", "use_case_kind": "allocation"}, "", "dashboard"),
+    ({"app_layout": "kanban", "use_case_kind": "allocation"}, "", "planner"),
     ({"use_case_kind": "segmentation"}, "", "segment_explorer"),
-    ({"use_case_kind": "anomaly"}, "", "decision_queue"),
+    ({"use_case_kind": "anomaly"}, "", "monitor_triage"),
+    ({"Analytics Technique": "Anomaly Detection"}, "", "monitor_triage"),
+    ({"use_case_kind": "variance_to_plan"}, "", "performance_explainer"),
+    ({"use_case_kind": "driver_breakdown"}, "", "dashboard"),
+    ({"use_case_kind": "anomaly"}, "Use the dashboard layout, we only read it", "dashboard"),
+    ({"use_case_kind": "anomaly"}, "also build a dashboard for the billing team", "monitor_triage"),
     ({"Analytics Technique": "Forecasting"}, "Use the planner layout for the buyers", "planner"),
     ({"Analytics Technique": "Forecasting"}, "for the planner team to read", "forecast_cockpit"),
     ({"use_case_kind": "allocation"}, "show it as a decision_queue", "decision_queue"),

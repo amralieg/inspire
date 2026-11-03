@@ -86,7 +86,7 @@
    "id": "monitor_triage",
    "label": "Monitor and triage",
    "tab_label": "Triage",
-   "enabled": false,
+   "enabled": true,
    "contract": "monitor",
    "sections": [
     "todo",
@@ -218,7 +218,7 @@
    "id": "performance_explainer",
    "label": "Performance explainer",
    "tab_label": "Explain",
-   "enabled": false,
+   "enabled": true,
    "contract": "explainer",
    "sections": [
     "todo",
@@ -421,7 +421,7 @@
    "id": "dashboard",
    "label": "Dashboard",
    "tab_label": "Overview",
-   "enabled": false,
+   "enabled": true,
    "contract": null,
    "sections": [
     "todo",

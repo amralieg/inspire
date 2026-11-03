@@ -39,7 +39,7 @@ after(async () => {
 });
 
 const itemsIn = (page, section) => page.locator(`[data-section="${section}"]`).evaluateAll((nodes) => nodes.reduce((sum, n) => {
-  const rows = n.querySelectorAll('[data-plan-row], .rec').length;
+  const rows = n.querySelectorAll('[data-plan-row], tbody > tr:not(.plan-form)').length;
   const cards = n.querySelectorAll('[data-card]').length;
   return sum + (rows || cards || (n.querySelector('canvas, table, .kpi, .card') ? 1 : 0));
 }, 0));
@@ -174,6 +174,8 @@ test('the scenario lab opens with What to do now, moves the outcome with each le
   assert.ok(await page.locator('[data-section="scenario_table"] tbody tr').count() >= layout.min_items.scenario_table);
   assert.ok(await page.locator('[data-lever]').count() >= layout.min_items.lever_sliders);
   assert.equal(await page.locator('.view.is-on span').innerText(), 'Scenarios');
+  assert.match(await page.locator('[data-section="kpis"]').innerText(), /Chance of the target\s+31(\.0)?%/);
+  assert.match(await page.locator('[data-section="scenario_table"]').innerText(), /31(\.0)?%/);
   assert.match(await page.locator('[data-step="levers"]').innerText(), /Move the levers and watch the quarter margin/);
   assert.match(await page.locator('[data-quantiles]').innerText(), /P10 \$4\.6M · P50 \$5M · P90 \$5\.4M/);
   const price = page.getByLabel('Average price');
@@ -199,6 +201,153 @@ test('the scenario lab hides Save when the App does not let people change its da
   await page.locator('[data-lever="price"]').waitFor();
   assert.equal(await page.getByRole('button', { name: 'Save the scenario' }).count(), 0);
   assert.equal(await page.locator('[data-step="save"]').count(), 0);
+  assert.deepEqual(seen.errors, []);
+  await context.close();
+});
+
+const DAYS = Array.from({ length: 30 }, (_, i) => new Date(Date.UTC(2026, 8, 1 + i)).toISOString().slice(0, 10));
+const TRIAGE = Array.from({ length: 24 }, (_, i) => ({
+  record_key: `E${i + 1}`, _inspire_key: `E${i + 1}`, _inspire_version: String(700 + i), entity_id: `A${i + 1}`, entity_label: `Account ${i + 1}`,
+  exception_rule: ['Rate above contract', 'Weight mismatch', 'Duplicate line'][i % 3], age_days: 3 + i * 4, priority_tier: 'Act now', rank: i + 1,
+  value: 24000 - i * 900, recommended_action: 'Credit the difference', top_reasons: ['billed above the range'], as_of_date: '2026-10-15',
+}));
+
+function monitorRoutes() {
+  return {
+    page: ({ json }) => json(200, {
+      kpis: { open_n: { now: 24 }, exposure: { now: 310000 }, anomalies: { now: 9 }, old_n: { now: 15 } },
+      charts: {
+        signal: { columns: [], rows: DAYS.map((x, i) => ({ x, y0: i % 9 === 4 ? 160 : 100 + (i % 5), y1: 100, y2: 90, y3: 110 })), truncated: false },
+        by_rule: { columns: [], rows: [['Rate above contract', 11], ['Weight mismatch', 8], ['Duplicate line', 5]].map(([x, y0]) => ({ x, y0 })), truncated: false },
+        by_age: { columns: [], rows: [['0-7 days', 4, 40000], ['8-30 days', 5, 70000], ['31-90 days', 9, 120000], ['Over 90 days', 6, 80000]].map(([x, y0, y1]) => ({ x, y0, y1 })), truncated: false },
+      },
+      tables: {}, errors: {},
+    }),
+    records: ({ route, json }) => {
+      const body = route.request().postDataJSON();
+      return json(200, { rows: TRIAGE.slice(0, body.limit || 25), total: TRIAGE.length, offset: 0, limit: body.limit || 25, actions: true, changes: false,
+        summary: { open: 24, done: 0, resolved: 0, left: 24, owners: [] }, errors: {} });
+    },
+  };
+}
+
+test('the monitor opens with What to do now, draws the signal with its range, the triage queue and the exceptions by rule and by age', async () => {
+  const info = appInfo(DECIDE, 1, {}, 'examples/monitor_triage.json');
+  const layout = KINDS.layouts.find((l) => l.id === 'monitor_triage');
+  assert.equal(layout.enabled, true);
+  assert.deepEqual(info.pages[0].layout.sections, layout.sections);
+  const { page, seen, context } = await openApp(browser, base, info, { routes: monitorRoutes() });
+  await page.waitForFunction(() => document.querySelectorAll('[data-section] canvas').length >= 3);
+  await page.locator('[data-section="triage_queue"] tbody tr').first().waitFor();
+  assert.deepEqual([...new Set(await sectionsOf(page))], ['todo', 'kpis', 'signal_band', 'triage_queue', 'exceptions_by_rule', 'aging_buckets']);
+  for (const [section, low] of Object.entries(layout.min_items)) {
+    const n = await itemsIn(page, section);
+    assert.ok(n >= low, `${section} holds ${n}, needs ${low}`);
+  }
+  assert.equal(await page.locator('.view.is-on span').innerText(), 'Triage');
+  assert.equal(await page.locator('[data-todo-count]').innerText(), '24 of 24 waiting for you');
+  assert.match(await page.locator('[data-step="first"]').innerText(), /Start with Account 1/);
+  assert.match(await page.locator('[data-section="signal_band"] [data-so-what]').innerText(), /outside the range are the exceptions/);
+  assert.deepEqual(seen.errors, []);
+  await context.close();
+});
+
+const UNITS = Array.from({ length: 12 }, (_, i) => ({
+  record_key: `U${i + 1}`, _inspire_key: `U${i + 1}`, _inspire_version: String(800 + i), entity_id: `U${i + 1}`, entity_label: `Unit ${i + 1}`,
+  segment: 'Retail', priority_tier: 'Act now', rank: i + 1, value: 50000 - i * 3000, actual: 1000000 - i * 40000, plan: 1050000 - i * 30000,
+  variance: -50000 - i * 1000, tolerance: 31500, recommended_action: 'Name an owner', top_reasons: ['volume below plan'], as_of_date: '2026-10-15',
+}));
+const STEPS = [['Plan', 1200000], ['Volume', -90000], ['Price', 40000], ['Mix', -20000], ['Actual', 1130000]];
+
+function explainerRoutes() {
+  return {
+    page: ({ json }) => json(200, {
+      kpis: { actual: { now: 1130000 }, plan: { now: 1200000 }, variance: { now: -70000 }, outside_n: { now: 7 } },
+      charts: {
+        walk: { columns: [], rows: STEPS.map(([x, y0]) => ({ x, y0 })), truncated: false },
+        vs_peers: { columns: [], rows: UNITS.map((u, i) => ({ x_label: u.entity_label, x: 900 + i * 10, y0: 880 + i * 15 })), truncated: false },
+        drivers: { columns: [], rows: STEPS.slice(1, -1).map(([x, v]) => ({ x, y0: Math.min(v, 0), y1: Math.max(v, 0) })), truncated: false },
+      },
+      tables: {
+        peer_gaps: { columns: [], rows: UNITS.slice(0, 4).map((u, i) => ({ unit_label: u.entity_label, peer_group: 'Large', metric: 'Sales', peer_median: 1000000, gap: -40000 + i * 5000 })), truncated: false },
+        said: { columns: [], rows: [{ unit_label: 'Unit 1', reason: 'Late launch', remark: 'The new line shipped two weeks late.', author: 'Unit owner' }], truncated: false },
+      },
+      errors: {},
+    }),
+    records: ({ route, json }) => {
+      const body = route.request().postDataJSON();
+      return json(200, { rows: UNITS.slice(0, body.limit || 25), total: UNITS.length, offset: 0, limit: body.limit || 25, actions: true, changes: false,
+        summary: { open: 12, done: 0, resolved: 0, left: 12, owners: [] }, errors: {} });
+    },
+  };
+}
+
+test('the explainer opens with What to do now, draws the variance list, the bridge from plan to actual, the peers and the drivers', async () => {
+  const info = appInfo(DECIDE, 1, {}, 'examples/performance_explainer.json');
+  const layout = KINDS.layouts.find((l) => l.id === 'performance_explainer');
+  assert.equal(layout.enabled, true);
+  assert.deepEqual(info.pages[0].layout.sections, layout.sections);
+  const { page, seen, context } = await openApp(browser, base, info, { routes: explainerRoutes() });
+  await page.waitForFunction(() => document.querySelectorAll('[data-section] canvas').length >= 3);
+  await page.locator('[data-section="variance_table"] tbody tr').first().waitFor();
+  await page.locator('[data-section="quote_cards"] tbody tr').first().waitFor();
+  assert.deepEqual([...new Set(await sectionsOf(page))], ['todo', 'kpis', 'variance_table', 'bridge', 'peer_table', 'peer_scatter', 'driver_tornado', 'quote_cards']);
+  for (const [section, low] of Object.entries(layout.min_items)) {
+    const n = section === 'bridge' ? Number(await page.locator('[data-section="bridge"] [data-card]').getAttribute('data-rows')) : await itemsIn(page, section);
+    assert.ok(n >= low, `${section} holds ${n}, needs ${low}`);
+  }
+  assert.equal(await page.locator('.view.is-on span').innerText(), 'Explain');
+  assert.match(await page.locator('[data-section="variance_table"]').innerText(), /Unit 1/);
+  assert.match(await page.locator('[data-section="quote_cards"]').innerText(), /shipped two weeks late/);
+  assert.match(await page.locator('[data-section="bridge"] [data-so-what]').innerText(), /biggest step/);
+  assert.deepEqual(seen.errors, []);
+  await context.close();
+});
+
+function dashboardRoutes(asked) {
+  return {
+    page: ({ json }) => json(200, {
+      kpis: { revenue: { now: 4200000, before: 3900000 }, prior: { now: 3900000 }, growth: { now: 7.7 } },
+      charts: {
+        trend: { columns: [], rows: MONTHS6.map((x, i) => ({ x, y0: 600000 + i * 20000, y1: 580000 + i * 10000 })), truncated: false },
+        movers: { columns: [], rows: [['Oat bar', 90000], ['Tea tin', -60000], ['Rye loaf', 40000]].map(([x, y0]) => ({ x, y0 })), truncated: false },
+        by_region: { columns: [], rows: [['North', 2100000, 1900000], ['South', 2100000, 2000000]].map(([x, y0, y1]) => ({ x, y0, y1 })), truncated: false },
+      },
+      tables: { rows: { columns: [], rows: [{ entity_label: 'Oat bar', region: 'North', revenue: 900000, prior_value: 810000, change: 90000 }], truncated: false } },
+      errors: {},
+    }),
+    records: ({ route, json }) => {
+      asked.push(route.request().postDataJSON());
+      return json(500, { error: 'a dashboard reads no decision list' });
+    },
+  };
+}
+const MONTHS6 = Array.from({ length: 6 }, (_, i) => new Date(Date.UTC(2026, 4 + i, 1)).toISOString().slice(0, 10));
+
+test('the dashboard is read only: What to do now, a So what line and Ask Genie on every chart and table, and no decision list', async () => {
+  const info = appInfo(DECIDE, 1, {}, 'examples/dashboard.json');
+  const layout = KINDS.layouts.find((l) => l.id === 'dashboard');
+  assert.equal(layout.enabled, true);
+  assert.deepEqual(info.pages[0].layout.sections, layout.sections);
+  assert.equal(info.pages[0].layout.decides, false);
+  const asked = [];
+  const { page, seen, context } = await openApp(browser, base, info, { routes: dashboardRoutes(asked) });
+  await page.waitForFunction(() => document.querySelectorAll('[data-section] canvas').length >= 3);
+  await page.locator('[data-section="tables"] tbody tr').first().waitFor();
+  assert.deepEqual([...new Set(await sectionsOf(page))], ['todo', 'kpis', 'charts', 'tables']);
+  for (const [section, low] of Object.entries(layout.min_items)) {
+    const n = await itemsIn(page, section);
+    assert.ok(n >= low, `${section} holds ${n}, needs ${low}`);
+  }
+  assert.equal(await page.locator('.view.is-on span').innerText(), 'Overview');
+  assert.match(await page.locator('[data-section="kpis"]').innerText(), /Growth\s+7\.7%/);
+  const widgets = info.pages[0].charts.length + info.pages[0].tables.length;
+  assert.equal(await page.locator('[data-section="charts"] [data-so-what], [data-section="tables"] [data-so-what]').count(), widgets);
+  assert.equal(await page.locator('[data-section="charts"] [data-ask], [data-section="tables"] [data-ask="table"]').count(), widgets);
+  assert.deepEqual(await page.locator('[data-section="todo"] [data-step]').evaluateAll((n) => n.map((s) => s.dataset.step)), ['read', 'so_what', 'filters', 'genie']);
+  assert.equal(await page.locator('[data-todo-count]').count(), 0);
+  assert.equal(await page.getByRole('button', { name: 'Accept' }).count(), 0);
+  assert.deepEqual(asked, [], 'a dashboard never asks for a decision list');
   assert.deepEqual(seen.errors, []);
   await context.close();
 });

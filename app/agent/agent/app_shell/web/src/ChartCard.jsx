@@ -4,7 +4,7 @@ import { HORIZONS, chartIsEmpty, chartOption } from './charts.js';
 import { countOf, largestFirst, numberOf } from './format.js';
 import { chartPalette, hueVars, reducedMotion } from './theme.js';
 import { Icon } from './icons.jsx';
-import { Menu, Skeleton, useToast } from './ui.jsx';
+import { Menu, Skeleton, SoWhat, useToast } from './ui.jsx';
 import { saveBlob, saveDataUrl } from './api.js';
 import { barsContext, chartContext, chartItems, chartKind } from './explain.js';
 import { ExplainButton } from './Genie.jsx';
@@ -141,11 +141,11 @@ export default function ChartCard({ chart, wide, result, error, loading, themeKe
   }
 
   return (
-    <article className={`card ${wide ? 'card--wide' : ''} ${fold.folded ? 'card--folded' : ''}`} data-card={chart.id}>
+    <article className={`card ${wide ? 'card--wide' : ''} ${fold.folded ? 'card--folded' : ''}`} data-card={chart.id} data-rows={option ? rows.length : undefined}>
       <header className="card-h">
         <div>
           <h2>{chart.title}</h2>{chart.hint && <p>{chart.hint}{!fold.folded && chart.click_filter ? ' Click a bar or slice to filter the page.' : ''}</p>}
-          {chart.so_what && <p className="so-what" data-so-what><b>So what:</b> {chart.so_what}</p>}
+          <SoWhat text={chart.so_what} />
         </div>
         {chart.type === 'band' && !fold.folded && (
           <div className="seg" role="group" aria-label="Forecast horizon" data-horizon>

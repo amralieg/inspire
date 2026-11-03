@@ -71,7 +71,7 @@ export function plannerRoutes(decided, solved) {
 }
 
 const SCENARIOS = [['base', 5000000, 4600000, 5400000, 0.31], ['upside', 5600000, 5100000, 6000000, 0.7], ['downside', 4400000, 4000000, 4800000, 0.05]]
-  .map(([scenario_id, p50, p10, p90, prob_target]) => ({ scenario_id, p10, p50, p90, prob_target }));
+  .map(([scenario_id, p50, p10, p90, prob_target]) => ({ scenario_id, p10, p50, p90, prob_target, chance_pct: prob_target * 100 }));
 
 export function evaluated(values) {
   const levers = [['price', 12, 0.4e6], ['volume', 400000, 9], ['unit_cost', 7, -0.4e6]].map(([lever, base, k]) => ({ lever, base, low: base * 0.9, high: base * 1.1, value: values[lever] ?? base, k }));
@@ -84,7 +84,7 @@ export function evaluated(values) {
 export function scenarioRoutes(asked, saved) {
   return {
     page: ({ json }) => json(200, {
-      kpis: { base_p50: { now: 5000000 }, base_chance: { now: 0.31 }, last_margin: { now: 4800000, before: 4700000 } },
+      kpis: { base_p50: { now: 5000000 }, base_chance: { now: 31 }, last_margin: { now: 4800000, before: 4700000 } },
       charts: { swing: { columns: [], rows: [{ x: 'price', y0: -480000, y1: 480000 }, { x: 'volume', y0: -360000, y1: 360000 }, { x: 'unit_cost', y0: -280000, y1: 280000 }], truncated: false } },
       tables: { scenarios: { columns: [], rows: SCENARIOS, truncated: false } }, errors: {},
     }),
