@@ -1,0 +1,3833 @@
+{
+ "version": 1,
+ "placeholders": [
+  "owner",
+  "objects",
+  "kpi",
+  "signal_columns",
+  "value_at_stake",
+  "cadence",
+  "threshold",
+  "result_table"
+ ],
+ "families": [
+  {
+   "id": "measure_explain",
+   "label": "Measure and explain"
+  },
+  {
+   "id": "predict",
+   "label": "Predict"
+  },
+  {
+   "id": "decide_optimize",
+   "label": "Decide and optimize"
+  },
+  {
+   "id": "simulate_plan",
+   "label": "Simulate and plan"
+  },
+  {
+   "id": "measure_impact",
+   "label": "Measure impact"
+  },
+  {
+   "id": "detect_protect",
+   "label": "Detect and protect"
+  },
+  {
+   "id": "know_entities",
+   "label": "Know customers, products and suppliers"
+  },
+  {
+   "id": "run_processes",
+   "label": "Run processes"
+  },
+  {
+   "id": "place_relationships",
+   "label": "Place and relationships"
+  },
+  {
+   "id": "text_agents",
+   "label": "Text and agents"
+  }
+ ],
+ "layouts": [
+  {
+   "id": "decision_queue",
+   "label": "Decision queue",
+   "tab_label": "Decide",
+   "enabled": true,
+   "contract": "decision_queue",
+   "sections": [
+    "todo",
+    "kpis",
+    "decision_list",
+    "score_histogram",
+    "gains_curve",
+    "reason_waterfall",
+    "capacity_slider"
+   ],
+   "min_items": {
+    "decision_list": 20
+   }
+  },
+  {
+   "id": "monitor_triage",
+   "label": "Monitor and triage",
+   "tab_label": "Triage",
+   "enabled": false,
+   "contract": "monitor",
+   "sections": [
+    "todo",
+    "kpis",
+    "signal_band",
+    "control_chart",
+    "triage_queue",
+    "exceptions_by_rule",
+    "aging_buckets"
+   ],
+   "min_items": {
+    "triage_queue": 20
+   }
+  },
+  {
+   "id": "forecast_cockpit",
+   "label": "Forecast cockpit",
+   "tab_label": "Forecast",
+   "enabled": false,
+   "contract": "forecast",
+   "sections": [
+    "todo",
+    "kpis",
+    "fan_chart",
+    "horizon_selector",
+    "forecast_vs_capacity",
+    "accuracy_by_series",
+    "at_risk_series",
+    "small_multiples"
+   ],
+   "min_items": {
+    "at_risk_series": 5,
+    "fan_chart": 1
+   }
+  },
+  {
+   "id": "scenario_lab",
+   "label": "Scenario lab",
+   "tab_label": "Scenarios",
+   "enabled": false,
+   "contract": "scenario",
+   "sections": [
+    "todo",
+    "kpis",
+    "lever_sliders",
+    "outcome_distribution",
+    "fan_chart",
+    "scenario_table",
+    "target_gauge",
+    "tornado"
+   ],
+   "min_items": {
+    "lever_sliders": 2,
+    "scenario_table": 3
+   }
+  },
+  {
+   "id": "planner",
+   "label": "Planner",
+   "tab_label": "Plan",
+   "enabled": false,
+   "contract": "plan",
+   "sections": [
+    "todo",
+    "kpis",
+    "objective_kpi",
+    "plan_table",
+    "constraint_bars",
+    "sensitivity_tornado",
+    "gantt",
+    "allocation_flow",
+    "resolve"
+   ],
+   "min_items": {
+    "plan_table": 3,
+    "constraint_bars": 1
+   }
+  },
+  {
+   "id": "segment_explorer",
+   "label": "Segment explorer",
+   "tab_label": "Segments",
+   "enabled": false,
+   "contract": "segments",
+   "sections": [
+    "todo",
+    "kpis",
+    "segment_cards",
+    "segment_profile",
+    "projection",
+    "size_value_treemap",
+    "migration_flow"
+   ],
+   "min_items": {
+    "segment_cards": 3
+   }
+  },
+  {
+   "id": "recommendation_desk",
+   "label": "Recommendation desk",
+   "tab_label": "Recommend",
+   "enabled": false,
+   "contract": "recommendations",
+   "sections": [
+    "todo",
+    "kpis",
+    "rec_list",
+    "affinity_heatmap",
+    "lift_vs_popularity",
+    "coverage"
+   ],
+   "min_items": {
+    "rec_list": 20
+   }
+  },
+  {
+   "id": "performance_explainer",
+   "label": "Performance explainer",
+   "tab_label": "Explain",
+   "enabled": false,
+   "contract": "explainer",
+   "sections": [
+    "todo",
+    "kpis",
+    "variance_table",
+    "bridge",
+    "peer_table",
+    "peer_scatter",
+    "driver_tornado",
+    "cohort_triangle",
+    "funnel",
+    "quote_cards"
+   ],
+   "min_items": {
+    "variance_table": 10,
+    "bridge": 3
+   }
+  },
+  {
+   "id": "lift_readout",
+   "label": "Lift readout",
+   "tab_label": "Lift",
+   "enabled": false,
+   "contract": "impact",
+   "sections": [
+    "todo",
+    "kpis",
+    "effect_card",
+    "counterfactual_band",
+    "incrementality_waterfall",
+    "response_curves",
+    "keep_scale_stop"
+   ],
+   "min_items": {
+    "keep_scale_stop": 3,
+    "effect_card": 1
+   }
+  },
+  {
+   "id": "process_flow",
+   "label": "Process flow",
+   "tab_label": "Flow",
+   "enabled": false,
+   "contract": "process",
+   "sections": [
+    "todo",
+    "kpis",
+    "process_map",
+    "bottleneck_ranking",
+    "rework_loops",
+    "cycle_time_box",
+    "breach_risk_cases"
+   ],
+   "min_items": {
+    "process_map": 3,
+    "breach_risk_cases": 20
+   }
+  },
+  {
+   "id": "location_view",
+   "label": "Location view",
+   "tab_label": "Map",
+   "enabled": false,
+   "contract": "location",
+   "sections": [
+    "todo",
+    "kpis",
+    "map",
+    "linked_list",
+    "density",
+    "ranked_sites"
+   ],
+   "min_items": {
+    "ranked_sites": 3
+   }
+  },
+  {
+   "id": "network_explorer",
+   "label": "Network explorer",
+   "tab_label": "Network",
+   "enabled": false,
+   "contract": "network",
+   "sections": [
+    "todo",
+    "kpis",
+    "graph",
+    "centrality_list",
+    "neighbors",
+    "match_pairs"
+   ],
+   "min_items": {
+    "centrality_list": 10
+   }
+  },
+  {
+   "id": "agent_chat",
+   "label": "Data agent",
+   "tab_label": "Ask",
+   "enabled": false,
+   "contract": null,
+   "sections": [
+    "conversation",
+    "suggested_questions",
+    "cited_sql",
+    "feedback"
+   ],
+   "min_items": {
+    "suggested_questions": 5
+   }
+  },
+  {
+   "id": "dashboard",
+   "label": "Dashboard",
+   "tab_label": "Overview",
+   "enabled": false,
+   "contract": null,
+   "sections": [
+    "todo",
+    "kpis",
+    "filters",
+    "charts",
+    "tables"
+   ],
+   "min_items": {
+    "charts": 2
+   }
+  }
+ ],
+ "contracts": {
+  "forecast": {
+   "suffixes": {
+    "__series": [
+     "series_id",
+     "period",
+     "actual",
+     "forecast",
+     "lower",
+     "upper",
+     "is_future",
+     "method",
+     "backtest_mase"
+    ]
+   }
+  },
+  "scenario": {
+   "suffixes": {
+    "__scenarios": [
+     "scenario_id",
+     "lever_values",
+     "outcome",
+     "p10",
+     "p50",
+     "p90",
+     "prob_target"
+    ],
+    "__sensitivity": [
+     "lever",
+     "low",
+     "high",
+     "delta"
+    ],
+    "__scenario_model": [
+     "driver",
+     "coefficient"
+    ]
+   }
+  },
+  "plan": {
+   "suffixes": {
+    "__plan": [
+     "entity",
+     "decision",
+     "current_value",
+     "recommended_value",
+     "delta",
+     "objective_contribution"
+    ],
+    "__constraints": [
+     "name",
+     "limit",
+     "used",
+     "slack",
+     "shadow_price"
+    ]
+   }
+  },
+  "segments": {
+   "suffixes": {
+    "__segments": [
+     "segment_id",
+     "label",
+     "size",
+     "value",
+     "profile"
+    ],
+    "__assign": [
+     "entity",
+     "segment",
+     "x",
+     "y"
+    ],
+    "__migration": [
+     "from_segment",
+     "to_segment",
+     "count"
+    ]
+   }
+  },
+  "recommendations": {
+   "suffixes": {
+    "__recs": [
+     "entity",
+     "rank",
+     "item",
+     "score",
+     "reason"
+    ]
+   }
+  },
+  "explainer": {
+   "suffixes": {
+    "__variance": [
+     "unit",
+     "period",
+     "actual",
+     "plan",
+     "variance",
+     "tolerance"
+    ],
+    "__bridge": [
+     "step",
+     "label",
+     "value",
+     "step_type"
+    ],
+    "__peers": [
+     "unit",
+     "peer_group",
+     "metric",
+     "peer_median",
+     "gap"
+    ]
+   }
+  },
+  "impact": {
+   "suffixes": {
+    "__effect": [
+     "intervention",
+     "metric",
+     "effect",
+     "lower",
+     "upper",
+     "p_value",
+     "incremental_value",
+     "cost",
+     "roi"
+    ],
+    "__effect_series": [
+     "period",
+     "actual",
+     "counterfactual",
+     "lower",
+     "upper"
+    ]
+   }
+  },
+  "process": {
+   "suffixes": {
+    "__transitions": [
+     "from_step",
+     "to_step",
+     "cases",
+     "median_hours",
+     "p90_hours",
+     "rework"
+    ],
+    "__cases": [
+     "case_id",
+     "step",
+     "age_hours",
+     "breach_risk"
+    ]
+   }
+  },
+  "location": {
+   "suffixes": {
+    "__geo": [
+     "entity",
+     "lat",
+     "lon",
+     "region_code",
+     "metric"
+    ]
+   }
+  },
+  "network": {
+   "suffixes": {
+    "__nodes": [
+     "node",
+     "label",
+     "community",
+     "centrality",
+     "metric"
+    ],
+    "__edges": [
+     "src",
+     "dst",
+     "weight"
+    ]
+   }
+  },
+  "monitor": {
+   "suffixes": {
+    "__signal": [
+     "series",
+     "period",
+     "value",
+     "expected",
+     "lower",
+     "upper",
+     "is_anomaly",
+     "rule"
+    ]
+   }
+  },
+  "decision_queue": {
+   "suffixes": {
+    "__score_bins": [
+     "bin",
+     "count",
+     "cutoff"
+    ],
+    "__lift": [
+     "decile",
+     "captured_share",
+     "cost_at_cutoff"
+    ]
+   }
+  }
+ },
+ "roles": [
+  {
+   "id": "money",
+   "label": "Money",
+   "description": "an amount in a currency: revenue, sales, spend, balance, value"
+  },
+  {
+   "id": "quantity",
+   "label": "Quantity",
+   "description": "a count of units: units sold, items, orders, visits"
+  },
+  {
+   "id": "price",
+   "label": "Price",
+   "description": "a price per unit, a list price, a discount or a rate charged"
+  },
+  {
+   "id": "cost",
+   "label": "Cost",
+   "description": "a cost per unit or in total: unit cost, freight, handling, fees"
+  },
+  {
+   "id": "budget_target",
+   "label": "Budget or target",
+   "description": "a plan, budget, target, quota or forecast someone committed to"
+  },
+  {
+   "id": "capacity_limit",
+   "label": "Capacity or limit",
+   "description": "a capacity, limit, maximum, headcount or shelf space that bounds a decision"
+  },
+  {
+   "id": "rate_probability",
+   "label": "Rate or probability",
+   "description": "a ratio, rate, share or probability between 0 and 1 or in percent"
+  },
+  {
+   "id": "event_time",
+   "label": "Event time",
+   "description": "when something happened or is due: created, due, resolved, start, end, *_at, *_date"
+  },
+  {
+   "id": "status_activity",
+   "label": "Status or activity",
+   "description": "a status, stage, activity or outcome label that changes over time"
+  },
+  {
+   "id": "case_id",
+   "label": "Case id",
+   "description": "the id of a case, ticket, order or claim that moves through steps"
+  },
+  {
+   "id": "latitude",
+   "label": "Latitude",
+   "description": "a latitude in degrees"
+  },
+  {
+   "id": "longitude",
+   "label": "Longitude",
+   "description": "a longitude in degrees"
+  },
+  {
+   "id": "region_code",
+   "label": "Region code",
+   "description": "a country, state, region, postcode or territory code"
+  },
+  {
+   "id": "edge_pair",
+   "label": "Edge pair",
+   "description": "two foreign keys to the same entity, such as sender and receiver"
+  },
+  {
+   "id": "treatment",
+   "label": "Treatment",
+   "description": "a treatment, variant, promotion, campaign or channel flag"
+  },
+  {
+   "id": "spec_limit",
+   "label": "Spec limit",
+   "description": "an upper or lower specification or tolerance limit"
+  },
+  {
+   "id": "approver_creator",
+   "label": "Approver or creator",
+   "description": "who created, approved, posted or changed a record"
+  },
+  {
+   "id": "score_limit",
+   "label": "Score or limit",
+   "description": "a score with a cutoff, a credit limit or a policy threshold"
+  },
+  {
+   "id": "free_text",
+   "label": "Free text",
+   "description": "a comment, note, description, reason or review written by people"
+  }
+ ],
+ "technique_kind": {
+  "Classification": "risk_propensity",
+  "Predictive Modeling": "risk_propensity",
+  "Survival Analysis": "time_to_event",
+  "Anomaly Detection": "anomaly",
+  "Clustering": "segmentation",
+  "Segmentation": "segmentation",
+  "Recommendation": "next_best_action",
+  "Forecasting": "forecast",
+  "Trend Analysis": "leading_indicators",
+  "Correlation Analysis": "leading_indicators",
+  "Pareto Analysis": "driver_breakdown",
+  "Cohort Analysis": "lifetime_value",
+  "Funnel Analysis": "journey_path",
+  "Regression Analysis": "driver_breakdown",
+  "Geospatial Analysis": "location_intelligence",
+  "Network Analysis": "network_dependency",
+  "AI Analysis": "data_agent",
+  "Sentiment Analysis": "reason_codes",
+  "Document Processing": "reason_codes",
+  "Extraction": "reason_codes",
+  "Optimization": "allocation",
+  "Simulation": "driver_scenarios",
+  "Decomposition": "driver_breakdown",
+  "Peer Benchmarking": "peer_benchmarking",
+  "Process Mining": "process_mining",
+  "Sequence Analysis": "next_event",
+  "Causal Impact": "experiment_readout",
+  "Uplift Modeling": "uplift_targeting",
+  "Marketing Mix Modeling": "marketing_mix",
+  "Threshold Optimization": "threshold_tuning",
+  "Queueing": "staffing_queueing",
+  "Controls Testing": "controls_testing",
+  "Statistical Process Control": "process_control",
+  "Entity Matching": "entity_matching",
+  "Lifetime Value": "lifetime_value",
+  "Data Agent": "data_agent"
+ },
+ "kinds": [
+  {
+   "id": "variance_to_plan",
+   "num": 1,
+   "family": "measure_explain",
+   "label": "Variance to plan",
+   "question": "Which units are off plan beyond tolerance, why, and who acts on each one?",
+   "informational": false,
+   "layout": "performance_explainer",
+   "decision_layout": null,
+   "signature": {
+    "roles_all": [
+     "budget_target",
+     "event_time"
+    ],
+    "roles_any": [
+     "money",
+     "quantity"
+    ],
+    "min_counts": {},
+    "fk_pattern": null
+   },
+   "techniques": [
+    "Decomposition",
+    "Regression Analysis",
+    "Trend Analysis"
+   ],
+   "contract": "explainer",
+   "value_lever": "revenue",
+   "value_formula": "variance beyond tolerance recovered: (plan - actual) on the units {owner} acts on, from {signal_columns}; current estimate {value_at_stake}",
+   "serving_template": "A performance explainer for {owner} that shows where {kpi} moved, why, and which {objects} need an owner: app, dashboard, Genie room, alert.",
+   "method_plain": {
+    "Decomposition": "Decomposition: the change in {kpi} is split into price, volume, mix and other steps from {signal_columns}.",
+    "Regression Analysis": "Regression: the effect of each driver in {signal_columns} on {kpi} is estimated with its interval.",
+    "Trend Analysis": "Trend analysis: the change of {kpi} over time in {signal_columns} is measured with its significance."
+   },
+   "strip_must_remain": "a driver bridge from plan to actual, a tolerance per unit, and an owner and action for each unit outside it",
+   "genie": {
+    "questions": [
+     "Which {objects} are furthest below plan this period?",
+     "What explains the gap between plan and actual {kpi}?",
+     "Which {objects} have been outside tolerance for three periods in a row?",
+     "How much of the variance is price and how much is volume?",
+     "Which owner has the most {objects} off plan?"
+    ],
+    "measures": [
+     "sum(actual)",
+     "sum(plan)",
+     "sum(actual) - sum(plan)",
+     "count_if(abs(variance) > tolerance)"
+    ]
+   },
+   "alerts": [
+    {
+     "name": "Variance outside tolerance",
+     "rule": "count of {result_table}__variance rows with abs(variance) > tolerance in the latest period > {threshold}"
+    }
+   ],
+   "dashboard": {
+    "widgets": [
+     {
+      "widget": "counter",
+      "source": "__variance",
+      "title": "Variance to plan"
+     },
+     {
+      "widget": "waterfall",
+      "source": "__bridge",
+      "title": "Plan to actual bridge"
+     },
+     {
+      "widget": "table",
+      "source": "__variance",
+      "title": "Units outside tolerance"
+     },
+     {
+      "widget": "line",
+      "source": "__variance",
+      "title": "Actual vs plan by period"
+     }
+    ]
+   },
+   "demo_signal": "a monthly plan or budget per unit with 8 units missing plan by more than 10% for 3 months, driven by volume"
+  },
+  {
+   "id": "driver_breakdown",
+   "num": 2,
+   "family": "measure_explain",
+   "label": "Driver breakdown",
+   "question": "How much of the change in the measure came from price, volume and mix?",
+   "informational": true,
+   "layout": "dashboard",
+   "decision_layout": "performance_explainer",
+   "signature": {
+    "roles_all": [
+     "price",
+     "quantity",
+     "event_time"
+    ],
+    "roles_any": [
+     "money"
+    ],
+    "min_counts": {},
+    "fk_pattern": null
+   },
+   "techniques": [
+    "Decomposition",
+    "Pareto Analysis",
+    "Regression Analysis"
+   ],
+   "contract": "explainer",
+   "value_lever": "revenue",
+   "value_formula": "the share of the change in {kpi} each driver explains, from {signal_columns}; current change {value_at_stake}",
+   "serving_template": "A dashboard page for {owner} that shows {kpi} across {objects}, with a headline and Ask Genie on every widget: app, dashboard, Genie room, alert.",
+   "method_plain": {
+    "Decomposition": "Decomposition: the change in {kpi} is split into price, volume, mix and other steps from {signal_columns}.",
+    "Pareto Analysis": "Pareto analysis: {objects} are ranked by their share of {kpi} to find the few that drive most of it.",
+    "Regression Analysis": "Regression: the effect of each driver in {signal_columns} on {kpi} is estimated with its interval."
+   },
+   "strip_must_remain": "a price, volume and mix bridge that adds up to the total change, not a single total by period",
+   "genie": {
+    "questions": [
+     "How much of the change in {kpi} came from price?",
+     "Which {objects} drove most of the volume change?",
+     "Did the mix shift toward lower-margin {objects}?",
+     "Which period had the largest price effect?",
+     "What is the bridge for the top region?"
+    ],
+    "measures": [
+     "sum(price * quantity)",
+     "sum(quantity)",
+     "avg(price)"
+    ]
+   },
+   "alerts": [
+    {
+     "name": "Driver shift",
+     "rule": "abs(value) of the largest {result_table}__bridge step other than volume > {threshold}"
+    }
+   ],
+   "dashboard": {
+    "widgets": [
+     {
+      "widget": "waterfall",
+      "source": "__bridge",
+      "title": "Price, volume and mix bridge"
+     },
+     {
+      "widget": "bar",
+      "source": "__bridge",
+      "title": "Change by driver"
+     },
+     {
+      "widget": "pivot",
+      "source": "__variance",
+      "title": "Change by unit and period"
+     },
+     {
+      "widget": "counter",
+      "source": "__bridge",
+      "title": "Total change"
+     }
+    ]
+   },
+   "demo_signal": "a 5% price rise on one category offset by a 12% volume drop, with mix moving toward cheaper items"
+  },
+  {
+   "id": "peer_benchmarking",
+   "num": 3,
+   "family": "measure_explain",
+   "label": "Peer benchmarking",
+   "question": "Which units fall short of size-adjusted peers, and by how much?",
+   "informational": false,
+   "layout": "performance_explainer",
+   "decision_layout": null,
+   "signature": {
+    "roles_all": [],
+    "roles_any": [
+     "money",
+     "quantity",
+     "rate_probability"
+    ],
+    "min_counts": {},
+    "fk_pattern": "fact_to_dim"
+   },
+   "techniques": [
+    "Peer Benchmarking",
+    "Regression Analysis",
+    "Clustering"
+   ],
+   "contract": "explainer",
+   "value_lever": "cost",
+   "value_formula": "closing half the gap to the peer median on {kpi} for the units below it, from {signal_columns}; current estimate {value_at_stake}",
+   "serving_template": "A performance explainer for {owner} that shows where {kpi} moved, why, and which {objects} need an owner: app, dashboard, Genie room, alert.",
+   "method_plain": {
+    "Peer Benchmarking": "Peer benchmarking: each of the {objects} is compared with peers of similar size and mix on {kpi}, and the gap is measured.",
+    "Regression Analysis": "Regression: the effect of each driver in {signal_columns} on {kpi} is estimated with its interval.",
+    "Clustering": "Clustering: {objects} with similar {signal_columns} are grouped together, and each group is profiled."
+   },
+   "strip_must_remain": "peers adjusted for size and mix, a gap per unit with its interval, and an owner for each unit below peers",
+   "genie": {
+    "questions": [
+     "Which {objects} are furthest below their peer group on {kpi}?",
+     "Who are the peers of the weakest unit?",
+     "How much would closing half the gap be worth?",
+     "Which peer groups have the widest spread?",
+     "Has the gap narrowed since last quarter?"
+    ],
+    "measures": [
+     "median(metric)",
+     "avg(gap)",
+     "count_if(gap < 0)"
+    ]
+   },
+   "alerts": [
+    {
+     "name": "New units below peers",
+     "rule": "count of {result_table}__peers rows with gap < 0 that were not below peers last run > {threshold}"
+    }
+   ],
+   "dashboard": {
+    "widgets": [
+     {
+      "widget": "table",
+      "source": "__peers",
+      "title": "Gap to peer median"
+     },
+     {
+      "widget": "scatter",
+      "source": "__peers",
+      "title": "Units against peers"
+     },
+     {
+      "widget": "box",
+      "source": "__peers",
+      "title": "Spread by peer group"
+     },
+     {
+      "widget": "counter",
+      "source": "__peers",
+      "title": "Units below peers"
+     }
+    ]
+   },
+   "demo_signal": "20 sites of different sizes where 4 sites run 25% above the peer cost per unit after size adjustment"
+  },
+  {
+   "id": "leading_indicators",
+   "num": 4,
+   "family": "measure_explain",
+   "label": "Leading indicators",
+   "question": "Which measures move ahead of the outcome, and what do they say about next period?",
+   "informational": true,
+   "layout": "dashboard",
+   "decision_layout": "forecast_cockpit",
+   "signature": {
+    "roles_all": [
+     "event_time"
+    ],
+    "roles_any": [
+     "money",
+     "quantity",
+     "rate_probability"
+    ],
+    "min_counts": {
+     "event_time": 1
+    },
+    "fk_pattern": null
+   },
+   "techniques": [
+    "Correlation Analysis",
+    "Trend Analysis",
+    "Regression Analysis"
+   ],
+   "contract": "forecast",
+   "value_lever": "risk",
+   "value_formula": "early warning on {kpi}: the lead time gained times the value of acting early, from {signal_columns}; current estimate {value_at_stake}",
+   "serving_template": "A dashboard page for {owner} that shows {kpi} across {objects}, with a headline and Ask Genie on every widget: app, dashboard, Genie room, alert.",
+   "method_plain": {
+    "Correlation Analysis": "Correlation analysis: measures in {signal_columns} that move ahead of {kpi} are found and tested for lag and strength.",
+    "Trend Analysis": "Trend analysis: the change of {kpi} over time in {signal_columns} is measured with its significance.",
+    "Regression Analysis": "Regression: the effect of each driver in {signal_columns} on {kpi} is estimated with its interval."
+   },
+   "strip_must_remain": "a tested lead between the indicator and the outcome, with the lag and its strength, not a trend line alone",
+   "genie": {
+    "questions": [
+     "Which indicators move ahead of {kpi}?",
+     "How many weeks ahead does the strongest indicator lead?",
+     "What do the indicators say about next period?",
+     "Has any indicator stopped leading?",
+     "Which {objects} show the earliest warning?"
+    ],
+    "measures": [
+     "corr(indicator, outcome)",
+     "avg(outcome)"
+    ]
+   },
+   "alerts": [
+    {
+     "name": "Indicator turned",
+     "rule": "the leading indicator in {result_table}__series crosses its lower band in the latest period"
+    }
+   ],
+   "dashboard": {
+    "widgets": [
+     {
+      "widget": "line",
+      "source": "__series",
+      "title": "Indicator against outcome"
+     },
+     {
+      "widget": "forecast-line",
+      "source": "__series",
+      "title": "Outcome with indicator signal"
+     },
+     {
+      "widget": "table",
+      "source": "__series",
+      "title": "Indicators by lead and strength"
+     },
+     {
+      "widget": "counter",
+      "source": "__series",
+      "title": "Indicators leading now"
+     }
+    ]
+   },
+   "demo_signal": "a weekly measure that leads the outcome by 4 weeks with a correlation of about 0.6"
+  },
+  {
+   "id": "forecast",
+   "num": 5,
+   "family": "predict",
+   "label": "Forecast",
+   "question": "What will the measure be per series next periods, with what range, and which series are at risk?",
+   "informational": false,
+   "layout": "forecast_cockpit",
+   "decision_layout": null,
+   "signature": {
+    "roles_all": [
+     "event_time"
+    ],
+    "roles_any": [
+     "quantity",
+     "money"
+    ],
+    "min_counts": {
+     "event_time": 1
+    },
+    "fk_pattern": null
+   },
+   "techniques": [
+    "Forecasting"
+   ],
+   "contract": "forecast",
+   "value_lever": "cost",
+   "value_formula": "better orders or staffing from a forecast that beats the seasonal naive one: error reduction × {kpi} at stake, from {signal_columns}; current estimate {value_at_stake}",
+   "serving_template": "A forecast cockpit for {owner} that shows the expected {kpi} per {objects} with its range, and flags the ones at risk: app, dashboard, Genie room, alert.",
+   "method_plain": {
+    "Forecasting": "Forecasting: past values of {kpi} in {signal_columns} project the next periods with a range, checked against a seasonal naive forecast."
+   },
+   "strip_must_remain": "a forecast per series with a prediction interval that beats a seasonal naive forecast on backtest",
+   "genie": {
+    "questions": [
+     "How wide is next month's range for the top series?",
+     "Which series will miss target next period?",
+     "How accurate was last quarter's forecast?",
+     "Which {objects} have the most uncertain forecast?",
+     "What is the forecast for the next 13 weeks?"
+    ],
+    "measures": [
+     "sum(forecast)",
+     "sum(actual)",
+     "avg(backtest_mase)"
+    ]
+   },
+   "alerts": [
+    {
+     "name": "Forecast crosses target",
+     "rule": "any {result_table}__series row with is_future and forecast above capacity or below target"
+    },
+    {
+     "name": "Forecast worse than naive",
+     "rule": "avg(backtest_mase) on {result_table}__series > 1"
+    }
+   ],
+   "dashboard": {
+    "widgets": [
+     {
+      "widget": "forecast-line",
+      "source": "__series",
+      "title": "Forecast with range"
+     },
+     {
+      "widget": "table",
+      "source": "__series",
+      "title": "Accuracy by series"
+     },
+     {
+      "widget": "bar",
+      "source": "__series",
+      "title": "At-risk series"
+     },
+     {
+      "widget": "counter",
+      "source": "__series",
+      "title": "Next period forecast"
+     }
+    ]
+   },
+   "demo_signal": "104 or more weekly periods per series with yearly seasonality and a trend"
+  },
+  {
+   "id": "risk_propensity",
+   "num": 6,
+   "family": "predict",
+   "label": "Risk or propensity",
+   "question": "Which entities are most likely to have the outcome, and who should act on them first?",
+   "informational": false,
+   "layout": "decision_queue",
+   "decision_layout": null,
+   "signature": {
+    "roles_all": [
+     "status_activity"
+    ],
+    "roles_any": [
+     "event_time",
+     "money"
+    ],
+    "min_counts": {},
+    "fk_pattern": "fact_to_dim"
+   },
+   "techniques": [
+    "Classification",
+    "Predictive Modeling"
+   ],
+   "contract": "decision_queue",
+   "value_lever": "revenue",
+   "value_formula": "outcomes avoided or won: captured share at the review cutoff × value per {objects}, from {signal_columns}; current estimate {value_at_stake}",
+   "serving_template": "A ranked decision list for {owner} that says which {objects} to act on first each {cadence}: app, dashboard, Genie room, alert.",
+   "method_plain": {
+    "Classification": "Classification: a model learns from past outcomes in {signal_columns} and scores how likely each of the {objects} is to have the outcome.",
+    "Predictive Modeling": "Predictive modeling: a model trained on {signal_columns} predicts the outcome for each of the {objects}, checked against a simple baseline."
+   },
+   "strip_must_remain": "a score per entity that beats the best single-column rule, with the reasons behind each score",
+   "genie": {
+    "questions": [
+     "Which {objects} have the highest risk this {cadence}?",
+     "Why is the top entity scored so high?",
+     "How much would reviewing the top 100 capture?",
+     "Which reasons drive most of the high scores?",
+     "How has the share of high-risk {objects} changed?"
+    ],
+    "measures": [
+     "count_if(tier = 'Act now')",
+     "avg(score)",
+     "sum(value_at_stake)"
+    ]
+   },
+   "alerts": [
+    {
+     "name": "Act now above normal",
+     "rule": "count of rows in {result_table} with tier 'Act now' > {threshold}"
+    }
+   ],
+   "dashboard": {
+    "widgets": [
+     {
+      "widget": "table",
+      "source": "decision",
+      "title": "Ranked list"
+     },
+     {
+      "widget": "histogram",
+      "source": "__score_bins",
+      "title": "Score distribution with cutoff"
+     },
+     {
+      "widget": "line",
+      "source": "__lift",
+      "title": "Gains curve"
+     },
+     {
+      "widget": "counter",
+      "source": "decision",
+      "title": "Act now"
+     }
+    ]
+   },
+   "demo_signal": "a labeled outcome with a 10% base rate driven by 3 columns plus noise"
+  },
+  {
+   "id": "time_to_event",
+   "num": 7,
+   "family": "predict",
+   "label": "Time to event",
+   "question": "When is each entity likely to reach the event, and which ones need action before then?",
+   "informational": false,
+   "layout": "decision_queue",
+   "decision_layout": null,
+   "signature": {
+    "roles_all": [
+     "event_time",
+     "status_activity"
+    ],
+    "roles_any": [],
+    "min_counts": {
+     "event_time": 2
+    },
+    "fk_pattern": null
+   },
+   "techniques": [
+    "Survival Analysis"
+   ],
+   "contract": "decision_queue",
+   "value_lever": "risk",
+   "value_formula": "events prevented before they happen: entities reached in time × value per event, from {signal_columns}; current estimate {value_at_stake}",
+   "serving_template": "A ranked decision list for {owner} that says which {objects} to act on first each {cadence}: app, dashboard, Genie room, alert.",
+   "method_plain": {
+    "Survival Analysis": "Survival analysis: a time-to-event model on {signal_columns} estimates when each of the {objects} is likely to reach the event, open cases included."
+   },
+   "strip_must_remain": "a time-to-event estimate that uses open cases (censoring), not only closed ones",
+   "genie": {
+    "questions": [
+     "Which {objects} are likely to reach the event in the next 30 days?",
+     "What is the median time to event by segment?",
+     "Which factors shorten the time most?",
+     "How many open {objects} are past their expected time?",
+     "Has the time to event changed since last quarter?"
+    ],
+    "measures": [
+     "count_if(tier = 'Act now')",
+     "median(expected_days)"
+    ]
+   },
+   "alerts": [
+    {
+     "name": "Events due soon",
+     "rule": "count of rows in {result_table} expected within the next {threshold} days"
+    }
+   ],
+   "dashboard": {
+    "widgets": [
+     {
+      "widget": "table",
+      "source": "decision",
+      "title": "Due soonest"
+     },
+     {
+      "widget": "line",
+      "source": "decision",
+      "title": "Survival curve by segment"
+     },
+     {
+      "widget": "histogram",
+      "source": "__score_bins",
+      "title": "Expected days"
+     },
+     {
+      "widget": "counter",
+      "source": "decision",
+      "title": "Due in 30 days"
+     }
+    ]
+   },
+   "demo_signal": "start and end dates with 30% of cases still open and a hazard that rises with one driver"
+  },
+  {
+   "id": "next_event",
+   "num": 8,
+   "family": "predict",
+   "label": "Next event or sequence",
+   "question": "What is each entity likely to do next, and what should we offer or prepare?",
+   "informational": false,
+   "layout": "recommendation_desk",
+   "decision_layout": null,
+   "signature": {
+    "roles_all": [
+     "event_time",
+     "case_id"
+    ],
+    "roles_any": [
+     "status_activity"
+    ],
+    "min_counts": {},
+    "fk_pattern": "fact_to_dim"
+   },
+   "techniques": [
+    "Sequence Analysis",
+    "Classification"
+   ],
+   "contract": "recommendations",
+   "value_lever": "revenue",
+   "value_formula": "next events served in time: hit rate × value per event, from {signal_columns}; current estimate {value_at_stake}",
+   "serving_template": "A recommendation desk for {owner} that lists the best next offer or action per {objects}, with the reason: app, dashboard, Genie room, alert.",
+   "method_plain": {
+    "Sequence Analysis": "Sequence analysis: the order of past events in {signal_columns} predicts the next event for each of the {objects}.",
+    "Classification": "Classification: a model learns from past outcomes in {signal_columns} and scores how likely each of the {objects} is to have the outcome."
+   },
+   "strip_must_remain": "a next-event prediction from the order of past events that beats the most common next event",
+   "genie": {
+    "questions": [
+     "What will the top {objects} do next?",
+     "Which sequence most often leads to the outcome?",
+     "How often was the predicted next event right?",
+     "Which {objects} are one step from the outcome?",
+     "What usually follows the first purchase?"
+    ],
+    "measures": [
+     "count(*)",
+     "avg(score)"
+    ]
+   },
+   "alerts": [
+    {
+     "name": "Coverage drops",
+     "rule": "share of entities with a recommendation in {result_table}__recs < {threshold}"
+    }
+   ],
+   "dashboard": {
+    "widgets": [
+     {
+      "widget": "table",
+      "source": "__recs",
+      "title": "Next event per entity"
+     },
+     {
+      "widget": "sankey",
+      "source": "__recs",
+      "title": "Common sequences"
+     },
+     {
+      "widget": "bar",
+      "source": "__recs",
+      "title": "Predicted events"
+     },
+     {
+      "widget": "counter",
+      "source": "__recs",
+      "title": "Entities covered"
+     }
+    ]
+   },
+   "demo_signal": "ordered events per entity where step A is followed by step B 60% of the time"
+  },
+  {
+   "id": "allocation",
+   "num": 9,
+   "family": "decide_optimize",
+   "label": "Allocation",
+   "question": "How should a limited budget, stock or capacity be split across entities for the best result?",
+   "informational": false,
+   "layout": "planner",
+   "decision_layout": null,
+   "signature": {
+    "roles_all": [
+     "capacity_limit"
+    ],
+    "roles_any": [
+     "money",
+     "quantity",
+     "cost"
+    ],
+    "min_counts": {},
+    "fk_pattern": null
+   },
+   "techniques": [
+    "Optimization"
+   ],
+   "contract": "plan",
+   "value_lever": "revenue",
+   "value_formula": "gain from the recommended split over the current one: objective_contribution summed, from {signal_columns}; current estimate {value_at_stake}",
+   "serving_template": "A planner for {owner} that sets the recommended {objects} each {cadence} within the limits, with accept and override per line: app, dashboard, Genie room, alert.",
+   "method_plain": {
+    "Optimization": "Optimization: a solver picks the values for {objects} that give the best {kpi} within the limits in {signal_columns}."
+   },
+   "strip_must_remain": "a solver that respects the real limits and beats the current split by at least 1%",
+   "genie": {
+    "questions": [
+     "Why does the plan move budget from A to B?",
+     "Which limit binds the plan most?",
+     "What if capacity grows 10%?",
+     "How much does the plan gain over today's split?",
+     "Which {objects} get less than today?"
+    ],
+    "measures": [
+     "sum(objective_contribution)",
+     "sum(recommended_value)",
+     "max(used / limit)"
+    ]
+   },
+   "alerts": [
+    {
+     "name": "Plan infeasible or tight",
+     "rule": "any {result_table}__constraints row with used / limit > 0.95, or no feasible plan"
+    }
+   ],
+   "dashboard": {
+    "widgets": [
+     {
+      "widget": "table",
+      "source": "__plan",
+      "title": "Current vs recommended"
+     },
+     {
+      "widget": "bar",
+      "source": "__constraints",
+      "title": "Limits used"
+     },
+     {
+      "widget": "counter",
+      "source": "__plan",
+      "title": "Gain over today"
+     },
+     {
+      "widget": "sankey",
+      "source": "__plan",
+      "title": "Allocation flow"
+     }
+    ]
+   },
+   "demo_signal": "a budget or capacity column with 30 entities whose response curves differ, so the best split differs from the current one"
+  },
+  {
+   "id": "pricing",
+   "num": 10,
+   "family": "decide_optimize",
+   "label": "Price, discount, markdown",
+   "question": "What price or discount should each item get to hit margin and volume?",
+   "informational": false,
+   "layout": "planner",
+   "decision_layout": null,
+   "signature": {
+    "roles_all": [
+     "price",
+     "quantity"
+    ],
+    "roles_any": [
+     "cost",
+     "event_time"
+    ],
+    "min_counts": {},
+    "fk_pattern": null
+   },
+   "techniques": [
+    "Optimization",
+    "Regression Analysis"
+   ],
+   "contract": "plan",
+   "value_lever": "revenue",
+   "value_formula": "margin gained from the recommended price: (new margin - current margin) × expected volume, from {signal_columns}; current estimate {value_at_stake}",
+   "serving_template": "A planner for {owner} that sets the recommended {objects} each {cadence} within the limits, with accept and override per line: app, dashboard, Genie room, alert.",
+   "method_plain": {
+    "Optimization": "Optimization: a solver picks the values for {objects} that give the best {kpi} within the limits in {signal_columns}.",
+    "Regression Analysis": "Regression: the effect of each driver in {signal_columns} on {kpi} is estimated with its interval."
+   },
+   "strip_must_remain": "a price elasticity per item or group and a recommended price within the allowed range",
+   "genie": {
+    "questions": [
+     "Which items should get a markdown this week?",
+     "How price sensitive is the top category?",
+     "What happens to margin if price rises 5%?",
+     "Which discounts lose money?",
+     "Why is this item's recommended price lower?"
+    ],
+    "measures": [
+     "sum(price * quantity)",
+     "sum((price - cost) * quantity)",
+     "avg(discount)"
+    ]
+   },
+   "alerts": [
+    {
+     "name": "Margin gain below floor",
+     "rule": "sum(objective_contribution) on {result_table}__plan < {threshold}"
+    }
+   ],
+   "dashboard": {
+    "widgets": [
+     {
+      "widget": "table",
+      "source": "__plan",
+      "title": "Price recommendations"
+     },
+     {
+      "widget": "scatter",
+      "source": "__plan",
+      "title": "Price against volume"
+     },
+     {
+      "widget": "bar",
+      "source": "__constraints",
+      "title": "Price limits"
+     },
+     {
+      "widget": "counter",
+      "source": "__plan",
+      "title": "Margin gain"
+     }
+    ]
+   },
+   "demo_signal": "prices that vary over time with a known elasticity of about -1.5 and a cost per unit"
+  },
+  {
+   "id": "inventory_replenishment",
+   "num": 11,
+   "family": "decide_optimize",
+   "label": "Inventory and replenishment",
+   "question": "How much should we order per item and location so we neither run out nor overstock?",
+   "informational": false,
+   "layout": "planner",
+   "decision_layout": null,
+   "signature": {
+    "roles_all": [
+     "quantity",
+     "event_time"
+    ],
+    "roles_any": [
+     "capacity_limit",
+     "cost"
+    ],
+    "min_counts": {},
+    "fk_pattern": null
+   },
+   "techniques": [
+    "Optimization",
+    "Forecasting",
+    "Simulation"
+   ],
+   "contract": "plan",
+   "value_lever": "capital",
+   "value_formula": "avoided lost sales × unit margin plus holding cost saved, from {signal_columns}; current estimate {value_at_stake}",
+   "serving_template": "A planner for {owner} that sets the recommended {objects} each {cadence} within the limits, with accept and override per line: app, dashboard, Genie room, alert.",
+   "method_plain": {
+    "Optimization": "Optimization: a solver picks the values for {objects} that give the best {kpi} within the limits in {signal_columns}.",
+    "Forecasting": "Forecasting: past values of {kpi} in {signal_columns} project the next periods with a range, checked against a seasonal naive forecast.",
+    "Simulation": "Simulation: many draws of the uncertain inputs in {signal_columns} give the range of {kpi} and the chance of hitting target."
+   },
+   "strip_must_remain": "an order quantity per item and location from forecast demand, lead time and a service level, not a reorder flag",
+   "genie": {
+    "questions": [
+     "Which items will run out before the next delivery?",
+     "Why does the plan order more of this item?",
+     "How much stock is above need?",
+     "What service level does the plan reach?",
+     "Which locations hold the most excess?"
+    ],
+    "measures": [
+     "sum(recommended_value)",
+     "sum(on_hand)",
+     "count_if(delta > 0)"
+    ]
+   },
+   "alerts": [
+    {
+     "name": "Stockout risk",
+     "rule": "count of {result_table}__plan rows where recommended_value > current_value by more than {threshold}"
+    }
+   ],
+   "dashboard": {
+    "widgets": [
+     {
+      "widget": "table",
+      "source": "__plan",
+      "title": "Order plan"
+     },
+     {
+      "widget": "bar",
+      "source": "__constraints",
+      "title": "Warehouse and budget limits"
+     },
+     {
+      "widget": "forecast-line",
+      "source": "__plan",
+      "title": "Demand against stock"
+     },
+     {
+      "widget": "counter",
+      "source": "__plan",
+      "title": "Cost saved"
+     }
+    ]
+   },
+   "demo_signal": "stock on hand, daily sales with seasonality and lead times, with 10% of items running out each month"
+  },
+  {
+   "id": "staffing_queueing",
+   "num": 12,
+   "family": "decide_optimize",
+   "label": "Staffing and queueing",
+   "question": "How many people do we need per shift to meet the service target?",
+   "informational": false,
+   "layout": "planner",
+   "decision_layout": null,
+   "signature": {
+    "roles_all": [
+     "event_time"
+    ],
+    "roles_any": [
+     "capacity_limit",
+     "case_id"
+    ],
+    "min_counts": {
+     "event_time": 2
+    },
+    "fk_pattern": null
+   },
+   "techniques": [
+    "Queueing",
+    "Optimization",
+    "Forecasting"
+   ],
+   "contract": "plan",
+   "value_lever": "cost",
+   "value_formula": "hours saved where staff exceed need plus service recovered where they fall short, from {signal_columns}; current estimate {value_at_stake}",
+   "serving_template": "A planner for {owner} that sets the recommended {objects} each {cadence} within the limits, with accept and override per line: app, dashboard, Genie room, alert.",
+   "method_plain": {
+    "Queueing": "Queueing: arrivals and handling times in {signal_columns} (Erlang C) give the staff needed to meet the service target per period.",
+    "Optimization": "Optimization: a solver picks the values for {objects} that give the best {kpi} within the limits in {signal_columns}.",
+    "Forecasting": "Forecasting: past values of {kpi} in {signal_columns} project the next periods with a range, checked against a seasonal naive forecast."
+   },
+   "strip_must_remain": "arrivals and handling time per interval and a service target, solved with a queueing model",
+   "genie": {
+    "questions": [
+     "How many staff are needed per shift next week?",
+     "Which shifts miss the service target?",
+     "What if arrivals rise 10%?",
+     "Where are we overstaffed?",
+     "How long do customers wait at peak?"
+    ],
+    "measures": [
+     "count(*)",
+     "avg(handle_minutes)",
+     "sum(recommended_value)"
+    ]
+   },
+   "alerts": [
+    {
+     "name": "Service target at risk",
+     "rule": "count of {result_table}__plan shifts with recommended_value > current_value > {threshold}"
+    }
+   ],
+   "dashboard": {
+    "widgets": [
+     {
+      "widget": "table",
+      "source": "__plan",
+      "title": "Staff per shift"
+     },
+     {
+      "widget": "bar",
+      "source": "__constraints",
+      "title": "Headcount used"
+     },
+     {
+      "widget": "line",
+      "source": "__plan",
+      "title": "Arrivals by hour"
+     },
+     {
+      "widget": "counter",
+      "source": "__plan",
+      "title": "Hours saved"
+     }
+    ]
+   },
+   "demo_signal": "case start and end times with arrival peaks by hour and day of week"
+  },
+  {
+   "id": "site_territory",
+   "num": 13,
+   "family": "decide_optimize",
+   "label": "Site and territory",
+   "question": "Where should we open, close or reassign sites and territories?",
+   "informational": false,
+   "layout": "location_view",
+   "decision_layout": null,
+   "signature": {
+    "roles_all": [
+     "latitude",
+     "longitude"
+    ],
+    "roles_any": [
+     "money",
+     "quantity"
+    ],
+    "min_counts": {},
+    "fk_pattern": null
+   },
+   "techniques": [
+    "Geospatial Analysis",
+    "Optimization"
+   ],
+   "contract": "location",
+   "value_lever": "revenue",
+   "value_formula": "value of the shortlisted sites minus the ones closed, from {signal_columns}; current estimate {value_at_stake}",
+   "serving_template": "A map for {owner} that ranks {objects} by location, linked to a list to shortlist or reject: app, dashboard, Genie room, alert.",
+   "method_plain": {
+    "Geospatial Analysis": "Geospatial analysis: {objects} are placed by their coordinates or region in {signal_columns} and compared by area.",
+    "Optimization": "Optimization: a solver picks the values for {objects} that give the best {kpi} within the limits in {signal_columns}."
+   },
+   "strip_must_remain": "a ranked site or territory list from location data and demand, with the reason for each site",
+   "genie": {
+    "questions": [
+     "Which areas have demand but no site nearby?",
+     "Which sites overlap most?",
+     "Which territories are unbalanced?",
+     "What is the best next site?",
+     "How far do customers travel to the nearest site?"
+    ],
+    "measures": [
+     "sum(metric)",
+     "count(*)"
+    ]
+   },
+   "alerts": [
+    {
+     "name": "Region crosses threshold",
+     "rule": "any region in {result_table}__geo with metric > {threshold}"
+    }
+   ],
+   "dashboard": {
+    "widgets": [
+     {
+      "widget": "symbol-map",
+      "source": "__geo",
+      "title": "Sites and demand"
+     },
+     {
+      "widget": "table",
+      "source": "__geo",
+      "title": "Ranked sites"
+     },
+     {
+      "widget": "bar",
+      "source": "__geo",
+      "title": "Value by region"
+     },
+     {
+      "widget": "counter",
+      "source": "__geo",
+      "title": "Sites shortlisted"
+     }
+    ]
+   },
+   "demo_signal": "latitude and longitude for sites and customers, with one dense area that has no site"
+  },
+  {
+   "id": "threshold_tuning",
+   "num": 14,
+   "family": "decide_optimize",
+   "label": "Threshold and policy tuning",
+   "question": "Where should the cutoff or policy limit sit to catch the most value for the review effort?",
+   "informational": false,
+   "layout": "decision_queue",
+   "decision_layout": null,
+   "signature": {
+    "roles_all": [
+     "score_limit"
+    ],
+    "roles_any": [
+     "status_activity",
+     "money"
+    ],
+    "min_counts": {},
+    "fk_pattern": null
+   },
+   "techniques": [
+    "Threshold Optimization"
+   ],
+   "contract": "decision_queue",
+   "value_lever": "risk",
+   "value_formula": "value caught minus review cost at the new cutoff compared with today's, from {signal_columns}; current estimate {value_at_stake}",
+   "serving_template": "A ranked decision list for {owner} that says which {objects} to act on first each {cadence}: app, dashboard, Genie room, alert.",
+   "method_plain": {
+    "Threshold Optimization": "Threshold optimization: the cutoff on the score in {signal_columns} is set where the value caught minus the cost of review is highest."
+   },
+   "strip_must_remain": "a cutoff chosen on value caught against review cost, compared with today's threshold",
+   "genie": {
+    "questions": [
+     "What happens if the cutoff moves to the 90th percentile?",
+     "How many cases does today's threshold miss?",
+     "What does each review catch on average?",
+     "Which policy limit costs the most?",
+     "How many reviews fit our capacity?"
+    ],
+    "measures": [
+     "count_if(score >= cutoff)",
+     "sum(value_at_stake)"
+    ]
+   },
+   "alerts": [
+    {
+     "name": "Act now above normal",
+     "rule": "count of rows in {result_table} with tier 'Act now' > {threshold}"
+    }
+   ],
+   "dashboard": {
+    "widgets": [
+     {
+      "widget": "histogram",
+      "source": "__score_bins",
+      "title": "Scores with cutoff"
+     },
+     {
+      "widget": "line",
+      "source": "__lift",
+      "title": "Value caught by cutoff"
+     },
+     {
+      "widget": "table",
+      "source": "decision",
+      "title": "Cases above cutoff"
+     },
+     {
+      "widget": "counter",
+      "source": "__lift",
+      "title": "Value at the cutoff"
+     }
+    ]
+   },
+   "demo_signal": "a score column with a fixed threshold that misses a third of the bad outcomes"
+  },
+  {
+   "id": "assortment",
+   "num": 15,
+   "family": "decide_optimize",
+   "label": "Assortment and cannibalization",
+   "question": "Which items should we add, keep or drop, counting what they take from each other?",
+   "informational": false,
+   "layout": "planner",
+   "decision_layout": null,
+   "signature": {
+    "roles_all": [
+     "quantity",
+     "price"
+    ],
+    "roles_any": [
+     "event_time"
+    ],
+    "min_counts": {},
+    "fk_pattern": "fact_to_dim"
+   },
+   "techniques": [
+    "Optimization",
+    "Regression Analysis",
+    "Correlation Analysis"
+   ],
+   "contract": "plan",
+   "value_lever": "revenue",
+   "value_formula": "net margin of the recommended range after cannibalization, against today's, from {signal_columns}; current estimate {value_at_stake}",
+   "serving_template": "A planner for {owner} that sets the recommended {objects} each {cadence} within the limits, with accept and override per line: app, dashboard, Genie room, alert.",
+   "method_plain": {
+    "Optimization": "Optimization: a solver picks the values for {objects} that give the best {kpi} within the limits in {signal_columns}.",
+    "Regression Analysis": "Regression: the effect of each driver in {signal_columns} on {kpi} is estimated with its interval.",
+    "Correlation Analysis": "Correlation analysis: measures in {signal_columns} that move ahead of {kpi} are found and tested for lag and strength."
+   },
+   "strip_must_remain": "the sales an item takes from others measured, and a keep, add or drop per item with the net effect",
+   "genie": {
+    "questions": [
+     "Which items take sales from each other?",
+     "What is the net effect of dropping the weakest item?",
+     "Which items earn their space?",
+     "Where is the range too deep?",
+     "What would a new item add net of cannibalization?"
+    ],
+    "measures": [
+     "sum(quantity)",
+     "sum(margin)",
+     "count_if(decision = 'drop')"
+    ]
+   },
+   "alerts": [
+    {
+     "name": "Range gain below floor",
+     "rule": "sum(objective_contribution) on {result_table}__plan < {threshold}"
+    }
+   ],
+   "dashboard": {
+    "widgets": [
+     {
+      "widget": "table",
+      "source": "__plan",
+      "title": "Keep, add or drop"
+     },
+     {
+      "widget": "bar",
+      "source": "__constraints",
+      "title": "Space used"
+     },
+     {
+      "widget": "pivot",
+      "source": "__plan",
+      "title": "Net effect by category"
+     },
+     {
+      "widget": "counter",
+      "source": "__plan",
+      "title": "Net margin gain"
+     }
+    ]
+   },
+   "demo_signal": "item sales where a new item takes 30% of its volume from one existing item"
+  },
+  {
+   "id": "driver_scenarios",
+   "num": 16,
+   "family": "simulate_plan",
+   "label": "Driver-based scenarios",
+   "question": "What happens to the outcome if the business drivers move, and what has to be true to hit target?",
+   "informational": false,
+   "layout": "scenario_lab",
+   "decision_layout": null,
+   "signature": {
+    "roles_all": [
+     "money",
+     "event_time"
+    ],
+    "roles_any": [
+     "price",
+     "quantity",
+     "cost",
+     "budget_target"
+    ],
+    "min_counts": {},
+    "fk_pattern": null
+   },
+   "techniques": [
+    "Simulation",
+    "Regression Analysis"
+   ],
+   "contract": "scenario",
+   "value_lever": "revenue",
+   "value_formula": "outcome range under the chosen scenario against the base, from the drivers in {signal_columns}; current estimate {value_at_stake}",
+   "serving_template": "A scenario lab for {owner} that moves the levers behind {kpi} and shows the range of outcomes and the chance of hitting target: app, dashboard, Genie room, alert.",
+   "method_plain": {
+    "Simulation": "Simulation: many draws of the uncertain inputs in {signal_columns} give the range of {kpi} and the chance of hitting target.",
+    "Regression Analysis": "Regression: the effect of each driver in {signal_columns} on {kpi} is estimated with its interval."
+   },
+   "strip_must_remain": "at least 2 levers with a measured effect on the outcome, and a range, not a single number",
+   "genie": {
+    "questions": [
+     "What happens to margin if price rises 5%?",
+     "What has to be true to hit target?",
+     "Which lever moves the outcome most?",
+     "What is the chance of hitting target in the base case?",
+     "How bad is the downside case?"
+    ],
+    "measures": [
+     "avg(p50)",
+     "avg(prob_target)"
+    ]
+   },
+   "alerts": [
+    {
+     "name": "Chance of target falls",
+     "rule": "prob_target of the plan-of-record scenario in {result_table}__scenarios < {threshold}"
+    }
+   ],
+   "dashboard": {
+    "widgets": [
+     {
+      "widget": "range-slider",
+      "source": "__scenarios",
+      "title": "Levers"
+     },
+     {
+      "widget": "forecast-line",
+      "source": "__scenarios",
+      "title": "P10, P50, P90"
+     },
+     {
+      "widget": "bar",
+      "source": "__sensitivity",
+      "title": "Tornado"
+     },
+     {
+      "widget": "table",
+      "source": "__scenarios",
+      "title": "Base, upside, downside"
+     }
+    ]
+   },
+   "demo_signal": "an outcome driven by price and volume with known coefficients and noise"
+  },
+  {
+   "id": "stress_test",
+   "num": 17,
+   "family": "simulate_plan",
+   "label": "Stress test",
+   "question": "How does the portfolio hold up under severe but plausible shocks?",
+   "informational": false,
+   "layout": "scenario_lab",
+   "decision_layout": null,
+   "signature": {
+    "roles_all": [
+     "money"
+    ],
+    "roles_any": [
+     "rate_probability",
+     "capacity_limit",
+     "score_limit"
+    ],
+    "min_counts": {},
+    "fk_pattern": null
+   },
+   "techniques": [
+    "Simulation"
+   ],
+   "contract": "scenario",
+   "value_lever": "risk",
+   "value_formula": "loss avoided by acting on the weakest exposures before the shock, from {signal_columns}; current estimate {value_at_stake}",
+   "serving_template": "A scenario lab for {owner} that moves the levers behind {kpi} and shows the range of outcomes and the chance of hitting target: app, dashboard, Genie room, alert.",
+   "method_plain": {
+    "Simulation": "Simulation: many draws of the uncertain inputs in {signal_columns} give the range of {kpi} and the chance of hitting target."
+   },
+   "strip_must_remain": "named shocks applied to real exposures with the loss per scenario and the exposures that break first",
+   "genie": {
+    "questions": [
+     "What is the loss in the severe scenario?",
+     "Which exposures break first?",
+     "How much buffer is left after the shock?",
+     "Which shock hurts most?",
+     "What if two shocks happen together?"
+    ],
+    "measures": [
+     "sum(exposure)",
+     "avg(p10)"
+    ]
+   },
+   "alerts": [
+    {
+     "name": "Buffer below floor",
+     "rule": "p10 outcome of the severe scenario in {result_table}__scenarios < {threshold}"
+    }
+   ],
+   "dashboard": {
+    "widgets": [
+     {
+      "widget": "table",
+      "source": "__scenarios",
+      "title": "Loss by scenario"
+     },
+     {
+      "widget": "bar",
+      "source": "__sensitivity",
+      "title": "Shock sensitivity"
+     },
+     {
+      "widget": "forecast-line",
+      "source": "__scenarios",
+      "title": "Outcome range"
+     },
+     {
+      "widget": "counter",
+      "source": "__scenarios",
+      "title": "Severe-case loss"
+     }
+    ]
+   },
+   "demo_signal": "exposures with limits and rates where a 20% shock pushes 5% of them over the limit"
+  },
+  {
+   "id": "capacity_planning",
+   "num": 18,
+   "family": "simulate_plan",
+   "label": "Capacity planning",
+   "question": "When will demand outgrow capacity, and how much do we need to add?",
+   "informational": false,
+   "layout": "forecast_cockpit",
+   "decision_layout": null,
+   "signature": {
+    "roles_all": [
+     "capacity_limit",
+     "event_time"
+    ],
+    "roles_any": [
+     "quantity"
+    ],
+    "min_counts": {},
+    "fk_pattern": null
+   },
+   "techniques": [
+    "Forecasting",
+    "Simulation",
+    "Queueing"
+   ],
+   "contract": "forecast",
+   "value_lever": "capital",
+   "value_formula": "cost of capacity added on time against shortfall or idle capacity, from {signal_columns}; current estimate {value_at_stake}",
+   "serving_template": "A forecast cockpit for {owner} that shows the expected {kpi} per {objects} with its range, and flags the ones at risk: app, dashboard, Genie room, alert.",
+   "method_plain": {
+    "Forecasting": "Forecasting: past values of {kpi} in {signal_columns} project the next periods with a range, checked against a seasonal naive forecast.",
+    "Simulation": "Simulation: many draws of the uncertain inputs in {signal_columns} give the range of {kpi} and the chance of hitting target.",
+    "Queueing": "Queueing: arrivals and handling times in {signal_columns} (Erlang C) give the staff needed to meet the service target per period."
+   },
+   "strip_must_remain": "a demand forecast with a range set against the real capacity, with the date demand crosses it",
+   "genie": {
+    "questions": [
+     "When does demand cross capacity?",
+     "How much capacity do we need next quarter?",
+     "Which sites run above 90%?",
+     "What if demand grows faster?",
+     "Where is capacity idle?"
+    ],
+    "measures": [
+     "sum(forecast)",
+     "sum(capacity)",
+     "max(forecast / capacity)"
+    ]
+   },
+   "alerts": [
+    {
+     "name": "Forecast crosses capacity",
+     "rule": "any {result_table}__series row with is_future and upper > capacity"
+    }
+   ],
+   "dashboard": {
+    "widgets": [
+     {
+      "widget": "forecast-line",
+      "source": "__series",
+      "title": "Demand against capacity"
+     },
+     {
+      "widget": "table",
+      "source": "__series",
+      "title": "Sites at risk"
+     },
+     {
+      "widget": "bar",
+      "source": "__series",
+      "title": "Utilization"
+     },
+     {
+      "widget": "counter",
+      "source": "__series",
+      "title": "Weeks until full"
+     }
+    ]
+   },
+   "demo_signal": "weekly demand rising 8% a year against a fixed capacity per site"
+  },
+  {
+   "id": "promotion_lift",
+   "num": 19,
+   "family": "measure_impact",
+   "label": "Promotion or campaign lift",
+   "question": "What did each promotion really add, net of cost, and should we keep, scale or stop it?",
+   "informational": false,
+   "layout": "lift_readout",
+   "decision_layout": null,
+   "signature": {
+    "roles_all": [
+     "treatment",
+     "event_time"
+    ],
+    "roles_any": [
+     "money",
+     "quantity"
+    ],
+    "min_counts": {},
+    "fk_pattern": null
+   },
+   "techniques": [
+    "Causal Impact"
+   ],
+   "contract": "impact",
+   "value_lever": "revenue",
+   "value_formula": "incremental {kpi} net of promotion cost per promotion, from {signal_columns}; current estimate {value_at_stake}",
+   "serving_template": "A lift readout for {owner} that measures what each intervention on {objects} really added, net of cost: app, dashboard, Genie room, alert.",
+   "method_plain": {
+    "Causal Impact": "Causal impact: a control group or the period before (difference in differences or interrupted time series) separates the real effect on {kpi} from the trend."
+   },
+   "strip_must_remain": "a control or pre-period baseline, the lift with its interval and significance, and the net value after cost",
+   "genie": {
+    "questions": [
+     "What did promotion P add net of cost, and is it significant?",
+     "Which promotions lost money?",
+     "Which promotion should we scale?",
+     "How long did the lift last?",
+     "Did the promotion pull sales forward?"
+    ],
+    "measures": [
+     "sum(incremental_value)",
+     "sum(cost)",
+     "avg(roi)"
+    ]
+   },
+   "alerts": [
+    {
+     "name": "Lift no longer significant",
+     "rule": "any {result_table}__effect row with p_value > 0.05 or roi < 1"
+    }
+   ],
+   "dashboard": {
+    "widgets": [
+     {
+      "widget": "counter",
+      "source": "__effect",
+      "title": "Net lift"
+     },
+     {
+      "widget": "forecast-line",
+      "source": "__effect_series",
+      "title": "Actual vs counterfactual"
+     },
+     {
+      "widget": "waterfall",
+      "source": "__effect",
+      "title": "Incrementality"
+     },
+     {
+      "widget": "table",
+      "source": "__effect",
+      "title": "Keep, scale or stop"
+     }
+    ]
+   },
+   "demo_signal": "promotion flags on 20% of weeks with a known 8% lift and 8 weeks of history before each"
+  },
+  {
+   "id": "experiment_readout",
+   "num": 20,
+   "family": "measure_impact",
+   "label": "Experiments and before/after",
+   "question": "Did the change work, by how much, and can we trust the result?",
+   "informational": false,
+   "layout": "lift_readout",
+   "decision_layout": null,
+   "signature": {
+    "roles_all": [
+     "treatment"
+    ],
+    "roles_any": [
+     "rate_probability",
+     "money",
+     "quantity",
+     "status_activity"
+    ],
+    "min_counts": {},
+    "fk_pattern": null
+   },
+   "techniques": [
+    "Causal Impact"
+   ],
+   "contract": "impact",
+   "value_lever": "revenue",
+   "value_formula": "effect × units exposed, from {signal_columns}; current estimate {value_at_stake}",
+   "serving_template": "A lift readout for {owner} that measures what each intervention on {objects} really added, net of cost: app, dashboard, Genie room, alert.",
+   "method_plain": {
+    "Causal Impact": "Causal impact: a control group or the period before (difference in differences or interrupted time series) separates the real effect on {kpi} from the trend."
+   },
+   "strip_must_remain": "a control group or a before period, an effect with its interval, and a check that the groups were comparable",
+   "genie": {
+    "questions": [
+     "Did the test group beat control?",
+     "How big is the effect and how sure are we?",
+     "Were the groups comparable before the change?",
+     "Which segments responded most?",
+     "What is the effect worth per year?"
+    ],
+    "measures": [
+     "avg(effect)",
+     "min(p_value)",
+     "sum(incremental_value)"
+    ]
+   },
+   "alerts": [
+    {
+     "name": "Effect no longer significant",
+     "rule": "any {result_table}__effect row with p_value > 0.05"
+    }
+   ],
+   "dashboard": {
+    "widgets": [
+     {
+      "widget": "counter",
+      "source": "__effect",
+      "title": "Effect"
+     },
+     {
+      "widget": "forecast-line",
+      "source": "__effect_series",
+      "title": "Before and after"
+     },
+     {
+      "widget": "table",
+      "source": "__effect",
+      "title": "Effect by metric"
+     },
+     {
+      "widget": "bar",
+      "source": "__effect",
+      "title": "Effect by segment"
+     }
+    ]
+   },
+   "demo_signal": "a treatment flag on half the entities with a 5% effect on a rate"
+  },
+  {
+   "id": "marketing_mix",
+   "num": 21,
+   "family": "measure_impact",
+   "label": "Marketing mix and attribution",
+   "question": "What did each channel drive, and where should the next dollar go?",
+   "informational": false,
+   "layout": "lift_readout",
+   "decision_layout": null,
+   "signature": {
+    "roles_all": [
+     "treatment",
+     "money",
+     "event_time"
+    ],
+    "roles_any": [],
+    "min_counts": {
+     "money": 2
+    },
+    "fk_pattern": null
+   },
+   "techniques": [
+    "Marketing Mix Modeling"
+   ],
+   "contract": "impact",
+   "value_lever": "revenue",
+   "value_formula": "{kpi} gained by moving spend to channels with higher return, from {signal_columns}; current estimate {value_at_stake}",
+   "serving_template": "A lift readout for {owner} that measures what each intervention on {objects} really added, net of cost: app, dashboard, Genie room, alert.",
+   "method_plain": {
+    "Marketing Mix Modeling": "Marketing mix modeling: a regression with carry-over and saturation splits {kpi} into the share each channel in {signal_columns} drove."
+   },
+   "strip_must_remain": "spend and outcome per channel over time with carry-over and saturation, and a return per channel",
+   "genie": {
+    "questions": [
+     "Which channel has the best return?",
+     "Where is spend past saturation?",
+     "What would moving 10% of spend do?",
+     "How long does a channel's effect last?",
+     "What share of sales did each channel drive?"
+    ],
+    "measures": [
+     "sum(spend)",
+     "sum(incremental_value)",
+     "avg(roi)"
+    ]
+   },
+   "alerts": [
+    {
+     "name": "Channel return below 1",
+     "rule": "any channel in {result_table}__effect with roi < 1"
+    }
+   ],
+   "dashboard": {
+    "widgets": [
+     {
+      "widget": "bar",
+      "source": "__effect",
+      "title": "Return by channel"
+     },
+     {
+      "widget": "line",
+      "source": "__effect_series",
+      "title": "Response curves"
+     },
+     {
+      "widget": "waterfall",
+      "source": "__effect",
+      "title": "Sales by channel"
+     },
+     {
+      "widget": "table",
+      "source": "__effect",
+      "title": "Keep, scale or stop"
+     }
+    ]
+   },
+   "demo_signal": "weekly spend per channel with carry-over and saturation driving revenue"
+  },
+  {
+   "id": "uplift_targeting",
+   "num": 22,
+   "family": "measure_impact",
+   "label": "Uplift targeting",
+   "question": "Which entities change their behavior because of the treatment, so we target only them?",
+   "informational": false,
+   "layout": "decision_queue",
+   "decision_layout": null,
+   "signature": {
+    "roles_all": [
+     "treatment",
+     "status_activity"
+    ],
+    "roles_any": [
+     "money"
+    ],
+    "min_counts": {},
+    "fk_pattern": null
+   },
+   "techniques": [
+    "Uplift Modeling"
+   ],
+   "contract": "decision_queue",
+   "value_lever": "revenue",
+   "value_formula": "outcomes gained by treating only the persuadable entities, net of treatment cost, from {signal_columns}; current estimate {value_at_stake}",
+   "serving_template": "A ranked decision list for {owner} that says which {objects} to act on first each {cadence}: app, dashboard, Genie room, alert.",
+   "method_plain": {
+    "Uplift Modeling": "Uplift modeling: treated and untreated {objects} are compared to find the ones whose {kpi} changes because of the treatment."
+   },
+   "strip_must_remain": "treated and untreated groups and an uplift per entity, not a propensity score",
+   "genie": {
+    "questions": [
+     "Which {objects} respond only when treated?",
+     "Who would act anyway?",
+     "How much do we save by not treating sure things?",
+     "What is the uplift in the top decile?",
+     "Which segment should we stop treating?"
+    ],
+    "measures": [
+     "avg(uplift)",
+     "count_if(tier = 'Act now')"
+    ]
+   },
+   "alerts": [
+    {
+     "name": "Act now above normal",
+     "rule": "count of rows in {result_table} with tier 'Act now' > {threshold}"
+    }
+   ],
+   "dashboard": {
+    "widgets": [
+     {
+      "widget": "table",
+      "source": "decision",
+      "title": "Persuadable entities"
+     },
+     {
+      "widget": "line",
+      "source": "__lift",
+      "title": "Uplift by decile"
+     },
+     {
+      "widget": "histogram",
+      "source": "__score_bins",
+      "title": "Uplift scores"
+     },
+     {
+      "widget": "counter",
+      "source": "decision",
+      "title": "Net gain"
+     }
+    ]
+   },
+   "demo_signal": "a random treatment flag with an effect only in one segment"
+  },
+  {
+   "id": "anomaly",
+   "num": 23,
+   "family": "detect_protect",
+   "label": "Anomaly",
+   "question": "Which values break their expected range, and which ones need someone to look?",
+   "informational": false,
+   "layout": "monitor_triage",
+   "decision_layout": null,
+   "signature": {
+    "roles_all": [
+     "event_time"
+    ],
+    "roles_any": [
+     "money",
+     "quantity",
+     "rate_probability"
+    ],
+    "min_counts": {},
+    "fk_pattern": null
+   },
+   "techniques": [
+    "Anomaly Detection"
+   ],
+   "contract": "monitor",
+   "value_lever": "risk",
+   "value_formula": "losses caught early: flagged anomalies confirmed × average value, from {signal_columns}; current estimate {value_at_stake}",
+   "serving_template": "A monitor for {owner} that flags {objects} breaking their expected range and queues them for triage each {cadence}: app, dashboard, Genie room, alert.",
+   "method_plain": {
+    "Anomaly Detection": "Anomaly detection: an expected range is learned from {signal_columns}, and {objects} outside it are flagged."
+   },
+   "strip_must_remain": "an expected range learned from history with the anomalies ranked by size, not a fixed threshold on one column",
+   "genie": {
+    "questions": [
+     "Which {objects} broke their expected range this week?",
+     "Why was this point flagged?",
+     "How many anomalies were confirmed?",
+     "Which rule fires most?",
+     "Are anomalies rising?"
+    ],
+    "measures": [
+     "count_if(is_anomaly)",
+     "sum(value - expected)"
+    ]
+   },
+   "alerts": [
+    {
+     "name": "Anomalies above normal",
+     "rule": "count_if(is_anomaly) on {result_table}__signal in the latest period > {threshold}"
+    }
+   ],
+   "dashboard": {
+    "widgets": [
+     {
+      "widget": "line",
+      "source": "__signal",
+      "title": "Signal with expected band"
+     },
+     {
+      "widget": "table",
+      "source": "__signal",
+      "title": "Anomalies to triage"
+     },
+     {
+      "widget": "bar",
+      "source": "__signal",
+      "title": "Exceptions by rule"
+     },
+     {
+      "widget": "counter",
+      "source": "__signal",
+      "title": "Open anomalies"
+     }
+    ]
+   },
+   "demo_signal": "planted anomalies on 1% of points of a seasonal series"
+  },
+  {
+   "id": "leakage_reconciliation",
+   "num": 24,
+   "family": "detect_protect",
+   "label": "Leakage and reconciliation",
+   "question": "Where do two records of the same money disagree, and how much leaks?",
+   "informational": false,
+   "layout": "monitor_triage",
+   "decision_layout": null,
+   "signature": {
+    "roles_all": [
+     "money"
+    ],
+    "roles_any": [
+     "status_activity",
+     "case_id"
+    ],
+    "min_counts": {
+     "money": 2
+    },
+    "fk_pattern": "fact_to_dim"
+   },
+   "techniques": [
+    "Controls Testing",
+    "Entity Matching",
+    "Anomaly Detection"
+   ],
+   "contract": "monitor",
+   "value_lever": "cost",
+   "value_formula": "money recovered on mismatches: sum of the differences on confirmed breaks, from {signal_columns}; current estimate {value_at_stake}",
+   "serving_template": "A monitor for {owner} that flags {objects} breaking their expected range and queues them for triage each {cadence}: app, dashboard, Genie room, alert.",
+   "method_plain": {
+    "Controls Testing": "Controls testing: duplicates, Benford's law and segregation of duties tests run over {signal_columns} and list the exceptions.",
+    "Entity Matching": "Entity matching: names, addresses and ids in {signal_columns} are compared with fuzzy matching to find records of the same {objects}.",
+    "Anomaly Detection": "Anomaly detection: an expected range is learned from {signal_columns}, and {objects} outside it are flagged."
+   },
+   "strip_must_remain": "a cross-table match of the same money with the breaks and their amounts",
+   "genie": {
+    "questions": [
+     "Where do billed and delivered amounts disagree?",
+     "How much leaked last month?",
+     "Which counterparties have the most breaks?",
+     "How old are the open breaks?",
+     "Which break types recur?"
+    ],
+    "measures": [
+     "sum(abs(difference))",
+     "count_if(is_anomaly)"
+    ]
+   },
+   "alerts": [
+    {
+     "name": "Breaks above normal",
+     "rule": "sum of abs(value - expected) on {result_table}__signal in the latest period > {threshold}"
+    }
+   ],
+   "dashboard": {
+    "widgets": [
+     {
+      "widget": "table",
+      "source": "__signal",
+      "title": "Open breaks"
+     },
+     {
+      "widget": "bar",
+      "source": "__signal",
+      "title": "Breaks by type"
+     },
+     {
+      "widget": "line",
+      "source": "__signal",
+      "title": "Leakage by period"
+     },
+     {
+      "widget": "counter",
+      "source": "__signal",
+      "title": "Money at stake"
+     }
+    ]
+   },
+   "demo_signal": "two tables of the same transactions with 2% of rows differing in amount"
+  },
+  {
+   "id": "controls_testing",
+   "num": 25,
+   "family": "detect_protect",
+   "label": "Controls tests",
+   "question": "Which transactions fail a control test, such as duplicates, Benford's law or segregation of duties?",
+   "informational": false,
+   "layout": "monitor_triage",
+   "decision_layout": null,
+   "signature": {
+    "roles_all": [
+     "approver_creator",
+     "money"
+    ],
+    "roles_any": [
+     "event_time"
+    ],
+    "min_counts": {},
+    "fk_pattern": null
+   },
+   "techniques": [
+    "Controls Testing"
+   ],
+   "contract": "monitor",
+   "value_lever": "risk",
+   "value_formula": "exposure on exceptions confirmed: amount of the failing transactions, from {signal_columns}; current estimate {value_at_stake}",
+   "serving_template": "A monitor for {owner} that flags {objects} breaking their expected range and queues them for triage each {cadence}: app, dashboard, Genie room, alert.",
+   "method_plain": {
+    "Controls Testing": "Controls testing: duplicates, Benford's law and segregation of duties tests run over {signal_columns} and list the exceptions."
+   },
+   "strip_must_remain": "a cross-table match or a statistical test, not a filter on one column",
+   "genie": {
+    "questions": [
+     "Which payments are possible duplicates?",
+     "Who approved their own transactions?",
+     "Does the first-digit pattern break Benford's law?",
+     "Which control fails most?",
+     "What is the amount at risk?"
+    ],
+    "measures": [
+     "count(*)",
+     "sum(amount)"
+    ]
+   },
+   "alerts": [
+    {
+     "name": "Control exceptions above normal",
+     "rule": "count of {result_table}__signal rows flagged by a control rule > {threshold}"
+    }
+   ],
+   "dashboard": {
+    "widgets": [
+     {
+      "widget": "table",
+      "source": "__signal",
+      "title": "Exceptions"
+     },
+     {
+      "widget": "bar",
+      "source": "__signal",
+      "title": "Exceptions by control"
+     },
+     {
+      "widget": "histogram",
+      "source": "__signal",
+      "title": "First-digit distribution"
+     },
+     {
+      "widget": "counter",
+      "source": "__signal",
+      "title": "Amount at risk"
+     }
+    ]
+   },
+   "demo_signal": "approver and creator columns with 1% self-approvals and planted duplicate payments"
+  },
+  {
+   "id": "process_control",
+   "num": 26,
+   "family": "detect_protect",
+   "label": "Statistical process control",
+   "question": "Which processes are out of control against their limits, and since when?",
+   "informational": false,
+   "layout": "monitor_triage",
+   "decision_layout": null,
+   "signature": {
+    "roles_all": [
+     "spec_limit",
+     "event_time"
+    ],
+    "roles_any": [
+     "quantity",
+     "rate_probability"
+    ],
+    "min_counts": {},
+    "fk_pattern": null
+   },
+   "techniques": [
+    "Statistical Process Control"
+   ],
+   "contract": "monitor",
+   "value_lever": "cost",
+   "value_formula": "scrap, rework or penalty avoided by catching drift early, from {signal_columns}; current estimate {value_at_stake}",
+   "serving_template": "A monitor for {owner} that flags {objects} breaking their expected range and queues them for triage each {cadence}: app, dashboard, Genie room, alert.",
+   "method_plain": {
+    "Statistical Process Control": "Statistical process control: control limits from {signal_columns} flag points and runs that break the control rules."
+   },
+   "strip_must_remain": "control limits from the process itself and the run rules that fire",
+   "genie": {
+    "questions": [
+     "Which lines are out of control?",
+     "When did the drift start?",
+     "Which rule fired?",
+     "How close are we to the spec limit?",
+     "Is the process capable?"
+    ],
+    "measures": [
+     "count_if(is_anomaly)",
+     "avg(value)"
+    ]
+   },
+   "alerts": [
+    {
+     "name": "Out of control points",
+     "rule": "count_if(is_anomaly) on {result_table}__signal in the latest period > {threshold}"
+    }
+   ],
+   "dashboard": {
+    "widgets": [
+     {
+      "widget": "line",
+      "source": "__signal",
+      "title": "Control chart"
+     },
+     {
+      "widget": "table",
+      "source": "__signal",
+      "title": "Rule hits"
+     },
+     {
+      "widget": "box",
+      "source": "__signal",
+      "title": "Spread by line"
+     },
+     {
+      "widget": "counter",
+      "source": "__signal",
+      "title": "Lines out of control"
+     }
+    ]
+   },
+   "demo_signal": "measurements with spec limits and a mean shift on one line"
+  },
+  {
+   "id": "fraud_rings",
+   "num": 27,
+   "family": "detect_protect",
+   "label": "Fraud rings",
+   "question": "Which connected groups of accounts act together, and which ones should we block or investigate?",
+   "informational": false,
+   "layout": "network_explorer",
+   "decision_layout": null,
+   "signature": {
+    "roles_all": [
+     "edge_pair"
+    ],
+    "roles_any": [
+     "money",
+     "status_activity"
+    ],
+    "min_counts": {},
+    "fk_pattern": "edge_pair"
+   },
+   "techniques": [
+    "Network Analysis",
+    "Entity Matching"
+   ],
+   "contract": "network",
+   "value_lever": "risk",
+   "value_formula": "losses avoided on rings blocked: value of their open activity, from {signal_columns}; current estimate {value_at_stake}",
+   "serving_template": "A network view for {owner} that finds connected groups of {objects} and ranks the ones to review: app, dashboard, Genie room, alert.",
+   "method_plain": {
+    "Network Analysis": "Network analysis: links in {signal_columns} connect {objects}, and connected groups and central nodes are found.",
+    "Entity Matching": "Entity matching: names, addresses and ids in {signal_columns} are compared with fuzzy matching to find records of the same {objects}."
+   },
+   "strip_must_remain": "links between entities through shared attributes or transactions and communities scored for risk",
+   "genie": {
+    "questions": [
+     "Which rings have the highest risk score?",
+     "Who is at the center of this ring?",
+     "What links these accounts?",
+     "How much money moved within the ring?",
+     "Which new rings appeared this week?"
+    ],
+    "measures": [
+     "count(distinct community)",
+     "sum(metric)"
+    ]
+   },
+   "alerts": [
+    {
+     "name": "New risky community",
+     "rule": "any new community in {result_table}__nodes with metric > {threshold}"
+    }
+   ],
+   "dashboard": {
+    "widgets": [
+     {
+      "widget": "table",
+      "source": "__nodes",
+      "title": "Rings by risk"
+     },
+     {
+      "widget": "table",
+      "source": "__edges",
+      "title": "Links in a ring"
+     },
+     {
+      "widget": "bar",
+      "source": "__nodes",
+      "title": "Ring size"
+     },
+     {
+      "widget": "counter",
+      "source": "__nodes",
+      "title": "Rings to review"
+     }
+    ]
+   },
+   "demo_signal": "accounts sharing devices or addresses with 3 planted rings of 5 to 12 members"
+  },
+  {
+   "id": "segmentation",
+   "num": 28,
+   "family": "know_entities",
+   "label": "Segmentation",
+   "question": "Which groups of entities behave alike, and what treatment does each group get?",
+   "informational": false,
+   "layout": "segment_explorer",
+   "decision_layout": null,
+   "signature": {
+    "roles_all": [],
+    "roles_any": [
+     "money",
+     "quantity",
+     "event_time"
+    ],
+    "min_counts": {},
+    "fk_pattern": "fact_to_dim"
+   },
+   "techniques": [
+    "Segmentation",
+    "Clustering"
+   ],
+   "contract": "segments",
+   "value_lever": "revenue",
+   "value_formula": "value from one treatment per segment against one for all, from {signal_columns}; current estimate {value_at_stake}",
+   "serving_template": "A segment explorer for {owner} that groups {objects} by behavior and value, with one treatment per segment: app, dashboard, Genie room, alert.",
+   "method_plain": {
+    "Segmentation": "Segmentation: {objects} are split into stable groups by {signal_columns}, so each group gets one treatment.",
+    "Clustering": "Clustering: {objects} with similar {signal_columns} are grouped together, and each group is profiled."
+   },
+   "strip_must_remain": "separable segments with a profile and a different treatment each",
+   "genie": {
+    "questions": [
+     "What makes the top segment different?",
+     "Which segment is shrinking?",
+     "How many {objects} moved to a lower segment?",
+     "Which treatment suits each segment?",
+     "Which segment has the most value?"
+    ],
+    "measures": [
+     "count(*)",
+     "sum(value)"
+    ]
+   },
+   "alerts": [
+    {
+     "name": "High value moving down",
+     "rule": "share of {result_table}__migration count from the top segment to a lower one > {threshold}"
+    }
+   ],
+   "dashboard": {
+    "widgets": [
+     {
+      "widget": "bar",
+      "source": "__segments",
+      "title": "Segments by size and value"
+     },
+     {
+      "widget": "table",
+      "source": "__segments",
+      "title": "Segment profiles"
+     },
+     {
+      "widget": "scatter",
+      "source": "__assign",
+      "title": "Segment map"
+     },
+     {
+      "widget": "sankey",
+      "source": "__migration",
+      "title": "Segment moves"
+     }
+    ]
+   },
+   "demo_signal": "entities with 4 behavior groups that differ in frequency and value"
+  },
+  {
+   "id": "lifetime_value",
+   "num": 29,
+   "family": "know_entities",
+   "label": "Lifetime value",
+   "question": "What is each entity worth over time, and where should we invest to keep or grow it?",
+   "informational": false,
+   "layout": "segment_explorer",
+   "decision_layout": null,
+   "signature": {
+    "roles_all": [
+     "money",
+     "event_time"
+    ],
+    "roles_any": [],
+    "min_counts": {},
+    "fk_pattern": "fact_to_dim"
+   },
+   "techniques": [
+    "Lifetime Value",
+    "Survival Analysis",
+    "Cohort Analysis"
+   ],
+   "contract": "segments",
+   "value_lever": "revenue",
+   "value_formula": "value kept or grown in the top lifetime-value groups, from {signal_columns}; current estimate {value_at_stake}",
+   "serving_template": "A segment explorer for {owner} that groups {objects} by behavior and value, with one treatment per segment: app, dashboard, Genie room, alert.",
+   "method_plain": {
+    "Lifetime Value": "Lifetime value: past purchases in {signal_columns} project the future value of each of the {objects}.",
+    "Survival Analysis": "Survival analysis: a time-to-event model on {signal_columns} estimates when each of the {objects} is likely to reach the event, open cases included.",
+    "Cohort Analysis": "Cohort analysis: {objects} are grouped by when they started, and {kpi} is followed per cohort over time."
+   },
+   "strip_must_remain": "a projected future value per entity, not past spend alone",
+   "genie": {
+    "questions": [
+     "Which {objects} have the highest future value?",
+     "How does value differ by first-purchase cohort?",
+     "Which high-value {objects} are slipping?",
+     "What is the average lifetime value by channel?",
+     "How much should we spend to keep one?"
+    ],
+    "measures": [
+     "sum(value)",
+     "avg(value)"
+    ]
+   },
+   "alerts": [
+    {
+     "name": "High value moving down",
+     "rule": "share of {result_table}__migration count from the top segment to a lower one > {threshold}"
+    }
+   ],
+   "dashboard": {
+    "widgets": [
+     {
+      "widget": "bar",
+      "source": "__segments",
+      "title": "Value by group"
+     },
+     {
+      "widget": "pivot",
+      "source": "__segments",
+      "title": "Cohort value"
+     },
+     {
+      "widget": "table",
+      "source": "__assign",
+      "title": "Top entities"
+     },
+     {
+      "widget": "counter",
+      "source": "__segments",
+      "title": "Projected value"
+     }
+    ]
+   },
+   "demo_signal": "purchases over 2 years with a few high-value entities and churn that differs by cohort"
+  },
+  {
+   "id": "cost_to_serve",
+   "num": 30,
+   "family": "know_entities",
+   "label": "Cost to serve",
+   "question": "Which customers, products or channels cost more to serve than they earn?",
+   "informational": false,
+   "layout": "segment_explorer",
+   "decision_layout": null,
+   "signature": {
+    "roles_all": [
+     "cost"
+    ],
+    "roles_any": [
+     "quantity",
+     "money"
+    ],
+    "min_counts": {},
+    "fk_pattern": "fact_to_dim"
+   },
+   "techniques": [
+    "Decomposition",
+    "Segmentation",
+    "Pareto Analysis"
+   ],
+   "contract": "segments",
+   "value_lever": "cost",
+   "value_formula": "margin recovered on loss-making entities by changing terms or service, from {signal_columns}; current estimate {value_at_stake}",
+   "serving_template": "A segment explorer for {owner} that groups {objects} by behavior and value, with one treatment per segment: app, dashboard, Genie room, alert.",
+   "method_plain": {
+    "Decomposition": "Decomposition: the change in {kpi} is split into price, volume, mix and other steps from {signal_columns}.",
+    "Segmentation": "Segmentation: {objects} are split into stable groups by {signal_columns}, so each group gets one treatment.",
+    "Pareto Analysis": "Pareto analysis: {objects} are ranked by their share of {kpi} to find the few that drive most of it."
+   },
+   "strip_must_remain": "costs allocated to entities from real cost drivers, and margin after cost to serve per entity",
+   "genie": {
+    "questions": [
+     "Which {objects} lose money after cost to serve?",
+     "What drives their cost?",
+     "Which channel is the most expensive to serve?",
+     "How much margin is lost on small orders?",
+     "Which terms should change?"
+    ],
+    "measures": [
+     "sum(revenue - cost)",
+     "count_if(margin < 0)"
+    ]
+   },
+   "alerts": [
+    {
+     "name": "Loss-making entities rise",
+     "rule": "count of {result_table}__segments value < 0 > {threshold}"
+    }
+   ],
+   "dashboard": {
+    "widgets": [
+     {
+      "widget": "bar",
+      "source": "__segments",
+      "title": "Margin after cost to serve"
+     },
+     {
+      "widget": "table",
+      "source": "__assign",
+      "title": "Loss-making entities"
+     },
+     {
+      "widget": "waterfall",
+      "source": "__segments",
+      "title": "Cost bridge"
+     },
+     {
+      "widget": "counter",
+      "source": "__segments",
+      "title": "Margin at stake"
+     }
+    ]
+   },
+   "demo_signal": "orders with freight and handling costs where small frequent orders lose money"
+  },
+  {
+   "id": "next_best_action",
+   "num": 31,
+   "family": "know_entities",
+   "label": "Recommendation and next best action",
+   "question": "What should we offer or do next for each entity?",
+   "informational": false,
+   "layout": "recommendation_desk",
+   "decision_layout": null,
+   "signature": {
+    "roles_all": [],
+    "roles_any": [
+     "quantity",
+     "event_time",
+     "money"
+    ],
+    "min_counts": {},
+    "fk_pattern": "fact_to_dim"
+   },
+   "techniques": [
+    "Recommendation"
+   ],
+   "contract": "recommendations",
+   "value_lever": "revenue",
+   "value_formula": "accepted recommendations × value per acceptance over popularity, from {signal_columns}; current estimate {value_at_stake}",
+   "serving_template": "A recommendation desk for {owner} that lists the best next offer or action per {objects}, with the reason: app, dashboard, Genie room, alert.",
+   "method_plain": {
+    "Recommendation": "Recommendation: past interactions in {signal_columns} rank the items each of the {objects} is most likely to take, checked against popularity."
+   },
+   "strip_must_remain": "a ranked recommendation per entity that beats popularity on a time-based holdout",
+   "genie": {
+    "questions": [
+     "What should we offer the top {objects}?",
+     "Why was this item recommended?",
+     "How often are recommendations taken?",
+     "Which items are never recommended?",
+     "What share of entities has a good offer?"
+    ],
+    "measures": [
+     "count(*)",
+     "avg(score)"
+    ]
+   },
+   "alerts": [
+    {
+     "name": "Coverage drops",
+     "rule": "share of entities with a recommendation in {result_table}__recs < {threshold}"
+    }
+   ],
+   "dashboard": {
+    "widgets": [
+     {
+      "widget": "table",
+      "source": "__recs",
+      "title": "Offers per entity"
+     },
+     {
+      "widget": "pivot",
+      "source": "__recs",
+      "title": "Item affinity"
+     },
+     {
+      "widget": "bar",
+      "source": "__recs",
+      "title": "Lift over popularity"
+     },
+     {
+      "widget": "counter",
+      "source": "__recs",
+      "title": "Entities covered"
+     }
+    ]
+   },
+   "demo_signal": "entity-item interactions with 3 affinity groups"
+  },
+  {
+   "id": "entity_matching",
+   "num": 32,
+   "family": "know_entities",
+   "label": "Entity matching",
+   "question": "Which records describe the same customer, product or supplier?",
+   "informational": false,
+   "layout": "network_explorer",
+   "decision_layout": null,
+   "signature": {
+    "roles_all": [],
+    "roles_any": [
+     "free_text",
+     "region_code"
+    ],
+    "min_counts": {},
+    "fk_pattern": null
+   },
+   "techniques": [
+    "Entity Matching"
+   ],
+   "contract": "network",
+   "value_lever": "cost",
+   "value_formula": "duplicates merged × cost per duplicate record, from {signal_columns}; current estimate {value_at_stake}",
+   "serving_template": "A network view for {owner} that finds connected groups of {objects} and ranks the ones to review: app, dashboard, Genie room, alert.",
+   "method_plain": {
+    "Entity Matching": "Entity matching: names, addresses and ids in {signal_columns} are compared with fuzzy matching to find records of the same {objects}."
+   },
+   "strip_must_remain": "fuzzy matches across names, addresses or ids with a match score and pairs to review",
+   "genie": {
+    "questions": [
+     "Which records are likely the same supplier?",
+     "How many duplicates are there?",
+     "Which matches need review?",
+     "What is the cost of duplicates?",
+     "Which source creates the most duplicates?"
+    ],
+    "measures": [
+     "count(*)",
+     "avg(weight)"
+    ]
+   },
+   "alerts": [
+    {
+     "name": "New duplicates",
+     "rule": "count of new {result_table}__edges with weight > {threshold}"
+    }
+   ],
+   "dashboard": {
+    "widgets": [
+     {
+      "widget": "table",
+      "source": "__edges",
+      "title": "Match pairs"
+     },
+     {
+      "widget": "bar",
+      "source": "__nodes",
+      "title": "Duplicates by source"
+     },
+     {
+      "widget": "histogram",
+      "source": "__edges",
+      "title": "Match scores"
+     },
+     {
+      "widget": "counter",
+      "source": "__edges",
+      "title": "Pairs to review"
+     }
+    ]
+   },
+   "demo_signal": "names and addresses with 5% near-duplicates that differ in spelling"
+  },
+  {
+   "id": "journey_path",
+   "num": 33,
+   "family": "know_entities",
+   "label": "Journey and path",
+   "question": "Which paths do entities take, and where do they drop out?",
+   "informational": true,
+   "layout": "dashboard",
+   "decision_layout": "process_flow",
+   "signature": {
+    "roles_all": [
+     "event_time",
+     "case_id",
+     "status_activity"
+    ],
+    "roles_any": [],
+    "min_counts": {},
+    "fk_pattern": null
+   },
+   "techniques": [
+    "Funnel Analysis",
+    "Sequence Analysis",
+    "Process Mining"
+   ],
+   "contract": "process",
+   "value_lever": "revenue",
+   "value_formula": "conversions recovered at the biggest drop-off step, from {signal_columns}; current estimate {value_at_stake}",
+   "serving_template": "A dashboard page for {owner} that shows {kpi} across {objects}, with a headline and Ask Genie on every widget: app, dashboard, Genie room, alert.",
+   "method_plain": {
+    "Funnel Analysis": "Funnel analysis: the share of {objects} that moves from each step to the next is measured from {signal_columns}.",
+    "Sequence Analysis": "Sequence analysis: the order of past events in {signal_columns} predicts the next event for each of the {objects}.",
+    "Process Mining": "Process mining: the case id, step and timestamp in {signal_columns} rebuild the real process with its waits and rework."
+   },
+   "strip_must_remain": "paths built from ordered events per entity, with the drop-off per step",
+   "genie": {
+    "questions": [
+     "Where do most entities drop out?",
+     "Which path converts best?",
+     "How long does each step take?",
+     "Which step changed most since last month?",
+     "What do converters do differently?"
+    ],
+    "measures": [
+     "count(distinct case_id)",
+     "avg(conversion)"
+    ]
+   },
+   "alerts": [
+    {
+     "name": "Drop-off rises",
+     "rule": "share of cases leaving at the worst step in {result_table}__transitions > {threshold}"
+    }
+   ],
+   "dashboard": {
+    "widgets": [
+     {
+      "widget": "funnel",
+      "source": "__transitions",
+      "title": "Funnel"
+     },
+     {
+      "widget": "sankey",
+      "source": "__transitions",
+      "title": "Paths"
+     },
+     {
+      "widget": "table",
+      "source": "__transitions",
+      "title": "Drop-off by step"
+     },
+     {
+      "widget": "counter",
+      "source": "__transitions",
+      "title": "Conversion"
+     }
+    ]
+   },
+   "demo_signal": "event steps per entity with a 40% drop between two steps"
+  },
+  {
+   "id": "process_mining",
+   "num": 34,
+   "family": "run_processes",
+   "label": "Process mining",
+   "question": "How does the process really run, where does work wait, and which cases need help?",
+   "informational": false,
+   "layout": "process_flow",
+   "decision_layout": null,
+   "signature": {
+    "roles_all": [
+     "case_id",
+     "status_activity",
+     "event_time"
+    ],
+    "roles_any": [],
+    "min_counts": {},
+    "fk_pattern": null
+   },
+   "techniques": [
+    "Process Mining"
+   ],
+   "contract": "process",
+   "value_lever": "time",
+   "value_formula": "hours saved at the bottleneck × cost per hour, from {signal_columns}; current estimate {value_at_stake}",
+   "serving_template": "A process map for {owner} that shows where {objects} wait and which open ones are at risk of breaching: app, dashboard, Genie room, alert.",
+   "method_plain": {
+    "Process Mining": "Process mining: the case id, step and timestamp in {signal_columns} rebuild the real process with its waits and rework."
+   },
+   "strip_must_remain": "the process rebuilt from case id, step and timestamp, with waits and rework per step",
+   "genie": {
+    "questions": [
+     "Where do orders wait longest?",
+     "Which step causes most rework?",
+     "Which variant is slowest?",
+     "Which open cases are at risk of breach?",
+     "How has cycle time changed?"
+    ],
+    "measures": [
+     "median(median_hours)",
+     "sum(rework)"
+    ]
+   },
+   "alerts": [
+    {
+     "name": "Cases at SLA risk",
+     "rule": "count of {result_table}__cases rows with breach_risk > 0.5 > {threshold}"
+    }
+   ],
+   "dashboard": {
+    "widgets": [
+     {
+      "widget": "sankey",
+      "source": "__transitions",
+      "title": "Process map"
+     },
+     {
+      "widget": "box",
+      "source": "__transitions",
+      "title": "Cycle time by variant"
+     },
+     {
+      "widget": "table",
+      "source": "__cases",
+      "title": "Cases at risk"
+     },
+     {
+      "widget": "counter",
+      "source": "__cases",
+      "title": "Open cases at risk"
+     }
+    ]
+   },
+   "demo_signal": "case events with timestamps where one step holds work 3 times longer than the rest"
+  },
+  {
+   "id": "sla_aging",
+   "num": 35,
+   "family": "run_processes",
+   "label": "SLA, backlog and aging",
+   "question": "Which open items will breach their SLA, and what should we do first?",
+   "informational": false,
+   "layout": "monitor_triage",
+   "decision_layout": null,
+   "signature": {
+    "roles_all": [
+     "event_time",
+     "status_activity"
+    ],
+    "roles_any": [
+     "case_id"
+    ],
+    "min_counts": {
+     "event_time": 2
+    },
+    "fk_pattern": null
+   },
+   "techniques": [
+    "Survival Analysis",
+    "Classification",
+    "Queueing"
+   ],
+   "contract": "monitor",
+   "value_lever": "time",
+   "value_formula": "breaches avoided × penalty or cost per breach, from {signal_columns}; current estimate {value_at_stake}",
+   "serving_template": "A monitor for {owner} that flags {objects} breaking their expected range and queues them for triage each {cadence}: app, dashboard, Genie room, alert.",
+   "method_plain": {
+    "Survival Analysis": "Survival analysis: a time-to-event model on {signal_columns} estimates when each of the {objects} is likely to reach the event, open cases included.",
+    "Classification": "Classification: a model learns from past outcomes in {signal_columns} and scores how likely each of the {objects} is to have the outcome.",
+    "Queueing": "Queueing: arrivals and handling times in {signal_columns} (Erlang C) give the staff needed to meet the service target per period."
+   },
+   "strip_must_remain": "a breach-risk model on open items, not an age filter",
+   "genie": {
+    "questions": [
+     "Which open items will breach this week?",
+     "How old is the backlog?",
+     "Which team has the most items at risk?",
+     "What drives breach risk?",
+     "Is the backlog growing?"
+    ],
+    "measures": [
+     "count(*)",
+     "avg(age_hours)",
+     "count_if(tier = 'Act now')"
+    ]
+   },
+   "alerts": [
+    {
+     "name": "Items at SLA risk",
+     "rule": "count of rows in {result_table} with tier 'Act now' (breach risk above the cutoff) > {threshold}"
+    },
+    {
+     "name": "Backlog above expected",
+     "rule": "any {result_table}__signal row in the latest period with is_anomaly and value > upper"
+    }
+   ],
+   "dashboard": {
+    "widgets": [
+     {
+      "widget": "table",
+      "source": "decision",
+      "title": "Items at risk"
+     },
+     {
+      "widget": "bar",
+      "source": "decision",
+      "title": "Aging buckets"
+     },
+     {
+      "widget": "line",
+      "source": "__signal",
+      "title": "Backlog against expected"
+     },
+     {
+      "widget": "counter",
+      "source": "decision",
+      "title": "Due to breach"
+     }
+    ]
+   },
+   "demo_signal": "open and closed items with created, due and resolved dates and 15% breaching"
+  },
+  {
+   "id": "working_capital",
+   "num": 36,
+   "family": "run_processes",
+   "label": "Working capital and collections",
+   "question": "Which invoices or payables should we chase or time first to free cash?",
+   "informational": false,
+   "layout": "decision_queue",
+   "decision_layout": null,
+   "signature": {
+    "roles_all": [
+     "money",
+     "event_time"
+    ],
+    "roles_any": [
+     "status_activity"
+    ],
+    "min_counts": {
+     "event_time": 2
+    },
+    "fk_pattern": null
+   },
+   "techniques": [
+    "Classification",
+    "Survival Analysis",
+    "Optimization"
+   ],
+   "contract": "decision_queue",
+   "value_lever": "capital",
+   "value_formula": "cash freed sooner: days saved × daily cost of capital × amount, from {signal_columns}; current estimate {value_at_stake}",
+   "serving_template": "A ranked decision list for {owner} that says which {objects} to act on first each {cadence}: app, dashboard, Genie room, alert.",
+   "method_plain": {
+    "Classification": "Classification: a model learns from past outcomes in {signal_columns} and scores how likely each of the {objects} is to have the outcome.",
+    "Survival Analysis": "Survival analysis: a time-to-event model on {signal_columns} estimates when each of the {objects} is likely to reach the event, open cases included.",
+    "Optimization": "Optimization: a solver picks the values for {objects} that give the best {kpi} within the limits in {signal_columns}."
+   },
+   "strip_must_remain": "a late-payment risk or payment timing per item, not an overdue flag",
+   "genie": {
+    "questions": [
+     "Which invoices should we chase first?",
+     "Who pays late most often?",
+     "How much cash is tied up past terms?",
+     "What would chasing the top 50 free?",
+     "Which payables can wait?"
+    ],
+    "measures": [
+     "sum(amount)",
+     "avg(days_late)"
+    ]
+   },
+   "alerts": [
+    {
+     "name": "Act now above normal",
+     "rule": "count of rows in {result_table} with tier 'Act now' > {threshold}"
+    }
+   ],
+   "dashboard": {
+    "widgets": [
+     {
+      "widget": "table",
+      "source": "decision",
+      "title": "Chase list"
+     },
+     {
+      "widget": "bar",
+      "source": "decision",
+      "title": "Amount by days late"
+     },
+     {
+      "widget": "line",
+      "source": "__lift",
+      "title": "Cash captured by effort"
+     },
+     {
+      "widget": "counter",
+      "source": "decision",
+      "title": "Cash at stake"
+     }
+    ]
+   },
+   "demo_signal": "invoices with issue, due and paid dates, where 20% of customers pay late"
+  },
+  {
+   "id": "location_intelligence",
+   "num": 37,
+   "family": "place_relationships",
+   "label": "Location intelligence",
+   "question": "How does the measure vary by place, and which areas stand out?",
+   "informational": true,
+   "layout": "dashboard",
+   "decision_layout": "location_view",
+   "signature": {
+    "roles_all": [],
+    "roles_any": [
+     "latitude",
+     "longitude",
+     "region_code"
+    ],
+    "min_counts": {},
+    "fk_pattern": null
+   },
+   "techniques": [
+    "Geospatial Analysis"
+   ],
+   "contract": "location",
+   "value_lever": "revenue",
+   "value_formula": "{kpi} in the areas that stand out against the rest, from {signal_columns}; current estimate {value_at_stake}",
+   "serving_template": "A dashboard page for {owner} that shows {kpi} across {objects}, with a headline and Ask Genie on every widget: app, dashboard, Genie room, alert.",
+   "method_plain": {
+    "Geospatial Analysis": "Geospatial analysis: {objects} are placed by their coordinates or region in {signal_columns} and compared by area."
+   },
+   "strip_must_remain": "a comparison by area from coordinates or region codes with the areas that stand out",
+   "genie": {
+    "questions": [
+     "Which areas have the highest {kpi}?",
+     "Where is demand growing fastest?",
+     "Which regions are underserved?",
+     "How does {kpi} change with distance?",
+     "Which area changed most?"
+    ],
+    "measures": [
+     "sum(metric)",
+     "count(*)"
+    ]
+   },
+   "alerts": [
+    {
+     "name": "Region crosses threshold",
+     "rule": "any region in {result_table}__geo with metric > {threshold}"
+    }
+   ],
+   "dashboard": {
+    "widgets": [
+     {
+      "widget": "choropleth-map",
+      "source": "__geo",
+      "title": "By region"
+     },
+     {
+      "widget": "symbol-map",
+      "source": "__geo",
+      "title": "Points"
+     },
+     {
+      "widget": "bar",
+      "source": "__geo",
+      "title": "Top areas"
+     },
+     {
+      "widget": "table",
+      "source": "__geo",
+      "title": "Areas"
+     }
+    ]
+   },
+   "demo_signal": "points with latitude and longitude and a region code, with one hot area"
+  },
+  {
+   "id": "network_dependency",
+   "num": 38,
+   "family": "place_relationships",
+   "label": "Network dependency",
+   "question": "Which nodes does the network depend on, and what breaks if one fails?",
+   "informational": false,
+   "layout": "network_explorer",
+   "decision_layout": null,
+   "signature": {
+    "roles_all": [
+     "edge_pair"
+    ],
+    "roles_any": [
+     "money",
+     "quantity"
+    ],
+    "min_counts": {},
+    "fk_pattern": "edge_pair"
+   },
+   "techniques": [
+    "Network Analysis"
+   ],
+   "contract": "network",
+   "value_lever": "risk",
+   "value_formula": "value exposed through the most central nodes, from {signal_columns}; current estimate {value_at_stake}",
+   "serving_template": "A network view for {owner} that finds connected groups of {objects} and ranks the ones to review: app, dashboard, Genie room, alert.",
+   "method_plain": {
+    "Network Analysis": "Network analysis: links in {signal_columns} connect {objects}, and connected groups and central nodes are found."
+   },
+   "strip_must_remain": "a graph from real links, with centrality and what depends on each node",
+   "genie": {
+    "questions": [
+     "Which suppliers does most of the network depend on?",
+     "What breaks if this node fails?",
+     "Which nodes have no backup?",
+     "How concentrated is the network?",
+     "Which links carry the most value?"
+    ],
+    "measures": [
+     "avg(centrality)",
+     "sum(weight)"
+    ]
+   },
+   "alerts": [
+    {
+     "name": "New risky community",
+     "rule": "any new community in {result_table}__nodes with metric > {threshold}"
+    }
+   ],
+   "dashboard": {
+    "widgets": [
+     {
+      "widget": "table",
+      "source": "__nodes",
+      "title": "Central nodes"
+     },
+     {
+      "widget": "table",
+      "source": "__edges",
+      "title": "Links"
+     },
+     {
+      "widget": "bar",
+      "source": "__nodes",
+      "title": "Dependence by node"
+     },
+     {
+      "widget": "counter",
+      "source": "__nodes",
+      "title": "Single points of failure"
+     }
+    ]
+   },
+   "demo_signal": "edges between entities with 2 hubs carrying 40% of the flow"
+  },
+  {
+   "id": "reason_codes",
+   "num": 39,
+   "family": "text_agents",
+   "label": "Reason codes from comments",
+   "question": "What reasons do people give in comments, and which ones are growing?",
+   "informational": true,
+   "layout": "dashboard",
+   "decision_layout": "performance_explainer",
+   "signature": {
+    "roles_all": [
+     "free_text"
+    ],
+    "roles_any": [
+     "status_activity",
+     "event_time"
+    ],
+    "min_counts": {},
+    "fk_pattern": null
+   },
+   "techniques": [
+    "Sentiment Analysis",
+    "AI Analysis",
+    "Extraction",
+    "Document Processing"
+   ],
+   "contract": "explainer",
+   "value_lever": "risk",
+   "value_formula": "cost of the top growing reasons: count × average value per case, from {signal_columns}; current estimate {value_at_stake}",
+   "serving_template": "A dashboard page for {owner} that shows {kpi} across {objects}, with a headline and Ask Genie on every widget: app, dashboard, Genie room, alert.",
+   "method_plain": {
+    "Sentiment Analysis": "Sentiment analysis: Databricks AI functions read the text in {signal_columns} and score its tone per row.",
+    "AI Analysis": "AI analysis: Databricks AI functions read {signal_columns} and return a structured answer per row.",
+    "Extraction": "Extraction: Databricks AI functions pull named fields and reasons out of the text in {signal_columns}.",
+    "Document Processing": "Document processing: Databricks AI functions read the text in {signal_columns} and fill structured fields."
+   },
+   "strip_must_remain": "reasons extracted from free text into a fixed set of codes with counts and trend, not a word count",
+   "genie": {
+    "questions": [
+     "What are the top reasons this month?",
+     "Which reason is growing fastest?",
+     "What do people say about the top reason?",
+     "Which {objects} get the most negative comments?",
+     "How does tone change over time?"
+    ],
+    "measures": [
+     "count(*)",
+     "avg(sentiment)"
+    ]
+   },
+   "alerts": [
+    {
+     "name": "Reason growing",
+     "rule": "count of the top reason code in {result_table} in the latest period > {threshold}"
+    }
+   ],
+   "dashboard": {
+    "widgets": [
+     {
+      "widget": "bar",
+      "source": "decision",
+      "title": "Top reasons"
+     },
+     {
+      "widget": "line",
+      "source": "decision",
+      "title": "Reasons over time"
+     },
+     {
+      "widget": "table",
+      "source": "decision",
+      "title": "Example comments"
+     },
+     {
+      "widget": "counter",
+      "source": "decision",
+      "title": "Comments read"
+     }
+    ]
+   },
+   "demo_signal": "comment text with 5 recurring reasons, one growing over time"
+  },
+  {
+   "id": "data_agent",
+   "num": 40,
+   "family": "text_agents",
+   "label": "Data agent",
+   "question": "Can people ask plain questions about this data and get trusted answers?",
+   "informational": false,
+   "layout": "agent_chat",
+   "decision_layout": null,
+   "signature": {
+    "roles_all": [],
+    "roles_any": [
+     "money",
+     "quantity",
+     "event_time",
+     "status_activity"
+    ],
+    "min_counts": {},
+    "fk_pattern": "fact_to_dim"
+   },
+   "techniques": [
+    "Data Agent",
+    "AI Analysis"
+   ],
+   "contract": null,
+   "value_lever": "time",
+   "value_formula": "analyst hours saved: questions answered × minutes saved per question, over {signal_columns}; current estimate {value_at_stake}",
+   "serving_template": "A data agent for {owner} that answers plain questions about {objects} with the SQL it ran: app, dashboard, Genie room, alert.",
+   "method_plain": {
+    "Data Agent": "Data agent: a Genie room with tested questions and Databricks AI functions answers questions about {objects} with the SQL it ran.",
+    "AI Analysis": "AI analysis: Databricks AI functions read {signal_columns} and return a structured answer per row."
+   },
+   "strip_must_remain": "a Genie room with benchmark questions and expected SQL, and an accuracy score",
+   "genie": {
+    "questions": [
+     "What were total {kpi} last month?",
+     "Which {objects} grew most this quarter?",
+     "Show the top 10 {objects} by {kpi}.",
+     "How does this month compare with last year?",
+     "Which {objects} have no activity in 90 days?"
+    ],
+    "measures": [
+     "count(*)",
+     "sum({kpi})"
+    ]
+   },
+   "alerts": [
+    {
+     "name": "Answer accuracy drops",
+     "rule": "share of benchmark questions answered correctly < {threshold}"
+    }
+   ],
+   "dashboard": {
+    "widgets": [
+     {
+      "widget": "table",
+      "source": "decision",
+      "title": "Benchmark questions"
+     },
+     {
+      "widget": "counter",
+      "source": "decision",
+      "title": "Accuracy"
+     },
+     {
+      "widget": "bar",
+      "source": "decision",
+      "title": "Questions by topic"
+     }
+    ]
+   },
+   "demo_signal": "clean fact and dimension tables with comments on every column"
+  }
+ ]
+}

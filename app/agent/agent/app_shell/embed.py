@@ -15,6 +15,7 @@ WEB = os.path.join(HERE, "web")
 DIST = os.path.join(WEB, "dist")
 EXAMPLE = os.path.join(HERE, "example_page.json")
 PALETTES = os.path.join(WEB, "src", "palettes.json")
+KINDS = os.path.join(HERE, "kinds.json")
 CELL = 1
 VERSION = 1
 SERVER_FILES = ("app.py", "app.yaml", "shell_alerts.py", "shell_core.py", "shell_db.py", "shell_facts.py", "shell_pg.py",
@@ -22,6 +23,7 @@ SERVER_FILES = ("app.py", "app.yaml", "shell_alerts.py", "shell_core.py", "shell
 WEB_INPUTS = ("index.html", "package.json", "package-lock.json", "vite.config.js", "src")
 BINARY_SUFFIXES = (".woff2",)
 CONSTANT = "_INSPIRE_APP_SHELL = "
+KINDS_CONSTANT = "_INSPIRE_KINDS = "
 
 
 def _walk(base: str, relative: str) -> list:
@@ -86,27 +88,31 @@ def _load(path: str) -> dict:
         return json.load(handle)
 
 
-def _line_index(lines: list) -> int:
-    hits = [i for i, line in enumerate(lines) if line.startswith(CONSTANT)]
+def _line_index(lines: list, constant: str = CONSTANT) -> int:
+    hits = [i for i, line in enumerate(lines) if line.startswith(constant)]
     if len(hits) != 1:
-        raise SystemExit(f"cells[{CELL}] must hold exactly one line starting with {CONSTANT!r}; found {len(hits)}")
+        raise SystemExit(f"cells[{CELL}] must hold exactly one line starting with {constant!r}; found {len(hits)}")
     return hits[0]
 
 
-def embedded(path: str = NOTEBOOK) -> dict:
+def embedded(path: str = NOTEBOOK, constant: str = CONSTANT) -> dict:
     lines = _load(path)["cells"][CELL]["source"]
-    line = lines[_line_index(lines)]
-    value = line[len(CONSTANT):].strip()
+    line = lines[_line_index(lines, constant)]
+    value = line[len(constant):].strip()
     if not (value.startswith('"') and value.endswith('"')):
-        raise SystemExit(f"{CONSTANT.strip()} must be one double-quoted string")
+        raise SystemExit(f"{constant.strip()} must be one double-quoted string")
     return decode(value[1:-1]) if len(value) > 2 else {}
 
 
-def write(data: dict, path: str = NOTEBOOK) -> bool:
+def kinds(path: str = KINDS) -> dict:
+    return _load(path)
+
+
+def write(data: dict, path: str = NOTEBOOK, constant: str = CONSTANT) -> bool:
     nb = _load(path)
     lines = nb["cells"][CELL]["source"]
-    index = _line_index(lines)
-    line = f'{CONSTANT}"{encode(data)}"' + ("\n" if lines[index].endswith("\n") else "")
+    index = _line_index(lines, constant)
+    line = f'{constant}"{encode(data)}"' + ("\n" if lines[index].endswith("\n") else "")
     if lines[index] == line:
         return False
     lines[index] = line
@@ -153,8 +159,13 @@ def main(argv=None) -> int:
     if args.action == "write":
         changed = write(data, args.notebook)
         print(f"{'embedded' if changed else 'already embedded'}: {len(data['files'])} files, web source {data['web_source'][:12]}")
+        registry = kinds()
+        changed = write(registry, args.notebook, KINDS_CONSTANT)
+        print(f"{'embedded' if changed else 'already embedded'}: {len(registry['kinds'])} kinds, {len(registry['layouts'])} layouts")
         return 0
     problems = differences(data, embedded(args.notebook))
+    if embedded(args.notebook, KINDS_CONSTANT) != kinds():
+        problems.append("kinds.json differs")
     for problem in problems:
         print(problem, file=sys.stderr)
     print("the embedded App shell matches the repo" if not problems else f"differences from the repo: {len(problems)}")
