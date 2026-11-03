@@ -52,48 +52,53 @@ def kinds(ns, metadata, fk_graph=None, **kw):
 
 
 FIXTURES = {
-    "forecast": (meta(sales={"sale_date": "DATE", "units": "INT", "store_id": "BIGINT"}),
+    "Forecast": (meta(sales={"sale_date": "DATE", "units": "INT", "store_id": "BIGINT"}),
                  meta(sales={"store_id": "BIGINT", "units": "INT", "store_name": "STRING"}), {}),
-    "risk_propensity": (meta(loans={"loan_id": "BIGINT", "customer_id": "BIGINT", "is_default": "BOOLEAN", "opened_date": "DATE"},
+    "Risk or propensity": (meta(loans={"loan_id": "BIGINT", "customer_id": "BIGINT", "is_default": "BOOLEAN", "opened_date": "DATE"},
                              customers={"customer_id": "BIGINT", "segment": "STRING"}),
                         meta(loans={"loan_id": "BIGINT", "customer_id": "BIGINT", "opened_date": "DATE", "principal_amount": "DOUBLE"},
                              customers={"customer_id": "BIGINT", "segment": "STRING"}),
                         {"pos": [("loans", "customer_id", "customers")], "neg": [("loans", "customer_id", "customers")]}),
-    "inventory_replenishment": (meta(inventory={"snapshot_date": "DATE", "on_hand_qty": "INT", "shelf_capacity": "INT"}),
+    "Inventory and replenishment": (meta(inventory={"snapshot_date": "DATE", "on_hand_qty": "INT", "shelf_capacity": "INT"}),
                                 meta(inventory={"snapshot_date": "DATE", "on_hand_qty": "INT", "warehouse_id": "BIGINT"}), {}),
-    "allocation": (meta(budgets={"region_id": "BIGINT", "seat_capacity": "INT", "spend_amount": "DOUBLE"}),
+    "Allocation": (meta(budgets={"region_id": "BIGINT", "seat_capacity": "INT", "spend_amount": "DOUBLE"}),
                    meta(budgets={"region_id": "BIGINT", "spend_amount": "DOUBLE", "spend_date": "DATE"}), {}),
-    "driver_scenarios": (meta(pnl={"period_date": "DATE", "revenue": "DOUBLE", "unit_price": "DOUBLE"}),
+    "Driver-based scenarios": (meta(pnl={"period_date": "DATE", "revenue": "DOUBLE", "unit_price": "DOUBLE"}),
                          meta(pnl={"period_date": "DATE", "unit_price": "DOUBLE", "region_id": "BIGINT"}), {}),
-    "variance_to_plan": (meta(plan={"month_date": "DATE", "budget_amount": "DOUBLE", "actual_amount": "DOUBLE"}),
+    "Variance to plan": (meta(plan={"month_date": "DATE", "budget_amount": "DOUBLE", "actual_amount": "DOUBLE"}),
                          meta(plan={"budget_amount": "DOUBLE", "actual_amount": "DOUBLE", "cost_center_id": "BIGINT"}), {}),
-    "anomaly": (meta(meter={"reading_ts": "TIMESTAMP", "kwh_quantity": "DOUBLE", "meter_id": "BIGINT"}),
+    "Anomaly": (meta(meter={"reading_ts": "TIMESTAMP", "kwh_quantity": "DOUBLE", "meter_id": "BIGINT"}),
                 meta(meter={"meter_id": "BIGINT", "kwh_quantity": "DOUBLE", "meter_type": "STRING"}), {}),
-    "sla_aging": (meta(tickets={"ticket_id": "BIGINT", "opened_at": "TIMESTAMP", "resolved_at": "TIMESTAMP", "status": "STRING"}),
+    "SLA, backlog and aging": (meta(tickets={"ticket_id": "BIGINT", "opened_at": "TIMESTAMP", "resolved_at": "TIMESTAMP", "status": "STRING"}),
                   meta(tickets={"ticket_id": "BIGINT", "opened_at": "TIMESTAMP", "status": "STRING", "priority": "STRING"}), {}),
-    "segmentation": (meta(orders={"order_id": "BIGINT", "customer_id": "BIGINT", "net_amount": "DOUBLE"},
+    "Segmentation": (meta(orders={"order_id": "BIGINT", "customer_id": "BIGINT", "net_amount": "DOUBLE"},
                           customers={"customer_id": "BIGINT", "name": "STRING"}),
                      meta(orders={"order_id": "BIGINT", "customer_id": "BIGINT", "net_amount": "DOUBLE"},
                           customers={"customer_id": "BIGINT", "name": "STRING"}),
                      {"pos": [("orders", "customer_id", "customers")], "neg": []}),
-    "process_mining": (meta(events={"case_id": "BIGINT", "activity": "STRING", "event_ts": "TIMESTAMP"}),
+    "Process mining": (meta(events={"case_id": "BIGINT", "activity": "STRING", "event_ts": "TIMESTAMP"}),
                        meta(events={"user_id": "BIGINT", "activity": "STRING", "event_ts": "TIMESTAMP"}), {}),
-    "location_intelligence": (meta(stores={"store_id": "BIGINT", "latitude": "DOUBLE", "longitude": "DOUBLE"}),
+    "Location intelligence": (meta(stores={"store_id": "BIGINT", "latitude": "DOUBLE", "longitude": "DOUBLE"}),
                               meta(stores={"store_id": "BIGINT", "store_name": "STRING", "opened_date": "DATE"}), {}),
-    "fraud_rings": (meta(transfers={"from_account_id": "BIGINT", "to_account_id": "BIGINT", "amount": "DOUBLE"}),
+    "Fraud rings": (meta(transfers={"from_account_id": "BIGINT", "to_account_id": "BIGINT", "amount": "DOUBLE"}),
                     meta(transfers={"account_id": "BIGINT", "branch_id": "BIGINT", "amount": "DOUBLE"}), {}),
-    "process_control": (meta(readings={"reading_ts": "TIMESTAMP", "upper_limit": "DOUBLE", "defect_count": "INT"}),
+    "Statistical process control": (meta(readings={"reading_ts": "TIMESTAMP", "upper_limit": "DOUBLE", "defect_count": "INT"}),
                         meta(readings={"reading_ts": "TIMESTAMP", "defect_count": "INT", "line_id": "BIGINT"}), {}),
-    "controls_testing": (meta(payments={"approved_by": "STRING", "payment_amount": "DOUBLE", "paid_date": "DATE"}),
+    "Controls tests": (meta(payments={"approved_by": "STRING", "payment_amount": "DOUBLE", "paid_date": "DATE"}),
                          meta(payments={"payee_id": "BIGINT", "payment_amount": "DOUBLE", "paid_date": "DATE"}), {}),
-    "promotion_lift": (meta(sales={"promo_id": "BIGINT", "sale_date": "DATE", "units": "INT"}),
+    "Promotion or campaign lift": (meta(sales={"promo_id": "BIGINT", "sale_date": "DATE", "units": "INT"}),
                        meta(sales={"store_id": "BIGINT", "sale_date": "DATE", "units": "INT"}), {}),
 }
 
 
-@pytest.mark.parametrize("kind", sorted(FIXTURES))
-def test_each_kind_is_detected_on_its_schema_and_not_on_the_near_miss(agent_ns, kind):
-    pos, neg, links = FIXTURES[kind]
+def kind_id(ns, label):
+    return next(k["id"] for k in ns["_inspire_kinds"]()["kinds"] if k["label"] == label)
+
+
+@pytest.mark.parametrize("label", sorted(FIXTURES))
+def test_each_kind_is_detected_on_its_schema_and_not_on_the_near_miss(agent_ns, label):
+    pos, neg, links = FIXTURES[label]
+    kind = kind_id(agent_ns, label)
     found = kinds(agent_ns, pos, graph(*links.get("pos", [])))
     assert kind in found, sorted(found)
     hit = found[kind]
@@ -103,7 +108,7 @@ def test_each_kind_is_detected_on_its_schema_and_not_on_the_near_miss(agent_ns, 
 
 
 def test_every_detected_kind_carries_the_registry_fields_and_its_evidence(agent_ns):
-    pos = FIXTURES["sla_aging"][0]
+    pos = FIXTURES["SLA, backlog and aging"][0]
     hit = kinds(agent_ns, pos)["sla_aging"]
     registry = {k["id"]: k for k in agent_ns["_inspire_kinds"]()["kinds"]}["sla_aging"]
     assert hit["num"] == registry["num"] and hit["label"] == registry["label"] and hit["layout"] == registry["layout"]
@@ -156,7 +161,7 @@ def test_evidence_reaches_through_a_foreign_key_but_the_anchor_must_hold_a_signa
 def test_detection_logs_the_kind_detect_tag(agent_ns, caplog):
     obj = inspire(agent_ns)
     with caplog.at_level(logging.INFO, logger="v200_kinds_detect"):
-        found = obj.detect_supported_kinds(FIXTURES["forecast"][0], {})
+        found = obj.detect_supported_kinds(FIXTURES["Forecast"][0], {})
     line = next(r.getMessage() for r in caplog.records if "[KIND-DETECT FIRED]" in r.getMessage())
     assert line.startswith(f"[KIND-DETECT FIRED] {len(found)} kinds: ") and "forecast(" in line
     with caplog.at_level(logging.INFO, logger="v200_kinds_detect"):
