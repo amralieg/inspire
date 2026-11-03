@@ -114,7 +114,7 @@ def test_the_trim_records_the_target_the_theme_cap_and_the_hard_veto_apart(agent
     assert drops[id(ucs[4])][1] == "trimmed: its idea theme 'A' already holds the 4 use cases one theme may keep"
     assert drops[id(ucs[13])][1].startswith("trimmed: the catalog is trimmed to 8 use cases")
     line = [m for _lvl, m in obj.logger.records if m.startswith("Stratified trim:")][-1]
-    assert "6 left out because the 8 slots went to stronger use cases, 6 because their theme already held 4" in line
+    assert "6 left out because the 8 slots went to stronger use cases, 6 over the per-theme cap of 4" in line
 
 
 def test_the_trim_with_more_themes_than_places_records_the_target(agent_ns):
@@ -125,6 +125,17 @@ def test_the_trim_with_more_themes_than_places_records_the_target(agent_ns):
     assert len(out) == 3 and len(drops) == 7
     assert {code for code, _reason in drops.values()} == {"over_target"}
     assert all("5 idea themes" in reason for _code, reason in drops.values())
+
+
+def test_the_trim_to_one_place_names_one_use_case_and_one_idea_theme(agent_ns):
+    obj = make_inspire(agent_ns)
+    ucs = _trim([("A", 9.9), ("A", 9.8), ("A", 9.7)])
+    drops = {}
+    out = obj._stratified_trim_by_theme(ucs, target_max=1, drops=drops)
+    assert [u["No"] for u in out] == ["U0"]
+    reasons = {reason for _code, reason in drops.values()}
+    assert reasons == {"trimmed: the catalog is trimmed to 1 use case and the use cases fall into 1 idea theme, "
+                       "so only the best use case of the strongest themes is kept"}
 
 
 def test_the_trim_without_a_drops_map_behaves_as_before(agent_ns):
