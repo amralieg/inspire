@@ -1,0 +1,224 @@
+{
+  "version": 2,
+  "layout": "planner",
+  "id": "n03_u02",
+  "use_case_id": "N03-U02",
+  "title": "Weekly production plan",
+  "question": "How much of each item should we make this week within oven, staff and flour limits?",
+  "sponsor": "Head of Operations",
+  "domain": "Operations",
+  "subdomain": "Production planning",
+  "icon": "sliders",
+  "hue": "teal",
+  "result_table": "main.supply.production_out",
+  "story": "The plan earns {objective} this week; {binding} limits are fully used.",
+  "questions": [
+    "Which limit holds the plan back the most?",
+    "Which items does the plan cut, and why?"
+  ],
+  "datasets": [
+    {
+      "name": "records",
+      "sql": "SELECT o.record_key, o.entity_id, o.entity_label, o.priority_tier, o.`rank`, o.top_reasons, o.recommended_action, o.value, o.as_of_date, p.current_value, p.recommended_value, p.delta, p.objective_contribution, i.category, i.region, i.channel FROM main.supply.production_out AS o JOIN main.supply.production_out__plan AS p ON p.entity = o.entity_id JOIN main.supply.items AS i ON i.item_id = o.entity_id WHERE o.is_current AND o.change_source <> 'delete'"
+    },
+    {
+      "name": "limits",
+      "sql": "SELECT c.name, c.`limit`, c.used, c.slack, c.shadow_price FROM main.supply.production_out__constraints AS c"
+    }
+  ],
+  "filters": [
+    {
+      "id": "run_date",
+      "type": "date_range",
+      "label": "Run date",
+      "grain": "day",
+      "default": "12m",
+      "columns": {
+        "records": "as_of_date"
+      }
+    },
+    {
+      "id": "category",
+      "type": "multi_select",
+      "label": "Category",
+      "columns": {
+        "records": "category"
+      }
+    },
+    {
+      "id": "region",
+      "type": "multi_select",
+      "label": "Region",
+      "columns": {
+        "records": "region"
+      }
+    },
+    {
+      "id": "channel",
+      "type": "multi_select",
+      "label": "Channel",
+      "columns": {
+        "records": "channel"
+      }
+    },
+    {
+      "id": "limit_name",
+      "type": "multi_select",
+      "label": "Limit",
+      "columns": {
+        "limits": "name"
+      }
+    }
+  ],
+  "kpis": [
+    {
+      "id": "objective",
+      "label": "Plan margin",
+      "dataset": "records",
+      "expression": "SUM(objective_contribution)",
+      "format": "currency",
+      "currency": "USD",
+      "good": "up",
+      "section": "objective_kpi"
+    },
+    {
+      "id": "changed",
+      "label": "Lines changed",
+      "dataset": "records",
+      "expression": "COUNT(CASE WHEN delta <> 0 THEN 1 END)",
+      "format": "integer",
+      "good": "neutral"
+    },
+    {
+      "id": "binding",
+      "label": "Limits fully used",
+      "dataset": "limits",
+      "expression": "COUNT(CASE WHEN slack <= 0 THEN 1 END)",
+      "format": "integer",
+      "good": "down"
+    }
+  ],
+  "charts": [
+    {
+      "id": "limits_used",
+      "section": "constraint_bars",
+      "title": "How much of each limit the plan uses",
+      "hint": "The bar is what the plan uses; the frame is the limit. Red means the limit is fully used.",
+      "so_what": "A red limit caps the plan: raising it is the fastest way to earn more.",
+      "type": "bullet",
+      "dataset": "limits",
+      "x": {
+        "column": "name",
+        "kind": "category",
+        "label": "Limit"
+      },
+      "y": [
+        {
+          "label": "Used",
+          "expression": "SUM(used)",
+          "format": "number"
+        },
+        {
+          "label": "Limit",
+          "expression": "SUM(`limit`)",
+          "format": "number"
+        }
+      ]
+    },
+    {
+      "id": "swing",
+      "section": "sensitivity_tornado",
+      "title": "What a 10% change in each limit is worth",
+      "hint": "Margin lost if the limit drops 10%, and gained if it rises 10%, at today's shadow prices.",
+      "so_what": "Spend first on the limit with the longest bar.",
+      "type": "tornado",
+      "dataset": "limits",
+      "x": {
+        "column": "name",
+        "kind": "category",
+        "label": "Limit"
+      },
+      "y": [
+        {
+          "label": "Limit down 10%",
+          "expression": "SUM(-0.1 * `limit` * shadow_price)",
+          "format": "currency",
+          "currency": "USD"
+        },
+        {
+          "label": "Limit up 10%",
+          "expression": "SUM(0.1 * `limit` * shadow_price)",
+          "format": "currency",
+          "currency": "USD"
+        }
+      ]
+    },
+    {
+      "id": "worth",
+      "section": "sensitivity_tornado",
+      "title": "Value of one more unit of each limit",
+      "hint": "The shadow price: how much margin one more unit of the limit adds.",
+      "so_what": "Compare it with what one more unit costs.",
+      "type": "horizontal_bar",
+      "dataset": "limits",
+      "x": {
+        "column": "name",
+        "kind": "category",
+        "label": "Limit"
+      },
+      "y": [
+        {
+          "label": "Shadow price",
+          "expression": "MAX(shadow_price)",
+          "format": "currency",
+          "currency": "USD"
+        }
+      ]
+    }
+  ],
+  "tables": [],
+  "plan": {
+    "title": "Production plan",
+    "hint": "This week's run for each item next to the solver's plan. Accept a line, or override it with a reason.",
+    "current": "current_value",
+    "recommended": "recommended_value",
+    "delta": "delta",
+    "format": "integer"
+  },
+  "records": {
+    "title": "Plan lines",
+    "hint": "Items in this week's plan, ranked by the margin they add.",
+    "key": "entity_id",
+    "label": "entity_label",
+    "sublabel": "category",
+    "rank": "rank",
+    "tier": "priority_tier",
+    "reasons": "top_reasons",
+    "action": "recommended_action",
+    "columns": [
+      {
+        "column": "recommended_value",
+        "label": "Planned",
+        "format": "integer"
+      },
+      {
+        "column": "objective_contribution",
+        "label": "Margin",
+        "format": "currency",
+        "currency": "USD"
+      }
+    ],
+    "detail": [
+      {
+        "column": "current_value",
+        "label": "Current",
+        "format": "integer"
+      },
+      {
+        "column": "region",
+        "label": "Region",
+        "format": "text"
+      }
+    ]
+  }
+}

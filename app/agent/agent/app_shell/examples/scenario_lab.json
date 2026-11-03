@@ -1,0 +1,197 @@
+{
+  "version": 2,
+  "layout": "scenario_lab",
+  "id": "n04_u01",
+  "use_case_id": "N04-U01",
+  "title": "Margin scenario lab",
+  "question": "What margin do we reach next quarter if price, volume and cost move, and how likely is the target?",
+  "sponsor": "Chief Financial Officer",
+  "domain": "Finance",
+  "subdomain": "Planning",
+  "icon": "sliders",
+  "hue": "violet",
+  "result_table": "main.finance.margin_out",
+  "story": "The base case earns {base_p50} next quarter, with a {base_chance} chance of reaching the target.",
+  "questions": [
+    "Which lever moves the margin the most?",
+    "How far must price move to reach the target?"
+  ],
+  "datasets": [
+    {
+      "name": "model",
+      "sql": "SELECT m.driver, m.coefficient FROM main.finance.margin_out__scenario_model AS m"
+    },
+    {
+      "name": "scenarios",
+      "sql": "SELECT s.scenario_id, s.lever_values, s.outcome, s.p10, s.p50, s.p90, s.prob_target FROM main.finance.margin_out__scenarios AS s"
+    },
+    {
+      "name": "sensitivity",
+      "sql": "SELECT t.lever, t.low, t.high, t.delta FROM main.finance.margin_out__sensitivity AS t"
+    },
+    {
+      "name": "runs",
+      "sql": "SELECT o.as_of_date, o.value, o.region, o.category, o.channel FROM main.finance.margin_out AS o WHERE o.is_current AND o.change_source <> 'delete'"
+    }
+  ],
+  "filters": [
+    {
+      "id": "run_date",
+      "type": "date_range",
+      "label": "Run date",
+      "grain": "month",
+      "default": "12m",
+      "columns": {
+        "runs": "as_of_date"
+      }
+    },
+    {
+      "id": "region",
+      "type": "multi_select",
+      "label": "Region",
+      "columns": {
+        "runs": "region"
+      }
+    }
+  ],
+  "kpis": [
+    {
+      "id": "base_p50",
+      "label": "Base case margin",
+      "dataset": "scenarios",
+      "expression": "MAX(CASE WHEN scenario_id = 'base' THEN p50 END)",
+      "format": "currency",
+      "currency": "USD",
+      "good": "up"
+    },
+    {
+      "id": "base_chance",
+      "label": "Chance of the target",
+      "dataset": "scenarios",
+      "expression": "MAX(CASE WHEN scenario_id = 'base' THEN prob_target END)",
+      "format": "percent",
+      "good": "up"
+    },
+    {
+      "id": "last_margin",
+      "label": "Margin last run",
+      "dataset": "runs",
+      "expression": "SUM(value)",
+      "format": "currency",
+      "currency": "USD",
+      "good": "up",
+      "compare": true
+    }
+  ],
+  "charts": [
+    {
+      "id": "swing",
+      "section": "tornado",
+      "title": "What moves the margin",
+      "hint": "Margin at the low and the high end of each lever, from the base case.",
+      "so_what": "Work the widest bar first: it moves the margin the most.",
+      "type": "tornado",
+      "dataset": "sensitivity",
+      "x": {
+        "column": "lever",
+        "kind": "category",
+        "label": "Lever"
+      },
+      "y": [
+        {
+          "label": "Low",
+          "expression": "SUM(low)",
+          "format": "currency",
+          "currency": "USD"
+        },
+        {
+          "label": "High",
+          "expression": "SUM(high)",
+          "format": "currency",
+          "currency": "USD"
+        }
+      ]
+    }
+  ],
+  "tables": [
+    {
+      "id": "scenarios",
+      "section": "scenario_table",
+      "title": "Scenarios",
+      "hint": "Base, upside and downside cases with their range.",
+      "so_what": "Plan on the P50 of the scenario you choose and hold a buffer for the P10.",
+      "dataset": "scenarios",
+      "columns": [
+        {
+          "column": "scenario_id",
+          "label": "Scenario",
+          "format": "text"
+        },
+        {
+          "column": "p10",
+          "label": "P10",
+          "format": "currency",
+          "currency": "USD"
+        },
+        {
+          "column": "p50",
+          "label": "P50",
+          "format": "currency",
+          "currency": "USD"
+        },
+        {
+          "column": "p90",
+          "label": "P90",
+          "format": "currency",
+          "currency": "USD"
+        },
+        {
+          "column": "prob_target",
+          "label": "Chance of the target",
+          "format": "percent"
+        }
+      ],
+      "sort": {
+        "column": "p50",
+        "desc": true
+      }
+    }
+  ],
+  "scenario": {
+    "title": "Move the levers",
+    "hint": "Each lever moves within 10% of its base case value.",
+    "model": "model",
+    "quantiles": "scenarios",
+    "levers": [
+      {
+        "lever": "price",
+        "label": "Average price",
+        "format": "currency",
+        "currency": "USD"
+      },
+      {
+        "lever": "volume",
+        "label": "Units sold",
+        "format": "integer"
+      },
+      {
+        "lever": "unit_cost",
+        "label": "Unit cost",
+        "format": "currency",
+        "currency": "USD"
+      }
+    ],
+    "outcome": {
+      "label": "Quarter margin",
+      "format": "currency",
+      "currency": "USD",
+      "target": 5200000,
+      "good": "up"
+    },
+    "save": {
+      "name": "scenario_name",
+      "levers": "lever_values",
+      "outcome": "expected_outcome"
+    }
+  }
+}

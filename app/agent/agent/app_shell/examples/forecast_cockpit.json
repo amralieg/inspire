@@ -1,0 +1,302 @@
+{
+  "version": 2,
+  "layout": "forecast_cockpit",
+  "id": "n02_u03",
+  "use_case_id": "N02-U03",
+  "title": "Demand forecast cockpit",
+  "question": "How much will each item sell over the next weeks, and is the order on track?",
+  "sponsor": "Head of Supply Planning",
+  "domain": "Supply",
+  "subdomain": "Demand planning",
+  "icon": "trend",
+  "hue": "blue",
+  "result_table": "main.supply.demand_out",
+  "story": "The next weeks need {next_forecast} units; {at_risk_n} items carry a forecast error above the naive benchmark.",
+  "questions": [
+    "Which items have the widest forecast range next month?",
+    "Where does the forecast run above capacity?"
+  ],
+  "datasets": [
+    {
+      "name": "records",
+      "sql": "SELECT o.record_key, o.entity_id, o.entity_label, o.priority_tier, o.`rank`, o.top_reasons, o.recommended_action, o.value, o.current_order, o.recommended_order, o.as_of_date, i.category, i.region, i.channel FROM main.supply.demand_out AS o JOIN main.supply.items AS i ON i.item_id = o.entity_id WHERE o.is_current AND o.change_source <> 'delete'"
+    },
+    {
+      "name": "series",
+      "sql": "SELECT s.series_id, i.item_label AS series_label, s.period, s.actual, s.forecast, s.lower, s.upper, s.is_future, s.method, s.backtest_mase, i.category, i.region, i.channel FROM main.supply.demand_out__series AS s JOIN main.supply.items AS i ON i.item_id = s.series_id"
+    },
+    {
+      "name": "outlook",
+      "sql": "SELECT s.period, s.forecast, s.upper, c.capacity, i.category, i.region, i.channel FROM main.supply.demand_out__series AS s JOIN main.supply.items AS i ON i.item_id = s.series_id JOIN main.supply.capacity AS c ON c.period = s.period AND c.region = i.region"
+    },
+    {
+      "name": "at_risk",
+      "sql": "SELECT i.item_label AS series_label, i.category, i.region, i.channel, MAX(s.backtest_mase) AS backtest_mase, SUM(CASE WHEN s.is_future THEN s.upper - s.forecast END) AS upside, SUM(CASE WHEN s.is_future THEN s.forecast END) AS next_forecast FROM main.supply.demand_out__series AS s JOIN main.supply.items AS i ON i.item_id = s.series_id GROUP BY i.item_label, i.category, i.region, i.channel HAVING MAX(s.backtest_mase) > 1 OR SUM(CASE WHEN s.is_future THEN s.upper - s.forecast END) > 0"
+    }
+  ],
+  "filters": [
+    {
+      "id": "run_date",
+      "type": "date_range",
+      "label": "Run date",
+      "grain": "day",
+      "default": "12m",
+      "columns": {
+        "records": "as_of_date"
+      }
+    },
+    {
+      "id": "category",
+      "type": "multi_select",
+      "label": "Category",
+      "columns": {
+        "records": "category",
+        "series": "category",
+        "outlook": "category",
+        "at_risk": "category"
+      }
+    },
+    {
+      "id": "region",
+      "type": "multi_select",
+      "label": "Region",
+      "columns": {
+        "records": "region",
+        "series": "region",
+        "outlook": "region",
+        "at_risk": "region"
+      }
+    },
+    {
+      "id": "channel",
+      "type": "multi_select",
+      "label": "Channel",
+      "columns": {
+        "records": "channel",
+        "series": "channel",
+        "outlook": "channel",
+        "at_risk": "channel"
+      }
+    }
+  ],
+  "kpis": [
+    {
+      "id": "next_forecast",
+      "label": "Forecast, next weeks",
+      "dataset": "series",
+      "expression": "SUM(CASE WHEN is_future THEN forecast END)",
+      "format": "integer",
+      "good": "neutral"
+    },
+    {
+      "id": "last_actual",
+      "label": "Sold, history",
+      "dataset": "series",
+      "expression": "SUM(actual)",
+      "format": "integer",
+      "good": "up"
+    },
+    {
+      "id": "at_risk_n",
+      "label": "Items at risk",
+      "dataset": "at_risk",
+      "expression": "COUNT(*)",
+      "format": "integer",
+      "good": "down"
+    },
+    {
+      "id": "orders_open",
+      "label": "Orders to decide",
+      "dataset": "records",
+      "expression": "COUNT(*)",
+      "format": "integer",
+      "good": "down"
+    }
+  ],
+  "charts": [
+    {
+      "id": "fan",
+      "section": "fan_chart",
+      "title": "Demand with its forecast range",
+      "hint": "History, then the forecast with its 80% range.",
+      "so_what": "Order to the forecast line; hold safety stock for the top of the band.",
+      "type": "band",
+      "dataset": "series",
+      "x": {
+        "column": "period",
+        "kind": "time",
+        "label": "Week"
+      },
+      "y": [
+        {
+          "label": "Actual",
+          "expression": "SUM(actual)",
+          "format": "integer"
+        },
+        {
+          "label": "Forecast",
+          "expression": "SUM(forecast)",
+          "format": "integer"
+        },
+        {
+          "label": "Low",
+          "expression": "SUM(lower)",
+          "format": "integer"
+        },
+        {
+          "label": "High",
+          "expression": "SUM(upper)",
+          "format": "integer"
+        }
+      ],
+      "span": 2
+    },
+    {
+      "id": "vs_capacity",
+      "section": "forecast_vs_capacity",
+      "title": "Forecast against capacity",
+      "hint": "Where the top of the range runs above what we can supply.",
+      "so_what": "Weeks where the high line crosses capacity need extra supply booked now.",
+      "type": "line",
+      "dataset": "outlook",
+      "x": {
+        "column": "period",
+        "kind": "time",
+        "label": "Week"
+      },
+      "y": [
+        {
+          "label": "Forecast",
+          "expression": "SUM(forecast)",
+          "format": "integer"
+        },
+        {
+          "label": "High",
+          "expression": "SUM(upper)",
+          "format": "integer"
+        },
+        {
+          "label": "Capacity",
+          "expression": "SUM(capacity)",
+          "format": "integer"
+        }
+      ]
+    },
+    {
+      "id": "accuracy",
+      "section": "accuracy_by_series",
+      "title": "Forecast error by item",
+      "hint": "Backtest error against a naive forecast; above 1 is worse than naive.",
+      "so_what": "Review the items above 1 before you trust their order.",
+      "type": "horizontal_bar",
+      "dataset": "series",
+      "x": {
+        "column": "series_label",
+        "kind": "category",
+        "label": "Item"
+      },
+      "y": [
+        {
+          "label": "Backtest error (MASE)",
+          "expression": "MAX(backtest_mase)",
+          "format": "number"
+        }
+      ],
+      "limit": 15
+    }
+  ],
+  "tables": [
+    {
+      "id": "at_risk",
+      "section": "accuracy_by_series",
+      "title": "Items at risk",
+      "hint": "Items whose forecast is weak or whose range runs high.",
+      "so_what": "Check these items first: their order is the least certain.",
+      "dataset": "at_risk",
+      "columns": [
+        {
+          "column": "series_label",
+          "label": "Item",
+          "format": "text"
+        },
+        {
+          "column": "category",
+          "label": "Category",
+          "format": "text"
+        },
+        {
+          "column": "backtest_mase",
+          "label": "Error (MASE)",
+          "format": "number"
+        },
+        {
+          "column": "next_forecast",
+          "label": "Forecast",
+          "format": "integer"
+        },
+        {
+          "column": "upside",
+          "label": "Upside",
+          "format": "integer"
+        }
+      ],
+      "sort": {
+        "column": "backtest_mase",
+        "desc": true
+      }
+    }
+  ],
+  "plan": {
+    "title": "Order plan",
+    "hint": "The suggested order for each item from the forecast. Accept it, or override it with a reason.",
+    "current": "current_order",
+    "recommended": "recommended_order",
+    "format": "integer"
+  },
+  "records": {
+    "title": "Items to order",
+    "hint": "Items from the latest run, ranked by the stock at risk.",
+    "key": "entity_id",
+    "label": "entity_label",
+    "sublabel": "category",
+    "rank": "rank",
+    "tier": "priority_tier",
+    "reasons": "top_reasons",
+    "action": "recommended_action",
+    "columns": [
+      {
+        "column": "category",
+        "label": "Category",
+        "format": "text"
+      },
+      {
+        "column": "recommended_order",
+        "label": "Suggested order",
+        "format": "integer"
+      },
+      {
+        "column": "value",
+        "label": "Stock at risk",
+        "format": "currency",
+        "currency": "USD"
+      }
+    ],
+    "detail": [
+      {
+        "column": "current_order",
+        "label": "Current order",
+        "format": "integer"
+      },
+      {
+        "column": "region",
+        "label": "Region",
+        "format": "text"
+      },
+      {
+        "column": "channel",
+        "label": "Channel",
+        "format": "text"
+      }
+    ]
+  }
+}

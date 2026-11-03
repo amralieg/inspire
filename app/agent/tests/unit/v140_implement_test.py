@@ -5108,7 +5108,7 @@ def test_the_app_shell_is_loaded_once_per_run_into_the_run_folder(agent_ns, tmp_
     inst.local_log_output_dir = str(tmp_path)
     first = inst._implement_app_shell()
     assert inst._implement_app_shell() is first
-    assert sorted(os.listdir(tmp_path / "implement" / "_app_shell")) == ["shell_alerts.py", "shell_core.py", "shell_db.py", "shell_facts.py", "shell_pg.py",
+    assert sorted(os.listdir(tmp_path / "implement" / "_app_shell")) == ["kinds.json", "shell_alerts.py", "shell_core.py", "shell_db.py", "shell_facts.py", "shell_pg.py",
                                                                            "shell_redact.py", "shell_sql.py"]
 
 
@@ -5124,7 +5124,7 @@ def test_the_app_shell_loads_the_files_it_just_wrote_even_when_a_module_of_that_
     modules = agent_ns["implement_app_shell_modules"](str(folder), payload["files"])
     assert {name: os.path.dirname(module.__file__) for name, module in modules.items()} == {name: str(folder) for name in modules}
     assert modules["shell_sql"].CAPS != "stale" and modules["shell_core"].shell_sql is modules["shell_sql"]
-    assert sorted(os.listdir(folder)) == ["shell_alerts.py", "shell_core.py", "shell_db.py", "shell_facts.py", "shell_pg.py", "shell_redact.py",
+    assert sorted(os.listdir(folder)) == ["kinds.json", "shell_alerts.py", "shell_core.py", "shell_db.py", "shell_facts.py", "shell_pg.py", "shell_redact.py",
                                           "shell_sql.py"], "no bytecode is left in the run folder"
     assert str(folder) not in sys.path and all(sys.modules[n].CAPS == "stale" for n in ("shell_sql", "shell_db", "shell_core")), \
         "the modules the process held before stay its own"
@@ -5246,8 +5246,8 @@ def test_genie_gets_the_apps_own_page_checker_and_is_told_to_run_it(agent_ns, tm
     inst._implement_app(context, None)
     payload, _modules = _app_shell(agent_ns, tmp_path / "shell")
     assert seen["tools"] == agent_ns["implement_app_check_files"](payload["files"], True, ["trend", "bars", "pareto"])
-    assert sorted(seen["tools"]) == [".inspire_check/check_page.py", ".inspire_check/shell_facts.py", ".inspire_check/shell_redact.py",
-                                     ".inspire_check/shell_sql.py"]
+    assert sorted(seen["tools"]) == [".inspire_check/check_page.py", ".inspire_check/kinds.json", ".inspire_check/shell_facts.py",
+                                     ".inspire_check/shell_redact.py", ".inspire_check/shell_sql.py"]
     assert "run `python .inspire_check/check_page.py` in your working folder: it runs those same checks on page.json and must " \
            "print no problems" in seen["prompt"]
     assert "every chart must draw 2 or more groups, and at least 3 segment filters must offer 2 or more values at the default " \

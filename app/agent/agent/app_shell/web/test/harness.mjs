@@ -56,14 +56,14 @@ print(json.dumps(shell.app_info({"x-forwarded-email": "pat.lee@example.com", "x-
 
 export const TABLE = { result_table: 'main.pricing.loss_desk_out' };
 
-export function appInfo(overrides = {}, pages = 1, pageChanges = {}) {
+export function appInfo(overrides = {}, pages = 1, pageChanges = {}, example = 'example_page.json') {
   const settings = {
     version: 2, title: 'Pricing desk', subtitle: '', style: 'a', layout: 'sidebar', auth: 'sp', theme: 'light', palette: 'default',
     options: { modify: false, replace_edits: false, decisions: false },
     genie: { space_id: '01f0aa11bb22cc33', title: 'Pricing desk' }, built_at: '2026-10-26T10:00:00Z',
     admin: ['owner', 'example.com'].join('@'), jobs: {}, ...overrides,
   };
-  const out = execFileSync('python3', ['-c', APP_INFO, join(REPO, 'agent', 'app_shell', 'server'), join(REPO, 'agent', 'app_shell', 'example_page.json'),
+  const out = execFileSync('python3', ['-c', APP_INFO, join(REPO, 'agent', 'app_shell', 'server'), join(REPO, 'agent', 'app_shell', example),
     JSON.stringify(settings), String(pages), JSON.stringify(pageChanges)], { encoding: 'utf8' });
   return JSON.parse(out);
 }

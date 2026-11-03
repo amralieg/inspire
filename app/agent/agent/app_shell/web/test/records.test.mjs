@@ -5,25 +5,43 @@ import {
   historyChanges, initials, inputOf, recordRef, recordView, savingText, suggestions, toInput, valueText, whenText, whoText,
 } from '../src/records.js';
 import { dayLabel, formatValue } from '../src/format.js';
-import { readdirSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 process.env.TZ = 'Asia/Kolkata';
 const SRC = join(dirname(fileURLToPath(import.meta.url)), '..', 'src');
 
-function unusedExports(files) {
+const FRONTEND = join(SRC, '..', '..', '..', '..', '..', 'frontend', 'src');
+const SHARED = { 'kinds.js': join('lib', 'kinds.js') };
+
+function sourcesUnder(dir, skip) {
+  if (!existsSync(dir)) return '';
+  return readdirSync(dir).map((name) => {
+    const path = join(dir, name);
+    if (statSync(path).isDirectory()) return sourcesUnder(path, skip);
+    return /\.jsx?$/.test(name) && path !== skip ? readFileSync(path, 'utf8') : '';
+  }).join('\n');
+}
+
+function unusedExports(files, callers = {}) {
   const all = Object.values(files).join('\n');
+  const count = (text, name) => (text.match(new RegExp(`\\b${name}\\b`, 'g')) || []).length;
   return Object.entries(files).flatMap(([file, text]) => [...text.matchAll(/^export (?:async )?(?:const|function|class) ([A-Za-z_]\w*)/gm)]
-    .map((m) => m[1]).filter((name) => all.match(new RegExp(`\\b${name}\\b`, 'g')).length < 2).map((name) => `${file}: ${name}`));
+    .map((m) => m[1]).filter((name) => count(all, name) + count(callers[file] || '', name) < 2).map((name) => `${file}: ${name}`));
 }
 
 test('every helper the App exports has a caller in the App, and the check catches one that has none', () => {
   const files = Object.fromEntries(readdirSync(SRC).filter((f) => /\.jsx?$/.test(f)).map((f) => [f, readFileSync(join(SRC, f), 'utf8')]));
   assert.ok(Object.keys(files).length > 30);
-  assert.deepEqual(unusedExports(files), []);
-  assert.deepEqual(unusedExports({ ...files, 'extra.js': 'export function lonely() {\n  return 1;\n}\nexport const used = 2;\nconst twice = used;\n' }),
+  const callers = Object.fromEntries(Object.entries(SHARED).map(([file, relay]) => [file, sourcesUnder(FRONTEND, join(FRONTEND, relay))]));
+  assert.deepEqual(unusedExports(files, callers), []);
+  assert.deepEqual(unusedExports({ ...files, 'extra.js': 'export function lonely() {\n  return 1;\n}\nexport const used = 2;\nconst twice = used;\n' }, callers),
     ['extra.js: lonely']);
+  assert.deepEqual(unusedExports({ ...files, 'kinds.js': `${files['kinds.js']}export const nobodyReads = 1;\n` }, callers), ['kinds.js: nobodyReads'],
+    'a shared helper still needs a caller in the App or the Inspire App, not only the line that passes it on');
+  assert.deepEqual(unusedExports(files, { 'kinds.js': callers['kinds.js'].replace(/\b(familyOf|kindForTechnique)\b/g, 'x') }).sort(),
+    ['kinds.js: familyOf', 'kinds.js: kindForTechnique']);
 });
 
 const F = (name, kind, extra = {}) => ({ name, kind, type: 'STRING', role: 'business', editable: true, ...extra });

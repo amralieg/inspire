@@ -105,7 +105,7 @@
    "id": "forecast_cockpit",
    "label": "Forecast cockpit",
    "tab_label": "Forecast",
-   "enabled": false,
+   "enabled": true,
    "contract": "forecast",
    "sections": [
     "todo",
@@ -126,7 +126,7 @@
    "id": "scenario_lab",
    "label": "Scenario lab",
    "tab_label": "Scenarios",
-   "enabled": false,
+   "enabled": true,
    "contract": "scenario",
    "sections": [
     "todo",
@@ -147,7 +147,7 @@
    "id": "planner",
    "label": "Planner",
    "tab_label": "Plan",
-   "enabled": false,
+   "enabled": true,
    "contract": "plan",
    "sections": [
     "todo",

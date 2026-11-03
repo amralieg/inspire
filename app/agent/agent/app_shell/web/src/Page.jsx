@@ -26,6 +26,7 @@ import MoneyCard from './Money.jsx';
 import SettingsPanel, { SettingsButton, useSettings } from './Settings.jsx';
 import { ownerSettings } from './settings.js';
 import { FoldScope, useMyView } from './MyView.jsx';
+import { LayoutSections, isLaidOut, tabLabel } from './Layouts.jsx';
 import { windowParams } from './prefs.js';
 import { AskGenie, GenieScope } from './AskGenie.jsx';
 import {
@@ -237,11 +238,12 @@ export default function Page({ app, page, meta, state, onState, themeKey, onAsk,
   const [sorts, setSorts] = useState({});
   const { data, busy, error } = usePageData(page.id, state, ready, nonce, sorts);
   const live = usePageHub(page.id, state, ready, nonce, listed);
-  const hubPage = listed && !!(live.data?.tracked || live.data?.empty || hubEntry?.tracked || hubEntry?.empty || !live.done);
+  const laidOut = isLaidOut(page);
+  const hubPage = !laidOut && listed && !!(live.data?.tracked || live.data?.empty || hubEntry?.tracked || hubEntry?.empty || !live.done);
   const [question, setQuestion] = useState('');
   const [openKey] = useState(() => parseHash(window.location.hash).rec);
   const [seeChanged, setSeeChanged] = useState(() => (parseHash(window.location.hash).changed ? 1 : 0));
-  const tabs = pageViews(app);
+  const tabs = pageViews(app).map(([id, label]) => [id, id === 'overview' ? tabLabel(page, label) : label]);
   const showRuns = tabs.some(([id]) => id === 'runs') ? () => setTab('runs') : null;
   const seeWhatChanged = page.records ? () => { setTab('overview'); setSeeChanged((n) => n + 1); } : showRuns;
   const runs = useRuns(page.id, runOffset, `${nonce}:${runNonce}`, tabs.some(([id]) => id === 'runs'));
@@ -283,6 +285,22 @@ export default function Page({ app, page, meta, state, onState, themeKey, onAsk,
     return entries.map((entry, i) => (entry.block ? <Block key={entry.key} block={entry.block} tile wide={spans[i] === 2} />
       : entry.node || chartCard(entry.item, spans[i] === 2)));
   };
+  const tableCard = (table) => (
+    <TableCard key={table.id} table={table} result={data?.tables?.[table.id]} error={errors[`table:${table.id}`]} loading={loading} onFilter={pick}
+      pageId={page.id} filters={meta?.columns?.tables?.[table.id]} values={columnValues(state, table.id)}
+      onColumn={(column, value) => onState(setColumnValue(state, table.id, column, value))} onClear={() => onState(clearColumnValues(state, table.id))}
+      sort={sorts[table.id]} onSort={(s) => setSorts((all) => ({ ...all, [table.id]: s }))} />
+  );
+  const kpisOf = (kpis, main = true) => <Kpis page={{ ...page, kpis }} data={data?.kpis} errors={errors} loading={loading} plan={main ? plan : null} scope={data?.scope} />;
+  const kpisCard = kpisOf(page.kpis);
+  const recordsCard = page.records && !unreliable ? (
+    <Records meta={page.records} app={app} pageId={page.id} filters={filters} ready={ready} nonce={nonce} onFilter={pick} history={!!page.history}
+      similarBy={page.similar_by} keepsActions={hubEntry ? !!(hubEntry.tracked && hubEntry.actions) : undefined}
+      onChanged={() => setNonce((n) => n + 1)} onExplain={explain} genieBusy={genieBusy} ai={state?.ai} openKey={openKey}
+      columnMeta={meta?.columns?.list} columnValues={columnValues(state, null)}
+      onColumn={(column, value) => onState(setColumnValue(state, null, column, value))} onClearColumns={() => onState(clearColumnValues(state, null))}
+      onClearFilters={() => onState(clearColumnValues({ ...clearSelections(state), ai: {} }, null))} seeChanged={seeChanged} onShowRuns={showRuns} />
+  ) : null;
   const hubCharts = (bars) => chartCards(trendChart ? [trendChart] : [], [{ key: 'by_reason', item: { id: 'by_reason' }, span: 1, node: bars }], true);
   const body = (
     <div className={`page ${busy && data ? 'is-busy' : ''}`} style={hueVars(page.hue || 'blue')} aria-busy={busy}>
@@ -371,32 +389,28 @@ export default function Page({ app, page, meta, state, onState, themeKey, onAsk,
       {shown === 'overview' && (
         <>
           {error && <p className="tile-err" role="alert"><Icon name="info" size={14} />{error}</p>}
-          {!hubPage && (
+          {laidOut && (
+            <LayoutSections page={page} app={app} ready={ready} nonce={nonce} filters={filters} onChanged={() => setNonce((n) => n + 1)} onAsk={onAsk}
+              kpisOf={kpisOf} records={recordsCard} chartCards={(charts) => chartCards(charts)} tableCard={tableCard} />
+          )}
+          {!hubPage && !laidOut && (
             <Placed slots={slotsOf(plan, 'kpis')}>
-              <Kpis page={page} data={data?.kpis} errors={errors} loading={loading} plan={plan} scope={data?.scope} />
+              {kpisCard}
             </Placed>
           )}
-          {!hubPage && <Placed slots={moreSlots}><section className="charts">{chartCards(page.charts.filter((c) => !c.driver))}</section></Placed>}
+          {!hubPage && !laidOut && <Placed slots={moreSlots}><section className="charts">{chartCards(page.charts.filter((c) => !c.driver))}</section></Placed>}
           {hubPage && more.some((c) => !c.driver) && (
             <Placed slots={moreSlots}><section className="charts charts--more" aria-label="More charts">{chartCards(more.filter((c) => !c.driver))}</section></Placed>
           )}
-          <Drivers drivers={page.drivers} cards={chartCards((hubPage ? more : page.charts).filter((c) => c.driver))} />
-          {page.tables.map((table) => (
+          {!laidOut && <Drivers drivers={page.drivers} cards={chartCards((hubPage ? more : page.charts).filter((c) => c.driver))} />}
+          {!laidOut && page.tables.map((table) => (
             <Placed key={table.id} slots={slotsOf(plan, table.id)}>
-              <TableCard table={table} result={data?.tables?.[table.id]} error={errors[`table:${table.id}`]} loading={loading} onFilter={pick}
-                pageId={page.id} filters={meta?.columns?.tables?.[table.id]} values={columnValues(state, table.id)}
-                onColumn={(column, value) => onState(setColumnValue(state, table.id, column, value))} onClear={() => onState(clearColumnValues(state, table.id))}
-                sort={sorts[table.id]} onSort={(s) => setSorts((all) => ({ ...all, [table.id]: s }))} />
+              {tableCard(table)}
             </Placed>
           ))}
-          {page.records && !unreliable && (
+          {!laidOut && recordsCard && (
             <Placed slots={slotsOf(plan, 'records')}>
-              <Records meta={page.records} app={app} pageId={page.id} filters={filters} ready={ready} nonce={nonce} onFilter={pick} history={!!page.history}
-                similarBy={page.similar_by} keepsActions={hubEntry ? !!(hubEntry.tracked && hubEntry.actions) : undefined}
-                onChanged={() => setNonce((n) => n + 1)} onExplain={explain} genieBusy={genieBusy} ai={state?.ai} openKey={openKey}
-                columnMeta={meta?.columns?.list} columnValues={columnValues(state, null)}
-                onColumn={(column, value) => onState(setColumnValue(state, null, column, value))} onClearColumns={() => onState(clearColumnValues(state, null))}
-                onClearFilters={() => onState(clearColumnValues({ ...clearSelections(state), ai: {} }, null))} seeChanged={seeChanged} onShowRuns={showRuns} />
+              {recordsCard}
             </Placed>
           )}
           {slotsOf(plan, '@bottom').after.map((b) => <Block key={b.id} block={b} />)}

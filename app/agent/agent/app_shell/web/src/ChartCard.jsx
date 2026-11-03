@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import echarts from './echarts.js';
-import { chartIsEmpty, chartOption } from './charts.js';
+import { HORIZONS, chartIsEmpty, chartOption } from './charts.js';
 import { countOf, largestFirst, numberOf } from './format.js';
 import { chartPalette, hueVars, reducedMotion } from './theme.js';
 import { Icon } from './icons.jsx';
@@ -96,10 +96,12 @@ export function BarsCard({ id, title, hint, action, bars, vertical = false, hue 
 
 export default function ChartCard({ chart, wide, result, error, loading, themeKey, app, pageId, onPick, onExplain, genieBusy }) {
   const fold = useFold(`chart:${chart.id}`);
+  const [horizon, setHorizon] = useState(0);
+  const shown = chart.type === 'band' && horizon ? { ...chart, horizon } : chart;
   const rows = result?.rows || [];
   const empty = !loading && !error && chartIsEmpty(chart, rows);
-  const option = !fold.folded && !loading && !error && !empty ? chartOption(chart, rows, chartPalette(), { reduced: reducedMotion() }) : null;
-  const { el, inst } = useChart(option, [result, themeKey, loading, error, fold.folded]);
+  const option = !fold.folded && !loading && !error && !empty ? chartOption(shown, rows, chartPalette(), { reduced: reducedMotion() }) : null;
+  const { el, inst } = useChart(option, [result, themeKey, loading, error, fold.folded, horizon]);
   const toast = useToast();
   const more = useRef(null);
   const [menu, setMenu] = useState(false);
@@ -122,7 +124,7 @@ export default function ChartCard({ chart, wide, result, error, loading, themeKe
       saveDataUrl(inst.current.getDataURL({ type: 'png', pixelRatio: 2, backgroundColor: P.card }), `${name}.png`);
     } else {
       const ssr = echarts.init(null, null, { renderer: 'svg', ssr: true, width: el.current.clientWidth, height: el.current.clientHeight });
-      ssr.setOption({ ...chartOption(chart, rows, P, { reduced: true }), animation: false, backgroundColor: P.card });
+      ssr.setOption({ ...chartOption(shown, rows, P, { reduced: true }), animation: false, backgroundColor: P.card });
       const svg = ssr.renderToSVGString();
       ssr.dispose();
       saveBlob(new Blob([svg], { type: 'image/svg+xml' }), `${name}.svg`);
@@ -141,7 +143,19 @@ export default function ChartCard({ chart, wide, result, error, loading, themeKe
   return (
     <article className={`card ${wide ? 'card--wide' : ''} ${fold.folded ? 'card--folded' : ''}`} data-card={chart.id}>
       <header className="card-h">
-        <div><h2>{chart.title}</h2>{chart.hint && <p>{chart.hint}{!fold.folded && chart.click_filter ? ' Click a bar or slice to filter the page.' : ''}</p>}</div>
+        <div>
+          <h2>{chart.title}</h2>{chart.hint && <p>{chart.hint}{!fold.folded && chart.click_filter ? ' Click a bar or slice to filter the page.' : ''}</p>}
+          {chart.so_what && <p className="so-what" data-so-what><b>So what:</b> {chart.so_what}</p>}
+        </div>
+        {chart.type === 'band' && !fold.folded && (
+          <div className="seg" role="group" aria-label="Forecast horizon" data-horizon>
+            {[0, ...HORIZONS].map((h) => (
+              <button key={h} type="button" className={`seg-b ${horizon === h ? 'is-on' : ''}`} aria-pressed={horizon === h} onClick={() => setHorizon(h)}>
+                {h ? `${h} ahead` : 'All'}
+              </button>
+            ))}
+          </div>
+        )}
         {explain && <ExplainButton title={chart.title} busy={genieBusy} onClick={explain} />}
         <AskGenie kind="chart" title={chart.title} context={drawn} />
         {items.length > 0 && (

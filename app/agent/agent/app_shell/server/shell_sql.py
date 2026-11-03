@@ -24,7 +24,11 @@ def error_text(error, secrets=(), known: str = "") -> str:
     return text if own else inspire_redact_text(text, set(), known, secrets)
 
 
-SPEC_VERSION = 1
+SPEC_VERSION = 2
+SPEC_VERSIONS = (1, 2)
+DEFAULT_LAYOUT = "decision_queue"
+KINDS_FILE = "kinds.json"
+_REGISTRY = {}
 RECORDS_DATASET = "records"
 IDENT = shell_facts.IDENT
 REVIEW_LINK = re.compile(r"^https://[a-z0-9.-]{1,253}/\?review=[A-Za-z0-9%._~-]{1,600}&uc=[A-Za-z0-9%._~-]{1,600}$")
@@ -144,14 +148,86 @@ _SQL_WORDS = frozenset(("distinct", "case", "when", "then", "else", "end", "and"
                         "nulls", "first", "last", "within", "group", "int", "integer", "bigint", "smallint", "tinyint", "double", "float",
                         "decimal", "string", "date", "timestamp", "boolean", "day", "days", "month", "months", "year", "years"))
 FORMATS = ("number", "integer", "currency", "percent", "text", "date", "month")
-CHART_TYPES = ("bar", "horizontal_bar", "stacked_bar", "line", "area", "stacked_area", "pareto", "scatter", "donut", "heatmap")
+CHART_TYPES = ("bar", "horizontal_bar", "stacked_bar", "line", "area", "stacked_area", "pareto", "scatter", "donut", "heatmap", "band",
+               "control", "tornado", "bridge", "bullet")
+LAYOUT_CHARTS = {"band": ("time", ("actual", "forecast", "lower", "upper")), "control": ("time", ("value", "expected", "lower", "upper")),
+                 "tornado": ("category", ("low", "high")), "bridge": ("category", ("value",)), "bullet": ("category", ("used", "limit"))}
+TRENDS = ("line", "area", "stacked_area")
+BARS = ("bar", "horizontal_bar", "stacked_bar")
+SECTIONS = {
+    "todo": {"holds": "todo"}, "kpis": {"holds": "kpis"}, "filters": {"holds": "filters"},
+    "charts": {"charts": None, "words": "a chart"}, "tables": {"tables": True, "words": "a table"},
+    "decision_list": {"holds": "records", "unit": "rows", "words": "the decision list"},
+    "score_histogram": {"charts": BARS, "words": "a histogram of the scores with the cutoff"},
+    "gains_curve": {"charts": TRENDS, "words": "a gains curve"},
+    "reason_waterfall": {"charts": ("bridge",), "words": "a waterfall of the reasons"},
+    "signal_band": {"charts": ("band", "control") + TRENDS, "suffix": "__signal", "words": "the signal with its expected band"},
+    "control_chart": {"charts": ("control",), "suffix": "__signal", "words": "a control chart"},
+    "triage_queue": {"holds": "records", "unit": "rows", "words": "the triage queue"},
+    "exceptions_by_rule": {"charts": BARS + ("donut", "pareto"), "words": "a chart of the exceptions by rule"},
+    "aging_buckets": {"charts": BARS, "words": "a chart of the open items by age"},
+    "fan_chart": {"charts": ("band",), "suffix": "__series", "words": "a band chart of actuals, forecast and its range"},
+    "horizon_selector": {"holds": "horizon", "words": "the horizon picker on the band chart"},
+    "forecast_vs_capacity": {"charts": ("band",) + TRENDS + BARS, "words": "the forecast against the plan or the capacity"},
+    "accuracy_by_series": {"charts": BARS, "tables": True, "suffix": "__series", "words": "the accuracy of each series"},
+    "at_risk_series": {"holds": "plan", "unit": "rows", "words": "the series at risk, to accept or override"},
+    "small_multiples": {"charts": TRENDS, "words": "small multiples of the series"},
+    "lever_sliders": {"holds": "levers", "suffix": "__scenario_model", "words": "the levers people move"},
+    "outcome_distribution": {"holds": "scenario", "words": "the outcome distribution"},
+    "scenario_table": {"tables": True, "unit": "rows", "suffix": "__scenarios", "words": "a table of the base, upside and downside scenarios"},
+    "target_gauge": {"holds": "target", "words": "the chance of reaching the target"},
+    "tornado": {"charts": ("tornado",), "suffix": "__sensitivity", "words": "a tornado chart of what moves the outcome"},
+    "objective_kpi": {"holds": "objective", "words": "the objective with its gain"},
+    "plan_table": {"holds": "plan", "unit": "rows", "suffix": "__plan", "words": "the plan table of current and recommended lines"},
+    "constraint_bars": {"charts": ("bullet",), "suffix": "__constraints", "words": "a bullet chart of each limit and how much of it the plan uses"},
+    "sensitivity_tornado": {"charts": ("tornado", "horizontal_bar"), "words": "a tornado chart of what moves the result"},
+    "resolve": {"holds": "resolve", "words": "the re-solve button"},
+    "segment_cards": {"tables": True, "unit": "rows", "suffix": "__segments", "words": "a card per segment"},
+    "segment_profile": {"charts": BARS + ("heatmap",), "words": "the profile of each segment"},
+    "projection": {"charts": ("scatter",), "suffix": "__assign", "words": "a 2D projection of the members"},
+    "migration_flow": {"charts": BARS + ("heatmap",), "suffix": "__migration", "words": "the moves between segments"},
+    "rec_list": {"holds": "records", "unit": "rows", "suffix": "__recs", "words": "the recommendations per entity"},
+    "affinity_heatmap": {"charts": ("heatmap",), "words": "an affinity heatmap"},
+    "lift_vs_popularity": {"charts": ("scatter",), "words": "lift against popularity"},
+    "coverage": {"charts": BARS + ("donut",), "words": "the coverage of the recommendations"},
+    "variance_table": {"holds": "records", "unit": "rows", "suffix": "__variance", "words": "a variance table with its tolerance"},
+    "bridge": {"charts": ("bridge",), "unit": "rows", "suffix": "__bridge", "words": "a bridge chart from plan to actual"},
+    "peer_table": {"tables": True, "suffix": "__peers", "words": "a table against peers"},
+    "peer_scatter": {"charts": ("scatter",), "words": "a scatter against peers"},
+    "driver_tornado": {"charts": ("tornado", "horizontal_bar"), "words": "a tornado chart of the drivers"},
+    "cohort_triangle": {"charts": ("heatmap",), "words": "a cohort triangle"},
+    "effect_card": {"tables": True, "suffix": "__effect", "words": "the effect with its interval"},
+    "counterfactual_band": {"charts": ("band",), "suffix": "__effect_series", "words": "actual against the counterfactual"},
+    "incrementality_waterfall": {"charts": ("bridge",), "words": "an incrementality waterfall"},
+    "response_curves": {"charts": TRENDS + ("scatter",), "words": "response curves"},
+    "keep_scale_stop": {"holds": "records", "unit": "rows", "words": "the keep, scale or stop list"},
+    "bottleneck_ranking": {"charts": BARS, "suffix": "__transitions", "words": "the bottlenecks ranked"},
+    "rework_loops": {"charts": BARS, "words": "the rework loops"},
+    "breach_risk_cases": {"holds": "records", "unit": "rows", "suffix": "__cases", "words": "the open cases at breach risk"},
+    "density": {"charts": ("heatmap",), "words": "a density chart"},
+    "ranked_sites": {"holds": "records", "unit": "rows", "suffix": "__geo", "words": "the ranked sites"},
+    "centrality_list": {"holds": "records", "unit": "rows", "suffix": "__nodes", "words": "the most central nodes"},
+    "neighbors": {"tables": True, "words": "the neighbors of a node"},
+    "match_pairs": {"tables": True, "words": "the match pairs to review"},
+}
+DECISION_HOLDS = ("records", "plan")
+PLAN_DECISIONS = ("accept", "override")
+SCENARIO_LEVERS = (2, 8)
+SCENARIO_Z90 = 1.2815515655446004
+SCENARIO_POINTS = 41
+SCENARIO_BASE = "base"
+SCENARIO_SWING = 0.1
+SCENARIO_SAVE = ("name", "levers", "outcome")
+DRAWN_CHARTS = {"scenario": 2, "target": 1}
+SO_WHAT_LAYOUTS = ("dashboard",)
+PLAN_FIELDS = ("title", "hint", "current", "recommended", "delta", "override", "format", "currency")
 CHART_KINDS = ("trend", "bars", "split", "pareto", "scatter")
 CHART_KIND_TYPES = {"trend": ("line", "area", "stacked_area"), "bars": ("bar", "horizontal_bar", "stacked_bar"), "split": ("donut",),
                     "pareto": ("pareto",), "scatter": ("scatter", "heatmap")}
 CHART_KIND_LABELS = {"trend": "Trend over time", "bars": "Bars by segment", "split": "Share of a whole", "pareto": "Biggest first",
                      "scatter": "Two measures"}
 CHART_PICK = ("trend", "bars", "pareto")
-TIME_CHARTS = ("line", "area", "stacked_area", "bar", "stacked_bar", "heatmap")
+TIME_CHARTS = ("line", "area", "stacked_area", "bar", "stacked_bar", "heatmap", "band", "control")
 SERIES_CHARTS = ("stacked_bar", "stacked_area", "heatmap")
 ADDITIVE_CHARTS = ("stacked_bar", "stacked_area", "pareto", "donut")
 X_KINDS = ("time", "category", "value")
@@ -214,7 +290,7 @@ CAPS = {"kpis": (3, 6), "charts": (3, 8), "tables": (0, 3), "filters": (1, 8), "
         "image_height": (40, 1200), "url_chars": 2000, "kpi_rows": 2, "count_cap": 10000, "changed_keys": 500, "act_match": 100000,
         "act_match_user": 10000, "note_chars": 500, "snooze_days": 365, "conflicts_shown": 20, "similar_sample": 5, "similar_by": 3, "batches": 20,
         "exclude_keys": 50, "window_limit": 1000, "act_history": 200, "closers_today": 200, "my_work_rows": 50, "my_work_deepest": 10000,
-        "my_work_days": 366}
+        "my_work_days": 366, "scenario_rows": 200}
 MY_WORK_DEFAULT = "week"
 MY_WORK_CUSTOM = "custom"
 MY_WORK_MINUTES = "minutes_per_record"
@@ -239,7 +315,7 @@ ALERT_GONE = ("DELETED", "TRASHED")
 CURRENT_ROWS = "is_current AND change_source <> 'delete'"
 SQL_CHARS = 20000
 EXPRESSION_CHARS = 600
-TEXT_LIMITS = {"title": 80, "question": 240, "sponsor": 80, "label": 60, "hint": 220, "caption": 160, "alt": 160}
+TEXT_LIMITS = {"so_what": 160, "title": 80, "question": 240, "sponsor": 80, "label": 60, "hint": 220, "caption": 160, "alt": 160}
 BLOCKS = "blocks"
 BLOCK_KINDS = ("text", "image", "html")
 BLOCK_PLACES = ("top", "bottom", "before", "after", "beside")
@@ -473,8 +549,10 @@ def spec_problems(page: dict) -> list:
     if not isinstance(page, dict):
         return ["the page spec is not a JSON object"]
     problems = []
-    if page.get("version") != SPEC_VERSION:
+    if page.get("version") not in SPEC_VERSIONS:
         problems.append(f"the page spec version must be {SPEC_VERSION}")
+    elif page.get("version") == SPEC_VERSION and not page.get("layout"):
+        problems.append(f"a version {SPEC_VERSION} page spec names its layout, one of {', '.join(enabled_layouts())}")
     problems += _text_problem("the page", page.get("title"), "title")
     problems += _text_problem("the page", page.get("question"), "question")
     problems += _text_problem("the page", page.get("sponsor"), "sponsor", required=False)
@@ -547,7 +625,7 @@ def spec_problems(page: dict) -> list:
             problems.append(f"{where} compares with the previous run, but {split}, or set no compare")
     charts = page.get("charts") if isinstance(page.get("charts"), list) else []
     fewer = isinstance(page.get("fewer_charts"), str) and bool(page["fewer_charts"].strip())
-    problems += _count_problem("charts", charts, 1 if fewer else None)
+    problems += _count_problem("charts", charts, 1 if fewer else max(1, CAPS["charts"][0] - drawn_charts(page)))
     _ids(charts, "chart", problems)
     for chart in charts:
         problems += _chart_problems(chart, names)
@@ -559,6 +637,7 @@ def spec_problems(page: dict) -> list:
     problems += _records_problems(page.get("records"), RECORDS_DATASET in names)
     problems += similar_by_problems(page)
     problems += blocks_problems(page)
+    problems += layout_problems(page, names)
     tiles = len(kpis) + len(charts) + len(tables) + (1 if RECORDS_DATASET in names else 0)
     if tiles > CAPS["tiles"]:
         problems.append(f"the page has {tiles} tiles; keep it to {CAPS['tiles']} so it reads at a glance")
@@ -628,8 +707,16 @@ def _chart_problems(chart: dict, names: set) -> list:
             problems.append(f"{where} series top must be a whole number from 1 to 8")
     if kind in SERIES_CHARTS and not series:
         problems.append(f"{where} is a {kind}, so it needs a series column")
-    if kind in ("donut", "pareto", "scatter", "horizontal_bar") and series:
+    if kind in ("donut", "pareto", "scatter", "horizontal_bar") + tuple(LAYOUT_CHARTS) and series:
         problems.append(f"{where} is a {kind}, so it cannot split into series")
+    if kind in LAYOUT_CHARTS:
+        axis, roles = LAYOUT_CHARTS[kind]
+        if x.get("kind") != axis:
+            problems.append(f"{where} is a {kind}, so its x kind must be {axis}")
+        if len(ys) != len(roles):
+            problems.append(f"{where} is a {kind}, so y holds exactly {len(roles)} measures in this order: {', '.join(roles)}")
+        if kind == "bridge" and not IDENT.match(str(x.get("order") or "")):
+            problems.append(f"{where} is a bridge, so x needs an order column that puts its steps in order, first total to last")
     if chart.get("sort", "value_desc") not in SORTS:
         problems.append(f"{where} sort must be one of {', '.join(SORTS)}")
     if not _whole(chart.get("limit", 25), 1, 500):
@@ -1076,9 +1163,10 @@ def quality_problems(page: dict, event_date: bool = False) -> list:
         problems.append(f"the first date range ({dates[0].get('id')}) must be the run date (as_of_date): the page header and the KPIs show it")
     if event_date and len(dates) < 2:
         problems.append("an input table has a date column, so add a second date range on that event date")
-    if len(segments) < SEGMENT_FILTERS_MIN:
+    whole = run_level_datasets(page)
+    if not whole and len(segments) < SEGMENT_FILTERS_MIN:
         problems.append(f"the page has {plural(len(segments), 'segment filter')}; add at least {SEGMENT_FILTERS_MIN} people can slice by")
-    covered = {d for f in filters for d in (f.get("columns") or {})}
+    covered = {d for f in filters for d in (f.get("columns") or {})} | whole
     for kind, items in (("KPI", page.get("kpis") or []), ("chart", page.get("charts") or []), ("table", page.get("tables") or [])):
         for item in items:
             if item.get("dataset") and item["dataset"] not in covered:
@@ -1088,6 +1176,8 @@ def quality_problems(page: dict, event_date: bool = False) -> list:
             problems.append(f"KPI {kpi.get('id')} sums {column}, a ratio or an average; divide two sums instead")
     for chart in page.get("charts") or []:
         problems += _shape_problems(chart)
+    if page_layout(page) != DEFAULT_LAYOUT:
+        return problems + contract_problems(page)
     if len(driver_charts(page)) < DRIVERS_MIN:
         problems.append(f"the page has no Drivers chart: set \"{DRIVER}\": true on at least {DRIVERS_MIN} chart that shows what "
                         "drives the result, such as where the listed records concentrate or the reasons that put them on the list")
@@ -1127,6 +1217,352 @@ def kind_problems(page: dict, kinds, skipped=()) -> tuple:
     missing = [k for k in kinds if k in CHART_KIND_TYPES and not drawn & set(CHART_KIND_TYPES[k])]
     return ([f"the page draws no {CHART_KIND_LABELS[k].lower()} chart: add one of type {' or '.join(CHART_KIND_TYPES[k])}"
              for k in missing if k not in skipped], [k for k in missing if k in skipped])
+
+
+def kinds_registry() -> dict:
+    if "data" not in _REGISTRY:
+        here = os.path.dirname(os.path.abspath(__file__))
+        found = [os.path.join(d, KINDS_FILE) for d in (here, os.path.dirname(here)) if os.path.isfile(os.path.join(d, KINDS_FILE))]
+        if found:
+            with open(found[0], encoding="utf-8") as handle:
+                _REGISTRY["data"] = json.load(handle)
+        else:
+            _REGISTRY["data"] = {}
+    return _REGISTRY["data"]
+
+
+def layouts() -> dict:
+    listed = {str(l.get("id")): l for l in kinds_registry().get("layouts") or [] if isinstance(l, dict)}
+    return listed or {DEFAULT_LAYOUT: {"id": DEFAULT_LAYOUT, "enabled": True, "sections": [], "min_items": {}, "contract": None}}
+
+
+def enabled_layouts() -> list:
+    return [ident for ident, l in layouts().items() if l.get("enabled") is True]
+
+
+def page_layout(page: dict) -> str:
+    return str(page.get("layout") or DEFAULT_LAYOUT) if isinstance(page, dict) else DEFAULT_LAYOUT
+
+
+def layout_contract(page: dict) -> dict:
+    layout = layouts().get(page_layout(page)) or {}
+    return ((kinds_registry().get("contracts") or {}).get(layout.get("contract")) or {}).get("suffixes") or {}
+
+
+def section_items(page: dict, section: str) -> list:
+    return [item for group in ("charts", "tables") for item in page.get(group) or [] if isinstance(item, dict) and item.get("section") == section]
+
+
+def decision_section(page: dict):
+    sections = (layouts().get(page_layout(page)) or {}).get("sections") or []
+    return next((s for s in sections if (SECTIONS.get(s) or {}).get("holds") in DECISION_HOLDS), None)
+
+
+def section_count(page: dict, section: str) -> int:
+    scenario = page.get("scenario") if isinstance(page.get("scenario"), dict) else {}
+    listed = isinstance(page.get("records"), dict)
+    holds = (SECTIONS.get(section) or {}).get("holds")
+    special = {"todo": 1, "kpis": len(page.get("kpis") or []), "filters": len(page.get("filters") or []), "records": int(listed),
+               "plan": int(listed and isinstance(page.get("plan"), dict)),
+               "levers": len(scenario.get("levers") or []) if isinstance(scenario.get("levers"), list) else 0, "scenario": int(bool(scenario)),
+               "target": int((scenario.get("outcome") or {}).get("target") is not None) if scenario else 0,
+               "horizon": sum(1 for c in section_items(page, "fan_chart") if c.get("type") == "band"),
+               "objective": sum(1 for k in page.get("kpis") or [] if isinstance(k, dict) and k.get("section") == section),
+               "resolve": int(listed and isinstance(page.get("plan"), dict))}
+    return special.get(holds, 0) + len(section_items(page, section))
+
+
+def drawn_charts(page: dict) -> int:
+    sections = (layouts().get(page_layout(page)) or {}).get("sections") or []
+    return sum(DRAWN_CHARTS.get((SECTIONS.get(s) or {}).get("holds"), 0) for s in sections if section_count(page, s) and
+               (SECTIONS.get(s) or {}).get("holds") in DRAWN_CHARTS)
+
+
+def _section_fits(section: str, group: str, kind) -> bool:
+    spec = SECTIONS.get(section) or {}
+    if group == "tables":
+        return spec.get("tables") is True
+    if "charts" not in spec:
+        return False
+    return kind not in LAYOUT_CHARTS if spec["charts"] is None else kind in spec["charts"]
+
+
+def section_words(section: str) -> str:
+    return (SECTIONS.get(section) or {}).get("words") or section.replace("_", " ")
+
+
+def row_minimums(page: dict) -> list:
+    layout = layouts().get(page_layout(page)) or {}
+    if page_layout(page) == DEFAULT_LAYOUT:
+        return []
+    out = []
+    for section, low in (layout.get("min_items") or {}).items():
+        spec = SECTIONS.get(section) or {}
+        if spec.get("unit") != "rows" or not isinstance(low, int):
+            continue
+        if spec.get("holds") in DECISION_HOLDS:
+            out.append((section, low, ("records", RECORDS_DATASET)))
+        out += [(section, low, ("chart" if item in (page.get("charts") or []) else "table", item.get("id"))) for item in section_items(page, section)]
+    return out
+
+
+def row_problems(page: dict, counts: dict) -> list:
+    problems = []
+    for section, low, source in row_minimums(page):
+        have = counts.get(source)
+        if have is not None and have < low:
+            named = "the decision list" if source[0] == "records" else f"{source[0]} {source[1]}"
+            problems.append(f"the {section} section of a {page_layout(page)} page shows at least {low} rows; {named} returned {have} at the "
+                            f"default filters, so widen what it selects: {section_words(section)}")
+    if problems:
+        print(f"[LAYOUT-ROWS FIRED] page={page.get('id')} short={len(problems)}", flush=True)
+    return problems
+
+
+def layout_problems(page: dict, names: set) -> list:
+    ident = page_layout(page)
+    layout = layouts().get(ident)
+    if layout is None:
+        return [f"the page layout {ident!r} is not one of {', '.join(layouts())}"]
+    if layout.get("enabled") is not True:
+        return [f"the {ident} layout is not served yet; use one of {', '.join(enabled_layouts())}"]
+    if ident == DEFAULT_LAYOUT:
+        return []
+    sections = [str(s) for s in layout.get("sections") or []]
+    holds = {(SECTIONS.get(s) or {}).get("holds") for s in sections}
+    problems = []
+    for group, word in (("charts", "chart"), ("tables", "table")):
+        for item in page.get(group) or []:
+            if not isinstance(item, dict):
+                continue
+            section = item.get("section")
+            fits = [s for s in sections if _section_fits(s, group, item.get("type"))]
+            if section not in sections or not _section_fits(section, group, item.get("type")):
+                problems.append(f"{word} {item.get('id')} names section {section!r}; on a {ident} page a {item.get('type') or word} goes in "
+                                f"one of: {', '.join(fits) or 'no section, so leave it out'}")
+    for kpi in page.get("kpis") or []:
+        if (isinstance(kpi, dict) and kpi.get("section") is not None
+                and (kpi.get("section") not in sections or (SECTIONS.get(kpi.get("section")) or {}).get("holds") != "objective")):
+            problems.append(f"KPI {kpi.get('id')} names section {kpi.get('section')!r}; a KPI goes in the KPI row, or in objective_kpi on a page "
+                            f"that has it")
+    for section, low in (layout.get("min_items") or {}).items():
+        have = section_count(page, section)
+        need = 1 if (SECTIONS.get(section) or {}).get("unit") == "rows" else low
+        if isinstance(low, int) and have < need:
+            problems.append(f"the {ident} page needs {plural(need, 'item')} in its {section} section, {section_words(section)}; "
+                            f"it has {have}")
+    for group in ("charts", "tables"):
+        for item in page.get(group) or []:
+            if isinstance(item, dict):
+                problems += _text_problem(f"{group[:-1]} {item.get('id')}", item.get("so_what"), "so_what",
+                                          required=ident in SO_WHAT_LAYOUTS)
+    if "plan" in holds or page.get("plan") is not None:
+        problems += plan_problems(page.get("plan"), "plan" in holds, bool(set(DECISION_HOLDS) & holds))
+    if "levers" in holds or page.get("scenario") is not None:
+        problems += scenario_problems(page.get("scenario"), names, "levers" in holds)
+    return problems
+
+
+def plan_problems(plan, wanted: bool, allowed: bool) -> list:
+    if plan is None:
+        return ["the page needs a plan section naming the current and recommended columns of its decision list"] if wanted else []
+    if not allowed:
+        return ["only a page with a decision list has a plan section"]
+    if not isinstance(plan, dict):
+        return ["the plan section is not a JSON object"]
+    problems = _text_problem("the plan", plan.get("title"), "title") + _text_problem("the plan", plan.get("hint"), "hint", required=False)
+    for key in ("current", "recommended"):
+        if not IDENT.match(str(plan.get(key) or "")):
+            problems.append(f"the plan needs its {key} column, a column of the records dataset")
+    for key in ("delta", "override"):
+        if plan.get(key) is not None and not IDENT.match(str(plan.get(key))):
+            problems.append(f"the plan {key} must be a column name")
+    return problems + _format_problems("the plan", plan)
+
+
+def scenario_problems(scenario, names: set, wanted: bool) -> list:
+    if scenario is None:
+        return ["the page needs a scenario section with its levers, its model dataset and its outcome"] if wanted else []
+    if not wanted:
+        return ["only a scenario lab page has a scenario section"]
+    if not isinstance(scenario, dict):
+        return ["the scenario section is not a JSON object"]
+    problems = _text_problem("the scenario", scenario.get("title"), "title")
+    for key in ("model", "quantiles"):
+        if scenario.get(key) not in names:
+            problems.append(f"the scenario {key} names dataset {scenario.get(key)}, which the page does not define")
+    levers = scenario.get("levers") if isinstance(scenario.get("levers"), list) else []
+    low, high = SCENARIO_LEVERS
+    if not low <= len(levers) <= high:
+        problems.append(f"the scenario needs {low} to {high} levers; it has {len(levers)}")
+    for lever in levers:
+        where = f"scenario lever {(lever or {}).get('lever')}"
+        if not isinstance(lever, dict) or not str(lever.get("lever") or "").strip():
+            problems.append("each scenario lever names its lever, as the model dataset writes it")
+            continue
+        problems += _text_problem(where, lever.get("label"), "label") + _format_problems(where, lever)
+    if len({str((l or {}).get("lever")) for l in levers}) != len(levers):
+        problems.append("each scenario lever is named once")
+    outcome = scenario.get("outcome") if isinstance(scenario.get("outcome"), dict) else {}
+    problems += _text_problem("the scenario outcome", outcome.get("label"), "label") + _format_problems("the scenario outcome", outcome)
+    if outcome.get("good", "up") not in ("up", "down"):
+        problems.append("the scenario outcome good must be up or down")
+    target = outcome.get("target")
+    if target is not None and (isinstance(target, bool) or not isinstance(target, (int, float)) or not math.isfinite(target)):
+        problems.append("the scenario outcome target must be a number, or leave it out")
+    save = scenario.get("save")
+    if save is not None and (not isinstance(save, dict) or any(not IDENT.match(str(save.get(k) or "")) for k in SCENARIO_SAVE)):
+        problems.append(f"the scenario save names the result table columns a saved scenario writes: {', '.join(SCENARIO_SAVE)}")
+    return problems
+
+
+def run_level_datasets(page: dict) -> set:
+    holds = {(SECTIONS.get(s) or {}).get("holds") for s in (layouts().get(page_layout(page)) or {}).get("sections") or []}
+    result = page.get("result_table")
+    if "levers" not in holds or not result:
+        return set()
+    tables = [f"{result}{suffix}" for suffix in layout_contract(page)]
+    return {str(d.get("name")) for d in page.get("datasets") or [] if isinstance(d, dict)
+            and any(reads_table(d.get("sql"), table) for table in tables)}
+
+
+def contract_problems(page: dict) -> list:
+    result, suffixes = page.get("result_table"), layout_contract(page)
+    if not result or not suffixes:
+        return []
+    sqls = {d.get("name"): d.get("sql") for d in page.get("datasets") or [] if isinstance(d, dict)}
+    layout = layouts().get(page_layout(page)) or {}
+    problems = []
+    for section in layout.get("sections") or []:
+        spec = SECTIONS.get(section) or {}
+        suffix = spec.get("suffix")
+        if suffix not in suffixes:
+            continue
+        if spec.get("holds") in DECISION_HOLDS:
+            read = [RECORDS_DATASET] if isinstance(page.get("records"), dict) else []
+        elif spec.get("holds") == "levers":
+            read = [(page.get("scenario") or {}).get("model")] if isinstance(page.get("scenario"), dict) else []
+        else:
+            read = [i.get("dataset") for i in section_items(page, section)]
+        companion = f"{result}{suffix}"
+        if read and not any(reads_table(sqls.get(d), companion) for d in read):
+            problems.append(f"the {section} section of a {page_layout(page)} page reads {companion}, the companion table its notebook writes "
+                            f"with {', '.join(suffixes[suffix])}; point its dataset at that table")
+    return problems
+
+
+def _scenario_number(value, where: str) -> float:
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
+        raise ValueError(f"{where} is a number, not {value!r}")
+    return float(value)
+
+
+def scenario_lever_values(base: dict) -> dict:
+    raw = base.get("lever_values")
+    if isinstance(raw, str):
+        try:
+            raw = json.loads(raw)
+        except ValueError:
+            raw = None
+    if isinstance(raw, list):
+        raw = {str(p.get("key")): p.get("value") for p in raw if isinstance(p, dict)}
+    if not isinstance(raw, dict):
+        raise ValueError("the base scenario's lever_values is not a map of lever to value; run the use case so it writes one")
+    return {str(k): v for k, v in raw.items()}
+
+
+def scenario_outcome(model: list, base: dict, values: dict, target=None, good: str = "up", steps=None) -> dict:
+    if not isinstance(values, dict):
+        raise ValueError("send values as an object of lever to number")
+    levers, clamped, contributions = [], [], []
+    p50 = _scenario_number(base.get("p50"), "the base scenario p50")
+    below = p50 - _scenario_number(base.get("p10"), "the base scenario p10")
+    above = _scenario_number(base.get("p90"), "the base scenario p90") - p50
+    starts = scenario_lever_values(base)
+    known = {str(row.get("driver")): row for row in model}
+    wrong = sorted(str(k) for k in values if str(k) not in known)
+    if wrong:
+        raise ValueError(f"the model has no lever {', '.join(wrong)}; its levers are {', '.join(known)}")
+    for name, row in known.items():
+        if name not in starts:
+            raise ValueError(f"the base scenario sets no value for lever {name}; run the use case so it writes one")
+        start = _scenario_number(starts[name], f"lever {name} base")
+        span = abs(start) * SCENARIO_SWING or float((steps or {}).get(name) or 1)
+        low, high = start - span, start + span
+        asked = _scenario_number(values[name], f"lever {name}") if name in values else start
+        value = min(max(asked, low), high)
+        if value != asked:
+            clamped.append(name)
+        delta = _scenario_number(row.get("coefficient"), f"lever {name} coefficient") * (value - start)
+        p50 += delta
+        levers.append({"lever": name, "base": start, "low": low, "high": high, "value": value})
+        contributions.append({"lever": name, "delta": delta})
+    p10, p90 = p50 - max(below, 0.0), p50 + max(above, 0.0)
+    sigma = (p90 - p10) / (2 * SCENARIO_Z90)
+    chance = None
+    if target is not None:
+        goal = _scenario_number(target, "the target")
+        if sigma <= 0:
+            chance = float(p50 >= goal) if good == "up" else float(p50 <= goal)
+        else:
+            z = (goal - p50) / (sigma * math.sqrt(2))
+            chance = 0.5 * math.erfc(z) if good == "up" else 0.5 * math.erfc(-z)
+    spread = sigma if sigma > 0 else max(abs(p50) * 0.01, 1e-9)
+    xs = [p50 + spread * 8 * (i / (SCENARIO_POINTS - 1) - 0.5) for i in range(SCENARIO_POINTS)]
+    curve = [[x, math.exp(-0.5 * ((x - p50) / spread) ** 2) / (spread * math.sqrt(2 * math.pi))] for x in xs]
+    return {"levers": levers, "clamped": clamped, "contributions": contributions, "distribution": curve,
+            "outcome": {"p10": p10, "p50": p50, "p90": p90, "prob_target": chance, "target": target}}
+
+
+def plan_decision(plan: dict, decision, reason, value, recommended) -> dict:
+    if decision not in PLAN_DECISIONS:
+        raise ValueError(f"decision is accept or override, not {decision!r}")
+    reason = " ".join(str(reason or "").split())
+    if len(reason) > CAPS["note_chars"]:
+        raise ValueError(f"the reason takes at most {CAPS['note_chars']} characters")
+    suggested = _scenario_number(recommended, "the recommended value")
+    if decision == "accept":
+        return {"action_status": "In progress", ACT_NOTE: f"Accepted the recommended {suggested:g}" + (f": {reason}" if reason else "")}
+    amount = _scenario_number(value, "the override value")
+    if not reason:
+        raise ValueError("say why you override the recommended line: an override needs a reason")
+    note = f"Override to {amount:g} instead of {suggested:g}: {reason}"
+    return {"action_status": "In progress", ACT_NOTE: note[:CAPS["note_chars"]]}
+
+
+def public_layout(page: dict) -> dict:
+    ident = page_layout(page)
+    layout = layouts().get(ident) or {}
+    return {"id": ident, "label": layout.get("label") or ident, "tab_label": layout.get("tab_label") or "",
+            "sections": [str(s) for s in layout.get("sections") or []],
+            "holds": {str(s): SECTIONS[s]["holds"] for s in layout.get("sections") or [] if (SECTIONS.get(s) or {}).get("holds")},
+            "decides": ident == DEFAULT_LAYOUT or decision_section(page) is not None}
+
+
+def public_scenario(scenario) -> dict:
+    if not isinstance(scenario, dict):
+        return None
+    outcome = scenario.get("outcome") or {}
+    return {"title": scenario.get("title"), "hint": scenario.get("hint"),
+            "levers": [{k: l.get(k) for k in ("lever", "label", "format", "currency", "step")} for l in scenario.get("levers") or []],
+            "outcome": {k: outcome.get(k) for k in ("label", "format", "currency", "target", "good")},
+            "save": dict(scenario["save"]) if isinstance(scenario.get("save"), dict) else None}
+
+
+def scenario_queries(page: dict) -> dict:
+    scenario = page.get("scenario")
+    if not isinstance(scenario, dict):
+        raise KeyError("the page has no scenario")
+    cap = CAPS["scenario_rows"]
+    return {name: (f"SELECT * FROM ({_dataset(page, scenario[name])}) AS d LIMIT {cap}", []) for name in ("model", "quantiles")}
+
+
+def scenario_base(scenario: dict, rows: list) -> dict:
+    wanted = str(scenario.get("base") or SCENARIO_BASE)
+    found = [r for r in rows if str(r.get("scenario_id")) == wanted]
+    if not found:
+        raise ValueError(f"the scenarios table holds no {wanted} scenario yet; run the use case so it writes one")
+    return found[0]
 
 
 def _shape_problems(chart: dict) -> list:
@@ -1406,6 +1842,10 @@ def chart_query(page: dict, ident: str, values: dict) -> tuple:
     if chart["type"] == "pareto":
         text = (f"SELECT x, y0, SUM(y0) OVER () AS total FROM (SELECT {keys}, {ys} FROM ({sql}) AS d{where} GROUP BY {group}) AS g "
                 f"ORDER BY y0 DESC NULLS LAST LIMIT {int(chart.get('limit', 25))}")
+        return text, params.items
+    if chart["type"] == "bridge":
+        text = (f"SELECT {keys}, {ys}, MIN({quote(chart['x']['order'])}) AS o FROM ({sql}) AS d{where} GROUP BY {group} "
+                f"ORDER BY o ASC LIMIT {int(chart.get('limit', 25))}")
         return text, params.items
     if chart["x"].get("kind") == "time" or chart.get("sort") == "x_asc" or series:
         order, limit = "1 ASC", CAPS["chart_rows"]

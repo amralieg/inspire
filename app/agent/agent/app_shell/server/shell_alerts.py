@@ -476,7 +476,8 @@ def alert_page(table: str, columns: list, page_id: str, title: str = "", segment
              "expression": f"SUM({shell_sql.quote(f['name'])})", "format": "number"}
             for f in fields if f["role"] == "business" and f["kind"] in ("integer", "decimal") and f["name"] not in PAGE_SKIPPED
             and shell_sql.IDENT.match(f["name"])][:PAGE_KPIS]
-    return {"version": shell_sql.SPEC_VERSION, "id": str(page_id), "title": str(title or page_id), "result_table": table,
+    return {"version": shell_sql.SPEC_VERSION, "layout": shell_sql.DEFAULT_LAYOUT, "id": str(page_id), "title": str(title or page_id),
+            "result_table": table,
             "datasets": [{"name": shell_sql.RECORDS_DATASET, "sql": sql}],
             "records": {"tier": TIER_COLUMN if TIER_COLUMN in by else "", "rank": "rank" if "rank" in by else ""},
             "filters": filters, "kpis": kpis, **({"runbook": guide} if guide else {})}

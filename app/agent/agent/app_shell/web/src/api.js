@@ -43,6 +43,8 @@ export const getFields = (page) => json('GET', `records/fields?page=${encodeURIC
 export const writeRecord = (kind, body) => json('POST', `records/${kind}`, body);
 export const getRecords = (body) => json('POST', 'records', body);
 export const actRecords = (body) => json('POST', 'records/act', body);
+export const decidePlan = (body) => json('POST', 'plan/decide', body);
+export const evaluateScenario = (body) => json('POST', 'scenario/evaluate', body);
 export const undoRecords = (body) => json('POST', 'records/undo', body);
 export const getBatches = (page) => json('GET', `records/batches?page=${encodeURIComponent(page)}`);
 export const getSimilar = (page, recordKey, by) =>

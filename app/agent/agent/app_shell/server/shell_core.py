@@ -383,7 +383,7 @@ def public_page(page: dict) -> dict:
     out["review"] = page.get("review") or ""
     out["filters"] = [dict({k: f.get(k) for k in ("id", "type", "label", "grain", "default")}, datasets=sorted(f.get("columns") or {}))
                       for f in page.get("filters") or []]
-    out["kpis"] = [dict({k: k_.get(k) for k in ("id", "label", "format", "currency", "good", "compare", "caption")}, **shell_sql.compare_words())
+    out["kpis"] = [dict({k: k_.get(k) for k in ("id", "label", "format", "currency", "good", "compare", "caption", "section")}, **shell_sql.compare_words())
                    for k_ in page.get("kpis") or []]
     out["charts"] = []
     for chart in page.get("charts") or []:
@@ -394,10 +394,13 @@ def public_page(page: dict) -> dict:
             "x": {k: x.get(k) for k in ("kind", "label", "format", "ordered")},
             "y": [{k: y.get(k) for k in ("label", "format", "currency")} for y in chart.get("y") or []],
             "series": {"top": int((chart.get("series") or {}).get("top") or 5)} if chart.get("series") else None,
-            "driver": chart.get(shell_sql.DRIVER) is True,
+            "driver": chart.get(shell_sql.DRIVER) is True, "section": chart.get("section"), "so_what": chart.get("so_what") or "",
             "click_filter": by_column.get(chart.get("dataset"), {}).get(x.get("column") or chart.get("group"))})
     out["drivers"] = shell_sql.drivers_section(page)
-    out["tables"] = [{"id": t.get("id"), "title": t.get("title"), "hint": t.get("hint"),
+    out["layout"] = shell_sql.public_layout(page)
+    out["plan"] = {k: page["plan"].get(k) for k in shell_sql.PLAN_FIELDS} if isinstance(page.get("plan"), dict) else None
+    out["scenario"] = shell_sql.public_scenario(page.get("scenario"))
+    out["tables"] = [{"id": t.get("id"), "title": t.get("title"), "hint": t.get("hint"), "section": t.get("section"), "so_what": t.get("so_what") or "",
                       "columns": [dict({k: c.get(k) for k in ("column", "label", "format", "currency", "bar")},
                                        filter=by_column.get(t.get("dataset"), {}).get(c.get("column")))
                                   for c in t.get("columns") or []]}
@@ -1731,6 +1734,10 @@ class Shell:
                 return 200, self.record_act(headers, data)
             if route == ("POST", "records/undo"):
                 return 200, self.undo(headers, data)
+            if route == ("POST", "plan/decide"):
+                return 200, self.plan_decide(headers, data)
+            if route == ("POST", "scenario/evaluate"):
+                return 200, self.scenario_evaluate(headers, data)
             if route == ("GET", "records/batches"):
                 return 200, self.batches(headers, query.get("page"))
             if route == ("GET", "records/similar"):
@@ -2713,11 +2720,12 @@ class Shell:
                 return None
             raise
 
-    def check_records(self, headers: dict, page: dict, values: dict, probe, where: str) -> list:
+    def check_records(self, headers: dict, page: dict, values: dict, probe, where: str, counts: dict) -> list:
         try:
             out = self.records(headers, {"page": page["id"], "filters": values, "ai_counts": True}, probe)
         except (HttpError, QueryError, ValueError) as error:
             return [f"{where}: {shell_sql.RECORDS_DATASET}:{shell_sql.RECORDS_DATASET} failed: {shell_sql.error_text(error)}"]
+        counts[("records", shell_sql.RECORDS_DATASET)] = int(out.get("total") or len(out["rows"]))
         problems = [f"{where}: {LIST_LABELS[name]} failed: {message}" for name, message in sorted(out["errors"].items())]
         if not out["rows"]:
             problems.append(f"{where}: the decision list returned no rows at the default filters")
@@ -2823,11 +2831,13 @@ class Shell:
             for kpi in page.get("kpis") or []:
                 if f"kpi:{kpi['id']}" not in errors and (data["kpis"].get(kpi["id"]) or {}).get("now") is None:
                     problems.append(f"{where}: KPI {kpi['id']} has no value at the default filters")
+            counts = {}
             for kind in ("chart", "table"):
                 for item in page.get(f"{kind}s") or []:
                     rows = (data[f"{kind}s"].get(item["id"]) or {}).get("rows") or []
                     if f"{kind}:{item['id']}" in errors:
                         continue
+                    counts[(kind, item["id"])] = len(rows)
                     if not rows:
                         problems.append(f"{where}: {kind} {item['id']} returned no rows at the default filters")
                     elif kind == "chart" and len(rows) < 2:
@@ -2838,9 +2848,10 @@ class Shell:
                                      f"filters, so it ranks nothing; chart a measure that differs across the groups"
                                      for label, value in flat_measures(item, rows)]
             if page.get("records"):
-                problems += self.check_records(headers, page, defaults, probe, where)
+                problems += self.check_records(headers, page, defaults, probe, where, counts)
                 problems += self.check_overview(page, probe, where)
                 problems += self.check_impact(page, probe, where) if self.screen("impact") else []
+            problems += [f"{where}: {p}" for p in shell_sql.row_problems(page, counts)]
             problems += self.check_lakebase_reads(headers, page, defaults, where)
             if self.option("modify"):
                 problems += [f"{where}: people cannot change its records: {p}" for p in self.write_problems(headers, page)]
@@ -3184,6 +3195,61 @@ class Shell:
             out = self.act_on_keys(ws, writer, page, fields, keys, seen, editor, values, batch)
         notice = self.alerts.assigned(headers, page, values.get("action_owner"), editor) if values.get("action_owner") else ""
         return dict(out, **({"notice": notice} if notice else {}))
+
+    def plan_decide(self, headers: dict, data: dict) -> dict:
+        page = self.page(data.get("page"))
+        plan = page.get("plan")
+        if not isinstance(plan, dict):
+            raise HttpError(404, f"page {page['id']} has no plan to decide")
+        decisions, editable = self.option("decisions"), bool(plan.get("override")) and self.option("modify")
+        if not decisions and not editable:
+            raise HttpError(403, "this App does not let people record decisions on its records")
+        key, seen = str(data.get("record_key") or ""), str(data.get("seen") or "")
+        if not key or len(key) > RECORD_KEY_CHARS:
+            raise HttpError(400, "name the record_key of the plan line you decide")
+        if not VERSION_US.match(seen):
+            raise HttpError(400, "send seen, the valid_from_us of the plan line you saw")
+        try:
+            values = shell_sql.plan_decision(plan, data.get("decision"), data.get("reason"), data.get("value"), data.get("recommended"))
+        except ValueError as error:
+            raise HttpError(400, str(error)) from error
+        edited = None
+        if editable and (data.get("decision") == "override" or not decisions):
+            chosen = data.get("value") if data.get("decision") == "override" else data.get("recommended")
+            edited = self.record_write(headers, {"page": page["id"], "record_key": key, "valid_from_us": seen,
+                                                 "values": {plan["override"]: chosen}}, "edit")
+            seen = str((edited.get("current") or {}).get("valid_from_us") or seen)
+        print(f"[PLAN-DECIDE FIRED] page={page['id']} decision={data.get('decision')} edited={edited is not None}", flush=True)
+        out = (self.record_act(headers, {"page": page["id"], "record_keys": [key], "seen": {key: seen}, "values": values}) if decisions else
+               {"written": [key], "conflicts": [], "conflicts_count": 0, "left_out": 0, "batch_id": None})
+        return dict(out, decision=data.get("decision"), edited=edited is not None)
+
+    def scenario_evaluate(self, headers: dict, data: dict, probe=None) -> dict:
+        page = self.page(data.get("page"))
+        scenario = page.get("scenario")
+        if not isinstance(scenario, dict):
+            raise HttpError(404, f"page {page['id']} has no scenario to evaluate")
+        ws, who = self.session(headers, probe)
+        queries = shell_sql.scenario_queries(page)
+        read, failed = self._parallel({name: (lambda q=q: self.run(ws, who, *q, shell_sql.CAPS["scenario_rows"]))
+                                       for name, q in queries.items()}, probe, self.pool)
+        if failed:
+            raise HttpError(502, next(iter(failed.values())))
+        named = {str(l.get("lever")) for l in scenario.get("levers") or []}
+        model = [r for r in read["model"]["rows"] if str(r.get("driver")) in named]
+        missing = sorted(named - {str(r.get("driver")) for r in model})
+        if missing:
+            raise HttpError(409, f"the scenario model has no row for lever {', '.join(missing)}; run the use case so it writes them")
+        outcome = scenario.get("outcome") or {}
+        target = data.get("target", outcome.get("target"))
+        try:
+            base = shell_sql.scenario_base(scenario, read["quantiles"]["rows"])
+            out = shell_sql.scenario_outcome(model, base, data.get("values") or {}, target, outcome.get("good", "up"),
+                                             {str(l.get("lever")): l.get("step") for l in scenario.get("levers") or []})
+        except ValueError as error:
+            raise HttpError(400, str(error)) from error
+        print(f"[SCENARIO-EVAL FIRED] page={page['id']} levers={len(out['levers'])} clamped={len(out['clamped'])} p50={out['outcome']['p50']:g}", flush=True)
+        return out
 
     def act_on_keys(self, ws, writer, page: dict, fields: list, keys: list, seen: dict, editor: str, values: dict, batch: dict) -> dict:
         as_app, left_out = self.settings["auth"] == "user", []

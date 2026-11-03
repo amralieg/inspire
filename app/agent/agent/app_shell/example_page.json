@@ -1,5 +1,6 @@
 {
-  "version": 1,
+  "version": 2,
+  "layout": "decision_queue",
   "id": "n01_u05",
   "use_case_id": "N01-U05",
   "title": "Price-loss decision desk",

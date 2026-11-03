@@ -14,6 +14,7 @@ SERVER = os.path.join(HERE, "server")
 WEB = os.path.join(HERE, "web")
 DIST = os.path.join(WEB, "dist")
 EXAMPLE = os.path.join(HERE, "example_page.json")
+EXAMPLES = os.path.join(HERE, "examples")
 PALETTES = os.path.join(WEB, "src", "palettes.json")
 KINDS = os.path.join(HERE, "kinds.json")
 CELL = 1
@@ -58,8 +59,14 @@ def _base64(path: str) -> str:
         return base64.b64encode(handle.read()).decode("ascii")
 
 
+def examples(folder: str = EXAMPLES) -> dict:
+    if not os.path.isdir(folder):
+        return {}
+    return {name[:-5]: _load(os.path.join(folder, name)) for name in sorted(os.listdir(folder)) if name.endswith(".json")}
+
+
 def payload(server: str = SERVER, dist: str = DIST, web: str = WEB, static: bool = True, example: str = EXAMPLE,
-            palettes: str = PALETTES) -> dict:
+            palettes: str = PALETTES, layouts: str = EXAMPLES) -> dict:
     files = {name: _text(os.path.join(server, name)) for name in SERVER_FILES}
     binary = {}
     if static:
@@ -70,8 +77,8 @@ def payload(server: str = SERVER, dist: str = DIST, web: str = WEB, static: bool
                 binary[f"static/{relative}"] = _base64(os.path.join(dist, relative))
             else:
                 files[f"static/{relative}"] = _text(os.path.join(dist, relative))
-    return {"version": VERSION, "web_source": web_source_sha(web), "example": _load(example), "palettes": _load(palettes),
-            "files": files, **({"binary": binary} if binary else {})}
+    return {"version": VERSION, "web_source": web_source_sha(web), "example": _load(example), "examples": examples(layouts),
+            "palettes": _load(palettes), "files": files, **({"binary": binary} if binary else {})}
 
 
 def encode(data: dict) -> str:
@@ -130,6 +137,8 @@ def differences(expected: dict, actual: dict, static: bool = True) -> list:
         out.append("the web sources changed since the bundle was embedded")
     if actual.get("example") != expected["example"]:
         out.append("example_page.json differs")
+    if (actual.get("examples") or {}) != expected.get("examples", {}):
+        out.append("the layout examples differ")
     if actual.get("palettes") != expected["palettes"]:
         out.append("palettes.json differs")
     have = dict(actual.get("files") or {}, **(actual.get("binary") or {}))

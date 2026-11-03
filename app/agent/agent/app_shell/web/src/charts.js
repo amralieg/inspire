@@ -59,6 +59,121 @@ function pivot(rows, xs, names, map) {
   return names.map((n) => xs.map((x) => (at.has(`${keyOf(x)}|${n}`) ? numberOf(at.get(`${keyOf(x)}|${n}`)) : null)));
 }
 
+export const HORIZONS = [4, 8, 13];
+
+export function withinHorizon(rows, horizon) {
+  const last = rows.reduce((at, r, i) => (r.y0 != null ? i : at), -1);
+  return horizon ? rows.slice(0, last + 1 + horizon) : rows;
+}
+
+const bandSeries = (rows, lowKey, highKey, color, name) => [
+  { name: `${name} low`, type: 'line', stack: name, data: rows.map((r) => r[lowKey]), lineStyle: { opacity: 0 }, symbol: 'none', silent: true,
+    tooltip: { show: false } },
+  { name, type: 'line', stack: name, data: rows.map((r) => (r[lowKey] == null || r[highKey] == null ? null : numberOf(r[highKey]) - numberOf(r[lowKey]))),
+    lineStyle: { opacity: 0 }, symbol: 'none', areaStyle: { color, opacity: 0.22 }, itemStyle: { color }, silent: true, tooltip: { show: false } },
+];
+
+const rowTip = (rows, names, valueFmt, xLabel) => (ps) => {
+  const r = rows[ps?.[0]?.dataIndex];
+  if (!r) return '';
+  return [`<b>${xLabel(r.x)}</b>`, ...names.map((n, i) => (r[`y${i}`] == null ? '' : `${n}: ${valueFmt(i)(r[`y${i}`])}`)).filter(Boolean)].join('<br>');
+};
+
+function timeAxes(P, xs, xLabel, axisFmt) {
+  return {
+    grid: { left: 58, right: 24, top: 34, bottom: 30 },
+    xAxis: { type: 'category', data: xs.map(xLabel), boundaryGap: false, axisLine: axisLine(P), axisTick: { show: false }, axisLabel: label(P) },
+    yAxis: { type: 'value', scale: true, axisLabel: label(P, { formatter: axisFmt(0) }), splitLine: split(P) },
+  };
+}
+
+function bandOption({ chart, rows: all, P, valueFmt, axisFmt, xLabel }) {
+  const rows = withinHorizon(all, chart.horizon);
+  const names = chart.y.map((y) => y.label);
+  return {
+    ...timeAxes(P, rows.map((r) => r.x), xLabel, axisFmt),
+    tooltip: { trigger: 'axis', formatter: rowTip(rows, names, valueFmt, xLabel) },
+    legend: legend(P, [names[0], names[1], names[3] ? `${names[2]} to ${names[3]}` : names[2]]),
+    series: [
+      ...bandSeries(rows, 'y2', 'y3', P.series[1], names[3] ? `${names[2]} to ${names[3]}` : names[2]),
+      { name: names[0], type: 'line', data: rows.map((r) => r.y0), symbolSize: 4, lineStyle: { width: 2.2, color: P.ink }, itemStyle: { color: P.ink } },
+      { name: names[1], type: 'line', data: rows.map((r) => r.y1), symbol: 'none', lineStyle: { width: 2.2, type: 'dashed', color: P.series[0] },
+        itemStyle: { color: P.series[0] } },
+    ],
+  };
+}
+
+function controlOption({ chart, rows, P, valueFmt, axisFmt, xLabel }) {
+  const names = chart.y.map((y) => y.label);
+  const outside = rows.map((r) => (r.y0 != null && ((r.y3 != null && numberOf(r.y0) > numberOf(r.y3)) || (r.y2 != null && numberOf(r.y0) < numberOf(r.y2))) ? r.y0 : null));
+  return {
+    ...timeAxes(P, rows.map((r) => r.x), xLabel, axisFmt),
+    tooltip: { trigger: 'axis', formatter: rowTip(rows, names, valueFmt, xLabel) },
+    legend: legend(P, [names[0], names[1], `${names[2]} to ${names[3]}`, 'Outside the limits']),
+    series: [
+      ...bandSeries(rows, 'y2', 'y3', P.series[1], `${names[2]} to ${names[3]}`),
+      { name: names[1], type: 'line', data: rows.map((r) => r.y1), symbol: 'none', lineStyle: { width: 1.5, type: 'dashed', color: P.muted }, itemStyle: { color: P.muted } },
+      { name: names[0], type: 'line', data: rows.map((r) => r.y0), symbolSize: 4, lineStyle: { width: 2, color: P.series[0] }, itemStyle: { color: P.series[0] } },
+      { name: 'Outside the limits', type: 'scatter', data: outside, symbolSize: 11, itemStyle: { color: P.tier['Act now'] || P.series[5] }, tooltip: { valueFormatter: valueFmt(0) } },
+    ],
+  };
+}
+
+function tornadoOption({ chart, rows, P, valueFmt, axisFmt }) {
+  const sorted = [...rows].sort((a, b) => largestFirst(Math.abs(numberOf(a.y1) - numberOf(a.y0)), Math.abs(numberOf(b.y1) - numberOf(b.y0))));
+  const names = chart.y.map((y) => y.label);
+  return {
+    grid: { left: 120, right: 24, top: 30, bottom: 24 },
+    tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' }, valueFormatter: valueFmt(0) },
+    legend: legend(P, names),
+    xAxis: { type: 'value', axisLabel: label(P, { formatter: axisFmt(0) }), splitLine: split(P) },
+    yAxis: { type: 'category', inverse: true, data: sorted.map((r) => keyOf(r.x)), axisLabel: label(P, { fontSize: 11, formatter: (v) => truncate(v, 18) }), axisLine: axisLine(P), axisTick: { show: false } },
+    series: names.map((name, i) => ({ name, type: 'bar', stack: 'swing', barMaxWidth: 22, data: sorted.map((r) => r[`y${i}`]),
+      itemStyle: { color: i ? P.series[0] : P.series[5] } })),
+  };
+}
+
+function bridgeOption({ chart, rows, P, valueFmt, axisFmt }) {
+  let run = 0;
+  const steps = rows.map((r, i) => {
+    const value = numberOf(r.y0);
+    const total = i === 0 || i === rows.length - 1;
+    const start = total ? 0 : value >= 0 ? run : run + value;
+    run = total ? value : run + value;
+    return { name: keyOf(r.x), start, size: Math.abs(value), value, total };
+  });
+  return {
+    grid: { left: 58, right: 16, top: 16, bottom: 64 },
+    tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' }, formatter: (ps) => { const s = steps[ps[0]?.dataIndex]; return s ? `${s.name}<br><b>${valueFmt(0)(s.value)}</b>` : ''; } },
+    xAxis: { type: 'category', data: steps.map((s) => s.name), axisLabel: label(P, { rotate: labelTilt(steps.map((s) => truncate(s.name, 12))), formatter: (v) => truncate(v, 12) }), axisLine: axisLine(P), axisTick: { show: false } },
+    yAxis: { type: 'value', axisLabel: label(P, { formatter: axisFmt(0) }), splitLine: split(P) },
+    series: [
+      { name: 'base', type: 'bar', stack: 'bridge', silent: true, itemStyle: { color: 'transparent' }, data: steps.map((s) => s.start), tooltip: { show: false } },
+      { name: chart.y[0].label, type: 'bar', stack: 'bridge', barMaxWidth: BAR_MAX,
+        data: steps.map((s) => ({ value: s.size, itemStyle: { color: s.total ? P.series[0] : s.value >= 0 ? P.series[2] : P.series[5], borderRadius: 3 } })) },
+    ],
+  };
+}
+
+function bulletOption({ chart, rows, P, valueFmt, axisFmt }) {
+  const names = chart.y.map((y) => y.label);
+  const binding = (r) => numberOf(r.y1) > 0 && numberOf(r.y0) >= numberOf(r.y1) * 0.98;
+  return {
+    grid: { left: 120, right: 24, top: 30, bottom: 24 },
+    tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' }, valueFormatter: valueFmt(0) },
+    legend: legend(P, names),
+    xAxis: { type: 'value', axisLabel: label(P, { formatter: axisFmt(0) }), splitLine: split(P) },
+    yAxis: { type: 'category', inverse: true, data: rows.map((r) => keyOf(r.x)), axisLabel: label(P, { fontSize: 11, formatter: (v) => truncate(v, 18) }), axisLine: axisLine(P), axisTick: { show: false } },
+    series: [
+      { name: names[1], type: 'bar', barWidth: 18, barGap: '-100%', itemStyle: { color: P.well, borderColor: P.line, borderRadius: 3 }, data: rows.map((r) => r.y1), z: 1 },
+      { name: names[0], type: 'bar', barWidth: 10, itemStyle: { borderRadius: 3 }, z: 2,
+        data: rows.map((r) => ({ value: r.y0, itemStyle: { color: binding(r) ? P.tier['Act now'] || P.series[5] : P.series[0] } })) },
+    ],
+  };
+}
+
+const LAYOUT_CHARTS = { band: bandOption, control: controlOption, tornado: tornadoOption, bridge: bridgeOption, bullet: bulletOption };
+
 export function chartOption(chart, rows, P, { reduced = false } = {}) {
   const y0 = chart.y[0] || {};
   const fmt = (i) => chart.y[i] || y0;
@@ -68,6 +183,8 @@ export function chartOption(chart, rows, P, { reduced = false } = {}) {
   const xLabel = time ? timeLabeler(rows, chart.x) : (v) => keyOf(v);
   const additive = ['stacked_bar', 'stacked_area', 'pareto', 'donut'].includes(chart.type);
   const top = chart.series?.top || 5;
+
+  if (LAYOUT_CHARTS[chart.type]) return base(P, reduced, LAYOUT_CHARTS[chart.type]({ chart, rows, P, valueFmt, axisFmt, xLabel }));
 
   if (chart.type === 'donut') {
     const total = sumOf(rows, (r) => r.y0);
