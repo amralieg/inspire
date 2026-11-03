@@ -393,7 +393,7 @@ test('the App reads Lakebase by default when the workspace has it, a per-user Ap
     await access.getByRole('radio', { name: /^Internal data/ }).check();
     const group = choice(access);
     await group.getByRole('note', { name: 'Why Lakebase is off' })
-      .getByText('Lakebase is on in this workspace, but you cannot use it: PERMISSION_DENIED: Lakebase is not enabled for this user').waitFor();
+      .getByText('Databricks refused to list the Lakebase projects of this workspace for you (PERMISSION_DENIED: Lakebase is not enabled for this user). A workspace admin can let you use Lakebase').waitFor();
     assert.deepEqual(await radios(group), [['lakebase', false, true], ['delta', true, false]]);
     await toStart(ui.page);
     assert.equal(submittedSpec(ui.made).outputs.app_backend, 'delta');

@@ -554,9 +554,47 @@ class CatalogAccessTest(unittest.TestCase):
                 setup._new_apps_setting(bad)
 
 
+AGENT_NOTEBOOK = pathlib.Path(__file__).resolve().parents[2] / "dbx_inspire_ai_agent.ipynb"
+LAKEBASE = setup.agent_lakebase(AGENT_NOTEBOOK.read_text(encoding="utf-8"))
+PROJECT_PATH = f"/api/2.0/postgres/projects/{LAKEBASE['project']}"
+CATALOG_PATH = f"/api/2.0/postgres/catalogs/{LAKEBASE['catalog']}"
+ENDPOINT_PATH = f"/api/2.0/postgres/{LAKEBASE['endpoint']}"
+PROJECT_GRANT_PATH = f"/api/2.0/permissions/database-projects/{LAKEBASE['project']}"
+BOUND = {"spec": {"branch": LAKEBASE["branch"], "postgres_database": LAKEBASE["database"]}}
+HOSTED = {"status": {"hosts": {"host": "pg.example"}}}
+REFUSED_CATALOG = (403, {}, '{"error_code":"PERMISSION_DENIED","message":"User does not have CREATE CATALOG on Metastore"}')
+
+
+def lakebase_api(project=((200, {"name": "projects/x"}),), catalog=((404, {}),), endpoint=((200, HOSTED),), make_project=(200, {}),
+                 make_catalog=(200, {}), project_grant=(200, {})):
+    calls = []
+    queues = {PROJECT_PATH: list(project), CATALOG_PATH: list(catalog), ENDPOINT_PATH: list(endpoint)}
+
+    def answer(path):
+        queue = queues[path]
+        return Resp(*(queue.pop(0) if len(queue) > 1 else queue[0]))
+
+    def api(method, path, body=None):
+        calls.append((method, path, body))
+        if method == "GET" and path in queues:
+            return answer(path)
+        if method == "POST" and path.startswith("/api/2.0/postgres/projects?"):
+            return Resp(*make_project)
+        if method == "POST" and path.startswith("/api/2.0/postgres/catalogs?"):
+            return Resp(*make_catalog)
+        if method == "PATCH" and path == PROJECT_GRANT_PATH:
+            return Resp(*project_grant)
+        return Resp(200, {"object_id": 1})
+    return api, calls
+
+
+def postgres_posts(calls):
+    return [(m, p, b) for m, p, b in calls if m == "POST" and p.startswith("/api/2.0/postgres/")]
+
+
 class GrantPlanTest(unittest.TestCase):
     def grant(self, scan, listed=("main", "sales", "finance", "samples", "system", "inspire_lakebase"), rights=None, owners=None,
-              admin="metastore-admins", fail=None):
+              admin="metastore-admins", fail=None, api=None, lakebase=LAKEBASE):
         out = io.StringIO()
         executed = []
         held_on = {n: ("MANAGE",) for n in listed} if rights is None else rights
@@ -583,12 +621,16 @@ class GrantPlanTest(unittest.TestCase):
         w = types.SimpleNamespace(statement_execution=Statements(),
                                   catalogs=types.SimpleNamespace(list=lambda: [types.SimpleNamespace(name=n) for n in listed],
                                                                  get=lambda name: types.SimpleNamespace(name=name, owner=(owners or {}).get(name, "x"))))
+        if api is None:
+            there = LAKEBASE["catalog"] in listed
+            api, _calls = lakebase_api(catalog=((200, BOUND),) if there else ((404, {}),), make_catalog=REFUSED_CATALOG)
         ctx = {"NEW_SP_APP_ID": "SP", "WAREHOUSE_ID": "wh", "w": w, "CATALOG": "main", "SCHEMA": "_inspire", "APP_NAME": "inspire-ai",
-               "api": lambda method, path, body=None: Resp(200, {"object_id": 1}), "available_catalogs": [n for n in listed if n != "system"],
+               "api": api, "available_catalogs": [n for n in listed if n != "system"],
                "ASSETS_PATH": "/Workspace/Shared/inspire-ai/assets/v1.3.0", "SCAN_CATALOGS": scan, "api_get": api_get,
-               "USER_EMAIL": "someone@example.com", "USER_GROUPS": ["admins"]}
-        with contextlib.redirect_stdout(out):
+               "USER_EMAIL": "someone@example.com", "USER_GROUPS": ["admins"], "LAKEBASE": lakebase}
+        with contextlib.redirect_stdout(out), mock.patch.object(setup, "LAKEBASE_POLL_S", 0):
             setup.step_grant_permissions(ctx)
+        self.ctx = ctx
         grants = [s for s, _ in executed if s.startswith("GRANT ")]
         printed = [line.strip() for line in out.getvalue().splitlines() if line.startswith("  GRANT ")]
         return grants, printed, executed, out.getvalue()
@@ -712,6 +754,170 @@ class GrantPlanTest(unittest.TestCase):
             self.assertIn(f"Grant plan for SP: {len(grants)} statements", before_first, scan)
             for sql in grants:
                 self.assertIn(f"  {sql}\n", before_first, scan)
+
+
+class LakebaseSetupTest(unittest.TestCase):
+    grant = GrantPlanTest.grant
+
+    def setup_only(self, api, sleep=None, lakebase=LAKEBASE):
+        ctx = {"api": api, "USER_EMAIL": "someone@example.com", "LAKEBASE": lakebase}
+        return setup._lakebase_setup(ctx, sleep=sleep or (lambda s: None))
+
+    def test_the_installer_reads_the_lakebase_definition_the_agent_builds_with_from_the_bundled_notebook(self):
+        found = setup.agent_constants(AGENT_NOTEBOOK.read_text(encoding="utf-8"), setup.LAKEBASE_CONSTANTS)
+        self.assertEqual(LAKEBASE, {"project": found["IMPLEMENT_LAKEBASE_PROJECT"], "project_spec": found["IMPLEMENT_LAKEBASE_PROJECT_SPEC"],
+                                    "branch": found["IMPLEMENT_LAKEBASE_BRANCH"], "endpoint": found["IMPLEMENT_LAKEBASE_ENDPOINT"],
+                                    "database": found["IMPLEMENT_LAKEBASE_DATABASE"], "catalog": found["IMPLEMENT_LAKEBASE_CATALOG"]})
+        self.assertEqual(LAKEBASE["branch"], f"projects/{LAKEBASE['project']}/branches/production")
+        self.assertEqual(LAKEBASE["endpoint"], f"{LAKEBASE['branch']}/endpoints/primary")
+        self.assertIsInstance(LAKEBASE["project_spec"].get("default_endpoint_settings"), dict)
+        source = (pathlib.Path(setup.__file__).read_text(encoding="utf-8"))
+        for name in (LAKEBASE["project"], LAKEBASE["catalog"], LAKEBASE["database"]):
+            self.assertNotIn(f'"{name}"', source, "the installer holds no second copy of the agent's Lakebase names")
+
+    def test_publishing_the_notebook_keeps_its_lakebase_definition_or_names_why_none_is_set_up(self):
+        import base64
+        for text, wanted in ((AGENT_NOTEBOOK.read_text(encoding="utf-8"), LAKEBASE), (json.dumps({"cells": [{"source": ""}, {"source": ""}]}), None)):
+            api = lambda method, path, body=None: Resp(200, {"object_type": "NOTEBOOK"})
+            ctx = {"w": Workspace(), "WAREHOUSE_ID": "wh", "CATALOG": "main", "SCHEMA": "_inspire", "SOURCE_FOLDER": "/b", "APP_NAME": "inspire-ai",
+                   "api": api}
+            with contextlib.redirect_stdout(io.StringIO()) as out, \
+                    mock.patch.object(setup, "export_workspace_b64", lambda ctx, path, export_formats: base64.b64encode(text.encode()).decode()), \
+                    mock.patch.object(setup.os.path, "exists", lambda path: path == "/b/dbx_inspire_ai_agent"):
+                setup.step_schema_and_notebooks(ctx)
+            self.assertEqual(ctx["LAKEBASE"], wanted)
+            if wanted is None:
+                self.assertEqual(ctx["LAKEBASE_NOTE"], "Inspire could not read the Lakebase project and catalog from the bundled agent notebook "
+                                 f"(the bundled agent notebook defines no {', '.join(setup.LAKEBASE_CONSTANTS)}), so it set up no Lakebase: "
+                                 "until then the Apps that Implement builds read Delta tables")
+                self.assertIn(f"⚠️ {ctx['LAKEBASE_NOTE']}", out.getvalue())
+            else:
+                self.assertNotIn("LAKEBASE_NOTE", ctx)
+
+    def test_the_notebook_reader_resolves_names_and_refuses_what_is_not_a_constant(self):
+        def notebook(*lines):
+            return json.dumps({"cells": [{"source": ""}, {"source": [line + "\n" for line in lines]}]})
+        text = notebook('A = "x"', 'B = f"p/{A}/q"', 'C = {"k": [B, 1],', '     "n": (A,)}', "D = make()", 'E = f"{A!r}"')
+        self.assertEqual(setup.agent_constants(text, ("B", "C")), {"B": "p/x/q", "C": {"k": ["p/x/q", 1], "n": ("x",)}})
+        for name in ("D", "E"):
+            with self.assertRaisesRegex(ValueError, f"{name} in the bundled agent notebook is not a constant"):
+                setup.agent_constants(text, (name,))
+        with self.assertRaisesRegex(ValueError, "the bundled agent notebook defines no Z, Y"):
+            setup.agent_constants(text, ("Z", "A", "Y"))
+        with self.assertRaisesRegex(ValueError, "the bundled agent notebook defines no MISSING"):
+            setup.agent_constants(notebook('F = f"{MISSING}"'), ("F",))
+        with self.assertRaisesRegex(ValueError, "IMPLEMENT_LAKEBASE_PROJECT_SPEC in the bundled agent notebook is not a Lakebase project spec"):
+            setup.agent_lakebase(notebook(*[f'{n} = "v"' for n in setup.LAKEBASE_CONSTANTS]))
+
+    def test_a_fresh_workspace_gets_the_project_and_the_catalog_bound_to_its_database_then_the_grant(self):
+        api, calls = lakebase_api(project=((404, {}),), catalog=((404, {}), (200, BOUND)), endpoint=((404, {}), (200, {}), (200, HOSTED)))
+        grants, _, _, said = self.grant([], listed=("main",), api=api)
+        self.assertEqual(postgres_posts(calls), [
+            ("POST", f"/api/2.0/postgres/projects?project_id={LAKEBASE['project']}", {"spec": LAKEBASE["project_spec"]}),
+            ("POST", f"/api/2.0/postgres/catalogs?catalog_id={LAKEBASE['catalog']}",
+             {"spec": {"branch": LAKEBASE["branch"], "postgres_database": LAKEBASE["database"]}})])
+        self.assertEqual(grants, INSPIRE_GRANTS + [LAKEBASE_GRANT])
+        self.assertIn(f"Lakebase for the Apps Implement builds: created the Lakebase project {LAKEBASE['project']} and created the catalog "
+                      f"`{LAKEBASE['catalog']}` on it ✅", said)
+        self.assertNotIn("LAKEBASE_NOTE", self.ctx)
+        self.assertEqual(self.ctx["LAKEBASE_SUMMARY"],
+                         f"Apps that Implement builds read Lakebase: project {LAKEBASE['project']}, catalog `{LAKEBASE['catalog']}` ✅")
+        self.assertEqual([c[1] for c in calls if c[1] == ENDPOINT_PATH], [ENDPOINT_PATH] * 3, "the catalog waits for the endpoint")
+        self.assertIn(("PATCH", PROJECT_GRANT_PATH, {"access_control_list": [{"service_principal_name": "SP", "permission_level": "CAN_MANAGE"}]}), calls)
+        self.assertIn(f"CAN_MANAGE on Lakebase project {LAKEBASE['project']}, so the Apps Implement builds can read Lakebase: ✅", said)
+
+    def test_a_reinstall_creates_nothing_and_grants_again(self):
+        api, calls = lakebase_api(catalog=((200, {"status": BOUND["spec"]}),))
+        grants, _, _, said = self.grant([], listed=("main",), api=api)
+        self.assertEqual(postgres_posts(calls), [])
+        self.assertEqual(grants, INSPIRE_GRANTS + [LAKEBASE_GRANT])
+        self.assertIn(f"project {LAKEBASE['project']} and catalog `{LAKEBASE['catalog']}` are there ✅", said)
+        self.assertNotIn(ENDPOINT_PATH, [c[1] for c in calls])
+
+    def test_a_person_without_create_catalog_is_told_the_one_grant_and_the_install_completes_on_delta(self):
+        api, calls = lakebase_api(make_catalog=REFUSED_CATALOG)
+        grants, _, _, said = self.grant([], listed=("main",), api=api)
+        self.assertEqual(grants, INSPIRE_GRANTS)
+        note = self.ctx["LAKEBASE_NOTE"]
+        self.assertIn(f"Databricks refused to create the catalog `{LAKEBASE['catalog']}` on the Lakebase project {LAKEBASE['project']} for you "
+                      "(403 {\"error_code\":\"PERMISSION_DENIED\",\"message\":\"User does not have CREATE CATALOG on Metastore\"}): "
+                      "creating a catalog needs CREATE CATALOG on the metastore. A metastore admin can run GRANT CREATE CATALOG ON METASTORE "
+                      "TO `someone@example.com`, then you run this installer again; until then the Apps that Implement builds read Delta tables",
+                      note)
+        self.assertIn(f"  ⚠️ {note}", said)
+        self.assertEqual(self.ctx["LAKEBASE_SUMMARY"], f"⚠️ {note}")
+        self.assertIn(f"Grants: {len(grants)} of {len(grants)} ran ✅", said)
+        out = io.StringIO()
+        ctx = dict(self.ctx, api_get=lambda path: {"url": APP_URL}, INSPIRE_DB="main._inspire", WAREHOUSE_NAME="wh", RELEASE_VERSION="v1.3.0")
+        with contextlib.redirect_stdout(out), mock.patch.object(setup, "displayHTML", lambda html: None, create=True):
+            setup.step_render_done(ctx)
+        self.assertIn(f"  Lakebase:    ⚠️ {note}\n", out.getvalue())
+
+    def test_every_other_lakebase_refusal_is_named_and_the_install_still_completes(self):
+        cases = [
+            (lakebase_api(project=((404, {}),), make_project=(403, {}, "PERMISSION_DENIED: no")),
+             f"Databricks refused to create the Lakebase project {LAKEBASE['project']} for you (403 PERMISSION_DENIED: no)"),
+            (lakebase_api(project=((403, {}, "PERMISSION_DENIED: no"),)),
+             f"Databricks refused to read the Lakebase project {LAKEBASE['project']} for you (403 PERMISSION_DENIED: no)"),
+            (lakebase_api(project=((200, {"delete_time": "2026-11-02T09:37:40Z"}),)),
+             f"The Lakebase project {LAKEBASE['project']} was deleted and keeps its name until it is purged"),
+            (lakebase_api(catalog=((403, {}, "PERMISSION_DENIED: no"),)),
+             f"Databricks refused to read the catalog `{LAKEBASE['catalog']}` for you (403 PERMISSION_DENIED: no). Its owner can run "
+             f"GRANT USE CATALOG ON CATALOG `{LAKEBASE['catalog']}` TO `someone@example.com`"),
+            (lakebase_api(catalog=((200, {"spec": {"branch": "projects/other/branches/main", "postgres_database": "other"}}),)),
+             f"The catalog `{LAKEBASE['catalog']}` holds another Lakebase database (projects/other/branches/main, other)"),
+            (lakebase_api(make_catalog=(400, {}, "INVALID_PARAMETER_VALUE: catalog exists")),
+             f"Databricks did not create the catalog `{LAKEBASE['catalog']}` (400 INVALID_PARAMETER_VALUE: catalog exists)"),
+        ]
+        for (api, _calls), needle in cases:
+            ready, said = self.setup_only(api)
+            self.assertFalse(ready, needle)
+            self.assertIn(needle, said)
+            self.assertTrue(said.endswith("until then the Apps that Implement builds read Delta tables"), said)
+            grants, _, _, printed = self.grant([], listed=("main",), api=api)
+            self.assertEqual(grants, INSPIRE_GRANTS, needle)
+            self.assertIn(f"⚠️ {needle}", printed)
+        ready, said = self.setup_only(None, lakebase=None)
+        self.assertEqual((ready, said), (False, "Inspire knows no Lakebase project or catalog to set up: until then the Apps that Implement "
+                                                "builds read Delta tables"))
+
+    def test_an_endpoint_or_catalog_that_never_gets_ready_stops_after_the_polls_and_says_so(self):
+        slept = []
+        api, calls = lakebase_api(endpoint=((200, {}),))
+        ready, said = self.setup_only(api, sleep=slept.append)
+        self.assertFalse(ready)
+        self.assertIn(f"The database endpoint of the Lakebase project {LAKEBASE['project']} was not ready after 15 minutes", said)
+        self.assertEqual(len(slept), setup.LAKEBASE_POLLS - 1)
+        self.assertEqual(postgres_posts(calls), [])
+        slept.clear()
+        api, calls = lakebase_api(catalog=((404, {}),))
+        ready, said = self.setup_only(api, sleep=slept.append)
+        self.assertFalse(ready)
+        self.assertIn(f"The catalog `{LAKEBASE['catalog']}` was not ready after 15 minutes", said)
+        self.assertEqual(len(postgres_posts(calls)), 1)
+
+    def test_a_refused_grant_on_the_lakebase_catalog_is_named_in_the_summary(self):
+        api, _calls = lakebase_api(catalog=((200, BOUND),))
+        grants, _, _, said = self.grant([], listed=("main",), api=api, fail={LAKEBASE_GRANT: RuntimeError("PERMISSION_DENIED: not the owner")})
+        self.assertIn(LAKEBASE_GRANT, grants)
+        self.assertEqual(self.ctx["LAKEBASE_NOTE"],
+                         f"SP cannot use the catalog `{LAKEBASE['catalog']}`, because {LAKEBASE_GRANT} failed (PERMISSION_DENIED: not the owner). "
+                         "Its owner can run that grant, or run this installer again; until then the Apps that Implement builds read Delta tables")
+        self.assertTrue(self.ctx["LAKEBASE_SUMMARY"].startswith("⚠️ SP cannot use the catalog"))
+
+    def test_a_refused_can_manage_on_the_lakebase_project_is_named_in_the_summary_and_never_reads_as_done(self):
+        api, _calls = lakebase_api(catalog=((200, BOUND),), project_grant=(403, {}, "PERMISSION_DENIED: no CAN_MANAGE"))
+        grants, _, _, said = self.grant([], listed=("main",), api=api)
+        note = (f"SP cannot use the Lakebase project {LAKEBASE['project']}, because Databricks refused to give it Can Manage on that project "
+                "(PERMISSION_DENIED: no CAN_MANAGE). A workspace admin can give SP Can Manage on that project, or run this installer again; "
+                "until then the Apps that Implement builds read Delta tables")
+        self.assertIn(LAKEBASE_GRANT, grants)
+        self.assertIn(f"  ⚠️ {note}", said)
+        self.assertEqual(self.ctx["LAKEBASE_SUMMARY"], f"⚠️ {note}")
+        self.assertNotIn("creates it ✅", said)
+        api, _calls = lakebase_api(make_catalog=REFUSED_CATALOG, project_grant=(403, {}, "PERMISSION_DENIED: no CAN_MANAGE"))
+        self.grant([], listed=("main",), api=api)
+        self.assertIn("refused to create the catalog", self.ctx["LAKEBASE_SUMMARY"], "the first Lakebase problem stays the one the summary names")
 
 
 APP_URL = "https://inspire-ai-1234.aws.databricksapps.com"

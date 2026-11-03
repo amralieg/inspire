@@ -145,7 +145,7 @@ export function appBackendOf(spec, offer) {
 export function lakebaseBlock(spec, offer) {
   if (insideInspire(spec)) return INSIDE_BACKEND_REASON;
   if (spec?.outputs?.app_access === 'user') return LAKEBASE_PER_USER_REASON;
-  if (offer?.state === 'denied') return `Lakebase is on in this workspace, but you cannot use it: ${offer.detail}`;
+  if (offer?.state === 'denied') return `Databricks refused to list the Lakebase projects of this workspace for you (${offer.detail}). A workspace admin can let you use Lakebase`;
   return '';
 }
 

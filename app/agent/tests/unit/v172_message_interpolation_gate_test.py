@@ -326,7 +326,7 @@ REVIEWED = {
         ('_implement_held_row', 'problem'),
         ('_implement_holders_checked', 'refused'),
         ('_implement_lakebase_ready', 'implement_lakebase_unavailable(error)'),
-        ('_implement_lakebase_ready', 'implement_lakebase_unavailable(error, IMPLEMENT_LAKEBASE_PROJECT)'),
+        ('_implement_lakebase_call', 'implement_lakebase_refused(call, self._implement_builder())'),
         ('_implement_lakebase_synced', "implement_lakebase_schema_denied(copy['synced'], self._implement_builder())"),
         ('_implement_lakebase_views', "'; '.join(problems)"),
         ('_implement_merge_genie', "'; '.join(problems)"),

@@ -186,7 +186,7 @@ test('the App reads Lakebase by default when the workspace has it, Delta tables 
   const perUser = w.withAppAccess(kept, 'user');
   assert.equal(w.appBackendOf(perUser, offer('available')), 'delta');
   assert.equal(w.lakebaseBlock(perUser, offer('available')), w.LAKEBASE_PER_USER_REASON);
-  assert.equal(w.lakebaseBlock(spec, offer('denied', 'PERMISSION_DENIED')), 'Lakebase is on in this workspace, but you cannot use it: PERMISSION_DENIED');
+  assert.equal(w.lakebaseBlock(spec, offer('denied', 'PERMISSION_DENIED')), 'Databricks refused to list the Lakebase projects of this workspace for you (PERMISSION_DENIED). A workspace admin can let you use Lakebase');
   assert.equal(w.lakebaseBlock(spec, offer('available')), '');
   assert.equal(w.appBackendOf(w.withAppAccess(perUser, 'sp'), offer('available')), 'lakebase', 'back to a shared App, the pick comes back');
   const joined = w.withMergeTarget(spec, 'app', { id: 'churn-desk', name: 'churn-desk', access: 'sp' });

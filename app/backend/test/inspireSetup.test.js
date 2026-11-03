@@ -67,13 +67,13 @@ tree = ast.parse(open(path, encoding="utf-8").read())
 wanted = {"step_grant_permissions", "_catalog_access_for_new_apps", "_lakebase_project_access", "_app_folder_access", "_assets_folder_access",
           "_workspace_api_path", "_grant_plan", "_scan_label", "_plural", "_privilege_word", "_can_grant", "_below_catalog_sql", "_real_grants",
           "_new_apps_catalog_decision", "_run_statement", "_statement_rows", "_wait_statement", "_scan_split", "_person_privileges",
-          "_grant_refusal"}
-consts = {"LAKEBASE_PROJECT", "LAKEBASE_CATALOG", "ASSETS_PARENT", "SCAN_ALL", "SCAN_SKIPPED", "SCAN_GRANTS", "NEW_APPS_ACCOUNT_USERS", "NEW_APPS_OFF",
+          "_grant_refusal", "agent_lakebase"}
+consts = {"LAKEBASE_CONSTANTS", "LAKEBASE_DELTA", "LAKEBASE_POLLS", "LAKEBASE_POLL_S", "ASSETS_PARENT", "SCAN_ALL", "SCAN_SKIPPED", "SCAN_GRANTS", "NEW_APPS_ACCOUNT_USERS", "NEW_APPS_OFF",
           "SYSTEM_SCHEMA", "BELOW_CATALOG_VIEWS", "REAL_GRANTS_SHOWN"}
 module = ast.Module(body=[n for n in tree.body if (isinstance(n, ast.FunctionDef) and n.name in wanted)
                           or (isinstance(n, ast.Assign) and [t.id for t in n.targets if isinstance(t, ast.Name)][:1] in [[c] for c in consts])],
                     type_ignores=[])
-import contextlib, io, time
+import contextlib, io, json, time, urllib.parse
 class StatementState:
     SUCCEEDED = "SUCCEEDED"
     FAILED = "FAILED"
@@ -102,6 +102,15 @@ def run(catalog_grants, owner="amr@x", show_fails=False, lakebase=(200, ""), lak
             return types.SimpleNamespace(name=name, owner=owner)
     def api(method, url, body=None):
         patched.append((method, url, body))
+        if url == f"/api/2.0/postgres/catalogs/{LAKEBASE['catalog']}":
+            bound = {"spec": {"branch": LAKEBASE["branch"], "postgres_database": LAKEBASE["database"]}}
+            return types.SimpleNamespace(status_code=200 if lakebase_catalog else 404, text="", json=lambda: bound if lakebase_catalog else {})
+        if url == f"/api/2.0/postgres/{LAKEBASE['endpoint']}":
+            return types.SimpleNamespace(status_code=200, text="", json=lambda: {"status": {"hosts": {"host": "pg.example"}}})
+        if url.startswith("/api/2.0/postgres/catalogs?"):
+            return types.SimpleNamespace(status_code=403, text='{"error_code":"PERMISSION_DENIED","message":"no CREATE CATALOG"}', json=lambda: {})
+        if url.startswith("/api/2.0/postgres/"):
+            return types.SimpleNamespace(status_code=200, text="", json=lambda: {"name": "projects/inspire-apps"})
         if "/database-projects/" in url:
             return types.SimpleNamespace(status_code=lakebase[0], text=lakebase[1])
         if "/workspace/get-status" in url:
@@ -110,9 +119,9 @@ def run(catalog_grants, owner="amr@x", show_fails=False, lakebase=(200, ""), lak
         if "/permissions/directories/" in url:
             return types.SimpleNamespace(status_code=folder_grant[0], text=folder_grant[1])
         return types.SimpleNamespace(status_code=200, text="")
-    ns = {"StatementState": StatementState, "time": time, "_catalog_privileges": lambda ctx, catalog: (catalog in grantable, set())}
+    ns = {"StatementState": StatementState, "time": time, "json": json, "urllib": urllib, "_catalog_privileges": lambda ctx, catalog: (catalog in grantable, set())}
     load_installer(tree, module.body, ns, path)
-    ctx = {"NEW_SP_APP_ID": "SP", "APP_NAME": "inspire-ai", "WAREHOUSE_ID": "wh", "CATALOG": "main", "SCHEMA": "_inspire", "available_catalogs": ["main"],
+    ctx = {"LAKEBASE": LAKEBASE, "NEW_SP_APP_ID": "SP", "APP_NAME": "inspire-ai", "WAREHOUSE_ID": "wh", "CATALOG": "main", "SCHEMA": "_inspire", "available_catalogs": ["main"],
            "USER_EMAIL": "amr@x",
            "w": types.SimpleNamespace(statement_execution=Statements(), catalogs=Catalogs()), "api": api,
            "ASSETS_PATH": "/Workspace/Shared/inspire-ai/assets/v1.3.0"}
@@ -120,6 +129,9 @@ def run(catalog_grants, owner="amr@x", show_fails=False, lakebase=(200, ""), lak
     with contextlib.redirect_stdout(out):
         ns["step_grant_permissions"](ctx)
     return executed, patched, out.getvalue()
+reader = {"json": json, "urllib": urllib, "time": time, "StatementState": StatementState}
+load_installer(tree, module.body, reader, path)
+LAKEBASE = reader["agent_lakebase"](open(sys.argv[2], encoding="utf-8").read())
 executed, patched, said = run([("account users", "BROWSE"), ("SP", "USE CATALOG")])
 volume = sorted(s for s in executed if "VOLUME" in s)
 assert volume == sorted(f"GRANT {p} VOLUME ON SCHEMA \x60main\x60.\x60_inspire\x60 TO \x60SP\x60" for p in ("CREATE", "READ", "WRITE")), volume
@@ -138,6 +150,11 @@ lakebase_sql = [s for s in run([], lakebase_catalog=True, grantable=("sales", "i
 assert lakebase_sql == [f"GRANT {p} ON CATALOG \x60inspire_lakebase\x60 TO \x60SP\x60" for p in
                         ("USE_CATALOG", "USE_SCHEMA", "SELECT", "BROWSE", "ALL PRIVILEGES")], lakebase_sql
 manage = {"access_control_list": [{"service_principal_name": "SP", "permission_level": "CAN_MANAGE"}]}
+assert [(m, u) for m, u, b in patched if "/postgres/" in u] == [
+    ("GET", f"/api/2.0/postgres/projects/{LAKEBASE['project']}"), ("GET", f"/api/2.0/postgres/catalogs/{LAKEBASE['catalog']}"),
+    ("GET", f"/api/2.0/postgres/{LAKEBASE['endpoint']}"), ("POST", f"/api/2.0/postgres/catalogs?catalog_id={LAKEBASE['catalog']}")], patched
+assert "Databricks refused to create the catalog \x60inspire_lakebase\x60 on the Lakebase project inspire-apps for you" in said, said
+patched = [p for p in patched if "/postgres/" not in p[1]]
 assert patched == [("PATCH", "/api/2.0/permissions/sql/warehouses/wh", manage),
                    ("PATCH", "/api/2.0/permissions/database-projects/inspire-apps", manage),
                    ("GET", "/api/2.0/workspace/get-status?path=/Shared/inspire-ai", None),
@@ -158,12 +175,10 @@ assert ("⚠️ SP cannot save MVPs in /Shared/inspire-ai yet ({\"error_code\":\
 assert "save every MVP there: ✅" not in refused, refused
 assert "CAN_MANAGE on warehouse, so Implement can attach it to the Apps it creates: ✅" in said, said
 assert "CAN_MANAGE on Lakebase project inspire-apps, so the Apps Implement builds can read Lakebase: ✅" in said, said
-absent = run([], lakebase=(404, '{"error_code":"NOT_FOUND","message":"Database project is not found."}'))[2]
-assert "No Lakebase project inspire-apps yet: the first App that reads Lakebase creates it ✅" in absent, absent
-assert "⚠️ Apps cannot read" not in absent, absent
 denied = run([], lakebase=(403, '{"error_code":"PERMISSION_DENIED","message":"no CAN_MANAGE on the project"}'))[2]
-assert ("⚠️ Apps cannot read Lakebase project inspire-apps yet ({\"error_code\":\"PERMISSION_DENIED\",\"message\":\"no CAN_MANAGE on the project\"}). "
-        "A workspace admin can give SP Can Manage on that project; until then the Apps read Delta tables") in denied, denied
+assert ("⚠️ SP cannot use the Lakebase project inspire-apps, because Databricks refused to give it Can Manage on that project "
+        "({\"error_code\":\"PERMISSION_DENIED\",\"message\":\"no CAN_MANAGE on the project\"}). A workspace admin can give SP Can Manage on that "
+        "project, or run this installer again; until then the Apps that Implement builds read Delta tables") in denied, denied
 assert "Lakebase: ✅" not in denied and "creates it ✅" not in denied, denied
 blocked = ("⚠️ Apps that Implement creates cannot read result tables in \x60main\x60 yet: their service principals need USE CATALOG, "
            "which account users do not hold, and Inspire can grant it only with MANAGE on the catalog. A catalog owner can run "
@@ -524,7 +539,7 @@ test('the installer gives the app service principal volumes, CREATE MODEL and MA
     t.skip('python3 is not installed');
     return;
   }
-  const run = spawnSync('python3', ['-c', GRANTS_PROBE, INSTALLER], { encoding: 'utf8' });
+  const run = spawnSync('python3', ['-c', GRANTS_PROBE, INSTALLER, path.resolve(__dirname, '..', '..', 'dbx_inspire_ai_agent.ipynb')], { encoding: 'utf8' });
   assert.equal(run.status, 0, run.stderr || run.stdout);
   assert.equal(run.stdout.trim().split('\n').pop(), 'ok');
 });
@@ -535,10 +550,18 @@ test('the installer grants the same Lakebase project and catalog the agent build
   const notebook = JSON.parse(fs.readFileSync(path.resolve(__dirname, '..', '..', 'dbx_inspire_ai_agent.ipynb'), 'utf8'));
   const agent = notebook.cells.map((cell) => [].concat(cell.source).join('')).join('\n');
   const installer = fs.readFileSync(INSTALLER, 'utf8');
-  for (const [mine, theirs] of [['LAKEBASE_PROJECT', 'IMPLEMENT_LAKEBASE_PROJECT'], ['LAKEBASE_CATALOG', 'IMPLEMENT_LAKEBASE_CATALOG']]) {
-    assert.ok(constant(installer, mine), `the installer names ${mine}`);
-    assert.equal(constant(installer, mine), constant(agent, theirs));
+  const read = /^LAKEBASE_CONSTANTS = \(([^)]*)\)$/m.exec(installer);
+  assert.ok(read, 'the installer lists the agent constants it reads');
+  const names = read[1].split(',').map((n) => n.trim().replace(/^"|"$/g, '')).filter(Boolean);
+  for (const name of ['IMPLEMENT_LAKEBASE_PROJECT', 'IMPLEMENT_LAKEBASE_CATALOG', 'IMPLEMENT_LAKEBASE_BRANCH', 'IMPLEMENT_LAKEBASE_DATABASE']) {
+    assert.ok(names.includes(name), `the installer reads ${name} from the bundled agent notebook`);
   }
+  for (const name of ['IMPLEMENT_LAKEBASE_PROJECT', 'IMPLEMENT_LAKEBASE_CATALOG', 'IMPLEMENT_LAKEBASE_DATABASE']) {
+    const value = constant(agent, name);
+    assert.ok(value, `the agent defines ${name}`);
+    assert.ok(!installer.includes(`"${value}"`), `the installer holds no second copy of ${name}`);
+  }
+  assert.match(installer, /ctx\["LAKEBASE"\] = agent_lakebase\(/);
 });
 
 const SCOPES_PROBE = String.raw`${INSTALLER_LOADER}

@@ -297,6 +297,8 @@ def _remove_old_bundles(w, bundle_root, keep, in_use):
 
 
 USER_SCOPE_CONSTANTS = ("IMPLEMENT_APP_EDIT_SCOPES", "IMPLEMENT_APP_READ_SCOPES")
+LAKEBASE_CONSTANTS = ("IMPLEMENT_LAKEBASE_PROJECT", "IMPLEMENT_LAKEBASE_PROJECT_SPEC", "IMPLEMENT_LAKEBASE_BRANCH", "IMPLEMENT_LAKEBASE_ENDPOINT",
+                      "IMPLEMENT_LAKEBASE_DATABASE", "IMPLEMENT_LAKEBASE_CATALOG")
 INSPIRE_APP_OWN_SCOPES = ("apps", "catalog.catalogs:read", "catalog.schemas:read", "catalog.tables:read", "files", "model-serving", "sql",
                           "workspace.workspace")
 USER_SCOPES_REFUSED = ("Inspire was installed without user authorization, so it lists no catalogs, schemas or tables, starts no run "
@@ -310,24 +312,81 @@ def app_description(version):
     return f"Inspire AI {version}"
 
 
-def app_user_scopes(notebook_text):
+def agent_constants(notebook_text, names, statement_lines=20):
     import ast
     import json as _json
     cells = _json.loads(notebook_text).get("cells") or []
     source = cells[1].get("source") if len(cells) > 1 else ""
     lines = source if isinstance(source, list) else str(source or "").splitlines(keepends=True)
-    found = {}
-    for line in lines:
-        for name in USER_SCOPE_CONSTANTS:
-            if line.startswith(f"{name} = "):
-                value = ast.literal_eval(line.split("=", 1)[1].strip())
-                if not isinstance(value, tuple) or not all(isinstance(v, str) and v for v in value):
-                    raise ValueError(f"{name} in the bundled agent notebook is not a tuple of scope names")
-                found[name] = value
-    missing = [name for name in USER_SCOPE_CONSTANTS if name not in found]
+    starts = {}
+    for index, line in enumerate(lines):
+        head = line.split(" = ", 1)[0]
+        if " = " in line and head.isidentifier() and head.isupper():
+            starts.setdefault(head, index)
+    missing = [name for name in names if name not in starts]
     if missing:
         raise ValueError(f"the bundled agent notebook defines no {', '.join(missing)}")
+    found = {}
+
+    def evaluate(node, name):
+        if isinstance(node, ast.Name):
+            return value(node.id)
+        if isinstance(node, ast.JoinedStr):
+            parts = []
+            for part in node.values:
+                if isinstance(part, ast.FormattedValue):
+                    if part.conversion != -1 or part.format_spec is not None:
+                        raise ValueError(f"{name} in the bundled agent notebook is not a constant")
+                    parts.append(str(evaluate(part.value, name)))
+                else:
+                    parts.append(part.value)
+            return "".join(parts)
+        if isinstance(node, ast.Dict) and None not in node.keys:
+            return {evaluate(k, name): evaluate(v, name) for k, v in zip(node.keys, node.values)}
+        if isinstance(node, ast.Tuple):
+            return tuple(evaluate(e, name) for e in node.elts)
+        if isinstance(node, ast.List):
+            return [evaluate(e, name) for e in node.elts]
+        try:
+            return ast.literal_eval(node)
+        except (ValueError, TypeError, SyntaxError):
+            raise ValueError(f"{name} in the bundled agent notebook is not a constant") from None
+
+    def value(name):
+        if name in found:
+            return found[name]
+        if name not in starts:
+            raise ValueError(f"the bundled agent notebook defines no {name}")
+        start = starts[name]
+        for end in range(start + 1, min(len(lines), start + statement_lines) + 1):
+            try:
+                node = ast.parse("".join(lines[start:end])).body[0].value
+                break
+            except SyntaxError:
+                continue
+        else:
+            raise ValueError(f"{name} in the bundled agent notebook is not a constant")
+        found[name] = evaluate(node, name)
+        return found[name]
+
+    return {name: value(name) for name in names}
+
+
+def app_user_scopes(notebook_text):
+    found = agent_constants(notebook_text, USER_SCOPE_CONSTANTS)
+    for name, value in found.items():
+        if not isinstance(value, tuple) or not all(isinstance(v, str) and v for v in value):
+            raise ValueError(f"{name} in the bundled agent notebook is not a tuple of scope names")
     return list(dict.fromkeys(scope for name in USER_SCOPE_CONSTANTS for scope in found[name]))
+
+
+def agent_lakebase(notebook_text):
+    found = agent_constants(notebook_text, LAKEBASE_CONSTANTS)
+    for name, value in found.items():
+        wanted = dict if name == "IMPLEMENT_LAKEBASE_PROJECT_SPEC" else str
+        if not isinstance(value, wanted) or not value:
+            raise ValueError(f"{name} in the bundled agent notebook is not a Lakebase {'project spec' if wanted is dict else 'name'}")
+    return {key: found[f"IMPLEMENT_LAKEBASE_{key.upper()}"] for key in ("project", "project_spec", "branch", "endpoint", "database", "catalog")}
 
 
 def inspire_app_scopes(notebook_text):
@@ -709,6 +768,13 @@ def step_schema_and_notebooks(ctx):
                                    "its own scopes: the Run tab cannot show pages Inside Inspire, and an App it builds may refuse a settings "
                                    "change sent from Inspire")
         print(f"  ⚠️ {ctx['USER_SCOPES_NOTE']}")
+    try:
+        ctx["LAKEBASE"] = agent_lakebase(base64.b64decode(b64).decode("utf-8"))
+    except Exception as exc:
+        ctx["LAKEBASE"] = None
+        ctx["LAKEBASE_NOTE"] = (f"Inspire could not read the Lakebase project and catalog from the bundled agent notebook ({_error_words(exc, None)}), "
+                                f"so it set up no Lakebase: {LAKEBASE_DELTA}")
+        print(f"  ⚠️ {ctx['LAKEBASE_NOTE']}")
 
     try:
         api("POST", "/api/2.0/workspace/mkdirs", {"path": f"/Shared/{app_name}"})
@@ -1039,10 +1105,83 @@ def _catalog_access_for_new_apps(ctx, sp):
     )
 
 
-LAKEBASE_PROJECT = "inspire-apps"
+LAKEBASE_DELTA = "until then the Apps that Implement builds read Delta tables"
+LAKEBASE_POLLS = 90
+LAKEBASE_POLL_S = 10
 
 
-LAKEBASE_CATALOG = "inspire_lakebase"
+def _lakebase_said(resp):
+    return f"{resp.status_code} {resp.text[:160]}"
+
+
+def _lakebase_wait(api, path, ready, sleep, polls=LAKEBASE_POLLS):
+    for poll in range(polls):
+        got = api("GET", path)
+        if got.status_code == 200 and ready(got.json() or {}):
+            return True, got
+        if got.status_code not in (200, 404):
+            return False, got
+        if poll + 1 < polls:
+            sleep(LAKEBASE_POLL_S)
+    return False, got
+
+
+def _lakebase_endpoint_host(endpoint):
+    return str(((endpoint.get("status") or {}).get("hosts") or {}).get("host") or "")
+
+
+def _lakebase_setup(ctx, sleep=None):
+    sleep = sleep or time.sleep
+    lakebase, api, me = ctx.get("LAKEBASE"), ctx["api"], ctx["USER_EMAIL"]
+    if not lakebase:
+        return False, ctx.get("LAKEBASE_NOTE") or f"Inspire knows no Lakebase project or catalog to set up: {LAKEBASE_DELTA}"
+    project, catalog = lakebase["project"], lakebase["catalog"]
+    minutes = LAKEBASE_POLLS * LAKEBASE_POLL_S // 60
+    made_project = made_catalog = False
+    got = api("GET", f"/api/2.0/postgres/projects/{project}")
+    if got.status_code == 404:
+        made = api("POST", f"/api/2.0/postgres/projects?project_id={urllib.parse.quote(project)}", {"spec": lakebase["project_spec"]})
+        if made.status_code not in (200, 201):
+            return False, (f"Databricks refused to create the Lakebase project {project} for you ({_lakebase_said(made)}). A workspace admin "
+                           f"can run this installer again, which creates it; {LAKEBASE_DELTA}")
+        made_project = True
+    elif got.status_code != 200:
+        return False, (f"Databricks refused to read the Lakebase project {project} for you ({_lakebase_said(got)}). Its owner can give you "
+                       f"Can Manage on it, then run this installer again; {LAKEBASE_DELTA}")
+    elif (got.json() or {}).get("delete_time"):
+        return False, (f"The Lakebase project {project} was deleted and keeps its name until it is purged. Restore it in Lakebase, then run "
+                       f"this installer again; {LAKEBASE_DELTA}")
+    held = api("GET", f"/api/2.0/postgres/catalogs/{catalog}")
+    if held.status_code == 404:
+        ready, endpoint = _lakebase_wait(api, f"/api/2.0/postgres/{lakebase['endpoint']}", _lakebase_endpoint_host, sleep)
+        if not ready:
+            return False, (f"The database endpoint of the Lakebase project {project} was not ready after {minutes} minutes "
+                           f"({_lakebase_said(endpoint)}). Run this installer again; {LAKEBASE_DELTA}")
+        made = api("POST", f"/api/2.0/postgres/catalogs?catalog_id={urllib.parse.quote(catalog)}",
+                   {"spec": {"branch": lakebase["branch"], "postgres_database": lakebase["database"]}})
+        if made.status_code == 403 or "PERMISSION_DENIED" in made.text:
+            return False, (f"Databricks refused to create the catalog `{catalog}` on the Lakebase project {project} for you "
+                           f"({_lakebase_said(made)}): creating a catalog needs CREATE CATALOG on the metastore. A metastore admin can run "
+                           f"GRANT CREATE CATALOG ON METASTORE TO `{me}`, then you run this installer again; {LAKEBASE_DELTA}")
+        if made.status_code not in (200, 201):
+            return False, f"Databricks did not create the catalog `{catalog}` ({_lakebase_said(made)}). Run this installer again; {LAKEBASE_DELTA}"
+        ready, held = _lakebase_wait(api, f"/api/2.0/postgres/catalogs/{catalog}", lambda found: True, sleep)
+        if not ready:
+            return False, (f"The catalog `{catalog}` was not ready after {minutes} minutes ({_lakebase_said(held)}). Run this installer "
+                           f"again; {LAKEBASE_DELTA}")
+        made_catalog = True
+    elif held.status_code != 200:
+        return False, (f"Databricks refused to read the catalog `{catalog}` for you ({_lakebase_said(held)}). Its owner can run "
+                       f"GRANT USE CATALOG ON CATALOG `{catalog}` TO `{me}`, then you run this installer again; {LAKEBASE_DELTA}")
+    found = held.json() or {}
+    bound = dict(found.get("spec") or {}, **{k: v for k, v in (found.get("status") or {}).items() if v})
+    if bound.get("branch") != lakebase["branch"] or bound.get("postgres_database") != lakebase["database"]:
+        return False, (f"The catalog `{catalog}` holds another Lakebase database ({bound.get('branch')}, {bound.get('postgres_database')}), "
+                       f"not {lakebase['database']} of the project {project}. Its owner can drop it, then run this installer again; "
+                       f"{LAKEBASE_DELTA}")
+    did = [what for what, done in ((f"created the Lakebase project {project}", made_project),
+                                   (f"created the catalog `{catalog}` on it", made_catalog)) if done]
+    return True, (f"Lakebase for the Apps Implement builds: {' and '.join(did) if did else f'project {project} and catalog `{catalog}` are there'} ✅")
 
 
 def _lakebase_project_access(api, sp, project):
@@ -1052,12 +1191,10 @@ def _lakebase_project_access(api, sp, project):
         {"access_control_list": [{"service_principal_name": sp, "permission_level": "CAN_MANAGE"}]},
     )
     if resp.status_code == 200:
-        return f"CAN_MANAGE on Lakebase project {project}, so the Apps Implement builds can read Lakebase: ✅"
-    if resp.status_code == 404:
-        return f"No Lakebase project {project} yet: the first App that reads Lakebase creates it ✅"
-    return (
-        f"⚠️ Apps cannot read Lakebase project {project} yet ({resp.text[:160]}). A workspace admin can give {sp} "
-        f"Can Manage on that project; until then the Apps read Delta tables"
+        return True, f"CAN_MANAGE on Lakebase project {project}, so the Apps Implement builds can read Lakebase: ✅"
+    return False, (
+        f"{sp} cannot use the Lakebase project {project}, because Databricks refused to give it Can Manage on that project "
+        f"({resp.text[:160]}). A workspace admin can give {sp} Can Manage on that project, or run this installer again; {LAKEBASE_DELTA}"
     )
 
 
@@ -1101,15 +1238,19 @@ def _scan_split(ctx, catalog, scan, visible):
     return grantable, skipped
 
 
-def _grant_plan(sp, catalog, schema, scanned, visible):
+def _lakebase_grant(sp, lakebase_catalog):
+    return f"GRANT ALL PRIVILEGES ON CATALOG `{lakebase_catalog}` TO `{sp}`"
+
+
+def _grant_plan(sp, catalog, schema, scanned, visible, lakebase_catalog=""):
     plan = [f"GRANT {p} ON CATALOG `{catalog}` TO `{sp}`" for p in ("USE_CATALOG", "BROWSE", "CREATE SCHEMA")]
     plan += [f"GRANT {p} ON SCHEMA `{catalog}`.`{schema}` TO `{sp}`"
              for p in ("USE_SCHEMA", "CREATE_TABLE", "SELECT", "MODIFY", "CREATE MODEL", "CREATE VOLUME", "READ VOLUME", "WRITE VOLUME", "MANAGE")]
     for cat in scanned:
         if cat != catalog:
             plan += [f"GRANT {p} ON CATALOG `{cat}` TO `{sp}`" for p in SCAN_GRANTS]
-    if LAKEBASE_CATALOG in visible and LAKEBASE_CATALOG != catalog:
-        plan.append(f"GRANT ALL PRIVILEGES ON CATALOG `{LAKEBASE_CATALOG}` TO `{sp}`")
+    if lakebase_catalog and lakebase_catalog in visible and lakebase_catalog != catalog:
+        plan.append(_lakebase_grant(sp, lakebase_catalog))
     return plan
 
 
@@ -1129,8 +1270,15 @@ def step_grant_permissions(ctx):
             visible.update(cat.name for cat in w.catalogs.list())
         except Exception:
             pass
+        lakebase = ctx.get("LAKEBASE") or {}
+        lakebase_ready, lakebase_said = _lakebase_setup(ctx)
+        print(f"  {'' if lakebase_ready else '⚠️ '}{lakebase_said}")
+        if lakebase_ready:
+            visible.add(lakebase["catalog"])
+        else:
+            ctx["LAKEBASE_NOTE"] = lakebase_said
         scanned, skipped = _scan_split(ctx, catalog, scan, visible)
-        grants = _grant_plan(sp, catalog, schema, scanned, visible)
+        grants = _grant_plan(sp, catalog, schema, scanned, visible, lakebase.get("catalog", ""))
         print(f"Grant plan for {sp}: {_plural(len(grants), 'statement')} (SCAN_CATALOGS = {_scan_label(scan, catalog)})")
         for sql in grants:
             print(f"  {sql}")
@@ -1140,20 +1288,24 @@ def step_grant_permissions(ctx):
             print(f"  Note: you can grant on no catalog besides `{catalog}`, so the Inspire App reads only `{catalog}` for now. "
                   "Run this installer again once you can grant on the catalogs to scan.")
 
-        failed = 0
+        failed = {}
         for sql in grants:
             try:
                 stmt = w.statement_execution.execute_statement(
                     warehouse_id=warehouse_id, statement=sql, wait_timeout="15s"
                 )
                 if not (stmt.status and stmt.status.state == StatementState.SUCCEEDED):
-                    failed += 1
-                    detail = stmt.status.error.message[:120] if stmt.status and stmt.status.error else str(stmt.status)
-                    print(f"  ⚠️ {sql}: {detail}")
+                    failed[sql] = stmt.status.error.message[:120] if stmt.status and stmt.status.error else str(stmt.status)
+                    print(f"  ⚠️ {sql}: {failed[sql]}")
             except Exception as exc:
-                failed += 1
-                print(f"  ⚠️ {sql}: {_error_words(exc, None)}")
-        print(f"  Grants: {len(grants) - failed} of {len(grants)} ran {'✅' if not failed else '⚠️'}")
+                failed[sql] = _error_words(exc, None)
+                print(f"  ⚠️ {sql}: {failed[sql]}")
+        print(f"  Grants: {len(grants) - len(failed)} of {len(grants)} ran {'✅' if not failed else '⚠️'}")
+        lakebase_sql = _lakebase_grant(sp, lakebase["catalog"]) if lakebase else ""
+        if lakebase_ready and lakebase_sql in failed:
+            ctx["LAKEBASE_NOTE"] = (f"{sp} cannot use the catalog `{lakebase['catalog']}`, because {lakebase_sql} failed "
+                                    f"({str(failed[lakebase_sql])[:160]}). Its owner can run that grant, or run this installer again; {LAKEBASE_DELTA}")
+            print(f"  ⚠️ {ctx['LAKEBASE_NOTE']}")
 
         print(f"  {_catalog_access_for_new_apps(ctx, sp)}")
         resp = api(
@@ -1165,7 +1317,13 @@ def step_grant_permissions(ctx):
             "  CAN_MANAGE on warehouse, so Implement can attach it to the Apps it creates: "
             f"{'✅' if resp.status_code == 200 else '⚠️ ' + resp.text[:100]}"
         )
-        print(f"  {_lakebase_project_access(api, sp, LAKEBASE_PROJECT)}")
+        if lakebase:
+            granted, granted_said = _lakebase_project_access(api, sp, lakebase["project"])
+            print(f"  {'' if granted else '⚠️ '}{granted_said}")
+            if not granted and not ctx.get("LAKEBASE_NOTE"):
+                ctx["LAKEBASE_NOTE"] = granted_said
+        ctx["LAKEBASE_SUMMARY"] = (f"⚠️ {ctx['LAKEBASE_NOTE']}" if ctx.get("LAKEBASE_NOTE") else
+                                   f"Apps that Implement builds read Lakebase: project {lakebase['project']}, catalog `{lakebase['catalog']}` ✅")
         print(f"  {_app_folder_access(api, ctx['APP_NAME'], sp)}")
         print(f"  {_assets_folder_access(api, ctx.get('ASSETS_PATH'), sp)}")
     elif not new_sp_app_id:
@@ -1207,6 +1365,8 @@ def step_render_done(ctx):
     print(f"  Assets:      {ctx.get('ASSETS_PATH') or 'NOT INSTALLED'}")
     if ctx.get("USER_SCOPES_NOTE"):
         print(f"  Sign-in:     {ctx['USER_SCOPES_NOTE']}")
+    if ctx.get("LAKEBASE_SUMMARY"):
+        print(f"  Lakebase:    {ctx['LAKEBASE_SUMMARY']}")
     print("=" * 60)
 
     displayHTML(

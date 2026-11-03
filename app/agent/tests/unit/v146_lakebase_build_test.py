@@ -149,7 +149,6 @@ def test_the_app_gets_its_lakebase_database_as_a_resource_only_when_it_reads_lak
 
 
 @pytest.mark.parametrize("error,reason", [
-    (type("PermissionDenied", (Exception,), {})("no"), "the identity Inspire runs as has no permission to use Lakebase in this workspace"),
     (RuntimeError("ENDPOINT_NOT_FOUND: Not Found"), "Lakebase is not available in this workspace"),
     (type("E", (Exception,), {"error_code": "FEATURE_DISABLED"})("off"), "Lakebase is not available in this workspace"),
     (RuntimeError("TEMPORARILY_UNAVAILABLE: busy"), "Lakebase did not answer: TEMPORARILY_UNAVAILABLE: busy"),
@@ -689,27 +688,86 @@ def test_a_later_lakebase_app_reuses_the_project_and_catalog(agent_ns):
     assert not any(c[0] == "POST" for c in calls)
 
 
-@pytest.mark.parametrize("routes,needle", [
-    ({("GET", "/api/2.0/postgres/projects"): type("PermissionDenied", (Exception,), {})("no")},
-     "the identity Inspire runs as has no permission to use Lakebase in this workspace"),
-    ({("GET", "/api/2.0/postgres/projects"): RuntimeError("ENDPOINT_NOT_FOUND: Not Found")}, "Lakebase is not available in this workspace"),
+DENIED = type("PermissionDenied", (Exception,), {})
+REFUSED_TEXT = ("User does not have CREATE CATALOG on Metastore 'ZQV9101QZ'. Config: host=https://adb-zqv.example.net, "
+                "token=dapi" + "cd" * 16)
+INSTALLER_AGAIN = "run the Inspire installer again, which gives it Can Manage on that project"
+
+
+@pytest.mark.parametrize("routes,needle,refused", [
+    ({("GET", "/api/2.0/postgres/projects"): DENIED("no")},
+     "Databricks refused to list the Lakebase projects of this workspace, because the identity Inspire runs as (builder) has no "
+     "permission to use Lakebase in this workspace; ask a workspace admin to let it use Lakebase",
+     "list the Lakebase projects of this workspace"),
+    ({("GET", "/api/2.0/postgres/projects"): RuntimeError("ENDPOINT_NOT_FOUND: Not Found")}, "Lakebase is not available in this workspace", ""),
     ({("GET", CATALOG): [{"spec": {"branch": "projects/other/branches/main", "postgres_database": "other"}}]},
-     "the catalog inspire_lakebase already holds another Lakebase database (projects/other/branches/main, other)"),
-    ({("GET", "/api/2.0/postgres/projects/inspire-apps"): type("PermissionDenied", (Exception,), {})(
+     "the catalog inspire_lakebase already holds another Lakebase database (projects/other/branches/main, other)", ""),
+    ({("GET", "/api/2.0/postgres/projects/inspire-apps"): DENIED(
         "The user is not authorized to make the request. Config: host=https://ws.example, auth_type=runtime")},
-     "the identity Inspire runs as has no Can Use or Can Manage on the Lakebase project inspire-apps; run the Inspire installer again, "
-     "or ask a workspace admin to give it Can Manage on that project"),
+     "Databricks refused to read the Lakebase project inspire-apps, because the identity Inspire runs as (builder) has no Can Use or "
+     f"Can Manage on that project; {INSTALLER_AGAIN}", "read the Lakebase project inspire-apps"),
+    ({("POST", "/api/2.0/postgres/projects"): DENIED("PERMISSION_DENIED: no")},
+     "Databricks refused to create the Lakebase project inspire-apps, because the identity Inspire runs as (builder) has no right to "
+     "create Lakebase projects in this workspace; run the Inspire installer again, which creates the project and gives it Can Manage on it",
+     "create the Lakebase project inspire-apps"),
     ({("GET", ENDPOINT): type("E", (Exception,), {"error_code": "PERMISSION_DENIED"})("no Can Use on the project")},
-     "the identity Inspire runs as has no Can Use or Can Manage on the Lakebase project inspire-apps; run the Inspire installer again, "
-     "or ask a workspace admin to give it Can Manage on that project"),
-], ids=["forbidden", "absent", "catalog_taken", "project_forbidden", "endpoint_forbidden"])
-def test_lakebase_that_cannot_be_used_says_why(agent_ns, routes, needle):
+     "Databricks refused to read the database endpoint of the Lakebase project inspire-apps, because the identity Inspire runs as "
+     f"(builder) has no Can Use or Can Manage on that project; {INSTALLER_AGAIN}",
+     "read the database endpoint of the Lakebase project inspire-apps"),
+    ({("GET", CATALOG): [DENIED("PERMISSION_DENIED: no USE CATALOG")]},
+     "Databricks refused to read the catalog inspire_lakebase, because the identity Inspire runs as (builder) has no USE CATALOG on "
+     "it; run the Inspire installer again as an owner of the catalog inspire_lakebase, which grants it ALL PRIVILEGES on it",
+     "read the catalog inspire_lakebase"),
+    ({("POST", "/api/2.0/postgres/catalogs"): DENIED(REFUSED_TEXT)},
+     "Databricks refused to create the catalog inspire_lakebase, because the identity Inspire runs as (builder) has no CREATE CATALOG "
+     "on the metastore; run the Inspire installer again as someone with CREATE CATALOG on the metastore, which creates the catalog "
+     "inspire_lakebase on the Lakebase project inspire-apps and grants it ALL PRIVILEGES on it",
+     "create the catalog inspire_lakebase"),
+    ({("GET", CATALOG): [NOT_FOUND, DENIED("PERMISSION_DENIED: no USE CATALOG")]},
+     "Databricks refused to read the catalog inspire_lakebase, because the identity Inspire runs as (builder) has no USE CATALOG on "
+     "it; run the Inspire installer again as an owner of the catalog inspire_lakebase, which grants it ALL PRIVILEGES on it",
+     "read the catalog inspire_lakebase"),
+], ids=["forbidden", "absent", "catalog_taken", "project_forbidden", "project_create_forbidden", "endpoint_forbidden",
+        "catalog_forbidden", "catalog_create_forbidden", "catalog_wait_forbidden"])
+def test_lakebase_that_cannot_be_used_names_the_refused_call_and_logs_its_redacted_error(agent_ns, routes, needle, refused):
     import time
     inst, _calls = _routed(agent_ns, _ready_routes(routes))
     inst._implement_builder = lambda: "builder"
     with pytest.raises(agent_ns["ImplementLakebaseUnavailable"]) as raised:
         inst._implement_lakebase_ready(time.time() + 60)
     assert str(raised.value) == needle
+    warned = [line for line in _lines(inst, "WARNING") if "Databricks refused the call to" in line]
+    if not refused:
+        assert warned == []
+        return
+    assert len(warned) == 1 and warned[0].startswith(f"[IMPLEMENT-LAKEBASE] Databricks refused the call to {refused}: "), warned
+    for secret in ("adb-zqv.example.net", "dapi" + "cd" * 16):
+        assert secret not in warned[0] and secret not in str(raised.value)
+
+
+def test_the_refused_catalog_create_keeps_the_platform_reason_in_the_log_and_reaches_the_app_fallback(agent_ns):
+    import time
+    inst, _calls = _routed(agent_ns, _ready_routes({("POST", "/api/2.0/postgres/catalogs"): DENIED(REFUSED_TEXT)}))
+    inst._implement_builder = lambda: "sp-app-id"
+    with pytest.raises(agent_ns["ImplementLakebaseUnavailable"]) as raised:
+        inst._implement_lakebase_ready(time.time() + 60)
+    warned = [line for line in _lines(inst, "WARNING") if "Databricks refused the call to" in line]
+    assert "User does not have CREATE CATALOG on Metastore" in warned[0], warned
+    assert "Can Use or Can Manage" not in str(raised.value), "a refused catalog create is never reported as a project permission"
+    assert "(sp-app-id) has no CREATE CATALOG on the metastore" in str(raised.value)
+    fallback = agent_ns["implement_lakebase_fallback"](str(raised.value))
+    assert fallback == FALLBACK.format(str(raised.value))
+
+
+def test_an_error_that_is_not_a_refusal_passes_through_without_a_refusal_log(agent_ns):
+    import time
+    broken = RuntimeError("INVALID_PARAMETER_VALUE: branch is missing")
+    inst, _calls = _routed(agent_ns, _ready_routes({("POST", "/api/2.0/postgres/catalogs"): broken}))
+    inst._implement_builder = lambda: "builder"
+    with pytest.raises(RuntimeError) as raised:
+        inst._implement_lakebase_ready(time.time() + 60)
+    assert raised.value is broken
+    assert not [line for line in _lines(inst, "WARNING") if "Databricks refused the call to" in line]
 
 
 DELETED_PROJECT = {"name": "projects/inspire-apps", "delete_time": "2026-11-02T09:37:40Z", "purge_time": "2026-11-09T09:37:40Z"}
@@ -753,6 +811,18 @@ def test_taking_back_reads_on_a_deleted_project_says_why_at_once(agent_ns):
     assert warnings == [f"App: Inspire could not reach Lakebase, so the App's service principal sp-1 may still read the Lakebase copies "
                         f"a and b: {DELETED_REASON}"]
     assert len(calls) == 1
+
+
+def test_taking_back_reads_on_a_refused_project_names_the_refused_call(agent_ns):
+    inst, _calls = _routed(agent_ns, {("GET", "/api/2.0/postgres/projects/inspire-apps"): DENIED("PERMISSION_DENIED: no")})
+    inst._implement_builder = lambda: "sp-1"
+    gone, failed, warnings = inst._implement_lakebase_revoke(None, ["a"], "sp-1")
+    assert (gone, failed) == ([], ["a"])
+    assert warnings == ["App: Inspire could not reach Lakebase, so the App's service principal sp-1 may still read the Lakebase copies a: "
+                        "Databricks refused to read the Lakebase project inspire-apps, because the identity Inspire runs as (sp-1) has no "
+                        f"Can Use or Can Manage on that project; {INSTALLER_AGAIN}"]
+    assert _lines(inst, "WARNING") == ["[IMPLEMENT-LAKEBASE] Databricks refused the call to read the Lakebase project inspire-apps: "
+                                       "PERMISSION_DENIED: no"]
 
 
 def test_taking_back_reads_on_a_purged_project_counts_every_copy_gone(agent_ns):
@@ -866,6 +936,8 @@ def test_a_lakebase_schema_inspire_may_not_add_tables_to_names_the_grant_that_le
         inst._implement_lakebase_synced(json.loads(json.dumps(COPIES)), ["main", "inspire"], "", "_inspire_row", time.time() + 60)
     assert str(raised.value) == ("the identity Inspire runs as cannot add tables to the Lakebase schema inspire_lakebase.s; run the "
                                  f"Inspire installer again as an owner of the catalog inspire_lakebase, or {ask}")
+    assert _lines(inst, "WARNING") == ["[IMPLEMENT-LAKEBASE] Databricks refused the call to create the Lakebase table inspire_lakebase.s.a: "
+                                       "Principal 'app-x inspire' does not have CREATE TABLE and USE SCHEMA on Schema 'inspire_lakebase.s'"]
 
 
 def test_a_synced_table_error_that_is_not_about_permission_is_not_reworded(agent_ns):
