@@ -1961,7 +1961,7 @@ app.get('/api/demo-data/templates', (_req, res) => {
 
 /**
  * Two-step Databricks pipeline: generate demo UC tables → run Inspire discovery.
- * Body: { description, business_name, inspire_database?, cluster_id?, session_id? }
+ * Body: { description, business_name, inspire_database?, cluster_id?, session_id?, plant_kind_signals? }
  */
 app.post('/api/demo-data/start', requireToken, async (req, res) => {
   try {
@@ -2025,6 +2025,7 @@ app.post('/api/demo-data/start', requireToken, async (req, res) => {
         cluster_id: pipelineClusterId,
         warehouse_id: pipelineWarehouseId,
         app_sp_application_id: appSpApplicationId,
+        plantKindSignals: req.body?.plant_kind_signals !== false,
         ensureInspireNotebookPublished: ensureNotebookPublished,
         resolveWorkspaceNotebookObjectPath,
       },

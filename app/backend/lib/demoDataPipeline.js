@@ -10,6 +10,12 @@ const {
 } = require('./inspireJobParams');
 
 const GENERATE_NOTEBOOK_DEST = '/Shared/inspire-ai/dbx_generate_demo_data';
+const DEMO_GENERATED_TABLES = 5;
+const DEMO_KIND_SIGNAL_TABLES = 13;
+
+function demoTablesPlanned(plantKindSignals) {
+  return { generated: DEMO_GENERATED_TABLES, kind_signal: plantKindSignals ? DEMO_KIND_SIGNAL_TABLES : 0 };
+}
 
 /** Paths where dbx_generate_demo_data.py may exist (App cwd varies). */
 function demoNotebookLocalCandidates() {
@@ -182,6 +188,7 @@ async function triggerDemoDataPipeline(
     cluster_id,
     warehouse_id,
     app_sp_application_id,
+    plantKindSignals = true,
     ensureInspireNotebookPublished,
     resolveWorkspaceNotebookObjectPath,
   },
@@ -244,6 +251,7 @@ async function triggerDemoDataPipeline(
             demo_schema: demoSchema,
             warehouse_id: String(warehouse_id || '').trim(),
             app_sp_application_id: String(app_sp_application_id || '').trim(),
+            plant_kind_signals: plantKindSignals ? 'yes' : 'no',
           },
         },
         ...clusterSpec,
@@ -298,6 +306,7 @@ async function triggerDemoDataPipeline(
       inspire_agent_notebook: inspireNotebookPath,
       inspire_database: inspireDb,
       demo_schema_planned: `${catalog}.${demoSchema}`,
+      demo_tables: demoTablesPlanned(plantKindSignals),
       catalog,
       cluster_id: resolvedClusterId || null,
     },
@@ -305,6 +314,8 @@ async function triggerDemoDataPipeline(
 }
 
 module.exports = {
+  DEMO_GENERATED_TABLES,
+  DEMO_KIND_SIGNAL_TABLES,
   triggerDemoDataPipeline,
   publishPipelineNotebook,
   ensureDemoPipelineNotebookPublished,

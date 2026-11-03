@@ -10,6 +10,13 @@ import {
   CheckCircle2,
 } from 'lucide-react';
 import { responseError } from '../lib/apiClient';
+import { plural } from '../lib/plural';
+
+function demoTablesLine(tables) {
+  if (!tables) return 'Write the demo Delta tables with UC table and column comments';
+  const signal = tables.kind_signal ? ` and ${plural(tables.kind_signal, 'table')} that carry the data of every use-case kind` : '';
+  return `Write ${plural(tables.generated, 'Delta table')} from your description${signal}, all with UC table and column comments`;
+}
 
 export default function GenerateDataPage({ settings, onBack, onLaunched }) {
   const { databricksHost, token, inspireDatabase, serverEnvHasPat } = settings;
@@ -159,7 +166,7 @@ export default function GenerateDataPage({ settings, onBack, onLaunched }) {
               Pipeline started
             </div>
             <ol className="text-xs list-decimal list-inside space-y-0.5 mt-1">
-              <li>Generate 5 Delta tables with UC table/column comments</li>
+              <li>{demoTablesLine(lastResult.pipeline?.demo_tables)}</li>
               <li>
                 Run Inspire discovery →{' '}
                 {lastResult.pipeline?.inspire_agent_notebook || '/Shared/inspire-ai/dbx_inspire_ai_agent'}

@@ -263,6 +263,12 @@ function makeApp(overrides = {}, { mount } = {}) {
     return res.json({ tables: names.map((name) => ({ name, full_name: `${scope}.${name}`, schema_name: req.params.schema })), count: names.length });
   });
   app.post('/api/output-folder/check', (req, res) => res.json({ allowed: true, folder: String((req.body || {}).generation_path || '/Shared/demos'), checked: 'passed' }));
+  app.post('/api/demo-data/start', (req, res) => {
+    launches.push(req.body);
+    const [status, data] = state.demoAnswer || [200, { ok: true, session_id: '1', pipeline: { inspire_agent_notebook: '/Shared/inspire-ai/agent' } }];
+    res.status(status).json(data);
+  });
+
   app.post('/api/run', (req, res) => {
     launches.push(req.body);
     const [status, data] = state.runAnswer || [200, { run_id: 99 }];

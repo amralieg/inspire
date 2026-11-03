@@ -6,7 +6,7 @@ const path = require('path');
 const {
   INSPIRE_ENVIRONMENT_VERSION, inspireJobEnvironmentChange, inspireJobEnvironments, inspireTaskCompute,
 } = require('../lib/inspireJobParams');
-const { triggerDemoDataPipeline } = require('../lib/demoDataPipeline');
+const { DEMO_GENERATED_TABLES, DEMO_KIND_SIGNAL_TABLES, triggerDemoDataPipeline } = require('../lib/demoDataPipeline');
 
 const SERVERLESS = { environment_key: 'Default', disable_auto_optimization: true };
 const ENVIRONMENTS = [{ environment_key: 'Default', spec: { environment_version: INSPIRE_ENVIRONMENT_VERSION } }];
@@ -29,27 +29,41 @@ function fakeFetch(created) {
   };
 }
 
-async function demoPayload(clusterId) {
+async function demoRun(clusterId, extra = {}) {
   const created = [];
   const saved = { a: process.env.INSPIRE_CLUSTER_ID, b: process.env.INSPIRE_DEPLOY_CLUSTER_ID };
   delete process.env.INSPIRE_CLUSTER_ID;
   delete process.env.INSPIRE_DEPLOY_CLUSTER_ID;
   try {
-    await triggerDemoDataPipeline(fakeFetch(created), () => 'https://h/run', 'https://h', 't', {
+    const result = await triggerDemoDataPipeline(fakeFetch(created), () => 'https://h/run', 'https://h', 't', {
       description: 'A retailer with stores and an online shop',
       businessName: 'Acme Retail',
       inspireDatabase: 'main._inspire',
       sessionId: '42',
       cluster_id: clusterId,
       resolveWorkspaceNotebookObjectPath: async (host, token, p) => p,
+      ...extra,
     });
+    assert.equal(created.length, 1);
+    return { payload: created[0], result };
   } finally {
     if (saved.a !== undefined) process.env.INSPIRE_CLUSTER_ID = saved.a;
     if (saved.b !== undefined) process.env.INSPIRE_DEPLOY_CLUSTER_ID = saved.b;
   }
-  assert.equal(created.length, 1);
-  return created[0];
 }
+
+async function demoPayload(clusterId) {
+  return (await demoRun(clusterId)).payload;
+}
+
+test('the demo job plants the kind tables unless the caller switches them off, and reports the tables it writes', async () => {
+  const planted = await demoRun('');
+  assert.equal(planted.payload.tasks[0].notebook_task.base_parameters.plant_kind_signals, 'yes');
+  assert.deepEqual(planted.result.pipeline.demo_tables, { generated: DEMO_GENERATED_TABLES, kind_signal: DEMO_KIND_SIGNAL_TABLES });
+  const off = await demoRun('', { plantKindSignals: false });
+  assert.equal(off.payload.tasks[0].notebook_task.base_parameters.plant_kind_signals, 'no');
+  assert.deepEqual(off.result.pipeline.demo_tables, { generated: DEMO_GENERATED_TABLES, kind_signal: 0 });
+});
 
 test('a serverless Inspire task runs once, without the automatic serverless retries', () => {
   for (const none of ['', null, undefined]) {

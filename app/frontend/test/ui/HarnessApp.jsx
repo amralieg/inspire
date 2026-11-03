@@ -10,6 +10,7 @@ import ChoosePage from '../../src/pages/ChoosePage';
 import LaunchPage from '../../src/pages/LaunchPage';
 import SetupWizard from '../../src/pages/SetupWizard';
 import MonitorPage from '../../src/pages/MonitorPage';
+import GenerateDataPage from '../../src/pages/GenerateDataPage';
 import App from '../../src/App';
 import DataGrid from '../../src/components/DataGrid';
 import { RESULTS_FRAME } from '../../src/lib/layout';
@@ -65,6 +66,13 @@ function HarnessContent({ open, discoveryType, demo, step, run }) {
     );
   }
   if (open === 'launch') return <LaunchHarness />;
+  if (open === 'generate') {
+    return (
+      <ThemeProvider>
+        <GenerateDataPage settings={{ ...SETTINGS, inspireDatabase: 'main._inspire' }} onBack={() => {}} />
+      </ThemeProvider>
+    );
+  }
   if (open === 'grid') return <GridHarness wide={step === 'wide'} />;
   if (open === 'header') {
     return (

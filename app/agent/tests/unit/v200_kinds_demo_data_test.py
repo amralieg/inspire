@@ -2,6 +2,7 @@ import copy
 import datetime
 import json
 import pathlib
+import re
 
 import numpy as np
 import pandas as pd
@@ -373,6 +374,13 @@ def test_plant_stops_before_writing_when_a_signal_check_fails(gen):
     with pytest.raises(RuntimeError, match="anomaly"):
         ns["_plant_kind_signals"]("c", "s", [])
     assert not [e for e in spark.log if e[0] == "save"]
+
+
+def test_the_app_names_the_table_counts_the_notebook_writes(bundle):
+    source = (APP / "backend" / "lib" / "demoDataPipeline.js").read_text(encoding="utf-8")
+    counts = {name: int(value) for name, value in re.findall(r"^const (DEMO_\w+_TABLES) = (\d+);", source, re.M)}
+    notebook = int(re.search(r"^NUM_DEMO_TABLES = (\d+)$", DEMO.read_text(encoding="utf-8"), re.M).group(1))
+    assert counts == {"DEMO_GENERATED_TABLES": notebook, "DEMO_KIND_SIGNAL_TABLES": len(bundle["tables"])}
 
 
 def test_the_backend_copy_and_the_bundle_match_the_app_notebook():
