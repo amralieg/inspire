@@ -492,14 +492,14 @@ def test_only_outputs_that_deployed_save_a_snapshot_and_a_version_with_none_writ
 
 def test_the_snapshot_column_is_added_to_old_tables_and_kept_out_of_every_default_read(agent_ns, tmp_path, monkeypatch):
     old = [{"col_name": name} for name, _kind in agent_ns["IMPLEMENT_COLUMNS"] if name != "asset_snapshots"]
-    spark = FakeSpark(responder=lambda s: old if s.startswith("DESCRIBE TABLE `my-cat`.`inspire`.__inspire_implement") else [])
+    spark = FakeSpark(responder=lambda s: old if s.startswith("DESCRIBE TABLE `my-cat`.`inspire`.`__inspire_implement`") else [])
     writer = _writer(agent_ns, spark, tmp_path, monkeypatch)
     try:
         writer._ensure_implement_table()
     finally:
         writer._session_writer.stop(drain_timeout=5.0)
     assert [s for s in spark.statements if " ADD COLUMN " in s] == [
-        "ALTER TABLE `my-cat`.`inspire`.__inspire_implement ADD COLUMN `asset_snapshots` STRING"]
+        "ALTER TABLE `my-cat`.`inspire`.`__inspire_implement` ADD COLUMN `asset_snapshots` STRING"]
     assert agent_ns["IMPLEMENT_COLUMNS"][-1] == ("asset_snapshots", "STRING")
     assert "asset_snapshots" not in agent_ns["DatabricksInspire"]._IMPLEMENT_READ_COLUMNS
     inst = _probe_inspire(agent_ns, lambda statement: [], {})

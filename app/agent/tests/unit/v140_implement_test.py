@@ -728,7 +728,7 @@ def _writer(ns, spark, tmp_path, monkeypatch, **widget_values):
 
 def test_atomic_writer_creates_and_migrates_the_implement_table(agent_ns, tmp_path, monkeypatch):
     spark = FakeSpark(responder=lambda s: [{"col_name": "session_id"}, {"col_name": "use_case_id"}]
-                      if s.startswith("DESCRIBE TABLE `my-cat`.`inspire`.__inspire_implement") else [])
+                      if s.startswith("DESCRIBE TABLE `my-cat`.`inspire`.`__inspire_implement`") else [])
     writer = _writer(agent_ns, spark, tmp_path, monkeypatch)
     try:
         assert writer.implement_table == "`my-cat`.`inspire`.__inspire_implement"
@@ -736,7 +736,7 @@ def test_atomic_writer_creates_and_migrates_the_implement_table(agent_ns, tmp_pa
     finally:
         writer._session_writer.stop(drain_timeout=5.0)
     assert any(s.startswith("CREATE TABLE IF NOT EXISTS `my-cat`.`inspire`.__inspire_implement") for s in spark.statements)
-    added = [s for s in spark.statements if s.startswith("ALTER TABLE `my-cat`.`inspire`.__inspire_implement ADD COLUMN")]
+    added = [s for s in spark.statements if s.startswith("ALTER TABLE `my-cat`.`inspire`.`__inspire_implement` ADD COLUMN")]
     assert len(added) == len(agent_ns["IMPLEMENT_COLUMNS"]) - 2
     assert not any("`session_id`" in s for s in added)
 

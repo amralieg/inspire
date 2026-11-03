@@ -147,7 +147,7 @@ def test_tables_a_released_build_made_are_brought_to_the_current_columns_and_eve
     for kind, name in NAMES.items():
         assert spark.tables[name][:len(released[kind])] == released[kind], f"{kind}: the released columns stay as they were"
         assert sorted(spark.tables[name]) == sorted(current.tables[name]), f"{kind}: it ends with the columns this version creates"
-    assert spark.tables[NAMES["step"]][-1] == "event_id" and "ALTER TABLE `c`.`s`.__inspire_step ADD COLUMN event_id STRING" in spark.altered()
+    assert spark.tables[NAMES["step"]][-1] == "event_id" and "ALTER TABLE `c`.`s`.`__inspire_step` ADD COLUMN event_id STRING" in spark.altered()
     assert "asset_snapshots" in spark.tables[NAMES["implement"]], "a released implement table gains the columns this version writes"
     for kind, columns in _targets(spark).items():
         assert columns and spark.missing(kind, columns) == [], kind
