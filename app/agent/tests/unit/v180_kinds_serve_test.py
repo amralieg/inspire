@@ -12,7 +12,9 @@ import pytest
 from v120_artifacts_support import CapturingLogger, FakeSpark, elite_assessment, make_inspire, make_uc
 from v196_reason_columns_every_language_test import FakeAgent, arabic_labels, bilingual, csv_rows, french_responder, written
 
-KIND_COLUMNS = ["use_case_kind", "kind_family", "app_layout", "serving_summary", "method_summary", "value_source", "selection_basis"]
+LINE_COLUMNS = ["use_case_kind", "kind_family", "app_layout", "serving_summary", "method_summary", "value_source"]
+SELECTION_COLUMNS = ["selection_basis", "selection_replaced", "selection_score_gap"]
+KIND_COLUMNS = LINE_COLUMNS + SELECTION_COLUMNS
 LINE_FIELDS = ("serving_summary", "method_summary", "value_source")
 
 
@@ -142,16 +144,32 @@ def _row(ns, uc):
     return dict(zip(names, values))
 
 
-@pytest.mark.parametrize("basis", ["earned", {"basis": "kind floor", "replaced": "N02-U04", "score_gap": 0.4}])
-def test_kind_fields_round_trip_through_the_tracking_row(ns, basis):
-    uc = kinded(ns, forecast_uc(selection_basis=basis))
+@pytest.mark.parametrize("selection, stored", [
+    ({"selection_basis": "earned", "selection_replaced": "", "selection_score_gap": None}, ["earned", None, None]),
+    ({"selection_basis": "kind_floor", "selection_replaced": "N02-U04", "selection_score_gap": 0.4}, ["kind_floor", "N02-U04", "0.4"]),
+    ({"selection_basis": "user_request", "selection_replaced": "N01-U01", "selection_score_gap": -1.25}, ["user_request", "N01-U01", "-1.25"]),
+])
+def test_kind_fields_and_the_selection_basis_round_trip_through_the_tracking_row(ns, selection, stored):
+    uc = kinded(ns, forecast_uc(**selection))
     row = _row(ns, uc)
-    assert [row[c] for c in KIND_COLUMNS[:-1]] == [uc[c] for c in KIND_COLUMNS[:-1]]
-    assert row["selection_basis"] == (basis if isinstance(basis, str) else json.dumps(basis, sort_keys=True))
+    assert [row[c] for c in LINE_COLUMNS] == [uc[c] for c in LINE_COLUMNS]
+    assert [row[c] for c in SELECTION_COLUMNS] == stored
     back = make_inspire(ns)._row_to_uc(row)
-    assert back["selection_basis"] == basis
-    assert [back[c] for c in KIND_COLUMNS[:-1]] == [uc[c] for c in KIND_COLUMNS[:-1]]
+    assert [back[c] for c in LINE_COLUMNS] == [uc[c] for c in LINE_COLUMNS]
+    assert back["selection_basis"] == selection["selection_basis"]
+    assert back.get("selection_replaced") == (selection["selection_replaced"] or None)
+    assert back.get("selection_score_gap") == selection["selection_score_gap"]
+    assert isinstance(back.get("selection_score_gap"), (float, type(None)))
     assert back["kind_label"] == "Forecast"
+
+
+def test_a_stored_score_gap_that_is_not_a_number_is_left_out_and_named(ns):
+    row = _row(ns, kinded(ns, forecast_uc(selection_basis="kind_floor", selection_replaced="N02-U04", selection_score_gap=0.4)))
+    obj = make_inspire(ns)
+    obj.logger = CapturingLogger()
+    back = obj._row_to_uc(dict(row, selection_score_gap="about half"))
+    assert "selection_score_gap" not in back and back["selection_basis"] == "kind_floor"
+    assert any("selection_score_gap is not a number" in msg for _level, msg in obj.logger.records)
 
 
 def test_an_older_row_derives_its_kind_from_the_technique_when_read(ns):

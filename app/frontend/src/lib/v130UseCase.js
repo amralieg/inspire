@@ -22,6 +22,7 @@ export const V130_TRACKING_FIELDS = [
   'financial_benefits', 'non_financial_benefits', 'data_evidence', 'foundation_ids', 'use_case_key',
   'best_of_best', 'best_of_best_rank', 'best_of_best_score', 'best_of_best_reason',
   'use_case_kind', 'kind_family', 'app_layout', 'serving_summary', 'method_summary', 'value_source', 'selection_basis',
+  'selection_replaced', 'selection_score_gap',
 ];
 
 const KPI_UP = /\b(increase|increasing|up|higher|maximi[sz]e|raise|grow|growth)\b/i;

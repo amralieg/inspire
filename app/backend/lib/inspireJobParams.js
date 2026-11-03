@@ -326,7 +326,8 @@ function belowBarLabelFromUseCase(uc) {
 
 const V130_JSON_FIELDS = ['strategy_alignment', 'kpis', 'expected_key_results', 'data_evidence'];
 const V130_LINE_FIELDS = ['measures_of_success', 'financial_benefits', 'non_financial_benefits'];
-const KIND_TEXT_FIELDS = ['use_case_kind', 'kind_family', 'app_layout', 'serving_summary', 'method_summary', 'value_source'];
+const KIND_TEXT_FIELDS = ['use_case_kind', 'kind_family', 'app_layout', 'serving_summary', 'method_summary', 'value_source',
+  'selection_basis', 'selection_replaced'];
 
 function splitText(value, separator) {
   if (value == null || value === '') return [];
@@ -350,7 +351,8 @@ function normalizeV130UseCaseFields(row) {
   row.best_of_best_score = Number.isFinite(score) ? score : null;
   row.best_of_best_reason = row.best_of_best_reason == null || row.best_of_best_reason === '' ? null : String(row.best_of_best_reason);
   for (const field of KIND_TEXT_FIELDS) row[field] = row[field] == null || String(row[field]).trim() === '' ? null : String(row[field]).trim();
-  row.selection_basis = row.selection_basis == null || row.selection_basis === '' ? null : parseMaybeJson(row.selection_basis) ?? String(row.selection_basis);
+  const gap = Number.parseFloat(String(row.selection_score_gap ?? ''));
+  row.selection_score_gap = Number.isFinite(gap) ? gap : null;
   return row;
 }
 

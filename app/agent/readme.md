@@ -1411,7 +1411,9 @@ After a successful run, your `Generation Path` contains:
 | **`serving_summary`** | **STRING** | **NEW in v1.4.0**: what we serve, one plain line from the kind's template |
 | **`method_summary`** | **STRING** | **NEW in v1.4.0**: how it works, one plain line from the kind's method text for the technique |
 | **`value_source`** | **STRING** | **NEW in v1.4.0**: where the value comes from, one plain line from the kind's value formula |
-| **`selection_basis`** | **STRING** | **NEW in v1.4.0**: why the use case was kept; JSON when it is a record, plain text otherwise |
+| **`selection_basis`** | **STRING** | **NEW in v1.4.0**: why the use case was kept: `earned`, `kind_floor` or `user_request` |
+| **`selection_replaced`** | **STRING** | **NEW in v1.4.0**: the use case whose place it took, blank when it replaced none |
+| **`selection_score_gap`** | **STRING** | **NEW in v1.4.0**: Best-of-Best score of the replaced use case minus its own, blank when it replaced none |
 | `tables_involved` | STRING | Comma-separated list |
 | `result_json` | STRING | Raw JSON of the full UC record |
 | `last_updated` | TIMESTAMP | Writer-side stamp; use `result_json:event_at` for event ordering |

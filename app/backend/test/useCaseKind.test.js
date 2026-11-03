@@ -98,10 +98,10 @@ test('the v1.3.0 view carries the kind, and the tracking row copy brings the kin
   assert.equal(v130View({ 'Analytics Technique': 'Basket magic' }).kind, null);
 });
 
-test('the use case route normalizes the kind columns: blank is null, and selection_basis reads JSON or keeps its text', () => {
+test('the use case route normalizes the kind columns: blank is null, the selection basis is its text and the score gap a number', () => {
   const row = normalizeV130UseCaseFields({
     use_case_kind: ' forecast ', kind_family: 'predict', app_layout: '', serving_summary: null, method_summary: '  ',
-    value_source: 'Fewer stock-outs.', selection_basis: '{"basis":"elite","score":8.5}',
+    value_source: 'Fewer stock-outs.', selection_basis: ' kind_floor ', selection_replaced: 'N02-U04', selection_score_gap: '0.4',
   });
   assert.equal(row.use_case_kind, 'forecast');
   assert.equal(row.kind_family, 'predict');
@@ -109,9 +109,13 @@ test('the use case route normalizes the kind columns: blank is null, and selecti
   assert.equal(row.serving_summary, null);
   assert.equal(row.method_summary, null);
   assert.equal(row.value_source, 'Fewer stock-outs.');
-  assert.deepEqual(row.selection_basis, { basis: 'elite', score: 8.5 });
-  assert.equal(normalizeV130UseCaseFields({ selection_basis: 'Kept for the user directive' }).selection_basis, 'Kept for the user directive');
-  assert.equal(normalizeV130UseCaseFields({ selection_basis: '' }).selection_basis, null);
+  assert.equal(row.selection_basis, 'kind_floor');
+  assert.equal(row.selection_replaced, 'N02-U04');
+  assert.equal(row.selection_score_gap, 0.4);
+  assert.equal(normalizeV130UseCaseFields({ selection_basis: '{"basis":"elite"}' }).selection_basis, '{"basis":"elite"}', 'the basis is never parsed as JSON');
+  const earned = normalizeV130UseCaseFields({ selection_basis: 'earned', selection_replaced: '', selection_score_gap: '' });
+  assert.deepEqual([earned.selection_basis, earned.selection_replaced, earned.selection_score_gap], ['earned', null, null]);
+  assert.equal(normalizeV130UseCaseFields({ selection_score_gap: 'about half' }).selection_score_gap, null);
   const old = normalizeV130UseCaseFields({ analytics_technique: 'Classification' });
   assert.equal(old.use_case_kind, null, 'an old row has no stored kind; the page derives it from the technique');
 });
