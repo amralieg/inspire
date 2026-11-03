@@ -4,13 +4,13 @@
 
 ### Discover production-ready business use cases from your data -- automatically
 
-**Release v1.3.0**
+**Release v1.3.1**
 
 [![Databricks](https://img.shields.io/badge/Platform-Databricks-FF3621?style=for-the-badge&logo=databricks&logoColor=white)](#)
 [![Unity Catalog](https://img.shields.io/badge/Data-Unity%20Catalog-4B0082?style=for-the-badge)](#)
 [![Multi-Language](https://img.shields.io/badge/Languages-23%20Supported-10A37F?style=for-the-badge)](#)
 [![LLM Powered](https://img.shields.io/badge/AI-Multi--Model%20Cascade-FF6B00?style=for-the-badge)](#)
-[![Version](https://img.shields.io/badge/Version-1.3.0-brightgreen?style=for-the-badge)](#whats-new-in-v130)
+[![Version](https://img.shields.io/badge/Version-1.3.1-brightgreen?style=for-the-badge)](#whats-new-in-v130)
 
 *Point Inspire at your Unity Catalog metadata. Get scored, ranked, idea-themed, and documented business use cases.*
 

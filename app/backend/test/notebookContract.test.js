@@ -16,7 +16,7 @@ const notebookBytes = fs.readFileSync(notebookPath);
 const notebook = JSON.parse(notebookBytes.toString('utf8'));
 const source = notebook.cells.map((cell) => (cell.source || []).join('')).join('\n');
 
-test('bundled notebook is a valid v1.3.0 Jupyter notebook', () => {
+test(`bundled notebook is a valid ${INSPIRE_AGENT_VERSION} Jupyter notebook`, () => {
   assert.equal(notebook.nbformat, 4);
   assert.match(source, new RegExp(`__AGENT_VERSION__\\s*=\\s*["']${INSPIRE_AGENT_VERSION}["']`));
   assert.match(source, /\[AGENT_VERSION FIRED\]/);
@@ -75,7 +75,7 @@ test('launch UI exposes v1.2.0 quality modes and Auto-Genie widget 13', () => {
   assert.match(launchPage, /StrategyEditor/);
 });
 
-test('deployment and API surfaces advertise v1.3.0 consistently', () => {
+test(`deployment and API surfaces advertise ${INSPIRE_AGENT_VERSION} consistently`, () => {
   const server = fs.readFileSync(path.join(appRoot, 'backend', 'server.js'), 'utf8');
   const bundleConfig = fs.readFileSync(path.join(appRoot, 'databricks.yml'), 'utf8');
 
@@ -84,7 +84,7 @@ test('deployment and API surfaces advertise v1.3.0 consistently', () => {
   assert.match(server, /agentVersion:\s*INSPIRE_AGENT_VERSION/);
   assert.match(server, /tags:\s*inspireJobTags\(/);
   assert.match(jobParams, /inspire_version:\s*INSPIRE_AGENT_VERSION/);
-  assert.match(bundleConfig, /inspire_version:\s*"v1\.3\.0"/);
+  assert.match(bundleConfig, new RegExp(`inspire_version:\\s*"${INSPIRE_AGENT_VERSION.replace(/\./g, '\\.')}"`));
 });
 
 test('all app launch defaults use the installer notebook destination', () => {

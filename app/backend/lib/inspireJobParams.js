@@ -1,6 +1,6 @@
 const { parseExactJson } = require('./exactJson');
 
-const INSPIRE_AGENT_VERSION = 'v1.3.0';
+const INSPIRE_AGENT_VERSION = 'v1.3.1';
 const INSPIRE_ENVIRONMENT_KEY = 'Default';
 const INSPIRE_ENVIRONMENT_VERSION = '4';
 

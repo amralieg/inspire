@@ -1,8 +1,8 @@
 # Inspire AI Integration Guide
 
-**Version:** v1.3.0
+**Version:** v1.3.1
 **Audience:** Application Developers And Services Consuming Inspire AI Outputs
-**Last Updated:** 2026-10-21
+**Last Updated:** 2026-11-03
 
 This is the single source of truth for integrating Inspire progress and outputs into your app UI. It covers the complete Delta-backed telemetry surface, final output catalog, runtime parameters, and version-specific behavioral notes integrators must handle to render a trustworthy, forward-compatible experience.
 

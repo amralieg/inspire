@@ -16,7 +16,7 @@ const {
 } = require('../lib/inspireJobParams');
 
 test('advertises the integrated notebook version', () => {
-  assert.equal(INSPIRE_AGENT_VERSION, 'v1.3.0');
+  assert.equal(INSPIRE_AGENT_VERSION, 'v1.3.1');
 });
 
 test('demo discovery parameters use v1.2.0 generation choices and the v1.3.0 discovery defaults', () => {
