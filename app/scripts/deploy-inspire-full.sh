@@ -56,14 +56,11 @@ echo "==> 2) Import the installer (INTERNET_BLOCKED = True, so it installs this 
 "${DB[@]}" workspace mkdirs "$FOLDER"
 "${DB[@]}" workspace import "$FOLDER/inspire_installer" --file "$OFFLINE_INSTALLER" --format SOURCE --language PYTHON --overwrite
 rm -f "$OFFLINE_INSTALLER"
-STAGE="$(mktemp -d)"
-for name in manifest.json inspire-app.zip inspire-assets.tar; do
-  cp "$RELEASE_DIR/$name" "$STAGE/$name"
-done
-cp "$SETTINGS" "$STAGE/inspire_installer_test.json"
+"${DB[@]}" workspace import "$FOLDER/inspire_installer_test.json" --file "$SETTINGS" --format RAW --overwrite
 rm -f "$SETTINGS"
-"${DB[@]}" workspace import-dir "$STAGE" "$FOLDER" --overwrite
-rm -rf "$STAGE"
+for name in manifest.json inspire-app.zip inspire-assets.tar; do
+  "${DB[@]}" workspace import "$FOLDER/$name" --file "$RELEASE_DIR/$name" --format RAW --overwrite
+done
 
 echo "==> 3) Run the installer once as a serverless job"
 SUBMIT_JSON="$(mktemp)"
