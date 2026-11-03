@@ -4,6 +4,7 @@
 2. A measured impact needs a control group with enough rows and enough history before the change.
 3. A process needs at least three distinct steps on real case rows.
 4. Each minimum is a runtime parameter, and a use case the instructions ask for stays with thin data.
+5. A stated kind whose companion tables its tables cannot fill is relabelled to its technique's own kind.
 """
 import json
 import os
@@ -197,3 +198,57 @@ def test_the_prompt_names_the_roles_of_each_kind_check(agent_ns):
     assert '- process: "case_key" is the key of one case that moves through the steps' in prompt
     assert '"series_key", "case_key" or "step", whose values Inspire only counts' in prompt
 
+
+SHOPS = [("main", "s", "shops", "shop_id", "bigint", ""), ("main", "s", "shops", "revenue", "double", ""),
+         ("main", "s", "shops", "rent", "double", "")]
+MAPPED = SHOPS + [("main", "s", "shops", "latitude", "double", ""), ("main", "s", "shops", "longitude", "double", "")]
+
+
+def site_uc(uc_id, **extra):
+    return {"No": uc_id, "Name": "Choose the next shop sites", "Analytics Technique": "Optimization",
+            "Use Case Kind": "site_territory", "Tables Involved": "main.s.shops", "Business Domain": "Sales",
+            "Statement": "New shops open where revenue per rent is low.", "Solution": "Optimize the next 10 sites each quarter.",
+            "High Level Design": "Rank candidate sites by `revenue` over `rent`.", **extra}
+
+
+def q5(agent_ns, ucs, schema, parsed=None):
+    inst = build_inspire(agent_ns, loader=Loader(), agent=Agent([]))
+    inst.logger = MagicMock()
+    inst.parsed_generation_instructions = parsed or {}
+    inst._phaseQ5_decision_readiness(ucs, schema)
+    return inst
+
+
+def test_d5_a_kind_whose_companion_tables_the_data_cannot_fill_is_relabelled_to_the_technique_kind(agent_ns):
+    uc_ = site_uc("N01-U01")
+    inst = q5(agent_ns, [uc_], SHOPS)
+    assert (uc_["use_case_kind"], uc_["kind_relabelled_from"]) == ("allocation", "site_territory")
+    logged = " ".join(str(call.args[0]) for call in inst.logger.info.call_args_list)
+    assert ("[KIND-MATCH FIRED] 1 use case relabelled to the kind of the technique each one uses: N01-U01 site_territory -> "
+            "allocation (its __geo table needs a geographic column") in logged
+
+
+def test_d5_a_kind_whose_companion_tables_the_data_can_fill_keeps_its_kind(agent_ns):
+    mapped, unmapped = site_uc("N01-U01", **{"Tables Involved": "main.s.stores"}), site_uc("N01-U02")
+    q5(agent_ns, [mapped, unmapped], SHOPS + [("main", "s", "stores", *row[3:]) for row in MAPPED])
+    assert mapped["Use Case Kind"] == "site_territory" and "kind_relabelled_from" not in mapped
+    assert unmapped["kind_relabelled_from"] == "site_territory"
+
+
+def test_d5_the_companion_check_never_relabels_a_kind_the_instructions_ask_for(agent_ns):
+    requested, plain = site_uc("N01-U01", user_request="R1"), site_uc("N01-U02")
+    q5(agent_ns, [requested, plain], SHOPS)
+    assert requested["Use Case Kind"] == "site_territory" and "kind_relabelled_from" not in requested
+    assert plain["kind_relabelled_from"] == "site_territory"
+    asked = site_uc("N01-U03")
+    q5(agent_ns, [asked], SHOPS, parsed={"use_case_kinds": {"asked": ["site_territory"], "excluded": []}})
+    assert asked["Use Case Kind"] == "site_territory" and "kind_relabelled_from" not in asked
+
+
+def test_d5_a_gap_the_technique_kind_shares_keeps_the_kind_and_flags_it(agent_ns):
+    uc_ = {"No": "N01-U01", "Name": "Map the order journey", "Analytics Technique": "Process Mining",
+           "Use Case Kind": "process_mining", "Tables Involved": "main.s.shops"}
+    inst = q5(agent_ns, [uc_], SHOPS)
+    assert uc_["Use Case Kind"] == "process_mining" and "kind_relabelled_from" not in uc_
+    assert "Q5_D5_COMPANION_DATA:process_mining" in uc_["gate_flags"]
+    assert inst._kind_companion_gap("process_mining", None) == "", "no schema, no companion check"
