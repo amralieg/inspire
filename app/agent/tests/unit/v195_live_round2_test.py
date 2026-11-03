@@ -3,13 +3,14 @@ stage lands the rows queued before it ahead of its LLM calls, the judge spread i
 the trim, and the data signal check runs before the trim so the trim fills the target."""
 import os
 import sys
+import time
 
 import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from v120_artifacts_support import FakeSpark, make_inspire  # noqa: E402
 from v130_evidence_test import _deep_responder, _loader  # noqa: E402
-from v190_progress_and_recovery_test import _ViewSpark, _plan, _stop, _writer  # noqa: E402
+from v190_progress_and_recovery_test import _ViewSpark, _plan, _session_percent, _stop, _writer  # noqa: E402
 from v180_user_count_test import _fake_bob, _inspire, _ucs  # noqa: E402
 
 
@@ -61,5 +62,73 @@ def test_standard_discovery_declares_no_evidence_reads(agent_ns, tmp_path, monke
                             data_loader=_loader(), atomic_writer=writer)
         inst._collect_discovery_evidence(_details(9))
         assert writer.progress_plan.phases["tables"][0] == units
+    finally:
+        _stop(writer)
+
+
+def _ready_writer(agent_ns, spark, tmp_path, monkeypatch):
+    writer = _writer(agent_ns, spark, tmp_path, monkeypatch, operation="Discover Use Cases")
+    _plan(writer)
+    writer._session_ready = True
+    writer._get_session_processing_status = lambda: "ready"
+    return writer
+
+
+def test_a_declared_fan_out_lands_the_rows_and_percent_recorded_before_it(agent_ns, tmp_path, monkeypatch):
+    spark = _ViewSpark()
+    writer = _ready_writer(agent_ns, spark, tmp_path, monkeypatch)
+    try:
+        writer._flush_interval_seconds = 1.0
+        writer._last_flush_attempt_epoch = time.time()
+        for stage in ("Setup", "Business Understanding", "Data Preparation"):
+            writer.emit_step(stage_name=stage, step_name=f"{stage} done", status="ended_success")
+        inst = make_inspire(agent_ns, atomic_writer=writer)
+        inst._plan_progress_batches("Pass1Batch", 8)
+        landed = [s for s in spark.statements if "__inspire_step" in s and ("INSERT INTO" in s or "MERGE INTO" in s)]
+        percent = _session_percent(spark)
+    finally:
+        _stop(writer)
+    assert landed, "the step rows recorded before the fan-out are written before its LLM calls start"
+    assert percent > 0, "the session percent recorded before the fan-out is written before its LLM calls start"
+    assert writer.logger.matching("[PROGRESS-SETTLE FIRED]")
+
+
+def test_a_fan_out_with_nothing_pending_starts_at_once(agent_ns, tmp_path, monkeypatch):
+    spark = _ViewSpark()
+    writer = _ready_writer(agent_ns, spark, tmp_path, monkeypatch)
+    try:
+        inst = make_inspire(agent_ns, atomic_writer=writer)
+        began = time.time()
+        inst._plan_progress_batches("Pass1Batch", 8)
+        assert time.time() - began < 0.5
+        assert not [s for s in spark.statements if "__inspire_step" in s and ("INSERT INTO" in s or "MERGE INTO" in s)]
+    finally:
+        _stop(writer)
+
+
+def test_a_write_that_cannot_land_holds_the_fan_out_only_up_to_the_limit(agent_ns, tmp_path, monkeypatch):
+    spark = _ViewSpark()
+    writer = _ready_writer(agent_ns, spark, tmp_path, monkeypatch)
+    try:
+        writer._get_session_processing_status = lambda: None
+        writer.emit_step(stage_name="Setup", step_name="Setup done", status="ended_success")
+        began = time.time()
+        assert writer.settle("Pass1Batch", timeout=0.4) is False
+        assert time.time() - began < 1.5
+        assert writer.logger.matching("[PROGRESS-SETTLE]")
+    finally:
+        _stop(writer)
+
+
+def test_a_zero_batch_declaration_does_not_wait(agent_ns, tmp_path, monkeypatch):
+    spark = _ViewSpark()
+    writer = _ready_writer(agent_ns, spark, tmp_path, monkeypatch)
+    try:
+        writer._get_session_processing_status = lambda: None
+        writer.emit_step(stage_name="Setup", step_name="Setup done", status="ended_success")
+        inst = make_inspire(agent_ns, atomic_writer=writer)
+        began = time.time()
+        inst._plan_progress_batches("Pass2Batch", 0)
+        assert time.time() - began < 0.5
     finally:
         _stop(writer)
