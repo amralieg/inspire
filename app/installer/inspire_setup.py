@@ -144,7 +144,7 @@ def _yaml_quote(value):
     return f'"{s}"'
 
 
-def write_app_yaml_deploy(path, inspire_db, warehouse_id, notebook_path, sp_resource_name, assets_path=None):
+def write_app_yaml_deploy(path, inspire_db, warehouse_id, notebook_path, sp_resource_name, assets_path=None, test_tag=None):
     """Emit app.yaml without PyYAML (no extra pip on the cluster)."""
     lines = [
         "command:",
@@ -165,6 +165,8 @@ def write_app_yaml_deploy(path, inspire_db, warehouse_id, notebook_path, sp_reso
         lines += ["  - name: \"NOTEBOOK_PATH\"", f"    value: {_yaml_quote(notebook_path)}"]
     if assets_path:
         lines += ["  - name: \"INSPIRE_ASSETS_PATH\"", f"    value: {_yaml_quote(assets_path)}"]
+    if test_tag:
+        lines += ["  - name: \"INSPIRE_TEST_TAG\"", f"    value: {_yaml_quote(test_tag)}"]
     lines += [
         "",
         "resources:",
@@ -581,6 +583,7 @@ def build_runtime_context(env):
         "SCAN_CATALOGS": env.get("scan_catalogs", SCAN_ALL),
         "NEW_APPS_CATALOG_ACCESS": _new_apps_setting(env.get("new_apps_catalog_access", NEW_APPS_ACCOUNT_USERS)),
         "ASSETS_TAR": assets_tar,
+        "TEST_TAG": str(settings.get("test_tag") or "").strip(),
         "ASSETS_ROOT": f"{ASSETS_PARENT}/{release_version}",
         "available_catalogs": available_catalogs,
         "api": api,
@@ -782,7 +785,7 @@ def step_deploy_and_find_sp(ctx):
     print(f"SPs before deploy: {len(sp_before)}")
 
     app_yaml_path = f"{source_folder}/app.yaml"
-    write_app_yaml_deploy(app_yaml_path, inspire_db, warehouse_id, notebook_path, sp_name, ctx.get("ASSETS_PATH"))
+    write_app_yaml_deploy(app_yaml_path, inspire_db, warehouse_id, notebook_path, sp_name, ctx.get("ASSETS_PATH"), ctx.get("TEST_TAG"))
     print("app.yaml: ✅")
 
     app_url = ""

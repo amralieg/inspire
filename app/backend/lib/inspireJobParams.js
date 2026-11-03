@@ -30,6 +30,7 @@ const INSPIRE_NOTEBOOK_WIDGET_KEYS = [
 const IMPLEMENT_RUN_ID_PARAM = 'inspire_implement_run_id';
 const INSPIRE_JOB_ONLY_PARAM_KEYS = [IMPLEMENT_RUN_ID_PARAM];
 const INSPIRE_ASSETS_PARAM = 'inspire_assets_path';
+const INSPIRE_TEST_TAG = 'dbx_inspire_ai_test';
 
 const USE_CASES_QUALITY_VALID = ['Good', 'High', 'Ultra High'];
 const USE_CASES_QUALITY_DEFAULT = 'Good';
@@ -152,13 +153,20 @@ function sanitizeInspireNotebookJobParams(params) {
   }
   if (!out['13_generate_genie_code_for']) out['13_generate_genie_code_for'] = GENIE_CODE_DEFAULT_COUNT;
   delete out.discover_auto_genie_top_n;
-  return withInspireAssetsPath(out);
+  return withInspireInstallParams(out);
 }
 
-function withInspireAssetsPath(params) {
+function inspireTestTag() {
+  return inspireTagValue(String(process.env.INSPIRE_TEST_TAG || '').trim());
+}
+
+function withInspireInstallParams(params) {
   delete params[INSPIRE_ASSETS_PARAM];
+  delete params[INSPIRE_TEST_TAG];
   const assets = String(process.env.INSPIRE_ASSETS_PATH || '').trim();
   if (assets) params[INSPIRE_ASSETS_PARAM] = assets;
+  const test = inspireTestTag();
+  if (test) params[INSPIRE_TEST_TAG] = test;
   return params;
 }
 
@@ -228,6 +236,8 @@ function inspireJobTags({ runType, params = {}, businessName = '', notebookFilen
   }
   if (ids.length) tags.dbx_inspire_ai_usecase_id = inspireUseCaseIdsTag(ids);
   if (specVersion) tags.dbx_inspire_ai_spec_version = specVersion;
+  const test = inspireTestTag();
+  if (test) tags[INSPIRE_TEST_TAG] = test;
   return tags;
 }
 
@@ -346,7 +356,8 @@ module.exports = {
   buildDemoInspireDiscoveryParams,
   inspireTagValue,
   inspireJobTags,
-  withInspireAssetsPath,
+  withInspireInstallParams,
+  INSPIRE_TEST_TAG,
   inspireJobEnvironmentChange,
   inspireJobEnvironmentWarning,
   inspireJobEnvironments,

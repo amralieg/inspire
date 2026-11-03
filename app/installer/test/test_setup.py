@@ -371,7 +371,26 @@ class AppYamlTest(unittest.TestCase):
         finally:
             shutil.rmtree(folder)
 
+    def test_only_a_test_install_writes_the_test_tag_into_the_app_environment(self):
+        folder = pathlib.Path(tempfile.mkdtemp())
+        try:
+            path = folder / "app.yaml"
+            setup.write_app_yaml_deploy(str(path), "main._inspire", "wh", "/Shared/x", "sp", "/Workspace/a", "inspire-rc0")
+            self.assertIn('  - name: "INSPIRE_TEST_TAG"\n    value: "inspire-rc0"\n', path.read_text())
+            for production in (None, ""):
+                setup.write_app_yaml_deploy(str(path), "main._inspire", "wh", "/Shared/x", "sp", "/Workspace/a", production)
+                self.assertNotIn("INSPIRE_TEST_TAG", path.read_text())
+        finally:
+            shutil.rmtree(folder)
+
     def test_the_deploy_step_writes_the_installed_assets_path(self):
+        self.assertEqual(self.deploy({})[5:], ("/Workspace/Shared/inspire-ai/assets/v1.3.0", None))
+
+    def test_the_deploy_step_writes_the_test_tag_of_a_test_install_only(self):
+        self.assertEqual(self.deploy({"TEST_TAG": "inspire-rc0"})[6], "inspire-rc0")
+        self.assertEqual(self.deploy({"TEST_TAG": ""})[6], "")
+
+    def deploy(self, extra):
         written = []
         saved, clock = setup.write_app_yaml_deploy, setup.time
         setup.write_app_yaml_deploy = lambda *a: written.append(a)
@@ -383,12 +402,12 @@ class AppYamlTest(unittest.TestCase):
             api_get = lambda path: app if path == "/api/2.0/apps/inspire-ai" else {"Resources": [{"id": "1"}]}
             ctx = {"api": api, "api_get": api_get, "SOURCE_FOLDER": "/Workspace/b", "INSPIRE_DB": "main._inspire", "WAREHOUSE_ID": "wh",
                    "NOTEBOOK_PATH": "/Shared/inspire-ai/dbx_inspire_ai_agent", "SP_NAME": "inspire-ai-sp", "APP_NAME": "inspire-ai",
-                   "CATALOG": "main", "ASSETS_PATH": "/Workspace/Shared/inspire-ai/assets/v1.3.0", "RELEASE_VERSION": "v1.3.0"}
+                   "CATALOG": "main", "ASSETS_PATH": "/Workspace/Shared/inspire-ai/assets/v1.3.0", "RELEASE_VERSION": "v1.3.0", **extra}
             with contextlib.redirect_stdout(io.StringIO()):
                 setup.step_deploy_and_find_sp(ctx)
         finally:
             setup.write_app_yaml_deploy, setup.time = saved, clock
-        self.assertEqual(written[0][-1], "/Workspace/Shared/inspire-ai/assets/v1.3.0")
+        return written[0]
 
 
 class VersionTextTest(unittest.TestCase):
@@ -939,6 +958,12 @@ class RuntimeContextTest(unittest.TestCase):
         ctx, _ = self.context({"manifest": {"version": "v1.3.0"}, "files": {"inspire-app.zip": "/z", "inspire-assets.tar": "/t"},
                                "settings": {"app_name": "inspire-inst-test"}})
         self.assertEqual((ctx["APP_NAME"], ctx["SP_NAME"]), ("inspire-inst-test", "inspire-inst-test-sp"))
+
+    def test_only_a_test_tag_in_the_settings_makes_a_test_install(self):
+        base = {"manifest": {"version": "v1.3.0"}, "files": {"inspire-app.zip": "/z", "inspire-assets.tar": "/t"}}
+        self.assertEqual(self.context(dict(base, settings={"test_tag": " inspire-rc0 "}))[0]["TEST_TAG"], "inspire-rc0")
+        for settings in ({}, {"app_name": "inspire-inst-test", "release": "x"}, {"test_tag": "  "}):
+            self.assertEqual(self.context(dict(base, settings=settings))[0]["TEST_TAG"], "", settings)
 
     def test_the_settings_file_picks_the_warehouse_and_catalog_for_a_job_run(self):
         ctx, _ = self.context({"manifest": {"version": "v1.3.0"}, "files": {"inspire-app.zip": "/z", "inspire-assets.tar": "/t"},
