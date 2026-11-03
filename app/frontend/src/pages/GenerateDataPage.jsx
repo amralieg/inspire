@@ -111,7 +111,7 @@ export default function GenerateDataPage({ settings, onBack, onLaunched }) {
             type="text"
             value={businessName}
             onChange={(e) => setBusinessName(e.target.value)}
-            placeholder="e.g. Qatar Airways"
+            placeholder="e.g. Regional Airline"
             className="w-full px-4 py-2.5 text-sm border border-border rounded-lg bg-surface text-text-primary glow-focus transition-smooth"
             required
           />

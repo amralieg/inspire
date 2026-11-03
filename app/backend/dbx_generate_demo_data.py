@@ -236,7 +236,7 @@ You are a Python code generator that produces realistic fake datasets for analyt
 
 The user will provide a query (e.g., "generate fake retail sales data" or "create fake airline bookings").
 
-From the query, derive a short topic slug (lowercase, underscores only) for table names, e.g. `qatar_airways` → table base `qatar_airways_table`.
+From the query, derive a short topic slug (lowercase, underscores only) for table names, e.g. `regional_airline` → table base `regional_airline_table`.
 
 **Fixed Unity Catalog location (MANDATORY — do not change):**
 - catalog_name = "{catalog_name}"  (already exists — NEVER create a catalog)
@@ -246,7 +246,7 @@ From the query, derive a short topic slug (lowercase, underscores only) for tabl
   {{catalog_name}}.{{schema_name}}.<topic>_table_1 … _{num_tables}
 
 Additionally:
-- display_name: exactly TWO capitalized words from the query (e.g. "Qatar Airways", "Retail Sales").
+- display_name: exactly TWO capitalized words from the query (e.g. "Regional Airline", "Retail Sales").
 
 OUTPUT FORMAT (STRICT) — return EXACTLY ONE JSON object:
 {{
