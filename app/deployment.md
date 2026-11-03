@@ -12,7 +12,7 @@ Install the **inspire-ai** Databricks App with **`inspire_installer.py`** from t
 
 The installer downloads the latest release from GitHub, checks the size and sha256 of every file, installs the agent assets into **`/Workspace/Shared/inspire-ai/assets/<version>/`**, deploys the App and grants its service principal. Open **Compute, Apps, inspire-ai**.
 
-**A workspace that cannot reach GitHub:** the installer then uses the release files imported next to it (`manifest.json`, `inspire-app.zip` and `inspire-assets.tar`; it also accepts the folder the workspace makes when it unzips `inspire-app.zip` on import). When those are missing, it shows a page with the commands for macOS, Linux and Windows that download the 4 release files and check each sha256 against `manifest.json`, the exact folder to import the files into, and direct links with sizes. It never mixes files of two releases and never uses a partial download.
+**A workspace that cannot reach GitHub:** the installer then uses the release files imported next to it (`manifest.json`, `inspire-app.zip` and `inspire-assets.tar`; the workspace import unpacks `inspire-app.zip` into that folder, and the installer checks every unpacked file against `manifest.json`; `databricks workspace import --format RAW` keeps the file whole). When those are missing, it shows a page with the commands for macOS, Linux and Windows that download the 4 release files and check each sha256 against `manifest.json`, the exact folder to import the files into, and direct links with sizes. It never mixes files of two releases and never uses a partial download.
 
 ---
 

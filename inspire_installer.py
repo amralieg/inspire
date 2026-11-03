@@ -237,9 +237,13 @@ def notebook_code_sha256(kind, data):
     return hashlib.sha256(code.encode("utf-8")).hexdigest()
 
 
+def cli_import(name, folder):
+    path = folder[len("/Workspace"):] if folder.startswith("/Workspace/") else folder
+    return f'databricks workspace import "{path}/{name}" --file {name} --format RAW --overwrite'
+
+
 def import_as_file(name, folder):
-    return (f"put {name} alone in a folder on your computer and run: databricks workspace import-dir <that folder> \"{folder}\" "
-            f"(the Databricks CLI keeps {name} as one file)")
+    return f"from the folder that holds the download, run: {cli_import(name, folder)} (format RAW keeps {name} as one file)"
 
 
 def check_unzipped(entry, root, folder, exporter, version, stage):
@@ -404,13 +408,16 @@ def offline_page(base, folder, notebook, reasons, manifest=None):
     step1 = (f"Run the commands for your system. They download the {len(RELEASE_FILES)} release files "
              f"({', '.join(RELEASE_FILES)}) and check the sha256 of each against {MANIFEST}.")
     step2 = [f"Import {', '.join((MANIFEST,) + WHOLE_FILES)} into this workspace folder, next to this installer.",
-             f"If the workspace unzips {WHOLE_FILES[0]} into a folder, leave that folder as it is: the installer checks every file in it.",
+             f"The workspace import unpacks {WHOLE_FILES[0]}: its files (app.yaml, start.sh, the backend, frontend and installer folders "
+             "and the Inspire notebooks) appear next to this installer. Leave them as they are: the installer checks every file in them.",
+             "To import every file whole instead, run these Databricks CLI commands from the folder that holds the download:",
              f"You already have {INSTALLER} here. Import the downloaded one in place of this notebook only when this installer says it is too old."]
     text = [NOT_REACHED, ""] + [f"  {reason}" for reason in reasons] + ["",
             f"1. On a computer that can reach GitHub: {step1}", ""]
     for system, lines in commands:
         text += [f"   {system}:"] + [f"     {line}" for line in lines] + [""]
-    text += [f"2. {step2[0]} The folder: {folder}"] + [f"   {line}" for line in step2[1:]]
+    cli = [cli_import(name, folder) for name in (MANIFEST,) + WHOLE_FILES]
+    text += [f"2. {step2[0]} The folder: {folder}", f"   {step2[1]}", f"   {step2[2]}"] + [f"     {line}" for line in cli] + [f"   {step2[3]}"]
     text += [f"3. Then run this installer again: {notebook}", "",
              f"If the commands fail, download each file from these links (release page: {page}):"]
     text += [f"   {name}  {size_text(size)}  {url}" for name, url, size in links]
@@ -430,7 +437,9 @@ def offline_page(base, folder, notebook, reasons, manifest=None):
         "<h3>2. Import the files into this workspace folder, next to this installer</h3>",
         f"<p>{esc(step2[0])}</p>",
         block([folder]),
-        "".join(f"<p>{esc(line)}</p>" for line in step2[1:]),
+        f"<p>{esc(step2[1])}</p><p>{esc(step2[2])}</p>",
+        block(cli),
+        f"<p>{esc(step2[3])}</p>",
         f"<h3>3. Then run this installer again</h3><p><code>{esc(notebook)}</code></p>",
         f'<h3>If the commands fail, download each file from these links</h3><p>Release page: <a href="{esc(page)}" target="_blank">{esc(page)}</a></p>',
         "<table style=\"border-collapse:collapse;font-size:13px\">"
