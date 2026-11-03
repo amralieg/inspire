@@ -35,13 +35,7 @@ const REFUSE_CLIPBOARD = () => {
 const STUB_PRINT = () => { window.__printed = 0; window.print = () => { window.__printed += 1; }; };
 
 async function openAt(hash, info = appInfo(), { routes = {}, init, ready = '.ph h1', width } = {}) {
-  const opened = await openApp(browser, base, info, { routes, width });
-  if (init) await opened.page.addInitScript(init);
-  await opened.page.goto('about:blank');
-  const mark = opened.seen.pages.length;
-  await opened.page.goto(`${base}${hash}`);
-  await opened.page.waitForSelector(ready);
-  return { ...opened, mark };
+  return openApp(browser, base, info, { routes, width, hash, ready, watch: init && ((page) => page.addInitScript(init)) });
 }
 
 async function pickCategory(page, value) {
@@ -70,11 +64,11 @@ async function saveAs(page, name) {
 
 test('a link restores the filters once the filter list has loaded, and the first request already uses them', async () => {
   const f = encodeFilters({ r: { run_date: '3m' }, s: { category: ['Music', 'Books'] } });
-  const { page, seen, context, mark } = await openAt(`#/n01_u05?f=${f}`);
+  const { page, seen, context } = await openAt(`#/n01_u05?f=${f}`);
   await page.waitForFunction(() => document.querySelectorAll('.chip').length === 2);
-  await until(() => seen.pages.length > mark);
+  await until(() => seen.pages.length > 0);
   await page.waitForTimeout(400);
-  assert.deepEqual(seen.pages.slice(mark).map((p) => p.filters), [{ run_date: { from: '2026-08-01', to: '2026-10-15' }, category: ['Music', 'Books'] }]);
+  assert.deepEqual(seen.pages.map((p) => p.filters), [{ run_date: { from: '2026-08-01', to: '2026-10-15' }, category: ['Music', 'Books'] }]);
   assert.deepEqual(await page.locator('.chip').allInnerTexts(), ['Category: Music', 'Category: Books']);
   assert.equal(await page.locator('.fld--range select').inputValue(), '3m');
   assert.equal(hashOf(page), `#/n01_u05?f=${f}`);
@@ -84,7 +78,7 @@ test('a link restores the filters once the filter list has loaded, and the first
 });
 
 test('the view in a link opens its tab, and tabs and filters update the address without adding history entries', async () => {
-  const { page, seen, context, mark } = await openAt('#/n01_u05?v=runs', appInfo({}, 1, TABLE));
+  const { page, seen, context } = await openAt('#/n01_u05?v=runs', appInfo({}, 1, TABLE));
   await page.waitForFunction(() => document.querySelector('[role="tab"][aria-selected="true"]')?.dataset.view === 'runs');
   await page.locator('.runs .runs-tbl').waitFor();
   assert.equal(hashOf(page), '#/n01_u05?v=runs');
@@ -92,8 +86,8 @@ test('the view in a link opens its tab, and tabs and filters update the address 
   await page.getByRole('tab', { name: 'Things to fix' }).click();
   await page.locator('.kpi-v').first().waitFor();
   assert.equal(hashOf(page), '#/n01_u05');
-  await until(() => seen.pages.length > mark);
-  assert.deepEqual(seen.pages[mark].filters, TWELVE);
+  await until(() => seen.pages.length > 0);
+  assert.deepEqual(seen.pages[0].filters, TWELVE);
   await pickCategory(page, 'Music');
   await page.locator('.fld--range select').selectOption('6m');
   await page.waitForFunction(() => location.hash.includes('f='));
@@ -133,13 +127,13 @@ test('an old link or a saved view that names the removed Trend tab opens Things 
 
 test('stale values in a link are dropped with one notice, and the address keeps only what applies', async () => {
   const f = encodeFilters({ r: { run_date: ['2020-01-01', '2020-02-01'] }, s: { category: ['Music', 'Vinyl'], ghost: ['x'] } });
-  const { page, seen, context, mark } = await openAt(`#/n01_u05?f=${f}`);
+  const { page, seen, context } = await openAt(`#/n01_u05?f=${f}`);
   await toastSays(page, LINK_STALE);
   await page.waitForFunction(() => document.querySelectorAll('.chip').length === 1);
-  await until(() => seen.pages.length > mark);
+  await until(() => seen.pages.length > 0);
   await page.waitForTimeout(400);
   assert.deepEqual(await page.locator('.chip').allInnerTexts(), ['Category: Music']);
-  assert.deepEqual(seen.pages.slice(mark).map((p) => p.filters), [{ ...TWELVE, category: ['Music'] }]);
+  assert.deepEqual(seen.pages.map((p) => p.filters), [{ ...TWELVE, category: ['Music'] }]);
   assert.deepEqual(linkOf(page), { s: { category: ['Music'] } });
   assert.deepEqual(seen.errors, []);
   await context.close();
@@ -149,9 +143,9 @@ test('a malformed link opens the page with its defaults and the same notice, nev
   const cases = [['not base64url', '#/n01_u05?f=%%%'], ['escaped junk', '#/n01_u05?f=%25%25%25'], ['empty', '#/n01_u05?f='], ['a JSON array', `#/n01_u05?f=${b64('[1,2]')}`],
     ['not JSON', `#/n01_u05?f=${b64('{oops')}`], ['JSON null', `#/n01_u05?f=${b64('null')}`], ['an unknown view', '#/n01_u05?v=pivot']];
   for (const [label, hash] of cases) {
-    const { page, seen, context, mark } = await openAt(hash);
+    const { page, seen, context } = await openAt(hash);
     await toastSays(page, LINK_STALE);
-    await until(() => seen.pages.length > mark);
+    await until(() => seen.pages.length > 0);
     await page.waitForSelector('.kpi-v');
     assert.deepEqual(seen.pages.at(-1).filters, TWELVE, label);
     assert.equal(hashOf(page), '#/n01_u05', label);

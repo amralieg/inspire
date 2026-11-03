@@ -98,16 +98,12 @@ const hubRuns = (actives) => ({ json }) => json(200, { today: '2026-10-27', quar
   window: { window: 'all', limit: null, today: '2026-10-27' }, pages: Object.fromEntries(['n01_u05', 'n02_u01', 'n02_u02'].map((id) => [id, hubEntry(actives[id] || null)])) });
 
 async function openOverview(routes) {
-  const opened = await openApp(browser, served.base, appInfo({ layout: 'sidebar' }, 3), { routes, clock: NOW });
-  await opened.page.goto('about:blank');
-  return opened;
+  return openApp(browser, served.base, appInfo({ layout: 'sidebar' }, 3), { routes, clock: NOW, hash: '#/overview' });
 }
 
 test('the Overview lists each running refresh from the overview reply, asks only the use cases that run for news, and says when one finishes with a link to what changed', async () => {
   const { state, routes } = freshRoutes((id) => (id === 'n02_u01' ? { ...IDLE, active: STAGED } : IDLE), { overview: hubRuns({ n02_u01: STAGED }) });
   const { page, seen, context } = await openOverview(routes);
-  state.polls = {};
-  await page.goto(`${served.base}#/overview`);
   const running = page.getByRole('region', { name: 'Running now' });
   await running.locator('[data-running]').first().waitFor();
   assert.deepEqual(state.polls, {}, 'the overview reply already says what runs, so no use case is asked for its freshness');
@@ -129,8 +125,6 @@ test('the Overview lists each running refresh from the overview reply, asks only
 test('the Overview shows a run the server says has gone quiet with the server note and no bar', async () => {
   const { state, routes } = freshRoutes(() => ({ ...IDLE, active: SILENT }), { overview: hubRuns({ n02_u02: SILENT }) });
   const { page, seen, context } = await openOverview(routes);
-  state.polls = {};
-  await page.goto(`${served.base}#/overview`);
   const item = page.getByRole('region', { name: 'Running now' }).locator('[data-running="n02_u02"]');
   await item.waitFor();
   assert.equal(await item.locator('[data-progress]').innerText(), SILENT.message);
@@ -143,9 +137,7 @@ test('the Overview shows a run the server says has gone quiet with the server no
 test('while a refresh runs, its full progress line never squeezes the page title: at 1440, 1024 and 390 the title keeps at least 300px and the actions sit beside it or under it, never over it', async () => {
   const { routes } = freshRoutes({ ...IDLE, active: STAGED, can_refresh: false, reason: 'busy', typical_s: 300 });
   for (const width of [1440, 1024, 390]) {
-    const { page, seen, context } = await openApp(browser, served.base, appInfo(DECIDE, 2, TABLE), { routes, clock: NOW, width });
-    await page.goto('about:blank');
-    await page.goto(`${served.base}#/n01_u05`);
+    const { page, seen, context } = await openApp(browser, served.base, appInfo(DECIDE, 2, TABLE), { routes, clock: NOW, width, hash: '#/n01_u05' });
     await page.locator('.ph .fresh-busy [data-progress]').waitFor();
     await resizeTo(page, width);
     const box = await page.evaluate(() => {

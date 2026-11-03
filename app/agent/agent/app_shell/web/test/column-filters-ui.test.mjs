@@ -54,12 +54,7 @@ function lister({ route, json, seen }) {
 const routes = (columns) => ({ filters: ({ json }) => json(200, { ...FILTERS, columns }), records: lister });
 
 async function openList(hash = '', columns = COLUMNS, info = appInfo({}, 1, { records: RECORDS })) {
-  const opened = await openApp(browser, base, info, { routes: routes(columns) });
-  if (hash) {
-    await opened.page.goto('about:blank');
-    await opened.page.goto(`${base}${hash}`);
-    await opened.page.waitForSelector('.kpi-v');
-  }
+  const opened = await openApp(browser, base, info, { routes: routes(columns), hash, ready: hash ? '.kpi-v' : undefined });
   await card(opened.page, LIST).locator('tbody tr').first().waitFor();
   return opened;
 }

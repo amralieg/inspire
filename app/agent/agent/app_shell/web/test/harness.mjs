@@ -87,6 +87,13 @@ export async function resizeTo(page, width, height = 900) {
 
 export const toastSays = (page, text) => page.waitForFunction((t) => document.querySelector('.toast .toast-t')?.textContent === t, text);
 
+export function prefsFirst(key, person, prefs) {
+  return (page) => page.addInitScript(([k, who, value]) => {
+    if (!/^https?:$/.test(location.protocol) || localStorage.getItem(k) !== null) return;
+    localStorage.setItem(k, JSON.stringify({ [who]: value }));
+  }, [key, person, prefs]);
+}
+
 export async function until(check, ms = 5000) {
   const end = Date.now() + ms;
   while (!check()) {
@@ -210,7 +217,7 @@ export async function serveDist({ prefix = '/', headers = () => ({}) } = {}) {
 }
 
 export async function openApp(browser, base, info, { width = 1440, height = 900, scheme = 'light', errors = {}, routes = {}, clock, watch, ready = '.kpi-v, .hcard',
-  timezone } = {}) {
+  timezone, hash = '' } = {}) {
   const context = await browser.newContext({ viewport: { width, height }, colorScheme: scheme, acceptDownloads: true, ...(timezone ? { timezoneId: timezone } : {}) });
   const page = await context.newPage();
   const seen = { pages: [], records: [], asks: [], errors: [] };
@@ -259,7 +266,7 @@ export async function openApp(browser, base, info, { width = 1440, height = 900,
     return json(404, { error: 'no route' });
   });
   if (clock) await page.clock.install({ time: clock });
-  await page.goto(base);
+  await page.goto(`${base}${hash}`);
   await page.waitForSelector(ready);
   return { page, seen, context };
 }

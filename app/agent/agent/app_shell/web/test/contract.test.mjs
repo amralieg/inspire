@@ -1,7 +1,7 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
-import { CONTRACT as C, CURRENT, DECIDE, HISTORY, NO_RUNS, PERSON, ROWS, SILENT, SUMMARY, TABLE, appInfo, lister, openApp, serveDist, until } from './harness.mjs';
+import { CONTRACT as C, CURRENT, DECIDE, HISTORY, NO_RUNS, PERSON, ROWS, SILENT, SUMMARY, TABLE, appInfo, lister, openApp, prefsFirst, serveDist, until } from './harness.mjs';
 
 let served;
 let browser;
@@ -44,11 +44,7 @@ function contractRoutes(rows, { listed = {}, acts = [], undo = C.undo.response, 
 }
 
 async function openWith(info, routes, { prefs, hash = `#/${PAGE}` } = {}) {
-  const opened = await openApp(browser, served.base, info, { routes, clock: CLOCK, timezone: 'Asia/Dubai' });
-  if (prefs) await opened.page.evaluate(([key, who, value]) => localStorage.setItem(key, JSON.stringify({ [who]: value })), [MY, PERSON, prefs]);
-  await opened.page.goto('about:blank');
-  await opened.page.goto(`${served.base}${hash}`);
-  return opened;
+  return openApp(browser, served.base, info, { routes, clock: CLOCK, timezone: 'Asia/Dubai', hash, watch: prefs && prefsFirst(MY, PERSON, prefs) });
 }
 
 const waitList = (page) => page.waitForFunction(() => document.querySelectorAll('.card--table tbody tr').length > 0 && document.querySelector('.list-tools'));
@@ -246,9 +242,9 @@ test('the Overview asks for the contract window and names the use case it does n
     };
     const { page, seen, context } = await openWith(appInfo(DECIDE, 2, TABLE), { overview }, { prefs: { window: 'week', limit: 10 }, hash: '#/overview' });
     await page.getByRole('region', { name: 'Your work' }).waitFor();
-    await until(() => hub.length > 0);
-    assert.deepEqual(hub.at(-1), C.overview_window.request.body);
     await page.waitForFunction(() => !/Loading your work/.test(document.querySelector('[aria-label="Your work"]')?.textContent || ''));
+    assert.ok(hub.length > 0, 'the Overview asked for the work');
+    assert.deepEqual(hub, hub.map(() => C.overview_window.request.body), 'every Overview request carries the window, the first load included');
     if (said) assert.equal(await page.locator('[data-window-note]').innerText(), said);
     else assert.equal(await page.locator('[data-window-note]').count(), 0, 'no use case to name, so no line');
     assert.deepEqual(seen.errors, []);

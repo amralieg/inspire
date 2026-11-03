@@ -2,7 +2,7 @@ import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
 import {
-  CONTRACT, CURRENT, DECIDE, HISTORY, LABEL, OTHER, PERSON, ROWS, SUMMARY, TABLE, appInfo, chartsDrawn, lister, openApp, resizeTo, serveDist, tracked, until,
+  CONTRACT, CURRENT, DECIDE, HISTORY, LABEL, OTHER, PERSON, ROWS, SUMMARY, TABLE, appInfo, chartsDrawn, lister, openApp, prefsFirst, resizeTo, serveDist, tracked, until,
 } from './harness.mjs';
 import { encodeFilters } from '../src/links.js';
 
@@ -23,12 +23,11 @@ const STUB_CLIPBOARD = () => {
 };
 
 async function openWith(info, routes, { prefs, hash = '#/n01_u05', init, width } = {}) {
-  const opened = await openApp(browser, served.base, info, { routes, clock: CLOCK, width, timezone: 'Asia/Dubai' });
-  if (init) await opened.page.addInitScript(init);
-  if (prefs) await opened.page.evaluate(([key, who, value]) => localStorage.setItem(key, JSON.stringify({ [who]: value })), [MY, PERSON, prefs]);
-  await opened.page.goto('about:blank');
-  await opened.page.goto(`${served.base}${hash}`);
-  return opened;
+  const watch = async (page) => {
+    if (init) await page.addInitScript(init);
+    if (prefs) await prefsFirst(MY, PERSON, prefs)(page);
+  };
+  return openApp(browser, served.base, info, { routes, clock: CLOCK, width, timezone: 'Asia/Dubai', hash, watch });
 }
 
 const waitList = (page) => page.waitForFunction(() => document.querySelectorAll('.card--table tbody tr').length > 0 && document.querySelector('.list-tools'));
