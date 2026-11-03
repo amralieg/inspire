@@ -64,13 +64,6 @@ FONT_SHA256 = {
 }
 FONT_HOST = "https://fonts.gstatic.com/s/"
 FONT_LICENSE = "https://raw.githubusercontent.com/google/fonts/{commit}/ofl/{folder}/OFL.txt"
-CLI_SOURCES = {
-    "genie-code-cli": {"repo": "databricks/genie-code-cli", "asset": "genie-package-{target}.tar.gz", "sums": "{asset}.sha256",
-                       "targets": {"x86_64": "x86_64-unknown-linux-musl", "aarch64": "aarch64-unknown-linux-musl"}},
-    "databricks-cli": {"repo": "databricks/cli", "asset": "databricks_cli_{version}_linux_{target}.zip",
-                       "sums": "databricks_cli_{version}_SHA256SUMS", "targets": {"x86_64": "amd64", "aarch64": "arm64"}},
-}
-CLI_RELEASE = "https://github.com/{repo}/releases/download/v{version}/{name}"
 CLI_LICENSE = "https://raw.githubusercontent.com/{repo}/v{version}/{name}"
 LICENSE_NAMES = re.compile(r"(^|/)(LICEN[CS]E|COPYING|NOTICE|AUTHORS)[^/]*$", re.I)
 PROBE_SOURCE = """# Databricks notebook source
@@ -80,8 +73,9 @@ dbutils.notebook.exit(json.dumps({"machine": platform.machine(), "version": sys.
 """
 NAMES = ("__AGENT_VERSION__", "GENIE_NOTEBOOK_ENV_VERSION", "GENIE_CODE_CLI_VERSION", "GENIE_DATABRICKS_CLI_VERSION",
          "INSPIRE_ASSETS_FORMAT", "INSPIRE_ASSETS_MANIFEST", "INSPIRE_ASSETS_PYTHON", "INSPIRE_APP_ASSETS_PYTHON",
-         "INSPIRE_ASSET_MACHINES", "INSPIRE_ASSET_WHEELS", "INSPIRE_ASSET_MODULES", "INSPIRE_APP_ASSET_WHEELS", "INSPIRE_ASSET_CLIS")
-FUNCTIONS = ("inspire_asset_slug", "inspire_asset_file")
+         "INSPIRE_ASSET_MACHINES", "INSPIRE_ASSET_WHEELS", "INSPIRE_ASSET_MODULES", "INSPIRE_APP_ASSET_WHEELS", "INSPIRE_ASSET_CLIS",
+         "INSPIRE_ASSET_CLI_SOURCES", "INSPIRE_ASSET_RELEASE_PATH", "INSPIRE_ASSET_CLI_RELEASE")
+FUNCTIONS = ("inspire_asset_slug", "inspire_asset_file", "inspire_cli_release_file", "inspire_cli_release_url")
 
 
 def log(text: str):
@@ -262,9 +256,10 @@ def add_fonts(bundle: Bundle, pins: dict) -> None:
             log(f"font {family} {weight} {version}: {len(data):,} bytes")
 
 
-def release_sha256(source: dict, version: str, asset: str) -> str:
+def release_sha256(pins: dict, name: str, version: str, asset: str) -> str:
+    source = pins["INSPIRE_ASSET_CLI_SOURCES"][name]
     sums = source["sums"].format(asset=asset, version=version)
-    text = fetch(CLI_RELEASE.format(repo=source["repo"], version=version, name=sums)).decode("utf-8", "replace")
+    text = fetch(pins["inspire_cli_release_url"](name, sums, version)).decode("utf-8", "replace")
     lines = [line.split() for line in text.splitlines() if line.strip()]
     found = [parts[0] for parts in lines if len(parts) == 1 or parts[-1].lstrip("*") == asset]
     if len(found) != 1 or not re.fullmatch(r"[0-9a-f]{64}", found[0].lower()):
@@ -274,14 +269,14 @@ def release_sha256(source: dict, version: str, asset: str) -> str:
 
 def add_clis(bundle: Bundle, pins: dict, machines: list) -> None:
     for name, (version, _suffix) in pins["INSPIRE_ASSET_CLIS"].items():
-        source = CLI_SOURCES[name]
+        source = pins["INSPIRE_ASSET_CLI_SOURCES"][name]
         text = "\n\n".join(fetch(CLI_LICENSE.format(repo=source["repo"], version=version, name=part)).decode("utf-8").strip()
                            for part in ("LICENSE", "NOTICE")) + "\n"
         license_file = bundle.license(name, version, text)
         for machine in machines:
-            asset = source["asset"].format(target=source["targets"][machine], version=version)
-            digest = release_sha256(source, version, asset)
-            data = fetch(CLI_RELEASE.format(repo=source["repo"], version=version, name=asset), sha=digest)
+            asset = pins["inspire_cli_release_file"](name, version, machine)
+            digest = release_sha256(pins, name, version, asset)
+            data = fetch(pins["inspire_cli_release_url"](name, asset, version), sha=digest)
             if sha256(data) != digest:
                 raise SystemExit(f"{asset} does not match the sha256 the release publishes")
             bundle.add("cli", name, version, pins["inspire_asset_file"]("cli", name, machine), data, license_file, machine=machine,

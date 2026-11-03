@@ -25,17 +25,26 @@ WORKSPACE_ONLY = {
 INSTALL_TEXT_ALLOWED = {
     "IMPLEMENT_INSTALL_LINE_RE": "the pattern the build check uses to refuse a built notebook that installs a package",
 }
+RELEASE_DOWNLOAD_ONLY = {
+    "inspire_open_release_file": "downloads the pinned CLI build for the run's CPU from its GitHub release when the installed copy is "
+                                 "missing or damaged, and InspireAssets checks it against manifest.json before use",
+}
+DOWNLOAD_TEXT_ALLOWED = {
+    "INSPIRE_ASSET_CLI_RELEASE": "the pinned GitHub release address of each CLI build, the only download Inspire makes at run time",
+    "INSPIRE_ASSET_RELEASE_PATH": "the release download path the run-time CLI download must stay under",
+    "INSPIRE_ASSET_DOWNLOAD_HOSTS": "github.com and its release download hosts, the only hosts that download may reach",
+}
 
 
 def _code_cells():
     return [src for kind, src in notebook_cells(AGENT_NB) if kind == "code"]
 
 
-def _without_allowed(src: str) -> str:
+def _without_allowed(src: str, allowed=INSTALL_TEXT_ALLOWED) -> str:
     tree = ast.parse(_parsable(src))
     lines = src.split("\n")
     for node in ast.walk(tree):
-        if isinstance(node, ast.Assign) and any(getattr(t, "id", None) in INSTALL_TEXT_ALLOWED for t in node.targets):
+        if isinstance(node, ast.Assign) and any(getattr(t, "id", None) in allowed for t in node.targets):
             for i in range(node.lineno - 1, node.end_lineno):
                 lines[i] = ""
     return "\n".join(lines)
@@ -157,10 +166,11 @@ def test_no_shipped_agent_code_installs_a_package():
 def test_no_shipped_agent_code_names_a_download_host_or_a_download_url():
     found = []
     for index, src in enumerate(_code_cells()):
-        found += [f"agent cell {index} {hit}" for hit in _hits(DOWNLOAD, src)]
+        found += [f"agent cell {index} {hit}" for hit in _hits(DOWNLOAD, _without_allowed(src, DOWNLOAD_TEXT_ALLOWED))]
         for node in ast.walk(ast.parse(_parsable(src))):
             if isinstance(node, ast.Assign) and isinstance(node.value, ast.Constant) and isinstance(node.value.value, str) \
-                    and re.match(r"https?://", node.value.value.strip()):
+                    and re.match(r"https?://", node.value.value.strip()) \
+                    and not any(getattr(t, "id", None) in DOWNLOAD_TEXT_ALLOWED for t in node.targets):
                 found.append(f"agent cell {index} line {node.lineno}: {[getattr(t, 'id', '?') for t in node.targets]} holds an address")
     for name, body in sorted(_embedded_shell()["files"].items()):
         found += [f"embedded App shell {name} {hit}" for hit in _hits(DOWNLOAD, body) + _hits(WEB_FETCH, body)]
@@ -172,9 +182,23 @@ def test_no_shipped_agent_code_names_a_download_host_or_a_download_url():
 def test_every_network_call_in_shipped_code_reaches_only_the_workspace():
     sites = _fetch_sites()
     names = {site[0] for site in sites}
-    unknown = [site for site in sites if site[0] not in WORKSPACE_ONLY]
+    unknown = [site for site in sites if site[0] not in WORKSPACE_ONLY and site[0] not in RELEASE_DOWNLOAD_ONLY]
     assert unknown == [], f"network calls outside the workspace: {unknown}"
-    assert set(WORKSPACE_ONLY) <= names, "an exception names a function that no longer fetches"
+    assert set(WORKSPACE_ONLY) | set(RELEASE_DOWNLOAD_ONLY) <= names, "an exception names a function that no longer fetches"
+
+
+def test_the_one_run_time_download_is_opened_only_by_the_assets_loader():
+    users = []
+    for src in _code_cells():
+        tree = ast.parse(_parsable(src))
+        for node in ast.walk(tree):
+            if isinstance(node, (ast.FunctionDef, ast.ClassDef)):
+                for inner in ast.walk(node):
+                    if isinstance(inner, ast.Name) and inner.id in RELEASE_DOWNLOAD_ONLY:
+                        users.append((node.name, inner.id))
+    assert sorted(set(users)) == [("InspireAssets", "inspire_open_release_file"), ("__init__", "inspire_open_release_file")]
+    for name in DOWNLOAD_TEXT_ALLOWED:
+        assert any(re.search(rf"^{name} = ", src, re.M) for src in _code_cells()), f"{name} is allowed but no longer defined"
 
 
 def test_a_built_app_never_asks_the_platform_to_install_packages():
