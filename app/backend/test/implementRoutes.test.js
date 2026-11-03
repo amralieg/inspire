@@ -1103,7 +1103,8 @@ test('an Implement re-run from a test install tags the job it re-runs, in the sa
 
 test('an Implement re-run from a production install takes a test tag a test run left on the job off it, and sends no test tag', async () => {
   const cases = [
-    [{ dbx_inspire_ai_version: 'v1.3.1', dbx_inspire_ai_test: 'inspire-rc0' }, { job_id: 77, new_settings: { tags: { dbx_inspire_ai_version: 'v1.3.1' } } }],
+    [{ dbx_inspire_ai_version: 'v1.3.1', dbx_inspire_ai_test: 'inspire-rc0' },
+      { job_id: 77, new_settings: { tags: { dbx_inspire_ai_version: 'v1.3.1' } }, fields_to_remove: ['tags'] }],
     [{ dbx_inspire_ai_test: 'inspire-rc0' }, { job_id: 77, new_settings: {}, fields_to_remove: ['tags'] }],
   ];
   for (const value of [undefined, '', '   ']) {
@@ -1119,6 +1120,15 @@ test('an Implement re-run from a production install takes a test tag a test run 
       }));
     }
   }
+});
+
+test('an Implement re-run from a test install moves a test tag of another install to its own value without removing the other tags', async () => {
+  const job = { job_id: 77, settings: { ...RELEASED_JOB.settings, environments: ON_APP_VERSION, tags: { a: '1', dbx_inspire_ai_test: 'inspire-rc1' } } };
+  await withTestTag('inspire-rc0', () => withApp({ history: RERUN_HISTORY, job, responses: { 'POST /api/2.1/jobs/update': [{}] } }, async (url, made) => {
+    assert.equal((await rerunNow(url)).status, 200);
+    const update = made.fetches.find((f) => f.path === '/api/2.1/jobs/update');
+    assert.deepEqual(JSON.parse(update.opts.body), { job_id: 77, new_settings: { tags: { a: '1', dbx_inspire_ai_test: 'inspire-rc0' } } });
+  }));
 });
 
 test('an Implement re-run whose test tag update is refused still runs and says the tag is missing', async () => {
