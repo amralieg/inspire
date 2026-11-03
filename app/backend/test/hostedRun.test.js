@@ -560,7 +560,7 @@ test('a decision step that answers with nothing Inspire can read is a plain erro
     s.hosted.useDecisions(async () => ({ result_table: 't', writer: { token: 'x', warehouse: 'wh1' } }));
     const bad = await call(s.base, `/run/${rec.id}/api/records/act`, { method: 'POST', headers: json, body: '{}' });
     assert.equal(bad.status, 502);
-    assert.match(JSON.parse(bad.text).error, /^the decision step gave no answer Inspire can read; build the use case again with Edit MVP/);
+    assert.match(JSON.parse(bad.text).error, /^the decision step gave no answer Inspire can read; build the use case again with Vibe\/Add\/Remove Features on Inspire's Build page/);
   } finally {
     await s.close();
   }

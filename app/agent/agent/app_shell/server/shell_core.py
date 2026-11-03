@@ -206,8 +206,9 @@ def unreadable_text(count: int) -> str:
     if count == 1:
         return ("you cannot read this record in Unity Catalog, or it is no longer in the result table, so the App records no decision "
                 "on it")
-    return (f"you cannot read these {count:,} records in Unity Catalog, or they are no longer in the result table, so the App records "
-            "no decision on them")
+    return (f"you cannot read {'this' if count == 1 else 'these'} {shell_sql.plural(count, 'record')} in Unity Catalog, or "
+            f"{'it is' if count == 1 else 'they are'} no longer in the result table, so the App records no decision on "
+            f"{'it' if count == 1 else 'them'}")
 
 
 def same_value(stored, sent) -> bool:
@@ -719,9 +720,9 @@ def cli(stdin=None, stdout=None) -> int:
     try:
         status, answer = cli_answer(json.loads(stdin.read() or "{}"))
     except (ValueError, KeyError, TypeError) as error:
-        status, answer = 400, {"error": str(error)}
+        status, answer = 400, {"error": inspire_redact_text(str(error), set(), "")}
     except OSError as error:
-        status, answer = 500, {"error": f"Inspire could not read the page files: {error}"}
+        status, answer = 500, {"error": f"Inspire could not read the page files: {inspire_redact_text(str(error), set(), '')}"}
     stdout.write(json.dumps({"status": status, "body": answer}, ensure_ascii=False, separators=(",", ":"), default=str))
     stdout.flush()
     return 0
@@ -3135,7 +3136,7 @@ class Shell:
         if as_app:
             found = self.execute(ws, plan["keys"], plan["params"].items, cap, delta=True)
             if found.get("truncated"):
-                raise HttpError(409, f"the filters match more than {cap:,} records; act on at most {cap:,} at once: narrow the filters",
+                raise HttpError(409, f"the filters match more than {shell_sql.plural(cap, 'record')}; act on at most {cap:,} at once: narrow the filters",
                                 {"matched": cap + 1, "cap": cap}, code=OVER_CAP)
             keys = [str(r["_inspire_key"]) for r in found["rows"] if r.get("_inspire_key") is not None]
             if not keys:
@@ -3228,7 +3229,7 @@ class Shell:
                 raise self.read_refused(page, error, "Nothing was undone") from error
             raise
         if found.get("truncated"):
-            raise HttpError(409, f"this act changed more than {cap:,} records you can read, and the App undoes at most {cap:,} at once",
+            raise HttpError(409, f"this act changed more than {shell_sql.plural(cap, 'record')} you can read, and the App undoes at most {cap:,} at once",
                             {"cap": cap}, code=OVER_CAP)
         keys = [str(r["record_key"]) for r in found["rows"] if r.get("record_key") is not None]
         if not keys:

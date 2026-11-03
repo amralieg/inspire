@@ -43,7 +43,7 @@ const HOSTED_DECISION_VERSION = 1;
 const HOSTED_DECISION_TIMEOUT_MS = 120 * 1000;
 const HOSTED_DECISION_MAX_BYTES = 8 * 1024 * 1024;
 const HOSTED_DECISION_TEXT = { stopped: 'Inspire stopped recording the decision', step: 'the decision step', purpose: 'to record the decision' };
-const HOSTED_DECISION_REBUILD = 'build the use case again with Edit MVP on the Build page so its page carries the current App shell';
+const HOSTED_DECISION_REBUILD = 'build the use case again with Vibe/Add/Remove Features on Inspire\'s Build page so its page carries the current App shell';
 const HOSTED_TMP_ROOT = path.join(os.tmpdir(), 'inspire_hosted');
 const SECRET_PATTERNS = [
   /\bBearer\s+\S+/gi,
