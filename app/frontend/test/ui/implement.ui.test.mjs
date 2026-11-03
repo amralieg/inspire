@@ -839,6 +839,30 @@ test('while Genie builds, a log read mid-copy never empties the message box or s
   }
 });
 
+test('while Genie builds, a log the agent swaps for a copy with only its newest lines keeps every message shown and adds the new one at the end', async () => {
+  const said = (i) => `Pass ${i}: I joined the trips to the zones and checked the weekly totals.`;
+  const first = Array.from({ length: 6 }, (_, i) => genieLogLine(i, said(i)));
+  const building = built({ status: 'building_outputs', status_message: 'building outputs', implement_run_id: '5555555555555555', updated_at: new Date().toISOString() });
+  const ui = await openUi('implement', { ...STUDIO_STATE, history: [building], liveLog: logText(first),
+    implementRun: { run_id: 5555555555555555, state: { life_cycle_state: 'RUNNING' } } });
+  const { page, made } = ui;
+  const box = page.getByRole('log', { name: "Genie's messages" });
+  const newest = 'Now I am publishing the dashboard with the weekly totals.';
+  try {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await box.getByText(said(5)).waitFor();
+    made.state.liveLog = logText([first[4], first[5], genieLogLine(30, newest)]);
+    await box.getByText(newest).waitFor({ timeout: 20000 });
+    const text = await box.innerText();
+    const at = Array.from({ length: 6 }, (_, i) => text.indexOf(said(i)));
+    assert.ok(at.every((p) => p >= 0), 'every message shown before the swap stays');
+    assert.ok(at.every((p, i) => !i || p > at[i - 1]) && text.indexOf(newest) > at[5], 'in their order, with the new one after them');
+    assert.deepEqual(ui.pageErrors, []);
+  } finally {
+    await ui.close();
+  }
+});
+
 test('the Build progress box scrolls Genie\'s messages itself: the page never grows with them, it follows new ones only while the end is in view, offers Jump to latest otherwise, and never shows log lines or JSON', async () => {
   const said = (i) => `Step ${i}: I'm checking the notebook instructions and the Databricks workflow before I build the dashboard.`;
   const first = Array.from({ length: 24 }, (_, i) => genieLogLine(i, said(i)));

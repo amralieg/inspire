@@ -275,6 +275,54 @@ test('a poll that read the log mid-copy never takes messages off the screen, and
   assert.equal(steadyFeed(shown, null), null);
 });
 
+test('a log the agent swaps, cuts to its newest lines or rewrites never takes a shown message off the screen, and the new ones are added at the end', async () => {
+  const { steadyFeed, feedKey } = await lib('mvpProgress.js');
+  const latest = { session_id: '42', use_case_id: 'N01-U01', spec_version: 3, implement_run_id: '777' };
+  const say = (s, text) => ({ at: `2026-10-29T22:40:${String(s).padStart(2, '0')}Z`, kind: 'message', text });
+  const m1 = say(1, 'I read the trips table.');
+  const a1 = { at: '2026-10-29T22:40:02Z', kind: 'activity', commands: 4, failed: 0, files: [], until: '2026-10-29T22:40:09Z' };
+  const m2 = say(10, 'The forecast notebook runs.');
+  const m3 = say(20, 'Building the dashboard now.');
+  const m4 = say(30, 'The dashboard is published.');
+  const shown = { latest, feed: [m1, a1, m2] };
+  const keys = (out) => out.feed.map(feedKey);
+  const cases = [
+    ['a swapped copy holding only the newest lines and a new one', [m2, m3], [m1, a1, m2, m3]],
+    ['a window cut at the feed limit that slid by one line', [a1, m2, m3], [m1, a1, m2, m3]],
+    ['a rewrite that read an older copy of the commands and a new line', [m1, { ...a1, commands: 2, until: '2026-10-29T22:40:05Z' }, m2, m3, m4], [m1, a1, m2, m3, m4]],
+    ['a rewrite that lost the middle line and added two', [m1, m3, m4], [m1, a1, m2, m3, m4]],
+  ];
+  for (const [name, read, want] of cases) {
+    const out = steadyFeed(shown, { latest, feed: read, steps: ['fresh'] });
+    assert.deepEqual(keys(out), want.map(feedKey), name);
+    assert.equal(out.feed.find((item) => item.kind === 'activity').commands, 4, `${name}: the commands already counted stay`);
+    assert.deepEqual(out.steps, ['fresh'], `${name}: the rest of the poll is taken`);
+  }
+  const folded = steadyFeed(shown, { latest, feed: [m2, { ...a1, commands: 9, until: '2026-10-29T22:40:15Z' }] });
+  assert.deepEqual(keys(folded), [m1, a1, m2].map(feedKey), 'a row that grew stays in its place');
+  assert.equal(folded.feed[1].commands, 9, 'and shows its newer count');
+  const twice = { latest, feed: [m1, { ...m1 }] };
+  assert.equal(steadyFeed(twice, { latest, feed: [m1, { ...m1 }, m2] }).feed.length, 3, 'two lines that read the same both stay, and the new one is added');
+  assert.equal(steadyFeed(twice, { latest, feed: [m1] }).feed, twice.feed, 'a read with one of them keeps both');
+
+  let seed = 7;
+  const rand = (n) => { seed = (seed * 1103515245 + 12345) % 2147483648; return seed % n; };
+  const truth = Array.from({ length: 60 }, (_, i) => say(i, `line ${i}`));
+  let state = null;
+  let written = 1;
+  for (let poll = 0; poll < 400; poll += 1) {
+    written = Math.min(truth.length, written + rand(3));
+    const from = rand(written);
+    const to = from + rand(written - from + 1);
+    const before = state?.feed ? state.feed.map(feedKey) : [];
+    state = steadyFeed(state, { latest, feed: truth.slice(from, to) });
+    const after = state.feed.map(feedKey);
+    assert.ok(after.length >= before.length, `poll ${poll}: the feed never gets shorter`);
+    assert.deepEqual(after.slice(0, before.length), before, `poll ${poll}: every shown line keeps its place`);
+    assert.equal(new Set(after).size, after.length, `poll ${poll}: no line shows twice`);
+  }
+});
+
 test('the Build progress box holds the stages and Genie\'s messages in one scroll box of its own, never raw log lines, JSON or a page scroll', () => {
   const fs = require('node:fs');
   const src = (p) => fs.readFileSync(path.resolve(__dirname, '..', '..', 'frontend', 'src', p), 'utf8');

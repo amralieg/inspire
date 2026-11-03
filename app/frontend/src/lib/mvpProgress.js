@@ -704,10 +704,8 @@ export function feedTypesOut(item) {
   return ['message', 'stopped', 'error'].includes(String(item?.kind || ''));
 }
 
-const newestOf = (feed) => feed.reduce((most, item) => {
-  const at = Date.parse(item?.until || item?.at || '');
-  return Number.isFinite(at) && at > most ? at : most;
-}, -Infinity);
+const feedTime = (item) => Date.parse(item?.until || item?.at || '');
+const sameItems = (a, b) => a.length === b.length && a.every((item, i) => item === b[i]);
 
 const buildOf = (status) => {
   const latest = status?.latest || {};
@@ -719,8 +717,22 @@ export function steadyFeed(previous, next) {
   const after = next?.feed;
   if (!next || !Array.isArray(before) || !before.length || buildOf(previous) !== buildOf(next)) return next;
   const list = Array.isArray(after) ? after : [];
-  if (list.length >= before.length && newestOf(list) >= newestOf(before)) return next;
-  return { ...next, feed: before };
+  const slots = new Map();
+  before.forEach((item, i) => slots.set(feedKey(item), [...(slots.get(feedKey(item)) || []), i]));
+  const kept = [...before];
+  const added = [];
+  for (const item of list) {
+    const open = slots.get(feedKey(item));
+    if (!open?.length) {
+      added.push(item);
+      continue;
+    }
+    const i = open.shift();
+    if (!(feedTime(item) < feedTime(before[i]))) kept[i] = item;
+  }
+  const feed = [...kept, ...added];
+  if (sameItems(feed, list)) return next;
+  return { ...next, feed: sameItems(feed, before) ? before : feed };
 }
 
 export function feedArrivals(previous, feed, at) {
