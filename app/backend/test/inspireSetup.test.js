@@ -545,7 +545,7 @@ const SCOPES_PROBE = String.raw`${INSTALLER_LOADER}
 import ast, json, sys
 path, notebook = sys.argv[1], sys.argv[2]
 tree = ast.parse(open(path, encoding="utf-8").read())
-wanted = {"app_user_scopes", "_merged_scopes", "_scope_refused", "_create_app", "_apply_user_scopes"}
+wanted = {"app_user_scopes", "_merged_scopes", "_scope_refused", "_create_app", "_apply_user_scopes", "_update_app"}
 consts = {"USER_SCOPE_CONSTANTS", "USER_SCOPES_REFUSED"}
 body = [n for n in tree.body if (isinstance(n, ast.FunctionDef) and n.name in wanted)
         or (isinstance(n, ast.Assign) and any(isinstance(t, ast.Name) and t.id in consts for t in n.targets))]
@@ -575,24 +575,22 @@ api, calls = api_of(lambda m, u, b, n: Resp(409, "app already exists"))
 resp, note = ns["_create_app"](api, "inspire-ai", "Inspire", scopes)
 out["exists"] = {"calls": len(calls), "note": note}
 gets = []
-def api_get_of(current, states):
+def api_get_of(states):
     def api_get(url):
         gets.append(url)
-        if url.endswith("/update"):
-            return {"status": {"state": states.pop(0)}}
-        return {"user_api_scopes": current}
+        return {"status": {"state": states.pop(0)}}
     return api_get
 api, calls = api_of(lambda m, u, b, n: Resp(200))
-note = ns["_apply_user_scopes"](api, api_get_of(["files"], ["IN_PROGRESS", "SUCCEEDED"]), "inspire-ai", scopes, sleep=lambda s: None)
+note = ns["_apply_user_scopes"](api, api_get_of(["IN_PROGRESS", "SUCCEEDED"]), "inspire-ai", scopes, {"user_api_scopes": ["files"]}, sleep=lambda s: None)
 out["update"] = {"calls": calls, "note": note}
 api, calls = api_of(lambda m, u, b, n: Resp(200))
-note = ns["_apply_user_scopes"](api, api_get_of(scopes + ["files"], []), "inspire-ai", scopes, sleep=lambda s: None)
+note = ns["_apply_user_scopes"](api, api_get_of([]), "inspire-ai", scopes, {"user_api_scopes": scopes + ["files"]}, sleep=lambda s: None)
 out["already"] = {"calls": calls, "note": note}
 api, calls = api_of(lambda m, u, b, n: Resp(403, '{"message": "scopes are restricted by your workspace admin"}'))
-note = ns["_apply_user_scopes"](api, api_get_of([], []), "inspire-ai", scopes, sleep=lambda s: None)
+note = ns["_apply_user_scopes"](api, api_get_of([]), "inspire-ai", scopes, {}, sleep=lambda s: None)
 out["update_refused"] = note
 api, calls = api_of(lambda m, u, b, n: Resp(200))
-note = ns["_apply_user_scopes"](api, api_get_of([], ["FAILED"]), "inspire-ai", scopes, sleep=lambda s: None)
+note = ns["_apply_user_scopes"](api, api_get_of(["FAILED"]), "inspire-ai", scopes, {"user_api_scopes": []}, sleep=lambda s: None)
 out["update_failed"] = note
 for broken in ('{"cells": [{"source": ""}, {"source": "IMPLEMENT_APP_READ_SCOPES = (\\"sql\\",)\\n"}]}', '{"cells": []}'):
     try:
@@ -608,8 +606,9 @@ import ast, json, os, sys, types
 path, notebook = sys.argv[1], sys.argv[2]
 tree = ast.parse(open(path, encoding="utf-8").read())
 wanted = {"step_deploy_and_find_sp", "_workspace_api_path", "_list_apps", "_app_source_paths", "_remove_old_bundles",
-          "_is_own_service_principal", "_create_app", "_apply_user_scopes", "_scope_refused", "_merged_scopes", "app_user_scopes", "_plural", "_app_url", "_noted_app_url"}
-consts = {"INSPIRE_APP_OWN_SCOPES", "USER_SCOPES_REFUSED", "USER_SCOPE_CONSTANTS"}
+          "_is_own_service_principal", "_create_app", "_apply_user_scopes", "_scope_refused", "_merged_scopes", "app_user_scopes", "_plural", "_app_url", "_noted_app_url",
+          "_update_app", "_apply_description", "app_description"}
+consts = {"INSPIRE_APP_OWN_SCOPES", "USER_SCOPES_REFUSED", "USER_SCOPE_CONSTANTS", "APP_DESCRIPTION_NOT_UPDATED"}
 body = [n for n in tree.body if (isinstance(n, ast.FunctionDef) and n.name in wanted)
         or (isinstance(n, ast.Assign) and any(isinstance(t, ast.Name) and t.id in consts for t in n.targets))]
 ns = {"os": os, "print": lambda *a, **k: None, "time": types.SimpleNamespace(sleep=lambda s: None), "write_app_yaml_deploy": lambda *a: None}
@@ -621,7 +620,7 @@ class Resp:
         return self._data
 app = {"compute_status": {"state": "ACTIVE"}, "url": "https://app", "service_principal_client_id": "SPNEW", "service_principal_name": "app-sp",
        "active_deployment": {"deployment_id": "d1", "status": {"state": "SUCCEEDED"}, "source_code_path": "/Workspace/b"}}
-def deploy(create, held=None, notebook_scopes=None):
+def deploy(create, held=None, notebook_scopes=None, described=""):
     calls = []
     def api(method, url, body=None):
         calls.append([method, url, body])
@@ -630,7 +629,7 @@ def deploy(create, held=None, notebook_scopes=None):
         return Resp(200, "", {"deployment_id": "d1"})
     def api_get(url):
         if url == "/api/2.0/apps/inspire-ai":
-            return dict(app, user_api_scopes=held or [])
+            return dict(app, user_api_scopes=held or [], description=described)
         if url == "/api/2.0/apps/inspire-ai/update":
             return {"status": {"state": "SUCCEEDED"}}
         if url.startswith("/api/2.0/preview/scim/v2/ServicePrincipals?filter=applicationId"):
@@ -646,7 +645,8 @@ out = {"inspire": list(ns["INSPIRE_APP_OWN_SCOPES"]), "built": built}
 out["create"] = deploy(lambda body: Resp(200, "{}", {"url": "https://app"}), notebook_scopes=built)
 refuse = lambda body: Resp(400, '{"message": "user_api_scopes files are not allowed in this workspace"}') if body.get("user_api_scopes") else Resp(200, "{}", {"url": "https://app"})
 out["refused"] = deploy(refuse, notebook_scopes=built)
-out["existing"] = deploy(lambda body: Resp(409, "App with name inspire-ai already exists"), held=["genie"], notebook_scopes=built)
+out["existing"] = deploy(lambda body: Resp(409, "App with name inspire-ai already exists"), held=["genie"], notebook_scopes=built, described="Inspire AI v1.2.9")
+out["current"] = deploy(lambda body: Resp(409, "App with name inspire-ai already exists"), held=["genie"], notebook_scopes=built, described="Inspire AI v1.3.0")
 out["unread"] = deploy(lambda body: Resp(200, "{}", {"url": "https://app"}))
 print(json.dumps(out))
 `;
@@ -743,8 +743,12 @@ test('the installer gives the Inspire App the user scopes its own routes read wi
   assert.deepEqual(out.refused.apps.map(([m, u, b]) => [m, u, Object.hasOwn(b, 'user_api_scopes')]), [['POST', '/api/2.0/apps', true], ['POST', '/api/2.0/apps', false]]);
   assert.match(out.refused.note, /^Inspire was installed without user authorization, so it lists no catalogs, schemas or tables, starts no run and the Run tab cannot show pages Inside Inspire, because it reads them only with each person's own sign-in: .*not allowed/);
   assert.ok(out.refused.note.endsWith(`A workspace admin allows the scopes ${all.join(', ')} for Apps, then runs this installer again.`), out.refused.note);
+  const scoped = ['POST', '/api/2.0/apps/inspire-ai/update',
+    { update_mask: 'user_api_scopes', app: { name: 'inspire-ai', user_api_scopes: ['genie', ...all.filter((s) => s !== 'genie')] } }];
   assert.deepEqual(out.existing.apps.slice(1), [['POST', '/api/2.0/apps/inspire-ai/update',
-    { update_mask: 'user_api_scopes', app: { name: 'inspire-ai', user_api_scopes: ['genie', ...all.filter((s) => s !== 'genie')] } }]], 'the scopes an admin added stay');
+    { update_mask: 'description', app: { name: 'inspire-ai', description: 'Inspire AI v1.3.0' } }], scoped],
+    'an App from an older release takes this release in its description, and the scopes an admin added stay');
+  assert.deepEqual(out.current.apps.slice(1), [scoped], 'an App that already names this release keeps its description untouched');
   assert.equal(out.existing.note, '');
   assert.deepEqual(out.unread.apps, [['POST', '/api/2.0/apps', { name: 'inspire-ai', description: 'Inspire AI v1.3.0', user_api_scopes: inspire }]],
     'a deploy step that runs without the notebook scopes still asks for the scopes the route table needs');
