@@ -38,7 +38,8 @@ REGISTRY = {
         {"id": "anomaly", "num": 23, "family": "detect_protect", "label": "Anomaly", "informational": False,
          "techniques": ["Anomaly Detection"]},
         {"id": "process_mining", "num": 34, "family": "run_processes", "label": "Process mining", "informational": False,
-         "techniques": ["Process Mining"]},
+         "techniques": ["Process Mining"],
+         "strip_must_remain": "a process map with step durations and the cases that will breach"},
         {"id": "sla_aging", "num": 35, "family": "run_processes", "label": "SLA and aging", "informational": False,
          "techniques": ["Survival Analysis"]},
     ],
@@ -52,6 +53,8 @@ TECHNIQUE_OF = {"driver_breakdown": "Decomposition", "risk_propensity": "Classif
 def ns():
     namespace = _agentload.fresh_agent_namespace()
     namespace["_inspire_kinds"] = lambda: REGISTRY
+    namespace.setdefault("_inspire_kind_for_technique", lambda technique: next(
+        (kind for kind in REGISTRY["kinds"] if kind["id"] == REGISTRY["technique_kind"].get(str(technique or "").strip())), None))
     return namespace
 
 
@@ -227,7 +230,7 @@ def test_q5_drops_a_use_case_of_an_excluded_kind_and_keeps_the_rest(ns):
     keep = dict(base, No="K1", Name="Predict Late Orders to Expedite Shipments", **{"Use Case Kind": "risk_propensity",
                                                                                    "Analytics Technique": "Classification"})
     drop = dict(base, No="X1", Name="Predict Late Orders to Expedite Shipments", **{"Use Case Kind": "process_mining",
-                                                                                   "Analytics Technique": "Classification"})
+                                                                                   "Analytics Technique": "Process Mining"})
     kept, dropped = inst._phaseQ5_decision_readiness([keep, drop], SCHEMA)
     assert [uc["No"] for uc in kept] == ["K1"]
     assert [(uc["No"], reason) for uc, reason in dropped] == [("X1", "Q5_KIND_EXCLUDED:process_mining")]
@@ -381,7 +384,7 @@ def test_t4_a_use_case_with_an_owner_a_cadence_and_a_per_item_action_is_kept(ns)
     forecast = _q5_uc("D3", "Forecast Demand per Store to Set Orders", "Stockouts lose sales.",
                       "Forecast each store weekly and flag the top 5 series at risk.", "Forecasting per store.",
                       kind="forecast")
-    too_few = dict(forecast, No="D4", **{"Use Case Kind": "risk_propensity"})
+    too_few = dict(forecast, No="D4", **{"Use Case Kind": "risk_propensity", "Analytics Technique": "Classification"})
     assert _q5(ns, [_q5_uc("D1", *DECIDES), one_off_setup, forecast, too_few]) == (
         ["D1", "D2", "D3"], {"D4": "Q5_T4_TOO_FEW_ITEMS:5<20"})
 
@@ -398,3 +401,73 @@ def test_t4_minimum_items_is_a_runtime_parameter_when_no_layout_sets_it(ns, rt):
     assert _q5(ns, [uc]) == ([], {"D1": "Q5_T4_TOO_FEW_ITEMS:5<20"})
     rt["decision_min_items_per_cycle"] = 5
     assert _q5(ns, [dict(uc)]) == (["D1"], {})
+
+
+def test_d5_a_kind_whose_technique_it_does_not_allow_is_relabelled_to_the_technique_kind(ns):
+    mismatched = _q5_uc("M1", *DECIDES, kind="forecast", **{"Analytics Technique": "Classification"})
+    unmapped = _q5_uc("M2", *DECIDES, kind="forecast", **{"Analytics Technique": "Anomaly Detection"})
+    matched = _q5_uc("M3", *DECIDES, kind="forecast", **{"Analytics Technique": "Forecasting"})
+    inst = _inst(ns)
+    kept, dropped = inst._phaseQ5_decision_readiness([mismatched, unmapped, matched], SCHEMA)
+    assert [uc["No"] for uc in kept] == ["M1", "M2", "M3"] and dropped == []
+    assert (mismatched["Use Case Kind"], mismatched["kind_relabelled_from"]) == ("risk_propensity", "forecast")
+    assert "Q5_D5_KIND_TECHNIQUE_MISMATCH:forecast" in unmapped["gate_flags"] and unmapped["Use Case Kind"] == "forecast"
+    assert matched["Use Case Kind"] == "forecast" and "kind_relabelled_from" not in matched
+    assert _messages(inst, "[KIND-MATCH FIRED] 1 use case relabelled")
+
+
+def test_d5_relabelling_applies_the_exclusion_of_the_new_kind(ns):
+    uc = _q5_uc("M1", *DECIDES, kind="forecast", **{"Analytics Technique": "Classification"})
+    parsed = {"use_case_kinds": {"asked": [], "excluded": ["risk_propensity"]}}
+    assert _q5(ns, [uc], parsed=parsed) == ([], {"M1": "Q5_KIND_EXCLUDED:risk_propensity"})
+
+
+def test_d5_keeps_the_kind_of_a_use_case_the_instructions_ask_for(ns):
+    asked_kind = _q5_uc("M1", *DECIDES, kind="forecast", **{"Analytics Technique": "Classification"})
+    asked_idea = _q5_uc("M2", *DECIDES, kind="forecast", user_request="R1", **{"Analytics Technique": "Classification"})
+    other = _q5_uc("M3", *DECIDES, kind="anomaly", **{"Analytics Technique": "Classification"})
+    _q5(ns, [asked_kind, asked_idea, other], parsed={"use_case_kinds": {"asked": ["Forecast"], "excluded": []}})
+    assert (asked_kind["Use Case Kind"], asked_idea["Use Case Kind"], other["Use Case Kind"]) == (
+        "forecast", "forecast", "risk_propensity")
+
+
+def _twin(no, title, kind, bob, **extra):
+    return dict(_uc(no, bob, kind=kind, Name=title, Beneficiary="Procurement lead",
+                    **{"Tables Involved": "main.ops.deliveries" if kind == "risk_propensity" else "main.ops.receipts"}), **extra)
+
+
+def test_d6_decision_twins_of_different_kinds_collapse_to_the_higher_score(ns):
+    inst = _inst(ns)
+    risk = _twin("R1", "Predict Late Supplier Deliveries for Buyers", "risk_propensity", 8.0)
+    forecast = _twin("F1", "Forecast Late Supplier Deliveries per Week", "forecast", 7.5)
+    other = _twin("A1", "Detect Duplicate Invoice Payments", "anomaly", 7.0)
+    kept = inst._dedup_canonical_titles([risk, forecast, other])
+    assert [uc["No"] for uc in kept] == ["R1", "A1"]
+    assert forecast["selection_drop_reason"] == 'duplicate decision of "Predict Late Supplier Deliveries for Buyers"'
+    assert _messages(inst, "[KIND-TWIN FIRED] 1 use case of another kind")
+
+
+def test_d6_keeps_twins_the_instructions_ask_for_and_twins_of_one_kind(ns):
+    inst = _inst(ns)
+    risk = _twin("R1", "Predict Late Supplier Deliveries for Buyers", "risk_propensity", 8.0)
+    asked = _twin("F1", "Forecast Late Supplier Deliveries per Week", "forecast", 7.5, user_request="R1")
+    same_kind = _twin("F2", "Forecast Late Supplier Deliveries per Week", "risk_propensity", 7.4,
+                      **{"Analytics Technique": "Forecasting"})
+    carrier = _twin("R2", "Predict Late Carrier Pickups for Buyers", "risk_propensity", 8.0)
+    loser = _twin("F3", "Forecast Late Carrier Pickups per Week", "forecast", 7.3)
+    kept = [uc["No"] for uc in inst._dedup_canonical_titles([risk, asked, same_kind, carrier, loser])]
+    assert "F1" in kept and "R2" in kept and "F3" not in kept
+
+
+def test_t1_the_scoring_listing_states_what_each_kind_must_hold_after_the_strip_test(ns):
+    inst = _inst(ns)
+    process = _uc("P1", 8.0, kind="process_mining")
+    asked = _uc("P2", 8.0, kind="process_mining", user_request="R1")
+    plain = _uc("C1", 8.0)
+    listing = inst._build_use_cases_markdown_for_validation([process, asked, plain])
+    sections = {block.split(" - ")[0]: block for block in listing.split("### Use Case: ")[1:]}
+    must = "after the strip test it must still hold a process map with step durations and the cases that will breach"
+    assert must in sections["P1"]
+    assert must not in sections["P2"] and "Use Case Kind" not in sections["C1"]
+    prompt = ns["PROMPT_TEMPLATES"]["BEST_OF_BEST_SCORING_PROMPT"]
+    assert "score D9 0-2 if its design does not deliver that" in prompt

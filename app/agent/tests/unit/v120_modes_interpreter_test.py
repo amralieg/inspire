@@ -30,7 +30,7 @@ def prompt(agent_ns):
 
 @pytest.fixture(scope="module")
 def rendered(prompt):
-    return prompt.format(generation_instructions="focus on fraud", business_name="Acme")
+    return prompt.format(generation_instructions="focus on fraud", business_name="Acme", kind_ids="forecast")
 
 
 def _examples(rendered):
@@ -83,9 +83,10 @@ def test_examples_list_the_same_prompts_as_the_reference_table(rendered):
 
 
 def test_category_structure_is_unchanged(prompt):
-    assert len(re.findall(r"^\*\*\d+\. ", prompt, re.MULTILINE)) == 10
-    assert "into the 10 structured categories" in prompt and "**8. Best of Best Count** (OPTIONAL)" in prompt
+    assert len(re.findall(r"^\*\*\d+\. ", prompt, re.MULTILINE)) == 11
+    assert "into the 11 structured categories" in prompt and "**8. Best of Best Count** (OPTIONAL)" in prompt
     assert "**9. Use Case Count** (OPTIONAL)" in prompt and "**10. Requested Use Cases** (OPTIONAL)" in prompt
+    assert "**11. Use Case Kinds** (OPTIONAL)" in prompt
 
 
 def test_both_examples_leave_the_best_of_best_count_unset(rendered):

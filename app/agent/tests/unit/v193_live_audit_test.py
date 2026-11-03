@@ -117,7 +117,7 @@ def test_the_trim_records_the_target_the_theme_cap_and_the_hard_veto_apart(agent
     assert drops[id(ucs[15])][1].startswith("trimmed: the catalog is trimmed to 8 use cases")
     line = [m for _lvl, m in obj.logger.records if m.startswith("Stratified trim:")][-1]
     assert "6 left out because the 8 slots went to stronger use cases, 6 over the per-theme cap of 4" in line
-    assert "1 of 3 themes held a floor seat because their best use case cleared the near-par bar" in line
+    assert "1 of 3 themes held a floor seat because the best use case in the theme cleared the near-par bar" in line
 
 
 def test_the_trim_with_more_themes_than_places_records_the_target(agent_ns):
