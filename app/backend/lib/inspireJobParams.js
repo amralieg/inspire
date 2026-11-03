@@ -278,6 +278,21 @@ function inspireJobEnvironmentWarning(jobId, { from = '', reason }) {
       + `so this run uses the environment the job already has. ${need}`;
 }
 
+function inspireJobTestTagChange(settings) {
+  const current = settings && settings.tags && typeof settings.tags === 'object' ? settings.tags : {};
+  const tags = { ...current };
+  delete tags[INSPIRE_TEST_TAG];
+  const test = inspireTestTag();
+  if (test) tags[INSPIRE_TEST_TAG] = test;
+  return current[INSPIRE_TEST_TAG] === tags[INSPIRE_TEST_TAG] ? null : { tags, from: current[INSPIRE_TEST_TAG] || '', to: test };
+}
+
+function inspireJobTestTagWarning(jobId, { from = '', to = '', reason }) {
+  return to
+    ? `Inspire could not tag job ${jobId} with ${INSPIRE_TEST_TAG}=${to} (${reason}), so usage reports may count this test run.`
+    : `Inspire could not remove the tag ${INSPIRE_TEST_TAG}=${from} from job ${jobId} (${reason}), so usage reports may leave this run out.`;
+}
+
 function parseMaybeJson(value) {
   if (value == null || value === '') return null;
   if (typeof value === 'object') return value;
@@ -360,6 +375,8 @@ module.exports = {
   INSPIRE_TEST_TAG,
   inspireJobEnvironmentChange,
   inspireJobEnvironmentWarning,
+  inspireJobTestTagChange,
+  inspireJobTestTagWarning,
   inspireJobEnvironments,
   inspireTaskCompute,
   sanitizeInspireNotebookJobParams,

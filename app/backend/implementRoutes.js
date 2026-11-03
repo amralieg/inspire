@@ -7,7 +7,7 @@ const C = require('./lib/implementControl');
 const { appShellCatalog } = require('./lib/appShell');
 const { moneyStatements, moneyView } = require('./lib/implementMoney');
 const { HOSTED_NO_TOKEN } = require('./lib/hostedRun');
-const { inspireJobEnvironmentChange, inspireJobEnvironmentWarning } = require('./lib/inspireJobParams');
+const { inspireJobEnvironmentChange, inspireJobEnvironmentWarning, inspireJobTestTagChange, inspireJobTestTagWarning } = require('./lib/inspireJobParams');
 const R = require('./lib/reviewFigures');
 const A = require('./lib/useCaseAlerts');
 const P = require('./lib/requestPerson');
@@ -1761,18 +1761,24 @@ function registerImplementRoutes(app, deps) {
     }
   });
 
-  async function alignJobEnvironment(host, token, jobId) {
+  async function alignJobSettings(host, token, jobId) {
     const refused = (err) => ({ ok: false, status: 0, data: { message: err.message } });
     const reason = (got) => got.data.message || got.data.error_code || `HTTP ${got.status}`;
     const job = await jsonOf(dbFetch, host, token, `/api/2.1/jobs/get?job_id=${jobId}`).catch(refused);
     if (!job.ok) return inspireJobEnvironmentWarning(jobId, { reason: reason(job) });
     const change = inspireJobEnvironmentChange(job.data.settings);
-    if (!change) return '';
+    const tagged = inspireJobTestTagChange(job.data.settings);
+    if (!change && !tagged) return '';
+    const update = { job_id: jobId, new_settings: change ? { environments: change.environments } : {} };
+    if (tagged && Object.keys(tagged.tags).length) update.new_settings.tags = tagged.tags;
+    else if (tagged) update.fields_to_remove = ['tags'];
     const updated = await jsonOf(dbFetch, host, token, '/api/2.1/jobs/update', {
       method: 'POST',
-      body: JSON.stringify({ job_id: jobId, new_settings: { environments: change.environments } }),
+      body: JSON.stringify(update),
     }).catch(refused);
-    return updated.ok ? '' : inspireJobEnvironmentWarning(jobId, { from: change.from, reason: reason(updated) });
+    if (updated.ok) return '';
+    return [change && inspireJobEnvironmentWarning(jobId, { from: change.from, reason: reason(updated) }),
+      tagged && inspireJobTestTagWarning(jobId, { ...tagged, reason: reason(updated) })].filter(Boolean).join(' ');
   }
 
   app.post('/api/inspire/implement/rerun', requireToken, async (req, res) => {
@@ -1796,7 +1802,7 @@ function registerImplementRoutes(app, deps) {
       const useCase = await loadUseCase(req.dbHost, req.dbToken, warehouseId, catalog, schema, sid, useCaseId);
       await refusePersonUnreadable(req, latest.spec_json, useCase);
       await refuseMissingSources(req, warehouseId, latest.spec_json, useCase);
-      const warning = await alignJobEnvironment(req.dbHost, req.dbToken, Number(latest.job_id));
+      const warning = await alignJobSettings(req.dbHost, req.dbToken, Number(latest.job_id));
       const resp = await dbFetch(req.dbHost, req.dbToken, '/api/2.1/jobs/run-now', {
         method: 'POST',
         body: JSON.stringify({ job_id: Number(latest.job_id), notebook_params: notebookParams, only: [I.IMPLEMENT_NOTEBOOK_TASK_KEY] }),
