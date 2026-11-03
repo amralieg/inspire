@@ -4,7 +4,7 @@ import pytest
 
 from v120_artifacts_support import CapturingLogger, FakeSpark
 from v140_implement_test import OURS_APP, VALID, _app_flow, _app_shell, _left_by
-from v142_merge_test import HOST_APP, OWN_SOURCE, _host_files, _host_page, _restyle_inspire, _router, _serve_files
+from v142_merge_test import HOST_APP, OWN_SOURCE, _host_files, _host_page, _own_genie_route, _restyle_inspire, _router, _serve_files
 
 OWN_APP = {"name": "churn-desk", "description": OURS_APP, "url": "https://churn-desk.example/",
            "active_deployment": {"source_code_path": OWN_SOURCE}, "compute_status": {"state": "ACTIVE"},
@@ -25,11 +25,11 @@ def _own_files(ns, tmp_path, genie, page_genie=None):
     return files
 
 
-def _flow(ns, tmp_path, monkeypatch, files, app=OWN_APP, outputs=None, assets=None):
+def _flow(ns, tmp_path, monkeypatch, files, app=OWN_APP, outputs=None, assets=None, routes=None):
     inst, context, seen = _app_flow(ns, tmp_path / "flow", outputs=outputs, assets={"genie_space": "g1"} if assets is None else assets)
     del inst._implement_app_host
     _serve_files(ns, monkeypatch, files)
-    inst._implement_api, _calls = _router({("GET", f"/api/2.0/apps/{app['name']}"): app})
+    inst._implement_api, _calls = _router({("GET", f"/api/2.0/apps/{app['name']}"): app, **(routes or {})})
     inst._implement_notebook_paths = lambda uc, key: ("/W/acme_implemented/Sales", "/W/acme_implemented/Sales/N01-U01")
     inst._implement_runner = inst._genie_runner_factory = lambda uc: pytest.fail("pointing the App at its Genie Agent needs no Genie Code")
     inst._implement_genie_loop = lambda *a, **k: pytest.fail("pointing the App at its Genie Agent never asks Genie")
@@ -82,8 +82,9 @@ def test_a_genie_agent_change_without_an_app_rebuild_points_the_built_app_at_it(
 def test_a_page_that_joined_a_hub_before_it_had_its_own_genie_agent_is_pointed_at_it_without_genie(agent_ns, tmp_path, monkeypatch):
     host, joined = _host_page(agent_ns), _host_page(agent_ns, "N01-U01", "Churn desk")
     assert "genie" not in joined
+    kept = joined["questions"][0]
     inst, context, seen = _flow(agent_ns, tmp_path, monkeypatch, _host_files(agent_ns, tmp_path, pages=[host, joined]), app=HOST_APP,
-                                outputs={"merge": {"app": "sales-desk"}})
+                                outputs={"merge": {"app": "sales-desk"}}, routes=_own_genie_route("g1", kept))
     fields = inst._implement_app(context, None)
     core = _app_shell(agent_ns, tmp_path)[1]["shell_core"]
     name, settings, pages, reads, space_id = _deployed(seen)
@@ -91,7 +92,10 @@ def test_a_page_that_joined_a_hub_before_it_had_its_own_genie_agent_is_pointed_a
     assert core.page_genie(settings, pages, pages[1]) == (GENIE, "")
     assert core.page_genie(settings, pages, pages[0]) == ({"space_id": "gA", "title": "Sales questions"}, ""), \
         "the hub's own page keeps asking its own Genie Agent"
-    assert pages[0] == host and {k: v for k, v in pages[1].items() if k not in ("genie", "genie_note")} == joined
+    assert pages[0] == host and {k: v for k, v in pages[1].items() if k not in ("genie", "genie_note")} == dict(joined, questions=[kept]), \
+        "the page now asks this use case's Genie Agent, so Ask Genie keeps only the question whose example SQL there returns rows"
+    assert any(level == "WARNING" and "[IMPLEMENT-APP-QUESTIONS] N01-U01: dropped 1 Ask Genie suggestion" in m and
+               repr(joined["questions"][1]) in m for level, m in inst.logger.records)
     assert core.settings_problems(settings, pages) == []
     assert set(context["allowed"]) <= set(reads), "the App may read what this use case's Genie Agent reads"
     assert fields["_asset"] == {"merged_into": "sales-desk", "page": "n01_u01"} and len(seen["checked"]) == 1

@@ -672,7 +672,7 @@ def test_a_genie_agent_of_a_use_case_that_holds_records_back_is_told_what_held_b
                        "status": "COMPLETED", "attachments": [{"query": {"query": "SELECT COUNT(*) FROM main.inspire.churn_out"}}]}}
         inst, calls = _output_inspire(agent_ns, tmp_path / str(told) / str(bool(holdout)), answers)
         inst._implement_app_shell = lambda: (None, {"shell_sql": SHELL_SQL, "shell_alerts": shell_alerts})
-        inst._implement_run_query_check = lambda sql, require_rows=False, limit=20: []
+        inst._implement_run_query_check = lambda sql, require_rows=False, limit=20: [] if "HAVING COUNT(*) > 1" in sql else [{"n": 1}]
         runner = _FileRunner([{"exit": 0}], [{"genie_space.json": _space(grounded=True)}])
         inst._implement_genie_space(_holding(agent_ns, **holdout), runner)
         [(body, _q)] = _calls_to(calls, "POST", "/api/2.0/genie/spaces")

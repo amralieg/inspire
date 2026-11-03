@@ -168,8 +168,12 @@ def test_a_new_merge_target_builds_that_output_and_a_look_only_edit_restyles_the
         assert "app" in plan["refresh"] + plan["build"] and plan["restyle"] == [], name
 
 
+def _own_genie_route(space_id, question="Which customers act now?"):
+    return {("GET", f"/api/2.0/genie/spaces/{space_id}"): _genie_answer(space_id, _genie_body(["main.inspire.churn_out"], question, "t"))}
+
+
 def test_a_merged_app_adds_this_page_keeps_the_other_pages_and_the_hosts_access_and_look(agent_ns, tmp_path, monkeypatch):
-    inst, context, seen, calls = _merge_flow(agent_ns, tmp_path, monkeypatch)
+    inst, context, seen, calls = _merge_flow(agent_ns, tmp_path, monkeypatch, routes=_own_genie_route("gA"))
     fields = inst._implement_app(context, None)
     assert seen["errors"] == []
     name, files, reads, space_id = seen["deployed"][0]
@@ -192,8 +196,11 @@ def test_a_merged_app_adds_this_page_keeps_the_other_pages_and_the_hosts_access_
     assert ours["genie"]["space_id"] == "gA" and ours["genie_note"] == "", "the joining page names its own Genie Agent"
     assert ("INFO", "[IMPLEMENT-APP-MERGE] N01-U01: " + note) in inst.logger.records
     assert not [m for level, m in inst.logger.records if level == "WARNING" and "IMPLEMENT-APP-MERGE" in m]
-    assert [c[:2] for c in calls] == [("GET", "/api/2.0/apps/sales-desk"), ("GET", "/api/2.1/unity-catalog/tables")], \
-        "a Delta App only looks for Lakebase copies left in its schema, and finds none"
+    assert [c[:2] for c in calls] == [("GET", "/api/2.0/apps/sales-desk"), ("GET", "/api/2.0/genie/spaces/gA"),
+                                      ("GET", "/api/2.1/unity-catalog/tables")], \
+        "a Delta App reads its own Genie Agent's sample questions and only looks for Lakebase copies left in its schema, and finds none"
+    assert ours["questions"] == ["Which customers act now?"], \
+        "Ask Genie suggests only the Genie Agent's sample questions whose example SQL returns rows"
 
 
 def test_merging_again_replaces_only_this_use_cases_page_in_place(agent_ns, tmp_path, monkeypatch):
@@ -362,7 +369,7 @@ def test_a_page_genie_writes_never_names_a_genie_agent_because_inspire_sets_it(a
 
 
 def test_a_page_joining_a_hub_keeps_its_own_genie_agent_and_never_changes_the_hubs(agent_ns, tmp_path, monkeypatch):
-    inst, context, seen, calls = _merge_flow(agent_ns, tmp_path, monkeypatch, assets={"genie_space": "gB"})
+    inst, context, seen, calls = _merge_flow(agent_ns, tmp_path, monkeypatch, assets={"genie_space": "gB"}, routes=_own_genie_route("gB"))
     smoked = []
     inst._implement_genie_smoke = lambda space_id, question, **kw: smoked.append(space_id) or {}
     fields = inst._implement_app(context, None)
@@ -373,19 +380,21 @@ def test_a_page_joining_a_hub_keeps_its_own_genie_agent_and_never_changes_the_hu
     assert ours["genie"]["space_id"] == "gB" and ours["genie_note"] == ""
     assert "genie" not in json.loads(files["pages/n01_u07.json"])
     assert space_id == "gB", "the App's service principal gets CAN RUN on this page's own Genie Agent"
-    assert not [c for c in calls if "/genie/" in c[1]] and smoked == [], "no other use case's tables go into any Genie Agent"
+    assert [c[:2] for c in calls if "/genie/" in c[1]] == [("GET", "/api/2.0/genie/spaces/gB")] and smoked == [], \
+        "no other use case's tables go into any Genie Agent: the page only reads its own for the questions Ask Genie suggests"
     assert fields["_asset"] == {"merged_into": "sales-desk", "page": "n01_u01_s5150"}
 
 
 def test_a_hub_without_a_genie_agent_stays_without_one_and_the_joining_page_answers_with_its_own(agent_ns, tmp_path, monkeypatch):
     files = _host_files(agent_ns, tmp_path, genie=None)
-    inst, context, seen, calls = _merge_flow(agent_ns, tmp_path, monkeypatch, files=files, assets={"genie_space": "gB"})
+    inst, context, seen, calls = _merge_flow(agent_ns, tmp_path, monkeypatch, files=files, assets={"genie_space": "gB"},
+                                             routes=_own_genie_route("gB"))
     inst._implement_app(context, None)
     deployed = seen["deployed"][0]
     settings = json.loads(deployed[1]["inspire_app.json"])
     assert settings["genie"] is None and settings["genie_note"] == "Ask Genie is off"
     assert json.loads(deployed[1]["pages/n01_u01_s5150.json"])["genie"]["space_id"] == "gB" and deployed[3] == "gB"
-    assert not [c for c in calls if "/genie/" in c[1]]
+    assert [c[:2] for c in calls if "/genie/" in c[1]] == [("GET", "/api/2.0/genie/spaces/gB")]
 
 
 def test_a_joining_page_whose_genie_agent_did_not_build_is_off_with_the_reason_and_the_hub_keeps_its_own(agent_ns, tmp_path,

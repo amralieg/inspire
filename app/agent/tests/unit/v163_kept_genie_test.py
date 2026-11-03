@@ -25,7 +25,7 @@ def _posted_text(ns, tmp_path, replace_edits):
     import shell_alerts
     inst, calls = _output_inspire(ns, tmp_path / str(replace_edits), SPACE_ANSWERS)
     inst._implement_app_shell = lambda: (None, {"shell_sql": SHELL_SQL, "shell_alerts": shell_alerts})
-    inst._implement_run_query_check = lambda sql, require_rows=False, limit=20: []
+    inst._implement_run_query_check = lambda sql, require_rows=False, limit=20: [] if "HAVING COUNT(*) > 1" in sql else [{"n": 1}]
     runner = _FileRunner([{"exit": 0}], [{"genie_space.json": _space(grounded=True)}])
     inst._implement_genie_space(_keeping(ns, replace_edits), runner)
     [(body, _q)] = _calls_to(calls, "POST", "/api/2.0/genie/spaces")

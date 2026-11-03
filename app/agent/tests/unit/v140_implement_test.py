@@ -2561,7 +2561,7 @@ def test_a_genie_space_whose_example_sql_returns_a_raw_list_goes_back_to_genie(a
             in runner.prompts[1])
     assert [c[:2] for c in calls].count(("POST", "/api/2.0/genie/spaces")) == 1, "no space is saved until its SQL shows no raw JSON"
     plain = _FileRunner([{"exit": 0}], [{"genie_space.json": _space(grounded=True)}])
-    inst._implement_run_query_check = lambda sql, require_rows=False, limit=20: []
+    inst._implement_run_query_check = lambda sql, require_rows=False, limit=20: [] if "HAVING COUNT(*) > 1" in sql else [{"n": 1}]
     inst._implement_genie_space(_output_context(agent_ns), plain)
     assert "- Tables: the business output table first, then the input tables" in plain.prompts[0]
     logged = _FileRunner([{"exit": 0}], [{"genie_space.json": _space(grounded=True)}])
@@ -4053,7 +4053,7 @@ def test_the_genie_space_records_its_sample_questions_and_the_sql_its_check_ran(
                    "status": "COMPLETED", "attachments": [{"text": {"content": "12 customers"}},
                                                           {"query": {"query": "SELECT COUNT(*) FROM main.inspire.churn_out", "description": "d"}}]}}
     inst, calls = _output_inspire(agent_ns, tmp_path, answers)
-    inst._implement_run_query_check = lambda sql, require_rows=False, limit=20: []
+    inst._implement_run_query_check = lambda sql, require_rows=False, limit=20: [] if "HAVING COUNT(*) > 1" in sql else [{"n": 1}]
     runner = _FileRunner([{"exit": 0}], [{"genie_space.json": _space(grounded=True)}])
     fields = inst._implement_genie_space(_output_context(agent_ns), runner)
     assert fields["genie_space_id"] == "s9" and fields["genie_space_url"] == "https://h/genie/rooms/s9"
@@ -4112,7 +4112,7 @@ def _question_inspire(agent_ns, tmp_path):
                ("GET", "/api/2.0/genie/spaces/s9/conversations/c1/messages/m1"): {
                    "status": "COMPLETED", "attachments": [{"query": {"query": "SELECT 1 FROM main.inspire.churn_out", "description": "d"}}]}}
     inst, calls = _output_inspire(agent_ns, tmp_path, answers)
-    inst._implement_run_query_check = lambda sql, require_rows=False, limit=20: []
+    inst._implement_run_query_check = lambda sql, require_rows=False, limit=20: [] if "HAVING COUNT(*) > 1" in sql else [{"n": 1}]
     return inst, calls
 
 

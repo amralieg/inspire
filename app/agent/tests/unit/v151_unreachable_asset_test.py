@@ -4,7 +4,7 @@ import pytest
 
 from v120_artifacts_support import CapturingLogger
 from v140_implement_test import ALERT, _alert_inspire, _calls_to, _output_context, _space
-from v142_merge_test import DASH, _dashboard as _board_json, _dashboard_inspire, _merge_flow, _normalized
+from v142_merge_test import DASH, _dashboard as _board_json, _dashboard_inspire, _merge_flow, _normalized, _own_genie_route
 from v144_undo_test import OK_SMOKE, _genie_flow, _page_rounds, _rounds_runner
 
 BUILDER = "app-abc123 inspire-app"
@@ -139,12 +139,14 @@ def test_a_dashboard_this_use_case_is_added_to_that_inspire_cannot_change_stops_
 
 
 def test_a_hub_s_genie_agent_inspire_cannot_change_never_stops_a_page_joining_it(agent_ns, tmp_path, monkeypatch):
-    routes = {("GET", "/api/2.0/genie/spaces/gA"): RuntimeError(LOCKED), ("PATCH", "/api/2.0/genie/spaces/gA"): RuntimeError(LOCKED)}
+    routes = {("GET", "/api/2.0/genie/spaces/gA"): RuntimeError(LOCKED), ("PATCH", "/api/2.0/genie/spaces/gA"): RuntimeError(LOCKED),
+              **_own_genie_route("gB")}
     inst, context, seen, calls = _merge_flow(agent_ns, tmp_path, monkeypatch, assets={"genie_space": "gB"}, routes=routes)
     inst._implement_builder_label = lambda: BUILDER
     inst._implement_app(context, None)
     assert len(seen["deployed"]) == 1 and seen["deployed"][0][3] == "gB"
-    assert not [c for c in calls if "/genie/" in c[1]], "a page answers from its own Genie Agent, so the hub's is never opened"
+    assert [c[:2] for c in calls if "/genie/" in c[1]] == [("GET", "/api/2.0/genie/spaces/gB")], \
+        "a page answers from its own Genie Agent, so the hub's is never opened"
 
 
 def test_the_grant_message_says_whether_the_output_is_this_use_case_s_own_or_one_it_joins(agent_ns):
