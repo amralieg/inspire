@@ -15,3 +15,15 @@ test('a fixture the agent and the App both read lives once, in the agent fixture
     assert.ok(agent.has(name), name);
   }
 });
+
+test('the First run read rule has one cases fixture that the notebook reader and runScope.js are both tested against', () => {
+  const name = 'run_scope_legacy_cases.json';
+  const read = (...parts) => fs.readFileSync(path.resolve(__dirname, '..', '..', ...parts), 'utf8');
+  assert.ok(fs.existsSync(path.join(AGENT_FIXTURES, name)), name);
+  assert.match(read('agent', 'tests', 'unit', 'v197_run_scope_legacy_read_test.py'), new RegExp(`"${name}"`), 'the Python reader test reads it');
+  const js = read('backend', 'test', 'runScope.test.js');
+  assert.match(js, new RegExp(`agent/tests/fixtures/${name}`), 'the runScope.js test reads it');
+  assert.doesNotMatch(js, /\['5', RECORDED_RUN_SCOPE|LEGACY_VALUES/, 'no second table of cases in the JS test');
+  const cases = JSON.parse(fs.readFileSync(path.join(AGENT_FIXTURES, name), 'utf8'));
+  assert.ok(cases.read.length >= 20 && cases.unrecorded_default.length >= 5, 'the cases cover the mapping and the fallback');
+});

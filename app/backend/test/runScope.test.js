@@ -222,10 +222,9 @@ test('the profile body the wizard, the Build page and the Run tab send is one th
   }
 });
 
-const RECORDED_RUN_SCOPE = {
-  allowed: '', applies: 'run', choices: [], default: 'all', group: 'scope', help: 'Run scope.', high: null, high_open: false, kind: 'number', label: 'Run scope',
-  low: null, low_open: false, many: false, name: 'run_scope', reason: 'Genie Code chose it when it built the notebook', source: 'widget', unit: '', whole: false,
-};
+const LEGACY = require('../../agent/tests/fixtures/run_scope_legacy_cases.json');
+const RECORDED_RUN_SCOPE = LEGACY.declaration;
+const declaredOf = (declared) => (declared === 'recorded' ? RECORDED_RUN_SCOPE : declared && { ...RECORDED_RUN_SCOPE, ...declared });
 const SCOPE_ALLOWED = 'all, groups, recent, records';
 const SCOPE_CASES = [['all', ''], ['groups', ''], ['recent', ''], ['records', ''], ['', ''],
   ['5', `run_scope is '5'; allowed: ${SCOPE_ALLOWED}`], ['everything', `run_scope is 'everything'; allowed: ${SCOPE_ALLOWED}`]];
@@ -289,27 +288,13 @@ test('the wizard reads a First run, recorded or still a notebook widget, as its 
   }
 });
 
-const LEGACY_VALUES = [
-  ['groups', RECORDED_RUN_SCOPE, { run_scope: 'groups' }, false],
-  ['ALL', RECORDED_RUN_SCOPE, { run_scope: 'all' }, false],
-  ['', RECORDED_RUN_SCOPE, { run_scope: '' }, false],
-  ['5', RECORDED_RUN_SCOPE, { run_scope: '' }, true],
-  ['5', null, { run_scope: '' }, true],
-  ['everything', RECORDED_RUN_SCOPE, { run_scope: '' }, true],
-  ['500', { ...RECORDED_RUN_SCOPE, label: 'Records for the first run' }, { run_scope: 'records', scope_records: '500' }, false],
-  ['14', { ...RECORDED_RUN_SCOPE, help: 'How many days back the first run covers.' }, { run_scope: 'recent', scope_days: '14' }, false],
-  ['200', { ...RECORDED_RUN_SCOPE, unit: 'rows' }, { run_scope: 'records', scope_records: '200' }, false],
-  ['14', { ...RECORDED_RUN_SCOPE, help: 'Records from the last days.' }, { run_scope: '' }, true],
-  ['0', { ...RECORDED_RUN_SCOPE, label: 'Records for the first run' }, { run_scope: '' }, true],
-  ['2.5', { ...RECORDED_RUN_SCOPE, unit: 'days' }, { run_scope: '' }, true],
-  ['500', { ...RECORDED_RUN_SCOPE, kind: 'choice', help: 'all the records or a number of records' }, { run_scope: '' }, true],
-];
 
 test('a First run a build recorded as a number or another word is mapped on read to the choice it meant, and to no choice when it cannot be known (must-exclude)', async () => {
   const S = await lib('runScope.js');
-  for (const [value, declared, mapped, unrecorded] of LEGACY_VALUES) {
-    const got = S.recordedRunScope({ top_k: '10', run_scope: value }, declared);
-    assert.deepEqual(got, { values: { top_k: '10', ...mapped }, unrecorded }, `${value} ${JSON.stringify(declared)}`);
+  assert.ok(LEGACY.read.some((c) => !c.unrecorded && c.mapped.run_scope === 'records') && LEGACY.read.some((c) => c.unrecorded));
+  for (const { value, declared, mapped, unrecorded } of LEGACY.read) {
+    const got = S.recordedRunScope({ ...LEGACY.kept, run_scope: value }, declaredOf(declared));
+    assert.deepEqual(got, { values: { ...LEGACY.kept, ...mapped }, unrecorded }, `${JSON.stringify(value)} ${JSON.stringify(declared)}`);
   }
   const kept = { run_scope: 'recent', scope_days: '7' };
   assert.equal(S.recordedRunScope(kept, RECORDED_RUN_SCOPE).values, kept, 'a valid choice is read as it is');
@@ -335,6 +320,9 @@ test('a First run that cannot be known starts from the default the First run ste
   for (const profile of [null, undefined, 'x']) assert.deepEqual(S.withUnrecordedScope(empty, profile), { run_scope: 'all', scope_groups: '' }, String(profile));
   assert.deepEqual(S.withUnrecordedScope({ run_scope: 'recent' }, PROFILE), { run_scope: 'recent' }, 'never over a choice');
   assert.equal(S.withUnrecordedScope(empty, null).run_scope, S.firstRunDefault({}));
+  for (const { table_default: given, run_scope: expected } of LEGACY.unrecorded_default) {
+    assert.equal(S.withUnrecordedScope(empty, given == null ? null : { default_scope: given }).run_scope, expected, String(given));
+  }
 });
 
 test('the wizard reads an old spec whose First run is a number as no choice yet, also for a held version, and keeps every other widget', async () => {

@@ -353,10 +353,7 @@ test('the Build page states the scope of the last run next to its numbers, and t
   }
 });
 
-const RECORDED_RUN_SCOPE = {
-  allowed: '', applies: 'run', choices: [], default: 'all', group: 'scope', help: 'Run scope.', high: null, high_open: false, kind: 'number', label: 'Run scope',
-  low: null, low_open: false, many: false, name: 'run_scope', reason: 'Genie Code chose it when it built the notebook', source: 'widget', unit: '', whole: false,
-};
+const RECORDED_RUN_SCOPE = JSON.parse(fs.readFileSync(new URL('../../../agent/tests/fixtures/run_scope_legacy_cases.json', import.meta.url), 'utf8')).declaration;
 const recordedAsNumber = () => {
   const row = withScopeModel();
   const status = JSON.parse(row.asset_status);
@@ -467,6 +464,86 @@ for (const [name, profile] of [['the data qualifies for Grouping', PROFILE], ['t
     }
   });
 }
+
+const NOT_FOUND_LOAD = 'Failed to load resource: the server responded with a status of 404 (Not Found)';
+const otherErrors = (ui) => ui.pageErrors.filter((e) => e !== NOT_FOUND_LOAD);
+const RUN_SCOPE_UNRECORDED_HIDDEN = 'The earlier build did not record which first run it meant, and Inspire could not suggest one for this table, so this build '
+  + 'runs on everything.';
+
+test('all settings on an old spec whose First run is a number, when the table read answers not found, show the note on Vibes and build on everything', async () => {
+  const calls = [];
+  const ui = await openBuild({ me: ME, history: [withRecordedValue(recordedAsNumber(), '5')], forwardedToken: PERSON },
+    { init: profileAt(calls, { error: 'No use case N01-U01 in this session.' }, { status: 404 }) });
+  const { page, made } = ui;
+  try {
+    await openSettings(page);
+    await until(() => calls.length >= 1, 'the table read', 30000);
+    await page.evaluate(() => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done))));
+    const steps = (await stepBar(page)).map((s) => s.replace(/^\d+\. /, ''));
+    assert.ok(!steps.includes('First run') && !steps.includes('Grouping'), `First run is hidden: ${steps.join(' | ')}`);
+    const back = page.getByRole('button', { name: 'Back' });
+    for (let i = 0; i < steps.length && !(await page.locator('[aria-current="step"]').innerText()).includes(steps[0]); i += 1) {
+      assert.equal(await page.locator('[data-first-run-unrecorded]').count(),
+        (await page.locator('[aria-current="step"]').innerText()).includes('Vibes') ? 1 : 0, 'the note is on Vibes only');
+      await back.click();
+    }
+    assert.equal(await page.locator('[data-first-run-unrecorded]').count(), 0, 'the note is on Vibes only');
+    await toVibes(page);
+    await onStep(page, 'Vibes');
+    assert.deepEqual(await page.locator('[data-first-run-unrecorded]').allTextContents(), [RUN_SCOPE_UNRECORDED_HIDDEN]);
+    assert.deepEqual((await page.locator('[role="alert"] p').allTextContents()).filter((t) => /run_scope|First run/.test(t)), [], 'no First run problem');
+    const keep = page.getByRole('radio', { name: /^Keep v\d+ live/ });
+    await page.getByRole('button', { name: 'Start MVP', exact: true }).click();
+    if (await keep.count()) {
+      await keep.check();
+      await page.getByRole('button', { name: 'Start MVP', exact: true }).click();
+    }
+    await until(() => made.jobs.length === 1, 'the build', 30000);
+    const [sent] = insertsOf(made);
+    assert.equal(sent.config.widgets.run_scope, 'all', JSON.stringify(sent.config.widgets));
+    assert.deepEqual(otherErrors(ui), [], 'the table read that answers not found is the only error');
+  } finally {
+    await ui.close();
+  }
+});
+
+test('all settings on an old spec whose First run is a valid choice show no unrecorded note on Vibes when the table read answers not found (must-exclude)', async () => {
+  const calls = [];
+  const ui = await openBuild({ me: ME, history: [withRecordedValue(recordedAsNumber(), 'recent')], forwardedToken: PERSON },
+    { init: profileAt(calls, { error: 'No use case N01-U01 in this session.' }, { status: 404 }) });
+  const { page } = ui;
+  try {
+    await openSettings(page);
+    await until(() => calls.length >= 1, 'the table read', 30000);
+    await toVibes(page);
+    await onStep(page, 'Vibes');
+    assert.equal(await page.locator('[data-first-run-unrecorded]').count(), 0);
+    assert.deepEqual(otherErrors(ui), [], 'the table read that answers not found is the only error');
+  } finally {
+    await ui.close();
+  }
+});
+
+test('the Build page of an old App whose First run was recorded as a number shows the unrecorded note when the table read answers not found', async () => {
+  const calls = [];
+  const oldView = () => {
+    const view = viewOf({ ...SAVED, run_scope: '5' });
+    return { ...view, settings: view.settings.map((s) => (s.name === 'run_scope' ? { ...RECORDED_RUN_SCOPE, value: '5', saved: false, editable: true } : s)) };
+  };
+  const ui = await openBuild({ history: [withRecordedValue(recordedAsNumber(), '5')], forwardedToken: PERSON, appApi: { 'GET /api/settings': [oldView] } },
+    { init: profileAt(calls, { error: 'No use case N01-U01 in this session.' }, { status: 404 }) });
+  const { page } = ui;
+  try {
+    const panel = (await openAsset(page, 'notebook')).getByRole('region', { name: 'Settings', exact: true });
+    const scope = panel.locator('[data-setting-group="run_scope"]');
+    await scope.locator('[data-first-run-unrecorded]').waitFor({ timeout: 30000 });
+    assert.equal(await scope.locator('[data-first-run-unrecorded]').textContent(), RUN_SCOPE_UNRECORDED);
+    assert.deepEqual(await checkedChoice(page, 'data-first-run-choice'), ['all'], 'everything, as no table read suggests another');
+    assert.deepEqual(otherErrors(ui), [], 'the table read that answers not found is the only error');
+  } finally {
+    await ui.close();
+  }
+});
 
 test('the Build page of an App built before First run had choices shows the recorded First run locked with the reason, and still saves Grouping through the App', async () => {
   const calls = [];

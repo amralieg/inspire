@@ -1,0 +1,42 @@
+{
+ "declaration": {
+  "allowed": "", "applies": "run", "choices": [], "default": "all", "group": "scope", "help": "Run scope.", "high": null, "high_open": false,
+  "kind": "number", "label": "Run scope", "low": null, "low_open": false, "many": false, "name": "run_scope",
+  "reason": "Genie Code chose it when it built the notebook", "source": "widget", "unit": "", "whole": false
+ },
+ "kept": {"top_k": "10"},
+ "read": [
+  {"value": "groups", "declared": "recorded", "mapped": {"run_scope": "groups"}, "unrecorded": false},
+  {"value": "ALL", "declared": "recorded", "mapped": {"run_scope": "all"}, "unrecorded": false},
+  {"value": " recent ", "declared": null, "mapped": {"run_scope": "recent"}, "unrecorded": false},
+  {"value": "", "declared": "recorded", "mapped": {"run_scope": ""}, "unrecorded": false},
+  {"value": null, "declared": "recorded", "mapped": {"run_scope": null}, "unrecorded": false},
+  {"value": "5", "declared": "recorded", "mapped": {"run_scope": ""}, "unrecorded": true},
+  {"value": "5", "declared": null, "mapped": {"run_scope": ""}, "unrecorded": true},
+  {"value": 5, "declared": "recorded", "mapped": {"run_scope": ""}, "unrecorded": true},
+  {"value": "everything", "declared": "recorded", "mapped": {"run_scope": ""}, "unrecorded": true},
+  {"value": true, "declared": "recorded", "mapped": {"run_scope": ""}, "unrecorded": true},
+  {"value": "500", "declared": {"label": "Records for the first run"}, "mapped": {"run_scope": "records", "scope_records": "500"}, "unrecorded": false},
+  {"value": 500.0, "declared": {"label": "Records for the first run"}, "mapped": {"run_scope": "records", "scope_records": "500"}, "unrecorded": false},
+  {"value": "0500", "declared": {"label": "Rows to read"}, "mapped": {"run_scope": "records", "scope_records": "500"}, "unrecorded": false},
+  {"value": "14", "declared": {"help": "How many days back the first run covers."}, "mapped": {"run_scope": "recent", "scope_days": "14"}, "unrecorded": false},
+  {"value": "200", "declared": {"unit": "rows"}, "mapped": {"run_scope": "records", "scope_records": "200"}, "unrecorded": false},
+  {"value": "1", "declared": {"unit": "day"}, "mapped": {"run_scope": "recent", "scope_days": "1"}, "unrecorded": false},
+  {"value": "14", "declared": {"help": "Records from the last days."}, "mapped": {"run_scope": ""}, "unrecorded": true},
+  {"value": "14", "declared": {"label": "Recordings to keep"}, "mapped": {"run_scope": ""}, "unrecorded": true},
+  {"value": "0", "declared": {"label": "Records for the first run"}, "mapped": {"run_scope": ""}, "unrecorded": true},
+  {"value": "-5", "declared": {"label": "Records for the first run"}, "mapped": {"run_scope": ""}, "unrecorded": true},
+  {"value": "2.5", "declared": {"unit": "days"}, "mapped": {"run_scope": ""}, "unrecorded": true},
+  {"value": 2.5, "declared": {"unit": "days"}, "mapped": {"run_scope": ""}, "unrecorded": true},
+  {"value": "500", "declared": {"kind": "choice", "help": "all the records or a number of records"}, "mapped": {"run_scope": ""}, "unrecorded": true},
+  {"value": "500", "declared": {"label": null, "help": null, "unit": "records"}, "mapped": {"run_scope": "records", "scope_records": "500"}, "unrecorded": false}
+ ],
+ "unrecorded_default": [
+  {"table_default": "groups", "run_scope": "groups"},
+  {"table_default": "recent", "run_scope": "recent"},
+  {"table_default": "records", "run_scope": "records"},
+  {"table_default": "all", "run_scope": "all"},
+  {"table_default": "sometimes", "run_scope": "all"},
+  {"table_default": null, "run_scope": "all"}
+ ]
+}

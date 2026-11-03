@@ -197,7 +197,7 @@ import {
 import ScopeSettings from '../components/ScopeSettings';
 import { PROFILE_WAITING, useGroupingProfile } from '../lib/groupingProfile';
 import {
-  FIRST_RUN_TITLE, GROUPING_TITLE, builtFirstRunOf, isScopeSetting, latestRunScope, scopeChanges, scopeStepsOf, scopeValues, withScopeDefaults, withUnrecordedScope,
+  FIRST_RUN_TITLE, GROUPING_TITLE, RUN_SCOPE_UNRECORDED_HIDDEN, builtFirstRunOf, isScopeSetting, latestRunScope, scopeChanges, scopeStepsOf, scopeValues, withScopeDefaults, withUnrecordedScope,
 } from '../lib/runScope';
 
 const ICONS = { notebook: NotebookPen, dashboard: LayoutDashboard, genie_space: Sparkles, app: AppWindow, alert: Bell };
@@ -1606,6 +1606,11 @@ export default function ImplementWizard({
 
         {stepId === 'vibes' && collectedNote && (
           <p role="status" data-collected-vibes="" className="mb-3 text-[11px] text-text-secondary bg-bg border border-border rounded-md px-3 py-2">{collectedNote}</p>
+        )}
+        {stepId === 'vibes' && firstRunUnrecorded && !scopeSteps.firstRun && scopeProfile.state !== 'loading' && (
+          <p role="note" data-first-run-unrecorded="" className="mb-3 text-[11px] text-text-secondary bg-bg border border-border rounded-md px-3 py-2">
+            {RUN_SCOPE_UNRECORDED_HIDDEN}
+          </p>
         )}
         {stepId === 'vibes' && (
           <VibesPanel spec={spec} built={built} next={(context?.latest?.spec_version ?? 0) + 1} onChange={(value) => patch('vibes', value)}

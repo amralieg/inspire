@@ -78,6 +78,8 @@ export function runScopeSetting(setting) {
 }
 
 export const RUN_SCOPE_UNRECORDED = 'The earlier build did not record which first run it meant, so Inspire shows the first run it suggests for this table.';
+export const RUN_SCOPE_UNRECORDED_HIDDEN = 'The earlier build did not record which first run it meant, and Inspire could not suggest one for this table, so this build '
+  + 'runs on everything.';
 export const RUN_SCOPE_OLD_APP = 'This App was built before First run had its choices, so it cannot save one. To change First run, open Vibe/Add/Remove Features, '
   + 'then Open all settings; the next build gives the App the choices.';
 const RUN_SCOPE_WORDS = [[/\b(records?|rows?)\b/, 'records', SCOPE_RECORDS], [/\bdays?\b/, 'recent', SCOPE_DAYS]];
