@@ -295,6 +295,7 @@ REVIEWED = {
     },
     'composed': {
         ('_require_asset_package', 'error'),
+        ('main', '_environment_problem'),
         ('entry', 'wanted'),
         ('manifest', 'held'),
         ('_call_ai_query_impl', "'; '.join((f'{ep} ({why})' for ep, why in sorted(_unusable.items())))"),
