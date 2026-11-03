@@ -3035,10 +3035,14 @@ if (require.main === module) (async () => {
   }
 
   hostedRun.installLifecycle();
-  app.listen(PORT, () => {
+  const server = app.listen(PORT, (err) => {
+    if (err) {
+      console.error(`Inspire AI cannot listen on port ${PORT}: ${err.message}`);
+      process.exit(1);
+    }
     const hasNotebook = fs.existsSync(BUNDLED_NOTEBOOK_PATH);
     const servingStatic = fs.existsSync(STATIC_DIR);
-    console.log(`\n🚀 Inspire AI running on http://localhost:${PORT}`);
+    console.log(`\n🚀 Inspire AI running on http://localhost:${server.address().port}`);
     console.log(`   Databricks Host: ${DATABRICKS_HOST || '⚠️  Not configured'}`);
     console.log(`   Auth:            ${spTokenCache ? '✅ SP OAuth token ready' : SERVICE_TOKEN ? '✅ Static token' : '⚠️  No token (user auth required)'}`);
     console.log(`   SP Credentials:  ${SP_CLIENT_ID ? '✅ Set' : '—  Not configured'}`);

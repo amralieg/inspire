@@ -7,6 +7,7 @@ const http = require('node:http');
 const { EventEmitter } = require('node:events');
 const express = require('express');
 const H = require('../lib/hostedRun');
+const { fakePageChild } = require('./support/hostedShell');
 
 const OWNER = ['owner', 'example.com'].join('@');
 const SECRETS = {
@@ -20,20 +21,6 @@ const FORBIDDEN = Object.keys(SECRETS);
 const record = (id, version = 1) => ({ id, source: `/Workspace/Users/someone/hosted/${id}/v${version}`, version, warehouse_id: 'wh2', page: 'n01_u01',
   published_at: `2026-10-3${version}T05:00:00Z` });
 const entry = (rec) => ({ kind: 'inspire', id: rec.id, hosted: rec, owners: [OWNER] });
-
-function fakeChild() {
-  const child = new EventEmitter();
-  child.stderr = new EventEmitter();
-  child.kills = [];
-  child.exitCode = null;
-  child.signalCode = null;
-  child.kill = (signal) => {
-    child.kills.push(signal);
-    setImmediate(() => { child.signalCode = signal; child.emit('exit', null, signal); });
-    return true;
-  };
-  return child;
-}
 
 function folderOf(rec, extra = []) {
   const root = rec.source;
@@ -89,7 +76,7 @@ function stepChild(answer, steps, cmd, args, opts) {
   return child;
 }
 
-async function setup({ folders = {}, health = async () => true, max, idleMs, healthMs, retryMs, step = null } = {}) {
+async function setup({ folders = {}, health = async () => true, max, idleMs, healthMs, retryMs, step = null, announce = (port) => port } = {}) {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'hosted-run-test-'));
   const spawned = [];
   const steps = [];
@@ -99,7 +86,7 @@ async function setup({ folders = {}, health = async () => true, max, idleMs, hea
   const hosted = H.createHostedRun({
     spawn: (cmd, args, opts) => {
       if (args.includes('-c')) return stepChild(step, steps, cmd, args, opts);
-      const child = fakeChild();
+      const child = fakePageChild(announce(up.port));
       spawned.push({ cmd, args, opts, child });
       return child;
     },
@@ -109,7 +96,6 @@ async function setup({ folders = {}, health = async () => true, max, idleMs, hea
     env: PARENT_ENV,
     cwd: '/app/source',
     now: () => clock.at,
-    port: async () => up.port,
     checkHealth: health,
     pause: async () => { clock.at += 250; },
     ...(max ? { maxChildren: max } : {}),
@@ -155,7 +141,8 @@ test('the page process gets only PATH, HOME, LANG, DATABRICKS_HOST and DATABRICK
     assert.equal(got.status, 200, got.text);
     assert.equal(s.spawned.length, 1);
     const [{ cmd, args, opts }] = s.spawned;
-    assert.deepEqual([cmd, args.slice(0, 3), args.slice(3, 5)], ['/opt/venv/bin/python3', ['-m', 'uvicorn', 'app:app'], ['--host', '127.0.0.1']]);
+    assert.deepEqual([cmd, args.slice(0, 3), args.slice(3, 5), args.slice(5)], ['/opt/venv/bin/python3', ['-m', 'uvicorn', 'app:app'], ['--host', '127.0.0.1'],
+      ['--port', '0']], 'the page binds a port of its own choosing, so no other process can take it between a pick and the bind');
     assert.deepEqual(Object.keys(opts.env).sort(), ['DATABRICKS_HOST', 'DATABRICKS_WAREHOUSE_ID', 'HOME', 'LANG', 'PATH']);
     for (const name of FORBIDDEN) assert.equal(Object.hasOwn(opts.env, name), false, `${name} reaches the page process`);
     for (const value of Object.values(SECRETS)) assert.ok(!Object.values(opts.env).some((v) => String(v).includes(value)), `${value} reaches the page process`);
@@ -357,7 +344,8 @@ test('a page that is no longer listed (uninstalled or moved to its own App) stop
 
 test('a crashed page shows failed with its last 40 stderr lines, tokens stripped, to an owner only', async () => {
   const rec = record('n01-u01-j');
-  const s = await setup({ folders: folderOf(rec), health: () => new Promise((resolve) => { setTimeout(() => resolve(false), 5); }), retryMs: 0 });
+  const s = await setup({ folders: folderOf(rec), health: () => new Promise((resolve) => { setTimeout(() => resolve(false), 5); }), retryMs: 0,
+    announce: () => null });
   try {
     s.hosted.setListed([entry(rec)], { key: 'db' });
     const pending = call(s.base, `/run/${rec.id}/`, { headers: TOKEN });
@@ -384,6 +372,56 @@ test('a crashed page shows failed with its last 40 stderr lines, tokens stripped
     assert.ok(owner.stderr[35].includes('[redacted]') && owner.stderr[36].includes('[redacted]') && owner.stderr[37].includes('[redacted]'));
     const viewer = s.hosted.stateOf(rec.id, { owner: false });
     assert.deepEqual([viewer.state, viewer.error, Object.hasOwn(viewer, 'stderr')], ['failed', 'the page stopped with exit code 1', false]);
+  } finally {
+    await s.close();
+  }
+});
+
+test('Inspire reaches a page only on the port that page said it listens on, never on a port another page holds', async () => {
+  const rec = record('n01-u01-p');
+  const other = await upstream();
+  const s = await setup({ folders: folderOf(rec), health: async (port) => port === other.port || port === s.up.port });
+  try {
+    s.hosted.setListed([entry(rec)], { key: 'db' });
+    const got = await call(s.base, `/run/${rec.id}/data`, { headers: TOKEN });
+    assert.equal(got.status, 200, got.text);
+    assert.equal(s.up.seen.length, 1, 'the request reached the page that announced its port');
+    assert.equal(other.seen.length, 0, 'no request reached a port the page did not announce');
+    assert.equal(s.hosted.runs.get(rec.id).port, s.up.port);
+  } finally {
+    await s.close();
+    await other.close();
+  }
+});
+
+test('a page that never says which port it listens on fails within the cap and is stopped', async () => {
+  const rec = record('n01-u01-q');
+  const checked = [];
+  const s = await setup({ folders: folderOf(rec), announce: () => null, healthMs: 1000, health: async (port) => { checked.push(port); return true; } });
+  try {
+    s.hosted.setListed([entry(rec)], { key: 'db' });
+    const got = await call(s.base, `/run/${rec.id}/`, { headers: TOKEN });
+    assert.equal(got.status, 503);
+    assert.match(got.text, /did not say which port it listens on within 1 seconds/);
+    assert.deepEqual(s.spawned[0].child.kills, ['SIGTERM']);
+    assert.equal(s.hosted.stateOf(rec.id).state, 'failed');
+    assert.deepEqual(checked, [], 'no health check runs against a port the page never named');
+    assert.equal(s.up.seen.length, 0);
+  } finally {
+    await s.close();
+  }
+});
+
+test('a page whose uvicorn says it listens on port 0 fails with the version it needs and is stopped', async () => {
+  const rec = record('n01-u01-r');
+  const s = await setup({ folders: folderOf(rec), announce: () => 0 });
+  try {
+    s.hosted.setListed([entry(rec)], { key: 'db' });
+    const got = await call(s.base, `/run/${rec.id}/`, { headers: TOKEN });
+    assert.equal(got.status, 503);
+    assert.match(got.text, /did not say which port it listens on: Inside Inspire needs uvicorn 0\.15 or newer/);
+    assert.deepEqual(s.spawned[0].child.kills, ['SIGTERM']);
+    assert.equal(s.up.seen.length, 0);
   } finally {
     await s.close();
   }

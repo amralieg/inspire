@@ -1,3 +1,4 @@
+const { EventEmitter } = require('node:events');
 const http = require('node:http');
 const { appShellFiles, appShellPayload, bundledNotebookText } = require('../../lib/appShell');
 
@@ -54,4 +55,19 @@ async function fakeWarehouse() {
   return { calls, url: `http://127.0.0.1:${server.address().port}`, close: () => new Promise((resolve) => server.close(resolve)) };
 }
 
-module.exports = { HOSTED_OWNER, shellFolder, workspaceOf, fakeWarehouse };
+function fakePageChild(port) {
+  const child = new EventEmitter();
+  child.stderr = new EventEmitter();
+  if (port != null) setImmediate(() => child.stderr.emit('data', `INFO:     Uvicorn running on http://127.0.0.1:${port} (Press CTRL+C to quit)\n`));
+  child.kills = [];
+  child.exitCode = null;
+  child.signalCode = null;
+  child.kill = (signal) => {
+    child.kills.push(signal);
+    setImmediate(() => { child.signalCode = signal; child.emit('exit', null, signal); });
+    return true;
+  };
+  return child;
+}
+
+module.exports = { HOSTED_OWNER, shellFolder, workspaceOf, fakeWarehouse, fakePageChild };

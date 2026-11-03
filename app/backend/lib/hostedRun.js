@@ -1,7 +1,6 @@
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const net = require('net');
 const http = require('http');
 const childProcess = require('child_process');
 const { IMPLEMENT_APP_HOSTED_ID_RE: HOSTED_ID_RE } = require('./inspireImplement');
@@ -45,6 +44,7 @@ const HOSTED_DECISION_MAX_BYTES = 8 * 1024 * 1024;
 const HOSTED_DECISION_TEXT = { stopped: 'Inspire stopped recording the decision', step: 'the decision step', purpose: 'to record the decision' };
 const HOSTED_DECISION_REBUILD = 'build the use case again with Vibe/Add/Remove Features on Inspire\'s Build page so its page carries the current App shell';
 const HOSTED_TMP_ROOT = path.join(os.tmpdir(), 'inspire_hosted');
+const HOSTED_LISTENING_RE = /Uvicorn running on https?:\/\/127\.0\.0\.1:(\d+)/;
 const SECRET_PATTERNS = [
   /\bBearer\s+\S+/gi,
   /\bdapi[0-9a-f]{16,}\b/gi,
@@ -195,18 +195,6 @@ function workspaceFiles(dbFetch) {
   });
 }
 
-function freePort() {
-  return new Promise((resolve, reject) => {
-    const server = net.createServer();
-    server.unref();
-    server.on('error', reject);
-    server.listen(0, '127.0.0.1', () => {
-      const { port } = server.address();
-      server.close(() => resolve(port));
-    });
-  });
-}
-
 function healthy(port) {
   return new Promise((resolve) => {
     const req = http.get({ host: '127.0.0.1', port, path: '/health', timeout: 2000 }, (res) => {
@@ -277,7 +265,6 @@ function createHostedRun(options = {}) {
     env = process.env,
     cwd = process.cwd(),
     now = Date.now,
-    port = freePort,
     checkHealth = healthy,
     pause = wait,
     maxChildren = HOSTED_MAX_CHILDREN,
@@ -450,18 +437,26 @@ function createHostedRun(options = {}) {
 
   async function startRun(run, record, ws) {
     const { dir, env: pageEnv } = await pageRuntime(record, ws);
-    run.port = await port();
-    const child = spawn(python, ['-m', 'uvicorn', 'app:app', '--host', '127.0.0.1', '--port', String(run.port)], {
+    const child = spawn(python, ['-m', 'uvicorn', 'app:app', '--host', '127.0.0.1', '--port', '0'], {
       cwd: dir,
       env: pageEnv,
       stdio: ['ignore', 'ignore', 'pipe'],
     });
     run.child = child;
+    const until = now() + healthMs;
+    let heard;
+    const listening = new Promise((resolve, reject) => { heard = { resolve, reject }; });
+    const silence = setTimeout(() => heard.reject(new Error('silent')), healthMs);
+    if (silence.unref) silence.unref();
     let partial = '';
     if (child.stderr) {
       child.stderr.on('data', (chunk) => {
         const lines = (partial + String(chunk)).split(/\r?\n/);
         partial = lines.pop();
+        for (const line of lines) {
+          const said = HOSTED_LISTENING_RE.exec(line);
+          if (said) heard.resolve(Number(said[1]));
+        }
         run.stderr.push(...lines.map(redactSecrets));
         if (run.stderr.length > HOSTED_STDERR_LINES) run.stderr.splice(0, run.stderr.length - HOSTED_STDERR_LINES);
       });
@@ -470,6 +465,7 @@ function createHostedRun(options = {}) {
       if (run.child !== child) return;
       run.child = null;
       fail(run, `the page could not start: ${err.message}`);
+      heard.reject(new Error(run.error));
     });
     child.on('exit', (code, signal) => {
       if (partial) run.stderr.push(redactSecrets(partial));
@@ -478,8 +474,25 @@ function createHostedRun(options = {}) {
       run.child = null;
       run.port = null;
       fail(run, `the page stopped${code != null ? ` with exit code ${code}` : ''}${signal ? ` on ${signal}` : ''}`);
+      heard.reject(new Error(run.error));
     });
-    const until = now() + healthMs;
+    let port;
+    try {
+      port = await listening;
+    } catch (err) {
+      if (run.child !== child) throw new Error(run.error || 'the page stopped before it was ready');
+      stop(run.id, 'it did not answer in time');
+      fail(run, `the page did not say which port it listens on within ${Math.round(healthMs / 1000)} seconds`);
+      throw new Error(run.error);
+    } finally {
+      clearTimeout(silence);
+    }
+    if (!(port > 0)) {
+      stop(run.id, 'it did not say which port it listens on');
+      fail(run, 'the page did not say which port it listens on: Inside Inspire needs uvicorn 0.15 or newer');
+      throw new Error(run.error);
+    }
+    if (run.child === child) run.port = port;
     while (now() < until) {
       if (run.child !== child) throw new Error(run.error || 'the page stopped before it was ready');
       if (await checkHealth(run.port)) {

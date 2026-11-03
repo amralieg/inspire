@@ -10,6 +10,7 @@ const H = require('../lib/hostedRun');
 const A = require('../lib/useCaseAlerts');
 const { appShellPayload, bundledNotebookText } = require('../lib/appShell');
 const { makeApp, listen } = require('./support/implementApp');
+const { fakePageChild } = require('./support/hostedShell');
 const { AlertsWorkspace, RULES_MISSING, realAlerts, rulesRun, shellCompareWords } = require('./support/alertsWorkspace');
 
 const OWNER = ['owner', 'example.com'].join('@');
@@ -310,18 +311,6 @@ test('a use case with its own App lists the alerts people set up in that App and
   });
 });
 
-function fakeChild() {
-  const child = new EventEmitter();
-  child.stderr = new EventEmitter();
-  child.exitCode = null;
-  child.signalCode = null;
-  child.kill = (signal) => {
-    setImmediate(() => { child.signalCode = signal; child.emit('exit', null, signal); });
-    return true;
-  };
-  return child;
-}
-
 async function shellLike() {
   const server = http.createServer((req, res) => {
     res.setHeader('Content-Type', 'application/json');
@@ -344,7 +333,7 @@ test('the Run tab page turns its Alerts view on and saves through the same rules
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'hosted-alerts-'));
   const up = await shellLike();
   const hosted = H.createHostedRun({
-    spawn: () => fakeChild(), pickPython: async () => '/opt/venv/bin/python3', tmpRoot: tmp, env: { PATH: '/usr/bin' }, port: async () => up.port,
+    spawn: () => fakePageChild(up.port), pickPython: async () => '/opt/venv/bin/python3', tmpRoot: tmp, env: { PATH: '/usr/bin' },
     checkHealth: async () => true, pause: async () => {},
     files: () => ({
       async list(folder) { return folder === record.source ? [{ path: `${record.source}/app.py`, object_type: 'FILE' }] : []; },

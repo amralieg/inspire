@@ -1,11 +1,8 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const http = require('node:http');
-const net = require('node:net');
-const path = require('node:path');
-const { spawn } = require('node:child_process');
+const { startInspire } = require('./support/serverProcess');
 
-const SERVER = path.join(__dirname, '..', 'server.js');
 const FIXTURE = require('../../frontend/test/ui/runSummary.json');
 const SESSION = '`c`.`s`.`__inspire_session`';
 const STEP = '`c`.`s`.`__inspire_step`';
@@ -58,49 +55,14 @@ function fakeWarehouse() {
   return new Promise((resolve) => server.listen(0, '127.0.0.1', () => resolve({ server, state, url: `http://127.0.0.1:${server.address().port}` })));
 }
 
-function freePort() {
-  return new Promise((resolve, reject) => {
-    const probe = net.createServer();
-    probe.once('error', reject);
-    probe.listen(0, '127.0.0.1', () => {
-      const { port } = probe.address();
-      probe.close(() => resolve(port));
-    });
-  });
-}
-
 async function startApp(warehouseUrl) {
-  const port = await freePort();
-  const child = spawn(process.execPath, [SERVER], {
-    env: { PATH: process.env.PATH, HOME: process.env.HOME, PORT: String(port), DATABRICKS_HOST: warehouseUrl, DATABRICKS_TOKEN: 'test-token', NODE_ENV: 'test' },
-    stdio: ['ignore', 'pipe', 'pipe'],
-  });
-  let output = '';
-  await new Promise((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error(`the App did not start in 30 s: ${output.slice(-2000)}`)), 30000);
-    child.stdout.on('data', (chunk) => {
-      output += chunk;
-      if (output.includes('Inspire AI running')) {
-        clearTimeout(timer);
-        resolve();
-      }
-    });
-    child.stderr.on('data', (chunk) => { output += chunk; });
-    child.once('exit', (code) => {
-      clearTimeout(timer);
-      reject(new Error(`the App exited with ${code}: ${output.slice(-2000)}`));
-    });
-  });
+  const inspire = await startInspire({ DATABRICKS_HOST: warehouseUrl, DATABRICKS_TOKEN: 'test-token', NODE_ENV: 'test' });
   return {
     get: async (route) => {
-      const resp = await fetch(`http://127.0.0.1:${port}${route}`);
+      const resp = await fetch(`${inspire.url}${route}`);
       return { status: resp.status, body: await resp.json() };
     },
-    stop: () => new Promise((resolve) => {
-      if (child.exitCode !== null) return resolve();
-      child.once('exit', resolve);
-      child.kill('SIGTERM');
-    }),
+    stop: inspire.stop,
   };
 }
 

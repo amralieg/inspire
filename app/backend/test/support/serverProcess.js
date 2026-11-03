@@ -1,6 +1,5 @@
 const { spawn } = require('node:child_process');
 const http = require('node:http');
-const net = require('node:net');
 const path = require('node:path');
 const { folderAnswer, folderModel } = require('./workspaceFolders');
 
@@ -50,28 +49,17 @@ async function fakeWorkspace(answer, { folders = SHARED_FOLDERS } = {}) {
   };
 }
 
-function freePort() {
-  return new Promise((resolve, reject) => {
-    const probe = net.createServer();
-    probe.on('error', reject);
-    probe.listen(0, '127.0.0.1', () => {
-      const { port } = probe.address();
-      probe.close(() => resolve(port));
-    });
-  });
-}
-
 const pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const LISTENING = /Inspire AI running on http:\/\/localhost:(\d+)/;
 
 async function startInspire(env, { readyMs = 90000, command = [process.execPath, SERVER], cwd } = {}) {
-  const port = await freePort();
-  const childEnv = { PATH: process.env.PATH, HOME: process.env.HOME, PORT: String(port), ...Object.fromEntries(CLEARED_ENV.map((k) => [k, ''])), ...env };
+  const childEnv = { PATH: process.env.PATH, HOME: process.env.HOME, PORT: '0', ...Object.fromEntries(CLEARED_ENV.map((k) => [k, ''])), ...env };
   const child = spawn(command[0], command.slice(1), { cwd, env: childEnv, stdio: ['ignore', 'pipe', 'pipe'] });
   let output = '';
   child.stdout.on('data', (chunk) => { output += chunk; });
   child.stderr.on('data', (chunk) => { output += chunk; });
   const exited = new Promise((resolve) => child.on('exit', resolve));
-  const url = `http://127.0.0.1:${port}`;
+  let url = '';
   const stop = async () => {
     if (child.exitCode === null && child.signalCode === null) {
       child.kill('SIGTERM');
@@ -81,7 +69,9 @@ async function startInspire(env, { readyMs = 90000, command = [process.execPath,
   const deadline = Date.now() + readyMs;
   for (;;) {
     if (child.exitCode !== null) throw new Error(`server.js exited with ${child.exitCode}: ${output.slice(-3000)}`);
-    const ready = await fetch(`${url}/api/health`).then((resp) => resp.ok, () => false);
+    const listening = output.match(LISTENING);
+    if (listening) url = `http://127.0.0.1:${listening[1]}`;
+    const ready = url ? await fetch(`${url}/api/health`).then((resp) => resp.ok, () => false) : false;
     if (ready) break;
     if (Date.now() > deadline) {
       await stop();
