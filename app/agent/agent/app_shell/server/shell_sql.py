@@ -212,7 +212,7 @@ CAPS = {"kpis": (3, 6), "charts": (3, 8), "tables": (0, 3), "filters": (1, 8), "
         "range_number": 10 ** 15, "blocks": (0, 8), "block_text": 4000, "block_html": 20000, "image_bytes": 2 * 1024 * 1024,
         "image_height": (40, 1200), "url_chars": 2000, "kpi_rows": 2, "count_cap": 10000, "changed_keys": 500, "act_match": 100000,
         "act_match_user": 10000, "note_chars": 500, "snooze_days": 365, "conflicts_shown": 20, "similar_sample": 5, "similar_by": 3, "batches": 20,
-        "exclude_keys": 50, "window_limit": 1000, "act_history": 200, "closers_today": 200, "my_work_rows": 50, "my_work_export": 10000,
+        "exclude_keys": 50, "window_limit": 1000, "act_history": 200, "closers_today": 200, "my_work_rows": 50, "my_work_deepest": 10000,
         "my_work_days": 366}
 MY_WORK_DEFAULT = "week"
 MY_WORK_CUSTOM = "custom"

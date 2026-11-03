@@ -1,15 +1,15 @@
 import { useEffect, useRef, useState } from 'react';
-import { askGenie, failureOf, getMyWork, saveBlob, toneOf } from './api.js';
+import { askGenie, failureOf, getMyWork } from './api.js';
 import { genieAnswer, genieOn } from './genieAsk.js';
 import { grouped } from './format.js';
 import { Icon } from './icons.jsx';
 import { Tiles } from './Kpis.jsx';
-import { Failure, useToast } from './ui.jsx';
+import { Failure } from './ui.jsx';
 import { statusClass, statusLabel } from './records.js';
 import { UseCaseName, YourWork, yourWorkProps } from './Home.jsx';
 import { plural } from './hub.js';
 import {
-  CUSTOM, DEFAULT_PERIOD, PAGE_ROWS, PERIODS, activityText, aiQuestion, checkedAnswer, closeText, csvText, periodBody, periodProblem, rateText,
+  CUSTOM, DEFAULT_PERIOD, PAGE_ROWS, PERIODS, activityText, aiQuestion, checkedAnswer, closeText, periodBody, periodProblem, rateText,
   scopeText, templateText, whenText, workFacts,
 } from './mywork.js';
 
@@ -119,28 +119,12 @@ function ByUseCase({ facts, onRecord }) {
   );
 }
 
-function Activity({ app, data, body, onMore, onRecord }) {
-  const toast = useToast();
-  const [busy, setBusy] = useState(false);
+function Activity({ app, data, onMore, onRecord }) {
   const title = (id) => app.pages.find((p) => p.id === id);
-  const download = async () => {
-    setBusy(true);
-    try {
-      const all = await getMyWork({ ...body, export: true });
-      saveBlob(new Blob([csvText(all.activity, app.pages)], { type: 'text/csv' }), `my_work_${all.period?.start_day || 'all'}.csv`);
-      toast(all.truncated ? `Downloaded the latest ${grouped(all.activity.length)} of your ${grouped(all.total)} changes.`
-        : `Downloaded your ${plural(all.activity.length, 'change')}.`);
-    } catch (err) {
-      toast(err.message, toneOf(err));
-    } finally {
-      setBusy(false);
-    }
-  };
   return (
     <section className="card card--table" aria-label="What you did">
       <header className="card-h">
         <div><h2>What you did</h2><p>{`Every change you made, newest first: ${grouped(data.activity.length)} of ${plural(data.total, 'change')}`}</p></div>
-        {data.total > 0 && <div className="tbar"><button type="button" className="btn" onClick={download} disabled={busy} data-my-work-csv><Icon name="down" size={14} />{busy ? 'Preparing…' : 'Download CSV'}</button></div>}
       </header>
       {data.activity.length === 0 ? <div className="nomatch">You changed no records in this period.</div> : (
         <div className="tbl-wrap">
@@ -223,7 +207,7 @@ export default function MyWorkPage({ app, hub, hubError, summaries, onRecord }) 
             </p>
           )}
           {facts.rows.length > 0 && <ByUseCase facts={facts} onRecord={onRecord} />}
-          <Activity app={app} data={data} body={JSON.parse(asked)} onMore={more} onRecord={onRecord} />
+          <Activity app={app} data={data} onMore={more} onRecord={onRecord} />
           {quiet.map((p) => <p key={p.id} className="more" data-quiet={p.id}><UseCaseName page={p} /> {data.pages[p.id].note}</p>)}
         </>
       )}

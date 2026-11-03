@@ -127,16 +127,17 @@ def test_the_activity_is_newest_first_and_pages_by_whole_pages(tmp_path, monkeyp
     assert [a["key"] for a in my_work(s, window="week", offset=8)[1]["activity"]] == WEEK_ORDER[8:]
 
 
-def test_an_export_returns_every_change_up_to_its_cap_and_says_when_it_stopped(tmp_path, monkeypatch):
-    s, _ws, _made = work_shell(tmp_path)
-    out = my_work(s, window="week", export=True)[1]
-    assert [a["key"] for a in out["activity"]] == WEEK_ORDER and out["truncated"] is False
+def test_my_work_offers_no_export_and_pages_stop_at_the_deepest_offset(tmp_path, monkeypatch):
+    s, ws, _made = work_shell(tmp_path)
+    for flag in (True, False, "yes"):
+        assert my_work(s, window="week", export=flag) == (400, {"error": shell_core.MY_WORK_NO_EXPORT})
+    assert not ws.queries("'tally' AS `kind`")
+    out = my_work(s, window="week")[1]
+    assert "truncated" not in out and out["size"] == shell_sql.CAPS["my_work_rows"]
     monkeypatch.setitem(shell_sql.CAPS, "my_work_rows", 2)
-    monkeypatch.setitem(shell_sql.CAPS, "my_work_export", 6)
-    (tmp_path / "cap").mkdir()
-    s, _ws, _made = work_shell(tmp_path / "cap")
-    out = my_work(s, window="week", export=True)[1]
-    assert [a["key"] for a in out["activity"]] == WEEK_ORDER[:6] and out["truncated"] is True
+    monkeypatch.setitem(shell_sql.CAPS, "my_work_deepest", 6)
+    assert [a["key"] for a in my_work(s, window="week", offset=4)[1]["activity"]] == WEEK_ORDER[4:6]
+    assert my_work(s, window="week", offset=6) == (400, {"error": "offset is a whole multiple of 2 from 0 to 4"})
 
 
 def test_a_custom_period_counts_whole_days_in_the_person_time_zone(tmp_path):
@@ -183,8 +184,7 @@ def test_the_statement_filters_by_person_and_period_before_it_reads_any_version(
     ({"utc_offset_min": 240}, 400, shell_sql.FIXED_OFFSET_GONE),
     ({"offset": 3}, 400, "offset is a whole multiple of 50 from 0 to 9,950"),
     ({"offset": -50}, 400, "offset is a whole multiple of 50 from 0 to 9,950"),
-    ({"export": "yes"}, 400, "export is true or false"),
-    ({"export": True, "offset": 50}, 400, "an export starts at the first change, so send no offset with it"),
+    ({"export": True, "offset": 50}, 400, shell_core.MY_WORK_NO_EXPORT),
 ])
 def test_a_bad_request_is_refused_before_any_query(tmp_path, body, status, error):
     s, ws, _made = work_shell(tmp_path)

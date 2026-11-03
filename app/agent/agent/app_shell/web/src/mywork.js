@@ -12,7 +12,6 @@ export const AI_CHARS = 600;
 const DAY_MS = 86400000;
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
 const NUMBER = /\d[\d,]*(?:\.\d+)?/g;
-const FORMULA = /^[=+\-@\t\r]/;
 export const KINDS = {
   fixed: 'Fixed', dismissed: 'Closed as not a real issue', could_not: 'Closed as could not fix', assigned: 'Assigned', note: 'Added a note',
   changed: 'Changed',
@@ -148,17 +147,4 @@ export function activityText(entry) {
   const kind = KINDS[entry.kind] || KINDS.changed;
   if (entry.kind === 'assigned') return entry.owner ? `${kind} to ${ownerName(entry.owner)}` : 'Took the owner off';
   return kind;
-}
-
-const cell = (v) => {
-  const text = v === null || v === undefined ? '' : String(v);
-  const safe = FORMULA.test(text) ? `'${text}` : text;
-  return /[",\n\r]/.test(safe) ? `"${safe.replace(/"/g, '""')}"` : safe;
-};
-
-export function csvText(activity, pages) {
-  const title = (id) => pages.find((p) => p.id === id)?.title || id;
-  const head = ['When (UTC)', 'Use case', 'Record', 'What you did', 'Status', 'Owner', 'Note'];
-  const rows = (activity || []).map((a) => [a.at, title(a.page), a.label || a.key, activityText(a), a.status, a.owner, a.note]);
-  return `${[head, ...rows].map((r) => r.map(cell).join(',')).join('\r\n')}\r\n`;
 }

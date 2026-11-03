@@ -1,10 +1,9 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
 import { chromium } from 'playwright';
-import { DECIDE, PERSON, TABLE, appInfo, openApp, serveDist, toastSays, until } from './harness.mjs';
+import { DECIDE, PERSON, TABLE, appInfo, openApp, serveDist, until } from './harness.mjs';
 import {
-  CUSTOM, activityText, aiQuestion, checkedAnswer, csvText, factLines, periodBody, periodProblem, periodText, scopeText, templateText, whenText, workFacts,
+  CUSTOM, activityText, aiQuestion, checkedAnswer, factLines, periodBody, periodProblem, periodText, scopeText, templateText, whenText, workFacts,
 } from '../src/mywork.js';
 import { savedText, settingProblem } from '../src/settings.js';
 
@@ -90,14 +89,8 @@ test('a Genie answer is kept only when every number in it is one of the facts', 
   assert.equal(checkedAnswer('a'.repeat(601), facts), '', 'a long answer is not a short summary');
 });
 
-test('the CSV quotes its cells and never lets a cell start a formula', () => {
-  const text = csvText([{ at: '2026-10-22T14:30:00Z', page: 'n01_u05', key: 'a8', label: '=HYPERLINK("x")', kind: 'note', status: 'In progress', owner: '', note: 'Called, then "waited"' },
-    { at: '2026-10-21T10:00:00Z', page: 'gone', key: '-5', label: '', kind: 'assigned', status: 'New', owner: PERSON, note: null }], PAGES);
-  const lines = text.split('\r\n');
-  assert.equal(lines[0], 'When (UTC),Use case,Record,What you did,Status,Owner,Note');
-  assert.equal(lines[1], '2026-10-22T14:30:00Z,Pricing desk,"\'=HYPERLINK(""x"")",Added a note,In progress,,"Called, then ""waited"""');
-  assert.equal(lines[2], `2026-10-21T10:00:00Z,gone,'-5,Assigned to Pat Lee,New,${PERSON},`);
-  assert.equal(lines.at(-1), '');
+test('each change reads as what the person did, and its time reads in their zone', () => {
+  assert.equal(activityText({ kind: 'assigned', owner: PERSON }), 'Assigned to Pat Lee');
   assert.equal(activityText({ kind: 'assigned', owner: '' }), 'Took the owner off');
   assert.equal(activityText({ kind: 'surprise' }), 'Changed');
   assert.equal(whenText('2026-10-22 14:30:00', 'Asia/Dubai'), 'Oct 22, 6:30 PM');
@@ -125,8 +118,8 @@ function workRoutes(seen, { answer } = {}) {
       const body = route.request().postDataJSON();
       (seen.work ||= []).push(body);
       const offset = body.offset || 0;
-      const size = body.export ? 10000 : 50;
-      return json(200, { person: PERSON, period: WEEK, errors: {}, offset, size, total: ALL.length, truncated: false,
+      const size = 50;
+      return json(200, { person: PERSON, period: WEEK, errors: {}, offset, size, total: ALL.length,
         pages: { n01_u05: entry({ worked: { ...WORKED, changes: 60 }, minutes: 6 }), n02_u01: { visible: true, tracked: false, note: 'this use case keeps no actions, so it has no work of yours to show' } },
         activity: ALL.slice(offset, offset + size) });
     },
@@ -158,12 +151,10 @@ test('My work sits under the Overview in the side panel and shows the person\'s 
   await page.waitForFunction(() => document.querySelectorAll('[data-activity] tbody tr').length === 60);
   assert.equal(seen.work[1].offset, 50);
   assert.equal(await page.locator('[data-my-work-more]').count(), 0, 'nothing more to load once every change is shown');
-  const file = page.waitForEvent('download');
-  await page.click('[data-my-work-csv]');
-  const csv = await readFile(await (await file).path(), 'utf8');
-  assert.equal(csv.split('\r\n').length, 62);
-  assert.equal(seen.work.at(-1).export, true);
-  await toastSays(page, 'Downloaded your 60 changes.');
+  assert.equal(await page.locator('[data-my-work] button, [data-my-work] a').filter({ hasText: /download|csv|export/i }).count(), 0,
+    'My work offers no download of the activity');
+  assert.equal(await page.locator('a[download], [data-my-work-csv]').count(), 0);
+  assert.ok(seen.work.every((body) => !('export' in body)), 'the page never asks the server for an export');
   assert.deepEqual(app.errors, []);
   await context.close();
 });

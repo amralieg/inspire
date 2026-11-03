@@ -127,6 +127,7 @@ OVERVIEW_LIMIT = shell_sql.CAPS["overview_rows"] + shell_sql.OVERVIEW_RUNS + OVE
 IMPACT_LIMIT = shell_sql.CAPS["impact_rows"] + shell_sql.IMPACT_REASONS + 20
 FACT_ROWS = 50
 MY_WORK_SIGN_IN = "sign in so the App can show the work you did"
+MY_WORK_NO_EXPORT = "the App offers no download of your work, so send no export"
 NO_ACTIONS = "this use case keeps no actions, so it has no work of yours to show"
 MINUTES_SETTING = {"name": shell_sql.MY_WORK_MINUTES, "kind": "number", "group": "impact", "source": "app", "applies": "app",
                    "label": "Minutes a person spends per record without Inspire", "unit": "minutes", "low": 0.0, "high": 1440.0,
@@ -2147,15 +2148,12 @@ class Shell:
         if not person:
             raise HttpError(401, MY_WORK_SIGN_IN)
         bounds = shell_sql.period_params(data, self.now())
-        export, offset = data.get("export", False), data.get("offset", 0)
-        cap, size = shell_sql.CAPS["my_work_export"], shell_sql.CAPS["my_work_rows"]
-        if not isinstance(export, bool):
-            raise HttpError(400, "export is true or false")
-        if isinstance(offset, bool) or not isinstance(offset, int) or offset < 0 or offset % size or offset + size > cap:
-            raise HttpError(400, f"offset is a whole multiple of {size} from 0 to {cap - size:,}")
-        if export and offset:
-            raise HttpError(400, "an export starts at the first change, so send no offset with it")
-        shown = cap if export else size
+        if "export" in data:
+            raise HttpError(400, MY_WORK_NO_EXPORT)
+        offset = data.get("offset", 0)
+        cap, shown = shell_sql.CAPS["my_work_deepest"], shell_sql.CAPS["my_work_rows"]
+        if isinstance(offset, bool) or not isinstance(offset, int) or offset < 0 or offset % shown or offset + shown > cap:
+            raise HttpError(400, f"offset is a whole multiple of {shown} from 0 to {cap - shown:,}")
         ws, who = self.workspace(headers)
         jobs = {p["id"]: (lambda p=p: self.my_work_page(ws, who, p, person, bounds, offset + shown)) for p in self.pages}
         done, errors = self._parallel(jobs, pool=self.hub_pool)
@@ -2164,8 +2162,7 @@ class Shell:
         total = sum(view.get("worked", {}).get("changes", 0) for view in done.values())
         period = {k: bounds.get(k) for k in ("window", "zone", "today", "start_day", "end_day")}
         return {"person": person, "period": period, "pages": done, "errors": errors, "offset": offset, "size": shown, "total": total,
-                "activity": [dict(entry, page=ident) for ident, entry in merged[offset:offset + shown]],
-                "truncated": total > offset + shown and export}
+                "activity": [dict(entry, page=ident) for ident, entry in merged[offset:offset + shown]]}
 
     def my_work_page(self, ws, who, page: dict, person: str, bounds: dict, rows: int) -> dict:
         fields, untracked = self.tracked_fields(ws, who, page)

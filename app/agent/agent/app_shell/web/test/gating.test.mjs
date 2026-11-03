@@ -1,7 +1,9 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync, readdirSync } from 'node:fs';
+import { join } from 'node:path';
 import { chromium } from 'playwright';
-import { TABLE, appInfo, chartsDrawn, openApp, serveDist } from './harness.mjs';
+import { SRC, TABLE, appInfo, chartsDrawn, openApp, serveDist } from './harness.mjs';
 
 const ALL_ON = { modify: true, replace_edits: true, decisions: true };
 const DATA_DOWNLOAD = /csv|download (the )?(data|answer)/i;
@@ -61,6 +63,19 @@ test('a shared-view App with every option on exports images but never the data',
   assert.deepEqual(asked, []);
   assert.deepEqual(on.seen.errors, []);
   await on.context.close();
+});
+
+test('no page of the shell offers a data download: only the chart menu saves a file, and only as PNG or SVG', () => {
+  const files = readdirSync(SRC).filter((f) => /\.jsx?$/.test(f));
+  const read = (f) => readFileSync(join(SRC, f), 'utf8');
+  const offending = (pattern, allowed) => files.filter((f) => !allowed.includes(f) && pattern.test(read(f)));
+  assert.deepEqual(offending(/text\/csv|\.csv\b|csv[A-Z]\w*\(|application\/vnd|\.xlsx\b/i, []), []);
+  assert.deepEqual(offending(/\bsave(Blob|DataUrl)\(/, ['api.js', 'ChartCard.jsx']), []);
+  assert.deepEqual(offending(/\.download\s*=|\bdownload=\{|\sdownload\s|['"`]Download/, ['api.js', 'ChartCard.jsx']), []);
+  assert.deepEqual([...read('ChartCard.jsx').matchAll(/label: '(Download [^']+)'/g)].map((m) => m[1]), ['Download PNG', 'Download SVG']);
+  const server = readdirSync(join(SRC, '..', '..', 'server')).filter((f) => f.endsWith('.py'))
+    .filter((f) => /data\.get\(["']export|(?<!image)_export["']|text\/csv|Content-Disposition/i.test(readFileSync(join(SRC, '..', '..', 'server', f), 'utf8')));
+  assert.deepEqual(server, [], 'the server reads no export flag and sends no file');
 });
 
 test('an App settings file that still offers downloads fails loudly instead of loading', () => {
