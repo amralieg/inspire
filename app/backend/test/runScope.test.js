@@ -75,6 +75,13 @@ test('First run offers a number of records only when each record stands alone, a
   assert.deepEqual(standalone.map((c) => [c.id, c.available]), [['groups', true], ['recent', false], ['records', true], ['all', true]]);
   assert.equal(standalone[2].label, 'The first 500 records');
   assert.equal(standalone[2].records, 500);
+  const via = { ...PROFILE, records: 718931, suggested_groups: [], first_run: { all: 718931, groups: null, recent: 21000, records: null }, default_scope: 'recent',
+    time_column: 'ws_ship_date_sk', time_via: { table: 'samples.tpcds_sf1.date_dim', key: 'd_date_sk', date: 'd_date' }, recent: { days: 30, records: 21000 } };
+  const viaValues = S.withScopeDefaults(S.scopeValues(() => undefined), via);
+  assert.equal(viaValues.run_scope, 'recent', '718,931 records first run on part of the data');
+  const dated = S.firstRunChoices(via, viaValues);
+  assert.deepEqual(dated.filter((c) => c.available).map((c) => [c.id, c.records]), [['recent', 21000], ['all', 718931]]);
+  assert.equal(dated[1].label, 'The last 30 days of d_date in samples.tpcds_sf1.date_dim, through ws_ship_date_sk');
 });
 
 test('the scope checks refuse what the agent would refuse, and accept what it runs', async () => {

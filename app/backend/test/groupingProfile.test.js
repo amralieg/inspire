@@ -53,7 +53,7 @@ function runner(over = {}) {
   };
   return Object.fromEntries(Object.entries(answers).map(([needle, out]) => [needle, (sql, _p, token) => {
     if (token !== PERSON) throw new Error(`the App token must never read the use case table: ${sql}`);
-    if (typeof out === 'function') return out(sql);
+    if (typeof out === 'function') return out(sql, _p);
     return { rows: out, manifest: {} };
   }]));
 }
@@ -85,7 +85,7 @@ test('the profile reads the main table with the person token only, bounded, and 
     const got = await post(srv, ASK);
     assert.equal(got.status, 200, JSON.stringify(got.data));
     const d = got.data;
-    assert.deepEqual(Object.keys(d), ['table', 'records', 'qualifies', 'reason', 'standalone', 'columns', 'recommended', 'example', 'time_column', 'recent',
+    assert.deepEqual(Object.keys(d), ['table', 'records', 'qualifies', 'reason', 'standalone', 'columns', 'recommended', 'example', 'time_column', 'time_via', 'recent',
       'suggested_groups', 'first_run', 'default_scope', 'prefill', 'read_at']);
     assert.deepEqual([d.table, d.records, d.qualifies, d.standalone], ['main.sales.orders', 10000, true, false]);
     assert.equal(d.reason, 'Grouping applies: Anomaly Detection compares each record with the records like it, and region, country can group main.sales.orders.');
@@ -96,7 +96,7 @@ test('the profile reads the main table with the person token only, bounded, and 
     ]);
     assert.deepEqual(d.recommended, ['region', 'country']);
     assert.deepEqual(d.example, { column: 'country', small_groups: [{ value: 'Malta', records: 25 }, { value: 'Cyprus', records: 12 }], moves_to: 'EMEA' });
-    assert.deepEqual([d.time_column, d.recent], ['order_date', { days: 30, records: 850 }]);
+    assert.deepEqual([d.time_column, d.time_via, d.recent], ['order_date', null, { days: 30, records: 850 }]);
     assert.deepEqual(d.suggested_groups, [{ value: 'USA', records: 3000, kind: 'biggest' }, { value: 'Germany', records: 1963, kind: 'typical' },
       { value: 'UAE', records: 30, kind: 'smallest' }]);
     assert.deepEqual(d.first_run, { all: 10000, groups: 4993, recent: 850, records: null });
@@ -112,8 +112,9 @@ test('the profile reads the main table with the person token only, bounded, and 
     assert.ok(reads.every((c) => c.options.signal && c.options.byteLimit === G.GROUPING_BYTE_LIMIT && c.options.rowLimit > 0 && c.options.waitTimeout === '10s'));
     assert.ok(made.sqlCalls.filter((c) => c.sql.includes('__inspire_usecases')).every((c) => c.token === 'tok'), 'the use case record is read with the App token');
     const stat = reads.find((c) => c.sql.includes('approx_count_distinct'));
-    assert.match(stat.sql, /^SELECT COUNT\(\*\) AS records, approx_count_distinct\(`region`\) AS d0/);
-    assert.match(stat.sql, /COUNT_IF\(`order_date` >= date_sub\(current_date\(\), 30\)\) AS recent FROM `main`\.`sales`\.`orders`$/);
+    assert.match(stat.sql, /^WITH x AS \(SELECT date_sub\(MAX\(CAST\(`order_date` AS DATE\)\), 29\) AS inspire_since FROM `main`\.`sales`\.`orders`\) SELECT COUNT\(\*\) AS records, approx_count_distinct\(m\.`region`\) AS d0/);
+    assert.match(stat.sql, /COUNT_IF\(CAST\(m\.`order_date` AS DATE\) >= x\.inspire_since\) AS recent FROM `main`\.`sales`\.`orders` m CROSS JOIN x$/,
+      'the recent period ends at the newest date of the table, as the run reads it, not at today');
     assert.match(reads.find((c) => c.sql.startsWith('WITH s AS')).sql, /LIMIT 100000\)/, 'the coarse-to-fine check reads a bounded sample');
   });
 });
@@ -170,7 +171,7 @@ test('a column of 501 groups and one of about 900 are left out, and the second i
 
 test('a column with more than half its records empty is listed but never recommended (must-exclude)', () => {
   const base = { table: 'main.sales.orders', technique: 'Churn Prediction', columns: [{ column_name: 'ragged', data_type: 'STRING' }], candidates: ['ragged'],
-    sample: [{ kind: 'size', coarse: '0', fine: '-1', groups: '3', records: '10000' }], paths: null, timeColumn: null, days: 30, keys: { primary: [], joins: [] },
+    sample: [{ kind: 'size', coarse: '0', fine: '-1', groups: '3', records: '10000' }], paths: null, time: null, days: 30, keys: { primary: [], joins: [] },
     joins: [], readAt: 'now', values: [{ col: '0', value: 'A', records: '2000' }, { col: '0', value: 'B', records: '2000' }, { col: '0', value: null, records: '6000' }] };
   const heavy = GP.profileView({ ...base, stats: { records: '10000', d0: '2', n0: '6000' } });
   assert.deepEqual([heavy.columns.map((c) => c.name), heavy.recommended, heavy.qualifies], [['ragged'], [], false]);
@@ -268,12 +269,75 @@ test('a built use case is profiled on the table its build swapped in, and bad in
 test('the profile helpers follow the agent: category columns only, the event date as time column, three suggested groups and a key guess', () => {
   assert.deepEqual(R.groupingCandidates(COLUMNS, { entity_id: 'main.sales.orders.order_id', segment: 'main.sales.orders.ragged' }, 'main.sales.orders'),
     ['ragged', 'region', 'country', 'city', 'sku', INJECTED]);
-  assert.equal(R.timeColumnOf(COLUMNS, {}, 'main.sales.orders'), 'order_date');
-  assert.equal(R.timeColumnOf([...COLUMNS, { column_name: 'shipped', data_type: 'TIMESTAMP' }], { event_date: 'main.sales.orders.shipped' }, 'main.sales.orders'), 'shipped');
-  assert.equal(R.timeColumnOf([{ column_name: 'a', data_type: 'STRING' }]), null);
+  assert.deepEqual(R.timeSourceOf('', COLUMNS), { column: 'order_date', via: null });
+  assert.deepEqual(R.timeSourceOf(R.namedTimeColumn({ event_date: 'main.sales.orders.shipped' }, {}, 'main.sales.orders'),
+    [...COLUMNS, { column_name: 'shipped', data_type: 'TIMESTAMP' }]), { column: 'shipped', via: null });
+  assert.equal(R.timeSourceOf('', [{ column_name: 'a', data_type: 'STRING' }]), null);
   assert.deepEqual(R.suggestedGroups([{ value: 'a', records: 29 }, { value: 'b', records: 40 }]), [{ value: 'b', records: 40, kind: 'biggest' }],
     'a group under 30 records is never suggested');
   assert.deepEqual(R.keyColumnGuess([{ column_name: 'name' }, { column_name: 'customer_id' }]), ['customer_id']);
   assert.equal(GP.scopeDaysOf(undefined), 30);
   assert.equal(GP.scopeDaysOf(3651), null);
+});
+
+const WS = 'samples.tpcds_sf1.web_sales';
+const DD = 'samples.tpcds_sf1.date_dim';
+const WS_COLUMNS = { web_sales: [['ws_sold_date_sk', 'INT'], ['ws_ship_date_sk', 'INT'], ['ws_warehouse_sk', 'INT'], ['ws_ext_ship_cost', 'DECIMAL(7,2)']],
+  date_dim: [['d_date_sk', 'INT'], ['d_date_id', 'STRING'], ['d_date', 'DATE']] };
+const WS_JOINS = JSON.stringify(['ws_sold_date_sk', 'ws_ship_date_sk'].map((column) => ({ table: WS, column, ref_table: DD, ref_column: 'd_date_sk', source: 'inferred' })));
+const WS_ELITE = JSON.stringify({ time_column: `${WS}.ws_ship_date_sk`, time_via_join: { key: `${WS}.ws_ship_date_sk`, table: DD, column: `${DD}.d_date`,
+  join: `${WS}.ws_ship_date_sk = ${DD}.d_date_sk` } });
+
+function webSales({ records, recent = '21000', keys = '30', joins = WS_JOINS, elite = WS_ELITE } = {}) {
+  const columns = (sql, parameters) => ({ rows: (WS_COLUMNS[(parameters || []).find((p) => p.name === 't').value] || [])
+    .map(([column_name, data_type], i) => ({ column_name, data_type, ordinal_position: i + 1 })), manifest: {} });
+  return profiled({ useCase: { id: 'N01-U01', primary_table: WS, tables_involved: `${WS}, ${DD}`, analytics_technique: 'Optimization', table_joins: joins,
+    elite_assessment: elite } }, {
+    'information_schema.table_constraints': [],
+    'information_schema.columns': columns,
+    approx_count_distinct: [],
+    'AS records': [{ records: String(records), recent, recent_keys: keys }],
+  });
+}
+
+for (const [records, expected] of [[999, 'all'], [1000, 'all'], [1001, 'recent'], [718931, 'recent']]) {
+  test(`a fact table dated only through its date table offers a recent period, and ${records.toLocaleString('en-US')} records default to ${expected}`,
+    async () => {
+      const made = webSales({ records });
+      await withApp(made, async (srv) => {
+        const got = await post(srv, ASK);
+        assert.equal(got.status, 200, JSON.stringify(got.data));
+        const d = got.data;
+        assert.deepEqual([d.records, d.time_column, d.time_via, d.recent], [records, 'ws_ship_date_sk', { table: DD, key: 'd_date_sk', date: 'd_date' },
+          { days: 30, records: 21000 }]);
+        assert.deepEqual(d.first_run, { all: records, groups: null, recent: 21000, records: null });
+        assert.equal(d.default_scope, expected);
+        const stat = tableReads(made.sqlCalls).find((c) => c.sql.includes('AS records'));
+        assert.equal(stat.sql, 'WITH x AS (SELECT MAX(CAST(r.`d_date` AS DATE)) AS inspire_newest FROM `samples`.`tpcds_sf1`.`web_sales` m JOIN '
+          + '`samples`.`tpcds_sf1`.`date_dim` r ON m.`ws_ship_date_sk` = r.`d_date_sk`), k AS (SELECT DISTINCT r.`d_date_sk` AS inspire_key FROM '
+          + '`samples`.`tpcds_sf1`.`date_dim` r CROSS JOIN x WHERE CAST(r.`d_date` AS DATE) >= date_sub(x.inspire_newest, 29) AND CAST(r.`d_date` AS DATE) '
+          + '<= x.inspire_newest AND r.`d_date_sk` IS NOT NULL), kc AS (SELECT COUNT(*) AS inspire_keys FROM k) SELECT COUNT(*) AS records, '
+          + 'COUNT(k.inspire_key) AS recent, MAX(kc.inspire_keys) AS recent_keys FROM `samples`.`tpcds_sf1`.`web_sales` m CROSS JOIN kc LEFT JOIN k '
+          + 'ON m.`ws_ship_date_sk` = k.inspire_key');
+        const asked = tableReads(made.sqlCalls).filter((c) => c.sql.includes('information_schema.columns')).map((c) => c.parameters[1].value);
+        assert.deepEqual(asked, ['web_sales', 'date_dim'], 'the one date table the keys join is read for its columns, once');
+      });
+    });
+}
+
+test('an unknown record count runs everything, as the agent does', () => {
+  for (const records of [undefined, null, '']) assert.equal(R.firstRunDefault({ records, groups: 300, recent: 21000, standalone: true }), 'all');
+});
+
+test('a date key with no dated join, or one whose period covers more than 10,000 keys, is no recent period (must-exclude)', async () => {
+  for (const made of [webSales({ records: 718931, joins: '[]' }), webSales({ records: 718931, keys: '10001' })]) {
+    await withApp(made, async (srv) => {
+      const got = await post(srv, ASK);
+      assert.equal(got.status, 200, JSON.stringify(got.data));
+      assert.deepEqual([got.data.time_column, got.data.time_via, got.data.recent, got.data.first_run.recent], [null, null, null, null]);
+      assert.equal(got.data.default_scope, 'all', 'with no group, no period and records that depend on each other, only everything is left');
+    });
+  }
+  const kept = webSales({ records: 718931, keys: '10000' });
+  await withApp(kept, async (srv) => assert.equal((await post(srv, ASK)).data.default_scope, 'recent', '10,000 keys is still a recent period'));
 });

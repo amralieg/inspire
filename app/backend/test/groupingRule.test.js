@@ -27,6 +27,7 @@ test('the names, constants, labels and techniques of the shared cases are the on
   assert.deepEqual(techniques.grouping, R.GROUP_TECHNIQUES);
   assert.deepEqual(techniques.standalone_records, R.STANDALONE_TECHNIQUES);
   assert.deepEqual([R.FIRST_RUN_RECORDS_LINE, R.SUGGESTED_GROUPS, R.SCOPE_DAYS, R.SCOPE_RECORDS], [1000, 3, 30, 1000]);
+  assert.deepEqual([constants.first_run_records_line, constants.scope_via_keys_max], [R.FIRST_RUN_RECORDS_LINE, R.SCOPE_VIA_KEYS_MAX]);
   assert.deepEqual(R.RUN_SCOPES, ['all', 'groups', 'recent', 'records']);
 });
 
@@ -75,4 +76,22 @@ test('First run is the default above 1,000 records: chosen groups, then a recent
   assert.equal(R.firstRunDefault({ records: 1001, groups: 0, recent: 0, standalone: true }), 'records');
   assert.equal(R.firstRunDefault({ records: 1001, groups: 0, recent: 0, standalone: false }), 'all',
     'N records is never offered when records depend on each other, so with no group and no time column only everything is left (must-exclude)');
+});
+
+test('First run defaults to part of the data only above 1,000 records: 999 and 1,000 run everything, 1,001 and 718,931 a recent period', () => {
+  const cases = [[999, 'all'], [1000, 'all'], [1001, 'recent'], [718931, 'recent'], [null, 'all'], [undefined, 'all']];
+  assert.deepEqual(cases.map(([records]) => R.firstRunDefault({ records, groups: 0, recent: 21000, standalone: false })), cases.map(([, want]) => want));
+  assert.equal(R.firstRunDefault({ records: 718931, groups: 0, recent: 0, standalone: false }), 'all',
+    'a recent period with no record in it is never the default (must-exclude)');
+});
+
+const rows = (pairs) => pairs.map(([column_name, data_type]) => ({ column_name, data_type }));
+
+test('the time column is a dated column or a date key reached through a dated table, exactly as the shared cases say', () => {
+  for (const c of data().first_run.time_source) {
+    const refs = Object.fromEntries(Object.entries(c.ref_columns).map(([ref, pairs]) => [ref.toLowerCase(), rows(pairs)]));
+    assert.deepEqual(R.timeSourceOf(c.named, rows(c.columns), c.joins, refs), c.expected, c.name);
+  }
+  for (const c of data().first_run.named_time) assert.equal(R.namedTimeColumn(c.roles, c.assessment, c.table), c.expected, c.name);
+  for (const c of data().first_run.time_refs) assert.deepEqual(R.timeRefsOf(c.named, rows(c.columns), c.joins), c.expected, c.name);
 });
