@@ -50,12 +50,15 @@ def test_a_cli_sha256_comes_from_the_release_checksum_file_never_from_the_github
                "broken_SHA256SUMS": f"{sha}  a.zip\n{sha}  a.zip\n"}
     asked = []
     monkeypatch.setattr(build, "fetch", lambda url, accept="", sha="": asked.append(url) or answers[url.rsplit("/", 1)[1]].encode())
-    genie = build.CLI_SOURCES["genie-code-cli"]
-    assert build.release_sha256(genie, "0.2.1", "genie-package-x86_64-unknown-linux-musl.tar.gz") == sha
-    assert build.release_sha256(build.CLI_SOURCES["databricks-cli"], "1.22.1", "databricks_cli_1.22.1_linux_amd64.zip") == sha
+    pins = build.notebook_pins()
+    assert pins["inspire_cli_release_file"]("genie-code-cli", "0.2.1", "x86_64") == "genie-package-x86_64-unknown-linux-musl.tar.gz"
+    assert pins["inspire_cli_release_file"]("databricks-cli", "1.22.1", "x86_64") == "databricks_cli_1.22.1_linux_amd64.zip"
+    assert build.release_sha256(pins, "genie-code-cli", "0.2.1", "genie-package-x86_64-unknown-linux-musl.tar.gz") == sha
+    assert build.release_sha256(pins, "databricks-cli", "1.22.1", "databricks_cli_1.22.1_linux_amd64.zip") == sha
     assert all(url.startswith("https://github.com/databricks/") and "/releases/download/v" in url for url in asked)
+    pins["INSPIRE_ASSET_CLI_SOURCES"]["genie-code-cli"]["sums"] = "broken_SHA256SUMS"
     with pytest.raises(SystemExit, match="names no single sha256 for a.zip"):
-        build.release_sha256(dict(genie, sums="broken_SHA256SUMS"), "1", "a.zip")
+        build.release_sha256(pins, "genie-code-cli", "1", "a.zip")
 
 
 def test_a_pure_wheel_is_taken_as_is_and_a_native_one_is_the_oldest_glibc_build_for_the_machine(monkeypatch):
