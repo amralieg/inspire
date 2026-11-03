@@ -85,7 +85,8 @@ def test_the_launcher_source_generated_notebooks_embed_runs_without_the_agent_ve
 
 
 def test_asset_tags_name_one_tag_per_built_kind(ns):
-    tags = ns["implement_asset_tags"](ALL_KINDS, _status(), "databricks-claude-sonnet", "a7f3c2e1-1111")
+    tags = ns["implement_asset_tags"](ALL_KINDS, _status(), "databricks-claude-sonnet", {
+        "dbx_inspire_ai_app_id": "a7f3c2e1-1111", "dbx_inspire_ai_agent_endpoint_id": "ep-9f8e", "dbx_inspire_ai_lakebase_project_id": "pj-1a2b"})
     assert tags == {
         "dbx_inspire_ai_app_name": "churn-desk",
         "dbx_inspire_ai_app_id": "a7f3c2e1-1111",
@@ -94,7 +95,9 @@ def test_asset_tags_name_one_tag_per_built_kind(ns):
         "dbx_inspire_ai_alert_ids": "a1b2c3d4-0000-1111-2222-333344445555,d9e8f7a6-0000-1111-2222-333344445555",
         "dbx_inspire_ai_alert_count": "2",
         "dbx_inspire_ai_agent_endpoint": "databricks-claude-sonnet",
+        "dbx_inspire_ai_agent_endpoint_id": "ep-9f8e",
         "dbx_inspire_ai_lakebase_project": ns["IMPLEMENT_LAKEBASE_PROJECT"],
+        "dbx_inspire_ai_lakebase_project_id": "pj-1a2b",
         "dbx_inspire_ai_assets": "app,genie,dashboard,alert,agent_endpoint,lakebase",
     }
     assert set(tags) <= set(ns["JobLauncher"].ASSET_TAG_KEYS)
@@ -171,6 +174,10 @@ class _Api:
             return {"settings": {"tags": dict(self.tags)}}
         if path.startswith("/api/2.0/apps/"):
             return dict(self.app)
+        if path.startswith("/api/2.0/serving-endpoints/"):
+            return {"name": path.rsplit("/", 1)[1], "id": "ep-9f8e"}
+        if path.startswith("/api/2.0/postgres/projects/"):
+            return {"name": "projects/" + path.rsplit("/", 1)[1], "uid": "pj-1a2b"}
         return {}
 
     def updates(self):
@@ -265,6 +272,54 @@ def test_the_id_already_on_the_job_is_kept_for_the_same_app_and_read_again_for_a
     _tagger(ns, moved)._implement_tag_job_assets("N01-U01", 77, {"app": "churn-desk"}, {"app": {"state": "ready", "backend": "delta"}})
     [update] = moved.updates()
     assert update["new_settings"]["tags"]["dbx_inspire_ai_app_id"] == "a7f3c2e1-1111" and len(_app_reads(moved)) == 1
+
+
+LAKEBASE_APP = {"app": {"state": "ready", "backend": "lakebase", "app_id": "a7f3c2e1-1111"}, "ai_reasoning": {"state": "ready"}}
+
+
+def _id_reads(api):
+    return [c[:2] for c in api.calls if c[1].startswith(("/api/2.0/serving-endpoints/", "/api/2.0/postgres/projects/"))]
+
+
+def test_the_agent_endpoint_and_lakebase_project_are_tagged_with_their_ids(ns):
+    api = _Api()
+    _tagger(ns, api)._implement_tag_job_assets("N01-U01", 77, {"app": "churn-desk"}, LAKEBASE_APP, "databricks-claude-sonnet")
+    [update] = api.updates()
+    tags = update["new_settings"]["tags"]
+    assert tags["dbx_inspire_ai_agent_endpoint_id"] == "ep-9f8e" and tags["dbx_inspire_ai_agent_endpoint"] == "databricks-claude-sonnet"
+    assert tags["dbx_inspire_ai_lakebase_project_id"] == "pj-1a2b"
+    assert _id_reads(api) == [("GET", "/api/2.0/serving-endpoints/databricks-claude-sonnet"),
+                              ("GET", f"/api/2.0/postgres/projects/{ns['IMPLEMENT_LAKEBASE_PROJECT']}")]
+    same = _Api(tags)
+    _tagger(ns, same)._implement_tag_job_assets("N01-U01", 77, {"app": "churn-desk"}, LAKEBASE_APP, "databricks-claude-sonnet")
+    assert same.updates() == [] and _id_reads(same) == [], "ids already on the job for the same names are not read again"
+    other = _Api(tags)
+    _tagger(ns, other)._implement_tag_job_assets("N01-U01", 77, {"app": "churn-desk"}, LAKEBASE_APP, "databricks-gpt-oss")
+    assert _id_reads(other) == [("GET", "/api/2.0/serving-endpoints/databricks-gpt-oss")]
+
+
+@pytest.mark.parametrize("failing", ["/api/2.0/serving-endpoints/", "/api/2.0/postgres/projects/"])
+def test_an_unreadable_endpoint_or_project_id_still_tags_the_name(ns, failing):
+    api = _Api(fail={("GET", failing): RuntimeError("PERMISSION_DENIED: cannot read")})
+    inst = _tagger(ns, api)
+    inst._implement_tag_job_assets("N01-U01", 77, {"app": "churn-desk"}, LAKEBASE_APP, "databricks-claude-sonnet")
+    [update] = api.updates()
+    tags = update["new_settings"]["tags"]
+    missing = "dbx_inspire_ai_agent_endpoint_id" if "serving" in failing else "dbx_inspire_ai_lakebase_project_id"
+    assert missing not in tags and len([k for k in tags if k.endswith("_id") and k != "dbx_inspire_ai_app_id"]) == 1
+    assert "dbx_inspire_ai_agent_endpoint" in tags and "dbx_inspire_ai_lakebase_project" in tags
+    assert any("could not be read" in msg for level, msg in inst.logger.records if level == "WARNING")
+
+
+def test_ids_outrank_names_when_the_tag_cap_bites(ns):
+    launcher = ns["JobLauncher"]
+    names = ("dbx_inspire_ai_app_name", "dbx_inspire_ai_agent_endpoint", "dbx_inspire_ai_lakebase_project")
+    ids = ("dbx_inspire_ai_app_id", "dbx_inspire_ai_agent_endpoint_id", "dbx_inspire_ai_lakebase_project_id")
+    order = launcher.TAG_PRIORITY
+    assert max(order.index(key) for key in ids) < min(order.index(key) for key in names)
+    user = {f"team_{n}": "x" for n in range(16)}
+    kept = launcher.merged_tags(user, dict({key: "v" for key in names + ids}, dbx_inspire_ai_assets="app"))
+    assert set(ids) <= set(kept) and not set(names) & set(kept) and len(kept) == 20
 
 
 def test_a_finished_build_records_the_app_id_and_tags_the_job_with_it(ns):
