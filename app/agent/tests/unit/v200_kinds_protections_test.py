@@ -22,15 +22,19 @@ from v120_artifacts_support import make_inspire  # noqa: E402
 
 REGISTRY = {
     "version": 1,
-    "families": [{"id": "predict", "label": "Predict"}, {"id": "run_processes", "label": "Run processes"},
+    "families": [{"id": "measure_explain", "label": "Measure and explain"}, {"id": "predict", "label": "Predict"}, {"id": "run_processes", "label": "Run processes"},
                  {"id": "detect_protect", "label": "Detect and protect"}],
-    "layouts": [],
+    "layouts": [{"id": "decision_queue", "min_items": {"decision_list": 20}},
+                {"id": "forecast_cockpit", "min_items": {"at_risk_series": 5, "fan_chart": 1}},
+                {"id": "dashboard", "min_items": {"charts": 2}}],
     "technique_kind": {"Classification": "risk_propensity", "Forecasting": "forecast", "Process Mining": "process_mining"},
     "kinds": [
+        {"id": "driver_breakdown", "num": 2, "family": "measure_explain", "label": "Driver breakdown", "informational": True,
+         "layout": "dashboard", "techniques": ["Decomposition"]},
         {"id": "forecast", "num": 5, "family": "predict", "label": "Forecast", "informational": False,
-         "techniques": ["Forecasting"]},
+         "layout": "forecast_cockpit", "techniques": ["Forecasting"]},
         {"id": "risk_propensity", "num": 6, "family": "predict", "label": "Risk and propensity", "informational": False,
-         "techniques": ["Classification", "Predictive Modeling"]},
+         "layout": "decision_queue", "techniques": ["Classification", "Predictive Modeling"]},
         {"id": "anomaly", "num": 23, "family": "detect_protect", "label": "Anomaly", "informational": False,
          "techniques": ["Anomaly Detection"]},
         {"id": "process_mining", "num": 34, "family": "run_processes", "label": "Process mining", "informational": False,
@@ -40,7 +44,7 @@ REGISTRY = {
     ],
 }
 
-TECHNIQUE_OF = {"risk_propensity": "Classification", "forecast": "Forecasting", "anomaly": "Anomaly Detection",
+TECHNIQUE_OF = {"driver_breakdown": "Decomposition", "risk_propensity": "Classification", "forecast": "Forecasting", "anomaly": "Anomaly Detection",
                 "process_mining": "Process Mining", "sla_aging": "Survival Analysis"}
 
 
@@ -219,7 +223,7 @@ def test_q5_drops_a_use_case_of_an_excluded_kind_and_keeps_the_rest(ns):
     parsed = {"use_case_kinds": {"asked": [], "excluded": ["Process mining"]}}
     inst = _inst(ns, parsed=parsed)
     base = {"Statement": "Late orders cost margin.", "Solution": "Score each order with a classification model.",
-            "High Level Design": "Train a classification model on orders."}
+            "High Level Design": "Train a classification model on orders.", "Beneficiary": "Fulfilment manager"}
     keep = dict(base, No="K1", Name="Predict Late Orders to Expedite Shipments", **{"Use Case Kind": "risk_propensity",
                                                                                    "Analytics Technique": "Classification"})
     drop = dict(base, No="X1", Name="Predict Late Orders to Expedite Shipments", **{"Use Case Kind": "process_mining",
@@ -312,3 +316,85 @@ def test_kind_coverage_warns_when_floor_picks_sit_far_below_the_portfolio(ns):
     selected = [_uc("A1", 9.0), _uc("A2", 9.0), _uc("F1", 7.0, kind="forecast", selection_basis="kind_floor")]
     inst._log_kind_coverage(selected, selected)
     assert any(lvl == "WARNING" and "kind-floor pick average" in msg for lvl, msg in inst.logger.records)
+
+
+def _q5_uc(no, name, statement, solution, design, owner="Collections lead", kind="risk_propensity", **extra):
+    uc = {"No": no, "Name": name, "Statement": statement, "Solution": solution, "High Level Design": design,
+          "Beneficiary": owner, "Sponsor": "", "Use Case Kind": kind, "Analytics Technique": TECHNIQUE_OF[kind]}
+    uc.update(extra)
+    return uc
+
+
+def _q5(ns, ucs, parsed=None):
+    kept, dropped = _inst(ns, parsed=parsed)._phaseQ5_decision_readiness(ucs, SCHEMA)
+    return [uc["No"] for uc in kept], {uc["No"]: reason for uc, reason in dropped}
+
+
+RESTATES_FLAG = ("Flag Late Orders to Expedite Shipments", "Late orders cost margin.",
+                 "Expedite each order on the list.", "SELECT order_id FROM orders WHERE is_late = 1 ORDER BY amount")
+RESTATES_STATUS = ("List Overdue Invoices for Collectors", "Overdue invoices tie up cash.",
+                   "Collectors call each invoice on the list.", "SELECT * FROM invoices WHERE invoice_status = 'overdue'")
+
+
+def test_t2_a_filter_on_the_column_that_holds_the_answer_is_rejected(ns):
+    kept, dropped = _q5(ns, [_q5_uc("F1", *RESTATES_FLAG), _q5_uc("S1", *RESTATES_STATUS)])
+    assert kept == []
+    assert dropped == {"F1": "Q5_T2_RESTATES_COLUMN:is_late",
+                       "S1": "Q5_T2_RESTATES_COLUMN:invoice_status = 'overdue'"}
+
+
+def test_t2_a_model_that_looks_ahead_of_the_flag_is_kept(ns):
+    uc = _q5_uc("P1", "Predict Late Orders Before They Ship", "Late orders cost margin.",
+                "Score each open order with a classification model trained on past is_late labels.",
+                "Train on orders WHERE is_late = 1 versus on-time orders, then score each open order weekly.")
+    assert _q5(ns, [uc, _q5_uc("F1", *RESTATES_FLAG)]) == (["P1"], {"F1": "Q5_T2_RESTATES_COLUMN:is_late"})
+
+
+def test_t2_and_t4_skip_a_use_case_the_instructions_ask_for(ns):
+    asked = [_q5_uc("F1", *RESTATES_FLAG, user_request="R1"),
+             _q5_uc("O1", "Score Each Supplier for Delivery Risk", "Late supplies stop lines.",
+                    "Score each supplier weekly.", "Classification per supplier.", owner="", user_request="R2")]
+    unasked = [_q5_uc("F2", *RESTATES_FLAG), dict(asked[1], No="O2", user_request=None)]
+    assert _q5(ns, asked + unasked) == (["F1", "O1"], {"F2": "Q5_T2_RESTATES_COLUMN:is_late", "O2": "Q5_T4_NO_OWNER"})
+
+
+DECIDES = ("Score Each Supplier for Delivery Risk", "Late supplies stop production lines.",
+           "Score each supplier weekly and send buyers the riskiest ones first.", "Classification per supplier on deliveries.")
+
+
+@pytest.mark.parametrize("change,reason", [
+    ({"Beneficiary": "", "Sponsor": "Stakeholders"}, "Q5_T4_NO_OWNER"),
+    ({"Statement": "A one-time analysis of supplier delays.", "Solution": "Score suppliers in a one-off study."},
+     "Q5_T4_ONE_OFF"),
+    ({"Solution": "Rank the top 5 suppliers for buyers to call."}, "Q5_T4_TOO_FEW_ITEMS:5<20"),
+    ({"Name": "Model Supplier Delivery Delays", "Statement": "Delays stop production.",
+      "Solution": "Build one model of total delay.", "High Level Design": "Aggregate deliveries into one number."},
+     "Q5_T4_NO_PER_ITEM_ACTION"),
+])
+def test_t4_a_use_case_that_fails_the_decision_test_is_rejected(ns, change, reason):
+    uc = dict(_q5_uc("D1", *DECIDES), **change)
+    assert _q5(ns, [uc]) == ([], {"D1": reason})
+
+
+def test_t4_a_use_case_with_an_owner_a_cadence_and_a_per_item_action_is_kept(ns):
+    one_off_setup = dict(_q5_uc("D2", *DECIDES), Solution="A one-time setup, then score each supplier weekly.")
+    forecast = _q5_uc("D3", "Forecast Demand per Store to Set Orders", "Stockouts lose sales.",
+                      "Forecast each store weekly and flag the top 5 series at risk.", "Forecasting per store.",
+                      kind="forecast")
+    too_few = dict(forecast, No="D4", **{"Use Case Kind": "risk_propensity"})
+    assert _q5(ns, [_q5_uc("D1", *DECIDES), one_off_setup, forecast, too_few]) == (
+        ["D1", "D2", "D3"], {"D4": "Q5_T4_TOO_FEW_ITEMS:5<20"})
+
+
+def test_t4_skips_informational_kinds(ns):
+    uc = _q5_uc("I1", "Explain Margin Change by Driver", "Margin moved last quarter.", "Break margin into drivers.",
+                "Decomposition of margin.", owner="", kind="driver_breakdown")
+    decision = dict(uc, No="I2", **{"Use Case Kind": "risk_propensity"})
+    assert _q5(ns, [uc, decision]) == (["I1"], {"I2": "Q5_T4_NO_OWNER"})
+
+
+def test_t4_minimum_items_is_a_runtime_parameter_when_no_layout_sets_it(ns, rt):
+    uc = dict(_q5_uc("D1", *DECIDES, **{"Use Case Kind": ""}), Solution="Rank the top 5 suppliers each week.")
+    assert _q5(ns, [uc]) == ([], {"D1": "Q5_T4_TOO_FEW_ITEMS:5<20"})
+    rt["decision_min_items_per_cycle"] = 5
+    assert _q5(ns, [dict(uc)]) == (["D1"], {})
