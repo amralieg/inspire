@@ -34,7 +34,6 @@ import {
   ShieldAlert,
   Boxes,
 } from 'lucide-react';
-import AnimatedCounter from '../components/AnimatedCounter';
 import GenieMarkdownPreview from '../components/GenieMarkdownPreview';
 import GlassCard from '../components/GlassCard';
 import DomainSunburst from '../components/DomainSunburst';
@@ -82,6 +81,7 @@ import { buildUseCaseList } from '../lib/useCaseList';
 import { makeApiFetch, makeApiPostJson, requestHeaders } from '../lib/apiClient';
 import { reviewLinkText } from '../lib/runPages';
 import { sessionFailed, sessionFinished, sessionSucceeded } from '../lib/monitorState';
+import { placeholderWords } from '../lib/placeholderWords';
 
 /* ── Date formatter for session display ── */
 function formatSessionDate(dateStr) {
@@ -628,7 +628,7 @@ export default function ResultsPage({
   }
   const bizPriorityOptions = bizPriorities
     .filter((bp) => bizPriorityCounts[bp])
-    .map((bp) => ({ value: bp, label: bp, count: bizPriorityCounts[bp] }));
+    .map((bp) => ({ value: bp, label: placeholderWords(bp), count: bizPriorityCounts[bp] }));
   const foundationsList = results?.foundations;
   const foundationsById = useMemo(
     () => new Map((Array.isArray(foundationsList) ? foundationsList : []).map((f) => [String(f.id), f])),
@@ -762,13 +762,7 @@ export default function ResultsPage({
     setArtifactsRootFiles(null);
     const headers = artifactHeaders();
 
-    const candidates = [...expandWorkspaceListCandidates(genPath)];
-    if (!genPath.startsWith('/')) {
-      candidates.push(`/Workspace/${genPath.replace(/^\.\//, '')}`);
-      candidates.push(`/Shared/${genPath.replace(/^\.\//, '')}`);
-    }
-
-    for (const path of candidates) {
+    for (const path of expandWorkspaceListCandidates(genPath)) {
       try {
         const resp = await fetch(`/api/workspace/list?path=${encodeURIComponent(path)}`, { headers });
         if (resp.ok) {
@@ -2293,7 +2287,7 @@ function StatCard({ label, value, icon: Icon, renderValue }) {
         <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-text-tertiary">{label}</span>
       </div>
       <div data-stat-value="" className="text-2xl font-bold text-text-primary tabular-nums tracking-tight">
-        {renderValue != null ? renderValue : <AnimatedCounter value={Number(value) || 0} />}
+        {renderValue != null ? renderValue : Number(value) || 0}
       </div>
     </GlassCard>
   );

@@ -503,15 +503,6 @@ textarea::placeholder {
   transition: stroke-dashoffset 0.15s;
 }
 
-/* Animated counter — slot machine */
-@keyframes counterSlide {
-  from { transform: translateY(100%); opacity: 0; }
-  to { transform: translateY(0); opacity: 1; }
-}
-.counter-enter {
-  animation: counterSlide 0.6s cubic-bezier(0.16, 1, 0.3, 1) backwards;
-}
-
 /* Gauge arc animation */
 @keyframes gaugeArc {
   from { stroke-dashoffset: var(--gauge-circumference); }

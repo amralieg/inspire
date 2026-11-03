@@ -325,6 +325,31 @@ def test_run_sql_marks_truncation_and_raises_on_failure_and_deadline():
     assert session.calls[-1]["url"].endswith("/statements/s9/cancel")
 
 
+CONFLICT = "[DELTA_CONCURRENT_APPEND.WITH_PARTITION_HINT] ConcurrentAppendException: Files were added by a concurrent update."
+
+
+def test_run_sql_sends_a_write_again_when_delta_rejects_it_for_a_concurrent_change():
+    waits = []
+    session = FakeSession([FakeResponse(payload={"status": {"state": "FAILED", "error": {"message": CONFLICT}}}),
+                           FakeResponse(payload={"status": {"state": "FAILED", "error": {"message": CONFLICT}}}),
+                           FakeResponse(payload={"status": {"state": "SUCCEEDED"}, "manifest": {"schema": {"columns": [
+                               {"name": "num_affected_rows", "type_name": "LONG"}]}}, "result": {"data_array": [["1"]]}})])
+    ws = shell_db.Workspace("dbc-1.example.com", lambda: {}, session=session, sleep=waits.append, clock=lambda: 0)
+    sql = "UPDATE `c`.`s`.`alerts` SET acknowledged_by = :p0 WHERE alert_id = :p1"
+    assert ws.run_sql("wh", sql)["rows"] == [{"num_affected_rows": 1}]
+    assert [c["body"]["statement"] for c in session.calls] == [sql, sql, sql]
+    assert len(waits) == 2 and waits[0] < waits[1]
+    stuck = FakeSession([FakeResponse(payload={"status": {"state": "FAILED", "error": {"message": CONFLICT}}})] * 9)
+    with pytest.raises(shell_db.QueryError, match="DELTA_CONCURRENT_APPEND"):
+        shell_db.Workspace("dbc-1.example.com", lambda: {}, session=stuck, sleep=lambda s: None, clock=lambda: 0).run_sql("wh", sql)
+    assert len(stuck.calls) == shell_db.CONFLICT_ATTEMPTS
+    other = FakeSession([FakeResponse(payload={"status": {"state": "FAILED", "error": {"message": "MAXIMUM_CONCURRENT_RUNS_REACHED"}}})])
+    with pytest.raises(shell_db.QueryError, match="MAXIMUM_CONCURRENT_RUNS_REACHED"):
+        shell_db.Workspace("dbc-1.example.com", lambda: {}, session=other, sleep=lambda s: None, clock=lambda: 0).run_sql("wh", sql)
+    assert len(other.calls) == 1
+    assert not hasattr(shell_sql, "CONCURRENT")
+
+
 def test_call_wraps_http_network_and_non_json_errors():
     ws, _ = workspace([FakeResponse(403, {"message": "no access"})])
     with pytest.raises(shell_db.QueryError, match="HTTP 403: no access"):

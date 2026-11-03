@@ -13,6 +13,7 @@ const STATUS_CONFIG = {
   finished: { label: 'Completed', bg: 'bg-success-bg', text: 'text-success-fg', dot: 'bg-success' },
   failed:   { label: 'Failed', bg: 'bg-error-bg', text: 'text-error-fg', dot: 'bg-error' },
   running:  { label: 'In Progress', bg: 'bg-info-bg', text: 'text-info-fg', dot: 'bg-info' },
+  starting: { label: 'Starting', bg: 'bg-info-bg', text: 'text-info-fg', dot: 'bg-info' },
   quiet:    { label: 'No news', bg: 'bg-bg-subtle', text: 'text-text-secondary', dot: 'bg-text-tertiary' },
 };
 
@@ -376,7 +377,7 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onView
           <div className="space-y-2">
             {listed.map((session) => {
               const status = sessionStatus(session, loadedAt);
-              const cfg = STATUS_CONFIG[status];
+              const cfg = session.starting && status === 'running' ? STATUS_CONFIG.starting : STATUS_CONFIG[status];
               const name = runBusiness(session) || `Session ${session.session_id}`;
               const date = session.completed_on || session.create_at;
               const mode = session.widget_values?.operation_mode
@@ -424,7 +425,7 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onView
                   <div data-run={sidStr} className="group relative flex w-full items-center gap-4 px-5 py-4 rounded-xl hover:bg-surface transition-all duration-200">
                   <button
                     type="button"
-                    onClick={() => onViewResults(session.session_id)}
+                    onClick={() => onViewResults(session.session_id, session.starting ? session.run_id : null)}
                     className="flex min-w-0 flex-1 items-center gap-4 text-left before:absolute before:inset-0 before:rounded-xl before:content-[''] focus-visible:outline-none focus-visible:before:ring-2 focus-visible:before:ring-db-red/30"
                   >
                     {/* Status indicator */}

@@ -19,7 +19,7 @@ const CHECKED = {
 };
 
 test('the output folder of a session in the App database lists and downloads with the App token, so every App user sees what the App produced', async () => {
-  for (const path of [OUT, `${OUT}/acme`, '/Users/launcher@example.com//inspire_out/./acme/report.pdf', '/Shared/demos/acme']) {
+  for (const path of [OUT, `${OUT}/acme`, '/Users/launcher@example.com//inspire_out/acme/report.pdf', '/Shared/demos/acme']) {
     S.reset(structuredClone(CHECKED));
     const got = await list(path);
     assert.equal(got.status, 200, `${path}: ${got.text}`);
@@ -31,8 +31,17 @@ test('the output folder of a session in the App database lists and downloads wit
   assert.deepEqual(tokensTo('/api/2.0/workspace/export'), [APP_TOKEN]);
 });
 
-test('a sibling folder, a .. escape, a prefix trick, a root folder and another database session all read with the person token (must-exclude)', async () => {
-  for (const path of [`${OUT}x`, `${OUT}_other/secret`, `${OUT}/../private`, `${OUT}/acme/../../private`, '/Workspace/Users/launcher@example.com',
+test('a .. escape out of an output folder is refused before any token is chosen (must-exclude)', async () => {
+  for (const path of [`${OUT}/../private`, `${OUT}/acme/../../private`, `${OUT}/./acme`]) {
+    S.reset(structuredClone(CHECKED));
+    const got = await list(path);
+    assert.equal(got.status, 400, `${path}: ${got.text}`);
+    assert.deepEqual(S.state.calls.filter((c) => c.category === 'action'), [], path);
+  }
+});
+
+test('a sibling folder, a prefix trick, a root folder and another database session all read with the person token (must-exclude)', async () => {
+  for (const path of [`${OUT}x`, `${OUT}_other/secret`, '/Workspace/Users/launcher@example.com',
     '/Users/someone-else/inspire_out', '/Workspace/Users/hr@example.com/hr_out/payroll']) {
     S.reset({
       sessionRows: { [S.APP_DB]: [...CHECKED.sessionRows[S.APP_DB]], 'hr.inspire': [{ session_id: '2001', generation_path: '/Workspace/Users/hr@example.com/hr_out' }] },

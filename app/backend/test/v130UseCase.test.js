@@ -93,11 +93,12 @@ test('the view clears the stale 0 baked into key results and benefits and keeps 
     'Financial Benefits': [`Fares grow from ${KEPT_NOTE}`],
     'Non-Financial Benefits': [`Riders wait less than at ${STALE_NOTE}`],
   });
+  const pending = 'the current value (measured by the KPI query)';
   assert.deepEqual(view.keyResults.map((kr) => kr.statement), [
-    `Raise weekly trips served from ${lib.KPI_BASELINE_PENDING} to [TARGET]`, `Raise weekly fare revenue from ${KEPT_NOTE} to [TARGET]`]);
-  assert.deepEqual(view.measures, [`Trips up from ${lib.KPI_BASELINE_PENDING}, twice: ${lib.KPI_BASELINE_PENDING}`]);
+    `Raise weekly trips served from ${pending} to a target the sponsor sets`, `Raise weekly fare revenue from ${KEPT_NOTE} to a target the sponsor sets`]);
+  assert.deepEqual(view.measures, [`Trips up from ${pending}, twice: ${pending}`]);
   assert.deepEqual(view.financial, [`Fares grow from ${KEPT_NOTE}`]);
-  assert.deepEqual(view.nonFinancial, [`Riders wait less than at ${lib.KPI_BASELINE_PENDING}`]);
+  assert.deepEqual(view.nonFinancial, [`Riders wait less than at ${pending}`]);
   assert.deepEqual(view.kpis.map((k) => k.baseline), [null, STALE_KPIS[1].baseline, STALE_KPIS[2].baseline, STALE_KPIS[3].baseline]);
 });
 

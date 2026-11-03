@@ -3,6 +3,7 @@ import { Check, Copy, Loader2 } from 'lucide-react';
 import GenieMarkdownPreview from './GenieMarkdownPreview';
 import { BestOfBestDetail, FeedbackControls, UseCaseStrategyDetail } from './UseCaseStrategyDetail';
 import { workspaceNotebookUrl } from '../lib/workspaceLinks';
+import { placeholderWords } from '../lib/placeholderWords';
 import { requestHeaders } from '../lib/apiClient';
 import { START_MVP_LABEL } from '../lib/implementWizard';
 import { beneficiaryFromUc, expandWorkspaceListCandidates, fieldOf, hasShippedGenieCode, notebookPathOf, sponsorFromUc } from '../lib/useCaseFields';
@@ -10,7 +11,7 @@ import { beneficiaryFromUc, expandWorkspaceListCandidates, fieldOf, hasShippedGe
 const notebookCache = new Map();
 
 const s = (v) => (v == null ? '' : String(v));
-const stripHtml = (v) => (v == null ? '' : String(v).replace(/<[^>]*>/g, ' ').replace(/\s{2,}/g, ' ').trim());
+const stripHtml = (v) => (v == null ? '' : placeholderWords(String(v).replace(/<[^>]*>/g, ' ')).replace(/\s{2,}/g, ' ').trim());
 
 export function CopyButton({ text }) {
   const [copied, setCopied] = useState(false);

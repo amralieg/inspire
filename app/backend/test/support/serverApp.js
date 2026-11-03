@@ -35,7 +35,8 @@ const state = {
 function reset(overrides = {}) {
   Object.assign(state, {
     managers: [], managerGroups: [], personGroups: [], aclStatus: 200, personAppsScope: true, launchers: {}, sessionLaunchers: {}, history: [], calls: [],
-    launches: [], knownSessions: [], ledgerSessions: [], nextRunId: 501, sessionRows: {}, groupParents: {}, indirectGroups: [],
+    launches: [], knownSessions: [], ledgerSessions: [], nextRunId: 501, sessionRows: {}, groupParents: {}, indirectGroups: [], conflictOn: null,
+    createdJob: null, runJobs: {}, runStates: null, sessionList: [],
     ...folderModel({ folders: { '/Shared/demos': { id: 7, writers: '*' } } }),
   }, overrides);
 }
@@ -53,6 +54,8 @@ const HISTORY_COLUMNS = ['session_id', 'use_case_id', 'spec_version', 'status', 
 
 function answerSql(body) {
   const sql = String(body.statement || '');
+  const conflict = state.conflictOn ? state.conflictOn(sql) : '';
+  if (conflict) return { statement_id: 's1', status: { state: 'FAILED', error: { message: conflict } } };
   if (/^\s*INSERT INTO\b/i.test(sql) && sql.includes('__inspire_launch')) {
     const row = Object.fromEntries((body.parameters || []).map((p) => [p.name, p.value]));
     state.launches.push(row);
@@ -83,6 +86,20 @@ function answerSql(body) {
       .map((l) => [sessions.find((s) => String(s.session_id) === String(l.session_id)), l.output_folder])
       .filter(([s]) => s).map(([s, folder]) => [s.generation_path, folder]);
     return sqlResult(['generation_path', 'output_folder'], rows);
+  }
+  if (/^\s*SELECT CAST\(run_id AS STRING\) AS run_id, session_id, launched_at\b/.test(sql) && sql.includes('__inspire_launch')) {
+    const db = paramOf(body, 'inspire_database');
+    const rows = state.launches.filter((l) => l.inspire_database === db && l.run_type === 'discovery' && l.opened_session === 'true')
+      .map((l) => [String(l.run_id), l.session_id, l.launched_at || '2026-11-02T10:00:00.000Z']).reverse();
+    return sqlResult(['run_id', 'session_id', 'launched_at'], rows);
+  }
+  if (/^\s*SELECT CAST\(session_id AS STRING\) AS session_id FROM\b/.test(sql) && sql.includes('__inspire_session')) {
+    const asked = (body.parameters || []).map((p) => p.value);
+    return sqlResult(['session_id'], asked.filter((sid) => state.knownSessions.includes(sid)).map((sid) => [sid]));
+  }
+  if (/^\s*SELECT\b/i.test(sql) && sql.includes('AS business_rank') && sql.includes('__inspire_session')) {
+    const columns = ['session_id', 'business_name', 'completed_percent', 'create_at', 'business_runs', 'business_rank'];
+    return sqlResult(columns, state.sessionList.map((s) => columns.map((c) => (s[c] == null ? null : String(s[c])))));
   }
   if (/^\s*SELECT\b/i.test(sql) && sql.includes('__inspire_implement')) {
     const rows = state.history.map((r) => HISTORY_COLUMNS.map((c) => (c === 'spec_json' ? JSON.stringify(r[c] || {}) : (r[c] == null ? null : String(r[c])))));
@@ -153,8 +170,20 @@ async function stubFetch(url, opts = {}) {
   if (token === PERSON_TOKEN && /^\/api\/2\.1\/unity-catalog\/(effective-permissions|permissions|volumes)\//.test(u.pathname)) {
     return json({ error_code: 403, message: 'Provided OAuth token does not have required scopes: unity-catalog' }, 403);
   }
-  if (u.pathname === '/api/2.1/jobs/create') return json({ job_id: 5 });
-  if (u.pathname === '/api/2.1/jobs/run-now') return json({ run_id: state.nextRunId });
+  if (u.pathname === '/api/2.1/jobs/create') {
+    state.createdJob = body;
+    return json({ job_id: 5 });
+  }
+  if (u.pathname === '/api/2.1/jobs/run-now') {
+    state.runJobs[String(state.nextRunId)] = state.createdJob;
+    return json({ run_id: state.nextRunId });
+  }
+  if (u.pathname === '/api/2.1/jobs/runs/get' && state.runStates) {
+    const id = u.searchParams.get('run_id');
+    if (!state.runStates[id]) return json({ error_code: 'RESOURCE_DOES_NOT_EXIST', message: `Run ${id} does not exist.` }, 404);
+    const job = state.runJobs[id] || {};
+    return json({ run_id: Number(id), state: { life_cycle_state: state.runStates[id] }, tasks: (job.tasks || []).map((t) => ({ task_key: t.task_key, notebook_task: t.notebook_task })) });
+  }
   return json({});
 }
 
@@ -174,14 +203,13 @@ function writableBy(parent, token) {
 
 let started = null;
 
-async function startServer() {
+function startServer() {
   if (started) return started;
   Object.assign(process.env, ENV);
   global.fetch = stubFetch;
   for (const level of ['log', 'info', 'warn', 'error']) console[level] = (...args) => { state.logs.push(args.map(String).join(' ')); };
   const { app } = require('../../server');
-  const server = await new Promise((resolve) => { const s = http.createServer(app).listen(0, '127.0.0.1', () => resolve(s)); });
-  started = { server, port: server.address().port };
+  started = new Promise((resolve) => { const s = http.createServer(app).listen(0, '127.0.0.1', () => resolve({ server: s, port: s.address().port })); });
   return started;
 }
 
@@ -213,7 +241,7 @@ async function request(method, path, { person = 'nonowner@example.com', body, he
 }
 
 async function stopServer() {
-  if (started) await new Promise((resolve) => started.server.close(resolve));
+  if (started) { const { server } = await started; await new Promise((resolve) => server.close(resolve)); }
   started = null;
 }
 

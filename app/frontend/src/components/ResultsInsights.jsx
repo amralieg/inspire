@@ -7,6 +7,7 @@ import {
 import { scoreText } from '../lib/reviewFigures';
 import { plural } from '../lib/plural';
 import DataGrid from './DataGrid';
+import { placeholderWords } from '../lib/placeholderWords';
 
 const LIST_PREVIEW = 5;
 const COVERAGE_PREVIEW = 8;
@@ -233,7 +234,7 @@ export function StrategyCoveragePanel({ coverage, onSelectPath, onSelectNotAlign
           <ul className="space-y-1" aria-label="Business priorities">
             {shownPriorities.shown.map((p) => (
               <li key={p.priority} className="flex items-center gap-2 text-[11px]">
-                <span className="min-w-0 flex-1 truncate text-text-primary" title={p.priority}>{p.priority}</span>
+                <span className="min-w-0 flex-1 truncate text-text-primary" title={placeholderWords(p.priority)}>{placeholderWords(p.priority)}</span>
                 {priorityGaps.has(p.priority) && (
                   <span className="shrink-0 rounded border border-warning/35 bg-warning-bg px-1.5 py-0.5 text-[9px] font-semibold text-warning-fg">Gap</span>
                 )}

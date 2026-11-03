@@ -47,6 +47,7 @@ import { interpretUcPermissionError, parseApiErrorMessage } from '../lib/ucPermi
 import { formatWhen } from '../lib/formatWhen';
 import { sessionFailed, sessionFinished } from '../lib/monitorState';
 import { responseError } from '../lib/apiClient';
+import { placeholderWords } from '../lib/placeholderWords';
 
 /* ─── Constants — notebook v1.2.0 widget `05_use_cases_quality` ─── */
 const QUALITY_OPTIONS = ['Good', 'High', 'Ultra High'];
@@ -155,7 +156,7 @@ function titleOfUseCase(uc) {
 }
 
 function blurbOfUseCase(uc) {
-  return uc.Statement || uc.description || uc.problem_statement || uc.Solution || '';
+  return placeholderWords(uc.Statement || uc.description || uc.problem_statement || uc.Solution || '');
 }
 
 /** Optional warehouse_id improves UC browsing for service principals (SQL SHOW … fallback). */
@@ -599,7 +600,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
   useEffect(() => {
     const name = String(params['00_business_name'] || '').trim().toLowerCase();
     if (!name || !warehouseId || !previewDb || (discoveryTouched && strategyTouched)) return undefined;
-    const match = sessionsList.find((s) => String(s.business_name || '').trim().toLowerCase() === name);
+    const match = sessionsList.find((s) => !s.starting && String(s.business_name || '').trim().toLowerCase() === name);
     if (!match) return undefined;
     let cancelled = false;
     const timer = setTimeout(async () => {

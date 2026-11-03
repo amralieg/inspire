@@ -1,5 +1,6 @@
 import { formatDay } from './formatWhen.js';
 import { isFilterMismatchReason } from './kpiFilter.js';
+import { hasUnsetTarget, placeholderWords } from './placeholderWords.js';
 import { pyCasefold, pySpaced, pyTruthy } from './pythonText.js';
 import { v130View } from './v130UseCase.js';
 
@@ -199,7 +200,8 @@ export function targetKpiView(record, run, impact = null) {
   const latest = status === 'measured' && !mismatch ? finite(measured.latest) : null;
   const baseline = mismatch ? null : finite(measured?.baseline ?? recorded?.baseline);
   const target = mismatch ? null : finite(measured?.target ?? recorded?.target);
-  const targetText = spaced(measured?.target_text || recorded?.target_text);
+  const rawTargetText = spaced(measured?.target_text || recorded?.target_text);
+  const targetText = target == null && hasUnsetTarget(rawTargetText) ? '' : placeholderWords(rawTargetText);
   const reason = (mismatch && recorded && !recorded.computable ? spaced(recorded.reason) : '') || spaced(measured?.reason);
   let note = '';
   if (status === 'pending') note = pendingNote(recorded, Boolean(reported));

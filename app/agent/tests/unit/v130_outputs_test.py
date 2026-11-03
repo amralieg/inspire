@@ -171,7 +171,8 @@ def test_a_kpi_baseline_of_0_counted_back_from_today_before_the_window_was_ancho
 
 def test_the_stale_0_baked_into_key_results_and_benefits_reads_as_measured_by_the_kpi_query_and_nothing_else_changes(agent_ns):
     obj = make_inspire(agent_ns)
-    pending = agent_ns["DatabricksInspire"]._BASELINE_PENDING
+    pending, target = "the current value (measured by the KPI query)", "a target the sponsor sets"
+    assert agent_ns["inspire_placeholder_words"](agent_ns["DatabricksInspire"]._BASELINE_PENDING) == pending
     uc = value_uc(**{
         "KPIs": stale_kpis(),
         "Expected Key Results": [{"id": None, "statement": f"Raise weekly trips served from {STALE_NOTE} to [TARGET]", "source": "proposed"},
@@ -181,14 +182,14 @@ def test_the_stale_0_baked_into_key_results_and_benefits_reads_as_measured_by_th
         "Non-Financial Benefits": [f"Riders wait less than at {STALE_NOTE}"],
         "Foundations": [f"F1 {STALE_NOTE}"]})
     items = lambda source, kind: obj._use_case_items(uc, source, kind, {}, "English")[0]
-    assert items("Expected Key Results", "key_results") == [f"Raise weekly trips served from {pending} to [TARGET]",
-                                                            f"Raise weekly fare revenue from {KEPT_NOTE} to [TARGET]"]
+    assert items("Expected Key Results", "key_results") == [f"Raise weekly trips served from {pending} to {target}",
+                                                            f"Raise weekly fare revenue from {KEPT_NOTE} to {target}"]
     assert items("Measures of Success", "lines") == [f"Trips up from {pending}, twice: {pending}"]
     assert items("Financial Benefits", "lines") == [f"Fares grow from {KEPT_NOTE}"]
     assert items("Non-Financial Benefits", "lines") == [f"Riders wait less than at {pending}"]
     assert items("Foundations", "list") == [f"F1 {STALE_NOTE}"], "only the fields Inspire fills with a baseline are cleared"
     source = obj._genie_kpi_source(uc)
-    assert STALE_NOTE not in source and f"Raise weekly trips served from {pending} to [TARGET]" in source
+    assert STALE_NOTE not in source and f"Raise weekly trips served from {pending} to {target}" in source
     assert "  - Weekly trips served (\u2191)\n" in source and KEPT_NOTE in source
 
 

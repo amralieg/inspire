@@ -164,14 +164,16 @@ test('/api/run/pages lists every deployed use case through the implement record 
     ['n01-u01-a', '/run/n01-u01-a/#/n01_u01', 'Retention', true, 'failed', ['Traceback', 'line 2']]);
   assert.equal(Object.hasOwn(inside, 'owners') || Object.hasOwn(inside, 'hosted'), false, 'no owner list or workspace source leaves the server');
   assert.deepEqual([app.app_name, app.app_url, app.owner, Object.hasOwn(app, 'path')], ['inspire-hub-acme', 'https://inspire-hub-acme.example.com', false, false]);
-  assert.deepEqual([mine.data.user_authorization, mine.data.user_authorization_note], [true, HOSTED_NO_TOKEN]);
+  assert.deepEqual([mine.data.user_authorization, Object.hasOwn(mine.data, 'user_authorization_note')], [true, false],
+    'with user authorization on there is nothing to explain');
   assert.deepEqual(owned.calls.listed, [{ ids: ['n01-u01-a'], ctx: { key: 'https://workspace.example.com|main.inspire', warehouseId: 'wh1', catalog: 'main', schema: 'inspire' } }]);
   const registryReads = mine.made.sqlCalls.filter((c) => String(c.sql).includes('`app_name` IS NOT NULL'));
   assert.equal(registryReads.length, 1, 'one read of the implement records, through the registry statement');
   const theirs = await runPages({ registry, useCaseScope: scope, hostedRun: fakeHosted() }, OTHER);
   const shown = theirs.data.pages.find((p) => p.kind === 'inspire');
   assert.deepEqual([shown.owner, shown.state, shown.error, Object.hasOwn(shown, 'stderr')], [false, 'failed', 'the page stopped with exit code 1', false]);
-  assert.equal(theirs.data.user_authorization, false, 'no forwarded token: Run explains why the pages cannot open');
+  assert.deepEqual([theirs.data.user_authorization, theirs.data.user_authorization_note], [false, HOSTED_NO_TOKEN],
+    'no forwarded token: Run explains why the pages cannot open');
   const none = await runPages({ registry: [], hostedRun: fakeHosted() }, OWNER);
   assert.deepEqual(none.data.pages, []);
 });

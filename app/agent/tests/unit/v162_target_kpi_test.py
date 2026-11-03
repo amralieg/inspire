@@ -236,8 +236,8 @@ def test_the_target_is_a_plain_number_or_a_percent_change_and_otherwise_text(age
     assert target(kpi, [{"statement": "Cut churn rate by 10% this year", "kpi_id": None}], 12.0) == (10.8, "Cut churn rate by 10% this year")
     assert target(kpi, [{"statement": "Cut churn rate by 10% this year"}]) == (None, "Cut churn rate by 10% this year"), \
         "a percent change needs a baseline"
-    assert target(kpi, [{"statement": "Reduce churn rate from [BASELINE] to [TARGET] within [WINDOW]", "kpi_id": None}]) == (
-        None, "Reduce churn rate from [BASELINE] to [TARGET] within [WINDOW]")
+    assert target(kpi, [{"statement": "Reduce churn rate from [BASELINE] to [TARGET] within [WINDOW]", "kpi_id": None}]) == (None, ""), \
+        "a key result whose target the sponsor has not set is no target"
     assert target(dict(kpi, direction="increase", name="Repeat rate", kpi_id=None),
                   [{"statement": "Raise repeat rate by 5% by Q4"}], 20.0) == (21.0, "Raise repeat rate by 5% by Q4")
     assert target(kpi, [{"statement": "Grow revenue to 2,000,000"}]) == (None, ""), "a key result about another KPI is not its target"

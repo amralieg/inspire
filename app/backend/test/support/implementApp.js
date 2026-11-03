@@ -134,10 +134,6 @@ function makeApp(overrides = {}, { mount } = {}) {
       }
       return { rows: [] };
     },
-    executeSqlWithDeltaRetry: async (_h, _t, _w, sql, options) => {
-      sqlCalls.push({ sql, parameters: options && options.parameters });
-      return { rows: [] };
-    },
     sqlResultToObjects,
     dbFetch: async (_host, token, path, opts = {}) => {
       fetches.push({ path, opts, token });

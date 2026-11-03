@@ -53,6 +53,7 @@ const {
 const { createHostedRun, workspaceFiles } = require('./lib/hostedRun');
 const RP = require('./lib/routePolicy');
 const L = require('./lib/launchLedger');
+const { workspacePathProblem, rejectUnsafeQueryPath, fsApiPath } = require('./lib/workspacePaths');
 const { staticHeaders } = require('./lib/assetTypes');
 
 const app = express();
@@ -485,36 +486,6 @@ async function requireToken(req, res, next) {
 
 const executeSql = createExecuteSql(dbFetch);
 
-/** Delta optimistic concurrency (notebook + UI can touch __inspire_usecases at once). */
-function isDeltaConcurrentWriteConflict(message) {
-  const m = String(message || '');
-  return (
-    /DELTA_CONCURRENT_APPEND|ROW_LEVEL_CHANGES|Transaction conflict|ConcurrentTransaction|concurrent update|Cannot write.*conflict|CONCURRENT_APPEND/i.test(
-      m,
-    )
-  );
-}
-
-/** Re-run the same SQL statement after short backoff when Delta reports a row-level conflict. */
-async function executeSqlWithDeltaRetry(host, token, warehouseId, sql, options = {}) {
-  const maxAttempts = options.maxAttempts ?? 6;
-  const baseDelayMs = options.baseDelayMs ?? 100;
-  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    try {
-      return await executeSql(host, token, warehouseId, sql, options.parameters || null);
-    } catch (e) {
-      const msg = e.message || String(e);
-      if (!isDeltaConcurrentWriteConflict(msg) || attempt === maxAttempts) {
-        throw e;
-      }
-      const jitter = baseDelayMs * attempt + Math.floor(Math.random() * baseDelayMs);
-      console.warn(`   🔄 Delta conflict, SQL retry ${attempt}/${maxAttempts - 1} in ${jitter}ms`);
-      await new Promise((r) => setTimeout(r, jitter));
-    }
-  }
-  throw new Error('executeSqlWithDeltaRetry: unreachable');
-}
-
 // Helper: convert SQL result to array of objects
 function sqlResultToObjects(result) {
   const columns = result.manifest?.schema?.columns;
@@ -627,7 +598,7 @@ async function runRoute1GenieFlagUpdates(host, token, warehouseId, catalog, sche
         WHERE session_id = ${sidStr}`;
 
   const runOnce = async () => {
-    await executeSqlWithDeltaRetry(host, token, warehouseId, flagSql, { maxAttempts: 6, baseDelayMs: 120 });
+    await executeSql(host, token, warehouseId, flagSql);
   };
 
   await ensureUsecasesGenieRoute1Columns(host, token, warehouseId, ucTable);
@@ -792,6 +763,32 @@ async function sessionIsNew(host, inspireDatabase, sessionId) {
   return true;
 }
 
+async function startingSessions(req, inspireDatabase, warehouseId, listed) {
+  if (req.dbTokenKind === PERSON_TOKEN) return [];
+  const table = L.launchTableName(DEFAULT_INSPIRE_DB);
+  const statement = table && DEFAULT_WAREHOUSE_ID ? L.startingLaunchStatement(table, inspireDatabase) : null;
+  if (!statement) return [];
+  try {
+    const host = resolveHost(req);
+    const shown = new Set(listed.map((s) => String(s.session_id)));
+    let launches = (await launchSql(host, statement)).filter((l) => /^\d+$/.test(String(l.session_id || '')) && !shown.has(String(l.session_id)));
+    const seen = L.sessionsSeenStatement(inspireDatabase, launches.map((l) => l.session_id));
+    if (!seen) return [];
+    const known = new Set(sqlResultToObjects(await executeSql(req.dbHost, req.dbToken, warehouseId, seen.sql, seen.parameters)).map((r) => String(r.session_id)));
+    launches = launches.filter((l) => !known.has(String(l.session_id)));
+    if (!launches.length) return [];
+    const token = await appOwnToken();
+    const rows = await Promise.all(launches.map(async (launch) => {
+      const resp = await dbFetch(host, token, `/api/2.1/jobs/runs/get?run_id=${encodeURIComponent(launch.run_id)}`);
+      return resp.ok ? L.startingSessionRow(launch, await resp.json(), inspireDatabase) : null;
+    }));
+    return rows.filter(Boolean);
+  } catch (err) {
+    if (!isMissingTableError(err)) console.warn(`[sessions] the runs that are still starting could not be read, so Start lists only runs that wrote their first row: ${err.message}`);
+    return [];
+  }
+}
+
 async function recordLaunch(host, record) {
   const table = L.launchTableName(DEFAULT_INSPIRE_DB);
   if (!table || !DEFAULT_WAREHOUSE_ID) {
@@ -804,7 +801,7 @@ async function recordLaunch(host, record) {
       launchTableReady = true;
     }
     const insert = L.launchInsertStatement(table, record);
-    await executeSqlWithDeltaRetry(host, token, DEFAULT_WAREHOUSE_ID, insert.sql, { parameters: insert.parameters });
+    await executeSql(host, token, DEFAULT_WAREHOUSE_ID, insert.sql, insert.parameters);
     return { recorded: true };
   } catch (err) {
     console.warn(`launch record write failed for run ${record.runId}: ${err.message}`);
@@ -1206,22 +1203,10 @@ app.post('/api/auth/sp-token', async (req, res) => {
 //  Workspace File Operations (list & download artifacts)
 // ═══════════════════════════════════════════════════
 
-/** Collapse /./ and /../ so `/Shared/../demos/x` → `/demos/x`. Leaves /Volumes/ unchanged. */
 function normalizeWorkspaceApiPath(input) {
   if (!input || typeof input !== 'string') return '';
-  const t = input.trim().replace(/\/+/g, '/');
-  if (!t) return '';
-  if (t.startsWith('/Volumes/')) return t;
-  if (!t.startsWith('/')) return t;
-  const segments = t.split('/').filter(Boolean);
-  const stack = [];
-  for (const seg of segments) {
-    if (seg === '.') continue;
-    if (seg === '..') {
-      if (stack.length) stack.pop();
-    } else stack.push(seg);
-  }
-  return stack.length ? `/${stack.join('/')}` : '/';
+  const segments = input.trim().split('/').filter(Boolean);
+  return segments.length ? `/${segments.join('/')}` : '/';
 }
 
 /**
@@ -1236,7 +1221,6 @@ function workspaceApiPathCandidates(input) {
     if (y && !out.includes(y)) out.push(y);
   };
   add(n);
-  if (!n.startsWith('/')) return out;
   if (n.startsWith('/Volumes/')) return out;
   if (!n.startsWith('/Workspace')) add(`/Workspace${n}`);
   if (n.startsWith('/Workspace/')) {
@@ -1246,11 +1230,9 @@ function workspaceApiPathCandidates(input) {
   return out;
 }
 
-app.get('/api/workspace/list', requireToken, async (req, res) => {
+app.get('/api/workspace/list', rejectUnsafeQueryPath, requireToken, async (req, res) => {
   try {
     const rawPath = req.query.path;
-    if (!rawPath) return res.status(400).json({ error: 'path query param required.' });
-
     const candidates = workspaceApiPathCandidates(rawPath);
     let lastErr = 'not found';
     let lastStatus = 404;
@@ -1258,7 +1240,7 @@ app.get('/api/workspace/list', requireToken, async (req, res) => {
     for (const wsPath of candidates) {
       // Handle Volumes paths via Files API
       if (wsPath.startsWith('/Volumes/')) {
-        const response = await dbFetch(req.dbHost, req.dbToken, `/api/2.0/fs/directories${wsPath}`);
+        const response = await dbFetch(req.dbHost, req.dbToken, fsApiPath('directories', wsPath));
         if (!response.ok) {
           lastStatus = response.status;
           lastErr = await response.text();
@@ -1297,11 +1279,9 @@ app.get('/api/workspace/list', requireToken, async (req, res) => {
   }
 });
 
-app.get('/api/workspace/export', requireToken, async (req, res) => {
+app.get('/api/workspace/export', rejectUnsafeQueryPath, requireToken, async (req, res) => {
   try {
     const rawPath = req.query.path;
-    if (!rawPath) return res.status(400).json({ error: 'path query param required.' });
-
     const candidates = workspaceApiPathCandidates(rawPath);
     const baseName = (normalizeWorkspaceApiPath(rawPath).split('/').pop() || 'file');
     let lastErr = 'not found';
@@ -1309,7 +1289,7 @@ app.get('/api/workspace/export', requireToken, async (req, res) => {
 
     for (const wsPath of candidates) {
       if (wsPath.startsWith('/Volumes/')) {
-        const response = await dbFetch(req.dbHost, req.dbToken, `/api/2.0/fs/files${wsPath}`);
+        const response = await dbFetch(req.dbHost, req.dbToken, fsApiPath('files', wsPath));
         if (!response.ok) {
           lastStatus = response.status;
           lastErr = await response.text();
@@ -1798,9 +1778,8 @@ app.get('/api/warehouses', requireToken, async (req, res) => {
 app.post('/api/publish', requireToken, async (req, res) => {
   try {
     const { destination_path } = req.body;
-    if (!destination_path) {
-      return res.status(400).json({ error: 'destination_path is required.' });
-    }
+    const problem = workspacePathProblem('destination_path', destination_path);
+    if (problem) return res.status(400).json({ error: problem });
 
     if (!fs.existsSync(BUNDLED_NOTEBOOK_PATH)) {
       return res.status(404).json({ error: 'Bundled notebook file not found on server.' });
@@ -1858,7 +1837,8 @@ app.post('/api/publish', requireToken, async (req, res) => {
 app.post('/api/publish/upload', requireToken, upload.single('file'), async (req, res) => {
   try {
     const { destination_path } = req.body;
-    if (!destination_path) return res.status(400).json({ error: 'destination_path is required.' });
+    const problem = workspacePathProblem('destination_path', destination_path);
+    if (problem) return res.status(400).json({ error: problem });
     if (!req.file) return res.status(400).json({ error: 'No file uploaded.' });
 
     const base64Content = req.file.buffer.toString('base64');
@@ -2645,8 +2625,7 @@ app.post('/api/inspire/feedback', requireToken, async (req, res) => {
     const sessionRows = sqlResultToObjects(await executeSql(req.dbHost, req.dbToken, warehouse_id, lookup.sql, lookup.parameters));
     if (!sessionRows.length) return res.status(404).json({ error: `Session ${values.sessionId} not found.` });
     const insert = feedbackInsertStatement(tables.feedback, values, sessionRows[0].business_name, (await personOf(req)).username);
-    await executeSqlWithDeltaRetry(req.dbHost, req.dbToken, warehouse_id, insert.sql,
-      { maxAttempts: 6, baseDelayMs: 120, parameters: insert.parameters });
+    await executeSql(req.dbHost, req.dbToken, warehouse_id, insert.sql, insert.parameters);
     res.json({ success: true, available: true, status: values.status, use_case_key: values.useCaseKey });
   } catch (err) {
     if (err.statusCode === 400) return res.status(400).json({ error: err.message });
@@ -2675,7 +2654,6 @@ app.get('/api/inspire/feedback', requireToken, async (req, res) => {
 const implementApi = registerImplementRoutes(app, {
   requireToken,
   executeSql,
-  executeSqlWithDeltaRetry,
   sqlResultToObjects,
   dbFetch,
   fetchInspireSessionWidgetRow,
@@ -2890,6 +2868,7 @@ app.get('/api/inspire/sessions', requireToken, async (req, res) => {
       table,
       sessionListCap(req.query.all === '1'),
     );
+    sessions.unshift(...await startingSessions(req, inspire_database, warehouse_id, sessions));
 
     for (const s of sessions) {
       // Reconstruct widget_values from individual columns
@@ -2973,10 +2952,9 @@ app.delete('/api/inspire/session', requireToken, async (req, res) => {
 //  Workspace status check
 // ═══════════════════════════════════════════════════
 
-app.get('/api/workspace/status', requireToken, async (req, res) => {
+app.get('/api/workspace/status', rejectUnsafeQueryPath, requireToken, async (req, res) => {
   try {
-    const notebookPath = req.query.path;
-    if (!notebookPath) return res.status(400).json({ error: 'path query param required.' });
+    const notebookPath = req.query.path.trim();
     const response = await dbFetch(req.dbHost, req.dbToken, `/api/2.0/workspace/get-status?path=${encodeURIComponent(notebookPath)}`);
     if (!response.ok) {
       if (response.status === 404) return res.json({ exists: false });

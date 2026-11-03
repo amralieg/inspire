@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { getOverview, getPage } from './api.js';
 import { apiTables, apiValues, clearColumnValues, clearSelections, columnValues, setColumnValue, toggleValue } from './filters.js';
 import { ColumnFilterStatus, withColumnFilters } from './ColumnFilters.jsx';
@@ -219,6 +219,8 @@ export default function Page({ app, page, meta, state, onState, themeKey, onAsk,
   const ready = !!state;
   const [nonce, setNonce] = useState(0);
   const [tab, setTab] = useState('overview');
+  const [compose, setCompose] = useState(false);
+  const composed = useCallback(() => setCompose(false), []);
   const [runNonce, setRunNonce] = useState(0);
   const [runOffset, setRunOffset] = useState(0);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -292,7 +294,7 @@ export default function Page({ app, page, meta, state, onState, themeKey, onAsk,
             <ReviewLink page={page} app={app} />
             <SettingsButton open={settingsOpen} onOpen={setSettingsOpen} owned={ownerSettings(settings)} />
             {app.alerting?.on && (
-              <button className="btn notify" onClick={() => setTab('alerts')} title="Set up an email alert on this use case">
+              <button className="btn notify" onClick={() => { setTab('alerts'); setCompose(true); }} title="Set up an email alert on this use case">
                 <Icon name="bell" size={15} />Notify me
               </button>
             )}
@@ -357,7 +359,7 @@ export default function Page({ app, page, meta, state, onState, themeKey, onAsk,
       )}
       {!UNFILTERED.includes(shown) && meta?.error && <p className="tile-err" role="alert"><Icon name="info" size={14} />The filters could not load, so the page shows all its data: {meta.error}</p>}
       {shown === 'runs' && <Runs page={page} runs={runs} offset={runOffset} onOffset={setRunOffset} onExplain={hubExplain(app, onExplain, page.id)} genieBusy={genieBusy} />}
-      {shown === 'alerts' && <Alerts app={app} page={page} meta={meta} />}
+      {shown === 'alerts' && <Alerts app={app} page={page} meta={meta} compose={compose} onComposed={composed} />}
       {shown === 'overview' && (
         <>
           {error && <p className="tile-err" role="alert"><Icon name="info" size={14} />{error}</p>}

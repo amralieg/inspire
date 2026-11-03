@@ -81,6 +81,37 @@ test('without a demo in the App the home page offers Get Started alone and does 
   }
 });
 
+test('an App the installer set up shows no setup wizard on its home page, and a self-run App names Workspace setup without the word wizard', async () => {
+  const DEFAULTS = { envSkipsSetupWizard: true, isDatabricksApp: true, databricksHost: 'https://workspace.example.com', warehouseId: 'wh1',
+    inspireDatabase: 'main.inspire', notebookPath: '/Shared/inspire_ai' };
+  const mount = (app) => {
+    app.get('/api/defaults', (_req, res) => res.json(DEFAULTS));
+    app.get('/api/showcase', (_req, res) => res.json({}));
+  };
+  const installed = await openUi('app', {}, '', { mount });
+  try {
+    await installed.page.getByRole('button', { name: 'Get Started', exact: true }).first().waitFor({ timeout: 20000 });
+    const text = await installed.page.locator('body').innerText();
+    assert.doesNotMatch(text, /setup wizard/i);
+    assert.doesNotMatch(text, /host, token/i);
+    assert.equal(await installed.page.getByRole('button', { name: 'Workspace setup' }).count(), 0);
+    assert.equal(await installed.page.getByRole('complementary', { name: 'Legal disclaimer' }).count(), 1);
+    assert.deepEqual(installed.pageErrors, []);
+  } finally {
+    await installed.close();
+  }
+  const local = await openUi('landing');
+  try {
+    await local.page.getByText('Scroll to explore').waitFor();
+    assert.doesNotMatch(await local.page.locator('body').innerText(), /wizard/i);
+    await local.page.getByRole('button', { name: 'Workspace setup', exact: true }).click();
+    assert.equal(await clicks(local.page).textContent(), 'setup');
+    assert.deepEqual(local.pageErrors, []);
+  } finally {
+    await local.close();
+  }
+});
+
 test('the home page walks through the five tabs as they work now and keeps none of the old claims', async () => {
   const ui = await openUi('landing');
   const { page } = ui;

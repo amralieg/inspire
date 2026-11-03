@@ -68,13 +68,13 @@ const HIGH_TIER_IDX = PRIORITY_ORDER.indexOf('High');
 
 export function expandWorkspaceListCandidates(p) {
   const n = normalizeDatabricksFsPath(p);
+  if (!n.startsWith('/')) return [];
   const out = [];
   const push = (x) => {
     const y = normalizeDatabricksFsPath(x);
     if (y && !out.includes(y)) out.push(y);
   };
   push(n);
-  if (!n.startsWith('/')) return out;
   if (n.startsWith('/Volumes/')) return out;
   if (!n.startsWith('/Workspace')) push(`/Workspace${n}`);
   if (n.startsWith('/Workspace/')) {

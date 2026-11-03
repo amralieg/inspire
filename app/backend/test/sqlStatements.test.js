@@ -8,6 +8,8 @@ const {
   readDeadline,
   PAGE_SQL_DEADLINE_MS,
   SLOW_WAREHOUSE_MESSAGE,
+  isDeltaWriteConflict,
+  CONFLICT_ATTEMPTS,
 } = require('../lib/sqlStatements');
 
 function warehouse(states, { submitMs = 0, cancelOk = true, rows = [['1']] } = {}) {
@@ -168,5 +170,64 @@ test('the server has one SQL runner, built from the module, and every token-chec
   assert.ok(!/\n\s+next\(\);/.test(requireToken), 'requireToken never calls next() outside the deadline');
   for (const file of ['implementRoutes.js', path.join('lib', 'demoDataService.js')]) {
     assert.ok(!/fetch\([^)]*\/api\/2\.0\/sql\/statements/.test(fs.readFileSync(path.join(__dirname, '..', file), 'utf8')), `${file} sends no statement of its own`);
+  }
+});
+
+const CONFLICT = '[DELTA_CONCURRENT_APPEND.WITH_PARTITION_HINT] ConcurrentAppendException: Files were added to the root of the table by a concurrent update.';
+
+function conflictingWarehouse(conflicts, message = CONFLICT) {
+  const submitted = [];
+  const waits = [];
+  let left = conflicts;
+  const dbFetch = async (_h, _t, apiPath, options = {}) => {
+    if (options.method === 'POST') submitted.push(JSON.parse(options.body).statement);
+    const failed = left > 0;
+    if (failed) left -= 1;
+    const status = failed ? { state: 'FAILED', error: { message } } : { state: 'SUCCEEDED' };
+    return { ok: true, json: async () => ({ statement_id: 's1', status, manifest: { schema: { columns: [{ name: 'n' }] } }, result: { data_array: failed ? [] : [['1']] } }) };
+  };
+  const executeSql = createExecuteSql(dbFetch, { sleep: async (ms) => { waits.push(ms); }, random: () => 0.5 });
+  return { executeSql, submitted, waits };
+}
+
+test('a write Delta rejects for a concurrent change is sent again after a growing wait, and succeeds', async () => {
+  const w = conflictingWarehouse(2);
+  const sql = "UPDATE `c`.`s`.`__inspire_session` SET processing_status = 'done' WHERE session_id = 7 AND processing_status = 'ready'";
+  const result = await w.executeSql('h', 't', 'wh', sql);
+  assert.deepEqual(result.result.data_array, [['1']]);
+  assert.deepEqual(w.submitted, [sql, sql, sql], 'the same statement, three times');
+  assert.deepEqual(w.waits, [150, 250], 'the wait grows with each attempt');
+});
+
+test('a conflict that never clears stops after the attempt cap and throws the warehouse message', async () => {
+  const w = conflictingWarehouse(99);
+  await assert.rejects(w.executeSql('h', 't', 'wh', 'INSERT INTO t VALUES (1)'), /DELTA_CONCURRENT_APPEND/);
+  assert.equal(w.submitted.length, CONFLICT_ATTEMPTS);
+  assert.equal(w.waits.length, CONFLICT_ATTEMPTS - 1);
+});
+
+test('an error that is not a concurrent change is thrown at once, never sent again', async () => {
+  const w = conflictingWarehouse(1, '[TABLE_OR_VIEW_NOT_FOUND] The table or view `c`.`s`.`t` cannot be found.');
+  await assert.rejects(w.executeSql('h', 't', 'wh', 'UPDATE t SET a = 1'), /TABLE_OR_VIEW_NOT_FOUND/);
+  assert.equal(w.submitted.length, 1);
+  assert.deepEqual(w.waits, []);
+});
+
+test('every Delta concurrent-change error counts as a conflict, and nothing else does', () => {
+  for (const message of [CONFLICT, '[DELTA_CONCURRENT_DELETE_READ] ConcurrentDeleteReadException', 'io.delta.exceptions.ConcurrentTransactionException',
+    '[DELTA_CONCURRENT_WRITE] ConcurrentWriteException', '[DELTA_METADATA_CHANGED] MetadataChangedException', 'ProtocolChangedException',
+    'ConcurrentDeleteDeleteException']) {
+    assert.equal(isDeltaWriteConflict(message), true, message);
+  }
+  for (const message of ['[TABLE_OR_VIEW_NOT_FOUND] x', 'PERMISSION_DENIED', 'MAX_CONCURRENT_RUNS_REACHED', 'MAXIMUM_CONCURRENT_RUNS_REACHED',
+    '[DELTA_UNSUPPORTED_ROW_LEVEL_CHANGES] x', '', null, undefined]) {
+    assert.equal(isDeltaWriteConflict(message), false, String(message));
+  }
+});
+
+test('the server and implement routes write only through the one runner, with no second retry wrapper', () => {
+  for (const file of ['server.js', 'implementRoutes.js']) {
+    const src = fs.readFileSync(path.join(__dirname, '..', file), 'utf8');
+    assert.doesNotMatch(src, /executeSqlWithDeltaRetry|isDeltaConcurrentWriteConflict/, file);
   }
 });

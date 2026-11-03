@@ -47,6 +47,31 @@ test('a run refused for a table the person cannot read shows the reason as it ca
   }
 });
 
+test('Launch prefills a business from its last run that wrote rows, never from a run still starting (must-exclude)', async () => {
+  const asked = [];
+  const sessions = [
+    { session_id: '7001', run_id: '701', starting: true, business_name: 'Acme', completed_percent: 0 },
+    { session_id: '6001', business_name: 'Acme', completed_percent: 100 },
+  ];
+  const ui = await openUi('launch', { sessions }, '', {
+    mount: (app) => {
+      app.get('/api/inspire/session', (req, res) => {
+        asked.push(String(req.query.session_id));
+        res.json({ session: { session_id: req.query.session_id, widget_values: { discovery_type: 'Deep' } } });
+      });
+    },
+  });
+  const { page, pageErrors } = ui;
+  try {
+    await page.getByPlaceholder('e.g. Contoso, Acme Corp, Retail Division').fill('Acme');
+    await page.getByText("Prefilled from this business's last session (6001).").waitFor({ timeout: 20000 });
+    assert.deepEqual([...new Set(asked)], ['6001']);
+    assert.deepEqual(pageErrors.filter((line) => !forbidden(line)), []);
+  } finally {
+    await ui.close();
+  }
+});
+
 test('with no sign-in the Setup page shows the sign-in refusal under the catalog picker', async () => {
   const ui = await openUi('setup', { noPersonToken: true }, '', {
     mount: (app) => {

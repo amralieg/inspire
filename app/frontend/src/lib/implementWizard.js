@@ -1,4 +1,5 @@
 import { subtitleOfUseCase } from './useCaseFields.js';
+import { placeholderWords } from './placeholderWords.js';
 import { plural } from './plural.js';
 import { kpiTargetOf, kpiTargetProblems, stakeWords, withKpiTarget } from './targetKpi.js';
 import { scopeProblems, scopeValues } from './runScope.js';
@@ -845,8 +846,8 @@ export function defaultResultTable(inspireDatabase, useCaseId, sessionId) {
 export function defaultSpecFromUseCase(uc, { warehouseId, inspireDatabase, sessionId, owner, businessName } = {}) {
   const id = caseIdOf(uc);
   const resultTable = defaultResultTable(inspireDatabase, id, sessionId);
-  const measures = listOf(uc?.measures_of_success || uc?._v130?.measuresOfSuccess).slice(0, 3);
-  const goal = String(uc?.statement || uc?.Statement || uc?.business_value || '').trim().slice(0, 500);
+  const measures = listOf(uc?.measures_of_success || uc?._v130?.measuresOfSuccess).slice(0, 3).map(placeholderWords);
+  const goal = placeholderWords(uc?.statement || uc?.Statement || uc?.business_value || '').trim().slice(0, 500);
   const decisionOwner = String(owner || uc?.sponsor || uc?.Sponsor || '').trim();
   const useCaseName = caseNameOf(uc);
   return {

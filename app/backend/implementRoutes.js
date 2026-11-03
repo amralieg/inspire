@@ -17,6 +17,7 @@ const G = require('./lib/groupingSql');
 const GR = require('./lib/groupingRule');
 const GP = require('./lib/groupingProfile');
 const { runWithRequestDeadline } = require('./lib/sqlStatements');
+const { fsApiPath } = require('./lib/workspacePaths');
 
 function sendError(res, err) {
   const code = err && Number.isFinite(err.statusCode) ? err.statusCode : 500;
@@ -91,7 +92,6 @@ function registerImplementRoutes(app, deps) {
   const {
     requireToken,
     executeSql,
-    executeSqlWithDeltaRetry,
     sqlResultToObjects,
     dbFetch,
     fetchInspireSessionWidgetRow,
@@ -1059,7 +1059,7 @@ function registerImplementRoutes(app, deps) {
       statusMessage: 'queued',
       changeClasses: plan.summary.classes,
     });
-    await executeSqlWithDeltaRetry(req.dbHost, req.dbToken, warehouseId, insert.sql, { parameters: insert.parameters });
+    await executeSql(req.dbHost, req.dbToken, warehouseId, insert.sql, insert.parameters);
 
     const version = { sessionId: sid, useCaseId, specVersion: plan.nextVersion };
     let out;
@@ -1075,7 +1075,7 @@ function registerImplementRoutes(app, deps) {
     } catch (err) {
       const failed = I.implementStartFailedStatement(table, { ...version, message: `the MVP run could not start: ${err.message}` });
       try {
-        await executeSqlWithDeltaRetry(req.dbHost, req.dbToken, warehouseId, failed.sql, { parameters: failed.parameters });
+        await executeSql(req.dbHost, req.dbToken, warehouseId, failed.sql, failed.parameters);
       } catch (e) {
         console.warn(`implement start-failure write failed: ${e.message}`);
       }
@@ -1083,7 +1083,7 @@ function registerImplementRoutes(app, deps) {
     }
     const started = I.implementRunStartedStatement(table, { ...version, runId: out.run_id, message: out.job_run_url || `run ${out.run_id}` });
     try {
-      await executeSqlWithDeltaRetry(req.dbHost, req.dbToken, warehouseId, started.sql, { parameters: started.parameters });
+      await executeSql(req.dbHost, req.dbToken, warehouseId, started.sql, started.parameters);
     } catch (e) {
       console.warn(`implement run id write failed: ${e.message}`);
     }
@@ -1136,7 +1136,7 @@ function registerImplementRoutes(app, deps) {
       const sessionLog = I.liveLogPath(`${catalog}.${schema}`, session?.business_name, sid);
       let logPath = runLog;
       let feed = [];
-      const readLog = (path) => jsonOf(dbFetch, req.dbHost, req.dbToken, `/api/2.0/fs/files${path}`).catch((err) => {
+      const readLog = (path) => jsonOf(dbFetch, req.dbHost, req.dbToken, fsApiPath('files', path)).catch((err) => {
         console.warn(`[implement] live log read ended early, the feed keeps its last messages: ${path}: ${err.message}`);
         return { ok: false, status: 0, data: {} };
       });
@@ -1212,10 +1212,11 @@ function registerImplementRoutes(app, deps) {
       const { catalog, schema } = dbOf(req, splitInspireDatabase);
       const [pages, person] = await Promise.all([loadRunPages(req, warehouseId, catalog, schema), personOf(req)]);
       if (hostedRun) hostedRun.setListed(I.runPagesServed(pages), runContext(req, warehouseId, catalog, schema));
+      const forwarded = Boolean(P.forwardedTokenOf(req));
       res.json({
         pages: I.runPagesView(pages, { who: person.username, stateOf: hostedRun ? hostedRun.stateOf : null }),
-        user_authorization: Boolean(P.forwardedTokenOf(req)),
-        user_authorization_note: HOSTED_NO_TOKEN,
+        user_authorization: forwarded,
+        ...(forwarded ? {} : { user_authorization_note: HOSTED_NO_TOKEN }),
       });
     } catch (err) {
       sendError(res, err);
@@ -1716,7 +1717,7 @@ function registerImplementRoutes(app, deps) {
       });
       let auditError = '';
       try {
-        await executeSqlWithDeltaRetry(req.dbHost, req.dbToken, ctx.warehouseId, insert.sql, { parameters: insert.parameters });
+        await executeSql(req.dbHost, req.dbToken, ctx.warehouseId, insert.sql, insert.parameters);
       } catch (e) {
         auditError = `the action was not recorded in ${C.CONTROL_LOG_TABLE}: ${e.message}`;
         console.warn(`implement control audit write failed: ${e.message}`);

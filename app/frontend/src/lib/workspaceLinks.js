@@ -1,9 +1,8 @@
-/** Collapse `/./` and `/../` (e.g. `/Shared/../demos/x` → `/demos/x`). Leaves `/Volumes/` unchanged. */
+/** Collapse `/./` and `/../` (e.g. `/Shared/../demos/x` → `/demos/x`). */
 export function normalizeDatabricksFsPath(p) {
   if (p == null || typeof p !== 'string') return '';
   const t = p.trim().replace(/\/+/g, '/');
   if (!t) return '';
-  if (t.startsWith('/Volumes/')) return t.replace(/\/+$/, '') || t;
   if (!t.startsWith('/')) return t;
   const segments = t.split('/').filter(Boolean);
   const stack = [];

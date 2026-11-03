@@ -1,5 +1,6 @@
 import { cap, countOf, grouped, percentOf, stakeName, stakeNameOf, stakeWords, sumOf, wholeMoney } from './format.js';
 import { NOT_MEASURED, moneyText, plural, shortDay, totals } from './hub.js';
+import { hasUnsetTarget, placeholderWords } from './placeholders.js';
 import { NOT_IN_RUN, statusLabel } from './records.js';
 
 export const MIN_ARM = 5;
@@ -103,7 +104,7 @@ export function targetKpiView(run) {
     source: run.kpi_source === 'evaluated' ? 'Inspire chose this KPI for the use case' : 'This use case\u2019s KPI from Inspire',
     baseline: shown(run.kpi_baseline) || NOT_MEASURED, baselineOn: run.kpi_baseline_on ? shortDay(run.kpi_baseline_on) : '',
     latest: measuredNow || 'Not measured', latestOn: measuredNow && run.kpi_measured_at ? shortDay(run.kpi_measured_at) : '',
-    target: shown(run.kpi_target) || String(run.kpi_target_text ?? '').trim() || 'No target set',
+    target: shown(run.kpi_target) || (hasUnsetTarget(run.kpi_target_text) ? '' : placeholderWords(run.kpi_target_text).trim()) || 'No target set',
     note: measuredNow ? (reason ? `Baseline: ${cap(reason)}` : '') : `Not measured${reason ? `: ${cap(reason)}` : ''}`,
     baselineFlagged: !!measuredNow && !!reason,
   };
@@ -137,8 +138,8 @@ export function heldShare(entry) {
 
 export function promisedView(page) {
   const promised = page?.promised || {};
-  const value = String(promised.value || '').trim();
-  const benefits = (promised.benefits || []).map((b) => String(b).trim()).filter(Boolean);
+  const value = placeholderWords(promised.value || '').trim();
+  const benefits = (promised.benefits || []).map((b) => placeholderWords(b).trim()).filter(Boolean);
   return value || benefits.length ? { value, benefits } : null;
 }
 

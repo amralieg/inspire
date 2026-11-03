@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { closeBrowser, lowContrast, openUi, setDark, settled } from './uiSupport.mjs';
-import { REVIEW_RESULTS, REVIEW_STATE, RUN_SUMMARY } from './reviewFixtures.js';
+import { REVIEW_RESULTS, REVIEW_SESSIONS, REVIEW_STATE, RUN_SUMMARY } from './reviewFixtures.js';
 import { LATEST_RUN_LABEL } from '../../src/lib/reviewFigures.js';
 import * as V from '../../src/lib/v130UseCase.js';
 import * as A from '../../src/lib/artifactFiles.js';
@@ -32,6 +32,51 @@ function outsideHosts(page) {
   });
   return sent;
 }
+
+test('Review lists the documents of an absolute output folder, and never asks for a relative or .. folder when the agent notebook path is unknown (must-exclude)', async () => {
+  const listed = async (generationPath) => {
+    const sessions = REVIEW_SESSIONS.map((s) => (s.session_id === '42' ? { ...s, generation_path: generationPath } : s));
+    const ui = await openUi('results', { ...REVIEW_STATE, sessions });
+    const asked = [];
+    ui.page.on('request', (r) => {
+      const u = new URL(r.url());
+      if (u.pathname === '/api/workspace/list') asked.push(u.searchParams.get('path'));
+    });
+    try {
+      await ready(ui.page);
+      await settled(ui.page, '[aria-label="Figures of this run"]');
+      await ui.page.waitForTimeout(1000);
+      assert.deepEqual(ui.pageErrors, []);
+      return asked;
+    } finally {
+      await ui.close();
+    }
+  };
+  assert.deepEqual(await listed('/Workspace/Users/a@example.com/out/'), ['/Workspace/Users/a@example.com/out/acme', '/Users/a@example.com/out/acme'],
+    'an absolute output folder is listed in both workspace forms, so the harness does load documents');
+  const relative = await listed('./../demos/');
+  assert.deepEqual(relative.filter((p) => !p.startsWith('/') || p.split('/').some((seg) => seg === '.' || seg === '..')), [], relative.join(', '));
+});
+
+test('on a small screen the figures of the run below the fold already read their numbers before anyone scrolls to them', async () => {
+  const ui = await openUi('results', REVIEW_STATE, '', { init: (page) => page.setViewportSize({ width: 390, height: 260 }) });
+  const { page } = ui;
+  try {
+    await ready(page);
+    const tile = (label) => page.locator(`[aria-label="Figures of this run"] [data-stat="${label}"]`);
+    const below = await tile('Live assets').evaluate((el) => el.getBoundingClientRect().top >= window.innerHeight);
+    assert.equal(below, true, 'the last figure starts below the fold, so the check covers a tile nobody has scrolled to');
+    await settled(page, '[aria-label="Figures of this run"]');
+    await page.waitForTimeout(1500);
+    const read = async (label) => (await tile(label).locator('[data-stat-value]').innerText()).trim();
+    assert.equal(await read('Best of Best'), '2');
+    assert.equal(await read('Subdomains'), '5');
+    assert.equal(await read('Live assets'), '4');
+    assert.deepEqual(ui.pageErrors, []);
+  } finally {
+    await ui.close();
+  }
+});
 
 test('Review heads the open run with its catalog, business and date, shows each figure of this run once, and no totals across runs', async () => {
   const ui = await openUi('results', REVIEW_STATE);

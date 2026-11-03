@@ -184,6 +184,7 @@ import {
   keptDefaultsText,
 } from '../lib/implementWizard';
 import { ClearsChoice, DigestChoice, RowSubjectCheck, TeamCapacity } from '../components/WizardStickParts';
+import { placeholderWords } from '../lib/placeholderWords';
 import {
   KPI_CHANGE_NOTE, KPI_INSPIRE_PICKS, KPI_NONE_YET, KPI_PICK_RULE, kpiKey, kpiOptionLabel, kpiTargetOf, kpiTargetOptions, kpiTargetProblems, trackedKpiOf,
   rowImpact, trackedKpiText, withKpiTarget,
@@ -928,12 +929,12 @@ export default function ImplementWizard({
           <>
             <section className="bg-bg border border-border rounded-lg p-4 space-y-3" aria-label="Executive summary">
               <h3 className="text-sm font-semibold text-text-primary">{title}</h3>
-              {(ucRow.statement || ucRow.Statement) && <p className="text-[13px] text-text-secondary">{ucRow.statement || ucRow.Statement}</p>}
+              {(ucRow.statement || ucRow.Statement) && <p className="text-[13px] text-text-secondary">{placeholderWords(ucRow.statement || ucRow.Statement)}</p>}
               <dl className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-[12px]">
                 {[
                   ['Who it helps', ucRow.beneficiary || ucRow.Beneficiary],
                   ['Sponsor', ucRow.sponsor || ucRow.Sponsor],
-                  ['Business value', ucRow.business_value || ucRow['Business Value']],
+                  ['Business value', placeholderWords(ucRow.business_value || ucRow['Business Value'])],
                 ].filter(([, val]) => val).map(([label, val]) => (
                   <div key={label}>
                     <dt className="text-[9px] uppercase tracking-[0.18em] font-bold text-text-tertiary">{label}</dt>

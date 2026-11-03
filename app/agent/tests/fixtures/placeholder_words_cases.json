@@ -1,0 +1,29 @@
+{
+  "cases": [
+    {"text": "Raise Order count from [BASELINE] to [TARGET] within [WINDOW]",
+     "words": "Raise Order count from the current value to a target the sponsor sets within a time frame the sponsor sets"},
+    {"text": "Margin driven by `price` from [BASELINE:K1], [ASSUMPTION: uplift to be agreed with the sponsor]",
+     "words": "Margin driven by `price` from the current value, (assumption: uplift to be agreed with the sponsor)"},
+    {"text": "Cut churn from [BASELINE: measured by the KPI query] to [TARGET: 4%] within [WINDOW: 2 quarters]",
+     "words": "Cut churn from the current value (measured by the KPI query) to 4% within 2 quarters"},
+    {"text": "[ASSUMPTION inferred from the business name 'Acme' only, not evidenced by the metadata] Grow revenue",
+     "words": "(assumption: inferred from the business name 'Acme' only, not evidenced by the metadata) Grow revenue"},
+    {"text": "Saves cost by [ESTIMATE: depends on orders.amount]",
+     "words": "Saves cost by (estimate: depends on orders.amount)"},
+    {"text": "Needs [MISSING_DATA: supplier lead times] and [ASSUMPTION]",
+     "words": "Needs (missing data: supplier lead times) and (assumption)"},
+    {"text": "[baseline:k2] then [Target ]",
+     "words": "the current value then a target the sponsor sets"},
+    {"text": "From [BASELINE: not measured, because the KPI's filter does not match its name]",
+     "words": "From the current value (not measured, because the KPI's filter does not match its name)"},
+    {"text": "[DELTA_CONCURRENT_APPEND] and [TARGETED] and [K1] and [ESTIMATES: x] stay as written",
+     "words": "[DELTA_CONCURRENT_APPEND] and [TARGETED] and [K1] and [ESTIMATES: x] stay as written"},
+    {"text": "", "words": ""}
+  ],
+  "unset_target": [
+    {"text": "Raise Order count from [BASELINE] to [TARGET] within [WINDOW]", "unset": true},
+    {"text": "Cut churn to [TARGET: 4%] within [WINDOW]", "unset": false},
+    {"text": "Reduce churn", "unset": false}
+  ],
+  "leftover_tag": "\\[\\s*(BASELINE|TARGET|WINDOW|ASSUMPTION|ESTIMATE|MISSING_DATA)(?![A-Za-z_])[^\\]]*\\]"
+}

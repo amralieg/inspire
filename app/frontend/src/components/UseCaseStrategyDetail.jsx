@@ -10,6 +10,7 @@ import {
   priorityMatches,
 } from '../lib/v130UseCase';
 import { readOnlyReason } from '../lib/showcase';
+import { placeholderWords } from '../lib/placeholderWords';
 import DemoNote from './DemoNote';
 
 function Section({ title, tone, children }) {
@@ -97,7 +98,7 @@ export function UseCaseStrategyDetail({ info, knownPriorities, foundationsById }
           )}
           {priorities.length > 0 && (
             <p className="mt-1.5 text-xs text-text-secondary">
-              <span className="font-semibold text-text-primary">Business priorities:</span> {priorities.join('; ')}
+              <span className="font-semibold text-text-primary">Business priorities:</span> {priorities.map(placeholderWords).join('; ')}
             </p>
           )}
         </Section>

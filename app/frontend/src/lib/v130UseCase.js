@@ -1,5 +1,6 @@
 import { fieldOf, isBlankField } from './useCaseFields.js';
 import { KPI_BASELINE_MISMATCH, KPI_FILTER_MISMATCH_TEXT, kpiFilterMismatch, kpiFilterShown } from './kpiFilter.js';
+import { placeholderWords } from './placeholderWords.js';
 import {
   PYTHON_DIGIT as DIGIT, PYTHON_SPACE as SPACE, PYTHON_WORD as WORD, pyFloat, pyRegexLiteral, pySpaced, pyStr, pyStrip, pyTruthy,
 } from './pythonText.js';
@@ -126,7 +127,7 @@ export function v130View(uc) {
     alignments.length > 0 || !!pathText ||
     Array.isArray(parseJson(u['Strategy Alignment'])) || Array.isArray(parseJson(u.strategy_alignment));
   const storedKpis = objectList(fieldOf(u, 'KPIs', 'kpis')).filter((k) => String(k.name ?? '').trim());
-  const clear = (text) => kpiWithoutStaleBaselines(text, storedKpis);
+  const clear = (text) => placeholderWords(kpiWithoutStaleBaselines(text, storedKpis));
   const kpis = storedKpis.map((k) => ({ ...k, baseline: kpiBaselineShown(k.baseline, k) }));
   const keyResults = objectList(fieldOf(u, 'Expected Key Results', 'expected_key_results'))
     .map((kr) => ({ ...kr, statement: clear(String(kr.statement ?? '').trim()), source: kr.source === 'strategy' ? 'strategy' : 'proposed' }))

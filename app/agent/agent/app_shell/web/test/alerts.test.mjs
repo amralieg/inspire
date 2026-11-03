@@ -266,6 +266,33 @@ test('Notify me opens the Alerts tab when alerts are on, and stays the link to t
   await off.context.close();
 });
 
+test('Notify me opens a new alert ready to fill in, the Alerts tab alone does not, and a full App opens none (must-exclude)', async () => {
+  const empty = alertRoutes({ ...LISTING, alerts: [], caps: { ...LISTING.caps, used: 0, mine: 0 } });
+  const { page, context, seen } = await open(appInfo(ON, 1, TABLE), empty.routes);
+  await page.goto(`${served.base}#/n01_u05`);
+  await page.getByRole('button', { name: 'Notify me' }).click();
+  const form = page.getByRole('form', { name: 'New alert' });
+  await form.waitFor();
+  assert.equal(await page.getByText('No alerts on this page yet.').count(), 0, 'the person lands on the form, not on an empty list');
+  await form.getByRole('button', { name: 'Cancel' }).click();
+  await page.getByRole('tab', { name: 'Things to fix' }).click();
+  await page.getByRole('tab', { name: 'Alerts' }).click();
+  await page.getByText('No alerts on this page yet.').waitFor();
+  assert.equal(await form.count(), 0, 'opening the tab by hand shows the list');
+  await page.getByRole('button', { name: 'Notify me' }).click();
+  await form.waitFor();
+  assert.deepEqual(seen.errors, []);
+  await context.close();
+  const full = alertRoutes({ ...LISTING, caps: { app: 2, person: 10, used: 2, mine: 1 } });
+  const capped = await open(appInfo(ON, 1, TABLE), full.routes);
+  await capped.page.goto(`${served.base}#/n01_u05`);
+  await capped.page.getByRole('button', { name: 'Notify me' }).click();
+  await capped.page.getByRole('table', { name: 'Alerts of this use case' }).waitFor();
+  assert.equal(await capped.page.getByRole('form', { name: 'New alert' }).count(), 0, 'no form opens when the App already holds its most alerts');
+  assert.deepEqual(capped.seen.errors, []);
+  await capped.context.close();
+});
+
 test('an App where each person signs in as themselves shows no Alerts tab and no Notify me, and never asks for alerts', async () => {
   const { calls, routes } = alertRoutes();
   const tracked = { visible: true, tracked: true, money: false, categories: [], served: 'delta', items: [], total: 0, truncated: false, done: {},

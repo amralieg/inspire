@@ -1,5 +1,7 @@
 import datetime
 import json
+import random
+import re
 import time
 import urllib.parse
 
@@ -19,6 +21,10 @@ GENIE_STEPS = {"SUBMITTED": "Reading your question", "FILTERING_CONTEXT": "Findi
                "PENDING_WAREHOUSE": "Waiting for the SQL warehouse", "EXECUTING_QUERY": "Running the query"}
 JOB_RUNS_PAGE = 25
 TABLE_HISTORY_ROWS = 20
+CONCURRENT = re.compile(r"DELTA_CONCURRENT_\w+|DELTA_(METADATA|PROTOCOL)_CHANGED|CONCURRENT_(APPEND|DELETE|TRANSACTION|WRITE)|"
+                        r"Concurrent\w*Exception|(Metadata|Protocol)ChangedException", re.I)
+CONFLICT_ATTEMPTS = 6
+CONFLICT_BASE_DELAY_S = 0.1
 
 
 class QueryError(RuntimeError):
@@ -142,6 +148,15 @@ class Workspace:
     def run_sql(self, warehouse_id: str, statement: str, parameters=None, limit: int = 5000,
                 deadline_s: int = QUERY_DEADLINE_S) -> dict:
         started = self.clock()
+        for attempt in range(1, CONFLICT_ATTEMPTS + 1):
+            try:
+                return self._run_once(warehouse_id, statement, parameters, limit, deadline_s, started)
+            except QueryError as error:
+                if attempt >= CONFLICT_ATTEMPTS or not CONCURRENT.search(str(error)) or self.clock() - started > deadline_s:
+                    raise
+                self.sleep(CONFLICT_BASE_DELAY_S * attempt + random.random() * CONFLICT_BASE_DELAY_S)
+
+    def _run_once(self, warehouse_id: str, statement: str, parameters, limit: int, deadline_s: int, started: float) -> dict:
         response = self.call("POST", "/api/2.0/sql/statements", {
             "statement": statement, "warehouse_id": warehouse_id, "parameters": parameters or [], "wait_timeout": "30s",
             "on_wait_timeout": "CONTINUE", "disposition": "INLINE", "format": "JSON_ARRAY", "row_limit": limit + 1})
