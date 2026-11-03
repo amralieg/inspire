@@ -475,6 +475,59 @@ def _describe(names, schemas):
     return answer
 
 
+def test_one_build_reads_each_companion_table_once_for_the_app_layout_and_the_kind(agent_ns, monkeypatch):
+    from collections import Counter
+    from v140_implement_test import TASK_RUN, VALID, _probe_inspire
+    suffixes = _registry(agent_ns)["contracts"][agent_ns["_inspire_kind"]("driver_scenarios")["contract"]]["suffixes"]
+
+    def answer(statement):
+        suffix = next((s for s in suffixes if statement.startswith("DESCRIBE TABLE") and statement.rstrip("`").endswith(s)), None)
+        return [{"col_name": c, "data_type": _type(c)} for c in suffixes[suffix]] if suffix else None
+
+    monkeypatch.setitem(agent_ns, "current_job_run_id", lambda: TASK_RUN)
+    inst = _probe_inspire(agent_ns, answer, {"notebook": {"modified_at": 1000, "spec_version": 2}})
+    inst._implement_use_case_row = lambda sid, uc: {"No": "N01-U01", "Name": "Plan margin", "genie_instruction": "Build",
+                                                    "use_case_kind": "driver_scenarios"}
+    inst._implement_notebook_paths = lambda uc, key: ("/W", "/W/nb")
+    times = iter([1000, 1000, 3000])
+    inst._implement_notebook_modified_at = lambda path: next(times)
+    inst._implement_export_text = lambda path: "built notebook v2"
+    inst._implement_runner = lambda uc: "runner"
+    inst._implement_write_notebook = lambda uc, spec, previous, key, current="": "/W/nb"
+    inst._implement_fill_and_preview = lambda *a: ({"status": "written", "rows_written": 12}, 77, {})
+    contexts = []
+    inst._implement_genie_space = lambda c, r: {"genie_space_id": "g1", "genie_space_url": "https://h/genie/rooms/g1"}
+    inst._implement_app = lambda c, r: {"app_name": "margin-lab", "app_url": "https://margin-lab.example", "app_health": "running"}
+    inst._implement_dashboard = lambda c, r: contexts.append(c) or {"dashboard_id": "d1", "dashboard_url": "https://h/d"}
+    assert inst._implement_one_locked({"session_id": 5150, "use_case_id": "N01-U01", "spec_version": 3, "spec_json": dict(VALID)},
+                                      (5150, "N01-U01", 3), {}) == "ready"
+    reads = Counter(s for s in inst.spark.statements if s.startswith("DESCRIBE TABLE") and any(s.rstrip("`").endswith(x) for x in suffixes))
+    assert len(reads) == len(suffixes) and set(reads.values()) == {1}, reads
+    context = contexts[0]
+    assert context["app_layout"] == "scenario_lab" and len(context["layout_tables"]) == len(suffixes)
+    assert set(context["kind_spec"]["tables"]) == set(suffixes) and not context["kind_spec"]["missing"]
+
+
+def test_the_schema_reader_reads_each_table_once_and_keeps_its_error(agent_ns):
+    calls = []
+
+    def read(table):
+        calls.append(table)
+        if table.endswith("gone"):
+            raise RuntimeError("[INSUFFICIENT_PERMISSIONS] no SELECT")
+        return [("a", "int")] if table.endswith("_a") else None
+
+    once = agent_ns["implement_schema_once"](read)
+    assert once("main.s.t_a") == [("a", "int")] and once("MAIN.S.T_A") == [("a", "int")]
+    assert once("main.s.t_b") is None and once("main.s.t_b") is None
+    for _ in range(2):
+        with pytest.raises(RuntimeError, match="INSUFFICIENT_PERMISSIONS"):
+            once("main.s.gone")
+    assert calls == ["main.s.t_a", "main.s.t_b", "main.s.gone"]
+    assert agent_ns["implement_schema_once"](read)("main.s.t_a") == [("a", "int")] and calls[-1] == "main.s.t_a", \
+        "each use case gets its own reader, so a new build reads again"
+
+
 def test_the_build_reads_each_companion_table_once_and_logs_what_it_found(agent_ns):
     names = agent_ns["inspire_table_name"]
     kind = agent_ns["_inspire_kind"]("driver_scenarios")
