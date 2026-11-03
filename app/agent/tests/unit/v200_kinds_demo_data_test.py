@@ -99,6 +99,13 @@ def test_the_seed_makes_the_data_deterministic(gen):
     assert gen["KIND_SIGNAL_SEED"] == 1400
 
 
+@pytest.mark.parametrize("seed", list(range(1, 21)))
+def test_every_kind_check_passes_for_any_seed(gen, seed):
+    results = gen["_kind_signal_checks"](gen["_kind_signal_frames"](seed))
+    failed = {kind: result["detail"] for kind, result in results.items() if not result["ok"]}
+    assert not failed, f"seed {seed}: {failed}"
+
+
 def _breaks(bundle, name, fn):
     broken = copy.deepcopy(bundle)
     broken["tables"][name]["frame"] = fn(broken["tables"][name]["frame"].copy())
@@ -174,7 +181,25 @@ def _no_hub(frame):
     return frame
 
 
+def _even_steps(frame):
+    frame = frame.sort_values(["case_id", "event_at"]).copy()
+    first = frame.groupby("case_id")["event_at"].transform("min")
+    frame["event_at"] = first + pd.to_timedelta(frame.groupby("case_id").cumcount(), unit="D")
+    return frame
+
+
+def _flat_churn(frame):
+    frame = frame.copy()
+    half = (pd.to_datetime(frame["signup_date"]) - pd.Timestamp("2023-01-02")).dt.days // 182
+    position = frame.groupby(half).cumcount()
+    size = half.map(half.value_counts())
+    frame["is_churned"] = np.where(position < (size * 0.10).round(), "Y", "N")
+    return frame
+
+
 BREAKS = [
+    ("process_mining", "case_events", _even_steps),
+    ("lifetime_value", "customers", _flat_churn),
     ("process_control", "measurements", _no_shift),
     ("reason_codes", "cases", _one_reason),
     ("fraud_rings", "account_links", _no_rings),

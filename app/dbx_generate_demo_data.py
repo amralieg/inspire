@@ -217,6 +217,7 @@ from difflib import SequenceMatcher
 
 import numpy as np
 import pandas as pd
+from scipy.stats import theilslopes
 from sklearn.cluster import KMeans
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import roc_auc_score, silhouette_score
@@ -229,6 +230,23 @@ KIND_SIGNAL_AS_OF = datetime(2025, 12, 29)
 
 def _kind_signal_table(frame, description, columns, pk=None, fks=None):
     return {"frame": frame, "description": description, "columns": columns, "pk": pk, "fks": dict(fks or {})}
+
+
+def _kind_signal_pick(rng, candidates, share):
+    idx = np.flatnonzero(candidates)
+    chosen = np.zeros(len(candidates), bool)
+    chosen[rng.permutation(idx)[:int(round(share * len(idx)))]] = True
+    return chosen
+
+
+def _kind_signal_solve(fn, target, lo, hi):
+    for _ in range(60):
+        mid = (lo + hi) / 2
+        if fn(mid) < target:
+            lo = mid
+        else:
+            hi = mid
+    return (lo + hi) / 2
 
 
 def _kind_signal_names(rng, n):
@@ -313,6 +331,11 @@ def _kind_signal_frames(seed=KIND_SIGNAL_SEED):
     z = np.zeros(weeks + 8)
     for t in range(1, weeks + 8):
         z[t] = 0.5 * z[t - 1] + rng.normal(0, math.sqrt(0.75))
+    t_fit = np.arange(104)
+    basis = np.column_stack([np.ones(104), t_fit / 52.0, np.sin(2 * np.pi * (t_fit % 52) / 52),
+                             np.cos(2 * np.pi * (t_fit % 52) / 52), (t_fit >= 52).astype(float)])
+    z[:104] -= basis @ np.linalg.lstsq(basis, z[:104], rcond=None)[0]
+    z[104:weeks] -= z[104:weeks].mean()
     s_idx, i_idx, w_idx = [a.ravel() for a in np.meshgrid(np.arange(n_sites), np.arange(6), np.arange(weeks), indexing="ij")]
     keep = w_idx >= launch_week[i_idx]
     s_idx, i_idx, w_idx = s_idx[keep], i_idx[keep], w_idx[keep]
@@ -335,16 +358,16 @@ def _kind_signal_frames(seed=KIND_SIGNAL_SEED):
         key = s_idx * weeks + w_idx
         totals = np.bincount(key, weights=values, minlength=n_sites * weeks)
         return values * np.minimum(1.0, capacity[s_idx] / np.maximum(totals[key], 1e-9))
-    anomaly = np.zeros(n, bool)
-    anomaly[rng.choice(n, int(n * 0.01), replace=False)] = True
+    anomaly = _kind_signal_pick(rng, ~(off_plan[s_idx] & (w_idx >= weeks - 13)), 0.01 * n / (n - 13 * int(off_plan.sum()) * 6))
     demand = np.where(anomaly, demand * np.where(rng.uniform(0, 1, n) < 0.5, 3.0, 0.25), demand)
     units = capped(demand)
     plan_units = capped(plan_units)
     month = (w_idx * 7) // 30
-    stock_draw = rng.uniform(0, 1, (n_sites, 6, int(month.max()) + 1))
-    stock_week = rng.integers(0, 4, (n_sites, 6, int(month.max()) + 1))
-    month_start = {m: int(w_idx[month == m].min()) for m in np.unique(month)}
-    stockout = (stock_draw[s_idx, i_idx, month] < 0.10) & (w_idx - np.vectorize(month_start.get)(month) == stock_week[s_idx, i_idx, month])
+    series_month = (s_idx * 6 + i_idx) * (int(month.max()) + 1) + month
+    keys, first_row = np.unique(series_month, return_index=True)
+    out_month = _kind_signal_pick(rng, np.ones(len(keys), bool), 0.10)
+    stockout = np.zeros(n, bool)
+    stockout[first_row[out_month]] = True
     units = np.where(stockout, units * 0.7, units)
     on_hand = np.where(stockout, 0, np.round(units * rng.uniform(0.5, 3.0, n)))
     units = np.maximum(1, np.round(units)).astype(int)
@@ -386,10 +409,14 @@ def _kind_signal_frames(seed=KIND_SIGNAL_SEED):
         online = online + beta[name] * 40000 * stock / (stock + half)
         spends[name] = spend
     online = np.round(online + rng.normal(0, 1500, weeks), 2)
+    ahead = (z[4:weeks + 4] - z[4:weeks + 4].mean()) / z[4:weeks + 4].std()
+    noise = rng.normal(0, 1, weeks)
+    noise = noise - noise.mean() - ahead * (noise @ ahead) / (ahead @ ahead)
+    lead_index = 0.65 * ahead + math.sqrt(1 - 0.65 ** 2) * noise / noise.std()
     tables["marketing_weekly"] = _kind_signal_table(pd.DataFrame({
         "week_start": week_dates, **spends, "campaign_active": np.where(campaign, "Y", "N"),
         "online_revenue_amount": online,
-        "search_interest_index": np.round(100 + 10 * z[4:weeks + 4] + rng.normal(0, 12, weeks), 1),
+        "search_interest_index": np.round(100 + 10 * lead_index, 1),
     }), "Weekly marketing spend per channel, campaign weeks, online revenue and search interest.", {
         "week_start": "Monday the marketing week starts.", "tv_spend": "Television advertising spend in the week.",
         "search_spend": "Paid search spend in the week.", "social_spend": "Paid social media spend in the week.",
@@ -412,27 +439,28 @@ def _kind_signal_frames(seed=KIND_SIGNAL_SEED):
     signup = np.array([start + timedelta(days=int(d)) for d in signup_offset])
     cohort = np.minimum(signup_offset // 182, 4)
     tier = rng.choice(["Basic", "Plus", "Premium", "Business"], n_orig, p=[0.40, 0.25, 0.20, 0.15])
-    variant = np.where(rng.uniform(0, 1, n_orig) < 0.5, "treatment", "control")
-    accept = rng.uniform(0, 1, n_orig) < 0.12 + np.where((variant == "treatment") & (tier == "Plus"), 0.20, 0.0)
+    variant = np.where(_kind_signal_pick(rng, np.ones(n_orig, bool), 0.5), "treatment", "control")
+    accept = np.zeros(n_orig, bool)
+    for cell_tier in ("Basic", "Plus", "Premium", "Business"):
+        for cell_variant in ("treatment", "control"):
+            rate = 0.32 if (cell_tier, cell_variant) == ("Plus", "treatment") else 0.12
+            accept |= _kind_signal_pick(rng, (tier == cell_tier) & (variant == cell_variant), rate)
     tenure = np.maximum(1, np.array([(as_of.date() - d).days for d in signup]) // 30)
     contacts = rng.poisson(1.5, n_orig)
     spend_change = np.round(rng.normal(0, 0.15, n_orig), 3)
-    cohort_effect = np.array([1.2, 0.6, 0.0, -0.6, -1.2])[cohort]
-    logit = -0.03 * tenure + 0.45 * contacts - 4.0 * spend_change + cohort_effect + rng.normal(0, 0.5, n_orig)
-    lo, hi = -10.0, 10.0
-    for _ in range(60):
-        mid = (lo + hi) / 2
-        if (1 / (1 + np.exp(-(logit + mid)))).mean() < 0.10:
-            lo = mid
-        else:
-            hi = mid
-    prob = 1 / (1 + np.exp(-(logit + lo)))
-    churned = rng.uniform(0, 1, n_orig) < prob
+    logit = -0.04 * tenure + 0.6 * contacts - 5.0 * spend_change + rng.normal(0, 0.4, n_orig)
+    shift_by = _kind_signal_solve(lambda b: (1 / (1 + np.exp(-(logit + b)))).mean(), 0.10, -20.0, 20.0)
+    prob = 1 / (1 + np.exp(-(logit + shift_by)))
+    churned = np.zeros(n_orig, bool)
+    for group, rate in enumerate([0.15, 0.12, 0.10, 0.08, 0.05]):
+        members = np.flatnonzero(cohort == group)
+        weight = prob[members] / prob[members].sum()
+        churned[rng.choice(members, int(round(rate * len(members))), replace=False, p=weight)] = True
     raw = 1 / (1 + np.exp(-(np.log(prob / (1 - prob)) + rng.normal(0, 0.9, n_orig))))
     cut = np.quantile(raw[churned], 1 / 3)
     risk = np.clip(raw - cut + 0.7, 0.0, 1.0)
     limit = np.round(rng.choice([1000, 2500, 5000, 10000], n_orig) * 1.0, 2)
-    band = rng.uniform(0, 1, n_orig)
+    band = np.argsort(rng.uniform(0, 1, n_orig)) / n_orig
     utilization = np.where(band < 0.94, rng.uniform(0.05, 0.80, n_orig),
                            np.where(band < 0.99, rng.uniform(0.84, 0.99, n_orig), rng.uniform(1.01, 1.15, n_orig)))
     customers = pd.DataFrame({
@@ -473,7 +501,7 @@ def _kind_signal_frames(seed=KIND_SIGNAL_SEED):
         "interest_rate": "Yearly interest rate on the customer's balance.",
     }, pk="customer_id", fks={"home_site_id": "sites"})
 
-    group = rng.integers(0, 4, n_orig)
+    group = rng.permutation(n_orig) % 4
     freq = np.where(group % 2 == 1, 10.0, 1.5) * np.exp(rng.normal(0, 0.25, n_orig))
     aov = np.where(group >= 2, 110.0, 25.0) * np.exp(rng.normal(0, 0.25, n_orig))
     affinity = rng.integers(0, 3, n_orig)
@@ -524,11 +552,38 @@ def _kind_signal_frames(seed=KIND_SIGNAL_SEED):
                for d, h, m in zip(day, hour, rng.integers(0, 60, n_cases))]
     priority = rng.choice(["high", "normal", "low"], n_cases, p=[0.25, 0.5, 0.25])
     unit_days = np.array([{"high": 7.0, "normal": 16.0, "low": 32.0}[p] for p in priority]) * np.exp(rng.normal(0, 0.5, n_cases))
-    approves = rng.uniform(0, 1, n_cases) < 0.6
-    steps_full = [("received", 0.0), ("triaged", 1.0), ("reviewed", 1.0), ("approved", 3.0), ("closed", 1.0)]
-    steps_short = [("received", 0.0), ("triaged", 1.0), ("reviewed", 1.0), ("closed", 1.0)]
-    total_days = np.where(approves, 6.0, 3.0) * unit_days
-    sla_days = {p: max(1, int(round(float(np.quantile(total_days[priority == p], 0.80))))) for p in ("high", "normal", "low")}
+    jit = np.exp(rng.normal(0, 0.2, (n_cases, 5)))
+    start_day = np.array([(c - first_day).total_seconds() / 86400 for c in created])
+    horizon = (as_of - first_day).total_seconds() / 86400
+    to_decision = unit_days * jit[:, :3].sum(axis=1)
+    to_close = to_decision + unit_days * (3.0 * jit[:, 3] + jit[:, 4])
+    rank = np.empty(n_cases, int)
+    rank[np.argsort(rng.uniform(0, 1, n_cases))] = np.arange(n_cases)
+
+    def split(scale):
+        decided = start_day + scale * to_decision <= horizon
+        approve = np.zeros(n_cases, bool)
+        for part in (decided, ~decided):
+            idx = np.flatnonzero(part)
+            approve[idx[np.argsort(rank[idx])][:int(round(0.6 * len(idx)))]] = True
+        return approve
+
+    def open_share(scale, approve):
+        return float((start_day + scale * np.where(approve, to_close, to_decision) > horizon).mean())
+    scale, approves = 1.0, split(1.0)
+    for _ in range(4):
+        scale = _kind_signal_solve(lambda c: open_share(c, approves), 0.30, 0.01, 50.0)
+        approves = split(scale)
+    total_days = scale * np.where(approves, to_close, to_decision)
+    done = start_day + total_days <= horizon
+
+    def sla_for(q):
+        return {p: float(np.quantile(total_days[priority == p], q)) for p in ("high", "normal", "low")}
+
+    def breach_share(q):
+        sla = np.array([sla_for(q)[p] for p in priority])
+        return float(np.where(done, total_days > sla, horizon - start_day > sla).mean())
+    sla_days = sla_for(_kind_signal_solve(lambda q: -breach_share(q), -0.15, 0.5, 0.999))
     reasons = [("late", ["The delivery arrived late again.", "My order came late, days after the promised date.",
                          "Delivery was late and nobody told me."]),
                ("wrong item", ["I received the wrong item.", "The wrong item was in the bag.", "They sent me the wrong item."]),
@@ -537,26 +592,31 @@ def _kind_signal_frames(seed=KIND_SIGNAL_SEED):
                ("rude", ["The staff member was rude to me.", "Staff were rude at the counter.", "A rude reply from the staff."]),
                ("damaged", ["The package was damaged.", "The item arrived damaged.", "Damaged packaging and a broken seal."])]
     fillers = ["", " Please fix this.", " This is not the first time.", " I expect a call back.", " Not happy."]
+    reason_of = np.zeros(n_cases, int)
+    by_time = np.argsort(start_day, kind="stable")
+    for half, billing in ((by_time[:n_cases // 2], 0.12), (by_time[n_cases // 2:], 0.26)):
+        counts = [int(round(len(half) * (1 - billing) / 4))] * 4
+        labels = np.repeat([0, 1, 3, 4], counts)
+        labels = np.concatenate([labels, np.full(len(half) - len(labels), 2)])
+        reason_of[half] = rng.permutation(labels)
     case_rows, event_rows = [], []
     for k in range(n_cases):
-        frac = (created[k] - first_day).days / 364.0
-        billing = 0.10 + 0.20 * frac
-        p = np.array([0.25, 0.20, 0.0, 0.20, 0.20])
-        p = p / p.sum() * (1 - billing)
-        p[2] = billing
-        r = int(rng.choice(5, p=p))
+        r = int(reason_of[k])
         text = reasons[r][1][int(rng.integers(0, 3))] + fillers[int(rng.integers(0, len(fillers)))]
+        waits = [("triaged", jit[k, 0]), ("reviewed", jit[k, 1])]
+        waits += [("approved", jit[k, 2]), ("fulfilled", 3.0 * jit[k, 3]), ("closed", jit[k, 4])] if approves[k] else [("closed", jit[k, 2])]
         at = created[k]
         resolved = None
-        for step, weight in (steps_full if approves[k] else steps_short):
-            at = at + timedelta(days=float(weight * unit_days[k] * math.exp(rng.normal(0, 0.2))))
+        event_rows.append((k + 1, "received", at, f"Team {int(rng.integers(1, 5))}"))
+        for step, weight in waits:
+            at = at + timedelta(days=float(scale * unit_days[k] * weight))
             if at > as_of:
                 break
             event_rows.append((k + 1, step, at, f"Team {int(rng.integers(1, 5))}"))
             if step == "closed":
                 resolved = at
         case_rows.append((k + 1, int(rng.integers(1, n_orig + 1)), int(rng.integers(1, n_sites + 1)), created[k],
-                          created[k] + timedelta(days=sla_days[priority[k]]), resolved,
+                          created[k] + timedelta(hours=round(sla_days[priority[k]] * 24)), resolved,
                           "closed" if resolved is not None else "open", priority[k], text))
     cases = pd.DataFrame(case_rows, columns=["case_id", "customer_id", "site_id", "created_at", "due_at", "resolved_at",
                                              "case_status", "priority", "complaint_text"])
@@ -571,11 +631,11 @@ def _kind_signal_frames(seed=KIND_SIGNAL_SEED):
     events.insert(0, "event_id", np.arange(1, len(events) + 1))
     tables["case_events"] = _kind_signal_table(events, "Every step each case went through, with the time it happened.", {
         "event_id": "Event identifier.", "case_id": "Case the step belongs to.",
-        "step_name": "Step reached: received, triaged, reviewed, approved or closed.",
+        "step_name": "Step reached: received, triaged, reviewed, approved, fulfilled or closed.",
         "event_at": "Date and time the case reached the step.", "handled_by_team": "Team that handled the step.",
     }, pk="event_id", fks={"case_id": "cases"})
 
-    late_payer = rng.uniform(0, 1, n_orig) < 0.20
+    late_payer = _kind_signal_pick(rng, np.ones(n_orig, bool), 0.20)
     inv_rows = []
     for c in range(n_orig):
         for issue in np.sort(rng.integers(0, 700, 3)):
@@ -601,9 +661,9 @@ def _kind_signal_frames(seed=KIND_SIGNAL_SEED):
     clerks = [f"Clerk {i:02d}" for i in range(1, 13)]
     creator = rng.integers(0, 12, m)
     approver = (creator + rng.integers(1, 12, m)) % 12
-    self_ok = rng.uniform(0, 1, m) < 0.01
+    self_ok = _kind_signal_pick(rng, np.ones(m, bool), 0.01)
     approver = np.where(self_ok, creator, approver)
-    short = rng.uniform(0, 1, m) < 0.02
+    short = _kind_signal_pick(rng, np.ones(m, bool), 0.02)
     payments = pd.DataFrame({
         "invoice_id": paid_rows["invoice_id"], "payment_date": paid_rows["paid_date"],
         "paid_amount": np.round(paid_rows["invoice_amount"] * np.where(short, rng.uniform(0.85, 0.99, m), 1.0), 2),
@@ -662,15 +722,20 @@ def _kind_signal_frames(seed=KIND_SIGNAL_SEED):
 
     tr_rows = []
     non_hubs = [s for s in site_ids if s not in hubs]
+    via_hub = _kind_signal_pick(rng, np.ones(104 * 6, bool), 0.4)
     for wk in range(weeks - 104, weeks):
-        for _ in range(6):
-            if rng.uniform() < 0.4:
+        for slot in range(6):
+            if via_hub[(wk - weeks + 104) * 6 + slot]:
                 hub, other = int(hubs[int(rng.integers(0, 2))]), int(rng.choice(non_hubs))
                 a, b = (hub, other) if rng.uniform() < 0.5 else (other, hub)
             else:
                 a, b = (int(x) for x in rng.choice(non_hubs, 2, replace=False))
             tr_rows.append((a, b, week_dates[wk], int(round(math.exp(rng.normal(math.log(50), 0.4))))))
     transfers = pd.DataFrame(tr_rows, columns=["from_site_id", "to_site_id", "week_start", "transfer_units"])
+    hub_units = transfers.loc[via_hub, "transfer_units"].sum()
+    other_units = transfers.loc[~via_hub, "transfer_units"].sum()
+    transfers.loc[via_hub, "transfer_units"] = np.maximum(1, np.round(transfers.loc[via_hub, "transfer_units"]
+                                                                      * (0.4 / 0.6) * other_units / hub_units)).astype(int)
     transfers.insert(0, "transfer_id", np.arange(1, len(transfers) + 1))
     tables["site_transfers"] = _kind_signal_table(transfers, "Stock moved between sites each week.", {
         "transfer_id": "Transfer identifier.", "from_site_id": "Site that sent the stock.", "to_site_id": "Site that received the stock.",
@@ -689,7 +754,8 @@ def _ks_week_index(values):
 
 def _ks_demand_fit(sales):
     caps = sales.groupby(["site_id", "week_start"])["units_sold"].transform("sum")
-    frame = sales[(sales["item_id"] == 5) & (caps < sales["weekly_capacity_units"] * 0.97)].copy()
+    clean = _ks_week_index(sales["week_start"]) < 104
+    frame = sales[(sales["item_id"] == 5) & clean & (caps < sales["weekly_capacity_units"] * 0.97)].copy()
     week = _ks_week_index(frame["week_start"])
     y = np.log(frame["units_sold"].to_numpy(float))
     x = np.column_stack([np.log(frame["unit_price"].to_numpy(float)), (frame["promotion_active"] == "Y").to_numpy(float),
@@ -764,7 +830,7 @@ def _kind_signal_checks(bundle):
 
     unit_cost = sales.groupby("site_id")["operating_cost"].sum() / sales.groupby("site_id")["units_sold"].sum()
     area = sites.set_index("site_id")["floor_area_sqm"].reindex(unit_cost.index)
-    slope, inter = np.polyfit(np.log(area), np.log(unit_cost), 1)
+    slope, inter, _, _ = theilslopes(np.log(unit_cost), np.log(area))
     resid = np.sort(np.exp(np.log(unit_cost) - (slope * np.log(area) + inter)).to_numpy())[::-1]
     base = np.median(resid[4:])
     out["peer_benchmarking"] = _ks_result(1.18 <= resid[3] / base and resid[0] / base <= 1.35 and resid[4] / base < 1.08,
@@ -878,7 +944,7 @@ def _kind_signal_checks(bundle):
 
     newly = int(((at_cap - at_cap_y1.reindex(at_cap.index)) >= 0.15).sum())
     free = sales["site_id"].isin(at_cap.index[at_cap < 0.05]) & control
-    yoy = sales.loc[free & (week >= 104), "units_sold"].sum() / sales.loc[free & (week >= 52) & (week < 104), "units_sold"].sum() - 1
+    yoy = sales.loc[free & (week >= 52) & (week < 104), "units_sold"].sum() / sales.loc[free & (week < 52), "units_sold"].sum() - 1
     out["capacity_planning"] = _ks_result(0.04 <= yoy <= 0.12 and newly >= 3,
                                           f"demand grows {yoy:+.0%} a year and {newly} sites now hit their fixed capacity", len(at_cap))
 
@@ -1018,11 +1084,13 @@ def _kind_signal_checks(bundle):
                                         f"{near_dups} near-duplicate customers ({near_dups / len(cust):.1%}) differ only in spelling",
                                         near_dups)
 
-    gaps = (ordered.groupby("case_id")["event_at"].diff().dt.total_seconds() / 86400)
-    step_wait = gaps.groupby(ordered["step_name"]).median().dropna()
+    complete = ordered[ordered["case_id"].isin(cases.loc[cases["case_status"] == "closed", "case_id"])]
+    gaps = complete.groupby("case_id")["event_at"].diff().dt.total_seconds() / 86400
+    relative = gaps / gaps.groupby(complete["case_id"]).transform("median")
+    step_wait = relative.groupby(complete["step_name"]).median().dropna()
     slow = step_wait.idxmax()
     factor = step_wait.max() / step_wait.drop(slow).median()
-    out["process_mining"] = _ks_result(slow == "approved" and 2.5 <= factor <= 3.6,
+    out["process_mining"] = _ks_result(slow == "fulfilled" and 2.5 <= factor <= 3.6,
                                        f"work waits {factor:.1f} times longer before {slow} than before other steps",
                                        int((cases["case_status"] == "open").sum()))
 
