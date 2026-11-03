@@ -79,7 +79,7 @@ def test_the_notebook_gate_text_shares_the_one_rounds_sentence(agent_ns):
     unfixed = agent_ns["implement_unfixed_text"]
     assert unfixed("x", 1) == "Genie could not fix this in 1 build round: x"
     assert unfixed("x", 3) == "Genie could not fix this in 3 build rounds: x"
-    assert unfixed("x", 0) == "x; build the notebook again with Edit MVP on the Build page"
+    assert unfixed("x", 0) == "x; build the notebook again with Vibe/Add/Remove Features on the Build page"
 
 
 @pytest.mark.parametrize("rounds,words", [(1, "1 Genie round"), (3, "3 Genie rounds")])

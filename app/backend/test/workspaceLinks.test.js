@@ -16,6 +16,15 @@ test('a notebook link opens the workspace path on the host, adding /Workspace an
   assert.equal(workspaceNotebookUrl('https://w.example.com', null), '');
 });
 
+test('a job link opens the job on the host with https, and only a numeric job id makes one', async () => {
+  const { workspaceJobUrl } = await load();
+  assert.equal(workspaceJobUrl('https://w.example.com/', 42), 'https://w.example.com/#job/42');
+  assert.equal(workspaceJobUrl('w.example.com', ' 7 '), 'https://w.example.com/#job/7');
+  assert.equal(workspaceJobUrl('http://w.example.com', '9'), 'https://w.example.com/#job/9');
+  for (const bad of ['', null, undefined, 'abc', '12a', '-3', '1.5', '../1']) assert.equal(workspaceJobUrl('https://w.example.com', bad), '', String(bad));
+  assert.equal(workspaceJobUrl('', 42), '');
+});
+
 test('an MVP saved under /Shared warns that everyone can edit it, and no other folder does', async () => {
   const { sharedFolderWarning, generationFolder } = await load();
   const said = sharedFolderWarning('/Workspace/Shared/demos/acme');

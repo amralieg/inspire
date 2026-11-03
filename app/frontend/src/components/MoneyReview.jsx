@@ -6,6 +6,7 @@ import {
 import { liveImpact, stakeCurrency, stakeLabel, stakeWords } from '../lib/targetKpi';
 import { RunScopeLine } from './RunScope';
 import DataGrid from './DataGrid';
+import { VIBE_FEATURES_LABEL } from '../lib/implementWizard';
 
 const setByText = (a) => (a.changed_by ? `${a.changed_by} in the App` : 'Genie, in the notebook');
 
@@ -14,6 +15,8 @@ const assumptionColumns = (currency) => [
   { key: 'value', label: 'Value', kind: 'number', value: (a) => a.value, render: (a) => amountText(a.value, a.kind, currency), className: 'py-1 pr-3 font-mono text-text-primary' },
   { key: 'set_by', label: 'Set by', value: setByText, className: 'py-1 text-text-secondary' },
 ];
+
+const VIBE_TO_COUNT = `To change how it is counted, add a vibe in ${VIBE_FEATURES_LABEL} and Rebuild builds it.`;
 
 export function NothingToActCard({ run }) {
   const text = nothingToActText(run);
@@ -74,8 +77,8 @@ export default function MoneyReview({ money, error = '', impact = null, scope = 
       {lines.length > 0 && <ul aria-label="Assumption changes" className="list-disc pl-5 text-text-secondary">{lines.map((l, i) => <li key={i}>{l}</li>)}</ul>}
       <p data-change-how="" className="text-text-secondary">
         {model.assumptions.length > 0
-          ? 'To change how it is counted, add a vibe in the box above the tabs and Edit MVP builds it. Owners of the App can change the assumption values there.'
-          : 'This formula uses only each row\u2019s own numbers, so the App has no assumption to change. To change how it is counted, add a vibe in the box above the tabs and Edit MVP builds it.'}
+          ? `${VIBE_TO_COUNT} Owners of the App can change the assumption values there.`
+          : `This formula uses only each row\u2019s own numbers, so the App has no assumption to change. ${VIBE_TO_COUNT}`}
       </p>
     </section>
   );

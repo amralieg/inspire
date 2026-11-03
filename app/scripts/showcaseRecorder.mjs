@@ -164,17 +164,22 @@ export async function routeInspireDemo(page, { origin, distDir = '', summary, re
   });
 }
 
-export async function walkMvpTabs(page, settle, visit = async () => {}) {
-  const tabs = page.getByRole('tablist', { name: 'MVP views' }).locator('[data-mvp-tab]');
-  const seen = [];
-  const t = await tabs.count();
-  for (let j = 0; j < t; j += 1) {
-    const id = await tabs.nth(j).getAttribute('data-mvp-tab');
-    await tabs.nth(j).click();
+export async function walkMvpViews(page, settle, visit = async () => {}) {
+  const progress = page.locator('[data-mvp-progress]');
+  if (!(await progress.count())) return [];
+  await settle();
+  await visit('build', progress);
+  const seen = ['build'];
+  const ids = await page.locator('[data-asset-tiles] [data-asset-tile]')
+    .evaluateAll((tiles) => tiles.filter((tile) => tile.querySelector('[data-tile-versions]')).map((tile) => tile.dataset.assetTile));
+  for (const id of ids) {
+    await page.locator(`[data-asset-tile="${id}"] [data-tile-versions]`).click();
     const panel = page.locator(`[data-mvp-panel="${id}"]`);
     await panel.waitFor();
     await settle();
     await visit(id, panel);
+    await page.keyboard.press('Escape');
+    await panel.waitFor({ state: 'detached' });
     seen.push(id);
   }
   return seen;
@@ -302,7 +307,7 @@ export async function walkInspireDemo(page, { settle, log = () => {} }) {
     await settle();
     const name = (await page.locator('[data-pinned-name] h2').textContent()).trim();
     const panels = new Set();
-    const tabs = await walkMvpTabs(page, settle, async () => {
+    const tabs = await walkMvpViews(page, settle, async () => {
       for (const region of BUILD_PANELS) if (await page.getByRole('region', { name: region, exact: true }).count()) panels.add(region);
     });
     if (tabs.length) log(`Build: ${name}: ${tabs.join(', ')}${panels.size ? `; panels ${[...panels].join(', ')}` : ''}`);

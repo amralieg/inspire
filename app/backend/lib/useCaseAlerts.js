@@ -26,7 +26,7 @@ const ALERT_TEXT = {
   noPython: 'Inspire found no Python 3 to plan the alert with.',
   notBuilt: 'Nothing of this MVP is built yet, so it has no results to alert on. Build the MVP first.',
   noTable: 'This MVP names no result table, so it has nothing to alert on.',
-  noWarehouse: 'This MVP names no SQL warehouse, so an alert cannot run. Pick one in Edit MVP.',
+  noWarehouse: `This MVP names no SQL warehouse, so an alert cannot run. Pick one in ${I.IMPLEMENT_ALL_SETTINGS}.`,
   noFolder: 'Inspire cannot tell which workspace folder keeps the files of this MVP, so it cannot keep alerts for it. Build the MVP again.',
   scope: 'Inspire saves alerts as you, and your sign-in to Inspire does not allow Databricks SQL. Ask a workspace admin to add the sql scope to the user authorization of the Inspire App, then open Inspire again.',
   off: 'Alerts are not turned on in this workspace, so Inspire cannot save the alert. A workspace admin turns on Databricks SQL alerts.',

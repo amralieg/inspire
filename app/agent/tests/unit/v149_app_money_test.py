@@ -95,7 +95,7 @@ def test_the_money_model_reads_the_formula_its_arithmetic_and_the_latest_value_o
 @pytest.mark.parametrize("changes,problem", [
     ({"value_assumptions": None}, "the money at stake formula of this use case names no assumption"),
     ({"value_assumptions": "not json"}, "the money at stake formula of this use case names no assumption"),
-    ({"value_expression": None}, "the notebook was built before the App could work out the money again; build its money at stake formula again with Edit MVP on Inspire's Build page"),
+    ({"value_expression": None}, "the notebook was built before the App could work out the money again; build its money at stake formula again with Vibe/Add/Remove Features on Inspire's Build page"),
     ({"value_expression": "units * PRICE * KEEP; DROP TABLE x"}, "the money at stake arithmetic cannot be read: '; DROP TABLE x' is not a number"),
     ({"value_expression": "units * PRICE * KEEP * secret_column"}, "the money at stake arithmetic names secret_column, which is neither"),
     ({"value_expression": "entity_label * PRICE * KEEP"}, "the money at stake arithmetic names entity_label, which is neither"),
@@ -244,7 +244,7 @@ def test_an_owner_the_app_records_for_the_use_case_may_change_and_an_old_noteboo
     nobody = dict(SETTINGS, use_case_owners={}, options={"modify": False, "replace_edits": False, "decisions": True})
     s, _ws, _made = _shell(tmp_path / "c", settings=nobody)
     assert call(s, "GET", "money", query={"page": "n01_u05"}, headers={"x-forwarded-email": OWNER})[1]["why"] == (
-        "No one can change the assumptions of this use case, because the App names no owner of it; build it again with Edit MVP on Inspire's Build page")
+        "No one can change the assumptions of this use case, because the App names no owner of it; build it again with Vibe/Add/Remove Features on Inspire's Build page")
 
 
 def test_the_money_queries_parse_as_databricks_sql_and_render_for_lakebase():

@@ -241,7 +241,7 @@ test('the wizard locks an App Inside Inspire to per-user access, Delta tables an
   assert.deepEqual(I.validateImplementSpec(I.withInspireUrl({ ...sent, config: { ...sent.config, result_table: 'main.inspire.n01_u01_s42_out' } }, 'https://inspire.example.com')).errors, [],
     'what the wizard sends passes the validator');
   const edit = W.specFromLatest({ spec_version: 2, status: 'ready', spec_json: sent }, start);
-  assert.deepEqual([edit.outputs.app_placement, edit.outputs.app_name], ['inspire', ''], 'Edit MVP keeps Inside Inspire without inventing an App name');
+  assert.deepEqual([edit.outputs.app_placement, edit.outputs.app_name], ['inspire', ''], 'Vibe/Add/Remove Features keeps Inside Inspire without inventing an App name');
 });
 
 test('Run groups pages by domain and words their state; only a safe /run path becomes an iframe source', async () => {

@@ -144,7 +144,7 @@ def test_a_saved_value_outside_the_bounds_or_unread_by_an_old_notebook_is_not_ap
         "Settings: the App holds a value for act_now_share outside what the run accepts (act_now_share is '1.5'; allowed: 0 to 1), "
         "so this run keeps the notebook's value",
         "Settings: the App holds 45 for lookback_days, but this notebook does not read the lookback_days widget into a variable of "
-        "that name, so this run keeps the widget's value; build the notebook again with Edit MVP on the Build page so the App's settings apply"]
+        "that name, so this run keeps the widget's value; build the notebook again with Vibe/Add/Remove Features on the Build page so the App's settings apply"]
 
 
 def test_a_notebook_built_before_settings_keeps_its_widget_values(fresh_ns):
@@ -156,7 +156,7 @@ def test_a_notebook_built_before_settings_keeps_its_widget_values(fresh_ns):
     assert applied == {} and fresh_ns["act_now_share"] == 0.05
     assert "act_now_share" not in (fresh_ns.get("INSPIRE_SETTINGS_APPLIED") or {}), "Inspire's own checks keep the widget's value too"
     assert printed == ["Settings: the App holds a value for act_now_share, but this notebook was built before the App's settings, so "
-                       "this run keeps the widget's value; build the notebook again with Edit MVP on the Build page so the App's settings apply"]
+                       "this run keeps the widget's value; build the notebook again with Vibe/Add/Remove Features on the Build page so the App's settings apply"]
 
 
 def test_an_assumption_saved_outside_its_kind_is_not_applied(fresh_ns):

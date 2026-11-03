@@ -11,6 +11,7 @@ import {
   alertRequest, alertState, clearsText,
   blankAlertForm, capText, capped, measureOf, operatorChoices, previewLine, reachableFilters, scheduleLabel, thresholdHint,
 } from '../lib/useCaseAlerts';
+import { OPEN_ALL_SETTINGS } from '../lib/implementWizard';
 
 const BUTTON = 'inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium disabled:opacity-50';
 const PRIMARY = `${BUTTON} font-semibold text-white bg-db-red-solid hover:opacity-90`;
@@ -295,7 +296,7 @@ export default function UseCaseAlerts({ apiFetch, apiPostJson, qBase, useCaseId,
           <div className="px-4 py-2 border-t border-border bg-bg-subtle/50 text-[11px] text-text-secondary flex flex-wrap items-center gap-x-3 gap-y-1">
             <span>{capText(listing.caps)}</span>
             {!listing.built_alert && onEditMvp && (
-              <span>{ALERTS_GENIE_NOTE} <button type="button" className="font-semibold text-db-red-fg underline" onClick={onEditMvp}>Edit MVP</button></span>
+              <span>{ALERTS_GENIE_NOTE} <button type="button" className="font-semibold text-db-red-fg underline" onClick={onEditMvp}>{OPEN_ALL_SETTINGS}</button></span>
             )}
           </div>
         </>

@@ -34,9 +34,7 @@ test('a vibe the router could not place reads Not decided with the agent reason,
   const ui = await openUi('implement', STATE);
   const { page, made } = ui;
   try {
-    const tab = page.locator('[data-mvp-tab="build"]');
-    await tab.waitFor({ timeout: 15000 });
-    if (await tab.getAttribute('aria-selected') !== 'true') await tab.click();
+    await page.locator('[data-mvp-progress]').waitFor({ timeout: 15000 });
     const box = region(page);
     await box.waitFor({ timeout: 15000 });
     const headline = box.locator('[data-checklist-headline]');

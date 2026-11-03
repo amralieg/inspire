@@ -415,7 +415,7 @@ def test_a_preview_only_rerun_that_stops_on_acceptance_says_to_build_again(agent
     outcome, _job, _f = inst._implement_fill_and_preview("N01-U01", (5150, "N01-U01", 2), {}, spec, None, "/W/nb", ["run_profile"],
                                                          None, False)
     assert outcome["status"] == "stopped" and outcome["sent_back"] is False and outcome["not_a_stop"]
-    assert ". Build the notebook again with Edit MVP on the Build page: the run stopped with" in agent_ns["implement_stop_message"](outcome, spec)
+    assert ". Build the notebook again with Vibe/Add/Remove Features on the Build page: the run stopped with" in agent_ns["implement_stop_message"](outcome, spec)
 
 
 @pytest.mark.parametrize("family,reason", [("B", "row_count 10 is below the 1000 this use case needs"),

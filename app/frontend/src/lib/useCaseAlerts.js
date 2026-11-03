@@ -1,9 +1,11 @@
+import { VIBE_FEATURES_LABEL } from './implementWizard.js';
+
 export const ALERTS_HINT = 'Get an email when the results of this use case cross a line you set. Inspire saves each alert in Databricks as you, and it checks on its own schedule.';
 export const ALERTS_EMPTY = 'No alerts on this use case yet.';
 export const ALERTS_NOTHING = 'The page of this use case shows nothing an alert can watch: no rows to act on and no numbers.';
-export const ALERTS_GENIE_NOTE = 'The alert Genie builds with the MVP is set in Edit MVP.';
+export const ALERTS_GENIE_NOTE = `The alert Genie builds with the MVP is set in ${VIBE_FEATURES_LABEL}.`;
 export const BUILT_BY_GENIE = 'Built by Genie';
-export const BUILT_DETAIL = 'Genie built it with the MVP and checks it after each run of the job. Change it in Edit MVP.';
+export const BUILT_DETAIL = `Genie built it with the MVP and checks it after each run of the job. Change it in ${VIBE_FEATURES_LABEL}.`;
 export const BASELINE_HINT = 'It compares with the usual range of earlier runs, and uses your number until 5 earlier runs exist.';
 export const EMAILS_HINT = 'Only people with a user in this workspace get the email. It never lists records.';
 export const CLEARS_LABEL = 'Email again when it clears';

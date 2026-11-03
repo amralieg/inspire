@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { defaultSpecFromUseCase } from '../../src/lib/implementWizard.js';
 import { HARNESS_INSPIRE_URL, HARNESS_USE_CASE, HARNESS_SETTINGS, HARNESS_SESSION_ID } from './implementFixtures.js';
-import { closeBrowser, lowContrast, onStep, openUi, setDark, until } from './uiSupport.mjs';
+import { closeBrowser, lowContrast, onStep, openAsset, openSettings, openUi, setDark, until } from './uiSupport.mjs';
 
 const OWNER = ['owner', 'example.com'].join('@');
 const OTHER = ['someone', 'example.com'].join('@');
@@ -63,17 +63,14 @@ const checklistOf = (page, version) => page.getByRole('region', { name: `Vibe ch
 const rowsOf = (scope) => scope.locator('[data-requirement]');
 const heldBox = (page, version = 5) => page.getByRole('region', { name: `v${version} is held`, exact: true });
 const mvpBox = (page) => page.locator('[data-vibe-box="mvp"]').getByRole('textbox', { name: 'Vibes for the MVP', exact: true });
-const waiting = (page) => page.locator('[data-vibe-box="mvp"] [data-waiting]').evaluateAll((items) => items.map((li) => [li.dataset.waiting, li.querySelector('span').textContent]));
+const waiting = (page) => page.locator('[data-vibe-features-dialog] [data-waiting]').evaluateAll((items) => items.map((li) => [li.dataset.waiting, li.querySelector('span').textContent]));
 const ACTIONS = /^(Rephrase|Try again|Publish anyway)$/;
 
 async function openBuild(state = STATE) {
   const ui = await openUi('implement', state);
   try {
     await ui.page.getByRole('heading', { name: 'Build', exact: true }).waitFor();
-    await ui.page.getByRole('tablist', { name: 'MVP views' }).waitFor({ timeout: 15000 });
-    const tab = ui.page.locator('[data-mvp-tab="build"]');
-    if (await tab.getAttribute('aria-selected') !== 'true') await tab.click();
-    await ui.page.getByRole('region', { name: 'History', exact: true }).getByText(/^\d+ spec versions? · /).waitFor({ timeout: 15000 });
+    await ui.page.locator('[data-mvp-progress]').waitFor({ timeout: 15000 });
   } catch (e) {
     await ui.close();
     throw e;
@@ -131,7 +128,7 @@ test('a held version says what stays live, and its checklist shows every entry w
     }
     await page.evaluate(() => document.documentElement.classList.remove('dark'));
 
-    const history = page.getByRole('region', { name: 'History', exact: true });
+    const history = (await openAsset(page, 'job')).getByRole('region', { name: 'History', exact: true });
     await history.getByRole('button', { expanded: false }).click();
     const inHistory = (version) => history.locator(`[data-history-version="${version}"]`);
     assert.equal(await rowsOf(checklistOf(inHistory(5), 5)).count(), 4, 'v5 in History shows all four entries');
@@ -153,7 +150,7 @@ test('a version whose every vibe requirement is met shows its checklist with no 
     assert.equal(await panel.locator('[data-checklist-headline]').textContent(), '2 of 2 vibe requirements met');
     assert.match(await panel.locator('[data-checklist-headline]').getAttribute('class'), /text-success-fg/);
     assert.equal(await heldBox(page).count(), 0, 'nothing is held');
-    assert.equal(await page.locator('[data-mvp-panel]').getByRole('button', { name: ACTIONS }).count(), 0, 'a met checklist offers no action');
+    assert.equal(await page.locator('[data-mvp-progress]').getByRole('button', { name: ACTIONS }).count(), 0, 'a met checklist offers no action');
     assert.deepEqual(ui.pageErrors, []);
   } finally {
     await ui.close();
@@ -189,27 +186,25 @@ test('the live Vibe checklist step fills the panel while the version builds, bef
   }
 });
 
-test('Rephrase puts exactly the asks that were not met in the one vibe box, and adding new words takes the old ones out of the Genie Agent and the vibe, so Edit MVP builds them without the old words', async () => {
+test('Rephrase puts exactly the asks that were not met in the one vibe box, and adding new words takes the old ones out of the Genie Agent and the vibe, so Open all settings builds them without the old words', async () => {
   const ui = await openBuild();
   const { page, made } = ui;
   try {
     await heldBox(page).getByRole('button', { name: 'Rephrase', exact: true }).click();
     assert.equal(await mvpBox(page).inputValue(), 'Answer in euros\nAdd a map by region', 'the two met asks are not in the box');
     assert.equal(await page.evaluate(() => document.activeElement?.getAttribute('aria-label')), 'Vibes for the MVP', 'the box has the focus');
-    await page.locator('[data-rephrasing]').getByText('Add vibes takes out the 2 asks that were not met and keeps your new words instead.', { exact: true }).waitFor();
+    await page.locator('[data-rephrasing]').getByText('Add vibe takes out the 2 asks that were not met and keeps your new words instead.', { exact: true }).waitFor();
     await mvpBox(page).fill('Answer in euros, rounded to cents\nShow the regions as a bar chart on the dashboard');
-    await page.locator('[data-vibe-box="mvp"]').getByRole('button', { name: 'Add vibes', exact: true }).click();
+    await page.locator('[data-vibe-box="mvp"]').getByRole('button', { name: 'Add vibe', exact: true }).click();
     assert.deepEqual(await waiting(page), [
       ['ask', '“Answer in euros, rounded to cents\nShow the regions as a bar chart on the dashboard”'],
       ['remove', 'Take out of the Genie Agent: “Answer in euros”'],
       ['remove', 'Take out of the vibe of v5: “Add a map by region”'],
     ]);
     assert.equal(await page.locator('[data-rephrasing]').count(), 0, 'the rephrase is done once added');
-    assert.deepEqual([made.jobs.length, insertsOf(made).length], [0, 0], 'nothing is built until Edit MVP');
+    assert.deepEqual([made.jobs.length, insertsOf(made).length], [0, 0], 'nothing is built until Open all settings and Start MVP');
 
-    await page.locator('[data-edit-mvp]').click();
-    const wizard = page.getByRole('dialog', { name: /^Start Use Case MVP with Genie/ });
-    await onStep(page, 'Vibes');
+    const wizard = await openSettings(page);
     assert.equal(await wizard.getByRole('textbox', { name: 'Vibes for the MVP', exact: true }).inputValue(),
       'Put the riskiest customers first\nCount returns by week\nAnswer in euros, rounded to cents\nShow the regions as a bar chart on the dashboard', 'the old words of the asks not met are gone');
     await wizard.getByRole('group', { name: 'What happens to v4?' }).getByRole('radio', { name: /^Keep v4 live/ }).check();
@@ -297,7 +292,7 @@ test('after Publish anyway each ask not met says who published it anyway and whe
     assert.deepEqual(await rowsOf(panel).evaluateAll((li) => li.map((x) => x.dataset.requirement)), ['met', 'not_met', 'met', 'not_met'], 'an ask published anyway is still not met');
     assert.match(await panel.locator('[data-checklist-headline]').getAttribute('class'), /text-warning-fg/);
     assert.equal(await heldBox(page).count(), 0);
-    assert.equal(await page.locator('[data-mvp-panel]').getByRole('button', { name: ACTIONS }).count(), 0, 'nothing is left to rephrase or publish');
+    assert.equal(await page.locator('[data-mvp-progress]').getByRole('button', { name: ACTIONS }).count(), 0, 'nothing is left to rephrase or publish');
     assert.deepEqual(ui.pageErrors, []);
   } finally {
     await ui.close();
@@ -320,7 +315,7 @@ test('a settings change the agent refused shows as a refused settings change wit
   const ui = await openBuild(state);
   const { page } = ui;
   try {
-    const panel = page.locator('[data-mvp-panel="build"]');
+    const panel = page.locator('[data-mvp-progress]');
     const banner = panel.getByRole('region', { name: 'Build failed', exact: true });
     await banner.waitFor({ timeout: 15000 });
     await banner.getByText('Settings change', { exact: true }).waitFor();
@@ -332,7 +327,9 @@ test('a settings change the agent refused shows as a refused settings change wit
     assert.deepEqual(await list.locator('[data-requirement-status]').allTextContents(), row.entries.map(() => 'Settings change refused.'), 'the refusal is said once, above');
     assert.equal(await panel.getByRole('region', { name: 'Vibe checklist of v3', exact: true }).count(), 0, 'never a vibe checklist');
     assert.equal(await panel.getByText(/vibe requirements? met/).count(), 0, 'never 0 of 2 vibe requirements met');
-    assert.equal(await panel.getByRole('button', { name: ACTIONS }).count(), 0, 'no Rephrase, Try again or Publish anyway');
+    assert.equal(await panel.getByRole('button', { name: /^(Rephrase|Publish anyway)$/ }).count(), 0, 'no Rephrase or Publish anyway');
+    assert.equal(await panel.getByRole('button', { name: 'Try again', exact: true }).count(), await banner.getByRole('button', { name: 'Try again', exact: true }).count(),
+      'the only Try again builds the failed version again, never a vibe ask');
     const contrast = await lowContrast(page, ['[aria-label="Settings changes of v3"]']);
     assert.deepEqual(contrast.low, []);
     assert.deepEqual(ui.pageErrors, []);

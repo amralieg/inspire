@@ -532,7 +532,7 @@ def test_the_build_creates_the_alerts_folder_and_gives_the_app_service_principal
     fields = inst._implement_deploy_app(context, "churn-desk", files, READS, "g1", poll_s=0)
     assert fields["_warnings"] == [f"App: people cannot set up alerts in it yet, because Inspire could not give its service principal CAN "
                                    f"MANAGE on the alerts folder {folder}: PERMISSION_DENIED: folder. Give it CAN MANAGE on that folder, or "
-                                   "build the App again with Edit MVP on the Build page"]
+                                   "build the App again with Vibe/Add/Remove Features on the Build page"]
 
 
 def test_turning_alerts_off_pauses_the_alerts_people_set_up(agent_ns, sdk_stub):

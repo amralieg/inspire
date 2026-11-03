@@ -94,7 +94,7 @@ const inserts = (made) => made.sqlCalls.filter((c) => String(c.sql).includes('IN
 const DB = { inspire_database: 'main.inspire', warehouse_id: 'wh1', session_id: '42' };
 const PUBLISH = '/api/inspire/implement/publish?use_case_id=N01-U01';
 
-test('the stored held spec the agent writes re-validates clean, and the one helper builds Try again, Edit MVP and Publish anyway from it as stored', async () => {
+test('the stored held spec the agent writes re-validates clean, and the one helper builds Try again, Vibe/Add/Remove Features and Publish anyway from it as stored', async () => {
   const W = await lib('implementWizard.js');
   assert.deepEqual(I.validateImplementSpec(STORED).errors, [], 'a held spec as stored re-validates clean');
   const held = heldRow(2);
@@ -106,7 +106,7 @@ test('the stored held spec the agent writes re-validates clean, and the one help
   const fallback = W.defaultSpecFromUseCase({ id: 'N01-U01', primary_table: 'main.s.orders', tables_involved: 'main.s.orders' },
     { warehouseId: 'wh1', inspireDatabase: 'main.inspire', owner: OWNER });
   const edit = W.specFromLatest(held, fallback);
-  assert.deepEqual(leafDiff(STORED, edit), [], 'Edit MVP starts from every stored leaf, retry_outputs included');
+  assert.deepEqual(leafDiff(STORED, edit), [], 'Vibe/Add/Remove Features starts from every stored leaf, retry_outputs included');
   const stripped = JSON.parse(JSON.stringify(edit));
   delete stripped.retry_outputs;
   assert.deepEqual(leafDiff(STORED, stripped), ['retry_outputs'], 'a key stripped from the stored spec fails the comparison');
@@ -282,9 +282,10 @@ test('vibe_not_met never counts as failed or ready in the use case lists, the ti
   const state = W.implementState(held);
   assert.deepEqual(state, { group: 'held', label: 'MVP vibes not met', tone: 'warning', kind: 'mvp' });
   const groups = W.implementGroups([{ id: 'N01-U01', Name: 'Predict churn' }], [held], null);
-  assert.deepEqual(groups.map((g) => [g.id, g.items.length]), [['in_progress', 0], ['ready', 0], ['held', 1], ['failed', 0], ['not_started', 0]]);
-  assert.ok(!W.implementGroups([{ id: 'N01-U01', Name: 'Predict churn' }], [row(1, 'ready')], null).some((g) => g.id === 'held'),
-    'with no held use case the group stays away');
+  assert.deepEqual(groups.map((g) => [g.id, g.items.length]), [['in_progress', 0], ['attention', 1], ['ready', 0], ['not_started', 0]],
+    'a held use case needs attention, next to a failed one');
+  const readyOnly = W.implementGroups([{ id: 'N01-U01', Name: 'Predict churn' }], [row(1, 'ready')], null);
+  assert.deepEqual(readyOnly.map((g) => [g.id, g.items.length]), [['in_progress', 0], ['attention', 0], ['ready', 1], ['not_started', 0]]);
   const counts = W.mvpCounts([state, W.implementState(row(1, 'ready')), W.implementState(row(1, 'failed'))]);
   assert.deepEqual(counts, { useCases: 3, has: 3, none: 0, live: 1, building: 0, held: 1, failed: 1 });
   assert.equal(W.mvpBucketOf(state), 'held');
@@ -321,7 +322,7 @@ test('vibe_not_met never counts as failed or ready in the use case lists, the ti
   assert.ok(!stages.some((s) => s.state === 'error'), 'and nothing of it reads failed');
 });
 
-test('the next Edit MVP after a hold starts from the held version, so no ask is dropped, and publish_held never carries over', async () => {
+test('the next Vibe/Add/Remove Features after a hold starts from the held version, so no ask is dropped, and publish_held never carries over', async () => {
   const W = await lib('implementWizard.js');
   const fallback = W.defaultSpecFromUseCase({ id: 'N01-U01', primary_table: 'main.s.orders', tables_involved: 'main.s.orders' },
     { warehouseId: 'wh1', inspireDatabase: 'main.inspire', owner: OWNER });
@@ -338,7 +339,7 @@ test('the next Edit MVP after a hold starts from the held version, so no ask is 
   const published = { spec_version: 3, status: 'ready_with_warnings', spec_json: { ...fallback, ...asks, publish_held: 2 } };
   assert.ok(!Object.hasOwn(W.specFromLatest(published, fallback), 'publish_held'));
   assert.ok(!Object.hasOwn(W.nextSpecFrom(published, {}), 'publish_held'));
-  assert.ok(!Object.hasOwn(W.buildAgainChanges({ ...published, status: 'failed' }), 'publish_held'), 'Build again of a failed publish builds, it never publishes a version that is gone');
+  assert.ok(!Object.hasOwn(W.buildAgainChanges({ ...published, status: 'failed' }), 'publish_held'), 'Try again of a failed publish builds, it never publishes a version that is gone');
 });
 
 const UNCHECKED = 'Inspire could not check this ask: the App page did not load in time. Nothing shows the ask was missed: press Try again to check it again';

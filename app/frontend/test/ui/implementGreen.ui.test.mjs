@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { STUDIO_STATE, built } from './implementFixtures.js';
-import { closeBrowser, onStep, openUi, toAppAccess } from './uiSupport.mjs';
+import { closeBrowser, onStep, openAsset, openUi, toAppAccess } from './uiSupport.mjs';
 
 test.after(closeBrowser);
 
@@ -13,19 +13,13 @@ const stepRow = (phase, status, time) => ({
 const withApp = (app) => JSON.stringify({ ...JSON.parse(built().asset_status), app });
 const STEPS = [stepRow('App', 'started', '10:02:00'), stepRow('App', 'ended_success', '10:09:00'), stepRow('Done', 'ended_success', '10:09:30')];
 
-async function showTab(page, id) {
-  const tab = page.locator(`[data-mvp-tab="${id}"]`);
-  if (await tab.getAttribute('aria-selected') !== 'true') await tab.click();
-  await page.locator(`[data-mvp-panel="${id}"]`).waitFor();
-}
-
 test('a build whose App ended with an info note only reads Ready and green, with the note in neutral text under the steps and on the App', async () => {
   const history = [built({ asset_status: withApp({ state: 'ready', health: 'running', spec_version: 1, notes: [NOTE] }) })];
   const ui = await openUi('implement', { ...STUDIO_STATE, history, steps: STEPS });
   const { page } = ui;
   try {
     await page.getByRole('heading', { name: 'Build', exact: true }).waitFor();
-    await showTab(page, 'build');
+    await page.locator('[data-mvp-progress]').waitFor();
     await page.locator('[data-mvp-progress] p', { hasText: /^Ready$/ }).first().waitFor();
     const note = page.locator('[data-mvp-progress] [data-stage-notes] [data-stage-note="App"]');
     await note.waitFor();
@@ -34,7 +28,7 @@ test('a build whose App ended with an info note only reads Ready and green, with
     assert.equal(await page.locator('[data-mvp-progress] [data-stage="App"]').getAttribute('data-stage-state'), 'done');
     assert.equal(await page.locator('[data-mvp-progress] [data-stage-state="warning"]').count(), 0, 'no step is yellow');
     assert.equal(await page.locator('[data-mvp-progress] p', { hasText: /^Warnings$/ }).count(), 0);
-    await showTab(page, 'app');
+    await openAsset(page, 'app');
     const told = page.locator('[data-asset-panel="app"] [data-built-note]');
     await told.waitFor();
     assert.equal(await told.textContent(), NOTE);
@@ -135,9 +129,9 @@ test('a build that ended with a real warning still reads Warnings with a yellow 
   const { page } = ui;
   try {
     await page.getByRole('heading', { name: 'Build', exact: true }).waitFor();
-    await showTab(page, 'build');
+    await page.locator('[data-mvp-progress]').waitFor();
     await page.locator('[data-mvp-progress] p', { hasText: /^Warnings$/ }).first().waitFor();
-    assert.equal(await page.locator('[data-mvp-progress] [data-stage="Done"]').getAttribute('data-stage-state'), 'warning');
+    assert.equal(await page.locator('[data-mvp-progress] [data-stage="Finish"]').getAttribute('data-stage-state'), 'warning');
     assert.equal(await page.locator('[data-stage-notes]').count(), 0);
     assert.deepEqual(ui.pageErrors, []);
   } finally {

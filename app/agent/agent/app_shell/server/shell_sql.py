@@ -3707,7 +3707,7 @@ def plural(n, one: str, many: str = "") -> str:
 
 
 def rebuild_action(what: str = "it", first: bool = False) -> str:
-    text = f"build {what} again with Edit MVP on Inspire's Build page"
+    text = f"build {what} again with Vibe/Add/Remove Features on Inspire's Build page"
     return text[:1].upper() + text[1:] if first else text
 
 

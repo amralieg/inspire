@@ -38,7 +38,7 @@ test('the confirm text says what is deleted, what is taken out of a shared asset
   const C = await lib('implementControl.js');
   const alone = C.assetUninstall('dashboard', latest({ dashboard: true }), live({}), 'Churn board');
   assert.equal(C.uninstallText(DASH, { name: 'Churn board' }, alone),
-    'Inspire deletes the Dashboard Churn board in a new version of this MVP and keeps the other outputs. You can add it back with Edit MVP. '
+    'Inspire deletes the Dashboard Churn board in a new version of this MVP and keeps the other outputs. You can add it back from its tile. '
     + "Inspire checks again when the job runs: if another use case shares it by then, Inspire takes out only this use case's pages and keeps it for them.");
   assert.doesNotMatch(C.uninstallText({ id: 'alert', label: 'Alert' }, { name: 'Churn alert' }, alone), /checks again/,
     'an alert is never shared, so there is nothing to check again');

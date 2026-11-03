@@ -2,6 +2,7 @@ import { Target } from 'lucide-react';
 import { PANEL_CLASS, SectionTitle } from './BuildUi';
 import { RunScopeLine } from './RunScope';
 import { impactText, kpiLine } from '../lib/targetKpi';
+import { VIBE_FEATURES_LABEL } from '../lib/implementWizard';
 
 const NOTE_TONE = {
   warning: 'border-warning/40 bg-warning-bg text-warning-fg',
@@ -9,7 +10,7 @@ const NOTE_TONE = {
 };
 
 export const KPI_BUILT_BEFORE_READ_ONLY = 'No target KPI yet: this version was built before Inspire tracked one. The next version Inspire builds picks one.';
-export const KPI_BUILT_BEFORE = KPI_BUILT_BEFORE_READ_ONLY.replace(/\.$/, ', or you pick it in Edit MVP.');
+export const KPI_BUILT_BEFORE = KPI_BUILT_BEFORE_READ_ONLY.replace(/\.$/, `, or you pick it in ${VIBE_FEATURES_LABEL}.`);
 
 export function TargetKpiLine({ view }) {
   if (!view) return null;

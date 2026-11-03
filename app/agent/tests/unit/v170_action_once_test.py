@@ -3,7 +3,7 @@ import pytest
 from v143_vibes_test import _locked, _run
 from v163_hold_gate_test import _asked, _dashboard
 
-ACTIONS = ("Try again", "Publish anyway", "Rephrase", "send the vibe again", "Edit MVP")
+ACTIONS = ("Try again", "Publish anyway", "Rephrase", "send the vibe again", "Vibe/Add/Remove Features")
 ASKS = ["Put the top 10 first", "Show the region", "Name the owner"]
 
 
@@ -46,7 +46,7 @@ def test_a_status_message_joins_warnings_and_names_each_action_once(agent_ns, n)
     unchecked = _unchecked(agent_ns, 1)[0]["evidence"]
     message = agent_ns["implement_compose"](warnings + [f"Dashboard: {unchecked}"] * n)
     _once(message)
-    assert message.count("Edit MVP") == 1 and message.count("Try again") == 1
+    assert message.count("Vibe/Add/Remove Features") == 1 and message.count("Try again") == 1
     assert all(f"problem {i}" in message for i in range(n)) and "the summary is empty" in message
 
 
@@ -62,11 +62,11 @@ def test_the_not_decided_text_names_its_action_once(agent_ns, n):
 def test_a_single_standalone_entry_still_carries_its_action(agent_ns):
     [entry] = _unchecked(agent_ns, 1)
     assert entry["evidence"].endswith(": press Try again to check it again"), "a checklist row shown alone says what to do"
-    assert agent_ns["implement_unfixed_text"]("x", 0) == "x; build the notebook again with Edit MVP on the Build page"
+    assert agent_ns["implement_unfixed_text"]("x", 0) == "x; build the notebook again with Vibe/Add/Remove Features on the Build page"
     assert agent_ns["implement_not_decided_text"]("the router failed", 3).endswith("send the vibe again from the vibe box on the Build page")
     assert agent_ns["implement_held_reason"]([entry], 3, 2).count("Try again") == 1
-    assert agent_ns["implement_compose"](["Notebook: x; build the notebook again with Edit MVP on the Build page"]) == \
-        "Notebook: x; build the notebook again with Edit MVP on the Build page"
+    assert agent_ns["implement_compose"](["Notebook: x; build the notebook again with Vibe/Add/Remove Features on the Build page"]) == \
+        "Notebook: x; build the notebook again with Vibe/Add/Remove Features on the Build page"
     assert agent_ns["implement_compose"](["Plain fact"]) == "Plain fact"
 
 

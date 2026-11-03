@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { HARNESS_USE_CASE, OWNER, built } from './implementFixtures.js';
-import { closeBrowser, dataToResults, lowContrast, onStep, openUi, startMvp, until } from './uiSupport.mjs';
+import { closeBrowser, dataToResults, lowContrast, onStep, openAsset, openBuild, openUi, startMvp, until } from './uiSupport.mjs';
 
 test.after(closeBrowser);
 
@@ -38,20 +38,6 @@ const SUMMARY = {
   kpi_name: 'Hours saved', kpi_source: 'inspire', kpi_direction: 'increase', kpi_unit: 'hours', kpi_baseline: '40', kpi_latest: '46.5', kpi_target: '60',
   kpi_baseline_on: '2026-10-29', kpi_target_text: 'Raise hours saved to 60', kpi_status: 'measured', kpi_reason: null, kpi_measured_at: '2026-10-30T06:00:00Z',
 };
-
-async function openBuild(state) {
-  const ui = await openUi('implement', state);
-  try {
-    const tab = ui.page.locator('[data-mvp-tab="build"]');
-    await tab.waitFor({ timeout: 15000 });
-    if (await tab.getAttribute('aria-selected') !== 'true') await tab.click();
-    await ui.page.locator('[data-mvp-panel="build"]').waitFor();
-    return ui;
-  } catch (e) {
-    await ui.close();
-    throw e;
-  }
-}
 
 test('the Results step offers the use case\u2019s own KPIs with Let Inspire pick first, picked by default, and a pick is sent as the target KPI', async () => {
   for (const [choice, sent] of [['Hours saved', { target: 'Hours saved' }], ['', null]]) {
@@ -119,7 +105,7 @@ test('the Build page and the notebook panel show the target KPI measured: unit, 
   const ui = await openBuild({ history: [builtWith(TRACKED)], moneySummary: [SUMMARY] });
   const { page } = ui;
   try {
-    const card = page.locator('[data-mvp-panel="build"]').getByRole('region', { name: 'Target KPI', exact: true });
+    const card = (await openAsset(page, 'notebook')).getByRole('region', { name: 'Target KPI', exact: true });
     await card.waitFor({ timeout: 15000 });
     assert.equal(await card.getAttribute('data-kpi-status'), 'measured');
     assert.equal(await card.locator('h4').textContent(), 'Target KPI: Hours saved');
@@ -127,7 +113,7 @@ test('the Build page and the notebook panel show the target KPI measured: unit, 
       [['Unit', 'hours'], ['Baseline', '40 hoursmeasured Oct 29, 2026'], ['Latest', '46.5 hoursmeasured Oct 30, 2026'], ['Target', '60 hours'], ['Direction', 'Increase']]);
     assert.equal(await card.locator('[data-kpi-why]').textContent(), 'Inspire picked it: it is the first KPI of this use case Inspire can compute from its tables.');
     assert.equal(await card.locator('[data-kpi-impact]').textContent(), 'Each record is counted in hours at stake, not money.');
-    await page.locator('[data-mvp-tab="notebook"]').click();
+    await openAsset(page, 'notebook');
     const panel = page.locator('[data-asset-panel="notebook"]');
     await panel.locator('[data-kpi-line]').waitFor({ timeout: 15000 });
     assert.equal(await panel.locator('[data-kpi-line]').textContent(), 'Target KPI: Hours saved, 46.5 hours against a target of 60 hours, from a baseline of 40 hours.');
@@ -147,7 +133,7 @@ test('a KPI Inspire could not measure says Not measured with the reason, and a f
   for (const [status, change, note] of states) {
     const ui = await openBuild({ history: [builtWith(TRACKED)], moneySummary: [{ ...SUMMARY, ...change }] });
     try {
-      const card = ui.page.locator('[data-mvp-panel="build"]').getByRole('region', { name: 'Target KPI', exact: true });
+      const card = (await openAsset(ui.page, 'notebook')).getByRole('region', { name: 'Target KPI', exact: true });
       await card.waitFor({ timeout: 15000 });
       assert.equal(await card.getAttribute('data-kpi-status'), status);
       assert.equal(await card.locator('[data-kpi-note]').textContent(), note);
@@ -192,14 +178,14 @@ test('a baseline taken on another table than the one the KPI is measured on now 
   const ui = await openBuild({ history: [builtWith({ ...TRACKED, baseline_reason: swapped })], moneySummary: [{ ...SUMMARY, kpi_reason: swapped }] });
   const { page } = ui;
   try {
-    const card = page.locator('[data-mvp-panel="build"]').getByRole('region', { name: 'Target KPI', exact: true });
+    const card = (await openAsset(page, 'notebook')).getByRole('region', { name: 'Target KPI', exact: true });
     await card.waitFor({ timeout: 15000 });
     assert.equal(await card.getAttribute('data-kpi-status'), 'measured', 'the KPI is measured, only its baseline comes from elsewhere');
     assert.equal(await card.locator('[data-kpi-baseline-flag]').textContent(), flag);
     assert.equal(await card.locator('[data-kpi-note]').count(), 0, 'a measured KPI says no Not measured');
     const contrast = await lowContrast(page, ['[aria-label="Target KPI"]']);
     assert.deepEqual(contrast.low, []);
-    await page.locator('[data-mvp-tab="notebook"]').click();
+    await openAsset(page, 'notebook');
     const line = page.locator('[data-asset-panel="notebook"] [data-kpi-line]');
     await line.waitFor({ timeout: 15000 });
     assert.equal(await line.textContent(), `Target KPI: Hours saved, 46.5 hours against a target of 60 hours, from a baseline of 40 hours. ${flag}`);
@@ -209,7 +195,7 @@ test('a baseline taken on another table than the one the KPI is measured on now 
   }
   const plain = await openBuild({ history: [builtWith(TRACKED)], moneySummary: [SUMMARY] });
   try {
-    const card = plain.page.locator('[data-mvp-panel="build"]').getByRole('region', { name: 'Target KPI', exact: true });
+    const card = (await openAsset(plain.page, 'notebook')).getByRole('region', { name: 'Target KPI', exact: true });
     await card.waitFor({ timeout: 15000 });
     assert.equal(await card.locator('[data-kpi-baseline-flag]').count(), 0, 'a baseline on the same table raises no flag');
   } finally {
@@ -221,9 +207,9 @@ test('an hours KPI never shows a currency or Money at stake anywhere on the MVP 
   const ui = await openBuild({ history: [builtWith(TRACKED)], moneySummary: [SUMMARY] });
   const { page } = ui;
   try {
-    await page.locator('[data-mvp-panel="build"]').getByRole('region', { name: 'Target KPI', exact: true }).waitFor({ timeout: 15000 });
+    await (await openAsset(page, 'notebook')).getByRole('region', { name: 'Target KPI', exact: true }).waitFor({ timeout: 15000 });
     const buildText = await page.locator('main, body').first().innerText();
-    await page.locator('[data-mvp-tab="notebook"]').click();
+    await openAsset(page, 'notebook');
     const panel = page.locator('[data-mvp-panel="notebook"]');
     await panel.getByRole('tablist', { name: 'Pick a part', exact: true }).getByRole('tab', { name: 'Hours at stake, Ready', exact: true }).click();
     const review = panel.getByRole('region', { name: 'Hours at stake review', exact: true });
@@ -254,7 +240,7 @@ test('a target KPI whose filter does not match its name shows the reason on its 
   for (const [label, kpi] of [['recorded with prior_rows', record], ['recorded before prior_rows', legacy]]) {
     const ui = await openBuild({ history: [builtWith(kpi)], moneySummary: [before] });
     try {
-      const card = ui.page.locator('[data-mvp-panel="build"]').getByRole('region', { name: 'Target KPI', exact: true });
+      const card = (await openAsset(ui.page, 'notebook')).getByRole('region', { name: 'Target KPI', exact: true });
       await card.waitFor({ timeout: 15000 });
       assert.equal(await card.locator('[data-kpi-note]').textContent(), `Not measured: ${mismatch.problem}`, label);
       const facts = await card.locator('[data-kpi-fact] dd').allTextContents();

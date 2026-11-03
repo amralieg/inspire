@@ -11,6 +11,8 @@ import {
 export { allowedRule, allowedText, widgetSetProblems, widgetValueProblem };
 
 export const START_MVP_LABEL = 'Start Use Case MVP with Genie';
+export const VIBE_FEATURES_LABEL = 'Vibe/Add/Remove Features';
+export const OPEN_ALL_SETTINGS = 'Open all settings';
 
 export const IMPLEMENT_MODES = [
   { id: 'mvp', label: 'Full MVP', blurb: 'Genie builds the result table, then the outputs you pick: dashboard, Genie Agent, App or alert.' },
@@ -2118,7 +2120,7 @@ export function buildAgainChanges(latest) {
 
 export function buildAgainHint(latest) {
   const version = versionOf(latest);
-  return `Build again asks for v${version} again as v${version + 1}, with the same choices, and Inspire repairs what it can on the way.`;
+  return `Try again asks for v${version} again as v${version + 1}, with the same choices, and Inspire repairs what it can on the way.`;
 }
 
 export const IMPLEMENT_UNINSTALLED = 'uninstalled';
@@ -2144,7 +2146,7 @@ export function statusChip(status, stalled = null) {
 export function statusReason(latest, stalled = null) {
   const s = String(latest?.status || '');
   if (stalled && IMPLEMENT_ACTIVE_STATUSES.includes(s)) {
-    return `${String(stalled.reason || 'its run stopped before it finished').trim()}. Edit MVP submits a new version.`;
+    return `${String(stalled.reason || 'its run stopped before it finished').trim()}. Rebuild in ${VIBE_FEATURES_LABEL} submits a new version.`;
   }
   if (s === IMPLEMENT_VIBE_NOT_MET) {
     return String(latest?.asset_status?.held?.reason ?? '').trim() || heldNoReasonText(versionOf(latest));
@@ -2227,11 +2229,10 @@ export function notebookRunEnded(prev, run) {
 }
 
 export const IMPLEMENT_GROUPS = [
-  { id: 'in_progress', label: 'In progress' },
-  { id: 'ready', label: 'Ready' },
-  { id: 'held', label: 'Vibes not met' },
-  { id: 'failed', label: 'Failed' },
-  { id: 'not_started', label: 'Not started' },
+  { id: 'in_progress', label: 'Building', states: ['in_progress'] },
+  { id: 'attention', label: 'Needs attention', states: ['failed', 'held'] },
+  { id: 'ready', label: 'Ready', states: ['ready'] },
+  { id: 'not_started', label: 'Not built', states: ['not_started'] },
 ];
 
 const NOTEBOOK_GROUP = { running: 'in_progress', ready: 'ready', failed: 'failed', requested: 'not_started' };
@@ -2269,8 +2270,7 @@ export function implementGroups(useCases, latestRows, notebookRun, query = '') {
     const text = `${item.id} ${item.name} ${subtitleOfUseCase(item.uc, item.name)} ${item.domain}`.toLowerCase();
     return terms.every((t) => text.includes(t));
   });
-  return IMPLEMENT_GROUPS.map((group) => ({ ...group, items: items.filter((item) => item.state.group === group.id) }))
-    .filter((group) => group.id !== 'held' || group.items.length);
+  return IMPLEMENT_GROUPS.map(({ states, ...group }) => ({ ...group, items: items.filter((item) => states.includes(item.state.group)) }));
 }
 
 export const MVP_FILTERS = [

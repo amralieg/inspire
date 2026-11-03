@@ -95,7 +95,7 @@ test('a held version never carries its outputs or its notebook into the next pla
   assert.equal(I.implementNotebookImpact({ notebook: { state: 'ready' } }), null);
 });
 
-test('Edit MVP validates with the impact the built notebook records, so a too long value formula vibe names its own unit', async () => {
+test('Vibe/Add/Remove Features validates with the impact the built notebook records, so a too long value formula vibe names its own unit', async () => {
   const history = [{ ...row(1), spec_json: JSON.stringify(row(1).spec_json), asset_status: JSON.stringify(row(1).asset_status) }];
   const made = makeApp({ history });
   const srv = await listen(made.app);
@@ -145,7 +145,7 @@ test('the settings note is validated as the agent validates it: trimmed, empty w
   assert.equal(S.settingsNoteProblem(S.withSettingsNote(base, '\u{1F600}'.repeat(300))), '', 'the wizard counts characters as the agent does');
   const latest = { spec_version: 2, status: 'ready', spec_json: { ...setting } };
   const fallback = W.defaultSpecFromUseCase({ No: 'N01-U01', Name: 'Basket' }, {});
-  assert.equal(W.specFromLatest(latest, fallback).config.settings_note, '', 'Edit MVP starts each change without the note of the version before');
+  assert.equal(W.specFromLatest(latest, fallback).config.settings_note, '', 'Vibe/Add/Remove Features starts each change without the note of the version before');
   assert.equal(W.nextSpecFrom(latest, { retry_outputs: ['dashboard'] }).config.settings_note, '', 'the Build page never sends an old note again');
   const held = { spec_version: 3, status: 'vibe_not_met', spec_json: { ...setting } };
   assert.equal(W.specFromHeld(held, { publish: true }).config.settings_note, 'more to act on', 'Publish anyway sends the held version exactly as it was held');

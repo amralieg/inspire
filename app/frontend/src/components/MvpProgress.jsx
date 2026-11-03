@@ -1,17 +1,16 @@
-import { AlertTriangle, Check, CheckCircle2, Circle, Loader2, Minus, X, XCircle } from 'lucide-react';
+import { AlertTriangle, ArrowRight, Check, CheckCircle2, Circle, Loader2, X, XCircle } from 'lucide-react';
 import GenieLogo from './GenieLogo';
-import { IconChip, PANEL_CLASS, SectionTitle } from './BuildUi';
-import { progressPercent, stagesRecorded } from '../lib/mvpProgress';
+import { IconChip, PANEL_CLASS } from './BuildUi';
+import { progressPercent, stageSteps, stagesRecorded } from '../lib/mvpProgress';
 
 const STAGE_LOOK = {
-  done: { Icon: Check, node: 'bg-success-bg text-success-fg ring-1 ring-inset ring-success/40', words: 'done' },
-  warning: { Icon: AlertTriangle, node: 'bg-warning-bg text-warning-fg ring-1 ring-inset ring-warning/40', words: 'done with warnings' },
-  error: { Icon: X, node: 'bg-error-solid text-white', words: 'failed' },
-  running: { Icon: Loader2, node: 'bg-db-red-solid text-white', words: 'in progress', live: true },
-  next: { Icon: Loader2, node: 'bg-db-red-solid text-white', words: 'starting', live: true },
-  waiting: { Icon: Circle, node: 'bg-bg-subtle text-text-tertiary ring-1 ring-inset ring-border', words: 'not started' },
-  not_reached: { Icon: Circle, node: 'bg-bg-subtle text-text-tertiary ring-1 ring-inset ring-border', words: 'not reached' },
-  skipped: { Icon: Minus, node: 'bg-transparent text-text-tertiary border border-dashed border-border-strong', words: 'not needed this version' },
+  done: { Icon: Check, chip: 'bg-success-bg text-success-fg ring-1 ring-inset ring-success/40', words: 'done' },
+  warning: { Icon: AlertTriangle, chip: 'bg-warning-bg text-warning-fg ring-1 ring-inset ring-warning/40', words: 'done with warnings' },
+  error: { Icon: X, chip: 'bg-error-solid text-white', words: 'failed' },
+  running: { Icon: Loader2, chip: 'bg-db-red-solid text-white shadow-sm shadow-db-red/30', words: 'in progress', live: true },
+  next: { Icon: Loader2, chip: 'bg-db-red-solid text-white shadow-sm shadow-db-red/30', words: 'starting', live: true },
+  waiting: { Icon: Circle, chip: 'bg-bg-subtle text-text-secondary ring-1 ring-inset ring-border', words: 'not started' },
+  not_reached: { Icon: Circle, chip: 'bg-bg-subtle text-text-secondary ring-1 ring-inset ring-border', words: 'not reached' },
 };
 
 const BAR_TONE = {
@@ -28,43 +27,74 @@ const STATUS_CHIP = {
   error: { icon: XCircle, tone: 'error' },
 };
 
+const SETTLED = ['done', 'warning'];
+
 function StatusMark({ active, tone }) {
   if (active) {
     return (
-      <span className="relative flex h-10 w-10 shrink-0 items-center justify-center">
+      <span className="relative flex h-8 w-8 shrink-0 items-center justify-center">
         <span className="absolute inset-0 rounded-full bg-db-red/30 motion-safe:animate-ping" aria-hidden />
-        <span className="relative h-10 w-10 rounded-full bg-db-red-50 ring-1 ring-inset ring-db-red/30 text-db-red-fg flex items-center justify-center" aria-hidden>
-          <GenieLogo size={20} />
+        <span className="relative h-8 w-8 rounded-full bg-db-red-50 ring-1 ring-inset ring-db-red/30 text-db-red-fg flex items-center justify-center" aria-hidden>
+          <GenieLogo size={16} />
         </span>
       </span>
     );
   }
   const look = STATUS_CHIP[tone] || { icon: GenieLogo, tone: 'idle' };
-  return <IconChip icon={look.icon} tone={look.tone} size="lg" />;
+  return <IconChip icon={look.icon} tone={look.tone} size="md" />;
 }
 
-function StageNodes({ stages }) {
+export function ProgressLine({ chip, summary }) {
+  const percent = progressPercent(chip, summary);
+  const bar = BAR_TONE[chip?.tone] || BAR_TONE.idle;
   return (
-    <ol aria-label="Build stages" className="flex items-start w-full">
-      {stages.map((stage, i) => {
-        const look = STAGE_LOOK[stage.state] || STAGE_LOOK.waiting;
+    <div data-progress-line="" className="flex items-center gap-3 min-w-0">
+      <div
+        className="relative h-2 flex-1 min-w-24 rounded-full bg-bg-subtle overflow-hidden"
+        role="progressbar"
+        aria-label="Build progress"
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={percent}
+      >
+        <div
+          className={`relative h-full rounded-full overflow-hidden ${bar} transition-[width] duration-700 ease-out`}
+          style={{ width: `${Math.max(percent, summary.active ? 4 : 0)}%` }}
+        >
+          {summary.active && (
+            <span
+              className="absolute inset-y-0 left-0 w-1/3 bg-gradient-to-r from-transparent via-white/45 to-transparent motion-safe:animate-[shimmer_1.8s_ease-in-out_infinite]"
+              aria-hidden
+            />
+          )}
+        </div>
+      </div>
+      <span data-progress-percent="" className="shrink-0 font-mono text-sm font-bold tabular-nums text-text-primary">{percent}%</span>
+      {summary.headline && <span data-progress-step="" className="min-w-0 truncate text-[12px] text-text-secondary">{summary.headline}</span>}
+    </div>
+  );
+}
+
+function StageArrows({ stages }) {
+  const steps = stageSteps(stages);
+  return (
+    <ol aria-label="Build stages" className="flex flex-wrap items-center gap-y-2">
+      {steps.map((step, i) => {
+        const look = STAGE_LOOK[step.state] || STAGE_LOOK.waiting;
         const { Icon } = look;
-        const settled = stage.state === 'done' || stage.state === 'warning';
+        const after = i > 0 && SETTLED.includes(steps[i - 1].state);
         return (
-          <li key={stage.id} data-stage={stage.id} data-stage-state={stage.state} className="relative flex-1 min-w-0 flex flex-col items-center">
-            {i < stages.length - 1 && (
-              <span className={`absolute top-4 left-1/2 w-full h-0.5 ${settled ? 'bg-success/70' : 'bg-border'}`} aria-hidden />
+          <li key={step.id} data-stage={step.id} data-stage-state={step.state} className="flex items-center">
+            {i > 0 && (
+              <ArrowRight data-stage-arrow={after ? 'done' : 'todo'} size={16} strokeWidth={2.5} aria-hidden
+                className={`mx-1.5 shrink-0 ${after ? 'text-text-primary' : 'text-text-tertiary'}`} />
             )}
-            <span className="relative z-10 flex items-center justify-center" aria-hidden>
-              {look.live && <span className="absolute inset-0 rounded-full bg-db-red/40 motion-safe:animate-ping" />}
-              <span className={`relative h-8 w-8 rounded-full flex items-center justify-center ${look.node}`}>
-                <Icon size={14} className={look.live ? 'motion-safe:animate-spin' : ''} />
-              </span>
+            <span title={step.title} className={`relative inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[12px] font-semibold ${look.chip}`}>
+              {look.live && <span className="absolute inset-0 rounded-full ring-4 ring-db-red/30 motion-safe:animate-pulse" aria-hidden />}
+              <Icon size={13} aria-hidden className={look.live ? 'motion-safe:animate-spin' : ''} />
+              {step.label}
+              {step.elapsed && <span className="font-normal tabular-nums">{step.elapsed}</span>}
             </span>
-            <span data-stage-label="" className={`mt-2 px-1 text-center text-[11px] font-semibold leading-tight ${look.live ? 'text-db-red-fg' : 'text-text-secondary'}`}>
-              {stage.label}
-            </span>
-            {stage.elapsed && <span className="text-[10px] tabular-nums text-text-tertiary">{stage.elapsed}</span>}
             <span className="sr-only">: {look.words}</span>
           </li>
         );
@@ -73,7 +103,7 @@ function StageNodes({ stages }) {
   );
 }
 
-function StageNotes({ stages }) {
+export function StageNotes({ stages }) {
   const noted = (stages || []).filter((stage) => stage.notes?.length);
   if (!noted.length) return null;
   return (
@@ -85,7 +115,7 @@ function StageNotes({ stages }) {
   );
 }
 
-function ScopeNotes({ scope }) {
+export function ScopeNotes({ scope }) {
   const vibe = scope?.vibe || [];
   const notes = scope?.notes || [];
   if (!vibe.length && !notes.length) return null;
@@ -102,64 +132,32 @@ function ScopeNotes({ scope }) {
   );
 }
 
-export default function MvpProgress({ stages, summary, chip, reason, toneClass, version, scope = null, children }) {
-  const percent = progressPercent(chip, summary);
-  const bar = BAR_TONE[chip?.tone] || BAR_TONE.idle;
+export default function MvpProgress({ stages, summary, chip, reason, toneClass, version, sorted = null, stop = null, boxRef = null, logRef = null, children }) {
   const headline = summary.headline || chip?.label || '';
   return (
-    <section aria-label="MVP progress" className={PANEL_CLASS} data-mvp-progress="">
-      <SectionTitle
-        icon={GenieLogo}
-        title={`Live build${version ? ` · v${version}` : ''}`}
-        hint="Genie Code builds every piece, Inspire checks each one"
-        right={(
-          <div className="text-right">
-            <div className="text-lg font-bold tabular-nums text-text-primary leading-none">{percent}%</div>
-            {summary.span && <div className="mt-1 text-[10px] tabular-nums text-text-secondary">{summary.span}</div>}
+    <section ref={boxRef} tabIndex={-1} aria-label="Build progress" data-mvp-progress=""
+      className={`${PANEL_CLASS} flex flex-col min-h-[24rem] md:min-h-[16rem] md:flex-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-db-red/40`}>
+      <div className="shrink-0 px-4 pt-3 pb-3 space-y-3 border-b border-border">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <StatusMark active={summary.active} tone={chip?.tone} />
+            <div className="min-w-0">
+              <h3 className="text-[13px] font-bold text-text-primary">Build progress{version ? ` · v${version}` : ''}</h3>
+              <p data-build-headline="" className={`text-[12px] truncate ${summary.headline ? 'text-text-secondary' : toneClass(chip?.tone)}`}>
+                {headline}{summary.span ? ` · ${summary.span}` : ''}
+              </p>
+            </div>
           </div>
-        )}
-      />
-      <div className="px-5 py-4 space-y-4 border-b border-border">
-        <div className="flex items-center gap-3">
-          <StatusMark active={summary.active} tone={chip?.tone} />
-          <div className="min-w-0">
-            {summary.headline && chip?.label && (
-              <p className="text-[11px] font-semibold text-db-red-fg">{chip.label}</p>
-            )}
-            <p className={`text-[15px] font-semibold ${summary.headline ? 'text-text-primary' : toneClass(chip?.tone)}`}>{headline}</p>
-            {summary.detail && <p className="text-[12px] text-text-secondary">{summary.detail}</p>}
-            {reason && <p className={`text-[12px] ${toneClass(chip?.tone)}`}>{reason}</p>}
-          </div>
+          {stop}
         </div>
-        <div
-          className="relative h-2.5 rounded-full bg-bg-subtle overflow-hidden"
-          role="progressbar"
-          aria-label="Build progress"
-          aria-valuemin={0}
-          aria-valuemax={100}
-          aria-valuenow={percent}
-        >
-          <div
-            className={`relative h-full rounded-full overflow-hidden ${bar} transition-[width] duration-700 ease-out`}
-            style={{ width: `${Math.max(percent, summary.active ? 4 : 0)}%` }}
-          >
-            {summary.active && (
-              <span
-                className="absolute inset-y-0 left-0 w-1/3 bg-gradient-to-r from-transparent via-white/45 to-transparent motion-safe:animate-[shimmer_1.8s_ease-in-out_infinite]"
-                aria-hidden
-              />
-            )}
-          </div>
-        </div>
-        {stagesRecorded(stages) && (
-          <div className="pt-1 space-y-3">
-            <StageNodes stages={stages} />
-            <StageNotes stages={stages} />
-          </div>
-        )}
-        <ScopeNotes scope={scope} />
+        {summary.detail && <p className="text-[12px] text-text-secondary">{summary.detail}</p>}
+        {reason && <p data-build-reason="" className={`text-[12px] ${toneClass(chip?.tone)}`}>{reason}</p>}
+        {stagesRecorded(stages) && <StageArrows stages={stages} />}
+        {sorted && <p data-sorted-to="" className="text-[12px] font-medium text-text-primary">{sorted.text}</p>}
       </div>
-      {children}
+      <div ref={logRef} data-build-log="" className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4 space-y-4">
+        {children}
+      </div>
     </section>
   );
 }

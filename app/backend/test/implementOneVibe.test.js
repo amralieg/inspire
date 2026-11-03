@@ -123,7 +123,7 @@ function heldLatest(version = 3) {
   };
 }
 
-test('the next version the wizard or Edit MVP builds carries the notebook asks and every part\'s asks the latest version holds, and never the vibe it was built with', async () => {
+test('the next version the wizard or Vibe/Add/Remove Features builds carries the notebook asks and every part\'s asks the latest version holds, and never the vibe it was built with', async () => {
   const W = await lib('implementWizard.js');
   const latest = heldLatest();
   const fallback = W.defaultSpecFromUseCase({ use_case_id: 'N01-U01', Name: 'Predict churn' }, { warehouseId: 'wh1', inspireDatabase: 'main.inspire', sessionId: '42' });
@@ -198,9 +198,11 @@ test('the Build page collects asks for the whole MVP, once each, and a held ask 
   entries = C.collectRemoval(entries, 'dashboard', 'Dashboard', 'Arabic labels');
   entries = C.collectRemoval(entries, 'dashboard', 'Dashboard', 'Arabic labels');
   assert.equal(entries.length, 2);
-  assert.equal(C.collectedNoteText(entries, false), '2 asks are waiting, 1 of them to take out. Edit MVP opens them in the Vibes step so one build carries them all.');
-  assert.equal(C.collectedNoteText(entries.slice(0, 1), true), 'One ask is waiting. After this build finishes, Edit MVP opens it in the Vibes step so one build carries it.');
-  assert.equal(C.collectedNoteText([], false), '');
+  assert.equal(C.vibeFeaturesLabel(entries), 'Vibe/Add/Remove Features (2)');
+  assert.equal(C.vibeFeaturesLabel([]), 'Vibe/Add/Remove Features (0)');
+  assert.equal(C.rebuildLabel(entries), 'Rebuild with 2 vibes');
+  assert.equal(C.rebuildLabel(entries.slice(0, 1)), 'Rebuild with 1 vibe');
+  assert.equal(C.rebuildLabel([]), 'Rebuild');
   entries = C.dropCollected(entries, entries[1]);
   assert.deepEqual(entries, [{ kind: 'ask', text: 'Answer in euros' }]);
 

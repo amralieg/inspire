@@ -258,7 +258,7 @@ test('a version is stalled when its run ended, or when its run cannot be read an
 
 test('an edit from a stale version is a conflict', () => {
   assert.throws(() => planSubmission([row(3, 'ready'), row(2, 'ready')], spec({ based_on_version: 2 }).spec),
-    (err) => err.statusCode === 409 && err.message === 'v3 was built after the version you edited (v2); reopen Edit MVP to see it and submit again');
+    (err) => err.statusCode === 409 && err.message === 'v3 was built after the version you edited (v2); reopen Vibe/Add/Remove Features to see it and rebuild again');
 });
 
 test('the next version follows the newest row, whatever its status', () => {

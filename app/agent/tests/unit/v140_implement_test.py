@@ -1558,7 +1558,7 @@ def test_a_notebook_edited_since_inspire_built_it_is_not_overwritten_without_con
     with pytest.raises(agent_ns["ImplementBlocked"]) as raised:
         inst._implement_claim_notebook(use_case, spec, (5150, "N01-U01", 4), status)
     assert str(raised.value) == agent_ns["implement_notebook_edited_message"](NB_PATH)
-    assert "build the notebook again with Edit MVP on the Build page" in str(raised.value) and "Review step" not in str(raised.value)
+    assert "build the notebook again with Vibe/Add/Remove Features on the Build page" in str(raised.value) and "Review step" not in str(raised.value)
     assert status["notebook"] == {"modified_at": 1000, "spec_version": 3, "state": "edited", "edited_at": 2000}
     assert inst.updates == [{"asset_status": status}] and workspace.imported == [] and asked == []
     confirmed = dict(spec, confirm_notebook_overwrite=True)
@@ -3166,7 +3166,7 @@ def test_an_app_without_a_genie_agent_gets_no_genie_grant_and_a_failed_grant_is_
     inst._implement_grant = lambda *a: (_ for _ in ()).throw(RuntimeError("PERMISSION_DENIED: not a manager"))
     fields = inst._implement_deploy_app(context, "churn-desk", SHELL_FILES, READS, "g1", poll_s=0)
     assert fields["_warnings"] == ["App: Ask Genie may fail because the App's service principal could not get CAN RUN on the Genie "
-                                   "Agent g1: PERMISSION_DENIED: not a manager. Give it CAN RUN on the Genie Agent, or build the App again with Edit MVP on the Build page"]
+                                   "Agent g1: PERMISSION_DENIED: not a manager. Give it CAN RUN on the Genie Agent, or build the App again with Vibe/Add/Remove Features on the Build page"]
     assert fields["app_url"] == "https://churn-desk.example"
 
 
@@ -3438,7 +3438,7 @@ def test_an_app_that_cannot_be_tagged_deploys_with_a_warning_that_says_why(agent
     warning = inst._implement_tag_app(context, "churn-desk")
     assert len(calls) == 1, "a permission error is not retried"
     assert warning == ("App: the App churn-desk was not tagged, so its usage cannot be traced to this use case: "
-                       "PERMISSION_DENIED: cannot assign tags on apps. Build the App again with Edit MVP on the Build page to tag it")
+                       "PERMISSION_DENIED: cannot assign tags on apps. Build the App again with Vibe/Add/Remove Features on the Build page to tag it")
     assert emitted == [], "the App step is not turned yellow; the warning goes to the App's warnings"
 
 

@@ -321,7 +321,7 @@ def test_an_owner_whose_app_may_not_write_the_assumptions_gets_a_plain_refusal(t
     assert status == 403 and out["error"] == (
         "Nothing was saved: this App's service principal may not change `main`.`pricing`.`loss_desk_out_assumptions` in Unity "
         "Catalog (PERMISSION_DENIED: User does not have MODIFY on Table 'main.pricing.loss_desk_out_assumptions'). Ask the person "
-        "who built the App to build it again with Edit MVP on Inspire's Build page, so Inspire grants the service principal SELECT and MODIFY on that table, or ask the owner "
+        "who built the App to build it again with Vibe/Add/Remove Features on Inspire's Build page, so Inspire grants the service principal SELECT and MODIFY on that table, or ask the owner "
         "of that table to grant them")
 
     class Broken(MoneyWorkspace):

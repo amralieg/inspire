@@ -4,7 +4,7 @@ import {
   checklistHeadline, checklistPlace, checklistState, checklistStatusText, missedAsks, notMetAsks, publishedAnywayText, rephrasableAsks,
 } from '../lib/mvpProgress';
 import { heldPartsText, publishHeldText } from '../lib/implementControl';
-import { heldNoReasonText } from '../lib/implementWizard';
+import { VIBE_FEATURES_LABEL, heldNoReasonText } from '../lib/implementWizard';
 import { reducedMotion } from '../lib/motion';
 
 const OUTLINE_BUTTON = 'inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold border border-border bg-surface text-text-primary hover:bg-bg-subtle disabled:opacity-50';
@@ -109,7 +109,7 @@ export default function VibeChecklist({ checklist, assets = {}, compact = false,
           )}
           {onEdit && (
             <button type="button" onClick={onEdit} className={OUTLINE_BUTTON}>
-              <Pencil size={12} /> Edit MVP
+              <Pencil size={12} /> {VIBE_FEATURES_LABEL}
             </button>
           )}
         </div>

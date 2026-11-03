@@ -6,7 +6,7 @@ import { feedLine, feedKey, feedTypesOut, typedText, typingSchedule } from '../l
 import { reducedMotion } from '../lib/motion';
 
 const TONE_TEXT = { plain: 'text-text-primary', quiet: 'text-text-secondary', warning: 'text-warning-fg', error: 'text-error-fg' };
-const PINNED_TOP_PX = 160;
+const PINNED_SLACK_PX = 24;
 const TICK_MS = 60;
 const FEED_MARKDOWN = ['p', 'strong', 'em', 'code', 'ul', 'ol', 'li'];
 const FEED_COMPONENTS = {
@@ -16,15 +16,19 @@ const FEED_COMPONENTS = {
   code: ({ children }) => <code className="px-1 py-px rounded bg-bg-subtle ring-1 ring-inset ring-border font-mono text-[12px]">{children}</code>,
 };
 
+function scrollToEnd(root, behavior) {
+  root?.scrollTo?.({ top: root.scrollHeight, behavior });
+}
+
 function clock(at) {
   const d = new Date(at);
   return Number.isNaN(d.getTime()) ? '' : d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 }
 
-export default function GenieFeed({ feed, arrivals, active, working }) {
+export default function GenieFeed({ feed, arrivals, active, working, scroller }) {
   const endRef = useRef(null);
   const [now, setNow] = useState(() => Date.now());
-  const [pinned, setPinned] = useState(false);
+  const [pinned, setPinned] = useState(() => Boolean(active));
   const [readCount, setReadCount] = useState(null);
   const [reduced] = useState(reducedMotion);
 
@@ -48,21 +52,22 @@ export default function GenieFeed({ feed, arrivals, active, working }) {
   const count = shown.length;
   useEffect(() => {
     const end = endRef.current;
-    if (!end || typeof IntersectionObserver === 'undefined') return undefined;
+    const root = scroller.current;
+    if (!end || !root || typeof IntersectionObserver === 'undefined') return undefined;
     const watch = new IntersectionObserver(([entry]) => {
       setPinned(entry.isIntersecting);
       if (entry.isIntersecting) setReadCount(count);
-    }, { rootMargin: `-${PINNED_TOP_PX}px 0px 0px 0px` });
+    }, { root, rootMargin: `${PINNED_SLACK_PX}px 0px` });
     watch.observe(end);
     return () => watch.disconnect();
-  }, [count]);
+  }, [count, scroller]);
 
   useLayoutEffect(() => {
-    if (pinned) endRef.current?.scrollIntoView?.({ block: 'nearest' });
-  }, [count, now, pinned, active]);
+    if (pinned && active) scrollToEnd(scroller.current, 'auto');
+  }, [count, now, pinned, active, scroller]);
 
   const jump = () => {
-    endRef.current?.scrollIntoView?.({ block: 'end', behavior: reduced ? 'auto' : 'smooth' });
+    scrollToEnd(scroller.current, reduced ? 'auto' : 'smooth');
     setPinned(true);
     setReadCount(count);
   };
@@ -145,13 +150,15 @@ export default function GenieFeed({ feed, arrivals, active, working }) {
         <span ref={endRef} data-feed-end="" aria-hidden className="block h-px" />
       </div>
       {unread && (
-        <button
-          type="button"
-          onClick={jump}
-          className="fixed bottom-6 right-6 z-30 inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-[12px] font-semibold text-white bg-db-red-solid shadow-lg"
-        >
-          <ArrowDown size={12} /> Jump to latest
-        </button>
+        <div className="sticky bottom-0 flex justify-end pointer-events-none">
+          <button
+            type="button"
+            onClick={jump}
+            className="pointer-events-auto inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-[12px] font-semibold text-white bg-db-red-solid shadow-lg"
+          >
+            <ArrowDown size={12} /> Jump to latest
+          </button>
+        </div>
       )}
     </div>
   );

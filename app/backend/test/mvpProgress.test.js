@@ -275,21 +275,22 @@ test('a poll that read the log mid-copy never takes messages off the screen, and
   assert.equal(steadyFeed(shown, null), null);
 });
 
-test('the Build tab shows the stepper and Genie\'s messages in the page scroll, never raw log lines, JSON or a scroll box of its own', () => {
+test('the Build progress box holds the stages and Genie\'s messages in one scroll box of its own, never raw log lines, JSON or a page scroll', () => {
   const fs = require('node:fs');
   const src = (p) => fs.readFileSync(path.resolve(__dirname, '..', '..', 'frontend', 'src', p), 'utf8');
   const page = src('pages/ImplementPage.jsx');
   assert.doesNotMatch(page, /log_lines/);
-  const buildTab = page.slice(page.indexOf('if (tab === BUILD_TAB) {'), page.indexOf("if (tab === 'notebook') {"));
-  assert.ok(buildTab.length > 100);
-  assert.match(buildTab, /<GenieFeed /);
-  assert.doesNotMatch(buildTab, /<pre|steps \|\| \[\]\)\.map/);
-  assert.match(page, /<MvpProgress /);
+  const box = page.slice(page.indexOf('<MvpProgress '), page.indexOf('</MvpProgress>'));
+  assert.ok(box.length > 100);
+  assert.match(box, /<GenieFeed [^>]*scroller=\{logRef\}/);
+  assert.doesNotMatch(box, /<pre|steps \|\| \[\]\)\.map/);
+  const progress = src('components/MvpProgress.jsx');
+  assert.match(progress, /<div ref=\{logRef\} data-build-log="" className="min-h-0 flex-1 overflow-y-auto/, 'the box scrolls, not the page');
   const feed = src('components/GenieFeed.jsx');
-  assert.doesNotMatch(feed, /overflow-y-auto|resize-y|max-h-|scrollTop/, 'the feed grows with the page; only the page scrolls');
-  assert.match(feed, /new IntersectionObserver\(/);
-  assert.match(feed, /if \(pinned\) endRef\.current\?\.scrollIntoView\?\.\(\{ block: 'nearest' \}\)/, 'it follows new messages only while its end is on screen');
-  assert.match(src('components/MvpProgress.jsx'), /\{stagesRecorded\(stages\) && \(/);
+  assert.doesNotMatch(feed, /overflow-y-auto|resize-y|max-h-|scrollTop|scrollIntoView/, 'the feed has no scroll box of its own and never scrolls the page');
+  assert.match(feed, /new IntersectionObserver\([\s\S]*\{ root, rootMargin/, 'its end is watched inside the box');
+  assert.match(feed, /if \(pinned && active\) scrollToEnd\(scroller\.current, 'auto'\)/, 'it follows new messages only while a build runs and its end is in view');
+  assert.match(progress, /\{stagesRecorded\(stages\) && <StageArrows /);
   assert.match(feed, /role="log"/);
   assert.match(feed, /<GenieLogo /);
   const routes = fs.readFileSync(path.resolve(__dirname, '..', 'implementRoutes.js'), 'utf8');

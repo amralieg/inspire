@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import { X } from 'lucide-react';
 import BodyPortal from './BodyPortal';
 
-export default function DrawerShell({ label, closeLabel, focusKey = null, onClose, title, actions = null, below = null, footer = null, children, ...rest }) {
+export default function DrawerShell({ label, closeLabel, focusKey = null, onClose, title, actions = null, below = null, footer = null, center = false, children, ...rest }) {
   const panelRef = useRef(null);
   const openerRef = useRef(null);
 
@@ -30,7 +30,7 @@ export default function DrawerShell({ label, closeLabel, focusKey = null, onClos
 
   return (
     <BodyPortal>
-      <div className="fixed inset-0 z-[70] flex justify-end" {...rest}>
+      <div className={`fixed inset-0 z-[70] flex ${center ? 'items-center justify-center p-4' : 'justify-end'}`} {...rest}>
         <button type="button" aria-label={closeLabel} className="absolute inset-0 bg-black/40 cursor-default" onClick={onClose} />
         <div
           ref={panelRef}
@@ -38,7 +38,8 @@ export default function DrawerShell({ label, closeLabel, focusKey = null, onClos
           role="dialog"
           aria-modal="true"
           aria-label={label}
-          className="relative flex h-full w-full max-w-[46rem] flex-col border-l border-border bg-surface shadow-elevated outline-none"
+          className={`relative flex w-full flex-col bg-surface shadow-elevated outline-none ${
+            center ? 'max-h-[92dvh] max-w-[44rem] rounded-xl border border-border' : 'h-full max-w-[46rem] border-l border-border'}`}
         >
           <div className="shrink-0 border-b border-border px-6 pt-5 pb-4">
             <div className="flex items-start gap-3">

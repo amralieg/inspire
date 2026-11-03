@@ -321,7 +321,7 @@ def test_ai_output_genie_cannot_fix_in_every_round_ships_saying_genie_could_not_
     assert outcome["ai_fixable"] is True and outcome["gate_rounds"] == 3 and outcome["ai_problems"][0].startswith("the run wrote no AI")
     assert agent_ns["implement_unfixed_text"]("x", 3) == "Genie could not fix this in 3 build rounds: x"
     assert agent_ns["implement_unfixed_text"]("x", 1) == "Genie could not fix this in 1 build round: x"
-    assert agent_ns["implement_unfixed_text"]("x", 0) == "x; build the notebook again with Edit MVP on the Build page"
+    assert agent_ns["implement_unfixed_text"]("x", 0) == "x; build the notebook again with Vibe/Add/Remove Features on the Build page"
 
 
 def test_an_ai_step_that_failed_on_the_endpoint_is_never_sent_back_to_genie(agent_ns):

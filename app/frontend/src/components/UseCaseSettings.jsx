@@ -130,7 +130,7 @@ export default function UseCaseSettings({ view, error = '', readOnly = false, im
         )}
         {!readOnly && view.source === 'recorded' && !view.app && onEdit && settings.length > 0 && (
           <button type="button" onClick={onEdit} className={`${BUTTON} border border-border bg-surface text-text-primary`}>
-            <Pencil size={12} /> Change them in Edit MVP
+            <Pencil size={12} /> Change them in all settings
           </button>
         )}
         {history.length > 0 && (

@@ -106,17 +106,17 @@
  ],
  "run_words": [
   "Sign in so the App can record who asked for the run",
-  "No one can run this use case from the App, because the App names no owner of it; build it again with Edit MVP on Inspire's Build page",
+  "No one can run this use case from the App, because the App names no owner of it; build it again with Vibe/Add/Remove Features on Inspire's Build page",
   "Only the owners of this use case can run it now"
  ],
  "setting_words": [
   "Sign in so the App can record who changed the setting",
-  "No one can change the settings of this use case, because the App names no owner of it; build it again with Edit MVP on Inspire's Build page",
+  "No one can change the settings of this use case, because the App names no owner of it; build it again with Vibe/Add/Remove Features on Inspire's Build page",
   "Only the owners of this use case can change its settings"
  ],
  "assumption_words": [
   "Sign in so the App can record who changed the assumption",
-  "No one can change the assumptions of this use case, because the App names no owner of it; build it again with Edit MVP on Inspire's Build page",
+  "No one can change the assumptions of this use case, because the App names no owner of it; build it again with Vibe/Add/Remove Features on Inspire's Build page",
   "Only the owners of this use case can change its assumptions"
  ],
  "use_case_owners_max": 51,

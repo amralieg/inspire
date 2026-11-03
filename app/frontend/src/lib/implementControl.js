@@ -1,33 +1,19 @@
 import {
   BUILT_ASSET_STATES, GENIE_FOR_APP_NOTE, IMPLEMENT_DONE_STATUSES, IMPLEMENT_OUTPUTS, IMPLEMENT_UNINSTALLED, IMPLEMENT_VIBE_NOT_MET, assetLabel, builtVersion, heldAsks,
   holderNames, holdersText, holdoutText, joinWords, partAsks, partLabel, partOf, rebuildableOutputs, statusChip, versionActive, vibesKey, VIBE_NOT_MET_FIRST,
-  APP_INSIDE_PLACEMENT, insideInspire, mvpFilterMatches,
+  APP_INSIDE_PLACEMENT, VIBE_FEATURES_LABEL, insideInspire, mvpFilterMatches, nextSpecFrom, withCollectedVibes,
 } from './implementWizard.js';
 import { formatWhen } from './formatWhen.js';
+import { plural } from './plural.js';
 import { assetNotes, planActionText, planActions, rephrasableAsks } from './mvpProgress.js';
 import { rowImpact, stakeLabel, stakeWords } from './targetKpi.js';
 
 export const CONTROL_REFRESH_MS = 15000;
 
-export const BUILD_TAB = 'build';
-export const MVP_TABS = [
-  { id: BUILD_TAB, label: 'Build' }, { id: 'app', label: 'App' }, { id: 'dashboard', label: 'Dashboard' },
-  { id: 'alert', label: 'Alert' }, { id: 'genie_space', label: 'Agent' }, { id: 'notebook', label: 'Notebook' },
+export const ASSET_TILES = [
+  { id: 'app', label: 'App' }, { id: 'dashboard', label: 'Dashboard' }, { id: 'genie_space', label: 'Genie Agent' },
+  { id: 'alert', label: 'Alerts' }, { id: 'notebook', label: 'Notebook' }, { id: 'job', label: 'Job' },
 ];
-const MVP_TAB_IDS = MVP_TABS.map((t) => t.id);
-
-export function idleMvpTab(latest) {
-  if (!BUILT_ASSET_STATES.includes(String(latest?.status || ''))) return BUILD_TAB;
-  const outputs = latest?.spec_json?.outputs || {};
-  return ['app', 'dashboard', 'alert', 'genie_space'].find((id) => outputs[id]) || 'notebook';
-}
-
-export function implementDefaultTab(view, active, picked = null, idle = BUILD_TAB) {
-  const on = Boolean(active);
-  if (MVP_TAB_IDS.includes(picked)) return { tab: picked, active: on };
-  if (view && view.active === on) return view;
-  return { tab: on ? BUILD_TAB : idle, active: on };
-}
 
 const APP_STATES = {
   ACTIVE: { label: 'Running', tone: 'success', actions: [['stop', 'Stop the App']] },
@@ -323,7 +309,7 @@ export function uninstallText(output, row, uninstall) {
     : uninstall?.unknown
       ? ' Inspire could not check whether other use cases share it, so it checks again first: if one does, it takes out only this use case\'s part.'
       : ` Inspire checks again when the job runs: if another use case shares it by then, Inspire takes out only this use case's ${SHARED_PART_WORDS[output.id]} and keeps it for them.`;
-  return `Inspire deletes the ${output.label} ${name} in a new version of this MVP and keeps the other outputs. You can add it back with Edit MVP.${check}`;
+  return `Inspire deletes the ${output.label} ${name} in a new version of this MVP and keeps the other outputs. You can add it back from its tile.${check}`;
 }
 
 export function removeChanges(latest, output) {
@@ -690,14 +676,21 @@ export function removingAsk(entries, id, ask) {
   return (entries || []).find((entry) => entry.kind === 'remove' && entry.id === id && sameText(entry.text, ask)) || null;
 }
 
-export function collectedNoteText(entries, active = false) {
+export function rebuildLabel(entries) {
   const count = (entries || []).length;
-  if (!count) return '';
-  const out = entries.filter((entry) => entry.kind === 'remove').length;
-  const one = count === 1;
-  const lead = one ? 'One ask is waiting' : `${count} asks are waiting`;
-  const outs = out && !one ? `, ${out} of them to take out` : out ? ', to take out' : '';
-  return `${lead}${outs}. ${active ? 'After this build finishes, ' : ''}Edit MVP opens ${one ? 'it' : 'them'} in the Vibes step so one build carries ${one ? 'it' : 'them all'}.`;
+  return count ? `Rebuild with ${plural(count, 'vibe')}` : 'Rebuild';
+}
+
+export function vibeFeaturesLabel(entries) {
+  return `${VIBE_FEATURES_LABEL} (${(entries || []).length})`;
+}
+
+export const REBUILD_WAITS = 'A build is running. Vibes you add wait for the next build.';
+export const REBUILD_NOTHING = 'Add a vibe or take one out first: nothing changed since the last build.';
+
+export function rebuildSpec(latest, entries, built = null, previous = '') {
+  const { vibe_previous: _previous, ...spec } = withCollectedVibes(nextSpecFrom(latest, {}), entries).spec;
+  return String(spec.vibes ?? '').trim() && built != null && previous ? { ...spec, vibe_previous: previous } : spec;
 }
 
 export const RAIL_WIDTH = { min: 240, max: 520, start: 320, step: 16 };

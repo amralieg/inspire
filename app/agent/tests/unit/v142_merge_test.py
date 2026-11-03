@@ -287,7 +287,7 @@ def test_an_old_page_that_now_fails_blocks_the_merge_and_names_it_while_this_pag
         inst._implement_app(context, None)
     assert str(raised.value) == ("the App sales-desk was not updated because its page 'Sales desk' of use case N01-U07 no longer works at "
                                  "the default filters (page n01_u07: chart:by_category failed: TABLE_OR_VIEW_NOT_FOUND). Inspire "
-                                 "rebuilds only this use case's page: build that use case again with Edit MVP on the Build page or remove the page, then submit again")
+                                 "rebuilds only this use case's page: build that use case again with Vibe/Add/Remove Features on the Build page or remove the page, then submit again")
     assert seen["deployed"] == []
     failing[:] = ["page n01_u01_s5150: kpi:revenue failed: DIVIDE_BY_ZERO"]
     with pytest.raises(RuntimeError) as raised:

@@ -262,7 +262,7 @@ test('on a use case page the AI reason narrows the list too, a row asks Genie ab
   await context.close();
 });
 
-const JOINED_NOTE = 'Ask Genie is off on this page because it joined this App before each use case had its own Genie Agent here. Build this use case again with Edit MVP on Inspire\'s Build page to turn Ask Genie on.';
+const JOINED_NOTE = 'Ask Genie is off on this page because it joined this App before each use case had its own Genie Agent here. Build this use case again with Vibe/Add/Remove Features on Inspire\'s Build page to turn Ask Genie on.';
 const withJoined = () => {
   const info = INFO();
   info.pages[2].genie = { enabled: false, title: '', url: '', note: JOINED_NOTE };

@@ -1006,7 +1006,7 @@ def test_consent_given_for_one_edit_never_covers_a_later_edit(agent_ns, monkeypa
         inst._implement_claim_notebook({"No": "N01-U01"}, agreed, (5150, "N01-U01", 5), status)
     assert str(raised.value) == (f"the notebook {NB_PATH} was edited again at 2026-10-31 05:30 UTC, after the edit of 2026-10-31 04:00 UTC "
                                  "you agreed to overwrite, so this version did not rebuild it: look at the new edit, then build the notebook "
-                                 "again with Edit MVP on the Build page to overwrite it, or keep it and change only the outputs or the schedule")
+                                 "again with Vibe/Add/Remove Features on the Build page to overwrite it, or keep it and change only the outputs or the schedule")
     assert status["notebook"]["state"] == "edited" and status["notebook"]["edited_at"] == EDIT_2 and workspace.imported == []
     assert inst._implement_claim_notebook({"No": "N01-U01"}, agreed, (5150, "N01-U01", 6), status) == NB_PATH, \
         "consent given while the second edit is the one on record covers that edit"

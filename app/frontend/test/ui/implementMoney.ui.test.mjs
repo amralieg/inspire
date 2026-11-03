@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { defaultSpecFromUseCase } from '../../src/lib/implementWizard.js';
 import { HARNESS_USE_CASE, HARNESS_SETTINGS, HARNESS_SESSION_ID } from './implementFixtures.js';
-import { closeBrowser, lowContrast, openUi } from './uiSupport.mjs';
+import { closeBrowser, lowContrast, openAsset, openUi } from './uiSupport.mjs';
 
 const OWNER = ['owner', 'example.com'].join('@');
 
@@ -32,8 +32,8 @@ async function openMoney(state) {
   const ui = await openUi('implement', { history: [BUILT], ...state });
   try {
     await ui.page.getByRole('heading', { name: 'Build', exact: true }).waitFor();
-    await ui.page.locator('[data-mvp-tab="notebook"]').click({ timeout: 15000 });
-    const panel = ui.page.locator('[data-mvp-panel="notebook"]');
+    await ui.page.locator('[data-asset-tile="notebook"] [data-tile-versions]').waitFor({ timeout: 15000 });
+    const panel = await openAsset(ui.page, 'notebook');
     await panel.getByRole('tablist', { name: 'Pick a part', exact: true }).getByRole('tab', { name: 'Money at stake, Ready', exact: true }).click();
     await panel.locator('[data-vibe-card="value_formula"]').waitFor({ timeout: 15000 });
     return { ...ui, card: panel.locator('[data-vibe-card="value_formula"]') };
@@ -59,8 +59,8 @@ test('the Money at stake part shows the formula Genie proposed, its assumptions 
     assert.deepEqual(await review.getByRole('list', { name: 'Assumption changes' }).getByRole('listitem').allTextContents(),
       [`${OWNER} set Price from 25 USD to 30 USD in the App: list price`, `${OWNER} set Price to 25 USD in the App`]);
     assert.equal(await review.locator('[data-change-how]').textContent(),
-      'To change how it is counted, add a vibe in the box above the tabs and Edit MVP builds it. Owners of the App can change the assumption values there.');
-    await page.locator('[data-vibe-box="mvp"]').getByRole('textbox', { name: 'Vibes for the MVP', exact: true }).waitFor();
+      'To change how it is counted, add a vibe in Vibe/Add/Remove Features and Rebuild builds it. Owners of the App can change the assumption values there.');
+    await page.getByRole('button', { name: 'Vibe/Add/Remove Features (0)', exact: true }).waitFor();
     assert.equal(await card.locator('textarea').count(), 0, 'the part has no vibe box of its own');
     const reads = made.sqlCalls.filter((c) => c.sql.includes('n01_u01_s42_out_'));
     assert.ok(reads.some((c) => c.sql.includes('`n01_u01_s42_out_summary`')) && reads.some((c) => c.sql.includes('`n01_u01_s42_out_assumptions`')));
@@ -160,8 +160,8 @@ test('a formula of only the row\u2019s own numbers lists no assumption and never
     assert.equal(await review.getByRole('table', { name: 'Assumptions' }).count(), 0);
     assert.equal(await review.getByText('Owners of the App can change the assumption values there').count(), 0);
     assert.equal(await review.locator('[data-change-how]').textContent(),
-      'This formula uses only each row\u2019s own numbers, so the App has no assumption to change. To change how it is counted, add a vibe in the box above the tabs '
-      + 'and Edit MVP builds it.');
+      'This formula uses only each row\u2019s own numbers, so the App has no assumption to change. To change how it is counted, add a vibe in Vibe/Add/Remove Features '
+      + 'and Rebuild builds it.');
     assert.deepEqual(ui.pageErrors, []);
   } finally {
     await ui.close();
