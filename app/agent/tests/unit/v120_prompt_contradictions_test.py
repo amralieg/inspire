@@ -203,7 +203,7 @@ def test_b23_translate_column_counts_are_consistent(ns):
     n = len(columns)
     assert n == 22 and columns[:7] == ["No", "Name", "Business Domain", "Subdomain", "type", "Analytics Technique", "Statement"] and columns[-3:] == ["Non-Financial Benefits", "KPI Names", "Proposed Key Results"]
     for phrase in (f"Header row with the {n} column names", f"({n + 2} columns", f"with {n + 2} fields", f"exactly {n + 2} fields",
-                   f"exactly {n + 2} comma-separated", f"exact {n}-column header", f"has {n + 3} fields", f"{n + 14} with all twelve"):
+                   f"exactly {n + 2} comma-separated", f"exact {n}-column header", f"has {n + 3} fields", f"{n + 15} with all thirteen"):
         assert phrase in prompt, phrase
     for stale in (11, 13, 15, 16, 17, 20):
         for phrase in (f"exactly {stale} fields", f"with {stale} fields", f"Header row with {stale} column names",

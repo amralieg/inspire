@@ -192,7 +192,7 @@ class FakeAgent:
         return self.respond(json.loads(prompt_vars["json_payload"]))
 
 
-def french_responder(left_in_english=()):
+def french_responder(left_in_english=(), translate=lambda value: f"FR {value}"):
     copied = {"No", "Tables Involved", "Analytics Technique", "Quality"}
 
     def respond(payload):
@@ -201,7 +201,7 @@ def french_responder(left_in_english=()):
         writer = csv.writer(out, quoting=csv.QUOTE_ALL)
         writer.writerow(header + ["honesty_score", "honesty_justification"])
         for item in payload:
-            writer.writerow([item.get(h, "") if h in copied or h in left_in_english else (f"FR {item[h]}" if item.get(h) else "")
+            writer.writerow([item.get(h, "") if h in copied or h in left_in_english else (translate(item[h]) if item.get(h) else "")
                              for h in header] + ["90", "faithful"])
         return out.getvalue()
     return respond
@@ -240,7 +240,7 @@ def test_the_translate_prompt_declares_every_optional_reason_column(ns):
     prompt = ns["PROMPT_TEMPLATES"]["USE_CASE_TRANSLATE_PROMPT"]
     for column, _key in ns["TranslationService"]._BELOW_BAR_TRANSLATION_FIELDS:
         assert f'"{column}"' in prompt, column
-    for column, _key in REASONS + ns["TranslationService"]._ELITE_TRANSLATION_FIELDS:
+    for column, _key in REASONS + ns["TranslationService"]._ELITE_OPTIONAL_TRANSLATION_FIELDS:
         assert f'"{column}"' in prompt, column
 
 
@@ -579,3 +579,106 @@ def test_docs_only_mode_names_the_english_file_to_use_instead(ns):
     fresh.w_client.workspace.files["/Workspace/out/docs/renamed.json"] = files["/Workspace/out/docs/Acme-dbx_inspire_ar.json"]
     with pytest.raises(ValueError, match="the file name without a language code"):
         fresh._load_usecases_catalog_json("/Workspace/out/docs/renamed.json")
+
+
+NON_STANDARD_CADENCE = "Per shift"
+ARABIC_TEXT = "نص عربي مترجم"
+
+
+def cadence_use_case(cadence, no="N01-U01"):
+    assessment = elite_assessment()
+    assessment["cadence"] = cadence
+    return make_uc(no, elite_status="ELITE", elite_score=8.8, elite_assessment=assessment, **ENGLISH_REASONS)
+
+
+class SkipCacheAgent(FakeAgent):
+    def run_worker(self, step_name, worker_prompt_path, prompt_vars, response_schema=None, skip_cache=False, **kw):
+        self.calls.append({"skip_cache": skip_cache, "json_payload": prompt_vars["json_payload"]})
+        return self.respond(json.loads(prompt_vars["json_payload"]))
+
+
+def test_a_non_standard_cadence_is_sent_and_translated(ns):
+    ts = ns["TranslationService"]
+    svc = ts(FakeAgent(french_responder(translate=lambda value: ARABIC_TEXT)), CapturingLogger())
+    original = cadence_use_case(NON_STANDARD_CADENCE)
+    out = svc.translate_use_case_list([original], "Arabic", enable_parallelization=False)[0]
+    payload = json.loads(svc.ai_agent.calls[0]["json_payload"])[0]
+    assert payload["Elite Decision Cadence"] == NON_STANDARD_CADENCE
+    assert out[ts.elite_translation_key("cadence")] == ARABIC_TEXT
+    assert out["_translation_status"] == "translated" and out["_untranslated_fields"] == []
+    assert out["elite_assessment"]["cadence"] == NON_STANDARD_CADENCE
+
+
+def test_a_translated_non_standard_cadence_reaches_the_arabic_csv_and_json(ns):
+    ts = ns["TranslationService"]
+    labels = arabic_labels(ns)
+
+    def portfolio():
+        result = arabic_elite_portfolio(ns)
+        uc = result["المبيعات"][0]
+        uc["elite_assessment"]["cadence"] = NON_STANDARD_CADENCE
+        uc[ts.elite_translation_key("cadence")] = "كل وردية"
+        return result
+    obj = bilingual(ns)
+    obj._generate_csv_catalog("Arabic", "ar", portfolio(), translations=labels)
+    _header, rows = csv_rows(obj)
+    assert {r[labels["sum_id"]]: r for r in rows}["N01-U01"][labels["elite_cadence"]] == "كل وردية"
+    obj = catalog_obj(ns, generate_choices=[])
+
+    def pack(*a, **k):
+        result = list(arabic_pack(ns))
+        result[3] = portfolio()
+        return tuple(result)
+    run_documents(ns, obj, pack)
+    uc = json.loads(written(obj, ".json")[1])["domains"][0]["use_cases"][0]
+    assert uc["elite_assessment"]["cadence"] == "كل وردية"
+    assert ts.elite_translation_key("cadence") not in uc
+
+
+@pytest.mark.parametrize("language,translate", [("French", lambda value: f"FR {value}"), ("Arabic", lambda value: ARABIC_TEXT)])
+def test_a_non_standard_cadence_the_model_leaves_in_english_is_retried_flagged_and_counted(ns, language, translate):
+    ts = ns["TranslationService"]
+    svc = ts(SkipCacheAgent(french_responder(left_in_english={"Elite Decision Cadence"}, translate=translate)), CapturingLogger())
+    out = svc.translate_use_case_list([cadence_use_case(NON_STANDARD_CADENCE)], language, enable_parallelization=False)[0]
+    assert [call["skip_cache"] for call in svc.ai_agent.calls] == [False] + [True] * ts._PARTIAL_RETRY_ROUNDS
+    assert all(json.loads(call["json_payload"])[0]["Elite Decision Cadence"] == NON_STANDARD_CADENCE for call in svc.ai_agent.calls)
+    assert out["_translation_status"] == "partial" and out["_untranslated_fields"] == ["Elite Decision Cadence"]
+    gaps = ns["DatabricksInspire"]._translation_gap_summary({"Domain": [out]})
+    assert gaps["use_cases"] == 1 and gaps["fields"] == {"Elite Decision Cadence": 1}
+    assert svc.logger.matching(f"[TRANSLATION GAP] {language}", level="WARNING")
+
+
+def test_a_cadence_left_in_english_is_named_on_the_arabic_export_row_and_not_in_documents(ns):
+    import openpyxl
+    labels = arabic_labels(ns)
+    portfolio = arabic_portfolio()
+    uc = portfolio["المبيعات"][0]
+    uc["elite_assessment"] = dict(elite_assessment(), cadence=NON_STANDARD_CADENCE)
+    uc["_translation_status"], uc["_untranslated_fields"] = "partial", ["Elite Decision Cadence"]
+    expected = f"{labels['untranslated_notice']}: {labels['elite_cadence']}"
+    obj = bilingual(ns)
+    obj._generate_csv_catalog("Arabic", "ar", portfolio, translations=labels)
+    _header, rows = csv_rows(obj)
+    row = {r[labels["sum_id"]]: r for r in rows}["N01-U01"]
+    assert row[labels["untranslated_notice"]] == expected and row[labels["elite_cadence"]] == NON_STANDARD_CADENCE
+    obj = bilingual(ns)
+    obj._generate_use_case_excel("Arabic", "ar", portfolio, translations=labels)
+    sheet = openpyxl.load_workbook(io.BytesIO(written(obj, ".xlsx")[1]))[labels["doc_use_cases"]]
+    header = [c.value for c in sheet[1]]
+    assert dict(zip(header, [c.value for c in sheet[2]]))[labels["untranslated_notice"]] == expected
+    assert make_inspire(ns)._untranslated_notice(uc, labels, "Arabic") == ""
+
+
+@pytest.mark.parametrize("cadence", ["weekly", "Bi-weekly", "Real time", "ANNUALLY", " monthly ", "event-driven"])
+def test_a_standard_cadence_is_never_sent_and_keeps_its_label(ns, cadence):
+    ts = ns["TranslationService"]
+    svc = ts(FakeAgent(french_responder()), CapturingLogger())
+    out = svc.translate_use_case_list([cadence_use_case(cadence)], "French", enable_parallelization=False)[0]
+    assert "Elite Decision Cadence" not in json.loads(svc.ai_agent.calls[0]["json_payload"])[0]
+    assert ts.elite_translation_key("cadence") not in out
+    assert out["_translation_status"] == "translated" and out["_untranslated_fields"] == []
+    labels = arabic_labels(ns)
+    obj = make_inspire(ns)
+    key = obj._DOC_CADENCE_KEYS[cadence.strip().casefold()]
+    assert obj._doc_cadence_label(cadence, labels, "Arabic") == labels[key] != cadence.strip()
+    assert obj._doc_cadence_label(cadence, {}, "English") == ts.ENGLISH_TRANSLATIONS[key]
