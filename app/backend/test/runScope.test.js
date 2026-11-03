@@ -288,3 +288,93 @@ test('the wizard reads a First run, recorded or still a notebook widget, as its 
     for (const [value, problem] of SCOPE_CASES) assert.equal(U.settingProblem(scope, value), problem, `${side} ${value}`);
   }
 });
+
+const LEGACY_VALUES = [
+  ['groups', RECORDED_RUN_SCOPE, { run_scope: 'groups' }, false],
+  ['ALL', RECORDED_RUN_SCOPE, { run_scope: 'all' }, false],
+  ['', RECORDED_RUN_SCOPE, { run_scope: '' }, false],
+  ['5', RECORDED_RUN_SCOPE, { run_scope: '' }, true],
+  ['5', null, { run_scope: '' }, true],
+  ['everything', RECORDED_RUN_SCOPE, { run_scope: '' }, true],
+  ['500', { ...RECORDED_RUN_SCOPE, label: 'Records for the first run' }, { run_scope: 'records', scope_records: '500' }, false],
+  ['14', { ...RECORDED_RUN_SCOPE, help: 'How many days back the first run covers.' }, { run_scope: 'recent', scope_days: '14' }, false],
+  ['200', { ...RECORDED_RUN_SCOPE, unit: 'rows' }, { run_scope: 'records', scope_records: '200' }, false],
+  ['14', { ...RECORDED_RUN_SCOPE, help: 'Records from the last days.' }, { run_scope: '' }, true],
+  ['0', { ...RECORDED_RUN_SCOPE, label: 'Records for the first run' }, { run_scope: '' }, true],
+  ['2.5', { ...RECORDED_RUN_SCOPE, unit: 'days' }, { run_scope: '' }, true],
+  ['500', { ...RECORDED_RUN_SCOPE, kind: 'choice', help: 'all the records or a number of records' }, { run_scope: '' }, true],
+];
+
+test('a First run a build recorded as a number or another word is mapped on read to the choice it meant, and to no choice when it cannot be known (must-exclude)', async () => {
+  const S = await lib('runScope.js');
+  for (const [value, declared, mapped, unrecorded] of LEGACY_VALUES) {
+    const got = S.recordedRunScope({ top_k: '10', run_scope: value }, declared);
+    assert.deepEqual(got, { values: { top_k: '10', ...mapped }, unrecorded }, `${value} ${JSON.stringify(declared)}`);
+  }
+  const kept = { run_scope: 'recent', scope_days: '7' };
+  assert.equal(S.recordedRunScope(kept, RECORDED_RUN_SCOPE).values, kept, 'a valid choice is read as it is');
+  for (const values of [null, undefined, 'x', [], {}]) assert.deepEqual(S.recordedRunScope(values, RECORDED_RUN_SCOPE), { values: {}, unrecorded: false });
+  assert.equal(S.runScopeDeclared([{ name: 'top_k' }, RECORDED_RUN_SCOPE]), RECORDED_RUN_SCOPE);
+  for (const list of [null, 'x', [], [null, { name: 'top_k' }]]) assert.equal(S.runScopeDeclared(list), null);
+  const row = (status) => ({ spec_json: { config: { widgets: { run_scope: '5' } } }, asset_status: status });
+  for (const status of [{ settings: [RECORDED_RUN_SCOPE] }, null, { settings: 'x' }]) {
+    assert.deepEqual(S.latestRunScope(row(status)), { values: { run_scope: '' }, unrecorded: true }, JSON.stringify(status));
+  }
+  assert.deepEqual(S.latestRunScope({ spec_json: { config: { widgets: { run_scope: '30' } } },
+    asset_status: { settings: [{ ...RECORDED_RUN_SCOPE, label: 'Days to cover' }] } }), { values: { run_scope: 'recent', scope_days: '30' }, unrecorded: false });
+  assert.deepEqual(S.latestRunScope({ spec_json: { config: { widgets: { run_scope: '30' } } }, asset_status: JSON.stringify({ settings: [{ ...RECORDED_RUN_SCOPE, label: 'Days to cover' }] }) }),
+    { values: { run_scope: '' }, unrecorded: true }, 'the browser reads rows the server already parsed, never JSON text');
+  for (const latest of [null, undefined, {}, { spec_json: 'x' }]) assert.deepEqual(S.latestRunScope(latest), { values: {}, unrecorded: false });
+});
+
+test('a First run that cannot be known starts from the default the First run step uses for that table, and everything when the table was not read', async () => {
+  const S = await lib('runScope.js');
+  const empty = { run_scope: '', scope_groups: '' };
+  assert.deepEqual(S.withUnrecordedScope(empty, PROFILE), { run_scope: 'groups', scope_groups: 'USA, Spain, Cyprus' });
+  assert.deepEqual(S.withUnrecordedScope(empty, { ...PROFILE, default_scope: 'all' }), { run_scope: 'all', scope_groups: '' });
+  for (const profile of [null, undefined, 'x']) assert.deepEqual(S.withUnrecordedScope(empty, profile), { run_scope: 'all', scope_groups: '' }, String(profile));
+  assert.deepEqual(S.withUnrecordedScope({ run_scope: 'recent' }, PROFILE), { run_scope: 'recent' }, 'never over a choice');
+  assert.equal(S.withUnrecordedScope(empty, null).run_scope, S.firstRunDefault({}));
+});
+
+test('the wizard reads an old spec whose First run is a number as no choice yet, also for a held version, and keeps every other widget', async () => {
+  const W = await lib('implementWizard.js');
+  const fallback = W.defaultSpecFromUseCase({ No: 'N01-U01', Name: 'Basket' }, {});
+  const latest = (status, extra = {}) => ({ spec_version: 2, status, spec_json: { config: { widgets: { run_scope: '5', top_k: '10' } } },
+    asset_status: { settings: [RECORDED_RUN_SCOPE] }, ...extra });
+  for (const status of ['ready', 'vibe_not_met']) {
+    const spec = W.specFromLatest(latest(status), fallback);
+    assert.deepEqual(spec.config.widgets, { run_scope: '', top_k: '10' }, status);
+  }
+  const days = W.specFromLatest(latest('ready', { asset_status: { settings: [{ ...RECORDED_RUN_SCOPE, unit: 'days' }] } }), fallback);
+  assert.deepEqual(days.config.widgets, { run_scope: 'recent', scope_days: '5', top_k: '10' });
+  const valid = W.specFromLatest({ spec_version: 2, status: 'ready', spec_json: { config: { widgets: { run_scope: 'records', top_k: '10' } } } }, fallback);
+  assert.deepEqual(valid.config.widgets, { run_scope: 'records', top_k: '10' });
+  assert.equal(W.specFromLatest(null, fallback), fallback);
+});
+
+test('the server maps a First run recorded as a number on read, and locks First run on an App built before it had choices while Grouping stays editable', () => {
+  const I = require('../lib/inspireImplement');
+  const GROUPING = { name: 'group_by', kind: 'choice', choices: ['region'], many: true, source: 'widget', group: 'scope', default: 'all' };
+  const history = (widgets) => [{ spec_version: 1, status: 'ready', spec_json: { config: { widgets } }, asset_status: { settings: [RECORDED_RUN_SCOPE, GROUPING] } }];
+  const recorded = (widgets) => I.implementSettingsRecorded(history(widgets)).find((s) => s.name === 'run_scope');
+  const lost = recorded({ run_scope: '5' });
+  assert.equal(lost.kind, 'choice');
+  assert.equal(lost.value, '');
+  assert.equal(lost.unrecorded, true);
+  assert.equal(recorded({ run_scope: 'groups' }).value, 'groups');
+  assert.equal(recorded({ run_scope: 'groups' }).unrecorded, undefined);
+  assert.equal(recorded({}).value, 'all', 'no recorded First run reads as the declared default');
+  const appView = (value, saved = false) => [{ ...RECORDED_RUN_SCOPE, value, saved, editable: true }, { ...GROUPING, value: 'all', editable: true }];
+  const [scope, grouping] = I.implementAppSettings(appView('all'), history({ run_scope: 'recent' }));
+  assert.deepEqual([scope.kind, scope.choices, scope.value, scope.editable, scope.locked, scope.unrecorded],
+    ['choice', ['all', 'groups', 'recent', 'records'], 'recent', false, require('../../frontend/src/lib/runScope.js').RUN_SCOPE_OLD_APP, undefined]);
+  assert.equal(grouping.editable, true, 'Grouping saves through the old App as before');
+  const savedNumber = I.implementAppSettings(appView('5', true), history({ run_scope: 'recent' }))[0];
+  assert.deepEqual([savedNumber.value, savedNumber.unrecorded, savedNumber.editable], ['', true, false], 'a number the old App saved wins over the recorded spec and cannot be known');
+  const unrecordedSpec = I.implementAppSettings(appView('all'), history({ run_scope: '5' }))[0];
+  assert.deepEqual([unrecordedSpec.value, unrecordedSpec.unrecorded], ['', true]);
+  const choiceApp = [{ ...RECORDED_RUN_SCOPE, kind: 'choice', choices: ['all', 'groups', 'recent', 'records'], value: 'groups', editable: true }];
+  assert.equal(I.implementAppSettings(choiceApp, history({ run_scope: '5' })), choiceApp, 'an App with First run choices is read as it answers');
+  for (const settings of [null, 'x', []]) assert.deepEqual(I.implementAppSettings(settings, []), [], String(settings));
+});

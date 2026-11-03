@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
 const I = require('../lib/inspireImplement');
-const FIXTURE = require('./fixtures/implement_review_link_cases.json');
+const FIXTURE = require('../../agent/tests/fixtures/implement_review_link_cases.json');
 
 const lib = (name) => import(pathToFileURL(path.resolve(__dirname, '..', '..', 'frontend', 'src', 'lib', name)).href);
 

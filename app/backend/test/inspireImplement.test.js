@@ -71,7 +71,7 @@ const {
 } = require('../lib/inspireImplement');
 const { sanitizeInspireNotebookJobParams } = require('../lib/inspireJobParams');
 
-const FIXTURE = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'implement_change_classes.json'), 'utf8'));
+const FIXTURE = JSON.parse(fs.readFileSync(path.join(__dirname, '..', '..', 'agent', 'tests', 'fixtures', 'implement_change_classes.json'), 'utf8'));
 
 const VALID = {
   use_case_id: 'N01-U01',
@@ -974,7 +974,7 @@ test('every shared invalid case is rejected with the shared message', () => {
   }
 });
 
-const PARITY = require('./fixtures/implement_spec_parity.json');
+const PARITY = require('../../agent/tests/fixtures/implement_spec_parity.json');
 
 function specLeaves(value, at = [], out = new Map()) {
   if (value && typeof value === 'object' && Object.keys(value).length) {

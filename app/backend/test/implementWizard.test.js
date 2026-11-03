@@ -334,7 +334,7 @@ test('the trigger reads the same as the one the agent writes on the alert', asyn
   for (const [outputs, text] of FIXTURE.alert_triggers) assert.equal(w.alertTriggerText(outputs), text, JSON.stringify(outputs));
 });
 
-const FIXTURE = require('./fixtures/implement_change_classes.json');
+const FIXTURE = require('../../agent/tests/fixtures/implement_change_classes.json');
 const ROW = { id: 'N01-U01', primary_table: 'main.s.orders', tables_involved: 'main.s.orders,main.s.returns,main.s.web' };
 
 function specWith(w, data) {
@@ -595,6 +595,34 @@ test('the wizard checks crons and widget values with the same rules and words as
   for (const item of FIXTURE.widget_ranges.problems) {
     assert.deepEqual(w.widgetProblems(item.widgets, item.values), item.problems, item.name);
     assert.deepEqual(backend.widgetProblems(item.widgets, item.values), item.problems, item.name);
+  }
+});
+
+test('the wizard and the server check notebook widget values with one implementation, and refuse and accept the same values', async () => {
+  const w = await load();
+  const shared = await import(pathToFileURL(path.resolve(__dirname, '..', '..', 'frontend', 'src', 'lib', 'useCaseSettings.js')).href);
+  for (const name of ['allowedRule', 'allowedText', 'widgetValueProblem', 'widgetSetProblems', 'widgetProblems']) {
+    assert.equal(backend[name], shared[name], `server ${name}`);
+    assert.equal(w[name], shared[name], `wizard ${name}`);
+  }
+  const TOP_K = { name: 'top_k', allowed: 'whole number, at least 1', default: '10' };
+  const SHARES = [{ name: 'act_now_share', allowed: '0 to 1', default: '0.2' }, { name: 'review_share', allowed: '0 to 1', default: '0.3' }];
+  const SCOPE = { name: 'run_scope', allowed: 'a number', default: '5' };
+  const cases = [
+    [[TOP_K], { top_k: '3' }, []],
+    [[TOP_K], { top_k: '0' }, ["top_k is '0'; allowed: whole number, at least 1"]],
+    [[TOP_K], { top_k: '2.5' }, ["top_k is '2.5'; allowed: whole number, at least 1"]],
+    [SHARES, { act_now_share: '0.5' }, []],
+    [SHARES, { act_now_share: '0.8' }, ['act_now_share + review_share is 1.1; allowed: at most 1']],
+    [[{ name: 'min_age', default: '1' }, { name: 'max_age', default: '9' }], { min_age: '10' }, ['min_age is 10, above max_age 9']],
+    [[SCOPE], { run_scope: 'recent' }, []],
+    [[SCOPE], { run_scope: '' }, []],
+    [[SCOPE], { run_scope: '5' }, ["run_scope is '5'; allowed: all, groups, recent, records"]],
+    [[], { run_scope: 'everything' }, ["run_scope is 'everything'; allowed: all, groups, recent, records"]],
+  ];
+  for (const [widgets, values, problems] of cases) {
+    assert.deepEqual(w.widgetProblems(widgets, values), problems, `wizard ${JSON.stringify(values)}`);
+    assert.deepEqual(backend.widgetProblems(widgets, values), problems, `server ${JSON.stringify(values)}`);
   }
 });
 

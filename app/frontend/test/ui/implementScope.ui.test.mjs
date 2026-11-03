@@ -415,3 +415,89 @@ for (const [name, profile] of [['the data qualifies for Grouping', PROFILE], ['t
     }
   });
 }
+
+const RUN_SCOPE_UNRECORDED = 'The earlier build did not record which first run it meant, so Inspire shows the first run it suggests for this table.';
+const withRecordedValue = (row, value) => {
+  const spec = JSON.parse(row.spec_json);
+  return { ...row, spec_json: JSON.stringify({ ...spec, config: { ...spec.config, widgets: { ...(spec.config.widgets || {}), run_scope: value } } }) };
+};
+
+for (const [name, profile] of [['the data qualifies for Grouping', PROFILE], ['the data does not qualify for Grouping', NOT_QUALIFYING]]) {
+  test(`all settings on an old spec whose First run is a number open, start from the suggested First run with a plain note, walk to Vibes and save a valid choice, when ${name}`, async () => {
+    const calls = [];
+    let answered = 0;
+    const init = async (page) => {
+      await page.route('**/api/grouping/profile', async (route) => {
+        calls.push(JSON.parse(route.request().postData() || '{}'));
+        await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(profile) });
+        answered += 1;
+      });
+    };
+    const ui = await openBuild({ me: ME, history: [withRecordedValue(recordedAsNumber(), '5')], forwardedToken: PERSON }, { init });
+    const { page, made } = ui;
+    try {
+      await openSettings(page);
+      await until(() => calls.length >= 1 && answered === calls.length, 'every read of the table is answered', 30000);
+      await page.evaluate(() => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done))));
+      const steps = (await stepBar(page)).map((s) => s.replace(/^\d+\. /, ''));
+      assert.ok(steps.includes('First run'), steps.join(' | '));
+      const back = page.getByRole('button', { name: 'Back' });
+      for (let i = 0; i < steps.length && !(await page.locator('[aria-current="step"]').innerText()).includes('First run'); i += 1) await back.click();
+      await onStep(page, 'First run');
+      const step = page.locator('[data-scope-step="first_run"]');
+      await step.locator('[data-first-run-choice]').first().waitFor();
+      assert.equal(await step.locator('[data-first-run-unrecorded]').textContent(), RUN_SCOPE_UNRECORDED);
+      assert.deepEqual(await checkedChoice(page, 'data-first-run-choice'), [profile.default_scope], 'the First run step default for this table');
+      assert.equal(await step.locator('[data-scope-problem]').count(), 0, 'no First run problem');
+      await toVibes(page);
+      assert.deepEqual((await page.locator('[role="alert"] p').allTextContents()).filter((t) => /run_scope|First run/.test(t)), [], 'no First run problem');
+      const keep = page.getByRole('radio', { name: /^Keep v\d+ live/ });
+      await page.getByRole('button', { name: 'Start MVP', exact: true }).click();
+      if (await keep.count()) {
+        await keep.check();
+        await page.getByRole('button', { name: 'Start MVP', exact: true }).click();
+      }
+      await until(() => made.jobs.length === 1, 'the build', 30000);
+      const [sent] = insertsOf(made);
+      assert.equal(sent.config.widgets.run_scope, profile.default_scope, JSON.stringify(sent.config.widgets));
+      if (profile.default_scope === 'groups') assert.equal(sent.config.widgets.scope_groups, 'USA, Spain, Cyprus');
+      assert.deepEqual(ui.pageErrors, []);
+    } finally {
+      await ui.close();
+    }
+  });
+}
+
+test('the Build page of an App built before First run had choices shows the recorded First run locked with the reason, and still saves Grouping through the App', async () => {
+  const calls = [];
+  let values = { ...SAVED, run_scope: 'all' };
+  const oldView = () => {
+    const view = viewOf(values);
+    return { ...view, settings: view.settings.map((s) => (s.name === 'run_scope' ? { ...RECORDED_RUN_SCOPE, value: 'all', saved: false, editable: true } : s)) };
+  };
+  const appApi = {
+    'GET /api/settings': [oldView],
+    'POST /api/settings/save': [(call) => { values = { ...values, [call.body.name]: call.body.value }; return oldView(); }],
+  };
+  const history = [withRecordedValue(recordedAsNumber(), 'recent')];
+  const ui = await openBuild({ history, forwardedToken: PERSON, appApi }, { init: profileAt(calls, PROFILE) });
+  const { page, made } = ui;
+  try {
+    const panel = (await openAsset(page, 'notebook')).getByRole('region', { name: 'Settings', exact: true });
+    const scope = panel.locator('[data-setting-group="run_scope"]');
+    await scope.locator('[data-first-run-choice]').first().waitFor({ timeout: 30000 });
+    assert.deepEqual(await checkedChoice(page, 'data-first-run-choice'), ['recent'], 'the First run Inspire recorded, not the old App default');
+    assert.match(await scope.locator('[data-first-run-locked]').textContent(), /^This App was built before First run had its choices, so it cannot save one\./);
+    assert.ok(await scope.locator('[data-first-run-choice] input[type="radio"]').evaluateAll((inputs) => inputs.length > 0 && inputs.every((i) => i.disabled)));
+    assert.equal(await scope.locator('[data-grouping-choice="country"] input').isDisabled(), false);
+    await scope.locator('[data-grouping-choice="country"] input').check();
+    await scope.getByRole('button', { name: 'Save Grouping and First run', exact: true }).click();
+    await until(() => made.appCalls.filter((c) => c.url.endsWith('/api/settings/save')).length === 1, 'the Grouping save', 30000);
+    await panel.getByText('Saved Grouping and First run. Stored results follow at the next run.', { exact: true }).waitFor();
+    assert.deepEqual(made.appCalls.filter((c) => c.url.endsWith('/api/settings/save')).map((c) => c.body.name), ['group_by'], 'First run is never sent to the old App');
+    assert.ok(await scope.locator('[data-first-run-choice] input[type="radio"]').evaluateAll((inputs) => inputs.every((i) => i.disabled)), 'still locked after the save');
+    assert.deepEqual(ui.pageErrors, []);
+  } finally {
+    await ui.close();
+  }
+});

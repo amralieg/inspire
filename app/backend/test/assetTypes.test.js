@@ -29,7 +29,7 @@ async function serveStatic(dir) {
 
 test('the App types every asset class it can ship from its own table, the same table the shell server holds', () => {
   assert.deepEqual(ASSET_TYPES, EXPECTED);
-  const { asset_types: shared } = require('./fixtures/implement_change_classes.json');
+  const { asset_types: shared } = require('../../agent/tests/fixtures/implement_change_classes.json');
   assert.deepEqual(ASSET_TYPES, shared, 'the shared fixture carries the agent shell server table');
   assert.equal(assetType('a/b/PICTURE.WEBP'), 'image/webp');
   assert.equal(assetType('notes.txt'), null);

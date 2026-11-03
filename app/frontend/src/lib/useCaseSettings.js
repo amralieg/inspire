@@ -116,6 +116,17 @@ export function widgetSetProblems(values) {
   return problems;
 }
 
+export function widgetProblems(widgets, values) {
+  const known = (Array.isArray(widgets) ? widgets : []).filter(isMap);
+  const allowed = Object.fromEntries(known.map((w) => [String(w.name ?? ''), w.allowed]));
+  const problems = Object.keys(values || {}).sort()
+    .map((name) => (name === RUN_SCOPE ? runScopeProblem(values[name], name) : widgetValueProblem(name, values[name], allowed[name] ?? '')))
+    .filter(Boolean);
+  const merged = Object.fromEntries(known.map((w) => [String(w.name ?? ''), w.default]));
+  Object.assign(merged, values || {});
+  return problems.concat(widgetSetProblems(merged));
+}
+
 export function settingProblem(setting, value) {
   const s = isMap(setting) ? setting : {};
   const name = String(s.name || '');
@@ -126,9 +137,13 @@ export function settingProblem(setting, value) {
     const picked = s.many ? text.split(',').map((part) => part.trim()).filter(Boolean) : [text];
     const allowed = [...choices, ...(s.many ? [SETTING_ALL] : [])];
     const wrong = picked.filter((part) => choices.length && !allowed.includes(part));
-    if (!text || wrong.length) return `${name} is '${text}'; allowed: ${choices.length ? allowed.join(', ') : 'any text'}`;
+    if ((!text && !s.optional) || wrong.length) return `${name} is '${text}'; allowed: ${choices.length ? allowed.join(', ') : 'any text'}`;
+    const solo = (Array.isArray(s.solo) ? s.solo : []).map(String);
+    const alone = picked.filter((part) => solo.includes(part));
+    if (alone.length && picked.length > 1) return `${name} is '${text}'; ${alone.join(' and ')} stand${alone.length === 1 ? 's' : ''} alone, never with another choice`;
     return '';
   }
+  if (!text && s.optional) return '';
   const { low = null, high = null } = s;
   const number = SETTING_NUMBER_RE.test(text) && !(s.whole && text.includes('.')) ? Number(text) : null;
   if (number === null || (low != null && (s.low_open ? number <= low : number < low)) || (high != null && (s.high_open ? number >= high : number > high))) {

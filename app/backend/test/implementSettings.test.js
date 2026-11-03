@@ -4,7 +4,7 @@ const path = require('node:path');
 const { pathToFileURL } = require('node:url');
 const I = require('../lib/inspireImplement');
 const { makeApp, listen } = require('./support/implementApp');
-const FIXTURE = require('./fixtures/implement_change_classes.json');
+const FIXTURE = require('../../agent/tests/fixtures/implement_change_classes.json');
 
 const lib = (name) => import(pathToFileURL(path.resolve(__dirname, '..', '..', 'frontend', 'src', 'lib', name)).href);
 

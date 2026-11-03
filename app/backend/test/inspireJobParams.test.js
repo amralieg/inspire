@@ -261,7 +261,7 @@ test('tag values are cleaned exactly the way the agent cleans them, and the use 
   const fs = require('fs');
   const path = require('path');
   const { inspireJobTags, inspireTagValue } = require('../lib/inspireJobParams');
-  const fixture = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'implement_change_classes.json'), 'utf8'));
+  const fixture = JSON.parse(fs.readFileSync(path.join(__dirname, '..', '..', 'agent', 'tests', 'fixtures', 'implement_change_classes.json'), 'utf8'));
   for (const [raw, cleaned] of fixture.tag_values) assert.equal(inspireTagValue(raw), cleaned, raw);
   assert.equal(inspireTagValue('x'.repeat(300)).length, 255);
   const tags = inspireJobTags({

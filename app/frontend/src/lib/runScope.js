@@ -77,6 +77,34 @@ export function runScopeSetting(setting) {
   return { ...setting, kind: 'choice', choices: [...RUN_SCOPES], many: false, allowed: RUN_SCOPE_ALLOWED, low: null, high: null, whole: false };
 }
 
+export const RUN_SCOPE_UNRECORDED = 'The earlier build did not record which first run it meant, so Inspire shows the first run it suggests for this table.';
+export const RUN_SCOPE_OLD_APP = 'This App was built before First run had its choices, so it cannot save one. To change First run, open Vibe/Add/Remove Features, '
+  + 'then Open all settings; the next build gives the App the choices.';
+const RUN_SCOPE_WORDS = [[/\b(records?|rows?)\b/, 'records', SCOPE_RECORDS], [/\bdays?\b/, 'recent', SCOPE_DAYS]];
+
+export function runScopeDeclared(settings) {
+  return (Array.isArray(settings) ? settings : []).find((s) => isMap(s) && text(s.name) === RUN_SCOPE) || null;
+}
+
+export function recordedRunScope(values, declared = null) {
+  const recorded = isMap(values) ? values : {};
+  const was = text(recorded[RUN_SCOPE]);
+  if (!was) return { values: recorded, unrecorded: false };
+  const scope = was.toLowerCase();
+  if (RUN_SCOPES.includes(scope)) return { values: scope === recorded[RUN_SCOPE] ? recorded : { ...recorded, [RUN_SCOPE]: scope }, unrecorded: false };
+  const count = whole(was);
+  const legacy = isMap(declared) && declared.kind !== 'choice';
+  const words = legacy ? [declared.label, declared.help, declared.unit].map(text).join(' ').toLowerCase() : '';
+  const meant = count != null && count >= 1 ? RUN_SCOPE_WORDS.filter(([pattern]) => pattern.test(words)) : [];
+  if (meant.length === 1) return { values: { ...recorded, [RUN_SCOPE]: meant[0][1], [meant[0][2]]: String(count) }, unrecorded: false };
+  return { values: { ...recorded, [RUN_SCOPE]: '' }, unrecorded: true };
+}
+
+export function latestRunScope(latest) {
+  const spec = isMap(latest?.spec_json) ? latest.spec_json : null;
+  return recordedRunScope(spec?.config?.widgets, runScopeDeclared(isMap(latest?.asset_status) ? latest.asset_status.settings : null));
+}
+
 export function profileRecords(profile) {
   return finite(profile?.records);
 }
@@ -97,6 +125,10 @@ export function withScopeDefaults(values, profile) {
   const next = { ...values, [RUN_SCOPE]: chosen };
   if (chosen === 'groups' && !text(values[SCOPE_GROUPS])) next[SCOPE_GROUPS] = suggestedGroups(profile).map((g) => g.value).join(', ');
   return next;
+}
+
+export function withUnrecordedScope(values, profile) {
+  return withScopeDefaults(values, isMap(profile) ? profile : { default_scope: GROUP_ALL });
 }
 
 export function groupingChoices(profile, settingChoices = []) {

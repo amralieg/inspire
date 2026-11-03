@@ -6,7 +6,7 @@ const I = require('../lib/inspireImplement');
 const { moneyView } = require('../lib/implementMoney');
 const { makeApp, listen } = require('./support/implementApp');
 const { agentProbe, pythonReady } = require('./support/agentProbe');
-const FIXTURE = require('./fixtures/implement_change_classes.json');
+const FIXTURE = require('../../agent/tests/fixtures/implement_change_classes.json');
 
 const AGENT_NOTEBOOK = process.env.INSPIRE_AGENT_NOTEBOOK || path.resolve(__dirname, '..', '..', 'dbx_inspire_ai_agent.ipynb');
 const KPI_PROBE = String.raw`

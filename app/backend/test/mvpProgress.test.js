@@ -610,7 +610,7 @@ test('one parser reads every vibe line form, the lines of the step result first 
 
 test('a new Inspire address is worded the way the agent plans it, shows as its own Alert stage and is done when the Alert step ends', async () => {
   const { mvpStages, mvpScope, PLAN_RELINK } = await lib('mvpProgress.js');
-  const { contract_tables: tables } = require('./fixtures/implement_change_classes.json');
+  const { contract_tables: tables } = require('../../agent/tests/fixtures/implement_change_classes.json');
   assert.equal(PLAN_RELINK, tables.IMPLEMENT_DIGEST_RELINK_PLAN, 'the App holds the agent text byte for byte');
   const latest = { ...v2('building_outputs'), spec_json: { outputs: ALL_OUTPUTS } };
   const planned = step('Plan', 'ended_success', '10:00:32', { plan: plan({ classes: [], relink: ['alert'], sharing: false }) });

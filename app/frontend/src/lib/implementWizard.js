@@ -2,13 +2,13 @@ import { subtitleOfUseCase } from './useCaseFields.js';
 import { placeholderWords } from './placeholderWords.js';
 import { plural } from './plural.js';
 import { kpiTargetOf, kpiTargetProblems, stakeWords, withKpiTarget } from './targetKpi.js';
-import { scopeProblems, scopeValues } from './runScope.js';
+import { latestRunScope, scopeProblems, scopeValues } from './runScope.js';
 import {
-  allowedRule, allowedText, isSettingWidget, numberText, settingsModelOf, settingsProblems, widgetSetProblems, widgetValueProblem, wizardSettings,
-  withSettingsNote,
+  allowedRule, allowedText, isSettingWidget, numberText, settingsModelOf, settingsProblems, widgetProblems, widgetSetProblems, widgetValueProblem,
+  wizardSettings, withSettingsNote,
 } from './useCaseSettings.js';
 
-export { allowedRule, allowedText, widgetSetProblems, widgetValueProblem };
+export { allowedRule, allowedText, widgetProblems, widgetSetProblems, widgetValueProblem };
 
 export const START_MVP_LABEL = 'Start Use Case MVP with Genie';
 export const VIBE_FEATURES_LABEL = 'Vibe/Add/Remove Features';
@@ -983,7 +983,9 @@ export function specFromLatest(latest, fallback, assets = {}) {
     removed_outputs: parsed.removed_outputs || {},
   };
   const held = specFromHeld(latest);
-  return withSettingsNote(held ? withStoredLeaves(edited, held) : edited, '');
+  const spec = held ? withStoredLeaves(edited, held) : edited;
+  if (isSpecMap(spec.config?.widgets)) spec.config = { ...spec.config, widgets: latestRunScope({ ...latest, spec_json: spec }).values };
+  return withSettingsNote(spec, '');
 }
 
 export const ROLE_RULES = {
@@ -1223,17 +1225,6 @@ export function cronRunsPerMonth(cron) {
   else if (dow === 'L') days = 30.44 / 7;
   else days = size(5) * (30.44 / 7);
   return size(0) * size(1) * size(2) * days * (size(4) / 12);
-}
-
-export function widgetProblems(widgets, values) {
-  const known = (widgets || []).filter((w) => w && typeof w === 'object');
-  const allowed = Object.fromEntries(known.map((w) => [String(w.name ?? ''), w.allowed]));
-  const problems = Object.keys(values || {}).sort()
-    .map((name) => widgetValueProblem(name, values[name], allowed[name] ?? ''))
-    .filter(Boolean);
-  const merged = Object.fromEntries(known.map((w) => [String(w.name ?? ''), w.default]));
-  Object.assign(merged, values || {});
-  return problems.concat(widgetSetProblems(merged));
 }
 
 export const PROFILE_FIELDS = {

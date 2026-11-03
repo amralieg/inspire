@@ -89,7 +89,7 @@ test('a checklist with a refused settings change reads the agent settings messag
 
 test('the App refuses a settings change from someone who is not an owner with the same words the agent uses, for an App and for an MVP', async () => {
   const I = require('../lib/inspireImplement');
-  const CLEAN = require('./fixtures/implement_spec_parity.json').clean;
+  const CLEAN = require('../../agent/tests/fixtures/implement_spec_parity.json').clean;
   const copy = (value) => JSON.parse(JSON.stringify(value));
   const lead = (row) => row.refusal.slice(0, row.refusal.indexOf(', and '));
   for (const [row, app] of [[FIXTURE.rows[0], true], [FIXTURE.rows[1], false]]) {

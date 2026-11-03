@@ -1296,7 +1296,7 @@ function registerImplementRoutes(app, deps) {
       }
       if (!got.ok) return recorded(String(got.data.error || `The App answered ${got.status} for its settings`));
       const view = got.data;
-      return res.json({ source: 'app', settings: Array.isArray(view.settings) ? view.settings : [], history: Array.isArray(view.history) ? view.history : [],
+      return res.json({ source: 'app', settings: I.implementAppSettings(view.settings, history), history: Array.isArray(view.history) ? view.history : [],
         editable: view.editable === true, can_run: view.can_run === true, why: String(view.why || ''), app: target });
     } catch (err) {
       return sendError(res, err);
@@ -1323,7 +1323,7 @@ function registerImplementRoutes(app, deps) {
 
   const settingsAction = (action, keys) => async (req, res) => {
     try {
-      const { target, refusal } = await settingsContext(req);
+      const { history, target, refusal } = await settingsContext(req);
       if (refusal) return res.status(refusal[0]).json({ error: refusal[1] });
       const sent = req.body || {};
       const body = { page: target.page, ...Object.fromEntries(keys.filter((key) => sent[key] !== undefined).map((key) => [key, sent[key]])) };
@@ -1333,7 +1333,8 @@ function registerImplementRoutes(app, deps) {
       } catch (err) {
         return res.status(502).json({ error: `The App could not be reached: ${err.message}` });
       }
-      return res.status(got.status).json(got.data);
+      const view = got.data && Array.isArray(got.data.settings) ? { ...got.data, settings: I.implementAppSettings(got.data.settings, history) } : got.data;
+      return res.status(got.status).json(view);
     } catch (err) {
       return sendError(res, err);
     }

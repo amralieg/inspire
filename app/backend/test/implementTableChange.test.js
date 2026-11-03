@@ -4,7 +4,7 @@ const path = require('node:path');
 const { pathToFileURL } = require('node:url');
 const I = require('../lib/inspireImplement');
 const { makeApp, listen } = require('./support/implementApp');
-const FIXTURE = require('./fixtures/implement_table_change_cases.json');
+const FIXTURE = require('../../agent/tests/fixtures/implement_table_change_cases.json');
 
 const OWNER = ['owner', 'example.com'].join('@');
 const OTHER = ['someone.else', 'example.com'].join('@');

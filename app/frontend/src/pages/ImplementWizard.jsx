@@ -196,7 +196,9 @@ import {
 } from '../lib/useCaseSettings';
 import ScopeSettings from '../components/ScopeSettings';
 import { PROFILE_WAITING, useGroupingProfile } from '../lib/groupingProfile';
-import { FIRST_RUN_TITLE, GROUPING_TITLE, builtFirstRunOf, isScopeSetting, scopeChanges, scopeStepsOf, scopeValues, withScopeDefaults } from '../lib/runScope';
+import {
+  FIRST_RUN_TITLE, GROUPING_TITLE, builtFirstRunOf, isScopeSetting, latestRunScope, scopeChanges, scopeStepsOf, scopeValues, withScopeDefaults, withUnrecordedScope,
+} from '../lib/runScope';
 
 const ICONS = { notebook: NotebookPen, dashboard: LayoutDashboard, genie_space: Sparkles, app: AppWindow, alert: Bell };
 const ASSET_NOUNS = { dashboard: 'a dashboard', genie_space: 'a Genie Agent', app: 'an App', alert: 'an alert' };
@@ -207,9 +209,9 @@ const ALL_FEATURES = { apps: true, genie_spaces: true, alerts: true };
 const TILE_CHECKS = { app: ['app_access', 'apps'], genie_space: ['genie_spaces'], alert: ['alerts'] };
 const PLACE_CHECKS = ['app_name'];
 
-function withFirstRunDefault(spec, profile) {
+function withFirstRunDefault(spec, profile, defaults = withScopeDefaults) {
   const before = scopeValues((name) => spec.config.widgets?.[name]);
-  const after = withScopeDefaults(before, profile);
+  const after = defaults(before, profile);
   return scopeChanges(before, after).reduce((next, name) => withSetting(next, { name, source: 'widget' }, after[name]), spec);
 }
 const ACCESS_CHECKS = ['app_warehouse'];
@@ -386,6 +388,7 @@ export default function ImplementWizard({
   const scopeProfile = useGroupingProfile({ apiPostJson, inspireDatabase, sessionId, useCaseId: spec.use_case_id, warehouseId, enabled: mode === 'mvp' });
   const [groupingSaved, setGroupingSaved] = useState(undefined);
   const builtFirstRun = builtFirstRunOf(settingsModel);
+  const firstRunUnrecorded = useMemo(() => latestRunScope(context?.latest).unrecorded, [context?.latest]);
   const scopeSteps = scopeStepsOf(scopeProfile.state, scopeProfile.profile, builtFirstRun);
   const scopeSettingList = useMemo(() => everySetting.filter(isScopeSetting), [everySetting]);
   const settingsFor = useCallback((scope) => (scope.firstRun ? everySetting.filter((s) => !isScopeSetting(s)) : everySetting), [everySetting]);
@@ -511,6 +514,11 @@ export default function ImplementWizard({
   useEffect(() => {
     bodyRef.current?.scrollTo?.(0, 0);
   }, [step]);
+
+  useEffect(() => {
+    if (!firstRunUnrecorded || scopeProfile.state === 'loading') return;
+    setSpec((prev) => withFirstRunDefault(prev, scopeProfile.profile, withUnrecordedScope));
+  }, [firstRunUnrecorded, scopeProfile.state, scopeProfile.profile]);
 
   const groups = context?.widget_groups || NO_WIDGET_GROUPS;
   const segmentRef = spec.data.column_roles.segment || '';
@@ -1188,7 +1196,7 @@ export default function ImplementWizard({
             <h3 className="text-sm font-semibold text-text-primary">{stepId === 'grouping' ? GROUPING_TITLE : FIRST_RUN_TITLE}</h3>
             <ScopeSettings part={stepId} values={scopeShown} profile={scopeProfile.profile} profileState={scopeProfile.state} profileError={scopeProfile.error}
               settings={scopeSettingList} onChange={(name, value) => setSpec((prev) => withSetting(prev, { name, source: 'widget' }, value))}
-              custom={stepId === 'grouping' ? customGrouping : null} />
+              custom={stepId === 'grouping' ? customGrouping : null} unrecorded={firstRunUnrecorded} />
           </section>
         )}
 

@@ -452,7 +452,7 @@ test('a #/run/<id> link names a page to open on the Run tab; anything else is no
 
 test("every Run tab link line the agent writes in the weekly email, from the shared fixture, opens its page on Inspire's Run tab", async () => {
   const R = await lib('runPages.js');
-  const { digest_lines: lines, contract_tables: tables } = require('./fixtures/implement_change_classes.json');
+  const { digest_lines: lines, contract_tables: tables } = require('../../agent/tests/fixtures/implement_change_classes.json');
   const hosted = lines.filter((entry) => entry.hosted_id && entry.inspire_url);
   assert.equal(hosted.length, 2);
   for (const entry of hosted) {

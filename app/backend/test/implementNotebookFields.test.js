@@ -4,8 +4,8 @@ const path = require('node:path');
 const { pathToFileURL } = require('node:url');
 const I = require('../lib/inspireImplement');
 const { makeApp, listen } = require('./support/implementApp');
-const FIXTURE = require('./fixtures/implement_notebook_parity.json');
-const CLEAN = require('./fixtures/implement_spec_parity.json').clean;
+const FIXTURE = require('../../agent/tests/fixtures/implement_notebook_parity.json');
+const CLEAN = require('../../agent/tests/fixtures/implement_spec_parity.json').clean;
 
 const lib = (name) => import(pathToFileURL(path.resolve(__dirname, '..', '..', 'frontend', 'src', 'lib', name)).href);
 const OWNER = ['owner', 'example.com'].join('@');

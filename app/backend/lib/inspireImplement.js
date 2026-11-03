@@ -2,8 +2,12 @@ const { appShellCatalog } = require('./appShell');
 const { IMPLEMENT_RUN_ID_PARAM, parseMaybeJson, withInspireInstallParams } = require('./inspireJobParams');
 const { parseExactJson } = require('./exactJson');
 const { plural } = require('./plural');
-const { RUN_SCOPE, runScopeProblem, runScopeSetting } = require('../../frontend/src/lib/runScope.js');
-const { settingProblem: implementSettingProblem } = require('../../frontend/src/lib/useCaseSettings.js');
+const {
+  RUN_SCOPE, RUN_SCOPE_OLD_APP, recordedRunScope, runScopeDeclared, runScopeSetting,
+} = require('../../frontend/src/lib/runScope.js');
+const {
+  allowedRule, allowedText, numberText, settingProblem: implementSettingProblem, widgetProblems, widgetSetProblems, widgetValueProblem,
+} = require('../../frontend/src/lib/useCaseSettings.js');
 
 const IMPLEMENT_OPERATION = 'Implement Use Cases';
 const IMPLEMENT_TABLE = '__inspire_implement';
@@ -925,10 +929,15 @@ function implementAssumptionProblems(spec, model) {
   return problems;
 }
 
-function implementSettingsModel(history) {
+function implementRecordedSettings(history) {
   const rows = [...(history || [])].sort((a, b) => (b.spec_version || 0) - (a.spec_version || 0));
   const row = rows.find((r) => isPlainObject(r.asset_status) && Object.prototype.hasOwnProperty.call(r.asset_status, 'settings'));
-  return row && Array.isArray(row.asset_status.settings) ? row.asset_status.settings.filter(isPlainObject).map(runScopeSetting) : null;
+  return row && Array.isArray(row.asset_status.settings) ? row.asset_status.settings.filter(isPlainObject) : null;
+}
+
+function implementSettingsModel(history) {
+  const recorded = implementRecordedSettings(history);
+  return recorded ? recorded.map(runScopeSetting) : null;
 }
 
 function implementAppPageId(useCaseId) {
@@ -959,14 +968,29 @@ function implementSettingsRecorded(history) {
   const rows = [...(history || [])].sort((a, b) => (b.spec_version || 0) - (a.spec_version || 0));
   const built = previousBuilt(rows);
   const spec = built && isPlainObject(built.spec_json) ? built.spec_json : {};
-  const widgets = widgetsOf(spec);
+  const { values: widgets, unrecorded } = recordedRunScope(widgetsOf(spec), runScopeDeclared(implementRecordedSettings(rows)));
   const assumptions = assumptionsOf(spec);
   const outputs = isPlainObject(spec.outputs) ? spec.outputs : {};
   return (implementSettingsModel(rows) || []).map((s) => {
     const chosen = s.source === 'widget' ? widgets[s.name] : s.source === 'assumption' ? assumptions[s.name] : outputs.alert_threshold;
-    const value = chosen != null && chosen !== '' ? chosen : s.default;
-    return { ...s, value: value == null ? '' : typeof value === 'number' ? numberText(value) : String(value), saved: false, editable: false };
+    const lost = s.name === RUN_SCOPE && unrecorded;
+    const value = lost ? '' : chosen != null && chosen !== '' ? chosen : s.default;
+    return { ...s, value: value == null ? '' : typeof value === 'number' ? numberText(value) : String(value), saved: false, editable: false,
+      ...(lost ? { unrecorded: true } : {}) };
   });
+}
+
+function implementAppSettings(settings, history) {
+  const list = Array.isArray(settings) ? settings : [];
+  const declared = runScopeDeclared(list);
+  if (!declared || declared.kind === 'choice') return list;
+  const recorded = declared.saved === true ? null : runScopeDeclared(implementSettingsRecorded(history));
+  const app = recordedRunScope({ [RUN_SCOPE]: declared.value }, declared);
+  const value = recorded ? recorded.value : app.values[RUN_SCOPE];
+  const unrecorded = recorded ? recorded.unrecorded === true : app.unrecorded;
+  return list.map((s) => (s === declared
+    ? { ...runScopeSetting(s), value, editable: false, locked: RUN_SCOPE_OLD_APP, ...(unrecorded ? { unrecorded: true } : {}) }
+    : s));
 }
 
 function implementKpiTargetProblems(raw, options, history = []) {
@@ -1935,94 +1959,6 @@ function implementJobParams(baseParams, useCaseId, specVersion) {
 
 const PARAMETERS_SECTION_RE = /^## (?:\d+\. )?Parameters[^\n]*\n([\s\S]*?)(?=^## |(?![\s\S]))/m;
 const WIDGET_ROW_RE = /^\|\s*`?([A-Za-z][A-Za-z0-9_]{0,40})`?\s*\|\s*(text|dropdown)\s*\|\s*(.*?)\s*\|(?:\s*(.*?)\s*\|)?\s*(.*?)\s*\|\s*$/;
-const ALLOWED_NUMBER = '(-?[0-9]+(?:\\.[0-9]+)?)';
-const ALLOWED_RE = new RegExp(`^(?:(whole number)(?:, |$))?(?:${ALLOWED_NUMBER} to ${ALLOWED_NUMBER}|(at least|above|greater than|more than) ${ALLOWED_NUMBER}(?: and (at most|below|less than) ${ALLOWED_NUMBER})?|(at most|below|less than) ${ALLOWED_NUMBER})?$`);
-const ALLOWED_OPEN_WORDS = ['above', 'greater than', 'more than', 'below', 'less than'];
-const WIDGET_NUMBER_RE = /^-?[0-9]+(?:\.[0-9]+)?$/;
-
-function allowedRule(text) {
-  const value = str(text).trim();
-  const match = ALLOWED_RE.exec(value.toLowerCase() === 'any' ? '' : value);
-  if (!match) return null;
-  const [, whole, from, to, lowWord, lowValue, highWord, highValue, onlyHighWord, onlyHighValue] = match;
-  const low = from ?? lowValue;
-  const high = to ?? highValue ?? onlyHighValue;
-  return {
-    low: low !== undefined ? Number(low) : null,
-    high: high !== undefined ? Number(high) : null,
-    whole: Boolean(whole),
-    lowOpen: ALLOWED_OPEN_WORDS.includes(lowWord),
-    highOpen: ALLOWED_OPEN_WORDS.includes(highWord ?? onlyHighWord),
-  };
-}
-
-function numberText(value) {
-  return Number(value).toFixed(10).replace(/0+$/, '').replace(/\.$/, '');
-}
-
-function allowedText(rule) {
-  const { low = null, high = null, whole = false, lowOpen = false, highOpen = false } = rule || {};
-  const bounds = low !== null && high !== null && !lowOpen && !highOpen
-    ? `${numberText(low)} to ${numberText(high)}`
-    : joinAnd([
-      low !== null ? `${lowOpen ? 'above' : 'at least'} ${numberText(low)}` : '',
-      high !== null ? `${highOpen ? 'below' : 'at most'} ${numberText(high)}` : '',
-    ].filter(Boolean));
-  if (!whole) return bounds;
-  return bounds ? `whole number, ${bounds}` : 'whole number';
-}
-
-function widgetValueProblem(name, value, allowed) {
-  const rule = allowedRule(allowed);
-  if (!rule || (rule.low === null && rule.high === null && !rule.whole)) return '';
-  const text = str(value).trim();
-  const number = WIDGET_NUMBER_RE.test(text) && !(rule.whole && text.includes('.')) ? Number(text) : null;
-  const belowLow = rule.low !== null && (rule.lowOpen ? number <= rule.low : number < rule.low);
-  const aboveHigh = rule.high !== null && (rule.highOpen ? number >= rule.high : number > rule.high);
-  if (number === null || belowLow || aboveHigh) {
-    return `${name} is '${text}'; allowed: ${allowedText(rule)}`;
-  }
-  return '';
-}
-
-function widgetSetProblems(values) {
-  const number = (name) => {
-    const text = str(values[name]).trim();
-    return WIDGET_NUMBER_RE.test(text) ? Number(text) : null;
-  };
-  const problems = [];
-  const act = number('act_now_share');
-  const review = number('review_share');
-  if (act !== null && review !== null && act + review > 1 + 1e-9) {
-    problems.push(`act_now_share + review_share is ${numberText(act + review)}; allowed: at most 1`);
-  }
-  const actAmount = number('act_now_amount');
-  const reviewAmount = number('review_amount');
-  if (actAmount !== null && reviewAmount !== null && reviewAmount > actAmount) {
-    problems.push(`review_amount is ${numberText(reviewAmount)}, above act_now_amount ${numberText(actAmount)}; `
-      + 'a record needs at least as much at stake to act on now as to review');
-  }
-  for (const lowName of Object.keys(values).sort()) {
-    const highName = `max_${lowName.slice(4)}`;
-    if (!lowName.startsWith('min_') || !Object.prototype.hasOwnProperty.call(values, highName)) continue;
-    const low = number(lowName);
-    const high = number(highName);
-    if (low !== null && high !== null && low > high) problems.push(`${lowName} is ${numberText(low)}, above ${highName} ${numberText(high)}`);
-  }
-  return problems;
-}
-
-function widgetProblems(widgets, values) {
-  const known = (widgets || []).filter((w) => w && typeof w === 'object');
-  const allowed = Object.fromEntries(known.map((w) => [str(w.name), w.allowed]));
-  const problems = Object.keys(values || {}).sort()
-    .map((name) => (name === RUN_SCOPE ? runScopeProblem(values[name], name) : widgetValueProblem(name, values[name], allowed[name] ?? '')))
-    .filter(Boolean);
-  const merged = Object.fromEntries(known.map((w) => [str(w.name), w.default]));
-  Object.assign(merged, values || {});
-  return problems.concat(widgetSetProblems(merged));
-}
-
 function widgetsFromInstruction(instruction) {
   const match = PARAMETERS_SECTION_RE.exec(str(instruction));
   const widgets = [];
@@ -3247,6 +3183,7 @@ module.exports = {
   IMPLEMENT_SETTINGS_NOT_APP_URL,
   IMPLEMENT_SETTINGS_NOT_BUILT,
   implementSettingProblem,
+  implementAppSettings,
   implementAssumptionSetting,
   implementBuiltSettings,
   implementWidgetChangeClass,

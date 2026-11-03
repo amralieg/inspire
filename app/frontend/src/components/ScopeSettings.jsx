@@ -4,9 +4,9 @@ import { counted } from '../lib/plural';
 import { PROFILE_READING } from '../lib/groupingProfile';
 import { SETTINGS_NEXT_RUN } from '../lib/useCaseSettings';
 import {
-  FIRST_RUN_KEEPS, GROUP_ALL, GROUP_BY, GROUP_CUSTOM, GROUP_KIND_WORDS, GROUPING_PLAIN, RUN_SCOPE, RUN_SCOPES, SCOPE_DAYS, SCOPE_GROUPS, SCOPE_LABELS,
-  SCOPE_RECORDS, SCOPE_SAVE_LABEL, firstRunChoices, groupByColumns, groupingChoices, groupingExampleText, groupingMovesUpText, profileHeldText, sameGrouping,
-  isScopeSetting, scopeChanges, scopeProblems, scopeValues, suggestedGroups,
+  FIRST_RUN_KEEPS, GROUP_ALL, GROUP_BY, GROUP_CUSTOM, GROUP_KIND_WORDS, GROUPING_PLAIN, RUN_SCOPE, RUN_SCOPE_UNRECORDED, RUN_SCOPES, SCOPE_DAYS, SCOPE_GROUPS,
+  SCOPE_LABELS, SCOPE_RECORDS, SCOPE_SAVE_LABEL, firstRunChoices, groupByColumns, groupingChoices, groupingExampleText, groupingMovesUpText, profileHeldText,
+  sameGrouping, isScopeSetting, scopeChanges, scopeProblems, scopeValues, suggestedGroups, withUnrecordedScope,
 } from '../lib/runScope';
 
 const GroupingSqlEditor = lazy(() => import('./GroupingSqlEditor'));
@@ -64,7 +64,7 @@ function GroupingPart({ values, onChange, profile, settings, editable, custom })
   );
 }
 
-function FirstRunPart({ values, onChange, profile, settings, editable }) {
+function FirstRunPart({ values, onChange, profile, settings, editable, unrecorded }) {
   const setting = settings.find((s) => s.name === RUN_SCOPE);
   const allowed = Array.isArray(setting?.choices) && setting.choices.length ? setting.choices.map(String) : RUN_SCOPES;
   const current = values[RUN_SCOPE] || GROUP_ALL;
@@ -82,6 +82,8 @@ function FirstRunPart({ values, onChange, profile, settings, editable }) {
     <fieldset aria-label={SCOPE_LABELS[RUN_SCOPE]} data-scope-part="first_run" className="space-y-2">
       <legend className="text-[12px] font-semibold text-text-primary">{SCOPE_LABELS[RUN_SCOPE]}</legend>
       {held && <p data-first-run-held="" className={NOTE}>{held}</p>}
+      {unrecorded && <p data-first-run-unrecorded="" className={NOTE}>{RUN_SCOPE_UNRECORDED}</p>}
+      {setting?.locked && <p data-first-run-locked="" className={NOTE}>{setting.locked}</p>}
       <div className="space-y-1.5">
         {choices.map((c) => (
           <div key={c.id} data-first-run-choice={c.id} className={`${ROW} flex-col`}>
@@ -133,13 +135,17 @@ function FirstRunPart({ values, onChange, profile, settings, editable }) {
 
 export default function ScopeSettings({
   part = 'both', values, onChange, profile = null, profileState = 'off', profileError = '', settings = [], editable = true, custom = null, children = null,
+  unrecorded = false,
 }) {
   const problems = scopeProblems(values, profile, part, custom);
+  const editableOf = (name) => editable && settings.find((s) => s.name === name)?.editable !== false;
   return (
     <section aria-label="Grouping and First run" data-scope-settings={part} className="space-y-3">
       <ProfileNote state={profileState} error={profileError} />
-      {part !== 'first_run' && <GroupingPart values={values} onChange={onChange} profile={profile} settings={settings} editable={editable} custom={custom} />}
-      {part !== 'grouping' && <FirstRunPart values={values} onChange={onChange} profile={profile} settings={settings} editable={editable} />}
+      {part !== 'first_run' && <GroupingPart values={values} onChange={onChange} profile={profile} settings={settings} editable={editableOf(GROUP_BY)} custom={custom} />}
+      {part !== 'grouping' && (
+        <FirstRunPart values={values} onChange={onChange} profile={profile} settings={settings} editable={editableOf(RUN_SCOPE)} unrecorded={unrecorded} />
+      )}
       {problems.length > 0 && <ul className="space-y-0.5">{problems.map((p) => <li key={p} data-scope-problem="" className="text-[11px] text-error-fg">{p}</li>)}</ul>}
       {children}
     </section>
@@ -159,9 +165,11 @@ export function ScopeSection({ settings, editable, scope = null, onSave, apiPost
   if (!list.length) return null;
   const has = (name) => list.some((s) => s.name === name);
   const part = has(GROUP_BY) && has(RUN_SCOPE) ? 'both' : has(GROUP_BY) ? 'grouping' : 'first_run';
-  const saved = scopeValues((name) => list.find((s) => s.name === name)?.value);
+  const unrecorded = list.some((s) => s.name === RUN_SCOPE && s.unrecorded === true);
+  const read = scopeValues((name) => list.find((s) => s.name === name)?.value);
+  const saved = unrecorded ? withUnrecordedScope(read, scope?.profile || null) : read;
   const shown = draft || saved;
-  const changed = scopeChanges(saved, shown).filter(has);
+  const changed = scopeChanges(saved, shown).filter((name) => list.some((s) => s.name === name && s.editable !== false));
   const canEdit = Boolean(editable) && list.some((s) => s.editable !== false);
   const blocked = scopeProblems(shown, scope?.profile || null, part, custom).length > 0;
   const save = async () => {
@@ -182,7 +190,8 @@ export function ScopeSection({ settings, editable, scope = null, onSave, apiPost
     <div data-setting-group="run_scope" className="space-y-2">
       <h4 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-text-secondary">Grouping and First run</h4>
       <ScopeSettings part={part} values={shown} onChange={(name, value) => setDraft({ ...shown, [name]: value })}
-        profile={scope?.profile || null} profileState={scope?.state || 'off'} profileError={scope?.error || ''} settings={list} editable={canEdit} custom={custom}>
+        profile={scope?.profile || null} profileState={scope?.state || 'off'} profileError={scope?.error || ''} settings={list} editable={canEdit} custom={custom}
+        unrecorded={unrecorded}>
         {canEdit && changed.length > 0 && (
           <div className="flex flex-wrap items-center gap-2">
             <input aria-label="Note for the Grouping and First run change" placeholder="Why, for the history (optional)" maxLength={300}

@@ -1,5 +1,5 @@
 {
- "source": "agent-kpi 21ce6b8",
+ "source": "final-agent 7219d5d",
  "stake": [
   {
    "impact": null,
@@ -119,21 +119,21 @@
    "impact": {
     "unit": "hours"
    },
-   "words": "amount at stake",
-   "label": "amount at stake formula",
+   "words": "money at stake",
+   "label": "money at stake formula",
    "part": [
     "notebook",
-    "amount at stake formula"
+    "money at stake formula"
    ],
    "ai_reasoning": "AI reasoning"
   },
   {
    "impact": {},
-   "words": "amount at stake",
-   "label": "amount at stake formula",
+   "words": "money at stake",
+   "label": "money at stake formula",
    "part": [
     "notebook",
-    "amount at stake formula"
+    "money at stake formula"
    ],
    "ai_reasoning": "AI reasoning"
   }
@@ -185,6 +185,7 @@
       "top_k": "10"
      },
      "assumptions": {},
+     "settings_note": "",
      "result_table": "c.s.out",
      "ai_endpoint": "ep",
      "warehouse_id": "wh1",
@@ -229,6 +230,9 @@
       "why?"
      ],
      "app_purpose": "act",
+     "app_owners": [],
+     "app_warehouse_id": "",
+     "inspire_url": "https://inspire.example.com",
      "alert_name": "A",
      "alert_tiers": "act_now",
      "alert_operator": ">",
@@ -263,14 +267,12 @@
       "alerts": false
      },
      "app_backend": "lakebase",
-     "app_placement": "",
-     "app_owners": [],
-     "app_warehouse_id": "",
      "app_charts": [],
      "app_pages": {
       "runs": true,
       "impact": true
      },
+     "app_placement": "",
      "genie_space_vibes": "",
      "dashboard_vibes": "",
      "app_vibes": "",
@@ -342,6 +344,7 @@
       "top_k": "10"
      },
      "assumptions": {},
+     "settings_note": "",
      "result_table": "c.s.out",
      "ai_endpoint": "ep",
      "warehouse_id": "wh1",
@@ -386,6 +389,9 @@
       "why?"
      ],
      "app_purpose": "act",
+     "app_owners": [],
+     "app_warehouse_id": "",
+     "inspire_url": "https://inspire.example.com",
      "alert_name": "A",
      "alert_tiers": "act_now",
      "alert_operator": ">",
@@ -420,14 +426,12 @@
       "alerts": false
      },
      "app_backend": "lakebase",
-     "app_placement": "",
-     "app_owners": [],
-     "app_warehouse_id": "",
      "app_charts": [],
      "app_pages": {
       "runs": true,
       "impact": true
      },
+     "app_placement": "",
      "genie_space_vibes": "",
      "dashboard_vibes": "",
      "app_vibes": "",
@@ -505,6 +509,7 @@
       "top_k": "10"
      },
      "assumptions": {},
+     "settings_note": "",
      "result_table": "c.s.out",
      "ai_endpoint": "ep",
      "warehouse_id": "wh1",
@@ -549,6 +554,9 @@
       "why?"
      ],
      "app_purpose": "act",
+     "app_owners": [],
+     "app_warehouse_id": "",
+     "inspire_url": "https://inspire.example.com",
      "alert_name": "A",
      "alert_tiers": "act_now",
      "alert_operator": ">",
@@ -583,14 +591,12 @@
       "alerts": false
      },
      "app_backend": "lakebase",
-     "app_placement": "",
-     "app_owners": [],
-     "app_warehouse_id": "",
      "app_charts": [],
      "app_pages": {
       "runs": true,
       "impact": true
      },
+     "app_placement": "",
      "genie_space_vibes": "",
      "dashboard_vibes": "",
      "app_vibes": "",
@@ -665,6 +671,7 @@
       "top_k": "10"
      },
      "assumptions": {},
+     "settings_note": "",
      "result_table": "c.s.out",
      "ai_endpoint": "ep",
      "warehouse_id": "wh1",
@@ -709,6 +716,9 @@
       "why?"
      ],
      "app_purpose": "act",
+     "app_owners": [],
+     "app_warehouse_id": "",
+     "inspire_url": "https://inspire.example.com",
      "alert_name": "A",
      "alert_tiers": "act_now",
      "alert_operator": ">",
@@ -743,14 +753,12 @@
       "alerts": false
      },
      "app_backend": "lakebase",
-     "app_placement": "",
-     "app_owners": [],
-     "app_warehouse_id": "",
      "app_charts": [],
      "app_pages": {
       "runs": true,
       "impact": true
      },
+     "app_placement": "",
      "genie_space_vibes": "",
      "dashboard_vibes": "",
      "app_vibes": "",
@@ -831,6 +839,7 @@
       "top_k": "10"
      },
      "assumptions": {},
+     "settings_note": "",
      "result_table": "c.s.out",
      "ai_endpoint": "ep",
      "warehouse_id": "wh1",
@@ -875,6 +884,9 @@
       "why?"
      ],
      "app_purpose": "act",
+     "app_owners": [],
+     "app_warehouse_id": "",
+     "inspire_url": "https://inspire.example.com",
      "alert_name": "A",
      "alert_tiers": "act_now",
      "alert_operator": ">",
@@ -909,14 +921,12 @@
       "alerts": false
      },
      "app_backend": "lakebase",
-     "app_placement": "",
-     "app_owners": [],
-     "app_warehouse_id": "",
      "app_charts": [],
      "app_pages": {
       "runs": true,
       "impact": true
      },
+     "app_placement": "",
      "genie_space_vibes": "",
      "dashboard_vibes": "",
      "app_vibes": "",
@@ -991,6 +1001,7 @@
       "top_k": "10"
      },
      "assumptions": {},
+     "settings_note": "",
      "result_table": "c.s.out",
      "ai_endpoint": "ep",
      "warehouse_id": "wh1",
@@ -1035,6 +1046,9 @@
       "why?"
      ],
      "app_purpose": "act",
+     "app_owners": [],
+     "app_warehouse_id": "",
+     "inspire_url": "https://inspire.example.com",
      "alert_name": "A",
      "alert_tiers": "act_now",
      "alert_operator": ">",
@@ -1069,14 +1083,12 @@
       "alerts": false
      },
      "app_backend": "lakebase",
-     "app_placement": "",
-     "app_owners": [],
-     "app_warehouse_id": "",
      "app_charts": [],
      "app_pages": {
       "runs": true,
       "impact": true
      },
+     "app_placement": "",
      "genie_space_vibes": "",
      "dashboard_vibes": "",
      "app_vibes": "",
@@ -1157,6 +1169,7 @@
       "top_k": "10"
      },
      "assumptions": {},
+     "settings_note": "",
      "result_table": "c.s.out",
      "ai_endpoint": "ep",
      "warehouse_id": "wh1",
@@ -1201,6 +1214,9 @@
       "why?"
      ],
      "app_purpose": "act",
+     "app_owners": [],
+     "app_warehouse_id": "",
+     "inspire_url": "https://inspire.example.com",
      "alert_name": "A",
      "alert_tiers": "act_now",
      "alert_operator": ">",
@@ -1235,14 +1251,12 @@
       "alerts": false
      },
      "app_backend": "lakebase",
-     "app_placement": "",
-     "app_owners": [],
-     "app_warehouse_id": "",
      "app_charts": [],
      "app_pages": {
       "runs": true,
       "impact": true
      },
+     "app_placement": "",
      "genie_space_vibes": "",
      "dashboard_vibes": "",
      "app_vibes": "",
@@ -1317,6 +1331,7 @@
       "top_k": "10"
      },
      "assumptions": {},
+     "settings_note": "",
      "result_table": "c.s.out",
      "ai_endpoint": "ep",
      "warehouse_id": "wh1",
@@ -1361,6 +1376,9 @@
       "why?"
      ],
      "app_purpose": "act",
+     "app_owners": [],
+     "app_warehouse_id": "",
+     "inspire_url": "https://inspire.example.com",
      "alert_name": "A",
      "alert_tiers": "act_now",
      "alert_operator": ">",
@@ -1395,14 +1413,12 @@
       "alerts": false
      },
      "app_backend": "lakebase",
-     "app_placement": "",
-     "app_owners": [],
-     "app_warehouse_id": "",
      "app_charts": [],
      "app_pages": {
       "runs": true,
       "impact": true
      },
+     "app_placement": "",
      "genie_space_vibes": "",
      "dashboard_vibes": "",
      "app_vibes": "",
@@ -1483,6 +1499,7 @@
       "top_k": "10"
      },
      "assumptions": {},
+     "settings_note": "",
      "result_table": "c.s.out",
      "ai_endpoint": "ep",
      "warehouse_id": "wh1",
@@ -1527,6 +1544,9 @@
       "why?"
      ],
      "app_purpose": "act",
+     "app_owners": [],
+     "app_warehouse_id": "",
+     "inspire_url": "https://inspire.example.com",
      "alert_name": "A",
      "alert_tiers": "act_now",
      "alert_operator": ">",
@@ -1561,14 +1581,12 @@
       "alerts": false
      },
      "app_backend": "lakebase",
-     "app_placement": "",
-     "app_owners": [],
-     "app_warehouse_id": "",
      "app_charts": [],
      "app_pages": {
       "runs": true,
       "impact": true
      },
+     "app_placement": "",
      "genie_space_vibes": "",
      "dashboard_vibes": "",
      "app_vibes": "",
@@ -1651,6 +1669,7 @@
       "top_k": "10"
      },
      "assumptions": {},
+     "settings_note": "",
      "result_table": "c.s.out",
      "ai_endpoint": "ep",
      "warehouse_id": "wh1",
@@ -1695,6 +1714,9 @@
       "why?"
      ],
      "app_purpose": "act",
+     "app_owners": [],
+     "app_warehouse_id": "",
+     "inspire_url": "https://inspire.example.com",
      "alert_name": "A",
      "alert_tiers": "act_now",
      "alert_operator": ">",
@@ -1729,14 +1751,12 @@
       "alerts": false
      },
      "app_backend": "lakebase",
-     "app_placement": "",
-     "app_owners": [],
-     "app_warehouse_id": "",
      "app_charts": [],
      "app_pages": {
       "runs": true,
       "impact": true
      },
+     "app_placement": "",
      "genie_space_vibes": "",
      "dashboard_vibes": "",
      "app_vibes": "",
@@ -1800,6 +1820,7 @@
       "top_k": "10"
      },
      "assumptions": {},
+     "settings_note": "",
      "result_table": "c.s.out",
      "ai_endpoint": "ep",
      "warehouse_id": "wh1",
@@ -1844,6 +1865,9 @@
       "why?"
      ],
      "app_purpose": "act",
+     "app_owners": [],
+     "app_warehouse_id": "",
+     "inspire_url": "https://inspire.example.com",
      "alert_name": "A",
      "alert_tiers": "act_now",
      "alert_operator": ">",
@@ -1878,14 +1902,12 @@
       "alerts": false
      },
      "app_backend": "lakebase",
-     "app_placement": "",
-     "app_owners": [],
-     "app_warehouse_id": "",
      "app_charts": [],
      "app_pages": {
       "runs": true,
       "impact": true
      },
+     "app_placement": "",
      "genie_space_vibes": "",
      "dashboard_vibes": "",
      "app_vibes": "",
@@ -1965,6 +1987,7 @@
       "top_k": "10"
      },
      "assumptions": {},
+     "settings_note": "",
      "result_table": "c.s.out",
      "ai_endpoint": "ep",
      "warehouse_id": "wh1",
@@ -2009,6 +2032,9 @@
       "why?"
      ],
      "app_purpose": "act",
+     "app_owners": [],
+     "app_warehouse_id": "",
+     "inspire_url": "https://inspire.example.com",
      "alert_name": "A",
      "alert_tiers": "act_now",
      "alert_operator": ">",
@@ -2043,14 +2069,12 @@
       "alerts": false
      },
      "app_backend": "lakebase",
-     "app_placement": "",
-     "app_owners": [],
-     "app_warehouse_id": "",
      "app_charts": [],
      "app_pages": {
       "runs": true,
       "impact": true
      },
+     "app_placement": "",
      "genie_space_vibes": "",
      "dashboard_vibes": "",
      "app_vibes": "",
@@ -2114,6 +2138,7 @@
       "top_k": "10"
      },
      "assumptions": {},
+     "settings_note": "",
      "result_table": "c.s.out",
      "ai_endpoint": "ep",
      "warehouse_id": "wh1",
@@ -2158,6 +2183,9 @@
       "why?"
      ],
      "app_purpose": "act",
+     "app_owners": [],
+     "app_warehouse_id": "",
+     "inspire_url": "https://inspire.example.com",
      "alert_name": "A",
      "alert_tiers": "act_now",
      "alert_operator": ">",
@@ -2192,14 +2220,12 @@
       "alerts": false
      },
      "app_backend": "lakebase",
-     "app_placement": "",
-     "app_owners": [],
-     "app_warehouse_id": "",
      "app_charts": [],
      "app_pages": {
       "runs": true,
       "impact": true
      },
+     "app_placement": "",
      "genie_space_vibes": "",
      "dashboard_vibes": "",
      "app_vibes": "",
@@ -2279,6 +2305,7 @@
       "top_k": "10"
      },
      "assumptions": {},
+     "settings_note": "",
      "result_table": "c.s.out",
      "ai_endpoint": "ep",
      "warehouse_id": "wh1",
@@ -2323,6 +2350,9 @@
       "why?"
      ],
      "app_purpose": "act",
+     "app_owners": [],
+     "app_warehouse_id": "",
+     "inspire_url": "https://inspire.example.com",
      "alert_name": "A",
      "alert_tiers": "act_now",
      "alert_operator": ">",
@@ -2357,14 +2387,12 @@
       "alerts": false
      },
      "app_backend": "lakebase",
-     "app_placement": "",
-     "app_owners": [],
-     "app_warehouse_id": "",
      "app_charts": [],
      "app_pages": {
       "runs": true,
       "impact": true
      },
+     "app_placement": "",
      "genie_space_vibes": "",
      "dashboard_vibes": "",
      "app_vibes": "",
@@ -2428,6 +2456,7 @@
       "top_k": "10"
      },
      "assumptions": {},
+     "settings_note": "",
      "result_table": "c.s.out",
      "ai_endpoint": "ep",
      "warehouse_id": "wh1",
@@ -2472,6 +2501,9 @@
       "why?"
      ],
      "app_purpose": "act",
+     "app_owners": [],
+     "app_warehouse_id": "",
+     "inspire_url": "https://inspire.example.com",
      "alert_name": "A",
      "alert_tiers": "act_now",
      "alert_operator": ">",
@@ -2506,14 +2538,12 @@
       "alerts": false
      },
      "app_backend": "lakebase",
-     "app_placement": "",
-     "app_owners": [],
-     "app_warehouse_id": "",
      "app_charts": [],
      "app_pages": {
       "runs": true,
       "impact": true
      },
+     "app_placement": "",
      "genie_space_vibes": "",
      "dashboard_vibes": "",
      "app_vibes": "",
@@ -2596,6 +2626,7 @@
       "top_k": "10"
      },
      "assumptions": {},
+     "settings_note": "",
      "result_table": "c.s.out",
      "ai_endpoint": "ep",
      "warehouse_id": "wh1",
@@ -2640,6 +2671,9 @@
       "why?"
      ],
      "app_purpose": "act",
+     "app_owners": [],
+     "app_warehouse_id": "",
+     "inspire_url": "https://inspire.example.com",
      "alert_name": "A",
      "alert_tiers": "act_now",
      "alert_operator": ">",
@@ -2674,14 +2708,12 @@
       "alerts": false
      },
      "app_backend": "lakebase",
-     "app_placement": "",
-     "app_owners": [],
-     "app_warehouse_id": "",
      "app_charts": [],
      "app_pages": {
       "runs": true,
       "impact": true
      },
+     "app_placement": "",
      "genie_space_vibes": "",
      "dashboard_vibes": "",
      "app_vibes": "",
@@ -2745,6 +2777,7 @@
       "top_k": "10"
      },
      "assumptions": {},
+     "settings_note": "",
      "result_table": "c.s.out",
      "ai_endpoint": "ep",
      "warehouse_id": "wh1",
@@ -2789,6 +2822,9 @@
       "why?"
      ],
      "app_purpose": "act",
+     "app_owners": [],
+     "app_warehouse_id": "",
+     "inspire_url": "https://inspire.example.com",
      "alert_name": "A",
      "alert_tiers": "act_now",
      "alert_operator": ">",
@@ -2823,14 +2859,12 @@
       "alerts": false
      },
      "app_backend": "lakebase",
-     "app_placement": "",
-     "app_owners": [],
-     "app_warehouse_id": "",
      "app_charts": [],
      "app_pages": {
       "runs": true,
       "impact": true
      },
+     "app_placement": "",
      "genie_space_vibes": "",
      "dashboard_vibes": "",
      "app_vibes": "",
@@ -2910,6 +2944,7 @@
       "top_k": "10"
      },
      "assumptions": {},
+     "settings_note": "",
      "result_table": "c.s.out",
      "ai_endpoint": "ep",
      "warehouse_id": "wh1",
@@ -2954,6 +2989,9 @@
       "why?"
      ],
      "app_purpose": "act",
+     "app_owners": [],
+     "app_warehouse_id": "",
+     "inspire_url": "https://inspire.example.com",
      "alert_name": "A",
      "alert_tiers": "act_now",
      "alert_operator": ">",
@@ -2988,14 +3026,12 @@
       "alerts": false
      },
      "app_backend": "lakebase",
-     "app_placement": "",
-     "app_owners": [],
-     "app_warehouse_id": "",
      "app_charts": [],
      "app_pages": {
       "runs": true,
       "impact": true
      },
+     "app_placement": "",
      "genie_space_vibes": "",
      "dashboard_vibes": "",
      "app_vibes": "",
@@ -3059,6 +3095,7 @@
       "top_k": "10"
      },
      "assumptions": {},
+     "settings_note": "",
      "result_table": "c.s.out",
      "ai_endpoint": "ep",
      "warehouse_id": "wh1",
@@ -3103,6 +3140,9 @@
       "why?"
      ],
      "app_purpose": "act",
+     "app_owners": [],
+     "app_warehouse_id": "",
+     "inspire_url": "https://inspire.example.com",
      "alert_name": "A",
      "alert_tiers": "act_now",
      "alert_operator": ">",
@@ -3137,14 +3177,12 @@
       "alerts": false
      },
      "app_backend": "lakebase",
-     "app_placement": "",
-     "app_owners": [],
-     "app_warehouse_id": "",
      "app_charts": [],
      "app_pages": {
       "runs": true,
       "impact": true
      },
+     "app_placement": "",
      "genie_space_vibes": "",
      "dashboard_vibes": "",
      "app_vibes": "",
@@ -3227,6 +3265,7 @@
       "top_k": "10"
      },
      "assumptions": {},
+     "settings_note": "",
      "result_table": "c.s.out",
      "ai_endpoint": "ep",
      "warehouse_id": "wh1",
@@ -3271,6 +3310,9 @@
       "why?"
      ],
      "app_purpose": "act",
+     "app_owners": [],
+     "app_warehouse_id": "",
+     "inspire_url": "https://inspire.example.com",
      "alert_name": "A",
      "alert_tiers": "act_now",
      "alert_operator": ">",
@@ -3305,14 +3347,12 @@
       "alerts": false
      },
      "app_backend": "lakebase",
-     "app_placement": "",
-     "app_owners": [],
-     "app_warehouse_id": "",
      "app_charts": [],
      "app_pages": {
       "runs": true,
       "impact": true
      },
+     "app_placement": "",
      "genie_space_vibes": "",
      "dashboard_vibes": "",
      "app_vibes": "",
@@ -3376,6 +3416,7 @@
       "top_k": "10"
      },
      "assumptions": {},
+     "settings_note": "",
      "result_table": "c.s.out",
      "ai_endpoint": "ep",
      "warehouse_id": "wh1",
@@ -3420,6 +3461,9 @@
       "why?"
      ],
      "app_purpose": "act",
+     "app_owners": [],
+     "app_warehouse_id": "",
+     "inspire_url": "https://inspire.example.com",
      "alert_name": "A",
      "alert_tiers": "act_now",
      "alert_operator": ">",
@@ -3454,14 +3498,12 @@
       "alerts": false
      },
      "app_backend": "lakebase",
-     "app_placement": "",
-     "app_owners": [],
-     "app_warehouse_id": "",
      "app_charts": [],
      "app_pages": {
       "runs": true,
       "impact": true
      },
+     "app_placement": "",
      "genie_space_vibes": "",
      "dashboard_vibes": "",
      "app_vibes": "",
@@ -3534,6 +3576,7 @@
       "top_k": "10"
      },
      "assumptions": {},
+     "settings_note": "",
      "result_table": "c.s.out",
      "ai_endpoint": "ep",
      "warehouse_id": "wh1",
@@ -3578,6 +3621,9 @@
       "why?"
      ],
      "app_purpose": "act",
+     "app_owners": [],
+     "app_warehouse_id": "",
+     "inspire_url": "https://inspire.example.com",
      "alert_name": "A",
      "alert_tiers": "act_now",
      "alert_operator": ">",
@@ -3612,14 +3658,12 @@
       "alerts": false
      },
      "app_backend": "lakebase",
-     "app_placement": "",
-     "app_owners": [],
-     "app_warehouse_id": "",
      "app_charts": [],
      "app_pages": {
       "runs": true,
       "impact": true
      },
+     "app_placement": "",
      "genie_space_vibes": "",
      "dashboard_vibes": "",
      "app_vibes": "",
@@ -3683,6 +3727,7 @@
       "top_k": "10"
      },
      "assumptions": {},
+     "settings_note": "",
      "result_table": "c.s.out",
      "ai_endpoint": "ep",
      "warehouse_id": "wh1",
@@ -3727,6 +3772,9 @@
       "why?"
      ],
      "app_purpose": "act",
+     "app_owners": [],
+     "app_warehouse_id": "",
+     "inspire_url": "https://inspire.example.com",
      "alert_name": "A",
      "alert_tiers": "act_now",
      "alert_operator": ">",
@@ -3761,14 +3809,12 @@
       "alerts": false
      },
      "app_backend": "lakebase",
-     "app_placement": "",
-     "app_owners": [],
-     "app_warehouse_id": "",
      "app_charts": [],
      "app_pages": {
       "runs": true,
       "impact": true
      },
+     "app_placement": "",
      "genie_space_vibes": "",
      "dashboard_vibes": "",
      "app_vibes": "",
@@ -3856,6 +3902,7 @@
       "top_k": "10"
      },
      "assumptions": {},
+     "settings_note": "",
      "result_table": "c.s.out",
      "ai_endpoint": "ep",
      "warehouse_id": "wh1",
@@ -3900,6 +3947,9 @@
       "why?"
      ],
      "app_purpose": "act",
+     "app_owners": [],
+     "app_warehouse_id": "",
+     "inspire_url": "https://inspire.example.com",
      "alert_name": "A",
      "alert_tiers": "act_now",
      "alert_operator": ">",
@@ -3934,14 +3984,12 @@
       "alerts": false
      },
      "app_backend": "lakebase",
-     "app_placement": "",
-     "app_owners": [],
-     "app_warehouse_id": "",
      "app_charts": [],
      "app_pages": {
       "runs": true,
       "impact": true
      },
+     "app_placement": "",
      "genie_space_vibes": "",
      "dashboard_vibes": "",
      "app_vibes": "",
@@ -4005,6 +4053,7 @@
       "top_k": "10"
      },
      "assumptions": {},
+     "settings_note": "",
      "result_table": "c.s.out",
      "ai_endpoint": "ep",
      "warehouse_id": "wh1",
@@ -4049,6 +4098,9 @@
       "why?"
      ],
      "app_purpose": "act",
+     "app_owners": [],
+     "app_warehouse_id": "",
+     "inspire_url": "https://inspire.example.com",
      "alert_name": "A",
      "alert_tiers": "act_now",
      "alert_operator": ">",
@@ -4083,14 +4135,12 @@
       "alerts": false
      },
      "app_backend": "lakebase",
-     "app_placement": "",
-     "app_owners": [],
-     "app_warehouse_id": "",
      "app_charts": [],
      "app_pages": {
       "runs": true,
       "impact": true
      },
+     "app_placement": "",
      "genie_space_vibes": "",
      "dashboard_vibes": "",
      "app_vibes": "",
@@ -4183,6 +4233,7 @@
       "top_k": "10"
      },
      "assumptions": {},
+     "settings_note": "",
      "result_table": "c.s.out",
      "ai_endpoint": "ep",
      "warehouse_id": "wh1",
@@ -4227,6 +4278,9 @@
       "why?"
      ],
      "app_purpose": "act",
+     "app_owners": [],
+     "app_warehouse_id": "",
+     "inspire_url": "https://inspire.example.com",
      "alert_name": "A",
      "alert_tiers": "act_now",
      "alert_operator": ">",
@@ -4261,14 +4315,12 @@
       "alerts": false
      },
      "app_backend": "lakebase",
-     "app_placement": "",
-     "app_owners": [],
-     "app_warehouse_id": "",
      "app_charts": [],
      "app_pages": {
       "runs": true,
       "impact": true
      },
+     "app_placement": "",
      "genie_space_vibes": "",
      "dashboard_vibes": "",
      "app_vibes": "",
@@ -4332,6 +4384,7 @@
       "top_k": "10"
      },
      "assumptions": {},
+     "settings_note": "",
      "result_table": "c.s.out",
      "ai_endpoint": "ep",
      "warehouse_id": "wh1",
@@ -4376,6 +4429,9 @@
       "why?"
      ],
      "app_purpose": "act",
+     "app_owners": [],
+     "app_warehouse_id": "",
+     "inspire_url": "https://inspire.example.com",
      "alert_name": "A",
      "alert_tiers": "act_now",
      "alert_operator": ">",
@@ -4410,14 +4466,12 @@
       "alerts": false
      },
      "app_backend": "lakebase",
-     "app_placement": "",
-     "app_owners": [],
-     "app_warehouse_id": "",
      "app_charts": [],
      "app_pages": {
       "runs": true,
       "impact": true
      },
+     "app_placement": "",
      "genie_space_vibes": "",
      "dashboard_vibes": "",
      "app_vibes": "",
@@ -4510,6 +4564,7 @@
       "top_k": "10"
      },
      "assumptions": {},
+     "settings_note": "",
      "result_table": "c.s.out",
      "ai_endpoint": "ep",
      "warehouse_id": "wh1",
@@ -4554,6 +4609,9 @@
       "why?"
      ],
      "app_purpose": "act",
+     "app_owners": [],
+     "app_warehouse_id": "",
+     "inspire_url": "https://inspire.example.com",
      "alert_name": "A",
      "alert_tiers": "act_now",
      "alert_operator": ">",
@@ -4588,14 +4646,12 @@
       "alerts": false
      },
      "app_backend": "lakebase",
-     "app_placement": "",
-     "app_owners": [],
-     "app_warehouse_id": "",
      "app_charts": [],
      "app_pages": {
       "runs": true,
       "impact": true
      },
+     "app_placement": "",
      "genie_space_vibes": "",
      "dashboard_vibes": "",
      "app_vibes": "",
@@ -4659,6 +4715,7 @@
       "top_k": "10"
      },
      "assumptions": {},
+     "settings_note": "",
      "result_table": "c.s.out",
      "ai_endpoint": "ep",
      "warehouse_id": "wh1",
@@ -4703,6 +4760,9 @@
       "why?"
      ],
      "app_purpose": "act",
+     "app_owners": [],
+     "app_warehouse_id": "",
+     "inspire_url": "https://inspire.example.com",
      "alert_name": "A",
      "alert_tiers": "act_now",
      "alert_operator": ">",
@@ -4737,14 +4797,12 @@
       "alerts": false
      },
      "app_backend": "lakebase",
-     "app_placement": "",
-     "app_owners": [],
-     "app_warehouse_id": "",
      "app_charts": [],
      "app_pages": {
       "runs": true,
       "impact": true
      },
+     "app_placement": "",
      "genie_space_vibes": "",
      "dashboard_vibes": "",
      "app_vibes": "",
@@ -4828,6 +4886,7 @@
       "top_k": "10"
      },
      "assumptions": {},
+     "settings_note": "",
      "result_table": "c.s.out",
      "ai_endpoint": "ep",
      "warehouse_id": "wh1",
@@ -4872,6 +4931,9 @@
       "why?"
      ],
      "app_purpose": "act",
+     "app_owners": [],
+     "app_warehouse_id": "",
+     "inspire_url": "https://inspire.example.com",
      "alert_name": "A",
      "alert_tiers": "act_now",
      "alert_operator": ">",
@@ -4906,14 +4968,12 @@
       "alerts": false
      },
      "app_backend": "lakebase",
-     "app_placement": "",
-     "app_owners": [],
-     "app_warehouse_id": "",
      "app_charts": [],
      "app_pages": {
       "runs": true,
       "impact": true
      },
+     "app_placement": "",
      "genie_space_vibes": "",
      "dashboard_vibes": "",
      "app_vibes": "",
@@ -4977,6 +5037,7 @@
       "top_k": "10"
      },
      "assumptions": {},
+     "settings_note": "",
      "result_table": "c.s.out",
      "ai_endpoint": "ep",
      "warehouse_id": "wh1",
@@ -5021,6 +5082,9 @@
       "why?"
      ],
      "app_purpose": "act",
+     "app_owners": [],
+     "app_warehouse_id": "",
+     "inspire_url": "https://inspire.example.com",
      "alert_name": "A",
      "alert_tiers": "act_now",
      "alert_operator": ">",
@@ -5055,14 +5119,12 @@
       "alerts": false
      },
      "app_backend": "lakebase",
-     "app_placement": "",
-     "app_owners": [],
-     "app_warehouse_id": "",
      "app_charts": [],
      "app_pages": {
       "runs": true,
       "impact": true
      },
+     "app_placement": "",
      "genie_space_vibes": "",
      "dashboard_vibes": "",
      "app_vibes": "",
@@ -5151,6 +5213,7 @@
       "top_k": "10"
      },
      "assumptions": {},
+     "settings_note": "",
      "result_table": "c.s.out",
      "ai_endpoint": "ep",
      "warehouse_id": "wh1",
@@ -5195,6 +5258,9 @@
       "why?"
      ],
      "app_purpose": "act",
+     "app_owners": [],
+     "app_warehouse_id": "",
+     "inspire_url": "https://inspire.example.com",
      "alert_name": "A",
      "alert_tiers": "act_now",
      "alert_operator": ">",
@@ -5229,14 +5295,12 @@
       "alerts": false
      },
      "app_backend": "lakebase",
-     "app_placement": "",
-     "app_owners": [],
-     "app_warehouse_id": "",
      "app_charts": [],
      "app_pages": {
       "runs": true,
       "impact": true
      },
+     "app_placement": "",
      "genie_space_vibes": "",
      "dashboard_vibes": "",
      "app_vibes": "",
@@ -5300,6 +5364,7 @@
       "top_k": "10"
      },
      "assumptions": {},
+     "settings_note": "",
      "result_table": "c.s.out",
      "ai_endpoint": "ep",
      "warehouse_id": "wh1",
@@ -5344,6 +5409,9 @@
       "why?"
      ],
      "app_purpose": "act",
+     "app_owners": [],
+     "app_warehouse_id": "",
+     "inspire_url": "https://inspire.example.com",
      "alert_name": "A",
      "alert_tiers": "act_now",
      "alert_operator": ">",
@@ -5378,14 +5446,12 @@
       "alerts": false
      },
      "app_backend": "lakebase",
-     "app_placement": "",
-     "app_owners": [],
-     "app_warehouse_id": "",
      "app_charts": [],
      "app_pages": {
       "runs": true,
       "impact": true
      },
+     "app_placement": "",
      "genie_space_vibes": "",
      "dashboard_vibes": "",
      "app_vibes": "",
@@ -5429,6 +5495,1273 @@
     "keep_unmanaged": [],
     "schedule": true
    }
+  }
+ ],
+ "owners": [
+  {
+   "impact": null,
+   "spec": {
+    "use_case_id": "N01-U01",
+    "use_case_name": "Basket",
+    "confirm_notebook_overwrite": false,
+    "based_on_version": 1,
+    "use_case": {
+     "goal": "grow basket",
+     "decision_owner": "ops lead",
+     "success_measures": [
+      "basket size"
+     ]
+    },
+    "data": {
+     "tables": {
+      "c.s.orders": "c.s.orders_v2"
+     },
+     "removed_tables": [
+      "c.s.old"
+     ],
+     "filters": [
+      {
+       "table": "c.s.orders",
+       "column": "region",
+       "op": "=",
+       "values": [
+        "EU"
+       ]
+      }
+     ],
+     "run_profile": "preview",
+     "column_roles": {
+      "entity_id": "c.s.orders.order_id"
+     },
+     "window": {
+      "start": "2024-01-01",
+      "end": "2024-02-01"
+     },
+     "notes": "keep it short"
+    },
+    "config": {
+     "widgets": {
+      "top_k": "10"
+     },
+     "assumptions": {},
+     "settings_note": "",
+     "result_table": "c.s.out",
+     "ai_endpoint": "ep",
+     "warehouse_id": "wh1",
+     "profiles": {
+      "training": {
+       "window_days": 30,
+       "sample_entities": 100,
+       "stratify_by": "region"
+      },
+      "full_load": {
+       "window_days": 365
+      },
+      "preview": {
+       "entity_cap": 50
+      },
+      "retrain": {
+       "every_runs": 4,
+       "drift_threshold": 0.2
+      }
+     }
+    },
+    "schedule": {
+     "enabled": true,
+     "cron": "0 0 6 ? * MON",
+     "timezone": "UTC",
+     "failure_emails": [
+      "a@b.co"
+     ]
+    },
+    "outputs": {
+     "genie_space": true,
+     "dashboard": true,
+     "app": true,
+     "alert": true,
+     "app_name": "my-app",
+     "dashboard_name": "D",
+     "dashboard_filters": [
+      "top_k"
+     ],
+     "genie_space_name": "G",
+     "genie_questions": [
+      "why?"
+     ],
+     "app_purpose": "act",
+     "app_owners": [
+      "person00@example.com",
+      "person01@example.com",
+      "person02@example.com",
+      "person03@example.com",
+      "person04@example.com",
+      "person05@example.com",
+      "person06@example.com",
+      "person07@example.com",
+      "person08@example.com",
+      "person09@example.com",
+      "person10@example.com",
+      "person11@example.com",
+      "person12@example.com",
+      "person13@example.com",
+      "person14@example.com",
+      "person15@example.com",
+      "person16@example.com",
+      "person17@example.com",
+      "person18@example.com",
+      "person19@example.com",
+      "person20@example.com",
+      "person21@example.com",
+      "person22@example.com",
+      "person23@example.com",
+      "person24@example.com",
+      "person25@example.com",
+      "person26@example.com",
+      "person27@example.com",
+      "person28@example.com",
+      "person29@example.com",
+      "person30@example.com",
+      "person31@example.com",
+      "person32@example.com",
+      "person33@example.com",
+      "person34@example.com",
+      "person35@example.com",
+      "person36@example.com",
+      "person37@example.com",
+      "person38@example.com",
+      "person39@example.com",
+      "person40@example.com",
+      "person41@example.com",
+      "person42@example.com",
+      "person43@example.com",
+      "person44@example.com",
+      "person45@example.com",
+      "person46@example.com",
+      "person47@example.com",
+      "person48@example.com",
+      "person49@example.com",
+      "person50@example.com"
+     ],
+     "app_warehouse_id": "",
+     "inspire_url": "https://inspire.example.com",
+     "alert_name": "A",
+     "alert_tiers": "act_now",
+     "alert_operator": ">",
+     "alert_threshold": 0.0,
+     "alert_threshold_basis": "fixed",
+     "alert_condition_text": "too many",
+     "alert_recipients": [
+      "a@b.co"
+     ],
+     "alert_destinations": [
+      {
+       "id": "01234567-89ab-cdef-0123-456789abcdef",
+       "name": "ops"
+      }
+     ],
+     "merge": {
+      "dashboard": "",
+      "genie_space": "",
+      "app": ""
+     },
+     "app_access": "sp",
+     "app_look": {
+      "style": "a",
+      "layout": "sidebar",
+      "palette": "default",
+      "theme": "light"
+     },
+     "app_options": {
+      "modify": false,
+      "replace_edits": false,
+      "decisions": false,
+      "alerts": false
+     },
+     "app_backend": "lakebase",
+     "app_charts": [],
+     "app_pages": {
+      "runs": true,
+      "impact": true
+     },
+     "app_placement": "",
+     "genie_space_vibes": "",
+     "dashboard_vibes": "",
+     "app_vibes": "",
+     "alert_vibes": ""
+    },
+    "removed_outputs": {
+     "dashboard": "keep"
+    },
+    "retry_outputs": [],
+    "rollback_outputs": {},
+    "sharing": {
+     "principals": [
+      {
+       "type": "user",
+       "name": "a@b.co"
+      }
+     ]
+    }
+   },
+   "errors": [
+    "an App can name at most 50 owners, the people who may change its amount at stake assumptions"
+   ]
+  },
+  {
+   "impact": {
+    "kind": "money",
+    "unit": "USD"
+   },
+   "spec": {
+    "use_case_id": "N01-U01",
+    "use_case_name": "Basket",
+    "confirm_notebook_overwrite": false,
+    "based_on_version": 1,
+    "use_case": {
+     "goal": "grow basket",
+     "decision_owner": "ops lead",
+     "success_measures": [
+      "basket size"
+     ]
+    },
+    "data": {
+     "tables": {
+      "c.s.orders": "c.s.orders_v2"
+     },
+     "removed_tables": [
+      "c.s.old"
+     ],
+     "filters": [
+      {
+       "table": "c.s.orders",
+       "column": "region",
+       "op": "=",
+       "values": [
+        "EU"
+       ]
+      }
+     ],
+     "run_profile": "preview",
+     "column_roles": {
+      "entity_id": "c.s.orders.order_id"
+     },
+     "window": {
+      "start": "2024-01-01",
+      "end": "2024-02-01"
+     },
+     "notes": "keep it short"
+    },
+    "config": {
+     "widgets": {
+      "top_k": "10"
+     },
+     "assumptions": {},
+     "settings_note": "",
+     "result_table": "c.s.out",
+     "ai_endpoint": "ep",
+     "warehouse_id": "wh1",
+     "profiles": {
+      "training": {
+       "window_days": 30,
+       "sample_entities": 100,
+       "stratify_by": "region"
+      },
+      "full_load": {
+       "window_days": 365
+      },
+      "preview": {
+       "entity_cap": 50
+      },
+      "retrain": {
+       "every_runs": 4,
+       "drift_threshold": 0.2
+      }
+     }
+    },
+    "schedule": {
+     "enabled": true,
+     "cron": "0 0 6 ? * MON",
+     "timezone": "UTC",
+     "failure_emails": [
+      "a@b.co"
+     ]
+    },
+    "outputs": {
+     "genie_space": true,
+     "dashboard": true,
+     "app": true,
+     "alert": true,
+     "app_name": "my-app",
+     "dashboard_name": "D",
+     "dashboard_filters": [
+      "top_k"
+     ],
+     "genie_space_name": "G",
+     "genie_questions": [
+      "why?"
+     ],
+     "app_purpose": "act",
+     "app_owners": [
+      "person00@example.com",
+      "person01@example.com",
+      "person02@example.com",
+      "person03@example.com",
+      "person04@example.com",
+      "person05@example.com",
+      "person06@example.com",
+      "person07@example.com",
+      "person08@example.com",
+      "person09@example.com",
+      "person10@example.com",
+      "person11@example.com",
+      "person12@example.com",
+      "person13@example.com",
+      "person14@example.com",
+      "person15@example.com",
+      "person16@example.com",
+      "person17@example.com",
+      "person18@example.com",
+      "person19@example.com",
+      "person20@example.com",
+      "person21@example.com",
+      "person22@example.com",
+      "person23@example.com",
+      "person24@example.com",
+      "person25@example.com",
+      "person26@example.com",
+      "person27@example.com",
+      "person28@example.com",
+      "person29@example.com",
+      "person30@example.com",
+      "person31@example.com",
+      "person32@example.com",
+      "person33@example.com",
+      "person34@example.com",
+      "person35@example.com",
+      "person36@example.com",
+      "person37@example.com",
+      "person38@example.com",
+      "person39@example.com",
+      "person40@example.com",
+      "person41@example.com",
+      "person42@example.com",
+      "person43@example.com",
+      "person44@example.com",
+      "person45@example.com",
+      "person46@example.com",
+      "person47@example.com",
+      "person48@example.com",
+      "person49@example.com",
+      "person50@example.com"
+     ],
+     "app_warehouse_id": "",
+     "inspire_url": "https://inspire.example.com",
+     "alert_name": "A",
+     "alert_tiers": "act_now",
+     "alert_operator": ">",
+     "alert_threshold": 0.0,
+     "alert_threshold_basis": "fixed",
+     "alert_condition_text": "too many",
+     "alert_recipients": [
+      "a@b.co"
+     ],
+     "alert_destinations": [
+      {
+       "id": "01234567-89ab-cdef-0123-456789abcdef",
+       "name": "ops"
+      }
+     ],
+     "merge": {
+      "dashboard": "",
+      "genie_space": "",
+      "app": ""
+     },
+     "app_access": "sp",
+     "app_look": {
+      "style": "a",
+      "layout": "sidebar",
+      "palette": "default",
+      "theme": "light"
+     },
+     "app_options": {
+      "modify": false,
+      "replace_edits": false,
+      "decisions": false,
+      "alerts": false
+     },
+     "app_backend": "lakebase",
+     "app_charts": [],
+     "app_pages": {
+      "runs": true,
+      "impact": true
+     },
+     "app_placement": "",
+     "genie_space_vibes": "",
+     "dashboard_vibes": "",
+     "app_vibes": "",
+     "alert_vibes": ""
+    },
+    "removed_outputs": {
+     "dashboard": "keep"
+    },
+    "retry_outputs": [],
+    "rollback_outputs": {},
+    "sharing": {
+     "principals": [
+      {
+       "type": "user",
+       "name": "a@b.co"
+      }
+     ]
+    }
+   },
+   "errors": [
+    "an App can name at most 50 owners, the people who may change its money at stake assumptions"
+   ]
+  },
+  {
+   "impact": {
+    "kind": "hours",
+    "unit": "hours"
+   },
+   "spec": {
+    "use_case_id": "N01-U01",
+    "use_case_name": "Basket",
+    "confirm_notebook_overwrite": false,
+    "based_on_version": 1,
+    "use_case": {
+     "goal": "grow basket",
+     "decision_owner": "ops lead",
+     "success_measures": [
+      "basket size"
+     ]
+    },
+    "data": {
+     "tables": {
+      "c.s.orders": "c.s.orders_v2"
+     },
+     "removed_tables": [
+      "c.s.old"
+     ],
+     "filters": [
+      {
+       "table": "c.s.orders",
+       "column": "region",
+       "op": "=",
+       "values": [
+        "EU"
+       ]
+      }
+     ],
+     "run_profile": "preview",
+     "column_roles": {
+      "entity_id": "c.s.orders.order_id"
+     },
+     "window": {
+      "start": "2024-01-01",
+      "end": "2024-02-01"
+     },
+     "notes": "keep it short"
+    },
+    "config": {
+     "widgets": {
+      "top_k": "10"
+     },
+     "assumptions": {},
+     "settings_note": "",
+     "result_table": "c.s.out",
+     "ai_endpoint": "ep",
+     "warehouse_id": "wh1",
+     "profiles": {
+      "training": {
+       "window_days": 30,
+       "sample_entities": 100,
+       "stratify_by": "region"
+      },
+      "full_load": {
+       "window_days": 365
+      },
+      "preview": {
+       "entity_cap": 50
+      },
+      "retrain": {
+       "every_runs": 4,
+       "drift_threshold": 0.2
+      }
+     }
+    },
+    "schedule": {
+     "enabled": true,
+     "cron": "0 0 6 ? * MON",
+     "timezone": "UTC",
+     "failure_emails": [
+      "a@b.co"
+     ]
+    },
+    "outputs": {
+     "genie_space": true,
+     "dashboard": true,
+     "app": true,
+     "alert": true,
+     "app_name": "my-app",
+     "dashboard_name": "D",
+     "dashboard_filters": [
+      "top_k"
+     ],
+     "genie_space_name": "G",
+     "genie_questions": [
+      "why?"
+     ],
+     "app_purpose": "act",
+     "app_owners": [
+      "person00@example.com",
+      "person01@example.com",
+      "person02@example.com",
+      "person03@example.com",
+      "person04@example.com",
+      "person05@example.com",
+      "person06@example.com",
+      "person07@example.com",
+      "person08@example.com",
+      "person09@example.com",
+      "person10@example.com",
+      "person11@example.com",
+      "person12@example.com",
+      "person13@example.com",
+      "person14@example.com",
+      "person15@example.com",
+      "person16@example.com",
+      "person17@example.com",
+      "person18@example.com",
+      "person19@example.com",
+      "person20@example.com",
+      "person21@example.com",
+      "person22@example.com",
+      "person23@example.com",
+      "person24@example.com",
+      "person25@example.com",
+      "person26@example.com",
+      "person27@example.com",
+      "person28@example.com",
+      "person29@example.com",
+      "person30@example.com",
+      "person31@example.com",
+      "person32@example.com",
+      "person33@example.com",
+      "person34@example.com",
+      "person35@example.com",
+      "person36@example.com",
+      "person37@example.com",
+      "person38@example.com",
+      "person39@example.com",
+      "person40@example.com",
+      "person41@example.com",
+      "person42@example.com",
+      "person43@example.com",
+      "person44@example.com",
+      "person45@example.com",
+      "person46@example.com",
+      "person47@example.com",
+      "person48@example.com",
+      "person49@example.com",
+      "person50@example.com"
+     ],
+     "app_warehouse_id": "",
+     "inspire_url": "https://inspire.example.com",
+     "alert_name": "A",
+     "alert_tiers": "act_now",
+     "alert_operator": ">",
+     "alert_threshold": 0.0,
+     "alert_threshold_basis": "fixed",
+     "alert_condition_text": "too many",
+     "alert_recipients": [
+      "a@b.co"
+     ],
+     "alert_destinations": [
+      {
+       "id": "01234567-89ab-cdef-0123-456789abcdef",
+       "name": "ops"
+      }
+     ],
+     "merge": {
+      "dashboard": "",
+      "genie_space": "",
+      "app": ""
+     },
+     "app_access": "sp",
+     "app_look": {
+      "style": "a",
+      "layout": "sidebar",
+      "palette": "default",
+      "theme": "light"
+     },
+     "app_options": {
+      "modify": false,
+      "replace_edits": false,
+      "decisions": false,
+      "alerts": false
+     },
+     "app_backend": "lakebase",
+     "app_charts": [],
+     "app_pages": {
+      "runs": true,
+      "impact": true
+     },
+     "app_placement": "",
+     "genie_space_vibes": "",
+     "dashboard_vibes": "",
+     "app_vibes": "",
+     "alert_vibes": ""
+    },
+    "removed_outputs": {
+     "dashboard": "keep"
+    },
+    "retry_outputs": [],
+    "rollback_outputs": {},
+    "sharing": {
+     "principals": [
+      {
+       "type": "user",
+       "name": "a@b.co"
+      }
+     ]
+    }
+   },
+   "errors": [
+    "an App can name at most 50 owners, the people who may change its hours at stake assumptions"
+   ]
+  },
+  {
+   "impact": {
+    "kind": "count",
+    "unit": "late shipments"
+   },
+   "spec": {
+    "use_case_id": "N01-U01",
+    "use_case_name": "Basket",
+    "confirm_notebook_overwrite": false,
+    "based_on_version": 1,
+    "use_case": {
+     "goal": "grow basket",
+     "decision_owner": "ops lead",
+     "success_measures": [
+      "basket size"
+     ]
+    },
+    "data": {
+     "tables": {
+      "c.s.orders": "c.s.orders_v2"
+     },
+     "removed_tables": [
+      "c.s.old"
+     ],
+     "filters": [
+      {
+       "table": "c.s.orders",
+       "column": "region",
+       "op": "=",
+       "values": [
+        "EU"
+       ]
+      }
+     ],
+     "run_profile": "preview",
+     "column_roles": {
+      "entity_id": "c.s.orders.order_id"
+     },
+     "window": {
+      "start": "2024-01-01",
+      "end": "2024-02-01"
+     },
+     "notes": "keep it short"
+    },
+    "config": {
+     "widgets": {
+      "top_k": "10"
+     },
+     "assumptions": {},
+     "settings_note": "",
+     "result_table": "c.s.out",
+     "ai_endpoint": "ep",
+     "warehouse_id": "wh1",
+     "profiles": {
+      "training": {
+       "window_days": 30,
+       "sample_entities": 100,
+       "stratify_by": "region"
+      },
+      "full_load": {
+       "window_days": 365
+      },
+      "preview": {
+       "entity_cap": 50
+      },
+      "retrain": {
+       "every_runs": 4,
+       "drift_threshold": 0.2
+      }
+     }
+    },
+    "schedule": {
+     "enabled": true,
+     "cron": "0 0 6 ? * MON",
+     "timezone": "UTC",
+     "failure_emails": [
+      "a@b.co"
+     ]
+    },
+    "outputs": {
+     "genie_space": true,
+     "dashboard": true,
+     "app": true,
+     "alert": true,
+     "app_name": "my-app",
+     "dashboard_name": "D",
+     "dashboard_filters": [
+      "top_k"
+     ],
+     "genie_space_name": "G",
+     "genie_questions": [
+      "why?"
+     ],
+     "app_purpose": "act",
+     "app_owners": [
+      "person00@example.com",
+      "person01@example.com",
+      "person02@example.com",
+      "person03@example.com",
+      "person04@example.com",
+      "person05@example.com",
+      "person06@example.com",
+      "person07@example.com",
+      "person08@example.com",
+      "person09@example.com",
+      "person10@example.com",
+      "person11@example.com",
+      "person12@example.com",
+      "person13@example.com",
+      "person14@example.com",
+      "person15@example.com",
+      "person16@example.com",
+      "person17@example.com",
+      "person18@example.com",
+      "person19@example.com",
+      "person20@example.com",
+      "person21@example.com",
+      "person22@example.com",
+      "person23@example.com",
+      "person24@example.com",
+      "person25@example.com",
+      "person26@example.com",
+      "person27@example.com",
+      "person28@example.com",
+      "person29@example.com",
+      "person30@example.com",
+      "person31@example.com",
+      "person32@example.com",
+      "person33@example.com",
+      "person34@example.com",
+      "person35@example.com",
+      "person36@example.com",
+      "person37@example.com",
+      "person38@example.com",
+      "person39@example.com",
+      "person40@example.com",
+      "person41@example.com",
+      "person42@example.com",
+      "person43@example.com",
+      "person44@example.com",
+      "person45@example.com",
+      "person46@example.com",
+      "person47@example.com",
+      "person48@example.com",
+      "person49@example.com",
+      "person50@example.com"
+     ],
+     "app_warehouse_id": "",
+     "inspire_url": "https://inspire.example.com",
+     "alert_name": "A",
+     "alert_tiers": "act_now",
+     "alert_operator": ">",
+     "alert_threshold": 0.0,
+     "alert_threshold_basis": "fixed",
+     "alert_condition_text": "too many",
+     "alert_recipients": [
+      "a@b.co"
+     ],
+     "alert_destinations": [
+      {
+       "id": "01234567-89ab-cdef-0123-456789abcdef",
+       "name": "ops"
+      }
+     ],
+     "merge": {
+      "dashboard": "",
+      "genie_space": "",
+      "app": ""
+     },
+     "app_access": "sp",
+     "app_look": {
+      "style": "a",
+      "layout": "sidebar",
+      "palette": "default",
+      "theme": "light"
+     },
+     "app_options": {
+      "modify": false,
+      "replace_edits": false,
+      "decisions": false,
+      "alerts": false
+     },
+     "app_backend": "lakebase",
+     "app_charts": [],
+     "app_pages": {
+      "runs": true,
+      "impact": true
+     },
+     "app_placement": "",
+     "genie_space_vibes": "",
+     "dashboard_vibes": "",
+     "app_vibes": "",
+     "alert_vibes": ""
+    },
+    "removed_outputs": {
+     "dashboard": "keep"
+    },
+    "retry_outputs": [],
+    "rollback_outputs": {},
+    "sharing": {
+     "principals": [
+      {
+       "type": "user",
+       "name": "a@b.co"
+      }
+     ]
+    }
+   },
+   "errors": [
+    "an App can name at most 50 owners, the people who may change its late shipments at stake assumptions"
+   ]
+  },
+  {
+   "impact": {
+    "unit": "hours"
+   },
+   "spec": {
+    "use_case_id": "N01-U01",
+    "use_case_name": "Basket",
+    "confirm_notebook_overwrite": false,
+    "based_on_version": 1,
+    "use_case": {
+     "goal": "grow basket",
+     "decision_owner": "ops lead",
+     "success_measures": [
+      "basket size"
+     ]
+    },
+    "data": {
+     "tables": {
+      "c.s.orders": "c.s.orders_v2"
+     },
+     "removed_tables": [
+      "c.s.old"
+     ],
+     "filters": [
+      {
+       "table": "c.s.orders",
+       "column": "region",
+       "op": "=",
+       "values": [
+        "EU"
+       ]
+      }
+     ],
+     "run_profile": "preview",
+     "column_roles": {
+      "entity_id": "c.s.orders.order_id"
+     },
+     "window": {
+      "start": "2024-01-01",
+      "end": "2024-02-01"
+     },
+     "notes": "keep it short"
+    },
+    "config": {
+     "widgets": {
+      "top_k": "10"
+     },
+     "assumptions": {},
+     "settings_note": "",
+     "result_table": "c.s.out",
+     "ai_endpoint": "ep",
+     "warehouse_id": "wh1",
+     "profiles": {
+      "training": {
+       "window_days": 30,
+       "sample_entities": 100,
+       "stratify_by": "region"
+      },
+      "full_load": {
+       "window_days": 365
+      },
+      "preview": {
+       "entity_cap": 50
+      },
+      "retrain": {
+       "every_runs": 4,
+       "drift_threshold": 0.2
+      }
+     }
+    },
+    "schedule": {
+     "enabled": true,
+     "cron": "0 0 6 ? * MON",
+     "timezone": "UTC",
+     "failure_emails": [
+      "a@b.co"
+     ]
+    },
+    "outputs": {
+     "genie_space": true,
+     "dashboard": true,
+     "app": true,
+     "alert": true,
+     "app_name": "my-app",
+     "dashboard_name": "D",
+     "dashboard_filters": [
+      "top_k"
+     ],
+     "genie_space_name": "G",
+     "genie_questions": [
+      "why?"
+     ],
+     "app_purpose": "act",
+     "app_owners": [
+      "person00@example.com",
+      "person01@example.com",
+      "person02@example.com",
+      "person03@example.com",
+      "person04@example.com",
+      "person05@example.com",
+      "person06@example.com",
+      "person07@example.com",
+      "person08@example.com",
+      "person09@example.com",
+      "person10@example.com",
+      "person11@example.com",
+      "person12@example.com",
+      "person13@example.com",
+      "person14@example.com",
+      "person15@example.com",
+      "person16@example.com",
+      "person17@example.com",
+      "person18@example.com",
+      "person19@example.com",
+      "person20@example.com",
+      "person21@example.com",
+      "person22@example.com",
+      "person23@example.com",
+      "person24@example.com",
+      "person25@example.com",
+      "person26@example.com",
+      "person27@example.com",
+      "person28@example.com",
+      "person29@example.com",
+      "person30@example.com",
+      "person31@example.com",
+      "person32@example.com",
+      "person33@example.com",
+      "person34@example.com",
+      "person35@example.com",
+      "person36@example.com",
+      "person37@example.com",
+      "person38@example.com",
+      "person39@example.com",
+      "person40@example.com",
+      "person41@example.com",
+      "person42@example.com",
+      "person43@example.com",
+      "person44@example.com",
+      "person45@example.com",
+      "person46@example.com",
+      "person47@example.com",
+      "person48@example.com",
+      "person49@example.com",
+      "person50@example.com"
+     ],
+     "app_warehouse_id": "",
+     "inspire_url": "https://inspire.example.com",
+     "alert_name": "A",
+     "alert_tiers": "act_now",
+     "alert_operator": ">",
+     "alert_threshold": 0.0,
+     "alert_threshold_basis": "fixed",
+     "alert_condition_text": "too many",
+     "alert_recipients": [
+      "a@b.co"
+     ],
+     "alert_destinations": [
+      {
+       "id": "01234567-89ab-cdef-0123-456789abcdef",
+       "name": "ops"
+      }
+     ],
+     "merge": {
+      "dashboard": "",
+      "genie_space": "",
+      "app": ""
+     },
+     "app_access": "sp",
+     "app_look": {
+      "style": "a",
+      "layout": "sidebar",
+      "palette": "default",
+      "theme": "light"
+     },
+     "app_options": {
+      "modify": false,
+      "replace_edits": false,
+      "decisions": false,
+      "alerts": false
+     },
+     "app_backend": "lakebase",
+     "app_charts": [],
+     "app_pages": {
+      "runs": true,
+      "impact": true
+     },
+     "app_placement": "",
+     "genie_space_vibes": "",
+     "dashboard_vibes": "",
+     "app_vibes": "",
+     "alert_vibes": ""
+    },
+    "removed_outputs": {
+     "dashboard": "keep"
+    },
+    "retry_outputs": [],
+    "rollback_outputs": {},
+    "sharing": {
+     "principals": [
+      {
+       "type": "user",
+       "name": "a@b.co"
+      }
+     ]
+    }
+   },
+   "errors": [
+    "an App can name at most 50 owners, the people who may change its money at stake assumptions"
+   ]
+  },
+  {
+   "impact": {},
+   "spec": {
+    "use_case_id": "N01-U01",
+    "use_case_name": "Basket",
+    "confirm_notebook_overwrite": false,
+    "based_on_version": 1,
+    "use_case": {
+     "goal": "grow basket",
+     "decision_owner": "ops lead",
+     "success_measures": [
+      "basket size"
+     ]
+    },
+    "data": {
+     "tables": {
+      "c.s.orders": "c.s.orders_v2"
+     },
+     "removed_tables": [
+      "c.s.old"
+     ],
+     "filters": [
+      {
+       "table": "c.s.orders",
+       "column": "region",
+       "op": "=",
+       "values": [
+        "EU"
+       ]
+      }
+     ],
+     "run_profile": "preview",
+     "column_roles": {
+      "entity_id": "c.s.orders.order_id"
+     },
+     "window": {
+      "start": "2024-01-01",
+      "end": "2024-02-01"
+     },
+     "notes": "keep it short"
+    },
+    "config": {
+     "widgets": {
+      "top_k": "10"
+     },
+     "assumptions": {},
+     "settings_note": "",
+     "result_table": "c.s.out",
+     "ai_endpoint": "ep",
+     "warehouse_id": "wh1",
+     "profiles": {
+      "training": {
+       "window_days": 30,
+       "sample_entities": 100,
+       "stratify_by": "region"
+      },
+      "full_load": {
+       "window_days": 365
+      },
+      "preview": {
+       "entity_cap": 50
+      },
+      "retrain": {
+       "every_runs": 4,
+       "drift_threshold": 0.2
+      }
+     }
+    },
+    "schedule": {
+     "enabled": true,
+     "cron": "0 0 6 ? * MON",
+     "timezone": "UTC",
+     "failure_emails": [
+      "a@b.co"
+     ]
+    },
+    "outputs": {
+     "genie_space": true,
+     "dashboard": true,
+     "app": true,
+     "alert": true,
+     "app_name": "my-app",
+     "dashboard_name": "D",
+     "dashboard_filters": [
+      "top_k"
+     ],
+     "genie_space_name": "G",
+     "genie_questions": [
+      "why?"
+     ],
+     "app_purpose": "act",
+     "app_owners": [
+      "person00@example.com",
+      "person01@example.com",
+      "person02@example.com",
+      "person03@example.com",
+      "person04@example.com",
+      "person05@example.com",
+      "person06@example.com",
+      "person07@example.com",
+      "person08@example.com",
+      "person09@example.com",
+      "person10@example.com",
+      "person11@example.com",
+      "person12@example.com",
+      "person13@example.com",
+      "person14@example.com",
+      "person15@example.com",
+      "person16@example.com",
+      "person17@example.com",
+      "person18@example.com",
+      "person19@example.com",
+      "person20@example.com",
+      "person21@example.com",
+      "person22@example.com",
+      "person23@example.com",
+      "person24@example.com",
+      "person25@example.com",
+      "person26@example.com",
+      "person27@example.com",
+      "person28@example.com",
+      "person29@example.com",
+      "person30@example.com",
+      "person31@example.com",
+      "person32@example.com",
+      "person33@example.com",
+      "person34@example.com",
+      "person35@example.com",
+      "person36@example.com",
+      "person37@example.com",
+      "person38@example.com",
+      "person39@example.com",
+      "person40@example.com",
+      "person41@example.com",
+      "person42@example.com",
+      "person43@example.com",
+      "person44@example.com",
+      "person45@example.com",
+      "person46@example.com",
+      "person47@example.com",
+      "person48@example.com",
+      "person49@example.com",
+      "person50@example.com"
+     ],
+     "app_warehouse_id": "",
+     "inspire_url": "https://inspire.example.com",
+     "alert_name": "A",
+     "alert_tiers": "act_now",
+     "alert_operator": ">",
+     "alert_threshold": 0.0,
+     "alert_threshold_basis": "fixed",
+     "alert_condition_text": "too many",
+     "alert_recipients": [
+      "a@b.co"
+     ],
+     "alert_destinations": [
+      {
+       "id": "01234567-89ab-cdef-0123-456789abcdef",
+       "name": "ops"
+      }
+     ],
+     "merge": {
+      "dashboard": "",
+      "genie_space": "",
+      "app": ""
+     },
+     "app_access": "sp",
+     "app_look": {
+      "style": "a",
+      "layout": "sidebar",
+      "palette": "default",
+      "theme": "light"
+     },
+     "app_options": {
+      "modify": false,
+      "replace_edits": false,
+      "decisions": false,
+      "alerts": false
+     },
+     "app_backend": "lakebase",
+     "app_charts": [],
+     "app_pages": {
+      "runs": true,
+      "impact": true
+     },
+     "app_placement": "",
+     "genie_space_vibes": "",
+     "dashboard_vibes": "",
+     "app_vibes": "",
+     "alert_vibes": ""
+    },
+    "removed_outputs": {
+     "dashboard": "keep"
+    },
+    "retry_outputs": [],
+    "rollback_outputs": {},
+    "sharing": {
+     "principals": [
+      {
+       "type": "user",
+       "name": "a@b.co"
+      }
+     ]
+    }
+   },
+   "errors": [
+    "an App can name at most 50 owners, the people who may change its money at stake assumptions"
+   ]
   }
  ]
 }
