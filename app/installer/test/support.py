@@ -50,19 +50,16 @@ def make_app_zip(path, version=VERSION, module=FAKE_MODULE, extra=None):
     return files
 
 
-def make_assets(folder, version=VERSION, files=None, cli_machine="aarch64"):
+def make_assets(folder, version=VERSION, files=None):
     folder = pathlib.Path(folder)
-    files = files or {"fonts/inter-400.ttf": b"font" * 600, "cli/databricks-cli-aarch64.zip": bytes(range(256)) * 40,
+    files = files or {"fonts/inter-400.ttf": b"font" * 600, "cli/databricks-cli-x86_64.zip": bytes(range(256)) * 40,
                       "licenses/inter.txt": b"SIL Open Font License\n"}
     entries = []
     for name, data in files.items():
         (folder / name).parent.mkdir(parents=True, exist_ok=True)
         (folder / name).write_bytes(data)
-        kind = name.split("/")[0].rstrip("s")
-        machine = {"machine": next((m for m in ("x86_64", "aarch64") if f"-{m}." in name), cli_machine)} if kind == "cli" else {}
-        entries.append({"kind": kind, "name": name, "file": name, "size": len(data), "sha256": sha(data), **machine})
-    manifest = {"format": 1, "inspire_version": version, "cli_machine": cli_machine, "files": entries}
-    (folder / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+        entries.append({"kind": name.split("/")[0].rstrip("s"), "name": name, "file": name, "size": len(data), "sha256": sha(data)})
+    (folder / "manifest.json").write_text(json.dumps({"format": 1, "inspire_version": version, "files": entries}), encoding="utf-8")
     return files
 
 

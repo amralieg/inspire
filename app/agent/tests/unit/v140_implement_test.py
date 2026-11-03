@@ -706,7 +706,7 @@ def test_genie_run_without_final_json_returns_none(agent_ns, tmp_path):
 def test_genie_install_unpacks_both_clis_from_the_assets_once(agent_ns, tmp_path, monkeypatch):
     from v177_assets_support import cli_entries, make_assets
     monkeypatch.setattr(agent_ns["os"], "symlink", os.symlink)
-    assets = make_assets(agent_ns, tmp_path / "assets", cli_entries(agent_ns))
+    assets = make_assets(agent_ns, tmp_path / "assets", cli_entries(agent_ns, "x86_64"), machine="x86_64")
     read = []
     original = assets.local_copy
     assets.local_copy = lambda entry: read.append(entry["file"]) or original(entry)
@@ -714,7 +714,7 @@ def test_genie_install_unpacks_both_clis_from_the_assets_once(agent_ns, tmp_path
     runner = agent_ns["GenieCodeRunner"]("https://h", "t", CapturingLogger(), root=str(root), assets=assets)
     paths = runner.install()
     assert os.path.exists(paths["genie"]) and os.path.exists(paths["cli"])
-    assert read == ["cli/genie-code-cli-aarch64.tar.gz", "cli/databricks-cli-aarch64.zip"]
+    assert read == ["cli/genie-code-cli-x86_64.tar.gz", "cli/databricks-cli-x86_64.zip"]
     assert "ai-gateway/codex/v1" in open(os.path.join(paths["home"], "config.toml")).read()
     assert open(root / ".databrickscfg").read() == "[DEFAULT]\nhost = https://h\n", "the CLI profile never holds the token"
     runner.install()
@@ -3491,18 +3491,13 @@ INSTALL_ERROR = (f"The Inspire assets file {ASSETS_ROOT}/manifest.json is missin
                  f"Inspire assets download for {{version}}; it puts every file manifest.json lists into {ASSETS_ROOT}.")
 
 
-X86_ERROR = ("This run landed on x86_64 compute, and Inspire installs genie-code-cli only for aarch64, the CPU Databricks serverless "
-             "runs Inspire on, so Genie Code cannot run here. Run it again so it lands on aarch64 compute.")
-
-
-def _failed_download(agent_ns, tmp_path, monkeypatch, machine="aarch64"):
+def _failed_download(agent_ns, tmp_path, monkeypatch):
     runner = agent_ns["GenieCodeRunner"]("https://h", "t", CapturingLogger(), root=str(tmp_path / "root"),
-                                         assets=agent_ns["InspireAssets"](ASSETS_ROOT, local=str(tmp_path / "local"), machine=machine))
+                                         assets=agent_ns["InspireAssets"](ASSETS_ROOT, local=str(tmp_path / "local"), machine="x86_64"))
     return runner.install
 
 
-@pytest.mark.parametrize("machine", ["aarch64", "x86_64"])
-def test_a_genie_code_install_failure_fails_only_the_outputs_genie_builds(agent_ns, tmp_path, monkeypatch, machine):
+def test_a_genie_code_install_failure_fails_only_the_outputs_genie_builds(agent_ns, tmp_path, monkeypatch):
     inst = _inspire(agent_ns, FakeSpark())
     previous = dict(VALID, outputs={**VALID["outputs"], **ALERT})
     live = {name: {"state": "ready", "spec_version": 2} for name in ("dashboard", "genie_space", "app", "alert")}
@@ -3517,7 +3512,7 @@ def test_a_genie_code_install_failure_fails_only_the_outputs_genie_builds(agent_
     inst._genie_notebook_spec = lambda uc: dict(_NB_SPEC)
     inst._genie_widget_names = lambda instruction, spec: ["result_table"]
     inst._genie_involved_tables = lambda uc: ["main.s.orders"]
-    installs, download = [], _failed_download(agent_ns, tmp_path, monkeypatch, machine)
+    installs, download = [], _failed_download(agent_ns, tmp_path, monkeypatch)
 
     def broken_runner(uc):
         installs.append(uc)
@@ -3536,8 +3531,7 @@ def test_a_genie_code_install_failure_fails_only_the_outputs_genie_builds(agent_
     status = inst._implement_one_locked({"session_id": 5150, "use_case_id": "N01-U01", "spec_version": 3,
                                          "spec_json": dict(previous, retry_outputs=["dashboard", "genie_space", "alert"])},
                                         (5150, "N01-U01", 3))
-    error = X86_ERROR if machine == "x86_64" else INSTALL_ERROR.format(version=agent_ns['__AGENT_VERSION__'])
-    reason = f"Genie Code could not be installed: {error}"
+    reason = f"Genie Code could not be installed: {INSTALL_ERROR.format(version=agent_ns['__AGENT_VERSION__'])}"
     notebook = _left_by(2)["notebook"]
     assert status == "ready_with_warnings" and installs == ["N01-U01"], "Genie Code is tried once, and only what it builds fails"
     assert inst.updates[0]["status"] == "filling" and inst.updates[0]["asset_status"] == dict(live, notebook=notebook), \
@@ -3553,10 +3547,8 @@ def test_a_genie_code_install_failure_fails_only_the_outputs_genie_builds(agent_
     assert ("Dashboard", "ended_warning") in emitted and ("Genie Agent", "ended_warning") in emitted and emitted[-1] == ("Done", "ended_warning")
 
 
-@pytest.mark.parametrize("machine", ["aarch64", "x86_64"])
-def test_a_failed_genie_code_install_ends_its_step_with_the_reason(fresh_ns, tmp_path, monkeypatch, machine):
-    download = _failed_download(fresh_ns, tmp_path, monkeypatch, machine)
-    error = X86_ERROR if machine == "x86_64" else INSTALL_ERROR.format(version=fresh_ns['__AGENT_VERSION__'])
+def test_a_failed_genie_code_install_ends_its_step_with_the_reason(fresh_ns, tmp_path, monkeypatch):
+    download = _failed_download(fresh_ns, tmp_path, monkeypatch)
 
     class _BrokenRunner:
         def __init__(self, host, token, logger, on_line=None):
@@ -3573,11 +3565,11 @@ def test_a_failed_genie_code_install_ends_its_step_with_the_reason(fresh_ns, tmp
         getDbutils=lambda: types.SimpleNamespace(notebook=lambda: types.SimpleNamespace(getContext=lambda: context)))))
     emitted = []
     inst._implement_emit = lambda uc, step, message, status, *a, **k: emitted.append((step, message, status, k.get("step_id"))) or "s1"
-    with pytest.raises(fresh_ns["InspireAssetError"]) as raised:
+    with pytest.raises(RuntimeError, match="manifest.json is missing"):
         inst._implement_runner("N01-U01")
-    assert str(raised.value) == error
     assert emitted == [("Genie Code", "installing the Genie Code CLI and the Databricks CLI", "started", None),
-                       ("Genie Code", f"Genie Code could not be installed: {error}", "ended_error", "s1")], \
+                       ("Genie Code", f"Genie Code could not be installed: {INSTALL_ERROR.format(version=fresh_ns['__AGENT_VERSION__'])}",
+                        "ended_error", "s1")], \
         "a failed install ends its step, so the Build page never shows it still running"
 
 
