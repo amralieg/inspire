@@ -287,6 +287,7 @@ const LEAK_PATTERNS = [
   ['a Databricks object id', new RegExp(OBJECT_ID.source, 'i')],
   ['a warehouse id', new RegExp(WAREHOUSE_ID.source, 'i')],
   ['a workspace name', new RegExp(WORKSPACE_NAME.source, 'i')],
+  ['a home folder outside /Workspace', /(?<![A-Za-z0-9_-])(?<!\/Workspace)\/(?:Users|home)\/[A-Za-z0-9._-]+/],
 ];
 
 const escaped = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');

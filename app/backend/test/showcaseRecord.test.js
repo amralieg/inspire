@@ -301,6 +301,12 @@ test('the leak check finds every kind of leak and passes a clean bundle', () => 
   assert.deepEqual(R.showcaseLeaks({ a: R.DEMO_HOST, b: 'person1@example.com', d: '00000000-0000-4000-8000-aaaa00000001', e: 'app-demo00 x', g: 'app-access' }), []);
 });
 
+test('the leak check finds a Mac or Linux home folder and passes the demo person workspace folder', () => {
+  const kinds = R.showcaseLeaks({ m: 'read /Users/jane.analyst/Downloads/x.csv', l: 'at /home/jane/run.log' }).map((l) => l.replace(/ in \.\.\..*/, ''));
+  assert.deepEqual(kinds, ['bundle.m: a home folder outside /Workspace', 'bundle.l: a home folder outside /Workspace']);
+  assert.deepEqual(R.showcaseLeaks({ w: '/Workspace/Users/person@example.com/inspire', s: '/Workspace/Shared/inspire-ai', v: '/Volumes/demo_catalog/s/v' }), []);
+});
+
 test('the sanitizer and the leak check cover warehouse ids, Databricks object ids and bare workspace names, and leave short hex, words and their own fakes alone', () => {
   const WAREHOUSE = joined('a1b2', 'c3d4', 'e5f6', '0718');
   const WORKSPACE = ['dbc', '1a2b3c4d', '5e6f'].join('-');
