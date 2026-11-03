@@ -1,0 +1,199 @@
+"""v1.4.0 use-case kinds: the data check each kind needs before it is kept.
+
+1. A scenario needs at least two levers whose values move the outcome.
+2. A measured impact needs a control group with enough rows and enough history before the change.
+3. A process needs at least three distinct steps on real case rows.
+4. Each minimum is a runtime parameter, and a use case the instructions ask for stays with thin data.
+"""
+import json
+import os
+import sys
+from unittest.mock import MagicMock
+
+import pytest
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from v120_artifacts_support import FakeSpark  # noqa: E402
+from v120_genie_support import StatusRecorder, build_inspire  # noqa: E402
+
+ORDERS = "main.s.orders"
+COLUMNS = {ORDERS: {"order_id": "bigint", "status": "string", "event_time": "timestamp", "store": "string",
+                    "price": "double", "discount": "double", "units": "int"}}
+SCENARIO = {"levers": ["price", "discount"], "outcome": "units"}
+IMPACT = {"group": "store", "time": "event_time"}
+PROCESS = {"case_key": "order_id", "step": "status", "time": "event_time"}
+
+
+class Agent:
+    def __init__(self, answers):
+        self.answers = list(answers)
+        self.calls = []
+
+    def run_worker(self, step_name, worker_prompt_path, prompt_vars, response_schema=None, timeout_override=None,
+                   skip_cache=False, **_kw):
+        self.calls.append({"prompt": worker_prompt_path, "vars": dict(prompt_vars), "skip_cache": skip_cache})
+        return json.dumps(self.answers.pop(0) if self.answers else {"results": []})
+
+
+class Loader:
+    def get_metadata_evidence(self, tables):
+        return {t: {"columns": {name: {"name": name, "type": kind} for name, kind in COLUMNS[t].items()}, "foreign_keys": []}
+                for t in tables if t in COLUMNS}
+
+
+def uc(uc_id, technique, kind=None, **extra):
+    out = {"No": uc_id, "Name": f"Use case {uc_id}", "Analytics Technique": technique, "Tables Involved": ORDERS,
+           "Business Domain": "Sales", "Inspire Score": 4.0, "scoring_status": "scored", **extra}
+    if kind:
+        out["use_case_kind"] = kind
+    return out
+
+
+def answer(uc_id, roles):
+    return {"No": uc_id, "table": ORDERS, "roles": roles, "note": ""}
+
+
+def responder(rows):
+    def respond(statement):
+        for marker, row in rows.items():
+            if marker in statement:
+                return [row]
+        raise AssertionError(f"unexpected statement: {statement}")
+    return respond
+
+
+def deep_inspire(agent_ns, answers, rows, **attrs):
+    spark = FakeSpark(responder=responder(rows))
+    agent = Agent(answers)
+    inst = build_inspire(agent_ns, loader=Loader(), agent=agent)
+    inst.logger = MagicMock()
+    inst.discovery_type = "Deep"
+    inst.deep_evidence = agent_ns["DeepEvidence"](spark, "Deep", MagicMock())
+    inst.discovery_evidence = {"profiles": {ORDERS: {"rows": 1000, "sampled": False, "columns": {}}},
+                               "join_matches": [], "data_access": {}}
+    inst._emit_pipeline_status = StatusRecorder()
+    inst.user_business_domains = []
+    for key, value in attrs.items():
+        setattr(inst, key, value)
+    return inst, agent, spark
+
+
+ONE_LEVER = {"n": 1000, "c0": 0.4, "v0": 30, "c1": 0.01, "v1": 30}
+TWO_LEVERS = {"n": 1000, "c0": 0.4, "v0": 30, "c1": -0.2, "v1": 30}
+SHORT_HISTORY = {"n": 1000, "compared_groups": 2, "control_rows": 400, "span_days": 28, "periods": 28}
+LONG_HISTORY = {"n": 1000, "compared_groups": 2, "control_rows": 400, "span_days": 120, "periods": 120}
+TWO_STEPS = {"n": 1000, "steps": 2, "cases": 300, "periods": 60}
+FIVE_STEPS = {"n": 1000, "steps": 5, "cases": 300, "periods": 60}
+NAMES = {"levers": "price, discount", "outcome": "units", "group": "store", "step": "status"}
+
+
+@pytest.mark.parametrize("check,family,measures,fragment", [
+    ("scenario", "H", {"row_count": 1000, "moving_levers": 1, "strongest_lever_effect": 0.4},
+     "Too few of the named levers (price, discount) move units with a correlation of at least 0.05 (1); at least 2"),
+    ("impact", "I", {"row_count": 1000, "compared_groups": 1, "periods": 140},
+     "Too few values of store hold enough rows to compare a change against a control group (1)"),
+    ("impact", "I", {"row_count": 1000, "compared_groups": 2, "control_rows": 400, "history_weeks": 4.0, "periods": 28},
+     "too short a history (4.0 weeks); at least 8"),
+    ("process", "J", {"row_count": 1000, "steps": 2, "cases": 300, "periods": 60},
+     "The status column holds too few distinct steps (2); at least 3"),
+])
+def test_each_kind_check_drops_data_that_cannot_hold_it(agent_ns, check, family, measures, fragment):
+    passed, text = agent_ns["deep_signal_verdict"](family, measures, NAMES, check=check)
+    assert passed is False and fragment in text, text
+
+
+@pytest.mark.parametrize("check,family,measures,fragment", [
+    ("scenario", "H", {"row_count": 1000, "moving_levers": 2, "strongest_lever_effect": 0.4},
+     "The strongest named lever moves units with a correlation of 0.400; the levers at 0.05 or more number 2."),
+    ("impact", "I", {"row_count": 1000, "compared_groups": 2, "control_rows": 400, "history_weeks": 17.1, "periods": 120},
+     "The compared groups cover 17.1 weeks of history; the smaller group's row count is 400."),
+    ("process", "J", {"row_count": 1000, "steps": 5, "cases": 300, "periods": 60},
+     "Distinct steps in the process: 5; cases with two or more steps: 300."),
+])
+def test_data_that_holds_the_kind_passes_and_says_what_it_found(agent_ns, check, family, measures, fragment):
+    passed, text = agent_ns["deep_signal_verdict"](family, measures, NAMES, check=check)
+    assert passed is True and text == fragment, text
+
+
+@pytest.mark.parametrize("key,value,check,family,measures", [
+    ("signal_min_levers", 1, "scenario", "H", {"row_count": 1000, "moving_levers": 1, "strongest_lever_effect": 0.4}),
+    ("signal_min_impact_weeks", 4, "impact", "I",
+     {"row_count": 1000, "compared_groups": 2, "control_rows": 400, "history_weeks": 4.0, "periods": 28}),
+    ("signal_min_process_steps", 2, "process", "J", {"row_count": 1000, "steps": 2, "cases": 300, "periods": 60}),
+])
+def test_each_minimum_is_a_runtime_parameter(agent_ns, monkeypatch, key, value, check, family, measures):
+    runtime = agent_ns["TECHNICAL_CONTEXT"]["runtime"]
+    assert key in runtime
+    assert agent_ns["deep_signal_verdict"](family, measures, NAMES, check=check)[0] is False
+    monkeypatch.setitem(runtime, key, value)
+    assert agent_ns["deep_signal_verdict"](family, measures, NAMES, check=check)[0] is True
+
+
+def test_the_queries_read_values_and_the_measures_come_from_them(agent_ns):
+    sql, measures = agent_ns["DeepEvidence"].signal_sql, agent_ns["deep_signal_measures"]
+    scenario, _ = sql("scenario", "`t`", {"roles": SCENARIO})
+    assert "corr(l0, o)" in scenario and "corr(l1, o)" in scenario and "CAST(`discount` AS DOUBLE) AS l1" in scenario
+    assert measures("scenario", ONE_LEVER, {"roles": SCENARIO}) == {"row_count": 1000, "moving_levers": 1,
+                                                                     "strongest_lever_effect": 0.4}
+    flat = dict(TWO_LEVERS, v1=2)
+    assert measures("scenario", flat, {"roles": SCENARIO})["moving_levers"] == 1, "a lever with fewer than 3 values never moves"
+    impact, _ = sql("impact", "`t`", {"roles": IMPACT}, None, 25)
+    assert "WHERE k >= 25 ORDER BY k DESC LIMIT 2" in impact and "DATEDIFF(MAX(d), MIN(d))" in impact
+    assert measures("impact", SHORT_HISTORY, {"roles": IMPACT})["history_weeks"] == 4.0
+    assert measures("impact", dict(SHORT_HISTORY, compared_groups=1), {"roles": IMPACT}) == {"row_count": 1000, "compared_groups": 1,
+                                                                                         "periods": 28}
+    process, _ = sql("process", "`t`", {"roles": PROCESS}, 5000)
+    assert "pmod(xxhash64(`order_id`), 1000000) < 5000" in process, "cases are sampled whole, by their key"
+    assert measures("process", FIVE_STEPS, {"roles": PROCESS}, 0.5) == {"row_count": 2000, "steps": 5, "cases": 600,
+                                                                         "periods": 60}
+
+
+def test_the_check_follows_the_kind_and_drops_a_use_case_whose_data_cannot_hold_it(agent_ns):
+    ucs = [uc("N01-U01", "Simulation", "driver_scenarios"), uc("N01-U02", "Simulation", "driver_scenarios"),
+           uc("N01-U03", "Causal Impact"), uc("N01-U04", "Process Mining")]
+    answers = [{"results": [answer("N01-U01", SCENARIO), answer("N01-U02", SCENARIO), answer("N01-U03", IMPACT),
+                            answer("N01-U04", PROCESS)]}]
+    rows = {"corr(l0, o)": ONE_LEVER, "AS compared_groups": SHORT_HISTORY, "AS steps": TWO_STEPS}
+    inst, agent, spark = deep_inspire(agent_ns, answers, rows)
+    kept, dropped = inst._check_data_signal(ucs, [])
+    listing = agent.calls[0]["vars"]["use_cases_listing"]
+    assert "check: scenario" in listing and "check: impact" in listing and "check: process" in listing
+    assert kept == [] and [u["No"] for u in dropped] == ["N01-U01", "N01-U02", "N01-U03", "N01-U04"]
+    assert dropped[0]["selection_drop_reason"].startswith("the data shows no signal: Too few of the named levers")
+    assert "too short a history (4.0 weeks)" in dropped[2]["selection_drop_reason"]
+    assert "too few distinct steps (2)" in dropped[3]["selection_drop_reason"]
+
+
+def test_data_that_holds_each_kind_keeps_its_use_case(agent_ns):
+    ucs = [uc("N01-U01", "Simulation", "driver_scenarios"), uc("N01-U02", "Causal Impact"), uc("N01-U03", "Process Mining")]
+    answers = [{"results": [answer("N01-U01", SCENARIO), answer("N01-U02", IMPACT), answer("N01-U03", PROCESS)]}]
+    rows = {"corr(l0, o)": TWO_LEVERS, "AS compared_groups": LONG_HISTORY, "AS steps": FIVE_STEPS}
+    inst, _agent, _spark = deep_inspire(agent_ns, answers, rows)
+    kept, dropped = inst._check_data_signal(ucs, [])
+    assert [u["No"] for u in kept] == ["N01-U01", "N01-U02", "N01-U03"] and dropped == []
+    assert all(u["data_signal"]["status"] == "passed" for u in ucs)
+
+
+def test_a_simulation_stated_as_a_decide_kind_keeps_the_lever_check(agent_ns):
+    inst, _agent, _spark = deep_inspire(agent_ns, [], {})
+    assert inst._signal_check_of(uc("N01-U01", "Simulation", "inventory_replenishment")) == ("H", "lever")
+    assert inst._signal_check_of(uc("N01-U01", "Simulation", "driver_scenarios")) == ("H", "scenario")
+
+
+def test_a_use_case_the_instructions_ask_for_stays_with_thin_data(agent_ns):
+    ucs = [uc("N01-U01", "Process Mining", user_request="R1"), uc("N01-U02", "Process Mining")]
+    answers = [{"results": [answer("N01-U01", PROCESS), answer("N01-U02", PROCESS)]}]
+    inst, _agent, _spark = deep_inspire(agent_ns, answers, {"AS steps": TWO_STEPS}, parsed_generation_instructions={
+        "use_case_requests": [{"id": "R1", "ask": "an order process map", "minimum": 1}]})
+    kept, dropped = inst._check_data_signal(ucs, [])
+    assert [u["No"] for u in kept] == ["N01-U01"] and [u["No"] for u in dropped] == ["N01-U02"]
+    assert "too few distinct steps (2)" in ucs[0]["data_signal"]["reason"]
+
+
+def test_the_prompt_names_the_roles_of_each_kind_check(agent_ns):
+    prompt = agent_ns["PROMPT_TEMPLATES"]["SIGNAL_CHECK_PROMPT"]
+    assert '- scenario: "levers" lists 2 to 5 numeric columns' in prompt
+    assert '- impact: "group" is the column that separates the rows the change reached from the control rows' in prompt
+    assert '- process: "case_key" is the key of one case that moves through the steps' in prompt
+    assert '"series_key", "case_key" or "step", whose values Inspire only counts' in prompt
+
