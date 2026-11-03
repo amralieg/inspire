@@ -189,10 +189,66 @@ def test_render_refuses_every_spark_function_it_cannot_run_and_names_it(expressi
     ("unix_timestamp(category, 'yyyy')", "reads a time with the format"), ("trunc(month, 'FORTNIGHT')", "truncates dates to fortnight"),
     ("regexp_extract(category, 'a', 0)", "whole match"), ("timestampdiff(MILLISECOND, month, as_of_date)", "counts millisecond"),
     ("dateadd(MILLISECOND, 1, month)", "adds millisecond"), ("from_json(category)", "without naming its type"),
-    ("from_json(category, 'STRING')", "reads JSON as STRING")])
+    ("from_json(category, 'STRING')", "reads JSON as STRING"), ("timestamp_micros(1, 2)", "uses TIMESTAMP_MICROS in a form")])
 def test_render_refuses_forms_of_served_functions_that_postgres_cannot_match(expression, reason):
     with pytest.raises(shell_pg.NotServed, match=reason):
         shell_pg.render(f"SELECT {expression} AS x FROM {TREND_VIEW}", [], held_tables())
+
+
+DELTA_ONLY_BUILDERS = {"_changed_since": {"array_sort", "to_json"}, "uncached_sql": {"rand"}, "change_text_sql": {"format_string"},
+                       "reason_wording": {"regexp_replace"}, "_digest_money": {"format_number"}, "run_status_query": {"format_number"},
+                       "_covered_sql": {"transform", "filter"}}
+SQL_TYPES = {"DECIMAL", "VARCHAR", "CHAR"}
+
+
+def _spark_calls_by_builder():
+    import ast
+    import glob
+    import re
+    import sqlglot
+    found = {}
+    for path in sorted(glob.glob(os.path.join(SERVER, "*.py"))):
+        if os.path.basename(path) == "shell_pg.py":
+            continue
+        tree = ast.parse(open(path, encoding="utf-8").read())
+        patterns = {id(a) for n in ast.walk(tree) if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
+                    and isinstance(n.func.value, ast.Name) and n.func.value.id == "re" for a in n.args}
+        for fn in (n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef)):
+            for node in ast.walk(fn):
+                if not isinstance(node, ast.Constant) or not isinstance(node.value, str) or id(node) in patterns:
+                    continue
+                for name in re.findall(r"(?<![\w.`\\])([A-Za-z_][A-Za-z0-9_]*)\(", node.value):
+                    if name.upper() in SQL_TYPES:
+                        continue
+                    refused = None
+                    for args in ("a", "a, b", "a, b, c"):
+                        try:
+                            shell_pg.refuse_unserved(sqlglot.parse_one(f"SELECT {name}({args}) FROM t", read="databricks"))
+                            refused = False
+                            break
+                        except shell_pg.NotServed:
+                            refused = True
+                        except Exception:
+                            pass
+                    if refused:
+                        found.setdefault(fn.name, set()).add(name.lower())
+    return found
+
+
+def test_every_spark_function_the_shell_writes_that_lakebase_cannot_run_sits_only_in_a_builder_that_reads_delta():
+    found = _spark_calls_by_builder()
+    assert found["_changed_since"] == {"array_sort", "to_json"} and found["uncached_sql"] == {"rand"}, "the scan sees what Lakebase refuses"
+    assert "timestamp_micros" not in set().union(*found.values()), "the translator serves timestamp_micros"
+    assert {fn: names for fn, names in found.items() if not names <= DELTA_ONLY_BUILDERS.get(fn, set())} == {}, \
+        "a query the App may send to Lakebase uses a Spark function the translator refuses"
+    source = open(os.path.join(SERVER, "shell_core.py"), encoding="utf-8").read()
+    assert "shell_sql.changed_query(page, facts), 1, delta=True)" in source and "shell_sql.changed_ahead_query(page), 1, True)" in source
+    execute = source[source.index("    def execute("):source.index("    def catching_up(")]
+    assert execute.index("self.lakebase.run(") < execute.index("shell_sql.uncached_sql("), "only the Delta read is made uncached"
+    readers = "".join(open(os.path.join(SERVER, name), encoding="utf-8").read()
+                      for name in ("shell_core.py", "shell_alerts.py", "shell_facts.py", "shell_db.py", "app.py"))
+    for builder in ("change_text_sql", "reason_wording", "reasons_sql", "_digest_money", "run_status_query", "digest_query", "_covered_sql"):
+        assert builder not in readers, f"{builder} writes dashboard and digest SQL for the warehouse, never an App read"
 
 
 def test_render_keeps_date_formats_intact_while_escaping_percent_signs_for_psycopg():
@@ -983,6 +1039,10 @@ SPARK_ANSWERS = [
     ("second(ts)", 30), ("timestampdiff(HOUR, ts, TIMESTAMP '2026-02-01 10:20:30')", 24), ("timestampdiff(DAY, d, DATE '2026-03-02')", 30),
     ("timestampdiff(MONTH, DATE '2026-01-15', DATE '2026-04-20')", 3), ("dateadd(MONTH, 1, ts)", "2026-02-28T10:20:30.000Z"),
     ("unix_timestamp(ts)", int(A_TS)), ("from_unixtime(0)", "1970-01-01 00:00:00"), ("unix_micros(ts)", int(A_TS) * 1_000_000),
+    ("timestamp_micros(unix_micros(ts))", "2026-01-31T10:20:30.000Z"), ("timestamp_micros(0)", "1970-01-01T00:00:00.000Z"),
+    (f"unix_micros(timestamp_micros({int(A_TS) * 1_000_000 + 123457}))", int(A_TS) * 1_000_000 + 123457), ("unix_micros(timestamp_micros(-1))", -1),
+    ("timestamp_micros(unix_micros(ts) + 1) > ts", True), ("timestamp_micros(CAST(NULL AS BIGINT))", None),
+    ("unix_micros(timestamp_micros(pmod(-7, 3)))", 2), ("isnull(timestamp_micros(pmod(n, 2)))", False),
     ("date_format(d, 'yyyy-MM')", "2026-01"), ("date_format(d, 'MMM yyyy')", "Jan 2026"), ("date_format(d, 'dd/MM/yyyy')", "31/01/2026"),
     ("date_format(ts, 'yyyy-MM-dd HH:mm')", "2026-01-31 10:20"), ("to_date('2026-03-05')", "2026-03-05"),
     ("to_date('2026/03/05', 'yyyy/MM/dd')", "2026-03-05"), ("make_date(2026, 3, 5)", "2026-03-05"), ("CURRENT_DATE() >= DATE '2026-01-01'", True),

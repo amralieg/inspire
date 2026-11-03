@@ -108,18 +108,11 @@ def _typed(columns):
 
 @pytest.fixture(scope="module")
 def engine(postgres):  # noqa: F811
-    patch = pytest.MonkeyPatch()
-    patch.setattr(shell_pg, "refuse_unserved", lambda tree: None)
-
     def local(**kwargs):
         return psycopg.connect(host=postgres["host"], port=postgres["port"], dbname="postgres", user="inspire",
                                connect_timeout=kwargs["connect_timeout"], autocommit=kwargs["autocommit"])
 
     with local(connect_timeout=10, autocommit=True) as conn, conn.cursor() as cur:
-        cur.execute("CREATE OR REPLACE FUNCTION timestamp_micros(bigint) RETURNS timestamptz LANGUAGE sql IMMUTABLE AS "
-                    "$$ SELECT to_timestamp($1 / 1000000.0) $$")
-        cur.execute("CREATE OR REPLACE FUNCTION unix_micros(timestamptz) RETURNS bigint LANGUAGE sql IMMUTABLE AS "
-                    "$$ SELECT (extract(epoch FROM $1) * 1000000)::bigint $$")
         _create(cur, "facts_out", COLUMNS, SNAPSHOT)
         _create(cur, "facts_out_run_log", LOG_COLUMNS, log_rows())
     tables = {TABLE: {"pg": f"{PG_SCHEMA}.facts_out", "columns": _typed(COLUMNS)},
@@ -140,7 +133,6 @@ def engine(postgres):  # noqa: F811
 
     yield {"rows": rows, "write": write}
     lb.close()
-    patch.undo()
 
 
 HISTORY = {"log": shell_facts.table_name(LOG), "columns": [n for n, _t, _pg in COLUMNS], "tier": "priority_tier", "run_type": "STRING"}
@@ -590,6 +582,41 @@ def test_impact_and_the_overview_read_the_stored_closing_and_rebuild_it_only_for
         assert len(rebuilt) == 1, "the closing of the changed records is rebuilt once and shared by both screens"
         assert all("NOT IN (SELECT explode(from_json(" in sql and "inline(from_json(" in sql for sql, _p in closing)
         assert all(any(p["value"] == '["k1", "k2"]' for p in params) for _sql, params in closing)
+
+
+def _copies_of(sql):
+    return {name: {"pg": f"app.t{i}", "columns": [{"name": "x", "type": "STRING", "type_text": "STRING"}]}
+            for i, name in enumerate(sorted(shell_pg.dataset_reads(sql) or ()))}
+
+
+def test_every_query_a_page_with_run_facts_sends_to_lakebase_is_one_lakebase_runs_and_delta_gets_the_same_spark_sql(tmp_path):
+    from v145_lakebase_test import DELTA_ONLY_BUILDERS, read_routes
+    earlier = {"run_id": "r4", "tier": "Act now", "as_of_date": "2026-09-22", "ran_us": STAMP_US - 7 * 86400 * 1_000_000, "n": 3}
+    s, ws = _facts_shell(tmp_path, _ready_facts(runs=_ready_facts()["runs"] + [earlier]), changed_n=3)
+    sent, execute = [], s.execute
+    s.execute = lambda w, sql, params, limit, delta=False: sent.append((sql, params, delta)) or execute(w, sql, params, limit, delta)
+    body = {"page": "n01_u05", "filters": {}, "record_key": "k1", "title": "Loss", "kind": "chart", "context": {}}
+    query = {"page": "n01_u05", "record_key": "k1", "filter": "category", "q": "o", "offset": "0"}
+    for method, path in read_routes():
+        if not path.startswith("genie"):
+            status, out = call(s, method, path, query if method == "GET" else None, body=body if method == "POST" else None)
+            assert status < 500, (method, path, out)
+    s.check({})
+    on_lakebase = [(sql, params) for sql, params, delta in sent if not delta]
+    timed = [sql for sql, _params in on_lakebase if "timestamp_micros(" in sql]
+    assert len(on_lakebase) >= 30 and len(timed) >= 5, "the run facts path asks for the changes since the run by its stamp"
+    refused = {}
+    for sql, params in on_lakebase:
+        try:
+            shell_pg.render(sql, params, _copies_of(sql))
+        except shell_pg.NotServed as reason:
+            refused[shell_sql.error_text(reason)] = sql
+    assert refused == {}, refused
+    delta_only = {name for names in DELTA_ONLY_BUILDERS.values() for name in names} - {"rand"}
+    assert any(f"{name}(" in sql for sql, _p, delta in sent if delta for name in delta_only), "the change count is read on Delta"
+    assert not [sql for sql, _p in on_lakebase if any(f"{name}(" in sql for name in delta_only)]
+    warehouse = [sql for sql, _p, _l in ws.sql]
+    assert all(sql in warehouse for sql in timed), "a Delta App sends the same Spark SQL, timestamp_micros and all, to the warehouse"
 
 
 def test_an_unfiltered_list_counts_from_the_run_and_a_filtered_one_counts_up_to_the_cap(tmp_path):
