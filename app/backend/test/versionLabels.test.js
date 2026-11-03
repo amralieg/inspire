@@ -18,7 +18,7 @@ const LABELS = [
   ['a Version header', /^\*\*Version:\*\* v(\d\.\d\.\d)/gm],
   ['a Release header', /^\*\*Release v(\d\.\d\.\d)\*\*/gm],
   ['a Version badge', /badge\/Version-(\d\.\d\.\d)-/g],
-  ['the exec notes heading', /^## v(\d\.\d\.\d) — exec notes/gm],
+  ['the exec notes heading', /^## v(\d\.\d\.\d): exec notes/gm],
   ['the exec notes agent line', /`__AGENT_VERSION__ = v(\d\.\d\.\d)`/g],
   ['a written App description or title', /Inspire AI v(\d\.\d\.\d)/g],
 ];
