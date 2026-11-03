@@ -165,3 +165,11 @@ def test_existing_signal_keys_are_unchanged(agent_ns):
     for key in ("typed", "has_date", "has_numeric", "numeric_cols", "id_cols", "text_cols", "geo_cols", "stage_cols"):
         assert key in signals
     assert signals["has_date"] is True and signals["numeric_cols"] == ["amount", "order_id"]
+
+
+def test_the_labeling_call_is_a_registered_inline_prompt(agent_ns):
+    registered = {p["prompt_name"]: p for p in agent_ns["TECHNICAL_CONTEXT"]["prompts_models"]}
+    assert registered["label_column_roles"]["model_type"] == "worker"
+    assert registered["label_column_roles"]["temperature"] == 0.0
+    assert "label_column_roles" in agent_ns["INLINE_PROMPT_NAMES"]
+    assert "label_column_roles" not in agent_ns["PROMPT_TEMPLATES"]
