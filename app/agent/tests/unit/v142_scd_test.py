@@ -746,6 +746,9 @@ FACTS_PLAIN = {"names", "tier", "scope", "version", "previous", "label", "histor
 HISTORY_COUNTED = "{inspire_table_name(read_table)}"
 HISTORY_SCOPED = "{inspire_table_name(source_table)}"
 HISTORY_SCOPED_READS = ("SELECT CAST(", "WITH dated AS (SELECT CAST(")
+HISTORY_DATED = "{inspire_table_name(via['table'])}"
+HISTORY_DATED_READS = (f"SELECT CAST(r.{{inspire_column(via['date'])}} AS DATE) AS d FROM {HISTORY_SCOPED} m JOIN {HISTORY_DATED} r ON ",
+                       f"SELECT DISTINCT CAST({{inspire_column(via['key'])}} AS STRING) AS k FROM {HISTORY_DATED} WHERE ")
 KPI_READ = ("inspire_save_kpi", "spark.sql(query)", {"str(kpi.get('query') or '')"}, "_inspire_re.fullmatch(INSPIRE_KPI_QUERY, query)")
 HISTORY_CLONED = {"{inspire_table_name(table)}", "{inspire_table_name(result_table)}"}
 CLONE_SOURCE = re.compile(rf"\bCLONE\s+({guard.TARGET})", re.I)
@@ -779,7 +782,8 @@ def _history_problems(history):
     problems = [f"reads rows through the DataFrame API: {frame}" for frame in frames]
     problems += [f"{kind} {target}" for _, kind, target, sql in bad if target not in HISTORY_OBJECTS
                  and not (kind == "read" and target == HISTORY_COUNTED and sql.startswith(f"SELECT COUNT(*) AS n FROM {HISTORY_COUNTED}"))
-                 and not (kind == "read" and target == HISTORY_SCOPED and sql.startswith(HISTORY_SCOPED_READS))]
+                 and not (kind == "read" and target == HISTORY_SCOPED and sql.startswith(HISTORY_SCOPED_READS))
+                 and not (kind == "read" and target == HISTORY_DATED and sql.startswith(HISTORY_DATED_READS))]
     for _, sql, _, function in guard.SqlIndex(tree).sql_literals():
         scope = functions.get(function, tree)
         problems += [f"{{{name}}} in {function} is {sorted(_bound(scope, name))}" for name, bound in HISTORY_BOUND.items()
@@ -862,6 +866,8 @@ def test_the_history_helpers_touch_only_the_result_table_its_run_log_and_its_sta
     (f'    spark.sql(f"INSERT INTO {HISTORY_COUNTED} SELECT 1")\n', f"write {HISTORY_COUNTED}"),
     (f'    spark.sql(f"SELECT * FROM {HISTORY_SCOPED} LIMIT 5")\n', f"read {HISTORY_SCOPED}"),
     (f'    spark.sql(f"INSERT INTO {HISTORY_SCOPED} SELECT 1")\n', f"write {HISTORY_SCOPED}"),
+    (f'    spark.sql(f"SELECT * FROM {HISTORY_DATED} LIMIT 5")\n', f"read {HISTORY_DATED}"),
+    (f'    spark.sql(f"INSERT INTO {HISTORY_DATED} SELECT 1")\n', f"write {HISTORY_DATED}"),
 ])
 def test_the_history_guard_rejects_any_other_object(history_source, line, problem):
     assert history_source.count(ENSURE) == 1

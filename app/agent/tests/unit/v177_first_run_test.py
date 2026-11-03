@@ -383,6 +383,22 @@ def test_a_recent_period_through_a_date_table_reads_the_keys_of_its_newest_days(
         "a period read through a date table is another scope than the same column read as a date"
 
 
+@pytest.mark.parametrize("via", [{"table": DATE_DIM, "key": "d_date_sk"}, {"table": DATE_DIM, "key": " ", "date": "d_date"},
+                                 {"table": "date_dim", "key": "d_date_sk", "date": "d_date"}, "date_dim"])
+def test_a_date_table_named_only_in_part_is_refused_before_any_query(agent_ns, via):
+    held = _via_scope(agent_ns)
+    held["INSPIRE_RUN"]["scope"]["time_via"] = via
+    with pytest.raises(ValueError) as caught:
+        agent_ns["inspire_scope_choice"](scope=held)
+    assert "names only in part" in str(caught.value) or "three-level table name" in str(caught.value)
+
+
+def test_a_date_table_name_is_held_without_backticks_or_spaces(agent_ns):
+    held = _via_scope(agent_ns)
+    held["INSPIRE_RUN"]["scope"]["time_via"] = {"table": " `samples`.`tpcds_sf1`.`date_dim` ", "key": " d_date_sk", "date": "d_date "}
+    assert agent_ns["inspire_scope_choice"](scope=held)["via"] == VIA
+
+
 @pytest.mark.parametrize("keys, said", [(0, "no d_date_sk there falls since 2003-01-03"),
                                         (10001, "more than 10,000 values of d_date_sk fall since 2003-01-03")])
 def test_a_recent_period_through_a_date_table_with_no_key_or_too_many_is_refused(agent_ns, keys, said):
