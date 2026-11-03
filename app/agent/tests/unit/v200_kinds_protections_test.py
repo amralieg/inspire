@@ -485,6 +485,16 @@ def test_the_kind_comes_from_the_stored_field_or_the_technique_when_no_kind_is_s
     assert (stored["use_case_kind"], stored["kind_relabelled_from"]) == ("risk_propensity", "forecast")
 
 
+def test_every_kind_lookup_goes_through_the_one_kind_resolver(ns, monkeypatch):
+    calls = []
+    real = ns["_inspire_resolve_kind"]
+    monkeypatch.setitem(ns, "_inspire_resolve_kind", lambda value, technique=None: calls.append((value, technique)) or real(value, technique))
+    inst = _inst(ns)
+    catalog = inst._kind_catalog()
+    assert inst._kind_id_of("Process Mining", catalog) == "process_mining" and inst._kind_id_of("nope", catalog) == ""
+    assert inst._uc_kind_id({"Analytics Technique": "Forecasting"}, catalog) == "forecast"
+    assert ("Process Mining", None) in calls and (None, "Forecasting") in calls
+
 def test_a_family_named_by_its_label_excludes_every_kind_in_it(ns):
     inst = _inst(ns, parsed={"use_case_kinds": {"asked": [], "excluded": ["Detect and protect", "run processes"]}})
     assert inst._user_kind_directives() == ([], {"anomaly", "process_mining", "sla_aging"})
