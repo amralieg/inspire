@@ -70,6 +70,9 @@ def test_a_small_or_healthy_portfolio_after_the_drops_is_not_asked_again(agent_n
 
 def test_the_pipeline_regroups_after_the_data_signal_drops():
     source = agent_source()
-    signal = source.index("final_consolidated_use_cases, _signal_drops = self._check_data_signal(")
+    select = source.index("final_consolidated_use_cases, _selection_rejects = self._select_scored_use_cases(")
     regroup = source.index("self._regroup_themes_after_drops(final_consolidated_use_cases)")
-    assert 0 < regroup - signal < 200
+    assert 0 < regroup - select < 250
+    body = source[source.index("    def _select_scored_use_cases("):]
+    body = body[:body.index("\n    def ", 10)]
+    assert 0 < body.index("self._enforce_user_use_case_count(selected)") - body.index("self._check_data_signal(selected, schema_details)")

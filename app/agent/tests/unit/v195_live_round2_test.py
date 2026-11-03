@@ -175,3 +175,124 @@ def test_the_judge_spread_of_identical_scores_is_zero_and_of_none_is_empty(agent
     assert spread([{"bob_score": None}, {"bob_score": "x"}, {"bob_score": True}, {}]) == \
         {"n": 0, "sd": None, "min": None, "max": None}
     assert spread([{"bob_score": "8.25"}, {"bob_score": 6.25}])["sd"] == pytest.approx(1.414, abs=0.001)
+
+
+def _signal_stub(inst, failing):
+    inst.discovery_type = "Deep"
+    inst.deep_evidence = type("Deep", (), {"signal_spent_seconds": 0.0, "summary": lambda self: {}})()
+    inst._load_elite_evidence = lambda use_cases: {}
+    inst.asked = []
+
+    def ask(batch, _schema, skip_cache, evidence=None):
+        inst.asked += [uc["No"] for uc in batch]
+        return {uc["No"]: {"No": uc["No"]} for uc in batch}
+    inst._ask_signal_roles = ask
+    inst._signal_spec = lambda uc, item, evidence: ({"No": uc["No"]}, "")
+    inst._signal_record = lambda deep, spec, reason, profiles: (
+        {"status": "failed", "check": "lever", "reason": f"{spec['No']} does not move"} if spec["No"] in failing
+        else {"status": "passed", "check": "lever", "reason": "it moves"})
+    return inst
+
+
+def test_the_trim_fills_the_target_with_use_cases_the_data_backs(agent_ns):
+    inst = _fake_bob(_inspire(agent_ns, {"count": 93, "mode": "exactly"}))
+    ucs = _ucs(100, themes=40)
+    failing = {ucs[i]["No"] for i in (0, 5, 17, 40, 66, 90)}
+    _signal_stub(inst, failing)
+    out = inst._apply_best_of_best_selection(ucs, [], {})
+    assert len(out) == 93, "6 of the first 93 fail the data signal check, so the next 6 survivors take their places"
+    assert not {uc["No"] for uc in out} & failing
+    assert all(uc["data_signal"]["status"] == "passed" for uc in out)
+    assert sorted(inst.asked) == sorted({uc["No"] for uc in ucs[:99]}), "each use case is asked about once"
+    dropped = [uc for uc in ucs if uc["No"] in failing]
+    assert all(uc["selection_drop_reason"].startswith("the data shows no signal: ") for uc in dropped)
+    assert _funnel(inst, "stratified_trim")["out"] == 93
+
+
+def test_the_check_after_selection_does_not_ask_again_for_checked_use_cases(agent_ns):
+    inst = _fake_bob(_inspire(agent_ns, {"count": 93, "mode": "exactly"}))
+    ucs = _ucs(100, themes=40)
+    _signal_stub(inst, {ucs[3]["No"]})
+    out = inst._apply_best_of_best_selection(ucs, [], {})
+    asked = list(inst.asked)
+    kept, dropped = inst._check_data_signal(out, [])
+    assert inst.asked == asked and len(kept) == 93 and dropped == []
+
+
+def test_a_use_case_the_user_asked_for_is_not_dropped_by_the_check_before_the_trim(agent_ns):
+    requests = [{"id": "R1", "ask": "price elasticity use cases", "minimum": 1}]
+    inst = _fake_bob(_inspire(agent_ns, {"count": 93, "mode": "exactly"}, requests))
+    ucs = _ucs(100, themes=40)
+    ucs[95]["user_request"] = "R1"
+    _signal_stub(inst, {ucs[95]["No"], ucs[2]["No"]})
+    out = inst._apply_best_of_best_selection(ucs, [], {})
+    assert ucs[95] in out and ucs[95]["data_signal"]["status"] == "no_signal"
+    assert ucs[2] not in out and len(out) == 93
+
+
+def test_a_dropped_use_case_picked_again_for_a_domain_is_judged_on_its_first_record(agent_ns):
+    inst = _fake_bob(_inspire(agent_ns, domains=["Legal"]))
+    ucs = _ucs(20)
+    ucs[4]["Business Domain"] = "Legal"
+    _signal_stub(inst, {ucs[4]["No"]})
+    kept, dropped = inst._check_data_signal(ucs, [])
+    assert ucs[4] in kept and ucs[4]["data_signal"]["status"] == "no_signal", "the only Legal use case is kept"
+    asked = list(inst.asked)
+    inst.user_business_domains = []
+    ucs[4]["data_signal"] = {"status": "failed", "check": "lever", "reason": "U004 does not move"}
+    kept, dropped = inst._check_data_signal(ucs, [])
+    assert inst.asked == asked and dropped == [ucs[4]]
+
+
+def test_a_failed_check_after_selection_keeps_the_earlier_records(agent_ns):
+    inst = _fake_bob(_inspire(agent_ns, {"count": 93, "mode": "exactly"}))
+    ucs = _ucs(100, themes=40)
+    _signal_stub(inst, set())
+    out = inst._apply_best_of_best_selection(ucs, [], {})
+    extra = _ucs(101)[100]
+
+    def broken(*_a, **_kw):
+        raise RuntimeError("the endpoint is down")
+    inst._ask_signal_roles = broken
+    inst._signal_record = broken
+    kept, dropped = inst._check_data_signal(out + [extra], [])
+    assert len(kept) == 94 and dropped == []
+    assert all(uc["data_signal"]["status"] == "passed" for uc in out) and "data_signal" not in extra
+
+
+def test_too_few_backed_candidates_leave_the_count_short_and_the_log_says_why(agent_ns):
+    inst = _fake_bob(_inspire(agent_ns, {"count": 93, "mode": "exactly"}, use_cases_quality="Good"))
+    inst.quality_filter_acceptable = {"High", "Very High"}
+    ucs = _ucs(100, themes=40)
+    failing = {ucs[i]["No"] for i in range(0, 100, 10)}
+    _signal_stub(inst, failing)
+    selected, rejected = inst._select_scored_use_cases(ucs, [], {})
+    assert len(selected) == 90 and not {uc["No"] for uc in selected} & failing
+    assert {uc["No"] for uc in rejected} == failing
+    assert inst.logger.matching("[SIGNAL-BEFORE-TRIM FIRED] 10 use cases the data does not back")
+    short = inst.logger.matching("[USE-CASE-COUNT FIRED]", "WARNING")
+    assert short and "10 use cases left because the data shows no signal" in short[-1][1] and "never pads" in short[-1][1]
+
+
+def test_ultra_high_cuts_to_the_count_only_after_the_data_signal_check(agent_ns):
+    inst = _inspire(agent_ns, {"count": 4, "mode": "exactly"}, use_cases_quality="Ultra High")
+    ucs = _ucs(10, domains=("Sales",))
+    inst._select_elite_use_cases = lambda candidates, *_a: (list(candidates), list(candidates))
+    _signal_stub(inst, {"U001", "U002"})
+    selected, rejected = inst._select_scored_use_cases(ucs, [], {})
+    assert [uc["No"] for uc in selected] == ["U000", "U003", "U004", "U005"]
+    assert {"U001", "U002"} <= {uc["No"] for uc in rejected}
+
+
+def test_a_use_case_kept_only_for_its_domain_drops_once_a_backed_one_of_that_domain_joins(agent_ns):
+    inst = _fake_bob(_inspire(agent_ns, domains=["Legal"]))
+    ucs = _ucs(20)
+    ucs[4]["Business Domain"] = ucs[9]["Business Domain"] = "Legal"
+    _signal_stub(inst, {ucs[4]["No"]})
+    kept, dropped = inst._check_data_signal(ucs[:5], [])
+    assert ucs[4] in kept and ucs[4]["data_signal"]["status"] == "no_signal"
+    kept, dropped = inst._check_data_signal(ucs[:10], [])
+    assert dropped == [ucs[4]] and ucs[4]["data_signal"] == {"status": "failed", "check": "lever", "reason": "U004 does not move"}
+    assert ucs[4]["selection_drop_reason"] == "the data shows no signal: U004 does not move"
+    kept, dropped = inst._check_data_signal(ucs[:4] + [ucs[4]], [])
+    assert kept == ucs[:5] and ucs[4]["data_signal"]["status"] == "no_signal" and "selection_drop_reason" not in ucs[4]
