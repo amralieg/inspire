@@ -53,8 +53,6 @@ TECHNIQUE_OF = {"driver_breakdown": "Decomposition", "risk_propensity": "Classif
 def ns():
     namespace = _agentload.fresh_agent_namespace()
     namespace["_inspire_kinds"] = lambda: REGISTRY
-    namespace.setdefault("_inspire_kind_for_technique", lambda technique: next(
-        (kind for kind in REGISTRY["kinds"] if kind["id"] == REGISTRY["technique_kind"].get(str(technique or "").strip())), None))
     return namespace
 
 
@@ -397,7 +395,7 @@ def test_t4_skips_informational_kinds(ns):
 
 
 def test_t4_minimum_items_is_a_runtime_parameter_when_no_layout_sets_it(ns, rt):
-    uc = dict(_q5_uc("D1", *DECIDES, **{"Use Case Kind": ""}), Solution="Rank the top 5 suppliers each week.")
+    uc = dict(_q5_uc("D1", *DECIDES, kind="anomaly"), Solution="Rank the top 5 suppliers each week.")
     assert _q5(ns, [uc]) == ([], {"D1": "Q5_T4_TOO_FEW_ITEMS:5<20"})
     rt["decision_min_items_per_cycle"] = 5
     assert _q5(ns, [dict(uc)]) == (["D1"], {})
@@ -410,7 +408,8 @@ def test_d5_a_kind_whose_technique_it_does_not_allow_is_relabelled_to_the_techni
     inst = _inst(ns)
     kept, dropped = inst._phaseQ5_decision_readiness([mismatched, unmapped, matched], SCHEMA)
     assert [uc["No"] for uc in kept] == ["M1", "M2", "M3"] and dropped == []
-    assert (mismatched["Use Case Kind"], mismatched["kind_relabelled_from"]) == ("risk_propensity", "forecast")
+    assert (mismatched["use_case_kind"], mismatched["kind_relabelled_from"]) == ("risk_propensity", "forecast")
+    assert "Use Case Kind" not in mismatched
     assert "Q5_D5_KIND_TECHNIQUE_MISMATCH:forecast" in unmapped["gate_flags"] and unmapped["Use Case Kind"] == "forecast"
     assert matched["Use Case Kind"] == "forecast" and "kind_relabelled_from" not in matched
     assert _messages(inst, "[KIND-MATCH FIRED] 1 use case relabelled")
@@ -427,7 +426,7 @@ def test_d5_keeps_the_kind_of_a_use_case_the_instructions_ask_for(ns):
     asked_idea = _q5_uc("M2", *DECIDES, kind="forecast", user_request="R1", **{"Analytics Technique": "Classification"})
     other = _q5_uc("M3", *DECIDES, kind="anomaly", **{"Analytics Technique": "Classification"})
     _q5(ns, [asked_kind, asked_idea, other], parsed={"use_case_kinds": {"asked": ["Forecast"], "excluded": []}})
-    assert (asked_kind["Use Case Kind"], asked_idea["Use Case Kind"], other["Use Case Kind"]) == (
+    assert (asked_kind["Use Case Kind"], asked_idea["Use Case Kind"], other["use_case_kind"]) == (
         "forecast", "forecast", "risk_propensity")
 
 
@@ -471,3 +470,21 @@ def test_t1_the_scoring_listing_states_what_each_kind_must_hold_after_the_strip_
     assert must not in sections["P2"] and "Use Case Kind" not in sections["C1"]
     prompt = ns["PROMPT_TEMPLATES"]["BEST_OF_BEST_SCORING_PROMPT"]
     assert "score D9 0-2 if its design does not deliver that" in prompt
+
+
+def test_the_kind_comes_from_the_stored_field_or_the_technique_when_no_kind_is_stated(ns):
+    stored = _q5_uc("K1", *DECIDES, kind="forecast", **{"Solution": "Rank the top 5 suppliers for buyers to call."})
+    stored["use_case_kind"] = stored.pop("Use Case Kind")
+    stored["Analytics Technique"] = "Classification"
+    by_technique = _q5_uc("K2", *DECIDES, **{"Solution": "Rank the top 5 suppliers for buyers to call."})
+    by_technique.pop("Use Case Kind")
+    forecast = _q5_uc("K3", *DECIDES, kind="forecast", **{"Solution": "Rank the top 5 suppliers for buyers to call."})
+    forecast.pop("Use Case Kind")
+    assert _q5(ns, [stored, by_technique, forecast]) == (
+        ["K3"], {"K1": "Q5_T4_TOO_FEW_ITEMS:5<20", "K2": "Q5_T4_TOO_FEW_ITEMS:5<20"})
+    assert (stored["use_case_kind"], stored["kind_relabelled_from"]) == ("risk_propensity", "forecast")
+
+
+def test_a_family_named_by_its_label_excludes_every_kind_in_it(ns):
+    inst = _inst(ns, parsed={"use_case_kinds": {"asked": [], "excluded": ["Detect and protect", "run processes"]}})
+    assert inst._user_kind_directives() == ([], {"anomaly", "process_mining", "sla_aging"})

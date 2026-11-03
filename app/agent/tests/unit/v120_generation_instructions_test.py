@@ -44,7 +44,7 @@ class _Harness:
         cls = ns["DatabricksInspire"]
         self.section = cls.__dict__["_get_generation_instruction_for_prompt"].__get__(self, _Harness)
         self.interpret = cls.__dict__["_interpret_generation_instructions"].__get__(self, _Harness)
-        for name in ("_kind_catalog", "_kind_key", "_kind_id_of", "_user_kind_directives"):
+        for name in ("_kind_catalog", "_kind_id_of", "_user_kind_directives"):
             setattr(self, name, cls.__dict__[name].__get__(self, _Harness))
 
 
