@@ -2186,7 +2186,7 @@
    "value_formula": "incremental {kpi} net of promotion cost per promotion, from {signal_columns}; current estimate {value_at_stake}",
    "serving_template": "A lift readout for {owner} that measures what each intervention on {objects} really added, net of cost: app, dashboard, Genie room, alert.",
    "method_plain": {
-    "Causal Impact": "Causal impact: a control group or the period before (difference in differences or interrupted time series) separates the real effect on {kpi} from the trend."
+    "Causal Impact": "Causal impact: a control group or the values from before the change (difference in differences or interrupted time series) separates the real effect on {kpi} from the trend."
    },
    "strip_must_remain": "a control or pre-period baseline, the lift with its interval and significance, and the net value after cost",
    "genie": {
@@ -2267,7 +2267,7 @@
    "value_formula": "effect × units exposed, from {signal_columns}; current estimate {value_at_stake}",
    "serving_template": "A lift readout for {owner} that measures what each intervention on {objects} really added, net of cost: app, dashboard, Genie room, alert.",
    "method_plain": {
-    "Causal Impact": "Causal impact: a control group or the period before (difference in differences or interrupted time series) separates the real effect on {kpi} from the trend."
+    "Causal Impact": "Causal impact: a control group or the values from before the change (difference in differences or interrupted time series) separates the real effect on {kpi} from the trend."
    },
    "strip_must_remain": "a control group or a before period, an effect with its interval, and a check that the groups were comparable",
    "genie": {
