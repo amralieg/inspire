@@ -436,3 +436,88 @@ test('an output whose options an edit changed reads Rebuilding with its parts wh
   assert.deepEqual(rebuilding({ merge: { app: 'other-app' } }), [...partsOf.app].sort(), 'moving the App into another rebuilds it');
   assert.deepEqual(rebuilding({}), [], 'an unchanged version rebuilds nothing');
 });
+
+const VIBE_ASK = 'Show the region on every row';
+const AFTER_VIBE = {
+  [PAGE]: { state: 'ready', spec_version: 2, name: 'Decisions', vibes_checks: checksOf([VIBE_ASK, 'done', 'the page shows a region column']) },
+  checklist: [{ n: 1, requirement: VIBE_ASK, part: PAGE, where: 'App page decisions', status: 'met', evidence: 'the page shows a region column',
+    rounds: 1, tried: [], checks: [], published_anyway: null }],
+  checklist_summary: { met: 1, total: 1 },
+  vibe: { state: 'routed', text: VIBE_ASK, previous: 'remove', routes: { [PAGE]: VIBE_ASK }, not_routed: [], spec_version: 2 },
+  kept: { state: 'kept', assets: [] },
+  grants: { app: { 'churn-desk': { people: [{ name: 'planner@example.com', kind: 'user' }], service_principal: { name: '', sql: [], genie: [] } } } },
+  target_kpi: { name: 'Customers at risk', source: 'inspire', picked_by: 'inspire', computable: false },
+  pages: ['decisions'],
+  notes: 'free text',
+};
+const HELD_AFTER_VIBE = {
+  ...AFTER_VIBE,
+  checklist: [{ ...AFTER_VIBE.checklist[0], status: 'not_met', evidence: 'no region column' }],
+  checklist_summary: { met: 0, total: 1 },
+  held: { parts: ['app'], reason: 'the App page has no region column', candidates: ['app'], notebook: '', unmet: [] },
+};
+
+test('every edit after a vibe left a list-valued checklist plans, submits and shows the Build page, and the notebook the App launches skips record lists in its carry', async () => {
+  const nb = require('node:fs').readFileSync(path.resolve(__dirname, '..', '..', 'dbx_inspire_ai_agent.ipynb'), 'utf8');
+  assert.ok(nb.includes('entries = implement_asset_entries(row_status)'), 'the agent carry reads asset entries through implement_asset_entries');
+  assert.ok(nb.includes('return [(name, entry) for name, entry in status.items() if name not in IMPLEMENT_STATUS_RECORDS and isinstance(entry, dict)]'),
+    'implement_asset_entries drops every record and every entry that is not a dict');
+  const edits = [
+    ['a schedule change', { schedule: { enabled: true, cron: '0 0 6 ? * MON' } }],
+    ['a new vibe', { vibes: 'Put the riskiest customers first', vibe_previous: 'keep' }],
+    ['a rebuilt page', { outputs: { ...BASE.outputs, [`${PAGE}_vibes`]: 'Bigger rows' }, retry_outputs: [PAGE] }],
+    ['a rolled back App', { rollback_outputs: { app: 1 } }],
+    ['an unticked alert', { outputs: { ...BASE.outputs, alert: false, alert_recipients: [] }, removed_outputs: { alert: 'delete' } }],
+  ];
+  const histories = [
+    ['a ready version', [versionRow(2, { assets: AFTER_VIBE, top: { vibes: VIBE_ASK, vibe_previous: 'remove' } }), versionRow(1)], 2],
+    ['a held version', [versionRow(3, { status: I.IMPLEMENT_VIBE_NOT_MET, assets: { ...HELD_AFTER_VIBE, vibe: { ...AFTER_VIBE.vibe, spec_version: 3 } }, top: { vibes: VIBE_ASK, vibe_previous: 'remove' } }),
+      versionRow(2, { assets: AFTER_VIBE, top: { vibes: VIBE_ASK, vibe_previous: 'remove' } }), versionRow(1)], 3],
+  ];
+  for (const [kind, history, based] of histories) {
+    for (const [name, patch] of edits) {
+      await served(history, async (url, { sqlCalls, jobs }) => {
+        const sent = { ...BASE, based_on_version: based, ...patch };
+        const plan = await call(url, '/api/inspire/implement/plan', submitBody(sent));
+        assert.equal(plan.status, 200, `${kind}, ${name}: plan ${JSON.stringify(plan.data)}`);
+        const got = await call(url, '/api/inspire/implement/submit', submitBody(sent));
+        assert.equal(got.status, 200, `${kind}, ${name}: submit ${JSON.stringify(got.data)}`);
+        const stored = storedSpec(sqlCalls);
+        assert.ok(stored, `${kind}, ${name}: the next version is written`);
+        assert.equal(stored.spec.vibes ?? '', patch.vibes ?? '', `${kind}, ${name}: the vibe of the version before never carries`);
+        assert.equal(jobs.length, 1, `${kind}, ${name}: one build is launched`);
+      });
+    }
+  }
+
+  const [c, P, W] = await Promise.all([lib('implementControl.js'), lib('mvpProgress.js'), lib('implementWizard.js')]);
+  const fallback = W.defaultSpecFromUseCase({ use_case_id: 'N01-U01', Name: 'Predict churn' }, { warehouseId: 'wh1', inspireDatabase: 'main.inspire', sessionId: '42' });
+  for (const [kind, history] of histories) {
+    const rows = history.map(I.parseImplementRow);
+    const latest = rows[0];
+    assert.ok(Array.isArray(latest.asset_status.checklist), `${kind}: the checklist is a list`);
+    const cards = c.vibeCards(rows, latest);
+    assert.deepEqual(cards.filter((x) => ['checklist', 'checklist_summary', 'vibe', 'kept', 'grants', 'target_kpi', 'held', 'pages', 'notes'].includes(x.id)), [],
+      `${kind}: no record shows as an asset`);
+    assert.deepEqual(cards.find((x) => x.id === PAGE).checks.map((x) => x.ask), [VIBE_ASK], `${kind}: the page shows its checklist`);
+    const checklist = P.vibeChecklist(null, latest);
+    assert.equal(checklist.total, 1, kind);
+    assert.equal(P.vibeRouting([], latest).state, 'routed', kind);
+    assert.doesNotThrow(() => {
+      P.mvpStages([], latest);
+      P.statusProgress({ latest, steps: [] });
+      P.mvpScope([], latest);
+      c.controlTiles(null, latest);
+      c.controlRows(null, latest);
+      c.keptVersions(rows);
+      c.heldVersion(latest, rows);
+      W.retryableOutputs(latest);
+      W.rebuildableOutputs(latest);
+    }, kind);
+    const edited = W.specFromLatest(latest, fallback);
+    assert.equal(edited.vibes ?? '', latest.status === I.IMPLEMENT_VIBE_NOT_MET ? VIBE_ASK : '', `${kind}: Edit keeps the ask only of a held version, to put it another way`);
+    const next = W.nextSpecFrom(latest, { schedule: { enabled: false } });
+    assert.equal(Object.hasOwn(next, 'vibes'), false, `${kind}: a Build page action starts without the vibe`);
+    for (const spec of [edited, next]) assert.deepEqual(I.validateImplementSpec(spec).errors, [], `${kind}: the next spec is valid`);
+  }
+});
