@@ -95,8 +95,10 @@ def test_a_card_table_must_read_its_companion_table(page, section, companion):
 @pytest.mark.parametrize("change, fragment", [
     (lambda p: p.pop("segments"), "needs a segments section"),
     (lambda p: p["segments"].update(filter="nowhere"), "must be a multi_select filter"),
-    (lambda p: p["filters"][1]["columns"].pop("segments"), "must map the records dataset and the segment cards dataset"),
-    (lambda p: p["filters"][1]["columns"].pop("records"), "must map the records dataset and the segment cards dataset"),
+    (lambda p: p["filters"][1]["columns"].pop("segments"), "must map the records dataset and the segment_id column of the segment cards dataset"),
+    (lambda p: p["filters"][1]["columns"].pop("records"), "must map the records dataset and the segment_id column of the segment cards dataset"),
+    (lambda p: p["filters"][1]["columns"].update(segments="label"), "so picking a card shows its segment"),
+    (lambda p: p["records"].update(column_filters=False), "so its decision list keeps its column filters"),
     (lambda p: p["segments"].update(treatments=["Only one"]), "needs 2 to 6 treatments; it has 1"),
     (lambda p: p["segments"].update(treatments=[f"T{i}" for i in range(7)]), "needs 2 to 6 treatments; it has 7"),
     (lambda p: p["segments"].update(treatments=["Win back", "win back"]), "each segment treatment is named once"),
@@ -130,6 +132,35 @@ def test_the_recommendation_desk_names_its_entity_score_reasons_and_action(chang
 
 def test_the_recs_section_takes_three_per_entity_when_it_names_none():
     assert problems(changed(RECS, lambda p: p["recs"].pop("per_entity"))) == []
+
+
+def test_the_recs_entity_must_be_a_name_the_lookup_finds():
+    found = problems(changed(RECS, lambda p: p["recs"].update(entity="customer_id")))
+    assert "the recs entity customer_id must be the label, sublabel or key of the decision list, so a person can look an entity up by name" in found
+    assert problems(changed(RECS, lambda p: p["recs"].update(entity="item"))) == []
+    assert problems(changed(RECS, lambda p: p["recs"].update(entity="entity_id"))) == []
+
+
+def promotion(p):
+    return next(f for f in p["filters"] if f["id"] == "promotion")
+
+
+@pytest.mark.parametrize("change", [
+    lambda p: p.update(filters=[f for f in p["filters"] if f["id"] != "promotion"]),
+    lambda p: promotion(p)["columns"].update(effects="metric"),
+    lambda p: promotion(p).update(type="text"),
+])
+def test_a_lift_readout_effect_card_needs_a_filter_that_picks_one_intervention(change):
+    found = problems(changed(LIFT, change))
+    assert any("in effect_card needs a multi_select filter on the intervention column of its effects dataset" in p for p in found), found
+
+
+def test_the_lift_readout_promotion_filter_reaches_the_cards_the_list_the_waterfall_and_the_curves():
+    assert promotion(LIFT)["columns"] == {"records": "entity_id", "effects": "intervention", "curves": "promo_id", "steps": "intervention"}
+    assert shell_sql.pick_filter(LIFT, "effects", "intervention") == "promotion"
+    assert shell_sql.pick_filter(LIFT, "effects", "metric") is None
+    assert shell_sql.effect_problems(LIFT) == []
+    assert not any("intervention column" in p for p in problems(changed(SEGMENT, lambda p: p["filters"].pop(1))))
 
 
 @pytest.mark.parametrize("page, key, layout", [

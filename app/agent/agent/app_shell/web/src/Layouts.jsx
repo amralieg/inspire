@@ -19,13 +19,13 @@ const TODO_ROWS = 5;
 
 const scrollTo = (section) => document.querySelector(`[data-section="${section}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 
-export function useList(pageId, filters, ready, nonce, limit, on = true) {
+export function useList(pageId, filters, ready, nonce, limit, on = true, view = null) {
   const [state, setState] = useState({ data: null, error: '' });
-  const key = JSON.stringify(filters || {});
+  const key = JSON.stringify([filters || {}, view || {}]);
   useEffect(() => {
     if (!ready || !on) return undefined;
     let live = true;
-    getRecords({ page: pageId, filters: filters || {}, offset: 0, limit })
+    getRecords({ ...(view || {}), page: pageId, filters: filters || {}, offset: 0, limit })
       .then((data) => live && setState({ data, error: '' }))
       .catch((e) => live && setState({ data: null, error: e.message }));
     return () => { live = false; };
@@ -201,7 +201,7 @@ export function PlanTable({ page, app, filters, ready, nonce, onChanged }) {
 
 const SCENARIO_HOLDS = ['levers', 'scenario', 'target'];
 
-export function LayoutSections({ page, app, ready, nonce, filters, onChanged, onAsk, kpisOf, records, chartCards, tableCard, data }) {
+export function LayoutSections({ page, app, ready, nonce, filters, onChanged, onAsk, kpisOf, records, chartCards, tableCard, data, onPick }) {
   const sections = page.layout?.sections || [];
   const holds = page.layout?.holds || {};
   const placed = new Set();
@@ -215,7 +215,7 @@ export function LayoutSections({ page, app, ready, nonce, filters, onChanged, on
       return hero.length ? <div key={section} className="objective" data-section={section}>{kpisOf(hero, false)}</div> : null;
     }
     const Part = SECTION_PARTS[section];
-    if (Part) return <div key={section} data-section={section}><Part page={page} app={app} ready={ready} nonce={nonce} filters={filters} onChanged={onChanged} onAsk={onAsk} data={data} records={records} /></div>;
+    if (Part) return <div key={section} data-section={section}><Part page={page} app={app} ready={ready} nonce={nonce} filters={filters} onChanged={onChanged} onAsk={onAsk} data={data} records={records} onPick={onPick} /></div>;
     if (hold === 'plan' || hold === 'records') {
       if (page.plan) return <div key={section} data-section={section}>{plan(section)}</div>;
       return records ? <div key={section} data-section={section}>{records}</div> : null;

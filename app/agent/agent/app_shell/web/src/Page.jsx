@@ -390,7 +390,7 @@ export default function Page({ app, page, meta, state, onState, themeKey, onAsk,
           {error && <p className="tile-err" role="alert"><Icon name="info" size={14} />{error}</p>}
           {laidOut && (
             <LayoutSections page={page} app={app} ready={ready} nonce={nonce} filters={filters} onChanged={() => setNonce((n) => n + 1)} onAsk={onAsk}
-              kpisOf={kpisOf} records={recordsCard} chartCards={(charts) => chartCards(charts)} tableCard={tableCard} data={data} />
+              kpisOf={kpisOf} records={recordsCard} chartCards={(charts) => chartCards(charts)} tableCard={tableCard} data={data} onPick={pick} />
           )}
           {!hubPage && !laidOut && (
             <Placed slots={slotsOf(plan, 'kpis')}>

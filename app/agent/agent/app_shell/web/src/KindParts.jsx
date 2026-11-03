@@ -17,6 +17,7 @@ export const SIGNIFICANT = 0.05;
 export const LAZY_CHARTS = ['treemap', 'radar', 'sankey'];
 export const SKIP_REASONS = ['Not a fit for them', 'They already have it', 'Bad timing', 'Too many offers already'];
 export const TREATMENT_NOTE = 'Treatment';
+export const UNTREATED = { column_filters: { action_status: ['New'] } };
 
 const ExtraCharts = lazy(() => import('./echartsKinds.js').then(() => ({ default: ({ children }) => children })));
 
@@ -55,9 +56,25 @@ export function groupByEntity(rows, entity, rank, perEntity) {
 
 export function effectVerdict(row) {
   const p = row.p_value == null ? null : numberOf(row.p_value);
+  const pText = p == null ? 'unknown' : p < 0.001 ? '<0.001' : p.toFixed(3);
   const crosses = row.lower != null && row.upper != null && numberOf(row.lower) <= 0 && numberOf(row.upper) >= 0;
-  if (p != null && p < SIGNIFICANT && !crosses) return { real: true, text: `The lift is real: p = ${p < 0.001 ? '<0.001' : p.toFixed(3)}` };
-  return { real: false, text: crosses ? 'Not proven: the range includes no lift at all' : `Not proven: p = ${p == null ? 'unknown' : p.toFixed(3)}` };
+  const below = row.upper != null ? numberOf(row.upper) < 0 : p != null && p < SIGNIFICANT && numberOf(row.effect) < 0;
+  if (below) return { state: 'loses', real: false, text: `It loses: the whole range is below no lift, p = ${pText}` };
+  if (p != null && p < SIGNIFICANT && !crosses) return { state: 'real', real: true, text: `The lift is real: p = ${pText}` };
+  return { state: 'unproven', real: false, text: crosses ? 'Not proven: the range includes no lift at all' : `Not proven: p = ${pText}` };
+}
+
+export function pickedIn(filters, filter, value) {
+  return !!filter && (filters?.[filter] || []).map(String).includes(String(value));
+}
+
+function PickButton({ filter, value, label, filters, onPick, what }) {
+  if (!filter || !onPick) return <h3>{label}</h3>;
+  const on = pickedIn(filters, filter, value);
+  return (
+    <h3><button type="button" className="pick-title" aria-pressed={on} data-pick={value} title={on ? `Show every ${what} again` : `Show only ${label}`}
+      onClick={() => onPick(filter, value)}>{label}</button></h3>
+  );
 }
 
 const isClosed = (row) => CLOSED_STATUSES.includes(row._inspire_status || row.action_status);
@@ -165,8 +182,21 @@ function TakeAll({ count, busy, onClick }) {
   return <button type="button" className="btn btn--sm btn--pri" disabled={!!busy} onClick={onClick} data-take-all>{count === 1 ? 'Take the ★ suggestion' : `Take all ${integer(count)} ★ suggestions`}</button>;
 }
 
+function Lookup({ label, value, onLook }) {
+  const [text, setText] = useState(value);
+  useEffect(() => setText(value), [value]);
+  return (
+    <form className="rec-look" role="search" onSubmit={(e) => { e.preventDefault(); onLook(text.trim()); }}>
+      <input type="search" aria-label={`Look up a ${label}`} placeholder={`Look up a ${label}`} value={text} onChange={(e) => setText(e.target.value)} data-rec-search />
+      <button type="submit" className="btn btn--sm">Look up</button>
+      {value && <button type="button" className="link" onClick={() => onLook('')}>Show all</button>}
+    </form>
+  );
+}
+
 export function RecList({ page, app, filters, ready, nonce, onChanged, onAsk }) {
-  const list = useList(page.id, filters, ready, nonce, LIST_ROWS);
+  const [search, setSearch] = useState('');
+  const list = useList(page.id, filters, ready, nonce, LIST_ROWS, true, search ? { search } : null);
   const choices = page.choices || [];
   const recs = page.recs || {};
   const meta = page.records || {};
@@ -178,9 +208,11 @@ export function RecList({ page, app, filters, ready, nonce, onChanged, onAsk }) 
   const shownRows = groups.flatMap(([, items]) => items);
   const open = shownRows.filter((r) => !isClosed(r) && suggest(r)).length;
   const scoreMeta = (meta.columns || []).find((c) => c.column === recs.score);
+  const who = String((meta.columns || []).find((c) => c.column === recs.entity)?.label || 'name').toLowerCase();
   return (
     <ListShell title={meta.title || 'Recommendations'} hint={meta.hint} section="rec_list" list={list} error={decide.error}
-      empty="No recommendations for these filters." actions={can && <TakeAll count={open} busy={decide.busy} onClick={() => decide.takeAll(shownRows, suggest)} />}>
+      empty={search ? `Nothing matches ${search}.` : 'No recommendations for these filters.'}
+      actions={<><Lookup label={who} value={search} onLook={setSearch} />{can && <TakeAll count={open} busy={decide.busy} onClick={() => decide.takeAll(shownRows, suggest)} />}</>}>
       {groups.map(([entity, items]) => (
         <div key={entity} className="rec-entity" data-rec-entity={entity}>
           <h3>{entity}<AskButton app={app} page={page} onAsk={onAsk} label={entity} question={`What should we offer ${entity} first, and why?`} /></h3>
@@ -231,16 +263,21 @@ function useSegmentCounts(page, ids, ready, nonce) {
   useEffect(() => {
     if (!ready || !filter || !ids.length) return undefined;
     let live = true;
-    Promise.all(ids.map((id) => getRecords({ page: page.id, filters: { [filter]: [id] }, offset: 0, limit: 1 })
-      .then((data) => [id, { open: data.summary?.open ?? data.total ?? 0, total: data.total ?? 0, asOf: listAsOf(data), actions: !!data.actions }])
-      .catch((e) => [id, { error: e.message }])))
+    getRecords({ page: page.id, filters: {}, offset: 0, limit: 1 })
+      .then((probe) => {
+        const view = probe.actions ? UNTREATED : {};
+        return Promise.all(ids.map((id) => getRecords({ ...view, page: page.id, filters: { [filter]: [id] }, offset: 0, limit: 1 })
+          .then((data) => [id, { waiting: data.total ?? 0, asOf: listAsOf(data), actions: !!data.actions, view }])
+          .catch((e) => [id, { error: e.message }])));
+      })
+      .catch((e) => ids.map((id) => [id, { error: e.message }]))
       .then((pairs) => live && setCounts(Object.fromEntries(pairs)));
     return () => { live = false; };
   }, [page.id, filter, key, ready, nonce]);
   return counts;
 }
 
-export function SegmentCards({ page, app, ready, nonce, onChanged, onAsk, data, records }) {
+export function SegmentCards({ page, app, ready, nonce, filters, onChanged, onAsk, onPick, data, records }) {
   const table = sectionTable(page, 'segment_cards');
   const result = table ? data?.tables?.[table.id] : null;
   const failed = table ? data?.errors?.[`table:${table.id}`] : '';
@@ -255,13 +292,13 @@ export function SegmentCards({ page, app, ready, nonce, onChanged, onAsk, data, 
   const choose = async (row, treatment) => {
     const id = String(row.segment_id);
     const c = counts[id] || {};
-    if (!c.asOf) return;
+    if (!c.asOf || !c.waiting) return;
     setPicked((all) => ({ ...all, [id]: treatment }));
-    await decide.run(`seg:${id}`, { match: matchOf({ filters: { [block.filter]: [id] } }, c.asOf) }, treatmentValues(treatment),
-      `${treatment} chosen for ${integer(c.open)} members of ${row.label}`);
+    await decide.run(`seg:${id}`, { match: matchOf({ ...c.view, filters: { [block.filter]: [id] } }, c.asOf) }, treatmentValues(treatment),
+      `${treatment} chosen for ${integer(c.waiting)} members of ${row.label}`);
   };
   const suggestedOf = (row) => (block.suggest && (block.treatments || []).find((t) => t.toLowerCase() === String(row[block.suggest] ?? '').toLowerCase())) || null;
-  const waiting = rows.filter((r) => suggestedOf(r) && (counts[String(r.segment_id)]?.open || 0) > 0 && !picked[String(r.segment_id)]);
+  const waiting = rows.filter((r) => suggestedOf(r) && (counts[String(r.segment_id)]?.waiting || 0) > 0 && !picked[String(r.segment_id)]);
   return (
     <>
       <section className="card segments" aria-label={table?.title || 'Segments'} data-part="segment_cards">
@@ -279,20 +316,23 @@ export function SegmentCards({ page, app, ready, nonce, onChanged, onAsk, data, 
             const c = counts[id] || {};
             const star = suggestedOf(row);
             const chosen = picked[id];
+            const done = c.actions && c.waiting === 0;
             return (
-              <article key={id} className="seg-card" data-card={`segment:${id}`} data-segment={id}>
-                <header><h3>{row.label}</h3><AskButton app={app} page={page} onAsk={onAsk} label={row.label} question={`What sets the ${row.label} segment apart, and which treatment fits it?`} /></header>
+              <article key={id} className={`seg-card${pickedIn(filters, block.filter, id) ? ' is-picked' : ''}`} data-card={`segment:${id}`} data-segment={id}>
+                <header><PickButton filter={block.filter} value={id} label={row.label} filters={filters} onPick={onPick} what="segment" /><AskButton app={app} page={page} onAsk={onAsk} label={row.label} question={`What sets the ${row.label} segment apart, and which treatment fits it?`} /></header>
                 <dl>
                   <div><dt>{cols.size?.label || 'Size'}</dt><dd>{shown(cols.size || { format: 'integer' }, row.size)}</dd></div>
                   <div><dt>{cols.value?.label || 'Value'}</dt><dd>{shown(cols.value || { format: 'number' }, row.value)}</dd></div>
                 </dl>
                 {row.profile != null && <p className="seg-profile">{String(row.profile).slice(0, 160)}</p>}
-                <p className="seg-wait" data-seg-open>{c.error ? c.error : c.total == null ? 'Counting members…' : `${integer(c.open)} of ${integer(c.total)} members waiting`}</p>
+                <p className="seg-wait" data-seg-open>{c.error ? c.error : c.waiting == null ? 'Counting members…'
+                  : !c.actions ? `${plural(c.waiting, 'member')} in the decision list` : done ? 'Every member has a treatment or a decision'
+                  : `${integer(c.waiting)} of ${shown(cols.size || { format: 'integer' }, row.size)} members still need a treatment`}</p>
                 {chosen && <p className="choice-done" data-decided><Icon name="check" size={13} />{TREATMENT_NOTE}: {chosen}</p>}
                 {can && c.actions && (
                   <div className="seg-act" role="group" aria-label={`Treatment for ${row.label}`}>
                     {(block.treatments || []).map((t) => (
-                      <button key={t} type="button" className={`btn btn--sm ${star === t ? 'btn--pri' : ''}`} disabled={!!decide.busy || !c.asOf || !c.open}
+                      <button key={t} type="button" className={`btn btn--sm ${star === t ? 'btn--pri' : ''}`} disabled={!!decide.busy || !c.asOf || !c.waiting}
                         data-treatment={t} onClick={() => choose(row, t)}>{star === t && <span aria-hidden="true">★ </span>}{t}</button>
                     ))}
                   </div>
@@ -307,7 +347,7 @@ export function SegmentCards({ page, app, ready, nonce, onChanged, onAsk, data, 
   );
 }
 
-export function EffectCard({ page, app, onAsk, data }) {
+export function EffectCard({ page, app, onAsk, data, filters, onPick }) {
   const table = sectionTable(page, 'effect_card');
   const result = table ? data?.tables?.[table.id] : null;
   const failed = table ? data?.errors?.[`table:${table.id}`] : '';
@@ -324,11 +364,12 @@ export function EffectCard({ page, app, onAsk, data }) {
         {rows.map((row, i) => {
           const verdict = effectVerdict(row);
           return (
-            <article key={`${row.intervention}:${i}`} className={`effect ${verdict.real ? 'is-real' : 'is-unproven'}`} data-card={`effect:${row.intervention}`}>
-              <header><h3>{row.intervention}</h3><AskButton app={app} page={page} onAsk={onAsk} label={String(row.intervention)} question={`Is the lift of ${row.intervention} real, and what did it net?`} /></header>
+            <article key={`${row.intervention}:${i}`} className={`effect is-${verdict.state}${pickedIn(filters, cols.intervention?.filter, row.intervention) ? ' is-picked' : ''}`}
+              data-card={`effect:${row.intervention}`}>
+              <header><PickButton filter={cols.intervention?.filter} value={row.intervention} label={row.intervention} filters={filters} onPick={onPick} what="intervention" /><AskButton app={app} page={page} onAsk={onAsk} label={String(row.intervention)} question={`Is the lift of ${row.intervention} real, and what did it net?`} /></header>
               <p className="effect-lift"><b>{shown(cols.effect, row.effect)}</b> <span>{cols.effect?.label || 'Lift'}</span></p>
               <p className="effect-range">Range {shown(cols.lower || cols.effect, row.lower)} to {shown(cols.upper || cols.effect, row.upper)}</p>
-              <p className="effect-verdict" data-verdict={verdict.real ? 'real' : 'unproven'}>{verdict.text}</p>
+              <p className="effect-verdict" data-verdict={verdict.state}>{verdict.text}</p>
               <dl>
                 <div><dt>{cols.roi?.label || 'ROI'}</dt><dd>{shown(cols.roi || { format: 'percent' }, row.roi)}</dd></div>
                 {cols.incremental_value && <div><dt>{cols.incremental_value.label}</dt><dd>{shown(cols.incremental_value, row.incremental_value)}</dd></div>}

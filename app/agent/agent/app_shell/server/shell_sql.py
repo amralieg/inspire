@@ -4900,9 +4900,12 @@ def segments_problems(page: dict) -> list:
     cards = [t.get("dataset") for t in section_items(page, "segment_cards") if t in (page.get("tables") or [])]
     if found is None or found.get("type") != "multi_select":
         problems.append(f"the segments filter {block.get('filter')!r} must be a multi_select filter of the page")
-    elif RECORDS_DATASET not in (found.get("columns") or {}) or any(d not in (found.get("columns") or {}) for d in cards):
-        problems.append(f"the segments filter {block.get('filter')} must map the {RECORDS_DATASET} dataset and the segment cards dataset, "
-                        "so choosing a treatment for a segment reaches all of its members")
+    elif RECORDS_DATASET not in (found.get("columns") or {}) or any((found.get("columns") or {}).get(d) != "segment_id" for d in cards):
+        problems.append(f"the segments filter {block.get('filter')} must map the {RECORDS_DATASET} dataset and the segment_id column of the "
+                        "segment cards dataset, so picking a card shows its segment and its treatment reaches all of its members")
+    if (page.get("records") or {}).get(COLUMN_FILTERS) is False:
+        problems.append("a segment explorer counts the members of each segment that still need a treatment by their status, so its decision "
+                        "list keeps its column filters")
     treatments = block.get("treatments") if isinstance(block.get("treatments"), list) else []
     low, high = SEGMENT_TREATMENTS
     if not low <= len(treatments) <= high:
@@ -4930,7 +4933,22 @@ def recs_problems(page: dict) -> list:
         problems.append(f"the recs per_entity must be a whole number from {low} to {high}")
     if not IDENT.match(str((page.get("records") or {}).get("reasons") or "")):
         problems.append("a recommendation desk shows why each item is offered, so its decision list needs a reasons column")
+    named = [(page.get("records") or {}).get(k) for k in ("label", "sublabel", "key")]
+    if IDENT.match(str(block.get("entity") or "")) and block.get("entity") not in named:
+        problems.append(f"the recs entity {block.get('entity')} must be the label, sublabel or key of the decision list, so a person can look an "
+                        "entity up by name")
     return problems
+
+
+def pick_filter(page: dict, dataset, column: str):
+    return next((f.get("id") for f in page.get("filters") or [] if isinstance(f, dict) and f.get("type") == "multi_select"
+                 and (f.get("columns") or {}).get(dataset) == column), None)
+
+
+def effect_problems(page: dict) -> list:
+    return [f"table {t.get('id')} in effect_card needs a multi_select filter on the intervention column of its {t.get('dataset')} dataset, so a "
+            "person can pick one intervention and read its waterfall, curves and decision alone"
+            for t in section_items(page, "effect_card") if t in (page.get("tables") or []) and pick_filter(page, t.get("dataset"), "intervention") is None]
 
 
 def part_problems(page: dict) -> list:
@@ -4944,6 +4962,8 @@ def part_problems(page: dict) -> list:
         problems += segments_problems(page)
     if ident == "recommendation_desk":
         problems += recs_problems(page)
+    if ident == "lift_readout":
+        problems += effect_problems(page)
     if layout_choices(ident) and not IDENT.match(str((page.get("records") or {}).get("action") or "")):
         problems.append(f"a {ident} page marks a suggested choice on each row, so its decision list needs an action column")
     if ident == DEFAULT_LAYOUT:

@@ -31,7 +31,7 @@
     },
     {
       "name": "steps",
-      "sql": "SELECT 1 AS step, 'Sales added' AS label, p.channel, e.incremental_value AS amount FROM main.marketing.promo_lift_out__effect AS e JOIN main.marketing.promotions AS p ON p.promo_id = e.intervention UNION ALL SELECT 2, 'Promotion cost', p.channel, -e.cost FROM main.marketing.promo_lift_out__effect AS e JOIN main.marketing.promotions AS p ON p.promo_id = e.intervention UNION ALL SELECT 3, 'Net added', p.channel, e.incremental_value - e.cost FROM main.marketing.promo_lift_out__effect AS e JOIN main.marketing.promotions AS p ON p.promo_id = e.intervention"
+      "sql": "SELECT 1 AS step, 'Sales added' AS label, e.intervention, p.channel, e.incremental_value AS amount FROM main.marketing.promo_lift_out__effect AS e JOIN main.marketing.promotions AS p ON p.promo_id = e.intervention UNION ALL SELECT 2, 'Promotion cost', e.intervention, p.channel, -e.cost FROM main.marketing.promo_lift_out__effect AS e JOIN main.marketing.promotions AS p ON p.promo_id = e.intervention UNION ALL SELECT 3, 'Net added', e.intervention, p.channel, e.incremental_value - e.cost FROM main.marketing.promo_lift_out__effect AS e JOIN main.marketing.promotions AS p ON p.promo_id = e.intervention"
     },
     {
       "name": "curves",
@@ -59,6 +59,17 @@
         "effects": "channel",
         "curves": "channel",
         "steps": "channel"
+      }
+    },
+    {
+      "id": "promotion",
+      "type": "multi_select",
+      "label": "Promotion",
+      "columns": {
+        "records": "entity_id",
+        "effects": "intervention",
+        "curves": "promo_id",
+        "steps": "intervention"
       }
     },
     {

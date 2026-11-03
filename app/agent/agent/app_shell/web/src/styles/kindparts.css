@@ -14,7 +14,16 @@
 .effect-verdict{margin:0;font-size:12.5px;font-weight:650}
 .effect.is-real{border-color:var(--green-ink)}
 .effect.is-real .effect-verdict{color:var(--green-ink)}
-.effect.is-unproven .effect-verdict{color:var(--danger)}
+.effect.is-unproven .effect-verdict{color:var(--muted)}
+.effect.is-loses{border-color:var(--danger)}
+.effect.is-loses .effect-verdict{color:var(--danger)}
+.seg-card.is-picked,.effect.is-picked{border-color:var(--brand);box-shadow:0 0 0 1px var(--brand);background:var(--brand-wash)}
+.pick-title{all:unset;cursor:pointer;font:inherit;font-weight:650;border-radius:4px}
+.pick-title:hover{text-decoration:underline}
+.pick-title:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+.pick-title[aria-pressed="true"]{color:var(--brand-ink)}
+.rec-look{display:flex;gap:6px;align-items:center}
+.rec-look input{min-width:160px;padding:4px 8px;border:1px solid var(--line);border-radius:6px;background:var(--card);color:inherit;font:inherit;font-size:12.5px}
 .rec-entity{padding:8px 16px;border-top:1px solid var(--line)}
 .choice-list{list-style:none;margin:6px 0 4px;padding:0;display:grid;gap:6px}
 .choice-row{display:grid;grid-template-columns:1fr auto;gap:8px 12px;align-items:center;padding:8px 16px;border-top:1px solid var(--line)}
