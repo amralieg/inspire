@@ -682,3 +682,118 @@ def test_a_standard_cadence_is_never_sent_and_keeps_its_label(ns, cadence):
     key = obj._DOC_CADENCE_KEYS[cadence.strip().casefold()]
     assert obj._doc_cadence_label(cadence, labels, "Arabic") == labels[key] != cadence.strip()
     assert obj._doc_cadence_label(cadence, {}, "English") == ts.ENGLISH_TRANSLATIONS[key]
+
+
+SHORT_COLUMNS = ("Business Domain", "Subdomain", "type", "Beneficiary", "Sponsor", "Business Priority Alignment",
+                 "Strategic Goals Alignment", "Technique Label", "KPI Names", "Elite Decision Owner", "Elite KPI",
+                 "Elite Decision Cadence")
+
+
+def short_field_use_case(column, value):
+    extra = {"elite_status": "ELITE", "elite_score": 8.8, "elite_assessment": elite_assessment()}
+    if column == "Technique Label":
+        extra["Analytics Technique"] = value
+    elif column == "KPI Names":
+        extra["KPIs"] = [{"name": value}]
+    elif column.startswith("Elite "):
+        field = {"Elite Decision Owner": "decision_owner", "Elite KPI": "kpi", "Elite Decision Cadence": "cadence"}[column]
+        extra["elite_assessment"] = dict(elite_assessment(), **{field: value})
+    else:
+        extra[column] = value
+    return make_uc("N01-U01", **extra)
+
+
+def test_every_short_field_uses_the_short_text_check_and_prose_fields_do_not(ns):
+    ts = ns["TranslationService"]
+    assert ts._SHORT_TEXT_TRANSLATION_COLUMNS == frozenset(SHORT_COLUMNS)
+    for prose in ("Name", "Statement", "Solution", "Business Value", "Headline", "Proposed Key Results", "Elite Decision"):
+        assert prose not in ts._SHORT_TEXT_TRANSLATION_COLUMNS, prose
+
+
+@pytest.mark.parametrize("source,value,language,flagged", [
+    ("Store Manager", "Store Manager", "Arabic", True),
+    ("Manager", "Manager", "Arabic", True),
+    ("Store Manager", "مدير المتجر", "Arabic", False),
+    ("CFO", "CFO", "Arabic", False),
+    ("CFO", "CFO", "French", False),
+    ("CFO, Finance team", "المدير المالي CFO، Finance team", "Arabic", True),
+    ("CFO, Finance team", "CFO، فريق المالية", "Arabic", False),
+    ("CFO, Finance team", "CFO, Finance team", "French", True),
+    ("Store Manager", "Store Manager", "French", True),
+    ("Store Manager", "store manager", "French", True),
+    ("Manager", "Manager", "French", False),
+    ("ML Engineer", "ML Engineer", "French", False),
+    ("Marketing", "Marketing", "German", False),
+    ("SKUs, P&L, KPI, COO, 24/7", "SKUs, P&L, KPI, COO, 24/7", "French", False),
+    ("SKUs, P&L, KPI, COO, 24/7", "SKUs, P&L, KPI, COO, 24/7", "Arabic", False),
+    ("Use `units_sold`", "استخدم `units_sold`", "Arabic", False),
+    ("Store Manager", "Responsable de magasin", "French", False),
+    ("Store Manager", "", "French", True),
+])
+def test_the_short_text_rule(ns, source, value, language, flagged):
+    assert ns["TranslationService"]._looks_untranslated(source, value, language, short_text=True) is flagged
+
+
+def test_long_prose_keeps_the_prose_rule_so_a_product_name_in_arabic_is_not_flagged(ns):
+    ts = ns["TranslationService"]
+    assert ts._looks_untranslated("Forecast demand with Databricks", "توقع الطلب الأسبوعي على المنتجات باستخدام Databricks", "Arabic") is False
+    assert ts._looks_untranslated("Store Manager", "Store Manager", "French") is False
+
+
+@pytest.mark.parametrize("column", [c for c in SHORT_COLUMNS if c != "Elite Decision Cadence"])
+@pytest.mark.parametrize("language,value,translate", [("Arabic", "Manager", lambda value: ARABIC_TEXT),
+                                                      ("French", "Store Manager", lambda value: f"FR {value}")])
+def test_a_short_field_left_in_english_is_retried_flagged_and_counted(ns, column, language, value, translate):
+    ts = ns["TranslationService"]
+    svc = ts(SkipCacheAgent(french_responder(left_in_english={column}, translate=translate)), CapturingLogger())
+    out = svc.translate_use_case_list([short_field_use_case(column, value)], language, enable_parallelization=False)[0]
+    assert out["_untranslated_fields"] == [column] and out["_translation_status"] == "partial"
+    assert [call["skip_cache"] for call in svc.ai_agent.calls] == [False] + [True] * ts._PARTIAL_RETRY_ROUNDS
+    gaps = ns["DatabricksInspire"]._translation_gap_summary({"Domain": [out]})
+    assert gaps["use_cases"] == 1 and gaps["fields"] == {column: 1}
+    assert svc.logger.matching(f"[TRANSLATION GAP] {language}", level="WARNING")
+
+
+@pytest.mark.parametrize("language,translate", [("Arabic", lambda value: ARABIC_TEXT), ("French", lambda value: f"FR {value}")])
+def test_cfo_returned_as_is_is_not_flagged_or_retried(ns, language, translate):
+    ts = ns["TranslationService"]
+    svc = ts(SkipCacheAgent(french_responder(left_in_english={"Sponsor"}, translate=translate)), CapturingLogger())
+    out = svc.translate_use_case_list([make_uc("N01-U01", Sponsor="CFO")], language, enable_parallelization=False)[0]
+    assert out["Sponsor"] == "CFO"
+    assert out["_translation_status"] == "translated" and out["_untranslated_fields"] == []
+    assert [call["skip_cache"] for call in svc.ai_agent.calls] == [False]
+
+
+def test_cfo_finance_team_returned_with_latin_finance_team_is_flagged_and_named_on_the_arabic_row(ns):
+    ts = ns["TranslationService"]
+    mixed = "المدير المالي CFO، Finance team"
+    respond = french_responder(translate=lambda value: mixed if value == "CFO, Finance team" else ARABIC_TEXT)
+    svc = ts(SkipCacheAgent(respond), CapturingLogger())
+    out = svc.translate_use_case_list([make_uc("N01-U01", Sponsor="CFO, Finance team")], "Arabic", enable_parallelization=False)[0]
+    assert out["Sponsor"] == mixed and out["_untranslated_fields"] == ["Sponsor"]
+    assert len(svc.ai_agent.calls) == 1 + ts._PARTIAL_RETRY_ROUNDS
+    labels = arabic_labels(ns)
+    portfolio = arabic_portfolio()
+    uc = portfolio["المبيعات"][0]
+    uc["_translation_status"], uc["_untranslated_fields"] = "partial", ["Sponsor"]
+    obj = bilingual(ns)
+    obj._generate_csv_catalog("Arabic", "ar", portfolio, translations=labels)
+    _header, rows = csv_rows(obj)
+    notice = {r[labels["sum_id"]]: r for r in rows}["N01-U01"][labels["untranslated_notice"]]
+    assert notice == f"{labels['untranslated_notice']}: {labels['sponsor']}"
+
+
+def test_a_retry_that_translates_the_short_field_clears_the_flag(ns):
+    ts = ns["TranslationService"]
+    first = french_responder(left_in_english={"Beneficiary"}, translate=lambda value: ARABIC_TEXT)
+    later = french_responder(translate=lambda value: ARABIC_TEXT)
+
+    class RetryAgent(FakeAgent):
+        def run_worker(self, step_name, worker_prompt_path, prompt_vars, response_schema=None, skip_cache=False, **kw):
+            self.calls.append({"skip_cache": skip_cache})
+            return (first if len(self.calls) == 1 else later)(json.loads(prompt_vars["json_payload"]))
+
+    svc = ts(RetryAgent(None), CapturingLogger())
+    out = svc.translate_use_case_list([make_uc("N01-U01", Beneficiary="Store Manager")], "Arabic", enable_parallelization=False)[0]
+    assert [call["skip_cache"] for call in svc.ai_agent.calls] == [False, True]
+    assert out["Beneficiary"] == ARABIC_TEXT and out["_untranslated_fields"] == []
