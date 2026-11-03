@@ -8,7 +8,7 @@ info:
 
     ### Getting Started
 
-    **Step 1 — Get your Databricks token**
+    **Step 1: Get your Databricks token**
 
     You need a **Personal Access Token (PAT)** from your Databricks workspace.
     If you don't have one yet:
@@ -17,11 +17,11 @@ info:
     3. Go to **Developer** → **Access tokens** → **Generate new token**
     4. Give it a name (e.g. "Inspire AI"), set an expiry, and copy the generated token
 
-    **Step 2 — Authorize**
+    **Step 2: Authorize**
 
     Click the **Authorize** button below and paste your token into the **Value** field. All subsequent "Try it out" requests will include it automatically.
 
-    **Step 3 — Try it out**
+    **Step 3: Try it out**
 
     Use the endpoints below to launch an analysis, monitor progress, and retrieve results.
 
@@ -49,11 +49,11 @@ tags:
   - name: Authentication
     description: |
       Verify connectivity and exchange service principal credentials for a token.
-      Most users should use a **Personal Access Token** (see above) — these endpoints are only needed for automated deployments using Azure AD service principals.
+      Most users should use a **Personal Access Token** (see above). These endpoints are only needed for automated deployments using Azure AD service principals.
   - name: Launch
     description: |
       Submit an Inspire AI analysis run.
-      The notebook is auto-published to your workspace on first use — just provide your business parameters and go.
+      The notebook is auto-published to your workspace on first use, so just provide your business parameters and go.
   - name: Grouping
     description: |
       Preview and save a custom grouping SQL for a use case, always read with your own sign-in.
@@ -626,7 +626,7 @@ components:
             $ref: '#/components/schemas/Domain'
         _progressive:
           type: boolean
-          description: Always `true` — indicates these are assembled from steps, not the final payload
+          description: Always `true`, meaning these are assembled from steps, not the final payload
         _use_case_count:
           type: integer
         _step_count:
@@ -1117,7 +1117,7 @@ paths:
         notebook is still running, has completed, or has failed.
 
         **Typical polling flow:**
-        1. Poll this endpoint every 10–30 seconds
+        1. Poll this endpoint every 10 to 30 seconds
         2. When `life_cycle_state` is `TERMINATED`, check `result_state`
         3. `SUCCESS` → proceed to Results endpoints
         4. `FAILED` / `TIMEDOUT` → check `state_message` for details
@@ -1220,13 +1220,13 @@ paths:
       summary: Poll session progress
       description: |
         Returns the Inspire AI session status including completion percentage and processing state.
-        This provides finer-grained progress than the run status — the notebook updates this
+        This provides finer-grained progress than the run status: the notebook updates this
         session record as it progresses through each analysis stage.
 
         **Returns `null` session** if the session table hasn't been created yet (the notebook
-        is still initializing). This is normal — keep polling.
+        is still initializing). This is normal, so keep polling.
 
-        **Recommended polling interval:** 3–5 seconds.
+        **Recommended polling interval:** 3 to 5 seconds.
       parameters:
         - $ref: '#/components/parameters/DatabricksHost'
         - $ref: '#/components/parameters/InspireDatabase'
@@ -1285,7 +1285,7 @@ paths:
         discrete stage of the Inspire AI pipeline (table scanning, use case generation,
         scoring, SQL generation, etc.).
 
-        Use the `since` parameter for **delta polling** — only fetching steps that were
+        Use the `since` parameter for **delta polling**: it fetches only the steps that were
         updated after your last poll timestamp. This avoids re-fetching the full step history.
 
         **Step statuses:** `in_progress`, `ended_success`, `ended_warning`, `ended_error`
@@ -1426,7 +1426,7 @@ paths:
       summary: Get final analysis results
       description: |
         Returns the complete `results_json` payload from a finished session.
-        This is the authoritative final output — use it after the session's `completed_on`
+        This is the authoritative final output. Use it after the session's `completed_on`
         is non-null. If no `session_id` is provided, returns the latest completed session.
         `executive_summary` is always a string: the one results_json holds, or empty when it holds none.
       parameters:
@@ -1477,7 +1477,7 @@ paths:
       summary: Get polished use cases
       description: |
         Returns the final, polished use cases from the dedicated `__inspire_usecases` table.
-        These are the cleaned, scored, and formatted use cases — ready for presentation or export.
+        These are the cleaned, scored, and formatted use cases, ready for presentation or export.
         Available after the session completes.
 
         Pass `session_id` for one session, or `all_sessions=1` (with optional `limit`) to list

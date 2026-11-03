@@ -1,6 +1,6 @@
 # Databricks notebook source
 # MAGIC %md
-# MAGIC # Inspire AI — Step 1: Generate demo data (LLM code + execution)
+# MAGIC # Inspire AI, Step 1: Generate demo data (LLM code + execution)
 # MAGIC
 # MAGIC Genie-style flow: FM returns JSON (`display_name`, `tables`, `table_metadata`, `code`), then `exec(code)`.
 # MAGIC Writes **5 Delta tables** with UC **table & column comments**, then passes FQNs to Inspire via `uc_metadata`.
@@ -431,7 +431,7 @@ def _verify_tables_for_inspire(table_fqns):
         try:
             cols = spark.sql(f"DESCRIBE TABLE `{catalog}`.`{schema}`.`{table}`").collect()
         except Exception as e:
-            raise RuntimeError(f"Table not readable after code execution: {fq} — {e}") from e
+            raise RuntimeError(f"Table not readable after code execution: {fq}: {e}") from e
         if not cols:
             raise RuntimeError(f"Table has no columns: {fq}")
 
@@ -448,7 +448,7 @@ def _verify_tables_for_inspire(table_fqns):
             )
 
         print(
-            f"  ✓ {fq} — {col_total} columns ({col_commented} commented), "
+            f"  ✓ {fq}: {col_total} columns ({col_commented} commented), "
             f"{row_count} rows, table description set"
         )
         verified.append(fq)
@@ -518,4 +518,4 @@ _set_task_value("data_source", "llm_genie_generator")
 for i, t in enumerate(tables):
     _set_task_value(f"table_{i}", t)
 
-print(f"Step 1 complete — {len(tables)} Delta tables with UC descriptions ready for Inspire.")
+print(f"Step 1 complete: {len(tables)} Delta tables with UC descriptions ready for Inspire.")

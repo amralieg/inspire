@@ -1,6 +1,6 @@
 # Databricks notebook source
 # MAGIC %md
-# MAGIC # Inspire AI — Step 2: Run discovery on generated demo data
+# MAGIC # Inspire AI, Step 2: Run discovery on generated demo data
 # MAGIC
 # MAGIC Reads **`taskValues`** from **`generate_demo_data`**, then runs the Inspire agent notebook.
 

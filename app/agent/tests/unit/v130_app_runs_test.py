@@ -137,5 +137,5 @@ def test_the_end_of_run_log_is_not_copied_with_local_file_calls_into_a_workspace
         logging.root.removeHandler(handler)
         handler.close()
     messages = [msg for _level, msg in obj.logger.records]
-    assert any(msg.startswith("Skipping local log copy — output is a workspace path: /Shared/demos/tpcds_retail") for msg in messages)
+    assert any(msg.startswith("Skipping local log copy because the output is a workspace path: /Shared/demos/tpcds_retail") for msg in messages)
     assert not any("Failed to copy log file to output directory" in msg for msg in messages)

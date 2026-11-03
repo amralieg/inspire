@@ -1717,7 +1717,7 @@ function Field({ label, required, icon: Icon, hint, children }) {
           {label}
           {required && <span className="text-db-red-fg ml-0.5">*</span>}
         </span>
-        {hint && <span className="text-[10px] text-text-tertiary">&mdash; {hint}</span>}
+        {hint && <span className="text-[10px] text-text-tertiary">{hint}</span>}
       </div>
       {children}
     </div>

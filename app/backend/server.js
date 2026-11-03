@@ -154,7 +154,7 @@ const STATIC_DIR = path.join(APP_DIR, 'frontend', 'dist');
 function getFrontendBuildInfo() {
   const indexPath = path.join(STATIC_DIR, 'index.html');
   if (!fs.existsSync(indexPath)) {
-    return { ok: false, reason: 'frontend/dist/index.html missing — run: cd frontend && npm run build' };
+    return { ok: false, reason: 'frontend/dist/index.html missing. Run: cd frontend && npm run build' };
   }
   const html = fs.readFileSync(indexPath, 'utf8');
   const m = html.match(/assets\/index-([A-Za-z0-9_-]+)\.js/);
@@ -826,7 +826,7 @@ async function triggerInspireNotebookJob(host, token, { params, notebook_path, c
         console.log(`📓 Resolved configured path to runnable notebook: ${resolvedPath}`);
       } else {
         console.warn(
-          `⚠️ Notebook path missing, no permission, or folder has no .ipynb: "${resolvedPath}" — using ${NOTEBOOK_DEST} (auto-publish).`,
+          `⚠️ Notebook path missing, no permission, or folder has no .ipynb: "${resolvedPath}". Using ${NOTEBOOK_DEST} (auto-publish).`,
         );
         resolvedPath = '';
       }
@@ -1075,7 +1075,7 @@ async function ensureNotebookPublished(host, token, force = false) {
       if (prev !== fp) {
         console.log(
           prev
-            ? '📓 Bundled Inspire notebook changed since last workspace publish — re-importing.'
+            ? '📓 Bundled Inspire notebook changed since last workspace publish, re-importing.'
             : '📓 Publishing bundled notebook to workspace (new or unsigned bundle).',
         );
         force = true;
@@ -1088,7 +1088,7 @@ async function ensureNotebookPublished(host, token, force = false) {
     const found = await findPublishedNotebook(host, token);
     if (found) return { path: found, republished: false };
   } else {
-    console.log('🔄 Re-publishing notebook — overwriting workspace path...');
+    console.log('🔄 Re-publishing notebook, overwriting workspace path...');
   }
 
   // 3. Publish the bundled notebook
@@ -1543,7 +1543,7 @@ app.post('/api/setup/verify', async (req, res) => {
 
   // 5. Notebook bundle
   const hasNotebook = fs.existsSync(BUNDLED_NOTEBOOK_PATH);
-  checks.notebook = { ok: hasNotebook, message: hasNotebook ? 'Notebook bundle found' : 'Notebook file not found — notebook publish will fail' };
+  checks.notebook = { ok: hasNotebook, message: hasNotebook ? 'Notebook bundle found' : 'Notebook file not found, so notebook publish will fail' };
 
   const allOk = Object.values(checks).every(c => c.ok);
   res.json({ ok: allOk, checks });
@@ -1979,7 +1979,7 @@ app.post('/api/demo-data/start', requireToken, async (req, res) => {
     }
     const desc = String(description || '').trim();
     if (!desc) {
-      return res.status(400).json({ error: 'description is required — describe the data you want to simulate' });
+      return res.status(400).json({ error: 'description is required: describe the data you want to simulate' });
     }
 
     const inspireDb = String(bodyInspireDb || DEFAULT_INSPIRE_DB || '').trim();
@@ -2008,7 +2008,7 @@ app.post('/api/demo-data/start', requireToken, async (req, res) => {
     );
     if (!appSpApplicationId) {
       console.warn(
-        '⚠️ Demo pipeline: inspire-ai service principal not resolved — step 1 may skip SP grants',
+        '⚠️ Demo pipeline: inspire-ai service principal not resolved, so step 1 may skip SP grants',
       );
     }
 
@@ -3045,10 +3045,10 @@ if (require.main === module) (async () => {
     console.log(`\n🚀 Inspire AI running on http://localhost:${server.address().port}`);
     console.log(`   Databricks Host: ${DATABRICKS_HOST || '⚠️  Not configured'}`);
     console.log(`   Auth:            ${spTokenCache ? '✅ SP OAuth token ready' : SERVICE_TOKEN ? '✅ Static token' : '⚠️  No token (user auth required)'}`);
-    console.log(`   SP Credentials:  ${SP_CLIENT_ID ? '✅ Set' : '—  Not configured'}`);
+    console.log(`   SP Credentials:  ${SP_CLIENT_ID ? '✅ Set' : '⚪ Not configured'}`);
     console.log(`   Notebook:        ${hasNotebook ? '✅ Found' : '❌ Not found'}`);
-    console.log(`   Frontend:        ${servingStatic ? '✅ ' + STATIC_DIR : '—  (dev proxy mode)'}`);
-    console.log(`   Warehouse:       ${DEFAULT_WAREHOUSE_ID || '—  Not configured'}`);
-    console.log(`   Database:        ${DEFAULT_INSPIRE_DB || '—  Not configured'}\n`);
+    console.log(`   Frontend:        ${servingStatic ? '✅ ' + STATIC_DIR : '⚪ Dev proxy mode'}`);
+    console.log(`   Warehouse:       ${DEFAULT_WAREHOUSE_ID || '⚪ Not configured'}`);
+    console.log(`   Database:        ${DEFAULT_INSPIRE_DB || '⚪ Not configured'}\n`);
   });
 })();
