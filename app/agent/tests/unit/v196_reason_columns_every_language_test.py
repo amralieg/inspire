@@ -797,3 +797,91 @@ def test_a_retry_that_translates_the_short_field_clears_the_flag(ns):
     out = svc.translate_use_case_list([make_uc("N01-U01", Beneficiary="Store Manager")], "Arabic", enable_parallelization=False)[0]
     assert [call["skip_cache"] for call in svc.ai_agent.calls] == [False, True]
     assert out["Beneficiary"] == ARABIC_TEXT and out["_untranslated_fields"] == []
+
+
+@pytest.mark.parametrize("source,value,flagged", [
+    ("XGBoost", "XGBoost", False),
+    ("Prophet", "Prophet", False),
+    ("LightGBM", "LightGBM", False),
+    ("PyTorch", "PyTorch", False),
+    ("ARIMA", "ARIMA", False),
+    ("Delta", "Delta", False),
+    ("Genie", "Genie", False),
+    ("Unity Catalog", "Unity Catalog", False),
+    ("Holt-Winters", "Holt-Winters", False),
+    ("k-means", "k-means", False),
+    ("Prophet forecasting", "التنبؤ باستخدام Prophet", False),
+    ("XGBoost model", "نموذج XGBoost", False),
+    ("XGBoost model", "XGBoost model", True),
+    ("Prophet forecast", "Prophet forecast", True),
+    ("Store Manager", "Store Manager", True),
+    ("Unity", "Unity", True),
+    ("Random Forest", "Random Forest", True),
+])
+def test_product_and_technique_names_may_stay_in_latin_letters_but_a_plain_word_next_to_them_is_flagged(ns, source, value, flagged):
+    assert ns["TranslationService"]._looks_untranslated(source, value, "Arabic", short_text=True) is flagged
+
+
+def test_names_come_from_the_technique_catalog_and_the_product_list(ns):
+    ts = ns["TranslationService"]
+    for _key, _label, _aliases, methods in ns["DatabricksInspire"]._TECHNIQUE_FAMILIES:
+        for method in methods:
+            if " " not in method:
+                assert ts._english_words(method) == [], method
+    for product in ns["INSPIRE_PRODUCT_NAMES"]:
+        assert ts._english_words(product) == [], product
+    assert ts._english_words("isolation forest") == ["isolation", "forest"]
+
+
+@pytest.mark.parametrize("column,key", [("Technique Label", "Analytics Technique Label"), ("Beneficiary", "Beneficiary")])
+@pytest.mark.parametrize("left,flagged", [("XGBoost uplift", True), ("XGBoost", False), ("Prophet", False), ("LightGBM", False),
+                                          ("XGBoost model", True), ("Store Manager", True)])
+def test_an_arabic_short_field_left_in_latin_letters_is_flagged_only_for_plain_words(ns, column, key, left, flagged):
+    ts = ns["TranslationService"]
+    respond = french_responder(translate=lambda value: left if value == left else ARABIC_TEXT)
+    svc = ts(SkipCacheAgent(respond), CapturingLogger())
+    out = svc.translate_use_case_list([short_field_use_case(column, left)], "Arabic", enable_parallelization=False)[0]
+    assert json.loads(svc.ai_agent.calls[0]["json_payload"])[0][column] == left
+    assert out[key] == left
+    assert out["_untranslated_fields"] == ([column] if flagged else [])
+    assert len(svc.ai_agent.calls) == (1 + ts._PARTIAL_RETRY_ROUNDS if flagged else 1)
+
+
+def widget_language_choices():
+    import ast
+    import pathlib
+    import re as _re
+    notebook = json.loads((pathlib.Path(__file__).resolve().parents[2] / "agent" / "dbx_inspire_ai_agent.ipynb").read_text())
+    source = "".join(notebook["cells"][1]["source"])
+    return ast.literal_eval(_re.search(r"lang_choices = (\[[^\]]*\])", source).group(1))
+
+
+def written_in_latin_letters(text):
+    import unicodedata
+    letters = [c for c in text if c.isalpha()]
+    return bool(letters) and all("LATIN" in unicodedata.name(c, "") for c in letters)
+
+
+def test_one_non_latin_list_holds_every_non_latin_language_the_widget_offers(ns):
+    ts = ns["TranslationService"]
+    choices = widget_language_choices()
+    assert len(choices) == 23 and "English" in choices
+    non_latin = {lang for lang in choices if lang != "English"
+                 and not written_in_latin_letters(ts.TRANSLATION_FALLBACKS[lang]["sponsor"] + ts.TRANSLATION_FALLBACKS[lang]["doc_use_cases"])}
+    assert ns["INSPIRE_NON_LATIN_LANGUAGES"] == non_latin
+    assert len(non_latin) == 8
+
+
+def test_the_translator_and_the_document_writers_read_the_same_non_latin_list(ns, monkeypatch):
+    ts = ns["TranslationService"]
+    obj = make_inspire(ns)
+    assert not hasattr(ts, "_NON_LATIN_LANGUAGES") and not hasattr(ns["DatabricksInspire"], "_DOC_NON_LATIN_LANGUAGES")
+    for language in ns["INSPIRE_NON_LATIN_LANGUAGES"]:
+        assert "display" not in obj._doc_font_keys(language, ())
+        assert ts._looks_untranslated("Manager", "Manager", language, short_text=True) is True
+    assert "display" in obj._doc_font_keys("French", ())
+    assert ts._looks_untranslated("Manager", "Manager", "French", short_text=True) is False
+    monkeypatch.setitem(ns, "INSPIRE_NON_LATIN_LANGUAGES", frozenset({"French"}))
+    assert "display" not in obj._doc_font_keys("French", ())
+    assert ts._looks_untranslated("Manager", "Manager", "French", short_text=True) is True
+    assert "display" in obj._doc_font_keys("Arabic", ())
