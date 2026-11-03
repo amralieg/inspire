@@ -1,5 +1,5 @@
 const { appShellCatalog } = require('./appShell');
-const { IMPLEMENT_RUN_ID_PARAM, parseMaybeJson, withInspireAssetsPath } = require('./inspireJobParams');
+const { IMPLEMENT_RUN_ID_PARAM, parseMaybeJson, withInspireInstallParams } = require('./inspireJobParams');
 const { parseExactJson } = require('./exactJson');
 const { plural } = require('./plural');
 
@@ -2207,7 +2207,7 @@ function rerunParams(widgetNames, overrides) {
     params[name] = str(value);
   }
   params.run_profile = 'preview';
-  return withInspireAssetsPath(params);
+  return withInspireInstallParams(params);
 }
 
 function sourcePicks(spec, involved) {
