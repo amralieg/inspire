@@ -1622,6 +1622,27 @@ def bounds_query(page: dict, ident: str) -> tuple:
     return f"SELECT MIN(v) AS low, MAX(v) AS high FROM ({' UNION ALL '.join(parts)}) AS b", []
 
 
+def bounds_together_query(page: dict, idents: list) -> tuple:
+    reads, spots, picked = {}, {}, []
+    for i, ident in enumerate(idents):
+        lows, highs = [], []
+        for dataset, column in _item(page, "filters", ident)["columns"].items():
+            if (dataset, column) not in spots:
+                at = reads.setdefault(dataset, [])
+                n = len(spots)
+                at.append(f"MIN(CAST({quote(column)} AS DATE)) AS l{n}, MAX(CAST({quote(column)} AS DATE)) AS h{n}")
+                spots[(dataset, column)] = (f"b{list(reads).index(dataset)}", n)
+            alias, n = spots[(dataset, column)]
+            lows.append(f"{alias}.l{n}")
+            highs.append(f"{alias}.h{n}")
+        low = lows[0] if len(lows) == 1 else f"LEAST({', '.join(lows)})"
+        high = highs[0] if len(highs) == 1 else f"GREATEST({', '.join(highs)})"
+        picked.append(f"{low} AS low_{i}, {high} AS high_{i}")
+    scans = " CROSS JOIN ".join(f"(SELECT {', '.join(at)} FROM ({_dataset(page, dataset)}) AS d) AS b{k}"
+                                for k, (dataset, at) in enumerate(reads.items()))
+    return f"SELECT {', '.join(picked)} FROM {scans}", []
+
+
 def default_values(page: dict, bounds: dict) -> dict:
     values = {}
     for f in page.get("filters") or []:
@@ -2744,10 +2765,14 @@ def list_queries(page: dict, values: dict, request: dict, context: dict, editor:
     if context["changes"] and "h" not in early:
         ctes.update(_change_ctes(context, *(("s", "record_key") if shown == "k" and context["join"] == "record_key" else (shown,))))
         late = _change_columns(context)
-    outer = f"SELECT {', '.join([f'{shown}.*'] + late)} FROM {shown}" + (_change_joins(context, f"{shown}.`_inspire_key`") if late else "")
+    joined = _change_joins(context, f"{shown}.`_inspire_key`") if late else ""
+    if context.get("closes_inline") is not None:
+        ctes.update(inline_closes_ctes(context))
+        late, joined = late + [f"cz.`{name}`" for name in INLINE_CLOSE_COLUMNS], f"{joined} LEFT JOIN cz ON cz.`{INLINE_CLOSE_KEY}` = {shown}.`_inspire_key`"
+    outer = f"SELECT {', '.join([f'{shown}.*'] + late)} FROM {shown}{joined}"
     counting = dict(ctes, f=plan["plain"]) if plan["plain"] else ctes
-    return {"rows": (f"{_with(ctes, ['d', 'c', 'r', 'n', 'l0', 'o0', 'p0', 'f', 'w', 's', 'k', 'l', 'o', 'p'])} {outer} ORDER BY {order}",
-                     params.items),
+    return {"rows": (f"{_with(ctes, ['d', 'c', 'r', 'n', 'l0', 'o0', 'p0', 'f', 'w', 's', 'k', 'l', 'o', 'p', 'cz'])} {outer} "
+                     f"ORDER BY {order}", params.items),
             "total": (f"{_with(counting, counted)} {capped_count('f')}", counted_params)}
 
 
@@ -2936,8 +2961,12 @@ def state_facts(row, result_table: str = "") -> dict:
     owned = {key: base + suffix for key, suffix in (("log", shell_facts.RUN_LOG_SUFFIX), ("acted", shell_facts.ACTED_SUFFIX),
                                                     ("closed", shell_facts.CLOSED_SUFFIX))}
     changes = str(facts.get("changes") or "").lower()
-    return (facts if not base or (all(str(facts.get(k) or "").lower() == v for k, v in owned.items())
-                                  and changes in ("", base + shell_facts.CHANGES_SUFFIX)) else None)
+    if not base or (all(str(facts.get(k) or "").lower() == v for k, v in owned.items()) and changes in ("", base + shell_facts.CHANGES_SUFFIX)):
+        closes = facts.get("closes") if isinstance(facts.get("closes"), dict) else {}
+        if base and str(closes.get("table") or "").lower() != base + shell_facts.CLOSES_SUFFIX:
+            facts = {k: v for k, v in facts.items() if k != "closes"}
+        return facts
+    return None
 
 
 def facts_runs(facts) -> list:
@@ -3466,22 +3495,53 @@ def _overview_select(kind: str, cells: dict, columns=OVERVIEW_COLUMNS) -> str:
 
 _count = shell_facts.count_when
 _sql_list = shell_facts.sql_list
-CLOSED_FIELDS = {"_inspire_closed_by": "_inspire_closer", "_inspire_closed_at": "_inspire_closed", "_inspire_closed_batch": "_inspire_closed_batch",
-                 "_inspire_closed_undo": "_inspire_closed_undo", "_inspire_closed_note": "_inspire_closed_note",
-                 "_inspire_closed_reason": "_inspire_closed_reason", "_inspire_closed_comment": "_inspire_closed_comment"}
+CLOSED_FIELDS = shell_facts.CLOSED_FIELDS
+
+
+def pinned_closes(facts) -> bool:
+    return facts_ready(facts) and shell_facts.pinned_closes(facts)
+
 
 def use_case_scope(page: dict, params) -> str:
     return f"`use_case_id` = {params.add(str(page['use_case_id']))}" if page.get("use_case_id") else ""
 
 
+INLINE_CLOSE_KEY = "_inspire_cz_key"
+INLINE_CLOSE_STATUS = "_inspire_cz_status"
+INLINE_CLOSE_COLUMNS = [INLINE_CLOSE_STATUS] + ["_inspire_cz_" + field[len("_inspire_"):] for field in CLOSED_FIELDS]
+
+
+def inline_closes_ctes(context: dict) -> dict:
+    inline = dict(zip(CLOSED_FIELDS, INLINE_CLOSE_COLUMNS[1:]))
+    return {"cz": shell_facts.pinned_closes_sql(table_name(context["facts"]["closes"]["table"]), INLINE_CLOSE_KEY, INLINE_CLOSE_STATUS, inline.get)}
+
+
+def inline_closes(rows: list) -> tuple:
+    if not rows or INLINE_CLOSE_STATUS not in rows[0]:
+        return rows, None
+    found, kept = {}, []
+    for row in rows:
+        key, status = row.get("_inspire_key"), row.get(INLINE_CLOSE_STATUS)
+        if key is not None and status is not None:
+            found[str(key)] = dict({"record_key": str(key), "_inspire_status": status},
+                                   **{field: row.get(name) for field, name in zip(CLOSED_FIELDS, INLINE_CLOSE_COLUMNS[1:])})
+        kept.append({name: value for name, value in row.items() if name not in INLINE_CLOSE_COLUMNS})
+    return kept, found
+
+
 def closed_query(page: dict, table: str, keys: list, names: set, history=None, facts=None, changed_keys=None) -> tuple:
     params = _Params()
     facts = facts if facts_ready(facts) else None
+    unchanged = facts and changed_keys is not None and not {str(k) for k in keys} & {str(k) for k in changed_keys}
+    if unchanged and pinned_closes(facts):
+        listed = ", ".join(params.add(str(k)) for k in keys)
+        return shell_facts.pinned_closes_sql(table_name(facts["closes"]["table"]), "record_key", "_inspire_status", lambda field: field,
+                                             listed), params.items
     within = facts_scope(facts, params) if facts else use_case_scope(page, params)
     scope = f"{within + ' AND ' if within else ''}`record_key` IN ({', '.join(params.add(str(k)) for k in keys)})"
     if facts:
         acted = f"(SELECT * FROM {table_name(facts['acted'])} WHERE {scope})"
-        if changed_keys is not None and not {str(k) for k in keys} & {str(k) for k in changed_keys}:
+        if unchanged:
             ctes = {"av": f"SELECT {', '.join(quote(c) for c in facts['columns'])} FROM {acted} AS a"}
         else:
             ctes = facts_ctes(facts, table, params, scope=scope, acted=acted)
@@ -3489,9 +3549,7 @@ def closed_query(page: dict, table: str, keys: list, names: set, history=None, f
         order = ("qp", "q", "av", "hx", "hk")
     else:
         ctes, order = closing_ctes(table, names, scope=scope, history=history), ("hx", "hk")
-    picked = ", ".join(f"z.`{source}` AS `{field}`" for field, source in CLOSED_FIELDS.items())
-    return (f"{_with(ctes, order)} SELECT z.`_inspire_kk` AS `record_key`, z.`_inspire_closed_as` AS `_inspire_status`, {picked} FROM hk AS z "
-            f"WHERE z.`_inspire_kth` = 1", params.items)
+    return f"{_with(ctes, order)} {shell_facts.latest_closes('record_key', '_inspire_status', lambda field: field)}", params.items
 
 
 def overview_floor(page: dict, values: dict, picked: dict, context: dict, model, window=None):

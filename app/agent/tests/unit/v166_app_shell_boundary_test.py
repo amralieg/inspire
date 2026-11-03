@@ -564,7 +564,7 @@ def test_the_check_reads_lakebase_rows_through_the_same_watch(agent_ns, tmp_path
         def __init__(self, backend, env, service):
             self.made = (backend, env, service)
 
-        def run(self, sql, params, limit):
+        def run(self, sql, params, limit, queued=False):
             return {"columns": [], "rows": [{"v": secret}, {"v": "n01_u01"}]}
 
     core = types.SimpleNamespace(**{k: getattr(modules["shell_core"], k) for k in ("SETTINGS_FILE", "PAGES_DIR", "HttpError")}, Shell=Shell)

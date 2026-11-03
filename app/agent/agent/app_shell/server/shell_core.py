@@ -10,7 +10,7 @@ import sys
 import threading
 import time
 import uuid
-from concurrent.futures import Future, ThreadPoolExecutor
+from concurrent.futures import CancelledError, Future, ThreadPoolExecutor
 
 import shell_alerts
 import shell_db
@@ -37,6 +37,7 @@ OPTIONS_TTL_S = 600
 CACHE_ENTRIES = 1000
 CHANGED_TTL_S = 3600
 STAMP_TTL_S = 15
+LIST_YIELD_S = 5.0
 STAMP_READS = 2000
 STAMP_WORKERS = 8
 LIVE_SQL = re.compile(r"\b(current_date|current_timestamp|now|curdate|unix_timestamp|rand|random|uuid)\s*\(", re.I)
@@ -76,6 +77,7 @@ VERSION_US = re.compile(r"^\d{1,19}$")
 RECORD_KEY_CHARS = 512
 MATCH_VIEW = ("search", "mine", "changed", "ai", "column_filters", "window", "window_limit", "time_zone", "exclude")
 RANKED_SORT = "stake"
+BOUNDS_KEY = ("bounds", "dates")
 STALE_LIST, UNKNOWN_COPY, NO_MATCH, OVER_CAP, STALE_RECORD = "stale_list", "unknown_copy", "no_match", "over_cap", "stale_record"
 WRITE_SOURCES = {"records/edit": "edit", "records/add": "add", "records/delete": "delete"}
 ALERT_ROUTES = {"alerts/preview": "preview", "alerts/save": "save", "alerts/pause": "pause", "alerts/delete": "delete"}
@@ -1349,7 +1351,9 @@ class Shell:
         self.pool = ThreadPoolExecutor(max_workers=WORKERS)
         self.list_pool = ThreadPoolExecutor(max_workers=LIST_WORKERS)
         self.state_pool = ThreadPoolExecutor(max_workers=STAMP_WORKERS)
-        self.factless = set()
+        self.head_pool = ThreadPoolExecutor(max_workers=STAMP_WORKERS)
+        self.factless, self.heads, self.early = set(), {}, {}
+        self.opening, self.opened = {}, threading.Condition()
         self.uncached = False
         self.hub_pool = ThreadPoolExecutor(max_workers=HUB_WORKERS)
         self.warehouse = str(self.env.get("DATABRICKS_WAREHOUSE_ID") or "")
@@ -1423,10 +1427,10 @@ class Shell:
             raise HttpError(404, f"the App has no page {ident!r}")
         return page
 
-    def execute(self, ws, sql: str, params: list, limit: int, delta: bool = False) -> dict:
+    def execute(self, ws, sql: str, params: list, limit: int, delta: bool = False, queued: bool = False) -> dict:
         if self.lakebase is not None and not delta:
             try:
-                return dict(self.lakebase.run(sql, params, limit), served=shell_pg.LAKEBASE)
+                return dict(self.lakebase.run(sql, params, limit, queued), served=shell_pg.LAKEBASE)
             except shell_pg.NotServed as reason:
                 if self.strict and reason.table not in self.on_delta:
                     raise QueryError(f"Lakebase cannot serve it: {shell_sql.error_text(reason)}") from reason
@@ -1458,7 +1462,7 @@ class Shell:
         return {"current": shell_sql.table_name(current) if current else None, "latest_log": shell_sql.table_name(changes) if changes else None}
 
     def close(self) -> None:
-        for pool in (self.pool, self.list_pool, self.hub_pool, self.stamp_pool, self.state_pool):
+        for pool in (self.pool, self.list_pool, self.hub_pool, self.stamp_pool, self.state_pool, self.head_pool):
             pool.shutdown(wait=True)
         if self.lakebase is not None:
             self.lakebase.close()
@@ -1467,6 +1471,7 @@ class Shell:
         self.cache.clear()
         with self.stamp_lock:
             self.stamps.clear()
+            self.early.clear()
 
     def read_tables(self, sql: str):
         with self.stamp_lock:
@@ -1503,30 +1508,58 @@ class Shell:
                     ahead = key not in self.lookups
                     if ahead:
                         running = self.lookups[key] = Future()
+                        self.heads[key] = Future()
                 if ahead:
                     self.stamp_pool.submit(self.settle_state, ws, page, key, running)
             return held
         with self.stamp_lock:
+            held = self.cache.get(key)
             running = self.lookups.get(key)
-            mine = running is None
+            mine = held is None and running is None
             if mine:
                 running = self.lookups[key] = Future()
+                self.heads[key] = Future()
+        if held is not None:
+            return held
         return self.settle_state(ws, page, key, running) if mine else running.result()
 
+    def page_head(self, ws, who, page: dict) -> tuple:
+        key = ("state", who, page["id"])
+        held = self.cache.get(key)
+        if held is None:
+            with self.stamp_lock:
+                held = self.cache.get(key)
+                head = None if held is not None else self.heads.get(key)
+                if held is None and head is None and key not in self.lookups:
+                    running = self.lookups[key] = Future()
+                    head = self.heads[key] = Future()
+                    self.head_pool.submit(self.settle_state, ws, page, key, running)
+            if head is not None:
+                return head.result()
+            held = held or self.page_state(ws, who, page)
+        return held["row"], held["error"]
+
     def settle_state(self, ws, page: dict, key, running: Future) -> dict:
+        with self.stamp_lock:
+            head = self.heads.get(key) or Future()
         try:
-            state = self.read_state(ws, page)
+            state = self.read_state(ws, page, head)
             self.cache.put(key, state, STAMP_TTL_S)
         except BaseException as error:
+            if not head.done():
+                head.set_exception(error)
             running.set_exception(error)
             raise
         finally:
             with self.stamp_lock:
                 self.lookups.pop(key, None)
+                self.heads.pop(key, None)
+        if not head.done():
+            head.set_result((state["row"], state["error"]))
         running.set_result(state)
         return state
 
-    def read_state(self, ws, page: dict) -> dict:
+    def read_state(self, ws, page: dict, head: Future = None) -> dict:
         if not page.get("result_table"):
             return {"row": None, "facts": None, "stamp": None, "error": ""}
         ahead = None if page["id"] in self.factless else self.state_pool.submit(self.execute, ws, *shell_sql.changed_ahead_query(page), 1, True)
@@ -1538,6 +1571,8 @@ class Shell:
             gone = bool(NO_TABLE.search(str(error)))
             return {"row": None, "facts": None, "stamp": None, "error": "" if gone else shell_sql.error_text(error)}
         row = dict(rows[0]) if rows else None
+        if head is not None:
+            head.set_result((row, ""))
         facts = shell_sql.state_facts(row, page["result_table"])
         if not facts:
             self.factless.add(page["id"])
@@ -1579,8 +1614,13 @@ class Shell:
         if who is not None and page.get("result_table"):
             self.stamp_pool.submit(self.page_state, ws, who, page)
 
+    def warm_money(self, ws, who, page: dict) -> None:
+        if who is not None and page.get("records") and page.get("result_table"):
+            self.prefetch(lambda: self.money_inputs(ws, who, page))
+
     def warm_open(self, ws, who, page: dict) -> None:
         self.warm_state(ws, who, page)
+        self.warm_money(ws, who, page)
         if who is not None and page.get("records"):
             self.prefetch(*self.list_reads(ws, who, page).values())
             if page.get("result_table"):
@@ -1617,37 +1657,47 @@ class Shell:
         stamps = tuple((ident, self.page_state(ws, who, self.by_id[ident])["stamp"]) for ident in sorted(set().union(*owners)))
         return None if any(stamp is None for _ident, stamp in stamps) else stamps
 
-    def run(self, ws, who, sql: str, params: list, limit: int, ttl: int = CACHE_TTL_S, delta: bool = False) -> dict:
-        return self.read_at(ws, who, sql, params, limit, ttl, delta)[0]
+    def run(self, ws, who, sql: str, params: list, limit: int, ttl: int = CACHE_TTL_S, delta: bool = False, early=None,
+            queued: bool = False) -> dict:
+        return self.read_at(ws, who, sql, params, limit, ttl, delta, early, queued)[0]
 
-    def read_at(self, ws, who, sql: str, params: list, limit: int, ttl: int = CACHE_TTL_S, delta: bool = False) -> tuple:
+    def read_at(self, ws, who, sql: str, params: list, limit: int, ttl: int = CACHE_TTL_S, delta: bool = False, early=None,
+                queued: bool = False) -> tuple:
         if who is None:
             at = self.clock()
-            return self.execute(ws, sql, params, limit, delta), at
+            return self.execute(ws, sql, params, limit, delta, queued), at
         stamp = self.stamp(ws, who, sql, delta)
         key = (who, sql, json.dumps(params, sort_keys=True), limit, delta, stamp)
         hit = self.cache.get(key)
         if hit is not None:
+            if early is not None:
+                early[0].cancel()
             return hit[0], max(hit[1], self.clock() - STAMP_TTL_S) if stamp else hit[1]
         with self.stamp_lock:
+            hit = self.cache.get(key)
             running = self.inflight.get(key)
-            if running is None:
+            mine = hit is None and running is None
+            if mine:
                 running = self.inflight[key] = Future()
-                mine = True
-            else:
-                mine = False
+        if hit is not None:
+            return hit[0], max(hit[1], self.clock() - STAMP_TTL_S) if stamp else hit[1]
         if not mine:
             return running.result()
-        at = self.clock()
         try:
-            result = self.execute(ws, sql, params, limit, delta)
+            try:
+                result, at = (early[0].result(), early[1]) if early is not None else (None, None)
+            except CancelledError:
+                early = None
+            if early is None:
+                at = self.clock()
+                result = self.execute(ws, sql, params, limit, delta, queued)
+            self.cache.put(key, (result, at), max(ttl, CHANGED_TTL_S) if stamp else ttl)
         except BaseException as error:
             running.set_exception(error)
             raise
         finally:
             with self.stamp_lock:
                 self.inflight.pop(key, None)
-        self.cache.put(key, (result, at), max(ttl, CHANGED_TTL_S) if stamp else ttl)
         running.set_result((result, at))
         return result, at
 
@@ -1777,21 +1827,41 @@ class Shell:
                 errors[key] = shell_sql.error_text(error)
         return done, errors
 
+    def open_list(self, page: dict) -> None:
+        if page.get("records"):
+            with self.opened:
+                self.opening[page["id"]] = time.monotonic() + LIST_YIELD_S
+
+    def listed(self, page: dict) -> None:
+        with self.opened:
+            if self.opening.pop(page["id"], None) is not None:
+                self.opened.notify_all()
+
+    def after_list(self, page: dict) -> None:
+        with self.opened:
+            until = self.opening.get(page["id"])
+            if until is not None and not self.opened.wait_for(lambda: page["id"] not in self.opening, max(0.0, until - time.monotonic())):
+                self.opening.pop(page["id"], None)
+
     def filters(self, headers: dict, ident, probe=None) -> dict:
         page = self.page(ident)
         ws, who = self.session(headers, probe)
         self.warm_open(ws, who, page)
-        jobs = {}
+        jobs = self.bounds_jobs(ws, who, page)
+        chosen = len(jobs)
         for f in page.get("filters") or []:
-            builder = shell_sql.bounds_query if f["type"] == "date_range" else shell_sql.options_query
-            sql, params = builder(page, f["id"])
-            jobs[("filter", f["id"])] = (lambda s=sql, p=params: self.run(ws, who, s, p, shell_sql.CAPS["options"], OPTIONS_TTL_S))
+            if f["type"] != "date_range":
+                sql, params = shell_sql.options_query(page, f["id"])
+                jobs[("filter", f["id"])] = (lambda s=sql, p=params: self.run(ws, who, s, p, shell_sql.CAPS["options"], OPTIONS_TTL_S, queued=True))
         scoped = column_scopes(page, self.page_types(ws, who, page, probe))
         for key, table, f in scoped:
             if f["type"] == "multi_select" and not f.get("implied"):
                 sql, params = shell_sql.column_options_query(page, table, f["column"])
-                jobs[key] = (lambda s=sql, p=params: self.run(ws, who, s, p, shell_sql.CAPS["options"], OPTIONS_TTL_S))
+                jobs[key] = (lambda s=sql, p=params: self.run(ws, who, s, p, shell_sql.CAPS["options"], OPTIONS_TTL_S, queued=True))
+        if len(jobs) > chosen:
+            self.after_list(page)
         done, errors = self._parallel(jobs, probe)
+        self.bounds_apart(ws, who, page, done, errors, probe)
         out = []
         for f in page.get("filters") or []:
             item = {"id": f["id"], "type": f["type"], "label": f["label"]}
@@ -1820,19 +1890,40 @@ class Shell:
             (columns["list"] if table is None else columns["tables"].setdefault(table, [])).append(item)
         return {"filters": out, "columns": columns}
 
+    def bounds_jobs(self, ws, who, page: dict, apart: bool = False) -> dict:
+        dated = [f["id"] for f in page.get("filters") or [] if f["type"] == "date_range"]
+        if len(dated) > 1 and not apart:
+            sql, params = shell_sql.bounds_together_query(page, dated)
+            return {BOUNDS_KEY: lambda: self.run(ws, who, sql, params, 1, OPTIONS_TTL_S, queued=True)}
+        return {("filter", ident): (lambda q=shell_sql.bounds_query(page, ident): self.run(ws, who, *q, shell_sql.CAPS["options"], OPTIONS_TTL_S, queued=True))
+                for ident in dated}
+
+    def bounds_apart(self, ws, who, page: dict, done: dict, errors: dict, probe=None) -> None:
+        dated = [f["id"] for f in page.get("filters") or [] if f["type"] == "date_range"]
+        if BOUNDS_KEY in done:
+            row = (done.pop(BOUNDS_KEY)["rows"] or [{}])[0]
+            done.update({("filter", ident): {"rows": [{"low": row.get(f"low_{i}"), "high": row.get(f"high_{i}")}]}
+                         for i, ident in enumerate(dated)})
+        elif errors.pop(BOUNDS_KEY, None) is not None:
+            found, failed = self._parallel(self.bounds_jobs(ws, who, page, apart=True), probe)
+            done.update(found)
+            errors.update(failed)
+
     def bounds(self, ws, who, page: dict, probe=None) -> tuple:
-        jobs = {}
-        for f in page.get("filters") or []:
-            if f["type"] == "date_range":
-                sql, params = shell_sql.bounds_query(page, f["id"])
-                jobs[("filter", f["id"])] = (lambda s=sql, p=params: self.run(ws, who, s, p, shell_sql.CAPS["options"], OPTIONS_TTL_S))
-        return self._parallel(jobs, probe)
+        done, errors = self._parallel(self.bounds_jobs(ws, who, page), probe)
+        self.bounds_apart(ws, who, page, done, errors, probe)
+        return done, errors
 
     def defaults(self, headers: dict, ident) -> dict:
         page = self.page(ident)
         ws, who = self.workspace(headers)
-        self.warm_open(ws, who, page)
-        done, errors = self.bounds(ws, who, page)
+        self.open_list(page)
+        try:
+            self.warm_open(ws, who, page)
+            done, errors = self.bounds(ws, who, page)
+        except BaseException:
+            self.listed(page)
+            raise
         out = {}
         for f in page.get("filters") or []:
             if f["type"] != "date_range" or ("filter", f["id"]) in errors:
@@ -1868,7 +1959,7 @@ class Shell:
         limit = shell_sql.CAPS["option_matches"]
         sql, params = (shell_sql.options_query(page, ident, text, limit) if column is None
                        else shell_sql.column_options_query(page, table, ident, text, limit, types))
-        rows = self.run(ws, who, sql, params, limit, OPTIONS_TTL_S)["rows"]
+        rows = self.run(ws, who, sql, params, limit, OPTIONS_TTL_S, queued=True)["rows"]
         return dict({"filter": ident, "q": text, "options": [r.get("v") for r in rows]},
                     **({} if column is None else {"column": ident, "table": table}))
 
@@ -1969,6 +2060,12 @@ class Shell:
 
     def records(self, headers: dict, data: dict, probe=None) -> dict:
         page = self.page(data.get("page"))
+        try:
+            return self.list_records(headers, page, data, probe)
+        finally:
+            self.listed(page)
+
+    def list_records(self, headers: dict, page: dict, data: dict, probe=None) -> dict:
         if not page.get("records"):
             raise HttpError(404, f"page {page['id']} has no decision list")
         values = data.get("filters") or {}
@@ -1995,6 +2092,9 @@ class Shell:
         editor = str(headers.get("x-forwarded-email") or "").strip()
         if request["mine"] and not editor:
             raise HttpError(401, "sign in so the App can show the records you own")
+        closing, closed = context["actions"] and not request["window"], {}
+        if closing and self.lakebase is None and shell_sql.pinned_closes(facts) and context.get("changed_keys") is not None:
+            context = dict(context, closes_inline={f["name"] for f in fields or []})
         plan = shell_sql.list_queries(page, values, request, context, editor)
         whole = shell_sql.unfiltered(values, request)
         floor = shell_sql.list_floor(page, request, context, facts, model, not whole)
@@ -2006,7 +2106,6 @@ class Shell:
             plan["ai"] = shell_sql.ai_counts_query(page, values, context, request["columns"])
         limits = {"rows": request["limit"], "ai": shell_sql.CAPS["options"]}
         jobs = {("list", name): (lambda q=query, n=limits.get(name, 1): self.read_at(ws, who, *q, n)) for name, query in plan.items()}
-        closing, closed = context["actions"] and not request["window"], {}
         if closing:
             def closed_rows(listed=jobs[("list", "rows")]):
                 result, at = listed()
@@ -2068,6 +2167,7 @@ class Shell:
                 "as_of_us": self.as_of_us(served_by(done), read_at)}
 
     def with_closes(self, headers: dict, ws, who, page: dict, context: dict, fields, rows: list, failures: dict) -> list:
+        rows, inline = shell_sql.inline_closes(rows)
         keys = list(dict.fromkeys(str(r["_inspire_key"]) for r in rows
                                   if r.get("_inspire_key") is not None and r.get("_inspire_status") in shell_sql.CLOSED_STATUSES))
         closes, names, status = {}, {f["name"] for f in fields or []}, {str(r.get("_inspire_key")): r.get("_inspire_status") for r in rows}
@@ -2075,7 +2175,13 @@ class Shell:
             ws, who, *shell_sql.closed_query(page, context["table"], wanted, names, context.get("history"), context.get("facts"), changed),
             len(wanted), delta=True)["rows"]}
         try:
-            closes = read(keys, context.get("changed_keys")) if keys else {}
+            if inline is None:
+                closes = read(keys, context.get("changed_keys")) if keys else {}
+            else:
+                changed = {str(k) for k in context.get("changed_keys") or []}
+                closes = {k: inline[k] for k in keys if k in inline and k not in changed}
+                since = [k for k in keys if k in changed]
+                closes.update(read(since, context.get("changed_keys")) if since else {})
             missed = [k for k in keys if (closes.get(k) or {}).get("_inspire_status") != status[k]]
             if missed and context.get("facts") and context.get("changed_keys") is not None:
                 closes.update(read(missed, None))
@@ -2130,6 +2236,7 @@ class Shell:
         editor = str(headers.get("x-forwarded-email") or "").strip()
         for page in pages:
             self.warm_state(ws, who, page)
+            self.warm_money(ws, who, page)
         today = inspire_parse_time(day["today"]).date()
         quarter, since = quarter_start(today), week_start(today) - datetime.timedelta(weeks=OVERVIEW_WEEKS - 1)
         between = (day["start_us"], day["end_us"])
@@ -2239,20 +2346,35 @@ class Shell:
             return None
         return value
 
-    def assumption_rows(self, ws, who, page: dict, limit: int = shell_sql.CAPS["assumption_rows"]) -> list:
+    def assumption_rows(self, ws, who, page: dict, limit: int = shell_sql.CAPS["assumption_rows"], early=None) -> list:
         try:
-            return self.run(ws, who, *shell_sql.assumptions_query(page, limit), limit, delta=True)["rows"]
+            return self.run(ws, who, *shell_sql.assumptions_query(page, limit), limit, delta=True, early=early)["rows"]
         except QueryError as error:
             if NO_TABLE.search(str(error)):
                 return []
             raise
 
     def money_inputs(self, ws, who, page: dict) -> tuple:
-        state = self.page_state(ws, who, page)
-        if state["error"]:
-            raise QueryError(state["error"])
-        summary = state["row"]
-        return summary, (self.assumption_rows(ws, who, page) if summary and summary.get("value_assumptions") else [])
+        cold = who is not None and self.cache.get(("state", who, page["id"])) is None
+        summary, error = self.page_head(ws, who, page)
+        if error:
+            raise QueryError(error)
+        if not summary or not summary.get("value_assumptions"):
+            return summary, []
+        limit = shell_sql.CAPS["assumption_rows"]
+        return summary, self.assumption_rows(ws, who, page, limit, self.early_assumptions(ws, who, page, limit, cold))
+
+    def early_assumptions(self, ws, who, page: dict, limit: int, start: bool = True):
+        key, now = ("assume", who, page["id"]), self.clock()
+        with self.stamp_lock:
+            for old in [k for k, (_read, at) in self.early.items() if now - at >= STAMP_TTL_S]:
+                self.early.pop(old)
+            early = self.early.get(key)
+            if early is not None and (early[0].cancelled() or (early[0].done() and early[0].exception() is not None)):
+                early = self.early.pop(key) and None
+            if early is None and start:
+                early = self.early[key] = (self.state_pool.submit(self.execute, ws, *shell_sql.assumptions_query(page, limit), limit, True), now)
+        return early
 
     def money_model(self, ws, who, page: dict, fields: list):
         if not page.get("result_table") or shell_sql.MONEY_COLUMN not in {f["name"] for f in fields or []}:
@@ -2518,7 +2640,7 @@ class Shell:
             if NOT_ALLOWED.search(str(error)):
                 raise self.write_refused(shell_sql.assumptions_table(page), error) from error
             raise
-        self.cache.clear()
+        self.forget()
         return self.settings_view(headers, page["id"])
 
     def run_now(self, headers: dict, data: dict) -> dict:
@@ -2589,6 +2711,7 @@ class Shell:
         promised = page.get("promised") or None
         ws, who = self.session(headers, probe)
         self.warm_state(ws, who, page)
+        self.warm_money(ws, who, page)
         fields, untracked = self.tracked_fields(ws, who, page)
         if untracked:
             return dict(untracked, promised=promised)

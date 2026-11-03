@@ -732,6 +732,7 @@ HISTORY_OBJECTS = {"{inspire_table_name(table)}", "{inspire_table_name(inspire_r
                    "{inspire_ai_work_table(table, suffix, 'checked')}", "{inspire_ai_work_table(table, suffix, part)}",
                    "{inspire_table_name(inspire_ai_summary_table(table))}", "{inspire_table_name(inspire_assumptions_table(table))}",
                    "{pinned}", "{inspire_table_name(inspire_acted_table(table))}", "{inspire_table_name(inspire_closed_table(table))}",
+                   "{inspire_table_name(inspire_closes_table(table))}",
                    "{inspire_table_name(result_table)}", "{inspire_table_name(inspire_run_log_table(result_table))}",
                    "{inspire_table_name(inspire_ai_summary_table(result_table))}",
                    "{inspire_table_name(inspire_assumptions_table(result_table))}",
@@ -742,7 +743,7 @@ FACTS_TABLES = {"target": "inspire_table_name(table)", "pinned": "f'{target} VER
                 "log": "inspire_run_log_table(table)"}
 FACTS_PLAIN = {"names", "tier", "scope", "version", "previous", "label", "history", "bool", "inspire_sql_literal", "inspire_table_name",
                "inspire_shell_facts", "floored", "int", "str", "table", "inspire_acted_table", "inspire_closed_table", "inspire_changes_table",
-               "order"}
+               "inspire_closes_table", "order"}
 HISTORY_COUNTED = "{inspire_table_name(read_table)}"
 HISTORY_SCOPED = "{inspire_table_name(source_table)}"
 HISTORY_SCOPED_READS = ("SELECT CAST(", "WITH dated AS (SELECT CAST(")

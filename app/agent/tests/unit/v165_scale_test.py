@@ -172,7 +172,8 @@ def test_a_cursor_on_a_sort_it_cannot_seek_falls_back_to_the_offset_and_a_bad_cu
             shell_sql.list_request(PAGED_PAGE, dict(data, cursor=bad), context)
 
 
-def test_the_default_filters_come_from_the_date_bounds_alone_and_match_what_the_filter_bar_starts_with(tmp_path):
+def test_the_default_filters_come_from_the_date_bounds_alone_and_match_what_the_filter_bar_starts_with(tmp_path, monkeypatch):
+    monkeypatch.setattr(shell_core, "LIST_YIELD_S", 0.0)
     ws = FakeWorkspace()
     s = shell_core.Shell(app_dir(tmp_path), env={"DATABRICKS_WAREHOUSE_ID": "wh1"}, sp_factory=lambda: ws, user_factory=lambda h, t: ws)
     s.stamp_pool = Recorder()

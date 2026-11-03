@@ -931,7 +931,7 @@ class HeldLakebase:
     def __init__(self):
         self.tables, self.writes = {}, []
 
-    def run(self, sql, params, limit):
+    def run(self, sql, params, limit, queued=False):
         raise shell_pg.NotHeld(TRACKED)
 
     def noted(self, note):
