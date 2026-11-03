@@ -1526,14 +1526,28 @@ function registerImplementRoutes(app, deps) {
         if (!columns.length) throw I.badRequest(`${U.runUnreadableText([table])}.`, 403);
         const roles = data.column_roles && typeof data.column_roles === 'object' ? data.column_roles : {};
         const candidates = GR.groupingCandidates(columns, roles, table).filter((name) => !name.includes(',')).slice(0, GR.GROUP_PROFILED);
-        const timeColumn = GR.timeColumnOf(columns, roles, table);
-        const [statRows, sample] = await Promise.all([rows(GP.statsSql(main, candidates, timeColumn, days), null, 1),
+        const keys = GP.declaredKeys(keyRows);
+        const saved = GP.savedJoins(useCase.table_joins, table);
+        const joins = saved.length ? saved : keys.joins;
+        const namedTime = GR.namedTimeColumn(roles, GP.eliteAssessmentOf(useCase.elite_assessment), table);
+        const refs = GR.timeRefsOf(namedTime, columns, joins);
+        const refColumns = Object.fromEntries(await Promise.all(refs.map(async (ref) => {
+          const asked = I.columnsStatement(ref);
+          const found = await rows(asked.sql, asked.parameters, GP.PROFILE_META_ROWS).catch((err) => {
+            if (['SQL_DEADLINE', 'SQL_CANCELLED'].includes(err && err.code)) throw err;
+            console.warn(`grouping profile: the columns of ${ref} could not be read, so its dates are not a recent period of ${table}: ${err.message}`);
+            return [];
+          });
+          return [ref.toLowerCase(), found];
+        })));
+        const time = GR.timeSourceOf(namedTime, columns, joins, refColumns);
+        const [statRows, sample] = await Promise.all([rows(GP.statsSql(main, candidates, time, days), null, 1),
           candidates.length ? rows(GP.sampleSql(main, candidates), null, GP.PROFILE_META_ROWS) : []]);
         const stats = statRows[0] || {};
         const picked = GP.profiledColumns(stats, candidates);
         const values = picked.length ? await rows(GP.valuesSql(main, picked), null, GP.PROFILE_VALUE_ROWS) : [];
         const draft = (paths) => GP.profileView({ table, technique: useCase.analytics_technique, columns, candidates, stats, sample, values, paths,
-          timeColumn, days, keys: GP.declaredKeys(keyRows), joins: GP.savedJoins(useCase.table_joins, table), readAt: new Date().toISOString() });
+          time, days, keys, joins: saved, readAt: new Date().toISOString() });
         const first = draft(null);
         if (first.recommended.length < 2) return first;
         const paths = await rows(GP.pathsSql(main, first.recommended), null, GP.PROFILE_PATH_ROWS);

@@ -131,13 +131,15 @@ export function firstRunChoices(profile, values) {
   const records = whole(values?.[SCOPE_RECORDS]);
   const total = profileRecords(profile);
   const timeColumn = text(profile?.time_column);
+  const via = isMap(profile?.time_via) && text(profile.time_via.date) && text(profile.time_via.table) ? profile.time_via : null;
+  const timeName = via ? `${text(via.date)} in ${text(via.table)}, through ${timeColumn}` : timeColumn;
   return [
     {
       id: 'groups', label: 'Chosen groups', available: groups.length > 0,
       records: picked.length && pickedRecords.every((n) => n != null) ? pickedRecords.reduce((a, b) => a + b, 0) : picked.length ? null : finite(fr.groups),
     },
     {
-      id: 'recent', label: timeColumn ? `The last ${days ?? SCOPE_DEFAULTS[SCOPE_DAYS]} days of ${timeColumn}` : 'A recent period', available: Boolean(timeColumn),
+      id: 'recent', label: timeColumn ? `The last ${days ?? SCOPE_DEFAULTS[SCOPE_DAYS]} days of ${timeName}` : 'A recent period', available: Boolean(timeColumn),
       records: recent && days != null && Number(recent.days) === days ? finite(recent.records) ?? finite(fr.recent) : days == null ? null : finite(fr.recent),
       exact: Boolean(recent && days != null && Number(recent.days) === days),
     },

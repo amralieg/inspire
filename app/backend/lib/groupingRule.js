@@ -14,6 +14,7 @@ const FIRST_RUN_RECORDS_LINE = 1000;
 const SUGGESTED_GROUPS = 3;
 const SCOPE_DAYS = 30;
 const SCOPE_RECORDS = 1000;
+const SCOPE_VIA_KEYS_MAX = 10000;
 const GROUP_MAX_NULL_SHARE = 0.5;
 const GROUP_CANDIDATES = 12;
 const GROUP_PROFILED = 6;
@@ -25,6 +26,7 @@ const RUN_SCOPES = ['all', 'groups', 'recent', 'records'];
 const GROUP_ID_RE = /(?:^|_)(?:id|key|uuid|guid|sk|nk|hash)$/i;
 const GROUP_TYPES = ['string', 'varchar', 'char', 'boolean'];
 const TIME_TYPES = ['date', 'timestamp'];
+const TIME_NAME_RE = /(date|time|day)|_at$|_ts$/i;
 const TEXT_NAME_TOKENS = ['text', 'comment', 'review', 'description', 'desc', 'note', 'feedback', 'transcript', 'body', 'message', 'title', 'subject',
   'content', 'reason', 'summary', 'narrative', 'remark'];
 
@@ -161,15 +163,60 @@ function groupingCandidates(columns, roles = {}, mainTable = '') {
   return picked.slice(0, GROUP_CANDIDATES);
 }
 
-function timeColumnOf(columns, roles = {}, mainTable = '') {
-  const event = str(roles && roles.event_date).replace(/`/g, '').split('.');
-  const named = (columns || []).map((c) => str(c && c.column_name));
-  if (event.length > 3 && event.slice(0, 3).join('.').toLowerCase() === lower(str(mainTable).replace(/`/g, ''))) {
-    const hit = named.find((n) => n.toLowerCase() === event[event.length - 1].toLowerCase());
-    if (hit) return hit;
+function ownColumn(reference, table) {
+  const parts = str(reference).split('.').map((p) => p.replace(/`/g, '')).filter(Boolean);
+  const held = lower(str(table).replace(/`/g, '')).split('.').map((p) => p.trim());
+  const named = parts.slice(0, -1).map(lower);
+  return named.length >= 1 && named.length <= 3 && held.slice(held.length - named.length).join('.') === named.join('.') ? parts[parts.length - 1] : '';
+}
+
+function namedTimeColumn(roles, assessment, table) {
+  const via = assessment && assessment.time_via_join;
+  return ownColumn(roles && roles.event_date, table) || ownColumn(via && typeof via === 'object' ? via.key : '', table)
+    || ownColumn(assessment && assessment.time_column, table);
+}
+
+const dated = (c) => TIME_TYPES.some((t) => lower(c && c.data_type).startsWith(t));
+
+function joinRef(join) {
+  const parts = str(join && join.ref_table).replace(/`/g, '').split('.').map((p) => p.trim());
+  return parts.length === 3 && parts.every(Boolean) ? parts.join('.') : '';
+}
+
+function timeSourceOf(named, columns, joins = [], refColumns = {}) {
+  const known = (columns || []).filter((c) => str(c && c.column_name));
+  if (!known.length) return named ? { column: str(named), via: null } : null;
+  const viaOf = (column) => {
+    for (const join of joins || []) {
+      const ref = joinRef(join);
+      if (lower(join && join.column) !== lower(column) || !str(join.ref_column) || !ref) continue;
+      const found = (refColumns[ref.toLowerCase()] || []).filter(dated).map((c) => str(c.column_name));
+      const date = found.find((n) => TIME_NAME_RE.test(n)) || found[0];
+      if (date) return { table: ref, key: str(join.ref_column), date };
+    }
+    return null;
+  };
+  const sourceOf = (column) => {
+    if (!column) return null;
+    const via = dated(column) ? null : viaOf(str(column.column_name));
+    return dated(column) || via ? { column: str(column.column_name), via } : null;
+  };
+  const hit = sourceOf(named ? known.find((c) => lower(c.column_name) === lower(named)) : null);
+  if (hit) return hit;
+  const timed = known.filter(dated);
+  const direct = timed.find((c) => TIME_NAME_RE.test(str(c.column_name))) || timed[0];
+  if (direct) return sourceOf(direct);
+  for (const column of known.filter((c) => TIME_NAME_RE.test(str(c.column_name)))) {
+    const found = sourceOf(column);
+    if (found) return found;
   }
-  const timed = (columns || []).filter((c) => TIME_TYPES.some((t) => lower(c && c.data_type).startsWith(t))).map((c) => str(c.column_name));
-  return timed.find((n) => /(date|time|day)|_at$|_ts$/i.test(n)) || timed[0] || null;
+  return null;
+}
+
+function timeRefsOf(named, columns, joins = []) {
+  const asked = new Set((columns || []).map((c) => str(c && c.column_name)).filter((n) => TIME_NAME_RE.test(n) || (named && lower(n) === lower(named)))
+    .map(lower));
+  return [...new Set((joins || []).filter((j) => asked.has(lower(j && j.column)) && joinRef(j)).map(joinRef))].sort();
 }
 
 function keyColumnGuess(columns) {
@@ -215,6 +262,7 @@ module.exports = {
   SUGGESTED_GROUPS,
   SCOPE_DAYS,
   SCOPE_RECORDS,
+  SCOPE_VIA_KEYS_MAX,
   GROUP_MAX_NULL_SHARE,
   GROUP_CANDIDATES,
   GROUP_PROFILED,
@@ -236,7 +284,10 @@ module.exports = {
   recommendation,
   customGroupNames,
   groupingCandidates,
-  timeColumnOf,
+  ownColumn,
+  namedTimeColumn,
+  timeSourceOf,
+  timeRefsOf,
   keyColumnGuess,
   suggestedGroups,
   firstRunDefault,

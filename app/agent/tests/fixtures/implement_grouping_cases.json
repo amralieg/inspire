@@ -25,7 +25,9 @@
     "group_min_records": 30,
     "group_min_periods": 30,
     "group_max_groups": 500,
-    "group_min_groups": 2
+    "group_min_groups": 2,
+    "scope_via_keys_max": 10000,
+    "first_run_records_line": 1000
   },
   "techniques": {
     "grouping": [
@@ -810,6 +812,33 @@
         "expected": "all"
       },
       {
+        "name": "999 records run on all of them",
+        "records": 999,
+        "technique": "Optimization",
+        "time_series": false,
+        "time_column": "ws_ship_date_sk",
+        "group_column": "",
+        "expected": "all"
+      },
+      {
+        "name": "718,931 records with a date key reached through a date table run first on a recent period",
+        "records": 718931,
+        "technique": "Optimization",
+        "time_series": false,
+        "time_column": "ws_ship_date_sk",
+        "group_column": "",
+        "expected": "recent"
+      },
+      {
+        "name": "718,931 records with nothing to run first on run on all",
+        "records": 718931,
+        "technique": "Optimization",
+        "time_series": false,
+        "time_column": "",
+        "group_column": "",
+        "expected": "all"
+      },
+      {
         "name": "a count the metadata does not hold runs on all",
         "records": null,
         "technique": "Anomaly Detection",
@@ -1274,6 +1303,594 @@
           ]
         ]
       }
-    }
+    },
+    "named_time": [
+      {
+        "name": "the event date role names the time column first",
+        "roles": {
+          "event_date": "main.sales.orders.shipped_at"
+        },
+        "assessment": {
+          "time_column": "main.sales.orders.order_date"
+        },
+        "table": "main.sales.orders",
+        "expected": "shipped_at"
+      },
+      {
+        "name": "the judged date key reached through a date table comes before the judged time column",
+        "roles": {},
+        "assessment": {
+          "time_column": "samples.tpcds_sf1.date_dim.d_date",
+          "time_via_join": {
+            "key": "samples.tpcds_sf1.web_sales.ws_ship_date_sk",
+            "table": "samples.tpcds_sf1.date_dim",
+            "column": "samples.tpcds_sf1.date_dim.d_date",
+            "join": "samples.tpcds_sf1.web_sales.ws_ship_date_sk = samples.tpcds_sf1.date_dim.d_date_sk"
+          }
+        },
+        "table": "samples.tpcds_sf1.web_sales",
+        "expected": "ws_ship_date_sk"
+      },
+      {
+        "name": "the judged time column of the table",
+        "roles": {},
+        "assessment": {
+          "time_column": "orders.order_date"
+        },
+        "table": "main.sales.orders",
+        "expected": "order_date"
+      },
+      {
+        "name": "a column of another table is never the time column (must-exclude)",
+        "roles": {
+          "event_date": "main.sales.stores.opened"
+        },
+        "assessment": {
+          "time_column": "main.crm.orders.order_date"
+        },
+        "table": "main.sales.orders",
+        "expected": ""
+      }
+    ],
+    "time_source": [
+      {
+        "name": "a DATE column of the table is the time column",
+        "named": "",
+        "columns": [
+          [
+            "order_id",
+            "STRING"
+          ],
+          [
+            "amount",
+            "DOUBLE"
+          ],
+          [
+            "order_date",
+            "DATE"
+          ]
+        ],
+        "joins": [],
+        "ref_columns": {},
+        "expected": {
+          "column": "order_date",
+          "via": null
+        }
+      },
+      {
+        "name": "a date key joined to a dated table is the time column, read through that table's date",
+        "named": "",
+        "columns": [
+          [
+            "ws_sold_date_sk",
+            "INT"
+          ],
+          [
+            "ws_ship_date_sk",
+            "INT"
+          ],
+          [
+            "ws_warehouse_sk",
+            "INT"
+          ],
+          [
+            "ws_quantity",
+            "INT"
+          ],
+          [
+            "ws_ext_ship_cost",
+            "DECIMAL(7,2)"
+          ]
+        ],
+        "joins": [
+          {
+            "column": "ws_sold_date_sk",
+            "ref_table": "samples.tpcds_sf1.date_dim",
+            "ref_column": "d_date_sk"
+          },
+          {
+            "column": "ws_ship_date_sk",
+            "ref_table": "samples.tpcds_sf1.date_dim",
+            "ref_column": "d_date_sk"
+          },
+          {
+            "column": "ws_warehouse_sk",
+            "ref_table": "samples.tpcds_sf1.warehouse",
+            "ref_column": "w_warehouse_sk"
+          }
+        ],
+        "ref_columns": {
+          "samples.tpcds_sf1.date_dim": [
+            [
+              "d_date_sk",
+              "INT"
+            ],
+            [
+              "d_date_id",
+              "STRING"
+            ],
+            [
+              "d_date",
+              "DATE"
+            ],
+            [
+              "d_year",
+              "INT"
+            ]
+          ]
+        },
+        "expected": {
+          "column": "ws_sold_date_sk",
+          "via": {
+            "table": "samples.tpcds_sf1.date_dim",
+            "key": "d_date_sk",
+            "date": "d_date"
+          }
+        }
+      },
+      {
+        "name": "the named date key wins over the first one",
+        "named": "ws_ship_date_sk",
+        "columns": [
+          [
+            "ws_sold_date_sk",
+            "INT"
+          ],
+          [
+            "ws_ship_date_sk",
+            "INT"
+          ],
+          [
+            "ws_warehouse_sk",
+            "INT"
+          ],
+          [
+            "ws_quantity",
+            "INT"
+          ],
+          [
+            "ws_ext_ship_cost",
+            "DECIMAL(7,2)"
+          ]
+        ],
+        "joins": [
+          {
+            "column": "ws_sold_date_sk",
+            "ref_table": "samples.tpcds_sf1.date_dim",
+            "ref_column": "d_date_sk"
+          },
+          {
+            "column": "ws_ship_date_sk",
+            "ref_table": "samples.tpcds_sf1.date_dim",
+            "ref_column": "d_date_sk"
+          },
+          {
+            "column": "ws_warehouse_sk",
+            "ref_table": "samples.tpcds_sf1.warehouse",
+            "ref_column": "w_warehouse_sk"
+          }
+        ],
+        "ref_columns": {
+          "samples.tpcds_sf1.date_dim": [
+            [
+              "d_date_sk",
+              "INT"
+            ],
+            [
+              "d_date_id",
+              "STRING"
+            ],
+            [
+              "d_date",
+              "DATE"
+            ],
+            [
+              "d_year",
+              "INT"
+            ]
+          ]
+        },
+        "expected": {
+          "column": "ws_ship_date_sk",
+          "via": {
+            "table": "samples.tpcds_sf1.date_dim",
+            "key": "d_date_sk",
+            "date": "d_date"
+          }
+        }
+      },
+      {
+        "name": "a dated column of the table wins over a joined date key",
+        "named": "",
+        "columns": [
+          [
+            "ws_sold_date_sk",
+            "INT"
+          ],
+          [
+            "ws_ship_date_sk",
+            "INT"
+          ],
+          [
+            "ws_warehouse_sk",
+            "INT"
+          ],
+          [
+            "ws_quantity",
+            "INT"
+          ],
+          [
+            "ws_ext_ship_cost",
+            "DECIMAL(7,2)"
+          ],
+          [
+            "created_at",
+            "TIMESTAMP"
+          ]
+        ],
+        "joins": [
+          {
+            "column": "ws_sold_date_sk",
+            "ref_table": "samples.tpcds_sf1.date_dim",
+            "ref_column": "d_date_sk"
+          },
+          {
+            "column": "ws_ship_date_sk",
+            "ref_table": "samples.tpcds_sf1.date_dim",
+            "ref_column": "d_date_sk"
+          },
+          {
+            "column": "ws_warehouse_sk",
+            "ref_table": "samples.tpcds_sf1.warehouse",
+            "ref_column": "w_warehouse_sk"
+          }
+        ],
+        "ref_columns": {
+          "samples.tpcds_sf1.date_dim": [
+            [
+              "d_date_sk",
+              "INT"
+            ],
+            [
+              "d_date_id",
+              "STRING"
+            ],
+            [
+              "d_date",
+              "DATE"
+            ],
+            [
+              "d_year",
+              "INT"
+            ]
+          ]
+        },
+        "expected": {
+          "column": "created_at",
+          "via": null
+        }
+      },
+      {
+        "name": "a named column that is neither dated nor joined gives way to the table's date",
+        "named": "amount",
+        "columns": [
+          [
+            "amount",
+            "DOUBLE"
+          ],
+          [
+            "order_date",
+            "DATE"
+          ]
+        ],
+        "joins": [],
+        "ref_columns": {},
+        "expected": {
+          "column": "order_date",
+          "via": null
+        }
+      },
+      {
+        "name": "a date key whose joined table holds no date is no time column (must-exclude)",
+        "named": "",
+        "columns": [
+          [
+            "ws_sold_date_sk",
+            "INT"
+          ],
+          [
+            "ws_ship_date_sk",
+            "INT"
+          ],
+          [
+            "ws_warehouse_sk",
+            "INT"
+          ],
+          [
+            "ws_quantity",
+            "INT"
+          ],
+          [
+            "ws_ext_ship_cost",
+            "DECIMAL(7,2)"
+          ]
+        ],
+        "joins": [
+          {
+            "column": "ws_sold_date_sk",
+            "ref_table": "samples.tpcds_sf1.date_dim",
+            "ref_column": "d_date_sk"
+          },
+          {
+            "column": "ws_ship_date_sk",
+            "ref_table": "samples.tpcds_sf1.date_dim",
+            "ref_column": "d_date_sk"
+          },
+          {
+            "column": "ws_warehouse_sk",
+            "ref_table": "samples.tpcds_sf1.warehouse",
+            "ref_column": "w_warehouse_sk"
+          }
+        ],
+        "ref_columns": {
+          "samples.tpcds_sf1.date_dim": [
+            [
+              "d_date_sk",
+              "INT"
+            ],
+            [
+              "d_year",
+              "INT"
+            ]
+          ]
+        },
+        "expected": null
+      },
+      {
+        "name": "an integer date key with no join is no time column (must-exclude)",
+        "named": "ws_ship_date_sk",
+        "columns": [
+          [
+            "ws_sold_date_sk",
+            "INT"
+          ],
+          [
+            "ws_ship_date_sk",
+            "INT"
+          ],
+          [
+            "ws_warehouse_sk",
+            "INT"
+          ],
+          [
+            "ws_quantity",
+            "INT"
+          ],
+          [
+            "ws_ext_ship_cost",
+            "DECIMAL(7,2)"
+          ]
+        ],
+        "joins": [],
+        "ref_columns": {},
+        "expected": null
+      },
+      {
+        "name": "a join to a table that is not catalog.schema.table is ignored (must-exclude)",
+        "named": "",
+        "columns": [
+          [
+            "ws_sold_date_sk",
+            "INT"
+          ],
+          [
+            "ws_ship_date_sk",
+            "INT"
+          ],
+          [
+            "ws_warehouse_sk",
+            "INT"
+          ],
+          [
+            "ws_quantity",
+            "INT"
+          ],
+          [
+            "ws_ext_ship_cost",
+            "DECIMAL(7,2)"
+          ]
+        ],
+        "joins": [
+          {
+            "column": "ws_sold_date_sk",
+            "ref_table": "date_dim",
+            "ref_column": "d_date_sk"
+          }
+        ],
+        "ref_columns": {
+          "date_dim": [
+            [
+              "d_date_sk",
+              "INT"
+            ],
+            [
+              "d_date_id",
+              "STRING"
+            ],
+            [
+              "d_date",
+              "DATE"
+            ],
+            [
+              "d_year",
+              "INT"
+            ]
+          ]
+        },
+        "expected": null
+      },
+      {
+        "name": "columns that cannot be read keep the named column",
+        "named": "order_date",
+        "columns": [],
+        "joins": [],
+        "ref_columns": {},
+        "expected": {
+          "column": "order_date",
+          "via": null
+        }
+      },
+      {
+        "name": "columns that cannot be read and no named column give no time column",
+        "named": "",
+        "columns": [],
+        "joins": [],
+        "ref_columns": {},
+        "expected": null
+      }
+    ],
+    "time_refs": [
+      {
+        "name": "only date-named and named columns ask for their joined table, once",
+        "named": "",
+        "columns": [
+          [
+            "ws_sold_date_sk",
+            "INT"
+          ],
+          [
+            "ws_ship_date_sk",
+            "INT"
+          ],
+          [
+            "ws_warehouse_sk",
+            "INT"
+          ],
+          [
+            "ws_quantity",
+            "INT"
+          ],
+          [
+            "ws_ext_ship_cost",
+            "DECIMAL(7,2)"
+          ]
+        ],
+        "joins": [
+          {
+            "column": "ws_sold_date_sk",
+            "ref_table": "samples.tpcds_sf1.date_dim",
+            "ref_column": "d_date_sk"
+          },
+          {
+            "column": "ws_ship_date_sk",
+            "ref_table": "samples.tpcds_sf1.date_dim",
+            "ref_column": "d_date_sk"
+          },
+          {
+            "column": "ws_warehouse_sk",
+            "ref_table": "samples.tpcds_sf1.warehouse",
+            "ref_column": "w_warehouse_sk"
+          }
+        ],
+        "expected": [
+          "samples.tpcds_sf1.date_dim"
+        ]
+      },
+      {
+        "name": "a named key that is not date-named asks too",
+        "named": "ws_warehouse_sk",
+        "columns": [
+          [
+            "ws_sold_date_sk",
+            "INT"
+          ],
+          [
+            "ws_ship_date_sk",
+            "INT"
+          ],
+          [
+            "ws_warehouse_sk",
+            "INT"
+          ],
+          [
+            "ws_quantity",
+            "INT"
+          ],
+          [
+            "ws_ext_ship_cost",
+            "DECIMAL(7,2)"
+          ]
+        ],
+        "joins": [
+          {
+            "column": "ws_sold_date_sk",
+            "ref_table": "samples.tpcds_sf1.date_dim",
+            "ref_column": "d_date_sk"
+          },
+          {
+            "column": "ws_ship_date_sk",
+            "ref_table": "samples.tpcds_sf1.date_dim",
+            "ref_column": "d_date_sk"
+          },
+          {
+            "column": "ws_warehouse_sk",
+            "ref_table": "samples.tpcds_sf1.warehouse",
+            "ref_column": "w_warehouse_sk"
+          }
+        ],
+        "expected": [
+          "samples.tpcds_sf1.date_dim",
+          "samples.tpcds_sf1.warehouse"
+        ]
+      },
+      {
+        "name": "no join, nothing to ask (must-exclude)",
+        "named": "",
+        "columns": [
+          [
+            "ws_sold_date_sk",
+            "INT"
+          ],
+          [
+            "ws_ship_date_sk",
+            "INT"
+          ],
+          [
+            "ws_warehouse_sk",
+            "INT"
+          ],
+          [
+            "ws_quantity",
+            "INT"
+          ],
+          [
+            "ws_ext_ship_cost",
+            "DECIMAL(7,2)"
+          ]
+        ],
+        "joins": [],
+        "expected": []
+      }
+    ]
   }
 }

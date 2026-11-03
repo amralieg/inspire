@@ -276,3 +276,122 @@ def test_every_instruction_tells_genie_to_read_sources_through_the_helper(agent_
     assert "rules = ([GENIE_RUN_CONTROLS_RULE, GENIE_SOURCE_READ_RULE," in source
     assert "+ implement_source_read_problems(cells, sources))" in source
     assert "sources=implement_source_tables(spec, self._genie_involved_tables(use_case))," in source
+
+
+WEB_SALES, DATE_DIM = "samples.tpcds_sf1.web_sales", "samples.tpcds_sf1.date_dim"
+VIA = {"table": DATE_DIM, "key": "d_date_sk", "date": "d_date"}
+
+
+def _rows(pairs):
+    return [{"column_name": name, "data_type": kind} for name, kind in pairs]
+
+
+def test_the_shared_constants_of_the_first_run_are_the_ones_the_agent_uses(agent_ns):
+    constants = json.load(open(os.path.join(ROOT, "tests", "fixtures", "implement_grouping_cases.json"), encoding="utf-8"))["constants"]
+    assert agent_ns["INSPIRE_SCOPE_VIA_KEYS_MAX"] == constants["scope_via_keys_max"]
+    assert agent_ns["INSPIRE_FIRST_RUN_RECORDS"] == constants["first_run_records_line"]
+
+
+@pytest.mark.parametrize("case", FIXTURE["time_source"], ids=[c["name"] for c in FIXTURE["time_source"]])
+def test_the_time_column_is_a_dated_column_or_a_date_key_reached_through_a_dated_table(agent_ns, case):
+    refs = {ref.lower(): _rows(pairs) for ref, pairs in case["ref_columns"].items()}
+    assert agent_ns["inspire_time_source"](case["named"], _rows(case["columns"]), case["joins"], refs) == case["expected"]
+
+
+@pytest.mark.parametrize("case", FIXTURE["named_time"], ids=[c["name"] for c in FIXTURE["named_time"]])
+def test_the_named_time_column_comes_from_the_roles_then_the_judged_date_key_then_the_judged_column(agent_ns, case):
+    assert agent_ns["inspire_named_time_column"](case["roles"], case["assessment"], case["table"]) == case["expected"]
+
+
+@pytest.mark.parametrize("case", FIXTURE["time_refs"], ids=[c["name"] for c in FIXTURE["time_refs"]])
+def test_only_the_tables_a_date_key_joins_are_asked_for_their_columns(agent_ns, case):
+    assert agent_ns["inspire_time_refs"](case["named"], _rows(case["columns"]), case["joins"]) == case["expected"]
+
+
+class _ArgSpark(FakeSpark):
+    def __init__(self, records, columns):
+        super().__init__(responder=self._answer)
+        self.records, self.columns, self.asked = records, columns, []
+
+    def sql(self, statement, *args, **kwargs):
+        self._args = kwargs.get("args") or {}
+        return super().sql(statement, *args, **kwargs)
+
+    def _answer(self, statement):
+        if statement.startswith("DESCRIBE TABLE"):
+            return [] if self.records is None else [{"col_name": "Statistics", "data_type": f"1 bytes, {self.records} rows"}]
+        if "information_schema" in statement:
+            self.asked.append(self._args.get("t"))
+            return self.columns.get(self._args.get("t"), [])
+        return []
+
+
+WS_COLUMNS = {"web_sales": _rows([("ws_sold_date_sk", "int"), ("ws_ship_date_sk", "int"), ("ws_warehouse_sk", "int"), ("ws_quantity", "int")]),
+              "date_dim": _rows([("d_date_sk", "int"), ("d_date_id", "string"), ("d_date", "date")])}
+WS_JOINS = json.dumps([{"table": WEB_SALES, "column": c, "ref_table": DATE_DIM, "ref_column": "d_date_sk", "source": "inferred"}
+                       for c in ("ws_sold_date_sk", "ws_ship_date_sk")])
+WS_ASSESSMENT = {"time_column": f"{WEB_SALES}.ws_ship_date_sk", "entity_key_column": f"{WEB_SALES}.ws_warehouse_sk",
+                 "time_via_join": {"key": f"{WEB_SALES}.ws_ship_date_sk", "table": DATE_DIM, "column": f"{DATE_DIM}.d_date",
+                                   "join": f"{WEB_SALES}.ws_ship_date_sk = {DATE_DIM}.d_date_sk"}}
+
+
+@pytest.mark.parametrize("records, expected", [(999, "all"), (1000, "all"), (1001, "recent"), (718931, "recent"), (None, "all")])
+def test_a_fact_table_dated_only_through_its_date_dimension_runs_first_on_a_recent_period_above_1000_records(agent_ns, records, expected):
+    inst = make_inspire(agent_ns, spark=_ArgSpark(records, WS_COLUMNS))
+    use_case = {"Primary Table": WEB_SALES, "Tables Involved": f"{WEB_SALES}, {DATE_DIM}", "table_joins": WS_JOINS, "elite_assessment": WS_ASSESSMENT}
+    first = inst._genie_first_run(use_case, "G", "Optimization", "weekly")
+    assert (first["records"], first["time_column"], first.get("time_via"), first["default"]) == (records, "ws_ship_date_sk", VIA, expected)
+    assert inst.spark.asked == ["web_sales", "date_dim"], "the main table and the one date table are read once each"
+
+
+def test_a_fact_table_with_no_date_and_no_dated_join_still_runs_on_all_of_its_718931_records(agent_ns):
+    inst = make_inspire(agent_ns, spark=_ArgSpark(718931, WS_COLUMNS))
+    use_case = {"Primary Table": WEB_SALES, "Tables Involved": WEB_SALES, "table_joins": "[]",
+                "elite_assessment": {"time_column": f"{WEB_SALES}.ws_ship_date_sk"}}
+    first = inst._genie_first_run(use_case, "G", "Optimization", "weekly")
+    assert (first["time_column"], "time_via" in first, first["default"]) == ("", False, "all"), \
+        "an integer date key with no join to a dated table is never read as a date (must-exclude)"
+
+
+def _via_scope(ns, **values):
+    held = _scope(ns, run_scope="recent", **values)
+    held["INSPIRE_RUN"]["scope"].update(table=WEB_SALES, time_column="ws_ship_date_sk", time_via=dict(VIA), group_column="", default="recent")
+    return held
+
+
+def test_a_recent_period_through_a_date_table_reads_the_keys_of_its_newest_days(agent_ns):
+    chosen = agent_ns["inspire_scope_choice"](scope=_via_scope(agent_ns))
+    assert (chosen["column"], chosen["via"], chosen["days"]) == ("ws_ship_date_sk", VIA, 30)
+    asked = []
+
+    def respond(statement):
+        asked.append(statement)
+        if statement.startswith("WITH dated AS"):
+            return [{"by_days": "2003-01-03", "newest": "2003-02-01", "by_periods": None}]
+        return [{"k": str(2452640 + i)} for i in range(30)] if statement.startswith("SELECT DISTINCT") else []
+    resolved = agent_ns["inspire_scope_resolve"](FakeSpark(responder=respond), chosen)
+    assert (resolved["since"], resolved["newest"], len(resolved["keys"])) == ("2003-01-03", "2003-02-01", 30)
+    assert asked[0].startswith("WITH dated AS (SELECT CAST(r.`d_date` AS DATE) AS d FROM `samples`.`tpcds_sf1`.`web_sales` m JOIN "
+                               "`samples`.`tpcds_sf1`.`date_dim` r ON m.`ws_ship_date_sk` = r.`d_date_sk` WHERE m.`ws_ship_date_sk` IS NOT NULL)")
+    assert asked[1] == ("SELECT DISTINCT CAST(`d_date_sk` AS STRING) AS k FROM `samples`.`tpcds_sf1`.`date_dim` WHERE CAST(`d_date` AS DATE) >= "
+                        "DATE '2003-01-03' AND CAST(`d_date` AS DATE) <= DATE '2003-02-01' AND `d_date_sk` IS NOT NULL ORDER BY k LIMIT 10001")
+    where = agent_ns["inspire_scope_where"](resolved, ["ws_ship_date_sk", "ws_quantity"])
+    assert where.startswith("CAST(`ws_ship_date_sk` AS STRING) IN ('2452640', '2452641'") and where.endswith("'2452669')")
+    assert agent_ns["inspire_scope_text"](resolved) == f"the records of ws_ship_date_sk whose d_date in {DATE_DIM} is since 2003-01-03"
+    assert agent_ns["inspire_scope_record"](resolved)["via"] == VIA
+    assert agent_ns["inspire_scope_key"](resolved) != agent_ns["inspire_scope_key"](dict(resolved, via=None)), \
+        "a period read through a date table is another scope than the same column read as a date"
+
+
+@pytest.mark.parametrize("keys, said", [(0, "no d_date_sk there falls since 2003-01-03"),
+                                        (10001, "more than 10,000 values of d_date_sk fall since 2003-01-03")])
+def test_a_recent_period_through_a_date_table_with_no_key_or_too_many_is_refused(agent_ns, keys, said):
+    chosen = agent_ns["inspire_scope_choice"](scope=_via_scope(agent_ns))
+
+    def respond(statement):
+        if statement.startswith("WITH dated AS"):
+            return [{"by_days": "2003-01-03", "newest": "2003-02-01", "by_periods": None}]
+        return [{"k": str(i)} for i in range(keys)] if statement.startswith("SELECT DISTINCT") else []
+    with pytest.raises(ValueError) as caught:
+        agent_ns["inspire_scope_resolve"](FakeSpark(responder=respond), chosen)
+    assert said in str(caught.value) and "; choose fewer days, groups or all on the Run page" in str(caught.value)

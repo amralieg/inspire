@@ -40,11 +40,24 @@ function keysStatement(catalog, schema, table) {
   };
 }
 
-function statsSql(main, columns, timeColumn, days) {
-  const parts = ['COUNT(*) AS records', ...columns.flatMap((c, i) => [`approx_count_distinct(${q(c)}) AS d${i}`,
-    `COUNT_IF(${q(c)} IS NULL OR TRIM(CAST(${q(c)} AS STRING)) = '') AS n${i}`])];
-  if (timeColumn) parts.push(`COUNT_IF(${q(timeColumn)} >= date_sub(current_date(), ${Number(days)})) AS recent`);
-  return `SELECT ${parts.join(', ')} FROM ${main.sql}`;
+function statsSql(main, columns, time, days) {
+  const parts = ['COUNT(*) AS records', ...columns.flatMap((c, i) => [`approx_count_distinct(m.${q(c)}) AS d${i}`,
+    `COUNT_IF(m.${q(c)} IS NULL OR TRIM(CAST(m.${q(c)} AS STRING)) = '') AS n${i}`])];
+  const back = Math.max(Number(days), 1) - 1;
+  if (!time || !time.column) return `SELECT ${parts.join(', ')} FROM ${main.sql} m`;
+  const t = q(time.column);
+  if (!time.via) {
+    parts.push(`COUNT_IF(CAST(m.${t} AS DATE) >= x.inspire_since) AS recent`);
+    return `WITH x AS (SELECT date_sub(MAX(CAST(${t} AS DATE)), ${back}) AS inspire_since FROM ${main.sql}) `
+      + `SELECT ${parts.join(', ')} FROM ${main.sql} m CROSS JOIN x`;
+  }
+  const ref = G.groupingMainTable(time.via.table).sql;
+  const [key, date] = [q(time.via.key), `CAST(r.${q(time.via.date)} AS DATE)`];
+  parts.push('COUNT(k.inspire_key) AS recent', 'MAX(kc.inspire_keys) AS recent_keys');
+  return `WITH x AS (SELECT MAX(${date}) AS inspire_newest FROM ${main.sql} m JOIN ${ref} r ON m.${t} = r.${key}), `
+    + `k AS (SELECT DISTINCT r.${key} AS inspire_key FROM ${ref} r CROSS JOIN x WHERE ${date} >= date_sub(x.inspire_newest, ${back}) `
+    + `AND ${date} <= x.inspire_newest AND r.${key} IS NOT NULL), kc AS (SELECT COUNT(*) AS inspire_keys FROM k) `
+    + `SELECT ${parts.join(', ')} FROM ${main.sql} m CROSS JOIN kc LEFT JOIN k ON m.${t} = k.inspire_key`;
 }
 
 function sampleSql(main, columns) {
@@ -143,6 +156,18 @@ function savedJoins(raw, table) {
     .map((j) => ({ column: str(j.column), ref_table: str(j.ref_table), ref_column: str(j.ref_column), source: str(j.source) || 'discover' }));
 }
 
+function eliteAssessmentOf(raw) {
+  let value = raw;
+  if (typeof value === 'string') {
+    try {
+      value = parseExactJson(value);
+    } catch {
+      value = null;
+    }
+  }
+  return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+}
+
 function declaredKeys(rows) {
   const primary = (rows || []).filter((r) => r.constraint_type === 'PRIMARY KEY').map((r) => str(r.column_name)).filter(Boolean);
   const joins = (rows || []).filter((r) => r.constraint_type === 'FOREIGN KEY' && r.ref_table && r.ref_column)
@@ -171,7 +196,7 @@ function reasonOf({ technique, qualifies, standalone, recommended, table }) {
     + 'records each on average, so every record is in one Global group.';
 }
 
-function profileView({ table, technique, columns, candidates, stats, sample, values, paths, timeColumn, days, keys, joins, readAt }) {
+function profileView({ table, technique, columns, candidates, stats, sample, values, paths, time, days, keys, joins, readAt }) {
   const records = num(stats.records);
   const standalone = R.standaloneRecords(technique);
   const picked = profiledColumns(stats, candidates);
@@ -190,6 +215,8 @@ function profileView({ table, technique, columns, candidates, stats, sample, val
   const finest = recommended[recommended.length - 1];
   const suggested = finest ? R.suggestedGroups([...groups.get(finest).values()].filter((g) => g.value != null)) : [];
   const qualifies = R.groupingApplies(technique) && recommended.length > 0;
+  const via = time && time.column && time.via ? { table: str(time.via.table), key: str(time.via.key), date: str(time.via.date) } : null;
+  const timeColumn = time && time.column && !(via && num(stats.recent_keys) > R.SCOPE_VIA_KEYS_MAX) ? str(time.column) : null;
   const recent = timeColumn ? { days, records: num(stats.recent) } : null;
   const inGroups = suggested.length ? suggested.reduce((sum, g) => sum + g.records, 0) : null;
   const firstRun = { all: records, groups: inGroups, recent: recent ? recent.records : null, records: standalone ? Math.min(records, R.SCOPE_RECORDS) : null };
@@ -206,6 +233,7 @@ function profileView({ table, technique, columns, candidates, stats, sample, val
     recommended,
     example: exampleOf(recommended, groups, paths),
     time_column: timeColumn || null,
+    time_via: timeColumn ? via : null,
     recent,
     suggested_groups: suggested,
     first_run: firstRun,
@@ -230,6 +258,7 @@ module.exports = {
   pathsSql,
   profiledColumns,
   savedJoins,
+  eliteAssessmentOf,
   declaredKeys,
   prefillSql,
   profileView,

@@ -930,6 +930,9 @@ paths:
         It answers the candidate category columns with 2 to 500 groups, the recommended Grouping coarse to fine, an example of the small
         groups that move up a level, the time column and its recent records, three suggested groups (biggest, typical, smallest), the
         records each First run choice covers, and the default First run (not all when the table has more than 1,000 records).
+        The time column is a DATE or TIMESTAMP column of the table, or a date key whose saved Discover join (else Unity Catalog key)
+        reaches a dated table; then `time_via` names that table, its key and its date column, and the recent period is the newest
+        days of that date column. A date key whose recent period covers more than 10,000 key values is not offered as a recent period.
         `prefill` holds the record key columns and joins (saved by Discover, else declared in Unity Catalog) and a starting grouping SQL.
       requestBody:
         required: true
@@ -956,7 +959,8 @@ paths:
         '200':
           description: |
             The profile: table, records, qualifies, reason, standalone, columns (name, type, distinct, smallest, largest, nulls, parent),
-            recommended, example (column, small_groups, moves_to) or null, time_column, recent (days, records) or null, suggested_groups
+            recommended, example (column, small_groups, moves_to) or null, time_column, time_via (table, key, date) or null,
+            recent (days, records) or null, suggested_groups
             (value, records, kind), first_run (all, groups, recent, records), default_scope, prefill (key_columns, joins, sql) and read_at
         '400':
           description: The request names no valid session, use case, warehouse or scope_days, or the use case names no main table
