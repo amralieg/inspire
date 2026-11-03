@@ -384,11 +384,19 @@ class LocalTest(StarterCase):
         with self.assertRaises(self.ns["InspireNotInstalled"]):
             self.ns["acquire"](str(self.folder), "/n", {}, opener=self.unreachable(), exporter=lambda stem, kind: None)
         self.assertIn("kept 0 of 5 files", self.ns["shown"][-1])
-        self.assertIn(f"databricks workspace import-dir &lt;that folder&gt; &quot;{self.folder}&quot;", self.ns["shown"][-1])
+        self.assertIn(f"databricks workspace import &quot;{self.folder}/inspire-app.zip&quot; --file inspire-app.zip --format RAW --overwrite",
+                      self.ns["shown"][-1])
+        self.assertNotIn("import-dir", self.ns["shown"][-1])
         self.assertNotIn("part", self.ns["shown"][-1].replace("partial", ""))
 
 
 class OfflinePageTest(StarterCase):
+    def test_the_cli_import_keeps_a_file_whole_and_takes_the_workspace_folder_without_its_mount_prefix(self):
+        self.assertEqual(self.ns["cli_import"]("inspire-app.zip", "/Workspace/Users/someone@example.com/inspire"),
+                         'databricks workspace import "/Users/someone@example.com/inspire/inspire-app.zip" --file inspire-app.zip --format RAW --overwrite')
+        self.assertEqual(self.ns["cli_import"]("manifest.json", "/Users/a/b"),
+                         'databricks workspace import "/Users/a/b/manifest.json" --file manifest.json --format RAW --overwrite')
+
     def test_with_nothing_local_the_page_shows_the_commands_the_folder_the_rerun_step_and_the_links(self):
         printed = []
         self.ns["print"] = lambda *a, **k: printed.append(" ".join(str(x) for x in a))
@@ -403,11 +411,14 @@ class OfflinePageTest(StarterCase):
                           "download the 4 release files (manifest.json, inspire_installer.py, inspire-app.zip, inspire-assets.tar)",
                           "check the sha256 of each against manifest.json",
                           "Import manifest.json, inspire-app.zip, inspire-assets.tar into this workspace folder",
-                          "leave that folder as it is: the installer checks every file in it",
+                          "The workspace import unpacks inspire-app.zip", "Leave them as they are: the installer checks every file in them",
+                          "To import every file whole instead, run these Databricks CLI commands",
+                          *(f'databricks workspace import "{self.folder}/{name}" --file {name} --format RAW --overwrite'
+                            for name in ("manifest.json", "inspire-app.zip", "inspire-assets.tar")),
                           f"{LATEST}/manifest.json", f"{LATEST}/inspire_installer.py", f"{LATEST}/inspire-app.zip", f"{LATEST}/inspire-assets.tar",
                           "no answer in 10 seconds", "No manifest.json is next to this installer"):
                 self.assertIn(html.escape(words) if body is page else words, body)
-            for gone in ("SHA256SUMS", ".part", "partNN", "10 MB"):
+            for gone in ("SHA256SUMS", ".part", "partNN", "10 MB", "import-dir", "leave that folder"):
                 self.assertNotIn(gone, body)
         self.assertIn("https://github.com/amralieg/inspire/releases/latest", page)
         order = [page.index(words) for words in ("<b>macOS</b>", "<b>Linux</b>", "<b>Windows PowerShell</b>",
