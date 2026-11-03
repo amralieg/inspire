@@ -296,3 +296,75 @@ def test_the_translate_prompt_lists_the_kind_columns_in_order(ns):
     names = re.findall(r'"([^"]+)"', listed)
     assert names[-5:] == ["Kind Label", "Kind Family Label", "What We Serve", "How It Works", "Where Value Comes From"]
     assert f"{24 + len(names)} with all eighteen" in prompt and len(names) == 18
+
+
+ABOUT_LABELS = ("What we serve", "How it works", "Where the value comes from")
+
+
+def _about(ns, uc):
+    return [f"{label}: {uc[field]}" for label, field in zip(ABOUT_LABELS, LINE_FIELDS)]
+
+
+def test_the_about_lines_read_the_stored_lines_and_build_the_missing_ones(ns):
+    uc = kinded(ns, forecast_uc())
+    assert ns["inspire_kind_about"](uc) == _about(ns, uc)
+    assert ns["inspire_kind_about"](dict(uc, serving_summary="A list of stores to restock."))[0] == "What we serve: A list of stores to restock."
+    built = ns["inspire_kind_about"]({"Analytics Technique": "Forecasting", "serving_summary": "A cockpit."})
+    assert [line.split(": ", 1)[0] for line in built] == list(ABOUT_LABELS) and built[0] == "What we serve: A cockpit."
+    assert ns["inspire_kind_about"]({"Analytics Technique": "Basket magic"}) == [], "no kind and no lines: nothing to say"
+    assert ns["inspire_kind_about"]({"Name": "Predict churn", "Statement": "Customers leave"}) == []
+
+
+def test_the_about_text_appends_the_lines_once(ns):
+    uc = kinded(ns, forecast_uc())
+    once = ns["inspire_kind_about_text"]("A room about stock.", uc)
+    assert once.splitlines() == ["A room about stock."] + _about(ns, uc)
+    assert ns["inspire_kind_about_text"](once, uc) == once, "a kept description that already says them is not repeated"
+    assert ns["inspire_kind_about_text"]("", uc).splitlines() == _about(ns, uc)
+    assert ns["inspire_kind_about_text"]("A room.", {"Analytics Technique": "Basket magic"}) == "A room."
+
+
+def test_the_implement_brief_carries_the_3_lines_after_the_kpi(ns, tmp_path):
+    from v140_implement_test import _output_context, _output_inspire
+    inst, _calls = _output_inspire(ns, tmp_path)
+    context = _output_context(ns)
+    plain = inst._implement_use_case_brief(context)
+    assert not any(label in plain for label in ABOUT_LABELS), "a use case with no kind keeps the brief it had"
+    context["use_case"] = kinded(ns, forecast_uc())
+    brief = inst._implement_use_case_brief(context)
+    kpi = next(line for line in brief.splitlines() if line.startswith("KPI: "))
+    assert brief.split(kpi + "\n", 1)[1].startswith("\n".join(_about(ns, context["use_case"])) + "\nBusiness output table: ")
+
+
+def test_the_dashboard_header_carries_the_3_lines_and_moves_the_rest_down(ns, tmp_path):
+    from v142_dash_test import _canvas, _page, _shell
+    shell_sql, page = _shell(ns, tmp_path), _page(ns)
+    plain = ns["implement_dashboard_from_page"](page, shell_sql, "main.inspire.churn_out", {})
+    about = _about(ns, kinded(ns, forecast_uc()))
+    doc = ns["implement_dashboard_from_page"](page, shell_sql, "main.inspire.churn_out", {}, about=about)
+    before, after = _canvas(plain)[0]["layout"], _canvas(doc)[0]["layout"]
+    box = next(item for item in after if item["widget"]["name"] == "about")
+    height = ns["IMPLEMENT_DASHBOARD_HEIGHTS"]["about"]
+    assert box["position"] == {"x": 0, "y": ns["IMPLEMENT_DASHBOARD_HEIGHTS"]["text"], "width": 12, "height": height}
+    assert "".join(box["widget"]["multilineTextboxSpec"]["lines"]).split("\n") == [f"- {line}" for line in about]
+    assert [i["widget"]["name"] for i in after if i is not box] == [i["widget"]["name"] for i in before]
+    assert [i["position"]["y"] for i in after if i is not box][1:] == [i["position"]["y"] + height for i in before][1:]
+    assert not any(i["widget"]["name"] == "about" for i in before), "no lines, no box"
+
+
+def test_the_genie_room_description_and_the_alert_body_carry_the_3_lines(ns):
+    from v149_app_alerts_test import shell_alerts
+    from v140_implement_test import ALERT, _output_context
+    from _agentload import agent_source
+    uc = kinded(ns, dict(forecast_uc(), Name="Forecast stock", Statement="Shelves run empty"))
+    outputs = _output_context(ns, **ALERT)["spec"]["outputs"]
+    _summary, body = ns["implement_alert_texts"](shell_alerts, "N01-U01", uc, outputs, "https://h/d", "", None, False, "")
+    for line in _about(ns, uc):
+        assert line in body, line
+    assert len(body) <= shell_alerts.RUNBOOK_LIMIT and body.index("Why it matters:") < body.index("What we serve:")
+    _summary, plain = ns["implement_alert_texts"](shell_alerts, "N01-U01", {"Name": "Predict churn", "Statement": "Customers leave"},
+                                                  outputs, "https://h/d", "", None, False, "")
+    assert "What we serve:" not in plain
+    source = agent_source()
+    assert 'description = inspire_kind_about_text(description, context["use_case"])' in source
+    assert 'schema, run_log, inspire_kind_about(context["use_case"])),' in source
