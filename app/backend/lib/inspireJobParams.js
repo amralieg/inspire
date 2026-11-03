@@ -214,6 +214,7 @@ function inspireJobTags({ runType, params = {}, businessName = '', notebookFilen
   const specVersion = inspireTagValue(params.inspire_implement_spec_version);
   const tags = {
     inspire_version: INSPIRE_AGENT_VERSION,
+    dbx_inspire_ai_version: INSPIRE_AGENT_VERSION,
     dbx_inspire_ai_business: inspireTagValue(businessName),
     dbx_inspire_ai_type: runType,
     dbx_inspire_ai_run_type: runType,
