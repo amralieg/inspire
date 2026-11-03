@@ -132,3 +132,46 @@ def test_a_zero_batch_declaration_does_not_wait(agent_ns, tmp_path, monkeypatch)
         assert time.time() - began < 0.5
     finally:
         _stop(writer)
+
+
+def _funnel(inst, stage):
+    return [entry for entry in inst.funnel_ledger if entry["stage"] == stage][-1]
+
+
+def _spread_bob(inst, scores):
+    def score(use_cases, _schema, **_kw):
+        for uc, value in zip(use_cases, scores):
+            uc.update(bob_status="scored", bob_score=value, bob_hard_veto_gate=None, idea_theme=uc["theme_seed"])
+        return use_cases
+    inst._score_best_of_best = score
+    return inst
+
+
+def test_the_judge_spread_is_recorded_before_and_after_the_trim(agent_ns):
+    inst = _spread_bob(_inspire(agent_ns), [round(9.6 - i * 0.03, 3) for i in range(158)])
+    out = inst._apply_best_of_best_selection(_ucs(158, themes=36), [], {})
+    before = _funnel(inst, "bob_hard_veto")["bob_spread"]
+    after = _funnel(inst, "stratified_trim")["bob_spread"]
+    assert before["n"] == 158 and after["n"] == len(out) < 158
+    assert before["sd"] > after["sd"] > 0, "the trim keeps the top, so the kept spread is narrower"
+    assert before["min"] < after["min"] and before["max"] == after["max"] == 9.6
+    line = inst.logger.matching("[BOB-SPREAD FIRED]")
+    assert line and f"sd={before['sd']}" in line[-1][1] and f"sd={after['sd']}" in line[-1][1]
+
+
+def test_the_judge_spread_is_recorded_when_nothing_is_trimmed(agent_ns):
+    inst = _spread_bob(_inspire(agent_ns), [8.0, 7.0, 6.0, 9.0] * 10)
+    out = inst._apply_best_of_best_selection(_ucs(40), [], {})
+    assert len(out) == 40
+    spread = _funnel(inst, "bob_hard_veto")["bob_spread"]
+    assert spread == {"n": 40, "sd": 1.132, "min": 6.0, "max": 9.0}
+    assert not [entry for entry in inst.funnel_ledger if entry["stage"] == "stratified_trim"]
+
+
+def test_the_judge_spread_of_identical_scores_is_zero_and_of_none_is_empty(agent_ns):
+    spread = agent_ns["DatabricksInspire"]._bob_spread
+    assert spread([{"bob_score": 7.5}] * 3) == {"n": 3, "sd": 0.0, "min": 7.5, "max": 7.5}
+    assert spread([{"bob_score": 7.5}]) == {"n": 1, "sd": 0.0, "min": 7.5, "max": 7.5}
+    assert spread([{"bob_score": None}, {"bob_score": "x"}, {"bob_score": True}, {}]) == \
+        {"n": 0, "sd": None, "min": None, "max": None}
+    assert spread([{"bob_score": "8.25"}, {"bob_score": 6.25}])["sd"] == pytest.approx(1.414, abs=0.001)
