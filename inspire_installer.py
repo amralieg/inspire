@@ -42,7 +42,7 @@ MANIFEST = "manifest.json"
 WHOLE_FILES = ("inspire-app.zip", "inspire-assets.tar")
 RELEASE_FILES = (MANIFEST, INSTALLER) + WHOLE_FILES
 SETTINGS = "inspire_installer_test.json"
-SETTING_KEYS = ("release", "app_name", "warehouse_id", "catalog")
+SETTING_KEYS = ("release", "app_name", "warehouse_id", "catalog", "test_tag")
 REACH_TIMEOUT_S = 10
 READ_TIMEOUT_S = 120
 MANIFEST_LIMIT_BYTES = 1 << 20
@@ -463,7 +463,7 @@ def read_settings(folder):
     settings = read_json(path, SETTINGS)
     if not isinstance(settings, dict) or set(settings) - set(SETTING_KEYS):
         raise InspireReleaseError(f"{SETTINGS} holds settings this installer does not know; it reads only {', '.join(SETTING_KEYS)}.")
-    for key in ("release", "app_name", "warehouse_id", "catalog"):
+    for key in SETTING_KEYS:
         if key in settings and not isinstance(settings[key], str):
             raise InspireReleaseError(f"{key} in {SETTINGS} must be text.")
     return settings
