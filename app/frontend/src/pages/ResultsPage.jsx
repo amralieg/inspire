@@ -76,6 +76,7 @@ import { EXCEL_OLD_FORMAT, EXCEL_UNREADABLE, csvPreview, fileExtension, quickAcc
 import FilePreview from '../components/FilePreview';
 import { generationFolder, workspaceNotebookUrl, workspaceWebUiHashPath } from '../lib/workspaceLinks';
 import ImplementWizard from './ImplementWizard';
+import { kindFilterLabel, kindFilterOptions, matchesKindFilter } from '../lib/useCaseKind';
 import { MVP_FILTERS, implementState, mvpCounts, mvpFilterMatches, notebookRunEnded, notebookStatus, versionActive } from '../lib/implementWizard';
 import { buildUseCaseList } from '../lib/useCaseList';
 import { makeApiFetch, makeApiPostJson, requestHeaders } from '../lib/apiClient';
@@ -155,6 +156,7 @@ export default function ResultsPage({
   const [filterPriority, setFilterPriority] = useState('all');
   const [filterType, setFilterType] = useState('all');
   const [filterTechnique, setFilterTechnique] = useState('all');
+  const [filterKind, setFilterKind] = useState('all');
   const [filterQuality, setFilterQuality] = useState('all');
   const [filterBeneficiary, setFilterBeneficiary] = useState('all');
   const [filterSponsor, setFilterSponsor] = useState('all');
@@ -499,6 +501,7 @@ export default function ResultsPage({
           return false;
         if (filterType !== 'all' && uc.type !== filterType) return false;
         if (filterTechnique !== 'all' && String(fieldOf(uc, 'Analytics Technique', 'analytics_technique') || '') !== filterTechnique) return false;
+        if (!matchesKindFilter(uc._v130?.kind, filterKind)) return false;
         if (filterQuality !== 'all' && String(uc.Quality || '') !== filterQuality) return false;
         if (filterBeneficiary !== 'all' && beneficiaryFromUc(uc) !== filterBeneficiary) return false;
         if (filterSponsor !== 'all' && sponsorFromUc(uc) !== filterSponsor) return false;
@@ -592,6 +595,7 @@ export default function ResultsPage({
   const techniques = [
     ...new Set(allUseCases.map((uc) => fieldOf(uc, 'Analytics Technique', 'analytics_technique')).filter(Boolean)),
   ];
+  const kindOptions = kindFilterOptions(allUseCases.map((uc) => uc?._v130?.kind));
   const qualities = [
     ...new Set(allUseCases.map((uc) => uc?.Quality).filter(Boolean)),
   ];
@@ -686,6 +690,7 @@ export default function ResultsPage({
     filterPriority !== 'all' ||
     filterType !== 'all' ||
     filterTechnique !== 'all' ||
+    filterKind !== 'all' ||
     filterQuality !== 'all' ||
     filterBeneficiary !== 'all' ||
     filterSponsor !== 'all' ||
@@ -697,7 +702,7 @@ export default function ResultsPage({
 
   const clearAllFilters = () => {
     setSearchQuery(''); setFilterDomain('all'); setFilterSubdomain('all');
-    setFilterPriority('all'); setFilterType('all'); setFilterTechnique('all');
+    setFilterPriority('all'); setFilterType('all'); setFilterTechnique('all'); setFilterKind('all');
     setFilterQuality('all');
     setFilterBeneficiary('all'); setFilterSponsor('all');
     setFilterStrategy('all'); setFilterBizPriority('all');
@@ -2031,6 +2036,25 @@ export default function ResultsPage({
                     </select>
                   )}
 
+                  {kindOptions.length > 0 && (
+                    <select
+                      aria-label="Kind"
+                      value={filterKind}
+                      onChange={(e) => setFilterKind(e.target.value)}
+                      className="px-2 py-1.5 text-[11px] border border-border rounded-lg bg-bg text-text-primary focus:outline-none focus:border-db-red/30 transition-smooth"
+                    >
+                      <option value="all">All Kinds</option>
+                      {kindOptions.map((family) => (
+                        <optgroup key={family.value} label={family.label}>
+                          <option value={family.value}>{`All ${family.label} (${family.count})`}</option>
+                          {family.kinds.map((k) => (
+                            <option key={k.value} value={k.value}>{`${k.label} (${k.count})`}</option>
+                          ))}
+                        </optgroup>
+                      ))}
+                    </select>
+                  )}
+
                   {/* Quality filter */}
                   {qualities.length > 0 && (
                     <select
@@ -2127,6 +2151,12 @@ export default function ResultsPage({
                       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-db-red-50 text-db-red-fg text-[10px] font-medium border border-db-red/20">
                         {filterTechnique}
                         <button onClick={() => setFilterTechnique('all')} className="hover:text-db-red-fg">&times;</button>
+                      </span>
+                    )}
+                    {filterKind !== 'all' && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-db-red-50 text-db-red-fg text-[10px] font-medium border border-db-red/20">
+                        {kindFilterLabel(filterKind, kindOptions)}
+                        <button onClick={() => setFilterKind('all')} className="hover:text-db-red-fg">&times;</button>
                       </span>
                     )}
                     {filterQuality !== 'all' && (

@@ -4,6 +4,7 @@ import InspireScoreBadge from './InspireScoreBadge';
 import UseCaseDetailBody from './UseCaseDetailBody';
 import { FeedbackChip, StrategyChip } from './UseCaseStrategyDetail';
 import { bestOfBestLabel } from '../lib/v130UseCase';
+import { kindChipStyle } from '../lib/useCaseKind';
 import {
   belowBarLabelFromUseCase,
   cardTitlesOfUseCase,
@@ -42,6 +43,7 @@ export default function UseCaseCard({
   const inspireScoreNum = inspireScoreFromUc(u);
   const showPriorityPill = !!(priority && inspireScoreNum == null && !isNumericPriorityString(priority));
   const belowBar = belowBarLabelFromUseCase(u);
+  const kind = v130?.kind || null;
 
   return (
     <div className="bg-surface border border-border/70 rounded-xl overflow-hidden shadow-elevated lift-on-hover hover:border-db-red/25">
@@ -103,6 +105,26 @@ export default function UseCaseCard({
               <InspireScoreBadge score={inspireScoreNum} />
             </div>
             <div className="flex items-center gap-2 flex-wrap mt-2">
+              {kind && (
+                <span
+                  data-kind-chip={kind.id}
+                  data-kind-family={kind.family}
+                  className="text-[10px] px-2 py-0.5 rounded-full border font-semibold leading-none text-text-primary border-border"
+                  style={kindChipStyle(kind.color)}
+                  title={`${kind.familyLabel}: ${kind.question}`}
+                >
+                  {kind.familyLabel} · {kind.label}
+                </span>
+              )}
+              {kind && technique && (
+                <span
+                  data-technique-chip={technique}
+                  className="text-[10px] px-2 py-0.5 rounded-full border leading-none text-text-secondary border-border"
+                  style={kindChipStyle(kind.color)}
+                >
+                  {technique}
+                </span>
+              )}
               <StrategyChip info={v130} />
               <FeedbackChip status={feedbackCurrent?.status || v130?.feedbackStatus} />
               {showPriorityPill && (
@@ -112,7 +134,7 @@ export default function UseCaseCard({
               )}
             </div>
             <div className="text-[10px] text-text-tertiary mt-1.5 leading-snug">
-              {[domain || 'Unknown', subdomain, technique || ucType].filter(Boolean).join(' · ')}
+              {[domain || 'Unknown', subdomain, (kind ? '' : technique) || ucType].filter(Boolean).join(' · ')}
             </div>
           </div>
         </div>

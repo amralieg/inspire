@@ -13,43 +13,53 @@
  "families": [
   {
    "id": "measure_explain",
-   "label": "Measure and explain"
+   "label": "Measure and explain",
+   "color": "#2563eb"
   },
   {
    "id": "predict",
-   "label": "Predict"
+   "label": "Predict",
+   "color": "#7c3aed"
   },
   {
    "id": "decide_optimize",
-   "label": "Decide and optimize"
+   "label": "Decide and optimize",
+   "color": "#059669"
   },
   {
    "id": "simulate_plan",
-   "label": "Simulate and plan"
+   "label": "Simulate and plan",
+   "color": "#0891b2"
   },
   {
    "id": "measure_impact",
-   "label": "Measure impact"
+   "label": "Measure impact",
+   "color": "#ca8a04"
   },
   {
    "id": "detect_protect",
-   "label": "Detect and protect"
+   "label": "Detect and protect",
+   "color": "#dc2626"
   },
   {
    "id": "know_entities",
-   "label": "Know customers, products and suppliers"
+   "label": "Know customers, products and suppliers",
+   "color": "#db2777"
   },
   {
    "id": "run_processes",
-   "label": "Run processes"
+   "label": "Run processes",
+   "color": "#ea580c"
   },
   {
    "id": "place_relationships",
-   "label": "Place and relationships"
+   "label": "Place and relationships",
+   "color": "#65a30d"
   },
   {
    "id": "text_agents",
-   "label": "Text and agents"
+   "label": "Text and agents",
+   "color": "#4f46e5"
   }
  ],
  "layouts": [

@@ -6,6 +6,7 @@ import { workspaceNotebookUrl } from '../lib/workspaceLinks';
 import { placeholderWords } from '../lib/placeholderWords';
 import { requestHeaders } from '../lib/apiClient';
 import { START_MVP_LABEL } from '../lib/implementWizard';
+import { kindChipStyle } from '../lib/useCaseKind';
 import { beneficiaryFromUc, expandWorkspaceListCandidates, fieldOf, hasShippedGenieCode, notebookPathOf, sponsorFromUc } from '../lib/useCaseFields';
 
 const notebookCache = new Map();
@@ -94,6 +95,7 @@ export default function UseCaseDetailBody({
   const tablesInvolved = s(fieldOf(u, 'Tables Involved', 'tables_involved'));
   const shippedGenie = hasShippedGenieCode(u);
   const hasNotebook = !!(notebookPath || genieInstruction.trim());
+  const kind = v130?.kind || null;
 
   const loadNotebookPreview = useCallback(async () => {
     if (notebookContent) {
@@ -178,6 +180,28 @@ export default function UseCaseDetailBody({
 
   return (
     <div className={className}>
+      {kind && (
+        <section data-what-you-get className="rounded-lg border border-border p-3" style={kindChipStyle(kind.color)}>
+          <h4 className="text-[10px] font-bold text-text-primary uppercase tracking-[0.18em] mb-1">
+            What you get
+          </h4>
+          <p className="text-[11px] font-semibold text-text-primary mb-1.5">
+            {kind.familyLabel} · {kind.label}{kind.technique ? ` · ${kind.technique}` : ''}
+          </p>
+          {kind.lines.length > 0 ? (
+            <dl className="space-y-1 text-sm text-text-secondary leading-relaxed">
+              {kind.lines.map((line) => (
+                <div key={line.key} data-kind-line={line.key}>
+                  <dt className="inline font-semibold text-text-primary">{line.label}: </dt>
+                  <dd className="inline">{line.text}</dd>
+                </div>
+              ))}
+            </dl>
+          ) : (
+            <p className="text-sm text-text-secondary leading-relaxed">{kind.question}</p>
+          )}
+        </section>
+      )}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
           <h4 className="text-[10px] font-bold text-db-red-fg uppercase tracking-[0.18em] mb-1">

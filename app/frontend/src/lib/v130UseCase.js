@@ -1,6 +1,7 @@
 import { fieldOf, isBlankField } from './useCaseFields.js';
 import { KPI_BASELINE_MISMATCH, KPI_FILTER_MISMATCH_TEXT, kpiFilterMismatch, kpiFilterShown } from './kpiFilter.js';
 import { placeholderWords } from './placeholderWords.js';
+import { useCaseKindView } from './useCaseKind.js';
 import {
   PYTHON_DIGIT as DIGIT, PYTHON_SPACE as SPACE, PYTHON_WORD as WORD, pyFloat, pyRegexLiteral, pySpaced, pyStr, pyStrip, pyTruthy,
 } from './pythonText.js';
@@ -20,6 +21,7 @@ export const V130_TRACKING_FIELDS = [
   'strategy_alignment', 'strategy_path', 'kpis', 'expected_key_results', 'measures_of_success',
   'financial_benefits', 'non_financial_benefits', 'data_evidence', 'foundation_ids', 'use_case_key',
   'best_of_best', 'best_of_best_rank', 'best_of_best_score', 'best_of_best_reason',
+  'use_case_kind', 'kind_family', 'app_layout', 'serving_summary', 'method_summary', 'value_source', 'selection_basis',
 ];
 
 const KPI_UP = /\b(increase|increasing|up|higher|maximi[sz]e|raise|grow|growth)\b/i;
@@ -159,6 +161,7 @@ export function v130View(uc) {
     bestOfBest: bestOfBestOf(u),
     notStarredReason: String(u.best_of_best ?? '').trim().toUpperCase() === 'N' ? String(u.best_of_best_reason ?? '').trim() : '',
     hasValue: kpis.length + keyResults.length + measures.length + financial.length + nonFinancial.length > 0,
+    kind: useCaseKindView(u),
   };
 }
 
