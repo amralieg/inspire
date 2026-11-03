@@ -24,10 +24,21 @@ const NO_DATA_ANSWERS = [
   'There are no matching items for this period in the decision list today.',
   'Nothing was found for the stores you named in the region filter this week.',
   'Sorry, I can\'t find any category with discount losses in the tables.',
+  'There are no current records in the results with a pickup period, so the visible data does not show any difference in fares by pickup period.',
+  'Based on this query, 0 pickup-period groups were returned, so no period-level comparison is available.',
+  'There are no reason codes returned for current trips in the Act now or Review tiers, so there are no reason-code patterns to highlight.',
+];
+const DATA_ANSWERS = [
+  'The highest-ranked trips to review first are all in Monitor priority, and each has a recommended action of "No action this cycle; keep monitoring". Rank 1: zip 10115 to 10027.',
+  'Examples include: 10017 to 7423 ranked #1 with an average unusualness score of 0.6847 across 1 trip.',
+  'Online lost 180,000 and stores lost 120,000 last quarter, so online needs attention first.',
 ];
 
 test('a Genie answer that says there is no data fails the walk, and an answer with data passes', () => {
   for (const text of NO_DATA_ANSWERS) assert.notEqual(answerProblem({ text }), '', `must fail: ${text}`);
+  for (const text of DATA_ANSWERS) assert.equal(answerProblem({ text, sql: true, rows: 12 }), '', `must pass: ${text}`);
+  assert.match(answerProblem({ text: 'Trips in the evening scored 0.42 on average.', sql: true, rows: 0 }), /the query Genie ran returned no rows/);
+  assert.equal(answerProblem({ text: 'Trips in the evening scored 0.42 on average.', sql: true, rows: 3 }), '');
   assert.match(answerProblem({ text: NO_DATA_ANSWERS[0] }), /Genie says there is no data \("There is no data"\)/);
   assert.match(answerProblem({ text: 'Fine.' }), /only 5 characters/);
   assert.match(answerProblem({ text: 'Books lost the most to discounts last quarter, about a third of the total loss.' }), /no number and no result table/);
@@ -87,24 +98,30 @@ function genieRoutes(answers) {
       },
       'genie/message': ({ json, url }) => {
         const said = answers[url.searchParams.get('page')] || { text: 'Books lost 300,000 to discounts last quarter.' };
-        return json(200, { state: 'done', sql: 'SELECT 1', columns: [], rows: [], truncated: false, ...said });
+        return json(200, { state: 'done', sql: 'SELECT 1', columns: [{ name: 'category' }, { name: 'loss' }], rows: [{ category: 'Books', loss: 300000 }], truncated: false, ...said });
       },
     },
   };
 }
 
 test('the walk asks every suggested question on every hub page and fails the page whose Genie answers with no data', async () => {
-  const info = appInfo({}, 2, TABLE);
-  const { asks, routes } = genieRoutes({ n02_u01: { text: 'There is no data for this question in the tables of this space.' } });
+  const info = appInfo({}, 3, TABLE);
+  const { asks, routes } = genieRoutes({ n02_u01: { text: 'There is no data for this question in the tables of this space.' },
+    n02_u02: { text: 'Evening trips scored 0.42 on average.', rows: [] } });
   const { page, seen, context } = await openApp(browser, served.base, info, { routes });
   const results = await walkGenie(page, served.base, info, { answerMs: 20000, pageMs: 20000 });
   const questions = info.pages[0].questions;
   assert.equal(questions.length, 2);
+  assert.deepEqual(info.pages.map((p) => p.questions), [questions, questions, questions]);
   assert.deepEqual(results.map((r) => [r.page, r.question, r.ok]), [
-    ['n01_u05', questions[0], true], ['n01_u05', questions[1], true], ['n02_u01', questions[0], false], ['n02_u01', questions[1], false]]);
+    ['n01_u05', questions[0], true], ['n01_u05', questions[1], true], ['n02_u01', questions[0], false], ['n02_u01', questions[1], false],
+    ['n02_u02', questions[0], false], ['n02_u02', questions[1], false]]);
+  assert.equal(results[0].rows, 1);
   assert.match(results[2].problem, /Genie says there is no data \("There is no data"\)/);
+  assert.match(results[4].problem, /^the query Genie ran returned no rows: Evening trips scored 0\.42 on average\./);
   assert.deepEqual(asks.map((a) => [a.page, a.question, a.conversation_id]), [
-    ['n01_u05', questions[0], ''], ['n01_u05', questions[1], ''], ['n02_u01', questions[0], ''], ['n02_u01', questions[1], '']], 'each question starts a new chat');
+    ['n01_u05', questions[0], ''], ['n01_u05', questions[1], ''], ['n02_u01', questions[0], ''], ['n02_u01', questions[1], ''],
+    ['n02_u02', questions[0], ''], ['n02_u02', questions[1], '']], 'each question starts a new chat');
   assert.deepEqual(seen.errors, []);
   await context.close();
 });

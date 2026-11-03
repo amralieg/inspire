@@ -13,10 +13,10 @@ const PAGE_MS = 180000;
 
 const FAILED_TO_ANSWER = /could not answer|couldn'?t answer|unable to answer/i;
 const REFUSAL = /doesn'?t match|does not match|available schema|(?:don'?t|do not|doesn'?t|does not) (?:have|contain|include|hold) (?:the |any |that |this |enough )?(?:data|tables?|information|columns?|records?|rows?)\b|\bno (?:such |relevant )?(?:tables?|columns?) (?:for|about|on|named|called|that)\b|not (?:available|present|found|included) in (?:this|the) (?:space|schema|data|tables?)|isn'?t (?:available|included) in|(?:cannot|can'?t|unable to) (?:find|answer|locate)|outside (?:of )?(?:the|this) (?:scope|data|space)/i;
-const NO_DATA = /\bno (?:data|results?|rows?|records?|matching (?:data|rows?|records?|results?))\b|\b(?:returned|returns|found|gave|produced) (?:no|zero|0) (?:rows?|results?|records?|data|matches)\b|\b(?:0|zero) (?:rows?|results?|records?) (?:were |was )?(?:returned|found)\b|\bthe (?:query|result|results|table) (?:is|was|are|were|came back) empty\b|\bempty (?:result|results|table|data ?set)\b|\bnothing (?:was |is )?(?:found|returned)\b|\bthere (?:is|are|were|was) no (?:data|rows?|records?|results?|information|matching)\b|\b(?:not enough|insufficient) data\b|\bno information (?:is )?available\b/i;
+const NO_DATA = /\bno (?:data|results?|rows?|records?|matching (?:data|rows?|records?|results?))\b|\b(?:returned|returns|found|gave|produced) (?:no|zero|0) (?:rows?|results?|records?|data|matches)\b|\b(?:0|zero) (?:rows?|results?|records?) (?:were |was )?(?:returned|found)\b|\bthe (?:query|result|results|table) (?:is|was|are|were|came back) empty\b|\bempty (?:result|results|table|data ?set)\b|\bnothing (?:was |is )?(?:found|returned)\b|\bthere (?:is|are|were|was) no (?:[\w-]+ ){0,2}(?:data|rows?|records?|results?|information|matching|entries|values|groups?|codes?)\b|\b(?:not enough|insufficient) data\b|\bno information (?:is )?available\b|\b(?:no|0|zero) (?:[\w-]+ ){0,3}(?:(?:were|was|are|is) )?returned\b|\bno (?:[\w-]+ ){0,2}(?:comparison|breakdown|patterns?|trends?|differences?) (?:is |are )?(?:available|possible|to (?:show|highlight|report))\b|\b(?:visible|available|returned) data (?:does not|doesn'?t) show\b/i;
 const HEDGE = /\bas an ai\b|\blanguage model\b|\bit seems\b|\bit appears that\b/i;
 
-export function answerProblem({ text = '', failed = false, error = '', rows = 0 } = {}) {
+export function answerProblem({ text = '', failed = false, error = '', rows = 0, sql = false } = {}) {
   const answer = String(text || '').replace(/\s+/g, ' ').trim();
   if (failed) return `Genie returned an error: ${String(error || answer).slice(0, 200)}`;
   if (FAILED_TO_ANSWER.test(answer)) return `Genie says it could not answer: ${answer.slice(0, 200)}`;
@@ -24,6 +24,7 @@ export function answerProblem({ text = '', failed = false, error = '', rows = 0 
     const hit = answer.match(pattern);
     if (hit) return `Genie says ${says} ("${hit[0]}"): ${answer.slice(0, 240)}`;
   }
+  if (sql && !rows) return `the query Genie ran returned no rows: ${answer.slice(0, 240)}`;
   if (answer.length <= MIN_CHARS && !rows) return `the answer is only ${answer.length} characters and has no result table`;
   if (!/\d/.test(answer) && !rows) return 'the answer carries no number and no result table';
   const hedge = answer.match(HEDGE);
@@ -80,7 +81,7 @@ async function settled(page, ms) {
   return {
     text: String(text || '').replace(/\s+/g, ' ').trim(), failed: failed || tableError > 0,
     error: failed || tableError ? await last.locator('.g-err').first().innerText().catch(() => '') : '',
-    rows: await last.locator('.msg-t tbody tr').count(), seconds: Math.round((Date.now() - t0) / 1000), timedOut: Date.now() - t0 >= ms,
+    rows: await last.locator('.msg-t tbody tr').count(), sql: (await last.locator('.msg-sql').count()) > 0, seconds: Math.round((Date.now() - t0) / 1000), timedOut: Date.now() - t0 >= ms,
   };
 }
 
