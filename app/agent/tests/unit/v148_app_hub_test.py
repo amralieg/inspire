@@ -251,10 +251,11 @@ def test_the_overview_runs_one_data_query_per_use_case_concurrently_and_caches_i
     assert status == 200 and out["errors"] == {}, "the two data queries met at the barrier, so they ran at the same time"
     data = ws.queries("'item' AS `kind`")
     assert len(data) == 2 and sorted("invoice_out" in sql for sql, _p in data) == [False, True]
-    assert len(ws.sql) == 8, "per use case: the table's columns, the list's columns, its money summary and one data query"
+    assert len([q for q in ws.sql if "AS `stamp_us`" not in q[0]]) == 8, "per use case: the table's columns, the list's columns, its money summary and one data query"
     ws.barrier = None
+    first = len(ws.sql)
     overview(s)
-    assert len(ws.sql) == 8, "a second look within a minute reads the cache"
+    assert len(ws.sql) == first, "a second look within a minute reads the cache"
 
 
 def test_each_viewer_reads_the_overview_as_themselves_and_sees_only_use_cases_they_may_read(tmp_path):

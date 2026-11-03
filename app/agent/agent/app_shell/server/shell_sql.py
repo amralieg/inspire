@@ -113,6 +113,7 @@ VERSION_COLUMN = "_inspire_version"
 RUN_LOG_PROPERTY = "inspire.run_log"
 RUN_LOG_TIER_PROPERTY = "inspire.run_log_tier"
 RUN_FACTS_COLUMN = shell_facts.FACTS_COLUMN
+AHEAD_STAMP = "stamp_us"
 STAGE_PROPERTY = "inspire.run_stage"
 STAGES_MAX = 10
 STAGE_STATES = ("running", "done", "stopped")
@@ -2611,7 +2612,7 @@ def _change_ctes(context: dict, within: str = "", key: str = "_inspire_key") -> 
     latest = _latest_log(context)
     if latest:
         return {"l": f"SELECT t.`record_key` AS `_inspire_lk`, t.`change` AS `_inspire_ch`, t.`moved_to` AS `_inspire_mt` FROM "
-                     f"{latest}{scope}"}
+                     f"{latest}"}
     if logged_changes(context):
         return {"l": f"SELECT t.`record_key` AS `_inspire_lk`, t.`change` AS `_inspire_ch`, t.`moved_to` AS `_inspire_mt` FROM "
                      f"{context['history']['log']} AS t JOIN n ON t.`run_id` = n.`_inspire_latest` WHERE n.`_inspire_previous` IS NOT NULL{scope}"}
@@ -2890,11 +2891,21 @@ def ai_counts_query(page: dict, values: dict, context: dict, columns=None) -> tu
     return f"{_with(ctes, ['d', 'c'])} {counts}", params.items
 
 
-def changed_query(page: dict, facts: dict) -> tuple:
-    at = f"timestamp_micros({int(facts['stamp_us'])})"
+def _changed_since(page: dict, stamp: str, extra: str = "") -> str:
+    at = f"timestamp_micros({stamp})"
     return (f"SELECT COUNT(*) AS `n`, unix_micros(GREATEST(MAX(`valid_from`), COALESCE(MAX(`valid_to`), MAX(`valid_from`)))) AS `us`, "
             f"CASE WHEN COUNT(DISTINCT `record_key`) <= {int(CAPS['changed_keys'])} THEN to_json(array_sort(collect_set(CAST(`record_key` AS "
-            f"STRING)))) END AS `keys` FROM {table_name(page['result_table'])} WHERE `valid_from` > {at} OR `valid_to` > {at}", [])
+            f"STRING)))) END AS `keys`{extra} FROM {table_name(page['result_table'])} WHERE `valid_from` > {at} OR `valid_to` > {at}")
+
+
+def changed_query(page: dict, facts: dict) -> tuple:
+    return _changed_since(page, str(int(facts["stamp_us"]))), []
+
+
+def changed_ahead_query(page: dict) -> tuple:
+    summary, params = summary_query(page)
+    stamp = f"(SELECT CAST(get_json_object(z.`{RUN_FACTS_COLUMN}`, '$.stamp_us') AS BIGINT) FROM ({summary}) AS z)"
+    return _changed_since(page, stamp, f", {stamp} AS `{AHEAD_STAMP}`"), params
 
 
 def changed_keys_of(row) -> list | None:

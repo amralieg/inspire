@@ -1140,8 +1140,10 @@ def test_history_things_to_fix_and_runs_on_postgres_read_the_result_table_like_t
     assert status == 200 and things["errors"] == {} and things["pages"]["n01_u05"]["served"] == shell_pg.LAKEBASE, things
     status, runs = call(s, "GET", "runs", {"page": "n01_u05"})
     assert status == 200 and [r["run_id"] for r in runs["runs"]][:2] == ["77", "76"] and runs["errors"] == {}
-    assert {q.split(" FROM ")[0] for q, _p, _l in _ws.sql} == {"SELECT CAST(`run_id` AS STRING) AS `run_id`, `updated_at`", "SELECT *"} and all(
-        "_summary" in q for q, _p, _l in _ws.sql), "Lakebase serves the result table; only the run's summary row is read on Delta"
+    read = [q for q, _p, _l in _ws.sql if "AS `stamp_us`" not in q]
+    assert {q.split(" FROM ")[0] for q in read} == {"SELECT CAST(`run_id` AS STRING) AS `run_id`, `updated_at`", "SELECT *"} and all(
+        "_summary" in q for q in read), "Lakebase serves the result table; only the run's summary row is read on Delta"
+    assert len(_ws.sql) - len(read) == 1, "a summary without run facts has its changes counted early once, then never again"
 
 
 def test_spark_sql_the_shell_writes_gives_the_same_answer_on_postgres(postgres, tmp_path):
@@ -1291,7 +1293,8 @@ def test_a_saved_change_shows_on_top_of_lakebase_while_the_list_reads_postgres_a
     assert status == 200, history
     assert [v["change_source"] for v in history["versions"]] == ["run", "run", "edit"]
     assert history["current"]["recommended_action"] == "Hold the price" and history["current"]["valid_from"] == "2026-10-20T09:00:00.000Z"
-    assert all(q.startswith("SELECT * FROM `main`.`pricing`.`loss_desk_out_summary`") for q, _p, _l in ws.sql), \
+    assert len([q for q, _p, _l in ws.sql if "AS `stamp_us`" in q]) <= 1 and all(
+        q.startswith("SELECT * FROM `main`.`pricing`.`loss_desk_out_summary`") for q, _p, _l in ws.sql if "AS `stamp_us`" not in q), \
         "with the change on top, the list and its history read Lakebase, and Delta only for the run's summary row"
 
 

@@ -500,7 +500,7 @@ def test_a_question_about_one_record_carries_the_user_s_directives_before_the_re
     head, rest = out["question"].split(shell_core.USER_WINS + "\n", 1)
     assert head.startswith("A question about one record of the App") and head.endswith(BRIEF + "\n")
     assert rest.startswith('The record "Item 42", as the App read it just now:')
-    assert sum("_summary`" in sql for sql, _p, _l in ws.sql) == 1
+    assert sum("_summary`" in sql and "AS `stamp_us`" not in sql for sql, _p, _l in ws.sql) == 1
 
 
 def test_a_bad_explain_is_refused_before_any_warehouse_query(tmp_path):

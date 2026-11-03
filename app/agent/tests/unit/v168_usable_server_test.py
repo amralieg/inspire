@@ -489,7 +489,8 @@ class RunFactsWorkspace(UsableWorkspace):
             return {"columns": [], "rows": [{"run_id": "r5", "updated_at": "2026-10-27T06:10:00Z",
                                              shell_sql.RUN_FACTS_COLUMN: json.dumps(_ready_facts())}], "truncated": False}
         if sql.startswith("SELECT COUNT(*) AS `n`, unix_micros(GREATEST("):
-            return {"columns": [], "rows": [{"n": 0, "us": None, "keys": "[]"}], "truncated": False}
+            ahead = {shell_sql.AHEAD_STAMP: _ready_facts()["stamp_us"]} if f"AS `{shell_sql.AHEAD_STAMP}`" in sql else {}
+            return {"columns": [], "rows": [dict({"n": 0, "us": None, "keys": "[]"}, **ahead)], "truncated": False}
         return super().answer(sql, params)
 
 

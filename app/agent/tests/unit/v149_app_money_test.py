@@ -187,7 +187,7 @@ def test_a_second_look_reads_the_cached_money_model(tmp_path):
     s, ws, _made = _shell(tmp_path, MoneyWorkspace(summary=False))
     overview(s)
     first = len(ws.sql)
-    assert len(ws.queries("`loss_desk_out_summary`")) == 1
+    assert len([q for q, _p, _l in ws.sql if q.startswith("SELECT * FROM `main`.`pricing`.`loss_desk_out_summary`")]) == 1
     overview(s)
     assert len(ws.sql) == first, "a missing summary is not read again within a minute"
 

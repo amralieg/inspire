@@ -805,7 +805,7 @@ def test_the_run_history_always_reads_delta(tmp_path):
     s, _sp, _now = ops_shell(tmp_path, JobsWorkspace(runs=WEEKLY[:1], summary=[summary_row("u3", "2026-10-25T06:05:00.000Z")]))
     seen = []
     real = s.execute
-    s.execute = lambda ws, sql, params, limit, delta=False: (seen.append((SUMMARY_TABLE in sql, delta)), real(ws, sql, params, limit, delta))[1]
+    s.execute = lambda ws, sql, params, limit, delta=False: (seen.append((SUMMARY_TABLE in sql and "AS `stamp_us`" not in sql, delta)), real(ws, sql, params, limit, delta))[1]
     call(s, "GET", "runs", query={"page": "n01_u05"}, headers=signed(DANA))
     assert sorted(d for summary, d in seen if summary) == [True, True, True], "the index, the latest run's kept counts and the details"
 

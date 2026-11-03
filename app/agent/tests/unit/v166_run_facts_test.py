@@ -514,8 +514,9 @@ class FactsWarehouse:
         if sql.startswith(f"SELECT * FROM {shell_facts.table_name(HUB_TABLE + '_assumptions')}"):
             return rows(list(self.money.get("edits") or []))
         if sql.startswith("SELECT COUNT(*) AS `n`, unix_micros(GREATEST("):
-            return rows([{"n": self.changed_n, "us": STAMP_US + 5 if self.changed_n else None,
-                          "keys": None if self.keys is None else json.dumps(self.keys)}])
+            ahead = {shell_sql.AHEAD_STAMP: self.facts.get("stamp_us")} if f"AS `{shell_sql.AHEAD_STAMP}`" in sql else {}
+            return rows([dict({"n": self.changed_n, "us": STAMP_US + 5 if self.changed_n else None,
+                               "keys": None if self.keys is None else json.dumps(self.keys)}, **ahead)])
         if f"AS `{shell_facts.CHANGED_KEY}`" in sql:
             return rows([{shell_facts.CHANGED_KEY: "k1", "_inspire_k": "k1", "_inspire_status": "Done", "_inspire_state": "unchecked",
                           "_inspire_closed": "2026-09-30T10:00:00.000Z", "_inspire_measured_ok": 0},

@@ -1348,6 +1348,8 @@ class Shell:
         self.lookups, self.owners, self.stamp_pool = {}, {}, ThreadPoolExecutor(max_workers=STAMP_WORKERS)
         self.pool = ThreadPoolExecutor(max_workers=WORKERS)
         self.list_pool = ThreadPoolExecutor(max_workers=LIST_WORKERS)
+        self.state_pool = ThreadPoolExecutor(max_workers=STAMP_WORKERS)
+        self.factless = set()
         self.uncached = False
         self.hub_pool = ThreadPoolExecutor(max_workers=HUB_WORKERS)
         self.warehouse = str(self.env.get("DATABRICKS_WAREHOUSE_ID") or "")
@@ -1456,7 +1458,7 @@ class Shell:
         return {"current": shell_sql.table_name(current) if current else None, "latest_log": shell_sql.table_name(changes) if changes else None}
 
     def close(self) -> None:
-        for pool in (self.pool, self.list_pool, self.hub_pool, self.stamp_pool):
+        for pool in (self.pool, self.list_pool, self.hub_pool, self.stamp_pool, self.state_pool):
             pool.shutdown(wait=True)
         if self.lakebase is not None:
             self.lakebase.close()
@@ -1527,21 +1529,39 @@ class Shell:
     def read_state(self, ws, page: dict) -> dict:
         if not page.get("result_table"):
             return {"row": None, "facts": None, "stamp": None, "error": ""}
+        ahead = None if page["id"] in self.factless else self.state_pool.submit(self.execute, ws, *shell_sql.changed_ahead_query(page), 1, True)
         try:
             rows = self.execute(ws, *shell_sql.summary_query(page), 1, delta=True)["rows"]
         except QueryError as error:
+            if ahead:
+                ahead.cancel()
             gone = bool(NO_TABLE.search(str(error)))
             return {"row": None, "facts": None, "stamp": None, "error": "" if gone else shell_sql.error_text(error)}
         row = dict(rows[0]) if rows else None
         facts = shell_sql.state_facts(row, page["result_table"])
         if not facts:
+            self.factless.add(page["id"])
+            if ahead:
+                ahead.cancel()
             return {"row": row, "facts": None, "stamp": None, "error": ""}
+        self.factless.discard(page["id"])
+        changed = self.changed_ahead(ahead, facts)
         try:
-            changed = (self.execute(ws, *shell_sql.changed_query(page, facts), 1, delta=True)["rows"] or [{}])[0]
+            if changed is None:
+                changed = (self.execute(ws, *shell_sql.changed_query(page, facts), 1, delta=True)["rows"] or [{}])[0]
         except QueryError as error:
             return {"row": row, "facts": None, "stamp": None, "error": shell_sql.error_text(error)}
         return {"row": row, "facts": facts, "error": "", "changed": int(changed.get("n") or 0), "keys": shell_sql.changed_keys_of(changed),
                 "stamp": (str(row.get("run_id")), str(row.get("updated_at")), str(changed.get("n")), str(changed.get("us")))}
+
+    def changed_ahead(self, ahead, facts: dict):
+        if ahead is None:
+            return None
+        try:
+            found = (ahead.result()["rows"] or [{}])[0]
+        except QueryError:
+            return None
+        return found if str(found.get(shell_sql.AHEAD_STAMP)) == str(int(facts["stamp_us"])) else None
 
     def owned_by(self, table: str) -> set:
         found = self.owners.get(table)
@@ -1986,6 +2006,12 @@ class Shell:
             plan["ai"] = shell_sql.ai_counts_query(page, values, context, request["columns"])
         limits = {"rows": request["limit"], "ai": shell_sql.CAPS["options"]}
         jobs = {("list", name): (lambda q=query, n=limits.get(name, 1): self.read_at(ws, who, *q, n)) for name, query in plan.items()}
+        closing, closed = context["actions"] and not request["window"], {}
+        if closing:
+            def closed_rows(listed=jobs[("list", "rows")]):
+                result, at = listed()
+                return dict(result, rows=self.with_closes(headers, ws, who, page, context, fields, result["rows"], closed)), at
+            jobs[("list", "rows")] = closed_rows
         jobs.update(self.summary_reads(ws, who, context, fresh))
         read, errors = self._parallel(jobs, probe, self.list_pool)
         for name in ("rows", "total"):
@@ -2023,9 +2049,10 @@ class Shell:
         total, more = (int(first("total").get("total") or 0), False) if whole and facts else shell_sql.counted_total(first("total"))
         missed = floor is not None and floor["on"] == "d" and any(r.get("_inspire_key") is None for r in rows)
         if floor is not None and (missed or (len(rows) < request["limit"] and (more or total > request["offset"] + len(rows)))):
-            rows = self.run(ws, who, *shell_sql.list_queries(page, values, request, context, editor)["rows"], request["limit"])["rows"]
-        if context["actions"] and not request["window"]:
-            rows = self.with_closes(headers, ws, who, page, context, fields, rows, failures)
+            rows, closed = self.run(ws, who, *shell_sql.list_queries(page, values, request, context, editor)["rows"], request["limit"])["rows"], {}
+            if closing:
+                rows = self.with_closes(headers, ws, who, page, context, fields, rows, closed)
+        failures.update(closed)
         window = request["window"]
         limited = bool(window and window.get("limit"))
         shown = min(total, window["limit"]) if limited else total

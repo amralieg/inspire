@@ -267,7 +267,7 @@ def test_the_run_summary_reads_the_latest_row_for_the_use_case_with_its_ai_categ
     assert status == 200 and out["note"] == ""
     assert out["run"] == dict({k: RUN[k] for k in shell_core.RUN_SUMMARY_FIELDS}, unit="USD")
     assert out["categories"] == {"ai_cat_driver": {"meaning": "what moved the record", "values": ["Price", "Volume"]}}
-    (sql, params), = ws.queries("loss_desk_out_summary")
+    (sql, params), = [(q, p) for q, p in ws.queries("loss_desk_out_summary") if "AS `stamp_us`" not in q]
     assert sql == SUMMARY_SQL and params == [{"name": "p0", "value": "N01-U05", "type": "STRING"}]
 
 
@@ -277,7 +277,7 @@ def test_the_run_summary_always_reads_delta(tmp_path):
     real = s.execute
     s.execute = lambda ws, sql, params, limit, delta=False: (seen.append(delta), real(ws, sql, params, limit, delta))[1]
     call(s, "GET", "summary", query={"page": "n01_u05"})
-    assert seen == [True]
+    assert seen == [True, True], "the summary and the early count of the changes since its run both read Delta"
 
 
 @pytest.mark.parametrize("summary,error,expected", [
@@ -317,7 +317,7 @@ def test_a_page_without_a_result_table_has_no_run_summary_and_no_query_runs(tmp_
     (tmp_path / "x").mkdir()
     s, ws, _made = shell(tmp_path / "x", settings=SETTINGS, pages=[edit_page(use_case_id="")], ws=AiWorkspace(summary=RUN))
     call(s, "GET", "summary", query={"page": "n01_u05"})
-    (sql, params), = ws.queries("loss_desk_out_summary")
+    (sql, params), = [(q, p) for q, p in ws.queries("loss_desk_out_summary") if "AS `stamp_us`" not in q]
     assert "WHERE" not in sql and params == []
 
 

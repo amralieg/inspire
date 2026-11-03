@@ -415,7 +415,7 @@ def test_the_money_at_stake_names_the_records_currency_then_the_runs_and_never_a
     ws.history = [dict(EXPLAINED, **record)]
     (status, out), ws, _made = asked(tmp_path, ws=ws)
     assert status == 200 and f"- Value at stake (value_at_stake): {unit}" in out["question"]
-    assert sum("_summary`" in sql for sql, _p, _l in ws.sql) == summary_reads, "one cached read serves the currency and the user's directives"
+    assert sum("_summary`" in sql and "AS `stamp_us`" not in sql for sql, _p, _l in ws.sql) == summary_reads, "one cached read serves the currency and the user's directives"
 
 
 def test_an_older_table_without_the_ai_columns_or_the_money_at_stake_asks_with_what_it_has(tmp_path):
@@ -423,7 +423,7 @@ def test_an_older_table_without_the_ai_columns_or_the_money_at_stake_asks_with_w
     assert status == 200
     assert out["question"] == (RECORD_INTRO + 'The record "Item 42", as the App read it just now:\n' + KEYS + "- Tier (priority_tier): Act now\n"
                                + RECORD_TAIL)
-    assert sum("_summary`" in sql for sql, _p, _l in ws.sql) == 1, "only the user's directives are read from the run summary"
+    assert sum("_summary`" in sql and "AS `stamp_us`" not in sql for sql, _p, _l in ws.sql) == 1, "only the user's directives are read from the run summary"
     (tmp_path / "unexplained").mkdir()
     (status, out), _ws, _made = asked(tmp_path / "unexplained", ws=AskWorkspace(versions=[dict(EXPLAINED, ai_explanation=None,
                                                                                                confidence_level="")]))

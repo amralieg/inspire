@@ -82,7 +82,7 @@ def test_the_count_of_my_fixes_today_is_a_column_of_the_overview_statement_and_a
     assert MINE in data and len(ws.queries(MINE)) == 1, "the count rides in the same statement as the things to fix"
     assert "lower(v.`_inspire_closer`)" in data and "get_json_object(" not in data and "_inspire_undo`" not in data, \
         "it counts from the close history, never from the batch values or a list of undone batches"
-    assert len(ws.sql) == 4, "a use case costs the table's columns, the list's columns, its money summary and one data query"
+    assert len([q for q in ws.sql if "AS `stamp_us`" not in q[0]]) == 4, "a use case costs the table's columns, the list's columns, its money summary and one data query"
 
 
 def test_one_overview_statement_serves_every_viewer_and_each_reads_their_own_count(tmp_path):

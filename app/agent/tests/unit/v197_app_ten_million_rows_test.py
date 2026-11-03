@@ -1,6 +1,7 @@
 import concurrent.futures
 import re
 import sqlite3
+import threading
 
 import pytest
 import sqlglot
@@ -223,3 +224,116 @@ def test_the_list_reads_run_on_their_own_workers_so_other_screens_never_queue_ah
     s.close()
     with pytest.raises(RuntimeError):
         s.list_pool.submit(lambda: None)
+
+
+class StateOverlap(FactsWarehouse):
+    def __init__(self, facts, ahead=None, failing=False):
+        super().__init__(facts)
+        self.asked, self.overlapped, self.ahead, self.failing = threading.Event(), False, ahead, failing
+
+    def run_sql(self, warehouse, sql, params, limit=5000):
+        if f"AS `{shell_sql.AHEAD_STAMP}`" in sql:
+            self.asked.set()
+            if self.failing:
+                self.sql.append((sql, params, limit))
+                raise shell_core.QueryError("[UNRESOLVED_COLUMN] A column `run_facts` cannot be resolved.")
+            found = super().run_sql(warehouse, sql, params, limit)
+            if self.ahead is not None:
+                found = dict(found, rows=[dict(found["rows"][0], **{shell_sql.AHEAD_STAMP: self.ahead})])
+            return found
+        if sql.startswith("SELECT * FROM `main`.`pricing`.`loss_desk_out_summary`"):
+            self.overlapped = self.asked.wait(timeout=2)
+        return super().run_sql(warehouse, sql, params, limit)
+
+
+def _changed_reads(ws):
+    return [(f"AS `{shell_sql.AHEAD_STAMP}`" in sql, params) for sql, params, _l in ws.sql if sql.startswith("SELECT COUNT(*) AS `n`, unix_micros(")]
+
+
+def _state_shell(tmp_path, ws):
+    from v148_app_hub_test import SETTINGS, hub_page
+    settings = dict(SETTINGS, options=dict(SETTINGS.get("options") or {}, decisions=True))
+    s, ws, _made = hub_shell(tmp_path, settings=settings, pages=[hub_page()], ws=ws)
+    return s, ws, s.page("n01_u05")
+
+
+def test_a_summary_without_run_facts_is_counted_early_once_and_again_when_a_run_writes_them(tmp_path):
+    s, ws, page = _state_shell(tmp_path, StateOverlap(None))
+    assert s.read_state(ws, page)["facts"] is None and [early for early, _p in _changed_reads(ws)] == [True]
+    ws.sql.clear()
+    assert s.read_state(ws, page)["facts"] is None and _changed_reads(ws) == [], \
+        "the App already knows this summary has no run facts, so it sends no count it cannot use"
+    ws.facts = _ready_facts()
+    assert s.read_state(ws, page)["facts"] and [early for early, _p in _changed_reads(ws)] == [False]
+    ws.sql.clear()
+    assert s.read_state(ws, page)["stamp"] and [early for early, _p in _changed_reads(ws)] == [True], \
+        "once a run writes its facts, the count goes back to being read alongside the summary"
+    s.close()
+
+
+def test_the_page_state_counts_the_changes_since_the_run_while_it_reads_the_run_summary(tmp_path):
+    s, ws, page = _state_shell(tmp_path, StateOverlap(_ready_facts()))
+    ws.changed_n, ws.keys = 2, ["k1", "k2"]
+    state = s.read_state(ws, page)
+    assert ws.overlapped, "the count of changes since the run is asked before the run summary comes back"
+    assert _changed_reads(ws) == [(True, shell_sql.summary_query(page)[1])], "one count, read alongside the summary, and nothing after it"
+    assert (state["changed"], state["keys"], state["stamp"][2]) == (2, ["k1", "k2"], "2")
+    s.close()
+
+
+@pytest.mark.parametrize("ahead, failing, why", [
+    (12345, False, "the summary changed between the two reads, so the count was taken from another run's start"),
+    (None, True, "an older summary table has no run facts column, so the early count fails")])
+def test_the_page_state_counts_the_changes_again_from_the_run_summary_when_the_early_count_cannot_be_used(tmp_path, ahead, failing, why):
+    s, ws, page = _state_shell(tmp_path, StateOverlap(_ready_facts(), ahead=ahead, failing=failing))
+    ws.changed_n = 1
+    state = s.read_state(ws, page)
+    assert _changed_reads(ws) == [(True, shell_sql.summary_query(page)[1]), (False, [])], why
+    serial = [sql for sql, _p, _l in ws.sql if sql.startswith("SELECT COUNT(*) AS `n`, unix_micros(") and shell_sql.AHEAD_STAMP not in sql]
+    assert serial == [shell_sql.changed_query(page, _ready_facts())[0]]
+    assert state["changed"] == 1 and state["facts"] and not state["error"]
+    s.close()
+
+
+def test_the_early_count_takes_the_run_start_from_the_same_summary_row_the_page_reads():
+    from v148_app_hub_test import hub_page
+    page = hub_page()
+    summary, params = shell_sql.summary_query(page)
+    sql, ahead_params = shell_sql.changed_ahead_query(page)
+    assert ahead_params == params and sql.count(f"FROM ({summary}) AS z") == 3
+    assert sql.startswith(shell_sql.changed_query(page, _ready_facts())[0].split(" FROM ")[0])
+    assert sqlglot.parse_one(sql, read="databricks") is not None
+
+
+class CloseOverlap(FactsWarehouse):
+    def __init__(self, facts):
+        super().__init__(facts)
+        self.closing, self.overlapped = threading.Event(), None
+
+    def run_sql(self, warehouse, sql, params, limit=5000):
+        if "z.`_inspire_closed_as` AS `_inspire_status`" in sql:
+            self.closing.set()
+        elif "AS total" in sql:
+            self.overlapped = self.closing.wait(timeout=2)
+        return super().run_sql(warehouse, sql, params, limit)
+
+
+def test_the_closes_of_the_first_records_are_read_while_the_list_is_still_counted(tmp_path):
+    s, ws, _page = _state_shell(tmp_path, CloseOverlap(_ready_facts()))
+    ws.status, ws.closes = {"k1": "Done"}, {"k1": {"_inspire_closed_by": "pat@example.com"}}
+    status, out = call(s, "POST", "records", body={"page": "n01_u05", "sort": {"key": "rank", "dir": "asc"}, "limit": 25})
+    assert status == 200 and not out["errors"], out
+    assert ws.overlapped is True, "the closes are asked as soon as the rows are in, not after the count"
+    assert {r["_inspire_key"]: r.get("_inspire_closed_by") for r in out["rows"]}["k1"] == "pat@example.com"
+    s.close()
+
+
+def test_the_latest_changes_join_the_page_of_rows_without_reading_the_list_a_second_time(tmp_path):
+    s, ws, _page = _state_shell(tmp_path, FactsWarehouse(_ready_facts()))
+    status, _out = call(s, "POST", "records", body={"page": "n01_u05", "sort": {"key": "rank", "dir": "asc"}, "limit": 25})
+    assert status == 200
+    (rows, _p), = [(sql, p) for sql, p, _l in ws.sql if "`loss_desk_out_run_changes` AS t" in sql and "LIMIT 25" in sql]
+    latest = rows.split(" l AS (", 1)[1].split(") SELECT ", 1)[0]
+    assert "IN (SELECT" not in latest and "FROM s" not in latest, latest
+    assert rows.count(" FROM s") == 1 and "LEFT JOIN l AS l ON l.`_inspire_lk` = k.`_inspire_key`" in rows
+    s.close()
