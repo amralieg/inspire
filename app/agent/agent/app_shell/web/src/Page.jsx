@@ -192,7 +192,7 @@ function HubBody({ app, page, entry, live, summary, state, onState, view, onView
         <Placed slots={slotsOf(plan, 'kpis')}><Tiles tiles={hubTiles(page, current, summary, fix, app.user, status.kind === 'stale')} loading={loading} /></Placed>
       )}
       {!waiting && shown === 'overview' && current?.money && <MoneyCard pageId={pageId} nonce={nonce} onChanged={onChanged} />}
-      {!waiting && current?.truncated && shown === 'overview' && <p className="more">These numbers count the {integer(current.items.length)} biggest of {integer(current.total)} open records.</p>}
+      {!waiting && current?.truncated && shown === 'overview' && <p className="more">These numbers count the {integer(current.items.length)} biggest of {current.total_more ? 'at least ' : ''}{integer(current.total)} open records.</p>}
       {!UNFILTERED.includes(shown) && !meta && <section className="fbar"><Skeleton height={34} width="70%" /></section>}
       {!UNFILTERED.includes(shown) && (
         <Placed slots={shown === 'overview' ? slotsOf(plan, 'filters') : NO_SLOTS}>

@@ -62,7 +62,7 @@ def _flow(ns, tmp_path, outputs=None, assets=None, asset_status=None, fail=None,
 
     inst._implement_run_query_check = query
     inst._implement_api = api
-    inst._implement_app_check = lambda work, files, modules, warehouse: seen["checked"].append((files, warehouse)) or []
+    inst._implement_app_check = lambda work, files, modules, warehouse: setattr(inst, "_implement_app_speeds", {}) or seen["checked"].append((files, warehouse)) or []
     inst._implement_app_name = lambda context, name: name
     inst._implement_deploy_app = (lambda context, name, files, reads, space_id="", lakebase=None, page_tables=():
                                   seen["deployed"].append((name, files, reads, space_id)) or {"app_name": name})

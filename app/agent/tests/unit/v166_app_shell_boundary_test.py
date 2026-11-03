@@ -28,11 +28,8 @@ SHELL_ENTRY_POINTS = {
     ("_implement_app_check", "shell_core.Shell"),
     ("_implement_app_check", "shell_core.HttpError"),
     ("_implement_app_check", "shell_core.Shell.check"),
-    ("_implement_app_check", "shell_core.Shell.hub_pool"),
-    ("_implement_app_check", "shell_core.Shell.lakebase"),
-    ("_implement_app_check", "shell_core.Shell.pool"),
+    ("_implement_app_check", "shell_core.Shell.close"),
     ("_implement_app_check", "shell_core.Shell.speed"),
-    ("_implement_app_check", "shell_core.Shell.stamp_pool"),
     ("_implement_app_check", "shell_db.QueryError"),
     ("_implement_app_check", "shell_db.Workspace"),
     ("_implement_app_check", "shell_pg.Lakebase"),
@@ -482,10 +479,11 @@ def test_an_error_the_shell_raises_after_reading_a_row_comes_back_without_the_ro
     class Shell:
         def __init__(self, root, **kwargs):
             self.factory = kwargs["sp_factory"]
-            self.pool, self.lakebase = types.SimpleNamespace(shutdown=lambda wait: None), None
-            self.hub_pool = self.stamp_pool = types.SimpleNamespace(shutdown=lambda wait: None)
             if stage == "start":
                 stop(self.factory)
+
+        def close(self):
+            return None
 
         def speed(self, headers):
             return {}
@@ -548,9 +546,9 @@ def test_the_check_reads_lakebase_rows_through_the_same_watch(agent_ns, tmp_path
     class Shell:
         def __init__(self, root, **kwargs):
             caught.update(kwargs)
-            self.pool, self.lakebase = types.SimpleNamespace(shutdown=lambda wait: None), None
-            self.hub_pool = self.stamp_pool = types.SimpleNamespace(shutdown=lambda wait: None)
-            self.hub_pool = self.stamp_pool = self.pool
+
+        def close(self):
+            return None
 
         def speed(self, headers):
             return {}

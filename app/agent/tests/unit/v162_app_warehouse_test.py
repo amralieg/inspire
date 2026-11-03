@@ -170,7 +170,7 @@ def test_a_warehouse_only_edit_checks_and_redeploys_the_app_on_the_new_warehouse
                         style="a", layout="sidebar", palette="default", theme="light")
     inst = _restyle_inspire(agent_ns, tmp_path, monkeypatch, files)
     warehouses = []
-    inst._implement_app_check = lambda work, files, modules, warehouse: warehouses.append(warehouse) or []
+    inst._implement_app_check = lambda work, files, modules, warehouse: setattr(inst, "_implement_app_speeds", {}) or warehouses.append(warehouse) or []
     previous = json.loads(json.dumps(VALID))
     inst._implement_previous = lambda t: {"spec_version": 2, "spec_json": previous}
     current = dict(previous, outputs={**previous["outputs"], "app_warehouse_id": "wh2"})

@@ -1994,10 +1994,45 @@ def _runs_ranked(table: str, history=None, scopes=None) -> str:
     return f"SELECT `_inspire_run`, `_inspire_ended`, ROW_NUMBER() OVER (ORDER BY `_inspire_ran` DESC) AS `_inspire_nth` FROM {runs}"
 
 
-def _runs_rows(table: str, columns, backs, history=None, scopes=None) -> str:
+def facts_run_order(facts, backs, scopes=None):
+    if scopes or not facts_ready(facts):
+        return None
+    rows, ran = facts.get("runs") or [], {}
+    for row in rows:
+        if row.get("run_id") is None or row.get("ran_us") is None:
+            return None
+        ran[str(row["run_id"])] = min(int(row["ran_us"]), ran.get(str(row["run_id"]), int(row["ran_us"])))
+    order = sorted(ran, key=lambda k: (-ran[k], k))
+    deepest = max(backs)
+    if not order or order[0] != facts_run(facts, "latest") or (len(order) > 1 and order[1] != facts_run(facts, "previous")):
+        return None
+    if len(order) <= deepest and len(rows) >= shell_facts.RUN_ROWS:
+        return None
+    return {"order": order, "ran": ran}
+
+
+def _facts_rows(table: str, columns, backs, history, known: dict) -> str:
+    run, order, ran = quote(RUN_COLUMN), known["order"], known["ran"]
+    kept = ", ".join("TRUE AS `is_current`" if c == "is_current" else f"t.{quote(c)}" for c in columns)
+    typed = lambda value: f"CAST({sql_text(value)} AS {history['run_type']})"
+    named = {order[b]: RUN_PREVIOUS if b == 1 else f"{RUN_PREVIOUS}_{b}" for b in backs if b < len(order)}
+    if not named:
+        return f"SELECT {kept}, CAST(NULL AS STRING) AS {run} FROM {table} AS t WHERE FALSE"
+    deepest = max(b for b in backs if b < len(order))
+    runs = {"want": ", ".join(typed(r) for r in named), "near": ", ".join(typed(r) for r in order[:deepest + 1]),
+            "since": f"timestamp_micros({int(min(ran[r] for r in named))})"}
+    label = "CASE " + " ".join(f"WHEN CAST(t.`run_id` AS STRING) = {sql_text(r)} THEN '{n}'" for r, n in named.items()) + " END"
+    return f"SELECT {kept}, {label} AS {run} FROM {versions_source(table, history, runs=runs)} AS t"
+
+
+def _runs_rows(table: str, columns, backs, history=None, scopes=None, facts=None) -> str:
     run, listed = quote(RUN_COLUMN), ", ".join(quote(c) for c in columns)
     parts = [f"SELECT {listed}, '{RUN_LATEST}' AS {run} FROM {table}"] if 0 in backs else []
     earlier = [str(back + 1) for back in backs if back]
+    known = facts_run_order(facts, [b for b in backs if b], scopes) if earlier and history else None
+    if known:
+        parts.append(_facts_rows(table, columns, [b for b in backs if b], history, known))
+        earlier = []
     if earlier:
         kept = ", ".join("TRUE AS `is_current`" if c == "is_current" else f"t.{quote(c)}" for c in columns)
         of = "`_inspire_run` AS `_inspire_run_id`, " if history else ""
@@ -2328,7 +2363,7 @@ def reads_table(sql: str, table: str) -> bool:
     return any(match.group(1) for match in _table_reads(table).finditer(str(sql or "")))
 
 
-def runs_compare_sql(sql: str, table: str, columns, backs=(0, 1), history=None, scopes=False) -> str:
+def runs_compare_sql(sql: str, table: str, columns, backs=(0, 1), history=None, scopes=False, facts=None) -> str:
     backs = sorted(set(backs))
     if not backs or any(isinstance(b, bool) or not isinstance(b, int) or not 0 <= b <= ALERT_BASELINE_RUNS for b in backs):
         raise ValueError(f"the runs to read are 0, the latest, to {ALERT_BASELINE_RUNS} runs before it, not {backs!r}")
@@ -2337,7 +2372,7 @@ def runs_compare_sql(sql: str, table: str, columns, backs=(0, 1), history=None, 
     if not carries:
         raise ValueError(f"it does not read the result table {table} in its FROM, the one table that keeps earlier runs")
     summary = table_name(str(table).strip() + SUMMARY_SUFFIX) if scopes else None
-    rows, text = f"{RUNS_CTE} AS (\n{_runs_rows(table_name(table), columns, backs, history, summary)}\n)", text.replace(_RUNS_MARK, "")
+    rows, text = f"{RUNS_CTE} AS (\n{_runs_rows(table_name(table), columns, backs, history, summary, facts)}\n)", text.replace(_RUNS_MARK, "")
     return f"WITH {rows},\n{text[len('WITH '):]}" if text.startswith("WITH ") else f"WITH {rows}\n{text}"
 
 
@@ -2349,11 +2384,11 @@ def runs_problem(sql: str, table: str) -> str:
     return ""
 
 
-def previous_rows(page: dict, name: str, columns, history=None):
+def previous_rows(page: dict, name: str, columns, history=None, facts=None):
     sql, table = _dataset(page, name), page.get("result_table")
     if not table or not columns or not reads_table(sql, table):
         return None
-    return runs_compare_sql(sql, table, columns, (1,), history, page_scopes(page))
+    return runs_compare_sql(sql, table, columns, (1,), history, page_scopes(page), facts)
 
 
 def previous_value(expression, rows: str = "COUNT(*)") -> str:
@@ -2787,6 +2822,10 @@ def _list_plan(page: dict, values: dict, request: dict, context: dict, editor: s
     counted = ["d"] + (["c"] if "c" in early and not lean else []) + (["r", "n", "l0", "o0", "p0"] if "h" in early else []) + ["f"]
     return {"ctes": ctes, "context": context, "early": early, "counted": counted, "today": today,
             "plain": f"SELECT d.* FROM d{where}" if lean else None}
+
+
+def uncached_sql(sql: str) -> str:
+    return f"SELECT * FROM (\n{sql}\n) WHERE rand() >= 0" if re.match(r"\s*(SELECT|WITH)\b", sql, re.I) else sql
 
 
 def capped_count(relation: str) -> str:
@@ -3444,8 +3483,18 @@ def closed_query(page: dict, table: str, keys: list, names: set, history=None, f
             f"WHERE z.`_inspire_kth` = 1", params.items)
 
 
+def overview_floor(page: dict, values: dict, picked: dict, context: dict, model, window=None):
+    if window or not context.get("join"):
+        return None
+    request = {"cursor": None, "search": "", "ranked": True, "sort": MONEY_COLUMN, "dir": "desc", "mine": False, "changed": False,
+               "ai": picked or {}, "columns": {}, "offset": 0, "limit": CAPS["overview_rows"]}
+    filtered = bool(picked) or any(v not in (None, "", [], {}) for v in (values or {}).values())
+    floor = list_floor(page, request, dict(context, money=money_columns(model)), context.get("facts"), model, filtered)
+    return floor if floor and floor.get("column") else None
+
+
 def overview_query(page: dict, values: dict, picked: dict, context: dict, fields: list, quarter: str, since: str, model=None,
-                   window=None, done_between: tuple = ()) -> tuple:
+                   window=None, done_between: tuple = (), floor=None) -> tuple:
     records = page.get("records") or {}
     names = {f["name"] for f in fields}
     money, held = MONEY_COLUMN in names, "held_back" in names
@@ -3454,8 +3503,9 @@ def overview_query(page: dict, values: dict, picked: dict, context: dict, fields
     extra = (priced if money else []) + (
         list(WINDOW_EXTRA) if window else ["CAST(`action_due` AS DATE) AS `_inspire_due`"]) + (
         ["CAST(`held_back` AS BOOLEAN) AS `_inspire_held`"] if held else [])
+    on = (floor or {}).get("on")
     ctes = {"d": f"SELECT * FROM ({_dataset(page, RECORDS_DATASET)}) AS d{_where(page, RECORDS_DATASET, values, params)}",
-            "c": _current_cte(dict(context, actions=True), extra)}
+            "c": _current_cte(dict(context, actions=True, floor=floor if on == "c" else None), extra)}
     tier = f"CAST(d.{quote(records['tier'])} AS STRING)" if records.get("tier") else None
     due = "c.`_inspire_due`"
     tiers, opened = ", ".join(f"'{t}'" for t in FLAGGED_TIERS), ", ".join(f"'{s}'" for s in OPEN_STATUSES)
@@ -3463,6 +3513,8 @@ def overview_query(page: dict, values: dict, picked: dict, context: dict, fields
     conditions = [f"({flagged} OR {due} IS NOT NULL)", f"COALESCE(c.`_inspire_status`, 'New') IN ({opened})"]
     if held:
         conditions.append("NOT COALESCE(c.`_inspire_held`, FALSE)")
+    if on == "d":
+        conditions.append(_floored(floor, "d"))
     conditions += [f"{_ai_value(name)} IN ({', '.join(params.add(v) for v in chosen)})" for name, chosen in picked.items()]
     ranked, top = "`money` DESC NULLS LAST, `k` ASC", CAPS["overview_rows"]
     if window:
@@ -3478,7 +3530,8 @@ def overview_query(page: dict, values: dict, picked: dict, context: dict, fields
                                    ("money", "c.`_inspire_money`" if money else None), ("day", due),
                                    ("fx", "c.`_inspire_fx`" if money else None),
                                    ("missing", "c.`_inspire_missing`")) if v})
-    ctes["i"] = (f"{_overview_select('item', item)} FROM d LEFT JOIN c ON {_current_on(context, 'd')} WHERE {' AND '.join(conditions)} "
+    ctes["i"] = (f"{_overview_select('item', item)} FROM d {'JOIN' if on == 'c' else 'LEFT JOIN'} c ON {_current_on(context, 'd')} "
+                 f"WHERE {' AND '.join(conditions)} "
                  f"ORDER BY {ranked} LIMIT {top}")
     branches = ["SELECT * FROM i"]
     history = context.get("history")

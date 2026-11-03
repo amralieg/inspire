@@ -465,8 +465,8 @@ def _app_lakebase(ns, tmp_path, outputs=None, host=None, rounds=("COMPLETED",), 
 
     inst._implement_lakebase_online = is_online
     answers = list(checks)
-    inst._implement_app_check = lambda work, files, modules, warehouse, env=None: seen["checks"].append((files, env)) or (
-        answers.pop(0) if answers else [])
+    inst._implement_app_check = lambda work, files, modules, warehouse, env=None: (
+        setattr(inst, "_implement_app_speeds", {}) or seen["checks"].append((files, env)) or (answers.pop(0) if answers else []))
     page = ns["implement_app_page"](_churn_page(ns), "N01-U01", {}, "main.inspire.churn_out")
     settings = {"version": modules["shell_core"].SETTINGS_VERSION, "pages": [page["id"]]}
     context = _output_context(ns, **(outputs or {"app_backend": "lakebase"}))
@@ -569,6 +569,25 @@ def test_the_app_build_passes_lakebase_through_to_the_deploy_and_the_job(agent_n
     assert lakebase["kind"] == "delta" and files is lakebase["files"] and files["requirements.txt"] == ""
     assert seen_after == [(fields, lakebase)] and fields == {"app_name": "churn-desk", "_asset": {"backend": "delta", "page": "n01_u01"}}, \
         "every App deploy records the page of this use case, its own App as well as a joined one"
+
+
+@pytest.mark.parametrize("speeds, slow", [({"n01_u01": {"first": 4.3, "filter": 2.2, "filter_on": "Region"}}, True),
+                                           ({"n01_u01": {"first": 2.1, "filter": 1.2, "filter_on": "Region"}}, False)])
+def test_the_built_app_carries_its_measured_speed_on_the_build_page_and_a_missed_target_on_the_app_itself(agent_ns, tmp_path, speeds, slow):
+    inst, context, seen = _app_flow(agent_ns, tmp_path, assets={"genie_space": "g1"})
+    inst.logger = CapturingLogger()
+    inst._implement_app_check = lambda work, files, modules, warehouse: setattr(inst, "_implement_app_speeds", speeds) or []
+    inst._implement_deploy_app = (lambda context, name, files, reads, space_id="", lakebase=None, page_tables=():
+                                  seen["deployed"].append(name) or {"app_name": name, "_asset": {"backend": lakebase["kind"]}})
+    inst._implement_lakebase_after = lambda context, fields, lakebase: None
+    fields = inst._implement_app(context, None)
+    assert seen["deployed"] == ["churn-desk"], "the App is published with its measured speed"
+    steps = [e for e in inst.emitted if e.get("step_name") == agent_ns["IMPLEMENT_APP_SPEED_STEP"]]
+    assert len(steps) == 1 and steps[0]["status"] == ("ended_error" if slow else "ended_success"), steps
+    assert "first records " + ("4.3" if slow else "2.1") + " s (target 3 s)" in steps[0]["message"]
+    warned = [w for w in fields.get("_warnings") or [] if "the real tables at the default filters" in w]
+    assert len(warned) == (2 if slow else 0), fields.get("_warnings")
+    assert any(m[0] == "ERROR" and "App speed" in m[1] and "4.3 s" in m[1] for m in inst.logger.records) is slow
 
 
 NOT_FOUND = RuntimeError("RESOURCE_DOES_NOT_EXIST: not found")
@@ -1091,12 +1110,48 @@ def test_lakebase_answers_the_app_in_time_up_to_its_capacity_and_a_larger_table_
 
 
 def test_a_page_slower_than_its_target_on_the_real_tables_is_named_with_its_backend_and_a_page_at_the_target_is_not(agent_ns):
-    warnings = agent_ns["implement_app_speed_warnings"]
+    problems = agent_ns["implement_app_speed_problems"]
     speeds = {"n02_u01": {"first": 3.0, "filter": 2.6, "filter_on": "channel"}, "n01_u01": {"first": 4.24, "filter": 2.0, "filter_on": "region"},
-              "n03_u01": {"first": None, "filter": "slow"}, "n04_u01": "not measured", "_error": "the check could not reach the App"}
-    assert warnings(speeds, "Delta tables") == [
-        "App: on Delta tables, the decision list's first records took 4.2 s on the real tables at the default filters, over the 3 s target; "
-        "a larger SQL warehouse or fewer rows on the list brings it under",
-        "App: on Delta tables, a filter change (channel, 2 values) took 2.6 s on the real tables at the default filters, over the 2 s target; "
-        "a larger SQL warehouse or fewer rows on the list brings it under"]
-    assert warnings(None, "Lakebase") == [] and warnings({"_error": "timed out"}, "Lakebase") == []
+              "n03_u01": {"first": None, "filter": "slow"}, "n04_u01": "not measured"}
+    assert problems(speeds, "Delta tables") == [
+        "App: on Delta tables, the decision list's first records took 4.2 s on the real tables at the default filters, over the 3 s target",
+        "App: on Delta tables, a filter change (channel, 2 values) took 2.6 s on the real tables at the default filters, over the 2 s target"]
+    assert problems({"n02_u01": {"first": 3.0, "filter": 2.0, "filter_on": "channel"}}, "Lakebase") == []
+    assert problems({}, "Lakebase") == [], "an App with no decision list has nothing to time"
+    assert problems({"_error": "timed out"}, "Lakebase") == ["App: on Lakebase, the speed check could not run: timed out"], \
+        "a check that could not run fails the build instead of passing in silence"
+    assert problems(None, "Delta tables") == [
+        "App: on Delta tables, the speed check did not run, so Inspire cannot show the App answers within its targets"]
+
+
+def test_the_speed_line_names_each_time_its_target_and_how_many_uncached_reads_it_is_the_middle_of(agent_ns):
+    text = agent_ns["implement_app_speed_text"]
+    seen = {"p1": {"first": 2.41, "filter": 1.32, "filter_on": "Region", "runs": {"first": [2.4, 2.41, 2.9], "filter": [1.3, 1.32, 1.5]}},
+            "_error": "", "p2": "not measured"}
+    assert text(seen, "Delta tables") == ("App speed on Delta tables: p1: the decision list's first records 2.4 s (target 3 s), a filter change "
+                                          "1.3 s (target 2 s), the middle of 3 reads with no cache")
+    assert text({}, "Lakebase") == "" and text(None, "Lakebase") == ""
+
+
+class _SpeedHost:
+    def __init__(self, ns):
+        self.emitted, self.ns = [], ns
+
+    def _implement_emit(self, uc_id, step, message, status, payload=None, step_id=None, log=True):
+        self.emitted.append((uc_id, step, message, status, payload))
+
+
+@pytest.mark.parametrize("speeds, slow", [({"p1": {"first": 2.0, "filter": 1.0, "filter_on": "Region"}}, False),
+                                           ({"p1": {"first": 3.4, "filter": 1.0, "filter_on": "Region"}}, True),
+                                           ({"_error": "the warehouse refused"}, True), (None, True)])
+def test_the_build_shows_the_apps_speed_as_its_own_step_and_marks_it_failed_when_a_target_is_missed_or_the_check_did_not_run(agent_ns, speeds,
+                                                                                                                           slow):
+    host = _SpeedHost(agent_ns)
+    report = agent_ns["DatabricksInspire"]._implement_app_speed_report
+    problems = report(host, {"uc_id": "N01-U01", "key": ("N01-U01", "app", 3)}, speeds, "Delta tables")
+    assert bool(problems) is slow and all(p.startswith("App: on Delta tables") for p in problems)
+    assert [(e[1], e[3]) for e in host.emitted] == [(agent_ns["IMPLEMENT_APP_SPEED_STEP"], "ended_error" if slow else "ended_success")]
+    assert host.emitted[0][4]["backend"] == "Delta tables" and host.emitted[0][4]["spec_version"] == 3
+    assert all(p in host.emitted[0][2] for p in problems)
+    if speeds and "p1" in speeds:
+        assert f"first records {speeds['p1']['first']:.1f} s (target 3 s)" in host.emitted[0][2]

@@ -354,7 +354,7 @@ def _hosted_locked(ns, tmp_path, monkeypatch):
     inst._implement_input_has_dates = lambda context: False
     inst._implement_latest_run_rows = lambda table: list(TRUTH)
     inst._implement_run_query_check = lambda sql, require_rows=False, limit=20: [dict(r) for r in ROWS]
-    inst._implement_app_check = lambda work, files, modules, warehouse: []
+    inst._implement_app_check = lambda work, files, modules, warehouse: setattr(inst, "_implement_app_speeds", {}) or []
     inst._implement_app_prompt = lambda *args: "write page.json"
     inst._implement_runner = lambda uc: "genie"
     work = tmp_path / "genie"

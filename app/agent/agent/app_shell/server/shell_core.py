@@ -41,6 +41,8 @@ STAMP_READS = 2000
 STAMP_WORKERS = 8
 LIVE_SQL = re.compile(r"\b(current_date|current_timestamp|now|curdate|unix_timestamp|rand|random|uuid)\s*\(", re.I)
 WORKERS = 6
+LIST_WORKERS = 6
+SPEED_RUNS = 3
 HUB_WORKERS = 3
 MAX_BODY = 256 * 1024
 GENIE_ID = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
@@ -1345,6 +1347,8 @@ class Shell:
         self.stamps, self.reads, self.stamp_lock, self.inflight = {}, collections.OrderedDict(), threading.Lock(), {}
         self.lookups, self.owners, self.stamp_pool = {}, {}, ThreadPoolExecutor(max_workers=STAMP_WORKERS)
         self.pool = ThreadPoolExecutor(max_workers=WORKERS)
+        self.list_pool = ThreadPoolExecutor(max_workers=LIST_WORKERS)
+        self.uncached = False
         self.hub_pool = ThreadPoolExecutor(max_workers=HUB_WORKERS)
         self.warehouse = str(self.env.get("DATABRICKS_WAREHOUSE_ID") or "")
         self.job_locks, self.job_locks_guard = {}, threading.Lock()
@@ -1431,6 +1435,7 @@ class Shell:
                 print(f"[lakebase] read Delta once instead: {error}", flush=True)
         if not self.warehouse:
             raise HttpError(500, "the App has no SQL warehouse; add the sql-warehouse resource")
+        sql = shell_sql.uncached_sql(sql) if self.uncached else sql
         return dict(ws.run_sql(self.warehouse, sql, params, limit=limit), served="delta")
 
     def catching_up(self) -> bool:
@@ -1449,6 +1454,12 @@ class Shell:
             return {}
         current, changes = shell_pg.current_copy(self.backend, page["result_table"]), shell_pg.changes_copy(self.backend, page["result_table"])
         return {"current": shell_sql.table_name(current) if current else None, "latest_log": shell_sql.table_name(changes) if changes else None}
+
+    def close(self) -> None:
+        for pool in (self.pool, self.list_pool, self.hub_pool, self.stamp_pool):
+            pool.shutdown(wait=True)
+        if self.lakebase is not None:
+            self.lakebase.close()
 
     def forget(self):
         self.cache.clear()
@@ -1892,7 +1903,9 @@ class Shell:
             return {}
         fields = self.table_fields(ws, who, page)
         history = self.history_for(ws, who, page, fields)
-        return {name: shell_sql.previous_rows(page, name, [f["name"] for f in fields], history) for name in names}
+        facts, fresh = self.run_facts(ws, who, page, history)
+        facts = facts if fresh["runs"] else None
+        return {name: shell_sql.previous_rows(page, name, [f["name"] for f in fields], history, facts) for name in names}
 
     def list_columns(self, ws, who, page: dict, dataset: str = shell_sql.RECORDS_DATASET) -> dict:
         sql, params = shell_sql.dataset_columns_query(page, dataset)
@@ -1947,7 +1960,7 @@ class Shell:
         self.warm_state(ws, who, page)
         if page.get("result_table") and who is not None:
             self.stamp_pool.submit(self.table_meta, ws, who, shell_pg.uc_key(page["result_table"]))
-        read, unread = self._parallel(self.list_reads(ws, who, page), probe)
+        read, unread = self._parallel(self.list_reads(ws, who, page), probe, self.list_pool)
         if ("list", "columns") in unread:
             raise HttpError(502, unread[("list", "columns")])
         columns, fields, failures = read[("list", "columns")], read.get(("list", "fields")), {}
@@ -1974,7 +1987,7 @@ class Shell:
         limits = {"rows": request["limit"], "ai": shell_sql.CAPS["options"]}
         jobs = {("list", name): (lambda q=query, n=limits.get(name, 1): self.read_at(ws, who, *q, n)) for name, query in plan.items()}
         jobs.update(self.summary_reads(ws, who, context, fresh))
-        read, errors = self._parallel(jobs, probe)
+        read, errors = self._parallel(jobs, probe, self.list_pool)
         for name in ("rows", "total"):
             if ("list", name) in errors:
                 raise HttpError(502, errors[("list", name)])
@@ -1983,7 +1996,7 @@ class Shell:
         stale = [key for key in (("list", "left"), ("list", "impact")) if key in done and shell_sql.summary_missed(done[key]["rows"])]
         if stale:
             again = shell_sql.list_summary_queries(dict(context, changed_keys=None))
-            redone, failed = self._parallel({key: (lambda q=again[key[1]]: self.run(ws, who, *q, 1)) for key in stale}, probe)
+            redone, failed = self._parallel({key: (lambda q=again[key[1]]: self.run(ws, who, *q, 1)) for key in stale}, probe, self.list_pool)
             done.update(redone)
             errors.update(failed)
             for key in failed:
@@ -2134,10 +2147,17 @@ class Shell:
         money = shell_sql.MONEY_COLUMN in names
         model = self.money_model(ws, who, page, fields)
         context["changed_closing"] = self.changed_closing(ws, who, page, context["facts"], names)
-        sql, params = shell_sql.overview_query(page, values, shell_sql.ai_request(ai, context), context, fields, quarter.isoformat(),
-                                               since.isoformat(), model, window, done_between=between)
-        result = self.run(ws, who, sql, params, OVERVIEW_LIMIT)
+        picked = shell_sql.ai_request(ai, context)
+        floor = shell_sql.overview_floor(page, values, picked, context, model, window)
+        read = lambda held: self.run(ws, who, *shell_sql.overview_query(page, values, picked, context, fields, quarter.isoformat(),
+                                                                         since.isoformat(), model, window, done_between=between,
+                                                                         floor=held), OVERVIEW_LIMIT)
+        result = read(floor)
+        if floor and sum(1 for r in result["rows"] if r.get("kind") == "item") < shell_sql.CAPS["overview_rows"]:
+            floor, result = None, read(None)
         view = overview_view(result["rows"] + fact_runs(context["facts"]), today, since, money, editor)
+        if floor:
+            view.update(truncated=True, total_more=True)
         view["runs"]["failed"] = self.last_run_failed(page)
         view["runs"]["active"] = self.run_progress(ws, who, page)
         return dict(view, visible=True, tracked=True, money=money, categories=context["categories"],
@@ -2753,23 +2773,30 @@ class Shell:
 
     def speed(self, headers: dict) -> dict:
         out = {}
-        for page in self.pages:
-            if not page.get("records"):
-                continue
-            meta = self.filters(headers, page["id"])
-            bounds = {f["id"]: (f.get("low"), f.get("high")) for f in meta["filters"] if f["type"] == "date_range"}
-            defaults = shell_sql.default_values(page, bounds)
-            picked = next((f for f in meta["filters"] if f["type"] == "multi_select" and len(f.get("options") or []) >= 2), None)
-            seen = {}
-            for name, values in (("first", defaults), ("filter", dict(defaults, **{picked["id"]: picked["options"][:2]}) if picked else None)):
-                if values is None:
+        self.uncached = True
+        try:
+            for page in self.pages:
+                if not page.get("records"):
                     continue
-                self.forget()
-                started = self.timer()
-                self.records(headers, {"page": page["id"], "filters": values})
-                seen[name] = round(self.timer() - started, 2)
-            out[page["id"]] = dict(seen, filter_on=picked["label"] if picked else None)
-        self.forget()
+                meta = self.filters(headers, page["id"])
+                picked = next((f for f in meta["filters"] if f["type"] == "multi_select" and len(f.get("options") or []) >= 2), None)
+                seen = {"first": [], "filter": []}
+                for _round in range(SPEED_RUNS):
+                    self.forget()
+                    started = self.timer()
+                    found = self.defaults(headers, page["id"])["range"]
+                    values = {k: {"from": v["from"], "to": v["to"]} for k, v in found.items() if v.get("preset") != "all"}
+                    self.records(headers, {"page": page["id"], "filters": values})
+                    seen["first"].append(round(self.timer() - started, 2))
+                    if picked:
+                        started = self.timer()
+                        self.records(headers, {"page": page["id"], "filters": dict(values, **{picked["id"]: picked["options"][:2]})})
+                        seen["filter"].append(round(self.timer() - started, 2))
+                out[page["id"]] = dict({name: statistics.median(times) for name, times in seen.items() if times}, runs=seen,
+                                       filter_on=picked["label"] if picked else None)
+        finally:
+            self.uncached = False
+            self.forget()
         return out
 
     def write_problems(self, headers: dict, page: dict, decisions: bool = False) -> list:

@@ -462,7 +462,7 @@ def _restyle_inspire(ns, tmp_path, monkeypatch, files, app=None):
                                                                                               "url": "https://churn-desk.example/"}})
     inst._implement_notebook_paths = lambda uc, key: ("/W/acme_implemented/Sales", "/W/acme_implemented/Sales/N01-U01")
     inst.checked, inst.deployed = [], []
-    inst._implement_app_check = lambda work, files, modules, warehouse: inst.checked.append(files) or []
+    inst._implement_app_check = lambda work, files, modules, warehouse: setattr(inst, "_implement_app_speeds", {}) or inst.checked.append(files) or []
     inst._implement_deploy_app = (lambda context, name, files, reads, space_id="", lakebase=None, page_tables=(): inst.deployed.append((name, files, reads, space_id))
                                   or {"app_name": name, "app_url": "https://churn-desk.example", "app_health": "passed"})
     return inst
@@ -517,7 +517,7 @@ def test_a_look_or_backend_edit_of_an_app_whose_pages_fail_todays_checks_is_rebu
     inst = _restyle_inspire(agent_ns, tmp_path, monkeypatch, files)
     failing = ["page n01_u01: the page has 2 charts; it needs 3 to 8", "page n01_u01: kpi:revenue failed: TABLE_OR_VIEW_NOT_FOUND"]
     checks, made, asked = [], [], []
-    inst._implement_app_check = lambda work, files, modules, warehouse: checks.append(files) or (failing if len(checks) == 1 else [])
+    inst._implement_app_check = lambda work, files, modules, warehouse: setattr(inst, "_implement_app_speeds", {}) or checks.append(files) or (failing if len(checks) == 1 else [])
     inst._implement_runner = lambda uc: made.append(uc) or "runner"
     inst._genie_decision_contract = _contract
     inst._implement_input_has_dates = lambda context: False
@@ -565,7 +565,7 @@ def _dashboard_inspire(ns, tmp_path, routes, recorded=("dA",)):
     inst, _calls = _output_inspire(ns, tmp_path)
     inst._implement_api, calls = _router(routes)
     inst._implement_input_has_dates = lambda context: False
-    inst._implement_app_check = lambda work, files, modules, warehouse: []
+    inst._implement_app_check = lambda work, files, modules, warehouse: setattr(inst, "_implement_app_speeds", {}) or []
     inst._implement_app_name = lambda context, name: name
     inst._implement_run_query_check = lambda sql, require_rows=False, limit=20: list(TRUTH)
     inst._implement_latest_run_rows = lambda table: list(TRUTH)

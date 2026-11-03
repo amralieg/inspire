@@ -5177,7 +5177,7 @@ def _app_flow(ns, tmp_path, page=None, write=True, outputs=None, assets=None, as
     inst._implement_app_name = lambda context, name: name
     inst._implement_app_host = lambda context, core, name="": ns["implement_app_host"](name or context["spec"]["outputs"]["app_name"])
     seen = {"checked": [], "deployed": [], "errors": []}
-    inst._implement_app_check = lambda work, files, modules, warehouse: seen["checked"].append((files, warehouse)) or []
+    inst._implement_app_check = lambda work, files, modules, warehouse: setattr(inst, "_implement_app_speeds", {}) or seen["checked"].append((files, warehouse)) or []
     inst._implement_deploy_app = (lambda context, name, files, reads, space_id="", lakebase=None, page_tables=():
                                   seen["deployed"].append((name, files, reads, space_id)) or {"app_name": name})
     for name, value in stubs.items():

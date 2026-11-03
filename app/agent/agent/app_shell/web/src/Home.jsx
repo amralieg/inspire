@@ -252,7 +252,7 @@ export default function Home({ app, hub, hubError, summaries, view, onView, onOp
       <HubExplainNote app={app} />
       <section className="card card--table" aria-label="Things to fix">
         <header className="card-h"><div><h2>Things to fix</h2><p>Click one to see why it was flagged and what to do</p></div></header>
-        {cut.map(([title, e]) => <p key={title} className="more">Showing the {integer(e.items.length)} biggest of {integer(e.total)} in {title}.</p>)}
+        {cut.map(([title, e]) => <p key={title} className="more">Showing the {integer(e.items.length)} biggest of {e.total_more ? 'at least ' : ''}{integer(e.total)} in {title}.</p>)}
         {loading ? <p className="more">Loading the things to fix…</p>
           : <Things rows={shown} today={today} user={app.user} onRecord={onRecord} genie={(id) => genieOn(app, id)} filtered={!viewIsDefault(view)} onClear={() => onView(DEFAULT_VIEW)} />}
       </section>

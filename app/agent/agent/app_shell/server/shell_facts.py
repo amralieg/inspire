@@ -80,22 +80,29 @@ def acted_condition(names) -> str:
     return f"(`action_status` IS NOT NULL{owned})"
 
 
-def versions_source(table: str, history: dict, keys: str = "") -> str:
+def versions_source(table: str, history: dict, keys: str = "", runs=None) -> str:
     log = history["log"]
     stamped = {"run_id": "g.`_g_run`", "as_of_date": "g.`_g_date`", "rank": "g.`_g_rank`", "valid_from": "g.`_g_ran`",
                "valid_to": "g.`_g_next`", "is_current": "FALSE", "changed_by": "concat('run ', CAST(g.`_g_run` AS STRING))"}
     plain = ", ".join(quote(c) for c in history["columns"])
     picked = ", ".join(f"{stamped[c]} AS {quote(c)}" if c in stamped else f"v.{quote(c)}" for c in history["columns"])
-    within = f" WHERE `record_key` IN ({keys})" if keys else ""
-    logged = f" WHERE l.`record_key` IN ({keys})" if keys else ""
+    where = lambda *parts: f" WHERE {' AND '.join(p for p in parts if p)}" if any(parts) else ""
+    keyed = f"`record_key` IN ({keys})" if keys else ""
+    wanted = f"`change_source` = 'run' AND `run_id` IN ({runs['want']})" if runs else ""
+    within = where(keyed, wanted)
+    logged = where(f"l.`record_key` IN ({keys})" if keys else "", f"l.`run_id` IN ({runs['near']})" if runs else "")
+    since = f" AND v.`valid_from` >= {runs['since']}" if runs else ""
+    lead = (f"SELECT l.`use_case_id` AS `_g_uc`, l.`run_id` AS `_g_run`, l.`as_of_date` AS `_g_date`, l.`rank` AS `_g_rank`, "
+            f"l.`ran_at` AS `_g_ran`, l.`record_key` AS `_g_key`, LEAD(l.`ran_at`) OVER (PARTITION BY l.`use_case_id`, l.`record_key` ORDER BY "
+            f"l.`ran_at`) AS `_g_next` FROM {log} AS l{logged}")
+    lead = f"SELECT * FROM ({lead}) AS g0 WHERE `_g_run` IN ({runs['want']})" if runs else lead
+    written = f"(SELECT `record_key`, `use_case_id`, `run_id`, `change_source` FROM {table}{within})" if runs else table
     found = (f"SELECT g.*, v.`valid_from` AS `_g_from`, ROW_NUMBER() OVER (PARTITION BY g.`_g_key`, g.`_g_run` ORDER BY v.`valid_from`) "
-             f"AS `_g_nth` FROM (SELECT l.`use_case_id` AS `_g_uc`, l.`run_id` AS `_g_run`, l.`as_of_date` AS `_g_date`, l.`rank` AS `_g_rank`, "
-             f"l.`ran_at` AS `_g_ran`, l.`record_key` AS `_g_key`, LEAD(l.`ran_at`) OVER (PARTITION BY l.`use_case_id`, l.`record_key` ORDER BY "
-             f"l.`ran_at`) AS `_g_next` FROM {log} AS l{logged}) AS g LEFT ANTI JOIN {table} AS x ON x.`record_key` = g.`_g_key` AND "
+             f"AS `_g_nth` FROM ({lead}) AS g LEFT ANTI JOIN {written} AS x ON x.`record_key` = g.`_g_key` AND "
              f"x.`use_case_id` <=> g.`_g_uc` AND x.`run_id` <=> g.`_g_run` AND x.`change_source` = 'run' JOIN {table} AS v ON "
-             f"v.`record_key` = g.`_g_key` AND v.`use_case_id` <=> g.`_g_uc` AND v.`change_source` = 'run' AND v.`valid_from` > g.`_g_ran`")
+             f"v.`record_key` = g.`_g_key` AND v.`use_case_id` <=> g.`_g_uc` AND v.`change_source` = 'run' AND v.`valid_from` > g.`_g_ran`{since}")
     return (f"(SELECT {plain} FROM {table}{within} UNION ALL SELECT {picked} FROM ({found}) AS g JOIN {table} AS v ON "
-            f"v.`record_key` = g.`_g_key` AND v.`use_case_id` <=> g.`_g_uc` AND v.`change_source` = 'run' AND v.`valid_from` = g.`_g_from` "
+            f"v.`record_key` = g.`_g_key` AND v.`use_case_id` <=> g.`_g_uc` AND v.`change_source` = 'run' AND v.`valid_from` = g.`_g_from`{since} "
             f"WHERE g.`_g_nth` = 1)")
 
 
