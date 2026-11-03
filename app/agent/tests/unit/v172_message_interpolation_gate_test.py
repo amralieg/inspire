@@ -108,8 +108,6 @@ REVIEWED = {
     },
     'config': {
         ('app_files', 'version'),
-        ('cli', 'name'),
-        ('cli', 'self.machine'),
         ('entry', 'version'),
         ('python', 'version'),
         ('_gate_family_sets', 'stray'),
