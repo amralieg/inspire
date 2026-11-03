@@ -424,5 +424,5 @@ def test_closing_grep_every_job_write_in_the_launcher_goes_through_the_tag_merge
     launcher = src[start:src.index("\n'''", start)]
     assert launcher.count("tags=self.job_tags") == 0
     assert launcher.count("JobLauncher.merged_tags(") == 3
-    assert src.count("**INSPIRE_VERSION_TAGS") == 2
+    assert src.count("**INSPIRE_VERSION_TAGS") == 1 and src.count("**inspire_run_tags()") == 2
     assert src.count("self._implement_tag_job_assets(") == 1

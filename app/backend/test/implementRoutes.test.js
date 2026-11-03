@@ -1074,6 +1074,64 @@ test('an Implement re-run of a job released main made, with no assets path in it
   }
 });
 
+async function withTestTag(value, body) {
+  const saved = process.env.INSPIRE_TEST_TAG;
+  if (value === undefined) delete process.env.INSPIRE_TEST_TAG;
+  else process.env.INSPIRE_TEST_TAG = value;
+  try {
+    await body();
+  } finally {
+    if (saved === undefined) delete process.env.INSPIRE_TEST_TAG;
+    else process.env.INSPIRE_TEST_TAG = saved;
+  }
+}
+
+test('an Implement re-run from a test install tags the job it re-runs, in the same update as its environment', async () => {
+  const job = { job_id: 77, settings: { ...RELEASED_JOB.settings, tags: { dbx_inspire_ai_version: 'v1.3.1' } } };
+  await withTestTag('inspire-rc0', () => withApp({ history: RERUN_HISTORY, job, responses: { 'POST /api/2.1/jobs/update': [{}] } }, async (url, made) => {
+    const got = await rerunNow(url);
+    assert.equal(got.status, 200, JSON.stringify(got.data));
+    assert.equal('warning' in got.data, false);
+    assert.deepEqual(jobCalls(made), ['GET /api/2.1/jobs/get?job_id=77', 'POST /api/2.1/jobs/update', 'POST /api/2.1/jobs/run-now']);
+    const update = made.fetches.find((f) => f.path === '/api/2.1/jobs/update');
+    assert.deepEqual(JSON.parse(update.opts.body), { job_id: 77, new_settings: { environments: ON_APP_VERSION,
+      tags: { dbx_inspire_ai_version: 'v1.3.1', dbx_inspire_ai_test: 'inspire-rc0' } } });
+    const runNow = made.fetches.find((f) => f.path === '/api/2.1/jobs/run-now');
+    assert.equal(JSON.parse(runNow.opts.body).notebook_params.dbx_inspire_ai_test, 'inspire-rc0');
+  }));
+});
+
+test('an Implement re-run from a production install takes a test tag a test run left on the job off it, and sends no test tag', async () => {
+  const cases = [
+    [{ dbx_inspire_ai_version: 'v1.3.1', dbx_inspire_ai_test: 'inspire-rc0' }, { job_id: 77, new_settings: { tags: { dbx_inspire_ai_version: 'v1.3.1' } } }],
+    [{ dbx_inspire_ai_test: 'inspire-rc0' }, { job_id: 77, new_settings: {}, fields_to_remove: ['tags'] }],
+  ];
+  for (const value of [undefined, '', '   ']) {
+    for (const [tags, sent] of cases) {
+      const job = { job_id: 77, settings: { ...RELEASED_JOB.settings, environments: ON_APP_VERSION, tags } };
+      await withTestTag(value, () => withApp({ history: RERUN_HISTORY, job, responses: { 'POST /api/2.1/jobs/update': [{}] } }, async (url, made) => {
+        const got = await rerunNow(url);
+        assert.equal(got.status, 200, JSON.stringify(got.data));
+        const update = made.fetches.find((f) => f.path === '/api/2.1/jobs/update');
+        assert.deepEqual(JSON.parse(update.opts.body), sent);
+        const runNow = made.fetches.find((f) => f.path === '/api/2.1/jobs/run-now');
+        assert.equal('dbx_inspire_ai_test' in JSON.parse(runNow.opts.body).notebook_params, false);
+      }));
+    }
+  }
+});
+
+test('an Implement re-run whose test tag update is refused still runs and says the tag is missing', async () => {
+  const denied = 'User does not have Manage permission on job 77';
+  const job = { job_id: 77, settings: { ...RELEASED_JOB.settings, environments: ON_APP_VERSION } };
+  await withTestTag('inspire-rc0', () => withApp({ history: RERUN_HISTORY, job,
+    responses: { 'POST /api/2.1/jobs/update': [{ error_code: 'PERMISSION_DENIED', message: denied }, 403] } }, async (url) => {
+    const got = await rerunNow(url);
+    assert.equal(got.status, 200, JSON.stringify(got.data));
+    assert.equal(got.data.warning, `Inspire could not tag job 77 with dbx_inspire_ai_test=inspire-rc0 (${denied}), so usage reports may count this test run.`);
+  }));
+});
+
 test('an Implement re-run that cannot read its job still runs and says it could not check the environment', async () => {
   const cases = [
     [{ job: { error_code: 'PERMISSION_DENIED', message: 'User does not have View permission on job 77' }, jobStatus: 403 }, 'User does not have View permission on job 77'],
