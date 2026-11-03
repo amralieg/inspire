@@ -107,6 +107,7 @@ REVIEWED = {
         ('online', 'state'),
     },
     'config': {
+        ('_download_cli', 'version'),
         ('app_files', 'version'),
         ('entry', 'version'),
         ('python', 'version'),
@@ -173,6 +174,11 @@ REVIEWED = {
     },
     'name': {
         ('_verify_file', 'file'),
+        ('_download_cli', "entry.get('file')"),
+        ('_download_cli', 'name'),
+        ('_download_cli', 'self.machine'),
+        ('_download_cli', 'self.root'),
+        ('inspire_trusted_download_url', 'repo'),
         ('_require_asset_package', 'purpose'),
         ('app_files', 'dist'),
         ('app_files', "str(entry.get('file'))"),
@@ -293,6 +299,8 @@ REVIEWED = {
     },
     'composed': {
         ('_require_asset_package', 'error'),
+        ('_download_cli', 'installed'),
+        ('_download_cli', 'why'),
         ('main', '_environment_problem'),
         ('entry', 'wanted'),
         ('manifest', 'held'),

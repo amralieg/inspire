@@ -154,6 +154,18 @@ def test_no_internet_and_no_usable_build_stops_with_one_message_naming_the_cpu_a
     assert not os.path.exists(assets.local) or os.listdir(assets.local) == []
 
 
+def test_an_outside_error_text_is_redacted_before_it_reaches_the_message(fresh_ns, tmp_path, monkeypatch):
+    token = "dapi" + "ab" * 16
+    opener = Opener(fail=OSError(f"connect to https://adb-zqv.example.net failed with {token} for 'ZQV9101QZ'"))
+    root, _assets, runner = _setup(fresh_ns, tmp_path, monkeypatch, opener)
+    (root / "cli" / "genie-code-cli-x86_64.tar.gz").unlink()
+    with pytest.raises(fresh_ns["InspireAssetError"]) as raised:
+        runner.install()
+    text = str(raised.value)
+    assert "x86_64 CPU" in text and "cannot reach github.com within 10 seconds" in text and "Run the Inspire installer again" in text
+    assert token not in text and "adb-zqv.example.net" not in text and "ZQV9101QZ" not in text
+
+
 def test_a_release_without_the_build_names_the_http_answer(fresh_ns, tmp_path, monkeypatch):
     opener = Opener({})
     root, _assets, runner = _setup(fresh_ns, tmp_path, monkeypatch, opener)
@@ -169,8 +181,9 @@ def test_a_download_that_lands_on_another_host_is_refused(fresh_ns, tmp_path, mo
     (root / "cli" / "genie-code-cli-x86_64.tar.gz").unlink()
     with pytest.raises(fresh_ns["InspireAssetError"]) as raised:
         runner.install()
-    assert ("https://evil.example.com/genie.tar.gz is not an HTTPS release file of databricks/genie-code-cli on github.com or its "
+    assert ("https://<host>/genie.tar.gz is not an HTTPS release file of databricks/genie-code-cli on github.com or its "
             "download host, so Inspire refuses it. Run the Inspire installer again") in str(raised.value)
+    assert "evil.example.com" not in str(raised.value), "the address a platform reply named is redacted"
     assert not os.path.exists(assets.local) or os.listdir(assets.local) == []
 
 
@@ -255,7 +268,7 @@ def test_the_opener_refuses_a_redirect_to_another_host_and_checks_the_first_addr
     assert seen["request"].full_url == url and seen["timeout"] == 10
     redirects = [h for h in seen["handlers"] if isinstance(h, urllib.request.HTTPRedirectHandler)][0]
     request = urllib.request.Request(url)
-    with pytest.raises(agent_ns["InspireAssetError"], match="evil.example.com"):
+    with pytest.raises(agent_ns["InspireAssetError"], match=r"https://<host>/x\.zip is not an HTTPS release file"):
         redirects.redirect_request(request, None, 302, "Found", {}, "https://evil.example.com/x.zip")
     with pytest.raises(agent_ns["InspireAssetError"], match="is not an HTTPS release file"):
         redirects.redirect_request(request, None, 302, "Found", {}, "http://release-assets.githubusercontent.com/x")
