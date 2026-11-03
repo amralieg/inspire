@@ -279,7 +279,8 @@ BY_DESIGN = ("No", "result_table", "quality_mode", "value_scoring_status")
 V130_BY_DESIGN = ("Strategy Alignment", "Strategy Path", "KPIs", "Expected Key Results", "Measures of Success",
                   "Financial Benefits", "Non-Financial Benefits", "Data Evidence", "Foundations", "use_case_key",
                   "Business Priority Alignment", "Strategic Goals Alignment", "Strategic Alignment",
-                  "best_of_best", "best_of_best_reason")
+                  "best_of_best", "best_of_best_reason", "use_case_kind", "kind_family", "kind_label",
+                  "kind_family_label", "app_layout", "serving_summary", "method_summary", "value_source")
 
 
 def _comparable_run(ns, tmp_path, mode, acceptable, user_domains):
