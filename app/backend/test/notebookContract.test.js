@@ -53,6 +53,45 @@ test('embedded backend fallback is byte-identical to the physical notebook', () 
   assert.equal(embedded.length, notebookBytes.length);
 });
 
+test('the notebook the App launches and its embedded fallback are the agent notebook, byte for byte', () => {
+  const sha = (bytes) => crypto.createHash('sha256').update(bytes).digest('hex');
+  const agentBytes = fs.readFileSync(path.join(appRoot, 'agent', 'agent', 'dbx_inspire_ai_agent.ipynb'));
+  const embedded = Buffer.from(require('../notebook_bundle'), 'base64');
+  const fix = 'run npm run bundle:agent-notebook in app/';
+  assert.equal(sha(notebookBytes), sha(agentBytes), `app/dbx_inspire_ai_agent.ipynb is not app/agent/agent/dbx_inspire_ai_agent.ipynb; ${fix}`);
+  assert.equal(sha(embedded), sha(agentBytes), `backend/notebook_bundle.js is not app/agent/agent/dbx_inspire_ai_agent.ipynb; ${fix}`);
+});
+
+test('bundle:agent-notebook copies the agent notebook over a drifted App copy and embeds it, and refuses without the agent notebook', () => {
+  const os = require('node:os');
+  const { execFileSync } = require('node:child_process');
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'nbsync-'));
+  try {
+    fs.mkdirSync(path.join(tmp, 'scripts'));
+    fs.mkdirSync(path.join(tmp, 'backend'));
+    fs.copyFileSync(path.join(appRoot, 'scripts', 'bundle-agent-notebook.mjs'), path.join(tmp, 'scripts', 'bundle-agent-notebook.mjs'));
+    const run = () => execFileSync(process.execPath, [path.join(tmp, 'scripts', 'bundle-agent-notebook.mjs')], { stdio: 'pipe' });
+    const copy = path.join(tmp, 'dbx_inspire_ai_agent.ipynb');
+    const bundle = path.join(tmp, 'backend', 'notebook_bundle.js');
+    fs.writeFileSync(copy, '{"cells": []}');
+    assert.throws(run, 'with no agent notebook nothing is bundled');
+    assert.equal(fs.existsSync(bundle), false);
+    const latest = Buffer.from('{"cells": ["__AGENT_VERSION__ = \\"9.9.9\\""]}\n');
+    fs.mkdirSync(path.join(tmp, 'agent', 'agent'), { recursive: true });
+    fs.writeFileSync(path.join(tmp, 'agent', 'agent', 'dbx_inspire_ai_agent.ipynb'), latest);
+    for (const start of ['a drifted copy', 'no copy', 'a current copy']) {
+      if (start === 'no copy') fs.rmSync(copy);
+      run();
+      assert.ok(fs.readFileSync(copy).equals(latest), `${start}: the App copy is the agent notebook`);
+      const embedded = Buffer.from(require(bundle), 'base64');
+      delete require.cache[require.resolve(bundle)];
+      assert.ok(embedded.equals(latest), `${start}: the embedded fallback is the agent notebook`);
+    }
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
 test('launch UI exposes v1.2.0 quality modes and Auto-Genie widget 13', () => {
   const launchPage = fs.readFileSync(
     path.join(appRoot, 'frontend', 'src', 'pages', 'LaunchPage.jsx'),
