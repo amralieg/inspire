@@ -1936,10 +1936,14 @@ The user copies cell 2 into Genie Code. Genie Code reads only the instruction, a
 | B | Anomaly scoring: fits on a reference window, registers the accepted detector, scores the current window | Anomaly Detection |
 | C | Segmentation: an assignable model, registered when accepted | Clustering, Segmentation |
 | D | Recommendation: checked against popularity on a time-based holdout, registered when accepted | Recommendation |
-| E | Forecasting: single run, backtested against the seasonal naive forecast, nothing registered | Forecasting |
-| F | Analytical refresh: effect sizes with corrected significance | Trend Analysis, Correlation Analysis, Pareto Analysis, Cohort Analysis, Funnel Analysis, Regression Analysis, Geospatial Analysis, Network Analysis, AI Analysis |
+| E | Forecasting: single run, backtested against the seasonal naive forecast, nothing registered | Forecasting, Lifetime Value |
+| F | Analytical refresh: effect sizes with corrected significance | Trend Analysis, Correlation Analysis, Pareto Analysis, Cohort Analysis, Funnel Analysis, Regression Analysis, Geospatial Analysis, Network Analysis, AI Analysis, Decomposition, Peer Benchmarking |
 | G | AI text processing: only rows newer than the latest as-of date in the output table, Databricks AI functions | Sentiment Analysis, Document Processing, Extraction |
-| H | Optimization and simulation | Optimization, Simulation |
+| H | Optimization and simulation | Optimization, Simulation, Threshold Optimization |
+| I | Impact measurement: effects with confidence intervals and corrected significance against a control or pre-period, nothing registered | Causal Impact, Uplift Modeling, Marketing Mix Modeling |
+| J | Process and sequence analysis: paths, transitions and waits from event rows, nothing registered | Process Mining, Sequence Analysis, Queueing |
+| K | Rules and controls testing: every tested row is scored against its rule or control limit, nothing registered | Controls Testing, Statistical Process Control, Entity Matching |
+| L | Data agent: a Genie room and ai_query over the business tables, checked with sample questions, nothing registered | Data Agent |
 
 A use case labelled with a model technique (families A-D) whose elite build path, or Solution, runs a Databricks AI text function (`ai_classify`, `ai_extract`, `ai_analyze_sentiment`, `ai_summarize`, `ai_parse_document`, `ai_translate`, `ai_mask`, `ai_fix_grammar`, or `ai_query` on a free-text signal column) and names no model training runs as family G with the AI-text implementation guidance.
 

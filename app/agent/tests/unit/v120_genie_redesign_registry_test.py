@@ -17,17 +17,21 @@ FAMILIES = {
     "B": {"Anomaly Detection"},
     "C": {"Clustering", "Segmentation"},
     "D": {"Recommendation"},
-    "E": {"Forecasting"},
+    "E": {"Forecasting", "Lifetime Value"},
     "F": {"Trend Analysis", "Correlation Analysis", "Pareto Analysis", "Cohort Analysis", "Funnel Analysis", "Regression Analysis",
-          "Geospatial Analysis", "Network Analysis", "AI Analysis"},
+          "Geospatial Analysis", "Network Analysis", "AI Analysis", "Decomposition", "Peer Benchmarking"},
     "G": {"Sentiment Analysis", "Document Processing", "Extraction"},
-    "H": {"Optimization", "Simulation"},
+    "H": {"Optimization", "Simulation", "Threshold Optimization"},
+    "I": {"Causal Impact", "Uplift Modeling", "Marketing Mix Modeling"},
+    "J": {"Process Mining", "Sequence Analysis", "Queueing"},
+    "K": {"Controls Testing", "Statistical Process Control", "Entity Matching"},
+    "L": {"Data Agent"},
 }
 
 
 def test_registry_keys_equal_the_guidance_keys(agent_ns):
     assert set(agent_ns["TECHNIQUE_EXECUTION_FAMILY"]) == set(agent_ns["TECHNIQUE_IMPLEMENTATION_GUIDANCE"])
-    assert len(agent_ns["TECHNIQUE_EXECUTION_FAMILY"]) == 22
+    assert len(agent_ns["TECHNIQUE_EXECUTION_FAMILY"]) == 36
 
 
 def test_every_technique_maps_to_the_reviewed_family(agent_ns):

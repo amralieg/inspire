@@ -510,7 +510,7 @@ def test_gate_and_elite_family_sets_are_derived_from_the_registry(ns):
     assert cls._TEXT_FAMILIES == {"text_sentiment", "text_topic", "text_summarization", "text_extraction",
                                   "text_classification", "text_analytics"}
     assert cls._TEMPORAL_FAMILIES == _keys_whose_label(ns, lambda l: l in ns["TEMPORAL_TECHNIQUES"])
-    assert cls._TEMPORAL_FAMILIES == {"forecasting", "trend", "cohort", "survival"}
+    assert cls._TEMPORAL_FAMILIES == {"forecasting", "trend", "cohort", "survival", "causal_impact", "spc", "process_mining", "sequence"}
     assert ns["TEMPORAL_TECHNIQUES"] <= set(registry)
 
 
@@ -686,7 +686,7 @@ def _family_rows(text, start_marker):
     section = text[text.index(start_marker):]
     rows = {}
     for line in section.splitlines():
-        m = re.match(r"^\| ([A-H]) \| [^|]+ \| ([^|]+) \|$", line)
+        m = re.match(r"^\| ([A-L]) \| [^|]+ \| ([^|]+) \|$", line)
         if m:
             rows[m.group(1)] = {t.strip() for t in m.group(2).split(",")}
         elif rows and not line.startswith("|"):

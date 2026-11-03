@@ -3027,7 +3027,7 @@ function appsQuotaCheck(count, limit, creates) {
 }
 
 function executionFamily(mandate) {
-  const match = /^Execution pattern: family ([A-H])\b/.exec(str(mandate).trim());
+  const match = /^Execution pattern: family ([A-L])\b/.exec(str(mandate).trim());
   return match ? match[1] : '';
 }
 

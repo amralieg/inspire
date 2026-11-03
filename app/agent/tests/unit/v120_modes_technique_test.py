@@ -68,7 +68,7 @@ def test_relabel_targets_map_to_the_agreed_registry_labels(agent_ns):
 def test_family_detection_is_unchanged(agent_ns):
     cls = agent_ns["DatabricksInspire"]
     keys = [key for key, _l, _a, _m in cls._TECHNIQUE_FAMILIES]
-    assert len(keys) == len(set(keys)) == 25
+    assert len(keys) == len(set(keys)) == 39
     assert cls._technique_family("BERTopic topic model") == "text_topic"
     assert cls._technique_family("market basket analysis") == "association"
     assert cls._technique_family("Top-N ranking") == "ranking"

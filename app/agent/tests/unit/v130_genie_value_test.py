@@ -710,7 +710,7 @@ def test_round_23_ratios_survive_zero_shares_keep_losing_groups_and_small_groups
     assert weight.isascii() and types.isascii() and empty.isascii() and frames.isascii()
     guidance = agent_ns["TECHNIQUE_IMPLEMENTATION_GUIDANCE"]
     families = agent_ns["TECHNIQUE_EXECUTION_FAMILY"]
-    assert sum(1 for technique in guidance if families[technique] == "F") == 9
+    assert sum(1 for technique in guidance if families[technique] == "F") == 11
     for technique, text in guidance.items():
         shortfall = text.split("\n")[-1]
         assert "below the minimum rows or fewer than two periods stop the run" not in shortfall, \
@@ -754,11 +754,13 @@ def test_round_24_closed_windows_keyword_model_logging_own_run_controls_cell_and
         spec = inst._genie_notebook_spec(make_uc(**{"Analytics Technique": technique}))
         in_rules = closed in inst._genie_platform_rules(spec)
         in_mandate = "Outcome windows: " + closed in inst._build_code_structure_mandate(spec)
-        assert in_rules == in_mandate == (spec["family"] in ("A", "F")), technique
+        assert in_rules == in_mandate == (spec["family"] in ("A", "F") or technique in agent_ns["GENIE_OUTCOME_WINDOW_TECHNIQUES"]), technique
         (with_rule if in_rules else without_rule).add(spec["family"])
         if re.search(r"\bclosed\b", text):
             assert in_rules, f"{technique}: its guidance says closed, so its notebook gets the definition"
-    assert with_rule == {"A", "F"} and without_rule == {"B", "C", "D", "E", "G", "H"}, (with_rule, without_rule)
+    assert with_rule == {"A", "E", "F", "H", "I", "J"} and without_rule == {"B", "C", "D", "E", "G", "H", "I", "J", "K", "L"}, (with_rule, without_rule)
+    assert set(agent_ns["GENIE_OUTCOME_WINDOW_TECHNIQUES"]) == {"Threshold Optimization", "Uplift Modeling", "Causal Impact", "Lifetime Value",
+                                                                  "Sequence Analysis"}
     mlflow = agent_ns["GENIE_MLFLOW_RULE"]
     calls = re.findall(r"`mlflow\.\w+\.log_model\(([^`]*)\)`", mlflow)
     assert len(calls) == 2 and "sk_model=model" in calls[0] and "python_model=wrapper" in calls[1], calls
@@ -822,7 +824,7 @@ def test_round_25_date_windows_are_range_frames_on_the_day_number_and_joins_leav
         again = inst._apply_genie_instruction_contract("U1", out, spec)
         assert again.count(frame) == 1 and again.count(join) == 1, technique
         families.add(spec["family"])
-    assert families == set("ABCDEFGH"), families
+    assert families == set("ABCDEFGHIJKL"), families
 
 
 PANDAS_PROBE = r'''
@@ -912,7 +914,7 @@ def test_round_26_each_step_receives_as_arguments_the_values_earlier_steps_compu
         spec = inst._genie_notebook_spec(make_uc(**{"Analytics Technique": technique}))
         assert inst._genie_platform_rules(spec).count(rule) == 1, technique
         families.add(spec["family"])
-    assert families == set("ABCDEFGH"), families
+    assert families == set("ABCDEFGHIJKL"), families
     assert rule.isascii() and agents.isascii()
 
 
@@ -3942,7 +3944,8 @@ def test_round_49_no_platform_rule_reads_as_an_unsupported_numeric_claim(agent_n
          "metric, so every scoring, recommendation and forecast instruction failed validation after its repair attempt")
     inst = build_inspire(agent_ns)
     families = set()
-    for technique in TECHNIQUES + ("Classification", "Pareto Analysis", "Network Analysis"):
+    for technique in TECHNIQUES + ("Classification", "Pareto Analysis", "Network Analysis", "Causal Impact", "Process Mining",
+                                   "Controls Testing", "Data Agent"):
         spec = inst._genie_notebook_spec(make_uc(**{"Analytics Technique": technique}))
         families.add(spec["family"])
         assert inspire._find_unsupported_numeric_claims(inst._genie_platform_rules(spec)) == [], technique

@@ -126,6 +126,8 @@ REVIEWED = {
         ('_validate_runtime_config', 'sorted(_valid_types)'),
         ('_validate_runtime_config', 'val'),
         ('_validate_technique_registry', 'name'),
+        ('_validate_technique_registry', 'prompt_only'),
+        ('_validate_technique_registry', 'registry_only'),
         ('_validate_technique_registry', 'sorted(families)'),
         ('_validate_technique_registry', 'sorted(table)'),
         ('_validate_technique_registry', 'stray'),
