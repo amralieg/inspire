@@ -1,11 +1,14 @@
 import { compareValues, countOf, dayLabel, plainText } from './format.js';
+import { plural } from './hub.js';
 
 export const EXPLAIN_TITLE_CHARS = 120;
 export const EXPLAIN_CONTEXT_CHARS = 12000;
 export const EXPLAIN_ROWS = 40;
 export const EXPLAIN_CELL_CHARS = 160;
+export const EXPLAIN_LINE_CHARS = 1000;
 export const EXPLAIN_FIELDS = 40;
 export const EXPLAIN_HISTORY = 10;
+export const ASK_CHARS = 1000;
 export const BUSY_TITLE = 'Genie is still answering';
 
 export function cutText(text, n) {
@@ -60,15 +63,27 @@ export function filterWords(filters, state) {
   return parts.join('; ');
 }
 
+const SHRINK = { chart: ['rows'], record: ['history', 'fields'] };
+const shrinkOrder = (kind) => SHRINK[kind] || ['rows', 'fields'];
+
+function cappedRows(context) {
+  const rows = Array.isArray(context.rows) ? context.rows : [];
+  return { rows: rows.slice(0, EXPLAIN_ROWS).map(version), row_count: compareValues(countOf(context.row_count), rows.length) > 0 ? countOf(context.row_count) : rows.length };
+}
+
+const cappedFields = (context) => ({ fields: cells(Object.entries(context.fields || {}).slice(0, EXPLAIN_FIELDS)) });
+
 function capped(kind, context) {
-  if (kind === 'chart') {
-    const rows = Array.isArray(context.rows) ? context.rows : [];
-    return { ...context, rows: rows.slice(0, EXPLAIN_ROWS), row_count: compareValues(countOf(context.row_count), rows.length) > 0 ? countOf(context.row_count) : rows.length };
+  if (kind === 'chart') return { ...context, ...cappedRows(context) };
+  if (kind === 'record') {
+    return { ...context, ...cappedFields(context), history: (Array.isArray(context.history) ? context.history : []).slice(0, EXPLAIN_HISTORY).map(version) };
   }
-  return {
-    ...context, fields: cells(Object.entries(context.fields || {}).slice(0, EXPLAIN_FIELDS)),
-    history: (Array.isArray(context.history) ? context.history : []).slice(0, EXPLAIN_HISTORY).map(version),
-  };
+  const lines = Object.fromEntries(['hint', 'filters'].filter((key) => typeof context[key] === 'string').map((key) => [key, cutText(context[key], EXPLAIN_LINE_CHARS)]));
+  return { ...context, ...lines, ...cappedFields(context), ...(context.rows ? cappedRows(context) : {}) };
+}
+
+export function fieldsOf(row, columns) {
+  return Object.fromEntries(columns.map((c) => [typeof c.label === 'string' && c.label ? c.label : c.key, row[c.key]]).filter(([, v]) => v !== undefined));
 }
 
 function version(value) {
@@ -78,10 +93,50 @@ function version(value) {
 const entries = (value) => (Array.isArray(value) ? value : Object.entries(value));
 const dropLast = (value) => (Array.isArray(value) ? value.slice(0, -1) : Object.fromEntries(Object.entries(value).slice(0, -1)));
 
-export function explainBody(kind, page, title, context) {
+export function explainBody(kind, page, title, context, question = '') {
   const out = capped(kind, context || {});
-  for (const key of kind === 'chart' ? ['rows'] : ['history', 'fields']) {
-    while (JSON.stringify(out).length > EXPLAIN_CONTEXT_CHARS && entries(out[key]).length) out[key] = dropLast(out[key]);
+  for (const key of shrinkOrder(kind)) {
+    while (out[key] && JSON.stringify(out).length > EXPLAIN_CONTEXT_CHARS && entries(out[key]).length) out[key] = dropLast(out[key]);
   }
-  return { kind, page, title: cutText(title, EXPLAIN_TITLE_CHARS), context: out };
+  const asked = cutText(question, ASK_CHARS);
+  return { kind, page, title: cutText(title, EXPLAIN_TITLE_CHARS), context: out, ...(asked ? { question: asked } : {}) };
+}
+
+export const SUGGESTIONS = {
+  chart: ['What stands out in this chart?', 'What drives the biggest change here?', 'What should we do about it?'],
+  record: ['Why is this row here?', 'Are there others like it?', 'What should we do about it?'],
+  kpi: ['Why is this number where it is?', 'What moved it most?', 'Is this good or bad for us?'],
+  text: ['What does this mean for us?', 'Which numbers back this up?'],
+  controls: ['What do these filters leave out?', 'Which filter changes the picture most?'],
+  table: ['What stands out in this table?', 'Which rows need attention first?'],
+  series: ['Why is this series forecast this way?', 'How accurate was it before?', 'What could push it off the forecast?'],
+  scenario: ['What has to be true to reach the target?', 'Which lever matters most?', 'How likely is the downside?'],
+  plan_line: ['Why is this line suggested?', 'What happens if we keep it as it is?', 'Which limit holds it back?'],
+  segment: ['What sets this segment apart?', 'Who moved into it lately?', 'What should we offer it?'],
+  recommendation: ['Why is this offered?', 'How did offers like it do before?', 'What else could we offer?'],
+  bridge_step: ['What is behind this step?', 'Which units drive it most?', 'Is it a plan change or a real change?'],
+  effect: ['Is this effect real?', 'What did it net after cost?', 'Should we scale, keep or stop it?'],
+  process_step: ['Why do cases wait here?', 'Which cases are at risk of breach?', 'What would speed this step up?'],
+  site: ['Why does this site rank here?', 'How does it compare with nearby sites?', 'What risk does it carry?'],
+  node: ['Why does this node matter?', 'Who is it linked to?', 'Does it look like part of a ring?'],
+};
+
+export function receives(context) {
+  const parts = ['its name'];
+  const fields = Object.keys(context?.fields || {}).length;
+  const rows = Math.max(Number(countOf(context?.row_count)) || 0, (context?.rows || []).length);
+  if (fields) parts.push(plural(fields, 'value'));
+  if (rows) parts.push(plural(rows, 'row'));
+  if (context?.filters) parts.push('the page filters');
+  return `${parts.slice(0, -1).join(', ')}${parts.length > 1 ? ' and ' : ''}${parts[parts.length - 1]}`;
+}
+
+export function scoped(context, filters) {
+  const both = [filters, context?.filters].filter(Boolean).join('; ');
+  return { ...(context || {}), ...(both ? { filters: both } : {}) };
+}
+
+export function rowTitle(row, columns) {
+  const first = columns.find((c) => row[c.key] != null && row[c.key] !== '');
+  return first ? plainText(row[first.key]) : 'this row';
 }

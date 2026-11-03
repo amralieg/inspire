@@ -4,7 +4,8 @@ import DataTable, { columnOf } from './DataTable.jsx';
 import { GenieMark, Icon } from './icons.jsx';
 import { ExplainButton } from './Genie.jsx';
 import { askGenie, genieOn } from './genieAsk.js';
-import { BUSY_TITLE } from './explain.js';
+import { BUSY_TITLE, EXPLAIN_ROWS, fieldsOf } from './explain.js';
+import { AskGenie } from './AskGenie.jsx';
 import { withRecord, withoutRecord } from './links.js';
 import { addCounts, addedParts, cap, compareValues, dayLabel, formatValue, integer, kindOf, plainText, savedWords, shownUnit, unitOf } from './format.js';
 import { hueVars } from './theme.js';
@@ -792,6 +793,7 @@ export default function Records({ meta, app, pageId, filters, ai, onFilter, hist
       },
     }] : []),
   ], metas, columnValues, onColumn, pageId, null, hosted);
+  const shownFields = (r) => fieldsOf(r, [...columns, ...[...(meta.columns || []), ...(meta.detail || [])].map((c) => ({ key: c.column, label: c.label }))]);
   const left = [leftText(data?.summary?.left), keptText(data?.summary?.kept)].filter(Boolean).join(' · ');
   const impact = tracker ? impactText(data?.summary) : '';
   const narrowedAny = Object.keys(narrowed).length > 0 || Object.values(filters || {}).some((v) => Array.isArray(v) && v.length)
@@ -813,6 +815,7 @@ export default function Records({ meta, app, pageId, filters, ai, onFilter, hist
           {(tracker || mine) && <button className={`pick-i ${mine ? 'is-on' : ''}`} aria-pressed={mine} onClick={() => setMine(!mine)}><Icon name="users" size={13} />My actions</button>}
           {(data?.changes || changed) && <button className={`pick-i ${changed ? 'is-on' : ''}`} aria-pressed={changed} onClick={() => setChanged(!changed)}><Icon name="trend" size={13} />Changed since the last run</button>}
           {canModify && <button className="btn btn--pri" onClick={() => setForm({ mode: 'add' })}><Icon name="plus" size={14} />Add record</button>}
+          <AskGenie kind="table" title={meta.title} context={{ hint: meta.hint || '', rows: tableRows.slice(0, EXPLAIN_ROWS).map(shownFields), row_count: total || 0 }} />
         </div>
       </header>
       {data && (
@@ -858,7 +861,8 @@ export default function Records({ meta, app, pageId, filters, ai, onFilter, hist
             sort={shownSort ? { key: shownSort.key, dir: shownSort.dir === 'desc' ? -1 : 1 } : null} onSort={(s) => setSort({ key: s.key, dir: s.dir > 0 ? 'asc' : 'desc' })}
             rowClass={(r) => [picked.has(String(recordKeyOf(r))) || matching ? 'is-picked' : '', keyOf(r) === cursorKey ? 'is-cursor' : '',
               isOverdue(r._inspire_due, r._inspire_status, today) ? 'is-late' : ''].filter(Boolean).join(' ')}
-            askAbout={genieOn(app, pageId) && history ? (r) => ({ pageId, recordKey: keyOf(r), label: plainText(r[meta.label]) || keyOf(r) }) : undefined} />
+            askAbout={genieOn(app, pageId) && history ? (r) => ({ pageId, recordKey: keyOf(r), label: plainText(r[meta.label]) || keyOf(r) }) : undefined}
+            askRow={(r) => ({ title: plainText(r[meta.label]) || keyOf(r), context: { hint: meta.hint || '', fields: shownFields(r) } })} />
           {cap > 0 && beyond > 0 && (
             <p className="more" data-limit>{`Your limit shows the top ${integer(cap)} of ${integer(addCounts([cap, beyond]))}. ${integer(beyond)} more are not shown; change the limit in Settings.`}</p>
           )}

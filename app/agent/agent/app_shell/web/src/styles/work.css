@@ -90,8 +90,8 @@
   .fld select,.fld input,.msel{height:40px}
   .explain-btn{height:40px}
   .tbl th button{min-width:40px;min-height:40px}
-  .row-ask{position:relative}
-  .row-ask::before{content:'';position:absolute;right:0;top:50%;width:40px;height:40px;transform:translateY(-50%)}
+  .row-ask,.ask-genie{position:relative}
+  .row-ask::before,.ask-genie::before{content:'';position:absolute;right:0;top:50%;width:40px;height:40px;transform:translateY(-50%)}
   .hb{min-height:40px}
   .pick-l{display:inline-grid;place-items:center;min-width:40px;min-height:40px;margin:-8px}
   .pick-l input{width:20px;height:20px}

@@ -69,9 +69,20 @@ export function useGenie(app, current, onOpen) {
   const choose = useCallback((next) => { subject.current = next; setAbout(next); }, []);
   const clearAbout = useCallback(() => choose(null), [choose]);
 
+  const explain = useCallback(({ kind, page, title, context, question }) => {
+    const body = explainBody(kind, page, title, context, question);
+    const you = body.question ? { text: body.question, about: { label: body.title } } : { text: `Explain “${body.title}”`, explain: true };
+    send(genieKey(shown.current, page), you, (id) => explainGenie({ ...body, conversation_id: id }));
+  }, [send]);
+
   useEffect(() => {
     const onAsk = (event) => {
       opener.current?.();
+      if (event.detail?.element) {
+        choose(null);
+        explain(event.detail.element);
+        return;
+      }
       const target = aboutOf(event.detail);
       if (!target || !genieOn(shown.current, target.pageId)) return;
       choose(target);
@@ -82,12 +93,7 @@ export function useGenie(app, current, onOpen) {
     };
     window.addEventListener(GENIE_ASK, onAsk);
     return () => window.removeEventListener(GENIE_ASK, onAsk);
-  }, [ask, choose]);
-
-  const explain = useCallback(({ kind, page, title, context }) => {
-    const body = explainBody(kind, page, title, context);
-    send(genieKey(shown.current, page), { text: `Explain “${body.title}”`, explain: true }, (id) => explainGenie({ ...body, conversation_id: id }));
-  }, [send]);
+  }, [ask, choose, explain]);
 
   const thread = threads[key] || [];
   const setThread = useCallback((change) => edit(keyNow.current, change), []);

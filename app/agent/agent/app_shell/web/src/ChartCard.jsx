@@ -8,6 +8,7 @@ import { Menu, Skeleton, useToast } from './ui.jsx';
 import { saveBlob, saveDataUrl } from './api.js';
 import { barsContext, chartContext } from './explain.js';
 import { ExplainButton } from './Genie.jsx';
+import { AskGenie } from './AskGenie.jsx';
 import { genieOn } from './genieAsk.js';
 import { useFx } from './Fx.jsx';
 import { FoldButton, useFold } from './MyView.jsx';
@@ -71,13 +72,15 @@ function VBars({ bars, hue }) {
 export function BarsCard({ id, title, hint, action, bars, vertical = false, hue = 'green', onPick, picked, loading, empty, x, measure, filters, onExplain, genieBusy }) {
   const fold = useFold(`bars:${id}`);
   const said = [hint, action].filter(Boolean).join(' ');
-  const explain = onExplain && !loading && bars?.length > 0 ? () => onExplain('chart', title, barsContext({ hint, vertical, x, measure, filters }, bars)) : null;
+  const drawn = !loading && bars?.length > 0 ? barsContext({ hint, vertical, x, measure, filters }, bars) : null;
+  const explain = onExplain && drawn ? () => onExplain('chart', title, drawn) : null;
   const top = !loading && bars?.length ? [...bars].sort((a, b) => largestFirst(countOf(a.value), countOf(b.value)))[0] : null;
   return (
     <article className={`card ${fold.folded ? 'card--folded' : ''}`} data-bars={id}>
       <header className="card-h">
         <div><h2>{title}</h2>{fold.folded ? top && <p data-fold-sum>{`Largest: ${top.label}, ${top.text}`}</p> : said && <p>{said}</p>}</div>
         {!fold.folded && explain && <ExplainButton title={title} busy={genieBusy} onClick={explain} />}
+        <AskGenie kind="chart" title={title} context={drawn || { hint: said, filters }} />
         <FoldButton fold={fold} title={title} />
       </header>
       {!fold.folded && (
@@ -126,6 +129,7 @@ export default function ChartCard({ chart, wide, result, error, loading, themeKe
     }
     toast(`Downloaded ${kind.toUpperCase()}`);
   };
+  const drawn = !loading && !error ? chartContext(chart, result) : { hint: chart.hint || '', type: chart.type, rows: [], row_count: 0 };
   const explain = genieOn(app, pageId) && onExplain && option ? () => onExplain('chart', chart.title, chartContext(chart, result)) : null;
 
   const items = [];
@@ -139,6 +143,7 @@ export default function ChartCard({ chart, wide, result, error, loading, themeKe
       <header className="card-h">
         <div><h2>{chart.title}</h2>{chart.hint && <p>{chart.hint}{!fold.folded && chart.click_filter ? ' Click a bar or slice to filter the page.' : ''}</p>}</div>
         {explain && <ExplainButton title={chart.title} busy={genieBusy} onClick={explain} />}
+        <AskGenie kind="chart" title={chart.title} context={drawn} />
         {items.length > 0 && (
           <button ref={more} className="ibtn ibtn--sm" aria-label={`Export ${chart.title}`} aria-haspopup="menu" aria-expanded={menu} onClick={() => setMenu(!menu)}>
             <Icon name="dots" size={16} />

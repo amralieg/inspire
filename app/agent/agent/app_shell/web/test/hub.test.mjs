@@ -408,7 +408,7 @@ test('a use case page leads with its area, title, Notify me, AI summary, four ti
   const notify = page.getByRole('link', { name: 'Notify me' });
   assert.equal(await notify.getAttribute('href'), 'https://example.com/sql/alerts');
   assert.equal(await notify.getAttribute('target'), '_blank');
-  assert.match(await page.locator('.sum').innerText(), /^AI summary\s+Deep discounts on winter wear are losing margin without selling more\.$/);
+  assert.match(await page.locator('.sum').innerText(), /^AI summary\s+Deep discounts on winter wear are losing margin without selling more\.\s+Ask Genie$/);
   assert.deepEqual(await tileTexts(page), [
     ['To fix', '3', '2 of them are yours'], ['Could save', '$21,600', 'Money at stake on the 3 things to fix, added up'],
     ['Fixed so far', '12', 'since Sep 1'], ['Saved so far', '$9,750', 'Money at stake when fixed, less what a later run still finds, on 9 fixes a later run confirmed']]);

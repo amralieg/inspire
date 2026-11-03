@@ -476,7 +476,7 @@ def test_every_app_question_to_genie_carries_the_user_s_directives_first(tmp_pat
     assert status == 200
     head, rest = out["question"].split(shell_core.USER_WINS + "\n", 1)
     assert head.endswith(BRIEF + "\n") and head.startswith('Explain a record from the App "Pricing desk"')
-    assert rest.startswith('The record "Item 1".') and "Confidence level: Medium," in rest
+    assert rest.startswith(shell_core.DATA_NOTE + '\nThe record "Item 1".') and "Confidence level: Medium," in rest
     assert ws.genie[-1][1] == out["question"]
     status, out = call(s, "POST", "genie/explain", body={"kind": "chart", "page": "n01_u05", "title": "Loss", "context": {"rows": []}})
     assert status == 200 and BRIEF + "\n" + shell_core.USER_WINS + "\n" in out["question"]
@@ -499,7 +499,7 @@ def test_a_question_about_one_record_carries_the_user_s_directives_before_the_re
     assert status == 200
     head, rest = out["question"].split(shell_core.USER_WINS + "\n", 1)
     assert head.startswith("A question about one record of the App") and head.endswith(BRIEF + "\n")
-    assert rest.startswith('The record "Item 42", as the App read it just now:')
+    assert rest.startswith(shell_core.DATA_NOTE + '\nThe record "Item 42", as the App read it just now:')
     assert sum("_summary`" in sql and "AS `stamp_us`" not in sql for sql, _p, _l in ws.sql) == 1
 
 

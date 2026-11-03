@@ -7,6 +7,7 @@ import { columnFiltersOn, withValue } from './filters.js';
 import { columnName, filterRows, localFilters, movableKeys, moveKey, orderColumns, sameOrder, savedOrder } from './grid.js';
 import { useMyView } from './MyView.jsx';
 import { columnOrder, setColumnOrder } from './prefs.js';
+import { AskGenie } from './AskGenie.jsx';
 
 const NUMERIC = ['number', 'currency', 'integer', 'percent'];
 const DATES = ['date', 'month'];
@@ -35,12 +36,14 @@ export function RowAsk({ about }) {
   );
 }
 
-function askColumn(askAbout) {
+function askColumn(askAbout, askRow) {
   return {
     key: '_ask', label: 'Ask Genie', hideLabel: true, fixed: true, className: 'ask-c',
     render: (row) => {
-      const about = askAbout(row);
-      return about ? <RowAsk about={about} /> : null;
+      const about = askAbout?.(row);
+      if (about) return <RowAsk about={about} />;
+      const element = askRow?.(row);
+      return element ? <AskGenie kind="record" title={element.title} context={element.context} /> : null;
     },
   };
 }
@@ -63,8 +66,8 @@ function useColumnOrder(columns, grid) {
 const cellClass = (c, row) => [c.num ? 'num' : '', c.className || '', row && c.cellClass ? c.cellClass(row) : ''].filter(Boolean).join(' ') || undefined;
 
 export default function DataTable({ columns: given, rows: all, initialSort, rowKey, onRow, empty = 'No row matches these filters.', label, sort: served, onSort, paged = true,
-  rowClass, rowProps, detail, detailClass = 'tbl-detail', askAbout, grid, filtering = 'local', tableClass = '' }) {
-  const base = askAbout ? [...given, askColumn(askAbout)] : given;
+  rowClass, rowProps, detail, detailClass = 'tbl-detail', askAbout, askRow, grid, filtering = 'local', tableClass = '' }) {
+  const base = askAbout || askRow ? [...given, askColumn(askAbout, askRow)] : given;
   const rows = all || [];
   const { ordered, order, moved, keep } = useColumnOrder(base, grid);
   const [own, setOwn] = useState(initialSort || null);

@@ -1,4 +1,4 @@
-import { change, changeParts, formatValue, storyPieces } from './format.js';
+import { change, changeParts, changeText, formatValue, storyPieces } from './format.js';
 import { HUES } from './theme.js';
 import { Icon } from './icons.jsx';
 import { Skeleton } from './ui.jsx';
@@ -6,8 +6,19 @@ import { useFx } from './Fx.jsx';
 import { Block } from './Blocks.jsx';
 import { withBlocks } from './blocks.js';
 import { FoldStrip, useFold } from './MyView.jsx';
+import { AskGenie } from './AskGenie.jsx';
 
 export const kpiValue = (kpi, data) => formatValue(data?.now, kpi.format, kpi.currency);
+
+function kpiContext(kpi, data, error, scope) {
+  if (error) return { hint: kpi.caption || '', fields: { Error: error } };
+  const d = kpi.compare ? change(data?.now, data?.before) : null;
+  const fields = { Now: kpiValue(kpi, data) };
+  if (kpi.compare && data?.before != null) fields.Before = formatValue(data.before, kpi.format, kpi.currency);
+  if (d != null) fields.Change = `${changeText(d, kpi.words)} ${kpi.vs || ''}`.trim();
+  if (scope?.text) fields.Scope = scope.text;
+  return { hint: kpi.caption || '', fields };
+}
 
 export function kpiHues(pageHue, count) {
   const start = Math.max(0, HUES.indexOf(pageHue));
@@ -52,6 +63,7 @@ export default function Kpis({ page, data, errors, loading, plan, scope }) {
                 {scope?.text && <div className="kpi-scope">{scope.text}</div>}
               </>
             )}
+            {!loading && <AskGenie kind="kpi" title={kpi.label} context={kpiContext(kpi, data?.[kpi.id], error, scope)} />}
           </div>
         );
       })}
@@ -69,6 +81,7 @@ function Tile({ t, loading }) {
         <>
           <div className={`kpi-v ${t.tone || ''}`} tabIndex={t.formula ? 0 : undefined} {...props}>{t.value}{tip}</div>
           <div className="kpi-s">{t.sub || '\u00a0'}</div>
+          <AskGenie kind="kpi" title={t.label} context={{ hint: t.formula || '', fields: { Now: t.value, ...(t.sub ? { Note: t.sub } : {}) } }} />
         </>
       )}
     </div>
@@ -88,11 +101,13 @@ export function Tiles({ tiles, loading, label = 'Key numbers' }) {
 
 export function Story({ page, data }) {
   if (!page.story) return null;
+  const pieces = storyPieces(page.story, page.kpis, data);
   return (
     <p className="story">
-      {storyPieces(page.story, page.kpis, data).map((piece, i) => (piece.strong
+      {pieces.map((piece, i) => (piece.strong
         ? <b key={i} className={piece.tone || ''}>{piece.text}</b>
         : <span key={i}>{piece.text}</span>))}
+      <AskGenie kind="text" title="Page summary" context={{ hint: pieces.map((piece) => piece.text).join('') }} />
     </p>
   );
 }

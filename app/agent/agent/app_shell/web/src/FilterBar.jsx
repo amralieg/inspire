@@ -4,6 +4,7 @@ import { Popover, useDebounced } from './ui.jsx';
 import { getFilterOptions } from './api.js';
 import { CHOICES_SHOWN, choicesHint, choosePreset, clearSelections, hasSelections, matching, searchHint, setRangeEdge, setSelection } from './filters.js';
 import { DEFAULT_VIEW, OWNER_CHOICES, SHOW_CHOICES, hasReasons, setReason, viewIsDefault } from './hub.js';
+import { AskGenie } from './AskGenie.jsx';
 
 function useOptionSearch(pageId, filter, query) {
   const q = useDebounced(query.trim(), 250);
@@ -110,6 +111,23 @@ function Choice({ label, value, choices, onChange }) {
   );
 }
 
+const chosen = (values) => (values?.length ? values.join(', ') : 'All');
+const picked = (choices, value) => (choices.find(([v]) => v === value) || [value, value])[1];
+
+function controlFields(filters, now, reasons, view) {
+  const fields = {};
+  reasons.forEach((r) => { fields[r.label] = chosen(now.ai?.[r.name]); });
+  filters.forEach((f) => {
+    if (f.type === 'multi_select') fields[f.label] = chosen(now.sel[f.id]);
+    else if (f.type === 'date_range') {
+      const value = now.range[f.id];
+      fields[f.label] = value?.preset === 'custom' ? `${value.from || '…'} to ${value.to || '…'}` : (f.presets || []).find((p) => p.id === value?.preset)?.label || 'All';
+    }
+  });
+  if (view) Object.assign(fields, { Owner: picked(OWNER_CHOICES, view.owner), Show: picked(SHOW_CHOICES, view.show) });
+  return fields;
+}
+
 export default function FilterBar({ meta, state, onState, pageId, reasons = [], view, onView }) {
   if (!meta && !view) return null;
   const filters = meta || [];
@@ -145,6 +163,7 @@ export default function FilterBar({ meta, state, onState, pageId, reasons = [], 
         )}
         <span className="sp" />
         {dirty && <button className="link" onClick={clear}>Clear filters</button>}
+        <AskGenie kind="controls" title="Filters" context={{ fields: controlFields(filters, now, reasons, view) }} />
       </section>
       {chips.length > 0 && (
         <div className="chips">

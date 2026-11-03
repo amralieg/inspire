@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { getApp, getDefaults, getFilters, getOverview, getSummary } from './api.js';
 import { applyTheme, hueVars, rememberPalette, storedPalette } from './theme.js';
 import { initialFilterState } from './filters.js';
@@ -12,6 +12,7 @@ import { MY_WORK_ROUTE } from './mywork.js';
 import Admin, { AdminLink } from './Admin.jsx';
 import { ADMIN_ROUTE } from './admin.js';
 import GeniePanel, { useGenie } from './Genie.jsx';
+import { GenieScope, GenieState } from './AskGenie.jsx';
 import { buildHash, parseHash } from './links.js';
 import { useUnknownPageNotice } from './PageLink.jsx';
 import PaletteButton from './Palette.jsx';
@@ -24,6 +25,7 @@ const THEME_KEY = 'inspire-app-theme';
 const HUB_ROUTES = ['home', 'overview', MY_WORK_ROUTE, 'impact', 'results', ADMIN_ROUTE];
 const IMPACT_ROUTES = ['impact', 'results'];
 const TONES = { stale: 'bad', error: 'bad', wait: 'warn' };
+const HUB_SCOPES = { overview: { page: 'overview', filters: '' }, impact: { page: 'impact', filters: '' } };
 
 function readRoute() {
   return parseHash(window.location.hash).route;
@@ -105,6 +107,7 @@ function Shell({ app }) {
     : impactOn && IMPACT_ROUTES.includes(route) ? 'impact' : single ? 'page' : 'overview';
   const page = screen === 'page' ? routed || pages[0] : null;
   const genie = useGenie(app, page ? page.id : screen, () => setGenieOpen(true));
+  const genieState = useMemo(() => ({ app, busy: genie.busy }), [app, genie.busy]);
   const { hub, error: hubError, summaries, load: loadHub } = useHub(pages, JSON.stringify(windowParams(prefs)));
   const shown = visiblePages(pages, hub);
 
@@ -170,6 +173,7 @@ function Shell({ app }) {
   const workItem = <NavItem on={screen === 'mywork'} icon="check" title="My work" small="What you did, and when" hue="teal" onClick={() => go(MY_WORK_ROUTE)} />;
 
   return (
+    <GenieState.Provider value={genieState}>
     <div className="stage">
       <div className="app" data-layout={app.layout} data-density={prefs.density}>
         <header className="top">
@@ -215,10 +219,14 @@ function Shell({ app }) {
           </nav>
           {navOpen && <div className="scrim" onClick={() => setNavOpen(false)} />}
           <main className="main" tabIndex={-1}>
-            {screen === 'overview' && <Home app={app} hub={hub} hubError={hubError} summaries={summaries} view={view} onView={setView} onOpen={go} onRecord={openRecord}
-              onChanges={(id) => { window.location.hash = `#/${encodeURIComponent(id)}?changed=1`; leave(); }} onMyWork={() => go(MY_WORK_ROUTE)} />}
+            {screen === 'overview' && <GenieScope.Provider value={HUB_SCOPES.overview}><Home app={app} hub={hub} hubError={hubError} summaries={summaries} view={view} onView={setView} onOpen={go} onRecord={openRecord}
+              onChanges={(id) => { window.location.hash = `#/${encodeURIComponent(id)}?changed=1`; leave(); }} onMyWork={() => go(MY_WORK_ROUTE)} /></GenieScope.Provider>}
             {screen === 'mywork' && <MyWorkPage app={app} hub={hub} hubError={hubError} summaries={summaries} onRecord={openRecord} />}
-            {screen === 'impact' && <Impact app={app} hub={hub} hubError={hubError} summaries={summaries} onOpen={go} onExplain={explain} genieBusy={genie.busy} />}
+            {screen === 'impact' && (
+              <GenieScope.Provider value={HUB_SCOPES.impact}>
+                <Impact app={app} hub={hub} hubError={hubError} summaries={summaries} onOpen={go} onExplain={explain} genieBusy={genie.busy} />
+              </GenieScope.Provider>
+            )}
             {screen === 'admin' && <Admin />}
             {page && (
               <Page key={page.id} app={app} page={page} meta={metas[page.id]} state={states[page.id]} onState={setPageState(page.id)} themeKey={themeKey}
@@ -229,6 +237,7 @@ function Shell({ app }) {
         </div>
       </div>
     </div>
+    </GenieState.Provider>
   );
 }
 

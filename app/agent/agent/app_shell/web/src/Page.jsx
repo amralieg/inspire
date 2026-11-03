@@ -3,7 +3,7 @@ import { getOverview, getPage } from './api.js';
 import { apiTables, apiValues, clearColumnValues, clearSelections, columnValues, setColumnValue, toggleValue } from './filters.js';
 import { ColumnFilterStatus, withColumnFilters } from './ColumnFilters.jsx';
 import { addCounts, cap, dayLabel, integer, largestFirst, savedVerb, wholeMoney } from './format.js';
-import { filterWords } from './explain.js';
+import { EXPLAIN_ROWS, fieldsOf, filterWords, rowTitle } from './explain.js';
 import { hueVars } from './theme.js';
 import { parseHash } from './links.js';
 import { Block, Placed } from './Blocks.jsx';
@@ -27,6 +27,7 @@ import SettingsPanel, { SettingsButton, useSettings } from './Settings.jsx';
 import { ownerSettings } from './settings.js';
 import { FoldScope, useMyView } from './MyView.jsx';
 import { windowParams } from './prefs.js';
+import { AskGenie, GenieScope } from './AskGenie.jsx';
 import {
   NOT_MEASURED, capacityText, couldSaveFormula, couldSaveText, isMine, moneyText, nothingReason, nothingText, pageCurrency, pageKind, pickReason,
   reasonFilters, reliableText, savedTile, shortDay, totals, useCaseState, viewRows, viewWords,
@@ -85,10 +86,13 @@ function TableCard({ table, result, error, loading, onFilter, pageId, filters, v
       <header className="card-h">
         <div><h2>{table.title}</h2>{table.hint && <p>{table.hint}</p>}</div>
         {filters?.length > 0 && <div className="tbar"><ColumnFilterStatus filters={filters} values={values} onClear={onClear} /></div>}
+        <AskGenie kind="table" title={table.title} context={{ hint: table.hint || '', rows: (result?.rows || []).slice(0, EXPLAIN_ROWS).map((row) => fieldsOf(row, columns)),
+          row_count: result?.rows?.length || 0 }} />
       </header>
       {loading && <div style={{ padding: 16, display: 'grid', gap: 10 }}>{[1, 2, 3].map((i) => <Skeleton key={i} height={22} />)}</div>}
       {error && <p className="tile-err"><Icon name="info" size={14} />This table could not load: {error}</p>}
-      {!loading && !error && <DataTable label={table.title} columns={columns} rows={result?.rows || []} filtering="server" grid={`page:${pageId}:table:${table.id}`} {...served} />}
+      {!loading && !error && <DataTable label={table.title} columns={columns} rows={result?.rows || []} filtering="server" grid={`page:${pageId}:table:${table.id}`} {...served}
+        askRow={(row) => ({ title: rowTitle(row, columns), context: { hint: `A row of the table "${table.title}".`, fields: fieldsOf(row, columns) } })} />}
       {!loading && !error && cut && <p className="more" data-cut>Showing the first {integer(result.rows.length)} rows. Sorting and the column filters use every row.</p>}
     </section>
   );
@@ -141,7 +145,10 @@ function HubTop({ entry, live, summary }) {
   return (
     <>
       {status.kind === 'stale' && <div className="uc-status is-bad" role="status"><b>{status.title}</b>{status.reason}</div>}
-      {status.kind !== 'stale' && run?.summary && <div className="sum"><span className="ai-badge"><GenieMark size={12} />AI summary</span><p>{run.summary}</p></div>}
+      {status.kind !== 'stale' && run?.summary && (
+        <div className="sum"><span className="ai-badge"><GenieMark size={12} />AI summary</span><p>{run.summary}</p>
+          <AskGenie kind="text" title="AI summary" context={{ hint: run.summary }} /></div>
+      )}
       {status.kind !== 'stale' && summary && !summary.error && !run?.summary && (
         <p className="note no-sum" role="status"><Icon name="info" size={14} />{run ? 'The last run wrote no AI summary.' : 'No run has written an AI summary yet.'}</p>
       )}
@@ -247,6 +254,7 @@ export default function Page({ app, page, meta, state, onState, themeKey, onAsk,
   const loading = !data;
   const pick = (filterId, value) => onState(toggleValue(state, filterId, value));
   const filters = apiValues(state);
+  const scope = { page: page.id, filters: filterWords(meta?.filters, state) };
   const runDate = meta?.filters?.find((f) => f.type === 'date_range');
   const errors = data?.errors || {};
   const alert = app.alerts?.[page.id] || app.alerts_home;
@@ -396,5 +404,5 @@ export default function Page({ app, page, meta, state, onState, themeKey, onAsk,
       )}
     </div>
   );
-  return <FoldScope pageId={page.id}>{body}</FoldScope>;
+  return <GenieScope.Provider value={scope}><FoldScope pageId={page.id}>{body}</FoldScope></GenieScope.Provider>;
 }

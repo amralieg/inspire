@@ -1,7 +1,8 @@
 import { useEffect, useRef } from 'react';
 import Markdown from './Markdown.jsx';
-import { blockFile, blockTitle, cleanHtml } from './blocks.js';
+import { blockFile, blockText, blockTitle, cleanHtml } from './blocks.js';
 import { FoldButton, useFold } from './MyView.jsx';
+import { AskGenie } from './AskGenie.jsx';
 
 const WIDTHS = ['full', 'wide', 'half', 'narrow'];
 const ALIGNS = ['left', 'center', 'right'];
@@ -43,6 +44,7 @@ export function Block({ block, tile = false, wide = false }) {
     <div className={`blk blk--${kind} blk--a-${align}${tile ? ' blk--tile' : ` blk--w-${width}`}${wide ? ' blk--span2' : ''}${fold.folded ? ' blk--folded' : ''}`}
       data-block={block.id} data-kind={kind} data-width={width} data-align={align}>
       {fold.folded ? <p className="blk-sum" data-fold-sum>{title}</p> : body}
+      {kind !== 'none' && <AskGenie kind="text" title={title} context={{ hint: blockText(block) }} />}
       <FoldButton fold={fold} title={title} />
     </div>
   );

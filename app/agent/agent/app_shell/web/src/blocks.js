@@ -86,10 +86,18 @@ export const slotsOf = (plan, anchor) => plan?.[anchor] || emptySlots();
 const TITLE_CHARS = 90;
 const MARKS = /[#*`>_[\]]|\(([^)\s]{1,2000})\)/g;
 
+const htmlText = (html) => String(html || '').replace(/<style[\s\S]*?<\/style>/gi, ' ').replace(/<[^>]*>/g, ' ');
+
+export function blockText(block) {
+  const content = block?.content;
+  const raw = block?.kind === 'image' ? String(content?.caption || content?.alt || '') : block?.kind === 'html' ? htmlText(content) : String(content || '');
+  return raw.replace(MARKS, ' ').replace(/\s+/g, ' ').trim();
+}
+
 export function blockTitle(block) {
   const content = block?.content;
   const raw = block?.kind === 'image' ? String(content?.caption || content?.alt || 'Image')
-    : block?.kind === 'html' ? String(content || '').replace(/<style[\s\S]*?<\/style>/gi, ' ').replace(/<[^>]*>/g, ' ')
+    : block?.kind === 'html' ? htmlText(content)
       : String(content || '').split('\n').find((line) => line.replace(MARKS, '').trim()) || '';
   const text = raw.replace(MARKS, ' ').replace(/\s+/g, ' ').trim() || 'Note';
   return [...text].length > TITLE_CHARS ? `${[...text].slice(0, TITLE_CHARS - 1).join('').trimEnd()}…` : text;
