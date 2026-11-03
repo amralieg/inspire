@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { HARNESS_SETTINGS, HARNESS_USE_CASE, OWNER, built } from './implementFixtures.js';
-import { closeBrowser, lowContrast, onStep, openBuild, openUi, until } from './uiSupport.mjs';
+import { closeBrowser, lowContrast, onStep, openAsset, openBuild, openUi, until } from './uiSupport.mjs';
 
 test.after(closeBrowser);
 
@@ -249,7 +249,7 @@ test('the Build page has one Grouping and First run section, read from the App a
   const ui = await openBuild({ history: [withScopeModel()], forwardedToken: PERSON, appApi }, { init: profileAt(calls, PROFILE) });
   const { page, made } = ui;
   try {
-    const panel = page.locator('[data-mvp-panel="build"]').getByRole('region', { name: 'Settings', exact: true });
+    const panel = (await openAsset(page, 'notebook')).getByRole('region', { name: 'Settings', exact: true });
     const scope = panel.locator('[data-setting-group="run_scope"]');
     await scope.waitFor({ timeout: 30000 });
     assert.equal(await scope.locator('h4').textContent(), 'Grouping and First run');
@@ -330,7 +330,7 @@ test('the Build page states the scope of the last run next to its numbers, and t
   const ui = await openBuild({ history: [kpiRow], moneySummary: [KPI_SUMMARY], forwardedToken: PERSON, appApi }, { init: profileAt([], PROFILE) });
   const { page } = ui;
   try {
-    const card = page.locator('[data-mvp-panel="build"]').getByRole('region', { name: 'Target KPI', exact: true });
+    const card = (await openAsset(page, 'notebook')).getByRole('region', { name: 'Target KPI', exact: true });
     await card.locator('[data-run-scope-text]').waitFor({ timeout: 30000 });
     assert.equal(await card.locator('[data-run-scope-text]').textContent(), 'Last run: First run: 2 groups of country (USA, Spain)');
     assert.equal(await card.locator('[data-run-scope-covered]').textContent(), 'The first run covered 19,600 of 48,210 records (2 groups) in 4 minutes.');
@@ -344,7 +344,7 @@ test('the Build page states the scope of the last run next to its numbers, and t
   const quiet = await openBuild({ history: [kpiRow], moneySummary: [KPI_SUMMARY], forwardedToken: PERSON,
     appApi: { ...appApi, 'GET /api/runs': [{ runs: [RUNS[1], RUNS[1]], total: 2 }] } }, { init: profileAt([], PROFILE) });
   try {
-    const card = quiet.page.locator('[data-mvp-panel="build"]').getByRole('region', { name: 'Target KPI', exact: true });
+    const card = (await openAsset(quiet.page, 'notebook')).getByRole('region', { name: 'Target KPI', exact: true });
     await card.locator('h4').waitFor({ timeout: 30000 });
     await quiet.page.waitForTimeout(1500);
     assert.equal(await card.locator('[data-run-scope-last]').count(), 0, 'a run on every record after another one on every record adds no line');

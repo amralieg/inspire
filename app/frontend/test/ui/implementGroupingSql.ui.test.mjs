@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { HARNESS_USE_CASE, OWNER, built } from './implementFixtures.js';
-import { closeBrowser, lowContrast, onStep, openBuild, openUi, setDark, until } from './uiSupport.mjs';
+import { closeBrowser, lowContrast, onStep, openAsset, openBuild, openUi, setDark, until } from './uiSupport.mjs';
 import { checkGroupingSql } from '../../src/lib/groupingSql.js';
 import { GROUPING_CUSTOM_UNSAVED } from '../../src/lib/runScope.js';
 
@@ -194,7 +194,7 @@ test('Build settings: Custom cannot be saved until its SQL is previewed and used
     statements: { 'AS group_name': warehouse }, appApi }, { init: profileAt(calls) });
   const { page, made } = ui;
   try {
-    const scope = page.locator('[data-mvp-panel="build"]').locator('[data-setting-group="run_scope"]');
+    const scope = (await openAsset(page, 'notebook')).locator('[data-setting-group="run_scope"]');
     await scope.locator('[data-grouping-choice="custom"]').waitFor({ timeout: 30000 });
     await scope.locator('[data-grouping-choice="custom"] input').check();
     const editor = scope.locator('[data-grouping-sql]');
@@ -243,7 +243,7 @@ test('leaving Custom while a preview runs cancels the request in the browser', a
   });
   const { page } = ui;
   try {
-    const scope = page.locator('[data-mvp-panel="build"]').locator('[data-setting-group="run_scope"]');
+    const scope = (await openAsset(page, 'notebook')).locator('[data-setting-group="run_scope"]');
     await scope.locator('[data-grouping-choice="custom"]').waitFor({ timeout: 30000 });
     await scope.locator('[data-grouping-choice="custom"] input').check();
     const editor = scope.locator('[data-grouping-sql]');

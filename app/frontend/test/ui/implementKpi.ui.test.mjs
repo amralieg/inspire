@@ -156,12 +156,12 @@ test('a target KPI whose key result still carries placeholder tags reads in plai
   const ui = await openBuild({ history: [builtWith(kpi)], moneySummary: [{ ...SUMMARY, kpi_status: 'not_measured', kpi_latest: null, kpi_baseline: null,
     kpi_measured_at: null, kpi_target: null, kpi_target_text: tagged, kpi_reason: kpi.reason }] });
   try {
-    const card = ui.page.locator('[data-mvp-panel="build"]').getByRole('region', { name: 'Target KPI', exact: true });
+    const card = (await openAsset(ui.page, 'notebook')).getByRole('region', { name: 'Target KPI', exact: true });
     await card.waitFor({ timeout: 15000 });
     assert.equal(await card.locator('[data-kpi-fact]').nth(3).locator('dd').textContent(), 'No target set');
     const shown = await card.textContent();
     assert.equal(LEFTOVER.test(shown), false, shown);
-    await ui.page.locator('[data-mvp-tab="notebook"]').click();
+    await openAsset(ui.page, 'notebook');
     const line = ui.page.locator('[data-asset-panel="notebook"] [data-kpi-line]');
     await line.waitFor({ timeout: 15000 });
     assert.equal(LEFTOVER.test(await line.textContent()), false, await line.textContent());

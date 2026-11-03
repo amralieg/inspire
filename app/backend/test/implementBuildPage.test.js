@@ -117,7 +117,7 @@ test('the backend and the App name the same way to all settings, so no text poin
   const sources = [
     ...files(path.resolve(__dirname, '..', '..', 'frontend', 'src')), ...files(path.resolve(__dirname, '..', 'lib')),
     ...files(path.join(agent, 'app_shell', 'server')), ...files(path.join(agent, 'app_shell', 'web', 'src')),
-    path.join(agent, 'dbx_inspire_ai_agent.ipynb'), path.resolve(__dirname, '..', '..', 'dbx_inspire_ai_agent.ipynb'),
+    path.join(agent, 'dbx_inspire_ai_agent.ipynb'),
   ].filter((f) => /\.(js|jsx|py|ipynb)$/.test(f));
   const stale = sources.filter((f) => ['Edit MVP', 'Build again'].some((old) => fs.readFileSync(f, 'utf8').includes(old)));
   assert.deepEqual(stale.map((f) => path.relative(path.resolve(__dirname, '..', '..'), f)), []);
