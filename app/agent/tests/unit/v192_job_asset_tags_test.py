@@ -199,7 +199,8 @@ def test_the_asset_update_merges_into_the_job_tags_and_clears_stale_asset_tags(n
                                    {"genie_space": {"state": "ready"}, "dashboard": {"state": "deleted"}})
     [update] = api.updates()
     assert update == {"job_id": 77, "new_settings": {"tags": {"team": "growth", "dbx_inspire_ai_business": "Acme", VERSION_KEY: "v1.3.0",
-                                                              "dbx_inspire_ai_genie_space_id": "g1", "dbx_inspire_ai_assets": "genie"}}}
+                                                              "dbx_inspire_ai_genie_space_id": "g1", "dbx_inspire_ai_assets": "genie"}},
+                      "fields_to_remove": ["tags"]}, "jobs/update merges tags, so a dropped tag only goes with fields_to_remove"
     assert any("[IMPLEMENT-ASSET-TAGS]" in msg and "genie" in msg for level, msg in inst.logger.records if level == "INFO")
 
 
@@ -362,16 +363,17 @@ def test_a_finished_build_tags_the_use_case_job_with_its_assets(ns):
 class _TagJobs(_CapJobs):
     def __init__(self, tags, schedule=None, get_raises=False):
         super().__init__(existing_job_id=77)
-        self.tags, self.schedule, self.get_raises, self.settings = dict(tags), schedule, get_raises, []
+        self.tags, self.schedule, self.get_raises, self.settings, self.removed = dict(tags), schedule, get_raises, [], []
 
     def get(self, job_id=None):
         if self.get_raises:
             raise RuntimeError("jobs/get is down")
         return types.SimpleNamespace(settings=types.SimpleNamespace(schedule=self.schedule, tags=dict(self.tags)))
 
-    def update(self, job_id=None, new_settings=None):
+    def update(self, job_id=None, new_settings=None, fields_to_remove=None):
         self.calls.append("update")
         self.settings.append(new_settings)
+        self.removed.append(fields_to_remove)
 
     def create(self, **kwargs):
         self.settings.append(types.SimpleNamespace(**kwargs))

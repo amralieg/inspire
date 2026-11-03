@@ -168,7 +168,7 @@ class _Jobs:
         self.calls.append(("get", {"job_id": job_id}))
         return types.SimpleNamespace(settings=types.SimpleNamespace(schedule=self.schedule))
 
-    def update(self, job_id=None, new_settings=None):
+    def update(self, job_id=None, new_settings=None, fields_to_remove=None):
         self.calls.append(("update", {"job_id": job_id, "settings": vars(new_settings)}))
 
     def create(self, **kwargs):
