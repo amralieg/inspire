@@ -157,8 +157,8 @@ def test_b15_b26_dead_score_floor_and_optional_honesty_columns_removed(ns):
     for phrase in ("SCORE FLOOR", "self-score below 7.5", "Scoring compression", "optional honesty columns",
                    "You may append honesty columns", "(no more, no less)"):
         assert phrase not in base, phrase
-    assert "(14 columns per row)" in base
-    assert '"High Level Design","honesty_score","honesty_justification"' in base
+    assert "(15 columns per row)" in base
+    assert '"High Level Design","Use Case Kind","honesty_score","honesty_justification"' in base
 
 
 def test_b16_no_technique_quotas_force_weak_fits(ns):

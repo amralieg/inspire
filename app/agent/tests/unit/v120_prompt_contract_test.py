@@ -49,7 +49,7 @@ V113_PLACEHOLDERS = {
 }
 
 ALLOWED_ADDITIONS = {"BEST_OF_BEST_SCORING_PROMPT": {"schema_details", "strategic_initiative", "value_chain", "revenue_model"},
-                     "BASE_USE_CASE_GEN_PROMPT": {"industry"},
+                     "BASE_USE_CASE_GEN_PROMPT": {"industry", "kinds_checklist_section"},
                      "GENERAL_INSTRUCTION_INTERPRETER_PROMPT": {"kind_ids"},
                      "USE_CASE_GENIE_CODE_INSTRUCTION_GEN_PROMPT": {"beneficiary", "sponsor", "decision", "decision_owner", "cadence", "kpi",
                                                                     "kpi_direction", "value_tier", "outcome_definition", "time_column",
