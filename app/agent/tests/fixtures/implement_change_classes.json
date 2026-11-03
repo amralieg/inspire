@@ -9191,6 +9191,7 @@
   ],
   "use_case_tag_keys": [
     "inspire_version",
+    "dbx_inspire_ai_version",
     "dbx_inspire_ai_business",
     "dbx_inspire_ai_run_type",
     "dbx_inspire_ai_session",

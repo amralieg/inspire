@@ -15,7 +15,8 @@ from v120_genie_support import build_inspire, make_uc
 FAMILIES = {"A": "Classification", "B": "Anomaly Detection", "C": "Clustering", "D": "Recommendation", "E": "Forecasting",
             "F": "Trend Analysis", "G": "Sentiment Analysis", "H": "Optimization"}
 TAG_KEYS = {"dbx_inspire_ai_business", "dbx_inspire_ai_usecase", "dbx_inspire_ai_usecase_id", "dbx_inspire_ai_session",
-            "dbx_inspire_ai_session_id", "dbx_inspire_ai_launcher_source", "dbx_inspire_ai_run_type", "inspire_version"}
+            "dbx_inspire_ai_session_id", "dbx_inspire_ai_launcher_source", "dbx_inspire_ai_run_type", "inspire_version",
+            "dbx_inspire_ai_version"}
 INSTRUCTION = ("## 1. Goal\nThe retention lead decides weekly.\n\n## 3. Parameters\n| widget | type | default | used for |\n"
                "|---|---|---|---|\n| `result_table` | text | main.inspire.n01_u01_churn_out | Business output table |\n"
                "| `lookback_weeks` | text | `12` | Weeks of history per entity |\n\n## 4. Readiness Check\nChecks.\n")
@@ -110,7 +111,7 @@ def test_every_notebook_has_the_card_the_instruction_and_the_run_controls(agent_
     assert run["job_tags"]["dbx_inspire_ai_business"] == agent_ns["JobLauncher"]._sanitize_tag(_inst.business_name), \
         "the business tag is spelled the way every other Inspire job spells it, so one filter finds them all"
     assert run["job_tags"]["dbx_inspire_ai_session"] == run["job_tags"]["dbx_inspire_ai_session_id"]
-    assert run["job_tags"]["inspire_version"] == agent_ns["__AGENT_VERSION__"]
+    assert run["job_tags"]["inspire_version"] == run["job_tags"]["dbx_inspire_ai_version"] == agent_ns["__AGENT_VERSION__"]
     assert run["widget_names"][:2] == ["result_table", "lookback_weeks"] and run["wait_minutes"] == 30
 
 

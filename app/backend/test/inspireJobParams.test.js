@@ -215,6 +215,7 @@ test('a launched job carries the real session id, the use cases it works on and 
   });
   assert.deepEqual(tags, {
     inspire_version: INSPIRE_AGENT_VERSION,
+    dbx_inspire_ai_version: INSPIRE_AGENT_VERSION,
     dbx_inspire_ai_business: 'TPCDS_Retail_V130_Ship',
     dbx_inspire_ai_type: 'implement',
     dbx_inspire_ai_run_type: 'implement',
@@ -230,6 +231,16 @@ test('a launched job carries the real session id, the use cases it works on and 
   assert.equal(discovery.dbx_inspire_ai_usecases, '0');
   for (const key of ['dbx_inspire_ai_session', 'dbx_inspire_ai_session_id', 'dbx_inspire_ai_usecase_id', 'dbx_inspire_ai_spec_version']) {
     assert.equal(key in discovery, false, `${key} is left out when the launch does not know it`);
+  }
+});
+
+test('every job the App launches carries the agent version tag, whatever its run type', () => {
+  const { inspireJobTags } = require('../lib/inspireJobParams');
+  for (const runType of ['discovery', 'implement', 'genie_regen']) {
+    const tags = inspireJobTags({ runType, params: { '14_session_id': '7' }, businessName: 'Acme', notebookFilename: 'nb', useCaseIds: ['N01-U01'] });
+    assert.equal(tags.dbx_inspire_ai_version, INSPIRE_AGENT_VERSION, runType);
+    assert.equal(tags.inspire_version, tags.dbx_inspire_ai_version, runType);
+    assert.ok(Object.keys(tags).length <= 20, runType);
   }
 });
 
