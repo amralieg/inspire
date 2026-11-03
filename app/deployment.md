@@ -54,7 +54,7 @@ python3 installer/release.py check --base https://github.com/amralieg/inspire/re
 | **00_sql_warehouse** | The SQL warehouse used for SQL statements, grants, and the value written into the app as **INSPIRE_WAREHOUSE_ID**. Pick it from the list or type its exact name or id. |
 | **01_inspire_catalog** | The Unity Catalog where Inspire uses schema **_inspire** for session and tracking tables. Pick it from the list or type its exact name. |
 
-**Jobs / automation (no UI):** put `inspire_installer_test.json` next to the installer with `warehouse_id` and `catalog` so the widgets are skipped. It also takes `app_name` and `release` (a pre-release of the test fork).
+**Jobs / automation (no UI):** put `inspire_installer_test.json` next to the installer with `warehouse_id` and `catalog` so the widgets are skipped. It also takes `app_name`, `release` (a pre-release of the test fork) and `test_tag`: every job the installed App launches then carries the tag `dbx_inspire_ai_test=<test_tag>`, so usage reports leave test runs out. A directly submitted agent run takes the same tag from its `dbx_inspire_ai_test` parameter. Never set it on a customer install.
 
 **Testing without internet:** set `INTERNET_BLOCKED = True` near the top of the installer. Its GitHub check then answers no before any network call, so the installer uses the release files next to it, or shows the download page when there are none. It ships as `False`.
 

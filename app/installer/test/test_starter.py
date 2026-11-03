@@ -117,7 +117,10 @@ class TrustTest(StarterCase):
         self.assertEqual(read(str(self.folder)), {})
         (self.folder / "inspire_installer_test.json").write_text('{"release": "x", "app_name": "inspire-inst-test"}')
         self.assertEqual(read(str(self.folder))["app_name"], "inspire-inst-test")
-        for text in ('{"release": "x", "proxy": "y"}', '{"internet": false}', '{"internet": "no"}', "[1]", '{"warehouse_id": 7}'):
+        (self.folder / "inspire_installer_test.json").write_text('{"app_name": "inspire-rc0", "test_tag": "inspire-rc0"}')
+        self.assertEqual(read(str(self.folder))["test_tag"], "inspire-rc0")
+        for text in ('{"release": "x", "proxy": "y"}', '{"internet": false}', '{"internet": "no"}', "[1]", '{"warehouse_id": 7}',
+                     '{"test_tag": true}'):
             (self.folder / "inspire_installer_test.json").write_text(text)
             with self.assertRaises(self.ns["InspireReleaseError"], msg=text):
                 read(str(self.folder))

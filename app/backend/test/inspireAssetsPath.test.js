@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { sanitizeInspireNotebookJobParams, buildDemoInspireDiscoveryParams, INSPIRE_ASSETS_PARAM, withInspireAssetsPath } = require('../lib/inspireJobParams');
+const { sanitizeInspireNotebookJobParams, buildDemoInspireDiscoveryParams, INSPIRE_ASSETS_PARAM, withInspireInstallParams } = require('../lib/inspireJobParams');
 const { rerunParams } = require('../lib/inspireImplement');
 const { triggerDemoDataPipeline } = require('../lib/demoDataPipeline');
 const { fakeWorkspace, startInspire } = require('./support/serverProcess');
@@ -32,14 +32,14 @@ test('the agent job parameters carry the installed assets path from INSPIRE_ASSE
 
 test('a new launch and a re-run take the assets path from the one helper, and a request never sets it', async () => {
   await withAssets(ASSETS, () => {
-    assert.deepEqual(withInspireAssetsPath({ top_k: '3', inspire_assets_path: '/Users/x/evil' }), { top_k: '3', inspire_assets_path: ASSETS });
+    assert.deepEqual(withInspireInstallParams({ top_k: '3', inspire_assets_path: '/Users/x/evil' }), { top_k: '3', inspire_assets_path: ASSETS });
     assert.deepEqual(rerunParams(['top_k', 'inspire_assets_path'], { top_k: '3', inspire_assets_path: '/Users/x/evil' }),
       { top_k: '3', run_profile: 'preview', inspire_assets_path: ASSETS });
     assert.deepEqual(rerunParams(['top_k'], {}), { run_profile: 'preview', inspire_assets_path: ASSETS });
   });
   await withAssets(undefined, () => {
     assert.deepEqual(rerunParams(['top_k', 'inspire_assets_path'], { inspire_assets_path: '/Users/x/evil' }), { run_profile: 'preview' });
-    assert.deepEqual(withInspireAssetsPath({ inspire_assets_path: '/Users/x/evil' }), {});
+    assert.deepEqual(withInspireInstallParams({ inspire_assets_path: '/Users/x/evil' }), {});
   });
 });
 
