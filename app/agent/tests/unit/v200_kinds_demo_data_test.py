@@ -43,8 +43,8 @@ def checks(gen, bundle):
     return gen["_kind_signal_checks"](bundle)
 
 
-def _kind_ids():
-    return [k["id"] for k in json.loads(KINDS.read_text())["kinds"]]
+def _kind_labels():
+    return [k["label"] for k in json.loads(KINDS.read_text())["kinds"]]
 
 
 def test_the_generator_cell_needs_no_spark_to_build_and_check(gen):
@@ -53,23 +53,23 @@ def test_the_generator_cell_needs_no_spark_to_build_and_check(gen):
 
 
 def test_every_registry_kind_has_exactly_one_data_check(checks, registry):
-    assert sorted(checks) == sorted(k["id"] for k in registry["kinds"])
+    assert sorted(checks) == sorted(k["label"] for k in registry["kinds"])
     assert len(checks) == 40
 
 
-@pytest.mark.parametrize("kind_id", _kind_ids())
-def test_each_demo_signal_is_planted_and_passes_its_kind_check(checks, kind_id):
-    result = checks[kind_id]
-    assert result["ok"], f"{kind_id}: {result['detail']}"
+@pytest.mark.parametrize("label", _kind_labels())
+def test_each_demo_signal_is_planted_and_passes_its_kind_check(checks, label):
+    result = checks[label]
+    assert result["ok"], f"{label}: {result['detail']}"
     assert result["detail"]
 
 
-@pytest.mark.parametrize("kind_id", _kind_ids())
-def test_each_kind_has_enough_items_for_every_component_of_its_layout(checks, registry, kind_id):
-    kind = next(k for k in registry["kinds"] if k["id"] == kind_id)
+@pytest.mark.parametrize("label", _kind_labels())
+def test_each_kind_has_enough_items_for_every_component_of_its_layout(checks, registry, label):
+    kind = next(k for k in registry["kinds"] if k["label"] == label)
     layout = next(lay for lay in registry["layouts"] if lay["id"] == kind["layout"])
     need = max(layout["min_items"].values())
-    assert checks[kind_id]["items"] >= need, f"{kind_id} on {kind['layout']}: {checks[kind_id]['items']} < {need}"
+    assert checks[label]["items"] >= need, f"{label} on {kind['layout']}: {checks[label]['items']} < {need}"
 
 
 def test_the_layout_minimums_the_plan_names_are_met(bundle):
@@ -199,28 +199,28 @@ def _flat_churn(frame):
 
 
 BREAKS = [
-    ("process_mining", "case_events", _even_steps),
-    ("lifetime_value", "customers", _flat_churn),
-    ("process_control", "measurements", _no_shift),
-    ("reason_codes", "cases", _one_reason),
-    ("fraud_rings", "account_links", _no_rings),
-    ("variance_to_plan", "weekly_sales", _flat_plan),
-    ("promotion_lift", "weekly_sales", _no_promos),
-    ("controls_testing", "payments", _clean_controls),
-    ("sla_aging", "cases", _all_on_time),
-    ("entity_matching", "customers", _no_duplicates),
-    ("forecast", "weekly_sales", _flat_units),
-    ("inventory_replenishment", "weekly_sales", _always_stocked),
-    ("experiment_readout", "customers", _random_treatment),
-    ("uplift_targeting", "customers", _random_treatment),
-    ("network_dependency", "site_transfers", _no_hub),
+    ("Process mining", "case_events", _even_steps),
+    ("Lifetime value", "customers", _flat_churn),
+    ("Statistical process control", "measurements", _no_shift),
+    ("Reason codes from comments", "cases", _one_reason),
+    ("Fraud rings", "account_links", _no_rings),
+    ("Variance to plan", "weekly_sales", _flat_plan),
+    ("Promotion or campaign lift", "weekly_sales", _no_promos),
+    ("Controls tests", "payments", _clean_controls),
+    ("SLA, backlog and aging", "cases", _all_on_time),
+    ("Entity matching", "customers", _no_duplicates),
+    ("Forecast", "weekly_sales", _flat_units),
+    ("Inventory and replenishment", "weekly_sales", _always_stocked),
+    ("Experiments and before/after", "customers", _random_treatment),
+    ("Uplift targeting", "customers", _random_treatment),
+    ("Network dependency", "site_transfers", _no_hub),
 ]
 
 
-@pytest.mark.parametrize("kind_id,table,fn", BREAKS, ids=[b[0] for b in BREAKS])
-def test_a_check_fails_when_its_signal_is_removed(gen, bundle, kind_id, table, fn):
-    result = gen["_kind_signal_checks"](_breaks(bundle, table, fn))[kind_id]
-    assert not result["ok"], f"{kind_id} still passes without its signal: {result['detail']}"
+@pytest.mark.parametrize("label,table,fn", BREAKS, ids=[b[0] for b in BREAKS])
+def test_a_check_fails_when_its_signal_is_removed(gen, bundle, label, table, fn):
+    result = gen["_kind_signal_checks"](_breaks(bundle, table, fn))[label]
+    assert not result["ok"], f"{label} still passes without its signal: {result['detail']}"
 
 
 def test_leakage_check_fails_when_bank_and_ledger_agree(gen, bundle):
@@ -228,14 +228,14 @@ def test_leakage_check_fails_when_bank_and_ledger_agree(gen, bundle):
     pay = broken["tables"]["payments"]["frame"]
     inv = broken["tables"]["invoices"]["frame"].set_index("invoice_id")
     pay["paid_amount"] = pay["invoice_id"].map(inv["amount_paid"])
-    assert not gen["_kind_signal_checks"](broken)["leakage_reconciliation"]["ok"]
+    assert not gen["_kind_signal_checks"](broken)["Leakage and reconciliation"]["ok"]
 
 
 def test_data_agent_check_fails_on_a_missing_column_comment_or_a_dangling_key(gen, bundle):
-    assert not gen["_kind_signal_checks"](_blank_comment(bundle))["data_agent"]["ok"]
+    assert not gen["_kind_signal_checks"](_blank_comment(bundle))["Data agent"]["ok"]
     broken = copy.deepcopy(bundle)
     broken["tables"]["orders"]["frame"].loc[0, "site_id"] = 999
-    assert not gen["_kind_signal_checks"](broken)["data_agent"]["ok"]
+    assert not gen["_kind_signal_checks"](broken)["Data agent"]["ok"]
 
 
 def _sql_type(series):
@@ -276,20 +276,20 @@ def table_roles(agent_ns, bundle):
     return {name: _table_roles(agent_ns, spec) for name, spec in bundle["tables"].items()}
 
 
-@pytest.mark.parametrize("kind_id", _kind_ids())
-def test_each_kind_signature_is_met_on_one_demo_table(registry, bundle, table_roles, kind_id):
-    signature = next(k for k in registry["kinds"] if k["id"] == kind_id)["signature"]
+@pytest.mark.parametrize("label", _kind_labels())
+def test_each_kind_signature_is_met_on_one_demo_table(registry, bundle, table_roles, label):
+    signature = next(k for k in registry["kinds"] if k["label"] == label)["signature"]
     anchors = [name for name, roles in table_roles.items()
                if _signature_met(signature, roles, bundle["tables"][name]["fks"])]
-    assert anchors, f"no demo table carries the column roles of {kind_id}: {signature}"
+    assert anchors, f"no demo table carries the column roles of {label}: {signature}"
 
 
 def test_the_signature_probe_rejects_a_table_without_the_roles(registry, bundle, table_roles):
-    by_id = {k["id"]: k["signature"] for k in registry["kinds"]}
-    assert not _signature_met(by_id["marketing_mix"], table_roles["sites"], bundle["tables"]["sites"]["fks"])
-    assert not _signature_met(by_id["fraud_rings"], table_roles["orders"], bundle["tables"]["orders"]["fks"])
-    assert not _signature_met(by_id["peer_benchmarking"], table_roles["marketing_weekly"], {})
-    assert _signature_met(by_id["marketing_mix"], table_roles["marketing_weekly"], {})
+    by_label = {k["label"]: k["signature"] for k in registry["kinds"]}
+    assert not _signature_met(by_label["Marketing mix and attribution"], table_roles["sites"], bundle["tables"]["sites"]["fks"])
+    assert not _signature_met(by_label["Fraud rings"], table_roles["orders"], bundle["tables"]["orders"]["fks"])
+    assert not _signature_met(by_label["Peer benchmarking"], table_roles["marketing_weekly"], {})
+    assert _signature_met(by_label["Marketing mix and attribution"], table_roles["marketing_weekly"], {})
 
 
 def test_the_pipeline_writes_the_signal_tables_unless_the_user_switches_them_off():
@@ -368,10 +368,10 @@ def test_plant_stops_before_writing_when_a_signal_check_fails(gen):
 
     def failing(bundle):
         out = good(bundle)
-        out["anomaly"] = {"ok": False, "detail": "no jumps", "items": 0}
+        out["Anomaly"] = {"ok": False, "detail": "no jumps", "items": 0}
         return out
     ns["_kind_signal_checks"] = failing
-    with pytest.raises(RuntimeError, match="anomaly"):
+    with pytest.raises(RuntimeError, match="Anomaly"):
         ns["_plant_kind_signals"]("c", "s", [])
     assert not [e for e in spark.log if e[0] == "save"]
 

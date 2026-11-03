@@ -810,7 +810,7 @@ def _kind_signal_checks(bundle):
     earlier = sales[(week >= KIND_SIGNAL_WEEKS - 25) & (week < KIND_SIGNAL_WEEKS - 12)]
     price_move = (recent[recent["site_id"].isin(missed)]["unit_price"].mean()
                   / earlier[earlier["site_id"].isin(missed)]["unit_price"].mean() - 1)
-    out["variance_to_plan"] = _ks_result(len(missed) == 8 and abs(price_move) < 0.03,
+    out["Variance to plan"] = _ks_result(len(missed) == 8 and abs(price_move) < 0.03,
                                          f"{len(missed)} sites under plan by over 10% across the last 3 months and in every one of them, price moved {price_move:+.1%}",
                                          len(ratio))
 
@@ -824,7 +824,7 @@ def _kind_signal_checks(bundle):
         (sales.loc[control & (week >= 104), "units_sold"].sum() / sales.loc[control & (week >= 52) & (week < 104), "units_sold"].sum()) - 1
     cheap = int(items.loc[items["category"] == "Category B"].sort_values("list_price")["item_id"].iloc[0])
     share = [sales.loc[mask & (sales["item_id"] == cheap), "units_sold"].sum() / sales.loc[mask, "units_sold"].sum() for mask in (y2, y3)]
-    out["driver_breakdown"] = _ks_result(0.04 <= list_rise <= 0.06 and -0.15 <= vol_drop <= -0.09 and share[1] > share[0],
+    out["Driver breakdown"] = _ks_result(0.04 <= list_rise <= 0.06 and -0.15 <= vol_drop <= -0.09 and share[1] > share[0],
                                          f"category price {list_rise:+.1%}, volume {vol_drop:+.1%} against the trend, cheaper item share "
                                          f"{share[0]:.0%} to {share[1]:.0%}, average price {price_rise:+.1%}", 3)
 
@@ -833,7 +833,7 @@ def _kind_signal_checks(bundle):
     slope, inter, _, _ = theilslopes(np.log(unit_cost), np.log(area))
     resid = np.sort(np.exp(np.log(unit_cost) - (slope * np.log(area) + inter)).to_numpy())[::-1]
     base = np.median(resid[4:])
-    out["peer_benchmarking"] = _ks_result(1.18 <= resid[3] / base and resid[0] / base <= 1.35 and resid[4] / base < 1.08,
+    out["Peer benchmarking"] = _ks_result(1.18 <= resid[3] / base and resid[0] / base <= 1.35 and resid[4] / base < 1.08,
                                           f"top 4 sites run {resid[3] / base - 1:+.0%} to {resid[0] / base - 1:+.0%} above the size-adjusted peer cost per unit, "
                                           f"the next {resid[4] / base - 1:+.0%}", len(unit_cost))
 
@@ -843,7 +843,7 @@ def _kind_signal_checks(bundle):
     usable = KIND_SIGNAL_WEEKS - 13
     corr = {lag: float(np.corrcoef(index[:usable - lag], gap[lag:usable])[0, 1]) for lag in range(0, 9)}
     best = max(corr, key=corr.get)
-    out["leading_indicators"] = _ks_result(best == 4 and 0.45 <= corr[4] <= 0.8,
+    out["Leading indicators"] = _ks_result(best == 4 and 0.45 <= corr[4] <= 0.8,
                                            f"search interest leads sales by {best} weeks, correlation {corr[best]:.2f}", len(corr))
 
     series = sales.groupby(["site_id", "item_id"]).size()
@@ -851,7 +851,7 @@ def _kind_signal_checks(bundle):
     detrended = item5 / pd.Series(item5).rolling(52, center=True, min_periods=26).mean().to_numpy()
     seasonal = float(pd.Series(detrended).autocorr(52))
     growth = item5[104:].sum() / item5[:52].sum()
-    out["forecast"] = _ks_result((series >= 104).sum() >= 5 and seasonal > 0.5 and growth > 1.08,
+    out["Forecast"] = _ks_result((series >= 104).sum() >= 5 and seasonal > 0.5 and growth > 1.08,
                                  f"{int((series >= 104).sum())} series with 104 or more weeks, yearly autocorrelation {seasonal:.2f}, "
                                  f"two-year growth {growth - 1:+.0%}", int((series >= 104).sum()))
 
@@ -860,7 +860,7 @@ def _kind_signal_checks(bundle):
     feats = orig[["tenure_months", "support_contacts_12m", "spend_change_pct"]].to_numpy(float)
     model = LogisticRegression(max_iter=1000).fit(feats, label)
     auc = roc_auc_score(label, model.predict_proba(feats)[:, 1])
-    out["risk_propensity"] = _ks_result(0.08 <= label.mean() <= 0.12 and auc >= 0.7,
+    out["Risk or propensity"] = _ks_result(0.08 <= label.mean() <= 0.12 and auc >= 0.7,
                                         f"churn base rate {label.mean():.1%}, 3 drivers give AUC {auc:.2f}", len(orig))
 
     cases = t["cases"]
@@ -868,15 +868,15 @@ def _kind_signal_checks(bundle):
     closed = cases[cases["case_status"] == "closed"]
     days = (closed["resolved_at"] - closed["created_at"]).dt.total_seconds() / 86400
     med = days.groupby(closed["priority"]).median()
-    out["time_to_event"] = _ks_result(0.25 <= open_share <= 0.35 and med["high"] < med["normal"] < med["low"],
+    out["Time to event"] = _ks_result(0.25 <= open_share <= 0.35 and med["high"] < med["normal"] < med["low"],
                                       f"{open_share:.0%} of cases open, median days to close high {med['high']:.0f}, "
                                       f"normal {med['normal']:.0f}, low {med['low']:.0f}", int((cases["case_status"] == "open").sum()))
 
     ordered, nxt, followed = _ks_steps(t["case_events"])
     to_approved = float((followed == "approved").mean())
-    out["next_event"] = _ks_result(0.52 <= to_approved <= 0.68, f"reviewed is followed by approved {to_approved:.0%} of the time",
+    out["Next event or sequence"] = _ks_result(0.52 <= to_approved <= 0.68, f"reviewed is followed by approved {to_approved:.0%} of the time",
                                    len(followed))
-    out["journey_path"] = _ks_result(0.32 <= 1 - to_approved <= 0.48,
+    out["Journey and path"] = _ks_result(0.32 <= 1 - to_approved <= 0.48,
                                      f"{1 - to_approved:.0%} of cases drop between reviewed and approved", len(followed))
 
     last_year = sales[week >= 104]
@@ -885,24 +885,24 @@ def _kind_signal_checks(bundle):
     first_year = sales[week < 52].groupby(["site_id", "week_start"]).agg(units=("units_sold", "sum"), cap=("weekly_capacity_units", "max")).reset_index()
     at_cap_y1 = (first_year["units"] >= first_year["cap"] * 0.98).groupby(first_year["site_id"]).mean()
     bound = int((at_cap >= 0.2).sum())
-    out["allocation"] = _ks_result(3 <= bound <= 8 and int((at_cap < 0.05).sum()) >= 15,
+    out["Allocation"] = _ks_result(3 <= bound <= 8 and int((at_cap < 0.05).sum()) >= 15,
                                    f"{bound} sites hit capacity in 20% or more of last-year weeks while "
                                    f"{int((at_cap < 0.05).sum())} have room", len(at_cap))
 
     fit = _ks_demand_fit(sales)
-    out["pricing"] = _ks_result(-1.8 <= fit["elasticity"] <= -1.2 and "unit_cost" in items,
+    out["Price, discount, markdown"] = _ks_result(-1.8 <= fit["elasticity"] <= -1.2 and "unit_cost" in items,
                                 f"price elasticity {fit['elasticity']:.2f} with a cost per unit per item", len(items))
 
     month = (week * 7) // 30
     out_of_stock = (sales["on_hand_units"] == 0).groupby([sales["site_id"], sales["item_id"], month]).any()
     lead = sales["replenishment_lead_days"]
-    out["inventory_replenishment"] = _ks_result(0.08 <= out_of_stock.mean() <= 0.12 and lead.min() > 0,
+    out["Inventory and replenishment"] = _ks_result(0.08 <= out_of_stock.mean() <= 0.12 and lead.min() > 0,
                                                 f"{out_of_stock.mean():.1%} of item-months run out, lead times {lead.min()} to {lead.max()} days",
                                                 len(series))
 
     hours = cases["created_at"].dt.hour.value_counts().reindex(range(24), fill_value=0)
     dow = cases["created_at"].dt.dayofweek.value_counts().reindex(range(7), fill_value=0)
-    out["staffing_queueing"] = _ks_result(hours.max() >= 2 * hours.mean() and dow[0] == dow.max() and dow[0] >= 1.3 * dow.mean(),
+    out["Staffing and queueing"] = _ks_result(hours.max() >= 2 * hours.mean() and dow[0] == dow.max() and dow[0] >= 1.3 * dow.mean(),
                                           f"peak hour {hours.idxmax()}:00 at {hours.max() / hours.mean():.1f} times the average, "
                                           f"Monday at {dow[0] / dow.mean():.1f} times", 24)
 
@@ -912,13 +912,13 @@ def _kind_signal_checks(bundle):
     far = cust[dist > 20]
     cell = (far["latitude"] * 10).astype(int).astype(str) + "_" + (far["longitude"] * 10).astype(int).astype(str)
     gap_cell = cell.value_counts()
-    out["site_territory"] = _ks_result(len(gap_cell) > 0 and gap_cell.iloc[0] >= 100,
+    out["Site and territory"] = _ks_result(len(gap_cell) > 0 and gap_cell.iloc[0] >= 100,
                                        f"{int(gap_cell.iloc[0]) if len(gap_cell) else 0} customers in one area more than 20 km from any site",
                                        len(sites))
 
     churn = orig[orig["is_churned"] == "Y"]
     missed_share = float((churn["churn_risk_score"] < 0.7).mean())
-    out["threshold_tuning"] = _ks_result(0.28 <= missed_share <= 0.38,
+    out["Threshold and policy tuning"] = _ks_result(0.28 <= missed_share <= 0.38,
                                          f"the 0.7 threshold misses {missed_share:.0%} of churned customers",
                                          int((orig["churn_risk_score"] >= 0.7).sum()))
 
@@ -928,24 +928,24 @@ def _kind_signal_checks(bundle):
     pre, post = (i2.index >= 40) & (i2.index < 80), (i2.index >= 80) & (i2.index < 120)
     expected_i2 = (i2[pre] / i1[pre]).mean() * i1[post]
     taken = float((expected_i2 - i2[post]).sum() / i6.loc[80:119].sum())
-    out["assortment"] = _ks_result(0.2 <= taken <= 0.4, f"the new item takes {taken:.0%} of its volume from one existing item",
+    out["Assortment and cannibalization"] = _ks_result(0.2 <= taken <= 0.4, f"the new item takes {taken:.0%} of its volume from one existing item",
                                    len(items))
 
     levers = {"price": -1.8 <= fit["elasticity"] <= -1.2, "promotion": 0.04 <= fit["promo_lift"] <= 0.12,
               "trend": 0.05 <= fit["trend"] <= 0.11}
-    out["driver_scenarios"] = _ks_result(all(levers.values()),
+    out["Driver-based scenarios"] = _ks_result(all(levers.values()),
                                          f"volume moves with price ({fit['elasticity']:.2f}), promotion ({fit['promo_lift']:+.1%}) "
                                          f"and trend ({fit['trend']:+.1%} a year)", sum(levers.values()))
 
     under = orig["balance_amount"] <= orig["credit_limit"]
     pushed = float(((orig["balance_amount"] * 1.2 > orig["credit_limit"]) & under).mean())
-    out["stress_test"] = _ks_result(0.04 <= pushed <= 0.07, f"a 20% shock pushes {pushed:.1%} of balances over their limit",
+    out["Stress test"] = _ks_result(0.04 <= pushed <= 0.07, f"a 20% shock pushes {pushed:.1%} of balances over their limit",
                                     int(((orig["balance_amount"] * 1.2 > orig["credit_limit"]) & under).sum()))
 
     newly = int(((at_cap - at_cap_y1.reindex(at_cap.index)) >= 0.15).sum())
     free = sales["site_id"].isin(at_cap.index[at_cap < 0.05]) & control
     yoy = sales.loc[free & (week >= 52) & (week < 104), "units_sold"].sum() / sales.loc[free & (week < 52), "units_sold"].sum() - 1
-    out["capacity_planning"] = _ks_result(0.04 <= yoy <= 0.12 and newly >= 3,
+    out["Capacity planning"] = _ks_result(0.04 <= yoy <= 0.12 and newly >= 3,
                                           f"demand grows {yoy:+.0%} a year and {newly} sites now hit their fixed capacity", len(at_cap))
 
     promo = sales["promotion_active"] == "Y"
@@ -956,21 +956,21 @@ def _kind_signal_checks(bundle):
         if any(s < 8 or flags[s - 8:s].any() for s in starts):
             clean_before = False
             break
-    out["promotion_lift"] = _ks_result(0.15 <= promo.mean() <= 0.25 and clean_before and 0.04 <= fit["promo_lift"] <= 0.12,
+    out["Promotion or campaign lift"] = _ks_result(0.15 <= promo.mean() <= 0.25 and clean_before and 0.04 <= fit["promo_lift"] <= 0.12,
                                        f"promotions on {promo.mean():.0%} of weeks, 8 clean weeks before each: {clean_before}, lift {fit['promo_lift']:+.1%}",
                                        int(sales.loc[promo, "item_id"].nunique()))
 
     treated = orig["offer_variant"] == "treatment"
     accepted = orig["offer_outcome"] == "accepted"
     effect = accepted[treated].mean() - accepted[~treated].mean()
-    out["experiment_readout"] = _ks_result(0.45 <= treated.mean() <= 0.55 and 0.03 <= effect <= 0.08,
+    out["Experiments and before/after"] = _ks_result(0.45 <= treated.mean() <= 0.55 and 0.03 <= effect <= 0.08,
                                            f"{treated.mean():.0%} treated, effect {effect:+.1%} on acceptance", orig["customer_tier"].nunique())
 
     by_tier = {tier: accepted[treated & (orig["customer_tier"] == tier)].mean() - accepted[~treated & (orig["customer_tier"] == tier)].mean()
                for tier in sorted(orig["customer_tier"].unique())}
     strong = [k for k, v in by_tier.items() if v >= 0.12]
     rest = max(abs(v) for k, v in by_tier.items() if k not in strong) if len(strong) < len(by_tier) else 1.0
-    out["uplift_targeting"] = _ks_result(len(strong) == 1 and rest <= 0.08,
+    out["Uplift targeting"] = _ks_result(len(strong) == 1 and rest <= 0.08,
                                          f"the offer works only in {', '.join(strong) or 'no tier'} ({by_tier.get(strong[0], 0) if strong else 0:+.0%}), "
                                          f"elsewhere at most {rest:+.0%}", int((orig["customer_tier"].isin(strong)).sum()))
 
@@ -987,7 +987,7 @@ def _kind_signal_checks(bundle):
     y = mkt["online_revenue_amount"].to_numpy(float)
     coef, *_ = np.linalg.lstsq(x, y, rcond=None)
     r2 = 1 - ((y - x @ coef) ** 2).sum() / ((y - y.mean()) ** 2).sum()
-    out["marketing_mix"] = _ks_result((coef[:4] > 0).all() and r2 >= 0.8,
+    out["Marketing mix and attribution"] = _ks_result((coef[:4] > 0).all() and r2 >= 0.8,
                                       f"carry-over spend of 4 channels explains {r2:.0%} of online revenue, every channel positive", len(cols))
 
     ordered_sales = sales.assign(w=week).sort_values(["site_id", "item_id", "w"])
@@ -995,18 +995,18 @@ def _kind_signal_checks(bundle):
     ref = ordered_sales.assign(l=logs).groupby(["site_id", "item_id"])["l"].transform(
         lambda s: s.rolling(7, center=True, min_periods=3).median())
     flagged = int((np.abs(logs - ref.to_numpy()) > math.log(2)).sum())
-    out["anomaly"] = _ks_result(0.006 <= flagged / len(sales) <= 0.015, f"{flagged} points ({flagged / len(sales):.1%}) jump off their series",
+    out["Anomaly"] = _ks_result(0.006 <= flagged / len(sales) <= 0.015, f"{flagged} points ({flagged / len(sales):.1%}) jump off their series",
                                 flagged)
 
     pay, inv = t["payments"], t["invoices"]
     joined = pay.drop_duplicates(["invoice_id", "payment_date", "paid_amount", "created_by"]).merge(inv, on="invoice_id")
     differ = int((abs(joined["paid_amount"] - joined["amount_paid"]) > 0.01).sum())
-    out["leakage_reconciliation"] = _ks_result(0.015 <= differ / len(joined) <= 0.025,
+    out["Leakage and reconciliation"] = _ks_result(0.015 <= differ / len(joined) <= 0.025,
                                                f"{differ} of {len(joined)} payments ({differ / len(joined):.1%}) differ from the ledger amount", differ)
 
     self_ok = int((pay["created_by"] == pay["approved_by"]).sum())
     dups = int(pay.duplicated(["invoice_id", "payment_date", "paid_amount", "created_by"]).sum())
-    out["controls_testing"] = _ks_result(0.005 <= self_ok / len(pay) <= 0.015 and 10 <= dups <= 15,
+    out["Controls tests"] = _ks_result(0.005 <= self_ok / len(pay) <= 0.015 and 10 <= dups <= 15,
                                          f"{self_ok} self-approved payments ({self_ok / len(pay):.1%}) and {dups} duplicate payments", self_ok + dups)
 
     meas = t["measurements"].sort_values("measured_at")
@@ -1020,14 +1020,14 @@ def _kind_signal_checks(bundle):
     moved = [k for k, v in shifts.items() if abs(v) > 1]
     calm = max(abs(v) for k, v in shifts.items() if k not in moved) if len(moved) < len(shifts) else 0.0
     has_spec = {"lower_spec_limit", "upper_spec_limit"} <= set(meas.columns)
-    out["process_control"] = _ks_result(has_spec and len(moved) == 1 and calm < 0.4 and warn >= 20,
+    out["Statistical process control"] = _ks_result(has_spec and len(moved) == 1 and calm < 0.4 and warn >= 20,
                                         f"{', '.join(moved) or 'no line'} shifted {max(shifts.values()):.1f} standard deviations, "
                                         f"{warn} points past the warning limit", warn)
 
     links = t["account_links"]
     sizes = _ks_components(zip(links["from_customer_id"], links["to_customer_id"]))
     rings = [s for s in sizes if s >= 5]
-    out["fraud_rings"] = _ks_result(len(rings) == 3 and all(5 <= s <= 12 for s in rings),
+    out["Fraud rings"] = _ks_result(len(rings) == 3 and all(5 <= s <= 12 for s in rings),
                                     f"{len(rings)} linked rings of {', '.join(map(str, rings))} accounts", sum(rings))
 
     orders = t["orders"]
@@ -1043,14 +1043,14 @@ def _kind_signal_checks(bundle):
     labels = KMeans(4, n_init=10, random_state=0).fit_predict(feats)
     sil = silhouette_score(feats, labels)
     small = np.bincount(labels).min() / len(labels)
-    out["segmentation"] = _ks_result(sil >= 0.35 and small >= 0.1,
+    out["Segmentation"] = _ks_result(sil >= 0.35 and small >= 0.1,
                                      f"4 behavior groups by frequency and value, silhouette {sil:.2f}, smallest {small:.0%}", 4)
 
     revenue = orders.groupby("customer_id")["order_amount"].sum().sort_values(ascending=False)
     top = revenue.iloc[:max(1, len(revenue) // 10)].sum() / revenue.sum()
     cohort = (pd.to_datetime(orig["signup_date"]) - pd.Timestamp(KIND_SIGNAL_START)).dt.days // 182
     churn_by = (orig["is_churned"] == "Y").groupby(cohort).mean()
-    out["lifetime_value"] = _ks_result(top >= 0.4 and churn_by.max() - churn_by.min() >= 0.08,
+    out["Lifetime value"] = _ks_result(top >= 0.4 and churn_by.max() - churn_by.min() >= 0.08,
                                        f"top 10% of customers bring {top:.0%} of revenue, churn by signup half-year "
                                        f"{churn_by.min():.0%} to {churn_by.max():.0%}", len(churn_by))
 
@@ -1060,7 +1060,7 @@ def _kind_signal_checks(bundle):
     small_frequent = per[(per["n"] >= 12) & (per["aov"] < 35)]
     large = per[per["aov"] >= 80]
     losing = float((small_frequent["margin"] < 0).mean()) if len(small_frequent) else 0.0
-    out["cost_to_serve"] = _ks_result(len(small_frequent) >= 20 and losing >= 0.6 and (large["margin"] < 0).mean() <= 0.05,
+    out["Cost to serve"] = _ks_result(len(small_frequent) >= 20 and losing >= 0.6 and (large["margin"] < 0).mean() <= 0.05,
                                       f"{losing:.0%} of {len(small_frequent)} small frequent buyers lose money, "
                                       f"{(large['margin'] < 0).mean():.0%} of large buyers do", 3)
 
@@ -1069,7 +1069,7 @@ def _kind_signal_checks(bundle):
     for a, b in ((1, 2), (3, 4), (5, 6)):
         both = (basket[a] & basket[b]).mean()
         lifts.append(both / (basket[a].mean() * basket[b].mean()))
-    out["next_best_action"] = _ks_result(min(lifts) >= 1.3,
+    out["Recommendation and next best action"] = _ks_result(min(lifts) >= 1.3,
                                          f"3 item affinity groups with lifts {', '.join(f'{v:.1f}' for v in lifts)}", len(basket))
 
     norm = cust.assign(addr=cust["street_address"].str.replace(r"\bSt$", "Street", regex=True).str.lower())
@@ -1080,7 +1080,7 @@ def _kind_signal_checks(bundle):
         names = grp["customer_name"].tolist()
         near_dups += sum(1 for i in range(len(names)) for j in range(i + 1, len(names))
                          if SequenceMatcher(None, names[i].lower(), names[j].lower()).ratio() >= 0.85)
-    out["entity_matching"] = _ks_result(0.04 <= near_dups / len(cust) <= 0.06,
+    out["Entity matching"] = _ks_result(0.04 <= near_dups / len(cust) <= 0.06,
                                         f"{near_dups} near-duplicate customers ({near_dups / len(cust):.1%}) differ only in spelling",
                                         near_dups)
 
@@ -1090,22 +1090,22 @@ def _kind_signal_checks(bundle):
     step_wait = relative.groupby(complete["step_name"]).median().dropna()
     slow = step_wait.idxmax()
     factor = step_wait.max() / step_wait.drop(slow).median()
-    out["process_mining"] = _ks_result(slow == "fulfilled" and 2.5 <= factor <= 3.6,
+    out["Process mining"] = _ks_result(slow == "fulfilled" and 2.5 <= factor <= 3.6,
                                        f"work waits {factor:.1f} times longer before {slow} than before other steps",
                                        int((cases["case_status"] == "open").sum()))
 
     late = (cases["resolved_at"] > cases["due_at"]) | (cases["resolved_at"].isna() & (cases["due_at"] < as_of))
-    out["sla_aging"] = _ks_result(0.12 <= late.mean() <= 0.18, f"{late.mean():.0%} of cases breach their due date",
+    out["SLA, backlog and aging"] = _ks_result(0.12 <= late.mean() <= 0.18, f"{late.mean():.0%} of cases breach their due date",
                                   int((cases["case_status"] == "open").sum()))
 
     paid = inv[inv["paid_date"].notna()]
     late_customers = paid[pd.to_datetime(paid["paid_date"]) > pd.to_datetime(paid["due_date"])]["customer_id"].nunique()
     late_share = late_customers / paid["customer_id"].nunique()
-    out["working_capital"] = _ks_result(0.17 <= late_share <= 0.23, f"{late_share:.0%} of customers pay after the due date",
+    out["Working capital and collections"] = _ks_result(0.17 <= late_share <= 0.23, f"{late_share:.0%} of customers pay after the due date",
                                         late_customers)
 
     cells = cust["postcode"].value_counts()
-    out["location_intelligence"] = _ks_result(cells.iloc[0] >= 3 * cells.median(),
+    out["Location intelligence"] = _ks_result(cells.iloc[0] >= 3 * cells.median(),
                                               f"postcode {cells.index[0]} holds {cells.iloc[0]} customers, {cells.iloc[0] / cells.median():.0f} "
                                               f"times the median area", len(cells))
 
@@ -1114,7 +1114,7 @@ def _kind_signal_checks(bundle):
                        tr[["to_site_id", "transfer_units"]].rename(columns={"to_site_id": "s"})]).groupby("s")["transfer_units"].sum()
     hubs = touch.sort_values(ascending=False).index[:2]
     hub_flow = tr.loc[tr["from_site_id"].isin(hubs) | tr["to_site_id"].isin(hubs), "transfer_units"].sum() / tr["transfer_units"].sum()
-    out["network_dependency"] = _ks_result(0.35 <= hub_flow <= 0.45 and touch.sort_values().iloc[-3] < touch[hubs].min() * 0.6,
+    out["Network dependency"] = _ks_result(0.35 <= hub_flow <= 0.45 and touch.sort_values().iloc[-3] < touch[hubs].min() * 0.6,
                                            f"2 hub sites carry {hub_flow:.0%} of the flow", len(touch))
 
     reason_of = cases["complaint_text"].str.lower().str.extract(r"(late|wrong item|charged twice|billing|rude|damaged)")[0]
@@ -1122,7 +1122,7 @@ def _kind_signal_checks(bundle):
     shares = reason_of.value_counts(normalize=True)
     half = cases["created_at"] >= cases["created_at"].min() + (cases["created_at"].max() - cases["created_at"].min()) / 2
     bill = [(reason_of[mask] == "billing").mean() for mask in (~half, half)]
-    out["reason_codes"] = _ks_result(len(shares) == 5 and shares.min() >= 0.05 and bill[1] >= 1.3 * bill[0] and reason_of.notna().all(),
+    out["Reason codes from comments"] = _ks_result(len(shares) == 5 and shares.min() >= 0.05 and bill[1] >= 1.3 * bill[0] and reason_of.notna().all(),
                                      f"5 recurring reasons, billing grows from {bill[0]:.0%} to {bill[1]:.0%}", len(shares))
 
     specs = bundle["tables"]
@@ -1131,7 +1131,7 @@ def _kind_signal_checks(bundle):
     bad_fk = [f"{name}.{col}" for name, spec in specs.items() for col, target in spec["fks"].items()
               if target not in specs or not specs[target]["pk"]
               or not set(spec["frame"][col]).issubset(set(specs[target]["frame"][specs[target]["pk"]]))]
-    out["data_agent"] = _ks_result(not missing and not no_desc and not bad_fk,
+    out["Data agent"] = _ks_result(not missing and not no_desc and not bad_fk,
                                    f"{len(specs)} tables, every column described, {sum(len(s['fks']) for s in specs.values())} "
                                    f"foreign keys resolve" + (f"; missing {missing[:3]} {no_desc[:3]} {bad_fk[:3]}" if missing or no_desc or bad_fk else ""),
                                    len(specs))
