@@ -141,11 +141,13 @@ def test_no_generated_text_points_to_a_removed_document_section(agent_ns):
             assert label not in text, (name, label)
 
 
-def test_no_retired_elite_translation_column_survives_outside_the_tests(agent_ns):
-    from v120_artifacts_translation_test import RETIRED_ELITE_COLUMNS
-    for name, text in _generated_texts(agent_ns).items():
-        for column in RETIRED_ELITE_COLUMNS:
-            assert column not in text, (name, column)
+def test_the_elite_text_columns_the_translation_tests_check_are_the_ones_the_translator_sends(agent_ns):
+    from v120_artifacts_translation_test import ELITE_TEXT
+    fields = agent_ns["TranslationService"]._ELITE_TRANSLATION_FIELDS
+    assert dict(fields) == ELITE_TEXT and [column for column, _key in fields] == list(ELITE_TEXT)
+    prompt = agent_ns["PROMPT_TEMPLATES"]["USE_CASE_TRANSLATE_PROMPT"]
+    for column in ELITE_TEXT:
+        assert f'"{column}"' in prompt, column
 
 
 def test_agents_md_points_genie_at_the_instruction_cell_and_protects_inspires_four_cells(agent_ns):
