@@ -89,7 +89,7 @@ class _CapJobs:
     def get(self, job_id=None):
         return types.SimpleNamespace(settings=types.SimpleNamespace(schedule=None))
 
-    def update(self, job_id=None, new_settings=None):
+    def update(self, job_id=None, new_settings=None, fields_to_remove=None):
         self.calls.append("update")
 
     def create(self, **kwargs):

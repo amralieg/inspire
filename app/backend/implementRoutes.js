@@ -1771,7 +1771,7 @@ function registerImplementRoutes(app, deps) {
     if (!change && !tagged) return '';
     const update = { job_id: jobId, new_settings: change ? { environments: change.environments } : {} };
     if (tagged && Object.keys(tagged.tags).length) update.new_settings.tags = tagged.tags;
-    else if (tagged) update.fields_to_remove = ['tags'];
+    if (tagged && !tagged.to) update.fields_to_remove = ['tags'];
     const updated = await jsonOf(dbFetch, host, token, '/api/2.1/jobs/update', {
       method: 'POST',
       body: JSON.stringify(update),

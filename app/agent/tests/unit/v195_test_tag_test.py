@@ -111,9 +111,11 @@ def test_a_relaunch_takes_a_test_tag_a_test_run_left_on_the_job_off_it(ns, cap_s
     cap_sdk["jobs"] = jobs = _TagJobs(live)
     assert _launch(ns, {"dbx_inspire_ai_run_type": "discovery"})["success"] is True
     assert jobs.settings[0].tags == {"team": "growth", "dbx_inspire_ai_run_type": "discovery"}
+    assert jobs.removed == [["tags"]], "jobs/update merges tags, so the stale tag only goes with fields_to_remove"
     cap_sdk["jobs"] = jobs = _TagJobs(live)
     assert _launch(ns, {"dbx_inspire_ai_run_type": "discovery", TEST_KEY: "inspire-rc1"})["success"] is True
     assert jobs.settings[0].tags == {"team": "growth", "dbx_inspire_ai_run_type": "discovery", TEST_KEY: "inspire-rc1"}
+    assert jobs.removed == [None], "nothing is dropped, so the update only adds and changes tags"
 
 
 def test_the_scheduled_plan_takes_a_stale_test_tag_off_too(ns, cap_sdk):
@@ -122,6 +124,15 @@ def test_the_scheduled_plan_takes_a_stale_test_tag_off_too(ns, cap_sdk):
     launcher._detect_compute_type = lambda: (True, None)
     assert launcher.plan_next_scheduled_run("dbx_inspire_ai_churn_1a2b3c4d") == 77
     assert jobs.settings[0].tags == {"dbx_inspire_ai_dashboard_id": "d1", "dbx_inspire_ai_run_type": "analysis"}
+    assert jobs.removed == [["tags"]]
+
+
+def test_a_dropped_tag_is_removed_only_through_fields_to_remove(ns):
+    drop = ns["JobLauncher"].tag_fields_to_remove
+    assert drop({"a": "1", TEST_KEY: "x"}, {"a": "2"}) == ["tags"]
+    assert drop({"a": "1"}, {"a": "2", "b": "3"}) is None
+    assert drop(None, {"a": "1"}) is None and drop({}, {}) is None
+    assert drop({"a": "1"}, {}) == ["tags"]
 
 
 def test_the_launcher_generated_notebooks_embed_needs_no_agent_helper(ns):
