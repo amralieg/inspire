@@ -737,7 +737,9 @@
    "alerts": [
     {
      "name": "Variance outside tolerance",
-     "rule": "count of {result_table}__variance rows with abs(variance) > tolerance in the latest period > {threshold}"
+     "rule": "count of {result_table}__variance rows with abs(variance) > tolerance in the latest period > {threshold}",
+     "sql": "(SELECT COUNT_IF(abs(variance) > tolerance) FROM {result_table}__variance WHERE period = (SELECT MAX(period) FROM {result_table}__variance)) > {threshold}",
+     "threshold": 0
     }
    ],
    "dashboard": {
@@ -811,15 +813,17 @@
      "What is the bridge for the top region?"
     ],
     "measures": [
-     "sum(price * quantity)",
-     "sum(quantity)",
-     "avg(price)"
+     "sum(value)",
+     "count(distinct step_type)",
+     "sum(variance)"
     ]
    },
    "alerts": [
     {
      "name": "Driver shift",
-     "rule": "abs(value) of the largest {result_table}__bridge step other than volume > {threshold}"
+     "rule": "abs(value) of the largest {result_table}__bridge step other than volume > {threshold} of the total change",
+     "sql": "(SELECT MAX(abs(value)) FROM {result_table}__bridge WHERE lower(step_type) <> 'volume') > {threshold} * (SELECT SUM(abs(value)) FROM {result_table}__bridge)",
+     "threshold": 0.5
     }
    ],
    "dashboard": {
@@ -899,7 +903,9 @@
    "alerts": [
     {
      "name": "New units below peers",
-     "rule": "count of {result_table}__peers rows with gap < 0 that were not below peers last run > {threshold}"
+     "rule": "count of {result_table}__peers rows with gap < 0 > {threshold}",
+     "sql": "(SELECT COUNT_IF(gap < 0) FROM {result_table}__peers) > {threshold}",
+     "threshold": 0
     }
    ],
    "dashboard": {
@@ -975,14 +981,16 @@
      "Which {objects} show the earliest warning?"
     ],
     "measures": [
-     "corr(indicator, outcome)",
-     "avg(outcome)"
+     "corr(actual, forecast)",
+     "avg(actual)"
     ]
    },
    "alerts": [
     {
      "name": "Indicator turned",
-     "rule": "the leading indicator in {result_table}__series crosses its lower band in the latest period"
+     "rule": "count of {result_table}__series rows below their lower band in the latest actual period > {threshold}",
+     "sql": "(SELECT COUNT_IF(actual < lower) FROM {result_table}__series WHERE period = (SELECT MAX(period) FROM {result_table}__series WHERE NOT is_future AND actual IS NOT NULL)) > {threshold}",
+     "threshold": 0
     }
    ],
    "dashboard": {
@@ -1061,11 +1069,15 @@
    "alerts": [
     {
      "name": "Forecast crosses target",
-     "rule": "any {result_table}__series row with is_future and forecast above capacity or below target"
+     "rule": "count of {result_table}__series rows in the latest actual period with actual outside the band from lower to upper > {threshold}",
+     "sql": "(SELECT COUNT_IF(actual < lower OR actual > upper) FROM {result_table}__series WHERE period = (SELECT MAX(period) FROM {result_table}__series WHERE NOT is_future AND actual IS NOT NULL)) > {threshold}",
+     "threshold": 0
     },
     {
      "name": "Forecast worse than naive",
-     "rule": "avg(backtest_mase) on {result_table}__series > 1"
+     "rule": "avg(backtest_mase) on {result_table}__series > {threshold}",
+     "sql": "(SELECT AVG(backtest_mase) FROM {result_table}__series) > {threshold}",
+     "threshold": 1
     }
    ],
    "dashboard": {
@@ -1136,8 +1148,8 @@
      "How has the share of high-risk {objects} changed?"
     ],
     "measures": [
-     "count_if(tier = 'Act now')",
-     "avg(score)",
+     "count_if(priority_tier = 'Act now')",
+     "avg(value)",
      "sum(value_at_stake)"
     ]
    },
@@ -1213,8 +1225,8 @@
      "Has the time to event changed since last quarter?"
     ],
     "measures": [
-     "count_if(tier = 'Act now')",
-     "median(expected_days)"
+     "count_if(priority_tier = 'Act now')",
+     "median(value)"
     ]
    },
    "alerts": [
@@ -1298,7 +1310,9 @@
    "alerts": [
     {
      "name": "Coverage drops",
-     "rule": "share of entities with a recommendation in {result_table}__recs < {threshold}"
+     "rule": "share of entities with a recommendation in {result_table}__recs < {threshold}",
+     "sql": "(SELECT COUNT(DISTINCT entity) FROM {result_table}__recs) < {threshold} * (SELECT COUNT(DISTINCT entity_id) FROM {result_table} WHERE is_current AND change_source <> 'delete')",
+     "threshold": 0.5
     }
    ],
    "dashboard": {
@@ -1376,7 +1390,9 @@
    "alerts": [
     {
      "name": "Plan infeasible or tight",
-     "rule": "any {result_table}__constraints row with used / limit > 0.95, or no feasible plan"
+     "rule": "count of {result_table}__constraints rows with slack < 0 or used / limit > 0.95 > {threshold}",
+     "sql": "(SELECT COUNT_IF(slack < 0 OR used / NULLIF(`limit`, 0) > 0.95) FROM {result_table}__constraints) > {threshold}",
+     "threshold": 0
     }
    ],
    "dashboard": {
@@ -1448,15 +1464,17 @@
      "Why is this item's recommended price lower?"
     ],
     "measures": [
-     "sum(price * quantity)",
-     "sum((price - cost) * quantity)",
-     "avg(discount)"
+     "sum(objective_contribution)",
+     "sum(recommended_value - current_value)",
+     "avg(delta)"
     ]
    },
    "alerts": [
     {
      "name": "Margin gain below floor",
-     "rule": "sum(objective_contribution) on {result_table}__plan < {threshold}"
+     "rule": "sum(objective_contribution) on {result_table}__plan < {threshold}",
+     "sql": "(SELECT SUM(objective_contribution) FROM {result_table}__plan) < {threshold}",
+     "threshold": 0
     }
    ],
    "dashboard": {
@@ -1531,14 +1549,16 @@
     ],
     "measures": [
      "sum(recommended_value)",
-     "sum(on_hand)",
+     "sum(current_value)",
      "count_if(delta > 0)"
     ]
    },
    "alerts": [
     {
      "name": "Stockout risk",
-     "rule": "count of {result_table}__plan rows where recommended_value > current_value by more than {threshold}"
+     "rule": "count of {result_table}__plan rows where recommended_value > current_value by more than {threshold}",
+     "sql": "(SELECT COUNT_IF(recommended_value - current_value > {threshold}) FROM {result_table}__plan) > 0",
+     "threshold": 0
     }
    ],
    "dashboard": {
@@ -1614,14 +1634,16 @@
     ],
     "measures": [
      "count(*)",
-     "avg(handle_minutes)",
+     "sum(current_value)",
      "sum(recommended_value)"
     ]
    },
    "alerts": [
     {
      "name": "Service target at risk",
-     "rule": "count of {result_table}__plan shifts with recommended_value > current_value > {threshold}"
+     "rule": "count of {result_table}__plan shifts with recommended_value > current_value > {threshold}",
+     "sql": "(SELECT COUNT_IF(recommended_value > current_value) FROM {result_table}__plan) > {threshold}",
+     "threshold": 0
     }
    ],
    "dashboard": {
@@ -1700,7 +1722,9 @@
    "alerts": [
     {
      "name": "Region crosses threshold",
-     "rule": "any region in {result_table}__geo with metric > {threshold}"
+     "rule": "any {result_table}__geo row with metric above {threshold} times the average",
+     "sql": "(SELECT MAX(metric) FROM {result_table}__geo) > {threshold} * (SELECT AVG(metric) FROM {result_table}__geo)",
+     "threshold": 2
     }
    ],
    "dashboard": {
@@ -1769,7 +1793,7 @@
      "How many reviews fit our capacity?"
     ],
     "measures": [
-     "count_if(score >= cutoff)",
+     "count_if(priority_tier = 'Act now')",
      "sum(value_at_stake)"
     ]
    },
@@ -1849,15 +1873,17 @@
      "What would a new item add net of cannibalization?"
     ],
     "measures": [
-     "sum(quantity)",
-     "sum(margin)",
+     "sum(recommended_value)",
+     "sum(objective_contribution)",
      "count_if(decision = 'drop')"
     ]
    },
    "alerts": [
     {
      "name": "Range gain below floor",
-     "rule": "sum(objective_contribution) on {result_table}__plan < {threshold}"
+     "rule": "sum(objective_contribution) on {result_table}__plan < {threshold}",
+     "sql": "(SELECT SUM(objective_contribution) FROM {result_table}__plan) < {threshold}",
+     "threshold": 0
     }
    ],
    "dashboard": {
@@ -1938,7 +1964,9 @@
    "alerts": [
     {
      "name": "Chance of target falls",
-     "rule": "prob_target of the plan-of-record scenario in {result_table}__scenarios < {threshold}"
+     "rule": "the best prob_target in {result_table}__scenarios < {threshold}",
+     "sql": "(SELECT MAX(prob_target) FROM {result_table}__scenarios) < {threshold}",
+     "threshold": 0.5
     }
    ],
    "dashboard": {
@@ -2008,14 +2036,16 @@
      "What if two shocks happen together?"
     ],
     "measures": [
-     "sum(exposure)",
-     "avg(p10)"
+     "avg(p50)",
+     "min(p10)"
     ]
    },
    "alerts": [
     {
      "name": "Buffer below floor",
-     "rule": "p10 outcome of the severe scenario in {result_table}__scenarios < {threshold}"
+     "rule": "the lowest p10 in {result_table}__scenarios is below {threshold} times the average p50",
+     "sql": "(SELECT MIN(p10) FROM {result_table}__scenarios) < {threshold} * (SELECT AVG(p50) FROM {result_table}__scenarios)",
+     "threshold": 0.5
     }
    ],
    "dashboard": {
@@ -2089,14 +2119,16 @@
     ],
     "measures": [
      "sum(forecast)",
-     "sum(capacity)",
-     "max(forecast / capacity)"
+     "max(upper)",
+     "avg(backtest_mase)"
     ]
    },
    "alerts": [
     {
      "name": "Forecast crosses capacity",
-     "rule": "any {result_table}__series row with is_future and upper > capacity"
+     "rule": "count of future {result_table}__series rows whose upper bound is above the highest actual so far > {threshold}",
+     "sql": "(SELECT COUNT(*) FROM {result_table}__series WHERE is_future AND upper > (SELECT MAX(actual) FROM {result_table}__series)) > {threshold}",
+     "threshold": 0
     }
    ],
    "dashboard": {
@@ -2174,7 +2206,9 @@
    "alerts": [
     {
      "name": "Lift no longer significant",
-     "rule": "any {result_table}__effect row with p_value > 0.05 or roi < 1"
+     "rule": "count of {result_table}__effect rows with p_value > 0.05, roi < 1 or a negative effect > {threshold}",
+     "sql": "(SELECT COUNT(*) FROM {result_table}__effect WHERE p_value > 0.05 OR roi < 1 OR effect < 0) > {threshold}",
+     "threshold": 0
     }
    ],
    "dashboard": {
@@ -2253,7 +2287,9 @@
    "alerts": [
     {
      "name": "Effect no longer significant",
-     "rule": "any {result_table}__effect row with p_value > 0.05"
+     "rule": "count of {result_table}__effect rows with p_value > 0.05 or a negative effect > {threshold}",
+     "sql": "(SELECT COUNT(*) FROM {result_table}__effect WHERE p_value > 0.05 OR effect < 0) > {threshold}",
+     "threshold": 0
     }
    ],
    "dashboard": {
@@ -2323,7 +2359,7 @@
      "What share of sales did each channel drive?"
     ],
     "measures": [
-     "sum(spend)",
+     "sum(cost)",
      "sum(incremental_value)",
      "avg(roi)"
     ]
@@ -2331,7 +2367,9 @@
    "alerts": [
     {
      "name": "Channel return below 1",
-     "rule": "any channel in {result_table}__effect with roi < 1"
+     "rule": "count of channels in {result_table}__effect with roi < 1 > {threshold}",
+     "sql": "(SELECT COUNT_IF(roi < 1) FROM {result_table}__effect) > {threshold}",
+     "threshold": 0
     }
    ],
    "dashboard": {
@@ -2400,8 +2438,8 @@
      "Which segment should we stop treating?"
     ],
     "measures": [
-     "avg(uplift)",
-     "count_if(tier = 'Act now')"
+     "avg(value)",
+     "count_if(priority_tier = 'Act now')"
     ]
    },
    "alerts": [
@@ -2484,7 +2522,9 @@
    "alerts": [
     {
      "name": "Anomalies above normal",
-     "rule": "count_if(is_anomaly) on {result_table}__signal in the latest period > {threshold}"
+     "rule": "count_if(is_anomaly) on {result_table}__signal in the latest period > {threshold}",
+     "sql": "(SELECT COUNT_IF(is_anomaly) FROM {result_table}__signal WHERE period = (SELECT MAX(period) FROM {result_table}__signal)) > {threshold}",
+     "threshold": 0
     }
    ],
    "dashboard": {
@@ -2559,14 +2599,16 @@
      "Which break types recur?"
     ],
     "measures": [
-     "sum(abs(difference))",
+     "sum(abs(value - expected))",
      "count_if(is_anomaly)"
     ]
    },
    "alerts": [
     {
      "name": "Breaks above normal",
-     "rule": "sum of abs(value - expected) on {result_table}__signal in the latest period > {threshold}"
+     "rule": "sum of abs(value - expected) on {result_table}__signal in the latest period > {threshold} of the expected total",
+     "sql": "(SELECT SUM(abs(value - expected)) - {threshold} * SUM(abs(expected)) FROM {result_table}__signal WHERE period = (SELECT MAX(period) FROM {result_table}__signal)) > 0",
+     "threshold": 0.05
     }
    ],
    "dashboard": {
@@ -2636,13 +2678,15 @@
     ],
     "measures": [
      "count(*)",
-     "sum(amount)"
+     "sum(value)"
     ]
    },
    "alerts": [
     {
      "name": "Control exceptions above normal",
-     "rule": "count of {result_table}__signal rows flagged by a control rule > {threshold}"
+     "rule": "count of {result_table}__signal rows a control rule flags (is_anomaly) > {threshold}",
+     "sql": "(SELECT COUNT_IF(is_anomaly) FROM {result_table}__signal) > {threshold}",
+     "threshold": 0
     }
    ],
    "dashboard": {
@@ -2719,7 +2763,9 @@
    "alerts": [
     {
      "name": "Out of control points",
-     "rule": "count_if(is_anomaly) on {result_table}__signal in the latest period > {threshold}"
+     "rule": "count_if(is_anomaly) on {result_table}__signal in the latest period > {threshold}",
+     "sql": "(SELECT COUNT_IF(is_anomaly) FROM {result_table}__signal WHERE period = (SELECT MAX(period) FROM {result_table}__signal)) > {threshold}",
+     "threshold": 0
     }
    ],
    "dashboard": {
@@ -2797,7 +2843,9 @@
    "alerts": [
     {
      "name": "New risky community",
-     "rule": "any new community in {result_table}__nodes with metric > {threshold}"
+     "rule": "any community in {result_table}__nodes holding more than {threshold} of the total metric",
+     "sql": "(SELECT MAX(held) FROM (SELECT SUM(metric) AS held FROM {result_table}__nodes GROUP BY community) AS c) > {threshold} * (SELECT SUM(metric) FROM {result_table}__nodes)",
+     "threshold": 0.5
     }
    ],
    "dashboard": {
@@ -2874,7 +2922,9 @@
    "alerts": [
     {
      "name": "High value moving down",
-     "rule": "share of {result_table}__migration count from the top segment to a lower one > {threshold}"
+     "rule": "share of {result_table}__migration count that moves to another segment > {threshold}",
+     "sql": "(SELECT SUM(CASE WHEN from_segment <> to_segment THEN `count` ELSE 0 END) / NULLIF(SUM(`count`), 0) FROM {result_table}__migration) > {threshold}",
+     "threshold": 0.2
     }
    ],
    "dashboard": {
@@ -2952,7 +3002,9 @@
    "alerts": [
     {
      "name": "High value moving down",
-     "rule": "share of {result_table}__migration count from the top segment to a lower one > {threshold}"
+     "rule": "share of {result_table}__migration count that moves to another segment > {threshold}",
+     "sql": "(SELECT SUM(CASE WHEN from_segment <> to_segment THEN `count` ELSE 0 END) / NULLIF(SUM(`count`), 0) FROM {result_table}__migration) > {threshold}",
+     "threshold": 0.2
     }
    ],
    "dashboard": {
@@ -3025,14 +3077,16 @@
      "Which terms should change?"
     ],
     "measures": [
-     "sum(revenue - cost)",
-     "count_if(margin < 0)"
+     "sum(value)",
+     "count_if(value < 0)"
     ]
    },
    "alerts": [
     {
      "name": "Loss-making entities rise",
-     "rule": "count of {result_table}__segments value < 0 > {threshold}"
+     "rule": "count of {result_table}__segments value < 0 > {threshold}",
+     "sql": "(SELECT COUNT_IF(value < 0) FROM {result_table}__segments) > {threshold}",
+     "threshold": 0
     }
    ],
    "dashboard": {
@@ -3107,7 +3161,9 @@
    "alerts": [
     {
      "name": "Coverage drops",
-     "rule": "share of entities with a recommendation in {result_table}__recs < {threshold}"
+     "rule": "share of entities with a recommendation in {result_table}__recs < {threshold}",
+     "sql": "(SELECT COUNT(DISTINCT entity) FROM {result_table}__recs) < {threshold} * (SELECT COUNT(DISTINCT entity_id) FROM {result_table} WHERE is_current AND change_source <> 'delete')",
+     "threshold": 0.5
     }
    ],
    "dashboard": {
@@ -3181,7 +3237,9 @@
    "alerts": [
     {
      "name": "New duplicates",
-     "rule": "count of new {result_table}__edges with weight > {threshold}"
+     "rule": "any {result_table}__edges link with weight > {threshold}",
+     "sql": "(SELECT COUNT_IF(weight > {threshold}) FROM {result_table}__edges) > 0",
+     "threshold": 0.9
     }
    ],
    "dashboard": {
@@ -3254,13 +3312,15 @@
     ],
     "measures": [
      "count(distinct case_id)",
-     "avg(conversion)"
+     "sum(cases)"
     ]
    },
    "alerts": [
     {
      "name": "Drop-off rises",
-     "rule": "share of cases leaving at the worst step in {result_table}__transitions > {threshold}"
+     "rule": "share of cases leaving at the worst step in {result_table}__transitions > {threshold}",
+     "sql": "(SELECT MAX(1 - o.cases / i.cases) FROM (SELECT to_step AS step, SUM(cases) AS cases FROM {result_table}__transitions GROUP BY to_step) AS i JOIN (SELECT from_step AS step, SUM(cases) AS cases FROM {result_table}__transitions GROUP BY from_step) AS o ON i.step = o.step WHERE i.cases > 0) > {threshold}",
+     "threshold": 0.5
     }
    ],
    "dashboard": {
@@ -3335,7 +3395,9 @@
    "alerts": [
     {
      "name": "Cases at SLA risk",
-     "rule": "count of {result_table}__cases rows with breach_risk > 0.5 > {threshold}"
+     "rule": "count of {result_table}__cases rows with breach_risk > 0.5 > {threshold}",
+     "sql": "(SELECT COUNT_IF(breach_risk > 0.5) FROM {result_table}__cases) > {threshold}",
+     "threshold": 0
     }
    ],
    "dashboard": {
@@ -3411,8 +3473,8 @@
     ],
     "measures": [
      "count(*)",
-     "avg(age_hours)",
-     "count_if(tier = 'Act now')"
+     "avg(value)",
+     "count_if(priority_tier = 'Act now')"
     ]
    },
    "alerts": [
@@ -3422,7 +3484,9 @@
     },
     {
      "name": "Backlog above expected",
-     "rule": "any {result_table}__signal row in the latest period with is_anomaly and value > upper"
+     "rule": "count of {result_table}__signal rows in the latest period with is_anomaly and value > upper > {threshold}",
+     "sql": "(SELECT COUNT_IF(is_anomaly AND value > upper) FROM {result_table}__signal WHERE period = (SELECT MAX(period) FROM {result_table}__signal)) > {threshold}",
+     "threshold": 0
     }
    ],
    "dashboard": {
@@ -3497,8 +3561,8 @@
      "Which payables can wait?"
     ],
     "measures": [
-     "sum(amount)",
-     "avg(days_late)"
+     "sum(value_at_stake)",
+     "avg(value)"
     ]
    },
    "alerts": [
@@ -3579,7 +3643,9 @@
    "alerts": [
     {
      "name": "Region crosses threshold",
-     "rule": "any region in {result_table}__geo with metric > {threshold}"
+     "rule": "any {result_table}__geo row with metric above {threshold} times the average",
+     "sql": "(SELECT MAX(metric) FROM {result_table}__geo) > {threshold} * (SELECT AVG(metric) FROM {result_table}__geo)",
+     "threshold": 2
     }
    ],
    "dashboard": {
@@ -3655,7 +3721,9 @@
    "alerts": [
     {
      "name": "New risky community",
-     "rule": "any new community in {result_table}__nodes with metric > {threshold}"
+     "rule": "any community in {result_table}__nodes holding more than {threshold} of the total metric",
+     "sql": "(SELECT MAX(held) FROM (SELECT SUM(metric) AS held FROM {result_table}__nodes GROUP BY community) AS c) > {threshold} * (SELECT SUM(metric) FROM {result_table}__nodes)",
+     "threshold": 0.5
     }
    ],
    "dashboard": {
@@ -3731,7 +3799,7 @@
     ],
     "measures": [
      "count(*)",
-     "avg(sentiment)"
+     "count_if(priority_tier = 'Act now')"
     ]
    },
    "alerts": [
@@ -3809,7 +3877,7 @@
     ],
     "measures": [
      "count(*)",
-     "sum({kpi})"
+     "sum(value)"
     ]
    },
    "alerts": [
@@ -3839,5 +3907,1094 @@
    },
    "demo_signal": "clean fact and dimension tables with comments on every column"
   }
- ]
+ ],
+ "widget_fields": {
+  "__variance": {
+   "counter": {
+    "type": "counter",
+    "y": [
+     [
+      "COUNT_IF(abs(`variance`) > `tolerance`)",
+      "Units outside tolerance",
+      "integer"
+     ]
+    ]
+   },
+   "table": {
+    "type": "table",
+    "columns": [
+     "unit",
+     "period",
+     "actual",
+     "plan",
+     "variance",
+     "tolerance"
+    ],
+    "order": [
+     "period",
+     "DESC"
+    ]
+   },
+   "line": {
+    "type": "line",
+    "x": "period",
+    "y": [
+     [
+      "SUM(`actual`)",
+      "Actual",
+      "number"
+     ],
+     [
+      "SUM(`plan`)",
+      "Plan",
+      "number"
+     ]
+    ],
+    "sort": "x_asc"
+   },
+   "pivot": {
+    "type": "table",
+    "columns": [
+     "unit",
+     "period",
+     "variance"
+    ],
+    "order": [
+     "unit",
+     "ASC"
+    ]
+   }
+  },
+  "__bridge": {
+   "derived": {
+    "step_label": "concat(lpad(CAST(`step` AS STRING), 3, '0'), '. ', `label`)"
+   },
+   "waterfall": {
+    "type": "bar",
+    "x": "step_label",
+    "y": [
+     [
+      "SUM(`value`)",
+      "Change",
+      "number"
+     ]
+    ],
+    "sort": "x_asc"
+   },
+   "bar": {
+    "type": "bar",
+    "x": "step_type",
+    "y": [
+     [
+      "SUM(`value`)",
+      "Change by type",
+      "number"
+     ]
+    ]
+   },
+   "counter": {
+    "type": "counter",
+    "y": [
+     [
+      "SUM(`value`)",
+      "Net change",
+      "number"
+     ]
+    ]
+   }
+  },
+  "__peers": {
+   "table": {
+    "type": "table",
+    "columns": [
+     "unit",
+     "peer_group",
+     "metric",
+     "peer_median",
+     "gap"
+    ],
+    "order": [
+     "gap",
+     "ASC"
+    ]
+   },
+   "scatter": {
+    "type": "scatter",
+    "group": "unit",
+    "x": [
+     "AVG(`peer_median`)",
+     "Peer median",
+     "number"
+    ],
+    "y": [
+     [
+      "AVG(`metric`)",
+      "Metric",
+      "number"
+     ]
+    ]
+   },
+   "box": {
+    "type": "bar",
+    "x": "peer_group",
+    "y": [
+     [
+      "AVG(`gap`)",
+      "Average gap to peers",
+      "number"
+     ]
+    ]
+   },
+   "counter": {
+    "type": "counter",
+    "y": [
+     [
+      "COUNT_IF(`gap` < 0)",
+      "Units below peers",
+      "integer"
+     ]
+    ]
+   }
+  },
+  "__series": {
+   "forecast-line": {
+    "type": "line",
+    "x": "period",
+    "y": [
+     [
+      "SUM(`actual`)",
+      "Actual",
+      "number"
+     ],
+     [
+      "SUM(`forecast`)",
+      "Forecast",
+      "number"
+     ],
+     [
+      "SUM(`lower`)",
+      "Lower",
+      "number"
+     ],
+     [
+      "SUM(`upper`)",
+      "Upper",
+      "number"
+     ]
+    ],
+    "sort": "x_asc"
+   },
+   "line": {
+    "type": "line",
+    "x": "period",
+    "y": [
+     [
+      "SUM(`actual`)",
+      "Actual",
+      "number"
+     ],
+     [
+      "SUM(`forecast`)",
+      "Forecast",
+      "number"
+     ]
+    ],
+    "sort": "x_asc"
+   },
+   "table": {
+    "type": "table",
+    "columns": [
+     "series_id",
+     "period",
+     "actual",
+     "forecast",
+     "lower",
+     "upper",
+     "is_future",
+     "method"
+    ],
+    "order": [
+     "period",
+     "DESC"
+    ]
+   },
+   "bar": {
+    "type": "bar",
+    "x": "series_id",
+    "y": [
+     [
+      "SUM(`forecast`)",
+      "Forecast",
+      "number"
+     ]
+    ]
+   },
+   "counter": {
+    "type": "counter",
+    "y": [
+     [
+      "AVG(`backtest_mase`)",
+      "Backtest MASE",
+      "number"
+     ]
+    ]
+   }
+  },
+  "__recs": {
+   "table": {
+    "type": "table",
+    "columns": [
+     "entity",
+     "rank",
+     "item",
+     "score",
+     "reason"
+    ],
+    "order": [
+     "rank",
+     "ASC"
+    ]
+   },
+   "sankey": {
+    "type": "heatmap",
+    "x": "item",
+    "y": [
+     [
+      "COUNT(*)",
+      "Recommendations",
+      "integer"
+     ]
+    ],
+    "series": "reason"
+   },
+   "bar": {
+    "type": "bar",
+    "x": "item",
+    "y": [
+     [
+      "COUNT(*)",
+      "Recommendations",
+      "integer"
+     ]
+    ]
+   },
+   "counter": {
+    "type": "counter",
+    "y": [
+     [
+      "COUNT(DISTINCT `entity`)",
+      "Entities with a recommendation",
+      "integer"
+     ]
+    ]
+   },
+   "pivot": {
+    "type": "table",
+    "columns": [
+     "item",
+     "reason",
+     "score"
+    ],
+    "order": [
+     "score",
+     "DESC"
+    ]
+   }
+  },
+  "__plan": {
+   "table": {
+    "type": "table",
+    "columns": [
+     "entity",
+     "decision",
+     "current_value",
+     "recommended_value",
+     "delta",
+     "objective_contribution"
+    ],
+    "order": [
+     "objective_contribution",
+     "DESC"
+    ]
+   },
+   "counter": {
+    "type": "counter",
+    "y": [
+     [
+      "SUM(`objective_contribution`)",
+      "Plan value",
+      "number"
+     ]
+    ]
+   },
+   "sankey": {
+    "type": "heatmap",
+    "x": "decision",
+    "y": [
+     [
+      "SUM(`delta`)",
+      "Change",
+      "number"
+     ]
+    ],
+    "series": "entity"
+   },
+   "scatter": {
+    "type": "scatter",
+    "group": "entity",
+    "x": [
+     "AVG(`current_value`)",
+     "Current value",
+     "number"
+    ],
+    "y": [
+     [
+      "AVG(`recommended_value`)",
+      "Recommended value",
+      "number"
+     ]
+    ]
+   },
+   "forecast-line": {
+    "type": "bar",
+    "x": "entity",
+    "y": [
+     [
+      "SUM(`current_value`)",
+      "Current",
+      "number"
+     ],
+     [
+      "SUM(`recommended_value`)",
+      "Recommended",
+      "number"
+     ]
+    ]
+   },
+   "line": {
+    "type": "bar",
+    "x": "entity",
+    "y": [
+     [
+      "SUM(`current_value`)",
+      "Current",
+      "number"
+     ],
+     [
+      "SUM(`recommended_value`)",
+      "Recommended",
+      "number"
+     ]
+    ]
+   },
+   "pivot": {
+    "type": "table",
+    "columns": [
+     "decision",
+     "entity",
+     "delta"
+    ],
+    "order": [
+     "delta",
+     "DESC"
+    ]
+   }
+  },
+  "__constraints": {
+   "bar": {
+    "type": "bar",
+    "x": "name",
+    "y": [
+     [
+      "SUM(`used`)",
+      "Used",
+      "number"
+     ],
+     [
+      "SUM(`limit`)",
+      "Limit",
+      "number"
+     ]
+    ]
+   }
+  },
+  "__geo": {
+   "symbol-map": {
+    "type": "symbol-map",
+    "lat": "lat",
+    "lon": "lon",
+    "y": [
+     [
+      "SUM(`metric`)",
+      "Metric",
+      "number"
+     ]
+    ]
+   },
+   "table": {
+    "type": "table",
+    "columns": [
+     "entity",
+     "region_code",
+     "lat",
+     "lon",
+     "metric"
+    ],
+    "order": [
+     "metric",
+     "DESC"
+    ]
+   },
+   "bar": {
+    "type": "bar",
+    "x": "entity",
+    "y": [
+     [
+      "SUM(`metric`)",
+      "Metric",
+      "number"
+     ]
+    ]
+   },
+   "choropleth-map": {
+    "type": "bar",
+    "x": "region_code",
+    "y": [
+     [
+      "SUM(`metric`)",
+      "Metric by region",
+      "number"
+     ]
+    ]
+   },
+   "counter": {
+    "type": "counter",
+    "y": [
+     [
+      "SUM(`metric`)",
+      "Total metric",
+      "number"
+     ]
+    ]
+   }
+  },
+  "__scenarios": {
+   "range-slider": {
+    "type": "bar",
+    "x": "scenario_id",
+    "y": [
+     [
+      "AVG(`prob_target`)",
+      "Chance of reaching the target",
+      "number"
+     ]
+    ]
+   },
+   "forecast-line": {
+    "type": "line",
+    "x": "scenario_id",
+    "y": [
+     [
+      "AVG(`p10`)",
+      "P10",
+      "number"
+     ],
+     [
+      "AVG(`p50`)",
+      "P50",
+      "number"
+     ],
+     [
+      "AVG(`p90`)",
+      "P90",
+      "number"
+     ]
+    ],
+    "sort": "x_asc"
+   },
+   "table": {
+    "type": "table",
+    "columns": [
+     "scenario_id",
+     "outcome",
+     "p10",
+     "p50",
+     "p90",
+     "prob_target"
+    ],
+    "order": [
+     "prob_target",
+     "DESC"
+    ]
+   },
+   "counter": {
+    "type": "counter",
+    "y": [
+     [
+      "MAX(`prob_target`)",
+      "Best chance of the target",
+      "number"
+     ]
+    ]
+   }
+  },
+  "__sensitivity": {
+   "bar": {
+    "type": "bar",
+    "x": "lever",
+    "y": [
+     [
+      "SUM(`low`)",
+      "Low",
+      "number"
+     ],
+     [
+      "SUM(`high`)",
+      "High",
+      "number"
+     ]
+    ]
+   }
+  },
+  "__effect": {
+   "counter": {
+    "type": "counter",
+    "y": [
+     [
+      "SUM(`incremental_value`)",
+      "Incremental value",
+      "number"
+     ]
+    ]
+   },
+   "waterfall": {
+    "type": "bar",
+    "x": "intervention",
+    "y": [
+     [
+      "SUM(`incremental_value`)",
+      "Incremental value",
+      "number"
+     ]
+    ]
+   },
+   "table": {
+    "type": "table",
+    "columns": [
+     "intervention",
+     "metric",
+     "effect",
+     "lower",
+     "upper",
+     "p_value",
+     "incremental_value",
+     "cost",
+     "roi"
+    ],
+    "order": [
+     "incremental_value",
+     "DESC"
+    ]
+   },
+   "bar": {
+    "type": "bar",
+    "x": "intervention",
+    "y": [
+     [
+      "AVG(`roi`)",
+      "Return on cost",
+      "number"
+     ]
+    ]
+   }
+  },
+  "__effect_series": {
+   "forecast-line": {
+    "type": "line",
+    "x": "period",
+    "y": [
+     [
+      "SUM(`actual`)",
+      "Actual",
+      "number"
+     ],
+     [
+      "SUM(`counterfactual`)",
+      "Without the change",
+      "number"
+     ],
+     [
+      "SUM(`lower`)",
+      "Lower",
+      "number"
+     ],
+     [
+      "SUM(`upper`)",
+      "Upper",
+      "number"
+     ]
+    ],
+    "sort": "x_asc"
+   },
+   "line": {
+    "type": "line",
+    "x": "period",
+    "y": [
+     [
+      "SUM(`actual`)",
+      "Actual",
+      "number"
+     ],
+     [
+      "SUM(`counterfactual`)",
+      "Without the change",
+      "number"
+     ]
+    ],
+    "sort": "x_asc"
+   }
+  },
+  "__signal": {
+   "line": {
+    "type": "line",
+    "x": "period",
+    "y": [
+     [
+      "SUM(`value`)",
+      "Value",
+      "number"
+     ],
+     [
+      "SUM(`expected`)",
+      "Expected",
+      "number"
+     ],
+     [
+      "SUM(`lower`)",
+      "Lower",
+      "number"
+     ],
+     [
+      "SUM(`upper`)",
+      "Upper",
+      "number"
+     ]
+    ],
+    "sort": "x_asc"
+   },
+   "table": {
+    "type": "table",
+    "columns": [
+     "series",
+     "period",
+     "value",
+     "expected",
+     "lower",
+     "upper",
+     "is_anomaly",
+     "rule"
+    ],
+    "order": [
+     "period",
+     "DESC"
+    ]
+   },
+   "bar": {
+    "type": "bar",
+    "x": "series",
+    "y": [
+     [
+      "COUNT_IF(`is_anomaly`)",
+      "Flagged rows",
+      "integer"
+     ]
+    ]
+   },
+   "counter": {
+    "type": "counter",
+    "y": [
+     [
+      "COUNT_IF(`is_anomaly`)",
+      "Flagged rows",
+      "integer"
+     ]
+    ]
+   },
+   "histogram": {
+    "type": "bar",
+    "x": "rule",
+    "y": [
+     [
+      "COUNT(*)",
+      "Rows by rule",
+      "integer"
+     ]
+    ]
+   },
+   "box": {
+    "type": "bar",
+    "x": "series",
+    "y": [
+     [
+      "AVG(abs(`value` - `expected`))",
+      "Average gap to expected",
+      "number"
+     ]
+    ]
+   }
+  },
+  "__nodes": {
+   "table": {
+    "type": "table",
+    "columns": [
+     "node",
+     "label",
+     "community",
+     "centrality",
+     "metric"
+    ],
+    "order": [
+     "centrality",
+     "DESC"
+    ]
+   },
+   "bar": {
+    "type": "bar",
+    "x": "community",
+    "y": [
+     [
+      "COUNT(*)",
+      "Nodes",
+      "integer"
+     ]
+    ]
+   },
+   "counter": {
+    "type": "counter",
+    "y": [
+     [
+      "COUNT(DISTINCT `community`)",
+      "Communities",
+      "integer"
+     ]
+    ]
+   }
+  },
+  "__edges": {
+   "table": {
+    "type": "table",
+    "columns": [
+     "src",
+     "dst",
+     "weight"
+    ],
+    "order": [
+     "weight",
+     "DESC"
+    ]
+   },
+   "histogram": {
+    "type": "bar",
+    "x": "src",
+    "y": [
+     [
+      "SUM(`weight`)",
+      "Link weight",
+      "number"
+     ]
+    ]
+   },
+   "counter": {
+    "type": "counter",
+    "y": [
+     [
+      "COUNT(*)",
+      "Links",
+      "integer"
+     ]
+    ]
+   }
+  },
+  "__segments": {
+   "bar": {
+    "type": "bar",
+    "x": "label",
+    "y": [
+     [
+      "SUM(`size`)",
+      "Size",
+      "number"
+     ]
+    ]
+   },
+   "table": {
+    "type": "table",
+    "columns": [
+     "segment_id",
+     "label",
+     "size",
+     "value"
+    ],
+    "order": [
+     "value",
+     "DESC"
+    ]
+   },
+   "pivot": {
+    "type": "table",
+    "columns": [
+     "label",
+     "size",
+     "value"
+    ],
+    "order": [
+     "size",
+     "DESC"
+    ]
+   },
+   "waterfall": {
+    "type": "bar",
+    "x": "label",
+    "y": [
+     [
+      "SUM(`value`)",
+      "Value",
+      "number"
+     ]
+    ]
+   },
+   "counter": {
+    "type": "counter",
+    "y": [
+     [
+      "COUNT(*)",
+      "Segments",
+      "integer"
+     ]
+    ]
+   }
+  },
+  "__assign": {
+   "scatter": {
+    "type": "scatter",
+    "group": "segment",
+    "x": [
+     "AVG(`x`)",
+     "x",
+     "number"
+    ],
+    "y": [
+     [
+      "AVG(`y`)",
+      "y",
+      "number"
+     ]
+    ]
+   },
+   "table": {
+    "type": "table",
+    "columns": [
+     "entity",
+     "segment",
+     "x",
+     "y"
+    ],
+    "order": [
+     "segment",
+     "ASC"
+    ]
+   }
+  },
+  "__migration": {
+   "sankey": {
+    "type": "heatmap",
+    "x": "from_segment",
+    "y": [
+     [
+      "SUM(`count`)",
+      "Moved",
+      "number"
+     ]
+    ],
+    "series": "to_segment"
+   }
+  },
+  "__transitions": {
+   "funnel": {
+    "type": "horizontal_bar",
+    "x": "from_step",
+    "y": [
+     [
+      "SUM(`cases`)",
+      "Cases",
+      "number"
+     ]
+    ]
+   },
+   "sankey": {
+    "type": "heatmap",
+    "x": "from_step",
+    "y": [
+     [
+      "SUM(`cases`)",
+      "Cases",
+      "number"
+     ]
+    ],
+    "series": "to_step"
+   },
+   "table": {
+    "type": "table",
+    "columns": [
+     "from_step",
+     "to_step",
+     "cases",
+     "median_hours",
+     "p90_hours",
+     "rework"
+    ],
+    "order": [
+     "cases",
+     "DESC"
+    ]
+   },
+   "counter": {
+    "type": "counter",
+    "y": [
+     [
+      "SUM(`cases`)",
+      "Cases",
+      "integer"
+     ]
+    ]
+   },
+   "box": {
+    "type": "bar",
+    "x": "from_step",
+    "y": [
+     [
+      "AVG(`median_hours`)",
+      "Median hours",
+      "number"
+     ]
+    ]
+   }
+  },
+  "__cases": {
+   "table": {
+    "type": "table",
+    "columns": [
+     "case_id",
+     "step",
+     "age_hours",
+     "breach_risk"
+    ],
+    "order": [
+     "breach_risk",
+     "DESC"
+    ]
+   },
+   "counter": {
+    "type": "counter",
+    "y": [
+     [
+      "COUNT_IF(`breach_risk` > 0.5)",
+      "Cases likely to breach",
+      "integer"
+     ]
+    ]
+   }
+  },
+  "decision": {
+   "derived": {
+    "top_reason": "coalesce(element_at(`top_reasons`, 1), 'No reason given')",
+    "reasons": "concat_ws(' · ', `top_reasons`)"
+   },
+   "Top reasons": {
+    "type": "bar",
+    "x": "top_reason",
+    "y": [
+     [
+      "count(*)",
+      "Rows",
+      "integer"
+     ]
+    ],
+    "sort": "value_desc"
+   },
+   "Reasons over time": {
+    "type": "line",
+    "x": "as_of_date",
+    "series": "top_reason",
+    "y": [
+     [
+      "count(*)",
+      "Rows",
+      "integer"
+     ]
+    ],
+    "rows": "all"
+   },
+   "Example comments": {
+    "type": "table",
+    "columns": [
+     "entity_label",
+     "top_reason",
+     "reasons",
+     "recommended_action"
+    ],
+    "order": [
+     "rank",
+     "ASC"
+    ]
+   },
+   "Comments read": {
+    "type": "counter",
+    "y": [
+     [
+      "count(*)",
+      "Rows",
+      "integer"
+     ]
+    ]
+   },
+   "Items at risk": {
+    "type": "table",
+    "columns": [
+     "rank",
+     "entity_label",
+     "priority_tier",
+     "reasons",
+     "recommended_action",
+     "value_at_stake"
+    ],
+    "order": [
+     "rank",
+     "ASC"
+    ]
+   },
+   "Aging buckets": {
+    "type": "bar",
+    "x": "priority_tier",
+    "y": [
+     [
+      "count(*)",
+      "Rows",
+      "integer"
+     ]
+    ],
+    "sort": "value_desc"
+   },
+   "Due to breach": {
+    "type": "counter",
+    "y": [
+     [
+      "count_if(priority_tier = 'Act now')",
+      "Act now rows",
+      "integer"
+     ]
+    ]
+   }
+  }
+ }
 }

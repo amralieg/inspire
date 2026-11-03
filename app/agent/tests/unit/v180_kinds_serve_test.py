@@ -367,4 +367,4 @@ def test_the_genie_room_description_and_the_alert_body_carry_the_3_lines(ns):
     assert "What we serve:" not in plain
     source = agent_source()
     assert 'description = inspire_kind_about_text(description, context["use_case"])' in source
-    assert 'schema, run_log, inspire_kind_about(context["use_case"])),' in source
+    assert 'schema, run_log, inspire_kind_about(context["use_case"]), context.get("kind_spec")),' in source
