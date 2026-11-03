@@ -68,9 +68,11 @@ def dev_only(name):
 
 def without_dev_files(source, target):
     with zipfile.ZipFile(source) as archive, zipfile.ZipFile(target, "w", zipfile.ZIP_DEFLATED) as out:
-        for info in archive.infolist():
+        for info in sorted(archive.infolist(), key=lambda i: i.filename):
             if not dev_only(info.filename):
-                out.writestr(info, b"" if info.is_dir() else archive.read(info), compress_type=zipfile.ZIP_DEFLATED)
+                entry = zipfile.ZipInfo(info.filename, date_time=(1980, 1, 1, 0, 0, 0))
+                entry.external_attr, entry.create_system = info.external_attr, info.create_system
+                out.writestr(entry, b"" if info.is_dir() else archive.read(info), compress_type=zipfile.ZIP_DEFLATED)
 
 
 def module_member(archive):

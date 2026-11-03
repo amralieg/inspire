@@ -149,6 +149,34 @@ class BuildTest(unittest.TestCase):
         contents = json.loads((self.tmp / "dir-out" / "manifest.json").read_text())["files"][0]["contents"]
         self.assertFalse([item for item in contents if item["path"].endswith("/")])
 
+    def test_two_builds_of_the_same_files_packed_at_other_times_and_in_other_orders_give_the_same_app_zip(self):
+        files = support.make_app_zip(self.tmp / "base.zip")
+        files["start.sh"] = b"#!/bin/sh\nexec node backend/server.js\n"
+        assets = self.tmp / "same-assets"
+        assets.mkdir()
+        support.make_assets(assets)
+        outs = []
+        for number, (stamp, order) in enumerate((((2026, 11, 3, 9, 57, 12), sorted), ((2026, 11, 3, 10, 0, 4), lambda n: sorted(n, reverse=True)))):
+            packed = self.tmp / f"packed{number}.zip"
+            with zipfile.ZipFile(packed, "w", zipfile.ZIP_DEFLATED) as archive:
+                for name in order(list(files) + ["backend/", "installer/"]):
+                    info = zipfile.ZipInfo(name, date_time=stamp)
+                    info.create_system = 3
+                    info.external_attr = (0o40755 << 16) | 0x10 if name.endswith("/") else (0o100755 if name == "start.sh" else 0o100644) << 16
+                    archive.writestr(info, b"" if name.endswith("/") else files[name])
+            out = self.tmp / f"same-out{number}"
+            with contextlib.redirect_stdout(io.StringIO()):
+                release.build(str(packed), str(assets), str(out))
+            outs.append(out)
+        self.assertEqual((outs[0] / "inspire-app.zip").read_bytes(), (outs[1] / "inspire-app.zip").read_bytes())
+        self.assertEqual((outs[0] / "manifest.json").read_bytes(), (outs[1] / "manifest.json").read_bytes())
+        with zipfile.ZipFile(outs[0] / "inspire-app.zip") as archive:
+            infos = archive.infolist()
+        self.assertEqual([i.filename for i in infos], sorted(i.filename for i in infos))
+        modes = {i.filename: i.external_attr >> 16 for i in infos}
+        self.assertEqual((modes["start.sh"], modes["app.yaml"], modes["backend/"]), (0o100755, 0o100644, 0o40755))
+        self.assertEqual({i.date_time for i in infos}, {(1980, 1, 1, 0, 0, 0)})
+
     def test_the_release_calls_the_package_script_with_the_zip_path_it_wants(self):
         source = pathlib.Path(release.__file__).read_text()
         self.assertIn('["bash", str(APP / "scripts" / "package-for-workspace.sh")]', source)
