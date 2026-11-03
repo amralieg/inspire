@@ -26,8 +26,12 @@ const HOSTED_URLS = ['app_url', 'dashboard_url', 'genie_space_url'];
 const isObject = (x) => x !== null && typeof x === 'object' && !Array.isArray(x);
 const isTime = (key, v) => TIME_KEY_RE.test(key) && TIME_VALUE_RE.test(String(v));
 
+const spellings = (s) => [...new Set([s, s.replace(/_/g, ' ')])];
+
 function makeSanitizer({ replace = {}, sessionId = '', mvpUrls = {}, hostedPaths = {} } = {}) {
-  const pairs = Object.entries(replace).filter(([from]) => from).sort(([a], [b]) => b.length - a.length);
+  const pairs = Object.entries(replace).filter(([from]) => from)
+    .flatMap(([from, to]) => spellings(from).map((f, i) => [f, i ? String(to).replace(/_/g, ' ') : to]))
+    .sort(([a], [b]) => b.length - a.length);
   const fakes = new Map();
   const counts = {};
   const fake = (kind, raw, make) => {
@@ -125,12 +129,24 @@ function demoTotals(body, sessionId) {
   return { ...body, totals: { ...zero, ...(isObject(figures) ? figures : {}), businesses: 1, runs: 1 }, truncated: false };
 }
 
-const UNREAD_USE_CASE_FIELDS = ['code_structure_mandate'];
+const UNREAD_USE_CASE_FIELDS = [
+  'code_structure_mandate', 'available_tables_listing', 'directly_involved_schema', 'directly_involved_tables', 'foreign_key_relationships',
+  'table_joins', 'technique_implementation_guidance', 'verified_tables', 'high_level_design', 'High Level Design', 'Technical Design',
+];
 const withoutUnread = (row) => (isObject(row) ? Object.fromEntries(Object.entries(row).filter(([k]) => !UNREAD_USE_CASE_FIELDS.includes(k))) : row);
+
+function resultsWithoutUnread(body) {
+  const results = body.results;
+  if (!isObject(results) || !Array.isArray(results.domains)) return body;
+  const domains = results.domains.map((d) => (isObject(d) && Array.isArray(d.use_cases) ? { ...d, use_cases: d.use_cases.map(withoutUnread) } : d));
+  return { ...body, results: { ...results, domains } };
+}
 
 const DEMO_VIEWS = {
   'GET /api/inspire/portfolio': demoTotals,
+  'GET /api/inspire/results': resultsWithoutUnread,
   'GET /api/inspire/usecases': (body) => (Array.isArray(body.usecases) ? { ...body, usecases: body.usecases.map(withoutUnread) } : body),
+  'GET /api/inspire/implement/history': (body) => ('notebook_run_error' in body ? { ...body, notebook_run_error: '' } : body),
   'GET /api/inspire/steps': (body) => (Array.isArray(body.steps) ? { ...body, steps: body.steps.map(monitorStep) } : body),
   'GET /api/inspire/session': (body) => (isObject(body.session) ? {
     ...body,
@@ -276,7 +292,7 @@ const LEAK_PATTERNS = [
 const escaped = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 function showcaseLeaks(bundle, banned = []) {
-  const patterns = [...LEAK_PATTERNS, ...banned.filter(Boolean).map((s) => [`the text ${JSON.stringify(s)}`, new RegExp(escaped(s), 'i')])];
+  const patterns = [...LEAK_PATTERNS, ...banned.filter(Boolean).flatMap((s) => spellings(String(s))).map((s) => [`the text ${JSON.stringify(s)}`, new RegExp(escaped(s), 'i')])];
   const found = [];
   const check = (where, s) => {
     for (const [what, re] of patterns) {

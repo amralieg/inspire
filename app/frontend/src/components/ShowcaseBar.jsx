@@ -1,7 +1,8 @@
 import { ArrowRight, Eye, X } from 'lucide-react';
 import { SHOWCASE_NOTE } from '../lib/showcase';
 
-export default function ShowcaseBar({ showcase, onGetStarted, onLeave }) {
+export default function ShowcaseBar({ showcase, showcases = [], onSwitch, onGetStarted, onLeave }) {
+  const others = onSwitch && showcases.length > 1;
   return (
     <section role="region" aria-label="Demo" className="border-b border-border bg-info-bg/60">
       <div className="max-w-screen-xl mx-auto px-6 py-2.5 flex flex-wrap items-center gap-x-4 gap-y-2">
@@ -15,6 +16,20 @@ export default function ShowcaseBar({ showcase, onGetStarted, onLeave }) {
           <span className="block">{SHOWCASE_NOTE}</span>
         </p>
         <div className="flex items-center gap-2">
+          {others && (
+            <select
+              aria-label="Choose a demo"
+              data-showcase-switch=""
+              value={showcase.id}
+              onChange={(e) => {
+                const next = showcases.find((s) => s.id === e.target.value);
+                if (next) onSwitch(next);
+              }}
+              className="rounded-lg border border-border bg-surface px-2 py-1.5 text-xs text-text-primary"
+            >
+              {showcases.map((s) => <option key={s.id} value={s.id}>{s.title}</option>)}
+            </select>
+          )}
           <button
             type="button"
             onClick={onGetStarted}

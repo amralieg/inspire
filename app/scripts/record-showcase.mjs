@@ -5,7 +5,7 @@ import { execFileSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { apiWatch, keepToOrigins, recordMvpApp, routeInspireDemo, walkInspireDemo } from './showcaseRecorder.mjs';
-import { DEMO_READS_WHEN, unrecorded } from './showcaseRoutes.mjs';
+import { DEMO_READS_WHEN, demoReads, unrecorded } from './showcaseRoutes.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const require = createRequire(import.meta.url);
@@ -16,7 +16,7 @@ const env = process.env;
 const need = (name) => {
   const value = String(env[name] || '').trim();
   if (!value) {
-    console.error(`Set ${name}. Usage: INSPIRE_URL=<Inspire App URL> DATABRICKS_PROFILE=<profile> SESSION_ID=<session> SHOWCASE_ID=<id> SHOWCASE_TITLE=<title> MVPS=<use case ids, comma separated> node scripts/record-showcase.mjs`);
+    console.error(`Set ${name}. Usage: INSPIRE_URL=<Inspire App URL> DATABRICKS_PROFILE=<profile> SESSION_ID=<session> SHOWCASE_ID=<id> SHOWCASE_TITLE=<title> [MVPS=<use case ids, comma separated>] [INSPIRE_DATABASE=<catalog.schema of the run, when it is not the App's own>] node scripts/record-showcase.mjs`);
     process.exit(2);
   }
   return value;
@@ -30,7 +30,7 @@ const inspireUrl = need('INSPIRE_URL').replace(/\/+$/, '');
 const sessionId = need('SESSION_ID');
 const id = need('SHOWCASE_ID');
 const title = need('SHOWCASE_TITLE');
-const mvpIds = need('MVPS').split(',').map((s) => s.trim()).filter(Boolean);
+const mvpIds = String(env.MVPS || '').split(',').map((s) => s.trim()).filter(Boolean);
 const out = path.resolve(env.OUT || path.join(root, 'backend/showcase', `${id}.json.gz`));
 const distDir = path.resolve(env.DIST || path.join(root, 'frontend/dist'));
 if (!fs.existsSync(path.join(distDir, 'index.html'))) {
@@ -41,7 +41,7 @@ if (!fs.existsSync(path.join(distDir, 'index.html'))) {
 const token = cli('auth', 'token').access_token;
 const authHeaders = { Authorization: `Bearer ${token}` };
 const defaults = await (await fetch(`${inspireUrl}/api/defaults`, { headers: authHeaders })).json();
-const real = { inspire_database: defaults.inspireDatabase, warehouse_id: defaults.warehouseId };
+const real = { inspire_database: String(env.INSPIRE_DATABASE || '').trim() || defaults.inspireDatabase, warehouse_id: defaults.warehouseId };
 
 const log = (line) => console.log(`[record] ${line}`);
 const inspire = [];
@@ -65,9 +65,9 @@ try {
     blocked,
   });
   await page.goto(`${inspireUrl}/`, { waitUntil: 'domcontentloaded', timeout: 120000 });
-  await walkInspireDemo(page, { settle, log });
+  await walkInspireDemo(page, { settle, log, mvps: mvpIds.length > 0 });
   await page.close();
-  const missed = unrecorded(inspire);
+  const missed = unrecorded(inspire, demoReads(mvpIds.length > 0));
   if (missed.length) throw new Error(`the walk did not record ${missed.join(', ')}, so the demo would show views with no saved answer; pick a session that has them`);
   for (const route of unrecorded(inspire, DEMO_READS_WHEN)) log(`the session has no ${route}: ${DEMO_READS_WHEN[route]}`);
 
@@ -83,8 +83,10 @@ try {
   const me = cli('current-user', 'me');
   if (me.displayName) replace[me.displayName] = 'Demo User';
   if (me.userName) replace[me.userName] = 'person@example.com';
-  const catalog = String(real.inspire_database).split('.')[0];
-  if (catalog && !['main', 'samples', 'hive_metastore'].includes(catalog)) replace[catalog] = 'demo_catalog';
+  for (const database of [real.inspire_database, defaults.inspireDatabase]) {
+    const catalog = String(database || '').split('.')[0];
+    if (catalog && !['main', 'samples', 'hive_metastore'].includes(catalog)) replace[catalog] = 'demo_catalog';
+  }
   for (const url of [inspireUrl, ...Object.values(urls)]) {
     const app = cli('apps', 'get', appName(url));
     if (app.service_principal_name) replace[app.service_principal_name] = 'the App service principal';
@@ -115,7 +117,7 @@ try {
     fs.mkdirSync(path.dirname(out), { recursive: true });
     const sizes = showcaseSizes(bundle);
     fs.writeFileSync(out, out.endsWith('.gz') ? showcaseFile(bundle) : showcaseText(bundle));
-    log(`wrote ${out}: ${Object.keys(bundle.inspire).length} Inspire answers, ${mvpIds.map((m) => `${m} ${Object.keys(bundle.mvps[m].api).length}`).join(', ')} MVP answers, ${sizes.gzip} bytes compressed from ${sizes.json} bytes of JSON`);
+    log(`wrote ${out}: ${Object.keys(bundle.inspire).length} Inspire answers, ${mvpIds.length ? `${mvpIds.map((m) => `${m} ${Object.keys(bundle.mvps[m].api).length}`).join(', ')} MVP answers` : 'no MVP'}, ${sizes.gzip} bytes compressed from ${sizes.json} bytes of JSON`);
   }
   if (blocked.length) log(`refused ${blocked.length} writes during the walk: ${[...new Set(blocked)].join(', ')}`);
   if (outside.length) log(`fetched nothing from ${outside.length} requests to hosts outside the App and its MVP Apps: ${[...new Set(outside.map((u) => new URL(u).host))].join(', ')}`);

@@ -302,6 +302,7 @@ export default function App() {
 
   const [transitioning, setTransitioning] = useState(false);
   const inDemo = !!demo.showcase;
+  const demoScope = inDemo ? `demo-${demo.showcase.id}` : '';
   const nav = useCallback((p, { leaveDemo = false } = {}) => {
     const leaving = inDemo && (leaveDemo || !staysInShowcase(p));
     if (p === page && !leaving) return;
@@ -421,7 +422,7 @@ export default function App() {
         />
       )}
       {!bare && inDemo && page !== 'landing' && (
-        <ShowcaseBar showcase={demo.showcase} onGetStarted={() => nav('choose', { leaveDemo: true })} onLeave={() => nav('landing')} />
+        <ShowcaseBar showcase={demo.showcase} showcases={showcases} onSwitch={openDemo} onGetStarted={() => nav('choose', { leaveDemo: true })} onLeave={() => nav('landing')} />
       )}
 
       <main className={transitioning ? 'page-exit' : 'page-enter'} key={page}>
@@ -448,6 +449,7 @@ export default function App() {
 
         {page === 'choose' && (
           <ChoosePage
+            key={demoScope || 'workspace'}
             settings={pageSettings}
             onNewExperiment={() => nav('launch')}
             onNoData={() => nav('generate-data')}
@@ -496,6 +498,7 @@ export default function App() {
         {page === 'monitor' && (
           <div className="max-w-7xl mx-auto px-6 py-8">
             <MonitorPage
+              key={demoScope || 'workspace'}
               settings={pageSettings}
               update={inDemo ? noop : update}
               sessionId={inDemo ? demo.showcase.session_id : sessionId}
@@ -511,7 +514,7 @@ export default function App() {
           <ErrorBoundary key="results">
             <div className={RESULTS_FRAME}>
               <ResultsPage
-                key={inDemo ? `demo-${demo.showcase.id}` : `workspace-${reviewLink.n}`}
+                key={demoScope || `workspace-${reviewLink.n}`}
                 settings={pageSettings}
                 update={inDemo ? noop : update}
                 sessionId={inDemo ? demo.showcase.session_id : sessionId}
@@ -527,7 +530,7 @@ export default function App() {
         {page === 'implement' && implementSessionId && (
           <ErrorBoundary key="implement">
             <ImplementPage
-              key={inDemo ? `demo-${implementSessionId}` : implementSessionId}
+              key={demoScope || implementSessionId}
               settings={pageSettings}
               sessionId={implementSessionId}
               focusId={implementFocus}
@@ -543,7 +546,7 @@ export default function App() {
         {page === 'run' && (
           <ErrorBoundary key="run">
             <RunPage
-              key={inDemo ? `demo-${demo.showcase.id}` : `workspace-${runLink.n}`}
+              key={demoScope || `workspace-${runLink.n}`}
               settings={inDemo ? pageSettings : settings}
               focusId={inDemo ? null : runFocus}
               onFocus={inDemo ? noop : focusRun}

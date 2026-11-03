@@ -279,7 +279,7 @@ export async function walkRun(page, settle, onPage = null) {
   return n;
 }
 
-export async function walkInspireDemo(page, { settle, log = () => {} }) {
+export async function walkInspireDemo(page, { settle, log = () => {}, mvps = true }) {
   await page.getByRole('button', { name: SHOWCASE_BUTTON, exact: true }).first().click();
   const list = page.getByRole('region', { name: 'Use case list' });
   const cards = list.locator('[aria-expanded]');
@@ -295,8 +295,9 @@ export async function walkInspireDemo(page, { settle, log = () => {} }) {
   }
   log(`Review: opened ${n} use cases`);
   const open = list.getByRole('button', { name: 'Open MVP' });
-  if (!(await open.count())) throw new Error('the demo session has no MVP on the Review page');
-  await open.first().click();
+  if (await open.count()) await open.first().click();
+  else if (mvps) throw new Error('the demo session has no MVP on the Review page');
+  else await tabButton(page, 'implement').click();
   const rail = page.locator('nav[aria-label="Use cases"] section button');
   await rail.first().waitFor({ timeout: 120000 });
   await settle();

@@ -389,14 +389,50 @@ test('a recorded bundle replays through the demo routes', async () => {
   }
 });
 
-test('the recording keeps the use case fields a screen reads and leaves out the code structure mandate, which no screen reads', () => {
+test('the recording keeps the use case fields a screen reads and leaves out the fields no screen reads, in the use cases and in the results', () => {
   const rec = recorder();
-  const row = { id: 'N01-U01', use_case: 'Spot fare outliers', genie_instruction: 'Rank by fare', code_structure_mandate: 'Execution pattern: family B' };
+  const unread = Object.fromEntries(R.UNREAD_USE_CASE_FIELDS.map((k) => [k, `${k} text`]));
+  const row = { id: 'N01-U01', use_case: 'Spot fare outliers', genie_instruction: 'Rank by fare', ...unread };
+  const resultRow = { No: 'N01-U01', Name: 'Spot fare outliers', 'Tables Involved': 'samples.nyctaxi.trips', ...unread };
   rec.addInspire({ method: 'GET', url: `/api/inspire/usecases?session_id=${SID}`, status: 200, body: { usecases: [row], count: 1 } });
+  rec.addInspire({ method: 'GET', url: `/api/inspire/results?session_id=${SID}`, status: 200,
+    body: { results: { title: 'Taxi', domains: [{ domain_name: 'Fares', use_cases: [resultRow] }, 'not a domain'] }, found: true } });
   rec.addMvp('N01-U01', { method: 'GET', url: `${MVP_URL}/api/app`, status: 200, body: { title: 'Fare desk' } });
-  const saved = rec.bundle().inspire['GET /api/inspire/usecases?session_id=1001'].body;
-  assert.deepEqual(saved, { usecases: [{ id: 'N01-U01', use_case: 'Spot fare outliers', genie_instruction: 'Rank by fare' }], count: 1 });
-  assert.deepEqual(R.UNREAD_USE_CASE_FIELDS, ['code_structure_mandate']);
+  const saved = rec.bundle().inspire;
+  assert.deepEqual(saved['GET /api/inspire/usecases?session_id=1001'].body,
+    { usecases: [{ id: 'N01-U01', use_case: 'Spot fare outliers', genie_instruction: 'Rank by fare' }], count: 1 });
+  assert.deepEqual(saved['GET /api/inspire/results?session_id=1001'].body, {
+    results: { title: 'Taxi', domains: [{ domain_name: 'Fares', use_cases: [{ No: 'N01-U01', Name: 'Spot fare outliers', 'Tables Involved': 'samples.nyctaxi.trips' }] }, 'not a domain'] },
+    found: true,
+  });
+  assert.deepEqual(R.UNREAD_USE_CASE_FIELDS, ['code_structure_mandate', 'available_tables_listing', 'directly_involved_schema', 'directly_involved_tables',
+    'foreign_key_relationships', 'table_joins', 'technique_implementation_guidance', 'verified_tables', 'high_level_design', 'High Level Design', 'Technical Design']);
+  const frontend = path.join(__dirname, '..', '..', 'frontend', 'src');
+  const source = (dir) => fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? source(path.join(dir, e.name))
+    : /\.(jsx?|mjs)$/.test(e.name) ? [fs.readFileSync(path.join(dir, e.name), 'utf8')] : []));
+  const text = source(frontend).join('\n');
+  assert.deepEqual(R.UNREAD_USE_CASE_FIELDS.filter((k) => text.includes(k)), [], 'no screen of the App names a field the recording leaves out');
+});
+
+test('the history answer of a demo carries no error about the access of whoever recorded it, and keeps the notebook run', () => {
+  const rec = recorder();
+  rec.addInspire({ method: 'GET', url: `/api/inspire/implement/history?session_id=${SID}`, status: 200,
+    body: { history: [], latest: [], notebook_run: { run_id: 7 }, notebook_run_error: 'Listing the Genie Code notebook jobs failed (403): no jobs scope' } });
+  rec.addInspire({ method: 'GET', url: `/api/inspire/implement/history?session_id=${SID}&use_case_id=N01-U01`, status: 200, body: { history: [] } });
+  rec.addMvp('N01-U01', { method: 'GET', url: `${MVP_URL}/api/app`, status: 200, body: { title: 'Fare desk' } });
+  const saved = rec.bundle().inspire;
+  assert.deepEqual(saved['GET /api/inspire/implement/history?session_id=1001'].body, { history: [], latest: [], notebook_run: { run_id: 7 }, notebook_run_error: '' });
+  assert.deepEqual(saved['GET /api/inspire/implement/history?session_id=1001&use_case_id=N01-U01'].body, { history: [] });
+});
+
+test('a replaced name is replaced, and caught by the leak check, also where a step message spells its underscores as spaces', () => {
+  const clean = R.makeSanitizer({ replace: { acme_lake: 'demo_catalog', 'Jane Analyst': 'Demo User' } });
+  assert.equal(clean.text('In progress: acme lake. inspire, then acme_lake._inspire, by Jane Analyst'),
+    'In progress: demo catalog. inspire, then demo_catalog._inspire, by Demo User');
+  const bundle = { title: 'Taxi', steps: [{ sub_step_name: 'In progress: acme lake. inspire' }] };
+  assert.equal(R.showcaseLeaks(bundle, ['acme_lake']).length, 1);
+  assert.match(R.showcaseLeaks(bundle, ['acme_lake'])[0], /the text "acme lake"/);
+  assert.deepEqual(R.showcaseLeaks({ title: 'Taxi', steps: [{ sub_step_name: clean.text('In progress: acme lake. inspire') }] }, ['acme_lake']), []);
 });
 
 test('the recording refuses build steps whose payload the App sent as JSON text, as an older App does, with one plain message, and keeps object payloads', () => {

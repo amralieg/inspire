@@ -107,6 +107,23 @@ test('the recorder names every walk route a recording lacks, and an error answer
   assert.equal(routeOf('get', '/api/inspire/steps?since=2026-10-31T09%3A40%3A00Z'), 'GET /api/inspire/steps');
 });
 
+test('a results-only demo needs every walk read but the MVP reads, a demo with MVPs needs them too, and each MVP read is a read the run has when it has an MVP', async () => {
+  const { DEMO_MVP_READS, DEMO_READS, DEMO_READS_WHEN, demoReads, unrecorded } = await lists();
+  const mvpReads = Object.keys(DEMO_MVP_READS);
+  assert.deepEqual(mvpReads, ['GET /api/inspire/implement/status', 'GET /api/inspire/implement/live', 'GET /api/inspire/implement/money',
+    'GET /api/inspire/implement/settings', 'GET /api/inspire/implement/tables', 'GET /api/inspire/implement/alerts']);
+  assert.deepEqual(mvpReads.filter((r) => r in DEMO_READS), []);
+  assert.deepEqual(mvpReads.filter((r) => !(r in DEMO_READS_WHEN)), []);
+  assert.deepEqual(demoReads(false), DEMO_READS);
+  assert.deepEqual(Object.keys(demoReads(true)), [...Object.keys(DEMO_READS), ...mvpReads]);
+  const resultsOnly = Object.keys(DEMO_READS).map((route) => {
+    const [method, p] = split(route);
+    return { method, url: `https://inspire.example${p}?session_id=1`, status: 200 };
+  });
+  assert.deepEqual(unrecorded(resultsOnly, demoReads(false)), []);
+  assert.deepEqual(unrecorded(resultsOnly, demoReads(true)), mvpReads, 'a demo that names MVPs and recorded none of their reads is refused');
+});
+
 test('the inventory parses template paths, stops at the query, and skips workspace REST paths and bare prefixes', () => {
   const text = [
     "fetch(`/api/tables/${encodeURIComponent(a)}/${encodeURIComponent(b || '')}${q(w)}`)",

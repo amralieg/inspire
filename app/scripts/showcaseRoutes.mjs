@@ -5,19 +5,27 @@ export const DEMO_READS = {
   'GET /api/inspire/usecases': 'Review and Build read the use cases of the demo run, and the Start quick view lists them',
   'GET /api/inspire/feedback': 'Review reads the feedback on the use cases',
   'GET /api/inspire/implement/history': 'Review and Build read the MVP versions',
+  'GET /api/inspire/session': 'Monitor reads the demo run',
+  'GET /api/inspire/steps': 'Monitor lists the steps of the demo run',
+};
+
+export const DEMO_MVP_READS = {
   'GET /api/inspire/implement/status': 'Build reads each use case with an MVP',
   'GET /api/inspire/implement/live': 'Build reads the live state of each MVP',
   'GET /api/inspire/implement/money': 'Build reads the money view of each MVP',
   'GET /api/inspire/implement/settings': 'Build shows the Settings panel of each MVP',
   'GET /api/inspire/implement/tables': 'Build shows the tables of each MVP in its Settings panel, read-only in the demo',
   'GET /api/inspire/implement/alerts': 'Build lists the alerts of each MVP on its Alert tab, read-only in the demo, or its empty state',
-  'GET /api/inspire/session': 'Monitor reads the demo run',
-  'GET /api/inspire/steps': 'Monitor lists the steps of the demo run',
 };
 
 export const DEMO_READS_WHEN = {
   'GET /api/workspace/export': 'Review and Build preview the notebook of a use case that has a notebook and no Genie instruction',
+  ...DEMO_MVP_READS,
 };
+
+export function demoReads(withMvps) {
+  return withMvps ? { ...DEMO_READS, ...DEMO_MVP_READS } : DEMO_READS;
+}
 
 export const NOT_IN_DEMO = {
   'GET /api/defaults': 'the App reads its workspace settings when it starts, before the demo opens, and never with the demo header',
