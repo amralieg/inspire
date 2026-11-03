@@ -44,6 +44,8 @@ class _Harness:
         cls = ns["DatabricksInspire"]
         self.section = cls.__dict__["_get_generation_instruction_for_prompt"].__get__(self, _Harness)
         self.interpret = cls.__dict__["_interpret_generation_instructions"].__get__(self, _Harness)
+        for name in ("_kind_catalog", "_kind_key", "_kind_id_of", "_user_kind_directives"):
+            setattr(self, name, cls.__dict__[name].__get__(self, _Harness))
 
 
 STRUCTURED = {
@@ -74,7 +76,7 @@ def test_d1_12_interpreter_defaults_include_best_of_best(ns):
 def test_d1_12_default_prompt_keys_match_the_interpreter_examples(ns):
     h = _Harness(ns, raw="")
     default_keys = set(h.interpret()["per_prompt_instructions"])
-    prompt = ns["PROMPT_TEMPLATES"]["GENERAL_INSTRUCTION_INTERPRETER_PROMPT"].format(generation_instructions="x", business_name="y")
+    prompt = ns["PROMPT_TEMPLATES"]["GENERAL_INSTRUCTION_INTERPRETER_PROMPT"].format(generation_instructions="x", business_name="y", kind_ids="forecast")
     blocks = re.findall(r"```json\s*\n(.*?)\n```", prompt, re.DOTALL)
     filled, empty = json.loads(blocks[0]), json.loads(blocks[1])
     assert set(filled["per_prompt_instructions"]) == default_keys

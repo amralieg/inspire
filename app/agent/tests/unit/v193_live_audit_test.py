@@ -103,18 +103,21 @@ def test_the_trim_records_the_target_the_theme_cap_and_the_hard_veto_apart(agent
     b = [("B", 8.9 - i * 0.1) for i in range(5)]
     c = [("C", 7.9 - i * 0.1) for i in range(5)]
     ucs = _trim(a + b + c + [("C", 9.95)], vetoed={20})
+    for uc in ucs:
+        uc["Value"] = 4.0
     drops = {}
     out = obj._stratified_trim_by_theme(ucs, target_max=8, theme_max_share=0.5, drops=drops)
     by_no = {uc["No"]: drops.get(id(uc), (None, ""))[0] for uc in ucs}
-    assert sorted(uc["No"] for uc in out) == sorted(["U0", "U1", "U2", "U3", "U10", "U11", "U12", "U15"])
+    assert sorted(uc["No"] for uc in out) == sorted(["U0", "U1", "U2", "U3", "U10", "U11", "U12", "U13"])
     assert not {id(uc) for uc in out} & set(drops), "a kept use case never carries a drop reason"
     assert [n for n, code in by_no.items() if code == "theme_cap"] == [f"U{i}" for i in range(4, 10)]
-    assert [n for n, code in by_no.items() if code == "over_target"] == ["U13", "U14", "U16", "U17", "U18", "U19"]
+    assert [n for n, code in by_no.items() if code == "over_target"] == ["U14", "U15", "U16", "U17", "U18", "U19"]
     assert by_no["U20"] == "hard_veto" and drops[id(ucs[20])][1] == "hard veto on gate D3"
     assert drops[id(ucs[4])][1] == "trimmed: its idea theme 'A' already holds the 4 use cases one theme may keep"
-    assert drops[id(ucs[13])][1].startswith("trimmed: the catalog is trimmed to 8 use cases")
+    assert drops[id(ucs[15])][1].startswith("trimmed: the catalog is trimmed to 8 use cases")
     line = [m for _lvl, m in obj.logger.records if m.startswith("Stratified trim:")][-1]
     assert "6 left out because the 8 slots went to stronger use cases, 6 over the per-theme cap of 4" in line
+    assert "1 of 3 themes held a floor seat because their best use case cleared the near-par bar" in line
 
 
 def test_the_trim_with_more_themes_than_places_records_the_target(agent_ns):

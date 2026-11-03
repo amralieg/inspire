@@ -173,7 +173,7 @@ def test_b17_one_set_of_balance_thresholds(ns):
     base = _base(ns)
     rules = ns["QUALITY_GATE_RULES"]
     assert "No single business domain above 25% of the use cases" in rules
-    assert "No single Analytics Technique above 30% of the use cases" in rules
+    assert "No single Analytics Technique above 30% of the use cases" not in rules
     for phrase in ("No single technique >20% of portfolio", "may dominate >20%", "dominate more than ~25%"):
         assert phrase not in base, phrase
     assert "~25%" not in ns["QUALITY_GATE_HIGH"]
@@ -192,8 +192,8 @@ def test_b20_domain_finder_example_uses_no_banned_name(ns):
 def test_b21_interpreter_category_count_matches_categories(ns):
     prompt = _prompt(ns, "GENERAL_INSTRUCTION_INTERPRETER_PROMPT")
     assert "into 4 structured categories" not in prompt
-    assert "into the 10 structured categories" in prompt
-    assert len(re.findall(r"^\*\*\d+\. ", prompt, re.MULTILINE)) == 10
+    assert "into the 11 structured categories" in prompt
+    assert len(re.findall(r"^\*\*\d+\. ", prompt, re.MULTILINE)) == 11
 
 
 def test_b23_translate_column_counts_are_consistent(ns):
