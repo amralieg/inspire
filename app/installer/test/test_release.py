@@ -269,23 +269,27 @@ class DeployScriptTest(unittest.TestCase):
         self.assertEqual((task["max_retries"], task["disable_auto_optimization"]), (0, True))
         self.assertNotIn("internet", self.SCRIPT.read_text().replace("INTERNET_BLOCKED", ""))
 
-    def test_the_release_files_and_the_test_setting_are_imported_whole_in_one_import_dir(self):
+    def test_the_release_files_and_the_test_setting_are_each_imported_whole_with_format_raw(self):
         lines = self.SCRIPT.read_text().splitlines()
-        start = lines.index('STAGE="$(mktemp -d)"')
-        block = lines[start:lines.index('rm -rf "$STAGE"', start) + 1]
+        start = lines.index('rm -f "$OFFLINE_INSTALLER"') + 1
+        block = lines[start:lines.index("done", start) + 1]
         release_dir = support.build_release(self.tmp)
         settings = self.tmp / "settings.json"
         settings.write_text('{"warehouse_id": "wh1"}')
         log = self.tmp / "cli.log"
         fake = self.tmp / "databricks"
-        fake.write_text('#!/usr/bin/env bash\necho "$1 $2 $4 $5" >> "$LOG"\nLC_ALL=C ls "$3" >> "$LOG"\ncat "$3/inspire_installer_test.json" >> "$LOG"\n')
+        fake.write_text('#!/usr/bin/env bash\necho "$1 $2 $3 $4 $6 $7 $8 $(basename "$5") $(wc -c < "$5")" >> "$LOG"\n')
         fake.chmod(0o755)
         script = "\n".join([f'DB=( "{fake}" )', f'RELEASE_DIR="{release_dir}"', f'SETTINGS="{settings}"', 'FOLDER="/Workspace/x"'] + block)
         run = subprocess.run(["bash", "-euo", "pipefail", "-c", script], capture_output=True, text=True, env=dict(os.environ, LOG=str(log)))
         self.assertEqual(run.returncode, 0, run.stderr)
-        self.assertEqual(log.read_text().splitlines(), ["workspace import-dir /Workspace/x --overwrite", "inspire-app.zip", "inspire-assets.tar",
-                                                        "inspire_installer_test.json", "manifest.json", '{"warehouse_id": "wh1"}'])
+        size = lambda name: (release_dir / name).stat().st_size
+        self.assertEqual([line.split() for line in log.read_text().splitlines()], [
+            ["workspace", "import", "/Workspace/x/inspire_installer_test.json", "--file", "--format", "RAW", "--overwrite", "settings.json", str(len('{"warehouse_id": "wh1"}'))],
+            *[["workspace", "import", f"/Workspace/x/{name}", "--file", "--format", "RAW", "--overwrite", name, str(size(name))]
+              for name in ("manifest.json", "inspire-app.zip", "inspire-assets.tar")]])
         self.assertFalse(settings.exists())
+        self.assertNotIn("import-dir", self.SCRIPT.read_text())
         self.assertNotIn(".part", self.SCRIPT.read_text())
 
 

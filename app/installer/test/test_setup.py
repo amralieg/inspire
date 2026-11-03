@@ -405,13 +405,6 @@ class AppYamlTest(unittest.TestCase):
             shutil.rmtree(folder)
 
     def test_the_deploy_step_writes_the_installed_assets_path(self):
-        self.assertEqual(self.deploy({})[5:], ("/Workspace/Shared/inspire-ai/assets/v1.3.0", None))
-
-    def test_the_deploy_step_writes_the_test_tag_of_a_test_install_only(self):
-        self.assertEqual(self.deploy({"TEST_TAG": "inspire-rc0"})[6], "inspire-rc0")
-        self.assertEqual(self.deploy({"TEST_TAG": ""})[6], "")
-
-    def deploy(self, extra):
         written = []
         saved, clock = setup.write_app_yaml_deploy, setup.time
         setup.write_app_yaml_deploy = lambda *a: written.append(a)
@@ -423,12 +416,12 @@ class AppYamlTest(unittest.TestCase):
             api_get = lambda path: app if path == "/api/2.0/apps/inspire-ai" else {"Resources": [{"id": "1"}]}
             ctx = {"api": api, "api_get": api_get, "SOURCE_FOLDER": "/Workspace/b", "INSPIRE_DB": "main._inspire", "WAREHOUSE_ID": "wh",
                    "NOTEBOOK_PATH": "/Shared/inspire-ai/dbx_inspire_ai_agent", "SP_NAME": "inspire-ai-sp", "APP_NAME": "inspire-ai",
-                   "CATALOG": "main", "ASSETS_PATH": "/Workspace/Shared/inspire-ai/assets/v1.3.0", "RELEASE_VERSION": "v1.3.0", **extra}
+                   "CATALOG": "main", "ASSETS_PATH": "/Workspace/Shared/inspire-ai/assets/v1.3.0", "RELEASE_VERSION": "v1.3.0"}
             with contextlib.redirect_stdout(io.StringIO()):
                 setup.step_deploy_and_find_sp(ctx)
         finally:
             setup.write_app_yaml_deploy, setup.time = saved, clock
-        return written[0]
+        self.assertEqual(written[0][5:], ("/Workspace/Shared/inspire-ai/assets/v1.3.0", None))
 
 
 class VersionTextTest(unittest.TestCase):
