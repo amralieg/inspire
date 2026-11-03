@@ -474,6 +474,19 @@ test('charts sit on top and the table is always last: on the Overview, on a use 
     assert.deepEqual(seen.errors, []);
     await context.close();
   }
+  for (const [width, history] of [[1440, true], [375, true], [1440, false], [375, false]]) {
+    const info = appInfo({ business: 'Contoso Retail' }, 1, TABLE);
+    if (!history) info.pages[0].history = null;
+    const { page, seen, context } = await open(info, { width });
+    const where = `${width} px, a one use case App ${history ? 'with' : 'without'} record history`;
+    await page.waitForFunction(() => document.querySelector('.ph h1')?.textContent === 'Price-loss decision desk' && document.querySelector('.card--table'));
+    await page.waitForFunction(chartsDrawn, 4);
+    const single = await pageOrder(page);
+    assert.ok(single.charts >= 4 && single.above, `${where}: every chart sits above its table`);
+    assert.ok(single.last, `${where}: the page ends with its table, not ${single.label}`);
+    assert.deepEqual(seen.errors, []);
+    await context.close();
+  }
 });
 
 test('a use case whose last run wrote no AI summary says so in place of the summary', async () => {
