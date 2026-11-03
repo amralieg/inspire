@@ -13,9 +13,9 @@
    "title": "Next franchise sites from customer and franchise locations",
    "decision": "Choose the areas for the next franchise openings",
    "owner": "Franchise development manager",
-   "kind": "site_territory",
+   "kind": "Site and territory",
    "also_kinds": [
-    "location_intelligence"
+    "Location intelligence"
    ],
    "required_tables": [
     "sales_franchises"
@@ -39,10 +39,10 @@
    "title": "Sales by place and the areas that stand out",
    "decision": "Show franchise sales by area and name the areas that need a regional plan",
    "owner": "Regional manager",
-   "kind": "location_intelligence",
+   "kind": "Location intelligence",
    "also_kinds": [
-    "site_territory",
-    "peer_benchmarking"
+    "Site and territory",
+    "Peer benchmarking"
    ],
    "required_tables": [
     "sales_franchises",
@@ -62,9 +62,9 @@
    "title": "Recurring complaint reasons from reviews",
    "decision": "Fix the top growing complaint reasons in reviews, each with an owner",
    "owner": "Customer experience manager",
-   "kind": "reason_codes",
+   "kind": "Reason codes from comments",
    "also_kinds": [
-    "data_agent"
+    "Data agent"
    ],
    "required_tables": [],
    "any_of": [
@@ -85,9 +85,9 @@
    "title": "Franchises below the network on review sentiment",
    "decision": "Coach the franchises whose review sentiment runs below their peers",
    "owner": "Franchise operations manager",
-   "kind": "peer_benchmarking",
+   "kind": "Peer benchmarking",
    "also_kinds": [
-    "reason_codes"
+    "Reason codes from comments"
    ],
    "required_tables": [],
    "any_of": [
@@ -108,9 +108,9 @@
    "title": "Daily demand forecast per franchise and product",
    "decision": "Set each franchise's daily bake quantity per product",
    "owner": "Franchise operations manager",
-   "kind": "forecast",
+   "kind": "Forecast",
    "also_kinds": [
-    "inventory_replenishment"
+    "Inventory and replenishment"
    ],
    "required_tables": [
     "sales_transactions"
@@ -129,9 +129,9 @@
    "title": "Franchises that depend on one supplier",
    "decision": "Qualify a second supplier for the franchises and ingredients that depend on one supplier",
    "owner": "Supply chain manager",
-   "kind": "network_dependency",
+   "kind": "Network dependency",
    "also_kinds": [
-    "controls_testing"
+    "Controls tests"
    ],
    "required_tables": [
     "sales_franchises",
@@ -151,10 +151,10 @@
    "title": "Customer lapse risk from purchase history",
    "decision": "Choose which customers get a win-back offer this week",
    "owner": "Marketing manager",
-   "kind": "risk_propensity",
+   "kind": "Risk or propensity",
    "also_kinds": [
-    "time_to_event",
-    "lifetime_value"
+    "Time to event",
+    "Lifetime value"
    ],
    "required_tables": [
     "sales_transactions"
@@ -173,9 +173,9 @@
    "title": "Customer segments from purchase behavior",
    "decision": "Pick the customer segments for each loyalty offer",
    "owner": "Marketing manager",
-   "kind": "segmentation",
+   "kind": "Segmentation",
    "also_kinds": [
-    "lifetime_value"
+    "Lifetime value"
    ],
    "required_tables": [
     "sales_transactions"
@@ -194,9 +194,9 @@
    "title": "Next product to offer each customer",
    "decision": "Choose the next product to offer each customer",
    "owner": "Marketing manager",
-   "kind": "next_best_action",
+   "kind": "Recommendation and next best action",
    "also_kinds": [
-    "assortment"
+    "Assortment and cannibalization"
    ],
    "required_tables": [
     "sales_transactions"
@@ -214,10 +214,10 @@
    "title": "Staffing per franchise by hour",
    "decision": "Set staff per franchise and hour from expected traffic",
    "owner": "Franchise operations manager",
-   "kind": "staffing_queueing",
+   "kind": "Staffing and queueing",
    "also_kinds": [
-    "capacity_planning",
-    "forecast"
+    "Capacity planning",
+    "Forecast"
    ],
    "required_tables": [
     "sales_transactions"
@@ -235,11 +235,11 @@
    "title": "Payment cards shared across customers",
    "decision": "Review the card numbers used by many customers or franchises before the next payout",
    "owner": "Payments risk analyst",
-   "kind": "fraud_rings",
+   "kind": "Fraud rings",
    "also_kinds": [
-    "anomaly",
-    "controls_testing",
-    "entity_matching"
+    "Anomaly",
+    "Controls tests",
+    "Entity matching"
    ],
    "required_tables": [
     "sales_transactions"
@@ -258,9 +258,9 @@
    "title": "Customer lifetime value",
    "decision": "Set the loyalty investment per customer value tier",
    "owner": "Marketing manager",
-   "kind": "lifetime_value",
+   "kind": "Lifetime value",
    "also_kinds": [
-    "segmentation"
+    "Segmentation"
    ],
    "required_tables": [
     "sales_transactions"
@@ -282,10 +282,10 @@
    "title": "Revenue change by price, volume and product mix",
    "decision": "Explain each month's revenue change by price, volume and mix per franchise",
    "owner": "Finance manager",
-   "kind": "driver_breakdown",
+   "kind": "Driver breakdown",
    "also_kinds": [
-    "pricing",
-    "variance_to_plan"
+    "Price, discount, markdown",
+    "Variance to plan"
    ],
    "required_tables": [
     "sales_transactions"

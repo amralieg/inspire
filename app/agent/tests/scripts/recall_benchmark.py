@@ -11,7 +11,7 @@ same business decision. Recall is reported overall and within the top 25 by Insp
 `--judge none` reports the pre-filter alone, an upper bound. Judge answers are cached by the
 SHA-256 of the prompt, so a re-score with the same cache makes no new LLM call.
 
-Every gold entry names its use-case kind from app_shell/kinds.json. A use case's kind is its labeled
+Every gold entry names its use-case kind by its label in app_shell/kinds.json. A use case's kind is its labeled
 use_case_kind (id, label or number), else the kind of its Analytics Technique. Kind recall counts the gold
 entries matched by a use case of the entry's kind or one of its also_kinds. A must-reject entry is selected
 when a use case covers its tables and its name or statement matches one of its patterns and none of its
@@ -98,6 +98,16 @@ def resolve_kind(uc: dict) -> tuple:
         return labeled["id"], "labeled"
     by_technique = resolve({"Analytics Technique": uc.get("technique")})
     return (by_technique["id"], "technique") if by_technique else ("", "")
+
+
+def gold_with_kind_ids(gold: dict, registry: dict) -> dict:
+    by_label = {kind["label"]: kind["id"] for kind in registry["kinds"]}
+    entries = []
+    for entry in gold["entries"]:
+        if any(label not in by_label for label in [entry.get("kind")] + list(entry.get("also_kinds") or [])):
+            raise ValueError(f"gold entry {entry['id']} has no kind from the registry: {entry.get('kind')!r}")
+        entries.append({**entry, "kind": by_label[entry["kind"]], "also_kinds": [by_label[label] for label in entry.get("also_kinds") or []]})
+    return {**gold, "entries": entries}
 
 
 def entry_kinds(entry: dict) -> list:
@@ -224,10 +234,7 @@ def score(gold: dict, use_cases: list, ask=None, cache: dict | None = None, regi
           detected: list | None = None) -> dict:
     """Recall report. `ask` is None for the pre-filter alone; `cache` maps prompt SHA-256 to an answer."""
     registry = registry if registry is not None else load_registry()
-    known = {kind["id"] for kind in registry["kinds"]}
-    for entry in gold["entries"]:
-        if entry.get("kind") not in known or any(k not in known for k in entry.get("also_kinds") or []):
-            raise ValueError(f"gold entry {entry['id']} has no kind from the registry: {entry.get('kind')!r}")
+    gold = gold_with_kind_ids(gold, registry)
     ranked = rank([normalize_uc(u) for u in use_cases])
     for u in ranked:
         u["kind"], u["kind_source"] = resolve_kind(u)

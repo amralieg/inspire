@@ -23,6 +23,8 @@ DEMOS = {"tpcds_sf1": "tpcds_sf1/docs/tpcds_sf1-dbx_inspire.json",
          "nyctaxi": "nyctaxi/docs/Samples nyctaxi-dbx_inspire.json"}
 REGISTRY = rb.load_registry()
 FAMILY = {k["id"]: k["family"] for k in REGISTRY["kinds"]}
+LABEL = {k["id"]: k["label"] for k in REGISTRY["kinds"]}
+LABEL_FAMILY = {k["label"]: k["family"] for k in REGISTRY["kinds"]}
 
 
 def load(path):
@@ -42,7 +44,7 @@ def uc(uc_id, name, tables, kind="", technique="", bob=None, basis="", score=8.0
 
 def fixture_gold(kinds, rejects=()):
     return {"corpus": "fixture", "release_gate": {"rule": "fixture"},
-            "entries": [{"id": f"G{i}", "title": f"Entry {i}", "decision": "d", "owner": "o", "why": "w", "kind": k,
+            "entries": [{"id": f"G{i}", "title": f"Entry {i}", "decision": "d", "owner": "o", "why": "w", "kind": LABEL[k],
                          "required_tables": [f"t{i}"], "any_of": [], "signal_columns": []} for i, k in enumerate(kinds)],
             "must_reject": list(rejects)}
 
@@ -62,8 +64,8 @@ def test_every_gold_set_cites_real_tables_and_registry_kinds(corpus):
     ids = [e["id"] for e in gold["entries"]] + [r["id"] for r in gold["must_reject"]]
     assert len(ids) == len(set(ids)) and len(gold["must_reject"]) >= 3
     for entry in gold["entries"]:
-        assert entry["kind"] in FAMILY, (entry["id"], entry["kind"])
-        assert all(k in FAMILY and k != entry["kind"] for k in entry.get("also_kinds", [])), entry["id"]
+        assert entry["kind"] in LABEL_FAMILY, (entry["id"], entry["kind"])
+        assert all(k in LABEL_FAMILY and k != entry["kind"] for k in entry.get("also_kinds", [])), entry["id"]
         allowed = set(entry["required_tables"]) | {t for group in entry["any_of"] for t in group}
         assert allowed and all(t in schema for t in allowed), entry["id"]
         for ref in entry["signal_columns"]:
@@ -72,7 +74,7 @@ def test_every_gold_set_cites_real_tables_and_registry_kinds(corpus):
     for entry in gold["must_reject"]:
         allowed = set(entry["required_tables"]) | {t for group in entry["any_of"] for t in group}
         assert allowed and all(t in schema for t in allowed) and entry["patterns"], entry["id"]
-    families = {FAMILY[e["kind"]] for e in gold["entries"]}
+    families = {LABEL_FAMILY[e["kind"]] for e in gold["entries"]}
     assert len(families) >= 6, (corpus, sorted(families))
     text = json.dumps(gold).lower()
     for customer in ("alshaya", "asabe", "shahid"):
@@ -87,7 +89,7 @@ def test_the_new_gold_sets_cover_the_columns_the_plan_names():
             "sales_suppliers.supplierID"} <= cited["bakehouse"]
     assert {"trips.pickup_zip", "trips.dropoff_zip", "trips.tpep_dropoff_datetime", "trips.fare_amount"} <= cited["nyctaxi"]
     kinds = {e["kind"] for e in gold_of("tpch")["entries"]}
-    assert {"process_mining", "sla_aging", "driver_breakdown"} <= kinds
+    assert {LABEL[k] for k in ("process_mining", "sla_aging", "driver_breakdown")} <= kinds
 
 
 def test_tpcds_keeps_its_25_entries_and_gates_21_found():
@@ -177,11 +179,16 @@ def test_a_gold_entry_without_a_kind_is_refused():
     gold["entries"][0]["kind"] = "astrology"
     with pytest.raises(ValueError, match="gold entry G0 has no kind from the registry"):
         rb.score(gold, [], registry=REGISTRY)
+    gold["entries"][0]["kind"] = "forecast"
+    with pytest.raises(ValueError, match="gold entry G0 has no kind from the registry"):
+        rb.score(gold, [], registry=REGISTRY)
+    gold["entries"][0]["kind"] = LABEL["forecast"]
+    assert rb.score(gold, [], registry=REGISTRY)["entries"][0]["kind"] == "forecast"
 
 
 def test_kind_recall_counts_only_matches_of_the_entry_kind_or_its_also_kinds():
     gold = fixture_gold(["forecast", "anomaly"])
-    gold["entries"][1]["also_kinds"] = ["controls_testing"]
+    gold["entries"][1]["also_kinds"] = [LABEL["controls_testing"]]
     ucs = [uc("A", "a", "c.s.t0", kind="segmentation"), uc("B", "b", "c.s.t1", kind="controls_testing")]
     report = rb.score(gold, ucs, registry=REGISTRY)
     rows = {r["id"]: r for r in report["entries"]}

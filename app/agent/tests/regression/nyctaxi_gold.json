@@ -13,9 +13,9 @@
    "title": "Hourly pickup demand forecast per zip",
    "decision": "Set next hours' expected pickups per zip so supply is placed ahead of demand",
    "owner": "Fleet dispatcher",
-   "kind": "forecast",
+   "kind": "Forecast",
    "also_kinds": [
-    "capacity_planning"
+    "Capacity planning"
    ],
    "required_tables": [
     "trips"
@@ -32,10 +32,10 @@
    "title": "Drivers per zone and hour",
    "decision": "Set the number of drivers per zone and hour to meet the pickup wait target",
    "owner": "Fleet operations manager",
-   "kind": "staffing_queueing",
+   "kind": "Staffing and queueing",
    "also_kinds": [
-    "allocation",
-    "forecast"
+    "Allocation",
+    "Forecast"
    ],
    "required_tables": [
     "trips"
@@ -53,9 +53,9 @@
    "title": "Fares that break their expected range",
    "decision": "Review the trips whose fare is far from what distance and duration predict",
    "owner": "Revenue assurance analyst",
-   "kind": "anomaly",
+   "kind": "Anomaly",
    "also_kinds": [
-    "controls_testing"
+    "Controls tests"
    ],
    "required_tables": [
     "trips"
@@ -74,9 +74,9 @@
    "title": "Fare and trips by zip and the hot areas",
    "decision": "Name the zip areas that stand out on trips and fare per mile for the zone plan",
    "owner": "Fleet operations manager",
-   "kind": "location_intelligence",
+   "kind": "Location intelligence",
    "also_kinds": [
-    "site_territory"
+    "Site and territory"
    ],
    "required_tables": [
     "trips"
@@ -94,9 +94,9 @@
    "title": "Pickup to drop-off flows between zones",
    "decision": "Find the hub zones most trips pass through and plan cover when they jam",
    "owner": "Network planner",
-   "kind": "network_dependency",
+   "kind": "Network dependency",
    "also_kinds": [
-    "location_intelligence"
+    "Location intelligence"
    ],
    "required_tables": [
     "trips"
@@ -113,9 +113,9 @@
    "title": "Fare change by distance, duration and time of day",
    "decision": "Explain each week's fare per trip change by distance, duration and time of day",
    "owner": "Pricing analyst",
-   "kind": "driver_breakdown",
+   "kind": "Driver breakdown",
    "also_kinds": [
-    "pricing"
+    "Price, discount, markdown"
    ],
    "required_tables": [
     "trips"
@@ -134,10 +134,10 @@
    "title": "Trip duration prediction",
    "decision": "Quote each trip's expected duration at pickup and flag the ones likely to run long",
    "owner": "Customer service lead",
-   "kind": "time_to_event",
+   "kind": "Time to event",
    "also_kinds": [
-    "risk_propensity",
-    "forecast"
+    "Risk or propensity",
+    "Forecast"
    ],
    "required_tables": [
     "trips"
@@ -156,9 +156,9 @@
    "title": "Fare levels by zone and hour",
    "decision": "Set the fare adjustment per zone and hour within the allowed range",
    "owner": "Pricing manager",
-   "kind": "pricing",
+   "kind": "Price, discount, markdown",
    "also_kinds": [
-    "driver_scenarios"
+    "Driver-based scenarios"
    ],
    "required_tables": [
     "trips"
@@ -177,9 +177,9 @@
    "title": "Trip segments by distance, fare and time",
    "decision": "Pick the trip segments for each service offer such as airport or short hops",
    "owner": "Product manager",
-   "kind": "segmentation",
+   "kind": "Segmentation",
    "also_kinds": [
-    "next_best_action"
+    "Recommendation and next best action"
    ],
    "required_tables": [
     "trips"

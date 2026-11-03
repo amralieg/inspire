@@ -28,11 +28,11 @@ def row(uc_id, name, tables, score, statement="", bob=None):
 
 
 GOLD = {"corpus": "fixture", "entries": [
-    {"id": "G1", "title": "Demand", "decision": "Set weekly orders", "owner": "Planner", "why": "Stock", "kind": "forecast",
+    {"id": "G1", "title": "Demand", "decision": "Set weekly orders", "owner": "Planner", "why": "Stock", "kind": "Forecast",
      "required_tables": ["store_sales", "date_dim"], "signal_columns": ["store_sales.ss_quantity"]},
-    {"id": "G2", "title": "Returns", "decision": "Fix returned items", "owner": "Category manager", "why": "Margin", "kind": "driver_breakdown",
+    {"id": "G2", "title": "Returns", "decision": "Fix returned items", "owner": "Category manager", "why": "Margin", "kind": "Driver breakdown",
      "required_tables": ["store_returns"], "signal_columns": ["store_returns.sr_return_quantity"]},
-    {"id": "G3", "title": "Payroll", "decision": "Plan payroll", "owner": "HR", "why": "Cost", "kind": "allocation",
+    {"id": "G3", "title": "Payroll", "decision": "Plan payroll", "owner": "HR", "why": "Cost", "kind": "Allocation",
      "required_tables": ["payroll"], "signal_columns": []},
 ]}
 

@@ -27,7 +27,7 @@
    "title": "Weekly store-item demand forecast",
    "decision": "Set next week's replenishment quantity for each item in each store",
    "owner": "Store replenishment planner",
-   "kind": "forecast",
+   "kind": "Forecast",
    "required_tables": [
     "store_sales",
     "date_dim"
@@ -46,7 +46,7 @@
    "title": "Warehouse reorder points from on-hand stock",
    "decision": "Set the reorder point and order quantity per item and warehouse",
    "owner": "Inventory manager",
-   "kind": "inventory_replenishment",
+   "kind": "Inventory and replenishment",
    "required_tables": [
     "inventory"
    ],
@@ -64,9 +64,9 @@
    "title": "Return rate by item and reason",
    "decision": "Fix, delist or relabel the items with the highest return rates and their main return reasons",
    "owner": "Category manager",
-   "kind": "driver_breakdown",
+   "kind": "Driver breakdown",
    "also_kinds": [
-    "reason_codes"
+    "Reason codes from comments"
    ],
    "required_tables": [
     "reason"
@@ -91,10 +91,10 @@
    "title": "Suspicious return behavior per customer",
    "decision": "Flag customers or tickets whose return pattern looks abusive for review before refunding",
    "owner": "Loss prevention lead",
-   "kind": "anomaly",
+   "kind": "Anomaly",
    "also_kinds": [
-    "risk_propensity",
-    "controls_testing"
+    "Risk or propensity",
+    "Controls tests"
    ],
    "required_tables": [
     "store_returns",
@@ -114,9 +114,9 @@
    "title": "Customer lapse risk from purchase recency and frequency",
    "decision": "Choose which customers get a win-back offer this week",
    "owner": "CRM manager",
-   "kind": "risk_propensity",
+   "kind": "Risk or propensity",
    "also_kinds": [
-    "time_to_event"
+    "Time to event"
    ],
    "required_tables": [
     "customer"
@@ -141,7 +141,7 @@
    "title": "Customer lifetime value across channels",
    "decision": "Set the service level and marketing budget per customer tier",
    "owner": "Head of customer marketing",
-   "kind": "lifetime_value",
+   "kind": "Lifetime value",
    "required_tables": [
     "customer"
    ],
@@ -165,7 +165,7 @@
    "title": "Customer segments from demographics and spend",
    "decision": "Pick the segments to target with each campaign",
    "owner": "Marketing analyst",
-   "kind": "segmentation",
+   "kind": "Segmentation",
    "required_tables": [
     "customer_demographics"
    ],
@@ -189,9 +189,9 @@
    "title": "Promotion effectiveness by channel",
    "decision": "Keep, change or stop each promotion based on incremental sales against its cost",
    "owner": "Promotions manager",
-   "kind": "promotion_lift",
+   "kind": "Promotion or campaign lift",
    "also_kinds": [
-    "experiment_readout"
+    "Experiments and before/after"
    ],
    "required_tables": [
     "promotion"
@@ -216,7 +216,7 @@
    "title": "Price elasticity and markdown depth",
    "decision": "Set the markdown depth per item category",
    "owner": "Pricing manager",
-   "kind": "pricing",
+   "kind": "Price, discount, markdown",
    "required_tables": [
     "item"
    ],
@@ -240,7 +240,7 @@
    "title": "Cross-channel cannibalization",
    "decision": "Decide channel-specific assortment and pricing where one channel takes sales from another",
    "owner": "Omnichannel director",
-   "kind": "assortment",
+   "kind": "Assortment and cannibalization",
    "required_tables": [
     "store_sales",
     "web_sales"
@@ -259,7 +259,7 @@
    "title": "Market basket affinity for cross-sell",
    "decision": "Choose product pairs for placement and bundles",
    "owner": "Merchandising manager",
-   "kind": "next_best_action",
+   "kind": "Recommendation and next best action",
    "required_tables": [
     "item"
    ],
@@ -283,7 +283,7 @@
    "title": "Store productivity benchmarking",
    "decision": "Target the stores below their peers on sales per square foot and per employee",
    "owner": "Regional operations manager",
-   "kind": "peer_benchmarking",
+   "kind": "Peer benchmarking",
    "required_tables": [
     "store_sales",
     "store"
@@ -302,7 +302,7 @@
    "title": "Shipping cost by ship mode and carrier",
    "decision": "Renegotiate or switch carriers and ship modes with the worst cost per order",
    "owner": "Logistics manager",
-   "kind": "cost_to_serve",
+   "kind": "Cost to serve",
    "required_tables": [
     "ship_mode"
    ],
@@ -325,9 +325,9 @@
    "title": "Order-to-ship lag by warehouse",
    "decision": "Fix the warehouses and ship modes with the longest order-to-ship lag",
    "owner": "Fulfillment manager",
-   "kind": "sla_aging",
+   "kind": "SLA, backlog and aging",
    "also_kinds": [
-    "process_mining"
+    "Process mining"
    ],
    "required_tables": [
     "warehouse"
@@ -351,9 +351,9 @@
    "title": "Call center return handling",
    "decision": "Coach or staff the call centers with the highest return amounts",
    "owner": "Customer service director",
-   "kind": "peer_benchmarking",
+   "kind": "Peer benchmarking",
    "also_kinds": [
-    "staffing_queueing"
+    "Staffing and queueing"
    ],
    "required_tables": [
     "catalog_returns",
@@ -373,9 +373,9 @@
    "title": "Catalog page effectiveness",
    "decision": "Drop or redesign the catalog pages that sell least for their department",
    "owner": "Catalog marketing manager",
-   "kind": "peer_benchmarking",
+   "kind": "Peer benchmarking",
    "also_kinds": [
-    "assortment"
+    "Assortment and cannibalization"
    ],
    "required_tables": [
     "catalog_sales",
@@ -395,9 +395,9 @@
    "title": "Web page content and sales",
    "decision": "Change the page types and content that underperform on sales",
    "owner": "Ecommerce manager",
-   "kind": "driver_breakdown",
+   "kind": "Driver breakdown",
    "also_kinds": [
-    "experiment_readout"
+    "Experiments and before/after"
    ],
    "required_tables": [
     "web_sales",
@@ -417,10 +417,10 @@
    "title": "Margin by brand and category",
    "decision": "Rationalize the assortment: drop or reprice low-margin brands",
    "owner": "Category manager",
-   "kind": "assortment",
+   "kind": "Assortment and cannibalization",
    "also_kinds": [
-    "pricing",
-    "cost_to_serve"
+    "Price, discount, markdown",
+    "Cost to serve"
    ],
    "required_tables": [
     "item"
@@ -445,7 +445,7 @@
    "title": "Staffing by hour from sales by time of day",
    "decision": "Set store staffing per shift from expected traffic",
    "owner": "Store operations manager",
-   "kind": "staffing_queueing",
+   "kind": "Staffing and queueing",
    "required_tables": [
     "store_sales",
     "time_dim"
@@ -464,9 +464,9 @@
    "title": "Holiday and seasonal demand planning",
    "decision": "Set holiday-period orders and staffing per category",
    "owner": "Demand planner",
-   "kind": "forecast",
+   "kind": "Forecast",
    "also_kinds": [
-    "capacity_planning"
+    "Capacity planning"
    ],
    "required_tables": [
     "date_dim"
@@ -491,9 +491,9 @@
    "title": "Store site selection from customer geography",
    "decision": "Choose the regions for the next store openings",
    "owner": "Real estate director",
-   "kind": "site_territory",
+   "kind": "Site and territory",
    "also_kinds": [
-    "location_intelligence"
+    "Location intelligence"
    ],
    "required_tables": [
     "customer_address",
@@ -513,9 +513,9 @@
    "title": "Purchasing power by income band",
    "decision": "Set the price tiers and assortment per income band",
    "owner": "Assortment planner",
-   "kind": "segmentation",
+   "kind": "Segmentation",
    "also_kinds": [
-    "pricing"
+    "Price, discount, markdown"
    ],
    "required_tables": [
     "household_demographics",
@@ -541,10 +541,10 @@
    "title": "Coupon and discount leakage",
    "decision": "Tighten coupon rules where discounts exceed their intended share of sales",
    "owner": "Finance controller",
-   "kind": "leakage_reconciliation",
+   "kind": "Leakage and reconciliation",
    "also_kinds": [
-    "controls_testing",
-    "anomaly"
+    "Controls tests",
+    "Anomaly"
    ],
    "required_tables": [],
    "any_of": [
@@ -567,9 +567,9 @@
    "title": "Inventory balancing across warehouses",
    "decision": "Move stock between warehouses to match demand",
    "owner": "Supply chain planner",
-   "kind": "allocation",
+   "kind": "Allocation",
    "also_kinds": [
-    "inventory_replenishment"
+    "Inventory and replenishment"
    ],
    "required_tables": [
     "inventory",
@@ -589,9 +589,9 @@
    "title": "Refund method cost on returns",
    "decision": "Steer refunds toward store credit where it cuts net loss",
    "owner": "Returns policy owner",
-   "kind": "driver_breakdown",
+   "kind": "Driver breakdown",
    "also_kinds": [
-    "cost_to_serve"
+    "Cost to serve"
    ],
    "required_tables": [],
    "any_of": [

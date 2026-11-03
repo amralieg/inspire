@@ -13,10 +13,10 @@
    "title": "Late delivery risk on open order lines",
    "decision": "Choose which open order lines to expedite before they miss their commit date",
    "owner": "Fulfillment manager",
-   "kind": "sla_aging",
+   "kind": "SLA, backlog and aging",
    "also_kinds": [
-    "risk_propensity",
-    "time_to_event"
+    "Risk or propensity",
+    "Time to event"
    ],
    "required_tables": [
     "lineitem"
@@ -35,10 +35,10 @@
    "title": "Order-to-receipt flow and where lines wait",
    "decision": "Fix the step between order, ship and receipt where order lines wait longest",
    "owner": "Operations manager",
-   "kind": "process_mining",
+   "kind": "Process mining",
    "also_kinds": [
-    "sla_aging",
-    "journey_path"
+    "SLA, backlog and aging",
+    "Journey and path"
    ],
    "required_tables": [
     "lineitem",
@@ -58,9 +58,9 @@
    "title": "Supplier on-time performance against peers",
    "decision": "Put the suppliers that deliver late more often than their peers on a review plan",
    "owner": "Procurement manager",
-   "kind": "peer_benchmarking",
+   "kind": "Peer benchmarking",
    "also_kinds": [
-    "sla_aging"
+    "SLA, backlog and aging"
    ],
    "required_tables": [
     "lineitem",
@@ -80,9 +80,9 @@
    "title": "Revenue change split into price, discount and volume",
    "decision": "Explain each month's revenue change by price, discount and volume so the right owner acts",
    "owner": "Finance business partner",
-   "kind": "driver_breakdown",
+   "kind": "Driver breakdown",
    "also_kinds": [
-    "variance_to_plan"
+    "Variance to plan"
    ],
    "required_tables": [
     "lineitem"
@@ -101,9 +101,9 @@
    "title": "Discount depth per market segment",
    "decision": "Set the maximum discount per market segment and order priority",
    "owner": "Pricing manager",
-   "kind": "pricing",
+   "kind": "Price, discount, markdown",
    "also_kinds": [
-    "driver_scenarios"
+    "Driver-based scenarios"
    ],
    "required_tables": [
     "lineitem",
@@ -124,10 +124,10 @@
    "title": "Supplier choice per part from supply cost and availability",
    "decision": "Pick the supplier and quantity per part that meets demand at the lowest supply cost",
    "owner": "Sourcing manager",
-   "kind": "allocation",
+   "kind": "Allocation",
    "also_kinds": [
-    "inventory_replenishment",
-    "assortment"
+    "Inventory and replenishment",
+    "Assortment and cannibalization"
    ],
    "required_tables": [
     "partsupp"
@@ -151,9 +151,9 @@
    "title": "Customer segments from market segment, balance and order value",
    "decision": "Pick the customer segments for each sales program",
    "owner": "Sales operations lead",
-   "kind": "segmentation",
+   "kind": "Segmentation",
    "also_kinds": [
-    "lifetime_value"
+    "Lifetime value"
    ],
    "required_tables": [
     "customer",
@@ -173,9 +173,9 @@
    "title": "Customer lifetime value from order history",
    "decision": "Set the account coverage and service level per customer value tier",
    "owner": "Account management lead",
-   "kind": "lifetime_value",
+   "kind": "Lifetime value",
    "also_kinds": [
-    "segmentation"
+    "Segmentation"
    ],
    "required_tables": [
     "customer",
@@ -195,10 +195,10 @@
    "title": "Weekly demand forecast per part type",
    "decision": "Set next weeks' supply orders per part type and brand",
    "owner": "Demand planner",
-   "kind": "forecast",
+   "kind": "Forecast",
    "also_kinds": [
-    "inventory_replenishment",
-    "capacity_planning"
+    "Inventory and replenishment",
+    "Capacity planning"
    ],
    "required_tables": [
     "lineitem",
@@ -218,9 +218,9 @@
    "title": "Return risk per order line",
    "decision": "Choose which order lines get a quality check before they ship",
    "owner": "Quality manager",
-   "kind": "risk_propensity",
+   "kind": "Risk or propensity",
    "also_kinds": [
-    "anomaly"
+    "Anomaly"
    ],
    "required_tables": [
     "lineitem"
@@ -244,9 +244,9 @@
    "title": "Parts that depend on one supplier",
    "decision": "List the parts whose supply depends on one supplier or one nation and qualify a second source",
    "owner": "Supply risk manager",
-   "kind": "network_dependency",
+   "kind": "Network dependency",
    "also_kinds": [
-    "stress_test"
+    "Stress test"
    ],
    "required_tables": [
     "partsupp",
@@ -266,9 +266,9 @@
    "title": "Order desk staffing by day",
    "decision": "Set the number of clerks per day from expected order arrivals",
    "owner": "Order desk supervisor",
-   "kind": "staffing_queueing",
+   "kind": "Staffing and queueing",
    "also_kinds": [
-    "capacity_planning"
+    "Capacity planning"
    ],
    "required_tables": [
     "orders"
@@ -287,10 +287,10 @@
    "title": "Unusual discounts per supplier and customer",
    "decision": "Review the order lines whose discount breaks the usual range for their part and customer",
    "owner": "Revenue assurance analyst",
-   "kind": "anomaly",
+   "kind": "Anomaly",
    "also_kinds": [
-    "controls_testing",
-    "leakage_reconciliation"
+    "Controls tests",
+    "Leakage and reconciliation"
    ],
    "required_tables": [
     "lineitem"
@@ -309,9 +309,9 @@
    "title": "Credit hold for customers with a negative balance",
    "decision": "Choose which customers go on credit hold before their next order",
    "owner": "Credit controller",
-   "kind": "working_capital",
+   "kind": "Working capital and collections",
    "also_kinds": [
-    "risk_propensity"
+    "Risk or propensity"
    ],
    "required_tables": [
     "customer",
