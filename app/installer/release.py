@@ -25,6 +25,7 @@ UNZIP_FOLDER = "inspire-app"
 DEV_ONLY = ("installer/test/", "installer/release.py")
 STARTER_MIN_VERSION = 1
 LEFT_OUT = ("SHA256SUMS", "inspire-app.part01", "inspire-assets.part01")
+GENIE_WALK = APP / "agent" / "agent" / "app_shell" / "web" / "test" / "genieWalk.mjs"
 
 
 class ReleaseFailure(SystemExit):
@@ -190,7 +191,16 @@ def build(app_zip, assets, out, starter_path=STARTER):
     return manifest
 
 
-def check(base, opener=None, work=None):
+def genie_walk(genie, run=subprocess.run):
+    if not genie:
+        print("NOT RUN  live Genie walk: pass --genie-app, --genie-inspire and --genie-profile to ask Genie on every page of a built test App")
+        return []
+    app, inspire, profile = genie
+    done = run(["node", str(GENIE_WALK), "--app", app, "--inspire", inspire, "--profile", profile], cwd=str(GENIE_WALK.parent.parent))
+    return [f"live Genie walk on {app}: exit {done.returncode}, see its FAIL lines above"] if done.returncode else []
+
+
+def check(base, opener=None, work=None, genie=None, run=subprocess.run):
     starter = load_starter()
     opener = opener or starter["open_trusted"]
     base, repo = starter["release_source"]({} if base.rstrip("/") == starter["LATEST_BASE"] else {"release": base})
@@ -231,6 +241,7 @@ def check(base, opener=None, work=None):
         except Exception as exc:
             failures.append(unknown % exc)
     print("\n".join(rows))
+    failures += genie_walk(genie, run)
     print(f"release check {base}: {len([r for r in rows if r.startswith('OK')])} of {len(starter['RELEASE_FILES'])} files OK, "
           f"{len(failures)} failure{'s' if len(failures) != 1 else ''}")
     for failure in failures:
@@ -247,11 +258,16 @@ def main(argv=None):
     make.add_argument("--app-zip")
     verify = commands.add_parser("check")
     verify.add_argument("--base", default=load_starter()["LATEST_BASE"])
+    for name in ("app", "inspire", "profile"):
+        verify.add_argument(f"--genie-{name}", default="")
     args = parser.parse_args(argv)
     if args.command == "build":
         build(args.app_zip, args.assets, args.out)
         return 0
-    return 1 if check(args.base) else 0
+    genie = (args.genie_app, args.genie_inspire, args.genie_profile)
+    if any(genie) and not all(genie):
+        parser.error("the live Genie walk needs --genie-app, --genie-inspire and --genie-profile together")
+    return 1 if check(args.base, genie=genie if all(genie) else None) else 0
 
 
 if __name__ == "__main__":

@@ -261,6 +261,37 @@ class CheckTest(unittest.TestCase):
             self.check(github, "https://github.com/someone/else/releases/download/v1.3.0")
         self.assertIn("is not a release of amralieg/inspire on github.com", str(caught.exception))
 
+    def test_the_check_runs_the_live_genie_walk_on_the_named_built_app_and_fails_when_any_answer_has_no_data(self):
+        github = support.FakeGitHub(LATEST, self.out)
+        calls = []
+
+        def walk(code):
+            def run(command, cwd):
+                calls.append((command, cwd))
+                return subprocess.CompletedProcess(command, code)
+            return run
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            failures = release.check(LATEST, opener=github, work=self.tmp / "w1", genie=("pricing-desk", "inspire-test", "test-ws"), run=walk(1))
+        self.assertEqual(failures, ["live Genie walk on pricing-desk: exit 1, see its FAIL lines above"])
+        self.assertIn("1 failure", out.getvalue())
+        self.assertEqual(calls[0][0], ["node", str(release.GENIE_WALK), "--app", "pricing-desk", "--inspire", "inspire-test", "--profile", "test-ws"])
+        self.assertTrue(release.GENIE_WALK.is_file())
+        self.assertEqual(calls[0][1], str(release.GENIE_WALK.parent.parent))
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(release.check(LATEST, opener=github, work=self.tmp / "w2", genie=("pricing-desk", "inspire-test", "test-ws"), run=walk(0)), [])
+
+    def test_without_a_named_app_the_check_says_the_genie_walk_did_not_run_and_a_partial_name_is_refused(self):
+        github = support.FakeGitHub(LATEST, self.out)
+        failures, said = self.check(github)
+        self.assertEqual(failures, [])
+        self.assertIn("NOT RUN  live Genie walk", said)
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()) as err:
+            with self.assertRaises(SystemExit) as caught:
+                release.main(["check", "--genie-app", "pricing-desk"])
+        self.assertEqual(caught.exception.code, 2)
+        self.assertIn("needs --genie-app, --genie-inspire and --genie-profile together", err.getvalue())
+
 
 class DeployScriptTest(unittest.TestCase):
     SCRIPT = pathlib.Path(release.__file__).resolve().parent.parent / "scripts" / "deploy-inspire-full.sh"
