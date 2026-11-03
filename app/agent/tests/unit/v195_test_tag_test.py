@@ -8,7 +8,9 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from _agentload import load_agent_namespace  # noqa: E402
 from v120_artifacts_support import FakeSpark, make_inspire  # noqa: E402
 from v120_genie_support import build_inspire, make_uc  # noqa: E402
+from v120_launcher_fix_test import cap_sdk  # noqa: E402,F401
 from v120_modes_main_test import FakeDbutils, widget_values  # noqa: E402
+from v192_job_asset_tags_test import _launch, _TagJobs  # noqa: E402
 
 TEST_KEY = "dbx_inspire_ai_test"
 
@@ -102,6 +104,24 @@ def test_asset_tagging_keeps_the_test_tag_a_job_already_has(ns):
     live = {TEST_KEY: "inspire-rc0", "dbx_inspire_ai_assets": "app", "dbx_inspire_ai_app_name": "old"}
     merged = ns["JobLauncher"].merged_tags(live, {"dbx_inspire_ai_assets": "genie"}, replaced=ns["JobLauncher"].ASSET_TAG_KEYS)
     assert merged == {TEST_KEY: "inspire-rc0", "dbx_inspire_ai_assets": "genie"}
+
+
+def test_a_relaunch_takes_a_test_tag_a_test_run_left_on_the_job_off_it(ns, cap_sdk):
+    live = {TEST_KEY: "inspire-rc0", "team": "growth"}
+    cap_sdk["jobs"] = jobs = _TagJobs(live)
+    assert _launch(ns, {"dbx_inspire_ai_run_type": "discovery"})["success"] is True
+    assert jobs.settings[0].tags == {"team": "growth", "dbx_inspire_ai_run_type": "discovery"}
+    cap_sdk["jobs"] = jobs = _TagJobs(live)
+    assert _launch(ns, {"dbx_inspire_ai_run_type": "discovery", TEST_KEY: "inspire-rc1"})["success"] is True
+    assert jobs.settings[0].tags == {"team": "growth", "dbx_inspire_ai_run_type": "discovery", TEST_KEY: "inspire-rc1"}
+
+
+def test_the_scheduled_plan_takes_a_stale_test_tag_off_too(ns, cap_sdk):
+    cap_sdk["jobs"] = jobs = _TagJobs({TEST_KEY: "inspire-rc0", "dbx_inspire_ai_dashboard_id": "d1"})
+    launcher = ns["JobLauncher"]("/Users/a/agent", {"14_session_id": "1"}, {"dbx_inspire_ai_run_type": "analysis"})
+    launcher._detect_compute_type = lambda: (True, None)
+    assert launcher.plan_next_scheduled_run("dbx_inspire_ai_churn_1a2b3c4d") == 77
+    assert jobs.settings[0].tags == {"dbx_inspire_ai_dashboard_id": "d1", "dbx_inspire_ai_run_type": "analysis"}
 
 
 def test_the_launcher_generated_notebooks_embed_needs_no_agent_helper(ns):
