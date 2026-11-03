@@ -237,6 +237,53 @@ def test_an_unreadable_app_id_still_tags_the_app_name(ns):
     assert any("could not be read" in msg for level, msg in inst.logger.records if level == "WARNING")
 
 
+def _app_reads(api):
+    return [c for c in api.calls if c[:2] == ("GET", "/api/2.0/apps/churn-desk")]
+
+
+def test_the_app_build_records_the_app_id_it_read(ns):
+    assert ns["implement_app_made"]({"id": "a7f3c2e1-1111", "create_time": "2026-11-01T00:00:00Z"}) == {
+        "created": "2026-11-01T00:00:00Z", "app_id": "a7f3c2e1-1111"}
+    assert ns["implement_app_made"]({"id": " ", "create_time": ""}) == {} and ns["implement_app_made"](None) == {}
+    assert not ns["implement_app_remade"]({"created": "t1", "app_id": "old"}, {"create_time": "t1", "id": "new"})
+
+
+def test_a_recorded_app_id_tags_the_job_without_reading_the_app(ns):
+    api = _Api(app={"id": "should-not-be-read"})
+    _tagger(ns, api)._implement_tag_job_assets("N01-U01", 77, {"app": "churn-desk"},
+                                               {"app": {"state": "ready", "backend": "delta", "app_id": "a7f3c2e1-1111"}})
+    [update] = api.updates()
+    assert update["new_settings"]["tags"]["dbx_inspire_ai_app_id"] == "a7f3c2e1-1111" and _app_reads(api) == []
+
+
+def test_the_id_already_on_the_job_is_kept_for_the_same_app_and_read_again_for_another(ns):
+    same = _Api({"dbx_inspire_ai_app_name": "churn-desk", "dbx_inspire_ai_app_id": "a7f3c2e1-1111", "dbx_inspire_ai_assets": "app"},
+                app={"id": "should-not-be-read"})
+    _tagger(ns, same)._implement_tag_job_assets("N01-U01", 77, {"app": "churn-desk"}, {"app": {"state": "ready", "backend": "delta"}})
+    assert same.updates() == [] and _app_reads(same) == []
+    moved = _Api({"dbx_inspire_ai_app_name": "old-desk", "dbx_inspire_ai_app_id": "0ld1d", "dbx_inspire_ai_assets": "app"})
+    _tagger(ns, moved)._implement_tag_job_assets("N01-U01", 77, {"app": "churn-desk"}, {"app": {"state": "ready", "backend": "delta"}})
+    [update] = moved.updates()
+    assert update["new_settings"]["tags"]["dbx_inspire_ai_app_id"] == "a7f3c2e1-1111" and len(_app_reads(moved)) == 1
+
+
+def test_a_finished_build_records_the_app_id_and_tags_the_job_with_it(ns):
+    inst = _probe_inspire(ns, None, {"dashboard": {"state": "ready", "spec_version": 2}})
+    inst._implement_runner = lambda uc: "runner"
+    inst._implement_fill_and_preview = lambda *a: ({"status": "written", "rows_written": 12}, 77, {})
+    inst._implement_dashboard = lambda c, r: pytest.fail("the dashboard did not change")
+    inst._implement_genie_space = lambda c, r: {"genie_space_id": "g1", "genie_space_url": "https://h/genie/rooms/g1"}
+    inst._implement_app = lambda c, r: {"app_name": "churn-desk", "app_url": "https://churn-desk.example", "app_health": "running",
+                                        "_asset": dict({"backend": "delta"}, **ns["implement_app_made"]({"id": "b2", "create_time": "t"}))}
+    api = _Api({"team": "growth"}, app={"id": "should-not-be-read"})
+    inst._implement_api = api
+    assert inst._implement_one_locked({"session_id": 5150, "use_case_id": "N01-U01", "spec_version": 3, "spec_json": dict(VALID)},
+                                      (5150, "N01-U01", 3)) == "ready"
+    assert inst.updates[-1]["asset_status"]["app"]["app_id"] == "b2"
+    [tagged] = [body for body in api.updates() if body.get("job_id") == 77 and "tags" in (body.get("new_settings") or {})]
+    assert tagged["new_settings"]["tags"]["dbx_inspire_ai_app_id"] == "b2" and _app_reads(api) == []
+
+
 def test_a_finished_build_tags_the_use_case_job_with_its_assets(ns):
     inst = _probe_inspire(ns, None, {"dashboard": {"state": "ready", "spec_version": 2}})
     inst._implement_runner = lambda uc: "runner"
