@@ -38,7 +38,7 @@ WRITE_CLAUSES = [
 ]
 FUNCTION_FROM = re.compile(r"\b(EXTRACT|TRIM|SUBSTRING|OVERLAY|POSITION)\s*\($", re.I)
 OWNED_PLACEHOLDER = re.compile(
-    r"\{[^}]*(tracking_table|session_table|steps?_table|lock_table|feedback_table|ailogs_table|implement_table|view_name|"
+    r"\{[^}]*(tracking_table|session_table|steps?_table|lock_table|feedback_table|ailogs_table|implement_table|owned_table|view_name|"
     r"_view\b|temp_view|tmp_view)[^}]*\}")
 IMPLEMENT_FUNCTION = re.compile(r"^_?implement_")
 IMPLEMENT_RESULT_PLACEHOLDER = re.compile(r"^\{[^{}]*\bresult_table\b[^{}]*\}$")
