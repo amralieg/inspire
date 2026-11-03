@@ -1,10 +1,10 @@
-# Inspire AI — Application bundle
+# Inspire AI: Application bundle
 
 Full-stack Databricks App (Node backend, React frontend, Inspire agent notebooks).
 
 People who install Inspire do not need this README: they download `inspire_installer.py` from the latest release, import it into a workspace folder and run it.
 
-## v1.3.1 — exec notes
+## v1.3.1: exec notes
 
 - **Agent:** `dbx_inspire_ai_agent` `__AGENT_VERSION__ = v1.3.1`
 - **Discovery Type:** widget `03_discovery_type` = Deep (default) / Standard; an unknown value is refused with 400

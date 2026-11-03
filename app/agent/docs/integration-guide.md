@@ -29,11 +29,11 @@ This is the single source of truth for integrating Inspire progress and outputs 
 > - **Hard-Veto Survivors Resolved:** The stratified trim now drops hard-veto use cases BEFORE trimming. `bob_score = 2.0` should be rare to impossible in the final v0.7.3+ portfolio. The warning-badge UI pattern (Section 17.F) now applies only to legacy v0.7.2 sessions.
 > - **Target-Max Jitter (Non-Round Portfolio Sizes):** Default portfolios now land in the `91-110` range instead of exactly `100`. `target_max_use_cases` is now the base (default changed from 100 to **90**) and `target_max_jitter` (default **20**) is added on top. Apps expecting exactly 100 UCs will see varying counts.
 > - **Multi-Language Filenames:** Multi-language runs now produce per-language artifacts (`readme_<lang_abbr>.md`, `<business>-dbx_inspire_<lang_abbr>.xlsx`). Single-language runs retain the legacy filenames.
-> - **Parallel Genie Regeneration:** Route 1/2 Genie Code regeneration now runs in parallel (default concurrency 10, configurable via `genie_regen_parallelism`). Apps polling the step table may observe out-of-order `(idx/total)` counters — this is expected.
+> - **Parallel Genie Regeneration:** Route 1/2 Genie Code regeneration now runs in parallel (default concurrency 10, configurable via `genie_regen_parallelism`). Apps polling the step table may observe out-of-order `(idx/total)` counters: this is expected.
 >
 > **Carried Forward From v0.7.2** (details in Sections 2.3, 5.2, 8.13, 14, 17):
 >
-> - Five columns on `__inspire_usecases` (`idea_theme`, `bob_score`, `bob_tier1_score`, `bob_tier2_score`, `bob_tier3_score`) — populated only when aggressive vetting fires.
+> - Five columns on `__inspire_usecases` (`idea_theme`, `bob_score`, `bob_tier1_score`, `bob_tier2_score`, `bob_tier3_score`): populated only when aggressive vetting fires.
 > - Two step events under the `Use Case Prioritization` stage: `Best Of Best Ranking` and `LLM Aggressive Consolidation`.
 > - Prompt title `BEST_OF_BEST_SCORING_PROMPT` ("Inspire Is Ranking Use Cases By Every Quality Gate For Fine-Grained Prioritization").
 > - `idea_theme` is free-form LLM text; apps MUST NOT treat it as a closed enum until the planned canonicalization pass ships.
@@ -47,7 +47,7 @@ Read only these tracking tables:
 - `<inspire_db>.__inspire_usecases` (internal tracking/log table)
 - `<inspire_db>.__inspire_implement` (Implement with Genie: one row per wizard spec version)
 
-All tables are Delta tables created automatically when Inspire runs. Your app never writes to `__inspire_step` — it only writes back an ACK on `__inspire_session.processing_status`.
+All tables are Delta tables created automatically when Inspire runs. Your app never writes to `__inspire_step`: it only writes back an ACK on `__inspire_session.processing_status`.
 
 **Write Boundaries:**
 
@@ -97,7 +97,7 @@ CREATE TABLE IF NOT EXISTS <inspire_db>.__inspire_step (
     progress_increment  DOUBLE,       -- Integer-style delta (minimum 1, never 0)
     message             STRING,       -- Richer narrative sentence for display
     status              STRING,       -- 'started' | 'ended_success' | 'ended_warning' | 'ended_error'
-    result_json         VARIANT       -- JSON: structured payload (schema varies by phase — see Section 8)
+    result_json         VARIANT       -- JSON: structured payload (schema varies by phase, see Section 8)
 ) USING DELTA
 ```
 
@@ -113,16 +113,16 @@ CREATE TABLE IF NOT EXISTS <inspire_db>.__inspire_usecases (
     short_name                          STRING,
     updated_at                          TIMESTAMP,
     -- v0.7.0+: Genie Code Regeneration Flags
-    generate_genie_code_instruction     STRING,   -- 'Yes' | 'No' — if 'Yes' in Route 2, UC is re-genie'd on next run
+    generate_genie_code_instruction     STRING,   -- 'Yes' | 'No'; if 'Yes' in Route 2, UC is re-genie'd on next run
     has_genie_code                      STRING,   -- 'Y' | 'N' from v0.7.6+ (was 'Yes' | 'No' in v0.7.3 and earlier). Pre-existing rows keep their legacy value.
     directly_involved_schema            STRING,   -- Scoped schema snippet used during regeneration
     code_structure_mandate              STRING,   -- Genie Code structure mandate cached per use case; filled for every row from v1.2.0
     -- v0.7.2+: Best Of Best (BoB) Scoring And Idea Theme
-    idea_theme                          STRING,   -- 2-4 word analytical archetype (e.g. 'Anomaly Detection') — NULL if BoB did not run
-    bob_score                           DOUBLE,   -- Composite BoB score in [0,10]; 2.0 is a hard-veto sentinel — NULL if BoB did not run
-    bob_tier1_score                     DOUBLE,   -- Mean of gates D1-D11 (technical grounding) — NULL if BoB did not run
-    bob_tier2_score                     DOUBLE,   -- Mean of gates D12-D14 (business value) — NULL if BoB did not run
-    bob_tier3_score                     DOUBLE,   -- Mean of gates D15-D19 (PBA sign-off) — NULL if BoB did not run
+    idea_theme                          STRING,   -- 2-4 word analytical archetype (e.g. 'Anomaly Detection'); NULL if BoB did not run
+    bob_score                           DOUBLE,   -- Composite BoB score in [0,10]; 2.0 is a hard-veto sentinel; NULL if BoB did not run
+    bob_tier1_score                     DOUBLE,   -- Mean of gates D1-D11 (technical grounding); NULL if BoB did not run
+    bob_tier2_score                     DOUBLE,   -- Mean of gates D12-D14 (business value); NULL if BoB did not run
+    bob_tier3_score                     DOUBLE,   -- Mean of gates D15-D19 (PBA sign-off); NULL if BoB did not run
     -- v1.2.0+: Quality Modes And Elite Selection
     quality                             STRING,   -- Quality label from combined scoring ('Ultra High' ... 'Ultra Low')
     quality_mode                        STRING,   -- The session's quality mode: 'Good' | 'High' | 'Ultra High'
@@ -271,7 +271,7 @@ Inspire uses a cooperative flush protocol. Your app must implement this loop:
 1. Poll `__inspire_session` every 5 seconds.
 2. If `processing_status = 'ready'`, read new step rows, render them, then ACK by setting `processing_status = 'done'`.
 3. Continue until `completed_on IS NOT NULL`.
-4. Do **not** ACK `done` before render succeeds — this gates the next flush.
+4. Do **not** ACK `done` before render succeeds: this gates the next flush.
 
 **State Machine:**
 
@@ -285,7 +285,7 @@ Inspire uses a cooperative flush protocol. Your app must implement this loop:
     │                       │                               │
     ▼                       ▼                               ▼
                    'ready' + completed_on IS NOT NULL
-                   (final state — stop polling)
+                   (final state: stop polling)
 ```
 
 ## 4) Progress Contract
@@ -456,7 +456,7 @@ Every `result_json` payload contains these base fields:
 
 Session ids inside `result_json` are decimal text, so a JavaScript reader keeps every digit of a 19-digit id; the `session_id` column of the table stays BIGINT. Rows written by earlier versions hold the id as a number: read it as text, for example `CAST(result_json:session_id AS STRING)`, never through a JavaScript number.
 
-The rest of the schema depends on the pipeline phase. Treat `result_json` as tolerant JSON — always check for key existence before access.
+The rest of the schema depends on the pipeline phase. Treat `result_json` as tolerant JSON: always check for key existence before access.
 
 ### 8.1 Pipeline Lifecycle Events
 
@@ -863,7 +863,7 @@ Warning events use a unique step_name with a timestamp suffix to avoid collision
 
 Two new step-event tuples are emitted during Phase 4 when the aggressive-vetting threshold triggers (by default when the running UC count exceeds `aggressive_prune_threshold = 75`). Both are scoped to the `Use Case Prioritization` stage.
 
-#### 8.13.1 Best Of Best Ranking — Started
+#### 8.13.1 Best Of Best Ranking: Started
 
 - `stage_name`: `"Use Case Prioritization"`
 - `step_name`: `"Best of Best Ranking"`
@@ -888,7 +888,7 @@ Two new step-event tuples are emitted during Phase 4 when the aggressive-vetting
 | `batches` | int | Number of LLM batches (governed by `bob_scoring_batch_size`, default 25) |
 | `target_max` | int | The `target_max_use_cases` parameter the subsequent trim aims for (default 100) |
 
-#### 8.13.2 Best Of Best Ranking — Complete
+#### 8.13.2 Best Of Best Ranking: Complete
 
 - `stage_name`: `"Use Case Prioritization"`
 - `step_name`: `"Best of Best Ranking"`
@@ -911,7 +911,7 @@ Two new step-event tuples are emitted during Phase 4 when the aggressive-vetting
 | `scored` | int | Number of use cases successfully scored across D1-D19 |
 | `total` | int | Number of use cases submitted for scoring (`scored < total` indicates LLM batch failures that survived the retries; those BoB-unscored use cases are excluded from selection, never kept as best-effort) |
 
-#### 8.13.3 LLM Aggressive Consolidation — Complete
+#### 8.13.3 LLM Aggressive Consolidation: Complete
 
 Emitted after the stratified trim that consumes the BoB scores and collapses over-populated `idea_theme` buckets.
 
@@ -933,13 +933,13 @@ Emitted after the stratified trim that consumes the BoB scores and collapses ove
 | Field | Type | Description |
 |---|---|---|
 | `before` | int | Number of use cases entering the stratified trim |
-| `after` | int | Number of use cases surviving the trim (should typically equal `target_max` when over-threshold; may be larger if hard-veto survivors keep the count elevated — see Section 18 known issue) |
+| `after` | int | Number of use cases surviving the trim (should typically equal `target_max` when over-threshold; may be larger if hard-veto survivors keep the count elevated; see Section 18 known issue) |
 | `target_max` | int | Parameter used for the trim (default 100, configurable via `target_max_use_cases`) |
 
 #### 8.13.4 Integration Notes For BoB Events
 
-- Both events are **optional** in a session — they only fire when aggressive vetting triggers. Apps MUST tolerate sessions without these events.
-- The `Best Of Best Ranking` step is idempotent and singular per session — a single started/ended_success pair.
+- Both events are **optional** in a session: they only fire when aggressive vetting triggers. Apps MUST tolerate sessions without these events.
+- The `Best Of Best Ranking` step is idempotent and singular per session: a single started/ended_success pair.
 - The `LLM Aggressive Consolidation` step may emit an `ended_warning` if the LLM-driven trim partially fails; the pipeline falls back to a deterministic score-sort trim.
 - Because the BoB columns are written via `MERGE INTO` after the `ended_success` of `Best Of Best Ranking`, apps should delay any UI that depends on `bob_score` until AFTER observing the `ended_success` for `BoB_Ranking`. A short (~2s) client-side debounce is recommended to absorb Delta read-after-write latency.
 - See Section 17 for the detailed scoring model, tier semantics, and recommended UI patterns.
@@ -1123,7 +1123,7 @@ Stored in `__inspire_session.widget_values` at session initialization. This capt
 | `strategic_context` | string | v1.3.0, widget `10_strategic_context`: the raw widget text, inline JSON or a Workspace or Volumes path starting with `/`; empty for none. The parsed tree is stored in the session column `strategic_context` and in `results_json.strategic_context` |
 | `best_of_best_count` | string | v1.3.0, widget `16_best_of_best_count`: empty (20, or the number in the generation instructions) or a whole number from 0 to 100; any other value stops the run |
 | `technical_exclusion_strategy` | string | Always `"Aggressive"`: technical and system tables are always filtered out; no other strategy is accepted |
-| `generation_instructions` | string | Free-text instructions parsed by AI into structured directives — see 9.1 |
+| `generation_instructions` | string | Free-text instructions parsed by AI into structured directives; see 9.1 |
 | `business_priorities` | string | Comma-separated priorities (e.g. `"Increase Revenue,Optimize Operations"`) |
 | `business_domains` | string | Comma-separated top-level domains (Inspire discovers subdomains) |
 | `catalogs` | string | Comma-separated Unity Catalog catalog names |
@@ -1136,7 +1136,7 @@ Stored in `__inspire_session.widget_values` at session initialization. This capt
 | `generate_genie_code_for` | string | Widget `13_generate_genie_code_for`: how many use cases get Genie Code during Discover, by final rank (a non-negative integer or `all`, default `0`); `0` means no use case in any mode, and any other value gives every elite use case in `Ultra High` (Section 17.H) |
 | `session_id` | string | User-provided or auto-generated session ID |
 
-### 9.1 `generation_instructions` — Context Categories (v0.7.0+)
+### 9.1 `generation_instructions`: Context Categories (v0.7.0+)
 
 The **single** `08_generation_instructions` widget is a free-form textarea the user fills to steer generation. An LLM (`GENERAL_INSTRUCTION_INTERPRETER_PROMPT`) extracts **seven categories** from it. Zero new widgets; user writes naturally. If the user didn't mention a category, it's left empty and the pipeline runs as-if not provided.
 
@@ -1148,7 +1148,7 @@ The **single** `08_generation_instructions` widget is a free-form textarea the u
 | 4 | **Table Ignores** | list of `{pattern, type}` | "ignore tables starting with __log" | Filter prompt rejects matching tables as TECHNICAL |
 | 5 | **Construct Exclusions** *(v0.7.0)* | list of strings | "we don't have a loyalty program", "no NPS survey data" | Any UC referencing excluded constructs is rejected in Review + Combined scoring |
 | 6 | **Change-Management Posture** *(v0.7.0)* | `conservative` / `balanced` / `experimental` / `crisis-response` | "we're conservative about production changes" | Conservative → every Solution names a rollback trigger; experimental → every Solution names a pilot scope |
-| 7 | **Data Characteristics** *(v0.7.0)* | `{table_name: description}` | "claims table has no labeled fraud outcomes" | Technique selection respects these — no supervised ML on un-labeled tables |
+| 7 | **Data Characteristics** *(v0.7.0)* | `{table_name: description}` | "claims table has no labeled fraud outcomes" | Technique selection respects these: no supervised ML on un-labeled tables |
 
 **App UI guidance:** do NOT add one widget per category. Keep the single textarea and allow the user to type naturally. The interpreter LLM disambiguates.
 
@@ -1203,7 +1203,7 @@ Updated on each flush. Contains intermediate pipeline metadata:
 
 See Section 11.
 
-## 11) `results_json` — Final Output Catalog Schema
+## 11) `results_json`: Final Output Catalog Schema
 
 When the pipeline completes, `results_json` contains the full use case catalog. This is the primary output for downstream consumption.
 
@@ -1264,7 +1264,7 @@ When the pipeline completes, `results_json` contains the full use case catalog. 
 
 ### 11.2 `column_registry` Schema
 
-Maps short IDs to full column info. Used for compact storage — use case fields reference column IDs instead of full names.
+Maps short IDs to full column info. Used for compact storage: use case fields reference column IDs instead of full names.
 
 ```json
 {
@@ -1308,7 +1308,7 @@ Maps short IDs to fully-qualified table names:
 
 ### 11.6 Use Case Object Schema (within `domains[].use_cases[]`)
 
-Each use case object contains the full lifecycle of fields — from generation through scoring to instructions:
+Each use case object contains the full lifecycle of fields: from generation through scoring to instructions:
 
 ```json
 {
@@ -1559,10 +1559,10 @@ GROUP BY result_json:prompt_name::STRING;
 
 ## 13) UI Implementation Rules
 
-1. **Upsert step rows** by `step_id` — a `started` event and its matching `ended_*` event share the same `step_id`.
+1. **Upsert step rows** by `step_id`: a `started` event and its matching `ended_*` event share the same `step_id`.
 2. **Sort order**: by `last_updated` ASC, then `step_id` ASC.
 3. **Display hierarchy**: show timeline from `stage_name` → `step_name` → `sub_step_name` → `message`. Never expose raw prompt names to users.
-4. **Keep warning/error rows** visible in history — do not auto-dismiss them.
+4. **Keep warning/error rows** visible in history: do not auto-dismiss them.
 5. **Stop active polling** when `completed_on IS NOT NULL`.
 6. **Progress bar**: bind to `__inspire_session.completed_percent`. Do not accumulate `progress_increment` client-side (the server is authoritative).
 7. **Flush gating**: the 2-second flush interval means step events arrive in batches, not real-time. Design your UI to handle batch updates gracefully.
@@ -1592,7 +1592,7 @@ Phase 3: Domain Clustering (sequential)
   └── Domain Splitter
 
 Phase 4: Scoring, Deduplication & Selection (v1.2.0)
-  ├── LLM Deduplication (REVIEW_USE_CASES_PROMPT — 5-layer semantic, no regex)
+  ├── LLM Deduplication (REVIEW_USE_CASES_PROMPT: 5-layer semantic, no regex)
   ├── Combined Value + Quality Scoring (single LLM pass; enforces all 19 gates D1-D19;
   │     a UC without a valid score is never selected)
   ├── Quality Bar of the selected mode
@@ -1638,7 +1638,7 @@ Phase 6: Summary & Artifacts
   ├── Executive Summary
   ├── Notebook Generation (per domain)
   ├── PDF / Excel Generation
-  ├── Genie Code Regeneration — Route 1 / Route 2 (PARALLEL, v0.7.3)  [concurrency = genie_regen_parallelism, default 10]
+  ├── Genie Code Regeneration: Route 1 / Route 2 (PARALLEL, v0.7.3)  [concurrency = genie_regen_parallelism, default 10]
   └── JSON Catalog (→ populates results_json)
 
 Phase 7: Translation (if multi-language)
@@ -1649,7 +1649,7 @@ Pipeline Complete
   └── Finalize (completed_percent = 100, completed_on set)
 ```
 
-> **v0.7.3 Note On Phase 6 Parallelism:** Genie Code Regeneration (Route 1 DB-flag and Route 2 notebook-flag) now runs concurrently with `genie_regen_parallelism` workers (default 10). Step events for regenerated UCs arrive as they complete, so the `(idx/total)` counters in `sub_step_name` / `message` may appear out of order (e.g., `7/30` may land after `8/30`). Apps rendering a progress timeline for regeneration should sort by `last_updated` and treat `(idx/total)` as identity/metadata, not a monotonic sequence. Overall `completed_percent` remains monotonic — it is server-authoritative and aggregated across workers.
+> **v0.7.3 Note On Phase 6 Parallelism:** Genie Code Regeneration (Route 1 DB-flag and Route 2 notebook-flag) now runs concurrently with `genie_regen_parallelism` workers (default 10). Step events for regenerated UCs arrive as they complete, so the `(idx/total)` counters in `sub_step_name` / `message` may appear out of order (e.g., `7/30` may land after `8/30`). Apps rendering a progress timeline for regeneration should sort by `last_updated` and treat `(idx/total)` as identity/metadata, not a monotonic sequence. Overall `completed_percent` remains monotonic: it is server-authoritative and aggregated across workers.
 
 ## 15) Error Handling & Edge Cases
 
@@ -1675,12 +1675,12 @@ Pipeline Complete
 - [ ] Use `column_registry` and `table_registry` to resolve IDs in use case fields
 - [ ] Keep error/warning steps visible in the timeline for auditability
 - [ ] *(v0.7.2)* Handle NULL for `idea_theme` and all four `bob_*_score` columns gracefully
-- [ ] *(v0.7.2)* Render `bob_score == 2.0` with a hard-veto warning badge — apply only to legacy v0.7.2 session replay (see Section 17.D)
+- [ ] *(v0.7.2)* Render `bob_score == 2.0` with a hard-veto warning badge: apply only to legacy v0.7.2 session replay (see Section 17.D)
 - [ ] *(v0.7.2)* Treat `idea_theme` as free-form text, not an enum
 - [ ] *(v0.7.2)* Recognize the `Best Of Best Ranking` and `LLM Aggressive Consolidation` step events and render friendly labels
-- [ ] *(v0.7.3)* Accept non-round portfolio sizes — final count lands in the `90-110` range by default; do not assert exactly 100
-- [ ] *(v0.7.3)* Handle both single- and multi-language artifact filenames (`readme*.md`, `<business>-dbx_inspire*.xlsx`) — see Section 19.7
-- [ ] *(v0.7.3)* Tolerate out-of-order `(idx/total)` step events during parallel Genie regeneration — sort by `last_updated`, do not rely on counter monotonicity
+- [ ] *(v0.7.3)* Accept non-round portfolio sizes: final count lands in the `90-110` range by default; do not assert exactly 100
+- [ ] *(v0.7.3)* Handle both single- and multi-language artifact filenames (`readme*.md`, `<business>-dbx_inspire*.xlsx`); see Section 19.7
+- [ ] *(v0.7.3)* Tolerate out-of-order `(idx/total)` step events during parallel Genie regeneration: sort by `last_updated`, do not rely on counter monotonicity
 - [ ] *(v0.7.3)* Read `target_max_jitter` and `genie_regen_parallelism` from `inspire_json` in admin/debug UIs (see Section 17.C)
 - [ ] *(v1.2.0)* Offer the quality modes `Good`, `High` and `Ultra High`; read `use_cases_quality` as one of those three (Section 9.2)
 - [ ] *(v1.2.0)* Render `results_json.selection_outcome` / the `Quality Bar` event as a valid below-bar result, not an error: the closest candidates ship labelled "below the `<mode>` bar" with the missed-check reasons, under a plain "0 use cases met the bar" notice (Sections 8.14, 11.7)
@@ -1693,7 +1693,7 @@ Best Of Best (BoB) scoring is a deterministic, tier-weighted refinement pass tha
 
 ### 17.A Schema Overview
 
-Five columns were added to `__inspire_usecases` in v0.7.2. All are nullable — rows predating v0.7.2, or sessions in which BoB did not run, will have `NULL` in every column.
+Five columns were added to `__inspire_usecases` in v0.7.2. All are nullable: rows predating v0.7.2, or sessions in which BoB did not run, will have `NULL` in every column.
 
 | Column | Type | When Populated | Semantics |
 |---|---|---|---|
@@ -1751,7 +1751,7 @@ WHERE session_id = :sid;
 
 1. **Free-Form Theme Labels.** `idea_theme` is LLM-generated free-form text. Apps MUST NOT assume a fixed enum. From v1.3.0 one call names the themes of a whole run, so within a session one idea carries one name; two sessions can still name the same idea differently, and sessions written before v1.3.0 can hold near-duplicates (v0.7.2 produced ~75 distinct themes across 100 UCs). Apps that build theme filters should use `COUNT DISTINCT idea_theme` dynamically, not a hardcoded list.
 
-2. **Hard-Veto Sentinel (Legacy v0.7.2 Sessions Only).** A `bob_score` of exactly `2.0` is a flag value meaning the hard-veto floor was hit — at least one of D1-D19 scored below 3. **v0.7.3+: the stratified trim drops hard-veto UCs before trimming, so `bob_score = 2.0` survivors should be rare-to-impossible in new sessions.** Apps SHOULD still handle the sentinel defensively for older (v0.7.2) session data. See Section 17.F for the legacy warning-badge UI pattern.
+2. **Hard-Veto Sentinel (Legacy v0.7.2 Sessions Only).** A `bob_score` of exactly `2.0` is a flag value meaning the hard-veto floor was hit: at least one of D1-D19 scored below 3. **v0.7.3+: the stratified trim drops hard-veto UCs before trimming, so `bob_score = 2.0` survivors should be rare-to-impossible in new sessions.** Apps SHOULD still handle the sentinel defensively for older (v0.7.2) session data. See Section 17.F for the legacy warning-badge UI pattern.
 
 3. **BoB Did Not Run.** A session in which the post-filter UC count stayed at or below `aggressive_prune_threshold` will have `NULL` in all 5 new columns. This is expected and not an error. Apps SHOULD render a neutral "not scored" state rather than `0.0` or a missing row.
 
@@ -1841,23 +1841,23 @@ ORDER BY survivors DESC;
 
 | Score Range | Color | Label Guidance |
 |---|---|---|
-| `NULL` | Neutral gray | "Not Scored" — BoB did not run |
-| `== 2.0` *(legacy v0.7.2 only)* | Red with warning icon | "Hard Veto" — surface the audit-log link |
-| `2.01 – 4.99` | Amber | "Marginal" |
-| `5.00 – 7.99` | Yellow-Green | "Strong" |
-| `8.00 – 10.0` | Green | "Flagship" |
+| `NULL` | Neutral gray | "Not Scored": BoB did not run |
+| `== 2.0` *(legacy v0.7.2 only)* | Red with warning icon | "Hard Veto": surface the audit-log link |
+| `2.01 to 4.99` | Amber | "Marginal" |
+| `5.00 to 7.99` | Yellow-Green | "Strong" |
+| `8.00 to 10.0` | Green | "Flagship" |
 
 > **v0.7.3 Note:** The `== 2.0` row applies only to OLDER session data persisted under v0.7.2. New v0.7.3+ sessions drop hard-veto UCs before the stratified trim, so the red "Hard Veto" badge should not fire for new portfolios. Keep the code path for backward compatibility with archived sessions.
 
 **2. `idea_theme` Chip.** Render as a rounded text chip next to the UC title. Because the vocabulary is currently unbounded, assign colors by hashing the theme string (stable across refreshes). Once the planned canonicalization pass ships, apps may switch to a curated palette.
 
-**3. Hard-Veto Flag (Legacy v0.7.2 Sessions).** When `bob_score == 2.0`, stack a small triangular warning badge on the UC card AND insert an info tooltip: "This use case hit a hard-veto floor during Best Of Best scoring. At least one quality gate scored below the acceptable threshold. Review the Phase 4 step events for which gate fired." This pattern is only expected to fire for legacy v0.7.2 sessions — v0.7.3+ removes hard-veto survivors at trim time.
+**3. Hard-Veto Flag (Legacy v0.7.2 Sessions).** When `bob_score == 2.0`, stack a small triangular warning badge on the UC card AND insert an info tooltip: "This use case hit a hard-veto floor during Best Of Best scoring. At least one quality gate scored below the acceptable threshold. Review the Phase 4 step events for which gate fired." This pattern is only expected to fire for legacy v0.7.2 sessions: v0.7.3+ removes hard-veto survivors at trim time.
 
 **4. Tier Progress Bars.** For detail views, render three horizontal bars (Tier 1 / Tier 2 / Tier 3) each at `score / 10`. This communicates where a UC is strong vs weak at a glance.
 
 **5. Phase 4 Timeline Entry.** When rendering step events, group `Best Of Best Ranking` and `LLM Aggressive Consolidation` under a collapsible "Fine-Grained Prioritization (v0.7.2)" sub-section of the Use Case Prioritization stage.
 
-**6. Empty State For Non-BoB Sessions.** If `COUNT(bob_score) = 0` for the session, DO NOT render empty score badges. Instead render a one-line explanation: "BoB scoring was not required — this session produced ≤ 75 use cases."
+**6. Empty State For Non-BoB Sessions.** If `COUNT(bob_score) = 0` for the session, DO NOT render empty score badges. Instead render a one-line explanation: "BoB scoring was not required; this session produced ≤ 75 use cases."
 
 ### 17.G BEST_OF_BEST_SCORING_PROMPT And Its Place In The Flow
 
@@ -1951,7 +1951,7 @@ A use case labelled with a model technique (families A-D) whose elite build path
 
 This section is preserved for integrators still querying legacy v0.7.2 session data. Each item below is marked with its resolution status in v0.7.3.
 
-### 18.1 Hard-Veto Survival In Stratified Trim — Resolved in v0.7.3
+### 18.1 Hard-Veto Survival In Stratified Trim: Resolved in v0.7.3
 
 **Status:** Resolved in v0.7.3.
 
@@ -1963,7 +1963,7 @@ This section is preserved for integrators still querying legacy v0.7.2 session d
 
 **Integrator Guidance (v0.7.3+):** Apps no longer need to render hard-veto warning badges for NEW sessions. Retain the UI path for backward compatibility with archived v0.7.2 sessions.
 
-### 18.2 Free-Form Theme Vocabulary Explosion — Not Resolved
+### 18.2 Free-Form Theme Vocabulary Explosion: Not Resolved
 
 **Status:** Fixed in v1.3.0 for new sessions: one call names the themes of the whole run (see 17.D). Sessions written before v1.3.0 keep their themes.
 
@@ -1979,7 +1979,7 @@ This section is preserved for integrators still querying legacy v0.7.2 session d
 
 **Planned Fix:** A canonicalization pass (target: post-v0.7.3) will reduce the vocabulary to 15-25 curated themes (e.g. "Anomaly Detection", "Demand Forecasting", "Churn Prediction", "Recommendation", "Optimization", "Classification", "Segmentation"...).
 
-### 18.3 Delta Read-After-Write On BoB Columns — Unchanged
+### 18.3 Delta Read-After-Write On BoB Columns: Unchanged
 
 **Status:** Unchanged in v0.7.3 (inherent to Delta read-after-write semantics, not a pipeline bug).
 
@@ -1989,17 +1989,17 @@ This section is preserved for integrators still querying legacy v0.7.2 session d
 
 **Integrator Guidance:** Apply a ~2 second debounce between observing the `ended_success` and querying the BoB columns. Alternatively, gate on the presence of the `LLM Aggressive Consolidation` `ended_success` event, which is emitted after the MERGE completes.
 
-### 18.4 Counts May Briefly Exceed `target_max_use_cases` — Semantics Changed in v0.7.3
+### 18.4 Counts May Briefly Exceed `target_max_use_cases`: Semantics Changed in v0.7.3
 
 **Status:** Semantics changed in v0.7.3; counts are now deliberately non-round by design (see Section 17.C `target_max_jitter`).
 
 **Symptom (v0.7.2):** The `after` field of the `LLM Aggressive Consolidation` step payload occasionally exceeded the configured `target_max_use_cases` because hard-veto survivors occupied unique-theme buckets.
 
-**v0.7.3 Behavior:** The hard-veto pre-filter (Item 18.1) removes the overshoot cause. However, portfolios are now intentionally non-round — the effective ceiling is `target_max_use_cases + random(0..target_max_jitter)`. With the v0.7.3 defaults (`target_max_use_cases=90`, `target_max_jitter=20`), portfolios land in the `90-110` range. Apps MUST accept variable counts and MUST NOT assume exactly 100.
+**v0.7.3 Behavior:** The hard-veto pre-filter (Item 18.1) removes the overshoot cause. However, portfolios are now intentionally non-round: the effective ceiling is `target_max_use_cases + random(0..target_max_jitter)`. With the v0.7.3 defaults (`target_max_use_cases=90`, `target_max_jitter=20`), portfolios land in the `90-110` range. Apps MUST accept variable counts and MUST NOT assume exactly 100.
 
 ## 19) Migration Notes (Upgrading From v0.7.1 or Earlier)
 
-v0.7.2 is a **forward-compatible** upgrade — no breaking table renames, drops, or semantic changes to existing columns. However, integrators should verify several behaviors before rolling out to production consumers.
+v0.7.2 is a **forward-compatible** upgrade: no breaking table renames, drops, or semantic changes to existing columns. However, integrators should verify several behaviors before rolling out to production consumers.
 
 ### 19.1 Schema Changes
 
@@ -2037,25 +2037,25 @@ If your app used older-schema approaches that BoB now subsumes, emit developer w
 |---|---|---|
 | Ranking UCs purely by `Priority` / `Quality` label | Prefer `bob_score` when present | `"Deprecation: rank_by_quality_label is superseded by bob_score (v0.7.2+); fall back to label only when bob_score IS NULL"` |
 | Hardcoded UC-count ceiling of 100 | Read `target_max_use_cases` from `inspire_json` | `"Deprecation: hardcoded UC ceiling; read target_max_use_cases runtime param"` |
-| Treating all UCs as fungible | Group by `idea_theme` in summaries | `"Enhancement: v0.7.2 exposes idea_theme — consider theme-grouped summaries"` |
+| Treating all UCs as fungible | Group by `idea_theme` in summaries | `"Enhancement: v0.7.2 exposes idea_theme; consider theme-grouped summaries"` |
 
 ### 19.5 Rollback Safety
 
 Because v0.7.2 only **adds** columns and step-event tuples (no drops, no semantic redefinitions):
 
-- Downgrading the Inspire pipeline back to v0.7.1 is safe — the new columns remain in the Delta schema but simply stop being populated.
+- Downgrading the Inspire pipeline back to v0.7.1 is safe: the new columns remain in the Delta schema but simply stop being populated.
 - Integrator apps pinned to the v0.7.1 schema continue to read existing columns without error.
 - No data migration or backfill is required.
 
 ### 19.6 Migrating From v0.7.2 To v0.7.3 (Behavioral Changes Only)
 
-**Good News — No Schema Migration.** v0.7.3 does NOT add, drop, or rename any columns on `__inspire_session`, `__inspire_step`, or `__inspire_usecases`. No data migration or backfill is needed. Existing DTOs and SQL continue to work.
+**Good News: No Schema Migration.** v0.7.3 does NOT add, drop, or rename any columns on `__inspire_session`, `__inspire_step`, or `__inspire_usecases`. No data migration or backfill is needed. Existing DTOs and SQL continue to work.
 
 The v0.7.3 changes are entirely **behavioral** and **runtime-parameter-driven**:
 
 | Change | Impact On Integrators | Action Required |
 |---|---|---|
-| Hard-veto pre-filter (Issue 18.1 resolved) | `bob_score = 2.0` survivors effectively disappear from new portfolios | None — the red "Hard Veto" badge path simply stops triggering for new sessions. Keep the UI code for legacy v0.7.2 session replay |
+| Hard-veto pre-filter (Issue 18.1 resolved) | `bob_score = 2.0` survivors effectively disappear from new portfolios | None: the red "Hard Veto" badge path simply stops triggering for new sessions. Keep the UI code for legacy v0.7.2 session replay |
 | `target_max_use_cases` default changed: 100 → **90** | Admin/debug UIs displaying the parameter will show 90 by default | Update any hardcoded display copy that says "default 100" |
 | New parameter `target_max_jitter` (default 20) | Final portfolio counts now land in the `90-110` range | Remove any assertions / tests that expect exactly 100 UCs. Render counts dynamically |
 | New parameter `genie_regen_parallelism` (default 10) | Route 1/2 Genie regeneration (Phase 6) runs in parallel | Accept out-of-order `(idx/total)` step events during regeneration. Sort by `last_updated` and do not rely on monotonic counter ordering |
@@ -2063,7 +2063,7 @@ The v0.7.3 changes are entirely **behavioral** and **runtime-parameter-driven**:
 
 **Rollback Safety (v0.7.3 → v0.7.2):**
 
-- Downgrading the Inspire pipeline to v0.7.2 is safe — no schema changes to revert.
+- Downgrading the Inspire pipeline to v0.7.2 is safe: no schema changes to revert.
 - Apps tested against v0.7.3 portfolios will see exactly-100-UC portfolios again if the runtime rolls back.
 - Apps relying on the v0.7.3 hard-veto pre-filter should re-enable their hard-veto warning badge path if a rollback occurs.
 
@@ -2084,7 +2084,7 @@ When the run produces multiple output languages, Inspire now writes one artifact
 **Language Codes (v1.2.0):** every documents language maps to its ISO 639-1 code: English `en`, French `fr`, German `de`, Spanish `es`, Hindi `hi`, Chinese (Mandarin) `zh`, Japanese `ja`, Arabic `ar`, Portuguese `pt`, Russian `ru`, Swedish `sv`, Danish `da`, Norwegian `no`, Finnish `fi`, Italian `it`, Polish `pl`, Romanian `ro`, Ukrainian `uk`, Dutch `nl`, Korean `ko`, Indonesian `id`, Malay `ms`, Tamil `ta`. Before v1.2.0 six languages got the first two letters of their name instead: Swedish `sw`, Polish `po`, Dutch `du`, Indonesian `in`, Malay `ma` and Chinese (Mandarin) `ch`. Apps that build these file names must use the new codes for sessions from v1.2.0.
 
 
-**How To Know Which Pattern To Expect:** parse `widget_values:output_language` — if it contains a comma, expect the multi-language pattern.
+**How To Know Which Pattern To Expect:** parse `widget_values:output_language`: if it contains a comma, expect the multi-language pattern.
 
 ```sql
 SELECT
@@ -2166,7 +2166,7 @@ Rollback: v1.2.1 ignores the new columns and tables; leave them in place.
 
 ## 20) Release Notes For Integrators
 
-### 20.A v0.7.6 – v0.7.9 Release Notes (Current Line)
+### 20.A v0.7.6 to v0.7.9 Release Notes (Current Line)
 
 These incremental releases refine the v0.7.3 production baseline without breaking the schema or pipeline contract.
 
@@ -2175,18 +2175,18 @@ These incremental releases refine the v0.7.3 production baseline without breakin
 | **v0.7.6** | `has_genie_code` values shortened: `'Yes'`/`'No'` → `'Y'`/`'N'` | Apps querying by exact value string must now accept both formats. Pre-existing Delta rows keep their original `'Yes'`/`'No'` values; newly-written rows use `'Y'`/`'N'`. Recommended query pattern: `has_genie_code IN ('Y','Yes')`. |
 | **v0.7.7** | Auto-Genie top-N during Discover (see 17.H) | Apps see up to `discover_auto_genie_top_n` (default 5) UCs with `has_genie_code='Y'` immediately after Discover finishes. New step event `Auto-Genie (Top-N)`. New runtime param `discover_auto_genie_top_n`. |
 | **v0.7.8** | Back-filled demo CSVs with 6 new columns (`Has Genie Code`, `Idea Theme`, `BoB Score`, `BoB Technical`, `BoB Business`, `BoB PBA`) | Apps reading the legacy per-business CSV artifacts (`demos/<biz>/docs/Samples <biz>-dbx_inspire.csv`) now see the extended column set matching post-v0.7.2 Excel catalogs. All `Has Genie Code` values in back-filled CSVs use the `Y`/`N` format. |
-| **v0.7.9** | Added `demos/bakehouse` as a fresh v0.7.7 validation demo | No pipeline behavior change. Reference for integrators — demonstrates Auto-Genie top-5 artifact layout + Y/N format. |
+| **v0.7.9** | Added `demos/bakehouse` as a fresh v0.7.7 validation demo | No pipeline behavior change. Reference for integrators: demonstrates Auto-Genie top-5 artifact layout + Y/N format. |
 
 ### 20.B v0.7.3 Release Notes
 
-v0.7.3 is a **behavior-only** upgrade — no schema changes, no new columns, no new step events. Portfolio quality and multi-language artifact layout improve; integrators need only address varying portfolio sizes, the multi-language filename pattern, and parallel Genie regeneration event ordering.
+v0.7.3 is a **behavior-only** upgrade: no schema changes, no new columns, no new step events. Portfolio quality and multi-language artifact layout improve; integrators need only address varying portfolio sizes, the multi-language filename pattern, and parallel Genie regeneration event ordering.
 
 #### 20.A.1 What's New
 
 - **Hard-Veto Pre-Filter (Issue 18.1 Resolved):** The stratified trim now drops `bob_score = 2.0` UCs BEFORE the per-theme trim. `bob_score = 2.0` survivors should be rare-to-impossible in new portfolios.
 - **Target-Max Jitter (Non-Round Portfolios):** `target_max_use_cases` default changed from 100 to **90** (now the base). New parameter `target_max_jitter` (default **20**) adds random jitter on top, so default portfolios land in the `90-110` range.
 - **Multi-Language Filename Pattern:** Multi-language runs now produce per-language `readme_<lang_abbr>.md` and `<business>-dbx_inspire_<lang_abbr>.xlsx`. Single-language runs retain the legacy filenames. See Section 19.7.
-- **Parallel Genie Regeneration:** Phase 6 Route 1/2 Genie Code regeneration runs concurrently. New runtime parameter `genie_regen_parallelism` (default **10**) controls concurrency. Step events may arrive out-of-order per-UC — apps sorting by `(idx/total)` counters must accept non-monotonic ordering.
+- **Parallel Genie Regeneration:** Phase 6 Route 1/2 Genie Code regeneration runs concurrently. New runtime parameter `genie_regen_parallelism` (default **10**) controls concurrency. Step events may arrive out-of-order per-UC: apps sorting by `(idx/total)` counters must accept non-monotonic ordering.
 - **Validation Run:** Three sample DBs validated on v0.7.3:
   - **NYC Taxi** (session `7301073301073001`): 30 UCs, BoB not triggered.
   - **HealthVerity** (session `7302073002073002`): 39 UCs, BoB not triggered.
@@ -2197,7 +2197,7 @@ v0.7.3 is a **behavior-only** upgrade — no schema changes, no new columns, no 
 - **Hardcoded UC-Count Assertions:** Apps asserting `count(*) == 100` will fail. Use `BETWEEN 90 AND 110` or read `target_max_use_cases + target_max_jitter` from `inspire_json` for precise bounds.
 - **Folder Walks Assuming Fixed Filenames:** Apps expecting `readme.md` and `<business>-dbx_inspire.xlsx` exclusively will miss multi-language outputs. Use a `readme*.md` glob.
 - **Step-Event `(idx/total)` Monotonicity:** Apps that assume step events for the Genie regeneration arrive in strict counter order may render progress out of sequence. Sort by `last_updated` for display; do not rely on `(idx/total)` as a monotonic timeline.
-- **Rendering Hard-Veto Badges:** Apps that hide `bob_score = 2.0` UCs will see no change (they continue to be absent). Apps that expected to display them will no longer have any to display for new sessions — legacy v0.7.2 session data still includes them.
+- **Rendering Hard-Veto Badges:** Apps that hide `bob_score = 2.0` UCs will see no change (they continue to be absent). Apps that expected to display them will no longer have any to display for new sessions: legacy v0.7.2 session data still includes them.
 
 #### 20.A.3 Backward Compatibility Matrix
 
@@ -2210,7 +2210,7 @@ v0.7.3 is a **behavior-only** upgrade — no schema changes, no new columns, no 
 
 #### 20.A.4 Version Stamp
 
-This document describes the v0.7.3 production release. For planned future work (theme canonicalization — Issue 18.2), monitor the `CHANGELOG.md` in the Inspire repository.
+This document describes the v0.7.3 production release. For planned future work (theme canonicalization, Issue 18.2), monitor the `CHANGELOG.md` in the Inspire repository.
 
 ### 20.C v0.7.2 Release Notes
 
@@ -2221,7 +2221,7 @@ This document describes the v0.7.3 production release. For planned future work (
 - **New Prompt Title:** `BEST_OF_BEST_SCORING_PROMPT` with user-facing step title "Best Of Best Ranking" and message "Inspire is ranking use cases by every quality gate for fine-grained prioritization." See Sections 5.2 and 7.
 - **New Runtime Parameters:** `aggressive_prune_threshold` (default 75), `target_max_use_cases` (default 100 in v0.7.2; changed to 90 in v0.7.3), `bob_theme_max_share` (default 0.15), `bob_scoring_batch_size` (default 25). See Section 17.C.
 - **Expanded Phase 4 Decision Tree:** Target-zone vetting now includes a BoB + Stratified Trim branch when the UC count exceeds the aggressive prune threshold. See Section 14.
-- **Documented Hard-Veto Sentinel:** `bob_score = 2.0` is an explicit flag value meaning at least one gate scored below 3. Apps rendering v0.7.2 session data MUST render a warning badge. See Section 17.D. (Resolved in v0.7.3 — see Section 20.A.)
+- **Documented Hard-Veto Sentinel:** `bob_score = 2.0` is an explicit flag value meaning at least one gate scored below 3. Apps rendering v0.7.2 session data MUST render a warning badge. See Section 17.D. (Resolved in v0.7.3; see Section 20.A.)
 
 #### 20.B.2 What Might Break
 
@@ -2247,7 +2247,7 @@ See Section 19.4 for the concrete list. In short: deprecate label-only ranking i
 
 Below is a minimal end-to-end read flow an integrator can adapt. Replace `<inspire_db>` and `:sid` appropriately.
 
-**Step 1 — Confirm BoB Ran.**
+**Step 1: Confirm BoB Ran.**
 
 ```sql
 WITH s AS (
@@ -2260,7 +2260,7 @@ WITH s AS (
 SELECT * FROM s;
 ```
 
-**Step 2 — Fetch Ranked UCs With Defensive NULL Handling.**
+**Step 2: Fetch Ranked UCs With Defensive NULL Handling.**
 
 ```sql
 SELECT
@@ -2282,9 +2282,9 @@ WHERE session_id = :sid
 ORDER BY bob_score DESC NULLS LAST, id ASC;
 ```
 
-**Step 3 — Render.** Apply UI patterns from Section 17.F.
+**Step 3: Render.** Apply UI patterns from Section 17.F.
 
-**Step 4 — (Optional) Show Theme Distribution.**
+**Step 4: (Optional) Show Theme Distribution.**
 
 ```sql
 SELECT theme,
@@ -2301,7 +2301,7 @@ GROUP BY theme
 ORDER BY ucs_in_theme DESC;
 ```
 
-**Step 5 — (Optional) Correlate With Phase 4 Step Events.**
+**Step 5: (Optional) Correlate With Phase 4 Step Events.**
 
 ```sql
 SELECT stage_name, step_name, status,
@@ -2316,9 +2316,9 @@ WHERE session_id = :sid
 ORDER BY last_updated;
 ```
 
-**Step 6 — (v0.7.3+) Detect Pipeline Version From Session Behavior.**
+**Step 6: (v0.7.3+) Detect Pipeline Version From Session Behavior.**
 
-Because v0.7.3 introduces no schema changes, a reliable version-detection query must rely on behavioral signals. The `target_max_jitter` runtime parameter is the cleanest indicator — it only exists from v0.7.3 onward.
+Because v0.7.3 introduces no schema changes, a reliable version-detection query must rely on behavioral signals. The `target_max_jitter` runtime parameter is the cleanest indicator: it only exists from v0.7.3 onward.
 
 ```sql
 SELECT
@@ -2344,4 +2344,4 @@ WHERE session_id = :sid;
 
 Apps MAY use the `expect_hard_veto_survivors` flag to gate their hard-veto warning-badge rendering: hide the badge path entirely for v0.7.3+ sessions, keep it for legacy v0.7.2 replay.
 
-This flow gives the integrator a complete BoB-aware view: whether BoB ran, what the final ranking looks like, how themes distribute, which step events produced the counts, and which pipeline version generated the session — all read from the three canonical Delta tables described at the top of this guide.
+This flow gives the integrator a complete BoB-aware view: whether BoB ran, what the final ranking looks like, how themes distribute, which step events produced the counts, and which pipeline version generated the session; all read from the three canonical Delta tables described at the top of this guide.

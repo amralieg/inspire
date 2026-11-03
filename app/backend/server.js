@@ -3045,10 +3045,10 @@ if (require.main === module) (async () => {
     console.log(`\n🚀 Inspire AI running on http://localhost:${server.address().port}`);
     console.log(`   Databricks Host: ${DATABRICKS_HOST || '⚠️  Not configured'}`);
     console.log(`   Auth:            ${spTokenCache ? '✅ SP OAuth token ready' : SERVICE_TOKEN ? '✅ Static token' : '⚠️  No token (user auth required)'}`);
-    console.log(`   SP Credentials:  ${SP_CLIENT_ID ? '✅ Set' : '⚪ Not configured'}`);
+    console.log(`   SP Credentials:  ${SP_CLIENT_ID ? '✅ Set' : '⚠️  Not configured'}`);
     console.log(`   Notebook:        ${hasNotebook ? '✅ Found' : '❌ Not found'}`);
-    console.log(`   Frontend:        ${servingStatic ? '✅ ' + STATIC_DIR : '⚪ Dev proxy mode'}`);
-    console.log(`   Warehouse:       ${DEFAULT_WAREHOUSE_ID || '⚪ Not configured'}`);
-    console.log(`   Database:        ${DEFAULT_INSPIRE_DB || '⚪ Not configured'}\n`);
+    console.log(`   Frontend:        ${servingStatic ? '✅ ' + STATIC_DIR : '(dev proxy mode)'}`);
+    console.log(`   Warehouse:       ${DEFAULT_WAREHOUSE_ID || '⚠️  Not configured'}`);
+    console.log(`   Database:        ${DEFAULT_INSPIRE_DB || '⚠️  Not configured'}\n`);
   });
 })();

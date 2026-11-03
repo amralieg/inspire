@@ -1,4 +1,4 @@
-# Inspire AI — Authentication & Unity Catalog Architecture
+# Inspire AI: Authentication & Unity Catalog Architecture
 
 This document describes how **Databricks authentication** and **Unity Catalog (UC) metadata browsing** work across the workspace installer, Node backend, and React frontend.
 
@@ -74,10 +74,10 @@ This document describes how **Databricks authentication** and **Unity Catalog (U
 
 Resolution is implemented in **`getToken(req)`** with nuances for `NODE_ENV` and SP-backed production apps. In practice the backend may use:
 
-1. **`DATABRICKS_TOKEN`** (`SERVICE_TOKEN`) — static PAT on the server.
-2. **SP OAuth** — `DATABRICKS_CLIENT_ID` / `DATABRICKS_CLIENT_SECRET` (or `SP_*`) → `POST {host}/oidc/v1/token` (grant `client_credentials`, scope `all-apis`). Token cached with proactive refresh (`refreshSpToken` + singleflight / deduped timer in current tree).
-3. **Browser headers** — `X-DB-PAT-Token` or `Authorization: Bearer` (user PAT pasted in UI / local dev).
-4. **`x-forwarded-access-token`** — Apps proxy may attach a **delegated user** token; in SP-backed production the server **prefers** PAT/SP over relying solely on this for long-lived server calls.
+1. **`DATABRICKS_TOKEN`** (`SERVICE_TOKEN`): static PAT on the server.
+2. **SP OAuth**: `DATABRICKS_CLIENT_ID` / `DATABRICKS_CLIENT_SECRET` (or `SP_*`) → `POST {host}/oidc/v1/token` (grant `client_credentials`, scope `all-apis`). Token cached with proactive refresh (`refreshSpToken` + singleflight / deduped timer in current tree).
+3. **Browser headers**: `X-DB-PAT-Token` or `Authorization: Bearer` (user PAT pasted in UI / local dev).
+4. **`x-forwarded-access-token`**: Apps proxy may attach a **delegated user** token; in SP-backed production the server **prefers** PAT/SP over relying solely on this for long-lived server calls.
 
 ### 3.2 `requireToken` middleware
 
@@ -160,8 +160,8 @@ Results are **merged by name** (REST first, SQL adds missing entries). Response 
 
 ### 5.1 Bootstrap (`App.jsx`)
 
-1. **`GET /api/defaults`** — host, warehouse, inspire DB, flags (no auth required).
-2. Optionally **`GET /api/warehouses`**, **`GET /api/notebook`** — require a valid token path (in App: proxy token and/or SP after `requireToken`).
+1. **`GET /api/defaults`**: host, warehouse, inspire DB, flags (no auth required).
+2. Optionally **`GET /api/warehouses`**, **`GET /api/notebook`**: require a valid token path (in App: proxy token and/or SP after `requireToken`).
 
 ### 5.2 Launch page UC picker (`LaunchPage.jsx`)
 

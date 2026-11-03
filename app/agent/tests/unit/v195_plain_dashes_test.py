@@ -6,8 +6,38 @@ import re
 from _agentload import agent_source
 from _nbload import AGENT_NB, notebook_cells
 
-DASH = re.compile("[\u2013\u2014]")
+DASH = re.compile("[\u2013\u2014]|&[mn]dash;|&#821[12];")
 SHELL_SERVER = os.path.join(os.path.dirname(os.path.abspath(AGENT_NB)), "app_shell", "server")
+APP = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(AGENT_NB))))
+REPO = os.path.dirname(APP)
+AGENT_INSTRUCTION_FILES = {"app/docs/CLAUDE.md"}
+INSTALLER_SOURCES = ["inspire_installer.py", "app/installer/inspire_setup.py", "app/installer/release.py"]
+
+
+def _docs():
+    found = ["README.md", "app/README.md", "app/agent/readme.md"]
+    for folder in ("app/docs", "app/agent/docs"):
+        found += sorted(os.path.relpath(p, REPO) for p in glob.glob(os.path.join(REPO, folder, "*.md")))
+    return [rel for rel in found if rel not in AGENT_INSTRUCTION_FILES]
+
+
+def heading_slug(text):
+    text = re.sub(r"<[^>]+>", "", text).strip().lower()
+    return re.sub(r"[^\w\- ]", "", text).replace(" ", "-")
+
+
+def heading_anchors(markdown):
+    anchors, seen, fence = set(), {}, False
+    for line in markdown.split("\n"):
+        if line.lstrip().startswith("```"):
+            fence = not fence
+            continue
+        match = re.match(r"^#{1,6} (.*)$", line)
+        if match and not fence:
+            base = heading_slug(match.group(1))
+            anchors.add(base if base not in seen else f"{base}-{seen[base]}")
+            seen[base] = seen.get(base, 0) + 1
+    return anchors
 PROMPT_TEMPLATE_PREFIX = "PROMPT_TEMPLATES["
 PROMPT_TEXT = {
     ("<module>", "QUALITY_GATE_SCORING_BLOCK"),
@@ -108,3 +138,31 @@ def test_the_app_shell_server_strings_use_no_em_or_en_dash():
     assert files
     hits = {os.path.basename(path): dash_strings(open(path, encoding="utf-8").read()) for path in files}
     assert {name: found for name, found in hits.items() if found} == {}
+
+
+def test_the_installer_output_and_its_offline_page_use_no_em_or_en_dash():
+    hits = {rel: dash_strings(open(os.path.join(REPO, rel), encoding="utf-8").read()) for rel in INSTALLER_SOURCES}
+    assert {rel: found for rel, found in hits.items() if found} == {}
+
+
+def test_the_readmes_and_docs_people_read_use_no_em_or_en_dash():
+    docs = _docs()
+    assert {"app/agent/docs/design-guide.md", "app/agent/docs/integration-guide.md", "app/docs/AUTH_AND_UC_ARCHITECTURE.md"} <= set(docs)
+    assert all(os.path.isfile(os.path.join(REPO, rel)) for rel in AGENT_INSTRUCTION_FILES)
+    hits = []
+    for rel in docs:
+        for n, line in enumerate(open(os.path.join(REPO, rel), encoding="utf-8").read().split("\n"), 1):
+            if DASH.search(line):
+                hits.append(f"{rel}:{n}: {line.strip()[:120]}")
+    assert hits == []
+
+
+def test_every_in_page_link_in_the_docs_lands_on_a_heading():
+    assert heading_anchors("# Release Notes: v0.7.3\n```\n# not a heading\n```\n## Tier 1: Grounding (D1-D11)\n## Tier 1: Grounding (D1-D11)") == {
+        "release-notes-v073", "tier-1-grounding-d1-d11", "tier-1-grounding-d1-d11-1"}
+    broken = []
+    for rel in _docs():
+        text = open(os.path.join(REPO, rel), encoding="utf-8").read()
+        anchors = heading_anchors(text)
+        broken += [f"{rel}: #{link}" for link in re.findall(r"\]\(#([^)\s]+)\)", text) if link not in anchors]
+    assert broken == []

@@ -41,8 +41,8 @@
 19. [Troubleshooting](#troubleshooting)
 20. [Quick Operator Checklist](#quick-operator-checklist)
 21. [5-Step Fast Start](#5-step-fast-start)
-22. [Release Notes — v0.7.3](#release-notes--v073)
-23. [Release Notes — v0.7.2](#release-notes--v072)
+22. [Release Notes: v0.7.3](#release-notes-v073)
+23. [Release Notes: v0.7.2](#release-notes-v072)
 24. [v0.7.2 Known Issues (Resolved In v0.7.3)](#v072-known-issues-resolved-in-v073)
 
 Inspire reads the structure of your data tables in Databricks Unity Catalog: catalog, schema, table and column names, column types, comments, key constraints, tags, table properties, metric view definitions and usage counts.
@@ -86,7 +86,7 @@ The **06. Use Cases Quality** widget offers three modes. All three run the same 
 
 1. **Candidates**: use cases scored High or better, plus a second look at Medium use cases with a high value score so a high-value idea with a noisy quality label is not lost. When Business Domains are set, candidates are assigned to those domains first.
 2. **Best-of-Best prescreen**: hard-vetoed candidates and candidates below the prescreen minimum are dropped.
-3. **Elite judge** (`ULTRA_HIGH_ELITE_JUDGE_PROMPT`): records, per candidate, the decision the use case changes and who owns it, the KPI, a value driver tied to named columns (no invented figures), the signal, outcome, time and entity-key columns, the join path, the Databricks build path and its blockers, the data shapes the use case depends on that metadata cannot prove (`runtime_assumptions`), every reason that defeats it as a `fatal_flaws` entry from a fixed list (`OUTCOME_DERIVED_FROM_INPUTS`, `NO_DECISION_CHANGED`, `DUPLICATE_OF_ANOTHER_USE_CASE`, `DATA_SHAPE_ASSUMPTION_UNVERIFIABLE`, `INFEASIBLE_WITH_AVAILABLE_COLUMNS`, `VALUE_OVERCLAIMED`), a red-team "why this fails" note with its category, and absolute 1–10 scores for value, evidence, implementability and actionability. The red-team verdict is derived from `fatal_flaws`: any fatal flaw is fatal. An assessment that contradicts itself (a red-team note naming a fatal category that is not listed as a fatal flaw, an `ELITE` or `NEAR_MISS` verdict with a fatal flaw, or a verdict better than its own scores and value tier allow) is discarded and the use case is judged again.
+3. **Elite judge** (`ULTRA_HIGH_ELITE_JUDGE_PROMPT`): records, per candidate, the decision the use case changes and who owns it, the KPI, a value driver tied to named columns (no invented figures), the signal, outcome, time and entity-key columns, the join path, the Databricks build path and its blockers, the data shapes the use case depends on that metadata cannot prove (`runtime_assumptions`), every reason that defeats it as a `fatal_flaws` entry from a fixed list (`OUTCOME_DERIVED_FROM_INPUTS`, `NO_DECISION_CHANGED`, `DUPLICATE_OF_ANOTHER_USE_CASE`, `DATA_SHAPE_ASSUMPTION_UNVERIFIABLE`, `INFEASIBLE_WITH_AVAILABLE_COLUMNS`, `VALUE_OVERCLAIMED`), a red-team "why this fails" note with its category, and absolute 1-10 scores for value, evidence, implementability and actionability. The red-team verdict is derived from `fatal_flaws`: any fatal flaw is fatal. An assessment that contradicts itself (a red-team note naming a fatal category that is not listed as a fatal flaw, an `ELITE` or `NEAR_MISS` verdict with a fatal flaw, or a verdict better than its own scores and value tier allow) is discarded and the use case is judged again.
 4. **Metadata verification**: every cited table and column must exist, each technique's required columns must be present with compatible types (a date or timestamp for temporal techniques, which may be a date key that joins a dated table and is recorded as time via join; a numeric measure for the KPI; an entity key, which is a declared key, an identifier-like name such as `*_id`, `*_key`, `*_sk`, `*_code`, `*_no`, `*_num` or `*_number`, or a text column named as the entity the decision acts on; and an outcome column for supervised techniques), and a multi-table use case needs a foreign-key path. A supervised use case whose outcome is computed from its own signal columns in the same period is rejected: its label is a rule over its inputs, so it is a ranking or a rule, not a model; an outcome observed in a later window than the signals (`label_timing` `future_window`) with a dated time column is a real prediction. A use case built on Databricks AI text functions (for example `ai_classify` or `ai_extract`) without model training is verified as text processing, not as a supervised model. A co-occurrence use case grouped by its table's own row key, or a central runtime assumption that the table's own keys contradict, is rejected; the other runtime assumptions are checked by the Genie notebook's readiness gate before it builds anything. Evidence comes from metadata only. When verification rejects only the judge's own citations (for example a mistyped column or a text column cited as the time column), the use case gets one re-judge with the cache bypassed, the exact failures and the real column lists of its tables, and is verified again; data that lacks the needed column, and a design failure such as a label rule over its own inputs, stays rejected.
 5. **Absolute bar**: a use case is elite only when it has no fatal flaw, the judge rates it elite, all four scores reach the minimum (8 of 10 by default), its value tier is Transformational or Material, and verification passes. A use case just below the bar gets one independent second opinion from the next model and becomes elite only when the two opinions' averaged scores reach the minimum on every dimension; every other miss is recorded in the near-miss ledger with the gate it failed (`second_opinion_average_below_bar` or `second_opinion_reject` when the second opinion does not confirm it).
 6. **Overlap, coverage and ranking**: of two overlapping elites the stronger is kept, and elites that change the same decision (the same canonical title, or the same decision object and technique on another channel's table) collapse to the one with the higher elite score. The domain coverage picks are added, the final set is clustered into business domains without merging small domains (the near misses of the ledger are clustered with it, so every near miss carries a domain), and use cases are ranked by elite score (0.40 value, 0.25 evidence, 0.20 implementability, 0.15 actionability), with domain coverage picks after every elite use case.
@@ -420,13 +420,13 @@ On the final build (`a5ae0a9`), which adds the grounding schema superset and key
 
 v0.7.3 is an incremental release on top of v0.7.2. It closes the single documented v0.7.2 "Known Issue" (hard-veto survivors), removes an artificial-looking portfolio-size artifact, respects the user's language selection across all file outputs, and parallelizes the Route 1/2 Genie Code regeneration pass for a ~10x speedup.
 
-Everything introduced by v0.7.2 — Best-of-Best ranking, Stratified Trim by idea theme, tier-weighted composite, the 5 persisted columns — remains in place. v0.7.3 does not re-architect any of that; it fixes, refines, and speeds it up.
+Everything introduced by v0.7.2 (Best-of-Best ranking, Stratified Trim by idea theme, tier-weighted composite, the 5 persisted columns) remains in place. v0.7.3 does not re-architect any of that; it fixes, refines, and speeds it up.
 
 ### A. Hard-Veto Pre-Filter (Resolves The v0.7.2 Known Issue)
 
 In v0.7.2, `_stratified_trim_by_theme` ran the FLOOR rule (≥1 UC per theme) before any score filtering. A UC with `bob_score = 2.0` could survive if it was the sole representative of its theme, because FLOOR outranked the hard-veto quality floor. The v0.7.2 tpcds_sf1 validation run ended with 3% hard-veto survivors (3 of 100 UCs).
 
-v0.7.3 flips the order: `_stratified_trim_by_theme` now **drops every UC with `bob_hard_veto_gate != None` BEFORE theme grouping begins**. A theme whose only representative was hard-vetoed is legitimately eliminated — which is the correct semantic, since a theme that cannot produce even one fundable UC should not appear in the portfolio.
+v0.7.3 flips the order: `_stratified_trim_by_theme` now **drops every UC with `bob_hard_veto_gate != None` BEFORE theme grouping begins**. A theme whose only representative was hard-vetoed is legitimately eliminated, which is the correct semantic, since a theme that cannot produce even one fundable UC should not appear in the portfolio.
 
 **Validation (tpcds_sf1, session `1234567890000001`)**: 13 hard-veto UCs dropped before stratified trim. **Zero hard-veto survivors** in the final 105-UC portfolio.
 
@@ -445,16 +445,16 @@ Default changes:
 | Key | v0.7.2 Default | v0.7.3 Default |
 |-----|---------------|----------------|
 | `target_max_use_cases` | 100 | **90** (now the base, not the ceiling) |
-| `target_max_jitter` | — (new) | **20** |
+| `target_max_jitter` | not set (new) | **20** |
 | Effective cap range | fixed 100 | **[91, 110]** |
 
 The `target_min_use_cases` floor (50) and `aggressive_prune_threshold` (75) are unchanged. (The floor and its recovery were removed in v1.2.0; see [Quality Modes](#quality-modes-good-high-ultra-high-v120).)
 
-**Validation**: tpcds_sf1 session `1234567890000001` ended at **105 UCs** (not 100). A separate NYC run finished at 30 UCs — BoB did not trigger because the count was below the 75-UC threshold, which is the expected no-op behavior.
+**Validation**: tpcds_sf1 session `1234567890000001` ended at **105 UCs** (not 100). A separate NYC run finished at 30 UCs: BoB did not trigger because the count was below the 75-UC threshold, which is the expected no-op behavior.
 
 ### C. Multi-Language Filename Convention Fix
 
-Customer feedback on v0.7.2: "the second selected language (German) was not respected." Root cause: when multiple languages were selected, both the Excel catalog and the Markdown readme wrote to a single filename — the second language's content overwrote the first.
+Customer feedback on v0.7.2: "the second selected language (German) was not respected." Root cause: when multiple languages were selected, both the Excel catalog and the Markdown readme wrote to a single filename; the second language's content overwrote the first.
 
 v0.7.3 distinguishes single- and multi-language runs:
 
@@ -467,15 +467,15 @@ PDF and PowerPoint outputs already used a per-language suffix and were not affec
 
 ### D. Parallel Route 1/2 Genie Code Regeneration
 
-v0.7.2 regenerated Genie Code instructions sequentially. Each UC took roughly 3 minutes of LLM time; a 100-UC portfolio therefore needed **~5 hours** of wall-clock for the regeneration pass alone — the worst bottleneck in the entire pipeline.
+v0.7.2 regenerated Genie Code instructions sequentially. Each UC took roughly 3 minutes of LLM time; a 100-UC portfolio therefore needed **~5 hours** of wall-clock for the regeneration pass alone, the worst bottleneck in the entire pipeline.
 
-v0.7.3 parallelizes regeneration across a `ThreadPoolExecutor`. Default pool size: **10 workers**. A 100-UC portfolio now finishes regeneration in **~30 minutes** — a ~10x speedup.
+v0.7.3 parallelizes regeneration across a `ThreadPoolExecutor`. Default pool size: **10 workers**. A 100-UC portfolio now finishes regeneration in **~30 minutes**: a ~10x speedup.
 
 New runtime key: `TECHNICAL_CONTEXT["runtime"]["genie_regen_parallelism"] = 10`.
 
-### E. Operational Note — Workspace Sync On Git Renames
+### E. Operational Note: Workspace Sync On Git Renames
 
-During v0.7.3 validation we observed that `databricks repos update` silently fails with `Conflict pulling from remote` when a file has been renamed in git and the old path still exists in the workspace. The CLI does not surface this as a hard error — it returns success with the old content still in place.
+During v0.7.3 validation we observed that `databricks repos update` silently fails with `Conflict pulling from remote` when a file has been renamed in git and the old path still exists in the workspace. The CLI does not surface this as a hard error: it returns success with the old content still in place.
 
 **Operator remediation**: if a rename-heavy branch fails to sync, **delete the old paths from the workspace first**, then re-run `repos update`. This note is also included in the [Quick Operator Checklist](#quick-operator-checklist).
 
@@ -487,7 +487,7 @@ During v0.7.3 validation we observed that `databricks repos update` silently fai
 | HV | `7302073002073002` | 39 | 0 | Below 75; BoB correctly skipped |
 | tpcds_sf1 | `1234567890000001` | **105** | **0** | Above 75; BoB + stratified trim with 13 hard-vetoes pre-dropped |
 
-Every v0.7.3 validation run finished with zero hard-veto survivors — the defining proof that the v0.7.2 Known Issue is closed.
+Every v0.7.3 validation run finished with zero hard-veto survivors, the defining proof that the v0.7.2 Known Issue is closed.
 
 ### G. New Runtime Config Keys (v0.7.3)
 
@@ -506,7 +506,7 @@ Plus the v0.7.3 default change for an existing key:
 
 ## What's New in v0.7.2
 
-v0.7.2 is the first Inspire release that ranks AND diversifies the surviving portfolio. Before v0.7.2, when the portfolio exceeded the target ceiling, the pipeline resorted to an aggressive "dedupe harder" pass that silently favored whichever topic had the largest cluster. Starting with v0.7.2 this is replaced with **Best-of-Best (BoB) ranking** followed by a **Stratified Trim by Idea Theme** — a deterministic algorithm that keeps the *strongest* UCs while *guaranteeing* that no idea category gets wiped out.
+v0.7.2 is the first Inspire release that ranks AND diversifies the surviving portfolio. Before v0.7.2, when the portfolio exceeded the target ceiling, the pipeline resorted to an aggressive "dedupe harder" pass that silently favored whichever topic had the largest cluster. Starting with v0.7.2 this is replaced with **Best-of-Best (BoB) ranking** followed by a **Stratified Trim by Idea Theme**: a deterministic algorithm that keeps the *strongest* UCs while *guaranteeing* that no idea category gets wiped out.
 
 This section gives a high-level overview of the four things that changed. Each is covered in depth later in the README.
 
@@ -514,15 +514,15 @@ This section gives a high-level overview of the four things that changed. Each i
 
 When the surviving portfolio exceeds the `aggressive_prune_threshold` (default **75**), the pipeline now executes a two-part flow:
 
-1. **BoB Scoring (LLM)** — A new prompt, `BEST_OF_BEST_SCORING_PROMPT`, scores EACH surviving use case on all 19 quality gates individually on a **0–10 scale** (not the legacy YES/NO). The same prompt tags each use case with a concise 2-to-4-word `idea_theme` (e.g. "Anomaly Detection", "Pricing Optimization", "Churn Prevention"). Scoring is batched at **25 UCs per batch** and executed in parallel across the LLM cascade.
+1. **BoB Scoring (LLM)**: A new prompt, `BEST_OF_BEST_SCORING_PROMPT`, scores EACH surviving use case on all 19 quality gates individually on a **0-10 scale** (not the legacy YES/NO). The same prompt tags each use case with a concise 2-to-4-word `idea_theme` (e.g. "Anomaly Detection", "Pricing Optimization", "Churn Prevention"). Scoring is batched at **25 UCs per batch** and executed in parallel across the LLM cascade.
 
-2. **Tier-weighted Composite (Python)** — The 19 BoB dimension scores are composed into a single 0–10 composite:
+2. **Tier-weighted Composite (Python)**: The 19 BoB dimension scores are composed into a single 0-10 composite:
 
    | Tier | Gates | Weight | Meaning |
    |------|-------|--------|---------|
-   | Tier 1 | D1–D11 (technical) | 0.30 | Data grounding, analytical soundness |
-   | Tier 2 | D12–D14 (business value) | 0.35 | Funding, engineering, sponsor-readiness |
-   | Tier 3 | D15–D19 (principal-business-analyst) | 0.35 | Cadence, Monday Test, explainability, longevity, attribution |
+   | Tier 1 | D1-D11 (technical) | 0.30 | Data grounding, analytical soundness |
+   | Tier 2 | D12-D14 (business value) | 0.35 | Funding, engineering, sponsor-readiness |
+   | Tier 3 | D15-D19 (principal-business-analyst) | 0.35 | Cadence, Monday Test, explainability, longevity, attribution |
 
    Composite formula:
 
@@ -532,12 +532,12 @@ When the surviving portfolio exceeds the `aggressive_prune_threshold` (default *
              + 0.35 * mean(D15..D19)
    ```
 
-   **Hard-veto floor**: if ANY individual gate scores **< 3** on the 0–10 scale, the composite is capped at **2.0**. This keeps catastrophic failures at the bottom of every ranking regardless of how strong the UC is elsewhere.
+   **Hard-veto floor**: if ANY individual gate scores **< 3** on the 0-10 scale, the composite is capped at **2.0**. This keeps catastrophic failures at the bottom of every ranking regardless of how strong the UC is elsewhere.
 
-3. **Stratified Trim by Idea Theme (Python, deterministic)** — Replaces the pre-v0.7.2 "keep top-N by score" global sort. The algorithm:
+3. **Stratified Trim by Idea Theme (Python, deterministic)**: Replaces the pre-v0.7.2 "keep top-N by score" global sort. The algorithm:
 
    - Group UCs by `idea_theme`
-   - **FLOOR**: every theme keeps its best UC by `bob_score` (coverage guarantee — the WHOLE POINT is that no idea category is wiped out)
+   - **FLOOR**: every theme keeps its best UC by `bob_score` (coverage guarantee; the WHOLE POINT is that no idea category is wiped out)
    - **CAP**: no theme may exceed `target_max * bob_theme_max_share` (default: 15 UCs in a 100-UC target)
    - **FILL**: the slots left after the floor go to the strongest remaining UCs by `bob_score`, across all themes. Before v1.3.0 they were split in proportion to theme size and the rounding shortfall went to the largest theme, so with many small themes the largest theme kept its weakest UCs while strong UCs of small themes were cut
 
@@ -546,10 +546,10 @@ When the surviving portfolio exceeds the `aggressive_prune_threshold` (default *
    | Column | Type | Description |
    |--------|------|-------------|
    | `idea_theme` | STRING | 2-to-4-word LLM-assigned theme (e.g. "Customer Segmentation") |
-   | `bob_score` | DOUBLE | 0–10 tier-weighted composite |
-   | `bob_tier1_score` | DOUBLE | Mean of D1–D11 (technical grounding) |
-   | `bob_tier2_score` | DOUBLE | Mean of D12–D14 (business value) |
-   | `bob_tier3_score` | DOUBLE | Mean of D15–D19 (principal-business-analyst) |
+   | `bob_score` | DOUBLE | 0-10 tier-weighted composite |
+   | `bob_tier1_score` | DOUBLE | Mean of D1-D11 (technical grounding) |
+   | `bob_tier2_score` | DOUBLE | Mean of D12-D14 (business value) |
+   | `bob_tier3_score` | DOUBLE | Mean of D15-D19 (principal-business-analyst) |
 
 ### B. Validation Evidence (tpcds_sf1 Session 1234567890000002)
 
@@ -557,10 +557,10 @@ v0.7.2 was validated end-to-end on the TPC-DS scale-factor-1 dataset. The number
 
 | Stage | UC Count | Notes |
 |-------|----------|-------|
-| Phase 2 — Generation (pass 1 + pass 2) | **378** | Raw use cases from metadata |
-| Phase 4 — Combined Value + Quality Scorer | 308 | Scored + deduplicated |
-| Phase 4 — Balanced Quality Filter (now `Good`) | 244 | Dropped `Low`, `Very Low`, `Ultra Low` |
-| Phase 4 — BoB + Stratified Trim | **100** | Bullseye target_max = 100 |
+| Phase 2: Generation (pass 1 + pass 2) | **378** | Raw use cases from metadata |
+| Phase 4: Combined Value + Quality Scorer | 308 | Scored + deduplicated |
+| Phase 4: Balanced Quality Filter (now `Good`) | 244 | Dropped `Low`, `Very Low`, `Ultra Low` |
+| Phase 4: BoB + Stratified Trim | **100** | Bullseye target_max = 100 |
 
 Portfolio statistics at final 100:
 
@@ -568,14 +568,14 @@ Portfolio statistics at final 100:
 |-----------|-------|
 | Distinct idea themes | **75** |
 | Top theme (most UCs) | Anomaly Detection (**11** UCs, under the 15 cap) |
-| BoB composite — mean | **6.7** |
-| BoB composite — range | 2.0 – 8.23 |
+| BoB composite: mean | **6.7** |
+| BoB composite: range | 2.0 to 8.23 |
 | Tier 1 (technical) mean | 7.23 |
 | Tier 2 (business value) mean | 6.92 |
 | Tier 3 (PBA) mean | 6.23 |
 | Total run duration | 68 min |
 
-The 75-theme spread across 100 final UCs is the coverage-preservation win: the old global-sort approach would have collapsed these into ~20–25 themes dominated by whichever topic had the largest cluster.
+The 75-theme spread across 100 final UCs is the coverage-preservation win: the old global-sort approach would have collapsed these into ~20-25 themes dominated by whichever topic had the largest cluster.
 
 ### C. New Runtime Config Keys
 
@@ -584,8 +584,8 @@ Five new keys in `TECHNICAL_CONTEXT["runtime"]` control v0.7.2 behavior:
 | Key | Default | What It Controls |
 |-----|---------|------------------|
 | `aggressive_prune_threshold` | `75` | Trigger BoB + Stratified Trim when the surviving count exceeds this number |
-| `target_max_use_cases` | `100` | Trim ceiling — the algorithm will not keep more than this many UCs |
-| `target_min_use_cases` | `50` | Recovery floor — if the count falls below this, the rejection pool is raided (removed in v1.2.0: nothing is recovered or topped up) |
+| `target_max_use_cases` | `100` | Trim ceiling: the algorithm will not keep more than this many UCs |
+| `target_min_use_cases` | `50` | Recovery floor: if the count falls below this, the rejection pool is raided (removed in v1.2.0: nothing is recovered or topped up) |
 | `bob_scoring_batch_size` | `25` | LLM batch size for `BEST_OF_BEST_SCORING_PROMPT` |
 | `bob_theme_max_share` | `0.15` | Maximum fraction of `target_max_use_cases` any single theme may hold |
 
@@ -593,7 +593,7 @@ All five are tunable without code change. The defaults are the validated product
 
 ### D. Known Issue (Resolved In v0.7.3)
 
-**Hard-veto UCs can survive the Stratified Trim if they are the only representative of their theme.** The stratified trim's 1-per-theme FLOOR rule (coverage guarantee) takes precedence over the hard-veto rule (quality floor). On the v0.7.2 validation run, **3 out of 100 UCs (3%)** arrived at the final list with `bob_score = 2.0` — they were kept because removing them would have erased their idea theme entirely.
+**Hard-veto UCs can survive the Stratified Trim if they are the only representative of their theme.** The stratified trim's 1-per-theme FLOOR rule (coverage guarantee) takes precedence over the hard-veto rule (quality floor). On the v0.7.2 validation run, **3 out of 100 UCs (3%)** arrived at the final list with `bob_score = 2.0`: they were kept because removing them would have erased their idea theme entirely.
 
 **Status:** Resolved in v0.7.3 (commit `69c9f12`). `_stratified_trim_by_theme` now pre-filters hard-veto UCs BEFORE theme grouping, so coverage is reconstructed only from UCs that cleared the hard-veto floor. See [What's New in v0.7.3 §A](#whats-new-in-v073) and [v0.7.2 Known Issues (Resolved In v0.7.3)](#v072-known-issues-resolved-in-v073).
 
@@ -659,7 +659,7 @@ These two must be filled correctly or the run will fail immediately.
 - Example: `my_catalog.inspire_tracking`
 - Must be exactly two levels separated by a dot
 - Creates three tracking tables automatically: `__inspire_session`, `__inspire_step`, `__inspire_usecases`
-- The `__inspire_usecases` table in v0.7.2+ includes 5 new BoB columns — see [Output Artifacts](#output-artifacts)
+- The `__inspire_usecases` table in v0.7.2+ includes 5 new BoB columns; see [Output Artifacts](#output-artifacts)
 - Why it matters: without this, you lose all run monitoring, progress tracking, BoB audit trail, and session reproducibility
 - If left empty: defaults to `main._inspire` as a placeholder
 - Result table names are quoted three-level names: `` `catalog`.`schema`.`_inspire_<id>_<name>` ``
@@ -774,9 +774,9 @@ These are optional but significantly improve relevance.
 
 ## The 19 Quality Gates
 
-Every use case Inspire generates must survive 19 quality gates. These gates are baked into the generation prompt, enforced at scoring time, re-applied during selection, and — new in v0.7.2 — scored individually on a **0–10 scale** during Best-of-Best ranking.
+Every use case Inspire generates must survive 19 quality gates. These gates are baked into the generation prompt, enforced at scoring time, re-applied during selection, and (new in v0.7.2) scored individually on a **0-10 scale** during Best-of-Best ranking.
 
-**Every gate is enforced by LLM reasoning — zero regex, zero pattern matching.**
+**Every gate is enforced by LLM reasoning: zero regex, zero pattern matching.**
 
 If a use case fails any critical gate at the classic scoring stage, it is capped at quality score 2.0 ("Low") and dropped by the quality bar of every mode. If it fails a BoB gate (individual score < 3 out of 10) at the BoB stage, its composite is capped at 2.0 and it is dropped before the stratified trim.
 
@@ -784,15 +784,15 @@ If a use case fails any critical gate at the classic scoring stage, it is capped
 
 | Pipeline Stage | Gate Scoring Style | Scale | Effect of Failure |
 |----------------|-------------------|-------|-------------------|
-| Generation (Pass 1 + Pass 2) | Gates are prompt instructions | — | LLM avoids producing UCs that violate gates |
-| Combined Value + Quality Scorer | Rubric-driven 1.0–5.0 per dimension | 1.0–5.0 | Hard veto caps `quality_score` at 2.0 |
-| Aggressive Vetting (v0.7.2+ BoB) | Individual numeric score per gate | **0–10** per gate | Any gate < 3 caps `bob_score` at 2.0 |
+| Generation (Pass 1 + Pass 2) | Gates are prompt instructions | none | LLM avoids producing UCs that violate gates |
+| Combined Value + Quality Scorer | Rubric-driven 1.0-5.0 per dimension | 1.0-5.0 | Hard veto caps `quality_score` at 2.0 |
+| Aggressive Vetting (v0.7.2+ BoB) | Individual numeric score per gate | **0-10** per gate | Any gate < 3 caps `bob_score` at 2.0 |
 
-The 0–10 BoB scale is new in v0.7.2 — it replaces the legacy YES/NO vote used in earlier aggressive vetting. The finer granularity is what lets the stratified trim distinguish a 6.4 from a 7.9 within the same theme.
+The 0-10 BoB scale is new in v0.7.2: it replaces the legacy YES/NO vote used in earlier aggressive vetting. The finer granularity is what lets the stratified trim distinguish a 6.4 from a 7.9 within the same theme.
 
-**v0.7.3 refinement — hard-veto UCs are dropped before the stratified trim.** In v0.7.2 the trim's 1-per-theme FLOOR rule could preserve a hard-vetoed UC if it was the sole representative of its theme. v0.7.3 pre-filters every UC with `bob_hard_veto_gate != None` out of the trim input, so a theme whose only representative was hard-vetoed is legitimately eliminated. This is the correct semantic: a theme that cannot produce even one fundable UC should not appear in the portfolio.
+**v0.7.3 refinement: hard-veto UCs are dropped before the stratified trim.** In v0.7.2 the trim's 1-per-theme FLOOR rule could preserve a hard-vetoed UC if it was the sole representative of its theme. v0.7.3 pre-filters every UC with `bob_hard_veto_gate != None` out of the trim input, so a theme whose only representative was hard-vetoed is legitimately eliminated. This is the correct semantic: a theme that cannot produce even one fundable UC should not appear in the portfolio.
 
-### Tier 1 — Technical Grounding (D1–D11)
+### Tier 1: Technical Grounding (D1-D11)
 
 Proving the use case is grounded in the data and analytically sound.
 
@@ -802,25 +802,25 @@ Proving the use case is grounded in the data and analytically sound.
 | D2 | Cause-Effect Validity | Is the cause-effect relationship logical, proven, and industry-recognized? | ≤ 2.5 → Hard veto |
 | D3 | Data Granularity | Is the data at the right level of detail for the analysis? | ≤ 2.5 → Soft veto |
 | D4 | Critical Dimensions | Are all required columns actually present in the schema? | Hallucination → Hard veto |
-| D5 | Logical Possibility | Can the operation be performed on the given types? | — |
-| D6 | Metric Validity | Can the claimed metric actually be calculated from available fields? | — |
+| D5 | Logical Possibility | Can the operation be performed on the given types? | none |
+| D6 | Metric Validity | Can the claimed metric actually be calculated from available fields? | none |
 | D7 | Design-Schema Match | Does the technical design cite columns that exist? | ≤ 2.5 → Soft veto |
-| D8 | Semantic Uniqueness | After verb / noun / entity / metric normalization — is this a duplicate? | ≤ 2.5 → Hard veto |
-| D9 | Analytical Depth (Strip Test) | Remove ML-technique mentions — is there real analytical substance left? | ≤ 2.5 → Hard veto |
+| D8 | Semantic Uniqueness | After verb / noun / entity / metric normalization: is this a duplicate? | ≤ 2.5 → Hard veto |
+| D9 | Analytical Depth (Strip Test) | Remove ML-technique mentions: is there real analytical substance left? | ≤ 2.5 → Hard veto |
 | D10 | Activation Quality (Deliverable Test) | Does the "with ..." suffix name a business deliverable, not just a technique? | ≤ 2.0 → Hard veto |
 | D11 | Domain & Technique Balance | Does the portfolio cluster too heavily on one domain+technique? | Score reduction only |
 
-### Tier 2 — Business Value (D12–D14)
+### Tier 2: Business Value (D12-D14)
 
-The "would you actually fund this?" gates — applied after technical grounding passes.
+The "would you actually fund this?" gates: applied after technical grounding passes.
 
 | # | Gate | Persona | Question | Veto |
 |---|------|---------|----------|------|
 | D12 | Business Relevance & Opportunity | Business Stakeholder | Is it relevant to day-to-day operations? Does it deliver tangible value (revenue / cost / risk / opportunity)? Can you name the team or role that consumes the output? Does it represent a current pain or a future opportunity to expand into? | Any "no" → Hard veto |
 | D13 | Sponsor Test | Sponsor / CFO | Would you fund this use case with a real budget line? Could you pitch it to the CEO and get approval without caveats? | Any "no" → Hard veto |
-| D14 | Engineering Test | Production Engineer | Can you put this to production on existing Databricks capabilities (`ai_query`, Delta, MLflow, Spark) — no fabricated external services? Can you support and maintain it long-term (drift, refresh, retrain) with existing team skills? Can you fix issues without external dependencies or bespoke infrastructure? | Any "no" → Hard veto |
+| D14 | Engineering Test | Production Engineer | Can you put this to production on existing Databricks capabilities (`ai_query`, Delta, MLflow, Spark): no fabricated external services? Can you support and maintain it long-term (drift, refresh, retrain) with existing team skills? Can you fix issues without external dependencies or bespoke infrastructure? | Any "no" → Hard veto |
 
-### Tier 3 — Principal-Business-Analyst (D15–D19)
+### Tier 3: Principal-Business-Analyst (D15-D19)
 
 The questions a 20-year Principal Business Analyst would ask before signing off.
 
@@ -837,18 +837,18 @@ The questions a 20-year Principal Business Analyst would ask before signing off.
 ```
 ┌──────────────────────────────────────────────────────────────┐
 │  Generation Pass 1 + Pass 2                                  │
-│    ↓  Gates D1–D19 are instructions — the LLM generates      │
+│    ↓  Gates D1-D19 are instructions, so the LLM generates    │
 │       use cases already trying to satisfy all 19 gates       │
 ├──────────────────────────────────────────────────────────────┤
 │  Combined Value + Quality Scorer                             │
-│    ↓  Gates D1–D19 scored as 1.0–5.0 dimensions;             │
+│    ↓  Gates D1-D19 scored as 1.0-5.0 dimensions;             │
 │       any hard veto caps quality_score at 2.0                │
 ├──────────────────────────────────────────────────────────────┤
 │  Quality Bar of the selected mode                            │
 │    ↓  Good: keeps Medium or better                           │
 │       High / Ultra High candidates: keep High or better      │
 ├──────────────────────────────────────────────────────────────┤
-│  Good / High: BEST-OF-BEST (v0.7.2+): each gate 0–10,        │
+│  Good / High: BEST-OF-BEST (v0.7.2+): each gate 0-10,        │
 │    ↓  hard-vetoed UCs dropped; count >                       │
 │       aggressive_prune_threshold (default 75) →              │
 │       stratified trim by theme                               │
@@ -864,9 +864,9 @@ The questions a 20-year Principal Business Analyst would ask before signing off.
 
 | Gate Group | What It Kills |
 |---|---|
-| Technical (D1–D11) | Hallucinated columns, trivial SQL, duplicates, analytics dressed up as ML |
+| Technical (D1-D11) | Hallucinated columns, trivial SQL, duplicates, analytics dressed up as ML |
 | Sponsor (D13) | Use cases no CFO would fund and no CEO would approve |
-| Engineering (D14) | Shelfware — use cases that cannot be operated by the production team |
+| Engineering (D14) | Shelfware: use cases that cannot be operated by the production team |
 | Monday Test (D16) & Longevity (D18) | Decorative "insight" use cases that never change behavior and die in 3 months |
 | Cadence (D15) | Use cases whose data cannot refresh fast enough to support the decision |
 | Explainability (D17) | Black-box models for high-stakes decisions where someone might defend the output in court |
@@ -886,14 +886,14 @@ Best-of-Best (BoB) is the v0.7.2 replacement for the legacy "aggressive dedupe" 
 
 Before v0.7.2, when the portfolio exceeded the target ceiling the pipeline ran a "dedupe harder" LLM pass. That worked fine on small overshoots (e.g. 90 → 75) but collapsed on large ones (e.g. 244 → 100) for two reasons:
 
-1. **Topic collapse** — the LLM preferentially dropped UCs from small theme clusters because they looked like "outliers", leaving the final 100 dominated by 2–3 popular themes.
-2. **No audit trail** — the decision to drop a UC was an opaque LLM judgement, with no per-gate score you could later inspect in the database.
+1. **Topic collapse**: the LLM preferentially dropped UCs from small theme clusters because they looked like "outliers", leaving the final 100 dominated by 2-3 popular themes.
+2. **No audit trail**: the decision to drop a UC was an opaque LLM judgement, with no per-gate score you could later inspect in the database.
 
 BoB solves both: it forces the LLM to score every gate numerically (audit trail) and it lets deterministic Python handle the selection (no topic collapse).
 
 ### The Composite Score
 
-Every UC that enters aggressive vetting is scored by `BEST_OF_BEST_SCORING_PROMPT` on all 19 gates on a 0–10 scale. Python then composes the 19 numbers:
+Every UC that enters aggressive vetting is scored by `BEST_OF_BEST_SCORING_PROMPT` on all 19 gates on a 0-10 scale. Python then composes the 19 numbers:
 
 ```
 tier1 = mean(D1, D2, D3, D4, D5, D6, D7, D8, D9, D10, D11)   # technical
@@ -906,7 +906,7 @@ if min(D1..D19) < 3:
     bob_score = min(bob_score, 2.0)    # hard-veto floor
 ```
 
-Why 0.30 / 0.35 / 0.35? Tiers 2 and 3 are the "would a CFO / Principal BA sign off?" gates — they are what actually prevents shelfware. Tier 1 is a necessary-but-not-sufficient floor; a technically-perfect UC that fails the Monday Test is worthless, so Tier 1 gets slightly less weight. The split is a deliberate *business-value-first* posture.
+Why 0.30 / 0.35 / 0.35? Tiers 2 and 3 are the "would a CFO / Principal BA sign off?" gates: they are what actually prevents shelfware. Tier 1 is a necessary-but-not-sufficient floor; a technically-perfect UC that fails the Monday Test is worthless, so Tier 1 gets slightly less weight. The split is a deliberate *business-value-first* posture.
 
 ### Batching
 
@@ -918,13 +918,13 @@ Once every UC has a `bob_score` and an `idea_theme`, Python picks the final port
 
 ```python
 def stratified_trim(ucs, target_max, target_max_jitter, max_share):
-    # Step 0 (v0.7.3) — HARD-VETO PRE-FILTER:
+    # Step 0 (v0.7.3): HARD-VETO PRE-FILTER:
     #   drop every UC with bob_hard_veto_gate != None before
     #   theme grouping. A theme whose only representative was
     #   hard-vetoed is legitimately eliminated here.
     ucs = [u for u in ucs if u.bob_hard_veto_gate is None]
 
-    # Step 0.5 (v0.7.3) — JITTERED CAP:
+    # Step 0.5 (v0.7.3): JITTERED CAP:
     #   effective trim ceiling is randomized so portfolio sizes
     #   are not always a round number.
     effective_cap = target_max + randint(1, target_max_jitter)  # e.g. 90 + [1..20] -> [91..110]
@@ -932,14 +932,14 @@ def stratified_trim(ucs, target_max, target_max_jitter, max_share):
     theme_cap = int(effective_cap * max_share)    # e.g. 110 * 0.15 = 16
     themes = group_by(ucs, key="idea_theme")
 
-    # Step 1 — FLOOR: every (surviving) theme keeps at least 1 UC.
+    # Step 1, FLOOR: every (surviving) theme keeps at least 1 UC.
     kept = []
     for theme, members in themes.items():
         best = max(members, key=lambda u: u.bob_score)
         kept.append(best)
         members.remove(best)
 
-    # Step 2 — BUDGET: allocate remaining slots proportionally
+    # Step 2, BUDGET: allocate remaining slots proportionally
     #          to theme size, capped by theme_cap.
     remaining_budget = effective_cap - len(kept)
     total_remaining = sum(len(m) for m in themes.values())
@@ -953,7 +953,7 @@ def stratified_trim(ucs, target_max, target_max_jitter, max_share):
         top_k = sorted(members, key=lambda u: -u.bob_score)[:slots]
         kept.extend(top_k)
 
-    # Step 3 — BACKFILL: if rounding left us short, take the next-best
+    # Step 3, BACKFILL: if rounding left us short, take the next-best
     #          UCs from any under-capped theme by global bob_score DESC.
     leftover = effective_cap - len(kept)
     if leftover > 0:
@@ -978,7 +978,7 @@ Four invariants hold regardless of input (v0.7.3):
 
 Invariant 3 is the coverage guarantee. Invariant 2 is the anti-collapse guarantee. Invariant 4 is the quality-floor guarantee. Together they mean a 244-UC portfolio with 75 distinct themes cannot emerge as "100 UCs all about Fraud Detection" AND cannot contain a UC that failed any gate below 3/10.
 
-### Worked Example — The v0.7.2 Validation Run
+### Worked Example: The v0.7.2 Validation Run
 
 Input: 244 UCs, 75 distinct themes, `target_max = 100`, `bob_theme_max_share = 0.15` ⇒ `theme_cap = 15`.
 
@@ -995,9 +995,9 @@ Final observed distribution from the validation run:
 | Pricing Optimization | 5 | No |
 | Churn Prevention | 5 | No |
 | Supply Chain Forecasting | 4 | No |
-| ... 70 other themes | 1–4 each | No |
+| ... 70 other themes | 1-4 each | No |
 
-No theme hit the cap. Every one of the 75 input themes is represented in the final 100. The BoB composite range in the final 100 was **2.0–8.23**, mean **6.7**.
+No theme hit the cap. Every one of the 75 input themes is represented in the final 100. The BoB composite range in the final 100 was **2.0-8.23**, mean **6.7**.
 
 ---
 
@@ -1011,7 +1011,7 @@ An idea theme is a 2-to-4-word LLM-assigned label that describes the *analytical
 - `subdomain` = *"which sub-function within that business"* (e.g. Credit Risk, Fraud Detection)
 - `idea_theme` = *"what analytical idea are we using"* (e.g. Anomaly Detection, Time Series Forecasting)
 
-Two use cases can share an `idea_theme` while living in completely different `business_domains` — e.g. both "Fraud Transaction Scoring" (Risk Management) and "Manufacturing Defect Detection" (Operations) share the theme `Anomaly Detection` even though their domains are different.
+Two use cases can share an `idea_theme` while living in completely different `business_domains`: e.g. both "Fraud Transaction Scoring" (Risk Management) and "Manufacturing Defect Detection" (Operations) share the theme `Anomaly Detection` even though their domains are different.
 
 ### How Are Themes Discovered?
 
@@ -1021,17 +1021,17 @@ Themes are **LLM-named once per run, after BoB scoring** (v1.3.0). There is no p
 - Gives use cases built with the same kind of method for the same kind of question one theme, across domains
 - Keeps apart ideas that answer different questions (`Demand Forecasting` and `Cash Flow Forecasting` stay separate) and never makes a catch-all theme
 
-The prompt seeds only examples, not a list, so the vocabulary still comes from the data. Before v1.3.0 every scoring batch named its own themes and the vocabulary grew to ~60–120 distinct themes per portfolio, most of them holding one use case.
+The prompt seeds only examples, not a list, so the vocabulary still comes from the data. Before v1.3.0 every scoring batch named its own themes and the vocabulary grew to ~60-120 distinct themes per portfolio, most of them holding one use case.
 
 ### Why Themes Matter
 
-Themes are the unit of *coverage* in v0.7.2. The legacy aggressive-dedupe approach was effectively a global sort by quality score: it guaranteed "the top N strongest UCs survive" but gave zero guarantee that the top N covered more than 2–3 topics. Themes flip this:
+Themes are the unit of *coverage* in v0.7.2. The legacy aggressive-dedupe approach was effectively a global sort by quality score: it guaranteed "the top N strongest UCs survive" but gave zero guarantee that the top N covered more than 2-3 topics. Themes flip this:
 
-- **Coverage is first-class** — no theme can be wiped out (FLOOR rule)
-- **Concentration is bounded** — no theme can dominate (CAP rule)
-- **Within-theme quality is preserved** — BoB ranking picks the best-per-theme
+- **Coverage is first-class**: no theme can be wiped out (FLOOR rule)
+- **Concentration is bounded**: no theme can dominate (CAP rule)
+- **Within-theme quality is preserved**: BoB ranking picks the best-per-theme
 
-The business impact: stakeholders reviewing the final portfolio see a wide analytical palette (75 themes across 100 UCs in the validation run), not 100 variations on whichever idea the LLM happened to generate most. That is exactly what a Principal Business Analyst would have produced by hand — and exactly what the old pipeline could not.
+The business impact: stakeholders reviewing the final portfolio see a wide analytical palette (75 themes across 100 UCs in the validation run), not 100 variations on whichever idea the LLM happened to generate most. That is exactly what a Principal Business Analyst would have produced by hand: and exactly what the old pipeline could not.
 
 ### Example Themes Observed in Real Runs
 
@@ -1047,7 +1047,7 @@ The business impact: stakeholders reviewing the final portfolio see a wide analy
 | Basket Analysis | 3 | Frequent itemset / association rules |
 | Campaign Attribution | 2 | Multi-touch attribution modeling |
 | Return-to-Source Analysis | 2 | Root-cause classification |
-| ... 65 other themes | 1–2 each | Various |
+| ... 65 other themes | 1-2 each | Various |
 
 ---
 
@@ -1062,7 +1062,7 @@ After the quality bar of the selected mode, Inspire knows the count `N` of survi
 - `bob_min_threshold` (default 20)
 - `aggressive_prune_threshold` (default 75)
 - `target_max_use_cases` (default 90 in v0.7.3, was 100 in v0.7.2)
-- `target_max_jitter` (default 20 in v0.7.3 — new key)
+- `target_max_jitter` (default 20 in v0.7.3, new key)
 
 | Condition | Action | Why |
 |-----------|--------|-----|
@@ -1073,11 +1073,11 @@ After the quality bar of the selected mode, Inspire knows the count `N` of survi
 
 In every row the canonical-title dedup then removes duplicate decisions, and each user-specified Business Domain left empty receives one domain coverage pick, labelled "Domain coverage pick, below bar".
 
-Note: `aggressive_prune_threshold` (75) is lower than `target_max_use_cases` (90) by design. When `75 < N ≤ 90 + jitter`, the old code would have done nothing; v0.7.2+ chooses to BoB-rank those portfolios anyway, so that the final list is always ranked and themed — even when no trimming is needed. The trim step simply happens to be a no-op in that range (all UCs kept, but now tagged with `bob_score` and `idea_theme`).
+Note: `aggressive_prune_threshold` (75) is lower than `target_max_use_cases` (90) by design. When `75 < N ≤ 90 + jitter`, the old code would have done nothing; v0.7.2+ chooses to BoB-rank those portfolios anyway, so that the final list is always ranked and themed, even when no trimming is needed. The trim step simply happens to be a no-op in that range (all UCs kept, but now tagged with `bob_score` and `idea_theme`).
 
-**v0.7.3 effective-cap formula**: `effective_cap = target_max_use_cases + randint(1, target_max_jitter)` = `90 + randint(1, 20)` ∈ **[91, 110]**. The cap is resampled per run, so two runs of the same dataset will generally end at different (but nearby) portfolio sizes — intentionally.
+**v0.7.3 effective-cap formula**: `effective_cap = target_max_use_cases + randint(1, target_max_jitter)` = `90 + randint(1, 20)` ∈ **[91, 110]**. The cap is resampled per run, so two runs of the same dataset will generally end at different (but nearby) portfolio sizes, intentionally.
 
-### Worked Example — 244 → 105 (v0.7.3 tpcds_sf1 Validation)
+### Worked Example: 244 → 105 (v0.7.3 tpcds_sf1 Validation)
 
 - `N = 244`, `aggressive_prune_threshold = 75` → trigger BoB.
 - BoB scoring: 244 UCs × 19 gates = 4,636 individual scores, in 10 batches of 25 → ~4 minutes wall-clock.
@@ -1092,7 +1092,7 @@ Note: `aggressive_prune_threshold` (75) is lower than `target_max_use_cases` (90
   - BACKFILL fills any last gaps
 - Final output: **105 UCs, zero hard-veto survivors**. Session `1234567890000001`.
 
-For reference, the legacy v0.7.2 worked example (244 → exactly 100, 3% hard-veto survivors) is preserved in [Release Notes — v0.7.2](#release-notes--v072).
+For reference, the legacy v0.7.2 worked example (244 → exactly 100, 3% hard-veto survivors) is preserved in [Release Notes: v0.7.2](#release-notes-v072).
 
 ### Observable Outputs
 
@@ -1141,7 +1141,7 @@ Inspire executes 7 phases sequentially when running in Discover mode.
 **Phase 2: Use Case Generation**
 - Inspire generates use cases covering structured data analytics, AI/ML, and statistical techniques in a comprehensive discovery pass (Pass 1 + Pass 2)
 - Each use case includes: name, statement, solution, business value, beneficiary, sponsor, technical design, tables involved
-- **19 quality gates (D1-D19)** are enforced at generation time — see [The 19 Quality Gates](#the-19-quality-gates)
+- **19 quality gates (D1-D19)** are enforced at generation time; see [The 19 Quality Gates](#the-19-quality-gates)
 - Every gate is evaluated by LLM reasoning: **zero regex, zero pattern matching, pure LLM judgment**
 
 **Phase 3: Domain Clustering**
@@ -1153,20 +1153,20 @@ Inspire executes 7 phases sequentially when running in Discover mode.
 
 **Phase 4: Scoring, Deduplication, and Best-of-Best Ranking**
 - Each use case receives two independent scores from a single combined LLM call (the only scoring pass; each batch sees only the schema of its own tables and their foreign-key partners):
-  - **Value Score** (1.0–5.0): strategic alignment, ROI potential, business impact
-  - **Quality Score** (1.0–5.0): all 19 gates (D1 technical grounding through D19 attributable impact)
+  - **Value Score** (1.0-5.0): strategic alignment, ROI potential, business impact
+  - **Quality Score** (1.0-5.0): all 19 gates (D1 technical grounding through D19 attributable impact)
 - Any HARD VETO gate caps `quality_score` at 2.0 and the UC is dropped by the quality bar of every mode; a UC without a valid score is never selected
 - Duplicate detection is **LLM-based only** (no regex clustering): 5-layer semantic judgment via `REVIEW_USE_CASES_PROMPT` (verb normalization, noun synonyms, entity-metric pairs, technique swaps, table overlap); the global pass starts on the thinker model and cascades to the next model when that one is slow or fails
 - Goal alignment filtering removes use cases that do not align with user-specified goals (when Generation Instructions contain a goal); goal-aligned use cases still face the quality bar
 - **Quality bar of the selected mode**: `Good` keeps Medium or better; `High` keeps High or better; `Ultra High` sends High-or-better candidates (plus a high-value second look) to the elite stage
 - **`Good` and `High`: BoB + Stratified Trim (v0.7.2+)**:
-    1. `BEST_OF_BEST_SCORING_PROMPT` scores every UC on all 19 gates on a 0–10 scale; one `THEME_ASSIGNMENT_PROMPT` call then names the `idea_theme` of every scored UC (v1.3.0)
+    1. `BEST_OF_BEST_SCORING_PROMPT` scores every UC on all 19 gates on a 0-10 scale; one `THEME_ASSIGNMENT_PROMPT` call then names the `idea_theme` of every scored UC (v1.3.0)
     2. Python composes the tier-weighted `bob_score` (0.30 / 0.35 / 0.35) with a hard-veto floor at 2.0; hard-vetoed UCs are dropped
     3. Only when `count > aggressive_prune_threshold` (default 75): stratified trim by `idea_theme` enforces FLOOR (≥1 per theme), CAP (≤ `target_max * bob_theme_max_share`), and BUDGET (proportional allocation)
     4. 5 columns are persisted: `idea_theme`, `bob_score`, `bob_tier1_score`, `bob_tier2_score`, `bob_tier3_score`
 - **`Ultra High` Elite Selection**: BoB prescreen, `ULTRA_HIGH_ELITE_JUDGE_PROMPT`, deterministic metadata verification and the absolute bar; no quota, no cap, no padding (see [Quality Modes](#quality-modes-good-high-ultra-high-v120))
 - **Every mode**: one domain coverage pick per empty user-specified Business Domain; no recovery, no top-up; when zero use cases met the bar the run returns the closest candidates labelled "below the `<mode>` bar" with real scores, under a plain notice that no use case met the bar (never shipped empty when candidates exist)
-- See [Best-of-Best Ranking](#best-of-best-ranking-v072) and [Portfolio Size Math](#portfolio-size-math) for full detail.
+- See [Best-of-Best Ranking](#best-of-best-ranking-v072-v073-refinements) and [Portfolio Size Math](#portfolio-size-math) for full detail.
 
 **Phase 5: Genie Code Instructions**
 - For each qualifying use case, Inspire generates a goal-oriented Genie Code instruction
@@ -1177,7 +1177,7 @@ Inspire executes 7 phases sequentially when running in Discover mode.
 **Phase 6: Summary and Artifacts**
 - Executive summary is generated by AI
 - Per-use-case Genie Code instruction notebooks are written (organized by domain/subdomain folders)
-- Excel catalog is generated — in v0.7.2 this includes the 5 new BoB columns
+- Excel catalog is generated; in v0.7.2 this includes the 5 new BoB columns
 - PDF and Presentation are generated per language (if selected)
 
 **Phase 7: Translation**
@@ -1251,7 +1251,7 @@ Business-friendly stage names you will see:
 | Use Case Design | Generating use cases from metadata |
 | Domain Mapping | Clustering use cases into domains, subdomain detection, domain merging/splitting |
 | Use Case Prioritization | Scoring, deduplication, and review; v1.2.0 adds the steps `Quality Bar` (warning carrying the below-bar fallback list when 0 use cases met the bar), `Selection Funnel` (the per-stage ledger) and `Elite Selection` (`Ultra High` only) |
-| Best-of-Best Ranking | BoB LLM scoring (v0.7.2+) — only appears when aggressive vetting triggers |
+| Best-of-Best Ranking | BoB LLM scoring (v0.7.2+): only appears when aggressive vetting triggers |
 | Stratified Trim | Theme-balanced trimming to `target_max_use_cases` (v0.7.2+, `Good` and `High` only) |
 | Goal Filtering | Filtering use cases by goal alignment |
 | Implementation Planning | Genie Code instruction generation |
@@ -1282,9 +1282,9 @@ Use this to verify:
 - Use case names are business-relevant
 - No unexpected gaps in ID numbering
 - `idea_theme` is populated on every row (v0.7.2+)
-- `bob_score` range is reasonable (typical: 2.0–9.0)
+- `bob_score` range is reasonable (typical: 2.0-9.0)
 
-Always order by `result_json:event_at` NOT `last_updated` when querying `__inspire_step` — the writer flushes every 2s and `last_updated` can lag.
+Always order by `result_json:event_at` NOT `last_updated` when querying `__inspire_step`; the writer flushes every 2s and `last_updated` can lag.
 
 ---
 
@@ -1328,7 +1328,7 @@ After a successful run, your `Generation Path` contains:
 - Full catalog of all generated use cases
 - **Filename (v0.7.3)**:
   - Single-language run: `<business>-dbx_inspire.xlsx` (unchanged)
-  - Multi-language run: per-language suffix — `<business>-dbx_inspire_en.xlsx`, `<business>-dbx_inspire_de.xlsx`, ...
+  - Multi-language run: per-language suffix, for example `<business>-dbx_inspire_en.xlsx`, `<business>-dbx_inspire_de.xlsx`, ...
 - Columns, in order (the `Use Cases` sheet; the CSV export has the same columns):
   - ID, Rank, Business Domain, Subdomain, Use Case, Description, Quality, Inspire Score, Quality Score, Best-of-Best Score, Priority, Value, Feasibility, Statement, Solution, Business Value, Sponsor, Beneficiary, Business Priority Alignment, Strategic Goals Alignment, Analytics Technique, Type, Tables Involved, Data Foundations
   - KPIs, Expected Key Results, Measures of Success, Financial Benefits, Non-Financial Benefits, when any use case of the run carries them
@@ -1342,18 +1342,18 @@ After a successful run, your `Generation Path` contains:
 - Business-facing summary rendered as Markdown
 - **Filename (v0.7.3)**:
   - Single-language run: `readme.md` (unchanged)
-  - Multi-language run: per-language suffix — `readme_en.md`, `readme_de.md`, ...
+  - Multi-language run: per-language suffix, for example `readme_en.md`, `readme_de.md`, ...
 - Rationale: prior to v0.7.3, both Excel and Markdown outputs overwrote a single filename across all selected languages, effectively dropping every language except the last. The per-language suffix in multi-language runs guarantees every selected language is preserved in the filesystem.
 
 **`inspire_catalog_<lang>.pdf` (PDF Catalog)**
 - Professional business document version of the use case catalog
 - Includes scores, descriptions, idea themes, and domain groupings
-- One file per selected language (always used `_<lang>` suffix — unchanged)
+- One file per selected language (always used `_<lang>` suffix: unchanged)
 
 **`inspire_presentation_<lang>.pptx` (Executive Slides)**
 - Executive-ready PowerPoint presentation
 - Summarizes domains, top use cases, theme distribution, and strategic alignment
-- One file per selected language (always used `_<lang>` suffix — unchanged)
+- One file per selected language (always used `_<lang>` suffix: unchanged)
 
 ### `__inspire_usecases` Schema (v0.7.2, v1.2.0, v1.3.0 Columns)
 
@@ -1363,23 +1363,23 @@ After a successful run, your `Generation Path` contains:
 | `id` | STRING | Per-session identifier (`N##-U##`, numbered in final-rank order) |
 | `business_domain` | STRING | "Who cares" business grouping |
 | `subdomain` | STRING | Sub-function within the domain |
-| **`idea_theme`** | **STRING** | **NEW in v0.7.2** — 2-to-4-word analytical-idea label |
+| **`idea_theme`** | **STRING** | **NEW in v0.7.2**: 2-to-4-word analytical-idea label |
 | `use_case` | STRING | Full use case name |
 | `statement` | STRING | Business problem |
 | `solution` | STRING | Databricks-based approach |
 | `business_value` | STRING | Expected impact |
 | `beneficiary` | STRING | Consuming role |
 | `sponsor` | STRING | Executive sponsor |
-| `value_score` | DOUBLE | 1.0–5.0 |
-| `quality_score` | DOUBLE | 1.0–5.0 |
-| **`bob_score`** | **DOUBLE** | **NEW in v0.7.2** — 0–10 tier-weighted composite |
-| **`bob_tier1_score`** | **DOUBLE** | **NEW in v0.7.2** — mean of D1–D11 |
-| **`bob_tier2_score`** | **DOUBLE** | **NEW in v0.7.2** — mean of D12–D14 |
-| **`bob_tier3_score`** | **DOUBLE** | **NEW in v0.7.2** — mean of D15–D19 |
+| `value_score` | DOUBLE | 1.0-5.0 |
+| `quality_score` | DOUBLE | 1.0-5.0 |
+| **`bob_score`** | **DOUBLE** | **NEW in v0.7.2**: 0-10 tier-weighted composite |
+| **`bob_tier1_score`** | **DOUBLE** | **NEW in v0.7.2**: mean of D1-D11 |
+| **`bob_tier2_score`** | **DOUBLE** | **NEW in v0.7.2**: mean of D12-D14 |
+| **`bob_tier3_score`** | **DOUBLE** | **NEW in v0.7.2**: mean of D15-D19 |
 | **`quality`** | **STRING** | **NEW in v1.2.0**: quality label from combined scoring (`Ultra High` … `Ultra Low`) |
 | **`quality_mode`** | **STRING** | **NEW in v1.2.0**: the run's quality mode: `Good`, `High` or `Ultra High` |
 | **`elite_status`** | **STRING** | **NEW in v1.2.0**: the elite decision in `Ultra High`; `DOMAIN_COVERAGE_PICK` (any mode) for a use case kept only to cover a user-specified Business Domain |
-| **`elite_score`** | **DOUBLE** | **NEW in v1.2.0**: `Ultra High` elite score, 0.40 value + 0.25 evidence + 0.20 implementability + 0.15 actionability (each 1–10); NULL in `Good` and `High` |
+| **`elite_score`** | **DOUBLE** | **NEW in v1.2.0**: `Ultra High` elite score, 0.40 value + 0.25 evidence + 0.20 implementability + 0.15 actionability (each 1-10); NULL in `Good` and `High` |
 | **`elite_assessment`** | **STRING (JSON)** | **NEW in v1.2.0**: the elite judge's assessment and the metadata verification result |
 | **`selection_flags`** | **STRING (JSON)** | **NEW in v1.2.0**: selection flags for the use case, for example a domain coverage pick and its reason |
 | `code_structure_mandate` | STRING | Genie Code structure mandate cached per use case; filled for every row from v1.2.0 |
@@ -1438,8 +1438,8 @@ BoB scoring (`BEST_OF_BEST_SCORING_PROMPT`) runs as a Thinker task because each 
 - **Business Value**: expected impact
 - **Beneficiary**: the role who uses the output (e.g., Fraud Analyst)
 - **Sponsor**: the executive who cares (e.g., Chief Risk Officer)
-- **Value Score / Quality Score**: 1.0–5.0 ratings (classic scorer)
-- **BoB Score** (v0.7.2+): 0–10 composite when aggressive vetting triggered
+- **Value Score / Quality Score**: 1.0-5.0 ratings (classic scorer)
+- **BoB Score** (v0.7.2+): 0-10 composite when aggressive vetting triggered
 - **Quality Mode / Elite Status / Elite Score** (v1.2.0): the run's mode, the elite decision (or `DOMAIN_COVERAGE_PICK`) and the `Ultra High` elite score
 - **Tables Involved**: which tables are referenced
 
@@ -1470,9 +1470,9 @@ A use case labelled with a model technique (families A to D) whose build path, o
 
 Inspire has two independent scoring layers. The first (Value + Quality) runs on every use case. The second (BoB) runs only when the surviving count exceeds `aggressive_prune_threshold`. In `Ultra High` mode a third layer, the elite assessment, decides which candidates are elite.
 
-### Layer 1 — Value + Quality (Classic, Always Runs)
+### Layer 1: Value + Quality (Classic, Always Runs)
 
-Each use case receives two independent scores (1.0–5.0 scale):
+Each use case receives two independent scores (1.0-5.0 scale):
 
 #### Value Score
 
@@ -1485,7 +1485,7 @@ Measures business worth:
 | Score | Label | Meaning |
 |-------|-------|---------|
 | 4.0+ | High Value | Strong ROI, closely aligned with priorities |
-| 3.0–3.9 | Medium Value | Useful but not top priority |
+| 3.0-3.9 | Medium Value | Useful but not top priority |
 | < 3.0 | Lower Value | Limited strategic alignment |
 
 #### Quality Score
@@ -1499,22 +1499,22 @@ Measures data and analytical soundness:
 | Score | Label | Meaning |
 |-------|-------|---------|
 | 4.0+ | High Quality | Data strongly supports the analysis |
-| 3.0–3.9 | Medium Quality | Data is adequate with some gaps |
+| 3.0-3.9 | Medium Quality | Data is adequate with some gaps |
 | < 3.0 | Lower Quality | Significant data or logic gaps |
 
 Best use cases have both high value AND high quality.
 
-### Layer 2 — Best-of-Best (v0.7.2+, Conditional)
+### Layer 2: Best-of-Best (v0.7.2+, Conditional)
 
-When surviving count exceeds `aggressive_prune_threshold` (default 75), each UC is additionally scored on a 0–10 scale per gate. The 19 per-gate scores compose into a tier-weighted composite `bob_score` (0.30 T1 + 0.35 T2 + 0.35 T3) with a hard-veto floor of 2.0 for any gate scoring below 3.
+When surviving count exceeds `aggressive_prune_threshold` (default 75), each UC is additionally scored on a 0-10 scale per gate. The 19 per-gate scores compose into a tier-weighted composite `bob_score` (0.30 T1 + 0.35 T2 + 0.35 T3) with a hard-veto floor of 2.0 for any gate scoring below 3.
 
 Interpret BoB scores as follows:
 
 | `bob_score` | Meaning |
 |-------------|---------|
-| 8.0–10.0 | Top-tier UC — flagship-quality across all three tiers |
-| 6.0–7.9 | Solid UC — strong portfolio member |
-| 4.0–5.9 | Borderline — usually survives only because of its theme's FLOOR |
+| 8.0-10.0 | Top-tier UC: flagship-quality across all three tiers |
+| 6.0-7.9 | Solid UC: strong portfolio member |
+| 4.0-5.9 | Borderline: usually survives only because of its theme's FLOOR |
 | 2.0 (hard-veto floor) | Failed at least one gate below 3/10; kept only if sole theme rep (see Known Issues) |
 
 Best use cases have both high classic Quality AND a high BoB composite. A UC with `quality_score = 4.5, bob_score = 7.8` is a reliable flagship; a UC with `quality_score = 3.2, bob_score = 2.0` is a hard-veto survivor that should be manually reviewed before delivery.
@@ -1561,7 +1561,7 @@ If you put an absolute file path (starting with `/`) in UC Metadata instead of c
 
 ### Problem: Pipeline appears stuck at one stage
 - Root cause: large metadata scope causing long LLM processing times
-- Fix: wait longer (scoring, BoB, and instruction generation can take 10–30+ minutes for many use cases); check `__inspire_step` for recent updates
+- Fix: wait longer (scoring, BoB, and instruction generation can take 10-30+ minutes for many use cases); check `__inspire_step` for recent updates
 
 ### Problem: Goal alignment filter removes too many use cases
 - Root cause: Generation Instructions contain a narrow goal that only a few use cases match
@@ -1569,7 +1569,7 @@ If you put an absolute file path (starting with `/`) in UC Metadata instead of c
 
 ### Problem: BoB scores missing in Excel / DB after the run
 - Root cause: surviving count was at or below `aggressive_prune_threshold` (default 75), so BoB never ran
-- Fix: not a bug — BoB is not needed on small portfolios. If you want BoB to run for audit purposes on smaller portfolios, lower `aggressive_prune_threshold` via the `TECHNICAL_CONTEXT["runtime"]` override
+- Fix: not a bug; BoB is not needed on small portfolios. If you want BoB to run for audit purposes on smaller portfolios, lower `aggressive_prune_threshold` via the `TECHNICAL_CONTEXT["runtime"]` override
 
 ### Problem: A single theme dominates the final 100
 - Root cause: `bob_theme_max_share` was raised above 0.15, OR the input portfolio had fewer distinct themes than expected
@@ -1577,7 +1577,7 @@ If you put an absolute file path (starting with `/`) in UC Metadata instead of c
 
 ### Problem: A UC at `bob_score = 2.0` appears in the final list (v0.7.2 behavior)
 - Root cause: it was the only representative of its idea theme and was kept by the FLOOR rule
-- Fix: **resolved in v0.7.3** — hard-veto UCs are pre-filtered before the stratified trim. If you still see `bob_score <= 2.0` in a v0.7.3 run's final portfolio, something is wrong; capture the session ID and the BoB audit columns and file a bug.
+- Fix: **resolved in v0.7.3**: hard-veto UCs are pre-filtered before the stratified trim. If you still see `bob_score <= 2.0` in a v0.7.3 run's final portfolio, something is wrong; capture the session ID and the BoB audit columns and file a bug.
 - For v0.7.2 runs: see [v0.7.2 Known Issues (Resolved In v0.7.3)](#v072-known-issues-resolved-in-v073) for the manual workaround.
 
 ---
@@ -1587,7 +1587,7 @@ If you put an absolute file path (starting with `/`) in UC Metadata instead of c
 **Before run:**
 - [ ] Business Name filled with actual organization name
 - [ ] UC Metadata points to the right catalogs/schemas/tables
-- [ ] Inspire Database set to a valid `catalog.schema` (optional but recommended — required to audit BoB scores after the run)
+- [ ] Inspire Database set to a valid `catalog.schema` (optional but recommended, and required to audit BoB scores after the run)
 - [ ] Generation Options include at least Genie Code Instructions
 - [ ] Generation Path is valid and writable
 
@@ -1605,10 +1605,10 @@ If you put an absolute file path (starting with `/`) in UC Metadata instead of c
 - [ ] Opened one domain notebook
 - [ ] Reviewed use case cards for relevance
 - [ ] Genie Code instructions describe the right analytical approach
-- [ ] **Verified `bob_score` values in `__inspire_usecases`** — run the theme-distribution query from [Portfolio Size Math](#portfolio-size-math)
+- [ ] **Verified `bob_score` values in `__inspire_usecases`**: run the theme-distribution query from [Portfolio Size Math](#portfolio-size-math)
 - [ ] **Final portfolio size**: in `Good` / `High`, when the stratified trim fired the count is at most `target_max_use_cases + target_max_jitter` (default 110) plus any domain coverage picks, while any smaller count is expected because nothing is padded; in `Ultra High` there is no cap. Check the `Selection Funnel` ledger for where use cases were dropped
 - [ ] **Quality mode** in `__inspire_session` is one of `Good`, `High`, `Ultra High` (legacy labels are stored as their canonical mode)
-- [ ] **No UC with `bob_score <= 2.0`** (v0.7.3 — hard-veto pre-filter should guarantee zero). If any appear, file a bug with the session ID.
+- [ ] **No UC with `bob_score <= 2.0`** (v0.7.3: hard-veto pre-filter should guarantee zero). If any appear, file a bug with the session ID.
 - [ ] Theme distribution looks reasonable (no single theme at the ~15-UC cap unless expected)
 
 **Workspace sync gotcha (v0.7.3 operational note):**
@@ -1628,7 +1628,7 @@ You are now operating Inspire end-to-end.
 
 ---
 
-## Release Notes — v0.7.3
+## Release Notes: v0.7.3
 
 v0.7.3 closes the single documented v0.7.2 Known Issue, removes a cosmetic artifact in final portfolio size, fixes a multi-language filename collision, and parallelizes the largest remaining bottleneck.
 
@@ -1636,7 +1636,7 @@ v0.7.3 closes the single documented v0.7.2 Known Issue, removes a cosmetic artif
 
 | Commit | Subject | What It Fixes |
 |--------|---------|---------------|
-| `69c9f12` | Hard-veto pre-filter in `_stratified_trim_by_theme` | Closes v0.7.2 Known Issue — hard-veto UCs can no longer survive the FLOOR rule |
+| `69c9f12` | Hard-veto pre-filter in `_stratified_trim_by_theme` | Closes v0.7.2 Known Issue: hard-veto UCs can no longer survive the FLOOR rule |
 | `97ef04d` | Multi-language filename convention for Excel and Markdown | Customer-reported: "second selected language (German) was not respected" |
 | `309adcf` | Introduce `target_max_jitter` config key | Portfolio sizes are no longer always a round `target_max_use_cases`; randomized within [base+1, base+jitter] |
 | `0fbff91` | Default-value change: `target_max_use_cases` 100 → 90 | Companion to `309adcf` so effective cap range is [91, 110], not [101, 120] |
@@ -1644,10 +1644,10 @@ v0.7.3 closes the single documented v0.7.2 Known Issue, removes a cosmetic artif
 
 ### v0.7.3 Headline Changes (Expanded)
 
-1. **Hard-veto pre-filter (`69c9f12`)** — `_stratified_trim_by_theme` now drops every UC with `bob_hard_veto_gate != None` BEFORE theme grouping. A theme whose only representative was hard-vetoed is legitimately eliminated. **Zero hard-veto survivors on tpcds_sf1 validation** (session `1234567890000001`, 13 UCs dropped, 105 UCs in final portfolio).
-2. **Target-max jitter (`309adcf` + `0fbff91`)** — new `target_max_jitter` config key. Effective trim cap = `target_max_use_cases + randint(1, target_max_jitter)`. Defaults changed so the effective cap range is **[91, 110]**, centered near the old fixed 100 but non-round on any given run.
-3. **Multi-language filename convention (`97ef04d`)** — single-language runs unchanged; multi-language runs add `_<lang>` suffix to Excel and Markdown outputs so each language's content is preserved in its own file.
-4. **Parallel Genie Code regeneration (`c728515`)** — Route 1 and Route 2 regeneration now uses a `ThreadPoolExecutor` of 10 workers (tunable via `genie_regen_parallelism`). Measured 100-UC regeneration time: ~5 hours sequential → ~30 min parallel, ~10x speedup.
+1. **Hard-veto pre-filter (`69c9f12`)**: `_stratified_trim_by_theme` now drops every UC with `bob_hard_veto_gate != None` BEFORE theme grouping. A theme whose only representative was hard-vetoed is legitimately eliminated. **Zero hard-veto survivors on tpcds_sf1 validation** (session `1234567890000001`, 13 UCs dropped, 105 UCs in final portfolio).
+2. **Target-max jitter (`309adcf` + `0fbff91`)**: new `target_max_jitter` config key. Effective trim cap = `target_max_use_cases + randint(1, target_max_jitter)`. Defaults changed so the effective cap range is **[91, 110]**, centered near the old fixed 100 but non-round on any given run.
+3. **Multi-language filename convention (`97ef04d`)**: single-language runs unchanged; multi-language runs add `_<lang>` suffix to Excel and Markdown outputs so each language's content is preserved in its own file.
+4. **Parallel Genie Code regeneration (`c728515`)**: Route 1 and Route 2 regeneration now uses a `ThreadPoolExecutor` of 10 workers (tunable via `genie_regen_parallelism`). Measured 100-UC regeneration time: ~5 hours sequential → ~30 min parallel, ~10x speedup.
 
 ### New Runtime Config Keys
 
@@ -1668,18 +1668,18 @@ The `target_max_use_cases` default moved from 100 to 90, as listed under "G. New
 | HV | `7302073002073002` | 39 | 0 | No (`count < 75`) | No-op trim, expected |
 | tpcds_sf1 | `1234567890000001` | **105** | **0** | Yes (13 pre-dropped) | Effective cap = 90 + 15 = 105 |
 
-Every validation run ended with zero hard-veto survivors — the defining proof that the v0.7.2 Known Issue is closed.
+Every validation run ended with zero hard-veto survivors, the defining proof that the v0.7.2 Known Issue is closed.
 
 ### Compatibility Notes (v0.7.3)
 
 - All v0.7.2 persisted columns (`idea_theme`, `bob_score`, `bob_tier1_score`, `bob_tier2_score`, `bob_tier3_score`) remain unchanged. No schema migration required.
 - Sessions created on v0.7.2 keep working on v0.7.3 without modification. The new `target_max_jitter` and `genie_regen_parallelism` keys have defaults so no config change is required to upgrade.
 - Docs-only mode is unaffected by the hard-veto fix (docs-only replays the JSON catalog verbatim).
-- Multi-language runs created on v0.7.2 and below may have silently overwritten outputs — regenerate via docs-only on v0.7.3 to get per-language files.
+- Multi-language runs created on v0.7.2 and below may have silently overwritten outputs; regenerate via docs-only on v0.7.3 to get per-language files.
 
 ---
 
-## Release Notes — v0.7.2
+## Release Notes: v0.7.2
 
 Full commit list since v0.7.0, newest first:
 
@@ -1688,23 +1688,23 @@ Full commit list since v0.7.0, newest first:
 | `7f9f2be` | Reload schema at BoB call site so `__inspire_usecases` writes don't fail when the table was created earlier in the same session | v0.7.2 |
 | `c013b06` | **Best-of-Best ranking + Stratified Trim by idea theme** (the headline change) | v0.7.2 |
 | `5c0f7f8` | Fix `_target_max_llm` NameError in aggressive vetting path | v0.7.2 |
-| `f8c8a5a` | Unify 19-gates doc style — tables + title case; folded the standalone gates doc into `readme.md` | v0.7.1 |
-| `a4abaac` | v0.7.1 docs refresh — 19 quality gates + LLM-only pipeline | v0.7.1 |
-| `9291ffb` | Add D12–D14 business / sponsor / engineering gates + 75-UC sweet spot | v0.7.1 |
-| `d643603` | Remove regex / pattern dedup — everything LLM-based | v0.7.0 |
+| `f8c8a5a` | Unify 19-gates doc style: tables + title case; folded the standalone gates doc into `readme.md` | v0.7.1 |
+| `a4abaac` | v0.7.1 docs refresh: 19 quality gates + LLM-only pipeline | v0.7.1 |
+| `9291ffb` | Add D12-D14 business / sponsor / engineering gates + 75-UC sweet spot | v0.7.1 |
+| `d643603` | Remove regex / pattern dedup: everything LLM-based | v0.7.0 |
 | `7a06f02` | Target-zone vetting (bidirectional) + metadata-grounded quality filter | v0.7.0 |
 
 ### v0.7.2 Headline Changes (Expanded)
 
-1. **Best-of-Best (BoB) ranking** — new LLM prompt `BEST_OF_BEST_SCORING_PROMPT` replaces the legacy aggressive-dedupe pass. Scores every UC on all 19 gates on a 0–10 scale, batched 25 UCs per call, parallel across the LLM cascade. Tags each UC with a 2-to-4-word `idea_theme`.
-2. **Tier-weighted composite** — deterministic Python composes the 19 dimension scores into a 0–10 `bob_score` (0.30 T1 + 0.35 T2 + 0.35 T3) with a hard-veto floor at 2.0 for any single gate scoring below 3.
-3. **Stratified Trim by idea theme** — replaces the legacy global-sort trim. FLOOR (≥1 per theme), CAP (≤ `target_max * 0.15` per theme), proportional BUDGET for remaining slots, backfill pass to hit exactly `target_max`.
+1. **Best-of-Best (BoB) ranking**: new LLM prompt `BEST_OF_BEST_SCORING_PROMPT` replaces the legacy aggressive-dedupe pass. Scores every UC on all 19 gates on a 0-10 scale, batched 25 UCs per call, parallel across the LLM cascade. Tags each UC with a 2-to-4-word `idea_theme`.
+2. **Tier-weighted composite**: deterministic Python composes the 19 dimension scores into a 0-10 `bob_score` (0.30 T1 + 0.35 T2 + 0.35 T3) with a hard-veto floor at 2.0 for any single gate scoring below 3.
+3. **Stratified Trim by idea theme**: replaces the legacy global-sort trim. FLOOR (≥1 per theme), CAP (≤ `target_max * 0.15` per theme), proportional BUDGET for remaining slots, backfill pass to hit exactly `target_max`.
 4. **5 new persisted columns** in `__inspire_usecases` and Excel/CSV export: `idea_theme`, `bob_score`, `bob_tier1_score`, `bob_tier2_score`, `bob_tier3_score`.
 5. **5 new runtime config keys**: `aggressive_prune_threshold` (75), `target_max_use_cases` (100), `target_min_use_cases` (50), `bob_scoring_batch_size` (25), `bob_theme_max_share` (0.15).
-6. **Schema reload fix** (`7f9f2be`) — when BoB runs in the same session as the original `__inspire_usecases` table creation, the cached Delta schema did not yet include the new BoB columns; the fix reloads the schema at the BoB write site so MERGE/UPDATE statements target the correct column set.
-7. **NameError fix** (`5c0f7f8`) — removed stale reference to `_target_max_llm` that prevented aggressive vetting from running in certain edge cases.
+6. **Schema reload fix** (`7f9f2be`): when BoB runs in the same session as the original `__inspire_usecases` table creation, the cached Delta schema did not yet include the new BoB columns; the fix reloads the schema at the BoB write site so MERGE/UPDATE statements target the correct column set.
+7. **NameError fix** (`5c0f7f8`): removed stale reference to `_target_max_llm` that prevented aggressive vetting from running in certain edge cases.
 
-### Validation — tpcds_sf1 Session `1234567890000002`
+### Validation: tpcds_sf1 Session `1234567890000002`
 
 End-to-end on TPC-DS scale-factor-1:
 
@@ -1717,14 +1717,14 @@ End-to-end on TPC-DS scale-factor-1:
 | After BoB + Stratified Trim | **100** |
 | Distinct idea themes (final 100) | 75 |
 | Top theme | Anomaly Detection (11 UCs) |
-| BoB mean / range | 6.7 / 2.0–8.23 |
+| BoB mean / range | 6.7 / 2.0-8.23 |
 | Tier 1 / 2 / 3 mean | 7.23 / 6.92 / 6.23 |
 | Hard-veto survivors | 3 / 100 (3%) |
 | Total run duration | 68 min |
 
 ### Compatibility Notes (v0.7.2)
 
-- Runs initiated on v0.7.2 write all 5 new columns. Older sessions in the same `__inspire_usecases` table will have NULL in those columns — this is expected and requires no migration.
+- Runs initiated on v0.7.2 write all 5 new columns. Older sessions in the same `__inspire_usecases` table will have NULL in those columns; this is expected and requires no migration.
 - The 5 new runtime keys have sensible defaults, so **no config change is required** to upgrade from v0.7.0 or v0.7.1 to v0.7.2. Existing runs keep working.
 - Docs-only mode replays whatever is in the source JSON: if the JSON lacks BoB fields, the regenerated Excel/PDF omits the BoB columns. Regenerate from a v0.7.2 run to get BoB in docs.
 
@@ -1734,23 +1734,23 @@ End-to-end on TPC-DS scale-factor-1:
 
 This section preserves the v0.7.2 Known Issues record for historical and audit purposes. All blocking issues are marked with resolution status.
 
-### Issue 1 — Hard-Veto UCs Can Survive the Stratified Trim — RESOLVED in v0.7.3
+### Issue 1: Hard-Veto UCs Can Survive the Stratified Trim (RESOLVED in v0.7.3)
 
 **Status:** RESOLVED in v0.7.3 (commit `69c9f12`).
 
 **Symptom (v0.7.2):** A UC with `bob_score = 2.0` (meaning it scored below 3/10 on at least one gate, triggering the hard-veto floor) appears in the final portfolio.
 
 **Root cause (v0.7.2):** The stratified trim enforced two rules in this order:
-1. **FLOOR** — every idea theme keeps at least 1 UC.
-2. **CAP** — no theme exceeds `target_max * bob_theme_max_share`.
+1. **FLOOR**: every idea theme keeps at least 1 UC.
+2. **CAP**: no theme exceeds `target_max * bob_theme_max_share`.
 
 The FLOOR rule ran BEFORE any score filtering. If a UC was the only representative of its idea theme AND its `bob_score` was 2.0, FLOOR kept it anyway to preserve coverage. There was no short-circuit that said "if this UC is hard-vetoed, let the theme die."
 
 **v0.7.2 validation run impact:** 3 out of 100 final UCs (3%) were in this state on the tpcds_sf1 validation run. All 3 had `bob_score = 2.0` and were the sole representative of their idea theme.
 
-**Resolution in v0.7.3 (`69c9f12`):** `_stratified_trim_by_theme` now **pre-filters every UC with `bob_hard_veto_gate != None` BEFORE theme grouping begins**. Coverage (FLOOR) is reconstructed only from UCs that cleared the hard-veto floor. Themes whose sole representative was hard-vetoed are dropped entirely — which is the correct semantic: a theme that cannot produce even one fundable UC should not appear in the portfolio.
+**Resolution in v0.7.3 (`69c9f12`):** `_stratified_trim_by_theme` now **pre-filters every UC with `bob_hard_veto_gate != None` BEFORE theme grouping begins**. Coverage (FLOOR) is reconstructed only from UCs that cleared the hard-veto floor. Themes whose sole representative was hard-vetoed are dropped entirely, which is the correct semantic: a theme that cannot produce even one fundable UC should not appear in the portfolio.
 
-**v0.7.3 validation evidence:** tpcds_sf1 session `1234567890000001` — 13 hard-veto UCs dropped before the trim; **0 hard-veto survivors** in the final 105-UC portfolio.
+**v0.7.3 validation evidence:** tpcds_sf1 session `1234567890000001`: 13 hard-veto UCs dropped before the trim; **0 hard-veto survivors** in the final 105-UC portfolio.
 
 **Historical reproducer query** (runs against any v0.7.2 session; should return zero rows against any v0.7.3 session):
 
@@ -1768,7 +1768,7 @@ ORDER BY idea_theme;
 - Delete it from the JSON catalog and regenerate artifacts via docs-only mode, OR
 - Manually rework the use case statement to address the failing gate, then re-run BoB on just that UC.
 
-### Issue 2 — Idea Theme Vocabulary Drift — UNCHANGED
+### Issue 2: Idea Theme Vocabulary Drift (UNCHANGED)
 
 **Status:** By design; monitoring only. Unchanged in v0.7.3.
 
@@ -1776,21 +1776,21 @@ ORDER BY idea_theme;
 
 **Root cause:** Themes are LLM-tagged freeform at BoB time; there is no canonical vocabulary.
 
-**Impact:** Low. On the v0.7.2 validation run, 75 distinct themes emerged from 244 UCs — empirically the LLM converges well. Occasional near-duplicate labels are absorbed by the BUDGET pass because both labels' UCs get FLOOR coverage.
+**Impact:** Low. On the v0.7.2 validation run, 75 distinct themes emerged from 244 UCs; empirically the LLM converges well. Occasional near-duplicate labels are absorbed by the BUDGET pass because both labels' UCs get FLOOR coverage.
 
 **Still no fix planned.** A future version may consider a post-processing canonicalization step if telemetry shows the problem growing.
 
-### Issue 3 — BoB Scoring Cost on Very Large Portfolios — UNCHANGED
+### Issue 3: BoB Scoring Cost on Very Large Portfolios (UNCHANGED)
 
 **Status:** Known performance characteristic. Unchanged in v0.7.3.
 
-**Symptom:** On portfolios with > 400 surviving UCs entering aggressive vetting, BoB adds ~8–10 minutes of wall-clock time beyond what the legacy aggressive-dedupe pass would have taken.
+**Symptom:** On portfolios with > 400 surviving UCs entering aggressive vetting, BoB adds ~8-10 minutes of wall-clock time beyond what the legacy aggressive-dedupe pass would have taken.
 
 **Root cause:** BoB scores every UC × every gate (19 scores per UC). At `bob_scoring_batch_size = 25`, a 400-UC portfolio needs 16 parallel LLM calls; the critical path is gated by the slowest cascade member.
 
 **Workaround:** Increase `bob_scoring_batch_size` to 40 or 50 on very large portfolios. The tradeoff is longer per-call latency but fewer parallel calls.
 
-**No fix planned.** The cost is inherent to the audit-trail requirement — you cannot get per-gate BoB scores without scoring per gate. (Separately, v0.7.3's `c728515` parallelizes the later Genie Code regeneration pass — that is the much bigger wall-clock win.)
+**No fix planned.** The cost is inherent to the audit-trail requirement: you cannot get per-gate BoB scores without scoring per gate. (Separately, v0.7.3's `c728515` parallelizes the later Genie Code regeneration pass, which is the much bigger wall-clock win.)
 
 ---
 
