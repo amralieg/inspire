@@ -45,12 +45,18 @@ test('an old row with no kind derives it from the technique, and an unknown tech
   assert.equal(useCaseKindView(null), null);
 });
 
-test('a kind named by label or number in the Use Case Kind field resolves, and a bad name falls back to the technique', async () => {
+test('the stored kind id resolves through the shared registry helpers, and anything else falls back to the technique', async () => {
   const { useCaseKindView } = await lib('useCaseKind.js');
-  for (const named of ['Forecast', 'forecast', '5', '5. Forecast']) {
-    assert.equal(useCaseKindView({ 'Use Case Kind': named, 'Analytics Technique': 'Classification' }).id, 'forecast', named);
+  const source = fs.readFileSync(path.resolve(__dirname, '..', '..', 'frontend', 'src', 'lib', 'useCaseKind.js'), 'utf8');
+  const shared = source.match(/import \{([^}]*)\} from '\.\/kinds\.js'/);
+  assert.ok(shared && /\bkindOf\b/.test(shared[1]) && /\bkindForTechnique\b/.test(shared[1]) && /\bfamilyOf\b/.test(shared[1]));
+  assert.doesNotMatch(source, /KINDS\.kinds\.find|Use Case Kind/, 'the kind is resolved by kindOf and kindForTechnique only');
+  assert.equal(useCaseKindView({ use_case_kind: 'forecast', 'Analytics Technique': 'Classification' }).id, 'forecast');
+  for (const named of ['Forecast', '5', '5. Forecast', 'Basket magic']) {
+    assert.equal(useCaseKindView({ use_case_kind: named, 'Analytics Technique': 'Classification' }).id, 'risk_propensity', named);
+    assert.equal(useCaseKindView({ 'Use Case Kind': named, 'Analytics Technique': 'Classification' }).id, 'risk_propensity', named);
   }
-  assert.equal(useCaseKindView({ 'Use Case Kind': 'Basket magic', 'Analytics Technique': 'Classification' }).id, 'risk_propensity');
+  assert.equal(useCaseKindView({ use_case_kind: 'Basket magic' }), null);
 });
 
 test('the kind filter keeps a family or a kind and drops the rest (must-keep and must-reject)', async () => {

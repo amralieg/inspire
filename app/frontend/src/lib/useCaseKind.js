@@ -11,20 +11,10 @@ export const KIND_LINE_FIELDS = [
 ];
 
 const text = (value) => String(value ?? '').trim();
-const fold = (value) => text(value).replace(/[\s_-]+/g, ' ').toLowerCase();
-
-function namedKind(name) {
-  const key = fold(name);
-  if (!key) return null;
-  const bare = key.replace(/^\d+\s*[.)]\s*/, '');
-  return KINDS.kinds.find((kind) => [kind.id, kind.label, String(kind.num)].some((v) => [key, bare].includes(fold(v)))) || null;
-}
-
 export function useCaseKindView(uc) {
   const u = uc && typeof uc === 'object' ? uc : {};
   const technique = text(fieldOf(u, 'Analytics Technique', 'analytics_technique'));
-  const kind = kindOf(text(u.use_case_kind)) || namedKind(u.use_case_kind) || namedKind(u['Use Case Kind'])
-    || kindForTechnique(technique);
+  const kind = kindOf(text(u.use_case_kind)) || kindForTechnique(technique);
   if (!kind) return null;
   const family = familyOf(kind.family) || { id: kind.family, label: kind.family };
   const lines = KIND_LINE_FIELDS
