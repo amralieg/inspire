@@ -1,3 +1,4 @@
+const { RUN_SCOPES } = require('../../frontend/src/lib/runScope.js');
 const GROUP_BY = 'group_by';
 const GROUP_LABEL = 'Grouping';
 const GROUP_ALL = 'all';
@@ -22,7 +23,6 @@ const GROUP_SAMPLE_ROWS = 100000;
 const GROUP_TECHNIQUES = ['anomal', 'outlier', 'forecast', 'predict', 'threshold', 'benchmark', 'rank', 'propensity', 'churn', 'cluster', 'segment',
   'baseline', 'deviation', 'trend'];
 const STANDALONE_TECHNIQUES = ['classif', 'extract', 'summar', 'sentiment', 'tag', 'categor', 'entity', 'translat', 'document'];
-const RUN_SCOPES = ['all', 'groups', 'recent', 'records'];
 const GROUP_ID_RE = /(?:^|_)(?:id|key|uuid|guid|sk|nk|hash)$/i;
 const GROUP_TYPES = ['string', 'varchar', 'char', 'boolean'];
 const TIME_TYPES = ['date', 'timestamp'];

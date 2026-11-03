@@ -14,6 +14,7 @@ export const SCOPE_LABELS = {
 export const GROUP_ALL = 'all';
 export const GROUP_CUSTOM = 'custom';
 export const RUN_SCOPES = ['all', 'groups', 'recent', 'records'];
+export const RUN_SCOPE_ALLOWED = RUN_SCOPES.join(', ');
 export const SCOPE_DEFAULTS = { [SCOPE_DAYS]: '30', [SCOPE_RECORDS]: '1000' };
 export const GROUPING_TITLE = 'Compare like with like?';
 export const FIRST_RUN_TITLE = 'What should the first run cover?';
@@ -64,6 +65,16 @@ export function scopeChanges(before, after) {
 
 export function isScopeSetting(setting) {
   return SCOPE_SETTINGS.includes(String(setting?.name || ''));
+}
+
+export function runScopeProblem(value, name = SCOPE_LABELS[RUN_SCOPE]) {
+  const scope = text(value);
+  return scope && !RUN_SCOPES.includes(scope) ? `${name} is '${scope}'; allowed: ${RUN_SCOPE_ALLOWED}` : '';
+}
+
+export function runScopeSetting(setting) {
+  if (!isMap(setting) || text(setting.name) !== RUN_SCOPE) return setting;
+  return { ...setting, kind: 'choice', choices: [...RUN_SCOPES], many: false, allowed: RUN_SCOPE_ALLOWED, low: null, high: null, whole: false };
 }
 
 export function profileRecords(profile) {
@@ -170,7 +181,8 @@ export function scopeProblems(values, profile = null, part = 'both', custom = nu
   const unsaved = customGroupingProblem(values, custom);
   if (unsaved) grouping.push(unsaved);
   const scope = text(values?.[RUN_SCOPE]);
-  if (scope && !RUN_SCOPES.includes(scope)) problems.push(`First run is '${scope}'; allowed: ${RUN_SCOPES.join(', ')}`);
+  const wrongScope = runScopeProblem(scope);
+  if (wrongScope) problems.push(wrongScope);
   if (scope === 'records' && isMap(profile) && profile.standalone !== true) {
     problems.push('A first run on a number of records works only when each record stands alone; choose chosen groups, a recent period or everything');
   }
@@ -202,9 +214,13 @@ export function runScopeFacts(runs) {
   };
 }
 
-export function scopeStepsOf(profileState, profile) {
+export function scopeStepsOf(profileState, profile, builtFirstRun = false) {
   const ready = profileState === 'ready' && isMap(profile);
-  return { grouping: ready && profile.qualifies === true, firstRun: ready || profileState === 'error' };
+  return { grouping: ready && profile.qualifies === true, firstRun: ready || profileState === 'error' || (builtFirstRun === true && profileState === 'loading') };
+}
+
+export function builtFirstRunOf(model) {
+  return (Array.isArray(model) ? model : []).some((s) => isMap(s) && text(s.name) === RUN_SCOPE && s.source === 'widget');
 }
 
 export const SCOPE_ALL_TEXT = 'All records';

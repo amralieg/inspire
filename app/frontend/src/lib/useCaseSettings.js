@@ -1,3 +1,4 @@
+import { RUN_SCOPE, runScopeProblem, runScopeSetting } from './runScope.js';
 import { stakeWords } from './targetKpi.js';
 
 export const SETTING_ALL = 'all';
@@ -119,6 +120,7 @@ export function settingProblem(setting, value) {
   const s = isMap(setting) ? setting : {};
   const name = String(s.name || '');
   const text = String(value == null ? '' : value).trim();
+  if (name === RUN_SCOPE) return runScopeProblem(text, name);
   if (s.kind === 'choice') {
     const choices = (Array.isArray(s.choices) ? s.choices : []).map(String);
     const picked = s.many ? text.split(',').map((part) => part.trim()).filter(Boolean) : [text];
@@ -147,7 +149,7 @@ export function assumptionSetting(name, kind, low = null, high = null) {
 export function settingsModelOf(history) {
   const rows = [...(Array.isArray(history) ? history : [])].filter(isMap).sort((a, b) => (b.spec_version || 0) - (a.spec_version || 0));
   const row = rows.find((r) => isMap(r.asset_status) && Object.prototype.hasOwnProperty.call(r.asset_status, 'settings'));
-  return row && Array.isArray(row.asset_status.settings) ? row.asset_status.settings.filter(isMap) : null;
+  return row && Array.isArray(row.asset_status.settings) ? row.asset_status.settings.filter(isMap).map(runScopeSetting) : null;
 }
 
 export const isSettingWidget = (widget) => {
@@ -170,7 +172,7 @@ export function wizardSettings({ model = null, widgets = [], spec = null, family
     if (!name || seen.has(name)) continue;
     seen.add(name);
     const change = s.source === 'alert' ? SETTINGS_ALERT_REFRESH : SETTINGS_NO_REBUILD;
-    list.push({ ...s, name, label: String(s.label || name), derived: false, change });
+    list.push(runScopeSetting({ ...s, name, label: String(s.label || name), derived: false, change }));
   }
   const flagging = new Set([...TIER_SETTINGS.measured, ...TIER_SETTINGS.predicted, ...(FAMILY_FLAGGING[family] || [])]);
   for (const widget of Array.isArray(widgets) ? widgets : []) {
@@ -178,13 +180,13 @@ export function wizardSettings({ model = null, widgets = [], spec = null, family
     if (!isSettingWidget(widget) || seen.has(name)) continue;
     seen.add(name);
     const rule = allowedRule(widget.allowed) || { low: null, high: null, whole: false, lowOpen: false, highOpen: false };
-    list.push({
+    list.push(runScopeSetting({
       name, label: String(widget.label || name), group: flagging.has(name) ? 'flagging' : 'scope', kind: widgetKind(name, widget, rule),
       low: rule.low, high: rule.high, whole: rule.whole, low_open: rule.lowOpen, high_open: rule.highOpen,
       allowed: String(widget.allowed || '').trim() || allowedText(rule) || 'any value', choices: Array.isArray(widget.choices) ? widget.choices.map(String) : [],
-      many: name === 'flag_segments', default: widget.default == null ? '' : String(widget.default), source: 'widget', derived: true, unit: '',
+      many: name === 'flag_segments', default: widget.default == null ? '' : String(widget.default), source: 'widget', derived: name !== RUN_SCOPE, unit: '',
       change: editing ? SETTINGS_REBUILDS : '',
-    });
+    }));
   }
   if (spec?.outputs?.alert && !list.some((s) => s.source === 'alert')) {
     list.push({ name: ALERT_THRESHOLD_SETTING, label: 'Alert threshold', group: 'alerts', kind: 'number', low: 0, high: null, allowed: 'at least 0', unit: 'records',

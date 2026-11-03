@@ -2,6 +2,8 @@ const { appShellCatalog } = require('./appShell');
 const { IMPLEMENT_RUN_ID_PARAM, parseMaybeJson, withInspireInstallParams } = require('./inspireJobParams');
 const { parseExactJson } = require('./exactJson');
 const { plural } = require('./plural');
+const { RUN_SCOPE, runScopeProblem, runScopeSetting } = require('../../frontend/src/lib/runScope.js');
+const { settingProblem: implementSettingProblem } = require('../../frontend/src/lib/useCaseSettings.js');
 
 const IMPLEMENT_OPERATION = 'Implement Use Cases';
 const IMPLEMENT_TABLE = '__inspire_implement';
@@ -31,7 +33,6 @@ const IMPLEMENT_KPI_TARGET_MAX = 200;
 const IMPLEMENT_ASSUMPTION_NAME_RE = /^[A-Za-z][A-Za-z0-9_]{0,62}$/;
 const IMPLEMENT_ASSUMPTION_LIMIT = 1e15;
 const INSPIRE_SETTING_ALL = 'all';
-const INSPIRE_SETTING_NUMBER_RE = /^-?[0-9]+(?:\.[0-9]+)?$/;
 const INSPIRE_ASSUMPTION_BOUNDS = { percent: [0, 1, '0 to 1'], money: [0, null, 'at least 0'], number: [null, null, 'any number'] };
 const INSPIRE_SETTING_GROUPS = ['impact', 'flagging', 'scope', 'alerts'];
 const INSPIRE_SETTING_KINDS = ['money', 'number', 'integer', 'percent', 'choice', 'days'];
@@ -870,27 +871,6 @@ function numberConstant(value) {
   return typeof value === 'number' && Number.isFinite(value);
 }
 
-function implementSettingProblem(setting, value) {
-  const s = isPlainObject(setting) ? setting : {};
-  const name = String(s.name || '');
-  const text = String(value == null ? '' : value).trim();
-  if (s.kind === 'choice') {
-    const choices = (Array.isArray(s.choices) ? s.choices : []).map(String);
-    const picked = s.many ? text.split(',').map((part) => part.trim()).filter(Boolean) : [text];
-    const allowed = [...choices, ...(s.many ? [INSPIRE_SETTING_ALL] : [])];
-    const wrong = picked.filter((part) => choices.length && !allowed.includes(part));
-    if (!text || wrong.length) return `${name} is '${text}'; allowed: ${choices.length ? allowed.join(', ') : 'any text'}`;
-    return '';
-  }
-  const { low = null, high = null } = s;
-  const whole = Boolean(s.whole);
-  const number = INSPIRE_SETTING_NUMBER_RE.test(text) && !(whole && text.includes('.')) ? Number(text) : null;
-  if (number === null || (low != null && (s.low_open ? number <= low : number < low)) || (high != null && (s.high_open ? number >= high : number > high))) {
-    return `${name} is '${text}'; allowed: ${s.allowed || 'a number'}`;
-  }
-  return '';
-}
-
 function implementAssumptionSetting(name, kind, low = null, high = null) {
   const known = Object.prototype.hasOwnProperty.call(INSPIRE_ASSUMPTION_BOUNDS, kind) ? kind : 'number';
   if (numberConstant(low) && numberConstant(high)) return { name, kind: known, low, high, allowed: `${numberText(low)} to ${numberText(high)}` };
@@ -948,7 +928,7 @@ function implementAssumptionProblems(spec, model) {
 function implementSettingsModel(history) {
   const rows = [...(history || [])].sort((a, b) => (b.spec_version || 0) - (a.spec_version || 0));
   const row = rows.find((r) => isPlainObject(r.asset_status) && Object.prototype.hasOwnProperty.call(r.asset_status, 'settings'));
-  return row && Array.isArray(row.asset_status.settings) ? row.asset_status.settings.filter(isPlainObject) : null;
+  return row && Array.isArray(row.asset_status.settings) ? row.asset_status.settings.filter(isPlainObject).map(runScopeSetting) : null;
 }
 
 function implementAppPageId(useCaseId) {
@@ -2036,7 +2016,7 @@ function widgetProblems(widgets, values) {
   const known = (widgets || []).filter((w) => w && typeof w === 'object');
   const allowed = Object.fromEntries(known.map((w) => [str(w.name), w.allowed]));
   const problems = Object.keys(values || {}).sort()
-    .map((name) => widgetValueProblem(name, values[name], allowed[name] ?? ''))
+    .map((name) => (name === RUN_SCOPE ? runScopeProblem(values[name], name) : widgetValueProblem(name, values[name], allowed[name] ?? '')))
     .filter(Boolean);
   const merged = Object.fromEntries(known.map((w) => [str(w.name), w.default]));
   Object.assign(merged, values || {});

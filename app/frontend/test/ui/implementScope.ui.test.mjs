@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { HARNESS_SETTINGS, HARNESS_USE_CASE, OWNER, built } from './implementFixtures.js';
-import { closeBrowser, lowContrast, onStep, openAsset, openBuild, openUi, until } from './uiSupport.mjs';
+import { closeBrowser, lowContrast, onStep, openAsset, openBuild, openSettings, openUi, toVibes, until } from './uiSupport.mjs';
 
 test.after(closeBrowser);
 
@@ -352,3 +352,66 @@ test('the Build page states the scope of the last run next to its numbers, and t
     await quiet.close();
   }
 });
+
+const RECORDED_RUN_SCOPE = {
+  allowed: '', applies: 'run', choices: [], default: 'all', group: 'scope', help: 'Run scope.', high: null, high_open: false, kind: 'number', label: 'Run scope',
+  low: null, low_open: false, many: false, name: 'run_scope', reason: 'Genie Code chose it when it built the notebook', source: 'widget', unit: '', whole: false,
+};
+const recordedAsNumber = () => {
+  const row = withScopeModel();
+  const status = JSON.parse(row.asset_status);
+  return { ...row, asset_status: JSON.stringify({ ...status, settings: status.settings.map((s) => (s.name === 'run_scope' ? RECORDED_RUN_SCOPE : s)) }) };
+};
+const NOT_QUALIFYING = { ...PROFILE, qualifies: false, reason: 'each record stands on its own', recommended: [], default_scope: 'all' };
+
+for (const [name, profile] of [['the data qualifies for Grouping', PROFILE], ['the data does not qualify for Grouping', NOT_QUALIFYING]]) {
+  test(`all settings on a built version that recorded First run as a number walk First run${profile.qualifies ? ', Grouping' : ''} and Vibes and save the choice, when ${name}`, async () => {
+    const calls = [];
+    let answered = 0;
+    const init = async (page) => {
+      await page.route('**/api/grouping/profile', async (route) => {
+        calls.push(JSON.parse(route.request().postData() || '{}'));
+        await new Promise((done) => setTimeout(done, 4000));
+        await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(profile) });
+        answered += 1;
+      });
+    };
+    const ui = await openBuild({ me: ME, history: [recordedAsNumber()], forwardedToken: PERSON }, { init });
+    const { page, made } = ui;
+    try {
+      await openSettings(page);
+      assert.ok(answered < calls.length, `the wizard is still reading the table (${answered} of ${calls.length} reads answered)`);
+      assert.ok((await stepBar(page)).some((s) => s.endsWith('. First run')), `First run is a step while the table is read: ${(await stepBar(page)).join(' | ')}`);
+      await until(() => calls.length >= 1 && answered === calls.length, 'every read of the table is answered', 30000);
+      await page.evaluate(() => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done))));
+      const steps = (await stepBar(page)).map((s) => s.replace(/^\d+\. /, ''));
+      assert.equal(steps.includes('Grouping'), profile.qualifies, `Grouping only when the data qualifies: ${steps.join(' | ')}`);
+      assert.ok(steps.indexOf('First run') > steps.indexOf('Data') && steps.indexOf('First run') < steps.indexOf('Vibes'), steps.join(' | '));
+      if (profile.qualifies) assert.equal(steps.indexOf('Grouping') + 1, steps.indexOf('First run'));
+      const back = page.getByRole('button', { name: 'Back' });
+      const first = profile.qualifies ? 'Grouping' : 'First run';
+      for (let i = 0; i < steps.length && !(await page.locator('[aria-current="step"]').innerText()).includes(first); i += 1) await back.click();
+      await onStep(page, first);
+      if (profile.qualifies) {
+        await page.locator('[data-grouping-choice]').first().waitFor();
+        await next(page);
+        await onStep(page, 'First run');
+      }
+      await page.locator('[data-first-run-choice="recent"] input').check();
+      await toVibes(page);
+      assert.deepEqual((await page.locator('[role="alert"] p').allTextContents()).filter((t) => /run_scope|First run/.test(t)), [], 'no First run problem');
+      const keep = page.getByRole('radio', { name: /^Keep v\d+ live/ });
+      await page.getByRole('button', { name: 'Start MVP', exact: true }).click();
+      if (await keep.count()) {
+        await keep.check();
+        await page.getByRole('button', { name: 'Start MVP', exact: true }).click();
+      }
+      await until(() => made.jobs.length === 1, 'the build', 30000);
+      const [sent] = insertsOf(made);
+      assert.equal(sent.config.widgets.run_scope, 'recent', JSON.stringify(sent.config.widgets));
+      assert.deepEqual(ui.pageErrors, []);
+    } finally {
+      await ui.close();
+    }
+  });
+}

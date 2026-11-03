@@ -196,7 +196,7 @@ import {
 } from '../lib/useCaseSettings';
 import ScopeSettings from '../components/ScopeSettings';
 import { PROFILE_WAITING, useGroupingProfile } from '../lib/groupingProfile';
-import { FIRST_RUN_TITLE, GROUPING_TITLE, isScopeSetting, scopeChanges, scopeStepsOf, scopeValues, withScopeDefaults } from '../lib/runScope';
+import { FIRST_RUN_TITLE, GROUPING_TITLE, builtFirstRunOf, isScopeSetting, scopeChanges, scopeStepsOf, scopeValues, withScopeDefaults } from '../lib/runScope';
 
 const ICONS = { notebook: NotebookPen, dashboard: LayoutDashboard, genie_space: Sparkles, app: AppWindow, alert: Bell };
 const ASSET_NOUNS = { dashboard: 'a dashboard', genie_space: 'a Genie Agent', app: 'an App', alert: 'an alert' };
@@ -385,7 +385,8 @@ export default function ImplementWizard({
   const everySetting = useMemo(() => contextSettings(context, { outputs: { alert: alertOn } }), [context, alertOn]);
   const scopeProfile = useGroupingProfile({ apiPostJson, inspireDatabase, sessionId, useCaseId: spec.use_case_id, warehouseId, enabled: mode === 'mvp' });
   const [groupingSaved, setGroupingSaved] = useState(undefined);
-  const scopeSteps = scopeStepsOf(scopeProfile.state, scopeProfile.profile);
+  const builtFirstRun = builtFirstRunOf(settingsModel);
+  const scopeSteps = scopeStepsOf(scopeProfile.state, scopeProfile.profile, builtFirstRun);
   const scopeSettingList = useMemo(() => everySetting.filter(isScopeSetting), [everySetting]);
   const settingsFor = useCallback((scope) => (scope.firstRun ? everySetting.filter((s) => !isScopeSetting(s)) : everySetting), [everySetting]);
   const settingsList = useMemo(() => settingsFor({ firstRun: scopeSteps.firstRun }), [settingsFor, scopeSteps.firstRun]);
@@ -627,7 +628,7 @@ export default function ImplementWizard({
       if (stepId === 'data' && scopeProfile.state === 'loading') {
         setChecking(PROFILE_WAITING);
         const done = await scopeProfile.wait();
-        const doneSteps = scopeStepsOf(done.state, done.profile);
+        const doneSteps = scopeStepsOf(done.state, done.profile, builtFirstRun);
         list = wizardSteps(mode, spec, settingsFor(doneSteps), doneSteps);
         profile = done.profile;
       }

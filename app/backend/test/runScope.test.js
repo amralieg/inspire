@@ -221,3 +221,70 @@ test('the profile body the wizard, the Build page and the Run tab send is one th
     await srv.close();
   }
 });
+
+const RECORDED_RUN_SCOPE = {
+  allowed: '', applies: 'run', choices: [], default: 'all', group: 'scope', help: 'Run scope.', high: null, high_open: false, kind: 'number', label: 'Run scope',
+  low: null, low_open: false, many: false, name: 'run_scope', reason: 'Genie Code chose it when it built the notebook', source: 'widget', unit: '', whole: false,
+};
+const SCOPE_ALLOWED = 'all, groups, recent, records';
+const SCOPE_CASES = [['all', ''], ['groups', ''], ['recent', ''], ['records', ''], ['', ''],
+  ['5', `run_scope is '5'; allowed: ${SCOPE_ALLOWED}`], ['everything', `run_scope is 'everything'; allowed: ${SCOPE_ALLOWED}`]];
+
+test('a First run a built version recorded as a number takes every First run choice and refuses a number or another word, in the App and the server alike', async () => {
+  const S = await lib('runScope.js');
+  const U = await lib('useCaseSettings.js');
+  const I = require('../lib/inspireImplement');
+  for (const [value, problem] of SCOPE_CASES) {
+    assert.equal(S.runScopeProblem(value), problem.replace('run_scope', 'First run'), `First run step ${value}`);
+    assert.equal(S.runScopeProblem(value, 'run_scope'), problem, `runScopeProblem ${value}`);
+    assert.equal(U.settingProblem(RECORDED_RUN_SCOPE, value), problem, `App ${value}`);
+    assert.equal(I.implementSettingProblem(RECORDED_RUN_SCOPE, value), problem, `server ${value}`);
+    assert.deepEqual(I.widgetProblems([], { run_scope: value }), problem ? [problem] : [], `submit ${value}`);
+    assert.deepEqual(I.widgetProblems([{ name: 'run_scope', allowed: 'a number' }], { run_scope: value }), problem ? [problem] : [], `submit with a widget rule ${value}`);
+  }
+});
+
+test('the recorded settings read run_scope as the First run choice on both sides, and the server and the App share one list of First run choices', async () => {
+  const S = await lib('runScope.js');
+  const U = await lib('useCaseSettings.js');
+  const I = require('../lib/inspireImplement');
+  const R = require('../lib/groupingRule');
+  const history = [{ asset_status: { settings: [RECORDED_RUN_SCOPE, { name: 'horizon', kind: 'number', allowed: 'whole number', whole: true, source: 'widget' }] } }];
+  const want = { kind: 'choice', choices: ['all', 'groups', 'recent', 'records'], many: false, allowed: SCOPE_ALLOWED, low: null, high: null, whole: false };
+  for (const [side, model] of [['App', U.settingsModelOf(history)], ['server', I.implementSettingsModel(history)]]) {
+    const scope = model.find((s) => s.name === 'run_scope');
+    assert.deepEqual(Object.fromEntries(Object.keys(want).map((k) => [k, scope[k]])), want, side);
+    assert.equal(scope.source, 'widget', side);
+    assert.equal(model.find((s) => s.name === 'horizon').kind, 'number', `${side} leaves other settings alone`);
+  }
+  assert.equal(R.RUN_SCOPES, S.RUN_SCOPES, 'one list, not a copy');
+  assert.equal(S.runScopeSetting(RECORDED_RUN_SCOPE).choices === S.RUN_SCOPES, false, 'each setting gets its own copy to edit');
+  assert.deepEqual(S.runScopeSetting({ name: 'horizon', kind: 'number' }), { name: 'horizon', kind: 'number' });
+  assert.equal(S.runScopeSetting(null), null);
+});
+
+test('a built version that recorded a First run keeps the First run step while the table is read, the same as the step bar it ends on', async () => {
+  const S = await lib('runScope.js');
+  assert.equal(S.builtFirstRunOf([RECORDED_RUN_SCOPE]), true);
+  assert.equal(S.builtFirstRunOf([{ ...RECORDED_RUN_SCOPE, source: 'inspire' }]), false, 'only a setting the build ran with');
+  assert.equal(S.builtFirstRunOf([{ name: 'horizon', source: 'widget' }]), false);
+  for (const model of [null, undefined, 'x', [], [null]]) assert.equal(S.builtFirstRunOf(model), false, JSON.stringify(model));
+  assert.deepEqual(S.scopeStepsOf('loading', null, true), { grouping: false, firstRun: true });
+  assert.deepEqual(S.scopeStepsOf('ready', PROFILE, true), { grouping: true, firstRun: true });
+  assert.deepEqual(S.scopeStepsOf('ready', { ...PROFILE, qualifies: false }, true), { grouping: false, firstRun: true });
+  for (const state of ['none', 'off']) assert.deepEqual(S.scopeStepsOf(state, null, true), { grouping: false, firstRun: false }, state);
+  assert.deepEqual(S.scopeStepsOf('loading', null, 'yes'), { grouping: false, firstRun: false }, 'only true keeps it');
+});
+
+test('the wizard reads a First run, recorded or still a notebook widget, as its choice, checks it and does not mark it as derived', async () => {
+  const U = await lib('useCaseSettings.js');
+  const recorded = U.wizardSettings({ model: [RECORDED_RUN_SCOPE], editing: true });
+  const widget = U.wizardSettings({ widgets: [{ name: 'run_scope', type: 'text', default: 'all', allowed: 'a number' }], family: 'E' });
+  for (const [side, settings] of [['recorded', recorded], ['widget', widget]]) {
+    const scope = settings.find((s) => s.name === 'run_scope');
+    assert.equal(scope.kind, 'choice', side);
+    assert.deepEqual(scope.choices, ['all', 'groups', 'recent', 'records'], side);
+    assert.equal(scope.derived, false, side);
+    for (const [value, problem] of SCOPE_CASES) assert.equal(U.settingProblem(scope, value), problem, `${side} ${value}`);
+  }
+});
