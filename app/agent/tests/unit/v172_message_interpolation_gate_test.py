@@ -149,6 +149,8 @@ REVIEWED = {
         ('_kpi_aggregate', 'column'),
         ('_kpis', "spec.get('direction')"),
         ('_kpis', 'where'),
+        ('_load_usecases_catalog_json', 'english_path'),
+        ('_load_usecases_catalog_json', 'json_file_path'),
         ('_strategy_name', 'text[:60]'),
         ('_strategy_name', 'what'),
         ('canonical_aggregate', 'aggregate'),

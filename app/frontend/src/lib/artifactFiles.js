@@ -1,11 +1,11 @@
 const HIDDEN_EXTENSIONS = ['.json', '.jsonl'];
-const CATALOG_JSON_SUFFIX = '-dbx_inspire.json';
+const CATALOG_JSON_NAME = /-dbx_inspire(_[a-z]{2})?\.json$/;
 
 export function visibleArtifactFiles(files) {
   return (Array.isArray(files) ? files : []).filter((file) => {
     if (!file || file.is_directory) return Boolean(file);
     const name = String(file.name || file.path || '').toLowerCase();
-    return name.endsWith(CATALOG_JSON_SUFFIX) || !HIDDEN_EXTENSIONS.some((ext) => name.endsWith(ext));
+    return CATALOG_JSON_NAME.test(name) || !HIDDEN_EXTENSIONS.some((ext) => name.endsWith(ext));
   });
 }
 

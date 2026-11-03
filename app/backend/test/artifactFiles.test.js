@@ -16,15 +16,18 @@ test('the artifact browser shows the JSON catalog, hides every other JSON file a
     { name: 'dbx_inspire.json', path: '/w/docs/dbx_inspire.json', is_directory: false },
     { name: 'Acme-dbx_inspire.json.bak', path: '/w/docs/Acme-dbx_inspire.json.bak', is_directory: false },
     { name: 'Acme-dbx_inspire_en.pdf', path: '/w/docs/Acme-dbx_inspire_en.pdf', is_directory: false },
+    { name: 'Acme-dbx_inspire_ar.json', path: '/w/docs/Acme-dbx_inspire_ar.json', is_directory: false },
+    { name: 'Acme-dbx_inspire_arabic.json', path: '/w/docs/Acme-dbx_inspire_arabic.json', is_directory: false },
     { name: 'log.log', path: '/w/.inspire_logs/log.log', is_directory: false },
     { name: 'exports.json', path: '/w/exports.json', is_directory: true },
     null,
   ];
   assert.deepEqual(visibleArtifactFiles(files).map((f) => f.name), ['Acme-dbx_inspire.json', 'Acme Corp-DBX_INSPIRE.JSON',
-    'Acme-dbx_inspire.json.bak', 'Acme-dbx_inspire_en.pdf', 'log.log', 'exports.json']);
+    'Acme-dbx_inspire.json.bak', 'Acme-dbx_inspire_en.pdf', 'Acme-dbx_inspire_ar.json', 'log.log', 'exports.json']);
   assert.deepEqual(visibleArtifactFiles(undefined), []);
   const agent = require('node:fs').readFileSync(path.resolve(__dirname, '..', '..', 'agent', 'agent', 'dbx_inspire_ai_agent.ipynb'), 'utf8');
   assert.ok(agent.includes('f\\"{self.business_name}-dbx_inspire.json\\"'), 'the agent names its JSON catalog with the suffix the browser shows');
+  assert.ok(agent.includes('f\\"{self.business_name}-dbx_inspire_{lang_abbr}.json\\"'), 'the agent names each translated JSON catalog the way the browser shows');
 });
 
 test('Quick access lists PDF, Excel and CSV files, and leaves CSV out when an Excel file is there', async () => {

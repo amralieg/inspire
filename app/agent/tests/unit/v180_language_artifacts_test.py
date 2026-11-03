@@ -54,7 +54,7 @@ def test_arabic_excel_is_written_right_to_left_with_arabic_headers_and_values(ns
     obj._generate_use_case_excel("Arabic", "ar", arabic_portfolio(), translations=arabic_labels(ns))
     path, data = written(obj, ".xlsx")
     assert path.endswith("Acme-dbx_inspire_ar.xlsx")
-    sheet = openpyxl.load_workbook(io.BytesIO(data))["Use Cases"]
+    sheet = openpyxl.load_workbook(io.BytesIO(data))[arabic_labels(ns)["doc_use_cases"]]
     assert sheet.sheet_view.rightToLeft is True
     header = [c.value for c in sheet[1]]
     row = dict(zip(header, [c.value for c in sheet[2]]))
@@ -137,7 +137,8 @@ def test_every_requested_language_gets_markdown_csv_and_excel(ns):
     obj = bilingual(ns, generate_choices=[])
     run_documents(ns, obj)
     names = sorted(path.rsplit("/", 1)[-1] for path in obj.w_client.workspace.files)
-    assert names == ["Acme-dbx_inspire_ar.csv", "Acme-dbx_inspire_ar.xlsx", "Acme-dbx_inspire_en.csv", "readme_ar.md", "readme_en.md"]
+    assert names == ["Acme-dbx_inspire_ar.csv", "Acme-dbx_inspire_ar.json", "Acme-dbx_inspire_ar.xlsx", "Acme-dbx_inspire_en.csv",
+                     "readme_ar.md", "readme_en.md"]
     assert not obj.logger.matching("english-only-artifacts") and not obj.logger.matching("English only")
     assert obj.logger.matching("[VIBE-LANG all-artifacts-produced] language=Arabic", level="INFO")
     assert obj.logger.matching("[VIBE-LANG all-artifacts-produced] language=English", level="INFO")
@@ -148,15 +149,16 @@ def test_a_language_that_cannot_be_produced_is_recorded_in_steps_session_and_exi
     obj = bilingual(ns, generate_choices=["PDF Catalog"])
     statuses = run_documents(ns, obj, pack=lambda lang, *a, **k: (lang, "ar", None, None, None, None))
     gap_rows = [s for s in statuses if s.get("sub_step_name") == "Arabic" and s["status"] == "ended_error"]
-    assert sorted(s["step_name"] for s in gap_rows) == ["CSV Catalog", "Markdown Catalog", "PDF Catalog", "Use Case Excel"]
+    assert sorted(s["step_name"] for s in gap_rows) == ["CSV Catalog", "JSON Catalog", "Markdown Catalog", "PDF Catalog", "Use Case Excel"]
     assert all("Presentation" not in s["message"] for s in statuses)
     failed = {(f["step"], f["language"]) for f in obj.final_inspire_results_json["failed_steps"]}
     assert {("Markdown Catalog", "Arabic"), ("CSV Catalog", "Arabic"), ("Use Case Excel", "Arabic"), ("PDF Catalog", "Arabic"),
-            ("Language Pack", "Arabic")} <= failed
+            ("JSON Catalog", "Arabic"), ("Language Pack", "Arabic")} <= failed
     assert not any(language == "English" for _step, language in failed)
     exit_value = obj.run_exit_value()
     assert exit_value.startswith("Completed with warnings: ")
-    for label in ("Markdown Catalog (Arabic)", "CSV Catalog (Arabic)", "Use Case Excel (Arabic)", "PDF Catalog (Arabic)"):
+    for label in ("Markdown Catalog (Arabic)", "CSV Catalog (Arabic)", "Use Case Excel (Arabic)", "PDF Catalog (Arabic)",
+                  "JSON Catalog (Arabic)"):
         assert label in exit_value, label
     assert "Presentation" not in exit_value
     assert obj.logger.matching("[VIBE-LANG missing-artifacts] language=Arabic", level="WARNING")
@@ -181,12 +183,12 @@ def test_a_failed_arabic_writer_is_a_recorded_gap_and_the_others_still_land(ns):
 def test_requested_artifacts_name_only_what_the_user_asked_for(ns):
     obj = make_inspire(ns, generate_choices=[])
     assert [step for _s, step in obj._requested_language_artifacts("Arabic", ["English"])] == [
-        "Markdown Catalog", "CSV Catalog", "Use Case Excel"]
+        "Markdown Catalog", "CSV Catalog", "Use Case Excel", "JSON Catalog"]
     assert [step for _s, step in obj._requested_language_artifacts("English", ["English"])] == [
         "Markdown Catalog", "CSV Catalog", "PDF Catalog"]
     obj.generate_choices = ["PDF Catalog", "Presentation"]
     assert [step for _s, step in obj._requested_language_artifacts("Arabic", [])] == [
-        "Markdown Catalog", "CSV Catalog", "Use Case Excel", "PDF Catalog", "Presentation"]
+        "Markdown Catalog", "CSV Catalog", "Use Case Excel", "PDF Catalog", "Presentation", "JSON Catalog"]
 
 
 def test_document_generation_is_gated_by_the_languages_only_never_by_pdf_or_slides_choices():

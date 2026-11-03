@@ -22,9 +22,9 @@ BASE = ["No", "Name", "Business Domain", "Subdomain", "type", "Analytics Techniq
         "Business Value", "Beneficiary", "Sponsor", "Business Priority Alignment", "Strategic Goals Alignment",
         "Tables Involved", "Quality", "Headline", "Technique Label", "Measures of Success", "Financial Benefits",
         "Non-Financial Benefits", "KPI Names", "Proposed Key Results"]
-OPTIONAL = ["Coverage Pick Reason", "Below Bar Reason"]
-RETIRED_ELITE_COLUMNS = ["Elite Verdict Reason", "Elite Decision", "Elite Decision Owner", "Elite KPI", "Elite Value Driver",
-                         "Elite Build Path", "Elite Red Team"]
+ELITE_TEXT = {"Elite Verdict Reason": "verdict_reason", "Elite Decision": "decision", "Elite Decision Owner": "decision_owner",
+              "Elite KPI": "kpi", "Elite Value Driver": "value_driver", "Elite Build Path": "build_path", "Elite Red Team": "red_team"}
+OPTIONAL = ["Coverage Pick Reason", "Below Bar Reason", "Priority Reasons", "Quality Reasons", "Best of Best Reason"] + list(ELITE_TEXT)
 TEXT = ["Name", "Business Domain", "Subdomain", "type", "Statement", "Solution",
         "Business Value", "Beneficiary",
         "Sponsor", "Business Priority Alignment", "Strategic Goals Alignment", "Headline", "Technique Label",
@@ -142,23 +142,27 @@ def test_column_shift_repair_realigns_and_never_forces_a_quality(agent_ns):
     assert out[0]["Name"] == "FR Forecast demand N01-U01" and out[0]["_translation_status"] == "translated"
 
 
-def test_the_elite_assessment_is_never_translated_and_the_coverage_reason_is(agent_ns):
+def test_the_elite_assessment_is_never_rewritten_and_its_text_and_the_coverage_reason_are_translated(agent_ns):
+    ts = agent_ns["TranslationService"]
     uc = rich_uc("N01-U01", coverage_pick_reason="Domain coverage pick, below bar: quality 'Medium'")
     out = service(agent_ns, default_respond).translate_use_case_list([uc], "French", enable_parallelization=False)
     assert out[0]["elite_assessment"] == elite_assessment()
     assert out[0]["coverage_pick_reason"].startswith("FR Domain coverage pick")
+    for field in ELITE_TEXT.values():
+        assert out[0][ts.elite_translation_key(field)] == f"FR {elite_assessment()[field]}", field
     assert out[0]["_untranslated_fields"] == []
 
 
-def test_an_untranslated_coverage_reason_is_flagged_and_no_elite_field_is(agent_ns):
+def test_an_untranslated_coverage_reason_and_elite_text_are_flagged(agent_ns):
     respond = lambda payload, prompt_vars: csv_text([french(item, with_optional=False) for item in payload], BASE)
     uc = rich_uc("N01-U01", coverage_pick_reason="Domain coverage pick, below bar: quality 'Medium'")
     out = service(agent_ns, respond).translate_use_case_list([uc], "French", enable_parallelization=False)
-    assert out[0]["_translation_status"] == "partial" and out[0]["_untranslated_fields"] == ["Coverage Pick Reason"]
+    assert out[0]["_translation_status"] == "partial"
+    assert out[0]["_untranslated_fields"] == ["Coverage Pick Reason"] + list(ELITE_TEXT)
     assert out[0]["coverage_pick_reason"] == "Domain coverage pick, below bar: quality 'Medium'"
 
 
-def test_payload_is_plain_json_and_never_carries_elite_assessment_fields(agent_ns):
+def test_payload_is_plain_json_and_carries_only_the_elite_text_fields(agent_ns):
     svc = service(agent_ns, default_respond)
     svc.translate_use_case_list([make_uc("N01-U01", Statement="Rank {region} weekly")], "French", enable_parallelization=False)
     payload = json.loads(svc.ai_agent.calls[0]["vars"]["json_payload"])
@@ -169,16 +173,19 @@ def test_payload_is_plain_json_and_never_carries_elite_assessment_fields(agent_n
     elite_payload = json.loads(raw)
     assert set(elite_payload[0]) <= {"No"} | set(BASE) | set(OPTIONAL)
     assert elite_payload[0]["Coverage Pick Reason"] == "Below bar"
-    assert not set(elite_payload[0]) & set(RETIRED_ELITE_COLUMNS)
-    for key in ("decision", "decision_owner", "red_team", "verdict_reason", "build_path"):
-        assert elite_assessment()[key] not in raw, key
+    for column, field in ELITE_TEXT.items():
+        assert elite_payload[0][column] == elite_assessment()[field], column
+    for key in ("cadence", "value_tier", "verdict", "scores", "verification", "signal_columns", "join_path", "kpi_direction"):
+        assert f'"{key}"' not in raw, key
+    assert "main.s.sales.units_sold" not in raw and "survives" not in raw
 
 
 def test_payload_keys_follow_the_csv_header_order_so_values_never_shift(agent_ns):
     svc = service(agent_ns, default_respond)
     uc = rich_uc("N01-U01", coverage_pick_reason="Below bar", fallback_reason="Kept for coverage",
+                 Justification="Strategic fit is high", best_of_best_reason="passed every elite test",
                  **{"Measures of Success": ["Weekly report is used"], "Financial Benefits": ["Revenue up"],
-                    "Non-Financial Benefits": ["Loyalty"]})
+                    "Non-Financial Benefits": ["Loyalty"], "Quality Summary": "Grounded in the sales table"})
     svc.translate_use_case_list([uc], "French", enable_parallelization=False)
     payload = json.loads(svc.ai_agent.calls[-1]["vars"]["json_payload"])[0]
     assert list(payload) == BASE + OPTIONAL
@@ -220,7 +227,7 @@ def test_failed_batches_return_complete_flagged_copies(agent_ns):
     out = svc.translate_use_case_list([rich_uc("N01-U01")], "Arabic", enable_parallelization=False)
     assert out[0]["_translation_status"] == "untranslated" and out[0]["elite_score"] == 8.8
     assert "Statement" in out[0]["_untranslated_fields"]
-    assert not set(out[0]["_untranslated_fields"]) & set(RETIRED_ELITE_COLUMNS)
+    assert set(ELITE_TEXT) <= set(out[0]["_untranslated_fields"])
     assert [c["skip_cache"] for c in svc.ai_agent.calls] == [False, True]
     assert svc.logger.matching("[TRANSLATION GAP] Arabic: 1 use case untranslated", level="WARNING")
 
@@ -256,7 +263,7 @@ def test_language_pack_records_the_translation_gaps(agent_ns):
     result = obj._translate_and_prepare_language_pack("French", english, {"Sales": english}, "Acme")
     assert result[1] == "fr" and result[3]
     gaps = obj.final_inspire_results_json["translation_gaps"]["French"]
-    assert gaps["use_cases"] == 1 and gaps["fields"] == {"Coverage Pick Reason": 1}
+    assert gaps["use_cases"] == 1 and gaps["fields"] == {"Coverage Pick Reason": 1, **{column: 1 for column in ELITE_TEXT}}
 
 
 def test_a_language_pack_translates_its_batches_in_parallel_with_its_share(agent_ns):
@@ -290,13 +297,11 @@ def test_every_fallback_language_covers_every_label(agent_ns):
         assert "{count}" in labels["more_use_cases"], language
 
 
-def test_translate_prompt_declares_only_the_optional_coverage_column(agent_ns):
+def test_translate_prompt_declares_only_the_optional_reason_columns(agent_ns):
     prompt = agent_ns["PROMPT_TEMPLATES"]["USE_CASE_TRANSLATE_PROMPT"]
     for column in OPTIONAL:
         assert f'"{column}"' in prompt, column
-    for column in RETIRED_ELITE_COLUMNS:
-        assert column not in prompt, column
     assert "exactly 24 fields: the 22 fields of the header above plus the 2 honesty fields" in prompt
-    assert "a row has 25 fields with one of them and 26 with both" in prompt and "ELITE" not in prompt
+    assert "a row has 25 fields with one of them and 36 with all twelve" in prompt and "ELITE" not in prompt
     keywords = agent_ns["PROMPT_TEMPLATES"]["KEYWORDS_TRANSLATE_PROMPT"].format(json_payload="{}", target_language="French")
     assert "{count}" in keywords and "Keep every placeholder exactly as written" in keywords

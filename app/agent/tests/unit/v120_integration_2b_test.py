@@ -5,7 +5,8 @@
    as unscored, never raises and never outranks a scored use case.
 2. One quality-mode parser: the session row, the step payload and the tracking row canonicalize through
    `canonical_use_cases_quality()`; an unknown value raises the same ValueError as `__init__`.
-3. Translation touches only the seven human-readable `elite_assessment` fields; verification (incl.
+3. Translation sends only the seven human-readable `elite_assessment` fields and stores their translation beside the
+   assessment, which stays English; verification (incl.
    `repairable`), evidence repair, scores, verdict codes, column lists and the second opinion are never
    sent to the model and never overwritten, even when the model answers with columns named after them.
 4. The run() banner, the JSON-mode banner and the final pipeline status report `failed_steps` and
@@ -322,9 +323,8 @@ BASE_TRANSLATION_COLUMNS = ["No", "Name", "Business Domain", "Subdomain", "type"
                             "Strategic Goals Alignment", "Tables Involved", "Quality", "Headline", "Technique Label",
                             "Measures of Success", "Financial Benefits", "Non-Financial Benefits", "KPI Names",
                             "Proposed Key Results"]
-ELITE_TRANSLATION_COLUMNS = ["Coverage Pick Reason", "Below Bar Reason"]
-HOSTILE_COLUMNS = ["Elite Verdict Reason", "Elite Decision", "Elite Decision Owner", "Elite KPI",
-                   "Elite Value Driver", "Elite Build Path", "Elite Red Team", "verification", "repairable", "evidence_repair", "scores", "verdict", "red_team_verdict",
+ELITE_TRANSLATION_COLUMNS = ["Coverage Pick Reason", "Below Bar Reason"] + list(HUMAN_ELITE_FIELDS.values())
+HOSTILE_COLUMNS = ["verification", "repairable", "evidence_repair", "scores", "verdict", "red_team_verdict",
                    "value_tier", "kpi_direction", "cadence", "blockers", "signal_columns", "join_path",
                    "time_column", "entity_key_column", "outcome_definition", "failed_gates", "second_opinion",
                    "Elite Verdict", "Elite Value Tier", "Elite Scores", "Elite Signal Columns"]
@@ -409,10 +409,14 @@ def test_translation_never_overwrites_a_machine_field_even_when_the_model_return
         assert translated[key] == snapshot[key]
 
 
-def test_translation_leaves_every_elite_assessment_field_in_english(ns):
+def test_translation_leaves_the_elite_assessment_in_english_and_stores_its_text_beside_it(ns):
     snapshot, _, translated, _ = _translate_elite(ns)
     assert translated["elite_assessment"] == snapshot["elite_assessment"]
     assert translated["_translation_status"] == "translated" and translated["_untranslated_fields"] == []
+    for key in HUMAN_ELITE_FIELDS:
+        assert translated[ns["TranslationService"].elite_translation_key(key)] == f"FR {snapshot['elite_assessment'][key]}", key
+    assert not [key for key in translated if key.startswith("_elite_") and key.endswith("_translated")
+                and key[len("_elite_"):-len("_translated")] not in HUMAN_ELITE_FIELDS]
 
 
 def test_machine_fields_are_never_sent_to_the_translation_model(ns):
@@ -425,15 +429,16 @@ def test_machine_fields_are_never_sent_to_the_translation_model(ns):
                      "sentinel rule", "Sentinel blocker", "repairable", "survives", "Material", "second-model",
                      "main.s.sales.store_id", "score:evidence_strength"):
         assert sentinel not in sent, sentinel
-    for key in HUMAN_ELITE_FIELDS:
-        assert str(machine_assessment()[key]) not in sent, key
+    for key, column in HUMAN_ELITE_FIELDS.items():
+        assert payload[0][column] == machine_assessment()[key], key
 
 
-def test_no_elite_assessment_field_is_translatable(ns):
+def test_only_the_seven_elite_text_fields_are_translatable(ns):
     from v120_artifacts_support import make_uc
     uc = make_uc("N01-U01", elite_status="ELITE", elite_score=8.8, elite_assessment=machine_assessment())
     fields = ns["TranslationService"]._translatable_fields_present(uc)
-    assert not set(fields) & set(HUMAN_ELITE_FIELDS.values()) and "Statement" in fields
+    assert set(HUMAN_ELITE_FIELDS.values()) <= set(fields) and "Statement" in fields
+    assert not [f for f in fields if f.startswith("Elite ") and f not in HUMAN_ELITE_FIELDS.values()]
 
 
 # ---------------------------------------------------------------- 4. banners and final status report the run outcome

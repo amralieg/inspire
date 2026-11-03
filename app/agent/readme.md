@@ -104,7 +104,7 @@ A goal in **09. Generation Instructions** sets the scope and the alignment of th
 |---------|--------------|
 | `__inspire_step`, stage `Use Case Prioritization` | `Quality Bar` (a warning step carrying the near-miss list when 0 use cases met the bar), `Selection Funnel` (the stage ledger) and `Elite Selection` (`Ultra High` only) |
 | `__inspire_session.results_json` | `funnel_ledger` (one entry per stage: `stage`, `in`, `out`, `drops` by reason; `Ultra High` logs the `elite_*` stages, including `elite_evidence_repair`), `selection_outcome` (present when 0 use cases met the bar) and `elite_outcome` (`Ultra High` only: elite count, coverage picks and the near-miss ledger) |
-| `__inspire_session.results_json` (run outcome) | `failed_steps`: one entry per failed artifact step (`step`: `PDF Catalog`, `Presentation`, `Use Case Excel`, `CSV Catalog`, `Markdown Catalog`, `JSON Catalog`, `Language Pack`, `Tracking Table`, `Tracking Table Setup`, `Tracking Table Migration`, `Generate Lock` when Generate mode ran without the per-business lock, `Implement Use Cases` when the Implement Use Cases operation failed for some of its use cases but not all (the run fails when every one failed), or `Route 1 scan` and `Route 2 scan` when Generate mode could not read the flagged tracking rows or a notebook it scanned; `language`; `error`). `translation_gaps`: per language, `use_cases` with text shown in English, `untranslated_use_cases` and a count per field. Both are absent when nothing failed. Always present: `metadata_unavailable` (`count`, and `tables`: each table whose metadata could not be loaded, with the reason) and `llm_endpoint_health` (`unusable` endpoints with the reason, `temperature_unsupported`, `probed`) |
+| `__inspire_session.results_json` (run outcome) | `failed_steps`: one entry per failed artifact step (`step`: `PDF Catalog`, `Presentation`, `Use Case Excel`, `CSV Catalog`, `Markdown Catalog`, `JSON Catalog`, `Language Pack`, `Tracking Table`, `Tracking Table Setup`, `Tracking Table Migration`, `Generate Lock` when Generate mode ran without the per-business lock, `Implement Use Cases` when the Implement Use Cases operation failed for some of its use cases but not all (the run fails when every one failed), or `Route 1 scan` and `Route 2 scan` when Generate mode could not read the flagged tracking rows or a notebook it scanned; `language`; `error`). `translation_gaps`: per language, `use_cases` with text shown in English, `untranslated_use_cases` and a count per field, and `artifacts_in_english` (`Genie Code notebooks`) when the run wrote use-case notebooks, which are written in English only. Both are absent when nothing failed. Always present: `metadata_unavailable` (`count`, and `tables`: each table whose metadata could not be loaded, with the reason) and `llm_endpoint_health` (`unusable` endpoints with the reason, `temperature_unsupported`, `probed`) |
 | `__inspire_step`, stage `Data Preparation` | `Metadata Load`: an `ended_warning` step whose `result_json` names every table whose metadata could not be loaded (`count`, `tables` with `table` and `reason`); those tables are not analysed. When no table of the UC metadata can be analyzed, the run fails with an error that names the metadata it read and each table not loaded |
 | Run completion | With `failed_steps`, `translation_gaps` or lost tables present the run still completes, but the closing banner reads "COMPLETED WITH WARNINGS" (normal and JSON mode) and lists them, and the final `Inspire pipeline completed` step is `ended_warning` with the message `Completed with warnings: ...` instead of `ended_success` / `Completed` |
 | `__inspire_usecases` | New columns `quality`, `quality_mode`, `elite_status`, `elite_score`, `elite_assessment` (JSON) and `selection_flags` (JSON); `code_structure_mandate` is now filled for every row. A session's rows are replaced in one Delta transaction (staged, then one `replaceWhere` overwrite): readers never see a partly written session, and a failed replace keeps the previous rows and is recorded in `failed_steps`. Table names are quoted, so catalog or schema names that need quoting (for example with a hyphen) work |
@@ -1310,6 +1310,7 @@ After a successful run, your `Generation Path` contains:
         ├── <business>-dbx_inspire.csv
         ├── readme.md
         ├── <business>-dbx_inspire.json
+        ├── <business>-dbx_inspire_<lang>.json for each other output language
         ├── PDF catalog and PPTX presentation per language
         └── generation_log.txt
 ```
@@ -1334,6 +1335,7 @@ After a successful run, your `Generation Path` contains:
   - KPIs, Expected Key Results, Measures of Success, Financial Benefits, Non-Financial Benefits, when any use case of the run carries them
   - Primary Table, the twelve sub-scores (Strategic Alignment, ROI, Reusability, Time to Value, Data Availability, Data Accessibility, Architecture Fitness, Team Skills, Domain Knowledge, People Allocation, Budget Allocation, Time to Production), Priority Reasons, Quality Reasons, Result Database, Has Genie Code, Best of Best, Best of Best Reason
   - the elite columns (Elite Status and the elite decision fields) when the run judged elite use cases
+- In a language other than English every header, the sheet names (`Use Cases`, `Foundations`), the Foundations headers, the Has Genie Code values (Yes / No) and the Elite Status values are in that language, and Priority Reasons, Quality Reasons, Best of Best Reason and the Ultra High assessment text (Verdict, Decision, Decision Owner, KPI, Value Driver, Build Path, Red-Team Note) are translated with the rest of the use case, and Decision Cadence reads its label; a field left in English is named in that row's untranslated column and counted in `translation_gaps`
 - The idea theme and the three BoB tier scores are not exported; read them from `__inspire_usecases`
 - v1.2.0: a score that was never computed reads `Not scored` (never 0); rows follow the shared final rank: domain coverage picks after every other use case, then elite score (or Inspire Score), `bob_score` and Priority, highest first, with unscored values last
 - Use this for browsing, filtering, and sharing with stakeholders
@@ -1344,6 +1346,12 @@ After a successful run, your `Generation Path` contains:
   - Single-language run: `readme.md` (unchanged)
   - Multi-language run: per-language suffix, for example `readme_en.md`, `readme_de.md`, ...
 - Rationale: prior to v0.7.3, both Excel and Markdown outputs overwrote a single filename across all selected languages, effectively dropping every language except the last. The per-language suffix in multi-language runs guarantees every selected language is preserved in the filesystem.
+
+**`<business>-dbx_inspire.json` and `<business>-dbx_inspire_<lang>.json` (JSON Catalog)**
+- `<business>-dbx_inspire.json` is the English catalog, the one the App and docs-only mode read; its name and shape do not change with the output languages
+- Every other output language gets `<business>-dbx_inspire_<lang>.json` (for example `Acme-dbx_inspire_ar.json`) with the same keys, the translated use cases, titles and summaries, plus `language` and `translation_gaps` (the use cases of that language with text shown in English and a count per field); each use case keeps `_translation_status` and `_untranslated_fields`
+- It is rewritten after the English catalog, so it carries the same notebook paths and Genie Code fields; a language whose translation did not complete records a failed `JSON Catalog` step for that language
+- Docs-only mode reads the English catalog only and stops with a clear error when given a translated one
 
 **`inspire_catalog_<lang>.pdf` (PDF Catalog)**
 - Professional business document version of the use case catalog
@@ -1529,7 +1537,7 @@ The elite judge scores each candidate from 1 to 10 on value, evidence, implement
 
 If you put an absolute file path (starting with `/`) in UC Metadata instead of catalog paths:
 - Inspire skips all generation phases
-- Loads use cases from the JSON file
+- Loads use cases from the JSON file (the English `<business>-dbx_inspire.json`; a translated `<business>-dbx_inspire_<lang>.json` is refused)
 - Regenerates notebooks, PDF, slides, Excel from existing data
 - Useful for recreating artifacts after manual edits to the JSON catalog
 - v0.7.2 note: if the source JSON lacks `idea_theme` / `bob_score` fields (e.g. from an older run), the regenerated Excel/PDF will have empty BoB columns. This is expected and not an error.
