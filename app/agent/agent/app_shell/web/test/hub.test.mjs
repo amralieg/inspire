@@ -431,6 +431,51 @@ test('a use case page leads with its area, title, Notify me, AI summary, four ti
   await context.close();
 });
 
+const pageOrder = (page) => page.evaluate(() => {
+  const main = document.querySelector('main .page');
+  const box = (el) => el.getBoundingClientRect();
+  const seen = (el) => box(el).height > 0 && getComputedStyle(el).display !== 'none';
+  const charts = [...main.querySelectorAll('[data-card], [data-bars]')].filter(seen);
+  const tables = [...main.querySelectorAll('.card--table')].filter((el) => seen(el) && el.getAttribute('aria-label') !== 'Your work');
+  const parts = [...main.children].filter(seen);
+  const lowest = Math.max(...parts.map((el) => box(el).bottom));
+  return {
+    charts: charts.length, tables: tables.length,
+    above: tables.length > 0 && charts.every((c) => box(c).bottom <= box(tables[0]).top + 1),
+    last: parts.at(-1)?.matches('.card--table') === true && box(parts.at(-1)).bottom >= lowest - 1,
+    label: parts.at(-1)?.getAttribute('aria-label') || parts.at(-1)?.className || '',
+  };
+});
+
+const orderRun = (id, started, toFix) => ({ run_id: id, job_run_id: null, url: '', started, ended: null, duration_s: 120, status: 'done', trigger: 'schedule', by: '',
+  segments: null, tables: null, records: 40, to_fix: toFix, could_save: null, currency: '', summary: '', nothing_to_act: '', error: '' });
+const ORDER_RUNS = { runs: [orderRun('u2', '2026-10-20T06:00:00Z', 3), orderRun('u1', '2026-10-13T06:00:00Z', 5)], total: 2, offset: 0, limit: 20, job: null, errors: {} };
+
+test('charts sit on top and the table is always last: on the Overview, on a use case page and its Runs view, wide, narrow and in the tabs layout', async () => {
+  for (const [width, layout] of [[1440, 'side'], [375, 'side'], [1440, 'tabs']]) {
+    const info = layout === 'tabs' ? appInfo({ business: 'Contoso Retail', layout: 'tabs' }, 5, TABLE) : INFO();
+    const { page, seen, context } = await open(info, { width, routes: { ...hubRoutes(), runs: ({ json }) => json(200, ORDER_RUNS) } });
+    const where = `${width} px, ${layout} layout`;
+    await page.waitForFunction(() => document.querySelectorAll('[data-bars="by_use_case"] .hb').length === 2 && document.querySelector('.tbl--things tbody tr'));
+    const overview = await pageOrder(page);
+    assert.ok(overview.charts >= 2 && overview.above, `${where}: the Overview charts sit above the things to fix`);
+    assert.ok(overview.last, `${where}: the Overview ends with a table, not ${overview.label}`);
+    await page.goto(`${served.base}#/n01_u05`);
+    await page.waitForFunction(() => document.querySelector('.ph h1')?.textContent === 'Price-loss decision desk' && document.querySelector('.card--table'));
+    await page.waitForFunction(chartsDrawn, 4);
+    const usecase = await pageOrder(page);
+    assert.ok(usecase.charts >= 5 && usecase.above, `${where}: every chart of the use case page sits above its table`);
+    assert.ok(usecase.last, `${where}: the use case page ends with its table, not ${usecase.label}`);
+    await page.locator('[data-view="runs"]').click();
+    await page.waitForSelector('[data-bars="to_fix_runs"] .vb-c');
+    const runs = await pageOrder(page);
+    assert.ok(runs.charts >= 1 && runs.above, `${where}: the To fix per run chart sits above the runs table`);
+    assert.ok(runs.last, `${where}: the Runs view ends with its table, not ${runs.label}`);
+    assert.deepEqual(seen.errors, []);
+    await context.close();
+  }
+});
+
 test('a use case whose last run wrote no AI summary says so in place of the summary', async () => {
   const { page, seen, context } = await openApp(browser, served.base, INFO(), { width: 1440, routes: hubRoutes() });
   await page.goto(`${served.base}#/n02_u01`);
