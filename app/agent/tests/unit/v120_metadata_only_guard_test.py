@@ -20,6 +20,7 @@ import zlib
 
 import pytest
 
+import _agentload
 from _agentload import agent_source
 
 SQL_START = re.compile(r"^\s*\(?\s*(SELECT|WITH|INSERT|UPDATE|DELETE|MERGE|CREATE|ALTER|DROP|DESCRIBE|DESC|SHOW|"
@@ -41,6 +42,7 @@ OWNED_PLACEHOLDER = re.compile(
     r"\{[^}]*(tracking_table|session_table|steps?_table|lock_table|feedback_table|ailogs_table|implement_table|owned_table|view_name|"
     r"_view\b|temp_view|tmp_view)[^}]*\}")
 IMPLEMENT_FUNCTION = re.compile(r"^_?implement_")
+OWNED_TABLE_GATES = {"add_missing_columns"}
 IMPLEMENT_RESULT_PLACEHOLDER = re.compile(r"^\{[^{}]*\bresult_table\b[^{}]*\}$")
 ZERO_ROW_PROBE = re.compile(r"\bLIMIT\s+0\s*$", re.I)
 CTE_NAME = re.compile(r"(?:^\s*\(?\s*WITH\s+(?:RECURSIVE\s+)?|\)\s*,\s*)([A-Za-z_]\w*)\s+AS\s*\(", re.I)
@@ -486,7 +488,8 @@ def runtime_audit(source):
             if owner == MODULE_LEVEL:
                 return True, False
             reach = callers.get(owner) or set()
-            return bool(reach), bool(reach) and all(IMPLEMENT_FUNCTION.match(caller) for caller in reach)
+            return bool(reach), bool(reach) and all(IMPLEMENT_FUNCTION.match(caller) or caller in OWNED_TABLE_GATES
+                                                    for caller in reach)
 
         executed, unresolved, bad, frames, implement = audit(report["sources"][name], with_implement_reads=True, scope=scope)
         deep = audit(report["sources"][name], with_deep_reads=True, scope=scope)[4]
@@ -777,6 +780,20 @@ def test_guard_reads_every_source_the_agent_compiles_at_runtime(runtime_report):
     reached = {entry[-1] for entry in runtime_report["implement"]}
     assert {"inspire_ensure_summary", "inspire_ensure_assumptions"} <= reached
     assert not {"inspire_ensure_history", "inspire_ensure_actions"} & reached, "the build migrates no result table"
+
+
+def test_the_one_gate_into_the_shared_column_helper_refuses_every_table_inspire_does_not_own():
+    gate = _agentload.method_node("AtomicWriter", "add_missing_columns")
+    first = gate.body[0]
+    assert isinstance(first, ast.If) and isinstance(first.body[0], ast.Raise), ast.unparse(first)
+    assert ast.unparse(first.body[0].exc.func) == "ValueError" and "_{1,2}inspire_" in ast.unparse(first.test)
+    assert [n.name for n in gate.body if isinstance(n, ast.FunctionDef)] == []
+
+
+def test_a_caller_that_is_not_the_gate_or_build_code_cannot_reach_the_shared_column_helper():
+    source = agent_source() + "\n\ndef sneaky_migration(spark):\n    inspire_add_missing_columns(spark, 'main.sales.orders', [('x', 'STRING')])\n"
+    bad = [entry for entry in runtime_audit(source)["bad"] if "ADD COLUMN" in entry[-1]]
+    assert bad and {entry[3] for entry in bad} == {"{inspire_table_name(result_table)}"}, bad
 
 
 def test_runtime_sources_read_no_user_table_rows(runtime_report):

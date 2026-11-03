@@ -231,3 +231,41 @@ test('the server and implement routes write only through the one runner, with no
     assert.doesNotMatch(src, /executeSqlWithDeltaRetry|isDeltaConcurrentWriteConflict/, file);
   }
 });
+
+function columnAddSites(source) {
+  const sites = [];
+  let owner = '<module>';
+  for (const line of source.split('\n')) {
+    const named = line.match(/^\s*(?:async\s+)?function\s+(\w+)\s*\(|^\s*(?:const|let)\s+(\w+)\s*=\s*(?:async\s*)?(?:\([^)]*\)|\w+)\s*=>/);
+    if (named && !/^\s/.test(line)) owner = named[1] || named[2];
+    const code = line.replace(/\/\/.*$/, '');
+    if (/^\s*(\/\*\*?|\*)/.test(code)) continue;
+    if (/\bALTER\s+TABLE\b.*\bADD\b|['"`]\s*ADD\s+COLUMNS?\s+\S/i.test(code)) sites.push(owner);
+  }
+  return sites;
+}
+
+test('the backend adds a column to a table only in ensureTableColumns, which keeps a column another writer added', () => {
+  const root = path.join(__dirname, '..');
+  const files = ['server.js', 'implementRoutes.js', 'stripAiDisclaimer.js', 'dbx_generate_demo_data.py',
+    ...fs.readdirSync(path.join(root, 'lib')).filter((f) => f.endsWith('.js')).map((f) => path.join('lib', f))];
+  const found = Object.fromEntries(files.map((f) => [f, columnAddSites(fs.readFileSync(path.join(root, f), 'utf8'))]).filter(([, s]) => s.length));
+  assert.deepEqual(found, { 'server.js': ['ensureTableColumns', 'ensureTableColumns'] });
+  const server = fs.readFileSync(path.join(root, 'server.js'), 'utf8');
+  assert.match(server, /if \(isAlterAddColumnAlreadyExistsError\(msg\)\) \{\s*return;/, 'a column already there counts as added');
+  assert.ok(isDeltaWriteConflict('[DELTA_METADATA_CHANGED] MetadataChangedException: The metadata of the Delta table has been changed by a concurrent update.'),
+    'executeSql tries a concurrent schema change again, so the next ALTER sees the column already there');
+});
+
+test('the backend column-add sweep catches a raw ALTER written any way and leaves other text', () => {
+  for (const planted of [
+    'async function migrate(t) {\n  await executeSql(h, k, w, `ALTER TABLE ${t} ADD COLUMNS (x STRING)`);\n}',
+    'function migrate(t) {\n  return "alter table " + t + " add column x STRING";\n}',
+    'const migrate = async (t) => {\n  const sql = "ALTER TABLE " + t +\n    " ADD COLUMN x STRING";\n};',
+  ]) assert.ok(columnAddSites(planted).length, planted);
+  for (const clean of [
+    '/** True if ALTER TABLE ADD COLUMN failed only because the column is already present. */',
+    "console.log(`   📌 Added column ${colName} (${i === 0 ? 'ADD COLUMN' : 'ADD COLUMNS'})`);",
+    'const sql = `ALTER TABLE ${t} SET TBLPROPERTIES (a = 1)`;',
+  ]) assert.deepEqual(columnAddSites(clean), [], clean);
+});

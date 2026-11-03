@@ -82,8 +82,8 @@ def test_the_new_fields_are_carried_to_a_new_version_only_while_its_facts_are_un
     spark = FakeSpark()
     added = agent_ns["inspire_ensure_ai"](spark, TABLE, [("entity_id", "string")] + [(n, k.lower()) for n, k in old], ai, out=lambda *_a: None)
     assert added == list(NEW_COLUMNS)
-    assert spark.statements == [f"ALTER TABLE {QUOTED} ADD COLUMNS (ai_next_action STRING, ai_expected_result STRING, "
-                                "ai_other_option STRING, ai_evidence STRING)"], "an old table gets the columns, never a rebuild"
+    assert spark.statements == [f"ALTER TABLE {QUOTED} ADD COLUMN `{name}` STRING" for name in NEW_COLUMNS], \
+        "an old table gets the columns, never a rebuild"
 
 
 def test_the_hedge_and_missing_reasoning_checks_cover_every_new_text_and_the_evidence(agent_ns):
@@ -182,7 +182,7 @@ def test_the_run_writes_the_formula_itself_refuses_a_priced_row_it_cannot_show_a
     assert not any(s.startswith("CREATE TABLE") for s in bare.spark.statements), "a run whose money cannot be shown writes nothing"
     old = _Tables(agent_ns, stage=PRICED, target=PRICED + HISTORY)
     agent_ns["inspire_merge_run"](old.spark, TABLE, STAGE, out=printed.append, value=MEASURED)
-    assert f"ALTER TABLE {QUOTED} ADD COLUMNS (`value_at_stake_formula` STRING)" in old.spark.statements
+    assert f"ALTER TABLE {QUOTED} ADD COLUMN `value_at_stake_formula` STRING" in old.spark.statements
     assert not any(s.startswith(f"CREATE OR REPLACE TABLE {QUOTED}") for s in old.spark.statements)
     [merge] = [s for s in old.spark.statements if s.startswith(f"MERGE INTO {QUOTED} ") and "WHEN NOT MATCHED THEN INSERT" in s]
     assert merge.count("AS `value_at_stake_formula`") == 1 and "`value_at_stake_formula`, `action_owner`" in merge, \

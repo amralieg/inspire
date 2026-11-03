@@ -178,7 +178,7 @@ def test_the_settings_table_gains_the_text_column_through_the_alter_pattern(fres
         return []
     spark = FakeSpark(responder=respond)
     fresh_ns["inspire_ensure_assumptions"](spark, TABLE)
-    assert spark.statements[-1] == "ALTER TABLE `main`.`inspire`.`churn_out_assumptions` ADD COLUMNS (text_value STRING)"
+    assert spark.statements[-1] == "ALTER TABLE `main`.`inspire`.`churn_out_assumptions` ADD COLUMN `text_value` STRING"
     current = FakeSpark(responder=lambda s: respond(s) + ([{"col_name": "text_value", "data_type": "string"}]
                                                           if s.startswith("DESCRIBE") else []))
     fresh_ns["inspire_ensure_assumptions"](current, TABLE)

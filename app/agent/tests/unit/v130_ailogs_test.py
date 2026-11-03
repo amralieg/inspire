@@ -406,7 +406,7 @@ def test_steps_keep_their_shape_and_gain_an_event_id_only_when_migrated(agent_ns
     spark.statements.clear()
     assert writer._ensure_steps_event_id() is True
     assert spark.statements == ["DESCRIBE TABLE `c`.`s`.__inspire_step",
-                                "ALTER TABLE `c`.`s`.__inspire_step ADD COLUMN event_id STRING"]
+                                "ALTER TABLE `c`.`s`.`__inspire_step` ADD COLUMN event_id STRING"]
 
 
 def test_without_a_database_rows_go_to_the_jsonl_next_to_the_live_log(agent_ns, tmp_path, monkeypatch):

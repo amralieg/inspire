@@ -451,8 +451,8 @@ def _merge(ns, target, holdout):
 
 def test_a_run_with_a_holdout_writes_who_is_held_back_and_the_run_s_own_tier(agent_ns):
     statements, printed = _merge(agent_ns, CORE + HIST, 0.1)
-    added = [s for s in statements if s.startswith(f"ALTER TABLE {QUOTED} ADD COLUMNS")]
-    assert any("`held_back` BOOLEAN" in s and "`run_tier` STRING" in s for s in added), added
+    added = [s for s in statements if s.startswith(f"ALTER TABLE {QUOTED} ADD COLUMN ")]
+    assert {f"ALTER TABLE {QUOTED} ADD COLUMN `held_back` BOOLEAN", f"ALTER TABLE {QUOTED} ADD COLUMN `run_tier` STRING"} <= set(added), added
     assert not any("realized_value" in s or "action_owner" in s for s in added), "the run adds the holdout columns and never an action column"
     merge = next(s for s in statements if s.startswith(f"MERGE INTO {QUOTED} "))
     assert "crc32(concat(CAST(s.`use_case_id` AS STRING), '|', CAST(s.`entity_id` AS STRING))) % 10000 < 1000 AS `held_back`" in merge

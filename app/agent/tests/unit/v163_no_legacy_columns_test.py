@@ -106,10 +106,12 @@ def test_the_run_still_adds_the_columns_a_feature_or_a_rebuilt_notebook_brings(a
     ai = agent_ns["inspire_ensure_ai"]
     spark = FakeSpark()
     added = ai(spark, TABLE, CORE + HISTORY, {"categories": {}, "fingerprint": "f"}, out=lambda *_a: None)
-    assert added and spark.statements[0].startswith(f"ALTER TABLE {QUOTED} ADD COLUMNS (ai_explanation STRING"), \
+    assert added and spark.statements[0] == f"ALTER TABLE {QUOTED} ADD COLUMN `ai_explanation` STRING", \
         "AI reasoning is a feature: its columns come when it is turned on"
-    statement, names = agent_ns["inspire_add_columns_sql"](TABLE, CORE + HISTORY, CORE + [("new_measure", "DOUBLE")])
-    assert names == ["new_measure"] and statement == f"ALTER TABLE {QUOTED} ADD COLUMNS (`new_measure` DOUBLE)", \
+    rebuilt = FakeSpark()
+    names = agent_ns["inspire_add_required_columns"](rebuilt, TABLE, CORE + [("new_measure", "DOUBLE")],
+                                                     existing={n.lower() for n, _k in CORE + HISTORY})
+    assert names == ["new_measure"] and rebuilt.statements == [f"ALTER TABLE {QUOTED} ADD COLUMN `new_measure` DOUBLE"], \
         "a notebook rebuilt with a new business column gets it"
     derived, kinds = agent_ns["inspire_holdout_derived"]([n for n, _k in CORE], ("entity_id",), 0.0, CORE + HISTORY + [("held_back", "boolean")])
     assert set(derived) == {"held_back", "run_tier"} and kinds == {"held_back": "BOOLEAN", "run_tier": "STRING"}, \

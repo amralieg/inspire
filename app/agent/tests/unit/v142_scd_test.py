@@ -334,8 +334,8 @@ def test_an_older_table_follows_the_run_s_types_and_keeps_its_other_columns(agen
         f"CREATE OR REPLACE TABLE {QUOTED} TBLPROPERTIES ('inspire.replace_edits' = 'true') AS SELECT ")
     assert "CAST(r.`explanation`.result AS STRING) AS `explanation`" in retype[0], "a struct explanation becomes its result text"
     assert retype[0].endswith(f"FROM {QUOTED} AS r") and "r.`legacy_note`" in retype[0] and "r.`is_current`" in retype[0]
-    added = [s for s in tables.spark.statements if "ADD COLUMNS (`lift`" in s]
-    assert added == [f"ALTER TABLE {QUOTED} ADD COLUMNS (`lift` double)"]
+    added = [s for s in tables.spark.statements if "ADD COLUMN `lift`" in s]
+    assert added == [f"ALTER TABLE {QUOTED} ADD COLUMN `lift` double"]
     assert tables.index(f"DESCRIBE HISTORY {QUOTED}") < tables.spark.statements.index(retype[0])
     assert any("converted explanation (struct<result:string,errorMessage:string> to string)" in p for p in printed)
     assert any(p == f"Business output: kept legacy_note in {TABLE}, which this run does not write, so its rows hold NULL there"
