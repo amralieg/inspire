@@ -718,7 +718,7 @@ def _chart_problems(chart: dict, names: set) -> list:
         if x.get("kind") != axis:
             problems.append(f"{where} is a {kind}, so its x kind must be {axis}")
         if len(ys) != len(roles):
-            problems.append(f"{where} is a {kind}, so y holds exactly {len(roles)} measures in this order: {', '.join(roles)}")
+            problems.append(f"{where} is a {kind}, so y holds exactly {plural(len(roles), 'measure')} in this order: {', '.join(roles)}")
         if kind == "bridge" and not IDENT.match(str(x.get("order") or "")):
             problems.append(f"{where} is a bridge, so x needs an order column that puts its steps in order, first total to last")
     if chart.get("sort", "value_desc") not in SORTS:

@@ -556,7 +556,7 @@ def element_rows_line(shown: int, total: int):
 def element_fields_line(shown: int, total: int):
     if not total:
         return None
-    return "What it shows:" if shown == total else f"What it shows (first {shown} of {total} values):"
+    return "What it shows:" if shown == total else f"What it shows (first {shown} of {shell_sql.plural(total, 'value')}):"
 
 
 def element_explain_parts(kind: str, title: str, context: dict) -> tuple:
