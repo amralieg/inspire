@@ -58,8 +58,15 @@ def _relinking(ns, tmp_path, monkeypatch, before, after, text, carried_app=None,
     return inst, status, patched, alert
 
 
+def _asset_tags_only(call):
+    method, path, body = call
+    return (method, path) == ("GET", "/api/2.2/jobs/get") or (
+        (method, path) == ("POST", "/api/2.2/jobs/update") and set((body or {}).get("new_settings") or {}) <= {"tags"}
+        and set((body or {}).get("fields_to_remove") or []) <= {"tags"})
+
+
 def _rebuilt(inst):
-    return [c[:2] for c in inst.calls if c[:2] == ("POST", "/api/2.0/alerts") or "/jobs/" in c[1]]
+    return [c[:2] for c in inst.calls if c[:2] == ("POST", "/api/2.0/alerts") or ("/jobs/" in c[1] and not _asset_tags_only(c))]
 
 
 def test_a_new_inspire_address_refreshes_the_app_and_rewrites_only_the_link_line_of_the_email(agent_ns, tmp_path, monkeypatch):
