@@ -488,3 +488,52 @@ def test_the_kind_comes_from_the_stored_field_or_the_technique_when_no_kind_is_s
 def test_a_family_named_by_its_label_excludes_every_kind_in_it(ns):
     inst = _inst(ns, parsed={"use_case_kinds": {"asked": [], "excluded": ["Detect and protect", "run processes"]}})
     assert inst._user_kind_directives() == ([], {"anomaly", "process_mining", "sla_aging"})
+
+
+class _Totals:
+    def __init__(self, total=1000.0):
+        self.total, self.calls = total, []
+
+    def measure_kpi(self, spec):
+        self.calls.append(spec)
+        assert not any(key.startswith("filter_") for key in spec)
+        return self.total
+
+
+def _stake_uc(no, in_scope, filtered=True, **extra):
+    spec = {"name": "Revenue", "table": "main.ops.orders", "aggregation": "SUM", "column": "amount", "computable": True,
+            "query": f"q{no}", "baseline": {"value": in_scope}}
+    if filtered:
+        spec.update(filter_column="region", filter_value="West")
+    return _uc(no, 7.0, KPIs=[spec], **extra)
+
+
+def _stake(ns, ucs, parsed=None, total=1000.0):
+    inst = _inst(ns, parsed=parsed, deep_evidence=_Totals(total))
+    return inst, [uc["No"] for uc in inst._drop_low_stake_use_cases(ucs)]
+
+
+def test_t3_a_use_case_whose_scope_is_under_1_percent_of_the_business_total_is_dropped(ns):
+    tiny, big, unfiltered = _stake_uc("V1", 5.0), _stake_uc("V2", 500.0), _stake_uc("V3", 5.0, filtered=False)
+    inst, kept = _stake(ns, [tiny, big, unfiltered])
+    assert kept == ["V2", "V3"]
+    assert tiny["selection_drop_reason"].startswith("the value in scope is 0.50% of the business total")
+    assert _messages(inst, "[VALUE-SHARE FIRED] 1 use case dropped") and len(inst.deep_evidence.calls) == 1
+
+
+def test_t3_keeps_a_use_case_the_instructions_ask_for_and_the_count_they_ask_for(ns):
+    parsed = {"use_case_requests": [{"id": "R1", "ask": "west region revenue"}]}
+    asked, tiny = _stake_uc("V1", 5.0, user_request="R1"), _stake_uc("V2", 5.0)
+    assert _stake(ns, [asked, tiny], parsed=parsed)[1] == ["V1"]
+    counted = {"use_case_count": {"count": 3, "mode": "exactly", "scope": "catalog"}}
+    ucs = [_stake_uc("V1", 1.0), _stake_uc("V2", 5.0), _stake_uc("V3", 500.0), _stake_uc("V4", 600.0)]
+    inst, kept = _stake(ns, ucs, parsed=counted)
+    assert kept == ["V2", "V3", "V4"]
+    assert _messages(inst, "1 use case below the share kept to meet the use case count")
+
+
+def test_t3_share_is_a_runtime_parameter_and_unmeasured_totals_keep_the_use_case(ns, rt):
+    assert _stake(ns, [_stake_uc("V1", 5.0)], total=None)[1] == ["V1"]
+    assert _stake(ns, [_stake_uc("V1", 5.0)])[1] == []
+    rt["value_min_share_of_total"] = 0.0
+    assert _stake(ns, [_stake_uc("V1", 5.0)])[1] == ["V1"]
