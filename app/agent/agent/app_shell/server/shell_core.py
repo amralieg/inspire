@@ -400,6 +400,7 @@ def public_page(page: dict) -> dict:
     out["layout"] = shell_sql.public_layout(page)
     out["plan"] = {k: page["plan"].get(k) for k in shell_sql.PLAN_FIELDS} if isinstance(page.get("plan"), dict) else None
     out["scenario"] = shell_sql.public_scenario(page.get("scenario"))
+    out.update(shell_sql.public_parts(page))
     out["tables"] = [{"id": t.get("id"), "title": t.get("title"), "hint": t.get("hint"), "section": t.get("section"), "so_what": t.get("so_what") or "",
                       "columns": [dict({k: c.get(k) for k in ("column", "label", "format", "currency", "bar")},
                                        filter=by_column.get(t.get("dataset"), {}).get(c.get("column")))
@@ -2729,7 +2730,9 @@ class Shell:
         problems = [f"{where}: {LIST_LABELS[name]} failed: {message}" for name, message in sorted(out["errors"].items())]
         if not out["rows"]:
             problems.append(f"{where}: the decision list returned no rows at the default filters")
-        sql, params = shell_sql.list_keys_query(page, values, self.list_columns(probe.ws, None, page))
+        columns = self.list_columns(probe.ws, None, page)
+        problems += [f"{where}: {p}" for p in shell_sql.part_column_problems(page, columns)]
+        sql, params = shell_sql.list_keys_query(page, values, columns)
         done, errors = self._parallel({("list", "keys"): lambda: self.run(probe.ws, None, sql, params, 1)}, probe)
         if ("list", "keys") in errors:
             return problems + [f"{where}: {LIST_LABELS['keys']} failed: {errors[('list', 'keys')]}"]

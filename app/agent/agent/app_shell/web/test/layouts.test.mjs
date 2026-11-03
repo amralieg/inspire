@@ -335,8 +335,8 @@ test('the layout chart types draw their shapes', async () => {
 
 test('the scenario chart modules load in their own chunk and the main bundle stays within its budget', () => {
   const main = readFileSync(join(ASSETS, 'app.js'), 'utf8');
-  const lazy = readFileSync(join(ASSETS, 'Scenario.js'), 'utf8');
+  const lazy = readFileSync(join(ASSETS, 'echartsKinds.js'), 'utf8');
   assert.ok(statSync(join(ASSETS, 'app.js')).size < MAIN_BUDGET, `app.js is ${statSync(join(ASSETS, 'app.js')).size} bytes`);
   assert.ok(!main.includes('series.gauge') && !main.includes('type="markLine"'), 'the gauge and mark lines stay out of the main bundle');
-  assert.ok(lazy.includes('series.gauge') && lazy.includes('type="markLine"'), 'the scenario chunk registers them');
+  assert.ok(lazy.includes('series.gauge') && lazy.includes('type="markLine"'), 'the layout chart chunk registers them');
 });

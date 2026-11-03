@@ -33,7 +33,7 @@ def test_the_notebook_and_the_shell_name_the_same_chart_kinds_and_screens(agent_
     assert agent_ns["IMPLEMENT_APP_CHART_KINDS"] == shell_sql.CHART_KINDS
     assert tuple(shell_sql.CHART_KIND_TYPES) == shell_sql.CHART_KINDS == tuple(shell_sql.CHART_KIND_LABELS)
     typed = [t for kind in shell_sql.CHART_KINDS for t in shell_sql.CHART_KIND_TYPES[kind]]
-    assert sorted(typed + list(shell_sql.LAYOUT_CHARTS)) == sorted(shell_sql.CHART_TYPES), \
+    assert sorted(typed + list(shell_sql.LAYOUT_ONLY_CHARTS)) == sorted(shell_sql.CHART_TYPES), \
         "every chart type belongs to exactly one kind, or is drawn only by a layout"
     assert set(shell_sql.CHART_PICK) <= set(shell_sql.CHART_KINDS)
     assert len(shell_sql.CHART_PICK) == agent_ns["IMPLEMENT_APP_CHARTS_MIN"] == shell_sql.CAPS["charts"][0]

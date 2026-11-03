@@ -172,7 +172,8 @@ function bulletOption({ chart, rows, P, valueFmt, axisFmt }) {
   };
 }
 
-const LAYOUT_CHARTS = { band: bandOption, control: controlOption, tornado: tornadoOption, bridge: bridgeOption, bullet: bulletOption };
+const LAYOUT_CHARTS = { band: bandOption, control: controlOption, tornado: tornadoOption, bridge: bridgeOption, bullet: bulletOption,
+  treemap: treemapOption, radar: radarOption, sankey: sankeyOption };
 
 export function chartOption(chart, rows, P, { reduced = false } = {}) {
   const y0 = chart.y[0] || {};
@@ -300,4 +301,56 @@ export function chartIsEmpty(chart, rows) {
   if (!rows?.length) return true;
   const keys = chart.type === 'scatter' ? ['y0'] : chart.y.map((_, i) => `y${i}`);
   return rows.every((r) => keys.every((k) => r[k] == null));
+}
+
+export function treemapOption({ chart, rows, P, valueFmt }) {
+  const names = chart.y.map((y) => y.label);
+  const values = rows.map((r) => numberOf(r.y1));
+  const low = Math.min(...values);
+  const span = Math.max(...values) - low || 1;
+  const shade = (v) => P.series[Math.min(P.series.length - 1, Math.floor(((numberOf(v) - low) / span) * (P.series.length - 1)))];
+  return {
+    tooltip: { trigger: 'item', formatter: (p) => `<b>${p.name}</b><br>${names[0]}: ${valueFmt(0)(p.data.size)}<br>${names[1]}: ${valueFmt(1)(p.data.worth)}` },
+    series: [{
+      type: 'treemap', roam: false, nodeClick: false, breadcrumb: { show: false }, top: 8, left: 8, right: 8, bottom: 8,
+      label: { show: true, color: P.card, fontSize: 12, formatter: (p) => `${truncate(p.name, 18)}\n${valueFmt(1)(p.data.worth)}` },
+      itemStyle: { borderColor: P.card, borderWidth: 2, gapWidth: 2, borderRadius: 4 },
+      data: rows.map((r) => ({ name: keyOf(r.x), value: Math.max(0, numberOf(r.y0)), size: r.y0, worth: r.y1, itemStyle: { color: shade(r.y1) } })),
+    }],
+  };
+}
+
+export function radarOption({ chart, rows, P, valueFmt }) {
+  const features = uniq(rows.map((r) => keyOf(r.x)));
+  const picked = topSeries(rows, chart.series?.top || 5, false);
+  const raw = pivot(rows, features, picked.names, picked.map);
+  const peak = features.map((_, i) => Math.max(1e-9, ...raw.map((line) => Math.abs(numberOf(line[i])))));
+  const colors = seriesColors(P, picked.names);
+  return {
+    legend: legend(P, picked.names),
+    tooltip: { trigger: 'item', formatter: (p) => [`<b>${p.name}</b>`, ...features.map((f, i) => `${f}: ${valueFmt(0)(raw[p.dataIndex]?.[i])}`)].join('<br>') },
+    radar: { indicator: features.map((name) => ({ name: truncate(name, 16), max: 1 })), radius: '62%', center: ['50%', '56%'],
+      axisName: { color: P.muted, fontSize: 10 }, splitLine: split(P), axisLine: axisLine(P), splitArea: { show: false } },
+    series: [{ type: 'radar', symbolSize: 4,
+      data: raw.map((line, i) => ({ name: picked.names[i], value: line.map((v, j) => (v == null ? 0 : numberOf(v) / peak[j])),
+        lineStyle: { color: colors[i], width: 2 }, itemStyle: { color: colors[i] }, areaStyle: { color: colors[i], opacity: 0.12 } })) }],
+  };
+}
+
+export const SANKEY_SIDES = ['before', 'now'];
+
+export function sankeyOption({ rows, P, valueFmt }) {
+  const node = (side, v) => `${side}|${keyOf(v)}`;
+  const shown = (name) => String(name).slice(String(name).indexOf('|') + 1);
+  const links = rows.filter((r) => numberOf(r.y0) > 0).map((r) => ({ source: node(SANKEY_SIDES[0], r.x), target: node(SANKEY_SIDES[1], r.s), value: numberOf(r.y0) }));
+  const names = uniq(links.flatMap((l) => [l.source, l.target]));
+  const colorOf = (name) => P.series[uniq(names.map(shown)).indexOf(shown(name)) % P.series.length];
+  return {
+    tooltip: { trigger: 'item', formatter: (p) => (p.dataType === 'edge' ? `${shown(p.data.source)} → ${shown(p.data.target)}<br><b>${valueFmt(0)(p.data.value)}</b>`
+      : `<b>${shown(p.name)}</b>`) },
+    series: [{ type: 'sankey', animation: false, left: 8, right: 96, top: 12, bottom: 12, nodeAlign: 'justify', emphasis: { focus: 'adjacency' },
+      label: { color: P.ink, fontSize: 11, formatter: (p) => truncate(shown(p.name), 18) },
+      lineStyle: { color: 'gradient', opacity: 0.35 },
+      data: names.map((name) => ({ name, itemStyle: { color: colorOf(name) } })), links }],
+  };
 }

@@ -5,6 +5,7 @@ import { recordKeyOf } from './records.js';
 import { Icon, GenieMark } from './icons.jsx';
 import { Skeleton, useToast } from './ui.jsx';
 import { genieOn } from './genieAsk.js';
+import { ChartsReady, SECTION_PARTS } from './KindParts.jsx';
 
 const ScenarioPanel = lazy(() => import('./Scenario.jsx'));
 
@@ -18,7 +19,7 @@ const TODO_ROWS = 5;
 
 const scrollTo = (section) => document.querySelector(`[data-section="${section}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 
-function useList(pageId, filters, ready, nonce, limit, on = true) {
+export function useList(pageId, filters, ready, nonce, limit, on = true) {
   const [state, setState] = useState({ data: null, error: '' });
   const key = JSON.stringify(filters || {});
   useEffect(() => {
@@ -200,7 +201,7 @@ export function PlanTable({ page, app, filters, ready, nonce, onChanged }) {
 
 const SCENARIO_HOLDS = ['levers', 'scenario', 'target'];
 
-export function LayoutSections({ page, app, ready, nonce, filters, onChanged, onAsk, kpisOf, records, chartCards, tableCard }) {
+export function LayoutSections({ page, app, ready, nonce, filters, onChanged, onAsk, kpisOf, records, chartCards, tableCard, data }) {
   const sections = page.layout?.sections || [];
   const holds = page.layout?.holds || {};
   const placed = new Set();
@@ -213,6 +214,8 @@ export function LayoutSections({ page, app, ready, nonce, filters, onChanged, on
       const hero = page.kpis.filter((k) => k.section === section);
       return hero.length ? <div key={section} className="objective" data-section={section}>{kpisOf(hero, false)}</div> : null;
     }
+    const Part = SECTION_PARTS[section];
+    if (Part) return <div key={section} data-section={section}><Part page={page} app={app} ready={ready} nonce={nonce} filters={filters} onChanged={onChanged} onAsk={onAsk} data={data} records={records} /></div>;
     if (hold === 'plan' || hold === 'records') {
       if (page.plan) return <div key={section} data-section={section}>{plan(section)}</div>;
       return records ? <div key={section} data-section={section}>{records}</div> : null;
@@ -238,5 +241,5 @@ export function LayoutSections({ page, app, ready, nonce, filters, onChanged, on
   ];
   const rest = page.charts.filter((c) => !placed.has(c.id));
   if (rest.length) out.push(<section key="rest" className="charts">{chartCards(rest)}</section>);
-  return out;
+  return <ChartsReady page={page}>{out}</ChartsReady>;
 }

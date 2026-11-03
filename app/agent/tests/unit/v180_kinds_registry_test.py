@@ -183,7 +183,8 @@ def test_the_registry_holds_the_40_kinds_14_layouts_and_the_plan_contracts():
     assert [l["id"] for l in doc["layouts"]] == LAYOUTS
     assert [r["id"] for r in doc["roles"]] == ROLES
     assert {cid: c["suffixes"] for cid, c in doc["contracts"].items()} == CONTRACTS
-    assert [l["id"] for l in doc["layouts"] if l["enabled"]] == ["decision_queue", "forecast_cockpit", "scenario_lab", "planner"]
+    assert [l["id"] for l in doc["layouts"] if l["enabled"]] == ["decision_queue", "forecast_cockpit", "scenario_lab", "planner",
+                                                                 "segment_explorer", "recommendation_desk", "lift_readout"]
     assert {l["id"] for l in doc["layouts"] if l["contract"] is None} == {"agent_chat", "dashboard"}
     assert {l["contract"] for l in doc["layouts"]} - {None} == set(CONTRACTS)
     assert {f["id"] for f in doc["families"]} == {k["family"] for k in doc["kinds"]}

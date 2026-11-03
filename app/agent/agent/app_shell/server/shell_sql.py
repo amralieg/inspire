@@ -149,9 +149,12 @@ _SQL_WORDS = frozenset(("distinct", "case", "when", "then", "else", "end", "and"
                         "decimal", "string", "date", "timestamp", "boolean", "day", "days", "month", "months", "year", "years"))
 FORMATS = ("number", "integer", "currency", "percent", "text", "date", "month")
 CHART_TYPES = ("bar", "horizontal_bar", "stacked_bar", "line", "area", "stacked_area", "pareto", "scatter", "donut", "heatmap", "band",
-               "control", "tornado", "bridge", "bullet")
+               "control", "tornado", "bridge", "bullet", "treemap", "radar", "sankey")
 LAYOUT_CHARTS = {"band": ("time", ("actual", "forecast", "lower", "upper")), "control": ("time", ("value", "expected", "lower", "upper")),
-                 "tornado": ("category", ("low", "high")), "bridge": ("category", ("value",)), "bullet": ("category", ("used", "limit"))}
+                 "tornado": ("category", ("low", "high")), "bridge": ("category", ("value",)), "bullet": ("category", ("used", "limit")),
+                 "treemap": ("category", ("size", "value"))}
+LAZY_CHARTS = ("treemap", "radar", "sankey")
+LAYOUT_ONLY_CHARTS = tuple(LAYOUT_CHARTS) + ("radar", "sankey")
 TRENDS = ("line", "area", "stacked_area")
 BARS = ("bar", "horizontal_bar", "stacked_bar")
 SECTIONS = {
@@ -182,11 +185,12 @@ SECTIONS = {
     "constraint_bars": {"charts": ("bullet",), "suffix": "__constraints", "words": "a bullet chart of each limit and how much of it the plan uses"},
     "sensitivity_tornado": {"charts": ("tornado", "horizontal_bar"), "words": "a tornado chart of what moves the result"},
     "resolve": {"holds": "resolve", "words": "the re-solve button"},
-    "segment_cards": {"tables": True, "unit": "rows", "suffix": "__segments", "words": "a card per segment"},
-    "segment_profile": {"charts": BARS + ("heatmap",), "words": "the profile of each segment"},
+    "segment_cards": {"holds": "records", "tables": True, "unit": "rows", "suffix": "__segments", "words": "a card per segment; name the segment filter, 2 to 6 treatments and the suggested-treatment column in a segments section"},
+    "segment_profile": {"charts": BARS + ("heatmap", "radar"), "words": "the profile of each segment"},
     "projection": {"charts": ("scatter",), "suffix": "__assign", "words": "a 2D projection of the members"},
-    "migration_flow": {"charts": BARS + ("heatmap",), "suffix": "__migration", "words": "the moves between segments"},
-    "rec_list": {"holds": "records", "unit": "rows", "suffix": "__recs", "words": "the recommendations per entity"},
+    "size_value_treemap": {"charts": ("treemap",), "suffix": "__segments", "words": "a treemap of segment size and value"},
+    "migration_flow": {"charts": BARS + ("heatmap", "sankey"), "suffix": "__migration", "words": "the moves between segments"},
+    "rec_list": {"holds": "records", "unit": "rows", "suffix": "__recs", "words": "the top recommendations per entity with their reasons; name the entity and score columns in a recs section"},
     "affinity_heatmap": {"charts": ("heatmap",), "words": "an affinity heatmap"},
     "lift_vs_popularity": {"charts": ("scatter",), "words": "lift against popularity"},
     "coverage": {"charts": BARS + ("donut",), "words": "the coverage of the recommendations"},
@@ -200,7 +204,7 @@ SECTIONS = {
     "counterfactual_band": {"charts": ("band",), "suffix": "__effect_series", "words": "actual against the counterfactual"},
     "incrementality_waterfall": {"charts": ("bridge",), "words": "an incrementality waterfall"},
     "response_curves": {"charts": TRENDS + ("scatter",), "words": "response curves"},
-    "keep_scale_stop": {"holds": "records", "unit": "rows", "words": "the keep, scale or stop list"},
+    "keep_scale_stop": {"holds": "records", "unit": "rows", "words": "the scale, keep, change or stop choice per intervention, suggested by the action column"},
     "bottleneck_ranking": {"charts": BARS, "suffix": "__transitions", "words": "the bottlenecks ranked"},
     "rework_loops": {"charts": BARS, "words": "the rework loops"},
     "breach_risk_cases": {"holds": "records", "unit": "rows", "suffix": "__cases", "words": "the open cases at breach risk"},
@@ -228,7 +232,7 @@ CHART_KIND_LABELS = {"trend": "Trend over time", "bars": "Bars by segment", "spl
                      "scatter": "Two measures"}
 CHART_PICK = ("trend", "bars", "pareto")
 TIME_CHARTS = ("line", "area", "stacked_area", "bar", "stacked_bar", "heatmap", "band", "control")
-SERIES_CHARTS = ("stacked_bar", "stacked_area", "heatmap")
+SERIES_CHARTS = ("stacked_bar", "stacked_area", "heatmap", "radar", "sankey")
 ADDITIVE_CHARTS = ("stacked_bar", "stacked_area", "pareto", "donut")
 X_KINDS = ("time", "category", "value")
 SORTS = ("value_desc", "value_asc", "x_asc")
@@ -1284,7 +1288,7 @@ def _section_fits(section: str, group: str, kind) -> bool:
         return spec.get("tables") is True
     if "charts" not in spec:
         return False
-    return kind not in LAYOUT_CHARTS if spec["charts"] is None else kind in spec["charts"]
+    return kind not in LAYOUT_ONLY_CHARTS if spec["charts"] is None else kind in spec["charts"]
 
 
 def section_words(section: str) -> str:
@@ -1327,7 +1331,7 @@ def layout_problems(page: dict, names: set) -> list:
     if layout.get("enabled") is not True:
         return [f"the {ident} layout is not served yet; use one of {', '.join(enabled_layouts())}"]
     if ident == DEFAULT_LAYOUT:
-        return []
+        return part_problems(page)
     sections = [str(s) for s in layout.get("sections") or []]
     holds = {(SECTIONS.get(s) or {}).get("holds") for s in sections}
     problems = []
@@ -1360,7 +1364,7 @@ def layout_problems(page: dict, names: set) -> list:
         problems += plan_problems(page.get("plan"), "plan" in holds, bool(set(DECISION_HOLDS) & holds))
     if "levers" in holds or page.get("scenario") is not None:
         problems += scenario_problems(page.get("scenario"), names, "levers" in holds)
-    return problems
+    return problems + part_problems(page)
 
 
 def plan_problems(plan, wanted: bool, allowed: bool) -> list:
@@ -1587,7 +1591,7 @@ def _shape_problems(chart: dict) -> list:
         problems.append(f"{where} ranks categories, so sort by value unless x has a natural order (set x.ordered)")
     if kind == "donut" and len(ys) != 1:
         problems.append(f"{where} is a donut, so it shows one measure")
-    if kind in ("heatmap", "pareto") and len(ys) != 1:
+    if kind in ("heatmap", "pareto", "radar", "sankey") and len(ys) != 1:
         problems.append(f"{where} is a {kind}, so it shows one measure")
     return problems
 
@@ -4856,3 +4860,111 @@ def scope_view(rows) -> dict:
     scopes = [summary_scope(row) for row in list(rows or [])[:2]]
     latest = scopes[0] if scopes else None
     return {"text": scope_text(latest) if latest else "", "note": scope_note(latest, scopes[1] if len(scopes) > 1 else None)}
+
+
+PART_BLOCKS = {"segment_explorer": "segments", "recommendation_desk": "recs"}
+PART_COLUMNS = {"segment_cards": ("segment_id", "label", "size", "value"),
+                "effect_card": ("intervention", "effect", "lower", "upper", "p_value", "roi")}
+SEGMENT_TREATMENTS = (2, 6)
+RECS_PER_ENTITY = (1, 5)
+
+
+def layout_choices(ident: str) -> list:
+    return [c for c in (layouts().get(ident) or {}).get("choices") or [] if isinstance(c, dict)]
+
+
+def part_table_problems(page: dict, section: str) -> list:
+    tables = [t for t in section_items(page, section) if t in (page.get("tables") or [])]
+    if not tables:
+        return [f"the {section} section of a {page_layout(page)} page needs a table: {section_words(section)}"]
+    sqls = {d.get("name"): d.get("sql") for d in page.get("datasets") or [] if isinstance(d, dict)}
+    companion = f"{page.get('result_table') or ''}{(SECTIONS.get(section) or {}).get('suffix') or ''}"
+    problems = []
+    for table in tables:
+        shown = {str((c or {}).get("column") or "") for c in table.get("columns") or []}
+        gone = [c for c in PART_COLUMNS[section] if c not in shown]
+        if gone:
+            problems.append(f"table {table.get('id')} in {section} shows the columns {', '.join(PART_COLUMNS[section])} of {companion}; "
+                            f"add {', '.join(gone)}")
+        if page.get("result_table") and not reads_table(sqls.get(table.get("dataset")), companion):
+            problems.append(f"table {table.get('id')} in {section} reads {companion}; point its dataset at that table")
+    return problems
+
+
+def segments_problems(page: dict) -> list:
+    block = page.get("segments")
+    if not isinstance(block, dict):
+        return ["a segment explorer page needs a segments section naming the filter that picks a segment's members and its treatments"]
+    problems = []
+    found = next((f for f in page.get("filters") or [] if isinstance(f, dict) and f.get("id") == block.get("filter")), None)
+    cards = [t.get("dataset") for t in section_items(page, "segment_cards") if t in (page.get("tables") or [])]
+    if found is None or found.get("type") != "multi_select":
+        problems.append(f"the segments filter {block.get('filter')!r} must be a multi_select filter of the page")
+    elif RECORDS_DATASET not in (found.get("columns") or {}) or any(d not in (found.get("columns") or {}) for d in cards):
+        problems.append(f"the segments filter {block.get('filter')} must map the {RECORDS_DATASET} dataset and the segment cards dataset, "
+                        "so choosing a treatment for a segment reaches all of its members")
+    treatments = block.get("treatments") if isinstance(block.get("treatments"), list) else []
+    low, high = SEGMENT_TREATMENTS
+    if not low <= len(treatments) <= high:
+        problems.append(f"the segments section needs {low} to {high} treatments; it has {len(treatments)}")
+    for treatment in treatments:
+        problems += _text_problem("a segment treatment", treatment, "label")
+    if len({str(t).strip().lower() for t in treatments}) != len(treatments):
+        problems.append("each segment treatment is named once")
+    suggest = block.get("suggest")
+    shown = {str((c or {}).get("column") or "") for t in section_items(page, "segment_cards") if t in (page.get("tables") or [])
+             for c in t.get("columns") or []}
+    if suggest is not None and (not IDENT.match(str(suggest)) or str(suggest) not in shown):
+        problems.append("the segments suggest must be a column the segment cards table shows, the one that holds the suggested treatment")
+    return problems
+
+
+def recs_problems(page: dict) -> list:
+    block = page.get("recs")
+    if not isinstance(block, dict):
+        return ["a recommendation desk page needs a recs section naming the entity column of its decision list"]
+    problems = [f"the recs {key} must be a column of the {RECORDS_DATASET} dataset" for key in ("entity", "score")
+                if not IDENT.match(str(block.get(key) or ""))]
+    low, high = RECS_PER_ENTITY
+    if not _whole(block.get("per_entity", 3), low, high):
+        problems.append(f"the recs per_entity must be a whole number from {low} to {high}")
+    if not IDENT.match(str((page.get("records") or {}).get("reasons") or "")):
+        problems.append("a recommendation desk shows why each item is offered, so its decision list needs a reasons column")
+    return problems
+
+
+def part_problems(page: dict) -> list:
+    ident = page_layout(page)
+    sections = (layouts().get(ident) or {}).get("sections") or []
+    problems = [p for section in sections if section in PART_COLUMNS for p in part_table_problems(page, section)]
+    for layout, key in PART_BLOCKS.items():
+        if ident != layout and page.get(key) is not None:
+            problems.append(f"only a {layout} page has a {key} section")
+    if ident == "segment_explorer":
+        problems += segments_problems(page)
+    if ident == "recommendation_desk":
+        problems += recs_problems(page)
+    if layout_choices(ident) and not IDENT.match(str((page.get("records") or {}).get("action") or "")):
+        problems.append(f"a {ident} page marks a suggested choice on each row, so its decision list needs an action column")
+    if ident == DEFAULT_LAYOUT:
+        problems += [f"chart {c.get('id')} is a {c.get('type')}, which only a laid-out page draws; on a {ident} page use another type"
+                     for c in page.get("charts") or [] if isinstance(c, dict) and c.get("type") in LAZY_CHARTS]
+    return problems
+
+
+def part_column_problems(page: dict, columns) -> list:
+    block = page.get("recs")
+    if page_layout(page) != "recommendation_desk" or not isinstance(block, dict) or columns is None:
+        return []
+    have = {str(c).lower() for c in columns}
+    problems = [f"the recs {key} column {block.get(key)} is not a column of the {RECORDS_DATASET} dataset, so the desk cannot group or "
+                f"rank its offers" for key in ("entity", "score") if str(block.get(key) or "").lower() not in have]
+    if problems:
+        print(f"[LAYOUT-PARTS FIRED] page={page.get('id')} missing={len(problems)}", flush=True)
+    return problems
+
+
+def public_parts(page: dict) -> dict:
+    out = {key: dict(page[key]) if isinstance(page.get(key), dict) else None for key in PART_BLOCKS.values()}
+    out["choices"] = layout_choices(page_layout(page))
+    return out

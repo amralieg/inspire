@@ -1,0 +1,297 @@
+{
+  "version": 2,
+  "layout": "lift_readout",
+  "id": "n05_u01",
+  "use_case_id": "N05-U01",
+  "title": "Promotion lift readout",
+  "question": "Which promotions really raised sales, what did they net, and which should we scale, keep, change or stop?",
+  "sponsor": "Head of Trade Marketing",
+  "domain": "Marketing",
+  "subdomain": "Promotion effectiveness",
+  "icon": "trend",
+  "hue": "green",
+  "result_table": "main.marketing.promo_lift_out",
+  "story": "Promotions added {incremental} in sales on {spend} of spend; {real} of them show a lift that is real.",
+  "questions": [
+    "Which promotion netted the most after its cost?",
+    "Which channel stops responding to more spend?"
+  ],
+  "datasets": [
+    {
+      "name": "records",
+      "sql": "SELECT o.record_key, o.entity_id, o.entity_label, o.priority_tier, o.`rank`, o.top_reasons, o.recommended_action, o.value, o.as_of_date, e.effect, e.lower, e.upper, e.p_value, e.roi, e.incremental_value, e.cost, p.channel, p.region, p.category FROM main.marketing.promo_lift_out AS o JOIN main.marketing.promo_lift_out__effect AS e ON e.intervention = o.entity_id JOIN main.marketing.promotions AS p ON p.promo_id = o.entity_id WHERE o.is_current AND o.change_source <> 'delete'"
+    },
+    {
+      "name": "effects",
+      "sql": "SELECT e.intervention, e.metric, e.effect, e.lower, e.upper, e.p_value, e.incremental_value, e.cost, e.roi, p.channel FROM main.marketing.promo_lift_out__effect AS e JOIN main.marketing.promotions AS p ON p.promo_id = e.intervention"
+    },
+    {
+      "name": "series",
+      "sql": "SELECT s.period, s.actual, s.counterfactual, s.lower, s.upper FROM main.marketing.promo_lift_out__effect_series AS s"
+    },
+    {
+      "name": "steps",
+      "sql": "SELECT 1 AS step, 'Sales added' AS label, p.channel, e.incremental_value AS amount FROM main.marketing.promo_lift_out__effect AS e JOIN main.marketing.promotions AS p ON p.promo_id = e.intervention UNION ALL SELECT 2, 'Promotion cost', p.channel, -e.cost FROM main.marketing.promo_lift_out__effect AS e JOIN main.marketing.promotions AS p ON p.promo_id = e.intervention UNION ALL SELECT 3, 'Net added', p.channel, e.incremental_value - e.cost FROM main.marketing.promo_lift_out__effect AS e JOIN main.marketing.promotions AS p ON p.promo_id = e.intervention"
+    },
+    {
+      "name": "curves",
+      "sql": "SELECT p.channel, p.promo_id, e.cost, e.incremental_value FROM main.marketing.promo_lift_out__effect AS e JOIN main.marketing.promotions AS p ON p.promo_id = e.intervention"
+    }
+  ],
+  "filters": [
+    {
+      "id": "run_date",
+      "type": "date_range",
+      "label": "Run date",
+      "grain": "day",
+      "default": "12m",
+      "columns": {
+        "records": "as_of_date",
+        "series": "period"
+      }
+    },
+    {
+      "id": "channel",
+      "type": "multi_select",
+      "label": "Channel",
+      "columns": {
+        "records": "channel",
+        "effects": "channel",
+        "curves": "channel",
+        "steps": "channel"
+      }
+    },
+    {
+      "id": "region",
+      "type": "multi_select",
+      "label": "Region",
+      "columns": {
+        "records": "region"
+      }
+    },
+    {
+      "id": "category",
+      "type": "multi_select",
+      "label": "Category",
+      "columns": {
+        "records": "category"
+      }
+    }
+  ],
+  "kpis": [
+    {
+      "id": "incremental",
+      "label": "Sales added",
+      "dataset": "records",
+      "expression": "SUM(incremental_value)",
+      "format": "currency",
+      "currency": "USD",
+      "good": "up"
+    },
+    {
+      "id": "spend",
+      "label": "Promotion spend",
+      "dataset": "records",
+      "expression": "SUM(cost)",
+      "format": "currency",
+      "currency": "USD",
+      "good": "down"
+    },
+    {
+      "id": "real",
+      "label": "Promotions with a real lift",
+      "dataset": "records",
+      "expression": "COUNT(CASE WHEN p_value < 0.05 AND lower > 0 THEN 1 END)",
+      "format": "integer",
+      "good": "up"
+    }
+  ],
+  "charts": [
+    {
+      "id": "versus",
+      "section": "counterfactual_band",
+      "title": "Sales against sales without the promotions",
+      "hint": "The band is the range the model expects without any promotion.",
+      "so_what": "Weeks where sales sit above the band are lift you can credit to the promotions.",
+      "type": "band",
+      "dataset": "series",
+      "x": {
+        "column": "period",
+        "kind": "time",
+        "label": "Week"
+      },
+      "y": [
+        {
+          "label": "Actual",
+          "expression": "SUM(actual)",
+          "format": "currency",
+          "currency": "USD"
+        },
+        {
+          "label": "Without promotions",
+          "expression": "SUM(counterfactual)",
+          "format": "currency",
+          "currency": "USD"
+        },
+        {
+          "label": "Low",
+          "expression": "SUM(lower)",
+          "format": "currency",
+          "currency": "USD"
+        },
+        {
+          "label": "High",
+          "expression": "SUM(upper)",
+          "format": "currency",
+          "currency": "USD"
+        }
+      ]
+    },
+    {
+      "id": "waterfall",
+      "section": "incrementality_waterfall",
+      "title": "From sales added to net sales",
+      "hint": "What the promotions added, less what they cost.",
+      "so_what": "If the net bar is below zero, the promotions cost more than they added.",
+      "type": "bridge",
+      "dataset": "steps",
+      "x": {
+        "column": "label",
+        "kind": "category",
+        "label": "Step",
+        "order": "step"
+      },
+      "y": [
+        {
+          "label": "Sales",
+          "expression": "SUM(amount)",
+          "format": "currency",
+          "currency": "USD"
+        }
+      ]
+    },
+    {
+      "id": "curves",
+      "section": "response_curves",
+      "title": "Sales added against spend",
+      "hint": "Each dot is a promotion: right is more spend, up is more sales added.",
+      "so_what": "Where the dots flatten out, more spend stops paying: cap spend there.",
+      "type": "scatter",
+      "dataset": "curves",
+      "group": "promo_id",
+      "x": {
+        "expression": "SUM(cost)",
+        "label": "Spend",
+        "format": "currency",
+        "currency": "USD"
+      },
+      "y": [
+        {
+          "label": "Sales added",
+          "expression": "SUM(incremental_value)",
+          "format": "currency",
+          "currency": "USD"
+        }
+      ]
+    }
+  ],
+  "tables": [
+    {
+      "id": "effect",
+      "section": "effect_card",
+      "title": "Lift of each promotion",
+      "hint": "The lift, its range, whether it is real, and what it returned.",
+      "so_what": "Scale only what is real and pays back; stop what is not proven.",
+      "dataset": "effects",
+      "columns": [
+        {
+          "column": "intervention",
+          "label": "Promotion",
+          "format": "text"
+        },
+        {
+          "column": "effect",
+          "label": "Lift",
+          "format": "percent"
+        },
+        {
+          "column": "lower",
+          "label": "Low",
+          "format": "percent"
+        },
+        {
+          "column": "upper",
+          "label": "High",
+          "format": "percent"
+        },
+        {
+          "column": "p_value",
+          "label": "p value",
+          "format": "number"
+        },
+        {
+          "column": "roi",
+          "label": "Return",
+          "format": "percent"
+        },
+        {
+          "column": "incremental_value",
+          "label": "Sales added",
+          "format": "currency",
+          "currency": "USD"
+        },
+        {
+          "column": "cost",
+          "label": "Cost",
+          "format": "currency",
+          "currency": "USD"
+        }
+      ],
+      "sort": {
+        "column": "incremental_value",
+        "desc": true
+      }
+    }
+  ],
+  "records": {
+    "title": "Scale, keep, change or stop",
+    "hint": "Each promotion from the latest run with its lift; the ★ choice follows its net lift.",
+    "key": "entity_id",
+    "label": "entity_label",
+    "sublabel": "channel",
+    "rank": "rank",
+    "tier": "priority_tier",
+    "reasons": "top_reasons",
+    "action": "recommended_action",
+    "columns": [
+      {
+        "column": "effect",
+        "label": "Lift",
+        "format": "percent"
+      },
+      {
+        "column": "roi",
+        "label": "Return",
+        "format": "percent"
+      },
+      {
+        "column": "incremental_value",
+        "label": "Sales added",
+        "format": "currency",
+        "currency": "USD"
+      }
+    ],
+    "detail": [
+      {
+        "column": "channel",
+        "label": "Channel",
+        "format": "text"
+      },
+      {
+        "column": "region",
+        "label": "Region",
+        "format": "text"
+      }
+    ]
+  }
+}

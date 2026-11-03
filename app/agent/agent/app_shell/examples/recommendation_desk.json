@@ -1,0 +1,224 @@
+{
+  "version": 2,
+  "layout": "recommendation_desk",
+  "id": "n04_u02",
+  "use_case_id": "N04-U02",
+  "title": "Next offer per customer",
+  "question": "Which offer should each customer get next, and why?",
+  "sponsor": "Head of Sales",
+  "domain": "Sales",
+  "subdomain": "Cross-sell",
+  "icon": "tag",
+  "hue": "orange",
+  "result_table": "main.sales.next_offer_out",
+  "story": "{offers} offers are ready for {customers} customers, worth {worth} if they convert at the expected rate.",
+  "questions": [
+    "Which offer converts best for new customers?",
+    "Which customers have no good offer?"
+  ],
+  "datasets": [
+    {
+      "name": "records",
+      "sql": "SELECT o.record_key, o.entity_id, o.entity_label, o.priority_tier, o.`rank`, o.top_reasons, o.recommended_action, o.value, o.as_of_date, r.entity AS customer_id, c.customer_name, r.item, r.score, r.reason, c.region, c.channel, c.plan_type FROM main.sales.next_offer_out AS o JOIN main.sales.next_offer_out__recs AS r ON r.entity = o.entity_id AND r.item = o.entity_label JOIN main.sales.customers AS c ON c.customer_id = r.entity WHERE o.is_current AND o.change_source <> 'delete'"
+    },
+    {
+      "name": "pairs",
+      "sql": "SELECT r.item, c.plan_type, r.score, r.entity FROM main.sales.next_offer_out__recs AS r JOIN main.sales.customers AS c ON c.customer_id = r.entity"
+    },
+    {
+      "name": "items",
+      "sql": "SELECT r.item, AVG(r.score) AS lift, COUNT(*) AS offered FROM main.sales.next_offer_out__recs AS r GROUP BY r.item"
+    }
+  ],
+  "filters": [
+    {
+      "id": "run_date",
+      "type": "date_range",
+      "label": "Run date",
+      "grain": "day",
+      "default": "12m",
+      "columns": {
+        "records": "as_of_date"
+      }
+    },
+    {
+      "id": "region",
+      "type": "multi_select",
+      "label": "Region",
+      "columns": {
+        "records": "region"
+      }
+    },
+    {
+      "id": "channel",
+      "type": "multi_select",
+      "label": "Channel",
+      "columns": {
+        "records": "channel"
+      }
+    },
+    {
+      "id": "plan_type",
+      "type": "multi_select",
+      "label": "Plan",
+      "columns": {
+        "records": "plan_type",
+        "pairs": "plan_type"
+      }
+    },
+    {
+      "id": "item",
+      "type": "multi_select",
+      "label": "Offer",
+      "columns": {
+        "records": "item",
+        "pairs": "item",
+        "items": "item"
+      }
+    }
+  ],
+  "kpis": [
+    {
+      "id": "offers",
+      "label": "Offers ready",
+      "dataset": "records",
+      "expression": "COUNT(*)",
+      "format": "integer",
+      "good": "neutral"
+    },
+    {
+      "id": "customers",
+      "label": "Customers",
+      "dataset": "records",
+      "expression": "COUNT(DISTINCT customer_id)",
+      "format": "integer",
+      "good": "neutral"
+    },
+    {
+      "id": "worth",
+      "label": "Expected value",
+      "dataset": "records",
+      "expression": "SUM(value)",
+      "format": "currency",
+      "currency": "USD",
+      "good": "up"
+    }
+  ],
+  "charts": [
+    {
+      "id": "affinity",
+      "section": "affinity_heatmap",
+      "title": "Which offers fit which plans",
+      "hint": "Average score of each offer for customers on each plan.",
+      "so_what": "Dark cells are where an offer fits a whole plan: send it there first.",
+      "type": "heatmap",
+      "dataset": "pairs",
+      "x": {
+        "column": "item",
+        "kind": "category",
+        "label": "Offer"
+      },
+      "series": {
+        "column": "plan_type",
+        "top": 6
+      },
+      "y": [
+        {
+          "label": "Score",
+          "expression": "AVG(score)",
+          "format": "percent"
+        }
+      ]
+    },
+    {
+      "id": "lift",
+      "section": "lift_vs_popularity",
+      "title": "Lift against how often it is offered",
+      "hint": "Each dot is an offer: right is offered more, up is a better fit.",
+      "so_what": "Offers high and to the left fit well but are rarely sent: send them more.",
+      "type": "scatter",
+      "dataset": "items",
+      "group": "item",
+      "x": {
+        "expression": "SUM(offered)",
+        "label": "Times offered",
+        "format": "integer"
+      },
+      "y": [
+        {
+          "label": "Average score",
+          "expression": "AVG(lift)",
+          "format": "percent"
+        }
+      ]
+    },
+    {
+      "id": "coverage",
+      "section": "coverage",
+      "title": "Customers covered by each offer",
+      "hint": "How many customers have each offer in their top picks.",
+      "so_what": "An offer that covers few customers needs its own campaign, not the desk.",
+      "type": "horizontal_bar",
+      "dataset": "pairs",
+      "x": {
+        "column": "item",
+        "kind": "category",
+        "label": "Offer"
+      },
+      "y": [
+        {
+          "label": "Customers",
+          "expression": "COUNT(DISTINCT entity)",
+          "format": "integer"
+        }
+      ]
+    }
+  ],
+  "tables": [],
+  "recs": {
+    "entity": "customer_name",
+    "score": "score",
+    "per_entity": 3
+  },
+  "records": {
+    "title": "Offers to send",
+    "hint": "The top offers for each customer from the latest run, best first.",
+    "key": "entity_id",
+    "label": "item",
+    "sublabel": "customer_name",
+    "rank": "rank",
+    "tier": "priority_tier",
+    "reasons": "top_reasons",
+    "action": "recommended_action",
+    "columns": [
+      {
+        "column": "item",
+        "label": "Offer",
+        "format": "text"
+      },
+      {
+        "column": "score",
+        "label": "Score",
+        "format": "percent"
+      },
+      {
+        "column": "value",
+        "label": "Expected value",
+        "format": "currency",
+        "currency": "USD"
+      }
+    ],
+    "detail": [
+      {
+        "column": "region",
+        "label": "Region",
+        "format": "text"
+      },
+      {
+        "column": "channel",
+        "label": "Channel",
+        "format": "text"
+      }
+    ]
+  }
+}

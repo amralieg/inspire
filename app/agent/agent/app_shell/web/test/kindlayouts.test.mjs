@@ -1,0 +1,280 @@
+import { test, before, after } from 'node:test';
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { chromium } from 'playwright';
+import { DECIDE, SRC, appInfo, bundleEntry, openApp, openBundle, serveDist } from './harness.mjs';
+
+const HERE = dirname(fileURLToPath(import.meta.url));
+const KINDS = JSON.parse(readFileSync(join(HERE, '..', '..', 'kinds.json'), 'utf8'));
+const ASSETS = join(HERE, '..', 'dist', 'assets');
+const P = { ink: '#111', muted: '#666', line: '#ddd', card: '#fff', well: '#eee', font: 'Inter', series: ['#1', '#2', '#3', '#4', '#5', '#6'], tier: { 'Act now': '#c00' } };
+const AS_OF = String(Date.UTC(2026, 0, 1) * 1000);
+
+let served;
+let base;
+let browser;
+let parts;
+
+before(async () => {
+  served = await serveDist();
+  base = served.base;
+  browser = await chromium.launch();
+  parts = await bundleEntry(`import * as charts from ${JSON.stringify(join(SRC, 'charts.js'))};\n`
+    + `import * as kinds from ${JSON.stringify(join(SRC, 'KindParts.jsx'))};\nwindow.charts = charts;\nwindow.kinds = kinds;`);
+});
+
+after(async () => {
+  await browser?.close();
+  served?.close();
+});
+
+async function inBundle(run, arg) {
+  const { page, context, errors } = await openBundle(browser, parts, {});
+  const out = await page.evaluate(run, arg);
+  await context.close();
+  assert.deepEqual(errors, []);
+  return out;
+}
+
+const layoutOf = (id) => KINDS.layouts.find((l) => l.id === id);
+const row = (i, extra) => ({ record_key: `K${i}`, _inspire_key: `K${i}`, _inspire_version: String(700 + i), entity_id: `E${i}`, priority_tier: 'Act now',
+  rank: i, value: 5000 - i * 100, as_of_date: '2026-10-15', top_reasons: ['spend fell', 'visits fell'], ...extra });
+
+const SEGMENTS = [['S1', 'Loyal regulars', 420, 1200, 'Loyalty upgrade'], ['S2', 'Lapsing families', 380, 640, 'Win-back offer'],
+  ['S3', 'New and curious', 150, 300, 'Leave as is'], ['S4', 'Bargain hunters', 260, 410, 'Win-back offer']];
+const MEMBERS = Array.from({ length: 12 }, (_, i) => row(i + 1, { entity_label: `Customer ${i + 1}`, segment: SEGMENTS[i % 4][0], segment_label: SEGMENTS[i % 4][1],
+  recommended_action: 'Keep them', region: 'North', channel: 'Online' }));
+const CUSTOMERS = ['Ana', 'Bo', 'Cy', 'Di', 'Ed', 'Flo', 'Gus', 'Hal'];
+const OFFERS = ['Travel card', 'Savings plan', 'Phone upgrade'];
+const RECS = CUSTOMERS.flatMap((name, c) => OFFERS.map((item, k) => row(c * 3 + k + 1, { entity_label: item, item, customer_name: name, customer_id: `C${c}`,
+  rank: k + 1, score: 0.9 - k * 0.2, recommended_action: k < 2 ? 'Send this offer' : 'Skip it: low fit', top_reasons: [`bought ${item.split(' ')[0].toLowerCase()} before`] })));
+const PROMOS = [['Spring bundle', 'Scale it: strong net lift'], ['Loyalty points', 'Keep it as it is'], ['Free delivery', 'Change the threshold'],
+  ['Flash sale', 'Stop it: no real lift']].map(([label, action], i) => row(i + 1, { entity_label: label, entity_id: label, recommended_action: action,
+  effect: 12 - i * 4, roi: 140 - i * 50, incremental_value: 90000 - i * 30000, channel: 'Online' }));
+
+function membersOf(body) {
+  const wanted = body.filters?.segment;
+  return wanted?.length ? MEMBERS.filter((m) => wanted.includes(m.segment)) : MEMBERS;
+}
+
+function routes(data, rows, acts) {
+  return {
+    page: ({ json }) => json(200, data),
+    records: ({ route, json }) => {
+      const body = route.request().postDataJSON();
+      const listed = rows === MEMBERS ? membersOf(body) : rows;
+      return json(200, { rows: listed.slice(0, body.limit || 25), total: listed.length, offset: 0, limit: body.limit || 25, actions: true, changes: false,
+        as_of_us: AS_OF, summary: { open: listed.length, done: 0, resolved: 0, left: listed.length, owners: [] }, errors: {} });
+    },
+    'records/act': ({ route, json }) => {
+      const body = route.request().postDataJSON();
+      acts.push(body);
+      return json(200, { written: body.record_keys || ['K1', 'K5', 'K9'], conflicts: [], batch_id: `b${acts.length}` });
+    },
+  };
+}
+
+const segmentData = () => ({
+  kpis: { members: { now: 1210 }, segments: { now: 4 }, value: { now: 812000 } },
+  charts: {
+    profile: { columns: [], rows: ['Orders a year', 'Basket size', 'Months as a customer', 'Days since last order'].flatMap((x, f) => SEGMENTS.map(([, s], i) => ({ x, s, y0: 10 + f * 3 + i * 2 }))), truncated: false },
+    map: { columns: [], rows: Array.from({ length: 30 }, (_, i) => ({ x_label: `E${i}`, x: (i % 5) - 2, y0: (i % 3) - 1 })), truncated: false },
+    worth: { columns: [], rows: SEGMENTS.map(([, x, size, value]) => ({ x, y0: size, y1: value })), truncated: false },
+    moves: { columns: [], rows: [{ x: 'Loyal regulars', s: 'Lapsing families', y0: 40 }, { x: 'Lapsing families', s: 'Bargain hunters', y0: 25 }, { x: 'New and curious', s: 'Loyal regulars', y0: 18 }], truncated: false },
+  },
+  tables: { cards: { columns: [], rows: SEGMENTS.map(([segment_id, label, size, value, suggested_treatment]) => ({ segment_id, label, size, value, profile: 'Shops weekly, big baskets', suggested_treatment })), truncated: false } },
+  errors: {},
+});
+
+const recsData = () => ({
+  kpis: { offers: { now: 24 }, customers: { now: 8 }, worth: { now: 54000 } },
+  charts: {
+    affinity: { columns: [], rows: OFFERS.flatMap((x, i) => ['Basic', 'Plus'].map((s, j) => ({ x, s, y0: 0.4 + i * 0.1 + j * 0.05 }))), truncated: false },
+    lift: { columns: [], rows: OFFERS.map((x_label, i) => ({ x_label, x: 100 + i * 50, y0: 0.7 - i * 0.1 })), truncated: false },
+    coverage: { columns: [], rows: OFFERS.map((x, i) => ({ x, y0: 8 - i * 2 })), truncated: false },
+  },
+  tables: {},
+  errors: {},
+});
+
+const WEEKS = Array.from({ length: 10 }, (_, i) => new Date(Date.UTC(2026, 7, 3 + i * 7)).toISOString().slice(0, 10));
+const liftData = () => ({
+  kpis: { incremental: { now: 180000 }, spend: { now: 60000 }, real: { now: 2 } },
+  charts: {
+    versus: { columns: [], rows: WEEKS.map((x, i) => ({ x, y0: 1100 + i * 20, y1: 1000 + i * 10, y2: 950 + i * 10, y3: 1050 + i * 10 })), truncated: false },
+    waterfall: { columns: [], rows: [{ x: 'Sales added', y0: 180000 }, { x: 'Promotion cost', y0: -60000 }, { x: 'Net added', y0: 120000 }], truncated: false },
+    curves: { columns: [], rows: PROMOS.map((p, i) => ({ x_label: p.entity_label, x: 10000 + i * 5000, y0: 90000 - i * 30000 })), truncated: false },
+  },
+  tables: { effect: { columns: [], rows: [
+    { intervention: 'Spring bundle', effect: 12, lower: 5, upper: 19, p_value: 0.004, roi: 140, incremental_value: 90000, cost: 20000 },
+    { intervention: 'Flash sale', effect: 1, lower: -4, upper: 6, p_value: 0.41, roi: -20, incremental_value: 5000, cost: 25000 },
+  ], truncated: false } },
+  errors: {},
+});
+
+const CASES = {
+  segment_explorer: { data: segmentData, rows: MEMBERS, ready: '[data-segment]' },
+  recommendation_desk: { data: recsData, rows: RECS, ready: '[data-choice-row]' },
+  lift_readout: { data: liftData, rows: PROMOS, ready: '[data-verdict]' },
+};
+
+const itemsIn = (page, section) => page.locator(`[data-section="${section}"]`).evaluateAll((nodes) => nodes.reduce((sum, n) => {
+  const rows = n.querySelectorAll('[data-choice-row]').length;
+  const cards = n.querySelectorAll('[data-segment], [data-card^="effect:"]').length;
+  return sum + (rows || cards || (n.querySelector('canvas, table, .kpi') ? 1 : 0));
+}, 0));
+const sectionsOf = (page) => page.evaluate(() => [...document.querySelectorAll('[data-section]')].map((n) => n.dataset.section));
+
+async function open(id, acts = []) {
+  const info = appInfo(DECIDE, 1, {}, `examples/${id}.json`);
+  const opened = await openApp(browser, base, info, { routes: routes(CASES[id].data(), CASES[id].rows, acts) });
+  await opened.page.locator(CASES[id].ready).first().waitFor();
+  return { ...opened, info };
+}
+
+for (const id of Object.keys(CASES)) {
+  test(`the ${id} layout is served, opens with What to do now and draws every section in order with its minimum items`, async () => {
+    const layout = layoutOf(id);
+    assert.equal(layout.enabled, true);
+    const { page, seen, context, info } = await open(id);
+    assert.deepEqual(info.pages[0].layout.sections, layout.sections);
+    await page.waitForFunction(() => document.querySelectorAll('[data-section] canvas').length >= 3);
+    const order = await sectionsOf(page);
+    assert.equal(order[0], 'todo', 'every page opens with What to do now');
+    assert.deepEqual([...new Set(order)], layout.sections);
+    for (const [section, low] of Object.entries(layout.min_items)) {
+      const n = await itemsIn(page, section);
+      assert.ok(n >= low, `${section} holds ${n}, needs ${low}`);
+    }
+    assert.deepEqual(seen.errors, []);
+    await context.close();
+  });
+}
+
+test('a segment treatment is chosen once and reaches every member through records/act with a match on the segment filter', async () => {
+  const acts = [];
+  const { page, seen, context } = await open('segment_explorer', acts);
+  const card = page.locator('[data-segment="S2"]');
+  await card.locator('[data-seg-open]').filter({ hasText: '3 of 3 members waiting' }).waitFor();
+  const star = card.locator('[data-treatment="Win-back offer"]');
+  assert.equal(await star.textContent(), '★ Win-back offer');
+  assert.match(await star.getAttribute('class'), /btn--pri/);
+  await card.locator('[data-treatment="Leave as is"]').click();
+  await page.waitForFunction(() => document.querySelector('.toast .toast-t')?.textContent === 'Leave as is chosen for 3 members of Lapsing families');
+  assert.deepEqual(acts[0], { page: 'n04_u01', match: { filters: { segment: ['S2'] }, view: {}, as_of_us: AS_OF },
+    values: { action_status: 'In progress', note: 'Treatment: Leave as is' } });
+  assert.match(await card.locator('[data-decided]').innerText(), /Treatment: Leave as is/);
+  await page.locator('[data-take-all]').click();
+  await page.waitForFunction((n) => document.querySelectorAll('[data-segment] [data-decided]').length === n, 4);
+  assert.deepEqual(acts.slice(1).map((a) => [a.match.filters.segment[0], a.values.note]),
+    [['S1', 'Treatment: Loyalty upgrade'], ['S3', 'Treatment: Leave as is'], ['S4', 'Treatment: Win-back offer']]);
+  assert.equal(await page.locator('[data-section="segment_cards"] .card--table').count() > 0, true, 'the members list sits under the segment cards');
+  assert.deepEqual(seen.errors, []);
+  await context.close();
+});
+
+test('the recommendation desk groups the top offers per entity with reasons, sends one and records why another was skipped', async () => {
+  const acts = [];
+  const { page, seen, context } = await open('recommendation_desk', acts);
+  assert.equal(await page.locator('[data-rec-entity]').count(), 8);
+  const ana = page.locator('[data-rec-entity="Ana"]');
+  assert.equal(await ana.locator('[data-choice-row]').count(), 3);
+  assert.match(await ana.locator('.reasons').first().innerText(), /bought travel before/);
+  const first = ana.locator('[data-choice-row="K1"]');
+  assert.equal(await first.locator('[data-choice="send"]').textContent(), '★ Send');
+  await first.locator('[data-choice="send"]').click();
+  await page.waitForFunction(() => document.querySelector('.toast .toast-t')?.textContent === 'Send: Travel card');
+  assert.deepEqual(acts[0], { page: 'n04_u02', record_keys: ['K1'], seen: { K1: '701' }, values: { action_status: 'Done', note: 'Send' } });
+  const third = ana.locator('[data-choice-row="K3"]');
+  assert.equal(await third.locator('[data-choice="skip"]').textContent(), '★ Skip');
+  await third.locator('[data-choice="skip"]').click();
+  assert.equal(acts.length, 1, 'a skip waits for its reason');
+  await third.getByRole('button', { name: 'Bad timing' }).click();
+  await page.waitForFunction(() => document.querySelector('.toast .toast-t')?.textContent === 'Skip: Phone upgrade');
+  assert.deepEqual(acts[1], { page: 'n04_u02', record_keys: ['K3'], seen: { K3: '703' }, values: { action_status: 'Dismissed', dismiss_reason: 'Skip: Bad timing' } });
+  assert.deepEqual(seen.errors, []);
+  await context.close();
+});
+
+test('the lift readout marks each effect real or unproven and decides scale, keep, change or stop with the ★ from the action', async () => {
+  const acts = [];
+  const { page, seen, context } = await open('lift_readout', acts);
+  assert.equal(await page.locator('[data-card="effect:Spring bundle"] [data-verdict]').getAttribute('data-verdict'), 'real');
+  assert.equal(await page.locator('[data-card="effect:Flash sale"] [data-verdict]').getAttribute('data-verdict'), 'unproven');
+  assert.match(await page.locator('[data-card="effect:Spring bundle"]').innerText(), /12\.0%[\s\S]*Range 5\.0% to 19\.0%[\s\S]*The lift is real: p = 0\.004/);
+  const stars = await page.locator('[data-choice-row] .btn--pri').evaluateAll((b) => b.map((n) => n.dataset.choice));
+  assert.deepEqual(stars, ['scale', 'keep', 'change', 'stop']);
+  await page.locator('[data-choice-row="K4"] [data-choice="stop"]').click();
+  await page.waitForFunction(() => document.querySelector('.toast .toast-t')?.textContent === 'Stop: Flash sale');
+  assert.deepEqual(acts[0].values, { action_status: 'Done', note: 'Stop' });
+  await page.locator('[data-take-all]').click();
+  await page.waitForFunction(() => document.querySelector('.toast .toast-t')?.textContent === 'Stop on 1 ★ suggestion');
+  assert.deepEqual(acts.slice(1).map((a) => [a.values.action_status, a.values.note, a.record_keys]), [
+    ['Done', 'Scale: the ★ suggestion', ['K1']], ['Done', 'Keep: the ★ suggestion', ['K2']], ['In progress', 'Change: the ★ suggestion', ['K3']],
+    ['Done', 'Stop: the ★ suggestion', ['K4']]]);
+  assert.deepEqual(seen.errors, []);
+  await context.close();
+});
+
+test('the choice helpers pick the earliest named choice, map a skip to a dismissal with its reason, and judge an effect by p and range', async () => {
+  const got = await inBundle(({ choices }) => {
+    const { suggestedChoice, choiceValues, treatmentValues, groupByEntity, effectVerdict } = window.kinds;
+    return {
+      scale: suggestedChoice(choices, 'Scale it, do not stop')?.id,
+      stop: suggestedChoice(choices, 'stop it, then scale later')?.id,
+      none: suggestedChoice(choices, 'review with finance'),
+      empty: suggestedChoice(choices, ''),
+      skip: choiceValues({ id: 'skip', label: 'Skip', status: 'Dismissed' }, 'Bad timing'),
+      send: choiceValues({ id: 'send', label: 'Send', status: 'Done' }),
+      treat: treatmentValues('Win-back offer'),
+      grouped: groupByEntity([{ e: 'A', r: 3 }, { e: 'A', r: 1 }, { e: 'B', r: 2 }, { e: 'A', r: 2 }], 'e', 'r', 2).map(([n, items]) => [n, items.map((i) => i.r)]),
+      real: effectVerdict({ p_value: 0.01, lower: 0.02, upper: 0.1 }).real,
+      crosses: effectVerdict({ p_value: 0.01, lower: -0.02, upper: 0.1 }).real,
+      weak: effectVerdict({ p_value: 0.2, lower: 0.02, upper: 0.1 }).real,
+      missing: effectVerdict({ lower: 0.02, upper: 0.1 }).real,
+    };
+  }, { choices: layoutOf('lift_readout').choices });
+  assert.deepEqual(got, {
+    scale: 'scale', stop: 'stop', none: null, empty: null,
+    skip: { action_status: 'Dismissed', dismiss_reason: 'Skip: Bad timing' }, send: { action_status: 'Done', note: 'Send' },
+    treat: { action_status: 'In progress', note: 'Treatment: Win-back offer' },
+    grouped: [['A', [1, 2]], ['B', [2]]], real: true, crosses: false, weak: false, missing: false,
+  });
+});
+
+test('the treemap sizes by the first measure and shades by the second, the radar scales each trait to its peak, and the sankey keeps the two sides apart', async () => {
+  const got = await inBundle(({ P }) => {
+    const { chartOption } = window.charts;
+    const money = { label: 'Value', format: 'currency', currency: 'USD' };
+    const tree = chartOption({ type: 'treemap', x: { kind: 'category' }, y: [{ label: 'Customers', format: 'integer' }, money] },
+      [{ x: 'Big', y0: 400, y1: 900 }, { x: 'Small', y0: 50, y1: 100 }, { x: 'Gone', y0: -5, y1: 500 }], P);
+    const radar = chartOption({ type: 'radar', x: { kind: 'category' }, series: { column: 's', top: 5 }, y: [{ label: 'Score', format: 'number' }] },
+      [{ x: 'Orders', s: 'A', y0: 10 }, { x: 'Orders', s: 'B', y0: 5 }, { x: 'Basket', s: 'A', y0: 2 }, { x: 'Basket', s: 'B', y0: 8 }], P);
+    const sankey = chartOption({ type: 'sankey', x: { kind: 'category' }, series: { column: 's', top: 8 }, y: [{ label: 'Customers', format: 'integer' }] },
+      [{ x: 'Loyal', s: 'Lapsing', y0: 40 }, { x: 'Lapsing', s: 'Loyal', y0: 10 }, { x: 'Loyal', s: 'Loyal', y0: 0 }], P);
+    const t = tree.series[0].data;
+    const r = radar.series[0].data;
+    const s = sankey.series[0];
+    return {
+      tree: t.map((d) => [d.name, d.value, d.itemStyle.color]),
+      radar: { axes: radar.radar.indicator.map((i) => i.name), lines: r.map((d) => [d.name, d.value]) },
+      sankey: { nodes: s.data.map((d) => d.name), links: s.links.map((l) => [l.source, l.target, l.value]), label: s.label.formatter({ name: 'before|Loyal' }),
+        animation: s.animation },
+    };
+  }, { P });
+  assert.deepEqual(got.tree, [['Big', 400, '#6'], ['Small', 50, '#1'], ['Gone', 0, '#3']]);
+  assert.deepEqual(got.radar, { axes: ['Orders', 'Basket'], lines: [['B', [0.5, 1]], ['A', [1, 0.25]]] });
+  assert.deepEqual(got.sankey, { nodes: ['before|Loyal', 'now|Lapsing', 'before|Lapsing', 'now|Loyal'],
+    links: [['before|Loyal', 'now|Lapsing', 40], ['before|Lapsing', 'now|Loyal', 10]], label: 'Loyal', animation: false });
+});
+
+test('the treemap, radar and sankey modules load only in the lazy layout chart chunk, never in the main bundle', () => {
+  const main = readFileSync(join(ASSETS, 'app.js'), 'utf8');
+  const lazy = readFileSync(join(ASSETS, 'echartsKinds.js'), 'utf8');
+  for (const kind of ['treemap', 'radar', 'sankey']) {
+    assert.ok(!main.includes(`series.${kind}`), `${kind} stays out of the main bundle`);
+    assert.ok(lazy.includes(`series.${kind}`), `the layout chart chunk registers ${kind}`);
+  }
+});

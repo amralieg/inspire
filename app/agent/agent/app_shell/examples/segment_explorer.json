@@ -1,0 +1,309 @@
+{
+  "version": 2,
+  "layout": "segment_explorer",
+  "id": "n04_u01",
+  "use_case_id": "N04-U01",
+  "title": "Customer segments and treatments",
+  "question": "Which groups of customers behave alike, and which treatment should each group get?",
+  "sponsor": "Head of Customer Marketing",
+  "domain": "Marketing",
+  "subdomain": "Customer segmentation",
+  "icon": "users",
+  "hue": "violet",
+  "result_table": "main.sales.customer_segments_out",
+  "story": "{members} customers fall into {segments} segments worth {value} a year.",
+  "questions": [
+    "Which segment is worth the most per customer?",
+    "Which segment lost the most customers to another since the last run?"
+  ],
+  "datasets": [
+    {
+      "name": "records",
+      "sql": "SELECT o.record_key, o.entity_id, o.entity_label, o.priority_tier, o.`rank`, o.top_reasons, o.recommended_action, o.value, o.as_of_date, a.segment, s.label AS segment_label, c.region, c.channel, c.plan_type FROM main.sales.customer_segments_out AS o JOIN main.sales.customer_segments_out__assign AS a ON a.entity = o.entity_id JOIN main.sales.customer_segments_out__segments AS s ON s.segment_id = a.segment JOIN main.sales.customers AS c ON c.customer_id = o.entity_id WHERE o.is_current AND o.change_source <> 'delete'"
+    },
+    {
+      "name": "segments",
+      "sql": "SELECT s.segment_id, s.label, s.size, s.value, s.profile, CASE WHEN s.value >= 900 THEN 'Loyalty upgrade' WHEN s.size >= 300 THEN 'Win-back offer' ELSE 'Leave as is' END AS suggested_treatment FROM main.sales.customer_segments_out__segments AS s"
+    },
+    {
+      "name": "profile",
+      "sql": "SELECT a.segment, s.label, f.feature, f.score FROM main.sales.customer_segments_out__assign AS a JOIN main.sales.customer_segments_out__segments AS s ON s.segment_id = a.segment JOIN main.sales.customers AS c ON c.customer_id = a.entity LATERAL VIEW stack(4, 'Orders a year', c.orders_per_year, 'Basket size', c.avg_basket, 'Months as a customer', c.tenure_months, 'Days since last order', c.days_since_last_order) f AS feature, score"
+    },
+    {
+      "name": "members",
+      "sql": "SELECT a.entity, a.segment, a.x, a.y, s.label FROM main.sales.customer_segments_out__assign AS a JOIN main.sales.customer_segments_out__segments AS s ON s.segment_id = a.segment"
+    },
+    {
+      "name": "moves",
+      "sql": "SELECT m.from_segment, m.to_segment, m.`count` AS moved, f.label AS from_label, t.label AS to_label FROM main.sales.customer_segments_out__migration AS m JOIN main.sales.customer_segments_out__segments AS f ON f.segment_id = m.from_segment JOIN main.sales.customer_segments_out__segments AS t ON t.segment_id = m.to_segment"
+    }
+  ],
+  "filters": [
+    {
+      "id": "run_date",
+      "type": "date_range",
+      "label": "Run date",
+      "grain": "day",
+      "default": "12m",
+      "columns": {
+        "records": "as_of_date"
+      }
+    },
+    {
+      "id": "segment",
+      "type": "multi_select",
+      "label": "Segment",
+      "columns": {
+        "records": "segment",
+        "segments": "segment_id",
+        "profile": "segment",
+        "members": "segment",
+        "moves": "from_segment"
+      }
+    },
+    {
+      "id": "region",
+      "type": "multi_select",
+      "label": "Region",
+      "columns": {
+        "records": "region"
+      }
+    },
+    {
+      "id": "channel",
+      "type": "multi_select",
+      "label": "Channel",
+      "columns": {
+        "records": "channel"
+      }
+    },
+    {
+      "id": "plan_type",
+      "type": "multi_select",
+      "label": "Plan",
+      "columns": {
+        "records": "plan_type"
+      }
+    }
+  ],
+  "kpis": [
+    {
+      "id": "members",
+      "label": "Customers",
+      "dataset": "records",
+      "expression": "COUNT(*)",
+      "format": "integer",
+      "good": "neutral"
+    },
+    {
+      "id": "segments",
+      "label": "Segments",
+      "dataset": "records",
+      "expression": "COUNT(DISTINCT segment)",
+      "format": "integer",
+      "good": "neutral"
+    },
+    {
+      "id": "value",
+      "label": "Yearly value",
+      "dataset": "records",
+      "expression": "SUM(value)",
+      "format": "currency",
+      "currency": "USD",
+      "good": "up"
+    }
+  ],
+  "charts": [
+    {
+      "id": "profile",
+      "section": "segment_profile",
+      "title": "What sets each segment apart",
+      "hint": "Each axis is one trait, scaled so the highest segment reaches the edge.",
+      "so_what": "Pick the treatment from the trait that stands out most.",
+      "type": "radar",
+      "dataset": "profile",
+      "x": {
+        "column": "feature",
+        "kind": "category",
+        "label": "Trait"
+      },
+      "series": {
+        "column": "label",
+        "top": 6
+      },
+      "y": [
+        {
+          "label": "Score",
+          "expression": "AVG(score)",
+          "format": "number"
+        }
+      ]
+    },
+    {
+      "id": "map",
+      "section": "projection",
+      "title": "Customers by segment",
+      "hint": "Each dot is a customer, placed so similar customers sit close.",
+      "so_what": "Dots far from their group are the least sure fit: check them before treating.",
+      "type": "scatter",
+      "dataset": "members",
+      "group": "entity",
+      "x": {
+        "expression": "AVG(x)",
+        "label": "Axis 1",
+        "format": "number"
+      },
+      "y": [
+        {
+          "label": "Axis 2",
+          "expression": "AVG(y)",
+          "format": "number"
+        }
+      ],
+      "limit": 200
+    },
+    {
+      "id": "worth",
+      "section": "size_value_treemap",
+      "title": "Segment size and value",
+      "hint": "Box size is the number of customers; color is the value per customer.",
+      "so_what": "A big dark box is where a treatment earns the most.",
+      "type": "treemap",
+      "dataset": "segments",
+      "x": {
+        "column": "label",
+        "kind": "category",
+        "label": "Segment"
+      },
+      "y": [
+        {
+          "label": "Customers",
+          "expression": "SUM(size)",
+          "format": "integer"
+        },
+        {
+          "label": "Value per customer",
+          "expression": "MAX(value)",
+          "format": "currency",
+          "currency": "USD"
+        }
+      ]
+    },
+    {
+      "id": "moves",
+      "section": "migration_flow",
+      "title": "Where customers moved since the last run",
+      "hint": "Each band is the customers who moved from one segment to another.",
+      "so_what": "A wide band into a low-value segment is the churn to stop first.",
+      "type": "sankey",
+      "dataset": "moves",
+      "x": {
+        "column": "from_label",
+        "kind": "category",
+        "label": "Before"
+      },
+      "series": {
+        "column": "to_label",
+        "top": 8
+      },
+      "y": [
+        {
+          "label": "Customers",
+          "expression": "SUM(moved)",
+          "format": "integer"
+        }
+      ]
+    }
+  ],
+  "tables": [
+    {
+      "id": "cards",
+      "section": "segment_cards",
+      "title": "Segments",
+      "hint": "Choose a treatment for each segment once: every customer in it gets it.",
+      "dataset": "segments",
+      "columns": [
+        {
+          "column": "segment_id",
+          "label": "Segment id",
+          "format": "text"
+        },
+        {
+          "column": "label",
+          "label": "Segment",
+          "format": "text"
+        },
+        {
+          "column": "size",
+          "label": "Customers",
+          "format": "integer"
+        },
+        {
+          "column": "value",
+          "label": "Value per customer",
+          "format": "currency",
+          "currency": "USD"
+        },
+        {
+          "column": "profile",
+          "label": "Profile",
+          "format": "text"
+        },
+        {
+          "column": "suggested_treatment",
+          "label": "Suggested treatment",
+          "format": "text"
+        }
+      ],
+      "sort": {
+        "column": "value",
+        "desc": true
+      }
+    }
+  ],
+  "segments": {
+    "filter": "segment",
+    "treatments": [
+      "Loyalty upgrade",
+      "Win-back offer",
+      "Leave as is"
+    ],
+    "suggest": "suggested_treatment"
+  },
+  "records": {
+    "title": "Customers",
+    "hint": "Customers from the latest run, ranked by their yearly value.",
+    "key": "entity_id",
+    "label": "entity_label",
+    "sublabel": "region",
+    "rank": "rank",
+    "tier": "priority_tier",
+    "reasons": "top_reasons",
+    "action": "recommended_action",
+    "columns": [
+      {
+        "column": "segment_label",
+        "label": "Segment",
+        "format": "text"
+      },
+      {
+        "column": "value",
+        "label": "Yearly value",
+        "format": "currency",
+        "currency": "USD"
+      }
+    ],
+    "detail": [
+      {
+        "column": "region",
+        "label": "Region",
+        "format": "text"
+      },
+      {
+        "column": "channel",
+        "label": "Channel",
+        "format": "text"
+      }
+    ]
+  }
+}

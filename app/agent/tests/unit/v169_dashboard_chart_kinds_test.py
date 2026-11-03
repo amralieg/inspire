@@ -170,7 +170,7 @@ def test_stacked_and_grouped_asks_are_met_only_by_the_layout_they_name(agent_ns,
 
 def test_the_app_and_the_dashboard_both_draw_grouped_bars(agent_ns, app_types):
     assert app_types == ("bar", "horizontal_bar", "stacked_bar", "grouped_bar", "line", "area", "stacked_area", "pareto", "scatter",
-                         "donut", "heatmap", "band", "control", "tornado", "bridge", "bullet")
+                         "donut", "heatmap", "band", "control", "tornado", "bridge", "bullet", "treemap", "radar", "sankey")
     assert "grouped_bar" in agent_ns["IMPLEMENT_DASHBOARD_RENDERED_KINDS"]
     assert agent_ns["implement_chart_type_name"]("clustered column chart") == "grouped_bar"
     split = agent_ns["implement_vibes_split_prompt"]("dashboard", "Show grouped bars")

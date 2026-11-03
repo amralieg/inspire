@@ -169,7 +169,7 @@
    "id": "segment_explorer",
    "label": "Segment explorer",
    "tab_label": "Segments",
-   "enabled": false,
+   "enabled": true,
    "contract": "segments",
    "sections": [
     "todo",
@@ -188,7 +188,7 @@
    "id": "recommendation_desk",
    "label": "Recommendation desk",
    "tab_label": "Recommend",
-   "enabled": false,
+   "enabled": true,
    "contract": "recommendations",
    "sections": [
     "todo",
@@ -200,7 +200,19 @@
    ],
    "min_items": {
     "rec_list": 20
-   }
+   },
+   "choices": [
+    {
+     "id": "send",
+     "label": "Send",
+     "status": "Done"
+    },
+    {
+     "id": "skip",
+     "label": "Skip",
+     "status": "Dismissed"
+    }
+   ]
   },
   {
    "id": "performance_explainer",
@@ -229,7 +241,7 @@
    "id": "lift_readout",
    "label": "Lift readout",
    "tab_label": "Lift",
-   "enabled": false,
+   "enabled": true,
    "contract": "impact",
    "sections": [
     "todo",
@@ -243,7 +255,29 @@
    "min_items": {
     "keep_scale_stop": 3,
     "effect_card": 1
-   }
+   },
+   "choices": [
+    {
+     "id": "scale",
+     "label": "Scale",
+     "status": "Done"
+    },
+    {
+     "id": "keep",
+     "label": "Keep",
+     "status": "Done"
+    },
+    {
+     "id": "change",
+     "label": "Change",
+     "status": "In progress"
+    },
+    {
+     "id": "stop",
+     "label": "Stop",
+     "status": "Done"
+    }
+   ]
   },
   {
    "id": "process_flow",
