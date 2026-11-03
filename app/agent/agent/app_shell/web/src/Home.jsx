@@ -156,7 +156,21 @@ function workEmpty({ failed, signedIn, owners, partial }) {
   return partial ? 'Nothing is assigned to you in the use cases that loaded.' : 'Nothing is assigned to you right now.';
 }
 
-function MyWork({ items, user, today, loading, failed, owners, partial, cut, done, unwindowed, capped, onRecord }) {
+export function yourWorkProps(app, hub, hubError, summaries) {
+  const pages = visiblePages(app.pages, hub);
+  const pairs = pages.filter((p) => hub?.pages?.[p.id]).map((p) => [p.id, hub.pages[p.id]]);
+  const title = (id) => app.pages.find((p) => p.id === id)?.title || id;
+  const kept = hub?.window?.limit ? pairs.filter(([, e]) => !e.window_note && compareValues(countOf(e.total), e.items?.length || 0) > 0) : [];
+  const keptIds = new Set(kept.map(([id]) => id));
+  return {
+    items: hubItems(pages, hub, summaries), user: app.user, today: hubToday(hub), loading: !hub && !hubError, failed: !hub && !!hubError,
+    owners: pairs.some(([, e]) => e.tracked), partial: Object.keys(hub?.errors || {}).length > 0,
+    cut: pairs.some(([id, e]) => e.truncated && !keptIds.has(id)), done: doneTodayOf(pairs.map(([, e]) => e), hub?.time_zone),
+    unwindowed: pairs.filter(([, e]) => e.window_note).map(([id]) => title(id)), capped: limitText(kept.map(([id, e]) => [title(id), e.items.length, e.total])),
+  };
+}
+
+export function YourWork({ items, user, today, loading, failed, owners, partial, cut, done, unwindowed, capped, onRecord, onMore }) {
   const [all, setAll] = useState(false);
   const { prefs } = useMyView();
   const work = myWork(items, user, today);
@@ -165,7 +179,12 @@ function MyWork({ items, user, today, loading, failed, owners, partial, cut, don
     <section className="card card--table" aria-label="Your work">
       <header className="card-h">
         <div><h2>Your work</h2><p data-today>{work.rows.length ? myWorkText(work, done) : 'Things assigned to you, overdue and due today first'}</p></div>
-        {owners && signedIn && <div className="tbar"><WindowChips /></div>}
+        {((owners && signedIn) || onMore) && (
+          <div className="tbar">
+            {owners && signedIn && <WindowChips />}
+            {onMore && <button type="button" className="btn" onClick={onMore} data-my-work-open><Icon name="right" size={14} />See all your work</button>}
+          </div>
+        )}
       </header>
       {loading && <p className="more">Loading your work…</p>}
       {!loading && !work.rows.length && (
@@ -186,7 +205,7 @@ function MyWork({ items, user, today, loading, failed, owners, partial, cut, don
   );
 }
 
-export default function Home({ app, hub, hubError, summaries, view, onView, onOpen, onRecord, onChanges }) {
+export default function Home({ app, hub, hubError, summaries, view, onView, onOpen, onRecord, onChanges, onMyWork }) {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const pages = visiblePages(app.pages, hub);
   const entries = pages.map((p) => hub?.pages?.[p.id]).filter(Boolean);
@@ -194,7 +213,6 @@ export default function Home({ app, hub, hubError, summaries, view, onView, onOp
   const items = hubItems(pages, hub, summaries);
   const { owned, fix, shown } = viewRows(items, view, app.user);
   const today = hubToday(hub);
-  const done = doneTodayOf(entries, hub?.time_zone);
   const loading = !hub && !hubError;
   const priced = entries.some((e) => e.tracked && e.money);
   const tracked = entries.some((e) => e.tracked);
@@ -211,10 +229,6 @@ export default function Home({ app, hub, hubError, summaries, view, onView, onOp
   const problems = Object.entries(hub?.errors || {}).map(([id, message]) => [app.pages.find((p) => p.id === id)?.title || id, message]);
   const cut = pairs.filter(([, e]) => e.truncated).map(([id, e]) => [app.pages.find((p) => p.id === id)?.title || id, e]);
   const quiet = loading ? [] : quietUseCases(pages, hub, summaries);
-  const unwindowed = pairs.filter(([, e]) => e.window_note).map(([id]) => app.pages.find((p) => p.id === id)?.title || id);
-  const kept = hub?.window?.limit ? pairs.filter(([, e]) => !e.window_note && compareValues(countOf(e.total), e.items?.length || 0) > 0) : [];
-  const capped = limitText(kept.map(([id, e]) => [app.pages.find((p) => p.id === id)?.title || id, e.items.length, e.total]));
-  const keptIds = new Set(kept.map(([id]) => id));
   const body = (
     <div className="page hub">
       <div className="pg-h">
@@ -227,8 +241,7 @@ export default function Home({ app, hub, hubError, summaries, view, onView, onOp
       {problems.map(([title, message]) => <p key={title} className="tile-err" role="alert"><Icon name="info" size={14} />{title} could not load: {message}</p>)}
       <Tiles tiles={tiles} loading={loading} />
       <ScopeNote pages={pages} summaries={summaries} />
-      <MyWork items={items} user={app.user} today={today} loading={loading} failed={!hub && !!hubError} owners={tracked} partial={problems.length > 0}
-        cut={pairs.some(([id, e]) => e.truncated && !keptIds.has(id))} done={done} unwindowed={unwindowed} capped={capped} onRecord={onRecord} />
+      <YourWork {...yourWorkProps(app, hub, hubError, summaries)} onRecord={onRecord} onMore={onMyWork} />
       <FilterBar view={view} onView={onView} />
       <section className="charts">
         <BarsCard id="by_use_case" title="Could save, by use case" action="Click a bar to open the use case" loading={loading} onPick={onOpen}

@@ -28,6 +28,14 @@ function memory(start = {}) {
   return { getItem: (k) => (k in data ? data[k] : null), setItem: (k, v) => { data[k] = String(v); }, data };
 }
 
+test('no request names a fixed utc_offset_min, which the server refuses; every window names its time zone', () => {
+  const sending = readdirSync(SRC).filter((name) => /\.(js|jsx)$/.test(name) && readFileSync(join(SRC, name), 'utf8').includes('utc_offset_min'));
+  assert.deepEqual(sending, []);
+  for (const window of ['hour', 'today', 'week', 'month', 'all', 'everything']) {
+    assert.equal('utc_offset_min' in listWindow({ ...DEFAULT_PREFS, window }, 'Asia/Dubai'), false, window);
+  }
+});
+
 test('My view starts at All open with no limit, drops what storage holds that it does not know, and keeps each person apart', () => {
   assert.deepEqual(cleanPrefs(null), DEFAULT_PREFS);
   assert.deepEqual(DEFAULT_PREFS, { window: 'all', limit: 0, density: 'comfortable', rows: 25, folds: {}, seen: {}, columns: {} });
@@ -303,8 +311,14 @@ test('a change the read-only demo refuses is a calm note, and every other failur
 
 test('no web file reads the words of a server refusal or a run error to decide what to show', () => {
   const sources = readdirSync(SRC).filter((f) => /\.(js|jsx)$/.test(f));
-  const wording = /\b(message|error|detail)\b[^;\n]{0,40}\)?\.(match|includes|startsWith|endsWith|indexOf|search)\(|\.test\([^)]*\b(message|error|detail)\b/;
+  const wording = /\b(message|error|detail)\b(\s*(\|\||\?\?)\s*(''|""))?\s*\)?\s*\??\.(match|includes|startsWith|endsWith|indexOf|search)\(|\.test\([^)]*\b(message|error|detail)\b/;
   const status = /\.status\s*===\s*(400|409)\b/;
+  const reads = ["err.message.includes('no window')", "(err.message || '').startsWith('x')", "String(error).match(/x/)", 'error.message?.includes("x")',
+    "detail.indexOf('x')", "/x/.test(err.message)"];
+  const codes = ['const refused = !!state.error && REFUSED.includes(state.error.status);', "const calm = error?.code === 'stale_list';",
+    'if (error && ALLOWED.includes(code)) return;'];
+  assert.deepEqual(reads.filter((line) => !wording.test(line)), [], 'each of these reads the words');
+  assert.deepEqual(codes.filter((line) => wording.test(line)), [], 'each of these reads a code, never the words');
   const found = sources.flatMap((f) => readFileSync(join(SRC, f), 'utf8').split('\n').map((line, i) => [f, i + 1, line]))
     .filter(([, , line]) => wording.test(line) || status.test(line)).map(([f, n, line]) => `${f}:${n}: ${line.trim()}`);
   assert.deepEqual(found, []);

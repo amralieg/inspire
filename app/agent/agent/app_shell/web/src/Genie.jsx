@@ -1,16 +1,14 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { GenieMark, Icon } from './icons.jsx';
-import { askGenie, explainGenie, genieMessage } from './api.js';
+import { askGenie, explainGenie } from './api.js';
 import { reducedMotion } from './theme.js';
 import { formatValue, integer, plainText } from './format.js';
 import DataTable from './DataTable.jsx';
 import Markdown from './Markdown.jsx';
 import { BUSY_TITLE, explainBody } from './explain.js';
 import { GENIE_DEFAULT, GENIE_MIN, clampGenie, genieMax, keyWidth, rememberGenieWidth, storedGenieWidth } from './genieWidth.js';
-import { GENIE_ASK, genieKey, genieOf, genieOn } from './genieAsk.js';
+import { GENIE_ASK, genieAnswer, genieKey, genieOf, genieOn } from './genieAsk.js';
 
-const POLL_MS = 1500;
-const GIVE_UP_MS = 180000;
 const WORDS_PER_SECOND = 14;
 
 function answerColumns(answer) {
@@ -55,20 +53,8 @@ export function useGenie(app, current, onOpen) {
       const started = await start(conversations.current[k] || '');
       conversations.current[k] = started.conversation_id;
       if (started.question) update(k, n - 1, { sent: started.question });
-      const until = Date.now() + GIVE_UP_MS;
-      for (;;) {
-        await new Promise((r) => setTimeout(r, POLL_MS));
-        if (!alive.current) return;
-        const msg = await genieMessage(k, started.conversation_id, started.message_id);
-        if (msg.state === 'running') {
-          update(k, n, { step: msg.step });
-          if (Date.now() > until) throw new Error('Genie took longer than three minutes. Try a narrower question.');
-          continue;
-        }
-        if (msg.state === 'failed') throw new Error(msg.error || 'Genie could not answer this question.');
-        update(k, n, { state: 'done', answer: msg, ids: started, shown: reducedMotion() ? Infinity : 0 });
-        return;
-      }
+      const msg = await genieAnswer(k, started, { onStep: (step) => update(k, n, { step }), alive: () => alive.current });
+      if (msg) update(k, n, { state: 'done', answer: msg, ids: started, shown: reducedMotion() ? Infinity : 0 });
     } catch (error) {
       update(k, n, { state: 'failed', error: error.message });
     }

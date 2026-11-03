@@ -9898,6 +9898,58 @@
     },
     {
       "setting": {
+        "name": "minutes_per_record",
+        "kind": "number",
+        "low": 0,
+        "low_open": true,
+        "high": 1440,
+        "optional": true,
+        "allowed": "more than 0 and at most 1,440 minutes, or empty"
+      },
+      "value": "",
+      "problem": ""
+    },
+    {
+      "setting": {
+        "name": "minutes_per_record",
+        "kind": "number",
+        "low": 0,
+        "low_open": true,
+        "high": 1440,
+        "optional": true,
+        "allowed": "more than 0 and at most 1,440 minutes, or empty"
+      },
+      "value": "  ",
+      "problem": ""
+    },
+    {
+      "setting": {
+        "name": "minutes_per_record",
+        "kind": "number",
+        "low": 0,
+        "low_open": true,
+        "high": 1440,
+        "optional": true,
+        "allowed": "more than 0 and at most 1,440 minutes, or empty"
+      },
+      "value": "0",
+      "problem": "minutes_per_record is '0'; allowed: more than 0 and at most 1,440 minutes, or empty"
+    },
+    {
+      "setting": {
+        "name": "minutes_per_record",
+        "kind": "number",
+        "low": 0,
+        "low_open": true,
+        "high": 1440,
+        "optional": true,
+        "allowed": "more than 0 and at most 1,440 minutes, or empty"
+      },
+      "value": "soon",
+      "problem": "minutes_per_record is 'soon'; allowed: more than 0 and at most 1,440 minutes, or empty"
+    },
+    {
+      "setting": {
         "name": "act_now_share",
         "kind": "percent",
         "low": 0,

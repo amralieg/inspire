@@ -222,7 +222,7 @@ test('a link to an unknown page opens the App with a notice instead of breaking'
   let { page, seen, context } = await openAt(`#/gone_page?f=${f}`, appInfo({ layout: 'sidebar' }, 2), { ready: '.pg-h h1' });
   await toastSays(page, UNKNOWN_PAGE);
   assert.equal(await page.locator('.main h1').innerText(), 'Overview');
-  assert.equal(await page.locator('.side .nav-i').count(), 4);
+  assert.equal(await page.locator('.side .nav-i').count(), 5);
   assert.deepEqual(seen.errors, []);
   await context.close();
 

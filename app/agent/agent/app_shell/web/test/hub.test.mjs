@@ -112,8 +112,9 @@ test('the side menu lists the Overview, each use case with its status and the Im
   await page.waitForFunction(() => document.querySelector('.nav-t small.warn'));
   const items = await page.locator('.side .nav-t').evaluateAll((all) => all.map((t) => [t.querySelector('b').innerText, t.querySelector('small')?.innerText,
     t.querySelector('small')?.className || '']));
-  assert.deepEqual(items, [['Overview', 'All use cases', ''], ['Impact', 'What the use cases delivered', ''], ['Price-loss decision desk', '3 to fix', ''],
-    ['Second desk 1', '2 to fix', ''], ['Second desk 2', 'Not updated', 'bad'], ['Second desk 3', 'Not ready yet', 'warn']], 'Impact sits right below the Overview');
+  assert.deepEqual(items, [['Overview', 'All use cases', ''], ['My work', 'What you did, and when', ''], ['Impact', 'What the use cases delivered', ''],
+    ['Price-loss decision desk', '3 to fix', ''], ['Second desk 1', '2 to fix', ''], ['Second desk 2', 'Not updated', 'bad'], ['Second desk 3', 'Not ready yet', 'warn']],
+    'My work sits right below the Overview, and Impact below it');
   assert.equal(await page.locator('.side .side-h').innerText(), 'USE CASES');
   assert.equal(await page.locator('.side .nav-i.is-on .nav-t b').innerText(), 'Overview');
   const zone = await page.evaluate(() => Intl.DateTimeFormat().resolvedOptions().timeZone);
@@ -509,9 +510,9 @@ test('a hub with no money recorded says Not measured yet instead of an amount, a
   await context.close();
 });
 
-test('the tabs layout puts the Overview first and the Impact page right after it', async () => {
+test('the tabs layout puts the Overview first, then My work and the Impact page', async () => {
   const { page, seen, context } = await open(appInfo({ layout: 'tabs' }, 3, TABLE));
-  assert.deepEqual(await page.locator('.tabs .tab').allInnerTexts(), ['Overview', 'Impact', 'Price-loss decision desk', 'Second desk 1', 'Second desk 2']);
+  assert.deepEqual(await page.locator('.tabs .tab').allInnerTexts(), ['Overview', 'My work', 'Impact', 'Price-loss decision desk', 'Second desk 1', 'Second desk 2']);
   await page.locator('.tabs .tab', { hasText: 'Impact' }).click();
   await page.waitForFunction(() => document.querySelector('.pg-h h1')?.textContent === 'Impact');
   assert.deepEqual(seen.errors, []);
@@ -770,7 +771,7 @@ test('a hub whose Impact screen is off lists no Impact page and its link opens t
   const { page, seen, context } = await open(info);
   await page.waitForFunction(() => document.querySelector('.nav-t small.warn'));
   assert.deepEqual(await page.locator('.side .nav-t b').allInnerTexts(),
-    ['Overview', 'Price-loss decision desk', 'Second desk 1', 'Second desk 2', 'Second desk 3']);
+    ['Overview', 'My work', 'Price-loss decision desk', 'Second desk 1', 'Second desk 2', 'Second desk 3']);
   await page.goto(`${served.base}#/impact`);
   await page.waitForFunction(() => document.querySelector('.pg-h h1')?.textContent === 'Overview');
   assert.equal(await page.locator('.side .nav-i.is-on .nav-t b').innerText(), 'Overview');

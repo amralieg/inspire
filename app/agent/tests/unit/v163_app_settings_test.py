@@ -53,7 +53,7 @@ def test_the_owner_sees_every_setting_grouped_with_its_value_bounds_and_where_it
     status, out = call(s, "GET", "settings", query={"page": "n01_u05"}, headers={"x-forwarded-email": OWNER})
     assert status == 200 and out["editable"] is True and out["why"] == "" and out["history"] == []
     assert [(x["name"], x["group"]) for x in out["settings"]] == [
-        ("PRICE", "impact"), ("KEEP", "impact"), ("act_now_amount", "flagging"), ("review_amount", "flagging"),
+        ("PRICE", "impact"), ("KEEP", "impact"), ("minutes_per_record", "impact"), ("act_now_amount", "flagging"), ("review_amount", "flagging"),
         ("lookback_days", "scope"), ("mode", "scope"), ("alert_threshold", "alerts")]
     by_name = {x["name"]: x for x in out["settings"]}
     assert (by_name["PRICE"]["kind"], by_name["PRICE"]["unit"], by_name["PRICE"]["low"], by_name["PRICE"]["value"]) == ("money", "USD", 0.0, "20")
@@ -163,9 +163,16 @@ def test_run_now_starts_the_job_for_an_owner_refuses_anyone_else_and_waits_for_t
 
 
 def test_a_page_without_settings_or_money_shows_no_settings_and_its_spec_is_unchanged(tmp_path):
-    s, _ws, _made = _shell(tmp_path, SettingsWorkspace(summary=False), declared=None)
+    quiet = dict(SETTINGS, options={"modify": False, "replace_edits": False, "decisions": False}, use_case_owners={"n01_u05": [OWNER]})
+    s, ws, _made = _shell(tmp_path / "quiet", SettingsWorkspace(summary=False), declared=None, settings=quiet)
     out = call(s, "GET", "settings", query={"page": "n01_u05"}, headers={"x-forwarded-email": OWNER})[1]
     assert out == {"settings": [], "history": [], "editable": False, "why": shell_core.NO_SETTINGS, "can_run": False, "job": False}
+    assert not ws.queries("_assumptions"), "a page with nothing to set reads no saved settings"
+    status, refused = _save(s, OWNER, name="minutes_per_record", value="6", was="")
+    assert status == 400 and not ws.queries("INSERT INTO"), refused
+    s, _ws, _made = _shell(tmp_path / "acting", SettingsWorkspace(summary=False), declared=None)
+    out = call(s, "GET", "settings", query={"page": "n01_u05"}, headers={"x-forwarded-email": OWNER})[1]
+    assert [x["name"] for x in out["settings"]] == ["minutes_per_record"] and out["editable"] is True, "a page that keeps actions has My work"
     plain = hub_page()
     assert shell_sql.page_settings_problems(plain.get("settings")) == []
     assert "settings" not in plain

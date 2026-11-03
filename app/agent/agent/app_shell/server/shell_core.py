@@ -72,7 +72,7 @@ RECORD_STAKE = "value_at_stake"
 NO_ACCESS = re.compile(r"INSUFFICIENT_PERMISSIONS|PERMISSION_DENIED|permission denied|TABLE_OR_VIEW_NOT_FOUND|answered HTTP 403", re.I)
 VERSION_US = re.compile(r"^\d{1,19}$")
 RECORD_KEY_CHARS = 512
-MATCH_VIEW = ("search", "mine", "changed", "ai", "column_filters", "window", "window_limit", "utc_offset_min", "time_zone", "exclude")
+MATCH_VIEW = ("search", "mine", "changed", "ai", "column_filters", "window", "window_limit", "time_zone", "exclude")
 RANKED_SORT = "stake"
 STALE_LIST, UNKNOWN_COPY, NO_MATCH, OVER_CAP, STALE_RECORD = "stale_list", "unknown_copy", "no_match", "over_cap", "stale_record"
 WRITE_SOURCES = {"records/edit": "edit", "records/add": "add", "records/delete": "delete"}
@@ -126,6 +126,15 @@ IDENTITY_HEADERS = ("x-forwarded-email", "x-forwarded-preferred-username")
 OVERVIEW_LIMIT = shell_sql.CAPS["overview_rows"] + shell_sql.OVERVIEW_RUNS + OVERVIEW_WEEKS * 7 + 6 + shell_sql.CAPS["closers_today"]
 IMPACT_LIMIT = shell_sql.CAPS["impact_rows"] + shell_sql.IMPACT_REASONS + 20
 FACT_ROWS = 50
+MY_WORK_SIGN_IN = "sign in so the App can show the work you did"
+NO_ACTIONS = "this use case keeps no actions, so it has no work of yours to show"
+MINUTES_SETTING = {"name": shell_sql.MY_WORK_MINUTES, "kind": "number", "group": "impact", "source": "app", "applies": "app",
+                   "label": "Minutes a person spends per record without Inspire", "unit": "minutes", "low": 0.0, "high": 1440.0,
+                   "low_open": True, "high_open": False, "whole": False, "optional": True, "choices": [], "many": False, "default": "",
+                   "allowed": "more than 0 and at most 1,440 minutes, or empty", "reason": "not set until an owner sets it",
+                   "help": "My work multiplies the records each person worked by this to estimate the hours Inspire saved them. Leave it "
+                           "empty and My work shows no hours saved."}
+APP_SETTING_AT_ONCE = "My work uses this value at once; it changes no record and no run."
 HELD_TEXT = f"{shell_sql.HELD_MEANING} The App records no action on this one."
 ALERTS_HOME = "/sql/alerts"
 LIST_LABELS = {"rows": "the decision list", "total": "the decision list count", "keys": "the decision list keys",
@@ -1133,6 +1142,31 @@ def impact_view(rows: list) -> dict:
                          "measured": r.get("money"), "reported": r.get("reported"), "closed": r.get("at")} for r in by.get("record", [])]}
 
 
+def my_work_view(rows: list) -> dict:
+    by = {}
+    for row in rows:
+        by.setdefault(row.get("kind"), []).append(row)
+    whole = lambda value: int(value or 0)
+    tally = (by.get("tally") or [{}])[0]
+    closed = {r.get("what"): r for r in by.get("closed", [])}
+    done = closed.get(shell_sql.DONE) or {}
+    median = (by.get("median") or [{}])[0]
+    secs = shell_sql.as_number(median.get("secs"))
+    best = (by.get("best") or [None])[0]
+    return {"worked": dict({kind: whole((closed.get(status) or {}).get("n")) for status, kind in shell_sql.MY_WORK_CLOSES},
+                           assigned=whole(tally.get("r")), notes=whole(tally.get("noted")), changes=whole(tally.get("n")),
+                           records=whole(tally.get("m"))),
+            "active_hours": whole(tally.get("hours")),
+            "money": {"measured": {"n": whole(done.get("m")), "money": done.get("money")},
+                      "reported": {"n": whole(done.get("r")), "money": done.get("reported")},
+                      "estimated": {"n": whole(done.get("n")), "money": done.get("before")}},
+            "close": {"n": whole(median.get("n")), "median_hours": None if secs is None else round(max(secs, 0) / 3600, 2)},
+            "best": {"key": best.get("k"), "label": best.get("label"), "basis": best.get("what"), "money": best.get("money"),
+                     "closed": best.get("at")} if best else None,
+            "activity": [{"key": r.get("k"), "label": r.get("label"), "kind": r.get("what"), "status": r.get("status"), "note": r.get("note"),
+                          "owner": r.get("owner"), "at": r.get("at")} for r in by.get("act", [])]}
+
+
 def usage_view(pages: list, rows: list, errors: dict, since: datetime.date) -> dict:
     by_page = {p["id"]: {"id": p["id"], "title": p.get("title") or p["id"], "counts": dict.fromkeys(USAGE_KINDS, 0), "people": set(),
                          "last": None, "errors": []} for p in pages}
@@ -1178,6 +1212,9 @@ def same_setting(setting: dict, one, other) -> bool:
     if setting.get("kind") == "choice":
         tidy = lambda text: ",".join(part.strip() for part in str(text or "").split(",") if part.strip())
         return tidy(one) == tidy(other)
+    blank = lambda value: not str("" if value is None else value).strip()
+    if blank(one) or blank(other):
+        return blank(one) and blank(other)
     left, right = shell_sql.as_number(one), shell_sql.as_number(other)
     return left is not None and right is not None and abs(left - right) <= 1e-12
 
@@ -1536,6 +1573,8 @@ class Shell:
                 return 200, self.run_summary(headers, query.get("page"))
             if route == ("POST", "overview"):
                 return 200, self.overview(headers, data)
+            if route == ("POST", "my_work"):
+                return 200, self.my_work(headers, data)
             if route == ("GET", "money"):
                 return 200, self.money(headers, query.get("page"))
             if route == ("POST", "money/assumption"):
@@ -2005,6 +2044,59 @@ class Shell:
         return dict(view, visible=True, tracked=True, money=money, categories=context["categories"],
                     served=result.get("served"), money_model=shell_sql.public_money(model))
 
+    def my_work(self, headers: dict, data: dict) -> dict:
+        person = str(headers.get("x-forwarded-email") or "").strip()
+        if not person:
+            raise HttpError(401, MY_WORK_SIGN_IN)
+        bounds = shell_sql.period_params(data, self.now())
+        export, offset = data.get("export", False), data.get("offset", 0)
+        cap, size = shell_sql.CAPS["my_work_export"], shell_sql.CAPS["my_work_rows"]
+        if not isinstance(export, bool):
+            raise HttpError(400, "export is true or false")
+        if isinstance(offset, bool) or not isinstance(offset, int) or offset < 0 or offset % size or offset + size > cap:
+            raise HttpError(400, f"offset is a whole multiple of {size} from 0 to {cap - size:,}")
+        if export and offset:
+            raise HttpError(400, "an export starts at the first change, so send no offset with it")
+        shown = cap if export else size
+        ws, who = self.workspace(headers)
+        jobs = {p["id"]: (lambda p=p: self.my_work_page(ws, who, p, person, bounds, offset + shown)) for p in self.pages}
+        done, errors = self._parallel(jobs, pool=self.hub_pool)
+        merged = sorted(((ident, entry) for ident, view in done.items() for entry in view.pop("activity", [])),
+                        key=lambda pair: (-(stamp_of(pair[1]["at"]) or shell_sql.EPOCH).timestamp(), pair[0], str(pair[1]["key"])))
+        total = sum(view.get("worked", {}).get("changes", 0) for view in done.values())
+        period = {k: bounds.get(k) for k in ("window", "zone", "today", "start_day", "end_day")}
+        return {"person": person, "period": period, "pages": done, "errors": errors, "offset": offset, "size": shown, "total": total,
+                "activity": [dict(entry, page=ident) for ident, entry in merged[offset:offset + shown]],
+                "truncated": total > offset + shown and export}
+
+    def my_work_page(self, ws, who, page: dict, person: str, bounds: dict, rows: int) -> dict:
+        fields, untracked = self.tracked_fields(ws, who, page)
+        if untracked:
+            return untracked
+        if not self.keeps_actions(ws, who, page, fields):
+            return {"visible": True, "tracked": False, "note": NO_ACTIONS}
+        names = {f["name"] for f in fields}
+        sql, params = shell_sql.my_work_query(page, names, person, bounds, rows, self.history_for(ws, who, page, fields))
+        result = self.run(ws, who, sql, params, rows + len(shell_sql.MY_WORK_CLOSES) + 4)
+        return dict(my_work_view(result["rows"]), visible=True, tracked=True, priced=shell_sql.MONEY_COLUMN in names,
+                    minutes=self.minutes_per_record(ws, who, page), served=result.get("served"))
+
+    def keeps_actions(self, ws, who, page: dict, fields) -> bool:
+        if not page.get("records") or fields is None:
+            return False
+        return shell_sql.list_context(page, self.list_columns(ws, who, page), fields, self.option("decisions"))["actions"]
+
+    def minutes_per_record(self, ws, who, page: dict):
+        try:
+            rows = self.assumption_rows(ws, who, page)
+        except QueryError:
+            return None
+        row = next((r for r in rows if r.get("name") == shell_sql.MY_WORK_MINUTES), None)
+        value = shell_sql.as_number((row or {}).get("value"))
+        if value is None or shell_sql.setting_problem(MINUTES_SETTING, shell_sql.number_text(value)):
+            return None
+        return value
+
     def assumption_rows(self, ws, who, page: dict, limit: int = shell_sql.CAPS["assumption_rows"]) -> list:
         try:
             return self.run(ws, who, *shell_sql.assumptions_query(page, limit), limit, delta=True)["rows"]
@@ -2140,20 +2232,21 @@ class Shell:
         fields = self.table_fields(ws, who, page)
         names = {f["name"] for f in fields or []}
         model = self.money_model(ws, who, page, fields)
-        rows = self.assumption_rows(ws, who, page) if page.get("settings") or (model and model.get("recomputes")) else []
+        items = [*(page.get("settings") or []), *([MINUTES_SETTING] if self.keeps_actions(ws, who, page, fields) else [])]
+        rows = self.assumption_rows(ws, who, page) if items or (model and model.get("recomputes")) else []
         latest = {}
         for row in rows:
             latest.setdefault(str(row.get("name") or ""), row)
         declared = []
-        for item in page.get("settings") or []:
+        for item in items:
             setting = dict(item)
-            saved = latest.get(setting["name"]) if setting.get("source") in ("widget", "alert") else None
+            saved = latest.get(setting["name"]) if setting.get("source") in ("widget", "alert", "app") else None
             held = (saved.get("text_value") if setting.get("kind") == "choice" else shell_sql.as_number(saved.get("value"))) if saved else None
             if held is not None and shell_sql.setting_problem(setting, held if isinstance(held, str) else shell_sql.number_text(held)):
                 held = None
             setting["value"] = setting.get("default") or "" if held is None else (held if isinstance(held, str) else shell_sql.number_text(held))
             setting["saved"] = held is not None
-            setting["editable"] = setting.get("source") == "widget" or (setting.get("source") == "alert" and setting.get("reads_setting") is True)
+            setting["editable"] = setting.get("source") in ("widget", "app") or (setting.get("source") == "alert" and setting.get("reads_setting") is True)
             if setting["name"] == "flag_segments" and not setting.get("choices") and "segment_or_item" in names:
                 found = self.run(ws, who, *shell_sql.segments_query(page), shell_sql.SEGMENT_CHOICES)["rows"]
                 setting["choices"] = [str(r.get("segment")) for r in found if r.get("segment") is not None]
@@ -2218,6 +2311,8 @@ class Shell:
         values = {s["name"]: s["value"] if s.get("saved") or ran.get(s["name"]) is None else shell_sql.number_text(ran[s["name"]])
                   for s in settings if s.get("source") == "widget"}
         values[setting["name"]] = text
+        if setting.get("source") == "app":
+            return {"exact": True, "moves": [], "text": APP_SETTING_AT_ONCE}
         if "priority_tier" not in names:
             return {"exact": False, "moves": [], "text": PREVIEW_AT_RUN}
         if basis == "predicted" and setting["name"] in shell_sql.TIER_SHARES:
@@ -2267,11 +2362,11 @@ class Shell:
         if not same_setting(setting, shown, setting["value"]):
             raise HttpError(409, f"{setting['name']} changed to {setting['value']} since you opened it; check it and save again")
         if same_setting(setting, text, setting["value"]):
-            raise HttpError(400, f"{setting['name']} is already {setting['value']}")
+            raise HttpError(400, f"{setting['name']} is already {setting['value'] or 'empty'}")
         editor = self.editor(headers)
         choice = setting.get("kind") == "choice"
         try:
-            self.execute(ws, *shell_sql.assumption_write(page, setting["name"], None if choice else float(text), editor, note.strip(),
+            self.execute(ws, *shell_sql.assumption_write(page, setting["name"], None if choice or not text else float(text), editor, note.strip(),
                                                          text if choice else None), 1, delta=True)
         except QueryError as error:
             if NOT_ALLOWED.search(str(error)):

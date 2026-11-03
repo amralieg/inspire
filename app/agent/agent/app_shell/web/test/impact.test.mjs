@@ -173,11 +173,11 @@ test('the Impact page shows estimated, reported and measured apart, promised aga
   await context.close();
 });
 
-test('a one use case App opens on its page, and its menu offers that page and the Impact page with no Overview', async () => {
+test('a one use case App opens on its page, and its menu offers that page, My work and the Impact page with no Overview', async () => {
   const routes = { impact: ({ json }) => json(200, ENTRY), summary: ({ json }) => json(200, SUMMARY) };
   const { page, seen, context } = await openApp(browser, served.base, appInfo({}, 1, { ...TABLE, promised: PROMISED }), { width: 1440, routes });
   await page.waitForFunction(() => document.querySelector('.pg-h h1')?.textContent === 'Price-loss decision desk');
-  assert.deepEqual(await page.locator('.side .nav-t b').allInnerTexts(), ['Price-loss decision desk', 'Impact']);
+  assert.deepEqual(await page.locator('.side .nav-t b').allInnerTexts(), ['Price-loss decision desk', 'My work', 'Impact']);
   assert.equal(await page.locator('.side .side-h').innerText(), 'USE CASE');
   assert.equal(await page.locator('.side .nav-i.is-on .nav-t b').innerText(), 'Price-loss decision desk');
   await page.locator('.side .nav-i', { hasText: 'Impact' }).click();
@@ -192,11 +192,11 @@ test('a one use case App opens on its page, and its menu offers that page and th
   await context.close();
 });
 
-test('a one use case App in the tabs layout has a tab for its page and one for Impact', async () => {
+test('a one use case App in the tabs layout has a tab for its page, one for My work and one for Impact', async () => {
   const routes = { impact: ({ json }) => json(200, ENTRY), summary: ({ json }) => json(200, SUMMARY) };
   const { page, seen, context } = await openApp(browser, served.base, appInfo({ layout: 'tabs' }, 1, TABLE), { width: 1440, routes });
   await page.waitForFunction(() => document.querySelector('.pg-h h1')?.textContent === 'Price-loss decision desk');
-  assert.deepEqual(await page.locator('.tabs .tab').allInnerTexts(), ['Price-loss decision desk', 'Impact']);
+  assert.deepEqual(await page.locator('.tabs .tab').allInnerTexts(), ['Price-loss decision desk', 'My work', 'Impact']);
   await page.locator('.tabs .tab', { hasText: 'Impact' }).click();
   await page.waitForFunction(() => document.querySelector('.pg-h h1')?.textContent === 'Impact');
   assert.deepEqual(seen.errors, []);

@@ -7,7 +7,8 @@ import { Skeleton } from './ui.jsx';
 import { BarsCard } from './ChartCard.jsx';
 import DataTable from './DataTable.jsx';
 import {
-  RUNS_PAGE, couldSaveRunFormula, coveredText, errorText, foundText, lastedText, runBars, runFlag, runKey, runsPageText, stampText, stepsText, triggerText,
+  RUNS_PAGE, couldSaveRunFormula, coveredText, errorText, foundText, groupingText, lastedText, runBars, runFlag, runKey, runsPageText, stampText, stepsText,
+  triggerText,
 } from './freshness.js';
 
 const STOPPED = ['failed', 'canceled', 'skipped'];
@@ -96,7 +97,7 @@ function runColumns(isOpen, toggle) {
       render: (run) => { const flag = runFlag(run.status); return <span className={`run-st run-st--${flag.tone}`}><i aria-hidden="true" />{flag.text}</span>; },
     },
     { key: 'trigger', label: 'Started by', className: 'nowrap', sortValue: (run) => triggerText(run.trigger), render: (run) => <>{triggerText(run.trigger)}{run.by && <span className="runs-sub-t">{run.by}</span>}</> },
-    { key: 'segments', label: 'What it covered', className: 'wrap', sortValue: (run) => coveredText(run.segments), render: (run) => <>{coveredText(run.segments)}{run.scope_text && <span className="runs-sub-t">{run.scope_text}</span>}</> },
+    { key: 'segments', label: 'What it covered', className: 'wrap', sortValue: (run) => coveredText(run.segments), render: (run) => <>{coveredText(run.segments)}{run.scope_text && <span className="runs-sub-t">{run.scope_text}</span>}{groupingText(run.grouping) && <span className="runs-sub-t" data-grouping>{groupingText(run.grouping)}</span>}</> },
     { key: 'records', label: 'Records', num: true, render: (run) => (run.records ? integer(run.records) : <None />) },
     { key: 'to_fix', label: 'To fix', num: true, render: (run) => count(run.to_fix) },
     {

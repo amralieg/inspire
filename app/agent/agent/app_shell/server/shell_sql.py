@@ -54,6 +54,8 @@ UNDONE_KEYS = ("action_owner", "action_status", "action_due", "action_note", "di
 ACT_NOTE = "note"
 WINDOWS = ("hour", "today", "week", "month", "all")
 ZONE_NAME = re.compile(r"^[A-Za-z][A-Za-z0-9_+-]{0,30}(/[A-Za-z0-9_+-]{1,30}){0,2}$")
+FIXED_OFFSET_GONE = ("send time_zone, the name of a time zone such as Asia/Dubai, instead of utc_offset_min: a fixed offset counts the "
+                     "wrong day on the other side of a clock change")
 EPOCH = datetime.datetime(1970, 1, 1, tzinfo=datetime.timezone.utc)
 NO_WINDOW = "no_window"
 BATCH_ID = re.compile(r"^[0-9a-f]{32}$")
@@ -211,7 +213,15 @@ CAPS = {"kpis": (3, 6), "charts": (3, 8), "tables": (0, 3), "filters": (1, 8), "
         "range_number": 10 ** 15, "blocks": (0, 8), "block_text": 4000, "block_html": 20000, "image_bytes": 2 * 1024 * 1024,
         "image_height": (40, 1200), "url_chars": 2000, "kpi_rows": 2, "count_cap": 10000, "changed_keys": 500, "act_match": 100000,
         "note_chars": 500, "snooze_days": 365, "conflicts_shown": 20, "similar_sample": 5, "similar_by": 3, "batches": 20,
-        "exclude_keys": 50, "window_limit": 1000, "utc_offset_min": 840, "act_history": 200, "closers_today": 200}
+        "exclude_keys": 50, "window_limit": 1000, "act_history": 200, "closers_today": 200, "my_work_rows": 50, "my_work_export": 10000,
+        "my_work_days": 366}
+MY_WORK_DEFAULT = "week"
+MY_WORK_CUSTOM = "custom"
+MY_WORK_MINUTES = "minutes_per_record"
+MY_WORK_COLUMNS = (("k", "STRING"), ("label", "STRING"), ("what", "STRING"), ("status", "STRING"), ("note", "STRING"), ("owner", "STRING"),
+                   ("at", "TIMESTAMP"), ("n", "BIGINT"), ("m", "BIGINT"), ("r", "BIGINT"), ("noted", "BIGINT"), ("hours", "BIGINT"),
+                   ("money", "DOUBLE"), ("reported", "DOUBLE"), ("before", "DOUBLE"), ("secs", "DOUBLE"))
+MY_WORK_CLOSES = ((DONE, "fixed"), (DISMISSED, "dismissed"), (COULD_NOT, "could_not"))
 ALERT_OPERATORS = {">=": "GREATER_THAN_OR_EQUAL", ">": "GREATER_THAN", "=": "EQUAL", "!=": "NOT_EQUAL", "<": "LESS_THAN",
                    "<=": "LESS_THAN_OR_EQUAL"}
 ALERT_BASES = ("fixed", "baseline")
@@ -1694,7 +1704,9 @@ def time_zone_of(data: dict) -> tuple:
 
 
 def window_params(data: dict, now: datetime.datetime):
-    window, top, offset = data.get("window"), data.get("window_limit"), data.get("utc_offset_min", 0)
+    if "utc_offset_min" in data:
+        raise ValueError(FIXED_OFFSET_GONE)
+    window, top = data.get("window"), data.get("window_limit")
     zone, _name, zoned = time_zone_of(data)
     if window is None:
         if top is not None:
@@ -1704,9 +1716,7 @@ def window_params(data: dict, now: datetime.datetime):
         raise ValueError(f"window must be one of {', '.join(WINDOWS)}")
     if top is not None and not _whole(top, 1, CAPS["window_limit"]):
         raise ValueError(f"window_limit must be a whole number from 1 to {CAPS['window_limit']}")
-    if not _whole(offset, -CAPS["utc_offset_min"], CAPS["utc_offset_min"]):
-        raise ValueError(f"utc_offset_min must be a whole number of minutes from -{CAPS['utc_offset_min']} to {CAPS['utc_offset_min']}")
-    return dict(window_bounds(window, now, offset, zone if zoned else None), limit=top)
+    return dict(window_bounds(window, now, zone if zoned else None), limit=top)
 
 
 class Refusal(ValueError):
@@ -1722,8 +1732,8 @@ def window_request(data: dict, context: dict, now: datetime.datetime):
     return window
 
 
-def window_bounds(window: str, now: datetime.datetime, offset_min: int = 0, zone=None) -> dict:
-    zone = zone or datetime.timezone(datetime.timedelta(minutes=offset_min))
+def window_bounds(window: str, now: datetime.datetime, zone=None) -> dict:
+    zone = zone or datetime.timezone.utc
     local = (now if now.tzinfo else now.replace(tzinfo=datetime.timezone.utc)).astimezone(zone).replace(tzinfo=None)
     today = local.date()
     out = {"window": window, "today": today.isoformat()}
@@ -1743,8 +1753,39 @@ def window_bounds(window: str, now: datetime.datetime, offset_min: int = 0, zone
         end = datetime.datetime.combine(add_months(today.replace(day=1), 1), datetime.time())
     if window != "hour":
         first, last = start.date(), end.date()
-    micros = lambda stamp: (stamp.replace(tzinfo=zone) - EPOCH) // datetime.timedelta(microseconds=1)
-    return dict(out, start_day=first.isoformat(), end_day=last.isoformat(), start_us=micros(start), end_us=micros(end))
+    return dict(out, start_day=first.isoformat(), end_day=last.isoformat(), start_us=zone_micros(start, zone), end_us=zone_micros(end, zone))
+
+
+def zone_micros(stamp: datetime.datetime, zone) -> int:
+    return (stamp.replace(tzinfo=zone) - EPOCH) // datetime.timedelta(microseconds=1)
+
+
+def period_params(data: dict, now: datetime.datetime) -> dict:
+    if "utc_offset_min" in data:
+        raise ValueError(FIXED_OFFSET_GONE)
+    zone, name, zoned = time_zone_of(data)
+    zone = zone if zoned else None
+    first, last = data.get("from"), data.get("to")
+    if first is None and last is None:
+        window = data.get("window") or MY_WORK_DEFAULT
+        if window not in WINDOWS:
+            raise ValueError(f"window must be one of {', '.join(WINDOWS)}, or send from and to")
+        return dict(window_bounds(window, now, zone), zone=name)
+    if data.get("window") is not None:
+        raise ValueError("send a window or a from and to day, not both")
+    try:
+        start, end = _date(first), _date(last)
+    except ValueError:
+        raise ValueError("from and to take days such as 2026-10-01") from None
+    if start > end:
+        raise ValueError("from must be on or before to")
+    days = CAPS["my_work_days"]
+    if (end - start).days >= days:
+        raise ValueError(f"pick a period of at most {plural(days, 'day')}")
+    zone = zone or datetime.timezone.utc
+    stamp = lambda day: zone_micros(datetime.datetime.combine(day, datetime.time()), zone)
+    return {"window": MY_WORK_CUSTOM, "zone": name, "today": window_bounds("today", now, zone)["today"], "start_day": start.isoformat(),
+            "end_day": (end + datetime.timedelta(days=1)).isoformat(), "start_us": stamp(start), "end_us": stamp(end + datetime.timedelta(days=1))}
 
 
 WINDOW_EXTRA = ("CAST(`action_due` AS DATE) AS `_inspire_due`", f"CAST(`{SNOOZE_COLUMN}` AS DATE) AS `_inspire_snooze`",
@@ -3283,6 +3324,8 @@ def setting_problem(setting: dict, value) -> str:
         if alone and len(picked) > 1:
             return f"{name} is '{text}'; {' and '.join(alone)} stand{'s' if len(alone) == 1 else ''} alone, never with another choice"
         return ""
+    if not text and setting.get("optional"):
+        return ""
     low, high, whole = as_number(setting.get("low")), as_number(setting.get("high")), bool(setting.get("whole"))
     low_open, high_open = bool(setting.get("low_open")), bool(setting.get("high_open"))
     number = float(text) if SETTING_NUMBER.match(text) and not (whole and "." in text) else None
@@ -3552,6 +3595,66 @@ def impact_query(page: dict, fields: list, since: str, model=None, history=None,
                                  closed=table_name(facts["closed"]) if facts else "", settled=settled)
     return (f"{_with(dict(early, **ctes), (*shell_facts.CHANGE_ORDER, 'av', *IMPACT_ORDER))} {' UNION ALL '.join(branches)}",
             params.items)
+
+
+def _changed(now: str, was: str) -> str:
+    return f"COALESCE({was}, '') <> COALESCE({now}, '')"
+
+
+MY_WORK_ORDER = (*CLOSING_ORDER, "wv", "wa", "wp", "wy", "wq", "wb", "wl")
+
+
+def my_work_query(page: dict, names: set, person: str, bounds: dict, rows: int, history=None) -> tuple:
+    params, table, label = _Params(), table_name(page["result_table"]), (page.get("records") or {}).get("label")
+    scope = use_case_scope(page, params)
+    within = f"{scope} AND " if scope else ""
+    who = params.add(str(person).strip().lower())
+    timed = "start_us" in bounds
+    start, end = (params.add(str(bounds["start_us"]), "BIGINT"), params.add(str(bounds["end_us"]), "BIGINT")) if timed else ("", "")
+    inside = lambda stamp: f" AND unix_micros({stamp}) >= {start} AND unix_micros({stamp}) < {end}" if timed else ""
+    touched = (f"SELECT `record_key` FROM {table} WHERE {within}`change_source` = 'action' AND lower(`changed_by`) = {who}"
+               f"{inside('`valid_from`')}")
+    ctes = closing_ctes(table, names, label, f"{within}`record_key` IN ({touched})", history)
+    text = lambda name: f"CAST({quote(name)} AS STRING)" if name and name in names else "CAST(NULL AS STRING)"
+    owner, note = text("action_owner"), f"NULLIF(TRIM({text('action_note')}), '')"
+    lagged = lambda value: f"LAG({value}) OVER (PARTITION BY `record_key` ORDER BY `valid_from`)"
+    ctes["wv"] = (f"SELECT `record_key`, `valid_from`, `change_source`, `changed_by`, CAST(`action_status` AS STRING) AS `_w_status`, "
+                  f"{owner} AS `_w_owner`, {note} AS `_w_note`, {text(label)} AS `_w_label`, {lagged('CAST(`action_status` AS STRING)')} AS "
+                  f"`_w_was`, {lagged(owner)} AS `_w_was_owner`, {lagged(note)} AS `_w_was_note` FROM {table} WHERE {within}`record_key` IN "
+                  f"({touched})")
+    moved = _changed("`_w_status`", "`_w_was`")
+    kinds = " ".join(f"WHEN {moved} AND `_w_status` = '{status}' THEN '{kind}'" for status, kind in MY_WORK_CLOSES)
+    assigned = f"{_changed('`_w_owner`', '`_w_was_owner`')} AND `_w_owner` IS NOT NULL"
+    noted = f"{_changed('`_w_note`', '`_w_was_note`')} AND `_w_note` IS NOT NULL"
+    ctes["wa"] = (f"SELECT *, CASE {kinds} WHEN {assigned} THEN 'assigned' WHEN {noted} THEN 'note' ELSE 'changed' END AS `_w_kind`, "
+                  f"CASE WHEN {assigned} THEN 1 ELSE 0 END AS `_w_assigned`, CASE WHEN {noted} THEN 1 ELSE 0 END AS `_w_noted` FROM wv WHERE "
+                  f"`change_source` = 'action' AND lower(`changed_by`) = {who}{inside('`valid_from`')}")
+    ctes["wp"] = f"SELECT * FROM hm AS v WHERE lower(v.`_inspire_closer`) = {who}{inside('v.`_inspire_closed`')}"
+    ctes["wy"] = "SELECT `record_key` AS `_w_k`, MIN(`valid_from`) AS `_w_first` FROM hx GROUP BY `record_key`"
+    secs = "(unix_micros(p.`_inspire_closed`) - unix_micros(y.`_w_first`)) / 1000000.0"
+    ctes["wq"] = (f"SELECT `_w_secs`, ROW_NUMBER() OVER (ORDER BY `_w_secs`) AS `_w_rn`, COUNT(*) OVER () AS `_w_n` FROM (SELECT {secs} AS "
+                  f"`_w_secs` FROM wp AS p JOIN wy AS y ON y.`_w_k` = p.`_inspire_k`) AS q")
+    ok, fixed = "`_inspire_measured_ok` = 1", f"`_inspire_status` = '{DONE}'"
+    worth = f"CASE WHEN {ok} THEN `_inspire_measured` ELSE `_inspire_realized` END"
+    ctes["wb"] = (f"SELECT *, {worth} AS `_w_worth` FROM wp WHERE {fixed} AND {worth} IS NOT NULL ORDER BY `_w_worth` DESC, "
+                  f"`_inspire_closed` DESC, `_inspire_k` ASC LIMIT 1")
+    ctes["wl"] = f"SELECT * FROM wa ORDER BY `valid_from` DESC, `record_key` ASC LIMIT {int(rows)}"
+    tally = {"n": "COUNT(*)", "m": "COUNT(DISTINCT `record_key`)", "r": "SUM(`_w_assigned`)", "noted": "SUM(`_w_noted`)",
+             "hours": "COUNT(DISTINCT CAST(unix_micros(`valid_from`) / 3600000000 AS BIGINT))"}
+    closed = {"what": "`_inspire_status`", "n": "COUNT(*)", "m": _count(ok), "r": _count(f"{fixed} AND `_inspire_realized` IS NOT NULL"),
+              "money": f"SUM(CASE WHEN {ok} THEN `_inspire_measured` END)",
+              "reported": f"SUM(CASE WHEN {fixed} THEN `_inspire_realized` END)", "before": f"SUM(CASE WHEN {fixed} THEN `_inspire_at_close` END)"}
+    best = {"k": "`_inspire_k`", "label": "`_inspire_label`", "what": f"CASE WHEN {ok} THEN 'measured' ELSE 'reported' END",
+            "at": "`_inspire_closed`", "money": "`_w_worth`"}
+    listed = {"k": "`record_key`", "label": "`_w_label`", "what": "`_w_kind`", "status": "`_w_status`", "note": "`_w_note`",
+              "owner": "`_w_owner`", "at": "`valid_from`"}
+    branches = [f"{_overview_select('tally', tally, MY_WORK_COLUMNS)} FROM wa",
+                f"{_overview_select('closed', closed, MY_WORK_COLUMNS)} FROM wp GROUP BY `_inspire_status`",
+                f"{_overview_select('median', {'n': 'MAX(`_w_n`)', 'secs': 'AVG(`_w_secs`)'}, MY_WORK_COLUMNS)} FROM wq WHERE "
+                f"`_w_rn` * 2 >= `_w_n` AND `_w_rn` * 2 <= `_w_n` + 2",
+                f"{_overview_select('best', best, MY_WORK_COLUMNS)} FROM wb",
+                f"{_overview_select('act', listed, MY_WORK_COLUMNS)} FROM wl"]
+    return f"{_with(ctes, MY_WORK_ORDER)} {' UNION ALL '.join(branches)}", params.items
 
 
 def sql_text(value) -> str:

@@ -246,11 +246,11 @@ def test_a_time_zone_the_app_cannot_read_is_refused_before_any_query(tmp_path, z
 def test_the_day_follows_the_clock_change_of_the_time_zone():
     now = datetime.datetime(2026, 10, 25, 12, 0, tzinfo=datetime.timezone.utc)
     zoned = shell_sql.window_bounds("today", now, zone=shell_sql.time_zone_of({"time_zone": "Europe/London"})[0])
-    fixed = shell_sql.window_bounds("today", now, 60)
+    fixed = shell_sql.window_bounds("today", now, datetime.timezone(datetime.timedelta(hours=1)))
     hour = 3600 * 1000000
     assert (zoned["start_us"], zoned["end_us"] - zoned["start_us"]) == (int(day_us(2026, 10, 24, 23)), 25 * hour), "the day the clocks go back is 25 hours"
     assert fixed["end_us"] - fixed["start_us"] == 24 * hour
-    assert shell_sql.window_bounds("week", now, 240) == shell_sql.window_bounds("week", now, zone=datetime.timezone(datetime.timedelta(hours=4)))
+    assert "offset_min" not in shell_sql.window_bounds.__code__.co_varnames, "a day is bounded by a time zone, never a fixed offset"
 
 
 def test_a_server_without_time_zone_data_counts_the_day_in_utc_and_says_so(tmp_path, monkeypatch):

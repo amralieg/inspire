@@ -3,7 +3,7 @@ import { failureOf, getSettings, previewSetting, runSettingsNow, saveSetting, to
 import { dayLabel } from './format.js';
 import { Icon } from './icons.jsx';
 import { Failure, useToast } from './ui.jsx';
-import { groupsOf, historyLines, inputText, ownerSettings, settingProblem, storedText, valueText } from './settings.js';
+import { groupsOf, historyLines, inputText, ownerSettings, savedText, settingProblem, storedText, valueText } from './settings.js';
 import { MyViewGroup } from './MyView.jsx';
 
 const NOTE_CHARS = 300;
@@ -115,7 +115,7 @@ export default function SettingsPanel({ pageId, data, onData, onChanged, onRunSt
     const setting = data.settings.find((s) => s.name === editing);
     onData(next);
     setEditing('');
-    toast(`${setting.label} is ${valueText(setting, value)} now. The next run uses it.`);
+    toast(savedText(setting, value));
     onChanged?.();
   };
   const run = async () => {
