@@ -686,7 +686,7 @@ def test_a_standard_cadence_is_never_sent_and_keeps_its_label(ns, cadence):
 
 SHORT_COLUMNS = ("Business Domain", "Subdomain", "type", "Beneficiary", "Sponsor", "Business Priority Alignment",
                  "Strategic Goals Alignment", "Technique Label", "KPI Names", "Elite Decision Owner", "Elite KPI",
-                 "Elite Decision Cadence")
+                 "Elite Decision Cadence", "Kind Label", "Kind Family Label")
 
 
 def short_field_use_case(column, value):
@@ -698,6 +698,8 @@ def short_field_use_case(column, value):
     elif column.startswith("Elite "):
         field = {"Elite Decision Owner": "decision_owner", "Elite KPI": "kpi", "Elite Decision Cadence": "cadence"}[column]
         extra["elite_assessment"] = dict(elite_assessment(), **{field: value})
+    elif column.startswith("Kind "):
+        extra[{"Kind Label": "kind_label", "Kind Family Label": "kind_family_label"}[column]] = value
     else:
         extra[column] = value
     return make_uc("N01-U01", **extra)

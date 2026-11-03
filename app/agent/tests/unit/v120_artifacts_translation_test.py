@@ -302,6 +302,6 @@ def test_translate_prompt_declares_only_the_optional_reason_columns(agent_ns):
     for column in OPTIONAL:
         assert f'"{column}"' in prompt, column
     assert "exactly 24 fields: the 22 fields of the header above plus the 2 honesty fields" in prompt
-    assert "a row has 25 fields with one of them and 37 with all thirteen" in prompt and "ELITE" not in prompt
+    assert "a row has 25 fields with one of them and 42 with all eighteen" in prompt and "ELITE" not in prompt
     keywords = agent_ns["PROMPT_TEMPLATES"]["KEYWORDS_TRANSLATE_PROMPT"].format(json_payload="{}", target_language="French")
     assert "{count}" in keywords and "Keep every placeholder exactly as written" in keywords

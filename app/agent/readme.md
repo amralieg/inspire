@@ -1331,7 +1331,7 @@ After a successful run, your `Generation Path` contains:
   - Single-language run: `<business>-dbx_inspire.xlsx` (unchanged)
   - Multi-language run: per-language suffix, for example `<business>-dbx_inspire_en.xlsx`, `<business>-dbx_inspire_de.xlsx`, ...
 - Columns, in order (the `Use Cases` sheet; the CSV export has the same columns):
-  - ID, Rank, Business Domain, Subdomain, Use Case, Description, Quality, Inspire Score, Quality Score, Best-of-Best Score, Priority, Value, Feasibility, Statement, Solution, Business Value, Sponsor, Beneficiary, Business Priority Alignment, Strategic Goals Alignment, Analytics Technique, Type, Tables Involved, Data Foundations
+  - ID, Rank, Business Domain, Subdomain, Use Case, Description, Quality, Inspire Score, Quality Score, Best-of-Best Score, Priority, Value, Feasibility, Statement, Solution, Business Value, Use Case Kind, Kind Family, What we serve, How it works, Where the value comes from, Sponsor, Beneficiary, Business Priority Alignment, Strategic Goals Alignment, Analytics Technique, Type, Tables Involved, Data Foundations
   - KPIs, Expected Key Results, Measures of Success, Financial Benefits, Non-Financial Benefits, when any use case of the run carries them
   - Primary Table, the twelve sub-scores (Strategic Alignment, ROI, Reusability, Time to Value, Data Availability, Data Accessibility, Architecture Fitness, Team Skills, Domain Knowledge, People Allocation, Budget Allocation, Time to Production), Priority Reasons, Quality Reasons, Result Database, Has Genie Code, Best of Best, Best of Best Reason
   - the elite columns (Elite Status and the elite decision fields) when the run judged elite use cases
@@ -1405,6 +1405,13 @@ After a successful run, your `Generation Path` contains:
 | **`best_of_best_rank`** | **STRING** | **NEW in v1.3.0**: star rank from 1, empty when not starred (cast to INT to sort) |
 | **`best_of_best_score`** | **STRING** | **NEW in v1.3.0**: elite score out of 10 for every use case the elite judge scored |
 | **`best_of_best_reason`** | **STRING** | **NEW in v1.3.0**: why the use case is starred, or the test it failed |
+| **`use_case_kind`** | **STRING** | **NEW in v1.4.0**: the kind id from the kind registry (`forecast`, `risk_propensity`, ...); a row written before v1.4.0 reads its kind from `analytics_technique` |
+| **`kind_family`** | **STRING** | **NEW in v1.4.0**: the kind's family id (`predict`, `detect_protect`, ...) |
+| **`app_layout`** | **STRING** | **NEW in v1.4.0**: the App layout the kind builds |
+| **`serving_summary`** | **STRING** | **NEW in v1.4.0**: what we serve, one plain line from the kind's template |
+| **`method_summary`** | **STRING** | **NEW in v1.4.0**: how it works, one plain line from the kind's method text for the technique |
+| **`value_source`** | **STRING** | **NEW in v1.4.0**: where the value comes from, one plain line from the kind's value formula |
+| **`selection_basis`** | **STRING** | **NEW in v1.4.0**: why the use case was kept; JSON when it is a record, plain text otherwise |
 | `tables_involved` | STRING | Comma-separated list |
 | `result_json` | STRING | Raw JSON of the full UC record |
 | `last_updated` | TIMESTAMP | Writer-side stamp; use `result_json:event_at` for event ordering |
