@@ -4,7 +4,7 @@ const path = require('path');
 const crypto = require('crypto');
 const childProcess = require('child_process');
 const I = require('./inspireImplement');
-const { appShellPayload, bundledNotebookText } = require('./appShell');
+const { appShellPayload, bundledAppShellText } = require('./appShell');
 const { pythonFor, runPythonJson } = require('./hostedRun');
 const { forwardedTokenOf } = require('./requestPerson');
 const ALERT_RULE_FILES = ['shell_alerts.py', 'shell_sql.py', 'shell_facts.py', 'shell_db.py', 'shell_redact.py'];
@@ -50,7 +50,7 @@ function canRunRules(file) {
 }
 
 function bundledRuleFiles() {
-  return appShellPayload(bundledNotebookText()).files;
+  return appShellPayload(bundledAppShellText()).files;
 }
 
 function createAlertRules(options = {}) {

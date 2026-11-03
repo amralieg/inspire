@@ -269,7 +269,7 @@ class _ShellFlow:
 
 
 def _flow(agent_ns, source):
-    payload = agent_ns["implement_app_shell_payload"](agent_ns["_INSPIRE_APP_SHELL"])
+    payload = agent_ns["implement_app_shell_payload"](agent_ns["inspire_notebook_asset"]("app_shell"))
     return _ShellFlow(ast.parse(source), agent_ns["IMPLEMENT_APP_SHELL_MODULES"], payload["files"])
 
 
@@ -328,7 +328,7 @@ def _shell_readers(source):
 
 
 def _shell_sql(agent_ns):
-    return agent_ns["implement_app_shell_payload"](agent_ns["_INSPIRE_APP_SHELL"])["files"]["shell_sql.py"]
+    return agent_ns["implement_app_shell_payload"](agent_ns["inspire_notebook_asset"]("app_shell"))["files"]["shell_sql.py"]
 
 
 def test_the_shell_calls_reviewed_as_pure_read_no_rows_and_build_no_error_text(agent_ns):

@@ -8,7 +8,7 @@ const { EventEmitter } = require('node:events');
 const I = require('../lib/inspireImplement');
 const H = require('../lib/hostedRun');
 const A = require('../lib/useCaseAlerts');
-const { appShellPayload, bundledNotebookText } = require('../lib/appShell');
+const { appShellPayload, bundledAppShellText } = require('../lib/appShell');
 const { makeApp, listen } = require('./support/implementApp');
 const { fakePageChild } = require('./support/hostedShell');
 const { AlertsWorkspace, RULES_MISSING, realAlerts, rulesRun, shellCompareWords } = require('./support/alertsWorkspace');
@@ -381,7 +381,7 @@ test('the Run tab page turns its Alerts view on and saves through the same rules
 });
 
 test('the alert step copies every App shell module its rules import, so a module added to the shell never breaks alerts', () => {
-  const shell = appShellPayload(bundledNotebookText()).files;
+  const shell = appShellPayload(bundledAppShellText()).files;
   const uncopied = (copied) => {
     const missing = [];
     const seen = new Set();

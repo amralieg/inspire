@@ -395,7 +395,7 @@ def test_the_scenario_save_names_three_result_table_columns(save, ok):
 
 
 def _modules(ns, tmp_path):
-    payload = ns["implement_app_shell_payload"](ns["_INSPIRE_APP_SHELL"])
+    payload = ns["implement_app_shell_payload"](ns["inspire_notebook_asset"]("app_shell"))
     return payload, ns["implement_app_shell_modules"](str(tmp_path / "_shell"), payload["files"])
 
 
@@ -576,7 +576,7 @@ def test_the_use_case_brief_names_the_kind_technique_layout_companion_tables_and
 
 
 def test_shell_files_without_kinds_json_still_get_the_registry_and_a_shipped_copy_wins(agent_ns, tmp_path):
-    payload = agent_ns["implement_app_shell_payload"](agent_ns["_INSPIRE_APP_SHELL"])
+    payload = agent_ns["implement_app_shell_payload"](agent_ns["inspire_notebook_asset"]("app_shell"))
     bare = {k: v for k, v in payload["files"].items() if k != "kinds.json"}
     registry = json.dumps(agent_ns["_inspire_kinds"](), indent=1, ensure_ascii=False) + "\n"
     assert agent_ns["implement_kinds_text"](bare) == registry

@@ -54,8 +54,8 @@ LOG_METHODS = {"debug", "info", "warning", "error", "critical", "exception"}
 LOG_FUNCTIONS = {"log_print", "print"}
 QUEUED_SQL_WORKERS = {"_drain_loop", "_worker_loop", "_run", "_writer_loop"}
 RUNTIME_RUNNERS = ("exec", "compile", "eval")
-EMBEDDED_SOURCES = {"files['shell_facts.py']": ("_INSPIRE_APP_SHELL", "shell_facts.py")}
-SHARED_SOURCES = ("REDACT_SOURCE", "_INSPIRE_APP_SHELL:shell_facts.py")
+EMBEDDED_SOURCES = {"files['shell_facts.py']": ("app_shell", "shell_facts.py")}
+SHARED_SOURCES = ("REDACT_SOURCE", "app_shell:shell_facts.py")
 MODULE_LEVEL = "<module>"
 
 
@@ -361,10 +361,11 @@ def identifier(node):
 
 def embedded_file(texts, given):
     held = EMBEDDED_SOURCES.get(ast.unparse(given)) if given is not None else None
-    if held is None or len(texts.get(held[0], ())) != 1:
+    if held is None:
         return None
     try:
-        files = json.loads(zlib.decompress(base64.b64decode(texts[held[0]][0])).decode("utf-8")).get("files") or {}
+        text = _agentload.load_agent_namespace()["inspire_notebook_asset"](held[0])
+        files = json.loads(zlib.decompress(base64.b64decode(text)).decode("utf-8")).get("files") or {}
     except (ValueError, zlib.error):
         return None
     return (f"{held[0]}:{held[1]}", files[held[1]]) if isinstance(files.get(held[1]), str) else None
@@ -806,7 +807,7 @@ def test_runtime_sources_read_no_user_table_rows(runtime_report):
 
 
 def test_only_a_shared_source_that_runs_no_sql_is_spared_the_row_read_check():
-    facts = "_INSPIRE_APP_SHELL:shell_facts.py"
+    facts = "app_shell:shell_facts.py"
     bad = [(facts, 1, "read", "qk", "SELECT `_q_key` FROM qk"), ("IMPLEMENT_RESULT_HISTORY_SOURCE", 2, "read", "x", "SELECT * FROM x")]
     quiet = {name: 0 for name in SHARED_SOURCES}
     assert _own_bad({"checked": quiet, "bad": bad}) == [bad[1]]
@@ -840,8 +841,8 @@ def test_guard_flags_a_runtime_source_it_cannot_read():
 
 
 def test_guard_reads_the_shared_facts_module_from_the_embedded_app_shell_and_flags_any_other_embedded_file(runtime_report):
-    facts = runtime_report["sources"].get("_INSPIRE_APP_SHELL:shell_facts.py")
-    assert facts and "def closing_ctes(" in facts, "the run's facts module is audited from the App shell the notebook embeds"
+    facts = runtime_report["sources"].get("app_shell:shell_facts.py")
+    assert facts and "def closing_ctes(" in facts, "the run's facts module is audited from the App shell the notebook pins"
     assert runtime_sources(facts) == ({}, []), "the facts module compiles nothing of its own"
     report = runtime_audit(_inject(agent_source(), (PLAIN_CALLER_ANCHOR, "        exec(compile(files['shell_core.py'], 'x', 'exec'), globals())\n")))
     assert [call for _, call in report["unreadable"]] == ["exec(compile(files['shell_core.py'], 'x', 'exec'), globals())"], report["unreadable"]

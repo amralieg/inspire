@@ -620,7 +620,7 @@ def test_the_app_guidance_tells_genie_a_table_carries_its_own_column_filters_and
 @pytest.mark.parametrize("carried", [False, True])
 def test_the_page_check_genie_runs_with_this_shell_refuses_a_filter_on_a_column_the_list_does_not_show(agent_ns, tmp_path, carried):
     if carried:
-        files = agent_ns["implement_app_shell_payload"](agent_ns["_INSPIRE_APP_SHELL"])["files"]
+        files = agent_ns["implement_app_shell_payload"](agent_ns["inspire_notebook_asset"]("app_shell"))["files"]
     else:
         files = {}
         for name in ("shell_sql.py", "shell_facts.py"):

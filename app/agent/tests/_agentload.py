@@ -31,6 +31,7 @@ from _nbload import (AGENT_NB, ROOT, code_cells, install_stubs,  # noqa: F401
 
 IMPL_CELL_INDEX = 1
 EXPECTED_CELL_COUNT = 3
+REPO_ASSETS_ENV = "INSPIRE_REPO_ASSETS"
 REFERENCE_DIR = pathlib.Path(ROOT) / "tests" / "regression" / "reference"
 
 _CODE_CACHE = {}
@@ -91,6 +92,7 @@ def _compiled(src, name):
 
 def _exec_agent(src, notebook_path):
     install_stubs()
+    os.environ.setdefault(REPO_ASSETS_ENV, ROOT)
     ns = {
         "__name__": "inspire_offline",
         "__file__": notebook_path,

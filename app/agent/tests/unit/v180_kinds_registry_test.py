@@ -1,5 +1,5 @@
-"""v1.4.0 WP1: one use-case kind registry, `app_shell/kinds.json`. The notebook carries it as `_INSPIRE_KINDS` through the
-App shell packer and reads it only through `_inspire_kinds()`; the App shell web code and the Inspire App frontend import the
+"""v1.4.0 WP1: one use-case kind registry, `app_shell/kinds.json`. The notebook pins its sha256 through the App shell
+packer, reads it from the Inspire assets only through `_inspire_kinds()`; the App shell web code and the Inspire App frontend import the
 same file, and no other file holds a copy of the kind list."""
 import copy
 import importlib.util
@@ -248,31 +248,32 @@ def test_the_copy_detector_flags_a_pasted_kind_list_and_keeps_ordinary_code():
     assert not copies_of_kind_list("my_variance_to_plan_x and process_mining_rate", ids)
 
 
-def test_the_notebook_and_its_bundled_copy_carry_kinds_json_as_inspire_kinds():
+def test_the_notebook_and_its_bundled_copy_pin_kinds_json_and_hold_no_copy_of_it():
     embed = _embed()
-    assert embed.embedded(AGENT_NB, embed.KINDS_CONSTANT) == _registry()
-    assert embed.embedded(BUNDLED_NB, embed.KINDS_CONSTANT) == _registry()
-    assert embed.embedded(AGENT_NB) != _registry()
+    for notebook in (AGENT_NB, BUNDLED_NB):
+        assert embed.notebook_pins(notebook)["kinds"] == embed.pins()["kinds"]
+        assert embed.legacy_lines(notebook) == []
+        with open(notebook, encoding="utf-8") as handle:
+            assert "_INSPIRE_KINDS = " not in handle.read()
+    assert embed.pins()["kinds"]["repo"] == "agent/app_shell/kinds.json"
 
 
-def test_embed_write_packs_the_registry_on_its_own_line_and_refuses_a_notebook_without_it(tmp_path):
+def test_embed_write_pins_a_changed_registry_on_its_own_line_and_refuses_a_notebook_without_the_pin_line(tmp_path):
     embed = _embed()
-    copy_nb = tmp_path / "agent.ipynb"
-    nb = json.loads(open(AGENT_NB, encoding="utf-8").read())
-    lines = nb["cells"][1]["source"]
-    index = next(i for i, line in enumerate(lines) if line.startswith(embed.KINDS_CONSTANT))
-    lines[index] = embed.KINDS_CONSTANT + '""\n'
+    copy_nb, kinds = tmp_path / "agent.ipynb", tmp_path / "kinds.json"
+    shutil.copyfile(AGENT_NB, copy_nb)
+    kinds.write_text(json.dumps(dict(_registry(), note="changed")), encoding="utf-8")
+    assets = dict(embed.ASSETS, kinds=("notebook/kinds.json", str(kinds)))
+    assert embed.write_pins(str(copy_nb)) is False
+    assert embed.write_pins(str(copy_nb), assets) is True
+    assert embed.notebook_pins(str(copy_nb))["kinds"]["sha256"] != embed.pins()["kinds"]["sha256"]
+    assert embed.notebook_pins(str(copy_nb))["app_shell"] == embed.pins()["app_shell"]
+    assert embed.write_pins(str(copy_nb), assets) is False
+    nb = json.loads(copy_nb.read_text(encoding="utf-8"))
+    nb["cells"][1]["source"] = [line for line in nb["cells"][1]["source"] if not line.startswith(embed.CONSTANT)]
     copy_nb.write_text(json.dumps(nb, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-    assert embed.embedded(str(copy_nb), embed.KINDS_CONSTANT) == {}
-    assert embed.write(embed.kinds(), str(copy_nb), embed.KINDS_CONSTANT) is True
-    assert embed.embedded(str(copy_nb), embed.KINDS_CONSTANT) == _registry()
-    assert embed.write(embed.kinds(), str(copy_nb), embed.KINDS_CONSTANT) is False
-    shell_before = embed.embedded(AGENT_NB)
-    assert embed.embedded(str(copy_nb)) == shell_before
-    del lines[index]
-    copy_nb.write_text(json.dumps(nb, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-    with pytest.raises(SystemExit, match="_INSPIRE_KINDS"):
-        embed.write(embed.kinds(), str(copy_nb), embed.KINDS_CONSTANT)
+    with pytest.raises(SystemExit, match="INSPIRE_NOTEBOOK_ASSETS"):
+        embed.write_pins(str(copy_nb))
 
 
 def test_inspire_kinds_reads_the_embedded_registry_once(agent_ns):
@@ -285,18 +286,18 @@ def test_inspire_kinds_reads_the_embedded_registry_once(agent_ns):
 
 
 def test_inspire_kinds_refuses_a_missing_or_foreign_registry_with_a_plain_error(fresh_ns):
+    held = fresh_ns["_INSPIRE_NOTEBOOK_ASSET_TEXT"]
     fresh_ns["_INSPIRE_KINDS_REGISTRY"] = None
-    fresh_ns["_INSPIRE_KINDS"] = ""
+    held["kinds"] = ""
+    with pytest.raises(RuntimeError, match="kind registry in the Inspire assets does not decode"):
+        fresh_ns["_inspire_kinds"]()
+    held["kinds"] = "not json at all!"
+    with pytest.raises(RuntimeError, match="kind registry in the Inspire assets does not decode"):
+        fresh_ns["_inspire_kinds"]()
+    held["kinds"] = json.dumps(dict(_registry(), version=2))
     with pytest.raises(RuntimeError, match="no usable kind registry"):
         fresh_ns["_inspire_kinds"]()
-    fresh_ns["_INSPIRE_KINDS"] = "not base64 at all!"
-    with pytest.raises(RuntimeError, match="kind registry embedded in this notebook does not decode"):
-        fresh_ns["_inspire_kinds"]()
-    embed = _embed()
-    fresh_ns["_INSPIRE_KINDS"] = embed.encode(dict(_registry(), version=2))
-    with pytest.raises(RuntimeError, match="no usable kind registry"):
-        fresh_ns["_inspire_kinds"]()
-    fresh_ns["_INSPIRE_KINDS"] = embed.encode(_registry())
+    held["kinds"] = json.dumps(_registry())
     assert len(fresh_ns["_inspire_kinds"]()["kinds"]) == 40
 
 

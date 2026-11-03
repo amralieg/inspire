@@ -4,7 +4,7 @@ const path = require('node:path');
 const { pathToFileURL } = require('node:url');
 const backend = require('../lib/inspireImplement');
 const served = (spec, options) => backend.validateImplementSpec(backend.withInspireUrl(spec, 'https://inspire.example.com'), options);
-const { appShellCatalog, appShellPayload, bundledNotebookText } = require('../lib/appShell');
+const { appShellCatalog, appShellPayload, bundledAppShellText } = require('../lib/appShell');
 
 const libUrl = pathToFileURL(path.resolve(__dirname, '..', '..', 'frontend', 'src', 'lib', 'implementWizard.js')).href;
 const load = () => import(libUrl);
@@ -85,7 +85,7 @@ test('per-user sign-in keeps record decisions, hides and clears alerts, and the 
   assert.match(w.PER_USER_REASON, /people record decisions only on the records they can read, and the App sends no alerts and offers no chart image export\.$/);
   assert.doesNotMatch(w.PER_USER_REASON, /[\u2013\u2014]/);
   assert.doesNotMatch(w.PER_USER_REASON, /download/i);
-  const core = appShellPayload(bundledNotebookText()).files['shell_core.py'];
+  const core = appShellPayload(bundledAppShellText()).files['shell_core.py'];
   if (/image_export/.test(core)) assert.match(core, /"image_export": s\["auth"\] == "sp"/, 'the App shell offers chart image export only to a shared App');
   const editing = w.withAppOption(perUser, 'modify', true);
   assert.equal(w.appOptionShown(editing, 'replace_edits'), true);
@@ -340,7 +340,7 @@ test('the wizard\'s chart kinds, Inspire\'s pick and the pages it can turn off a
   assert.deepEqual(w.APP_CHART_PICK, SHELL.chart_pick);
   assert.deepEqual(w.APP_SCREENS, SHELL.screens);
   assert.equal(w.APP_CHARTS_MIN, backend.IMPLEMENT_APP_CHARTS_MIN);
-  const sql = appShellPayload(bundledNotebookText()).files['shell_sql.py'];
+  const sql = appShellPayload(bundledAppShellText()).files['shell_sql.py'];
   const labels = sql.split('\n').find((line) => line.startsWith('CHART_KIND_LABELS = '));
   const block = sql.slice(sql.indexOf(labels), sql.indexOf('}', sql.indexOf(labels)) + 1);
   for (const kind of w.APP_CHART_KINDS) {

@@ -71,7 +71,7 @@ def test_a_value_that_names_no_kind_resolves_to_none(agent_ns, value, technique)
 
 def test_a_missing_registry_raises_instead_of_guessing(fresh_ns):
     fresh_ns["_INSPIRE_KINDS_REGISTRY"] = None
-    fresh_ns["_INSPIRE_KINDS"] = ""
+    fresh_ns["_INSPIRE_NOTEBOOK_ASSET_TEXT"]["kinds"] = "{}"
     with pytest.raises(RuntimeError, match="no usable kind registry"):
         fresh_ns["_inspire_resolve_kind"]("forecast")
 

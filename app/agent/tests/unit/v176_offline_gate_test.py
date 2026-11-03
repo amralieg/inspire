@@ -7,7 +7,8 @@ import os
 import re
 import zlib
 
-from _nbload import AGENT_NB, ROOT, notebook_cells, packed_text
+import _agentload
+from _nbload import AGENT_NB, ROOT, notebook_assets, notebook_cells, packed_text
 
 INSTALL = re.compile(r"%pip\b|\bpip3?\s+install\b|-m\s+pip\b|[\"']pip[\"']\s*,\s*[\"']install[\"']|\bnpm\s+(?:install|ci|i)\b|"
                      r"\bpostinstall\b|\b(?:yarn|pnpm)\s+(?:install|add)\b|\buv\s+pip\b|\bconda\s+install\b|\bapt(?:-get)?\s+install\b|"
@@ -63,12 +64,8 @@ def _hits(pattern, text: str) -> list:
 
 
 def _embedded_shell() -> dict:
-    for src in _code_cells():
-        for line in src.split("\n"):
-            if line.startswith("_INSPIRE_APP_SHELL = "):
-                value = line[len("_INSPIRE_APP_SHELL = "):].strip()[1:-1]
-                return json.loads(zlib.decompress(base64.b64decode(value)).decode("utf-8"))
-    raise AssertionError("the notebook embeds no App shell")
+    value = _agentload.load_agent_namespace()["inspire_notebook_asset"]("app_shell")
+    return json.loads(zlib.decompress(base64.b64decode(value)).decode("utf-8"))
 
 
 BASE64 = re.compile(r"^[A-Za-z0-9+/=\s]{400,}$")
@@ -104,6 +101,10 @@ def _decoded_bundles() -> list:
                 texts = _unpacked(node.value)
                 if texts:
                     bundles.append((f"agent cell {index} line {node.lineno}", texts))
+    for repo, text in notebook_assets():
+        texts = _unpacked(text) if BASE64.match(text) else [text]
+        if texts:
+            bundles.append((repo, texts))
     return bundles
 
 

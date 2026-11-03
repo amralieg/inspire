@@ -10,7 +10,7 @@ import shell_core  # noqa: E402
 
 
 def test_a_build_loads_its_own_copy_of_the_app_shell(agent_ns, tmp_path):
-    payload = agent_ns["implement_app_shell_payload"](agent_ns["_INSPIRE_APP_SHELL"])
+    payload = agent_ns["implement_app_shell_payload"](agent_ns["inspire_notebook_asset"]("app_shell"))
     held = sys.modules.get("shell_db")
     modules = agent_ns["implement_app_shell_modules"](str(tmp_path / "_shell"), payload["files"])
     assert modules["shell_db"].__file__.startswith(str(tmp_path / "_shell"))

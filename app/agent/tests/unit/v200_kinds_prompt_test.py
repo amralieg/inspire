@@ -199,6 +199,6 @@ def test_a_failing_checklist_leaves_the_block_out_and_never_stops_generation(age
 
 def test_a_missing_kind_registry_keeps_every_parsed_row(agent_ns, monkeypatch):
     monkeypatch.setitem(agent_ns, "_INSPIRE_KINDS_REGISTRY", None)
-    monkeypatch.setitem(agent_ns, "_INSPIRE_KINDS", "")
+    monkeypatch.setitem(agent_ns["_INSPIRE_NOTEBOOK_ASSET_TEXT"], "kinds", "{}")
     rows = _parse(agent_ns, KIND_HEADER + "\n" + _row("N1-1", "Forecasting", "forecast") + "\n" + _row("N1-2", "Clustering", ""))
     assert [(r["No"], r["Use Case Kind"]) for r in rows] == [("N1-1", ""), ("N1-2", "")]

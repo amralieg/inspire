@@ -17,14 +17,16 @@ EXAMPLE = os.path.join(HERE, "example_page.json")
 EXAMPLES = os.path.join(HERE, "examples")
 PALETTES = os.path.join(WEB, "src", "palettes.json")
 KINDS = os.path.join(HERE, "kinds.json")
+SHELL = os.path.join(HERE, "app_shell.b64")
 CELL = 1
 VERSION = 1
 SERVER_FILES = ("app.py", "app.yaml", "shell_alerts.py", "shell_core.py", "shell_db.py", "shell_facts.py", "shell_pg.py",
                 "shell_redact.py", "shell_sql.py")
 WEB_INPUTS = ("index.html", "package.json", "package-lock.json", "vite.config.js", "src")
 BINARY_SUFFIXES = (".woff2",)
-CONSTANT = "_INSPIRE_APP_SHELL = "
-KINDS_CONSTANT = "_INSPIRE_KINDS = "
+CONSTANT = "INSPIRE_NOTEBOOK_ASSETS = "
+LEGACY_CONSTANTS = ("_INSPIRE_APP_SHELL = ", "_INSPIRE_KINDS = ")
+ASSETS = {"app_shell": ("notebook/app_shell.b64", SHELL), "kinds": ("notebook/kinds.json", KINDS)}
 
 
 def _walk(base: str, relative: str) -> list:
@@ -102,24 +104,54 @@ def _line_index(lines: list, constant: str = CONSTANT) -> int:
     return hits[0]
 
 
-def embedded(path: str = NOTEBOOK, constant: str = CONSTANT) -> dict:
-    lines = _load(path)["cells"][CELL]["source"]
-    line = lines[_line_index(lines, constant)]
-    value = line[len(constant):].strip()
-    if not (value.startswith('"') and value.endswith('"')):
-        raise SystemExit(f"{constant.strip()} must be one double-quoted string")
-    return decode(value[1:-1]) if len(value) > 2 else {}
+def embedded(path: str = SHELL) -> dict:
+    with open(path, encoding="ascii") as handle:
+        text = handle.read()
+    return decode(text) if text else {}
 
 
 def kinds(path: str = KINDS) -> dict:
     return _load(path)
 
 
-def write(data: dict, path: str = NOTEBOOK, constant: str = CONSTANT) -> bool:
+def write(data: dict, path: str = SHELL) -> bool:
+    text = encode(data)
+    if os.path.isfile(path) and _text(path) == text:
+        return False
+    with open(path, "w", encoding="ascii") as handle:
+        handle.write(text)
+    return True
+
+
+def digest(path: str) -> dict:
+    with open(path, "rb") as handle:
+        data = handle.read()
+    return {"sha256": hashlib.sha256(data).hexdigest(), "size": len(data)}
+
+
+def pins(assets: dict = None) -> dict:
+    return {name: dict({"file": file, "repo": os.path.relpath(path, ROOT).replace(os.sep, "/")}, **digest(path))
+            for name, (file, path) in sorted((assets or ASSETS).items())}
+
+
+def pin_line(found: dict) -> str:
+    return CONSTANT + json.dumps(found, sort_keys=True, separators=(", ", ": ")) + "\n"
+
+
+def notebook_pins(path: str = NOTEBOOK) -> dict:
+    lines = _load(path)["cells"][CELL]["source"]
+    return json.loads(lines[_line_index(lines)][len(CONSTANT):])
+
+
+def legacy_lines(path: str = NOTEBOOK) -> list:
+    return [line.split(" = ", 1)[0] for line in _load(path)["cells"][CELL]["source"] if line.startswith(LEGACY_CONSTANTS)]
+
+
+def write_pins(path: str = NOTEBOOK, assets: dict = None) -> bool:
     nb = _load(path)
     lines = nb["cells"][CELL]["source"]
-    index = _line_index(lines, constant)
-    line = f'{constant}"{encode(data)}"' + ("\n" if lines[index].endswith("\n") else "")
+    index = _line_index(lines)
+    line = pin_line(pins(assets))
     if lines[index] == line:
         return False
     lines[index] = line
@@ -166,18 +198,21 @@ def main(argv=None) -> int:
         build()
     data = payload()
     if args.action == "write":
-        changed = write(data, args.notebook)
-        print(f"{'embedded' if changed else 'already embedded'}: {len(data['files'])} files, web source {data['web_source'][:12]}")
+        changed = write(data)
+        print(f"{'wrote' if changed else 'already current'}: {SHELL} with {len(data['files'])} files, web source {data['web_source'][:12]}")
         registry = kinds()
-        changed = write(registry, args.notebook, KINDS_CONSTANT)
-        print(f"{'embedded' if changed else 'already embedded'}: {len(registry['kinds'])} kinds, {len(registry['layouts'])} layouts")
+        print(f"kinds.json: {len(registry['kinds'])} kinds, {len(registry['layouts'])} layouts")
+        changed = write_pins(args.notebook)
+        named = ", ".join(f"{name} {spec['sha256'][:12]}" for name, spec in pins().items())
+        print(f"{'pinned' if changed else 'already pinned'} in the notebook: {named}")
         return 0
-    problems = differences(data, embedded(args.notebook))
-    if embedded(args.notebook, KINDS_CONSTANT) != kinds():
-        problems.append("kinds.json differs")
+    problems = differences(data, embedded())
+    problems += [f"{name} is still embedded in the notebook" for name in legacy_lines(args.notebook)]
+    held = notebook_pins(args.notebook)
+    problems += [f"the notebook pins {name} at another build than {spec['repo']}" for name, spec in pins().items() if held.get(name) != spec]
     for problem in problems:
         print(problem, file=sys.stderr)
-    print("the embedded App shell matches the repo" if not problems else f"differences from the repo: {len(problems)}")
+    print("app_shell.b64 and the notebook pins match the repo" if not problems else f"differences from the repo: {len(problems)}")
     return 1 if problems else 0
 
 

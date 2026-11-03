@@ -30,7 +30,7 @@ def _embed():
 
 
 def _shell(ns):
-    return ns["implement_app_shell_payload"](ns["_INSPIRE_APP_SHELL"])["files"]
+    return ns["implement_app_shell_payload"](ns["inspire_notebook_asset"]("app_shell"))["files"]
 
 
 def _shell_text(ns, **data):

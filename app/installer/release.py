@@ -51,16 +51,35 @@ def sha256_bytes(data):
     return hashlib.sha256(data).hexdigest()
 
 
-def agent_version(archive):
+def agent_source(archive):
     names = [name for name in archive.namelist() if name.rsplit("/", 1)[-1] == AGENT]
     if len(names) != 1:
         raise ReleaseFailure(f"{APP_ZIP} must hold one {AGENT}, it holds {len(names)}")
     cells = json.loads(archive.read(names[0]).decode("utf-8")).get("cells") or []
-    source = "\n".join("".join(c.get("source") or []) if isinstance(c.get("source"), list) else str(c.get("source") or "") for c in cells)
-    found = re.search(r'^__AGENT_VERSION__ = "(v[0-9]\.[0-9]\.[0-9])"$', source, re.M)
+    return "\n".join("".join(c.get("source") or []) if isinstance(c.get("source"), list) else str(c.get("source") or "") for c in cells)
+
+
+def agent_version(archive):
+    found = re.search(r'^__AGENT_VERSION__ = "(v[0-9]\.[0-9]\.[0-9])"$', agent_source(archive), re.M)
     if not found:
         raise ReleaseFailure(f"{AGENT} in {APP_ZIP} names no single-digit __AGENT_VERSION__")
     return found.group(1)
+
+
+def notebook_assets(archive):
+    found = re.findall(r"^INSPIRE_NOTEBOOK_ASSETS = (\{.*\})$", agent_source(archive), re.M)
+    if len(found) != 1:
+        raise ReleaseFailure(f"{AGENT} in {APP_ZIP} must pin its assets on one INSPIRE_NOTEBOOK_ASSETS line, it has {len(found)}")
+    return json.loads(found[0])
+
+
+def check_notebook_assets(pinned, files):
+    listed = {str((entry or {}).get("file")): entry for entry in files}
+    wrong = [f"{name} ({pin['file']})" for name, pin in sorted(pinned.items())
+             if ((listed.get(pin["file"]) or {}).get("sha256"), (listed.get(pin["file"]) or {}).get("size")) != (pin["sha256"], pin["size"])]
+    if wrong:
+        raise ReleaseFailure(f"the assets do not carry the build of {', '.join(wrong)} that {AGENT} in {APP_ZIP} pins; run "
+                             "app/agent/release/build_assets.py again from this commit")
 
 
 def dev_only(name):
@@ -131,8 +150,9 @@ def write_tar(target, names, open_member):
                 tar.addfile(info, handle)
 
 
-def write_assets_tar(assets, version, target, starter):
+def write_assets_tar(assets, version, target, starter, pinned=None):
     files = assets_entries(assets, version, starter)[1]
+    check_notebook_assets(pinned or {}, files)
     write_tar(target, [entry["file"] for entry in files], lambda name: open(assets / name, "rb"))
     return len(files)
 
@@ -166,10 +186,11 @@ def build(app_zip, assets, out, starter_path=STARTER):
         without_dev_files(packed, zip_path)
     with zipfile.ZipFile(zip_path) as archive:
         version = agent_version(archive)
+        pinned = notebook_assets(archive)
         module = module_member(archive)
         contents = zip_contents(archive, starter)
     tar_path = out / ASSETS_TAR
-    asset_count = write_assets_tar(pathlib.Path(assets), version, tar_path, starter)
+    asset_count = write_assets_tar(pathlib.Path(assets), version, tar_path, starter, pinned)
     files = []
     for path, extra in ((zip_path, {"unzip_folder": UNZIP_FOLDER, "unzip_marker": module, "contents": contents}), (tar_path, {})):
         digest, size = starter["file_digest"](str(path))

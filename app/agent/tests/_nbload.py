@@ -251,3 +251,19 @@ def packed_text(value):
         except (OSError, ValueError, zlib.error, UnicodeDecodeError, EOFError):
             continue
     return None
+
+
+NOTEBOOK_ASSET_PINS = re.compile(r"^INSPIRE_NOTEBOOK_ASSETS = (\{.*\})$", re.M)
+
+
+def notebook_assets(path=None):
+    found = [NOTEBOOK_ASSET_PINS.findall(src) for kind, src in notebook_cells(path) if kind == "code"]
+    lines = [line for each in found for line in each]
+    if len(lines) != 1:
+        raise AssertionError(f"the notebook must pin its assets on one INSPIRE_NOTEBOOK_ASSETS line, it has {len(lines)}")
+    out = []
+    for _name, pin in sorted(json.loads(lines[0]).items()):
+        with open(os.path.join(ROOT, pin["repo"]), encoding="utf-8") as fh:
+            out.append((pin["repo"], fh.read()))
+    return out
+

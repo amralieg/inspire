@@ -332,9 +332,8 @@ test('a hosted MVP serves the fonts the App shell carries as font/woff2 bytes, a
 
 test('the App shell files carry its binary fonts as bytes, and a shell whose binary files cannot be read is refused with the fix', () => {
   const zlib = require('zlib');
-  const { appShellFiles, appShellPayload, bundledNotebookText } = require('../lib/appShell');
-  const notebook = (data) => JSON.stringify({ cells: [{ source: [] },
-    { source: [`_INSPIRE_APP_SHELL = "${zlib.deflateSync(Buffer.from(JSON.stringify(data))).toString('base64')}"`] }] });
+  const { appShellFiles, appShellPayload, bundledAppShellText } = require('../lib/appShell');
+  const notebook = (data) => zlib.deflateSync(Buffer.from(JSON.stringify(data))).toString('base64');
   const base = { version: 1, files: { 'static/index.html': '<html>' } };
   const font = Buffer.from([0x77, 0x4f, 0x46, 0x32, 0xff]);
   const shell = appShellPayload(notebook({ ...base, binary: { 'static/assets/fonts/a.woff2': font.toString('base64') } }));
@@ -345,15 +344,15 @@ test('the App shell files carry its binary fonts as bytes, and a shell whose bin
       /^Error: the bundled App shell carries binary files Inspire cannot read; update the Inspire App so it carries an agent notebook with the App shell$/,
       JSON.stringify(binary));
   }
-  const bundled = appShellFiles(appShellPayload(bundledNotebookText()));
+  const bundled = appShellFiles(appShellPayload(bundledAppShellText()));
   assert.equal(typeof bundled['static/index.html'], 'string');
   assert.ok(Object.values(bundled).every((body) => typeof body === 'string' || Buffer.isBuffer(body)));
 });
 
 test('the demo serves every typed file of the App shell with its own type and nosniff, and refuses a file with no type', async () => {
   const { ASSET_TYPES } = require('../lib/assetTypes');
-  const { appShellFiles, appShellPayload, bundledNotebookText } = require('../lib/appShell');
-  const embedded = Object.fromEntries(Object.entries(appShellFiles(appShellPayload(bundledNotebookText()))).filter(([name]) => name.startsWith('static/')));
+  const { appShellFiles, appShellPayload, bundledAppShellText } = require('../lib/appShell');
+  const embedded = Object.fromEntries(Object.entries(appShellFiles(appShellPayload(bundledAppShellText()))).filter(([name]) => name.startsWith('static/')));
   const samples = Object.fromEntries(Object.keys(ASSET_TYPES).map((ext) => [`static/assets/sample${ext}`, Buffer.from('x')]));
   const shell = { ...embedded, ...samples, 'static/block-1a2b3c.webp': Buffer.from('RIFF0000WEBP'), 'static/assets/fonts/inter-LICENSE': 'OFL',
     'static/notes.txt': 'alert(1)', 'static/run.py': 'alert(1)', 'shell_core.py': 'print(1)' };

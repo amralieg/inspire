@@ -90,12 +90,12 @@ class BuildTest(unittest.TestCase):
                     path.chmod(mode)
                     os.utime(path, (stamp, stamp))
             target = self.tmp / f"assets{number}.tar"
-            self.assertEqual(release.write_assets_tar(assets, "v1.3.0", target, starter), 3)
+            self.assertEqual(release.write_assets_tar(assets, "v1.3.0", target, starter), 4)
             tars.append(target.read_bytes())
         self.assertEqual(tars[0], tars[1])
         with tarfile.open(self.tmp / "assets0.tar") as tar:
             members = tar.getmembers()
-        self.assertEqual([m.name for m in members], ["manifest.json", "cli/databricks-cli-x86_64.zip", "fonts/inter-400.ttf", "licenses/inter.txt"])
+        self.assertEqual([m.name for m in members], ["manifest.json", "cli/databricks-cli-x86_64.zip", "fonts/inter-400.ttf", "licenses/inter.txt", "notebook/app_shell.b64"])
         self.assertEqual({(m.mtime, m.mode, m.uid, m.gid, m.uname, m.gname, m.type) for m in members}, {(0, 0o644, 0, 0, "", "", tarfile.REGTYPE)})
 
     def test_a_damaged_assets_folder_or_another_version_is_never_released(self):
@@ -121,6 +121,30 @@ class BuildTest(unittest.TestCase):
         with self.assertRaises(SystemExit) as caught:
             release.build(str(twice), str(other), str(self.tmp / "out3"))
         self.assertIn("must hold one installer/inspire_setup.py, it holds 2", str(caught.exception))
+
+    def test_a_release_ships_only_the_notebook_assets_build_the_agent_notebook_pins(self):
+        out = self.build()
+        with tarfile.open(out / "inspire-assets.tar") as tar:
+            self.assertEqual(tar.extractfile(support.NOTEBOOK_ASSET[0]).read(), support.NOTEBOOK_ASSET[1])
+        assets = self.tmp / "assets"
+        assets.mkdir()
+        support.make_assets(assets)
+        stale = support.notebook_pins(("notebook/app_shell.b64", b"another build"))
+        foreign = support.notebook_pins(("notebook/other.b64", support.NOTEBOOK_ASSET[1]))
+        for number, pins in enumerate((stale, foreign)):
+            app = self.tmp / f"pinned{number}.zip"
+            support.make_app_zip(app, extra={"dbx_inspire_ai_agent.ipynb": support.agent_notebook(pins=pins)})
+            with self.assertRaises(SystemExit) as caught:
+                release.build(str(app), str(assets), str(self.tmp / f"pinned-out{number}"))
+            self.assertIn("the assets do not carry the build of app_shell", str(caught.exception))
+            self.assertIn("run app/agent/release/build_assets.py again", str(caught.exception))
+        bare = json.loads(support.agent_notebook())
+        bare["cells"][1]["source"] = [line for line in bare["cells"][1]["source"] if not line.startswith("INSPIRE_NOTEBOOK_ASSETS")]
+        app = self.tmp / "bare.zip"
+        support.make_app_zip(app, extra={"dbx_inspire_ai_agent.ipynb": json.dumps(bare).encode("utf-8")})
+        with self.assertRaises(SystemExit) as caught:
+            release.build(str(app), str(assets), str(self.tmp / "bare-out"))
+        self.assertIn("must pin its assets on one INSPIRE_NOTEBOOK_ASSETS line, it has 0", str(caught.exception))
 
     def test_the_release_leaves_the_installer_tests_and_the_release_script_out_of_the_app_zip(self):
         out = self.build(extra={"installer/test/test_x.py": b"x", "installer/release.py": b"x",

@@ -2,13 +2,13 @@ const fs = require('fs');
 const { spawnSync } = require('child_process');
 const os = require('os');
 const path = require('path');
-const { appShellPayload, bundledNotebookText } = require('../../lib/appShell');
+const { appShellPayload, bundledAppShellText } = require('../../lib/appShell');
 const { ALERT_RULE_FILES, createAlertRules, createUseCaseAlerts } = require('../../lib/useCaseAlerts');
 
 function alertRuleFiles() {
   const dir = String(process.env.INSPIRE_TEST_SHELL_DIR || '').trim();
   if (dir) return Object.fromEntries(ALERT_RULE_FILES.map((name) => [name, fs.readFileSync(path.join(dir, name), 'utf8')]));
-  return appShellPayload(bundledNotebookText()).files;
+  return appShellPayload(bundledAppShellText()).files;
 }
 
 const RULE_FILES = alertRuleFiles();

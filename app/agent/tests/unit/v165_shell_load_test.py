@@ -28,7 +28,7 @@ def test_a_delta_app_without_sqlglot_answers_its_pages_and_keeps_the_timed_cache
 def test_loading_the_embedded_app_shell_leaves_the_processes_own_shell_modules_and_path_as_they_were(agent_ns, tmp_path):
     names = agent_ns["IMPLEMENT_APP_SHELL_MODULES"]
     before, path = {n: sys.modules.get(n) for n in names}, list(sys.path)
-    payload = agent_ns["implement_app_shell_payload"](agent_ns["_INSPIRE_APP_SHELL"])
+    payload = agent_ns["implement_app_shell_payload"](agent_ns["inspire_notebook_asset"]("app_shell"))
     loaded = agent_ns["implement_app_shell_modules"](str(tmp_path / "shell"), payload["files"])
     assert {n: sys.modules.get(n) for n in names} == before, \
         "a later import of shell_db must not get the embedded copy, whose QueryError the process's own shell_core never catches"

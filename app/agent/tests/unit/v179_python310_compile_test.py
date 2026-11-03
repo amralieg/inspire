@@ -8,7 +8,8 @@ import tempfile
 
 import pytest
 
-from _nbload import AGENT_NB, ROOT, notebook_cells, packed_text
+import _agentload
+from _nbload import AGENT_NB, ROOT, notebook_assets, notebook_cells, packed_text
 
 PYTHON_310 = "/opt/homebrew/bin/python3.10"
 SHIPPED_FILES = ("agent/**/*.py", "demos/**/*.py", "inspire_installer.py", "app/installer/**/*.py", "release/**/*.py")
@@ -123,7 +124,9 @@ def _file_sources() -> list:
 def shipped_sources() -> list:
     top = [(f"agent cell {index}", _parsable(src)) for index, (kind, src) in enumerate(notebook_cells(AGENT_NB))
            if kind == "code"] + _file_sources()
-    return top + [held for label, text in top for held in _held_sources(label, text)]
+    bundled = [(f"{repo} bundle {name}", body) for repo, text in notebook_assets() if BASE64.match(text)
+               for name, body in _bundle_files(text)]
+    return top + bundled + [held for label, text in top + bundled for held in _held_sources(label, text)]
 
 
 def _run_310(jobs: dict) -> dict:
@@ -238,12 +241,7 @@ def newer_api_uses(sources: list) -> list:
 
 
 def _embedded_shell_files() -> dict:
-    for kind, text in notebook_cells(AGENT_NB):
-        tree = _tree(_parsable(text)) if kind == "code" else None
-        for node in tree.body if tree else ():
-            if isinstance(node, ast.Assign) and [getattr(t, "id", "") for t in node.targets] == ["_INSPIRE_APP_SHELL"]:
-                return dict(_bundle_files(node.value.value))
-    raise AssertionError("the notebook embeds no App shell")
+    return dict(_bundle_files(_agentload.load_agent_namespace()["inspire_notebook_asset"]("app_shell")))
 
 
 @pytest.fixture(scope="module")

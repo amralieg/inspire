@@ -1,3 +1,4 @@
+const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const zlib = require('zlib');
@@ -11,8 +12,10 @@ const NOTEBOOK_CANDIDATES = [
 ];
 const NOTEBOOK_BUNDLE_FILE = path.join(BACKEND_DIR, 'notebook_bundle.js');
 const APP_SHELL_CELL = 1;
-const APP_SHELL_NAME = '_INSPIRE_APP_SHELL';
-const APP_SHELL_CONSTANT = `${APP_SHELL_NAME} = `;
+const ASSET_PINS_NAME = 'INSPIRE_NOTEBOOK_ASSETS';
+const ASSET_PINS_CONSTANT = `${ASSET_PINS_NAME} = `;
+const APP_SHELL_ASSET = 'app_shell';
+const APP_SHELL_FILE = path.join(APP_DIR, 'agent', 'agent', 'app_shell', 'app_shell.b64');
 const APP_SHELL_VERSION = 1;
 const APP_SHELL_LISTS = { styles: 'STYLES', layouts: 'LAYOUTS', auths: 'AUTHS', themes: 'THEMES', palettes: 'PALETTES', options: 'OPTIONS' };
 const APP_SHELL_BUNDLE = 'static/assets/app.js';
@@ -27,7 +30,7 @@ function bundledNotebookText() {
   return Buffer.from(require(NOTEBOOK_BUNDLE_FILE), 'base64').toString('utf8');
 }
 
-function appShellPayload(notebookText) {
+function notebookAssetPins(notebookText) {
   let cells;
   try {
     cells = parseExactJson(notebookText).cells;
@@ -36,13 +39,41 @@ function appShellPayload(notebookText) {
   }
   const source = cells && cells[APP_SHELL_CELL] && cells[APP_SHELL_CELL].source;
   const lines = Array.isArray(source) ? source : String(source || '').split('\n');
-  const hits = lines.filter((line) => line.startsWith(APP_SHELL_CONSTANT));
-  if (hits.length !== 1) throw new Error(`the bundled agent notebook carries no App shell (${hits.length} ${APP_SHELL_NAME} lines); ${UPDATE_HINT}`);
-  const value = hits[0].slice(APP_SHELL_CONSTANT.length).trim();
-  if (value.length < 3 || !value.startsWith('"') || !value.endsWith('"')) throw new Error(`the bundled App shell is empty; ${UPDATE_HINT}`);
+  const hits = lines.filter((line) => line.startsWith(ASSET_PINS_CONSTANT));
+  if (hits.length !== 1) throw new Error(`the bundled agent notebook pins no assets (${hits.length} ${ASSET_PINS_NAME} lines); ${UPDATE_HINT}`);
+  try {
+    return parseExactJson(hits[0].slice(ASSET_PINS_CONSTANT.length).trim());
+  } catch (e) {
+    throw new Error(`the bundled agent notebook's ${ASSET_PINS_NAME} is not JSON: ${e.message}; ${UPDATE_HINT}`);
+  }
+}
+
+function pinnedAssetText(notebookText, name, file) {
+  const pin = notebookAssetPins(notebookText)[name];
+  if (!pin || typeof pin.sha256 !== 'string' || !Number.isInteger(pin.size)) throw new Error(`the bundled agent notebook pins no ${name}; ${UPDATE_HINT}`);
+  const shown = path.relative(APP_DIR, file);
+  let data;
+  try {
+    data = fs.readFileSync(file);
+  } catch (e) {
+    throw new Error(`the Inspire App carries no ${shown} (${e.code || e.message}); ${UPDATE_HINT}`);
+  }
+  if (data.length !== pin.size || crypto.createHash('sha256').update(data).digest('hex') !== pin.sha256) {
+    throw new Error(`${shown} is not the build the bundled agent notebook pins; ${UPDATE_HINT}`);
+  }
+  return data.toString('utf8');
+}
+
+function bundledAppShellText(notebookText = bundledNotebookText(), file = APP_SHELL_FILE) {
+  return pinnedAssetText(notebookText, APP_SHELL_ASSET, file);
+}
+
+function appShellPayload(text) {
+  const value = String(text || '').trim();
+  if (!value) throw new Error(`the bundled App shell is empty; ${UPDATE_HINT}`);
   let payload;
   try {
-    payload = parseExactJson(zlib.inflateSync(Buffer.from(value.slice(1, -1), 'base64')).toString('utf8'));
+    payload = parseExactJson(zlib.inflateSync(Buffer.from(value, 'base64')).toString('utf8'));
   } catch (e) {
     throw new Error(`the bundled App shell does not decode: ${e.message}`);
   }
@@ -176,7 +207,7 @@ let cached = null;
 function appShellCatalog() {
   if (!cached) {
     try {
-      cached = appShellLook(appShellPayload(bundledNotebookText()));
+      cached = appShellLook(appShellPayload(bundledAppShellText()));
     } catch (e) {
       cached = { ok: false, error: e.message || String(e) };
     }
@@ -187,8 +218,12 @@ function appShellCatalog() {
 module.exports = {
   NOTEBOOK_BUNDLE_FILE,
   NOTEBOOK_CANDIDATES,
-  APP_SHELL_CONSTANT,
+  ASSET_PINS_CONSTANT,
+  APP_SHELL_FILE,
   bundledNotebookText,
+  notebookAssetPins,
+  pinnedAssetText,
+  bundledAppShellText,
   appShellPayload,
   appShellFiles,
   pythonTuple,

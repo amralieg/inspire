@@ -178,6 +178,8 @@ REVIEWED = {
     },
     'name': {
         ('_verify_file', 'file'),
+        ('notebook_file', "pin['file']"),
+        ('inspire_repo_asset', 'path'),
         ('_download_cli', "entry.get('file')"),
         ('_download_cli', 'name'),
         ('_download_cli', 'self.machine'),

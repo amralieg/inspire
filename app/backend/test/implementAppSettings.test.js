@@ -1,5 +1,9 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const crypto = require('node:crypto');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
 const zlib = require('node:zlib');
 const I = require('../lib/inspireImplement');
 const S = require('../lib/appShell');
@@ -38,12 +42,12 @@ test('the bundled agent notebook carries the App shell, and its lists and palett
   for (const [key, list] of Object.entries({ style: 'styles', layout: 'layouts', palette: 'palettes', theme: 'themes' })) {
     assert.ok(SHELL[list].includes(I.IMPLEMENT_APP_LOOK_DEFAULT[key]), `the default ${key} is one the shell offers`);
   }
-  const core = S.appShellPayload(S.bundledNotebookText()).files['shell_core.py'];
+  const core = S.appShellPayload(S.bundledAppShellText()).files['shell_core.py'];
   assert.deepEqual(S.pythonTuple(core, 'PALETTES'), SHELL.palettes);
   if (SHELL.user_off) {
     assert.deepEqual(SHELL.user_off.filter((o) => o !== 'download'), I.IMPLEMENT_PER_USER_OFF, 'the options a per-user App turns off are the shell\'s');
   }
-  const userOff = S.appShellLook({ version: 1, files: { 'shell_core.py': `${core.replace(/^USER_OFF = .*$/m, '')}\nUSER_OFF = ("alerts",)\n`, 'static/assets/app.js': S.appShellPayload(S.bundledNotebookText()).files['static/assets/app.js'] } });
+  const userOff = S.appShellLook({ version: 1, files: { 'shell_core.py': `${core.replace(/^USER_OFF = .*$/m, '')}\nUSER_OFF = ("alerts",)\n`, 'static/assets/app.js': S.appShellPayload(S.bundledAppShellText()).files['static/assets/app.js'] } });
   assert.deepEqual(userOff.user_off, I.IMPLEMENT_PER_USER_OFF);
 });
 
@@ -71,7 +75,7 @@ test('the palettes come from the payload when the notebook carries them, and fro
 
 test('the backends come from the shell\'s Postgres layer: a shell without it reads only Delta tables, and one whose list has no Delta is refused', () => {
   assert.deepEqual(SHELL.backends, ['lakebase', 'delta'], 'the bundled shell reads Lakebase or Delta tables, Delta last as the default');
-  const payload = S.appShellPayload(S.bundledNotebookText());
+  const payload = S.appShellPayload(S.bundledAppShellText());
   assert.deepEqual(S.pythonTuple(payload.files['shell_pg.py'], 'KINDS'), SHELL.backends);
   const { 'shell_pg.py': _pg, ...older } = payload.files;
   assert.deepEqual(S.appShellLook({ ...payload, files: older }).backends, ['delta']);
@@ -96,15 +100,29 @@ test('the App backend is lakebase or delta, Delta when unset so a stored spec ke
   assert.equal(I.classifyImplementChange(check({ app_backend: 'delta' }).spec, check({ app_backend: 'lakebase' }).spec).join(), 'outputs');
 });
 
-test('a notebook without the App shell, or with a broken one, is refused with the reason', () => {
+test('a notebook without the App shell pin, a shell file that is missing or not the pinned build, or a broken shell is refused with the reason', () => {
   const notebook = (line) => JSON.stringify({ cells: [{ source: [] }, { source: ['x = 1\n', ...(line === null ? [] : [line])] }] });
   const encode = (data) => zlib.deflateSync(Buffer.from(JSON.stringify(data))).toString('base64');
-  assert.throws(() => S.appShellPayload(notebook(null)), /carries no App shell \(0 _INSPIRE_APP_SHELL lines\)/);
-  assert.throws(() => S.appShellPayload(notebook(`${S.APP_SHELL_CONSTANT}""`)), /App shell is empty/);
-  assert.throws(() => S.appShellPayload(notebook(`${S.APP_SHELL_CONSTANT}"bm90IHpsaWI="`)), /does not decode/);
-  assert.throws(() => S.appShellPayload(notebook(`${S.APP_SHELL_CONSTANT}"${encode({ version: 2, files: {} })}"`)), /is not version 1/);
-  assert.throws(() => S.appShellPayload('{nope'), /not valid JSON/);
-  assert.equal(S.appShellPayload(notebook(`${S.APP_SHELL_CONSTANT}"${encode({ version: 1, files: { a: 'b' } })}"`)).files.a, 'b');
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'inspire_shell_pin_'));
+  const text = encode({ version: 1, files: { a: 'b' } });
+  const repo = 'agent/app_shell/app_shell.b64';
+  fs.mkdirSync(path.join(root, 'agent', 'app_shell'), { recursive: true });
+  fs.writeFileSync(path.join(root, repo), text);
+  const pin = (over = {}) => notebook(`${S.ASSET_PINS_CONSTANT}${JSON.stringify({ app_shell: { file: 'notebook/app_shell.b64', repo,
+    sha256: crypto.createHash('sha256').update(text).digest('hex'), size: Buffer.byteLength(text), ...over } })}`);
+  assert.equal(S.appShellPayload(S.bundledAppShellText(pin(), path.join(root, repo))).files.a, 'b');
+  assert.throws(() => S.bundledAppShellText(notebook(null), path.join(root, repo)), /pins no assets \(0 INSPIRE_NOTEBOOK_ASSETS lines\)/);
+  assert.throws(() => S.bundledAppShellText(pin({ sha256: '0'.repeat(64) }), path.join(root, repo)), /app_shell\.b64 is not the build the bundled agent notebook pins/);
+  assert.throws(() => S.bundledAppShellText(pin({ size: 1 }), path.join(root, repo)), /is not the build the bundled agent notebook pins/);
+  assert.throws(() => S.bundledAppShellText(pin(), path.join(root, 'gone.b64')), /carries no .*gone\.b64 \(ENOENT\)/);
+  assert.throws(() => S.bundledAppShellText(notebook(`${S.ASSET_PINS_CONSTANT}{"kinds": {}}`), path.join(root, repo)), /pins no app_shell/);
+  assert.throws(() => S.appShellPayload(''), /App shell is empty/);
+  assert.throws(() => S.appShellPayload('bm90IHpsaWI='), /does not decode/);
+  assert.throws(() => S.appShellPayload(encode({ version: 2, files: {} })), /is not version 1/);
+  assert.throws(() => S.bundledAppShellText('{nope', path.join(root, repo)), /not valid JSON/);
+  assert.equal(S.appShellPayload(text).files.a, 'b');
+  assert.equal(S.appShellPayload(S.bundledAppShellText()).version, 1, 'the bundled notebook pins the shell file the App carries');
+  fs.rmSync(root, { recursive: true, force: true });
   const { errors } = check({}, { shell: { ok: false, error: 'the bundled agent notebook carries no App shell' } });
   assert.ok(errors.includes('the App cannot be built: the bundled agent notebook carries no App shell'), JSON.stringify(errors));
   assert.deepEqual(I.validateImplementSpec({ ...BASE, outputs: { dashboard: true, inspire_url: 'https://inspire.example.com' } }, { shell: { ok: false, error: 'x' } }).errors, [],
@@ -547,7 +565,7 @@ test('alerts are off unless asked for, a shared App keeps them on, and a per-use
 });
 
 test('the App charts and pages come from the shell: its kinds, Inspire\'s pick and the pages it can turn off', () => {
-  const payload = S.appShellPayload(S.bundledNotebookText());
+  const payload = S.appShellPayload(S.bundledAppShellText());
   const sql = payload.files['shell_sql.py'];
   assert.deepEqual(SHELL.chart_kinds, ['trend', 'bars', 'split', 'pareto', 'scatter']);
   assert.deepEqual(SHELL.chart_kinds, S.pythonTuple(sql, 'CHART_KINDS'));
@@ -578,7 +596,7 @@ test('picked charts are ordered the shell\'s way and need at least 3 kinds, and 
 });
 
 test('a shell without chart kinds or screens refuses a pick it cannot honour instead of dropping it, and takes Inspire\'s pick', () => {
-  const payload = S.appShellPayload(S.bundledNotebookText());
+  const payload = S.appShellPayload(S.bundledAppShellText());
   const core = payload.files['shell_core.py'].replace(/^SCREENS = .*$/m, '');
   const { 'shell_sql.py': _sql, ...files } = { ...payload.files, 'shell_core.py': core };
   const older = S.appShellLook({ ...payload, files });

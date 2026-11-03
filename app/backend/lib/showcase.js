@@ -1,7 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const zlib = require('zlib');
-const { appShellFiles, appShellPayload, bundledNotebookText } = require('./appShell');
+const { appShellFiles, appShellPayload, bundledAppShellText } = require('./appShell');
 const { assetType } = require('./assetTypes');
 const { parseExactJson } = require('./exactJson');
 const { sameOriginCsp } = require('./hostedRun');
@@ -161,7 +161,7 @@ function registerShowcaseRoutes(app, { dir = SHOWCASE_DIR, shellFiles, log = con
   }
   let shell = shellFiles || null;
   const shellFile = (name) => {
-    if (!shell) shell = appShellFiles(appShellPayload(bundledNotebookText()));
+    if (!shell) shell = appShellFiles(appShellPayload(bundledAppShellText()));
     return shell[name];
   };
   const sentBody = (req) => (req.method === 'GET' ? undefined : req.body);

@@ -1,11 +1,11 @@
 const { EventEmitter } = require('node:events');
 const http = require('node:http');
-const { appShellFiles, appShellPayload, bundledNotebookText } = require('../../lib/appShell');
+const { appShellFiles, appShellPayload, bundledAppShellText } = require('../../lib/appShell');
 
 const HOSTED_OWNER = ['owner', 'example.com'].join('@');
 
 function shellFolder(root, { title = 'Hosted test', settings: changes = {}, page: pageChanges = {} } = {}) {
-  const payload = appShellPayload(bundledNotebookText());
+  const payload = appShellPayload(bundledAppShellText());
   const page = { ...payload.example, ...pageChanges };
   const settings = {
     version: 2, title, style: 'a', layout: 'sidebar', auth: 'user', theme: 'light', palette: 'default',

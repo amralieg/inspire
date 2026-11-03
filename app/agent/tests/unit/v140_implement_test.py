@@ -5040,7 +5040,7 @@ def test_every_user_facing_agent_string_and_code_name_says_mvp_and_the_build_pag
 
 
 def _app_shell(ns, tmp_path):
-    payload = ns["implement_app_shell_payload"](ns["_INSPIRE_APP_SHELL"])
+    payload = ns["implement_app_shell_payload"](ns["inspire_notebook_asset"]("app_shell"))
     return payload, ns["implement_app_shell_modules"](str(tmp_path / "_shell"), payload["files"])
 
 
@@ -5049,7 +5049,7 @@ CHURN_TABLES = {"main.pricing.loss_desk_out": "main.inspire.churn_out", "main.pr
 
 
 def _churn_page(ns, **changes):
-    page = json.loads(json.dumps(ns["implement_app_shell_payload"](ns["_INSPIRE_APP_SHELL"])["example"]))
+    page = json.loads(json.dumps(ns["implement_app_shell_payload"](ns["inspire_notebook_asset"]("app_shell"))["example"]))
     for dataset in page["datasets"]:
         for old, new in CHURN_TABLES.items():
             dataset["sql"] = dataset["sql"].replace(old, new)
@@ -5119,7 +5119,7 @@ def test_the_app_shell_loads_the_files_it_just_wrote_even_when_a_module_of_that_
         decoy.__file__ = str(tmp_path / "elsewhere" / f"{name}.py")
         decoy.CAPS = "stale"
         monkeypatch.setitem(sys.modules, name, decoy)
-    payload = agent_ns["implement_app_shell_payload"](agent_ns["_INSPIRE_APP_SHELL"])
+    payload = agent_ns["implement_app_shell_payload"](agent_ns["inspire_notebook_asset"]("app_shell"))
     folder = tmp_path / "run"
     modules = agent_ns["implement_app_shell_modules"](str(folder), payload["files"])
     assert {name: os.path.dirname(module.__file__) for name, module in modules.items()} == {name: str(folder) for name in modules}

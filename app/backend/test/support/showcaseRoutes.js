@@ -1,7 +1,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { sourceFiles, withoutComments } = require('./frontendSource');
-const { appShellFiles, appShellPayload, bundledNotebookText } = require('../../lib/appShell');
+const { appShellFiles, appShellPayload, bundledAppShellText } = require('../../lib/appShell');
 
 const APP = path.resolve(__dirname, '..', '..', '..');
 const LISTS = path.join(APP, 'scripts', 'showcaseRoutes.mjs');
@@ -82,7 +82,7 @@ function backendRoutes(app = APP) {
 }
 
 function mvpRoutes() {
-  const files = appShellFiles(appShellPayload(bundledNotebookText()));
+  const files = appShellFiles(appShellPayload(bundledAppShellText()));
   const js = Object.entries(files).filter(([name]) => name.startsWith('static/') && name.endsWith('.js')).map(([, body]) => String(body)).join('\n');
   const found = new Set();
   for (const m of js.matchAll(/\("(GET|POST|PUT|PATCH|DELETE)",\s*(["`])([a-z][^"`]*)\2/g)) found.add(`${m[1]} ${apiPathAt(`/api/${m[3]}`, 0)}`);

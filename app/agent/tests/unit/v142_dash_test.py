@@ -548,7 +548,7 @@ def _embed():
 
 
 def test_the_notebook_carries_the_app_palettes_and_the_embed_gate_names_their_drift(agent_ns):
-    payload = agent_ns["implement_app_shell_payload"](agent_ns["_INSPIRE_APP_SHELL"])
+    payload = agent_ns["implement_app_shell_payload"](agent_ns["inspire_notebook_asset"]("app_shell"))
     assert payload["palettes"] == _palettes()
     embed = _embed()
     expected = embed.payload(static=False)

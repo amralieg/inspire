@@ -17,6 +17,7 @@ import zipfile
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 NOTEBOOK = os.path.join(ROOT, "agent", "dbx_inspire_ai_agent.ipynb")
 RELEASE = os.path.join(os.path.dirname(ROOT), "installer", "release.py")
+LICENSE = os.path.join(os.path.dirname(os.path.dirname(ROOT)), "LICENSE")
 PYPI = os.environ.get("INSPIRE_ASSETS_PYPI", "https://pypi.org").rstrip("/")
 ATTEMPTS = 8
 FONT_LICENSE_COMMIT = "6c1dbe27dcf7d817d4b62cec033ba77fa8e2a5ec"
@@ -74,7 +75,7 @@ dbutils.notebook.exit(json.dumps({"machine": platform.machine(), "version": sys.
 NAMES = ("__AGENT_VERSION__", "GENIE_NOTEBOOK_ENV_VERSION", "GENIE_CODE_CLI_VERSION", "GENIE_DATABRICKS_CLI_VERSION",
          "INSPIRE_ASSETS_FORMAT", "INSPIRE_ASSETS_MANIFEST", "INSPIRE_ASSETS_PYTHON", "INSPIRE_APP_ASSETS_PYTHON",
          "INSPIRE_ASSET_MACHINES", "INSPIRE_ASSET_WHEELS", "INSPIRE_ASSET_MODULES", "INSPIRE_APP_ASSET_WHEELS", "INSPIRE_ASSET_CLIS",
-         "INSPIRE_ASSET_CLI_SOURCES", "INSPIRE_ASSET_RELEASE_PATH", "INSPIRE_ASSET_CLI_RELEASE")
+         "INSPIRE_ASSET_CLI_SOURCES", "INSPIRE_ASSET_RELEASE_PATH", "INSPIRE_ASSET_CLI_RELEASE", "INSPIRE_NOTEBOOK_ASSETS")
 FUNCTIONS = ("inspire_asset_slug", "inspire_asset_file", "inspire_cli_release_file", "inspire_cli_release_url")
 
 
@@ -256,6 +257,19 @@ def add_fonts(bundle: Bundle, pins: dict) -> None:
             log(f"font {family} {weight} {version}: {len(data):,} bytes")
 
 
+def add_notebook(bundle: Bundle, pins: dict, root: str = ROOT) -> None:
+    version = pins["__AGENT_VERSION__"]
+    with open(LICENSE, encoding="utf-8") as handle:
+        license_file = bundle.license("inspire", version, handle.read())
+    for name, pin in sorted(pins["INSPIRE_NOTEBOOK_ASSETS"].items()):
+        with open(os.path.join(root, pin["repo"]), "rb") as handle:
+            data = handle.read()
+        if (sha256(data), len(data)) != (pin["sha256"], pin["size"]):
+            raise SystemExit(f"{pin['repo']} is not the build the notebook pins; run `python3 agent/app_shell/embed.py write`")
+        bundle.add("notebook", name, version, pin["file"], data, license_file)
+        log(f"notebook {name} {version}: {len(data):,} bytes")
+
+
 def release_sha256(pins: dict, name: str, version: str, asset: str) -> str:
     source = pins["INSPIRE_ASSET_CLI_SOURCES"][name]
     sums = source["sums"].format(asset=asset, version=version)
@@ -345,6 +359,7 @@ def main(argv=None) -> int:
     add_python(bundle, pins, pins["INSPIRE_ASSETS_PYTHON"], machines, agent)
     add_python(bundle, pins, pins["INSPIRE_APP_ASSETS_PYTHON"], app_machines, pins["INSPIRE_APP_ASSET_WHEELS"])
     add_fonts(bundle, pins)
+    add_notebook(bundle, pins)
     add_clis(bundle, pins, machines)
     sizes = write(bundle, pins, args.out, found, machines, app_machines)
     for entry in sorted(bundle.entries, key=lambda e: -e["size"]):

@@ -296,13 +296,13 @@ class AssetsTest(unittest.TestCase):
         for name, data in self.files.items():
             self.assertEqual((self.root / name).read_bytes(), data)
         self.assertEqual(json.loads((self.root / "manifest.json").read_text()), json.loads((self.assets / "manifest.json").read_text()))
-        self.assertIn("3 files in", said)
-        self.assertIn("(3 copied, 0 already there)", said)
+        self.assertIn("4 files in", said)
+        self.assertIn("(4 copied, 0 already there)", said)
         _, said = self.install()
-        self.assertIn("(0 copied, 3 already there)", said)
+        self.assertIn("(0 copied, 4 already there)", said)
         (self.root / "fonts" / "inter-400.ttf").write_bytes(b"damaged")
         _, said = self.install()
-        self.assertIn("(1 copied, 2 already there)", said)
+        self.assertIn("(1 copied, 3 already there)", said)
         self.assertEqual((self.root / "fonts" / "inter-400.ttf").read_bytes(), self.files["fonts/inter-400.ttf"])
 
     def test_both_cpu_builds_of_each_cli_land_whatever_machine_the_installer_runs_on(self):
@@ -318,7 +318,7 @@ class AssetsTest(unittest.TestCase):
                 _, said = self.install()
             self.assertEqual({name: (self.root / name).read_bytes() for name in builds}, builds, machine)
             self.assertEqual(json.loads((self.root / "manifest.json").read_text()), json.loads((self.assets / "manifest.json").read_text()))
-            self.assertIn("(4 copied, 0 already there)", said)
+            self.assertIn("(5 copied, 0 already there)", said)
 
     def test_a_tar_whose_file_does_not_match_its_manifest_copies_nothing(self):
         bad = self.tmp / "bad.tar"

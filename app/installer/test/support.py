@@ -28,9 +28,17 @@ def sha(data):
     return hashlib.sha256(data).hexdigest()
 
 
-def agent_notebook(version=VERSION):
+NOTEBOOK_ASSET = ("notebook/app_shell.b64", b"shell" * 300)
+
+
+def notebook_pins(asset=NOTEBOOK_ASSET):
+    return {"app_shell": {"file": asset[0], "repo": "agent/app_shell/app_shell.b64", "sha256": sha(asset[1]), "size": len(asset[1])}}
+
+
+def agent_notebook(version=VERSION, pins=None):
+    pin = f"INSPIRE_NOTEBOOK_ASSETS = {json.dumps(notebook_pins() if pins is None else pins)}\n"
     cells = [{"cell_type": "markdown", "metadata": {}, "source": ["# Agent"]},
-             {"cell_type": "code", "metadata": {}, "source": [f'__AGENT_VERSION__ = "{version}"\n', "print(1)"],
+             {"cell_type": "code", "metadata": {}, "source": [f'__AGENT_VERSION__ = "{version}"\n', pin, "print(1)"],
               "outputs": [], "execution_count": None}]
     return json.dumps({"cells": cells, "metadata": {}, "nbformat": 4, "nbformat_minor": 5}).encode("utf-8")
 
@@ -52,8 +60,8 @@ def make_app_zip(path, version=VERSION, module=FAKE_MODULE, extra=None):
 
 def make_assets(folder, version=VERSION, files=None):
     folder = pathlib.Path(folder)
-    files = files or {"fonts/inter-400.ttf": b"font" * 600, "cli/databricks-cli-x86_64.zip": bytes(range(256)) * 40,
-                      "licenses/inter.txt": b"SIL Open Font License\n"}
+    files = dict({NOTEBOOK_ASSET[0]: NOTEBOOK_ASSET[1]}, **(files or {"fonts/inter-400.ttf": b"font" * 600,
+                 "cli/databricks-cli-x86_64.zip": bytes(range(256)) * 40, "licenses/inter.txt": b"SIL Open Font License\n"}))
     entries = []
     for name, data in files.items():
         (folder / name).parent.mkdir(parents=True, exist_ok=True)

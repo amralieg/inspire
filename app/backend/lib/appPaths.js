@@ -16,6 +16,7 @@ const APP_FILES = [
   'backend/demo_notebook_bundle.js',
   'backend/dbx_generate_demo_data.py',
   'frontend/dist',
+  'agent/agent/app_shell/app_shell.b64',
 ];
 const APP_FILES_WHEN_PRESENT = ['backend/showcase'];
 

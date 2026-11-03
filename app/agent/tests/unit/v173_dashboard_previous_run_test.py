@@ -319,7 +319,7 @@ def test_the_words_travel_inside_shell_sql_so_the_embed_gate_names_their_drift(a
     embed = _embed()
     expected, actual = embed.payload(static=False), embed.embedded()
     assert "compare" not in expected and "compare" not in actual
-    assert "compare" not in agent_ns["implement_app_shell_payload"](agent_ns["_INSPIRE_APP_SHELL"])
+    assert "compare" not in agent_ns["implement_app_shell_payload"](agent_ns["inspire_notebook_asset"]("app_shell"))
     assert "CHANGE_WORDS = " in actual["files"]["shell_sql.py"]
     drifted = dict(actual, files=dict(actual["files"], **{"shell_sql.py": actual["files"]["shell_sql.py"].replace(
         shell_sql.CHANGE_WORDS["none"], "Nothing earlier")}))
