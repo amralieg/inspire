@@ -302,6 +302,12 @@ INSPIRE_APP_OWN_SCOPES = ("apps", "catalog.catalogs:read", "catalog.schemas:read
 USER_SCOPES_REFUSED = ("Inspire was installed without user authorization, so it lists no catalogs, schemas or tables, starts no run "
                        "and the Run tab cannot show pages Inside Inspire, because it reads them only with each person's own sign-in: {why}. "
                        "A workspace admin allows the scopes {scopes} for Apps, then runs this installer again.")
+APP_DESCRIPTION_NOT_UPDATED = ("The App still describes itself as {before!r} instead of {description!r}, because Databricks refused to change "
+                               "its description: {why}. Run this installer again, or change it under Compute > Apps > {app} > Edit.")
+
+
+def app_description(version):
+    return f"Inspire AI {version}"
 
 
 def app_user_scopes(notebook_text):
@@ -346,28 +352,34 @@ def _create_app(api, app_name, description, scopes):
     return resp, ""
 
 
-def _apply_user_scopes(api, api_get, app_name, scopes, sleep=None, polls=24):
-    if not scopes:
-        return ""
-    if sleep is None:
-        import time as _time
-        sleep = _time.sleep
-    current = api_get(f"/api/2.0/apps/{app_name}")
-    merged = _merged_scopes(current.get("user_api_scopes"), scopes)
-    if set(scopes) <= set(current.get("user_api_scopes") or []):
-        return ""
-    resp = api("POST", f"/api/2.0/apps/{app_name}/update",
-               {"update_mask": "user_api_scopes", "app": {"name": app_name, "user_api_scopes": merged}})
+def _update_app(api, api_get, app_name, fields, sleep=None, polls=24):
+    sleep = sleep or time.sleep
+    resp = api("POST", f"/api/2.0/apps/{app_name}/update", {"update_mask": ",".join(fields), "app": dict(fields, name=app_name)})
     if resp.status_code >= 400:
-        return USER_SCOPES_REFUSED.format(why=f"{resp.status_code} {resp.text[:300]}", scopes=", ".join(scopes))
+        return f"{resp.status_code} {resp.text[:300]}"
     for _ in range(polls):
         state = (api_get(f"/api/2.0/apps/{app_name}/update").get("status") or {})
         if state.get("state") == "SUCCEEDED":
             return ""
         if state.get("state") in ("FAILED", "NOT_UPDATED"):
-            return USER_SCOPES_REFUSED.format(why=state.get("message") or state.get("state"), scopes=", ".join(scopes))
+            return state.get("message") or state.get("state")
         sleep(5)
-    return USER_SCOPES_REFUSED.format(why="the update did not finish in 2 minutes", scopes=", ".join(scopes))
+    return "the update did not finish in 2 minutes"
+
+
+def _apply_user_scopes(api, api_get, app_name, scopes, current, sleep=None, polls=24):
+    if not scopes or set(scopes) <= set(current.get("user_api_scopes") or []):
+        return ""
+    why = _update_app(api, api_get, app_name, {"user_api_scopes": _merged_scopes(current.get("user_api_scopes"), scopes)}, sleep, polls)
+    return USER_SCOPES_REFUSED.format(why=why, scopes=", ".join(scopes)) if why else ""
+
+
+def _apply_description(api, api_get, app_name, description, current, sleep=None, polls=24):
+    before = current.get("description") or ""
+    if before == description:
+        return ""
+    why = _update_app(api, api_get, app_name, {"description": description}, sleep, polls)
+    return APP_DESCRIPTION_NOT_UPDATED.format(before=before, description=description, why=why, app=app_name) if why else ""
 
 
 def _is_own_service_principal(display_name, app_name, sp_name):
@@ -790,14 +802,18 @@ def step_deploy_and_find_sp(ctx):
 
     app_url = ""
     scopes = _merged_scopes(ctx.get("APP_USER_SCOPES"), INSPIRE_APP_OWN_SCOPES)
-    resp, note = _create_app(api, app_name, f"Inspire AI {ctx['RELEASE_VERSION']}", scopes)
+    description = app_description(ctx["RELEASE_VERSION"])
+    resp, note = _create_app(api, app_name, description, scopes)
     if resp.status_code in (200, 201):
         print(f"App created: {app_name}")
         app_url = _noted_app_url(app_url, resp.json())
     elif "already exists" in resp.text.lower():
         print(f"App exists: {app_name}")
-        app_url = _noted_app_url(app_url, api_get(f"/api/2.0/apps/{app_name}"))
-        note = _apply_user_scopes(api, api_get, app_name, scopes)
+        current = api_get(f"/api/2.0/apps/{app_name}")
+        app_url = _noted_app_url(app_url, current)
+        described = _apply_description(api, api_get, app_name, description, current)
+        print(f"  ⚠️ {described}" if described else f"App description: ✅ {description}")
+        note = _apply_user_scopes(api, api_get, app_name, scopes, current)
     else:
         raise RuntimeError(f"Create failed: {resp.text[:300]}")
     if note:
@@ -1173,7 +1189,7 @@ def step_render_done(ctx):
                    "wait a few minutes and try again.")
 
     print("=" * 60)
-    print(f"  Inspire AI {version} is ready")
+    print(f"  {app_description(version)} is ready")
     print("=" * 60)
     print(f"  Databricks App: {app_name}  (Compute → Apps → {app_name})")
     print("  Open this URL to use Inspire AI (Apps runtime, not this notebook):")
@@ -1196,7 +1212,7 @@ def step_render_done(ctx):
     displayHTML(
         f"""
         <div style="padding:24px;background:linear-gradient(135deg,#1a1a2e,#16213e);border-radius:12px;text-align:center;margin:20px 0">
-        <h2 style="color:#e0e0e0;margin-bottom:8px">Inspire AI {version}: Databricks App ready</h2>
+        <h2 style="color:#e0e0e0;margin-bottom:8px">{app_description(version)}: Databricks App ready</h2>
         <p style="color:#aaa;font-size:13px;margin-bottom:8px">Installer finished. Run the product from the <strong>Databricks App</strong> below (hosted Apps compute + <code>start.sh</code>).</p>
         <p style="color:#888;font-size:12px;margin-bottom:20px">Do not rely on this notebook for day-to-day use: open the App.</p>
         {link}

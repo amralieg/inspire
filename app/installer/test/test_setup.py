@@ -718,21 +718,27 @@ APP_URL = "https://inspire-ai-1234.aws.databricksapps.com"
 
 
 class AppUrlTest(unittest.TestCase):
-    def deploy(self, exists=False):
+    def deploy(self, exists=False, described="Inspire AI v1.3.0", update=(200, "SUCCEEDED"), calls=None):
         scopes = list(setup.INSPIRE_APP_OWN_SCOPES)
-        states = [{"url": "Unavailable", "compute_status": {"state": "STARTING"}, "user_api_scopes": scopes},
+        states = [{"url": "Unavailable", "compute_status": {"state": "STARTING"}, "user_api_scopes": scopes, "description": described},
                   {"url": "Unavailable", "compute_status": {"state": "ACTIVE"}, "user_api_scopes": scopes},
                   {"url": APP_URL, "compute_status": {"state": "ACTIVE"}, "user_api_scopes": scopes, "service_principal_client_id": "SPNEW",
                    "service_principal_name": "app-sp", "active_deployment": {"deployment_id": "d1", "status": {"state": "SUCCEEDED"}}}]
+        calls = [] if calls is None else calls
 
         def api(method, path, body=None):
+            calls.append((method, path, body))
             if method == "POST" and path == "/api/2.0/apps":
                 return Resp(409, {}, "App already exists") if exists else Resp(200, {"name": "inspire-ai", "url": "Unavailable"})
+            if path == "/api/2.0/apps/inspire-ai/update":
+                return Resp(update[0], {}, "PERMISSION_DENIED: not a manager of the App" if update[0] >= 400 else "")
             return Resp(200, {"deployment_id": "d1"})
 
         def api_get(path):
             if path == "/api/2.0/apps/inspire-ai":
                 return states.pop(0) if len(states) > 1 else states[0]
+            if path == "/api/2.0/apps/inspire-ai/update":
+                return {"status": {"state": update[1], "message": "the App is being deleted"}}
             return {"Resources": [{"id": "1"}]}
 
         saved, clock = setup.write_app_yaml_deploy, setup.time
@@ -740,7 +746,7 @@ class AppUrlTest(unittest.TestCase):
         setup.time = types.SimpleNamespace(sleep=lambda s: None)
         ctx = {"api": api, "api_get": api_get, "SOURCE_FOLDER": "/Workspace/b", "INSPIRE_DB": "main._inspire", "WAREHOUSE_ID": "wh",
                "NOTEBOOK_PATH": "/Shared/inspire-ai/dbx_inspire_ai_agent", "SP_NAME": "inspire-ai-sp", "APP_NAME": "inspire-ai",
-               "CATALOG": "main", "RELEASE_VERSION": "v1.3.0"}
+               "CATALOG": "main", "RELEASE_VERSION": "v1.3.1"}
         out = io.StringIO()
         try:
             with contextlib.redirect_stdout(out):
@@ -748,6 +754,36 @@ class AppUrlTest(unittest.TestCase):
         finally:
             setup.write_app_yaml_deploy, setup.time = saved, clock
         return ctx, out.getvalue()
+
+    def test_a_new_app_is_described_with_the_release_it_installs(self):
+        calls = []
+        self.deploy(exists=False, calls=calls)
+        created = [body for method, path, body in calls if (method, path) == ("POST", "/api/2.0/apps")]
+        self.assertEqual(created[0]["description"], "Inspire AI v1.3.1")
+        self.assertFalse([c for c in calls if c[1].endswith("/update")], "a new App needs no update")
+
+    def test_an_app_installed_by_an_older_release_takes_the_new_description(self):
+        calls = []
+        _, said = self.deploy(exists=True, calls=calls)
+        updates = [body for method, path, body in calls if (method, path) == ("POST", "/api/2.0/apps/inspire-ai/update")]
+        self.assertEqual(updates, [{"update_mask": "description", "app": {"description": "Inspire AI v1.3.1", "name": "inspire-ai"}}])
+        self.assertIn("App description: ✅ Inspire AI v1.3.1", said)
+
+    def test_an_app_already_on_this_release_is_not_updated(self):
+        calls = []
+        _, said = self.deploy(exists=True, described="Inspire AI v1.3.1", calls=calls)
+        self.assertFalse([c for c in calls if c[1].endswith("/update")])
+        self.assertIn("App description: ✅ Inspire AI v1.3.1", said)
+
+    def test_a_refused_description_change_is_said_with_the_reason(self):
+        for update, why in (((403, ""), "403 PERMISSION_DENIED: not a manager of the App"), ((200, "FAILED"), "the App is being deleted")):
+            _, said = self.deploy(exists=True, update=update)
+            self.assertIn(f"⚠️ The App still describes itself as 'Inspire AI v1.3.0' instead of 'Inspire AI v1.3.1', because Databricks "
+                          f"refused to change its description: {why}.", said)
+            self.assertNotIn("App description: ✅", said)
+
+    def test_the_description_names_the_release_version_only(self):
+        self.assertEqual(setup.app_description("v1.3.1"), "Inspire AI v1.3.1")
 
     def test_the_url_is_printed_once_the_app_reports_it_and_never_as_unavailable(self):
         for exists in (False, True):
