@@ -27,7 +27,7 @@ import {
   missingSince, NOT_IN_RUN, notInRunText, overdueFirst, pageText, recordCurrency, recordKeyOf, recordRef, recordView, recordsText, savingText, statusClass,
   statusLabel, actError, withoutWindow, NO_AS_OF, listAsOf,
   CODES, isStaleRecord, closedText, closedBatchOf, undoBatchOf, UNDO_CLOSE, isClosed, skippedText, READ_ONLY, READ_ONLY_KEPT, READ_ONLY_THEIRS,
-  CLOSED_PICK,
+  CLOSED_PICK, ACCEPTED, acceptable, acceptedText,
 } from './records.js';
 
 const tierClass = (t) => `tier tier--${String(t).toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
@@ -454,7 +454,7 @@ function emptyState({ search, mine, changed, fresh, windowed, narrowedAny, range
 }
 
 export default function Records({ meta, app, pageId, filters, ai, onFilter, history = false, onChanged, nonce = 0, ready = true, onExplain, genieBusy, openKey,
-  columnMeta, columnValues, onColumn, onClearColumns, onClearFilters, seeChanged = 0, onShowRuns, similarBy, keepsActions }) {
+  columnMeta, columnValues, onColumn, onClearColumns, onClearFilters, seeChanged = 0, onShowRuns, similarBy, keepsActions, onList, section }) {
   const { prefs, update } = useMyView();
   const [query, setQuery] = useState('');
   const search = useDebounced(query.trim(), 300);
@@ -488,6 +488,7 @@ export default function Records({ meta, app, pageId, filters, ai, onFilter, hist
   const room = cap ? Math.max(1, Math.min(size, cap - offset)) : size;
   const asked = { ...listed, ...(cap ? { window_limit: cap } : {}), ...(sort ? { sort } : {}), offset, limit: room, ...(cursor ? { cursor } : {}) };
   const list = useList(asked, ready, `${nonce}:${refresh}`, windowed.window ? { ...withoutWindow(asked), limit: size } : null);
+  useEffect(() => { onList?.(list); }, [list]);
   useEffect(() => {
     if (list.unwindowed) {
       KEPT.set(pageId, false);
@@ -581,10 +582,11 @@ export default function Records({ meta, app, pageId, filters, ai, onFilter, hist
     }
     setPicks({ scope, keys: picked, all: { total: shownTotal, capped, as_of_us: asOf } });
   };
-  const actOn = async (values) => {
+  const actOn = async (values, said, body = null) => {
     setActing(true);
     try {
-      await acts.act(matching ? { match: matchOf(asked, matching.as_of_us) } : { record_keys: [...picked.keys()], seen: Object.fromEntries(picked) }, values);
+      await acts.act(body || (matching ? { match: matchOf(asked, matching.as_of_us) } : { record_keys: [...picked.keys()], seen: Object.fromEntries(picked) }), values,
+        { said });
     } catch (err) {
       toast(actError(err), toneOf(err));
       acted();
@@ -593,7 +595,16 @@ export default function Records({ meta, app, pageId, filters, ai, onFilter, hist
       clearPicks();
     }
   };
-  const quick = async (row, values) => {
+  const acceptPicked = () => {
+    const byKey = new Map(tableRows.map((r) => [String(recordKeyOf(r)), r]));
+    const keys = [...picked.keys()].filter((k) => acceptable(meta, byKey.get(k)));
+    if (!keys.length) {
+      toast(acceptedText(0, picked.size));
+      return;
+    }
+    actOn(ACCEPTED, acceptedText(keys.length, picked.size - keys.length), { record_keys: keys, seen: Object.fromEntries(keys.map((k) => [k, picked.get(k)])) });
+  };
+  const quick = async (row, values, said) => {
     const key = recordKeyOf(row);
     if (isClosed(row)) {
       toast(skippedText(1));
@@ -602,7 +613,7 @@ export default function Records({ meta, app, pageId, filters, ai, onFilter, hist
     if (key == null || !row._inspire_version) return;
     try {
       await acts.act({ record_keys: [String(key)], seen: { [String(key)]: String(row._inspire_version) } }, values,
-        { about: { record_key: String(key), label: plainText(row[meta.label]) || String(key) } });
+        { said, about: { record_key: String(key), label: plainText(row[meta.label]) || String(key) } });
     } catch (err) {
       toast(err.message, toneOf(err));
     }
@@ -778,6 +789,13 @@ export default function Records({ meta, app, pageId, filters, ai, onFilter, hist
           return r._inspire_status ? <><span className={statusClass(r._inspire_status)}>{statusLabel(r._inspire_status)}</span>{by && <small className="closed-by" data-closed-by>{by}</small>}</> : '';
         },
       },
+      ...(meta.action ? [{
+        key: '_accept', label: 'Suggested action', hideLabel: true, fixed: true, className: 'nowrap',
+        render: (r) => (acceptable(meta, r) ? (
+          <button type="button" className="btn btn--sm" data-accept={keyOf(r)} onClick={stop(() => quick(r, ACCEPTED, acceptedText(1)))}
+            aria-label={`Accept the suggested action on ${plainText(r[meta.label])}`}><Icon name="check" size={13} />Accept</button>
+        ) : ''),
+      }] : []),
     ] : []),
     ...(canModify ? [{
       key: '_actions', label: 'Actions', hideLabel: true, fixed: true, className: 'act',
@@ -802,7 +820,7 @@ export default function Records({ meta, app, pageId, filters, ai, onFilter, hist
   const beyond = data?.window?.more ?? (compareValues(total, cap) > 0 ? addCounts([total, -cap]) : 0);
   const shownSort = sort || data?.sort || null;
   return (
-    <section ref={card} className={`card card--table card--list ${list.busy && data ? 'is-busy' : ''}`} aria-label={meta.title} aria-busy={list.busy}>
+    <section ref={card} className={`card card--table card--list ${list.busy && data ? 'is-busy' : ''}`} aria-label={meta.title} aria-busy={list.busy} data-section={section}>
       <header className="card-h">
         <div>
           <h2>{meta.title}</h2>
@@ -847,7 +865,7 @@ export default function Records({ meta, app, pageId, filters, ai, onFilter, hist
       <ConflictNote conflicts={acts.conflicts} labelOf={labelOf} onClose={acts.clearConflicts} />
       {(picked.size > 0 || matching) && (
         <BulkBar picked={picked} matching={matching} total={shownTotal} capped={capped} allOnPage={allPicked} owners={owners} person={person} busy={acting} tomorrow={tomorrow}
-          canMatch={!everything} onAct={actOn} onAll={selectAll} onClear={clearPicks} />
+          canMatch={!everything} onAct={actOn} onAll={selectAll} onClear={clearPicks} onAccept={meta.action && !matching ? acceptPicked : null} />
       )}
       {!data && list.busy && <div style={{ padding: 16, display: 'grid', gap: 10 }}>{[1, 2, 3, 4].map((i) => <Skeleton key={i} height={22} />)}</div>}
       {list.error && <p className="tile-err"><Icon name="info" size={14} />The list could not load: {list.error}</p>}

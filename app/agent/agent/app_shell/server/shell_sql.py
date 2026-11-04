@@ -151,13 +151,14 @@ _SQL_WORDS = frozenset(("distinct", "case", "when", "then", "else", "end", "and"
                         "decimal", "string", "date", "timestamp", "boolean", "day", "days", "month", "months", "year", "years"))
 FORMATS = ("number", "integer", "currency", "percent", "text", "date", "month")
 CHART_TYPES = ("bar", "horizontal_bar", "stacked_bar", "line", "area", "stacked_area", "pareto", "scatter", "donut", "heatmap", "band",
-               "control", "tornado", "bridge", "bullet", "treemap", "radar", "sankey", "flow", "box", "map_points", "map_regions", "graph")
+               "control", "tornado", "bridge", "bullet", "treemap", "radar", "sankey", "flow", "box", "map_points", "map_regions", "graph", "gantt")
 LAYOUT_CHARTS = {"band": ("time", ("actual", "forecast", "lower", "upper")), "control": ("time", ("value", "expected", "lower", "upper")),
                  "tornado": ("category", ("low", "high")), "bridge": ("category", ("value",)), "bullet": ("category", ("used", "limit")),
                  "treemap": ("category", ("size", "value")), "flow": ("category", ("cases", "median_hours")),
                  "box": ("category", ("low", "q1", "median", "q3", "high")), "map_points": ("category", ("value", "lat", "lon")),
-                 "map_regions": ("category", ("value",)), "graph": ("category", ("weight", "source_group", "target_group"))}
-LAZY_CHARTS = ("treemap", "radar", "sankey")
+                 "map_regions": ("category", ("value",)), "graph": ("category", ("weight", "source_group", "target_group")),
+                 "gantt": ("category", ("start", "end"))}
+LAZY_CHARTS = ("treemap", "radar", "sankey", "gantt")
 LAYOUT_ONLY_CHARTS = tuple(LAYOUT_CHARTS) + ("radar", "sankey")
 TRENDS = ("line", "area", "stacked_area")
 BARS = ("bar", "horizontal_bar", "stacked_bar")
@@ -188,6 +189,8 @@ SECTIONS = {
     "plan_table": {"holds": "plan", "unit": "rows", "suffix": "__plan", "words": "the plan table of current and recommended lines"},
     "constraint_bars": {"charts": ("bullet",), "suffix": "__constraints", "words": "a bullet chart of each limit and how much of it the plan uses"},
     "sensitivity_tornado": {"charts": ("tornado", "horizontal_bar"), "words": "a tornado chart of what moves the result"},
+    "gantt": {"charts": ("gantt",), "words": "a gantt chart of when each line of the plan starts and ends"},
+    "allocation_flow": {"charts": ("sankey",), "words": "a flow chart of how much the plan moves from each source to each target"},
     "resolve": {"holds": "resolve", "words": "the re-solve button"},
     "segment_cards": {"holds": "records", "tables": True, "unit": "rows", "suffix": "__segments", "words": "a card per segment; name the segment filter, 2 to 6 treatments and the suggested-treatment column in a segments section"},
     "segment_profile": {"charts": BARS + ("heatmap", "radar"), "words": "the profile of each segment"},
@@ -644,8 +647,7 @@ def spec_problems(page: dict) -> list:
         if split:
             problems.append(f"{where} compares with the previous run, but {split}, or set no compare")
     charts = page.get("charts") if isinstance(page.get("charts"), list) else []
-    fewer = isinstance(page.get("fewer_charts"), str) and bool(page["fewer_charts"].strip())
-    problems += _count_problem("charts", charts, 0 if not chart_sections(page) else 1 if fewer else max(1, CAPS["charts"][0] - drawn_charts(page)))
+    problems += _count_problem("charts", charts, 0 if not chart_sections(page) else 1 if asked_fewer(page, "fewer_charts") else max(1, CAPS["charts"][0] - drawn_charts(page)))
     _ids(charts, "chart", problems)
     for chart in charts:
         problems += _chart_problems(chart, names)
@@ -1327,7 +1329,16 @@ def row_minimums(page: dict) -> list:
     return out
 
 
+def asked_fewer(page: dict, field: str) -> bool:
+    return isinstance(page.get(field), str) and bool(page[field].strip())
+
+
 def row_problems(page: dict, counts: dict) -> list:
+    if asked_fewer(page, "fewer_rows"):
+        lows = row_minimums(page)
+        if lows:
+            print(f"[LAYOUT-ROWS SKIPPED] page={page.get('id')} minimums={len(lows)}: the user asked for fewer rows", flush=True)
+        return []
     problems = []
     for section, low, source in row_minimums(page):
         have = counts.get(source)
@@ -1872,7 +1883,9 @@ def chart_query(page: dict, ident: str, values: dict) -> tuple:
         text = (f"SELECT {keys}, {ys}, MIN({quote(chart['x']['order'])}) AS o FROM ({sql}) AS d{where} GROUP BY {group} "
                 f"ORDER BY o ASC LIMIT {int(chart.get('limit', 25))}")
         return text, params.items
-    if chart["x"].get("kind") == "time" or chart.get("sort") == "x_asc" or series:
+    if chart["type"] == "gantt":
+        order, limit = "2 ASC NULLS LAST, 3 ASC NULLS LAST", int(chart.get("limit", 25))
+    elif chart["x"].get("kind") == "time" or chart.get("sort") == "x_asc" or series:
         order, limit = "1 ASC", CAPS["chart_rows"]
     else:
         order = "2 DESC NULLS LAST" if chart.get("sort", "value_desc") == "value_desc" else "2 ASC NULLS LAST"

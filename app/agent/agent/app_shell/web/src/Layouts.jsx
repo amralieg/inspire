@@ -39,7 +39,7 @@ export function useList(pageId, filters, ready, nonce, limit, on = true, view = 
 
 const decisionSection = (page) => Object.keys(page?.layout?.holds || {}).find((s) => ['plan', 'records'].includes(page.layout.holds[s])) || 'records';
 
-export function todoSteps(page, list, genie, modify = false) {
+export function todoSteps(page, list, { genie = false, modify = false, accept = false } = {}) {
   const label = page.records?.label;
   const to = decisionSection(page);
   const first = list?.rows?.[0];
@@ -59,19 +59,20 @@ export function todoSteps(page, list, genie, modify = false) {
     if (page.filters?.length) steps.push({ id: 'filters', text: 'Use the filters at the top to narrow every chart to the part you own.', action: null });
   } else if (first) {
     steps.push({ id: 'first', text: `Start with ${first[label] ?? recordKeyOf(first)}: it is first in the list because it matters most.`, action: 'Show me', to });
-    steps.push(page.plan
-      ? { id: 'plan', text: 'Take the ★ suggested line in the plan, or override it with a reason.', action: 'Open the plan', to }
-      : { id: 'down', text: 'Work down the list in order and record what you did on each one.', action: null });
+    if (page.plan) steps.push({ id: 'plan', text: 'Take the ★ suggested line in the plan, or override it with a reason.', action: 'Open the plan', to });
+    else if (accept) steps.push({ id: 'accept', text: 'Accept the suggested action where you agree: one row at a time, or select several and accept them together.', action: 'Show me', to });
+    else steps.push({ id: 'down', text: 'Work down the list in order and record what you did on each one.', action: null });
   }
-  if (genie && !chat) steps.push({ id: 'genie', text: 'Not sure where to start? Ask Genie what to do first and why.', action: 'Ask Genie', ask: true });
+  if (genie && !chat) steps.push({ id: 'genie', text: 'Not sure where to start? Ask Genie what to do first and why.', action: 'Ask Genie what to do first', ask: true });
   return steps;
 }
 
-export function TodoNow({ page, app, ready, nonce, onAsk }) {
+export function TodoNow({ page, app, ready, nonce, onAsk, shared }) {
   const decided = decides(page);
-  const list = useList(page.id, {}, ready, nonce, TODO_ROWS, decided);
+  const fetched = useList(page.id, {}, ready, nonce, TODO_ROWS, decided && shared === undefined);
+  const list = shared === undefined ? fetched : shared || {};
   const genie = genieOn(app, page.id) && !!onAsk;
-  const steps = todoSteps(page, list.data, genie, !!app?.options?.modify);
+  const steps = todoSteps(page, list.data, { genie, modify: !!app?.options?.modify, accept: !!(list.data?.actions && page.records?.action) });
   const summary = list.data?.summary;
   const waiting = summary?.open ?? list.data?.total ?? 0;
   const all = Math.max(waiting, (summary?.open ?? 0) + (summary?.done ?? 0), list.data?.total ?? 0);

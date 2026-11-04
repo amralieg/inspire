@@ -84,7 +84,7 @@ export function ConflictNote({ conflicts, labelOf, onClose }) {
   );
 }
 
-export function BulkBar({ picked, matching, total, capped = false, allOnPage, owners, person, busy, tomorrow, canMatch = true, onAct, onAll, onClear }) {
+export function BulkBar({ picked, matching, total, capped = false, allOnPage, owners, person, busy, tomorrow, canMatch = true, onAct, onAll, onClear, onAccept = null }) {
   const anchors = { done: useRef(null), assign: useRef(null), status: useRef(null), snooze: useRef(null) };
   const [open, setOpen] = useState('');
   const [owner, setOwner] = useState(person);
@@ -108,6 +108,7 @@ export function BulkBar({ picked, matching, total, capped = false, allOnPage, ow
   return (
     <div className="bulk" role="region" aria-label="Selected records">
       {matching ? <b>All {over}{integer(matching.total)} matching records selected</b> : <b>{n} selected:</b>}
+      {onAccept && <button className="btn btn--pri" onClick={onAccept} disabled={busy} data-accept-picked><Icon name="check" size={14} />Accept the suggestions</button>}
       <button ref={anchors.done} className="btn" onClick={toggle('done')} aria-expanded={open === 'done'} disabled={busy}><Icon name="check" size={14} />Mark done…</button>
       <button ref={anchors.assign} className="btn" onClick={toggle('assign')} aria-expanded={open === 'assign'} disabled={busy}>Assign to…</button>
       <button ref={anchors.status} className="btn" onClick={toggle('status')} aria-expanded={open === 'status'} disabled={busy}>Set status…</button>

@@ -26,7 +26,7 @@ import MoneyCard from './Money.jsx';
 import SettingsPanel, { SettingsButton, useSettings } from './Settings.jsx';
 import { ownerSettings } from './settings.js';
 import { FoldScope, useMyView } from './MyView.jsx';
-import { LayoutSections, isLaidOut, tabLabel } from './Layouts.jsx';
+import { LayoutSections, TodoNow, isLaidOut, tabLabel } from './Layouts.jsx';
 import { windowParams } from './prefs.js';
 import { AskGenie, GenieScope } from './AskGenie.jsx';
 import {
@@ -225,6 +225,7 @@ function HubBody({ app, page, entry, live, summary, state, onState, view, onView
 export default function Page({ app, page, meta, state, onState, themeKey, onAsk, onExplain, genieBusy, hubEntry, summary, view, onView, genie }) {
   const ready = !!state;
   const [nonce, setNonce] = useState(0);
+  const [queue, setQueue] = useState(null);
   const [tab, setTab] = useState('overview');
   const [compose, setCompose] = useState(false);
   const composed = useCallback(() => setCompose(false), []);
@@ -293,7 +294,7 @@ export default function Page({ app, page, meta, state, onState, themeKey, onAsk,
   const kpisOf = (kpis, main = true) => <Kpis page={{ ...page, kpis }} data={data?.kpis} errors={errors} loading={loading} plan={main ? plan : null} scope={data?.scope} />;
   const kpisCard = kpisOf(page.kpis);
   const recordsCard = page.records && !unreliable ? (
-    <Records meta={page.records} app={app} pageId={page.id} filters={filters} ready={ready} nonce={nonce} onFilter={pick} history={!!page.history}
+    <Records meta={page.records} app={app} pageId={page.id} filters={filters} ready={ready} nonce={nonce} onFilter={pick} history={!!page.history} onList={setQueue} section={laidOut ? undefined : 'records'}
       similarBy={page.similar_by} keepsActions={hubEntry ? !!(hubEntry.tracked && hubEntry.actions) : undefined}
       onChanged={() => setNonce((n) => n + 1)} onExplain={explain} genieBusy={genieBusy} ai={state?.ai} openKey={openKey}
       columnMeta={meta?.columns?.list} columnValues={columnValues(state, null)}
@@ -370,6 +371,7 @@ export default function Page({ app, page, meta, state, onState, themeKey, onAsk,
           </button>
         ))}
       </nav>
+      {!laidOut && shown === 'overview' && recordsCard && <TodoNow page={page} app={app} ready={ready} nonce={nonce} onAsk={onAsk} shared={queue} />}
       {hubPage && (
         <HubBody app={app} page={page} entry={hubEntry} live={live} summary={summary} state={state} onState={onState} view={view} onView={onView} meta={meta}
           pageId={page.id} shown={shown} charts={hubCharts} explain={explain} genieBusy={genieBusy} nonce={nonce}

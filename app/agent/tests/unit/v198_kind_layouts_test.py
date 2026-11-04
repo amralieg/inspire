@@ -673,3 +673,94 @@ def test_shell_files_without_kinds_json_still_get_the_registry_and_a_shipped_cop
     agent_ns["implement_app_shell_modules"](str(tmp_path / "s"), bare)
     assert (tmp_path / "s" / "kinds.json").read_text(encoding="utf-8") == registry
     assert agent_ns["implement_kinds_text"](dict(bare, **{"kinds.json": "{}"})) == "{}"
+
+
+def test_the_row_minimum_skips_itself_only_when_the_page_quotes_the_user_asking_for_fewer_rows(capsys):
+    short = {("records", "records"): 5}
+    assert shell_sql.row_problems(MONITOR, short), "without an ask the minimum must still fire"
+    for blank in ("", "   ", None, ["only the top 5"]):
+        page = dict(MONITOR, fewer_rows=blank)
+        assert shell_sql.row_problems(page, short), f"{blank!r} is no ask, so the minimum must still fire"
+    capsys.readouterr()
+    asked = dict(MONITOR, fewer_rows="show only the top 5 exceptions")
+    assert shell_sql.row_problems(asked, short) == []
+    assert "[LAYOUT-ROWS SKIPPED] page=" in capsys.readouterr().out
+    assert shell_sql.row_problems(dict(PAGE, fewer_rows="only 5"), {("records", "records"): 1}) == []
+    assert "[LAYOUT-ROWS SKIPPED]" not in capsys.readouterr().out, "a layout without row minimums has nothing to skip"
+    assert shell_sql.spec_problems(asked) == shell_sql.spec_problems(MONITOR)
+
+
+@pytest.mark.parametrize("quote,vibes,needle", [
+    ("Show ONLY the top 5", "Keep it short: show only the top 5 exceptions each morning.", ""),
+    (None, "show only the top 5", ""),
+    ("", "", ""),
+    ("only the top 10", "Keep it short: show only the top 5 exceptions each morning.",
+     "which is not in the customer's asks for this App word for word: quote the words that ask for fewer rows"),
+    ("show only the top 5", "", "but the customer gave no asks for this App: fill each section to its minimum rows"),
+    (5, "show only the top 5", "fewer_rows must be text"),
+])
+def test_a_fewer_rows_quote_must_be_the_users_words_word_for_word(agent_ns, quote, vibes, needle):
+    page = {} if quote is None else {"fewer_rows": quote}
+    problems = agent_ns["implement_fewer_problems"](page, "fewer_rows", vibes, "App", "fewer rows than the layout's sections show",
+                                                    "fill each section to its minimum rows")
+    assert (problems == []) if not needle else (len(problems) == 1 and needle in problems[0]), problems
+
+
+def test_the_layout_brief_tells_genie_how_to_keep_the_users_fewer_rows_only_on_a_layout_with_row_minimums(agent_ns, tmp_path):
+    shell_sql_nb = _modules(agent_ns, tmp_path)[1]["shell_sql"]
+    brief = agent_ns["implement_layout_brief"]
+    assert "set the top-level field fewer_rows to the words of those asks" in brief("monitor_triage", {}, shell_sql_nb)
+    assert "fewer_rows" not in brief("dashboard", {}, shell_sql_nb)
+
+
+def planned():
+    page = copy.deepcopy(PLANNER)
+    page["datasets"] += [
+        {"name": "schedule", "sql": "SELECT p.entity, p.start_date, p.end_date FROM main.supply.production_out__plan AS p"},
+        {"name": "flows", "sql": "SELECT p.entity, p.decision, p.recommended_value FROM main.supply.production_out__plan AS p"},
+    ]
+    page["filters"].append({"id": "line", "type": "multi_select", "label": "Line", "columns": {"schedule": "entity", "flows": "entity"}})
+    page["charts"] += [
+        {"id": "when", "section": "gantt", "title": "When each line runs", "hint": "Each bar runs from the first to the last day of a line.", "type": "gantt", "dataset": "schedule",
+         "x": {"column": "entity", "kind": "category", "label": "Line"},
+         "y": [{"label": "Start", "expression": "MIN(start_date)", "format": "date"},
+               {"label": "End", "expression": "MAX(end_date)", "format": "date"}]},
+        {"id": "moves", "section": "allocation_flow", "title": "Where the plan sends the volume",
+         "hint": "Each band is the volume the plan sends from a source to a target.", "type": "sankey", "dataset": "flows",
+         "x": {"column": "entity", "kind": "category", "label": "From"}, "series": {"column": "decision", "top": 8},
+         "y": [{"label": "Volume", "expression": "SUM(recommended_value)", "format": "number"}]},
+    ]
+    return page
+
+
+def test_the_planner_draws_a_gantt_and_an_allocation_flow_in_their_own_sections():
+    page = planned()
+    assert problems(page) == []
+    assert {"gantt", "allocation_flow"} <= set(layout("planner")["sections"])
+    text, _params = shell_sql.chart_query(page, "when", {})
+    assert "MIN(start_date) AS y0, MAX(end_date) AS y1" in text and "ORDER BY 2 ASC NULLS LAST, 3 ASC NULLS LAST" in text, text
+    text, _params = shell_sql.chart_query(page, "moves", {})
+    assert "CAST(`decision` AS STRING) AS s" in text and "GROUP BY `entity`, `decision`" in text, text
+
+
+@pytest.mark.parametrize("change,needle", [
+    (lambda c: c.pop("series"), "is a sankey, so it needs a series column"),
+    (lambda c: c.update(type="gantt", y=c["y"][:1], series=None), "is a gantt, so y holds exactly 2 measures in this order: start, end"),
+    (lambda c: c.update(section="sensitivity_tornado"), "names section 'sensitivity_tornado'; on a planner page a sankey goes in one of: allocation_flow"),
+    (lambda c: c.update(type="bar"), "names section 'allocation_flow'"),
+])
+def test_a_gantt_or_a_sankey_must_have_its_shape_and_its_section(change, needle):
+    page = planned()
+    change(page["charts"][-1])
+    if page["charts"][-1].get("series") is None:
+        page["charts"][-1].pop("series", None)
+    found = problems(page)
+    assert any(needle in f for f in found), found
+
+
+def test_a_generic_chart_section_refuses_a_gantt_and_a_sankey_and_the_dashboard_draws_a_gantt_as_bars(agent_ns):
+    for kind in ("gantt", "sankey"):
+        assert not shell_sql._section_fits("charts", "charts", kind)
+        assert shell_sql._section_fits("gantt" if kind == "gantt" else "allocation_flow", "charts", kind)
+    widgets = agent_ns["IMPLEMENT_DASHBOARD_CHART_WIDGETS"]
+    assert widgets["gantt"] == "bar" and "gantt" in shell_sql.LAZY_CHARTS

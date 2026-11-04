@@ -173,8 +173,30 @@ function bulletOption({ chart, rows, P, valueFmt, axisFmt }) {
   };
 }
 
+function ganttOption({ chart, rows, P, valueFmt, axisFmt }) {
+  const timed = ['date', 'month'].includes(chart.y[0]?.format);
+  const at = (v) => (v == null ? NaN : timed ? Date.parse(String(v)) : numberOf(v));
+  const bars = rows.map((r) => ({ name: keyOf(r.x), start: at(r.y0), end: at(r.y1), from: r.y0, to: r.y1 }))
+    .filter((b) => Number.isFinite(b.start) && Number.isFinite(b.end));
+  return {
+    grid: { left: 120, right: 24, top: 16, bottom: 28 },
+    tooltip: { trigger: 'item', formatter: (p) => { const b = bars[p.dataIndex]; return b ? `<b>${b.name}</b><br>${valueFmt(0)(b.from)} to ${valueFmt(1)(b.to)}` : ''; } },
+    xAxis: { type: timed ? 'time' : 'value', scale: true, axisLabel: label(P, timed ? {} : { formatter: axisFmt(0) }), splitLine: split(P) },
+    yAxis: { type: 'category', inverse: true, data: bars.map((b) => b.name), axisLabel: label(P, { fontSize: 11, formatter: (v) => truncate(v, 18) }), axisLine: axisLine(P), axisTick: { show: false } },
+    series: [{
+      type: 'custom', name: chart.y[0].label, encode: { x: [1, 2], y: 0 }, data: bars.map((b, i) => [i, b.start, b.end]),
+      renderItem: (params, api) => {
+        const a = api.coord([api.value(1), api.value(0)]);
+        const b = api.coord([api.value(2), api.value(0)]);
+        const height = Math.min(18, api.size([0, 1])[1] * 0.6);
+        return { type: 'rect', shape: { x: a[0], y: a[1] - height / 2, width: Math.max(2, b[0] - a[0]), height, r: 3 }, style: { fill: P.series[0] } };
+      },
+    }],
+  };
+}
+
 const LAYOUT_CHARTS = { band: bandOption, control: controlOption, tornado: tornadoOption, bridge: bridgeOption, bullet: bulletOption,
-  treemap: treemapOption, radar: radarOption, sankey: sankeyOption, ...KIND_CHARTS };
+  treemap: treemapOption, radar: radarOption, sankey: sankeyOption, gantt: ganttOption, ...KIND_CHARTS };
 
 export function chartOption(chart, rows, P, { reduced = false } = {}) {
   const y0 = chart.y[0] || {};

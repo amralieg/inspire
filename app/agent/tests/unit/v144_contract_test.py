@@ -687,7 +687,7 @@ def test_the_example_page_has_at_least_three_charts_and_passes():
 ])
 def test_a_fewer_charts_quote_must_be_word_for_word_in_the_vibes(agent_ns, quote, vibes, needle):
     page = {} if quote is None else {"fewer_charts": quote}
-    problems = agent_ns["implement_fewer_charts_problems"](page, vibes, "App", 3)
+    problems = agent_ns["implement_fewer_problems"](page, "fewer_charts", vibes, "App", "fewer than 3 charts", "write at least 3 charts")
     assert (problems == []) if not needle else (len(problems) == 1 and needle in problems[0]), problems
 
 

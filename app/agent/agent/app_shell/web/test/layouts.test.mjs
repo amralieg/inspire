@@ -4,8 +4,8 @@ import { readFileSync, statSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
-import { DECIDE, SRC, appInfo, bundleEntry, openApp, openBundle, serveDist } from './harness.mjs';
-import { evaluated, fanRows, forecastRoutes, plannerRoutes, scenarioRoutes } from './exampleRoutes.mjs';
+import { DECIDE, SRC, TABLE, appInfo, bundleEntry, openApp, openBundle, serveDist, tracked } from './harness.mjs';
+import { dashboardRoutes, evaluated, explainerRoutes, fanRows, forecastRoutes, monitorRoutes, plannerRoutes, scenarioRoutes } from './exampleRoutes.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ASSETS = join(HERE, '..', 'dist', 'assets');
@@ -158,6 +158,74 @@ test('a plan with no decisions and no editable override column stays read only',
   await context.close();
 });
 
+const SCHEDULE = [['Oat bar', '2026-11-02', '2026-11-09'], ['Rye loaf', '2026-11-04', '2026-11-20'], ['Seed roll', '2026-11-10', '2026-11-12']]
+  .map(([x, y0, y1]) => ({ x, y0, y1 }));
+const FLOWS = [['North plant', 'Store', 400], ['North plant', 'Web', 150], ['South plant', 'Store', 220], ['Store', 'North plant', 30]]
+  .map(([x, s, y0]) => ({ x, s, y0 }));
+
+function plannerWithFlows() {
+  const example = JSON.parse(readFileSync(join(HERE, '..', '..', 'examples', 'planner.json'), 'utf8'));
+  const datasets = [...example.datasets,
+    { name: 'schedule', sql: 'SELECT p.entity, p.start_date, p.end_date FROM main.supply.production_out__plan AS p' },
+    { name: 'flows', sql: 'SELECT p.entity, p.decision, p.recommended_value FROM main.supply.production_out__plan AS p' }];
+  const charts = [...example.charts,
+    { id: 'when', section: 'gantt', title: 'When each line runs', hint: 'Each bar runs from the first to the last day of a line.', type: 'gantt', dataset: 'schedule', x: { column: 'entity', kind: 'category', label: 'Line' },
+      y: [{ label: 'Start', expression: 'MIN(start_date)', format: 'date' }, { label: 'End', expression: 'MAX(end_date)', format: 'date' }] },
+    { id: 'moves', section: 'allocation_flow', title: 'Where the plan sends the volume', hint: 'Each band is the volume the plan sends from a source to a target.', type: 'sankey', dataset: 'flows',
+      x: { column: 'entity', kind: 'category', label: 'From' }, series: { column: 'decision', top: 8 },
+      y: [{ label: 'Volume', expression: 'SUM(recommended_value)', format: 'number' }] }];
+  return { datasets, charts };
+}
+
+test('the gantt and the sankey drawing are left out of the main bundle and load only on a page that draws one', async () => {
+  const lazy = [];
+  const watch = async (page) => page.on('request', (r) => { if (/\/echartsKinds[^/]*\.js$/.test(r.url())) lazy.push(r.url()); });
+  const plain = await openApp(browser, base, appInfo(DECIDE, 1, {}, 'examples/planner.json'), { routes: plannerRoutes([], []), watch });
+  await plain.page.waitForFunction(() => document.querySelectorAll('[data-section] canvas').length >= 3);
+  assert.equal(lazy.length, 0, 'a planner without a gantt or a sankey loads no extra chart code');
+  assert.deepEqual(plain.seen.errors, []);
+  await plain.context.close();
+  const info = appInfo(DECIDE, 1, plannerWithFlows(), 'examples/planner.json');
+  const routes = plannerRoutes([], []);
+  const page0 = routes.page;
+  routes.page = (arg) => page0({ ...arg, json: (status, data) => arg.json(status, { ...data,
+    charts: { ...data.charts, when: { columns: [], rows: SCHEDULE, truncated: false }, moves: { columns: [], rows: FLOWS, truncated: false } } }) });
+  const { page, seen, context } = await openApp(browser, base, info, { routes, watch });
+  await page.locator('[data-section="gantt"] canvas').waitFor();
+  await page.locator('[data-section="allocation_flow"] canvas').waitFor();
+  assert.deepEqual([...new Set(await sectionsOf(page))], ['todo', 'kpis', 'objective_kpi', 'plan_table', 'constraint_bars', 'sensitivity_tornado', 'gantt',
+    'allocation_flow', 'resolve']);
+  assert.equal(new Set(lazy).size, 1, 'both drawings come from one lazy chunk');
+  assert.equal(await page.locator('[data-card="when"]').getAttribute('data-rows'), '3');
+  assert.equal(await page.locator('[data-card="moves"]').getAttribute('data-rows'), '4');
+  assert.deepEqual(seen.errors, []);
+  await context.close();
+});
+
+test('the gantt spans each line from start to end and the sankey keeps sources apart from targets', async () => {
+  const out = await inCharts(([P, schedule, flows]) => {
+    const { chartOption } = window.charts;
+    const y = (format) => [{ label: 'Start', format }, { label: 'End', format }];
+    const dated = chartOption({ type: 'gantt', x: { kind: 'category' }, y: y('date') }, [...schedule, { x: 'No end', y0: '2026-11-01', y1: null }], P);
+    const counted = chartOption({ type: 'gantt', x: { kind: 'category' }, y: y('number') }, [{ x: 'Week plan', y0: 3, y1: 7 }], P);
+    const flow = chartOption({ type: 'sankey', x: { kind: 'category' }, y: [{ label: 'Volume', format: 'number' }] }, [...flows, { x: 'Web', s: 'Store', y0: 0 }], P);
+    const s = flow.series[0];
+    return {
+      axis: [dated.xAxis.type, counted.xAxis.type], names: dated.yAxis.data, first: dated.series[0].data[0], counted: counted.series[0].data,
+      nodes: s.data.map((n) => n.name), links: s.links.length, label: s.label.formatter({ name: 'before|North plant' }),
+      tip: flow.tooltip.formatter({ dataType: 'edge', data: { source: 'before|Store', target: 'now|North plant', value: 30 } }),
+    };
+  }, [P, SCHEDULE, FLOWS]);
+  assert.deepEqual(out.axis, ['time', 'value']);
+  assert.deepEqual(out.names, ['Oat bar', 'Rye loaf', 'Seed roll'], 'a line with no end is left off');
+  assert.deepEqual(out.first, [0, Date.parse('2026-11-02'), Date.parse('2026-11-09')]);
+  assert.deepEqual(out.counted, [[0, 3, 7]]);
+  assert.deepEqual(out.nodes, ['before|North plant', 'now|Store', 'now|Web', 'before|South plant', 'before|Store', 'now|North plant']);
+  assert.equal(out.links, 4, 'a flow of zero is left out, and a flow back to a source does not loop');
+  assert.equal(out.label, 'North plant');
+  assert.match(out.tip, /^Store \S+ North plant<br><b>30<\/b>$/);
+});
+
 test('the scenario lab opens with What to do now, moves the outcome with each lever, and saves a scenario as a record', async () => {
   const info = appInfo({ options: { modify: true, replace_edits: false, decisions: false } }, 1, {}, 'examples/scenario_lab.json');
   const layout = KINDS.layouts.find((l) => l.id === 'scenario_lab');
@@ -205,32 +273,6 @@ test('the scenario lab hides Save when the App does not let people change its da
   await context.close();
 });
 
-const DAYS = Array.from({ length: 30 }, (_, i) => new Date(Date.UTC(2026, 8, 1 + i)).toISOString().slice(0, 10));
-const TRIAGE = Array.from({ length: 24 }, (_, i) => ({
-  record_key: `E${i + 1}`, _inspire_key: `E${i + 1}`, _inspire_version: String(700 + i), entity_id: `A${i + 1}`, entity_label: `Account ${i + 1}`,
-  exception_rule: ['Rate above contract', 'Weight mismatch', 'Duplicate line'][i % 3], age_days: 3 + i * 4, priority_tier: 'Act now', rank: i + 1,
-  value: 24000 - i * 900, recommended_action: 'Credit the difference', top_reasons: ['billed above the range'], as_of_date: '2026-10-15',
-}));
-
-function monitorRoutes() {
-  return {
-    page: ({ json }) => json(200, {
-      kpis: { open_n: { now: 24 }, exposure: { now: 310000 }, anomalies: { now: 9 }, old_n: { now: 15 } },
-      charts: {
-        signal: { columns: [], rows: DAYS.map((x, i) => ({ x, y0: i % 9 === 4 ? 160 : 100 + (i % 5), y1: 100, y2: 90, y3: 110 })), truncated: false },
-        by_rule: { columns: [], rows: [['Rate above contract', 11], ['Weight mismatch', 8], ['Duplicate line', 5]].map(([x, y0]) => ({ x, y0 })), truncated: false },
-        by_age: { columns: [], rows: [['0-7 days', 4, 40000], ['8-30 days', 5, 70000], ['31-90 days', 9, 120000], ['Over 90 days', 6, 80000]].map(([x, y0, y1]) => ({ x, y0, y1 })), truncated: false },
-      },
-      tables: {}, errors: {},
-    }),
-    records: ({ route, json }) => {
-      const body = route.request().postDataJSON();
-      return json(200, { rows: TRIAGE.slice(0, body.limit || 25), total: TRIAGE.length, offset: 0, limit: body.limit || 25, actions: true, changes: false,
-        summary: { open: 24, done: 0, resolved: 0, left: 24, owners: [] }, errors: {} });
-    },
-  };
-}
-
 test('the monitor opens with What to do now, draws the signal with its range, the triage queue and the exceptions by rule and by age', async () => {
   const info = appInfo(DECIDE, 1, {}, 'examples/monitor_triage.json');
   const layout = KINDS.layouts.find((l) => l.id === 'monitor_triage');
@@ -251,36 +293,6 @@ test('the monitor opens with What to do now, draws the signal with its range, th
   assert.deepEqual(seen.errors, []);
   await context.close();
 });
-
-const UNITS = Array.from({ length: 12 }, (_, i) => ({
-  record_key: `U${i + 1}`, _inspire_key: `U${i + 1}`, _inspire_version: String(800 + i), entity_id: `U${i + 1}`, entity_label: `Unit ${i + 1}`,
-  segment: 'Retail', priority_tier: 'Act now', rank: i + 1, value: 50000 - i * 3000, actual: 1000000 - i * 40000, plan: 1050000 - i * 30000,
-  variance: -50000 - i * 1000, tolerance: 31500, recommended_action: 'Name an owner', top_reasons: ['volume below plan'], as_of_date: '2026-10-15',
-}));
-const STEPS = [['Plan', 1200000], ['Volume', -90000], ['Price', 40000], ['Mix', -20000], ['Actual', 1130000]];
-
-function explainerRoutes() {
-  return {
-    page: ({ json }) => json(200, {
-      kpis: { actual: { now: 1130000 }, plan: { now: 1200000 }, variance: { now: -70000 }, outside_n: { now: 7 } },
-      charts: {
-        walk: { columns: [], rows: STEPS.map(([x, y0]) => ({ x, y0 })), truncated: false },
-        vs_peers: { columns: [], rows: UNITS.map((u, i) => ({ x_label: u.entity_label, x: 900 + i * 10, y0: 880 + i * 15 })), truncated: false },
-        drivers: { columns: [], rows: STEPS.slice(1, -1).map(([x, v]) => ({ x, y0: Math.min(v, 0), y1: Math.max(v, 0) })), truncated: false },
-      },
-      tables: {
-        peer_gaps: { columns: [], rows: UNITS.slice(0, 4).map((u, i) => ({ unit_label: u.entity_label, peer_group: 'Large', metric: 'Sales', peer_median: 1000000, gap: -40000 + i * 5000 })), truncated: false },
-        said: { columns: [], rows: [{ unit_label: 'Unit 1', reason: 'Late launch', remark: 'The new line shipped two weeks late.', author: 'Unit owner' }], truncated: false },
-      },
-      errors: {},
-    }),
-    records: ({ route, json }) => {
-      const body = route.request().postDataJSON();
-      return json(200, { rows: UNITS.slice(0, body.limit || 25), total: UNITS.length, offset: 0, limit: body.limit || 25, actions: true, changes: false,
-        summary: { open: 12, done: 0, resolved: 0, left: 12, owners: [] }, errors: {} });
-    },
-  };
-}
 
 test('the explainer opens with What to do now, draws the variance list, the bridge from plan to actual, the peers and the drivers', async () => {
   const info = appInfo(DECIDE, 1, {}, 'examples/performance_explainer.json');
@@ -303,26 +315,6 @@ test('the explainer opens with What to do now, draws the variance list, the brid
   assert.deepEqual(seen.errors, []);
   await context.close();
 });
-
-function dashboardRoutes(asked) {
-  return {
-    page: ({ json }) => json(200, {
-      kpis: { revenue: { now: 4200000, before: 3900000 }, prior: { now: 3900000 }, growth: { now: 7.7 } },
-      charts: {
-        trend: { columns: [], rows: MONTHS6.map((x, i) => ({ x, y0: 600000 + i * 20000, y1: 580000 + i * 10000 })), truncated: false },
-        movers: { columns: [], rows: [['Oat bar', 90000], ['Tea tin', -60000], ['Rye loaf', 40000]].map(([x, y0]) => ({ x, y0 })), truncated: false },
-        by_region: { columns: [], rows: [['North', 2100000, 1900000], ['South', 2100000, 2000000]].map(([x, y0, y1]) => ({ x, y0, y1 })), truncated: false },
-      },
-      tables: { rows: { columns: [], rows: [{ entity_label: 'Oat bar', region: 'North', revenue: 900000, prior_value: 810000, change: 90000 }], truncated: false } },
-      errors: {},
-    }),
-    records: ({ route, json }) => {
-      asked.push(route.request().postDataJSON());
-      return json(500, { error: 'a dashboard reads no decision list' });
-    },
-  };
-}
-const MONTHS6 = Array.from({ length: 6 }, (_, i) => new Date(Date.UTC(2026, 4 + i, 1)).toISOString().slice(0, 10));
 
 test('the dashboard is read only: What to do now, a So what line and Ask Genie on every chart and table, and no decision list', async () => {
   const info = appInfo(DECIDE, 1, {}, 'examples/dashboard.json');
@@ -352,12 +344,39 @@ test('the dashboard is read only: What to do now, a So what line and Ask Genie o
   await context.close();
 });
 
-test('the decision queue page keeps its layout: no What to do now block and its own tab label', async () => {
+test('the decision queue page opens with What to do now and keeps its own tab label', async () => {
   const info = appInfo();
   assert.equal(info.pages[0].layout.id, 'decision_queue');
   const { page, seen, context } = await openApp(browser, base, info);
-  assert.equal(await page.locator('[data-section="todo"]').count(), 0);
+  await page.locator('[data-section="todo"] [data-step="first"]').waitFor();
   assert.equal(await page.locator('.view.is-on span').innerText(), 'Things to fix');
+  assert.match(await page.locator('[data-step="first"]').innerText(), /Start with Item number 1/);
+  assert.equal(await page.locator('[data-step="accept"]').count(), 0, 'an App that keeps no decisions offers no accept');
+  assert.equal(await page.locator('[data-accept]').count(), 0);
+  assert.equal(seen.records.length, 1, 'What to do now reads the list the records card loaded, with no second request');
+  assert.deepEqual(seen.errors, []);
+  await context.close();
+});
+
+test('accepting a suggested action takes one click on a row, or one click for the selected rows, through records/act', async () => {
+  const info = appInfo(DECIDE, 1, TABLE);
+  const { calls, routes } = tracked();
+  const { page, seen, context } = await openApp(browser, base, info, { routes });
+  await page.locator('[data-step="accept"]').waitFor();
+  assert.match(await page.locator('[data-step="accept"]').innerText(), /Accept the suggested action where you agree/);
+  await page.locator('[data-accept="R001"]').waitFor();
+  assert.equal(await page.locator('[data-accept="R002"]').count(), 0, 'a record already in progress has nothing left to accept');
+  await page.locator('[data-accept="R001"]').click();
+  await page.waitForFunction(() => document.querySelector('.toast .toast-t')?.textContent?.startsWith('Accepted the suggested action on 1 record.'));
+  assert.deepEqual(calls.acts.at(-1), { page: info.pages[0].id, record_keys: ['R001'], seen: { R001: '100' }, values: { action_status: 'In progress', note: 'Accepted the suggested action' } });
+  for (const name of ['Item number 2 with a long descriptive name', 'Item number 3 with a long descriptive name', 'Item number 5 with a long descriptive name']) {
+    await page.getByLabel(`Select ${name}`).check();
+  }
+  await page.locator('[data-accept-picked]').click();
+  await page.waitForFunction(() => document.querySelector('.toast .toast-t')?.textContent?.startsWith('Accepted the suggested action on 2 records. Left 1 record as they are'));
+  assert.deepEqual(calls.acts.at(-1), { page: info.pages[0].id, record_keys: ['R003', 'R005'], seen: { R003: '102', R005: '104' },
+    values: { action_status: 'In progress', note: 'Accepted the suggested action' } });
+  assert.equal(calls.acts.length, 2);
   assert.deepEqual(seen.errors, []);
   await context.close();
 });

@@ -1,7 +1,7 @@
 import echarts from './echarts.js';
-import { GaugeChart, RadarChart, SankeyChart, TreemapChart } from 'echarts/charts';
+import { CustomChart, GaugeChart, RadarChart, SankeyChart, TreemapChart } from 'echarts/charts';
 import { MarkLineComponent, RadarComponent } from 'echarts/components';
 
-echarts.use([GaugeChart, MarkLineComponent, RadarChart, RadarComponent, SankeyChart, TreemapChart]);
+echarts.use([CustomChart, GaugeChart, MarkLineComponent, RadarChart, RadarComponent, SankeyChart, TreemapChart]);
 
 export default echarts;

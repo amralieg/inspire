@@ -450,6 +450,14 @@ export const UNDO_CLOSE = 'Undo puts back every record this change touched, as t
 
 export const isClosed = (row) => CLOSED_STATUSES.includes(row?._inspire_status);
 
+export const ACCEPTED = { action_status: 'In progress', note: 'Accepted the suggested action' };
+export const suggestionOf = (meta, row) => (meta?.action ? plainText(row?.[meta.action]).trim() : '');
+export const acceptable = (meta, row) => !!suggestionOf(meta, row) && !!row?._inspire_version && (row._inspire_status || 'New') === 'New';
+export function acceptedText(n, left = 0) {
+  const kept = left ? ` Left ${recordsText(left)} as they are: no suggested action, or already started or closed.` : '';
+  return n ? `Accepted the suggested action on ${recordsText(n)}.${kept}` : `None of the selected records has a suggested action to accept.${kept}`;
+}
+
 export const skippedText = (n) => `Skipped ${recordsText(n)} already closed: fixed, dismissed or could not fix. To reopen one, open it and undo its change.`;
 
 export const READ_ONLY = 'Read-only in Everything. To reopen it, undo this change.';

@@ -258,7 +258,7 @@ def test_the_app_waits_for_the_layout_chart_chunk_for_exactly_the_charts_the_ser
     with open(os.path.join(SHELL, "web", "src", "echartsKinds.js"), encoding="utf-8") as handle:
         chunk = handle.read()
     for kind in shell_sql.LAZY_CHARTS:
-        assert f"{kind.capitalize()}Chart" in chunk, kind
+        assert {"gantt": "CustomChart"}.get(kind, f"{kind.capitalize()}Chart") in chunk, kind
 
 @pytest.mark.parametrize("name, expected", [
     ("recommendation_desk", [("send", "Done"), ("skip", "Dismissed")]),
