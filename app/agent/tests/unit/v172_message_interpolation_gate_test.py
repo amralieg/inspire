@@ -377,6 +377,7 @@ REVIEWED = {
         ('build', "'; '.join(errors)"),
         ('build_output', 'runner_error'),
         ('canonical_use_cases_quality', 'legacy_text'),
+        ('deploy', "'; '.join(dated)"),
         ('deploy', "'; '.join(errors)"),
         ('deploy', "'; '.join(problems)"),
         ('execute_parallel', 'msg'),

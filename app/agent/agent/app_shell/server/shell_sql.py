@@ -699,7 +699,7 @@ def _date_text(value) -> bool:
     if not _DATE.match(text[:10]):
         return False
     try:
-        datetime.datetime.fromisoformat(text[:-1] + "+00:00" if text.endswith("Z") else text)
+        inspire_parse_time(text)
     except ValueError:
         return False
     return True

@@ -43,6 +43,7 @@ SHELL_ENTRY_POINTS = {
     ("_implement_app_repoint_check", "shell_core.page_genie"),
     ("_implement_app_shell", "implement_app_shell_modules"),
     ("_implement_dashboard", "_implement_app_shell"),
+    ("_implement_dashboard.deploy", "shell_sql.chart_date_problems"),
     ("_implement_dashboard.deploy", "shell_sql.chart_query"),
     ("_implement_dashboard_block_images", "_implement_app_shell"),
     ("_implement_dashboard_block_images", "shell_sql.image_blocks"),
