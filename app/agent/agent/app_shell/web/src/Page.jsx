@@ -3,7 +3,7 @@ import { getOverview, getPage } from './api.js';
 import { apiTables, apiValues, clearColumnValues, clearSelections, columnValues, setColumnValue, toggleValue } from './filters.js';
 import { ColumnFilterStatus, withColumnFilters } from './ColumnFilters.jsx';
 import { addCounts, cap, dayLabel, integer, largestFirst, savedVerb, wholeMoney } from './format.js';
-import { fieldsOf, filterWords, rowTitle, tableContext } from './explain.js';
+import { ITEM_KINDS, fieldsOf, filterWords, rowTitle, tableContext } from './explain.js';
 import { hueVars } from './theme.js';
 import { parseHash } from './links.js';
 import { Block, Placed } from './Blocks.jsx';
@@ -92,7 +92,7 @@ function TableCard({ table, result, error, loading, onFilter, pageId, filters, v
       {loading && <div style={{ padding: 16, display: 'grid', gap: 10 }}>{[1, 2, 3].map((i) => <Skeleton key={i} height={22} />)}</div>}
       {error && <p className="tile-err"><Icon name="info" size={14} />This table could not load: {error}</p>}
       {!loading && !error && <DataTable label={table.title} columns={columns} rows={result?.rows || []} filtering="server" grid={`page:${pageId}:table:${table.id}`} {...served}
-        askRow={(row) => ({ title: rowTitle(row, columns), context: { hint: `A row of the table "${table.title}".`, fields: fieldsOf(row, columns) } })} />}
+        askRow={(row) => ({ kind: ITEM_KINDS[table.section], title: rowTitle(row, columns), context: { hint: `A row of the table "${table.title}".`, fields: fieldsOf(row, columns) } })} />}
       {!loading && !error && cut && <p className="more" data-cut>Showing the first {integer(result.rows.length)} rows. Sorting and the column filters use every row.</p>}
     </section>
   );

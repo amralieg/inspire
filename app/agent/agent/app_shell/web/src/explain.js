@@ -43,13 +43,14 @@ export function chartContext(chart, result) {
 }
 
 export const CHART_KINDS = { fan_chart: 'series' };
-export const CHART_ITEM_KINDS = { process_map: 'process_step', map: 'site', graph: 'node', incrementality_waterfall: 'bridge_step' };
+export const ITEM_KINDS = { process_map: 'process_step', map: 'site', graph: 'node', incrementality_waterfall: 'bridge_step', ranked_sites: 'site', linked_list: 'site',
+  centrality_list: 'node', neighbors: 'node' };
 const LINKED_CHARTS = ['flow', 'graph'];
 
 export const chartKind = (chart) => CHART_KINDS[chart.section] || 'chart';
 
 export function chartItems(chart, result) {
-  const kind = CHART_ITEM_KINDS[chart.section];
+  const kind = ITEM_KINDS[chart.section];
   const rows = result?.rows || [];
   if (!kind) return [];
   const ends = (r) => (LINKED_CHARTS.includes(chart.type) ? [r.x, r.s] : [r.x]).filter((v) => v != null && String(v).trim() !== '').map(String);

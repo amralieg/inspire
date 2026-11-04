@@ -38,7 +38,7 @@ export function RowAsk({ about }) {
 
 export function RowGenie({ about, element }) {
   if (about) return <RowAsk about={about} />;
-  return element ? <AskGenie kind="record" title={element.title} context={element.context} page={element.page} /> : null;
+  return element ? <AskGenie kind={element.kind || 'record'} title={element.title} context={element.context} page={element.page} /> : null;
 }
 
 function askColumn(askAbout, askRow) {

@@ -10,7 +10,7 @@ import { genieOn } from './genieAsk.js';
 import { plural } from './hub.js';
 import { AskGenie } from './AskGenie.jsx';
 import { RowGenie, columnOf } from './DataTable.jsx';
-import { fieldsOf, tableContext } from './explain.js';
+import { ITEM_KINDS, fieldsOf, tableContext } from './explain.js';
 import './styles/kindparts.css';
 
 export const LIST_ROWS = 60;
@@ -142,7 +142,7 @@ function useChoices(page, onChanged) {
   return { choose, takeAll, busy, error, run };
 }
 
-function ChoiceRow({ page, app, row, choices, suggested, canAct, busy, onChoose, detail, children }) {
+function ChoiceRow({ page, app, row, choices, suggested, canAct, busy, onChoose, detail, ask, children }) {
   const [skipping, setSkipping] = useState(null);
   const key = String(recordKeyOf(row));
   const closed = isClosed(row);
@@ -162,8 +162,8 @@ function ChoiceRow({ page, app, row, choices, suggested, canAct, busy, onChoose,
           </button>
         ))}
         {!closed && !canAct && <span className="muted">Read only{suggested ? `, suggested: ${suggested.label}` : ''}</span>}
-        <RowGenie about={genieOn(app, page.id) ? { pageId: page.id, recordKey: key, label: nameOf(page, row) } : null}
-          element={{ title: nameOf(page, row), page: page.id, context: { hint: `A line of ${page.records?.title || page.title}.`, fields: choiceFields(page, row) } }} />
+        <RowGenie about={!ask && genieOn(app, page.id) ? { pageId: page.id, recordKey: key, label: nameOf(page, row) } : null}
+          element={{ kind: ask, title: nameOf(page, row), page: page.id, context: { hint: `A line of ${page.records?.title || page.title}.`, fields: choiceFields(page, row) } }} />
       </div>
       {skipping && (
         <div className="choice-why" role="group" aria-label={`Why ${skipping.label.toLowerCase()}`}>
@@ -263,7 +263,7 @@ export function ChoiceList({ page, app, filters, ready, nonce, onChanged, sectio
       <ol className="choice-list">
         {rows.map((row) => (
           <ChoiceRow key={recordKeyOf(row)} page={page} app={app} row={row} choices={choices} suggested={suggest(row)} canAct={can} busy={decide.busy}
-            onChoose={decide.choose}
+            onChoose={decide.choose} ask={ITEM_KINDS[section]}
             detail={<span className="choice-cols">{(meta.columns || []).slice(0, 4).map((c) => <span key={c.column}>{c.label} <b>{shown(c, row[c.column])}</b></span>)}</span>}>
             {row[meta.action] && <p className="choice-why-text">{row[meta.action]}</p>}
           </ChoiceRow>

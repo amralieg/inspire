@@ -197,8 +197,8 @@ def test_the_browser_suggests_for_exactly_the_kinds_the_server_knows_and_caps_th
 def sent_kinds(sources):
     kinds = set()
     for text in sources:
-        kinds.update(re.findall(r"""kind(?:=|: )["']([a-z_]+)["']""", text))
-        for table in re.findall(r"export const CHART(?:_ITEM)?_KINDS = \{(.*?)\};", text, re.S):
+        kinds.update(re.findall(r"""kind(?:=|: |=\{[\w.]+ \|\| )["']([a-z_]+)["']""", text))
+        for table in re.findall(r"export const (?:CHART|ITEM)_KINDS = \{(.*?)\};", text, re.S):
             kinds.update(re.findall(r":\s*'([a-z_]+)'", table))
     return kinds
 
@@ -218,5 +218,6 @@ def test_every_kind_the_server_explains_has_an_element_in_the_app_that_sends_it(
 
 
 def test_the_sender_check_counts_a_kind_only_where_an_element_sends_it():
-    assert sent_kinds(['<AskGenie kind="segment" title={t} />', "export const CHART_ITEM_KINDS = { graph: 'node' };"]) == {"segment", "node"}
+    assert sent_kinds(['<AskGenie kind="segment" title={t} />', "export const ITEM_KINDS = { graph: 'node',\n  neighbors: 'node' };"]) == {"segment", "node"}
+    assert sent_kinds(["<AskGenie kind={element.kind || 'record'} />", "const kind = picked || 'site';"]) == {"record"}
     assert sent_kinds(["export const SUGGESTIONS = {\n  plan_line: ['Why?'],\n};", "const ELEMENT = 'site';"]) == set()

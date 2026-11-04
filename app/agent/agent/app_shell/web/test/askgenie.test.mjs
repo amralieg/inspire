@@ -470,3 +470,32 @@ test('the box says what Genie receives and adds the page filters to what the ele
   assert.equal(rowTitle({ id: '', name: 'Store 4' }, columns), 'Store 4');
   assert.equal(rowTitle({ id: null }, columns), 'this row');
 });
+
+test('a ranked site and a site in the linked list ask the site questions about that site', async () => {
+  const { calls, opened } = exampleWithGenie('location_view.json');
+  const { page, seen, context } = await opened;
+  await page.locator('[data-choice-row="K1"]').waitFor();
+  const ranked = await ask(page, calls, 'Dubai Marina', '', page.locator('[data-choice-row="K1"]'));
+  assert.deepEqual([ranked.kind, ranked.question, ranked.title], ['site', SUGGESTIONS.site[0], 'Dubai Marina']);
+  assert.equal(ranked.context.fields.City, 'Dubai');
+  const listed = page.locator('[data-section="linked_list"] tbody tr').filter({ hasText: 'Doha West' });
+  const row = await ask(page, calls, 'Doha West', '', listed);
+  assert.deepEqual([row.kind, row.question, row.context.fields.City], ['site', SUGGESTIONS.site[0], 'Doha']);
+  assert.equal(await page.locator('[data-choice-row] .row-ask').count(), 0, 'a site asks the site questions, not the record thread');
+  assert.deepEqual(seen.errors, []);
+  await context.close();
+});
+
+test('an account in the centrality list and a neighbor row ask the network node questions, and a matched pair keeps the record questions', async () => {
+  const { calls, opened } = exampleWithGenie('network_explorer.json');
+  const { page, seen, context } = await opened;
+  await page.locator('[data-choice-row="K1"]').waitFor();
+  const central = await ask(page, calls, 'A100', '', page.locator('[data-choice-row="K1"]'));
+  assert.deepEqual([central.kind, central.question, central.title], ['node', SUGGESTIONS.node[0], 'A100']);
+  const neighbor = await ask(page, calls, 'A100', '', page.locator('[data-section="neighbors"] tbody tr').first());
+  assert.deepEqual([neighbor.kind, neighbor.question], ['node', SUGGESTIONS.node[0]]);
+  const pair = await ask(page, calls, 'A100', '', page.locator('[data-section="match_pairs"] tbody tr').first());
+  assert.deepEqual([pair.kind, pair.question], ['record', SUGGESTIONS.record[0]]);
+  assert.deepEqual(seen.errors, []);
+  await context.close();
+});
