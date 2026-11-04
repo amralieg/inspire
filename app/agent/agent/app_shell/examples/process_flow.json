@@ -19,7 +19,7 @@
   "datasets": [
     {
       "name": "records",
-      "sql": "SELECT o.record_key, o.entity_id, o.entity_label, o.priority_tier, o.`rank`, o.top_reasons, o.recommended_action, o.value, o.as_of_date, c.step, c.age_hours, c.breach_risk, k.variant, k.region FROM main.operations.claims_flow_out AS o JOIN main.operations.claims_flow_out__cases AS c ON c.case_id = o.entity_id JOIN main.operations.claims AS k ON k.claim_id = o.entity_id WHERE o.is_current AND o.change_source <> 'delete'"
+      "sql": "SELECT o.record_key, o.entity_id, o.entity_label, o.priority_tier, o.`rank`, o.top_reasons, o.recommended_action, o.value, o.as_of_date, c.step, c.age_hours, ROUND(c.breach_risk * 100, 1) AS breach_risk, k.variant, k.region FROM main.operations.claims_flow_out AS o JOIN main.operations.claims_flow_out__cases AS c ON c.case_id = o.entity_id JOIN main.operations.claims AS k ON k.claim_id = o.entity_id WHERE o.is_current AND o.change_source <> 'delete'"
     },
     {
       "name": "moves",

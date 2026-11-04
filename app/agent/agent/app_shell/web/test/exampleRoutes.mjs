@@ -218,7 +218,7 @@ export const MOVES = [['Received', 'Triage', 400, 2, 6], ['Triage', 'Assess', 38
   ['Review', 'Assess', 60, 26, 70], ['Triage', 'Paid', 20, 1, 3]];
 const PROCESS_ACTIONS = ['Expedite: it breaches in 4 hours', 'Reassign to a free adjuster', 'Accept the delay: the customer agreed'];
 const CASES_ROWS = Array.from({ length: 24 }, (_, i) => row(i + 1, { entity_label: `Claim ${i + 1}`, step: STEPS[1 + (i % 3)], age_hours: 40 + i,
-  breach_risk: 0.9 - i * 0.02, recommended_action: PROCESS_ACTIONS[i % 3], variant: i % 2 ? 'Motor' : 'Home', region: 'North' }));
+  breach_risk: 90 - i * 2, recommended_action: PROCESS_ACTIONS[i % 3], variant: i % 2 ? 'Motor' : 'Home', region: 'North' }));
 const processData = () => ({
   kpis: { open: { now: 412 }, at_risk: { now: 24 }, age: { now: 38 } },
   charts: {

@@ -89,21 +89,27 @@ function flowOption({ chart, rows, P, valueFmt }) {
   const hours = edges.map((e) => e.hours).filter((h) => h != null).sort((a, b) => a - b);
   const slow = hours.length ? hours[Math.floor(hours.length * 0.75)] : Infinity;
   const most = Math.max(1, ...edges.map((e) => e.cases));
-  const busiest = Math.max(1, ...nodes.map((n) => n.cases));
   const late = P.tier?.['Act now'] || P.series[5];
+  const wait = new Map(nodes.map((n) => [n.name, Math.max(-Infinity, ...edges.filter((e) => e.to === n.name && !e.rework && e.hours != null).map((e) => e.hours))]));
+  const longest = Math.max(...wait.values());
+  const bottleneck = Number.isFinite(longest) ? nodes.find((n) => wait.get(n.name) === longest)?.name : null;
+  const layerOf = new Map(nodes.map((n) => [n.name, n.layer]));
   return {
+    grid: { left: 64, right: 64, top: 28, bottom: 28 },
+    xAxis: { type: 'value', show: false, min: -0.5, max: Math.max(0, ...nodes.map((n) => n.layer)) + 0.5 },
+    yAxis: { type: 'value', show: false, inverse: true, min: -0.7, max: Math.max(0, ...nodes.map((n) => n.row)) + 0.7 },
     tooltip: { trigger: 'item', formatter: (p) => (p.dataType === 'edge'
       ? `${p.data.source} → ${p.data.target}${p.data.rework ? ' (rework)' : ''}<br>${names[0]}: <b>${valueFmt(0)(p.data.value)}</b><br>${names[1]}: <b>${valueFmt(1)(p.data.hours)}</b>`
-      : `<b>${p.name}</b><br>${names[0]} in: ${valueFmt(0)(p.data.value)}`) },
+      : `<b>${p.name}</b>${p.name === bottleneck ? ' (longest wait)' : ''}<br>${names[0]} in: ${valueFmt(0)(p.data.cases)}`) },
     series: [{
-      type: 'graph', layout: 'none', roam: true, top: 24, bottom: 24, left: 48, right: 48, edgeSymbol: ['none', 'arrow'], edgeSymbolSize: 8,
-      label: { show: true, position: 'bottom', color: P.ink, fontSize: 11, formatter: (p) => truncate(p.name, 18) },
+      type: 'graph', coordinateSystem: 'cartesian2d', edgeSymbol: ['none', 'arrow'], edgeSymbolSize: 8, symbol: 'roundRect', symbolSize: [104, 32],
+      label: { show: true, position: 'inside', color: P.card, fontSize: 11, formatter: (p) => truncate(p.name, 14) },
       edgeLabel: { show: edges.length <= FLOW_EDGE_LABELS, color: P.muted, fontSize: 10, formatter: (p) => (p.data.hours == null ? '' : valueFmt(1)(p.data.hours)) },
       emphasis: { focus: 'adjacency' },
-      data: nodes.map((n) => ({ name: n.name, x: n.layer * 180, y: n.row * 100, value: n.cases, pick: n.name, symbolSize: 16 + 26 * Math.sqrt(n.cases / busiest),
-        itemStyle: { color: P.series[0] } })),
+      data: nodes.map((n) => ({ name: n.name, value: [n.layer, n.row], cases: n.cases, pick: n.name,
+        itemStyle: { color: n.name === bottleneck ? late : P.series[0] } })),
       links: edges.map((e) => ({ source: e.from, target: e.to, value: e.cases, hours: e.hours, rework: e.rework, pick: e.to,
-        lineStyle: { width: 1 + 7 * (e.cases / most), curveness: e.rework ? 0.4 : 0.05, type: e.rework ? 'dashed' : 'solid',
+        lineStyle: { width: 1 + 7 * (e.cases / most), curveness: e.rework ? 0.4 : Math.abs(layerOf.get(e.to) - layerOf.get(e.from)) > 1 ? 0.3 : 0, type: e.rework ? 'dashed' : 'solid',
           color: e.rework ? P.series[5] : e.hours != null && e.hours >= slow ? late : P.muted, opacity: 0.8 } })),
     }],
   };

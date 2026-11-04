@@ -91,6 +91,7 @@ test('the process map stars the action, expedites a case and accepts a delay onl
   const { page, seen, context } = await open('process_flow', acts);
   const stars = await page.locator('[data-choice-row] .btn--pri').evaluateAll((b) => b.slice(0, 3).map((n) => n.dataset.choice));
   assert.deepEqual(stars, ['expedite', 'reassign', 'accept']);
+  assert.match(await page.locator('[data-choice-row="K1"]').innerText(), /Breach risk\s*90\.0%/);
   await page.locator('[data-choice-row="K1"] [data-choice="expedite"]').click();
   await page.waitForFunction(() => document.querySelector('.toast .toast-t')?.textContent?.startsWith('Expedite'));
   assert.deepEqual(acts[0].values, { action_status: 'In progress', note: 'Expedite' });
@@ -190,6 +191,10 @@ test('the process layout finds rework loops, lays steps out left to right and co
       dashed: links.filter((l) => l.lineStyle.type === 'dashed').map((l) => `${l.source}>${l.target}`),
       late: links.filter((l) => l.lineStyle.color === '#c00').map((l) => `${l.source}>${l.target}`),
       picks: option.series[0].data.map((d) => d.pick),
+      at: option.series[0].data.map((d) => d.value.join(',')),
+      frame: [option.series[0].coordinateSystem, option.xAxis.min, option.xAxis.max, option.yAxis.min < 0, option.yAxis.max > 0],
+      red: option.series[0].data.filter((d) => d.itemStyle.color === '#c00').map((d) => d.name),
+      bent: links.filter((l) => l.lineStyle.curveness > 0).map((l) => `${l.source}>${l.target}`),
       loop: flowLayout([{ x: 'A', s: 'B', y0: 1 }, { x: 'B', s: 'A', y0: 1 }]).edges.filter((e) => e.rework).length,
       empty: flowLayout([{ x: null, s: 'B', y0: 1 }]).nodes.length,
     };
@@ -199,6 +204,10 @@ test('the process layout finds rework loops, lays steps out left to right and co
   assert.deepEqual(got.dashed, ['Review>Assess']);
   assert.deepEqual(got.late, ['Assess>Review']);
   assert.deepEqual(got.picks, STEPS);
+  assert.deepEqual(got.at, ['0,0', '1,0', '2,0', '3,0', '4,0'], 'one row of steps keeps its place instead of stretching to fill the card');
+  assert.deepEqual(got.frame, ['cartesian2d', -0.5, 4.5, true, true]);
+  assert.deepEqual(got.red, ['Review'], 'the step with the longest wait before it is the bottleneck');
+  assert.deepEqual(got.bent, ['Review>Assess', 'Triage>Paid'], 'a rework loop and a move that skips steps curve around the boxes');
   assert.equal(got.loop, 1, 'a two-step loop marks exactly one edge as rework');
   assert.equal(got.empty, 0, 'a move without its from step is left out');
 });
