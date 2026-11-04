@@ -25,21 +25,21 @@ export default function Header({
 
   return (
     <header className="bg-surface/80 backdrop-blur-xl border-b border-border sticky top-0 z-40">
-      <div className="max-w-screen-xl mx-auto px-6">
-        <div className="flex items-center justify-between h-14">
+      <div className="max-w-screen-xl mx-auto px-3 sm:px-6">
+        <div className="flex items-center justify-between gap-2 h-14">
           {/* Brand */}
           <button
             onClick={() => setPage('landing')}
-            className="flex items-center gap-2.5 group"
+            className="flex shrink-0 items-center gap-2.5 group"
           >
             <DatabricksLogo className="w-7 h-7" />
-            <span className="text-text-primary font-bold text-xl tracking-tight">
+            <span className="whitespace-nowrap text-text-primary font-bold text-xl tracking-tight">
               Inspire AI
             </span>
           </button>
 
           {/* Navigation */}
-          <nav className="flex items-center gap-0.5">
+          <nav className="flex min-w-0 items-center gap-0.5 overflow-x-auto">
             {NAV.map((item) => {
               const active = page === item.id;
               const can = enabled[item.id];
@@ -48,8 +48,9 @@ export default function Header({
                   key={item.id}
                   onClick={() => can && setPage(item.id)}
                   disabled={!can}
+                  aria-current={active ? 'page' : undefined}
                   className={`
-                    relative px-4 py-2 text-sm font-medium rounded-md transition-smooth
+                    relative shrink-0 whitespace-nowrap px-2 sm:px-4 py-2 text-sm font-medium rounded-md transition-smooth
                     ${active
                       ? 'text-db-red-fg bg-db-red-50'
                       : can
@@ -64,7 +65,7 @@ export default function Header({
                         {String(item.step).padStart(2, '0')}
                       </span>
                     )}
-                    {item.label}
+                    <span className="sr-only sm:not-sr-only">{item.label}</span>
                   </span>
                   {active && (
                     <span className="absolute bottom-0 left-3 right-3 h-0.5 bg-db-red rounded-full" />
@@ -75,7 +76,7 @@ export default function Header({
           </nav>
 
           {/* Theme toggle */}
-          <div className="flex items-center gap-1">
+          <div className="flex shrink-0 items-center gap-1">
             <button
               onClick={toggle}
               className="p-2 rounded-md text-text-secondary hover:text-db-red-fg hover:bg-db-red-50 transition-smooth"
