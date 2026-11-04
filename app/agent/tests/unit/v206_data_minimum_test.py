@@ -134,6 +134,26 @@ def test_build_measures_an_older_catalog_use_case_that_carries_no_check(agent_ns
     assert status == {} and any("AS outcome_values" in s for s in spark.statements)
 
 
+def test_a_build_whose_check_call_fails_goes_on_to_genie_with_a_warning_and_no_error(agent_ns):
+    build, agent, spark = builder(agent_ns, "Deep", [RuntimeError("endpoint down"), RuntimeError("endpoint down")])
+    status = {}
+    build._implement_data_minimum(KEY, {}, churn(), status)
+    assert status == {} and len(agent.calls) == 2 and logged(build, "error") == []
+    assert any("no further retry, so the build goes on and Genie checks the data minimum" in line for line in logged(build, "warning"))
+    assert any(line.startswith("[DATA-MINIMUM FIRED] N01-U01: not checked before Genie started") for line in logged(build, "info"))
+
+
+def test_a_build_tried_again_measures_the_data_once(agent_ns):
+    build, agent, spark = builder(agent_ns, "Deep", [roles_answer()], outcome_responder(MANY))
+    build._implement_data_minimum(KEY, {}, churn(), {})
+    reads = list(spark.statements)
+    build._implement_data_minimum(KEY, {}, churn(), {})
+    assert len(agent.calls) == 1 and reads and spark.statements == reads
+    with pytest.raises(agent_ns["ImplementBlocked"]):
+        build._implement_data_minimum(KEY, {"config": {"widgets": {"min_positives": "1000"}}}, churn(), {})
+    assert len(agent.calls) == 1 and spark.statements == reads
+
+
 def test_build_never_reads_data_in_standard_and_says_the_check_did_not_run(agent_ns):
     unchecked = churn(data_signal={"status": "not_checked", "check": "outcome", "family": "A",
                                    "reason": "Data not checked: Standard discovery reads no data."})
