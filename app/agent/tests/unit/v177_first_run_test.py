@@ -118,7 +118,7 @@ def test_the_build_reads_the_main_table_s_count_once_and_writes_the_scope_into_t
     inst._genie_first_run(use_case, "E", "Time Series Forecasting", "monthly")
     assert len([s for s in inst.spark.statements if s.startswith("DESCRIBE TABLE")]) == 1, "the count is read once per table"
     template = agent_ns["GENIE_RUN_CONTROLS_TEMPLATE"]
-    assert 'INSPIRE_SCOPE_VALUES = {"run_scope": (INSPIRE_RUN.get("scope") or {}).get("default", INSPIRE_SCOPES[0]) or ""' in template
+    assert 'INSPIRE_SCOPE_VALUES = {"run_scope": inspire_scope_default(INSPIRE_RUN.get("scope")), ' in template
     assert not re.search(r"^(run_scope|scope_groups|scope_days|scope_records) =", template, re.M), \
         "the Run controls bind no generic name Genie Code could also bind"
     assert template.index("inspire_check_settings_read(run") < template.index("inspire_scope_start(") < template.index("outcome = use_case()")
@@ -410,3 +410,24 @@ def test_a_recent_period_through_a_date_table_with_no_key_or_too_many_is_refused
     with pytest.raises(ValueError) as caught:
         agent_ns["inspire_scope_resolve"](FakeSpark(responder=respond), chosen)
     assert said in str(caught.value) and "; choose fewer days, groups or all on the Run page" in str(caught.value)
+
+
+@pytest.mark.parametrize("scope, expected", [
+    ({"table": ORDERS, "records": None}, "records"),
+    ({"table": ORDERS}, "records"),
+    ({"table": ORDERS, "records": None, "default": ""}, "records"),
+    ({"table": ORDERS, "records": 5000}, "records"),
+    ({"table": ORDERS, "records": 400}, "all"),
+    ({"table": ORDERS, "records": None, "default": "groups"}, "groups"),
+    (None, "all"),
+], ids=["unknown", "no_count", "blank_default", "large", "small", "recorded", "no_main_table"])
+def test_the_run_controls_widget_starts_from_the_first_run_rule_and_never_from_everything_on_an_unknown_count(agent_ns, scope, expected):
+    template = agent_ns["GENIE_RUN_CONTROLS_TEMPLATE"]
+    line = next(l for l in template.splitlines() if l.startswith("INSPIRE_SCOPE_VALUES = "))
+    start = template.index(line)
+    code = template[start:template.index("\n\n", start)]
+    ns = dict(agent_ns, INSPIRE_RUN={} if scope is None else {"scope": scope})
+    exec(code, ns)
+    assert ns["INSPIRE_SCOPE_VALUES"]["run_scope"] == expected
+    if scope and scope.get("records") is None and not scope.get("default"):
+        assert ns["INSPIRE_SCOPE_VALUES"]["run_scope"] != "all", "an unknown count never starts the widget on everything (must-exclude)"
