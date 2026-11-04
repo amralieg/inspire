@@ -116,7 +116,7 @@ test('opening a use case page never asks for the overview of every use case, and
   await hub.page.locator('.kpi-v').first().waitFor();
   await hub.page.waitForTimeout(500);
   assert.deepEqual(overviews(hub.seen), [], 'a page opened from a link never reads every use case');
-  await hub.page.locator('.side .nav-i').first().click();
+  await hub.page.locator('.side .nav-i', { hasText: 'Overview' }).click();
   await hub.page.waitForFunction(() => document.querySelector('.side .nav-i.is-on .nav-t b')?.textContent === 'Overview');
   await hub.page.waitForTimeout(300);
   assert.equal(overviews(hub.seen).length, 1, 'the Overview reads every use case once someone opens it');

@@ -84,7 +84,7 @@ export default function ViewsMenu({ pageId, current, ready, onApply }) {
   };
   return (
     <>
-      <button ref={button} className="btn" onClick={toggle} aria-haspopup="dialog" aria-expanded={open} aria-label="Views"><Icon name="bookmark" size={14} /><span>Views</span></button>
+      <button ref={button} className="btn top-ic" onClick={toggle} aria-haspopup="dialog" aria-expanded={open} aria-label="Views"><Icon name="bookmark" size={14} /><span>Views</span></button>
       {open && (
         <Popover anchor={button.current} onClose={() => setOpen(false)} label="Saved views" width={290}>
           <div className="vmenu">

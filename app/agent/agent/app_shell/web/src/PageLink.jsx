@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { LINK_STALE, UNKNOWN_PAGE, VIEW_STALE, buildHash, compactState, describeFilters, parseHash, readLink, readSaved } from './links.js';
-import { Icon } from './icons.jsx';
+import { LINK_STALE, UNKNOWN_PAGE, VIEW_STALE, buildHash, compactState, parseHash, readLink, readSaved } from './links.js';
 import { useDialog, useToast } from './ui.jsx';
 import ViewsMenu from './Views.jsx';
 
@@ -11,7 +10,7 @@ export function useUnknownPageNotice(route, pages, known = ['home']) {
   }, [route, pages, toast]);
 }
 
-function useAddress({ page, meta, state, onState, view, onView, views }) {
+export function usePageAddress({ page, meta, state, onState, view, onView, views }) {
   const toast = useToast();
   const ready = !!meta && !!state && !meta.error;
   const taken = useRef(false);
@@ -90,17 +89,7 @@ export function useCopyLink(label, said = 'Link copied') {
   return { copy, dialog: shared ? <LinkDialog url={shared} label={label} onClose={() => setShared('')} /> : null };
 }
 
-export default function PageLink({ page, meta, state, onState, view, onView, views }) {
-  const link = useCopyLink('Link to this view');
-  const { ready, applySaved } = useAddress({ page, meta, state, onState, view, onView, views });
-  const current = { view, filters: ready ? compactState(state, meta.filters, meta.columns) : {} };
-  return (
-    <div className="ptools">
-      <button className="btn" onClick={() => link.copy(window.location.href)} aria-label="Copy link"><Icon name="link" size={14} /><span>Copy link</span></button>
-      <ViewsMenu pageId={page.id} current={current} ready={ready} onApply={applySaved} />
-      <button className="btn" onClick={() => window.print()} aria-label="Print"><Icon name="printer" size={14} /><span>Print</span></button>
-      <p className="print-only print-filters">Filters: {describeFilters(state, meta?.filters, meta?.columns)}</p>
-      {link.dialog}
-    </div>
-  );
+export default function PageLink({ meta, state, view, pageId, address }) {
+  const current = { view, filters: address.ready ? compactState(state, meta.filters, meta.columns) : {} };
+  return <ViewsMenu pageId={pageId} current={current} ready={address.ready} onApply={address.applySaved} />;
 }

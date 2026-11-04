@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { BarsCard } from './ChartCard.jsx';
 import { RunningNow } from './Freshness.jsx';
+import { TopTools } from './TopBar.jsx';
 import { Tiles } from './Kpis.jsx';
 import FilterBar from './FilterBar.jsx';
 import DataTable, { RowAsk } from './DataTable.jsx';
@@ -22,13 +23,22 @@ import {
 
 export const REVIEW_LABEL = 'Open in Inspire Review';
 
+const reviewable = (page) => !!(page.review && page.use_case_id);
+
+export function reviewItem(page, app) {
+  if (!reviewable(page)) return null;
+  const inside = app.inside === true;
+  return { label: REVIEW_LABEL, icon: <Icon name="external" size={14} />, run: () => window.open(page.review, inside ? '_top' : '_blank', inside ? undefined : 'noopener,noreferrer') };
+}
+
 export function ReviewLink({ page, app }) {
-  if (!page.review || !page.use_case_id) return null;
+  if (!reviewable(page)) return null;
   const inside = app.inside === true;
   return (
-    <a className="btn review" href={page.review} target={inside ? '_top' : '_blank'} rel={inside ? undefined : 'noopener noreferrer'} data-review={page.id}
+    <a className="btn review top-ic" data-more="tight" href={page.review} target={inside ? '_top' : '_blank'} rel={inside ? undefined : 'noopener noreferrer'} data-review={page.id}
+      aria-label={REVIEW_LABEL}
       title={`Opens ${page.use_case_id} on Inspire's Review page${inside ? '' : ' in a new tab'}`}>
-      <Icon name="external" size={15} />{REVIEW_LABEL}
+      <Icon name="external" size={15} /><span>{REVIEW_LABEL}</span>
     </a>
   );
 }
@@ -231,9 +241,11 @@ export default function Home({ app, hub, hubError, summaries, view, onView, onOp
   const quiet = loading ? [] : quietUseCases(pages, hub, summaries);
   const body = (
     <div className="page hub">
+      <TopTools more={[{ label: 'Settings', icon: <Icon name="sliders" size={14} />, run: () => setSettingsOpen((o) => !o), more: 'narrow' }]}>
+        <SettingsButton open={settingsOpen} onOpen={setSettingsOpen} owned={false} />
+      </TopTools>
       <div className="pg-h">
         <div><h1>Overview</h1><p>Everything across your use cases, yours first, then the biggest saving.</p></div>
-        <div className="hdr-act"><SettingsButton open={settingsOpen} onOpen={setSettingsOpen} owned={false} /></div>
       </div>
       {settingsOpen && <SettingsPanel pageId={null} data={null} onClose={() => setSettingsOpen(false)} />}
       <RunningNow pages={app.pages} hub={hub} onSeeChanged={onChanges} />

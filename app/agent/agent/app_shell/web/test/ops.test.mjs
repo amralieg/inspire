@@ -42,8 +42,9 @@ function jobRoutes(first, onRefresh) {
 }
 
 const open = (routes, options = {}, info = appInfo()) => openApp(browser, served.base, info, { clock: NOW, ...options, routes });
-const banner = (page) => page.locator('.ph .fresh');
-const throughs = async (page) => ((await page.locator('.ph').innerText()).match(/data through/gi) || []).length;
+const banner = (page) => page.locator('.top .fresh');
+const detail = (page) => page.locator('.ph .fresh-d');
+const throughs = async (page) => (`${await page.locator('.top').innerText()} ${await page.locator('.ph').innerText()}`.match(/data through/gi) || []).length;
 
 test('the header says when the use case was last updated, from the newest successful run', () => {
   assert.equal(bannerText(IDLE, NOW), 'Updated Oct 27, 07:30 AM UTC · data through Oct 26, 2026');
@@ -172,8 +173,8 @@ test('an overdue use case says Overdue in amber next to when it was updated', as
   const { page, seen, context } = await open(routes);
   await banner(page).waitFor();
   assert.equal(await banner(page).evaluate((el) => el.classList.contains('fresh--late')), true);
-  assert.equal(await page.locator('.fresh-flag').innerText(), 'Overdue');
-  const colors = await page.locator('.fresh-flag').evaluate((el) => {
+  assert.equal(await page.locator('.top .fresh-flag').innerText(), 'Overdue');
+  const colors = await page.locator('.top .fresh-flag').evaluate((el) => {
     const probe = document.createElement('span');
     probe.style.background = 'var(--amber-bg)';
     el.appendChild(probe);
@@ -252,11 +253,11 @@ test('Refresh now starts the job, says it is refreshing all the data, then reloa
   });
   const { page, seen, context } = await open(routes);
   await page.getByRole('button', { name: 'Refresh now' }).click();
-  await page.locator('.fresh-busy small').waitFor();
+  await page.locator('.ph .fresh-d [data-progress]').waitFor();
   assert.deepEqual(state.posts, [{ page: 'n01_u05' }]);
   assert.equal(await page.locator('.fresh-busy b').innerText(), 'Waiting for the refresh to start');
   assert.equal(await page.locator('.fresh-busy').getAttribute('data-tone'), 'progress');
-  assert.equal(await page.locator('.fresh-busy small').innerText(), 'waiting in the queue for under a minute');
+  assert.equal(await page.locator('.ph .fresh-d [data-progress]').innerText(), 'waiting in the queue for under a minute');
   assert.equal(await page.locator('.fresh-t').count(), 0, 'while it runs the header says it is refreshing, not when it last updated');
   const button = page.getByRole('button', { name: 'Refresh now' });
   assert.equal(await button.isDisabled(), true, 'Refresh now stays in place, off, while the refresh runs');
@@ -266,7 +267,7 @@ test('Refresh now starts the job, says it is refreshing all the data, then reloa
   const polls = state.polls;
   await page.clock.fastForward(10000);
   await until(() => state.polls > polls);
-  await page.waitForFunction(() => /^running for 3 min, usually about 5 min$/.test(document.querySelector('.fresh-busy small')?.textContent || ''));
+  await page.waitForFunction(() => /^running for 3 min, usually about 5 min$/.test(document.querySelector('.fresh-d [data-progress]')?.textContent || ''));
   assert.equal(await page.locator('.fresh-busy b').innerText(), 'Refreshing all the data');
   const loads = seen.pages.length;
   const done = { ...queued, trigger: 'manual', started: '2026-10-27T09:27:00Z', ended: '2026-10-27T09:30:05Z', result: 'succeeded', state: 'terminated', message: '' };
@@ -324,11 +325,11 @@ test('the header names how the latest run ended for every end the server sends, 
     await page.reload();
     await banner(page).locator('.fresh-t').waitFor();
     if (!text) {
-      assert.equal(await banner(page).locator('.fresh-note').count(), 0, 'a run that succeeded is the update itself');
+      assert.equal(await detail(page).locator('.fresh-note').count(), 0, 'a run that succeeded is the update itself');
       assert.equal(await banner(page).locator('.fresh-t').innerText(), tone);
       continue;
     }
-    const note = banner(page).locator('.fresh-note');
+    const note = detail(page).locator('.fresh-note');
     assert.equal(await note.innerText(), text, run.result);
     assert.equal(await note.getAttribute('data-tone'), tone, `${run.result} reads as ${tone}`);
     const ink = await note.evaluate(paints);
@@ -389,27 +390,28 @@ test('while a run is on, the header says what is true: progress in green, a quie
     state.fresh = { ...IDLE, active, can_refresh: false, reason: 'busy' };
     await page.reload();
     const busy = banner(page).locator('.fresh-busy');
-    await busy.locator('[data-progress]').waitFor();
+    const more = detail(page);
+    await more.locator('[data-progress]').waitFor();
     assert.deepEqual([await busy.getAttribute('data-run-state'), await busy.locator('b').innerText(), await busy.getAttribute('data-tone')], [key, heading, tone]);
     const ink = await busy.locator('b').evaluate(paints);
     assert.equal(ink.color, tone === 'warn' ? ink.amber : ink.green, `${key}: the heading tone`);
     assert.notEqual(ink.color, ink.danger, `${key} is never red`);
-    const fact = busy.locator('.fresh-asof');
+    const fact = more.locator('.fresh-asof');
     assert.equal(await fact.innerText(), 'Until it finishes you see the data of the update on Oct 27, 07:30 AM UTC');
     const plain = await fact.evaluate(paints);
     assert.equal(plain.color, plain.muted, `${key}: the data you see is a plain fact`);
-    const acts = busy.locator('.fresh-go');
+    const acts = more.locator('.fresh-go');
     if (!action) {
       assert.equal(await acts.count(), 0, `${key} has no action of its own`);
       continue;
     }
     const [role, name, href] = action;
     assert.equal(await acts.count(), 1, `${key} has one action`);
-    assert.equal(await busy.getByRole(role, { name }).count(), 1, `${key}: ${name}`);
+    assert.equal(await more.getByRole(role, { name }).count(), 1, `${key}: ${name}`);
     if (href) assert.equal(await acts.getAttribute('href'), href);
   }
   const polls = state.polls;
-  await banner(page).getByRole('button', { name: 'Check again' }).click();
+  await detail(page).getByRole('button', { name: 'Check again' }).click();
   await until(() => state.polls > polls);
   assert.deepEqual(seen.errors, []);
   await context.close();
@@ -426,9 +428,9 @@ test('a click that loses the race to another refresh shows who started it', asyn
   await page.getByRole('button', { name: 'Refresh now' }).click();
   await page.locator('.toast.is-on').waitFor();
   assert.equal(await page.locator('.toast').innerText(), message);
-  await page.locator('.fresh-busy small').waitFor();
+  await page.locator('.ph .fresh-d [data-progress]').waitFor();
   assert.equal(await page.locator('.fresh-busy').getAttribute('title'), `Started by ${DANA}`);
-  assert.equal(await page.locator('.fresh-busy small').innerText(), 'running for 16 min');
+  assert.equal(await page.locator('.ph .fresh-d [data-progress]').innerText(), 'running for 16 min');
   assert.equal(state.posts.length, 1);
   assert.deepEqual(real(seen.errors), []);
   await context.close();
@@ -450,13 +452,13 @@ test('on a phone the banner, the reason and the button wrap without sideways scr
     { ...IDLE, last_run: { run_id: '7', result: 'failed', started: '2026-10-27T09:00:00Z', message: 'x'.repeat(30) + ' SPARK_JOB_CANCELLED '.repeat(6), url: `${JOB_URL}/runs/7` } }]) {
     const { routes } = jobRoutes(fresh, () => {});
     const { page, seen, context } = await open(routes, { width: 375, height: 800 });
-    await banner(page).waitFor();
+    await detail(page).waitFor();
     const fit = await page.evaluate(fits);
     assert.equal(fit.scroll, 0, JSON.stringify(fresh));
     assert.deepEqual(fit.out, []);
     assert.ok(fit.iconBeside, 'the icon stays on the first line of the banner text');
     if (fresh.overdue || fresh.last_run?.result === 'failed') {
-      await page.addStyleTag({ content: '.fresh-t,.fresh-note{display:block}.fresh-t>svg,.fresh-note>svg{display:block}' });
+      await page.addStyleTag({ content: '.fresh-pt,.fresh-note{display:block!important}.fresh-pt>svg,.fresh-note>svg{display:block}' });
       await page.waitForTimeout(100);
       assert.equal((await page.evaluate(fits)).iconBeside, false, 'the check catches an icon alone on its line');
     }
@@ -471,7 +473,7 @@ test('on a phone the banner, the reason and the button wrap without sideways scr
 });
 
 function fits() {
-  const out = [...document.querySelectorAll('.fresh, .fresh *')].filter((el) => {
+  const out = [...document.querySelectorAll('.fresh, .fresh *, .fresh-d, .fresh-d *')].filter((el) => {
     const r = el.getBoundingClientRect();
     const spills = el instanceof HTMLElement && el.scrollWidth > el.clientWidth + 1 && getComputedStyle(el).display !== 'inline';
     return r.width > 0 && (r.right > window.innerWidth + 1 || r.left < -1 || spills);
@@ -485,7 +487,7 @@ function fits() {
     const first = [...range.getClientRects()].filter((r) => r.width > 0).sort((a, b) => a.top - b.top)[0];
     return !!first && Math.abs(icon.top - first.top) <= 6 && icon.right <= first.left + 1;
   };
-  const iconBeside = [...document.querySelectorAll('.fresh-t, .fresh-note')].every(beside);
+  const iconBeside = [...document.querySelectorAll('.fresh-t, .fresh-pt, .fresh-note')].filter((el) => el.getClientRects().length > 0).every(beside);
   return { scroll: document.documentElement.scrollWidth - window.innerWidth, out, iconBeside };
 }
 
@@ -506,7 +508,7 @@ async function openRuns(data, info = appInfo({}, 1, TABLE), options = {}) {
   const asked = { offsets: [] };
   const routes = { runs: ({ json, url }) => { asked.offsets.push(url.searchParams.get('offset')); return json(200, typeof data === 'function' ? data(url) : data); }, ...options.routes };
   const opened = await openApp(browser, served.base, info, { ...options, routes });
-  await opened.page.getByRole('tab', { name: 'Runs' }).click();
+  await opened.page.locator('.top-runs').click();
   await opened.page.locator('.runs .runs-tbl').waitFor();
   return { ...opened, asked };
 }
@@ -517,8 +519,8 @@ const mainRows = (page) => page.locator('.runs-tbl > tbody > tr:not(.runs-d)');
 test('the Runs tab lists each run: when, how it ended, who started it, what it covered and what it found', async () => {
   const { page, seen, context, asked } = await openRuns(history());
   assert.deepEqual(asked.offsets, ['0'], 'the page reads the runs once, and the tab reuses them');
-  assert.deepEqual(await texts(page.locator('.view > span')), ['Things to fix', 'Runs']);
-  assert.deepEqual(await texts(page.locator('.view small')), ['5', '3'], 'the latest finished run had 5 things to fix, and there are 3 runs');
+  assert.equal(await page.locator('[role="tab"]').count(), 0);
+  assert.deepEqual(await texts(page.locator('.top-runs small')), ['3'], 'there are 3 runs');
   assert.equal(await page.locator('.runs .card-h p').innerText(), 'Newest first. Click a run to see the tables it used. Refresh now updates all the data.');
   assert.deepEqual(await texts(page.locator('.runs-tbl > thead th')), ['Details', 'When', 'Status', 'Started by', 'What it covered', 'Records', 'To fix', 'Could save']);
   assert.equal(await mainRows(page).count(), 3);
@@ -609,7 +611,7 @@ test('the To fix per run chart shows a placeholder while the runs load, says whe
   let release;
   const held = new Promise((resolve) => { release = resolve; });
   const slow = await openApp(browser, served.base, appInfo({}, 1, TABLE), { clock: NOW, routes: { runs: async ({ json }) => { await held; return json(200, history()); } } });
-  await slow.page.getByRole('tab', { name: 'Runs' }).click();
+  await slow.page.locator('.top-runs').click();
   await slow.page.locator(`${TO_FIX} .chart-skel`).waitFor();
   assert.equal(await slow.page.locator(`${TO_FIX} .explain-btn`).count(), 0, 'nothing to explain while it loads');
   release();
@@ -728,7 +730,7 @@ test('the Runs tab pages twenty runs at a time, newest first', async () => {
   await newer.click();
   await page.waitForFunction(() => document.querySelector('.runs .pager-n')?.textContent === 'Runs 21 to 40 of 45');
   assert.deepEqual(asked.offsets, ['0', '20', '40', '20']);
-  assert.deepEqual(await texts(page.locator('.view small')), ['45'], 'the tab keeps the count from the newest runs while you page');
+  assert.deepEqual(await texts(page.locator('.top-runs small')), ['45'], 'the Runs button keeps the count from the newest runs while you page');
   assert.deepEqual(seen.errors, []);
   await context.close();
 });
@@ -748,11 +750,11 @@ test('the Runs tab says what could not load and still lists what it has', async 
 test('before the first run the Runs tab says so, and a page with no job and no results table says why it has no runs', async () => {
   let opened = await openRuns(history({ runs: [], total: 0 }));
   assert.equal(await opened.page.locator('.runs .more').innerText(), 'The job has not run yet.');
-  assert.deepEqual(await texts(opened.page.locator('.view small')), ['0']);
+  assert.deepEqual(await texts(opened.page.locator('.top-runs small')), ['0']);
   assert.deepEqual(opened.seen.errors, []);
   await opened.context.close();
   opened = await openRuns(history({ runs: [], total: 0, job: null }), appInfo());
-  assert.deepEqual(await texts(opened.page.locator('.view > span')), ['Things to fix', 'Runs']);
+  assert.equal(await opened.page.locator('.top-runs').getAttribute('aria-pressed'), 'true');
   assert.equal(await opened.page.locator('.runs .more').innerText(), 'This use case has no job and keeps no results table, so it has no runs to show.');
   assert.deepEqual(opened.seen.errors, []);
   await opened.context.close();
@@ -769,12 +771,12 @@ test('Refresh now shows the new run in the Runs tab when it starts and again whe
   assert.deepEqual(asked.offsets, ['0']);
   live.runs = [run({ job_run_id: '9000', status: 'queued', trigger: 'refresh', by: ME, started: queued.started }), SCHEDULED];
   await page.getByRole('button', { name: 'Refresh now' }).click();
-  await page.locator('.fresh-busy small').waitFor();
-  assert.equal(await page.locator('.fresh-busy small').innerText(), 'waiting in the queue for under a minute, usually about 4 min');
+  await page.locator('.ph .fresh-d [data-progress]').waitFor();
+  assert.equal(await page.locator('.ph .fresh-d [data-progress]').innerText(), 'waiting in the queue for under a minute, usually about 4 min');
   await until(() => asked.offsets.length === 2);
   await page.waitForFunction(() => document.querySelectorAll('.runs-tbl > tbody > tr').length === 2);
   assert.match(await mainRows(page).first().innerText(), /waiting for under a minute\s+Waiting to start\s+Refresh now/);
-  assert.deepEqual(await texts(page.locator('.view small')), ['5', '2']);
+  assert.deepEqual(await texts(page.locator('.top-runs small')), ['2']);
   const loads = seen.pages.length;
   const ended = { ...queued, state: 'terminated', result: 'failed', message: 'Cluster did not start', ended: '2026-10-27T09:31:00Z' };
   live.runs = [run({ job_run_id: '9000', status: 'failed', trigger: 'refresh', by: ME, started: queued.started, duration_s: 60, error: ended.message, error_code: 'no_compute' }), SCHEDULED];
@@ -791,14 +793,14 @@ test('Refresh now shows the new run in the Runs tab when it starts and again whe
   await context.close();
 });
 
-test('the tab is part of the link: a link opens the Runs tab and Things to fix clears it', async () => {
+test('the view is part of the link: a link opens the Runs and Back to things to fix clears it', async () => {
   const { page, seen, context } = await openRuns(history());
   await page.waitForFunction(() => location.hash === '#/n01_u05?v=runs');
-  await page.getByRole('tab', { name: 'Things to fix' }).click();
+  await page.getByRole('button', { name: 'Back to things to fix' }).click();
   await page.waitForFunction(() => location.hash === '#/n01_u05');
   await page.locator('.kpi-v').first().waitFor();
   await page.evaluate(() => { location.hash = '#/n01_u05?v=runs'; });
-  await page.waitForFunction(() => document.querySelector('[role="tab"][aria-selected="true"]')?.dataset.view === 'runs');
+  await page.waitForFunction(() => document.querySelector('.top-runs')?.getAttribute('aria-pressed') === 'true');
   await page.locator('.runs .runs-tbl').waitFor();
   assert.deepEqual(seen.errors, []);
   await context.close();
@@ -807,7 +809,7 @@ test('the tab is part of the link: a link opens the Runs tab and Things to fix c
   await plain.page.evaluate(() => { location.hash = '#/n01_u05?v=trend'; });
   await plain.page.locator('.toast.is-on').waitFor();
   assert.equal(await plain.page.locator('.toast').innerText(), 'Some filters in this link no longer apply');
-  await plain.page.waitForFunction(() => document.querySelector('[role="tab"][aria-selected="true"]')?.dataset.view === 'overview');
+  await plain.page.waitForFunction(() => document.querySelector('.top-runs')?.getAttribute('aria-pressed') === 'false');
   assert.deepEqual(plain.seen.errors, []);
   await plain.context.close();
 });
@@ -820,7 +822,7 @@ test('on a phone the Runs tab scrolls its own table, never the page', async () =
     wrap: document.querySelector('.runs .tbl-wrap').scrollWidth > document.querySelector('.runs .tbl-wrap').clientWidth }));
   assert.equal(fit.scroll, 0);
   assert.equal(fit.wrap, true, 'the wide table scrolls inside its card');
-  const views = await page.locator('.views').boundingBox();
+  const views = await page.locator('.top-runs').boundingBox();
   assert.ok(views.x >= 0 && views.x + views.width <= 376);
   assert.deepEqual(seen.errors, []);
   await context.close();

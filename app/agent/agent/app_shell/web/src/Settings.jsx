@@ -99,9 +99,9 @@ function Editor({ pageId, setting, onSaved, onCancel }) {
 
 export function SettingsButton({ open, onOpen, owned }) {
   return (
-    <button className={`btn ${open ? 'is-on' : ''}`} onClick={() => onOpen((o) => !o)} aria-expanded={open} data-settings-open
+    <button className={`btn top-ic ${open ? 'is-on' : ''}`} data-more="narrow" onClick={() => onOpen((o) => !o)} aria-expanded={open} data-settings-open aria-label="Settings"
       title={owned ? 'Change how this use case works out its impact and flags its records, and what the lists show you' : 'Choose what the lists show you'}>
-      <Icon name="sliders" size={15} />Settings
+      <Icon name="sliders" size={15} /><span>Settings</span>
     </button>
   );
 }

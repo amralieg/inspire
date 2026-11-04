@@ -14,7 +14,8 @@ import { ADMIN_ROUTE } from './admin.js';
 import GeniePanel, { useGenie } from './Genie.jsx';
 import { buildHash, parseHash } from './links.js';
 import { useUnknownPageNotice } from './PageLink.jsx';
-import PaletteButton from './Palette.jsx';
+import PaletteButton, { paletteItems } from './Palette.jsx';
+import { TopMore, TopProvider, useTopFit } from './TopBar.jsx';
 import { MyViewProvider, useMyView } from './MyView.jsx';
 import { windowParams } from './prefs.js';
 import { DEFAULT_VIEW, hubTimes, useCaseState, visiblePages } from './hub.js';
@@ -97,6 +98,9 @@ function Shell({ app }) {
   const [genieOpen, setGenieOpen] = useState(false);
   const [view, setView] = useState(DEFAULT_VIEW);
   const { prefs } = useMyView();
+  const [topRef, fit] = useTopFit();
+  const [slot, setSlot] = useState(null);
+  const pageMore = useRef([]);
   const pages = app.pages;
   const single = pages.length === 1;
   const routed = pages.find((p) => p.id === route);
@@ -168,52 +172,57 @@ function Shell({ app }) {
   const impactItem = <NavItem on={screen === 'impact'} icon="trend" title="Impact" small={single ? 'What the use case delivered' : 'What the use cases delivered'} hue="green" onClick={() => go('impact')} />;
   const workTab = <button className={`tab ${screen === 'mywork' ? 'is-on' : ''}`} onClick={() => go(MY_WORK_ROUTE)} aria-current={screen === 'mywork' ? 'page' : undefined}><Icon name="check" size={14} />My work</button>;
   const workItem = <NavItem on={screen === 'mywork'} icon="check" title="My work" small="What you did, and when" hue="teal" onClick={() => go(MY_WORK_ROUTE)} />;
+  const crumb = page ? [[page.domain, page.subdomain].filter(Boolean).join(' › '), page.use_case_id].filter(Boolean).join(' · ') : '';
+  const darkNext = theme === 'dark' ? 'light' : 'dark';
+  const moreItems = [
+    { label: 'Change the colors', icon: <Icon name="palette" size={14} />, sub: () => ({ label: 'Colors', items: paletteItems(palette, app.palette, theme, choosePalette) }) },
+    { label: `Switch to ${darkNext} theme`, icon: <Icon name={theme === 'dark' ? 'sun' : 'moon'} size={14} />, run: toggleTheme },
+    ...(app.is_owner === true ? [{ label: 'Admin', icon: <Icon name="lock" size={14} />, run: () => go(ADMIN_ROUTE) }] : []),
+  ];
 
   return (
     <div className="stage">
       <div className="app" data-layout={app.layout} data-density={prefs.density}>
-        <header className="top">
+        <header className="top" ref={topRef} data-fit={fit}>
           <button className="ibtn menu-btn" onClick={() => setNavOpen(!navOpen)} aria-label="Open the use case list" aria-expanded={navOpen}><Icon name="menu" size={18} /></button>
-          <button className="mark" onClick={() => go(single ? pages[0].id : 'overview')} aria-label={`${app.title}, home`}>
+          <button className="mark" onClick={() => go(single ? pages[0].id : 'overview')} aria-label={`${app.title}, home`} title={crumb ? `${app.title}\n${crumb}` : app.title}>
             <span className="mark-tile logo"><img src={logo} alt="Databricks" width="22" height="22" /></span>
-            <span className="mark-t"><b>{app.title}</b><small>{times || app.subtitle || `${pages.length} use case${single ? '' : 's'} · built by Inspire`}</small></span>
+            <span className="mark-t"><b>{app.title}</b><small>{crumb || times || app.subtitle || `${pages.length} use case${single ? '' : 's'} · built by Inspire`}</small></span>
           </button>
           {app.layout === 'tabs' && (
             <nav className="tabs" aria-label="Use cases">
+              {workTab}
+              {impactOn && impactTab}
               {!single && <button className={`tab ${screen === 'overview' ? 'is-on' : ''}`} onClick={() => go('overview')} aria-current={screen === 'overview' ? 'page' : undefined}><Icon name="home" size={14} />Overview</button>}
-              {!single && workTab}
-              {!single && impactOn && impactTab}
               {shown.map((p) => <button key={p.id} className={`tab ${page?.id === p.id ? 'is-on' : ''}`} onClick={() => go(p.id)} aria-current={page?.id === p.id ? 'page' : undefined}><Icon name={p.icon} size={14} />{p.title}</button>)}
-              {single && workTab}
-              {single && impactOn && impactTab}
             </nav>
           )}
           <span className="sp" />
+          <div className="top-page" ref={setSlot} />
           {app.auth === 'user'
-            ? <span className="auth" title="Each person sees only the rows and columns their Unity Catalog grants allow. The App queries as you."><Icon name="lock" size={13} />Your view</span>
-            : <span className="auth" title="Everyone sees the same data. The App reads it with its own service principal."><Icon name="users" size={13} />Shared view</span>}
+            ? <span className="auth top-ic" title="Each person sees only the rows and columns their Unity Catalog grants allow. The App queries as you."><Icon name="lock" size={13} /><span>Your view</span></span>
+            : <span className="auth top-ic" title="Everyone sees the same data. The App reads it with its own service principal."><Icon name="users" size={13} /><span>Shared view</span></span>}
           <button className="genie-btn" onClick={() => setGenieOpen(!genieOpen)} aria-expanded={genieOpen} aria-label="Ask Genie"><GenieMark size={15} /><span>Ask Genie</span></button>
           <PaletteButton palette={palette} built={app.palette} theme={theme} onChoose={choosePalette} />
-          <button className="ibtn" onClick={toggleTheme} aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`}><Icon name={theme === 'dark' ? 'sun' : 'moon'} size={17} /></button>
+          <button className="ibtn" data-more="tight" onClick={toggleTheme} aria-label={`Switch to ${darkNext} theme`}><Icon name={theme === 'dark' ? 'sun' : 'moon'} size={17} /></button>
           {app.is_owner === true && <AdminLink on={screen === 'admin'} />}
+          <TopMore fit={fit} items={moreItems} pageMore={pageMore} />
           {(app.user.email || app.user.name) && <span className="avatar" title={app.user.email || app.user.name} aria-hidden="true">{initials(app.user)}</span>}
         </header>
         <div className="body">
           <nav className={`side ${navOpen ? 'is-open' : ''}`} aria-label="Use cases">
-            {!single && <NavItem on={screen === 'overview'} icon="home" title="Overview" small="All use cases" hue="slate" onClick={() => go('overview')} />}
-            {!single && workItem}
-            {!single && impactOn && impactItem}
-            {!single && <div className="side-sep" />}
+            {workItem}
+            {impactOn && impactItem}
+            <div className="side-sep" />
             <div className="side-h">{single ? 'Use case' : 'Use cases'}</div>
+            {!single && <NavItem on={screen === 'overview'} icon="home" title="Overview" small="All use cases" hue="slate" onClick={() => go('overview')} />}
             {shown.map((p) => (
               <NavItem key={p.id} on={page?.id === p.id} icon={p.icon} title={p.title} hue={p.hue || 'blue'} onClick={() => go(p.id)}
                 small={state(p).text || [p.use_case_id, p.domain].filter(Boolean).join(' · ')} tone={TONES[state(p).kind]} />
             ))}
-            {single && <div className="side-sep" />}
-            {single && workItem}
-            {single && impactOn && impactItem}
           </nav>
           {navOpen && <div className="scrim" onClick={() => setNavOpen(false)} />}
+          <TopProvider slot={slot} fit={fit} pageMore={pageMore}>
           <main className="main" tabIndex={-1}>
             {screen === 'overview' && <Home app={app} hub={hub} hubError={hubError} summaries={summaries} view={view} onView={setView} onOpen={go} onRecord={openRecord}
               onChanges={(id) => { window.location.hash = `#/${encodeURIComponent(id)}?changed=1`; leave(); }} onMyWork={() => go(MY_WORK_ROUTE)} />}
@@ -225,6 +234,7 @@ function Shell({ app }) {
                 onAsk={ask} onExplain={explain} genieBusy={genie.busy} hubEntry={hub?.pages?.[page.id]} summary={summaries[page.id]} view={view} onView={setView} />
             )}
           </main>
+          </TopProvider>
           {genieOpen && <GeniePanel app={app} genie={genie} page={page} pages={shown} onPick={go} onClose={() => setGenieOpen(false)} />}
         </div>
       </div>

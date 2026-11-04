@@ -290,8 +290,8 @@ test('a prediction that is not ready says Nothing to act on yet with the run rea
   assert.equal(await page.locator('.uc-status.is-wait').innerText(),
     'Not ready yet\nNothing to act on yet, because no model passed this use case\'s acceptance check in the last run, so no record is actionable yet. It is checked again on Oct 27.');
   await page.goto(`${served.base}#/n02_u01`);
-  await page.waitForSelector('.uc-status[data-nothing]');
-  assert.equal(await page.locator('.uc-status[data-nothing]').innerText(),
+  await page.waitForSelector('[data-nothing-fix] [data-nothing]');
+  assert.equal(await page.locator('[data-nothing-fix] [data-nothing]').innerText(),
     'Nothing to act on yet, because no record reached Act now in the last update, and 1 record is worth a look');
   assert.deepEqual(app.errors, []);
   await context.close();

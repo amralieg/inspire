@@ -191,6 +191,16 @@ export function errorText(run) {
   return { lead: Object.hasOwn(RUN_ERRORS, code) ? RUN_ERRORS[code] : 'The run stopped with an error', detail };
 }
 
+export const STOPPED = ['failed', 'canceled', 'skipped'];
+
+export function latestRunText(run, now = Date.now()) {
+  if (!run) return 'No run is recorded yet.';
+  const when = stampText(run.started, now);
+  const head = `Latest run${when ? `, ${when}` : ''}: ${runFlag(run.status).text}.`;
+  const body = STOPPED.includes(run.status) ? `${errorText(run).lead}.` : run.status === 'done' ? foundText(run) : '';
+  return [head, body].filter(Boolean).join(' ');
+}
+
 export const runKey = (run) => run.run_id || `job-${run.job_run_id}`;
 
 export function runBars(runs, now = Date.now()) {

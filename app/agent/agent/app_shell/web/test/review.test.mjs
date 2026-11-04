@@ -40,8 +40,8 @@ for (const layout of ['sidebar', 'home']) {
     const { page, seen, context } = await openApp(browser, served.base, info, { routes, ready: '.kpi-v, .hcard, .pg-h h1' });
     for (const p of info.pages) {
       await page.goto(`${served.base}#/${p.id}`);
-      await page.waitForFunction((id) => document.querySelector(`.ph [data-review="${id}"]`), p.id);
-      assert.deepEqual(await links(page.locator('.ph')), [{ page: p.id, href: p.review, target: '_blank', rel: 'noopener noreferrer', text: LABEL }]);
+      await page.waitForFunction((id) => document.querySelector(`.top [data-review="${id}"]`), p.id);
+      assert.deepEqual(await links(page.locator('.top')), [{ page: p.id, href: p.review, target: '_blank', rel: 'noopener noreferrer', text: LABEL }]);
     }
     await page.goto(`${served.base}#/impact`);
     await page.waitForFunction(() => document.querySelectorAll('.imp [data-review]').length === 3);

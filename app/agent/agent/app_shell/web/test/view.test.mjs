@@ -21,6 +21,9 @@ const STUB_CLIPBOARD = () => {
   window.__copied = [];
   Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: (t) => { window.__copied.push(t); return Promise.resolve(); } } });
 };
+const REFUSE_CLIPBOARD = () => {
+  Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: () => Promise.reject(new DOMException('Write permission denied.', 'NotAllowedError')) } });
+};
 
 async function openWith(info, routes, { prefs, hash = '#/n01_u05', init, width } = {}) {
   const opened = await openApp(browser, served.base, info, { routes, clock: CLOCK, width, timezone: 'Asia/Dubai' });
@@ -263,6 +266,31 @@ test('Copy a link to a record copies an address that opens that record', async (
   await other.page.waitForFunction((t) => document.querySelector('dialog.drawer[open] h2')?.textContent === t, LABEL);
   assert.deepEqual([...seen.errors, ...other.seen.errors], []);
   await other.context.close();
+  await context.close();
+});
+
+test('when the browser refuses the clipboard, the record link shows selected in a dialog to copy by hand', async () => {
+  const { routes } = tracked();
+  const { page, seen, context } = await openWith(appInfo(DECIDE, 1, TABLE), routes, { init: REFUSE_CLIPBOARD });
+  await waitList(page);
+  await page.locator('.cell-t').first().click();
+  await page.locator('dialog.drawer .dr-act').waitFor();
+  for (const round of ['refused', 'missing']) {
+    if (round === 'missing') await page.evaluate(() => Object.defineProperty(navigator, 'clipboard', { configurable: true, value: undefined }));
+    await page.getByRole('button', { name: 'Copy a link to this record' }).click();
+    const dialog = page.getByRole('dialog', { name: 'Copy this link' });
+    await dialog.waitFor();
+    const field = await page.evaluate(() => {
+      const input = document.querySelector('dialog[aria-label="Copy this link"] input');
+      return { value: input.value, focused: document.activeElement === input, start: input.selectionStart, end: input.selectionEnd, readOnly: input.readOnly };
+    });
+    const url = `${new URL(page.url()).origin}${new URL(page.url()).pathname}#/n01_u05?rec=R001`;
+    assert.deepEqual(field, { value: url, focused: true, start: 0, end: url.length, readOnly: true }, round);
+    assert.notEqual(await page.evaluate(() => document.querySelector('.toast .toast-t')?.textContent || ''), 'Link to this record copied', round);
+    await dialog.getByRole('button', { name: 'Done' }).click();
+    await dialog.waitFor({ state: 'hidden' });
+  }
+  assert.deepEqual(seen.errors, []);
   await context.close();
 });
 

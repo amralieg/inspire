@@ -13,7 +13,6 @@ html[data-look="b"] .mark-tile{border-radius:50%}
 html[data-look="b"] .tab.is-on{background:var(--card);box-shadow:inset 0 0 0 1px var(--brand-bd)}
 html[data-look="b"] .page,html[data-look="b"] .home{padding-top:26px}
 html[data-look="b"] .ph{padding:18px 20px;border-radius:16px;background:var(--hue-bg);border:1px solid var(--line)}
-html[data-look="b"] .ph-k .ph-id{color:var(--hue-ink)}
 html[data-look="b"] .fbar{background:var(--panel);border-radius:16px;border-style:dashed;border-color:var(--line-strong)}
 html[data-look="b"] .fld select,html[data-look="b"] .fld input,html[data-look="b"] .msel{border-radius:999px;padding:0 14px}
 html[data-look="b"] .kpi{background:var(--k-bg);border:1px solid var(--line);border-left:4px solid var(--k-line);border-radius:14px}

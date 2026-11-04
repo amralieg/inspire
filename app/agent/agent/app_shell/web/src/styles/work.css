@@ -85,7 +85,7 @@
 @container app (max-width: 560px){
   .btn,.pick-i,select.btn{min-height:40px}
   .ibtn,.ibtn--sm{min-width:40px;min-height:40px}
-  .ptools .btn{width:40px}
+  .top .btn:is(.top-ic,.top-ic2){min-width:40px}
   .pager select,.search{min-height:40px}
   .fld select,.fld input,.msel{height:40px}
   .explain-btn{height:40px}

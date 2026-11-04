@@ -153,7 +153,7 @@ test('image export follows the auth mode and the App offers no data download', a
 
   ({ page, context } = await open(appInfo({ auth: 'user' })));
   assert.equal(await page.getByRole('button', { name: /^Export / }).count(), 0);
-  assert.match(await page.locator('.auth').innerText(), /Your view/);
+  assert.match(await page.locator('.auth').textContent(), /Your view/);
   await context.close();
 });
 

@@ -57,7 +57,7 @@ test('without the modify option the list shows no edit control, and the drawer s
   assert.equal(await page.getByRole('button', { name: /^Edit / }).count(), 0);
   assert.equal(await page.getByRole('button', { name: /^Delete / }).count(), 0);
   assert.equal(await page.locator('.card--table .note').count(), 0);
-  assert.deepEqual(await page.locator('[role="tab"] > span').allInnerTexts(), ['Things to fix', 'Runs']);
+  assert.equal(await page.locator('.top-runs').count(), 1);
   await page.locator('.cell-t').first().click();
   const drawer = page.locator('dialog.drawer');
   await drawer.locator('.hist-i').first().waitFor();
@@ -76,14 +76,8 @@ test('without the modify option the list shows no edit control, and the drawer s
 test('a page without a result table offers Things to fix and Runs, but no history', async () => {
   const { calls, routes } = recorder();
   const { page, seen, context } = await open(appInfo(), routes);
-  assert.deepEqual(await page.locator('[role="tab"] > span').allInnerTexts(), ['Things to fix', 'Runs']);
-  await page.getByRole('tab', { name: 'Things to fix' }).focus();
-  for (const next of ['runs', 'overview', 'runs']) {
-    await page.keyboard.press('ArrowRight');
-    assert.equal(await page.evaluate(() => document.activeElement?.dataset.view), next, 'the arrow keys move between the two tabs');
-  }
-  await page.keyboard.press('ArrowLeft');
-  await page.waitForFunction(() => document.querySelector('[role="tab"][aria-selected="true"]')?.dataset.view === 'overview');
+  assert.equal(await page.locator('[role="tab"]').count(), 0);
+  assert.equal(await page.locator('.top-runs').getAttribute('aria-pressed'), 'false');
   await page.locator('.cell-t').first().click();
   await page.locator('dialog.drawer').waitFor({ state: 'visible' });
   assert.equal(await page.locator('.dr-hist').count(), 0);
@@ -223,16 +217,16 @@ test('add needs the id, then sends the filled values', async () => {
   await context.close();
 });
 
-test('the Runs tab opens from the keyboard and hides the filters', async () => {
+test('the Runs button opens from the keyboard and hides the filters', async () => {
   const run = (run_id, started) => ({ run_id, job_run_id: null, url: '', started, ended: null, duration_s: 60, status: 'done', trigger: 'schedule', by: '',
     segments: [], tables: null, records: 50, to_fix: 20, could_save: null, currency: '', summary: '', nothing_to_act: '', error: '' });
   const runs = [run('81', '2026-10-17T06:00:00Z'), run('80', '2026-09-26T06:00:00Z'), run('79', '2026-09-15T06:00:00Z'), run('78', '2026-09-08T06:00:00Z')];
   const { calls, routes } = recorder({ runs: ({ json }) => { calls.runs += 1; return json(200, { runs, total: 4, offset: 0, limit: 20, job: null, errors: {} }); } });
   const { page, seen, context } = await open(appInfo({}, 1, TABLE), routes);
-  await page.getByRole('tab', { name: 'Things to fix' }).focus();
-  await page.keyboard.press('ArrowLeft');
-  assert.equal(await page.getByRole('tab', { name: 'Runs' }).getAttribute('aria-selected'), 'true');
-  assert.equal(await page.evaluate(() => document.activeElement?.dataset.view), 'runs');
+  await page.locator('.top-runs').focus();
+  await page.keyboard.press('Enter');
+  await page.waitForFunction(() => document.querySelector('.top-runs')?.getAttribute('aria-pressed') === 'true');
+  assert.equal(await page.evaluate(() => document.activeElement?.classList.contains('top-runs')), true);
   await page.locator('.runs tbody tr').first().waitFor();
   assert.equal(calls.runs, 1);
   assert.equal(await page.locator('.fbar').count(), 0);
@@ -247,7 +241,7 @@ test('on a phone the views and the edit form fit without sideways scroll', async
   const { routes } = recorder();
   const { page, seen, context } = await open(appInfo(MODIFY, 1, TABLE), routes, { width: 390, height: 844 });
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1));
-  const views = await page.locator('.views').boundingBox();
+  const views = await page.locator('.top-runs').boundingBox();
   assert.ok(views.x >= 0 && views.x + views.width <= 391);
   await page.getByRole('button', { name: 'Add record' }).click();
   const dialog = page.locator('dialog.dialog');

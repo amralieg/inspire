@@ -154,7 +154,7 @@ test('My work sits under the Overview in the side panel and shows the person\'s 
   const seen = {};
   const { page, seen: app, context } = await openApp(browser, served.base, appInfo(DECIDE, 2, TABLE), { routes: workRoutes(seen), timezone: 'Asia/Dubai' });
   const nav = await page.$$eval('nav.side .nav-i b', (els) => els.map((e) => e.textContent));
-  assert.deepEqual(nav.slice(0, 3), ['Overview', 'My work', 'Impact']);
+  assert.deepEqual(nav.slice(0, 3), ['My work', 'Impact', 'Overview']);
   await page.click('[data-my-work-open]');
   await page.waitForSelector('[data-activity]');
   assert.equal(await page.evaluate(() => window.location.hash), '#/mywork');
@@ -203,13 +203,13 @@ test('Genie writes the summary only with the person\'s own numbers, and an inven
   }
 });
 
-test('a single use case App lists My work under the use case, and the tabs layout shows it as a tab', async () => {
+test('a single use case App lists My work above the use case, and the tabs layout shows it as a tab', async () => {
   const { page, seen: app, context } = await openApp(browser, served.base, appInfo(DECIDE, 1, TABLE), { routes: workRoutes({}) });
   const nav = await page.$$eval('nav.side .nav-i b', (els) => els.map((e) => e.textContent));
-  assert.deepEqual(nav, ['Price-loss decision desk', 'My work', 'Impact']);
+  assert.deepEqual(nav, ['My work', 'Impact', 'Price-loss decision desk']);
   assert.deepEqual(app.errors, []);
   await context.close();
   const tabs = await openApp(browser, served.base, appInfo({ ...DECIDE, layout: 'tabs' }, 2, TABLE), { routes: workRoutes({}) });
-  assert.deepEqual((await tabs.page.$$eval('nav.tabs .tab', (els) => els.map((e) => e.textContent))).slice(0, 3), ['Overview', 'My work', 'Impact']);
+  assert.deepEqual((await tabs.page.$$eval('nav.tabs .tab', (els) => els.map((e) => e.textContent))).slice(0, 3), ['My work', 'Impact', 'Overview']);
   await tabs.context.close();
 });
