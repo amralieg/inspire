@@ -8,6 +8,7 @@ const {
 } = require('./inspireImplement');
 
 const SESSION_LIST_CAP = 20;
+const SESSION_PREVIEW_CAP = 4;
 const PORTFOLIO_RUN_CAP = 1000;
 const PORTFOLIO_TABLES = ['__inspire_session', '__inspire_usecases', IMPLEMENT_TABLE];
 const PORTFOLIO_ASSETS = [['apps', 'app'], ['dashboards', 'dashboard'], ['genie_spaces', 'genie_space'], ['alerts', 'alert']];
@@ -37,6 +38,35 @@ const whole = (value) => {
   const n = Number(value);
   return Number.isInteger(n) && n > 0 ? n : 0;
 };
+
+function sessionPreviewStatement(table, sessionIds, { withTechnique = true } = {}) {
+  const ids = sessionIds.filter((id) => /^\d+$/.test(String(id))).join(',');
+  const label = withTechnique ? 'name_with_technique' : 'CAST(NULL AS STRING) AS name_with_technique';
+  return {
+    sql: 'SELECT session_id, Name, name_with_technique, rn FROM ('
+      + `SELECT session_id, COALESCE(NULLIF(TRIM(use_case), ''), CONCAT('Use case ', CAST(id AS STRING))) AS Name, ${label}, `
+      + 'ROW_NUMBER() OVER (PARTITION BY session_id ORDER BY COALESCE(priority_score, 0) DESC, use_case) AS rn '
+      + `FROM ${table} WHERE session_id IN (${ids})) z WHERE z.rn <= ${SESSION_PREVIEW_CAP} ORDER BY session_id, rn`,
+    parameters: null,
+  };
+}
+
+async function loadSessionPreviews(run, table, sessionIds) {
+  let rows;
+  try {
+    rows = await run(sessionPreviewStatement(table, sessionIds));
+  } catch (err) {
+    if (!isMissingColumnError(err)) throw err;
+    rows = await run(sessionPreviewStatement(table, sessionIds, { withTechnique: false }));
+  }
+  const bySession = {};
+  for (const row of rows) {
+    const sid = String(row.session_id);
+    const list = bySession[sid] || (bySession[sid] = []);
+    if (row.Name && list.length < SESSION_PREVIEW_CAP) list.push({ Name: String(row.Name), name_with_technique: row.name_with_technique ? String(row.name_with_technique) : null });
+  }
+  return bySession;
+}
 
 async function loadSessionList(run, table, cap = SESSION_LIST_CAP) {
   let rows;
@@ -149,6 +179,8 @@ module.exports = {
   sessionListStatement,
   sessionListCap,
   loadSessionList,
+  sessionPreviewStatement,
+  loadSessionPreviews,
   portfolioSessionStatement,
   portfolioUseCaseStatement,
   portfolioImplementStatement,

@@ -247,7 +247,36 @@ def test_the_csv_and_excel_description_is_the_name_using_the_technique_in_lower_
     labels = arabic_labels(ns)
     arabic._generate_csv_catalog("Arabic", "ar", {"المبيعات": [uc]}, translations=labels)
     _header, rows = csv_rows(arabic)
+    technique, _untranslated = arabic._doc_technique_label("Causal Impact", labels, "Arabic")
+    assert technique and technique != "Causal Impact"
+    assert "Forecast demand N01-U01 باستخدام " + technique in rows[0].values()
     assert "using" not in " ".join(rows[0].values())
+
+
+def test_every_curated_language_joins_the_name_and_technique_with_its_own_word(ns):
+    obj = make_inspire(ns)
+    service = ns["TranslationService"]
+    assert service.ENGLISH_TRANSLATIONS["doc_name_using_technique"] == "{name} using {technique}"
+    uc = {"Name": "Forecast demand", "Analytics Technique": "Forecasting"}
+    assert set(service.TRANSLATION_FALLBACKS) >= {"Arabic", "German", "Japanese"}
+    for language, fallbacks in service.TRANSLATION_FALLBACKS.items():
+        text = fallbacks["doc_name_using_technique"]
+        assert "{name}" in text and "{technique}" in text and " using " not in text, language
+        technique, _untranslated = obj._doc_technique_label("Forecasting", {}, language)
+        label = obj._inspire_name_with_technique(uc, {}, language)
+        kept = technique if language == "German" else " ".join(w if w.isupper() else w.lower() for w in technique.split())
+        assert label == text.replace("{name}", "Forecast demand").replace("{technique}", kept), language
+    assert obj._inspire_name_with_technique(uc, {}, "German").endswith(" mit " + obj._doc_technique_label("Forecasting", {}, "German")[0])
+
+
+def test_a_language_without_a_curated_word_uses_the_run_translation_and_a_broken_one_falls_back(ns):
+    obj = make_inspire(ns)
+    uc = {"Name": "Πρόβλεψη ζήτησης", "Analytics Technique": "Forecasting"}
+    technique = obj._doc_technique_label("Forecasting", {}, "Greek")[0].lower()
+    assert obj._inspire_name_with_technique(uc, {"doc_name_using_technique": "{name} με χρήση {technique}"}, "Greek") == \
+        f"Πρόβλεψη ζήτησης με χρήση {technique}"
+    assert obj._inspire_name_with_technique(uc, {"doc_name_using_technique": "{name} με χρήση"}, "Greek") == \
+        f"Πρόβλεψη ζήτησης using {technique}", "a translation that loses a placeholder is refused"
 
 
 def test_the_tracking_row_stores_the_name_with_its_technique_for_the_app(ns):

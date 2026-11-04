@@ -38,7 +38,7 @@ export const REVIEW_SESSIONS = [
   run('42', 'Acme', '2026-10-31T10:00:00Z', [2, 1]),
   run('41', 'Acme', '2026-10-29T10:00:00Z', [2, 2]),
   run('50', 'Beta Foods', '2026-10-30T08:00:00Z', [1, 1]),
-  run('51', 'Gamma', '2026-10-30T07:00:00Z', [1, 1], { completed_percent: 40, usecase_overview: { total: 3, high: 1, domains: 1, preview_titles: [] } }),
+  run('51', 'Gamma', '2026-10-30T07:00:00Z', [1, 1], { completed_percent: 40, usecase_overview: { total: 3, high: 1, domains: 1, preview_use_cases: [] } }),
   run('60', '', '2026-10-30T06:00:00Z', [1, 1]),
   run('61', '', '2026-10-30T05:00:00Z', [1, 1]),
 ];

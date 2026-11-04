@@ -62,7 +62,8 @@ def test_arabic_excel_is_written_right_to_left_with_arabic_headers_and_values(ns
     for key in ("sum_id", "domain", "subdomain", "usecase", "description", "primary_table", "quality"):
         assert labels[key] in header, key
     assert "Business Domain" not in header and "Use Case" not in header
-    assert row[labels["usecase"]] == ARABIC_TITLE and row[labels["description"]] == ARABIC_NAME
+    technique = obj._doc_technique_label("Forecasting", labels, "Arabic")[0]
+    assert row[labels["usecase"]] == ARABIC_TITLE and row[labels["description"]] == f"{ARABIC_NAME} باستخدام {technique}" != f"{ARABIC_NAME} باستخدام Forecasting"
     assert row[labels["domain"]] == "المبيعات"
     assert row[labels["quality_score_header"]] == labels["doc_not_scored"] != "Not scored"
     assert row[labels["quality"]] == labels["value_priority_high"] != "High"

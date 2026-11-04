@@ -15,6 +15,7 @@ for folder in (SERVER, os.path.dirname(os.path.abspath(__file__))):
         sys.path.insert(0, folder)
 
 import shell_core  # noqa: E402
+import shell_db  # noqa: E402
 import shell_sql  # noqa: E402
 
 LAYOUTS = ("segment_explorer", "recommendation_desk", "lift_readout")
@@ -96,9 +97,9 @@ def test_a_card_table_must_read_its_companion_table(page, section, companion):
 @pytest.mark.parametrize("change, fragment", [
     (lambda p: p.pop("segments"), "needs a segments section"),
     (lambda p: p["segments"].update(filter="nowhere"), "must be a multi_select filter"),
-    (lambda p: p["filters"][1]["columns"].pop("records"), "must map the records dataset, so a segment's treatment reaches all of its members"),
-    (lambda p: p["filters"][1]["columns"].update(segments="segment_id"), "must not map the segment cards dataset, so picking a card keeps every"),
-    (lambda p: p["filters"][1]["columns"].update(segments="label"), "must not map the segment cards dataset"),
+    (lambda p: p["filters"][1]["columns"].pop("segments"), "must map the records dataset and the segment_id column of the segment cards dataset"),
+    (lambda p: p["filters"][1]["columns"].pop("records"), "must map the records dataset and the segment_id column of the segment cards dataset"),
+    (lambda p: p["filters"][1]["columns"].update(segments="label"), "so picking a card marks its segment"),
     (lambda p: p["records"].update(column_filters=False), "so its decision list keeps its column filters"),
     (lambda p: p["segments"].update(treatments=["Only one"]), "needs 2 to 6 treatments; it has 1"),
     (lambda p: p["segments"].update(treatments=[f"T{i}" for i in range(7)]), "needs 2 to 6 treatments; it has 7"),
@@ -328,10 +329,39 @@ def test_the_dashboard_draws_the_new_chart_types_as_the_nearest_dashboard_chart(
     assert set(shell_sql.CHART_TYPES) <= set(widgets)
 
 
-def test_the_segment_filter_keeps_every_card_in_view_and_still_reaches_each_member():
-    found = next(f for f in SEGMENT["filters"] if f["id"] == SEGMENT["segments"]["filter"])
-    assert "segments" not in found["columns"] and found["columns"]["records"] == "segment"
-    assert problems(SEGMENT) == []
+def where_of(page, ident, values):
+    sql, params = shell_sql.table_query(page, ident, values)
+    return sql.split(" AS d", 1)[1], [p["value"] for p in params]
+
+
+@pytest.mark.parametrize("page, ident, own, other, other_column", [
+    (SEGMENT, "cards", {"segment": ["S2"]}, None, None),
+    (LIFT, "effect", {"promotion": ["Spring bundle"]}, {"channel": ["Online"]}, "`channel`"),
+])
+def test_a_card_picker_table_is_never_narrowed_by_its_own_pick_and_still_follows_every_other_filter(page, ident, own, other, other_column, capsys):
+    where, values = where_of(page, ident, own)
+    assert list(own.values())[0][0] not in values and "WHERE" not in where
+    assert f"[CARD-PICK FIRED] page={page['id']} table={ident} filter={list(own)[0]}" in capsys.readouterr().out
+    if other:
+        where, values = where_of(page, ident, dict(own, **other))
+        assert other_column in where and list(other.values())[0][0] in values and list(own.values())[0][0] not in values
+    capsys.readouterr()
+    where_of(page, ident, {})
+    assert "CARD-PICK FIRED" not in capsys.readouterr().out
+
+
+def test_only_the_card_picker_tables_skip_their_pick_and_every_chart_and_the_list_still_follow_it():
+    assert shell_sql.card_picks(SEGMENT) == {"cards": "segment"} and shell_sql.card_picks(LIFT) == {"effect": "promotion"}
+    assert shell_sql.card_picks(RECS) == {}
+    unmapped = changed(LIFT, lambda p: next(f for f in p["filters"] if f["id"] == "promotion")["columns"].pop("effects"))
+    assert shell_sql.card_picks(unmapped) == {}
+    where, values = where_of(unmapped, "effect", {"promotion": ["Spring bundle"]})
+    assert "WHERE" not in where and values == []
+    queries = {(kind, ident): (sql, params) for kind, ident, sql, params in shell_sql.page_queries(LIFT, {"promotion": ["Spring bundle"]})}
+    steps = next(sql for (kind, ident), (sql, _p) in queries.items() if kind == "chart" and "`intervention`" in sql)
+    assert "`intervention`" in steps.split(" AS d", 1)[1]
+    records_sql, records_params = shell_sql.records_query(SEGMENT, {"segment": ["S2"]})
+    assert "S2" in [p["value"] for p in records_params]
 
 
 
@@ -415,12 +445,13 @@ def segment_workspace():
     return ws
 
 
-def segment_records(tmp_path, page=None, **body):
+def segment_records(tmp_path, page=None, fail=None, **body):
     from v141_app_shell_test import SETTINGS, call
     from v148_app_hub_test import PERSON, hub_shell
     page = page or SEGMENT
-    s, _ws, _made = hub_shell(tmp_path, settings=dict(SETTINGS, options=dict(SETTINGS["options"], decisions=True)), pages=[page],
-                              ws=segment_workspace())
+    ws = segment_workspace()
+    ws.fail.update(fail or {})
+    s, _ws, _made = hub_shell(tmp_path, settings=dict(SETTINGS, options=dict(SETTINGS["options"], decisions=True)), pages=[page], ws=ws)
     status, out = call(s, "POST", "records", headers={"x-forwarded-email": PERSON}, body=dict({"page": page["id"], "limit": 25}, **body))
     assert status == 200, out
     return out
@@ -433,3 +464,10 @@ def test_a_reload_counts_each_segments_treatments_from_the_current_recorded_deci
     picked = segment_records(tmp_path / "b", treatments=True, filters={"segment": ["S2"]})
     assert picked["treatments"] == [{"segment": "S2", "treatment": "Leave as is", "n": 1}]
     assert "treatments" not in segment_records(tmp_path / "c")
+
+
+def test_a_treatment_count_that_fails_is_reported_by_name_while_the_rows_are_still_served(tmp_path):
+    out = segment_records(tmp_path, fail={"_inspire_treatment": shell_db.QueryError("[SQL_ERROR] the count failed")}, treatments=True)
+    assert "treatments" in out["errors"] and "the count failed" in out["errors"]["treatments"]
+    assert out.get("treatments") is None and out["total"] == 5 and len(out["rows"]) == 5
+    assert "treatments" not in segment_records(tmp_path / "b", treatments=True)["errors"]

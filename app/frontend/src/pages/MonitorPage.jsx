@@ -24,6 +24,7 @@ import { formatDuration } from '../lib/formatWhen';
 import { mergeSteps, quietLine, sessionFailed, sessionFinished, sessionQuietSince, sessionSucceeded, stepCategory } from '../lib/monitorState';
 import { requestHeaders, responseError } from '../lib/apiClient';
 import StopRunControl from '../components/StopRunControl';
+import { nameOfUseCase } from '../lib/useCaseFields';
 
 // Run lifecycle phases
 const PHASE_PENDING = 'PENDING';
@@ -238,6 +239,7 @@ export default function MonitorPage({ settings, update, sessionId, runId, onComp
           if (!isValidUseCase(uc)) continue;
           ucs.push({
             name: uc.Name || uc.name || '',
+            label: nameOfUseCase(uc),
             domain: uc['Business Domain'] || uc.domain || '',
             priority: uc.Priority || uc.priority || '',
             id: uc.No || uc.id || '',
@@ -250,6 +252,7 @@ export default function MonitorPage({ settings, update, sessionId, runId, onComp
           if (!isValidUseCase(sc)) continue;
           ucs.push({
             name: sc.Name || sc.name || '',
+            label: nameOfUseCase(sc),
             domain: sc['Business Domain'] || sc.domain || '',
             priority: sc.Priority || sc.priority || '',
             quality: sc.Quality || sc.quality || '',
@@ -811,7 +814,7 @@ export default function MonitorPage({ settings, update, sessionId, runId, onComp
                     {uc.id || `#${i + 1}`}
                   </span>
                   <div className="flex-1 min-w-0">
-                    <p className="text-xs font-medium text-text-primary truncate">{uc.name}</p>
+                    <p className="text-xs font-medium text-text-primary truncate">{uc.label || uc.name}</p>
                     {uc.domain && (
                       <p className="text-[10px] text-text-tertiary flex items-center gap-1 mt-0.5">
                         <Building2 size={8} /> {uc.domain}
@@ -1060,7 +1063,7 @@ function ResultJsonDisplay({ resultJson }) {
         <div className="flex flex-wrap gap-1">
           {rj.use_cases.slice(0, 10).map((uc, i) => (
             <span key={i} className="px-2 py-0.5 rounded-full bg-bg-subtle text-text-secondary text-[10px] border border-border">
-              {uc.name || uc.Name || `#${uc.id}`}
+              {nameOfUseCase(uc) || `#${uc.id}`}
             </span>
           ))}
           {rj.use_cases.length > 10 && (
@@ -1083,7 +1086,7 @@ function ResultJsonDisplay({ resultJson }) {
         <div className="grid grid-cols-1 gap-0.5 max-h-28 overflow-y-auto">
           {rj.scored_use_cases.slice(0, 8).map((sc, i) => (
             <div key={i} className="flex items-center gap-2 text-[10px] py-0.5">
-              <span className="text-text-primary font-medium truncate flex-1">{sc.name || `#${sc.id}`}</span>
+              <span className="text-text-primary font-medium truncate flex-1">{nameOfUseCase(sc) || `#${sc.id}`}</span>
               <span className={`px-1.5 py-0.5 rounded font-semibold ${
                 ['Ultra High', 'Very High', 'High'].includes(sc.priority) ? 'bg-db-red-50 text-db-red-fg' : 'bg-bg-subtle text-text-secondary'
               }`}>{sc.priority}</span>

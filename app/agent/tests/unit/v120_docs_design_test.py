@@ -343,8 +343,10 @@ def test_arabic_deck_is_right_to_left_mirrored_and_tagged(docs):
     arabic_labels = [p for p in paragraphs if p.text == "نبذة عن هذا المجال"]
     assert english_prose and all(p._p.pPr.get("rtl") == "0" for p in english_prose)
     assert arabic_labels and all(p._p.pPr.get("rtl") == "1" for p in arabic_labels)
-    short_english = [p for p in paragraphs if p.text in ("Exec one.", "Sales idea 6")]
-    assert len(short_english) >= 2 and all(p._p.pPr.get("rtl") == "0" for p in short_english)
+    short_english = [p for p in paragraphs if p.text == "Exec one."]
+    assert short_english and all(p._p.pPr.get("rtl") == "0" for p in short_english)
+    joined = [p for p in paragraphs if p.text.startswith("\u2066Sales idea 6\u2069 باستخدام ")]
+    assert joined and all(p._p.pPr.get("rtl") == "1" for p in joined), "an English name joined by the Arabic word reads right to left, the name isolated"
     covers = labels(docs, "Arabic")["doc_what_it_covers"]
     heading = [p for p in paragraphs if p.text == covers]
     assert heading and all(p._p.pPr.get("rtl") == "1" for p in heading)
