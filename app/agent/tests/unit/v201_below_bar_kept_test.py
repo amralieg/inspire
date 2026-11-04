@@ -206,6 +206,71 @@ def test_export_columns_include_the_meets_bar_column():
     assert "label('doc_meets_bar')" in src and "_meets_quality_bar(uc)" in src
 
 
+class _FinalWriter:
+    def __init__(self):
+        self.steps, self.finals = [], []
+
+    def emit_step(self, **kw):
+        self.steps.append(kw)
+        return len(self.steps)
+
+    def record_results(self, results):
+        return True
+
+    def finalize_pipeline(self, **kw):
+        self.finals.append(kw)
+
+
+def _offline_run(agent_ns, tmp_path, label, empty):
+    from v120_run_offline_smoke_test import _build
+
+    def scorer(uc_id):
+        return {"use_case_id": uc_id, "quality_label": label, "quality_score": 3.0, "priority_score": 5.0,
+                "quality_summary": "Columns `id` and `amount` aggregated by store give the KPI that drives the outcome."}
+
+    obj = _build(agent_ns, tmp_path, "High", HIGH, scorer)
+    obj._collect_discovery_evidence = lambda _details: setattr(
+        obj, "discovery_evidence", {"profiles": {fqn: {"rows": 0} for fqn in empty}})
+    obj.run()
+    obj.atomic_writer = _FinalWriter()
+    obj.finalize_atomic_writer(success=True)
+    return obj
+
+
+@pytest.mark.parametrize("label, empty, status, meets", [
+    ("Medium", ["cat.sch.orders", "cat.sch.items"], "ended_warning", 0),
+    ("High", ["cat.sch.orders", "cat.sch.items"], "ended_success", 4),
+    ("High", [], "ended_success", 4),
+])
+def test_run_ends_as_a_warning_naming_the_empty_tables_only_when_none_meets_the_bar(
+        agent_ns, tmp_path, quiet_root_logger, label, empty, status, meets):
+    obj = _offline_run(agent_ns, tmp_path, label, empty)
+    final = obj.recorded["tracking"][-1]
+    assert len(final) == 4 and sum(u["meets_quality_bar"] == "Y" for u in final) == meets
+    assert [f["status"] for f in obj.atomic_writer.finals] == [status]
+    message = obj.atomic_writer.finals[0]["message"]
+    results = obj.final_inspire_results_json
+    if status == "ended_warning":
+        assert message.startswith("Completed: 0 of 4 use cases meet your High bar; 2 tables have no rows yet: "
+                                  "cat.sch.items, cat.sch.orders; add sample rows on the Generate data page")
+        assert results["run_status"] == "warning" and results["run_message"] == message
+        assert results["quality_bar"]["empty_tables"] == ["cat.sch.items", "cat.sch.orders"]
+        assert all("below the High bar" in u["fallback_reason"] for u in final)
+    else:
+        assert message == "Completed" and results["run_status"] == "success" and results["run_message"] == ""
+        assert results["quality_bar"]["meets"] == 4 and "no rows yet" not in results["quality_bar"]["message"]
+
+
+@pytest.fixture
+def quiet_root_logger():
+    import logging
+    root = logging.getLogger()
+    saved = (list(root.handlers), root.level)
+    yield
+    root.handlers[:] = saved[0]
+    root.setLevel(saved[1])
+
+
 def test_results_json_round_trip_keeps_the_flag(agent_ns):
     obj = _inspire(agent_ns)
     final, _ = obj._select_scored_use_cases([_uc("H1"), _uc("M1", "Medium")], [], {})
