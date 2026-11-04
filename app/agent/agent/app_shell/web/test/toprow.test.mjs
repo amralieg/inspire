@@ -106,6 +106,36 @@ for (const width of [1280, 1024]) {
   }
 }
 
+for (const width of [1280, 1024]) {
+  test(`at ${width}px every top-row button, link and badge has an accessible name, and an icon-only one is named by its label`, async () => {
+    for (const auth of ['sp', 'user']) {
+      const { page, seen, context } = await openPage(width, { extra: { auth } });
+      await page.locator('[data-nothing-fix]').waitFor();
+      const tree = await page.locator('.top').ariaSnapshot();
+      const controls = tree.split('\n').map((l) => l.trim()).filter((l) => /^- (button|link|img)\b/.test(l));
+      assert.ok(controls.length >= 8, tree);
+      const unnamed = controls.filter((l) => !/^- (button|link|img) "[^"]+"/.test(l));
+      assert.deepEqual(unnamed, [], `${auth} at ${width}: every control has a name\n${tree}`);
+      const icons = await page.evaluate(() => [...document.querySelectorAll('.top .top-ic, .top .top-ic2')]
+        .filter((el) => el.getClientRects().length > 0 && getComputedStyle(el).display !== 'none')
+        .map((el) => ({ label: el.querySelector(':scope > span')?.textContent || '', name: el.getAttribute('aria-label') || '',
+          hidden: getComputedStyle(el.querySelector(':scope > span')).display === 'none' })));
+      assert.ok(icons.some((i) => i.hidden), `${auth} at ${width}: some items show as icons only`);
+      for (const i of icons) {
+        const expect = i.label.startsWith('Runs') ? /^Runs \(\d+\)$/ : new RegExp(`^${i.label.replace(/[()]/g, '\\$&')}$`);
+        assert.match(i.name, expect, `${auth} at ${width}: the item labelled ${i.label} is named ${i.name}`);
+      }
+      const named = icons.map((i) => i.name);
+      const want = ['Views', 'Settings', auth === 'user' ? 'Your view' : 'Shared view', ...(width === 1280 ? ['Open in Inspire Review', 'Admin'] : [])];
+      for (const name of want) assert.ok(named.includes(name), `${auth} at ${width}: ${name} is named: ${named.join(' | ')}`);
+      const badge = auth === 'user' ? 'Your view' : 'Shared view';
+      assert.equal(await page.getByRole('img', { name: badge, exact: true }).count(), 1, `${badge} badge has its name`);
+      assert.deepEqual(seen.errors, []);
+      await context.close();
+    }
+  });
+}
+
 test('Views sits right before Refresh now, and the page has no Copy link or Print button', async () => {
   const { page, seen, context } = await openPage(1280);
   const order = await page.evaluate(() => [...document.querySelectorAll('.top-page > *')].map((el) => el.getAttribute('aria-label') || el.className));

@@ -200,8 +200,8 @@ function Shell({ app }) {
           <span className="sp" />
           <div className="top-page" ref={setSlot} />
           {app.auth === 'user'
-            ? <span className="auth top-ic" title="Each person sees only the rows and columns their Unity Catalog grants allow. The App queries as you."><Icon name="lock" size={13} /><span>Your view</span></span>
-            : <span className="auth top-ic" title="Everyone sees the same data. The App reads it with its own service principal."><Icon name="users" size={13} /><span>Shared view</span></span>}
+            ? <span className="auth top-ic" role="img" aria-label="Your view" title="Each person sees only the rows and columns their Unity Catalog grants allow. The App queries as you."><Icon name="lock" size={13} /><span>Your view</span></span>
+            : <span className="auth top-ic" role="img" aria-label="Shared view" title="Everyone sees the same data. The App reads it with its own service principal."><Icon name="users" size={13} /><span>Shared view</span></span>}
           <button className="genie-btn" onClick={() => setGenieOpen(!genieOpen)} aria-expanded={genieOpen} aria-label="Ask Genie"><GenieMark size={15} /><span>Ask Genie</span></button>
           <PaletteButton palette={palette} built={app.palette} theme={theme} onChoose={choosePalette} />
           <button className="ibtn" data-more="tight" onClick={toggleTheme} aria-label={`Switch to ${darkNext} theme`}><Icon name={theme === 'dark' ? 'sun' : 'moon'} size={17} /></button>
