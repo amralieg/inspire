@@ -275,3 +275,63 @@ test('with one demo the demo bar offers no list to pick from', async () => {
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test('a kinds demo plan takes Accept, Override with a reason, refuses an Override without one, and Take all, and keeps each decision across a refresh so Take all never decides a line twice', async () => {
+  const ui = await openKindsDemo();
+  const { page } = ui;
+  const decided = [];
+  page.on('request', (r) => { if (new URL(r.url()).pathname.endsWith('/api/plan/decide')) decided.push(JSON.parse(r.postData() || '{}')); });
+  try {
+    const u = USE_CASES.find((c) => c.mvp.layout === 'planner');
+    assert.ok(u, 'the demo carries a planner');
+    let frame = await openMvpFromBuild(page, apiWatch(page), u);
+    const plan = () => frame.locator('section.plan');
+    const rows = () => plan().locator('tbody tr[data-plan-row]');
+    await rows().first().waitFor({ timeout: 60000 });
+    const keys = await rows().evaluateAll((trs) => trs.map((tr) => tr.getAttribute('data-plan-row')));
+    assert.ok(keys.length >= 3, 'the plan has lines to decide');
+    const line = (key) => plan().locator(`tr[data-plan-row="${key}"]`);
+    const takeAll = () => plan().locator('[data-take-all]');
+    assert.equal((await takeAll().innerText()).trim(), `Take all ${keys.length} ★ suggestions`);
+
+    await line(keys[0]).getByRole('button', { name: 'Accept', exact: true }).click();
+    await line(keys[0]).locator('[data-decided]').filter({ hasText: /^Accepted the recommended / }).waitFor();
+
+    await line(keys[1]).getByRole('button', { name: 'Override', exact: true }).click();
+    const form = plan().locator('tr.plan-form form');
+    const save = form.getByRole('button', { name: 'Save override' });
+    await form.getByLabel('Your value').fill('7');
+    assert.equal(await save.isDisabled(), true, 'an override with no reason cannot be saved');
+    await form.getByLabel('Why you override it').fill('   ');
+    assert.equal(await save.isDisabled(), true, 'a reason of spaces is no reason');
+    await form.getByLabel('Why you override it').press('Enter');
+    assert.equal(decided.length, 1, 'nothing is sent for an override without a reason');
+    await form.getByLabel('Why you override it').fill('Store event this week');
+    await save.click();
+    await line(keys[1]).locator('[data-decided]').filter({ hasText: /^Override to 7 instead of .+: Store event this week$/ }).waitFor();
+    assert.deepEqual([decided[1].decision, decided[1].value, decided[1].reason], ['override', 7, 'Store event this week']);
+
+    assert.equal((await takeAll().innerText()).trim(), keys.length - 2 === 1 ? 'Take the ★ suggestion' : `Take all ${keys.length - 2} ★ suggestions`);
+    await takeAll().click();
+    await until(async () => (await plan().locator('[data-decided]').count()) === keys.length, 'every line is decided');
+    assert.equal(await takeAll().count(), 0);
+    assert.deepEqual(decided.map((d) => d.record_key).sort(), [...keys].sort(), 'Take all accepted only the lines still open, each once');
+
+    await page.reload();
+    await page.getByRole('button', { name: SHOWCASE_BUTTON, exact: true }).first().click();
+    await cardsOf(page).first().waitFor({ timeout: 60000 });
+    frame = await openMvpFromBuild(page, apiWatch(page), u);
+    await rows().first().waitFor({ timeout: 60000 });
+    await until(async () => (await plan().locator('[data-decided]').count()) === keys.length, 'the decisions are still there after a refresh');
+    assert.match((await line(keys[1]).locator('[data-decided]').innerText()).trim(), /^Override to 7 instead of .+: Store event this week$/);
+    assert.match((await line(keys[0]).locator('[data-decided]').innerText()).trim(), /^Accepted the recommended /);
+    assert.equal(await takeAll().count(), 0, 'after a refresh Take all offers no line already decided');
+    assert.equal(decided.length, keys.length, 'the refresh decided nothing again');
+    assert.deepEqual(ui.missing, []);
+    assert.deepEqual(ui.outside, []);
+    assert.equal(ui.made.sqlCalls.length, 0);
+    assert.equal(ui.made.fetches.length, 0);
+  } finally {
+    await ui.close();
+  }
+});

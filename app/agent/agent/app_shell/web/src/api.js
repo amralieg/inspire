@@ -43,9 +43,29 @@ export const genieFeedback = (page, conversationId, messageId, rating) =>
 export const getHistory = (page, ref) => json('GET', `records/history?${new URLSearchParams({ page, ...ref })}`);
 export const getFields = (page) => json('GET', `records/fields?page=${encodeURIComponent(page)}`);
 export const writeRecord = (kind, body) => json('POST', `records/${kind}`, body);
-export const getRecords = (body) => json('POST', 'records', body);
+const DEMO_DECIDED = 'inspire-demo-decisions';
+const demoStore = () => { try { return window.sessionStorage; } catch { return null; } };
+const demoKey = (page) => `${DEMO_DECIDED}:${typeof location === 'undefined' ? '' : location.pathname}:${page}`;
+export function demoDecided(page) {
+  try { return JSON.parse(demoStore()?.getItem(demoKey(page)) || '{}') || {}; } catch { return {}; }
+}
+function rememberDemo(page, key, row) {
+  const store = demoStore();
+  if (!store) return;
+  try { store.setItem(demoKey(page), JSON.stringify({ ...demoDecided(page), [key]: row })); } catch { return; }
+}
+export const withDemoDecisions = (page, list) => {
+  const decided = demoDecided(page);
+  if (!list || !Array.isArray(list.rows) || !Object.keys(decided).length) return list;
+  return { ...list, rows: list.rows.map((r) => (decided[String(r.record_key)] ? { ...r, ...decided[String(r.record_key)] } : r)) };
+};
+export const getRecords = async (body) => withDemoDecisions(body?.page, await json('POST', 'records', body));
 export const actRecords = (body) => json('POST', 'records/act', body);
-export const decidePlan = (body) => json('POST', 'plan/decide', body);
+export const decidePlan = async (body) => {
+  const got = await json('POST', 'plan/decide', body);
+  if (got?.showcase === true && got.saved === false && got.row && body?.record_key != null) rememberDemo(body.page, String(body.record_key), got.row);
+  return got;
+};
 export const evaluateScenario = (body) => json('POST', 'scenario/evaluate', body);
 export const undoRecords = (body) => json('POST', 'records/undo', body);
 export const getBatches = (page) => json('GET', `records/batches?page=${encodeURIComponent(page)}`);

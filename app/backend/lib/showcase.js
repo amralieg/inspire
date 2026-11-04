@@ -19,7 +19,7 @@ const SHOWCASE_UNKNOWN = 'This demo is not in this Inspire App.';
 const SHOWCASE_GENIE = 'In the demo, Genie answers the questions it suggests. Ask your own questions in an MVP built on your data.';
 const SHOWCASE_GENIE_ASK = 'POST /api/genie/ask';
 const SHOWCASE_PLAN_DECIDE = 'POST /api/plan/decide';
-const SHOWCASE_PLAN_NOTE = 'Demo decision: it shows here and is saved nowhere.';
+const SHOWCASE_PLAN_NOTE = 'Demo decision: kept in this browser for the demo and saved nowhere else.';
 const SHOWCASE_READS = new Set([
   'POST /api/page', 'POST /api/records', 'POST /api/overview', 'POST /api/genie/explain', 'POST /api/alerts/preview', 'POST /api/scenario/evaluate', 'POST /api/my_work',
   'POST /api/inspire/implement/readiness', 'POST /api/inspire/implement/plan', 'POST /api/inspire/implement/swaps',
@@ -156,13 +156,18 @@ function replay(res, answers, method, pathname, query, body) {
 function showcasePlanDecision(body) {
   const b = body && typeof body === 'object' ? body : {};
   const key = typeof b.record_key === 'string' ? b.record_key.trim() : '';
-  const reason = typeof b.reason === 'string' ? b.reason.trim() : '';
+  const reason = typeof b.reason === 'string' ? b.reason.split(/\s+/).filter(Boolean).join(' ') : '';
   if (!key || !['accept', 'override'].includes(b.decision)) return { status: 400, body: { error: 'A plan decision needs a line and accept or override.', showcase: true } };
+  const finite = (v) => v !== '' && v != null && Number.isFinite(Number(v));
+  if (!finite(b.recommended)) return { status: 400, body: { error: 'A plan decision needs the recommended value of the line.', showcase: true } };
   if (b.decision === 'override' && (!Number.isFinite(Number(b.value)) || b.value === '' || b.value == null || !reason || reason.length > 300)) {
     return { status: 400, body: { error: 'An override needs your value and a reason of at most 300 characters.', showcase: true } };
   }
-  return { status: 200, body: { ok: true, showcase: true, saved: false, record_key: key, decision: b.decision,
-    status: b.decision === 'accept' ? 'Accepted' : 'Overridden', note: SHOWCASE_PLAN_NOTE } };
+  const number = (v) => String(Number(v));
+  const note = b.decision === 'accept' ? `Accepted the recommended ${number(b.recommended)}${reason ? `: ${reason}` : ''}`
+    : `Override to ${number(b.value)} instead of ${number(b.recommended)}: ${reason}`.slice(0, 300);
+  return { status: 200, body: { written: [key], conflicts: [], conflicts_count: 0, left_out: 0, batch_id: null, decision: b.decision, edited: false,
+    showcase: true, saved: false, note: SHOWCASE_PLAN_NOTE, row: { _inspire_status: 'Done', _inspire_closed_note: note } } };
 }
 
 function restPath(rest) {

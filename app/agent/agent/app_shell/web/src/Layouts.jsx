@@ -139,8 +139,8 @@ function PlanRow({ page, app, plan, row, actions, onDecided }) {
     setBusy(true);
     setError('');
     try {
-      await decidePlanLine(page, plan, row, decision, reason, value);
-      toast(decision === 'accept' ? 'Accepted the suggested line' : 'Saved your override and its reason');
+      const got = await decidePlanLine(page, plan, row, decision, reason, value);
+      toast(got?.showcase ? got.note : decision === 'accept' ? 'Accepted the suggested line' : 'Saved your override and its reason');
       setOpen(false);
       onDecided();
     } catch (e) {
@@ -223,12 +223,14 @@ export function PlanTable({ page, app, filters, ready, nonce, onChanged }) {
     setBusy(true);
     setError('');
     let done = 0;
+    let demo = '';
     try {
       for (const row of open) {
-        await decidePlanLine(page, plan, row, 'accept');
+        const got = await decidePlanLine(page, plan, row, 'accept');
+        if (got?.showcase) demo = got.note;
         done += 1;
       }
-      toast(done === 1 ? 'Accepted the suggested line' : `Accepted ${integer(done)} suggested lines`);
+      toast(`${done === 1 ? 'Accepted the suggested line' : `Accepted ${integer(done)} suggested lines`}${demo ? `. ${demo}` : ''}`);
     } catch (e) {
       setError(done ? `Accepted ${integer(done)} of ${integer(open.length)} lines, then: ${e.message}` : e.message);
     } finally {
