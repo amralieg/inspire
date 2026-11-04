@@ -5518,3 +5518,18 @@ def test_the_app_check_runs_every_query_as_inspire_and_returns_the_shell_problem
     broken = dict(files, **{core.SETTINGS_FILE: json.dumps(dict(settings, genie_note=""))})
     assert inst._implement_app_check(str(work), broken, dict(modules, shell_db=db), "wh1") == [
         "the App files do not hold together: Ask Genie is off, so genie_note must say why"]
+
+
+@pytest.mark.parametrize("result, reason", [
+    ({"errors": [], "stderr": "Reading additional input from stdin...\n\x1b[2m2026-11-04T16:08:18Z\x1b[0m \x1b[31mERROR\x1b[0m "
+                                "\x1b[2mcodex_core::shell_snapshot\x1b[0m: snapshot failed\n"}, "it gave no reason"),
+    ({"errors": [], "stderr": "\x1b[31mERROR\x1b[0m the model endpoint returned 403 PERMISSION_DENIED\n"
+                                "\x1b[2mcodex_core::shell_snapshot\x1b[0m: snapshot failed\n"}, "ERROR the model endpoint returned 403 PERMISSION_DENIED"),
+    ({"errors": ["Genie error: stream disconnected before completion"], "stderr": "\x1b[31mERROR\x1b[0m other\n"},
+     "stream disconnected before completion"),
+    ({}, "it gave no reason"),
+])
+def test_a_genie_exit_says_its_reason_in_plain_text_without_terminal_codes_or_cli_noise(agent_ns, result, reason):
+    said = agent_ns["genie_exit_reason"](result)
+    assert said == reason
+    assert "\x1b" not in said and "shell_snapshot" not in said and "Reading additional input" not in said
