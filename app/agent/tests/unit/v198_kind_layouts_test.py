@@ -1,6 +1,7 @@
 """Use-case kind layouts in the App shell: page spec version 2, the per-layout sections, minimum items and companion tables, the
 layout chart types, the plan decision and the scenario evaluation, offline."""
 import copy
+import datetime
 import json
 import os
 import re
@@ -820,3 +821,75 @@ def test_a_pareto_keeps_its_ranked_combo_beside_the_gantt_table(agent_ns, tmp_pa
     _doc, widget, datasets, index = _gantt_board(agent_ns, tmp_path, pareto)
     assert widget["spec"]["widgetType"] == "combo"
     assert agent_ns["implement_dashboard_ranked_parts"]("".join(datasets[f"chart_{index}_parts"]["queryLines"]))
+
+
+def _date_chart(kind, fmt="date"):
+    roles = shell_sql.LAYOUT_CHARTS.get(kind, ("category", ("value",)))[1]
+    chart = {"id": "c", "title": "When", "hint": "A chart of dates.", "type": kind, "dataset": "d",
+             "x": {"column": "entity", "kind": shell_sql.LAYOUT_CHARTS.get(kind, ("category",))[0], "label": "Line", "order": "o"},
+             "y": [{"label": f"Measure {i}", "expression": f"MAX(day_{i})", "format": fmt} for i in range(len(roles))]}
+    if kind in shell_sql.SERIES_CHARTS:
+        chart["series"] = {"column": "decision"}
+    if kind == "scatter":
+        chart.update(x={"expression": "MAX(day_x)", "label": "Day", "format": fmt}, group="entity", y=[{"label": "Units", "expression": "SUM(u)"}])
+    return chart
+
+
+def _dated(problems):
+    return [p for p in problems if "is a date, so a" in p]
+
+
+@pytest.mark.parametrize("kind", [k for k in shell_sql.CHART_TYPES if k not in shell_sql.DURATION_CHARTS])
+def test_a_date_measure_is_refused_on_every_chart_type_that_draws_a_height_or_a_size_and_a_number_is_kept(kind):
+    found = _dated(shell_sql._chart_problems(_date_chart(kind), {"d"}))
+    assert found and all(f"chart c " in p and f"so a {kind} cannot draw it" in p for p in found), found
+    assert _dated(shell_sql._chart_problems(_date_chart(kind, "number"), {"d"})) == []
+    assert _dated(shell_sql._chart_problems(_date_chart(kind, "month"), {"d"}))
+
+
+def test_a_scatter_refuses_a_date_on_its_x_measure_and_a_gantt_keeps_its_dates_as_a_duration():
+    assert _dated(shell_sql._chart_problems(_date_chart("scatter"), {"d"})) == [
+        "chart c x is a date, so a scatter cannot draw it as a height or a size; show the date as text in a KPI or a table column, "
+        "count the rows instead, or draw a gantt of each start and end"]
+    assert _dated(shell_sql._chart_problems(_date_chart("gantt"), {"d"})) == []
+    assert problems(planned()) == []
+
+
+def test_a_date_stays_allowed_as_text_in_a_kpi_and_a_table_column():
+    assert shell_sql._format_problems("kpi k", {"format": "date"}) == []
+    assert shell_sql._format_problems("table t column c", {"format": "month"}) == []
+
+
+def test_the_preview_rows_refuse_a_measure_that_returns_dates_even_when_its_format_says_number():
+    page = {"charts": [_date_chart("bar", "number"), dict(_date_chart("gantt"), id="g"), dict(_date_chart("scatter", "number"), id="s")]}
+    day = datetime.date(2026, 3, 1)
+    shapes = {"c": [{"x": "A", "y0": day}], "g": [{"x": "A", "y0": day, "y1": day}], "s": [{"x": 4, "y0": 2}]}
+    assert shell_sql.chart_date_problems(page, shapes) == [
+        "chart c measure 1 is a date, so a bar cannot draw it as a height or a size; show the date as text in a KPI or a table column, "
+        "count the rows instead, or draw a gantt of each start and end"]
+    shapes["c"] = [{"x": "A", "y0": 12.5}]
+    shapes["s"] = [{"x": datetime.datetime(2026, 3, 1, 8), "y0": 2}]
+    assert [p.split(" is a date")[0] for p in shell_sql.chart_date_problems(page, shapes)] == ["chart s x"]
+    assert shell_sql.chart_date_problems(page, {}) == [] and shell_sql.chart_date_problems({}, None) == []
+
+
+def test_no_kind_dashboard_binding_draws_a_date_as_a_measure():
+    for source, bindings in KINDS["widget_fields"].items():
+        for title, binding in bindings.items():
+            if not isinstance(binding, dict) or binding.get("type") in ("table", "counter"):
+                continue
+            for triple in binding.get("y") or []:
+                assert not shell_sql.date_measure({"format": triple[2]}), (source, title, triple)
+
+
+def test_the_app_and_the_dashboard_share_one_date_format_list_and_the_dashboard_checks_its_chart_previews(agent_ns):
+    web = os.path.join(os.path.dirname(shell_sql.__file__), "..", "web", "src")
+    text = open(os.path.join(web, "format.js"), encoding="utf-8").read()
+    listed = re.search(r"export const DATE_FORMATS = \[([^\]]*)\]", text).group(1)
+    assert tuple(re.findall(r"'([^']+)'", listed)) == shell_sql.DATE_FORMATS
+    for name in ("charts.js", "DataTable.jsx"):
+        code = open(os.path.join(web, name), encoding="utf-8").read()
+        assert "['date', 'month']" not in code and "DATE_FORMATS.includes(" in code, name
+    notebook = json.load(open(os.path.join(os.path.dirname(__file__), "..", "..", "agent", "dbx_inspire_ai_agent.ipynb"), encoding="utf-8"))
+    source = "".join("".join(cell["source"]) for cell in notebook["cells"])
+    assert source.count("dated = shell_sql.chart_date_problems(page, shapes)") == 1

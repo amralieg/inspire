@@ -1,4 +1,5 @@
 export const NOT_RECORDED = 'Not recorded';
+export const DATE_FORMATS = ['date', 'month'];
 
 const WHOLE_TEXT = /^[-+]?\d+$/;
 
