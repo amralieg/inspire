@@ -1,8 +1,9 @@
 """v1.4.0 rc.4: the stated kind survives, logs name the use case, empty tables give no baseline.
 
-1. A stated kind that is in the catalog is never relabelled for its technique: a technique the kind does not list
-   is replaced by one it lists, preferring one the use case's text names. Only a stated kind that is not in the
-   catalog is relabelled to the kind of its technique, and the KIND-MATCH lines say which of the two happened.
+1. When a stated kind does not list its technique, the use case's own text decides: a technique of the stated kind
+   that the text names replaces the label; a text that names the stated technique instead moves the use case to that
+   technique's kind, unless the instructions ask for the stated kind; a text that names neither keeps both and flags
+   the mismatch. No technique is invented. A stated kind that is not in the catalog takes its technique's kind.
 2. The KIND-MATCH, VALUE-SHARE and SIGNAL-CHECK lines name each use case next to its id, because ids are renumbered
    after them, and VALUE-SHARE states the final selected count.
 3. A KPI measured on a table with no rows in scope is not measured (no data), never a measured zero.
@@ -24,7 +25,8 @@ REGISTRY = {
                  {"id": "predict", "label": "Predict"}],
     "layouts": [{"id": "decision_queue", "min_items": {"decision_list": 20}}, {"id": "dashboard", "min_items": {"charts": 2}}],
     "technique_kind": {"Pareto Analysis": "driver_breakdown", "Regression Analysis": "driver_breakdown",
-                       "Optimization": "allocation", "Classification": "risk_propensity"},
+                       "Optimization": "allocation", "Classification": "risk_propensity", "Survival Analysis": "time_to_event",
+                       "Queueing": "staffing_queueing", "Simulation": "driver_scenarios", "Forecasting": "forecast"},
     "kinds": [
         {"id": "driver_breakdown", "num": 2, "family": "measure_explain", "label": "Driver breakdown", "informational": True,
          "layout": "dashboard", "techniques": ["Pareto Analysis", "Regression Analysis", "Decomposition"]},
@@ -34,6 +36,12 @@ REGISTRY = {
          "layout": "dashboard", "techniques": ["Optimization"]},
         {"id": "risk_propensity", "num": 6, "family": "predict", "label": "Risk and propensity", "informational": True,
          "layout": "decision_queue", "techniques": ["Classification"]},
+        {"id": "inventory_replenishment", "num": 14, "family": "decide", "label": "Inventory replenishment", "informational": True,
+         "layout": "dashboard", "techniques": ["Optimization", "Forecasting", "Simulation"]},
+        {"id": "time_to_event", "num": 7, "family": "predict", "label": "Time to event", "informational": True,
+         "layout": "dashboard", "techniques": ["Survival Analysis"]},
+        {"id": "staffing_queueing", "num": 15, "family": "decide", "label": "Staffing and queueing", "informational": True,
+         "layout": "dashboard", "techniques": ["Queueing"]},
     ],
 }
 SCHEMA = [("main", "s", "sales", "item_id", "bigint", ""), ("main", "s", "sales", "amount", "double", "")]
@@ -70,21 +78,73 @@ def _q5(ns, ucs, parsed=None):
     return inst, [uc["No"] for uc in kept], {uc["No"]: reason for uc, reason in dropped}
 
 
-def test_a_catalog_kind_with_an_unlisted_technique_keeps_its_kind_and_takes_its_first_technique(ns):
+def test_a_catalog_kind_whose_design_names_no_technique_keeps_its_kind_and_technique_and_is_flagged(ns):
     uc = _uc("N01-U10", "assortment", "Pareto Analysis")
     inst, kept, dropped = _q5(ns, [uc])
     assert kept == ["N01-U10"] and dropped == {}
     assert uc["Use Case Kind"] == "assortment" and "use_case_kind" not in uc and "kind_relabelled_from" not in uc
-    assert (uc["Analytics Technique"], uc["technique_replaced_from"]) == ("Optimization", "Pareto Analysis")
-    assert _messages(inst, '[KIND-MATCH FIRED] 1 use case kept the stated kind and took a technique that kind lists: '
-                           'N01-U10 "Choose the Item Range per Store" assortment: Pareto Analysis -> Optimization')
-    assert not _messages(inst, "relabelled")
+    assert uc["Analytics Technique"] == "Pareto Analysis" and "technique_replaced_from" not in uc
+    assert "Q5_D5_KIND_TECHNIQUE_MISMATCH:assortment" in uc["gate_flags"]
+    assert not _messages(inst, "[KIND-MATCH FIRED]")
 
 
 def test_the_replacement_technique_is_one_the_use_case_names_when_the_kind_lists_it(ns):
     uc = _uc("N01-U11", "assortment", "Pareto Analysis", design="Fit a regression of units on shelf space per item.")
-    _q5(ns, [uc])
-    assert (uc["Use Case Kind"], uc["Analytics Technique"]) == ("assortment", "Regression Analysis")
+    inst, _kept, _dropped = _q5(ns, [uc])
+    assert (uc["Use Case Kind"], uc["Analytics Technique"], uc["technique_replaced_from"]) == (
+        "assortment", "Regression Analysis", "Pareto Analysis")
+    assert _messages(inst, '[KIND-MATCH FIRED] 1 use case kept the stated kind and took a technique that kind lists: '
+                           'N01-U11 "Choose the Item Range per Store" assortment: Pareto Analysis -> Regression Analysis')
+
+
+TPCDS_INVENTORY = [("samples", "tpcds_sf1", "inventory", column, kind, "") for column, kind in (
+    ("inv_date_sk", "int"), ("inv_item_sk", "int"), ("inv_warehouse_sk", "int"), ("inv_quantity_on_hand", "int"))]
+INVENTORY = {"Tables Involved": "samples.tpcds_sf1.inventory, samples.tpcds_sf1.date_dim", "Beneficiary": "Inventory planner"}
+
+
+def test_an_inventory_card_whose_design_is_another_technique_takes_that_technique_kind(ns):
+    stockout = _uc("N13-U04", "inventory_replenishment", "Survival Analysis", name="Predict Days to Stockout per Item and Warehouse",
+                   design="Fit a survival model of days until inv_quantity_on_hand reaches zero, censoring items still in stock.",
+                   **INVENTORY)
+    desk = _uc("N12-U09", "inventory_replenishment", "Queueing", name="Schedule Returns Desk Shifts by Arrival Hour",
+               design="Size the returns desk per hour with an Erlang C model of arrivals and handling time.", **INVENTORY)
+    reorder = _uc("N11-U04", "inventory_replenishment", "Simulation", name="Set Order Quantities per Item and Warehouse",
+                  design="Simulate weekly demand and lead time to set an order quantity per item at a 95% service level.",
+                  **INVENTORY)
+    inst = _inst(ns)
+    kept, dropped = inst._phaseQ5_decision_readiness([stockout, desk, reorder], TPCDS_INVENTORY)
+    assert [uc["No"] for uc in kept] == ["N13-U04", "N12-U09", "N11-U04"] and dropped == []
+    assert (stockout["use_case_kind"], stockout["kind_relabelled_from"]) == ("time_to_event", "inventory_replenishment")
+    assert (desk["use_case_kind"], desk["kind_relabelled_from"]) == ("staffing_queueing", "inventory_replenishment")
+    assert stockout["Analytics Technique"] == "Survival Analysis" and desk["Analytics Technique"] == "Queueing"
+    assert (reorder["Use Case Kind"], reorder["Analytics Technique"]) == ("inventory_replenishment", "Simulation")
+    assert not any(uc.get("Analytics Technique") == "Optimization" for uc in (stockout, desk, reorder))
+    assert _messages(inst, 'N13-U04 "Predict Days to Stockout per Item and Warehouse" inventory_replenishment -> time_to_event '
+                           '(its design names Survival Analysis, none of Optimization, Forecasting, Simulation '
+                           'inventory_replenishment lists)')
+
+
+def test_an_asked_kind_is_not_relabelled_even_when_its_design_names_another_technique(ns):
+    stockout = _uc("N13-U04", "inventory_replenishment", "Survival Analysis", name="Predict Days to Stockout per Item",
+                   design="Fit a survival model of days until stock reaches zero.", **INVENTORY)
+    _q5(ns, [stockout], parsed={"use_case_kinds": {"asked": ["inventory_replenishment"], "excluded": []}})
+    assert (stockout["Use Case Kind"], stockout["Analytics Technique"]) == ("inventory_replenishment", "Survival Analysis")
+    assert "Q5_D5_KIND_TECHNIQUE_MISMATCH:inventory_replenishment" in stockout["gate_flags"]
+
+
+def test_standard_discovery_never_reads_a_row_count(ns):
+    with pytest.raises(ns["StandardModeDataReadError"]):
+        ns["DeepEvidence"](None, "Standard", make_inspire(ns).logger)
+    deep = ns["DeepEvidence"].__new__(ns["DeepEvidence"])
+    deep.discovery_type = "Standard"
+    with pytest.raises(ns["StandardModeDataReadError"]):
+        deep.measure_kpi({"name": "Units on hand", "table": "samples.tpcds_sf1.inventory", "aggregation": "SUM",
+                          "column": "inv_quantity_on_hand"})
+    inst = _inst(ns)
+    inst.deep_evidence = None
+    ucs = [{"KPIs": [{"name": "Units on hand", "computable": True, "query": "SELECT 1"}]}]
+    assert inst._measure_kpi_baselines(ucs) == {"computable": 1, "measured": 0, "unmeasured": 0, "skipped": 0}
+    assert "baseline" not in ucs[0]["KPIs"][0] and not _messages(inst, "no rows")
 
 
 def test_a_stated_kind_not_in_the_catalog_is_relabelled_to_its_technique_kind(ns):
@@ -102,7 +162,7 @@ def test_asked_kinds_and_requested_use_cases_keep_their_kind(ns):
     asked = _uc("N01-U13", "assortment", "Classification")
     requested = _uc("N01-U14", "assortment", "Classification", user_request="R1")
     _q5(ns, [asked, requested], parsed={"use_case_kinds": {"asked": ["assortment"], "excluded": []}})
-    assert (asked["Use Case Kind"], asked["Analytics Technique"]) == ("assortment", "Optimization")
+    assert (asked["Use Case Kind"], asked["Analytics Technique"]) == ("assortment", "Classification")
     assert (requested["Use Case Kind"], requested["Analytics Technique"]) == ("assortment", "Classification")
     assert "kind_relabelled_from" not in asked and "kind_relabelled_from" not in requested
 

@@ -407,20 +407,18 @@ def test_t4_minimum_items_is_a_runtime_parameter_when_no_layout_sets_it(ns, rt):
     assert _q5(ns, [dict(uc)]) == (["D1"], {})
 
 
-def test_d5_a_kind_whose_technique_it_does_not_list_keeps_its_kind_and_takes_a_listed_technique(ns):
+def test_d5_a_kind_whose_technique_it_does_not_allow_is_relabelled_to_the_technique_kind(ns):
     mismatched = _q5_uc("M1", *DECIDES, kind="forecast", **{"Analytics Technique": "Classification"})
     unmapped = _q5_uc("M2", *DECIDES, kind="forecast", **{"Analytics Technique": "Anomaly Detection"})
     matched = _q5_uc("M3", *DECIDES, kind="forecast", **{"Analytics Technique": "Forecasting"})
     inst = _inst(ns)
     kept, dropped = inst._phaseQ5_decision_readiness([mismatched, unmapped, matched], SCHEMA)
     assert [uc["No"] for uc in kept] == ["M1", "M2", "M3"] and dropped == []
-    for uc, stated in ((mismatched, "Classification"), (unmapped, "Anomaly Detection")):
-        assert uc["Use Case Kind"] == "forecast" and "kind_relabelled_from" not in uc
-        assert (uc["Analytics Technique"], uc["technique_replaced_from"]) == ("Forecasting", stated)
-    assert matched["Use Case Kind"] == "forecast" and "technique_replaced_from" not in matched
-    assert _messages(inst, "[KIND-MATCH FIRED] 2 use cases kept the stated kind and took a technique that kind lists: "
-                           'M1 "Score Each Supplier for Delivery Risk" forecast: Classification -> Forecasting')
-    assert not _messages(inst, "relabelled")
+    assert (mismatched["use_case_kind"], mismatched["kind_relabelled_from"]) == ("risk_propensity", "forecast")
+    assert "Use Case Kind" not in mismatched
+    assert "Q5_D5_KIND_TECHNIQUE_MISMATCH:forecast" in unmapped["gate_flags"] and unmapped["Use Case Kind"] == "forecast"
+    assert matched["Use Case Kind"] == "forecast" and "kind_relabelled_from" not in matched
+    assert _messages(inst, "[KIND-MATCH FIRED] 1 use case relabelled")
 
 
 def test_d5_relabelling_applies_the_exclusion_of_the_new_kind(ns):
@@ -428,6 +426,8 @@ def test_d5_relabelling_applies_the_exclusion_of_the_new_kind(ns):
     parsed = {"use_case_kinds": {"asked": [], "excluded": ["risk_propensity"]}}
     assert _q5(ns, [uc], parsed=parsed) == ([], {"M1": "Q5_KIND_EXCLUDED:risk_propensity"})
     assert (uc["use_case_kind"], uc["kind_relabelled_from"]) == ("risk_propensity", "Demand sensing")
+    named = _q5_uc("M2", *DECIDES, kind="forecast", **{"Analytics Technique": "Classification"})
+    assert _q5(ns, [named], parsed=parsed) == ([], {"M2": "Q5_KIND_EXCLUDED:risk_propensity"})
 
 
 def test_d5_keeps_the_kind_of_a_use_case_the_instructions_ask_for(ns):
@@ -435,9 +435,8 @@ def test_d5_keeps_the_kind_of_a_use_case_the_instructions_ask_for(ns):
     asked_idea = _q5_uc("M2", *DECIDES, kind="forecast", user_request="R1", **{"Analytics Technique": "Classification"})
     other = _q5_uc("M3", *DECIDES, kind="anomaly", **{"Analytics Technique": "Classification"})
     _q5(ns, [asked_kind, asked_idea, other], parsed={"use_case_kinds": {"asked": ["Forecast"], "excluded": []}})
-    assert (asked_kind["Use Case Kind"], asked_idea["Use Case Kind"], other["Use Case Kind"]) == (
-        "forecast", "forecast", "anomaly")
-    assert (asked_idea["Analytics Technique"], other["Analytics Technique"]) == ("Classification", "Anomaly Detection")
+    assert (asked_kind["Use Case Kind"], asked_idea["Use Case Kind"], other["use_case_kind"]) == (
+        "forecast", "forecast", "risk_propensity")
 
 
 def _twin(no, title, kind, bob, **extra):
@@ -490,9 +489,9 @@ def test_the_kind_comes_from_the_stored_field_or_the_technique_when_no_kind_is_s
     by_technique.pop("Use Case Kind")
     forecast = _q5_uc("K3", *DECIDES, kind="forecast", **{"Solution": "Rank the top 5 suppliers for buyers to call."})
     forecast.pop("Use Case Kind")
-    assert _q5(ns, [stored, by_technique, forecast]) == (["K1", "K3"], {"K2": "Q5_T4_TOO_FEW_ITEMS:5<20"})
-    assert (stored["use_case_kind"], stored["Analytics Technique"]) == ("forecast", "Forecasting")
-    assert "kind_relabelled_from" not in stored
+    assert _q5(ns, [stored, by_technique, forecast]) == (
+        ["K3"], {"K1": "Q5_T4_TOO_FEW_ITEMS:5<20", "K2": "Q5_T4_TOO_FEW_ITEMS:5<20"})
+    assert (stored["use_case_kind"], stored["kind_relabelled_from"]) == ("risk_propensity", "forecast")
 
 
 def test_every_kind_lookup_goes_through_the_one_kind_resolver(ns, monkeypatch):
