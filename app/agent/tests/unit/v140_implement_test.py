@@ -3554,7 +3554,7 @@ def test_a_failed_genie_code_install_ends_its_step_with_the_reason(fresh_ns, tmp
     download = _failed_download(fresh_ns, tmp_path, monkeypatch)
 
     class _BrokenRunner:
-        def __init__(self, host, token, logger, on_line=None):
+        def __init__(self, host, token, logger, on_line=None, model=None):
             self.token = token
 
         def install(self):
@@ -3562,6 +3562,7 @@ def test_a_failed_genie_code_install_ends_its_step_with_the_reason(fresh_ns, tmp
 
     fresh_ns["GenieCodeRunner"] = _BrokenRunner
     inst = _inspire(fresh_ns, FakeSpark())
+    inst._genie_code_model = (fresh_ns["GENIE_CODE_MODEL"], "")
     context = types.SimpleNamespace(apiUrl=lambda: types.SimpleNamespace(get=lambda: "https://h"),
                                     apiToken=lambda: types.SimpleNamespace(get=lambda: "tok"))
     inst.dbutils = types.SimpleNamespace(notebook=types.SimpleNamespace(entry_point=types.SimpleNamespace(
@@ -3570,7 +3571,8 @@ def test_a_failed_genie_code_install_ends_its_step_with_the_reason(fresh_ns, tmp
     inst._implement_emit = lambda uc, step, message, status, *a, **k: emitted.append((step, message, status, k.get("step_id"))) or "s1"
     with pytest.raises(RuntimeError, match="manifest.json is missing"):
         inst._implement_runner("N01-U01")
-    assert emitted == [("Genie Code", "installing the Genie Code CLI and the Databricks CLI", "started", None),
+    assert emitted == [("Genie Code", "checking which AI model Genie Code can call and installing the Genie Code CLI and the "
+                                      "Databricks CLI", "started", None),
                        ("Genie Code", f"Genie Code could not be installed: {INSTALL_ERROR.format(version=fresh_ns['__AGENT_VERSION__'])}",
                         "ended_error", "s1")], \
         "a failed install ends its step, so the Build page never shows it still running"
@@ -5396,7 +5398,7 @@ def test_every_failed_step_that_raises_to_the_build_leaves_its_one_error_to_the_
                     raising += 1
                     flagged += any(kw.arg == "error_logged_elsewhere" and getattr(kw.value, "value", None) is True
                                    for kw in call.keywords)
-    assert raising == 12 and flagged == raising, (raising, flagged)
+    assert raising == 13 and flagged == raising, (raising, flagged)
     failed = source[source.index("    def _implement_failed("):]
     failed = failed[:failed.index("\n    def ", 10)]
     assert failed.count("self.logger.error(") == 2 and "error_logged_elsewhere=True" in failed
