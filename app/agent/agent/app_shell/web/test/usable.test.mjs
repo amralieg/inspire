@@ -296,10 +296,10 @@ test('a change the read-only demo refuses is a calm note, and every other failur
     assert.equal(DEMO_NOTE, 'This is a demo, so it is read-only: nothing you do here changes any data.');
     assert.deepEqual([demo.calm, demo.message, demo.status, toneOf(demo)], [true, DEMO_NOTE, 403, 'info']);
     assert.deepEqual(failureOf(demo), { text: DEMO_NOTE, calm: true });
-    for (const status of [404, 409, 400]) {
+    for (const [status, note] of [[404, 'The demo has no saved answer for this view.'], [409, DEMO_NOTE], [400, DEMO_NOTE]]) {
       answer(status, { error: 'The demo has no saved answer for this view.', showcase: true });
       const refused = await actRecords({ page: 'n01_u05' }).catch((e) => e);
-      assert.deepEqual([refused.calm, refused.message, refused.status, toneOf(refused)], [true, DEMO_NOTE, status, 'info'], `${status} marked showcase`);
+      assert.deepEqual([refused.calm, refused.message, refused.status, toneOf(refused)], [true, note, status, 'info'], `${status} marked showcase`);
     }
     for (const [status, body] of [[500, { error: 'the warehouse stopped' }], [403, { error: 'this App does not let people change its data' }],
       [403, { error: 'not quite', showcase: 'true' }], [500, { error: 'the demo proxy broke', showcase: true }], [404, { error: 'no such page' }]]) {

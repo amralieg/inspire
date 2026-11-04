@@ -202,7 +202,7 @@ test('a new alert picks what to watch, its segments, a number or earlier runs, a
   await form.getByRole('button', { name: 'Check the value now' }).click();
   await until(() => calls.previews.length === 2);
   await page.waitForFunction(() => /line is 20\.5/.test(document.querySelector('.alert-preview')?.textContent || ''));
-  assert.equal(await form.locator('.alert-preview').innerText(), 'Now: 14. It would not send an email. The line is 20.50, from 12 earlier runs.');
+  assert.equal(await form.locator('.alert-preview').innerText(), 'Now: 14. It would not send an email. The line is 20.5, from 12 earlier runs.');
   const lists = calls.lists;
   await form.getByRole('button', { name: 'Set up the alert' }).click();
   await until(() => calls.saves.length === 1);

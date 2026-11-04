@@ -253,7 +253,7 @@ test('a promotion effect card sends its lift, range and return, the decide list 
   const effect = await ask(page, calls, 'Spring bundle');
   assert.equal(effect.kind, 'effect');
   assert.equal(effect.question, SUGGESTIONS.effect[0]);
-  assert.deepEqual(effect.context.fields, { Promotion: 'Spring bundle', Lift: 12, Low: 5, High: 19, 'p value': 0.004, Return: 140, 'Sales added': 90000, Cost: 20000 });
+  assert.deepEqual(effect.context.fields, { Promotion: 'Spring bundle', Lift: 12, Low: 5, High: 19, 'P value': 0.004, Return: 140, 'Sales added': 90000, Cost: 20000 });
   assert.match(effect.context.hint, /\S/);
   const lifts = await ask(page, calls, 'Lift of each promotion');
   assert.deepEqual([lifts.kind, lifts.context.row_count, lifts.context.rows.map((r) => r.Promotion)], ['table', 3, ['Spring bundle', 'Flash sale', 'Free delivery']]);

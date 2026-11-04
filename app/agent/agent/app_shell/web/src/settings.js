@@ -8,10 +8,24 @@ export const GROUPS = [
 ];
 const ALL = 'all';
 const NUMBER = /^-?[0-9]+(?:\.[0-9]+)?$/;
+const CUSTOM_SQL_REFUSED = 'Inspire does not run SQL typed into Grouping or First run; choose columns to group by and one of the first run choices instead';
+const CUSTOM_SQL_SETTINGS = ['group_sql', 'group_sql_tables', 'group_sql_hash', 'group_sql_checked_by', 'group_sql_checked_at',
+  'scope_sql', 'scope_sql_tables', 'scope_sql_hash', 'scope_sql_checked_by', 'scope_sql_checked_at'];
+
+export function customSqlProblem(name, value) {
+  const key = String(name || '').trim().toLowerCase();
+  const text = String(value ?? '').trim();
+  if (CUSTOM_SQL_SETTINGS.includes(key) && text) return `${String(name).trim()}: ${CUSTOM_SQL_REFUSED}`;
+  const custom = key === 'run_scope' ? text.toLowerCase() === 'custom'
+    : key === 'group_by' && text.split(',').map((p) => p.trim().toLowerCase()).filter(Boolean).includes('custom');
+  return custom ? `${String(name).trim()} is '${text}': ${CUSTOM_SQL_REFUSED}` : '';
+}
 
 export function settingProblem(setting, value) {
   const name = String(setting?.name || '');
   const text = String(value ?? '').trim();
+  const custom = customSqlProblem(name, text);
+  if (custom) return custom;
   if (setting?.kind === 'choice') {
     const choices = (setting.choices || []).map(String);
     const picked = setting.many ? text.split(',').map((p) => p.trim()).filter(Boolean) : [text];
