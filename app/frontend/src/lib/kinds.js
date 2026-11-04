@@ -1,1 +1,1 @@
-export { KINDS, kindOf, layoutOf, familyOf, kindForTechnique } from '../../../agent/agent/app_shell/web/src/kinds.js';
+export { KINDS, kindOf, familyOf, kindForTechnique } from '../../../agent/agent/app_shell/web/src/kinds.js';

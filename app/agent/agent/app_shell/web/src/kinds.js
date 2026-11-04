@@ -6,7 +6,6 @@ const byId = (list, id) => list.find((item) => item.id === id) || null;
 const techniqueKey = (technique) => String(technique ?? '').split(/\s+/).filter(Boolean).join(' ').toLowerCase();
 
 export const kindOf = (id) => byId(REGISTRY.kinds, id);
-export const layoutOf = (id) => byId(REGISTRY.layouts, id);
 export const familyOf = (id) => byId(REGISTRY.families, id);
 
 export function kindForTechnique(technique) {

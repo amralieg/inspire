@@ -1,7 +1,7 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
-import { TABLE, appInfo, openApp, pageData, serveDist, until } from './harness.mjs';
+import { ASK_GROUPS, TABLE, appInfo, askAudit, openApp, pageData, serveDist, until } from './harness.mjs';
 import { amountText, moneyOf, recordFormula, ruleText, sumFormula } from '../src/money.js';
 import { nothingReason, nothingText } from '../src/hub.js';
 
@@ -173,6 +173,39 @@ test('an owner reads how the money is worked out, changes an assumption with a n
   await page.waitForFunction(() => document.querySelector('[data-assumption="KEEP"] td.num')?.textContent === '40%');
   await until(() => seen.hub.filter((b) => b.page === 'n01_u05').length > before);
   assert.ok(seen.hub.filter((b) => b.page === 'n01_u05').length > before, 'the things to fix and the tiles load again with the new money');
+  assert.deepEqual(app.errors, []);
+  await context.close();
+});
+
+test('the money card asks Genie with its rule, its tiers and each assumption as it stands, folded or open', async () => {
+  const seen = {};
+  const explain = [];
+  const asks = { 'genie/explain': ({ route, json }) => { explain.push(route.request().postDataJSON()); return json(200, { conversation_id: 'c1', message_id: 'm1', question: 'q' }); },
+    'genie/message': ({ json }) => json(200, { state: 'done', text: 'Genie answered.', sql: 'SELECT 1', columns: [], rows: [], truncated: false }) };
+  const { page, seen: app, context } = await openApp(browser, served.base, INFO(), { width: 1440, routes: { ...routes(seen), ...asks } });
+  await page.goto(`${served.base}#/n01_u05`);
+  const card = page.getByRole('region', { name: 'How the money at stake is worked out' });
+  await card.waitFor();
+  const found = await page.evaluate(askAudit, ASK_GROUPS);
+  assert.deepEqual([found.missing, found.hidden], [[], []]);
+  const price = await card.locator('[data-assumption="PRICE"]').getByRole('button', { name: 'Ask Genie about Price', exact: true });
+  await price.click();
+  await page.locator('form.ask-box .sugg').first().click();
+  await until(() => explain.length === 1);
+  assert.deepEqual([explain[0].kind, explain[0].context.fields], ['text', { Assumption: 'Price', Value: '30 USD', 'Set by the run': '20 USD',
+    'Last change': `${OWNER}, Oct 23, 2026`, Why: 'list price' }]);
+  await page.locator('.msg-sql').first().waitFor({ timeout: 15000 });
+  await card.getByRole('button', { name: 'Ask Genie about How the money at stake is worked out', exact: true }).click();
+  await page.locator('form.ask-box .sugg').first().click();
+  await until(() => explain.length === 2);
+  assert.equal(explain[1].kind, 'text');
+  assert.equal(explain[1].context.hint, `Each record: ${ruleText(MODEL)} = its money at stake. Act now from $5,000 at stake, Review from $1,000, every other record Monitor.`
+    + ' A changed assumption moves records between these tiers on the next update.');
+  assert.deepEqual(explain[1].context.fields, { Price: '30 USD', Keep: '50%' });
+  await page.locator('.msg-sql').nth(1).waitFor({ timeout: 15000 });
+  await card.getByRole('button', { name: 'Fold How the money at stake is worked out', exact: true }).click();
+  await page.locator('section.money--folded').waitFor();
+  assert.equal(await page.locator('section.money--folded').getByRole('button', { name: 'Ask Genie about How the money at stake is worked out', exact: true }).count(), 1);
   assert.deepEqual(app.errors, []);
   await context.close();
 });

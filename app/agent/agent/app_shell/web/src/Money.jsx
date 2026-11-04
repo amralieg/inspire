@@ -3,7 +3,8 @@ import { changeAssumption, failureOf, getMoney } from './api.js';
 import { dayLabel, kindOf, stakeWords, unitOf, wholeMoney } from './format.js';
 import { Icon } from './icons.jsx';
 import { Failure, useToast } from './ui.jsx';
-import { amountText, assumptionLabel, columnWords } from './money.js';
+import { amountText, assumptionLabel, columnWords, ruleText } from './money.js';
+import { AskGenie } from './AskGenie.jsx';
 import { settingProblem } from './settings.js';
 import { FoldButton, useFold } from './MyView.jsx';
 
@@ -115,33 +116,41 @@ export default function MoneyCard({ pageId, nonce = 0, onChanged }) {
   };
   const tiers = tiersText(model, data.held);
   const lines = historyLines(data.history || [], model.currency);
-  const title = `How the ${stakeWords(unitOf(model), kindOf(model))} is worked out`;
+  const stake = stakeWords(unitOf(model), kindOf(model));
+  const title = `How the ${stake} is worked out`;
+  const ask = <AskGenie kind="text" title={title} context={{ hint: [model.parts.length ? `Each record: ${ruleText(model)} = its ${stake}.` : '', tiers].filter(Boolean).join(' '),
+    fields: Object.fromEntries(model.assumptions.map((a) => [assumptionLabel(a.name), amountText(a.value, a.kind, model.currency)])) }} />;
   if (fold.folded) {
     return (
       <section className="money money--folded" aria-label={title}>
-        <div className="money-h"><h2>{title}</h2><FoldButton fold={fold} title={title} /></div>
+        <div className="money-h"><h2>{title}</h2>{ask}<FoldButton fold={fold} title={title} /></div>
       </section>
     );
   }
   return (
     <section className="money" aria-label={title}>
-      <div className="money-h"><h2>{title}</h2><FoldButton fold={fold} title={title} /></div>
+      <div className="money-h"><h2>{title}</h2>{ask}<FoldButton fold={fold} title={title} /></div>
       {model.parts.length > 0 && <Rule model={model} />}
       {model.assumptions.length > 0 && (
         <div className="tbl-wrap">
           <table>
-            <thead><tr><th>Assumption</th><th>Value</th><th>Last change</th>{data.editable && <th><span className="sr">Change</span></th>}</tr></thead>
+            <thead><tr><th>Assumption</th><th>Value</th><th>Last change</th>{data.editable && <th><span className="sr">Change</span></th>}<th><span className="sr">Ask Genie</span></th></tr></thead>
             <tbody>
-              {model.assumptions.map((a) => (
+              {model.assumptions.map((a) => {
+                const changed = a.changed_by ? `${a.changed_by}${a.changed_at ? `, ${dayLabel(String(a.changed_at).slice(0, 10))}` : ''}` : 'As the notebook set it';
+                return (
                 <tr key={a.name} data-assumption={a.name}>
                   <td>{assumptionLabel(a.name)}</td>
                   <td className="num">{editing === a.name
                     ? <Editor pageId={pageId} a={a} onSaved={saved} onCancel={() => setEditing('')} />
                     : amountText(a.value, a.kind, model.currency)}</td>
-                  <td>{a.changed_by ? `${a.changed_by}${a.changed_at ? `, ${dayLabel(String(a.changed_at).slice(0, 10))}` : ''}` : 'As the notebook set it'}</td>
+                  <td>{changed}</td>
                   {data.editable && <td>{editing !== a.name && <button type="button" className="btn" onClick={() => setEditing(a.name)} aria-label={`Change ${assumptionLabel(a.name)}`}><Icon name="edit" size={14} />Change</button>}</td>}
+                  <td className="ask-c"><AskGenie kind="text" title={assumptionLabel(a.name)} context={{ hint: `An assumption of ${title}.`,
+                    fields: { Assumption: assumptionLabel(a.name), Value: amountText(a.value, a.kind, model.currency), 'Set by the run': amountText(a.run_value, a.kind, model.currency), 'Last change': changed, ...(a.note ? { Why: a.note } : {}) } }} /></td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>

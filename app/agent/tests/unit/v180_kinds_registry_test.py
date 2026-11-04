@@ -331,8 +331,8 @@ def test_the_shell_web_and_the_frontend_import_kinds_json_by_path():
 
 @pytest.mark.skipif(shutil.which("node") is None, reason="node is not installed")
 def test_the_shell_web_kind_helpers_read_the_same_registry():
-    script = ("import { KINDS, kindOf, layoutOf, familyOf, kindForTechnique } from './src/kinds.js';"
-              "console.log(JSON.stringify({n: KINDS.kinds.length, f: kindOf('forecast').layout, l: layoutOf('planner').contract,"
+    script = ("import { KINDS, kindOf, familyOf, kindForTechnique } from './src/kinds.js';"
+              "console.log(JSON.stringify({n: KINDS.kinds.length, f: kindOf('forecast').layout, l: KINDS.layouts.find((x) => x.id === 'planner').contract,"
               "fam: familyOf('predict').label, t: kindForTechnique('  CLASSIFICATION ').id, none: kindForTechnique('nope'), miss: kindOf('nope'),"
               "same: (await import('../../../../frontend/src/lib/kinds.js')).kindOf === kindOf}));")
     out = subprocess.run(["node", "--input-type=module", "-e", script], cwd=os.path.join(SHELL, "web"), capture_output=True, text=True, check=True)

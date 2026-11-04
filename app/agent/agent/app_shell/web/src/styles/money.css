@@ -7,6 +7,7 @@
 .money h2{margin:0 0 4px;font-size:15.5px}
 .money .rule{margin:0 0 10px;font-size:14px;line-height:1.5}
 .money .rule b{font-variant-numeric:tabular-nums}
+.money .tbl-wrap{position:relative}
 .money table{width:100%;border-collapse:collapse;font-size:13.5px}
 .money th,.money td{padding:7px 6px;text-align:left;border-top:1px solid var(--line);vertical-align:top}
 .money th{font-weight:600;color:var(--muted);font-size:12.5px;border-top:0}

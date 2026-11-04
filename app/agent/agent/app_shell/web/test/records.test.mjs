@@ -24,11 +24,19 @@ function sourcesUnder(dir, skip) {
   }).join('\n');
 }
 
+const count = (text, name) => (text.match(new RegExp(`\\b${name}\\b`, 'g')) || []).length;
+const stem = (file) => file.replace(/\.jsx?$/, '');
+
+function localNames(text, file, name) {
+  return [...text.matchAll(/import\s+(?:[\w$]+\s*,\s*)?\{([^}]*)\}\s*from\s*'\.\/([^']+)'/g)].filter((m) => stem(m[2]) === stem(file))
+    .flatMap((m) => m[1].split(',').map((part) => part.trim().split(/\s+as\s+/)).filter(([imported]) => imported === name).map((pair) => pair[pair.length - 1]));
+}
+
 function unusedExports(files, callers = {}) {
-  const all = Object.values(files).join('\n');
-  const count = (text, name) => (text.match(new RegExp(`\\b${name}\\b`, 'g')) || []).length;
+  const used = (file, name) => count(files[file], name) >= 2 || count(callers[file] || '', name) >= 2
+    || Object.entries(files).some(([other, text]) => other !== file && localNames(text, file, name).some((local) => count(text, local) >= 2));
   return Object.entries(files).flatMap(([file, text]) => [...text.matchAll(/^export (?:async )?(?:const|function|class) ([A-Za-z_]\w*)/gm)]
-    .map((m) => m[1]).filter((name) => count(all, name) + count(callers[file] || '', name) < 2).map((name) => `${file}: ${name}`));
+    .map((m) => m[1]).filter((name) => !used(file, name)).map((name) => `${file}: ${name}`));
 }
 
 test('every helper the App exports has a caller in the App, and the check catches one that has none', () => {
@@ -42,6 +50,12 @@ test('every helper the App exports has a caller in the App, and the check catche
     'a shared helper still needs a caller in the App or the Inspire App, not only the line that passes it on');
   assert.deepEqual(unusedExports(files, { 'kinds.js': callers['kinds.js'].replace(/\b(familyOf|kindForTechnique)\b/g, 'x') }).sort(),
     ['kinds.js: familyOf', 'kinds.js: kindForTechnique']);
+  const twin = { 'a.js': 'export const pick = (id) => id;\n', 'b.js': 'export const pick = (page) => page.id;\nconst both = (p) => pick(p);\n' };
+  assert.deepEqual(unusedExports(twin), ['a.js: pick'], 'a helper of the same name in another file is not a caller');
+  assert.deepEqual(unusedExports({ ...twin, 'c.js': "import { pick as choose } from './a.js';\nexport const one = choose(1);\nconst again = one;\n" }), [],
+    'a file that imports the helper, even under another name, is its caller');
+  assert.deepEqual(unusedExports({ ...twin, 'c.js': "import { pick } from './a.js';\nexport const one = 1;\nconst again = one;\n" }), ['a.js: pick'],
+    'an import that is never used is not a caller');
 });
 
 const F = (name, kind, extra = {}) => ({ name, kind, type: 'STRING', role: 'business', editable: true, ...extra });

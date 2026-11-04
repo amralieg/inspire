@@ -298,7 +298,7 @@ export async function openBundle(browser, bundle, props, routes = {}, { width = 
 }
 
 export const ASK_GROUPS = {
-  card: '[data-card], [data-bars], section.card--table, .main .card:has(> .card-h)',
+  card: '[data-card], [data-bars], section.card--table, section.money, .main .card:has(> .card-h)',
   kpi: '.kpi',
   text: '.story, .blk--text, .blk--html, .sum',
   controls: '.fbar',
@@ -308,7 +308,7 @@ export const ASK_GROUPS = {
 export function askAudit(groups) {
   const shown = (el) => el.checkVisibility({ opacityProperty: true, visibilityProperty: true }) && el.getBoundingClientRect().width > 0
     && el.getBoundingClientRect().height > 0;
-  const own = (el) => (el.matches(groups.card) ? el.querySelector(':scope > header .ask-genie') : el.querySelector('.ask-genie, .row-ask'));
+  const own = (el) => (el.matches(groups.card) ? el.querySelector(':scope > :is(header, .money-h) .ask-genie') : el.querySelector('.ask-genie, .row-ask'));
   const out = { counts: {}, missing: [], hidden: [] };
   Object.entries(groups).forEach(([group, selector]) => {
     const items = [...document.querySelectorAll(selector)].filter((el) => shown(el) && !(el.matches('tr') && el.querySelectorAll('td').length < 2));
