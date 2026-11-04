@@ -150,6 +150,8 @@ _SQL_WORDS = frozenset(("distinct", "case", "when", "then", "else", "end", "and"
                         "nulls", "first", "last", "within", "group", "int", "integer", "bigint", "smallint", "tinyint", "double", "float",
                         "decimal", "string", "date", "timestamp", "boolean", "day", "days", "month", "months", "year", "years"))
 FORMATS = ("number", "integer", "currency", "percent", "text", "date", "month")
+DATE_FORMATS = ("date", "month")
+DURATION_CHARTS = ("gantt",)
 CHART_TYPES = ("bar", "horizontal_bar", "stacked_bar", "line", "area", "stacked_area", "pareto", "scatter", "donut", "heatmap", "band",
                "control", "tornado", "bridge", "bullet", "treemap", "radar", "sankey", "flow", "box", "map_points", "map_regions", "graph", "gantt")
 LAYOUT_CHARTS = {"band": ("time", ("actual", "forecast", "lower", "upper")), "control": ("time", ("value", "expected", "lower", "upper")),
@@ -690,6 +692,34 @@ def _format_problems(where: str, item: dict) -> list:
     return problems
 
 
+def date_measure(item=None, values=()) -> bool:
+    return (item or {}).get("format") in DATE_FORMATS or any(isinstance(v, datetime.date) for v in values or ())
+
+
+def _date_measure_problem(where: str, kind: str) -> str:
+    return (f"{where} is a date, so a {kind} cannot draw it as a height or a size; show the date as text in a KPI or a table column, "
+            f"count the rows instead, or draw a gantt of each start and end")
+
+
+def _chart_measures(chart: dict) -> list:
+    ys = chart.get("y") if isinstance(chart.get("y"), list) else []
+    named = [(f"measure {index + 1}", f"y{index}", y if isinstance(y, dict) else {}) for index, y in enumerate(ys)]
+    x = chart.get("x") if isinstance(chart.get("x"), dict) else {}
+    return named + ([("x", "x", x)] if chart.get("type") == "scatter" else [])
+
+
+def chart_date_problems(page: dict, shapes: dict = None) -> list:
+    problems = []
+    for chart in page.get("charts") or []:
+        if not isinstance(chart, dict) or chart.get("type") in DURATION_CHARTS:
+            continue
+        rows = (shapes or {}).get(chart.get("id")) or []
+        for name, key, item in _chart_measures(chart):
+            if date_measure(item, [row.get(key) for row in rows if isinstance(row, dict)]):
+                problems.append(_date_measure_problem(f"chart {chart.get('id')} {name}", chart.get("type")))
+    return problems
+
+
 def _whole(value, low: int, high: int) -> bool:
     return isinstance(value, int) and not isinstance(value, bool) and low <= value <= high
 
@@ -740,6 +770,8 @@ def _chart_problems(chart: dict, names: set) -> list:
             problems.append(f"{where} is a {kind}, so y holds exactly {plural(len(roles), 'measure')} in this order: {', '.join(roles)}")
         if kind == "bridge" and not IDENT.match(str(x.get("order") or "")):
             problems.append(f"{where} is a bridge, so x needs an order column that puts its steps in order, first total to last")
+    if kind not in DURATION_CHARTS:
+        problems += [_date_measure_problem(f"{where} {name}", kind) for name, _key, item in _chart_measures(chart) if date_measure(item)]
     if chart.get("sort", "value_desc") not in SORTS:
         problems.append(f"{where} sort must be one of {', '.join(SORTS)}")
     if not _whole(chart.get("limit", 25), 1, 500):

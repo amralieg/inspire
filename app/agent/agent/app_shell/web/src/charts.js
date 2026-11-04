@@ -1,4 +1,4 @@
-import { addCounts, axisValue, dayLabel, formatValue, largestFirst, numberOf, shortMonth, sumOf } from './format.js';
+import { DATE_FORMATS, addCounts, axisValue, dayLabel, formatValue, largestFirst, numberOf, shortMonth, sumOf } from './format.js';
 import { TIERS } from './theme.js';
 import { CHART_WIDTH, categoryLabels } from './layout.js';
 import { KIND_CHARTS } from './kindCharts.js';
@@ -176,7 +176,7 @@ function bulletOption({ chart, rows, P, valueFmt, axisFmt, width }) {
 }
 
 function ganttOption({ chart, rows, P, valueFmt, axisFmt, width }) {
-  const timed = ['date', 'month'].includes(chart.y[0]?.format);
+  const timed = DATE_FORMATS.includes(chart.y[0]?.format);
   const at = (v) => (v == null ? NaN : timed ? Date.parse(String(v)) : numberOf(v));
   const bars = rows.map((r) => ({ name: keyOf(r.x), start: at(r.y0), end: at(r.y1), from: r.y0, to: r.y1 }))
     .filter((b) => Number.isFinite(b.start) && Number.isFinite(b.end));

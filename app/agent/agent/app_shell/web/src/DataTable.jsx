@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { GenieMark, Icon } from './icons.jsx';
-import { compareValues, formatValue, isAmount, numberOf, plainText } from './format.js';
+import { DATE_FORMATS, compareValues, formatValue, isAmount, numberOf, plainText } from './format.js';
 import { askGenie } from './genieAsk.js';
 import { ColumnFilterStatus, withColumnFilters } from './ColumnFilters.jsx';
 import { columnFiltersOn, withValue } from './filters.js';
@@ -10,13 +10,12 @@ import { columnOrder, setColumnOrder } from './prefs.js';
 import { AskGenie } from './AskGenie.jsx';
 
 const NUMERIC = ['number', 'currency', 'integer', 'percent'];
-const DATES = ['date', 'month'];
 const MOVE_KEYS = { ArrowLeft: -1, ArrowRight: 1 };
 
 export function columnOf(c, onFilter) {
   const num = NUMERIC.includes(c.format || 'number');
   return {
-    key: c.column, label: c.label, num, date: DATES.includes(c.format), bar: c.bar,
+    key: c.column, label: c.label, num, date: DATE_FORMATS.includes(c.format), bar: c.bar,
     render: (row) => {
       const text = formatValue(row[c.column], c.format || 'text', c.currency);
       if (c.filter && onFilter && row[c.column] != null) {
