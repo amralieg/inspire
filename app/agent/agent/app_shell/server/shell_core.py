@@ -3250,7 +3250,7 @@ class Shell:
         try:
             values = shell_sql.plan_decision(plan, data.get("decision"), data.get("reason"), data.get("value"), data.get("recommended"))
         except ValueError as error:
-            raise HttpError(400, str(error)) from error
+            raise HttpError(400, shell_sql.error_text(error)) from error
         edited = None
         if editable and (data.get("decision") == "override" or not decisions):
             chosen = data.get("value") if data.get("decision") == "override" else data.get("recommended")
@@ -3285,7 +3285,7 @@ class Shell:
             out = shell_sql.scenario_outcome(model, base, data.get("values") or {}, target, outcome.get("good", "up"),
                                              {str(l.get("lever")): l.get("step") for l in scenario.get("levers") or []})
         except ValueError as error:
-            raise HttpError(400, str(error)) from error
+            raise HttpError(400, shell_sql.error_text(error)) from error
         print(f"[SCENARIO-EVAL FIRED] page={page['id']} levers={len(out['levers'])} clamped={len(out['clamped'])} p50={out['outcome']['p50']:g}", flush=True)
         return out
 
