@@ -143,7 +143,9 @@ test('the inventory parses template paths, stops at the query, and skips workspa
 });
 
 test('every change a page or an MVP App can send gets the plain read-only answer in the demo, and never reaches the workspace', async () => {
-  const writes = [...backendRoutes(), ...mvpRoutes()].filter((route) => !S.showcaseCanRead(...split(route)));
+  const local = [...mvpRoutes()].filter((route) => !backendRoutes().has(route) && S.showcaseLocal(...split(route)));
+  assert.deepEqual(local, ['POST /api/plan/decide']);
+  const writes = [...backendRoutes(), ...mvpRoutes()].filter((route) => !S.showcaseCanRead(...split(route)) && !local.includes(route));
   const mvpWrites = new Set([...mvpRoutes()].filter((route) => !S.showcaseCanRead(...split(route))));
   assert.ok(writes.length >= 25, `${writes.length} changes`);
   const { srv, reached, close } = await demoServer();
@@ -156,6 +158,12 @@ test('every change a page or an MVP App can send gets the plain read-only answer
       assert.match(got.type, /application\/json/, route);
       assert.deepEqual(JSON.parse(got.text), { error: S.SHOWCASE_READ_ONLY, showcase: true }, route);
       assert.doesNotMatch(got.text, /\n\s+at\s|Error:|stack/i, route);
+    }
+    for (const route of local) {
+      const [method, pattern] = split(route);
+      const got = await send(srv.url, method, `/showcase/taxi/mvp/N01-U01${concrete(pattern)}`);
+      assert.equal(got.status, 400, `${route} answers in the demo itself: ${got.text.slice(0, 200)}`);
+      assert.equal(JSON.parse(got.text).showcase, true, route);
     }
     assert.deepEqual(reached, []);
   } finally {

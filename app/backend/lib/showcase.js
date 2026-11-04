@@ -121,6 +121,10 @@ function showcaseCanRead(method, pathname) {
   return route.startsWith('GET ') || route === SHOWCASE_GENIE_ASK || SHOWCASE_READS.has(route);
 }
 
+function showcaseLocal(method, pathname) {
+  return `${String(method).toUpperCase()} ${pathname}` === SHOWCASE_PLAN_DECIDE;
+}
+
 function showcaseMiss(method, pathname) {
   if (`${String(method).toUpperCase()} ${pathname}` === SHOWCASE_GENIE_ASK) return { status: 404, error: SHOWCASE_GENIE };
   if (showcaseCanRead(method, pathname)) return { status: 404, error: SHOWCASE_MISSING };
@@ -136,7 +140,7 @@ function showcaseWriteGuard(req, res, next) {
   const hosted = SHOWCASE_MVP_API_RE.exec(req.path);
   const demo = Boolean(hosted) || (req.path.startsWith('/api/') && Boolean(req.get(SHOWCASE_HEADER)));
   if (!demo || showcaseCanRead(req.method, hosted ? `/api/${hosted[1]}` : req.path)) return next();
-  if (hosted && `${String(req.method).toUpperCase()} /api/${hosted[1]}` === SHOWCASE_PLAN_DECIDE) return next();
+  if (hosted && showcaseLocal(req.method, `/api/${hosted[1]}`)) return next();
   return refuseChange(res);
 }
 
@@ -210,8 +214,7 @@ function registerShowcaseRoutes(app, { dir = SHOWCASE_DIR, shellFiles, log = con
   app.all('/showcase/:id/mvp/:mvp/api/*rest', (req, res) => {
     const mvp = mvpOf(req, res);
     if (!mvp) return undefined;
-    const route = `${String(req.method).toUpperCase()} /api/${restPath(req.params.rest)}`;
-    if (route === SHOWCASE_PLAN_DECIDE) {
+    if (showcaseLocal(req.method, `/api/${restPath(req.params.rest)}`)) {
       const decided = showcasePlanDecision(req.body);
       return res.status(decided.status).set('Cache-Control', 'no-store').json(decided.body);
     }
@@ -252,6 +255,7 @@ module.exports = {
   SHOWCASE_GENIE,
   showcaseKey,
   showcaseCanRead,
+  showcaseLocal,
   showcaseMiss,
   showcaseProblem,
   loadShowcases,
