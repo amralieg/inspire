@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
 import { ASK_GROUPS as GROUPS, appInfo, askAudit as audit, chartsDrawn, openApp, pageData, resizeTo, serveDist, until } from './harness.mjs';
 import { CASES, EXAMPLES, kindRoutes } from './exampleRoutes.mjs';
-import { ASK_CHARS, BUSY_TITLE, SUGGESTIONS, cutText, receives, rowTitle, scoped } from '../src/explain.js';
+import { ASK_CHARS, BUSY_TITLE, SUGGESTIONS, chartItems, chartKind, cutText, receives, rowTitle, scoped } from '../src/explain.js';
 
 let served;
 let browser;
@@ -155,6 +155,75 @@ test('a plan line asks Genie about its own record, the plan sends its lines, and
   assert.deepEqual(found.missing, ['card: What to do now', 'row: ']);
   assert.deepEqual(seen.errors, []);
   await context.close();
+});
+
+async function askAbout(page, calls, chart, item) {
+  await askButton(page.locator('[data-card]'), chart).first().click();
+  const box = page.locator('form.ask-box');
+  await box.waitFor();
+  const about = box.getByRole('combobox');
+  assert.equal(await about.count(), 1, `the box of ${chart} has an About list to ask about ${item}`);
+  const choices = await about.locator('option').allInnerTexts();
+  await about.selectOption(item);
+  const offered = await box.locator('.sugg').allInnerTexts();
+  const before = calls.explain.length;
+  await box.locator('.sugg').first().click();
+  await until(() => calls.explain.length === before + 1);
+  await page.locator('.msg-sql').nth(before).waitFor({ timeout: 15000 });
+  return { sent: calls.explain[before], choices, offered };
+}
+
+test('a process step, a network node, a site and a bridge step each ask Genie as their own kind with only their own rows', async () => {
+  const cases = [
+    ['process_flow.json', 'How claims move between steps', 'Assess', 'process_step', ['Received', 'Triage', 'Assess', 'Review', 'Paid'],
+      [['Triage', 'Assess'], ['Assess', 'Review'], ['Review', 'Assess']]],
+    ['network_explorer.json', 'Who is linked to whom', 'A101', 'node', ['A100', 'A101', 'A102'], [['A100', 'A101'], ['A101', 'A102']]],
+    ['location_view.json', 'Candidate sites', 'Riyadh North', 'site', ['Dubai Marina', 'Riyadh North', 'Doha West', 'Muscat Bay'], [['Riyadh North']]],
+    ['lift_readout.json', 'From sales added to net sales', 'Promotion cost', 'bridge_step', ['Sales added', 'Promotion cost', 'Net added'], [['Promotion cost']]],
+  ];
+  for (const [file, chart, item, kind, firsts, own] of cases) {
+    const { calls, example, opened } = exampleWithGenie(file);
+    const { page, seen, context } = await opened;
+    await example.ready(page);
+    const { sent, choices, offered } = await askAbout(page, calls, chart, item);
+    assert.deepEqual(choices.slice(0, firsts.length + 1), [chart, ...firsts], `${file}: the About list starts with the chart, then its items`);
+    assert.deepEqual(offered, SUGGESTIONS[kind], `${file}: the box offers the ${kind} questions`);
+    assert.equal(sent.kind, kind);
+    assert.equal(sent.title, item);
+    assert.equal(sent.question, SUGGESTIONS[kind][0]);
+    assert.match(sent.context.hint, new RegExp(`^Part of the chart "${chart}"\\.`));
+    assert.equal(sent.context.row_count, own.length, `${file}: only the rows of ${item}`);
+    assert.deepEqual(sent.context.rows.map((r) => Object.values(r).slice(0, own[0].length)), own);
+    const whole = await askAbout(page, calls, chart, chart);
+    assert.equal(whole.sent.kind, 'chart', `${file}: picking the chart again asks about the whole chart`);
+    assert.ok(whole.sent.context.row_count > own.length);
+    assert.deepEqual(seen.errors, []);
+    await context.close();
+  }
+});
+
+test('the forecast fan asks Genie as a forecast series, and a chart with no items of its own has no About list', async () => {
+  const { calls, example, opened } = exampleWithGenie('forecast_cockpit.json');
+  const { page, seen, context } = await opened;
+  await example.ready(page);
+  const fan = await ask(page, calls, 'Demand with its forecast range');
+  assert.equal(fan.kind, 'series');
+  assert.equal(fan.question, SUGGESTIONS.series[0]);
+  assert.ok(fan.context.row_count > 0);
+  await page.keyboard.press('Escape');
+  await askButton(page, 'Demand with its forecast range').first().click();
+  assert.equal(await page.locator('form.ask-box').getByRole('combobox').count(), 0);
+  await page.keyboard.press('Escape');
+  await context.close();
+  const flow = exampleWithGenie('process_flow.json');
+  const opened2 = await flow.opened;
+  await flow.example.ready(opened2.page);
+  const slow = await ask(opened2.page, flow.calls, 'Slowest steps');
+  assert.equal(slow.kind, 'chart');
+  await askButton(opened2.page, 'Slowest steps').first().click();
+  assert.equal(await opened2.page.locator('form.ask-box').getByRole('combobox').count(), 0);
+  assert.deepEqual([...seen.errors, ...opened2.seen.errors], []);
+  await opened2.context.close();
 });
 
 test('the scenario sends Genie its lever values and outcome range, and the lever chart sends what each lever moves', async () => {
@@ -377,6 +446,19 @@ test('with no Genie space Ask Genie opens the panel on the existing message and 
   assert.deepEqual(seen.asks, []);
   assert.deepEqual(seen.errors, []);
   await context.close();
+});
+
+test('chart items come from the named section only, each end of a link counts once, and a blank or missing name is never an item', () => {
+  const graph = { section: 'graph', type: 'graph', title: 'Links', x: { label: 'Account' }, series: { column: 'dst' }, y: [{ label: 'Weight' }] };
+  const rows = [{ x: 'A1', s: null, y0: 1 }, { x: '  ', s: 'A2', y0: 2 }, { x: 'A2', s: 'A1', y0: 3 }];
+  const items = chartItems(graph, { rows });
+  assert.deepEqual(items.map((i) => [i.kind, i.title, i.context.row_count]), [['node', 'A1', 2], ['node', 'A2', 2]]);
+  assert.deepEqual(items[0].context.rows, [{ Account: 'A1', Series: null, Weight: 1 }, { Account: 'A2', Series: 'A1', Weight: 3 }]);
+  assert.deepEqual(chartItems({ ...graph, section: 'bottleneck_ranking' }, { rows }), []);
+  assert.deepEqual(chartItems(graph, null), []);
+  assert.deepEqual(chartItems({ ...graph, type: 'map_points', section: 'map' }, { rows }).map((i) => i.title), ['A1', 'A2']);
+  assert.equal(chartKind({ section: 'fan_chart' }), 'series');
+  assert.equal(chartKind({ section: 'counterfactual_band', type: 'band' }), 'chart');
 });
 
 test('the box says what Genie receives and adds the page filters to what the element sends', () => {

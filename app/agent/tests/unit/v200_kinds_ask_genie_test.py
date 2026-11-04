@@ -10,8 +10,9 @@ import shell_core
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 EXPLAIN_JS = os.path.join(ROOT, "agent", "app_shell", "web", "src", "explain.js")
 ASK_GENIE_JSX = os.path.join(ROOT, "agent", "app_shell", "web", "src", "AskGenie.jsx")
+WEB_SRC = os.path.join(ROOT, "agent", "app_shell", "web", "src")
 NOUNS = {"kpi": "key number", "text": "text block", "controls": "set of page controls", "table": "table", "series": "forecast series",
-         "scenario": "scenario", "plan_line": "plan line", "segment": "segment", "recommendation": "recommendation", "bridge_step": "bridge step",
+         "scenario": "scenario", "segment": "segment", "recommendation": "recommendation", "bridge_step": "bridge step",
          "effect": "measured effect", "process_step": "process step", "site": "site", "node": "network node"}
 ELEMENT = {"hint": "Margin lost to discounts this quarter.", "filters": "Category: Books",
            "fields": {"Now": "$300K", "Before": "$260K", "Change": "up 15.4% vs previous run"},
@@ -162,7 +163,7 @@ def test_my_work_is_a_hub_screen_its_numbers_ask_in_a_one_page_app_and_never_pic
     assert len(sp_ws.genie) == 1 and hub_ws.genie == []
 
 
-@pytest.mark.parametrize("kind", ["record", "plan_line", "series", "node"])
+@pytest.mark.parametrize("kind", ["record", "process_step", "series", "node"])
 def test_a_layout_element_always_has_its_use_case_page(tmp_path, kind):
     s, sp_ws, _user, _made = shell(tmp_path)
     assert call(s, "POST", "genie/explain", body=element_body(kind, page="overview")) == (404, {"error": "the App has no page 'overview'"})
@@ -190,4 +191,32 @@ def test_the_browser_suggests_for_exactly_the_kinds_the_server_knows_and_caps_th
     block = re.search(r"export const SUGGESTIONS = \{\n(.*?)\n\};", source, re.S).group(1)
     assert re.findall(r"^  ([a-z_]+): \[", block, re.M) == list(shell_core.EXPLAIN_KINDS)
     with open(ASK_GENIE_JSX, encoding="utf-8") as handle:
-        assert "SUGGESTIONS[kind]" in handle.read()
+        assert "SUGGESTIONS[asked]" in handle.read()
+
+
+def sent_kinds(sources):
+    kinds = set()
+    for text in sources:
+        kinds.update(re.findall(r"""kind(?:=|: )["']([a-z_]+)["']""", text))
+        for table in re.findall(r"export const CHART(?:_ITEM)?_KINDS = \{(.*?)\};", text, re.S):
+            kinds.update(re.findall(r":\s*'([a-z_]+)'", table))
+    return kinds
+
+
+def web_sources():
+    texts = []
+    for name in sorted(os.listdir(WEB_SRC)):
+        if name.endswith((".js", ".jsx")):
+            with open(os.path.join(WEB_SRC, name), encoding="utf-8") as handle:
+                texts.append(handle.read())
+    return texts
+
+
+def test_every_kind_the_server_explains_has_an_element_in_the_app_that_sends_it():
+    missing = [k for k in shell_core.EXPLAIN_KINDS if k not in sent_kinds(web_sources())]
+    assert missing == []
+
+
+def test_the_sender_check_counts_a_kind_only_where_an_element_sends_it():
+    assert sent_kinds(['<AskGenie kind="segment" title={t} />', "export const CHART_ITEM_KINDS = { graph: 'node' };"]) == {"segment", "node"}
+    assert sent_kinds(["export const SUGGESTIONS = {\n  plan_line: ['Why?'],\n};", "const ELEMENT = 'site';"]) == set()

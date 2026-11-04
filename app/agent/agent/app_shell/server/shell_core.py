@@ -50,7 +50,7 @@ GENIE_PREVIEW_ROWS = 50
 GENIE_RATINGS = ("POSITIVE", "NEGATIVE", "NONE")
 ASK_CHARS = 1000
 ELEMENT_NAMES = {"kpi": "key number", "text": "text block", "controls": "set of page controls", "table": "table", "series": "forecast series",
-                 "scenario": "scenario", "plan_line": "plan line", "segment": "segment", "recommendation": "recommendation",
+                 "scenario": "scenario", "segment": "segment", "recommendation": "recommendation",
                  "bridge_step": "bridge step", "effect": "measured effect", "process_step": "process step", "site": "site", "node": "network node"}
 EXPLAIN_KINDS = ("chart", "record", *ELEMENT_NAMES)
 HUB_KINDS = ("chart", "kpi", "text", "controls", "table")

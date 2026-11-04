@@ -42,6 +42,24 @@ export function chartContext(chart, result) {
   };
 }
 
+export const CHART_KINDS = { fan_chart: 'series' };
+export const CHART_ITEM_KINDS = { process_map: 'process_step', map: 'site', graph: 'node', incrementality_waterfall: 'bridge_step' };
+const LINKED_CHARTS = ['flow', 'graph'];
+
+export const chartKind = (chart) => CHART_KINDS[chart.section] || 'chart';
+
+export function chartItems(chart, result) {
+  const kind = CHART_ITEM_KINDS[chart.section];
+  const rows = result?.rows || [];
+  if (!kind) return [];
+  const ends = (r) => (LINKED_CHARTS.includes(chart.type) ? [r.x, r.s] : [r.x]).filter((v) => v != null && String(v).trim() !== '').map(String);
+  const hint = [`Part of the chart "${chart.title}".`, chart.hint || ''].filter(Boolean).join(' ');
+  return [...new Set(rows.flatMap(ends))].slice(0, EXPLAIN_ROWS).map((name) => {
+    const own = rows.filter((r) => ends(r).includes(name));
+    return { kind, title: name, context: { hint, rows: own.slice(0, EXPLAIN_ROWS).map((r) => chartRow(chart, r)), row_count: own.length } };
+  });
+}
+
 export function barsContext({ hint, vertical, x, measure, filters }, bars) {
   const rows = (bars || []).map((b) => cells([[x, b.label], [measure, countOf(b.value)], ['Shown as', b.text]]));
   return { hint: hint || '', type: vertical ? 'bar' : 'horizontal_bar', x, measures: [measure], rows: rows.slice(0, EXPLAIN_ROWS), row_count: rows.length,
@@ -116,7 +134,6 @@ export const SUGGESTIONS = {
   table: ['What stands out in this table?', 'Which rows need attention first?'],
   series: ['Why is this series forecast this way?', 'How accurate was it before?', 'What could push it off the forecast?'],
   scenario: ['What has to be true to reach the target?', 'Which lever matters most?', 'How likely is the downside?'],
-  plan_line: ['Why is this line suggested?', 'What happens if we keep it as it is?', 'Which limit holds it back?'],
   segment: ['What sets this segment apart?', 'Who moved into it lately?', 'What should we offer it?'],
   recommendation: ['Why is this offered?', 'How did offers like it do before?', 'What else could we offer?'],
   bridge_step: ['What is behind this step?', 'Which units drive it most?', 'Is it a plan change or a real change?'],
