@@ -645,6 +645,39 @@ def test_check_sends_back_a_chart_that_draws_one_group(tmp_path):
     assert len(one) == len(problems)
 
 
+class TypedWorkspace(ShapedWorkspace):
+    def __init__(self, shape, columns):
+        super().__init__(shape)
+        self.columns = columns
+
+    def run_sql(self, warehouse, sql, params, limit=5000):
+        out = super().run_sql(warehouse, sql, params, limit)
+        return dict(out, columns=self.columns) if self.shape(sql) is not None else out
+
+
+def _by_category(sql):
+    return "`category`" in sql and "GROUP BY" in sql and "MIN(v)" not in sql and "SUM(y0) OVER" not in sql
+
+
+@pytest.mark.parametrize("y0_type, values, refused", [
+    ("DATE", ["2026-03-01", "2026-04-01"], True),
+    ("TIMESTAMP", ["2026-03-01T08:00:00.000Z", "2026-04-01T08:00:00.000Z"], True),
+    (None, ["2026-03-01", "2026-04-01"], True),
+    ("DOUBLE", [5.0, 3.0], False),
+    (None, [5.0, 3.0], False),
+])
+def test_check_sends_back_a_chart_whose_undeclared_measure_holds_dates(tmp_path, y0_type, values, refused):
+    rows = [{"x": "Books", "y0": values[0]}, {"x": "Music", "y0": values[1]}]
+    columns = [{"name": "x", "type": "STRING"}] + ([{"name": "y0", "type": y0_type}] if y0_type else [])
+    ws = TypedWorkspace(lambda sql: rows if _by_category(sql) else None, columns)
+    s = shell_core.Shell(app_dir(tmp_path), env={"DATABRICKS_WAREHOUSE_ID": "wh1"}, sp_factory=lambda: ws,
+                         user_factory=lambda h, t: ws)
+    dated = [p for p in s.check({}) if " is a date, so a " in p]
+    assert dated == (["page n01_u05: chart by_category measure 1 is a date, so a horizontal_bar cannot draw it as a height or a size; show the "
+                      "date as text in a KPI or a table column, count the rows instead, or draw a gantt of each start and end"]
+                     if refused else []), dated
+
+
 def test_check_sends_back_a_ranked_chart_whose_groups_all_share_one_value(tmp_path):
     def shape(sql):
         if "`category`" in sql and "GROUP BY" in sql and "MIN(v)" not in sql and "SUM(y0) OVER" not in sql:

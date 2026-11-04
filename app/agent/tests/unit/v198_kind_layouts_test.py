@@ -873,6 +873,26 @@ def test_the_preview_rows_refuse_a_measure_that_returns_dates_even_when_its_form
     assert shell_sql.chart_date_problems(page, {}) == [] and shell_sql.chart_date_problems({}, None) == []
 
 
+def test_an_undeclared_date_measure_is_found_from_its_column_type_and_when_the_type_is_unknown_from_its_values():
+    day = "2026-03-01"
+    for sql_type in ("DATE", "TIMESTAMP", "TIMESTAMP_NTZ", "date"):
+        assert shell_sql.date_measure({"format": "number"}, [12.5], sql_type), sql_type
+    for sql_type in ("DOUBLE", "LONG", "INT", "DECIMAL", "BOOLEAN"):
+        assert not shell_sql.date_measure({"format": "number"}, [day], sql_type), sql_type
+    for values in ([day, "2026-04-01"], ["2026-03-01T08:30:00.000Z"], ["2026-03-01 08:30:00"], [None, day],
+                   [datetime.date(2026, 3, 1)]):
+        assert shell_sql.date_measure({}, values, None), values
+        assert shell_sql.date_measure({}, values, "STRING"), values
+    for values in ([12.5, 3], ["20260301"], ["2026-13-01"], [day, 4], [None], [], ["Books"], ["2026-03-01 is late"]):
+        assert not shell_sql.date_measure({}, values, None), values
+    page = {"charts": [_date_chart("bar", "number"), dict(_date_chart("gantt", "number"), id="g")]}
+    shapes = {"c": [{"x": "A", "y0": "2026-03-01"}, {"x": "B", "y0": "2026-04-01"}], "g": [{"x": "A", "y0": day, "y1": day}]}
+    assert [p.split(" is a date")[0] for p in shell_sql.chart_date_problems(page, shapes)] == ["chart c measure 1"]
+    assert shell_sql.chart_date_problems(page, shapes, {"c": {"y0": "DOUBLE"}}) == []
+    assert [p.split(" is a date")[0] for p in shell_sql.chart_date_problems(page, {"c": [{"x": "A", "y0": 7}]},
+                                                                            {"c": {"y0": "DATE"}, "g": {"y0": "DATE"}})] == ["chart c measure 1"]
+
+
 def test_no_kind_dashboard_binding_draws_a_date_as_a_measure():
     for source, bindings in KINDS["widget_fields"].items():
         for title, binding in bindings.items():
@@ -893,3 +913,6 @@ def test_the_app_and_the_dashboard_share_one_date_format_list_and_the_dashboard_
     notebook = json.load(open(os.path.join(os.path.dirname(__file__), "..", "..", "agent", "dbx_inspire_ai_agent.ipynb"), encoding="utf-8"))
     source = "".join("".join(cell["source"]) for cell in notebook["cells"])
     assert source.count("dated = shell_sql.chart_date_problems(page, shapes)") == 1
+    assert shell_sql.DATE_FORMATS == tuple(shell_sql.DATE_LENGTHS) and shell_sql.FORMATS[-len(shell_sql.DATE_FORMATS):] == shell_sql.DATE_FORMATS
+    assert "IMPLEMENT_DASHBOARD_GANTT_LENGTHS" not in source and source.count("shell_sql.DATE_LENGTHS") == 3
+    assert agent_ns["IMPLEMENT_DASHBOARD_GANTT_LENGTH"] not in shell_sql.DATE_LENGTHS.values()

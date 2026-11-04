@@ -2872,6 +2872,10 @@ class Shell:
                         problems += [f"{where}: chart {item['id']} gives every group the same {label} ({value}) at the default "
                                      f"filters, so it ranks nothing; chart a measure that differs across the groups"
                                      for label, value in flat_measures(item, rows)]
+            charted = data["charts"]
+            problems += [f"{where}: {p}" for p in shell_sql.chart_date_problems(
+                page, {ident: result.get("rows") or [] for ident, result in charted.items()},
+                {ident: {c.get("name"): c.get("type") for c in result.get("columns") or []} for ident, result in charted.items()})]
             if page.get("records"):
                 problems += self.check_records(headers, page, defaults, probe, where, counts)
                 problems += self.check_overview(page, probe, where)
