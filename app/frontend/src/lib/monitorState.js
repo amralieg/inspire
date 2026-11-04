@@ -37,6 +37,11 @@ export function quietLine(since, now) {
   return `No news from this run since ${formatClockUtc(since, now)}.`;
 }
 
+export function viewerLine(runInfo) {
+  const note = String(runInfo?.viewer_note || '').trim();
+  return note && !/[.!?]$/.test(note) ? `${note}.` : note;
+}
+
 export function runTitle(runInfo, businessName) {
   const business = String(businessName || '').trim() || 'Inspire run';
   const started = Number(runInfo?.start_time) > 0 ? formatWhen(Number(runInfo.start_time)) : '';

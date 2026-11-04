@@ -2,7 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const { APP_DIR, BACKEND_DIR } = require('./appPaths');
 const { buildDemoSchemaName } = require('./demoDataService');
-const { grantJobViewer } = require('./jobViewer');
+const { grantJobViewer, rememberViewer } = require('./jobViewer');
 const {
   buildDemoInspireDiscoveryParams,
   inspireJobEnvironments,
@@ -298,6 +298,7 @@ async function triggerDemoDataPipeline(
     throw new Error(`Demo pipeline run-now failed: ${errText}`);
   }
   const { run_id: runId } = await runResp.json();
+  rememberViewer(runId, viewer);
 
   return {
     session_id: sid,

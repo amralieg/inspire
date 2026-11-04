@@ -224,3 +224,27 @@ test('the run line names the business and the start time on the person\u2019s ow
     await ui.close();
   }
 });
+
+test('a refused view grant shows on the Monitor in one plain sentence, and a granted run shows nothing', async () => {
+  const note = 'Inspire could not let pat.lee@example.com view job 1111111111111111 in Databricks: no CAN_MANAGE on job';
+  for (const [run, expected] of [[{ viewer_note: note }, `${note}.`], [{ viewer_note: 'Already a sentence.' }, 'Already a sentence.'], [{}, null], [{ viewer_note: '  ' }, null]]) {
+    const backend = sessionBackend({
+      session: () => ({ processing_status: 'ready', completed_percent: 0, completed_on: null, last_updated: ago(MINUTE) }),
+      run: { life_cycle_state: 'PENDING', run_name: 'Inspire AI - Acme Retail', start_time: Date.parse('2026-11-04T14:57:44Z'), run_page_url: 'https://h/jobs/1/runs/777', tasks: [], ...run },
+    });
+    const ui = await openMonitor(backend, { sessionOnly: false });
+    try {
+      await ui.page.locator('p[title="Inspire AI - Acme Retail"]').waitFor({ timeout: 10000 });
+      const shown = ui.page.locator('[data-viewer-note]');
+      if (expected) {
+        assert.equal(await shown.innerText(), expected);
+        assert.equal(await shown.getAttribute('role'), 'status');
+      } else {
+        assert.equal(await shown.count(), 0, JSON.stringify(run));
+      }
+      assert.deepEqual(ui.pageErrors, []);
+    } finally {
+      await ui.close();
+    }
+  }
+});

@@ -22,7 +22,7 @@ import {
 import ResultsPage from './ResultsPage';
 import { countEntries, parseStrategicContext, treeDepth } from '../lib/strategyContext';
 import { formatDuration } from '../lib/formatWhen';
-import { mergeSteps, quietLine, runTitle, sessionFailed, sessionFinished, sessionQuietSince, sessionSucceeded, stepCategory } from '../lib/monitorState';
+import { mergeSteps, quietLine, runTitle, viewerLine, sessionFailed, sessionFinished, sessionQuietSince, sessionSucceeded, stepCategory } from '../lib/monitorState';
 import { requestHeaders, responseError } from '../lib/apiClient';
 import StopRunControl from '../components/StopRunControl';
 import { nameOfUseCase } from '../lib/useCaseFields';
@@ -477,6 +477,9 @@ export default function MonitorPage({ settings, update, sessionId, runId, onComp
         )}
         {runInfo?.run_name && !latestStep && (
           <p className="text-[11px] text-text-tertiary mt-3" title={runInfo.run_name}>{runTitle(runInfo, session?.business_name)}</p>
+        )}
+        {viewerLine(runInfo) && (
+          <p className="text-xs text-warning-fg mt-3" role="status" data-viewer-note>{viewerLine(runInfo)}</p>
         )}
         <RunSetupSummary widgetValues={session?.widget_values} />
       </div>

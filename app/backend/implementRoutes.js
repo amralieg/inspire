@@ -20,7 +20,7 @@ const { runWithRequestDeadline } = require('./lib/sqlStatements');
 const { fsApiPath } = require('./lib/workspacePaths');
 const { int64Id, isInt64Id, requireInt64Id, jsonWithInt64Ids } = require('./lib/int64Id');
 const { parseExactJson } = require('./lib/exactJson');
-const { grantJobViewer } = require('./lib/jobViewer');
+const { grantJobViewer, rememberViewer } = require('./lib/jobViewer');
 
 function sendError(res, err) {
   const code = err && Number.isFinite(err.statusCode) ? err.statusCode : 500;
@@ -1859,6 +1859,7 @@ function registerImplementRoutes(app, deps) {
         err.statusCode = resp.status;
         throw err;
       }
+      rememberViewer(data.run_id, viewer);
       res.json({
         run_id: data.run_id,
         job_id: latest.job_id,

@@ -56,7 +56,7 @@ const RP = require('./lib/routePolicy');
 const L = require('./lib/launchLedger');
 const { workspacePathProblem, rejectUnsafeQueryPath, fsApiPath } = require('./lib/workspacePaths');
 const { CACHE_REVALIDATE, compressedStatic, staticHeaders } = require('./lib/assetTypes');
-const { grantJobViewer } = require('./lib/jobViewer');
+const { grantJobViewer, rememberViewer, viewerNoteOf } = require('./lib/jobViewer');
 
 const app = express();
 const routePolicy = RP.createRoutePolicy({
@@ -927,6 +927,7 @@ async function triggerInspireNotebookJob(host, token, { params, notebook_path, c
 
   const data = parseExactJson(await response.text());
   const runId = data.run_id;
+  rememberViewer(runId, viewer);
   const jobRunUrl = databricksJobRunUrl(host, job_id, runId);
   console.log(`✅ Run submitted: ${runId}, job_id=${job_id}, notebook: ${resolvedPath}`);
   const launch = launchedBy
@@ -2121,6 +2122,7 @@ app.get('/api/run/:runId', requireToken, async (req, res) => {
       run_page_url: data.run_page_url,
       run_name: data.run_name,
       tasks,
+      ...(viewerNoteOf(req.params.runId) ? { viewer_note: viewerNoteOf(req.params.runId) } : {}),
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
