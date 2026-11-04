@@ -5,6 +5,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
 import { DECIDE, SRC, appInfo, bundleEntry, openApp, openBundle, serveDist } from './harness.mjs';
+import { evaluated, fanRows, forecastRoutes, plannerRoutes, scenarioRoutes } from './exampleRoutes.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ASSETS = join(HERE, '..', 'dist', 'assets');
@@ -36,45 +37,6 @@ after(async () => {
   await browser?.close();
   served?.close();
 });
-
-const WEEKS = Array.from({ length: 20 }, (_, i) => new Date(Date.UTC(2026, 6, 6 + i * 7)).toISOString().slice(0, 10));
-const fanRows = WEEKS.map((x, i) => (i < 12 ? { x, y0: 900 + i * 10, y1: null, y2: null, y3: null }
-  : { x, y0: null, y1: 1000 + i * 5, y2: 900 + i * 4, y3: 1100 + i * 6 }));
-
-function forecastData() {
-  return {
-    kpis: { next_forecast: { now: 8400 }, last_actual: { now: 11500 }, at_risk_n: { now: 3 }, orders_open: { now: 7 } },
-    charts: {
-      fan: { columns: [], rows: fanRows, truncated: false },
-      vs_capacity: { columns: [], rows: WEEKS.slice(12).map((x, i) => ({ x, y0: 1000 + i * 5, y1: 1100 + i * 6, y2: 1120 })), truncated: false },
-      accuracy: { columns: [], rows: ['Oat bar', 'Rye loaf', 'Tea tin'].map((x, i) => ({ x, y0: 1.4 - i * 0.4 })), truncated: false },
-    },
-    tables: { at_risk: { columns: [], rows: [{ series_label: 'Oat bar', category: 'Snacks', backtest_mase: 1.4, next_forecast: 900, upside: 220 }], truncated: false } },
-    errors: {},
-  };
-}
-
-const ROWS = ['Oat bar', 'Rye loaf', 'Tea tin', 'Fig jam', 'Soy milk', 'Rice cake'].map((label, i) => ({
-  record_key: `K${i + 1}`, _inspire_key: `K${i + 1}`, _inspire_version: String(500 + i), entity_id: `I${i + 1}`, entity_label: label, category: 'Snacks',
-  priority_tier: 'Act now', rank: i + 1, value: 9000 - i * 1000, current_order: 100 + i * 10, recommended_order: 120 + i * 10,
-  recommended_action: 'Raise the order', top_reasons: ['demand rising'], as_of_date: '2026-10-15',
-}));
-
-function forecastRoutes(decided) {
-  return {
-    page: ({ json }) => json(200, forecastData()),
-    records: ({ route, json }) => {
-      const body = route.request().postDataJSON();
-      return json(200, { rows: ROWS.slice(0, body.limit || 25), total: ROWS.length, offset: 0, limit: body.limit || 25, actions: true, changes: false,
-        summary: { open: 7, done: 3, resolved: 0, left: 7, owners: [] }, errors: {} });
-    },
-    'plan/decide': ({ route, json }) => {
-      const body = route.request().postDataJSON();
-      decided.push(body);
-      return json(200, { written: [body.record_key], conflicts: [], conflicts_count: 0, left_out: 0, batch_id: 'b1', decision: body.decision, edited: false });
-    },
-  };
-}
 
 const itemsIn = (page, section) => page.locator(`[data-section="${section}"]`).evaluateAll((nodes) => nodes.reduce((sum, n) => {
   const rows = n.querySelectorAll('[data-plan-row], .rec').length;
@@ -148,37 +110,6 @@ test('accepting and overriding a plan line go through plan/decide, and an overri
   await context.close();
 });
 
-const LIMITS = [{ x: 'Oven hours', y0: 99, y1: 100 }, { x: 'Flour', y0: 40, y1: 100 }, { x: 'Staff', y0: 70, y1: 90 }];
-const PLAN_ROWS = ROWS.map((r, i) => ({ ...r, current_value: 100 + i * 10, recommended_value: 90 + i * 20, delta: i * 20 - 10, objective_contribution: 4000 - i * 500 }));
-
-function plannerRoutes(decided, solved) {
-  return {
-    page: ({ json }) => json(200, {
-      kpis: { objective: { now: 11000 }, changed: { now: 3 }, binding: { now: 1 } },
-      charts: {
-        limits_used: { columns: [], rows: LIMITS, truncated: false },
-        swing: { columns: [], rows: LIMITS.map((r, i) => ({ x: r.x, y0: -100 * (i + 1), y1: 100 * (i + 1) })), truncated: false },
-        worth: { columns: [], rows: LIMITS.map((r, i) => ({ x: r.x, y0: 12 - i * 4 })), truncated: false },
-      },
-      tables: {}, errors: {},
-    }),
-    records: ({ route, json }) => {
-      const body = route.request().postDataJSON();
-      return json(200, { rows: PLAN_ROWS.slice(0, body.limit || 25), total: PLAN_ROWS.length, offset: 0, limit: body.limit || 25, actions: true, changes: false,
-        summary: { open: 2, done: 1, resolved: 0, left: 2, owners: [] }, errors: {} });
-    },
-    'plan/decide': ({ route, json }) => {
-      const body = route.request().postDataJSON();
-      decided.push(body);
-      return json(200, { written: [body.record_key], conflicts: [], conflicts_count: 0, left_out: 0, batch_id: 'b1', decision: body.decision, edited: false });
-    },
-    'settings/run': ({ route, json }) => {
-      solved.push(route.request().postDataJSON());
-      return json(200, { run_id: 77, started: true });
-    },
-  };
-}
-
 test('the planner opens with What to do now, draws the plan, its limits and what moves the result, and re-solves through settings/run', async () => {
   const info = appInfo(DECIDE, 1, {}, 'examples/planner.json');
   const layout = KINDS.layouts.find((l) => l.id === 'planner');
@@ -226,36 +157,6 @@ test('a plan with no decisions and no editable override column stays read only',
   assert.deepEqual(seen.errors, []);
   await context.close();
 });
-
-const SCENARIOS = [['base', 5000000, 4600000, 5400000, 0.31], ['upside', 5600000, 5100000, 6000000, 0.7], ['downside', 4400000, 4000000, 4800000, 0.05]]
-  .map(([scenario_id, p50, p10, p90, prob_target]) => ({ scenario_id, p10, p50, p90, prob_target }));
-
-function evaluated(values) {
-  const levers = [['price', 12, 0.4e6], ['volume', 400000, 9], ['unit_cost', 7, -0.4e6]].map(([lever, base, k]) => ({ lever, base, low: base * 0.9, high: base * 1.1, value: values[lever] ?? base, k }));
-  const p50 = 5000000 + levers.reduce((s, l) => s + l.k * (l.value - l.base), 0);
-  return { levers: levers.map(({ k, ...l }) => l), clamped: [], contributions: levers.map((l) => ({ lever: l.lever, delta: l.k * (l.value - l.base) })),
-    distribution: Array.from({ length: 41 }, (_, i) => [p50 - 400000 + i * 20000, Math.exp(-0.5 * ((i - 20) / 6) ** 2)]),
-    outcome: { p10: p50 - 400000, p50, p90: p50 + 400000, prob_target: p50 >= 5200000 ? 0.6 : 0.3, target: 5200000 } };
-}
-
-function scenarioRoutes(asked, saved) {
-  return {
-    page: ({ json }) => json(200, {
-      kpis: { base_p50: { now: 5000000 }, base_chance: { now: 0.31 }, last_margin: { now: 4800000, before: 4700000 } },
-      charts: { swing: { columns: [], rows: [{ x: 'price', y0: -480000, y1: 480000 }, { x: 'volume', y0: -360000, y1: 360000 }, { x: 'unit_cost', y0: -280000, y1: 280000 }], truncated: false } },
-      tables: { scenarios: { columns: [], rows: SCENARIOS, truncated: false } }, errors: {},
-    }),
-    'scenario/evaluate': ({ route, json }) => {
-      const body = route.request().postDataJSON();
-      asked.push(body);
-      return json(200, evaluated(body.values || {}));
-    },
-    'records/add': ({ route, json }) => {
-      saved.push(route.request().postDataJSON());
-      return json(200, { record_key: 'S1', versions: [], fields: [] });
-    },
-  };
-}
 
 test('the scenario lab opens with What to do now, moves the outcome with each lever, and saves a scenario as a record', async () => {
   const info = appInfo({ options: { modify: true, replace_edits: false, decisions: false } }, 1, {}, 'examples/scenario_lab.json');

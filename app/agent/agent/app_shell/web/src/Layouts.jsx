@@ -6,6 +6,9 @@ import { Icon, GenieMark } from './icons.jsx';
 import { Skeleton, useToast } from './ui.jsx';
 import { genieOn } from './genieAsk.js';
 import { ChartsReady, SECTION_PARTS } from './KindParts.jsx';
+import { AskGenie } from './AskGenie.jsx';
+import { RowGenie } from './DataTable.jsx';
+import { tableContext } from './explain.js';
 
 const ScenarioPanel = lazy(() => import('./Scenario.jsx'));
 
@@ -71,7 +74,8 @@ export function TodoNow({ page, app, ready, nonce, onAsk }) {
         {decided && list.data && <p data-todo-count>{all ? `${integer(waiting)} of ${integer(all)} waiting for you` : 'Nothing is waiting for you right now'}</p>}
         {decided && !list.data && !list.error && <Skeleton height={14} width="40%" />}
         {list.error && <p className="tile-err"><Icon name="info" size={12} />{list.error}</p>}
-      </div></header>
+      </div>
+      <AskGenie kind="text" title="What to do now" context={{ hint: steps.map((s) => s.text).join('\n') }} /></header>
       {decided && all > 0 && <div className="todo-bar" role="progressbar" aria-valuemin={0} aria-valuemax={all} aria-valuenow={all - waiting}><i style={{ width: `${((all - waiting) / all) * 100}%` }} /></div>}
       <ol className="todo-steps">
         {steps.map((s) => (
@@ -95,7 +99,14 @@ export function planDelta(plan, row) {
   return numberOf(row[plan.recommended]) - numberOf(row[plan.current]);
 }
 
-function PlanRow({ page, plan, row, actions, onDecided }) {
+const lineName = (page, row) => String(row[page.records.label] ?? recordKeyOf(row));
+
+function planFields(page, plan, row) {
+  return { [page.records.label_title || 'Line']: lineName(page, row), Now: row[plan.current], Suggested: row[plan.recommended], Change: planDelta(plan, row),
+    Status: row._inspire_status || row.action_status || 'New' };
+}
+
+function PlanRow({ page, app, plan, row, actions, onDecided }) {
   const [open, setOpen] = useState(false);
   const [value, setValue] = useState('');
   const [reason, setReason] = useState('');
@@ -125,7 +136,7 @@ function PlanRow({ page, plan, row, actions, onDecided }) {
   return (
     <>
       <tr data-plan-row={key}>
-        <th scope="row">{row[page.records.label] ?? key}</th>
+        <th scope="row">{lineName(page, row)}</th>
         <td className="num">{fmt(row[plan.current])}</td>
         <td className="num plan-rec"><span aria-hidden="true">★ </span>{fmt(row[plan.recommended])}</td>
         <td className={`num ${delta > 0 ? 'is-up' : delta < 0 ? 'is-down' : ''}`}>{delta == null ? '' : `${delta > 0 ? '+' : ''}${fmt(delta)}`}</td>
@@ -138,9 +149,11 @@ function PlanRow({ page, plan, row, actions, onDecided }) {
             </>
           ) : <span className="muted">Read only</span>}
         </td>
+        <td className="ask-c"><RowGenie about={genieOn(app, page.id) && key != null ? { pageId: page.id, recordKey: String(key), label: lineName(page, row) } : null}
+          element={{ title: lineName(page, row), page: page.id, context: { hint: `A line of ${plan.title}.`, fields: planFields(page, plan, row) } }} /></td>
       </tr>
       {open && (
-        <tr className="plan-form"><td colSpan={6}>
+        <tr className="plan-form"><td colSpan={7}>
           <form onSubmit={(e) => { e.preventDefault(); decide('override'); }}>
             <label>Your value<input type="number" step="any" required value={value} onChange={(e) => setValue(e.target.value)} /></label>
             <label className="grow">Why you override it<input required maxLength={300} value={reason} onChange={(e) => setReason(e.target.value)} /></label>
@@ -148,7 +161,7 @@ function PlanRow({ page, plan, row, actions, onDecided }) {
           </form>
         </td></tr>
       )}
-      {error && <tr><td colSpan={6}><p className="tile-err" role="alert"><Icon name="info" size={12} />{error}</p></td></tr>}
+      {error && <tr><td colSpan={7}><p className="tile-err" role="alert"><Icon name="info" size={12} />{error}</p></td></tr>}
     </>
   );
 }
@@ -185,14 +198,15 @@ export function PlanTable({ page, app, filters, ready, nonce, onChanged }) {
     <section className="card card--table plan" aria-label={plan.title}>
       <header className="card-h"><div><h2>{plan.title}</h2>{plan.hint && <p>{plan.hint}</p>}
         {list.data && !can && <p className="muted">This App keeps no decisions on these lines, so the plan is read only.</p>}
-      </div></header>
+      </div>
+      <AskGenie kind="table" title={plan.title} context={tableContext(plan.hint || '', rows, (row) => planFields(page, plan, row), list.data?.total)} /></header>
       {!list.data && !list.error && <div style={{ padding: 16 }}><Skeleton height={22} /></div>}
       {list.error && <p className="tile-err"><Icon name="info" size={14} />The plan could not load: {list.error}</p>}
       {list.data && !rows.length && <p className="empty">No plan lines for these filters.</p>}
       {rows.length > 0 && (
         <div className="tw"><table className="plan-t">
-          <thead><tr><th scope="col">{page.records.label_title || 'Line'}</th><th scope="col">Now</th><th scope="col">Suggested</th><th scope="col">Change</th><th scope="col">Status</th><th scope="col"><span className="sr">Decide</span></th></tr></thead>
-          <tbody>{rows.map((row) => <PlanRow key={recordKeyOf(row)} page={page} plan={plan} row={row} actions={can} onDecided={onChanged} />)}</tbody>
+          <thead><tr><th scope="col">{page.records.label_title || 'Line'}</th><th scope="col">Now</th><th scope="col">Suggested</th><th scope="col">Change</th><th scope="col">Status</th><th scope="col"><span className="sr">Decide</span></th><th scope="col"><span className="sr">Ask Genie</span></th></tr></thead>
+          <tbody>{rows.map((row) => <PlanRow key={recordKeyOf(row)} page={page} app={app} plan={plan} row={row} actions={can} onDecided={onChanged} />)}</tbody>
         </table></div>
       )}
     </section>
@@ -215,7 +229,7 @@ export function LayoutSections({ page, app, ready, nonce, filters, onChanged, on
       return hero.length ? <div key={section} className="objective" data-section={section}>{kpisOf(hero, false)}</div> : null;
     }
     const Part = SECTION_PARTS[section];
-    if (Part) return <div key={section} data-section={section}><Part page={page} app={app} ready={ready} nonce={nonce} filters={filters} onChanged={onChanged} onAsk={onAsk} data={data} records={records} onPick={onPick} /></div>;
+    if (Part) return <div key={section} data-section={section}><Part page={page} app={app} ready={ready} nonce={nonce} filters={filters} onChanged={onChanged} data={data} records={records} onPick={onPick} /></div>;
     if (hold === 'plan' || hold === 'records') {
       if (page.plan) return <div key={section} data-section={section}>{plan(section)}</div>;
       return records ? <div key={section} data-section={section}>{records}</div> : null;

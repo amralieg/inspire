@@ -81,6 +81,7 @@ function Summary({ app, facts }) {
     <section className="card" aria-label="Summary" data-summary>
       <header className="card-h">
         <div><h2>In short</h2><p data-summary-text={said.state}>{said.text || templateText(facts)}</p>{said.note && <p className="more">{said.note}</p>}</div>
+        <AskGenie kind="text" title="In short" context={{ hint: said.text || templateText(facts) }} />
         {target && facts.worked.records > 0 && (
           <div className="tbar">
             <button type="button" className="btn" onClick={write} disabled={said.state === 'running'} data-summary-ai>

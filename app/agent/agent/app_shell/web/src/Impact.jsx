@@ -7,6 +7,7 @@ import { Icon } from './icons.jsx';
 import Fx from './Fx.jsx';
 import DataTable from './DataTable.jsx';
 import { fieldsOf } from './explain.js';
+import { AskGenie } from './AskGenie.jsx';
 import { getImpact } from './api.js';
 import { NOT_MEASURED, pageCurrency, pageKind, shortDay, visiblePages } from './hub.js';
 import { closedRows, figuresOf, heldShare, holdoutOffText, holdoutView, impactTiles, promisedView, targetKpiView } from './impact.js';
@@ -117,6 +118,13 @@ function TargetKpi({ run }) {
   );
 }
 
+function impactFields(page, entry, figures, run) {
+  const kpi = targetKpiView(run);
+  const fields = { Promised: promisedView(page)?.value, ...Object.fromEntries(FIGURES.map(([key, label]) => [label, figures[key].value])),
+    'Shown to people and held back': holdoutView(entry)?.verdict, ...(kpi ? { [`Target KPI: ${kpi.name}`]: `${kpi.baseline} to ${kpi.latest}, target ${kpi.target}` } : {}) };
+  return Object.fromEntries(Object.entries(fields).filter(([, v]) => v != null && v !== ''));
+}
+
 function UseCaseImpact({ app, page, entry, currency, kind, figures, meaning, onOpen, run }) {
   const note = !entry ? 'Loading the impact…' : entry.error ? `The impact could not load: ${entry.error}`
     : entry.tracked ? `So far, since the first run. This quarter starts ${shortDay(entry.since)}.` : entry.note || 'This use case does not track its records yet.';
@@ -129,6 +137,7 @@ function UseCaseImpact({ app, page, entry, currency, kind, figures, meaning, onO
           {run?.scope_text && <p className="kpi-scope" data-scope={page.id}>{run.scope_text}</p>}
         </div>
         <ReviewLink page={page} app={app} />
+        <AskGenie kind="text" title={`The impact of ${page.title}`} page={page.id} context={{ hint: note, fields: impactFields(page, entry, figures, run) }} />
       </header>
       <div className="imp-grid">
         <Promised page={page} />

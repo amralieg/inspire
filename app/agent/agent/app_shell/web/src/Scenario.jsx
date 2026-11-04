@@ -6,6 +6,7 @@ import { formatValue, numberOf } from './format.js';
 import { chartPalette, reducedMotion } from './theme.js';
 import { Icon } from './icons.jsx';
 import { Skeleton, useDebounced, useToast } from './ui.jsx';
+import { AskGenie } from './AskGenie.jsx';
 
 const STEPS = 100;
 
@@ -46,6 +47,13 @@ export function sensitivityOption(result, levers, P) {
     yAxis: { type: 'category', inverse: true, data: rows.map((r) => label[r.lever] || r.lever), axisLabel: { color: P.muted } },
     series: [{ type: 'bar', barMaxWidth: 20, data: rows.map((r) => ({ value: r.delta, itemStyle: { color: r.delta >= 0 ? P.series[2] : P.series[5], borderRadius: 3 } })) }],
   };
+}
+
+function outcomeFields(result) {
+  const o = result?.outcome;
+  if (!o) return {};
+  return { P10: o.p10, P50: o.p50, P90: o.p90, ...(o.target != null ? { Target: o.target } : {}),
+    ...(o.prob_target != null ? { 'Chance of reaching the target': o.prob_target } : {}) };
 }
 
 function SaveScenario({ page, app, result, onSaved }) {
@@ -101,11 +109,15 @@ export default function ScenarioPanel({ page, app, ready, order, onSaved }) {
   const { el: sens } = useChart(result ? sensitivityOption(result, scenario.levers, P) : null, [result]);
   const ranges = Object.fromEntries((result?.levers || []).map((l) => [l.lever, l]));
   const fmt = (v) => formatValue(v, outcome.format, outcome.currency);
+  const names = Object.fromEntries(scenario.levers.map((l) => [l.lever, l.label || l.lever]));
+  const levers = Object.fromEntries((result?.levers || []).map((l) => [names[l.lever] || l.lever, l.value]));
+  const moves = (result?.contributions || []).map((c) => ({ Lever: names[c.lever] || c.lever, 'Change in the P50': c.delta }));
   const parts = {
     levers: (section) => (
       <section key={section} className="card scenario" data-section={section} aria-label={scenario.title}>
         <header className="card-h"><div><h2>{scenario.title}</h2>{scenario.hint && <p>{scenario.hint}</p>}</div>
           <button type="button" className="btn btn--sm" onClick={() => setValues({})} disabled={!Object.keys(values).length}>Back to the base case</button>
+          <AskGenie kind="scenario" title={scenario.title} context={{ hint: scenario.hint || '', fields: { ...levers, ...outcomeFields(result) } }} />
         </header>
         {error && <p className="tile-err" role="alert"><Icon name="info" size={14} />{error}</p>}
         {!result && !error && <div style={{ padding: 16 }}><Skeleton height={120} /></div>}
@@ -133,11 +145,13 @@ export default function ScenarioPanel({ page, app, ready, order, onSaved }) {
       <section key={section} className="charts" data-section={section}>
         <article className="card card--wide" data-card="outcome">
           <header className="card-h"><div><h2>{outcome.label}</h2>
-            {result && <p data-quantiles>P10 {fmt(result.outcome.p10)} · P50 {fmt(result.outcome.p50)} · P90 {fmt(result.outcome.p90)}</p>}</div></header>
+            {result && <p data-quantiles>P10 {fmt(result.outcome.p10)} · P50 {fmt(result.outcome.p50)} · P90 {fmt(result.outcome.p90)}</p>}</div>
+            <AskGenie kind="chart" title={outcome.label} context={{ hint: `The range of the ${outcome.label?.toLowerCase() || 'outcome'} for the levers as set.`, fields: outcomeFields(result) }} /></header>
           <div className="chart"><div ref={dist} style={{ position: 'absolute', inset: 0 }} /></div>
         </article>
         <article className="card" data-card="lever_effect">
-          <header className="card-h"><div><h2>What each lever moves</h2><p>Change in the P50 {outcome.label?.toLowerCase()} from the base case</p></div></header>
+          <header className="card-h"><div><h2>What each lever moves</h2><p>Change in the P50 {outcome.label?.toLowerCase()} from the base case</p></div>
+            <AskGenie kind="chart" title="What each lever moves" context={{ hint: `Change in the P50 ${outcome.label?.toLowerCase() || 'outcome'} from the base case.`, rows: moves, row_count: moves.length }} /></header>
           <div className="chart"><div ref={sens} style={{ position: 'absolute', inset: 0 }} /></div>
         </article>
       </section>
@@ -145,7 +159,8 @@ export default function ScenarioPanel({ page, app, ready, order, onSaved }) {
     target: (section) => result?.outcome.prob_target != null && (
       <section key={section} className="charts" data-section={section}>
         <article className="card" data-card="chance">
-          <header className="card-h"><div><h2>Chance of reaching the target</h2><p>Target {fmt(result.outcome.target)}</p></div></header>
+          <header className="card-h"><div><h2>Chance of reaching the target</h2><p>Target {fmt(result.outcome.target)}</p></div>
+            <AskGenie kind="chart" title="Chance of reaching the target" context={{ hint: `The chance the ${outcome.label?.toLowerCase() || 'outcome'} reaches its target.`, fields: outcomeFields(result) }} /></header>
           <div className="chart chart--gauge"><div ref={gauge} style={{ position: 'absolute', inset: 0 }} /></div>
         </article>
       </section>

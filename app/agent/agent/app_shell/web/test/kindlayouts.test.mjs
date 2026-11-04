@@ -5,12 +5,12 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
 import { DECIDE, SRC, appInfo, bundleEntry, openApp, openBundle, serveDist } from './harness.mjs';
+import { AS_OF, CASES, kindRoutes } from './exampleRoutes.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const KINDS = JSON.parse(readFileSync(join(HERE, '..', '..', 'kinds.json'), 'utf8'));
 const ASSETS = join(HERE, '..', 'dist', 'assets');
 const P = { ink: '#111', muted: '#666', line: '#ddd', card: '#fff', well: '#eee', font: 'Inter', series: ['#1', '#2', '#3', '#4', '#5', '#6'], tier: { 'Act now': '#c00' } };
-const AS_OF = String(Date.UTC(2026, 0, 1) * 1000);
 
 let served;
 let base;
@@ -39,97 +39,6 @@ async function inBundle(run, arg) {
 }
 
 const layoutOf = (id) => KINDS.layouts.find((l) => l.id === id);
-const row = (i, extra) => ({ record_key: `K${i}`, _inspire_key: `K${i}`, _inspire_version: String(700 + i), entity_id: `E${i}`, priority_tier: 'Act now',
-  rank: i, value: 5000 - i * 100, as_of_date: '2026-10-15', top_reasons: ['spend fell', 'visits fell'], ...extra });
-
-const SEGMENTS = [['S1', 'Loyal regulars', 420, 1200, 'Loyalty upgrade'], ['S2', 'Lapsing families', 380, 640, 'Win-back offer'],
-  ['S3', 'New and curious', 150, 300, 'Leave as is'], ['S4', 'Bargain hunters', 260, 410, 'Win-back offer']];
-const MEMBERS = Array.from({ length: 12 }, (_, i) => row(i + 1, { entity_label: `Customer ${i + 1}`, segment: SEGMENTS[i % 4][0], segment_label: SEGMENTS[i % 4][1],
-  recommended_action: 'Keep them', region: 'North', channel: 'Online', ...(i === 5 ? { _inspire_status: 'Dismissed', _inspire_closed_reason: 'Moved away' } : {}) }));
-const CUSTOMERS = ['Ana', 'Bo', 'Cy', 'Di', 'Ed', 'Flo', 'Gus', 'Hal'];
-const OFFERS = ['Travel card', 'Savings plan', 'Phone upgrade'];
-const RECS = CUSTOMERS.flatMap((name, c) => OFFERS.map((item, k) => row(c * 3 + k + 1, { entity_label: item, item, customer_name: name, customer_id: `C${c}`,
-  rank: k + 1, score: 0.9 - k * 0.2, recommended_action: k < 2 ? 'Send this offer' : 'Skip it: low fit', top_reasons: [`bought ${item.split(' ')[0].toLowerCase()} before`] })));
-const PROMOS = [['Spring bundle', 'Scale it: strong net lift'], ['Loyalty points', 'Keep it as it is'], ['Free delivery', 'Change the threshold'],
-  ['Flash sale', 'Stop it: no real lift']].map(([label, action], i) => row(i + 1, { entity_label: label, entity_id: label, recommended_action: action,
-  effect: 12 - i * 4, roi: 140 - i * 50, incremental_value: 90000 - i * 30000, channel: 'Online' }));
-
-const statusOf = (r) => r._inspire_status || 'New';
-
-function listed(rows, body) {
-  const wanted = body.filters?.segment;
-  const statuses = body.column_filters?.action_status;
-  const words = String(body.search || '').toLowerCase();
-  return rows.filter((r) => !wanted?.length || wanted.includes(r.segment))
-    .filter((r) => !statuses?.length || statuses.includes(statusOf(r)))
-    .filter((r) => !words || [r.entity_label, r.customer_name, r.record_key].some((v) => String(v ?? '').toLowerCase().includes(words)));
-}
-
-function routes(data, rows, acts) {
-  return {
-    page: ({ route, json, seen }) => {
-      seen.pages.push(route.request().postDataJSON());
-      return json(200, data);
-    },
-    records: ({ route, json, seen }) => {
-      const body = route.request().postDataJSON();
-      seen.records.push(body);
-      const found = listed(rows, body);
-      return json(200, { rows: found.slice(0, body.limit || 25), total: found.length, offset: 0, limit: body.limit || 25, actions: true, changes: false,
-        as_of_us: AS_OF, summary: { open: found.length, done: 0, resolved: 0, left: found.length, owners: [] }, errors: {} });
-    },
-    'records/act': ({ route, json }) => {
-      const body = route.request().postDataJSON();
-      acts.push(body);
-      return json(200, { written: body.record_keys || ['K1', 'K5', 'K9'], conflicts: [], batch_id: `b${acts.length}` });
-    },
-  };
-}
-
-const segmentData = () => ({
-  kpis: { members: { now: 1210 }, segments: { now: 4 }, value: { now: 812000 } },
-  charts: {
-    profile: { columns: [], rows: ['Orders a year', 'Basket size', 'Months as a customer', 'Days since last order'].flatMap((x, f) => SEGMENTS.map(([, s], i) => ({ x, s, y0: 10 + f * 3 + i * 2 }))), truncated: false },
-    map: { columns: [], rows: Array.from({ length: 30 }, (_, i) => ({ x_label: `E${i}`, x: (i % 5) - 2, y0: (i % 3) - 1 })), truncated: false },
-    worth: { columns: [], rows: SEGMENTS.map(([, x, size, value]) => ({ x, y0: size, y1: value })), truncated: false },
-    moves: { columns: [], rows: [{ x: 'Loyal regulars', s: 'Lapsing families', y0: 40 }, { x: 'Lapsing families', s: 'Bargain hunters', y0: 25 }, { x: 'New and curious', s: 'Loyal regulars', y0: 18 }], truncated: false },
-  },
-  tables: { cards: { columns: [], rows: SEGMENTS.map(([segment_id, label, size, value, suggested_treatment]) => ({ segment_id, label, size, value, profile: 'Shops weekly, big baskets', suggested_treatment })), truncated: false } },
-  errors: {},
-});
-
-const recsData = () => ({
-  kpis: { offers: { now: 24 }, customers: { now: 8 }, worth: { now: 54000 } },
-  charts: {
-    affinity: { columns: [], rows: OFFERS.flatMap((x, i) => ['Basic', 'Plus'].map((s, j) => ({ x, s, y0: 0.4 + i * 0.1 + j * 0.05 }))), truncated: false },
-    lift: { columns: [], rows: OFFERS.map((x_label, i) => ({ x_label, x: 100 + i * 50, y0: 0.7 - i * 0.1 })), truncated: false },
-    coverage: { columns: [], rows: OFFERS.map((x, i) => ({ x, y0: 8 - i * 2 })), truncated: false },
-  },
-  tables: {},
-  errors: {},
-});
-
-const WEEKS = Array.from({ length: 10 }, (_, i) => new Date(Date.UTC(2026, 7, 3 + i * 7)).toISOString().slice(0, 10));
-const liftData = () => ({
-  kpis: { incremental: { now: 180000 }, spend: { now: 60000 }, real: { now: 2 } },
-  charts: {
-    versus: { columns: [], rows: WEEKS.map((x, i) => ({ x, y0: 1100 + i * 20, y1: 1000 + i * 10, y2: 950 + i * 10, y3: 1050 + i * 10 })), truncated: false },
-    waterfall: { columns: [], rows: [{ x: 'Sales added', y0: 180000 }, { x: 'Promotion cost', y0: -60000 }, { x: 'Net added', y0: 120000 }], truncated: false },
-    curves: { columns: [], rows: PROMOS.map((p, i) => ({ x_label: p.entity_label, x: 10000 + i * 5000, y0: 90000 - i * 30000 })), truncated: false },
-  },
-  tables: { effect: { columns: [], rows: [
-    { intervention: 'Spring bundle', effect: 12, lower: 5, upper: 19, p_value: 0.004, roi: 140, incremental_value: 90000, cost: 20000 },
-    { intervention: 'Flash sale', effect: 1, lower: -4, upper: 6, p_value: 0.41, roi: -20, incremental_value: 5000, cost: 25000 },
-    { intervention: 'Free delivery', effect: -6, lower: -9, upper: -2, p_value: 0.01, roi: -60, incremental_value: -12000, cost: 18000 },
-  ], truncated: false } },
-  errors: {},
-});
-
-const CASES = {
-  segment_explorer: { data: segmentData, rows: MEMBERS, ready: '[data-segment]' },
-  recommendation_desk: { data: recsData, rows: RECS, ready: '[data-choice-row]' },
-  lift_readout: { data: liftData, rows: PROMOS, ready: '[data-verdict]' },
-};
 
 const itemsIn = (page, section) => page.locator(`[data-section="${section}"]`).evaluateAll((nodes) => nodes.reduce((sum, n) => {
   const rows = n.querySelectorAll('[data-choice-row]').length;
@@ -142,7 +51,7 @@ const sectionsOf = (page) => page.evaluate(() => [...document.querySelectorAll('
 
 async function open(id, acts = []) {
   const info = appInfo(DECIDE, 1, {}, `examples/${id}.json`);
-  const opened = await openApp(browser, base, info, { routes: routes(CASES[id].data(), CASES[id].rows, acts) });
+  const opened = await openApp(browser, base, info, { routes: kindRoutes(CASES[id].data(), CASES[id].rows, acts) });
   await opened.page.locator(CASES[id].ready).first().waitFor();
   return { ...opened, info };
 }

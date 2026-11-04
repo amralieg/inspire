@@ -1,7 +1,11 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
+import { readdirSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
 import { ASK_GROUPS as GROUPS, appInfo, askAudit as audit, chartsDrawn, openApp, pageData, resizeTo, serveDist, until } from './harness.mjs';
+import { EXAMPLES } from './exampleRoutes.mjs';
 import { ASK_CHARS, BUSY_TITLE, SUGGESTIONS, cutText, receives, rowTitle, scoped } from '../src/explain.js';
 
 let served;
@@ -46,10 +50,10 @@ function genieRoutes() {
 const open = (info, options) => openApp(browser, served.base, info, options);
 const ready = (page) => page.waitForFunction((n) => [...document.querySelectorAll('[data-card]')].filter((c) => c.querySelector('canvas')).length === n
   && document.querySelectorAll('section.card--table tbody tr').length >= 2 && document.querySelectorAll('.card--list tbody tr').length > 0, 4);
-const askButton = (page, name) => page.getByRole('button', { name: `Ask Genie about ${name}`, exact: true });
+const askButton = (within, name) => within.getByRole('button', { name: `Ask Genie about ${name}`, exact: true });
 
-async function ask(page, calls, name, typed) {
-  await askButton(page, name).first().click();
+async function ask(page, calls, name, typed, within = page) {
+  await askButton(within, name).first().click();
   const box = page.locator('form.ask-box');
   await box.waitFor();
   const before = calls.explain.length;
@@ -64,23 +68,159 @@ async function ask(page, calls, name, typed) {
   return calls.explain[before];
 }
 
+const EXAMPLE_FILES = readdirSync(join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'examples')).filter((f) => f.endsWith('.json')).sort();
+const GENIE_OFF = { genie: null, genie_note: 'The Genie Agent did not build.' };
+
+const HOLD_CARDS = { todo: 1, plan: 1, records: 1, levers: 1, scenario: 2, target: 1 };
+
+function kindsOf(spec) {
+  const tables = spec.tables?.length || 0;
+  const held = Object.values(spec.layout?.holds || {}).reduce((sum, hold) => sum + (HOLD_CARDS[hold] || 0), 0);
+  return { card: (spec.charts?.length || 0) + tables + held, kpi: spec.kpis?.length || 0, controls: spec.filters?.length ? 1 : 0,
+    row: spec.records || tables ? 1 : 0, text: spec.story ? 1 : 0 };
+}
+
+async function auditEvery(page, at, least) {
+  for (const width of [1440, 390]) {
+    await resizeTo(page, width);
+    const found = await page.evaluate(audit, GROUPS);
+    assert.deepEqual(found.missing, [], `${at} at ${width}px: 0 missing`);
+    assert.deepEqual(found.hidden, [], `${at} at ${width}px: 0 hidden`);
+    for (const [kind, low] of Object.entries(least)) {
+      assert.ok(found.counts[kind] >= low, `${at} at ${width}px: ${found.counts[kind]} ${kind} element(s) with Ask Genie, needs ${low}: ${JSON.stringify(found.counts)}`);
+    }
+  }
+}
+
 test('every card, key number, row, text block and the filter bar on the example page shows a visible Ask Genie, on a laptop and a phone, with Genie on or off', async () => {
-  for (const settings of [{}, { genie: null, genie_note: 'The Genie Agent did not build.' }]) {
+  for (const settings of [{}, GENIE_OFF]) {
     const { routes } = genieRoutes();
     const { page, seen, context } = await open(appInfo(settings, 1, CHANGES), { routes });
     await ready(page);
-    for (const width of [1440, 390]) {
-      await resizeTo(page, width);
-      const found = await page.evaluate(audit, GROUPS);
-      const at = `${settings.genie === null ? 'Genie off' : 'Genie on'} at ${width}px`;
-      assert.deepEqual(found.missing, [], `${at}: 0 missing`);
-      assert.deepEqual(found.hidden, [], `${at}: 0 hidden`);
-      assert.ok(found.counts.card >= 6 && found.counts.kpi === 3 && found.counts.text === 2 && found.counts.controls === 1 && found.counts.row >= 12,
-        `${at}: the audit saw every element: ${JSON.stringify(found.counts)}`);
-    }
+    await auditEvery(page, settings.genie === null ? 'Genie off' : 'Genie on', { card: 6, kpi: 3, text: 2, controls: 1, row: 12 });
+    assert.equal(await page.locator('.kpi').count(), 3);
     assert.deepEqual(seen.errors, []);
     await context.close();
   }
+});
+
+test('every element kind on every page in examples shows a visible Ask Genie, on a laptop and a phone, with Genie on or off', async () => {
+  assert.ok(EXAMPLE_FILES.length >= 3, `examples holds ${EXAMPLE_FILES.length} pages`);
+  assert.deepEqual(EXAMPLE_FILES.filter((f) => !EXAMPLES[f]), [], 'every example page has the data it draws in exampleRoutes.mjs');
+  for (const file of EXAMPLE_FILES) {
+    const example = EXAMPLES[file];
+    for (const settings of [example.settings, { ...example.settings, ...GENIE_OFF }]) {
+      const info = appInfo(settings, 1, {}, `examples/${file}`);
+      const least = kindsOf(info.pages[0]);
+      assert.ok(least.card > 0 && least.kpi > 0 && least.row > 0, `${file} declares cards, key numbers and rows: ${JSON.stringify(least)}`);
+      const { page, seen, context } = await open(info, { routes: example.routes() });
+      await example.ready(page);
+      await page.waitForFunction(() => !document.querySelector('.skel, [aria-busy="true"]'), null, { timeout: 15000 });
+      await auditEvery(page, `${file} ${settings.genie === null ? 'Genie off' : 'Genie on'}`, least);
+      assert.deepEqual(seen.errors, [], file);
+      await context.close();
+    }
+  }
+});
+
+function exampleWithGenie(file) {
+  const { calls, routes } = genieRoutes();
+  const { page: drawn, ...asks } = routes;
+  const example = EXAMPLES[file];
+  const info = appInfo(example.settings, 1, {}, `examples/${file}`);
+  return { calls, info, example, opened: open(info, { routes: { ...example.routes(), ...asks } }) };
+}
+
+test('a plan line asks Genie about its own record, the plan sends its lines, and the audit catches a layout part with no Ask Genie', async () => {
+  const { calls, info, example, opened } = exampleWithGenie('forecast_cockpit.json');
+  const { page, seen, context } = await opened;
+  await example.ready(page);
+  await page.locator('[data-plan-row="K1"]').getByRole('button', { name: 'Ask Genie about Oat bar' }).click();
+  await page.locator('.g-chip-t').waitFor();
+  assert.equal(await page.locator('.g-chip-t').innerText(), 'About: Oat bar');
+  assert.equal(calls.explain.length, 0, 'a plan line opens its record thread and sends nothing until asked');
+  const plan = await ask(page, calls, info.pages[0].plan.title);
+  const line = info.pages[0].records.label_title || 'Line';
+  assert.equal(plan.kind, 'table');
+  assert.deepEqual([plan.context.row_count, plan.context.rows[0]], [6, { [line]: 'Oat bar', Now: 100, Suggested: 120, Change: 20, Status: 'New' }]);
+  const todo = await ask(page, calls, 'What to do now');
+  assert.equal(todo.kind, 'text');
+  assert.match(todo.context.hint, /^Start with Oat bar/);
+  await page.evaluate(() => {
+    document.querySelector('[data-section="todo"] .ask-genie').remove();
+    document.querySelector('[data-plan-row="K2"] .row-ask').remove();
+  });
+  const found = await page.evaluate(audit, GROUPS);
+  assert.deepEqual(found.missing, ['card: What to do now', 'row: ']);
+  assert.deepEqual(seen.errors, []);
+  await context.close();
+});
+
+test('the scenario sends Genie its lever values and outcome range, and the lever chart sends what each lever moves', async () => {
+  const { calls, info, example, opened } = exampleWithGenie('scenario_lab.json');
+  const { page, seen, context } = await opened;
+  await example.ready(page);
+  const scenario = await ask(page, calls, info.pages[0].scenario.title);
+  assert.equal(scenario.kind, 'scenario');
+  assert.equal(scenario.question, SUGGESTIONS.scenario[0]);
+  assert.deepEqual(scenario.context.fields, { 'Average price': 12, 'Units sold': 400000, 'Unit cost': 7, P10: 4600000, P50: 5000000, P90: 5400000,
+    Target: 5200000, 'Chance of reaching the target': 0.3 });
+  const moves = await ask(page, calls, 'What each lever moves');
+  assert.equal(moves.kind, 'chart');
+  assert.deepEqual(moves.context.rows.map((r) => r.Lever), ['Average price', 'Units sold', 'Unit cost']);
+  const chance = await ask(page, calls, 'Chance of reaching the target');
+  assert.equal(chance.context.fields['Chance of reaching the target'], 0.3);
+  assert.deepEqual(seen.errors, []);
+  await context.close();
+});
+
+test('a promotion effect card sends its lift, range and return, the decide list sends its lines, and a promotion asks about its own record', async () => {
+  const { calls, example, opened } = exampleWithGenie('lift_readout.json');
+  const { page, seen, context } = await opened;
+  await example.ready(page);
+  const effect = await ask(page, calls, 'Spring bundle');
+  assert.equal(effect.kind, 'effect');
+  assert.equal(effect.question, SUGGESTIONS.effect[0]);
+  assert.deepEqual(effect.context.fields, { Promotion: 'Spring bundle', Lift: 12, Low: 5, High: 19, 'p value': 0.004, Return: 140, 'Sales added': 90000, Cost: 20000 });
+  assert.match(effect.context.hint, /\S/);
+  const lifts = await ask(page, calls, 'Lift of each promotion');
+  assert.deepEqual([lifts.kind, lifts.context.row_count, lifts.context.rows.map((r) => r.Promotion)], ['table', 3, ['Spring bundle', 'Flash sale', 'Free delivery']]);
+  const list = await ask(page, calls, 'Scale, keep, change or stop');
+  assert.equal(list.kind, 'table');
+  assert.deepEqual([list.context.row_count, list.context.rows[0]], [4, { Name: 'Spring bundle', Lift: 12, Return: 140, 'Sales added': 90000,
+    Suggested: 'Scale it: strong net lift', Reasons: 'spend fell; visits fell' }]);
+  const before = calls.explain.length;
+  await page.locator('.choice-row').filter({ hasText: 'Flash sale' }).getByRole('button', { name: 'Ask Genie about Flash sale' }).click();
+  await page.locator('.g-chip-t').waitFor();
+  assert.equal(await page.locator('.g-chip-t').innerText(), 'About: Flash sale');
+  assert.equal(calls.explain.length, before, 'a promotion opens its record thread and sends nothing until asked');
+  assert.deepEqual(seen.errors, []);
+  await context.close();
+});
+
+test('a segment card sends its size, value, profile and members waiting, and the offers of one customer go as one recommendation', async () => {
+  const segments = exampleWithGenie('segment_explorer.json');
+  const one = await segments.opened;
+  await segments.example.ready(one.page);
+  const segment = await ask(one.page, segments.calls, 'Lapsing families');
+  assert.equal(segment.kind, 'segment');
+  assert.equal(segment.context.hint, 'Shops weekly, big baskets');
+  assert.deepEqual(segment.context.fields, { 'Segment id': 'S2', Segment: 'Lapsing families', Customers: 380, 'Value per customer': 640,
+    Profile: 'Shops weekly, big baskets', 'Suggested treatment': 'Win-back offer', 'Members waiting': 2, Suggested: 'Win-back offer' });
+  assert.match(await one.page.locator('[data-segment="S2"] [data-seg-open]').innerText(), /^2 of 380 members/);
+  const all = await ask(one.page, segments.calls, 'Segments', undefined, one.page.locator('section:has([data-segment])'));
+  assert.deepEqual([all.kind, all.context.row_count], ['table', 4]);
+  assert.deepEqual(one.seen.errors, []);
+  await one.context.close();
+  const desk = exampleWithGenie('recommendation_desk.json');
+  const two = await desk.opened;
+  await desk.example.ready(two.page);
+  const rec = await ask(two.page, desk.calls, 'Ana');
+  assert.equal(rec.kind, 'recommendation');
+  assert.equal(rec.question, SUGGESTIONS.recommendation[0]);
+  assert.deepEqual(rec.context.rows.map((r) => [r.Offer, r.Suggested]), [['Travel card', 'Send this offer'], ['Savings plan', 'Send this offer'], ['Phone upgrade', 'Skip it: low fit']]);
+  assert.deepEqual(two.seen.errors, []);
+  await two.context.close();
 });
 
 test('the audit catches an element whose Ask Genie is missing or hidden', async () => {

@@ -4,10 +4,13 @@ import { formatValue, integer, numberOf } from './format.js';
 import { CLOSED_STATUSES, actError, listAsOf, matchOf, recordKeyOf, statusLabel } from './records.js';
 import { useActs } from './Work.jsx';
 import { useList } from './Layouts.jsx';
-import { Icon, GenieMark } from './icons.jsx';
+import { Icon } from './icons.jsx';
 import { Skeleton } from './ui.jsx';
 import { genieOn } from './genieAsk.js';
 import { plural } from './hub.js';
+import { AskGenie } from './AskGenie.jsx';
+import { RowGenie, columnOf } from './DataTable.jsx';
+import { fieldsOf, tableContext } from './explain.js';
 import './styles/kindparts.css';
 
 export const LIST_ROWS = 60;
@@ -84,9 +87,14 @@ const shown = (meta, value) => formatValue(value, meta?.format, meta?.currency);
 const reasonsOf = (value) => (Array.isArray(value) ? value : value ? String(value).split(/\s*[;|]\s*/) : []).filter(Boolean).slice(0, 3);
 const sectionTable = (page, section) => (page.tables || []).find((t) => t.section === section);
 
-function AskButton({ app, page, onAsk, question, label }) {
-  if (!onAsk || !genieOn(app, page.id)) return null;
-  return <button type="button" className="ibtn ibtn--sm" aria-label={`Ask Genie about ${label}`} onClick={() => onAsk(question)}><GenieMark size={14} /></button>;
+const specFields = (row, columns) => fieldsOf(row, (columns || []).map((c) => columnOf(c)));
+const nameOf = (page, row) => String(row[page.records?.label] ?? recordKeyOf(row));
+
+function choiceFields(page, row) {
+  const meta = page.records || {};
+  const reasons = reasonsOf(row[meta.reasons]);
+  return { Name: nameOf(page, row), ...specFields(row, meta.columns), ...(row[meta.action] ? { Suggested: row[meta.action] } : {}),
+    ...(reasons.length ? { Reasons: reasons.join('; ') } : {}) };
 }
 
 function useChoices(page, onChanged) {
@@ -128,7 +136,7 @@ function useChoices(page, onChanged) {
   return { choose, takeAll, busy, error, run };
 }
 
-function ChoiceRow({ page, row, choices, suggested, canAct, busy, onChoose, detail, children }) {
+function ChoiceRow({ page, app, row, choices, suggested, canAct, busy, onChoose, detail, children }) {
   const [skipping, setSkipping] = useState(null);
   const key = String(recordKeyOf(row));
   const closed = isClosed(row);
@@ -148,6 +156,8 @@ function ChoiceRow({ page, row, choices, suggested, canAct, busy, onChoose, deta
           </button>
         ))}
         {!closed && !canAct && <span className="muted">Read only{suggested ? `, suggested: ${suggested.label}` : ''}</span>}
+        <RowGenie about={genieOn(app, page.id) ? { pageId: page.id, recordKey: key, label: nameOf(page, row) } : null}
+          element={{ title: nameOf(page, row), page: page.id, context: { hint: `A line of ${page.records?.title || page.title}.`, fields: choiceFields(page, row) } }} />
       </div>
       {skipping && (
         <div className="choice-why" role="group" aria-label={`Why ${skipping.label.toLowerCase()}`}>
@@ -162,10 +172,11 @@ function ChoiceRow({ page, row, choices, suggested, canAct, busy, onChoose, deta
   );
 }
 
-function ListShell({ title, hint, section, list, empty, actions, error, children }) {
+function ListShell({ page, title, hint, section, list, empty, actions, error, children }) {
   return (
     <section className="card card--table choices" aria-label={title} data-part={section}>
-      <header className="card-h"><div><h2>{title}</h2>{hint && <p>{hint}</p>}</div>{actions}</header>
+      <header className="card-h"><div><h2>{title}</h2>{hint && <p>{hint}</p>}</div>{actions}
+        <AskGenie kind="table" title={title} context={tableContext(hint || '', list.data?.rows || [], (row) => choiceFields(page, row), list.data?.total)} /></header>
       {!list.data && !list.error && <div style={{ padding: 16 }}><Skeleton height={22} /></div>}
       {list.error && <p className="tile-err"><Icon name="info" size={14} />The list could not load: {list.error}</p>}
       {error && <p className="tile-err" role="alert"><Icon name="info" size={14} />{error}</p>}
@@ -194,7 +205,7 @@ function Lookup({ label, value, onLook }) {
   );
 }
 
-export function RecList({ page, app, filters, ready, nonce, onChanged, onAsk }) {
+export function RecList({ page, app, filters, ready, nonce, onChanged }) {
   const [search, setSearch] = useState('');
   const list = useList(page.id, filters, ready, nonce, LIST_ROWS, true, search ? { search } : null);
   const choices = page.choices || [];
@@ -210,15 +221,15 @@ export function RecList({ page, app, filters, ready, nonce, onChanged, onAsk }) 
   const scoreMeta = (meta.columns || []).find((c) => c.column === recs.score);
   const who = String((meta.columns || []).find((c) => c.column === recs.entity)?.label || 'name').toLowerCase();
   return (
-    <ListShell title={meta.title || 'Recommendations'} hint={meta.hint} section="rec_list" list={list} error={decide.error}
+    <ListShell page={page} title={meta.title || 'Recommendations'} hint={meta.hint} section="rec_list" list={list} error={decide.error}
       empty={search ? `Nothing matches ${search}.` : 'No recommendations for these filters.'}
       actions={<><Lookup label={who} value={search} onLook={setSearch} />{can && <TakeAll count={open} busy={decide.busy} onClick={() => decide.takeAll(shownRows, suggest)} />}</>}>
       {groups.map(([entity, items]) => (
         <div key={entity} className="rec-entity" data-rec-entity={entity}>
-          <h3>{entity}<AskButton app={app} page={page} onAsk={onAsk} label={entity} question={`What should we offer ${entity} first, and why?`} /></h3>
+          <h3>{entity}<AskGenie kind="recommendation" title={entity} context={tableContext(`The top offers for ${entity}, best first.`, items, (row) => choiceFields(page, row))} /></h3>
           <ol className="choice-list">
             {items.map((row) => (
-              <ChoiceRow key={recordKeyOf(row)} page={page} row={row} choices={choices} suggested={suggest(row)} canAct={can} busy={decide.busy}
+              <ChoiceRow key={recordKeyOf(row)} page={page} app={app} row={row} choices={choices} suggested={suggest(row)} canAct={can} busy={decide.busy}
                 onChoose={decide.choose}
                 detail={row[recs.score] != null && <span className="choice-score">{scoreMeta?.label || 'Score'} {shown(scoreMeta || { format: 'number' }, row[recs.score])}</span>}>
                 {reasonsOf(row[meta.reasons]).length > 0 && <div className="reasons">{reasonsOf(row[meta.reasons]).map((t) => <span key={t} className="chip chip--static">{t}</span>)}</div>}
@@ -241,11 +252,11 @@ export function ChoiceList({ page, app, filters, ready, nonce, onChanged }) {
   const suggest = (row) => suggestedChoice(choices, row[meta.action]);
   const open = rows.filter((r) => !isClosed(r) && suggest(r)).length;
   return (
-    <ListShell title={meta.title || 'Decide each one'} hint={meta.hint} section="keep_scale_stop" list={list} error={decide.error}
+    <ListShell page={page} title={meta.title || 'Decide each one'} hint={meta.hint} section="keep_scale_stop" list={list} error={decide.error}
       empty="Nothing to decide for these filters." actions={can && <TakeAll count={open} busy={decide.busy} onClick={() => decide.takeAll(rows, suggest)} />}>
       <ol className="choice-list">
         {rows.map((row) => (
-          <ChoiceRow key={recordKeyOf(row)} page={page} row={row} choices={choices} suggested={suggest(row)} canAct={can} busy={decide.busy}
+          <ChoiceRow key={recordKeyOf(row)} page={page} app={app} row={row} choices={choices} suggested={suggest(row)} canAct={can} busy={decide.busy}
             onChoose={decide.choose}
             detail={<span className="choice-cols">{(meta.columns || []).slice(0, 4).map((c) => <span key={c.column}>{c.label} <b>{shown(c, row[c.column])}</b></span>)}</span>}>
             {row[meta.action] && <p className="choice-why-text">{row[meta.action]}</p>}
@@ -277,7 +288,7 @@ function useSegmentCounts(page, ids, ready, nonce) {
   return counts;
 }
 
-export function SegmentCards({ page, app, ready, nonce, filters, onChanged, onAsk, onPick, data, records }) {
+export function SegmentCards({ page, app, ready, nonce, filters, onChanged, onPick, data, records }) {
   const table = sectionTable(page, 'segment_cards');
   const result = table ? data?.tables?.[table.id] : null;
   const failed = table ? data?.errors?.[`table:${table.id}`] : '';
@@ -305,6 +316,7 @@ export function SegmentCards({ page, app, ready, nonce, filters, onChanged, onAs
         <header className="card-h"><div><h2>{table?.title || 'Segments'}</h2>
           <p>{table?.hint || 'Choose a treatment for each segment once: every member of the segment gets it.'}</p></div>
           {can && waiting.length > 0 && <TakeAll count={waiting.length} busy={decide.busy} onClick={async () => { for (const r of waiting) await choose(r, suggestedOf(r)); }} />}
+          <AskGenie kind="table" title={table?.title || 'Segments'} context={tableContext(table?.hint || '', rows, (row) => specFields(row, table?.columns))} />
         </header>
         {!result && !failed && <div style={{ padding: 16 }}><Skeleton height={90} /></div>}
         {failed && <p className="tile-err"><Icon name="info" size={14} />The segments could not load: {failed}</p>}
@@ -319,7 +331,8 @@ export function SegmentCards({ page, app, ready, nonce, filters, onChanged, onAs
             const done = c.actions && c.waiting === 0;
             return (
               <article key={id} className={`seg-card${pickedIn(filters, block.filter, id) ? ' is-picked' : ''}`} data-card={`segment:${id}`} data-segment={id}>
-                <header><PickButton filter={block.filter} value={id} label={row.label} filters={filters} onPick={onPick} what="segment" /><AskButton app={app} page={page} onAsk={onAsk} label={row.label} question={`What sets the ${row.label} segment apart, and which treatment fits it?`} /></header>
+                <header><PickButton filter={block.filter} value={id} label={row.label} filters={filters} onPick={onPick} what="segment" /><AskGenie kind="segment" title={row.label} context={{ hint: row.profile != null ? String(row.profile) : '',
+                  fields: { ...specFields(row, table?.columns), ...(c.waiting != null ? { 'Members waiting': c.waiting } : {}), ...(star ? { Suggested: star } : {}) } }} /></header>
                 <dl>
                   <div><dt>{cols.size?.label || 'Size'}</dt><dd>{shown(cols.size || { format: 'integer' }, row.size)}</dd></div>
                   <div><dt>{cols.value?.label || 'Value'}</dt><dd>{shown(cols.value || { format: 'number' }, row.value)}</dd></div>
@@ -347,7 +360,7 @@ export function SegmentCards({ page, app, ready, nonce, filters, onChanged, onAs
   );
 }
 
-export function EffectCard({ page, app, onAsk, data, filters, onPick }) {
+export function EffectCard({ page, data, filters, onPick }) {
   const table = sectionTable(page, 'effect_card');
   const result = table ? data?.tables?.[table.id] : null;
   const failed = table ? data?.errors?.[`table:${table.id}`] : '';
@@ -356,7 +369,8 @@ export function EffectCard({ page, app, onAsk, data, filters, onPick }) {
   return (
     <section className="card effects" aria-label={table?.title || 'Effect'} data-part="effect_card">
       <header className="card-h"><div><h2>{table?.title || 'Effect'}</h2>{table?.hint && <p>{table.hint}</p>}
-        {table?.so_what && <p className="so-what" data-so-what><b>So what:</b> {table.so_what}</p>}</div></header>
+        {table?.so_what && <p className="so-what" data-so-what><b>So what:</b> {table.so_what}</p>}</div>
+        <AskGenie kind="table" title={table?.title || 'Effect'} context={tableContext(table?.hint || '', rows, (row) => specFields(row, table?.columns))} /></header>
       {!result && !failed && <div style={{ padding: 16 }}><Skeleton height={90} /></div>}
       {failed && <p className="tile-err"><Icon name="info" size={14} />The effect could not load: {failed}</p>}
       {result && !rows.length && <p className="empty">No measured effect for these filters.</p>}
@@ -366,7 +380,7 @@ export function EffectCard({ page, app, onAsk, data, filters, onPick }) {
           return (
             <article key={`${row.intervention}:${i}`} className={`effect is-${verdict.state}${pickedIn(filters, cols.intervention?.filter, row.intervention) ? ' is-picked' : ''}`}
               data-card={`effect:${row.intervention}`}>
-              <header><PickButton filter={cols.intervention?.filter} value={row.intervention} label={row.intervention} filters={filters} onPick={onPick} what="intervention" /><AskButton app={app} page={page} onAsk={onAsk} label={String(row.intervention)} question={`Is the lift of ${row.intervention} real, and what did it net?`} /></header>
+              <header><PickButton filter={cols.intervention?.filter} value={row.intervention} label={row.intervention} filters={filters} onPick={onPick} what="intervention" /><AskGenie kind="effect" title={String(row.intervention)} context={{ hint: verdict.text, fields: specFields(row, table?.columns) }} /></header>
               <p className="effect-lift"><b>{shown(cols.effect, row.effect)}</b> <span>{cols.effect?.label || 'Lift'}</span></p>
               <p className="effect-range">Range {shown(cols.lower || cols.effect, row.lower)} to {shown(cols.upper || cols.effect, row.upper)}</p>
               <p className="effect-verdict" data-verdict={verdict.state}>{verdict.text}</p>
