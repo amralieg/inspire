@@ -520,8 +520,9 @@ class EntryTest(StarterCase):
 
     def test_scan_catalogs_sits_next_to_internet_blocked_and_reaches_the_install_steps(self):
         lines = support.release.STARTER.read_text().splitlines()
-        self.assertEqual(lines[lines.index("INTERNET_BLOCKED = False") + 1], 'SCAN_CATALOGS = "all"')
-        self.assertEqual([line for line in lines if line.startswith("SCAN_CATALOGS")], ['SCAN_CATALOGS = "all"'])
+        self.assertEqual(lines[lines.index("INTERNET_BLOCKED = False") + 1], 'SCAN_CATALOGS = []')
+        self.assertEqual([line for line in lines if line.startswith("SCAN_CATALOGS")], ['SCAN_CATALOGS = []'])
+        self.assertIn("It starts empty, so the App reads none of your data until you name catalogs", support.release.STARTER.read_text())
         out = self.release()
         self.ns["open_trusted"] = support.FakeGitHub(LATEST, out)
         self.ns["installer_folder"] = lambda: (str(self.folder), "/n")

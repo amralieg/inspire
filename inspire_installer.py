@@ -9,7 +9,7 @@
 # MAGIC
 # MAGIC After the first run, pick or type the **SQL warehouse** and the **Inspire catalog** in the widgets at the top, then run it again.
 # MAGIC
-# MAGIC **SCAN_CATALOGS** in the next cell picks the catalogs the Inspire App may read besides the Inspire catalog, with USE CATALOG, USE SCHEMA, SELECT and BROWSE, because builds run as the App and read their source tables: `"all"` grants it every catalog you can see and grant on (you own it, hold MANAGE on it, or are a metastore admin) and names each catalog it skips, and a list such as `["main", "sales"]` grants only those and stops before any change if you cannot grant on one. The installer prints every grant before it runs one.
+# MAGIC **SCAN_CATALOGS** in the next cell lists the catalogs the Inspire App may read besides the Inspire catalog. It starts empty, so the App reads none of your data until you name catalogs, such as `["main", "sales"]`. The installer grants the App USE CATALOG, USE SCHEMA, SELECT and BROWSE on each one you name, because builds run as the App and read their source tables, and it stops before any change if you cannot grant on one. `"all"` grants every catalog you can see and grant on. The installer prints every grant before it runs one.
 # MAGIC
 # MAGIC **NEW_APPS_CATALOG_ACCESS** lets the Apps that Implement builds read their results: `"account users"` grants account users USE CATALOG on the Inspire catalog when nothing below it is granted to them, so it opens no data by itself, and `"off"` grants nothing and prints the statement for a catalog owner.
 
@@ -32,7 +32,7 @@ import zipfile
 STARTER_VERSION = 1
 RELEASE_REPO = "amralieg/inspire"
 INTERNET_BLOCKED = False
-SCAN_CATALOGS = "all"
+SCAN_CATALOGS = []
 NEW_APPS_CATALOG_ACCESS = "account users"
 LATEST_BASE = f"https://github.com/{RELEASE_REPO}/releases/latest/download"
 TEST_BASE = re.compile(re.escape(f"https://github.com/{RELEASE_REPO}/releases/download/") + r"[A-Za-z0-9][A-Za-z0-9._-]{0,80}")
