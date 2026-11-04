@@ -446,6 +446,16 @@ async function walkScreen(page, settle, { rows, questions, log, where, home, goB
     const close = page.locator('.genie button[aria-label="Close Ask Genie"]');
     if (await close.count()) await close.click();
     await back();
+    const first = page.locator('button', { hasText: 'Ask Genie what to do first' }).first();
+    if (await first.count()) {
+      await first.click();
+      await page.waitForFunction(() => document.querySelectorAll('.msg--genie').length > 0
+        && !document.querySelector('.msg--genie .g-step'), null, { timeout: GENIE_WAIT_MS });
+      await settle();
+      log(`${where}: Genie answered what to do first`);
+      if (await close.count()) await close.click();
+      await back();
+    }
   }
   for (let i = 0; questions && i < v; i += 1) {
     if (await views.count()) {

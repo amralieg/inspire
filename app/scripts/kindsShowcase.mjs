@@ -43,7 +43,7 @@ const DRAFTS = [
     serve: 'A call list for the Head of CRM: every week, the repeat buyers most likely to stop buying, with the reasons and the value each one carries.',
     how: 'Classification: a model learns from past buyers who lapsed which patterns come first (longer gaps, smaller baskets, more returns) and scores every active buyer.',
     value: 'Margin kept from buyers who would have lapsed: buyers kept times yearly margin per buyer, from order_date, net_paid and returns.',
-    story: '212 repeat buyers worth $1.3M a year look ready to lapse. The team can reach 200 of them this week.',
+    story: '1,240 repeat buyers worth $3.1M a year look ready to lapse. Calling the top 200 this week reaches 41% of that value.',
     stake: '$3.1M a year', tables: ['store_sales', 'web_sales', 'customer', 'store_returns'], result: 'lapse_risk', app: 'lapse-desk', title: 'Lapse call list',
     genie: [
       g('Why is Buyer 10432 at 91%?', 'Three signals: the gap since the last order is 3 times this buyer\'s usual gap, the basket is 40% smaller than its 6-month average, and the last order had a return. Together they explain 78% of the score.', 'SELECT entity_id, score, tier, top_reasons, value_at_stake FROM lapse_risk WHERE entity_id = 10432'),
@@ -57,7 +57,7 @@ const DRAFTS = [
       byCategory: ['Where the lapse value sits', 'Value at stake', [['Outerwear', 820000], ['Footwear', 640000], ['Kids', 520000], ['Camping', 430000], ['Bags', 380000], ['Home', 310000]]],
       mix: ['Lapse value by channel over time', ['Store', 'Web', 'App']],
       pareto: 'How concentrated the lapse value is',
-      records: ['Call list', 'Buyers from the latest run, most likely to lapse first.', 'Buyer value'],
+      records: ['Call list', 'The 8 buyers most likely to lapse in the latest run, shown first from the 1,240 on the call list.', 'Buyer value'],
       filters: { category: ['Top category', ['Outerwear', 'Footwear', 'Kids', 'Camping', 'Bags', 'Home']], channel: ['Channel', ['Store', 'Web', 'App']], region: ['Region', ['North', 'South', 'East', 'West']] },
       rows: [
         ['Buyer 10432', 'Outerwear', 4200, 'Call this week with a loyalty offer', ['Gap since last order 3x usual', 'Basket down 40%']],
@@ -77,7 +77,7 @@ const DRAFTS = [
     serve: 'A daily call list for collectors: the overdue invoices most likely to slip past 90 days, with the cash each one holds.',
     how: 'Survival analysis: a time-to-pay model learns from paid invoices how payment speed depends on the customer\'s history, the invoice size and the terms, and gives each open invoice its chance of paying within 90 days.',
     value: 'Cash in sooner and fewer write-offs: cash at risk times the drop in late payment, from invoice_date, due_date, paid_date and amount.',
-    story: '64 invoices hold $1.1M that will likely slip past 90 days. 40 calls today reach 58% of it.',
+    story: '860 overdue invoices hold $1.9M that will likely slip past 90 days. 40 calls today reach 58% of it.',
     stake: '$1.9M of cash', tables: ['invoice', 'payment', 'customer'], result: 'late_payment_risk', app: 'collections-desk', title: 'Collections call list',
     genie: [
       g('Why is INV-20931 likely to slip?', 'This customer paid 4 of its last 5 invoices after 90 days, and this invoice is 3 times its usual size. Customers like this pay within 90 days 7% of the time.', "SELECT * FROM late_payment_risk WHERE entity_id = 'INV-20931'"),
@@ -1123,12 +1123,22 @@ function filterOptions(u, page, rows) {
   });
 }
 
+export const FIRST_QUESTION = /^What should I do first on .+, and why\?$/;
+
 const hashOf = (text) => [...String(text)].reduce((h, ch) => (h * 31 + ch.charCodeAt(0)) >>> 0, 7).toString(36);
 
 function answerFor(u, body, rows) {
   const question = String(body?.question || '').trim();
   const known = u.genie.find((x) => x.q === question);
   if (known) return { text: `${known.a}\n\n${DEMO_RECORDED}`, sql: known.sql };
+  const top = FIRST_QUESTION.test(question) ? rows[0] : null;
+  if (top) {
+    const why = (top.top_reasons || []).join('; ');
+    const said = [`Start with ${top.entity_label ?? top.record_key}${why ? `: ${why}` : ''}.`, top.recommended_action ? `Suggested: ${top.recommended_action}.` : '',
+      'Then work down the list in order.', u.story].filter(Boolean).join(' ');
+    return { text: `${said}\n\n${DEMO_RECORDED}`,
+      sql: `SELECT * FROM ${DEMO_CATALOG}.${u.result} ORDER BY rank LIMIT 5` };
+  }
   const about = body?.about || {};
   const row = rows.find((r) => r.record_key === about.recordKey);
   if (row) {

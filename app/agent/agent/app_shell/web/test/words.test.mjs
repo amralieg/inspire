@@ -120,3 +120,24 @@ test('a list nobody owns offers one click to take its open records, and never wh
   assert.match(src('Records.jsx'), /actOn\(\{ action_owner: person \}/);
   assert.match(src('Home.jsx'), /Assign them to me/);
 });
+
+test('the demo says why Genie has no answer, and only a refused change reads as the read-only note', async () => {
+  const { askGenie, DEMO_NOTE } = await import('../src/api.js');
+  const said = 'In the demo, Genie answers the questions it suggests. Ask your own questions in an MVP built on your data.';
+  const real = globalThis.fetch;
+  const reply = (status, body) => { globalThis.fetch = async () => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } }); };
+  try {
+    reply(404, { error: said, showcase: true });
+    const missed = await askGenie('n01_u01', 'Which store should I call?').catch((e) => e);
+    assert.equal(missed.message, said);
+    assert.equal(missed.calm, true);
+    reply(403, { error: 'refused', showcase: true });
+    assert.equal((await askGenie('n01_u01', 'x').catch((e) => e)).message, DEMO_NOTE);
+    reply(404, { error: 'no such page' });
+    const real404 = await askGenie('n01_u01', 'x').catch((e) => e);
+    assert.equal(real404.message, 'no such page');
+    assert.equal(real404.calm, false);
+  } finally {
+    globalThis.fetch = real;
+  }
+});

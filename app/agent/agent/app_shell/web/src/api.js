@@ -16,7 +16,7 @@ async function send(method, path, body) {
       try { detail = await response.json(); message = detail.error || message; } catch { /* the status line is the message */ }
     }
     const calm = response.status >= 400 && response.status < 500 && detail?.showcase === true;
-    const error = new Error(calm ? DEMO_NOTE : message);
+    const error = new Error(calm ? (response.status === 404 && typeof detail.error === 'string' && detail.error ? detail.error : DEMO_NOTE) : message);
     error.status = response.status;
     error.detail = detail;
     error.code = typeof detail?.code === 'string' ? detail.code : '';

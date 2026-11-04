@@ -151,3 +151,37 @@ test('the kinds demo holds no time later than its recording time, so no clock of
   assert.deepEqual([...new Set(times.filter((t) => Date.parse(t) > latest))], []);
   assert.ok(times.includes(KINDS_DEMO.recordedAt), 'the live checks carry the recording time');
 });
+
+const moneyOf = (text) => (String(text || '').match(/\$[\d.,]+[KMB]?/) || [])[0];
+const compactMoney = (n) => {
+  const a = Math.abs(n);
+  const [v, s] = a >= 1e9 ? [a / 1e9, 'B'] : a >= 1e6 ? [a / 1e6, 'M'] : a >= 1e3 ? [a / 1e3, 'K'] : [a, ''];
+  return `$${Number(v.toFixed(1))}${s}`;
+};
+
+test('a kinds demo use case says one amount: its story, its stake and its money tile name the same number', async () => {
+  const { USE_CASES } = await kinds();
+  const checked = [];
+  for (const u of USE_CASES) {
+    const money = Array.isArray(u.mvp?.kpis) ? u.mvp.kpis.find((k) => k[1] === 'currency') : null;
+    if (!money) continue;
+    const tile = compactMoney(money[2]);
+    assert.equal(moneyOf(u.story), tile, `${u.title}: story ${u.story} against the tile ${tile}`);
+    assert.equal(moneyOf(u.stake), tile, `${u.title}: stake ${u.stake} against the tile ${tile}`);
+    checked.push(u.title);
+  }
+  assert.ok(checked.length >= 2, checked.join(', '));
+});
+
+test('the kinds demo answers the App\'s own question, what to do first, for every list, with the first record by name', async () => {
+  const { FIRST_QUESTION } = await kinds();
+  const lists = Object.entries(bundle().mvps).filter(([, mvp]) => Object.keys(mvp.api).some((k) => k.startsWith('POST /api/records ')));
+  assert.ok(lists.length >= 3, `${lists.length} lists`);
+  for (const [slug, mvp] of lists) {
+    const ask = Object.entries(mvp.api).find(([k]) => k.startsWith('POST /api/genie/ask ') && FIRST_QUESTION.test(JSON.parse(k.slice('POST /api/genie/ask '.length)).question || ''));
+    assert.ok(ask, `${slug} has no recorded answer to what to do first`);
+    const said = Object.entries(mvp.api).find(([k]) => k.startsWith('GET /api/genie/message') && k.includes(`message_id=${ask[1].body.message_id}&`));
+    assert.match(said?.[1]?.body?.text || '', /^Start with [^:.]*[A-Za-z]/, slug);
+    assert.doesNotMatch(said[1].body.text, /read-only/, slug);
+  }
+});
