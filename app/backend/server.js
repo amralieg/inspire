@@ -2334,7 +2334,7 @@ app.get('/api/inspire/step-results', requireToken, async (req, res) => {
     const sessionTable = `\`${catalog}\`.\`${schema}\`.\`__inspire_session\``;
 
     // Fetch all ended_success steps that carry payload data
-    const sql = `SELECT step_id, stage_name, step_name, status, result_json FROM ${stepTable} WHERE session_id = ${session_id} AND status IN (${LIVE_STEP_STATUSES.map((st) => `'${st}'`).join(', ')}) ORDER BY last_updated, step_id`;
+    const sql = `SELECT step_id, stage_name, step_name, status, result_json FROM ${stepTable} WHERE session_id = ${session_id} AND status IN (${LIVE_STEP_STATUSES.map((st) => `'${escapeSqlStringLiteral(st)}'`).join(', ')}) ORDER BY last_updated, step_id`;
     const runResults = runResultsStatement(sessionTable, session_id);
 
     const [result, sessionRows] = await Promise.all([
