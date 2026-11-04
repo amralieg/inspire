@@ -183,8 +183,14 @@ def test_a_family_takes_at_most_its_seats_and_the_floor_at_most_its_share(ns, rt
     a = [_uc(f"A{i:02d}", round(9.9 - 0.05 * i, 3)) for i in range(20)]
     pool = a + [_uc("P0", 9.0, kind="process_mining"), _uc("S0", 8.99, kind="sla_aging")]
     pool += [_uc(f"L{i:02d}", 1.0, theme="T2") for i in range(20)]
+    rt["kind_floor_seats_per_kind"] = 0
     out = inst._stratified_trim_by_theme(pool, target_max=14, theme_max_share=1.0)
     assert "P0" in _nos(out) and "S0" not in _nos(out)
+    rt["kind_floor_seats_per_kind"] = 1
+    inst = _inst(ns, detected=detected)
+    out = inst._stratified_trim_by_theme([dict(uc) for uc in pool], target_max=14, theme_max_share=1.0)
+    assert {"P0", "S0"} <= set(_nos(out))
+    rt["kind_floor_seats_per_kind"] = 0
     rt["kind_floor_seats_per_family"] = 2
     inst = _inst(ns, detected=detected)
     out = inst._stratified_trim_by_theme([dict(uc) for uc in pool], target_max=14, theme_max_share=1.0)
