@@ -197,16 +197,90 @@ def test_a_worker_its_parent_cancelled_is_a_warning_and_not_a_failed_step(fresh_
     assert statuses == ["started", "ended_warning"]
 
 
-def test_a_worker_that_really_fails_is_still_an_error_and_a_failed_step(fresh_ns):
+def test_a_worker_that_really_fails_is_a_failed_step_and_a_warning_because_its_caller_owns_the_error(fresh_ns):
     log = RecordingLogger()
     agent, statuses = worker_agent(fresh_ns, log, RuntimeError("endpoint returned 500"))
     with pytest.raises(RuntimeError):
         agent.run_worker("BoB_R0B1", "BEST_OF_BEST_SCORING_PROMPT", {}, None)
-    assert log.matching("AI Worker process failed for BoB_R0B1", "ERROR")
+    assert log.matching("AI Worker process failed for BoB_R0B1", "WARNING")
+    assert not [m for lvl, m in log.records if lvl == "ERROR"]
     assert statuses == ["started", "ended_error"]
 
 
-def test_an_llm_attempt_timeout_is_a_warning_and_only_the_exhausted_cascade_is_an_error(fresh_ns):
+def flaky_worker_agent(ns, log, failures):
+    agent = make_agent(ns, FakeConnectSpark(lambda op: "ok"), log)
+    agent._emit_status = lambda **kw: None
+    agent._build_started_status = lambda *a, **k: ("started", {})
+    agent._build_success_status = lambda *a, **k: ("ok", {})
+    agent._load_and_format_prompt = lambda *a, **k: "prompt"
+    calls = []
+
+    def answer(*a, **k):
+        calls.append(k.get("display_name"))
+        if len(calls) <= failures:
+            raise RuntimeError("endpoint returned 500")
+        return "answer"
+
+    agent._call_ai_query = answer
+    return agent, calls
+
+
+def test_a_worker_call_that_fails_and_succeeds_on_retry_logs_no_error(agent_ns):
+    obj = scorer(agent_ns)
+    agent, calls = flaky_worker_agent(agent_ns, obj.logger, failures=1)
+
+    def score(label, batch, skip_cache):
+        agent.run_worker(f"BoB_{label}", "BEST_OF_BEST_SCORING_PROMPT", {}, None, skip_cache=skip_cache)
+        return {i: {"ok": True} for i in ids(batch)}
+
+    scores, unscored = obj._score_with_split_retry(ucs_n(2), score, 2, "BoB", per_task_timeout=30)
+    assert unscored == {} and len(scores) == 2 and calls == ["BoB_R0B1", "BoB_R1B2"]
+    assert obj.logger.matching("AI Worker process failed for BoB_R0B1", "WARNING")
+    assert [m for lvl, m in obj.logger.records if lvl == "ERROR"] == []
+
+
+def summary_caller(ns, agent):
+    obj = scorer(ns)
+    obj.logger = agent.logger
+    obj.ai_agent = agent
+    obj._get_generation_instruction_for_prompt = lambda key: ""
+    translations = {"pdf_fallback_summary_p1": "{total_cases} use cases for {business_name}", "pdf_fallback_summary_p2": "p2"}
+    return obj, translations
+
+
+def test_a_worker_call_that_fails_every_attempt_logs_exactly_one_error_naming_the_call(agent_ns):
+    log = RecordingLogger()
+    agent, calls = flaky_worker_agent(agent_ns, log, failures=99)
+    obj, translations = summary_caller(agent_ns, agent)
+    summary, name = obj._get_salesy_summary({}, "Acme", "English", translations)
+    assert calls == ["Executive_Summary_English"] and name == "Acme" and "Executive" in summary
+    errors = [m for lvl, m in log.records if lvl == "ERROR"]
+    assert len(errors) == 1, errors
+    assert "summary generation failed for English" in errors[0] and "endpoint returned 500" in errors[0]
+    assert log.matching("AI Worker process failed for Executive_Summary_English", "WARNING")
+
+
+def test_an_unusable_answer_the_caller_gives_up_on_logs_exactly_one_error(agent_ns):
+    log = RecordingLogger()
+    agent, _calls = flaky_worker_agent(agent_ns, log, failures=0)
+    obj, translations = summary_caller(agent_ns, agent)
+    obj._get_salesy_summary({}, "Acme", "English", translations)
+    errors = [m for lvl, m in log.records if lvl == "ERROR"]
+    assert len(errors) == 1 and "summary generation failed for English" in errors[0], errors
+
+
+def test_the_llm_client_never_logs_an_error_for_a_failure_it_raises_to_its_caller():
+    import ast
+    import _agentload
+    for name in ("run_worker", "_call_ai_query", "_call_ai_query_impl"):
+        node = _agentload.method_node("AIAgent", name)
+        errors = [call for call in ast.walk(node) if isinstance(call, ast.Call) and isinstance(call.func, ast.Attribute)
+                  and call.func.attr == "error"]
+        texts = [ast.get_source_segment(_agentload.agent_source(), call) or "" for call in errors]
+        assert all("Non-retryable AI query error" in text for text in texts), (name, texts)
+
+
+def test_an_llm_attempt_timeout_is_a_warning_and_the_exhausted_cascade_is_left_to_the_caller(fresh_ns):
     use_roster(fresh_ns, FIRST, LAST)
 
     def timed_out(spark, fn, timeout_seconds=None, tag_prefix=None, label=None, on_wait=None, logger=None):
@@ -221,9 +295,8 @@ def test_an_llm_attempt_timeout_is_a_warning_and_only_the_exhausted_cascade_is_a
     attempts = [m for m in log.matching("LLM call timed out after") if m.startswith("⏱️")]
     assert any("claude-opus-4-8" in m for m in attempts) and any("claude-opus-4-7" in m for m in attempts)
     assert attempts == [m for m in log.matching("LLM call timed out after", "WARNING") if m.startswith("⏱️")]
-    errors = log.matching("timed out", "ERROR")
-    assert errors and not [m for m in errors if m.startswith("⏱️")]
-    assert any("last in cascade" in m and "claude-opus-4-7" in m for m in errors)
+    assert [m for lvl, m in log.records if lvl == "ERROR"] == []
+    assert any("last in cascade" in m and "claude-opus-4-7" in m for m in log.matching("timed out", "WARNING"))
 
 
 def test_an_llm_attempt_timeout_recovered_by_the_next_model_logs_no_error(fresh_ns):

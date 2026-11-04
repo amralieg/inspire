@@ -367,8 +367,11 @@ def test_an_inspire_step_that_crashes_is_tried_once_more_with_no_genie_rebuild_a
     final = next(u for u in reversed(inst.updates) if u.get("status") == "failed")
     assert "an Inspire step failed: _implement_carried: AttributeError: 'list' object has no attribute 'get'" in final["status_message"]
     assert "not in the notebook" in final["status_message"] and "coding mistake" not in final["status_message"]
-    logged = [line for level, line in inst.logger.records if level == "ERROR" and "[IMPLEMENT-ERROR]" in line]
+    logged = [line for level, line in inst.logger.records if level == "WARNING" and "[IMPLEMENT-ERROR]" in line]
     assert len(logged) == 2, "each caught exception is logged once"
+    errors = [line for level, line in inst.logger.records if level == "ERROR"]
+    assert errors and all("Inspire tried 2 times and could not build it" in line for line in errors), \
+        "only the build that gives up is an error, never one of its attempts"
     assert "Traceback (most recent call last)" in logged[0] and "in _implement_carried" in logged[0] and "internal error" in logged[0]
     assert TOKEN not in logged[0] and "adb-42.example.net" not in logged[0], "the traceback never carries a token or a host"
     assert "<redacted>" in logged[0] and "https://<host>/api/2.2/jobs/get" in logged[0]
@@ -386,8 +389,9 @@ def test_a_failure_of_what_genie_built_still_gets_the_repair_picker_with_its_reb
     assert inst._implement_one(REFILL) in ("ready", "ready_with_warnings")
     assert asked == [["retry", "rebuild_with_error", "smaller_query", "stop"]], "a notebook failure is offered every repair"
     assert len(seen) == 2 and outcome["error"] in seen[1]["note"], "Genie rebuilds the notebook with the error in its instructions"
-    logged = [line for level, line in inst.logger.records if level == "ERROR" and "[IMPLEMENT-ERROR]" in line]
+    logged = [line for level, line in inst.logger.records if level == "WARNING" and "[IMPLEMENT-ERROR]" in line]
     assert len(logged) == 1 and "notebook error" in logged[0] and "ImplementNotebookFailed" in logged[0]
+    assert [line for level, line in inst.logger.records if level == "ERROR"] == [], "a build that recovers logs no error"
 
 
 def test_each_exception_the_build_loop_sees_has_one_origin(agent_ns):

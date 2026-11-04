@@ -631,7 +631,7 @@ def test_a_build_failure_is_logged_with_its_frames_and_without_a_secret_or_a_val
     with pytest.raises(AttributeError) as raised:
         carried()
     inst._implement_log_failure("N01-U01", "the MVP build", 1, raised.value)
-    [logged] = [line for level, line in inst.logger.records if level == "ERROR" and "[IMPLEMENT-ERROR]" in line]
+    [logged] = [line for level, line in inst.logger.records if level == "WARNING" and "[IMPLEMENT-ERROR]" in line]
     assert "Traceback (most recent call last)" in logged and "in read_rows" in logged and "in carried" in logged
     assert "AttributeError: 'list' object has no attribute 'get'" in logged
     assert "The value 'a data value' of the type" in logged and "while reading <redacted>/api/2.2/jobs/get for <email> with <redacted>" in logged
