@@ -374,7 +374,7 @@ def test_one_judge_call_per_round_judges_every_part_on_what_a_person_sees_now_an
                                              {"asset": "genie_space", "text": GENIE_ASK, "artifact": GENIE_V2, "built_before": GENIE_V1}],
                                         "N01-U01 round 1/3")
     [(_kind, prompt, schema)] = [p for p in prompts if p[0] == "judge"]
-    assert schema["properties"]["checks"]["items"]["properties"]["status"]["enum"] == ["done", "missing"]
+    assert schema["properties"]["checks"]["items"]["properties"]["status"]["enum"] == ["done", "missing", "no_data"]
     assert "What a person sees in part 1 as Inspire built it now" in prompt and "What a person sees in part 2" in prompt
     assert prompt.count("What a person saw in it in the version before") == 2
     assert f"1. (part 1) {ALL_COLUMNS} [names {TABLE}]\n2. (part 2) {GENIE_ASK}\n" in prompt

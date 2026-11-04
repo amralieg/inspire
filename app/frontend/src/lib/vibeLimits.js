@@ -2,11 +2,12 @@ export const VIBE_WRITES_SOURCE = 'Inspire never changes or deletes your source 
 export const VIBE_OUTSIDE_CALL = 'Inspire MVPs run inside your Databricks workspace and never call outside websites or services, so Inspire does not build this ask. Load that data into a Unity Catalog table first, then ask for it by table name';
 export const VIBE_VAGUE = 'Say what to change, for example which chart, table, filter or page, and how it should look or behave. Inspire still sends this ask as you wrote it, and Genie may not know what to change';
 
-const WRITE_VERB = String.raw`(?:delete|drop|truncate|purge|wipe|erase|overwrite|update|insert|alter|modify|clean)`;
+const WRITE_VERB = String.raw`(?:delete|drop|truncate|purge|wipe|erase|overwrite|update|insert|alter)`;
 const REMOVE_VERB_WRITE = String.raw`(?:delete|drop|truncate|purge|wipe|erase|remove)`;
-const SOURCE = String.raw`(?:source|raw|original|underlying)\s+(?:rows?|records?|tables?|data)\b`;
+const SOURCE = String.raw`(?:source|raw|original|underlying)\s+(?:data\s+)?(?:rows?|records?|tables?|data)\b(?![\w-]*\s+(?:labels?|names?|columns?|fields?|charts?|graphs?|plots?|tiles?|values?|notes?|counts?|sections?|tabs?|views?|links?|filters?|widgets?|panels?|cards?|kpis?|titles?|legends?|axis|axes|captions?|summar(?:y|ies)|previews?|samples?|pages?|lists?|explorers?|quality|profiles?|dictionar(?:y|ies)|tables?|text|fonts?|colou?rs?|format(?:ting)?|layout|styles?|tooltips?|headers?|headings?)\b)`;
+const OBJECT_WORD = String.raw`(?:\s+(?:all\s+of|(?!(?:from|on|in|into|to|with|for|using|by|about|of|so|based|via|like)\b)[\w-]+)){0,3}?`;
 const SQL_WRITE = /\b(?:delete\s+from|drop\s+(?:table|schema|catalog|view)|truncate\s+table|insert\s+(?:into|overwrite)|update\s+\S+\s+set|merge\s+into|alter\s+table)\b/i;
-const SOURCE_WRITE = new RegExp(String.raw`\b${WRITE_VERB}\w*(?:\s+[\w-]+){0,3}?\s+${SOURCE}`, 'i');
+const SOURCE_WRITE = new RegExp(String.raw`\b${WRITE_VERB}\w*${OBJECT_WORD}\s+${SOURCE}`, 'i');
 const SOURCE_REMOVE = new RegExp(String.raw`\b${REMOVE_VERB_WRITE}\w*\b[^.;!?]{0,40}\b(?:from|in)\s+(?:the\s+|our\s+|my\s+)?${SOURCE}`, 'i');
 const TABLE_WRITE = new RegExp(String.raw`\b(?:delete|drop|truncate|purge|wipe|erase|overwrite|insert|write)\w*\b(?:[^.;!?]{0,40}\b(?:from|in|into|to))?\s+\x60?[a-z_][\w-]*\x60?\.\x60?[a-z_][\w-]*\x60?\.\x60?[a-z_][\w-]*`, 'i');
 const CALL_VERB = String.raw`(?:call|calls|calling|fetch|fetches|pull|pulls|query|queries|hit|post|request|scrape|download|look\s+up|load|read|get|grab|import|stream|use|connect\s+to)`;
@@ -90,6 +91,13 @@ const asksOf = (text) => String(text ?? '').split(/\r?\n/).map((line) => line.tr
 
 export function specVibeAsks(spec) {
   const outputs = spec?.outputs && typeof spec.outputs === 'object' ? spec.outputs : {};
-  return [...asksOf(spec?.vibes), ...asksOf(spec?.data?.notes),
+  const all = [...asksOf(spec?.vibes), ...asksOf(spec?.data?.notes),
     ...Object.keys(outputs).filter((key) => key.endsWith('_vibes')).sort().flatMap((key) => asksOf(outputs[key]))];
+  const seen = new Set();
+  return all.filter((ask) => {
+    const key = clean(ask).toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }

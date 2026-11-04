@@ -46,6 +46,44 @@ test('an ask to change or delete source data or to call an outside website is re
   assert.equal(L.vibeAskLimit(null), null);
 });
 
+const SOURCE_SAFE = [
+  'Clean up the raw data labels on the charts so they are easier to read', 'Clean up the labels', 'Clean the source data before charting it',
+  'Update the labels from the source data', 'Update the chart titles to match the source table names', 'Drop the raw data column from the table on the App page',
+  'Delete the raw data tile from the page', 'Insert a chart of the source data rows by month', 'Show the original records next to the scores',
+  'Add a filter on the underlying table', 'Overwrite the chart colors with the brand palette', 'Remove the source data note from the footer',
+  'Truncate long raw data labels to 20 characters', 'Alter the source table chart to a line chart', 'Update the raw data preview to show 20 rows',
+  'Modify the source records chart to sort by date', 'Erase the original values legend from the chart', 'Update the chart to read the raw records',
+  'Drop the source rows count KPI', 'Clean up the underlying data quality section', 'Delete the source tables list from the App page',
+];
+const SOURCE_UNSAFE = [
+  'Delete the source rows', 'Drop the raw table', 'Update the source data', 'Overwrite the original records with the cleaned values',
+  'Delete all of the raw data', 'Erase the underlying records every night', 'Purge raw rows older than a year', 'Wipe the raw data first',
+  'Insert the scores into samples.tpch.lineitem', 'update main.sales.orders set flag = 1', 'Drop the raw data table',
+  'Remove duplicate rows from the source table', 'Delete rows in the raw data where amount is null', 'Alter the source table to add a score column',
+  'Update the original data so null zips become 00000', 'Truncate the underlying table before each run', 'Overwrite the source data.',
+];
+
+test('the source-data refusal needs an action on the source data itself, so asks about labels, charts or tiles that name it pass', () => {
+  for (const ask of SOURCE_SAFE) assert.equal(L.vibeAskLimit(ask), null, ask);
+  for (const ask of SOURCE_UNSAFE) assert.deepEqual(L.vibeAskLimit(ask), { kind: 'refused', reason: L.VIBE_WRITES_SOURCE }, ask);
+  assert.deepEqual(L.vibeRefusals(SOURCE_SAFE), []);
+  assert.equal(L.vibeRefusals([...SOURCE_SAFE, ...SOURCE_UNSAFE]).length, SOURCE_UNSAFE.length);
+});
+
+test('an ask held in both the MVP vibes and a part vibes is read once, so a refusal names each unsafe ask once', () => {
+  const del = 'delete source rows from samples.tpch.lineitem';
+  const call = 'call https://api.exchangerate.host for the rates';
+  const spec = { vibes: `${del}\n${call}`, outputs: { notebook_vibes: `${del}\n${call}`, dashboard_vibes: ` ${call.toUpperCase()} ` } };
+  assert.deepEqual(L.specVibeAsks(spec), [del, call]);
+  const text = L.vibeRefusalText(L.vibeRefusals(L.specVibeAsks(spec)));
+  assert.equal(text.split(del).length - 1, 1);
+  assert.equal(text.split(call).length - 1, 1);
+  const ready = [{ spec_version: 1, status: 'ready', spec_json: VALID, asset_status: null }];
+  const built = I.validateImplementSpec({ ...JSON.parse(JSON.stringify(VALID)), vibes: `${del}\n${call}`, vibe_previous: 'keep', based_on_version: 1,
+    outputs: { ...VALID.outputs, dashboard_vibes: `${del}\n${call}` } }).spec;
+  assert.throws(() => I.planSubmission(ready, built), (err) => err.statusCode === 400 && err.message.split(del).length === 2 && err.message.split(call).length === 2);
+});
+
 test('two asks for opposite things get one conflict note naming both, and unrelated asks get none', () => {
   const show = 'Show the top 10 zip codes as a bar chart';
   const drop = 'Remove the bar chart of the top 10 zip codes';
