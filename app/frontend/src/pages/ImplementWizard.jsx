@@ -69,6 +69,14 @@ import {
   START_MVP_LABEL,
   RESET_ROLES_LABEL,
   BUILD_STEP_IDS,
+  CUSTOMIZE_LABEL,
+  QUICK_PATH_NOTE,
+  START_STEP,
+  VIBES_STEP,
+  customizeFromFocus,
+  hiddenStepGaps,
+  quickSummary,
+  shownSteps,
   APP_ACCESS_CHOICES,
   APP_ACCESS_NOTE,
   APP_BACKEND_CHOICES,
@@ -333,6 +341,7 @@ export default function ImplementWizard({
   const inspireDatabase = settings.inspireDatabase;
   const [mode, setMode] = useState('mvp');
   const [step, setStep] = useState(() => initialStepId(focus));
+  const [customize, setCustomize] = useState(() => customizeFromFocus(focus));
   const [spec, setSpec] = useState(() => defaultSpecFromUseCase(uc, { warehouseId, inspireDatabase, sessionId }));
   const [context, setContext] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -399,7 +408,8 @@ export default function ImplementWizard({
   const scopeSettingList = useMemo(() => everySetting.filter(isScopeSetting), [everySetting]);
   const settingsFor = useCallback((scope) => (scope.firstRun ? everySetting.filter((s) => !isScopeSetting(s)) : everySetting), [everySetting]);
   const settingsList = useMemo(() => settingsFor({ firstRun: scopeSteps.firstRun }), [settingsFor, scopeSteps.firstRun]);
-  const steps = wizardSteps(mode, spec, settingsList, scopeSteps);
+  const allSteps = wizardSteps(mode, spec, settingsList, scopeSteps);
+  const steps = shownSteps(mode, allSteps, customize);
   const stepIndex = stepIndexOf(steps, step);
   const stepId = steps[stepIndex].id;
   const lastStep = stepIndex === steps.length - 1;
@@ -608,7 +618,9 @@ export default function ImplementWizard({
     }
     if (blockedBy(stepId)) return;
     try {
-      if (stepId === 'data' && discoveryType && discoveryType !== 'Standard') {
+      const quick = !customize && stepId === VIBES_STEP.id;
+      const leaving = (id) => stepId === id || (quick && allSteps.some((s) => s.id === id));
+      if (leaving('data') && discoveryType && discoveryType !== 'Standard') {
         const scope = readinessScope(spec, ucRow);
         if (scope.table) {
           setChecking('Checking the data');
@@ -627,7 +639,7 @@ export default function ImplementWizard({
           }
         }
       }
-      if (stepId === 'results') {
+      if (leaving('results')) {
         setChecking('Checking you can write the result table');
         const check = await apiFetch(outputCheckPath());
         setOutputCheck(check);
@@ -637,21 +649,22 @@ export default function ImplementWizard({
           return;
         }
       }
-      let list = steps;
+      let list = allSteps;
       let profile = scopeProfile.profile;
-      if (stepId === 'data' && scopeProfile.state === 'loading') {
+      if (leaving('data') && scopeProfile.state === 'loading') {
         setChecking(PROFILE_WAITING);
         const done = await scopeProfile.wait();
         const doneSteps = scopeStepsOf(done.state, done.profile, builtFirstRun);
         list = wizardSteps(mode, spec, settingsFor(doneSteps), doneSteps);
         profile = done.profile;
       }
-      const next = list[stepIndexOf(list, stepId) + 1];
-      if (next.id === 'grouping' && !context?.latest && !groupingDefaulted.current) {
+      const next = customize ? list[stepIndexOf(list, stepId) + 1] : steps[stepIndex + 1];
+      const reached = quick ? list.map((s) => s.id) : [next.id];
+      if (reached.includes('grouping') && !context?.latest && !groupingDefaulted.current) {
         groupingDefaulted.current = true;
         setSpec((prev) => withProfileDefaults(prev, profile, withGroupingDefault));
       }
-      if (next.id === 'first_run' && !context?.latest) setSpec((prev) => withProfileDefaults(prev, profile));
+      if (reached.includes('first_run') && !context?.latest) setSpec((prev) => withProfileDefaults(prev, profile));
       setStep(next.id);
     } catch (e) {
       setErrors([e.message]);
@@ -664,7 +677,8 @@ export default function ImplementWizard({
   const specKey = JSON.stringify(sent);
   const ownErrorsKey = ownErrors.join('|');
   const buildStep = BUILD_STEP_IDS.includes(stepId);
-  const planReady = steps.filter((s) => BUILD_STEP_IDS.includes(s.id)).every((s) => !stepErrors(s.id, spec, extras, mode).length);
+  const planSteps = customize ? steps.filter((s) => BUILD_STEP_IDS.includes(s.id)) : allSteps.filter((s) => s.id !== 'choose');
+  const planReady = planSteps.every((s) => !stepErrors(s.id, spec, extras, mode).length);
   useEffect(() => {
     if (!buildStep) return undefined;
     let cancelled = false;
@@ -919,7 +933,10 @@ export default function ImplementWizard({
   const generalChecks = checkEntries.filter(([k]) => !TILE_CHECK_KEYS.includes(k));
   const freshness = freshnessOf(spec.schedule);
   const checkStepOf = (k) => (PLACE_CHECKS.includes(k) ? 'app_place' : ACCESS_CHECKS.includes(k) ? 'app_access' : 'delivery');
-  const checkStepLabel = (k) => steps.find((s) => s.id === checkStepOf(k))?.label || 'Delivery';
+  const checkStepLabel = (k) => {
+    const label = allSteps.find((s) => s.id === checkStepOf(k))?.label || 'Delivery';
+    return steps.some((s) => s.label === label) ? label : `${label}, under ${CUSTOMIZE_LABEL}`;
+  };
   const deliveryChecks = buildStep
     ? checkEntries.filter(([k, v]) => !v.ok && checkStepOf(k) !== stepId)
       .map(([k, v]) => `${PREFLIGHT_LABELS[k] || k.replace(/_/g, ' ')}: ${v.detail} (fix it on ${checkStepLabel(k)})`)
@@ -928,11 +945,14 @@ export default function ImplementWizard({
     ? steps.filter((s) => BUILD_STEP_IDS.includes(s.id) && s.id !== stepId)
       .flatMap((s) => stepErrors(s.id, spec, extras, mode).filter((e) => e !== APP_PLACE_WAITING).map((e) => `${e} (fix it on ${s.label})`))
     : [];
+  const hiddenGaps = buildStep && lastStep && !customize
+    ? hiddenStepGaps(allSteps, steps, (id) => stepErrors(id, spec, extras, mode).filter((e) => e !== APP_PLACE_WAITING))
+    : [];
   const footerErrors = [...new Set([
     ...(attempted[stepId] ? ownErrors : []),
     ...errors,
     ...(stepId === 'data' ? Object.values(columnsErrors) : []),
-    ...(buildStep ? [lastStep ? planError : '', preflightError, ...deliveryChecks, ...earlierGaps] : []),
+    ...(buildStep ? [lastStep ? planError : '', preflightError, ...deliveryChecks, ...earlierGaps, ...hiddenGaps] : []),
   ].filter(Boolean))];
   const unchanged = lastStep && !checksBusy && Boolean(plan?.unchanged);
   const implementBlocked = busy || checksBusy || !placeSettled || Boolean(plan?.unchanged)
@@ -1640,6 +1660,19 @@ export default function ImplementWizard({
           <VibesPanel spec={spec} built={built} next={(context?.latest?.spec_version ?? 0) + 1} onChange={(value) => patch('vibes', value)}
             onPrevious={(choice) => patch('vibe_previous', choice)} />
         )}
+        {stepId === START_STEP.id && (
+          <section aria-label="What Inspire picked" data-quick-summary="" className="bg-bg border border-border rounded-lg p-4 space-y-3">
+            <p className="text-xs text-text-secondary">{QUICK_PATH_NOTE}</p>
+            <dl className="grid grid-cols-1 sm:grid-cols-[10rem_1fr] gap-x-4 gap-y-2 text-[12px]">
+              {quickSummary(spec, sourceTables).map((row) => (
+                <div key={row.id} data-quick-row={row.id} className="contents">
+                  <dt className="text-text-tertiary">{row.label}</dt>
+                  <dd className="text-text-primary break-words">{row.value} <span className="text-text-tertiary">(change it on {row.step}, under {CUSTOMIZE_LABEL})</span></dd>
+                </div>
+              ))}
+            </dl>
+          </section>
+        )}
       </div>
 
       <footer className="border-t border-border px-6 py-3 space-y-2">
@@ -1666,14 +1699,23 @@ export default function ImplementWizard({
           </div>
         )}
         <div className="flex items-center justify-between gap-3">
-          <button
-            type="button"
-            className={`inline-flex items-center gap-1 text-xs text-text-secondary ${stepIndex === 0 ? 'invisible' : ''}`}
-            disabled={stepIndex === 0 || busy}
-            onClick={() => { setErrors([]); setStep(steps[stepIndex - 1].id); }}
-          >
-            <ChevronLeft size={14} /> Back
-          </button>
+          <div className="flex items-center gap-4">
+            <button
+              type="button"
+              className={`inline-flex items-center gap-1 text-xs text-text-secondary ${stepIndex === 0 ? 'invisible' : ''}`}
+              disabled={stepIndex === 0 || busy}
+              onClick={() => { setErrors([]); setStep(steps[stepIndex - 1].id); }}
+            >
+              <ChevronLeft size={14} /> Back
+            </button>
+            {mode === 'mvp' && !customize && (
+              <button type="button" data-wizard-customize="" disabled={busy || Boolean(checking)}
+                className="text-xs font-semibold text-db-red-fg hover:underline disabled:opacity-50"
+                onClick={() => { setErrors([]); setCustomize(true); setStep(stepId === START_STEP.id ? VIBES_STEP.id : stepId); }}>
+                {CUSTOMIZE_LABEL}
+              </button>
+            )}
+          </div>
           {stepId !== 'notebook' && !lastStep ? (
             <button
               type="button"

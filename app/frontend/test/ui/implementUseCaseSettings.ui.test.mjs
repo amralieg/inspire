@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { HARNESS_USE_CASE, OWNER, built } from './implementFixtures.js';
 import { SETTINGS_TECHNICAL_NOTE } from '../../src/lib/useCaseSettings.js';
-import { closeBrowser, lowContrast, onStep, openAsset, openBuild, openUi, setDark, settled, toVibes, until, wizardFits } from './uiSupport.mjs';
+import { closeBrowser, lowContrast, onStep, openAsset, openBuild, openUi, setDark, settled, toVibes, until, wizardFits, customize } from './uiSupport.mjs';
 
 test.after(closeBrowser);
 
@@ -30,6 +30,7 @@ const insertsOf = (made) => made.sqlCalls.filter((c) => String(c.sql).includes('
   .map((c) => JSON.parse(c.parameters.find((p) => p.name === 'spec').value));
 
 async function toStep(page, label) {
+  await customize(page);
   for (let i = 0; i < 9 && await page.locator('[aria-current="step"]', { hasText: label }).count() === 0; i += 1) {
     const from = await page.locator('[aria-current="step"]').innerText();
     await next(page);
@@ -93,6 +94,7 @@ test('a first build lists the instruction\u2019s widgets as settings with their 
   const { page } = ui;
   try {
     await onStep(page, 'Choose');
+    await customize(page);
     await next(page);
     await onStep(page, 'Data');
     await page.getByRole('button', { name: /Advanced/ }).first().click();

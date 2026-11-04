@@ -140,9 +140,18 @@ export async function toAppAccess(page) {
   await onStep(page, 'App access');
 }
 
+export async function customize(page) {
+  await page.locator('[data-wizard-body]').waitFor({ timeout: 15000 });
+  const button = page.locator('[data-wizard-customize]');
+  if (!(await button.count())) return;
+  await button.click();
+  await button.waitFor({ state: 'detached' });
+}
+
 export async function toVibes(page) {
   const current = page.locator('[aria-current="step"]');
   await current.waitFor({ timeout: 15000 });
+  await customize(page);
   const steps = await page.locator('[data-wizard-header] ol li').count();
   for (let i = 0; i < steps && !(await current.innerText()).includes('Vibes'); i += 1) {
     const from = await current.innerText();

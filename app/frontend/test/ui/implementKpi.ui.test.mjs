@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { HARNESS_USE_CASE, OWNER, built } from './implementFixtures.js';
-import { closeBrowser, dataToResults, lowContrast, onStep, openAsset, openBuild, openUi, startMvp, until } from './uiSupport.mjs';
+import { closeBrowser, dataToResults, lowContrast, onStep, openAsset, openBuild, openUi, startMvp, until, customize } from './uiSupport.mjs';
 
 test.after(closeBrowser);
 
@@ -45,6 +45,7 @@ test('the Results step offers the use case\u2019s own KPIs with Let Inspire pick
     const { page, made } = ui;
     try {
       await onStep(page, 'Choose');
+      await customize(page);
       await next(page);
       await onStep(page, 'Data');
       await dataToResults(page);
@@ -72,6 +73,7 @@ test('the picker shows the KPI the built version tracks, its unit and how record
   const { page } = ui;
   try {
     await onStep(page, 'Choose');
+    await customize(page);
     await next(page);
     await onStep(page, 'Data');
     await dataToResults(page);
@@ -90,6 +92,7 @@ test('the picker shows the KPI the built version tracks, its unit and how record
   const none = await openUi('wizard', { me: ME, useCase: withKpis([]) });
   try {
     await onStep(none.page, 'Choose');
+    await customize(none.page);
     await next(none.page);
     await onStep(none.page, 'Data');
     await dataToResults(none.page);

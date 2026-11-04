@@ -47,6 +47,29 @@ export const FIRST_RUN_STEP = { id: 'first_run', label: 'First run', sections: [
 
 export const NO_SCOPE_STEPS = { grouping: false, firstRun: false };
 
+export const START_STEP = { id: 'start', label: 'Start MVP', sections: [], advanced: [] };
+export const CUSTOMIZE_LABEL = 'Customize';
+export const QUICK_PATH_NOTE = 'Inspire picked the data, the result table, the outputs and the schedule for you. Customize shows every setting.';
+
+export function quickSteps(mode) {
+  return mode === 'mvp' ? [CHOOSE_STEP, VIBES_STEP, START_STEP] : null;
+}
+
+export function customizeFromFocus(focus) {
+  const want = focus?.step;
+  return Boolean(want) && want !== CHOOSE_STEP.id;
+}
+
+export function shownSteps(mode, full, customize) {
+  return customize ? full : quickSteps(mode) || full;
+}
+
+export function hiddenStepGaps(full, shown, problemsOf) {
+  const seen = new Set(shown.map((s) => s.id));
+  return full.filter((s) => !seen.has(s.id) && s.id !== CHOOSE_STEP.id)
+    .flatMap((s) => problemsOf(s.id).map((e) => `${e} (fix it on ${s.label}, under ${CUSTOMIZE_LABEL})`));
+}
+
 export const NOTEBOOK_STEPS = [
   CHOOSE_STEP,
   { id: 'data', label: 'Data', sections: [], advanced: [] },
@@ -74,7 +97,7 @@ export function wizardSteps(mode, spec = null, settings = [], scope = NO_SCOPE_S
   throw new Error(`unknown implement mode '${mode}'`);
 }
 
-export const BUILD_STEP_IDS = ['delivery', APP_PLACE_STEP.id, ...APP_STEPS.map((s) => s.id), SETTINGS_STEP.id, VIBES_STEP.id];
+export const BUILD_STEP_IDS = ['delivery', APP_PLACE_STEP.id, ...APP_STEPS.map((s) => s.id), SETTINGS_STEP.id, VIBES_STEP.id, START_STEP.id];
 
 export const APP_PLACEMENTS = [
   { id: 'domain', label: 'One App per business domain', blurb: 'Use cases of the same domain share one App, so the people of that domain find them in one place.' },
@@ -1509,7 +1532,7 @@ function mergePickProblems(spec, extras, names) {
 }
 
 function stepOf(id, mode, spec, settings, scope) {
-  const step = wizardSteps(mode, spec, settings, scope).find((s) => s.id === id);
+  const step = id === START_STEP.id ? START_STEP : wizardSteps(mode, spec, settings, scope).find((s) => s.id === id);
   if (!step) throw new Error(`unknown wizard step '${id}'`);
   return step;
 }
@@ -2098,6 +2121,18 @@ export function freshnessOf(schedule) {
   if (!schedule?.enabled) return 'off';
   const cron = String(schedule.cron || '').trim();
   return FRESHNESS_OPTIONS.find((o) => o.cron === cron)?.id || 'custom';
+}
+
+export function quickSummary(spec, sourceTables = []) {
+  const outputs = IMPLEMENT_OUTPUTS.filter((o) => spec?.outputs?.[o.id]).map((o) => o.label);
+  const freshness = freshnessOf(spec?.schedule);
+  return [
+    { id: 'data', label: 'Data it reads', value: sourceTables.join(', ') || 'none', step: 'Data' },
+    { id: 'result', label: 'Result table', value: String(spec?.config?.result_table || '') || 'not named yet', step: 'Results' },
+    { id: 'outputs', label: 'What it builds', value: ['Notebook', ...outputs].join(', '), step: 'Delivery' },
+    { id: 'schedule', label: 'Refresh', value: freshness === 'custom' ? String(spec?.schedule?.cron || '') : FRESHNESS_OPTIONS.find((o) => o.id === freshness).label,
+      step: 'Delivery' },
+  ];
 }
 
 export function withFreshness(spec, id) {

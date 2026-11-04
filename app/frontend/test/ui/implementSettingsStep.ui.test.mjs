@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { HARNESS_USE_CASE } from './implementFixtures.js';
-import { closeBrowser, dataToResults, onStep, openUi } from './uiSupport.mjs';
+import { closeBrowser, dataToResults, onStep, openUi, customize } from './uiSupport.mjs';
 
 test.after(closeBrowser);
 
@@ -11,6 +11,7 @@ const steps = (page) => page.locator('ol li').allTextContents();
 
 async function toDelivery(page) {
   await onStep(page, 'Choose');
+  await customize(page);
   await page.getByRole('button', { name: 'Next' }).click();
   await onStep(page, 'Data');
   await dataToResults(page);

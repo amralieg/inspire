@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { HARNESS_SETTINGS, HARNESS_USE_CASE, OWNER, built } from './implementFixtures.js';
 import { GROUPING_JOINED_NOTE } from '../../src/lib/runScope.js';
-import { closeBrowser, lowContrast, onStep, openAsset, openBuild, openSettings, openUi, toVibes, until } from './uiSupport.mjs';
+import { closeBrowser, lowContrast, onStep, openAsset, openBuild, openSettings, openUi, toVibes, until, customize } from './uiSupport.mjs';
 
 test.after(closeBrowser);
 
@@ -38,6 +38,7 @@ const insertsOf = (made) => made.sqlCalls.filter((c) => String(c.sql).includes('
   .map((c) => JSON.parse(c.parameters.find((p) => p.name === 'spec').value));
 
 async function toStep(page, label) {
+  await customize(page);
   for (let i = 0; i < 12 && await page.locator('[aria-current="step"]', { hasText: label }).count() === 0; i += 1) {
     const from = await page.locator('[aria-current="step"]').innerText();
     await next(page);
@@ -145,6 +146,7 @@ test('Next on Data waits for a slow read and lands on Grouping, and a first run 
   const { page } = ui;
   try {
     await onStep(page, 'Choose');
+    await customize(page);
     await next(page);
     await onStep(page, 'Data');
     assert.deepEqual(await stepBar(page), ['1. Choose', '2. Data', '3. Results', '4. Delivery', '5. App placement', '6. App access', '7. App look', '8. Settings',

@@ -4,7 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import assert from 'node:assert/strict';
 import { HARNESS_USE_CASE, OWNER, built } from './implementFixtures.js';
-import { closeBrowser, onStep, openUi } from './uiSupport.mjs';
+import { closeBrowser, onStep, openUi, customize } from './uiSupport.mjs';
 import { checkRunScope, checkScope, checkWizardSteps } from '../../../scripts/scopeWalk.mjs';
 
 test.after(closeBrowser);
@@ -41,6 +41,7 @@ const insertsOf = (made) => made.sqlCalls.filter((c) => String(c.sql).includes('
   .map((c) => JSON.parse(c.parameters.find((p) => p.name === 'spec').value));
 
 async function toStep(page, label) {
+  await customize(page);
   for (let i = 0; i < 12 && await page.locator('[aria-current="step"]', { hasText: label }).count() === 0; i += 1) {
     const from = await page.locator('[aria-current="step"]').innerText();
     await next(page);

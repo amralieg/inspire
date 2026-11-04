@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
-import { assertFitsScreen, closeBrowser, dataToResults, lowContrast, onStep, openUi, setDark, settled, startMvp, toAppAccess, toVibes, until, watchAsks, wizardFit } from './uiSupport.mjs';
+import { assertFitsScreen, closeBrowser, dataToResults, lowContrast, onStep, openUi, setDark, settled, startMvp, toAppAccess, toVibes, until, watchAsks, wizardFit, customize } from './uiSupport.mjs';
 
 const { appShellCatalog } = createRequire(import.meta.url)('../../../backend/lib/appShell.js');
 const SHELL = appShellCatalog();
@@ -18,6 +18,7 @@ const footerErrors = (page) => page.locator('[role="alert"] p').allTextContents(
 
 async function toDelivery(page) {
   await onStep(page, 'Choose');
+  await customize(page);
   await next(page);
   await onStep(page, 'Data');
   await dataToResults(page);
@@ -421,6 +422,7 @@ test('Where results live picks a catalog and a schema from Unity Catalog, offers
   const { page, made } = ui;
   try {
     await onStep(page, 'Choose');
+    await customize(page);
     await next(page);
     await onStep(page, 'Data');
     assert.equal(await page.getByLabel('Output table').count(), 0, 'the result table left the Data step');
@@ -788,6 +790,7 @@ test('every wizard step fits a 1440x900 screen with nothing to scroll, the App s
     await page.getByRole('button', { name: 'Back' }).click();
     await onStep(page, 'Choose');
     await page.getByRole('radio', { name: /^Full MVP/ }).check();
+    await customize(page);
     await fits('1-choose');
     await next(page);
     await onStep(page, 'Data');

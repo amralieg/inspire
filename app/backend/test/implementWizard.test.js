@@ -191,7 +191,7 @@ test('each Full MVP step runs the checks of every section it shows, and only tho
   const shown = [...w.IMPLEMENT_STEPS, w.APP_PLACE_STEP, ...w.APP_STEPS, w.SETTINGS_STEP, w.VIBES_STEP].flatMap((s) => s.sections);
   assert.deepEqual([...shown].sort(), ['alert', 'app_access', 'app_look', 'app_owners', 'app_place', 'configure', 'data', 'holdout', 'kpi', 'results', 'schedule', 'settings', 'use_case', 'use_it', 'vibes']);
   for (const s of [...w.IMPLEMENT_STEPS, w.APP_PLACE_STEP, ...w.APP_STEPS, w.SETTINGS_STEP, w.VIBES_STEP]) assert.ok(s.advanced.every((a) => s.sections.includes(a)), s.id);
-  assert.deepEqual(w.BUILD_STEP_IDS, ['delivery', 'app_place', 'app_access', 'app_look', 'settings', 'vibes']);
+  assert.deepEqual(w.BUILD_STEP_IDS, ['delivery', 'app_place', 'app_access', 'app_look', 'settings', 'vibes', 'start']);
   assert.deepEqual([w.APP_PLACE_STEP.id, w.APP_PLACE_STEP.label, w.APP_PLACE_STEP.sections], ['app_place', 'App placement', ['app_place']]);
   const spec = w.defaultSpecFromUseCase(UC, { warehouseId: '', inspireDatabase: 'main.inspire' });
   const bad = { ...spec, use_case: { ...spec.use_case, decision_owner: '' }, schedule: { ...spec.schedule, enabled: true, cron: '0 0 25 * * ?' },
@@ -1827,4 +1827,43 @@ test('a column with an innocent name but a PII, personal or sensitive Unity Cata
   const spec = w.defaultSpecFromUseCase(uc, { warehouseId: 'wh1', inspireDatabase: 'main.inspire', owner: 'amr@example.com' });
   assert.equal(w.grainCheck(spec, uc, columns, ['main.s.payments']).state, 'personal', 'a tagged key Inspire picked is flagged too');
   assert.equal(P.personalColumn('ref_code', {}), false, 'without tags the innocent name passes the name rule');
+});
+
+test('a fresh Full MVP shows three steps, Choose, Vibes and Start MVP, and Customize shows every step', async () => {
+  const w = await load();
+  const S = [{ name: 'min_interactions' }];
+  const full = w.wizardSteps('mvp', { outputs: { app: true } }, S, { grouping: true, firstRun: true });
+  assert.deepEqual(w.shownSteps('mvp', full, false).map((s) => s.label), ['Choose', 'Vibes', 'Start MVP']);
+  assert.equal(w.shownSteps('mvp', full, true), full, 'Customize keeps every step, settings included');
+  assert.ok(full.some((s) => s.id === 'settings') && full.some((s) => s.id === 'data') && full.some((s) => s.id === 'app_look'));
+  const notebook = w.wizardSteps('notebook');
+  assert.equal(w.shownSteps('notebook', notebook, false), notebook, 'Notebook only keeps its own steps');
+  assert.equal(w.customizeFromFocus(null), false);
+  assert.equal(w.customizeFromFocus({ step: 'choose' }), false);
+  for (const step of ['data', 'delivery', 'settings', 'vibes', 'review']) assert.equal(w.customizeFromFocus({ step }), true, step);
+  assert.deepEqual(w.stepErrors('start', w.defaultSpecFromUseCase(UC, { warehouseId: 'wh', inspireDatabase: 'main.inspire' })), []);
+});
+
+test('the three-step path lists every problem of a step it hides, with the step to fix it on, and nothing for a clean step', async () => {
+  const w = await load();
+  const full = w.wizardSteps('mvp', null, [], w.NO_SCOPE_STEPS);
+  const shown = w.shownSteps('mvp', full, false);
+  const problems = { choose: ['never shown'], data: ['name the decision owner'], results: [], delivery: ['pick at least one output'], vibes: ['shown step'] };
+  assert.deepEqual(w.hiddenStepGaps(full, shown, (id) => problems[id] || []),
+    ['name the decision owner (fix it on Data, under Customize)', 'pick at least one output (fix it on Delivery, under Customize)']);
+  assert.deepEqual(w.hiddenStepGaps(full, shown, () => []), []);
+  assert.deepEqual(w.hiddenStepGaps(full, full, (id) => problems[id] || []), [], 'Customize shows every step, so nothing is hidden');
+});
+
+test('Start MVP says what Inspire picked and where to change it', async () => {
+  const w = await load();
+  const spec = w.defaultSpecFromUseCase(UC, { warehouseId: 'wh', inspireDatabase: 'main.inspire' });
+  const picked = { ...spec, config: { ...spec.config, result_table: 'main.inspire.churn_out' },
+    outputs: { ...spec.outputs, dashboard: true, genie_space: true, app: false, alert: false }, schedule: { enabled: true, cron: '0 0 6 * * ?' } };
+  assert.deepEqual(w.quickSummary(picked, ['main.s.orders', 'main.s.returns']).map((r) => [r.id, r.value, r.step]), [
+    ['data', 'main.s.orders, main.s.returns', 'Data'], ['result', 'main.inspire.churn_out', 'Results'],
+    ['outputs', 'Notebook, Dashboard, Genie Agent', 'Delivery'], ['schedule', 'Daily', 'Delivery']]);
+  const bare = w.quickSummary({ ...picked, config: { ...picked.config, result_table: '' }, schedule: { enabled: true, cron: '0 15 3 * * ?' } }, []);
+  assert.deepEqual(bare.map((r) => r.value), ['none', 'not named yet', 'Notebook, Dashboard, Genie Agent', '0 15 3 * * ?']);
+  assert.equal(w.quickSummary({ ...picked, schedule: { enabled: false } }).at(-1).value, 'Off');
 });
