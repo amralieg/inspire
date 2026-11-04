@@ -115,11 +115,12 @@ function SummaryBanner({ summary }) {
     title = `${plural(building.length, 'MVP')} building now`;
     line = building.map((item) => `${item.id}${item.latest?.status_message ? `: ${item.latest.status_message}` : ''}`).join(' · ');
   } else if (summary.mvps) {
-    mark = summary.failed || summary.held ? { icon: AlertTriangle, tone: 'warning' } : { icon: CheckCircle2, tone: 'success' };
+    mark = summary.failed || summary.held || summary.unmet ? { icon: AlertTriangle, tone: 'warning' } : { icon: CheckCircle2, tone: 'success' };
     title = `${summary.ready} of ${plural(summary.mvps, 'MVP')} ready`;
     const open = [
       summary.failed ? `${summary.failed} failed or stopped. Open one to see why.` : '',
       summary.held ? `${summary.held} not published, because a vibe was not met. Open one to rephrase, try again or publish anyway.` : '',
+      summary.unmet ? `${summary.unmet} built, but a vibe ask was not met, so it waits for the next build. Open one to see why.` : '',
     ].filter(Boolean);
     line = open.length ? open.join(' ') : 'Every MVP of this session has finished building.';
   }

@@ -48,20 +48,35 @@ function Waiting({ entries, onDrop }) {
   );
 }
 
+function NotLanded({ asset, item }) {
+  return (
+    <li data-held-ask="waiting" className={ITEM}>
+      <span className="min-w-0 text-text-primary">
+        <span className="font-semibold not-italic">{capital(asset.label)}: </span>“{item.ask}”
+        <span className="block text-text-secondary">Not in the live {asset.label} yet, it waits for the next build{item.evidence ? `: ${item.evidence}` : '.'}</span>
+      </span>
+    </li>
+  );
+}
+
 function BuiltWith({ assets, entries, onRemove, onKeep }) {
-  const held = assets.filter((asset) => asset.rebuild && heldAsks(asset.vibes).length);
+  const waitingOf = (asset) => (Array.isArray(asset.waiting) ? asset.waiting : []);
+  const held = assets.filter((asset) => asset.rebuild && (heldAsks(asset.vibes).length || waitingOf(asset).some((item) => !item.listed)));
   if (!held.length) return null;
   return (
     <section aria-label="Built with" data-built-with="" className="space-y-2">
       <h3 className="text-[13px] font-semibold text-text-primary">Built with</h3>
       {held.map((asset) => (
         <ul key={asset.id} aria-label={`Asks the ${asset.label} holds`} className="space-y-1">
+          {waitingOf(asset).filter((item) => !item.listed).map((item) => <NotLanded key={`waiting-${item.ask}`} asset={asset} item={item} />)}
           {heldAsks(asset.vibes).map((ask, i) => {
+            const missed = waitingOf(asset).find((item) => item.listed && item.ask === ask);
             const removing = removingAsk(entries, asset.id, ask);
             return (
-              <li key={`${i}-${ask}`} data-held-ask={removing ? 'removing' : 'held'} className={ITEM}>
+              <li key={`${i}-${ask}`} data-held-ask={removing ? 'removing' : missed ? 'waiting' : 'held'} className={ITEM}>
                 <span className={`min-w-0 ${removing ? 'line-through text-text-secondary' : 'text-text-primary'}`}>
                   <span className="font-semibold not-italic">{capital(asset.label)}: </span>“{ask}”{removing && <span className="sr-only">, taken out on the next build</span>}
+                  {missed && !removing && <span className="block text-text-secondary">Not in the live {asset.label} yet, it waits for the next build{missed.evidence ? `: ${missed.evidence}` : '.'}</span>}
                 </span>
                 <button type="button" onClick={() => (removing ? onKeep(removing) : onRemove(asset, ask))} aria-label={`${removing ? 'Keep' : 'Remove'} “${ask}”`}
                   className={OUTLINE_BUTTON}>

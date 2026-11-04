@@ -1,7 +1,7 @@
 import {
   BUILT_ASSET_STATES, GENIE_FOR_APP_NOTE, IMPLEMENT_DONE_STATUSES, IMPLEMENT_OUTPUTS, IMPLEMENT_UNINSTALLED, IMPLEMENT_VIBE_NOT_MET, assetLabel, builtVersion, heldAsks,
   holderNames, holdersText, holdoutText, joinWords, partAsks, partLabel, partOf, rebuildableOutputs, statusChip, versionActive, vibesKey, VIBE_NOT_MET_FIRST,
-  APP_INSIDE_PLACEMENT, VIBE_FEATURES_LABEL, insideInspire, mvpFilterMatches, nextSpecFrom, withCollectedVibes,
+  APP_INSIDE_PLACEMENT, VIBE_FEATURES_LABEL, insideInspire, mvpFilterMatches, nextSpecFrom, openVibeAsks, withCollectedVibes,
 } from './implementWizard.js';
 import { formatWhen } from './formatWhen.js';
 import { plural } from './plural.js';
@@ -185,6 +185,7 @@ export function buildSummary(items) {
     building: inGroup('in_progress'),
     ready: inGroup('ready').length,
     held: inGroup('held').length,
+    unmet: inGroup('unmet').length,
     failed: inGroup('failed').length,
     notebooks: list.filter((item) => item.state?.kind === 'notebook' && item.notebook?.state === 'ready').length,
     notStarted: list.filter((item) => item.state?.group === 'not_started').length,
@@ -465,6 +466,18 @@ export function rollingBackText(card) {
   return `Putting version ${card.building.rollback} live again. Genie is not called${card.building.alone ? ' and nothing else changes' : ' for it'}.`;
 }
 
+export function waitingAsks(open, id, output, vibes) {
+  const mine = (open || []).filter((entry) => entry.part === id || entry.part === output || partOf(entry.part)?.output === output);
+  const lines = heldAsks(vibes);
+  const matched = lines.flatMap((ask) => {
+    const hit = mine.find((entry) => sameText(entry.requirement, ask));
+    return hit ? [{ ask, evidence: hit.evidence, listed: true }] : [];
+  });
+  const extra = mine.filter((entry) => entry.part === id && !lines.some((ask) => sameText(entry.requirement, ask)))
+    .map((entry) => ({ ask: entry.requirement, evidence: entry.evidence, listed: false }));
+  return [...matched, ...extra];
+}
+
 export function vibeCards(history, latest, stalled = null, notebookUrl = '', plan = null) {
   const rows = [...(history || [])].sort((a, b) => (b.spec_version || 0) - (a.spec_version || 0));
   const active = versionActive(latest, stalled);
@@ -482,6 +495,7 @@ export function vibeCards(history, latest, stalled = null, notebookUrl = '', pla
   const liveAt = (version) => (version == null ? null : { version, at: at(rows.find((r) => r.spec_version === version)) });
   const urlOf = (output) => (output === 'notebook' ? String(notebookUrl || '') : String(base[OUTPUT_URLS[output]] || latest[OUTPUT_URLS[output]] || ''));
   const impact = rowImpact(base);
+  const open = openVibeAsks(base);
   const card = (id, output, entry, version, fields) => {
     const kind = partOf(id)?.kind || id;
     const what = kind === 'value_formula' ? `How the ${stakeWords(impact)} on each row is counted` : String(entry?.what ?? entry?.description ?? '').trim() || ASSET_WHAT[kind];
@@ -494,6 +508,7 @@ export function vibeCards(history, latest, stalled = null, notebookUrl = '', pla
       id, output, name: '', versions: [], warnings: [], ...fields, gone, live: liveAt(version), url: urlOf(output), impact,
       what, noun: ASSET_NOUNS[kind],
       checks, checkedOn, state: assetPill(entry, checks, Boolean(doing)), building: doing ? { step: BUILD_STEP[latest.status] ?? 1, asks, rollback, alone: false } : null,
+      waiting: waitingAsks(open, id, output, fields.vibes),
     };
   };
   const parts = (output) => Object.entries(base.asset_status || {})

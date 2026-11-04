@@ -406,14 +406,14 @@ test('the Build summary counts each use case once, by the same state the rail gr
   const items = w.implementGroups(useCases, latest, null).flatMap((g) => g.items);
   const got = v.buildSummary(items);
   assert.deepEqual({ ...got, building: got.building.map((i) => i.id) },
-    { mvps: 5, building: ['N02'], ready: 2, held: 0, failed: 2, notebooks: 1, notStarted: 2,
+    { mvps: 5, building: ['N02'], ready: 2, held: 0, unmet: 0, failed: 2, notebooks: 1, notStarted: 2,
       delivered: [{ id: 'dashboard', count: 2, text: '2 dashboards' }, { id: 'genie_space', count: 1, text: '1 Genie Agent' },
         { id: 'alert', count: 1, text: '1 alert' }] });
   assert.equal(got.mvps + got.notebooks + got.notStarted, items.length, 'every use case lands in exactly one count');
   assert.deepEqual(latest.map((row) => v.deliveredOutputs(row)), [['dashboard', 'genie_space'], ['dashboard'], [], [], ['alert']],
     'an output counts as delivered only when its link is recorded');
   assert.deepEqual(v.deliveredOutputs(null), []);
-  assert.deepEqual(v.buildSummary(null), { mvps: 0, building: [], ready: 0, held: 0, failed: 0, notebooks: 0, notStarted: 0, delivered: [] });
+  assert.deepEqual(v.buildSummary(null), { mvps: 0, building: [], ready: 0, held: 0, unmet: 0, failed: 0, notebooks: 0, notStarted: 0, delivered: [] });
 });
 
 test('the control tower shows a tile for every output: live when built, building while Genie works, failed, missing or not chosen', async () => {

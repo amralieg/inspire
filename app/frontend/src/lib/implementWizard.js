@@ -2155,9 +2155,22 @@ export function statusReason(latest, stalled = null) {
   return String(latest?.status_message || '').trim();
 }
 
+const NOT_ASK_KINDS = ['self_fix', 'settings_refused', 'not_decided', 'unrequested_change'];
+
+export function openVibeAsks(row) {
+  const assets = row?.asset_status;
+  const listed = assets && typeof assets === 'object' && Array.isArray(assets.checklist) ? assets.checklist : [];
+  return listed.filter((entry) => entry && typeof entry === 'object' && String(entry.status ?? '').trim().toLowerCase() === 'not_met'
+    && !NOT_ASK_KINDS.includes(String(entry.kind ?? '').trim()) && !entry.published_anyway && String(entry.requirement ?? '').trim())
+    .map((entry) => ({ requirement: String(entry.requirement).trim(), part: String(entry.part ?? '').trim(), evidence: String(entry.evidence ?? '').trim() }));
+}
+
+export const VIBES_WAITING_WORDS = 'built, but a vibe ask was not met';
+
 export function historyStatus(row, latest, stalled = null) {
   const s = String(row?.status || '');
   if (s === IMPLEMENT_VIBE_NOT_MET) return VIBE_NOT_MET_WORDS.toLowerCase();
+  if (['ready', 'ready_with_warnings'].includes(s) && openVibeAsks(row).length) return VIBES_WAITING_WORDS;
   if (!IMPLEMENT_ACTIVE_STATUSES.includes(s)) return s;
   return row?.spec_version !== latest?.spec_version || stalled ? 'stopped before it finished' : s;
 }
@@ -2230,7 +2243,7 @@ export function notebookRunEnded(prev, run) {
 
 export const IMPLEMENT_GROUPS = [
   { id: 'in_progress', label: 'Building', states: ['in_progress'] },
-  { id: 'attention', label: 'Needs attention', states: ['failed', 'held'] },
+  { id: 'attention', label: 'Needs attention', states: ['failed', 'held', 'unmet'] },
   { id: 'ready', label: 'Ready', states: ['ready'] },
   { id: 'not_started', label: 'Not built', states: ['not_started'] },
 ];
@@ -2241,6 +2254,7 @@ export function implementState(latest, notebook = null) {
   const s = String(latest?.status || '');
   if (s === IMPLEMENT_UNINSTALLED) return { group: 'not_started', label: 'MVP uninstalled', tone: 'idle', kind: 'uninstalled' };
   if (s) {
+    if (['ready', 'ready_with_warnings'].includes(s) && openVibeAsks(latest).length) return { group: 'unmet', label: 'MVP vibes not met', tone: 'warning', kind: 'mvp' };
     if (s === 'ready') return { group: 'ready', label: 'MVP ready', tone: 'success', kind: 'mvp' };
     if (s === 'ready_with_warnings') return { group: 'ready', label: 'MVP ready with warnings', tone: 'warning', kind: 'mvp' };
     if (s === IMPLEMENT_VIBE_NOT_MET) return { group: 'held', label: 'MVP vibes not met', tone: 'warning', kind: 'mvp' };
@@ -2283,7 +2297,7 @@ export const MVP_FILTERS = [
   { id: 'failed', label: 'MVP failed' },
 ];
 
-const MVP_BUCKET = { ready: 'live', in_progress: 'building', held: 'held', failed: 'failed' };
+const MVP_BUCKET = { ready: 'live', in_progress: 'building', held: 'held', unmet: 'held', failed: 'failed' };
 
 export function mvpBucketOf(state) {
   return state?.kind === 'mvp' ? MVP_BUCKET[state.group] || 'building' : 'none';

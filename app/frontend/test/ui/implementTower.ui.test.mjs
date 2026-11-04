@@ -399,6 +399,27 @@ test('Built with lists the asks each part holds with Remove on each: a removed a
   }
 });
 
+test('Built with reads the agent verdict per ask: an ask whose part failed to publish waits with the plain reason, and the badge never says ready', async () => {
+  const reason = 'built and checked, but not published: Genie built it in v3 and its checks passed, but publishing the Dashboard failed, so the live '
+    + 'Dashboard does not have it and the ask waits for the next build: no filter reaches chart w1a2b3c4';
+  const row = versionRow(3, { outputs: V3_OUTPUTS, status: 'ready_with_warnings', assets: { ...V3_ASSETS, checklist: [
+    { n: 1, requirement: 'Bars by week', part: 'dashboard', status: 'met', evidence: 'Checked by running the rebuilt chart query' },
+    { n: 2, requirement: 'A map by region', part: 'dashboard', status: 'not_met', evidence: reason }], checklist_summary: { met: 1, total: 2 } } });
+  const ui = await openTower({ ...STATE, history: [row, ...HISTORY.slice(1)] });
+  const { page } = ui;
+  try {
+    assert.equal(await page.getByText('MVP ready with warnings', { exact: true }).count(), 0, 'an ask not met never reads as ready');
+    await openFeatures(page);
+    const held = await heldOf(page, 'Weekly trend chart');
+    assert.deepEqual(held.map(([state]) => state), ['held', 'waiting']);
+    assert.ok(held[1][1].includes(`Not in the live Weekly trend chart yet, it waits for the next build: ${reason}`), held[1][1]);
+    assert.ok(!held[0][1].includes('Not in the live'), 'the met ask reads as built');
+    assert.deepEqual(ui.pageErrors, []);
+  } finally {
+    await ui.close();
+  }
+});
+
 test('an older record that marked an ask as not doable reads Not done yet like any missing ask, never Cannot be done here, and Try again sends it back to Genie', async () => {
   const unable = versionRow(3, {
     outputs: V3_OUTPUTS, status: 'ready_with_warnings',
