@@ -222,9 +222,15 @@ def test_a_joined_column_that_cannot_be_reached_stops_grouping_and_the_first_run
                                                           r"carries no join to that table, so the records have no item\.i_category to group by"):
         fresh_ns["inspire_group_joined"](pd.DataFrame({"ss_item_sk": [1]}), ["item.i_category"], out=lambda *_a: None, spark_session=session)
     assert session.tables == []
-    if not join:
-        return
     spark = FakeSpark()
+    if not join:
+        group = [{"column": "state", "value": "CA"}, {"column": "item.i_category", "value": "Electronics"}]
+        with pytest.raises(ValueError, match=r"First run group state = CA and item\.i_category = Electronics names item\.i_category, a column of "
+                                             r"another table, but carries no join to that table, so the records have no item\.i_category to choose; "
+                                             r"choose the groups again on the Run page"):
+            fresh_ns["inspire_scope_resolve"](spark, {"scope": "groups", "table": SALES, "column": "", "groups": [group]})
+        assert spark.statements == [], "a joined column with no join never falls back to reading the main table"
+        return
     group = [{"column": "state", "value": "CA"}, {"column": "item.i_category", "value": "Electronics", "join": join}]
     with pytest.raises(ValueError, match=r"First run group state = CA and item\.i_category = Electronics names item\.i_category through a join "
                                          r"that is named only in part; choose the groups again on the Run page"):
@@ -271,7 +277,19 @@ def test_above_1000_records_the_default_is_about_1000_records_and_never_a_recent
         if case["records"] is not None and case["records"] > 1000:
             got = agent_ns["inspire_default_scope"](case["records"])
             assert got == "records" and got not in ("all", "recent", "groups", ""), f"{case['name']} (must-exclude)"
-    assert agent_ns["inspire_default_scope"](1000) == "all" and agent_ns["inspire_default_scope"](None) == "all"
+    assert [agent_ns["inspire_default_scope"](n) for n in (0, 1, 999, 1000)] == ["all"] * 4, "a known count of 1,000 or fewer runs on all of it"
+    assert [agent_ns["inspire_default_scope"](n) for n in (1001, 10 ** 9)] == ["records"] * 2
+    for unknown in (None, "1000", True, float("nan")):
+        assert agent_ns["inspire_default_scope"](unknown) == "records", f"{unknown!r} records never default to everything (must-exclude)"
+        assert agent_ns["inspire_scope_default"]({"table": SALES, "records": unknown}) == "records"
+    assert agent_ns["inspire_scope_default"]({"table": SALES, "records": 999}) == "all" and agent_ns["inspire_scope_default"]({"table": SALES, "records": 1001}) == "records"
+    assert agent_ns["inspire_scope_default"]({"table": SALES, "records": None, "default": "groups"}) == "groups", "a default the build recorded is kept"
+    unknown = agent_ns["inspire_scope_settings"](dict({k: v for k, v in SPEC.items() if k != "default"}, records=None))[0]
+    assert unknown["default"] == "records" and unknown["reason"] == ("Inspire could not read from its metadata how many records the main "
+                                                                      "table holds, so the first run covers about 1000 records in whole "
+                                                                      "groups of region, so no group is cut"), unknown["reason"]
+    small = agent_ns["inspire_scope_settings"](dict({k: v for k, v in SPEC.items() if k != "default"}, records=400))[0]
+    assert (small["default"], small["reason"]) == ("all", "Inspire's default: the main table holds 400 records, so the first run covers all of them")
     held = _scope({"default": "records", "records": 718931})
     assert agent_ns["inspire_scope_choice"](scope=dict(held, INSPIRE_SCOPE_VALUES={"run_scope": "all"}))["scope"] == "all", \
         "everything still runs when someone chooses it"

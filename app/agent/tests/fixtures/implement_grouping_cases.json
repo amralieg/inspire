@@ -840,13 +840,13 @@
         "expected": "records"
       },
       {
-        "name": "a count the metadata does not hold runs on all",
+        "name": "a count the metadata does not hold runs first on records, never everything",
         "records": null,
         "technique": "Anomaly Detection",
         "time_series": false,
         "time_column": "order_date",
         "group_column": "region",
-        "expected": "all"
+        "expected": "records"
       },
       {
         "name": "1,001 records of a standalone technique run first on records",

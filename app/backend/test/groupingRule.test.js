@@ -72,11 +72,12 @@ test('custom groups under 30 records combine into Other groups, exactly as the s
 
 test('First run defaults to about 1,000 records above 1,000 records, exactly as the shared cases say, never a recent period or everything', () => {
   for (const c of data().first_run.default) assert.equal(R.firstRunDefault({ records: c.records }), c.expected, c.name);
-  const cases = [[999, 'all'], [1000, 'all'], [1001, 'records'], [718931, 'records'], [1e9, 'records'], [null, 'all'], [undefined, 'all']];
+  const cases = [[999, 'all'], [1000, 'all'], [1001, 'records'], [718931, 'records'], [1e9, 'records'], [null, 'records'], [undefined, 'records'], [NaN, 'records']];
   assert.deepEqual(cases.map(([records]) => R.firstRunDefault({ records })), cases.map(([, want]) => want));
   for (const records of [1001, 5000, 718931, 1e9]) {
     for (const scope of ['all', 'recent', 'groups', '']) assert.notEqual(R.firstRunDefault({ records }), scope, `${records} records never default to ${scope || 'no pick'} (must-exclude)`);
   }
+  for (const records of [null, undefined, NaN, '']) assert.notEqual(R.firstRunDefault({ records }), 'all', `an unknown count (${records}) never defaults to everything (must-exclude)`);
 });
 
 const rows = (pairs) => pairs.map(([column_name, data_type]) => ({ column_name, data_type }));

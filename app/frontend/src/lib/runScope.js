@@ -12,6 +12,7 @@ export const SCOPE_LABELS = {
   [GROUP_BY]: 'Grouping', [RUN_SCOPE]: 'First run', [SCOPE_GROUPS]: 'Groups to run on', [SCOPE_DAYS]: 'Days to run on', [SCOPE_RECORDS]: 'Records to run on',
 };
 export const GROUP_ALL = 'all';
+export const FIRST_RUN_DEFAULT = 'records';
 export const GROUP_CUSTOM = 'custom';
 export const RUN_SCOPES = ['all', 'groups', 'recent', 'records', 'custom'];
 export const RUN_SCOPE_ALLOWED = RUN_SCOPES.join(', ');
@@ -114,7 +115,7 @@ export function profileRecords(profile) {
 
 export function firstRunDefault(profile) {
   if (!isMap(profile)) return '';
-  const chosen = RUN_SCOPES.includes(profile.default_scope) ? profile.default_scope : GROUP_ALL;
+  const chosen = RUN_SCOPES.includes(profile.default_scope) ? profile.default_scope : FIRST_RUN_DEFAULT;
   return chosen !== GROUP_ALL && deepGrouping(profile).length ? 'groups' : chosen;
 }
 
@@ -241,7 +242,7 @@ export function withGroupingDefault(values, profile, raw = '') {
 }
 
 export function withUnrecordedScope(values, profile) {
-  return withScopeDefaults(values, isMap(profile) ? profile : { default_scope: GROUP_ALL });
+  return withScopeDefaults(values, isMap(profile) ? profile : { default_scope: FIRST_RUN_DEFAULT });
 }
 
 export function groupingChoices(profile, settingChoices = []) {

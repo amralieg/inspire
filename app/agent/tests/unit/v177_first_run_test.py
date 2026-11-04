@@ -74,7 +74,7 @@ def test_an_empty_scope_groups_is_allowed_and_any_other_empty_choice_is_not(agen
 @pytest.mark.parametrize("case", FIXTURE["default"], ids=[c["name"] for c in FIXTURE["default"]])
 def test_the_default_runs_first_on_a_scope_only_above_1000_records(agent_ns, case):
     assert agent_ns["inspire_default_scope"](case["records"]) == case["expected"]
-    assert case["expected"] not in ("recent", "groups", "") and (case["records"] is None or case["records"] <= 1000 or case["expected"] != "all")
+    assert case["expected"] not in ("recent", "groups", "") and (case["records"] is not None and case["records"] <= 1000 or case["expected"] != "all")
 
 
 def test_the_record_count_comes_from_table_metadata_and_never_from_a_scan_of_a_non_delta_table(agent_ns):
@@ -334,7 +334,7 @@ WS_ASSESSMENT = {"time_column": f"{WEB_SALES}.ws_ship_date_sk", "entity_key_colu
                                    "join": f"{WEB_SALES}.ws_ship_date_sk = {DATE_DIM}.d_date_sk"}}
 
 
-@pytest.mark.parametrize("records, expected", [(999, "all"), (1000, "all"), (1001, "records"), (718931, "records"), (None, "all")])
+@pytest.mark.parametrize("records, expected", [(999, "all"), (1000, "all"), (1001, "records"), (718931, "records"), (None, "records")])
 def test_a_fact_table_dated_only_through_its_date_dimension_offers_a_recent_period_and_runs_first_on_about_1000_records(agent_ns, records, expected):
     inst = make_inspire(agent_ns, spark=_ArgSpark(records, WS_COLUMNS))
     use_case = {"Primary Table": WEB_SALES, "Tables Involved": f"{WEB_SALES}, {DATE_DIM}", "table_joins": WS_JOINS, "elite_assessment": WS_ASSESSMENT}

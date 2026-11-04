@@ -40,6 +40,15 @@ test('no user-visible text in the frontend uses an em or en dash', () => {
   assert.deepEqual(hits, []);
 });
 
+test('no user-visible text in the App shell web pages uses an em or en dash', () => {
+  const web = path.join(APP, 'agent', 'agent', 'app_shell', 'web');
+  const hits = [];
+  for (const file of sourceFiles(path.join(web, 'src'), ['.js', '.jsx', '.mjs'])) hits.push(...dashLines(withoutComments(fs.readFileSync(file, 'utf8')), path.relative(APP, file)));
+  hits.push(...dashLines(fs.readFileSync(path.join(web, 'index.html'), 'utf8'), 'app_shell/web/index.html'));
+  assert.ok(sourceFiles(path.join(web, 'src'), ['.js', '.jsx', '.mjs']).some((file) => file.endsWith('kindCharts.js')), 'the scan reads the chart sources');
+  assert.deepEqual(hits, []);
+});
+
 test('no message the backend sends or prints, and no API doc page, uses an em or en dash', () => {
   const hits = [];
   const top = fs.readdirSync(BACKEND).filter((name) => name.endsWith('.js') && !name.endsWith('_bundle.js')).map((name) => path.join(BACKEND, name));

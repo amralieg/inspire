@@ -309,7 +309,8 @@ function suggestedGroups(values) {
 }
 
 function firstRunDefault({ records }) {
-  return records == null || whole(records) <= FIRST_RUN_RECORDS_LINE ? 'all' : 'records';
+  const known = Number.parseInt(str(records), 10);
+  return Number.isFinite(known) && known <= FIRST_RUN_RECORDS_LINE ? 'all' : 'records';
 }
 
 module.exports = {

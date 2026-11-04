@@ -559,7 +559,7 @@ const otherErrors = (ui) => ui.pageErrors.filter((e) => e !== NOT_FOUND_LOAD);
 const RUN_SCOPE_UNRECORDED_HIDDEN = 'The earlier build did not record which first run it meant, and Inspire could not suggest one for this table, so this build '
   + 'runs on everything.';
 
-test('all settings on an old spec whose First run is a number, when the table read answers not found, show the note on Vibes and build on everything', async () => {
+test('all settings on an old spec whose First run is a number, when the table read answers not found, show the note on Vibes and build on about 1,000 records, never everything', async () => {
   const calls = [];
   const ui = await openBuild({ me: ME, history: [withRecordedValue(recordedAsNumber(), '5')], forwardedToken: PERSON },
     { init: profileAt(calls, { error: 'No use case N01-U01 in this session.' }, { status: 404 }) });
@@ -589,7 +589,7 @@ test('all settings on an old spec whose First run is a number, when the table re
     }
     await until(() => made.jobs.length === 1, 'the build', 30000);
     const [sent] = insertsOf(made);
-    assert.equal(sent.config.widgets.run_scope, 'all', JSON.stringify(sent.config.widgets));
+    assert.equal(sent.config.widgets.run_scope, 'records', JSON.stringify(sent.config.widgets));
     assert.deepEqual(otherErrors(ui), [], 'the table read that answers not found is the only error');
   } finally {
     await ui.close();
@@ -627,7 +627,7 @@ test('the Build page of an old App whose First run was recorded as a number show
     const scope = panel.locator('[data-setting-group="run_scope"]');
     await scope.locator('[data-first-run-unrecorded]').waitFor({ timeout: 30000 });
     assert.equal(await scope.locator('[data-first-run-unrecorded]').textContent(), RUN_SCOPE_UNRECORDED);
-    assert.deepEqual(await checkedChoice(page, 'data-first-run-choice'), ['all'], 'everything, as no table read suggests another');
+    assert.deepEqual(await checkedChoice(page, 'data-first-run-choice'), ['records'], 'about 1,000 records, never everything, as no table read gives a count (must-exclude)');
     assert.deepEqual(otherErrors(ui), [], 'the table read that answers not found is the only error');
   } finally {
     await ui.close();

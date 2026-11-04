@@ -352,8 +352,8 @@ for (const [records, expected] of [[999, 'all'], [1000, 'all'], [1001, 'records'
     });
 }
 
-test('an unknown record count runs everything, as the agent does', () => {
-  for (const records of [undefined, null, '']) assert.equal(R.firstRunDefault({ records, groups: 300, recent: 21000, standalone: true }), 'all');
+test('an unknown record count runs about 1,000 records first, never everything, as the agent does (must-exclude)', () => {
+  for (const records of [undefined, null, '']) assert.equal(R.firstRunDefault({ records, groups: 300, recent: 21000, standalone: true }), 'records');
 });
 
 test('a date key with no dated join, or one whose period covers more than 10,000 keys, is no recent period (must-exclude)', async () => {

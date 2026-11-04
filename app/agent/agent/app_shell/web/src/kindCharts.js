@@ -196,7 +196,7 @@ function graphOption({ chart, rows, P, valueFmt }) {
   const widest = Math.max(1e-9, ...edges.map((e) => e.weight));
   return {
     legend: { top: 0, right: 0, type: 'scroll', data: groups, textStyle: { color: P.muted, fontSize: 11 }, pageTextStyle: { color: P.muted } },
-    tooltip: { trigger: 'item', formatter: (p) => (p.dataType === 'edge' ? `${p.data.source} — ${p.data.target}<br>${chart.y[0].label}: <b>${valueFmt(0)(p.data.value)}</b>`
+    tooltip: { trigger: 'item', formatter: (p) => (p.dataType === 'edge' ? `${p.data.source} to ${p.data.target}<br>${chart.y[0].label}: <b>${valueFmt(0)(p.data.value)}</b>`
       : `<b>${p.name}</b><br>${chart.y[1]?.label || 'Community'}: ${groups[p.data.category]}`) },
     series: [{
       type: 'graph', layout: 'force', roam: true, top: 28, categories: groups.map((g, i) => ({ name: g, itemStyle: { color: P.series[i % P.series.length] } })),

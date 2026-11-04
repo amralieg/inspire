@@ -36,7 +36,7 @@ test('First run defaults to the scope the profile answers, and never over a choi
   assert.equal(S.firstRunDefault(PROFILE), PROFILE.default_scope);
   assert.equal(S.firstRunDefault({ ...PROFILE, records: 1000, default_scope: 'all' }), 'all', 'the backend answers all at 1,000 records or fewer');
   assert.equal(S.firstRunDefault({ ...PROFILE, records: 1001, default_scope: 'recent' }), 'recent');
-  assert.equal(S.firstRunDefault({ ...PROFILE, default_scope: 'nonsense' }), 'all');
+  assert.equal(S.firstRunDefault({ ...PROFILE, default_scope: 'nonsense' }), 'records', 'an answer the App cannot read never defaults to everything (must-exclude)');
   assert.equal(S.firstRunDefault(null), '');
   const fresh = S.withScopeDefaults(S.scopeValues(() => undefined), PROFILE);
   assert.deepEqual([fresh.run_scope, fresh.scope_groups], ['groups', '[[{"column":"country","value":"USA"}],[{"column":"country","value":"Spain"}],[{"column":"country","value":"Cyprus"}]]'], 'the suggested biggest, typical and smallest groups are ticked');
@@ -365,12 +365,12 @@ test('a First run a build recorded as a number or another word is mapped on read
   for (const latest of [null, undefined, {}, { spec_json: 'x' }]) assert.deepEqual(S.latestRunScope(latest), { values: {}, unrecorded: false });
 });
 
-test('a First run that cannot be known starts from the default the First run step uses for that table, and everything when the table was not read', async () => {
+test('a First run that cannot be known starts from the default the First run step uses for that table, and about 1,000 records, never everything, when the table was not read', async () => {
   const S = await lib('runScope.js');
   const empty = { run_scope: '', scope_groups: '' };
   assert.deepEqual(S.withUnrecordedScope(empty, PROFILE), { run_scope: 'groups', scope_groups: '[[{"column":"country","value":"USA"}],[{"column":"country","value":"Spain"}],[{"column":"country","value":"Cyprus"}]]' });
   assert.deepEqual(S.withUnrecordedScope(empty, { ...PROFILE, default_scope: 'all' }), { run_scope: 'all', scope_groups: '' });
-  for (const profile of [null, undefined, 'x']) assert.deepEqual(S.withUnrecordedScope(empty, profile), { run_scope: 'all', scope_groups: '' }, String(profile));
+  for (const profile of [null, undefined, 'x']) assert.deepEqual(S.withUnrecordedScope(empty, profile), { run_scope: 'records', scope_groups: '' }, String(profile));
   assert.deepEqual(S.withUnrecordedScope({ run_scope: 'recent' }, PROFILE), { run_scope: 'recent' }, 'never over a choice');
   assert.equal(S.withUnrecordedScope(empty, null).run_scope, S.firstRunDefault({}));
   for (const { table_default: given, run_scope: expected } of LEGACY.unrecorded_default) {
@@ -481,7 +481,7 @@ test('a star-schema forecast above 1,000 records defaults to whole groups, never
 test('above 1,000 records every default is a number of records, never everything or a recent period, and the backend answer is read as given (must-exclude)', async () => {
   const S = await lib('runScope.js');
   for (const scope of ['records', 'groups', 'recent', 'custom']) assert.equal(S.firstRunDefault({ ...STAR_PROFILE, default_scope: scope }), scope);
-  assert.equal(S.firstRunDefault({ ...STAR_PROFILE, default_scope: '' }), 'all', 'an old answer with no default reads as everything, as before');
+  assert.equal(S.firstRunDefault({ ...STAR_PROFILE, default_scope: '' }), 'records', 'an old answer with no default never reads as everything (must-exclude)');
   const bare = { ...STAR_PROFILE, applies: false, qualifies: false, recommended: [], suggested_groups: [], group_sizes: [], group_column: null, time_column: null,
     recent: null, first_run: { all: 2880404, groups: null, recent: null, records: null } };
   const values = S.withScopeDefaults(S.scopeValues(() => undefined), bare);

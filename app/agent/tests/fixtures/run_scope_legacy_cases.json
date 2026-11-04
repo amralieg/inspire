@@ -36,7 +36,7 @@
   {"table_default": "recent", "run_scope": "recent"},
   {"table_default": "records", "run_scope": "records"},
   {"table_default": "all", "run_scope": "all"},
-  {"table_default": "sometimes", "run_scope": "all"},
-  {"table_default": null, "run_scope": "all"}
+  {"table_default": "sometimes", "run_scope": "records"},
+  {"table_default": null, "run_scope": "records"}
  ]
 }
