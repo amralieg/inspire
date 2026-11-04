@@ -139,7 +139,7 @@ def test_replace_session_retries_a_concurrent_swap_conflict(agent_ns, functions_
     obj = _tracking_obj(agent_ns, spark)
     obj._tracking_replace_session([make_uc("N01-U01")])
     assert len([w for w in spark.writes if w["mode"] == "overwrite"]) == 1
-    assert obj.logger.matching("concurrent update (attempt 1/3)", level="WARNING")
+    assert obj.logger.matching("conflicted with another Inspire run (attempt 1)", level="WARNING")
     assert not getattr(obj, "failed_steps", None)
 
 

@@ -10,6 +10,7 @@ const {
   SLOW_WAREHOUSE_MESSAGE,
   isDeltaWriteConflict,
   CONFLICT_ATTEMPTS,
+  CONFLICT_WINDOW_MS,
 } = require('../lib/sqlStatements');
 
 function warehouse(states, { submitMs = 0, cancelOk = true, rows = [['1']] } = {}) {
@@ -196,7 +197,7 @@ test('a write Delta rejects for a concurrent change is sent again after a growin
   const result = await w.executeSql('h', 't', 'wh', sql);
   assert.deepEqual(result.result.data_array, [['1']]);
   assert.deepEqual(w.submitted, [sql, sql, sql], 'the same statement, three times');
-  assert.deepEqual(w.waits, [150, 250], 'the wait grows with each attempt');
+  assert.deepEqual(w.waits, [375, 750], 'the wait doubles with each attempt, plus jitter');
 });
 
 test('a conflict that never clears stops after the attempt cap and throws the warehouse message', async () => {
@@ -204,6 +205,9 @@ test('a conflict that never clears stops after the attempt cap and throws the wa
   await assert.rejects(w.executeSql('h', 't', 'wh', 'INSERT INTO t VALUES (1)'), /DELTA_CONCURRENT_APPEND/);
   assert.equal(w.submitted.length, CONFLICT_ATTEMPTS);
   assert.equal(w.waits.length, CONFLICT_ATTEMPTS - 1);
+  const total = w.waits.reduce((a, b) => a + b, 0);
+  assert.ok(CONFLICT_ATTEMPTS >= 8 && total >= CONFLICT_WINDOW_MS / 2 && total <= 2 * CONFLICT_WINDOW_MS, `retries span about a minute: ${total}ms`);
+  assert.ok(Math.max(...w.waits) <= 2 * 8000, 'no single wait is longer than the cap');
 });
 
 test('an error that is not a concurrent change is thrown at once, never sent again', async () => {

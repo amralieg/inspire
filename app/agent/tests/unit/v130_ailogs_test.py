@@ -47,7 +47,8 @@ def test_columns_types_statuses_and_clustering_equal_semunity(agent_ns):
     assert ddl.startswith("CREATE TABLE IF NOT EXISTS `c`.`s`.`_ailogs` (`ailogs_id` STRING COMMENT 'Identifier: ailogs_id', "
                           "`request_id` STRING COMMENT 'Identifier: request_id'")
     assert "`request` STRING COMMENT 'ailogs request'" in ddl
-    assert "USING DELTA CLUSTER BY (`session_id`, `agent`) COMMENT 'Append-only log of every LLM call attempt" in ddl
+    assert ("USING DELTA CLUSTER BY (`session_id`, `agent`) TBLPROPERTIES ('delta.enableDeletionVectors' = 'true', "
+            "'delta.enableRowTracking' = 'true') COMMENT 'Append-only log of every LLM call attempt") in ddl
 
 
 def test_static_guard_every_live_call_carries_a_log_context(agent_ns):
@@ -277,7 +278,7 @@ def test_ailogs_insert_lists_every_column_and_resend_merges_on_the_row_id(agent_
     writer._insert_ailogs_chunk([_ailog_row(agent_ns, "r1")], resend=True)
     merge = spark.statements[-1]
     assert merge.startswith("MERGE INTO `c`.`s`._ailogs AS t USING (SELECT")
-    assert "ON t.`session_id` = s.`session_id` AND t.`ailogs_id` = s.`ailogs_id` WHEN NOT MATCHED THEN INSERT" in merge
+    assert re.search(r"ON t\.`session_id` = \d+ AND t\.`session_id` = s\.`session_id` AND t\.`ailogs_id` = s\.`ailogs_id` WHEN NOT MATCHED THEN INSERT", merge)
     assert "INSERT INTO" not in merge
     assert spark.views == {}, "temp views are dropped"
 

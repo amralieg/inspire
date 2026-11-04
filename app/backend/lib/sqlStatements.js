@@ -4,8 +4,25 @@ const PAGE_SQL_DEADLINE_MS = 240000;
 const READ_ONLY_SQL_RE = /^\s*(SELECT|WITH|SHOW|DESCRIBE|DESC|EXPLAIN)\b/i;
 const DELTA_WRITE_CONFLICT_RE =
   /DELTA_CONCURRENT_\w+|DELTA_(METADATA|PROTOCOL)_CHANGED|CONCURRENT_(APPEND|DELETE|TRANSACTION|WRITE)|Concurrent\w*Exception|(Metadata|Protocol)ChangedException/i;
-const CONFLICT_ATTEMPTS = 6;
-const CONFLICT_BASE_DELAY_MS = 100;
+const CONFLICT_WINDOW_MS = 60000;
+const CONFLICT_BASE_DELAY_MS = 250;
+const CONFLICT_MAX_DELAY_MS = 8000;
+
+function conflictDelayCeiling(attempt) {
+  return Math.min(CONFLICT_MAX_DELAY_MS, CONFLICT_BASE_DELAY_MS * 2 ** (attempt - 1));
+}
+
+function conflictAttempts() {
+  let attempts = 1;
+  let spent = 0;
+  while (spent + 1.5 * conflictDelayCeiling(attempts) <= CONFLICT_WINDOW_MS) {
+    spent += 1.5 * conflictDelayCeiling(attempts);
+    attempts += 1;
+  }
+  return attempts;
+}
+
+const CONFLICT_ATTEMPTS = conflictAttempts();
 const SLOW_WAREHOUSE_MESSAGE =
   `The SQL warehouse did not answer within ${PAGE_SQL_DEADLINE_MS / 60000} minutes, so Inspire stopped the query. ` +
   'The warehouse may be starting or waiting for compute. Try again in a minute.';
@@ -124,8 +141,9 @@ function createExecuteSql(dbFetch, { now = Date.now, sleep = (ms) => new Promise
         return await runOnce(host, token, warehouseId, sql, parameters, options);
       } catch (err) {
         if (attempt >= CONFLICT_ATTEMPTS || !isDeltaWriteConflict(err.message)) throw err;
-        const wait = CONFLICT_BASE_DELAY_MS * attempt + Math.floor(random() * CONFLICT_BASE_DELAY_MS);
-        console.warn(`   🔄 Delta write conflict, SQL retry ${attempt}/${CONFLICT_ATTEMPTS - 1} in ${wait}ms`);
+        const ceiling = conflictDelayCeiling(attempt);
+        const wait = ceiling + Math.floor(random() * ceiling);
+        console.warn(`   🔄 Delta write conflict with another Inspire run, SQL retry ${attempt}/${CONFLICT_ATTEMPTS - 1} in ${wait}ms`);
         await sleep(wait);
       }
     }
@@ -137,6 +155,7 @@ module.exports = {
   sqlCancelledError,
   isDeltaWriteConflict,
   CONFLICT_ATTEMPTS,
+  CONFLICT_WINDOW_MS,
   runWithRequestDeadline,
   readDeadline,
   PAGE_SQL_DEADLINE_MS,

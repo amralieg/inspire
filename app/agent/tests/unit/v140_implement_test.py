@@ -907,8 +907,9 @@ def test_an_update_that_keeps_meeting_concurrent_writes_gives_up(agent_ns, monke
     inst, calls, slept = _updating(agent_ns, monkeypatch, [CONCURRENT_UPDATE] * attempts)
     with pytest.raises(RuntimeError, match="DELTA_CONCURRENT_DELETE_READ"):
         inst._implement_update((5150, "N01-U01", 3), status="filling")
-    assert len(calls) == attempts == 5 and len(slept) == attempts - 1
-    assert any(level == "ERROR" and "Failed after 5 attempts for updating N01-U01 spec 3" in message for level, message in inst.logger.records)
+    assert len(calls) == attempts == agent_ns["inspire_write_conflict_attempts"]() and len(slept) == attempts - 1
+    assert sum(slept) <= 2 * agent_ns["INSPIRE_WRITE_CONFLICT_WINDOW_SECONDS"]
+    assert any(level == "ERROR" and f"Failed after {attempts} attempts for updating N01-U01 spec 3" in message for level, message in inst.logger.records)
 
 
 def test_targets_build_only_the_newest_queued_spec_per_use_case(agent_ns):
