@@ -55,7 +55,7 @@ def test_no_measured_baseline_says_not_measured_yet_and_never_shows_a_number(ns)
         assert not re.search(r"\d", estimate["text"]), estimate["text"]
     assert "Weekly sales value with its KPI query" in ns["inspire_value_estimate"](money_uc(ns, kpi(ns, value=None)))["text"]
     assert "sum of a revenue or cost column in c.s.orders" in ns["inspire_value_estimate"](money_uc(ns, kpi(ns, name="Late orders", unit="orders")))["text"]
-    assert "money value per unit of order count" in ns["inspire_value_estimate"](money_uc(ns, kpi(ns, name="Order count", unit="orders")))["text"]
+    assert "money value per unit of order count" in ns["inspire_value_estimate"](money_uc(ns, kpi(ns, name="Order count", unit="orders", aggregation="COUNT")))["text"]
 
 
 def test_a_money_kpi_that_is_not_a_total_is_not_turned_into_money(ns):
@@ -154,8 +154,8 @@ def count_kpi(ns, value=1200.0, aggregation="COUNT", table="c.s.orders", **extra
     return spec
 
 
-def per_unit_kpi(ns, value=85.5, table="c.s.orders", **extra):
-    spec = kpi(ns, name="Average order value", unit="AED", aggregation="AVG", column="amount", value=value, window=0, **extra)
+def per_unit_kpi(ns, value=85.5, table="c.s.orders", window=0, **extra):
+    spec = kpi(ns, name="Average order value", unit="AED", aggregation="AVG", column="amount", value=value, window=window, **extra)
     spec["table"] = table
     return spec
 
@@ -169,7 +169,9 @@ def test_a_count_kpi_turns_into_money_only_through_a_measured_per_unit_money_kpi
                                                      "value": 85.5, "measured_on": "2026-11-01"}
     assert "order count rises 3\u20138%" in estimate["text"] and "each worth 85.50 AED Average order value across all data" in estimate["text"]
     assert "each order count is worth the measured average order value" in estimate["assumption"]
-    assert ns["inspire_value_estimate"](money_uc(ns, count_kpi(ns, aggregation="COUNT_DISTINCT"), per_unit_kpi(ns)))["status"] == "measured"
+    for aggregation in ("COUNT_DISTINCT", "SUM"):
+        other = ns["inspire_value_estimate"](money_uc(ns, count_kpi(ns, aggregation=aggregation), per_unit_kpi(ns)))
+        assert other["status"] == "not measured yet" and not re.search(r"\d", other["text"]), aggregation
 
 
 def test_a_count_kpi_without_a_measured_per_unit_money_column_gets_no_number(ns):
@@ -185,7 +187,7 @@ def test_a_count_kpi_without_a_measured_per_unit_money_column_gets_no_number(ns)
         assert not re.search(r"\d", estimate["text"]), estimate["text"]
     shown = ns["inspire_value_estimate"](money_uc(ns, count_kpi(ns)))["text"]
     assert shown == ("Value not measured yet: measure the money value per unit of order count, for example the average "
-                     "of a price or amount column in c.s.orders.")
+                     "of a price or amount column in c.s.orders over the same rows.")
 
 
 ARABIC_VALUE = "\u0642\u064a\u0645\u0629 \u0645\u0642\u062f\u0631\u0629 AED 2.4K\u20136K \u0641\u064a \u0627\u0644\u0633\u0646\u0629"
@@ -267,3 +269,58 @@ def test_the_mvp_app_page_promise_carries_the_same_value_line(ns):
     assert bare == {"value": "", "benefits": [], "estimate": "Value not measured yet: measure x."}
     assert "estimate" not in ns["implement_promised"]({"Business Value": "Fewer stockouts"})
     assert ns["implement_promised"]({}) == {}
+
+
+def filtered(column, op, value, kind="text"):
+    return {"filter_column": column, "filter_op": op, "filter_value": value, "filter_type": kind}
+
+
+def late_orders(ns, **extra):
+    spec = count_kpi(ns, **{**filtered("status", "=", "late"), **extra})
+    spec["name"] = "Late orders"
+    return spec
+
+
+def per_unit_estimate(ns, count, unit):
+    return ns["inspire_value_estimate"](money_uc(ns, count, unit), "", "run_processes")
+
+
+def test_late_orders_with_an_average_order_value_measured_only_on_premium_orders_gives_no_number(ns):
+    estimate = per_unit_estimate(ns, late_orders(ns), per_unit_kpi(ns, **filtered("tier", "=", "premium")))
+    assert estimate["status"] == "not measured yet" and "value_low" not in estimate and "measured_from" not in estimate
+    assert not re.search(r"\d", estimate["text"]), estimate["text"]
+    assert estimate["text"] == ("Value not measured yet: measure the money value per unit of late orders, for example the average "
+                                "of a price or amount column in c.s.orders over the same rows.")
+
+
+def test_the_average_converts_a_count_only_when_its_rows_cover_the_counted_rows(ns):
+    covers = [
+        (late_orders(ns), per_unit_kpi(ns)),
+        (late_orders(ns), per_unit_kpi(ns, **filtered("status", "=", "late"))),
+        (late_orders(ns), per_unit_kpi(ns, **filtered("status", "!=", "cancelled"))),
+        (count_kpi(ns, **filtered("amount", ">", 100, "decimal")), per_unit_kpi(ns, **filtered("amount", ">=", 50, "decimal"))),
+        (count_kpi(ns, **filtered("amount", ">=", 100, "decimal")), per_unit_kpi(ns, **filtered("amount", ">", 99, "decimal"))),
+        (count_kpi(ns, **filtered("placed_on", "<", "2026-01-01", "date")), per_unit_kpi(ns, **filtered("placed_on", "<=", "2026-06-30", "date"))),
+        (count_kpi(ns), per_unit_kpi(ns, window=180)),
+    ]
+    for count, unit in covers:
+        assert per_unit_estimate(ns, count, unit)["status"] == "measured", (count.get("filter_column"), unit.get("filter_column"), unit["window_days"])
+    rejects = [
+        (count_kpi(ns), per_unit_kpi(ns, **filtered("status", "=", "late"))),
+        (late_orders(ns), per_unit_kpi(ns, **filtered("status", "=", "open"))),
+        (late_orders(ns), per_unit_kpi(ns, **filtered("status", "!=", "LATE"))),
+        (late_orders(ns), per_unit_kpi(ns, **filtered("region", "!=", "north"))),
+        (count_kpi(ns, **filtered("amount", ">", 100, "decimal")), per_unit_kpi(ns, **filtered("amount", ">", 200, "decimal"))),
+        (count_kpi(ns, **filtered("amount", ">=", 100, "decimal")), per_unit_kpi(ns, **filtered("amount", ">", 100, "decimal"))),
+        (count_kpi(ns, **filtered("amount", ">", 100, "decimal")), per_unit_kpi(ns, **filtered("amount", "<", 500, "decimal"))),
+        (count_kpi(ns, **filtered("status", ">", "a")), per_unit_kpi(ns, **filtered("status", ">", "a"))),
+        (count_kpi(ns, **filtered("amount", "=", 100, "decimal")), per_unit_kpi(ns, **filtered("amount", "=", 101, "integer"))),
+        (late_orders(ns), per_unit_kpi(ns, **filtered("status", "~", "late"))),
+        (count_kpi(ns), per_unit_kpi(ns, window=30)),
+        (count_kpi(ns, window=0), per_unit_kpi(ns, window=90)),
+        (count_kpi(ns), per_unit_kpi(ns, window=180, time_column="shipped_at")),
+    ]
+    for count, unit in rejects:
+        estimate = per_unit_estimate(ns, count, unit)
+        assert estimate["status"] == "not measured yet" and not re.search(r"\d", estimate["text"]), (
+            count.get("filter_column"), count.get("filter_op"), unit.get("filter_column"), unit.get("filter_op"), unit["window_days"])
