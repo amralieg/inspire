@@ -798,9 +798,9 @@ def cli(stdin=None, stdout=None) -> int:
     try:
         status, answer = cli_answer(json.loads(stdin.read() or "{}"))
     except (ValueError, KeyError, TypeError) as error:
-        status, answer = 400, {"error": inspire_redact_text(str(error), set(), "")}
+        status, answer = 400, {"error": shell_sql.plain_error(inspire_redact_text(str(error), set(), ""))}
     except OSError as error:
-        status, answer = 500, {"error": f"Inspire could not read the page files: {inspire_redact_text(str(error), set(), '')}"}
+        status, answer = 500, {"error": shell_sql.plain_error(f"Inspire could not read the page files: {inspire_redact_text(str(error), set(), '')}")}
     stdout.write(json.dumps({"status": status, "body": answer}, ensure_ascii=False, separators=(",", ":"), default=str))
     stdout.flush()
     return 0
@@ -877,7 +877,7 @@ def job_run_view(run: dict, job_url: str) -> dict:
     return {"run_id": run_id, "trigger": TRIGGERS.get(trigger, trigger.lower().replace("_", " ") or None),
             "by": requested_by(run), "started": started, "ended": ended,
             "duration_s": round(int(duration) / 1000) if duration else None, "state": life.lower(), "result": outcome,
-            "message": inspire_redact_text(details.get("message") or state.get("state_message"), set(), "") if outcome in ("failed", "canceled", "skipped") else "",
+            "message": shell_sql.plain_error(inspire_redact_text(details.get("message") or state.get("state_message"), set(), "")) if outcome in ("failed", "canceled", "skipped") else "",
             "url": f"{job_url}/runs/{run_id}" if job_url and run_id else ""}
 
 
@@ -1044,18 +1044,8 @@ def run_trigger(job, summary: dict) -> str:
     return SCHEDULE if job["trigger"] == TRIGGERS["PERIODIC"] else (job["trigger"] or "")
 
 
-RUN_ERRORS = (
-    ("missing_table", re.compile(r"TABLE_OR_VIEW_NOT_FOUND|table or view .{0,300}(cannot be found|not found)|table not found", re.I)),
-    ("missing_column", re.compile(r"UNRESOLVED_COLUMN|column .{0,300}cannot be resolved", re.I)),
-    ("not_allowed", re.compile(r"PERMISSION_DENIED|INSUFFICIENT_PERMISSIONS|not authori[sz]ed|access denied|does not have .{0,120}"
-                               r"(privilege|permission)", re.I)),
-    ("timed_out", re.compile(r"TIMEDOUT|timed out|timeout", re.I)),
-    ("no_compute", re.compile(r"cluster|DRIVER_|CLOUD_PROVIDER|capacity|quota", re.I)),
-)
-
-
-def run_error_code(message: str) -> str:
-    return next((code for code, pattern in RUN_ERRORS if pattern.search(str(message or ""))), "")
+RUN_ERRORS = shell_sql.RUN_ERRORS
+run_error_code = shell_sql.run_error_code
 
 
 def run_view(entry: dict, summary, page: dict) -> dict:

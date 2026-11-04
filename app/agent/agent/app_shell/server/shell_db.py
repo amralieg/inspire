@@ -6,7 +6,7 @@ import time
 import urllib.parse
 
 from shell_redact import inspire_parse_time, inspire_redact_text
-from shell_sql import error_text
+from shell_sql import error_text, plain_error
 
 NUMBER_TYPES = ("BYTE", "SHORT", "INT", "LONG", "FLOAT", "DOUBLE", "DECIMAL")
 WHOLE_TYPES = ("BYTE", "SHORT", "INT", "LONG")
@@ -222,7 +222,7 @@ class Workspace:
         message = self.call("GET", base)
         status = str(message.get("status") or "")
         if status in GENIE_FAILED:
-            return {"state": "failed", "error": inspire_redact_text((message.get("error") or {}).get("error"), set(), "", self.secrets)
+            return {"state": "failed", "error": plain_error(inspire_redact_text((message.get("error") or {}).get("error"), set(), "", self.secrets))
                     or f"Genie ended {status.lower()}"}
         if status not in GENIE_DONE:
             return {"state": "running", "step": GENIE_STEPS.get(status, "Working on it")}

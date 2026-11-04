@@ -4,6 +4,7 @@ import json
 import math
 import os
 import re
+import sys
 import zoneinfo
 from html.parser import HTMLParser
 
@@ -15,13 +16,50 @@ SHELL_MODULES = ("shell_redact", "shell_facts", "shell_sql", "shell_db", "shell_
 SHELL_FILES = tuple(os.path.join(os.path.dirname(__file__), f"{name}.py") for name in SHELL_MODULES)
 
 
+RUN_ERRORS = (
+    ("missing_table", re.compile(r"TABLE_OR_VIEW_NOT_FOUND|table or view .{0,300}(cannot be found|not found)|table not found", re.I)),
+    ("missing_column", re.compile(r"UNRESOLVED_COLUMN|column .{0,300}cannot be resolved", re.I)),
+    ("not_allowed", re.compile(r"PERMISSION_DENIED|INSUFFICIENT_PERMISSIONS|not authori[sz]ed|access denied|does not have .{0,120}"
+                               r"(privilege|permission)", re.I)),
+    ("timed_out", re.compile(r"TIMEDOUT|timed out|timeout", re.I)),
+    ("no_compute", re.compile(r"cluster|DRIVER_|CLOUD_PROVIDER|capacity|quota", re.I)),
+)
+RAW_ERROR = re.compile(r"SQLSTATE|\[[A-Z][A-Z0-9_]{3,}(?:\.[A-Z0-9_]+)*\]|Traceback \(most recent call last\)|^\s*File \"[^\"\n]+\", line \d+|"
+                       r"org\.apache\.|java\.\w+(?:\.\w+)*(?:Exception|Error)\b|Py4JJavaError|\bat [\w$.]+\([\w$.]+\.(?:java|scala):\d+\)", re.M)
+PLAIN_ERRORS = {
+    "not_allowed": "This App may not read part of its data yet. Ask the person who built the App to build it again, or ask a data owner to "
+                   "give the App read access.",
+    "missing_table": "Part of this App's data is not there yet. It appears after the next run; if it stays missing, ask the person who built "
+                     "the App to run it again.",
+    "missing_column": "The data changed since the App was built. Ask the person who built the App to build it again.",
+    "timed_out": "The data took too long to answer. Try again in a minute.",
+    "no_compute": "The SQL warehouse behind this App is not answering. Try again in a few minutes; if it keeps failing, ask the person who "
+                  "built the App.",
+    "": "Inspire could not read this part of the data. Try again; if it keeps failing, ask the person who built the App and tell them when "
+        "it happened.",
+}
+
+
+def run_error_code(message: str) -> str:
+    return next((code for code, pattern in RUN_ERRORS if pattern.search(str(message or ""))), "")
+
+
+def plain_error(text) -> str:
+    said = str(text or "")
+    if not RAW_ERROR.search(said):
+        return said
+    code = run_error_code(said)
+    print(f"[PLAIN-ERROR FIRED] {code or 'other'}: {said[:4000]}", file=sys.stderr, flush=True)
+    return PLAIN_ERRORS[code]
+
+
 def error_text(error, secrets=(), known: str = "") -> str:
     own = inspire_raised_by(error, SHELL_FILES, SHELL_MODULES)
     text = getattr(error, "message", None)
     if text is None:
         text = error.args[0] if own and isinstance(error, KeyError) and len(error.args) == 1 else error
     text = str(text).strip() or type(error).__name__
-    return text if own else inspire_redact_text(text, set(), known, secrets)
+    return plain_error(text if own else inspire_redact_text(text, set(), known, secrets))
 
 
 SPEC_VERSION = 2
