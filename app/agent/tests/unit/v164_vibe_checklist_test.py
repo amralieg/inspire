@@ -272,7 +272,7 @@ def test_no_held_ask_is_ever_dropped_from_the_checklist_even_one_nothing_checked
 
 
 def test_impossible_can_no_longer_be_returned_or_stored(agent_ns):
-    assert agent_ns["IMPLEMENT_VIBES_JUDGE_SCHEMA"]["properties"]["checks"]["items"]["properties"]["status"]["enum"] == ["done", "missing"]
+    assert agent_ns["IMPLEMENT_VIBES_JUDGE_SCHEMA"]["properties"]["checks"]["items"]["properties"]["status"]["enum"] == ["done", "missing", "no_data"]
     inst = _inspire(agent_ns, FakeSpark())
     ask = "Show the Fix plan table"
     _judge(inst, {ask: [_ask(ask)]}, [{"status": "impossible", "evidence": "a page cannot show that"}])

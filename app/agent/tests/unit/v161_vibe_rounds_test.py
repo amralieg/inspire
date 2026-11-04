@@ -27,7 +27,7 @@ class _Judge:
         if kind == "split":
             text = prompt.split('"""\n', 1)[1].rsplit('\n"""', 1)[0]
             return {"asks": [{"ask": " ".join(text.split()), "check": None}]}
-        assert schema["properties"]["checks"]["items"]["properties"]["status"]["enum"] == ["done", "missing"]
+        assert schema["properties"]["checks"]["items"]["properties"]["status"]["enum"] == ["done", "missing", "no_data"]
         self.calls.append(len(self.runner.prompts) if self.runner else 0)
         self.prompts.append(prompt)
         verdicts = self.rounds.pop(0) if len(self.rounds) > 1 else self.rounds[0]
@@ -217,14 +217,15 @@ def test_a_genie_agent_round_where_every_ask_is_done_sends_nothing_and_judges_on
 @pytest.mark.parametrize("verdict,status,evidence", [("impossible", "missing", "the check gave no answer for this ask"),
                                                      ("missing", "missing", "no cell holds it out"), ("done", "done", "holdout=holdout_weeks")])
 def test_the_judge_has_only_done_and_missing_and_keeps_the_user_directive_rule(agent_ns, verdict, status, evidence):
-    assert agent_ns["IMPLEMENT_VIBES_JUDGE_SCHEMA"]["properties"]["checks"]["items"]["properties"]["status"]["enum"] == ["done", "missing"]
+    assert agent_ns["IMPLEMENT_VIBES_JUDGE_SCHEMA"]["properties"]["checks"]["items"]["properties"]["status"]["enum"] == ["done", "missing", "no_data"]
     assert "IMPLEMENT_VIBES_VERDICTS" not in agent_ns and "implement_vibes_sticky" not in agent_ns
     seen = agent_ns["implement_vibes_seen"]
     prompt = agent_ns["implement_vibes_round_prompt"]([
         {"asset": "notebook", "asks": [{"ask": NOTES}], "seen": seen("notebook", CELL)},
         {"asset": "ai_reasoning", "asks": [{"ask": REASONING}], "seen": seen("ai_reasoning", AI_ROWS)}])
     assert "The customer's asks are explicit user directives" in prompt and "impossible" not in prompt
-    assert "The person is an expert and every ask can be built, so the verdict is only \"done\" or \"missing\"" in prompt
+    assert ("The person is an expert and a rule or default of Inspire never makes an ask wrong to want, so the verdict is \"done\" "
+            "or \"missing\", or \"no_data\" only when the ask needs a real-world quantity") in prompt
     assert "The asks:\n1. (part 1) Hold out the last 8 weeks\n2. (part 2) Answer in Spanish\n\n" in prompt
     assert prompt.count("What a person sees in part ") == 2 and "except in the notebook" in prompt
     said = {"done": "holdout=holdout_weeks", "missing": "no cell holds it out", "impossible": "no table holds weeks"}[verdict]

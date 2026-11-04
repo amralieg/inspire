@@ -252,7 +252,7 @@ def test_every_built_output_and_part_gets_its_own_record_and_only_a_missed_ask_w
     chart = status_of["dashboard:by_region"]
     assert chart["vibes_checks"] == [
         {"ask": "Make it a horizontal bar chart", "status": "missing",
-         "evidence": "the built Customers by region chart on the dashboard chart by_region has no horizontal_bar chart; its charts are "
+         "evidence": "the built Customers by region bar chart on the dashboard chart by_region has no horizontal_bar chart; its charts are "
                      "bar (by_region)",
          "checks": [{"name": "chart_type: horizontal bar", "passed": False}]},
         {"ask": "Keep the biggest regions first", "status": "done", "evidence": "sort: value_desc by value",
@@ -265,7 +265,7 @@ def test_every_built_output_and_part_gets_its_own_record_and_only_a_missed_ask_w
     assert "dashboard:old_chart" not in status_of, "a chart the new build no longer has leaves the list"
     assert (status_of["dashboard"]["state"], status_of["app"]["state"]) == ("ready", "ready"), "a part's miss never flags its parent"
     assert status_of["dashboard"]["title"] == "N01-U01 Predict churn" and status_of["app"]["title"] == "churn-desk"
-    assert ("Dashboard (widget by_region): Make it a horizontal bar chart: the built Customers by region chart on the dashboard chart "
+    assert ("Dashboard (widget by_region): Make it a horizontal bar chart: the built Customers by region bar chart on the dashboard chart "
             "by_region has no horizontal_bar chart") in status_of["held"]["reason"], \
         "the held list is the checklist's, which names the output and the widget on it"
     assert [k for k, _p in seen] == ["split", "split", "judge"]
