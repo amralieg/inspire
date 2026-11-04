@@ -75,6 +75,27 @@ def test_the_named_kind_wins_over_the_technique_and_a_bad_name_falls_back(ns):
     assert fallback["use_case_kind"] == "risk_propensity"
 
 
+def test_the_use_case_kind_is_resolved_by_the_one_kind_resolver(ns, monkeypatch):
+    calls = []
+    real = ns["_inspire_resolve_kind"]
+    monkeypatch.setitem(ns, "_inspire_resolve_kind", lambda value, technique=None: calls.append((value, technique)) or real(value, technique))
+    assert ns["inspire_use_case_kind"]({"Use Case Kind": "5. Forecast", "Analytics Technique": "Classification"})["id"] == "forecast"
+    assert ("5. Forecast", None) in calls
+    calls.clear()
+    assert ns["inspire_use_case_kind"]({"use_case_kind": "Basket magic", "Analytics Technique": "Classification"})["id"] == "risk_propensity"
+    assert calls[-1] == (None, "Classification")
+    assert ns["inspire_use_case_kind"]({"use_case_kind": "Basket magic", "Analytics Technique": "Basket magic"}) is None
+    assert ns["inspire_use_case_kind"]({}) is None
+    names = ns["inspire_use_case_kind"].__code__.co_names
+    assert "_inspire_resolve_kind" in names and "_inspire_kinds" not in names and "_inspire_kind_key" not in names
+
+
+def test_the_method_line_matches_the_technique_whatever_its_case(ns):
+    upper = ns["inspire_kind_lines"](make_uc("N01-U01", **{"Analytics Technique": "Causal Impact"}))["method_summary"]
+    lower = ns["inspire_kind_lines"](make_uc("N01-U01", **{"Analytics Technique": "causal   impact"}))["method_summary"]
+    assert upper == lower and "control group or the values from before the change" in upper
+
+
 def test_a_use_case_with_no_kind_is_left_untouched(ns):
     uc = make_uc("N01-U01", **{"Analytics Technique": "Basket magic"})
     before = dict(uc)
