@@ -339,6 +339,7 @@ REVIEWED = {
         ('_implement_merge_genie', "'; '.join(problems)"),
         ('_implement_one_locked', "'; '.join(errors)"),
         ('_implement_source_checks', "'; '.join(misfits)"),
+        ('_implement_data_minimum', 'reason'),
         ('_implement_one_locked', "'; '.join(removal)"),
         ('_implement_one_locked', "'; '.join(unbuilt)"),
         ('_implement_one_locked', "'; '.join(widget_problems)"),
