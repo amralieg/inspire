@@ -22,7 +22,7 @@ REAL_GRANTS_SHOWN = 10
 
 
 _WIDGET_PLACEHOLDER = "Pick from the list or type"
-WIDGET_CHOICE_LIMIT = 1024
+WIDGET_CHOICE_LIMIT = 1023
 _LEGACY_PLACEHOLDER = "Please select"
 _LEGACY_WAREHOUSE_CHOICE = re.compile(r"(?P<name>.*) \[[A-Z_?]+\] (?P<id>\S+)")
 

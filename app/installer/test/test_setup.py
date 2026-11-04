@@ -1134,26 +1134,26 @@ class RuntimeContextTest(unittest.TestCase):
         return tuple(f"cat_{index:04d}" for index in range(count))
 
     def test_a_catalog_list_never_holds_more_choices_than_a_notebook_widget_allows(self):
-        for count, shown, hidden_words in ((0, ["workspace"], False), (1, ["cat_0000"], False), (1023, list(self.many(1023)), False),
-                                           (1024, list(self.many(1023)), True), (1025, list(self.many(1023)), True),
-                                           (3588, list(self.many(1023)), True)):
+        for count, shown, hidden_words in ((0, ["workspace"], False), (1, ["cat_0000"], False), (1022, list(self.many(1022)), False),
+                                           (1023, list(self.many(1022)), True), (1024, list(self.many(1022)), True),
+                                           (1025, list(self.many(1022)), True), (3588, list(self.many(1022)), True)):
             widgets = support.FakeWidgets()
             printed = io.StringIO()
             with contextlib.redirect_stdout(printed):
                 ctx = self.run_with(widgets, catalogs=self.many(count))
             self.assertEqual(ctx, {"ready": False}, count)
             choices = widgets.state["01_inspire_catalog"]["choices"]
-            self.assertLessEqual(len(choices), 1024, count)
+            self.assertLessEqual(len(choices), 1023, count)
             self.assertEqual(choices, ["Pick from the list or type"] + shown, count)
         widgets = support.FakeWidgets()
         setup.dbutils = types.SimpleNamespace(widgets=widgets)
         with contextlib.redirect_stdout(printed := io.StringIO()):
             setup.ensure_parameter_widgets([self.warehouse()], list(self.many(3588)))
-        self.assertIn("01_inspire_catalog lists 1023 of the 3588 catalogs you can use, the most likely first, because a notebook list "
-                      "holds at most 1024 entries. Type the exact name of any other one.", printed.getvalue())
+        self.assertIn("01_inspire_catalog lists 1022 of the 3588 catalogs you can use, the most likely first, because a notebook list "
+                      "holds at most 1023 entries. Type the exact name of any other one.", printed.getvalue())
         with contextlib.redirect_stdout(printed := io.StringIO()):
-            setup.ensure_parameter_widgets([self.warehouse()], list(self.many(1023)))
-        self.assertNotIn("lists 1023 of", printed.getvalue())
+            setup.ensure_parameter_widgets([self.warehouse()], list(self.many(1022)))
+        self.assertNotIn("lists 1022 of", printed.getvalue())
 
     def test_a_capped_catalog_list_puts_your_own_catalogs_and_your_pick_first(self):
         names = self.many(3588)
@@ -1162,10 +1162,10 @@ class RuntimeContextTest(unittest.TestCase):
         self.run_with(widgets, catalogs=names, owners=owners)
         choices = widgets.state["01_inspire_catalog"]["choices"]
         self.assertEqual(choices[:4], ["Pick from the list or type", "cat_2000", "cat_3000", "cat_0000"])
-        self.assertEqual(len(choices), 1024)
-        self.assertEqual(len(set(choices)), 1024)
+        self.assertEqual(len(choices), 1023)
+        self.assertEqual(len(set(choices)), 1023)
         shown, hidden = setup.picker_choices(names, picked="cat_3587", first=["cat_2000"])
-        self.assertEqual((shown[:3], len(shown), hidden), (["Pick from the list or type", "cat_3587", "cat_2000"], 1024, 2565))
+        self.assertEqual((shown[:3], len(shown), hidden), (["Pick from the list or type", "cat_3587", "cat_2000"], 1023, 2566))
         self.assertEqual(setup.picker_choices(["a", "b"], picked="zz", first=["yy"]), (["Pick from the list or type", "a", "b"], 0))
 
     def test_a_catalog_typed_by_hand_outside_the_capped_list_installs_and_a_typo_is_named(self):
@@ -1187,7 +1187,7 @@ class RuntimeContextTest(unittest.TestCase):
         widgets = support.FakeWidgets()
         self.run_with(widgets, warehouses=listed)
         choices = widgets.state["00_sql_warehouse"]["choices"]
-        self.assertEqual((len(choices), choices[1]), (1024, "Live (live)"))
+        self.assertEqual((len(choices), choices[1]), (1023, "Live (live)"))
         self.assertNotIn("Warehouse 1499 (wh1499)", choices)
         widgets.pick("00_sql_warehouse", "wh1499")
         widgets.pick("01_inspire_catalog", "main")
