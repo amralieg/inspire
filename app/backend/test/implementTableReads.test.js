@@ -189,3 +189,51 @@ test('the readiness count of any table reads only with the person\u2019s token',
     assert.deepEqual(counts(made), [PERSON_TOKEN, PERSON_TOKEN]);
   });
 });
+
+const ORDERS_COLUMNS = [{ column_name: 'order_id', data_type: 'STRING', ordinal_position: 1 }, { column_name: 'ref_code', data_type: 'STRING', ordinal_position: 2 },
+  { column_name: 'cardNumber', data_type: 'STRING', ordinal_position: 3 }];
+const PII_TAG = { catalog_name: 'main', schema_name: 's', table_name: 'orders', column_name: 'ref_code', tag_name: 'Data_Class', tag_value: 'PII' };
+const tagReads = (made) => readsOf(made, /information_schema\.column_tags/);
+
+test('the columns route returns each column\u2019s Unity Catalog tags, read once for the table, and marks a PII-tagged column with an innocent name as personal (must-exclude)', async () => {
+  await withApp({ columnsByTable: { 'main.s.orders': ORDERS_COLUMNS }, columnTags: [PII_TAG] }, async (url, made) => {
+    const got = await call(url, `/api/inspire/implement/columns?${Q}&table=main.s.orders`);
+    assert.equal(got.status, 200, JSON.stringify(got.data));
+    assert.deepEqual(got.data.columns.map((c) => [c.column_name, c.personal, c.tags]),
+      [['order_id', false, {}], ['ref_code', true, { Data_Class: 'PII' }], ['cardNumber', true, {}]], 'untagged order_id stays allowed (must-keep)');
+    assert.equal(got.data.tags_read, true);
+    assert.equal(got.data.tags_note, undefined);
+    assert.equal(tagReads(made).length, 1, 'one tag read for the table, no read per column');
+    assert.deepEqual(tagReads(made).map((c) => c.token), [PERSON_TOKEN]);
+  });
+});
+
+test('when the tags cannot be read the columns route falls back to the name rule and says so', async () => {
+  await withApp({ columnsByTable: { 'main.s.orders': ORDERS_COLUMNS }, tagsError: '[INSUFFICIENT_PERMISSIONS] no USE on column_tags' }, async (url) => {
+    const got = await call(url, `/api/inspire/implement/columns?${Q}&table=main.s.orders`);
+    assert.equal(got.status, 200, JSON.stringify(got.data));
+    assert.deepEqual(got.data.columns.map((c) => [c.column_name, c.personal]), [['order_id', false], ['ref_code', false], ['cardNumber', true]]);
+    assert.deepEqual([got.data.tags_read, got.data.tags_note],
+      [false, 'Inspire could not read the Unity Catalog tags of this table, so only column names are checked for personal data']);
+  });
+});
+
+test('an MVP run is refused when its chosen result key is a PII-tagged column or a personal name, and starts with an untagged ordinary key', async () => {
+  const readable = { readableTables: { [PERSON_TOKEN]: ['main.s.orders', 'main.s.returns_v2'] } };
+  const keyed = (ref) => ({ ...SPEC, data: { ...SPEC.data, column_roles: { entity_id: ref } } });
+  await withApp({ history: [], ...readable, columnTags: [PII_TAG] }, async (url, made) => {
+    const got = await call(url, '/api/inspire/implement/submit', { method: 'POST', body: { ...DB, spec: keyed('main.s.orders.ref_code') } });
+    assert.deepEqual([got.status, got.data.error], [400, I.personalKeyProblem('main.s.orders.ref_code')]);
+    ruleOut(made);
+  });
+  await withApp({ history: [], ...readable }, async (url, made) => {
+    const got = await call(url, '/api/inspire/implement/submit', { method: 'POST', body: { ...DB, spec: keyed('main.s.orders.cardNumber') } });
+    assert.deepEqual([got.status, got.data.error], [400, I.personalKeyProblem('main.s.orders.cardNumber')], 'the name rule refuses before any read');
+    ruleOut(made);
+  });
+  await withApp({ history: [], ...readable, columnTags: [PII_TAG] }, async (url, made) => {
+    const got = await call(url, '/api/inspire/implement/submit', { method: 'POST', body: { ...DB, spec: keyed('main.s.orders.order_id') } });
+    assert.equal(got.status, 200, JSON.stringify(got.data));
+    assert.equal(made.jobs.length, 1, 'an untagged ordinary key is allowed (must-keep)');
+  });
+});

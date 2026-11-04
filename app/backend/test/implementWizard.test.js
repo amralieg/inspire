@@ -1805,3 +1805,26 @@ test('personal or card-number columns are never offered or accepted as the key o
   assert.deepEqual(w.columnRoleProblems(picked.data.column_roles, columns), [`entity id main.s.payments.cardNumber: ${P.PERSONAL_KEY_REASON}`]);
   assert.equal(w.grainCheck(w.withEntityKey(spec, 'main.s.payments.payment_id'), uc, columns, ['main.s.payments']).state === 'personal', false);
 });
+
+test('a column with an innocent name but a PII, personal or sensitive Unity Catalog tag is never the result key; an untagged one is', async () => {
+  const w = await load();
+  const P = await import(pathToFileURL(path.resolve(__dirname, '..', '..', 'frontend', 'src', 'lib', 'personalColumns.js')).href);
+  const columns = { 'main.s.payments': [
+    { column_name: 'payment_id', data_type: 'STRING', tags: {} },
+    { column_name: 'ref_code', data_type: 'STRING', tags: { data_class: 'pii' } },
+    { column_name: 'member_ref', data_type: 'STRING', tags: { Classification: 'Sensitive' } },
+    { column_name: 'holder_key', data_type: 'STRING', tags: { PERSONAL_DATA: '' } },
+    { column_name: 'store_code', data_type: 'STRING', tags: { owner: 'finance', tier: 'gold' } },
+  ] };
+  const offered = w.entityKeyOptions(columns, ['main.s.payments']).map((k) => k.column);
+  for (const tagged of ['ref_code', 'member_ref', 'holder_key']) assert.ok(!offered.includes(tagged), tagged);
+  assert.ok(offered.includes('payment_id') && offered.includes('store_code'), 'untagged or ordinary-tagged keys stay (must-keep)');
+  const roles = { entity_id: 'main.s.payments.ref_code' };
+  assert.deepEqual(w.columnRoleProblems(roles, columns), [`entity id main.s.payments.ref_code: ${P.PERSONAL_KEY_REASON}`]);
+  assert.deepEqual(w.columnRoleProblems({ entity_id: 'main.s.payments.store_code' }, columns), []);
+  const uc = { ...STICK_UC, Name: 'Flag risky payments', statement: 'Flag payments for review',
+    elite_assessment: JSON.stringify({ entity_key_column: 'main.s.payments.ref_code' }) };
+  const spec = w.defaultSpecFromUseCase(uc, { warehouseId: 'wh1', inspireDatabase: 'main.inspire', owner: 'amr@example.com' });
+  assert.equal(w.grainCheck(spec, uc, columns, ['main.s.payments']).state, 'personal', 'a tagged key Inspire picked is flagged too');
+  assert.equal(P.personalColumn('ref_code', {}), false, 'without tags the innocent name passes the name rule');
+});

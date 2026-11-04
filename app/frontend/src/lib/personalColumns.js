@@ -6,6 +6,8 @@ export const PERSONAL_TAG_RE = /pii|personal|sensitive|confidential|gdpr|hipaa|\
 export const PERSONAL_KEY_REASON = 'it holds personal or payment details (a card number, an email, a phone, an ID or account number), '
   + 'so it is never the key of the result: pick the id column of the entity instead';
 
+export const TAGS_UNREAD_NOTE = 'Inspire could not read the Unity Catalog tags of this table, so only column names are checked for personal data';
+
 const str = (v) => (v == null ? '' : String(v));
 
 export function personalColumn(name, tags = {}) {

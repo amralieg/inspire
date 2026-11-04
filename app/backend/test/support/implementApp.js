@@ -112,6 +112,10 @@ function makeApp(overrides = {}, { mount } = {}) {
         return { rows: (state.accessBySchema || {})[asked] || state.access };
       }
       if (sql.includes('COUNT_IF(use_case_id')) return { rows: [{ others: String(state.others) }] };
+      if (sql.includes('information_schema.column_tags')) {
+        if (state.tagsError) throw new Error(state.tagsError);
+        return { rows: state.columnTags || [] };
+      }
       if (sql.includes('information_schema.columns') && sql.includes('WITH o AS')) {
         return { rows: state.swapRowsByToken ? state.swapRowsByToken[token] || [] : state.swapRows || [] };
       }

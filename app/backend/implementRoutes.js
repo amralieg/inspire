@@ -16,6 +16,7 @@ const U = require('./lib/ucReads');
 const G = require('../frontend/src/lib/tableName.js');
 const GR = require('./lib/groupingRule');
 const GP = require('./lib/groupingProfile');
+const { TAGS_UNREAD_NOTE, personalColumn } = require('../frontend/src/lib/personalColumns.js');
 const { runWithRequestDeadline } = require('./lib/sqlStatements');
 const { fsApiPath } = require('./lib/workspacePaths');
 const { int64Id, isInt64Id, requireInt64Id, jsonWithInt64Ids } = require('./lib/int64Id');
@@ -130,6 +131,17 @@ function registerImplementRoutes(app, deps) {
     if (token) return token;
     const { error, ...details } = RP.noPersonTokenBody(req.policyKey);
     throw Object.assign(I.badRequest(error, 401), { details });
+  }
+
+  async function readColumnTags(req, token, warehouseId, tables) {
+    const asked = GP.tagsStatement(tables);
+    if (!asked) return { tags: {}, error: '' };
+    try {
+      return { tags: GP.columnTagsOf(await sqlRows(req.dbHost, token, warehouseId, asked)), error: '' };
+    } catch (err) {
+      console.warn(`implement: the column tags of ${tables.join(', ')} could not be read, so only column names are checked for personal data: ${err.message}`);
+      return { tags: {}, error: err.message || String(err) };
+    }
   }
 
   async function implementColumnsOf(host, token, warehouseId, table) {
@@ -575,8 +587,14 @@ function registerImplementRoutes(app, deps) {
       const warehouseId = warehouseOf(req);
       const table = q(req, 'table');
       const statement = I.columnsStatement(table);
-      const rows = await sqlRows(req.dbHost, personReadToken(req), warehouseId, statement);
-      res.json({ table, columns: rows });
+      const token = personReadToken(req);
+      const [rows, read] = await Promise.all([sqlRows(req.dbHost, token, warehouseId, statement), readColumnTags(req, token, warehouseId, [table])]);
+      const prefix = String(table).replace(/`/g, '').toLowerCase();
+      const columns = rows.map((c) => {
+        const tags = read.tags[`${prefix}.${String(c.column_name).toLowerCase()}`] || {};
+        return { ...c, tags, personal: personalColumn(c.column_name, tags) };
+      });
+      res.json({ table, columns, tags_read: !read.error, ...(read.error ? { tags_note: TAGS_UNREAD_NOTE } : {}) });
     } catch (err) {
       sendError(res, err);
     }
@@ -1008,6 +1026,12 @@ function registerImplementRoutes(app, deps) {
     if (problems.length) throw I.badRequest(problems.join('; '));
     const kpiIssues = I.implementKpiTargetProblems(raw, I.implementKpiOptions(useCase, history), history);
     if (kpiIssues.length) throw I.badRequest(kpiIssues.join('; '));
+    const keyRef = spec.data && spec.data.column_roles && spec.data.column_roles.entity_id;
+    if (keyRef && P.personTokenOf(req)) {
+      const read = await readColumnTags(req, P.personTokenOf(req), warehouseId, [keyRef.split('.').slice(0, 3).join('.')]);
+      const personal = I.personalKeyOf(spec, read.tags);
+      if (personal) throw I.badRequest(personal);
+    }
     const assumptionIssues = I.implementAssumptionProblems(spec, I.implementSettingsModel(history));
     if (assumptionIssues.length) throw I.badRequest(`assumption values are out of range: ${assumptionIssues.join('; ')}`);
     const widgets = I.implementWidgets(history, useCase.genie_instruction || useCase.generate_genie_code_instruction || '');

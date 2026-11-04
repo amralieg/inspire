@@ -1036,14 +1036,14 @@ export function isDateKeyColumn(name, type) {
   return columnTypeFamily(type) === 'numeric' && isKeyLikeColumn(name) && nameTokens(name).includes('date');
 }
 
-export function columnRoleProblem(role, column, type, { trainsModel = true } = {}) {
+export function columnRoleProblem(role, column, type, { trainsModel = true, tags = {} } = {}) {
   if (role === 'label' && !trainsModel) return '';
   const family = columnTypeFamily(type);
   const dateKey = isDateKeyColumn(column, type);
   const keyLike = isKeyLikeColumn(column);
   const tokens = nameTokens(column);
   const freeText = family === 'string' && [...ROLE_RULES.textNameTokens, ...ROLE_RULES.personNameTokens].some((t) => tokens.includes(t));
-  if (role === 'entity_id' && personalColumn(column)) return PERSONAL_KEY_REASON;
+  if (role === 'entity_id' && personalColumn(column, tags)) return PERSONAL_KEY_REASON;
   if (role === 'entity_id' && (dateKey || family === 'temporal' || family === 'boolean' || (family === 'numeric' && !keyLike))) {
     return 'a date, a date key or a measure is not the entity the decision acts on';
   }
@@ -1071,7 +1071,7 @@ export function columnRoleProblems(roles, columnsByTable, options = {}) {
     const columns = Object.entries(columnsByTable || {}).find(([t]) => sameTable(t, table))?.[1];
     if (!columns) continue;
     const found = columns.find((c) => String(c.column_name).toLowerCase() === column.toLowerCase());
-    const why = found ? columnRoleProblem(role, found.column_name, found.data_type, options) : `${table} has no column ${column}`;
+    const why = found ? columnRoleProblem(role, found.column_name, found.data_type, { ...options, tags: found.tags }) : `${table} has no column ${column}`;
     if (why) problems.push(`${role.replace('_', ' ')} ${ref}: ${why}`);
   }
   return problems;
@@ -2021,7 +2021,7 @@ export function entityKeyOptions(columnsByTable, tables) {
     const columns = Object.entries(columnsByTable || {}).find(([t]) => sameTable(t, table))?.[1] || [];
     for (const c of columns) {
       const noun = keyNoun(c.column_name);
-      if (noun && !columnRoleProblem('entity_id', c.column_name, c.data_type)) {
+      if (noun && !columnRoleProblem('entity_id', c.column_name, c.data_type, { tags: c.tags })) {
         out.push({ ref: `${table}.${c.column_name}`, table, column: c.column_name, noun });
       }
     }
@@ -2058,7 +2058,9 @@ export function grainCheck(spec, uc, columnsByTable, tables) {
   const keys = entityKeyOptions(columnsByTable, tables);
   const subject = subjectOfUseCase(uc, keys);
   const row = rowKeyOf(spec, uc);
-  if (row && personalColumn(columnOfRef(row.ref))) {
+  const rowColumn = row && (Object.entries(columnsByTable || {}).find(([t]) => sameTable(t, tableOfRef(row.ref)))?.[1] || [])
+    .find((c) => String(c.column_name).toLowerCase() === columnOfRef(row.ref).toLowerCase());
+  if (row && personalColumn(columnOfRef(row.ref), rowColumn?.tags)) {
     const suggest = keys.find((k) => sameTable(k.table, tableOfRef(row.ref)) && (!subject || k.noun === subject.noun)) || null;
     return { state: 'personal', subject, row, rowNoun: '', suggest };
   }

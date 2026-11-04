@@ -341,6 +341,7 @@ export default function ImplementWizard({
   const [checking, setChecking] = useState('');
   const [advanced, setAdvanced] = useState({ data: false, delivery: false });
   const [columnsByTable, setColumnsByTable] = useState({});
+  const [tagNotes, setTagNotes] = useState({});
   const [columnsErrors, setColumnsErrors] = useState({});
   const [preflight, setPreflight] = useState(null);
   const [preflightError, setPreflightError] = useState('');
@@ -505,6 +506,7 @@ export default function ImplementWizard({
     try {
       const data = await apiFetch(`/api/inspire/implement/columns?${q}&table=${encodeURIComponent(table)}`);
       setColumnsByTable((prev) => ({ ...prev, [table]: data.columns || [] }));
+      setTagNotes((prev) => ({ ...prev, [table]: data.tags_read === false ? data.tags_note || '' : '' }));
       setColumnsErrors((prev) => ({ ...prev, [table]: '' }));
     } catch (e) {
       setColumnsErrors((prev) => ({ ...prev, [table]: e.message }));
@@ -1064,6 +1066,7 @@ export default function ImplementWizard({
               check={grainCheck(spec, ucRow, columnsByTable, sourceTables)}
               options={entityKeyOptions(columnsByTable, sourceTables)}
               chosen={spec.data.column_roles.entity_id || ''}
+              tagNotes={sourceTables.filter((t) => tagNotes[t]).map((t) => `${tagNotes[t]}: ${t}.`)}
               inputClass={inputBase}
               onPick={(ref) => setSpec((prev) => withEntityKey(prev, ref))}
             />

@@ -10,6 +10,7 @@ const {
   allowedRule, allowedText, numberText, settingProblem: implementSettingProblem, widgetProblems, widgetSetProblems, widgetValueProblem,
 } = require('../../frontend/src/lib/useCaseSettings.js');
 const { specVibeAsks, vibeRefusalText, vibeRefusals } = require('../../frontend/src/lib/vibeLimits.js');
+const { PERSONAL_KEY_REASON, personalColumn } = require('../../frontend/src/lib/personalColumns.js');
 
 const IMPLEMENT_OPERATION = 'Implement Use Cases';
 const IMPLEMENT_TABLE = '__inspire_implement';
@@ -295,6 +296,16 @@ function legacyAppAccess(history) {
   return outputs && outputs.app && !Object.prototype.hasOwnProperty.call(outputs, 'app_access') ? 'sp' : '';
 }
 
+function personalKeyProblem(ref) {
+  return `column role entity_id ${ref}: ${PERSONAL_KEY_REASON}`;
+}
+
+function personalKeyOf(spec, tags) {
+  const ref = str(spec && spec.data && spec.data.column_roles && spec.data.column_roles.entity_id);
+  if (!ref) return '';
+  return personalColumn(ref.split('.').pop(), tags[ref.toLowerCase()] || {}) ? personalKeyProblem(ref) : '';
+}
+
 function validateImplementSpec(input, { shell = null, legacyAccess = '', impact = null } = {}) {
   const errors = [];
   let spec = input;
@@ -376,6 +387,8 @@ function validateImplementSpec(input, { shell = null, legacyAccess = '', impact 
       errors.push(`column role ${shownValue(role)} is not one of ${IMPLEMENT_COLUMN_ROLES.join(', ')}`);
     } else if (ref === null || (ref && !IMPLEMENT_ROLE_REF_RE.test(ref))) {
       errors.push(`column role ${role} must name catalog.schema.table.column, not ${shownValue(ref === null ? refRaw : ref)}`);
+    } else if (ref && role === 'entity_id' && personalColumn(ref.split('.').pop())) {
+      errors.push(personalKeyProblem(ref));
     } else if (ref) {
       roles[role] = ref;
     }
@@ -3150,6 +3163,8 @@ function quoteColumn(name) {
 }
 
 module.exports = {
+  personalKeyOf,
+  personalKeyProblem,
   IMPLEMENT_OPERATION,
   IMPLEMENT_TABLE,
   IMPLEMENT_STATUSES,

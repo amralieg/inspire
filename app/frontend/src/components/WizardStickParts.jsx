@@ -51,7 +51,7 @@ export function TeamCapacity({ spec, suggestion, inputClass, onType, onSuggest }
   );
 }
 
-export function RowSubjectCheck({ check, options, chosen, inputClass, onPick }) {
+export function RowSubjectCheck({ check, options, chosen, tagNotes = [], inputClass, onPick }) {
   const text = grainText(check);
   if (!text && !options.length) return null;
   const warn = check.state === 'personal' || (check.state === 'mismatch' && !check.row.chosen);
@@ -64,6 +64,7 @@ export function RowSubjectCheck({ check, options, chosen, inputClass, onPick }) 
     >
       <h3 className="text-sm font-semibold text-text-primary">What one row of the result means</h3>
       {text && <p role="status" className={`text-[12px] ${warn ? 'text-warning-fg' : 'text-text-secondary'}`}>{text}</p>}
+      {tagNotes.map((note) => <p key={note} data-tags-unread="" className="text-[12px] text-text-secondary">{note}</p>)}
       {(check.state === 'mismatch' || check.state === 'personal') && (
         <div className="flex flex-wrap gap-3 text-[11px]">
           {check.suggest && (
