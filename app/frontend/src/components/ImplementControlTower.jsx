@@ -17,6 +17,8 @@ const ACTION_ICONS = { stop: Square, start: Play, unpublish: EyeOff, publish: Ey
 const ASSET_ICONS = { build: Hammer, job: Briefcase, dashboard: LayoutDashboard, genie_space: GenieLogo, app: AppWindow, alert: Bell, notebook: NotebookPen };
 const TONE_CHIP = { success: 'success', error: 'error', warning: 'warning', busy: 'red', idle: 'idle' };
 const BUTTON = 'inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium disabled:opacity-50';
+const FIT_BUTTON = 'flex w-full h-7 min-w-0 items-center justify-center gap-1 px-2 rounded-lg text-xs font-medium whitespace-nowrap disabled:opacity-50';
+const fitted = (fit, text) => (fit ? <span className="truncate">{text}</span> : text);
 
 export function ConfirmDialog({ title, confirmLabel, useCaseId, busy, onCancel, onConfirm, children }) {
   const [typed, setTyped] = useState('');
@@ -54,23 +56,26 @@ export function ConfirmDialog({ title, confirmLabel, useCaseId, busy, onCancel, 
   );
 }
 
-function RetryButton({ failed, disabled, lockedReason = '', onRetry }) {
+function RetryButton({ failed, disabled, lockedReason = '', onRetry, fit = false }) {
   return (
     <button type="button" disabled={disabled} onClick={onRetry} title={lockedReason || failed.error || undefined} aria-label={`Retry the ${failed.label}`}
-      className={`${BUTTON} border border-error/40 bg-surface text-error-fg`}>
-      <RotateCcw size={11} /> Retry
+      className={`${fit ? FIT_BUTTON : BUTTON} border border-error/40 bg-surface text-error-fg`}>
+      <RotateCcw size={11} className="shrink-0" /> {fitted(fit, 'Retry')}
     </button>
   );
 }
 
-export function RowControls({ row, active, actionBusy, submitBusy, readOnly = false, failed = null, onAction, onToggleSchedule, onRetry, onOpenRun = null }) {
+export function RowControls({ row, active, actionBusy, submitBusy, readOnly = false, failed = null, onAction, onToggleSchedule, onRetry, onOpenRun = null, fit = false }) {
   const locked = readOnly || active || submitBusy;
   const lockedReason = readOnlyReason(readOnly);
+  const base = fit ? FIT_BUTTON : BUTTON;
+  const named = (text) => (fit ? text : undefined);
   return (
     <>
       {row.run && onOpenRun && (
-        <button type="button" data-open-run={row.run.id} onClick={() => onOpenRun(row.run.id)} className={`${BUTTON} font-semibold text-white bg-db-red-solid hover:opacity-90`}>
-          <PlayCircle size={11} /> {RUN_LINK_LABEL}
+        <button type="button" data-open-run={row.run.id} title={named(RUN_LINK_LABEL)} onClick={() => onOpenRun(row.run.id)}
+          className={`${base} font-semibold text-white bg-db-red-solid hover:opacity-90`}>
+          <PlayCircle size={11} className="shrink-0" /> {fitted(fit, RUN_LINK_LABEL)}
         </button>
       )}
       {row.url && (
@@ -87,23 +92,23 @@ export function RowControls({ row, active, actionBusy, submitBusy, readOnly = fa
             key={key}
             type="button"
             disabled={blocked}
-            title={lockedReason || (blocked && active ? 'Wait for the build to finish, or stop the build first' : undefined)}
+            title={lockedReason || (blocked && active ? 'Wait for the build to finish, or stop the build first' : named(a.label))}
             onClick={() => onAction(a)}
-            className={`${BUTTON} border bg-surface ${a.danger ? 'border-error/40 text-error-fg' : 'border-border text-text-primary'}`}
+            className={`${base} border bg-surface ${a.danger ? 'border-error/40 text-error-fg' : 'border-border text-text-primary'}`}
           >
-            {actionBusy === key ? <Loader2 size={11} className="animate-spin" /> : <Icon size={11} />} {a.label}
+            {actionBusy === key ? <Loader2 size={11} className="shrink-0 animate-spin" /> : <Icon size={11} className="shrink-0" />} {fitted(fit, a.label)}
           </button>
         );
       })}
       {row.schedule && (
-        <button type="button" disabled={locked} title={lockedReason || undefined} onClick={onToggleSchedule} className={`${BUTTON} border border-border bg-surface text-text-primary`}>
-          {row.schedule.on ? <Pause size={11} /> : <Play size={11} />} {row.schedule.label}
+        <button type="button" disabled={locked} title={lockedReason || named(row.schedule.label)} onClick={onToggleSchedule} className={`${base} border border-border bg-surface text-text-primary`}>
+          {row.schedule.on ? <Pause size={11} className="shrink-0" /> : <Play size={11} className="shrink-0" />} {fitted(fit, row.schedule.label)}
         </button>
       )}
-      {failed && <RetryButton failed={failed} disabled={locked} lockedReason={lockedReason} onRetry={onRetry} />}
+      {failed && <RetryButton failed={failed} disabled={locked} lockedReason={lockedReason} onRetry={onRetry} fit={fit} />}
       {!failed && row.lakebaseSwitch && (
-        <button type="button" disabled={locked} title={lockedReason || undefined} onClick={onRetry} className={`${BUTTON} border border-border bg-surface text-text-primary`}>
-          <Zap size={11} /> Switch to Lakebase
+        <button type="button" disabled={locked} title={lockedReason || named('Switch to Lakebase')} onClick={onRetry} className={`${base} border border-border bg-surface text-text-primary`}>
+          <Zap size={11} className="shrink-0" /> {fitted(fit, 'Switch to Lakebase')}
         </button>
       )}
     </>
@@ -178,6 +183,7 @@ const TILE_LOOK = {
   missing: { label: 'Not built', tone: 'warning' },
   held: { label: 'Not published', tone: 'warning' },
   failed: { label: 'Failed', tone: 'error' },
+  building: { label: 'Building', tone: 'busy' },
 };
 
 function tileState(tile) {
@@ -187,16 +193,19 @@ function tileState(tile) {
 }
 
 const TO_BUILD = ['building', 'failed', 'planning', 'held'];
-const TILE_BUTTON = `${BUTTON} border border-border bg-surface text-text-primary`;
+const TILE_BUTTON = `${FIT_BUTTON} border border-border bg-surface text-text-primary`;
+const TILE_DANGER = `${FIT_BUTTON} border border-error/40 bg-surface text-error-fg`;
 
 export function AssetTile({
   id, label, icon = null, tile = null, state = null, href = '', reason = '', row = null, uninstall = null, removeLabel = '', onUninstall = null, failed = null,
   active, actionBusy, submitBusy, readOnly = false, useCaseId, onAction, onToggleSchedule, onRetry, onRemove, onAdd = null, onVersions, onShowBuild, onOpenRun = null,
+  building = false,
 }) {
   const output = tile?.output || { id, label };
   const kind = tile?.kind || (!state ? 'off' : state.tone === 'error' ? 'failed' : 'live');
   const failing = kind === 'failed' || Boolean(failed);
-  const shown = failed || tile?.kind === 'failed' ? TILE_LOOK.failed : tile ? tileState(tile) : state || TILE_LOOK.off;
+  const settled = failed || tile?.kind === 'failed' ? TILE_LOOK.failed : tile ? tileState(tile) : state || TILE_LOOK.off;
+  const shown = building ? TILE_LOOK.building : settled;
   const live = tile ? tile.row || null : row;
   const controls = useAssetControls({ output, row: live, uninstall, useCaseId, submitBusy, actionBusy, onAction, onRemove });
   const Icon = icon || ASSET_ICONS[id];
@@ -214,8 +223,9 @@ export function AssetTile({
         <span className="flex items-center gap-1 text-[13px] font-semibold text-text-primary">
           {label}{link && <ExternalLink size={11} aria-hidden className="shrink-0 text-text-secondary" />}
         </span>
-        <span data-tile-state="" title={shown.label} className={`block truncate text-[11px] font-medium ${off ? 'text-text-secondary' : shown.tone === 'error' ? 'text-error-fg' : 'text-text-secondary'}`}>
-          {shown.label}
+        <span data-tile-state="" title={shown.label} className={`flex items-center gap-1 min-w-0 text-[11px] font-medium ${off ? 'text-text-secondary' : shown.tone === 'error' ? 'text-error-fg' : 'text-text-secondary'}`}>
+          {building && <Loader2 data-tile-spinner="" size={11} aria-hidden className="shrink-0 text-db-red-fg motion-safe:animate-spin" />}
+          <span className="truncate">{shown.label}</span>
         </span>
         {off && tile?.note && <span data-asset-note="" className="mt-0.5 block line-clamp-3 text-[11px] text-text-secondary">{tile.note}</span>}
       </span>
@@ -223,8 +233,9 @@ export function AssetTile({
   );
   const headClass = 'flex items-start gap-2 min-w-0 rounded-lg -m-1 p-1 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-db-red/40';
   return (
-    <li data-asset-tile={id} data-tile-kind={kind} data-tile-building={busy ? (busy.now ? 'now' : 'waiting') : undefined} title={reason || undefined}
-      className={`flex flex-col gap-2 rounded-xl border p-3 text-[12px] ${off ? 'border-dashed border-border-strong bg-bg-subtle/60' : 'border-border bg-surface shadow-sm'}`}>
+    <li data-asset-tile={id} data-tile-kind={kind} data-tile-building={busy ? (busy.now ? 'now' : 'waiting') : undefined} data-tile-animated={building ? '' : undefined}
+      title={reason || undefined}
+      className={`flex flex-col gap-2 min-w-0 rounded-xl border p-3 text-[12px] ${off ? 'border-dashed border-border-strong bg-bg-subtle/60' : 'border-border bg-surface shadow-sm'} ${building ? 'asset-building' : ''}`}>
       {link ? (
         <a data-tile-open="asset" href={link} target="_blank" rel="noreferrer" aria-label={`Open the ${label}`} className={`${headClass} hover:bg-bg-subtle`}>{head}</a>
       ) : toReason ? (
@@ -234,30 +245,32 @@ export function AssetTile({
       ) : (
         <div className={headClass}>{head}</div>
       )}
-      <div className="mt-auto flex flex-wrap items-center gap-1">
+      <div data-tile-actions="" className="mt-auto flex flex-col gap-1">
         {live && (
           <RowControls row={{ ...live, url: '' }} active={active} actionBusy={actionBusy} submitBusy={submitBusy} readOnly={readOnly} failed={failed}
-            onAction={controls.act} onToggleSchedule={onToggleSchedule} onRetry={() => onRetry(output.id)} onOpenRun={onOpenRun} />
+            onAction={controls.act} onToggleSchedule={onToggleSchedule} onRetry={() => onRetry(output.id)} onOpenRun={onOpenRun} fit />
         )}
-        {!live && failed && <RetryButton failed={failed} disabled={locked} lockedReason={lockedReason} onRetry={() => onRetry(output.id)} />}
+        {!live && failed && <RetryButton failed={failed} disabled={locked} lockedReason={lockedReason} onRetry={() => onRetry(output.id)} fit />}
         {off && onAdd && (
-          <button type="button" data-tile-add="" disabled={active} onClick={onAdd} aria-label={`Add the ${label}`} className={TILE_BUTTON}><Plus size={11} /> Add</button>
+          <button type="button" data-tile-add="" disabled={active} onClick={onAdd} aria-label={`Add the ${label}`} title="Add" className={TILE_BUTTON}>
+            <Plus size={11} className="shrink-0" /> {fitted(true, 'Add')}
+          </button>
         )}
         {!off && onVersions && (
-          <button type="button" data-tile-versions="" onClick={onVersions} aria-label={`Versions of the ${label}`} className={TILE_BUTTON}>
-            <History size={11} /> Versions
+          <button type="button" data-tile-versions="" onClick={onVersions} aria-label={`Versions of the ${label}`} title="Versions" className={TILE_BUTTON}>
+            <History size={11} className="shrink-0" /> {fitted(true, 'Versions')}
           </button>
         )}
         {controls.canRemove && (
-          <button type="button" data-tile-uninstall="" disabled={locked || Boolean(uninstall.blocked)} title={uninstall.blocked || lockedReason || undefined}
-            onClick={controls.ask} aria-label={`${uninstall.label} the ${label}`} className={`${BUTTON} border border-error/40 bg-surface text-error-fg`}>
-            <Trash2 size={11} /> {uninstall.label}
+          <button type="button" data-tile-uninstall="" disabled={locked || Boolean(uninstall.blocked)} title={uninstall.blocked || lockedReason || uninstall.label}
+            onClick={controls.ask} aria-label={`${uninstall.label} the ${label}`} className={TILE_DANGER}>
+            <Trash2 size={11} className="shrink-0" /> {fitted(true, uninstall.label)}
           </button>
         )}
         {onUninstall && (
-          <button type="button" data-tile-uninstall="" disabled={locked} title={lockedReason || undefined} onClick={onUninstall}
-            aria-label={`${removeLabel} the ${label}`} className={`${BUTTON} border border-error/40 bg-surface text-error-fg`}>
-            <Trash2 size={11} /> {removeLabel}
+          <button type="button" data-tile-uninstall="" disabled={locked} title={lockedReason || removeLabel} onClick={onUninstall}
+            aria-label={`${removeLabel} the ${label}`} className={TILE_DANGER}>
+            <Trash2 size={11} className="shrink-0" /> {fitted(true, removeLabel)}
           </button>
         )}
       </div>

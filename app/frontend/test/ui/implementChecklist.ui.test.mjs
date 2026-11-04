@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { defaultSpecFromUseCase } from '../../src/lib/implementWizard.js';
 import { HARNESS_INSPIRE_URL, HARNESS_USE_CASE, HARNESS_SETTINGS, HARNESS_SESSION_ID } from './implementFixtures.js';
-import { closeBrowser, lowContrast, onStep, openAsset, openSettings, openUi, setDark, until } from './uiSupport.mjs';
+import { closeBrowser, expandBuild, lowContrast, onStep, openAsset, openSettings, openUi, setDark, until } from './uiSupport.mjs';
 
 const OWNER = ['owner', 'example.com'].join('@');
 const OTHER = ['someone', 'example.com'].join('@');
@@ -70,7 +70,7 @@ async function openBuild(state = STATE) {
   const ui = await openUi('implement', state);
   try {
     await ui.page.getByRole('heading', { name: 'Build', exact: true }).waitFor();
-    await ui.page.locator('[data-mvp-progress]').waitFor({ timeout: 15000 });
+    await expandBuild(ui.page);
   } catch (e) {
     await ui.close();
     throw e;

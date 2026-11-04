@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { defaultSpecFromUseCase } from '../../src/lib/implementWizard.js';
 import { HARNESS_INSPIRE_URL, HARNESS_USE_CASE, HARNESS_SETTINGS, HARNESS_SESSION_ID, MVP_JOB } from './implementFixtures.js';
-import { closeAsset, closeBrowser, featuresBox, featuresHeld, featuresText, lowContrast, openAsset, openFeatures, openSettings, openUi, painted, setDark, until } from './uiSupport.mjs';
+import { closeAsset, closeBrowser, expandBuild, featuresBox, featuresHeld, featuresText, lowContrast, openAsset, openFeatures, openSettings, openUi, painted, setDark, shot, until } from './uiSupport.mjs';
 
 const OWNER = ['owner', 'example.com'].join('@');
 const PAGE = 'app:page:decisions';
@@ -113,7 +113,7 @@ const heldOf = featuresHeld;
 const text = async (el) => (await el.textContent()).trim();
 const storedVibes = (page) => page.evaluate(() => JSON.parse(localStorage.getItem('inspire.collected_vibes.v1') || '{}'));
 
-async function openTower(state = STATE) {
+async function openTower(state = STATE, { expand = true } = {}) {
   const ui = await openUi('implement', state);
   try {
     await ui.page.getByRole('heading', { name: 'Build', exact: true }).waitFor();
@@ -121,6 +121,7 @@ async function openTower(state = STATE) {
     await openAsset(ui.page, 'job');
     await ui.page.getByRole('region', { name: 'History', exact: true }).getByText(/^\d+ spec versions? · /).waitFor({ timeout: 15000 });
     await closeAsset(ui.page);
+    if (expand) await expandBuild(ui.page);
   } catch (e) {
     await ui.close();
     throw e;
@@ -785,10 +786,10 @@ test('a vibe Inspire sent to the App alone rebuilds only the App: the stepper, t
     const progress = page.locator('[data-mvp-progress]');
     await progress.locator('[data-stage="App"][data-stage-state="running"]').waitFor({ timeout: 15000 });
     assert.deepEqual(await stagesOf(page), [
-      ['Plan', 'Vibe, Plan', 'done'], ['Notebook', 'Start Genie Code', 'done'], ['App', 'Rebuild the App', 'running'], ['Finish', 'Done', 'waiting'],
+      ['Job', 'Vibe, Plan', 'done'], ['Notebook', 'Start Genie Code', 'done'], ['App', 'Rebuild the App', 'running'], ['Finish', 'Done', 'waiting'],
     ], 'only the planned stages, each a chip');
     assert.deepEqual(await arrowsOf(page), ['done', 'done', 'todo'], 'a dark arrow after each done stage, a grey one before what is still to come');
-    for (const absent of ['Dashboard', 'Genie Agent', 'Alert', 'Job', 'Vibe', 'Instruction', 'Genie build', 'Preview run']) {
+    for (const absent of ['Dashboard', 'Genie Agent', 'Alert', 'Plan', 'Vibe', 'Instruction', 'Genie build', 'Preview run']) {
       assert.equal(await progress.locator(`[data-stage="${absent}"]`).count(), 0, `the ${absent} stage must not show`);
     }
     const [stop, chips] = await Promise.all([progress.locator('[data-stop-build]'), progress.getByRole('list', { name: 'Build stages' })].map((el) => el.boundingBox()));
@@ -796,7 +797,7 @@ test('a vibe Inspire sent to the App alone rebuilds only the App: the stepper, t
     assert.equal(await text(progress.locator('[data-stop-build]')), 'Stop the build');
     assert.equal(await text(progress.locator('[data-sorted-to]')), 'This build carries 1 change. Inspire sorted it to: App.');
     const pulse = (id) => progress.locator(`[data-stage="${id}"] [class*="animate-pulse"]`);
-    assert.deepEqual([await pulse('App').count(), await pulse('Plan').count()], [1, 0], 'only the current stage pulses');
+    assert.deepEqual([await pulse('App').count(), await pulse('Job').count()], [1, 0], 'only the current stage pulses');
     await page.emulateMedia({ reducedMotion: 'no-preference' });
     assert.notEqual(await pulse('App').evaluate((el) => getComputedStyle(el).animationName), 'none');
     await page.emulateMedia({ reducedMotion: 'reduce' });
@@ -834,8 +835,8 @@ test('before the plan lands, the stepper shows only the vibe and the plan, and e
   const { page } = ui;
   try {
     const progress = page.locator('[data-mvp-progress]');
-    await progress.locator('[data-stage="Plan"][data-stage-state="running"]').waitFor({ timeout: 15000 });
-    assert.deepEqual(await stagesOf(page), [['Plan', 'Vibe, Plan', 'running']], 'never the full list');
+    await progress.locator('[data-stage="Job"][data-stage-state="running"]').waitFor({ timeout: 15000 });
+    assert.deepEqual(await stagesOf(page), [['Job', 'Vibe, Plan', 'running']], 'never the full list');
     await progress.locator('[data-build-headline]').getByText('Inspire is reading your vibe to send each ask to the part it changes…', { exact: true }).waitFor();
     assert.equal(await page.getByRole('progressbar', { name: 'Build progress' }).getAttribute('aria-valuenow'), '0');
     await page.waitForFunction(() => document.querySelector('[data-asset-tile="dashboard"]')?.dataset.tileKind === 'live', null, { timeout: 20000 });
@@ -866,7 +867,7 @@ test('when Inspire puts back what no ask targets, the stepper shows the Self-fix
     const progress = page.locator('[data-mvp-progress]');
     await progress.locator('[data-stage="App"][data-stage-state="done"]').waitFor({ timeout: 15000 });
     assert.deepEqual(await stagesOf(page), [
-      ['Plan', 'Vibe, Plan', 'done'], ['Notebook', 'Start Genie Code', 'done'], ['App', 'Rebuild the App', 'done'], ['Finish', 'Self-fix, Done', 'next'],
+      ['Job', 'Vibe, Plan', 'done'], ['Notebook', 'Start Genie Code', 'done'], ['App', 'Rebuild the App', 'done'], ['Finish', 'Self-fix, Done', 'next'],
     ], 'the Self-fix stage sits in Finish, before Done');
     const list = page.getByRole('region', { name: 'Vibe checklist of v4', exact: true });
     await list.waitFor({ timeout: 15000 });
@@ -1124,3 +1125,194 @@ test('a use case that is building sits at the top of the list and pulses in colo
     await ui.close();
   }
 });
+
+const tileClass = (page, id) => page.locator(`[data-asset-tile="${id}"]`).getAttribute('class');
+const animatedTiles = (page) => page.locator('[data-asset-tiles] [data-asset-tile]')
+  .evaluateAll((tiles) => tiles.filter((t) => t.classList.contains('asset-building')).map((t) => t.dataset.assetTile));
+
+test('while the plan runs, the Job card alone glows with a moving border and a spinner, the line starts at Job with no Plan chip, and less motion holds it still', async () => {
+  const run = { run_id: 5555555555555555, state: { life_cycle_state: 'RUNNING' } };
+  const ui = await openTower({ ...STATE, history: [vibeVersion('queued'), ...HISTORY], steps: [stepRow('Vibe', 'started', 5, { spec_version: 4 })], implementRun: run });
+  const { page } = ui;
+  try {
+    const progress = page.locator('[data-mvp-progress]');
+    await progress.locator('[data-stage="Job"][data-stage-state="running"]').waitFor({ timeout: 15000 });
+    assert.equal(await progress.locator('[data-stage="Plan"]').count(), 0, 'the plan is the job being built');
+    assert.deepEqual(await stagesOf(page), [['Job', 'Vibe, Plan', 'running']]);
+    await page.waitForFunction(() => document.querySelector('[data-asset-tile="dashboard"]')?.dataset.tileKind === 'live', null, { timeout: 20000 });
+    assert.deepEqual(await animatedTiles(page), ['job'], 'only the card whose step is running animates');
+    const job = page.locator('[data-asset-tile="job"]');
+    assert.equal(await job.locator('[data-tile-spinner]').count(), 1);
+    assert.equal(await job.locator('[data-tile-state]').textContent(), 'Building');
+    assert.equal(await page.locator('[data-asset-tiles] [data-tile-spinner]').count(), 1, 'no spinner on a card that is not building');
+    await page.emulateMedia({ reducedMotion: 'no-preference' });
+    const moving = await job.evaluate((el) => ({ names: getComputedStyle(el).animationName, spin: getComputedStyle(el.querySelector('[data-tile-spinner]')).animationName }));
+    assert.deepEqual(moving.names.split(', ').sort(), ['assetBuildingBorder', 'assetBuildingGlow'], 'a pulsing glow and a moving border');
+    await shot(page, 'build-plan-running-job-card');
+    assert.notEqual(moving.spin, 'none');
+    assert.equal(await page.locator('[data-asset-tile="dashboard"]').evaluate((el) => getComputedStyle(el).animationName), 'none', 'a live card that is not building holds still');
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    const still = await job.evaluate((el) => ({ name: getComputedStyle(el).animationName, glow: getComputedStyle(el).boxShadow, spin: getComputedStyle(el.querySelector('[data-tile-spinner]')).animationName }));
+    assert.equal(still.name, 'none', 'no animation for a person who asked for less motion');
+    assert.equal(still.spin, 'none');
+    assert.notEqual(still.glow, 'none', 'but the building card still stands out');
+    assert.equal(await progress.getAttribute('data-progress-open'), 'true', 'a running build shows its progress open');
+    assert.equal(await progress.locator('[data-progress-toggle]').getAttribute('aria-expanded'), 'true');
+    assert.deepEqual(ui.pageErrors, []);
+  } finally {
+    await ui.close();
+  }
+});
+
+test('while Genie rebuilds the App, the App card animates and the Job and Notebook cards do not; Larger gives the log more room', async () => {
+  const steps = [
+    stepRow('Vibe', 'ended_success', 86, { spec_version: 4 }),
+    stepRow('Plan', 'started', 85, { spec_version: 4 }), stepRow('Plan', 'ended_success', 80, { spec_version: 4, plan: APP_PLAN }),
+    stepRow('Genie Code', 'started', 60), stepRow('Genie Code', 'ended_success', 50),
+    stepRow('App', 'started', 30, { spec_version: 4, round: 1, rounds: 3 }),
+  ];
+  const run = { run_id: 5555555555555555, state: { life_cycle_state: 'RUNNING' } };
+  const ui = await openTower({ ...STATE, history: [vibeVersion('building_outputs'), ...HISTORY], steps, implementRun: run });
+  const { page } = ui;
+  try {
+    const progress = page.locator('[data-mvp-progress]');
+    await progress.locator('[data-stage="App"][data-stage-state="running"]').waitFor({ timeout: 15000 });
+    assert.deepEqual(await stagesOf(page), [
+      ['Job', 'Vibe, Plan', 'done'], ['Notebook', 'Start Genie Code', 'done'], ['App', 'Rebuild the App', 'running'], ['Finish', 'Done', 'waiting'],
+    ]);
+    assert.match(await text(progress.locator('[data-stage="Job"]')), /^Job5s/, 'the Job chip carries the plan time');
+    await page.waitForFunction(() => document.querySelector('[data-asset-tile="app"]')?.classList.contains('asset-building'), null, { timeout: 20000 });
+    assert.deepEqual(await animatedTiles(page), ['app']);
+    for (const id of ['job', 'notebook', 'dashboard', 'genie_space']) assert.doesNotMatch(await tileClass(page, id), /asset-building/, id);
+    const log = progress.locator('[data-build-log]');
+    const before = (await log.boundingBox()).height;
+    const larger = progress.getByRole('button', { name: 'Make the build progress larger', exact: true });
+    await larger.click();
+    assert.equal(await progress.getByRole('button', { name: 'Make the build progress smaller', exact: true }).getAttribute('aria-pressed'), 'true');
+    await painted(page);
+    const after = (await log.boundingBox()).height;
+    assert.ok(after > before + 100, `the log grows (${before} -> ${after})`);
+    await shot(page, 'build-app-running-larger');
+    assert.deepEqual(ui.pageErrors, []);
+  } finally {
+    await ui.close();
+  }
+});
+
+const WARNED = 'Notebook: no candidate passed acceptance on the latest run, so every row comes from the fallback seasonal_naive; '
+  + 'Not reliable yet: the latest run marked its results not reliable and wrote why in not_reliable of the run summary, which the App shows';
+const finished = (status, message) => versionRow(4, {
+  status, status_message: message, implement_run_id: '5555555555555555', updated_at: new Date().toISOString(), change_classes: 'outputs',
+  outputs: V3_OUTPUTS, assets: V3_ASSETS, created_at: agoIso(400),
+});
+const doneSteps = [
+  stepRow('Plan', 'started', 250, { spec_version: 4 }), stepRow('Plan', 'ended_success', 190, { spec_version: 4 }),
+  stepRow('Instruction', 'started', 189, { spec_version: 4 }), stepRow('Instruction', 'ended_success', 185, { spec_version: 4 }),
+  stepRow('Genie Code', 'started', 184, { spec_version: 4 }), stepRow('Genie Code', 'ended_success', 176, { spec_version: 4 }),
+  stepRow('Genie build', 'started', 175, { spec_version: 4 }), stepRow('Genie build', 'ended_success', 141, { spec_version: 4 }),
+  stepRow('Preview run', 'started', 140, { spec_version: 4 }), stepRow('Preview run', 'ended_success', 20, { spec_version: 4 }),
+  stepRow('Dashboard', 'started', 19, { spec_version: 4 }), stepRow('Dashboard', 'ended_success', 10, { spec_version: 4 }),
+];
+
+test('a build that finished with warnings folds to one line with its status, version, time, warning count and the warning, and one click opens it again through every poll', async () => {
+  const ui = await openTower({ ...STATE, history: [finished('ready_with_warnings', WARNED), ...HISTORY], steps: doneSteps }, { expand: false });
+  const { page } = ui;
+  try {
+    const progress = page.locator('[data-mvp-progress]');
+    await page.waitForFunction(() => document.querySelector('[data-mvp-progress]')?.dataset.progressOpen === 'false', null, { timeout: 15000 });
+    const toggle = progress.locator('[data-progress-toggle]');
+    assert.equal(await toggle.getAttribute('aria-expanded'), 'false');
+    assert.equal(await toggle.evaluate((el) => el.tagName), 'BUTTON');
+    assert.equal(await progress.getByRole('list', { name: 'Build stages' }).count(), 0, 'no stage chips on the folded line');
+    assert.equal(await progress.locator('[data-build-log]').isVisible(), false, 'the log is folded away');
+    const line = progress.locator('[data-build-summary]');
+    assert.match(await text(line), /^Warnings · Took \d+m \d+s · 2 warnings\s*·\s*Notebook: no candidate passed acceptance/);
+    assert.match(await text(progress), /Build progress · v4/);
+    const reason = progress.locator('[data-build-summary-reason]');
+    assert.equal(await reason.getAttribute('title'), WARNED, 'the full warning on hover');
+    assert.deepEqual(await reason.evaluate((el) => [getComputedStyle(el).whiteSpace, getComputedStyle(el).textOverflow, el.scrollWidth > el.clientWidth]), ['nowrap', 'ellipsis', true],
+      'one line, cut with an ellipsis');
+    assert.ok((await progress.boundingBox()).height < 90, 'one summary line');
+    assert.equal(await animatedTiles(page).then((t) => t.length), 0, 'nothing animates on a finished build');
+    await shot(page, 'build-warnings-folded');
+    await toggle.focus();
+    await page.keyboard.press('Enter');
+    await page.waitForFunction(() => document.querySelector('[data-mvp-progress]')?.dataset.progressOpen === 'true');
+    assert.equal(await progress.locator('[data-progress-toggle]').getAttribute('aria-expanded'), 'true');
+    assert.equal(await text(progress.locator('[data-build-reason]')), WARNED, 'the full warning once opened');
+    assert.deepEqual((await stagesOf(page)).map(([id, , state]) => [id, state]), [['Job', 'done'], ['Notebook', 'done'], ['Dashboard', 'done'], ['Finish', 'warning']]);
+    assert.match(await text(progress.locator('[data-stage="Job"]')), /^Job3m 0s/, 'Job = 1m of planning + 2m of preview run');
+    await shot(page, 'build-warnings-open');
+    await page.waitForResponse((r) => r.url().includes('/implement/status'), { timeout: 15000 });
+    await painted(page);
+    assert.equal(await progress.getAttribute('data-progress-open'), 'true', 'it stays open through a status poll');
+    await progress.locator('[data-progress-toggle]').click();
+    assert.equal(await progress.getAttribute('data-progress-open'), 'false');
+    assert.deepEqual(ui.pageErrors, []);
+  } finally {
+    await ui.close();
+  }
+});
+
+test('a failed build folds too but keeps what you must act on in view', async () => {
+  const failSteps = [stepRow('Plan', 'started', 300, { spec_version: 4 }), stepRow('Plan', 'ended_error', 280, { spec_version: 4 }, 'the warehouse is stopped')];
+  const ui = await openTower({ ...STATE, history: [finished('failed', 'the warehouse is stopped'), ...HISTORY], steps: failSteps }, { expand: false });
+  const { page } = ui;
+  try {
+    const progress = page.locator('[data-mvp-progress]');
+    await page.waitForFunction(() => document.querySelector('[data-mvp-progress]')?.dataset.progressOpen === 'false', null, { timeout: 15000 });
+    await progress.locator('[data-build-attention]').getByRole('region', { name: 'Build failed' }).waitFor();
+    await shot(page, 'build-failed-folded');
+    await progress.locator('[data-progress-toggle]').click();
+    const job = progress.locator('[data-stage="Job"]');
+    assert.equal(await job.getAttribute('data-stage-state'), 'error', 'a failed plan fails the Job');
+    assert.equal(await job.locator('[title]').getAttribute('title'), 'Plan, Preview run: the warehouse is stopped', 'with the plan message');
+    assert.equal(await progress.locator('[data-build-attention]').count(), 0);
+    assert.equal(await progress.getByRole('region', { name: 'Build failed' }).count(), 1, 'the banner moves into the open log, shown once');
+    assert.deepEqual(ui.pageErrors, []);
+  } finally {
+    await ui.close();
+  }
+});
+
+async function tileGeometry(page) {
+  return page.locator('[data-asset-tiles] [data-asset-tile]').evaluateAll((tiles) => tiles.map((t) => {
+    const box = t.getBoundingClientRect();
+    const buttons = [...t.querySelectorAll('[data-tile-actions] button, [data-tile-actions] a')].map((b) => {
+      const r = b.getBoundingClientRect();
+      const label = b.querySelector('.truncate');
+      return { h: Math.round(r.height), w: Math.round(r.width), left: r.left, right: r.right, cut: label ? label.scrollWidth > label.clientWidth : false, title: b.title };
+    });
+    return { id: t.dataset.assetTile, h: Math.round(box.height), w: Math.round(box.width), left: box.left, right: box.right, buttons };
+  }));
+}
+
+for (const [name, width] of [['wide', 1440], ['narrow', 720]]) {
+  test(`the asset cards are one height and their buttons one height, full card width, and a cut label keeps its words in a tooltip (${name} window)`, async () => {
+    const ui = await openTower();
+    const { page } = ui;
+    try {
+      await page.setViewportSize({ width, height: 1000 });
+      await page.waitForFunction(() => document.querySelector('[data-asset-tile="job"] [data-tile-actions] button'), null, { timeout: 20000 });
+      await painted(page);
+      const tiles = await tileGeometry(page);
+      assert.equal(new Set(tiles.map((t) => t.h)).size, 1, `card heights ${JSON.stringify(tiles.map((t) => [t.id, t.h]))}`);
+      const buttons = tiles.flatMap((t) => t.buttons);
+      assert.ok(buttons.length >= 8, `measured ${buttons.length} buttons`);
+      assert.equal(new Set(buttons.map((b) => b.h)).size, 1, `button heights ${JSON.stringify(buttons.map((b) => b.h))}`);
+      for (const t of tiles) {
+        assert.ok(new Set(t.buttons.map((b) => b.w)).size <= 1, `${t.id} buttons share one width`);
+        for (const b of t.buttons) {
+          assert.ok(b.left >= t.left && b.right <= t.right + 0.5, `${t.id} button stays inside its card`);
+          if (b.cut) assert.ok(b.title, `${t.id}: a cut label has a tooltip`);
+        }
+      }
+      const job = tiles.find((t) => t.id === 'job');
+      assert.ok(job.buttons.some((b) => b.title === 'Resume the schedule' || b.title === 'Pause the schedule'), JSON.stringify(job.buttons));
+      await shot(page, `build-cards-${name}`);
+      assert.deepEqual(ui.pageErrors, []);
+    } finally {
+      await ui.close();
+    }
+  });
+}

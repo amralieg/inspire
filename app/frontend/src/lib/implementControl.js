@@ -324,11 +324,17 @@ const DONE = IMPLEMENT_DONE_STATUSES;
 const BUILD_STEP = { queued: 0, checking: 2 };
 const WARNING_START = /; (?=[A-Z][A-Za-z ]{0,40}: )/;
 const savedVibes = (row, id) => String(row?.spec_json?.outputs?.[vibesKey(id)] ?? '').trim();
+const messageParts = (row) => String(row?.status_message || '').split(WARNING_START);
+
+export function statusWarnings(row) {
+  if (String(row?.status || '') !== 'ready_with_warnings') return [];
+  return [...new Set(messageParts(row).map((w) => w.trim()).filter(Boolean))];
+}
 
 export function vibeWarnings(row, id) {
   const label = IMPLEMENT_OUTPUTS.find((o) => o.id === id)?.label || id;
   const lead = `${label} vibe not done: `;
-  const listed = [...String(row?.status_message || '').split(WARNING_START), ...builtWarnings(row, id)];
+  const listed = [...messageParts(row), ...builtWarnings(row, id)];
   return [...new Set(listed.filter((w) => w.includes(lead)).map((w) => w.slice(w.indexOf(lead)).trim()))];
 }
 

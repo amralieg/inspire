@@ -1,15 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
-import path from 'node:path';
 import { buildAgainHint, lostTablesText } from '../../src/lib/implementWizard.js';
 import {
   HARNESS_USE_CASE, HARNESS_SETTINGS, HARNESS_SESSION_ID, MVP_JOB, OWNER, RESULT_TABLE, STUDIO_STATE, built, builtSpec,
 } from './implementFixtures.js';
-import {
-  FAKE_CLOCK, closeAsset, closeBrowser, lowContrast, onStep, openAsset, openFeatures, openSettings, openUi, painted, pollNow, settled, setDark, startMvp, stepsAre, toAppAccess,
-  dataToResults, toVibes, until,
-} from './uiSupport.mjs';
+import { closeAsset, closeBrowser, dataToResults, expandBuild, FAKE_CLOCK, lowContrast, onStep, openAsset, openFeatures, openSettings, openUi, painted, pollNow, setDark, settled, shot, startMvp, stepsAre, toAppAccess, toVibes, until } from './uiSupport.mjs';
 
 const GONE = '[TABLE_OR_VIEW_NOT_FOUND] The table or view `main`.`s`.`returns` cannot be found. Verify the spelling. SQLSTATE: 42P01';
 
@@ -24,16 +19,6 @@ const runPane = (page) => page.getByRole('region', { name: 'Run and schedule', e
 const historyPane = (page) => page.getByRole('region', { name: 'History', exact: true });
 const historyToggle = (page) => historyPane(page).getByRole('button', { name: /^History/ });
 const focusedName = (page) => page.evaluate(() => document.activeElement?.getAttribute('aria-label') || document.activeElement?.textContent?.trim() || '');
-const SHOTS = process.env.PAGE_SHOTS || '';
-
-async function shot(page, name, fullPage = true) {
-  if (!SHOTS) return;
-  fs.mkdirSync(SHOTS, { recursive: true });
-  await page.evaluate(() => document.fonts.ready);
-  await painted(page);
-  await page.screenshot({ path: path.join(SHOTS, `${name}.png`), fullPage });
-}
-
 const VIEW_IDS = ['build', ...TILE_IDS];
 const viewSelector = (id) => (id === 'build' ? '[data-mvp-progress]' : `[data-mvp-panel="${id}"]`);
 const viewOf = (page, id) => page.locator(viewSelector(id));
@@ -727,6 +712,7 @@ test('a version that ended with a warning says why under its status, and a ready
   try {
     await warned.page.getByRole('heading', { name: 'Build', exact: true }).waitFor();
     await warned.page.locator('[data-asset-tile="app"][data-tile-kind="live"]').waitFor({ timeout: 15000 });
+    await expandBuild(warned.page);
     assert.equal(await warned.page.getByRole('region', { name: 'Build failed' }).count(), 0, 'warnings are not a failed build');
     const chip = warned.page.locator('[data-mvp-progress] p', { hasText: /^Warnings$/ }).first();
     await chip.waitFor();
@@ -738,6 +724,7 @@ test('a version that ended with a warning says why under its status, and a ready
   const ready = await openUi('implement', { ...STUDIO_STATE, history: [built({ status_message: 'ready: preview wrote 3 row(s)' })] });
   try {
     await ready.page.locator('[data-asset-tile="app"][data-tile-kind="live"]').waitFor({ timeout: 15000 });
+    await expandBuild(ready.page);
     await ready.page.locator('[data-mvp-progress] p', { hasText: /^Ready$/ }).first().waitFor();
     assert.equal(await ready.page.getByText('ready: preview wrote 3 row(s)').count(), 0);
     await showView(ready.page, 'app');
@@ -757,6 +744,7 @@ test('a version whose run stopped reads as Stopped with the reason and the run, 
   const why = 'the run building v2 ended (CANCELED: Run cancelled) while v2 was still filling. Rebuild in Vibe/Add/Remove Features submits a new version.';
   try {
     await page.getByRole('heading', { name: 'Build', exact: true }).waitFor();
+    await expandBuild(page);
     const failed = page.getByRole('region', { name: 'Build failed' });
     await failed.getByText(why, { exact: true }).waitFor();
     assert.equal(await failed.locator('p').first().innerText(), 'The build stopped');
@@ -886,7 +874,9 @@ test('the Build progress box scrolls Genie\'s messages itself: the page never gr
   try {
     await page.getByRole('heading', { name: 'Build', exact: true }).waitFor();
     await box.getByText('Built the dashboard and checked every tile.').waitFor();
-    await page.locator('[data-stage="Plan"][data-stage-state="done"]', { hasText: '2m 45s' }).waitFor();
+    await page.locator('[data-stage="Job"][data-stage-state="done"]').waitFor();
+    await page.locator('[data-stage="Notebook"][data-stage-state="running"]').waitFor();
+    assert.equal(await page.locator('[data-stage="Plan"]').count(), 0, 'Plan reads as part of the Job');
     assert.equal(await page.locator('[data-asset-panel]').count(), 0, 'the asset drawers stay shut while Genie builds');
     await page.getByRole('region', { name: "Genie's build messages" }).waitFor();
     const text = await box.innerText();
@@ -951,6 +941,7 @@ test('a failed build shows a red banner in the Build progress box with the faile
   const { page } = ui;
   try {
     await page.getByRole('heading', { name: 'Build', exact: true }).waitFor();
+    await expandBuild(page);
     const banner = page.getByRole('region', { name: 'Build failed' });
     await banner.getByText('Step: Genie builds the notebook', { exact: true }).waitFor();
     assert.equal(await viewOf(page, 'build').getByRole('region', { name: 'Build failed' }).count(), 1, 'the banner is part of the Build progress box');
@@ -966,7 +957,7 @@ test('a failed build shows a red banner in the Build progress box with the faile
     await failedStep.waitFor();
     assert.match(await failedStep.locator('[title]').getAttribute('title'), /Genie build/, 'the failed step names the stages it holds');
     assert.deepEqual(await page.locator('[data-mvp-progress] [data-stage]').evaluateAll((els) => els.map((e) => [e.dataset.stage, e.dataset.stageState])).then((rows) => rows.slice(0, 2)),
-      [['Plan', 'done'], ['Notebook', 'error']], 'done is green before the red failed step');
+      [['Job', 'done'], ['Notebook', 'error']], 'done is green before the red failed step');
     await page.locator('[data-mvp-progress] p', { hasText: /^Failed$/ }).first().waitFor();
     assert.equal(await page.locator('[data-mvp-progress] [data-build-reason]').innerText(), FAILED_REASON);
 
@@ -1041,7 +1032,7 @@ test('a build that finishes bursts confetti from the bundled package, never for 
     await page.getByRole('progressbar', { name: 'Build progress' }).waitFor();
     made.state.history = [built({ spec_version: 2 }), built()];
     await pollNow(page);
-    await page.locator('[data-mvp-progress] p', { hasText: /^Ready$/ }).first().waitFor({ timeout: 15000 });
+    await page.locator('[data-mvp-progress][data-progress-open="false"] [data-build-summary]', { hasText: /^Ready/ }).waitFor({ timeout: 15000 });
     await page.clock.runFor(800);
     assert.equal(await canvases(), 0, 'no burst for a person who asked for less motion');
 

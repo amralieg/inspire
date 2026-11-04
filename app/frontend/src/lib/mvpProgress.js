@@ -247,7 +247,7 @@ export function stagesPlanned(stages) {
 export function mvpStages(steps, latest, { now = Date.now(), stalled = null } = {}) {
   const repair = mvpRepairOf(steps, latest);
   const since = repair && repair.step === WHOLE_BUILD ? repair.at : null;
-  const stages = stageList(steps, latest, since).map((stage) => ({ ...stage, state: 'waiting', started: null, ended: null, round: null, rounds: null }));
+  const stages = stageList(steps, latest, since).map((stage) => ({ ...stage, state: 'waiting', started: null, ended: null, round: null, rounds: null, message: '' }));
   const indexOf = (phase) => stages.findIndex((s) => s.id.toLowerCase() === phase.toLowerCase()
     || (s.phases || []).some((p) => p.toLowerCase() === phase.toLowerCase()));
   const rank = { running: 0, done: 1, warning: 2, error: 3 };
@@ -268,6 +268,7 @@ export function mvpStages(steps, latest, { now = Date.now(), stalled = null } = 
       stage.state = state;
       stage.round = roundOf(payload);
       stage.rounds = Number.isInteger(Number(payload.rounds)) && Number(payload.rounds) > 0 ? Number(payload.rounds) : null;
+      stage.message = String(row.message || '').trim();
       seenAt.set(index, at);
     }
   }
@@ -283,7 +284,7 @@ export function mvpStages(steps, latest, { now = Date.now(), stalled = null } = 
       stages.slice(i + 1).forEach((later, offset) => {
         const laterAt = seenAt.get(i + 1 + offset);
         if (laterAt === undefined || laterAt === null || laterAt >= restartedAt) return;
-        Object.assign(later, { state: 'waiting', started: null, ended: null, round: null, rounds: null });
+        Object.assign(later, { state: 'waiting', started: null, ended: null, round: null, rounds: null, message: '' });
         seenAt.delete(i + 1 + offset);
       });
     });
@@ -367,12 +368,16 @@ export function stagesRecorded(stages) {
   return (stages || []).some((s) => s.id !== FINISH_STAGE.id && s.state !== 'skipped');
 }
 
+const JOB_STEP = 'Job';
 const STEP_OF = {
-  [VIBE_STAGE.id]: 'Plan', [PLAN_PHASE]: 'Plan', Instruction: 'Plan', Settings: 'Plan',
-  'Genie Code': 'Notebook', 'Genie build': 'Notebook', 'Preview run': 'Job',
+  [VIBE_STAGE.id]: JOB_STEP, [PLAN_PHASE]: JOB_STEP, Settings: JOB_STEP, 'Preview run': JOB_STEP,
+  Instruction: 'Notebook', 'Genie Code': 'Notebook', 'Genie build': 'Notebook',
   [SELF_FIX_PHASE]: 'Finish', [FINISH_STAGE.id]: 'Finish',
 };
+export const STEP_ASSET = { [JOB_STEP]: 'job', Notebook: 'notebook', ...Object.fromEntries(IMPLEMENT_OUTPUTS.map((o) => [o.label, o.id])) };
 const SETTLED = ['done', 'warning', 'skipped'];
+const REACHED = ['done', 'warning', 'error', 'running', 'next'];
+const LIVE = ['running', 'next'];
 
 function stepState(states) {
   for (const state of ['error', 'running', 'next']) if (states.includes(state)) return state;
@@ -389,19 +394,26 @@ function stepSpan(members) {
 }
 
 export function stageSteps(stages) {
-  const steps = [];
+  const groups = new Map();
   for (const stage of stages || []) {
     const id = STEP_OF[stage.id] || stage.id;
-    const last = steps[steps.length - 1];
-    if (last && last.id === id) last.stages.push(stage);
-    else steps.push({ id, stages: [stage] });
+    if (!groups.has(id)) groups.set(id, []);
+    groups.get(id).push(stage);
   }
-  return steps.map(({ id, stages: members }) => {
-    const state = stepState(members.map((s) => s.state));
+  return [...groups].map(([id, members]) => {
+    const reached = members.filter((s) => REACHED.includes(s.state));
+    const state = stepState((reached.length ? reached : members).map((s) => s.state));
     const now = members.find((s) => s.state === state) || members[members.length - 1];
-    const elapsed = ['running', 'next'].includes(state) ? now.elapsed : ['done', 'warning', 'error'].includes(state) ? stepSpan(members) : '';
-    return { id, label: id, title: members.map((s) => s.label).join(', '), state, elapsed };
+    const elapsed = LIVE.includes(state) ? now.elapsed : ['done', 'warning', 'error'].includes(state) ? stepSpan(members) : '';
+    const message = state === 'error' ? String(now.message || '').trim() : '';
+    const labels = members.map((s) => s.label).join(', ');
+    return { id, label: id, title: message ? `${labels}: ${message}` : labels, state, elapsed, message };
   }).filter((step) => step.state !== 'skipped');
+}
+
+export function buildingAssets(stages, active) {
+  if (!active) return new Set();
+  return new Set(stageSteps(stages).filter((step) => LIVE.includes(step.state)).map((step) => STEP_ASSET[step.id]).filter(Boolean));
 }
 
 export function sortedTo(steps, latest) {

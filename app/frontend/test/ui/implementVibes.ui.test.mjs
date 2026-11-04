@@ -5,8 +5,7 @@ import { createRequire } from 'node:module';
 import path from 'node:path';
 import { defaultSpecFromUseCase } from '../../src/lib/implementWizard.js';
 import { HARNESS_USE_CASE, HARNESS_SETTINGS, HARNESS_SESSION_ID } from './implementFixtures.js';
-import { clippedExamples, closeAsset, closeBrowser, dataToResults, featuresBox, featuresHeld, featuresText, lowContrast, onStep, openAsset, openFeatures, openSettings, openUi, setDark,
-  startMvp, toAppAccess, toVibes, until, wizardFits } from './uiSupport.mjs';
+import { clippedExamples, closeAsset, closeBrowser, dataToResults, expandBuild, featuresBox, featuresHeld, featuresText, lowContrast, onStep, openAsset, openFeatures, openSettings, openUi, setDark, startMvp, toAppAccess, toVibes, until, wizardFits } from './uiSupport.mjs';
 
 const OWNER = ['owner', 'example.com'].join('@');
 const SHOTS = process.env.VIBES_SHOTS || '';
@@ -289,6 +288,7 @@ async function openVibes(state = STATE) {
   try {
     await ui.page.getByRole('heading', { name: 'Build', exact: true }).waitFor();
     await ui.page.locator('[data-asset-tiles]').waitFor({ timeout: 15000 });
+    await expandBuild(ui.page);
   } catch (e) {
     await ui.close();
     throw e;

@@ -33,12 +33,13 @@ import {
   ASSET_TILES, CONTROL_REFRESH_MS, RAIL_WIDTH, REBUILD_NOTHING, assetFilterCounts, assetGroups, assetUninstall, buildSummary, canPublishHeld, checksSummary, collectAsk,
   collectRemoval, collectedScope, controlRows, controlTiles, deliveredOutputs, dropCollected, filterByAsset, filterByMvp, heldVersion, keptVersions,
   loadCollectedVibes, loadRailWidth, missingAsks, railWidth, rebuildSpec, rebuildingText, rephraseOf, rephrasedAsk, removeChanges, removeKeptChanges, rollbackChanges, rollingBackText,
-  saveCollectedVibes, saveRailWidth, tryAgainChanges, uninstallChanges, vibeCards, vibeFeaturesLabel,
+  saveCollectedVibes, saveRailWidth, statusWarnings, tryAgainChanges, uninstallChanges, vibeCards, vibeFeaturesLabel,
 } from '../lib/implementControl';
 import {
-  mvpScope, mvpStages, mvpProgressSummary, mvpRepairOf, feedArrivals, railProgress, sortedTo, statusProgress, steadyFeed, versionPlan, vibeChecklist,
+  buildingAssets, mvpScope, mvpStages, mvpProgressSummary, mvpRepairOf, feedArrivals, railProgress, sortedTo, statusProgress, steadyFeed, versionPlan, vibeChecklist,
 } from '../lib/mvpProgress';
 import MvpProgress, { ProgressLine, ScopeNotes, StageNotes } from '../components/MvpProgress';
+import { useProgressView } from '../lib/progressView';
 import GenieFeed from '../components/GenieFeed';
 import MoneyReview, { NothingToActCard } from '../components/MoneyReview';
 import TargetKpiCard from '../components/TargetKpiCard';
@@ -964,6 +965,7 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
     setDrawer(id);
   };
   const showBuild = () => {
+    progressView.expand();
     boxRef.current?.scrollIntoView?.({ block: 'nearest', behavior: reducedMotion() ? 'auto' : 'smooth' });
     boxRef.current?.focus({ preventScroll: true });
   };
@@ -1047,6 +1049,7 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
   const vibeTargets = vibeCards(status?.history, latest, stalled, workspaceNotebookUrl(databricksHost, notebookPath), plan);
   const pickable = assetGroups(vibeTargets, controlRows(live, latest)).flatMap((group) => group.assets);
   const buildingNow = progress.current?.state === 'running' ? progress.current.id : '';
+  const building = buildingAssets(stages, progress.active);
   const { strips, tiles } = controlTiles(live, latest, { active, buildingNow, plan, stages });
   const stopAction = strips.find((entry) => entry.id === 'build')?.actions?.[0] || null;
   const jobRow = strips.find((entry) => entry.id === 'job') || null;
@@ -1059,6 +1062,7 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
   const kept = keptVersions(history);
   const checklist = useMemo(() => vibeChecklist(status?.steps, latest), [status?.steps, latest]);
   const held = heldVersion(latest, status?.history ?? null);
+  const progressView = useProgressView(useCaseId, progress.active, progress.active || Boolean(held) || Boolean(checklist?.notDecided));
   const heldAction = (kind, run) => async () => {
     setHeldBusy(kind);
     const ok = await run();
@@ -1426,29 +1430,61 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
     active, actionBusy, submitBusy, readOnly, useCaseId, onAction: runControl, onToggleSchedule: toggleSchedule, onRetry: retryOutput, onRemove: removeOutput,
     onShowBuild: showBuild, onOpenRun,
   };
+
   const tileRow = (
-    <ul aria-label="Assets" data-asset-tiles="" className="shrink-0 grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-2">
+    <ul aria-label="Assets" data-asset-tiles="" className="shrink-0 grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 auto-rows-fr gap-2">
       {ASSET_TILES.map(({ id, label }) => {
         if (id === 'notebook') {
           return (
-            <AssetTile key={id} id={id} label={label} {...tileProps} state={notebook?.state || NO_NOTEBOOK} href={notebook?.href || notebook?.runUrl || ''} reason={notebook?.state?.detail || ''}
+            <AssetTile key={id} id={id} label={label} {...tileProps} building={building.has(id)} state={notebook?.state || NO_NOTEBOOK} href={notebook?.href || notebook?.runUrl || ''} reason={notebook?.state?.detail || ''}
               removeLabel="Uninstall" onUninstall={readOnly || !notebook ? null : () => setUninstalling(true)} onVersions={() => openDrawer(id)} />
           );
         }
         if (id === 'job') {
-          return <AssetTile key={id} id={id} label={label} {...tileProps} row={jobRow} state={jobRow?.state || (live ? NO_JOB : CHECKING)}
+          return <AssetTile key={id} id={id} label={label} {...tileProps} building={building.has(id)} row={jobRow} state={jobRow?.state || (live ? NO_JOB : CHECKING)}
             href={workspaceJobUrl(databricksHost, live?.targets?.job)} reason={jobRow?.detail || ''} onVersions={() => openDrawer(id)} />;
         }
         const tile = tiles.find((entry) => entry.output.id === id);
         const failedOne = failedOutputs.find((o) => o.id === id) || null;
         return (
-          <AssetTile key={id} id={id} label={label} {...tileProps} tile={tile} reason={tile.error || failedOne?.error || tile.note || ''}
+          <AssetTile key={id} id={id} label={label} {...tileProps} building={building.has(id)} tile={tile} reason={tile.error || failedOne?.error || tile.note || ''}
             failed={failedOne} uninstall={readOnly ? null : assetUninstall(id, latest, live, tile.row?.name || '')}
             onAdd={readOnly ? null : id === 'alert' ? () => openDrawer(id) : onEdit ? () => onEdit({ step: 'delivery' }, live) : null} onVersions={() => openDrawer(id)} />
         );
       })}
     </ul>
   );
+
+  const attention = (
+    <>
+      {failureBanner}
+      {missing.length > 0 && (
+        <div className="border border-error/30 bg-error-bg rounded-lg px-3 py-2 text-[12px] space-y-2">
+          <p className="text-error-fg">{lostTablesText(missing)}</p>
+          {onEdit && (
+            <button type="button" disabled={active} onClick={() => onEdit({ step: 'data', missingTables: missing }, live)} className={PRIMARY_BUTTON}>
+              <Pencil size={12} /> Edit the Data step
+            </button>
+          )}
+        </div>
+      )}
+      {edited && (
+        <div className="border border-error/30 bg-error-bg rounded-lg px-3 py-2 text-[12px] space-y-2">
+          <p className="text-error-fg">
+            {statusReason(latest) || 'The notebook was edited after Inspire last built it, so this version did not rebuild it.'}
+          </p>
+          <button type="button" disabled={locked} title={lockedReason || undefined} onClick={() => submitNext({ confirm_notebook_overwrite: true })} className={PRIMARY_BUTTON}>
+            {submitBusy ? <Loader2 size={12} className="animate-spin" /> : <RotateCcw size={12} />} Rebuild and overwrite the edits
+          </button>
+        </div>
+      )}
+      {held && (
+        <HeldVersion held={held} checklist={checklist} canPublish={canPublishHeld(status)} readOnly={readOnly} locked={locked} lockedReason={lockedReason}
+          busy={heldBusy} onRephrase={rephraseHeld} onTryAgain={tryHeldAgain} onPublish={publishHeldAnyway} />
+      )}
+    </>
+  );
+  const needsAttention = Boolean(failureBanner) || missing.length > 0 || Boolean(edited) || Boolean(held);
 
   const stop = stopAction && (
     <button type="button" data-stop-build="" disabled={readOnly || actionBusy !== ''} title={lockedReason || undefined} onClick={() => runControl(stopAction)} className={DANGER_BUTTON}>
@@ -1529,32 +1565,7 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
           {collectError && <p className={`${ERROR_BOX} shrink-0`}>{collectError}</p>}
           {tileRow}
           <MvpProgress stages={stages} summary={progress} chip={chip} reason={reason} toneClass={toneClass} version={latest?.spec_version} sorted={sorted}
-            stop={stop} boxRef={boxRef} logRef={logRef}>
-            {failureBanner}
-            {missing.length > 0 && (
-              <div className="border border-error/30 bg-error-bg rounded-lg px-3 py-2 text-[12px] space-y-2">
-                <p className="text-error-fg">{lostTablesText(missing)}</p>
-                {onEdit && (
-                  <button type="button" disabled={active} onClick={() => onEdit({ step: 'data', missingTables: missing }, live)} className={PRIMARY_BUTTON}>
-                    <Pencil size={12} /> Edit the Data step
-                  </button>
-                )}
-              </div>
-            )}
-            {edited && (
-              <div className="border border-error/30 bg-error-bg rounded-lg px-3 py-2 text-[12px] space-y-2">
-                <p className="text-error-fg">
-                  {statusReason(latest) || 'The notebook was edited after Inspire last built it, so this version did not rebuild it.'}
-                </p>
-                <button type="button" disabled={locked} title={lockedReason || undefined} onClick={() => submitNext({ confirm_notebook_overwrite: true })} className={PRIMARY_BUTTON}>
-                  {submitBusy ? <Loader2 size={12} className="animate-spin" /> : <RotateCcw size={12} />} Rebuild and overwrite the edits
-                </button>
-              </div>
-            )}
-            {held && (
-              <HeldVersion held={held} checklist={checklist} canPublish={canPublishHeld(status)} readOnly={readOnly} locked={locked} lockedReason={lockedReason}
-                busy={heldBusy} onRephrase={rephraseHeld} onTryAgain={tryHeldAgain} onPublish={publishHeldAnyway} />
-            )}
+            stop={stop} boxRef={boxRef} logRef={logRef} view={progressView} warnings={statusWarnings(latest).length} attention={needsAttention ? attention : null}>
             <VibeChecklist checklist={checklist} assets={latest?.asset_status} readOnly={readOnly} locked={locked} lockedReason={lockedReason} busy={submitBusy}
               onSendAgain={buildAgain ? () => submitNext(buildAgainChanges(latest)) : undefined} onEdit={onEdit ? () => openFeatures() : undefined} />
             <StageNotes stages={stages} />

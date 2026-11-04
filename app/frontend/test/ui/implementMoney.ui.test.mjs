@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { defaultSpecFromUseCase } from '../../src/lib/implementWizard.js';
 import { HARNESS_USE_CASE, HARNESS_SETTINGS, HARNESS_SESSION_ID } from './implementFixtures.js';
-import { closeBrowser, lowContrast, openAsset, openUi } from './uiSupport.mjs';
+import { closeBrowser, expandBuild, lowContrast, openAsset, openUi } from './uiSupport.mjs';
 
 const OWNER = ['owner', 'example.com'].join('@');
 
@@ -33,6 +33,7 @@ async function openMoney(state) {
   try {
     await ui.page.getByRole('heading', { name: 'Build', exact: true }).waitFor();
     await ui.page.locator('[data-asset-tile="notebook"] [data-tile-versions]').waitFor({ timeout: 15000 });
+    await expandBuild(ui.page);
     const panel = await openAsset(ui.page, 'notebook');
     await panel.getByRole('tablist', { name: 'Pick a part', exact: true }).getByRole('tab', { name: 'Money at stake, Ready', exact: true }).click();
     await panel.locator('[data-vibe-card="value_formula"]').waitFor({ timeout: 15000 });

@@ -7,6 +7,9 @@ import { fileURLToPath } from 'node:url';
 import { createServer } from 'vite';
 import { chromium } from 'playwright';
 import { HARNESS_USE_CASE } from './implementFixtures.js';
+import { expandBuild } from '../../../scripts/showcaseRecorder.mjs';
+
+export { expandBuild };
 
 const frontend = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const { makeApp, listen } = createRequire(import.meta.url)('../../../backend/test/support/implementApp.js');
@@ -50,7 +53,7 @@ export async function openUi(open, overrides = {}, query = '', { mount, init } =
 export async function openBuild(state, { init } = {}) {
   const ui = await openUi('implement', state, '', { init });
   try {
-    await ui.page.locator('[data-mvp-progress]').waitFor({ timeout: 15000 });
+    await expandBuild(ui.page);
     return ui;
   } catch (e) {
     await ui.close();
@@ -180,6 +183,15 @@ export async function settled(page, selector, { loaded = false, timeout = 15000 
     if (steady) return;
   }
   throw new Error(`the layout of ${selector} did not settle in ${timeout} ms`);
+}
+
+export async function shot(page, name, fullPage = true) {
+  const dir = process.env.PAGE_SHOTS || '';
+  if (!dir) return;
+  fs.mkdirSync(dir, { recursive: true });
+  await page.evaluate(() => document.fonts.ready);
+  await painted(page);
+  await page.screenshot({ path: path.join(dir, `${name}.png`), fullPage });
 }
 
 export async function painted(page) {
