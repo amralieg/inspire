@@ -532,3 +532,36 @@ test('full window, the Inspire menu switches use case, opens the page in a new t
     await ui.close();
   }
 });
+
+test('Run shows each MVP\'s last result: when it ran, what it flagged with the money at stake, why nothing is to act on, and that you own it', async () => {
+  const history = [{ ...REGISTRY[1], spec_json: JSON.stringify({ use_case_name: 'Plan shifts', config: { result_table: 'main.inspire.n02_u01_s43_out' }, outputs: { app: true } }) }];
+  const summary = { use_case_id: 'N02-U01', run_id: 'r-7', updated_at: '2026-11-03T06:00:00Z', currency: 'USD', decision_basis: 'measured', act_now_amount: '5000',
+    review_amount: '1000', act_now_records: '3', review_records: '5', records: '40', value_at_stake: '42000', nothing_to_act: null, value_formula: null, value_assumptions: null, accepted: null };
+  const ui = await openRun({ registry: REGISTRY, useCaseScope: SCOPE, hostedRun: hostedFake({ state: 'ready' }), history, moneySummary: [summary] },
+    { 'x-forwarded-access-token': 'user-token', 'x-forwarded-email': OWNER });
+  const { page } = ui;
+  try {
+    await page.locator('[data-run-page="app:43:N02-U01"]').click();
+    const outcome = page.locator('[data-run-outcome]');
+    await outcome.waitFor({ timeout: 15000 });
+    assert.equal(await outcome.locator('[data-run-outcome-when]').textContent(), 'Last run Nov 3, 2026');
+    assert.match(await outcome.locator('[data-run-outcome-flagged]').textContent(), /^The last run flagged 3 Act now and 5 Review of 40 rows, with .*42,000.* at stake on them\.$/);
+    assert.equal(await outcome.locator('[data-run-outcome-why]').count(), 0, 'a run with records to act on has no nothing-to-act reason');
+    assert.equal(await outcome.locator('[data-run-outcome-owner]').textContent(), 'You own this MVP.');
+    assert.deepEqual(ui.pageErrors, []);
+  } finally {
+    await ui.close();
+  }
+  const empty = await openRun({ registry: REGISTRY, useCaseScope: SCOPE, hostedRun: hostedFake({ state: 'ready' }), history: [], moneySummary: [] },
+    { 'x-forwarded-access-token': 'user-token', 'x-forwarded-email': 'someone.else@example.com' });
+  try {
+    await empty.page.locator('[data-run-page="app:43:N02-U01"]').click();
+    const outcome = empty.page.locator('[data-run-outcome]');
+    await outcome.waitFor({ timeout: 15000 });
+    assert.equal(await outcome.locator('[data-run-outcome-flagged]').textContent(), 'No result yet: this MVP has not finished a run.');
+    assert.equal(await outcome.locator('[data-run-outcome-when]').count(), 0);
+    assert.equal(await outcome.locator('[data-run-outcome-owner]').count(), 0, 'someone who does not own the MVP is not told they own it');
+  } finally {
+    await empty.close();
+  }
+});

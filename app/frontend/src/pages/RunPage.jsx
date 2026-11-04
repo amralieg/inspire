@@ -10,6 +10,7 @@ import {
 import { PANEL_CLASS } from '../components/BuildUi';
 import BodyPortal from '../components/BodyPortal';
 import RunScope from '../components/RunScope';
+import { runOutcome } from '../lib/moneyReview';
 
 const STATE_TONE = { ready: 'text-success-fg', starting: 'text-text-secondary', stopped: 'text-text-secondary', failed: 'text-error-fg' };
 const LINK_CLASS = 'inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold';
@@ -184,6 +185,29 @@ function FullView({ page, pages, userAuthorization, note, onSwitch, onBack }) {
 
 const ignore = () => {};
 
+function RunOutcome({ page, apiFetch, query }) {
+  const [money, setMoney] = useState(null);
+  const [error, setError] = useState('');
+  useEffect(() => {
+    let live = true;
+    apiFetch(`/api/inspire/implement/money?${query}&session_id=${encodeURIComponent(page.session_id)}&use_case_id=${encodeURIComponent(page.use_case_id)}`)
+      .then((got) => { if (live) { setMoney(got); setError(''); } })
+      .catch((e) => { if (live) setError(e.message); });
+    return () => { live = false; };
+  }, [apiFetch, query, page.session_id, page.use_case_id]);
+  if (error) return <p role="alert" data-run-outcome-error="" className="text-[12px] text-error-fg">Inspire could not read the last result of this MVP: {error}</p>;
+  if (!money) return <p className="text-[12px] text-text-secondary"><Loader2 size={12} className="inline mr-1 animate-spin" aria-hidden /> Reading the last result</p>;
+  const said = runOutcome(money, { owner: page.owner === true });
+  return (
+    <div data-run-outcome="" aria-label="Last result" className="space-y-0.5 rounded-lg bg-bg-subtle px-3 py-2">
+      {said.when && <p data-run-outcome-when="" className="text-[12px] font-semibold text-text-primary">{said.when}</p>}
+      <p data-run-outcome-flagged="" className="text-[12px] text-text-primary">{said.flagged}</p>
+      {said.why && <p data-run-outcome-why="" className="text-[12px] text-text-secondary">{said.why}</p>}
+      {said.owner && <p data-run-outcome-owner="" className="text-[12px] text-text-secondary">{said.owner}</p>}
+    </div>
+  );
+}
+
 export default function RunPage({ settings, focusId = null, onFocus = ignore, onFull = ignore, showcase = null, notice = '' }) {
   const { token, databricksHost, inspireDatabase, warehouseId } = settings || {};
   const apiFetch = useMemo(() => makeApiFetch({ token, databricksHost }), [token, databricksHost]);
@@ -311,6 +335,7 @@ export default function RunPage({ settings, focusId = null, onFocus = ignore, on
           </nav>
           <section aria-label={chosen ? chosen.name : 'Deployed use case'} className={`${PANEL_CLASS} self-start p-4 space-y-3`}>
             {chosen && <h2 className="text-[15px] font-semibold text-text-primary">{chosen.name}</h2>}
+            {chosen && !showcase && chosen.kind !== RUN_DEMO_KIND && chosen.session_id && <RunOutcome key={`o:${chosenKey}`} page={chosen} apiFetch={apiFetch} query={query} />}
             {chosen && !showcase && chosen.kind !== RUN_DEMO_KIND && chosen.session_id && <RunScope key={chosenKey} page={chosen} settings={settings} />}
             {chosen && runFrameSrc(chosen) && <FrameDetail page={chosen} userAuthorization={userAuthorization} note={note} onOpen={open} />}
             {chosen && !runFrameSrc(chosen) && (chosen.kind === APP_INSIDE || chosen.kind === RUN_DEMO_KIND) && (

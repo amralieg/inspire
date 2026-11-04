@@ -1,4 +1,5 @@
 import { liveImpact, stakeAmount } from './targetKpi.js';
+import { formatDay } from './formatWhen.js';
 
 const lower = (text) => (/^[A-Z][a-z]/.test(text) ? text.charAt(0).toLowerCase() + text.slice(1) : text);
 
@@ -74,3 +75,17 @@ export function historyLines(history, currency) {
     return `${h.changed_by || 'Someone'} set ${assumptionLabel(h.name)}${from} to ${amountText(h.value, h.kind, currency)} in the App${h.note ? `: ${h.note}` : ''}`;
   });
 }
+
+export const RUN_OUTCOME_NONE = 'No result yet: this MVP has not finished a run.';
+
+export function runOutcome(money, { owner = false } = {}) {
+  const run = money?.run || null;
+  const day = run?.updated_at ? formatDay(run.updated_at) : '';
+  return {
+    when: day ? `Last run ${day}` : '',
+    flagged: run ? lastRunText(run) || RUN_OUTCOME_NONE : RUN_OUTCOME_NONE,
+    why: run ? nothingToActText(run) : '',
+    owner: owner ? 'You own this MVP.' : '',
+  };
+}
+
