@@ -76,6 +76,8 @@ SHELL_ENTRY_POINTS = {
     ("implement_app_kept_backend", "shell_pg.page_tables"),
     ("implement_app_kept_backend", "shell_pg.uc_key"),
     ("implement_app_page_problems", "shell_sql.quality_problems"),
+    ("implement_put_back_checked", "shell_sql.quality_problems"),
+    ("implement_put_back_checked", "shell_sql.spec_problems"),
     ("implement_app_page_problems", "shell_sql.spec_problems"),
     ("implement_page_decision_problems", "shell_sql.public_layout"),
     ("implement_layout_brief", "shell_sql.decision_section"),
