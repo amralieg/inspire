@@ -758,9 +758,65 @@ def test_a_gantt_or_a_sankey_must_have_its_shape_and_its_section(change, needle)
     assert any(needle in f for f in found), found
 
 
-def test_a_generic_chart_section_refuses_a_gantt_and_a_sankey_and_the_dashboard_draws_a_gantt_as_bars(agent_ns):
+def test_a_generic_chart_section_refuses_a_gantt_and_a_sankey(agent_ns):
     for kind in ("gantt", "sankey"):
         assert not shell_sql._section_fits("charts", "charts", kind)
         assert shell_sql._section_fits("gantt" if kind == "gantt" else "allocation_flow", "charts", kind)
-    widgets = agent_ns["IMPLEMENT_DASHBOARD_CHART_WIDGETS"]
-    assert widgets["gantt"] == "bar" and "gantt" in shell_sql.LAZY_CHARTS
+    assert "gantt" in shell_sql.LAZY_CHARTS
+
+
+def _gantt_board(agent_ns, tmp_path, change=None):
+    nb_sql = _modules(agent_ns, tmp_path)[1]["shell_sql"]
+    page = planned()
+    if change:
+        change(page["charts"][-2])
+    doc = agent_ns["implement_dashboard_from_page"](page, nb_sql, "main.supply.production_out__plan", {})
+    index = next(i for i, c in enumerate(page["charts"]) if c["id"] == "when")
+    widget = next(item["widget"] for board in doc["pages"] for item in board["layout"] if item["widget"].get("name") == f"chart_{index}")
+    datasets = {d["name"]: d for d in doc["datasets"]}
+    return doc, widget, datasets, index
+
+
+def test_the_dashboard_draws_the_planner_gantt_as_a_table_of_each_line_its_start_end_and_days_never_dates_as_bars(agent_ns, tmp_path):
+    doc, widget, datasets, index = _gantt_board(agent_ns, tmp_path)
+    spec = widget["spec"]
+    assert spec["widgetType"] == "table", spec
+    assert [(c["fieldName"], c["displayName"]) for c in spec["encodings"]["columns"]] == [
+        ("x", "Line"), ("y0", "Start"), ("y1", "End"), ("length", "Days")]
+    query = widget["queries"][0]["query"]
+    assert query["datasetName"] == f"chart_{index}_parts" and query["disaggregated"] is True
+    assert query["orders"] == [{"direction": "ASC", "expression": "`y0`"}]
+    sql = " ".join("".join(datasets[f"chart_{index}_parts"]["queryLines"]).split())
+    assert "MIN(start_date) AS y0, MAX(end_date) AS y1" in sql and "GROUP BY `entity`" in sql, sql
+    assert "DATEDIFF(CAST(y1 AS DATE), CAST(y0 AS DATE)) AS length" in sql, sql
+    assert "ORDER BY y0 ASC NULLS LAST, y1 ASC NULLS LAST, x LIMIT 25" in sql, sql
+    assert "array_contains(:filter_" in sql, "the page's Line filter still narrows the gantt rows"
+    line = next(item["widget"] for item in doc["pages"][0]["layout"] if (item["widget"].get("spec") or {}).get("frame", {}).get("title") == "Line")
+    parts = [q for q in line["queries"] if q["query"]["datasetName"] == f"chart_{index}_parts"]
+    assert len(parts) == 1 and parts[0]["query"]["parameters"][0]["keyword"] in sql, "the Line filter is bound to the gantt's own dataset"
+    drawn = [item["widget"] for board in doc["pages"] for item in board["layout"]
+             if (item["widget"].get("spec") or {}).get("widgetType") in ("bar", "line", "area")
+             and item["widget"]["queries"][0]["query"]["datasetName"] == "schedule"]
+    assert drawn == [], "no bar, line or area draws the start and end dates as values"
+    assert agent_ns["implement_dashboard_problems"](doc) == []
+    assert agent_ns["implement_dashboard_drawn"](planned(), doc)["charts"][index]["type"] == "table"
+
+
+@pytest.mark.parametrize("change,label,length", [
+    (lambda c: [y.update(format="month") for y in c["y"]], "Months",
+     "CAST(months_between(CAST(y1 AS DATE), CAST(y0 AS DATE)) AS INT) AS length"),
+    (lambda c: [y.update(format="number") for y in c["y"]], "Length", "y1 - y0 AS length"),
+])
+def test_the_gantt_table_measures_its_length_in_the_unit_of_its_start_and_end(agent_ns, tmp_path, change, label, length):
+    _doc, widget, datasets, index = _gantt_board(agent_ns, tmp_path, change)
+    assert widget["spec"]["encodings"]["columns"][-1]["displayName"] == label
+    sql = " ".join("".join(datasets[f"chart_{index}_parts"]["queryLines"]).split())
+    assert length in sql and "DATEDIFF" not in sql, sql
+
+
+def test_a_pareto_keeps_its_ranked_combo_beside_the_gantt_table(agent_ns, tmp_path):
+    def pareto(c):
+        c.update(type="pareto", y=c["y"][:1], section="charts")
+    _doc, widget, datasets, index = _gantt_board(agent_ns, tmp_path, pareto)
+    assert widget["spec"]["widgetType"] == "combo"
+    assert agent_ns["implement_dashboard_ranked_parts"]("".join(datasets[f"chart_{index}_parts"]["queryLines"]))
