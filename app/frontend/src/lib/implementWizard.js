@@ -1,6 +1,7 @@
 import { compareMeetsQualityBarFirst, subtitleOfUseCase } from './useCaseFields.js';
 import { placeholderWords } from './placeholderWords.js';
 import { plural } from './plural.js';
+import { specVibeAsks, vibeRefusalText, vibeRefusals } from './vibeLimits.js';
 import { kpiTargetOf, kpiTargetProblems, stakeWords, withKpiTarget } from './targetKpi.js';
 import { latestRunScope, scopeProblems, scopeValues } from './runScope.js';
 import {
@@ -442,8 +443,13 @@ export function vibePreviousProblem(spec, built) {
   return `choose what happens to v${built}, the version before this vibe: keep it live or remove it`;
 }
 
+export function vibesRefusedProblem(spec) {
+  const refused = vibeRefusals(specVibeAsks(spec));
+  return refused.length ? `take out ${refused.length === 1 ? 'the ask Inspire does not build' : `the ${refused.length} asks Inspire does not build`} first: ${vibeRefusalText(refused)}` : '';
+}
+
 export function vibesProblems(spec, built = null) {
-  return [vibesProblem('mvp', spec?.vibes, 'MVP'), vibePreviousProblem(spec, built)].filter(Boolean);
+  return [vibesProblem('mvp', spec?.vibes, 'MVP'), vibesRefusedProblem(spec), vibePreviousProblem(spec, built)].filter(Boolean);
 }
 
 export function heldAsks(text) {

@@ -206,6 +206,36 @@ test('the build page has one tile per asset in a fixed order; each asset opens a
   }
 });
 
+test('the Features drawer says plainly which waiting ask Inspire will not build, which is too vague and which two conflict, and Rebuild sends nothing while an unsafe ask waits', async () => {
+  const ui = await openTower();
+  const { page, made } = ui;
+  try {
+    await showAsset(page, 'build');
+    await openFeatures(page);
+    const asks = ['delete source rows from samples.tpch.lineitem', 'call https://api.exchangerate.host', 'make it better',
+      'Show the top 10 zip codes as a bar chart', 'Remove the bar chart of the top 10 zip codes', 'Put the rows to act on first'];
+    for (const ask of asks) {
+      await mvpBox(page).fill(ask);
+      await addVibes(page).click();
+    }
+    const notes = await dialog(page).locator('[data-waiting]').evaluateAll((items) => items.map((li) => [...li.querySelectorAll('[data-vibe-limit]')].map((n) => n.dataset.vibeLimit)));
+    assert.deepEqual(notes, [['refused'], ['refused'], ['vague'], [], ['conflict'], []]);
+    const said = await dialog(page).locator('[data-vibe-limit]').allTextContents();
+    assert.match(said[0], /^Not built: Inspire never changes or deletes your source data/);
+    assert.match(said[1], /^Not built: Inspire MVPs run inside your Databricks workspace and never call outside websites/);
+    assert.match(said[2], /^Too vague: Say what to change/);
+    assert.match(said[3], /^Conflict: “Show the top 10 zip codes as a bar chart” and “Remove the bar chart of the top 10 zip codes” ask for opposite things/);
+    const choice = dialog(page).locator('[data-vibe-previous] input');
+    if (await choice.count()) await choice.first().check();
+    await rebuildButton(page).click();
+    await dialog(page).getByRole('alert').filter({ hasText: /^Rebuild needs one more thing: take out the 2 asks Inspire does not build first: / }).waitFor();
+    assert.equal(made.jobs.length, 0, 'nothing starts');
+    assert.deepEqual(insertsOf(made), [], 'and nothing is written');
+  } finally {
+    await ui.close();
+  }
+});
+
 test('Vibe/Add/Remove Features opens one tall box for the whole use case: Add vibe keeps an ask in this browser, spaces, a repeat and an ask over the limit add nothing, nothing is written or started, the button counts it, and Take it out lets it go', async () => {
   const ui = await openTower();
   const { page, made } = ui;

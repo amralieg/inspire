@@ -3,6 +3,7 @@ import { Hammer, Loader2, RotateCcw, Settings2, Trash2, Undo2, Wand2 } from 'luc
 import DrawerShell from './DrawerShell';
 import VibesEditor, { VibePrevious } from './VibesEditor';
 import { OPEN_ALL_SETTINGS, VIBES_MAX, VIBE_FEATURES_LABEL, VIBE_ROUTING, heldAsks, vibesLength, vibesProblem } from '../lib/implementWizard';
+import { vibeLimitNotes } from '../lib/vibeLimits';
 import { REBUILD_WAITS, rebuildLabel, removingAsk } from '../lib/implementControl';
 import { capital } from '../lib/targetKpi';
 
@@ -11,16 +12,31 @@ const GREYED = 'inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs 
 const OUTLINE_BUTTON = 'inline-flex shrink-0 items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold border border-border bg-surface text-text-primary hover:bg-bg-subtle disabled:opacity-50';
 const ITEM = 'flex items-start justify-between gap-3 rounded-lg border border-border bg-bg-subtle/60 px-3 py-2 text-[12px]';
 
+const LIMIT_LEAD = { refused: 'Not built: ', vague: 'Too vague: ', conflict: 'Conflict: ' };
+
+function LimitNote({ note }) {
+  const tone = note.kind === 'refused' ? 'text-error-fg' : 'text-text-secondary';
+  return (
+    <span data-vibe-limit={note.kind} role={note.kind === 'refused' ? 'alert' : undefined} className={`block text-[11px] ${tone}`}>
+      <span className="font-semibold">{LIMIT_LEAD[note.kind]}</span>{note.reason}.
+    </span>
+  );
+}
+
 function Waiting({ entries, onDrop }) {
   if (!entries.length) return <p className="text-[12px] text-text-secondary">No changes waiting yet.</p>;
+  const notes = vibeLimitNotes(entries.filter((entry) => entry.kind === 'ask').flatMap((entry) => heldAsks(entry.text)));
   return (
     <ul aria-label="Changes waiting for the next build" className="space-y-1.5">
       {entries.map((entry) => {
         const out = entry.kind === 'remove';
+        const lines = out ? [] : heldAsks(entry.text).map((line) => line.toLowerCase());
+        const mine = notes.filter((note) => lines.includes(note.ask.toLowerCase()));
         return (
           <li key={`${entry.kind}:${entry.id || ''}:${entry.text}`} data-waiting={entry.kind} className={ITEM}>
             <span className="min-w-0 whitespace-pre-line text-text-primary">
               {out && <span className="font-semibold">Take out of the {entry.label}: </span>}“{entry.text}”
+              {mine.map((note) => <LimitNote key={`${note.kind}:${note.reason}`} note={note} />)}
             </span>
             <button type="button" onClick={() => onDrop(entry)} className={OUTLINE_BUTTON}>
               {out ? <Undo2 size={12} /> : <Trash2 size={12} />} {out ? 'Keep it' : 'Take it out'}

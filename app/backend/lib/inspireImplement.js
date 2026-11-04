@@ -9,6 +9,7 @@ const {
 const {
   allowedRule, allowedText, numberText, settingProblem: implementSettingProblem, widgetProblems, widgetSetProblems, widgetValueProblem,
 } = require('../../frontend/src/lib/useCaseSettings.js');
+const { specVibeAsks, vibeRefusalText, vibeRefusals } = require('../../frontend/src/lib/vibeLimits.js');
 
 const IMPLEMENT_OPERATION = 'Implement Use Cases';
 const IMPLEMENT_TABLE = '__inspire_implement';
@@ -1935,6 +1936,8 @@ function planSubmission(history, spec, stalled = null, { requester = null, table
   }
   const refused = publishHeldRefusal(rows, spec, requester);
   if (refused) throw badRequest(refused.message, refused.status);
+  const unsafe = vibeRefusals(specVibeAsks(spec));
+  if (unsafe.length) throw badRequest(`Inspire did not build this version: ${vibeRefusalText(unsafe)}`);
   const built = rows.find((r) => IMPLEMENT_DONE_STATUSES.includes(r.status)) || null;
   if (built && spec.based_on_version != null && built.spec_version > spec.based_on_version) {
     throw badRequest(`v${built.spec_version} was built after the version you edited (v${spec.based_on_version}); `
