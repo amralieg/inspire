@@ -160,6 +160,16 @@ def test_tag_values_fit_the_cloud_of_the_workspace(ns, monkeypatch, host, cap):
     assert alerts["dbx_inspire_ai_alert_ids"] == ("a" * 40 if cap == 63 else f"{'a' * 40},{'b' * 40}")
 
 
+def test_on_serverless_with_no_host_variable_the_spark_workspace_url_names_the_cloud(ns, monkeypatch):
+    launcher = ns["JobLauncher"]
+    monkeypatch.setattr(launcher, "_tag_value_max", None)
+    monkeypatch.delenv("DATABRICKS_HOST", raising=False)
+    conf = types.SimpleNamespace(get=lambda key: "1234567890.6.gcp.databricks.com" if key == "spark.databricks.workspaceUrl" else None)
+    monkeypatch.setitem(ns, "spark", types.SimpleNamespace(conf=conf))
+    assert launcher.tag_value_max() == 63
+    assert len(launcher._sanitize_tag("x" * 300)) == 63
+
+
 def test_the_tag_cap_keeps_twenty_and_drops_the_lowest_priority_inspire_tags(ns, capsys):
     launcher = ns["JobLauncher"]
     inspire = {key: "v" for key in launcher.TAG_PRIORITY}
