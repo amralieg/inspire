@@ -77,7 +77,7 @@ def test_a_new_inspire_address_refreshes_the_app_and_rewrites_only_the_link_line
     lines = alert["custom_description"].split("\n")
     assert f"{RUN_TAB}: {URL_B}/?run={ID}" in lines and not any(URL_A in line for line in lines), "the next email links to the new address"
     assert _rebuilt(inst) == [], "the alert is not rebuilt and its job is not touched"
-    plan = json.loads(next(u for u in inst.updates if u.get("status") == "filling")["status_message"].split("plan: ", 1)[1])
+    plan = next(e for e in inst.emitted if e["step_name"] == "Plan")["result_json"]["plan"]
     assert plan["relink"] == ["alert"] and plan["build"] == [] and plan["refill"] is False
     assert plan["refresh"] == ["dashboard", "app"], "the page and the dashboard link to the Review page of the new address"
     assert inst.dashboards == [URL_B]
@@ -109,7 +109,7 @@ def test_a_move_into_inspire_replaces_the_app_link_of_the_email_once_the_page_is
         _email(agent_ns, app_url=app_url, hosted=""), carried_app={"app_name": "churn-desk", "app_url": app_url},
         live_app={"state": "ready", "spec_version": 2, "backend": "delta"})
     assert status in ("ready", "ready_with_warnings")
-    plan = json.loads(next(u for u in inst.updates if u.get("status") == "filling")["status_message"].split("plan: ", 1)[1])
+    plan = next(e for e in inst.emitted if e["step_name"] == "Plan")["result_json"]["plan"]
     assert plan["build"] == ["app"] and plan["relink"] == [], "the address did not change; the move alone rewrites the link"
     assert inst.dashboards == [], "a move of the App leaves the dashboard as it is"
     lines = alert["custom_description"].split("\n")

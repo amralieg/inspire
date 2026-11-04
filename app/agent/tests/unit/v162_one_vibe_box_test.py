@@ -404,7 +404,10 @@ def test_an_app_ask_on_a_rebuild_rebuilds_only_the_app(agent_ns):
     _llm(inst, {"app": APP_ASK})
     assert _run(inst, dict(VALID, vibes=APP_ASK, vibe_previous="remove")) in ("ready", "ready_with_warnings"), inst.updates[-1]
     assert _built(calls) == ["app"] and not [call for call in calls if call[0] in ("write", "fill")]
-    plan = json.loads(next(update for update in inst.updates if "change_classes" in update)["status_message"][len("plan: "):])
+    filling = next(update for update in inst.updates if "change_classes" in update)
+    assert filling["status_message"] == "Genie refreshes the App"
+    assert not [u for u in inst.updates if "{" in str(u.get("status_message") or "") or str(u.get("status_message") or "").startswith("plan:")]
+    plan = next(e for e in inst.emitted if e["step_name"] == "Plan")["result_json"]["plan"]
     assert (plan["refill"], plan["preview"], plan["build"], plan["refresh"], plan["repoint"]) == (False, False, [], ["app"], [])
     step = _vibe_step(inst)
     assert (step["status"], step["message"], step["result_json"]["lines"]) == ("ended_success", f"sent to App: {APP_ASK}",
@@ -468,3 +471,15 @@ def test_the_same_notebook_ask_the_judge_finds_missing_on_the_built_notebook_sti
         "an ask the built notebook does not meet holds, whatever the notebook before had"
     [entry] = [e for e in inst.updates[-1]["asset_status"]["checklist"] if e["requirement"] == HOLDOUT]
     assert entry["status"] == "not_met" and "already_there" not in entry
+
+
+@pytest.mark.parametrize("plan, said", [
+    ({"refill": True, "build": ["genie_space", "dashboard", "app"], "refresh": [], "rollback": {}},
+     "Genie rebuilds the notebook and builds the Genie Agent, Dashboard and App"),
+    ({"refill": False, "build": [], "refresh": ["dashboard", "app"], "rollback": {"alert": 2}}, "Genie refreshes the Dashboard and App and rolls back the Alert"),
+    ({"refill": False, "build": [], "refresh": [], "rollback": {}, "retable": [], "preview": True}, "Genie keeps everything it built"),
+])
+def test_the_build_status_says_the_plan_in_plain_words_and_never_as_json(agent_ns, plan, said):
+    message = agent_ns["implement_plan_message"](plan)
+    assert message == said
+    assert "{" not in message and "[" not in message and "_" not in message
