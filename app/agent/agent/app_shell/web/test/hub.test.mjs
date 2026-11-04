@@ -745,7 +745,7 @@ test('Your work says plainly why it is empty: loading, nothing mine, a use case 
   Object.values(noOwners.pages).forEach((e) => { Object.assign(e, { tracked: false, items: [] }); });
   const unsigned = { ...INFO(), user: { email: '', name: '' } };
   const cases = [[samOnly, INFO(), 'Nothing is assigned to you right now.'], [failedOne, INFO(), 'Nothing is assigned to you in the use cases that loaded.'],
-    [noOwners, INFO(), 'No use case keeps owners yet, so nothing is assigned to you.'], [HUB, unsigned, 'Sign in to see what is assigned to you.']];
+    [noOwners, INFO(), 'Nobody owns a record yet, so nothing is assigned to you. Open a use case list and press Assign them to me to take the records you will work on.'], [HUB, unsigned, 'Sign in to see what is assigned to you.']];
   for (const [hub, info, said] of cases) {
     const { page, seen, context } = await open(info, { hub });
     const work = page.getByRole('region', { name: 'Your work' });

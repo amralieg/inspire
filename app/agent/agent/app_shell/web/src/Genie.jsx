@@ -2,12 +2,12 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
 import { GenieMark, Icon } from './icons.jsx';
 import { askGenie, explainGenie } from './api.js';
 import { reducedMotion } from './theme.js';
-import { cellText, integer, isKeyColumn } from './format.js';
+import { cellText, integer, isKeyColumn, plainWords } from './format.js';
 import DataTable from './DataTable.jsx';
 import Markdown from './Markdown.jsx';
 import { BUSY_TITLE, explainBody } from './explain.js';
 import { GENIE_DEFAULT, GENIE_MIN, clampGenie, genieMax, keyWidth, rememberGenieWidth, storedGenieWidth } from './genieWidth.js';
-import { GENIE_ASK, genieAnswer, genieKey, genieOf, genieOn } from './genieAsk.js';
+import { GENIE_ASK, genieAnswer, genieKey, genieOf, genieOn, paceText } from './genieAsk.js';
 
 const WORDS_PER_SECOND = 14;
 
@@ -15,8 +15,17 @@ function answerColumns(answer) {
   const rows = answer.rows || [];
   return (answer.columns || []).map((c) => {
     const num = !isKeyColumn(c.name, c.type) && rows.some((r) => typeof r[c.name] === 'number') && rows.every((r) => r[c.name] == null || typeof r[c.name] === 'number');
-    return { key: c.name, label: c.name, num, render: (r) => (r[c.name] == null ? '' : cellText(r[c.name], c)) };
+    return { key: c.name, label: plainWords(c.name), num, render: (r) => (r[c.name] == null ? '' : cellText(r[c.name], c)) };
   });
+}
+
+function Pace({ since }) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, []);
+  return <small className="g-pace" data-pace>{paceText((now - since) / 1000)}</small>;
 }
 
 const recordQuestions = (entity) => [`Show the history of this ${entity}`, 'Are there others like this?', 'What happens if we do nothing?'];
@@ -295,7 +304,7 @@ export default function GeniePanel({ app, genie, page, pages, onPick, onClose })
         ) : (
           <div key={m.n} className="msg msg--genie">
             <span className="msg-av"><GenieMark size={14} /></span>
-            {m.state === 'running' && <div className="msg-b"><span className="g-step"><span className="dots"><i /><i /><i /></span>{m.step}…</span></div>}
+            {m.state === 'running' && <div className="msg-b"><span className="g-step"><span className="dots"><i /><i /><i /></span>{m.step}…</span><Pace since={m.n} /></div>}
             {m.state === 'failed' && <div className="msg-b"><p className="g-err">{m.error}</p></div>}
             {m.state === 'done' && <Answer message={m} url={info.url} onTick={tick} />}
           </div>

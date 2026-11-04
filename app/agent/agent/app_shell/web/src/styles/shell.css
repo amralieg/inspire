@@ -89,6 +89,9 @@ button,input,select,textarea{font:inherit;color:inherit}
 .kpi-v{font-size:28px;font-weight:700;letter-spacing:-.02em;margin-top:4px;font-variant-numeric:tabular-nums}
 .kpi-s{font-size:12px;color:var(--muted);margin-top:2px}
 .kpi-scope{font-size:11px;color:var(--muted);margin-top:2px}
+.scope-banner{font-size:12px;margin:0 0 8px}
+.quiet-n{display:flex;gap:8px;margin:8px 16px;padding:10px 12px;border-radius:8px;background:var(--well);font-size:13px}
+.quiet-n p{margin:4px 0 0;color:var(--muted)}
 .delta{font-weight:700}
 .delta.is-good{color:var(--green-ink)}
 .delta.is-bad{color:var(--danger)}

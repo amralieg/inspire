@@ -3,6 +3,14 @@ import { genieMessage } from './api.js';
 export const GENIE_ASK = 'inspire:genie-ask';
 const POLL_MS = 1500;
 const GIVE_UP_MS = 180000;
+export const GENIE_USUAL_S = [20, 90];
+
+export function paceText(seconds) {
+  const s = Math.max(0, Math.floor(Number(seconds) || 0));
+  if (s >= GIVE_UP_MS / 1000) return `${s} s: Genie stops at 3 minutes`;
+  if (s > GENIE_USUAL_S[1]) return `${s} s: longer than usual, Genie keeps working for up to 3 minutes`;
+  return `${s} s so far: answers usually take ${GENIE_USUAL_S[0]} to ${GENIE_USUAL_S[1]} seconds`;
+}
 
 export async function genieAnswer(pageId, started, { onStep = () => {}, alive = () => true } = {}) {
   const until = Date.now() + GIVE_UP_MS;

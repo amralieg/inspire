@@ -1,4 +1,4 @@
-import { asDate, cap, countOf, dayLabel, formatValue, grouped, integer, isAmount, isCurrency, plainText, savedVerb, savedWords, shownUnit, wholeMoney } from './format.js';
+import { asDate, cap, countOf, dayLabel, formatValue, grouped, integer, isAmount, isCurrency, plainText, plainWords, savedVerb, savedWords, shownUnit, wholeMoney } from './format.js';
 
 const LONG_TEXT = /(action|note|comment|description|reason|summary|detail|explanation|why)/i;
 const NUMBER = /^[-+]?(\d+\.?\d*|\.\d+)([eE][-+]?\d+)?$/;
@@ -248,6 +248,30 @@ export function recordCurrency(meta, current, row) {
   return [current?.currency, row?.currency, listed('value_at_stake', meta)?.currency].find((c) => isCurrency(c)) || '';
 }
 
+export function claimTarget(rows, person, limit = 200) {
+  const open = (rows || []).filter((r) => recordKeyOf(r) != null && r?._inspire_version && !isClosed(r));
+  if (!String(person || '').trim() || !open.length || open.some((r) => String(r._inspire_owner || '').trim())) return null;
+  const mine = open.slice(0, limit);
+  return { record_keys: mine.map((r) => String(recordKeyOf(r))), seen: Object.fromEntries(mine.map((r) => [String(recordKeyOf(r)), String(r._inspire_version)])) };
+}
+
+export const claimText = (n) => `Nobody owns these records yet, so My work stays empty for everyone. Take the ${n === 1 ? 'one' : n} on this page, or assign each one to the person who will work it.`;
+
+export const QUIET_MIN = 3;
+export const RAISE_CONFIDENCE = 'What would raise it: more history for each item, so the forecast can beat a simple guess; fixing the data quality issues flagged on the rows; and a run on every group instead of the first run only.';
+
+export function quietList(rows, meta, aliases = {}) {
+  const list = rows || [];
+  if (list.length < QUIET_MIN) return null;
+  const levels = list.map((r) => aiValue('confidence_level', null, r, { confidence_level: '_inspire_confidence_level', ...aliases }));
+  if (!levels.every((l) => l === 'Low')) return null;
+  const actions = new Set(list.map((r) => (meta?.action ? plainText(r?.[meta.action]).trim() : '')));
+  const action = actions.size === 1 ? [...actions][0] : '';
+  const why = list.map((r) => aiValue('ai_confidence_reason', null, r, aliases)).find(Boolean) || '';
+  const said = action ? `, so the suggested action on each one is “${action}”` : '';
+  return { title: `All ${list.length} rows on this list are low confidence${said}.`, why: why ? `Why: ${why}` : '', raise: RAISE_CONFIDENCE };
+}
+
 export function recordView(meta, current, row, aliases = {}, unit = '', kind = '') {
   const get = (name) => aiValue(name, current, row, aliases);
   const level = get('confidence_level');
@@ -312,14 +336,13 @@ function listed(name, meta) {
 
 export function columnLabel(name, meta, unit = '', kind = '') {
   const known = listed(name, meta);
-  if (known?.label) return known.label;
+  if (known?.label) return plainWords(known.label);
   const roles = { [meta?.label]: meta?.label_title || 'Item', [meta?.tier]: 'Priority tier', [meta?.rank]: 'Rank', [meta?.action]: 'Recommended action',
     [meta?.reasons]: 'Why it is on the list', [meta?.key]: 'Id' };
   if (name && roles[name]) return roles[name];
   if (name === 'realized_value') return cap(savedWords(unit, kind));
   if (ACTION_LABELS[name]) return ACTION_LABELS[name];
-  const words = String(name || '').replace(/_+/g, ' ').trim();
-  return words.charAt(0).toUpperCase() + words.slice(1);
+  return plainWords(String(name || '')) || '';
 }
 
 export function inputOf(field, value) {

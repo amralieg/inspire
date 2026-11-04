@@ -162,10 +162,12 @@ function Things({ rows, filtered, onClear, ...rest }) {
   return <ThingRows rows={rows} {...rest} />;
 }
 
+export const NO_OWNERS = 'Nobody owns a record yet, so nothing is assigned to you. Open a use case list and press Assign them to me to take the records you will work on.';
+
 function workEmpty({ failed, signedIn, owners, partial }) {
   if (failed) return 'Your work could not load.';
   if (!signedIn) return 'Sign in to see what is assigned to you.';
-  if (!owners) return 'No use case keeps owners yet, so nothing is assigned to you.';
+  if (!owners) return NO_OWNERS;
   return partial ? 'Nothing is assigned to you in the use cases that loaded.' : 'Nothing is assigned to you right now.';
 }
 

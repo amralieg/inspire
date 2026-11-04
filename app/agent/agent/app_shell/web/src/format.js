@@ -73,7 +73,7 @@ export function compact(n, digits = 1) {
   if (a >= 1e9) return sign + (a / 1e9).toFixed(2).replace(/\.?0+$/, '') + 'B';
   if (a >= 1e6) return sign + (a / 1e6).toFixed(2).replace(/\.?0+$/, '') + 'M';
   if (a >= 1e3) return sign + (a / 1e3).toFixed(digits).replace(/\.0$/, '') + 'K';
-  return sign + (a % 1 ? a.toFixed(2) : String(a));
+  return sign + (a % 1 ? a.toFixed(2).replace(/\.?0+$/, '') : String(a));
 }
 
 const SYMBOLS = { USD: '$', EUR: '€', GBP: '£', AED: 'AED ', SAR: 'SAR ', JPY: '¥', INR: '₹' };
@@ -196,6 +196,63 @@ export function isKeyColumn(name, type) {
   return words.some((w) => KEY_WORDS.has(w) || KEY_ENDINGS.test(w));
 }
 
+const wordList = (name) => String(name ?? '').replace(/([a-z0-9])([A-Z])/g, '$1_$2').toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+const COUNT_WORDS = new Set(['unit', 'units', 'qty', 'count', 'counts', 'orders', 'items', 'pieces', 'pcs', 'customers', 'people', 'visits', 'trips', 'calls',
+  'tickets', 'cases', 'decisions', 'records', 'rows', 'shipments', 'packages', 'transactions', 'sessions', 'users', 'employees', 'patients', 'beds', 'seats',
+  'vehicles', 'stores', 'issues', 'alerts', 'claims', 'loans', 'accounts', 'members', 'products', 'skus', 'lines', 'boxes', 'pallets', 'cartons', 'loaves']);
+const SPREAD_WORDS = new Set(['avg', 'average', 'mean', 'per', 'rate', 'ratio', 'share', 'pct', 'percent', 'percentage', 'mase', 'mape', 'error', 'score', 'std', 'variance', 'probability', 'prob']);
+
+export function isCountable(...names) {
+  return names.some((name) => {
+    const words = wordList(name);
+    return words.some((w) => COUNT_WORDS.has(w)) && !words.some((w) => SPREAD_WORDS.has(w));
+  });
+}
+
+export const wholeFormat = (format, ...names) => ((!format || format === 'number') && isCountable(...names) ? 'integer' : format);
+
+const JARGON = [
+  [/\berror\s*\(\s*mase\s*\)|\bmase\b/gi, 'forecast error vs a simple guess'],
+  [/\bs?mape\b/gi, 'forecast error %'],
+  [/\bp50\b|\bmedian forecast\b/gi, 'likely'],
+  [/\bp(?:9[05]|8[05])\b/gi, 'high case'],
+  [/\bp(?:0?5|10|15|20)\b/gi, 'low case'],
+  [/\bquantiles?\b/gi, 'range'],
+  [/\bqty\b/gi, 'quantity'],
+  [/\bpct\b/gi, '%'],
+];
+
+export function plainWords(text) {
+  if (text == null || typeof text !== 'string') return text;
+  const raw = text.trim();
+  const code = /_/.test(raw) || /^[A-Z0-9 ]+$/.test(raw) || /^[a-z]+[A-Z]/.test(raw);
+  let out = code ? wordList(raw).join(' ') : raw;
+  JARGON.forEach(([from, to]) => { out = out.replace(from, to); });
+  out = out.replace(/\s+/g, ' ').trim();
+  return out ? out.charAt(0).toUpperCase() + out.slice(1) : raw;
+}
+
+export function plainChart(chart) {
+  const y = Array.isArray(chart?.y) ? chart.y.map((s) => ({ ...s, label: plainWords(s.label), format: wholeFormat(s.format, s.label) })) : chart?.y;
+  return { ...chart, y, ...(chart?.x ? { x: { ...chart.x, label: plainWords(chart.x.label) } } : {}) };
+}
+
+const NAME_ENDINGS = ['name', 'label', 'title', 'description', 'desc'];
+
+export function entityName(row, column) {
+  const v = row?.[column];
+  if (v == null || v === '') return '';
+  if (!isKeyColumn(column) || /[A-Za-z]/.test(String(v))) return plainText(v);
+  const stem = wordList(column).filter((w) => !KEY_WORDS.has(w) && !KEY_ENDINGS.test(w)).join('_');
+  const norm = (k) => wordList(k).join('_');
+  const wanted = stem ? [...NAME_ENDINGS.map((e) => `${stem}_${e}`), stem] : NAME_ENDINGS;
+  const named = Object.keys(row).filter((k) => k !== column && wanted.includes(norm(k)))
+    .sort((a, b) => wanted.indexOf(norm(a)) - wanted.indexOf(norm(b)))
+    .find((k) => /[A-Za-z]/.test(String(row[k] ?? '')));
+  if (named) return plainText(row[named]);
+  return `${cap(stem.replace(/_/g, ' ') || 'item')} ${plainText(v)}`;
+}
+
 export function fullNumber(v) {
   if (bigWhole(v) != null) return integer(v);
   const n = Number(v);
@@ -207,16 +264,17 @@ export function cellText(v, column = {}) {
   if (v == null || v === '') return NOT_RECORDED;
   const name = column.column ?? column.name;
   if (isKeyColumn(name, column.type) && (!column.format || ['number', 'integer', 'text'].includes(column.format))) return plainText(v);
-  if (column.format === 'number' || column.format === 'integer') return isAmount(v) ? fullNumber(v) : plainText(v);
+  const whole = isCountable(name, column.label);
+  if (column.format === 'number' || column.format === 'integer') return isAmount(v) ? (whole ? integer(v) : fullNumber(v)) : plainText(v);
   if (column.format) return formatValue(v, column.format, column.currency);
   const numeric = typeof v === 'number' || typeof v === 'bigint' || NUMERIC_TYPE.test(String(column.type || ''));
-  return numeric && isAmount(v) ? fullNumber(v) : plainText(v);
+  return numeric && isAmount(v) ? (whole ? integer(v) : fullNumber(v)) : plainText(v);
 }
 
 export function axisValue(v, format, currency) {
-  if (format === 'currency') return money(v, currency, 0);
+  if (format === 'currency') return money(v, currency, 1);
   if (format === 'percent') return `${Number(v).toFixed(0)}%`;
-  return compact(v, 0);
+  return compact(v, 1);
 }
 
 export function change(now, before) {
@@ -252,7 +310,7 @@ export function storyPieces(story, kpis, data) {
     }
     const value = data?.[kpi.id];
     if (!m[2]) {
-      out.push({ text: formatValue(value?.now, kpi.format, kpi.currency), strong: true });
+      out.push({ text: formatValue(value?.now, wholeFormat(kpi.format, kpi.label, kpi.unit, kpi.id), kpi.currency), strong: true });
       continue;
     }
     const d = change(value?.now, value?.before);

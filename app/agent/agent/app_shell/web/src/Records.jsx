@@ -7,7 +7,9 @@ import { askGenie, genieOn } from './genieAsk.js';
 import { BUSY_TITLE, fieldsOf, tableContext } from './explain.js';
 import { AskGenie } from './AskGenie.jsx';
 import { withRecord, withoutRecord } from './links.js';
-import { addCounts, addedParts, cap, compareValues, dayLabel, formatValue, integer, kindOf, plainText, savedWords, shownUnit, unitOf } from './format.js';
+import { addCounts, addedParts, cap, compareValues, dayLabel, entityName, formatValue, integer, kindOf, plainText, savedWords, shownUnit, unitOf } from './format.js';
+
+export const recordName = (row, meta) => entityName(row, meta?.label);
 import { hueVars } from './theme.js';
 import { Failure, Popover, Skeleton, useDebounced, useDialog, useToast } from './ui.jsx';
 import { failureOf, getRecords, toneOf } from './api.js';
@@ -27,7 +29,7 @@ import {
   missingSince, NOT_IN_RUN, notInRunText, overdueFirst, pageText, recordCurrency, recordKeyOf, recordRef, recordView, recordsText, savingText, statusClass,
   statusLabel, actError, withoutWindow, NO_AS_OF, listAsOf,
   CODES, isStaleRecord, closedText, closedBatchOf, undoBatchOf, UNDO_CLOSE, isClosed, skippedText, READ_ONLY, READ_ONLY_KEPT, READ_ONLY_THEIRS,
-  CLOSED_PICK, ACCEPTED, acceptable, acceptedText,
+  CLOSED_PICK, ACCEPTED, acceptable, acceptedText, quietList, claimTarget, claimText,
 } from './records.js';
 
 const tierClass = (t) => `tier tier--${String(t).toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
@@ -269,7 +271,7 @@ function Drawer({ meta, row: given, onClose, history, canModify, tracker, owners
   const current = log.data?.current || null;
   const row = given && current && given[meta.label] == null ? { ...current, ...given } : given;
   const deleted = !!log.data?.deleted;
-  const title = (row && plainText(row[meta.label])) || 'This record';
+  const title = (row && recordName(row, meta)) || 'This record';
   const action = useAction(log.data, person, acts, title);
   const reason = useRef(null);
   const ownerInput = useRef(null);
@@ -517,9 +519,10 @@ export default function Records({ meta, app, pageId, filters, ai, onFilter, hist
   const person = app.user?.email || '';
   const canModify = !!(history && app.options.modify);
   const keyOf = useCallback((r) => String(recordKeyOf(r) ?? r?.[meta.key] ?? ''), [meta.key]);
+  const quiet = quietList(rows, meta, aliases);
   const labelOf = (c) => {
     const row = rows.find((r) => keyOf(r) === String(c.record_key));
-    return row ? plainText(row[meta.label]) : plainText(c.label ?? c.record_key ?? '');
+    return row ? recordName(row, meta) : plainText(c.label ?? c.record_key ?? '');
   };
   const isNew = (r) => {
     const at = Number(r?._inspire_version) / 1000;
@@ -555,6 +558,7 @@ export default function Records({ meta, app, pageId, filters, ai, onFilter, hist
   const tableRows = late.rows;
   const actable = rows.filter((r) => tracker && recordKeyOf(r) != null && r._inspire_version);
   const pickable = actable.filter((r) => !isClosed(r));
+  const claim = tracker ? claimTarget(pickable, person, ACT_LIMIT) : null;
   const allPicked = pickable.length > 0 && pickable.every((r) => picked.has(String(recordKeyOf(r))));
   const pickRows = (on, targets) => {
     const next = new Map(picked);
@@ -613,7 +617,7 @@ export default function Records({ meta, app, pageId, filters, ai, onFilter, hist
     if (key == null || !row._inspire_version) return;
     try {
       await acts.act({ record_keys: [String(key)], seen: { [String(key)]: String(row._inspire_version) } }, values,
-        { said, about: { record_key: String(key), label: plainText(row[meta.label]) || String(key) } });
+        { said, about: { record_key: String(key), label: recordName(row, meta) || String(key) } });
     } catch (err) {
       toast(err.message, toneOf(err));
     }
@@ -752,7 +756,7 @@ export default function Records({ meta, app, pageId, filters, ai, onFilter, hist
       render: (r) => (
         <label className="pick-l" onClick={(e) => e.stopPropagation()}>
           <input type="checkbox" checked={(!!matching && !isClosed(r)) || picked.has(String(recordKeyOf(r)))} disabled={!r._inspire_version || !!matching || isClosed(r)}
-            onChange={() => pickRows(!picked.has(String(recordKeyOf(r))), [r])} aria-label={`Select ${plainText(r[meta.label])}`} title={isClosed(r) ? CLOSED_PICK : undefined} />
+            onChange={() => pickRows(!picked.has(String(recordKeyOf(r))), [r])} aria-label={`Select ${recordName(r, meta)}`} title={isClosed(r) ? CLOSED_PICK : undefined} />
         </label>
       ),
     }] : []),
@@ -761,12 +765,12 @@ export default function Records({ meta, app, pageId, filters, ai, onFilter, hist
       key: meta.label, label: meta.label_title || 'Item', className: 'wrap',
       render: (r) => {
         const why = aiValue('ai_explanation', null, r, aliases);
-        const [segment, key] = addedParts(r[meta.label], [meta.sublabel ? r[meta.sublabel] : '', r[meta.key]]);
+        const [segment, key] = addedParts(recordName(r, meta), [meta.sublabel ? r[meta.sublabel] : '', r[meta.key]]);
         const sub = [key, segment].filter(Boolean).join(' · ');
         return (
           <>
             <button className="cell-t" onClick={(e) => { e.stopPropagation(); setOpen(r); }}>
-              <b>{plainText(r[meta.label])}</b>{sub && <small>{sub}</small>}
+              <b>{recordName(r, meta)}</b>{sub && <small>{sub}</small>}
             </button>
             {why && <span className="cell-ai">{why}</span>}
             {CHANGE_TAGS[r.change_source] && <span className="tag">{CHANGE_TAGS[r.change_source]}</span>}
@@ -793,14 +797,14 @@ export default function Records({ meta, app, pageId, filters, ai, onFilter, hist
         key: '_accept', label: 'Suggested action', hideLabel: true, fixed: true, className: 'nowrap',
         render: (r) => (acceptable(meta, r) ? (
           <button type="button" className="btn btn--sm" data-accept={keyOf(r)} onClick={stop(() => quick(r, ACCEPTED, acceptedText(1)))}
-            aria-label={`Accept the suggested action on ${plainText(r[meta.label])}`}><Icon name="check" size={13} />Accept</button>
+            aria-label={`Accept the suggested action on ${recordName(r, meta)}`}><Icon name="check" size={13} />Accept</button>
         ) : ''),
       }] : []),
     ] : []),
     ...(canModify ? [{
       key: '_actions', label: 'Actions', hideLabel: true, fixed: true, className: 'act',
       render: (r) => {
-        const name = plainText(r[meta.label]);
+        const name = recordName(r, meta);
         return (
           <span className="row-acts">
             {!(everything && isClosed(r)) && <button className="ibtn ibtn--sm" onClick={stop(() => edit(r))} aria-label={`Edit ${name}`} title="Edit"><Icon name="edit" size={15} /></button>}
@@ -871,6 +875,9 @@ export default function Records({ meta, app, pageId, filters, ai, onFilter, hist
       {list.error && <p className="tile-err"><Icon name="info" size={14} />The list could not load: {list.error}</p>}
       {data && (
         <>
+          {claim && <div className="quiet-n" data-claim><Icon name="info" size={13} /><div><p>{claimText(claim.record_keys.length)}</p>
+            <button type="button" className="btn btn--sm" disabled={acting} onClick={() => actOn({ action_owner: person }, `Assigned ${recordsText(claim.record_keys.length)} to you`, claim)}>Assign them to me</button></div></div>}
+          {quiet && <div className="quiet-n" role="status" data-quiet-list><Icon name="info" size={13} /><div><b>{quiet.title}</b>{quiet.why && <p>{quiet.why}</p>}<p>{quiet.raise}</p></div></div>}
           {late.late > 0 && <p className="late-n" data-overdue><Icon name="calendar" size={13} />Overdue: {recordsText(late.late)} on this page, shown first.</p>}
           <DataTable label={meta.title} columns={columns} rows={tableRows} rowKey={keyOf} onRow={setOpen} paged={false} filtering="server" grid={`page:${pageId}:records`}
             empty={emptyState({ search, mine, changed, fresh, windowed: narrowWindow(prefs) ? windowLabel(prefs.window) : '', narrowedAny,
@@ -879,8 +886,8 @@ export default function Records({ meta, app, pageId, filters, ai, onFilter, hist
             sort={shownSort ? { key: shownSort.key, dir: shownSort.dir === 'desc' ? -1 : 1 } : null} onSort={(s) => setSort({ key: s.key, dir: s.dir > 0 ? 'asc' : 'desc' })}
             rowClass={(r) => [picked.has(String(recordKeyOf(r))) || matching ? 'is-picked' : '', keyOf(r) === cursorKey ? 'is-cursor' : '',
               isOverdue(r._inspire_due, r._inspire_status, today) ? 'is-late' : ''].filter(Boolean).join(' ')}
-            askAbout={genieOn(app, pageId) && history ? (r) => ({ pageId, recordKey: keyOf(r), label: plainText(r[meta.label]) || keyOf(r) }) : undefined}
-            askRow={(r) => ({ title: plainText(r[meta.label]) || keyOf(r), context: { hint: meta.hint || '', fields: shownFields(r) } })} />
+            askAbout={genieOn(app, pageId) && history ? (r) => ({ pageId, recordKey: keyOf(r), label: recordName(r, meta) || keyOf(r) }) : undefined}
+            askRow={(r) => ({ title: recordName(r, meta) || keyOf(r), context: { hint: meta.hint || '', fields: shownFields(r) } })} />
           {cap > 0 && beyond > 0 && (
             <p className="more" data-limit>{`Your limit shows the top ${integer(cap)} of ${integer(addCounts([cap, beyond]))}. ${integer(beyond)} more are not shown; change the limit in Settings.`}</p>
           )}
@@ -903,7 +910,7 @@ export default function Records({ meta, app, pageId, filters, ai, onFilter, hist
         work={work && !work.ended && shown ? { text: workText, next: workNext } : null} tomorrow={tomorrow} today={today} focusOwner={ownerFocus}
         closedReadOnly={everything} />
       {form && <RecordForm mode={form.mode} target={form.target} meta={meta} pageId={pageId} rows={rows} onClose={() => setForm(null)} onSaved={saved} />}
-      {doomed && <DeleteDialog target={recordRef(meta, doomed)} label={plainText(doomed[meta.label]) || 'this record'} pageId={pageId} onClose={() => setDoomed(null)} onSaved={saved} />}
+      {doomed && <DeleteDialog target={recordRef(meta, doomed)} label={recordName(doomed, meta) || 'this record'} pageId={pageId} onClose={() => setDoomed(null)} onSaved={saved} />}
       {acts.similar && (
         <SimilarDialog similar={acts.similar} onClose={acts.closeSimilar}
           onApply={(values) => acts.act({ match: acts.similar.match }, values).catch((err) => toast(actError(err), toneOf(err)))} />

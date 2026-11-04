@@ -1,4 +1,4 @@
-import { DATE_FORMATS, addCounts, axisValue, dayLabel, formatValue, largestFirst, numberOf, shortMonth, sumOf } from './format.js';
+import { DATE_FORMATS, addCounts, axisValue, dayLabel, formatValue, largestFirst, numberOf, plainChart, shortMonth, sumOf } from './format.js';
 import { TIERS } from './theme.js';
 import { CHART_WIDTH, categoryLabels } from './layout.js';
 import { KIND_CHARTS } from './kindCharts.js';
@@ -201,7 +201,8 @@ function ganttOption({ chart, rows, P, valueFmt, axisFmt, width }) {
 const LAYOUT_CHARTS = { band: bandOption, control: controlOption, tornado: tornadoOption, bridge: bridgeOption, bullet: bulletOption,
   treemap: treemapOption, radar: radarOption, sankey: sankeyOption, gantt: ganttOption, ...KIND_CHARTS };
 
-export function chartOption(chart, rows, P, { reduced = false, width = CHART_WIDTH } = {}) {
+export function chartOption(given, rows, P, { reduced = false, width = CHART_WIDTH } = {}) {
+  const chart = plainChart(given);
   const y0 = chart.y[0] || {};
   const fmt = (i) => chart.y[i] || y0;
   const valueFmt = (i = 0) => (v) => formatValue(v, fmt(i).format, fmt(i).currency);

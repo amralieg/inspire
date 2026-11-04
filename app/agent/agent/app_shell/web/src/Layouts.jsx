@@ -1,6 +1,6 @@
 import { Suspense, lazy, useEffect, useState } from 'react';
 import { decidePlan, getRecords, runSettingsNow } from './api.js';
-import { formatValue, integer, numberOf } from './format.js';
+import { entityName, formatValue, integer, numberOf } from './format.js';
 import { canDecide, noDecisionText, recordKeyOf } from './records.js';
 import { Icon, GenieMark } from './icons.jsx';
 import { Skeleton, useToast } from './ui.jsx';
@@ -58,7 +58,7 @@ export function todoSteps(page, list, { genie = false, modify = false, accept = 
     steps.push({ id: 'so_what', text: 'Read the “So what” line under each chart: it says what to do with it.', action: null });
     if (page.filters?.length) steps.push({ id: 'filters', text: 'Use the filters at the top to narrow every chart to the part you own.', action: null });
   } else if (first) {
-    steps.push({ id: 'first', text: `Start with ${first[label] ?? recordKeyOf(first)}: it is first in the list because it matters most.`, action: 'Show me', to });
+    steps.push({ id: 'first', text: `Start with ${entityName(first, label) || recordKeyOf(first)}: it is first in the list because it matters most.`, action: 'Show me', to });
     if (page.plan && plan) steps.push({ id: 'plan', text: 'Take the ★ suggested line in the plan, or override it with a reason.', action: 'Open the plan', to });
     else if (page.plan) steps.push({ id: 'plan_read', text: 'Read each line of the plan next to its ★ suggested value, largest change first.', action: 'Open the plan', to });
     else if (accept) steps.push({ id: 'accept', text: 'Accept the suggested action where you agree: one row at a time, or select several and accept them together.', action: 'Show me', to });

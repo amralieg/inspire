@@ -1,4 +1,4 @@
-import { change, changeParts, changeText, formatValue, storyPieces } from './format.js';
+import { change, changeParts, changeText, formatValue, storyPieces, wholeFormat } from './format.js';
 import { HUES } from './theme.js';
 import { Icon } from './icons.jsx';
 import { Skeleton } from './ui.jsx';
@@ -8,13 +8,13 @@ import { withBlocks } from './blocks.js';
 import { FoldStrip, useFold } from './MyView.jsx';
 import { AskGenie } from './AskGenie.jsx';
 
-export const kpiValue = (kpi, data) => formatValue(data?.now, kpi.format, kpi.currency);
+export const kpiValue = (kpi, data) => formatValue(data?.now, wholeFormat(kpi.format, kpi.label, kpi.unit, kpi.id), kpi.currency);
 
 function kpiContext(kpi, data, error, scope) {
   if (error) return { hint: kpi.caption || '', fields: { Error: error } };
   const d = kpi.compare ? change(data?.now, data?.before) : null;
   const fields = { Now: kpiValue(kpi, data) };
-  if (kpi.compare && data?.before != null) fields.Before = formatValue(data.before, kpi.format, kpi.currency);
+  if (kpi.compare && data?.before != null) fields.Before = kpiValue(kpi, { now: data.before });
   if (d != null) fields.Change = `${changeText(d, kpi.words)} ${kpi.vs || ''}`.trim();
   if (scope?.text) fields.Scope = scope.text;
   return { hint: kpi.caption || '', fields };
@@ -47,6 +47,8 @@ export default function Kpis({ page, data, errors, loading, plan, scope }) {
   const index = new Map(page.kpis.map((kpi, i) => [kpi.id, i]));
   const summary = loading ? '' : page.kpis.filter((kpi) => !errors?.[`kpi:${kpi.id}`]).map((kpi) => `${kpi.label} ${kpiValue(kpi, data?.[kpi.id])}`).join(' · ');
   const strip = (
+    <>
+    {scope?.text && <p className="kpi-scope scope-banner" data-scope-banner>{scope.text}</p>}
     <section className="kpis" aria-label="Key numbers" data-n={entries.length}>
       {entries.map((entry) => {
         if (entry.block) return <Block key={entry.key} block={entry.block} tile />;
@@ -60,7 +62,6 @@ export default function Kpis({ page, data, errors, loading, plan, scope }) {
               <>
                 <div className="kpi-v">{kpiValue(kpi, data?.[kpi.id])}</div>
                 <Delta kpi={kpi} data={data?.[kpi.id]} scope={scope} />
-                {scope?.text && <div className="kpi-scope">{scope.text}</div>}
               </>
             )}
             {!loading && <AskGenie kind="kpi" title={kpi.label} context={kpiContext(kpi, data?.[kpi.id], error, scope)} />}
@@ -68,6 +69,7 @@ export default function Kpis({ page, data, errors, loading, plan, scope }) {
         );
       })}
     </section>
+    </>
   );
   return <FoldStrip fold={fold} title="Key numbers" summary={summary}>{strip}</FoldStrip>;
 }
