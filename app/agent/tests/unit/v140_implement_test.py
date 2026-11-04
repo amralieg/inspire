@@ -1158,13 +1158,15 @@ def test_preview_stops_after_three_genie_rounds(agent_ns):
     assert outcome["status"] == "failed" and len(runner.prompts) == agent_ns["IMPLEMENT_MAX_GENIE_ROUNDS"] == 3
 
 
-def test_a_stop_rule_ends_the_build_without_a_preview(agent_ns):
+def test_a_stop_goes_back_to_genie_to_repair_and_ends_without_a_preview_when_it_keeps_stopping(agent_ns):
     inst = _flow_inspire(agent_ns, [])
     stopped = dict(_fill(), status="stopped", stop_reason="History covers 1 closed outcome window")
+    runner = _FakeRunner([{"exit": 0, "final": stopped}] * 3)
     outcome, _job, _f = inst._implement_fill_and_preview("N01-U01", (5150, "N01-U01", 1), {}, agent_ns["validate_implement_spec"](VALID)[0],
-                                                         None, "/W/nb", ["result_table", "run_profile"],
-                                                         _FakeRunner([{"exit": 0, "final": stopped}]), True)
-    assert outcome == {"status": "stopped", "stop_reason": "History covers 1 closed outcome window", "stopped_by": "genie"}
+                                                         None, "/W/nb", ["result_table", "run_profile"], runner, True)
+    assert {k: outcome[k] for k in ("status", "stop_reason", "stopped_by")} == {
+        "status": "stopped", "stop_reason": "History covers 1 closed outcome window", "stopped_by": "genie"}
+    assert len(runner.prompts) == 3 and "Inspire read your last attempt's stop: History covers 1 closed outcome window" in runner.prompts[1]
 
 
 def test_an_unchanged_notebook_is_only_re_previewed(agent_ns):
@@ -4963,9 +4965,9 @@ def test_a_built_result_that_carries_a_stop_reason_is_a_stop_and_skips_the_secon
                  stop_reason="History covers 0 closed outcome windows; at least 2 are required.")
     outcome, _job, _f = inst._implement_fill_and_preview("N01-U01", (5150, "N01-U01", 1), {}, agent_ns["validate_implement_spec"](VALID)[0],
                                                          None, "/W/nb", ["result_table", "run_profile"],
-                                                         _FakeRunner([{"exit": 0, "final": built}]), True)
-    assert outcome == {"status": "stopped", "stop_reason": "History covers 0 closed outcome windows; at least 2 are required.",
-                       "stopped_by": "genie"}
+                                                         _FakeRunner([{"exit": 0, "final": built}] * 3), True)
+    assert {k: outcome[k] for k in ("status", "stop_reason", "stopped_by")} == {
+        "status": "stopped", "stop_reason": "History covers 0 closed outcome windows; at least 2 are required.", "stopped_by": "genie"}
     stopped = agent_ns["genie_fill_stopped"]
     assert stopped({"status": "built", "stop_reason": " x "}) and stopped({"status": "stopped", "stop_reason": ""})
     assert not stopped({"status": "built", "stop_reason": ""}) and not stopped({"status": "failed", "stop_reason": "x"})

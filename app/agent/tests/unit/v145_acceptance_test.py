@@ -421,12 +421,13 @@ def test_a_preview_only_rerun_that_stops_on_acceptance_says_to_build_again(agent
 @pytest.mark.parametrize("family,reason", [("B", "row_count 10 is below the 1000 this use case needs"),
                                            ("G", "AI processing failed the error-rate check: 0.4 of rows failed"),
                                            ("F", "History covers 1 closed outcome window")])
-def test_a_real_stop_still_ends_the_build_at_once(agent_ns, family, reason):
+def test_a_real_stop_goes_back_to_genie_to_repair_and_ends_the_build_when_it_keeps_stopping(agent_ns, family, reason):
     inst = _b_flow(agent_ns, [], family=family)
-    runner = _FakeRunner([{"exit": 0, "final": dict(_fill(), status="stopped", stop_reason=reason)}])
+    runner = _FakeRunner([{"exit": 0, "final": dict(_fill(), status="stopped", stop_reason=reason)}] * 3)
     outcome, _job, _f = inst._implement_fill_and_preview("N01-U01", (5150, "N01-U01", 1), {}, agent_ns["validate_implement_spec"](VALID)[0],
                                                          None, "/W/nb", ["result_table", "run_profile"], runner, True)
-    assert outcome == {"status": "stopped", "stop_reason": reason, "stopped_by": "genie"} and len(runner.prompts) == 1
+    assert {k: outcome[k] for k in ("status", "stop_reason", "stopped_by")} == {"status": "stopped", "stop_reason": reason, "stopped_by": "genie"}
+    assert len(runner.prompts) == 3 and f"Inspire read your last attempt's stop: {reason}" in runner.prompts[1]
 
 
 DRIVER_ASK = "each driver's name and license number next to every flagged trip"
@@ -469,11 +470,12 @@ def test_a_genie_stop_on_an_ask_of_a_notebook_that_wrote_rows_goes_back_to_genie
     (DRIVER_ASK, None, {}),
     (DRIVER_ASK, "failed", {}),
 ], ids=["no_asks", "blank_notes", "first_build", "never_wrote"])
-def test_a_stop_without_a_notebook_ask_or_a_notebook_that_wrote_rows_still_ends_the_build_at_once(agent_ns, notes, state, outputs):
+def test_a_stop_without_a_notebook_ask_or_a_notebook_that_wrote_rows_goes_back_to_repair_without_the_ask_rule(agent_ns, notes, state, outputs):
     spec, use_case = _vibed(agent_ns, notes=notes, state=state, **outputs)
-    inst, runner = _vibe_flow(agent_ns, [], [{"exit": 0, "final": dict(_fill(), status="stopped", stop_reason=DRIVER_STOP)}])
+    inst, runner = _vibe_flow(agent_ns, [], [{"exit": 0, "final": dict(_fill(), status="stopped", stop_reason=DRIVER_STOP)}] * 3)
     outcome, _job, _f = _fill_and_preview(inst, spec, use_case, runner)
-    assert outcome == {"status": "stopped", "stop_reason": DRIVER_STOP, "stopped_by": "genie"} and len(runner.prompts) == 1
+    assert {k: outcome[k] for k in ("status", "stop_reason", "stopped_by")} == {"status": "stopped", "stop_reason": DRIVER_STOP, "stopped_by": "genie"}
+    assert len(runner.prompts) == 3 and "sent_back" not in outcome and agent_ns["IMPLEMENT_ASK_STOP_REPAIR"] not in runner.prompts[1]
 
 
 def test_an_ai_reasoning_ask_alone_also_counts_as_a_notebook_ask(agent_ns):

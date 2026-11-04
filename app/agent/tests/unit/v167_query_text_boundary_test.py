@@ -187,10 +187,10 @@ def test_the_reason_genie_gives_for_a_stop_reaches_the_steps_without_the_value(a
     stopped = dict(_fill(), status="stopped", stop_reason=f"History covers 1 closed outcome window for region '{SENTINEL}'")
     outcome, _job, _fill_out = inst._implement_fill_and_preview("N01-U01", (5150, "N01-U01", 1), {},
                                                                 agent_ns["validate_implement_spec"](VALID)[0], None, "/W/nb",
-                                                                ["result_table", "run_profile"], _FakeRunner([{"exit": 0, "final": stopped}]),
+                                                                ["result_table", "run_profile"], _FakeRunner([{"exit": 0, "final": stopped}] * 3),
                                                                 True)
-    assert outcome == {"status": "stopped", "stop_reason": "History covers 1 closed outcome window for region 'a data value'",
-                       "stopped_by": "genie"}
+    assert {k: outcome[k] for k in ("status", "stop_reason", "stopped_by")} == {
+        "status": "stopped", "stop_reason": "History covers 1 closed outcome window for region 'a data value'", "stopped_by": "genie"}
     assert _leaks(outcome, *_texts(inst), agent_ns["implement_stop_message"](outcome, {})) == []
 
 
