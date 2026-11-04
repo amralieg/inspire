@@ -56,6 +56,8 @@ class Session(FakeSpark):
         self.statements.append(" ".join(str(statement).split()))
         if isinstance(self.returned, Exception):
             raise self.returned
+        if str(statement).startswith("DESCRIBE TABLE"):
+            return FakeRows([{"col_name": c, "data_type": "string"} for c in self.columns])
         return Frame(self.returned)
 
 
@@ -258,6 +260,7 @@ def test_a_custom_first_run_runs_exactly_its_saved_select_of_keys(fresh_ns):
     frame = fresh_ns["inspire_read_source"]("main.sales.orders", spark=spark)
     assert frame.steps == [("join", [("selectExpr", ["`order_id` AS `Order_ID`"]), ("distinct",)], ["Order_ID"], "left_semi")]
     assert spark.statements[-1] == "SELECT * FROM (SELECT order_id FROM main.sales.orders WHERE region = 'EMEA' ) AS _inspire_custom_groups"
+    assert "DESCRIBE TABLE `main`.`sales`.`orders`" in spark.statements, "the key columns are read from the table schema, never its rows"
     assert fresh_ns["inspire_read_source"]("main.sales.items", spark=spark).steps == [], "only the main table is narrowed"
     assert fresh_ns["INSPIRE_RUN_LOG"]["reads"]["main.sales.orders"]["sql_hash"] == resolved["hash"]
     record = fresh_ns["inspire_scope_record"](resolved)
