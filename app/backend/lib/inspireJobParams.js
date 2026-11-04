@@ -209,10 +209,15 @@ function buildDemoInspireDiscoveryParams({ inspireDatabase, sessionId, generateT
 }
 
 const INSPIRE_TAG_VALUE_MAX = 255;
+const INSPIRE_GCP_TAG_VALUE_MAX = 63;
+
+function inspireTagValueMax(host = process.env.DATABRICKS_HOST) {
+  return /\.gcp\./i.test(String(host || '')) ? INSPIRE_GCP_TAG_VALUE_MAX : INSPIRE_TAG_VALUE_MAX;
+}
 const TAG_LIST_SEP = ' ';
 const TAG_ITEM_BAD = /[^A-Za-z0-9+=.:/@_-]/g;
 const RESOURCE_TAG_RULES = {
-  job: { keyBad: /[^A-Za-z0-9._-]/g, keyMax: 127, value: /^[\d \w+\-=.:/@]*$/, valueBad: /[^A-Za-z0-9 +=.:/@_-]/g, valueMax: INSPIRE_TAG_VALUE_MAX },
+  job: { keyBad: /[^A-Za-z0-9._-]/g, keyMax: 127, value: /^[\d \w+\-=.:/@]*$/, valueBad: /[^A-Za-z0-9 +=.:/@_-]/g, get valueMax() { return inspireTagValueMax(); } },
   uc: { keyBad: /[^A-Za-z0-9_]/g, keyMax: 256, value: /^[\s\S]*$/, valueBad: null, valueMax: 256 },
 };
 
@@ -240,9 +245,10 @@ function resourceTagValue(kind, value) {
 
 function inspireTagList(items) {
   let joined = '';
-  for (const item of new Set(items.map((item) => cleanTag(item, TAG_ITEM_BAD, INSPIRE_TAG_VALUE_MAX)).filter(Boolean))) {
+  const max = inspireTagValueMax();
+  for (const item of new Set(items.map((item) => cleanTag(item, TAG_ITEM_BAD, max)).filter(Boolean))) {
     const next = joined ? `${joined}${TAG_LIST_SEP}${item}` : item;
-    if (next.length > INSPIRE_TAG_VALUE_MAX) break;
+    if (next.length > max) break;
     joined = next;
   }
   return joined;
@@ -254,7 +260,7 @@ function inspireTagListItems(value, legacySep = '') {
 }
 
 function inspireTagValue(value) {
-  return cleanTag(value, /[^A-Za-z0-9._-]/g, INSPIRE_TAG_VALUE_MAX);
+  return cleanTag(value, /[^A-Za-z0-9._-]/g, inspireTagValueMax());
 }
 
 function inspireJobTags({ runType, params = {}, businessName = '', notebookFilename = '', useCaseIds = [] }) {
@@ -421,6 +427,7 @@ module.exports = {
   DEFAULT_GENERATION_PATH,
   buildDemoInspireDiscoveryParams,
   inspireTagValue,
+  inspireTagValueMax,
   inspireTagList,
   inspireTagListItems,
   resourceTagKey,
