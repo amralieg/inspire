@@ -1033,7 +1033,7 @@ class RuntimeContextTest(unittest.TestCase):
     def warehouse(wid="wh1", name="Shared", state="RUNNING"):
         return types.SimpleNamespace(id=wid, name=name, state=types.SimpleNamespace(value=state), enable_serverless_compute=True)
 
-    def context(self, env, widgets=None, warehouses=None, catalogs=("main", "sales")):
+    def context(self, env, widgets=None, warehouses=None, catalogs=("main", "sales"), owners=None):
         if widgets is None:
             widgets = support.FakeWidgets({"00_sql_warehouse": {"kind": "combobox", "value": "Shared (wh1)"},
                                            "01_inspire_catalog": {"kind": "combobox", "value": "main"}})
@@ -1045,7 +1045,8 @@ class RuntimeContextTest(unittest.TestCase):
             current_user = types.SimpleNamespace(me=lambda: me)
             config = types.SimpleNamespace(host="https://workspace.example.com", authenticate=lambda: {"Authorization": "Bearer x"})
             warehouses = types.SimpleNamespace(list=lambda: listed)
-            catalogs = types.SimpleNamespace(list=lambda: [types.SimpleNamespace(name=name) for name in catalogs])
+            catalogs = types.SimpleNamespace(list=lambda: [types.SimpleNamespace(name=name, owner=(owners or {}).get(name, "data-owners"))
+                                                           for name in catalogs])
         setup.WorkspaceClient = Client
         unpacked = []
         setup._unpack_bundle = lambda source, root: unpacked.append((source, root)) or f"{root}/bundle_1"
@@ -1121,9 +1122,77 @@ class RuntimeContextTest(unittest.TestCase):
         widgets.pick("00_sql_warehouse", "Shared (wh1)")
         widgets.pick("01_inspire_catalog", "sale")
         self.assertEqual(self.run_with(widgets), {"ready": False})
-        self.assertIn("No catalog you can use is named &#x27;sale&#x27;. Pick one from the list in 01_inspire_catalog, or type its exact name.",
-                      self.banner())
+        self.assertIn("No catalog you can use is named &#x27;sale&#x27;. Did you mean &#x27;sales&#x27;? Pick one from the list in "
+                      "01_inspire_catalog, or type its exact name.", self.banner())
         self.assertNotIn("SQL warehouse you can use", self.banner())
+        widgets.pick("01_inspire_catalog", "nothing_like_it")
+        self.assertEqual(self.run_with(widgets), {"ready": False})
+        self.assertIn("No catalog you can use is named &#x27;nothing_like_it&#x27;. Pick one from the list", self.banner())
+
+    @staticmethod
+    def many(count):
+        return tuple(f"cat_{index:04d}" for index in range(count))
+
+    def test_a_catalog_list_never_holds_more_choices_than_a_notebook_widget_allows(self):
+        for count, shown, hidden_words in ((0, ["workspace"], False), (1, ["cat_0000"], False), (1023, list(self.many(1023)), False),
+                                           (1024, list(self.many(1023)), True), (1025, list(self.many(1023)), True),
+                                           (3588, list(self.many(1023)), True)):
+            widgets = support.FakeWidgets()
+            printed = io.StringIO()
+            with contextlib.redirect_stdout(printed):
+                ctx = self.run_with(widgets, catalogs=self.many(count))
+            self.assertEqual(ctx, {"ready": False}, count)
+            choices = widgets.state["01_inspire_catalog"]["choices"]
+            self.assertLessEqual(len(choices), 1024, count)
+            self.assertEqual(choices, ["Pick from the list or type"] + shown, count)
+        widgets = support.FakeWidgets()
+        setup.dbutils = types.SimpleNamespace(widgets=widgets)
+        with contextlib.redirect_stdout(printed := io.StringIO()):
+            setup.ensure_parameter_widgets([self.warehouse()], list(self.many(3588)))
+        self.assertIn("01_inspire_catalog lists 1023 of the 3588 catalogs you can use, the most likely first, because a notebook list "
+                      "holds at most 1024 entries. Type the exact name of any other one.", printed.getvalue())
+        with contextlib.redirect_stdout(printed := io.StringIO()):
+            setup.ensure_parameter_widgets([self.warehouse()], list(self.many(1023)))
+        self.assertNotIn("lists 1023 of", printed.getvalue())
+
+    def test_a_capped_catalog_list_puts_your_own_catalogs_and_your_pick_first(self):
+        names = self.many(3588)
+        owners = {"cat_3000": "someone@example.com", "cat_2000": "SOMEONE@example.com"}
+        widgets = support.FakeWidgets()
+        self.run_with(widgets, catalogs=names, owners=owners)
+        choices = widgets.state["01_inspire_catalog"]["choices"]
+        self.assertEqual(choices[:4], ["Pick from the list or type", "cat_2000", "cat_3000", "cat_0000"])
+        self.assertEqual(len(choices), 1024)
+        self.assertEqual(len(set(choices)), 1024)
+        shown, hidden = setup.picker_choices(names, picked="cat_3587", first=["cat_2000"])
+        self.assertEqual((shown[:3], len(shown), hidden), (["Pick from the list or type", "cat_3587", "cat_2000"], 1024, 2565))
+        self.assertEqual(setup.picker_choices(["a", "b"], picked="zz", first=["yy"]), (["Pick from the list or type", "a", "b"], 0))
+
+    def test_a_catalog_typed_by_hand_outside_the_capped_list_installs_and_a_typo_is_named(self):
+        names = self.many(3588)
+        widgets = support.FakeWidgets()
+        self.run_with(widgets, catalogs=names)
+        self.assertNotIn("cat_3587", widgets.state["01_inspire_catalog"]["choices"])
+        widgets.pick("00_sql_warehouse", "Shared (wh1)")
+        widgets.pick("01_inspire_catalog", "CAT_3587")
+        ctx = self.run_with(widgets, catalogs=names)
+        self.assertEqual((ctx.get("CATALOG"), ctx.get("INSPIRE_DB")), ("cat_3587", "cat_3587._inspire"))
+        widgets.pick("01_inspire_catalog", "cat_35877")
+        self.assertEqual(self.run_with(widgets, catalogs=names), {"ready": False})
+        self.assertIn("No catalog you can use is named &#x27;cat_35877&#x27;. Did you mean &#x27;cat_3587&#x27;", self.banner())
+
+    def test_a_warehouse_list_over_the_widget_limit_is_capped_and_a_typed_hidden_warehouse_is_used(self):
+        listed = [self.warehouse(f"wh{index:04d}", f"Warehouse {index:04d}", "STOPPED") for index in range(1500)]
+        listed.append(self.warehouse("live", "Live", "RUNNING"))
+        widgets = support.FakeWidgets()
+        self.run_with(widgets, warehouses=listed)
+        choices = widgets.state["00_sql_warehouse"]["choices"]
+        self.assertEqual((len(choices), choices[1]), (1024, "Live (live)"))
+        self.assertNotIn("Warehouse 1499 (wh1499)", choices)
+        widgets.pick("00_sql_warehouse", "wh1499")
+        widgets.pick("01_inspire_catalog", "main")
+        ctx = self.run_with(widgets, warehouses=listed)
+        self.assertEqual(ctx.get("WAREHOUSE_ID"), "wh1499")
 
     def test_a_typed_unknown_or_shared_warehouse_name_is_refused_in_the_banner_and_nothing_proceeds(self):
         listed = [self.warehouse(), self.warehouse("wh2", "Shared", "STOPPED")]

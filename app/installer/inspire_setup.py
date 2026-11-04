@@ -1,4 +1,4 @@
-import base64, hashlib, json, os, re, requests, shutil, tarfile, tempfile, time, urllib.parse, zipfile
+import base64, difflib, hashlib, json, os, re, requests, shutil, tarfile, tempfile, time, urllib.parse, zipfile
 from databricks.sdk import WorkspaceClient
 from databricks.sdk.service.sql import StatementState
 
@@ -22,6 +22,7 @@ REAL_GRANTS_SHOWN = 10
 
 
 _WIDGET_PLACEHOLDER = "Pick from the list or type"
+WIDGET_CHOICE_LIMIT = 1024
 _LEGACY_PLACEHOLDER = "Please select"
 _LEGACY_WAREHOUSE_CHOICE = re.compile(r"(?P<name>.*) \[[A-Z_?]+\] (?P<id>\S+)")
 
@@ -76,17 +77,33 @@ def resolve_catalog(value, catalogs):
     folded = [name for name in catalogs if name.casefold() == text.casefold()]
     if len(folded) == 1:
         return folded[0], None
-    return None, f"No catalog you can use is named {text!r}. Pick one from the list in {W_CAT}, or type its exact name."
+    by_folded = {name.casefold(): name for name in catalogs}
+    close = difflib.get_close_matches(text.casefold(), list(by_folded), n=3, cutoff=0.75)
+    hint = f" Did you mean {', '.join(repr(by_folded[c]) for c in close)}?" if close else ""
+    return None, f"No catalog you can use is named {text!r}.{hint} Pick one from the list in {W_CAT}, or type its exact name."
 
 
-def _place_picker(name, label, choices, value, picked):
+def picker_choices(choices, picked=None, first=()):
+    listed = list(dict.fromkeys(choices))
+    if len(listed) < WIDGET_CHOICE_LIMIT:
+        return [_WIDGET_PLACEHOLDER] + listed, 0
+    known = set(listed)
+    ordered = list(dict.fromkeys([c for c in [picked, *first] if c in known] + listed))
+    return [_WIDGET_PLACEHOLDER] + ordered[:WIDGET_CHOICE_LIMIT - 1], len(listed) - (WIDGET_CHOICE_LIMIT - 1)
+
+
+def _place_picker(name, label, choices, value, picked, first=(), things="values"):
     if picked is None and (value == _LEGACY_PLACEHOLDER or _LEGACY_WAREHOUSE_CHOICE.fullmatch(value or "")):
         try:
             dbutils.widgets.remove(name)
             return False
         except Exception:
             pass
-    dbutils.widgets.combobox(name, picked or _WIDGET_PLACEHOLDER, [_WIDGET_PLACEHOLDER] + list(choices), label)
+    shown, hidden = picker_choices(choices, picked, first)
+    if hidden:
+        print(f"{name} lists {len(shown) - 1} of the {len(shown) - 1 + hidden} {things} you can use, the most likely first, "
+              f"because a notebook list holds at most {WIDGET_CHOICE_LIMIT} entries. Type the exact name of any other one.")
+    dbutils.widgets.combobox(name, picked or _WIDGET_PLACEHOLDER, shown, label)
     return True
 
 
@@ -113,14 +130,14 @@ def show_warning_banner(title, message):
     )
 
 
-def ensure_parameter_widgets(warehouses, catalogs):
+def ensure_parameter_widgets(warehouses, catalogs, own_catalogs=()):
     values = {W_WH: _get_widget_value(W_WH), W_CAT: _get_widget_value(W_CAT)}
     warehouse, warehouse_problem = resolve_warehouse(values[W_WH], warehouses)
     catalog, catalog_problem = resolve_catalog(values[W_CAT], catalogs)
     placed = [
         _place_picker(W_WH, W_WH_LABEL, [_warehouse_choice(wh) for wh in warehouses], values[W_WH],
-                      _warehouse_choice(warehouse) if warehouse else None),
-        _place_picker(W_CAT, W_CAT_LABEL, catalogs, values[W_CAT], catalog),
+                      _warehouse_choice(warehouse) if warehouse else None, things="SQL warehouses"),
+        _place_picker(W_CAT, W_CAT_LABEL, catalogs, values[W_CAT], catalog, first=sorted(own_catalogs), things="catalogs"),
     ]
     print("Notebook parameters are ready above: pick a value from each list or type it.")
     return {"warehouse": warehouse, "catalog": catalog, "warehouse_problem": warehouse_problem, "catalog_problem": catalog_problem,
@@ -549,18 +566,20 @@ def build_runtime_context(env):
     if not all_warehouses:
         raise RuntimeError("No SQL warehouses found. Create a SQL warehouse in this workspace, then re-run.")
 
-    available_catalogs = []
+    available_catalogs, own_catalogs = [], set()
     try:
         for cat in w.catalogs.list():
             if cat.name not in ("system", "information_schema", "__databricks_internal"):
                 available_catalogs.append(cat.name)
+                if str(getattr(cat, "owner", "") or "").lower() == str(user_email or "").lower():
+                    own_catalogs.add(cat.name)
     except Exception:
         available_catalogs = ["workspace"]
     if not available_catalogs:
         available_catalogs = ["workspace"]
     available_catalogs = sorted(set(available_catalogs))
 
-    pickers = ensure_parameter_widgets(all_warehouses, available_catalogs)
+    pickers = ensure_parameter_widgets(all_warehouses, available_catalogs, own_catalogs)
     picked_wh, picked_cat = pickers["warehouse"], pickers["catalog"]
     missing_messages = []
 
@@ -575,7 +594,8 @@ def build_runtime_context(env):
     if catalog_override:
         picked_cat = resolve_catalog(catalog_override, available_catalogs)[0]
         if picked_cat is None:
-            raise ValueError(f"catalog {catalog_override!r} in the test setting is not in the catalogs you can use: {available_catalogs}")
+            raise ValueError(f"catalog {catalog_override!r} in the test setting is not one of the {len(available_catalogs)} catalogs "
+                             f"you can use (showing first 5): {available_catalogs[:5]}")
     elif picked_cat is None:
         missing_messages.append(pickers["catalog_problem"])
 
