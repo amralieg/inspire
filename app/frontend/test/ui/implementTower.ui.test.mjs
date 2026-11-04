@@ -1209,7 +1209,7 @@ const finished = (status, message) => versionRow(4, {
   status, status_message: message, implement_run_id: '5555555555555555', updated_at: new Date().toISOString(), change_classes: 'outputs',
   outputs: V3_OUTPUTS, assets: V3_ASSETS, created_at: agoIso(400),
 });
-const doneSteps = [
+const doneSteps = () => [
   stepRow('Plan', 'started', 250, { spec_version: 4 }), stepRow('Plan', 'ended_success', 190, { spec_version: 4 }),
   stepRow('Instruction', 'started', 189, { spec_version: 4 }), stepRow('Instruction', 'ended_success', 185, { spec_version: 4 }),
   stepRow('Genie Code', 'started', 184, { spec_version: 4 }), stepRow('Genie Code', 'ended_success', 176, { spec_version: 4 }),
@@ -1219,7 +1219,7 @@ const doneSteps = [
 ];
 
 test('a build that finished with warnings folds to one line with its status, version, time, warning count and the warning, and one click opens it again through every poll', async () => {
-  const ui = await openTower({ ...STATE, history: [finished('ready_with_warnings', WARNED), ...HISTORY], steps: doneSteps }, { expand: false });
+  const ui = await openTower({ ...STATE, history: [finished('ready_with_warnings', WARNED), ...HISTORY], steps: doneSteps() }, { expand: false });
   const { page } = ui;
   try {
     const progress = page.locator('[data-mvp-progress]');

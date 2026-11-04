@@ -61,6 +61,18 @@ test('Grouping offers Global first, the recommended columns coarse to fine, each
   assert.ok(!S.sameGrouping('country', 'region, country'));
 });
 
+test('a Deep discovery grouping runs first on whole groups that the run picks, and a table small enough to run whole or no Deep grouping keeps its default (must-exclude)', async () => {
+  const S = await lib('runScope.js');
+  const DEEP = { ...PROFILE, default_scope: 'records', deep_suggestion: { columns: ['store_id'], record_level: 'order_id' } };
+  assert.equal(S.firstRunDefault(DEEP), 'groups', 'the first 1,000 records would cut the Deep groups, so the run takes whole groups');
+  const fresh = S.scopeValues(() => undefined);
+  const scoped = S.withScopeDefaults(S.withGroupingDefault(fresh, DEEP, ''), DEEP);
+  assert.deepEqual([scoped.run_scope, scoped.scope_groups || ''], ['groups', ''], 'the profiled groups are of another column, so none are sent and the run picks the Deep groups');
+  assert.equal(S.firstRunDefault({ ...DEEP, default_scope: 'all' }), 'all', 'a table small enough to run whole runs whole, never narrowed to groups');
+  assert.equal(S.firstRunDefault({ ...DEEP, deep_suggestion: null }), 'records', 'no Deep grouping: the profile default stays');
+  assert.equal(S.firstRunDefault({ ...DEEP, deep_suggestion: { columns: ['', null] } }), 'records', 'a blank Deep grouping is no Deep grouping');
+});
+
 test('a Deep discovery grouping is picked first and marked, a profile without one picks its recommendation, and a person\u2019s pick is never replaced (must-exclude)', async () => {
   const S = await lib('runScope.js');
   const DEEP = { ...PROFILE, deep_suggestion: { columns: ['stores.region', 'store_id'], record_level: 'order_id' } };

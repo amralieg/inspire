@@ -114,7 +114,8 @@ export function profileRecords(profile) {
 
 export function firstRunDefault(profile) {
   if (!isMap(profile)) return '';
-  return RUN_SCOPES.includes(profile.default_scope) ? profile.default_scope : GROUP_ALL;
+  const chosen = RUN_SCOPES.includes(profile.default_scope) ? profile.default_scope : GROUP_ALL;
+  return chosen !== GROUP_ALL && deepGrouping(profile).length ? 'groups' : chosen;
 }
 
 export function suggestedGroups(profile) {
