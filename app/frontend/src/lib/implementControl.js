@@ -495,7 +495,7 @@ export function vibeCards(history, latest, stalled = null, notebookUrl = '', pla
   const liveAt = (version) => (version == null ? null : { version, at: at(rows.find((r) => r.spec_version === version)) });
   const urlOf = (output) => (output === 'notebook' ? String(notebookUrl || '') : String(base[OUTPUT_URLS[output]] || latest[OUTPUT_URLS[output]] || ''));
   const impact = rowImpact(base);
-  const open = openVibeAsks(base);
+  const open = openVibeAsks(held ? latest : base);
   const card = (id, output, entry, version, fields) => {
     const kind = partOf(id)?.kind || id;
     const what = kind === 'value_formula' ? `How the ${stakeWords(impact)} on each row is counted` : String(entry?.what ?? entry?.description ?? '').trim() || ASSET_WHAT[kind];

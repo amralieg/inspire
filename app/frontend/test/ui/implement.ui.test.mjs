@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildAgainHint, lostTablesText } from '../../src/lib/implementWizard.js';
+import { buildAgainHint, DATA_STOP_HINT, lostTablesText, VIBE_FEATURES_LABEL } from '../../src/lib/implementWizard.js';
 import {
   HARNESS_USE_CASE, HARNESS_SETTINGS, HARNESS_SESSION_ID, MVP_JOB, OWNER, RESULT_TABLE, STUDIO_STATE, built, builtSpec,
 } from './implementFixtures.js';
@@ -767,7 +767,9 @@ test('a version whose run stopped reads as Stopped with the reason and the run, 
     assert.equal(await features.locator('[data-rebuild-waits]').count(), 0);
     await closeAsset(page);
     await showView(page, 'job');
-    assert.equal(await page.getByRole('link', { name: 'Open the run that stopped' }).getAttribute('href'), run.run_page_url);
+    assert.equal(await page.getByLabel(/^Job: /).getByRole('link', { name: 'Open the run that stopped' }).getAttribute('href'), run.run_page_url);
+    assert.equal(await page.getByRole('region', { name: 'Build failed' }).getByRole('link', { name: 'Open the run that stopped' }).getAttribute('href'), run.run_page_url,
+      'the Stopped panel links the run that stopped');
     assert.equal(await page.getByRole('checkbox', { name: 'Schedule on' }).isEnabled(), true);
     await openHistory(page);
     await page.getByText('v2 · stopped before it finished · initial').waitFor();
@@ -938,6 +940,7 @@ test('the Build progress box scrolls Genie\'s messages itself: the page never gr
 });
 
 const FAILED_REASON = 'Genie stopped the build: No approved model yet: candidate precision 0.455 was below baseline precision 0.527.';
+const RUN_FAILED_REASON = 'The build run failed: the notebook raised NameError: history_pdf.';
 const NOTHING_BUILT = { result_rows: null, asset_status: null, dashboard_id: null, dashboard_url: null, genie_space_id: null, genie_space_url: null,
   app_name: null, app_url: null, alert_id: null, alert_url: null };
 
@@ -954,8 +957,9 @@ test('a failed build shows a red banner in the Build progress box with the faile
     await banner.getByText('Step: Genie builds the notebook', { exact: true }).waitFor();
     assert.equal(await viewOf(page, 'build').getByRole('region', { name: 'Build failed' }).count(), 1, 'the banner is part of the Build progress box');
     assert.deepEqual(await banner.locator('p').allInnerTexts(),
-      ['The build failed', 'Step: Genie builds the notebook', FAILED_REASON, buildAgainHint({ spec_version: 1 })]);
-    assert.deepEqual((await banner.getByRole('button').allInnerTexts()).map((t) => t.trim()), ['Try again', 'Open all settings']);
+      ['The build failed', 'Step: Genie builds the notebook', FAILED_REASON, DATA_STOP_HINT]);
+    assert.deepEqual((await banner.getByRole('button').allInnerTexts()).map((t) => t.trim()), [VIBE_FEATURES_LABEL, 'Open all settings'],
+      'a Genie data stop offers changing the ask, never Try again on the same data');
     const top = async (locator) => (await locator.boundingBox()).y;
     assert.ok(await top(banner) < await top(page.getByRole('log', { name: "Genie's messages" })), 'the banner sits above Genie\'s messages');
     assert.match(await banner.evaluate((el) => el.className), /bg-error-bg/);
@@ -983,7 +987,7 @@ test('a failed build shows a red banner in the Build progress box with the faile
 test('Try again on a failed build sends the version that failed again as the next one, with its asks, and a notebook edit keeps its own rebuild', async () => {
   const spec = builtSpec();
   const vibe = 'Put the riskiest customers first';
-  const failed = built({ spec_version: 2, status: 'failed', status_message: FAILED_REASON, change_classes: 'vibe',
+  const failed = built({ spec_version: 2, status: 'failed', status_message: RUN_FAILED_REASON, change_classes: 'vibe',
     spec_json: JSON.stringify({ ...spec, based_on_version: 1, vibes: vibe, vibe_previous: 'keep' }) });
   const ui = await openUi('implement', { ...STUDIO_STATE, history: [failed, built()] });
   const { page, made } = ui;

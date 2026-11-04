@@ -1194,17 +1194,20 @@ function registerImplementRoutes(app, deps) {
       const appName = I.carriedAssets(history).app;
       const jobId = int64Id((history.find((r) => r.job_id) || {}).job_id);
       const held = history[0] && history[0].status === I.IMPLEMENT_VIBE_NOT_MET ? history[0].spec_version : null;
-      const [appInfo, runInfo, stalled, person] = await Promise.all([
+      const builtBy = I.implementBuildRunId(history[0]);
+      const [appInfo, runInfo, stalled, person, buildRun] = await Promise.all([
         appName ? jsonOf(dbFetch, req.dbHost, req.dbToken, `/api/2.0/apps/${encodeURIComponent(appName)}`) : null,
         jobId ? jsonOf(dbFetch, req.dbHost, req.dbToken, `/api/2.1/jobs/runs/list?job_id=${jobId}&limit=10`) : null,
         stalledOf(req, history[0]),
         held == null ? null : personOf(req),
+        builtBy ? jsonOf(dbFetch, req.dbHost, req.dbToken, `/api/2.1/jobs/runs/get?run_id=${builtBy}`).catch(() => null) : null,
       ]);
       const listedNone = runInfo && runInfo.ok && !(Array.isArray(runInfo.data && runInfo.data.runs) && runInfo.data.runs.length);
       const jobInfo = listedNone ? await jsonOf(dbFetch, req.dbHost, req.dbToken, `/api/2.1/jobs/get?job_id=${jobId}`) : null;
       res.json({
         latest: history[0] || null,
         stalled,
+        build_run_url: (stalled && stalled.run_url) || (buildRun && buildRun.ok && String(buildRun.data?.run_page_url || '')) || null,
         history,
         steps,
         log_path: logPath,

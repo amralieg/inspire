@@ -1660,6 +1660,12 @@ function implementEndedRecord(row) {
   return new RegExp(`^the run building ${version} ended \\([\\s\\S]+\\) while ${version} was still (?:${doing})$`).test(str(row.status_message));
 }
 
+function implementBuildRunId(row) {
+  const runId = str(row && row.implement_run_id);
+  if (!/^\d{1,19}$/.test(runId) || row.status !== 'failed' || implementEndedRecord(row)) return null;
+  return runId;
+}
+
 function implementStalled(row, run, now = Date.now()) {
   if (implementEndedRecord(row)) {
     return { run_id: str(row.implement_run_id), run_url: str(run && run.run_page_url) || null, reason: str(row.status_message), ended: true };
@@ -3324,6 +3330,7 @@ module.exports = {
   implementRunEndedStatement,
   implementStalled,
   implementEndedRecord,
+  implementBuildRunId,
   parseImplementRow,
   carriedAssets,
   rollbackSpec,

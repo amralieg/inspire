@@ -280,7 +280,9 @@ test('a version whose run ended while it was still active is written failed once
   await withApp({ history: [{ ...fresh()[0], status: 'failed', status_message: 'the notebook failed: division by zero' }] }, async (url, made) => {
     const got = await call(url, `/api/inspire/implement/status?${Q}`);
     assert.equal(got.data.stalled, null, 'a build the agent wrote failed stays failed');
-    assert.ok(!made.fetches.some((f) => f.path.startsWith('/api/2.1/jobs/runs/get')), 'and costs no run lookup');
+    assert.deepEqual(made.fetches.filter((f) => f.path.startsWith('/api/2.1/jobs/runs/get')).map((f) => f.path),
+      ['/api/2.1/jobs/runs/get?run_id=5555555555555555'], 'its one run lookup finds the link to the run for the failed panel');
+    assert.ok('build_run_url' in got.data);
   });
   await withApp({ history, implementRun: { run_id: 5555555555555555, state: { life_cycle_state: 'RUNNING' } } }, async (url) => {
     const status = await call(url, `/api/inspire/implement/status?${Q}`);

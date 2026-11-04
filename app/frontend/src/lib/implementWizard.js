@@ -2131,6 +2131,12 @@ export function buildAgainHint(latest) {
   return `Try again asks for v${version} again as v${version + 1}, with the same choices, and Inspire repairs what it can on the way.`;
 }
 
+export const DATA_STOP_HINT = 'Trying again stops on the same data. Change the ask in Vibe/Add/Remove Features, or the tables and columns in all settings, then rebuild.';
+
+export function dataStopped(latest) {
+  return String(latest?.status || '') === 'failed' && /^Genie stopped the build\b/.test(String(latest?.status_message || '').trim());
+}
+
 export const IMPLEMENT_UNINSTALLED = 'uninstalled';
 export const IMPLEMENT_VIBE_NOT_MET = 'vibe_not_met';
 export const VIBE_NOT_MET_WORDS = 'Vibes not met, not published';

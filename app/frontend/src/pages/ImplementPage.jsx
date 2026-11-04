@@ -7,7 +7,7 @@ import {
   statusChip, statusReason, nextSpecFrom, retryableOutputs, lostTables, lostTablesText, genieQuestions, appStatusRows, editedNotebook,
   runProfileText, runStopped, versionActive, historyStatus, implementGroups, notebookRunEnded, notebookStatus, START_MVP_LABEL, IMPLEMENT_ACTIVE_STATUSES, IMPLEMENT_UNINSTALLED,
   vibesPreview, canBuildAgain, buildAgainChanges, buildAgainHint, resultTableMoveNote, IMPLEMENT_DONE_STATUSES, specFromHeld, builtVersion, vibePreviousChoices,
-  vibesProblems, OPEN_ALL_SETTINGS, VIBE_FEATURES_LABEL,
+  vibesProblems, OPEN_ALL_SETTINGS, VIBE_FEATURES_LABEL, DATA_STOP_HINT, dataStopped,
 } from '../lib/implementWizard';
 import { makeApiFetch, makeApiPostJson } from '../lib/apiClient';
 import { buildUseCaseList } from '../lib/useCaseList';
@@ -1185,6 +1185,8 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
     );
   };
 
+  const buildRunUrl = stalled?.run_url || status?.build_run_url || '';
+  const dataStop = !readOnly && dataStopped(latest);
   const failureBanner = hasMvp && chip.tone === 'error' && !held && !checklist?.notDecided && (
     <section aria-label="Build failed" className="rounded-lg border border-error/30 bg-error-bg px-3.5 py-3 text-[12px] space-y-2.5">
       <div className="flex items-start gap-2.5">
@@ -1195,18 +1197,28 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
           {reason && <p>{reason}</p>}
         </div>
       </div>
-      {buildAgain && <p className="text-error-fg">{buildAgainHint(latest)}</p>}
-      {(buildAgain || onEdit) && (
+      {buildAgain && <p className="text-error-fg">{dataStop ? DATA_STOP_HINT : buildAgainHint(latest)}</p>}
+      {(buildAgain || onEdit || buildRunUrl) && (
         <div className="flex flex-wrap gap-2">
-          {buildAgain && (
+          {buildAgain && !dataStop && (
             <button type="button" disabled={locked} title={lockedReason || undefined} onClick={() => submitNext(buildAgainChanges(latest))} className={PRIMARY_BUTTON}>
               {submitBusy ? <Loader2 size={12} className="animate-spin" /> : <RotateCcw size={12} />} Try again
+            </button>
+          )}
+          {buildAgain && dataStop && (
+            <button type="button" disabled={locked} title={lockedReason || undefined} onClick={() => openFeatures()} className={PRIMARY_BUTTON}>
+              <Sparkles size={12} /> {VIBE_FEATURES_LABEL}
             </button>
           )}
           {onEdit && (
             <button type="button" onClick={openSettings} className={buildAgain ? OUTLINE_BUTTON : PRIMARY_BUTTON}>
               <Settings2 size={12} /> {OPEN_ALL_SETTINGS}
             </button>
+          )}
+          {buildRunUrl && (
+            <a data-run-link="" className={OUTLINE_BUTTON} href={buildRunUrl} target="_blank" rel="noreferrer">
+              {stopped ? 'Open the run that stopped' : 'Open the run'} <ExternalLink size={12} />
+            </a>
           )}
         </div>
       )}
