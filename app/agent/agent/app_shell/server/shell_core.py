@@ -2146,7 +2146,7 @@ class Shell:
                            "today": window["today"]} if window else None,
                 "as_of_us": self.as_of_us(served_by(done), read_at),
                 **({"treatments": [{"segment": r.get("s"), "treatment": r.get("v"), "n": int(r.get("n") or 0)}
-                                   for r in (done.get(("list", "treatments")) or {}).get("rows") or []] if context["treatments"] else None}
+                                   for r in done[("list", "treatments")].get("rows") or []] if ("list", "treatments") in done else None}
                    if request["treatments"] else {})}
 
     def with_closes(self, headers: dict, ws, who, page: dict, context: dict, fields, rows: list, failures: dict) -> list:

@@ -126,11 +126,15 @@ function listed(rows, body) {
     .filter((r) => !words || [r.entity_label, r.customer_name, r.record_key].some((v) => String(v ?? '').toLowerCase().includes(words)));
 }
 
+const CARD_PICKS = { segment_cards: 'segment_id', effect_card: 'intervention' };
+
 function scoped(spec, data, body) {
   const tables = Object.fromEntries(Object.entries(data.tables || {}).map(([id, result]) => {
-    const dataset = (spec.tables || []).find((t) => t.id === id)?.dataset;
+    const table = (spec.tables || []).find((t) => t.id === id);
+    const dataset = table?.dataset;
     const narrowed = (spec.filters || []).reduce((rows, f) => {
       const column = f.columns?.[dataset];
+      if (column && column === CARD_PICKS[table?.section]) return rows;
       const wanted = Array.isArray(body.filters?.[f.id]) ? body.filters[f.id].map(String) : [];
       return column && wanted.length ? rows.filter((r) => wanted.includes(String(r[column]))) : rows;
     }, result.rows);
@@ -148,7 +152,7 @@ function treatmentsOf(rows) {
   return [...counted.values()].sort((a, b) => b.n - a.n || a.segment.localeCompare(b.segment));
 }
 
-export function kindRoutes(data, rows, acts, spec = {}, extra = {}) {
+export function kindRoutes(data, rows, acts, spec = {}, extra = {}, unread = false) {
   return {
     page: ({ route, json, seen }) => {
       const body = route.request().postDataJSON();
@@ -161,7 +165,8 @@ export function kindRoutes(data, rows, acts, spec = {}, extra = {}) {
       const found = listed(rows, body);
       return json(200, { rows: found.slice(0, body.limit || 25), total: found.length, offset: 0, limit: body.limit || 25, actions: true, changes: false,
         as_of_us: AS_OF, summary: { open: found.length, done: 0, resolved: 0, left: found.length, owners: [] }, errors: {},
-        ...(body.treatments ? { treatments: treatmentsOf(rows) } : {}) });
+        ...(body.treatments ? { treatments: unread ? null : treatmentsOf(rows) } : {}),
+        ...(body.treatments && unread ? { errors: { treatments: '[SQL_ERROR] the treatment count failed' } } : {}) });
     },
     'records/act': ({ route, json }) => {
       const body = route.request().postDataJSON();

@@ -51,9 +51,9 @@ const sectionsOf = (page) => page.evaluate(() => [...document.querySelectorAll('
 
 const exampleOf = (id) => JSON.parse(readFileSync(join(HERE, '..', '..', 'examples', `${id}.json`), 'utf8'));
 
-async function open(id, acts = [], rows = CASES[id].rows.map((r) => ({ ...r }))) {
+async function open(id, acts = [], rows = CASES[id].rows.map((r) => ({ ...r })), unread = false) {
   const info = appInfo(DECIDE, 1, {}, `examples/${id}.json`);
-  const opened = await openApp(browser, base, info, { routes: kindRoutes(CASES[id].data(), rows, acts, exampleOf(id)) });
+  const opened = await openApp(browser, base, info, { routes: kindRoutes(CASES[id].data(), rows, acts, exampleOf(id), {}, unread) });
   await opened.page.locator(CASES[id].ready).first().waitFor();
   return { ...opened, info, rows };
 }
@@ -112,6 +112,22 @@ test('after a reload each segment card shows the treatments its members got, cou
   assert.equal(await page.locator('[data-segment="S2"] [data-seg-open]').innerText(), 'Every member has a treatment or a decision');
   assert.equal(await page.locator('[data-chosen]').count(), 0, 'nothing was chosen in this visit, the counts come from the recorded decisions');
   assert.ok(seen.records.some((b) => b.treatments === true && !b.filters?.segment), 'one page-wide request asks for the treatment counts');
+  assert.deepEqual(seen.errors, []);
+  await context.close();
+});
+
+test('a treatment count that cannot be read says so on each card and the card still takes a treatment', async () => {
+  const acts = [];
+  const { page, seen, context } = await open('segment_explorer', acts, undefined, true);
+  const card = page.locator('[data-segment="S2"]');
+  await card.locator('[data-treated-unread]').waitFor();
+  assert.equal(await card.locator('[data-treated-unread]').innerText(), 'The treatment counts could not be read. Reload the page to see them.');
+  assert.equal(await page.locator('[data-treated-unread]').count(), 4);
+  assert.equal(await card.locator('[data-seg-open]').innerText(), '2 of 380 members still need a treatment');
+  await card.locator('[data-treatment="Win-back offer"]').click();
+  await page.waitForFunction(() => document.querySelector('.toast .toast-t')?.textContent === 'Win-back offer chosen for 2 members of Lapsing families');
+  assert.deepEqual([acts.length, acts[0].treatment, acts[0].match.filters.segment], [1, 'Win-back offer', ['S2']]);
+  assert.match(await card.locator('[data-chosen]').innerText(), /Treatment: Win-back offer/);
   assert.deepEqual(seen.errors, []);
   await context.close();
 });
@@ -238,15 +254,19 @@ test('picking an effect card filters the page to that promotion through the prom
   assert.deepEqual((await asked).filters.promotion, ['Spring bundle']);
   assert.ok(await decisions, 'the keep, scale or stop list follows the pick');
   await page.waitForFunction(() => document.querySelector('[data-card="effect:Spring bundle"]')?.classList.contains('is-picked'));
-  await page.waitForFunction(() => document.querySelectorAll('[data-card^="effect:"]').length === 1, null, { timeout: 5000 });
   assert.equal(await page.locator('[data-card="effect:Spring bundle"] [data-pick]').getAttribute('aria-pressed'), 'true');
+  assert.deepEqual(await page.locator('[data-card^="effect:"]').evaluateAll((n) => n.map((c) => [c.dataset.card, c.classList.contains('is-dimmed')])),
+    [['effect:Spring bundle', false], ['effect:Flash sale', true], ['effect:Free delivery', true]], 'picking a promotion keeps every effect card in view');
+  const added = pageAsked(page);
+  await page.locator('[data-card="effect:Flash sale"] [data-pick="Flash sale"]').click();
+  assert.deepEqual([...(await added).filters.promotion].sort(), ['Flash sale', 'Spring bundle'], 'a dimmed effect card is still a pick');
   assert.deepEqual(seen.errors, []);
   await context.close();
 });
 
 test('the choice helpers pick the earliest named choice, map a skip to a dismissal with its reason, and judge an effect by p and range', async () => {
   const got = await inBundle(({ choices }) => {
-    const { suggestedChoice, choiceValues, treatmentValues, treatedBySegment, groupByEntity, effectVerdict, pickedIn } = window.kinds;
+    const { suggestedChoice, choiceValues, treatmentValues, treatedBySegment, groupByEntity, effectVerdict, pickedIn, pickState } = window.kinds;
     return {
       scale: suggestedChoice(choices, 'Scale it, do not stop')?.id,
       stop: suggestedChoice(choices, 'stop it, then scale later')?.id,
@@ -269,6 +289,8 @@ test('the choice helpers pick the earliest named choice, map a skip to a dismiss
       ].map((r) => effectVerdict(r).state),
       picked: [pickedIn({ segment: ['S1', 'S2'] }, 'segment', 'S2'), pickedIn({ segment: ['S1'] }, 'segment', 'S2'), pickedIn({}, 'segment', 'S1'),
         pickedIn({ segment: [3] }, 'segment', '3'), pickedIn({ segment: ['S1'] }, null, 'S1')],
+      states_of_picks: [pickState({ segment: ['S2'] }, 'segment', 'S2'), pickState({ segment: ['S2'] }, 'segment', 'S1'), pickState({}, 'segment', 'S1'),
+        pickState({ segment: [] }, 'segment', 'S1'), pickState({ segment: ['S1'] }, undefined, 'S1'), pickState({ region: ['N'] }, 'segment', 'S1')],
     };
   }, { choices: layoutOf('lift_readout').choices });
   assert.deepEqual(got, {
@@ -279,6 +301,7 @@ test('the choice helpers pick the earliest named choice, map a skip to a dismiss
     grouped: [['A', [1, 2]], ['B', [2]]], real: true, crosses: false, weak: false, missing: false,
     states: ['real', 'loses', 'loses', 'unproven', 'loses', 'real', 'unproven'],
     picked: [true, false, false, true, false],
+    states_of_picks: [' is-picked', ' is-dimmed', '', '', '', ''],
   });
 });
 

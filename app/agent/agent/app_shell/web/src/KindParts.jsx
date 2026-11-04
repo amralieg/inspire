@@ -21,6 +21,7 @@ export const LAZY_CHARTS = ['treemap', 'radar', 'sankey'];
 export const SKIP_REASONS = ['Not a fit for them', 'They already have it', 'Bad timing', 'Too many offers already'];
 export const TREATMENT_NOTE = 'Treatment';
 export const UNTREATED = { column_filters: { action_status: ['New'] } };
+const TREATMENTS_UNREAD = 'The treatment counts could not be read. Reload the page to see them.';
 
 const ExtraCharts = lazy(() => import('./echartsKinds.js').then(() => ({ default: ({ children }) => children })));
 
@@ -69,6 +70,11 @@ export function effectVerdict(row) {
 
 export function pickedIn(filters, filter, value) {
   return !!filter && (filters?.[filter] || []).map(String).includes(String(value));
+}
+
+export function pickState(filters, filter, value) {
+  if (pickedIn(filters, filter, value)) return ' is-picked';
+  return filter && (filters?.[filter] || []).length ? ' is-dimmed' : '';
 }
 
 function PickButton({ filter, value, label, filters, onPick, what }) {
@@ -287,8 +293,9 @@ function useSegmentCounts(page, ids, ready, nonce) {
       .then((probe) => {
         const view = probe.actions ? UNTREATED : {};
         const treated = treatedBySegment(probe.treatments);
+        const unread = !!probe.errors?.treatments;
         return Promise.all(ids.map((id) => getRecords({ ...view, page: page.id, filters: { [filter]: [id] }, offset: 0, limit: 1 })
-          .then((data) => [id, { waiting: data.total ?? 0, asOf: listAsOf(data), actions: !!data.actions, view, treated: treated[id] || [] }])
+          .then((data) => [id, { waiting: data.total ?? 0, asOf: listAsOf(data), actions: !!data.actions, view, treated: treated[id] || [], unread }])
           .catch((e) => [id, { error: e.message }])));
       })
       .catch((e) => ids.map((id) => [id, { error: e.message }]))
@@ -340,9 +347,8 @@ export function SegmentCards({ page, app, ready, nonce, filters, onChanged, onPi
             const treated = c.treated || [];
             const chosen = picked[id] && !treated.some((t) => t.treatment === picked[id]) ? picked[id] : null;
             const done = c.actions && c.waiting === 0;
-            const state = pickedIn(filters, block.filter, id) ? ' is-picked' : (filters?.[block.filter] || []).length ? ' is-dimmed' : '';
             return (
-              <article key={id} className={`seg-card${state}`} data-card={`segment:${id}`} data-segment={id}>
+              <article key={id} className={`seg-card${pickState(filters, block.filter, id)}`} data-card={`segment:${id}`} data-segment={id}>
                 <header><PickButton filter={block.filter} value={id} label={row.label} filters={filters} onPick={onPick} what="segment" /><AskGenie kind="segment" title={row.label} context={{ hint: row.profile != null ? String(row.profile) : '',
                   fields: { ...specFields(row, table?.columns), ...(c.waiting != null ? { 'Members waiting': c.waiting } : {}), ...(star ? { Suggested: star } : {}) } }} /></header>
                 <dl>
@@ -353,6 +359,7 @@ export function SegmentCards({ page, app, ready, nonce, filters, onChanged, onPi
                 <p className="seg-wait" data-seg-open>{c.error ? c.error : c.waiting == null ? 'Counting members…'
                   : !c.actions ? `${plural(c.waiting, 'member')} in the decision list` : done ? 'Every member has a treatment or a decision'
                   : `${integer(c.waiting)} of ${shown(cols.size || { format: 'integer' }, row.size)} members still need a treatment`}</p>
+                {c.unread && <p className="tile-err" data-treated-unread><Icon name="info" size={14} />{TREATMENTS_UNREAD}</p>}
                 {(chosen || treated.length > 0) && (
                   <p className="choice-done seg-treated" data-decided><Icon name="check" size={13} />
                     {chosen && <span data-chosen>{TREATMENT_NOTE}: {chosen}</span>}
@@ -395,7 +402,7 @@ export function EffectCard({ page, data, filters, onPick }) {
         {rows.map((row, i) => {
           const verdict = effectVerdict(row);
           return (
-            <article key={`${row.intervention}:${i}`} className={`effect is-${verdict.state}${pickedIn(filters, cols.intervention?.filter, row.intervention) ? ' is-picked' : ''}`}
+            <article key={`${row.intervention}:${i}`} className={`effect is-${verdict.state}${pickState(filters, cols.intervention?.filter, row.intervention)}`}
               data-card={`effect:${row.intervention}`}>
               <header><PickButton filter={cols.intervention?.filter} value={row.intervention} label={row.intervention} filters={filters} onPick={onPick} what="intervention" /><AskGenie kind="effect" title={String(row.intervention)} context={{ hint: verdict.text, fields: specFields(row, table?.columns) }} /></header>
               <p className="effect-lift"><b>{shown(cols.effect, row.effect)}</b> <span>{cols.effect?.label || 'Lift'}</span></p>

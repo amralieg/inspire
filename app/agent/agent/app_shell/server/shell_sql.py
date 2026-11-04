@@ -57,6 +57,7 @@ ACTION_EDITABLE = ("action_owner", "action_status", "action_due", "action_note",
 UNDONE_KEYS = ("action_owner", "action_status", "action_due", "action_note", "dismiss_reason", SNOOZE_COLUMN) + tuple(CLOSE_TYPES)
 ACT_NOTE = "note"
 TREATMENT_KEY = "treatment"
+CARD_PICKS = {"segment_cards": "segment_id", "effect_card": "intervention"}
 WINDOWS = ("hour", "today", "week", "month", "all")
 ZONE_NAME = re.compile(r"^[A-Za-z][A-Za-z0-9_+-]{0,30}(/[A-Za-z0-9_+-]{1,30}){0,2}$")
 FIXED_OFFSET_GONE = ("send time_zone, the name of a time zone such as Asia/Dubai, instead of utc_offset_min: a fixed offset counts the "
@@ -1183,7 +1184,7 @@ def quality_problems(page: dict, event_date: bool = False) -> list:
     whole = run_level_datasets(page)
     if not whole and len(segments) < SEGMENT_FILTERS_MIN:
         problems.append(f"the page has {plural(len(segments), 'segment filter')}; add at least {SEGMENT_FILTERS_MIN} people can slice by")
-    covered = {d for f in filters for d in (f.get("columns") or {})} | whole | segment_card_datasets(page)
+    covered = {d for f in filters for d in (f.get("columns") or {})} | whole
     for kind, items in (("KPI", page.get("kpis") or []), ("chart", page.get("charts") or []), ("table", page.get("tables") or [])):
         for item in items:
             if item.get("dataset") and item["dataset"] not in covered:
@@ -1431,12 +1432,6 @@ def scenario_problems(scenario, names: set, wanted: bool) -> list:
     if save is not None and (not isinstance(save, dict) or any(not IDENT.match(str(save.get(k) or "")) for k in SCENARIO_SAVE)):
         problems.append(f"the scenario save names the result table columns a saved scenario writes: {', '.join(SCENARIO_SAVE)}")
     return problems
-
-
-def segment_card_datasets(page: dict) -> set:
-    if not isinstance(page.get("segments"), dict):
-        return set()
-    return {str(t.get("dataset")) for t in section_items(page, "segment_cards") if t in (page.get("tables") or []) and t.get("dataset")}
 
 
 def run_level_datasets(page: dict) -> set:
@@ -1881,6 +1876,10 @@ def chart_query(page: dict, ident: str, values: dict) -> tuple:
 
 def table_query(page: dict, ident: str, values: dict, columns=None, types=None, asked=None) -> tuple:
     table = _item(page, "tables", ident)
+    own = card_picks(page).get(ident)
+    if own and (values or {}).get(own):
+        print(f"[CARD-PICK FIRED] page={page.get('id')} table={ident} filter={own} keeps every card in view")
+        values = {k: v for k, v in values.items() if k != own}
     sql, params = _dataset(page, table["dataset"]), _Params()
     picked = ", ".join(quote(c["column"]) for c in table["columns"])
     problems = table_sorts_problems(page, {ident: asked}) if asked else []
@@ -4940,15 +4939,12 @@ def segments_problems(page: dict) -> list:
         return ["a segment explorer page needs a segments section naming the filter that picks a segment's members and its treatments"]
     problems = []
     found = next((f for f in page.get("filters") or [] if isinstance(f, dict) and f.get("id") == block.get("filter")), None)
-    cards = segment_card_datasets(page)
+    cards = [t.get("dataset") for t in section_items(page, "segment_cards") if t in (page.get("tables") or [])]
     if found is None or found.get("type") != "multi_select":
         problems.append(f"the segments filter {block.get('filter')!r} must be a multi_select filter of the page")
-    elif RECORDS_DATASET not in (found.get("columns") or {}):
-        problems.append(f"the segments filter {block.get('filter')} must map the {RECORDS_DATASET} dataset, so a segment's treatment reaches "
-                        "all of its members")
-    elif any(d in (found.get("columns") or {}) for d in cards):
-        problems.append(f"the segments filter {block.get('filter')} must not map the segment cards dataset, so picking a card keeps every "
-                        "segment in view")
+    elif RECORDS_DATASET not in (found.get("columns") or {}) or any((found.get("columns") or {}).get(d) != CARD_PICKS["segment_cards"] for d in cards):
+        problems.append(f"the segments filter {block.get('filter')} must map the {RECORDS_DATASET} dataset and the segment_id column of the "
+                        "segment cards dataset, so picking a card marks its segment and its treatment reaches all of its members")
     if (page.get("records") or {}).get(COLUMN_FILTERS) is False:
         problems.append("a segment explorer counts the members of each segment that still need a treatment by their status, so its decision "
                         "list keeps its column filters")
@@ -4989,6 +4985,16 @@ def recs_problems(page: dict) -> list:
 def pick_filter(page: dict, dataset, column: str):
     return next((f.get("id") for f in page.get("filters") or [] if isinstance(f, dict) and f.get("type") == "multi_select"
                  and (f.get("columns") or {}).get(dataset) == column), None)
+
+
+def card_picks(page: dict) -> dict:
+    picks = {}
+    for section, column in CARD_PICKS.items():
+        for t in section_items(page, section):
+            found = pick_filter(page, t.get("dataset"), column) if t in (page.get("tables") or []) else None
+            if found:
+                picks[t.get("id")] = found
+    return picks
 
 
 def effect_problems(page: dict) -> list:
