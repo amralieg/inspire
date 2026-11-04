@@ -48,7 +48,10 @@ class AnyWorkspace:
 
 
 def _routes() -> list:
-    source = inspect.getsource(shell_core.Shell.handle)
+    handle = inspect.getsource(shell_core.Shell.handle)
+    assert "self.answer(method, path, query, headers, body)" in handle and "shell_sql.plain_answer(answer)" in handle, \
+        "every route answers through the one plain-error boundary"
+    source = inspect.getsource(shell_core.Shell.answer)
     named = re.findall(r'route == \("(GET|POST)", "([a-z/]+)"\)', source)
     named += [("POST", path) for path in shell_core.WRITE_SOURCES] + [("POST", path) for path in shell_core.ALERT_ROUTES]
     assert "WRITE_SOURCES" in source and "ALERT_ROUTES" in source and len(named) >= 27

@@ -1429,7 +1429,7 @@ READ_ROUTES_SKIPPED = {("POST", "records/act"), ("POST", "refresh")}
 def read_routes():
     import inspect
     import re
-    found = re.findall(r'route == \("(GET|POST)", "([^"]+)"\)', inspect.getsource(shell_core.Shell.handle))
+    found = re.findall(r'route == \("(GET|POST)", "([^"]+)"\)', inspect.getsource(shell_core.Shell.answer))
     return sorted(set(found) - READ_ROUTES_SKIPPED)
 
 
