@@ -1421,9 +1421,12 @@ def layout_problems(page: dict, names: set) -> list:
                 continue
             section = item.get("section")
             fits = [s for s in sections if _section_fits(s, group, item.get("type"))]
-            if section not in sections or not _section_fits(section, group, item.get("type")):
+            if not fits:
+                problems.append(f"{word} {item.get('id')} is a {item.get('type') or word}, and a {ident} page has no section that holds one: "
+                                f"remove it from this page, or put it on a page with the {DEFAULT_LAYOUT} layout")
+            elif section not in sections or not _section_fits(section, group, item.get("type")):
                 problems.append(f"{word} {item.get('id')} names section {section!r}; on a {ident} page a {item.get('type') or word} goes in "
-                                f"one of: {', '.join(fits) or 'no section, so leave it out'}")
+                                f"one of: {', '.join(fits)}")
     for kpi in page.get("kpis") or []:
         if (isinstance(kpi, dict) and kpi.get("section") is not None
                 and (kpi.get("section") not in sections or (SECTIONS.get(kpi.get("section")) or {}).get("holds") != "objective")):
