@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
 import { GenieMark, Icon } from './icons.jsx';
 import { askGenie, explainGenie } from './api.js';
 import { reducedMotion } from './theme.js';
-import { formatValue, integer, plainText } from './format.js';
+import { cellText, integer, isKeyColumn } from './format.js';
 import DataTable from './DataTable.jsx';
 import Markdown from './Markdown.jsx';
 import { BUSY_TITLE, explainBody } from './explain.js';
@@ -14,8 +14,8 @@ const WORDS_PER_SECOND = 14;
 function answerColumns(answer) {
   const rows = answer.rows || [];
   return (answer.columns || []).map((c) => {
-    const num = rows.some((r) => typeof r[c.name] === 'number') && rows.every((r) => r[c.name] == null || typeof r[c.name] === 'number');
-    return { key: c.name, label: c.name, num, render: (r) => (typeof r[c.name] === 'number' ? formatValue(r[c.name]) : plainText(r[c.name])) };
+    const num = !isKeyColumn(c.name, c.type) && rows.some((r) => typeof r[c.name] === 'number') && rows.every((r) => r[c.name] == null || typeof r[c.name] === 'number');
+    return { key: c.name, label: c.name, num, render: (r) => (r[c.name] == null ? '' : cellText(r[c.name], c)) };
   });
 }
 

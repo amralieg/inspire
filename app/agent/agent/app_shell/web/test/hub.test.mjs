@@ -281,6 +281,28 @@ function pageGenie() {
   return routes;
 }
 
+test("Genie's answer table shows each zip code as written and each count in full, matching the answer text", async () => {
+  const routes = pageGenie();
+  const rows = [[10001, 1227], [10003, 1189], [10011, 1104], [10016, 1043], [10018, 1012]];
+  routes['genie/message'] = ({ json }) => json(200, {
+    state: 'done', text: 'The top zip is 10001 with 1,227 trips.', sql: 'SELECT 1', truncated: false,
+    columns: [{ name: 'PICKUP_ZIP', type: 'INT' }, { name: 'TRIP_COUNT', type: 'BIGINT' }],
+    rows: rows.map(([zip, n]) => ({ PICKUP_ZIP: zip, TRIP_COUNT: n })),
+  });
+  const { page, seen, context } = await openApp(browser, served.base, withJoined(), { width: 1440, routes });
+  await page.goto(`${served.base}#/n01_u05`);
+  await page.waitForFunction(() => document.querySelector('.ph h1')?.textContent === 'Price-loss decision desk');
+  await page.getByRole('button', { name: 'Ask Genie', exact: true }).click();
+  await page.getByLabel('Your question').fill('Which 5 pickup zip codes have the most trips?');
+  await page.getByRole('button', { name: 'Send' }).click();
+  const table = page.locator('aside.genie .msg-t table');
+  await table.waitFor({ timeout: 15000 });
+  const cells = await table.locator('tbody tr').evaluateAll((trs) => trs.map((tr) => [...tr.querySelectorAll('td')].map((td) => td.textContent.trim())));
+  assert.deepEqual(cells.map((r) => r.slice(-2)), rows.map(([zip, n]) => [String(zip), n.toLocaleString('en-US')]));
+  assert.deepEqual(seen.errors, []);
+  await context.close();
+});
+
 test('on the Overview Ask Genie lists only the use cases that answer and that the viewer may read, and picking one opens it with Ask Genie open', async () => {
   const info = withJoined();
   const { page, seen, context } = await openApp(browser, served.base, info, { width: 1440, routes: pageGenie() });

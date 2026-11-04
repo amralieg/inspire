@@ -120,3 +120,27 @@ test('a previous value of 0 is a change from 0, and only a missing previous valu
   assert.equal(sentence(story, { orders: { now: null, before: 4 } }), 'The list holds Not recorded orders.',
     'a missing value now says nothing about an earlier run');
 });
+
+test('a table shows identifiers as written and counts in full, never as 10K or 1.2K', () => {
+  const { cellText, isKeyColumn } = format;
+  for (const name of ['PICKUP_ZIP', 'dropoff_zip', 'zipcode', 'customer_id', 'customerId', 'o_orderkey', 'store_code', 'fiscal_year', 'POSTAL_CODE', 'sku']) {
+    assert.equal(isKeyColumn(name, 'INT'), true, name);
+  }
+  for (const name of ['TRIP_COUNT', 'fare_amount', 'paid', 'valid_rows', 'monkeys_seen', 'trip_date']) {
+    assert.equal(isKeyColumn(name, 'BIGINT'), false, name);
+  }
+  assert.equal(isKeyColumn('order_date', 'DATE'), false, 'a date column is a date, not a key');
+  assert.equal(cellText(10001, { name: 'PICKUP_ZIP', type: 'INT' }), '10001');
+  assert.equal(cellText(2024, { name: 'fiscal_year', type: 'INT' }), '2024');
+  assert.equal(cellText('9007199254740993', { name: 'event_id', type: 'BIGINT' }), '9007199254740993');
+  assert.equal(cellText(1227, { name: 'TRIP_COUNT', type: 'BIGINT' }), '1,227');
+  assert.equal(cellText(1012, { name: 'TRIP_COUNT', type: 'BIGINT' }), '1,012');
+  assert.equal(cellText(1234567.891, { name: 'fare_value', type: 'DOUBLE' }), '1,234,567.89');
+  assert.equal(cellText('9007199254740993', { name: 'rows', type: 'BIGINT' }), '9,007,199,254,740,993');
+  assert.equal(cellText(1227, { column: 'trips', format: 'number' }), '1,227', 'a table number column shows the full count');
+  assert.equal(cellText(10001, { column: 'zip', format: 'number' }), '10001', 'a key column is never grouped or compacted');
+  assert.equal(cellText('2024', { column: 'label', format: 'text' }), '2024', 'a text column stays as written');
+  assert.equal(cellText(1500, { column: 'spend', format: 'currency', currency: 'USD' }), format.formatValue(1500, 'currency', 'USD'));
+  assert.equal(cellText(null, { name: 'TRIP_COUNT' }), NOT_RECORDED);
+  assert.equal(format.formatValue(12000), '12K', 'the compact form stays for KPI tiles');
+});

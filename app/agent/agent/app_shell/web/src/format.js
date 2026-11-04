@@ -186,6 +186,33 @@ export function formatValue(v, format = 'number', currency = 'USD', digits, kind
   }
 }
 
+const KEY_WORDS = new Set(['id', 'ids', 'key', 'keys', 'code', 'codes', 'zip', 'zips', 'zipcode', 'postcode', 'postal', 'year', 'years', 'yr', 'fips', 'sku', 'isbn', 'phone', 'uuid', 'guid']);
+const KEY_ENDINGS = /(key|zip|zipcode|postcode|uuid|guid)$/;
+const NUMERIC_TYPE = /^(TINYINT|SMALLINT|INT|INTEGER|BIGINT|LONG|SHORT|BYTE|FLOAT|DOUBLE|DECIMAL)/i;
+
+export function isKeyColumn(name, type) {
+  if (/^(DATE|TIMESTAMP)/i.test(String(type || ''))) return false;
+  const words = String(name ?? '').replace(/([a-z0-9])([A-Z])/g, '$1_$2').toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+  return words.some((w) => KEY_WORDS.has(w) || KEY_ENDINGS.test(w));
+}
+
+export function fullNumber(v) {
+  if (bigWhole(v) != null) return integer(v);
+  const n = Number(v);
+  if (!Number.isFinite(n)) return plainText(v);
+  return Number.isInteger(n) ? integer(n) : grouped(n, { maximumFractionDigits: 2 });
+}
+
+export function cellText(v, column = {}) {
+  if (v == null || v === '') return NOT_RECORDED;
+  const name = column.column ?? column.name;
+  if (isKeyColumn(name, column.type) && (!column.format || ['number', 'integer', 'text'].includes(column.format))) return plainText(v);
+  if (column.format === 'number' || column.format === 'integer') return isAmount(v) ? fullNumber(v) : plainText(v);
+  if (column.format) return formatValue(v, column.format, column.currency);
+  const numeric = typeof v === 'number' || typeof v === 'bigint' || NUMERIC_TYPE.test(String(column.type || ''));
+  return numeric && isAmount(v) ? fullNumber(v) : plainText(v);
+}
+
 export function axisValue(v, format, currency) {
   if (format === 'currency') return money(v, currency, 0);
   if (format === 'percent') return `${Number(v).toFixed(0)}%`;

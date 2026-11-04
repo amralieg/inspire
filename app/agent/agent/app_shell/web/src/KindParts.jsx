@@ -1,6 +1,6 @@
 import { Suspense, lazy, useEffect, useState } from 'react';
 import { getRecords } from './api.js';
-import { formatValue, integer, numberOf } from './format.js';
+import { cellText, formatValue, integer, isKeyColumn, numberOf } from './format.js';
 import { CLOSED_STATUSES, actError, listAsOf, matchOf, recordKeyOf, statusLabel } from './records.js';
 import { useActs } from './Work.jsx';
 import { useList } from './Layouts.jsx';
@@ -89,7 +89,7 @@ function PickButton({ filter, value, label, filters, onPick, what }) {
 const isClosed = (row) => CLOSED_STATUSES.includes(row._inspire_status || row.action_status);
 const decidedText = (row) => row._inspire_closed_note || row._inspire_closed_reason || statusLabel(row._inspire_status || row.action_status);
 const columnsOf = (table) => Object.fromEntries((table?.columns || []).map((c) => [c.column, c]));
-const shown = (meta, value) => formatValue(value, meta?.format, meta?.currency);
+const shown = (meta, value) => (isKeyColumn(meta?.column) ? cellText(value, meta) : formatValue(value, meta?.format, meta?.currency));
 const reasonsOf = (value) => (Array.isArray(value) ? value : value ? String(value).split(/\s*[;|]\s*/) : []).filter(Boolean).slice(0, 3);
 const sectionTable = (page, section) => (page.tables || []).find((t) => t.section === section);
 

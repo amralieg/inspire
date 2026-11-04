@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { GenieMark, Icon } from './icons.jsx';
-import { DATE_FORMATS, compareValues, formatValue, isAmount, numberOf, plainText } from './format.js';
+import { DATE_FORMATS, cellText, compareValues, isAmount, numberOf, plainText } from './format.js';
 import { askGenie } from './genieAsk.js';
 import { ColumnFilterStatus, withColumnFilters } from './ColumnFilters.jsx';
 import { columnFiltersOn, withValue } from './filters.js';
@@ -17,7 +17,7 @@ export function columnOf(c, onFilter) {
   return {
     key: c.column, label: c.label, num, date: DATE_FORMATS.includes(c.format), bar: c.bar,
     render: (row) => {
-      const text = formatValue(row[c.column], c.format || 'text', c.currency);
+      const text = cellText(row[c.column], { ...c, format: c.format || 'text' });
       if (c.filter && onFilter && row[c.column] != null) {
         return <button className="link" style={{ padding: 0 }} onClick={(e) => { e.stopPropagation(); onFilter(c.filter, row[c.column]); }} title={`Filter the page to ${text}`}>{text}</button>;
       }
