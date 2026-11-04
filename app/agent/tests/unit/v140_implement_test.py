@@ -5533,3 +5533,21 @@ def test_a_genie_exit_says_its_reason_in_plain_text_without_terminal_codes_or_cl
     said = agent_ns["genie_exit_reason"](result)
     assert said == reason
     assert "\x1b" not in said and "shell_snapshot" not in said and "Reading additional input" not in said
+
+
+@pytest.mark.parametrize("outcome, ended", [
+    ({"status": "unknown", "text": "", "job_url": "https://example.net/runs/1"}, "without saying what it wrote"),
+    ({"status": "unknown", "text": "{}"}, "with output Inspire does not read as a result"),
+])
+def test_a_preview_that_ends_without_its_outcome_sentence_says_so_in_plain_words_and_tells_genie_the_sentence(agent_ns, outcome, ended):
+    said = agent_ns["implement_stop_message"](outcome, {})
+    assert said == (f"the preview run did not write usable rows: the notebook ran but ended {ended}; its last cell must exit with the "
+                    "sentence 'wrote N rows for as_of_date D with run_id R', or 'stopped without writing: ' and the reason")
+    assert "{" not in said and "job_url" not in said and "status" not in said
+
+
+def test_a_stop_reason_or_an_error_is_still_the_reason_of_the_stop_message(agent_ns):
+    stop = agent_ns["implement_stop_message"]
+    assert stop({"status": "stopped", "stop_reason": "no rows match"}, {}) == "the preview run did not write usable rows: no rows match"
+    assert stop({"status": "failed", "error": "boom"}, {}) == "the preview run did not write usable rows: boom"
+    assert stop({}, {}) == "the preview run did not write usable rows: no reason given"
