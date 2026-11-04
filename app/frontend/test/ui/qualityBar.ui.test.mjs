@@ -58,6 +58,11 @@ test('a run where nothing meets the bar still lists every use case found, each m
     assert.match(await done.innerText(), /Execution Complete, with a warning/);
     assert.match(await page.locator('[data-testid="quality-bar-counts"]').innerText(), /^6 found, 0 meet your quality bar$/);
     assert.match(await page.locator('[data-testid="execution-outcome"]').innerText(), /^None of the 6 use cases found meets your High bar/);
+    assert.equal(await page.locator('[data-testid="quality-bar-next-step"]').innerText(),
+      'Next step: add rows to the 2 tables that have no rows yet (the Generate data page can add sample rows), then run again.');
+    const tiles = await page.locator('[data-stat]').evaluateAll((els) => els.map((el) => el.dataset.stat));
+    for (const hidden of ['High Priority', 'Avg Inspire score', 'Best of Best']) assert.equal(tiles.includes(hidden), false, `${hidden} is hidden when nothing meets the bar`);
+    assert.equal(await page.getByText('Suggested build order').count(), 0);
     assert.doesNotMatch(await page.locator('body').innerText(), /\[object Object\]/);
     assert.deepEqual(ui.pageErrors, []);
   } finally {
@@ -90,6 +95,11 @@ test('in a mixed run the use cases that meet the bar come first with the chip, a
     assert.match(await cards(page).first().innerText(), /Meets your quality bar/i);
     assert.equal(await page.locator('[data-testid="execution-complete"]').getAttribute('data-status'), 'success');
     assert.match(await page.locator('[data-testid="quality-bar-counts"]').innerText(), /^6 found, 3 meet your quality bar$/);
+    assert.equal(await page.locator('[data-testid="quality-bar-next-step"]').count(), 0);
+    const tiles = await page.locator('[data-stat]').evaluateAll((els) => els.map((el) => el.dataset.stat));
+    assert.ok(tiles.includes('High Priority') && tiles.includes('Avg Inspire score'), tiles.join(', '));
+    const high = Number(await page.locator('[data-stat="High Priority"] [data-stat-value]').innerText());
+    assert.ok(high <= 3, `high priority never counts a use case below the bar (got ${high})`);
     const filter = page.locator('[data-testid="quality-bar-filter"]');
     await filter.selectOption('below');
     assert.equal(await cards(page).count(), 3);

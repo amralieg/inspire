@@ -673,8 +673,8 @@ export default function LandingPage({ onStart, onOpenSetup, onDemo }) {
 
                 <LandingActions onStart={onStart} onDemo={onDemo} />
 
-                <aside className="mt-5 max-w-lg space-y-3" aria-label={onOpenSetup ? 'Setup and legal disclaimer' : 'Legal disclaimer'}>
-                  {onOpenSetup && (
+                {onOpenSetup && (
+                  <aside className="mt-5 max-w-lg" aria-label="Workspace setup">
                     <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm" style={{ color: C.textFaint }}>
                       <Globe2 size={14} className="shrink-0" />
                       <span>Change the workspace, warehouse or Inspire database this App uses in</span>
@@ -686,17 +686,8 @@ export default function LandingPage({ onStart, onOpenSetup, onDemo }) {
                         Workspace setup
                       </button>
                     </div>
-                  )}
-                  <p
-                    className="text-[10px] sm:text-[11px] leading-relaxed border-t border-white/8 pt-3"
-                    style={{ color: C.textFaint }}
-                  >
-                    This software is provided as-is and is not officially supported by Databricks through customer
-                    technical support channels. Support, questions, and feature requests can be communicated through the
-                    Issues page of this repo. Issues with the use of this code will not be answered or investigated by
-                    Databricks Support.
-                  </p>
-                </aside>
+                  </aside>
+                )}
               </div>
 
               {/* Right: AI Vision Hero Image */}
@@ -907,6 +898,12 @@ export default function LandingPage({ onStart, onOpenSetup, onDemo }) {
               ))}
             </div>
           </div>
+
+          <footer role="contentinfo" aria-label="About Inspire" data-landing-about=""
+            className="absolute bottom-0 inset-x-0 z-10 px-6 pb-5 text-center text-[11px] leading-relaxed" style={{ color: C.textFaint }}>
+            Inspire is open source and provided as is. Databricks Support does not cover it: ask questions and request features on the{' '}
+            <a href="https://github.com/amralieg/inspire/issues" target="_blank" rel="noreferrer" className="underline hover:text-db-red-fg">Inspire GitHub Issues page</a>.
+          </footer>
         </section>
       </div>
     </div>

@@ -50,7 +50,7 @@ import { responseError } from '../lib/apiClient';
 import { placeholderWords } from '../lib/placeholderWords';
 import { nameOfUseCase } from '../lib/useCaseFields';
 import { counted } from '../lib/plural';
-import { catalogListNote, typedCatalog } from '../lib/catalogList';
+import { catalogListNote, shownCatalogs, typedCatalog } from '../lib/catalogList';
 
 /* ─── Constants — notebook v1.2.0 widget `05_use_cases_quality` ─── */
 const QUALITY_OPTIONS = ['Good', 'High', 'Ultra High'];
@@ -89,11 +89,13 @@ const DEEP_PANEL = [
   },
 ];
 const TABLE_ELECTION = ['Let Inspire Decides', 'All Tables', 'Transactional Only'];
+const TABLE_ELECTION_LABELS = { 'Let Inspire Decides': 'Let Inspire decide', 'All Tables': 'All tables', 'Transactional Only': 'Transactional tables only' };
 /** Show guidance when explicit table selection exceeds this count. */
 const TABLE_SELECTION_WARN_THRESHOLD = 10;
 /** Documented sweet spot for discovery quality and runtime. */
 const TABLE_SELECTION_IDEAL_MAX = 25;
 const OPERATION_WIDGET_OPTIONS = ['Discover Use Cases', 'Generate Use Cases'];
+const OPERATION_LABELS = { 'Discover Use Cases': 'Discover use cases', 'Generate Use Cases': 'Rewrite Genie instructions for flagged use cases' };
 const GENERATION_OPTIONS = [
   { key: 'PDF Catalog', icon: FileText, desc: 'Professional PDF use case catalog' },
   { key: 'Presentation', icon: Target, desc: 'Executive-ready slide deck' },
@@ -723,7 +725,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
   // Derived
   const typedCatalogItem = typedCatalog(catalogs, catalogsCut, catalogSearch);
   const filteredCatalogs = [
-    ...catalogs.filter((c) => !catalogSearch || c.name.toLowerCase().includes(catalogSearch.toLowerCase())),
+    ...shownCatalogs(catalogs, catalogSearch).filter((c) => !catalogSearch || c.name.toLowerCase().includes(catalogSearch.toLowerCase())),
     ...(typedCatalogItem ? [typedCatalogItem] : []),
   ];
   const filteredSchemas = schemas.filter(
@@ -1064,7 +1066,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
             </div>
             <div className="flex-1">
               <h2 className="text-sm font-bold text-text-primary">Essentials</h2>
-              <p className="text-xs text-text-secondary">Required fields to run the pipeline</p>
+              <p className="text-xs text-text-secondary">Your business, its goals, and the data Inspire should look at</p>
             </div>
             <span className="text-[10px] font-semibold text-db-red-fg bg-db-red-50 border border-db-red/20 px-2 py-0.5 rounded-full uppercase tracking-wider">
               Required
@@ -1085,7 +1087,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
             </Field>
 
             {/* UC Metadata — Catalog/Schema/Table pickers with shopping basket */}
-            <Field label="Unity Catalog Metadata" required icon={Database} hint="Navigate catalogs and schemas to select tables">
+            <Field label="Which data should Inspire look at?" required icon={Database} hint="Pick the catalogs, schemas or tables that hold your business data">
                 {catalogBrowseGuidance && <UcPermissionErrorHelp guidance={catalogBrowseGuidance} />}
                 {catalogsWhy && <p role="note" data-uc-why="" className="mb-3 text-xs text-text-secondary">{catalogsWhy}</p>}
                 {onNoData && (
@@ -1288,7 +1290,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
               </Field>
 
             {/* Generation Instructions — optional */}
-            <FieldSection label="Generation Instructions" hint="Optional. Guide use case generation with specific instructions">
+            <FieldSection label="Describe your business and this year's goals" hint="Optional. What the business does, what it wants this year, and anything Inspire should focus on or leave out">
               <div className="relative">
                 <Target size={14} className="absolute left-3 top-3 text-text-tertiary" />
                 <textarea
@@ -1301,8 +1303,119 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
               </div>
             </FieldSection>
 
+            {/* Business Priorities */}
+            <FieldSection label="Business Priorities" hint="Pick what matters most, or add your own">
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
+                {BUSINESS_PRIORITIES.map((bp) => {
+                  const active = !!priorityChecks[bp.key];
+                  return (
+                    <button
+                      key={bp.key}
+                      type="button"
+                      onClick={() => toggleBuiltInPriority(bp.key)}
+                      className={`relative px-3 py-2 rounded-lg text-xs font-medium text-left transition-smooth border ${
+                        active
+                          ? 'border-db-red/30 bg-db-red-50 text-db-red-fg'
+                          : 'border-border text-text-secondary hover:border-border-strong'
+                      }`}
+                    >
+                      <span className="flex items-center gap-1.5">
+                        <bp.icon size={13} className={active ? 'text-db-red-fg' : 'text-text-tertiary'} />
+                        <span className="truncate">{bp.key}</span>
+                      </span>
+                      {active && <CheckCircle2 size={12} className="absolute top-1.5 right-1.5 text-db-red-fg" />}
+                    </button>
+                  );
+                })}
+                {customPriorities.map((name) => (
+                  <span
+                    key={name}
+                    className="relative px-3 py-2 rounded-lg text-xs font-medium border border-db-red/30 bg-db-red-50 text-db-red-fg flex items-center gap-1.5"
+                  >
+                    <Target size={13} className="text-db-red-fg shrink-0" />
+                    <span className="truncate" title={name}>{name}</span>
+                    <button
+                      type="button"
+                      aria-label={`Remove ${name}`}
+                      onClick={() => removeCustomPriority(name)}
+                      className="ml-auto shrink-0 text-db-red-fg hover:text-text-primary transition-smooth"
+                    >
+                      <X size={12} />
+                    </button>
+                  </span>
+                ))}
+              </div>
+              <div className="flex gap-2 mt-2">
+                <input
+                  type="text"
+                  value={customPriorityDraft}
+                  onChange={(e) => setCustomPriorityDraft(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      addCustomPriority();
+                    }
+                  }}
+                  placeholder="Add your own priority, for example Improve on-time delivery"
+                  aria-label="Add your own business priority"
+                  className="flex-1 px-3 py-2 text-sm border border-border rounded-lg bg-surface text-text-primary placeholder:text-text-tertiary glow-focus transition-smooth"
+                />
+                <button
+                  type="button"
+                  onClick={addCustomPriority}
+                  disabled={!customPriorityDraft.trim()}
+                  className="px-3 py-2 text-xs font-semibold rounded-lg border border-border text-text-secondary hover:border-border-strong disabled:opacity-40 transition-smooth"
+                >
+                  Add
+                </button>
+              </div>
+            </FieldSection>
+
+            {/* Business Domains */}
+            <FieldSection label="Business Domains" hint="Leave empty to auto-infer from data">
+              <div className="relative">
+                <Layers size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-tertiary" />
+                <input
+                  type="text"
+                  placeholder="Sales, Marketing, Finance, Operations, Supply Chain..."
+                  value={params['06_business_domains']}
+                  onChange={(e) => updateParam('06_business_domains', e.target.value)}
+                  className="w-full pl-9 pr-4 py-2.5 text-sm border border-border rounded-lg bg-surface text-text-primary placeholder:text-text-tertiary glow-focus transition-smooth"
+                />
+              </div>
+            </FieldSection>
+
+            {/* Strategy and organization — v1.3.0 widget 10_strategic_context */}
+            <div className="border border-border rounded-xl overflow-hidden">
+              <button
+                type="button"
+                onClick={() => setShowStrategy(!showStrategy)}
+                className="w-full flex items-center gap-2 px-4 py-3 text-left hover:bg-bg-subtle/50 transition-smooth"
+              >
+                <Target size={14} className="text-text-tertiary" />
+                <span className="text-xs font-bold text-text-primary">Strategy and organization</span>
+                <span className="text-[10px] text-text-tertiary">
+                  Optional · your goals and teams, used to align and order the use cases
+                </span>
+                {(strategyBase || strategyProblems.length > 0) && (
+                  <span className={`ml-auto text-[10px] font-semibold ${strategyProblems.length ? 'text-db-red-fg' : 'text-success-fg'}`}>
+                    {strategyProblems.length ? `${strategyProblems.length} problem${strategyProblems.length > 1 ? 's' : ''}` : 'Set'}
+                  </span>
+                )}
+                <ChevronDown
+                  size={14}
+                  className={`text-text-tertiary transition-transform duration-200 ${strategyBase || strategyProblems.length > 0 ? '' : 'ml-auto'} ${showStrategy ? 'rotate-180' : ''}`}
+                />
+              </button>
+              {showStrategy && (
+                <div className="px-4 pb-4 pt-1 border-t border-border">
+                  <StrategyEditor key={strategyEditorKey} value={strategyBase} onChange={handleStrategyChange} />
+                </div>
+              )}
+            </div>
+
             {/* Discovery Type — v1.3.0 widget 03_discovery_type */}
-            <FieldSection label="Discovery Type" hint="Widget 03_discovery_type: whether Inspire may read your data">
+            <FieldSection label="Discovery Type" hint="Whether Inspire may read sample values from your tables">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                 {DISCOVERY_OPTIONS.map((opt) => {
                   const active = params['03_discovery_type'] === opt.key;
@@ -1374,9 +1487,9 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
               <Settings2 size={16} className="text-text-secondary" />
             </div>
             <div className="flex-1">
-              <h2 className="text-sm font-bold text-text-primary">Advanced Settings</h2>
+              <h2 className="text-sm font-bold text-text-primary">Admin settings</h2>
               <p className="text-xs text-text-secondary">
-                Generation options, operation mode, quality, and more
+                Where Inspire keeps its tables and files, run mode, documents and quality
               </p>
             </div>
             <div className={`transition-transform duration-200 ${showAdvanced ? 'rotate-180' : ''}`}>
@@ -1398,124 +1511,14 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                 />
               </Field>
 
-              <FieldSection label="Operation" hint="Widget 15_operation: Discover runs the pipeline; Generate writes the Genie instructions again for flagged use cases only">
+              <FieldSection label="Operation" hint="Discover finds use cases; Rewrite Genie instructions writes them again for the use cases you flagged">
                 <GlowSelect
                   value={params['15_operation']}
                   onChange={(v) => updateParam('15_operation', v)}
                   options={OPERATION_WIDGET_OPTIONS}
+                  labels={OPERATION_LABELS}
                 />
               </FieldSection>
-
-              {/* Business Priorities */}
-              <FieldSection label="Business Priorities" hint="Pick what matters most, or add your own">
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
-                  {BUSINESS_PRIORITIES.map((bp) => {
-                    const active = !!priorityChecks[bp.key];
-                    return (
-                      <button
-                        key={bp.key}
-                        type="button"
-                        onClick={() => toggleBuiltInPriority(bp.key)}
-                        className={`relative px-3 py-2 rounded-lg text-xs font-medium text-left transition-smooth border ${
-                          active
-                            ? 'border-db-red/30 bg-db-red-50 text-db-red-fg'
-                            : 'border-border text-text-secondary hover:border-border-strong'
-                        }`}
-                      >
-                        <span className="flex items-center gap-1.5">
-                          <bp.icon size={13} className={active ? 'text-db-red-fg' : 'text-text-tertiary'} />
-                          <span className="truncate">{bp.key}</span>
-                        </span>
-                        {active && <CheckCircle2 size={12} className="absolute top-1.5 right-1.5 text-db-red-fg" />}
-                      </button>
-                    );
-                  })}
-                  {customPriorities.map((name) => (
-                    <span
-                      key={name}
-                      className="relative px-3 py-2 rounded-lg text-xs font-medium border border-db-red/30 bg-db-red-50 text-db-red-fg flex items-center gap-1.5"
-                    >
-                      <Target size={13} className="text-db-red-fg shrink-0" />
-                      <span className="truncate" title={name}>{name}</span>
-                      <button
-                        type="button"
-                        aria-label={`Remove ${name}`}
-                        onClick={() => removeCustomPriority(name)}
-                        className="ml-auto shrink-0 text-db-red-fg hover:text-text-primary transition-smooth"
-                      >
-                        <X size={12} />
-                      </button>
-                    </span>
-                  ))}
-                </div>
-                <div className="flex gap-2 mt-2">
-                  <input
-                    type="text"
-                    value={customPriorityDraft}
-                    onChange={(e) => setCustomPriorityDraft(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault();
-                        addCustomPriority();
-                      }
-                    }}
-                    placeholder="Add your own priority, for example Improve on-time delivery"
-                    aria-label="Add your own business priority"
-                    className="flex-1 px-3 py-2 text-sm border border-border rounded-lg bg-surface text-text-primary placeholder:text-text-tertiary glow-focus transition-smooth"
-                  />
-                  <button
-                    type="button"
-                    onClick={addCustomPriority}
-                    disabled={!customPriorityDraft.trim()}
-                    className="px-3 py-2 text-xs font-semibold rounded-lg border border-border text-text-secondary hover:border-border-strong disabled:opacity-40 transition-smooth"
-                  >
-                    Add
-                  </button>
-                </div>
-              </FieldSection>
-
-              {/* Business Domains */}
-              <FieldSection label="Business Domains" hint="Leave empty to auto-infer from data">
-                <div className="relative">
-                  <Layers size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-tertiary" />
-                  <input
-                    type="text"
-                    placeholder="Sales, Marketing, Finance, Operations, Supply Chain..."
-                    value={params['06_business_domains']}
-                    onChange={(e) => updateParam('06_business_domains', e.target.value)}
-                    className="w-full pl-9 pr-4 py-2.5 text-sm border border-border rounded-lg bg-surface text-text-primary placeholder:text-text-tertiary glow-focus transition-smooth"
-                  />
-                </div>
-              </FieldSection>
-
-              {/* Strategy and organization — v1.3.0 widget 10_strategic_context */}
-              <div className="border border-border rounded-xl overflow-hidden">
-                <button
-                  type="button"
-                  onClick={() => setShowStrategy(!showStrategy)}
-                  className="w-full flex items-center gap-2 px-4 py-3 text-left hover:bg-bg-subtle/50 transition-smooth"
-                >
-                  <Target size={14} className="text-text-tertiary" />
-                  <span className="text-xs font-bold text-text-primary">Strategy and organization</span>
-                  <span className="text-[10px] text-text-tertiary">
-                    Optional · widget 10_strategic_context · aligns and orders results after discovery
-                  </span>
-                  {(strategyBase || strategyProblems.length > 0) && (
-                    <span className={`ml-auto text-[10px] font-semibold ${strategyProblems.length ? 'text-db-red-fg' : 'text-success-fg'}`}>
-                      {strategyProblems.length ? `${strategyProblems.length} problem${strategyProblems.length > 1 ? 's' : ''}` : 'Set'}
-                    </span>
-                  )}
-                  <ChevronDown
-                    size={14}
-                    className={`text-text-tertiary transition-transform duration-200 ${strategyBase || strategyProblems.length > 0 ? '' : 'ml-auto'} ${showStrategy ? 'rotate-180' : ''}`}
-                  />
-                </button>
-                {showStrategy && (
-                  <div className="px-4 pb-4 pt-1 border-t border-border">
-                    <StrategyEditor key={strategyEditorKey} value={strategyBase} onChange={handleStrategyChange} />
-                  </div>
-                )}
-              </div>
 
               {/* Generation Options */}
               <Field
@@ -1578,7 +1581,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                   icon={Globe2}
                   hint={
                     needsLanguage
-                      ? 'Required for PDF/Presentation · matches notebook widget 12_documents_languages'
+                      ? 'Required for PDF and Presentation'
                       : 'Optional unless PDF or Presentation is selected'
                   }
                 >
@@ -1596,13 +1599,14 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
 
               {/* Row: Table Election + Quality */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                <FieldSection label="Table Election">
+                <FieldSection label="Which tables to use">
                   <GlowSelect
                     value={params['04_table_election']}
                     onChange={(v) => updateParam('04_table_election', v)}
                     options={TABLE_ELECTION}
+                    labels={TABLE_ELECTION_LABELS}
                   />
-                  <p className="text-[10px] text-text-tertiary mt-1">How Inspire selects tables</p>
+                  <p className="text-[10px] text-text-tertiary mt-1">Which of the tables you picked Inspire reads</p>
                 </FieldSection>
 
                 <FieldSection label="Use Cases Quality">
@@ -1632,7 +1636,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                 <Field
                   label="Auto-Genie scope"
                   icon={Bot}
-                  hint="13_generate_genie_code_for: in Discover mode, 0 (the default) keeps skeleton notebooks only; all or a top-N (e.g. 5) also writes their full Genie instructions."
+                  hint="In Discover, 0 (the default) writes outline notebooks only; all, or a number such as 5, also writes full Genie instructions for that many top use cases."
                 >
                   <input
                     type="text"
@@ -1645,7 +1649,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                 <Field
                   label="Best of Best stars"
                   icon={Star}
-                  hint="16_best_of_best_count: how many use cases to star (0 to 100). Empty uses the number in your generation instructions, or 20. Stars never add, remove or reorder a use case."
+                  hint="How many use cases to star, 0 to 100. Empty uses the number in your generation instructions, or 20. Stars never add, remove or reorder a use case."
                 >
                   <input
                     type="text"
@@ -1720,7 +1724,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
         {!outputCheck.ready && (
           <div className="mb-4">
             <OutputFolderCheck check={outputCheck} id="output-folder-check-launch"
-              where={showAdvanced ? 'Change Generation Path in Advanced Settings above' : 'Change it in Advanced Settings, Generation Path'} />
+              where={showAdvanced ? 'Change Generation Path in Admin settings above' : 'Change it in Admin settings, Generation Path'} />
           </div>
         )}
 
@@ -1744,10 +1748,12 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
           )}
         </button>
 
-        <p className="text-xs text-text-tertiary mt-3 text-center">
-          Notebook: <span className="font-mono text-text-secondary">{notebookPath || 'not set'}</span>
-          {warehouseId && <> &middot; Warehouse: <span className="font-mono text-text-secondary">{warehouseId.slice(0, 12)}...</span></>}
-        </p>
+        {showAdvanced && (
+          <p data-admin-footer="" className="text-xs text-text-tertiary mt-3 text-center">
+            Notebook: <span className="font-mono text-text-secondary">{notebookPath || 'not set'}</span>
+            {warehouseId && <> &middot; Warehouse: <span className="font-mono text-text-secondary">{warehouseId.slice(0, 12)}...</span></>}
+          </p>
+        )}
       </div>
     </div>
   );
@@ -1793,7 +1799,7 @@ function FieldSection({ label, required, hint, children }) {
   );
 }
 
-function GlowSelect({ value, onChange, options }) {
+function GlowSelect({ value, onChange, options, labels = {} }) {
   return (
     <select
       className="w-full px-4 py-2.5 text-sm border border-border rounded-lg bg-surface text-text-primary glow-focus transition-smooth"
@@ -1801,7 +1807,7 @@ function GlowSelect({ value, onChange, options }) {
       onChange={(e) => onChange(e.target.value)}
     >
       {options.map((o) => (
-        <option key={o} value={o}>{o}</option>
+        <option key={o} value={o}>{labels[o] || o}</option>
       ))}
     </select>
   );

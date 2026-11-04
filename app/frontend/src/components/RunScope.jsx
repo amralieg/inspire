@@ -33,6 +33,7 @@ export default function RunScope({ page, settings }) {
   const [tick, setTick] = useState(0);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
+  const [confirming, setConfirming] = useState(false);
   useEffect(() => {
     let live = true;
     Promise.all([apiFetch(`${SETTINGS_ROUTES.read}?${query}`), apiFetch(`${SETTINGS_ROUTES.runs}?${query}`)])
@@ -56,6 +57,7 @@ export default function RunScope({ page, settings }) {
   const scope = String(scopeList.find((s) => s.name === RUN_SCOPE)?.value ?? '') || GROUP_ALL;
   const canRun = Boolean(view.editable) && view.can_run === true && scopeList.some((s) => s.name === RUN_SCOPE && s.editable !== false);
   const runEverything = async () => {
+    setConfirming(false);
     setBusy(true);
     setMessage('');
     try {
@@ -78,11 +80,20 @@ export default function RunScope({ page, settings }) {
       <ScopeSection settings={scopeList} editable={view.editable === true} scope={profile} onSave={save} everything={facts?.everything || ''} />
       {scope !== GROUP_ALL && (
         <div className="flex flex-wrap items-center gap-2">
-          <button type="button" disabled={busy || !canRun} onClick={runEverything}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-db-red-solid disabled:opacity-50">
+          <button type="button" disabled={busy || !canRun || confirming} onClick={() => setConfirming(true)} data-run-everything=""
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-text-primary border border-border hover:bg-bg-subtle disabled:opacity-50">
             {busy ? <Loader2 size={12} className="animate-spin" /> : <Play size={12} />} {RUN_EVERYTHING_LABEL}
           </button>
           {facts?.everything && <span data-run-everything-estimate="" className={NOTE}>{facts.everything}</span>}
+        </div>
+      )}
+      {confirming && (
+        <div role="alertdialog" aria-label="Confirm the run on everything" data-run-everything-confirm="" className="space-y-2 rounded-lg border border-border p-3">
+          <p className="text-[12px] text-text-primary">{facts?.everything || 'Run on everything reads every record, which takes longer than the first run.'} Start it now?</p>
+          <div className="flex flex-wrap gap-2">
+            <button type="button" onClick={runEverything} className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-db-red-solid">Start the run on everything</button>
+            <button type="button" onClick={() => setConfirming(false)} className="px-3 py-1.5 rounded-lg text-xs font-semibold text-text-primary border border-border">Cancel</button>
+          </div>
         </div>
       )}
       {message && <p role="status" data-run-scope-message="" className="text-[12px] text-text-primary">{message}</p>}

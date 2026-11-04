@@ -95,7 +95,12 @@ test('an App the installer set up shows no setup wizard on its home page, and a 
     assert.doesNotMatch(text, /setup wizard/i);
     assert.doesNotMatch(text, /host, token/i);
     assert.equal(await installed.page.getByRole('button', { name: 'Workspace setup' }).count(), 0);
-    assert.equal(await installed.page.getByRole('complementary', { name: 'Legal disclaimer' }).count(), 1);
+    const about = installed.page.getByRole('contentinfo', { name: 'About Inspire' });
+    assert.equal(await about.count(), 1);
+    assert.equal(await about.innerText(), 'Inspire is open source and provided as is. Databricks Support does not cover it: ask questions and request features on the Inspire GitHub Issues page.');
+    assert.equal(await about.getByRole('link', { name: 'Inspire GitHub Issues page' }).getAttribute('href'), 'https://github.com/amralieg/inspire/issues');
+    const hero = installed.page.getByRole('button', { name: 'Get Started', exact: true }).first().locator('xpath=ancestor::section[1]');
+    assert.doesNotMatch(await hero.innerText(), /support|provided as/i, 'the notice sits in the footer, not under Get Started (must-exclude)');
     assert.deepEqual(installed.pageErrors, []);
   } finally {
     await installed.close();

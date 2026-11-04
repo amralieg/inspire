@@ -65,7 +65,7 @@ test('a folder the person cannot write keeps Get Started off and shows the refus
     await nearLaunch(page).waitFor({ timeout: 15000 });
     await until(async () => (await nearLaunch(page).getAttribute('data-output-check')) === 'refused', 'the refusal next to Get Started');
     assert.equal(await nearLaunch(page).getByText(REFUSAL, { exact: true }).count(), 1);
-    assert.match(await nearLaunch(page).innerText(), /Get Started stays off until the output folder check passes\. Change it in Advanced Settings, Generation Path\./);
+    assert.match(await nearLaunch(page).innerText(), /Get Started stays off until the output folder check passes\. Change it in Admin settings, Generation Path\./);
     assert.equal(await launchButton(page).isDisabled(), true, 'Get Started is off while the folder is refused');
     assert.deepEqual(calls.checks, ['./../demos/'], 'the default folder is checked once');
     assert.deepEqual(calls.urls, ['/api/output-folder/check'], 'the default path travels in the body, never in the URL');
@@ -78,7 +78,7 @@ test('a folder the person cannot write keeps Get Started off and shows the refus
     }
     await page.setViewportSize({ width: 1440, height: 1000 });
 
-    await page.getByRole('button', { name: /Advanced Settings/ }).click();
+    await page.getByRole('button', { name: /Admin settings/ }).click();
     const typedBefore = calls.checks.length;
     await setPath(page, MINE);
     await until(async () => (await page.locator('#output-folder-check-field').getAttribute('data-output-check')) === 'passed', 'the passed check under the field');
@@ -108,7 +108,7 @@ test('changing a passed folder turns Get Started off at once, and a check that c
   try {
     const { page } = ui;
     await readyToLaunch(page);
-    await page.getByRole('button', { name: /Advanced Settings/ }).click();
+    await page.getByRole('button', { name: /Admin settings/ }).click();
     await setPath(page, MINE);
     await until(async () => !(await launchButton(page).isDisabled()), 'Get Started on for a folder the person can write');
     await page.getByLabel('Generation Path').press('Backspace');
@@ -117,7 +117,7 @@ test('changing a passed folder turns Get Started off at once, and a check that c
     await setPath(page, '/Workspace/broken');
     await until(async () => (await nearLaunch(page).getAttribute('data-output-check')) === 'error', 'the error next to Get Started');
     assert.match(await nearLaunch(page).innerText(), /Inspire could not check that you can write to \/broken, so it starts no run: upstream timeout/);
-    assert.match(await nearLaunch(page).innerText(), /Change Generation Path in Advanced Settings above\./);
+    assert.match(await nearLaunch(page).innerText(), /Change Generation Path in Admin settings above\./);
     assert.equal(await launchButton(page).isDisabled(), true);
     await setPath(page, BOSS_FOLDER);
     await until(async () => (await page.locator('#output-folder-check-field').getAttribute('data-output-check')) === 'passed', 'the manager skip');

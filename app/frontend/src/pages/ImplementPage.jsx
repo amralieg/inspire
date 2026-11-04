@@ -17,7 +17,7 @@ import { formatWhen } from '../lib/formatWhen';
 import { plural } from '../lib/plural';
 import ImplementStatusBadge from '../components/ImplementStatusBadge';
 import ImplementWizard from './ImplementWizard';
-import { AssetPanel, AssetTile, BuildControls, ConfirmDialog, NotebookPanel } from '../components/ImplementControlTower';
+import { AssetPanel, AssetTile, BuildControls, ConfirmDialog, NotebookPanel, QUIET_REMOVE } from '../components/ImplementControlTower';
 import UseCaseDrawer from '../components/UseCaseDrawer';
 import QualityBarChip from '../components/QualityBarChip';
 import UseCaseDetailBody from '../components/UseCaseDetailBody';
@@ -65,7 +65,7 @@ const NOTE_BOX = 'text-xs text-info-fg bg-info-bg border border-info/20 rounded-
 const OUTLINE_BUTTON = 'inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold border border-border bg-surface text-text-primary hover:bg-bg-subtle disabled:opacity-50';
 const PRIMARY_BUTTON = 'inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold text-white bg-db-red-solid hover:bg-db-red-solid-hover shadow-sm shadow-db-red/20 disabled:opacity-50';
 const LINK = 'text-sm font-semibold text-db-red-fg inline-flex items-center gap-1 hover:underline';
-const DANGER_BUTTON = `${OUTLINE_BUTTON} border-error/40 text-error-fg`;
+const QUIET_BUTTON = `inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold ${QUIET_REMOVE} disabled:opacity-50`;
 const COLLECT_LOST = `This browser does not keep the vibes you add, so they are lost if you leave this page. Rebuild them in ${VIBE_FEATURES_LABEL} first.`;
 
 const GROUP_LOOK = {
@@ -1369,7 +1369,7 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
       {notebook ? (
         <NotebookPanel notebook={notebook} kpi={kpiView}>
           {!readOnly && (
-            <button type="button" disabled={active || submitBusy} onClick={() => setUninstalling(true)} className={DANGER_BUTTON}>
+            <button type="button" disabled={active || submitBusy} onClick={() => setUninstalling(true)} className={QUIET_BUTTON}>
               <Trash2 size={12} /> Uninstall
             </button>
           )}
@@ -1494,7 +1494,7 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
   const needsAttention = Boolean(failureBanner) || missing.length > 0 || Boolean(edited) || Boolean(held);
 
   const stop = stopAction && (
-    <button type="button" data-stop-build="" disabled={readOnly || actionBusy !== ''} title={lockedReason || undefined} onClick={() => runControl(stopAction)} className={DANGER_BUTTON}>
+    <button type="button" data-stop-build="" disabled={readOnly || actionBusy !== ''} title={lockedReason || undefined} onClick={() => runControl(stopAction)} className={QUIET_BUTTON}>
       {actionBusy === `${stopAction.asset}:${stopAction.action}` ? <Loader2 size={13} className="animate-spin" /> : <Square size={13} />} {stopAction.label}
     </button>
   );
@@ -1532,7 +1532,7 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
                 className={`${vibes.length ? PRIMARY_BUTTON : OUTLINE_BUTTON} ${vibes.length > 0 && !active ? 'edit-mvp-invite' : ''}`}>
                 <Pencil size={13} /> {vibeFeaturesLabel(vibes)}
               </button>
-              <button type="button" disabled={active || submitBusy} title={active ? 'Wait for this run to finish' : undefined} onClick={() => setUninstalling(true)} className={DANGER_BUTTON}>
+              <button type="button" disabled={active || submitBusy} title={active ? 'Wait for this run to finish' : undefined} onClick={() => setUninstalling(true)} className={QUIET_BUTTON}>
                 <Trash2 size={13} /> Uninstall all
               </button>
             </>

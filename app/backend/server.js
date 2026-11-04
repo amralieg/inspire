@@ -37,7 +37,8 @@ const {
   discoverReads, discoverWrites, listCatalogs, listSchemas, listTables, runReadRefusal, runWriteRefusal, writeRefusalBody,
 } = require('./lib/ucReads');
 const { registerShowcaseRoutes, showcaseWriteGuard } = require('./lib/showcase');
-const { loadSessionList, loadSessionPreviews, sessionListCap } = require('./lib/reviewFigures');
+const { HIGH_PRIORITY_SQL, MEETS_BAR_SQL, loadSessionList, loadSessionPreviews, sessionListCap } = require('./lib/reviewFigures');
+const { LIVE_STEP_STATUSES, liveDomainsOf, liveUseCasesOf } = require('../frontend/src/lib/liveUseCases.js');
 const { executiveSummaryOf, parseResultsJson, runResultsStatement } = require('./lib/runSummary');
 const { isReadDenied } = require('./lib/inspireImplement');
 const { keepLongInteger, parseExactJson } = require('./lib/exactJson');
@@ -958,7 +959,8 @@ async function attachSessionUsecaseOverviews(host, token, warehouseId, catalog, 
   try {
     const aggSql = `SELECT session_id,
         CAST(COUNT(*) AS INT) AS usecase_count,
-        CAST(SUM(CASE WHEN COALESCE(priority_score, 0) >= 3 THEN 1 ELSE 0 END) AS INT) AS high_priority_count,
+        CAST(SUM(CASE WHEN ${HIGH_PRIORITY_SQL} THEN 1 ELSE 0 END) AS INT) AS high_priority_count,
+        CAST(SUM(CASE WHEN ${MEETS_BAR_SQL} THEN 1 ELSE 0 END) AS INT) AS meets_bar_count,
         CAST(COUNT(DISTINCT NULLIF(TRIM(business_domain), '')) AS INT) AS domain_count
       FROM ${ucTable}
       WHERE session_id IN (${idList})
@@ -976,13 +978,14 @@ async function attachSessionUsecaseOverviews(host, token, warehouseId, catalog, 
       map[sid] = {
         total: Number(r.usecase_count) || 0,
         high: Number(r.high_priority_count) || 0,
+        meets: Number(r.meets_bar_count) || 0,
         domains: Number(r.domain_count) || 0,
         preview_use_cases: previewsBySid[sid] || [],
       };
     }
     for (const s of sessions) {
       const sid = int64Id(s.session_id);
-      s.usecase_overview = (sid && map[sid]) || { total: 0, high: 0, domains: 0, preview_use_cases: [] };
+      s.usecase_overview = (sid && map[sid]) || { total: 0, high: 0, meets: 0, domains: 0, preview_use_cases: [] };
     }
   } catch (e) {
     console.warn('attachSessionUsecaseOverviews:', e.message || e);
@@ -2331,7 +2334,7 @@ app.get('/api/inspire/step-results', requireToken, async (req, res) => {
     const sessionTable = `\`${catalog}\`.\`${schema}\`.\`__inspire_session\``;
 
     // Fetch all ended_success steps that carry payload data
-    const sql = `SELECT step_id, stage_name, step_name, status, result_json FROM ${stepTable} WHERE session_id = ${session_id} AND status IN ('ended_success', 'ended_warning') ORDER BY last_updated, step_id`;
+    const sql = `SELECT step_id, stage_name, step_name, status, result_json FROM ${stepTable} WHERE session_id = ${session_id} AND status IN (${LIVE_STEP_STATUSES.map((st) => `'${st}'`).join(', ')}) ORDER BY last_updated, step_id`;
     const runResults = runResultsStatement(sessionTable, session_id);
 
     const [result, sessionRows] = await Promise.all([
@@ -2350,122 +2353,8 @@ app.get('/api/inspire/step-results', requireToken, async (req, res) => {
       } catch { step.result_json = null; }
     }
 
-    // ── Assemble progressive results from step payloads ──
-    // Use cases keyed by id to allow merging across phases
-    const ucMap = new Map();       // id → use case object
-    const domainsList = [];        // { domain_name, use_case_ids }
-
-    for (const step of steps) {
-      const rj = step.result_json;
-      if (!rj) continue;
-      const prompt = rj.prompt_name || '';
-
-      // 1) Use Case Generation (BASE, AI, STATS, UNSTRUCTURED)
-      if (prompt.endsWith('_USE_CASE_GEN_PROMPT') && Array.isArray(rj.use_cases)) {
-        for (const uc of rj.use_cases) {
-          if (!uc.id) continue;
-          const existing = ucMap.get(uc.id) || {};
-          ucMap.set(uc.id, {
-            ...existing,
-            No: uc.id,
-            Name: uc.name || existing.Name || '',
-            'Business Domain': uc.business_domain || existing['Business Domain'] || '',
-            Subdomain: uc.subdomain || existing.Subdomain || '',
-            type: uc.type || existing.type || '',
-            _source_prompt: prompt,
-          });
-        }
-      }
-
-      // 2) Domain Clustering
-      if (prompt === 'DOMAIN_FINDER_PROMPT' && Array.isArray(rj.domains)) {
-        for (const d of rj.domains) {
-          domainsList.push({
-            domain_name: d.domain_name || '',
-            use_case_ids: d.use_case_ids || [],
-          });
-        }
-      }
-
-      // 3) Scoring (COMBINED_VALUE_QUALITY_SCORE_PROMPT)
-      if (prompt === 'COMBINED_VALUE_QUALITY_SCORE_PROMPT' && Array.isArray(rj.scored_use_cases)) {
-        for (const sc of rj.scored_use_cases) {
-          if (!sc.id) continue;
-          const existing = ucMap.get(sc.id) || {};
-          ucMap.set(sc.id, {
-            ...existing,
-            No: sc.id,
-            Name: sc.name || existing.Name || '',
-            Priority: sc.priority || existing.Priority || '',
-            Quality: sc.quality || existing.Quality || '',
-            _value: sc.value || existing._value || '',
-            _feasibility: sc.feasibility || existing._feasibility || '',
-          });
-        }
-      }
-
-      // 4) Review / dedup (REVIEW_USE_CASES_PROMPT) — may contain full use case rows
-      if (prompt === 'REVIEW_USE_CASES_PROMPT' && Array.isArray(rj.rows)) {
-        for (const row of rj.rows) {
-          if (!row.No && !row.id) continue;
-          const id = String(row.No || row.id);
-          const existing = ucMap.get(id) || {};
-          ucMap.set(id, { ...existing, ...row, No: id });
-        }
-      }
-
-      // 5) Genie Code Instructions (v47) / SQL Generation (legacy)
-      if ((prompt === 'USE_CASE_GENIE_CODE_INSTRUCTION_GEN_PROMPT' || prompt === 'USE_CASE_SQL_GEN_PROMPT') && (rj.response_chars || rj.sql_preview)) {
-        // entity_id format: USE_CASE_GENIE_CODE_INSTRUCTION_GEN_PROMPT:Genie_Instruction_Generator:uc_42
-        const ucIdMatch = (rj.entity_id || '').match(/uc_(\d+)/);
-        if (ucIdMatch) {
-          const id = ucIdMatch[1];
-          const existing = ucMap.get(id) || {};
-          ucMap.set(id, { ...existing, No: id, _hasGenieCode: true });
-        }
-      }
-
-      // 8) Translation rows — may carry full use case objects
-      if (prompt === 'USE_CASE_TRANSLATE_PROMPT' && Array.isArray(rj.rows)) {
-        for (const row of rj.rows) {
-          if (!row.No) continue;
-          const id = String(row.No);
-          const existing = ucMap.get(id) || {};
-          ucMap.set(id, { ...existing, ...row, No: id });
-        }
-      }
-    }
-
-    // ── Build domain → use_cases structure ──
-    const allUcs = Array.from(ucMap.values());
-
-    // Assign domains to use cases based on clustering
-    if (domainsList.length > 0) {
-      const idToDomain = {};
-      for (const d of domainsList) {
-        for (const ucId of d.use_case_ids) {
-          idToDomain[String(ucId)] = d.domain_name;
-        }
-      }
-      for (const uc of allUcs) {
-        if (!uc['Business Domain'] && idToDomain[String(uc.No)]) {
-          uc['Business Domain'] = idToDomain[String(uc.No)];
-        }
-      }
-    }
-
-    // Group use cases by domain
-    const domainMap = new Map();
-    for (const uc of allUcs) {
-      const dName = uc['Business Domain'] || 'Uncategorized';
-      if (!domainMap.has(dName)) domainMap.set(dName, []);
-      domainMap.get(dName).push(uc);
-    }
-
-    const domains = Array.from(domainMap.entries()).map(([domain_name, use_cases]) => ({
-      domain_name,
-      use_cases,
-    }));
+    const allUcs = liveUseCasesOf(steps);
+    const domains = liveDomainsOf(allUcs);
 
     const progressiveResults = {
       executive_summary: executiveSummary,

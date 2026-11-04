@@ -5025,6 +5025,9 @@ def scope_note(latest, previous) -> str:
     return "" if str(latest.get("key") or "") == str(previous.get("key") or "") else "The previous run covered a different scope."
 
 
+SCOPE_ESTIMATE_MAX_SCALE = 10
+
+
 def scope_facts(scope, tables, duration_s) -> dict:
     if not isinstance(scope, dict) or not scope.get("scope"):
         return {}
@@ -5043,8 +5046,13 @@ def scope_facts(scope, tables, duration_s) -> dict:
     covered = f"The first run covered {read:,} of {plural(total, 'record')}{extent}{took}."
     if minutes is None or not read:
         return {"covered": covered, "everything": f"Run on everything covers all {plural(total, 'record')}."}
-    return {"covered": covered, "everything": (f"Run on everything covers all {plural(total, 'record')}, about "
-                                               f"{plural(max(1, round(minutes * total / read)), 'minute')} at this run's pace.")}
+    scale = total / read
+    if scale > SCOPE_ESTIMATE_MAX_SCALE:
+        return {"covered": covered, "everything": (f"Run on everything covers all {plural(total, 'record')}, {round(scale):,} times what the "
+                                                   "first run read; how long that takes is unknown until a larger run is measured.")}
+    low, high = max(1, round(minutes)), max(1, round(minutes * scale))
+    span = plural(high, "minute") if low == high else f"{low:,} to {plural(high, 'minute')}"
+    return {"covered": covered, "everything": f"Run on everything covers all {plural(total, 'record')}, about {span}."}
 
 
 def scope_view(rows) -> dict:

@@ -27,6 +27,7 @@ import { requestHeaders, responseError } from '../lib/apiClient';
 import StopRunControl from '../components/StopRunControl';
 import { nameOfUseCase } from '../lib/useCaseFields';
 import { runOutcomeOf } from '../lib/runOutcome';
+import { liveCountText, liveUseCasesOf } from '../lib/liveUseCases';
 
 // Run lifecycle phases
 const PHASE_PENDING = 'PENDING';
@@ -222,65 +223,15 @@ export default function MonitorPage({ settings, update, sessionId, runId, onComp
     if (isComplete) setShowInlineResults(true);
   }, [isComplete]);
 
-  // Extract live use case preview from steps as they arrive
   useEffect(() => {
-    const ucs = [];
-
-    // Validate that an item is a real use case object (not a string or LLM feedback)
-    const isValidUseCase = (uc) => {
-      if (!uc || typeof uc !== 'object' || Array.isArray(uc)) return false;
-      const name = uc.Name || uc.name || '';
-      // Must have a non-empty name that looks like a use case title (not markdown/feedback)
-      if (!name || typeof name !== 'string') return false;
-      if (name.length < 5 || name.length > 200) return false;
-      // Reject markdown fragments, bullet points, feedback text
-      if (name.startsWith('**') || name.startsWith('-') || name.startsWith('#') || name.startsWith('*')) return false;
-      if (name.includes('Pass 1') || name.includes('DUPLICATE') || name.includes('coverage')) return false;
-      return true;
-    };
-
-    for (const step of steps) {
-      const rj = step.result_json;
-      if (!rj || typeof rj !== 'object') continue;
-      // Use case generation steps
-      if (Array.isArray(rj.use_cases)) {
-        for (const uc of rj.use_cases) {
-          if (!isValidUseCase(uc)) continue;
-          ucs.push({
-            name: uc.Name || uc.name || '',
-            label: nameOfUseCase(uc),
-            domain: uc['Business Domain'] || uc.domain || '',
-            priority: uc.Priority || uc.priority || '',
-            id: uc.No || uc.id || '',
-          });
-        }
-      }
-      // Scoring steps
-      if (Array.isArray(rj.scored_use_cases)) {
-        for (const sc of rj.scored_use_cases) {
-          if (!isValidUseCase(sc)) continue;
-          ucs.push({
-            name: sc.Name || sc.name || '',
-            label: nameOfUseCase(sc),
-            domain: sc['Business Domain'] || sc.domain || '',
-            priority: sc.Priority || sc.priority || '',
-            quality: sc.Quality || sc.quality || '',
-            id: sc.No || sc.id || '',
-          });
-        }
-      }
-    }
-    // Deduplicate by name
-    const seen = new Set();
-    const deduped = [];
-    for (const uc of ucs) {
-      const key = uc.name || uc.id;
-      if (key && !seen.has(key)) {
-        seen.add(key);
-        deduped.push(uc);
-      }
-    }
-    setLiveUseCases(deduped);
+    setLiveUseCases(liveUseCasesOf(steps).map((uc) => ({
+      name: uc.Name || '',
+      label: nameOfUseCase(uc),
+      domain: uc['Business Domain'] || '',
+      priority: uc.Priority || '',
+      quality: uc.Quality || '',
+      id: uc.No || '',
+    })));
   }, [steps]);
 
   // Group steps by stage, applying filters
@@ -823,7 +774,7 @@ export default function MonitorPage({ settings, update, sessionId, runId, onComp
             <BarChart3 size={14} className="text-db-red-fg" />
             <span className="text-xs font-bold text-text-primary">Use Cases Discovered</span>
             <span className="text-[10px] text-text-tertiary ml-auto">
-              {liveUseCases.length} use case{liveUseCases.length !== 1 ? 's' : ''} so far
+              <span data-testid="live-use-case-count">{liveCountText(liveUseCases.length)}</span>
               {isRunning && <span className="ml-1 inline-block w-1.5 h-1.5 rounded-full bg-db-red animate-pulse" />}
             </span>
           </div>

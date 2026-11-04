@@ -60,3 +60,12 @@ export function runOutcomeOf(results, counts = null) {
     notes,
   };
 }
+
+export function nextStepOf(outcome) {
+  const o = outcome && typeof outcome === 'object' ? outcome : {};
+  const empty = Array.isArray(o.emptyTables) ? o.emptyTables.length : 0;
+  if (empty > 0) {
+    return `add rows to the ${empty === 1 ? 'table that has' : `${empty} tables that have`} no rows yet (the Generate data page can add sample rows), then run again.`;
+  }
+  return 'point the run at tables that hold your business data, or pick a lower Use Cases Quality in Setup, then run again.';
+}

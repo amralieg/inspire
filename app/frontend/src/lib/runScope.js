@@ -344,12 +344,16 @@ export function chosenGroupsText(profile, values) {
   return scopeGroupsText(picked, (g) => groups.find((s) => scopeGroupKey(s.parts) === scopeGroupKey(g))?.records ?? null);
 }
 
+export const SCOPE_ESTIMATE_MAX_SCALE = 10;
+
 export function everythingEstimate(everything, total, first) {
   if (text(everything)) return text(everything);
   const size = whole(first) || Number(SCOPE_DEFAULTS[SCOPE_RECORDS]);
   if (total == null || total <= size) return '';
-  return `Everything is ${counted(total, 'record')}, about ${Math.round(total / size).toLocaleString('en-US')} times a ${size.toLocaleString('en-US')}-record first run, `
-    + 'so expect it to take about that many times longer';
+  const scale = Math.round(total / size);
+  const lead = `Everything is ${counted(total, 'record')}, about ${scale.toLocaleString('en-US')} times a ${size.toLocaleString('en-US')}-record first run`;
+  if (total / size > SCOPE_ESTIMATE_MAX_SCALE) return `${lead}; how long it takes is unknown until a larger run is measured`;
+  return `${lead}, so it takes up to about ${scale.toLocaleString('en-US')} times as long`;
 }
 
 export function firstRunChoices(profile, values, everything = '') {

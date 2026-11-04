@@ -435,7 +435,10 @@ test('a star-schema forecast above 1,000 records defaults to whole groups, never
   assert.deepEqual(choices.map((c) => [c.id, c.available, c.records]),
     [['groups', true, 77390], ['recent', true, 0], ['records', true, 280000], ['all', true, 2880404]]);
   assert.equal(choices[2].label, '280,000 records in the smallest whole group, since every group of item.i_category holds more than 1,000 records, so no group is cut: item.i_category = Home, 280,000 records');
-  assert.equal(choices[3].estimate, 'Everything is 2,880,404 records, about 2,880 times a 1,000-record first run, so expect it to take about that many times longer');
+  assert.equal(choices[3].estimate, 'Everything is 2,880,404 records, about 2,880 times a 1,000-record first run; how long it takes is unknown until a larger run is measured');
+  assert.equal(S.everythingEstimate('', 8000, 1000), 'Everything is 8,000 records, about 8 times a 1,000-record first run, so it takes up to about 8 times as long');
+  assert.equal(S.everythingEstimate('', 1000, 1000), '');
+  assert.equal(S.everythingEstimate('the server said so', 7500000, 1000), 'the server said so');
   assert.deepEqual(S.scopeProblems(values, 'first_run'), []);
   assert.equal(S.scopeText(values, STAR_PROFILE), 'First run: 280,000 records in the smallest whole group, since every group of item.i_category holds more than 1,000 records, so no group is cut: item.i_category = Home, 280,000 records');
   const picked = { ...values, run_scope: 'groups', scope_groups: JSON.stringify(STAR_PROFILE.suggested_groups.map((g) => g.parts)) };

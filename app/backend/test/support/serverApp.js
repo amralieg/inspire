@@ -1,5 +1,6 @@
 const http = require('node:http');
 const { folderAnswer, folderModel } = require('./workspaceFolders');
+const { BELOW_BAR_ELITE_STATUSES, HIGH_PRIORITY_MIN_SCORE, HIGH_PRIORITY_SQL, MEETS_BAR_SQL } = require('../../lib/reviewFigures');
 
 const APP_NAME = 'inspire-test-app';
 const APP_SP = 'app-sp-client-id';
@@ -105,10 +106,13 @@ function answerSql(body) {
     const asked = new Set(((/WHERE session_id IN \(([^)]*)\)/.exec(sql) || [])[1] || '').split(',').map((t) => t.trim()).filter(Boolean));
     const rows = state.usecases.filter((u) => asked.has(u.session_id));
     if (sql.includes('AS usecase_count')) {
+      if (!sql.includes(`WHEN ${HIGH_PRIORITY_SQL} THEN`) || !sql.includes(`WHEN ${MEETS_BAR_SQL} THEN`)) throw new Error(`overview counts are not the shared rule: ${sql}`);
       const sids = [...new Set(rows.map((u) => u.session_id))];
-      return sqlResult(['session_id', 'usecase_count', 'high_priority_count', 'domain_count'], sids.map((sid) => {
+      return sqlResult(['session_id', 'usecase_count', 'high_priority_count', 'meets_bar_count', 'domain_count'], sids.map((sid) => {
         const mine = rows.filter((u) => u.session_id === sid);
-        return [sid, String(mine.length), String(mine.filter((u) => u.priority_score >= 3).length), String(new Set(mine.map((u) => u.business_domain)).size)];
+        const meets = mine.filter((u) => !BELOW_BAR_ELITE_STATUSES.includes(String(u.elite_status || '').trim().toUpperCase()));
+        const high = meets.filter((u) => (u.priority_score || 0) >= HIGH_PRIORITY_MIN_SCORE);
+        return [sid, String(mine.length), String(high.length), String(meets.length), String(new Set(mine.map((u) => u.business_domain)).size)];
       }));
     }
     if (sql.includes(' AS Name,')) {

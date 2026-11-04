@@ -8,7 +8,7 @@ import PortfolioCards, { usePortfolio } from '../components/PortfolioCards';
 import { makeApiFetch, requestHeaders } from '../lib/apiClient';
 import { buildFilterOf, portfolioCard, runBusiness, runFilterText, runsOfCard } from '../lib/reviewFigures';
 import { sessionStatus, sessionSucceeded } from '../lib/monitorState';
-import { nameOfUseCase } from '../lib/useCaseFields';
+import { computeHighPriorityCount, nameOfUseCase, qualityBarCountsOf, useCaseCountsText } from '../lib/useCaseFields';
 
 const STATUS_CONFIG = {
   finished: { label: 'Completed', bg: 'bg-success-bg', text: 'text-success-fg', dot: 'bg-success' },
@@ -37,7 +37,6 @@ function formatCompletedDate(dateStr) {
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
-const HIGH_PRIORITIES = new Set(['Ultra High', 'Very High', 'High']);
 
 function getSessionSummary(session) {
   const rj = session.results_json;
@@ -64,8 +63,7 @@ function getSessionSummary(session) {
     }
   }
   if (useCases.length === 0) return null;
-  const highCount = useCases.filter(uc => HIGH_PRIORITIES.has(uc.Priority || uc.priority || '')).length;
-  return { total: useCases.length, high: highCount, domains: domains.size, domainNames: [...domains], useCases };
+  return { total: useCases.length, high: computeHighPriorityCount(useCases), meets: qualityBarCountsOf(useCases).meets, domains: domains.size, domainNames: [...domains], useCases };
 }
 
 const PRIORITY_SORT_ORDER = ['Ultra High', 'Very High', 'High', 'Medium', 'Low', 'Very Low'];
@@ -86,10 +84,10 @@ function buildSummaryFromUclist(ucs) {
         .filter(Boolean)
     ),
   ];
-  const highCount = ucs.filter((uc) => HIGH_PRIORITIES.has(uc.Priority || uc.priority || '')).length;
   return {
     total: ucs.length,
-    high: highCount,
+    high: computeHighPriorityCount(ucs),
+    meets: qualityBarCountsOf(ucs).meets,
     domains: domainNames.length,
     domainNames,
     useCases: ucs,
@@ -106,6 +104,7 @@ function getListRowOverview(session) {
     return {
       total: api.total,
       high: Number(api.high) || 0,
+      meets: api.meets == null ? null : Number(api.meets) || 0,
       domains: Number(api.domains) || 0,
       previewTitles: Array.isArray(api.preview_use_cases) ? api.preview_use_cases.map(nameOfUseCase).filter(Boolean) : [],
     };
@@ -120,6 +119,7 @@ function getListRowOverview(session) {
     return {
       total: legacy.total,
       high: legacy.high,
+      meets: legacy.meets,
       domains: legacy.domains,
       previewTitles,
     };
@@ -472,9 +472,7 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onView
                       {listOverview && (
                         <>
                           <p className="text-[11px] text-text-secondary mt-1.5">
-                            {listOverview.total} use case{listOverview.total !== 1 ? 's' : ''}
-                            {' · '}
-                            {listOverview.high} high priority
+                            <span data-testid="run-use-case-counts">{useCaseCountsText(listOverview)}</span>
                             {' · '}
                             {listOverview.domains} domain{listOverview.domains !== 1 ? 's' : ''}
                             {isCompleted && session.completed_on

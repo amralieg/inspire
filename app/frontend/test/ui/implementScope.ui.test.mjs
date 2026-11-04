@@ -339,7 +339,7 @@ const SAVED = { act_now_share: '0.08', group_by: 'all', run_scope: 'groups', sco
 const RUNS = [
   { run_id: 'r3', status: 'succeeded', scope: { scope: 'groups', key: 'groups|country|USA,Spain' }, scope_text: 'First run: 2 groups of country (USA, Spain)',
     facts: { covered: 'The first run covered 19,600 of 48,210 records (2 groups) in 4 minutes.',
-      everything: 'Run on everything covers all 48,210 records, about 10 minutes at this run\u2019s pace.' } },
+      everything: 'Run on everything covers all 48,210 records, about 4 to 10 minutes.' } },
   { run_id: 'r2', status: 'succeeded', scope: { scope: 'all', key: 'all' }, scope_text: 'All records', facts: { covered: '', everything: '' } },
 ];
 const TRACKED = {
@@ -425,9 +425,20 @@ test('the Run tab states the scope of the last run, changes Grouping and First r
     await section.locator('[data-scope-part="grouping"] [data-grouping-choice]').first().waitFor();
     assert.ok(calls.length >= 1 && calls.every((c) => c.inspire_database === HARNESS_SETTINGS.inspireDatabase && c.use_case_id === 'N01-U01'), JSON.stringify(calls));
     assert.equal(await section.locator('[data-scope-part="first_run"]').count(), 1, 'the same section as the Build page');
-    assert.equal(await section.locator('[data-run-everything-estimate]').textContent(), 'Run on everything covers all 48,210 records, about 10 minutes at this run\u2019s pace.');
+    assert.equal(await section.locator('[data-run-everything-estimate]').textContent(), 'Run on everything covers all 48,210 records, about 4 to 10 minutes.');
     await atWidths(page, 'run_tab', section);
-    await section.getByRole('button', { name: 'Run on everything', exact: true }).click();
+    const runAll = section.getByRole('button', { name: 'Run on everything', exact: true });
+    assert.equal(await runAll.evaluate((b) => b.className.includes('bg-db-red-solid')), false, 'a long run is never a one-click red button');
+    await runAll.click();
+    const confirm = section.locator('[data-run-everything-confirm]');
+    await confirm.waitFor();
+    assert.equal(await confirm.locator('p').textContent(), 'Run on everything covers all 48,210 records, about 4 to 10 minutes. Start it now?');
+    assert.equal(made.appCalls.filter((c) => c.method === 'POST').length, 0, 'one click only asks; nothing is saved or run yet (must-exclude)');
+    await confirm.getByRole('button', { name: 'Cancel', exact: true }).click();
+    await confirm.waitFor({ state: 'detached' });
+    assert.equal(made.appCalls.filter((c) => c.method === 'POST').length, 0, 'Cancel starts nothing');
+    await runAll.click();
+    await confirm.getByRole('button', { name: 'Start the run on everything', exact: true }).click();
     await until(() => made.appCalls.some((c) => c.url.endsWith('/api/settings/run')), 'the run on everything', 30000);
     const sent = made.appCalls.filter((c) => c.method === 'POST').map((c) => [new URL(c.url).pathname, c.body]);
     assert.deepEqual(sent, [

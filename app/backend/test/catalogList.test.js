@@ -20,3 +20,13 @@ test('the catalog list note says when Unity Catalog cut the list, and a typed na
     assert.equal(C.typedCatalog(listed, cut, typed), null, `${cut} ${typed}`);
   }
 });
+
+test('the catalog pickers hide system and hive_metastore unless the user typed one of them, and keep every other catalog (must-exclude)', async () => {
+  const C = await lib();
+  const listed = ['main', 'system', { name: 'hive_metastore' }, 'samples', 'sales'];
+  assert.deepEqual(C.catalogNames(C.shownCatalogs(listed)), ['main', 'samples', 'sales']);
+  assert.deepEqual(C.catalogNames(C.shownCatalogs(listed, ' System ')), ['main', 'system', 'samples', 'sales']);
+  assert.deepEqual(C.catalogNames(C.shownCatalogs(listed, 'hive_metastore')), ['main', 'hive_metastore', 'samples', 'sales']);
+  assert.deepEqual(C.catalogNames(C.shownCatalogs(listed, 'sys')), ['main', 'samples', 'sales'], 'part of the name is not asking for it');
+  assert.deepEqual(C.shownCatalogs(null), []);
+});

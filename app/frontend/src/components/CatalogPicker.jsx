@@ -1,7 +1,7 @@
-import { CATALOG_SEARCH_FROM, catalogListNote, catalogNames } from '../lib/catalogList';
+import { CATALOG_SEARCH_FROM, catalogListNote, catalogNames, shownCatalogs } from '../lib/catalogList';
 
 export default function CatalogPicker({ id, value, onChange, catalogs, truncated = false, loading = false, className = '', placeholder = 'Pick a catalog' }) {
-  const names = catalogNames(catalogs);
+  const names = catalogNames(shownCatalogs(catalogs, value));
   const note = catalogListNote(catalogs, truncated, value);
   if (!truncated && names.length < CATALOG_SEARCH_FROM) {
     const options = [...new Set([value, ...names].filter(Boolean))].sort((a, b) => a.localeCompare(b));

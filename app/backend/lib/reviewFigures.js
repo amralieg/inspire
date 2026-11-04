@@ -17,6 +17,11 @@ const RUN_FIGURES = ['use_cases', 'domains', 'subdomains', 'best_of_best', 'mvps
 const SESSION_LIST_COLUMNS = ['session_id', 'processing_status', 'completed_percent', 'create_at', 'last_updated', 'completed_on', 'business_name',
   'inspire_database_name', 'operation_mode', 'generation_path', 'business_domains', 'catalogs'];
 
+const HIGH_PRIORITY_MIN_SCORE = 7;
+const BELOW_BAR_ELITE_STATUSES = ['FALLBACK_BELOW_BAR', 'DOMAIN_COVERAGE_PICK'];
+const MEETS_BAR_SQL = `UPPER(TRIM(COALESCE(elite_status, ''))) NOT IN (${BELOW_BAR_ELITE_STATUSES.map((s) => `'${s}'`).join(', ')})`;
+const HIGH_PRIORITY_SQL = `COALESCE(priority_score, 0) >= ${HIGH_PRIORITY_MIN_SCORE} AND ${MEETS_BAR_SQL}`;
+
 const BUSINESS_KEY = "LOWER(TRIM(COALESCE(business_name, '')))";
 const RUN_BUSINESS_KEY = `CASE WHEN ${BUSINESS_KEY} = '' THEN CONCAT('#', CAST(session_id AS STRING)) ELSE ${BUSINESS_KEY} END`;
 
@@ -173,6 +178,10 @@ function portfolioView({ runs = null, useCases = [], mvps = [], missing = [] } =
 }
 
 module.exports = {
+  HIGH_PRIORITY_MIN_SCORE,
+  BELOW_BAR_ELITE_STATUSES,
+  HIGH_PRIORITY_SQL,
+  MEETS_BAR_SQL,
   SESSION_LIST_CAP,
   PORTFOLIO_RUN_CAP,
   PORTFOLIO_TABLES,

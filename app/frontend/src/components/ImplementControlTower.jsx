@@ -17,6 +17,7 @@ const ACTION_ICONS = { stop: Square, start: Play, unpublish: EyeOff, publish: Ey
 const ASSET_ICONS = { build: Hammer, job: Briefcase, dashboard: LayoutDashboard, genie_space: GenieLogo, app: AppWindow, alert: Bell, notebook: NotebookPen };
 const TONE_CHIP = { success: 'success', error: 'error', warning: 'warning', busy: 'red', idle: 'idle' };
 const BUTTON = 'inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium disabled:opacity-50';
+export const QUIET_REMOVE = 'border border-border bg-surface text-text-secondary hover:text-text-primary hover:bg-bg-subtle';
 const FIT_BUTTON = 'flex w-full h-8 min-w-0 overflow-hidden items-center justify-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-medium leading-[13px] text-center disabled:opacity-50';
 const fitted = (fit, text) => (fit ? <span className="min-w-0 break-words line-clamp-2">{text}</span> : text);
 
@@ -94,7 +95,7 @@ export function RowControls({ row, active, actionBusy, submitBusy, readOnly = fa
             disabled={blocked}
             title={lockedReason || (blocked && active ? 'Wait for the build to finish, or stop the build first' : named(a.label))}
             onClick={() => onAction(a)}
-            className={`${base} border bg-surface ${a.danger ? 'border-error/40 text-error-fg' : 'border-border text-text-primary'}`}
+            className={`${base} ${a.danger ? QUIET_REMOVE : 'border border-border bg-surface text-text-primary'}`}
           >
             {actionBusy === key ? <Loader2 size={11} className="shrink-0 animate-spin" /> : <Icon size={11} className="shrink-0" />} {fitted(fit, a.label)}
           </button>
@@ -194,7 +195,7 @@ function tileState(tile) {
 
 const TO_BUILD = ['building', 'failed', 'planning', 'held'];
 const TILE_BUTTON = `${FIT_BUTTON} border border-border bg-surface text-text-primary`;
-const TILE_DANGER = `${FIT_BUTTON} border border-error/40 bg-surface text-error-fg`;
+const TILE_QUIET = `${FIT_BUTTON} ${QUIET_REMOVE}`;
 
 export function AssetTile({
   id, label, icon = null, tile = null, state = null, href = '', reason = '', row = null, uninstall = null, removeLabel = '', onUninstall = null, failed = null,
@@ -263,13 +264,13 @@ export function AssetTile({
         )}
         {controls.canRemove && (
           <button type="button" data-tile-uninstall="" disabled={locked || Boolean(uninstall.blocked)} title={uninstall.blocked || lockedReason || uninstall.label}
-            onClick={controls.ask} aria-label={`${uninstall.label} the ${label}`} className={TILE_DANGER}>
+            onClick={controls.ask} aria-label={`${uninstall.label} the ${label}`} className={TILE_QUIET}>
             <Trash2 size={11} className="shrink-0" /> {fitted(true, uninstall.label)}
           </button>
         )}
         {onUninstall && (
           <button type="button" data-tile-uninstall="" disabled={locked} title={lockedReason || removeLabel} onClick={onUninstall}
-            aria-label={`${removeLabel} the ${label}`} className={TILE_DANGER}>
+            aria-label={`${removeLabel} the ${label}`} className={TILE_QUIET}>
             <Trash2 size={11} className="shrink-0" /> {fitted(true, removeLabel)}
           </button>
         )}
@@ -361,7 +362,7 @@ export function AssetPanel({
         {!row && failed && <RetryButton failed={failed} disabled={locked} lockedReason={readOnlyReason(readOnly)} onRetry={retry} />}
         {canRemove && (
           <button type="button" disabled={locked || Boolean(uninstall.blocked)} onClick={controls.ask}
-            className={`${BUTTON} border border-error/40 bg-surface text-error-fg`}>
+            className={`${BUTTON} ${QUIET_REMOVE}`}>
             <Trash2 size={11} /> {uninstall.label}
           </button>
         )}
@@ -441,7 +442,7 @@ function KeptVersions({ kept, locked, lockedReason = '', onRemove }) {
                 </span>
               ))}
             </div>
-            <button type="button" disabled={locked} title={lockedReason || undefined} onClick={() => onRemove(entry)} className={`${BUTTON} border border-error/40 bg-surface text-error-fg`}>
+            <button type="button" disabled={locked} title={lockedReason || undefined} onClick={() => onRemove(entry)} className={`${BUTTON} ${QUIET_REMOVE}`}>
               <Trash2 size={11} /> Remove v{entry.version}
             </button>
           </li>

@@ -79,7 +79,8 @@ import {
   qualityBarCountsOf,
   qualityBarFilterMatches,
 } from '../lib/useCaseFields';
-import { runOutcomeOf } from '../lib/runOutcome';
+import { nextStepOf, runOutcomeOf } from '../lib/runOutcome';
+import { liveCountText } from '../lib/liveUseCases';
 import { EXCEL_OLD_FORMAT, EXCEL_UNREADABLE, csvPreview, fileExtension, quickAccessFiles, sheetPreview, visibleArtifactFiles } from '../lib/artifactFiles';
 import FilePreview from '../components/FilePreview';
 import { generationFolder, workspaceNotebookUrl, workspaceWebUiHashPath } from '../lib/workspaceLinks';
@@ -491,6 +492,7 @@ export default function ResultsPage({
   const allUseCases = useMemo(() => buildUseCaseList(results, usecases), [results, usecases]);
   const qualityBarCounts = useMemo(() => qualityBarCountsOf(allUseCases), [allUseCases]);
   const runOutcome = runOutcomeOf(results, qualityBarCounts);
+  const noneMeetsBar = qualityBarCounts.found > 0 && qualityBarCounts.meets === 0;
   const bizPriorities = useMemo(() => knownPriorities(results), [results]);
   const strategy = useMemo(() => strategyContext(results), [results]);
 
@@ -1225,8 +1227,8 @@ export default function ResultsPage({
               <div className="flex-1">
                 <span className="text-sm font-semibold text-warning-fg">Live Preview</span>
                 <span className="text-xs text-text-secondary ml-2">
-                  Showing {allUseCases.length} use cases from {results._step_count || 0} completed steps.
-                  Results will be enriched as the pipeline progresses. {START_MVP_LABEL} opens on each use case once the run has saved it.
+                  <span data-testid="live-use-case-count">{liveCountText(allUseCases.length)}</span>, the same count as Monitor.
+                  The final catalog keeps the ones that pass every check. Results will be enriched as the pipeline progresses. {START_MVP_LABEL} opens on each use case once the run has saved it.
                 </span>
               </div>
               <button
@@ -1303,6 +1305,11 @@ export default function ResultsPage({
                       {qualityBarCounts.found > 0 && (
                         <p className="text-[11px] text-text-secondary mt-0.5" data-testid="quality-bar-counts">
                           {qualityBarCounts.found} found, {qualityBarCounts.meets} {qualityBarCounts.meets === 1 ? 'meets' : 'meet'} your quality bar
+                        </p>
+                      )}
+                      {noneMeetsBar && !runOutcome.failed && (
+                        <p className="text-[11px] font-semibold text-text-primary mt-1" data-testid="quality-bar-next-step">
+                          Next step: {nextStepOf(runOutcome)}
                         </p>
                       )}
                       {!runOutcome.failed && (runOutcome.barMessage || runOutcome.notes.length > 0) && (
@@ -1692,19 +1699,23 @@ export default function ResultsPage({
             <StatCard label="Use Cases" value={allUseCases.length} icon={FileText} />
             <StatCard label="Domains" value={results.domains?.length || domains.length} icon={Building2} />
             <StatCard label="Subdomains" value={uniqueSubdomainCount} icon={LayoutGrid} />
-            <StatCard label="Best of Best" value={starredCount} icon={Star} />
-            <StatCard
-              label="High Priority"
-              value={highPriorityCount}
-              icon={Target}
-            />
+            {!noneMeetsBar && <StatCard label="Best of Best" value={starredCount} icon={Star} />}
+            {!noneMeetsBar && (
+              <StatCard
+                label="High Priority"
+                value={highPriorityCount}
+                icon={Target}
+              />
+            )}
             <StatCard label="Techniques" value={techniqueCount} icon={Wrench} />
-            <StatCard
-              label="Avg Inspire score"
-              value={0}
-              icon={Sparkles}
-              renderValue={avgInspireScore != null ? avgInspireScore.toFixed(1) : 'n/a'}
-            />
+            {!noneMeetsBar && (
+              <StatCard
+                label="Avg Inspire score"
+                value={0}
+                icon={Sparkles}
+                renderValue={avgInspireScore != null ? avgInspireScore.toFixed(1) : 'n/a'}
+              />
+            )}
             <StatCard
               label="Live assets"
               value={selectedFigures?.live_assets ?? 0}
@@ -1724,7 +1735,7 @@ export default function ResultsPage({
           {v130Session && (
             <>
               <DataAccessBadge results={results} />
-              <InsightsGrid results={results} feedback={feedbackState} />
+              {!noneMeetsBar && <InsightsGrid results={results} feedback={feedbackState} />}
             </>
           )}
 

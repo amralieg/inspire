@@ -48,9 +48,9 @@ test('the Choose page overview names each 19-digit session exactly, so its count
       { session_id: '17', business_name: 'Beta', completed_percent: 100, create_at: '2026-10-01T10:00:00Z', business_runs: 1, business_rank: 1 },
     ],
     usecases: [
-      { session_id: MAX, use_case: 'Forecast demand by zone', priority_score: 4, business_domain: 'Operations' },
+      { session_id: MAX, use_case: 'Forecast demand by zone', priority_score: 8.4, business_domain: 'Operations' },
       { session_id: MAX, use_case: 'Reduce churn', priority_score: 2, business_domain: 'Customer' },
-      { session_id: HALF, use_case: 'Price basket mix', priority_score: 5, business_domain: 'Sales' },
+      { session_id: HALF, use_case: 'Price basket mix', priority_score: 9, business_domain: 'Sales' },
       { session_id: NEIGHBOUR, use_case: 'A neighbouring run that must not leak in', priority_score: 5, business_domain: 'Other' },
     ],
   });
@@ -59,12 +59,30 @@ test('the Choose page overview names each 19-digit session exactly, so its count
   const bySid = Object.fromEntries(got.data.sessions.map((s) => [s.session_id, s.usecase_overview]));
   assert.deepEqual(got.data.sessions.map((s) => s.session_id), [MAX, HALF, '17']);
   const preview = (...names) => names.map((Name) => ({ Name, name_with_technique: null }));
-  assert.deepEqual(bySid[MAX], { total: 2, high: 1, domains: 2, preview_use_cases: preview('Forecast demand by zone', 'Reduce churn') });
-  assert.deepEqual(bySid[HALF], { total: 1, high: 1, domains: 1, preview_use_cases: preview('Price basket mix') });
-  assert.deepEqual(bySid['17'], { total: 0, high: 0, domains: 0, preview_use_cases: [] }, 'a run with no use cases stays at zero');
+  assert.deepEqual(bySid[MAX], { total: 2, high: 1, meets: 2, domains: 2, preview_use_cases: preview('Forecast demand by zone', 'Reduce churn') });
+  assert.deepEqual(bySid[HALF], { total: 1, high: 1, meets: 1, domains: 1, preview_use_cases: preview('Price basket mix') });
+  assert.deepEqual(bySid['17'], { total: 0, high: 0, meets: 0, domains: 0, preview_use_cases: [] }, 'a run with no use cases stays at zero');
   const asked = S.state.calls.filter((c) => c.statement.includes('__inspire_usecases'));
   assert.equal(asked.length, 2);
   for (const c of asked) assert.ok(c.statement.includes(`IN (${MAX},${HALF},17)`), c.statement);
+});
+
+test('the Choose page counts high priority only for a use case that meets the bar and scores 7 or more of 10, so a run below the bar shows no high priority (must-exclude)', async () => {
+  S.reset({
+    sessionList: [{ session_id: MAX, business_name: 'Acme', completed_percent: 100, create_at: '2026-11-02T10:00:00Z', business_runs: 1, business_rank: 1 }],
+    usecases: [
+      { session_id: MAX, use_case: 'Above the bar and strong', priority_score: 8.6, business_domain: 'Sales' },
+      { session_id: MAX, use_case: 'Below the bar but strong', priority_score: 9.1, elite_status: 'FALLBACK_BELOW_BAR', business_domain: 'Sales' },
+      { session_id: MAX, use_case: 'Coverage pick', priority_score: 7.5, elite_status: 'domain_coverage_pick', business_domain: 'Ops' },
+      { session_id: MAX, use_case: 'Above the bar, middling', priority_score: 3.5, business_domain: 'Ops' },
+    ],
+  });
+  const got = await S.request('GET', LIST, { person: 'reader@example.com' });
+  assert.equal(got.status, 200, got.text.slice(0, 300));
+  const { total, high, meets } = got.data.sessions[0].usecase_overview;
+  assert.deepEqual({ total, high, meets }, { total: 4, high: 1, meets: 2 });
+  const statement = S.state.calls.find((c) => c.statement.includes('AS usecase_count')).statement;
+  assert.equal(statement.includes('priority_score, 0) >= 3 '), false, 'the old 0-5 cut counted every kept use case as high priority');
 });
 
 test('a session id beyond 63 bits is left out of the overview query instead of naming a rounded neighbour (must-exclude)', async () => {

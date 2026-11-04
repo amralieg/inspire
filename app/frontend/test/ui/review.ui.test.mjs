@@ -186,6 +186,8 @@ test('a run that is still going shows the summary its results_json already holds
     try {
       await ready(page);
       await page.getByText('Live Preview').waitFor();
+      assert.match(await page.locator('[data-testid="live-use-case-count"]').innerText(), /^\d+ use cases? drafted so far$/, label);
+      assert.doesNotMatch(await page.locator('body').innerText(), /completed steps/, label);
       assert.deepEqual(await page.locator('[data-executive-summary] p').allInnerTexts(), shown, label);
       assert.deepEqual(ui.pageErrors, [], label);
     } finally {

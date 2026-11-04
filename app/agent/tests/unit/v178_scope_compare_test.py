@@ -122,8 +122,18 @@ def test_the_run_page_states_what_the_first_run_covered_and_what_everything_woul
     tables = [{"table": "main.sales.orders", "rows": 900, "rows_total": 48000}, {"table": "main.sales.stores", "rows": 12, "rows_total": 12}]
     facts = shell_sql.scope_facts(scope, tables, 240)
     assert facts == {"covered": "The first run covered 900 of 48,000 records (3 groups) in 4 minutes.",
-                     "everything": "Run on everything covers all 48,000 records, about 213 minutes at this run's pace."}
+                     "everything": "Run on everything covers all 48,000 records, 53 times what the first run read; how long that takes is "
+                                   "unknown until a larger run is measured."}
     assert shell_sql.scope_facts({"scope": "all", "key": "all"}, tables, 240) == {"covered": "", "everything": ""}
+    near = [{"table": "main.sales.orders", "rows": 9000, "rows_total": 48000}]
+    assert shell_sql.scope_facts(scope, near, 240)["everything"] == "Run on everything covers all 48,000 records, about 4 to 21 minutes."
+    huge = [{"table": "main.sales.orders", "rows": 1000, "rows_total": 7500000}]
+    everything = shell_sql.scope_facts(dict(scope, scope="records"), huge, 177)["everything"]
+    assert "22,125" not in everything and "minute" not in everything, "one small run never scales its start-up time to millions of records"
+    assert everything == ("Run on everything covers all 7,500,000 records, 7,500 times what the first run read; how long that takes is unknown "
+                          "until a larger run is measured.")
+    same = [{"table": "main.sales.orders", "rows": 48000, "rows_total": 48000}]
+    assert shell_sql.scope_facts(scope, same, 240)["everything"] == "Run on everything covers all 48,000 records, about 4 minutes."
     assert shell_sql.scope_facts(scope, [], 240) == {"covered": "", "everything": ""}, "no count, no invented numbers"
     assert shell_sql.scope_facts(scope, tables, None)["covered"] == "The first run covered 900 of 48,000 records (3 groups)."
     one = shell_sql.scope_facts(dict(scope, scope="records"), [{"table": "main.sales.orders", "rows": 1, "rows_total": 1}], None)
