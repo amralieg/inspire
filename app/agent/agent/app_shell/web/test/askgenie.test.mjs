@@ -212,6 +212,7 @@ test('the forecast fan asks Genie as a forecast series, and a chart with no item
   assert.ok(fan.context.row_count > 0);
   await page.keyboard.press('Escape');
   await askButton(page, 'Demand with its forecast range').first().click();
+  await page.locator('form.ask-box').getByRole('combobox').waitFor({ state: 'detached' });
   assert.equal(await page.locator('form.ask-box').getByRole('combobox').count(), 0);
   await page.keyboard.press('Escape');
   await context.close();
@@ -221,6 +222,7 @@ test('the forecast fan asks Genie as a forecast series, and a chart with no item
   const slow = await ask(opened2.page, flow.calls, 'Slowest steps');
   assert.equal(slow.kind, 'chart');
   await askButton(opened2.page, 'Slowest steps').first().click();
+  await opened2.page.locator('form.ask-box').getByRole('combobox').waitFor({ state: 'detached' });
   assert.equal(await opened2.page.locator('form.ask-box').getByRole('combobox').count(), 0);
   assert.deepEqual([...seen.errors, ...opened2.seen.errors], []);
   await opened2.context.close();

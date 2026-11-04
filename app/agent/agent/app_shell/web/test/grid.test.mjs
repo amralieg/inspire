@@ -193,6 +193,7 @@ test('a table held in the browser sorts and filters each column in place, and sa
   await page.getByRole('dialog', { name: 'Filter All' }).getByRole('button', { name: 'Clear', exact: true }).click();
   await card.getByRole('button', { name: /^Filter Last change, / }).click();
   await page.getByRole('dialog', { name: 'Filter Last change' }).getByRole('button', { name: 'Clear', exact: true }).click();
+  await card.locator('.cf-n').waitFor({ state: 'detached' });
   assert.equal(await card.locator('.cf-n').count(), 0, 'with every filter cleared the count goes away');
   await card.getByRole('button', { name: 'Filter Use case' }).click();
   await page.getByRole('listbox', { name: 'Use case' }).getByText('Desk C').click();

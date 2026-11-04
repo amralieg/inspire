@@ -80,6 +80,7 @@ test('Select all matching acts on every matching record with the load time and t
   await page.waitForFunction(() => /^Undone/.test(document.querySelector('.toast .toast-t')?.textContent || ''));
   assert.equal(await toastText(page), `Undone: 28 records are back as they were. 1 record changed since and was left as it is: ${label(11)}.`);
   await page.locator('.conflicts').getByRole('button', { name: 'Close this notice' }).click();
+  await page.locator('.conflicts').waitFor({ state: 'detached' });
   assert.equal(await page.locator('.conflicts').count(), 0);
   assert.deepEqual(seen.errors, []);
   await context.close();
@@ -285,6 +286,7 @@ test('the keyboard moves through the list, opens, marks done, snoozes, selects a
   await page.keyboard.press('x');
   assert.equal(await page.locator('.bulk b').innerText(), '1 selected:');
   await page.keyboard.press('x');
+  await page.locator('.bulk').waitFor({ state: 'detached' });
   assert.equal(await page.locator('.bulk').count(), 0);
   await page.keyboard.press('d');
   await until(() => seen.acts?.length === 1);

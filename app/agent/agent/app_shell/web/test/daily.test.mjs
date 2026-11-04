@@ -290,6 +290,7 @@ test('the save dialog refuses a blank, a 61-character or a duplicate name, and t
   assert.equal(await hint.innerText(), 'Give the view a name.');
   for (const [name, problem] of [['x'.repeat(61), 'Use 60 characters or fewer.'], [' weekly REVIEW ', 'A view with this name is already saved on this page.']]) {
     await dialog.getByRole('textbox', { name: 'Name' }).fill(name);
+    await hint.waitFor({ state: 'detached' });
     assert.equal(await hint.count(), 0, 'typing clears the problem');
     await dialog.getByRole('button', { name: 'Save view' }).click();
     assert.equal(await hint.innerText(), problem);

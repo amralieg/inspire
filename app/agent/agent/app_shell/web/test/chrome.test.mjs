@@ -650,6 +650,7 @@ test('the row Ask Genie button opens Genie about that record without opening it,
   assert.deepEqual(calls.asks[1], { question: 'Why this one?', conversation_id: 'c1', page: 'n01_u05', record_key: 'R002' });
   await page.waitForFunction(() => document.querySelectorAll('.msg-sql').length === 2);
   await page.getByRole('button', { name: 'Stop asking about Item number 2' }).click();
+  await page.locator('.g-chip').waitFor({ state: 'detached' });
   assert.equal(await page.locator('.g-chip').count(), 0);
   assert.equal(await sugg.count(), 0, 'the page questions show again only on a new chat');
   assert.equal(await page.getByLabel('Your question').getAttribute('placeholder'), 'Ask about the data in this use case');
