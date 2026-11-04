@@ -94,6 +94,10 @@ The **06. Use Cases Quality** widget offers three modes. All three run the same 
 
 If no candidate clears the bar the run does not ship empty: it returns the near misses rejected without a fatal flaw, ranked by elite score and each labelled "below the Ultra High bar" with the check it failed (never fatal-flaw rejects), then High-tier candidates, under a plain notice that no use case met the Ultra High bar. The scores shown are the real elite scores; nothing is invented. The count of elite use cases is reported, never targeted.
 
+### Use Case Names
+
+The headline (`usecase`) keeps its benefit-led form, for example "Increase Basket Size to Grow Revenue". The `Name` line says what the owner does, in sentence case and about 6 to 10 words: a plain verb, the items acted on and the rule that picks them, for example "Call the repeat buyers most likely to lapse this month". It names no technique, has no "with ..." tail and no value phrase; Q5 R20 flags a `Name` that breaks these rules (`Q5_R20_NAME_STYLE`) and never drops the use case. The PDF, the slides and the Markdown catalog show the line as "<Name> using <technique>". A naming rule written in **09. Generation Instructions** replaces these rules and turns the check off.
+
 ### Generation Instructions and the Quality Bar
 
 A goal in **09. Generation Instructions** sets the scope and the alignment of the portfolio: use cases that serve it are kept in scope, scored high on strategic alignment, and never penalized for domain or technique balance. A goal never exempts a use case from the quality bar of the selected mode.
@@ -807,7 +811,7 @@ Proving the use case is grounded in the data and analytically sound.
 | D7 | Design-Schema Match | Does the technical design cite columns that exist? | ≤ 2.5 → Soft veto |
 | D8 | Semantic Uniqueness | After verb / noun / entity / metric normalization: is this a duplicate? | ≤ 2.5 → Hard veto |
 | D9 | Analytical Depth (Strip Test) | Remove ML-technique mentions: is there real analytical substance left? | ≤ 2.5 → Hard veto |
-| D10 | Activation Quality (Deliverable Test) | Does the "with ..." suffix name a business deliverable, not just a technique? | ≤ 2.0 → Hard veto |
+| D10 | Activation Quality (Action Test) | Does the `Name` start with the owner's action and name the items it picks, with no technique, no "with ..." tail and no value phrase? | ≤ 2.0 → Hard veto |
 | D11 | Domain & Technique Balance | Does the portfolio cluster too heavily on one domain+technique? | Score reduction only |
 
 ### Tier 2: Business Value (D12-D14)

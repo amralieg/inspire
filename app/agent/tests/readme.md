@@ -1819,7 +1819,7 @@ See **Appendix L** below for the full Best-of-Best testing playbook, formulae, a
 | D7 | Design–Schema Match | Does the design cite columns that exist? | ≤ 2.5 → Soft veto |
 | D8 | Semantic Uniqueness | After verb / noun / entity-metric normalization — is it a duplicate? | ≤ 2.5 → Hard veto |
 | D9 | Analytical Depth (Strip Test) | Remove ML-technique mentions — is there real substance left? | ≤ 2.5 → Hard veto |
-| D10 | Activation Quality (Deliverable Test) | Does the "with …" suffix name a business deliverable, not just a technique? | ≤ 2.0 → Hard veto |
+| D10 | Activation Quality (Action Test) | Does the `Name` start with the owner's action and name the items it picks, with no technique, no "with ..." tail and no value phrase? | ≤ 2.0 → Hard veto |
 | D11 | Domain & Technique Balance | Is the portfolio clustered too heavily on one domain+technique? | Score reduction |
 
 **Tier 2 — Business Value (D12–D14)** — *"would you actually fund this?"*

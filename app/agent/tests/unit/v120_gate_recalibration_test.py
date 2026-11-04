@@ -279,7 +279,7 @@ class TestQ5DecisionReadiness:
                             hld="Gradient boosted trees on lag features.")
         kept, dropped = o._phaseQ5_decision_readiness([hld_only, contradiction, silent, generic_learner], SCHEMA)
         assert dropped == []
-        flags = {u["No"]: u.get("gate_flags", []) for u in kept}
+        flags = {u["No"]: [f for f in u.get("gate_flags", []) if not f.startswith("Q5_R20_NAME_STYLE:")] for u in kept}
         assert flags["N02-U03"] == ["Q5_R18_TECHNIQUE_LABEL_DRIFT:anomaly"]
         assert flags["N02-U02"] == [] and flags["N02-U04"] == [] and flags["N02-U06"] == []
 

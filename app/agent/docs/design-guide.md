@@ -207,7 +207,7 @@ structured data analytics, AI/ML, and statistical techniques:
 Pass 2 runs at temperature 0.5 for creative gap-filling across under-represented domains and techniques.
 
 **Quality gates enforced at generation time (D1-D19, LLM-evaluated):**
-- Technical grounding (D1-D11): causal signal, cause-effect, granularity, columns present, analytical depth (Strip Test), activation (Deliverable Test), semantic uniqueness (5-layer LLM judgment)
+- Technical grounding (D1-D11): causal signal, cause-effect, granularity, columns present, analytical depth (Strip Test), activation (Action Test), semantic uniqueness (5-layer LLM judgment)
 - Business value (D12-D14): stakeholder relevance, sponsor funding test, production-engineering test
 - Principal-analyst (D15-D19): decision cadence, Monday Test, explainability, 18-month longevity, attributable $-impact
 - **Zero regex, zero pattern matching** -- every gate is an LLM reasoning step
@@ -528,7 +528,7 @@ if any(gate_score < 3 for gate_score in (D1..D19)):
     bob_score = min(bob_score, 2.0)
 ```
 
-Rationale: D9 (Strip Test), D10 (Deliverable Test), D16 (Monday Test), and D19 (Attributable
+Rationale: D9 (Strip Test), D10 (Action Test), D16 (Monday Test), and D19 (Attributable
 Impact) are each sufficient to destroy a UC's real-world usefulness. A UC that scores
 t1=9, t2=9, t3=9 except for D16=1 is a research exercise, not an actionable insight. The floor
 prevents tier-averaging from whitewashing that defect.
@@ -1416,7 +1416,7 @@ See the **The 19 Quality Gates** section in [`../readme.md`](../readme.md#the-19
 | D7 | Design-Schema Match | Data Quality | Technical design must not assume columns, tables, or relationships that do not exist |
 | D8 | Semantic Uniqueness | Critical (Zero Tolerance) | 5-layer duplicate detection (verb normalization, noun synonyms, entity-metric pairs, technique swap, table+intent) |
 | D9 | Analytical Depth (Strip Test) | Critical | Must require genuine multi-dimensional analysis; trivial SQL is rejected |
-| D10 | Activation Quality (Deliverable Test) | Critical (Zero Tolerance) | The "with …" suffix must describe a business deliverable, never a technical method |
+| D10 | Activation Quality (Action Test) | Critical (Zero Tolerance) | The `Name` starts with the owner's action and names the items it picks, never a technical method |
 | D11 | Domain & Technique Balance | Portfolio | Prevent one domain+technique cluster from dominating |
 
 ### Tier 2: Business Value (D12-D14), "would you actually fund this?"
@@ -1947,7 +1947,7 @@ status: **Accepted**. See Known Issue #5 for planned configurability.
 ### ADR-002: Hard-Veto Floor at `bob_score = 2.0`
 
 **Context.** Even with fine-grained 0-10 gate scoring, some gate failures are individually
-fatal (D9 Strip Test, D10 Deliverable Test, D16 Monday Test, D19 Attributable Impact).
+fatal (D9 Strip Test, D10 Action Test, D16 Monday Test, D19 Attributable Impact).
 
 **Options considered.**
 

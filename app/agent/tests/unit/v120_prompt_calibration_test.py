@@ -153,8 +153,8 @@ def test_soft_and_hard_veto_boundaries_do_not_overlap(ns):
     block = ns["QUALITY_GATE_SCORING_BLOCK"]
     assert "- D9 ≤ 2.5 (trivial or weak depth" in block
     assert "- 2.5 < D9 ≤ 3.0 (moderate depth)" in block
-    assert "- D10 ≤ 2.0 (technical method" in block
-    assert "- 2.0 < D10 ≤ 3.0 (vague deliverable)" in block
+    assert "- D10 ≤ 2.0 (a method as the action" in block
+    assert "- 2.0 < D10 ≤ 3.0 (vague action or items)" in block
     for name, text in _scoring_prompts(ns).items():
         assert "D9 = 2.5-3.0" not in text, name
         assert "D10 = 2.5-3.0" not in text, name
