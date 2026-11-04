@@ -332,64 +332,14 @@ def test_two_groups_or_together_and_a_record_outside_both_is_left_out(fresh_ns):
     assert kept == [1, 3, 5], "EMEA in store (2) fails the AND and LATAM (4) is in no group (must-exclude)"
 
 
-SCOPE_SQL = "SELECT order_id FROM main.sales.orders WHERE region = 'EMEA'"
-
-
-def _saved(ns, sql=SCOPE_SQL, **changed):
-    check = ns["inspire_grouping_sql_check"](sql)
-    return dict({"scope_sql": sql, "scope_sql_hash": check["hash"], "scope_sql_tables": json.dumps(check["tables"]),
-                 "scope_sql_checked_by": "someone", "scope_sql_checked_at": "2026-11-04T08:00:00Z"}, **changed)
-
-
-def test_a_custom_first_run_runs_exactly_its_saved_select_of_keys(fresh_ns):
-    fresh_ns["inspire_group_sql_saved"] = lambda spark, run, names=None: _saved(fresh_ns) if names == fresh_ns["INSPIRE_SCOPE_SQL_SETTINGS"] else {}
-    chosen = fresh_ns["inspire_scope_choice"](scope=_scope(run_scope="custom"))
-    assert chosen == {"scope": "custom", "table": "main.sales.orders", "custom": True}
-    spark = Session(["Order_ID", "region"], returned=["order_id"])
-    resolved = fresh_ns["inspire_scope_resolve"](spark, chosen, {})
-    assert resolved["keys"] == [["order_id", "Order_ID"]] and resolved["tables"] == ["main.sales.orders"]
-    fresh_ns["INSPIRE_SCOPE"], fresh_ns["INSPIRE_RUN_LOG"] = resolved, {}
-    frame = fresh_ns["inspire_read_source"]("main.sales.orders", spark=spark)
-    assert frame.steps == [("join", [("selectExpr", ["`order_id` AS `Order_ID`"]), ("distinct",)], ["Order_ID"], "left_semi")]
-    assert spark.statements[-1] == "SELECT * FROM (SELECT order_id FROM main.sales.orders WHERE region = 'EMEA' ) AS _inspire_custom_groups"
-    assert "DESCRIBE TABLE `main`.`sales`.`orders`" in spark.statements, "the key columns are read from the table schema, never its rows"
-    assert fresh_ns["inspire_read_source"]("main.sales.items", spark=spark).steps == [], "only the main table is narrowed"
-    assert fresh_ns["INSPIRE_RUN_LOG"]["reads"]["main.sales.orders"]["sql_hash"] == resolved["hash"]
-    record = fresh_ns["inspire_scope_record"](resolved)
-    assert record["sql_hash"] == resolved["hash"] and record["keys"] == ["Order_ID"]
-    other = dict(resolved, hash="0" * 64)
-    assert fresh_ns["inspire_scope_key"](other) != record["key"], "a changed SQL starts a new scope"
-    assert fresh_ns["inspire_scope_text"](resolved) == ("the records of main.sales.orders whose Order_ID the saved first run SQL returns, "
-                                                        "reading main.sales.orders")
-
-
-@pytest.mark.parametrize("saved,why", [
-    ({"scope_sql": ""}, "the First run is custom, but no first run SQL is saved for this use case"),
-    ({"scope_sql": "UPDATE main.sales.orders SET region = 'x'"}, "the saved first run SQL no longer passes Inspire's check"),
-    ({"scope_sql": "SELECT order_id, ai_query('e', region) AS g FROM main.sales.orders"}, "the saved first run SQL no longer passes Inspire's check"),
-    ({"scope_sql_hash": "0" * 64}, "the saved first run SQL is not the SQL that was checked when it was saved"),
-    ({"scope_sql_tables": json.dumps(["main.sales.other"])}, "the saved first run SQL reads main.sales.orders, but the check that saved it saw main.sales.other"),
-], ids=["unsaved", "update", "ai_query", "changed", "tables_changed"])
-def test_a_broken_or_changed_custom_first_run_stops_the_run_with_a_link_to_edit_it(fresh_ns, saved, why):
-    fresh_ns["inspire_group_sql_saved"] = lambda spark, run, names=None: _saved(fresh_ns, **saved)
-    chosen = fresh_ns["inspire_scope_choice"](scope=_scope(run_scope="custom"))
-    spark = Session(["order_id"], returned=["order_id"])
-    with pytest.raises(fresh_ns["InspireRunStop"]) as caught:
-        fresh_ns["inspire_scope_resolve"](spark, chosen, {"grouping": {"link": "https://app/run/7"}})
-    text = str(caught.value)
-    assert text.startswith(f"First run: {why}") and text.endswith("change the first run on the Run page: https://app/run/7"), text
-    assert spark.statements == [], "a refused SQL never runs"
-
-
-def test_a_custom_first_run_that_returns_a_column_the_table_lacks_or_fails_stops_the_run(fresh_ns):
-    fresh_ns["inspire_group_sql_saved"] = lambda spark, run, names=None: _saved(fresh_ns)
-    chosen = fresh_ns["inspire_scope_choice"](scope=_scope(run_scope="custom"))
-    with pytest.raises(fresh_ns["InspireRunStop"]) as caught:
-        fresh_ns["inspire_scope_resolve"](Session(["id"], returned=["order_id"]), chosen, {})
-    assert "returns order_id, but main.sales.orders has no column order_id" in str(caught.value)
-    with pytest.raises(fresh_ns["InspireRunStop"]) as caught:
-        fresh_ns["inspire_scope_resolve"](Session(["order_id"], returned=RuntimeError("TABLE_OR_VIEW_NOT_FOUND")), chosen, {})
-    assert "the saved first run SQL failed when it ran over main.sales.orders" in str(caught.value)
+@pytest.mark.parametrize("asked", ["custom", "Custom"])
+def test_a_custom_first_run_is_refused_before_any_sql_runs(fresh_ns, asked):
+    with pytest.raises(ValueError, match="Inspire does not run SQL typed into Grouping or First run") as caught:
+        fresh_ns["inspire_scope_choice"](scope=_scope(run_scope=asked))
+    assert str(caught.value).startswith("First run is 'custom'")
+    assert fresh_ns["inspire_scope_choice"](scope=_scope(run_scope="all")) == {"scope": "all", "table": "main.sales.orders"}, "a first run choice still runs"
+    for name in ("inspire_scope_custom", "inspire_grouping_sql_check", "inspire_group_custom", "inspire_group_sql_saved", "implement_grouping_sql_check"):
+        assert name not in fresh_ns, f"{name} is gone, so no typed SQL can run"
 
 
 def test_the_grouping_stop_still_reads_as_before(agent_ns):
@@ -408,56 +358,9 @@ def test_a_grouping_that_names_a_joined_column_stops_the_run_and_never_groups_gl
     assert agent_ns["INSPIRE_RUN_GROUPING"]["group_by"] == ["ss_store_sk"] and len(grouped) == 60
 
 
-class _JoinedFrame:
-    def __init__(self, table):
-        self.table, self.columns = table, list(table.columns)
-
-    def toPandas(self):
-        return self.table.copy()
-
-
-class _JoinedSpark:
-    def __init__(self, saved, groups):
-        self.saved, self.groups, self.statements = saved, groups, []
-
-    def sql(self, statement, *args, **kwargs):
-        self.statements.append(statement)
-        if statement.startswith("SELECT name, value, changed_by, changed_at, text_value"):
-            return FakeRows([{"name": k, "value": None, "changed_by": "ana", "changed_at": None, "text_value": v} for k, v in self.saved.items()])
-        if statement.startswith(("CREATE TABLE IF NOT EXISTS", "DESCRIBE TABLE")):
-            return FakeRows([])
-        return _JoinedFrame(self.groups)
-
-
 class FakeRows:
     def __init__(self, rows):
         self.rows = rows
 
     def collect(self):
         return list(self.rows)
-
-
-def test_a_grouping_on_a_joined_column_runs_the_shared_join_sql_and_groups_every_record_by_the_joined_value(agent_ns):
-    pd = pytest.importorskip("pandas")
-    case = json.load(open(os.path.join(ROOT, "tests", "fixtures", "implement_grouping_cases.json"), encoding="utf-8"))["joined_grouping"]
-    check = agent_ns["inspire_grouping_sql_check"](case["sql"])
-    assert check["ok"] and check["tables"] == case["tables"]
-    saved = {"group_sql": case["sql"], "group_sql_tables": json.dumps(check["tables"]), "group_sql_hash": check["hash"],
-             "group_sql_checked_by": "ana", "group_sql_checked_at": "2026-11-04T06:00:00Z"}
-    records = pd.DataFrame({"ws_order_number": list(range(90)), "ws_item_sk": [i % 3 for i in range(90)], "ws_net_paid": [2.0] * 90})
-    category = {0: "Electronics", 1: "Home", 2: "Books"}
-    groups = pd.DataFrame({"ws_order_number": records["ws_order_number"], "ws_item_sk": records["ws_item_sk"],
-                           "group_name": [category[k] for k in records["ws_item_sk"]]})
-    spark = _JoinedSpark(saved, groups)
-    agent_ns["INSPIRE_RUN"] = {"use_case_id": "N01-U01", "result_table": "main.inspire.n01_out", "grouping": {"link": "https://inspire.example.com/"}}
-    agent_ns["spark"] = spark
-    agent_ns["INSPIRE_SETTINGS_APPLIED"] = {"group_by": "custom"}
-    try:
-        out = agent_ns["inspire_group_records"](records, group_by="custom", out=lambda *_a: None)
-        ran = [s for s in spark.statements if "_inspire_custom_groups" in s]
-        assert len(ran) == 1 and "LEFT JOIN `main`.`retail`.`item` j1 ON m.`ws_item_sk` = j1.`i_item_sk`" in ran[0]
-        assert out["inspire_group"].value_counts().to_dict() == {"Electronics": 30, "Home": 30, "Books": 30}
-        assert agent_ns["INSPIRE_RUN_GROUPING"]["mode"] == "custom" and agent_ns["INSPIRE_RUN_GROUPING"]["sql_tables"] == case["tables"]
-    finally:
-        for name in ("INSPIRE_RUN", "spark", "INSPIRE_SETTINGS_APPLIED", "INSPIRE_RUN_GROUPING"):
-            agent_ns.pop(name, None)

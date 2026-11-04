@@ -1,4 +1,4 @@
-const G = require('./groupingSql');
+const G = require('../../frontend/src/lib/tableName.js');
 const R = require('./groupingRule');
 const { parseExactJson } = require('./exactJson');
 
@@ -11,6 +11,7 @@ const PROFILE_APPROX_MAX = Math.ceil(R.GROUP_MAX_GROUPS * PROFILE_APPROX_MARGIN)
 const PROFILE_VALUE_ROWS = (PROFILE_APPROX_MAX + 1) * R.GROUP_PROFILED;
 const PROFILE_PATH_ROWS = 2000;
 const PROFILE_META_ROWS = 2000;
+const PROFILE_BYTE_LIMIT = 1048576;
 
 const q = G.quotedIdent;
 const str = (v) => (v == null ? '' : String(v));
@@ -238,29 +239,6 @@ function columnTagsOf(rows) {
   return out;
 }
 
-function prefillSql(main, keys, joins, groupColumns, joined = []) {
-  const sql = (name) => G.groupingMainTable(name).sql;
-  const canonical = (name) => (G.groupingMainTable(name) || {}).canonical || '';
-  const listed = [...joins];
-  const byName = new Map((joined || []).map((c) => [c.name, c]));
-  const exprs = (Array.isArray(groupColumns) ? groupColumns : [groupColumns]).filter(Boolean).map((name) => {
-    const hit = byName.get(name);
-    if (!hit) return `m.${q(name)}`;
-    let at = listed.findIndex((j) => str(j.column).toLowerCase() === hit.key.toLowerCase() && canonical(j.ref_table) === canonical(hit.table)
-      && str(j.ref_column).toLowerCase() === hit.ref_column.toLowerCase());
-    if (at < 0) {
-      listed.push({ column: hit.key, ref_table: hit.table, ref_column: hit.ref_column });
-      at = listed.length - 1;
-    }
-    return `j${at + 1}.${q(hit.column)}`;
-  });
-  const group = !exprs.length ? "'Global'" : exprs.length === 1 ? exprs[0]
-    : `concat_ws('${R.GROUP_SEPARATOR}', ${exprs.map((e) => `CAST(${e} AS STRING)`).join(', ')})`;
-  const lines = [`SELECT ${[...keys.map((k) => `m.${q(k)}`), `${group} AS group_name`].join(', ')}`, `FROM ${main.sql} m`];
-  listed.forEach((j, i) => lines.push(`LEFT JOIN ${sql(j.ref_table)} j${i + 1} ON m.${q(j.column)} = j${i + 1}.${q(j.ref_column)}`));
-  return lines.join('\n');
-}
-
 function reasonOf({ technique, qualifies, standalone, recommended, table }) {
   const named = str(technique).trim() || 'this use case';
   if (qualifies) return `Grouping applies: ${named} compares each record with the records like it, and ${recommended.join(', ')} can group ${table}.`;
@@ -270,7 +248,7 @@ function reasonOf({ technique, qualifies, standalone, recommended, table }) {
   }
   return `Grouping applies: ${named} compares each record with the records like it, but no column of ${table} or of a table it joins makes `
     + `${R.GROUP_MIN_GROUPS} to ${R.GROUP_MAX_GROUPS} groups with ${R.GROUP_MIN_RECORDS} records each on average, so Global is picked and every record `
-    + 'is compared with every other record; choose Custom to group the records with your own SQL.';
+    + 'is compared with every other record.';
 }
 
 function joinOf(candidate) {
@@ -283,7 +261,7 @@ function deepRecommended(deep, keptNames, heavy) {
   return named.length && named.every(Boolean) && new Set(named).size === named.length ? named : null;
 }
 
-function profileView({ table, technique, columns, candidates, stats, sample, values, paths, time, days, keys, joins, joined = [], deep = [], readAt }) {
+function profileView({ table, technique, columns, candidates, stats, sample, values, paths, time, days, joined = [], deep = [], readAt }) {
   const records = num(stats.records);
   const standalone = R.standaloneRecords(technique);
   const picked = profiledColumns(stats, candidates);
@@ -319,10 +297,6 @@ function profileView({ table, technique, columns, candidates, stats, sample, val
   const recent = timeColumn ? { days, records: num(stats.recent) } : null;
   const inGroups = suggested.length ? suggested.reduce((sum, g) => sum + g.records, 0) : null;
   const firstRun = { all: records, groups: inGroups, recent: recent ? recent.records : null, records: standalone ? Math.min(records, R.SCOPE_RECORDS) : null };
-  const keyColumns = keys.primary.length ? keys.primary : R.keyColumnGuess(columns);
-  const prefillJoins = joins.length ? joins : keys.joins;
-  const main = G.groupingMainTable(table);
-  const start = finest || keptNames[0] || candidates[0] || '';
   const wholeColumn = standalone ? null : finest || keptNames[0] || null;
   const wholeSizes = wholeColumn ? [...groups.get(wholeColumn).values()].filter((g) => g.value != null) : [];
   return {
@@ -344,7 +318,6 @@ function profileView({ table, technique, columns, candidates, stats, sample, val
       .map((g) => ({ value: g.value, records: g.records })),
     first_run: firstRun,
     default_scope: R.firstRunDefault({ records }),
-    prefill: { key_columns: keyColumns, joins: prefillJoins, sql: prefillSql(main, keyColumns, prefillJoins, start, joined) },
     read_at: readAt,
   };
 }
@@ -356,6 +329,7 @@ module.exports = {
   PROFILE_VALUE_ROWS,
   PROFILE_PATH_ROWS,
   PROFILE_META_ROWS,
+  PROFILE_BYTE_LIMIT,
   scopeDaysOf,
   keysStatement,
   statsSql,
@@ -369,6 +343,5 @@ module.exports = {
   declaredKeys,
   tagsStatement,
   columnTagsOf,
-  prefillSql,
   profileView,
 };

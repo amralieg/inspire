@@ -1,32 +1,10 @@
-import { useState } from 'react';
-import { ChevronRight, Eye, Layers, Lock, MessageSquareText } from 'lucide-react';
+import { ChevronRight, Eye, Lock, MessageSquareText } from 'lucide-react';
 import {
   FEEDBACK_EMPTY_TEXT, FEEDBACK_OFF_TEXT, KPI_TRACKING_NOT_MEASURED, dataAccessSummary, excludedFeedbackText, feedbackLabel,
   formatBaseline, trackedKpiNote, trackedKpiValue,
 } from '../lib/v130UseCase';
-import { scoreText } from '../lib/reviewFigures';
 import { plural } from '../lib/plural';
 import DataGrid from './DataGrid';
-
-const LIST_PREVIEW = 5;
-
-function ShowAll({ total, shown, open, onToggle, noun = '' }) {
-  if (total <= shown) return null;
-  return (
-    <button type="button" onClick={onToggle} aria-expanded={open} className="text-[11px] font-medium text-db-red-fg hover:underline">
-      {open ? 'Show fewer' : `Show all ${total}${noun ? ` ${noun}` : ''}`}
-    </button>
-  );
-}
-
-function usePreview(items, size, noun = '') {
-  const [open, setOpen] = useState(false);
-  const list = Array.isArray(items) ? items : [];
-  return {
-    shown: open ? list : list.slice(0, size),
-    toggle: <ShowAll total={list.length} shown={size} open={open} noun={noun} onToggle={() => setOpen((o) => !o)} />,
-  };
-}
 
 export function SidebarFilterPanel({ title, subtitle, icon, open, onToggle, allLabel, allCount, options, value, onChange }) {
   const Icon = icon;
@@ -169,93 +147,6 @@ export function DataAccessBadge({ results }) {
   );
 }
 
-const showsFoundations = (foundations) => Array.isArray(foundations);
-
-function UseCaseLink({ entry, onOpen }) {
-  if (!entry.useCase || !onOpen) return <span className="min-w-0 break-words text-text-primary">{entry.name}</span>;
-  return (
-    <button type="button" onClick={() => onOpen(entry.useCase)} title={`Open ${entry.name} in the list`}
-      className="min-w-0 text-left break-words text-text-primary hover:text-db-red-fg hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-db-red/30 rounded">
-      {entry.name}
-    </button>
-  );
-}
-
-function FoundationCard({ foundation, describe, onOpenUseCase }) {
-  const ids = Array.isArray(foundation.use_cases) ? foundation.use_cases : [];
-  const list = usePreview(ids, LIST_PREVIEW);
-  return (
-    <li className="rounded-lg border border-border bg-bg p-3" data-foundation={foundation.id}>
-      <div className="flex items-baseline justify-between gap-2">
-        <span className="text-[11px] font-semibold text-text-primary">{foundation.id} · {foundation.name}</span>
-        <span className="shrink-0 text-[10px] text-text-secondary">{plural(foundation.use_case_count ?? ids.length, 'use case')}</span>
-      </div>
-      <p className="mt-1 font-mono text-[10px] text-text-secondary [overflow-wrap:anywhere]">{(foundation.tables || []).join(', ')}</p>
-      {(foundation.joins || []).map((j) => (
-        <p key={`${j.left}=${j.right}`} className="font-mono text-[10px] text-text-secondary [overflow-wrap:anywhere]">
-          {j.left} = {j.right} <span className="font-sans whitespace-nowrap">({j.source})</span>
-        </p>
-      ))}
-      <ul className="mt-2 space-y-1 text-[11px]" aria-label={`Use cases on ${foundation.name || foundation.id}`}>
-        {list.shown.map((id) => <li key={id}><UseCaseLink entry={describe(id)} onOpen={onOpenUseCase} /></li>)}
-      </ul>
-      <div className="mt-1">{list.toggle}</div>
-    </li>
-  );
-}
-
-function BuildOrder({ order, describe, onOpenUseCase }) {
-  const list = usePreview(order, LIST_PREVIEW);
-  return (
-    <div>
-      <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-text-tertiary mb-1">Suggested build order</p>
-      <ol className="space-y-1 text-[11px]" aria-label="Suggested build order">
-        {list.shown.map((id, i) => {
-          const entry = describe(id);
-          return (
-            <li key={id} className="grid grid-cols-[1.5rem_minmax(0,1fr)_auto] items-baseline gap-x-2">
-              <span className="font-mono text-[10px] text-text-secondary tabular-nums">{i + 1}.</span>
-              <span className="min-w-0">
-                <UseCaseLink entry={entry} onOpen={onOpenUseCase} />
-                {entry.domain && <span className="block text-[10px] text-text-secondary">{entry.domain}</span>}
-              </span>
-              <span className="font-mono text-[10px] text-text-secondary tabular-nums" title="Inspire Score">{scoreText(entry.score)}</span>
-            </li>
-          );
-        })}
-      </ol>
-      <div className="mt-1">{list.toggle}</div>
-      <p className="mt-1 text-[11px] text-text-secondary">Ordered by shared foundation, then Inspire Score. The pace is yours to set.</p>
-    </div>
-  );
-}
-
-export function FoundationsPanel({ foundations, deliveryOrder, describe, onOpenUseCase }) {
-  const shown = usePreview(foundations, 3, 'foundations');
-  if (!showsFoundations(foundations)) return null;
-  const unlocked = new Set(foundations.flatMap((f) => f.use_cases || [])).size;
-  const order = Array.isArray(deliveryOrder) ? deliveryOrder : [];
-  return (
-    <InsightCard
-      icon={Layers}
-      title="Data foundations"
-      summary={foundations.length
-        ? `${plural(foundations.length, 'shared foundation')} · ${plural(unlocked, 'use case')} build on them`
-        : 'No table is shared by two or more use cases'}
-    >
-      {foundations.length > 0 && (
-        <>
-          <ul className="space-y-2" aria-label="Shared foundations">
-            {shown.shown.map((f) => <FoundationCard key={f.id} foundation={f} describe={describe} onOpenUseCase={onOpenUseCase} />)}
-          </ul>
-          {shown.toggle}
-        </>
-      )}
-      {order.length > 0 && <BuildOrder order={order} describe={describe} onOpenUseCase={onOpenUseCase} />}
-    </InsightCard>
-  );
-}
-
 function pointValue(point) {
   return point && point.value != null && Number.isFinite(Number(point.value)) ? Number(point.value) : null;
 }
@@ -375,17 +266,11 @@ export function FeedbackPanel({ results, feedback }) {
   );
 }
 
-export function InsightsGrid({ results, feedback, describe, onOpenUseCase }) {
-  const foundations = showsFoundations(results?.foundations) && (
-    <FoundationsPanel key="foundations" foundations={results.foundations} deliveryOrder={results.delivery_order} describe={describe} onOpenUseCase={onOpenUseCase} />
-  );
-  const notes = feedbackParts(results, feedback).shows ? <FeedbackPanel key="feedback" results={results} feedback={feedback} /> : null;
-  const count = (foundations ? 1 : 0) + (notes ? 1 : 0);
-  if (!count) return null;
+export function InsightsGrid({ results, feedback }) {
+  if (!feedbackParts(results, feedback).shows) return null;
   return (
-    <div data-insights-grid={count} data-insights-columns="1" className="flex min-w-0 flex-col gap-3 mb-4">
-      {foundations}
-      {notes}
+    <div data-insights-grid="1" data-insights-columns="1" className="flex min-w-0 flex-col gap-3 mb-4">
+      <FeedbackPanel results={results} feedback={feedback} />
     </div>
   );
 }

@@ -29,7 +29,7 @@ function SettingRow({ setting, editable, draft, onDraft }) {
   );
 }
 
-export default function UseCaseSettings({ view, error = '', readOnly = false, impact = null, scope = null, apiPostJson = null, onPreview, onSave, onRun, onEdit, children = null }) {
+export default function UseCaseSettings({ view, error = '', readOnly = false, impact = null, scope = null, onPreview, onSave, onRun, onEdit, children = null }) {
   const [draft, setDraft] = useState(null);
   const [note, setNote] = useState('');
   const [preview, setPreview] = useState(null);
@@ -100,7 +100,7 @@ export default function UseCaseSettings({ view, error = '', readOnly = false, im
       <SectionTitle icon={SlidersHorizontal} title="Settings" hint="How this use case counts what is at stake and flags records; owners change them" />
       <div className="p-4 space-y-3 text-[12px]">
         {view.why && <p data-settings-why="" className="text-text-secondary">{view.why}</p>}
-        <ScopeSection settings={settings} editable={editable} scope={scope} onSave={onSave} apiPostJson={apiPostJson} />
+        <ScopeSection settings={settings} editable={editable} scope={scope} onSave={onSave} />
         {groups.map(([group, list]) => (
           <div key={group || 'other'} data-setting-group={group || 'other'} className="space-y-2">
             <h4 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-text-secondary">{settingGroupTitle(group, impact)}</h4>

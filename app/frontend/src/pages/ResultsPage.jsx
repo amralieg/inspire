@@ -648,23 +648,6 @@ export default function ResultsPage({
   const bizPriorityOptions = bizPriorities
     .filter((bp) => bizPriorityCounts[bp])
     .map((bp) => ({ value: bp, label: placeholderWords(bp), count: bizPriorityCounts[bp] }));
-  const foundationsList = results?.foundations;
-  const foundationsById = useMemo(
-    () => new Map((Array.isArray(foundationsList) ? foundationsList : []).map((f) => [String(f.id), f])),
-    [foundationsList],
-  );
-  const useCaseById = new Map();
-  for (const uc of allUseCases) {
-    for (const id of [uc?.catalog_no, uc?.No, uc?.id]) {
-      if (id != null && String(id).trim() && !useCaseById.has(String(id).trim())) useCaseById.set(String(id).trim(), uc);
-    }
-  }
-  const describeUseCase = (id) => {
-    const uc = useCaseById.get(String(id ?? '').trim());
-    return uc
-      ? { name: String(uc.Name || id), domain: String(uc._domain || ''), score: inspireScoreFromUc(uc), useCase: uc.No ? uc : null }
-      : { name: String(id), domain: '', score: null, useCase: null };
-  };
   const feedbackLatest = useMemo(() => latestFeedbackMap(feedbackState.latest), [feedbackState.latest]);
 
   // Compute subdomain counts by domain
@@ -956,7 +939,6 @@ export default function ResultsPage({
       allNotebookFiles,
       knownPriorities: bizPriorities,
       strategy,
-      foundationsById,
       feedbackAvailable: feedbackState.available,
       feedbackBusy: !!key && feedbackBusyKey === key,
       feedbackError: key && feedbackError.key === key ? feedbackError.message : '',
@@ -1742,12 +1724,7 @@ export default function ResultsPage({
           {v130Session && (
             <>
               <DataAccessBadge results={results} />
-              <InsightsGrid
-                results={results}
-                feedback={feedbackState}
-                describe={describeUseCase}
-                onOpenUseCase={openUseCase}
-              />
+              <InsightsGrid results={results} feedback={feedbackState} />
             </>
           )}
 

@@ -340,7 +340,6 @@ function splitText(value, separator) {
 function normalizeV130UseCaseFields(row) {
   for (const field of V130_JSON_FIELDS) row[field] = parseMaybeJson(row[field]);
   for (const field of V130_LINE_FIELDS) row[field] = splitText(row[field], '\n');
-  row.foundation_ids = splitText(row.foundation_ids, ',');
   row.strategy_path = row.strategy_path == null || row.strategy_path === '' ? null : String(row.strategy_path);
   row.use_case_key = row.use_case_key == null || row.use_case_key === '' ? null : String(row.use_case_key);
   const flag = String(row.best_of_best ?? '').trim().toUpperCase();

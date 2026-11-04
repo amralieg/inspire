@@ -169,8 +169,6 @@ const ROUTE_POLICY = {
   'POST /api/inspire/implement/table-change': owners('change its tables'),
   'POST /api/grouping/profile': tracked('read the main table of a use case for its Grouping',
     'reads the use case record from the Inspire tracking tables in the App database, and reads the use case table only with your own sign-in'),
-  'POST /api/grouping/preview': yours('preview a custom grouping SQL', ['sql']),
-  'POST /api/grouping/save': { ...builders('save a custom grouping for it'), appDatabase: true },
 };
 
 function routeKey(method, path) {

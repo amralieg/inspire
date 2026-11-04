@@ -8,6 +8,7 @@
  "read": [
   {"value": "groups", "declared": "recorded", "mapped": {"run_scope": "groups"}, "unrecorded": false},
   {"value": "ALL", "declared": "recorded", "mapped": {"run_scope": "all"}, "unrecorded": false},
+  {"value": "Custom", "declared": "recorded", "mapped": {"run_scope": "custom"}, "unrecorded": false},
   {"value": " recent ", "declared": null, "mapped": {"run_scope": "recent"}, "unrecorded": false},
   {"value": "", "declared": "recorded", "mapped": {"run_scope": ""}, "unrecorded": false},
   {"value": null, "declared": "recorded", "mapped": {"run_scope": null}, "unrecorded": false},

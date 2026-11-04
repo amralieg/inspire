@@ -174,12 +174,6 @@
  "POST /api/demo-data/start": [
   "O17"
  ],
- "POST /api/grouping/preview": [
-  "G28"
- ],
- "POST /api/grouping/save": [
-  "O26"
- ],
  "POST /api/inspire/ack": [
   "C08"
  ],

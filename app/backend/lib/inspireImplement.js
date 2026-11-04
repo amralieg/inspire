@@ -4,7 +4,7 @@ const { parseExactJson } = require('./exactJson');
 const { int64Id } = require('./int64Id');
 const { plural } = require('./plural');
 const {
-  RUN_SCOPE, RUN_SCOPE_OLD_APP, recordedRunScope, runScopeDeclared, runScopeSetting,
+  RUN_SCOPE, RUN_SCOPE_OLD_APP, customSqlProblem, customSqlProblems, recordedRunScope, runScopeDeclared, runScopeSetting,
 } = require('../../frontend/src/lib/runScope.js');
 const {
   allowedRule, allowedText, numberText, settingProblem: implementSettingProblem, widgetProblems, widgetSetProblems, widgetValueProblem,
@@ -3214,6 +3214,8 @@ module.exports = {
   IMPLEMENT_SETTINGS_NOT_APP_URL,
   IMPLEMENT_SETTINGS_NOT_BUILT,
   implementSettingProblem,
+  customSqlProblem,
+  customSqlProblems,
   implementAppSettings,
   implementAssumptionSetting,
   implementBuiltSettings,

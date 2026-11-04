@@ -21,11 +21,8 @@ def test_the_shared_grouping_fixture_is_stable_and_names_what_the_agent_uses(age
     names, constants, labels = data["settings"]["group_by"], data["constants"], data["labels"]
     assert (names["name"], names["label"], names["all"], names["custom"]) == (
         agent_ns["INSPIRE_GROUP_BY"], agent_ns["INSPIRE_GROUP_LABEL"], agent_ns["INSPIRE_SETTING_ALL"], agent_ns["INSPIRE_GROUP_CUSTOM"])
-    assert names["solo"] == [agent_ns["INSPIRE_SETTING_ALL"], agent_ns["INSPIRE_GROUP_CUSTOM"]]
-    custom = data["settings"]["custom"]
-    assert [custom[k] for k in ("group_sql", "group_sql_tables", "group_sql_hash", "group_sql_checked_by", "group_sql_checked_at")] == list(
-        agent_ns["INSPIRE_GROUP_SQL_SETTINGS"])
-    assert (custom["group_name"], custom["max_chars"]) == (agent_ns["INSPIRE_GROUP_SQL_NAME"], agent_ns["INSPIRE_GROUP_SQL_MAX_CHARS"])
+    assert names["solo"] == [agent_ns["INSPIRE_SETTING_ALL"]]
+    assert "custom" not in names["format"] and "custom" not in data, "no grouping SQL is described or tested as a choice"
     assert (constants["group_min_records"], constants["group_min_periods"], constants["group_max_groups"], constants["group_min_groups"]) == (
         agent_ns["INSPIRE_GROUP_MIN_RECORDS"], agent_ns["INSPIRE_GROUP_MIN_PERIODS"], agent_ns["INSPIRE_GROUP_MAX_GROUPS"],
         agent_ns["INSPIRE_GROUP_MIN_GROUPS"])
@@ -137,71 +134,14 @@ def test_the_run_helper_refuses_a_column_the_records_lack_and_a_mixed_grouping(f
     frame = pd.DataFrame({"region": ["EMEA"] * 30})
     with pytest.raises(ValueError, match="have no column country"):
         fresh_ns["inspire_group_records"](frame, group_by="region, country", out=lambda *_a: None)
-    with pytest.raises(fresh_ns["InspireRunStop"], match="all and custom each stand alone"):
+    with pytest.raises(fresh_ns["InspireRunStop"], match="all stands alone"):
         fresh_ns["inspire_group_records"](frame, group_by="region, all", out=lambda *_a: None)
+    for asked in ("custom", "region, Custom"):
+        with pytest.raises(fresh_ns["InspireRunStop"], match="Inspire does not run SQL typed into Grouping or First run"):
+            fresh_ns["inspire_group_records"](frame, group_by=asked, out=lambda *_a: None)
     with pytest.raises(TypeError):
         fresh_ns["inspire_group_records"]([1, 2], group_by="all", out=lambda *_a: None)
     assert not issubclass(fresh_ns["InspireRunStop"], Exception), "a broad except Exception in Genie's code cannot swallow the stop"
-
-
-def test_custom_groups_under_30_records_combine_into_other_groups(agent_ns):
-    _text, data = _cases()
-    for case in data["custom"]:
-        names = agent_ns["inspire_custom_group_names"](case["sizes"])
-        assert names == case["expected"], case["name"]
-        assert len(set(names.values())) == case["groups"]
-        assert sum(1 for size in case["sizes"].values() if size < 30) == case["other_groups"]
-
-
-@pytest.mark.parametrize("sql,rule", [
-    ("DELETE FROM main.sales.orders", "first_keyword"),
-    ("SELECT 1 AS group_name FROM main.sales.orders; DROP TABLE main.sales.orders", "statements"),
-    ("SELECT id, region AS group_name FROM main.sales.orders WHERE x IN (SELECT 1) UNION SELECT 1, 'a'; ", None),
-    ("SELECT * FROM read_files('/Volumes/a/b/c')", "function"),
-    ("SELECT id AS group_name FROM range(10)", "table_function"),
-    ("SELECT m.id, t.x AS group_name FROM main.sales.orders m JOIN main.sales.explode_me(m.id) t", "function"),
-    ("SELECT id, secret('scope', 'key') AS group_name FROM main.sales.orders", "function"),
-    ("SELECT id, ai_classify(region, array('a')) AS group_name FROM main.sales.orders", "function"),
-    ("SELECT id, region AS group_name FROM orders", "table_name"),
-    ("SELECT id, region AS group_name FROM sales.orders", "table_name"),
-    ("SELECT id /* nested /* DROP */ still a comment */, region AS group_name FROM main.sales.orders", None),
-    ("SELECT id, region AS group_name FROM main.sales.orders /* never closed", "unterminated"),
-    ("SELECT id, 'it is; fine' AS group_name FROM main.sales.orders", None),
-    ("SELECT id, `drop` AS group_name FROM main.sales.orders", None),
-    ("SELECT id, region AS group_name FROM main.sales.orders WHERE id = :id", "parameter"),
-    ("SELECT id, region AS group_name FROM main.sales.orders WHERE id = ?", "parameter"),
-    ("SELECT id, raw:country::string AS group_name FROM main.sales.orders", None),
-    ("SELECT id, region AS group_name FROM main.sales.orders --", None),
-    ("UPDATE main.sales.orders SET region = 'x'", "first_keyword"),
-    ("WITH t AS (SELECT * FROM main.sales.orders) SELECT id, region AS group_name FROM t", None),
-    ("WITH t AS (SELECT * FROM main.sales.orders) MERGE INTO main.sales.orders USING t ON 1=1", "keyword"),
-    ("SELECT id, EXTRACT(YEAR FROM order_date) AS group_name FROM main.sales.orders", None),
-    ("SELECT id, region AS group_name FROM `main`.`sales`.`orders` m LEFT JOIN main.geo.countries c ON m.cc = c.cc", None),
-    ("SELECT id, region AS group_name FROM main.sales.orders, main.geo.countries", None),
-    ("SELECT id, region AS group_name FROM main.sales.orders, countries", "table_name"),
-    ("SELECT * FROM VALUES ('N', 'North'), ('S', 'South') AS t(region_code, group_name)", "table_function"),
-    ("SELECT 1 AS group_name", None),
-    ("SELECT id, region AS group_name FROM main.sales.orders WHERE note = 'unclosed", "unterminated"),
-    ("", "empty"),
-])
-def test_the_grouping_sql_check_refuses_what_a_grouping_never_needs(agent_ns, sql, rule):
-    check = agent_ns["implement_grouping_sql_check"](sql)
-    if rule is None:
-        assert check["ok"], (sql, check["text"])
-        assert check["hash"] == hashlib.sha256(check["sql"].encode("utf-8")).hexdigest()
-        assert "/*" not in check["sql"] and "--" not in check["sql"] and not check["sql"].endswith(";")
-    else:
-        assert not check["ok"] and check["rule"] == rule and check["text"], (sql, check)
-
-
-def test_the_grouping_sql_check_records_the_tables_it_saw(agent_ns):
-    check = agent_ns["implement_grouping_sql_check"](
-        "SELECT m.id, c.region AS group_name FROM `Main`.`Sales`.`Orders` m LEFT JOIN main.geo.countries c ON m.cc = c.cc;")
-    assert check["ok"] and check["tables"] == ["main.geo.countries", "main.sales.orders"]
-    assert agent_ns["inspire_group_sql_tables"]('["main.geo.countries", "`main`.`sales`.`orders`"]') == check["tables"]
-    assert agent_ns["inspire_group_sql_tables"]("main.sales.orders, main.geo.countries") == check["tables"]
-    long = "SELECT id, region AS group_name FROM main.sales.orders WHERE " + " OR ".join(["id = 1"] * 4000)
-    assert not agent_ns["implement_grouping_sql_check"](long)["ok"], "more than 20,000 characters is refused"
 
 
 def test_each_run_records_its_grouping_and_a_new_run_starts_without_the_last_one(fresh_ns):

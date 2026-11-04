@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, useRef, Component } from 'react';
+import { useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef, Component } from 'react';
 import { ThemeProvider } from './ThemeContext';
 import Header from './components/Header';
 import LandingPage from './pages/LandingPage';
@@ -304,6 +304,9 @@ export default function App() {
   }, [settings.authMode, settings.spClientId, settings.spClientSecret, settings.spTenantId, settings.databricksHost]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const [transitioning, setTransitioning] = useState(false);
+  useLayoutEffect(() => {
+    window.scrollTo(0, 0);
+  }, [page]);
   const inDemo = !!demo.showcase;
   const demoScope = inDemo ? `demo-${demo.showcase.id}` : '';
   const nav = useCallback((p, { leaveDemo = false } = {}) => {

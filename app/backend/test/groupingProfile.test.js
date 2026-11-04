@@ -1,7 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { makeApp, listen } = require('./support/implementApp');
-const G = require('../lib/groupingSql');
 const R = require('../lib/groupingRule');
 const GP = require('../lib/groupingProfile');
 const RP = require('../lib/routePolicy');
@@ -87,7 +86,8 @@ test('the profile reads the main table with the person token only, bounded, and 
     assert.equal(got.status, 200, JSON.stringify(got.data));
     const d = got.data;
     assert.deepEqual(Object.keys(d), ['table', 'records', 'applies', 'qualifies', 'reason', 'standalone', 'columns', 'recommended', 'example', 'time_column', 'time_via', 'recent',
-      'suggested_groups', 'group_column', 'group_sizes', 'first_run', 'default_scope', 'prefill', 'read_at', 'deep_suggestion']);
+      'suggested_groups', 'group_column', 'group_sizes', 'first_run', 'default_scope', 'read_at', 'deep_suggestion']);
+    assert.equal('prefill' in d, false, 'the profile carries no starting SQL, since Inspire runs no typed SQL');
     assert.deepEqual([d.table, d.records, d.applies, d.qualifies, d.standalone, d.deep_suggestion], ['main.sales.orders', 10000, true, true, false, null]);
     assert.equal(d.reason, 'Grouping applies: Anomaly Detection compares each record with the records like it, and region, country can group main.sales.orders.');
     assert.deepEqual(d.columns, [
@@ -106,33 +106,17 @@ test('the profile reads the main table with the person token only, bounded, and 
     assert.ok(d.group_sizes.length > 0 && d.group_sizes.every((g) => g.records >= 30), 'whole groups are only groups of 30 records or more');
     assert.deepEqual(d.first_run, { all: 10000, groups: 4993, recent: 850, records: null });
     assert.equal(d.default_scope, 'records', 'more than 1,000 records, so the First run takes about 1,000 records in whole groups (decision 5B, 4A)');
-    assert.deepEqual(d.prefill.key_columns, ['order_id']);
-    assert.deepEqual(d.prefill.joins, [{ column: 'customer_id', ref_table: 'main.crm.customers', ref_column: 'id', source: 'unity_catalog' }]);
-    assert.equal(d.prefill.sql, 'SELECT m.`order_id`, m.`country` AS group_name\nFROM `main`.`sales`.`orders` m\nLEFT JOIN `main`.`crm`.`customers` j1 ON m.`customer_id` = j1.`id`');
-    assert.equal(G.checkGroupingSql(d.prefill.sql).ok, true, 'the starting SQL passes the grouping SQL check');
     assert.ok(!Number.isNaN(Date.parse(d.read_at)));
     const reads = tableReads(made.sqlCalls);
     assert.equal(reads.length, 8, reads.map((c) => c.sql.slice(0, 60)).join('\n'));
     assert.ok(reads.every((c) => c.token === PERSON), 'every read of the use case table is the person token');
-    assert.ok(reads.every((c) => c.options.signal && c.options.byteLimit === G.GROUPING_BYTE_LIMIT && c.options.rowLimit > 0 && c.options.waitTimeout === '10s'));
+    assert.ok(reads.every((c) => c.options.signal && c.options.byteLimit === GP.PROFILE_BYTE_LIMIT && c.options.rowLimit > 0 && c.options.waitTimeout === '10s'));
     assert.ok(made.sqlCalls.filter((c) => c.sql.includes('__inspire_usecases')).every((c) => c.token === 'tok'), 'the use case record is read with the App token');
     const stat = reads.find((c) => c.sql.includes('approx_count_distinct'));
     assert.match(stat.sql, /^WITH x AS \(SELECT date_sub\(MAX\(CAST\(`order_date` AS DATE\)\), 29\) AS inspire_since FROM `main`\.`sales`\.`orders`\) SELECT COUNT\(\*\) AS records, approx_count_distinct\(m\.`region`\) AS d0/);
     assert.match(stat.sql, /COUNT_IF\(CAST\(m\.`order_date` AS DATE\) >= x\.inspire_since\) AS recent FROM `main`\.`sales`\.`orders` m CROSS JOIN x$/,
       'the recent period ends at the newest date of the table, as the run reads it, not at today');
     assert.match(reads.find((c) => c.sql.startsWith('WITH s AS')).sql, /LIMIT 100000\)/, 'the coarse-to-fine check reads a bounded sample');
-  });
-});
-
-test('saved Discover joins come before the Unity Catalog keys in the starting SQL (decision 5A)', async () => {
-  const joins = JSON.stringify([{ table: '`main`.`sales`.`orders`', column: 'store_id', ref_table: 'main.sales.stores', ref_column: 'store_id', source: 'declared' },
-    { table: 'main.sales.orders', column: 'x', ref_table: 'stores', ref_column: 'x' }]);
-  const made = profiled({ useCase: { id: 'N01-U01', primary_table: 'main.sales.orders', analytics_technique: 'Anomaly Detection', table_joins: joins } });
-  await withApp(made, async (srv) => {
-    const got = await post(srv, ASK);
-    assert.deepEqual(got.data.prefill.joins, [{ column: 'store_id', ref_table: 'main.sales.stores', ref_column: 'store_id', source: 'declared' }],
-      'a join to a table that is not catalog.schema.table is dropped');
-    assert.match(got.data.prefill.sql, /\nLEFT JOIN `main`\.`sales`\.`stores` j1 ON m\.`store_id` = j1\.`store_id`$/);
   });
 });
 
@@ -302,7 +286,6 @@ test('the profile helpers follow the agent: category columns only, the event dat
   assert.equal(R.timeSourceOf('', [{ column_name: 'a', data_type: 'STRING' }]), null);
   assert.deepEqual(R.suggestedGroups([{ value: 'a', records: 29 }, { value: 'b', records: 40 }]), [{ value: 'b', records: 40, kind: 'biggest' }],
     'a group under 30 records is never suggested');
-  assert.deepEqual(R.keyColumnGuess([{ column_name: 'name' }, { column_name: 'customer_id' }]), ['customer_id']);
   assert.equal(GP.scopeDaysOf(undefined), 30);
   assert.equal(GP.scopeDaysOf(3651), null);
 });
@@ -458,17 +441,11 @@ test('a star fact table shows the Grouping step, offers its store key and the it
   });
 });
 
-test('a fact table with no category of its own recommends the category it joins, and its starting grouping SQL passes the grouping SQL check', async () => {
+test('a fact table with no category of its own recommends the category it joins', async () => {
   const made = starSales('web_sales');
   await withApp(made, async (srv) => {
     const d = (await post(srv, ASK)).data;
     assert.deepEqual([d.applies, d.qualifies, d.recommended], [true, true, ['item.i_category']]);
-    assert.equal(d.prefill.grouped, undefined, 'a joined column runs by its join, so the profile carries no grouping SQL per choice');
-    const sql = d.prefill.sql;
-    assert.match(sql, /j\d+\.`i_category` AS group_name/);
-    assert.match(sql, /LEFT JOIN `main`\.`retail`\.`item` j\d+ ON m\.`ws_item_sk` = j\d+\.`i_item_sk`/);
-    const checked = G.checkGroupingSql(sql);
-    assert.equal(checked.ok, true, checked.text);
     assert.deepEqual(d.suggested_groups[0].parts[0].join, { table: 'main.retail.item', key: 'ws_item_sk', ref_column: 'i_item_sk' });
     assert.equal(d.group_column, 'item.i_category');
     assert.equal(d.default_scope, 'records');
@@ -482,15 +459,6 @@ test('a standalone technique on a star fact table hides the Grouping step', asyn
     const d = (await post(srv, ASK)).data;
     assert.deepEqual([d.applies, d.qualifies, d.standalone], [false, false, true]);
   });
-});
-
-test('the grouping SQL of a joined column is the shared case the notebook runs, so the App and the run join the same table on the same key', () => {
-  const c = require('../../agent/tests/fixtures/implement_grouping_cases.json').joined_grouping;
-  const sql = GP.prefillSql(G.groupingMainTable(c.main), c.keys, [], [c.group_column], c.joined);
-  assert.equal(sql, c.sql);
-  const checked = G.checkGroupingSql(sql);
-  assert.equal(checked.ok, true, checked.text);
-  assert.deepEqual(checked.tables, c.tables);
 });
 
 test('a Deep discovery grouping the profile can size becomes the one recommendation, so the example, the groups and the first run all describe it (must-exclude: an unsized one changes nothing)', () => {

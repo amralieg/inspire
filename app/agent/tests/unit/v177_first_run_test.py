@@ -53,7 +53,7 @@ def test_the_four_first_run_settings_follow_the_contract_and_reach_the_run(agent
     assert [(s["name"], s["label"], s["kind"]) for s in settings] == [tuple(x) for x in FIXTURE["settings"]]
     assert all(s["group"] == "scope" and s["source"] == "widget" and s["applies"] == "run" for s in settings)
     run_scope, groups, days, records = settings
-    assert run_scope["choices"] == ["all", "groups", "recent", "records", "custom"] and run_scope["default"] == "groups"
+    assert run_scope["choices"] == ["all", "groups", "recent", "records"] and run_scope["default"] == "groups"
     assert groups["many"] and groups["optional"] and days["default"] == "30" and records["default"] == "1000"
     model = agent_ns["inspire_settings_model"]({"family": "B", "decision_basis": "measured", "first_run": dict(FIXTURE["spec"])}, [])
     assert [s["name"] for s in model] == ["run_scope", "scope_groups", "scope_days", "scope_records"]
@@ -68,7 +68,7 @@ def test_an_empty_scope_groups_is_allowed_and_any_other_empty_choice_is_not(agen
     assert problem(groups, "") == "" and problem(groups, "EMEA, AMER") == ""
     assert problem(dict(groups, optional=False), "") == "scope_groups is ''; allowed: any text"
     assert problem(agent_ns["inspire_scope_settings"](dict(FIXTURE["spec"]))[0], "some") == (
-        "run_scope is 'some'; allowed: all, groups, recent, records, custom")
+        "run_scope is 'some'; allowed: all, groups, recent, records")
 
 
 @pytest.mark.parametrize("case", FIXTURE["default"], ids=[c["name"] for c in FIXTURE["default"]])

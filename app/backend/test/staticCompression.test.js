@@ -94,7 +94,7 @@ test('the page, images and any unhashed file revalidate (no-cache) and are never
     await srv.close();
   }
   assert.equal(A.assetCacheControl('assets/index-BpKjh2u5.js'), A.CACHE_HASHED);
-  assert.equal(A.assetCacheControl('/assets/GroupingSqlEditor-T4Hg5AFR.js'), A.CACHE_HASHED);
+  assert.equal(A.assetCacheControl('/assets/ImplementPage-T4Hg5AFR.js'), A.CACHE_HASHED);
   for (const name of ['index.html', 'assets/app.js', 'static/assets/app.js', 'hero-vision.jpg', 'assets/fonts/inter-LICENSE', 'assets/x-short.js']) {
     assert.equal(A.assetCacheControl(name), 'no-cache', name);
   }

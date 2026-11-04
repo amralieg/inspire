@@ -56,7 +56,7 @@ tags:
       The notebook is auto-published to your workspace on first use, so just provide your business parameters and go.
   - name: Grouping
     description: |
-      Preview and save a custom grouping SQL for a use case, always read with your own sign-in.
+      Read the main table of a use case for its Grouping and First run, always with your own sign-in.
   - name: Monitor
     description: |
       Track execution progress and processing steps in real time.
@@ -171,30 +171,6 @@ components:
             policy: { route: "GET /api/run/:runId", rule: recorded, needs: "a run Inspire launched and recorded in its own database" }
 
   schemas:
-    GroupingRequest:
-      type: object
-      required: [sql, warehouse_id, main_table, key_columns]
-      properties:
-        sql:
-          type: string
-          maxLength: 20000
-          description: One SELECT or WITH; for grouping it returns one row per record, the record key columns and group_name, for first_run only the record key columns
-        purpose:
-          type: string
-          enum: [grouping, first_run]
-          default: grouping
-          description: grouping saves group_by custom and group_sql; first_run saves run_scope custom and scope_sql, scope_sql_tables, scope_sql_hash, scope_sql_checked_by and scope_sql_checked_at, and runs execute only that SQL and stop when it or its tables change
-        warehouse_id:
-          type: string
-        main_table:
-          type: string
-          description: The use case table as catalog.schema.table; the SQL must read it
-        key_columns:
-          type: array
-          minItems: 1
-          maxItems: 8
-          items:
-            type: string
     Error:
       type: object
       required: [error]
@@ -824,105 +800,6 @@ paths:
   #  Grouping
   # ════════════════════════════════════════════════════
 
-  /api/grouping/preview:
-    post:
-      tags: [Grouping]
-      summary: Preview a custom grouping SQL with your own sign-in
-      description: |
-        Checks the SQL with the grouping SQL check (one SELECT or WITH, no comments, no parameters, no refused words or functions, every
-        table named catalog.schema.table), then runs it wrapped as a subquery with your own forwarded token only, never the App token,
-        on the warehouse you name, within 120 seconds, with row and byte caps. Inspire stops the statements when you cancel.
-        It answers the 10 largest groups, the totals (rows, distinct record keys, groups, the smallest group, rows with no group_name,
-        main table records with no row) and the pass rules: one row per record and 2 to 500 groups.
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/GroupingRequest'
-      responses:
-        '200':
-          description: The preview of the grouping
-        '400':
-          description: The SQL was refused by the check, or it returns no group_name or key column; `refused` names the rule and the character
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        '401':
-          $ref: '#/components/responses/PersonSignInRequired'
-        '403':
-          description: You cannot read every table the SQL reads with your own sign-in, so nothing ran
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        '504':
-          description: The SQL did not finish within 120 seconds, so Inspire stopped it
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-
-  /api/grouping/save:
-    post:
-      tags: [Grouping]
-      summary: Save a custom grouping for a use case
-      description: |
-        Runs the same check and a read of the wrapped SQL with your own sign-in, then stores the exact SQL Inspire runs, its tables,
-        its sha256, who checked it and when as the run settings group_sql, group_sql_tables, group_sql_hash, group_sql_checked_by and
-        group_sql_checked_at in the result table's _assumptions table, which every run reads, written with your own sign-in within
-        120 seconds. Inspire stops the statements when you cancel. Once the use case is built, its result table decides where the
-        grouping is saved and only the people who may change its run settings can save. Runs execute only that SQL over those tables.
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              allOf:
-                - $ref: '#/components/schemas/GroupingRequest'
-                - type: object
-                  required: [inspire_database, session_id, use_case_id]
-                  properties:
-                    inspire_database:
-                      type: string
-                    session_id:
-                      type: string
-                    use_case_id:
-                      type: string
-                    result_table:
-                      type: string
-                      description: catalog.schema.table the use case writes its results to; required before the first build
-      responses:
-        '200':
-          description: The saved grouping setting (group_by custom, group_sql, group_sql_tables, group_sql_hash, group_sql_checked_by, group_sql_checked_at) and the result table it was saved for
-        '409':
-          description: The use case is built and writes its results to another table than the one named, so nothing was saved
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        '504':
-          description: The check read or the save did not finish within 120 seconds, so Inspire stopped it
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        '400':
-          description: The SQL was refused by the check, or it returns no group_name or key column
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        '401':
-          $ref: '#/components/responses/PersonSignInRequired'
-        '403':
-          description: You may not change this use case's run settings, or you cannot read every table the SQL reads, so nothing was saved
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-
   /api/grouping/profile:
     post:
       tags: [Grouping]
@@ -937,19 +814,18 @@ paths:
         records each First run choice covers, and the default First run (not all when the table has more than 1,000 records).
         Candidates also take low-cardinality key columns of the main table and text columns of a table it joins one step away, counted over
         the main table's records; personal columns are never read or shown.
-        The Grouping and First run settings every run reads keep one format. `group_by` is `all`, `custom`, or column names, coarse to
+        The Grouping and First run settings every run reads keep one format. `group_by` is `all` or column names, coarse to
         fine and comma separated: a column of the main table by its name, a column of a table it joins as `<table>.<column>` (the run
-        reads it from that table through the use case's join on the main table's key). `custom` runs the saved `group_sql`. A run whose
-        `group_by` names a column its records lack, a joined column with no join, or whose saved grouping SQL no longer matches what was
-        checked, stops with the reason and never groups globally. `run_scope` is `all`, `groups`, `recent`,
-        `records` or `custom`. `scope_groups` is a JSON list of groups, each a list of {column, value, join?} pairs a record must all
+        reads it from that table through the use case's join on the main table's key). A run whose `group_by` names a column its
+        records lack or a joined column with no join stops with the reason and never groups globally. `run_scope` is `all`, `groups`,
+        `recent` or `records`. Inspire runs no SQL typed into Grouping or First run: a `group_by` or `run_scope` of `custom`, or any
+        `group_sql` or `scope_sql` setting, is refused before anything runs. `scope_groups` is a JSON list of groups, each a list of {column, value, join?} pairs a record must all
         hold (AND within a group, OR between groups), values written as text; an older comma list of values of the finest column is
         still read. `scope_records` is the record goal of `records`, which takes whole groups of `group_column` for a grouping technique
         and the first records otherwise.
         The time column is a DATE or TIMESTAMP column of the table, or a date key whose saved Discover join (else Unity Catalog key)
         reaches a dated table; then `time_via` names that table, its key and its date column, and the recent period is the newest
         days of that date column. A date key whose recent period covers more than 10,000 key values is not offered as a recent period.
-        `prefill` holds the record key columns and joins (saved by Discover, else declared in Unity Catalog) and a starting grouping SQL.
       requestBody:
         required: true
         content:
@@ -983,7 +859,7 @@ paths:
             group_column (the finest recommended column) or null, group_sizes (value, records of each group of group_column with 30 records or
             more, which a first run on records takes whole), first_run (all, groups, recent, records), default_scope (all up to 1,000 records
             or when the count is unknown, records above 1,000: whole groups of group_column, or the first 1,000 records when the technique
-            stands alone or no column groups the table; never recent or all above 1,000), prefill (key_columns, joins and sql) and read_at
+            stands alone or no column groups the table; never recent or all above 1,000) and read_at
         '400':
           description: The request names no valid session, use case, warehouse or scope_days, or the use case names no main table
           content:

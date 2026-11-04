@@ -63,10 +63,9 @@ function groupByParts(text) {
 function groupByMode(text) {
   const picked = groupByParts(text);
   const lowered = picked.map((name) => name.toLowerCase());
-  const solo = [GROUP_ALL, GROUP_CUSTOM].filter((name) => lowered.includes(name));
-  if (solo.length && picked.length > 1) return { mode: 'mixed', columns: picked };
-  if (!picked.length || (solo.length === 1 && solo[0] === GROUP_ALL)) return { mode: GROUP_ALL, columns: [] };
-  if (solo.length === 1 && solo[0] === GROUP_CUSTOM) return { mode: GROUP_CUSTOM, columns: [] };
+  if (lowered.includes(GROUP_CUSTOM)) return { mode: GROUP_CUSTOM, columns: picked };
+  if (lowered.includes(GROUP_ALL) && picked.length > 1) return { mode: 'mixed', columns: picked };
+  if (!picked.length || lowered.includes(GROUP_ALL)) return { mode: GROUP_ALL, columns: [] };
   return { mode: 'columns', columns: picked };
 }
 
@@ -141,10 +140,6 @@ function recommendation(profiles, nests = []) {
     if (!picked.length || nested.has(`${lower(picked[picked.length - 1])}\u0000${lower(profile.column)}`)) picked.push(str(profile.column));
   }
   return picked;
-}
-
-function customGroupNames(sizes) {
-  return Object.fromEntries(Object.entries(sizes || {}).map(([name, size]) => [str(name), whole(size) >= GROUP_MIN_RECORDS ? str(name) : GROUP_OTHER]));
 }
 
 function personalColumn(name, tags = {}) {
@@ -290,12 +285,6 @@ function timeRefsOf(named, columns, joins = []) {
   return [...new Set((joins || []).filter((j) => asked.has(lower(j && j.column)) && joinRef(j)).map(joinRef))].sort();
 }
 
-function keyColumnGuess(columns) {
-  const named = (columns || []).map((c) => str(c && c.column_name)).filter(Boolean);
-  const hit = named.find((n) => n.toLowerCase() === 'id') || named.find((n) => /(?:^|_)id$/i.test(n)) || named.find((n) => GROUP_ID_RE.test(n)) || named[0];
-  return hit ? [hit] : [];
-}
-
 function suggestedGroups(values) {
   const big = (values || []).filter((v) => whole(v.records) >= GROUP_MIN_RECORDS)
     .sort((a, b) => whole(b.records) - whole(a.records) || (str(a.value) < str(b.value) ? -1 : str(a.value) > str(b.value) ? 1 : 0));
@@ -350,7 +339,6 @@ module.exports = {
   columnUsable,
   nullHeavy,
   recommendation,
-  customGroupNames,
   GROUP_KEY_TYPES,
   PERSONAL_NAME_RE,
   PERSONAL_TAG_RE,
@@ -362,7 +350,6 @@ module.exports = {
   namedTimeColumn,
   timeSourceOf,
   timeRefsOf,
-  keyColumnGuess,
   suggestedGroups,
   firstRunDefault,
 };

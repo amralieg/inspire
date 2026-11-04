@@ -10320,12 +10320,10 @@
         "many": true,
         "choices": [
           "region",
-          "country",
-          "custom"
+          "country"
         ],
         "solo": [
-          "all",
-          "custom"
+          "all"
         ]
       },
       "value": "region, country",
@@ -10338,12 +10336,10 @@
         "many": true,
         "choices": [
           "region",
-          "country",
-          "custom"
+          "country"
         ],
         "solo": [
-          "all",
-          "custom"
+          "all"
         ]
       },
       "value": "all",
@@ -10356,16 +10352,14 @@
         "many": true,
         "choices": [
           "region",
-          "country",
-          "custom"
+          "country"
         ],
         "solo": [
-          "all",
-          "custom"
+          "all"
         ]
       },
       "value": "custom",
-      "problem": ""
+      "problem": "group_by is 'custom': Inspire does not run SQL typed into Grouping or First run; choose columns to group by and one of the first run choices instead"
     },
     {
       "setting": {
@@ -10374,12 +10368,10 @@
         "many": true,
         "choices": [
           "region",
-          "country",
-          "custom"
+          "country"
         ],
         "solo": [
-          "all",
-          "custom"
+          "all"
         ]
       },
       "value": "region, all",
@@ -10392,16 +10384,14 @@
         "many": true,
         "choices": [
           "region",
-          "country",
-          "custom"
+          "country"
         ],
         "solo": [
-          "all",
-          "custom"
+          "all"
         ]
       },
       "value": "custom, region",
-      "problem": "group_by is 'custom, region'; custom stands alone, never with another choice"
+      "problem": "group_by is 'custom, region': Inspire does not run SQL typed into Grouping or First run; choose columns to group by and one of the first run choices instead"
     },
     {
       "setting": {
@@ -10410,16 +10400,14 @@
         "many": true,
         "choices": [
           "region",
-          "country",
-          "custom"
+          "country"
         ],
         "solo": [
-          "all",
-          "custom"
+          "all"
         ]
       },
       "value": "all, custom",
-      "problem": "group_by is 'all, custom'; all and custom stand alone, never with another choice"
+      "problem": "group_by is 'all, custom': Inspire does not run SQL typed into Grouping or First run; choose columns to group by and one of the first run choices instead"
     },
     {
       "setting": {
@@ -10428,16 +10416,109 @@
         "many": true,
         "choices": [
           "region",
-          "country",
-          "custom"
+          "country"
         ],
         "solo": [
-          "all",
-          "custom"
+          "all"
         ]
       },
       "value": "city",
-      "problem": "group_by is 'city'; allowed: region, country, custom, all"
+      "problem": "group_by is 'city'; allowed: region, country, all"
+    },
+    {
+      "setting": {
+        "name": "group_sql",
+        "kind": "choice",
+        "choices": [],
+        "many": false,
+        "optional": true
+      },
+      "value": "SELECT order_id, region AS group_name FROM main.sales.orders",
+      "problem": "group_sql: Inspire does not run SQL typed into Grouping or First run; choose columns to group by and one of the first run choices instead"
+    },
+    {
+      "setting": {
+        "name": "group_sql",
+        "kind": "choice",
+        "choices": [],
+        "many": false,
+        "optional": true
+      },
+      "value": "",
+      "problem": ""
+    },
+    {
+      "setting": {
+        "name": "scope_sql_hash",
+        "kind": "choice",
+        "choices": [],
+        "many": false,
+        "optional": true
+      },
+      "value": "abc",
+      "problem": "scope_sql_hash: Inspire does not run SQL typed into Grouping or First run; choose columns to group by and one of the first run choices instead"
+    },
+    {
+      "setting": {
+        "name": "group_by",
+        "kind": "choice",
+        "many": true,
+        "choices": [
+          "region",
+          "customer_segment"
+        ],
+        "solo": [
+          "all"
+        ]
+      },
+      "value": "customer_segment",
+      "problem": ""
+    },
+    {
+      "setting": {
+        "name": "group_by",
+        "kind": "choice",
+        "many": true,
+        "choices": [
+          "region",
+          "country"
+        ],
+        "solo": [
+          "all"
+        ]
+      },
+      "value": "region, CUSTOM",
+      "problem": "group_by is 'region, CUSTOM': Inspire does not run SQL typed into Grouping or First run; choose columns to group by and one of the first run choices instead"
+    },
+    {
+      "setting": {
+        "name": "run_scope",
+        "kind": "choice",
+        "many": false,
+        "choices": [
+          "all",
+          "groups",
+          "recent",
+          "records"
+        ]
+      },
+      "value": "custom",
+      "problem": "run_scope is 'custom': Inspire does not run SQL typed into Grouping or First run; choose columns to group by and one of the first run choices instead"
+    },
+    {
+      "setting": {
+        "name": "run_scope",
+        "kind": "choice",
+        "many": false,
+        "choices": [
+          "all",
+          "groups",
+          "recent",
+          "records"
+        ]
+      },
+      "value": "records",
+      "problem": ""
     }
   ],
   "assumption_settings": [

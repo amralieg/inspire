@@ -191,7 +191,7 @@ import {
   rowImpact, trackedKpiText, withKpiTarget,
 } from '../lib/targetKpi';
 import {
-  SETTINGS_ASSUMPTIONS_LATER, SETTINGS_NOTE_LABEL, SETTINGS_NOTE_PLACEHOLDER, SETTINGS_ON_THEIR_STEP, SETTINGS_STEP_NOTE, SETTING_GROUPS,
+  SETTINGS_ASSUMPTIONS_LATER, SETTINGS_NOTE_LABEL, SETTINGS_NOTE_PLACEHOLDER, SETTINGS_ON_THEIR_STEP, SETTINGS_STEP_NOTE, SETTINGS_TECHNICAL_NOTE, SETTING_GROUPS,
   isSettingWidget, settingGroupTitle, settingIssue, settingUnitLabel, settingValue, settingsModelOf, settingsNoteOf, settingsNoteProblem, widgetSetProblems,
   withSetting, withSettingsNote,
 } from '../lib/useCaseSettings';
@@ -392,8 +392,6 @@ export default function ImplementWizard({
   const alertOn = Boolean(spec.outputs.alert);
   const everySetting = useMemo(() => contextSettings(context, { outputs: { alert: alertOn } }), [context, alertOn]);
   const scopeProfile = useGroupingProfile({ apiPostJson, inspireDatabase, sessionId, useCaseId: spec.use_case_id, warehouseId, enabled: mode === 'mvp' });
-  const [groupingSaved, setGroupingSaved] = useState(undefined);
-  const [firstRunSaved, setFirstRunSaved] = useState(undefined);
   const builtFirstRun = builtFirstRunOf(settingsModel);
   const firstRunUnrecorded = useMemo(() => latestRunScope(context?.latest).unrecorded, [context?.latest]);
   const scopeSteps = scopeStepsOf(scopeProfile.state, scopeProfile.profile, builtFirstRun);
@@ -538,10 +536,7 @@ export default function ImplementWizard({
   const sampleStake = trackedKpi && (!chosenKpi || kpiKey(chosenKpi) === kpiKey(trackedKpi.record.name)) ? trackedKpi.impact : null;
   const placeSettled = !spec.outputs.app || (targets !== null && (placeSet === 'default' || placeSet === 'person'));
   const extras = { columnsByTable, widgets: context?.widgets || [], trainsModel, mergeTargets: targets, held: context?.assets || {}, appLook: look, built, placeSettled,
-    lakebase, warehouses, kpiOptions, settings: settingsList, sourceTables, scopeSteps, scopeProfile: scopeProfile.profile, groupingSaved, firstRunSaved };
-  const customGrouping = { apiPostJson, profileKey: scopeProfile.key, resultTable: spec.config.result_table, saved: groupingSaved, onSaved: setGroupingSaved,
-    onPicked: () => setGroupingSaved((was) => was || null),
-    firstRun: { saved: firstRunSaved, onSaved: setFirstRunSaved, onPicked: () => setFirstRunSaved((was) => was || null) } };
+    lakebase, warehouses, kpiOptions, settings: settingsList, sourceTables, scopeSteps, scopeProfile: scopeProfile.profile };
   const chartDates = appInputDates(columnsByTable, sourceTables);
   const ownErrors = stepErrors(stepId, spec, extras, mode);
 
@@ -1216,7 +1211,7 @@ export default function ImplementWizard({
             <h3 className="text-sm font-semibold text-text-primary">{stepId === 'grouping' ? GROUPING_TITLE : FIRST_RUN_TITLE}</h3>
             <ScopeSettings part={stepId} values={scopeShown} profile={scopeProfile.profile} profileState={scopeProfile.state} profileError={scopeProfile.error}
               settings={scopeSettingList} onChange={(name, value) => setSpec((prev) => withSetting(prev, { name, source: 'widget' }, value))}
-              custom={customGrouping} unrecorded={firstRunUnrecorded}
+              unrecorded={firstRunUnrecorded}
               groupingChosenBy={groupingChosenBy(spec.config.widgets?.[GROUP_BY], scopeProfile.profile)} />
           </section>
         )}
@@ -2117,6 +2112,7 @@ function SettingsStep({ spec, settings, recorded, impact, onChange, onNote }) {
       <div>
         <h3 className="text-sm font-semibold text-text-primary">How should this use case count and flag records?</h3>
         <p className="text-[11px] text-text-tertiary">{SETTINGS_STEP_NOTE}</p>
+        <p data-settings-technical="" className="text-[11px] text-text-tertiary">{SETTINGS_TECHNICAL_NOTE}</p>
       </div>
       {!recorded && <p className="text-[11px] text-text-secondary">{SETTINGS_ASSUMPTIONS_LATER}</p>}
       <div data-settings-list="" className="max-h-[31rem] space-y-2.5 overflow-y-auto pr-1">

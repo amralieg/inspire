@@ -1,5 +1,4 @@
 import { counted } from './plural.js';
-import { groupingMainTable } from './groupingSql.js';
 
 export const GROUP_BY = 'group_by';
 export const RUN_SCOPE = 'run_scope';
@@ -14,7 +13,10 @@ export const SCOPE_LABELS = {
 export const GROUP_ALL = 'all';
 export const FIRST_RUN_DEFAULT = 'records';
 export const GROUP_CUSTOM = 'custom';
-export const RUN_SCOPES = ['all', 'groups', 'recent', 'records', 'custom'];
+export const RUN_SCOPES = ['all', 'groups', 'recent', 'records'];
+export const CUSTOM_SQL_SETTINGS = ['group_sql', 'group_sql_tables', 'group_sql_hash', 'group_sql_checked_by', 'group_sql_checked_at',
+  'scope_sql', 'scope_sql_tables', 'scope_sql_hash', 'scope_sql_checked_by', 'scope_sql_checked_at'];
+export const CUSTOM_SQL_REFUSED = 'Inspire does not run SQL typed into Grouping or First run; choose columns to group by and one of the first run choices instead';
 export const RUN_SCOPE_ALLOWED = RUN_SCOPES.join(', ');
 export const SCOPE_DEFAULTS = { [SCOPE_DAYS]: '30', [SCOPE_RECORDS]: '1000' };
 export const GROUPING_TITLE = 'Compare like with like?';
@@ -24,7 +26,6 @@ export const GROUPING_PLAIN = 'Grouping compares each record with records like i
   + 'so a small place is not judged by what is normal for a big one.';
 export const GROUP_KIND_WORDS = { biggest: 'the biggest', typical: 'a typical one', smallest: 'the smallest' };
 export const GROUPING_GLOBAL_LABEL = 'Global (All)';
-export const GROUPING_CUSTOM_LABEL = 'Custom';
 export const RUN_EVERYTHING_LABEL = 'Run on everything';
 export const SCOPE_SAVE_LABEL = 'Save Grouping and First run';
 export const GROUPING_JOINED_NOTE = 'Each run reads it from that table through this join.';
@@ -69,8 +70,22 @@ export function isScopeSetting(setting) {
   return SCOPE_SETTINGS.includes(String(setting?.name || ''));
 }
 
+export function customSqlProblem(name, value, label = name) {
+  const key = text(name).toLowerCase();
+  if (CUSTOM_SQL_SETTINGS.includes(key) && text(value)) return `${text(label)}: ${CUSTOM_SQL_REFUSED}`;
+  if (key === RUN_SCOPE && text(value).toLowerCase() === GROUP_CUSTOM) return `${text(label)} is '${text(value)}': ${CUSTOM_SQL_REFUSED}`;
+  if (key === GROUP_BY && groupByColumns(value).some((c) => c.toLowerCase() === GROUP_CUSTOM)) return `${text(label)} is '${text(value)}': ${CUSTOM_SQL_REFUSED}`;
+  return '';
+}
+
+export function customSqlProblems(values) {
+  return Object.keys(isMap(values) ? values : {}).sort().map((name) => customSqlProblem(name, values[name])).filter(Boolean);
+}
+
 export function runScopeProblem(value, name = SCOPE_LABELS[RUN_SCOPE]) {
   const scope = text(value);
+  const custom = customSqlProblem(RUN_SCOPE, scope, name);
+  if (custom) return custom;
   return scope && !RUN_SCOPES.includes(scope) ? `${name} is '${scope}'; allowed: ${RUN_SCOPE_ALLOWED}` : '';
 }
 
@@ -96,6 +111,7 @@ export function recordedRunScope(values, declared = null) {
   if (!was) return { values: recorded, unrecorded: false };
   const scope = was.toLowerCase();
   if (RUN_SCOPES.includes(scope)) return { values: scope === recorded[RUN_SCOPE] ? recorded : { ...recorded, [RUN_SCOPE]: scope }, unrecorded: false };
+  if (scope === GROUP_CUSTOM) return { values: { ...recorded, [RUN_SCOPE]: GROUP_CUSTOM }, unrecorded: false };
   const count = whole(was);
   const legacy = isMap(declared) && declared.kind !== 'choice';
   const words = legacy ? [declared.label, declared.help, declared.unit].map(text).join(' ').toLowerCase() : '';
@@ -128,8 +144,6 @@ export function suggestedGroups(profile) {
 
 export const WHOLE_GROUPS_MAX = 20;
 export const SCOPE_GROUP_AND = ' and ';
-export const FIRST_RUN_CUSTOM_LABEL = 'Custom SQL: the records a SELECT of key columns returns';
-export const FIRST_RUN_CUSTOM_UNSAVED = 'First run is custom; write the first run SQL, press Preview, then press Use this first run';
 
 export function wholeGroups(sizes, target) {
   const goal = whole(target) ?? Number(SCOPE_DEFAULTS[SCOPE_RECORDS]);
@@ -268,7 +282,6 @@ export function groupingChoices(profile, settingChoices = []) {
     if (list.some((c) => sameGrouping(c.value, column))) continue;
     list.push(withJoin({ value: column, label: column, columns: [column] }));
   }
-  list.push({ value: GROUP_CUSTOM, label: GROUPING_CUSTOM_LABEL, columns: [] });
   return list;
 }
 
@@ -371,39 +384,24 @@ export function firstRunChoices(profile, values, everything = '') {
       records: grouped ? inGroups.reduce((a, g) => a + g.records, 0) : records != null && total != null ? Math.min(records, total) : finite(fr.records),
       groups: grouped ? inGroups : null,
     },
-    { id: 'custom', label: FIRST_RUN_CUSTOM_LABEL, available: Boolean(text(profile?.table)), records: null },
     { id: 'all', label: 'Everything', available: true, records: finite(fr.all) ?? total, estimate: everythingEstimate(everything, finite(fr.all) ?? total, values?.[SCOPE_RECORDS]) },
   ];
 }
 
-export const GROUPING_CUSTOM_UNSAVED = 'Grouping is custom; write the grouping SQL, press Preview, then press Use this grouping';
-
-export function customGroupingProblem(values, custom) {
-  if (!custom || custom.saved === undefined || text(values?.[GROUP_BY]).toLowerCase() !== GROUP_CUSTOM) return '';
-  if (!custom.saved) return GROUPING_CUSTOM_UNSAVED;
-  const savedFor = text(custom.saved.result_table);
-  const now = text(custom.resultTable) ? groupingMainTable(custom.resultTable)?.canonical || text(custom.resultTable) : '';
-  if (now && now !== savedFor) {
-    return `The custom grouping is saved for ${savedFor || 'another result table'}, but the results now go to ${now}; press Preview, then Use this grouping again`;
-  }
-  return '';
-}
-
-export function scopeProblems(values, profile = null, part = 'both', custom = null) {
+export function scopeProblems(values, part = 'both') {
   const problems = [];
   const grouping = [];
-  const unsaved = customGroupingProblem(values, custom);
-  if (unsaved) grouping.push(unsaved);
   const scope = text(values?.[RUN_SCOPE]);
   const wrongScope = runScopeProblem(scope);
   if (wrongScope) problems.push(wrongScope);
-  if (scope === 'custom' && isMap(custom?.firstRun) && custom.firstRun.saved !== undefined && !custom.firstRun.saved) problems.push(FIRST_RUN_CUSTOM_UNSAVED);
+  const customGrouping = customSqlProblem(GROUP_BY, values?.[GROUP_BY], SCOPE_LABELS[GROUP_BY]);
+  if (customGrouping) grouping.push(customGrouping);
   if (scope === 'recent' && (whole(values?.[SCOPE_DAYS]) ?? 0) < 1) problems.push(`Days to run on is '${text(values?.[SCOPE_DAYS])}'; allowed: a whole number, at least 1`);
   if (scope === 'records' && (whole(values?.[SCOPE_RECORDS]) ?? 0) < 1) {
     problems.push(`Records to run on is '${text(values?.[SCOPE_RECORDS])}'; allowed: a whole number, at least 1`);
   }
-  if (groupByColumns(values?.[GROUP_BY]).some((c) => [GROUP_ALL, GROUP_CUSTOM].includes(c.toLowerCase())) && groupByColumns(values?.[GROUP_BY]).length > 1) {
-    grouping.push(`Grouping is '${text(values?.[GROUP_BY])}'; choose ${GROUP_ALL}, ${GROUP_CUSTOM} or column names, not a mix`);
+  if (!customGrouping && groupByColumns(values?.[GROUP_BY]).some((c) => c.toLowerCase() === GROUP_ALL) && groupByColumns(values?.[GROUP_BY]).length > 1) {
+    grouping.push(`Grouping is '${text(values?.[GROUP_BY])}'; choose ${GROUP_ALL} or column names, not a mix`);
   }
   if (part === 'grouping') return grouping;
   return part === 'first_run' ? problems : [...problems, ...grouping];
@@ -449,7 +447,6 @@ export function scopeText(values, profile = null) {
     return isMap(profile) ? `First run: ${recordGroupsText(profile, values)}`
       : `First run: about ${goal}, in whole groups when the technique reads records together`;
   }
-  if (scope === 'custom') return 'First run: the records the saved first run SQL returns';
   return SCOPE_ALL_TEXT;
 }
 

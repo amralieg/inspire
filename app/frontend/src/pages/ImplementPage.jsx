@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertTriangle, AppWindow, ArrowRight, BellRing, CheckCircle2, ChevronDown, CircleDashed, ExternalLink, FileText, Hammer, History, LayoutDashboard, Loader2,
   NotebookPen, Pencil, RefreshCw, Rocket, RotateCcw, Search, Settings2, Sparkles, Square, Trash2, XCircle,
@@ -467,6 +467,10 @@ export default function ImplementPage({ settings, sessionId, focusId = null, onF
   const summary = useMemo(() => buildSummary(allItems), [allItems]);
   const shownId = chosenId || groups.flatMap((g) => g.items)[0]?.id || allItems[0]?.id || null;
   const selected = allItems.find((item) => item.id === shownId) || null;
+  const paneRef = useRef(null);
+  useLayoutEffect(() => {
+    if (paneRef.current) paneRef.current.scrollTop = 0;
+  }, [shownId]);
 
   const othersBuilding = allItems.filter((item) => item.state?.group === 'in_progress' && item.id !== shownId).map((item) => item.id).join(',');
   useEffect(() => {
@@ -514,7 +518,7 @@ export default function ImplementPage({ settings, sessionId, focusId = null, onF
             assetLabel={assetCounts.find((entry) => entry.id === assetFilter)?.label || ''} shownId={shownId} progress={progress} onSelect={select} />
         </div>
         <RailResizer width={railPx} onWidth={(width) => setRailPx(railWidth(width))} />
-        <section aria-label="Use case" className="flex-1 min-w-0 space-y-4 md:self-stretch md:min-h-0 md:overflow-y-auto">
+        <section ref={paneRef} aria-label="Use case" className="flex-1 min-w-0 space-y-4 md:self-stretch md:min-h-0 md:overflow-y-auto">
           {selected ? (
             <UseCaseDetail
               key={selected.id}
@@ -1378,7 +1382,7 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
       )}
       <TargetKpiCard view={kpiView} readOnly={readOnly} builtBefore={IMPLEMENT_DONE_STATUSES.includes(String(latest?.status || ''))} scope={scopeFacts} />
       <UseCaseSettings view={settingsView} error={settingsError} readOnly={readOnly} impact={liveImpact(money?.run, tracked?.impact || rowImpact(latest))} scope={scopeProfile}
-        apiPostJson={apiPostJson} onPreview={previewSetting} onSave={saveSetting} onRun={runSettings} onEdit={onEdit ? () => onEdit({ step: 'settings' }, live) : undefined}>
+        onPreview={previewSetting} onSave={saveSetting} onRun={runSettings} onEdit={onEdit ? () => onEdit({ step: 'settings' }, live) : undefined}>
         <UseCaseTables key={String(latest?.spec_version ?? '')} uc={item.uc} latest={latest} view={tablesView} readOnly={readOnly} locked={locked}
           onSwaps={tableSwaps} onClassify={tableChange} onSave={submitSpec} />
       </UseCaseSettings>

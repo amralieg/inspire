@@ -1,9 +1,10 @@
-import { RUN_SCOPE, runScopeProblem, runScopeSetting } from './runScope.js';
+import { RUN_SCOPE, customSqlProblem, isScopeSetting, runScopeProblem, runScopeSetting } from './runScope.js';
 import { stakeWords } from './targetKpi.js';
 
 export const SETTING_ALL = 'all';
 export const ASSUMPTION_BOUNDS = { percent: [0, 1, '0 to 1'], money: [0, null, 'at least 0'], number: [null, null, 'any number'] };
 export const SETTING_GROUPS = ['impact', 'flagging', 'scope', 'alerts'];
+export const BUSINESS_SETTING_GROUPS = ['impact', 'flagging', 'alerts'];
 export const NOT_SETTINGS = ['result_table', 'model_name', 'ai_endpoint', 'as_of_date', 'currency', 'run_profile'];
 export const TIER_SETTINGS = { measured: ['act_now_amount', 'review_amount'], predicted: ['act_now_share', 'review_share'] };
 export const FAMILY_FLAGGING = { A: ['min_probability'], B: ['alert_quantile', 'max_alerts_per_run'], C: ['flag_segments'], D: ['min_score', 'items_per_entity'],
@@ -14,6 +15,7 @@ export const SETTINGS_ASSUMPTIONS_LATER = 'Genie proposes the assumptions of wha
 export const SETTINGS_ON_THEIR_STEP = 'The rules that flag records and the use case\u2019s own settings are on the Settings step.';
 export const SETTINGS_STEP_NOTE = 'How this use case counts what is at stake and flags records. Every value stays inside the range Genie declared, and owners change '
   + 'them later on the Build page or in the App.';
+export const SETTINGS_TECHNICAL_NOTE = 'Technical settings, such as how much data a model needs, keep the values Genie declared; the App owner changes them in the App\u2019s settings.';
 export const SETTINGS_NO_REBUILD = 'Saved as a setting, no rebuild';
 export const SETTINGS_REBUILDS = 'Rebuilds the notebook';
 export const SETTINGS_ALERT_REFRESH = 'Rebuilds the alert';
@@ -120,7 +122,7 @@ export function widgetProblems(widgets, values) {
   const known = (Array.isArray(widgets) ? widgets : []).filter(isMap);
   const allowed = Object.fromEntries(known.map((w) => [String(w.name ?? ''), w.allowed]));
   const problems = Object.keys(values || {}).sort()
-    .map((name) => (name === RUN_SCOPE ? runScopeProblem(values[name], name) : widgetValueProblem(name, values[name], allowed[name] ?? '')))
+    .map((name) => customSqlProblem(name, values[name]) || (name === RUN_SCOPE ? runScopeProblem(values[name], name) : widgetValueProblem(name, values[name], allowed[name] ?? '')))
     .filter(Boolean);
   const merged = Object.fromEntries(known.map((w) => [String(w.name ?? ''), w.default]));
   Object.assign(merged, values || {});
@@ -131,6 +133,8 @@ export function settingProblem(setting, value) {
   const s = isMap(setting) ? setting : {};
   const name = String(s.name || '');
   const text = String(value == null ? '' : value).trim();
+  const custom = customSqlProblem(name, text);
+  if (custom) return custom;
   if (name === RUN_SCOPE) return runScopeProblem(text, name);
   if (s.kind === 'choice') {
     const choices = (Array.isArray(s.choices) ? s.choices : []).map(String);
@@ -178,6 +182,10 @@ function widgetKind(name, widget, rule) {
   return rule.low === 0 && rule.high === 1 && !rule.lowOpen && !rule.highOpen ? 'percent' : 'number';
 }
 
+export function isBusinessSetting(setting) {
+  return BUSINESS_SETTING_GROUPS.includes(String(setting?.group || '')) || isScopeSetting(setting);
+}
+
 export function wizardSettings({ model = null, widgets = [], spec = null, family = '', editing = false } = {}) {
   const list = [];
   const seen = new Set();
@@ -208,7 +216,7 @@ export function wizardSettings({ model = null, widgets = [], spec = null, family
       source: 'alert', derived: true, default: '', change: editing ? SETTINGS_ALERT_REFRESH : '' });
   }
   const order = (s) => (SETTING_GROUPS.includes(s.group) ? SETTING_GROUPS.indexOf(s.group) : SETTING_GROUPS.length);
-  return list.map((s, at) => [s, at]).sort(([a, i], [b, j]) => order(a) - order(b) || i - j).map(([s]) => s);
+  return list.filter(isBusinessSetting).map((s, at) => [s, at]).sort(([a, i], [b, j]) => order(a) - order(b) || i - j).map(([s]) => s);
 }
 
 function chosenValue(spec, setting) {

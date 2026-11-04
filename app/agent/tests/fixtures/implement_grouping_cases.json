@@ -5,20 +5,10 @@
       "label": "Grouping",
       "all": "all",
       "custom": "custom",
-      "format": "comma-separated column names, coarse to fine, or all, or custom",
+      "format": "comma-separated column names, coarse to fine, or all",
       "solo": [
-        "all",
-        "custom"
+        "all"
       ]
-    },
-    "custom": {
-      "group_sql": "group_sql",
-      "group_sql_tables": "group_sql_tables",
-      "group_sql_hash": "group_sql_hash",
-      "group_sql_checked_by": "group_sql_checked_by",
-      "group_sql_checked_at": "group_sql_checked_at",
-      "group_name": "group_name",
-      "max_chars": 20000
     }
   },
   "constants": {
@@ -195,7 +185,7 @@
     },
     {
       "text": "custom, region",
-      "mode": "mixed",
+      "mode": "custom",
       "columns": []
     }
   ],
@@ -734,40 +724,6 @@
       ]
     }
   ],
-  "custom": [
-    {
-      "name": "groups under 30 records combine into Other groups, and records with no group are a group of their own",
-      "sizes": {
-        "North": 40,
-        "South": 30,
-        "East": 29,
-        "West": 1,
-        "No group": 5
-      },
-      "expected": {
-        "North": "North",
-        "South": "South",
-        "East": "Other groups",
-        "West": "Other groups",
-        "No group": "Other groups"
-      },
-      "groups": 3,
-      "other_groups": 3
-    },
-    {
-      "name": "a large No group stays a group",
-      "sizes": {
-        "North": 40,
-        "No group": 31
-      },
-      "expected": {
-        "North": "North",
-        "No group": "No group"
-      },
-      "groups": 2,
-      "other_groups": 0
-    }
-  ],
   "first_run": {
     "spec": {
       "table": "main.sales.orders",
@@ -948,7 +904,7 @@
         "spec": {
           "default": "everything"
         },
-        "reason": "First run is 'everything', which is not one of all, groups, recent, records, custom"
+        "reason": "First run is 'everything', which is not one of all, groups, recent, records"
       }
     ],
     "build_check": [
@@ -1009,9 +965,9 @@
         "expected": "region"
       },
       {
-        "name": "a custom Grouping has no column to run on",
+        "name": "a custom Grouping is refused, since Inspire runs no typed SQL",
         "group_by": "custom",
-        "refused": "First run on groups runs on values of the finest column of the Grouping"
+        "refused": "the Grouping is 'custom': Inspire does not run SQL typed into Grouping or First run"
       }
     ],
     "compare": {
@@ -2483,27 +2439,5 @@
         }
       ]
     }
-  },
-  "joined_grouping": {
-    "main": "main.retail.web_sales",
-    "keys": [
-      "ws_order_number",
-      "ws_item_sk"
-    ],
-    "group_column": "item.i_category",
-    "joined": [
-      {
-        "name": "item.i_category",
-        "column": "i_category",
-        "table": "main.retail.item",
-        "key": "ws_item_sk",
-        "ref_column": "i_item_sk"
-      }
-    ],
-    "sql": "SELECT m.`ws_order_number`, m.`ws_item_sk`, j1.`i_category` AS group_name\nFROM `main`.`retail`.`web_sales` m\nLEFT JOIN `main`.`retail`.`item` j1 ON m.`ws_item_sk` = j1.`i_item_sk`",
-    "tables": [
-      "main.retail.item",
-      "main.retail.web_sales"
-    ]
   }
 }

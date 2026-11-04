@@ -3913,6 +3913,9 @@ SETTING_KINDS = ("money", "number", "integer", "percent", "choice", "days")
 SETTING_SOURCES = ("widget", "alert")
 SETTING_ALL = "all"
 SETTING_NUMBER = re.compile(r"^-?[0-9]+(?:\.[0-9]+)?$")
+CUSTOM_SQL_SETTINGS = ("group_sql", "group_sql_tables", "group_sql_hash", "group_sql_checked_by", "group_sql_checked_at",
+                       "scope_sql", "scope_sql_tables", "scope_sql_hash", "scope_sql_checked_by", "scope_sql_checked_at")
+CUSTOM_SQL_REFUSED = "Inspire does not run SQL typed into Grouping or First run; choose columns to group by and one of the first run choices instead"
 SETTINGS_CAP = 80
 SETTING_TEXTS = ("label", "help", "reason", "unit", "allowed", "default", "applies")
 TIER_CUTOFFS = ("act_now_amount", "review_amount")
@@ -3951,9 +3954,21 @@ def page_settings_problems(settings) -> list:
     return problems
 
 
+def custom_sql_problem(name, value) -> str:
+    key, text = str(name or "").strip().lower(), str("" if value is None else value).strip()
+    if key in CUSTOM_SQL_SETTINGS and text:
+        return f"{str(name).strip()}: {CUSTOM_SQL_REFUSED}"
+    custom = (text.lower() == "custom" if key == "run_scope"
+              else key == "group_by" and "custom" in [part.strip().lower() for part in text.split(",") if part.strip()])
+    return f"{str(name).strip()} is '{text}': {CUSTOM_SQL_REFUSED}" if custom else ""
+
+
 def setting_problem(setting: dict, value) -> str:
     setting = setting or {}
     name, text = str(setting.get("name") or ""), str("" if value is None else value).strip()
+    custom = custom_sql_problem(name, text)
+    if custom:
+        return custom
     if setting.get("kind") == "choice":
         choices = [str(c) for c in setting.get("choices") or []]
         picked = [part.strip() for part in text.split(",") if part.strip()] if setting.get("many") else [text]

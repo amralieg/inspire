@@ -274,3 +274,85 @@ test('the Run tab reads the last two runs of the use case\u2019s App with the pe
     assert.equal(made.appCalls.length, 0, 'an address that is not a Databricks App never receives the person\u2019s token');
   });
 });
+
+test('the wizard shows only the business settings; the technical ones Genie declared keep their values for the App owner', async () => {
+  const S = await lib('useCaseSettings.js');
+  const widgets = [
+    { name: 'act_now_share', allowed: '0 to 1', default: '0.05' }, { name: 'review_share', allowed: '0 to 1', default: '0.2' },
+    { name: 'min_score', allowed: 'at least 0', default: '0' }, { name: 'items_per_entity', allowed: 'whole number, 1 to 100', default: '10' },
+    { name: 'run_scope', type: 'text', default: 'all' }, { name: 'min_rows', allowed: 'whole number, at least 1', default: '1' },
+    { name: 'min_join_coverage', allowed: '0 to 1', default: '0.8' }, { name: 'svd_factors', allowed: 'whole number, at least 2', default: '20' },
+    { name: 'neighbors_per_item', allowed: 'whole number, at least 1', default: '50' }, { name: 'holdout_days', default: 'ceil(0.2 x days)' },
+  ];
+  const model = [...MODEL, { name: 'min_interactions', label: 'Minimum interactions', group: 'scope', kind: 'integer', low: 1, high: null, allowed: 'whole number, at least 1',
+    source: 'widget', default: '1000', reason: 'Genie Code chose it when it built the notebook', applies: 'run' }];
+  const fromWidgets = S.wizardSettings({ widgets, family: 'D' }).map((s) => s.name);
+  assert.deepEqual(fromWidgets, ['act_now_share', 'review_share', 'min_score', 'items_per_entity', 'run_scope']);
+  const fromModel = S.wizardSettings({ model, widgets, family: 'D' }).map((s) => s.name);
+  assert.ok(fromModel.includes('WEEKS_LEFT') && fromModel.includes('act_now_share'), 'the impact and flagging settings stay');
+  for (const technical of ['min_interactions', 'min_rows', 'min_join_coverage', 'svd_factors', 'neighbors_per_item', 'holdout_days']) {
+    assert.ok(!fromModel.includes(technical) && !fromWidgets.includes(technical), `${technical} is not in the wizard`);
+  }
+  assert.deepEqual(S.BUSINESS_SETTING_GROUPS, S.SETTING_GROUPS.filter((g) => g !== 'scope'));
+  assert.equal(S.isBusinessSetting({ name: 'group_by', group: 'scope' }), true, 'the grouping keeps its own step');
+  assert.equal(S.isBusinessSetting({ name: 'min_rows', group: 'scope' }), false);
+  assert.equal(S.isBusinessSetting({ name: 'alert_threshold', group: 'alerts' }), true);
+});
+
+test('custom SQL for Grouping or First run is refused before anything runs, at every route that takes settings', async () => {
+  const S = require('../../frontend/src/lib/runScope.js');
+  const refused = S.CUSTOM_SQL_REFUSED;
+  const view = { settings: [{ ...MODEL[1], value: '0.05', saved: false, editable: true }], history: [], editable: true, why: '', can_run: true, job: true };
+  const appApi = { 'POST /api/settings/save': [view], 'POST /api/settings/preview': [{ exact: true, moves: [], text: '' }] };
+  await withApp({ forwardedToken: PERSON, appApi }, async (url, made) => {
+    for (const [action, body] of [
+      ['save', { name: 'group_sql', value: 'SELECT order_id, region AS group_name FROM main.sales.orders', was: '' }],
+      ['save', { name: 'scope_sql', value: 'SELECT order_id FROM main.sales.orders', was: '' }],
+      ['save', { name: 'group_by', value: 'custom', was: 'all' }],
+      ['save', { name: 'group_by', value: 'region, Custom', was: 'all' }],
+      ['save', { name: 'run_scope', value: 'custom', was: 'records' }],
+      ['preview', { name: 'group_sql', value: 'SELECT 1' }],
+    ]) {
+      const got = await call(url, `/api/inspire/implement/settings/${action}?${Q}`, { method: 'POST', body });
+      assert.equal(got.status, 400, `${action} ${body.name}=${body.value}`);
+      assert.ok(got.data.error.endsWith(refused), got.data.error);
+    }
+    assert.equal(made.appCalls.length, 0, 'nothing reached the App');
+    const kept = await call(url, `/api/inspire/implement/settings/save?${Q}`, { method: 'POST', body: { name: 'group_by', value: 'customer_segment', was: 'all' } });
+    assert.equal(kept.status, 200, 'a column whose name starts with custom is a column, not custom SQL');
+    assert.deepEqual(made.appCalls.map((c) => c.body.name), ['group_by']);
+  });
+  await withApp({}, async (url, made) => {
+    for (const route of ['/api/grouping/preview', '/api/grouping/save']) {
+      const resp = await fetch(`${url}${route}?${Q}`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-forwarded-email': OWNER },
+        body: JSON.stringify({ ...DB, use_case_id: 'N01-U01', main_table: 'main.sales.orders', key_columns: ['order_id'], sql: 'SELECT order_id, region AS group_name FROM main.sales.orders' }) });
+      assert.equal(resp.status, 404, `${route} is gone`);
+    }
+    assert.equal(made.sqlCalls.filter((c) => String(c.sql).includes('group_name')).length, 0, 'no typed SQL ran');
+  });
+  const R = require('../lib/routePolicy');
+  assert.equal(Object.keys(R.ROUTE_POLICY || {}).some((k) => k.includes('/api/grouping/preview') || k.includes('/api/grouping/save')), false);
+  assert.deepEqual(I.widgetProblems([{ name: 'group_by', default: 'all' }], { group_by: 'custom', group_sql: 'SELECT 1', run_scope: 'custom' }), [
+    `group_by is 'custom': ${refused}`, `group_sql: ${refused}`, `run_scope is 'custom': ${refused}`]);
+  assert.deepEqual(I.widgetProblems([{ name: 'group_by', default: 'all' }], { group_by: 'region, country', group_sql: '', run_scope: 'records' }), [], 'columns, an empty SQL setting and a first run choice pass');
+  assert.deepEqual(I.customSqlProblems({ group_by: 'all', scope_sql: '  ' }), []);
+  assert.deepEqual(I.customSqlProblems({ group_by: 'custom', group_sql: 'SELECT 1' }), [`group_by is 'custom': ${refused}`, `group_sql: ${refused}`]);
+});
+
+test('a re-run of a build that carried custom SQL is refused, so the old SQL never runs again', async () => {
+  const spec = { use_case_id: 'N01-U01', outputs: {}, config: { result_table: 'main.out.risk', widgets: { group_by: 'custom', group_sql: 'SELECT order_id, region AS group_name FROM main.sales.orders' } } };
+  const history = [{ spec_version: 2, status: 'ready', use_case_id: 'N01-U01', job_id: 77, spec_json: JSON.stringify(spec),
+    genie_widgets: JSON.stringify([{ name: 'top_k', type: 'text', default: '25' }]) }];
+  await withApp({ history }, async (url, made) => {
+    const got = await call(url, `/api/inspire/implement/rerun?${Q}`, { method: 'POST', body: { overrides: {} } });
+    assert.equal(got.status, 400);
+    assert.match(got.data.error, /Build this use case again to re-run it\.$/);
+    assert.equal(made.fetches.some((f) => f.path === '/api/2.1/jobs/run-now'), false);
+  });
+  const clean = [{ ...history[0], spec_json: JSON.stringify({ ...spec, config: { ...spec.config, widgets: { group_by: 'region' } } }) }];
+  await withApp({ history: clean }, async (url, made) => {
+    const got = await call(url, `/api/inspire/implement/rerun?${Q}`, { method: 'POST', body: { overrides: {} } });
+    assert.equal(got.status, 200, JSON.stringify(got.data));
+    assert.equal(made.fetches.some((f) => f.path === '/api/2.1/jobs/run-now'), true);
+  });
+});

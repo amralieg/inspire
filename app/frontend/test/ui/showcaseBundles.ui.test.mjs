@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { createRequire } from 'node:module';
-import { closeBrowser, openUi } from './uiSupport.mjs';
+import { closeBrowser, openUi, until } from './uiSupport.mjs';
 import { apiWatch, tabButton, walkInspireDemo } from '../../../scripts/showcaseRecorder.mjs';
 import { DEMO_LAYOUTS, DEMO_RECORDED, KINDS_DEMO, USE_CASES } from '../../../scripts/kindsShowcase.mjs';
 import { SHOWCASE_BUTTON, SHOWCASE_NOTE } from '../../src/lib/showcase.js';
@@ -140,6 +140,34 @@ test('Build shows Open MVP on every use case of the kinds demo, and each opens i
     assert.equal(ui.made.jobs.length, 0);
   } finally {
     await ui.close();
+  }
+});
+
+test('Build opens at the top with the first use case shown, after Review was scrolled down, and a picked use case opens at its top', async () => {
+  for (const viewport of [{ width: 1440, height: 900 }, { width: 600, height: 900 }]) {
+    const ui = await openKindsDemo();
+    const { page } = ui;
+    try {
+      await page.setViewportSize(viewport);
+      await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+      await until(async () => (await page.evaluate(() => window.scrollY)) > 200, 'Review scrolled down');
+      await tabButton(page, 'implement').click();
+      const pane = page.getByRole('region', { name: 'Use case' });
+      const first = page.locator('nav[aria-label="Use cases"] section button').first();
+      await first.waitFor({ timeout: 60000 });
+      await pane.locator('[data-use-case-pane]').first().waitFor({ timeout: 60000 });
+      assert.equal(await page.evaluate(() => window.scrollY), 0, `${viewport.width}: the Build page opens at its top`);
+      assert.equal(await first.getAttribute('aria-current'), 'true', `${viewport.width}: the first use case is picked`);
+      const top = await pane.locator('[data-use-case-pane]').first().boundingBox();
+      assert.ok(top && top.y >= 0 && (viewport.width < 768 || top.y < viewport.height), `${viewport.width}: the picked use case shows ${viewport.width < 768 ? 'below the list' : 'in the window'}`);
+      if (viewport.width >= 768) {
+        await pane.evaluate((el) => { el.scrollTop = el.scrollHeight; });
+        await page.locator('nav[aria-label="Use cases"] section button').nth(1).click();
+        await until(async () => (await pane.evaluate((el) => el.scrollTop)) === 0, 'a newly picked use case opens at its top');
+      }
+    } finally {
+      await ui.close();
+    }
   }
 });
 

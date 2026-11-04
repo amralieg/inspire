@@ -149,7 +149,6 @@ test('v1.3.0 use case fields are parsed and stay NULL-safe on older rows', () =>
     expected_key_results: 'not json',
     measures_of_success: 'One\n\nTwo ',
     financial_benefits: 'Margin',
-    foundation_ids: 'F1, F2,',
     strategy_path: 'Customer > Grow',
     use_case_key: 'forecast demand|main.s.orders',
   });
@@ -159,13 +158,11 @@ test('v1.3.0 use case fields are parsed and stay NULL-safe on older rows', () =>
   assert.deepEqual(row.measures_of_success, ['One', 'Two']);
   assert.deepEqual(row.financial_benefits, ['Margin']);
   assert.deepEqual(row.non_financial_benefits, []);
-  assert.deepEqual(row.foundation_ids, ['F1', 'F2']);
   const legacy = normalizeV130UseCaseFields({ id: 'N01-U01', use_case: 'Old row' });
   assert.equal(legacy.strategy_alignment, null);
   assert.equal(legacy.kpis, null);
   assert.equal(legacy.data_evidence, null);
   assert.deepEqual(legacy.measures_of_success, []);
-  assert.deepEqual(legacy.foundation_ids, []);
   assert.equal(legacy.strategy_path, null);
   assert.equal(legacy.use_case_key, null);
   assert.equal(legacy.use_case, 'Old row');

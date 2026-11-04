@@ -117,7 +117,7 @@ test('results_json keys and tracking columns give the same view', async () => {
   const lib = await load();
   const fromResults = lib.v130View(RESULTS_UC);
   const fromTracking = lib.v130View(TRACKING_ROW());
-  for (const key of ['alignments', 'paths', 'kpis', 'keyResults', 'measures', 'financial', 'nonFinancial', 'dataEvidence', 'foundations', 'useCaseKey']) {
+  for (const key of ['alignments', 'paths', 'kpis', 'keyResults', 'measures', 'financial', 'nonFinancial', 'dataEvidence', 'useCaseKey']) {
     assert.deepEqual(fromTracking[key], fromResults[key], key);
   }
   assert.deepEqual(fromResults.paths, ['Customer > Grow repeat purchases', 'Operations']);
@@ -288,6 +288,8 @@ test('the use case view exposes the star, the reason it was not starred, and the
   for (const field of ['best_of_best', 'best_of_best_rank', 'best_of_best_score', 'best_of_best_reason']) {
     assert.ok(V130_TRACKING_FIELDS.includes(field), field);
   }
+  assert.ok(!V130_TRACKING_FIELDS.includes('foundation_ids'), 'the App reads no data foundations');
+  assert.equal('foundations' in v130View({ Foundations: ['F1'], foundation_ids: 'F1' }), false, 'the use case view carries no data foundations');
   const merged = copyV130TrackingFields({ Name: 'x' }, { best_of_best: 'Y', best_of_best_rank: 1 });
   assert.equal(v130View(merged).bestOfBest.rank, 1);
 });

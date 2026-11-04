@@ -27,7 +27,7 @@ def _spec(inst, grouping=None, technique="Anomaly Detection"):
     return uc, inst._genie_notebook_spec(uc)
 
 
-def test_grouping_is_a_run_setting_with_its_columns_custom_and_all_standing_alone(agent_ns):
+def test_grouping_is_a_run_setting_with_its_columns_and_all_standing_alone(agent_ns):
     inst = build_inspire(agent_ns)
     _uc, spec = _spec(inst, GROUPING)
     widgets = inst._genie_core_widgets(spec)
@@ -36,15 +36,15 @@ def test_grouping_is_a_run_setting_with_its_columns_custom_and_all_standing_alon
     model = agent_ns["inspire_settings_model"](spec, widgets)
     [setting] = [s for s in model if s["name"] == "group_by"]
     assert (setting["kind"], setting["many"], setting["group"], setting["label"], setting["source"]) == ("choice", True, "scope", "Grouping", "widget")
-    assert setting["choices"] == ["region", "country", "channel", "custom"] and setting["solo"] == ["all", "custom"]
+    assert setting["choices"] == ["region", "country", "channel"] and setting["solo"] == ["all"]
     assert "moves up a level" in setting["help"]
     [run_setting] = [s for s in agent_ns["inspire_run_settings_model"](model) if s["name"] == "group_by"]
-    assert run_setting["solo"] == ["all", "custom"] and run_setting["choices"] == setting["choices"]
+    assert run_setting["solo"] == ["all"] and run_setting["choices"] == setting["choices"]
     _plain_uc, plain = _spec(inst, None)
     assert "group_by" not in [w["name"] for w in inst._genie_core_widgets(plain)], "no grouping setting where grouping does not apply"
 
 
-@pytest.mark.parametrize("value,ok", [("region", True), ("region, country", True), ("all", True), ("custom", True),
+@pytest.mark.parametrize("value,ok", [("region", True), ("region, country", True), ("all", True), ("custom", False), ("Custom", False),
                                       ("country, channel", True), ("region, all", False), ("custom, region", False), ("city", False),
                                       ("", False), ("all, custom", False)])
 def test_the_agent_and_the_app_server_check_a_grouping_value_the_same_way(agent_ns, value, ok):
@@ -54,8 +54,10 @@ def test_the_agent_and_the_app_server_check_a_grouping_value_the_same_way(agent_
     agent, server = agent_ns["inspire_setting_problem"](setting, value), shell_sql.setting_problem(setting, value)
     assert agent == server
     assert (agent == "") is ok, (value, agent)
-    if value in ("region, all", "custom, region"):
+    if value == "region, all":
         assert "alone, never with another choice" in agent
+    if "custom" in value.lower():
+        assert agent == f"group_by is '{value}': {agent_ns['INSPIRE_CUSTOM_SQL_REFUSED']}"
     flags = {"name": "flag_segments", "kind": "choice", "many": True, "choices": ["EU", "UK"]}
     assert agent_ns["inspire_setting_problem"](flags, "EU, all") == shell_sql.setting_problem(flags, "EU, all") == "", "flag_segments keeps its rule"
 
@@ -122,7 +124,6 @@ def test_the_cell_check_runs_the_grouping_check_with_the_spec_grouping(agent_ns)
     ("Anomaly Detection", [], "", [], False, "", []),
     ("Text Classification", ["region"], "region", [], True, "region", ["region"]),
     ("Anomaly Detection", ["region"], "store_type", [], True, "store_type", ["region", "store_type"]),
-    ("Anomaly Detection", ["region"], "custom", [], True, "custom", ["region"]),
     ("Anomaly Detection", ["region"], "all", ["region"], True, "all", ["region"]),
 ])
 def test_the_build_plan_follows_the_person_first_then_the_technique_and_the_recommendation(agent_ns, technique, candidates, chosen,
@@ -132,7 +133,9 @@ def test_the_build_plan_follows_the_person_first_then_the_technique_and_the_reco
     assert plan["time_column"] == ("day" if applies else "")
     assert plan["chosen_by"] == ("person" if chosen else "Inspire" if recommended else "default")
     mixed = agent_ns["implement_grouping_plan"](technique, candidates, "region, all", "", [])
-    assert mixed["problem"] == "group_by is 'region, all'; all and custom each stand alone"
+    assert mixed["problem"] == "group_by is 'region, all'; all stands alone"
+    custom = agent_ns["implement_grouping_plan"](technique, candidates, "custom", "", [])
+    assert (custom["applies"], custom["problem"]) == (False, f"group_by is 'custom': {agent_ns['INSPIRE_CUSTOM_SQL_REFUSED']}")
 
 
 def test_the_candidate_columns_are_the_main_table_category_and_key_columns_taken_in_turn_and_the_segment_role_first(agent_ns):
@@ -216,11 +219,10 @@ def _wspec(group_by):
 
 def test_a_grouping_change_inside_the_built_columns_is_a_settings_change_and_another_column_rebuilds(agent_ns):
     built = ["group_by", "min_rows"]
-    choices = ["region", "country", "custom"]
+    choices = ["region", "country"]
     classify = agent_ns["classify_implement_change"]
     assert classify(_wspec("region"), _wspec("region, country"), built, None, choices) == ["settings"]
     assert classify(_wspec("region"), _wspec("all"), built, None, choices) == ["settings"]
-    assert classify(_wspec("region"), _wspec("custom"), built, None, choices) == ["settings"]
     assert classify(_wspec("region"), _wspec("region, city"), built, None, choices) == ["config"], "a column the notebook does not read rebuilds"
     assert classify(_wspec("region"), _wspec("City"), built, None, ["city"]) == ["settings"], "column names match in any case"
     assert agent_ns["implement_grouping_unread"]("region, city, store", choices) == ["city", "store"]
@@ -236,7 +238,7 @@ def test_a_grouping_change_inside_the_built_columns_is_a_settings_change_and_ano
     ({"mode": "columns", "group_by": ["Region", "Country"], "groups": 12}, "region, country", True),
     ({"mode": "columns", "group_by": ["region"], "groups": 4}, "region, country", False),
     ({"mode": "all", "group_by": "all", "groups": 1}, "region", False),
-    ({"mode": "custom", "group_by": "custom", "groups": 5}, "custom", True),
+    ({"mode": "custom", "group_by": "custom", "groups": 5}, "custom", False),
     (None, "region", False),
 ])
 def test_the_build_proof_compares_the_recorded_groups_with_the_setting(agent_ns, record, asked, ok):

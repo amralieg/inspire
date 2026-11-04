@@ -17,7 +17,7 @@ test('the names, constants, labels and techniques of the shared cases are the on
   const { settings, constants, labels, techniques } = data();
   assert.deepEqual([settings.group_by.name, settings.group_by.label, settings.group_by.all, settings.group_by.custom],
     [R.GROUP_BY, R.GROUP_LABEL, R.GROUP_ALL, R.GROUP_CUSTOM]);
-  assert.deepEqual(settings.group_by.solo, [R.GROUP_ALL, R.GROUP_CUSTOM]);
+  assert.deepEqual(settings.group_by.solo, [R.GROUP_ALL]);
   assert.deepEqual([constants.group_min_records, constants.group_min_periods, constants.group_max_groups, constants.group_min_groups],
     [R.GROUP_MIN_RECORDS, R.GROUP_MIN_PERIODS, R.GROUP_MAX_GROUPS, R.GROUP_MIN_GROUPS]);
   assert.deepEqual([labels.global, labels.other, labels.no_group, labels.separator, labels.all_level, labels.custom_level],
@@ -29,7 +29,7 @@ test('the names, constants, labels and techniques of the shared cases are the on
   assert.deepEqual([R.FIRST_RUN_RECORDS_LINE, R.SUGGESTED_GROUPS, R.SCOPE_DAYS, R.SCOPE_RECORDS], [1000, 3, 30, 1000]);
   assert.deepEqual([constants.first_run_records_line, constants.scope_via_keys_max], [R.FIRST_RUN_RECORDS_LINE, R.SCOPE_VIA_KEYS_MAX]);
   assert.equal(constants.group_max_null_share, R.GROUP_MAX_NULL_SHARE);
-  assert.deepEqual(R.RUN_SCOPES, ['all', 'groups', 'recent', 'records', 'custom']);
+  assert.deepEqual(R.RUN_SCOPES, ['all', 'groups', 'recent', 'records']);
 });
 
 test('the technique decides where grouping applies, and where each record stands alone', () => {
@@ -59,15 +59,6 @@ test('the recommended columns are usable and nest coarse to fine, exactly as the
 
 test('small groups move up a level exactly as the shared cases say', () => {
   for (const c of data().effective) assert.deepEqual(R.effectiveGroups(c.group_by, c.groups, c.time_series), c.expected, c.name);
-});
-
-test('custom groups under 30 records combine into Other groups, exactly as the shared cases say', () => {
-  for (const c of data().custom) {
-    const names = R.customGroupNames(c.sizes);
-    assert.deepEqual(names, c.expected, c.name);
-    assert.equal(new Set(Object.values(names)).size, c.groups, c.name);
-    assert.equal(Object.values(c.sizes).filter((size) => size < R.GROUP_MIN_RECORDS).length, c.other_groups, c.name);
-  }
 });
 
 test('First run defaults to about 1,000 records above 1,000 records, exactly as the shared cases say, never a recent period or everything', () => {

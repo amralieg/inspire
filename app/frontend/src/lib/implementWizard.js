@@ -1470,8 +1470,7 @@ export function sectionErrors(section, spec, extras = {}) {
   if (section === 'kpi') errors.push(...kpiTargetProblems(spec, extras.kpiOptions || []));
   if (section === 'settings') errors.push(...settingsProblems(spec, extras.settings || []));
   if (section === 'grouping' || section === 'first_run') {
-    errors.push(...scopeProblems(scopeValues((name) => spec.config?.widgets?.[name]), extras.scopeProfile || null, section,
-      { saved: extras.groupingSaved, resultTable: spec.config?.result_table, firstRun: { saved: extras.firstRunSaved } }));
+    errors.push(...scopeProblems(scopeValues((name) => spec.config?.widgets?.[name]), section));
   }
   if (section === 'holdout') errors.push(...holdoutProblems(spec), ...capacityProblems(spec));
   if (section === 'app_owners' && spec.outputs.app && !joinsApp(spec)) errors.push(...appOwnerProblems(spec.outputs.app_owners));
