@@ -219,7 +219,8 @@ def test_measure_kpi_runs_only_the_builder_sql_in_deep(agent_ns):
     spark = FakeSpark(responder=lambda statement: [Row(v=12.5)])
     deep = agent_ns["DeepEvidence"](spark, "Deep", make_inspire(agent_ns).logger)
     assert deep.measure_kpi({"aggregation": "AVG", "table": "main.s.orders", "column": "amount"}) == 12.5
-    assert spark.statements == ["SELECT CAST(AVG(`amount`) AS DOUBLE) AS v FROM `main`.`s`.`orders`"]
+    assert spark.statements == ["SELECT (SELECT CAST(AVG(`amount`) AS DOUBLE) AS v FROM `main`.`s`.`orders`) AS v, "
+                                "(SELECT COUNT(*) AS v FROM `main`.`s`.`orders`) AS n"]
     assert deep.summary()["tables_read"] == ["main.s.orders"]
 
 

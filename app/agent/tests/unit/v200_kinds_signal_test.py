@@ -230,7 +230,7 @@ def test_d5_a_kind_whose_companion_tables_the_data_cannot_fill_is_relabelled_to_
     inst = q5(agent_ns, [uc_], SHOPS)
     assert (uc_["use_case_kind"], uc_["kind_relabelled_from"]) == ("allocation", "site_territory")
     logged = " ".join(str(call.args[0]) for call in inst.logger.info.call_args_list)
-    assert ("[KIND-MATCH FIRED] 1 use case relabelled to the kind of the technique each one uses: N01-U01 site_territory -> "
+    assert ('[KIND-MATCH FIRED] 1 use case relabelled to the kind of the technique each one uses: N01-U01 "Choose the next shop sites" site_territory -> '
             "allocation (its __geo table needs a geographic column") in logged
 
 
