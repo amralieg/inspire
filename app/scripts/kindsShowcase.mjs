@@ -304,7 +304,7 @@ const DRAFTS = [
     serve: 'A peer benchmark for regional directors: each store\'s margin against stores of the same size, format and catchment, with the gap in dollars and a practice to copy.',
     how: 'Peer benchmarking: a regression adjusts margin for store size, format and local income, so each store is compared with what its peers achieve, not with the average.',
     value: 'Margin from closing part of the gap to the peer median: gap times share closed, from store_sales, store and household_demographics.',
-    story: '9 stores sit more than 2 points below their peer median. Closing half the gap is worth $1.0M a year.',
+    story: '9 stores sit more than 2 points below their peer median, a gap worth $2.1M a year. Closing half of it adds $1.0M.',
     stake: '$2.1M a year', tables: ['store_sales', 'store', 'household_demographics'], result: 'store_peers', app: 'store-peers', title: 'Store peer benchmark',
     genie: [
       g('Why is Store 61 below its peers?', 'Its margin is 22.9% against a peer median of 29.8%. Most of the gap is markdowns: it marks down 3 weeks earlier than Store 44, the best peer of its size.'),
@@ -344,7 +344,7 @@ const DRAFTS = [
     serve: 'A lift readout for promotions: what each promotion really added after cannibalization and pull-forward, with a keep, change or stop call.',
     how: 'Causal impact: difference-in-differences compares stores with the promotion against matched stores without it, with the 12 weeks before as the baseline.',
     value: 'Promotion spend moved from loss-making to profitable promotions: net lift minus cost per promotion, from store_sales, promotion and item.',
-    story: 'Spring 2-for-1 added $212K net. Clearance week lost $35K after cannibalization.',
+    story: '$2.8M of promotion spend reviewed a year: Spring 2-for-1 added $212K net, and clearance week lost $35K after cannibalization.',
     stake: '$2.8M spend reviewed a year', tables: ['store_sales', 'promotion', 'item', 'store'], result: 'promo_lift', app: 'promo-lift', title: 'Promotion lift readout',
     genie: [
       g('Is the Spring 2-for-1 lift real or just the season?', 'Real: matched stores without the promotion rose 4% in the same weeks, the promoted stores rose 19%. The 95% range of the net lift is $140K to $280K.', "SELECT * FROM promo_lift__effect WHERE intervention = 'Spring 2-for-1'"),
@@ -1082,8 +1082,8 @@ const LAYOUTS = {
   monitor_triage: { page: monitorPage, rows: monitorRows, data: monitorData },
   performance_explainer: { page: explainerPage, rows: explainerRows, data: explainerData },
   dashboard: { page: dashboardPage, rows: () => [], data: dashboardData },
-  forecast_cockpit: { page: forecastPage, rows: forecastRows, data: forecastData },
-  planner: { page: plannerPage, rows: plannerRows, data: plannerData },
+  forecast_cockpit: { page: forecastPage, rows: forecastRows, data: forecastData, plan: true },
+  planner: { page: plannerPage, rows: plannerRows, data: plannerData, plan: true },
   scenario_lab: { page: scenarioPage, rows: () => [], data: scenarioData },
   segment_explorer: { page: segmentPage, rows: segmentRows, data: segmentData },
   recommendation_desk: { page: recsPage, rows: recsRows, data: recsData },
@@ -1107,6 +1107,7 @@ export function mvpSettings(u) {
   return {
     title: u.title, subtitle: DOMAINS[u.no.slice(0, 3)], genie: { space_id: `01f0d${u.no.replace('-', '').toLowerCase()}`, title: u.title },
     admin: DEMO_OWNER, built_at: '2026-11-02T06:00:00Z',
+    ...(LAYOUTS[u.mvp.layout]?.plan ? { options: { modify: false, replace_edits: false, decisions: true } } : {}),
   };
 }
 
@@ -1186,7 +1187,7 @@ export function mvpApi(u, info, shared = {}) {
       const found = listed(rows, body);
       const offset = body?.offset || 0;
       const limit = body?.limit || 25;
-      return { rows: found.slice(offset, offset + limit), total: found.length, offset, limit, actions: false, changes: false,
+      return { rows: found.slice(offset, offset + limit), total: found.length, offset, limit, actions: !!layout.plan, changes: false,
         summary: { open: found.length, done: 0, resolved: 0, left: 0, owners: [] }, errors: {} };
     },
     'POST scenario/evaluate': (body) => scenarioEvaluate(u, body?.values || {}),

@@ -159,18 +159,59 @@ const compactMoney = (n) => {
   return `$${Number(v.toFixed(1))}${s}`;
 };
 
-test('a kinds demo use case says one amount: its story, its stake and its money tile name the same number', async () => {
+const amountOf = (text) => {
+  const m = moneyOf(text);
+  if (!m) return null;
+  const n = Number(m.replace(/[$,KMB]/g, ''));
+  return Math.round(n * ({ K: 1e3, M: 1e6, B: 1e9 }[m.slice(-1)] || 1));
+};
+
+test('a kinds demo use case says one amount: the first amount its story states is its stake, and its money tile names the same number', async () => {
   const { USE_CASES } = await kinds();
-  const checked = [];
-  for (const u of USE_CASES) {
+  const stated = USE_CASES.filter((u) => moneyOf(u.story) || moneyOf(u.stake));
+  assert.ok(stated.length >= 12, `${stated.length} use cases state an amount`);
+  for (const u of stated) {
+    if (moneyOf(u.story)) assert.equal(amountOf(u.story), amountOf(u.stake), `${u.title}: story ${u.story} against the stake ${u.stake}`);
     const money = Array.isArray(u.mvp?.kpis) ? u.mvp.kpis.find((k) => k[1] === 'currency') : null;
-    if (!money) continue;
-    const tile = compactMoney(money[2]);
-    assert.equal(moneyOf(u.story), tile, `${u.title}: story ${u.story} against the tile ${tile}`);
-    assert.equal(moneyOf(u.stake), tile, `${u.title}: stake ${u.stake} against the tile ${tile}`);
-    checked.push(u.title);
+    if (money) assert.equal(compactMoney(money[2]), compactMoney(amountOf(u.stake)), `${u.title}: tile ${money[2]} against the stake ${u.stake}`);
   }
-  assert.ok(checked.length >= 2, checked.join(', '));
+});
+
+test('the demo plan lines take decisions: Accept, Override with a reason and Take all answer locally, and nothing reaches a real API', async () => {
+  const { USE_CASES } = await kinds();
+  const plans = Object.entries(bundle().mvps).filter(([, mvp]) => JSON.parse(JSON.stringify(mvp.api['GET /api/app']?.body || {})).pages?.[0]?.plan);
+  assert.ok(plans.length >= 2, `${plans.length} plan MVPs`);
+  for (const [, mvp] of plans) {
+    const info = mvp.api['GET /api/app'].body;
+    assert.equal(info.settings?.options?.decisions ?? info.options?.decisions, true);
+    const list = Object.entries(mvp.api).find(([k]) => k.startsWith('POST /api/records '))[1].body;
+    assert.equal(list.actions, true);
+    assert.ok(list.rows.every((r) => r._inspire_version && r.record_key));
+  }
+  assert.ok(USE_CASES.some((u) => u.mvp.layout === 'planner'));
+  const { srv, reached } = await serve();
+  const base = srv.url;
+  try {
+    const [slug, mvp] = plans[0];
+    const url = `${S.showcaseMvpPath('kinds-retail', slug)}api/plan/decide`;
+    const rows = Object.entries(mvp.api).find(([k]) => k.startsWith('POST /api/records '))[1].body.rows;
+    const accept = await call(base, url, { method: 'POST', body: { page: 'p', record_key: rows[0].record_key, seen: rows[0]._inspire_version, decision: 'accept', recommended: 1 } });
+    assert.equal(accept.status, 200);
+    assert.deepEqual([accept.data.ok, accept.data.saved, accept.data.status, accept.data.note], [true, false, 'Accepted', S.SHOWCASE_PLAN_NOTE]);
+    const override = await call(base, url, { method: 'POST', body: { page: 'p', record_key: rows[1].record_key, decision: 'override', value: 12, reason: 'Store event this week' } });
+    assert.equal(override.status, 200);
+    assert.equal(override.data.status, 'Overridden');
+    const bare = await call(base, url, { method: 'POST', body: { page: 'p', record_key: rows[1].record_key, decision: 'override', value: 12, reason: ' ' } });
+    assert.equal(bare.status, 400);
+    assert.match(bare.data.error, /reason/);
+    const all = await Promise.all(rows.map((r) => call(base, url, { method: 'POST', body: { page: 'p', record_key: r.record_key, seen: r._inspire_version, decision: 'accept' } })));
+    assert.deepEqual([...new Set(all.map((r) => r.status))], [200]);
+    const act = await call(base, `${S.showcaseMvpPath('kinds-retail', slug)}api/records/act`, { method: 'POST', body: { record_keys: ['K1'] } });
+    assert.equal(act.status, 403);
+    assert.deepEqual(reached, []);
+  } finally {
+    await srv.close();
+  }
 });
 
 test('the kinds demo answers the App\'s own question, what to do first, for every list, with the first record by name', async () => {

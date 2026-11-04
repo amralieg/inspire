@@ -18,6 +18,8 @@ const SHOWCASE_MISSING = 'The demo has no saved answer for this view. Choose Get
 const SHOWCASE_UNKNOWN = 'This demo is not in this Inspire App.';
 const SHOWCASE_GENIE = 'In the demo, Genie answers the questions it suggests. Ask your own questions in an MVP built on your data.';
 const SHOWCASE_GENIE_ASK = 'POST /api/genie/ask';
+const SHOWCASE_PLAN_DECIDE = 'POST /api/plan/decide';
+const SHOWCASE_PLAN_NOTE = 'Demo decision: it shows here and is saved nowhere.';
 const SHOWCASE_READS = new Set([
   'POST /api/page', 'POST /api/records', 'POST /api/overview', 'POST /api/genie/explain', 'POST /api/alerts/preview', 'POST /api/scenario/evaluate', 'POST /api/my_work',
   'POST /api/inspire/implement/readiness', 'POST /api/inspire/implement/plan', 'POST /api/inspire/implement/swaps',
@@ -134,6 +136,7 @@ function showcaseWriteGuard(req, res, next) {
   const hosted = SHOWCASE_MVP_API_RE.exec(req.path);
   const demo = Boolean(hosted) || (req.path.startsWith('/api/') && Boolean(req.get(SHOWCASE_HEADER)));
   if (!demo || showcaseCanRead(req.method, hosted ? `/api/${hosted[1]}` : req.path)) return next();
+  if (hosted && `${String(req.method).toUpperCase()} /api/${hosted[1]}` === SHOWCASE_PLAN_DECIDE) return next();
   return refuseChange(res);
 }
 
@@ -144,6 +147,18 @@ function replay(res, answers, method, pathname, query, body) {
   if (answer) return res.status(answer.status).json(answer.body);
   const miss = showcaseMiss(method, pathname);
   return res.status(miss.status).json({ error: miss.error, showcase: true });
+}
+
+function showcasePlanDecision(body) {
+  const b = body && typeof body === 'object' ? body : {};
+  const key = typeof b.record_key === 'string' ? b.record_key.trim() : '';
+  const reason = typeof b.reason === 'string' ? b.reason.trim() : '';
+  if (!key || !['accept', 'override'].includes(b.decision)) return { status: 400, body: { error: 'A plan decision needs a line and accept or override.', showcase: true } };
+  if (b.decision === 'override' && (!Number.isFinite(Number(b.value)) || b.value === '' || b.value == null || !reason || reason.length > 300)) {
+    return { status: 400, body: { error: 'An override needs your value and a reason of at most 300 characters.', showcase: true } };
+  }
+  return { status: 200, body: { ok: true, showcase: true, saved: false, record_key: key, decision: b.decision,
+    status: b.decision === 'accept' ? 'Accepted' : 'Overridden', note: SHOWCASE_PLAN_NOTE } };
 }
 
 function restPath(rest) {
@@ -195,6 +210,11 @@ function registerShowcaseRoutes(app, { dir = SHOWCASE_DIR, shellFiles, log = con
   app.all('/showcase/:id/mvp/:mvp/api/*rest', (req, res) => {
     const mvp = mvpOf(req, res);
     if (!mvp) return undefined;
+    const route = `${String(req.method).toUpperCase()} /api/${restPath(req.params.rest)}`;
+    if (route === SHOWCASE_PLAN_DECIDE) {
+      const decided = showcasePlanDecision(req.body);
+      return res.status(decided.status).set('Cache-Control', 'no-store').json(decided.body);
+    }
     return replay(res, mvp.api, req.method, `/api/${restPath(req.params.rest)}`, req.query, sentBody(req));
   });
 
@@ -220,6 +240,9 @@ function registerShowcaseRoutes(app, { dir = SHOWCASE_DIR, shellFiles, log = con
 
 module.exports = {
   SHOWCASE_GENIE_ASK,
+  SHOWCASE_PLAN_DECIDE,
+  SHOWCASE_PLAN_NOTE,
+  showcasePlanDecision,
   SHOWCASE_VERSION,
   SHOWCASE_HEADER,
   SHOWCASE_DIR,
