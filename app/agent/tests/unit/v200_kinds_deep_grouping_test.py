@@ -331,7 +331,10 @@ def test_the_run_plan_and_the_build_instruction_carry_the_join(agent_ns):
 
 class _Dimension:
     def __init__(self, frame):
-        self.frame, self.selected = frame, ()
+        self.frame, self.selected, self.columns = frame, (), list(frame.columns)
+
+    def where(self, _condition):
+        return self
 
     def select(self, *names):
         self.selected = names
@@ -362,8 +365,10 @@ def test_a_run_joins_the_dimension_for_a_joined_grouping_column_itself(fresh_ns)
     item = pd.DataFrame({"item_sk": [str(i) for i in range(80)] + ["0"], "category": [f"c{i % 2}" for i in range(80)] + ["c0"]})
     _joined_run(fresh_ns, {"item.category": {"table": ITEM, "key": "item_sk", "ref_column": "item_sk"}})
     session, printed = _Session(item), []
+    fresh_ns["INSPIRE_RUN_LOG"] = {}
     out = fresh_ns["inspire_group_records"](records, group_by="item.category", out=printed.append, spark_session=session)
     assert len(session.tables) == 1 and list(out.index) == list(range(100, 180))
+    assert "main.s.item" in fresh_ns["INSPIRE_RUN_LOG"]["reads"], "the dimension is read through the one source-read helper, so the run log names it"
     assert sorted(set(out["inspire_group"])) == ["c0", "c1"] and fresh_ns["INSPIRE_RUN_GROUPING"]["group_by"] == ["category"]
     assert any("[GROUP-JOIN FIRED] Grouping item.category: joined main.s.item on item_sk = item_sk" in line for line in printed)
     session = _Session(item)
