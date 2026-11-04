@@ -168,3 +168,79 @@ def test_no_llm_call_inside_a_retry_or_round_loop_can_hit_the_cache():
     assert bad == []
     [vibes] = [n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef) and n.name == "_implement_vibes_llm"]
     assert "skip_cache=kind not in IMPLEMENT_VIBES_CACHED_KINDS" in ast.unparse(vibes)
+
+
+VALID = "Add a bar chart of the late-line rate by nation"
+DERIVED = "Show the revenue lost to late lines by nation"
+REASON = "No table holds carbon emissions or ESG scores; a supplier emissions table would make this possible"
+
+
+def _hold(agent_ns, asks, verdicts=None, fails=False):
+    inst = _inspire(agent_ns, FakeSpark())
+    asked = []
+
+    def llm(kind, prompt, schema):
+        asked.append((kind, prompt))
+        if kind == "split":
+            return {"asks": [{"ask": a, "check": None, "keep": False, "where": ""} for a in asks]}
+        if fails:
+            raise RuntimeError("endpoint timed out")
+        return {"checks": [dict({"n": n}, **v) for n, v in enumerate(verdicts or [], 1)]}
+
+    inst._implement_vibes_llm = llm
+    inst._implement_vibes_sources = lambda spec, use_case: SOURCES
+    spec = {"data": {"notes": " ".join(asks)}, "outputs": {}}
+    return inst._implement_vibes_hold("N02-U05", dict(USE_CASE), spec, {}), asked
+
+
+def test_an_ask_for_data_the_sources_lack_is_held_before_genie_builds(agent_ns):
+    held, asked = _hold(agent_ns, [ASK, VALID], [{"status": "no_data", "evidence": REASON, "where": ""}])
+    assert held == {agent_ns["IMPLEMENT_NOTEBOOK"]: {ASK: agent_ns["IMPLEMENT_VIBES_NO_DATA"] + REASON}}
+    [prompt] = [p for k, p in asked if k == "judge"]
+    assert "Nothing is built for the part yet" in prompt and "s_acctbal" in prompt
+    assert ASK in prompt and VALID not in prompt
+
+
+def test_an_ask_whose_data_exists_still_goes_to_genie(agent_ns):
+    held, asked = _hold(agent_ns, [VALID])
+    assert held == {} and [k for k, _p in asked if k == "judge"] == []
+    held, asked = _hold(agent_ns, [DERIVED], [{"status": "missing", "evidence": "nothing is built yet", "where": ""}])
+    assert held == {} and [k for k, _p in asked if k == "judge"] == ["judge"]
+    held, _asked = _hold(agent_ns, [VALID, ASK], [{"status": "no_data", "evidence": REASON, "where": ""}])
+    assert VALID not in held.get(agent_ns["IMPLEMENT_NOTEBOOK"], {})
+    held, _asked = _hold(agent_ns, [ASK], fails=True)
+    assert held == {}
+
+
+def test_genie_is_told_to_leave_a_held_ask_out_and_nothing_when_none_is_held(agent_ns):
+    held = {agent_ns["IMPLEMENT_NOTEBOOK"]: {ASK: agent_ns["IMPLEMENT_VIBES_NO_DATA"] + REASON}}
+    text = agent_ns["implement_choices_markdown"]({"data": {}, "config": {}, "outputs": {}}, held=held)
+    assert f"Inspire holds these of the customer's asks" in text and f"1. {ASK} ({REASON})" in text
+    assert "never stand in for them with other columns or fixed numbers" in text
+    assert "Inspire holds" not in agent_ns["implement_choices_markdown"]({"data": {}, "config": {}, "outputs": {}})
+
+
+def test_a_held_ask_is_reported_with_its_reason_and_never_judged_or_resent(agent_ns):
+    inst = _inspire(agent_ns, FakeSpark())
+    asked = []
+
+    def llm(kind, prompt, schema):
+        asked.append(kind)
+        return {"asks": [{"ask": ASK, "check": None, "keep": False, "where": ""}]} if kind == "split" else {"checks": []}
+
+    inst._implement_vibes_llm = llm
+    reason = agent_ns["IMPLEMENT_VIBES_NO_DATA"] + REASON
+    item = {"asset": agent_ns["IMPLEMENT_NOTEBOOK"], "text": ASK, "artifact": CLEAN, "sources": SOURCES,
+            "held_terms": _held(agent_ns), "held_asks": {ASK: reason}}
+    found = inst._implement_vibes_round({}, [item], "N02-U05 notebook round 1/3")
+    [check] = found["checks"][agent_ns["IMPLEMENT_NOTEBOOK"]]
+    assert (check["status"], check["evidence"]) == ("missing", reason)
+    assert found["resend"] == {} and "judge" not in asked
+
+
+def test_the_hold_runs_before_the_notebook_is_written_and_reaches_its_instruction():
+    source = "".join(json.loads(NOTEBOOK.read_text())["cells"][1]["source"])
+    hold = source.index('use_case["_implement_held"] = self._implement_vibes_hold(uc_id, use_case, spec, vibes_split)')
+    assert hold < source.index("notebook_path = self._implement_write_notebook(use_case, spec, basis, key")
+    assert 'held=use_case.get("_implement_held"))' in source
+    assert '"held_asks": ((use_case or {}).get("_implement_held") or {}).get(asset) or {}' in source
