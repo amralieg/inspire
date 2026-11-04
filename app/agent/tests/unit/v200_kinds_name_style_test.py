@@ -127,7 +127,8 @@ def test_the_combined_label_is_the_name_using_the_technique_in_lower_case(agent_
     assert label({"Name": "Catch freight invoices billed above the contract rate", "Analytics Technique": ""}) == \
         "Catch freight invoices billed above the contract rate"
     assert label({"Name": "", "Analytics Technique": "Forecasting"}) == "Forecasting"
-    assert label(uc, {}, "Arabic") == uc["Name"], "the connector is English; other languages show the technique in its own fact"
+    arabic = obj._doc_technique_label("Predictive Modeling", {}, "Arabic")[0]
+    assert label(uc, {}, "Arabic") == f"{uc['Name']} باستخدام {arabic}", "each language joins them with its own word"
 
 
 def test_the_shared_use_case_view_shows_the_combined_label_under_the_headline(agent_ns):

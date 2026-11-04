@@ -8,6 +8,7 @@ import PortfolioCards, { usePortfolio } from '../components/PortfolioCards';
 import { makeApiFetch, requestHeaders } from '../lib/apiClient';
 import { buildFilterOf, portfolioCard, runBusiness, runFilterText, runsOfCard } from '../lib/reviewFigures';
 import { sessionStatus, sessionSucceeded } from '../lib/monitorState';
+import { nameOfUseCase } from '../lib/useCaseFields';
 
 const STATUS_CONFIG = {
   finished: { label: 'Completed', bg: 'bg-success-bg', text: 'text-success-fg', dot: 'bg-success' },
@@ -106,7 +107,7 @@ function getListRowOverview(session) {
       total: api.total,
       high: Number(api.high) || 0,
       domains: Number(api.domains) || 0,
-      previewTitles: Array.isArray(api.preview_titles) ? api.preview_titles.filter(Boolean) : [],
+      previewTitles: Array.isArray(api.preview_use_cases) ? api.preview_use_cases.map(nameOfUseCase).filter(Boolean) : [],
     };
   }
   const legacy = getSessionSummary(session);
@@ -114,7 +115,7 @@ function getListRowOverview(session) {
     const previewTitles = [...legacy.useCases]
       .sort((a, b) => priorityTierIndex(a) - priorityTierIndex(b))
       .slice(0, 4)
-      .map((uc) => uc.Name || uc.use_case_name || uc.name || uc.usecase || '')
+      .map((uc) => nameOfUseCase(uc) || uc.usecase || '')
       .filter(Boolean);
     return {
       total: legacy.total,
@@ -611,7 +612,7 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onView
                           .sort((a, b) => priorityTierIndex(a) - priorityTierIndex(b))
                           .slice(0, 8)
                           .map((uc, i) => {
-                            const ucName = uc.Name || uc.use_case_name || uc.name || uc.usecase || `Use Case ${i + 1}`;
+                            const ucName = nameOfUseCase(uc) || uc.usecase || `Use Case ${i + 1}`;
                             const ucPriority = uc.Priority || uc.priority || '';
                             const ucDomain = uc['Business Domain'] || uc.domain || '';
                             const ucTechnique = uc['Analytics Technique'] || '';

@@ -93,6 +93,6 @@ def test_arabic_pdf_isolates_table_names_numbers_and_ids(agent_ns, captured):
     assert "الجدول " + LRI + "main.s.sales" + PDI + " (عمود " + LRI + "units_sold" + PDI + ")" in card
     assert LRI + "12.5%" + PDI in card
     assert "توقع الطلب (" + LRI + "units_sold" + PDI + ") يوميا" in card
-    assert '<div class="sub">' + LRI + "Forecast units_sold by store" + PDI + " (المبيعات)</div>" in card
+    assert '<div class="sub">' + LRI + "Forecast units_sold by store" + PDI + " (المبيعات) باستخدام " in card
     assert "ملخص يذكر الجدول " + LRI + "main.s.sales" + PDI in page
     assert all(balanced(run) for run in isolates(page))

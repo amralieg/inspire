@@ -49,6 +49,34 @@ test('the run list falls back to the completion time on a session table without 
     'any other error is not hidden behind the fallback');
 });
 
+test('the run previews read the name with its technique next to the Name, and a table written before that column keeps the Name', async () => {
+  const UC = '`main`.`inspire`.`__inspire_usecases`';
+  const fresh = R.sessionPreviewStatement(UC, ['42', '43', '1 OR 1=1']).sql;
+  assert.match(fresh, /, name_with_technique, ROW_NUMBER/);
+  assert.match(fresh, /AS Name/);
+  assert.match(fresh, /session_id IN \(42,43\)/, 'only whole-number ids reach the SQL');
+  assert.match(fresh, /z\.rn <= 4/);
+  const rows = [
+    { session_id: '42', Name: 'Forecast stock', name_with_technique: 'Forecast stock using forecasting', rn: 1 },
+    { session_id: '42', Name: 'Spot late suppliers', name_with_technique: '', rn: 2 },
+    ...['a', 'b', 'c'].map((n, i) => ({ session_id: '43', Name: n, name_with_technique: null, rn: i + 1 })),
+  ];
+  const sent = [];
+  const old = await R.loadSessionPreviews(async (statement) => {
+    sent.push(statement.sql);
+    if (!statement.sql.includes('CAST(NULL AS STRING) AS name_with_technique')) throw MISSING('name_with_technique');
+    return rows;
+  }, UC, ['42', '43']);
+  assert.equal(sent.length, 2);
+  assert.deepEqual(old['42'], [{ Name: 'Forecast stock', name_with_technique: 'Forecast stock using forecasting' }, { Name: 'Spot late suppliers', name_with_technique: null }]);
+  assert.deepEqual(old['43'].map((u) => u.Name), ['a', 'b', 'c']);
+  const once = [];
+  await R.loadSessionPreviews(async (statement) => { once.push(statement.sql); return []; }, UC, ['42']);
+  assert.equal(once.length, 1, 'a table with the column is read once');
+  await assert.rejects(R.loadSessionPreviews(async () => { throw new Error('PERMISSION_DENIED: no SELECT'); }, UC, ['42']), /PERMISSION_DENIED/,
+    'any other error is not hidden behind the fallback');
+});
+
 test('the portfolio reads each table with one aggregate that rolls up per run and in total, bounded and parameterized', () => {
   const uc = R.portfolioUseCaseStatement('`c`.`s`.`__inspire_usecases`');
   assert.match(uc.sql, /GROUP BY ROLLUP \(session_id\) ORDER BY is_total DESC, sid DESC LIMIT 1002$/);

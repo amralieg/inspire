@@ -31,7 +31,7 @@ const withUseCase = (results, no, extra) => ({
 });
 const CHURN_KEY = { use_case_key: 'acme:predict-churn' };
 const DEMO_RESULTS = withUseCase(withUseCase(RESULTS, 'N01-U03', { notebook_path: NOTEBOOK }), 'N01-U01', { ...CHURN_KEY, tables_involved: 'main.s.orders' });
-const DEMO_RUN = { ...REVIEW_SESSIONS[0], usecase_overview: { total: 6, high: 2, domains: 2, preview_titles: ['Predict churn', 'Forecast stock'] } };
+const DEMO_RUN = { ...REVIEW_SESSIONS[0], usecase_overview: { total: 6, high: 2, domains: 2, preview_use_cases: [{ Name: 'Predict churn' }, { Name: 'Forecast stock' }] } };
 const RUN_STEPS = [
   { step_id: '1', stage_name: 'Discovery', step_name: 'Read the tables', status: 'ended_success', last_updated: '2026-10-31T09:10:00Z', message: 'Read 4 tables', progress_increment: 20 },
   { step_id: '2', stage_name: 'Use Case Generation', step_name: 'Write the use cases', status: 'ended_success', last_updated: '2026-10-31T09:40:00Z',

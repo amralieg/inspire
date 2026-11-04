@@ -48,6 +48,7 @@ import { formatWhen } from '../lib/formatWhen';
 import { sessionFailed, sessionFinished } from '../lib/monitorState';
 import { responseError } from '../lib/apiClient';
 import { placeholderWords } from '../lib/placeholderWords';
+import { nameOfUseCase } from '../lib/useCaseFields';
 
 /* ─── Constants — notebook v1.2.0 widget `05_use_cases_quality` ─── */
 const QUALITY_OPTIONS = ['Good', 'High', 'Ultra High'];
@@ -151,7 +152,7 @@ function flattenPreviewFromResults(results) {
   return out;
 }
 
-function titleOfUseCase(uc) {
+function keyOfUseCase(uc) {
   return uc.Name || uc.use_case_name || uc.name || 'Use case';
 }
 
@@ -978,12 +979,12 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                           {!loadingUc && Array.isArray(ucs) && ucs.length > 0 && (
                             <ul className="max-h-72 overflow-y-auto space-y-2 pr-1">
                               {ucs.map((uc, i) => {
-                                const title = titleOfUseCase(uc);
+                                const title = nameOfUseCase(uc) || 'Use case';
                                 const blurb = blurbOfUseCase(uc);
                                 const score = inspireScoreFromUc(uc);
                                 return (
                                   <li
-                                    key={`qv-${sidStr}-${uc.id ?? uc.No ?? i}-${title}`}
+                                    key={`qv-${sidStr}-${uc.id ?? uc.No ?? i}-${keyOfUseCase(uc)}`}
                                     className="rounded-lg border border-border bg-surface/80 px-3 py-2"
                                   >
                                     <div className="flex items-start justify-between gap-2">

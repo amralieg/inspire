@@ -37,7 +37,7 @@ const {
   discoverReads, discoverWrites, listCatalogs, listSchemas, listTables, runReadRefusal, runWriteRefusal, writeRefusalBody,
 } = require('./lib/ucReads');
 const { registerShowcaseRoutes, showcaseWriteGuard } = require('./lib/showcase');
-const { loadSessionList, sessionListCap } = require('./lib/reviewFigures');
+const { loadSessionList, loadSessionPreviews, sessionListCap } = require('./lib/reviewFigures');
 const { executiveSummaryOf, parseResultsJson, runResultsStatement } = require('./lib/runSummary');
 const { isReadDenied } = require('./lib/inspireImplement');
 const { parseExactJson } = require('./lib/exactJson');
@@ -964,22 +964,11 @@ async function attachSessionUsecaseOverviews(host, token, warehouseId, catalog, 
       WHERE session_id IN (${idList})
       GROUP BY session_id`;
     const aggRows = sqlResultToObjects(await executeSql(host, token, warehouseId, aggSql));
-    const previewSql = `SELECT session_id, title, rn FROM (
-        SELECT session_id,
-          COALESCE(NULLIF(TRIM(use_case), ''), CONCAT('Use case ', CAST(id AS STRING))) AS title,
-          ROW_NUMBER() OVER (PARTITION BY session_id ORDER BY COALESCE(priority_score, 0) DESC, use_case) AS rn
-        FROM ${ucTable}
-        WHERE session_id IN (${idList})
-      ) z
-      WHERE z.rn <= 4
-      ORDER BY session_id, rn`;
-    const prevRows = sqlResultToObjects(await executeSql(host, token, warehouseId, previewSql));
-    const titlesBySid = {};
-    for (const r of prevRows) {
-      const sid = String(r.session_id);
-      if (!titlesBySid[sid]) titlesBySid[sid] = [];
-      if (r.title && titlesBySid[sid].length < 4) titlesBySid[sid].push(String(r.title));
-    }
+    const previewsBySid = await loadSessionPreviews(
+      async (statement) => sqlResultToObjects(await executeSql(host, token, warehouseId, statement.sql, statement.parameters)),
+      ucTable,
+      safeIds,
+    );
     const map = {};
     for (const r of aggRows) {
       const sid = String(r.session_id);
@@ -987,12 +976,12 @@ async function attachSessionUsecaseOverviews(host, token, warehouseId, catalog, 
         total: Number(r.usecase_count) || 0,
         high: Number(r.high_priority_count) || 0,
         domains: Number(r.domain_count) || 0,
-        preview_titles: titlesBySid[sid] || [],
+        preview_use_cases: previewsBySid[sid] || [],
       };
     }
     for (const s of sessions) {
       const sid = String(s.session_id);
-      s.usecase_overview = map[sid] || { total: 0, high: 0, domains: 0, preview_titles: [] };
+      s.usecase_overview = map[sid] || { total: 0, high: 0, domains: 0, preview_use_cases: [] };
     }
   } catch (e) {
     console.warn('attachSessionUsecaseOverviews:', e.message || e);

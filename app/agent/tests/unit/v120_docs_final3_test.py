@@ -62,7 +62,7 @@ def test_the_same_title_field_names_the_use_case_on_every_surface_in_every_langu
     card_ar = section(page_ar, 'id="uc-N01-U01"', "</article>")
     assert ">Forecast Bakery Demand</h3>" in card_en and "Forecast daily demand per store to cut waste" in card_en
     assert f">{html_lib.escape(AR_HEADLINE)}</h3>" in card_ar
-    assert f">{html_lib.escape(AR_NAME)}</div>" in card_ar
+    assert f">{html_lib.escape(AR_NAME)} باستخدام " in card_ar, "the Arabic card joins the name and technique with the Arabic word"
     assert page_ar.count(html_lib.escape(AR_HEADLINE)) >= 3
     _, prs = deck(docs, {"المبيعات": [arabic]}, summary(), language="Arabic")
     texts = [text.replace("\u2066", "").replace("\u2069", "") for text in slide_texts(prs)]
