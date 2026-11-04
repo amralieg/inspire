@@ -83,8 +83,7 @@ export default function ConfigPage({ settings, update, onConfigured }) {
     apiFetch('/api/warehouses')
       .then((d) => {
         setWarehouses(d.warehouses || []);
-        if (!warehouseId && d.warehouses?.length > 0)
-          update('warehouseId', d.warehouses[0].id);
+        if (d.warehouses?.length > 0) update('warehouseId', (chosen) => chosen || d.warehouses[0].id);
       })
       .catch(() => {})
       .finally(() => setWarehouseLoading(false));

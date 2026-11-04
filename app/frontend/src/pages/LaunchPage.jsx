@@ -528,8 +528,6 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
         const allTables = r.flat();
         console.log(`[tables] loaded ${allTables.length} for ${selectedSchemas.join(',')}`);
         setTables(allTables);
-        const availableNames = new Set(allTables.map(t => t.full_name));
-        setSelectedTables(prev => prev.filter(t => availableNames.has(t)));
       }
     }).finally(() => { if (!cancelled) setLoadingTables(false); });
     return () => { cancelled = true; };
@@ -635,7 +633,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [params['00_business_name'], sessionsList, warehouseId, previewDb]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [params['00_business_name'], sessionsList, warehouseId, previewDb, discoveryTouched, strategyTouched, prioritiesTouched]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const strategyProblems = useMemo(() => [
     ...validateStrategicContextText(strategicContextText),

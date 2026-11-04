@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
-import { assertFitsScreen, closeBrowser, dataToResults, lowContrast, onStep, openUi, setDark, settled, startMvp, toAppAccess, toVibes, watchAsks, wizardFit } from './uiSupport.mjs';
+import { assertFitsScreen, closeBrowser, dataToResults, lowContrast, onStep, openUi, setDark, settled, startMvp, toAppAccess, toVibes, until, watchAsks, wizardFit } from './uiSupport.mjs';
 
 const { appShellCatalog } = createRequire(import.meta.url)('../../../backend/lib/appShell.js');
 const SHELL = appShellCatalog();
@@ -647,6 +647,103 @@ test('a new use case joins the App made for its domain by default, Create new st
     assert.deepEqual(remembered.pageErrors, []);
   } finally {
     await remembered.close();
+  }
+});
+
+const PLACE_WAITING = 'wait until Inspire has listed the Apps it built, then choose where the App goes';
+const DOMAIN_APP_STATE = {
+  ...MERGE_STATE,
+  useCase: PLACE_UC,
+  useCaseScope: PLACE_SCOPE,
+  registry: [
+    ...MERGE_STATE.registry,
+    { ...target('42', 'N01-U05', 'Price promos', { app: true, app_access: 'sp', app_placement: 'domain' }), app_name: 'inspire-acme-customer' },
+  ],
+  appsByName: { ...MERGE_STATE.appsByName, 'inspire-acme-customer': { name: 'inspire-acme-customer', description: 'Inspire use case N01-U05 (session 42): Price promos' } },
+};
+
+function holdAppList() {
+  let release;
+  const held = new Promise((resolve) => { release = resolve; });
+  const asked = [];
+  return {
+    asked,
+    release: () => release(),
+    init: (page) => page.route((url) => url.pathname === '/api/inspire/implement/merge-targets', async (route) => {
+      asked.push(route.request().url());
+      await held;
+      await route.continue();
+    }),
+  };
+}
+
+test('while the App list loads nothing looks chosen and Next waits, and Create a new App picked then stays a new App when the list arrives, never the domain App', async () => {
+  const list = holdAppList();
+  const ui = await openUi('wizard', DOMAIN_APP_STATE, '', { init: list.init });
+  const { page, made } = ui;
+  try {
+    await toDelivery(page);
+    await page.getByRole('checkbox', { name: /^App / }).check();
+    await next(page);
+    await onStep(page, 'App placement');
+    await until(() => list.asked.length > 0, 'the App list is asked');
+    const group = placeStep(page).getByRole('radiogroup', { name: 'Where the App goes' });
+    const fresh = placeStep(page).getByRole('radio', { name: /^Create a new App/ });
+    await placeStep(page).getByText('Finding the Apps Inspire built').waitFor();
+    assert.equal(await group.getAttribute('aria-busy'), 'true', 'the choice says it is still loading');
+    assert.deepEqual(await placeStep(page).locator('input[name="app-place"]').evaluateAll((radios) => radios.map((r) => [r.value, r.checked, r.disabled])),
+      [['join', false, true], ['new', false, false], ['inspire', false, false]], 'no choice looks made while the list loads, and Create a new App can be clicked');
+    await next(page);
+    await page.locator('[role="alert"]').getByText(PLACE_WAITING, { exact: true }).waitFor();
+    await onStep(page, 'App placement');
+    await fresh.check();
+    assert.equal(await fresh.isChecked(), true, 'a click on Create a new App takes while the list loads');
+    await placeStep(page).locator('[data-app-new-waiting]').waitFor();
+    assert.equal(await page.getByLabel('App name').count(), 0, 'the name waits for the list, so it never takes the name of an App Inspire built');
+    list.release();
+    await page.getByLabel('App name').waitFor();
+    assert.equal(await group.getAttribute('aria-busy'), 'false');
+    assert.equal(await fresh.isChecked(), true, 'the list arriving never turns a new App into joining one');
+    assert.equal(await targetRadio(page, 'inspire-acme-customer').isChecked(), false);
+    assert.equal(await page.getByLabel('App name').inputValue(), 'inspire-acme-customer-2');
+    await startWhenReady(page);
+    const spec = submittedSpec(made);
+    assert.deepEqual([spec.outputs.merge.app, spec.outputs.app_name, spec.outputs.app_placement], ['', 'inspire-acme-customer-2', 'domain']);
+    assert.deepEqual(ui.pageErrors, []);
+  } finally {
+    list.release();
+    await ui.close();
+  }
+});
+
+test('with the App list still loading the wizard opened on Vibes keeps Start MVP off and asks for no plan, then builds once the default is set', async () => {
+  const list = holdAppList();
+  const plans = [];
+  const ui = await openUi('wizard', { me: { userName: OWNER, displayName: 'Owner' } }, '&step=vibes', {
+    init: async (page) => {
+      page.on('request', (r) => { if (new URL(r.url()).pathname === '/api/inspire/implement/plan') plans.push(r.url()); });
+      await list.init(page);
+    },
+  });
+  const { page, made } = ui;
+  try {
+    await onStep(page, 'Vibes');
+    await until(() => list.asked.length > 0, 'the App list is asked');
+    const waiting = page.getByRole('button', { name: 'Listing the Apps…', exact: true });
+    await waiting.waitFor();
+    assert.equal(await waiting.isDisabled(), true, 'Start MVP stays off while where the App goes is not settled');
+    await page.waitForTimeout(1500);
+    assert.equal(await waiting.isDisabled(), true);
+    assert.deepEqual(plans, [], 'no plan is asked for a placement that is not settled');
+    assert.equal(await page.locator('[role="alert"]').getByText(PLACE_WAITING, { exact: false }).count(), 0, 'waiting is not shown as a mistake');
+    list.release();
+    await startWhenReady(page);
+    assert.ok(plans.length >= 1);
+    assert.equal(submittedSpec(made).outputs.merge.app, '');
+    assert.deepEqual(ui.pageErrors, []);
+  } finally {
+    list.release();
+    await ui.close();
   }
 });
 

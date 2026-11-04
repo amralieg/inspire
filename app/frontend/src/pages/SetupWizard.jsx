@@ -65,9 +65,9 @@ export default function SetupWizard({ settings, update, onComplete }) {
           const defResp = await fetch('/api/defaults');
           const defaults = await defResp.json();
 
-          if (defaults.databricksHost && !databricksHost) update('databricksHost', defaults.databricksHost);
-          if (defaults.warehouseId && !warehouseId) update('warehouseId', defaults.warehouseId);
-          if (defaults.inspireDatabase && !inspireDatabase) update('inspireDatabase', defaults.inspireDatabase);
+          if (defaults.databricksHost) update('databricksHost', (chosen) => chosen || defaults.databricksHost);
+          if (defaults.warehouseId) update('warehouseId', (chosen) => chosen || defaults.warehouseId);
+          if (defaults.inspireDatabase) update('inspireDatabase', (chosen) => chosen || defaults.inspireDatabase);
 
           // If workspace installer provided all required config, auto-complete setup
           const host = defaults.databricksHost || databricksHost;
@@ -114,10 +114,10 @@ export default function SetupWizard({ settings, update, onComplete }) {
         const whs = data.warehouses || [];
         setWarehouses(whs);
         // Auto-select first running serverless warehouse
-        if (!warehouseId && whs.length > 0) {
+        if (whs.length > 0) {
           const running = whs.find(w => w.state === 'RUNNING' && w.enable_serverless_compute);
           const first = running || whs.find(w => w.state === 'RUNNING') || whs[0];
-          if (first) update('warehouseId', first.id);
+          if (first) update('warehouseId', (chosen) => chosen || first.id);
         }
       })
       .catch(() => {});
