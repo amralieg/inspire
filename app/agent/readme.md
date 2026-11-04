@@ -616,7 +616,7 @@ From metadata alone, Inspire produces:
 - PDF catalogs, PowerPoint presentations, and Excel spreadsheets
 - JSON catalogs for programmatic consumption
 
-Inspire supports 23 languages for all generated artifacts. It is privacy-first by design: in Standard discovery only metadata is read, and in Deep discovery (the default) Inspire adds aggregates over your tables. No data row is ever sent to the AI, and the values of personal columns are never read.
+Inspire supports 23 languages for all generated artifacts. It is privacy-first by design: in Standard discovery Inspire reads metadata plus the aggregate kind evidence checks (seasonal history, levers, a control group, process steps) of the tables its use cases name, and in Deep discovery (the default) Inspire adds aggregates over your tables. No data row is ever sent to the AI, and the values of personal columns are never read.
 
 ---
 
@@ -676,7 +676,7 @@ These two must be filled correctly or the run will fail immediately.
 | Value | Behavior |
 |-------|----------|
 | `Deep` | Reads metadata, metric view definitions and usage counts, plus aggregates over your tables (row counts, null share, distinct counts, date coverage, short value lists of non-personal low-cardinality columns, join match rates, KPI baselines). Never sends a data row to the AI and never reads the values of personal columns |
-| `Standard` | Reads metadata, metric view definitions and usage counts only. Never reads a row of your data |
+| `Standard` | Reads metadata, metric view definitions and usage counts, plus the aggregate kind evidence checks of the tables its forecast, scenario, impact and process use cases name. Never reads a row of your data |
 
 See [Discovery Type: Standard And Deep](#a-discovery-type-standard-and-deep) for the exact reads and limits.
 

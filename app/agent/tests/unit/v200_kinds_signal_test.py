@@ -5,16 +5,18 @@
 3. A process needs at least three distinct steps on real case rows.
 4. Each minimum is a runtime parameter, and a use case the instructions ask for stays with thin data.
 5. A stated kind whose companion tables its tables cannot fill is relabelled to its technique's own kind.
+6. The forecast, scenario, impact and process checks run in every discovery mode; only Deep reads anything else.
 """
 import json
 import os
+import types
 import sys
 from unittest.mock import MagicMock
 
 import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from v120_artifacts_support import FakeSpark  # noqa: E402
+from v120_artifacts_support import FakeSpark, make_inspire, make_uc  # noqa: E402
 from v120_genie_support import StatusRecorder, build_inspire  # noqa: E402
 
 ORDERS = "main.s.orders"
@@ -252,3 +254,108 @@ def test_d5_a_gap_the_technique_kind_shares_keeps_the_kind_and_flags_it(agent_ns
     assert uc_["Use Case Kind"] == "process_mining" and "kind_relabelled_from" not in uc_
     assert "Q5_D5_COMPANION_DATA:process_mining" in uc_["gate_flags"]
     assert inst._kind_companion_gap("process_mining", None) == "", "no schema, no companion check"
+
+
+SHORT_SERIES = {"periods": 18, "median_gap": 30, "first_period": "2024-01-01", "last_period": "2025-06-01", "lag1": 0.1,
+                "lag12": 0.5}
+FLAT_PRICE = {"n": 1000, "lever_values": 40, "pooled": -0.0006, "within": 0.001}
+SERIES = {"time": "event_time", "measure": "units"}
+LEVER = {"lever": "price", "outcome": "units"}
+MODES = ("Deep", "Standard")
+
+
+def mode_inspire(agent_ns, mode, answers, rows):
+    rows = dict(rows, **{"SELECT COUNT(*) AS n FROM": {"n": 1000}})
+    if mode == "Deep":
+        return deep_inspire(agent_ns, answers, rows)
+    spark = FakeSpark(responder=responder(rows))
+    agent = Agent(answers)
+    inst = build_inspire(agent_ns, loader=Loader(), agent=agent, spark=spark, discovery_type=mode, deep_evidence=None)
+    inst.logger = MagicMock()
+    inst.discovery_evidence = {"profiles": {}, "join_matches": [], "data_access": {}}
+    inst._emit_pipeline_status = StatusRecorder()
+    inst.user_business_domains = []
+    return inst, agent, spark
+
+
+def test_the_modes_tested_are_every_discovery_mode(agent_ns):
+    assert tuple(sorted(agent_ns["DISCOVERY_TYPE_VALID"])) == tuple(sorted(MODES))
+
+
+@pytest.mark.parametrize("mode", MODES)
+def test_every_discovery_mode_applies_each_kind_check(agent_ns, mode):
+    ucs = [uc("N01-U01", "Forecasting"), uc("N01-U02", "Simulation", "driver_scenarios"), uc("N01-U03", "Causal Impact"),
+           uc("N01-U04", "Process Mining"), uc("N01-U05", "Optimization", "allocation")]
+    answers = [{"results": [answer("N01-U01", SERIES), answer("N01-U02", SCENARIO), answer("N01-U03", IMPACT),
+                            answer("N01-U04", PROCESS), answer("N01-U05", LEVER)]}]
+    rows = {"AS median_gap": SHORT_SERIES, "corr(l0, o)": ONE_LEVER, "AS compared_groups": SHORT_HISTORY,
+            "AS steps": TWO_STEPS, "AS pooled": FLAT_PRICE}
+    inst, agent, spark = mode_inspire(agent_ns, mode, answers, rows)
+    kept, dropped = inst._check_data_signal(ucs, [])
+    listing = agent.calls[0]["vars"]["use_cases_listing"]
+    assert [u["No"] for u in dropped][:4] == ["N01-U01", "N01-U02", "N01-U03", "N01-U04"]
+    assert "1.5 seasonal cycles" in dropped[0]["selection_drop_reason"]
+    assert "too few distinct steps (2)" in dropped[3]["selection_drop_reason"]
+    if mode == "Deep":
+        assert [u["No"] for u in dropped] == ["N01-U01", "N01-U02", "N01-U03", "N01-U04", "N01-U05"]
+    else:
+        assert [u["No"] for u in kept] == ["N01-U05"] and "data_signal" not in ucs[4]
+        assert "N01-U05" not in listing, "a check outside the kind evidence checks is never asked for outside Deep"
+        assert inst.deep_evidence is None, "only the signal reader exists outside Deep"
+        assert len(spark.statements) == 8, "at most a row count and one aggregate read per checked use case"
+        access = inst._v130_results_keys()["data_access"]
+        assert access["discovery_type"] == mode and access["tables_read_count"] == 1
+
+
+@pytest.mark.parametrize("mode", MODES)
+def test_data_that_holds_each_kind_keeps_its_use_case_in_every_mode(agent_ns, mode):
+    ucs = [uc("N01-U01", "Simulation", "driver_scenarios"), uc("N01-U02", "Causal Impact"), uc("N01-U03", "Process Mining")]
+    answers = [{"results": [answer("N01-U01", SCENARIO), answer("N01-U02", IMPACT), answer("N01-U03", PROCESS)]}]
+    rows = {"corr(l0, o)": TWO_LEVERS, "AS compared_groups": LONG_HISTORY, "AS steps": FIVE_STEPS}
+    inst, _agent, _spark = mode_inspire(agent_ns, mode, answers, rows)
+    kept, dropped = inst._check_data_signal(ucs, [])
+    assert [u["No"] for u in kept] == ["N01-U01", "N01-U02", "N01-U03"] and dropped == []
+    assert all(u["data_signal"]["status"] == "passed" and u["Data Evidence"]["signal"]["status"] == "passed" for u in ucs)
+
+
+@pytest.mark.parametrize("mode", MODES)
+def test_a_must_have_use_case_is_kept_and_flagged_in_every_mode(agent_ns, mode):
+    ucs = [uc("N01-U01", "Process Mining", user_request="R1"), uc("N01-U02", "Process Mining")]
+    answers = [{"results": [answer("N01-U01", PROCESS), answer("N01-U02", PROCESS)]}]
+    inst, _agent, _spark = mode_inspire(agent_ns, mode, answers, {"AS steps": TWO_STEPS})
+    inst.parsed_generation_instructions = {"use_case_requests": [{"id": "R1", "ask": "an order process map", "minimum": 1}]}
+    kept, dropped = inst._check_data_signal(ucs, [])
+    assert [u["No"] for u in kept] == ["N01-U01"] and [u["No"] for u in dropped] == ["N01-U02"]
+    assert ucs[0]["data_signal"]["status"] == "no_signal"
+    assert "Inspire kept it because the instructions ask for an order process map" in ucs[0]["data_signal"]["reason"]
+
+
+def test_outside_deep_the_reader_refuses_every_read_but_the_kind_checks(agent_ns):
+    spark = FakeSpark(responder=lambda statement: [{"n": 10}])
+    with pytest.raises(agent_ns["StandardModeDataReadError"]):
+        agent_ns["DeepEvidence"](spark, "Standard", MagicMock())
+    reader = agent_ns["DeepEvidence"](spark, "Standard", MagicMock(), signal_only=True)
+    with pytest.raises(agent_ns["StandardModeDataReadError"]):
+        reader._read("profile", ORDERS, "SELECT 1")
+    with pytest.raises(agent_ns["StandardModeDataReadError"]):
+        reader.signal_measures("lever", "`t`", ORDERS, {"roles": LEVER}, 10)
+    with pytest.raises(agent_ns["StandardModeDataReadError"]):
+        reader.measure_kpi({"aggregation": "COUNT", "table": ORDERS})
+    assert spark.statements == []
+    assert reader.summary()["discovery_type"] == "Standard"
+    assert [agent_ns["deep_signal_check_runs"](check, "Standard") for check in ("series", "scenario", "impact", "process",
+                                                                                "lever", "outcome", "groups")] == [True] * 4 + [False] * 3
+    assert all(agent_ns["deep_signal_check_runs"](check, "Deep") for check in ("lever", "outcome", "groups", "text"))
+
+
+def test_a_standard_run_that_read_kind_checks_says_so_in_every_language(agent_ns):
+    ts = agent_ns["TranslationService"]
+    for language, texts in {"English": ts.ENGLISH_TRANSLATIONS, **ts.TRANSLATION_FALLBACKS}.items():
+        assert "{tables}" in texts["doc_data_access_standard_checks"], language
+    t = dict(ts.ENGLISH_TRANSLATIONS)
+    inst = make_inspire(agent_ns, discovery_type="Standard", deep_evidence=None)
+    inst.signal_evidence = types.SimpleNamespace(summary=lambda: {"tables_read_count": 3})
+    model = inst._document_model("English", t, {}, {"Sales": [make_uc("N01-U01")]}, "Acme")
+    _title, items = inst._doc_disclaimer(model, t)
+    assert items[0] == t["doc_data_access_standard_checks"].format(tables=3)
+    assert "read aggregates from the tables its use cases name, 3 in total" in items[0]
