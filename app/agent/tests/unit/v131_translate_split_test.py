@@ -60,27 +60,51 @@ def test_a_row_that_stays_empty_after_the_split_is_flagged_and_the_others_are_tr
     assert by_id["N01-U01"]["_translation_status"] == by_id["N01-U03"]["_translation_status"] == "translated"
     assert by_id["N01-U02"]["_translation_status"] == "untranslated"
     assert by_id["N01-U02"]["_untranslated_fields"]
-    assert service.logger.matching("All retry attempts exhausted for batch #0b. It stays in English and is flagged.")
+    assert service.logger.matching("Batch #0b: all retry attempts of this request failed", level="WARNING")
+    assert not service.logger.matching("", level="ERROR")
 
 
-def test_every_call_after_an_empty_answer_skips_the_cache(docs):
+def test_the_top_batch_names_only_the_row_still_in_english_in_one_error(docs):
     def respond(ids, skip_cache):
-        return "" if not skip_cache or len(ids) > 1 else _translation_csv([_ja_row(i) for i in ids])
-    service, calls = _translator(docs, respond)
-    out = service._translate_batch(_batch(IDS[:2]), "Japanese", 0)
-    assert calls[0] == (tuple(IDS[:2]), False)
-    assert all(skip for _ids, skip in calls[1:]) and len(calls) == 3
-    assert [uc["_translation_status"] for uc in out] == ["translated"] * 2
+        return "" if len(ids) > 1 or ids == ["N01-U02"] else _translation_csv([_ja_row(i) for i in ids])
+    service, _calls = _translator(docs, respond)
+    out = service._translate_top_batch(_batch(), "Japanese", 0)
+    assert [uc["_translation_status"] for uc in out] == ["translated", "untranslated", "translated"]
+    assert [m for _lvl, m in service.logger.matching("", level="ERROR")] == [
+        "All retry attempts exhausted for batch #0: N01-U02 (all fields) stays in English and is flagged."]
 
 
-def test_an_empty_answer_on_the_partial_retry_path_is_split_too(docs):
+def test_a_batch_whose_rows_are_all_recovered_after_a_failed_split_piece_logs_no_error(docs):
+    seen = Counter()
+
     def respond(ids, skip_cache):
-        return "" if len(ids) > 1 else _translation_csv([_ja_row(i) for i in ids])
-    service, calls = _translator(docs, respond)
-    out = service._translate_batch(_batch(), "Japanese", 0, attempt=2, allow_rerequest=False)
-    assert calls[0] == (tuple(IDS), True)
-    assert sorted(calls[1:]) == [((i,), True) for i in IDS]
+        seen[tuple(ids)] += 1
+        if len(ids) > 1 or (ids == ["N01-U02"] and seen[tuple(ids)] == 1):
+            return ""
+        return _translation_csv([_ja_row(i) for i in ids])
+    service, _calls = _translator(docs, respond)
+    out = service.translate_use_case_list(_batch(), "Japanese", enable_parallelization=False)
     assert [uc["_translation_status"] for uc in out] == ["translated"] * 3
+    assert not service.logger.matching("", level="ERROR")
+    assert not service.logger.matching("stays in English")
+
+
+def _logger_levels(class_name, method_name):
+    import ast
+    from _agentload import method_node
+    return {c.func.attr for c in ast.walk(method_node(class_name, method_name)) if isinstance(c, ast.Call)
+            and isinstance(c.func, ast.Attribute) and isinstance(c.func.value, ast.Attribute) and c.func.value.attr == "logger"}
+
+
+@pytest.mark.parametrize("method", ["_translate_batch", "_split_translate_batch", "_parse_translation_rows",
+                                    "_retry_partial_translations", "_untranslated_attempt"])
+def test_no_intermediate_translation_round_logs_an_error(method):
+    levels = _logger_levels("TranslationService", method)
+    assert levels and not levels & {"error", "exception", "critical"}, levels
+
+
+def test_only_the_last_round_of_a_top_batch_logs_the_error():
+    assert "error" in _logger_levels("TranslationService", "_translate_top_batch")
 
 
 def test_an_endpoint_failure_is_still_retried_once_at_the_same_size(docs):
@@ -300,3 +324,36 @@ def test_a_good_quality_csv_file_does_not_name_ultra_high_fields(export_ns):
     row = dict(zip(rows[0], rows[1]))
     assert not row.get(labels["untranslated_notice"])
     assert labels["elite_cadence"] not in data.decode("utf-8-sig")
+
+
+def test_a_context_overflow_that_the_next_model_serves_is_a_warning_not_an_error(fresh_ns):
+    from v120_runtime_reliability_test import FakeConnectSpark, RecordingLogger, make_agent, use_roster
+    big, small = "databricks-claude-opus-5-5", "databricks-claude-opus-4-8"
+    use_roster(fresh_ns, big, small)
+
+    def answer(op):
+        if op["endpoint"] == big:
+            raise RuntimeError("BAD_REQUEST: prompt is too long: 213000 tokens > 200000 maximum")
+        return "ok"
+    log = RecordingLogger()
+    agent = make_agent(fresh_ns, FakeConnectSpark(answer), log)
+    assert agent._call_ai_query("translate these rows", "USE_CASE_TRANSLATE_PROMPT") == "ok"
+    assert [m for lvl, m in log.records if lvl == "ERROR"] == []
+    assert log.matching("Input too long on model", "WARNING")
+
+
+def test_every_log_line_before_a_cascade_rebatch_is_a_warning():
+    import ast
+    from _agentload import agent_ast
+    tree = agent_ast()
+    seen = 0
+    for fn in [n for n in ast.walk(tree) if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))]:
+        nodes = list(ast.walk(fn))
+        for raised in [n for n in nodes if isinstance(n, ast.Raise) and isinstance(n.exc, ast.Call)
+                       and getattr(n.exc.func, "id", "") == "CascadeRebatchError"]:
+            logged = [n for n in nodes if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
+                      and isinstance(n.func.value, ast.Attribute) and n.func.value.attr == "logger"
+                      and 0 < raised.lineno - n.lineno <= 6]
+            assert logged and {c.func.attr for c in logged} == {"warning"}, (fn.name, raised.lineno)
+            seen += 1
+    assert seen == 2

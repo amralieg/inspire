@@ -110,7 +110,7 @@ def test_the_trim_records_the_target_the_theme_cap_and_the_hard_veto_apart(agent
     assert not {id(uc) for uc in out} & set(drops), "a kept use case never carries a drop reason"
     assert [n for n, code in by_no.items() if code == "theme_cap"] == [f"U{i}" for i in range(4, 10)]
     assert [n for n, code in by_no.items() if code == "over_target"] == ["U13", "U14", "U16", "U17", "U18", "U19"]
-    assert by_no["U20"] == "hard_veto" and drops[id(ucs[20])][1] == "hard veto on gate D3"
+    assert by_no["U20"] == "hard_veto" and drops[id(ucs[20])][1] == "hard veto on gate Data Granularity (D3)"
     assert drops[id(ucs[4])][1] == "trimmed: its idea theme 'A' already holds the 4 use cases one theme may keep"
     assert drops[id(ucs[13])][1].startswith("trimmed: the catalog is trimmed to 8 use cases")
     line = [m for _lvl, m in obj.logger.records if m.startswith("Stratified trim:")][-1]

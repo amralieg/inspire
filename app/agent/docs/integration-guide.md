@@ -182,7 +182,7 @@ The `__inspire_usecases` table accumulates feature-flag columns version-by-versi
 | `best_of_best` | v1.3.0 | STRING | `Y` when the use case is starred as Best of Best (Section 8.16), `N` otherwise | Treat NULL as "not marked" (pre-v1.3.0 or the star judge failed) |
 | `best_of_best_rank` | v1.3.0 | STRING | Star rank from 1; NULL when not starred | Cast to INT to sort; never sort it as text |
 | `best_of_best_score` | v1.3.0 | STRING | Elite score out of 10 for every use case the elite judge scored | Cast to DOUBLE; NULL means not judged |
-| `best_of_best_reason` | v1.3.0 | STRING | Why the use case is starred, or the test it failed (`did not pass: ...`) | Show as text; treat NULL as "not marked" |
+| `best_of_best_reason` | v1.3.0 | STRING | Why the use case is starred, or the test it failed (`did not pass: ...`, each test named with its code in parentheses) | Show as text; treat NULL as "not marked" |
 
 **Regeneration Interlock:** When Route 1 (DB-flag) or Route 2 (notebook-flag) regeneration runs, the same transaction sets `generate_genie_code_instruction='No'` and `has_genie_code='Y'` (v0.7.6+; wrote `'Yes'` in v0.7.3 and earlier). Apps reading mid-flight are guaranteed a consistent snapshot thanks to Delta's ACID transaction guarantees.
 
@@ -1069,7 +1069,7 @@ Right before `Strategy Alignment`, Inspire stars up to N final use cases as Best
   "passed":    2,
   "starred":   2,
   "ids":       ["N03-U01", "N01-U04"],
-  "near_miss": [{"No": "N02-U02", "Name": "...", "Business Domain": "Pricing", "best_of_best_score": 7.9, "reason": "did not pass: score:evidence_strength"}]
+  "near_miss": [{"No": "N02-U02", "Name": "...", "Business Domain": "Pricing", "best_of_best_score": 7.9, "reason": "did not pass: evidence strength score (score:evidence_strength)"}]
 }
 ```
 

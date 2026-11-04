@@ -255,7 +255,7 @@ def test_bob_prescreen_drops_unscored_hard_veto_and_below_minimum_with_full_cont
     assert [u["No"] for u in survivors] == ["OK"]
     assert ledger(obj, "elite_bob_prescreen")["drops"] == {"bob_unscored": 1, "hard_veto": 1, "below_prescreen_min": 1}
     assert pool[2]["selection_drop_reason"] == "bob_score 4.0 is below the Ultra High prescreen minimum 5.0"
-    assert pool[1]["selection_drop_reason"] == "hard veto on gate D7"
+    assert pool[1]["selection_drop_reason"] == "hard veto on gate Design-Schema Match (D7)"
     bob_vars = obj.ai_agent.prompts(BOB)[0]["vars"]
     for key, value in (("business_context", "A multi-region operator"), ("strategic_initiative", "Customer analytics"),
                        ("value_chain", "Order to delivery"), ("revenue_model", "Order revenue")):
@@ -386,8 +386,8 @@ def test_failed_verification_and_bar_gates_are_recorded_in_the_near_miss_ledger(
     assert [u["No"] for u in final] == ["TIER", "LOWV"]
     assert all(u["elite_status"] == "FALLBACK_BELOW_BAR" and u["fallback_kind"] == "near_miss"
                and u["fallback_bar"] == "Ultra High" for u in final)
-    assert "failed check: value_tier" in final[0]["fallback_reason"]
-    assert "failed check: score:business_value" in final[1]["fallback_reason"]
+    assert "failed check: value tier (value_tier)" in final[0]["fallback_reason"]
+    assert "failed check: business value score (score:business_value)" in final[1]["fallback_reason"]
     assert {u["No"] for u in rejected} >= {"BADCOL", "FATAL"}
     assert all(u.get("elite_status") != "FALLBACK_BELOW_BAR" for u in rejected)
     assert ledger(obj, "elite_verification")["drops"] == {"verification": 1, "red_team": 1, "value_tier": 1,

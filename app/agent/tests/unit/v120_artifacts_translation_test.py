@@ -207,11 +207,25 @@ def test_ui_label_payload_is_not_brace_doubled(agent_ns):
             captured.update(prompt_vars)
             raise RuntimeError("endpoint unavailable")
     svc = agent_ns["TranslationService"](Agent(), CapturingLogger())
-    labels = svc.get_translations("Arabic")
+    labels = svc.get_translations("Thai")
     assert json.loads(captured["json_payload"])["more_use_cases"] == "...and {count} more use cases."
-    assert labels["elite_reason"] == agent_ns["TranslationService"].TRANSLATION_FALLBACKS["Arabic"]["elite_reason"] != "Reason"
-    assert labels["pdf_detailed_view"] != agent_ns["TranslationService"].ENGLISH_TRANSLATIONS["pdf_detailed_view"]
-    assert svc.logger.matching("[TRANSLATION GAP] UI labels for Arabic use the curated fallback", level="WARNING")
+    assert labels == agent_ns["TranslationService"].ENGLISH_TRANSLATIONS
+    assert svc.logger.matching("[TRANSLATION GAP] UI labels for Thai are shown in English", level="WARNING")
+
+
+def test_a_curated_language_uses_its_reviewed_labels_without_an_llm_call(agent_ns):
+    class Agent:
+        calls = 0
+
+        def run_worker(self, *a, **kw):
+            Agent.calls += 1
+            raise RuntimeError("endpoint unavailable")
+    ts = agent_ns["TranslationService"]
+    svc = ts(Agent(), CapturingLogger())
+    labels = svc.get_translations("Arabic")
+    assert Agent.calls == 0 and not svc.logger.matching("[TRANSLATION GAP]")
+    assert labels["elite_reason"] == ts.TRANSLATION_FALLBACKS["Arabic"]["elite_reason"] != "Reason"
+    assert set(labels) == set(ts.ENGLISH_TRANSLATIONS)
 
 
 def test_fenced_csv_with_a_prose_preamble_is_parsed(agent_ns):

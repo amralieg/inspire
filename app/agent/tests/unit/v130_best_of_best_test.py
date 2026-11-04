@@ -112,7 +112,7 @@ def test_good_mode_stars_only_use_cases_that_pass_every_elite_test_and_keeps_onl
     assert by_id["U1"]["best_of_best_reason"].startswith(
         "passed every elite test: value tier Material; business value 9/10, evidence strength 8/10")
     assert by_id["U5"]["best_of_best"] == "N" and "best_of_best_rank" not in by_id["U5"]
-    assert by_id["U5"]["best_of_best_reason"].startswith("did not pass: score:evidence_strength, red_team")
+    assert by_id["U5"]["best_of_best_reason"].startswith("did not pass: evidence strength score (score:evidence_strength), red team review (red_team)")
     assert by_id["U3"]["best_of_best_reason"] == "Best-of-Best score 4 is below the elite prescreen minimum 5"
     assert [uc["No"] for uc in obj._best_of_best_near_miss] == ["U5", "U2"]
     assert obj._best_of_best_summary == {"target": 3, "source": "widget", "mode": "Good", "short_list": False,
@@ -203,7 +203,7 @@ def test_ultra_high_reuses_the_elite_verdicts_and_never_judges_again(agent_ns):
            _uc("C1", "Ops", elite_status="DOMAIN_COVERAGE_PICK", elite_score=7.1, elite_assessment=below)]
     starred = obj._mark_best_of_best(ucs, {})
     assert [uc["No"] for uc in starred] == ["E2", "E1"]
-    assert ucs[2]["best_of_best"] == "N" and ucs[2]["best_of_best_reason"] == "did not pass: score:actionability"
+    assert ucs[2]["best_of_best"] == "N" and ucs[2]["best_of_best_reason"] == "did not pass: actionability score (score:actionability)"
     assert (obj._best_of_best_summary["judged"], obj._best_of_best_summary["passed"]) == (3, 2)
     assert ucs[0]["elite_status"] == "ELITE", "Ultra High fields are read, never rewritten"
 
