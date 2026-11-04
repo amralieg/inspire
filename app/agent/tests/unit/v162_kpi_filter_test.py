@@ -297,7 +297,8 @@ def test_value_tracking_never_measures_a_stored_kpi_whose_filter_does_not_match_
     wrong, right = obj._track_implemented_value()
     assert (wrong["status"], wrong["current"], wrong["baseline"], wrong["query"]) == ("not_measured", None, None, None)
     assert wrong["reason"].startswith(MISMATCH) and right["status"] == "measured"
-    assert measured.statements == [right["query"]] and "`ws_net_profit` < 0" in right["query"]
+    assert measured.statements == [f"SELECT ({right['query']}) AS v, (SELECT COUNT(*) AS v FROM `c`.`s`.`web`) AS n"]
+    assert "`ws_net_profit` < 0" in right["query"]
 
 
 def test_one_builder_turns_every_kpi_filter_into_sql_or_text(agent_ns):

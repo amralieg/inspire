@@ -154,7 +154,8 @@ def test_value_tracking_rebuilds_sql_and_measures_in_deep(agent_ns):
     assert len(tracked) == 1
     entry = tracked[0]
     assert entry["query"] == "SELECT COUNT(DISTINCT `customer_id`) AS v FROM `c`.`s`.`orders`"
-    assert measured.statements == [entry["query"]], "the stored query text is never executed"
+    assert measured.statements == [f"SELECT ({entry['query']}) AS v, (SELECT COUNT(*) AS v FROM `c`.`s`.`orders`) AS n"], \
+        "the stored query text is never executed"
     assert entry["current"]["value"] == 130.0 and entry["change"] == 30.0 and entry["status"] == "measured"
     select = next(s for s in spark.statements if s.startswith("SELECT use_case_key, kpis"))
     assert "IN (:k0)" in select
@@ -176,7 +177,9 @@ def test_value_tracking_never_reports_a_change_from_a_0_counted_back_from_today(
     entry = obj._track_implemented_value()[0]
     assert entry["current"]["value"] == 130.0 and entry["change"] == change
     assert entry["baseline"] == (baseline if shown else None)
-    assert measured.statements == [entry["query"]] and "LEAST(current_date(), (SELECT CAST(MAX(`order_date`) AS DATE)" in entry["query"]
+    scope = entry["query"].split(" FROM ", 1)[1]
+    assert measured.statements == [f"SELECT ({entry['query']}) AS v, (SELECT COUNT(*) AS v FROM {scope}) AS n"]
+    assert "LEAST(current_date(), (SELECT CAST(MAX(`order_date`) AS DATE)" in scope
 
 
 def test_value_tracking_in_standard_emits_the_query_only_and_skips_specs_off_the_metadata(agent_ns):
