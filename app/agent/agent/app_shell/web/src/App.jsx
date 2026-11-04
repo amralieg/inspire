@@ -230,7 +230,7 @@ function Shell({ app }) {
             {screen === 'admin' && <Admin />}
             {page && (
               <Page key={page.id} app={app} page={page} meta={metas[page.id]} state={states[page.id]} onState={setPageState(page.id)} themeKey={themeKey}
-                onAsk={ask} onExplain={explain} genieBusy={genie.busy} hubEntry={hub?.pages?.[page.id]} summary={summaries[page.id]} view={view} onView={setView} />
+                onAsk={ask} onExplain={explain} genieBusy={genie.busy} hubEntry={hub?.pages?.[page.id]} summary={summaries[page.id]} view={view} onView={setView} genie={genie} />
             )}
           </main>
           {genieOpen && <GeniePanel app={app} genie={genie} page={page} pages={shown} onPick={go} onClose={() => setGenieOpen(false)} />}

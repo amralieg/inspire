@@ -110,7 +110,7 @@ export default function ChartCard({ chart, wide, result, error, loading, themeKe
     const i = inst.current;
     if (!i || !chart.click_filter || !onPick) return undefined;
     const handler = (e) => {
-      const key = chart.type === 'scatter' ? e.data?.[2] : e.name;
+      const key = chart.type === 'scatter' ? e.data?.[2] : e.data?.pick ?? e.name;
       if (key != null && key !== 'Other' && key !== 'Unknown') onPick(chart.click_filter, key);
     };
     i.on('click', handler);

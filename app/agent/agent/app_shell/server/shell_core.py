@@ -47,6 +47,7 @@ HUB_WORKERS = 3
 MAX_BODY = 256 * 1024
 GENIE_ID = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 GENIE_PREVIEW_ROWS = 50
+GENIE_RATINGS = ("POSITIVE", "NEGATIVE", "NONE")
 ASK_CHARS = 1000
 ELEMENT_NAMES = {"kpi": "key number", "text": "text block", "controls": "set of page controls", "table": "table", "series": "forecast series",
                  "scenario": "scenario", "plan_line": "plan line", "segment": "segment", "recommendation": "recommendation",
@@ -1765,6 +1766,8 @@ class Shell:
                 return 200, self.genie_explain(headers, data)
             if route == ("GET", "genie/message"):
                 return 200, self.genie_message(headers, query)
+            if route == ("POST", "genie/feedback"):
+                return 200, self.genie_feedback(headers, data)
             if route == ("GET", "records/history"):
                 return 200, self.record_history(headers, query)
             if route == ("GET", "records/fields"):
@@ -3036,6 +3039,18 @@ class Shell:
         conversation, message = genie_ids(query)
         ws, _who = self.workspace(headers)
         return ws.genie_message(space, conversation, message, row_limit=GENIE_PREVIEW_ROWS)
+
+    def genie_feedback(self, headers: dict, data: dict) -> dict:
+        page = self.genie_page(data.get("page"))
+        space = self.genie_space(page)
+        conversation, message = genie_ids(data)
+        rating = str(data.get("rating") or "")
+        if rating not in GENIE_RATINGS:
+            raise HttpError(400, f"rate the answer {', '.join(GENIE_RATINGS)}")
+        ws, _who = self.workspace(headers)
+        ws.genie_feedback(space, conversation, message, rating)
+        print(f"[GENIE-FEEDBACK FIRED] page={page.get('id')} rating={rating}", flush=True)
+        return {"rating": rating}
 
     def change_table(self, ws, who: str, page: dict) -> list:
         if not page.get("result_table"):

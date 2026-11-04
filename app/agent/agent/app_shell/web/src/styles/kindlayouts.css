@@ -1,0 +1,9 @@
+.chat{margin:0 0 14px}
+.chat-log{display:flex;flex-direction:column;gap:12px;padding:8px 16px;max-height:520px;overflow-y:auto}
+.chat-sugg{display:flex;flex-wrap:wrap;gap:8px;padding:4px 16px 16px}
+.chat-cited,.chat-rate{list-style:none;margin:0;padding:0 16px 12px;display:grid;gap:10px}
+.chat-cited li{display:grid;gap:4px;font-size:13px}
+.chat-cited pre{margin:0;padding:8px;max-height:260px;overflow:auto;background:var(--well);border-radius:8px;white-space:pre-wrap;overflow-wrap:anywhere;font:11.5px/1.45 ui-monospace,Menlo,monospace;color:var(--ink)}
+.chat-tables{margin:0;color:var(--muted);font-size:12px}
+.chat-rate li{display:flex;justify-content:space-between;align-items:center;gap:12px;font-size:13px;border-top:1px solid var(--line);padding-top:8px}
+.chat-rate li>span:last-child{display:flex;gap:6px}

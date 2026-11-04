@@ -9,6 +9,7 @@ import { ChartsReady, SECTION_PARTS } from './KindParts.jsx';
 import { AskGenie } from './AskGenie.jsx';
 import { RowGenie } from './DataTable.jsx';
 import { tableContext } from './explain.js';
+import { KIND_PARTS, KindReady } from './KindLayouts.jsx';
 
 const ScenarioPanel = lazy(() => import('./Scenario.jsx'));
 
@@ -43,10 +44,15 @@ export function todoSteps(page, list, genie, modify = false) {
   const to = decisionSection(page);
   const first = list?.rows?.[0];
   const steps = [];
+  const chat = Object.values(page.layout?.holds || {}).includes('conversation');
   if (page.scenario) {
     const levers = Object.keys(page.layout?.holds || {}).find((s) => page.layout.holds[s] === 'levers');
     steps.push({ id: 'levers', text: `Move the levers and watch the ${(page.scenario.outcome?.label || 'outcome').toLowerCase()} and its P10 to P90 range.`, action: 'Show me', to: levers });
     if (page.scenario.save && modify) steps.push({ id: 'save', text: 'Name and save the scenario you want to plan on, so your team sees it.', action: null });
+  } else if (chat) {
+    steps.push({ id: 'ask', text: 'Pick a suggested question, or ask your own: Genie answers from the data of this use case.', action: 'Show me', to: 'suggested_questions' });
+    steps.push({ id: 'sql', text: 'Open the SQL under each answer to check what Genie read before you use a number.', action: null });
+    steps.push({ id: 'rate', text: 'Mark each answer helpful or not, so the Genie Agent learns what a good answer is.', action: null });
   } else if (!decides(page)) {
     steps.push({ id: 'read', text: page.question || page.title, action: null });
     steps.push({ id: 'so_what', text: 'Read the “So what” line under each chart: it says what to do with it.', action: null });
@@ -56,7 +62,7 @@ export function todoSteps(page, list, genie, modify = false) {
       ? { id: 'plan', text: 'Take the ★ suggested line in the plan, or override it with a reason.', action: 'Open the plan', to }
       : { id: 'down', text: 'Work down the list in order and record what you did on each one.', action: null });
   }
-  if (genie) steps.push({ id: 'genie', text: 'Not sure where to start? Ask Genie what to do first and why.', action: 'Ask Genie', ask: true });
+  if (genie && !chat) steps.push({ id: 'genie', text: 'Not sure where to start? Ask Genie what to do first and why.', action: 'Ask Genie', ask: true });
   return steps;
 }
 
@@ -215,7 +221,7 @@ export function PlanTable({ page, app, filters, ready, nonce, onChanged }) {
 
 const SCENARIO_HOLDS = ['levers', 'scenario', 'target'];
 
-export function LayoutSections({ page, app, ready, nonce, filters, onChanged, onAsk, kpisOf, records, chartCards, tableCard, data, onPick }) {
+export function LayoutSections({ page, app, ready, nonce, filters, onChanged, onAsk, kpisOf, records, chartCards, tableCard, data, onPick, genie }) {
   const sections = page.layout?.sections || [];
   const holds = page.layout?.holds || {};
   const placed = new Set();
@@ -228,8 +234,8 @@ export function LayoutSections({ page, app, ready, nonce, filters, onChanged, on
       const hero = page.kpis.filter((k) => k.section === section);
       return hero.length ? <div key={section} className="objective" data-section={section}>{kpisOf(hero, false)}</div> : null;
     }
-    const Part = SECTION_PARTS[section];
-    if (Part) return <div key={section} data-section={section}><Part page={page} app={app} ready={ready} nonce={nonce} filters={filters} onChanged={onChanged} data={data} records={records} onPick={onPick} /></div>;
+    const Part = SECTION_PARTS[section] || KIND_PARTS[section];
+    if (Part) return <div key={section} data-section={section}><Part page={page} app={app} ready={ready} nonce={nonce} filters={filters} onChanged={onChanged} data={data} records={records} onPick={onPick} genie={genie} section={section} /></div>;
     if (hold === 'plan' || hold === 'records') {
       if (page.plan) return <div key={section} data-section={section}>{plan(section)}</div>;
       return records ? <div key={section} data-section={section}>{records}</div> : null;
@@ -255,5 +261,5 @@ export function LayoutSections({ page, app, ready, nonce, filters, onChanged, on
   ];
   const rest = page.charts.filter((c) => !placed.has(c.id));
   if (rest.length) out.push(<section key="rest" className="charts">{chartCards(rest)}</section>);
-  return <ChartsReady page={page}>{out}</ChartsReady>;
+  return <ChartsReady page={page}><KindReady page={page}>{out}</KindReady></ChartsReady>;
 }

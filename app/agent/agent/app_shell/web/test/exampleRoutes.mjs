@@ -119,10 +119,9 @@ const PROMOS = [['Spring bundle', 'Scale it: strong net lift'], ['Loyalty points
 export const statusOf = (r) => r._inspire_status || 'New';
 
 function listed(rows, body) {
-  const wanted = body.filters?.segment;
   const statuses = body.column_filters?.action_status;
   const words = String(body.search || '').toLowerCase();
-  return rows.filter((r) => !wanted?.length || wanted.includes(r.segment))
+  return rows.filter((r) => Object.entries(body.filters || {}).every(([k, v]) => !Array.isArray(v) || !v.length || k === 'run_date' || v.includes(r[k])))
     .filter((r) => !statuses?.length || statuses.includes(statusOf(r)))
     .filter((r) => !words || [r.entity_label, r.customer_name, r.record_key].some((v) => String(v ?? '').toLowerCase().includes(words)));
 }
@@ -149,7 +148,7 @@ function treatmentsOf(rows) {
   return [...counted.values()].sort((a, b) => b.n - a.n || a.segment.localeCompare(b.segment));
 }
 
-export function kindRoutes(data, rows, acts, spec = {}) {
+export function kindRoutes(data, rows, acts, spec = {}, extra = {}) {
   return {
     page: ({ route, json, seen }) => {
       const body = route.request().postDataJSON();
@@ -171,6 +170,7 @@ export function kindRoutes(data, rows, acts, spec = {}) {
       hit.forEach((r) => Object.assign(r, { _inspire_status: body.values.action_status, ...(body.treatment ? { _treatment: body.treatment } : {}) }));
       return json(200, { written: hit.length ? hit.map((r) => r.record_key) : body.record_keys || ['K1', 'K5', 'K9'], conflicts: [], batch_id: `b${acts.length}` });
     },
+    ...extra,
   };
 }
 
@@ -213,10 +213,67 @@ const liftData = () => ({
   errors: {},
 });
 
+export const STEPS = ['Received', 'Triage', 'Assess', 'Review', 'Paid'];
+export const MOVES = [['Received', 'Triage', 400, 2, 6], ['Triage', 'Assess', 380, 20, 52], ['Assess', 'Review', 360, 30, 90], ['Review', 'Paid', 300, 8, 20],
+  ['Review', 'Assess', 60, 26, 70], ['Triage', 'Paid', 20, 1, 3]];
+const PROCESS_ACTIONS = ['Expedite: it breaches in 4 hours', 'Reassign to a free adjuster', 'Accept the delay: the customer agreed'];
+const CASES_ROWS = Array.from({ length: 24 }, (_, i) => row(i + 1, { entity_label: `Claim ${i + 1}`, step: STEPS[1 + (i % 3)], age_hours: 40 + i,
+  breach_risk: 90 - i * 2, recommended_action: PROCESS_ACTIONS[i % 3], variant: i % 2 ? 'Motor' : 'Home', region: 'North' }));
+const processData = () => ({
+  kpis: { open: { now: 412 }, at_risk: { now: 24 }, age: { now: 38 } },
+  charts: {
+    map: { columns: [], rows: MOVES.map(([x, s, y0, y1]) => ({ x, s, y0, y1 })), truncated: false },
+    bottlenecks: { columns: [], rows: MOVES.map(([x, , , , y0]) => ({ x, y0 })), truncated: false },
+    rework: { columns: [], rows: [{ x: 'Review', y0: 60 }, { x: 'Assess', y0: 12 }, { x: 'Triage', y0: 3 }], truncated: false },
+    cycle: { columns: [], rows: [{ x: 'Home', y0: 10, y1: 30, y2: 50, y3: 80, y4: 140 }, { x: 'Motor', y0: 8, y1: 40, y2: 70, y3: 110, y4: 190 }], truncated: false },
+  },
+  tables: {},
+  errors: {},
+});
+
+const SITES = [['Dubai Marina', 'AE', 25.08, 55.14, 92000, 'Shortlist it: strong unmet demand'], ['Riyadh North', 'SA', 24.8, 46.7, 81000, 'Shortlist it: no store within 10 km'],
+  ['Doha West', 'QA', 25.3, 51.4, 40000, 'Reject it: already served nearby'], ['Muscat Bay', 'OM', 23.6, 58.5, 21000, 'Reject it: too far from demand']];
+const SITE_ROWS = SITES.map(([name, code, , , metric, action], i) => row(i + 1, { entity_label: name, entity_id: name, city: name.split(' ')[0], region_code: code,
+  metric, recommended_action: action, format: 'Large' }));
+const locationData = () => ({
+  kpis: { sites: { now: 4 }, demand: { now: 234000 }, strong: { now: 2 } },
+  charts: {
+    countries: { columns: [], rows: [...SITES.map(([, x, , , y0]) => ({ x, y0 })), { x: 'ZZ', y0: 500 }], truncated: false },
+    points: { columns: [], rows: [...SITES.map(([x, , y1, y2, y0]) => ({ x, y0, y1, y2 })), { x: 'No coordinates', y0: 10, y1: null, y2: null }], truncated: false },
+    density: { columns: [], rows: SITES.flatMap(([, x]) => ['Large', 'Small'].map((s, j) => ({ x, s, y0: 2 + j }))), truncated: false },
+  },
+  tables: { listed: { columns: [], rows: SITES.map(([entity, region_code, , , metric]) => ({ entity, city: entity.split(' ')[0], region_code, metric })), truncated: false } },
+  errors: {},
+});
+
+const ACCOUNTS = Array.from({ length: 12 }, (_, i) => `A${100 + i}`);
+const NETWORK_ACTIONS = ['Block the account: it shares a device with a blocked one', 'Investigate the transfers first', 'Not a ring: family accounts'];
+const NODE_ROWS = ACCOUNTS.map((a, i) => row(i + 1, { entity_label: a, entity_id: a, community: i < 6 ? 'Ring 1' : 'Ring 2', centrality: 0.9 - i * 0.05,
+  metric: 50000 - i * 2000, recommended_action: NETWORK_ACTIONS[i % 3] }));
+const LINKS = ACCOUNTS.slice(0, 11).map((a, i) => ({ x: a, s: ACCOUNTS[i + 1], y0: 12 - i, y1: i < 6 ? 'Ring 1' : 'Ring 2', y2: i + 1 < 6 ? 'Ring 1' : 'Ring 2' }));
+const networkData = () => ({
+  kpis: { accounts: { now: 12 }, rings: { now: 2 }, central: { now: 0.9 } },
+  charts: { graph: { columns: [], rows: LINKS, truncated: false } },
+  tables: {
+    neighbors: { columns: [], rows: LINKS.slice(0, 3).map((l) => ({ src: l.x, dst: l.s, weight: l.y0, dst_community: l.y2 })), truncated: false },
+    pairs: { columns: [], rows: LINKS.slice(0, 5).map((l) => ({ src: l.x, dst: l.s, weight: l.y0 })), truncated: false },
+  },
+  errors: {},
+});
+
+const chatData = () => ({ kpis: { rows: { now: 18000 }, accounts: { now: 240 }, net: { now: 1200000 } }, charts: {}, tables: {}, errors: {} });
+
 export const CASES = {
   segment_explorer: { data: segmentData, rows: MEMBERS, ready: '[data-segment]' },
   recommendation_desk: { data: recsData, rows: RECS, ready: '[data-choice-row]' },
   lift_readout: { data: liftData, rows: PROMOS, ready: '[data-verdict]' },
+};
+
+export const LAYOUT_B_CASES = {
+  process_flow: { data: processData, rows: CASES_ROWS, ready: '[data-choice-row]', canvases: 4, lists: { breach_risk_cases: 20 } },
+  location_view: { data: locationData, rows: SITE_ROWS, ready: '[data-choice-row]', canvases: 3, lists: { ranked_sites: 3 } },
+  network_explorer: { data: networkData, rows: NODE_ROWS, ready: '[data-choice-row]', canvases: 1, lists: { centrality_list: 10 } },
+  agent_chat: { data: chatData, rows: [], ready: '[data-question]', canvases: 0, lists: {} },
 };
 
 export const EXAMPLES = {
@@ -226,6 +283,6 @@ export const EXAMPLES = {
     ready: (page) => page.waitForFunction(() => document.querySelectorAll('[data-section] canvas').length >= 3 && document.querySelector('[data-plan-row="K1"]')) },
   'scenario_lab.json': { settings: { options: { modify: true, replace_edits: false, decisions: false } }, routes: () => scenarioRoutes([], []),
     ready: (page) => page.waitForFunction(() => document.querySelectorAll('[data-section] canvas').length >= 4 && document.querySelector('[data-lever="price"]')) },
-  ...Object.fromEntries(Object.entries(CASES).map(([id, c]) => [`${id}.json`, { settings: DECIDE, routes: () => kindRoutes(c.data(), c.rows, []),
-    ready: (page) => page.waitForFunction((ready) => document.querySelectorAll('[data-section] canvas').length >= 3 && document.querySelector(ready), c.ready) }])),
+  ...Object.fromEntries(Object.entries({ ...CASES, ...LAYOUT_B_CASES }).map(([id, c]) => [`${id}.json`, { settings: DECIDE, routes: () => kindRoutes(c.data(), c.rows, []),
+    ready: (page) => page.waitForFunction(([ready, canvases]) => document.querySelectorAll('[data-section] canvas').length >= canvases && document.querySelector(ready), [c.ready, c.canvases ?? 3]) }])),
 };

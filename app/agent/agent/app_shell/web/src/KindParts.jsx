@@ -162,7 +162,7 @@ function ChoiceRow({ page, app, row, choices, suggested, canAct, busy, onChoose,
       {skipping && (
         <div className="choice-why" role="group" aria-label={`Why ${skipping.label.toLowerCase()}`}>
           <span>Why?</span>
-          {SKIP_REASONS.map((r) => (
+          {(skipping.reasons || SKIP_REASONS).map((r) => (
             <button key={r} type="button" className="chip" disabled={!!busy} onClick={() => { setSkipping(null); onChoose(row, skipping, r); }}>{r}</button>
           ))}
           <button type="button" className="link" onClick={() => setSkipping(null)}>Cancel</button>
@@ -242,7 +242,7 @@ export function RecList({ page, app, filters, ready, nonce, onChanged }) {
   );
 }
 
-export function ChoiceList({ page, app, filters, ready, nonce, onChanged }) {
+export function ChoiceList({ page, app, filters, ready, nonce, onChanged, section = 'keep_scale_stop' }) {
   const list = useList(page.id, filters, ready, nonce, LIST_ROWS);
   const choices = page.choices || [];
   const meta = page.records || {};
@@ -252,7 +252,7 @@ export function ChoiceList({ page, app, filters, ready, nonce, onChanged }) {
   const suggest = (row) => suggestedChoice(choices, row[meta.action]);
   const open = rows.filter((r) => !isClosed(r) && suggest(r)).length;
   return (
-    <ListShell page={page} title={meta.title || 'Decide each one'} hint={meta.hint} section="keep_scale_stop" list={list} error={decide.error}
+    <ListShell page={page} title={meta.title || 'Decide each one'} hint={meta.hint} section={section} list={list} error={decide.error}
       empty="Nothing to decide for these filters." actions={can && <TakeAll count={open} busy={decide.busy} onClick={() => decide.takeAll(rows, suggest)} />}>
       <ol className="choice-list">
         {rows.map((row) => (

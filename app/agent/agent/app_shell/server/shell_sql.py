@@ -150,10 +150,12 @@ _SQL_WORDS = frozenset(("distinct", "case", "when", "then", "else", "end", "and"
                         "decimal", "string", "date", "timestamp", "boolean", "day", "days", "month", "months", "year", "years"))
 FORMATS = ("number", "integer", "currency", "percent", "text", "date", "month")
 CHART_TYPES = ("bar", "horizontal_bar", "stacked_bar", "line", "area", "stacked_area", "pareto", "scatter", "donut", "heatmap", "band",
-               "control", "tornado", "bridge", "bullet", "treemap", "radar", "sankey")
+               "control", "tornado", "bridge", "bullet", "treemap", "radar", "sankey", "flow", "box", "map_points", "map_regions", "graph")
 LAYOUT_CHARTS = {"band": ("time", ("actual", "forecast", "lower", "upper")), "control": ("time", ("value", "expected", "lower", "upper")),
                  "tornado": ("category", ("low", "high")), "bridge": ("category", ("value",)), "bullet": ("category", ("used", "limit")),
-                 "treemap": ("category", ("size", "value"))}
+                 "treemap": ("category", ("size", "value")), "flow": ("category", ("cases", "median_hours")),
+                 "box": ("category", ("low", "q1", "median", "q3", "high")), "map_points": ("category", ("value", "lat", "lon")),
+                 "map_regions": ("category", ("value",)), "graph": ("category", ("weight", "source_group", "target_group"))}
 LAZY_CHARTS = ("treemap", "radar", "sankey")
 LAYOUT_ONLY_CHARTS = tuple(LAYOUT_CHARTS) + ("radar", "sankey")
 TRENDS = ("line", "area", "stacked_area")
@@ -214,6 +216,15 @@ SECTIONS = {
     "centrality_list": {"holds": "records", "unit": "rows", "suffix": "__nodes", "words": "the most central nodes"},
     "neighbors": {"tables": True, "words": "the neighbors of a node"},
     "match_pairs": {"tables": True, "words": "the match pairs to review"},
+    "process_map": {"charts": ("flow",), "unit": "rows", "suffix": "__transitions", "words": "a process map: x is from_step, the series is to_step, then the cases and the median hours of each move"},
+    "cycle_time_box": {"charts": ("box",), "words": "a box plot of the cycle time of each variant: low, first quartile, median, third quartile, high"},
+    "map": {"charts": ("map_points", "map_regions"), "suffix": "__geo", "words": "a map: map_regions when region_code holds ISO country codes, map_points from lat and lon otherwise"},
+    "linked_list": {"tables": True, "suffix": "__geo", "words": "the list of what the map shows, filtered by a click on the map"},
+    "graph": {"charts": ("graph",), "suffix": "__edges", "words": "the network: x is src, the series is dst, then the weight and the community of each end"},
+    "conversation": {"holds": "conversation", "words": "the Genie conversation"},
+    "suggested_questions": {"holds": "questions", "words": "the suggested questions, from the page questions"},
+    "cited_sql": {"holds": "cited_sql", "words": "the SQL behind each answer and the tables it read"},
+    "feedback": {"holds": "feedback", "words": "a helpful or not helpful mark on each answer, sent to the Genie Agent"},
 }
 DECISION_HOLDS = ("records", "plan")
 PLAN_DECISIONS = ("accept", "override")
@@ -233,7 +244,7 @@ CHART_KIND_LABELS = {"trend": "Trend over time", "bars": "Bars by segment", "spl
                      "scatter": "Two measures"}
 CHART_PICK = ("trend", "bars", "pareto")
 TIME_CHARTS = ("line", "area", "stacked_area", "bar", "stacked_bar", "heatmap", "band", "control")
-SERIES_CHARTS = ("stacked_bar", "stacked_area", "heatmap", "radar", "sankey")
+SERIES_CHARTS = ("stacked_bar", "stacked_area", "heatmap", "radar", "sankey", "flow", "graph")
 ADDITIVE_CHARTS = ("stacked_bar", "stacked_area", "pareto", "donut")
 X_KINDS = ("time", "category", "value")
 SORTS = ("value_desc", "value_asc", "x_asc")
@@ -630,7 +641,7 @@ def spec_problems(page: dict) -> list:
             problems.append(f"{where} compares with the previous run, but {split}, or set no compare")
     charts = page.get("charts") if isinstance(page.get("charts"), list) else []
     fewer = isinstance(page.get("fewer_charts"), str) and bool(page["fewer_charts"].strip())
-    problems += _count_problem("charts", charts, 1 if fewer else max(1, CAPS["charts"][0] - drawn_charts(page)))
+    problems += _count_problem("charts", charts, 0 if not chart_sections(page) else 1 if fewer else max(1, CAPS["charts"][0] - drawn_charts(page)))
     _ids(charts, "chart", problems)
     for chart in charts:
         problems += _chart_problems(chart, names)
@@ -687,8 +698,9 @@ def _chart_problems(chart: dict, names: set) -> list:
         problems.append(f"{where} reads dataset {chart.get('dataset')}, which the page does not define")
     x = chart.get("x") if isinstance(chart.get("x"), dict) else {}
     ys = chart.get("y") if isinstance(chart.get("y"), list) else []
-    if not 1 <= len(ys) <= CAPS["y"]:
-        problems.append(f"{where} needs 1 to {CAPS['y']} measures in y")
+    most = max(CAPS["y"], len(LAYOUT_CHARTS.get(kind, (None, ()))[1]))
+    if not 1 <= len(ys) <= most:
+        problems.append(f"{where} needs 1 to {most} measures in y")
     for index, y in enumerate(ys):
         problems += _text_problem(f"{where} measure {index + 1}", y.get("label"), "label")
         problems += expression_problems(f"{where} measure {index + 1}", y.get("expression"))
@@ -712,7 +724,7 @@ def _chart_problems(chart: dict, names: set) -> list:
             problems.append(f"{where} series top must be a whole number from 1 to 8")
     if kind in SERIES_CHARTS and not series:
         problems.append(f"{where} is a {kind}, so it needs a series column")
-    if kind in ("donut", "pareto", "scatter", "horizontal_bar") + tuple(LAYOUT_CHARTS) and series:
+    if kind in ("donut", "pareto", "scatter", "horizontal_bar") + tuple(k for k in LAYOUT_CHARTS if k not in SERIES_CHARTS) and series:
         problems.append(f"{where} is a {kind}, so it cannot split into series")
     if kind in LAYOUT_CHARTS:
         axis, roles = LAYOUT_CHARTS[kind]
@@ -1273,7 +1285,7 @@ def section_count(page: dict, section: str) -> int:
                "target": int((scenario.get("outcome") or {}).get("target") is not None) if scenario else 0,
                "horizon": sum(1 for c in section_items(page, "fan_chart") if c.get("type") == "band"),
                "objective": sum(1 for k in page.get("kpis") or [] if isinstance(k, dict) and k.get("section") == section),
-               "resolve": int(listed and isinstance(page.get("plan"), dict))}
+               "resolve": int(listed and isinstance(page.get("plan"), dict)), **chat_counts(page)}
     return special.get(holds, 0) + len(section_items(page, section))
 
 
@@ -4998,6 +5010,9 @@ def part_problems(page: dict) -> list:
         problems += recs_problems(page)
     if ident == "lift_readout":
         problems += effect_problems(page)
+    if ident == CHAT_LAYOUT:
+        problems += chat_problems(page)
+    problems += kind_chart_problems(page)
     if layout_choices(ident) and not IDENT.match(str((page.get("records") or {}).get("action") or "")):
         problems.append(f"a {ident} page marks a suggested choice on each row, so its decision list needs an action column")
     if ident == DEFAULT_LAYOUT:
@@ -5022,3 +5037,65 @@ def public_parts(page: dict) -> dict:
     out = {key: dict(page[key]) if isinstance(page.get(key), dict) else None for key in PART_BLOCKS.values()}
     out["choices"] = layout_choices(page_layout(page))
     return out
+
+
+CHAT_HOLDS = ("conversation", "cited_sql", "feedback")
+CHAT_QUESTIONS = (5, 12)
+CHAT_LAYOUT = "agent_chat"
+GEO_POINT_ROLES = (1, 2)
+KIND_LAZY_CHARTS = {"flow": "flow", "box": "flow", "graph": "flow", "map_points": "geo", "map_regions": "geo"}
+GRAPH_GROUP_ROLES = (1, 2)
+_SUMMED = re.compile(r"^\s*(sum|count)\s*\(", re.I)
+
+
+def chart_sections(page: dict) -> bool:
+    ident = page_layout(page)
+    if ident == DEFAULT_LAYOUT or ident not in layouts():
+        return True
+    return any("charts" in (SECTIONS.get(s) or {}) for s in layouts()[ident].get("sections") or [])
+
+
+def chat_counts(page: dict) -> dict:
+    questions = page.get("questions") if isinstance(page.get("questions"), list) else []
+    return {"questions": sum(1 for q in questions if isinstance(q, str) and q.strip()), **{hold: 1 for hold in CHAT_HOLDS}}
+
+
+def chat_problems(page: dict) -> list:
+    problems = []
+    questions = page.get("questions") if isinstance(page.get("questions"), list) else []
+    low, high = CHAT_QUESTIONS
+    if not low <= len(questions) <= high:
+        problems.append(f"a data agent page suggests {low} to {high} questions people can ask Genie; it has {len(questions)}")
+    if any(not isinstance(q, str) or not q.strip() or len(q) > CAPS["value_chars"] for q in questions):
+        problems.append(f"each suggested question is text of at most {CAPS['value_chars']} characters")
+    elif len({q.strip().lower() for q in questions}) != len(questions):
+        problems.append("each suggested question is asked once")
+    if page.get("records") is not None or page.get("plan") is not None:
+        problems.append("a data agent page only answers questions through Genie and records no decisions, so it has no records or plan section")
+    if "genie" in page and not page.get("genie"):
+        problems.append("a data agent page is a Genie conversation, so it needs its Genie Agent: set genie with a space_id")
+    if problems:
+        print(f"[KIND-CHAT FIRED] page={page.get('id')} problems={len(problems)}", flush=True)
+    return problems
+
+
+def kind_chart_problems(page: dict) -> list:
+    problems = []
+    for chart in page.get("charts") or []:
+        if not isinstance(chart, dict) or not isinstance(chart.get("y"), list):
+            continue
+        ys, where = chart["y"], f"chart {chart.get('id')}"
+        if chart.get("type") in KIND_LAZY_CHARTS and page_layout(page) == DEFAULT_LAYOUT:
+            problems.append(f"{where} is a {chart.get('type')}, which only a laid-out page draws; on a {DEFAULT_LAYOUT} page use another type")
+        if chart.get("type") == "map_points" and len(ys) == 3:
+            for index in GEO_POINT_ROLES:
+                if _SUMMED.match(str((ys[index] or {}).get("expression") or "")):
+                    problems.append(f"{where} places each point at one latitude and longitude, so measure {index + 1} takes AVG or MAX of "
+                                    f"its column, never a SUM or COUNT")
+        if chart.get("type") == "graph" and len(ys) == 3:
+            for index in GRAPH_GROUP_ROLES:
+                if (ys[index] or {}).get("format") != "text":
+                    problems.append(f"{where} colors each node by its community, so measure {index + 1} has format text")
+    if problems:
+        print(f"[KIND-CHART FIRED] page={page.get('id')} problems={len(problems)}", flush=True)
+    return problems

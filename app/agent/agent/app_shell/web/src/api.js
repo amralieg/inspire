@@ -38,6 +38,8 @@ export const askGenie = (page, question, conversationId, about) =>
 export const explainGenie = (body) => json('POST', 'genie/explain', { ...body, conversation_id: body.conversation_id || '' });
 export const genieMessage = (page, conversationId, messageId) =>
   json('GET', `genie/message?${new URLSearchParams({ page, conversation_id: conversationId, message_id: messageId })}`);
+export const genieFeedback = (page, conversationId, messageId, rating) =>
+  json('POST', 'genie/feedback', { page, conversation_id: conversationId, message_id: messageId, rating });
 export const getHistory = (page, ref) => json('GET', `records/history?${new URLSearchParams({ page, ...ref })}`);
 export const getFields = (page) => json('GET', `records/fields?page=${encodeURIComponent(page)}`);
 export const writeRecord = (kind, body) => json('POST', `records/${kind}`, body);

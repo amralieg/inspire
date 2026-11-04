@@ -196,6 +196,10 @@ class Workspace:
         return {"conversation_id": started.get("conversation_id") or (started.get("conversation") or {}).get("id"),
                 "message_id": started.get("message_id") or (started.get("message") or {}).get("id")}
 
+    def genie_feedback(self, space_id: str, conversation_id: str, message_id: str, rating: str) -> None:
+        self.call("POST", f"/api/2.0/genie/spaces/{space_id}/conversations/{conversation_id}/messages/{message_id}/feedback",
+                  {"rating": rating})
+
     def genie_message(self, space_id: str, conversation_id: str, message_id: str, row_limit: int = 50) -> dict:
         base = f"/api/2.0/genie/spaces/{space_id}/conversations/{conversation_id}/messages/{message_id}"
         message = self.call("GET", base)

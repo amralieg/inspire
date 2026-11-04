@@ -222,7 +222,7 @@ function HubBody({ app, page, entry, live, summary, state, onState, view, onView
   );
 }
 
-export default function Page({ app, page, meta, state, onState, themeKey, onAsk, onExplain, genieBusy, hubEntry, summary, view, onView }) {
+export default function Page({ app, page, meta, state, onState, themeKey, onAsk, onExplain, genieBusy, hubEntry, summary, view, onView, genie }) {
   const ready = !!state;
   const [nonce, setNonce] = useState(0);
   const [tab, setTab] = useState('overview');
@@ -390,7 +390,7 @@ export default function Page({ app, page, meta, state, onState, themeKey, onAsk,
           {error && <p className="tile-err" role="alert"><Icon name="info" size={14} />{error}</p>}
           {laidOut && (
             <LayoutSections page={page} app={app} ready={ready} nonce={nonce} filters={filters} onChanged={() => setNonce((n) => n + 1)} onAsk={onAsk}
-              kpisOf={kpisOf} records={recordsCard} chartCards={(charts) => chartCards(charts)} tableCard={tableCard} data={data} onPick={pick} />
+              kpisOf={kpisOf} records={recordsCard} chartCards={(charts) => chartCards(charts)} tableCard={tableCard} data={data} onPick={pick} genie={genie} />
           )}
           {!hubPage && !laidOut && (
             <Placed slots={slotsOf(plan, 'kpis')}>
