@@ -498,7 +498,7 @@ const ownersShown = async (page) => {
   return page.getByLabel('App owners (comma separated)').count();
 };
 
-const PLACE_UC = { id: 'N01-U01', use_case: 'Predict churn', business_domain: 'Customer', primary_table: 'main.s.orders', tables_involved: 'main.s.orders', genie_instruction: '## Parameters\n| top_k | text | 25 | Top K |\n' };
+const PLACE_UC = { id: 'N01-U01', use_case: 'Predict churn', business_domain: 'Customer', primary_table: 'main.s.orders', tables_involved: 'main.s.orders', genie_instruction: '## Parameters\n| top_k | text | 25 | Top K |\n| act_now_share | text | 0.05 | Act now share |\n' };
 const PLACE_SCOPE = [
   { session_id: '42', use_case_id: 'N01-U02', business: 'Acme', domain: 'Customer' },
   { session_id: '42', use_case_id: 'N01-U03', business: 'Acme', domain: 'Finance' },

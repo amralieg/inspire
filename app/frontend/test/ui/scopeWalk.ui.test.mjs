@@ -52,7 +52,7 @@ async function toStep(page, label) {
 const SCOPE_MODEL = [
   { name: 'act_now_share', label: 'Act now share', group: 'flagging', kind: 'percent', low: 0, high: 1, allowed: '0 to 1', source: 'widget', default: '0.05', unit: '%',
     reason: "Inspire's default", help: 'The share that is Act now.', applies: 'run' },
-  { name: 'group_by', label: 'Grouping (columns coarse to fine, all, or custom)', group: 'scope', kind: 'text', allowed: 'all, custom or columns', source: 'widget',
+  { name: 'group_by', label: 'Grouping (columns coarse to fine, or all)', group: 'scope', kind: 'text', allowed: 'all or columns', source: 'widget',
     default: 'all', choices: ['region', 'country'], unit: '', reason: '', help: '', applies: 'run' },
   { name: 'run_scope', label: 'First run', group: 'scope', kind: 'choice', choices: ['all', 'groups', 'recent', 'records'], source: 'widget', default: 'all', unit: '',
     reason: '', help: '', applies: 'run' },
@@ -90,7 +90,7 @@ test('the offline walk checks the wizard of a large table that qualifies', { ski
     console.log(JSON.stringify(all));
     assert.deepEqual(failed(all), []);
     assert.equal(all.filter((c) => c.ok === true).length, 10);
-    assert.deepEqual(all.filter((c) => c.ok === null).map((c) => c.check), ['Custom editor: Run, refusal and Use this grouping']);
+    assert.deepEqual(all.filter((c) => c.ok === null).map((c) => c.check), []);
     assert.equal(checkWizardSteps(await names(page), { ...PROFILE, applies: false })[0].ok, false, 'a profile where grouping does not apply fails a wizard that asks Grouping');
   } finally {
     await ui.close();

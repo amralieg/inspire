@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { HARNESS_USE_CASE, OWNER, built } from './implementFixtures.js';
+import { SETTINGS_TECHNICAL_NOTE } from '../../src/lib/useCaseSettings.js';
 import { closeBrowser, lowContrast, onStep, openAsset, openBuild, openUi, setDark, settled, toVibes, until, wizardFits } from './uiSupport.mjs';
 
 test.after(closeBrowser);
@@ -99,13 +100,12 @@ test('a first build lists the instruction\u2019s widgets as settings with their 
     assert.equal(await page.getByRole('textbox', { name: /Top K/ }).count(), 0, 'top_k is a setting, so the Data step does not edit it');
     await toStep(page, 'Settings');
     const step = page.getByRole('region', { name: 'Use case settings', exact: true });
-    assert.deepEqual(await step.locator('[data-setting]').evaluateAll((rows) => rows.map((r) => r.dataset.setting)), ['act_now_share', 'top_k']);
-    assert.equal(await settingRow(page, 'top_k').locator('[data-setting-allowed]').textContent(), 'Allowed: whole number, at least 1');
+    assert.deepEqual(await step.locator('[data-setting]').evaluateAll((rows) => rows.map((r) => r.dataset.setting)), ['act_now_share'],
+      'top_k and model_name are technical, so they keep the values Genie declared and the wizard does not ask them');
+    assert.equal(await page.locator('[data-settings-technical]').textContent(), SETTINGS_TECHNICAL_NOTE);
     await step.getByText('Genie proposes the assumptions of what is at stake on each record, with their lowest and highest values, when the notebook first runs; '
       + 'you set them here after that run.', { exact: true }).waitFor();
     assert.equal(await step.locator('[data-setting-change], [data-setting-group-change]').count(), 0, 'nothing is built yet, so nothing rebuilds');
-    await settingRow(page, 'top_k').getByRole('textbox', { name: 'Top K' }).fill('0');
-    await settingRow(page, 'top_k').getByText("top_k is '0'; allowed: whole number, at least 1", { exact: true }).waitFor();
     assert.deepEqual(ui.pageErrors, []);
   } finally {
     await ui.close();
@@ -162,7 +162,9 @@ test('the Settings step fits 1440x900 with nothing to scroll at the most setting
       await toStep(page, 'Settings');
       const step = page.getByRole('region', { name: 'Use case settings', exact: true });
       await step.locator('[data-setting="alert_threshold"]').waitFor({ state: 'attached' });
-      assert.equal(await step.locator('[data-setting]').count(), assumptions + 11);
+      assert.equal(await step.locator('[data-setting]').count(), assumptions + 5);
+      assert.equal(await step.locator('[data-setting="top_k"], [data-setting="lookback_days"], [data-setting="history_weeks"]').count(), 0,
+        'the technical settings keep the values Genie declared and are not asked');
       const where = `${assumptions} assumptions`;
       const fits = (what) => wizardFits(page, `${where}, ${what}`);
       const fit = await fits('as built');

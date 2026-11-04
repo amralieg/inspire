@@ -617,8 +617,8 @@ test('the wizard and the server check notebook widget values with one implementa
     [[{ name: 'min_age', default: '1' }, { name: 'max_age', default: '9' }], { min_age: '10' }, ['min_age is 10, above max_age 9']],
     [[SCOPE], { run_scope: 'recent' }, []],
     [[SCOPE], { run_scope: '' }, []],
-    [[SCOPE], { run_scope: '5' }, ["run_scope is '5'; allowed: all, groups, recent, records, custom"]],
-    [[], { run_scope: 'everything' }, ["run_scope is 'everything'; allowed: all, groups, recent, records, custom"]],
+    [[SCOPE], { run_scope: '5' }, ["run_scope is '5'; allowed: all, groups, recent, records"]],
+    [[], { run_scope: 'everything' }, ["run_scope is 'everything'; allowed: all, groups, recent, records"]],
   ];
   for (const [widgets, values, problems] of cases) {
     assert.deepEqual(w.widgetProblems(widgets, values), problems, `wizard ${JSON.stringify(values)}`);
@@ -1078,7 +1078,7 @@ test('Grouping and First run come right after Data, Grouping only when the profi
   assert.deepEqual(w.stepErrors('grouping', spec, extras), []);
   assert.deepEqual(w.stepErrors('first_run', spec, extras), []);
   const mixed = { ...spec, config: { ...spec.config, widgets: { group_by: 'all, country', run_scope: 'records', scope_records: '0' } } };
-  assert.deepEqual(w.stepErrors('grouping', mixed, extras), ["Grouping is 'all, country'; choose all, custom or column names, not a mix"]);
+  assert.deepEqual(w.stepErrors('grouping', mixed, extras), ["Grouping is 'all, country'; choose all or column names, not a mix"]);
   assert.deepEqual(w.stepErrors('first_run', mixed, extras), ["Records to run on is '0'; allowed: a whole number, at least 1"]);
   const thousand = { ...spec, config: { ...spec.config, widgets: { run_scope: 'records', scope_records: '1000' } } };
   assert.deepEqual(w.stepErrors('first_run', thousand, extras), [], 'about 1,000 records is a first run for every technique: whole groups or the first records');
@@ -1095,7 +1095,8 @@ test('Full MVP is the first mode, and Notebook only swaps Delivery for a Noteboo
   assert.deepEqual(w.wizardSteps('notebook', null, [{ name: 'top_k' }]).map((s) => s.id), ['choose', 'data', 'notebook']);
   assert.deepEqual(w.contextSettings({ widgets: [] }, null), []);
   assert.deepEqual(w.contextSettings(null, null), []);
-  assert.ok(w.contextSettings({ widgets: [{ name: 'top_k', type: 'text', default: '25' }] }, null).some((s) => s.name === 'top_k'));
+  assert.ok(w.contextSettings({ widgets: [{ name: 'act_now_share', type: 'text', default: '0.05', allowed: '0 to 1' }] }, null).some((s) => s.name === 'act_now_share'));
+  assert.deepEqual(w.contextSettings({ widgets: [{ name: 'top_k', type: 'text', default: '25' }] }, null), [], 'a technical setting keeps its Genie value and is not asked in the wizard');
   assert.deepEqual(w.stepErrors('vibes', w.defaultSpecFromUseCase(UC, { warehouseId: 'wh1', inspireDatabase: 'main.inspire' }), {}), w.stepErrors('vibes',
     w.defaultSpecFromUseCase(UC, { warehouseId: 'wh1', inspireDatabase: 'main.inspire' }), { settings: [{ name: 'top_k' }] }));
   assert.throws(() => w.stepErrors('settings', w.defaultSpecFromUseCase(UC, { warehouseId: 'wh1', inspireDatabase: 'main.inspire' }), {}), /unknown wizard step 'settings'/);

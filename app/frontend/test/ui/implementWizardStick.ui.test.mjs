@@ -11,7 +11,7 @@ const USE_CASE = {
   statement: 'Cut churn among loyal customers',
   primary_table: 'main.s.orders',
   tables_involved: 'main.s.orders',
-  genie_instruction: '## Parameters\n| top_k | text | 25 | Top K |\n',
+  genie_instruction: '## Parameters\n| top_k | text | 25 | Top K |\n| act_now_share | text | 0.05 | Act now share |\n',
   elite_assessment: JSON.stringify({ decision: 'Which customers get a retention call this week', entity_key_column: 'main.s.orders.order_id' }),
   data_evidence: JSON.stringify({ tables: { 'main.s.orders': { rows: 12400, sampled: false } } }),
 };

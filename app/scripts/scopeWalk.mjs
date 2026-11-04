@@ -69,8 +69,7 @@ export async function checkScope(root, profile, { part = 'both' } = {}) {
   }
   if (part !== 'first_run' && profile.applies && (await grouping.count())) {
     await check(list, 'Global (All) is always offered', async () => ({ ok: (await grouping.getByRole('radio', { name: 'Global (All)' }).count()) === 1 }));
-    await check(list, 'Custom is offered', async () => ({ ok: (await grouping.getByRole('radio', { name: 'Custom' }).count()) === 1 }));
-    pending(list, 'Custom editor: Run, refusal and Use this grouping', 'the custom SQL editor has not landed in app-scope or app-scope-api');
+    await check(list, 'no custom SQL is offered', async () => ({ ok: (await grouping.getByRole('radio', { name: 'Custom' }).count()) === 0 }));
   }
   if (part !== 'grouping' && (await firstRun.count())) {
     const choices = await choicesOf(firstRun);
@@ -81,7 +80,7 @@ export async function checkScope(root, profile, { part = 'both' } = {}) {
       return { ok: Boolean(picked) && (over ? !everything : true), detail: `${profile.records} records, picked ${picked ? picked.text.slice(0, 60) : 'none'}` };
     });
     await check(list, 'each First run choice states its record count', async () => {
-      const missing = choices.filter((c) => !/^Custom SQL\b/.test(c.text) && !RECORDS_RE.test(c.text));
+      const missing = choices.filter((c) => !RECORDS_RE.test(c.text));
       return { ok: choices.length > 0 && missing.length === 0, detail: missing.length ? `no count on ${missing.map((m) => m.text.slice(0, 40)).join(', ')}` : `${choices.length} choices` };
     });
   }

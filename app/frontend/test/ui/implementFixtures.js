@@ -14,7 +14,7 @@ export const HARNESS_USE_CASE = {
   sponsor: 'Head of Retention',
   primary_table: 'main.s.orders',
   tables_involved: 'main.s.orders,main.s.returns',
-  genie_instruction: '## Parameters\n| top_k | text | 25 | Top K |\n',
+  genie_instruction: '## Parameters\n| top_k | text | 25 | Top K |\n| act_now_share | text | 0.05 | Act now share |\n',
 };
 
 const uc = (no, name, extra) => ({

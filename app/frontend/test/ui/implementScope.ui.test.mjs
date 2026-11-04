@@ -94,7 +94,7 @@ test('a first build asks Grouping after Data with a real example, then First run
     assert.equal(await grouping.locator('[data-grouping-moves]').textContent(),
       'A group too small to compare fairly moves up a level: Cyprus has 12 records, so it is measured with Europe.');
     assert.deepEqual(await grouping.locator('[data-grouping-choice]').evaluateAll((rows) => rows.map((r) => r.dataset.groupingChoice)),
-      ['all', 'region, country', 'region', 'country', 'custom'], 'Global first, the recommended grouping, each column, Custom last');
+      ['all', 'region, country', 'region', 'country'], 'Global first, the recommended grouping, each column, and no custom SQL');
     assert.deepEqual(await checkedChoice(page, 'data-grouping-choice'), ['region, country'], 'the recommended grouping is pre-picked, never a silent Global');
     await grouping.locator('[data-grouping-choice="all"] input').check();
     assert.deepEqual(await checkedChoice(page, 'data-grouping-choice'), ['all'], 'Global stays selectable');
@@ -107,7 +107,7 @@ test('a first build asks Grouping after Data with a real example, then First run
     assert.equal(await firstRun.locator('[data-first-run-held]').textContent(),
       'main.sales.orders holds 48,210 records, so Inspire suggests a smaller first run to show results sooner.');
     assert.deepEqual(await firstRun.locator('[data-first-run-choice]').evaluateAll((rows) => rows.map((r) => [r.dataset.firstRunChoice, r.querySelector('[data-first-run-records]')?.textContent || ''])),
-      [['groups', ' · 19,612 records'], ['recent', ' · 3,120 records'], ['records', ' · 940 records'], ['custom', ''], ['all', ' · 48,210 records']]);
+      [['groups', ' · 19,612 records'], ['recent', ' · 3,120 records'], ['records', ' · 940 records'], ['all', ' · 48,210 records']]);
     assert.deepEqual(await checkedChoice(page, 'data-first-run-choice'), ['records'], 'above 1,000 records the first run defaults to about 1,000 records in whole groups');
     assert.match(await firstRun.locator('[data-first-run-choice="records"]').innerText(),
       /About 1,000 records, in 3 whole groups so no group is cut: country = Germany, 600 records; country = Ireland, 300 records; country = Malta, 40 records/);
@@ -177,7 +177,7 @@ test('a Deep discovery grouping is picked and marked on a first build, the perso
     const grouping = page.getByRole('region', { name: 'Compare like with like?', exact: true });
     await grouping.locator('[data-grouping-choice]').first().waitFor();
     assert.deepEqual(await grouping.locator('[data-grouping-choice]').evaluateAll((rows) => rows.map((r) => r.dataset.groupingChoice)),
-      ['all', 'stores.region, store_id', 'region, country', 'region', 'country', 'custom']);
+      ['all', 'stores.region, store_id', 'region, country', 'region', 'country']);
     assert.deepEqual(await checkedChoice(page, 'data-grouping-choice'), ['stores.region, store_id'], 'the Deep grouping is picked before the person chooses');
     assert.equal(await grouping.locator('[data-grouping-choice="stores.region, store_id"]').innerText(),
       'stores.region, then store_id · Suggested by Deep discovery');
@@ -292,7 +292,7 @@ test('a technique grouping does not apply to asks only for the first run, and a 
       '9. Settings', '10. Vibes']);
     assert.equal(await page.locator('[data-first-run-held]').textContent(), 'main.sales.orders holds 800 records.');
     assert.deepEqual(await checkedChoice(page, 'data-first-run-choice'), ['all']);
-    assert.deepEqual(await page.locator('[data-first-run-choice]').evaluateAll((rows) => rows.map((r) => r.dataset.firstRunChoice)), ['groups', 'recent', 'records', 'custom', 'all'],
+    assert.deepEqual(await page.locator('[data-first-run-choice]').evaluateAll((rows) => rows.map((r) => r.dataset.firstRunChoice)), ['groups', 'recent', 'records', 'all'],
       'each record stands alone, so a number of records is offered');
     await page.locator('[data-first-run-choice="records"] input').check();
     await page.getByRole('textbox', { name: 'Records to run on' }).fill('0');
@@ -315,7 +315,7 @@ test('when Inspire cannot read the table, First run says why and still lets the 
     assert.deepEqual((await stepBar(page)).slice(0, 4), ['1. Choose', '2. Data', '3. First run', '4. Results']);
     const refusal = await page.locator('[data-scope-profile="error"]').textContent();
     assert.match(refusal, /^Inspire could not read the table for its suggestions: .*You cannot read main\.sales\.orders/);
-    assert.deepEqual(await page.locator('[data-first-run-choice]').evaluateAll((rows) => rows.map((r) => r.dataset.firstRunChoice)), ['groups', 'recent', 'records', 'custom', 'all']);
+    assert.deepEqual(await page.locator('[data-first-run-choice]').evaluateAll((rows) => rows.map((r) => r.dataset.firstRunChoice)), ['groups', 'recent', 'records', 'all']);
     assert.deepEqual(ui.pageErrors.filter((e) => !/status of 403 \(Forbidden\)/.test(e)), [], 'only the refused read answered 403');
   } finally {
     await ui.close();
@@ -325,7 +325,7 @@ test('when Inspire cannot read the table, First run says why and still lets the 
 const SCOPE_MODEL = [
   { name: 'act_now_share', label: 'Act now share', group: 'flagging', kind: 'percent', low: 0, high: 1, allowed: '0 to 1', source: 'widget', default: '0.05', unit: '%',
     reason: "Inspire's default", help: 'The share that is Act now.', applies: 'run' },
-  { name: 'group_by', label: 'Grouping (columns coarse to fine, all, or custom)', group: 'scope', kind: 'text', allowed: 'all, custom or columns', source: 'widget',
+  { name: 'group_by', label: 'Grouping (columns coarse to fine, or all)', group: 'scope', kind: 'text', allowed: 'all or columns', source: 'widget',
     default: 'all', choices: ['region', 'country'], unit: '', reason: '', help: '', applies: 'run' },
   { name: 'run_scope', label: 'First run', group: 'scope', kind: 'choice', choices: ['all', 'groups', 'recent', 'records'], source: 'widget', default: 'all', unit: '',
     reason: '', help: '', applies: 'run' },
@@ -701,8 +701,6 @@ test('the Build page of an App built before First run had choices shows the reco
 });
 
 const ITEM_JOIN = { table: 'main.retail.item', key: 'ss_item_sk', ref_column: 'i_item_sk' };
-const STAR_SQL = 'SELECT m.`ss_ticket_number`, concat_ws(\' / \', CAST(m.`ss_store_sk` AS STRING), CAST(j1.`i_category` AS STRING)) AS group_name\n'
-  + 'FROM `main`.`retail`.`store_sales` m\nLEFT JOIN `main`.`retail`.`item` j1 ON m.`ss_item_sk` = j1.`i_item_sk`';
 const STAR = {
   table: 'main.retail.store_sales', records: 2880404, applies: true, qualifies: true, standalone: false,
   reason: 'Grouping applies: Time Series Forecasting compares each record with the records like it, and ss_store_sk, item.i_category can group main.retail.store_sales.',
@@ -714,13 +712,11 @@ const STAR = {
     { value: '7 / Home', records: 28180, kind: 'typical', parts: [{ column: 'ss_store_sk', value: '7' }, { column: 'item.i_category', value: 'Home', join: ITEM_JOIN }] }],
   group_column: 'item.i_category', group_sizes: [{ value: 'Electronics', records: 295000 }, { value: 'Home', records: 280000 }],
   first_run: { all: 2880404, groups: 77390, recent: null, records: null }, default_scope: 'records', read_at: '2026-11-04T05:00:00Z',
-  prefill: { key_columns: ['ss_ticket_number'], joins: [], sql: STAR_SQL },
 };
 const STAR_BARE = { ...STAR, qualifies: false, columns: [], recommended: [], suggested_groups: [], group_column: null, group_sizes: [], default_scope: 'records',
   first_run: { all: 2880404, groups: null, recent: null, records: null },
   reason: 'Grouping applies: Time Series Forecasting compares each record with the records like it, but no column of main.retail.store_sales or of a table it joins '
-    + 'makes 2 to 500 groups with 30 records each on average, so Global is picked and every record is compared with every other record; choose Custom to group the records with your own SQL.',
-  prefill: { key_columns: ['ss_ticket_number'], joins: [], sql: 'SELECT m.`ss_ticket_number`, \'Global\' AS group_name\nFROM `main`.`retail`.`store_sales` m' } };
+    + 'makes 2 to 500 groups with 30 records each on average, so Global is picked and every record is compared with every other record.' };
 const FORECAST = { ...HARNESS_USE_CASE, analytics_technique: 'Time Series Forecasting', genie_instruction: INSTRUCTION };
 
 test('a forecast on a star fact table with no column to group by still asks Grouping with Global picked and why, then First run right after it on the first 1,000 records', async () => {
@@ -733,8 +729,8 @@ test('a forecast on a star fact table with no column to group by still asks Grou
     assert.ok(steps.some((s) => s.endsWith('. Grouping')), `the step list holds Grouping: ${steps}`);
     assert.equal(steps.findIndex((s) => s.endsWith('. First run')), steps.findIndex((s) => s.endsWith('. Grouping')) + 1, 'First run comes right after Grouping');
     const grouping = page.getByRole('region', { name: 'Compare like with like?', exact: true });
-    assert.deepEqual(await grouping.locator('[data-grouping-choice]').evaluateAll((rows) => rows.map((r) => r.dataset.groupingChoice)), ['all', 'custom'],
-      'only Global and Custom when no column qualifies');
+    assert.deepEqual(await grouping.locator('[data-grouping-choice]').evaluateAll((rows) => rows.map((r) => r.dataset.groupingChoice)), ['all'],
+      'only Global when no column qualifies, never a custom SQL choice');
     assert.deepEqual(await checkedChoice(page, 'data-grouping-choice'), ['all'], 'Global is pre-picked');
     assert.equal(await grouping.locator('[data-grouping-reason]').textContent(), STAR_BARE.reason);
     await next(page);
@@ -760,7 +756,7 @@ test('a forecast on a star fact table recommends the store and the item category
     await toStep(page, 'Grouping');
     const grouping = page.getByRole('region', { name: 'Compare like with like?', exact: true });
     assert.deepEqual(await grouping.locator('[data-grouping-choice]').evaluateAll((rows) => rows.map((r) => r.dataset.groupingChoice)),
-      ['all', 'ss_store_sk, item.i_category', 'ss_store_sk', 'item.i_category', 'custom']);
+      ['all', 'ss_store_sk, item.i_category', 'ss_store_sk', 'item.i_category']);
     assert.deepEqual(await checkedChoice(page, 'data-grouping-choice'), ['ss_store_sk, item.i_category'],
       'the recommended joined grouping is pre-picked by its table and column, never a silent Global');
     assert.equal(await grouping.locator('[data-grouping-sql]').count(), 0, 'a joined grouping runs through its join, so no grouping SQL opens (must-exclude)');
