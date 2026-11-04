@@ -508,6 +508,14 @@ def test_one_build_reads_each_companion_table_once_for_the_app_layout_and_the_ki
     assert set(context["kind_spec"]["tables"]) == set(suffixes) and not context["kind_spec"]["missing"]
 
 
+def test_both_companion_readers_must_be_given_the_shared_reader(agent_ns):
+    import inspect
+    cls = type(_inspire(agent_ns, FakeSpark()))
+    for name in ("_implement_app_layout", "_implement_kind_spec"):
+        read = inspect.signature(getattr(cls, name)).parameters["read"]
+        assert read.default is inspect.Parameter.empty, f"{name} reads with its own reader when a caller leaves read out"
+
+
 def test_the_schema_reader_reads_each_table_once_and_keeps_its_error(agent_ns):
     calls = []
 
@@ -533,7 +541,7 @@ def test_the_build_reads_each_companion_table_once_and_logs_what_it_found(agent_
     kind = agent_ns["_inspire_kind"]("driver_scenarios")
     spark = FakeSpark(_describe(names, _schemas(agent_ns, kind, drop=("__scenario_model",))))
     inst = _inspire(agent_ns, spark)
-    spec = inst._implement_kind_spec("N01-U01", {"use_case_kind": "driver_scenarios"}, RESULT)
+    spec = inst._implement_kind_spec("N01-U01", {"use_case_kind": "driver_scenarios"}, RESULT, inst._implement_schema_reader())
     assert set(spec["tables"]) == {"__scenarios", "__sensitivity"} and list(spec["missing"]) == [f"{RESULT}__scenario_model"]
     assert sorted(s for s in spark.statements if s.startswith("DESCRIBE")) == sorted(
         f"DESCRIBE TABLE {names(RESULT + s)}" for s in ("__scenarios", "__sensitivity", "__scenario_model"))
@@ -542,5 +550,5 @@ def test_the_build_reads_each_companion_table_once_and_logs_what_it_found(agent_
                       f"{RESULT}__scenario_model does not exist"]
     queue_spark = FakeSpark(_describe(names, {}))
     queue = _inspire(agent_ns, queue_spark)
-    assert queue._implement_kind_spec("N01-U01", {"use_case_kind": "risk_propensity"}, RESULT) is None
+    assert queue._implement_kind_spec("N01-U01", {"use_case_kind": "risk_propensity"}, RESULT, queue._implement_schema_reader()) is None
     assert queue_spark.statements == [] and not [m for _lv, m in queue.logger.records if "[KIND-ARTIFACTS FIRED]" in m]

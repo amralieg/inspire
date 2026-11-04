@@ -470,18 +470,18 @@ def test_the_app_uses_a_layout_only_when_the_run_wrote_its_companion_tables_and_
                 "main.s.margin_out__scenario_model": ["driver", "coefficient"]}
     warnings = []
     inst = _layout_inspire(agent_ns, tmp_path, contract)
-    got = inst._implement_app_layout("N04-U01", {"use_case_kind": "driver_scenarios"}, {}, "main.s.margin_out", warnings)
+    got = inst._implement_app_layout("N04-U01", {"use_case_kind": "driver_scenarios"}, {}, "main.s.margin_out", warnings, inst._implement_schema_reader())
     assert got == ("scenario_lab", contract) and warnings == []
     assert "[APP-LAYOUT FIRED] N04-U01: scenario_lab (the Driver-based scenarios kind draws it), companion tables=3" in capsys.readouterr().out
     inst = _layout_inspire(agent_ns, tmp_path / "b", {k: v for k, v in contract.items() if "sensitivity" not in k})
-    got = inst._implement_app_layout("N04-U01", {"use_case_kind": "driver_scenarios"}, {}, "main.s.margin_out", warnings)
+    got = inst._implement_app_layout("N04-U01", {"use_case_kind": "driver_scenarios"}, {}, "main.s.margin_out", warnings, inst._implement_schema_reader())
     assert got == ("decision_queue", {})
     assert warnings == ["App: the Scenario lab layout reads tables the run has not written yet (main.s.margin_out__sensitivity does not "
                         "exist), so the App draws the decision list until a run writes them"]
     assert "[APP-LAYOUT FIRED] N04-U01: scenario_lab -> decision_queue, missing=1" in capsys.readouterr().out
     warnings = []
     inst = _layout_inspire(agent_ns, tmp_path / "c", {"main.s.risk_out__score_bins": ["bin", "count", "cutoff"]})
-    got = inst._implement_app_layout("N01-U01", {"Analytics Technique": "Classification"}, {}, "main.s.risk_out", warnings)
+    got = inst._implement_app_layout("N01-U01", {"Analytics Technique": "Classification"}, {}, "main.s.risk_out", warnings, inst._implement_schema_reader())
     assert got == ("decision_queue", {"main.s.risk_out__score_bins": ["bin", "count", "cutoff"]}) and warnings == []
     assert "[APP-LAYOUT FIRED] N01-U01: decision_queue (" in capsys.readouterr().out
 
