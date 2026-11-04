@@ -176,19 +176,21 @@ export default function MonitorPage({ settings, update, sessionId, runId, onComp
   const sessionOnly = !runId;
   const isStaleSession = !sessionOnly && session?.completed_on && runPhase !== PHASE_TERMINATED;
   const percent = isStaleSession ? 0 : (session?.completed_percent || 0);
-  const isFailed = runInfo?.result_state === 'FAILED' || runInfo?.life_cycle_state === 'INTERNAL_ERROR' || (!isStaleSession && sessionFailed(session));
+  const outcome = runOutcomeOf(session?.results_json);
+  const runFailed = runInfo?.result_state === 'FAILED' || runInfo?.life_cycle_state === 'INTERNAL_ERROR' || (!isStaleSession && sessionFailed(session));
   const isStopped = runInfo?.life_cycle_state === 'TERMINATED' && runInfo?.result_state === 'CANCELED';
   const quietSince = sessionOnly ? sessionQuietSince(session, now) : null;
   const isQuiet = Boolean(quietSince);
-  const isComplete = sessionOnly
+  const finished = sessionOnly
     ? sessionSucceeded(session)
-    : (!isFailed && !isStaleSession && runPhase === PHASE_TERMINATED && runInfo?.result_state === 'SUCCESS' && sessionSucceeded(session));
+    : (!runFailed && !isStaleSession && runPhase === PHASE_TERMINATED && runInfo?.result_state === 'SUCCESS' && sessionSucceeded(session));
+  const isFailed = runFailed || (finished && outcome.failed);
+  const isComplete = finished && !outcome.failed;
   const isPending = sessionOnly ? (!session) : (runPhase === PHASE_PENDING);
   const isRunning = sessionOnly
     ? (Boolean(session) && !isComplete && !isQuiet && !isFailed)
     : (runPhase === PHASE_RUNNING && !isComplete && !isFailed);
   const stepsLive = isPending || isRunning;
-  const outcome = runOutcomeOf(session?.results_json);
   const isWarning = isComplete && outcome.warning;
   const isCleanComplete = isComplete && !isWarning;
 
@@ -200,9 +202,10 @@ export default function MonitorPage({ settings, update, sessionId, runId, onComp
   else if (isWarning) { statusLabel = 'Completed with a warning'; statusDetail = outcome.message || 'The run finished with a warning.'; }
   else if (isComplete) { statusLabel = 'Completed'; statusDetail = 'Pipeline finished successfully.'; }
   else if (isFailed) {
-    statusLabel = 'Failed';
+    statusLabel = outcome.failed ? outcome.failureTitle : 'Failed';
     const failedTask = runInfo?.tasks?.find((t) => t.result_state === 'FAILED');
     statusDetail =
+      (outcome.failed && outcome.message) ||
       failedTask?.state_message ||
       runInfo?.state_message ||
       (failedTask
@@ -879,7 +882,10 @@ export default function MonitorPage({ settings, update, sessionId, runId, onComp
           <div className="flex items-start gap-3">
             <XCircle size={18} className="text-error-fg mt-0.5 shrink-0" />
             <div className="flex-1">
-              <p className="text-sm font-bold text-text-primary">Pipeline failed</p>
+              <p className="text-sm font-bold text-text-primary">{outcome.failed ? outcome.failureTitle : 'Pipeline failed'}</p>
+              {outcome.failed && (
+                <p className="text-xs text-text-secondary mt-1" data-testid="monitor-failure-reason">{outcome.message}</p>
+              )}
               {runInfo?.state_message && (
                 <p className="text-xs text-text-secondary mt-1 font-mono whitespace-pre-wrap bg-error-bg/50 rounded-lg p-3 mt-2 border border-error/10">
                   {runInfo.state_message}

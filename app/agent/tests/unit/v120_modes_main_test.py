@@ -79,7 +79,10 @@ def run_main(agent_ns, monkeypatch, is_job, **over):
         def run(self):
             return None
 
-        def finalize_atomic_writer(self, success=True, error_message=None):
+        def raise_if_empty_discovery(self):
+            return None
+
+        def finalize_atomic_writer(self, success=True, error_message=None, failure_kind="error"):
             return None
 
         def run_exit_value(self):

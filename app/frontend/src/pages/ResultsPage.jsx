@@ -34,6 +34,7 @@ import {
   ShieldAlert,
   Boxes,
   AlertTriangle,
+  XCircle,
 } from 'lucide-react';
 import GenieMarkdownPreview from '../components/GenieMarkdownPreview';
 import GlassCard from '../components/GlassCard';
@@ -1302,23 +1303,27 @@ export default function ResultsPage({
             <div className="bg-surface border border-border/70 rounded-xl overflow-hidden mb-4 shadow-elevated">
               <div className="px-4 py-3 sm:px-5">
                 <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-3" data-testid="execution-complete" data-status={runOutcome.warning ? 'warning' : 'success'}>
-                    <div className={`flex h-8 w-8 items-center justify-center rounded-lg ring-1 ring-inset ${runOutcome.warning ? 'bg-warning/10 ring-warning/20' : 'bg-success/10 ring-success/20'}`}>
-                      {runOutcome.warning
-                        ? <AlertTriangle size={14} className="text-warning-fg" />
-                        : <CheckCircle2 size={14} className="text-success-fg" />}
+                  <div className="flex items-center gap-3" data-testid="execution-complete" data-status={runOutcome.failed ? 'failed' : runOutcome.warning ? 'warning' : 'success'} data-failure={runOutcome.failureKind || undefined}>
+                    <div className={`flex h-8 w-8 items-center justify-center rounded-lg ring-1 ring-inset ${runOutcome.failed ? 'bg-error/10 ring-error/20' : runOutcome.warning ? 'bg-warning/10 ring-warning/20' : 'bg-success/10 ring-success/20'}`}>
+                      {runOutcome.failed
+                        ? <XCircle size={14} className="text-error-fg" />
+                        : runOutcome.warning
+                          ? <AlertTriangle size={14} className="text-warning-fg" />
+                          : <CheckCircle2 size={14} className="text-success-fg" />}
                     </div>
                     <div>
                       <h3 className="text-sm font-bold text-text-primary tracking-tight">
-                        {runOutcome.warning ? 'Execution Complete, with a warning' : 'Execution Complete'}
+                        {runOutcome.failed ? runOutcome.failureTitle : runOutcome.warning ? 'Execution Complete, with a warning' : 'Execution Complete'}
                       </h3>
-                      <p className="text-[11px] text-text-secondary">Every step of the run finished.</p>
+                      {runOutcome.failed
+                        ? <p className="text-[11px] text-error-fg" data-testid="execution-failure">{displayCleanText(runOutcome.message)}</p>
+                        : <p className="text-[11px] text-text-secondary">Every step of the run finished.</p>}
                       {qualityBarCounts.found > 0 && (
                         <p className="text-[11px] text-text-secondary mt-0.5" data-testid="quality-bar-counts">
                           {qualityBarCounts.found} found, {qualityBarCounts.meets} {qualityBarCounts.meets === 1 ? 'meets' : 'meet'} your quality bar
                         </p>
                       )}
-                      {(runOutcome.barMessage || runOutcome.notes.length > 0) && (
+                      {!runOutcome.failed && (runOutcome.barMessage || runOutcome.notes.length > 0) && (
                         <p className="text-[10px] text-warning-fg mt-0.5" data-testid="execution-outcome">
                           {displayCleanText(runOutcome.barMessage || runOutcome.notes[0])}
                         </p>
