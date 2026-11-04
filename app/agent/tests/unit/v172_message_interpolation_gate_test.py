@@ -341,6 +341,7 @@ REVIEWED = {
         ('_implement_source_checks', "'; '.join(misfits)"),
         ('_implement_data_minimum', 'reason'),
         ('_implement_one_locked', "'; '.join(removal)"),
+        ('_implement_one_locked', "'; '.join(problems)"),
         ('_implement_one_locked', "'; '.join(unbuilt)"),
         ('_implement_one_locked', "'; '.join(widget_problems)"),
         ('_implement_source_checks', 'implement_missing_tables_message(missing, self._implement_builder(), self._implement_builder_label())'),
