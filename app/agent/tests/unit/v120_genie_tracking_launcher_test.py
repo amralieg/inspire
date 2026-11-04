@@ -67,7 +67,7 @@ def test_regenerated_instructions_merge_through_a_dataframe_view_not_sql_text(ag
     statement = spark.sql_calls[0][0]
     assert statement.startswith("MERGE INTO main.inspire.__inspire_usecases AS t USING _inspire_genie_regen_4242_1 AS s")
     for clause in ("t.has_genie_code = 'Y'", "t.generate_genie_code_instruction = 'No'", "t.genie_instruction = s.genie_instruction",
-                   "t.notebook_path = s.notebook_path", "ON t.session_id = s.session_id AND t.id = s.id"):
+                   "t.notebook_path = s.notebook_path", "ON t.session_id IN (7, 8) AND t.session_id = s.session_id AND t.id = s.id"):
         assert clause in statement, clause
     assert "DROP TABLE x" not in statement and "it's" not in statement
     assert spark.views["_inspire_genie_regen_4242_1"] == [(7, "N01-U01", HOSTILE, "/nb/it's.ipynb"), (8, "N01-U02", "ok " * 50, "/nb/b.ipynb")]

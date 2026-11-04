@@ -251,9 +251,10 @@ def test_a_run_never_migrates_a_table_built_without_the_change_history(agent_ns)
     assert not any(p.startswith(("Change history:", "Actions: added")) for p in printed)
 
 
-def test_a_merge_that_meets_a_concurrent_app_edit_runs_again_and_any_other_failure_stops(fresh_ns):
+def test_a_merge_that_meets_a_concurrent_app_edit_runs_again_and_any_other_failure_stops(fresh_ns, monkeypatch):
+    import time
     waits = []
-    fresh_ns["_inspire_time"] = types.SimpleNamespace(sleep=waits.append)
+    monkeypatch.setattr(time, "sleep", waits.append)
     tables = _Tables(fresh_ns, target=CORE + HISTORY)
     errors = [RuntimeError("[DELTA_CONCURRENT_APPEND] ConcurrentAppendException: Files were added by a concurrent update.")]
     respond = tables.respond
@@ -266,19 +267,19 @@ def test_a_merge_that_meets_a_concurrent_app_edit_runs_again_and_any_other_failu
     tables.spark.responder = concurrent
     rows, printed = tables.run()
     merges = [s for s in tables.spark.statements if s.startswith(f"MERGE INTO {QUOTED} ") and "WHEN NOT MATCHED THEN INSERT" in s]
-    assert rows == 3 and waits == [5] and len(merges) == 2
-    assert any("changed while run r-2 merged into it, such as an edit in the App, so the merge runs again (attempt 2 of 3)" in p
+    assert rows == 3 and len(waits) == 1 and 0.5 <= waits[0] <= 1.0 and len(merges) == 2
+    assert any("changed while run r-2 merged into it, such as an edit in the App, so the merge runs again (attempt 2 of " in p
                for p in printed)
     stuck = _Tables(fresh_ns, target=CORE + HISTORY, fail="MERGE INTO")
     with pytest.raises(RuntimeError, match="PERMISSION_DENIED"):
         stuck.run()
     assert len([s for s in stuck.spark.statements if s.startswith(f"MERGE INTO {QUOTED} ")]) == 1, "only a concurrent change is retried"
     always = _Tables(fresh_ns, target=CORE + HISTORY)
-    always.spark.responder = lambda s: (_ for _ in ()).throw(RuntimeError("concurrent update")) if s.startswith("MERGE") else \
+    always.spark.responder = lambda s: (_ for _ in ()).throw(RuntimeError("[DELTA_CONCURRENT_APPEND] concurrent update")) if s.startswith("MERGE") else \
         always.respond(s)
     with pytest.raises(RuntimeError, match="concurrent update"):
         always.run()
-    assert len([s for s in always.spark.statements if s.startswith(f"MERGE INTO {QUOTED} ")]) == 3
+    assert len([s for s in always.spark.statements if s.startswith(f"MERGE INTO {QUOTED} ")]) == fresh_ns["inspire_write_conflict_attempts"]()
 
 
 @pytest.mark.parametrize("stage,profile,repeats,needle", [

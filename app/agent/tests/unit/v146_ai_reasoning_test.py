@@ -231,8 +231,10 @@ def test_the_run_summary_says_how_old_the_data_is_so_no_row_carries_it(fresh_ns)
     assert "The run is as of" not in asked[1], "a run on fresh data says nothing about its age"
 
 
-def test_a_write_retries_only_a_concurrent_change_and_gives_up_after_three_attempts(fresh_ns):
-    fresh_ns["_inspire_time"] = types.SimpleNamespace(sleep=lambda _s: None, time=lambda: 0.0)
+def test_a_write_retries_only_a_concurrent_change_and_gives_up_after_the_retry_window(fresh_ns, monkeypatch):
+    import time
+    monkeypatch.setattr(time, "sleep", lambda _s: None)
+    attempts = fresh_ns["inspire_write_conflict_attempts"]()
     calls, printed = [], []
 
     def flaky(statement):
@@ -242,15 +244,15 @@ def test_a_write_retries_only_a_concurrent_change_and_gives_up_after_three_attem
         return [{"num_updated_rows": 4}]
 
     rows = fresh_ns["inspire_sql_retrying"](FakeSpark(responder=flaky), "MERGE INTO t", TABLE, "saving", "the save", printed.append)
-    assert rows == [{"num_updated_rows": 4}] and len(calls) == 3 and "(attempt 3 of 3)" in printed[-1]
+    assert rows == [{"num_updated_rows": 4}] and len(calls) == 3 and f"(attempt 3 of {attempts})" in printed[-1]
     denied = FakeSpark(responder=lambda s: (_ for _ in ()).throw(RuntimeError("PERMISSION_DENIED: no MODIFY")))
     with pytest.raises(RuntimeError, match="PERMISSION_DENIED"):
         fresh_ns["inspire_sql_retrying"](denied, "MERGE INTO t", TABLE, "saving", "the save", printed.append)
     assert len(denied.statements) == 1, "only a concurrent change is retried"
     always = FakeSpark(responder=lambda s: (_ for _ in ()).throw(RuntimeError("ConcurrentDeleteReadException")))
-    with pytest.raises(RuntimeError):
+    with pytest.raises(fresh_ns["InspireWriteConflict"], match="conflicted with other Inspire runs"):
         fresh_ns["inspire_sql_retrying"](always, "MERGE INTO t", TABLE, "saving", "the save", printed.append)
-    assert len(always.statements) == 3
+    assert len(always.statements) == attempts >= 8
 
 
 def test_the_run_controls_give_the_ai_the_use_case_and_the_users_notebook_directives_word_for_word(agent_ns):

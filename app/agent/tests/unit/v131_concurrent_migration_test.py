@@ -83,12 +83,13 @@ def test_a_concurrent_conflict_is_tried_again_until_the_column_is_added(agent_ns
     assert "table_joins" in obj._tracking_table_columns
 
 
-def test_a_conflict_that_never_clears_is_reported_after_three_tries(agent_ns, sleeps):
-    table = Table(_all_but(agent_ns, "table_joins"), "table_joins", [CONFLICT] * 5, other_run_adds=False)
+def test_a_conflict_that_never_clears_is_reported_after_the_retry_window(agent_ns, sleeps):
+    attempts = agent_ns["inspire_write_conflict_attempts"]()
+    table = Table(_all_but(agent_ns, "table_joins"), "table_joins", [CONFLICT] * 100, other_run_adds=False)
     obj = _tracking(agent_ns, table)
     with pytest.raises(RuntimeError, match="1 column: \\['table_joins: \\[DELTA_METADATA_CHANGED\\]"):
         obj._migrate_tracking_table_schema()
-    assert table.alters == ["table_joins"] * 3 and len(sleeps) == 2 and 0.5 <= sleeps[0] <= 1.0 and 1.0 <= sleeps[1] <= 2.0
+    assert table.alters == ["table_joins"] * attempts and len(sleeps) == attempts - 1 and 0.5 <= sleeps[0] <= 1.0 and 1.0 <= sleeps[1] <= 2.0
     assert "table_joins" not in obj._tracking_table_columns, "a column that is not there is never written"
 
 

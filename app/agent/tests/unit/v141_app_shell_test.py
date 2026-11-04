@@ -342,7 +342,15 @@ def test_run_sql_sends_a_write_again_when_delta_rejects_it_for_a_concurrent_chan
     stuck = FakeSession([FakeResponse(payload={"status": {"state": "FAILED", "error": {"message": CONFLICT}}})] * 9)
     with pytest.raises(shell_db.QueryError, match="DELTA_CONCURRENT_APPEND"):
         shell_db.Workspace("dbc-1.example.com", lambda: {}, session=stuck, sleep=lambda s: None, clock=lambda: 0).run_sql("wh", sql)
-    assert len(stuck.calls) == shell_db.CONFLICT_ATTEMPTS
+    assert len(stuck.calls) == shell_db.CONFLICT_ATTEMPTS == 8
+    waits = []
+    stuck = FakeSession([FakeResponse(payload={"status": {"state": "FAILED", "error": {"message": CONFLICT}}})] * 9)
+    with pytest.raises(shell_db.QueryError, match="DELTA_CONCURRENT_APPEND"):
+        shell_db.Workspace("dbc-1.example.com", lambda: {}, session=stuck, sleep=waits.append, clock=lambda: 0).run_sql("wh", sql)
+    for attempt, wait in enumerate(waits, start=1):
+        ceiling = min(shell_db.CONFLICT_MAX_DELAY_S, shell_db.CONFLICT_BASE_DELAY_S * 2 ** (attempt - 1))
+        assert ceiling <= wait <= 2 * ceiling
+    assert 30 <= sum(waits) <= 2 * shell_db.CONFLICT_WINDOW_S
     other = FakeSession([FakeResponse(payload={"status": {"state": "FAILED", "error": {"message": "MAXIMUM_CONCURRENT_RUNS_REACHED"}}})])
     with pytest.raises(shell_db.QueryError, match="MAXIMUM_CONCURRENT_RUNS_REACHED"):
         shell_db.Workspace("dbc-1.example.com", lambda: {}, session=other, sleep=lambda s: None, clock=lambda: 0).run_sql("wh", sql)

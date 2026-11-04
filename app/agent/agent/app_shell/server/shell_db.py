@@ -23,8 +23,25 @@ JOB_RUNS_PAGE = 25
 TABLE_HISTORY_ROWS = 20
 CONCURRENT = re.compile(r"DELTA_CONCURRENT_\w+|DELTA_(METADATA|PROTOCOL)_CHANGED|CONCURRENT_(APPEND|DELETE|TRANSACTION|WRITE)|"
                         r"Concurrent\w*Exception|(Metadata|Protocol)ChangedException", re.I)
-CONFLICT_ATTEMPTS = 6
-CONFLICT_BASE_DELAY_S = 0.1
+CONFLICT_WINDOW_S = 60.0
+CONFLICT_BASE_DELAY_S = 0.5
+CONFLICT_MAX_DELAY_S = 10.0
+
+
+def conflict_delay(attempt: int, rng=random.random) -> float:
+    ceiling = min(CONFLICT_MAX_DELAY_S, CONFLICT_BASE_DELAY_S * 2 ** (attempt - 1))
+    return ceiling + rng() * ceiling
+
+
+def conflict_attempts() -> int:
+    attempts, spent = 1, 0.0
+    while spent + 1.5 * min(CONFLICT_MAX_DELAY_S, CONFLICT_BASE_DELAY_S * 2 ** (attempts - 1)) <= CONFLICT_WINDOW_S:
+        spent += 1.5 * min(CONFLICT_MAX_DELAY_S, CONFLICT_BASE_DELAY_S * 2 ** (attempts - 1))
+        attempts += 1
+    return attempts
+
+
+CONFLICT_ATTEMPTS = conflict_attempts()
 
 
 class QueryError(RuntimeError):
@@ -154,7 +171,7 @@ class Workspace:
             except QueryError as error:
                 if attempt >= CONFLICT_ATTEMPTS or not CONCURRENT.search(str(error)) or self.clock() - started > deadline_s:
                     raise
-                self.sleep(CONFLICT_BASE_DELAY_S * attempt + random.random() * CONFLICT_BASE_DELAY_S)
+                self.sleep(conflict_delay(attempt))
 
     def _run_once(self, warehouse_id: str, statement: str, parameters, limit: int, deadline_s: int, started: float) -> dict:
         response = self.call("POST", "/api/2.0/sql/statements", {

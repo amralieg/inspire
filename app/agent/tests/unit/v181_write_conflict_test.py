@@ -293,3 +293,62 @@ def test_no_second_conflict_classifier_or_short_retry_remains():
     assert "INSPIRE_CONCURRENT_SCHEMA_ERRORS" not in src and "_is_concurrent_error" not in src
     assert 'retryable_errors=["concurrent"]' not in src
     assert '"concurrent" not in' not in src and "'concurrent' not in" not in src and '"concurrent" in str' not in src
+
+
+class _Frame:
+    def __init__(self, rows):
+        self.rows = rows
+
+    def collect(self):
+        return self.rows
+
+
+class _ConflictingSpark:
+    def __init__(self, conflicts, describe=()):
+        self.conflicts, self.describe, self.statements = list(conflicts), list(describe), []
+
+    def sql(self, statement):
+        self.statements.append(statement)
+        if statement.startswith("DESCRIBE TABLE"):
+            return _Frame([{"col_name": name} for name in self.describe])
+        if self.conflicts:
+            raise RuntimeError(self.conflicts.pop(0))
+        if statement.startswith("ALTER TABLE"):
+            self.describe.append(statement.split("ADD COLUMN ", 1)[1].split()[0].strip("`"))
+        return _Frame([{"num_affected_rows": 1}])
+
+
+def _generated_run_ns(agent_ns):
+    ns = {"__name__": "generated_run"}
+    exec(compile(agent_ns["REDACT_SOURCE"], "<redact>", "exec"), ns)
+    exec(compile(agent_ns["IMPLEMENT_RESULT_HISTORY_SOURCE"], "<inspire_result_history>", "exec"), ns)
+    return ns
+
+
+def test_the_generated_run_retries_business_output_conflicts_with_only_its_own_source(agent_ns, slept):
+    ns = _generated_run_ns(agent_ns)
+    assert "RetryHandler" not in ns and "inspire_ensure_row_concurrency" not in ns
+    spark, printed = _ConflictingSpark(CONFLICTS[:2]), []
+    rows = ns["inspire_sql_retrying"](spark, "MERGE INTO t USING s ON t.k = s.k", "c.s.t", "saving", "the save", printed.append)
+    attempts = ns["inspire_write_conflict_attempts"]()
+    assert rows == [{"num_affected_rows": 1}] and len(spark.statements) == 3 and len(slept) == 2
+    assert printed[-1].endswith(f"(attempt 3 of {attempts})") and 0.5 <= slept[0] <= 1.0 and 1.0 <= slept[1] <= 2.0
+    denied = _ConflictingSpark([NOT_CONFLICTS[1]])
+    with pytest.raises(RuntimeError, match="PERMISSION_DENIED"):
+        ns["inspire_sql_retrying"](denied, "MERGE INTO t", "c.s.t", "saving", "the save", printed.append)
+    assert len(denied.statements) == 1
+
+
+def test_the_generated_run_adds_a_column_through_the_shared_retry_and_reports_a_lasting_conflict(agent_ns, slept):
+    ns = _generated_run_ns(agent_ns)
+    spark = _ConflictingSpark(CONFLICTS[:1], describe=["id"])
+    added, failed, existing = ns["inspire_add_missing_columns"](spark, "c.s.t", [("note", "STRING")])
+    assert added == ["note"] and failed == [] and "note" in existing and len(slept) == 1
+    stuck = _ConflictingSpark([CONFLICTS[0]] * 100, describe=["id"])
+    added, failed, _ = ns["inspire_add_missing_columns"](stuck, "c.s.t", [("note", "STRING")])
+    attempts = ns["inspire_write_conflict_attempts"]()
+    alters = [s for s in stuck.statements if s.startswith("ALTER TABLE")]
+    assert added == [] and len(alters) == attempts and failed[0][0] == "note" and "DELTA_CONCURRENT_APPEND" in failed[0][1]
+    raced = _ConflictingSpark(["[FIELDS_ALREADY_EXISTS] Cannot add column, because `note` already exists"], describe=["id"])
+    added, failed, existing = ns["inspire_add_missing_columns"](raced, "c.s.t", [("note", "STRING")])
+    assert added == [] and failed == [] and "note" in existing
