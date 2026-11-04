@@ -225,6 +225,38 @@ test('a Deep discovery grouping left as picked is never sent as the person\'s ch
   }
 });
 
+test('a Deep discovery grouping the profile could not size shows no example, count or groups of another column, and the profiled grouping still does (must-exclude)', async () => {
+  const calls = [];
+  const deep = { ...PROFILE, deep_suggestion: { columns: ['store_id'], record_level: 'order_id' } };
+  const ui = await openUi('wizard', { me: ME, useCase: { ...HARNESS_USE_CASE, genie_instruction: INSTRUCTION } }, '', { init: profileAt(calls, deep) });
+  const { page } = ui;
+  try {
+    await toStep(page, 'Grouping');
+    const grouping = page.getByRole('region', { name: 'Compare like with like?', exact: true });
+    assert.deepEqual(await checkedChoice(page, 'data-grouping-choice'), ['store_id']);
+    assert.doesNotMatch(await grouping.locator('[data-grouping-why]').innerText(), /Grouped by country/);
+    await next(page);
+    await onStep(page, 'First run');
+    const groupsRow = page.locator('[data-first-run-choice="groups"]');
+    assert.deepEqual(await checkedChoice(page, 'data-first-run-choice'), ['groups']);
+    assert.equal(await groupsRow.locator('[data-first-run-records]').count(), 0);
+    assert.equal(await groupsRow.locator('[data-scope-group]').count(), 0);
+    assert.equal(await groupsRow.locator('[data-first-run-run-picks]').innerText(),
+      'Inspire profiled the groups of another column, so the run picks whole groups of store_id itself; type groups below to choose them.');
+    await page.getByRole('button', { name: 'Back' }).click();
+    await onStep(page, 'Grouping');
+    await grouping.locator('[data-grouping-choice="region, country"] input').check();
+    assert.match(await grouping.locator('[data-grouping-why]').innerText(), /Grouped by country/);
+    await next(page);
+    await onStep(page, 'First run');
+    assert.ok(await groupsRow.locator('[data-scope-group]').count() > 0, 'the profiled grouping lists its own groups');
+    assert.equal(await groupsRow.locator('[data-first-run-run-picks]').count(), 0);
+    assert.deepEqual(ui.pageErrors, []);
+  } finally {
+    await ui.close();
+  }
+});
+
 test('confirming the Deep discovery grouping makes it the person\'s choice, and that is what the build sends', async () => {
   const calls = [];
   const deep = { ...PROFILE, deep_suggestion: { columns: ['store_id'], record_level: 'order_id' } };

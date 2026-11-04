@@ -6,7 +6,7 @@ import { SETTINGS_NEXT_RUN } from '../lib/useCaseSettings';
 import {
   FIRST_RUN_KEEPS, GROUP_ALL, GROUP_BY, GROUP_CUSTOM, GROUP_KIND_WORDS, GROUPING_DEEP_MARK, GROUPING_DEEP_PICKED, GROUPING_PLAIN, RUN_SCOPE, RUN_SCOPE_UNRECORDED, RUN_SCOPES,
   SCOPE_DAYS, SCOPE_GROUPS, SCOPE_LABELS, SCOPE_RECORDS, SCOPE_SAVE_LABEL, deepGrouping, firstRunChoices, groupByColumns, groupingChoices, groupingExampleText,
-  groupingMovesUpText, groupingReasonText, profileHeldText, sameGrouping, isScopeSetting, scopeChanges, scopeProblems, scopeValues, suggestedGroups, withUnrecordedScope,
+  groupingMovesUpText, groupingProfiled, groupingReasonText, groupsPickedByRunText, profileHeldText, sameGrouping, isScopeSetting, scopeChanges, scopeProblems, scopeValues, suggestedGroups, withUnrecordedScope,
   chosenGroupsText, finestGroupColumn, scopeGroupKey, scopeGroupText, scopeGroupsOf, scopeGroupsValue,
 } from '../lib/runScope';
 
@@ -36,8 +36,9 @@ function GroupingPart({ values, onChange, profile, settings, editable, custom, c
   const known = isCustom || listed.some((c) => c.value !== GROUP_CUSTOM && sameGrouping(c.value, current));
   const choices = known ? listed : [...listed.slice(0, -1), { value: current, label: groupByColumns(current).join(', then '), columns: groupByColumns(current) }, listed[listed.length - 1]];
   const pickedOf = (c) => (c.value === GROUP_CUSTOM ? isCustom : !isCustom && sameGrouping(c.value, current));
-  const example = groupingExampleText(profile);
-  const moves = groupingMovesUpText(profile);
+  const profiled = groupingProfiled(values, profile);
+  const example = profiled ? groupingExampleText(profile) : '';
+  const moves = profiled ? groupingMovesUpText(profile) : '';
   const level = deepGrouping(profile).length ? String(profile.deep_suggestion.record_level || '').trim() : '';
   const reason = groupingReasonText(profile);
   return (
@@ -80,7 +81,8 @@ function FirstRunPart({ values, onChange, profile, settings, editable, unrecorde
   const current = values[RUN_SCOPE] || GROUP_ALL;
   const choices = firstRunChoices(profile, values, everything)
     .filter((c) => allowed.includes(c.id) && (c.id === current || (profile ? c.available : true)));
-  const groups = suggestedGroups(profile);
+  const profiled = groupingProfiled(values, profile);
+  const groups = profiled ? suggestedGroups(profile) : [];
   const picked = scopeGroupsOf(values[SCOPE_GROUPS], finestGroupColumn(profile));
   const isPicked = (g) => picked.some((p) => scopeGroupKey(p) === scopeGroupKey(g.parts));
   const toggle = (group, on) => {
@@ -123,11 +125,14 @@ function FirstRunPart({ values, onChange, profile, settings, editable, unrecorde
                 {groupsText && <p data-first-run-groups-text="" className={NOTE}>{groupsText}</p>}
               </div>
             ) : (
-              <label className="ml-6 flex items-center gap-2">
-                <span>{SCOPE_LABELS[SCOPE_GROUPS]}</span>
-                <input type="text" aria-label={SCOPE_LABELS[SCOPE_GROUPS]} disabled={!editable} className={`${NUMBER} w-56`} value={values[SCOPE_GROUPS]}
-                  onChange={(e) => onChange(SCOPE_GROUPS, e.target.value)} />
-              </label>
+              <div className="ml-6 space-y-1">
+                {!profiled && <p data-first-run-run-picks="" className={NOTE}>{groupsPickedByRunText(values)}</p>}
+                <label className="flex items-center gap-2">
+                  <span>{SCOPE_LABELS[SCOPE_GROUPS]}</span>
+                  <input type="text" aria-label={SCOPE_LABELS[SCOPE_GROUPS]} disabled={!editable} className={`${NUMBER} w-56`} value={values[SCOPE_GROUPS]}
+                    onChange={(e) => onChange(SCOPE_GROUPS, e.target.value)} />
+                </label>
+              </div>
             ))}
             {current === c.id && c.id === 'recent' && (
               <label className="ml-6 flex items-center gap-2">

@@ -555,3 +555,18 @@ test('a grouping on a joined column is one choice that names its join, never a g
   assert.equal(choices.find((c) => c.value === 'ss_store_sk').note, undefined, 'a column of the main table names no join');
   assert.equal(choices.filter((c) => S.sameGrouping(c.value, 'item.i_category')).length, 1, 'one candidate list: the joined column is listed once');
 });
+
+test('First run never counts or lists the groups of another column than the grouping, and says the run picks them (must-exclude: the profiled grouping keeps its count)', async () => {
+  const S = await lib('runScope.js');
+  const PAY = { ...PROFILE, recommended: ['paymentMethod'], group_column: 'paymentMethod', example: { column: 'paymentMethod' }, first_run: { ...PROFILE.first_run, groups: 3333 },
+    suggested_groups: [{ value: 'mastercard', records: 1144, kind: 'biggest' }, { value: 'visa', records: 1083, kind: 'smallest' }] };
+  const other = { ...S.scopeValues(() => undefined), group_by: 'product', run_scope: 'groups' };
+  assert.equal(S.groupingProfiled(other, PAY), false);
+  assert.equal(S.firstRunChoices(PAY, other).find((c) => c.id === 'groups').records, null);
+  assert.equal(S.groupsPickedByRunText(other),
+    'Inspire profiled the groups of another column, so the run picks whole groups of product itself; type groups below to choose them.');
+  const same = { ...other, group_by: 'paymentMethod' };
+  assert.equal(S.groupingProfiled(same, PAY), true);
+  assert.equal(S.firstRunChoices(PAY, same).find((c) => c.id === 'groups').records, 3333);
+  assert.equal(S.groupingProfiled({ ...other, group_by: 'all' }, PAY), true);
+});

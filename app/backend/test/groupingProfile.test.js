@@ -492,3 +492,23 @@ test('the grouping SQL of a joined column is the shared case the notebook runs, 
   assert.equal(checked.ok, true, checked.text);
   assert.deepEqual(checked.tables, c.tables);
 });
+
+test('a Deep discovery grouping the profile can size becomes the one recommendation, so the example, the groups and the first run all describe it (must-exclude: an unsized one changes nothing)', () => {
+  const values = [...['east', 'west', 'north', 'south'].map((v, i) => ({ col: '0', value: v, records: String(1000 + i * 100) })),
+    ...['visa', 'amex', 'mastercard'].map((v, i) => ({ col: '1', value: v, records: String(1400 + i * 50) }))];
+  const base = { table: 'main.sales.orders', technique: 'Anomaly Detection', candidates: ['region', 'payment'], paths: null, time: null, days: 30,
+    columns: [{ column_name: 'region', data_type: 'STRING' }, { column_name: 'payment', data_type: 'STRING' }], keys: { primary: [], joins: [] }, joins: [], readAt: 'now',
+    sample: [{ kind: 'size', coarse: '0', fine: '-1', groups: '4', records: '4600' }, { kind: 'size', coarse: '1', fine: '-1', groups: '3', records: '4600' }],
+    values, stats: { records: '4600', d0: '4', n0: '0', d1: '3', n1: '0' } };
+  const own = GP.profileView(base);
+  assert.deepEqual([own.recommended, own.group_column], [['payment'], 'payment']);
+  const deep = GP.profileView({ ...base, deep: ['Region'] });
+  assert.deepEqual([deep.recommended, deep.group_column], [['region'], 'region']);
+  assert.deepEqual(deep.group_sizes.map((g) => g.value), ['south', 'north', 'west', 'east']);
+  assert.ok(deep.suggested_groups.length && deep.suggested_groups.every((g) => g.parts[0].column === 'region'), JSON.stringify(deep.suggested_groups));
+  assert.equal(deep.first_run.groups, deep.suggested_groups.reduce((sum, g) => sum + g.records, 0));
+  for (const unsized of [['sku'], ['region', 'sku'], ['region', 'Region'], []]) {
+    const kept = GP.profileView({ ...base, deep: unsized });
+    assert.deepEqual([kept.recommended, kept.group_column, kept.first_run.groups], [own.recommended, own.group_column, own.first_run.groups], JSON.stringify(unsized));
+  }
+});

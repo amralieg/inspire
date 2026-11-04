@@ -277,7 +277,13 @@ function joinOf(candidate) {
   return { table: candidate.table, key: candidate.key, ref_column: candidate.ref_column };
 }
 
-function profileView({ table, technique, columns, candidates, stats, sample, values, paths, time, days, keys, joins, joined = [], readAt }) {
+function deepRecommended(deep, keptNames, heavy) {
+  const kept = new Map(keptNames.filter((n) => !heavy.has(n)).map((n) => [n.toLowerCase(), n]));
+  const named = (deep || []).map((c) => kept.get(str(c).trim().toLowerCase()));
+  return named.length && named.every(Boolean) && new Set(named).size === named.length ? named : null;
+}
+
+function profileView({ table, technique, columns, candidates, stats, sample, values, paths, time, days, keys, joins, joined = [], deep = [], readAt }) {
   const records = num(stats.records);
   const standalone = R.standaloneRecords(technique);
   const picked = profiledColumns(stats, candidates);
@@ -288,7 +294,7 @@ function profileView({ table, technique, columns, candidates, stats, sample, val
   const keptNames = kept.map((p) => p.name);
   const { profiles, nests } = sampleProfile(sample, candidates);
   const heavy = new Set(kept.filter((p) => R.nullHeavy({ records, nulls: p.nulls })).map((p) => p.name));
-  const recommended = R.recommendation(profiles.filter((p) => keptNames.includes(p.column) && !heavy.has(p.column)), nests);
+  const recommended = deepRecommended(deep, keptNames, heavy) || R.recommendation(profiles.filter((p) => keptNames.includes(p.column) && !heavy.has(p.column)), nests);
   const shown = kept.map((p) => {
     const sizes = [...groups.get(p.name).values()].map((g) => g.records);
     return { name: p.name, type: types.get(p.name) || '', distinct: sizes.length, smallest: Math.min(...sizes), largest: Math.max(...sizes), nulls: p.nulls,

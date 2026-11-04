@@ -212,7 +212,7 @@ export function groupingChosenBy(raw, profile) {
   return deepGrouping(profile).length ? 'deep' : '';
 }
 
-function groupsOfProfile(values, profile) {
+export function groupingProfiled(values, profile) {
   const finest = groupByColumns(values[GROUP_BY]).pop();
   const profiled = finestGroupColumn(profile);
   return !finest || finest.toLowerCase() === GROUP_ALL || (profiled && finest.toLowerCase() === profiled.toLowerCase());
@@ -222,7 +222,7 @@ export function withScopeDefaults(values, profile) {
   if (!isMap(profile) || text(values[RUN_SCOPE])) return values;
   const chosen = firstRunDefault(profile);
   const next = { ...values, [RUN_SCOPE]: chosen };
-  if (chosen === 'groups' && !text(values[SCOPE_GROUPS]) && groupsOfProfile(values, profile)) {
+  if (chosen === 'groups' && !text(values[SCOPE_GROUPS]) && groupingProfiled(values, profile)) {
     next[SCOPE_GROUPS] = scopeGroupsValue(suggestedGroups(profile).map((g) => g.parts));
   }
   return next;
@@ -305,6 +305,11 @@ export function recordGroups(profile, values) {
   return wholeGroups(profile.group_sizes, values?.[SCOPE_RECORDS]);
 }
 
+export function groupsPickedByRunText(values) {
+  const finest = groupByColumns(values?.[GROUP_BY]).pop();
+  return finest ? `Inspire profiled the groups of another column, so the run picks whole groups of ${finest} itself; type groups below to choose them.` : '';
+}
+
 export function recordGroupsText(profile, values) {
   const picked = recordGroups(profile, values);
   const goal = whole(values?.[SCOPE_RECORDS]) ?? Number(SCOPE_DEFAULTS[SCOPE_RECORDS]);
@@ -348,10 +353,11 @@ export function firstRunChoices(profile, values, everything = '') {
   const timeName = via ? `${text(via.date)} in ${text(via.table)}, through ${timeColumn}` : timeColumn;
   const inGroups = recordGroups(profile, values);
   const grouped = Array.isArray(inGroups) && inGroups.length > 0;
+  const sameGroups = groupingProfiled(values, profile);
   return [
     {
       id: 'groups', label: 'Chosen groups', available: groups.length > 0,
-      records: picked.length && pickedRecords.every((n) => n != null) ? pickedRecords.reduce((a, b) => a + b, 0) : picked.length ? null : finite(fr.groups),
+      records: picked.length && pickedRecords.every((n) => n != null) ? pickedRecords.reduce((a, b) => a + b, 0) : picked.length || !sameGroups ? null : finite(fr.groups),
     },
     {
       id: 'recent', label: timeColumn ? `The last ${days ?? SCOPE_DEFAULTS[SCOPE_DAYS]} days of ${timeName}` : 'A recent period', available: Boolean(timeColumn),

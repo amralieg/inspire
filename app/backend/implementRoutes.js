@@ -1574,8 +1574,9 @@ function registerImplementRoutes(app, deps) {
         const stats = statRows[0] || {};
         const picked = GP.profiledColumns(stats, candidates);
         const values = picked.length ? await rows(GP.valuesSql(main, picked, profiledJoined), null, GP.PROFILE_VALUE_ROWS) : [];
+        const deep = GP.deepSuggestionOf(useCase);
         const draft = (paths) => GP.profileView({ table, technique: useCase.analytics_technique, columns, candidates, stats, sample, values, paths,
-          time, days, keys, joins: saved, joined: profiledJoined, readAt: new Date().toISOString() });
+          time, days, keys, joins: saved, joined: profiledJoined, deep: deep ? deep.columns : [], readAt: new Date().toISOString() });
         const first = draft(null);
         if (first.recommended.length < 2) return first;
         const paths = await rows(GP.pathsSql(main, first.recommended, profiledJoined), null, GP.PROFILE_PATH_ROWS);
