@@ -111,6 +111,30 @@ test('Run lists every deployed use case by domain, opens an Inside Inspire page 
   }
 });
 
+test('the chosen page panel is as tall as what it shows, never stretched to a long list beside it (must-exclude: the list keeps its own height)', async () => {
+  const many = Array.from({ length: 14 }, (_, i) => registryRow(String(50 + i), `N03-U${String(i + 1).padStart(2, '0')}`, 1,
+    { app: { state: 'ready' }, appName: `hub-${i}`, appUrl: `https://hub-${i}.example.com`, name: `Use case ${i + 1}` }));
+  const scope = many.map((r, i) => ({ session_id: String(50 + i), use_case_id: `N03-U${String(i + 1).padStart(2, '0')}`, domain: 'Operations' }));
+  const ui = await openRun({ registry: [...REGISTRY, ...many], useCaseScope: [...SCOPE, ...scope], hostedRun: hostedFake({ state: 'ready' }) },
+    { 'x-forwarded-access-token': 'user-token', 'x-forwarded-email': OWNER });
+  const { page } = ui;
+  try {
+    await page.locator('[data-run-banner]').waitFor({ timeout: 15000 });
+    const sizes = await page.evaluate(() => {
+      const nav = document.querySelector('nav[aria-label="Deployed use cases"]');
+      const panel = nav.nextElementSibling;
+      const last = [...panel.children].pop();
+      return { nav: nav.getBoundingClientRect().height, panel: panel.getBoundingClientRect().height,
+        gap: panel.getBoundingClientRect().bottom - last.getBoundingClientRect().bottom };
+    });
+    assert.ok(sizes.nav > sizes.panel + 100, JSON.stringify(sizes));
+    assert.ok(sizes.gap <= 20, `the panel ends ${sizes.gap} px below what it shows`);
+    assert.deepEqual(ui.pageErrors, []);
+  } finally {
+    await ui.close();
+  }
+});
+
 test('Run shows a page that cannot start as Failed with its reason, the stderr lines only to an owner, and why it cannot open with no user authorization', async () => {
   const failed = { state: 'failed', error: 'the page stopped with exit code 1', stderr: ['Traceback (most recent call last):', 'ValueError: no pages'] };
   const owner = await openRun({ registry: REGISTRY, useCaseScope: SCOPE, hostedRun: hostedFake(failed) },

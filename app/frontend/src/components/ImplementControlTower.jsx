@@ -17,8 +17,8 @@ const ACTION_ICONS = { stop: Square, start: Play, unpublish: EyeOff, publish: Ey
 const ASSET_ICONS = { build: Hammer, job: Briefcase, dashboard: LayoutDashboard, genie_space: GenieLogo, app: AppWindow, alert: Bell, notebook: NotebookPen };
 const TONE_CHIP = { success: 'success', error: 'error', warning: 'warning', busy: 'red', idle: 'idle' };
 const BUTTON = 'inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium disabled:opacity-50';
-const FIT_BUTTON = 'flex w-full h-7 min-w-0 items-center justify-center gap-1 px-2 rounded-lg text-xs font-medium whitespace-nowrap disabled:opacity-50';
-const fitted = (fit, text) => (fit ? <span className="truncate">{text}</span> : text);
+const FIT_BUTTON = 'flex w-full min-h-7 min-w-0 items-center justify-center gap-1 px-2 py-1 rounded-lg text-xs font-medium leading-tight text-center disabled:opacity-50';
+const fitted = (fit, text) => (fit ? <span className="min-w-0 break-words">{text}</span> : text);
 
 export function ConfirmDialog({ title, confirmLabel, useCaseId, busy, onCancel, onConfirm, children }) {
   const [typed, setTyped] = useState('');
@@ -225,7 +225,7 @@ export function AssetTile({
         </span>
         <span data-tile-state="" title={shown.label} className={`flex items-center gap-1 min-w-0 text-[11px] font-medium ${off ? 'text-text-secondary' : shown.tone === 'error' ? 'text-error-fg' : 'text-text-secondary'}`}>
           {building && <Loader2 data-tile-spinner="" size={11} aria-hidden className="shrink-0 text-db-red-fg motion-safe:animate-spin" />}
-          <span className="truncate">{shown.label}</span>
+          <span className="min-w-0 break-words">{shown.label}</span>
         </span>
         {off && tile?.note && <span data-asset-note="" className="mt-0.5 block line-clamp-3 text-[11px] text-text-secondary">{tile.note}</span>}
       </span>

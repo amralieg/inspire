@@ -565,6 +565,14 @@ test('the Build page shows one row of tiles in a fixed order, each tile opens it
     assert.deepEqual(labels, ['App', 'Dashboard', 'Genie Agent', 'Alerts', 'Notebook', 'Job']);
     const states = await tiles.evaluateAll((els) => els.map((t) => t.querySelector('[data-tile-state]')).map((s) => [s.title, s.textContent.trim()]));
     for (const [title, said] of states) assert.ok(said && title === said, `a state cut short on a narrow tile reads in full on hover: ${title} | ${said}`);
+    for (const width of [1440, 1280, 1024]) {
+      await page.setViewportSize({ width, height: 1000 });
+      const cut = await tiles.evaluateAll((els) => els.flatMap((t) => [...t.querySelectorAll('[data-tile-state] span, button span, a span')]
+        .filter((e) => e.scrollWidth > e.clientWidth + 1 || e.getBoundingClientRect().right > t.getBoundingClientRect().right + 1)
+        .map((e) => `${t.dataset.assetTile}: ${e.textContent.trim()}`)));
+      assert.deepEqual(cut, [], `no state or action label of a tile is cut short at ${width} px`);
+    }
+    await page.setViewportSize({ width: 1440, height: 1000 });
     const rows = await tiles.evaluateAll((els) => els.map((t) => [t.dataset.assetTile, t.dataset.tileKind]));
     assert.deepEqual(rows.map(([, kind]) => kind), TILE_IDS.map(() => 'live'), JSON.stringify(rows));
     assert.equal(await page.getByRole('tablist', { name: 'MVP views' }).count(), 0, 'no tabs: the tiles replace them');

@@ -309,7 +309,7 @@ export default function RunPage({ settings, focusId = null, onFocus = ignore, on
               </section>
             ))}
           </nav>
-          <section aria-label={chosen ? chosen.name : 'Deployed use case'} className={`${PANEL_CLASS} p-4 space-y-3`}>
+          <section aria-label={chosen ? chosen.name : 'Deployed use case'} className={`${PANEL_CLASS} self-start p-4 space-y-3`}>
             {chosen && <h2 className="text-[15px] font-semibold text-text-primary">{chosen.name}</h2>}
             {chosen && !showcase && chosen.kind !== RUN_DEMO_KIND && chosen.session_id && <RunScope key={chosenKey} page={chosen} settings={settings} />}
             {chosen && runFrameSrc(chosen) && <FrameDetail page={chosen} userAuthorization={userAuthorization} note={note} onOpen={open} />}
