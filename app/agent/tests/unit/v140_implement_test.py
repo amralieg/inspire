@@ -5548,6 +5548,20 @@ def test_a_preview_that_ends_without_its_outcome_sentence_says_so_in_plain_words
     assert "{" not in said and "job_url" not in said and "status" not in said
 
 
+def test_a_failed_preview_after_a_genie_build_that_did_not_finish_says_genie_did_not_finish(agent_ns):
+    inst = _flow_inspire(agent_ns, [({"status": "failed", "error": "25.7% of the periods have no data"}, 11, 103)])
+    crashed = {"exit": 1, "final": {}, "stderr": "", "errors": ["Genie error: Genie returned no JSON result"]}
+    runner = _FakeRunner([dict(crashed), dict(crashed), dict(crashed)])
+    spec = agent_ns["validate_implement_spec"](VALID)[0]
+    outcome, _job, _fill = inst._implement_fill_and_preview("N01-U01", (5150, "N01-U01", 2), {}, spec, {"outputs": {}}, "/W/nb",
+                                                            ["result_table", "run_profile"], runner, True)
+    assert outcome["status"] == "failed" and outcome["build_problems"][0] == "Genie exited with code 1: Genie returned no JSON result"
+    message = agent_ns["implement_stop_message"](outcome, spec)
+    assert message.startswith("Genie's last build round did not finish (Genie exited with code 1: Genie returned no JSON result")
+    assert message.endswith("so the notebook may not hold the latest choices and asks, and the preview run did not write usable "
+                            "rows: 25.7% of the periods have no data")
+
+
 def test_a_stop_reason_or_an_error_is_still_the_reason_of_the_stop_message(agent_ns):
     stop = agent_ns["implement_stop_message"]
     assert stop({"status": "stopped", "stop_reason": "no rows match"}, {}) == "the preview run did not write usable rows: no rows match"

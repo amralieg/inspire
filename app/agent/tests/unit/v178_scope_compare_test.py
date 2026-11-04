@@ -88,7 +88,7 @@ CHOSEN = {
 @pytest.mark.parametrize("mode,text", [
     ("groups", "First run: the 3 groups EMEA, AMER, APAC of region"),
     ("recent", "First run: the records of order_date since 2026-10-02"),
-    ("records", "First run: the first 1000 records of main.sales.orders"),
+    ("records", "First run: the first 1,000 records of main.sales.orders"),
 ])
 def test_every_number_states_the_scope_the_run_recorded_in_the_run_s_own_words(agent_ns, mode, text):
     record = agent_ns["inspire_scope_record"](CHOSEN[mode])

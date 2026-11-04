@@ -251,7 +251,7 @@ def test_a_first_run_on_records_of_a_grouping_technique_takes_whole_groups_and_n
     fresh_ns["INSPIRE_SCOPE"], fresh_ns["INSPIRE_RUN_LOG"] = resolved, {}
     frame = fresh_ns["inspire_read_source"]("main.sales.orders", spark=Session(["order_id", "region"]))
     assert frame.steps == [("where", "CAST(`region` AS STRING) IN ('EMEA', 'LATAM')")], "whole groups are filtered, never cut to N rows"
-    assert fresh_ns["inspire_scope_text"](resolved) == ("about 1000 records of main.sales.orders, in 2 whole groups so no group is cut: "
+    assert fresh_ns["inspire_scope_text"](resolved) == ("about 1,000 records of main.sales.orders, in 2 whole groups so no group is cut: "
                                                         "region = EMEA, 600 records; region = LATAM, 300 records")
     assert fresh_ns["inspire_scope_record"](resolved)["whole_groups"] is True
 
@@ -262,8 +262,8 @@ def test_when_every_group_holds_more_than_1000_records_the_smallest_whole_group_
     resolved = fresh_ns["inspire_scope_resolve"](FakeSpark(responder=lambda s: sizes if s.startswith("SELECT CAST(`region`") else []), chosen)
     assert resolved["values"] == ["APAC"], "never a cut group, so the smallest whole group"
     text = fresh_ns["inspire_scope_text"](resolved)
-    assert text == ("470000 records of main.sales.orders in the smallest whole group, since every group of region holds more than 1000 records, "
-                    "so no group is cut: region = APAC, 470000 records"), text
+    assert text == ("470,000 records of main.sales.orders in the smallest whole group, since every group of region holds more than 1,000 records, "
+                    "so no group is cut: region = APAC, 470,000 records"), text
     assert "about 1000" not in text, "a group far above 1,000 records is never called about 1,000 records (must-exclude)"
 
 
@@ -286,7 +286,7 @@ def test_above_1000_records_the_default_is_about_1000_records_and_never_a_recent
     assert agent_ns["inspire_scope_default"]({"table": SALES, "records": None, "default": "groups"}) == "groups", "a default the build recorded is kept"
     unknown = agent_ns["inspire_scope_settings"](dict({k: v for k, v in SPEC.items() if k != "default"}, records=None))[0]
     assert unknown["default"] == "records" and unknown["reason"] == ("Inspire could not read from its metadata how many records the main "
-                                                                      "table holds, so the first run covers about 1000 records in whole "
+                                                                      "table holds, so the first run covers about 1,000 records in whole "
                                                                       "groups of region, so no group is cut"), unknown["reason"]
     small = agent_ns["inspire_scope_settings"](dict({k: v for k, v in SPEC.items() if k != "default"}, records=400))[0]
     assert (small["default"], small["reason"]) == ("all", "Inspire's default: the main table holds 400 records, so the first run covers all of them")
@@ -294,7 +294,7 @@ def test_above_1000_records_the_default_is_about_1000_records_and_never_a_recent
     assert agent_ns["inspire_scope_choice"](scope=dict(held, INSPIRE_SCOPE_VALUES={"run_scope": "all"}))["scope"] == "all", \
         "everything still runs when someone chooses it"
     reason = agent_ns["inspire_scope_settings"](dict(SPEC, default="records", records=718931))[0]["reason"]
-    assert reason.endswith("so the first run covers about 1000 records in whole groups of region, so no group is cut"), reason
+    assert reason.endswith("so the first run covers about 1,000 records in whole groups of region, so no group is cut"), reason
 
 
 def test_with_no_column_to_group_by_the_first_run_takes_the_first_records_with_a_plain_note(fresh_ns):
@@ -303,10 +303,10 @@ def test_with_no_column_to_group_by_the_first_run_takes_the_first_records_with_a
     fresh_ns["INSPIRE_SCOPE"], fresh_ns["INSPIRE_RUN_LOG"] = chosen, {}
     frame = fresh_ns["inspire_read_source"]("main.sales.orders", spark=Session(["order_id", "region"]))
     assert frame.steps == [("orderBy", "order_id"), ("limit", 1000)]
-    assert fresh_ns["inspire_scope_text"](chosen) == ("the first 1000 records of main.sales.orders; Anomaly Detection reads records together and "
+    assert fresh_ns["inspire_scope_text"](chosen) == ("the first 1,000 records of main.sales.orders; Anomaly Detection reads records together and "
                                                       "main.sales.orders has no column to take whole groups of, so a group may be cut in this first run")
     reason = fresh_ns["inspire_scope_settings"](dict(SPEC, group_column="", default="records", records=718931))[0]["reason"]
-    assert reason.endswith("the first 1000 records; Anomaly Detection reads records together and no column groups them, so a group may be cut")
+    assert reason.endswith("the first 1,000 records; Anomaly Detection reads records together and no column groups them, so a group may be cut")
 
 
 def test_with_no_group_of_30_records_the_whole_groups_fall_back_to_the_first_records_with_a_note(fresh_ns):

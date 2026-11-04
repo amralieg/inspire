@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import './echartsKinds.js';
 import { useChart } from './ChartCard.jsx';
 import { evaluateScenario, writeRecord } from './api.js';
-import { formatValue, numberOf } from './format.js';
+import { axisValue, formatValue, numberOf } from './format.js';
 import { chartPalette, reducedMotion } from './theme.js';
 import { Icon } from './icons.jsx';
 import { categoryLabels } from './layout.js';
@@ -19,7 +19,7 @@ export function distributionOption(result, outcome, P) {
   return {
     animation: !reducedMotion(),
     grid: { left: 16, right: 16, top: 34, bottom: 30 },
-    xAxis: { type: 'value', scale: true, axisLabel: { color: P.muted, formatter: (v) => fmt(v) }, splitLine: { show: false } },
+    xAxis: { type: 'value', scale: true, axisLabel: { color: P.muted, formatter: (v) => axisValue(v, outcome.format, outcome.currency) }, splitLine: { show: false } },
     yAxis: { type: 'value', show: false },
     tooltip: { show: false },
     series: [{ type: 'line', smooth: true, symbol: 'none', data: result.distribution, lineStyle: { color: P.series[0], width: 2 },

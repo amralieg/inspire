@@ -1288,9 +1288,27 @@ def drivers_section(page: dict):
                      "answers to the filters above."}
 
 
+def placeable_chart_types(page: dict):
+    ident = page_layout(page)
+    if ident == DEFAULT_LAYOUT or ident not in layouts():
+        return None
+    sections = layouts()[ident].get("sections") or []
+    return {t for types in CHART_KIND_TYPES.values() for t in types if any(_section_fits(s, "charts", t) for s in sections)}
+
+
+def layout_takes_charts(page: dict) -> bool:
+    placeable = placeable_chart_types(page)
+    return placeable is None or bool(placeable)
+
+
 def kind_problems(page: dict, kinds, skipped=()) -> tuple:
     drawn = {str(c.get("type")) for c in page.get("charts") or [] if isinstance(c, dict)}
-    missing = [k for k in kinds if k in CHART_KIND_TYPES and not drawn & set(CHART_KIND_TYPES[k])]
+    placeable = placeable_chart_types(page)
+    held = [k for k in kinds if k in CHART_KIND_TYPES and placeable is not None and not placeable & set(CHART_KIND_TYPES[k])]
+    if held:
+        print(f"[LAYOUT-KINDS SKIPPED] page={page.get('id')} layout={page_layout(page)} kinds={','.join(held)}: no section of the "
+              "layout holds them", flush=True)
+    missing = [k for k in kinds if k in CHART_KIND_TYPES and k not in held and not drawn & set(CHART_KIND_TYPES[k])]
     return ([f"the page draws no {CHART_KIND_LABELS[k].lower()} chart: add one of type {' or '.join(CHART_KIND_TYPES[k])}"
              for k in missing if k not in skipped], [k for k in missing if k in skipped])
 
