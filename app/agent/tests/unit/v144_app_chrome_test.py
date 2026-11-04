@@ -26,7 +26,7 @@ RECORD = {"fields": {"Category": "Books", "Loss": 5000.25, "Flagged": True, "Due
           "history": [{"when": "Oct 20, 2026", "who": "sam.roe", "change": "Recommended action: Hold -> Cut"}, "Run 77 wrote the first version"]}
 
 
-KIND_REFUSED = ("explain one of: chart, record, kpi, text, controls, table, series, scenario, plan_line, segment, recommendation, bridge_step, "
+KIND_REFUSED = ("explain one of: chart, record, kpi, text, controls, table, series, scenario, segment, recommendation, bridge_step, "
                 "effect, process_step, site, node")
 
 
