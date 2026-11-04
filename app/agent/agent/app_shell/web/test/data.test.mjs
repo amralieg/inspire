@@ -139,28 +139,43 @@ test('clicking a header sorts on the server and goes back to the first page', as
 test('search waits 300 ms, asks the server once, and a late answer never replaces a newer one', async () => {
   const rows = (label) => [{ ...ROWS[0], entity_label: label }];
   const delays = { it: 900, ite: 50 };
+  const answered = [];
   const routes = {
     records: async ({ route, json, seen }) => {
       const body = route.request().postDataJSON();
       seen.records.push(body);
       await new Promise((r) => setTimeout(r, delays[body.search] ?? 0));
       const label = body.search === 'it' ? 'Stale answer' : body.search === 'ite' ? 'Fresh answer' : 'Everything';
-      return json(200, { rows: rows(label), total: 1, offset: 0, limit: body.limit, errors: {} });
+      const sent = await json(200, { rows: rows(label), total: 1, offset: 0, limit: body.limit, errors: {} });
+      answered.push(body.search);
+      return sent;
     },
   };
-  const { page, seen, context } = await open(appInfo(), routes);
+  const { page, seen, context } = await open(appInfo(), routes, { clock: Date.parse('2026-10-27T09:30:00Z') });
   await page.waitForFunction(() => document.querySelector('.card--table tbody .cell-t'));
+  await page.clock.pauseAt(await page.evaluate(() => Date.now() + 1000));
   const box = page.getByLabel('Search the list');
-  await box.pressSequentially('i', { delay: 40 });
-  await box.pressSequentially('t', { delay: 40 });
+  const asked = () => seen.records.map((b) => b.search);
+  await box.pressSequentially('i');
+  await page.clock.runFor(299);
+  await box.pressSequentially('t');
+  await page.clock.runFor(299);
+  assert.deepEqual(asked(), [''], 'no request while each key comes within 300 ms of the last');
+  await page.clock.runFor(1);
   await until(() => seen.records.some((b) => b.search === 'it'));
   await box.pressSequentially('e');
+  await page.clock.runFor(300);
   await page.waitForFunction(() => document.querySelector('.card--table tbody .cell-t b')?.textContent === 'Fresh answer');
-  await page.waitForTimeout(1100);
+  await until(() => answered.includes('it'));
+  await page.waitForTimeout(200);
   assert.equal(await page.locator('.card--table tbody .cell-t b').innerText(), 'Fresh answer');
-  assert.deepEqual(seen.records.map((b) => b.search), ['', 'it', 'ite'], 'one request per pause in typing, none for the single i');
+  assert.deepEqual(asked(), ['', 'it', 'ite'], 'one request per pause in typing, none for the single i');
   await box.fill('');
-  await box.pressSequentially('50%_x', { delay: 20 });
+  for (const key of '50%_x') {
+    await box.pressSequentially(key);
+    await page.clock.runFor(150);
+  }
+  await page.clock.runFor(300);
   await until(() => seen.records.at(-1).search === '50%_x');
   assert.equal(seen.records.filter((b) => b.search.startsWith('5')).length, 1);
   assert.deepEqual(seen.errors, []);
