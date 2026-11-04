@@ -255,7 +255,7 @@ function makeApp(overrides = {}, { mount } = {}) {
     catalogLists.push(req.query);
     if (state.catalogsError) return res.status(500).json({ error: state.catalogsError });
     if (state.noPersonToken) return res.status(401).json(noPersonTokenBody('GET /api/catalogs'));
-    return res.json({ catalogs: (state.catalogs || ['main']).map((name) => ({ name })) });
+    return res.json({ catalogs: (state.catalogs || ['main']).map((name) => ({ name })), truncated: Boolean(state.catalogsCut) });
   });
   app.get('/api/tables/:catalog/:schema', (req, res) => {
     const scope = `${req.params.catalog}.${req.params.schema}`;

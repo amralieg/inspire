@@ -6,6 +6,7 @@ import {
 import DatabricksLogo from '../components/DatabricksLogo';
 import { normalizeDatabricksHost } from '../lib/normalizeDatabricksHost';
 import { responseError } from '../lib/apiClient';
+import CatalogPicker from '../components/CatalogPicker';
 
 const STEPS = [
   { id: 'connect', label: 'Connect', icon: Globe2, desc: 'Connect to your Databricks workspace' },
@@ -26,6 +27,7 @@ export default function SetupWizard({ settings, update, onComplete }) {
   const [step, setStep] = useState(0);
   const [warehouses, setWarehouses] = useState([]);
   const [catalogs, setCatalogs] = useState([]);
+  const [catalogsCut, setCatalogsCut] = useState(false);
   const [catalogsWhy, setCatalogsWhy] = useState('');
   const [schemas, setSchemas] = useState([]);
   const [verification, setVerification] = useState(null);
@@ -134,6 +136,7 @@ export default function SetupWizard({ settings, update, onComplete }) {
       })
       .then(data => {
         setCatalogs(data.catalogs || []);
+        setCatalogsCut(Boolean(data.truncated));
         setCatalogsWhy('');
       })
       .catch((e) => {
@@ -402,17 +405,18 @@ export default function SetupWizard({ settings, update, onComplete }) {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs font-medium text-text-secondary mb-1 block">Catalog</label>
-                  <select
+                  <CatalogPicker
+                    id="setup-inspire-database"
                     value={selectedCatalog}
-                    onChange={(e) => {
+                    onChange={(name) => {
                       const schema = inspireDatabase?.split('.')[1] || 'inspire';
-                      update('inspireDatabase', `${e.target.value}.${schema}`);
+                      update('inspireDatabase', `${name}.${schema}`);
                     }}
+                    catalogs={catalogs}
+                    truncated={catalogsCut}
+                    placeholder="Select catalog..."
                     className="w-full px-3 py-2.5 rounded-xl border border-border bg-surface text-text-primary text-sm focus:border-db-red outline-none"
-                  >
-                    <option value="">Select catalog...</option>
-                    {catalogs.map(c => <option key={c.name} value={c.name}>{c.name}</option>)}
-                  </select>
+                  />
                 </div>
                 <div>
                   <label className="text-xs font-medium text-text-secondary mb-1 block">Schema</label>

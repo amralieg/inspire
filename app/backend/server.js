@@ -1605,9 +1605,10 @@ app.get('/api/catalogs', requireToken, async (req, res) => {
     const token = personTokenOf(req);
     const warehouseId = String(req.query.warehouse_id || '').trim();
     let raw = [];
+    let restCut = false;
     let restErr = null;
     try {
-      raw = await listCatalogs(dbFetch, req.dbHost, token);
+      ({ items: raw, truncated: restCut } = await listCatalogs(dbFetch, req.dbHost, token));
     } catch (e) {
       restErr = e.message || String(e);
       console.warn(`   ⚠️ UC REST catalogs failed: ${restErr}`);
@@ -1640,6 +1641,7 @@ app.get('/api/catalogs', requireToken, async (req, res) => {
     res.json({
       catalogs,
       source,
+      truncated: restCut && byName.size === countAfterRest,
       restError: restErr && catalogs.length === 0 ? restErr : undefined,
     });
   } catch (err) {
@@ -1653,9 +1655,10 @@ app.get('/api/catalogs/:catalog/schemas', requireToken, async (req, res) => {
     const token = personTokenOf(req);
     const warehouseId = String(req.query.warehouse_id || '').trim();
     let raw = [];
+    let restCut = false;
     let restErr = null;
     try {
-      raw = await listSchemas(dbFetch, req.dbHost, token, catalog);
+      ({ items: raw, truncated: restCut } = await listSchemas(dbFetch, req.dbHost, token, catalog));
     } catch (e) {
       restErr = e.message || String(e);
       console.warn(`   ⚠️ UC REST schemas failed for ${catalog}: ${restErr}`);
@@ -1670,6 +1673,7 @@ app.get('/api/catalogs/:catalog/schemas', requireToken, async (req, res) => {
         comment: s.comment || '',
       });
     }
+    const countAfterRest = byKey.size;
     if (warehouseId) {
       const sqlRows = await listSchemasSql(req.dbHost, token, warehouseId, catalog);
       for (const row of sqlRows) {
@@ -1682,7 +1686,7 @@ app.get('/api/catalogs/:catalog/schemas', requireToken, async (req, res) => {
     if (raw.length === 0 && schemas.length === 0 && restErr) {
       return res.status(502).json({ error: restErr });
     }
-    res.json({ schemas, count: schemas.length });
+    res.json({ schemas, count: schemas.length, truncated: restCut && byKey.size === countAfterRest });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -1694,9 +1698,10 @@ app.get('/api/tables/:catalog/:schema', requireToken, async (req, res) => {
     const token = personTokenOf(req);
     const warehouseId = String(req.query.warehouse_id || '').trim();
     let raw = [];
+    let restCut = false;
     let restErr = null;
     try {
-      raw = await listTables(dbFetch, req.dbHost, token, catalog, schema);
+      ({ items: raw, truncated: restCut } = await listTables(dbFetch, req.dbHost, token, catalog, schema));
     } catch (e) {
       restErr = e.message || String(e);
       console.warn(`   ⚠️ UC REST tables failed for ${catalog}.${schema}: ${restErr}`);
@@ -1720,6 +1725,7 @@ app.get('/api/tables/:catalog/:schema', requireToken, async (req, res) => {
       const row = mapRow(t);
       byKey.set(row.full_name, row);
     }
+    const countAfterRest = byKey.size;
     if (warehouseId) {
       const sqlRows = await listTablesSql(req.dbHost, token, warehouseId, catalog, schema);
       for (const row of sqlRows) {
@@ -1731,7 +1737,7 @@ app.get('/api/tables/:catalog/:schema', requireToken, async (req, res) => {
     if (raw.length === 0 && tables.length === 0 && restErr) {
       return res.status(502).json({ error: restErr });
     }
-    res.json({ tables, count: tables.length });
+    res.json({ tables, count: tables.length, truncated: restCut && byKey.size === countAfterRest });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

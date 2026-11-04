@@ -50,6 +50,7 @@ import { responseError } from '../lib/apiClient';
 import { placeholderWords } from '../lib/placeholderWords';
 import { nameOfUseCase } from '../lib/useCaseFields';
 import { counted } from '../lib/plural';
+import { catalogListNote, typedCatalog } from '../lib/catalogList';
 
 /* ─── Constants — notebook v1.2.0 widget `05_use_cases_quality` ─── */
 const QUALITY_OPTIONS = ['Good', 'High', 'Ultra High'];
@@ -215,6 +216,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
 
   // ── Catalog/Schema pickers ──
   const [catalogs, setCatalogs] = useState([]);
+  const [catalogsCut, setCatalogsCut] = useState(false);
   const [schemas, setSchemas] = useState([]);
   const [selectedCatalogs, setSelectedCatalogs] = useState([]);
   const [selectedSchemas, setSelectedSchemas] = useState([]);
@@ -463,6 +465,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
   useEffect(() => {
     if (!canUseUcApi) {
       setCatalogs([]);
+      setCatalogsCut(false);
       setLoadingCatalogs(false);
       return;
     }
@@ -479,6 +482,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
           console.log(`[catalogs] loaded ${cats.length}:`, cats.map(c => c.name));
           if (!cancelled) {
             setCatalogs(cats);
+            setCatalogsCut(Boolean(data.truncated));
             if (cats.length === 0 && data.restError) {
               setCatalogBrowseError(data.restError);
             }
@@ -490,6 +494,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
           if (err.status === 401) {
             if (!cancelled) {
               setCatalogs([]);
+              setCatalogsCut(false);
               setCatalogsWhy(lastError);
               setLoadingCatalogs(false);
             }
@@ -716,9 +721,11 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
   };
 
   // Derived
-  const filteredCatalogs = catalogs.filter(
-    (c) => !catalogSearch || c.name.toLowerCase().includes(catalogSearch.toLowerCase())
-  );
+  const typedCatalogItem = typedCatalog(catalogs, catalogsCut, catalogSearch);
+  const filteredCatalogs = [
+    ...catalogs.filter((c) => !catalogSearch || c.name.toLowerCase().includes(catalogSearch.toLowerCase())),
+    ...(typedCatalogItem ? [typedCatalogItem] : []),
+  ];
   const filteredSchemas = schemas.filter(
     (s) => !schemaSearch || s.full_name.toLowerCase().includes(schemaSearch.toLowerCase())
   );
@@ -1191,6 +1198,9 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                                 : 'No catalogs found'
                         }
                       />
+                      {catalogsCut && (
+                        <p data-catalog-note="" className="mt-1 text-[10px] text-text-tertiary">{catalogListNote(catalogs, true, typedCatalogItem ? catalogSearch : '')}</p>
+                      )}
                     </div>
 
                     {/* Schemas */}

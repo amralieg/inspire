@@ -218,3 +218,26 @@ test('the run reads are parsed as the agent parses UC Metadata and the strategic
   assert.equal(U.runUnreadableText(many), cannotRead(`${many.slice(0, 10).join(', ')} and 3 more`));
   assert.equal(U.runUnreadableText(['a.b.c']), cannotRead('a.b.c'));
 });
+
+test('a picker list Unity Catalog cuts says it was cut, unless the warehouse listed the rest, and a run check never passes on a cut list (must-exclude)', async () => {
+  const endless = (key, name) => [200, { [key]: [{ name }], next_page_token: 'more' }];
+  await withInspire(async (url, workspace) => {
+    const cut = await get(url, '/api/catalogs');
+    assert.deepEqual([cut.status, cut.data.catalogs.map((c) => c.name), cut.data.truncated], [200, ['main'], true]);
+    assert.equal(ucCalls(workspace).filter((c) => c.path.startsWith('/api/2.1/unity-catalog/catalogs')).length, 40, 'the list stops at 40 pages');
+    const filled = await get(url, '/api/catalogs?warehouse_id=wh');
+    assert.deepEqual([filled.data.catalogs.map((c) => c.name), filled.data.truncated], [['main', 'zeta'], false]);
+  }, { '/api/2.1/unity-catalog/catalogs': endless('catalogs', 'main'), '/api/2.0/sql/statements': done('catalog', ['main', 'zeta']) });
+  await withInspire(async (url, workspace) => {
+    const tables = await get(url, '/api/tables/main/s');
+    assert.equal(tables.data.truncated, true);
+    const refused = await launch(url, { '01_uc_metadata': 'main.s' });
+    assert.equal(refused.status, 502, JSON.stringify(refused.data));
+    assert.match(refused.data.error, /main\.s holds more tables than the 200 Inspire can list, so it could not check every one/);
+    assert.deepEqual(launched(workspace), [], 'no run starts on a check that could not see every table');
+  }, { '/api/2.1/unity-catalog/tables': endless('tables', 'orders') });
+  await withInspire(async (url) => {
+    const whole = await get(url, '/api/catalogs');
+    assert.equal(whole.data.truncated, false, 'a list that ends is never called cut');
+  });
+});

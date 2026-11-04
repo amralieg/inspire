@@ -196,6 +196,7 @@ import {
   withSetting, withSettingsNote,
 } from '../lib/useCaseSettings';
 import ScopeSettings from '../components/ScopeSettings';
+import CatalogPicker from '../components/CatalogPicker';
 import { PROFILE_WAITING, useGroupingProfile } from '../lib/groupingProfile';
 import {
   FIRST_RUN_TITLE, GROUPING_TITLE, RUN_SCOPE_UNRECORDED_HIDDEN, builtFirstRunOf, deepGrouping, groupingChosenBy, isScopeSetting, latestRunScope, scopeChanges, scopeStepsOf, scopeValues,
@@ -381,6 +382,7 @@ export default function ImplementWizard({
   const [warehouses, setWarehouses] = useState(null);
   const [warehousesError, setWarehousesError] = useState('');
   const [catalogs, setCatalogs] = useState(null);
+  const [catalogsCut, setCatalogsCut] = useState(false);
   const [catalogsError, setCatalogsError] = useState('');
   const [schemas, setSchemas] = useState({});
   const bodyRef = useRef(null);
@@ -786,6 +788,7 @@ export default function ImplementWizard({
       .then((data) => {
         if (cancelled) return;
         setCatalogs((data.catalogs || []).map((c) => c.name).filter(Boolean));
+        setCatalogsCut(Boolean(data.truncated));
       })
       .catch((e) => {
         if (cancelled) return;
@@ -1225,6 +1228,7 @@ export default function ImplementWizard({
               table={spec.config.result_table}
               defaultTable={defaultResultTable(inspireDatabase, spec.use_case_id, sessionId)}
               catalogs={catalogs}
+              catalogsCut={catalogsCut}
               catalogsError={catalogsError}
               schemas={schemas[resultParts.catalog]}
               outputCheck={outputCheck}
@@ -1984,9 +1988,8 @@ function MergeChoice({ name, label, chosen, targets, targetsError, onPick }) {
   );
 }
 
-function ResultTableStep({ parts, table, defaultTable, catalogs, catalogsError, schemas, outputCheck, onChange }) {
+function ResultTableStep({ parts, table, defaultTable, catalogs, catalogsCut = false, catalogsError, schemas, outputCheck, onChange }) {
   const set = (key, value) => onChange({ ...parts, [key]: value, ...(key === 'catalog' && value !== parts.catalog ? { schema: '' } : {}) });
-  const catalogOptions = [...new Set([parts.catalog, ...(catalogs || [])].filter(Boolean))].sort((a, b) => a.localeCompare(b));
   const schemaOptions = [...new Set([parts.schema, ...((schemas && schemas.names) || [])].filter(Boolean))].sort((a, b) => a.localeCompare(b));
   const typeCatalog = Boolean(catalogsError);
   const typeSchema = typeCatalog || Boolean(schemas && schemas.error);
@@ -2001,11 +2004,8 @@ function ResultTableStep({ parts, table, defaultTable, catalogs, catalogsError, 
           {typeCatalog ? (
             <input className={inputCls} value={parts.catalog} onChange={(e) => set('catalog', e.target.value.trim())} />
           ) : (
-            <select className={inputCls} value={parts.catalog} onChange={(e) => set('catalog', e.target.value)}>
-              {!parts.catalog && <option value="">Pick a catalog</option>}
-              {catalogOptions.map((c) => <option key={c} value={c}>{c}</option>)}
-              {catalogs === null && <option disabled value="__loading__">Loading catalogs…</option>}
-            </select>
+            <CatalogPicker id="implement-result-table" value={parts.catalog} onChange={(name) => set('catalog', name)} catalogs={catalogs || []}
+              truncated={catalogsCut} loading={catalogs === null} className={inputCls} />
           )}
         </Field>
         <Field label="Schema">

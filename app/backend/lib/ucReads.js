@@ -47,7 +47,7 @@ async function answer(dbFetch, host, token, path, options) {
 }
 
 async function pages(dbFetch, host, token, path, params, key, maxPages) {
-  const all = [];
+  const items = [];
   let pageToken = '';
   for (let page = 0; page < maxPages; page += 1) {
     const qs = new URLSearchParams(params);
@@ -55,11 +55,17 @@ async function pages(dbFetch, host, token, path, params, key, maxPages) {
     const response = await dbFetch(host, token, `${path}?${qs}`);
     const data = await bodyOf(response);
     if (!response.ok) throw failed({ status: response.status, data });
-    all.push(...(Array.isArray(data[key]) ? data[key] : []));
+    items.push(...(Array.isArray(data[key]) ? data[key] : []));
     pageToken = data.next_page_token || '';
-    if (!pageToken) break;
+    if (!pageToken) return { items, truncated: false };
   }
-  return all;
+  return { items, truncated: true };
+}
+
+function whole(listed, what, noun) {
+  if (!listed.truncated) return listed.items;
+  throw Object.assign(new Error(`${what} holds more ${noun} than the ${listed.items.length.toLocaleString('en-US')} Inspire can list, so it could not check every one`),
+    { status: 502 });
 }
 
 function listCatalogs(dbFetch, host, token) {
@@ -138,14 +144,14 @@ const fullName = (catalog, schema, table) => String(table.full_name || `${catalo
 async function schemaUnreadable(dbFetch, host, tokens, catalog, schema) {
   let run;
   try {
-    run = await listTables(dbFetch, host, tokens.app, catalog, schema, { browse: true });
+    run = whole(await listTables(dbFetch, host, tokens.app, catalog, schema, { browse: true }), `${catalog}.${schema}`, 'tables');
   } catch (err) {
     if (unseen(err)) return [];
     throw err;
   }
   let readable = [];
   try {
-    readable = await listTables(dbFetch, host, tokens.person, catalog, schema);
+    readable = whole(await listTables(dbFetch, host, tokens.person, catalog, schema), `${catalog}.${schema}`, 'tables');
   } catch (err) {
     if (!unseen(err)) throw err;
   }
@@ -156,7 +162,7 @@ async function schemaUnreadable(dbFetch, host, tokens, catalog, schema) {
 async function catalogUnreadable(dbFetch, host, tokens, catalog) {
   let schemas;
   try {
-    schemas = await listSchemas(dbFetch, host, tokens.app, catalog);
+    schemas = whole(await listSchemas(dbFetch, host, tokens.app, catalog), catalog, 'schemas');
   } catch (err) {
     if (unseen(err)) return [];
     throw err;
