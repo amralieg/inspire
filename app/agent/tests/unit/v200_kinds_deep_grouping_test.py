@@ -18,7 +18,7 @@ import sys
 import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from v120_artifacts_support import FakeSpark, make_inspire, make_uc  # noqa: E402
+from v120_artifacts_support import FakeDimension, FakeSpark, make_inspire, make_uc  # noqa: E402
 from _agentload import agent_source  # noqa: E402
 
 SALES = "main.s.sales"
@@ -329,21 +329,6 @@ def test_the_run_plan_and_the_build_instruction_carry_the_join(agent_ns):
     assert "the key the use case's table joins name" in agent_ns["genie_grouping_rule"](plain)
 
 
-class _Dimension:
-    def __init__(self, frame):
-        self.frame, self.selected, self.columns = frame, (), list(frame.columns)
-
-    def where(self, _condition):
-        return self
-
-    def select(self, *names):
-        self.selected = names
-        return self
-
-    def toPandas(self):
-        return self.frame
-
-
 class _Session:
     def __init__(self, frame, fail=None):
         self.frame, self.fail, self.tables = frame, fail, []
@@ -352,7 +337,7 @@ class _Session:
         self.tables.append(name)
         if self.fail:
             raise self.fail
-        return _Dimension(self.frame)
+        return FakeDimension(self.frame)
 
 
 def _joined_run(ns, joins):

@@ -8,7 +8,7 @@ import os
 
 import pytest
 
-from v120_artifacts_support import FakeSpark
+from v120_artifacts_support import FakeDimension, FakeSpark
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 FIRST_RUN = json.load(open(os.path.join(ROOT, "tests", "fixtures", "implement_grouping_cases.json"), encoding="utf-8"))["first_run"]
@@ -135,8 +135,10 @@ def test_and_groups_are_applied_at_run_time_with_a_joined_part_read_through_its_
         return []
     spark = FakeSpark(responder=respond)
     resolved = fresh_ns["inspire_scope_resolve"](spark, chosen)
-    assert spark.statements[0] == ("SELECT DISTINCT CAST(`i_item_sk` AS STRING) AS k FROM `main`.`retail`.`item` WHERE CAST(`i_category` AS STRING) = "
-                                   "'Electronics' AND `i_item_sk` IS NOT NULL ORDER BY k LIMIT 10001")
+    assert spark.statements[0] == ("SELECT `_inspire_group_join_key` AS k FROM (SELECT `_inspire_group_join_key`, MAX(`_inspire_group_join_value`) "
+                                   "AS `i_category` FROM (SELECT CAST(`i_item_sk` AS STRING) AS `_inspire_group_join_key`, `i_category` AS "
+                                   "`_inspire_group_join_value` FROM `main`.`retail`.`item` WHERE `i_item_sk` IS NOT NULL) AS d GROUP BY "
+                                   "`_inspire_group_join_key`) AS g WHERE CAST(`i_category` AS STRING) = 'Electronics' ORDER BY k LIMIT 10001")
     fresh_ns["INSPIRE_SCOPE"], fresh_ns["INSPIRE_RUN_LOG"] = resolved, {}
     frame = fresh_ns["inspire_read_source"](SALES, spark=Session(["State", "ss_item_sk", "ss_net_paid"]))
     assert frame.steps == [("where", "((CAST(`State` AS STRING) = 'CA' AND CAST(`ss_item_sk` AS STRING) IN ('11', '12')) OR "
@@ -156,6 +158,78 @@ def test_a_joined_part_with_no_key_is_refused_with_what_to_choose(agent_ns):
     with pytest.raises(ValueError) as caught:
         agent_ns["inspire_scope_resolve"](FakeSpark(responder=lambda s: []), chosen)
     assert "no i_item_sk there has item.i_category Electronics" in str(caught.value) and "; choose" in str(caught.value)
+
+
+ITEM_JOIN = {"table": "main.retail.item", "key": "ss_item_sk", "ref_column": "i_item_sk"}
+
+
+class _DimensionSession:
+    def __init__(self, frame):
+        self.frame, self.tables, self.steps = frame, [], []
+
+    def table(self, name):
+        self.tables.append(name)
+        return FakeDimension(self.frame, self.steps)
+
+
+def _sqlite_spark(rows):
+    import sqlite3
+    db = sqlite3.connect(":memory:")
+    db.execute("CREATE TABLE item (i_item_sk TEXT, i_category TEXT)")
+    db.executemany("INSERT INTO item VALUES (?, ?)", rows)
+
+    def respond(statement):
+        ran = db.execute(statement.replace("`main`.`retail`.`item`", "item").replace(" AS STRING)", " AS TEXT)"))
+        return [dict(zip([d[0] for d in ran.description], r)) for r in ran.fetchall()]
+    return FakeSpark(responder=respond)
+
+
+def test_grouping_and_the_first_run_read_a_joined_column_through_the_one_join_and_select_the_same_records(fresh_ns):
+    pd = pytest.importorskip("pandas")
+    rows = [("1", "Electronics"), ("2", "Home"), ("2", "Electronics"), ("3", "Electronics"), ("4", "Books"), (None, "Electronics")]
+    join = fresh_ns["inspire_group_join"]("item.i_category", ITEM_JOIN)
+    key, value = fresh_ns["INSPIRE_GROUP_JOIN_KEY"], fresh_ns["INSPIRE_GROUP_JOIN_VALUE"]
+    assert join["where"] in join["sql"] and all(picked in join["sql"] for picked in join["select"])
+    assert f"MAX(`{value}`) AS `i_category`" in join["sql"] and f"GROUP BY `{key}`" in join["sql"]
+
+    records = pd.DataFrame({"ss_item_sk": [1, 2, 3, 4, 5] * 12, "ss_net_paid": [1.0] * 60})
+    session = _DimensionSession(pd.DataFrame(rows, columns=["i_item_sk", "i_category"]))
+    fresh_ns["INSPIRE_RUN"], fresh_ns["INSPIRE_RUN_LOG"] = {"grouping": {"joins": {"item.i_category": ITEM_JOIN}}}, {}
+    joined = fresh_ns["inspire_group_joined"](records, ["item.i_category"], out=lambda *_a: None, spark_session=session)
+    assert session.steps == [("where", join["where"]), ("selectExpr", join["select"]), ("groupBy", key), ("agg", {value: "max"}),
+                             ("toDF", [key, "i_category"])], "grouping reads the dimension through the one join"
+    grouped = {str(k) for k in joined.loc[joined["i_category"] == "Electronics", "ss_item_sk"]}
+
+    fresh_ns["INSPIRE_RUN_LOG"] = {}
+    group = [{"column": "item.i_category", "value": "Electronics", "join": dict(ITEM_JOIN)}]
+    spark = _sqlite_spark(rows)
+    resolved = fresh_ns["inspire_scope_resolve"](spark, {"scope": "groups", "table": SALES, "column": "", "groups": [group]})
+    assert spark.statements == [fresh_ns["inspire_scope_part_keys_sql"](join, "Electronics")] and join["sql"] in spark.statements[0]
+    scoped = set(resolved["groups"][0][0]["keys"])
+    assert scoped == grouped == {"1", "3"}, "the first run takes exactly the records grouping puts in the group"
+    assert "2" not in scoped and "None" not in scoped, "a key the dimension files under another value and a missing key are left out (must-exclude)"
+    assert fresh_ns["INSPIRE_RUN_LOG"] == {}, "resolving the first run reads no source, so the run log is unchanged"
+
+
+@pytest.mark.parametrize("join", [None, {}, dict(ITEM_JOIN, ref_column=""), dict(ITEM_JOIN, key="  "), dict(ITEM_JOIN, table=None)],
+                         ids=["none", "empty", "no_ref", "blank_key", "no_table"])
+def test_a_joined_column_that_cannot_be_reached_stops_grouping_and_the_first_run_and_reads_nothing(fresh_ns, join):
+    pd = pytest.importorskip("pandas")
+    assert fresh_ns["inspire_group_join"]("item.i_category", join) is None
+    session = _DimensionSession(pd.DataFrame({"i_item_sk": ["1"], "i_category": ["Electronics"]}))
+    fresh_ns["INSPIRE_RUN"] = {"grouping": {"joins": {"item.i_category": join} if join is not None else {}}}
+    with pytest.raises(fresh_ns["InspireRunStop"], match=r"the Grouping names item\.i_category, a column of another table, but this run's plan "
+                                                          r"carries no join to that table, so the records have no item\.i_category to group by"):
+        fresh_ns["inspire_group_joined"](pd.DataFrame({"ss_item_sk": [1]}), ["item.i_category"], out=lambda *_a: None, spark_session=session)
+    assert session.tables == []
+    if not join:
+        return
+    spark = FakeSpark()
+    group = [{"column": "state", "value": "CA"}, {"column": "item.i_category", "value": "Electronics", "join": join}]
+    with pytest.raises(ValueError, match=r"First run group state = CA and item\.i_category = Electronics names item\.i_category through a join "
+                                         r"that is named only in part; choose the groups again on the Run page"):
+        fresh_ns["inspire_scope_resolve"](spark, {"scope": "groups", "table": SALES, "column": "", "groups": [group]})
+    assert spark.statements == []
 
 
 def test_a_first_run_on_records_of_a_grouping_technique_takes_whole_groups_and_never_cuts_one(fresh_ns):

@@ -149,6 +149,52 @@ class FakeSpark:
         return FakeDataFrame(self, rows=rows)
 
 
+class FakeDimension:
+    """A pandas table read as a Spark DataFrame through the where, selectExpr, groupBy, agg and toDF calls the grouping join
+    makes; `steps` records every call, shared by each frame the calls return."""
+
+    def __init__(self, frame, steps=None):
+        self.frame, self.steps, self.columns = frame, [] if steps is None else steps, list(frame.columns)
+
+    def _next(self, frame, step):
+        self.steps.append(step)
+        return FakeDimension(frame, self.steps)
+
+    def where(self, condition):
+        named = re.fullmatch(r"`([^`]+)` IS NOT NULL", condition).group(1)
+        return self._next(self.frame[self.frame[named].notna()], ("where", condition))
+
+    def selectExpr(self, *exprs):
+        import pandas as pd
+        picked = {}
+        for expr in exprs:
+            cast = re.fullmatch(r"CAST\(`([^`]+)` AS STRING\) AS `([^`]+)`", expr)
+            named = cast or re.fullmatch(r"`([^`]+)` AS `([^`]+)`", expr)
+            source = self.frame[named.group(1)]
+            picked[named.group(2)] = source.astype(str) if cast else source
+        return self._next(pd.DataFrame(picked), ("selectExpr", list(exprs)))
+
+    def groupBy(self, name):
+        self.steps.append(("groupBy", name))
+        return FakeGroupedDimension(self, name)
+
+    def toDF(self, *names):
+        return self._next(self.frame.set_axis(list(names), axis=1), ("toDF", list(names)))
+
+    def toPandas(self):
+        return self.frame.copy()
+
+
+class FakeGroupedDimension:
+    def __init__(self, dimension, name):
+        self.dimension, self.name = dimension, name
+
+    def agg(self, how):
+        (column, function), = how.items()
+        grouped = self.dimension.frame.groupby(self.name, as_index=False)[column].agg(function)
+        return self.dimension._next(grouped, ("agg", dict(how)))
+
+
 class TestEnvironmentAssets:
     """The packages come from this test environment and no font is in the assets, as on a machine with no Inspire assets."""
 

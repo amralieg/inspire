@@ -751,7 +751,8 @@ HISTORY_DATED = "{inspire_table_name(via['table'])}"
 HISTORY_DATED_READS = (f"SELECT CAST(r.{{inspire_column(via['date'])}} AS DATE) AS d FROM {HISTORY_SCOPED} m JOIN {HISTORY_DATED} r ON ",
                        f"SELECT DISTINCT CAST({{inspire_column(via['key'])}} AS STRING) AS k FROM {HISTORY_DATED} WHERE ")
 HISTORY_JOINED = "{inspire_table_name(join['table'])}"
-HISTORY_JOINED_READS = (f"SELECT DISTINCT CAST({{ref}} AS STRING) AS k FROM {HISTORY_JOINED} WHERE ",)
+HISTORY_JOINED_READS = (f"SELECT {{key}}, MAX({{value}}) AS {{named}} FROM (SELECT CAST({{ref}} AS STRING) AS {{key}}, {{named}} AS {{value}} "
+                        f"FROM {HISTORY_JOINED} WHERE ",)
 KPI_READ = ("inspire_save_kpi", "spark.sql(query)", {"str(kpi.get('query') or '')"}, "_inspire_re.fullmatch(INSPIRE_KPI_QUERY, query)")
 HISTORY_CLONED = {"{inspire_table_name(table)}", "{inspire_table_name(result_table)}"}
 CLONE_SOURCE = re.compile(rf"\bCLONE\s+({guard.TARGET})", re.I)
