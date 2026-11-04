@@ -44,12 +44,16 @@ function sharedControlProblem(asset, action, id, shared, sharedError = '') {
   return `${str(id)} also holds the pages of ${I.joinAnd(shown)}, and ${SHARED_CONTROL_EFFECTS[action]}; confirm to ${action} it for every use case in it`;
 }
 
-function controlTargets(history) {
-  const rows = [...(history || [])].sort((a, b) => (b.spec_version || 0) - (a.spec_version || 0));
+function newestVersions(history) {
+  return [...(history || [])].sort((a, b) => (b.spec_version || 0) - (a.spec_version || 0));
+}
+
+function controlTargets(history, stalled = null) {
+  const rows = newestVersions(history);
   const assets = I.carriedAssets(rows);
   const jobId = str((rows.find((r) => r.job_id) || {}).job_id);
   const latest = rows[0] || {};
-  const runId = I.IMPLEMENT_ACTIVE_STATUSES.includes(latest.status) ? str(latest.implement_run_id) : '';
+  const runId = I.IMPLEMENT_ACTIVE_STATUSES.includes(latest.status) && !stalled ? str(latest.implement_run_id) : '';
   const hosted = I.hostedRecord(I.previousBuilt(rows));
   return { ...assets, ...(/^\d{1,19}$/.test(jobId) ? { job: jobId } : {}), ...(/^\d{1,19}$/.test(runId) ? { build: runId } : {}),
     ...(hosted ? { inside: hosted.id } : {}) };
@@ -281,6 +285,7 @@ module.exports = {
   controlRequest,
   controlTarget,
   controlTargets,
+  newestVersions,
   createLiveCache,
   jobOwnerProblem,
   LAKEBASE_PROBE_PATH,

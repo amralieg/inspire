@@ -1689,9 +1689,10 @@ function registerImplementRoutes(app, deps) {
     const { catalog, schema } = dbOf(req, splitInspireDatabase);
     const useCaseId = I.validateUseCaseId(q(req, 'use_case_id'));
     const history = await loadHistory(req.dbHost, req.dbToken, warehouseId, catalog, schema, sid, useCaseId);
+    const stalled = await stalledOf(req, C.newestVersions(history)[0]);
     return {
       sid, warehouseId, catalog, schema, useCaseId, history,
-      targets: C.controlTargets(history),
+      targets: C.controlTargets(history, stalled),
       key: `${req.dbHost}|${catalog}.${schema}|${sid}|${useCaseId}`,
       logTable: C.controlLogTableName(catalog, schema),
     };

@@ -52,6 +52,7 @@ test('the control tower acts only on ids this MVP recorded, and on a build only 
   assert.equal(C.controlTargets([BUILT, building]).build, '901', 'the newest version is the one that builds, whatever the row order');
   assert.equal(C.controlTargets([building, BUILT]).build, '901');
   assert.equal(C.controlTargets([BUILT]).build, undefined, 'a finished version has no build to stop');
+  assert.equal(C.controlTargets([BUILT, building], { reason: 'the run building v3 ended' }).build, undefined, 'a build whose run ended has nothing to stop');
   assert.equal(C.controlTargets([{ ...BUILT, job_id: 'x; DROP' }]).job, undefined);
   const removed = { ...BUILT, spec_version: 3, dashboard_id: null, asset_status: { dashboard: { state: 'deleted' } } };
   assert.equal(C.controlTargets([removed, BUILT]).dashboard, undefined, 'a deleted dashboard is never acted on again');
@@ -750,4 +751,24 @@ test('the Lakebase route asks Databricks once, as the person, and answers with t
       assert.deepEqual(made.fetches.map((f) => `${f.opts.method || 'GET'} ${f.path}`), ['GET /api/2.0/postgres/projects?page_size=1']);
     });
   }
+});
+
+test('a build whose run was cancelled before the notebook wrote a status shows no Build row to stop, and a running one still does (must-exclude)', async () => {
+  const queued = { spec_version: 3, status: 'queued', implement_run_id: '901', use_case_id: 'N01-U01', updated_at: new Date().toISOString() };
+  const cancelled = { run_id: 901, state: { life_cycle_state: 'TERMINATED', result_state: 'CANCELED', state_message: 'Run cancelled.' } };
+  await withApp({ history: [queued, BUILT], implementRun: cancelled, responses: { 'POST /api/2.1/jobs/runs/cancel': [{}] } }, async (url, made) => {
+    const got = await call(url, `/api/inspire/implement/live?${Q}`);
+    assert.equal(got.status, 200, JSON.stringify(got.data));
+    assert.equal(got.data.targets.build, undefined);
+    assert.equal(got.data.targets.job, '77');
+    const stop = await call(url, `/api/inspire/implement/control?${Q}`, { method: 'POST', body: { asset: 'build', action: 'cancel' } });
+    assert.equal(stop.status, 409);
+    assert.match(stop.data.error, /no version of this MVP is building now/);
+    assert.equal(made.fetches.some((f) => f.path === '/api/2.1/jobs/runs/cancel'), false);
+  });
+  await withApp({ history: [BUILT, queued], implementRun: { run_id: 901, state: { life_cycle_state: 'PENDING' } } }, async (url) => {
+    const got = await call(url, `/api/inspire/implement/live?${Q}`);
+    assert.equal(got.status, 200, JSON.stringify(got.data));
+    assert.equal(got.data.targets.build, '901');
+  });
 });
