@@ -115,7 +115,7 @@ def test_a_companion_table_that_is_missing_or_lacks_a_contract_column_is_left_ou
             raise RuntimeError("PERMISSION_DENIED")
         return schemas.get(table)
 
-    spec = agent_ns["implement_kind_spec"]({"use_case_kind": "driver_scenarios"}, RESULT, read)
+    spec = agent_ns["implement_kind_spec"]({"use_case_kind": "driver_scenarios"}, RESULT, agent_ns["implement_schema_once"](read))
     assert spec["tables"] == {} and spec["layout"] == "scenario_lab"
     assert spec["missing"][f"{RESULT}__scenarios"] == "does not exist"
     assert spec["missing"][f"{RESULT}__sensitivity"] == "has no column lever"
@@ -516,24 +516,25 @@ def test_both_companion_readers_must_be_given_the_shared_reader(agent_ns):
         assert read.default is inspect.Parameter.empty, f"{name} reads with its own reader when a caller leaves read out"
 
 
-def test_the_schema_reader_reads_each_table_once_and_keeps_its_error(agent_ns):
+def test_the_schema_reader_reads_each_table_once_and_gives_an_error_as_redacted_text(agent_ns):
     calls = []
+    secret = "dapi" + "ab" * 16
 
     def read(table):
         calls.append(table)
         if table.endswith("gone"):
-            raise RuntimeError("[INSUFFICIENT_PERMISSIONS] no SELECT")
+            raise RuntimeError(f"[INSUFFICIENT_PERMISSIONS] no SELECT for token {secret}")
         return [("a", "int")] if table.endswith("_a") else None
 
     once = agent_ns["implement_schema_once"](read)
     assert once("main.s.t_a") == [("a", "int")] and once("MAIN.S.T_A") == [("a", "int")]
     assert once("main.s.t_b") is None and once("main.s.t_b") is None
-    for _ in range(2):
-        with pytest.raises(RuntimeError, match="INSUFFICIENT_PERMISSIONS"):
-            once("main.s.gone")
+    text = once("main.s.gone")
+    assert isinstance(text, str) and "INSUFFICIENT_PERMISSIONS" in text and secret not in text and once("main.s.gone") == text
     assert calls == ["main.s.t_a", "main.s.t_b", "main.s.gone"]
     assert agent_ns["implement_schema_once"](read)("main.s.t_a") == [("a", "int")] and calls[-1] == "main.s.t_a", \
         "each use case gets its own reader, so a new build reads again"
+    assert "implement_schema_once" not in agent_ns["IMPLEMENT_RESULT_HISTORY_SOURCE"], "the build's reader is not shipped in use-case notebooks"
 
 
 def test_the_build_reads_each_companion_table_once_and_logs_what_it_found(agent_ns):
