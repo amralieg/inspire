@@ -465,6 +465,7 @@ async function requireToken(req, res, next) {
     await refreshSpTokenIfStale();
     const token = getToken(req);
     req.dbToken = token || '';
+    req.appToken = token || '';
     req.dbTokenKind = tokenKindOf(token);
     const identity = await RP.resolveIdentity(req.policyKey, req, { appDatabase: DEFAULT_INSPIRE_DB, outputFolders: () => sessionOutputFolders(req) });
     if (identity === 'person') {

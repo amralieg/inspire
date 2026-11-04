@@ -827,8 +827,11 @@ function registerImplementRoutes(app, deps) {
     return names.filter((_name, i) => got[i] && got[i].status === 404);
   }
 
+  const appTokenOf = (req) => req.appToken || req.dbToken;
+
   async function appIdentity(req) {
-    const me = await loadTokenPrincipal(req);
+    const got = await readMeFor(req)(appTokenOf(req));
+    const me = got.ok ? got.data : {};
     const id = String(me.applicationId || me.userName || '').trim();
     return { name: String(me.displayName || '').trim() || id, id };
   }
@@ -838,7 +841,8 @@ function registerImplementRoutes(app, deps) {
     .catch(() => []);
 
   async function sourceAccess(req, warehouseId, tables) {
-    const probes = await Promise.all(tables.map((table) => sqlRows(req.dbHost, req.dbToken, warehouseId, I.tableProbeStatement(table))
+    const appToken = appTokenOf(req);
+    const probes = await Promise.all(tables.map((table) => sqlRows(req.dbHost, appToken, warehouseId, I.tableProbeStatement(table))
       .then(() => null)
       .catch((err) => {
         const reason = I.tableAccessReason(table, err && err.message);
@@ -846,7 +850,7 @@ function registerImplementRoutes(app, deps) {
       })));
     const lost = probes.filter(Boolean);
     const person = P.personTokenOf(req);
-    if (!lost.length || !person || person === req.dbToken) return { missing: lost, app_unreadable: null };
+    if (!lost.length || !person || person === appToken) return { missing: lost, app_unreadable: null };
     const readable = await Promise.all(lost.map((m) => sqlRows(req.dbHost, person, warehouseId, I.tableProbeStatement(m.table))
       .then(() => true).catch(() => false)));
     const appOnly = lost.filter((_m, i) => readable[i]).map((m) => m.table);

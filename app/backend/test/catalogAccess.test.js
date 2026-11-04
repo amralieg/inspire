@@ -193,6 +193,23 @@ test('Let Inspire read these tables grants with the person token only, re-probes
   });
 });
 
+test('behind the real route policy, Let Inspire read these tables probes with the App token, grants with the person token and clears the refusal', async () => {
+  const grants = [];
+  const { overrides } = split(PERSON_OWNS, { onGrant: (sql, token) => grants.push([sql, token]) });
+  await withApp({ ...overrides, routePolicy: true }, async (url, made) => {
+    const before = await call(url, `/api/inspire/implement/context?${Q}`);
+    assert.deepEqual(before.data.app_unreadable.tables, ['main.s.orders']);
+    const got = await call(url, `/api/inspire/implement/grant-access?${Q}&kind=source_tables`, { method: 'POST', body: { tables: ['main.s.orders'] } });
+    assert.equal(got.status, 200, JSON.stringify(got.data));
+    assert.deepEqual(grants, [['GRANT USE SCHEMA ON SCHEMA `main`.`s` TO `app-sp-id`', PERSON_TOKEN], ['GRANT SELECT ON TABLE `main`.`s`.`orders` TO `app-sp-id`', PERSON_TOKEN]]);
+    assert.equal(got.data.granted, 2);
+    assert.equal(got.data.app_unreadable, null);
+    assert.ok(made.sqlCalls.some((c) => c.sql.includes('LIMIT 0') && c.token === APP_TOKEN), 'the App token probes the tables');
+    const after = await call(url, `/api/inspire/implement/context?${Q}`);
+    assert.equal(after.data.app_unreadable, null);
+  });
+});
+
 test('Let Inspire read these tables refuses with 403 and grants nothing when the person cannot grant', async () => {
   const grants = [];
   const { overrides } = split(PERSON_READS, { onGrant: (sql, token) => grants.push([sql, token]) });

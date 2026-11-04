@@ -1,7 +1,8 @@
 const express = require('express');
 const { registerImplementRoutes } = require('../../implementRoutes');
 const { IMPLEMENT_COLUMNS } = require('../../lib/inspireImplement');
-const { noPersonTokenBody } = require('../../lib/routePolicy');
+const RP = require('../../lib/routePolicy');
+const { noPersonTokenBody } = RP;
 const { sqlCancelledError } = require('../../lib/sqlStatements');
 
 function sqlResultToObjects(result) {
@@ -54,10 +55,16 @@ function makeApp(overrides = {}, { mount } = {}) {
   if (mount) mount(app);
   app.use('/api/inspire/implement', async (req, _res, next) => { await (state.hold || {})[req.path]; next(); });
   registerImplementRoutes(app, {
-    requireToken: (req, _res, next) => {
+    requireToken: async (req, _res, next) => {
       req.dbHost = 'https://workspace.example.com';
       req.dbToken = 'tok';
+      req.appToken = 'tok';
       if (state.tokenKind) req.dbTokenKind = state.tokenKind;
+      if (state.routePolicy) {
+        const key = `${req.method} ${req.baseUrl}${req.route.path}`;
+        const identity = await RP.resolveIdentity(key, req, { appDatabase: 'main.inspire', outputFolders: async () => [] });
+        if (identity === 'person') req.dbToken = req.headers['x-forwarded-access-token'] || '';
+      }
       next();
     },
     executeSql: async (_h, token, warehouse, sql, parameters, options) => {
