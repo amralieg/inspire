@@ -149,7 +149,9 @@ def test_arabic_excel_sheet_names_foundations_headers_and_reasons_are_arabic(ns)
     obj._generate_use_case_excel("Arabic", "ar", arabic_portfolio(), translations=labels)
     _path, data = written(obj, ".xlsx")
     book = openpyxl.load_workbook(io.BytesIO(data))
-    assert book.sheetnames == [labels["doc_use_cases"], labels["doc_foundations_title"]]
+    assert book.sheetnames == [labels["quality"], labels["doc_use_cases"], labels["doc_foundations_title"]]
+    notice = book[labels["quality"]]["A1"].value
+    assert notice and any("\u0600" <= ch <= "\u06ff" for ch in notice) and "1" in notice and "2" in notice
     sheet = book[labels["doc_use_cases"]]
     header = [c.value for c in sheet[1]]
     for english in BUILT_IN_ENGLISH_HEADERS:
@@ -169,7 +171,8 @@ def test_english_excel_keeps_its_sheet_names_and_foundation_headers(ns):
     obj._generate_use_case_excel("English", "en", {"Sales": english_portfolio()})
     _path, data = written(obj, ".xlsx")
     book = openpyxl.load_workbook(io.BytesIO(data))
-    assert book.sheetnames == ["Use Cases", "Foundations"]
+    assert book.sheetnames == ["Quality Bar", "Use Cases", "Foundations"]
+    assert book["Quality Bar"]["A1"].value.startswith("1 of 2 use cases found meet your")
     assert [c.value for c in book["Foundations"][1]] == ["ID", "Tables", "Joins", "Use cases unlocked", "Use Case IDs", "Summed Inspire Score"]
 
 

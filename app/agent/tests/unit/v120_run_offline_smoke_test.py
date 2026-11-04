@@ -284,7 +284,8 @@ def test_run_zero_at_high_bar_falls_back_to_medium_tier(agent_ns, tmp_path, quie
     assert rec["csv"] and rec["docs"] and rec["excel"] and rec["notebooks"]
     outcome = obj.final_inspire_results_json["selection_outcome"]
     assert outcome["fallback"] is True and outcome["fallback_kind"] == "tier" and outcome["accepted"] == 0
-    assert "zero_bar_fallback" in [e["stage"] for e in obj.final_inspire_results_json["funnel_ledger"]]
+    assert "below_bar_kept" in [e["stage"] for e in obj.final_inspire_results_json["funnel_ledger"]]
+    assert all(u["meets_quality_bar"] == "N" for u in final)
 
 
 def test_run_user_domain_gets_coverage_pick_in_strict(agent_ns, tmp_path, quiet_root_logger):

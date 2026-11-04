@@ -1331,7 +1331,7 @@ After a successful run, your `Generation Path` contains:
   - Single-language run: `<business>-dbx_inspire.xlsx` (unchanged)
   - Multi-language run: per-language suffix, for example `<business>-dbx_inspire_en.xlsx`, `<business>-dbx_inspire_de.xlsx`, ...
 - Columns, in order (the `Use Cases` sheet; the CSV export has the same columns):
-  - ID, Rank, Business Domain, Subdomain, Use Case, Description, Quality, Inspire Score, Quality Score, Best-of-Best Score, Priority, Value, Feasibility, Statement, Solution, Business Value, Sponsor, Beneficiary, Business Priority Alignment, Strategic Goals Alignment, Analytics Technique, Type, Tables Involved, Data Foundations
+  - ID, Rank, Business Domain, Subdomain, Use Case, Description, Quality, Meets your quality bar (Y when the use case meets the run's quality bar, N when it is kept below the bar with its reason), Inspire Score, Quality Score, Best-of-Best Score, Priority, Value, Feasibility, Statement, Solution, Business Value, Sponsor, Beneficiary, Business Priority Alignment, Strategic Goals Alignment, Analytics Technique, Type, Tables Involved, Data Foundations
   - KPIs, Expected Key Results, Measures of Success, Financial Benefits, Non-Financial Benefits, when any use case of the run carries them
   - Primary Table, the twelve sub-scores (Strategic Alignment, ROI, Reusability, Time to Value, Data Availability, Data Accessibility, Architecture Fitness, Team Skills, Domain Knowledge, People Allocation, Budget Allocation, Time to Production), Priority Reasons, Quality Reasons, Result Database, Has Genie Code, Best of Best, Best of Best Reason
   - the elite columns (Elite Status and the elite decision fields) when the run judged elite use cases

@@ -1,4 +1,4 @@
-import { subtitleOfUseCase } from './useCaseFields.js';
+import { compareMeetsQualityBarFirst, subtitleOfUseCase } from './useCaseFields.js';
 import { placeholderWords } from './placeholderWords.js';
 import { plural } from './plural.js';
 import { kpiTargetOf, kpiTargetProblems, stakeWords, withKpiTarget } from './targetKpi.js';
@@ -2263,7 +2263,7 @@ export function implementGroups(useCases, latestRows, notebookRun, query = '') {
   }).filter((item) => {
     const text = `${item.id} ${item.name} ${subtitleOfUseCase(item.uc, item.name)} ${item.domain}`.toLowerCase();
     return terms.every((t) => text.includes(t));
-  });
+  }).sort((a, b) => compareMeetsQualityBarFirst(a.uc, b.uc));
   return IMPLEMENT_GROUPS.map(({ states, ...group }) => ({ ...group, items: items.filter((item) => states.includes(item.state.group)) }));
 }
 

@@ -262,13 +262,15 @@ def test_csv_ranks_globally_and_marks_missing_scores_not_scored(ranked):
     assert body[0][header.index("Inspire Score")] == "9.0"
     assert header[-13:] == ["Elite Status", "Verdict", "Decision", "Decision Owner", "Decision Cadence", "KPI", "Value Driver",
                             "Evidence Columns", "Join Path", "Build Path", "Red-Team Note", "Coverage Pick Reason", "Below Bar Reason"]
-    assert header[:14] == ["ID", "Rank", "Business Domain", "Subdomain", "Use Case", "Description", "Quality", "Inspire Score",
-                           "Elite Score", "Quality Score", "Best-of-Best Score", "Priority", "Value", "Feasibility"]
+    assert header[:15] == ["ID", "Rank", "Business Domain", "Subdomain", "Use Case", "Description", "Quality",
+                           "Meets your quality bar", "Inspire Score", "Elite Score", "Quality Score", "Best-of-Best Score",
+                           "Priority", "Value", "Feasibility"]
     assert [r[1] for r in body] == ["1", "2", "3", "4", "5", "6", "7", "8"]
     pick = body[-1]
     assert pick[header.index("Elite Status")] == "DOMAIN_COVERAGE_PICK"
     assert pick[header.index("Elite Score")] == "Not scored"
     assert pick[header.index("Coverage Pick Reason")].startswith("Domain coverage pick, below bar")
+    assert pick[header.index("Meets your quality bar")] == "N" and body[0][header.index("Meets your quality bar")] == "Y"
     assert body[0][header.index("Business Priority Alignment")] == "N/A"
 
 

@@ -17,7 +17,8 @@ NEW_COLUMNS = ["code_structure_mandate", "quality", "quality_mode", "elite_statu
                "elite_assessment", "selection_flags"]
 V130_COLUMNS = ["strategy_alignment", "strategy_path", "kpis", "expected_key_results", "measures_of_success",
                 "financial_benefits", "non_financial_benefits", "data_evidence", "foundation_ids", "use_case_key",
-                "best_of_best", "best_of_best_rank", "best_of_best_score", "best_of_best_reason", "table_joins"]
+                "best_of_best", "best_of_best_rank", "best_of_best_score", "best_of_best_reason", "table_joins",
+                "meets_quality_bar", "below_bar_reason"]
 
 
 @pytest.fixture

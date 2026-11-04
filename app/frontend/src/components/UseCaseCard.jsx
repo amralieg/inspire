@@ -3,9 +3,9 @@ import ImplementCardActions from './ImplementCardActions';
 import InspireScoreBadge from './InspireScoreBadge';
 import UseCaseDetailBody from './UseCaseDetailBody';
 import { FeedbackChip, StrategyChip } from './UseCaseStrategyDetail';
+import QualityBarChip, { QualityBarReason } from './QualityBarChip';
 import { bestOfBestLabel } from '../lib/v130UseCase';
 import {
-  belowBarLabelFromUseCase,
   cardTitlesOfUseCase,
   fieldOf,
   inspireScoreFromUc,
@@ -41,7 +41,6 @@ export default function UseCaseCard({
   const priority = s(u.Priority || u.priority);
   const inspireScoreNum = inspireScoreFromUc(u);
   const showPriorityPill = !!(priority && inspireScoreNum == null && !isNumericPriorityString(priority));
-  const belowBar = belowBarLabelFromUseCase(u);
 
   return (
     <div className="bg-surface border border-border/70 rounded-xl overflow-hidden shadow-elevated lift-on-hover hover:border-db-red/25">
@@ -85,20 +84,14 @@ export default function UseCaseCard({
                       Best of Best{v130.bestOfBest.rank ? ` #${v130.bestOfBest.rank}` : ''}
                     </span>
                   )}
-                  {belowBar && (
-                    <span
-                      className="text-[10px] sm:text-[11px] font-semibold uppercase tracking-[0.14em] px-2 py-0.5 rounded-md border shrink-0 leading-none text-warning-fg border-warning/35 bg-warning-bg"
-                      title={belowBar}
-                    >
-                      Below bar
-                    </span>
-                  )}
+                  <QualityBarChip uc={u} />
                 </div>
                 {subtitleText && (
                   <p className="text-xs sm:text-sm text-text-secondary mt-1.5 leading-snug line-clamp-2">
                     {subtitleText}
                   </p>
                 )}
+                <QualityBarReason uc={u} className="mt-1" />
               </div>
               <InspireScoreBadge score={inspireScoreNum} />
             </div>

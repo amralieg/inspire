@@ -509,6 +509,7 @@ export default function App() {
               onComplete={() => nav('results')}
               onResultsSession={inDemo ? noop : onResultsSession}
               onOpenImplement={openImplement}
+              onGenerateData={inDemo ? undefined : () => nav('generate-data')}
             />
           </div>
         )}

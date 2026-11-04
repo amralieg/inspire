@@ -17,6 +17,7 @@ import {
   Layers,
   Building2,
   BarChart3,
+  AlertTriangle,
 } from 'lucide-react';
 import ResultsPage from './ResultsPage';
 import { countEntries, parseStrategicContext, treeDepth } from '../lib/strategyContext';
@@ -24,6 +25,7 @@ import { formatDuration } from '../lib/formatWhen';
 import { mergeSteps, quietLine, sessionFailed, sessionFinished, sessionQuietSince, sessionSucceeded, stepCategory } from '../lib/monitorState';
 import { requestHeaders, responseError } from '../lib/apiClient';
 import StopRunControl from '../components/StopRunControl';
+import { runOutcomeOf } from '../lib/runOutcome';
 
 // Run lifecycle phases
 const PHASE_PENDING = 'PENDING';
@@ -40,7 +42,7 @@ const STATUS_FILTERS = [
   { key: 'open', label: 'No end recorded', color: 'text-text-secondary' },
 ];
 
-export default function MonitorPage({ settings, update, sessionId, runId, onComplete, onResultsSession, onOpenImplement }) {
+export default function MonitorPage({ settings, update, sessionId, runId, onComplete, onResultsSession, onOpenImplement, onGenerateData }) {
   const { databricksHost, token, warehouseId, inspireDatabase, showcase = '' } = settings;
 
   // Run-level state
@@ -185,12 +187,16 @@ export default function MonitorPage({ settings, update, sessionId, runId, onComp
     ? (Boolean(session) && !isComplete && !isQuiet && !isFailed)
     : (runPhase === PHASE_RUNNING && !isComplete && !isFailed);
   const stepsLive = isPending || isRunning;
+  const outcome = runOutcomeOf(session?.results_json);
+  const isWarning = isComplete && outcome.warning;
+  const isCleanComplete = isComplete && !isWarning;
 
   let statusLabel = 'Initializing';
   let statusDetail = '';
   if (isPending) { statusLabel = 'Starting'; statusDetail = 'Provisioning compute resources...'; }
   else if (isRunning) { statusLabel = 'Running'; statusDetail = isStaleSession || !session ? 'Notebook is initializing...' : `${Math.round(percent)}% complete`; }
   else if (isQuiet) { statusLabel = 'Quiet'; statusDetail = quietLine(quietSince, now); }
+  else if (isWarning) { statusLabel = 'Completed with a warning'; statusDetail = outcome.message || 'The run finished with a warning.'; }
   else if (isComplete) { statusLabel = 'Completed'; statusDetail = 'Pipeline finished successfully.'; }
   else if (isFailed) {
     statusLabel = 'Failed';
@@ -367,25 +373,40 @@ export default function MonitorPage({ settings, update, sessionId, runId, onComp
       </div>
 
       {/* ═══ Status Card ═══ */}
-      <div className={`border rounded-xl p-5 mb-6 shadow-sm ${
+      <div data-testid="monitor-status" data-status={isWarning ? 'warning' : isCleanComplete ? 'success' : isFailed ? 'failed' : 'active'} className={`border rounded-xl p-5 mb-6 shadow-sm ${
+        isWarning ? 'bg-warning-bg border-warning/30' :
         isComplete ? 'bg-success-bg border-success/20' :
         isFailed ? 'bg-error-bg border-error/20' :
         'bg-surface border-border'
       }`}>
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-3">
-            <StatusIcon isPending={isPending} isRunning={isRunning} isQuiet={isQuiet} isComplete={isComplete} isFailed={isFailed} />
+            <StatusIcon isPending={isPending} isRunning={isRunning} isQuiet={isQuiet} isComplete={isComplete} isWarning={isWarning} isFailed={isFailed} />
             <div>
               <span className={`text-base font-bold ${
-                isComplete ? 'text-success-fg' : isFailed ? 'text-error-fg' : 'text-text-primary'
+                isWarning ? 'text-warning-fg' : isComplete ? 'text-success-fg' : isFailed ? 'text-error-fg' : 'text-text-primary'
               }`}>
                 {statusLabel}
               </span>
               {statusDetail && (
                 <p className={`text-xs mt-0.5 ${
-                  isComplete ? 'text-success-fg' : isFailed ? 'text-error-fg' : 'text-text-secondary'
+                  isWarning ? 'text-warning-fg' : isComplete ? 'text-success-fg' : isFailed ? 'text-error-fg' : 'text-text-secondary'
                 }`}>
                   {statusDetail}
+                </p>
+              )}
+              {isComplete && outcome.found > 0 && (
+                <p className="text-xs mt-0.5 text-text-secondary" data-testid="monitor-bar-counts">
+                  {outcome.found} use case{outcome.found === 1 ? '' : 's'} found, {outcome.meets} {outcome.meets === 1 ? 'meets' : 'meet'} your {outcome.mode || 'quality'} bar
+                </p>
+              )}
+              {isComplete && outcome.emptyTables.length > 0 && (
+                <p className="text-xs mt-0.5 text-warning-fg" data-testid="monitor-empty-tables">
+                  {outcome.emptyTables.length === 1 ? 'This table has' : 'These tables have'} no rows yet: {outcome.emptyTables.slice(0, 10).join(', ')}
+                  {outcome.emptyTables.length > 10 ? ` and ${outcome.emptyTables.length - 10} more` : ''}.{' '}
+                  {onGenerateData
+                    ? <button type="button" onClick={onGenerateData} className="font-semibold underline">Add sample rows on the Generate data page</button>
+                    : 'Add sample rows on the Generate data page'}, then run again.
                 </p>
               )}
             </div>
@@ -399,13 +420,14 @@ export default function MonitorPage({ settings, update, sessionId, runId, onComp
             )}
             {runInfo?.life_cycle_state && (
               <span className={`font-mono px-2.5 py-1 rounded-lg font-medium text-[11px] ${
+                isWarning ? 'bg-warning-bg text-warning-fg' :
                 isComplete ? 'bg-success-bg text-success-fg' :
                 isFailed ? 'bg-error-bg text-error-fg' :
                 isStopped ? 'bg-bg-subtle text-text-secondary' :
                 isPending ? 'bg-info-bg text-info-fg' :
                 'bg-db-red-50 text-db-red-fg'
               }`}>
-                {isComplete ? 'SUCCESS' : runInfo.life_cycle_state}
+                {isWarning ? 'WARNING' : isComplete ? 'SUCCESS' : runInfo.life_cycle_state}
                 {!isComplete && runInfo.result_state ? ` / ${runInfo.result_state}` : ''}
               </span>
             )}
@@ -421,6 +443,7 @@ export default function MonitorPage({ settings, update, sessionId, runId, onComp
         <div className="h-2.5 bg-bg-subtle rounded-full overflow-hidden">
           <div
             className={`h-full rounded-full transition-all duration-700 ease-out ${
+              isWarning ? 'bg-warning' :
               isComplete || isStopped ? 'bg-success' :
               isFailed ? 'bg-error' :
               isPending ? 'bg-text-tertiary animate-pulse' :
@@ -874,13 +897,13 @@ export default function MonitorPage({ settings, update, sessionId, runId, onComp
       {/* ═══ Complete Action ═══ */}
       {isComplete && (
         <div className="mt-6 space-y-4">
-          <div className="bg-success-bg border border-success/20 rounded-xl p-5 flex items-center justify-between shadow-sm">
+          <div className={`${isWarning ? 'bg-warning-bg border-warning/30' : 'bg-success-bg border-success/20'} border rounded-xl p-5 flex items-center justify-between shadow-sm`}>
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-success/10 flex items-center justify-center">
-                <CheckCircle2 size={22} className="text-success-fg" />
+              <div className={`w-10 h-10 rounded-xl ${isWarning ? 'bg-warning/10' : 'bg-success/10'} flex items-center justify-center`}>
+                {isWarning ? <AlertTriangle size={22} className="text-warning-fg" /> : <CheckCircle2 size={22} className="text-success-fg" />}
               </div>
               <div>
-                <p className="text-sm font-bold text-text-primary">Pipeline completed successfully</p>
+                <p className="text-sm font-bold text-text-primary">{isWarning ? 'Pipeline completed with a warning' : 'Pipeline completed successfully'}</p>
                 <p className="text-xs text-text-secondary mt-0.5">
                   Results are ready for review.
                   {elapsed && ` Total execution time: ${elapsed}.`}
@@ -931,8 +954,9 @@ export default function MonitorPage({ settings, update, sessionId, runId, onComp
    Sub-components
    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
-function StatusIcon({ isPending, isRunning, isQuiet, isComplete, isFailed }) {
+function StatusIcon({ isPending, isRunning, isQuiet, isComplete, isWarning, isFailed }) {
   const base = 'w-10 h-10 rounded-xl flex items-center justify-center';
+  if (isWarning) return <div className={`${base} bg-warning/10`}><AlertTriangle size={22} className="text-warning-fg" /></div>;
   if (isComplete) return <div className={`${base} bg-success/10`}><CheckCircle2 size={22} className="text-success-fg" /></div>;
   if (isFailed) return <div className={`${base} bg-error/10`}><XCircle size={22} className="text-error-fg" /></div>;
   if (isPending) return <div className={`${base} bg-info/10`}><Clock size={22} className="text-info-fg" /></div>;

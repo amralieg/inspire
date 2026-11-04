@@ -586,9 +586,11 @@ class TestQRunner:
                     "Look at customer information and `total_amount` and `order_date` to find opportunities.",
                     hld="Dashboards.")
         out = o._phaseQ_run_integrity_gates(strong_corpus()[:2] + [vacuous], SCHEMA)
-        assert ids(out) == ["N01-U01", "N01-U02"]
-        assert o.processing_honesty["q5_decision_dropped"] == 1
-        assert o.processing_honesty["q5_drop_reasons"] == {"Q5_R19_GENERIC_TITLE": 1}
+        assert ids(out) == ["N01-U01", "N01-U02", "N02-U05"]
+        assert o.processing_honesty["q5_decision_dropped"] == 0 and o.processing_honesty["q5_below_bar"] == 1
+        assert out[2]["below_bar_gate"].startswith("Q5_R19_GENERIC_TITLE")
+        assert out[2]["below_bar_reason"].startswith("its title is too generic to name a decision")
+        assert o.processing_honesty["gate_ledger"]["Q5"]["below_bar_by_reason"] == {"Q5_R19_GENERIC_TITLE": 1}
 
     def test_runner_logs_gate_exception_with_traceback_and_marks_unverified(self, ns, caplog):
         o = make(ns)

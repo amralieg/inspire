@@ -162,6 +162,9 @@ def test_ultra_high_run_end_to_end(agent_ns, tmp_path, quiet_root_logger):
     assert s.index("llm_dedup") < s.index("phase_g_gates") < s.index("combined_scoring")
 
     final = rec["tracking"][-1]
+    below = [u for u in final if u["meets_quality_bar"] == "N"]
+    assert [u["Name"] for u in below] == ["Forecast items demand 2"] and below[0]["elite_status"] == "FALLBACK_BELOW_BAR"
+    final = [u for u in final if u["meets_quality_bar"] == "Y"]
     assert [u["No"] for u in final] == ["N01-U01", "N02-U01", "N02-U02"]
     assert [u["Name"] for u in final][0] == "Forecast items demand 1"
     assert [u["Business Domain"] for u in final] == ["Operations", "Sales", "Sales"]
@@ -230,12 +233,13 @@ def test_ultra_high_run_with_user_domains_keeps_them_and_never_reclusters(agent_
     for uc in final:
         by_domain.setdefault(uc["Business Domain"], []).append(uc)
     assert set(by_domain) == {"Sales", "Operations"}
-    assert [u["elite_status"] for u in by_domain["Operations"]] == ["DOMAIN_COVERAGE_PICK"]
-    assert all(u["elite_status"] == "ELITE" for u in by_domain["Sales"])
-    assert [u["No"] for u in final] == ["N01-U01", "N01-U02", "N02-U01"]
+    assert [u["elite_status"] for u in by_domain["Operations"]] == ["DOMAIN_COVERAGE_PICK", "FALLBACK_BELOW_BAR"]
+    assert [u["meets_quality_bar"] for u in by_domain["Operations"]] == ["N", "N"]
+    assert all(u["elite_status"] == "ELITE" and u["meets_quality_bar"] == "Y" for u in by_domain["Sales"])
+    assert [u["No"] for u in final] == ["N01-U01", "N01-U02", "N02-U01", "N02-U02"]
     assert final[-1]["Business Domain"] == "Operations", "coverage picks rank after every elite"
     ledger = {e["stage"]: e for e in obj.final_inspire_results_json["funnel_ledger"]}
-    assert ledger["domain_clustering"]["in"] == ledger["domain_clustering"]["out"] == 3
+    assert ledger["domain_clustering"]["in"] == ledger["domain_clustering"]["out"] == 4
 
 
 @pytest.mark.parametrize("mode, acceptable", [("Good", {"Medium", "High", "Very High", "Ultra High"}),
@@ -279,7 +283,7 @@ BY_DESIGN = ("No", "result_table", "quality_mode", "value_scoring_status")
 V130_BY_DESIGN = ("Strategy Alignment", "Strategy Path", "KPIs", "Expected Key Results", "Measures of Success",
                   "Financial Benefits", "Non-Financial Benefits", "Data Evidence", "Foundations", "use_case_key",
                   "Business Priority Alignment", "Strategic Goals Alignment", "Strategic Alignment",
-                  "best_of_best", "best_of_best_reason")
+                  "best_of_best", "best_of_best_reason", "meets_quality_bar")
 
 
 def _comparable_run(ns, tmp_path, mode, acceptable, user_domains):
@@ -308,10 +312,16 @@ def test_good_and_high_keep_the_base_use_cases_and_renumber_them_in_final_rank_o
         "LLM call sequence differs from the base notebook beyond the post-selection alignment"
     assert any(c[0] == "STRATEGY_ALIGNMENT_PROMPT" for c in actual[2])
     for uc in actual[4]:
+        assert uc["meets_quality_bar"] == "Y", uc["No"]
         assert uc["best_of_best"] == "N" and uc["best_of_best_reason"].endswith("so it is already the short list"), uc["No"]
         assert uc["Strategic Goals Alignment"] and uc["Business Priority Alignment"], uc["No"]
         assert uc["KPIs"] and uc["Financial Benefits"] and uc["Non-Financial Benefits"], uc["No"]
-    assert [e for e in actual[1] if e["stage"] != "feedback_exclusion"] == \
+    by_design = [{k: v for k, v in e.items() if k != "below_bar"} for e in actual[1]
+                 if e["stage"] not in ("feedback_exclusion", "below_bar_kept")]
+    assert all(e.get("below_bar", 0) == 0 for e in actual[1])
+    assert [e for e in actual[1] if e["stage"] == "below_bar_kept"] == [
+        {"stage": "below_bar_kept", "in": 0, "out": 0, "drops": {}}]
+    assert by_design == \
         [e for e in expected[1] if e["stage"] != "value_scoring"], \
         "funnel ledger differs from the base notebook beyond the removed value pass and the feedback stage"
     exclusion = [e for e in actual[1] if e["stage"] == "feedback_exclusion"]

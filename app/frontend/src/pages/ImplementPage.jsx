@@ -19,6 +19,7 @@ import ImplementStatusBadge from '../components/ImplementStatusBadge';
 import ImplementWizard from './ImplementWizard';
 import { AssetPanel, AssetTile, BuildControls, ConfirmDialog, NotebookPanel } from '../components/ImplementControlTower';
 import UseCaseDrawer from '../components/UseCaseDrawer';
+import QualityBarChip from '../components/QualityBarChip';
 import UseCaseDetailBody from '../components/UseCaseDetailBody';
 import InspireScoreBadge from '../components/InspireScoreBadge';
 import Celebration from '../components/Celebration';
@@ -283,6 +284,7 @@ function Rail({ groups, listLoading, query, asset, mvp = '', assetLabel, shownId
                       <span className="flex flex-wrap items-center gap-1.5 min-w-0">
                         <span className="font-mono text-[10px] text-text-secondary">{item.id}</span>
                         <ImplementStatusBadge state={item.state} />
+                        <QualityBarChip uc={item.uc} />
                       </span>
                       <OutputIcons latest={item.latest} />
                     </div>

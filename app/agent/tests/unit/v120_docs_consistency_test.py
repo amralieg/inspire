@@ -99,7 +99,7 @@ def test_one_view_drives_the_pdf_card_the_deck_card_and_the_markdown_entry(docs,
                      "Best-of-Best Score", "Priority", "Value", "Feasibility"):
         assert business in view_labels(views[0]), business
     assert set(views[0]) == {"uc", "id", "rank", "title", "name", "domain", "subdomain", "kind", "quality", "metrics", "narrative",
-                             "facts", "value_facts", "coverage", "notice", "untranslated", "star"}
+                             "facts", "value_facts", "coverage", "notice", "untranslated", "star", "meets_bar"}
     assert all(view["star"] is None for view in views), "a use case without the Best of Best mark has no star"
     assert all(view["value_facts"] == [] for view in views), "a catalog without v1.3.0 fields has no value facts"
     assert views[0]["kind"] == "elite" and "Elite Score" in view_labels(views[0])
@@ -311,10 +311,10 @@ def test_a_pure_fallback_set_carries_the_below_bar_label_notice_and_index_flag(d
         assert view["coverage"][2] == "quality 'Medium' is below the High bar"
     rows = obj._doc_index_rows(model["ranked"], model, labels(docs, "English"))
     assert [row["flag"] for row in rows] == ["Below bar", "Below bar"]
-    notice = obj._doc_text({}, "doc_fallback_notice", "English", mode="High")
-    assert notice == model["executive"][0] and "No use case met the High bar" in notice
+    notice = obj._quality_bar_notice([tier, tier2], {}, "English")
+    assert notice == model["executive"][0] and notice.startswith("None of the 2 use cases found meets your High bar.")
     _, page = pdf_html(docs, captured_html, grouped, summary())
-    assert "Below the High bar" in page and "No use case met the High bar" in page
+    assert "Below the High bar" in page and "None of the 2 use cases found meets your High bar" in page
 
 
 def test_an_ultra_high_near_miss_fallback_reads_near_miss_below_the_ultra_high_bar(docs):
@@ -325,7 +325,8 @@ def test_an_ultra_high_near_miss_fallback_reads_near_miss_below_the_ultra_high_b
     model, views = expected_views(obj, docs, {"Sales": [near]})
     assert views[0]["coverage"][0] == "Near miss, below the Ultra High bar"
     assert views[0]["coverage"][2] == "failed check: red_team"
-    assert obj._doc_text({}, "doc_fallback_notice", "English", mode="Ultra High") == model["executive"][0]
+    assert obj._quality_bar_notice([near], {}, "English") == model["executive"][0]
+    assert model["executive"][0].startswith("None of the 1 use") and "Ultra High bar" in model["executive"][0]
 
 
 def test_missing_values_render_translated_not_provided_and_not_scored(docs, captured_html):

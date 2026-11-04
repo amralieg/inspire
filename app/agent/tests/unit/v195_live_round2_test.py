@@ -303,8 +303,11 @@ def test_too_few_backed_candidates_leave_the_count_short_and_the_log_says_why(ag
     failing = {ucs[i]["No"] for i in range(0, 100, 10)}
     _signal_stub(inst, failing)
     selected, rejected = inst._select_scored_use_cases(ucs, [], {})
-    assert len(selected) == 90 and not {uc["No"] for uc in selected} & failing
-    assert {uc["No"] for uc in rejected} == failing
+    meets = [uc for uc in selected if uc["meets_quality_bar"] == "Y"]
+    below = [uc for uc in selected if uc["meets_quality_bar"] == "N"]
+    assert len(meets) == 90 and not {uc["No"] for uc in meets} & failing
+    assert len(selected) == 93 and len(below) == 3 and {uc["No"] for uc in below} <= failing
+    assert {uc["No"] for uc in rejected} == failing - {uc["No"] for uc in below}
     assert inst.logger.matching("[SIGNAL-BEFORE-TRIM FIRED] 10 use cases the data does not back")
     short = inst.logger.matching("[USE-CASE-COUNT FIRED]", "WARNING")
     assert short and "10 use cases left because the data shows no signal" in short[-1][1] and "never pads" in short[-1][1]
