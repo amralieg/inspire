@@ -13,6 +13,7 @@ import {
   isNumericPriorityString,
   priorityPillClass,
 } from '../lib/useCaseFields';
+import ValueEstimateLine from './ValueEstimateLine';
 
 const s = (v) => (v == null ? '' : String(v));
 
@@ -94,6 +95,7 @@ export default function UseCaseCard({
                   </p>
                 )}
                 <QualityBarReason uc={u} className="mt-1" />
+                <ValueEstimateLine uc={u} className="mt-1" />
               </div>
               <InspireScoreBadge score={inspireScoreNum} />
             </div>

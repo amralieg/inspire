@@ -6,6 +6,7 @@
 .imp-promised p{margin:0;font-size:13.5px;line-height:1.5}
 .imp-promised ul,.imp-block ul{margin:8px 0 0;padding-left:18px;font-size:13px;line-height:1.5}
 .imp-promised .faint{color:var(--faint)}
+.imp-promised .imp-estimate{margin-top:8px;font-weight:600}
 .imp-figs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:0}
 .imp-figs>div{border-radius:10px;padding:10px 12px;background:var(--slate-bg)}
 .imp-figs>div[data-figure="reported"],.imp-figs>div[data-figure="measured"]{background:var(--green-bg)}

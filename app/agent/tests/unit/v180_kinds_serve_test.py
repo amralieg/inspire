@@ -403,8 +403,8 @@ def test_the_translate_prompt_lists_the_kind_columns_in_order(ns):
     prompt = ns["PROMPT_TEMPLATES"]["USE_CASE_TRANSLATE_PROMPT"]
     listed = re.search(r'Some input use cases carry the extra keys (.*?)\.\n', prompt).group(1)
     names = re.findall(r'"([^"]+)"', listed)
-    assert names[-5:] == ["Kind Label", "Kind Family Label", "What We Serve", "How It Works", "Where Value Comes From"]
-    assert f"{24 + len(names)} with all eighteen" in prompt and len(names) == 18
+    assert names[-6:] == ["Kind Label", "Kind Family Label", "What We Serve", "How It Works", "Where Value Comes From", "Value Estimate Text"]
+    assert f"{24 + len(names)} with all nineteen" in prompt and len(names) == 19
 
 
 ABOUT_LABELS = ("What we serve", "How it works", "Where the value comes from")

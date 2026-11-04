@@ -16,6 +16,7 @@ import {
 import { readOnlyReason } from '../lib/showcase';
 import { placeholderWords } from '../lib/placeholderWords';
 import DemoNote from './DemoNote';
+import ValueEstimateLine from './ValueEstimateLine';
 
 function Section({ title, tone, children }) {
   return (
@@ -149,7 +150,7 @@ export function UseCaseStrategyDetail({ info, knownPriorities, strategy = null }
       )}
       {info.valueEstimate && (
         <Section title="Value estimate" tone={info.valueEstimate.measured ? 'text-success-fg' : 'text-text-secondary'}>
-          <p data-testid="value-estimate" className="text-sm text-text-secondary leading-relaxed">{info.valueEstimate.text}</p>
+          <ValueEstimateLine estimate={info.valueEstimate} className="text-sm" />
         </Section>
       )}
       {info.keyResults.length > 0 && (

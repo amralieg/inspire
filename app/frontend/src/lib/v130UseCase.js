@@ -119,6 +119,14 @@ export function dataSignalLine(signal) {
   return { tone: kind.tone, label: kind.label, text: text.trim() };
 }
 
+export function valueEstimateOf(uc) {
+  const u = uc && typeof uc === 'object' ? uc : {};
+  const parsed = parseJson(fieldOf(u, 'Value Estimate', 'value_estimate'));
+  const estimate = parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+  const text = String(u.value_estimate_text || estimate.text || '').trim();
+  return text ? { text, measured: estimate.status === 'measured', currency: estimate.currency || null } : null;
+}
+
 export function v130View(uc) {
   const u = uc && typeof uc === 'object' ? uc : {};
   const alignments = objectList(fieldOf(u, 'Strategy Alignment', 'strategy_alignment'))
@@ -146,11 +154,7 @@ export function v130View(uc) {
     ? evidence.tables : {};
   const evidenceJoins = evidence && Array.isArray(evidence.joins) ? evidence.joins : [];
   const evidenceSignal = dataSignalOf(evidence);
-  const estimate = parseJson(fieldOf(u, 'Value Estimate', 'value_estimate'));
-  const estimateText = String((estimate && typeof estimate === 'object' && !Array.isArray(estimate) ? estimate.text : '') || u.value_estimate_text || '').trim();
-  const valueEstimate = estimateText
-    ? { text: estimateText, measured: !!(estimate && estimate.status === 'measured'), currency: (estimate && estimate.currency) || null }
-    : null;
+  const valueEstimate = valueEstimateOf(u);
   return {
     alignments,
     paths,

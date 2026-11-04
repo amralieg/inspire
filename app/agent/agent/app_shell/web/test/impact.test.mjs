@@ -99,6 +99,9 @@ test('promised reads the catalog business value and benefits, and each closed re
   assert.deepEqual(promisedView({ promised: PROMISED }), { value: PROMISED.value, benefits: ['Recover margin on discounted items (estimate: depends on value)'] });
   assert.equal(promisedView({ promised: { value: ' ', benefits: [] } }), null);
   assert.equal(promisedView({}), null);
+  assert.deepEqual(promisedView({ promised: { estimate: ' Value not measured yet: measure the order total. ' } }),
+    { value: '', benefits: [], estimate: 'Value not measured yet: measure the order total.' });
+  assert.deepEqual(promisedView({ promised: { ...PROMISED, estimate: 'AED 2.4K-6K a year' } }).estimate, 'AED 2.4K-6K a year');
   assert.deepEqual(closedRows(ENTRY, 'USD'), [
     { key: 'k7', label: 'Wool coat, store 4', outcome: 'Fixed', state: 'No longer flagged', measured: '$1,200 when fixed minus $100 now = $1,100', reported: '$900',
       note: 'Repriced on Monday', closed: 'Oct 6', amounts: { measured: 1100, reported: 900, closed: '2026-10-06T06:00:00.000Z' } },

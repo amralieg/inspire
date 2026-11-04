@@ -53,6 +53,7 @@ import UseCaseTables from '../components/UseCaseTables';
 import { liveImpact, rowImpact, targetKpiView, trackedKpiOf } from '../lib/targetKpi';
 import { SHOWCASE_DASHBOARD_NOTE, SHOWCASE_GENIE_NOTE, SHOWCASE_NO_MVP, SHOWCASE_OPEN_APP, readOnlyReason } from '../lib/showcase';
 import { buildFilterText } from '../lib/reviewFigures';
+import ValueEstimateLine from '../components/ValueEstimateLine';
 
 const OUTPUT_ICONS = { notebook: NotebookPen, dashboard: LayoutDashboard, genie_space: GenieLogo, app: AppWindow, alert: BellRing };
 const OUTPUT_NAMES = { dashboard: 'Dashboard', genie_space: 'Genie Agent', app: 'App', alert: 'Alert' };
@@ -289,6 +290,7 @@ function Rail({ groups, listLoading, query, asset, mvp = '', assetLabel, shownId
                       </span>
                       <OutputIcons latest={item.latest} />
                     </div>
+                    {item.uc && <ValueEstimateLine uc={item.uc} className="mt-1 line-clamp-2 text-[11px]" />}
                     {building && <RailProgress item={item} progress={progress[item.id]} />}
                   </button>
                 );
@@ -1515,6 +1517,7 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
           </div>
           {row && <InspireScoreBadge score={row.inspire} />}
         </div>
+        {item.uc && <ValueEstimateLine uc={item.uc} />}
         {built && progress.active && <ProgressLine chip={chip} summary={progress} />}
         <div className="flex flex-wrap gap-2">
           {item.uc && (

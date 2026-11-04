@@ -729,6 +729,9 @@ def _promised_problems(promised) -> list:
     value, benefits = promised.get("value", ""), promised.get("benefits", [])
     if not isinstance(value, str) or len(value) > CAPS["promised_chars"]:
         problems.append(f"the page promised value must be text of at most {CAPS['promised_chars']} characters")
+    estimate = promised.get("estimate", "")
+    if not isinstance(estimate, str) or len(estimate) > CAPS["promised_chars"]:
+        problems.append(f"the page promised estimate must be text of at most {CAPS['promised_chars']} characters")
     if (not isinstance(benefits, list) or len(benefits) > CAPS["benefits"]
             or any(not isinstance(b, str) or len(b) > CAPS["value_chars"] for b in benefits)):
         problems.append(f"the page promised benefits must be at most {CAPS['benefits']} lines of at most {CAPS['value_chars']} characters")

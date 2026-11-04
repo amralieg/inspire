@@ -140,7 +140,9 @@ export function promisedView(page) {
   const promised = page?.promised || {};
   const value = placeholderWords(promised.value || '').trim();
   const benefits = (promised.benefits || []).map((b) => placeholderWords(b).trim()).filter(Boolean);
-  return value || benefits.length ? { value, benefits } : null;
+  const estimate = String(promised.estimate || '').trim();
+  if (!value && !benefits.length && !estimate) return null;
+  return estimate ? { value, benefits, estimate } : { value, benefits };
 }
 
 export function measuredText(record, currency, kind = '') {

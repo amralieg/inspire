@@ -32,6 +32,7 @@ function Promised({ page }) {
       <h3>Promised</h3>
       {promised ? (
         <>
+          {promised.estimate && <p className="imp-estimate" data-value-estimate="">{promised.estimate}</p>}
           {promised.value && <p>{promised.value}</p>}
           {promised.benefits.length > 0 && <ul>{promised.benefits.map((b) => <li key={b}>{b}</li>)}</ul>}
         </>

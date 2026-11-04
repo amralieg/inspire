@@ -369,6 +369,7 @@ export default function Page({ app, page, meta, state, onState, themeKey, onAsk,
       <header className="ph">
         <div className="pg-h"><h1>{page.title}</h1></div>
         {!hubPage && <p className="ph-q">{page.question}</p>}
+        {!hubPage && page.promised?.estimate && <p className="ph-value" data-value-estimate="">{page.promised.estimate}</p>}
         {!hubPage && data && <Story page={page} data={data.kpis} />}
         {app.style === 'c' && genieOn(app, page.id) && (
           <form className="ask" onSubmit={(e) => { e.preventDefault(); if (question.trim()) { onAsk(question); setQuestion(''); } }}>
