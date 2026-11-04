@@ -410,17 +410,25 @@ def ui_translator(ns, answers):
 
 def test_a_ui_translation_attempt_that_is_retried_is_a_warning(agent_ns):
     service, calls = ui_translator(agent_ns, [RuntimeError("endpoint returned 500"), "{}"])
-    assert service.get_translations("Japanese")
+    assert service.get_translations("Thai")
     assert calls == [False, True]
-    assert service.logger.matching("Failed to get UI translations for Japanese (Attempt 1/2)", "WARNING")
+    assert service.logger.matching("Failed to get UI translations for Thai (Attempt 1/2)", "WARNING")
     assert errors_of(service.logger) == []
 
 
 def test_ui_translations_that_fail_every_attempt_are_one_error(agent_ns):
     service, calls = ui_translator(agent_ns, [RuntimeError("endpoint returned 500")])
-    assert service.get_translations("Japanese")
+    assert service.get_translations("Thai")
     assert len(calls) == 2
-    assert errors_of(service.logger) == ["All retry attempts exhausted for UI translations of Japanese."]
+    assert errors_of(service.logger) == ["All retry attempts exhausted for UI translations of Thai."]
+
+
+def test_a_language_with_curated_labels_never_asks_the_llm(agent_ns):
+    service, calls = ui_translator(agent_ns, [RuntimeError("endpoint returned 500")])
+    labels = service.get_translations("Japanese")
+    assert calls == [] and errors_of(service.logger) == []
+    assert labels == {**agent_ns["TranslationService"].ENGLISH_TRANSLATIONS,
+                      **agent_ns["TranslationService"].TRANSLATION_FALLBACKS["Japanese"]}
 
 
 def use_case_translator(ns, answers):
@@ -442,17 +450,23 @@ def test_a_use_case_translation_attempt_that_is_retried_is_a_warning(agent_ns):
 
 def test_a_use_case_batch_left_in_english_after_every_attempt_is_one_error(agent_ns):
     service, calls = use_case_translator(agent_ns, [RuntimeError("endpoint returned 500")])
-    out = service._translate_batch([{"No": "U1"}], "Japanese", 1)
+    assert service._translate_batch([{"No": "U1"}], "Japanese", 1)[0]["_translation_status"] == "untranslated"
+    assert errors_of(service.logger) == []
+    calls.clear()
+    out = service._translate_top_batch([{"No": "U1"}], "Japanese", 1)
     assert len(calls) == 2 and not out[0].get("translated")
-    assert errors_of(service.logger) == ["All retry attempts exhausted for batch #1. It stays in English and is flagged."]
+    assert errors_of(service.logger) == ["All retry attempts exhausted for batch #1: U1 (all fields) stays in English and is flagged."]
 
 
 def test_a_use_case_batch_still_incomplete_after_the_retry_is_one_error(agent_ns):
     service, calls = use_case_translator(agent_ns, ["rows"])
     service._parse_translation_rows = lambda raw, batch, num, language: ({}, ["U1"], "")
-    out = service._translate_batch([{"No": "U1"}], "Japanese", 1)
+    assert service._translate_batch([{"No": "U1"}], "Japanese", 1)[0]["_translation_status"] == "untranslated"
+    assert errors_of(service.logger) == []
+    calls.clear()
+    out = service._translate_top_batch([{"No": "U1"}], "Japanese", 1)
     assert len(calls) == 2 and not out[0].get("translated")
-    assert errors_of(service.logger) == ["All retry attempts exhausted for batch #1. It stays in English and is flagged."]
+    assert errors_of(service.logger) == ["All retry attempts exhausted for batch #1: U1 (all fields) stays in English and is flagged."]
 
 
 def domain_clusterer(ns, handler):

@@ -137,6 +137,7 @@ import {
   APP_OWN_PLACEMENTS,
   APP_INSIDE,
   APP_INSIDE_PLACEMENT,
+  APP_PLACE_WAITING,
   INSIDE_ACCESS_REASON,
   INSIDE_WAREHOUSE_LABEL,
   INSIDE_WAREHOUSE_PROBLEM,
@@ -197,7 +198,7 @@ import {
 import ScopeSettings from '../components/ScopeSettings';
 import { PROFILE_WAITING, useGroupingProfile } from '../lib/groupingProfile';
 import {
-  FIRST_RUN_TITLE, GROUPING_TITLE, builtFirstRunOf, isScopeSetting, latestRunScope, scopeChanges, scopeStepsOf, scopeValues, withScopeDefaults, withUnrecordedScope,
+  FIRST_RUN_TITLE, GROUPING_TITLE, RUN_SCOPE_UNRECORDED_HIDDEN, builtFirstRunOf, isScopeSetting, latestRunScope, scopeChanges, scopeStepsOf, scopeValues, withScopeDefaults, withUnrecordedScope,
 } from '../lib/runScope';
 
 const ICONS = { notebook: NotebookPen, dashboard: LayoutDashboard, genie_space: Sparkles, app: AppWindow, alert: Bell };
@@ -381,7 +382,7 @@ export default function ImplementWizard({
   const [catalogsError, setCatalogsError] = useState('');
   const [schemas, setSchemas] = useState({});
   const bodyRef = useRef(null);
-  const placeChosen = useRef(false);
+  const [placeSet, setPlaceSet] = useState('');
   const settingsModel = useMemo(() => settingsModelOf(context?.history), [context?.history]);
   const alertOn = Boolean(spec.outputs.alert);
   const everySetting = useMemo(() => contextSettings(context, { outputs: { alert: alertOn } }), [context, alertOn]);
@@ -529,7 +530,8 @@ export default function ImplementWizard({
   const trackedKpi = trackedKpiOf(context?.history);
   const chosenKpi = kpiTargetOf(spec);
   const sampleStake = trackedKpi && (!chosenKpi || kpiKey(chosenKpi) === kpiKey(trackedKpi.record.name)) ? trackedKpi.impact : null;
-  const extras = { columnsByTable, widgets: context?.widgets || [], trainsModel, mergeTargets: targets, held: context?.assets || {}, appLook: look, built,
+  const placeSettled = !spec.outputs.app || (targets !== null && (placeSet === 'default' || placeSet === 'person'));
+  const extras = { columnsByTable, widgets: context?.widgets || [], trainsModel, mergeTargets: targets, held: context?.assets || {}, appLook: look, built, placeSettled,
     lakebase, warehouses, kpiOptions, settings: settingsList, sourceTables, scopeSteps, scopeProfile: scopeProfile.profile, groupingSaved };
   const customGrouping = { apiPostJson, profileKey: scopeProfile.key, resultTable: spec.config.result_table, saved: groupingSaved, onSaved: setGroupingSaved,
     onPicked: () => setGroupingSaved((was) => was || null) };
@@ -715,11 +717,17 @@ export default function ImplementWizard({
   const savedOutputs = context?.latest?.spec_json?.outputs || {};
   const moveNote = insideMoveNote(spec, held.app || '', { shared, joinedBefore: savedOutputs.merge?.app || '', sessionId, useCaseId: spec.use_case_id });
   useEffect(() => {
-    if (placeChosen.current || !targets || !context) return;
+    if (!targets || !context || !spec.outputs.app || placeSet === 'default' || placeSet === 'person') return;
+    if (placeSet === 'waiting') {
+      setSpec((prev) => (joinsApp(prev) || insideInspire(prev) ? prev : withNewApp(prev, prev.outputs.app_placement, targets, placeScope)));
+      setPlaceSet('person');
+      return;
+    }
     const saved = context.latest?.spec_json?.outputs || {};
     const savedApp = Boolean(saved.app) && !(context.gone_assets || []).includes('app');
     setSpec((prev) => withPlacementDefault(prev, targets, { held, saved: saved.app_placement, savedApp, ...placeScope }));
-  }, [targets, context, held, placeScope, spec.outputs.app]);
+    setPlaceSet('default');
+  }, [targets, context, held, placeScope, spec.outputs.app, placeSet]);
 
   useEffect(() => {
     if (!buildStep || targets !== null) return undefined;
@@ -909,7 +917,7 @@ export default function ImplementWizard({
     : [];
   const earlierGaps = buildStep && lastStep
     ? steps.filter((s) => BUILD_STEP_IDS.includes(s.id) && s.id !== stepId)
-      .flatMap((s) => stepErrors(s.id, spec, extras, mode).map((e) => `${e} (fix it on ${s.label})`))
+      .flatMap((s) => stepErrors(s.id, spec, extras, mode).filter((e) => e !== APP_PLACE_WAITING).map((e) => `${e} (fix it on ${s.label})`))
     : [];
   const footerErrors = [...new Set([
     ...(attempted[stepId] ? ownErrors : []),
@@ -918,7 +926,7 @@ export default function ImplementWizard({
     ...(buildStep ? [lastStep ? planError : '', preflightError, ...deliveryChecks, ...earlierGaps] : []),
   ].filter(Boolean))];
   const unchanged = lastStep && !checksBusy && Boolean(plan?.unchanged);
-  const implementBlocked = busy || checksBusy || Boolean(plan?.unchanged)
+  const implementBlocked = busy || checksBusy || !placeSettled || Boolean(plan?.unchanged)
     || (!ownErrors.length && (!preflight || !preflight.ok || !plan || Boolean(planError)));
   const palette = (look?.palette_colors || []).find((p) => p.id === spec.outputs.app_look.palette) || null;
 
@@ -1554,12 +1562,16 @@ export default function ImplementWizard({
             warehouseCheck={preflight?.checks?.app_warehouse || null}
             lakebase={lakebase}
             nameCheck={preflight?.checks?.app_name || null}
-            onJoin={(target) => { placeChosen.current = true; setSpec((prev) => withMergeTarget(prev, 'app', target)); }}
-            onNew={(placement) => { placeChosen.current = true; setSpec((prev) => withNewApp(prev, placement, targets, placeScope)); }}
-            onName={(value) => { placeChosen.current = true; patch('outputs.app_name', value); }}
+            placeSet={placeSet}
+            onJoin={(target) => { setPlaceSet('person'); setSpec((prev) => withMergeTarget(prev, 'app', target)); }}
+            onNew={(placement) => {
+              setPlaceSet(targets === null && placement !== APP_INSIDE ? 'waiting' : 'person');
+              setSpec((prev) => withNewApp(prev, placement, targets, placeScope));
+            }}
+            onName={(value) => { setPlaceSet('person'); patch('outputs.app_name', value); }}
             onWarehouse={(id) => setSpec((prev) => withAppWarehouse(prev, id))}
             moveNote={moveNote}
-            onKeep={() => { placeChosen.current = true; setSpec((prev) => withHeldApp(prev, savedOutputs)); }}
+            onKeep={() => { setPlaceSet('person'); setSpec((prev) => withHeldApp(prev, savedOutputs)); }}
           />
         )}
 
@@ -1606,6 +1618,11 @@ export default function ImplementWizard({
 
         {stepId === 'vibes' && collectedNote && (
           <p role="status" data-collected-vibes="" className="mb-3 text-[11px] text-text-secondary bg-bg border border-border rounded-md px-3 py-2">{collectedNote}</p>
+        )}
+        {stepId === 'vibes' && firstRunUnrecorded && !scopeSteps.firstRun && scopeProfile.state !== 'loading' && (
+          <p role="note" data-first-run-unrecorded="" className="mb-3 text-[11px] text-text-secondary bg-bg border border-border rounded-md px-3 py-2">
+            {RUN_SCOPE_UNRECORDED_HIDDEN}
+          </p>
         )}
         {stepId === 'vibes' && (
           <VibesPanel spec={spec} built={built} next={(context?.latest?.spec_version ?? 0) + 1} onChange={(value) => patch('vibes', value)}
@@ -1671,8 +1688,8 @@ export default function ImplementWizard({
               className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold text-white bg-db-red-solid disabled:opacity-50"
               onClick={submit}
             >
-              {(busy || checksBusy) && <Loader2 size={14} className="animate-spin" />}
-              {busy ? 'Starting…' : checksBusy ? 'Checking access…' : 'Start MVP'}
+              {(busy || checksBusy || !placeSettled) && <Loader2 size={14} className="animate-spin" />}
+              {busy ? 'Starting…' : !placeSettled ? 'Listing the Apps…' : checksBusy ? 'Checking access…' : 'Start MVP'}
             </button>
           )}
         </div>
@@ -1801,9 +1818,11 @@ function InsideInspireCard({ spec, on, lakebase, warehouses, warehousesError, wa
 }
 
 function AppPlacementStep({ spec, targets, targetsError, heldApp, scope, warehouses, warehousesError, warehouseCheck, lakebase, nameCheck,
-  moveNote = '', onJoin, onNew, onName, onWarehouse, onKeep }) {
+  moveNote = '', placeSet = '', onJoin, onNew, onName, onWarehouse, onKeep }) {
   const joined = joinsApp(spec) ? spec.outputs.merge.app : '';
   const inside = !joined && insideInspire(spec);
+  const listing = targets === null && !targetsError;
+  const fresh = !joined && !inside && placeSet !== '';
   const choices = targetsError ? [] : appPlacementChoices(spec, targets, scope);
   const open = choices.filter((c) => !c.block);
   const chosen = choices.find((c) => c.target.id === joined) || null;
@@ -1843,7 +1862,7 @@ function AppPlacementStep({ spec, targets, targetsError, heldApp, scope, warehou
         <h3 className="text-sm font-semibold text-text-primary">Where does the App of this use case go?</h3>
         <p className="text-[11px] text-text-tertiary">Add it to an App Inspire built, or create a new one.{memory && ` ${memory}`}</p>
       </div>
-      <div role="radiogroup" aria-label="Where the App goes" className="space-y-3">
+      <div role="radiogroup" aria-label="Where the App goes" aria-busy={listing} className="space-y-3">
         <div data-app-place="join" className={placeCard(Boolean(joined))}>
           <label className="flex items-start gap-2.5 cursor-pointer">
             <input type="radio" name="app-place" value="join" className="mt-0.5" checked={Boolean(joined)} disabled={!joined && !open.length}
@@ -1886,13 +1905,19 @@ function AppPlacementStep({ spec, targets, targetsError, heldApp, scope, warehou
             <p className="pl-7 text-[11px] text-error-fg">{joined} is not one Inspire built that you can open: pick another, or create a new App.</p>
           )}
         </div>
-        <div data-app-place="new" className={placeCard(!joined && !inside)}>
+        <div data-app-place="new" className={placeCard(fresh)}>
           <label className="flex items-start gap-2.5 cursor-pointer">
-            <input type="radio" name="app-place" value="new" className="mt-0.5" checked={!joined && !inside}
+            <input type="radio" name="app-place" value="new" className="mt-0.5" checked={fresh}
               onChange={() => onNew(inside ? APP_PLACEMENT_DEFAULT : placement)} />
             <span className="block text-sm font-semibold text-text-primary">Create a new App</span>
           </label>
-          {!joined && !inside && (
+          {fresh && listing && (
+            <p data-app-new-waiting="" className="pl-7 text-[11px] text-text-secondary">
+              <Loader2 size={11} className="inline animate-spin mr-1" aria-hidden="true" />
+              A new App it is. Inspire names it once it has listed the Apps it built, so the name never takes one of theirs.
+            </p>
+          )}
+          {fresh && !listing && (
             <div className="pl-7 space-y-3">
               <div role="radiogroup" aria-label="How Inspire organizes Apps" className="space-y-1.5">
                 {APP_OWN_PLACEMENTS.map((p) => {

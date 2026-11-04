@@ -65,8 +65,9 @@ REWRITTEN = frozenset((
     "CountIf", "DateAdd", "DateTrunc", "DayOfWeek", "Explode", "Inline", "IntDiv", "JSONExtractScalar", "Log", "Quantile", "RegexpExtract",
     "Round", "Second", "StrToUnix", "TimestampAdd", "TimestampDiff", "TimestampTrunc", "TsOrDsAdd", "UnixMicros", "UnixToStr",
     *EXTRACT_FIELDS))
-REWRITTEN_CALLS = ("from_json", "isnull", "isnotnull", "pmod")
+REWRITTEN_CALLS = ("from_json", "isnull", "isnotnull", "pmod", "timestamp_micros")
 SERVED_CALLS = REWRITTEN_CALLS + ("make_date",)
+EPOCH_MICROS = "SELECT CAST('1970-01-01 00:00:00+00' AS TIMESTAMPTZ) + CAST(__us__ AS BIGINT) * INTERVAL '1 microsecond'"
 OVERLAY_KEYS = 500
 OVERLAY_ROWS = 5000
 _DIALECT = []
@@ -506,7 +507,7 @@ def _path_text(target, keys: list):
 
 def _rewrite_json(tree, kinds) -> None:
     from sqlglot import exp
-    for node in list(tree.find_all(exp.Anonymous)):
+    for node in reversed(list(tree.find_all(exp.Anonymous))):
         name, args = node.name.lower(), node.expressions
         if name == "from_json":
             node.replace(_from_json(node))
@@ -517,6 +518,8 @@ def _rewrite_json(tree, kinds) -> None:
             a, b = args
             node.replace(exp.Paren(this=exp.Mod(this=exp.Paren(this=exp.Add(this=exp.Paren(this=exp.Mod(this=a.copy(), expression=b.copy())),
                                                                               expression=b.copy())), expression=b.copy())))
+        elif name == "timestamp_micros" and len(args) == 1:
+            node.replace(exp.Paren(this=_template(EPOCH_MICROS, __us__=args[0]).expressions[0]))
         elif name in REWRITTEN_CALLS:
             raise NotServed(f"the query uses {name.upper()} in a form Lakebase cannot run")
     for node in list(tree.find_all(exp.Inline)):

@@ -297,6 +297,7 @@ REVIEWED = {
         ('initialize_session', 'self.inspire_database'),
         ('initialize_session', 'self.session_id'),
         ('initialize_session', 'self.session_table'),
+        ('inspire_llm_answer', 'label'),
         ('main', "', '.join(sorted(_valid_operations))"),
         ('main', "', '.join(valid_table_elections)"),
         ('online', 'name'),

@@ -134,8 +134,11 @@ export default function App() {
   }, []);
 
   const update = useCallback((key, val) => {
-    setSettings((prev) => ({ ...prev, [key]: val }));
-    try { localStorage.setItem(`db_${key.replace(/([A-Z])/g, '_$1').toLowerCase()}`, val); } catch {}
+    setSettings((prev) => {
+      const next = typeof val === 'function' ? val(prev[key]) : val;
+      try { localStorage.setItem(`db_${key.replace(/([A-Z])/g, '_$1').toLowerCase()}`, next); } catch {}
+      return { ...prev, [key]: next };
+    });
   }, []);
 
   // ── Bootstrap: fetch server config ONCE on mount, then show the app ──

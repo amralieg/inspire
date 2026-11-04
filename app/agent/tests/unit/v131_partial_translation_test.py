@@ -190,3 +190,52 @@ def test_a_failed_retry_never_replaces_the_translated_fields_of_the_first_answer
     assert out[0]["_translation_status"] == "partial" and out[0]["_untranslated_fields"] == ["Proposed Key Results"]
     assert out[0]["Statement"].startswith(ARABIC)
     assert all(c["skip_cache"] for c in svc.ai_agent.calls[1:])
+    assert svc.logger.matching("[TRANSLATION GAP]", level="WARNING")
+    assert not svc.logger.matching("", level="ERROR")
+
+
+def errors(svc):
+    return [message for level, message in svc.logger.records if level == "ERROR"]
+
+
+def test_a_partial_row_the_first_retry_misses_and_the_second_retry_translates_logs_no_error(agent_ns):
+    def respond(payload, skip_cache, n):
+        rows = [arabic(item) for item in payload]
+        if n == 1:
+            rows[0]["Proposed Key Results"] = ""
+        if n == 2:
+            rows = []
+        return render(BASE + ["honesty_score", "honesty_justification"], rows)
+    svc, out = translate(agent_ns, respond, [live_uc("N01-U08")])
+    assert out[0]["_translation_status"] == "translated" and out[0]["_key_results_translated"].startswith(ARABIC)
+    assert [c["skip_cache"] for c in svc.ai_agent.calls] == [False, True, True]
+    assert "_Batch_0p1_" in svc.ai_agent.calls[1]["step"] and "_Batch_0p2_" in svc.ai_agent.calls[2]["step"]
+    assert errors(svc) == []
+    assert not svc.logger.matching("stays in English")
+    assert svc.logger.matching("Batch #0p1: all retry attempts of this request failed", level="WARNING")
+    assert not svc.logger.matching("[TRANSLATION GAP]")
+
+
+def test_a_row_every_round_fails_logs_exactly_one_error_and_carries_the_notice(agent_ns):
+    def respond(payload, skip_cache, n):
+        raise RuntimeError("endpoint unavailable")
+    svc, out = translate(agent_ns, respond, [live_uc("N01-U08"), live_uc("N01-U09")])
+    assert [uc["_translation_status"] for uc in out] == ["untranslated"] * 2
+    assert errors(svc) == ["All retry attempts exhausted for batch #0: N01-U08 (all fields); N01-U09 (all fields) stay "
+                           "in English and are flagged."]
+    assert svc.logger.matching("[TRANSLATION GAP] Arabic: 2 use cases untranslated", level="WARNING")
+    obj = make_inspire(agent_ns)
+    labels = dict(agent_ns["TranslationService"].ENGLISH_TRANSLATIONS)
+    labels.update(agent_ns["TranslationService"].TRANSLATION_FALLBACKS["Arabic"])
+    headers, rows, _ = obj._catalog_export_table({"Shipping": out}, labels, "Arabic")
+    column = headers.index(labels["untranslated_notice"])
+    assert all(row[column].startswith(labels["untranslated_notice"]) for row in rows)
+
+
+def test_one_row_left_in_english_is_named_in_the_singular(agent_ns):
+    def respond(payload, skip_cache, n):
+        rows = [arabic(item) for item in payload if item["No"] != "N01-U09"]
+        return render(BASE + ["honesty_score", "honesty_justification"], rows)
+    svc, out = translate(agent_ns, respond, [live_uc("N01-U08"), live_uc("N01-U09")])
+    assert [uc["_translation_status"] for uc in out] == ["translated", "untranslated"]
+    assert errors(svc) == ["All retry attempts exhausted for batch #0: N01-U09 (all fields) stays in English and is flagged."]

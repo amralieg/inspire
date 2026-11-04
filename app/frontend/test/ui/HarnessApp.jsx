@@ -56,7 +56,7 @@ function HarnessContent({ open, discoveryType, demo, step, run }) {
   if (open === 'results') return <ResultsHarness />;
   if (open === 'landing') return <LandingHarness demo={demo} />;
   if (open === 'choose') return <ChooseHarness />;
-  if (open === 'setup') return <SetupHarness />;
+  if (open === 'setup') return <SetupHarness blank={step === 'blank'} />;
   if (open === 'monitor') {
     return (
       <ThemeProvider>
@@ -166,12 +166,14 @@ function LaunchHarness() {
   );
 }
 
-function SetupHarness() {
-  const [settings, setSettings] = useState({ ...SETTINGS, notebookPath: '' });
+function SetupHarness({ blank }) {
+  const [settings, setSettings] = useState(blank ? { ...SETTINGS, databricksHost: '', warehouseId: '', inspireDatabase: '', notebookPath: '' } : { ...SETTINGS, notebookPath: '' });
   const [done, setDone] = useState(false);
+  const update = (key, value) => setSettings((prev) => ({ ...prev, [key]: typeof value === 'function' ? value(prev[key]) : value }));
   return (
     <ThemeProvider>
-      <SetupWizard settings={settings} update={(key, value) => setSettings((prev) => ({ ...prev, [key]: value }))} onComplete={() => setDone(true)} />
+      <SetupWizard settings={settings} update={update} onComplete={() => setDone(true)} />
+      <output aria-label="Setup settings" className="sr-only">{JSON.stringify(settings)}</output>
       <output aria-label="Setup done">{done ? 'yes' : 'no'}</output>
     </ThemeProvider>
   );

@@ -926,10 +926,10 @@
       },
       {
         "name": "a scope that does not exist",
-        "settings": {
-          "run_scope": "everything"
+        "settings": {},
+        "spec": {
+          "default": "everything"
         },
-        "spec": {},
         "reason": "First run is 'everything', which is not one of all, groups, recent, records"
       }
     ],

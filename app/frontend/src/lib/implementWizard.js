@@ -91,6 +91,7 @@ export const INSIDE_BACKEND_REASON = 'Lakebase needs an App of its own';
 export const INSIDE_WAREHOUSE_LABEL = 'SQL warehouse each viewer reads with (each viewer needs CAN USE on it)';
 export const INSIDE_WAREHOUSE_PROBLEM = 'pick the SQL warehouse each viewer reads with; each viewer needs CAN USE on it';
 export const RUN_LINK_LABEL = 'Open in Run';
+export const APP_PLACE_WAITING = 'wait until Inspire has listed the Apps it built, then choose where the App goes';
 
 export function insideInspire(spec) {
   return Boolean(spec?.outputs?.app) && spec.outputs.app_placement === APP_INSIDE;
@@ -1450,6 +1451,7 @@ export function sectionErrors(section, spec, extras = {}) {
     errors.push(...mergePickProblems(spec, extras, MERGE_OUTPUTS.filter((name) => name !== 'app')));
   }
   if (section === 'app_place' && spec.outputs.app) {
+    if (extras.placeSettled === false) errors.push(APP_PLACE_WAITING);
     if (!APP_PLACEMENT_IDS.includes(spec.outputs.app_placement)) errors.push('choose how Inspire organizes Apps');
     if (insideInspire(spec)) errors.push(...insideProblems(spec));
     else if (!APP_NAME_RE.test(spec.outputs.app_name || '')) errors.push('app name must be 3-30 lowercase letters, digits and dashes');
