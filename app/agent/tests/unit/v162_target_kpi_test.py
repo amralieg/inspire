@@ -356,6 +356,18 @@ def _built(ns, kpis, carried_status=None, refill=True):
     inst._implement_notebook_before = lambda path: None
     inst._implement_notebook_modified_at = lambda path: 5
     inst._implement_refresh_run_controls = lambda uc_id, key, use_case, spec_nb, *rest: seen.append(spec_nb)
+    written = {}
+    for contract in ns["_inspire_kinds"]()["contracts"].values():
+        for suffix, columns in (contract.get("suffixes") or {}).items():
+            written.setdefault(suffix, []).extend(c for c in columns if c not in written.get(suffix, []))
+    reader = inst._implement_schema_reader
+
+    def run_wrote_its_companions():
+        read = reader()
+        return lambda table: next(([(c, "string") for c in columns] for suffix, columns in written.items()
+                                   if str(table).endswith(suffix)), None) or read(table)
+
+    inst._implement_schema_reader = run_wrote_its_companions
     spec = json.loads(json.dumps(VALID))
     if refill:
         spec["data"] = dict(spec["data"], window={"start": "2024-01-01", "end": ""})
