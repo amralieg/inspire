@@ -933,7 +933,18 @@ function registerImplementRoutes(app, deps) {
     const got = /^\d{1,19}$/.test(runId)
       ? await jsonOf(dbFetch, req.dbHost, req.dbToken, `/api/2.1/jobs/runs/get?run_id=${runId}`).catch(() => null)
       : null;
-    return I.implementStalled(row, got && got.ok ? got.data : null);
+    const stalled = I.implementStalled(row, got && got.ok ? got.data : null);
+    const { catalog, schema } = dbOf(req, splitInspireDatabase);
+    const ended = I.implementRunEndedStatement(I.implementTableName(catalog, schema), { session_id: sessionIdOf(req), ...row }, stalled);
+    if (!ended) return stalled;
+    try {
+      await executeSql(req.dbHost, req.dbToken, warehouseOf(req), ended.sql, ended.parameters);
+      Object.assign(row, { status: 'failed', status_message: stalled.reason });
+      return null;
+    } catch (e) {
+      console.warn(`implement ended-run write failed: ${e.message}`);
+      return stalled;
+    }
   }
 
   async function askedSpec(req) {
@@ -1691,10 +1702,10 @@ function registerImplementRoutes(app, deps) {
     const useCaseId = I.validateUseCaseId(q(req, 'use_case_id'));
     const history = await loadHistory(req.dbHost, req.dbToken, warehouseId, catalog, schema, sid, useCaseId);
     const stalled = await stalledOf(req, C.newestVersions(history)[0]);
+    const targets = C.controlTargets(history, stalled);
     return {
-      sid, warehouseId, catalog, schema, useCaseId, history,
-      targets: C.controlTargets(history, stalled),
-      key: `${req.dbHost}|${catalog}.${schema}|${sid}|${useCaseId}`,
+      sid, warehouseId, catalog, schema, useCaseId, history, targets,
+      key: `${req.dbHost}|${catalog}.${schema}|${sid}|${useCaseId}|${targets.build || ''}`,
       logTable: C.controlLogTableName(catalog, schema),
     };
   }

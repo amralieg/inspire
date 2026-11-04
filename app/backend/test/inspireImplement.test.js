@@ -66,6 +66,7 @@ const {
   removedTableProblems,
   implementRunStartedStatement,
   implementStartFailedStatement,
+  implementRunEndedStatement,
   implementStalled,
   IMPLEMENT_STALE_AFTER_MS,
 } = require('../lib/inspireImplement');
@@ -236,7 +237,7 @@ test('a version is stalled when its run ended, or when its run cannot be read an
   const version = (status, extra = {}) => ({ spec_version: 4, status, implement_run_id: '77', updated_at: '2026-10-25T17:00:00.000Z', ...extra });
   const run = (life, result, message, url) => ({ run_page_url: url, state: { life_cycle_state: life, result_state: result, state_message: message } });
   assert.deepEqual(implementStalled(version('previewing'), run('TERMINATED', 'FAILED', 'Workload failed', 'https://x/run/77'), now),
-    { run_id: '77', run_url: 'https://x/run/77', reason: 'the run building v4 ended (FAILED: Workload failed) while v4 was still previewing' });
+    { run_id: '77', run_url: 'https://x/run/77', reason: 'the run building v4 ended (FAILED: Workload failed) while v4 was still previewing', ended: true });
   assert.equal(implementStalled(version('building_outputs'), run('INTERNAL_ERROR', undefined, ''), now).reason,
     'the run building v4 ended (INTERNAL_ERROR) while v4 was still building outputs');
   assert.equal(implementStalled(version('queued'), { status: { state: 'TERMINATED', termination_details: { code: 'CANCELED', message: 'Run cancelled' } } }, now).reason,
@@ -254,6 +255,26 @@ test('a version is stalled when its run ended, or when its run cannot be read an
   assert.equal(implementStalled(version('queued', { updated_at: null, created_at: '2026-10-25T10:00:00Z', implement_run_id: null }), null, now).run_id, null);
   assert.equal(implementStalled(version('filling', { updated_at: 'not a time', created_at: null }), null, now), null);
   assert.equal(implementStalled(null, null, now), null);
+});
+
+test('only a run seen ended writes its version failed, guarded by the status and run it was read with', () => {
+  const now = Date.parse('2026-10-25T18:00:00Z');
+  const row = { session_id: '42', use_case_id: 'N01-U01', spec_version: 2, status: 'queued', implement_run_id: '777788889999000', updated_at: '2026-10-25T17:00:00Z' };
+  const cancelled = { state: { life_cycle_state: 'TERMINATED', result_state: 'CANCELED', state_message: 'Run cancelled' } };
+  const got = implementRunEndedStatement('t', row, implementStalled(row, cancelled, now));
+  assert.equal(got.sql, "UPDATE t SET status = 'failed', status_message = :message, updated_at = current_timestamp() "
+    + 'WHERE session_id = :sid AND use_case_id = :uc AND spec_version = :v AND status = :was AND implement_run_id = :run');
+  assert.deepEqual(got.parameters, [
+    { name: 'message', value: 'the run building v2 ended (CANCELED: Run cancelled) while v2 was still queued', type: 'STRING' },
+    { name: 'was', value: 'queued', type: 'STRING' }, { name: 'run', value: '777788889999000', type: 'BIGINT' },
+    { name: 'sid', value: '42', type: 'BIGINT' }, { name: 'uc', value: 'N01-U01', type: 'STRING' }, { name: 'v', value: '2', type: 'INT' }]);
+  const old = { ...row, updated_at: '2026-10-20T00:00:00Z' };
+  assert.ok(implementStalled(old, null, now), 'a version with no progress for hours is shown stopped');
+  assert.equal(implementRunEndedStatement('t', old, implementStalled(old, null, now)), null, 'but only a run read as ended is written');
+  assert.equal(implementRunEndedStatement('t', row, implementStalled(row, { state: { life_cycle_state: 'RUNNING' } }, now)), null);
+  assert.equal(implementRunEndedStatement('t', { ...row, status: 'ready' }, implementStalled(row, cancelled, now)), null);
+  assert.equal(implementRunEndedStatement('t', { ...row, implement_run_id: '999' }, implementStalled(row, cancelled, now)), null, 'a newer run on the row is never overwritten');
+  assert.equal(implementRunEndedStatement('t', row, null), null);
 });
 
 test('an edit from a stale version is a conflict', () => {

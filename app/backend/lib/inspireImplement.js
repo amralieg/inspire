@@ -1619,6 +1619,21 @@ function implementStartFailedStatement(table, { sessionId, useCaseId, specVersio
   };
 }
 
+function implementRunEndedStatement(table, row, stalled) {
+  if (!row || !stalled || !stalled.ended || !IMPLEMENT_ACTIVE_STATUSES.includes(row.status)) return null;
+  if (!/^\d{1,19}$/.test(str(row.implement_run_id)) || str(row.implement_run_id) !== str(stalled.run_id)) return null;
+  return {
+    sql: `UPDATE ${table} SET status = 'failed', status_message = :message, updated_at = current_timestamp() `
+      + 'WHERE session_id = :sid AND use_case_id = :uc AND spec_version = :v AND status = :was AND implement_run_id = :run',
+    parameters: [
+      { name: 'message', value: str(stalled.reason).slice(0, 2000), type: 'STRING' },
+      { name: 'was', value: str(row.status), type: 'STRING' },
+      { name: 'run', value: str(row.implement_run_id), type: 'BIGINT' },
+      ...implementVersionParameters({ sessionId: row.session_id, useCaseId: row.use_case_id, specVersion: row.spec_version }),
+    ],
+  };
+}
+
 function implementStalled(row, run, now = Date.now()) {
   if (!row || !IMPLEMENT_ACTIVE_STATUSES.includes(row.status)) return null;
   const version = `v${row.spec_version}`;
@@ -1636,6 +1651,7 @@ function implementStalled(row, run, now = Date.now()) {
       run_id: runId,
       run_url: str(run.run_page_url) || null,
       reason: `the run building ${version} ended (${how}) while ${version} was still ${doing}`,
+      ended: true,
     };
   }
   const last = Date.parse(str(row.updated_at || row.created_at));
@@ -3269,6 +3285,7 @@ module.exports = {
   implementInsertStatement,
   implementRunStartedStatement,
   implementStartFailedStatement,
+  implementRunEndedStatement,
   implementStalled,
   parseImplementRow,
   carriedAssets,

@@ -235,23 +235,39 @@ test('the Genie feed reads the log of the run building the latest version, so an
   });
 });
 
-test('a version whose run ended while it was still active shows as stalled, and a new version may replace it', async () => {
-  const history = [{ spec_version: 1, status: 'filling', spec_json: SPEC, use_case_id: 'N01-U01', implement_run_id: '5555555555555555',
-    updated_at: new Date().toISOString() }];
+test('a version whose run ended while it was still active is written failed once with the reason, offers no Stop the build, and a new version may replace it', async () => {
+  const fresh = () => [{ session_id: '42', spec_version: 1, status: 'filling', spec_json: SPEC, use_case_id: 'N01-U01',
+    implement_run_id: '5555555555555555', updated_at: new Date().toISOString() }];
+  const history = fresh();
   const ended = { run_id: 5555555555555555, run_page_url: 'https://x/run/5555555555555555',
     state: { life_cycle_state: 'TERMINATED', result_state: 'CANCELED', state_message: 'Run cancelled by amr@x' } };
-  const stalled = { run_id: '5555555555555555', run_url: 'https://x/run/5555555555555555',
-    reason: 'the run building v1 ended (CANCELED: Run cancelled by amr@x) while v1 was still filling' };
+  const reason = 'the run building v1 ended (CANCELED: Run cancelled by amr@x) while v1 was still filling';
+  const endedWrites = (made) => made.sqlCalls.filter((c) => /^UPDATE .* SET status = 'failed'/.test(String(c.sql)) && /implement_run_id = :run/.test(String(c.sql)));
+  for (const read of [`/api/inspire/implement/status?${Q}`, `/api/inspire/implement/history?${RAIL}`, `/api/inspire/implement/live?${Q}`]) {
+    await withApp({ history: fresh(), implementRun: ended }, async (url, made) => {
+      const got = await call(url, read);
+      assert.equal(got.status, 200, `${read} ${JSON.stringify(got.data)}`);
+      const writes = endedWrites(made);
+      assert.equal(writes.length, 1, `${read} writes the ended run once`);
+      const p = Object.fromEntries(writes[0].parameters.map((x) => [x.name, x.value]));
+      assert.deepEqual([p.message, p.was, p.run, p.v, p.uc], [reason, 'filling', '5555555555555555', '1', 'N01-U01'], read);
+      if (read.includes('/status')) {
+        assert.equal(got.data.stalled, null);
+        assert.deepEqual([got.data.latest.status, got.data.latest.status_message], ['failed', reason]);
+      }
+      if (read.includes('/history')) assert.deepEqual(got.data.latest.map((r) => [r.status, r.stalled]), [['failed', null]]);
+      if (read.includes('/live')) assert.equal(got.data.targets.build, undefined, 'a cancelled build offers no Stop the build');
+    });
+  }
   await withApp({ history, implementRun: ended }, async (url, made) => {
-    const status = await call(url, `/api/inspire/implement/status?${Q}`);
-    assert.equal(status.status, 200, JSON.stringify(status.data));
-    assert.deepEqual(status.data.stalled, stalled);
-    assert.ok(made.fetches.some((f) => f.path === '/api/2.1/jobs/runs/get?run_id=5555555555555555'));
-    const rail = await call(url, `/api/inspire/implement/history?${RAIL}`);
-    assert.deepEqual(rail.data.latest.map((r) => r.stalled), [stalled]);
     const got = await call(url, '/api/inspire/implement/submit', { method: 'POST', body: SUBMIT });
     assert.equal(got.status, 200, JSON.stringify(got.data));
     assert.equal(got.data.spec_version, 2);
+    assert.ok(made.fetches.some((f) => f.path === '/api/2.1/jobs/runs/get?run_id=5555555555555555'));
+  });
+  await withApp({ history: fresh(), implementRun: { run_id: 5555555555555555, state: { life_cycle_state: 'RUNNING' } } }, async (url, made) => {
+    await call(url, `/api/inspire/implement/status?${Q}`);
+    assert.equal(endedWrites(made).length, 0, 'a running build is never written as ended');
   });
   await withApp({ history, implementRun: { run_id: 5555555555555555, state: { life_cycle_state: 'RUNNING' } } }, async (url) => {
     const status = await call(url, `/api/inspire/implement/status?${Q}`);
