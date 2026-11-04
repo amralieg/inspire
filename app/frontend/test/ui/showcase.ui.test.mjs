@@ -622,7 +622,27 @@ test('the MVP walk notices a table row that is a link to another screen, returns
     }
     const seen = exchanges.map((x) => new URL(x.url).search).filter((q) => q.startsWith('?screen='));
     assert.deepEqual(seen, ['?screen=overview&row=0', '?screen=overview&row=1', '?screen=detail&row=0', '?screen=detail&row=1']);
-    assert.deepEqual(lines, [`MVP App ${ui.origin}: walked 2 screens`]);
+    assert.deepEqual(lines, [`MVP App ${ui.origin}: walked 3 screens`]);
+  } finally {
+    await ui.close();
+  }
+});
+
+test('the MVP walk asks every suggested question a chat page shows on any of its views, beyond the questions it asks in the Genie panel, so the demo replays each one', async () => {
+  const ui = await openUi('landing');
+  try {
+    const exchanges = [];
+    const lines = [];
+    const context = await ui.page.context().browser().newContext({ viewport: { width: 1440, height: 1000 } });
+    context.setDefaultTimeout(8000);
+    try {
+      await recordMvpApp(context, { url: `${ui.origin}/test/ui/mvpWalkFixture.html`, exchanges, blocked: [], log: (line) => lines.push(line), rows: 0, questions: 1 });
+    } finally {
+      await context.close();
+    }
+    const asked = exchanges.map((x) => new URL(x.url)).filter((u) => u.pathname === '/api/walk-ask').map((u) => u.searchParams.get('q'));
+    assert.deepEqual(asked, ['Question 0', 'Question 1', 'Question 2']);
+    assert.deepEqual(lines, ['Questions chat: Genie answered "Question 0"', 'Questions chat: Genie answered "Question 1"', 'Questions chat: Genie answered "Question 2"', `MVP App ${ui.origin}: walked 3 screens`]);
   } finally {
     await ui.close();
   }

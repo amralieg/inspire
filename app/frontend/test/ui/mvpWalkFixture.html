@@ -12,6 +12,7 @@
       <nav class="side">
         <button type="button" data-to="#/overview">Overview</button>
         <button type="button" data-to="#/detail">Detail</button>
+        <button type="button" data-to="#/chat">Questions</button>
       </nav>
       <main class="main"></main>
     </div>
@@ -37,6 +38,21 @@
         for (const b of document.querySelectorAll('nav.side button')) b.toggleAttribute('aria-current', b.dataset.to === route);
         for (const b of document.querySelectorAll('nav.side button[aria-current]')) b.setAttribute('aria-current', 'page');
         main.innerHTML = '';
+        if (route === '#/chat') {
+          main.insertAdjacentHTML('beforeend', '<h1>Questions</h1>');
+          main.insertAdjacentHTML('beforeend', '<nav class="views"><button type="button" role="tab" data-view="ask">Ask</button><button type="button" role="tab" data-view="runs">Runs</button></nav><div class="chat-log"></div><div class="chat-sugg"></div>');
+          const chips = () => { main.querySelector('.chat-sugg').innerHTML = [0, 1, 2].map((n) => `<button type="button" class="sugg" data-question>Question ${n}</button>`).join(''); ask(); };
+          for (const t of main.querySelectorAll('nav.views [role="tab"]')) t.addEventListener('click', () => { if (t.dataset.view === 'ask') chips(); else main.querySelector('.chat-sugg').innerHTML = ''; });
+          const ask = () => { for (const b of main.querySelectorAll('[data-question]')) b.addEventListener('click', () => {
+            const m = document.createElement('div');
+            m.className = 'msg msg--genie';
+            m.innerHTML = '<span class="g-step">Reading your question</span>';
+            main.querySelector('.chat-log').appendChild(m);
+            fetch(`/api/walk-ask?q=${encodeURIComponent(b.textContent)}`).then(() => setTimeout(() => { m.textContent = `Answer to ${b.textContent}`; }, 300));
+          }); };
+          chips();
+          return;
+        }
         if (route === '#/detail') {
           main.insertAdjacentHTML('beforeend', '<h1>Detail</h1>');
           table('detail', (n) => { seen('detail', n); drawer(`detail record ${n}`, true); });

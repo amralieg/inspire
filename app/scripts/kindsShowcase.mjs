@@ -46,6 +46,7 @@ export const USE_CASES = [
     ],
     mvp: {
       layout: 'decision_queue',
+      kpi_direction: 'decrease',
       kpis: [['Value at stake', 'currency', 3100000, 2800000], ['Buyers likely to lapse', 'percent', 4.6, 4.1], ['Buyers on the call list', 'integer', 1240, 1180]],
       trend: ['Value at stake by month', 'Value at stake', curve(2400000, 60000, 40000)],
       byCategory: ['Where the lapse value sits', 'Value at stake', [['Outerwear', 820000], ['Footwear', 640000], ['Kids', 520000], ['Camping', 430000], ['Bags', 380000], ['Home', 310000]]],
@@ -80,6 +81,7 @@ export const USE_CASES = [
     ],
     mvp: {
       layout: 'decision_queue',
+      kpi_direction: 'decrease',
       kpis: [['Cash at risk past 90 days', 'currency', 1900000, 1700000], ['Invoices likely to slip', 'percent', 7.4, 6.9], ['Overdue invoices', 'integer', 860, 812]],
       trend: ['Cash at risk by month', 'Cash at risk', curve(1300000, 50000, 30000)],
       byCategory: ['Where the cash at risk sits', 'Cash at risk', [['Wholesale', 640000], ['Franchise', 520000], ['Marketplace', 380000], ['Corporate', 240000], ['Other', 120000]]],
@@ -112,6 +114,7 @@ export const USE_CASES = [
     ],
     mvp: {
       layout: 'decision_queue',
+      kpi_direction: 'decrease',
       kpis: [['Billed above contract', 'currency', 412000, 296000], ['Share of freight spend', 'percent', 3.8, 2.9], ['Open exceptions', 'integer', 37, 28]],
       trend: ['Billed above contract by month', 'Billed above contract', curve(180000, 20000, 15000)],
       byCategory: ['Where the overbilling sits', 'Billed above contract', [['Rate above contract', 231000], ['Duplicate invoice', 96000], ['Weight above shipped', 61000], ['Fuel surcharge above cap', 24000]]],
@@ -144,6 +147,7 @@ export const USE_CASES = [
     ],
     mvp: {
       layout: 'forecast_cockpit',
+      kpi: 'Store-items at risk of running out', kpi_direction: 'decrease',
       orders: [['Item 4471 at Store 12', 'Outerwear', 140, 620, 'Raise the order', ['Holiday weekend ahead', 'Demand up 18%']], ['Item 1209 at Store 31', 'Footwear', 380, 410, 'Raise the order a little', ['Demand rising']],
         ['Item 7781 at Store 12', 'Camping', 40, 300, 'Raise the order', ['Local event last year', 'Forecast range wide']], ['Item 3306 at Store 7', 'Bags', 210, 260, 'Raise the order a little', ['Demand rising']],
         ['Item 5120 at Store 44', 'Kids', 180, 150, 'Cut the order', ['Stock above forecast']], ['Item 2290 at Store 19', 'Home', 90, 80, 'Keep the order', ['On track']]],
@@ -165,6 +169,7 @@ export const USE_CASES = [
     ],
     mvp: {
       layout: 'scenario_lab',
+      kpi: 'Chance of the $4.0M margin target',
       base: 4200000, target: 4000000, sd: 220000,
       levers: [['price', 'Price change, %', 0.09], ['volume', 'Volume change, %', 0.04], ['unit_cost', 'Unit cost change, %', -0.07]],
       scenarios: [['base', 4200000, 3920000, 4480000, 82], ['upside', 4560000, 4270000, 4850000, 96], ['downside', 3730000, 3450000, 4010000, 14]],
@@ -227,6 +232,7 @@ export const USE_CASES = [
     ],
     mvp: {
       layout: 'segment_explorer',
+      kpi: 'Yearly margin per customer group',
       segments: [['S1', 'Loyal high value', 12, 48, 'Priority service', [9, 8, 2, 3, 4, 9]], ['S2', 'Growing', 18, 22, 'Standard service', [6, 6, 3, 4, 3, 6]],
         ['S3', 'Price hunters', 27, 14, 'Self-service only', [5, 4, 4, 9, 4, 3]], ['S4', 'Occasional', 31, 19, 'Standard service', [2, 5, 3, 5, 2, 4]],
         ['S5', 'Costly returners', 12, -3, 'Review returns policy', [5, 5, 9, 5, 9, 1]]],
@@ -250,6 +256,7 @@ export const USE_CASES = [
     ],
     mvp: {
       layout: 'recommendation_desk',
+      kpi: 'Margin from accepted offers',
       buyers: [['Buyer 10432', [['Trail jacket', 0.82, 'Bought hiking boots and a backpack; 41% of such buyers buy a jacket next'], ['Wool socks', 0.77, 'Bought boots 3 weeks ago'], ['Rain cover', 0.64, 'Bought a backpack, no cover']]],
         ['Buyer 22871', [['Kids raincoat', 0.79, 'Bought kids boots twice'], ['Lunch box', 0.66, 'School season, past buyer'], ['Water bottle', 0.58, 'Bought with lunch boxes 28% of the time']]],
         ['Buyer 30019', [['Running shoes', 0.74, 'Replaces every 9 months; last pair 10 months ago'], ['Sports watch', 0.61, 'Peers who run 3+ times a week'], ['Energy gels', 0.55, 'Bought with shoes 19% of the time']]]],
@@ -303,6 +310,7 @@ export const USE_CASES = [
     ],
     mvp: {
       layout: 'decision_queue',
+      kpi_direction: 'decrease',
       kpis: [['Gap to peers, a year', 'currency', 2100000, 2300000], ['Margin, all stores', 'percent', 28.4, 28.1], ['Stores below peers', 'integer', 9, 11]],
       trend: ['Gap to peers by month', 'Gap to peers', curve(2400000, -25000, 20000)],
       byCategory: ['Gap by peer group', 'Gap to peers', [['Mid-size urban', 690000], ['Large urban', 520000], ['Small suburban', 410000], ['Rural', 280000]]],
@@ -333,6 +341,7 @@ export const USE_CASES = [
     ],
     mvp: {
       layout: 'lift_readout',
+      kpi: 'Net lift per promotion',
       promos: [['Spring 2-for-1', 212000, 140000, 280000, 19, 0.01, 230, 'Scale it: strong net lift', 92000], ['Back-to-school bundle', 96000, 40000, 150000, 9, 0.02, 180, 'Keep it as it is', 53000],
         ['Loyalty 15% off', 64000, -10000, 138000, 5, 0.09, 120, 'Not sure yet: test again', 53000], ['Clearance week', -35000, -80000, 8000, -3, 0.12, 60, 'Stop it: no real lift', 58000]],
     },
@@ -351,21 +360,20 @@ export const USE_CASES = [
       g('How much faster is the happy path?', '31 hours median against 46 hours for orders that get repacked.'),
     ],
     mvp: {
-      layout: 'decision_queue',
-      kpis: [['Late-order cost at risk', 'currency', 700000, 610000], ['Open orders at risk', 'percent', 6.2, 5.4], ['Orders that may miss their date', 'integer', 412, 355]],
-      trend: ['Hours from placed to shipped by month', 'Median hours', curve(28, 0.7, 1)],
-      byCategory: ['Where orders wait', 'Median hours', [['Label printed', 14.6], ['Shipped', 8], ['Picked', 5.2], ['Packed', 3.1]]],
-      mix: ['Orders at risk by path over time', ['Happy path', 'With repack', 'Split shipment', 'Address fix']],
-      pareto: 'How concentrated the waiting is',
-      records: ['Open orders at risk', 'Open orders from the latest run, most likely to miss their date first.', 'Hours waiting'],
-      filters: { category: ['Step it waits in', ['Label printed', 'Picked', 'Packed']], channel: ['Path', ['Happy path', 'With repack', 'Split shipment', 'Address fix']], region: ['Warehouse', ['W2', 'W5', 'W6']] },
+      layout: 'process_flow',
+      kpi: 'Orders that may miss the promised date', kpi_direction: 'decrease',
+      kpis: { open: 4120, at_risk: 412, age: 31 },
+      moves: [['Placed', 'Picked', 4120, 3.1, 7], ['Picked', 'Packed', 3980, 5.2, 12], ['Packed', 'Label printed', 3900, 14.6, 29], ['Label printed', 'Shipped', 3850, 8, 17],
+        ['Packed', 'Picked', 310, 4.4, 10], ['Picked', 'Address fix', 190, 6, 14], ['Address fix', 'Packed', 185, 9.5, 21]],
+      rework: [['Picked', 310], ['Address fix', 190], ['Label printed', 40]],
+      cycle: [['Happy path', 12, 22, 31, 40, 58], ['With repack', 18, 32, 46, 60, 84], ['Split shipment', 20, 40, 55, 71, 102], ['Address fix', 16, 34, 49, 66, 95]],
       rows: [
-        ['ORD-77120', 'Label printed', 19.5, 'Print the label in the next batch', ['Waiting 19.5 hours for a label', 'Breach risk 91%'], 'Split shipment', 'W5'],
-        ['ORD-77088', 'Label printed', 17.2, 'Print the label in the next batch', ['Waiting 17.2 hours for a label', 'Breach risk 86%'], 'Happy path', 'W5'],
-        ['ORD-77141', 'Label printed', 15.8, 'Print the label in the next batch', ['Waiting 15.8 hours for a label'], 'With repack', 'W5'],
-        ['ORD-76990', 'Picked', 11, 'Move to the packing queue', ['Waiting 11 hours after picking', 'Breach risk 74%'], 'Address fix', 'W2'],
-        ['ORD-77002', 'Packed', 9.4, 'Check the address', ['Waiting 9.4 hours after packing'], 'Address fix', 'W6'],
-        ['ORD-76951', 'Picked', 8.1, 'Move to the packing queue', ['Waiting 8.1 hours after picking'], 'Split shipment', 'W2'],
+        ['ORD-77120', 'Label printed', 19.5, 91, 'Print the label in the next batch', ['Waiting 19.5 hours for a label', 'Breach risk 91%'], 'Split shipment', 'W5'],
+        ['ORD-77088', 'Label printed', 17.2, 86, 'Print the label in the next batch', ['Waiting 17.2 hours for a label', 'Breach risk 86%'], 'Happy path', 'W5'],
+        ['ORD-77141', 'Label printed', 15.8, 80, 'Print the label in the next batch', ['Waiting 15.8 hours for a label'], 'With repack', 'W5'],
+        ['ORD-76990', 'Picked', 11, 74, 'Move it to the packing queue', ['Waiting 11 hours after picking', 'Breach risk 74%'], 'Address fix', 'W2'],
+        ['ORD-77002', 'Packed', 9.4, 66, 'Check the address before it waits again', ['Waiting 9.4 hours after packing'], 'Address fix', 'W6'],
+        ['ORD-76951', 'Picked', 8.1, 61, 'Move it to the packing queue', ['Waiting 8.1 hours after picking'], 'Split shipment', 'W2'],
       ],
     },
   },
@@ -383,22 +391,16 @@ export const USE_CASES = [
       g('What if we open only 3 sites?', 'This needs a re-solve. The best 3 would likely be S1, S2 and S4, worth about $5.0M a year.'),
     ],
     mvp: {
-      layout: 'decision_queue',
-      kpis: [['Net new sales of the shortlist', 'currency', 6800000, 6100000], ['Share taken from current stores', 'percent', 7.4, 8.9], ['Sites shortlisted', 'integer', 5, 5]],
-      trend: ['Unmet demand nearby by month', 'Unmet demand', curve(5200000, 130000, 80000)],
-      byCategory: ['Net new sales by region', 'Net new sales', [['North-west', 2800000], ['East', 1700000], ['South', 1300000], ['West', 1000000]]],
-      mix: ['Demand by channel over time', ['Store', 'Web', 'App']],
-      pareto: 'How concentrated the new demand is',
-      records: ['Ranked sites', 'Candidate sites from the latest run, the most net new sales first.', 'Net new sales'],
-      filters: { category: ['Region', ['North-west', 'East', 'South', 'West']], channel: ['Format', ['Large', 'Mid-size', 'Small']], region: ['Shortlist', ['Shortlisted', 'Not shortlisted']] },
-      rows: [
-        ['S1', 'North-west', 2100000, 'Shortlist: open first', ['Unmet demand nearby', 'Takes 4% from current stores'], 'Large', 'Shortlisted'],
-        ['S3', 'East', 1900000, 'Shortlist, but check Store 12', ['Strong demand', 'Takes 22% from Store 12'], 'Mid-size', 'Shortlisted'],
-        ['S2', 'North-west', 1700000, 'Shortlist', ['Unmet demand nearby', 'Takes 6% from current stores'], 'Mid-size', 'Shortlisted'],
-        ['S4', 'South', 1200000, 'Shortlist', ['Takes 3% from current stores'], 'Small', 'Shortlisted'],
-        ['S5', 'West', 1000000, 'Shortlist', ['Takes 8% from current stores'], 'Small', 'Shortlisted'],
-        ['S6', 'East', 800000, 'Hold for the next round', ['Lower demand nearby'], 'Small', 'Not shortlisted'],
-        ['S7', 'South', 700000, 'Hold for the next round', ['Takes 12% from current stores'], 'Small', 'Not shortlisted'],
+      layout: 'location_view',
+      kpi: 'Unmet demand a year',
+      sites: [
+        ['S1', 'Leeds North', 'GB', 53.83, -1.55, 2100000, 'Shortlist it: open first', ['Unmet demand nearby', 'Takes 4% from current stores'], 'Large'],
+        ['S3', 'Bristol East', 'GB', 51.46, -2.55, 1900000, 'Shortlist it, but check Store 12', ['Strong demand', 'Takes 22% from Store 12'], 'Mid-size'],
+        ['S2', 'Manchester West', 'GB', 53.48, -2.3, 1700000, 'Shortlist it', ['Unmet demand nearby', 'Takes 6% from current stores'], 'Mid-size'],
+        ['S4', 'Dublin South', 'IE', 53.3, -6.26, 1200000, 'Shortlist it', ['Takes 3% from current stores'], 'Small'],
+        ['S5', 'Utrecht Centre', 'NL', 52.09, 5.12, 1000000, 'Shortlist it', ['Takes 8% from current stores'], 'Small'],
+        ['S6', 'Antwerp North', 'BE', 51.24, 4.4, 800000, 'Reject it: lower demand nearby', ['Lower demand nearby'], 'Small'],
+        ['S7', 'Cologne East', 'DE', 50.94, 7.01, 700000, 'Reject it: takes too much from current stores', ['Takes 12% from current stores'], 'Small'],
       ],
     },
   },
@@ -416,20 +418,23 @@ export const USE_CASES = [
       g('How many flagged rings were confirmed?', 'Of 14 rings decided so far, 11 were blocked after review and 3 were families sharing a card.'),
     ],
     mvp: {
-      layout: 'decision_queue',
-      kpis: [['Refunds in rings', 'currency', 186000, 141000], ['Share of all refunds', 'percent', 2.6, 2.1], ['Rings to review', 'integer', 11, 9]],
-      trend: ['Refunds in rings by month', 'Refunds', curve(90000, 8000, 6000)],
-      byCategory: ['What links the rings', 'Refunds', [['Shared card', 84000], ['Shared address', 57000], ['Shared device', 45000]]],
-      mix: ['Refunds in rings by channel over time', ['Store', 'Web']],
-      pareto: 'How concentrated the refunds are',
-      records: ['Rings to review', 'Rings from the latest run, the highest risk first.', 'Refunds'],
-      filters: { category: ['Link', ['Shared card', 'Shared address', 'Shared device']], channel: ['Channel', ['Store', 'Web']], region: ['Status', ['New this week', 'Seen before']] },
-      rows: [
-        ['R-07', 'Shared card', 48000, 'Block the shared card and review 9 accounts', ['Same card x4', 'Same address x3', 'Grew by 2 accounts'], 'Store', 'New this week'],
-        ['R-03', 'Shared device', 39000, 'Review the 7 accounts', ['Same device x5'], 'Web', 'Seen before'],
-        ['R-11', 'Shared address', 27000, 'Review the 6 accounts', ['Same address x4', 'New ring'], 'Store', 'New this week'],
-        ['R-05', 'Shared card', 18000, 'Watch next week', ['Same card x3'], 'Web', 'Seen before'],
+      layout: 'network_explorer',
+      kpi: 'Accounts central to a ring', kpi_direction: 'decrease',
+      kpis: { accounts: 74, rings: 11, central: 9 },
+      accounts: [
+        ['C-1042', 'R-07', 0.92, 48000, 'Block the account: it shares a card with 3 others', ['Same card x4', 'Same address x3']],
+        ['C-2210', 'R-07', 0.81, 31000, 'Block the account: it shares a card with 3 others', ['Same card x4']],
+        ['C-0877', 'R-03', 0.77, 39000, 'Investigate the returns first', ['Same device x5']],
+        ['C-3391', 'R-11', 0.71, 27000, 'Investigate the returns first', ['Same address x4', 'New ring']],
+        ['C-1188', 'R-07', 0.64, 22000, 'Investigate the returns first', ['Same address x3']],
+        ['C-4120', 'R-03', 0.58, 18000, 'Not a ring: a family sharing a device', ['Same device x2']],
+        ['C-2675', 'R-11', 0.52, 16000, 'Investigate the returns first', ['Same address x4']],
+        ['C-0931', 'R-05', 0.47, 18000, 'Watch it next week', ['Same card x3']],
+        ['C-3007', 'R-05', 0.41, 12000, 'Watch it next week', ['Same card x3']],
+        ['C-1564', 'R-03', 0.36, 9000, 'Not a ring: a family sharing a device', ['Same device x2']],
       ],
+      links: [['C-1042', 'C-2210', 12], ['C-1042', 'C-1188', 9], ['C-2210', 'C-1188', 7], ['C-0877', 'C-4120', 8], ['C-0877', 'C-1564', 6], ['C-4120', 'C-1564', 4],
+        ['C-3391', 'C-2675', 10], ['C-0931', 'C-3007', 7], ['C-1188', 'C-3391', 3]],
     },
   },
   {
@@ -444,23 +449,14 @@ export const USE_CASES = [
       g('Which 5 items lost the most margin last month?', 'Item 7781 ($41K less), Item 3306 ($28K less), Item 1209 ($22K less), Item 5120 ($19K less) and Item 2290 ($12K less). All 5 had markdowns over 30%.', "SELECT i_item_id, SUM(ss_net_profit) AS margin FROM store_sales JOIN item USING (i_item_sk) WHERE d_month = '2026-10' GROUP BY 1 ORDER BY 2 LIMIT 5"),
       g('How much stock is older than 90 days?', '$3.4M at cost, 11% of stock. Camping holds 38% of it.', 'SELECT category, SUM(cost) FROM inventory WHERE age_days > 90 GROUP BY category'),
       g('Compare web and store sales growth this quarter', 'Web grew 9% and stores 2%. Web grows fastest in Kids, up 21%.'),
+      g('Which stores sold out of the top 20 items most often?', 'Store 12 (31 sell-outs), Store 4 (24) and Store 31 (19). All 3 order on Mondays, before the weekend peak.'),
+      g('What share of sales came from promotions last month?', '27% of sales, up from 22% a year ago. Grocery is the most promoted category at 41%.'),
     ],
     mvp: {
-      layout: 'decision_queue',
-      kpis: [['Analyst hours saved this week', 'integer', 78, 64], ['Benchmark answers right', 'percent', 90, 85], ['Questions this week', 'integer', 312, 270]],
-      trend: ['Questions by month', 'Questions', curve(600, 60, 40)],
-      byCategory: ['Questions by topic', 'Questions', [['Margin', 96], ['Stock', 81], ['Sales growth', 64], ['Promotions', 42], ['Returns', 29]]],
-      mix: ['Questions by team over time', ['Merchandising', 'Supply', 'Finance']],
-      pareto: 'How concentrated the questions are',
-      records: ['Benchmark questions', 'The checked questions the room must answer right, the most asked first.', 'Times asked'],
-      filters: { category: ['Topic', ['Margin', 'Stock', 'Sales growth', 'Promotions', 'Returns']], channel: ['Team', ['Merchandising', 'Supply', 'Finance']], region: ['Result', ['Answered right', 'Needs a fix']] },
-      rows: [
-        ['Which items lost the most margin last month?', 'Margin', 41, 'Keep as a benchmark question', ['Answered right in the last 4 checks'], 'Finance', 'Answered right'],
-        ['How much stock is older than 90 days?', 'Stock', 36, 'Keep as a benchmark question', ['Answered right in the last 4 checks'], 'Supply', 'Answered right'],
-        ['Compare web and store sales growth this quarter', 'Sales growth', 29, 'Keep as a benchmark question', ['Answered right in the last 4 checks'], 'Merchandising', 'Answered right'],
-        ['Which promotions ran in the North last month?', 'Promotions', 18, 'Add the promotion calendar to the room', ['Missed the promotion dates twice'], 'Merchandising', 'Needs a fix'],
-        ['What was the return rate by category?', 'Returns', 12, 'Add a checked example for returns', ['Counted exchanges as returns'], 'Finance', 'Needs a fix'],
-      ],
+      layout: 'agent_chat',
+      kpi: 'Net sales this quarter',
+      kpis: { rows: 1840000, accounts: 9400, net: 48200000 },
+      filters: { region: ['Region', ['North', 'South', 'East', 'West']], account: ['Store', ['Store 4', 'Store 12', 'Store 31']], cost_center: ['Category', ['Camping', 'Kids', 'Home', 'Grocery']] },
     },
   },
   {
@@ -507,7 +503,7 @@ export function inspireUseCase(u, rank) {
     bob_score: u.bob, best_of_best: 'Y', best_of_best_rank: String(rank), selection_basis: 'earned', 'Decision Cadence': u.cadence,
     Statement: u.story, Solution: `${u.serve} ${u.how}`, 'Business Value': `${u.value} At stake: ${u.stake}.`,
     serving_summary: u.serve, method_summary: u.how, value_source: u.value,
-    KPIs: [{ name: u.mvp.kpis ? u.mvp.kpis[0][0] : 'Value at stake', direction: 'increase' }],
+    KPIs: [{ name: u.mvp.kpi || (Array.isArray(u.mvp.kpis) ? u.mvp.kpis[0][0] : u.mvp.objective[0]), direction: u.mvp.kpi_direction || 'increase' }],
     'Tables Involved': u.tables.map(fq).join(', '), 'Primary Table': fq(u.tables[0]), has_genie_code: 'Y',
   };
 }
@@ -808,6 +804,134 @@ function liftData(u) {
   };
 }
 
+const textOf = (list, changes) => list.map((item) => {
+  const change = changes[item.id || item.column];
+  if (!change) return item;
+  const { y, ...rest } = change;
+  return { ...item, ...rest, ...(y ? { y: item.y.map((one, i) => ({ ...one, label: y[i] ?? one.label })) } : {}) };
+});
+
+function processPage(u, spec) {
+  return {
+    ...base(u, spec),
+    story: `${u.story} {open} orders are open now.`,
+    kpis: byId(spec.kpis, { open: { label: 'Open orders' }, at_risk: { label: 'May miss the promised date' } }),
+    charts: textOf(spec.charts, {
+      map: { title: 'How orders move between steps', hint: 'Each arrow is a move: thicker means more orders, red means slow, dashed means sent back.',
+        so_what: 'Click a step to list the orders waiting there, then move the ones at risk.', y: ['Orders'] },
+      bottlenecks: { hint: 'Hours the slowest 1 in 10 orders spend before they leave each step.', so_what: 'The top step is where an extra hand saves the most time.' },
+      rework: { title: 'Orders sent back', hint: 'Orders each step sent back to an earlier step.', so_what: 'A step that sends many orders back needs a clearer check upstream.', y: ['Orders sent back'] },
+      cycle: { title: 'Age of open orders by path', hint: 'The box holds the middle half of the orders; the line in it is the median.',
+        so_what: 'A path with a long box is unpredictable: promise it a later date.', x: { ...spec.charts.find((c) => c.id === 'cycle').x, label: 'Path' } },
+    }),
+    records: { ...spec.records, title: 'Open orders at risk', hint: 'Click a step on the process map to list the orders waiting there; the ★ choice follows the suggested action.',
+      detail: textOf(spec.records.detail, { variant: { label: 'Path' }, region: { label: 'Warehouse' } }) },
+    filters: filterText(spec, { variant: ['Path'], region: ['Warehouse'] }),
+  };
+}
+
+function processRows(u) {
+  return u.mvp.rows.map(([label, step, age_hours, breach_risk, action, reasons, variant, region], i) => ({
+    record_key: `K${i + 1}`, _inspire_key: `K${i + 1}`, _inspire_version: String(1100 + i), entity_id: label, entity_label: label, step, age_hours, breach_risk: breach_risk / 100,
+    variant, region, priority_tier: TIERS[Math.min(2, Math.floor(i / 2))], rank: i + 1, value: Math.round(breach_risk * 40), recommended_action: action, top_reasons: reasons, as_of_date: AS_OF,
+  }));
+}
+
+function processData(u, picked) {
+  const m = u.mvp;
+  const moves = m.moves.filter(([from]) => !picked?.step?.length || picked.step.includes(from));
+  return {
+    kpis: { open: { now: m.kpis.open }, at_risk: { now: m.kpis.at_risk }, age: { now: m.kpis.age } },
+    charts: {
+      map: { columns: [], rows: moves.map(([x, s, y0, y1]) => ({ x, s, y0, y1 })), truncated: false },
+      bottlenecks: { columns: [], rows: moves.map(([x, , , , y0]) => ({ x, y0 })).sort((a, b) => b.y0 - a.y0), truncated: false },
+      rework: { columns: [], rows: m.rework.map(([x, y0]) => ({ x, y0 })), truncated: false },
+      cycle: { columns: [], rows: m.cycle.filter(([x]) => !picked?.variant?.length || picked.variant.includes(x)).map(([x, y0, y1, y2, y3, y4]) => ({ x, y0, y1, y2, y3, y4 })), truncated: false },
+    },
+    tables: {},
+    errors: {},
+  };
+}
+
+function locationPage(u, spec) {
+  return {
+    ...base(u, spec),
+    story: `${u.story} {sites} candidate sites hold {demand} of unmet demand a year; {strong} of them are in the top band.`,
+    kpis: byId(spec.kpis, { demand: { label: 'Unmet demand a year' } }),
+    records: { ...spec.records, hint: 'Best first by net new sales; shortlist the ones to visit and reject the rest with a reason.' },
+  };
+}
+
+function locationRows(u) {
+  return u.mvp.sites.map(([id, name, code, , , metric, action, reasons, format], i) => ({
+    record_key: `K${i + 1}`, _inspire_key: `K${i + 1}`, _inspire_version: String(1200 + i), entity_id: id, entity_label: `${id} ${name}`, city: name.split(' ')[0],
+    region_code: code, format, metric, priority_tier: TIERS[Math.min(2, Math.floor(i / 3))], rank: i + 1, value: metric, recommended_action: action, top_reasons: reasons, as_of_date: AS_OF,
+  }));
+}
+
+function locationData(u, picked) {
+  const sites = u.mvp.sites.filter(([id, , code, , , , , , format]) => (!picked?.country?.length || picked.country.includes(code))
+    && (!picked?.site?.length || picked.site.includes(id)) && (!picked?.format?.length || picked.format.includes(format)));
+  const byCountry = [...new Set(sites.map((s) => s[2]))].map((x) => ({ x, y0: sites.filter((s) => s[2] === x).reduce((t, s) => t + s[5], 0) }));
+  return {
+    kpis: { sites: { now: sites.length }, demand: { now: sites.reduce((t, s) => t + s[5], 0) }, strong: { now: sites.filter((s) => s[5] >= 1500000).length } },
+    charts: {
+      countries: { columns: [], rows: byCountry, truncated: false },
+      points: { columns: [], rows: sites.map(([id, , , lat, lon, metric]) => ({ x: id, y0: metric, y1: lat, y2: lon })), truncated: false },
+      density: { columns: [], rows: [...new Set(sites.map((s) => s[2]))].flatMap((x) => ['Large', 'Mid-size', 'Small'].map((s) => ({ x, s, y0: sites.filter((r) => r[2] === x && r[8] === s).length }))), truncated: false },
+    },
+    tables: { listed: { columns: [], rows: sites.map(([entity, name, region_code, , , metric]) => ({ entity, city: name.split(' ')[0], region_code, metric })), truncated: false } },
+    errors: {},
+  };
+}
+
+function networkPage(u, spec) {
+  return {
+    ...base(u, spec),
+    story: `${u.story} {central} of the accounts are central to a ring.`,
+    kpis: byId(spec.kpis, { rings: { label: 'Rings' } }),
+    charts: textOf(spec.charts, { graph: { hint: 'Each color is a ring; a bigger dot has more shared links.', y: ['Shared links', 'Ring', 'Linked ring'] } }),
+    records: { ...spec.records, title: 'Most central accounts', hint: 'Most central first; block the ring leaders, investigate the rest, or clear the ones that are not a ring.' },
+    filters: filterText(spec, { ring: ['Ring'] }),
+  };
+}
+
+function networkRows(u) {
+  return u.mvp.accounts.map(([node, community, centrality, metric, action, reasons], i) => ({
+    record_key: `K${i + 1}`, _inspire_key: `K${i + 1}`, _inspire_version: String(1300 + i), entity_id: node, entity_label: node, node, community, centrality, metric,
+    priority_tier: TIERS[Math.min(2, Math.floor(i / 4))], rank: i + 1, value: metric, recommended_action: action, top_reasons: reasons, as_of_date: AS_OF,
+  }));
+}
+
+function networkData(u, picked) {
+  const ring = Object.fromEntries(u.mvp.accounts.map(([node, community]) => [node, community]));
+  const links = u.mvp.links.filter(([src]) => (!picked?.ring?.length || picked.ring.includes(ring[src])) && (!picked?.account?.length || picked.account.includes(src)))
+    .map(([x, s, y0]) => ({ x, s, y0, y1: ring[x], y2: ring[s] }));
+  return {
+    kpis: { accounts: { now: u.mvp.kpis.accounts }, rings: { now: u.mvp.kpis.rings }, central: { now: u.mvp.kpis.central } },
+    charts: { graph: { columns: [], rows: links, truncated: false } },
+    tables: {
+      neighbors: { columns: [], rows: links.slice(0, 4).map((l) => ({ src: l.x, dst: l.s, weight: l.y0, dst_community: l.y2 })), truncated: false },
+      pairs: { columns: [], rows: [...links].sort((a, b) => b.y0 - a.y0).slice(0, 5).map((l) => ({ src: l.x, dst: l.s, weight: l.y0 })), truncated: false },
+    },
+    errors: {},
+  };
+}
+
+function chatPage(u, spec) {
+  return {
+    ...base(u, spec),
+    story: `${u.story} Genie answers from {rows} sales and stock rows across {accounts} items.`,
+    kpis: byId(spec.kpis, { rows: { label: 'Sales and stock rows' }, accounts: { label: 'Items' }, net: { label: 'Net sales this quarter' } }),
+    filters: filterText(spec, u.mvp.filters),
+  };
+}
+
+function chatData(u) {
+  const k = u.mvp.kpis;
+  return { kpis: { rows: { now: k.rows }, accounts: { now: k.accounts }, net: { now: k.net } }, charts: {}, tables: {}, errors: {} };
+}
+
 const LAYOUTS = {
   decision_queue: { page: decisionPage, rows: decisionRows, data: decisionData },
   forecast_cockpit: { page: forecastPage, rows: forecastRows, data: forecastData },
@@ -816,6 +940,10 @@ const LAYOUTS = {
   segment_explorer: { page: segmentPage, rows: segmentRows, data: segmentData },
   recommendation_desk: { page: recsPage, rows: recsRows, data: recsData },
   lift_readout: { page: liftPage, rows: liftRows, data: liftData },
+  process_flow: { page: processPage, rows: processRows, data: processData },
+  location_view: { page: locationPage, rows: locationRows, data: locationData },
+  network_explorer: { page: networkPage, rows: networkRows, data: networkData },
+  agent_chat: { page: chatPage, rows: () => [], data: chatData },
 };
 
 export function mvpPage(u) {

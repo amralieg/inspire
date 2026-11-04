@@ -439,6 +439,22 @@ async function walkScreen(page, settle, { rows, questions, log, where, home, goB
     if (await close.count()) await close.click();
     await back();
   }
+  for (let i = 0; questions && i < v; i += 1) {
+    if (await views.count()) {
+      await views.nth(i).click();
+      await settle();
+    }
+    const chips = await page.locator('[data-question]').count();
+    if (chips) {
+      await askEach(page, settle, '[data-question]', chips, log, `${where} chat`);
+      const fresh = page.locator('button.link', { hasText: 'New chat' });
+      if (await fresh.count()) {
+        await fresh.first().click();
+        await settle();
+      }
+      await back((await views.count()) ? i : -1);
+    }
+  }
 }
 
 export async function recordMvpApp(context, { url, authHeaders = {}, exchanges, blocked, log = () => {}, rows = 2, questions = 4 }) {
