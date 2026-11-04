@@ -94,7 +94,7 @@ for (const layout of ['sidebar', 'tabs']) {
     const m = await snapshot(page);
     assert.ok(m.drawerOpen, 'the menu opens the use case list on screen');
     assert.equal(await page.locator('.side .nav-i').count(), 9);
-    assert.deepEqual(await page.locator('.side .nav-i .nav-t b').allInnerTexts(), ['Overview', 'My work', 'Impact', 'Price-loss decision desk', 'Second desk 1',
+    assert.deepEqual(await page.locator('.side .nav-i .nav-t b').allInnerTexts(), ['My work', 'Impact', 'Overview', 'Price-loss decision desk', 'Second desk 1',
       'Second desk 2', 'Second desk 3', 'Second desk 4', 'Second desk 5']);
     await page.locator('.side .nav-i', { hasText: 'Second desk 3' }).click();
     await page.waitForFunction(() => document.querySelector('.ph h1')?.textContent === 'Second desk 3');

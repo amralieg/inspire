@@ -164,10 +164,18 @@ export async function routeInspireDemo(page, { origin, distDir = '', summary, re
   });
 }
 
+export async function expandBuild(page) {
+  const progress = page.locator('[data-mvp-progress]');
+  await progress.waitFor({ timeout: 15000 });
+  if (await progress.getAttribute('data-progress-open') === 'false') await progress.locator('[data-progress-toggle]').click();
+  await page.locator('[data-mvp-progress][data-progress-open="true"]').waitFor({ timeout: 15000 });
+}
+
 export async function walkMvpViews(page, settle, visit = async () => {}) {
   const progress = page.locator('[data-mvp-progress]');
   if (!(await progress.count())) return [];
   await settle();
+  await expandBuild(page);
   await visit('build', progress);
   const seen = ['build'];
   const ids = await page.locator('[data-asset-tiles] [data-asset-tile]')

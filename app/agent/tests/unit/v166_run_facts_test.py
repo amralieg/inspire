@@ -42,6 +42,7 @@ PLAIN = "main.ops.plain_out"
 CLOSED = f"{TABLE}_closed"
 PG_KINDS = {"STRING": "text", "TIMESTAMP": "timestamptz", "DOUBLE": "double precision", "INT": "integer"}
 HM_COLUMNS = [(name, kind, PG_KINDS[kind]) for name, kind in shell_facts.CLOSED_COLUMNS]
+PINNED_NAMES = (shell_facts.CLOSED_AS, *shell_facts.CLOSED_FIELDS)
 PLAIN_COLUMNS = [c for c in COLUMNS if c[0] != "value_at_stake"]
 
 
@@ -269,6 +270,21 @@ def test_the_closing_in_one_pass_per_record_equals_the_closing_built_from_joins_
         ("Could not fix", 75.0, iso(at(23, 9)))
     assert (by_key["m"]["_inspire_closed"], by_key["m"]["_inspire_at_close"]) == (iso(at(16, 9)), 20.0), \
         "saving Done again is not a new close, so the money at stake is the one at the first close"
+
+
+def test_the_run_keeps_the_latest_close_of_each_closed_record_as_the_key_read_finds_it_on_a_real_postgres(engine):
+    engine["write"]("facts_out", COLUMNS, _closing_cases())
+    quoted = shell_facts.table_name(TABLE)
+    closing = shell_facts.closing_ctes(quoted, NAMES, "entity_label", source=quoted)
+    read = engine["rows"](f"WITH hx AS ({closing['hx']}), hk AS ({closing['hk']}) "
+                          f"{shell_facts.latest_closes('_inspire_k', shell_facts.CLOSED_AS, lambda field: field)}")
+    kept = engine["rows"](shell_facts.closes_rows_sql(quoted, NAMES, "entity_label"))
+    closed = {r["_inspire_k"] for r in engine["rows"](shell_facts.closed_rows_sql(quoted, NAMES, "entity_label"))}
+    engine["write"]("facts_out", COLUMNS, SNAPSHOT)
+    assert sorted(kept, key=lambda r: r["_inspire_k"]) == sorted(read, key=lambda r: r["_inspire_k"])
+    assert set(kept[0]) == {"_inspire_k", *PINNED_NAMES} and closed <= {r["_inspire_k"] for r in kept}, \
+        "every closed record keeps its latest close"
+    assert {r["_inspire_k"] for r in kept} - closed, "a record opened again after its close keeps it too, and the list checks its status"
 
 
 def _closing(engine, ctes, source="", table=TABLE, closed=""):
@@ -500,15 +516,11 @@ class FactsWarehouse:
             asked = {p["value"] for p in params}
             return rows([dict(seen[k], record_key=k, _inspire_status="Done") for k in sorted(asked & set(seen))])
         if sql.startswith(f"SELECT * FROM {shell_facts.table_name(HUB_TABLE + '_summary')}"):
-            summary = {k: v for k, v in self.money.items() if k != "edits"}
-            return rows([dict({"run_id": "r5", "updated_at": "2026-09-29T06:10:00Z", "run_facts": json.dumps(self.facts),
-                               "value_assumptions": None}, **summary)])
+            return rows([self.summary_row()])
         if sql.startswith(f"SELECT * FROM {shell_facts.table_name(HUB_TABLE + '_assumptions')}"):
             return rows(list(self.money.get("edits") or []))
         if sql.startswith("SELECT COUNT(*) AS `n`, unix_micros(GREATEST("):
-            ahead = {shell_sql.AHEAD_STAMP: self.facts.get("stamp_us")} if f"AS `{shell_sql.AHEAD_STAMP}`" in sql else {}
-            return rows([dict({"n": self.changed_n, "us": STAMP_US + 5 if self.changed_n else None,
-                               "keys": None if self.keys is None else json.dumps(self.keys)}, **ahead)])
+            return rows([self.changed_row(f"AS `{shell_sql.AHEAD_STAMP}`" in sql)])
         if f"AS `{shell_facts.CHANGED_KEY}`" in sql:
             return rows([{shell_facts.CHANGED_KEY: "k1", "_inspire_k": "k1", "_inspire_status": "Done", "_inspire_state": "unchecked",
                           "_inspire_closed": "2026-09-30T10:00:00.000Z", "_inspire_measured_ok": 0},
@@ -531,12 +543,28 @@ class FactsWarehouse:
         if "'counts' AS `kind`" in sql:
             return rows([{"kind": "counts", "n": 0, "hits": 0}, {"kind": "changed", "n": 0, "hits": 0, "money": None},
                          {"kind": "missed", "n": missed}])
+        inline = f"AS `{shell_sql.INLINE_CLOSE_STATUS}`" in sql
         if "`value_at_stake` >=" in sql or "`rank` <=" in sql:
-            return rows([self.row(i, None if self.miss and i == 3 else f"k{i}") for i in range(self.floor_rows)])
-        return rows([self.row(i, f"k{i}") for i in range(min(limit, 25))])
+            return rows([self.row(i, None if self.miss and i == 3 else f"k{i}", inline) for i in range(self.floor_rows)])
+        return rows([self.row(i, f"k{i}", inline) for i in range(min(limit, 25))])
 
-    def row(self, i, key):
-        return dict({"record_key": f"k{i}", "_inspire_key": key}, **({"_inspire_status": self.status[key]} if key in self.status else {}))
+    def summary_row(self):
+        summary = {k: v for k, v in self.money.items() if k != "edits"}
+        return dict({"run_id": "r5", "updated_at": "2026-09-29T06:10:00Z", "run_facts": json.dumps(self.facts), "value_assumptions": None},
+                    **summary)
+
+    def changed_row(self, ahead):
+        found = {"n": self.changed_n, "us": STAMP_US + 5 if self.changed_n else None, "keys": None if self.keys is None else json.dumps(self.keys)}
+        return dict(found, **{shell_sql.AHEAD_STAMP: (self.facts or {}).get("stamp_us")}) if ahead else found
+
+    def row(self, i, key, inline=False):
+        row = dict({"record_key": f"k{i}", "_inspire_key": key}, **({"_inspire_status": self.status[key]} if key in self.status else {}))
+        if inline:
+            row.update({name: None for name in shell_sql.INLINE_CLOSE_COLUMNS})
+            if key in self.closes:
+                fields = dict(zip(shell_sql.CLOSED_FIELDS, shell_sql.INLINE_CLOSE_COLUMNS[1:]))
+                row.update({shell_sql.INLINE_CLOSE_STATUS: "Done"}, **{fields[k]: v for k, v in self.closes[key].items()})
+        return row
 
 
 def _facts_shell(tmp_path, facts, floor_rows=25, changed_n=0, money=None):
@@ -594,7 +622,7 @@ def test_every_query_a_page_with_run_facts_sends_to_lakebase_is_one_lakebase_run
     earlier = {"run_id": "r4", "tier": "Act now", "as_of_date": "2026-09-22", "ran_us": STAMP_US - 7 * 86400 * 1_000_000, "n": 3}
     s, ws = _facts_shell(tmp_path, _ready_facts(runs=_ready_facts()["runs"] + [earlier]), changed_n=3)
     sent, execute = [], s.execute
-    s.execute = lambda w, sql, params, limit, delta=False: sent.append((sql, params, delta)) or execute(w, sql, params, limit, delta)
+    s.execute = lambda w, sql, params, limit, delta=False, queued=False: sent.append((sql, params, delta)) or execute(w, sql, params, limit, delta, queued)
     body = {"page": "n01_u05", "filters": {}, "record_key": "k1", "title": "Loss", "kind": "chart", "context": {}}
     query = {"page": "n01_u05", "record_key": "k1", "filter": "category", "q": "o", "offset": "0"}
     for method, path in read_routes():
@@ -997,20 +1025,32 @@ def _closes_read(ws):
             if "z.`_inspire_closed_as` AS `_inspire_status`" in sql]
 
 
-@pytest.mark.parametrize("changed, reads", [
-    (["k9"], [("acted", ["k1", "k2"])]),
-    (["k1"], [("changes", ["k1", "k2"])]),
-    (None, [("changes", ["k1", "k2"])]),
+PINNED = {"closes": shell_facts.closes_facts(HUB_TABLE + shell_facts.CLOSES_SUFFIX)}
+CLOSED_TABLE = shell_facts.table_name(HUB_TABLE + shell_facts.CLOSES_SUFFIX)
+
+
+@pytest.mark.parametrize("pinned, changed, reads", [
+    (False, ["k9"], [("acted", ["k1", "k2"])]),
+    (False, ["k1"], [("changes", ["k1", "k2"])]),
+    (False, None, [("changes", ["k1", "k2"])]),
+    (True, ["k9"], []),
+    (True, ["k1"], [("changes", ["k1"])]),
+    (True, None, [("changes", ["k1", "k2"])]),
 ])
 def test_the_closing_of_the_listed_records_reads_the_records_people_acted_on_and_the_changes_only_when_one_of_them_changed(
-        tmp_path, changed, reads):
-    s, ws = _facts_shell(tmp_path, _ready_facts(), changed_n=1)
+        tmp_path, pinned, changed, reads):
+    s, ws = _facts_shell(tmp_path, _ready_facts(**(PINNED if pinned else {})), changed_n=1)
     ws.keys, ws.status = changed, {"k1": "Done", "k2": "Done"}
     ws.closes = {"k1": {"_inspire_closed_by": "pat@example.com"}, "k2": {"_inspire_closed_by": "sam@example.com"}}
     status, out = call(s, "POST", "records", body={"page": "n01_u05", "sort": {"key": "rank", "dir": "asc"}, "limit": 25})
     assert status == 200 and not out["errors"], out
     found = _closes_read(ws)
     assert [("changes" if " q AS (" in sql else "acted", keys) for sql, keys in found] == reads, found
+    joined = [sql.split(" cz AS (", 1)[1] for sql, _p, _l in ws.sql if " cz AS (" in sql]
+    assert len(joined) == (pinned and changed is not None), \
+        "the rows carry the closes the run kept whenever the run kept them and the changes since it are named"
+    for sql in joined:
+        assert f"FROM {CLOSED_TABLE} AS z" in sql and "_run_log" not in sql and "_acted" not in sql
     for sql, _keys in found:
         assert f"FROM {shell_facts.table_name(HUB_TABLE + '_acted')} WHERE " in sql and "_run_log" not in sql, \
             "the closing reads the records people acted on, never the run log"
@@ -1020,14 +1060,15 @@ def test_the_closing_of_the_listed_records_reads_the_records_people_acted_on_and
     assert by["k1"] == "pat@example.com" and by["k2"] == "sam@example.com" and by["k3"] is None, by
 
 
-def test_a_closed_record_the_key_list_missed_is_read_again_with_the_changes_since_the_run(tmp_path):
-    s, ws = _facts_shell(tmp_path, _ready_facts(), changed_n=1)
+@pytest.mark.parametrize("pinned, reads", [(False, [(False, ["k1", "k2"]), (True, ["k2"])]), (True, [(True, ["k2"])])])
+def test_a_closed_record_the_key_list_missed_is_read_again_with_the_changes_since_the_run(tmp_path, pinned, reads):
+    s, ws = _facts_shell(tmp_path, _ready_facts(**(PINNED if pinned else {})), changed_n=1)
     ws.keys, ws.status = ["k9"], {"k1": "Done", "k2": "Done"}
     ws.closes, ws.changed_closes = {"k1": {"_inspire_closed_by": "pat@example.com"}}, {"k2": {"_inspire_closed_by": "sam@example.com"}}
     status, out = call(s, "POST", "records", body={"page": "n01_u05", "sort": {"key": "rank", "dir": "asc"}, "limit": 25})
     assert status == 200 and not out["errors"], out
     found = _closes_read(ws)
-    assert [(" q AS (" in sql, keys) for sql, keys in found] == [(False, ["k1", "k2"]), (True, ["k2"])], \
+    assert [(" q AS (" in sql, keys) for sql, keys in found] == reads, \
         "k2 was closed after the key list was read, so only k2 is read again with the changes since the run"
     by = {r["_inspire_key"]: r.get("_inspire_closed_by") for r in out["rows"]}
     assert by["k1"] == "pat@example.com" and by["k2"] == "sam@example.com", by
@@ -1069,7 +1110,7 @@ def test_requests_waiting_on_a_page_state_read_that_fails_get_its_error_instead_
             waiting.set()
             return super().result(timeout)
 
-    def broken(_ws, _page):
+    def broken(_ws, _page, _head=None):
         started.set()
         gate.wait(5)
         raise RuntimeError("the summary read broke")

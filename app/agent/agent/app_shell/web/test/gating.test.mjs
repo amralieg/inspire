@@ -44,7 +44,7 @@ test('a per-user App shows no download and no chart export anywhere', async () =
   await askOnce(page);
   assert.equal(await page.getByRole('button', { name: DATA_DOWNLOAD }).count(), 0);
   assert.deepEqual(asked, []);
-  assert.match(await page.locator('.auth').innerText(), /Your view/);
+  assert.match(await page.locator('.auth').textContent(), /Your view/);
   assert.deepEqual(seen.errors, []);
   await context.close();
 });

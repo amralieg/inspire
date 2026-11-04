@@ -12,6 +12,8 @@ export const STRATEGY_NOT_ALIGNED = 'Not aligned';
 export const STRATEGY_BUILTIN_NO_MATCH = 'General Improvement';
 export const STRATEGY_PATH_SEPARATOR = ' > ';
 export const NOT_ALIGNED_FILTER = '__not_aligned__';
+export const STRATEGY_NOT_TIED = 'Not tied to your strategy';
+export const STRATEGY_BUILTIN_NOTE = 'No strategy was given, so Inspire used its built-in goals.';
 export const FEEDBACK_STATUSES = ['accepted', 'planned', 'implemented', 'rejected'];
 export const FEEDBACK_LABELS = { accepted: 'Accepted', planned: 'Planned', implemented: 'Implemented', rejected: 'Rejected' };
 export const FEEDBACK_OFF_TEXT = 'Feedback turns on after the next Inspire run in this Inspire Database; then mark each use case Accepted, Planned, Implemented or Reject on its card.';
@@ -210,6 +212,38 @@ export function strategyFilterOptions(infos, coverageEntries) {
     return { value: path, label: parts[parts.length - 1], title: path, depth: parts.length - 1, count: counts.get(path) };
   });
   return { options, notAligned, withData };
+}
+
+export function strategyContext(results) {
+  const coverage = isMap(results?.strategy_coverage) ? results.strategy_coverage : null;
+  const entries = coverage && Array.isArray(coverage.entries) ? coverage.entries : null;
+  const depthLevels = coverage && Array.isArray(coverage.levels) ? coverage.levels.map((l) => String(l ?? '').trim()) : [];
+  const levels = new Map();
+  for (const e of entries || []) {
+    const path = String(e?.path ?? '').trim();
+    if (!path) continue;
+    const level = String(e.level ?? '').trim() || depthLevels[path.split(STRATEGY_PATH_SEPARATOR).length - 1] || '';
+    if (level) levels.set(path, level);
+  }
+  return { builtIn: !!coverage && coverage.source !== 'customer', hasEntries: entries ? entries.length > 0 : true, levels };
+}
+
+export function strategyGoals(info, context) {
+  const items = info?.alignments?.length ? info.alignments : (info?.paths || []).map((path) => ({ id: '', path, evidence: '' }));
+  return items.map((a) => {
+    const parts = a.path.split(STRATEGY_PATH_SEPARATOR).map((p) => p.trim()).filter(Boolean);
+    return {
+      path: a.path,
+      name: parts[parts.length - 1] || a.path,
+      under: parts.slice(0, -1).join(STRATEGY_PATH_SEPARATOR),
+      level: context?.levels?.get(a.path) || '',
+      evidence: a.evidence || '',
+    };
+  });
+}
+
+export function showsNotTied(info, context) {
+  return !!info?.notAligned && (context ? context.hasEntries : true);
 }
 
 export function knownPriorities(results) {

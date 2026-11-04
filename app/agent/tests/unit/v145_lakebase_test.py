@@ -9,6 +9,7 @@ import subprocess
 import sys
 import tempfile
 import threading
+import time
 import types
 
 import psycopg
@@ -74,7 +75,7 @@ class RenderingLakebase:
         self.answers = answers if answers is not None else FakeWorkspace()
         self.rendered, self.held, self.writes, self.plans, self.fail, self.note = [], set(), [], [], None, ""
 
-    def run(self, sql, params, limit):
+    def run(self, sql, params, limit, queued=False):
         text, _values, _read = shell_pg.render(sql, params, self.tables, self.held)
         self.rendered.append(text)
         if self.fail:
@@ -574,6 +575,70 @@ def lakebase(service, conns=None, clock=None, env=None, connect=None):
 
 def password_service(*tokens):
     return Service({CREDENTIALS: [{"token": t, "expire_time": iso(NOW + 3600 * (i + 1))} for i, t in enumerate(tokens)]})
+
+
+class GatedConn(FakeConn):
+    def __init__(self, gate, errors=()):
+        super().__init__(errors=errors)
+        self.gate = gate
+
+    def cursor(self, name=None):
+        cursor = FakeCursor(self)
+        plain = cursor.execute
+
+        def execute(text, values=None):
+            if not text.startswith("SET "):
+                self.gate.enter()
+            try:
+                plain(text, values)
+            finally:
+                if not text.startswith("SET "):
+                    self.gate.leave()
+
+        cursor.execute = execute
+        return cursor
+
+
+class Gate:
+    def __init__(self, hold):
+        self.lock, self.now, self.most, self.hold = threading.Lock(), 0, 0, hold
+
+    def enter(self):
+        with self.lock:
+            self.now += 1
+            self.most = max(self.most, self.now)
+        self.hold.wait(5)
+
+    def leave(self):
+        with self.lock:
+            self.now -= 1
+
+
+def test_a_burst_of_filter_reads_runs_at_most_the_read_slots_at_once_and_a_page_read_never_waits_for_a_slot():
+    import concurrent.futures
+    hold = threading.Event()
+    gate = Gate(hold)
+    failing = shell_pg.READ_SLOTS
+    lb, made, _clock = lakebase(password_service("t1"), connect=lambda **_kw: GatedConn(gate, errors=[RuntimeError("canceling statement")] if made.append(1) or len(made) <= failing else ()))
+    burst = 3 * shell_pg.READ_SLOTS
+    with concurrent.futures.ThreadPoolExecutor(burst) as pool:
+        reads = [pool.submit(lb.query, "SELECT 1", {}, 10, True) for _ in range(burst)]
+        deadline = time.time() + 5
+        while gate.now < shell_pg.READ_SLOTS and time.time() < deadline:
+            time.sleep(0.01)
+        time.sleep(0.1)
+        assert gate.now == shell_pg.READ_SLOTS, "the reads beyond the slots wait in the App, not on Lakebase"
+        page = pool.submit(lb.query, "SELECT 2", {}, 10)
+        deadline = time.time() + 5
+        while gate.now < shell_pg.READ_SLOTS + 1 and time.time() < deadline:
+            time.sleep(0.01)
+        assert gate.now == shell_pg.READ_SLOTS + 1 and not page.done(), "a page read runs beside full slots"
+        hold.set()
+        done = [r.exception() for r in reads]
+    assert gate.most == shell_pg.READ_SLOTS + 1 and page.exception() is None
+    assert sum(isinstance(e, shell_pg.QueryError) for e in done) == failing and done.count(None) == burst - failing, \
+        "a read that Lakebase refuses gives its slot back, so every read after it still runs"
+    assert len(made) <= burst
 
 
 def test_lakebase_needs_its_postgres_resource():

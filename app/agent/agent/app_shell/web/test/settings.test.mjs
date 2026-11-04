@@ -103,7 +103,7 @@ test('an owner changes a cutoff with a live preview and a note, and starts a run
 
 test('a viewer who is not an owner gets Settings with only their own My view, and no use-case setting or Run now', async () => {
   const { page, seen: app, context } = await openApp(browser, served.base, appInfo({}, 1, TABLE));
-  await page.waitForSelector('.hdr-act');
+  await page.waitForSelector('.top-page [data-settings-open]');
   assert.equal(await page.locator('[data-settings]').count(), 0);
   await page.click('[data-settings-open]');
   await page.waitForSelector('[data-settings]');

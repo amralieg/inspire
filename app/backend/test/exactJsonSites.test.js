@@ -53,6 +53,7 @@ const BROWSER_ALLOWED = [
   ['lib/useCaseFields.js', 'JSON.parse(flags)', 'the selection flags of a use case, which name no id'],
   ['lib/implementWizard.js', "JSON.parse(String(raw || ''))", 'the elite assessment of a use case, which names no id'],
   ['lib/v130UseCase.js', 'JSON.parse(text)', 'the strategy alignment and data evidence of a use case, which name no id'],
+  ['lib/runScope.js', 'JSON.parse(raw)', 'the first run groups the App saved, whose values it writes as text, so a key value never passes through a number'],
 ];
 
 function sources(dir, ext = ['.js']) {

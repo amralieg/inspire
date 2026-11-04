@@ -178,7 +178,12 @@ components:
         sql:
           type: string
           maxLength: 20000
-          description: One SELECT or WITH that returns one row per record, the record key columns and group_name
+          description: One SELECT or WITH; for grouping it returns one row per record, the record key columns and group_name, for first_run only the record key columns
+        purpose:
+          type: string
+          enum: [grouping, first_run]
+          default: grouping
+          description: grouping saves group_by custom and group_sql; first_run saves run_scope custom and scope_sql, scope_sql_tables, scope_sql_hash, scope_sql_checked_by and scope_sql_checked_at, and runs execute only that SQL and stop when it or its tables change
         warehouse_id:
           type: string
         main_table:
@@ -930,6 +935,17 @@ paths:
         It answers the candidate category columns with 2 to 500 groups, the recommended Grouping coarse to fine, an example of the small
         groups that move up a level, the time column and its recent records, three suggested groups (biggest, typical, smallest), the
         records each First run choice covers, and the default First run (not all when the table has more than 1,000 records).
+        Candidates also take low-cardinality key columns of the main table and text columns of a table it joins one step away, counted over
+        the main table's records; personal columns are never read or shown.
+        The Grouping and First run settings every run reads keep one format. `group_by` is `all`, `custom`, or column names, coarse to
+        fine and comma separated: a column of the main table by its name, a column of a table it joins as `<table>.<column>` (the run
+        reads it from that table through the use case's join on the main table's key). `custom` runs the saved `group_sql`. A run whose
+        `group_by` names a column its records lack, a joined column with no join, or whose saved grouping SQL no longer matches what was
+        checked, stops with the reason and never groups globally. `run_scope` is `all`, `groups`, `recent`,
+        `records` or `custom`. `scope_groups` is a JSON list of groups, each a list of {column, value, join?} pairs a record must all
+        hold (AND within a group, OR between groups), values written as text; an older comma list of values of the finest column is
+        still read. `scope_records` is the record goal of `records`, which takes whole groups of `group_column` for a grouping technique
+        and the first records otherwise.
         The time column is a DATE or TIMESTAMP column of the table, or a date key whose saved Discover join (else Unity Catalog key)
         reaches a dated table; then `time_via` names that table, its key and its date column, and the recent period is the newest
         days of that date column. A date key whose recent period covers more than 10,000 key values is not offered as a recent period.
@@ -958,10 +974,16 @@ paths:
       responses:
         '200':
           description: |
-            The profile: table, records, qualifies, reason, standalone, columns (name, type, distinct, smallest, largest, nulls, parent),
+            The profile: table, records, applies (the technique compares records, so the Grouping step shows with Global and Custom),
+            qualifies (a column grouping is recommended), reason, standalone, columns (name, type, distinct, smallest, largest, nulls, parent,
+            and join (table, key, ref_column) for a column of a table the main table joins, named table.column),
             recommended, example (column, small_groups, moves_to) or null, time_column, time_via (table, key, date) or null,
             recent (days, records) or null, suggested_groups
-            (value, records, kind), first_run (all, groups, recent, records), default_scope, prefill (key_columns, joins, sql) and read_at
+            (value, records, kind, and parts: the column and value pairs a record must all hold, with join for a joined column),
+            group_column (the finest recommended column) or null, group_sizes (value, records of each group of group_column with 30 records or
+            more, which a first run on records takes whole), first_run (all, groups, recent, records), default_scope (all up to 1,000 records
+            or when the count is unknown, records above 1,000: whole groups of group_column, or the first 1,000 records when the technique
+            stands alone or no column groups the table; never recent or all above 1,000), prefill (key_columns, joins and sql) and read_at
         '400':
           description: The request names no valid session, use case, warehouse or scope_days, or the use case names no main table
           content:

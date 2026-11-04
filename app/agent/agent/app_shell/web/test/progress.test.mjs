@@ -31,15 +31,15 @@ function freshRoutes(first, more = {}) {
   };
 }
 
-const bar = (page, scope = '.ph .fresh') => page.locator(`${scope} [role="progressbar"]`).first().evaluate((el) => ({
+const bar = (page, scope = '.top .fresh') => page.locator(`${scope} [role="progressbar"]`).first().evaluate((el) => ({
   now: el.getAttribute('aria-valuenow'), width: el.querySelector('i').style.width, open: el.classList.contains('is-open'),
 }));
 
 test('a running refresh says its step, rows and time left, draws a bar as wide as the percent the server sent, and keeps the data it shows with its date', async () => {
   const { routes } = freshRoutes({ ...IDLE, active: STAGED, can_refresh: false, reason: 'busy', typical_s: 300 });
   const { page, seen, context } = await openApp(browser, served.base, appInfo(), { routes, clock: NOW });
-  await page.locator('.fresh-busy [data-progress]').waitFor();
-  assert.equal(await page.locator('.fresh-busy [data-progress]').innerText(), 'Step 3 of 5: Scoring the records · 1,200,000 of 4,000,000 rows · about 6 min left');
+  await page.locator('.ph .fresh-d [data-progress]').waitFor();
+  assert.equal(await page.locator('.ph .fresh-d [data-progress]').innerText(), 'Step 3 of 5: Scoring the records · 1,200,000 of 4,000,000 rows · about 6 min left');
   assert.deepEqual(await bar(page), { now: '30', width: '30%', open: false });
   assert.equal(await page.locator('.fresh-asof').innerText(), 'Until it finishes you see the data of the update on Oct 27, 07:30 AM UTC');
   assert.ok(await page.locator('.kpi-v').first().isVisible(), 'the numbers stay on screen while it runs');
@@ -60,10 +60,10 @@ test('with no percent the bar moves with no width and no number, and with no ste
   ]) {
     const { routes } = freshRoutes({ ...IDLE, active, can_refresh: false, reason: 'busy', typical_s: 300 });
     const { page, seen, context } = await openApp(browser, served.base, appInfo(), { routes, clock: NOW });
-    await page.locator('.fresh-busy [data-progress]').waitFor();
-    assert.equal(await page.locator('.fresh-busy [data-progress]').innerText(), text);
+    await page.locator('.ph .fresh-d [data-progress]').waitFor();
+    assert.equal(await page.locator('.ph .fresh-d [data-progress]').innerText(), text);
     assert.deepEqual(await bar(page), { now: null, width: '', open: true }, 'no percent from the server means no width and no value');
-    assert.doesNotMatch(await page.locator('.ph .fresh').innerText(), /%|\d+ min left/, 'no percent and no time left the server did not send');
+    assert.doesNotMatch(`${await page.locator('.top .fresh').innerText()} ${await page.locator('.ph .fresh-d').innerText()}`, /%|\d+ min left/, 'no percent and no time left the server did not send');
     assert.deepEqual(seen.errors, []);
     await context.close();
   }
@@ -134,18 +134,17 @@ test('the Overview shows a run the server says has gone quiet with the server no
   await context.close();
 });
 
-test('while a refresh runs, its full progress line never squeezes the page title: at 1440, 1024 and 390 the title keeps at least 300px and the actions sit beside it or under it, never over it', async () => {
+test('while a refresh runs, its full progress line never squeezes the page title: at 1440, 1024 and 390 the title keeps at least 300px and the top row sits above it, never over it', async () => {
   const { routes } = freshRoutes({ ...IDLE, active: STAGED, can_refresh: false, reason: 'busy', typical_s: 300 });
   for (const width of [1440, 1024, 390]) {
     const { page, seen, context } = await openApp(browser, served.base, appInfo(DECIDE, 2, TABLE), { routes, clock: NOW, width, hash: '#/n01_u05' });
-    await page.locator('.ph .fresh-busy [data-progress]').waitFor();
+    await page.locator('.ph .fresh-d [data-progress]').waitFor();
     await resizeTo(page, width);
     const box = await page.evaluate(() => {
       const r = (el) => el.getBoundingClientRect();
-      const title = r(document.querySelector('.ph .pg-h > div:first-child'));
       const h1 = document.querySelector('.ph h1');
-      const acts = r(document.querySelector('.ph .hdr-act'));
-      return { h1: Math.round(r(h1).width), fits: h1.scrollWidth <= h1.clientWidth + 1, apart: title.right <= acts.left + 1 || acts.top >= title.bottom - 1 };
+      const top = r(document.querySelector('.top'));
+      return { h1: Math.round(r(h1).width), fits: h1.scrollWidth <= h1.clientWidth + 1, apart: top.bottom <= r(h1).top + 1 };
     });
     assert.ok(box.h1 >= 300, `at ${width} the title is ${box.h1}px wide`);
     assert.ok(box.fits, `at ${width} the title text runs out of its box`);

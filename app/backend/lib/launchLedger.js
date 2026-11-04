@@ -1,4 +1,5 @@
 const { splitInspireDatabase } = require('./sqlInputs');
+const { int64Id, isInt64Id } = require('./int64Id');
 
 const LAUNCH_TABLE = '__inspire_launch';
 const RUN_ID_RE = /^\d{1,19}$/;
@@ -48,7 +49,7 @@ function runLauncherStatement(table, runId) {
 }
 
 function sessionLauncherStatement(table, inspireDatabase, sessionId) {
-  if (!/^\d+$/.test(String(sessionId || '')) || !splitInspireDatabase(inspireDatabase)) return null;
+  if (!isInt64Id(sessionId) || !splitInspireDatabase(inspireDatabase)) return null;
   return {
     sql: `SELECT launched_by FROM ${table} WHERE inspire_database = :inspire_database AND session_id = :session_id `
       + 'AND opened_session ORDER BY launched_at LIMIT 1',
@@ -61,7 +62,7 @@ function sessionLauncherStatement(table, inspireDatabase, sessionId) {
 
 function sessionKnownStatements(table, inspireDatabase, sessionId) {
   const sessions = quoted(inspireDatabase, '__inspire_session');
-  if (!sessions || !/^\d+$/.test(String(sessionId || ''))) return null;
+  if (!sessions || !isInt64Id(sessionId)) return null;
   return {
     ledger: {
       sql: `SELECT 1 AS seen FROM ${table} WHERE inspire_database = :inspire_database AND session_id = :session_id LIMIT 1`,
@@ -102,7 +103,7 @@ function startingLaunchStatement(table, inspireDatabase) {
 
 function sessionsSeenStatement(inspireDatabase, sessionIds) {
   const sessions = quoted(inspireDatabase, '__inspire_session');
-  const ids = [...new Set((sessionIds || []).map(String))].filter((id) => /^\d+$/.test(id));
+  const ids = [...new Set((sessionIds || []).map(int64Id).filter(Boolean))];
   if (!sessions || !ids.length) return null;
   return {
     sql: `SELECT CAST(session_id AS STRING) AS session_id FROM ${sessions} WHERE session_id IN (${ids.map((_, i) => `:s${i}`).join(', ')})`,

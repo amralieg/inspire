@@ -29,7 +29,7 @@ test('the names, constants, labels and techniques of the shared cases are the on
   assert.deepEqual([R.FIRST_RUN_RECORDS_LINE, R.SUGGESTED_GROUPS, R.SCOPE_DAYS, R.SCOPE_RECORDS], [1000, 3, 30, 1000]);
   assert.deepEqual([constants.first_run_records_line, constants.scope_via_keys_max], [R.FIRST_RUN_RECORDS_LINE, R.SCOPE_VIA_KEYS_MAX]);
   assert.equal(constants.group_max_null_share, R.GROUP_MAX_NULL_SHARE);
-  assert.deepEqual(R.RUN_SCOPES, ['all', 'groups', 'recent', 'records']);
+  assert.deepEqual(R.RUN_SCOPES, ['all', 'groups', 'recent', 'records', 'custom']);
 });
 
 test('the technique decides where grouping applies, and where each record stands alone', () => {
@@ -70,20 +70,13 @@ test('custom groups under 30 records combine into Other groups, exactly as the s
   }
 });
 
-test('First run is the default above 1,000 records: chosen groups, then a recent period, then N records only when each record stands alone', () => {
-  assert.equal(R.firstRunDefault({ records: 1000, groups: 900, recent: 10, standalone: true }), 'all', 'at the line everything runs');
-  assert.equal(R.firstRunDefault({ records: 1001, groups: 300, recent: 10, standalone: true }), 'groups');
-  assert.equal(R.firstRunDefault({ records: 1001, groups: 0, recent: 10, standalone: true }), 'recent');
-  assert.equal(R.firstRunDefault({ records: 1001, groups: 0, recent: 0, standalone: true }), 'records');
-  assert.equal(R.firstRunDefault({ records: 1001, groups: 0, recent: 0, standalone: false }), 'all',
-    'N records is never offered when records depend on each other, so with no group and no time column only everything is left (must-exclude)');
-});
-
-test('First run defaults to part of the data only above 1,000 records: 999 and 1,000 run everything, 1,001 and 718,931 a recent period', () => {
-  const cases = [[999, 'all'], [1000, 'all'], [1001, 'recent'], [718931, 'recent'], [null, 'all'], [undefined, 'all']];
-  assert.deepEqual(cases.map(([records]) => R.firstRunDefault({ records, groups: 0, recent: 21000, standalone: false })), cases.map(([, want]) => want));
-  assert.equal(R.firstRunDefault({ records: 718931, groups: 0, recent: 0, standalone: false }), 'all',
-    'a recent period with no record in it is never the default (must-exclude)');
+test('First run defaults to about 1,000 records above 1,000 records, exactly as the shared cases say, never a recent period or everything', () => {
+  for (const c of data().first_run.default) assert.equal(R.firstRunDefault({ records: c.records }), c.expected, c.name);
+  const cases = [[999, 'all'], [1000, 'all'], [1001, 'records'], [718931, 'records'], [1e9, 'records'], [null, 'all'], [undefined, 'all']];
+  assert.deepEqual(cases.map(([records]) => R.firstRunDefault({ records })), cases.map(([, want]) => want));
+  for (const records of [1001, 5000, 718931, 1e9]) {
+    for (const scope of ['all', 'recent', 'groups', '']) assert.notEqual(R.firstRunDefault({ records }), scope, `${records} records never default to ${scope || 'no pick'} (must-exclude)`);
+  }
 });
 
 const rows = (pairs) => pairs.map(([column_name, data_type]) => ({ column_name, data_type }));
@@ -95,4 +88,19 @@ test('the time column is a dated column or a date key reached through a dated ta
   }
   for (const c of data().first_run.named_time) assert.equal(R.namedTimeColumn(c.roles, c.assessment, c.table), c.expected, c.name);
   for (const c of data().first_run.time_refs) assert.deepEqual(R.timeRefsOf(c.named, rows(c.columns), c.joins), c.expected, c.name);
+});
+
+test('a personal column is the same column the agent never profiles: the name and tag patterns match the notebook ones', () => {
+  const notebook = JSON.parse(fs.readFileSync(path.resolve(__dirname, '..', '..', 'agent', 'agent', 'dbx_inspire_ai_agent.ipynb'), 'utf8'));
+  const source = notebook.cells.map((c) => [].concat(c.source).join('')).join('\n');
+  const raw = (block) => [...block.matchAll(/r"((?:[^"\\]|\\.)*)"/g)].map((m) => m[1]).join('');
+  const name = /DEEP_PII_NAME_RE = re\.compile\(([\s\S]*?)re\.IGNORECASE\)/.exec(source);
+  const tag = /DEEP_PII_TAG_RE = re\.compile\(([\s\S]*?)re\.IGNORECASE\)/.exec(source);
+  assert.ok(name && tag, 'the notebook holds both patterns');
+  assert.equal(R.PERSONAL_NAME_RE.source, raw(name[1]));
+  assert.equal(R.PERSONAL_TAG_RE.source, raw(tag[1]));
+  assert.ok(R.PERSONAL_NAME_RE.flags.includes('i') && R.PERSONAL_TAG_RE.flags.includes('i'));
+  for (const personal of ['c_email_address', 'c_first_name', 'c_birth_country', 'customer_phone_sk', 'ip']) assert.equal(R.personalColumn(personal), true, personal);
+  for (const plain of ['i_category', 'ss_store_sk', 'region', 'ship_mode']) assert.equal(R.personalColumn(plain), false, `${plain} (must-exclude)`);
+  assert.equal(R.personalColumn('i_brand', { class: 'pii' }), true, 'a tag marks a column personal');
 });

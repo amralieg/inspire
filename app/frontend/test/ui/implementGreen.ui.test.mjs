@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { STUDIO_STATE, built } from './implementFixtures.js';
-import { closeBrowser, onStep, openAsset, openUi, toAppAccess } from './uiSupport.mjs';
+import { closeBrowser, expandBuild, onStep, openAsset, openUi, toAppAccess } from './uiSupport.mjs';
 
 test.after(closeBrowser);
 
@@ -19,7 +19,7 @@ test('a build whose App ended with an info note only reads Ready and green, with
   const { page } = ui;
   try {
     await page.getByRole('heading', { name: 'Build', exact: true }).waitFor();
-    await page.locator('[data-mvp-progress]').waitFor();
+    await expandBuild(page);
     await page.locator('[data-mvp-progress] p', { hasText: /^Ready$/ }).first().waitFor();
     const note = page.locator('[data-mvp-progress] [data-stage-notes] [data-stage-note="App"]');
     await note.waitFor();
@@ -129,7 +129,7 @@ test('a build that ended with a real warning still reads Warnings with a yellow 
   const { page } = ui;
   try {
     await page.getByRole('heading', { name: 'Build', exact: true }).waitFor();
-    await page.locator('[data-mvp-progress]').waitFor();
+    await expandBuild(page);
     await page.locator('[data-mvp-progress] p', { hasText: /^Warnings$/ }).first().waitFor();
     assert.equal(await page.locator('[data-mvp-progress] [data-stage="Finish"]').getAttribute('data-stage-state'), 'warning');
     assert.equal(await page.locator('[data-stage-notes]').count(), 0);

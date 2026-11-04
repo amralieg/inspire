@@ -25,14 +25,6 @@ const linkOf = (page) => decodeFilters(parseHash(hashOf(page)).f);
 const TWELVE = { run_date: { from: '2025-11-01', to: '2026-10-15' } };
 const stored = (page) => page.evaluate((key) => JSON.parse(localStorage.getItem(key) || 'null'), VIEWS_KEY);
 const seed = (page, value) => page.evaluate(([key, text]) => localStorage.setItem(key, text), [VIEWS_KEY, typeof value === 'string' ? value : JSON.stringify(value)]);
-const STUB_CLIPBOARD = () => {
-  window.__copied = [];
-  Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: (t) => { window.__copied.push(t); return Promise.resolve(); } } });
-};
-const REFUSE_CLIPBOARD = () => {
-  Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: () => Promise.reject(new DOMException('Write permission denied.', 'NotAllowedError')) } });
-};
-const STUB_PRINT = () => { window.__printed = 0; window.print = () => { window.__printed += 1; }; };
 
 async function openAt(hash, info = appInfo(), { routes = {}, init, ready = '.ph h1', width } = {}) {
   return openApp(browser, base, info, { routes, width, hash, ready, watch: init && ((page) => page.addInitScript(init)) });
@@ -77,13 +69,13 @@ test('a link restores the filters once the filter list has loaded, and the first
   await context.close();
 });
 
-test('the view in a link opens its tab, and tabs and filters update the address without adding history entries', async () => {
+test('the view in a link opens it, and the Runs button and filters update the address without adding history entries', async () => {
   const { page, seen, context } = await openAt('#/n01_u05?v=runs', appInfo({}, 1, TABLE));
-  await page.waitForFunction(() => document.querySelector('[role="tab"][aria-selected="true"]')?.dataset.view === 'runs');
   await page.locator('.runs .runs-tbl').waitFor();
+  assert.equal(await page.locator('.top-runs').getAttribute('aria-pressed'), 'true');
   assert.equal(hashOf(page), '#/n01_u05?v=runs');
   const entries = await page.evaluate(() => history.length);
-  await page.getByRole('tab', { name: 'Things to fix' }).click();
+  await page.locator('.top-runs').click();
   await page.locator('.kpi-v').first().waitFor();
   assert.equal(hashOf(page), '#/n01_u05');
   await until(() => seen.pages.length > 0);
@@ -92,7 +84,7 @@ test('the view in a link opens its tab, and tabs and filters update the address 
   await page.locator('.fld--range select').selectOption('6m');
   await page.waitForFunction(() => location.hash.includes('f='));
   assert.deepEqual(linkOf(page), { r: { run_date: '6m' }, s: { category: ['Music'] } });
-  await page.getByRole('tab', { name: 'Runs' }).click();
+  await page.locator('.top-runs').click();
   await page.waitForFunction(() => location.hash.startsWith('#/n01_u05?v=runs&f='));
   assert.deepEqual(linkOf(page), { r: { run_date: '6m' }, s: { category: ['Music'] } });
   assert.equal(await page.evaluate(() => history.length), entries);
@@ -106,8 +98,8 @@ test('an old link or a saved view that names the removed Trend tab opens Things 
   const f = encodeFilters({ s: { category: ['Music'] } });
   const { page, seen, context } = await openAt(`#/n01_u05?v=trend&f=${f}`, appInfo({}, 1, TABLE), { routes });
   await toastSays(page, LINK_STALE);
-  await page.waitForFunction(() => document.querySelector('[role="tab"][aria-selected="true"]')?.dataset.view === 'overview');
-  assert.deepEqual(await page.locator('[role="tab"] > span').allInnerTexts(), ['Things to fix', 'Runs']);
+  assert.equal(await page.locator('[role="tab"]').count(), 0);
+  assert.equal(await page.locator('.top-runs').getAttribute('aria-pressed'), 'false');
   await page.waitForFunction(() => document.querySelectorAll('.chip').length === 1);
   assert.deepEqual(await page.locator('.chip').allInnerTexts(), ['Category: Music']);
   await page.waitForFunction(() => !location.hash.includes('v='));
@@ -118,7 +110,7 @@ test('an old link or a saved view that names the removed Trend tab opens Things 
   await pop.getByRole('button', { name: 'Old trend', exact: true }).click();
   await toastSays(page, VIEW_STALE);
   await page.waitForFunction(() => [...document.querySelectorAll('.chip')].map((c) => c.textContent).join() === 'Category: Books');
-  assert.equal(await page.locator('[role="tab"][aria-selected="true"]').getAttribute('data-view'), 'overview');
+  assert.equal(await page.locator('.top-runs').getAttribute('aria-pressed'), 'false');
   assert.deepEqual(linkOf(page), { s: { category: ['Books'] } });
   assert.deepEqual(asked, [], 'nothing asks for the removed trend');
   assert.deepEqual(seen.errors, []);
@@ -230,41 +222,6 @@ test('a link to an unknown page opens the App with a notice instead of breaking'
   await toastSays(page, UNKNOWN_PAGE);
   await page.waitForFunction(() => location.hash === '#/n01_u05');
   assert.equal(await page.locator('.ph h1').innerText(), 'Price-loss decision desk');
-  assert.deepEqual(seen.errors, []);
-  await context.close();
-});
-
-test('Copy link copies the address of this exact view and says so', async () => {
-  const { page, seen, context } = await openAt('#/n01_u05', appInfo(), { init: STUB_CLIPBOARD });
-  await pickCategory(page, 'Home');
-  await page.waitForFunction(() => location.hash.includes('f='));
-  await page.getByRole('button', { name: 'Copy link' }).click();
-  await toastSays(page, 'Link copied');
-  const copied = await page.evaluate(() => window.__copied);
-  assert.deepEqual(copied, [page.url()]);
-  assert.deepEqual(decodeFilters(parseHash(new URL(copied[0]).hash).f), { s: { category: ['Home'] } });
-  assert.deepEqual(seen.errors, []);
-  await context.close();
-});
-
-test('when the browser refuses the clipboard, the link shows selected in a dialog to copy by hand', async () => {
-  const { page, seen, context } = await openAt('#/n01_u05', appInfo(), { init: REFUSE_CLIPBOARD });
-  await pickCategory(page, 'Toys');
-  await page.waitForFunction(() => location.hash.includes('f='));
-  for (const round of ['refused', 'missing']) {
-    if (round === 'missing') await page.evaluate(() => Object.defineProperty(navigator, 'clipboard', { configurable: true, value: undefined }));
-    await page.getByRole('button', { name: 'Copy link' }).click();
-    const dialog = page.getByRole('dialog', { name: 'Copy this link' });
-    await dialog.waitFor();
-    const field = await page.evaluate(() => {
-      const input = document.querySelector('dialog[open] input');
-      return { value: input.value, focused: document.activeElement === input, start: input.selectionStart, end: input.selectionEnd, readOnly: input.readOnly };
-    });
-    assert.deepEqual(field, { value: page.url(), focused: true, start: 0, end: page.url().length, readOnly: true }, round);
-    assert.notEqual(await page.evaluate(() => document.querySelector('.toast')?.textContent || ''), 'Link copied', round);
-    await dialog.getByRole('button', { name: 'Done' }).click();
-    await dialog.waitFor({ state: 'hidden' });
-  }
   assert.deepEqual(seen.errors, []);
   await context.close();
 });
@@ -391,16 +348,15 @@ test('a saved view whose filters went stale applies what it can and says so', as
   await context.close();
 });
 
-test('Print opens the browser print, and the print styles keep the title, the filters in words and the data date while hiding the controls', async () => {
+test('the browser print keeps the title, the filters in words and the data date while hiding the controls', async () => {
   const f = encodeFilters({ s: { category: ['Music', 'Vinyl'] } });
-  const { page, seen, context } = await openAt(`#/n01_u05?f=${f}`, appInfo({ layout: 'sidebar' }, 2), { init: STUB_PRINT });
+  const { page, seen, context } = await openAt(`#/n01_u05?f=${f}`, appInfo({ layout: 'sidebar' }, 2));
   await toastSays(page, LINK_STALE);
   await page.waitForFunction(chartsDrawn, 4);
   await page.getByRole('button', { name: 'Ask Genie', exact: true }).click();
   await page.locator('.genie').waitFor();
   assert.equal(await page.locator('.print-filters').isVisible(), false, 'the filters in words are for paper only');
-  await page.getByRole('button', { name: 'Print' }).click();
-  assert.equal(await page.evaluate(() => window.__printed), 1);
+  assert.equal(await page.getByRole('button', { name: 'Print' }).count(), 0, 'printing is the browser\'s own command');
 
   await page.emulateMedia({ media: 'print' });
   await page.waitForTimeout(500);
@@ -411,7 +367,7 @@ test('Print opens the browser print, and the print styles keep the title, the fi
     const grid = document.querySelector('.charts');
     const cards = [...document.querySelectorAll('.charts > [data-card]')];
     return {
-      hidden: Object.fromEntries(['.genie', '.ptools button', '.top .genie-btn', '.top .ibtn', '.side', '.toast', '.fbar', '.chips', '.tbar', '.pager select', '.pager button']
+      hidden: Object.fromEntries(['.genie', '.top-page .btn', '.top .genie-btn', '.top .ibtn', '.side', '.toast', '.fbar', '.chips', '.tbar', '.pager select', '.pager button']
         .map((s) => [s, hiddenAll(s)])),
       rows: shown(document.querySelector('.pager-n')) && document.querySelector('.pager-n').textContent,
       title: shown(document.querySelector('.ph h1')) && document.querySelector('.ph h1').textContent,
@@ -450,12 +406,12 @@ test('on a phone the page tools shrink to labelled icons and the page still fits
   const { page, seen, context } = await openApp(browser, base, appInfo({ layout: 'tabs' }, 2), { width: 375 });
   await page.goto(`${base}#/n01_u05`);
   await page.waitForFunction(chartsDrawn, 4);
-  const tools = await page.evaluate(() => [...document.querySelectorAll('.ptools > .btn')].map((b) => {
+  const tools = await page.evaluate(() => [...document.querySelectorAll('.top-page .btn')].filter((b) => getComputedStyle(b).display !== 'none').map((b) => {
     const r = b.getBoundingClientRect();
     return { name: b.getAttribute('aria-label'), width: Math.round(r.width), label: getComputedStyle(b.querySelector('span')).display, inView: r.left >= 0 && r.right <= window.innerWidth };
   }));
-  assert.deepEqual(tools.map((t) => t.name), ['Copy link', 'Views', 'Print']);
-  assert.ok(tools.every((t) => t.width >= 40 && t.width <= 44 && t.label === 'none' && t.inView), JSON.stringify(tools));
+  assert.deepEqual(tools.map((t) => t.name), ['Runs (0)', 'Views', 'Refresh now']);
+  assert.ok(tools.every((t) => t.width >= 40 && t.width <= (t.name.startsWith('Runs') ? 64 : 44) && t.label === 'none' && t.inView), JSON.stringify(tools));
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth));
   await page.getByRole('button', { name: 'Views', exact: true }).click();
   const pop = await page.getByRole('dialog', { name: 'Saved views' }).boundingBox();

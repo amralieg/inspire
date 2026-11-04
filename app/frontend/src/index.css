@@ -355,6 +355,32 @@ textarea::placeholder {
   animation: railBuilding 1.6s ease-in-out infinite;
 }
 
+@keyframes assetBuildingGlow {
+  0%, 100% {
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-db-red) 30%, transparent), 0 0 10px 0 color-mix(in srgb, var(--color-db-red) 14%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-db-red) 55%, transparent), 0 0 22px 3px color-mix(in srgb, var(--color-db-red) 30%, transparent);
+  }
+}
+@keyframes assetBuildingBorder {
+  from { background-position: 0 0, 0% 0; }
+  to { background-position: 0 0, 100% 0; }
+}
+.asset-building {
+  border-color: transparent;
+  background:
+    linear-gradient(var(--color-surface), var(--color-surface)) padding-box,
+    linear-gradient(90deg,
+      color-mix(in srgb, var(--color-db-red) 20%, transparent),
+      var(--color-db-red),
+      color-mix(in srgb, var(--color-db-red) 20%, transparent),
+      var(--color-db-red),
+      color-mix(in srgb, var(--color-db-red) 20%, transparent)) border-box;
+  background-size: 100% 100%, 200% 100%;
+  animation: assetBuildingGlow 1.8s ease-in-out infinite, assetBuildingBorder 2.4s linear infinite;
+}
+
 @keyframes editMvpInvite {
   0%, 100% {
     box-shadow: 0 0 0 0 rgba(255, 54, 33, 0.5);
@@ -396,6 +422,11 @@ textarea::placeholder {
   .edit-mvp-invite {
     animation: none !important;
     box-shadow: 0 0 0 3px rgba(255, 54, 33, 0.35);
+  }
+  .asset-building {
+    animation: none !important;
+    background-position: 0 0, 0 0;
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-db-red) 55%, transparent), 0 0 14px 2px color-mix(in srgb, var(--color-db-red) 24%, transparent);
   }
 }
 

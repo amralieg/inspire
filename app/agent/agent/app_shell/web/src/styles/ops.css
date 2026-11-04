@@ -6,10 +6,11 @@
 .fresh-busy{display:inline-flex;flex-wrap:wrap;align-items:center;gap:4px 8px;min-width:0;color:var(--ink);font-size:13px}
 .fresh-busy[data-tone="progress"]>b{color:var(--green-ink)}
 .fresh-busy[data-tone="warn"]>b,.fresh-busy[data-tone="warn"]>svg{color:var(--amber-ink)}
-.fresh-busy .fresh-asof{color:var(--muted)}
+.fresh-run{display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;min-width:0;font-size:13px}
+.fresh-run .fresh-asof{color:var(--muted)}
 .fresh-go{font-size:12.5px}
 .fresh-busy b{font-weight:650}
-.fresh-busy small{font-size:12px;color:var(--muted)}
+.fresh-run small{font-size:12px;color:var(--muted)}
 .fresh-dots{display:inline-flex;gap:3px}
 .fresh-dots i{width:5px;height:5px;border-radius:50%;background:var(--green-line);animation:pulse 1s ease-in-out infinite}
 .fresh-dots i:nth-child(2){animation-delay:.15s}

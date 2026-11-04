@@ -1,3 +1,4 @@
+const { isInt64Id } = require('./int64Id');
 const FEEDBACK_STATUSES = ['accepted', 'rejected', 'planned', 'implemented'];
 const FEEDBACK_NOT_AVAILABLE =
   'Feedback turns on after the next Inspire run in this Inspire Database; then mark each use case Accepted, Planned, Implemented or Reject on its card.';
@@ -18,7 +19,7 @@ function isMissingTableError(err) {
 function validateFeedbackBody(body) {
   const input = body || {};
   const sessionId = String(input.session_id ?? '').trim();
-  if (!/^\d+$/.test(sessionId)) throw badRequest('session_id must be numeric.');
+  if (!isInt64Id(sessionId)) throw badRequest('session_id must be numeric.');
   const status = String(input.status || '').trim().toLowerCase();
   if (!FEEDBACK_STATUSES.includes(status)) throw badRequest(`status must be one of: ${FEEDBACK_STATUSES.join(', ')}.`);
   const useCaseKey = String(input.use_case_key || '').trim();

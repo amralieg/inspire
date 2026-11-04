@@ -53,7 +53,9 @@ test('the Results page is the pre-grid list: sidebar filters, a filter bar and s
   assert.match(results, /aria-label="Use case list"/);
   assert.match(results, /filteredUseCases\.map\(/);
   assert.match(results, /<UseCaseCard\b/);
-  assert.match(results, /onSelectNotAligned=\{\(\) => setFilterStrategy\(NOT_ALIGNED_FILTER\)\}/);
+  assert.match(results, /title="Strategy"[\s\S]*?onChange=\{setFilterStrategy\}/);
+  assert.match(results, /label: STRATEGY_NOT_TIED/);
+  assert.doesNotMatch(results, /onSelectNotAligned|onSelectPath/);
   for (const gone of ['catalog/UseCaseCatalog.jsx', 'catalog/FacetRail.jsx', 'catalog/ColumnChooser.jsx', 'catalog/SavedViews.jsx', 'catalog/UseCaseGrid.jsx']) {
     assert.equal(fs.existsSync(path.join(SRC, 'components', gone)), false, gone);
   }

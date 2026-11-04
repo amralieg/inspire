@@ -1,6 +1,7 @@
 const { appShellCatalog } = require('./appShell');
 const { IMPLEMENT_RUN_ID_PARAM, parseMaybeJson, withInspireInstallParams } = require('./inspireJobParams');
 const { parseExactJson } = require('./exactJson');
+const { int64Id } = require('./int64Id');
 const { plural } = require('./plural');
 const {
   RUN_SCOPE, RUN_SCOPE_OLD_APP, recordedRunScope, runScopeDeclared, runScopeSetting,
@@ -1488,7 +1489,8 @@ function scopeSessions(targets) {
   const sessions = [];
   for (const target of targets || []) {
     for (const u of target.use_cases || []) {
-      if (/^\d+$/.test(str(u.session_id)) && !sessions.includes(str(u.session_id))) sessions.push(str(u.session_id));
+      const sid = int64Id(u.session_id);
+      if (sid && !sessions.includes(sid)) sessions.push(sid);
     }
   }
   return sessions.slice(0, IMPLEMENT_SCOPE_SESSION_CAP);
@@ -2967,7 +2969,7 @@ function useCaseSlug(useCaseId) {
 
 function defaultResultTable(inspireDatabase, useCaseId, sessionId) {
   const slug = useCaseSlug(useCaseId);
-  const sid = /^\d+$/.test(str(sessionId).trim()) ? str(sessionId).trim() : '';
+  const sid = int64Id(sessionId) || '';
   return inspireDatabase && slug && sid ? `${inspireDatabase}.${slug}_s${sid}_out` : '';
 }
 

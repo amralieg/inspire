@@ -173,18 +173,18 @@ test('the Impact page shows estimated, reported and measured apart, promised aga
   await context.close();
 });
 
-test('a one use case App opens on its page, and its menu offers that page, My work and the Impact page with no Overview', async () => {
+test('a one use case App opens on its page, and its menu offers My work, the Impact page and that page with no Overview', async () => {
   const routes = { impact: ({ json }) => json(200, ENTRY), summary: ({ json }) => json(200, SUMMARY) };
   const { page, seen, context } = await openApp(browser, served.base, appInfo({}, 1, { ...TABLE, promised: PROMISED }), { width: 1440, routes });
   await page.waitForFunction(() => document.querySelector('.pg-h h1')?.textContent === 'Price-loss decision desk');
-  assert.deepEqual(await page.locator('.side .nav-t b').allInnerTexts(), ['Price-loss decision desk', 'My work', 'Impact']);
+  assert.deepEqual(await page.locator('.side .nav-t b').allInnerTexts(), ['My work', 'Impact', 'Price-loss decision desk']);
   assert.equal(await page.locator('.side .side-h').innerText(), 'USE CASE');
   assert.equal(await page.locator('.side .nav-i.is-on .nav-t b').innerText(), 'Price-loss decision desk');
   await page.locator('.side .nav-i', { hasText: 'Impact' }).click();
   await page.waitForFunction(() => document.querySelector('.pg-h h1')?.textContent === 'Impact' && document.querySelectorAll('.imp').length === 1);
   assert.equal(await page.evaluate(() => window.location.hash), '#/impact');
   assert.equal(await page.evaluate(() => document.title), 'Impact · Pricing desk');
-  await page.locator('.side .nav-i').first().click();
+  await page.locator('.side .nav-i', { hasText: 'Price-loss decision desk' }).click();
   await page.waitForFunction(() => document.querySelector('.pg-h h1')?.textContent === 'Price-loss decision desk');
   await page.goto(`${served.base}#/results`);
   await page.waitForFunction(() => document.querySelector('.pg-h h1')?.textContent === 'Impact');
@@ -192,11 +192,11 @@ test('a one use case App opens on its page, and its menu offers that page, My wo
   await context.close();
 });
 
-test('a one use case App in the tabs layout has a tab for its page, one for My work and one for Impact', async () => {
+test('a one use case App in the tabs layout has a tab for My work, one for Impact and one for its page', async () => {
   const routes = { impact: ({ json }) => json(200, ENTRY), summary: ({ json }) => json(200, SUMMARY) };
   const { page, seen, context } = await openApp(browser, served.base, appInfo({ layout: 'tabs' }, 1, TABLE), { width: 1440, routes });
   await page.waitForFunction(() => document.querySelector('.pg-h h1')?.textContent === 'Price-loss decision desk');
-  assert.deepEqual(await page.locator('.tabs .tab').allInnerTexts(), ['Price-loss decision desk', 'My work', 'Impact']);
+  assert.deepEqual(await page.locator('.tabs .tab').allInnerTexts(), ['My work', 'Impact', 'Price-loss decision desk']);
   await page.locator('.tabs .tab', { hasText: 'Impact' }).click();
   await page.waitForFunction(() => document.querySelector('.pg-h h1')?.textContent === 'Impact');
   assert.deepEqual(seen.errors, []);
@@ -276,7 +276,7 @@ test('closing a record from its panel reloads the things to fix, so the tab coun
   };
   const { page, seen, context } = await openApp(browser, served.base, appInfo(DECIDE, 1, TABLE), { routes: { ...drawerRoutes(CLOSE_FIELDS, {}, calls), overview } });
   await page.goto(`${served.base}#/n01_u05`);
-  const count = page.locator('[role="tab"][data-view="overview"] small');
+  const count = page.locator('[data-tile="fix"] .kpi-v');
   await count.filter({ hasText: /^2$/ }).waitFor();
   await page.locator('.cell-t').first().click();
   const drawer = page.locator('dialog.drawer');

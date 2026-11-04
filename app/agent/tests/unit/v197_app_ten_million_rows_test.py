@@ -2,13 +2,15 @@ import concurrent.futures
 import re
 import sqlite3
 import threading
+import time
 
 import pytest
 import sqlglot
 
 from v141_app_shell_test import call
 from v148_app_hub_test import hub_shell
-from v166_run_facts_test import FactsWarehouse, _facts_shell, _ready_facts, shell_core, shell_facts, shell_sql
+from v145_lakebase_test import postgres  # noqa: F401
+from v166_run_facts_test import FactsWarehouse, _facts_shell, _ready_facts, engine, shell_core, shell_facts, shell_sql  # noqa: F401
 from v168_run_log_readers_test import COLUMNS, CURRENT, LOG, RESULT, STAMPS, VERSIONS, _logged_layout
 
 HOUR_US = 3600 * 1_000_000
@@ -337,3 +339,507 @@ def test_the_latest_changes_join_the_page_of_rows_without_reading_the_list_a_sec
     assert "IN (SELECT" not in latest and "FROM s" not in latest, latest
     assert rows.count(" FROM s") == 1 and "LEFT JOIN l AS l ON l.`_inspire_lk` = k.`_inspire_key`" in rows
     s.close()
+
+
+PINNED = {"closes": shell_facts.closes_facts("main.pricing.loss_desk_out" + shell_facts.CLOSES_SUFFIX)}
+
+
+def _closes_reads(ws):
+    return [(sql, p) for sql, p, _l in ws.sql if "z.`_inspire_closed_as` AS `_inspire_status`" in sql]
+
+
+def _listed(ws):
+    return [sql for sql, _p, _l in ws.sql if "`_inspire_cz_status`" in sql]
+
+
+def test_the_closes_of_records_unchanged_since_the_run_come_with_the_rows_in_one_statement(tmp_path):
+    s, ws, _page = _state_shell(tmp_path, FactsWarehouse(_ready_facts(**PINNED)))
+    ws.keys, ws.status, ws.closes = [], {"k1": "Done", "k4": "Done"}, {"k1": {"_inspire_closed_by": "pat@example.com"},
+                                                                      "k4": {"_inspire_closed_by": "sam@example.com"}}
+    status, out = call(s, "POST", "records", body={"page": "n01_u05", "sort": {"key": "rank", "dir": "asc"}, "limit": 25})
+    assert status == 200 and not out["errors"], out
+    assert _closes_reads(ws) == [], "no statement of its own reads the closes"
+    (rows,) = _listed(ws)
+    assert " cz AS (" in rows and "LEFT JOIN cz ON cz.`_inspire_cz_key` = " in rows and " hx AS (" not in rows
+    assert f"FROM {shell_facts.table_name(PINNED['closes']['table'])} AS z" in rows
+    assert sqlglot.parse_one(rows, read="databricks") is not None
+    closed = {r["_inspire_key"]: r.get("_inspire_closed_by") for r in out["rows"]}
+    assert closed["k1"] == "pat@example.com" and closed["k4"] == "sam@example.com" and closed["k2"] is None
+    assert not any(name.startswith("_inspire_cz_") for r in out["rows"] for name in r), "the joined columns never reach the page"
+    s.close()
+
+
+def test_a_record_changed_since_the_run_reads_its_close_from_the_changes_and_the_rest_come_with_the_rows(tmp_path):
+    s, ws, _page = _state_shell(tmp_path, FactsWarehouse(_ready_facts(**PINNED)))
+    ws.keys, ws.status = ["k1"], {"k1": "Done", "k4": "Done"}
+    ws.closes = {"k1": {"_inspire_closed_by": "old@example.com"}, "k4": {"_inspire_closed_by": "sam@example.com"}}
+    ws.changed_closes = {"k1": {"_inspire_closed_by": "pat@example.com"}}
+    status, out = call(s, "POST", "records", body={"page": "n01_u05", "sort": {"key": "rank", "dir": "asc"}, "limit": 25})
+    assert status == 200 and not out["errors"], out
+    (read, params), = _closes_reads(ws)
+    assert " q AS (" in read and "k1" in [p["value"] for p in params] and "k4" not in [p["value"] for p in params]
+    closed = {r["_inspire_key"]: r.get("_inspire_closed_by") for r in out["rows"]}
+    assert closed["k1"] == "pat@example.com" and closed["k4"] == "sam@example.com"
+    s.close()
+
+
+@pytest.mark.parametrize("keys, window, pinned, why", [(None, False, True, "too many changes to name"),
+                                                     ([], True, True, "a time window lists no actions"),
+                                                     ([], False, False, "the run kept no closes, so the rows have none to join")])
+def test_the_closes_stay_a_statement_of_their_own_when_the_rows_cannot_carry_them(tmp_path, keys, window, pinned, why):
+    s, ws, _page = _state_shell(tmp_path, FactsWarehouse(_ready_facts(**(PINNED if pinned else {}))))
+    ws.keys, ws.status, ws.closes = keys, {"k1": "Done"}, {"k1": {"_inspire_closed_by": "pat@example.com"}}
+    body = {"page": "n01_u05", "sort": {"key": "rank", "dir": "asc"}, "limit": 25}
+    if window:
+        body["window"] = "week"
+    status, out = call(s, "POST", "records", body=body)
+    assert status == 200, out
+    assert _listed(ws) == [], why
+    if not window:
+        assert len(_closes_reads(ws)) == 1
+        assert {r["_inspire_key"]: r.get("_inspire_closed_by") for r in out["rows"]}["k1"] == "pat@example.com"
+    s.close()
+
+
+class DeltaOnlyLakebase:
+    def run(self, sql, params, limit, queued=False):
+        raise shell_core.shell_pg.NotHeld("main.ops.loss_desk_out")
+
+    def noted(self, text):
+        pass
+
+    def pending(self):
+        return False
+
+    def close(self):
+        pass
+
+
+def test_a_lakebase_app_keeps_the_closes_out_of_the_rows_so_the_rows_stay_on_its_copies(tmp_path):
+    s, ws, _page = _state_shell(tmp_path, FactsWarehouse(_ready_facts(**PINNED)))
+    s.lakebase = DeltaOnlyLakebase()
+    ws.keys, ws.status, ws.closes = [], {"k1": "Done"}, {"k1": {"_inspire_closed_by": "pat@example.com"}}
+    status, out = call(s, "POST", "records", body={"page": "n01_u05", "sort": {"key": "rank", "dir": "asc"}, "limit": 25})
+    assert status == 200, out
+    (read, _params), = _closes_reads(ws)
+    assert _listed(ws) == [] and " hx AS (" not in read and "_closes` AS z WHERE" in read, "the closes are read from the ones the run kept"
+    s.lakebase = None
+    s.close()
+
+
+def test_the_closes_joined_to_the_rows_are_the_closes_the_key_read_gives():
+    facts = _ready_facts(**PINNED)
+    joined = shell_sql.inline_closes_ctes({"facts": facts, "table": "main.ops.loss_desk_out"})["cz"]
+    alone, params = shell_sql.closed_query({"id": "n01_u05"}, "main.ops.loss_desk_out", ["k1"], {"record_key"}, None, facts, [])
+    assert [p["value"] for p in params] == ["k1"] and alone.endswith(" WHERE z.`_inspire_k` IN (:p0)")
+    assert alone.removesuffix(" WHERE z.`_inspire_k` IN (:p0)") == joined.replace("`_inspire_cz_key`", "`record_key`").replace(
+        "`_inspire_cz_status`", "`_inspire_status`").replace("`_inspire_cz_", "`_inspire_")
+    unpinned, _p = shell_sql.closed_query({"id": "n01_u05"}, "main.ops.loss_desk_out", ["k1"], {"record_key"}, None, _ready_facts(), [])
+    assert " hx AS (" in unpinned and shell_facts.table_name(facts["closes"]["table"]) not in unpinned, "a run that kept no closes has them read from the records people acted on"
+
+
+PRICED = {"value_formula": "{rank:number} x {PRICE:money}", "value_expression": "rank * PRICE",
+          "value_assumptions": '[{"name": "PRICE", "value": 20.0, "kind": "money"}]',
+          "edits": [{"name": "PRICE", "value": "30.0", "changed_by": "owner01", "changed_at": "2026-10-01T00:00:00Z", "note": ""}]}
+
+
+COUNT_SQL = "SELECT COUNT(*) AS `n`, unix_micros("
+ASSUMPTIONS_SQL = "_assumptions` WHERE `use_case_id` = "
+
+
+class AssumptionOverlap(FactsWarehouse):
+    def __init__(self, facts, money):
+        super().__init__(facts, money=money)
+        self.assuming, self.overlapped = threading.Event(), None
+
+    def run_sql(self, warehouse, sql, params, limit=5000):
+        if ASSUMPTIONS_SQL in sql:
+            self.assuming.set()
+        elif sql.startswith(COUNT_SQL) and self.overlapped is None:
+            self.overlapped = self.assuming.wait(timeout=2)
+        return super().run_sql(warehouse, sql, params, limit)
+
+
+def _assumption_reads(ws):
+    return [sql for sql, _p, _l in ws.sql if ASSUMPTIONS_SQL in sql]
+
+
+def _summary_reads(ws):
+    return [sql for sql, _p, _l in ws.sql if "_summary` WHERE " in sql and not sql.startswith(COUNT_SQL)]
+
+
+def test_the_assumptions_of_a_cold_page_are_read_once_its_run_summary_is_read_without_waiting_for_the_count_of_changes(tmp_path):
+    s, ws, _page = _state_shell(tmp_path, AssumptionOverlap(_ready_facts(), PRICED))
+    body = {"page": "n01_u05", "sort": {"key": "value_at_stake", "dir": "desc"}, "limit": 25}
+    status, out = call(s, "POST", "records", body=body)
+    assert status == 200 and not out["errors"] and out["money"]["changed"] is True, out
+    assert ws.overlapped is True, "the assumptions do not wait for the count of changes since the run"
+    for _again in range(2):
+        assert call(s, "POST", "records", body=body)[0] == 200
+    assert len(_assumption_reads(ws)) == 1 and len(_summary_reads(ws)) == 1, ws.sql
+    assert s.heads == {} and s.lookups == {}
+    s.close()
+
+
+@pytest.mark.parametrize("method, path, query, body", [("POST", "overview", None, {"page": "n01_u05"}),
+                                                       ("GET", "impact", {"page": "n01_u05"}, None)])
+def test_every_view_that_prices_a_cold_page_reads_its_assumptions_without_waiting_for_the_count_of_changes(tmp_path, method, path, query, body):
+    s, ws, _page = _state_shell(tmp_path, AssumptionOverlap(_ready_facts(), PRICED))
+    status, out = call(s, method, path, query=query, body=body)
+    assert status == 200, out
+    assert ws.overlapped is True, "the assumptions do not wait for the count of changes since the run"
+    assert len(_assumption_reads(ws)) == 1 and len(_summary_reads(ws)) == 1, ws.sql
+    s.close()
+
+
+@pytest.mark.parametrize("method, path, query, body", [("POST", "records", None, {"page": "n01_u05", "limit": 25}),
+                                                       ("POST", "overview", None, {"page": "n01_u05"}),
+                                                       ("GET", "impact", {"page": "n01_u05"}, None)])
+def test_a_page_whose_run_names_no_assumption_never_reads_them_until_a_run_names_one(tmp_path, method, path, query, body):
+    s, ws, _page = _state_shell(tmp_path, FactsWarehouse(_ready_facts()))
+    assert call(s, method, path, query=query, body=body)[0] == 200
+    assert _assumption_reads(ws) == [], "an unpriced run costs no assumptions read"
+    ws.money = dict(PRICED)
+    s.forget()
+    assert call(s, method, path, query=query, body=body)[0] == 200
+    assert len(_assumption_reads(ws)) == 1
+    s.close()
+
+
+def test_opening_a_page_reads_its_assumptions_from_the_first_records_after_its_run_summary(tmp_path):
+    s, ws, page = _state_shell(tmp_path, AssumptionOverlap(_ready_facts(), PRICED))
+    headers = {"x-forwarded-email": "pat@example.com"}
+    s.defaults(headers, page["id"])
+    status, out = call(s, "POST", "records", headers=headers, body={"page": "n01_u05", "sort": {"key": "value_at_stake", "dir": "desc"},
+                                                                    "limit": 25})
+    assert status == 200 and not out["errors"] and out["money"]["changed"] is True, out
+    assert ws.overlapped is True and len(_assumption_reads(ws)) == 1 and len(_summary_reads(ws)) == 1, ws.sql
+    s.close()
+
+
+def test_the_money_of_a_page_whose_state_is_held_reads_the_held_summary(tmp_path):
+    s, ws, page = _state_shell(tmp_path, FactsWarehouse(_ready_facts(), money=PRICED))
+    who = ("pat", "token")
+    row = dict({k: v for k, v in PRICED.items() if k != "edits"}, run_id="r5", updated_at="x")
+    s.cache.put(("state", who, page["id"]), {"row": row, "facts": None, "stamp": None, "error": ""}, 60)
+    summary, edits = s.money_inputs(ws, who, page)
+    assert summary is row and [e["value"] for e in edits] == ["30.0"] and _summary_reads(ws) == []
+    s.cache.put(("state", who, page["id"]), {"row": None, "facts": None, "stamp": None, "error": "the summary is gone"}, 60)
+    with pytest.raises(shell_core.QueryError, match="the summary is gone"):
+        s.money_inputs(ws, who, page)
+    s.close()
+
+
+def test_an_early_assumptions_read_is_shared_forgotten_by_a_write_and_never_used_once_cancelled(tmp_path):
+    s, ws, page = _state_shell(tmp_path, FactsWarehouse(_ready_facts(), money=PRICED))
+    who = ("pat", "token")
+    first = s.early_assumptions(ws, who, page, 5)
+    assert s.early_assumptions(ws, who, page, 5) is first, "requests opening the same page share one early read"
+    s.forget()
+    assert s.early == {}, "a write forgets the assumptions read before it"
+    cancelled = concurrent.futures.Future()
+    cancelled.cancel()
+    s.cache.put(("state", who, page["id"]), {"row": dict(PRICED, run_id="r5", updated_at="x"), "facts": None, "stamp": None, "error": ""}, 60)
+    edits = s.assumption_rows(ws, who, page, early=(cancelled, 0.0))
+    assert [e["value"] for e in edits] == ["30.0"] and len(_assumption_reads(ws)) == 2
+    s.close()
+
+
+def test_an_early_assumptions_read_that_failed_or_was_cancelled_is_read_again_and_a_warm_request_joins_a_live_one(tmp_path):
+    s, ws, page = _state_shell(tmp_path, FactsWarehouse(_ready_facts(), money=PRICED))
+    who = ("pat", "token")
+    assert s.early_assumptions(ws, who, page, 5, start=False) is None, "a warm request starts no early read"
+    live = s.early_assumptions(ws, who, page, 5)
+    assert s.early_assumptions(ws, who, page, 5, start=False) is live, "a warm request joins the early read a cold one started"
+    failed = concurrent.futures.Future()
+    failed.set_exception(shell_core.QueryError("the warehouse timed out"))
+    s.early[("assume", who, page["id"])] = (failed, s.clock())
+    assert s.early_assumptions(ws, who, page, 5, start=False) is None and ("assume", who, page["id"]) not in s.early
+    again = s.early_assumptions(ws, who, page, 5)
+    assert again is not live and again[0].result()["rows"], "a failed early read is read again, never reused"
+    s.close()
+
+
+@pytest.mark.parametrize("caller", ["page_state", "page_head", "run"])
+def test_a_read_that_lands_between_a_cache_miss_and_the_lock_is_used_not_read_again(tmp_path, caller):
+    s, ws, page = _state_shell(tmp_path, FactsWarehouse(_ready_facts(), money=PRICED))
+    who = ("pat", "token")
+    sql, params = shell_sql.assumptions_query(page, 5)
+    reads = {"page_state": lambda: s.page_state(ws, who, page), "page_head": lambda: s.page_head(ws, who, page),
+             "run": lambda: s.run(ws, who, sql, params, 5, delta=True)}
+    watched = (lambda k: k == ("state", who, page["id"])) if caller != "run" else (lambda k: k[:2] == (who, sql))
+    plain, raced = s.cache.get, []
+
+    def get(key):
+        found = plain(key)
+        if watched(key) and not raced:
+            raced.append(1)
+            racer = threading.Thread(target=reads[caller])
+            racer.start()
+            racer.join(5)
+        return found
+
+    s.cache.get = get
+    reads[caller]()
+    counted = _summary_reads(ws) if caller != "run" else _assumption_reads(ws)
+    assert raced and len(counted) == 1, ws.sql
+    s.close()
+
+
+def test_an_early_assumptions_read_older_than_a_page_state_is_dropped(tmp_path):
+    now = [1_000.0]
+    s, ws, page = _state_shell(tmp_path, FactsWarehouse(_ready_facts(), money=PRICED))
+    s.clock = lambda: now[0]
+    first = s.early_assumptions(ws, ("pat", "token"), page, 5)
+    now[0] += shell_core.STAMP_TTL_S
+    assert s.early_assumptions(ws, ("sam", "token"), page, 5) is not first and set(s.early) == {("assume", ("sam", "token"), page["id"])}
+    s.close()
+
+
+class SummaryFails(FactsWarehouse):
+    def __init__(self, facts, error):
+        super().__init__(facts, money=PRICED)
+        self.error = error
+
+    def run_sql(self, warehouse, sql, params, limit=5000):
+        if "_summary` WHERE " in sql and not sql.startswith(COUNT_SQL):
+            self.sql.append((sql, params, limit))
+            raise self.error
+        return super().run_sql(warehouse, sql, params, limit)
+
+
+@pytest.mark.parametrize("error, raised", [(shell_core.QueryError("[INSUFFICIENT_PERMISSIONS] no SELECT on the summary"), shell_core.QueryError),
+                                           (RuntimeError("the warehouse went away"), RuntimeError)])
+def test_a_run_summary_that_cannot_be_read_fails_the_money_and_leaves_nothing_waiting(tmp_path, error, raised):
+    s, ws, page = _state_shell(tmp_path, SummaryFails(_ready_facts(), error))
+    with pytest.raises(raised):
+        s.money_inputs(ws, ("pat", "token"), page)
+    assert s.heads == {} and s.lookups == {} and _assumption_reads(ws) == []
+    s.close()
+
+
+class SlowSummary(FactsWarehouse):
+    def __init__(self, facts):
+        super().__init__(facts, money=PRICED)
+        self.release = threading.Event()
+
+    def run_sql(self, warehouse, sql, params, limit=5000):
+        if "_summary` WHERE " in sql and not sql.startswith(COUNT_SQL):
+            self.release.wait(timeout=5)
+        return super().run_sql(warehouse, sql, params, limit)
+
+
+def test_many_requests_waiting_on_one_cold_page_read_its_summary_once_and_all_finish(tmp_path):
+    s, ws, page = _state_shell(tmp_path, SlowSummary(_ready_facts()))
+    who = ("pat", "token")
+    with concurrent.futures.ThreadPoolExecutor(2 * shell_core.STAMP_WORKERS) as callers:
+        money = [callers.submit(s.money_inputs, ws, who, page) for _ in range(shell_core.STAMP_WORKERS)]
+        states = [callers.submit(s.page_state, ws, who, page) for _ in range(shell_core.STAMP_WORKERS)]
+        for _ in range(shell_core.STAMP_WORKERS):
+            s.warm_state(ws, who, page)
+        time.sleep(0.2)
+        ws.release.set()
+        found = {f.result(timeout=10)[0]["run_id"] for f in money}
+        held = [f.result(timeout=10) for f in states]
+    assert found == {"r5"} and all(h["facts"] for h in held) and len(_summary_reads(ws)) == 1, _summary_reads(ws)
+    assert len(_assumption_reads(ws)) == 1 and s.heads == {} and s.lookups == {}
+    s.close()
+
+
+def test_each_run_keeps_the_latest_close_of_its_closed_records_beside_their_closing_and_says_so_in_its_facts(agent_ns):
+    from v120_artifacts_support import FakeSpark
+    from v142_scd_test import TABLE
+    spark = FakeSpark(lambda sql: [{"version": 3}] if sql.startswith("DESCRIBE HISTORY") else None)
+    facts = agent_ns["inspire_run_facts"](spark, TABLE, "N01-U01", "g2", "priority_tier", 0, lambda line: None)
+    assert facts is not None and shell_facts.pinned_closes(facts)
+    assert facts["closes"] == shell_facts.closes_facts(TABLE + shell_facts.CLOSES_SUFFIX)
+    (made,) = [s for s in spark.statements if s.startswith(f"CREATE OR REPLACE TABLE {shell_facts.table_name(facts['closes']['table'])} ")]
+    assert " CLUSTER BY (`_inspire_k`) AS WITH hx AS (" in made and made.endswith("FROM hk AS z WHERE z.`_inspire_kth` = 1")
+    (closed,) = [s for s in spark.statements if s.startswith(f"CREATE OR REPLACE TABLE {shell_facts.table_name(facts['closed'])} AS ")]
+    assert closed.endswith(" SELECT * FROM hm"), "the closing the Apps built before read keeps its columns"
+    assert TABLE + shell_facts.CLOSES_SUFFIX in agent_ns["implement_companion_tables"](TABLE)
+    fewer = dict(facts["closes"], fields=facts["closes"]["fields"][:-1])
+    assert not shell_facts.pinned_closes(dict(facts, closes=fewer)), "a run that kept fewer closes is read as keeping none"
+
+
+DATED_PAGE = {"datasets": [{"name": "a", "sql": "SELECT * FROM main.ops.facts_out"},
+                           {"name": "b", "sql": "SELECT valid_to, action_due FROM main.ops.facts_out"}],
+              "filters": [{"id": "ran", "type": "date_range", "columns": {"a": "as_of_date"}},
+                          {"id": "lived", "type": "date_range", "columns": {"a": "valid_from", "b": "valid_to"}},
+                          {"id": "due", "type": "date_range", "columns": {"b": "action_due"}},
+                          {"id": "again", "type": "date_range", "columns": {"b": "valid_to", "a": "as_of_date"}}]}
+
+
+def test_the_date_bounds_read_together_equal_each_filter_read_alone_on_a_real_postgres(engine):
+    idents = [f["id"] for f in DATED_PAGE["filters"]]
+    sql, params = shell_sql.bounds_together_query(DATED_PAGE, idents)
+    assert sql.count("FROM (SELECT * FROM main.ops.facts_out) AS d") == 1 and sql.count("FROM (SELECT valid_to, action_due") == 1, \
+        "each dataset is scanned once for every date filter that reads it"
+    assert sql.count("MIN(CAST(") == 4, "a column two filters read is read once"
+    (together,) = engine["rows"](sql, params)
+    for i, ident in enumerate(idents):
+        (alone,) = engine["rows"](*shell_sql.bounds_query(DATED_PAGE, ident))
+        assert (together[f"low_{i}"], together[f"high_{i}"]) == (alone["low"], alone["high"]), ident
+    assert together["low_2"] is None and together["high_1"] is not None, "a column with no dates gives none, and one empty side never hides the other"
+
+
+def _dated_hub(tmp_path, ws=None):
+    from v148_app_hub_test import hub_page
+    page = hub_page()
+    page["filters"].append({"id": "due", "type": "date_range", "label": "Due", "grain": "month", "default": "all",
+                            "columns": {"records": "action_due"}})
+    s, ws, _made = hub_shell(tmp_path, pages=[page], ws=ws)
+    return s, ws, page
+
+
+def _bounds_reads(ws):
+    return [sql for sql, _p, _l in ws.sql if "AS low_0" in sql or "MIN(v) AS low" in sql]
+
+
+def test_the_page_open_reads_every_date_range_in_one_statement_that_the_defaults_and_the_filters_share(tmp_path):
+    s, ws, page = _dated_hub(tmp_path)
+    headers = {"x-forwarded-access-token": "token", "x-forwarded-email": "pat@example.com"}
+    with concurrent.futures.ThreadPoolExecutor(2) as pool:
+        opened = pool.submit(call, s, "GET", "defaults", {"page": page["id"]}, headers)
+        listed = pool.submit(call, s, "GET", "filters", {"page": page["id"]}, headers)
+        d_status, defaults = opened.result()
+        assert call(s, "POST", "records", body={"page": page["id"]}, headers=headers)[0] == 200
+        f_status, filters = listed.result()
+    assert d_status == f_status == 200 and not defaults["errors"], defaults
+    assert _bounds_reads(ws) == [shell_sql.bounds_together_query(page, ["run_date", "due"])[0]], _bounds_reads(ws)
+    alone, _errors = s._parallel(s.bounds_jobs(ws, None, page, apart=True))
+    for f in filters["filters"]:
+        if f["type"] == "date_range":
+            row = alone[("filter", f["id"])]["rows"][0]
+            assert (f["low"], f["high"]) == (row["low"], row["high"]) and not f.get("error"), f
+    assert set(defaults["range"]) == {"run_date", "due"}
+    s.close()
+
+
+def test_a_page_s_filter_reads_wait_for_a_read_slot_and_its_records_reads_never_do(tmp_path):
+    s, ws, page = _dated_hub(tmp_path)
+    headers = {"x-forwarded-access-token": "token", "x-forwarded-email": "pat@example.com"}
+    real, seen = s.execute, []
+    s.execute = lambda w, sql, params, limit, delta=False, queued=False: seen.append((sql, queued)) or real(w, sql, params, limit, delta, queued)
+    assert call(s, "POST", "records", body={"page": page["id"]}, headers=headers)[0] == 200
+    listed = len(seen)
+    assert listed and not any(queued for _sql, queued in seen), "the first records never queue"
+    status, out = call(s, "GET", "filters", {"page": page["id"]}, headers)
+    assert status == 200 and not [f for f in out["filters"] if f.get("error")], out
+    reads = [(sql, queued) for sql, queued in seen[listed:] if sql in _bounds_reads(ws) or "SELECT DISTINCT" in sql]
+    assert reads and all(queued for _sql, queued in reads), reads
+    assert all(sql in _bounds_reads(ws) or "SELECT DISTINCT" in sql for sql, queued in seen if queued), "only filter reads queue"
+    status, _found = call(s, "GET", "filters/options", {"page": page["id"], "filter": "category", "q": "A"}, headers)
+    assert status == 200 and seen[-1][1] is True, (status, seen[-1])
+    s.close()
+
+
+def test_when_the_dates_cannot_be_read_together_each_filter_reads_its_own_and_one_broken_column_fails_only_its_filter(tmp_path):
+    from v148_app_hub_test import SqliteWorkspace
+    broken = shell_core.QueryError("[UNRESOLVED_COLUMN] A column `action_due` cannot be resolved.")
+    s, ws, page = _dated_hub(tmp_path, SqliteWorkspace(fail={"CAST(`action_due` AS DATE)": broken}))
+    headers = {"x-forwarded-access-token": "token", "x-forwarded-email": "pat@example.com"}
+    status, out = call(s, "GET", "filters", {"page": page["id"]}, headers)
+    assert status == 200, out
+    found = {f["id"]: f for f in out["filters"]}
+    assert found["run_date"]["low"] and found["run_date"]["high"] and not found["run_date"].get("error")
+    assert "action_due" in found["due"]["error"]
+    assert len(_bounds_reads(ws)) == 3, "the joint read, then one read for each date filter"
+    status, opened = call(s, "GET", "defaults", {"page": page["id"]}, headers)
+    assert status == 200 and "run_date" in opened["range"] and "filter:due" in opened["errors"], opened
+    s.close()
+
+
+def test_a_page_with_one_date_range_keeps_its_own_bounds_read(tmp_path):
+    from v148_app_hub_test import hub_page
+    s, ws, _made = hub_shell(tmp_path)
+    page = hub_page()
+    status, _out = call(s, "GET", "defaults", {"page": page["id"]}, {"x-forwarded-access-token": "token"})
+    assert status == 200 and _bounds_reads(ws) == [shell_sql.bounds_query(page, "run_date")[0]]
+    s.close()
+
+
+OPENER = {"x-forwarded-access-token": "token", "x-forwarded-email": "pat@example.com"}
+
+
+def _choice_reads(ws):
+    return [i for i, (sql, _p, _l) in enumerate(ws.sql) if "SELECT DISTINCT CAST(" in sql]
+
+
+def _opening_hub(tmp_path):
+    from v148_app_hub_test import SqliteWorkspace, hub_page
+    s, ws, _made = hub_shell(tmp_path, pages=[hub_page()], ws=SqliteWorkspace())
+    return s, ws
+
+
+def _filters_took(s):
+    started = time.monotonic()
+    status, out = call(s, "GET", "filters", {"page": "n01_u05"}, OPENER)
+    assert status == 200 and next(f for f in out["filters"] if f["id"] == "category")["options"], out
+    return time.monotonic() - started
+
+
+def test_an_opening_page_reads_its_filter_choices_only_after_its_first_records(tmp_path):
+    s, ws = _opening_hub(tmp_path)
+    served, inner = [], s.list_records
+
+    def listing(*args, **kwargs):
+        out = inner(*args, **kwargs)
+        served.append(len(ws.sql))
+        return out
+
+    s.list_records = listing
+    with concurrent.futures.ThreadPoolExecutor(2) as pool:
+        assert pool.submit(call, s, "GET", "defaults", {"page": "n01_u05"}, OPENER).result()[0] == 200
+        listed = pool.submit(call, s, "GET", "filters", {"page": "n01_u05"}, OPENER)
+        time.sleep(0.3)
+        assert _choice_reads(ws) == [] and not listed.done(), "the choices wait for the first records"
+        assert call(s, "POST", "records", body={"page": "n01_u05"}, headers=OPENER)[0] == 200
+        status, out = listed.result(timeout=shell_core.LIST_YIELD_S)
+    assert status == 200 and next(f for f in out["filters"] if f["id"] == "category")["options"], out
+    assert served and _choice_reads(ws) and min(_choice_reads(ws)) >= served[0], (served, _choice_reads(ws))
+    assert s.opening == {}
+    s.close()
+
+
+def test_the_filter_choices_never_wait_when_no_page_open_is_under_way(tmp_path, monkeypatch):
+    monkeypatch.setattr(shell_core, "LIST_YIELD_S", 30.0)
+    s, _ws = _opening_hub(tmp_path)
+    assert _filters_took(s) < 5, "the filters alone read their choices at once"
+    s.close()
+
+
+def test_the_filter_choices_stop_waiting_at_the_deadline_when_the_records_never_come(tmp_path, monkeypatch):
+    monkeypatch.setattr(shell_core, "LIST_YIELD_S", 0.5)
+    s, _ws = _opening_hub(tmp_path)
+    assert call(s, "GET", "defaults", {"page": "n01_u05"}, OPENER)[0] == 200
+    assert 0.3 <= _filters_took(s) < 5
+    assert s.opening == {}
+    s.close()
+
+
+@pytest.mark.parametrize("breaks", ["defaults", "records"])
+def test_a_page_open_that_fails_never_holds_back_its_filter_choices(tmp_path, monkeypatch, breaks):
+    monkeypatch.setattr(shell_core, "LIST_YIELD_S", 30.0)
+    s, _ws = _opening_hub(tmp_path)
+    if breaks == "defaults":
+        s.bounds = lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("the warehouse went away"))
+        with pytest.raises(RuntimeError):
+            call(s, "GET", "defaults", {"page": "n01_u05"}, OPENER)
+    else:
+        assert call(s, "GET", "defaults", {"page": "n01_u05"}, OPENER)[0] == 200
+        s.list_records = lambda *args, **kwargs: (_ for _ in ()).throw(shell_core.HttpError(502, "the list failed"))
+        assert call(s, "POST", "records", body={"page": "n01_u05"}, headers=OPENER)[0] == 502
+    assert s.opening == {}
+    assert _filters_took(s) < 5
+    s.close()
+
+
+def test_run_facts_whose_closes_name_another_table_are_read_as_keeping_none():
+    from v166_run_facts_test import HUB_TABLE as base
+    row = lambda facts: {"run_id": "r5", shell_sql.RUN_FACTS_COLUMN: __import__("json").dumps(facts)}
+    mine = _ready_facts(closes=shell_facts.closes_facts(base + shell_facts.CLOSES_SUFFIX))
+    assert shell_sql.pinned_closes(shell_sql.state_facts(row(mine), base))
+    for table in ("main.other.secret", base + "_closed", base.upper() + shell_facts.CLOSES_SUFFIX + "x", ""):
+        held = shell_sql.state_facts(row(dict(mine, closes=shell_facts.closes_facts(table))), base)
+        assert held and "closes" not in held and not shell_sql.pinned_closes(held), table

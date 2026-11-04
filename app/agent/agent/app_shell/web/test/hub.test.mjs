@@ -107,14 +107,14 @@ test('the header carries the Databricks logo, the hub title and when the use cas
   await context.close();
 });
 
-test('the side menu lists the Overview, each use case with its status and the Impact page, and hides a use case the viewer may not read', async () => {
+test('the side menu lists My work, the Impact page, then the Overview and each use case with its status, and hides a use case the viewer may not read', async () => {
   const { page, seen, context } = await open(INFO());
   await page.waitForFunction(() => document.querySelector('.nav-t small.warn'));
   const items = await page.locator('.side .nav-t').evaluateAll((all) => all.map((t) => [t.querySelector('b').innerText, t.querySelector('small')?.innerText,
     t.querySelector('small')?.className || '']));
-  assert.deepEqual(items, [['Overview', 'All use cases', ''], ['My work', 'What you did, and when', ''], ['Impact', 'What the use cases delivered', ''],
+  assert.deepEqual(items, [['My work', 'What you did, and when', ''], ['Impact', 'What the use cases delivered', ''], ['Overview', 'All use cases', ''],
     ['Price-loss decision desk', '3 to fix', ''], ['Second desk 1', '2 to fix', ''], ['Second desk 2', 'Not updated', 'bad'], ['Second desk 3', 'Not ready yet', 'warn']],
-    'My work sits right below the Overview, and Impact below it');
+    'My work first, then Impact, then the use cases under their label');
   assert.equal(await page.locator('.side .side-h').innerText(), 'USE CASES');
   assert.equal(await page.locator('.side .nav-i.is-on .nav-t b').innerText(), 'Overview');
   const zone = await page.evaluate(() => Intl.DateTimeFormat().resolvedOptions().timeZone);
@@ -405,7 +405,7 @@ test('a use case page leads with its area, title, Notify me, AI summary, four ti
   const { page, seen, context } = await openApp(browser, served.base, INFO(), { width: 1440, routes: hubRoutes() });
   await page.goto(`${served.base}#/n01_u05`);
   await page.waitForFunction(() => document.querySelector('.ph h1')?.textContent === 'Price-loss decision desk' && document.querySelectorAll('.kpi-v').length === 4);
-  assert.equal(await page.locator('.ph .ph-dom').innerText(), 'PRICING › MARKDOWN CONTROL');
+  assert.equal(await page.locator('.top .mark-t small').innerText(), 'Pricing › Markdown control · N01-U05');
   const notify = page.getByRole('link', { name: 'Notify me' });
   assert.equal(await notify.getAttribute('href'), 'https://example.com/sql/alerts');
   assert.equal(await notify.getAttribute('target'), '_blank');
@@ -467,7 +467,7 @@ test('charts sit on top and the table is always last: on the Overview, on a use 
     const usecase = await pageOrder(page);
     assert.ok(usecase.charts >= 5 && usecase.above, `${where}: every chart of the use case page sits above its table`);
     assert.ok(usecase.last, `${where}: the use case page ends with its table, not ${usecase.label}`);
-    await page.locator('[data-view="runs"]').click();
+    await page.locator('.top-runs').click();
     await page.waitForSelector('[data-bars="to_fix_runs"] .vb-c');
     const runs = await pageOrder(page);
     assert.ok(runs.charts >= 1 && runs.above, `${where}: the To fix per run chart sits above the runs table`);
@@ -551,8 +551,9 @@ test('a use case that is not updated or not ready says so in plain words, and on
     return bar.bottom <= charts.top && charts.bottom <= table.top && document.querySelector('main .page').lastElementChild.matches('.card--table');
   }), 'the filters come first, then the charts, and the table is last, so the table can be filtered');
   await page.goto(`${served.base}#/n02_u01`);
-  await page.waitForSelector('.uc-status:not(.is-bad):not(.is-wait)');
-  assert.equal(await page.locator('.uc-status').innerText(), 'Nothing to act on yet, because no record has 5,000 USD or more at stake, the amount this use case reviews from.');
+  await page.waitForSelector('[data-nothing-fix] [data-nothing]');
+  assert.equal(await page.locator('[data-nothing-fix] [data-nothing]').innerText(), 'Nothing to act on yet, because no record has 5,000 USD or more at stake, the amount this use case reviews from.');
+  assert.equal(await page.locator('.uc-status').count(), 0, 'nothing to act on is not a status warning');
   assert.deepEqual(seen.errors, []);
   await context.close();
 });
@@ -569,9 +570,9 @@ test('a hub with no money recorded says Not measured yet instead of an amount, a
   await context.close();
 });
 
-test('the tabs layout puts the Overview first, then My work and the Impact page', async () => {
+test('the tabs layout puts My work first, then the Impact page, then the Overview and the use cases', async () => {
   const { page, seen, context } = await open(appInfo({ layout: 'tabs' }, 3, TABLE));
-  assert.deepEqual(await page.locator('.tabs .tab').allInnerTexts(), ['Overview', 'My work', 'Impact', 'Price-loss decision desk', 'Second desk 1', 'Second desk 2']);
+  assert.deepEqual(await page.locator('.tabs .tab').allInnerTexts(), ['My work', 'Impact', 'Overview', 'Price-loss decision desk', 'Second desk 1', 'Second desk 2']);
   await page.locator('.tabs .tab', { hasText: 'Impact' }).click();
   await page.waitForFunction(() => document.querySelector('.pg-h h1')?.textContent === 'Impact');
   assert.deepEqual(seen.errors, []);
@@ -889,7 +890,7 @@ test('a hub whose Impact screen is off lists no Impact page and its link opens t
   const { page, seen, context } = await open(info);
   await page.waitForFunction(() => document.querySelector('.nav-t small.warn'));
   assert.deepEqual(await page.locator('.side .nav-t b').allInnerTexts(),
-    ['Overview', 'My work', 'Price-loss decision desk', 'Second desk 1', 'Second desk 2', 'Second desk 3']);
+    ['My work', 'Overview', 'Price-loss decision desk', 'Second desk 1', 'Second desk 2', 'Second desk 3']);
   await page.goto(`${served.base}#/impact`);
   await page.waitForFunction(() => document.querySelector('.pg-h h1')?.textContent === 'Overview');
   assert.equal(await page.locator('.side .nav-i.is-on .nav-t b').innerText(), 'Overview');
@@ -905,8 +906,9 @@ test('a use case whose Runs screen is off shows only Things to fix and never ask
   const asked = [];
   page.on('request', (r) => { if (new URL(r.url()).pathname === '/api/runs') asked.push(r.url()); });
   await page.goto(`${served.base}#/n01_u05?v=runs`);
-  await page.waitForFunction(() => document.querySelector('[role="tab"][aria-selected="true"]')?.dataset.view === 'overview');
-  assert.deepEqual(await page.locator('[role="tab"] > span').allInnerTexts(), ['Things to fix']);
+  await page.waitForFunction(() => location.hash === '#/n01_u05');
+  assert.equal(await page.locator('[role="tab"]').count(), 0);
+  assert.equal(await page.locator('.top-runs').count(), 0, 'no Runs button when the Runs screen is off');
   assert.equal(await page.locator('section.runs').count(), 0);
   assert.deepEqual(asked, []);
   assert.deepEqual(seen.errors, []);

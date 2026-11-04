@@ -1,10 +1,11 @@
 const { ACTIVE_RUN_STATES } = require('./genieJobGuard');
+const { int64Id, requireInt64Id } = require('./int64Id');
 
 const LIST_PAGES = 5;
 
 function genieNotebookJobName(sessionId) {
-  const sid = String(sessionId ?? '').trim();
-  if (!/^\d+$/.test(sid)) throw new Error('session_id must be a numeric Inspire session id.');
+  const sid = int64Id(sessionId);
+  if (!sid) throw new Error('session_id must be a numeric Inspire session id.');
   return `Inspire AI - Genie Code - ${sid}`;
 }
 
@@ -49,7 +50,7 @@ function notebookRunOf(run) {
 async function latestGenieNotebookRun(fetchJson, sessionId) {
   const job = await newestJobNamed(fetchJson, genieNotebookJobName(sessionId));
   if (!job) return null;
-  const got = await fetchJson(`/api/2.1/jobs/runs/list?job_id=${Number(job.job_id)}&limit=1`);
+  const got = await fetchJson(`/api/2.1/jobs/runs/list?job_id=${requireInt64Id(job.job_id, 'job_id')}&limit=1`);
   if (!got.ok) throw apiError('Reading the Genie Code notebook run', got);
   const run = (got.data.runs || [])[0];
   return run ? notebookRunOf({ job_id: job.job_id, ...run }) : null;

@@ -1,3 +1,4 @@
+import gzip
 import hashlib
 import io
 import json
@@ -12,17 +13,18 @@ def wheel(files: dict) -> bytes:
     buffer = io.BytesIO()
     with zipfile.ZipFile(buffer, "w") as archive:
         for name, body in files.items():
-            archive.writestr(name, body)
+            archive.writestr(zipfile.ZipInfo(name, date_time=(1980, 1, 1, 0, 0, 0)), body)
     return buffer.getvalue()
 
 
 def genie_package() -> bytes:
     buffer = io.BytesIO()
-    with tarfile.open(fileobj=buffer, mode="w:gz") as archive:
-        body = b"#!/bin/sh\n"
-        info = tarfile.TarInfo("genie-package/bin/genie")
-        info.size, info.mode = len(body), 0o755
-        archive.addfile(info, io.BytesIO(body))
+    with gzip.GzipFile(fileobj=buffer, mode="wb", mtime=0) as packed:
+        with tarfile.open(fileobj=packed, mode="w") as archive:
+            body = b"#!/bin/sh\n"
+            info = tarfile.TarInfo("genie-package/bin/genie")
+            info.size, info.mode = len(body), 0o755
+            archive.addfile(info, io.BytesIO(body))
     return buffer.getvalue()
 
 

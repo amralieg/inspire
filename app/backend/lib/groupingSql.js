@@ -22,10 +22,13 @@ const GROUPING_PREVIEW_MS = 120000;
 const GROUPING_ROW_LIMIT = 100;
 const GROUPING_BYTE_LIMIT = 1048576;
 const GROUPING_SETTINGS = ['group_sql', 'group_sql_tables', 'group_sql_hash', 'group_sql_checked_by', 'group_sql_checked_at'];
+const SCOPE_SQL_SETTINGS = ['scope_sql', 'scope_sql_tables', 'scope_sql_hash', 'scope_sql_checked_by', 'scope_sql_checked_at'];
+const SCOPE_SQL_SAMPLE = 10;
 const GROUPING_ASSUMPTIONS_SUFFIX = '_assumptions';
 const GROUPING_ASSUMPTION_COLUMNS = [['use_case_id', 'STRING'], ['name', 'STRING'], ['value', 'DOUBLE'], ['changed_by', 'STRING'], ['changed_at', 'TIMESTAMP'],
   ['note', 'STRING'], ['text_value', 'STRING']];
 const GROUPING_SAVED_NOTE = 'Custom grouping SQL checked and saved in Inspire';
+const SCOPE_SQL_SAVED_NOTE = 'Custom first run SQL checked and saved in Inspire';
 const GROUPING_NO_SIGN_IN = 'Inspire runs a custom grouping with your own sign-in, and this request carries none, so it ran nothing; '
   + 'ask an App manager to re-run the Inspire installer, which turns on user authorization with the sql scope';
 const GROUPING_DENIED = 'You cannot read every table this grouping SQL reads with your own sign-in, so Inspire ran nothing and saved nothing';
@@ -60,8 +63,37 @@ function groupingTotalsSql(sql, main, keys) {
     + `(SELECT COUNT(*) FROM ${main.sql} m WHERE NOT EXISTS (SELECT 1 FROM inspire_grouping g WHERE ${match})) AS no_group`;
 }
 
-function shapeProblem(columns, keys) {
+function scopeSqlTotalsSql(sql, keys) {
+  return `SELECT COUNT(*) AS row_count, COUNT(DISTINCT ${keys.map(quotedIdent).join(', ')}) AS record_keys FROM ${wrapGroupingSql(sql)}`;
+}
+
+function scopeSqlSampleSql(sql, keys) {
+  return `SELECT ${keys.map(quotedIdent).join(', ')} FROM ${wrapGroupingSql(sql)} LIMIT ${SCOPE_SQL_SAMPLE}`;
+}
+
+function scopeSqlPreviewView(sample, totalsRow, keys) {
+  const totals = { rows: count(totalsRow.row_count), record_keys: count(totalsRow.record_keys) };
+  const one = totals.rows === totals.record_keys;
+  const some = totals.record_keys > 0;
+  const rules = [
+    { id: 'one_row_per_record', ok: one, text: one ? `Each of the ${totals.record_keys} records has one row.`
+      : `The SQL returns ${totals.rows} rows for ${totals.record_keys} records; return exactly one row per record.` },
+    { id: 'some_records', ok: some, text: some ? `The first run covers ${totals.record_keys} ${totals.record_keys === 1 ? 'record' : 'records'}.`
+      : 'The SQL returns no record, so a first run on it would cover nothing.' },
+  ];
+  const rows = (sample || []).slice(0, SCOPE_SQL_SAMPLE).map((r) => Object.fromEntries(keys.map((k) => [k, r[k] == null ? null : String(r[k])])));
+  return { ok: one && some, totals, rules, sample: rows, key_columns: keys, text: rows.length ? `Showing ${rows.length} of the records it returns.` : '' };
+}
+
+function shapeProblem(columns, keys, purpose = 'grouping') {
   const have = new Set(columns.map((c) => String(c).toLowerCase()));
+  if (purpose === 'first_run') {
+    const wanted = new Set(keys.map((k) => k.toLowerCase()));
+    const missing = keys.filter((c) => !have.has(c.toLowerCase()));
+    const extra = columns.map(String).filter((c) => !wanted.has(c.toLowerCase()));
+    if (!missing.length && !extra.length) return '';
+    return `The first run SQL returns ${columns.join(', ') || 'no column'}; return only the record key ${keys.length === 1 ? 'column' : 'columns'} ${keys.join(', ')}.`;
+  }
   const missing = ['group_name', ...keys].filter((c) => !have.has(c.toLowerCase()));
   if (!missing.length) return '';
   return `The grouping SQL returns no column named ${missing.join(', ')}; return one row per record with the record key `
@@ -113,13 +145,13 @@ function groupingSettingsCreateSql(table) {
   return `CREATE TABLE IF NOT EXISTS ${table.sql} (${GROUPING_ASSUMPTION_COLUMNS.map(([name, kind]) => `${name} ${kind}`).join(', ')})`;
 }
 
-function groupingSettingsInsert(table, row) {
+function groupingSettingsInsert(table, row, names = GROUPING_SETTINGS, note = GROUPING_SAVED_NOTE) {
   const values = [row.sql, JSON.stringify(row.tables), row.hash, row.checkedBy, String(row.checkedAt)];
   return {
     sql: `INSERT INTO ${table.sql} (use_case_id, name, value, changed_by, changed_at, note, text_value) VALUES `
-      + GROUPING_SETTINGS.map((name, i) => `(:use_case_id, '${name}', NULL, :changed_by, :changed_at, :note, :v${i})`).join(', '),
+      + names.map((name, i) => `(:use_case_id, '${name}', NULL, :changed_by, :changed_at, :note, :v${i})`).join(', '),
     parameters: [{ name: 'use_case_id', value: String(row.useCaseId), type: 'STRING' }, { name: 'changed_by', value: String(row.checkedBy), type: 'STRING' },
-      { name: 'changed_at', value: String(row.checkedAt), type: 'TIMESTAMP' }, { name: 'note', value: GROUPING_SAVED_NOTE, type: 'STRING' },
+      { name: 'changed_at', value: String(row.checkedAt), type: 'TIMESTAMP' }, { name: 'note', value: note, type: 'STRING' },
       ...values.map((value, i) => ({ name: `v${i}`, value: String(value), type: 'STRING' }))],
   };
 }
@@ -136,8 +168,11 @@ module.exports = {
   GROUPING_ROW_LIMIT,
   GROUPING_BYTE_LIMIT,
   GROUPING_SETTINGS,
+  SCOPE_SQL_SETTINGS,
+  SCOPE_SQL_SAMPLE,
   GROUPING_ASSUMPTION_COLUMNS,
   GROUPING_SAVED_NOTE,
+  SCOPE_SQL_SAVED_NOTE,
   GROUPING_NO_SIGN_IN,
   GROUPING_DENIED,
   checkGroupingSql,
@@ -150,6 +185,9 @@ module.exports = {
   groupingTotalsSql,
   shapeProblem,
   groupingPreviewView,
+  scopeSqlTotalsSql,
+  scopeSqlSampleSql,
+  scopeSqlPreviewView,
   groupingSettingsTable,
   groupingSettingsCreateSql,
   groupingSettingsInsert,

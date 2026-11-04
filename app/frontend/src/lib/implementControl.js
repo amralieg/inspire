@@ -194,23 +194,23 @@ export function buildSummary(items) {
 
 const STAGE_PENDING = ['running', 'next', 'waiting'];
 
-function plannedWork(plan, stages, buildingNow) {
+function plannedWork(plan, stages, building) {
   const acts = new Map(planActions(plan).map((a) => [a.id, a]));
   return (output) => {
     const act = acts.get(output.id);
     if (!act) return null;
     const stage = (stages || []).find((s) => s.id === output.label) || null;
     if (stage && !STAGE_PENDING.includes(stage.state)) return { settled: true };
-    return { now: stage ? stage.state === 'running' : buildingNow === output.label, doing: planActionText(act).now };
+    return { now: building.has(output.id), doing: planActionText(act).now };
   };
 }
 
-export function controlTiles(live, latest, { active = false, buildingNow = '', plan = null, stages = null } = {}) {
+export function controlTiles(live, latest, { active = false, building: now = new Set(), plan = null, stages = null } = {}) {
   const rows = controlRows(live, latest);
   const byId = new Map(rows.map((row) => [row.id, row]));
   const chosen = latest?.spec_json?.outputs || {};
   const assets = latest?.asset_status || {};
-  const work = active && plan && !plan.pending ? plannedWork(plan, stages, buildingNow) : null;
+  const work = active && plan && !plan.pending ? plannedWork(plan, stages, now) : null;
   return {
     strips: rows.filter((row) => row.id === 'build' || row.id === 'job'),
     tiles: IMPLEMENT_OUTPUTS.map((output) => {
@@ -223,7 +223,7 @@ export function controlTiles(live, latest, { active = false, buildingNow = '', p
         return { output, kind: 'off', ...(note ? { note } : {}) };
       }
       if (active && plan?.pending) return { output, kind: 'planning' };
-      if (active && !plan) return { output, kind: 'building', now: buildingNow === output.label };
+      if (active && !plan) return { output, kind: 'building', now: now.has(output.id) };
       if (building) return { output, kind: 'building', ...building };
       if (assets[output.id]?.state === 'failed') return { output, kind: 'failed', error: String(assets[output.id].error || '') };
       if (latest?.status === IMPLEMENT_VIBE_NOT_MET) return { output, kind: 'held', note: VIBE_NOT_MET_FIRST };
@@ -324,11 +324,17 @@ const DONE = IMPLEMENT_DONE_STATUSES;
 const BUILD_STEP = { queued: 0, checking: 2 };
 const WARNING_START = /; (?=[A-Z][A-Za-z ]{0,40}: )/;
 const savedVibes = (row, id) => String(row?.spec_json?.outputs?.[vibesKey(id)] ?? '').trim();
+const messageParts = (row) => String(row?.status_message || '').split(WARNING_START);
+
+export function statusWarnings(row) {
+  if (String(row?.status || '') !== 'ready_with_warnings') return [];
+  return [...new Set(messageParts(row).map((w) => w.trim()).filter(Boolean))];
+}
 
 export function vibeWarnings(row, id) {
   const label = IMPLEMENT_OUTPUTS.find((o) => o.id === id)?.label || id;
   const lead = `${label} vibe not done: `;
-  const listed = [...String(row?.status_message || '').split(WARNING_START), ...builtWarnings(row, id)];
+  const listed = [...messageParts(row), ...builtWarnings(row, id)];
   return [...new Set(listed.filter((w) => w.includes(lead)).map((w) => w.slice(w.indexOf(lead)).trim()))];
 }
 

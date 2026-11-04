@@ -303,3 +303,35 @@ test('starred use cases always come first in star order and the rest keep their 
   assert.equal(compareBestOfBestFirst(undefined, null), 0);
 });
 
+
+test('a use case names the strategy part it serves, with its level and the entries above it', async () => {
+  const lib = await load();
+  const context = lib.strategyContext({ strategy_coverage: { source: 'customer', levels: ['Pillar', 'Objective'],
+    entries: [{ id: 'S1', path: 'Customer', level: '' }, { id: 'S1.1', path: 'Customer > Grow repeat purchases', level: '' }, { id: 'S2', path: 'Operations', level: 'Goal' }] } });
+  assert.equal(context.builtIn, false);
+  assert.equal(context.hasEntries, true);
+  const goals = lib.strategyGoals(lib.v130View(RESULTS_UC), context);
+  assert.deepEqual(goals.map((g) => [g.name, g.level, g.under]), [['Grow repeat purchases', 'Objective', 'Customer'], ['Operations', 'Goal', '']]);
+  assert.equal(goals[0].evidence, 'orders.customer_id repeat rate');
+  const fromPath = lib.strategyGoals(lib.v130View({ 'Strategy Path': 'A > B' }), null);
+  assert.deepEqual(fromPath.map((g) => [g.name, g.level, g.under]), [['B', '', 'A']]);
+  assert.deepEqual(lib.strategyGoals(lib.v130View({ 'Strategy Alignment': [] }), context), []);
+});
+
+test('Not tied to your strategy shows only when a strategy or built-in goals exist', async () => {
+  const lib = await load();
+  const notTied = lib.v130View({ 'Strategy Alignment': [], 'Strategy Path': '' });
+  const builtin = lib.strategyContext({ strategy_coverage: { source: 'builtin', entries: [{ id: 'S1', path: 'Increase Revenue', level: 'Strategic Goal' }] } });
+  assert.equal(builtin.builtIn, true);
+  assert.equal(lib.showsNotTied(notTied, builtin), true);
+  const noGoals = lib.strategyContext({ strategy_coverage: { source: 'builtin', entries: [] } });
+  assert.equal(noGoals.hasEntries, false);
+  assert.equal(lib.showsNotTied(notTied, noGoals), false);
+  assert.equal(lib.showsNotTied(notTied, null), true);
+  assert.equal(lib.showsNotTied(lib.v130View(RESULTS_UC), builtin), false);
+  assert.equal(lib.showsNotTied(lib.v130View({ Name: 'legacy' }), builtin), false);
+  const none = lib.strategyContext({});
+  assert.equal(none.builtIn, false);
+  assert.equal(none.hasEntries, true);
+  assert.equal(lib.STRATEGY_NOT_TIED, 'Not tied to your strategy');
+});

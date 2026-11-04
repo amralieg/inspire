@@ -208,6 +208,45 @@ def test_failed_answers_fall_back_to_labelled_placeholders_and_a_failed_step(age
     assert [f["step"] for f in obj.failed_steps] == ["Strategy Alignment"]
 
 
+def flaky_alignment(failures):
+    calls = []
+
+    def responder(prompt_name, prompt_vars, skip_cache):
+        calls.append(skip_cache)
+        if len(calls) <= failures:
+            raise RuntimeError("endpoint returned 500")
+        return json.dumps([answer(p["use_case_id"]) for p in json.loads(prompt_vars["use_cases_json"])])
+    return responder, calls
+
+
+def recorded_errors(obj):
+    return [line for level, line in obj.logger.records if level == "ERROR"]
+
+
+def test_a_strategy_alignment_call_that_fails_then_succeeds_on_retry_logs_no_error(agent_ns):
+    from v120_runtime_reliability_test import RecordingLogger
+    responder, calls = flaky_alignment(failures=1)
+    obj = harness(agent_ns, responder=responder)
+    obj.logger = RecordingLogger()
+    ucs = [uc("U1")]
+    obj._run_strategy_alignment(ucs)
+    assert calls == [False, True] and ucs[0]["Strategy Alignment"]
+    assert recorded_errors(obj) == []
+
+
+def test_a_strategy_alignment_call_that_fails_every_attempt_logs_exactly_one_error_naming_the_call(agent_ns):
+    from v120_runtime_reliability_test import RecordingLogger
+    responder, calls = flaky_alignment(failures=99)
+    obj = harness(agent_ns, responder=responder)
+    obj.logger = RecordingLogger()
+    ucs = [uc("U1")]
+    obj._run_strategy_alignment(ucs)
+    errors = recorded_errors(obj)
+    assert len(calls) >= 2 and ucs[0]["Strategy Alignment"] == []
+    assert len(errors) == 1 and errors[0].startswith("[StrategyAlign]") and "placeholder KPIs" in errors[0], errors
+    assert "U1: RuntimeError: endpoint returned 500" in errors[0]
+
+
 def test_builtin_goals_reproduce_the_legacy_alignment_values(agent_ns):
     builtin = agent_ns["build_builtin_strategy"]("Reduce Cost (automate manual work), Increase Revenue")
     obj = harness(agent_ns, answers={

@@ -8,6 +8,10 @@ import {
   kpiText,
   matchRateText,
   priorityMatches,
+  showsNotTied,
+  strategyGoals,
+  STRATEGY_BUILTIN_NOTE,
+  STRATEGY_NOT_TIED,
 } from '../lib/v130UseCase';
 import { readOnlyReason } from '../lib/showcase';
 import { placeholderWords } from '../lib/placeholderWords';
@@ -32,21 +36,62 @@ function Bullets({ items }) {
   );
 }
 
-export function StrategyChip({ info }) {
+export function StrategyChip({ info, strategy = null }) {
   if (!info?.hasStrategyData) return null;
   if (!info.paths.length) {
+    if (!showsNotTied(info, strategy)) return null;
     return (
-      <span className="text-[10px] px-2 py-0.5 rounded-full border border-border bg-bg text-text-tertiary font-medium">Not aligned</span>
+      <span data-strategy-chip="" className="text-[10px] px-2 py-0.5 rounded-full border border-border bg-bg text-text-tertiary font-medium">{STRATEGY_NOT_TIED}</span>
     );
   }
-  const extra = info.paths.length - 1;
+  const goals = strategyGoals(info, strategy);
+  const extra = goals.length - 1;
   return (
     <span
+      data-strategy-chip=""
       className="max-w-[22rem] truncate text-[10px] px-2 py-0.5 rounded-full border border-db-red/20 bg-db-red-50 text-db-red-fg font-medium"
       title={info.paths.join('\n')}
     >
-      {info.paths[0]}{extra > 0 ? ` +${extra}` : ''}
+      {goals[0].name}{extra > 0 ? ` +${extra}` : ''}
     </span>
+  );
+}
+
+function StrategySection({ info, priorities, strategy }) {
+  const goals = strategyGoals(info, strategy);
+  const notTied = !goals.length && showsNotTied(info, strategy);
+  const kpis = info.kpis.map((k) => String(k.name ?? '').trim()).filter(Boolean);
+  return (
+    <Section title="Strategy" tone="text-db-red-fg">
+      <div data-strategy-line="" className="space-y-1.5">
+        {goals.map((g) => (
+          <div key={g.path}>
+            <p className="text-sm text-text-primary">
+              Serves <span className="font-semibold">{g.name}</span>
+              {g.level && <span className="text-text-secondary"> ({g.level})</span>}
+              {g.under && <span className="text-text-secondary">, part of {g.under}</span>}
+            </p>
+            {g.evidence && <p className="text-xs text-text-secondary leading-relaxed">{g.evidence}</p>}
+          </div>
+        ))}
+        {notTied && (
+          <p className="text-sm text-text-secondary">
+            <span className="font-semibold text-text-primary">{STRATEGY_NOT_TIED}.</span> It was found in your data and stays in the catalog on its own merit.
+          </p>
+        )}
+        {priorities.length > 0 && (
+          <p className="text-xs text-text-secondary">
+            <span className="font-semibold text-text-primary">Business priorities:</span> {priorities.map(placeholderWords).join('; ')}
+          </p>
+        )}
+        {goals.length > 0 && kpis.length > 0 && (
+          <p className="text-xs text-text-secondary">
+            <span className="font-semibold text-text-primary">Measured by:</span> {kpis.join('; ')}
+          </p>
+        )}
+        {strategy?.builtIn && <p data-strategy-builtin="" className="text-[11px] text-text-tertiary">{STRATEGY_BUILTIN_NOTE}</p>}
+      </div>
+    </Section>
   );
 }
 
@@ -70,39 +115,17 @@ export function BestOfBestDetail({ info }) {
   );
 }
 
-export function UseCaseStrategyDetail({ info, knownPriorities, foundationsById }) {
-  if (!info || (!info.hasStrategyData && !info.hasValue && !info.dataEvidence && !info.foundations.length)) return null;
+export function UseCaseStrategyDetail({ info, knownPriorities, foundationsById, strategy = null }) {
+  if (!info) return null;
   const priorities = priorityMatches(info.priorityText, knownPriorities);
+  const showsStrategy = info.hasStrategyData && (info.paths.length > 0 || showsNotTied(info, strategy) || priorities.length > 0);
+  if (!showsStrategy && !info.hasValue && !info.dataEvidence && !info.foundations.length) return null;
   const evidenceTables = info.dataEvidence ? Object.entries(info.dataEvidence.tables) : [];
   const evidenceJoins = info.dataEvidence ? info.dataEvidence.joins : [];
   const signal = info.dataEvidence ? dataSignalLine(info.dataEvidence.signal) : null;
   return (
     <div className="space-y-4 rounded-lg border border-border bg-bg p-4">
-      {info.hasStrategyData && (
-        <Section title="Strategy alignment" tone="text-db-red-fg">
-          {info.alignments.length > 0 ? (
-            <div className="space-y-1.5">
-              {info.alignments.map((a) => (
-                <div key={a.id || a.path}>
-                  <p className="text-sm font-semibold text-text-primary">{a.path}</p>
-                  {a.evidence && <p className="text-xs text-text-secondary leading-relaxed">{a.evidence}</p>}
-                </div>
-              ))}
-            </div>
-          ) : info.paths.length > 0 ? (
-            <Bullets items={info.paths} />
-          ) : (
-            <p className="text-sm text-text-tertiary">
-              Not aligned to any strategy entry. It was found in your data and stays in the catalog on its own merit.
-            </p>
-          )}
-          {priorities.length > 0 && (
-            <p className="mt-1.5 text-xs text-text-secondary">
-              <span className="font-semibold text-text-primary">Business priorities:</span> {priorities.map(placeholderWords).join('; ')}
-            </p>
-          )}
-        </Section>
-      )}
+      {showsStrategy && <StrategySection info={info} priorities={priorities} strategy={strategy} />}
       {info.kpis.length > 0 && (
         <Section title="KPIs" tone="text-info-fg">
           <ul className="space-y-1.5">

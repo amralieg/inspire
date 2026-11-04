@@ -9,11 +9,10 @@ import DataTable from './DataTable.jsx';
 import { fieldsOf, tableContext } from './explain.js';
 import { AskGenie } from './AskGenie.jsx';
 import {
-  RUNS_PAGE, couldSaveRunFormula, coveredText, errorText, foundText, groupingText, lastedText, runBars, runFlag, runKey, runsPageText, stampText, stepsText,
+  RUNS_PAGE, STOPPED, couldSaveRunFormula, coveredText, errorText, foundText, groupingText, lastedText, runBars, runFlag, runKey, runsPageText, stampText, stepsText,
   triggerText,
 } from './freshness.js';
 
-const STOPPED = ['failed', 'canceled', 'skipped'];
 const slug = (text) => String(text).toLowerCase().replace(/[^a-z0-9]+/g, '-');
 const None = () => <span className="none">none</span>;
 const count = (n) => (n == null ? <None /> : integer(n));
@@ -37,8 +36,7 @@ export function useRuns(pageId, offset, nonce, on = true) {
 
 export function runCounts(data) {
   if (!data) return {};
-  const latest = data.offset === 0 ? (data.runs || []).find((r) => r.status === 'done' && r.to_fix != null) : null;
-  return { overview: latest ? latest.to_fix : null, runs: data.total };
+  return { runs: data.total, latest: data.offset === 0 ? (data.runs || [])[0] || null : null };
 }
 
 const TABLE_COLUMNS = [

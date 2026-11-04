@@ -275,7 +275,7 @@ def test_the_run_summary_always_reads_delta(tmp_path):
     s, _ws, _made = shell(tmp_path, ws=AiWorkspace(summary=RUN))
     seen = []
     real = s.execute
-    s.execute = lambda ws, sql, params, limit, delta=False: (seen.append(delta), real(ws, sql, params, limit, delta))[1]
+    s.execute = lambda ws, sql, params, limit, delta=False, queued=False: (seen.append(delta), real(ws, sql, params, limit, delta, queued))[1]
     call(s, "GET", "summary", query={"page": "n01_u05"})
     assert seen == [True, True], "the summary and the early count of the changes since its run both read Delta"
 

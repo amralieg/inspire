@@ -57,12 +57,33 @@ const DISCOVERY_OPTIONS = [
   {
     key: 'Deep',
     icon: Eye,
-    desc: 'Reads aggregates over your tables: row counts, date coverage, null rates and join match rates. Never sends a data row to the AI and never reads the values of personal columns.',
+    badge: 'Highly recommended',
+    desc: 'Checks your data with aggregates before it suggests use cases. Never sends a data row to the AI and never reads the values of personal columns.',
   },
   {
     key: 'Standard',
     icon: Lock,
     desc: 'Reads metadata only. Never reads a row of your data.',
+  },
+];
+const DEEP_PANEL = [
+  {
+    key: 'why',
+    icon: Search,
+    title: 'Why Deep',
+    text: 'Deep checks your data before it suggests use cases. It counts the rows in each table, finds the dates each table covers, measures how empty each column is, and tests whether joins between tables really match. For each use case, it also checks that the data holds a real signal, for example that the groups it compares, such as stores or regions, hold enough rows.',
+  },
+  {
+    key: 'quality',
+    icon: Target,
+    title: 'Higher quality',
+    text: 'Your use cases rest on data that is really there. Fewer use cases built on empty or thin tables, broken joins or the wrong dates get through. Each use case shows the data evidence behind it.',
+  },
+  {
+    key: 'privacy',
+    icon: Shield,
+    title: 'Your data stays private',
+    text: 'Only aggregates are used, such as row counts, date ranges, empty shares, join match rates, and the most common values of non-personal category columns. No data row is ever sent to the AI. Personal columns are only counted, and their values are never read. The AI runs on Databricks model serving, so your data never leaves Databricks.',
   },
 ];
 const TABLE_ELECTION = ['Let Inspire Decides', 'All Tables', 'Transactional Only'];
@@ -1293,12 +1314,37 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                         <Icon size={13} className={active ? 'text-db-red-fg' : 'text-text-tertiary'} />
                         {opt.key}
                         {opt.key === 'Deep' && <span className="text-[10px] font-normal text-text-tertiary">(default)</span>}
+                        {opt.badge && (
+                          <span data-discovery-badge={opt.key} className="ml-1 rounded-full bg-success-bg px-2 py-0.5 text-[10px] font-semibold text-success-fg">
+                            {opt.badge}
+                          </span>
+                        )}
                       </span>
                       <p className="text-[10px] text-text-tertiary leading-snug mt-1">{opt.desc}</p>
                       {active && <CheckCircle2 size={14} className="absolute top-2.5 right-2.5 text-db-red-fg" />}
                     </button>
                   );
                 })}
+              </div>
+              <div data-deep-panel className="mt-2.5 rounded-xl border border-success/30 bg-success-bg p-3.5">
+                <p className="flex items-center gap-1.5 text-xs font-bold text-success-fg">
+                  <Eye size={13} />
+                  Deep discovery is highly recommended
+                </p>
+                <div className="mt-2 grid grid-cols-1 gap-2.5 md:grid-cols-3">
+                  {DEEP_PANEL.map((part) => {
+                    const PartIcon = part.icon;
+                    return (
+                      <div key={part.key} data-deep-panel-part={part.key} className="rounded-lg bg-surface/70 p-2.5">
+                        <p className="flex items-center gap-1.5 text-[11px] font-semibold text-text-primary">
+                          <PartIcon size={12} className="text-success-fg" />
+                          {part.title}
+                        </p>
+                        <p className="mt-1 text-[11px] leading-snug text-text-secondary">{part.text}</p>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
               {prefillNote && <p className="text-[10px] text-text-tertiary mt-1.5">{prefillNote}</p>}
             </FieldSection>

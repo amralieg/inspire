@@ -6,7 +6,7 @@ import path from 'node:path';
 import { createRequire } from 'node:module';
 import { MVP_JOB, RESULTS, STUDIO_STATE, built, builtSpec } from './implementFixtures.js';
 import { REVIEW_PORTFOLIO, REVIEW_SESSIONS, REVIEW_STATE } from './reviewFixtures.js';
-import { closeAsset, closeBrowser, openAsset, openUi, until } from './uiSupport.mjs';
+import { closeAsset, closeBrowser, expandBuild, openAsset, openUi, until } from './uiSupport.mjs';
 import { apiWatch, keepToOrigins, readOnlyInspire, recordMvpApp, routeInspireDemo, tabButton, walkInspireDemo, walkMvpViews, watchOffline } from '../../../scripts/showcaseRecorder.mjs';
 import { DEMO_READS, DEMO_READS_WHEN, routeOf, unrecorded } from '../../../scripts/showcaseRoutes.mjs';
 import { SHOWCASE_BUTTON, SHOWCASE_DASHBOARD_NOTE, SHOWCASE_GENIE_NOTE, SHOWCASE_NOTE, SHOWCASE_OPEN_APP, SHOWCASE_PAGES } from '../../src/lib/showcase.js';
@@ -77,6 +77,7 @@ const HOSTED_OUTPUTS = ['app', 'dashboard', 'genie_space'];
 const showView = async (page, id) => {
   if (id !== 'build') return openAsset(page, id);
   if (await page.locator('[data-mvp-panel]').count()) await closeAsset(page);
+  await expandBuild(page);
   return page.locator('[data-mvp-progress]');
 };
 const runPane = (page) => page.getByRole('region', { name: 'Run and schedule', exact: true });
@@ -84,7 +85,8 @@ const demoWrite = (page, pathname) => page.evaluate(async ([to, header, id]) => 
   const r = await fetch(to, { method: 'POST', headers: { [header]: id, 'Content-Type': 'application/json' }, body: '{}' });
   return { status: r.status, error: (await r.json()).error };
 }, [pathname, SHOWCASE_HEADER, DEMO.id]);
-const READ_CONTROLS = ['Use case details', 'Check the live status now', 'Jump to latest', 'Search use cases', 'Close'];
+const READ_CONTROLS = ['Use case details', 'Check the live status now', 'Jump to latest', 'Search use cases', 'Close', 'Expand the build progress', 'Collapse the build progress',
+  'Make the build progress larger', 'Make the build progress smaller'];
 const READ_NAMES = [/^Versions of the /, /^Close the /, /\. Show (why|the build progress)$/];
 const READ_PLACES = ['tab', 'use case list', 'asset filter', 'History'];
 const readsOnly = (c) => READ_PLACES.includes(c.place) || READ_CONTROLS.includes(c.name) || READ_NAMES.some((name) => name.test(c.name));
@@ -488,8 +490,8 @@ test('the demo disables every control that writes in Build progress, on every ti
     await showView(page, 'notebook');
     assert.equal(await page.locator('[data-mvp-panel="notebook"]').getByRole('region', { name: 'Target KPI', exact: true }).locator('p').textContent(),
       'No target KPI yet: this version was built before Inspire tracked one. The next version Inspire builds picks one.', 'the demo never points at Vibe/Add/Remove Features, which it hides');
-    assert.deepEqual([...reads].sort(), ['Check the live status now', 'Close', 'Close the asset', 'Genie Agent: Failed. Show why', 'History', 'Search use cases',
-      'Use case details', 'Versions of the asset', 'asset filter', 'use case list'], 'the controls left enabled are the ones that read');
+    assert.deepEqual([...reads].sort(), ['Check the live status now', 'Close', 'Close the asset', 'Collapse the build progress', 'Genie Agent: Failed. Show why', 'History',
+      'Make the build progress larger', 'Search use cases', 'Use case details', 'Versions of the asset', 'asset filter', 'use case list'], 'the controls left enabled are the ones that read');
     await showView(page, 'dashboard');
     const card = page.locator('[data-vibe-card="dashboard"]');
     assert.equal(await card.count(), 1, 'the dashboard card still shows what was asked and how it was checked');

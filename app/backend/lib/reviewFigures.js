@@ -1,3 +1,4 @@
+const { int64Id } = require('./int64Id');
 const {
   IMPLEMENT_DONE_STATUSES,
   IMPLEMENT_OUTPUT_ID_COLUMNS,
@@ -61,7 +62,8 @@ async function loadSessionPreviews(run, table, sessionIds) {
   }
   const bySession = {};
   for (const row of rows) {
-    const sid = String(row.session_id);
+    const sid = int64Id(row.session_id);
+    if (!sid) continue;
     const list = bySession[sid] || (bySession[sid] = []);
     if (row.Name && list.length < SESSION_PREVIEW_CAP) list.push({ Name: String(row.Name), name_with_technique: row.name_with_technique ? String(row.name_with_technique) : null });
   }
@@ -152,8 +154,8 @@ function portfolioView({ runs = null, useCases = [], mvps = [], missing = [] } =
         for (const key of keys) totals[key] = count(row[key]);
         continue;
       }
-      const sid = String(row.sid ?? '').trim();
-      if (!/^\d+$/.test(sid)) continue;
+      const sid = int64Id(row.sid);
+      if (!sid) continue;
       listed += 1;
       if (listed > PORTFOLIO_RUN_CAP) {
         truncated = true;

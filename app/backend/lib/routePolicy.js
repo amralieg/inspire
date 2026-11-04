@@ -1,5 +1,6 @@
 const { holdsManage, implementOwners } = require('./inspireImplement');
 const { splitInspireDatabase } = require('./sqlInputs');
+const { isInt64Id } = require('./int64Id');
 
 const CHANGING_METHODS = ['post', 'put', 'patch', 'delete', 'all'];
 const USE_CASE_ID_RE = /^[a-zA-Z0-9_.-]+$/;
@@ -357,7 +358,7 @@ function createRoutePolicy(deps) {
     if (!appDb || !splitInspireDatabase(appDb) || norm(target.inspireDatabase) !== appDb) {
       return { owner: false, unbuilt: false, why: `Inspire reads use case owners only from its own database ${appDb || '(not set)'}` };
     }
-    if (!/^\d+$/.test(target.sessionId)) return { owner: false, unbuilt: false, why: 'the request names no valid session' };
+    if (!isInt64Id(target.sessionId)) return { owner: false, unbuilt: false, why: 'the request names no valid session' };
     const history = await deps.readHistory(req, target.sessionId);
     const latest = (id) => (history || []).filter((r) => str(r.use_case_id) === id)
       .sort((a, b) => (Number(b.spec_version) || 0) - (Number(a.spec_version) || 0))[0] || null;

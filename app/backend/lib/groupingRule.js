@@ -25,6 +25,12 @@ const GROUP_TECHNIQUES = ['anomal', 'outlier', 'forecast', 'predict', 'threshold
 const STANDALONE_TECHNIQUES = ['classif', 'extract', 'summar', 'sentiment', 'tag', 'categor', 'entity', 'translat', 'document'];
 const GROUP_ID_RE = /(?:^|_)(?:id|key|uuid|guid|sk|nk|hash)$/i;
 const GROUP_TYPES = ['string', 'varchar', 'char', 'boolean'];
+const GROUP_KEY_TYPES = ['int', 'integer', 'bigint', 'smallint', 'tinyint', 'long', 'short', 'byte', 'string', 'varchar', 'char'];
+const PERSONAL_NAME_RE = new RegExp('(e[-_]?mail|phone|mobile|msisdn|fax|first[_-]?name|last[_-]?name|full[_-]?name|middle[_-]?name|surname|'
+  + 'given[_-]?name|maiden|address|street|postcode|post[_-]?code|zip[_-]?code|zipcode|\\bssn\\b|social[_-]?security|'
+  + 'national[_-]?id|tax[_-]?id|passport|licen[cs]e[_-]?(no|num|number)|iban|swift|account[_-]?(no|num|number)|'
+  + 'card[_-]?(no|num|number)|credit[_-]?card|\\bcvv\\b|birth|\\bdob\\b|ip[_-]?addr|(^|_)ip($|_)|latitude|longitude|geo[_-]?loc)', 'i');
+const PERSONAL_TAG_RE = /pii|personal|sensitive|confidential|gdpr|hipaa|\bphi\b|\bpci\b|restricted/i;
 const TIME_TYPES = ['date', 'timestamp'];
 const TIME_NAME_RE = /(date|time|day)|_at$|_ts$/i;
 const TEXT_NAME_TOKENS = ['text', 'comment', 'review', 'description', 'desc', 'note', 'feedback', 'transcript', 'body', 'message', 'title', 'subject',
@@ -141,7 +147,64 @@ function customGroupNames(sizes) {
   return Object.fromEntries(Object.entries(sizes || {}).map(([name, size]) => [str(name), whole(size) >= GROUP_MIN_RECORDS ? str(name) : GROUP_OTHER]));
 }
 
-function groupingCandidates(columns, roles = {}, mainTable = '') {
+function personalColumn(name, tags = {}) {
+  if (PERSONAL_NAME_RE.test(str(name))) return true;
+  return Object.entries(tags || {}).some(([tag, value]) => PERSONAL_TAG_RE.test(`${str(tag)} ${str(value)}`));
+}
+
+const baseType = (kind) => lower(kind).replace(/\(.*$/, '').trim();
+const textColumn = (name, kind) => GROUP_TYPES.some((t) => lower(kind).startsWith(t)) && !GROUP_ID_RE.test(name)
+  && !TEXT_NAME_TOKENS.some((token) => lower(name).includes(token));
+const keyColumn = (name, kind) => GROUP_KEY_TYPES.includes(baseType(kind)) && GROUP_ID_RE.test(name) && !TIME_NAME_RE.test(name);
+
+function useCaseWords(text) {
+  const words = new Set();
+  for (const word of lower(text).split(/[^a-z0-9]+/).filter(Boolean)) {
+    words.add(word);
+    if (word.endsWith('ies')) words.add(`${word.slice(0, -3)}y`);
+    else if (word.endsWith('s')) words.add(word.slice(0, -1));
+  }
+  return words;
+}
+
+function candidateRelevance(name, words) {
+  const column = str(name).split('.').pop();
+  return lower(column).split(/[^a-z0-9]+/).filter((token) => token.length >= 3 && words.has(token)).length;
+}
+
+function columnTags(tags, table, column) {
+  return (tags || {})[`${lower(str(table).replace(/`/g, ''))}.${lower(column)}`] || {};
+}
+
+function joinedCandidates(joins, refColumns = {}, tags = {}, timeTable = '') {
+  const out = [];
+  const seenTables = new Set();
+  for (const join of joins || []) {
+    const ref = joinRef(join);
+    if (!ref || seenTables.has(ref.toLowerCase()) || TIME_NAME_RE.test(str(join.column)) || ref.toLowerCase() === lower(timeTable)) continue;
+    seenTables.add(ref.toLowerCase());
+    const short = ref.split('.').pop();
+    for (const column of refColumns[ref.toLowerCase()] || []) {
+      const name = str(column && column.column_name);
+      const shown = `${short}.${name}`;
+      if (!name || !textColumn(name, column.data_type) || personalColumn(name, columnTags(tags, ref, name))) continue;
+      if (out.some((c) => lower(c.name) === lower(shown))) continue;
+      out.push({ name: shown, table: ref, column: name, type: str(column.data_type), key: str(join.column), ref_column: str(join.ref_column) });
+    }
+  }
+  return out;
+}
+
+function joinedTables(joins) {
+  const out = [];
+  for (const join of joins || []) {
+    const ref = joinRef(join);
+    if (ref && !TIME_NAME_RE.test(str(join.column)) && !out.some((t) => t.toLowerCase() === ref.toLowerCase())) out.push(ref);
+  }
+  return out.slice(0, GROUP_CANDIDATES);
+}
+
+function groupingCandidates(columns, roles = {}, mainTable = '', { primary = [], joined = [], text = '', time = '', tags = {} } = {}) {
   const plain = (ref) => str(ref).replace(/`/g, '');
   const main = lower(plain(mainTable));
   const own = {};
@@ -149,18 +212,26 @@ function groupingCandidates(columns, roles = {}, mainTable = '') {
     const parts = plain(ref).split('.');
     if (parts.slice(0, 3).join('.').toLowerCase() === main) own[role] = parts[parts.length - 1].toLowerCase();
   }
-  const skip = new Set(['entity_id', 'event_date', 'measure', 'label'].map((role) => own[role]).filter(Boolean));
-  const picked = [];
+  const skip = new Set([...['entity_id', 'event_date', 'measure', 'label'].map((role) => own[role]), ...(primary || []).map(lower), lower(time)].filter(Boolean));
+  const segment = [];
+  const texts = [];
+  const keys = [];
+  const seen = new Set();
   for (const column of columns || []) {
     const name = str(column && column.column_name);
-    const kind = lower(column && column.data_type);
-    if (!name || skip.has(name.toLowerCase()) || picked.includes(name)) continue;
-    if (name.toLowerCase() === own.segment) picked.unshift(name);
-    else if (GROUP_TYPES.some((t) => kind.startsWith(t)) && !GROUP_ID_RE.test(name) && !TEXT_NAME_TOKENS.some((token) => name.toLowerCase().includes(token))) {
-      picked.push(name);
-    }
+    const kind = column && column.data_type;
+    if (!name || skip.has(name.toLowerCase()) || seen.has(name) || personalColumn(name, columnTags(tags, mainTable, name))) continue;
+    seen.add(name);
+    if (name.toLowerCase() === own.segment) segment.push(name);
+    else if (textColumn(name, kind)) texts.push(name);
+    else if (keyColumn(name, kind)) keys.push(name);
   }
-  return picked.slice(0, GROUP_CANDIDATES);
+  const lanes = [texts, keys, (joined || []).map((c) => str(c.name)).filter(Boolean)];
+  const fair = [];
+  for (let at = 0; lanes.some((lane) => at < lane.length); at += 1) lanes.forEach((lane) => { if (at < lane.length) fair.push(lane[at]); });
+  const words = useCaseWords(text);
+  const ranked = fair.map((name, at) => ({ name, at, score: candidateRelevance(name, words) })).sort((a, b) => b.score - a.score || a.at - b.at);
+  return [...segment, ...ranked.map((c) => c.name)].slice(0, GROUP_CANDIDATES);
 }
 
 function ownColumn(reference, table) {
@@ -237,12 +308,8 @@ function suggestedGroups(values) {
   return out.slice(0, SUGGESTED_GROUPS);
 }
 
-function firstRunDefault({ records, groups, recent, standalone }) {
-  if (whole(records) <= FIRST_RUN_RECORDS_LINE) return 'all';
-  if (whole(groups) > 0) return 'groups';
-  if (whole(recent) > 0) return 'recent';
-  if (standalone) return 'records';
-  return 'all';
+function firstRunDefault({ records }) {
+  return records == null || whole(records) <= FIRST_RUN_RECORDS_LINE ? 'all' : 'records';
 }
 
 module.exports = {
@@ -283,6 +350,12 @@ module.exports = {
   nullHeavy,
   recommendation,
   customGroupNames,
+  GROUP_KEY_TYPES,
+  PERSONAL_NAME_RE,
+  PERSONAL_TAG_RE,
+  personalColumn,
+  joinedTables,
+  joinedCandidates,
   groupingCandidates,
   ownColumn,
   namedTimeColumn,

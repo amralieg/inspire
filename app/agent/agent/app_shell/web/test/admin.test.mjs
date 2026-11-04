@@ -97,7 +97,7 @@ test('an owner sees the Admin link the server allows and it opens Admin, while t
   const { page, seen, context } = await openApp(browser, served.base, owner, { routes: usageRoute(200, USAGE, asked) });
   const link = page.locator('a.admin-link');
   await link.waitFor();
-  assert.equal(await link.innerText(), 'Admin');
+  assert.equal(await link.textContent(), 'Admin');
   assert.equal(await link.getAttribute('href'), `#/${ADMIN_ROUTE}`);
   assert.equal(await page.locator('.top a.admin-link').count(), 1, 'one link, in the top bar');
   assert.ok(!/Admin/.test(await page.locator('nav.side').innerText()), 'the use case menu never lists Admin');

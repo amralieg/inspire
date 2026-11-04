@@ -125,7 +125,7 @@ export default function UseCaseCard({
                   {technique}
                 </span>
               )}
-              <StrategyChip info={v130} />
+              <StrategyChip info={v130} strategy={detailProps.strategy} />
               <FeedbackChip status={feedbackCurrent?.status || v130?.feedbackStatus} />
               {showPriorityPill && (
                 <span className={`text-[10px] px-2 py-0.5 rounded-full border font-semibold ${priorityPillClass(priority)}`}>

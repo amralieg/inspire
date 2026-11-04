@@ -5,7 +5,7 @@ import { ColumnFilterStatus, withColumnFilters } from './ColumnFilters.jsx';
 import { addCounts, cap, dayLabel, integer, largestFirst, savedVerb, wholeMoney } from './format.js';
 import { ITEM_KINDS, fieldsOf, filterWords, rowTitle, tableContext } from './explain.js';
 import { hueVars } from './theme.js';
-import { parseHash } from './links.js';
+import { describeFilters, parseHash } from './links.js';
 import { Block, Placed } from './Blocks.jsx';
 import { blockPlan, gridSpans, slotsOf, withBlocks } from './blocks.js';
 import { GenieMark, Icon } from './icons.jsx';
@@ -16,11 +16,12 @@ import DataTable, { columnOf } from './DataTable.jsx';
 import Records from './Records.jsx';
 import Runs, { runCounts, useRuns } from './Runs.jsx';
 import Alerts from './Alerts.jsx';
-import { ReviewLink, hubExplain } from './Home.jsx';
+import { ReviewLink, hubExplain, reviewItem } from './Home.jsx';
 import { genieOn } from './genieAsk.js';
-import PageLink from './PageLink.jsx';
-import Freshness from './Freshness.jsx';
-import { backendNotes, backendText } from './freshness.js';
+import PageLink, { usePageAddress } from './PageLink.jsx';
+import { FreshBar, FreshDetail, useFreshness } from './Freshness.jsx';
+import { backendNotes, backendText, lastRunText, latestRunText } from './freshness.js';
+import { TopTools } from './TopBar.jsx';
 import { Skeleton, SoWhat } from './ui.jsx';
 import MoneyCard from './Money.jsx';
 import SettingsPanel, { SettingsButton, useSettings } from './Settings.jsx';
@@ -35,6 +36,7 @@ import {
 } from './hub.js';
 
 const VIEWS = [['overview', 'Things to fix'], ['runs', 'Runs'], ['alerts', 'Alerts']];
+const OVERVIEW_LABEL = VIEWS[0][1];
 const UNFILTERED = ['runs', 'alerts'];
 const pageViews = (app) => VIEWS.filter(([id]) => (id !== 'alerts' || !!app.alerting?.on) && (id !== 'runs' || app.screens?.runs !== false));
 
@@ -133,7 +135,35 @@ function hubView(page, current, summary, view, user) {
   return viewRows(items, view, user);
 }
 
-function HubTop({ entry, live, summary }) {
+function NothingToFix({ reason, latest, onRuns }) {
+  return (
+    <section className="card nothing-fix" role="status" data-nothing-fix="">
+      <h2>Nothing to fix</h2>
+      {reason && <p data-nothing="">{nothingText(reason)}</p>}
+      <p className="nothing-run" data-latest-run="">{latest}</p>
+      {onRuns && <button type="button" className="lnk" onClick={onRuns}>See the runs</button>}
+    </section>
+  );
+}
+
+function ViewBack({ onBack, label }) {
+  return (
+    <div className="view-back">
+      <button type="button" className="lnk" onClick={onBack}><Icon name="left" size={14} />Back to {label.toLowerCase()}</button>
+    </div>
+  );
+}
+
+function RunsButton({ on, count, onClick, back }) {
+  const label = count != null ? `Runs (${integer(count)})` : 'Runs';
+  return (
+    <button type="button" className={`btn top-runs top-ic2 ${on ? 'is-on' : ''}`} onClick={onClick} aria-pressed={on} aria-label={label} title={on ? `Back to ${back.toLowerCase()}` : 'See the runs of this use case'}>
+      <Icon name="history" size={14} /><span>Runs</span>{count != null && <small>{integer(count)}</small>}
+    </button>
+  );
+}
+
+function HubTop({ entry, live, summary, latest, onRuns, fixing }) {
   const status = useCaseState(entry || live.data, summary);
   const run = summary?.run;
   if (status.kind === 'wait') {
@@ -152,7 +182,7 @@ function HubTop({ entry, live, summary }) {
       {status.kind !== 'stale' && summary && !summary.error && !run?.summary && (
         <p className="note no-sum" role="status"><Icon name="info" size={14} />{run ? 'The last run wrote no AI summary.' : 'No run has written an AI summary yet.'}</p>
       )}
-      {status.kind !== 'stale' && nothing && <div className="uc-status" role="status" data-nothing="">{nothingText(nothing)}</div>}
+      {fixing && status.kind !== 'stale' && nothing && <NothingToFix reason={nothing} latest={latest} onRuns={onRuns} />}
       {capacity && <p className="note" role="status" data-capacity=""><Icon name="info" size={14} />{capacity}</p>}
       {summary?.error && <p className="note" role="status"><Icon name="info" size={14} />The AI summary could not load: {summary.error}</p>}
       {live.error && <p className="tile-err" role="alert"><Icon name="info" size={14} />The things to fix could not load: {live.error}</p>}
@@ -232,7 +262,6 @@ export default function Page({ app, page, meta, state, onState, themeKey, onAsk,
   const [runNonce, setRunNonce] = useState(0);
   const [runOffset, setRunOffset] = useState(0);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [freshKey, setFreshKey] = useState(0);
   const [settings, setSettings] = useSettings(page.id, nonce);
   const listed = !!(page.history && page.records);
   const [sorts, setSorts] = useState({});
@@ -243,23 +272,37 @@ export default function Page({ app, page, meta, state, onState, themeKey, onAsk,
   const [question, setQuestion] = useState('');
   const [openKey] = useState(() => parseHash(window.location.hash).rec);
   const [seeChanged, setSeeChanged] = useState(() => (parseHash(window.location.hash).changed ? 1 : 0));
-  const tabs = pageViews(app).map(([id, label]) => [id, id === 'overview' ? tabLabel(page, label) : label]);
+  const tabs = pageViews(app);
   const showRuns = tabs.some(([id]) => id === 'runs') ? () => setTab('runs') : null;
   const seeWhatChanged = page.records ? () => { setTab('overview'); setSeeChanged((n) => n + 1); } : showRuns;
   const runs = useRuns(page.id, runOffset, `${nonce}:${runNonce}`, tabs.some(([id]) => id === 'runs'));
   const counted = useRef({});
   if (runs.data?.offset === 0) counted.current = runCounts(runs.data);
-  const hubNow = live.data || hubEntry;
   const unreliable = hubPage && !!useCaseState(hubEntry || live.data, summary).unreliable;
-  const counts = hubPage && hubNow?.tracked ? { ...counted.current, overview: hubView(page, hubNow, summary, view, app.user).fix.length } : counted.current;
   const shown = tabs.some(([id]) => id === tab) ? tab : 'overview';
+  const runsOn = tabs.some(([id]) => id === 'runs');
+  const toggleView = (id) => setTab((now) => (now === id ? 'overview' : id));
   const loading = !data;
   const pick = (filterId, value) => onState(toggleValue(state, filterId, value));
   const filters = apiValues(state);
   const scope = { page: page.id, filters: filterWords(meta?.filters, state) };
   const runDate = meta?.filters?.find((f) => f.type === 'date_range');
+  const freshness = useFreshness({ page, showThrough: !!meta && !runDate?.high, onRefreshed: () => setNonce((n) => n + 1), onRun: () => setRunNonce((n) => n + 1),
+    onSeeChanged: seeWhatChanged });
+  const address = usePageAddress({ page, meta, state, onState, view: shown, onView: setTab, views: tabs.map(([id]) => id) });
+  const latestRun = counted.current.latest ? latestRunText(counted.current.latest) : freshness.fresh?.last_run ? `${lastRunText(freshness.fresh.last_run).text}.`
+    : runs.busy ? 'Reading the latest run.' : latestRunText(null);
   const errors = data?.errors || {};
   const alert = app.alerts?.[page.id] || app.alerts_home;
+  const notify = () => { setTab('alerts'); setCompose(true); };
+  const alertLink = hubPage && !!alert && !app.alerting?.on && !app.alerting?.reason;
+  const review = reviewItem(page, app);
+  const topMore = [
+    ...(review ? [{ ...review, more: 'tight' }] : []),
+    { label: 'Settings', icon: <Icon name="sliders" size={14} />, run: () => setSettingsOpen((o) => !o), more: 'narrow' },
+    ...(app.alerting?.on ? [{ label: 'Notify me', icon: <Icon name="bell" size={14} />, run: notify, more: 'tight' }] : []),
+    ...(alertLink ? [{ label: 'Notify me', icon: <Icon name="bell" size={14} />, run: () => window.open(alert, '_blank', 'noopener,noreferrer'), more: 'tight' }] : []),
+  ];
   const explain = genieOn(app, page.id) && onExplain
     ? (kind, title, context) => onExplain({ kind, page: page.id, title,
       context: kind === 'chart' ? { ...context, filters: [filterWords(meta?.filters, state), context.filters].filter(Boolean).join('; ') } : context })
@@ -304,34 +347,27 @@ export default function Page({ app, page, meta, state, onState, themeKey, onAsk,
   const hubCharts = (bars) => chartCards(trendChart ? [trendChart] : [], [{ key: 'by_reason', item: { id: 'by_reason' }, span: 1, node: bars }], true);
   const body = (
     <div className={`page ${busy && data ? 'is-busy' : ''}`} style={hueVars(page.hue || 'blue')} aria-busy={busy}>
+      <TopTools more={topMore}>
+        <FreshBar freshness={freshness}>
+          {runsOn && <RunsButton on={shown === 'runs'} count={counted.current.runs} onClick={() => toggleView('runs')} back={tabLabel(page, OVERVIEW_LABEL)} />}
+          <PageLink pageId={page.id} meta={meta} state={state} view={shown} address={address} />
+        </FreshBar>
+        <ReviewLink page={page} app={app} />
+        <SettingsButton open={settingsOpen} onOpen={setSettingsOpen} owned={ownerSettings(settings)} />
+        {app.alerting?.on && (
+          <button className="btn notify top-ic" data-more="tight" onClick={notify} title="Set up an email alert on this use case" aria-label="Notify me">
+            <Icon name="bell" size={15} /><span>Notify me</span>
+          </button>
+        )}
+        {alertLink && (
+          <a className="btn notify top-ic" data-more="tight" href={alert} target="_blank" rel="noopener noreferrer" aria-label="Notify me"
+            title={app.alerts?.[page.id] ? 'Opens this use case\u2019s alert in Databricks, where you can subscribe to it' : 'Opens the alerts in Databricks, where you can subscribe to this use case\u2019s alert'}>
+            <Icon name="bell" size={15} /><span>Notify me</span>
+          </a>
+        )}
+      </TopTools>
       <header className="ph">
-        <div className="pg-h">
-          <div>
-            <div className="ph-k">
-              {(page.domain || page.subdomain) && <span className="ph-dom">{[page.domain, page.subdomain].filter(Boolean).join(' › ')}</span>}
-              {page.use_case_id && <span className="ph-id">{page.use_case_id}</span>}
-              <PageLink page={page} meta={meta} state={state} onState={onState} view={shown} onView={setTab} views={tabs.map(([id]) => id)} />
-            </div>
-            <h1>{page.title}</h1>
-          </div>
-          <div className="hdr-act">
-            <Freshness key={freshKey} page={page} showThrough={!!meta && !runDate?.high} onRefreshed={() => setNonce((n) => n + 1)} onRun={() => setRunNonce((n) => n + 1)}
-              onSeeChanged={seeWhatChanged} />
-            <ReviewLink page={page} app={app} />
-            <SettingsButton open={settingsOpen} onOpen={setSettingsOpen} owned={ownerSettings(settings)} />
-            {app.alerting?.on && (
-              <button className="btn notify" onClick={() => { setTab('alerts'); setCompose(true); }} title="Set up an email alert on this use case">
-                <Icon name="bell" size={15} />Notify me
-              </button>
-            )}
-            {hubPage && alert && !app.alerting?.on && !app.alerting?.reason && (
-              <a className="btn notify" href={alert} target="_blank" rel="noopener noreferrer"
-                title={app.alerts?.[page.id] ? 'Opens this use case\u2019s alert in Databricks, where you can subscribe to it' : 'Opens the alerts in Databricks, where you can subscribe to this use case\u2019s alert'}>
-                <Icon name="bell" size={15} />Notify me
-              </a>
-            )}
-          </div>
-        </div>
+        <div className="pg-h"><h1>{page.title}</h1></div>
         {!hubPage && <p className="ph-q">{page.question}</p>}
         {!hubPage && data && <Story page={page} data={data.kpis} />}
         {app.style === 'c' && genieOn(app, page.id) && (
@@ -350,27 +386,16 @@ export default function Page({ app, page, meta, state, onState, themeKey, onAsk,
               .filter(Boolean).join(' · ')}
           </span>
         </div>
+        <FreshDetail freshness={freshness} />
+        <p className="print-only print-filters">Filters: {describeFilters(state, meta?.filters, meta?.columns)}</p>
       </header>
       {settingsOpen && (
         <SettingsPanel pageId={page.id} data={settings} onData={setSettings} onChanged={() => setNonce((n) => n + 1)}
-          onRunStarted={() => setFreshKey((k) => k + 1)} onClose={() => setSettingsOpen(false)} />
+          onRunStarted={() => freshness.load()} onClose={() => setSettingsOpen(false)} />
       )}
       {backendNotes(app.backend, data).map((n) => <p key={n} className="note" role="status" data-backend-note><Icon name="info" size={14} />{n}</p>)}
-      {hubPage && <HubTop entry={hubEntry} live={live} summary={summary} />}
-      <nav className="views" role="tablist" aria-label="Views of this use case" onKeyDown={(e) => {
-        const step = { ArrowRight: 1, ArrowLeft: -1 }[e.key];
-        if (!step) return;
-        const next = tabs[(tabs.findIndex(([id]) => id === shown) + step + tabs.length) % tabs.length][0];
-        setTab(next);
-        e.currentTarget.querySelector(`[data-view="${next}"]`)?.focus();
-      }}>
-        {tabs.map(([id, label]) => (
-          <button key={id} role="tab" data-view={id} tabIndex={shown === id ? 0 : -1} className={`view ${shown === id ? 'is-on' : ''}`} aria-selected={shown === id}
-            onClick={() => setTab(id)}>
-            <span>{label}</span>{counts[id] != null && <small>{integer(counts[id])}</small>}
-          </button>
-        ))}
-      </nav>
+      {hubPage && <HubTop entry={hubEntry} live={live} summary={summary} latest={latestRun} onRuns={showRuns} fixing={shown === 'overview'} />}
+      {shown !== 'overview' && <ViewBack onBack={() => setTab('overview')} label={tabLabel(page, OVERVIEW_LABEL)} />}
       {!laidOut && shown === 'overview' && recordsCard && <TodoNow page={page} app={app} ready={ready} nonce={nonce} onAsk={onAsk} shared={queue} />}
       {hubPage && (
         <HubBody app={app} page={page} entry={hubEntry} live={live} summary={summary} state={state} onState={onState} view={view} onView={onView} meta={meta}

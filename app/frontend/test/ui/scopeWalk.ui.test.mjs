@@ -15,14 +15,15 @@ const skip = SCOPE_UI ? false : 'the Grouping and First run UI is not in this bu
 const ME = { userName: OWNER, displayName: 'Owner' };
 const PERSON = 'person-token';
 const PROFILE = {
-  table: 'main.sales.orders', records: 48210, qualifies: true, reason: 'anomaly detection compares each record with its group', standalone: false,
+  table: 'main.sales.orders', records: 48210, applies: true, qualifies: true, reason: 'anomaly detection compares each record with its group', standalone: false,
   columns: [{ name: 'region', type: 'string', distinct: 4, smallest: 210, largest: 30110, nulls: 0, parent: null },
     { name: 'country', type: 'string', distinct: 31, smallest: 12, largest: 18200, nulls: 3, parent: 'region' }],
   recommended: ['region', 'country'],
   example: { column: 'country', small_groups: [{ value: 'Cyprus', records: 12 }], moves_to: 'Europe' },
   time_column: 'order_date', recent: { days: 30, records: 3120 },
   suggested_groups: [{ value: 'USA', records: 18200, kind: 'biggest' }, { value: 'Spain', records: 1400, kind: 'typical' }, { value: 'Cyprus', records: 12, kind: 'smallest' }],
-  first_run: { all: 48210, groups: 19612, recent: 3120, records: null }, default_scope: 'groups', read_at: '2026-11-01T15:00:00Z',
+  group_column: 'country', group_sizes: [{ value: 'Germany', records: 600 }, { value: 'Ireland', records: 300 }],
+  first_run: { all: 48210, groups: 19612, recent: 3120, records: null }, default_scope: 'records', read_at: '2026-11-01T15:00:00Z',
 };
 const INSTRUCTION = '## Parameters\n| widget | type | default | allowed | used for |\n|---|---|---|---|---|\n'
   + '| `act_now_share` | text | 0.05 | 0 to 1 | Act now share |\n| `group_by` | text | all | | Grouping |\n| `run_scope` | text | all | | First run |\n';
@@ -88,9 +89,9 @@ test('the offline walk checks the wizard of a large table that qualifies', { ski
     const all = [...grouping, ...firstRun, ...steps];
     console.log(JSON.stringify(all));
     assert.deepEqual(failed(all), []);
-    assert.equal(all.filter((c) => c.ok === true).length, 9);
+    assert.equal(all.filter((c) => c.ok === true).length, 10);
     assert.deepEqual(all.filter((c) => c.ok === null).map((c) => c.check), ['Custom editor: Run, refusal and Use this grouping']);
-    assert.equal(checkWizardSteps(await names(page), { ...PROFILE, qualifies: false })[0].ok, false, 'a profile that does not qualify fails a wizard that asks Grouping');
+    assert.equal(checkWizardSteps(await names(page), { ...PROFILE, applies: false })[0].ok, false, 'a profile where grouping does not apply fails a wizard that asks Grouping');
   } finally {
     await ui.close();
   }
@@ -98,7 +99,7 @@ test('the offline walk checks the wizard of a large table that qualifies', { ski
 
 test('the offline walk checks the wizard of a small table, no Grouping and Everything by default', { skip }, async () => {
   const calls = [];
-  const small = { ...PROFILE, records: 800, qualifies: false, standalone: true, default_scope: 'all', first_run: { all: 800, groups: 600, recent: 120, records: 800 }, recent: { days: 30, records: 120 } };
+  const small = { ...PROFILE, records: 800, applies: false, qualifies: false, standalone: true, default_scope: 'all', first_run: { all: 800, groups: 600, recent: 120, records: 800 }, recent: { days: 30, records: 120 } };
   const ui = await openUi('wizard', { me: ME }, '', { init: profileAt(calls, small) });
   const { page } = ui;
   try {

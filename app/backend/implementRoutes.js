@@ -18,6 +18,8 @@ const GR = require('./lib/groupingRule');
 const GP = require('./lib/groupingProfile');
 const { runWithRequestDeadline } = require('./lib/sqlStatements');
 const { fsApiPath } = require('./lib/workspacePaths');
+const { int64Id, isInt64Id, requireInt64Id, jsonWithInt64Ids } = require('./lib/int64Id');
+const { parseExactJson } = require('./lib/exactJson');
 
 function sendError(res, err) {
   const code = err && Number.isFinite(err.statusCode) ? err.statusCode : 500;
@@ -43,8 +45,8 @@ function principalsOf(req) {
 }
 
 function sessionIdOf(req) {
-  const sid = q(req, 'session_id');
-  if (!/^\d+$/.test(sid)) {
+  const sid = int64Id(q(req, 'session_id'));
+  if (!sid) {
     const err = new Error('session_id must be a numeric Inspire session id.');
     err.statusCode = 400;
     throw err;
@@ -83,7 +85,7 @@ async function jsonOf(dbFetch, host, token, path, opts = {}) {
   const text = await resp.text();
   let data = {};
   if (text) {
-    try { data = JSON.parse(text); } catch { data = { raw: text }; }
+    try { data = parseExactJson(text); } catch { data = { raw: text }; }
   }
   return { ok: resp.ok, status: resp.status, data };
 }
@@ -328,8 +330,8 @@ function registerImplementRoutes(app, deps) {
       if (!inspire_database || !warehouse_id) {
         return res.status(400).json({ error: 'inspire_database and warehouse_id are required.' });
       }
-      const sidStr = String(session_id ?? '').trim();
-      if (!/^\d+$/.test(sidStr)) {
+      const sidStr = int64Id(session_id);
+      if (!sidStr) {
         return res.status(400).json({ error: 'session_id must be a numeric Inspire session id.' });
       }
 
@@ -1153,16 +1155,16 @@ function registerImplementRoutes(app, deps) {
         }
       }
       const appName = I.carriedAssets(history).app;
-      const jobId = (history.find((r) => r.job_id) || {}).job_id;
+      const jobId = int64Id((history.find((r) => r.job_id) || {}).job_id);
       const held = history[0] && history[0].status === I.IMPLEMENT_VIBE_NOT_MET ? history[0].spec_version : null;
       const [appInfo, runInfo, stalled, person] = await Promise.all([
         appName ? jsonOf(dbFetch, req.dbHost, req.dbToken, `/api/2.0/apps/${encodeURIComponent(appName)}`) : null,
-        jobId ? jsonOf(dbFetch, req.dbHost, req.dbToken, `/api/2.1/jobs/runs/list?job_id=${Number(jobId)}&limit=10`) : null,
+        jobId ? jsonOf(dbFetch, req.dbHost, req.dbToken, `/api/2.1/jobs/runs/list?job_id=${jobId}&limit=10`) : null,
         stalledOf(req, history[0]),
         held == null ? null : personOf(req),
       ]);
       const listedNone = runInfo && runInfo.ok && !(Array.isArray(runInfo.data && runInfo.data.runs) && runInfo.data.runs.length);
-      const jobInfo = listedNone ? await jsonOf(dbFetch, req.dbHost, req.dbToken, `/api/2.1/jobs/get?job_id=${Number(jobId)}`) : null;
+      const jobInfo = listedNone ? await jsonOf(dbFetch, req.dbHost, req.dbToken, `/api/2.1/jobs/get?job_id=${jobId}`) : null;
       res.json({
         latest: history[0] || null,
         stalled,
@@ -1183,7 +1185,7 @@ function registerImplementRoutes(app, deps) {
   async function loadRunPages(req, warehouseId, catalog, schema) {
     const table = I.implementTableName(catalog, schema);
     const rows = await implementRows(req.dbHost, req.dbToken, warehouseId, table, (existing) => I.implementRegistryStatement(table, existing));
-    const sessions = [...new Set(I.runPages(rows).map((p) => p.session_id).filter((s) => /^\d+$/.test(s)))].slice(0, I.IMPLEMENT_SCOPE_SESSION_CAP);
+    const sessions = [...new Set(I.runPages(rows).map((p) => p.session_id).map(int64Id).filter(Boolean))].slice(0, I.IMPLEMENT_SCOPE_SESSION_CAP);
     const scope = sessions.length
       ? await sqlRows(req.dbHost, req.dbToken, warehouseId, I.useCaseScopeStatement(catalog, schema, sessions))
         .catch((err) => { if (isMissingTableError(err) || I.isMissingColumnError(err)) return []; throw err; })
@@ -1350,11 +1352,13 @@ function registerImplementRoutes(app, deps) {
     const main = G.groupingMainTable(body.main_table);
     if (!main) throw I.badRequest('main_table must name the use case table as catalog.schema.table.');
     if (!checked.tables.includes(main.canonical)) {
-      throw I.badRequest(`The grouping SQL does not read ${main.canonical}, the use case table; read it, so every record can get a group.`);
+      throw I.badRequest(body.purpose === 'first_run' ? `The first run SQL does not read ${main.canonical}, the use case table; read it, so it returns that table's records.`
+        : `The grouping SQL does not read ${main.canonical}, the use case table; read it, so every record can get a group.`);
     }
     const keys = G.groupingKeyColumns(body.key_columns);
     if (!keys) throw I.badRequest('key_columns must list 1 to 8 different record key column names, none of them group_name.');
-    return { checked, main, keys };
+    if (body.purpose !== undefined && !['grouping', 'first_run'].includes(body.purpose)) throw I.badRequest("purpose must be 'grouping' or 'first_run'.");
+    return { checked, main, keys, purpose: body.purpose === 'first_run' ? 'first_run' : 'grouping' };
   }
 
   function sqlFailure(err, texts) {
@@ -1415,13 +1419,18 @@ function registerImplementRoutes(app, deps) {
     });
     try {
       const warehouseId = warehouseOf(req);
-      const { checked, main, keys } = groupingAsked(req);
+      const { checked, main, keys, purpose } = groupingAsked(req);
       const options = { rowLimit: G.GROUPING_ROW_LIMIT, byteLimit: G.GROUPING_BYTE_LIMIT, waitTimeout: '10s', signal: stop.signal };
       const run = (sql) => executeSql(req.dbHost, token, warehouseId, sql, null, options);
       const view = await runWithRequestDeadline(async () => {
         const columns = groupingColumns(await run(G.groupingShapeSql(checked.sql)));
-        const problem = G.shapeProblem(columns, keys);
+        const problem = G.shapeProblem(columns, keys, purpose);
         if (problem) throw I.badRequest(problem);
+        if (purpose === 'first_run') {
+          const [sample, totals] = await Promise.all([run(G.scopeSqlSampleSql(checked.sql, keys)), run(G.scopeSqlTotalsSql(checked.sql, keys))]);
+          const shown = G.scopeSqlPreviewView(sqlResultToObjects(sample), sqlResultToObjects(totals)[0] || {}, keys);
+          return { ...shown, columns, truncated: Boolean(sample.manifest?.truncated || totals.manifest?.truncated) };
+        }
         const [top, totals] = await Promise.all([run(G.groupingTopSql(checked.sql)), run(G.groupingTotalsSql(checked.sql, main, keys))]);
         const shown = G.groupingPreviewView(sqlResultToObjects(top), sqlResultToObjects(totals)[0] || {});
         return { ...shown, columns, truncated: Boolean(top.manifest?.truncated || totals.manifest?.truncated) };
@@ -1446,7 +1455,7 @@ function registerImplementRoutes(app, deps) {
       const warehouseId = warehouseOf(req);
       const { catalog, schema } = dbOf(req, splitInspireDatabase);
       const useCaseId = I.validateUseCaseId(q(req, 'use_case_id'));
-      const { checked, main, keys } = groupingAsked(req);
+      const { checked, main, keys, purpose } = groupingAsked(req);
       const [person, useCase, history] = await Promise.all([personOf(req), loadUseCase(req.dbHost, req.dbToken, warehouseId, catalog, schema, sid, useCaseId),
         loadHistory(req.dbHost, req.dbToken, warehouseId, catalog, schema, sid, useCaseId)]);
       if (!person.username) throw I.badRequest(`Inspire could not tell who you are, so it saved no grouping: ${P.personProblem(person)}.`, 403);
@@ -1459,14 +1468,16 @@ function registerImplementRoutes(app, deps) {
       const options = { waitTimeout: '10s', signal: stop.signal };
       await runWithRequestDeadline(async () => {
         const shape = await executeSql(req.dbHost, token, warehouseId, G.groupingShapeSql(checked.sql), null, { ...options, rowLimit: 1 });
-        const problem = G.shapeProblem(groupingColumns(shape), keys);
+        const problem = G.shapeProblem(groupingColumns(shape), keys, purpose);
         if (problem) throw I.badRequest(problem);
-        const insert = G.groupingSettingsInsert(table, { useCaseId, sql: checked.sql, tables: checked.tables, hash: checked.hash, checkedBy: person.username, checkedAt });
+        const row = { useCaseId, sql: checked.sql, tables: checked.tables, hash: checked.hash, checkedBy: person.username, checkedAt };
+        const insert = purpose === 'first_run' ? G.groupingSettingsInsert(table, row, G.SCOPE_SQL_SETTINGS, G.SCOPE_SQL_SAVED_NOTE) : G.groupingSettingsInsert(table, row);
         await executeSql(req.dbHost, token, warehouseId, G.groupingSettingsCreateSql(table), null, options);
         await executeSql(req.dbHost, token, warehouseId, insert.sql, insert.parameters, options);
       }, G.GROUPING_PREVIEW_MS);
-      return res.json({ saved: true, result_table: result, setting: { group_by: 'custom', group_sql: checked.sql,
-        group_sql_tables: checked.tables, group_sql_hash: checked.hash, group_sql_checked_by: person.username, group_sql_checked_at: checkedAt,
+      const [sqlName, tablesName, hashName, byName, atName] = purpose === 'first_run' ? G.SCOPE_SQL_SETTINGS : G.GROUPING_SETTINGS;
+      return res.json({ saved: true, result_table: result, setting: { ...(purpose === 'first_run' ? { run_scope: 'custom' } : { group_by: 'custom' }),
+        [sqlName]: checked.sql, [tablesName]: checked.tables, [hashName]: checked.hash, [byName]: person.username, [atName]: checkedAt,
         main_table: main.canonical, key_columns: keys } });
     } catch (err) {
       stop.abort();
@@ -1526,32 +1537,47 @@ function registerImplementRoutes(app, deps) {
           })]);
         if (!columns.length) throw I.badRequest(`${U.runUnreadableText([table])}.`, 403);
         const roles = data.column_roles && typeof data.column_roles === 'object' ? data.column_roles : {};
-        const candidates = GR.groupingCandidates(columns, roles, table).filter((name) => !name.includes(',')).slice(0, GR.GROUP_PROFILED);
         const keys = GP.declaredKeys(keyRows);
         const saved = GP.savedJoins(useCase.table_joins, table);
         const joins = saved.length ? saved : keys.joins;
         const namedTime = GR.namedTimeColumn(roles, GP.eliteAssessmentOf(useCase.elite_assessment), table);
-        const refs = GR.timeRefsOf(namedTime, columns, joins);
-        const refColumns = Object.fromEntries(await Promise.all(refs.map(async (ref) => {
+        const timeRefs = GR.timeRefsOf(namedTime, columns, joins);
+        const linked = [...saved, ...keys.joins];
+        const refs = [...new Set([...timeRefs, ...GR.joinedTables(linked)])];
+        const tagsAsked = GP.tagsStatement([table, ...refs]);
+        const readRefColumns = Promise.all(refs.map(async (ref) => {
           const asked = I.columnsStatement(ref);
           const found = await rows(asked.sql, asked.parameters, GP.PROFILE_META_ROWS).catch((err) => {
             if (['SQL_DEADLINE', 'SQL_CANCELLED'].includes(err && err.code)) throw err;
-            console.warn(`grouping profile: the columns of ${ref} could not be read, so its dates are not a recent period of ${table}: ${err.message}`);
+            console.warn(`grouping profile: the columns of ${ref} could not be read, so neither its dates nor its columns group ${table}: ${err.message}`);
             return [];
           });
           return [ref.toLowerCase(), found];
-        })));
+        }));
+        const readTags = rows(tagsAsked.sql, tagsAsked.parameters, GP.PROFILE_META_ROWS).catch((err) => {
+          if (['SQL_DEADLINE', 'SQL_CANCELLED'].includes(err && err.code)) throw err;
+          console.warn(`grouping profile: the column tags of ${table} could not be read, so only column names mark personal columns: ${err.message}`);
+          return [];
+        });
+        const [refPairs, tagRows] = await Promise.all([readRefColumns, readTags]);
+        const refColumns = Object.fromEntries(refPairs);
+        const tags = GP.columnTagsOf(tagRows);
         const time = GR.timeSourceOf(namedTime, columns, joins, refColumns);
-        const [statRows, sample] = await Promise.all([rows(GP.statsSql(main, candidates, time, days), null, 1),
-          candidates.length ? rows(GP.sampleSql(main, candidates), null, GP.PROFILE_META_ROWS) : []]);
+        const joined = GR.joinedCandidates(linked, refColumns, tags, time && time.via ? time.via.table : '');
+        const text = [useCase.use_case, useCase.statement, useCase.solution].map((v) => (v == null ? '' : String(v))).join(' ');
+        const candidates = GR.groupingCandidates(columns, roles, table, { primary: keys.primary, joined, text, time: time ? time.column : '', tags })
+          .filter((name) => !name.includes(',')).slice(0, GR.GROUP_PROFILED);
+        const profiledJoined = joined.filter((c) => candidates.includes(c.name));
+        const [statRows, sample] = await Promise.all([rows(GP.statsSql(main, candidates, time, days, profiledJoined), null, 1),
+          candidates.length ? rows(GP.sampleSql(main, candidates, profiledJoined), null, GP.PROFILE_META_ROWS) : []]);
         const stats = statRows[0] || {};
         const picked = GP.profiledColumns(stats, candidates);
-        const values = picked.length ? await rows(GP.valuesSql(main, picked), null, GP.PROFILE_VALUE_ROWS) : [];
+        const values = picked.length ? await rows(GP.valuesSql(main, picked, profiledJoined), null, GP.PROFILE_VALUE_ROWS) : [];
         const draft = (paths) => GP.profileView({ table, technique: useCase.analytics_technique, columns, candidates, stats, sample, values, paths,
-          time, days, keys, joins: saved, readAt: new Date().toISOString() });
+          time, days, keys, joins: saved, joined: profiledJoined, readAt: new Date().toISOString() });
         const first = draft(null);
         if (first.recommended.length < 2) return first;
-        const paths = await rows(GP.pathsSql(main, first.recommended), null, GP.PROFILE_PATH_ROWS);
+        const paths = await rows(GP.pathsSql(main, first.recommended, profiledJoined), null, GP.PROFILE_PATH_ROWS);
         return draft(paths);
       }, GP.PROFILE_MS);
       return res.json({ ...view, deep_suggestion: GP.deepSuggestionOf(useCase) });
@@ -1619,23 +1645,23 @@ function registerImplementRoutes(app, deps) {
   if (hostedRun && hostedRun.useAlerts) {
     hostedRun.useAlerts(async (req, entry, step, body) => {
       const at = entry.ctx || {};
-      if (!at.warehouseId || !at.catalog || !at.schema || !/^\d+$/.test(String(entry.session_id || ''))) {
+      if (!at.warehouseId || !at.catalog || !at.schema || !isInt64Id(entry.session_id)) {
         throw Object.assign(new Error('Inspire cannot tell which use case this page belongs to, so it cannot keep its alerts; open it from the Run tab'),
           { statusCode: 409 });
       }
-      return alertsFor(req, at.warehouseId, at.catalog, at.schema, String(entry.session_id), I.validateUseCaseId(entry.use_case_id), step, body);
+      return alertsFor(req, at.warehouseId, at.catalog, at.schema, int64Id(entry.session_id), I.validateUseCaseId(entry.use_case_id), step, body);
     });
   }
 
   if (hostedRun && hostedRun.useDecisions) {
     hostedRun.useDecisions(async (req, entry) => {
       const at = entry.ctx || {};
-      if (!at.warehouseId || !at.catalog || !at.schema || !/^\d+$/.test(String(entry.session_id || ''))) {
+      if (!at.warehouseId || !at.catalog || !at.schema || !isInt64Id(entry.session_id)) {
         throw Object.assign(new Error('Inspire cannot tell which use case this page belongs to, so it records no decision on it; open it from the Run tab'),
           { statusCode: 409 });
       }
       const useCaseId = I.validateUseCaseId(entry.use_case_id);
-      const history = await loadHistory(req.dbHost, req.dbToken, at.warehouseId, at.catalog, at.schema, String(entry.session_id), useCaseId);
+      const history = await loadHistory(req.dbHost, req.dbToken, at.warehouseId, at.catalog, at.schema, int64Id(entry.session_id), useCaseId);
       const live = I.previousBuilt(history);
       const hosted = live ? I.hostedRecord(live) : null;
       if (!hosted || hosted.id !== entry.record.id || hosted.version !== entry.record.version) {
@@ -1753,7 +1779,7 @@ function registerImplementRoutes(app, deps) {
       await executeSql(req.dbHost, req.dbToken, ctx.warehouseId, C.controlLogCreateSql(ctx.logTable));
       const ownerError = await alignControlLogOwner(req, ctx);
       const got = await jsonOf(dbFetch, req.dbHost, req.dbToken, request.path,
-        { method: request.method, ...(request.body ? { body: JSON.stringify(request.body) } : {}) });
+        { method: request.method, ...(request.body ? { body: jsonWithInt64Ids(request.body, request.int64 || []) } : {}) });
       const failure = got.ok ? '' : String((got.data && (got.data.message || got.data.error || got.data.raw)) || `HTTP ${got.status}`);
       const message = got.ok ? `${label}: done` : `${label} failed: ${failure}`;
       const person = await personOf(req);
@@ -1789,7 +1815,7 @@ function registerImplementRoutes(app, deps) {
     if (tagged && !tagged.to) update.fields_to_remove = ['tags'];
     const updated = await jsonOf(dbFetch, host, token, '/api/2.1/jobs/update', {
       method: 'POST',
-      body: JSON.stringify(update),
+      body: jsonWithInt64Ids(update, ['job_id']),
     }).catch(refused);
     if (updated.ok) return '';
     return [change && inspireJobEnvironmentWarning(jobId, { from: change.from, reason: reason(updated) }),
@@ -1817,14 +1843,15 @@ function registerImplementRoutes(app, deps) {
       const useCase = await loadUseCase(req.dbHost, req.dbToken, warehouseId, catalog, schema, sid, useCaseId);
       await refusePersonUnreadable(req, latest.spec_json, useCase);
       await refuseMissingSources(req, warehouseId, latest.spec_json, useCase);
-      const warning = await alignJobSettings(req.dbHost, req.dbToken, Number(latest.job_id));
+      const jobId = requireInt64Id(latest.job_id, 'job_id');
+      const warning = await alignJobSettings(req.dbHost, req.dbToken, jobId);
       const resp = await dbFetch(req.dbHost, req.dbToken, '/api/2.1/jobs/run-now', {
         method: 'POST',
-        body: JSON.stringify({ job_id: Number(latest.job_id), notebook_params: notebookParams, only: [I.IMPLEMENT_NOTEBOOK_TASK_KEY] }),
+        body: jsonWithInt64Ids({ job_id: jobId, notebook_params: notebookParams, only: [I.IMPLEMENT_NOTEBOOK_TASK_KEY] }, ['job_id']),
       });
       const text = await resp.text();
       let data = {};
-      try { data = JSON.parse(text); } catch { data = { raw: text }; }
+      try { data = parseExactJson(text); } catch { data = { raw: text }; }
       if (!resp.ok) {
         const err = new Error(data.message || data.error || text);
         err.statusCode = resp.status;

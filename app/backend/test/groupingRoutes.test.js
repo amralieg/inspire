@@ -263,3 +263,76 @@ test('saving without the person token is a 401 and stores nothing, and a refused
     assert.deepEqual(refused.sqlCalls, []);
   });
 });
+
+const FIRST_RUN_SQL = "SELECT order_id FROM main.sales.orders WHERE region = 'EMEA'";
+
+function firstRunWarehouse(sql, _parameters, token) {
+  if (token !== PERSON) throw new Error('the App token must never run a first run SQL');
+  if (sql.endsWith('LIMIT 0')) return { rows: [], manifest: { schema: { columns: [{ name: 'order_id' }] } } };
+  if (sql.startsWith('SELECT COUNT(*) AS row_count')) return { rows: [{ row_count: '420', record_keys: '420' }], manifest: {} };
+  if (sql.startsWith('SELECT `order_id` FROM')) return { rows: [{ order_id: 7 }, { order_id: 9 }], manifest: {} };
+  throw new Error(`unexpected first run statement ${sql}`);
+}
+
+const firstRun = (over = {}) => makeApp({ forwardedToken: PERSON, forwardedEmail: ME, statements: { "region = 'EMEA'": firstRunWarehouse }, ...over });
+const firstRunCalls = (sqlCalls) => sqlCalls.filter((c) => c.sql.includes("region = 'EMEA'"));
+
+test('a first run SQL is a SELECT of record keys, checked by the same grouping SQL check and previewed with the person token as the records it covers', async () => {
+  const made = firstRun();
+  await withApp(made, async (srv) => {
+    const got = await post(srv, '/api/grouping/preview', { ...ASK, purpose: 'first_run', sql: `${FIRST_RUN_SQL};` });
+    assert.equal(got.status, 200, JSON.stringify(got.data));
+    assert.deepEqual([got.data.ok, got.data.totals, got.data.sample, got.data.key_columns], [true, { rows: 420, record_keys: 420 },
+      [{ order_id: '7' }, { order_id: '9' }], ['order_id']]);
+    assert.deepEqual(got.data.rules.map((r) => [r.id, r.ok]), [['one_row_per_record', true], ['some_records', true]]);
+    assert.ok(firstRunCalls(made.sqlCalls).every((c) => c.token === PERSON));
+    assert.deepEqual(firstRunCalls(made.sqlCalls).map((c) => c.sql).sort(), [G.groupingShapeSql(FIRST_RUN_SQL), G.scopeSqlSampleSql(FIRST_RUN_SQL, ['order_id']),
+      G.scopeSqlTotalsSql(FIRST_RUN_SQL, ['order_id'])].sort());
+  });
+});
+
+test('a first run SQL that writes, calls ai_query or returns more than the record keys is refused and nothing runs or is stored (must-exclude)', async () => {
+  for (const sql of ["UPDATE main.sales.orders SET region = 'EMEA'", "SELECT order_id, ai_query('m', region) AS g FROM main.sales.orders WHERE region = 'EMEA'"]) {
+    for (const path of ['/api/grouping/preview', '/api/grouping/save']) {
+      const made = firstRun();
+      await withApp(made, async (srv) => {
+        const got = await post(srv, path, { ...SAVE, purpose: 'first_run', sql });
+        assert.equal(got.status, 400, `${path} ${sql}`);
+        assert.equal(got.data.error, G.checkGroupingSql(sql).text);
+        assert.deepEqual(made.sqlCalls.filter((c) => c.sql.includes('main.sales.orders') || c.sql.includes(ASSUMPTIONS)), [], `${path} ${sql}`);
+      });
+    }
+  }
+  const wide = firstRun({ statements: { "region = 'EMEA'": (sql) => (sql.endsWith('LIMIT 0')
+    ? { rows: [], manifest: { schema: { columns: [{ name: 'order_id' }, { name: 'region' }] } } } : null) } });
+  await withApp(wide, async (srv) => {
+    const got = await post(srv, '/api/grouping/preview', { ...ASK, purpose: 'first_run', sql: FIRST_RUN_SQL });
+    assert.equal(got.status, 400);
+    assert.equal(got.data.error, 'The first run SQL returns order_id, region; return only the record key column order_id.');
+  });
+  const odd = firstRun();
+  await withApp(odd, async (srv) => {
+    const got = await post(srv, '/api/grouping/preview', { ...ASK, purpose: 'everything', sql: FIRST_RUN_SQL });
+    assert.equal(got.status, 400);
+    assert.equal(got.data.error, "purpose must be 'grouping' or 'first_run'.");
+    assert.deepEqual(firstRunCalls(odd.sqlCalls), []);
+  });
+});
+
+test('saving a first run SQL stores it as the scope_sql settings the agent reads, never as the grouping', async () => {
+  const made = firstRun();
+  await withApp(made, async (srv) => {
+    const got = await post(srv, '/api/grouping/save', { ...SAVE, purpose: 'first_run', sql: FIRST_RUN_SQL });
+    assert.equal(got.status, 200, JSON.stringify(got.data));
+    const { setting } = got.data;
+    assert.deepEqual({ ...setting, scope_sql_checked_at: 'when' }, { run_scope: 'custom', scope_sql: FIRST_RUN_SQL, scope_sql_tables: ['main.sales.orders'],
+      scope_sql_hash: crypto.createHash('sha256').update(FIRST_RUN_SQL).digest('hex'), scope_sql_checked_by: ME, scope_sql_checked_at: 'when',
+      main_table: 'main.sales.orders', key_columns: ['order_id'] });
+    assert.equal(setting.group_by, undefined, 'a first run SQL never changes the grouping (must-exclude)');
+    const insert = stored(made)[1];
+    const names = [...insert.sql.matchAll(/'(\w+)', NULL/g)].map((m) => m[1]);
+    assert.deepEqual(names, G.SCOPE_SQL_SETTINGS);
+    assert.equal(insert.parameters.find((p) => p.name === 'note').value, G.SCOPE_SQL_SAVED_NOTE);
+    assert.equal(insert.parameters.find((p) => p.name === 'v0').value, FIRST_RUN_SQL);
+  });
+});

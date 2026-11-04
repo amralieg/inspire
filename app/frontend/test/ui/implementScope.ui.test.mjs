@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { HARNESS_SETTINGS, HARNESS_USE_CASE, OWNER, built } from './implementFixtures.js';
+import { GROUPING_JOINED_NOTE } from '../../src/lib/runScope.js';
 import { closeBrowser, lowContrast, onStep, openAsset, openBuild, openSettings, openUi, toVibes, until } from './uiSupport.mjs';
 
 test.after(closeBrowser);
@@ -10,14 +11,16 @@ test.after(closeBrowser);
 const ME = { userName: OWNER, displayName: 'Owner' };
 const PERSON = 'person-token';
 const PROFILE = {
-  table: 'main.sales.orders', records: 48210, qualifies: true, reason: 'anomaly detection compares each record with its group', standalone: false,
+  table: 'main.sales.orders', records: 48210, applies: true, qualifies: true, reason: 'anomaly detection compares each record with its group', standalone: false,
   columns: [{ name: 'region', type: 'string', distinct: 4, smallest: 210, largest: 30110, nulls: 0, parent: null },
     { name: 'country', type: 'string', distinct: 31, smallest: 12, largest: 18200, nulls: 3, parent: 'region' }],
   recommended: ['region', 'country'],
   example: { column: 'country', small_groups: [{ value: 'Cyprus', records: 12 }], moves_to: 'Europe' },
   time_column: 'order_date', recent: { days: 30, records: 3120 },
   suggested_groups: [{ value: 'USA', records: 18200, kind: 'biggest' }, { value: 'Spain', records: 1400, kind: 'typical' }, { value: 'Cyprus', records: 12, kind: 'smallest' }],
-  first_run: { all: 48210, groups: 19612, recent: 3120, records: null }, default_scope: 'groups', read_at: '2026-11-01T15:00:00Z',
+  group_column: 'country', group_sizes: [{ value: 'USA', records: 18200 }, { value: 'Spain', records: 1400 }, { value: 'Germany', records: 600 },
+    { value: 'Ireland', records: 300 }, { value: 'Malta', records: 40 }],
+  first_run: { all: 48210, groups: 19612, recent: 3120, records: null }, default_scope: 'records', read_at: '2026-11-01T15:00:00Z',
 };
 const INSTRUCTION = '## Parameters\n| widget | type | default | allowed | used for |\n|---|---|---|---|---|\n'
   + '| `act_now_share` | text | 0.05 | 0 to 1 | Act now share |\n| `group_by` | text | all | | Grouping |\n| `run_scope` | text | all | | First run |\n';
@@ -92,7 +95,9 @@ test('a first build asks Grouping after Data with a real example, then First run
       'A group too small to compare fairly moves up a level: Cyprus has 12 records, so it is measured with Europe.');
     assert.deepEqual(await grouping.locator('[data-grouping-choice]').evaluateAll((rows) => rows.map((r) => r.dataset.groupingChoice)),
       ['all', 'region, country', 'region', 'country', 'custom'], 'Global first, the recommended grouping, each column, Custom last');
-    assert.deepEqual(await checkedChoice(page, 'data-grouping-choice'), ['all'], 'the agent reads all when nothing is picked, so Global shows picked');
+    assert.deepEqual(await checkedChoice(page, 'data-grouping-choice'), ['region, country'], 'the recommended grouping is pre-picked, never a silent Global');
+    await grouping.locator('[data-grouping-choice="all"] input').check();
+    assert.deepEqual(await checkedChoice(page, 'data-grouping-choice'), ['all'], 'Global stays selectable');
     assert.equal(await grouping.locator('[data-grouping-choice="region, country"]').innerText(), 'region, then country · Recommended');
     await atWidths(page, 'grouping', grouping, { whole: true });
     await grouping.locator('[data-grouping-choice="region, country"] input').check();
@@ -102,8 +107,11 @@ test('a first build asks Grouping after Data with a real example, then First run
     assert.equal(await firstRun.locator('[data-first-run-held]').textContent(),
       'main.sales.orders holds 48,210 records, so Inspire suggests a smaller first run to show results sooner.');
     assert.deepEqual(await firstRun.locator('[data-first-run-choice]').evaluateAll((rows) => rows.map((r) => [r.dataset.firstRunChoice, r.querySelector('[data-first-run-records]')?.textContent || ''])),
-      [['groups', ' · 19,612 records'], ['recent', ' · 3,120 records'], ['all', ' · 48,210 records']], 'each record is not alone here, so no number of records is offered');
-    assert.deepEqual(await checkedChoice(page, 'data-first-run-choice'), ['groups'], 'above 1,000 records the first run defaults to the chosen groups');
+      [['groups', ' · 19,612 records'], ['recent', ' · 3,120 records'], ['records', ' · 940 records'], ['custom', ''], ['all', ' · 48,210 records']]);
+    assert.deepEqual(await checkedChoice(page, 'data-first-run-choice'), ['records'], 'above 1,000 records the first run defaults to about 1,000 records in whole groups');
+    assert.match(await firstRun.locator('[data-first-run-choice="records"]').innerText(),
+      /About 1,000 records, in 3 whole groups so no group is cut: country = Germany, 600 records; country = Ireland, 300 records; country = Malta, 40 records/);
+    await firstRun.locator('[data-first-run-choice="groups"] input').check();
     assert.deepEqual(await firstRun.locator('[data-scope-group] input').evaluateAll((boxes) => boxes.map((b) => b.checked)), [true, true, true]);
     assert.deepEqual(await firstRun.locator('[data-scope-group]').allTextContents(),
       ['USA, the biggest · 18,200 records', 'Spain, a typical one · 1,400 records', 'Cyprus, the smallest · 12 records']);
@@ -123,7 +131,7 @@ test('a first build asks Grouping after Data with a real example, then First run
     await page.getByRole('button', { name: 'Start MVP', exact: true }).click();
     await until(() => made.jobs.length === 1, 'the build', 30000);
     const [sent] = insertsOf(made);
-    assert.deepEqual([sent.config.widgets.group_by, sent.config.widgets.run_scope, sent.config.widgets.scope_groups], ['region, country', 'groups', 'USA, Spain']);
+    assert.deepEqual([sent.config.widgets.group_by, sent.config.widgets.run_scope, sent.config.widgets.scope_groups], ['region, country', 'groups', '[[{"column":"country","value":"USA"}],[{"column":"country","value":"Spain"}]]']);
     assert.equal(calls.length, asked, 'moving between steps never reads the table again');
     assert.deepEqual(ui.pageErrors, []);
   } finally {
@@ -243,7 +251,7 @@ test('confirming the Deep discovery grouping makes it the person\'s choice, and 
 
 test('a technique grouping does not apply to asks only for the first run, and a small table defaults to everything', async () => {
   const calls = [];
-  const small = { ...PROFILE, records: 800, qualifies: false, standalone: true, default_scope: 'all', first_run: { all: 800, groups: 600, recent: 120, records: 800 }, recent: { days: 30, records: 120 } };
+  const small = { ...PROFILE, records: 800, applies: false, qualifies: false, standalone: true, default_scope: 'all', first_run: { all: 800, groups: 600, recent: 120, records: 800 }, recent: { days: 30, records: 120 } };
   const ui = await openUi('wizard', { me: ME }, '', { init: profileAt(calls, small) });
   const { page } = ui;
   try {
@@ -252,7 +260,7 @@ test('a technique grouping does not apply to asks only for the first run, and a 
       '9. Settings', '10. Vibes']);
     assert.equal(await page.locator('[data-first-run-held]').textContent(), 'main.sales.orders holds 800 records.');
     assert.deepEqual(await checkedChoice(page, 'data-first-run-choice'), ['all']);
-    assert.deepEqual(await page.locator('[data-first-run-choice]').evaluateAll((rows) => rows.map((r) => r.dataset.firstRunChoice)), ['groups', 'recent', 'records', 'all'],
+    assert.deepEqual(await page.locator('[data-first-run-choice]').evaluateAll((rows) => rows.map((r) => r.dataset.firstRunChoice)), ['groups', 'recent', 'records', 'custom', 'all'],
       'each record stands alone, so a number of records is offered');
     await page.locator('[data-first-run-choice="records"] input').check();
     await page.getByRole('textbox', { name: 'Records to run on' }).fill('0');
@@ -275,7 +283,7 @@ test('when Inspire cannot read the table, First run says why and still lets the 
     assert.deepEqual((await stepBar(page)).slice(0, 4), ['1. Choose', '2. Data', '3. First run', '4. Results']);
     const refusal = await page.locator('[data-scope-profile="error"]').textContent();
     assert.match(refusal, /^Inspire could not read the table for its suggestions: .*You cannot read main\.sales\.orders/);
-    assert.deepEqual(await page.locator('[data-first-run-choice]').evaluateAll((rows) => rows.map((r) => r.dataset.firstRunChoice)), ['groups', 'recent', 'records', 'all']);
+    assert.deepEqual(await page.locator('[data-first-run-choice]').evaluateAll((rows) => rows.map((r) => r.dataset.firstRunChoice)), ['groups', 'recent', 'records', 'custom', 'all']);
     assert.deepEqual(ui.pageErrors.filter((e) => !/status of 403 \(Forbidden\)/.test(e)), [], 'only the refused read answered 403');
   } finally {
     await ui.close();
@@ -351,7 +359,7 @@ test('the Build page has one Grouping and First run section, read from the App a
     const saves = made.appCalls.filter((c) => c.url.endsWith('/api/settings/save')).map((c) => c.body);
     assert.deepEqual(saves, [
       { page: 'n01_u01', name: 'group_by', value: 'country', was: 'all', note: 'compare countries, skip the tiny ones' },
-      { page: 'n01_u01', name: 'scope_groups', value: 'USA, Spain', was: 'USA, Spain, Cyprus', note: 'compare countries, skip the tiny ones' },
+      { page: 'n01_u01', name: 'scope_groups', value: '[[{"column":"country","value":"USA"}],[{"column":"country","value":"Spain"}]]', was: 'USA, Spain, Cyprus', note: 'compare countries, skip the tiny ones' },
     ], 'only what changed, Grouping before the groups the first run reads');
     assert.ok(made.appCalls.every((c) => c.headers.Authorization === `Bearer ${PERSON}`));
     assert.ok(calls.length >= 1 && calls.every((c) => c.use_case_id === HARNESS_USE_CASE.id && c.inspire_database === HARNESS_SETTINGS.inspireDatabase));
@@ -441,10 +449,10 @@ const recordedAsNumber = () => {
   const status = JSON.parse(row.asset_status);
   return { ...row, asset_status: JSON.stringify({ ...status, settings: status.settings.map((s) => (s.name === 'run_scope' ? RECORDED_RUN_SCOPE : s)) }) };
 };
-const NOT_QUALIFYING = { ...PROFILE, qualifies: false, reason: 'each record stands on its own', recommended: [], default_scope: 'all' };
+const NOT_QUALIFYING = { ...PROFILE, applies: false, qualifies: false, reason: 'each record stands on its own', recommended: [], default_scope: 'all' };
 
 for (const [name, profile] of [['the data qualifies for Grouping', PROFILE], ['the data does not qualify for Grouping', NOT_QUALIFYING]]) {
-  test(`all settings on a built version that recorded First run as a number walk First run${profile.qualifies ? ', Grouping' : ''} and Vibes and save the choice, when ${name}`, async () => {
+  test(`all settings on a built version that recorded First run as a number walk First run${profile.applies ? ', Grouping' : ''} and Vibes and save the choice, when ${name}`, async () => {
     const calls = [];
     let answered = 0;
     const init = async (page) => {
@@ -464,14 +472,14 @@ for (const [name, profile] of [['the data qualifies for Grouping', PROFILE], ['t
       await until(() => calls.length >= 1 && answered === calls.length, 'every read of the table is answered', 30000);
       await page.evaluate(() => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done))));
       const steps = (await stepBar(page)).map((s) => s.replace(/^\d+\. /, ''));
-      assert.equal(steps.includes('Grouping'), profile.qualifies, `Grouping only when the data qualifies: ${steps.join(' | ')}`);
+      assert.equal(steps.includes('Grouping'), profile.applies, `Grouping only when the data qualifies: ${steps.join(' | ')}`);
       assert.ok(steps.indexOf('First run') > steps.indexOf('Data') && steps.indexOf('First run') < steps.indexOf('Vibes'), steps.join(' | '));
-      if (profile.qualifies) assert.equal(steps.indexOf('Grouping') + 1, steps.indexOf('First run'));
+      if (profile.applies) assert.equal(steps.indexOf('Grouping') + 1, steps.indexOf('First run'));
       const back = page.getByRole('button', { name: 'Back' });
-      const first = profile.qualifies ? 'Grouping' : 'First run';
+      const first = profile.applies ? 'Grouping' : 'First run';
       for (let i = 0; i < steps.length && !(await page.locator('[aria-current="step"]').innerText()).includes(first); i += 1) await back.click();
       await onStep(page, first);
-      if (profile.qualifies) {
+      if (profile.applies) {
         await page.locator('[data-grouping-choice]').first().waitFor();
         await next(page);
         await onStep(page, 'First run');
@@ -539,7 +547,6 @@ for (const [name, profile] of [['the data qualifies for Grouping', PROFILE], ['t
       await until(() => made.jobs.length === 1, 'the build', 30000);
       const [sent] = insertsOf(made);
       assert.equal(sent.config.widgets.run_scope, profile.default_scope, JSON.stringify(sent.config.widgets));
-      if (profile.default_scope === 'groups') assert.equal(sent.config.widgets.scope_groups, 'USA, Spain, Cyprus');
       assert.deepEqual(ui.pageErrors, []);
     } finally {
       await ui.close();
@@ -655,6 +662,89 @@ test('the Build page of an App built before First run had choices shows the reco
     await panel.getByText('Saved Grouping and First run. Stored results follow at the next run.', { exact: true }).waitFor();
     assert.deepEqual(made.appCalls.filter((c) => c.url.endsWith('/api/settings/save')).map((c) => c.body.name), ['group_by'], 'First run is never sent to the old App');
     assert.ok(await scope.locator('[data-first-run-choice] input[type="radio"]').evaluateAll((inputs) => inputs.every((i) => i.disabled)), 'still locked after the save');
+    assert.deepEqual(ui.pageErrors, []);
+  } finally {
+    await ui.close();
+  }
+});
+
+const ITEM_JOIN = { table: 'main.retail.item', key: 'ss_item_sk', ref_column: 'i_item_sk' };
+const STAR_SQL = 'SELECT m.`ss_ticket_number`, concat_ws(\' / \', CAST(m.`ss_store_sk` AS STRING), CAST(j1.`i_category` AS STRING)) AS group_name\n'
+  + 'FROM `main`.`retail`.`store_sales` m\nLEFT JOIN `main`.`retail`.`item` j1 ON m.`ss_item_sk` = j1.`i_item_sk`';
+const STAR = {
+  table: 'main.retail.store_sales', records: 2880404, applies: true, qualifies: true, standalone: false,
+  reason: 'Grouping applies: Time Series Forecasting compares each record with the records like it, and ss_store_sk, item.i_category can group main.retail.store_sales.',
+  columns: [{ name: 'ss_store_sk', type: 'int', distinct: 6, smallest: 470000, largest: 490000, nulls: 0, parent: null },
+    { name: 'item.i_category', type: 'string', distinct: 10, smallest: 280000, largest: 295000, nulls: 0, parent: 'ss_store_sk', join: ITEM_JOIN }],
+  recommended: ['ss_store_sk', 'item.i_category'], example: null, time_column: null, time_via: null, recent: null,
+  suggested_groups: [
+    { value: '1 / Electronics', records: 49210, kind: 'biggest', parts: [{ column: 'ss_store_sk', value: '1' }, { column: 'item.i_category', value: 'Electronics', join: ITEM_JOIN }] },
+    { value: '7 / Home', records: 28180, kind: 'typical', parts: [{ column: 'ss_store_sk', value: '7' }, { column: 'item.i_category', value: 'Home', join: ITEM_JOIN }] }],
+  group_column: 'item.i_category', group_sizes: [{ value: 'Electronics', records: 295000 }, { value: 'Home', records: 280000 }],
+  first_run: { all: 2880404, groups: 77390, recent: null, records: null }, default_scope: 'records', read_at: '2026-11-04T05:00:00Z',
+  prefill: { key_columns: ['ss_ticket_number'], joins: [], sql: STAR_SQL },
+};
+const STAR_BARE = { ...STAR, qualifies: false, columns: [], recommended: [], suggested_groups: [], group_column: null, group_sizes: [], default_scope: 'records',
+  first_run: { all: 2880404, groups: null, recent: null, records: null },
+  reason: 'Grouping applies: Time Series Forecasting compares each record with the records like it, but no column of main.retail.store_sales or of a table it joins '
+    + 'makes 2 to 500 groups with 30 records each on average, so Global is picked and every record is compared with every other record; choose Custom to group the records with your own SQL.',
+  prefill: { key_columns: ['ss_ticket_number'], joins: [], sql: 'SELECT m.`ss_ticket_number`, \'Global\' AS group_name\nFROM `main`.`retail`.`store_sales` m' } };
+const FORECAST = { ...HARNESS_USE_CASE, analytics_technique: 'Time Series Forecasting', genie_instruction: INSTRUCTION };
+
+test('a forecast on a star fact table with no column to group by still asks Grouping with Global picked and why, then First run right after it on the first 1,000 records', async () => {
+  const calls = [];
+  const ui = await openUi('wizard', { me: ME, useCase: FORECAST }, '', { init: profileAt(calls, STAR_BARE) });
+  const { page } = ui;
+  try {
+    await toStep(page, 'Grouping');
+    const steps = await stepBar(page);
+    assert.ok(steps.some((s) => s.endsWith('. Grouping')), `the step list holds Grouping: ${steps}`);
+    assert.equal(steps.findIndex((s) => s.endsWith('. First run')), steps.findIndex((s) => s.endsWith('. Grouping')) + 1, 'First run comes right after Grouping');
+    const grouping = page.getByRole('region', { name: 'Compare like with like?', exact: true });
+    assert.deepEqual(await grouping.locator('[data-grouping-choice]').evaluateAll((rows) => rows.map((r) => r.dataset.groupingChoice)), ['all', 'custom'],
+      'only Global and Custom when no column qualifies');
+    assert.deepEqual(await checkedChoice(page, 'data-grouping-choice'), ['all'], 'Global is pre-picked');
+    assert.equal(await grouping.locator('[data-grouping-reason]').textContent(), STAR_BARE.reason);
+    await next(page);
+    await onStep(page, 'First run');
+    assert.deepEqual(await checkedChoice(page, 'data-first-run-choice'), ['records'], 'above 1,000 records with nothing to group by, the first 1,000 records');
+    assert.ok(!(await checkedChoice(page, 'data-first-run-choice')).includes('all'), 'everything is never the default (must-exclude)');
+    assert.match(await page.locator('[data-first-run-choice="records"]').innerText(), /The first 1,000 records; this technique reads records together and no column groups them, so a group may be cut/);
+    assert.match(await page.locator('[data-first-run-choice="all"] [data-first-run-estimate]').textContent(), /^Everything is 2,880,404 records, about 2,880 times/);
+    await page.locator('[data-first-run-choice="all"] input').check();
+    await next(page);
+    await page.locator('[aria-current="step"]', { hasText: 'Results' }).waitFor();
+    assert.deepEqual(ui.pageErrors, []);
+  } finally {
+    await ui.close();
+  }
+});
+
+test('a forecast on a star fact table recommends the store and the item category it joins, picks it with its join named and no grouping SQL, and First run names each whole group', async () => {
+  const calls = [];
+  const ui = await openUi('wizard', { me: ME, useCase: FORECAST, forwardedToken: PERSON, forwardedEmail: OWNER }, '', { init: profileAt(calls, STAR) });
+  const { page } = ui;
+  try {
+    await toStep(page, 'Grouping');
+    const grouping = page.getByRole('region', { name: 'Compare like with like?', exact: true });
+    assert.deepEqual(await grouping.locator('[data-grouping-choice]').evaluateAll((rows) => rows.map((r) => r.dataset.groupingChoice)),
+      ['all', 'ss_store_sk, item.i_category', 'ss_store_sk', 'item.i_category', 'custom']);
+    assert.deepEqual(await checkedChoice(page, 'data-grouping-choice'), ['ss_store_sk, item.i_category'],
+      'the recommended joined grouping is pre-picked by its table and column, never a silent Global');
+    assert.equal(await grouping.locator('[data-grouping-sql]').count(), 0, 'a joined grouping runs through its join, so no grouping SQL opens (must-exclude)');
+    assert.equal(await grouping.locator('[data-grouping-choice="ss_store_sk, item.i_category"] [data-grouping-join-note]').textContent(),
+      `item.i_category joins on ${ITEM_JOIN.key} = ${ITEM_JOIN.ref_column}. ${GROUPING_JOINED_NOTE}`);
+    assert.equal(await grouping.locator('[data-grouping-choice="ss_store_sk"] [data-grouping-join-note]').count(), 0, 'a main-table column names no join');
+    await next(page);
+    await onStep(page, 'First run');
+    const firstRun = page.getByRole('region', { name: 'What should the first run cover?', exact: true });
+    assert.deepEqual(await checkedChoice(page, 'data-first-run-choice'), ['records'], 'a star-schema forecast runs first on whole groups, never on everything');
+    assert.match(await firstRun.locator('[data-first-run-choice="records"]').innerText(),
+      /280,000 records in the smallest whole group, since every group of item\.i_category holds more than 1,000 records, so no group is cut: item\.i_category = Home, 280,000 records/);
+    await firstRun.locator('[data-first-run-choice="groups"] input').check();
+    assert.equal(await firstRun.locator('[data-first-run-groups-text]').textContent(),
+      'First run uses 2 groups: ss_store_sk = 1 and item.i_category = Electronics, 49,210 records; ss_store_sk = 7 and item.i_category = Home, 28,180 records');
+    if (process.env.FIRST_RUN_TEXT) fs.writeFileSync(process.env.FIRST_RUN_TEXT, await firstRun.innerText());
     assert.deepEqual(ui.pageErrors, []);
   } finally {
     await ui.close();

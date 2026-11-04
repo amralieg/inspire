@@ -260,6 +260,42 @@ def test_a_failed_check_after_selection_keeps_the_earlier_records(agent_ns):
     assert all(uc["data_signal"]["status"] == "passed" for uc in out) and "data_signal" not in extra
 
 
+def _flaky_signal_roles(inst, failures):
+    calls = []
+
+    def ask(batch, _schema, skip_cache, evidence=None):
+        calls.append(skip_cache)
+        if len(calls) <= failures:
+            raise RuntimeError("the endpoint is down")
+        return {uc["No"]: {"No": uc["No"]} for uc in batch}
+    inst._ask_signal_roles = ask
+    return calls
+
+
+def _errors(inst):
+    return [line for level, line in inst.logger.records if level == "ERROR"]
+
+
+def test_a_signal_check_call_that_fails_then_succeeds_on_retry_logs_no_error(agent_ns):
+    inst = _fake_bob(_inspire(agent_ns))
+    _signal_stub(inst, set())
+    calls = _flaky_signal_roles(inst, failures=1)
+    kept, dropped = inst._check_data_signal(_ucs(4), [])
+    assert calls == [False, True] and len(kept) == 4 and dropped == []
+    assert [line for level, line in inst.logger.records if level == "WARNING" and "Signal_Check call" in line]
+    assert _errors(inst) == []
+
+
+def test_a_signal_check_call_that_fails_every_attempt_logs_exactly_one_error_naming_the_call(agent_ns):
+    inst = _fake_bob(_inspire(agent_ns))
+    _signal_stub(inst, set())
+    calls = _flaky_signal_roles(inst, failures=99)
+    inst._check_data_signal(_ucs(4), [])
+    errors = _errors(inst)
+    assert calls == [False, True] and len(errors) == 1, errors
+    assert "Signal_Check call" in errors[0] and "the endpoint is down" in errors[0] and "attempt 2 of 2" in errors[0]
+
+
 def test_too_few_backed_candidates_leave_the_count_short_and_the_log_says_why(agent_ns):
     inst = _fake_bob(_inspire(agent_ns, {"count": 93, "mode": "exactly"}, use_cases_quality="Good"))
     inst.quality_filter_acceptable = {"High", "Very High"}

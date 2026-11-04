@@ -44,7 +44,8 @@ function runner(over = {}) {
     'information_schema.table_constraints': [{ constraint_type: 'PRIMARY KEY', constraint_name: 'pk', column_name: 'order_id', ordinal_position: '1' },
       { constraint_type: 'FOREIGN KEY', constraint_name: 'fk', column_name: 'customer_id', ordinal_position: '1', ref_catalog: 'main', ref_schema: 'crm',
         ref_table: 'customers', ref_column: 'id' }],
-    'information_schema.columns': COLUMNS,
+    'information_schema.columns': (_sql, parameters) => ({ rows: (parameters || []).some((p) => p.name === 't' && p.value === 'customers') ? [] : COLUMNS,
+      manifest: {} }),
     approx_count_distinct: [stats()],
     'WITH s AS (SELECT': sample(),
     'AS col, left(': values(),
@@ -85,9 +86,9 @@ test('the profile reads the main table with the person token only, bounded, and 
     const got = await post(srv, ASK);
     assert.equal(got.status, 200, JSON.stringify(got.data));
     const d = got.data;
-    assert.deepEqual(Object.keys(d), ['table', 'records', 'qualifies', 'reason', 'standalone', 'columns', 'recommended', 'example', 'time_column', 'time_via', 'recent',
-      'suggested_groups', 'first_run', 'default_scope', 'prefill', 'read_at', 'deep_suggestion']);
-    assert.deepEqual([d.table, d.records, d.qualifies, d.standalone, d.deep_suggestion], ['main.sales.orders', 10000, true, false, null]);
+    assert.deepEqual(Object.keys(d), ['table', 'records', 'applies', 'qualifies', 'reason', 'standalone', 'columns', 'recommended', 'example', 'time_column', 'time_via', 'recent',
+      'suggested_groups', 'group_column', 'group_sizes', 'first_run', 'default_scope', 'prefill', 'read_at', 'deep_suggestion']);
+    assert.deepEqual([d.table, d.records, d.applies, d.qualifies, d.standalone, d.deep_suggestion], ['main.sales.orders', 10000, true, true, false, null]);
     assert.equal(d.reason, 'Grouping applies: Anomaly Detection compares each record with the records like it, and region, country can group main.sales.orders.');
     assert.deepEqual(d.columns, [
       { name: 'region', type: 'STRING', distinct: 5, smallest: 30, largest: 4000, nulls: 0, parent: null },
@@ -97,17 +98,21 @@ test('the profile reads the main table with the person token only, bounded, and 
     assert.deepEqual(d.recommended, ['region', 'country']);
     assert.deepEqual(d.example, { column: 'country', small_groups: [{ value: 'Malta', records: 25 }, { value: 'Cyprus', records: 12 }], moves_to: 'EMEA' });
     assert.deepEqual([d.time_column, d.time_via, d.recent], ['order_date', null, { days: 30, records: 850 }]);
-    assert.deepEqual(d.suggested_groups, [{ value: 'USA', records: 3000, kind: 'biggest' }, { value: 'Germany', records: 1963, kind: 'typical' },
-      { value: 'UAE', records: 30, kind: 'smallest' }]);
+    const part = (region, country) => [{ column: 'region', value: region }, { column: 'country', value: country }];
+    assert.deepEqual(d.suggested_groups, [{ value: 'AMER / USA', records: 3000, kind: 'biggest', parts: part('AMER', 'USA') },
+      { value: 'EMEA / Germany', records: 1963, kind: 'typical', parts: part('EMEA', 'Germany') }, { value: 'MEA / UAE', records: 30, kind: 'smallest', parts: part('MEA', 'UAE') }],
+      'a nested grouping suggests AND groups: each names its region and its country');
+    assert.equal(d.group_column, 'country');
+    assert.ok(d.group_sizes.length > 0 && d.group_sizes.every((g) => g.records >= 30), 'whole groups are only groups of 30 records or more');
     assert.deepEqual(d.first_run, { all: 10000, groups: 4993, recent: 850, records: null });
-    assert.equal(d.default_scope, 'groups', 'more than 1,000 records, so the First run is the default (decision 5B)');
+    assert.equal(d.default_scope, 'records', 'more than 1,000 records, so the First run takes about 1,000 records in whole groups (decision 5B, 4A)');
     assert.deepEqual(d.prefill.key_columns, ['order_id']);
     assert.deepEqual(d.prefill.joins, [{ column: 'customer_id', ref_table: 'main.crm.customers', ref_column: 'id', source: 'unity_catalog' }]);
     assert.equal(d.prefill.sql, 'SELECT m.`order_id`, m.`country` AS group_name\nFROM `main`.`sales`.`orders` m\nLEFT JOIN `main`.`crm`.`customers` j1 ON m.`customer_id` = j1.`id`');
     assert.equal(G.checkGroupingSql(d.prefill.sql).ok, true, 'the starting SQL passes the grouping SQL check');
     assert.ok(!Number.isNaN(Date.parse(d.read_at)));
     const reads = tableReads(made.sqlCalls);
-    assert.equal(reads.length, 6, reads.map((c) => c.sql.slice(0, 60)).join('\n'));
+    assert.equal(reads.length, 8, reads.map((c) => c.sql.slice(0, 60)).join('\n'));
     assert.ok(reads.every((c) => c.token === PERSON), 'every read of the use case table is the person token');
     assert.ok(reads.every((c) => c.options.signal && c.options.byteLimit === G.GROUPING_BYTE_LIMIT && c.options.rowLimit > 0 && c.options.waitTimeout === '10s'));
     assert.ok(made.sqlCalls.filter((c) => c.sql.includes('__inspire_usecases')).every((c) => c.token === 'tok'), 'the use case record is read with the App token');
@@ -183,7 +188,7 @@ test('a column of 501 groups and one of about 900 are left out, and the second i
     const names = got.data.columns.map((c) => c.name);
     assert.ok(!names.includes('sku') && !names.includes('city') && !got.data.recommended.includes('sku'));
     const exact = tableReads(made.sqlCalls).find((c) => c.sql.includes('AS col, left('));
-    assert.match(exact.sql, /GROUP BY `sku`/, 'about 501 approximate values is counted exactly and then refused at 501');
+    assert.match(exact.sql, /GROUP BY m\.`sku`/, 'about 501 approximate values is counted exactly and then refused at 501');
     assert.doesNotMatch(exact.sql, /`city`/, 'about 900 approximate values is never grouped over the whole table');
     assert.ok(exact.options.rowLimit >= GP.PROFILE_VALUE_ROWS);
   });
@@ -194,8 +199,9 @@ test('a column with more than half its records empty is listed but never recomme
     sample: [{ kind: 'size', coarse: '0', fine: '-1', groups: '3', records: '10000' }], paths: null, time: null, days: 30, keys: { primary: [], joins: [] },
     joins: [], readAt: 'now', values: [{ col: '0', value: 'A', records: '2000' }, { col: '0', value: 'B', records: '2000' }, { col: '0', value: null, records: '6000' }] };
   const heavy = GP.profileView({ ...base, stats: { records: '10000', d0: '2', n0: '6000' } });
-  assert.deepEqual([heavy.columns.map((c) => c.name), heavy.recommended, heavy.qualifies], [['ragged'], [], false]);
-  assert.match(heavy.reason, /^Grouping does not apply: no column of main\.sales\.orders makes 2 to 500 groups/);
+  assert.deepEqual([heavy.columns.map((c) => c.name), heavy.recommended, heavy.applies, heavy.qualifies], [['ragged'], [], true, false]);
+  assert.match(heavy.reason, /^Grouping applies: Churn Prediction compares each record with the records like it, but no column of main\.sales\.orders or of a table it joins makes 2 to 500 groups/);
+  assert.match(heavy.reason, /so Global is picked/);
   const filled = GP.profileView({ ...base, stats: { records: '10000', d0: '2', n0: '4000' } });
   assert.deepEqual([filled.recommended, filled.qualifies], [['ragged'], true], 'the same column at 40% empty is recommended');
 });
@@ -252,7 +258,8 @@ test('a small table runs everything, and a standalone technique with no group an
     { 'information_schema.columns': COLUMNS.filter((c) => c.data_type !== 'DATE'), 'AS col, left(': [] });
   await withApp(alone, async (srv) => {
     const got = await post(srv, ASK);
-    assert.deepEqual([got.data.standalone, got.data.qualifies, got.data.time_column, got.data.recent, got.data.suggested_groups], [true, false, null, null, []]);
+    assert.deepEqual([got.data.standalone, got.data.applies, got.data.qualifies, got.data.time_column, got.data.recent, got.data.suggested_groups],
+      [true, false, false, null, null, []]);
     assert.deepEqual(got.data.first_run, { all: 10000, groups: null, recent: null, records: 1000 });
     assert.equal(got.data.default_scope, 'records');
     assert.match(got.data.reason, /^Grouping does not apply: Text Classification looks at each record on its own/);
@@ -315,13 +322,12 @@ function webSales({ records, recent = '21000', keys = '30', joins = WS_JOINS, el
     elite_assessment: elite } }, {
     'information_schema.table_constraints': [],
     'information_schema.columns': columns,
-    approx_count_distinct: [],
-    'AS records': [{ records: String(records), recent, recent_keys: keys }],
+    approx_count_distinct: [{ records: String(records), recent, recent_keys: keys, d0: '0', n0: '0' }],
   });
 }
 
-for (const [records, expected] of [[999, 'all'], [1000, 'all'], [1001, 'recent'], [718931, 'recent']]) {
-  test(`a fact table dated only through its date table offers a recent period, and ${records.toLocaleString('en-US')} records default to ${expected}`,
+for (const [records, expected] of [[999, 'all'], [1000, 'all'], [1001, 'records'], [718931, 'records']]) {
+  test(`a fact table dated only through its date table offers a recent period, and ${records.toLocaleString('en-US')} records default to ${expected}, never recent`,
     async () => {
       const made = webSales({ records });
       await withApp(made, async (srv) => {
@@ -332,11 +338,12 @@ for (const [records, expected] of [[999, 'all'], [1000, 'all'], [1001, 'recent']
           { days: 30, records: 21000 }]);
         assert.deepEqual(d.first_run, { all: records, groups: null, recent: 21000, records: null });
         assert.equal(d.default_scope, expected);
-        const stat = tableReads(made.sqlCalls).find((c) => c.sql.includes('AS records'));
+        const stat = tableReads(made.sqlCalls).find((c) => c.sql.includes('approx_count_distinct'));
         assert.equal(stat.sql, 'WITH x AS (SELECT MAX(CAST(r.`d_date` AS DATE)) AS inspire_newest FROM `samples`.`tpcds_sf1`.`web_sales` m JOIN '
           + '`samples`.`tpcds_sf1`.`date_dim` r ON m.`ws_ship_date_sk` = r.`d_date_sk`), k AS (SELECT DISTINCT r.`d_date_sk` AS inspire_key FROM '
           + '`samples`.`tpcds_sf1`.`date_dim` r CROSS JOIN x WHERE CAST(r.`d_date` AS DATE) >= date_sub(x.inspire_newest, 29) AND CAST(r.`d_date` AS DATE) '
           + '<= x.inspire_newest AND r.`d_date_sk` IS NOT NULL), kc AS (SELECT COUNT(*) AS inspire_keys FROM k) SELECT COUNT(*) AS records, '
+          + "approx_count_distinct(m.`ws_warehouse_sk`) AS d0, COUNT_IF(m.`ws_warehouse_sk` IS NULL OR TRIM(CAST(m.`ws_warehouse_sk` AS STRING)) = '') AS n0, "
           + 'COUNT(k.inspire_key) AS recent, MAX(kc.inspire_keys) AS recent_keys FROM `samples`.`tpcds_sf1`.`web_sales` m CROSS JOIN kc LEFT JOIN k '
           + 'ON m.`ws_ship_date_sk` = k.inspire_key');
         const asked = tableReads(made.sqlCalls).filter((c) => c.sql.includes('information_schema.columns')).map((c) => c.parameters[1].value);
@@ -355,9 +362,133 @@ test('a date key with no dated join, or one whose period covers more than 10,000
       const got = await post(srv, ASK);
       assert.equal(got.status, 200, JSON.stringify(got.data));
       assert.deepEqual([got.data.time_column, got.data.time_via, got.data.recent, got.data.first_run.recent], [null, null, null, null]);
-      assert.equal(got.data.default_scope, 'all', 'with no group, no period and records that depend on each other, only everything is left');
+      assert.equal(got.data.default_scope, 'records', 'with no group and no period, the first 1,000 records run first with a plain note (must-exclude: never all)');
     });
   }
   const kept = webSales({ records: 718931, keys: '10000' });
-  await withApp(kept, async (srv) => assert.equal((await post(srv, ASK)).data.default_scope, 'recent', '10,000 keys is still a recent period'));
+  await withApp(kept, async (srv) => {
+    const d = (await post(srv, ASK)).data;
+    assert.deepEqual([d.time_column, d.default_scope], ['ws_ship_date_sk', 'records'], '10,000 keys is still a recent period to pick, never the default');
+  });
+});
+
+const STAR_COLUMNS = {
+  store_sales: [['ss_sold_date_sk', 'int'], ['ss_item_sk', 'int'], ['ss_customer_sk', 'int'], ['ss_store_sk', 'int'], ['ss_ticket_number', 'bigint'],
+    ['ss_quantity', 'int'], ['ss_net_paid', 'decimal(7,2)'], ['ss_sales_price', 'decimal(7,2)']],
+  web_sales: [['ws_sold_date_sk', 'int'], ['ws_item_sk', 'int'], ['ws_bill_customer_sk', 'int'], ['ws_order_number', 'bigint'], ['ws_net_paid', 'decimal(7,2)']],
+  item: [['i_item_sk', 'int'], ['i_category', 'string'], ['i_brand', 'string'], ['i_item_desc', 'string']],
+  customer: [['c_customer_sk', 'int'], ['c_email_address', 'string'], ['c_first_name', 'string'], ['c_birth_country', 'string']],
+  store: [['s_store_sk', 'int']],
+  date_dim: [['d_date_sk', 'int'], ['d_date', 'date']],
+};
+const STAR_RECORDS = 2880404;
+const STAR_GROUPS = { ss_store_sk: 6, i_category: 10, ss_item_sk: 18000, ss_customer_sk: 99000, ws_item_sk: 18000, ws_bill_customer_sk: 99000, i_brand: 7 };
+const starName = (expr) => /`([^`]+)`\)?$/.exec(expr)[1];
+const starSizes = (name) => Array.from({ length: Math.min(STAR_GROUPS[name] || 0, 600) }, (_v, i) => ({
+  value: name === 'i_category' ? ['Books', 'Children', 'Electronics', 'Home', 'Jewelry', 'Men', 'Music', 'Shoes', 'Sports', 'Women'][i] : String(i + 1),
+  records: String(Math.floor(STAR_RECORDS / STAR_GROUPS[name])),
+}));
+
+function starSales(fact) {
+  const at = (p) => p === 'store_sales' ? 'ss' : 'ws';
+  const fk = (column, ref, refColumn) => ({ constraint_type: 'FOREIGN KEY', constraint_name: `fk_${column}`, column_name: column, ordinal_position: '1',
+    ref_catalog: 'main', ref_schema: 'retail', ref_table: ref, ref_column: refColumn });
+  const constraints = fact === 'store_sales'
+    ? [{ constraint_type: 'PRIMARY KEY', constraint_name: 'pk', column_name: 'ss_ticket_number', ordinal_position: '1' }, fk('ss_sold_date_sk', 'date_dim', 'd_date_sk'),
+      fk('ss_item_sk', 'item', 'i_item_sk'), fk('ss_customer_sk', 'customer', 'c_customer_sk'), fk('ss_store_sk', 'store', 's_store_sk')]
+    : [{ constraint_type: 'PRIMARY KEY', constraint_name: 'pk', column_name: 'ws_order_number', ordinal_position: '1' }, fk('ws_sold_date_sk', 'date_dim', 'd_date_sk'),
+      fk('ws_item_sk', 'item', 'i_item_sk'), fk('ws_bill_customer_sk', 'customer', 'c_customer_sk')];
+  const columns = (_sql, parameters) => ({ rows: (STAR_COLUMNS[(parameters || []).find((p) => p.name === 't').value] || [])
+    .map(([column_name, data_type], i) => ({ column_name, data_type, ordinal_position: i + 1 })), manifest: {} });
+  const stats = (sql) => {
+    const row = { records: String(STAR_RECORDS), recent: '0', recent_keys: '30' };
+    for (const [, expr, i] of sql.matchAll(/approx_count_distinct\(((?:m|g\d+)\.`[^`]+`)\) AS d(\d+)/g)) {
+      Object.assign(row, { [`d${i}`]: String(STAR_GROUPS[starName(expr)] || 0), [`n${i}`]: '0' });
+    }
+    return { rows: [row], manifest: {} };
+  };
+  const sample = (sql) => {
+    const names = [...sql.matchAll(/((?:m|g\d+)\.`[^`]+`) AS c(\d+)/g)].map(([, expr]) => starName(expr));
+    const rows = names.map((name, i) => ({ kind: 'size', coarse: String(i), fine: '-1', groups: String(STAR_GROUPS[name] || 0), records: '100000' }));
+    names.forEach((_a, i) => names.forEach((_b, j) => { if (i !== j) rows.push({ kind: 'nest', coarse: String(i), fine: String(j), groups: '2', records: '0' }); }));
+    return { rows, manifest: {} };
+  };
+  const values = (sql) => ({ rows: [...sql.matchAll(/SELECT (\d+) AS col, left\(CAST\(((?:m|g\d+)\.`[^`]+`) AS STRING\)/g)]
+    .flatMap(([, i, expr]) => starSizes(starName(expr)).map((g) => ({ col: i, ...g }))), manifest: {} });
+  const tags = { rows: [{ catalog_name: 'main', schema_name: 'retail', table_name: 'item', column_name: 'i_brand', tag_name: 'class', tag_value: 'pii' }], manifest: {} };
+  const table = `main.retail.${fact}`;
+  const technique = 'Time Series Forecasting';
+  return profiled({ useCase: { id: 'N01-U01', primary_table: table, tables_involved: `${table}, main.retail.item`, analytics_technique: technique,
+    use_case: `Forecast weekly sales by item category for each ${fact === 'store_sales' ? 'store' : 'web order'}`, table_joins: '[]', elite_assessment: '{}' } }, {
+    'information_schema.table_constraints': constraints,
+    'information_schema.columns': columns,
+    'information_schema.column_tags': () => tags,
+    approx_count_distinct: stats,
+    'WITH s AS (SELECT': sample,
+    'AS col, left(': values,
+    'AS p0': [],
+  });
+}
+
+test('a star fact table shows the Grouping step, offers its store key and the item category it joins, and never a key, a measure or a person', async () => {
+  const made = starSales('store_sales');
+  await withApp(made, async (srv) => {
+    const got = await post(srv, ASK);
+    assert.equal(got.status, 200, JSON.stringify(got.data));
+    const d = got.data;
+    assert.equal(d.applies, true, 'the step shows for a forecast on a star fact table');
+    const shown = d.columns.map((c) => c.name);
+    assert.ok(shown.includes('ss_store_sk'), `the store key is offered: ${shown}`);
+    assert.ok(shown.includes('item.i_category'), `the item category one join away is offered: ${shown}`);
+    assert.deepEqual(d.columns.find((c) => c.name === 'item.i_category').join, { table: 'main.retail.item', key: 'ss_item_sk', ref_column: 'i_item_sk' });
+    for (const never of ['ss_ticket_number', 'ss_net_paid', 'ss_sales_price', 'ss_quantity', 'ss_item_sk', 'ss_customer_sk', 'ss_sold_date_sk']) {
+      assert.ok(!shown.includes(never), `${never} is never offered (must-exclude)`);
+    }
+    const stat = tableReads(made.sqlCalls).find((c) => c.sql.includes('approx_count_distinct')).sql;
+    assert.doesNotMatch(stat, /ss_ticket_number|ss_net_paid|ss_sales_price|ss_quantity/, 'the primary key and the measures are never profiled (must-exclude)');
+    assert.doesNotMatch(stat, /c_email_address|c_first_name|c_birth_country|i_brand|i_item_desc/,
+      'a joined personal column, by name or by tag, and a free-text column are never profiled (must-exclude)');
+    assert.match(stat, /LEFT JOIN \(SELECT `i_item_sk` AS inspire_key, MAX\(`i_category`\) AS `i_category` FROM `main`\.`retail`\.`item` GROUP BY `i_item_sk`\) g\d+ ON m\.`ss_item_sk` = g\d+\.inspire_key/,
+      'the joined column is counted over fact rows, each item row read once');
+    assert.deepEqual(d.recommended, ['ss_store_sk']);
+    assert.equal(d.default_scope, 'records', 'a star-schema forecast runs first on about 1,000 records in whole groups, never on everything');
+    assert.equal(d.group_column, 'ss_store_sk');
+    assert.ok(d.group_sizes.length > 0 && d.group_sizes.every((g) => g.records >= 30), 'whole groups of the store key, never a cut group');
+    assert.ok(d.suggested_groups.length > 0 && d.suggested_groups.every((g) => g.parts[0].column === 'ss_store_sk'));
+  });
+});
+
+test('a fact table with no category of its own recommends the category it joins, and its starting grouping SQL passes the grouping SQL check', async () => {
+  const made = starSales('web_sales');
+  await withApp(made, async (srv) => {
+    const d = (await post(srv, ASK)).data;
+    assert.deepEqual([d.applies, d.qualifies, d.recommended], [true, true, ['item.i_category']]);
+    assert.equal(d.prefill.grouped, undefined, 'a joined column runs by its join, so the profile carries no grouping SQL per choice');
+    const sql = d.prefill.sql;
+    assert.match(sql, /j\d+\.`i_category` AS group_name/);
+    assert.match(sql, /LEFT JOIN `main`\.`retail`\.`item` j\d+ ON m\.`ws_item_sk` = j\d+\.`i_item_sk`/);
+    const checked = G.checkGroupingSql(sql);
+    assert.equal(checked.ok, true, checked.text);
+    assert.deepEqual(d.suggested_groups[0].parts[0].join, { table: 'main.retail.item', key: 'ws_item_sk', ref_column: 'i_item_sk' });
+    assert.equal(d.group_column, 'item.i_category');
+    assert.equal(d.default_scope, 'records');
+  });
+});
+
+test('a standalone technique on a star fact table hides the Grouping step', async () => {
+  const made = starSales('store_sales');
+  made.state.useCase.analytics_technique = 'Text Classification';
+  await withApp(made, async (srv) => {
+    const d = (await post(srv, ASK)).data;
+    assert.deepEqual([d.applies, d.qualifies, d.standalone], [false, false, true]);
+  });
+});
+
+test('the grouping SQL of a joined column is the shared case the notebook runs, so the App and the run join the same table on the same key', () => {
+  const c = require('../../agent/tests/fixtures/implement_grouping_cases.json').joined_grouping;
+  const sql = GP.prefillSql(G.groupingMainTable(c.main), c.keys, [], [c.group_column], c.joined);
+  assert.equal(sql, c.sql);
+  const checked = G.checkGroupingSql(sql);
+  assert.equal(checked.ok, true, checked.text);
+  assert.deepEqual(checked.tables, c.tables);
 });

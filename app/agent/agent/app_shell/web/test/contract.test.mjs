@@ -56,11 +56,11 @@ test('a running refresh shows the step, rows, percent and time left the contract
   ]) {
     const routes = { freshness: ({ json }) => json(200, { ...C.freshness.response, active }) };
     const { page, seen, context } = await openApp(browser, served.base, appInfo(), { routes, clock: CLOCK });
-    await page.locator('.fresh-busy [data-progress]').waitFor();
-    assert.equal(await page.locator('.fresh-busy [data-progress]').innerText(), text);
-    const bar = await page.locator('.ph .fresh [role="progressbar"]').first().evaluate((el) => [el.getAttribute('aria-valuenow'), el.querySelector('i').style.width]);
+    await page.locator('.ph .fresh-d [data-progress]').waitFor();
+    assert.equal(await page.locator('.ph .fresh-d [data-progress]').innerText(), text);
+    const bar = await page.locator('.top .fresh [role="progressbar"]').first().evaluate((el) => [el.getAttribute('aria-valuenow'), el.querySelector('i').style.width]);
     assert.deepEqual(bar, [percent, `${percent}%`]);
-    if (active.eta_s == null) assert.doesNotMatch(await page.locator('.ph .fresh').innerText(), /left/, 'no time left that the server did not send');
+    if (active.eta_s == null) assert.doesNotMatch(`${await page.locator('.top .fresh').innerText()} ${await page.locator('.ph .fresh-d').innerText()}`, /left/, 'no time left that the server did not send');
     assert.deepEqual(seen.errors, []);
     await context.close();
   }
@@ -73,7 +73,7 @@ test('an opened run lists how long each step took from the contract run fields, 
     { ...base, run_id: 'u1', started: '2026-10-20T06:00:00Z', duration_s: 280 }];
   const routes = { runs: ({ json }) => json(200, { ...NO_RUNS, runs, total: 2 }) };
   const { page, seen, context } = await openApp(browser, served.base, appInfo({}, 1, TABLE), { routes, clock: CLOCK });
-  await page.getByRole('tab', { name: 'Runs' }).click();
+  await page.locator('.top-runs').click();
   const rows = page.locator('.runs-tbl > tbody > tr:not(.runs-d)');
   await rows.first().waitFor();
   await rows.nth(0).locator('.runs-tog').click();
@@ -292,11 +292,11 @@ test('a run the server says has gone quiet shows the server note, with no bar, n
   for (const active of [SILENT, confirmed]) {
     const routes = { freshness: ({ json }) => json(200, { ...C.freshness.response, active }) };
     const { page, seen, context } = await openApp(browser, served.base, appInfo(), { routes, clock: CLOCK });
-    await page.locator('.fresh-busy [data-progress]').waitFor();
-    assert.equal(await page.locator('.fresh-busy [data-progress]').innerText(), SILENT.message);
-    assert.equal(await page.locator('.ph .fresh [role="progressbar"]').count(), 0, 'no bar, moving or not');
-    assert.equal(await page.locator('.ph .fresh .fresh-dots').count(), 0, 'no moving dots');
-    assert.doesNotMatch(await page.locator('.ph .fresh').innerText(), /running for|left|%/);
+    await page.locator('.ph .fresh-d [data-progress]').waitFor();
+    assert.equal(await page.locator('.ph .fresh-d [data-progress]').innerText(), SILENT.message);
+    assert.equal(await page.locator('.top .fresh [role="progressbar"]').count(), 0, 'no bar, moving or not');
+    assert.equal(await page.locator('.top .fresh .fresh-dots').count(), 0, 'no moving dots');
+    assert.doesNotMatch(`${await page.locator('.top .fresh').innerText()} ${await page.locator('.ph .fresh-d').innerText()}`, /running for|left|%/);
     assert.deepEqual(seen.errors, []);
     await context.close();
   }

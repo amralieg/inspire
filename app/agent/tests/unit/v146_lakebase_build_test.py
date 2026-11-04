@@ -1094,6 +1094,31 @@ def test_the_copies_are_indexed_on_the_record_key_and_on_each_sort_of_the_decisi
     assert all(t.startswith('CREATE INDEX IF NOT EXISTS "ix_') for t in texts), "an index a later sync kept is never built twice"
 
 
+def test_every_copy_is_indexed_on_each_column_a_page_filter_reads_from_it_once(agent_ns):
+    page = {"id": "n01_u01", "result_table": "main.inspire.churn_out", "records": {"key": "entity_id", "rank": "rank", "columns": [{"column": "region"}]},
+            "filters": [{"id": "run_date", "type": "date_range", "columns": {"records": "as_of_date"}},
+                        {"id": "region", "type": "multi_select", "columns": {"records": "region", "activity": "region", "stores": "region"}},
+                        {"id": "store", "type": "multi_select", "columns": {"records": "store", "activity": "store"}},
+                        {"id": "channel", "type": "multi_select", "columns": {"records": "channel", "activity": "channel"}}]}
+    column = lambda n: {"name": n, "type": "STRING", "type_text": "STRING"}
+    copies = [{"page": "n01_u01", "dataset": "", "role": "current", "pg": "churn_desk.n01_u01__t_a", "columns": [column("record_key"), column("store")]},
+              {"page": "n01_u01", "dataset": "records", "pg": "churn_desk.n01_u01__d_records_b",
+               "columns": [column(n) for n in ("record_key", "rank", "region", "store", "as_of_date")]},
+              {"page": "n01_u01", "dataset": "activity", "pg": "churn_desk.n01_u01__d_activity_c", "columns": [column(n) for n in ("region", "store", "channel")]},
+              {"page": "n01_u01", "dataset": "stores", "pg": "churn_desk.n01_u01__d_stores_d", "columns": [column(n) for n in ("store", "region")]},
+              {"page": "n01_u02", "dataset": "activity", "pg": "churn_desk.n01_u02__d_activity_e", "columns": [column("region")]}]
+    texts = [s.as_string(None) if hasattr(s, "as_string") else str(s) for s in agent_ns["implement_lakebase_index_sql"](copies, [page])]
+    on = [t.split(" ON ", 1)[1] for t in texts]
+    assert on == ['"churn_desk"."n01_u01__t_a" ("record_key")', '"churn_desk"."n01_u01__d_records_b" ("record_key")',
+                  '"churn_desk"."n01_u01__d_records_b" ("rank", "record_key")', '"churn_desk"."n01_u01__d_records_b" ("region", "record_key")',
+                  '"churn_desk"."n01_u01__d_records_b" ("as_of_date")', '"churn_desk"."n01_u01__d_records_b" ("store")',
+                  '"churn_desk"."n01_u01__d_activity_c" ("region")', '"churn_desk"."n01_u01__d_activity_c" ("store")',
+                  '"churn_desk"."n01_u01__d_activity_c" ("channel")', '"churn_desk"."n01_u01__d_stores_d" ("region")'], (
+        "a filter column is indexed on each copy that holds it, a column an index already leads with is not indexed again, a column the "
+        "copy lacks is skipped, the current copy is not a dataset, and a copy of a page with no filters gets none")
+    assert len(set(texts)) == len(texts)
+
+
 def test_lakebase_answers_the_app_in_time_up_to_its_capacity_and_a_larger_table_keeps_the_delta_tables_naming_both_sizes(agent_ns):
     size, rows_cap, bytes_cap = (agent_ns[n] for n in ("implement_lakebase_size", "IMPLEMENT_LAKEBASE_ROWS_PER_CU", "IMPLEMENT_LAKEBASE_BYTES_PER_CU"))
     assert size(rows_cap, bytes_cap, rows_cap, 1) == "", "a table at exactly what one capacity unit answers in time reads Lakebase"

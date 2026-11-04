@@ -8,8 +8,9 @@ FACTS_COLUMN = "run_facts"
 ACTED_SUFFIX = "_acted"
 RUN_LOG_SUFFIX = "_run_log"
 CLOSED_SUFFIX = "_closed"
+CLOSES_SUFFIX = "_closes"
 CHANGES_SUFFIX = "_run_changes"
-COMPANION_SUFFIXES = ("_summary", "_assumptions", RUN_LOG_SUFFIX, ACTED_SUFFIX, CLOSED_SUFFIX, CHANGES_SUFFIX)
+COMPANION_SUFFIXES = ("_summary", "_assumptions", RUN_LOG_SUFFIX, ACTED_SUFFIX, CLOSED_SUFFIX, CHANGES_SUFFIX, CLOSES_SUFFIX)
 FLAGGED_TIERS = ("Act now", "Review")
 OPEN_STATUSES = ("New", "In progress")
 DONE = "Done"
@@ -170,6 +171,30 @@ CLOSED_COLUMNS = (("_inspire_k", "STRING"), ("_inspire_label", "STRING"), ("_ins
                   ("_inspire_state", "STRING"), ("_inspire_now", "DOUBLE"), ("_inspire_seen", "TIMESTAMP"), ("_inspire_measured_ok", "INT"),
                   ("_inspire_measured", "DOUBLE"))
 CHANGED_KEY = "_inspire_changed"
+CLOSED_FIELDS = {"_inspire_closed_by": "_inspire_closer", "_inspire_closed_at": "_inspire_closed", "_inspire_closed_batch": "_inspire_closed_batch",
+                 "_inspire_closed_undo": "_inspire_closed_undo", "_inspire_closed_note": "_inspire_closed_note",
+                 "_inspire_closed_reason": "_inspire_closed_reason", "_inspire_closed_comment": "_inspire_closed_comment"}
+CLOSED_AS = "_inspire_closed_as"
+
+
+def closes_facts(table: str) -> dict:
+    return {"table": table, "fields": list(CLOSED_FIELDS)}
+
+
+def pinned_closes(facts) -> bool:
+    held = facts.get("closes") if isinstance(facts, dict) else None
+    return isinstance(held, dict) and bool(held.get("table")) and held.get("fields") == list(CLOSED_FIELDS)
+
+
+def latest_closes(key: str, status: str, alias) -> str:
+    picked = ", ".join(f"z.`{name}` AS `{alias(field)}`" for field, name in CLOSED_FIELDS.items())
+    return f"SELECT z.`_inspire_kk` AS `{key}`, z.`{CLOSED_AS}` AS `{status}`, {picked} FROM hk AS z WHERE z.`_inspire_kth` = 1"
+
+
+def pinned_closes_sql(closes: str, key: str, status: str, alias, keys: str = "") -> str:
+    picked = ", ".join(f"z.`{field}` AS `{alias(field)}`" for field in CLOSED_FIELDS)
+    within = f" WHERE z.`_inspire_k` IN ({keys})" if keys else ""
+    return f"SELECT z.`_inspire_k` AS `{key}`, z.`{CLOSED_AS}` AS `{status}`, {picked} FROM {closes} AS z{within}"
 
 
 def changed_closing_sql(table: str, names: set, label=None, limit: int = 0) -> tuple:
@@ -195,6 +220,11 @@ def closed_now_sql(closed: str, changed: list, add) -> str:
 def closed_rows_sql(acted: str, names: set, label=None) -> str:
     closing = closing_ctes(acted, names, label, source=acted)
     return "WITH " + ", ".join(f"{name} AS ({closing[name]})" for name in CLOSING_ORDER if name in closing) + " SELECT * FROM hm"
+
+
+def closes_rows_sql(acted: str, names: set, label=None) -> str:
+    closing = closing_ctes(acted, names, label, source=acted)
+    return f"WITH hx AS ({closing['hx']}), hk AS ({closing['hk']}) {latest_closes('_inspire_k', CLOSED_AS, lambda field: field)}"
 
 
 def acted_columns(names, label=None) -> list:

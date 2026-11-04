@@ -581,7 +581,7 @@ test('the To fix per run chart explains the runs it drew, oldest first, without 
   routes.runs = ({ json }) => json(200, { runs: [run('81', '2026-10-17T06:00:00Z', 12), run('80', '2026-09-26T06:00:00Z', null), run('79', '2026-09-15T06:00:00Z', 20)],
     total: 3, offset: 0, limit: 20, job: null, errors: {} });
   const { page, seen, context } = await open(appInfo({}, 1, TABLE), { routes, clock: Date.parse('2026-10-27T09:30:00Z') });
-  await page.getByRole('tab', { name: 'Runs' }).click();
+  await page.locator('.top-runs').click();
   await page.locator('[data-bars="to_fix_runs"] .vb-c').first().waitFor();
   assert.deepEqual(await page.locator('.explain-btn').evaluateAll((els) => els.map((e) => e.getAttribute('aria-label'))), ['Explain To fix per run']);
   await page.getByRole('button', { name: 'Explain To fix per run' }).click();
@@ -592,7 +592,7 @@ test('the To fix per run chart explains the runs it drew, oldest first, without 
   assert.deepEqual(seen.errors, []);
   await context.close();
   const off = await open(appInfo({ genie: null, genie_note: 'The Genie Agent did not build.' }, 1, TABLE), { routes });
-  await off.page.getByRole('tab', { name: 'Runs' }).click();
+  await off.page.locator('.top-runs').click();
   await off.page.locator('[data-bars="to_fix_runs"] .vb-c').first().waitFor();
   assert.equal(await off.page.locator('.explain-btn').count(), 0, 'no Explain while Ask Genie is off');
   await off.context.close();

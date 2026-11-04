@@ -68,8 +68,7 @@ function alertRoutes(listing = LISTING, overrides = {}) {
 const open = (info, routes, options = {}) => openApp(browser, served.base, info, { clock: NOW, ...options, routes });
 
 async function alertsTab(page) {
-  await page.goto(`${served.base}#/n01_u05`);
-  await page.getByRole('tab', { name: 'Alerts' }).click();
+  await page.goto(`${served.base}#/n01_u05?v=alerts`);
   await page.locator('section.alerts').waitFor();
 }
 
@@ -273,23 +272,27 @@ test('the owner changes, pauses and deletes an alert, and a full App offers no n
   await second.context.close();
 });
 
-test('Notify me opens the Alerts tab when alerts are on, and stays the link to the built alert when they are off', async () => {
+test('Notify me opens the alerts when alerts are on, Back returns to Things to fix, and an App without alerts shows no Notify me', async () => {
   const { routes } = alertRoutes();
   const { page, context } = await open(appInfo(ON, 1, TABLE), routes);
   await page.goto(`${served.base}#/n01_u05`);
   await page.getByRole('button', { name: 'Notify me' }).click();
   await page.locator('section.alerts').waitFor();
-  assert.equal(await page.getByRole('tab', { name: 'Alerts' }).getAttribute('aria-selected'), 'true');
+  assert.match(new URL(page.url()).hash, /[?&]v=alerts/);
+  await page.getByRole('button', { name: 'Back to things to fix' }).click();
+  await page.locator('section.alerts').waitFor({ state: 'detached' });
+  assert.equal(new URL(page.url()).hash, '#/n01_u05');
   await context.close();
   const off = await open(appInfo({}, 1, TABLE), {});
-  await off.page.goto(`${served.base}#/n01_u05`);
-  await off.page.locator('nav.views [role="tab"]').first().waitFor();
-  assert.equal(await off.page.getByRole('tab', { name: 'Alerts' }).count(), 0, 'an App built without alerts shows no Alerts tab');
+  await off.page.goto(`${served.base}#/n01_u05?v=alerts`);
+  await off.page.locator('.top-runs').waitFor();
+  await off.page.waitForFunction(() => location.hash === '#/n01_u05');
+  assert.equal(await off.page.locator('section.alerts').count(), 0, 'an App built without alerts opens no alerts, even from an old link');
   assert.equal(await off.page.getByRole('button', { name: 'Notify me' }).count(), 0);
   await off.context.close();
 });
 
-test('Notify me opens a new alert ready to fill in, the Alerts tab alone does not, and a full App opens none (must-exclude)', async () => {
+test('Notify me opens a new alert ready to fill in, a link to the alerts alone does not, and a full App opens none (must-exclude)', async () => {
   const empty = alertRoutes({ ...LISTING, alerts: [], caps: { ...LISTING.caps, used: 0, mine: 0 } });
   const { page, context, seen } = await open(appInfo(ON, 1, TABLE), empty.routes);
   await page.goto(`${served.base}#/n01_u05`);
@@ -298,10 +301,11 @@ test('Notify me opens a new alert ready to fill in, the Alerts tab alone does no
   await form.waitFor();
   assert.equal(await page.getByText('No alerts on this page yet.').count(), 0, 'the person lands on the form, not on an empty list');
   await form.getByRole('button', { name: 'Cancel' }).click();
-  await page.getByRole('tab', { name: 'Things to fix' }).click();
-  await page.getByRole('tab', { name: 'Alerts' }).click();
   await page.getByText('No alerts on this page yet.').waitFor();
-  assert.equal(await form.count(), 0, 'opening the tab by hand shows the list');
+  await page.goto(`${served.base}#/n01_u05?v=alerts`);
+  await page.reload();
+  await page.getByText('No alerts on this page yet.').waitFor();
+  assert.equal(await form.count(), 0, 'opening the alerts from a link shows the list');
   await page.getByRole('button', { name: 'Notify me' }).click();
   await form.waitFor();
   assert.deepEqual(seen.errors, []);
@@ -328,11 +332,10 @@ test('an App where each person signs in as themselves shows no Alerts tab and no
   const { page, seen, context } = await open(info, routes);
   await page.goto(`${served.base}#/n01_u05?v=alerts`);
   await page.locator('.kpi-l', { hasText: 'To fix' }).waitFor();
-  await page.waitForFunction(() => document.querySelector('[role="tab"][aria-selected="true"]')?.dataset.view === 'overview');
-  assert.deepEqual(await page.locator('[role="tab"] > span').allInnerTexts(), ['Things to fix', 'Runs']);
-  assert.equal(await page.getByRole('tab', { name: 'Alerts' }).count(), 0);
+  assert.equal(await page.locator('section.alerts').count(), 0);
+  assert.equal(await page.locator('[role="tab"]').count(), 0);
   assert.equal(await page.getByText('Notify me').count(), 0, 'neither the Alerts button nor the link to the built alert');
-  await page.getByRole('tab', { name: 'Runs' }).click();
+  await page.locator('.top-runs').click();
   await page.locator('section.runs').waitFor();
   assert.equal(await page.getByText('Notify me').count(), 0);
   assert.equal(await page.locator('section.alerts').count(), 0);

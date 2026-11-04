@@ -53,7 +53,7 @@ def test_the_four_first_run_settings_follow_the_contract_and_reach_the_run(agent
     assert [(s["name"], s["label"], s["kind"]) for s in settings] == [tuple(x) for x in FIXTURE["settings"]]
     assert all(s["group"] == "scope" and s["source"] == "widget" and s["applies"] == "run" for s in settings)
     run_scope, groups, days, records = settings
-    assert run_scope["choices"] == ["all", "groups", "recent", "records"] and run_scope["default"] == "groups"
+    assert run_scope["choices"] == ["all", "groups", "recent", "records", "custom"] and run_scope["default"] == "groups"
     assert groups["many"] and groups["optional"] and days["default"] == "30" and records["default"] == "1000"
     model = agent_ns["inspire_settings_model"]({"family": "B", "decision_basis": "measured", "first_run": dict(FIXTURE["spec"])}, [])
     assert [s["name"] for s in model] == ["run_scope", "scope_groups", "scope_days", "scope_records"]
@@ -68,14 +68,13 @@ def test_an_empty_scope_groups_is_allowed_and_any_other_empty_choice_is_not(agen
     assert problem(groups, "") == "" and problem(groups, "EMEA, AMER") == ""
     assert problem(dict(groups, optional=False), "") == "scope_groups is ''; allowed: any text"
     assert problem(agent_ns["inspire_scope_settings"](dict(FIXTURE["spec"]))[0], "some") == (
-        "run_scope is 'some'; allowed: all, groups, recent, records")
+        "run_scope is 'some'; allowed: all, groups, recent, records, custom")
 
 
 @pytest.mark.parametrize("case", FIXTURE["default"], ids=[c["name"] for c in FIXTURE["default"]])
 def test_the_default_runs_first_on_a_scope_only_above_1000_records(agent_ns, case):
-    got = agent_ns["inspire_default_scope"](case["records"], case["technique"], case["time_series"], case["time_column"],
-                                           case["group_column"])
-    assert got == case["expected"]
+    assert agent_ns["inspire_default_scope"](case["records"]) == case["expected"]
+    assert case["expected"] not in ("recent", "groups", "") and (case["records"] is None or case["records"] <= 1000 or case["expected"] != "all")
 
 
 def test_the_record_count_comes_from_table_metadata_and_never_from_a_scan_of_a_non_delta_table(agent_ns):
@@ -115,11 +114,11 @@ def test_the_build_reads_the_main_table_s_count_once_and_writes_the_scope_into_t
                 "_implement_data": {"filters": [{"table": ORDERS, "column": "region", "values": []}]}}
     first = inst._genie_first_run(use_case, "E", "Time Series Forecasting", "monthly")
     assert first == {"table": ORDERS, "records": 5000, "technique": "Time Series Forecasting", "time_series": True,
-                     "time_column": "order_date", "group_column": "region", "key_column": "order_id", "period": "month", "default": "recent"}
+                     "time_column": "order_date", "group_column": "region", "key_column": "order_id", "period": "month", "default": "records"}
     inst._genie_first_run(use_case, "E", "Time Series Forecasting", "monthly")
     assert len([s for s in inst.spark.statements if s.startswith("DESCRIBE TABLE")]) == 1, "the count is read once per table"
     template = agent_ns["GENIE_RUN_CONTROLS_TEMPLATE"]
-    assert 'INSPIRE_SCOPE_VALUES = {"run_scope": (INSPIRE_RUN.get("scope") or {}).get("default") or INSPIRE_SCOPES[0]' in template
+    assert 'INSPIRE_SCOPE_VALUES = {"run_scope": (INSPIRE_RUN.get("scope") or {}).get("default", INSPIRE_SCOPES[0]) or ""' in template
     assert not re.search(r"^(run_scope|scope_groups|scope_days|scope_records) =", template, re.M), \
         "the Run controls bind no generic name Genie Code could also bind"
     assert template.index("inspire_check_settings_read(run") < template.index("inspire_scope_start(") < template.index("outcome = use_case()")
@@ -335,8 +334,8 @@ WS_ASSESSMENT = {"time_column": f"{WEB_SALES}.ws_ship_date_sk", "entity_key_colu
                                    "join": f"{WEB_SALES}.ws_ship_date_sk = {DATE_DIM}.d_date_sk"}}
 
 
-@pytest.mark.parametrize("records, expected", [(999, "all"), (1000, "all"), (1001, "recent"), (718931, "recent"), (None, "all")])
-def test_a_fact_table_dated_only_through_its_date_dimension_runs_first_on_a_recent_period_above_1000_records(agent_ns, records, expected):
+@pytest.mark.parametrize("records, expected", [(999, "all"), (1000, "all"), (1001, "records"), (718931, "records"), (None, "all")])
+def test_a_fact_table_dated_only_through_its_date_dimension_offers_a_recent_period_and_runs_first_on_about_1000_records(agent_ns, records, expected):
     inst = make_inspire(agent_ns, spark=_ArgSpark(records, WS_COLUMNS))
     use_case = {"Primary Table": WEB_SALES, "Tables Involved": f"{WEB_SALES}, {DATE_DIM}", "table_joins": WS_JOINS, "elite_assessment": WS_ASSESSMENT}
     first = inst._genie_first_run(use_case, "G", "Optimization", "weekly")
@@ -344,13 +343,13 @@ def test_a_fact_table_dated_only_through_its_date_dimension_runs_first_on_a_rece
     assert inst.spark.asked == ["web_sales", "date_dim"], "the main table and the one date table are read once each"
 
 
-def test_a_fact_table_with_no_date_and_no_dated_join_still_runs_on_all_of_its_718931_records(agent_ns):
+def test_a_fact_table_with_no_date_and_no_dated_join_runs_first_on_about_1000_of_its_718931_records(agent_ns):
     inst = make_inspire(agent_ns, spark=_ArgSpark(718931, WS_COLUMNS))
     use_case = {"Primary Table": WEB_SALES, "Tables Involved": WEB_SALES, "table_joins": "[]",
                 "elite_assessment": {"time_column": f"{WEB_SALES}.ws_ship_date_sk"}}
     first = inst._genie_first_run(use_case, "G", "Optimization", "weekly")
-    assert (first["time_column"], "time_via" in first, first["default"]) == ("", False, "all"), \
-        "an integer date key with no join to a dated table is never read as a date (must-exclude)"
+    assert (first["time_column"], "time_via" in first, first["default"]) == ("", False, "records"), \
+        "an integer date key with no join to a dated table is never read as a date, and 718,931 records never default to everything (must-exclude)"
 
 
 def _via_scope(ns, **values):

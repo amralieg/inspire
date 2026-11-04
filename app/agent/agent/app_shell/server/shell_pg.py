@@ -20,6 +20,7 @@ UC_PART = re.compile(r"^[^`.\x00-\x1f]{1,255}$")
 ENV_KEYS = ("PGHOST", "PGDATABASE", "PGUSER", "LAKEBASE_ENDPOINT")
 ROW_COLUMN = "_inspire_row"
 POOL_SIZE = 8
+READ_SLOTS = 2
 CONNECT_TIMEOUT_S = 15
 STATEMENT_TIMEOUT_MS = 30000
 READ_TIMEOUT_MS = 2500
@@ -767,7 +768,7 @@ class Lakebase:
         self.service, self.clock, self.sleep = service, clock, sleep
         self._connect = connect
         self.pool = queue.LifoQueue()
-        self.lock = threading.Lock()
+        self.lock, self.reads = threading.Lock(), threading.BoundedSemaphore(READ_SLOTS)
         self.token, self.expires = "", 0.0
         self.held, self.syncer = {}, None
         self.overlays, self.stuck, self.queued, self.overlayer = {}, {}, queue.Queue(), None
@@ -842,7 +843,13 @@ class Lakebase:
             return False
         return isinstance(error, (psycopg.OperationalError, psycopg.InterfaceError))
 
-    def query(self, text: str, values: dict, limit: int) -> tuple:
+    def query(self, text: str, values: dict, limit: int, queued: bool = False) -> tuple:
+        if not queued:
+            return self._query(text, values, limit)
+        with self.reads:
+            return self._query(text, values, limit)
+
+    def _query(self, text: str, values: dict, limit: int) -> tuple:
         for attempt in (0, 1):
             conn = self._take()
             try:
@@ -872,7 +879,7 @@ class Lakebase:
             return names, types, rows
         raise LakebaseError("Lakebase did not answer")
 
-    def run(self, sql: str, params, limit: int) -> dict:
+    def run(self, sql: str, params, limit: int, queued: bool = False) -> dict:
         with self.lock:
             held = set(self.held)
             overlays = {table: {"column": entry["column"], "keys": list(entry["rows"]),
@@ -883,7 +890,7 @@ class Lakebase:
         for key in sorted(read):
             for column in self.tables[key]["columns"]:
                 known.setdefault(column["name"], column)
-        names, types, rows = self.query(text, values, limit)
+        names, types, rows = self.query(text, values, limit, queued)
         return {"columns": columns_of(names, types, known), "rows": [{n: cell(v) for n, v in zip(names, row)} for row in rows[:limit]],
                 "truncated": len(rows) > limit}
 
