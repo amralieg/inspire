@@ -13,7 +13,7 @@ const GOOD = 'SELECT o.order_id, coalesce(c.segment, \'None\') AS group_name FRO
 const HIDDEN = 'SELECT o.order_id, s.band AS group_name FROM main.sales.orders o JOIN main.hr.salaries s ON o.rep = s.rep';
 const DENIED = '[INSUFFICIENT_PERMISSIONS] Insufficient privileges: User does not have SELECT on Table \'main.hr.salaries\'.';
 const PROFILE = {
-  table: 'main.sales.orders', records: 48210, qualifies: true, reason: 'anomaly detection compares each record with its group', standalone: false,
+  table: 'main.sales.orders', records: 48210, applies: true, qualifies: true, reason: 'anomaly detection compares each record with its group', standalone: false,
   columns: [{ name: 'region', type: 'string', distinct: 4, smallest: 210, largest: 30110, nulls: 0, parent: null },
     { name: 'country', type: 'string', distinct: 31, smallest: 12, largest: 18200, nulls: 3, parent: 'region' }],
   recommended: ['region', 'country'], example: null, time_column: 'order_date', recent: { days: 30, records: 3120 },

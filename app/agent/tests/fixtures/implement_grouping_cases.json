@@ -821,22 +821,22 @@
         "expected": "all"
       },
       {
-        "name": "718,931 records with a date key reached through a date table run first on a recent period",
+        "name": "718,931 records with only a date key run first on about 1,000 records, never a recent period by default",
         "records": 718931,
         "technique": "Optimization",
         "time_series": false,
         "time_column": "ws_ship_date_sk",
         "group_column": "",
-        "expected": "recent"
+        "expected": "records"
       },
       {
-        "name": "718,931 records with nothing to run first on run on all",
+        "name": "718,931 records with nothing to group by run first on the first 1,000 records, never everything",
         "records": 718931,
         "technique": "Optimization",
         "time_series": false,
         "time_column": "",
         "group_column": "",
-        "expected": "all"
+        "expected": "records"
       },
       {
         "name": "a count the metadata does not hold runs on all",
@@ -857,53 +857,70 @@
         "expected": "records"
       },
       {
-        "name": "a time series with a date column runs first on a recent period",
+        "name": "a time series with a group column runs first on about 1,000 records in whole groups",
         "records": 5000,
         "technique": "Time Series Forecasting",
         "time_series": true,
         "time_column": "order_date",
         "group_column": "region",
-        "expected": "recent"
+        "expected": "records"
       },
       {
-        "name": "a technique with a group column runs first on groups",
+        "name": "a technique with a group column runs first on about 1,000 records in whole groups",
         "records": 5000,
         "technique": "Anomaly Detection",
         "time_series": false,
         "time_column": "order_date",
         "group_column": "region",
-        "expected": "groups"
+        "expected": "records"
       },
       {
-        "name": "a date column alone gives a recent period",
+        "name": "a date column alone still runs first on about 1,000 records, never a recent period by default",
         "records": 5000,
         "technique": "Pareto Analysis",
         "time_series": false,
         "time_column": "order_date",
         "group_column": "",
-        "expected": "recent"
+        "expected": "records"
       },
       {
-        "name": "nothing to run first on runs on all",
+        "name": "5,000 records with nothing to group by run first on the first 1,000 records, never everything",
         "records": 5000,
         "technique": "Pareto Analysis",
         "time_series": false,
         "time_column": "",
         "group_column": "",
-        "expected": "all"
+        "expected": "records"
+      },
+      {
+        "name": "a star-schema forecast with a store key and a date key runs first on about 1,000 records in whole groups",
+        "records": 2880404,
+        "technique": "Time Series Forecasting",
+        "time_series": true,
+        "time_column": "ss_sold_date_sk",
+        "group_column": "ss_store_sk",
+        "expected": "records"
+      },
+      {
+        "name": "a time series with no group column runs first on the first 1,000 records, never a recent period by default",
+        "records": 5000,
+        "technique": "Time Series Forecasting",
+        "time_series": true,
+        "time_column": "order_date",
+        "group_column": "",
+        "expected": "records"
+      },
+      {
+        "name": "a standalone technique with no date column runs first on records",
+        "records": 5000,
+        "technique": "Text Classification",
+        "time_series": false,
+        "time_column": "",
+        "group_column": "region",
+        "expected": "records"
       }
     ],
     "refused": [
-      {
-        "name": "records for a technique that reads records together",
-        "settings": {
-          "run_scope": "records"
-        },
-        "spec": {
-          "technique": "Anomaly Detection"
-        },
-        "reason": "First run on a number of records works only when each record stands alone"
-      },
       {
         "name": "a recent period without a date column",
         "settings": {
@@ -930,7 +947,7 @@
         "spec": {
           "default": "everything"
         },
-        "reason": "First run is 'everything', which is not one of all, groups, recent, records"
+        "reason": "First run is 'everything', which is not one of all, groups, recent, records, custom"
       }
     ],
     "build_check": [
@@ -1891,6 +1908,601 @@
         "joins": [],
         "expected": []
       }
+    ],
+    "groups": {
+      "parse": [
+        {
+          "value": "CA, NY",
+          "finest": "state",
+          "groups": [
+            [
+              {
+                "column": "state",
+                "value": "CA"
+              }
+            ],
+            [
+              {
+                "column": "state",
+                "value": "NY"
+              }
+            ]
+          ]
+        },
+        {
+          "value": " CA ,ca, NY,, ",
+          "finest": "state",
+          "groups": [
+            [
+              {
+                "column": "state",
+                "value": "CA"
+              }
+            ],
+            [
+              {
+                "column": "state",
+                "value": "NY"
+              }
+            ]
+          ]
+        },
+        {
+          "value": "",
+          "finest": "state",
+          "groups": []
+        },
+        {
+          "value": "all",
+          "finest": "state",
+          "groups": []
+        },
+        {
+          "value": "[CA, NY",
+          "finest": "state",
+          "groups": [
+            [
+              {
+                "column": "state",
+                "value": "[CA"
+              }
+            ],
+            [
+              {
+                "column": "state",
+                "value": "NY"
+              }
+            ]
+          ]
+        },
+        {
+          "value": "[]",
+          "finest": "state",
+          "groups": [
+            [
+              {
+                "column": "state",
+                "value": "[]"
+              }
+            ]
+          ]
+        },
+        {
+          "value": "[[{\"column\":\"\",\"value\":\"CA\"}]]",
+          "finest": "state",
+          "groups": [
+            [
+              {
+                "column": "state",
+                "value": "[[{\"column\":\"\""
+              }
+            ],
+            [
+              {
+                "column": "state",
+                "value": "\"value\":\"CA\"}]]"
+              }
+            ]
+          ]
+        },
+        {
+          "value": "[[{\"column\":\"state\",\"value\":\"CA\"},{\"column\":\"item.i_category\",\"value\":\"Electronics\",\"join\":{\"table\":\"main.retail.item\",\"key\":\"ss_item_sk\",\"ref_column\":\"i_item_sk\"}}],[{\"column\":\"state\",\"value\":\"NY\"},{\"column\":\"item.i_category\",\"value\":\"Home\",\"join\":{\"table\":\"main.retail.item\",\"key\":\"ss_item_sk\",\"ref_column\":\"i_item_sk\"}}]]",
+          "finest": "item.i_category",
+          "groups": [
+            [
+              {
+                "column": "state",
+                "value": "CA"
+              },
+              {
+                "column": "item.i_category",
+                "value": "Electronics",
+                "join": {
+                  "table": "main.retail.item",
+                  "key": "ss_item_sk",
+                  "ref_column": "i_item_sk"
+                }
+              }
+            ],
+            [
+              {
+                "column": "state",
+                "value": "NY"
+              },
+              {
+                "column": "item.i_category",
+                "value": "Home",
+                "join": {
+                  "table": "main.retail.item",
+                  "key": "ss_item_sk",
+                  "ref_column": "i_item_sk"
+                }
+              }
+            ]
+          ]
+        },
+        {
+          "value": "[[{\"column\":\"region\",\"value\":5}]]",
+          "finest": "",
+          "groups": [
+            [
+              {
+                "column": "region",
+                "value": "5"
+              }
+            ]
+          ]
+        }
+      ],
+      "format": [
+        {
+          "groups": [
+            [
+              {
+                "column": "state",
+                "value": "CA"
+              }
+            ],
+            [
+              {
+                "column": "state",
+                "value": "NY"
+              }
+            ]
+          ],
+          "value": "[[{\"column\":\"state\",\"value\":\"CA\"}],[{\"column\":\"state\",\"value\":\"NY\"}]]"
+        },
+        {
+          "groups": [],
+          "value": ""
+        },
+        {
+          "groups": [
+            [
+              {
+                "column": "state",
+                "value": "CA, north"
+              }
+            ]
+          ],
+          "value": "[[{\"column\":\"state\",\"value\":\"CA, north\"}]]"
+        },
+        {
+          "groups": [
+            [
+              {
+                "column": "state",
+                "value": "CA"
+              },
+              {
+                "column": "category",
+                "value": "Electronics"
+              }
+            ]
+          ],
+          "value": "[[{\"column\":\"state\",\"value\":\"CA\"},{\"column\":\"category\",\"value\":\"Electronics\"}]]"
+        },
+        {
+          "groups": [
+            [
+              {
+                "column": "item.i_category",
+                "value": "Home",
+                "join": {
+                  "table": "main.retail.item",
+                  "key": "ss_item_sk",
+                  "ref_column": "i_item_sk"
+                }
+              }
+            ]
+          ],
+          "value": "[[{\"column\":\"item.i_category\",\"value\":\"Home\",\"join\":{\"table\":\"main.retail.item\",\"key\":\"ss_item_sk\",\"ref_column\":\"i_item_sk\"}}]]"
+        },
+        {
+          "groups": [
+            [
+              {
+                "column": "",
+                "value": "CA"
+              }
+            ],
+            [
+              {
+                "column": "",
+                "value": "NY"
+              }
+            ]
+          ],
+          "value": "CA, NY"
+        }
+      ],
+      "text": [
+        {
+          "group": [
+            {
+              "column": "state",
+              "value": "CA"
+            },
+            {
+              "column": "category",
+              "value": "Electronics"
+            }
+          ],
+          "text": "state = CA and category = Electronics"
+        },
+        {
+          "group": [
+            {
+              "column": "",
+              "value": "CA"
+            }
+          ],
+          "text": "CA"
+        }
+      ],
+      "whole_groups": [
+        {
+          "sizes": [
+            {
+              "value": "a",
+              "records": 600
+            },
+            {
+              "value": "b",
+              "records": 500
+            },
+            {
+              "value": "c",
+              "records": 300
+            },
+            {
+              "value": "d",
+              "records": 30
+            }
+          ],
+          "target": "1000",
+          "picked": [
+            {
+              "value": "a",
+              "records": 600
+            },
+            {
+              "value": "c",
+              "records": 300
+            },
+            {
+              "value": "d",
+              "records": 30
+            }
+          ]
+        },
+        {
+          "sizes": [
+            {
+              "value": "big",
+              "records": 5000
+            },
+            {
+              "value": "huge",
+              "records": 9000
+            }
+          ],
+          "target": "1000",
+          "picked": [
+            {
+              "value": "big",
+              "records": 5000
+            }
+          ]
+        },
+        {
+          "sizes": [
+            {
+              "value": "y",
+              "records": 400
+            },
+            {
+              "value": "x",
+              "records": 400
+            },
+            {
+              "value": "z",
+              "records": 400
+            }
+          ],
+          "target": "1000",
+          "picked": [
+            {
+              "value": "x",
+              "records": 400
+            },
+            {
+              "value": "y",
+              "records": 400
+            }
+          ]
+        },
+        {
+          "sizes": [],
+          "target": "1000",
+          "picked": []
+        },
+        {
+          "sizes": [
+            {
+              "value": null,
+              "records": 900
+            },
+            {
+              "value": "e",
+              "records": 0
+            },
+            {
+              "value": "f",
+              "records": 120
+            }
+          ],
+          "target": "",
+          "picked": [
+            {
+              "value": "f",
+              "records": 120
+            }
+          ]
+        },
+        {
+          "sizes": [
+            {
+              "value": "g01",
+              "records": 40
+            },
+            {
+              "value": "g02",
+              "records": 40
+            },
+            {
+              "value": "g03",
+              "records": 40
+            },
+            {
+              "value": "g04",
+              "records": 40
+            },
+            {
+              "value": "g05",
+              "records": 40
+            },
+            {
+              "value": "g06",
+              "records": 40
+            },
+            {
+              "value": "g07",
+              "records": 40
+            },
+            {
+              "value": "g08",
+              "records": 40
+            },
+            {
+              "value": "g09",
+              "records": 40
+            },
+            {
+              "value": "g10",
+              "records": 40
+            },
+            {
+              "value": "g11",
+              "records": 40
+            },
+            {
+              "value": "g12",
+              "records": 40
+            },
+            {
+              "value": "g13",
+              "records": 40
+            },
+            {
+              "value": "g14",
+              "records": 40
+            },
+            {
+              "value": "g15",
+              "records": 40
+            },
+            {
+              "value": "g16",
+              "records": 40
+            },
+            {
+              "value": "g17",
+              "records": 40
+            },
+            {
+              "value": "g18",
+              "records": 40
+            },
+            {
+              "value": "g19",
+              "records": 40
+            },
+            {
+              "value": "g20",
+              "records": 40
+            },
+            {
+              "value": "g21",
+              "records": 40
+            }
+          ],
+          "target": "1000",
+          "picked": [
+            {
+              "value": "g01",
+              "records": 40
+            },
+            {
+              "value": "g02",
+              "records": 40
+            },
+            {
+              "value": "g03",
+              "records": 40
+            },
+            {
+              "value": "g04",
+              "records": 40
+            },
+            {
+              "value": "g05",
+              "records": 40
+            },
+            {
+              "value": "g06",
+              "records": 40
+            },
+            {
+              "value": "g07",
+              "records": 40
+            },
+            {
+              "value": "g08",
+              "records": 40
+            },
+            {
+              "value": "g09",
+              "records": 40
+            },
+            {
+              "value": "g10",
+              "records": 40
+            },
+            {
+              "value": "g11",
+              "records": 40
+            },
+            {
+              "value": "g12",
+              "records": 40
+            },
+            {
+              "value": "g13",
+              "records": 40
+            },
+            {
+              "value": "g14",
+              "records": 40
+            },
+            {
+              "value": "g15",
+              "records": 40
+            },
+            {
+              "value": "g16",
+              "records": 40
+            },
+            {
+              "value": "g17",
+              "records": 40
+            },
+            {
+              "value": "g18",
+              "records": 40
+            },
+            {
+              "value": "g19",
+              "records": 40
+            },
+            {
+              "value": "g21",
+              "records": 40
+            }
+          ]
+        },
+        {
+          "sizes": [
+            {
+              "value": "a",
+              "records": 900
+            },
+            {
+              "value": "b",
+              "records": 500
+            },
+            {
+              "value": "c",
+              "records": 200
+            },
+            {
+              "value": "d",
+              "records": 60
+            },
+            {
+              "value": "e",
+              "records": 40
+            }
+          ],
+          "target": "1000",
+          "picked": [
+            {
+              "value": "a",
+              "records": 900
+            },
+            {
+              "value": "d",
+              "records": 60
+            },
+            {
+              "value": "e",
+              "records": 40
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "joined_grouping": {
+    "main": "main.retail.web_sales",
+    "keys": [
+      "ws_order_number",
+      "ws_item_sk"
+    ],
+    "group_column": "item.i_category",
+    "joined": [
+      {
+        "name": "item.i_category",
+        "column": "i_category",
+        "table": "main.retail.item",
+        "key": "ws_item_sk",
+        "ref_column": "i_item_sk"
+      }
+    ],
+    "sql": "SELECT m.`ws_order_number`, m.`ws_item_sk`, j1.`i_category` AS group_name\nFROM `main`.`retail`.`web_sales` m\nLEFT JOIN `main`.`retail`.`item` j1 ON m.`ws_item_sk` = j1.`i_item_sk`",
+    "tables": [
+      "main.retail.item",
+      "main.retail.web_sales"
     ]
   }
 }

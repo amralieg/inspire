@@ -617,8 +617,8 @@ test('the wizard and the server check notebook widget values with one implementa
     [[{ name: 'min_age', default: '1' }, { name: 'max_age', default: '9' }], { min_age: '10' }, ['min_age is 10, above max_age 9']],
     [[SCOPE], { run_scope: 'recent' }, []],
     [[SCOPE], { run_scope: '' }, []],
-    [[SCOPE], { run_scope: '5' }, ["run_scope is '5'; allowed: all, groups, recent, records"]],
-    [[], { run_scope: 'everything' }, ["run_scope is 'everything'; allowed: all, groups, recent, records"]],
+    [[SCOPE], { run_scope: '5' }, ["run_scope is '5'; allowed: all, groups, recent, records, custom"]],
+    [[], { run_scope: 'everything' }, ["run_scope is 'everything'; allowed: all, groups, recent, records, custom"]],
   ];
   for (const [widgets, values, problems] of cases) {
     assert.deepEqual(w.widgetProblems(widgets, values), problems, `wizard ${JSON.stringify(values)}`);
@@ -1077,11 +1077,12 @@ test('Grouping and First run come right after Data, Grouping only when the profi
   const extras = { scopeSteps: both, scopeProfile: { standalone: false } };
   assert.deepEqual(w.stepErrors('grouping', spec, extras), []);
   assert.deepEqual(w.stepErrors('first_run', spec, extras), []);
-  const mixed = { ...spec, config: { ...spec.config, widgets: { group_by: 'all, country', run_scope: 'records' } } };
+  const mixed = { ...spec, config: { ...spec.config, widgets: { group_by: 'all, country', run_scope: 'records', scope_records: '0' } } };
   assert.deepEqual(w.stepErrors('grouping', mixed, extras), ["Grouping is 'all, country'; choose all, custom or column names, not a mix"]);
-  assert.deepEqual(w.stepErrors('first_run', mixed, extras),
-    ['A first run on a number of records works only when each record stands alone; choose chosen groups, a recent period or everything']);
-  assert.deepEqual(w.stepErrors('first_run', mixed, { ...extras, scopeProfile: { standalone: true } }), []);
+  assert.deepEqual(w.stepErrors('first_run', mixed, extras), ["Records to run on is '0'; allowed: a whole number, at least 1"]);
+  const thousand = { ...spec, config: { ...spec.config, widgets: { run_scope: 'records', scope_records: '1000' } } };
+  assert.deepEqual(w.stepErrors('first_run', thousand, extras), [], 'about 1,000 records is a first run for every technique: whole groups or the first records');
+  assert.deepEqual(w.stepErrors('first_run', thousand, { ...extras, scopeProfile: { standalone: true } }), []);
   assert.throws(() => w.stepErrors('grouping', spec, {}), /unknown wizard step 'grouping'/, 'without the profile the step does not exist');
 });
 

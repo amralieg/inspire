@@ -135,7 +135,7 @@ def test_the_build_plan_follows_the_person_first_then_the_technique_and_the_reco
     assert mixed["problem"] == "group_by is 'region, all'; all and custom each stand alone"
 
 
-def test_the_candidate_columns_are_the_main_table_category_columns_and_the_segment_role_first(agent_ns):
+def test_the_candidate_columns_are_the_main_table_category_and_key_columns_taken_in_turn_and_the_segment_role_first(agent_ns):
     columns = [{"column_name": n, "data_type": t} for n, t in (("order_id", "string"), ("customer_id", "bigint"), ("region", "string"),
                                                                ("country", "varchar(40)"), ("amount", "double"), ("order_date", "date"),
                                                                ("review_text", "string"), ("store_key", "string"), ("is_online", "boolean"),
@@ -143,7 +143,7 @@ def test_the_candidate_columns_are_the_main_table_category_columns_and_the_segme
     roles = {"entity_id": "main.sales.orders.order_id", "segment": "main.sales.orders.channel", "label": "main.sales.orders.label",
              "event_date": "main.sales.orders.order_date", "measure": "main.other.t.region"}
     picked = agent_ns["implement_grouping_candidates"](columns, roles, "`main`.`sales`.`orders`", ("text", "review"))
-    assert picked == ["channel", "region", "country", "is_online"]
+    assert picked == ["channel", "region", "customer_id", "country", "store_key", "is_online"]
 
 
 TABLE_STATS = [{"col_name": "region", "data_type": "string", "comment": None},
