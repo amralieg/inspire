@@ -157,8 +157,9 @@ def test_round10_a_chart_kind_the_app_cannot_draw_is_not_met(agent_ns):
     checks, judged = _round(agent_ns, U01_ASSET, "x", [ask], page, [{"status": "done", "evidence": "Fourteen-day takings outlook"}],
                             chart_types=shell_sql.CHART_TYPES)
     assert checks[0]["status"] == "missing" and not judged, "the chart kind check decides, so no judge can accept a stand-in"
-    assert checks[0]["evidence"] == ("the App page n02_u01 cannot draw a 3d globe chart: it draws bar, horizontal_bar, stacked_bar, line, "
-                                     "area, stacked_area, pareto, scatter, donut, heatmap charts"), checks
+    assert {"bar", "line", "heatmap"} <= set(shell_sql.CHART_TYPES) and "3d globe" not in shell_sql.CHART_TYPES
+    assert checks[0]["evidence"] == (f"the App page n02_u01 cannot draw a 3d globe chart: it draws {', '.join(shell_sql.CHART_TYPES)} "
+                                     f"charts"), checks
 
 
 @pytest.mark.parametrize("evidence", [
