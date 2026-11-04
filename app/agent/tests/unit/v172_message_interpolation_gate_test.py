@@ -320,6 +320,7 @@ REVIEWED = {
         ('_implement_app_scopes', 'problem'),
         ('_implement_app_undo', 'problem'),
         ('_implement_claim_notebook', 'implement_notebook_edited_message(current or path, modified_at, agreed)'),
+        ('_implement_dashboard_listed', "'; '.join(problems)"),
         ('_implement_dashboard_rewrite', "'; '.join(problems)"),
         ('_implement_dashboard_rewrite', 'refused'),
         ('_implement_dashboard_rewrite', 'shown'),
