@@ -53,6 +53,16 @@ def _fetch_statement(statement_id: str) -> dict:
     return json.loads(result.stdout)
 
 
+def _fetch_chunk(statement_id: str, chunk_index: int) -> dict:
+    result = subprocess.run(
+        ["databricks", "api", "get", f"/api/2.0/sql/statements/{statement_id}/result/chunks/{chunk_index}"],
+        capture_output=True, text=True, env={**os.environ, "DATABRICKS_CONFIG_PROFILE": PROFILE},
+    )
+    if result.returncode != 0:
+        raise RuntimeError(f"SQL chunk fetch failed: {result.stderr}")
+    return json.loads(result.stdout)
+
+
 def _wait_for_completion(statement_id: str, timeout_s: float = 300.0) -> dict:
     start = time.time()
     while time.time() - start < timeout_s:
@@ -72,7 +82,15 @@ def query(sql: str, parameters: list | None = None, timeout_s: float = 300.0) ->
     if response.get("status", {}).get("state") != "SUCCEEDED":
         raise RuntimeError(f"SQL not SUCCEEDED: {response.get('status')}")
     columns = [c["name"] for c in response["manifest"]["schema"]["columns"]]
-    return columns, response.get("result", {}).get("data_array", []) or []
+    chunk = response.get("result") or {}
+    rows = list(chunk.get("data_array") or [])
+    while chunk.get("next_chunk_index") is not None:
+        chunk = _fetch_chunk(response["statement_id"], chunk["next_chunk_index"])
+        rows += chunk.get("data_array") or []
+    expected = (response.get("manifest") or {}).get("total_row_count")
+    if expected is not None and int(expected) != len(rows):
+        raise RuntimeError(f"read {len(rows)} rows of {expected}")
+    return columns, rows
 
 
 def _session_rows(session_id: str) -> tuple:

@@ -159,6 +159,27 @@ def test_query_waits_while_the_statement_is_still_running(monkeypatch):
         pull_uc_dump.query("SELECT 1")
 
 
+def test_query_reads_every_result_chunk(monkeypatch):
+    first = {"status": {"state": "SUCCEEDED"}, "statement_id": "s1",
+             "manifest": {"schema": {"columns": [{"name": "v"}]}, "total_row_count": 3},
+             "result": {"data_array": [["1"]], "next_chunk_index": 1}}
+    chunks = {1: {"data_array": [["2"]], "next_chunk_index": 2}, 2: {"data_array": [["3"]]}}
+    seen = []
+    monkeypatch.setattr(pull_uc_dump, "_run_sql", lambda sql, wait_s="45s", parameters=None: first)
+    monkeypatch.setattr(pull_uc_dump, "_fetch_chunk", lambda sid, n: seen.append((sid, n)) or chunks[n], raising=False)
+    assert pull_uc_dump.query("SELECT v") == (["v"], [["1"], ["2"], ["3"]])
+    assert seen == [("s1", 1), ("s1", 2)]
+
+
+def test_query_refuses_a_short_read(monkeypatch):
+    first = {"status": {"state": "SUCCEEDED"}, "statement_id": "s1",
+             "manifest": {"schema": {"columns": [{"name": "v"}]}, "total_row_count": 5},
+             "result": {"data_array": [["1"]]}}
+    monkeypatch.setattr(pull_uc_dump, "_run_sql", lambda sql, wait_s="45s", parameters=None: first)
+    with pytest.raises(RuntimeError, match="read 1 rows of 5"):
+        pull_uc_dump.query("SELECT v")
+
+
 PASSING_KINDS = {"kind_recall": 0.84, "kind_missed": [], "families_hit": ["a", "b", "c", "d", "e", "f"], "families_required": 6,
                  "families_eligible": [], "families_produced": [], "must_reject_selected": [],
                  "floor": {"recorded": True, "picks": 0, "gap": None}}
