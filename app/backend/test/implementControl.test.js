@@ -74,8 +74,8 @@ test('only the listed actions run, and an unknown one names every action that do
 test('each action calls the one Databricks API that does it', () => {
   assert.deepEqual(C.controlRequest('app', 'stop', 'churn-desk'), { method: 'POST', path: '/api/2.0/apps/churn-desk/stop', body: {} });
   assert.deepEqual(C.controlRequest('app', 'start', 'churn desk'), { method: 'POST', path: '/api/2.0/apps/churn%20desk/start', body: {} });
-  assert.deepEqual(C.controlRequest('job', 'cancel', '77'), { method: 'POST', path: '/api/2.1/jobs/runs/cancel-all', body: { job_id: 77 } });
-  assert.deepEqual(C.controlRequest('build', 'cancel', '900'), { method: 'POST', path: '/api/2.1/jobs/runs/cancel', body: { run_id: 900 } });
+  assert.deepEqual(C.controlRequest('job', 'cancel', '77'), { method: 'POST', path: '/api/2.1/jobs/runs/cancel-all', body: { job_id: '77' }, int64: ['job_id'] });
+  assert.deepEqual(C.controlRequest('build', 'cancel', '900'), { method: 'POST', path: '/api/2.1/jobs/runs/cancel', body: { run_id: '900' }, int64: ['run_id'] });
   assert.deepEqual(C.controlRequest('dashboard', 'unpublish', 'd1'), { method: 'DELETE', path: '/api/2.0/lakeview/dashboards/d1/published' });
   assert.deepEqual(C.controlRequest('dashboard', 'publish', 'd1', { warehouseId: 'wh1' }),
     { method: 'POST', path: '/api/2.0/lakeview/dashboards/d1/published', body: { warehouse_id: 'wh1', embed_credentials: false } });

@@ -51,4 +51,4 @@ function parseExactJson(text) {
   return READS_SOURCE ? parseExactJsonBySource(text) : parseExactJsonByTokens(text);
 }
 
-module.exports = { READS_SOURCE, parseExactJson, parseExactJsonBySource, parseExactJsonByTokens, quoteLongIntegers };
+module.exports = { READS_SOURCE, keepLongInteger, parseExactJson, parseExactJsonBySource, parseExactJsonByTokens, quoteLongIntegers };

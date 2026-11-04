@@ -40,7 +40,8 @@ const { registerShowcaseRoutes, showcaseWriteGuard } = require('./lib/showcase')
 const { loadSessionList, sessionListCap } = require('./lib/reviewFigures');
 const { executiveSummaryOf, parseResultsJson, runResultsStatement } = require('./lib/runSummary');
 const { isReadDenied } = require('./lib/inspireImplement');
-const { parseExactJson } = require('./lib/exactJson');
+const { keepLongInteger, parseExactJson } = require('./lib/exactJson');
+const { int64Id, isInt64Id, jsonWithInt64Ids } = require('./lib/int64Id');
 const {
   FEEDBACK_NOT_AVAILABLE,
   isMissingTableError,
@@ -75,7 +76,7 @@ const hostedRun = createHostedRun({ files: workspaceFiles((...args) => dbFetch(.
 app.all('/run/:id/{*rest}', hostedRun.viewerGate, (req, res, next) => requireToken(req, res, next), hostedRun.proxy);
 app.get('/run/:id', hostedRun.redirect);
 app.use(showcaseWriteGuard);
-app.use(express.json({ limit: '50mb' }));
+app.use(express.json({ limit: '50mb', reviver: keepLongInteger }));
 
 // ═══════════════════════════════════════════════════
 //  Environment Configuration (generic — no defaults)
@@ -504,7 +505,7 @@ function sqlResultToObjects(result) {
 
 /** inspire_database must be exactly `catalog_name`.`schema_name` (one dot). */
 function invalidSessionId(sessionId) {
-  return sessionId != null && String(sessionId).trim() !== '' && !/^\d+$/.test(String(sessionId).trim());
+  return sessionId != null && String(sessionId).trim() !== '' && !isInt64Id(sessionId);
 }
 
 function escapeSqlStringLiteral(value) {
@@ -770,8 +771,8 @@ async function startingSessions(req, inspireDatabase, warehouseId, listed) {
   if (!statement) return [];
   try {
     const host = resolveHost(req);
-    const shown = new Set(listed.map((s) => String(s.session_id)));
-    let launches = (await launchSql(host, statement)).filter((l) => /^\d+$/.test(String(l.session_id || '')) && !shown.has(String(l.session_id)));
+    const shown = new Set(listed.map((s) => int64Id(s.session_id)).filter(Boolean));
+    let launches = (await launchSql(host, statement)).filter((l) => isInt64Id(l.session_id) && !shown.has(int64Id(l.session_id)));
     const seen = L.sessionsSeenStatement(inspireDatabase, launches.map((l) => l.session_id));
     if (!seen) return [];
     const known = new Set(sqlResultToObjects(await executeSql(req.dbHost, req.dbToken, warehouseId, seen.sql, seen.parameters)).map((r) => String(r.session_id)));
@@ -780,7 +781,7 @@ async function startingSessions(req, inspireDatabase, warehouseId, listed) {
     const token = await appOwnToken();
     const rows = await Promise.all(launches.map(async (launch) => {
       const resp = await dbFetch(host, token, `/api/2.1/jobs/runs/get?run_id=${encodeURIComponent(launch.run_id)}`);
-      return resp.ok ? L.startingSessionRow(launch, await resp.json(), inspireDatabase) : null;
+      return resp.ok ? L.startingSessionRow(launch, parseExactJson(await resp.text()), inspireDatabase) : null;
     }));
     return rows.filter(Boolean);
   } catch (err) {
@@ -903,12 +904,12 @@ async function triggerInspireNotebookJob(host, token, { params, notebook_path, c
     throw err;
   }
 
-  const { job_id } = await createResp.json();
+  const { job_id } = parseExactJson(await createResp.text());
   console.log(`✅ Job created: ${job_id}`);
 
   const response = await dbFetch(host, token, '/api/2.1/jobs/run-now', {
     method: 'POST',
-    body: JSON.stringify({ job_id }),
+    body: jsonWithInt64Ids({ job_id }, ['job_id']),
   });
 
   if (!response.ok) {
@@ -921,7 +922,7 @@ async function triggerInspireNotebookJob(host, token, { params, notebook_path, c
     throw err;
   }
 
-  const data = await response.json();
+  const data = parseExactJson(await response.text());
   const runId = data.run_id;
   const jobRunUrl = databricksJobRunUrl(host, job_id, runId);
   console.log(`✅ Run submitted: ${runId}, job_id=${job_id}, notebook: ${resolvedPath}`);
@@ -945,14 +946,7 @@ async function triggerInspireNotebookJob(host, token, { params, notebook_path, c
 async function attachSessionUsecaseOverviews(host, token, warehouseId, catalog, schema, sessions) {
   if (!Array.isArray(sessions) || sessions.length === 0) return;
   const ucTable = `\`${catalog}\`.\`${schema}\`.\`__inspire_usecases\``;
-  const safeIds = [
-    ...new Set(
-      sessions
-        .map((s) => s.session_id)
-        .filter((id) => id != null && /^\d+$/.test(String(id).trim()))
-        .map((id) => String(Number(id))),
-    ),
-  ];
+  const safeIds = [...new Set(sessions.map((s) => int64Id(s.session_id)).filter(Boolean))];
   if (safeIds.length === 0) return;
   const idList = safeIds.join(',');
   try {
@@ -976,13 +970,15 @@ async function attachSessionUsecaseOverviews(host, token, warehouseId, catalog, 
     const prevRows = sqlResultToObjects(await executeSql(host, token, warehouseId, previewSql));
     const titlesBySid = {};
     for (const r of prevRows) {
-      const sid = String(r.session_id);
+      const sid = int64Id(r.session_id);
+      if (!sid) continue;
       if (!titlesBySid[sid]) titlesBySid[sid] = [];
       if (r.title && titlesBySid[sid].length < 4) titlesBySid[sid].push(String(r.title));
     }
     const map = {};
     for (const r of aggRows) {
-      const sid = String(r.session_id);
+      const sid = int64Id(r.session_id);
+      if (!sid) continue;
       map[sid] = {
         total: Number(r.usecase_count) || 0,
         high: Number(r.high_priority_count) || 0,
@@ -991,8 +987,8 @@ async function attachSessionUsecaseOverviews(host, token, warehouseId, catalog, 
       };
     }
     for (const s of sessions) {
-      const sid = String(s.session_id);
-      s.usecase_overview = map[sid] || { total: 0, high: 0, domains: 0, preview_titles: [] };
+      const sid = int64Id(s.session_id);
+      s.usecase_overview = (sid && map[sid]) || { total: 0, high: 0, domains: 0, preview_titles: [] };
     }
   } catch (e) {
     console.warn('attachSessionUsecaseOverviews:', e.message || e);
@@ -2096,7 +2092,7 @@ app.post('/api/output-folder/check', requireToken, async (req, res) => {
 //  Run status & output
 // ═══════════════════════════════════════════════════
 
-app.param('runId', (req, res, next, runId) => (/^\d+$/.test(runId) ? next() : next('route')));
+app.param('runId', (req, res, next, runId) => (isInt64Id(runId) ? next() : next('route')));
 
 app.get('/api/run/:runId', requireToken, async (req, res) => {
   try {
@@ -2105,7 +2101,7 @@ app.get('/api/run/:runId', requireToken, async (req, res) => {
       const err = await response.text();
       return res.status(response.status).json({ error: err });
     }
-    const data = await response.json();
+    const data = parseExactJson(await response.text());
     const state = data.state || {};
     const tasks = (data.tasks || []).map((t) => ({
       task_key: t.task_key,
@@ -2163,7 +2159,7 @@ app.post('/api/run/:runId/cancel', requireToken, async (req, res) => {
   try {
     const response = await dbFetch(req.dbHost, req.dbToken, '/api/2.1/jobs/runs/cancel', {
       method: 'POST',
-      body: JSON.stringify({ run_id: parseInt(req.params.runId) }),
+      body: jsonWithInt64Ids({ run_id: req.params.runId }, ['run_id']),
     });
     if (!response.ok) {
       const err = await response.text();
@@ -2678,8 +2674,8 @@ app.post('/api/inspire/sync-genie-flags', requireToken, async (req, res) => {
     if (!inspire_database || !warehouse_id) {
       return res.status(400).json({ error: 'inspire_database and warehouse_id are required.' });
     }
-    const sidStr = String(session_id ?? '').trim();
-    if (!/^\d+$/.test(sidStr)) {
+    const sidStr = int64Id(session_id);
+    if (!sidStr) {
       return res.status(400).json({ error: 'session_id must be a numeric Inspire session id.' });
     }
     const use_case_ids = Array.isArray(useCaseIdsRaw)
@@ -2718,8 +2714,8 @@ app.get('/api/inspire/genie-progress', requireToken, async (req, res) => {
     if (!inspire_database || !warehouse_id || !session_id) {
       return res.status(400).json({ error: 'inspire_database, warehouse_id, and session_id required.' });
     }
-    const sidStr = String(session_id).trim();
-    if (!/^\d+$/.test(sidStr)) {
+    const sidStr = int64Id(session_id);
+    if (!sidStr) {
       return res.status(400).json({ error: 'session_id must be numeric.' });
     }
     const ids = String(use_case_ids || '')

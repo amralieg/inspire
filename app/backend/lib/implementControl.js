@@ -1,4 +1,5 @@
 const I = require('./inspireImplement');
+const { int64Id, requireInt64Id } = require('./int64Id');
 
 const CONTROL_CACHE_MS = 15000;
 const CONTROL_LOG_TABLE = '__inspire_control_log';
@@ -88,8 +89,8 @@ function appOwnerProblem(got, ctx) {
 function controlRequest(asset, action, id, { warehouseId } = {}) {
   const enc = encodeURIComponent(id);
   if (asset === 'app') return { method: 'POST', path: `/api/2.0/apps/${enc}/${action}`, body: {} };
-  if (asset === 'job') return { method: 'POST', path: '/api/2.1/jobs/runs/cancel-all', body: { job_id: Number(id) } };
-  if (asset === 'build') return { method: 'POST', path: '/api/2.1/jobs/runs/cancel', body: { run_id: Number(id) } };
+  if (asset === 'job') return { method: 'POST', path: '/api/2.1/jobs/runs/cancel-all', body: { job_id: requireInt64Id(id, 'job_id') }, int64: ['job_id'] };
+  if (asset === 'build') return { method: 'POST', path: '/api/2.1/jobs/runs/cancel', body: { run_id: requireInt64Id(id, 'run_id') }, int64: ['run_id'] };
   if (action === 'unpublish') return { method: 'DELETE', path: `/api/2.0/lakeview/dashboards/${enc}/published` };
   if (!str(warehouseId)) throw I.badRequest('the MVP spec has no SQL warehouse to publish the dashboard on', 409);
   return { method: 'POST', path: `/api/2.0/lakeview/dashboards/${enc}/published`, body: { warehouse_id: str(warehouseId), embed_credentials: false } };
@@ -97,8 +98,8 @@ function controlRequest(asset, action, id, { warehouseId } = {}) {
 
 function ownerCheckPath(asset, id) {
   if (asset === 'app') return `/api/2.0/apps/${encodeURIComponent(id)}`;
-  if (asset === 'job') return `/api/2.1/jobs/get?job_id=${Number(id)}`;
-  if (asset === 'build') return `/api/2.1/jobs/runs/get?run_id=${Number(id)}`;
+  if (asset === 'job') return `/api/2.1/jobs/get?job_id=${requireInt64Id(id, 'job_id')}`;
+  if (asset === 'build') return `/api/2.1/jobs/runs/get?run_id=${requireInt64Id(id, 'run_id')}`;
   return `/api/2.0/lakeview/dashboards/${encodeURIComponent(id)}`;
 }
 
@@ -160,9 +161,10 @@ function liveStatus(targets, got, ctx) {
 function livePaths(targets) {
   const paths = {};
   if (targets.app) paths.app = `/api/2.0/apps/${encodeURIComponent(targets.app)}`;
-  if (targets.job) {
-    paths.job = `/api/2.1/jobs/get?job_id=${Number(targets.job)}`;
-    paths.runs = `/api/2.1/jobs/runs/list?job_id=${Number(targets.job)}&active_only=true&limit=5`;
+  const job = int64Id(targets.job);
+  if (job) {
+    paths.job = `/api/2.1/jobs/get?job_id=${job}`;
+    paths.runs = `/api/2.1/jobs/runs/list?job_id=${job}&active_only=true&limit=5`;
   }
   if (targets.dashboard) {
     paths.dashboard = `/api/2.0/lakeview/dashboards/${encodeURIComponent(targets.dashboard)}`;

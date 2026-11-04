@@ -18,6 +18,8 @@ const GR = require('./lib/groupingRule');
 const GP = require('./lib/groupingProfile');
 const { runWithRequestDeadline } = require('./lib/sqlStatements');
 const { fsApiPath } = require('./lib/workspacePaths');
+const { int64Id, isInt64Id, requireInt64Id, jsonWithInt64Ids } = require('./lib/int64Id');
+const { parseExactJson } = require('./lib/exactJson');
 
 function sendError(res, err) {
   const code = err && Number.isFinite(err.statusCode) ? err.statusCode : 500;
@@ -43,8 +45,8 @@ function principalsOf(req) {
 }
 
 function sessionIdOf(req) {
-  const sid = q(req, 'session_id');
-  if (!/^\d+$/.test(sid)) {
+  const sid = int64Id(q(req, 'session_id'));
+  if (!sid) {
     const err = new Error('session_id must be a numeric Inspire session id.');
     err.statusCode = 400;
     throw err;
@@ -83,7 +85,7 @@ async function jsonOf(dbFetch, host, token, path, opts = {}) {
   const text = await resp.text();
   let data = {};
   if (text) {
-    try { data = JSON.parse(text); } catch { data = { raw: text }; }
+    try { data = parseExactJson(text); } catch { data = { raw: text }; }
   }
   return { ok: resp.ok, status: resp.status, data };
 }
@@ -328,8 +330,8 @@ function registerImplementRoutes(app, deps) {
       if (!inspire_database || !warehouse_id) {
         return res.status(400).json({ error: 'inspire_database and warehouse_id are required.' });
       }
-      const sidStr = String(session_id ?? '').trim();
-      if (!/^\d+$/.test(sidStr)) {
+      const sidStr = int64Id(session_id);
+      if (!sidStr) {
         return res.status(400).json({ error: 'session_id must be a numeric Inspire session id.' });
       }
 
@@ -1153,16 +1155,16 @@ function registerImplementRoutes(app, deps) {
         }
       }
       const appName = I.carriedAssets(history).app;
-      const jobId = (history.find((r) => r.job_id) || {}).job_id;
+      const jobId = int64Id((history.find((r) => r.job_id) || {}).job_id);
       const held = history[0] && history[0].status === I.IMPLEMENT_VIBE_NOT_MET ? history[0].spec_version : null;
       const [appInfo, runInfo, stalled, person] = await Promise.all([
         appName ? jsonOf(dbFetch, req.dbHost, req.dbToken, `/api/2.0/apps/${encodeURIComponent(appName)}`) : null,
-        jobId ? jsonOf(dbFetch, req.dbHost, req.dbToken, `/api/2.1/jobs/runs/list?job_id=${Number(jobId)}&limit=10`) : null,
+        jobId ? jsonOf(dbFetch, req.dbHost, req.dbToken, `/api/2.1/jobs/runs/list?job_id=${jobId}&limit=10`) : null,
         stalledOf(req, history[0]),
         held == null ? null : personOf(req),
       ]);
       const listedNone = runInfo && runInfo.ok && !(Array.isArray(runInfo.data && runInfo.data.runs) && runInfo.data.runs.length);
-      const jobInfo = listedNone ? await jsonOf(dbFetch, req.dbHost, req.dbToken, `/api/2.1/jobs/get?job_id=${Number(jobId)}`) : null;
+      const jobInfo = listedNone ? await jsonOf(dbFetch, req.dbHost, req.dbToken, `/api/2.1/jobs/get?job_id=${jobId}`) : null;
       res.json({
         latest: history[0] || null,
         stalled,
@@ -1183,7 +1185,7 @@ function registerImplementRoutes(app, deps) {
   async function loadRunPages(req, warehouseId, catalog, schema) {
     const table = I.implementTableName(catalog, schema);
     const rows = await implementRows(req.dbHost, req.dbToken, warehouseId, table, (existing) => I.implementRegistryStatement(table, existing));
-    const sessions = [...new Set(I.runPages(rows).map((p) => p.session_id).filter((s) => /^\d+$/.test(s)))].slice(0, I.IMPLEMENT_SCOPE_SESSION_CAP);
+    const sessions = [...new Set(I.runPages(rows).map((p) => p.session_id).map(int64Id).filter(Boolean))].slice(0, I.IMPLEMENT_SCOPE_SESSION_CAP);
     const scope = sessions.length
       ? await sqlRows(req.dbHost, req.dbToken, warehouseId, I.useCaseScopeStatement(catalog, schema, sessions))
         .catch((err) => { if (isMissingTableError(err) || I.isMissingColumnError(err)) return []; throw err; })
@@ -1619,23 +1621,23 @@ function registerImplementRoutes(app, deps) {
   if (hostedRun && hostedRun.useAlerts) {
     hostedRun.useAlerts(async (req, entry, step, body) => {
       const at = entry.ctx || {};
-      if (!at.warehouseId || !at.catalog || !at.schema || !/^\d+$/.test(String(entry.session_id || ''))) {
+      if (!at.warehouseId || !at.catalog || !at.schema || !isInt64Id(entry.session_id)) {
         throw Object.assign(new Error('Inspire cannot tell which use case this page belongs to, so it cannot keep its alerts; open it from the Run tab'),
           { statusCode: 409 });
       }
-      return alertsFor(req, at.warehouseId, at.catalog, at.schema, String(entry.session_id), I.validateUseCaseId(entry.use_case_id), step, body);
+      return alertsFor(req, at.warehouseId, at.catalog, at.schema, int64Id(entry.session_id), I.validateUseCaseId(entry.use_case_id), step, body);
     });
   }
 
   if (hostedRun && hostedRun.useDecisions) {
     hostedRun.useDecisions(async (req, entry) => {
       const at = entry.ctx || {};
-      if (!at.warehouseId || !at.catalog || !at.schema || !/^\d+$/.test(String(entry.session_id || ''))) {
+      if (!at.warehouseId || !at.catalog || !at.schema || !isInt64Id(entry.session_id)) {
         throw Object.assign(new Error('Inspire cannot tell which use case this page belongs to, so it records no decision on it; open it from the Run tab'),
           { statusCode: 409 });
       }
       const useCaseId = I.validateUseCaseId(entry.use_case_id);
-      const history = await loadHistory(req.dbHost, req.dbToken, at.warehouseId, at.catalog, at.schema, String(entry.session_id), useCaseId);
+      const history = await loadHistory(req.dbHost, req.dbToken, at.warehouseId, at.catalog, at.schema, int64Id(entry.session_id), useCaseId);
       const live = I.previousBuilt(history);
       const hosted = live ? I.hostedRecord(live) : null;
       if (!hosted || hosted.id !== entry.record.id || hosted.version !== entry.record.version) {
@@ -1753,7 +1755,7 @@ function registerImplementRoutes(app, deps) {
       await executeSql(req.dbHost, req.dbToken, ctx.warehouseId, C.controlLogCreateSql(ctx.logTable));
       const ownerError = await alignControlLogOwner(req, ctx);
       const got = await jsonOf(dbFetch, req.dbHost, req.dbToken, request.path,
-        { method: request.method, ...(request.body ? { body: JSON.stringify(request.body) } : {}) });
+        { method: request.method, ...(request.body ? { body: jsonWithInt64Ids(request.body, request.int64 || []) } : {}) });
       const failure = got.ok ? '' : String((got.data && (got.data.message || got.data.error || got.data.raw)) || `HTTP ${got.status}`);
       const message = got.ok ? `${label}: done` : `${label} failed: ${failure}`;
       const person = await personOf(req);
@@ -1789,7 +1791,7 @@ function registerImplementRoutes(app, deps) {
     if (tagged && !tagged.to) update.fields_to_remove = ['tags'];
     const updated = await jsonOf(dbFetch, host, token, '/api/2.1/jobs/update', {
       method: 'POST',
-      body: JSON.stringify(update),
+      body: jsonWithInt64Ids(update, ['job_id']),
     }).catch(refused);
     if (updated.ok) return '';
     return [change && inspireJobEnvironmentWarning(jobId, { from: change.from, reason: reason(updated) }),
@@ -1817,14 +1819,15 @@ function registerImplementRoutes(app, deps) {
       const useCase = await loadUseCase(req.dbHost, req.dbToken, warehouseId, catalog, schema, sid, useCaseId);
       await refusePersonUnreadable(req, latest.spec_json, useCase);
       await refuseMissingSources(req, warehouseId, latest.spec_json, useCase);
-      const warning = await alignJobSettings(req.dbHost, req.dbToken, Number(latest.job_id));
+      const jobId = requireInt64Id(latest.job_id, 'job_id');
+      const warning = await alignJobSettings(req.dbHost, req.dbToken, jobId);
       const resp = await dbFetch(req.dbHost, req.dbToken, '/api/2.1/jobs/run-now', {
         method: 'POST',
-        body: JSON.stringify({ job_id: Number(latest.job_id), notebook_params: notebookParams, only: [I.IMPLEMENT_NOTEBOOK_TASK_KEY] }),
+        body: jsonWithInt64Ids({ job_id: jobId, notebook_params: notebookParams, only: [I.IMPLEMENT_NOTEBOOK_TASK_KEY] }, ['job_id']),
       });
       const text = await resp.text();
       let data = {};
-      try { data = JSON.parse(text); } catch { data = { raw: text }; }
+      try { data = parseExactJson(text); } catch { data = { raw: text }; }
       if (!resp.ok) {
         const err = new Error(data.message || data.error || text);
         err.statusCode = resp.status;

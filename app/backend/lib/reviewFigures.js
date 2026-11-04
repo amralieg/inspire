@@ -1,3 +1,4 @@
+const { int64Id } = require('./int64Id');
 const {
   IMPLEMENT_DONE_STATUSES,
   IMPLEMENT_OUTPUT_ID_COLUMNS,
@@ -122,8 +123,8 @@ function portfolioView({ runs = null, useCases = [], mvps = [], missing = [] } =
         for (const key of keys) totals[key] = count(row[key]);
         continue;
       }
-      const sid = String(row.sid ?? '').trim();
-      if (!/^\d+$/.test(sid)) continue;
+      const sid = int64Id(row.sid);
+      if (!sid) continue;
       listed += 1;
       if (listed > PORTFOLIO_RUN_CAP) {
         truncated = true;

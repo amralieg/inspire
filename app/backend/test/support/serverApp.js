@@ -36,7 +36,7 @@ function reset(overrides = {}) {
   Object.assign(state, {
     managers: [], managerGroups: [], personGroups: [], aclStatus: 200, personAppsScope: true, launchers: {}, sessionLaunchers: {}, history: [], calls: [],
     launches: [], knownSessions: [], ledgerSessions: [], nextRunId: 501, sessionRows: {}, groupParents: {}, indirectGroups: [], conflictOn: null,
-    createdJob: null, runJobs: {}, runStates: null, sessionList: [],
+    createdJob: null, runJobs: {}, runStates: null, sessionList: [], usecases: [],
     ...folderModel({ folders: { '/Shared/demos': { id: 7, writers: '*' } } }),
   }, overrides);
 }
@@ -101,6 +101,18 @@ function answerSql(body) {
     const columns = ['session_id', 'business_name', 'completed_percent', 'create_at', 'business_runs', 'business_rank'];
     return sqlResult(columns, state.sessionList.map((s) => columns.map((c) => (s[c] == null ? null : String(s[c])))));
   }
+  if (/^\s*SELECT session_id,/.test(sql) && sql.includes('__inspire_usecases')) {
+    const asked = new Set(((/WHERE session_id IN \(([^)]*)\)/.exec(sql) || [])[1] || '').split(',').map((t) => t.trim()).filter(Boolean));
+    const rows = state.usecases.filter((u) => asked.has(u.session_id));
+    if (sql.includes('AS usecase_count')) {
+      const sids = [...new Set(rows.map((u) => u.session_id))];
+      return sqlResult(['session_id', 'usecase_count', 'high_priority_count', 'domain_count'], sids.map((sid) => {
+        const mine = rows.filter((u) => u.session_id === sid);
+        return [sid, String(mine.length), String(mine.filter((u) => u.priority_score >= 3).length), String(new Set(mine.map((u) => u.business_domain)).size)];
+      }));
+    }
+    return sqlResult(['session_id', 'title', 'rn'], rows.map((u, i) => [u.session_id, u.use_case, String(i + 1)]));
+  }
   if (/^\s*SELECT\b/i.test(sql) && sql.includes('__inspire_implement')) {
     const rows = state.history.map((r) => HISTORY_COLUMNS.map((c) => (c === 'spec_json' ? JSON.stringify(r[c] || {}) : (r[c] == null ? null : String(r[c])))));
     return sqlResult(HISTORY_COLUMNS, rows);
@@ -134,7 +146,7 @@ async function stubFetch(url, opts = {}) {
   if (typeof opts.body === 'string') {
     try { body = JSON.parse(opts.body); } catch { body = {}; }
   }
-  const call = { method, path: u.pathname, query: u.search, token, statement: body.statement || '', category: categoryOf(method, u.pathname, body, token) };
+  const call = { method, path: u.pathname, query: u.search, token, statement: body.statement || '', raw: typeof opts.body === 'string' ? opts.body : '', category: categoryOf(method, u.pathname, body, token) };
   state.calls.push(call);
   if (u.pathname === '/oidc/v1/token') return json({ access_token: APP_TOKEN, expires_in: 3600 });
   if (u.pathname === `/api/2.0/permissions/apps/${APP_NAME}`) {
