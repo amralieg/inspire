@@ -5,7 +5,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
 import { TABLE, appInfo, openApp, serveDist, toastSays, until } from './harness.mjs';
-import { groupsOf, historyLines, inputText, settingProblem, storedText, valueText } from '../src/settings.js';
+import { CUSTOM_SQL_REFUSED, groupsOf, historyLines, inputText, settingProblem, storedText, valueText } from '../src/settings.js';
 import { dayLabel } from '../src/format.js';
 
 const FIXTURE = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..', 'tests', 'fixtures', 'implement_change_classes.json');
@@ -36,6 +36,12 @@ test('the App checks a setting exactly as the run and the server do', () => {
   for (const c of JSON.parse(readFileSync(FIXTURE, 'utf8')).setting_values) {
     assert.equal(settingProblem(c.setting, c.value), c.problem, JSON.stringify(c));
   }
+  const groupBy = { name: 'group_by', kind: 'choice', many: true, choices: ['region', 'custom'], solo: ['all'] };
+  assert.equal(settingProblem(groupBy, 'region, Custom'), `group_by is 'region, Custom': ${CUSTOM_SQL_REFUSED}`, 'custom is refused even when Genie lists it');
+  assert.equal(settingProblem({ name: 'run_scope', kind: 'choice', choices: ['all', 'custom'] }, 'custom'), `run_scope is 'custom': ${CUSTOM_SQL_REFUSED}`);
+  assert.equal(settingProblem({ name: 'group_sql', kind: 'text' }, 'SELECT 1'), `group_sql: ${CUSTOM_SQL_REFUSED}`);
+  assert.equal(settingProblem(groupBy, 'region'), '', 'a column grouping is kept');
+  assert.equal(settingProblem({ name: 'group_sql', kind: 'text', optional: true }, ''), '', 'an empty SQL setting carries no SQL');
   const share = SETTINGS[2];
   assert.equal(inputText(share, '0.05'), '5', 'a share is typed as a percent');
   assert.equal(storedText(share, '12.5'), '0.125');

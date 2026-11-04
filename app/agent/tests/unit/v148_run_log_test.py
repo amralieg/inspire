@@ -305,7 +305,11 @@ def test_a_summary_row_shaped_like_the_notebook_table_fills_every_run_field_and_
                               {"stage": "Writing the results", "spent_s": 60, "rows_total": 1240}]
     assert view["grouping"] == {"mode": "columns", "group_by": ["region", "country"], "groups": 12,
                                 "levels": [{"level": "country", "groups": 10}, {"level": "region", "groups": 2}],
-                                "hash": "ab" * 32, "tables": [], "other_groups": None}
+                                "hash": "ab" * 32, "other_groups": None}
+    assert shell_core.run_grouping(json.dumps({"mode": "custom", "group_by": [], "groups": 12, "sql_tables": [ORDERS]})) is None, \
+        "a run grouped by typed SQL shows no grouping, because Inspire no longer runs SQL typed into Grouping"
+    assert shell_core.run_grouping(json.dumps({"group_by": "custom", "groups": 12})) is None
+    assert shell_core.run_grouping(json.dumps({"group_by": "all", "groups": 1}))["mode"] == "all"
     for name, _kind in agent_ns["INSPIRE_RUN_LOG_COLUMNS"]:
         renamed = {("old_" + key if key == name else key): value for key, value in row.items()}
         assert shell_core.run_view(shell_core.blank_run("r-2"), renamed, page) != view, f"the runs route reads {name} by that name"

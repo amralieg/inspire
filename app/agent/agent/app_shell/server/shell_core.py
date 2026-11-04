@@ -1011,10 +1011,12 @@ def run_grouping(value):
         return None
     by = value.get("group_by")
     mode = str(value.get("mode") or "").strip() or ("all" if by == "all" else "custom" if by == "custom" else "columns")
+    if mode not in ("all", "columns"):
+        return None
     levels = [{"level": str(item.get("level") or ""), "groups": count_of(item.get("groups"))}
               for item in value.get("levels") or [] if isinstance(item, dict) and str(item.get("level") or "").strip()]
     return {"mode": mode, "group_by": [str(name) for name in by] if isinstance(by, list) else [], "groups": count_of(value.get("groups")),
-            "levels": levels, "hash": str(value.get("hash") or ""), "tables": [str(t) for t in value.get("sql_tables") or []],
+            "levels": levels, "hash": str(value.get("hash") or ""),
             "other_groups": count_of(value.get("other_groups"))}
 
 

@@ -167,11 +167,6 @@ export function coveredText(segments) {
 export function groupingText(grouping) {
   if (!grouping || grouping.groups == null) return '';
   if (grouping.mode === 'all') return 'Grouping: all records as one group';
-  if (grouping.mode === 'custom') {
-    const tables = (grouping.tables || []).length ? ` over ${grouping.tables.join(', ')}` : '';
-    const other = grouping.other_groups ? `, ${plural(grouping.other_groups, 'small group')} combined into Other groups` : '';
-    return `Grouping: ${plural(grouping.groups, 'group')} from the saved grouping SQL${tables}${other}`;
-  }
   const levels = (grouping.levels || []).filter((l) => l.level && l.groups != null);
   const shown = levels.length > 1 ? ` (${levels.map((l) => `${integer(l.groups)} by ${l.level}`).join(', ')})` : '';
   return `Grouping: ${plural(grouping.groups, 'group')} by ${(grouping.group_by || []).join(', ')}${shown}`;

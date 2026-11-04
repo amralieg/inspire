@@ -70,13 +70,11 @@
       "groups",
       "levels",
       "hash",
-      "sql_tables",
       "other_groups"
     ],
     "modes": [
       "all",
-      "columns",
-      "custom"
+      "columns"
     ]
   },
   "applies": [
