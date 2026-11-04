@@ -60,7 +60,7 @@ test('the forecast cockpit opens with What to do now and draws every section of 
     const n = await itemsIn(page, section);
     assert.ok(n >= low, `${section} holds ${n}, needs ${low}`);
   }
-  assert.equal(await page.locator('.view.is-on span').innerText(), 'Forecast', 'the first tab takes the layout tab label');
+  assert.equal((await page.locator('nav.side .nav-i.is-on small').innerText()).split(' · ')[0], 'Forecast', 'the use case item in the left panel takes the layout label');
   assert.equal(await page.locator('[data-todo-count]').innerText(), '7 of 10 waiting for you');
   assert.match(await page.locator('[data-so-what]').first().innerText(), /So what: Order to the forecast line/);
   assert.deepEqual(seen.errors, []);
@@ -125,7 +125,7 @@ test('the planner opens with What to do now, draws the plan, its limits and what
     const n = await itemsIn(page, section);
     assert.ok(n >= low, `${section} holds ${n}, needs ${low}`);
   }
-  assert.equal(await page.locator('.view.is-on span').innerText(), 'Plan');
+  assert.equal((await page.locator('nav.side .nav-i.is-on small').innerText()).split(' · ')[0], 'Plan');
   assert.equal(await itemsIn(page, 'constraint_bars'), 1);
   assert.equal(await itemsIn(page, 'sensitivity_tornado'), 2);
   assert.match(await page.locator('[data-section="objective_kpi"]').innerText(), /Plan margin/);
@@ -241,7 +241,7 @@ test('the scenario lab opens with What to do now, moves the outcome with each le
   assert.equal(await page.locator('[data-lever]').count(), 3);
   assert.ok(await page.locator('[data-section="scenario_table"] tbody tr').count() >= layout.min_items.scenario_table);
   assert.ok(await page.locator('[data-lever]').count() >= layout.min_items.lever_sliders);
-  assert.equal(await page.locator('.view.is-on span').innerText(), 'Scenarios');
+  assert.equal((await page.locator('nav.side .nav-i.is-on small').innerText()).split(' · ')[0], 'Scenarios');
   assert.match(await page.locator('[data-section="kpis"]').innerText(), /Chance of the target\s+31(\.0)?%/);
   assert.match(await page.locator('[data-section="scenario_table"]').innerText(), /31(\.0)?%/);
   assert.match(await page.locator('[data-step="levers"]').innerText(), /Move the levers and watch the quarter margin/);
@@ -286,7 +286,7 @@ test('the monitor opens with What to do now, draws the signal with its range, th
     const n = await itemsIn(page, section);
     assert.ok(n >= low, `${section} holds ${n}, needs ${low}`);
   }
-  assert.equal(await page.locator('.view.is-on span').innerText(), 'Triage');
+  assert.equal((await page.locator('nav.side .nav-i.is-on small').innerText()).split(' · ')[0], 'Triage');
   assert.equal(await page.locator('[data-todo-count]').innerText(), '24 of 24 waiting for you');
   assert.match(await page.locator('[data-step="first"]').innerText(), /Start with Account 1/);
   assert.match(await page.locator('[data-section="signal_band"] [data-so-what]').innerText(), /outside the range are the exceptions/);
@@ -308,7 +308,7 @@ test('the explainer opens with What to do now, draws the variance list, the brid
     const n = section === 'bridge' ? Number(await page.locator('[data-section="bridge"] [data-card]').getAttribute('data-rows')) : await itemsIn(page, section);
     assert.ok(n >= low, `${section} holds ${n}, needs ${low}`);
   }
-  assert.equal(await page.locator('.view.is-on span').innerText(), 'Explain');
+  assert.equal((await page.locator('nav.side .nav-i.is-on small').innerText()).split(' · ')[0], 'Explain');
   assert.match(await page.locator('[data-section="variance_table"]').innerText(), /Unit 1/);
   assert.match(await page.locator('[data-section="quote_cards"]').innerText(), /shipped two weeks late/);
   assert.match(await page.locator('[data-section="bridge"] [data-so-what]').innerText(), /biggest step/);
@@ -331,7 +331,7 @@ test('the dashboard is read only: What to do now, a So what line and Ask Genie o
     const n = await itemsIn(page, section);
     assert.ok(n >= low, `${section} holds ${n}, needs ${low}`);
   }
-  assert.equal(await page.locator('.view.is-on span').innerText(), 'Overview');
+  assert.equal((await page.locator('nav.side .nav-i.is-on small').innerText()).split(' · ')[0], 'Overview');
   assert.match(await page.locator('[data-section="kpis"]').innerText(), /Growth\s+7\.7%/);
   const widgets = info.pages[0].charts.length + info.pages[0].tables.length;
   assert.equal(await page.locator('[data-section="charts"] [data-so-what], [data-section="tables"] [data-so-what]').count(), widgets);
@@ -344,12 +344,12 @@ test('the dashboard is read only: What to do now, a So what line and Ask Genie o
   await context.close();
 });
 
-test('the decision queue page opens with What to do now and keeps its own tab label', async () => {
+test('the decision queue page opens with What to do now and adds no layout label to its left-panel item', async () => {
   const info = appInfo();
   assert.equal(info.pages[0].layout.id, 'decision_queue');
   const { page, seen, context } = await openApp(browser, base, info);
   await page.locator('[data-section="todo"] [data-step="first"]').waitFor();
-  assert.equal(await page.locator('.view.is-on span').innerText(), 'Things to fix');
+  assert.equal((await page.locator('nav.side .nav-i.is-on small').innerText()).split(' · ')[0], info.pages[0].use_case_id, 'the default layout keeps Things to fix as its view and names no layout on the item (must-exclude)');
   assert.match(await page.locator('[data-step="first"]').innerText(), /Start with Item number 1/);
   assert.equal(await page.locator('[data-step="accept"]').count(), 0, 'an App that keeps no decisions offers no accept');
   assert.equal(await page.locator('[data-accept]').count(), 0);

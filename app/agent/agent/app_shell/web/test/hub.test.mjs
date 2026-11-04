@@ -792,7 +792,7 @@ test('every card, key number, row and the filter bar on the Overview and on a Ru
   assert.equal(calls.explain.length, 0);
   await page.goto(`${served.base}#/n01_u05`);
   await page.waitForFunction(() => document.querySelector('.ph h1')?.textContent === 'Price-loss decision desk');
-  await page.locator('[data-view="runs"]').click();
+  await page.locator('.top-runs').click();
   await page.locator('.runs-tbl tbody tr').first().waitFor();
   const runs = await page.evaluate(askAudit, ASK_GROUPS);
   assert.deepEqual([runs.missing, runs.hidden, runs.counts.row], [[], [], 2], 'the Runs view: 0 missing, 0 hidden');
