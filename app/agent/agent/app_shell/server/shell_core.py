@@ -2877,6 +2877,7 @@ class Shell:
             problems.append(f"{where}: the decision list returned no rows at the default filters")
         columns = self.list_columns(probe.ws, None, page)
         problems += [f"{where}: {p}" for p in shell_sql.part_column_problems(page, columns)]
+        problems += self.check_decidable(probe, page, columns, where)
         sql, params = shell_sql.list_keys_query(page, values, columns)
         done, errors = self._parallel({("list", "keys"): lambda: self.run(probe.ws, None, sql, params, 1)}, probe)
         if ("list", "keys") in errors:
@@ -2888,6 +2889,25 @@ class Shell:
                             f"page cannot tell its rows apart and their history and edits fail; select record_key, the result "
                             f"table's key for one record, in the {shell_sql.RECORDS_DATASET} dataset")
         return problems
+
+    def check_decidable(self, probe, page: dict, columns: dict, where: str) -> list:
+        if not (self.option("decisions") or self.plan_editable(page)):
+            return []
+        try:
+            fields = self.table_fields(probe.ws, None, page) if page.get("result_table") else []
+        except QueryError:
+            return []
+        context = shell_sql.list_context(page, columns, fields, True)
+        if context["join"]:
+            return []
+        print(f"[DECIDABLE-CHECK FIRED] page={page['id']}: {context['unjoined']}", flush=True)
+        return [f"{where}: people cannot record a decision on any row of the decision list, because {context['unjoined']}; select "
+                f"record_key from {page.get('result_table') or 'the result table'} in the {shell_sql.RECORDS_DATASET} dataset, joined to "
+                f"the companion and input tables it reads, so each row is one record of the result table"]
+
+    def plan_editable(self, page: dict) -> bool:
+        plan = page.get("plan")
+        return isinstance(plan, dict) and bool(plan.get("override")) and self.option("modify")
 
     def check_column_filters(self, page: dict, columns: dict, probe, where: str) -> list:
         scopes = ([(None, columns["list"])] if columns["list"] else []) + list(columns["tables"].items())
@@ -3366,7 +3386,7 @@ class Shell:
         plan = page.get("plan")
         if not isinstance(plan, dict):
             raise HttpError(404, f"page {page['id']} has no plan to decide")
-        decisions, editable = self.option("decisions"), bool(plan.get("override")) and self.option("modify")
+        decisions, editable = self.option("decisions"), self.plan_editable(page)
         if not decisions and not editable:
             raise HttpError(403, "this App does not let people record decisions on its records")
         key, seen = str(data.get("record_key") or ""), str(data.get("seen") or "")

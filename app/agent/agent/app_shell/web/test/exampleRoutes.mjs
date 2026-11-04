@@ -42,7 +42,11 @@ export function forecastRoutes(decided) {
 const LIMITS = [{ x: 'Oven hours', y0: 99, y1: 100 }, { x: 'Flour', y0: 40, y1: 100 }, { x: 'Staff', y0: 70, y1: 90 }];
 const PLAN_ROWS = ROWS.map((r, i) => ({ ...r, current_value: 100 + i * 10, recommended_value: 90 + i * 20, delta: i * 20 - 10, objective_contribution: 4000 - i * 500 }));
 
-export function plannerRoutes(decided, solved) {
+const planNote = (body) => (body.decision === 'accept' ? `Accepted the recommended ${body.recommended}`
+  : `Override to ${body.value} instead of ${body.recommended}: ${body.reason}`);
+
+export function plannerRoutes(decided, solved, { keep = false, actions = true } = {}) {
+  const lines = PLAN_ROWS.map((r) => ({ ...r }));
   return {
     page: ({ json }) => json(200, {
       kpis: { objective: { now: 11000 }, changed: { now: 3 }, binding: { now: 1 } },
@@ -55,12 +59,14 @@ export function plannerRoutes(decided, solved) {
     }),
     records: ({ route, json }) => {
       const body = route.request().postDataJSON();
-      return json(200, { rows: PLAN_ROWS.slice(0, body.limit || 25), total: PLAN_ROWS.length, offset: 0, limit: body.limit || 25, actions: true, changes: false,
+      return json(200, { rows: lines.slice(0, body.limit || 25), total: lines.length, offset: 0, limit: body.limit || 25, actions, changes: false,
         summary: { open: 2, done: 1, resolved: 0, left: 2, owners: [] }, errors: {} });
     },
     'plan/decide': ({ route, json }) => {
       const body = route.request().postDataJSON();
       decided.push(body);
+      const line = keep && lines.find((r) => r.record_key === body.record_key);
+      if (line) Object.assign(line, { _inspire_status: 'Done', _inspire_closed_note: planNote(body), _inspire_version: String(Number(line._inspire_version) + 100) });
       return json(200, { written: [body.record_key], conflicts: [], conflicts_count: 0, left_out: 0, batch_id: 'b1', decision: body.decision, edited: false });
     },
     'settings/run': ({ route, json }) => {
@@ -151,6 +157,9 @@ function treatmentsOf(rows) {
   });
   return [...counted.values()].sort((a, b) => b.n - a.n || a.segment.localeCompare(b.segment));
 }
+
+export const unlinkedRecords = (routes) => ({ ...routes,
+  records: (arg) => routes.records({ ...arg, json: (status, data) => arg.json(status, { ...data, actions: false }) }) });
 
 export function kindRoutes(data, rows, acts, spec = {}, extra = {}, unread = false) {
   return {

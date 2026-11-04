@@ -5,7 +5,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
 import { DECIDE, SRC, appInfo, bundleEntry, openApp, openBundle, serveDist } from './harness.mjs';
-import { LAYOUT_B_CASES as CASES, MOVES, STEPS, kindRoutes } from './exampleRoutes.mjs';
+import { LAYOUT_B_CASES as CASES, MOVES, STEPS, kindRoutes, unlinkedRecords } from './exampleRoutes.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ASSETS = join(HERE, '..', 'dist', 'assets');
@@ -273,3 +273,21 @@ test('the process, map and graph modules load in their own chunks and the main b
   assert.ok(!readdirSync(ASSETS).some((f) => /\.(geo)?json$/i.test(f)), 'the shapes ship inside the chunk, not as a file fetched at run time');
   assert.ok(!/https?:\/\/[^"'\s]*(geojson|topojson|tile)/i.test(geo), 'the map never fetches shapes or tiles from the internet');
 });
+
+const UNLINKED = 'This list is not linked to the records of the use case, so the App cannot save a decision on it yet.';
+
+for (const id of ['process_flow', 'location_view', 'network_explorer']) {
+  test(`the ${id} layout shows a list the App cannot save a decision on with its suggestions only, no choice and no per-row read only`, async () => {
+    const info = appInfo(DECIDE, 1, {}, `examples/${id}.json`);
+    const routes = unlinkedRecords(kindRoutes(CASES[id].data(), CASES[id].rows.map((r) => ({ ...r })), [], exampleOf(id)));
+    const { page, seen, context } = await openApp(browser, base, info, { routes });
+    await page.locator(CASES[id].ready).first().waitFor();
+    await page.locator('[data-no-decisions]').first().waitFor();
+    assert.deepEqual([...new Set(await page.locator('[data-no-decisions]').allInnerTexts())], [UNLINKED]);
+    assert.equal(await page.locator('[data-choice], [data-treatment], [data-take-all]').count(), 0, 'nothing offers a decision the App cannot save');
+    assert.doesNotMatch(await page.locator('main').innerText(), /read only/i);
+    assert.ok(await page.locator('[data-suggested]').count() > 0, 'each row still shows its ★ suggestion');
+    assert.deepEqual(seen.errors, []);
+    await context.close();
+  });
+}

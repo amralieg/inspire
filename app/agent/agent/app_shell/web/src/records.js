@@ -12,6 +12,10 @@ export const STATUSES = ['New', 'In progress', 'Done', 'Dismissed', 'Could not f
 export const STATUS_LABELS = { Done: 'Fixed', Dismissed: 'Not a real issue' };
 export const statusLabel = (status) => STATUS_LABELS[status] || status;
 export const CLOSED_STATUSES = ['Done', 'Dismissed', 'Could not fix'];
+export const canDecide = (app, list) => !!(app?.options?.decisions && list?.actions);
+export const NO_DECISIONS = 'This App does not record decisions, so this list shows its suggestions only.';
+export const UNLINKED = 'This list is not linked to the records of the use case, so the App cannot save a decision on it yet.';
+export const noDecisionText = (app) => (app?.options?.decisions ? UNLINKED : NO_DECISIONS);
 export const PAGE_SIZES = [25, 50, 100];
 export const ACT_LIMIT = 200;
 export const REASON_CHARS = 300;

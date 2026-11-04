@@ -211,9 +211,9 @@ def test_a_plan_decision_refuses_a_bad_choice_an_override_without_a_reason_or_a_
 
 def test_a_plan_decision_writes_the_status_and_a_note_saying_what_was_chosen():
     assert shell_sql.plan_decision(FORECAST["plan"], "accept", "", None, 120) == {
-        "action_status": "In progress", "note": "Accepted the recommended 120"}
+        "action_status": "Done", "note": "Accepted the recommended 120"}
     assert shell_sql.plan_decision(FORECAST["plan"], "override", " Supplier  is short ", 90, 120) == {
-        "action_status": "In progress", "note": "Override to 90 instead of 120: Supplier is short"}
+        "action_status": "Done", "note": "Override to 90 instead of 120: Supplier is short"}
 
 
 def plan_shell(tmp_path, settings=DECIDE, ws=None):

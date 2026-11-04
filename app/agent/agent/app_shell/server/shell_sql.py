@@ -238,6 +238,7 @@ SECTIONS = {
 }
 DECISION_HOLDS = ("records", "plan")
 PLAN_DECISIONS = ("accept", "override")
+PLAN_DECIDED = "Done"
 SCENARIO_LEVERS = (2, 8)
 SCENARIO_Z90 = 1.2815515655446004
 SCENARIO_POINTS = 41
@@ -1613,12 +1614,12 @@ def plan_decision(plan: dict, decision, reason, value, recommended) -> dict:
         raise ValueError(f"the reason takes at most {CAPS['note_chars']} characters")
     suggested = _scenario_number(recommended, "the recommended value")
     if decision == "accept":
-        return {"action_status": "In progress", ACT_NOTE: f"Accepted the recommended {suggested:g}" + (f": {reason}" if reason else "")}
+        return {"action_status": PLAN_DECIDED, ACT_NOTE: f"Accepted the recommended {suggested:g}" + (f": {reason}" if reason else "")}
     amount = _scenario_number(value, "the override value")
     if not reason:
         raise ValueError("say why you override the recommended line: an override needs a reason")
     note = f"Override to {amount:g} instead of {suggested:g}: {reason}"
-    return {"action_status": "In progress", ACT_NOTE: note[:CAPS["note_chars"]]}
+    return {"action_status": PLAN_DECIDED, ACT_NOTE: note[:CAPS["note_chars"]]}
 
 
 def public_layout(page: dict) -> dict:

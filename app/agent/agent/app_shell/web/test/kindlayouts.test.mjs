@@ -5,7 +5,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
 import { DECIDE, SRC, appInfo, bundleEntry, openApp, openBundle, serveDist } from './harness.mjs';
-import { AS_OF, CASES, MEMBERS, kindRoutes, statusOf } from './exampleRoutes.mjs';
+import { AS_OF, CASES, MEMBERS, kindRoutes, statusOf, unlinkedRecords } from './exampleRoutes.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const KINDS = JSON.parse(readFileSync(join(HERE, '..', '..', 'kinds.json'), 'utf8'));
@@ -340,3 +340,21 @@ test('the treemap, radar and sankey modules load only in the lazy layout chart c
     assert.ok(lazy.includes(`series.${kind}`), `the layout chart chunk registers ${kind}`);
   }
 });
+
+const UNLINKED = 'This list is not linked to the records of the use case, so the App cannot save a decision on it yet.';
+
+for (const id of ['recommendation_desk', 'lift_readout', 'segment_explorer']) {
+  test(`the ${id} layout shows a list the App cannot save a decision on with its suggestions only, no choice and no per-row read only`, async () => {
+    const info = appInfo(DECIDE, 1, {}, `examples/${id}.json`);
+    const routes = unlinkedRecords(kindRoutes(CASES[id].data(), CASES[id].rows.map((r) => ({ ...r })), [], exampleOf(id)));
+    const { page, seen, context } = await openApp(browser, base, info, { routes });
+    await page.locator(CASES[id].ready).first().waitFor();
+    await page.locator('[data-no-decisions]').first().waitFor();
+    assert.deepEqual([...new Set(await page.locator('[data-no-decisions]').allInnerTexts())], [UNLINKED]);
+    assert.equal(await page.locator('[data-choice], [data-treatment], [data-take-all]').count(), 0, 'nothing offers a decision the App cannot save');
+    assert.doesNotMatch(await page.locator('main').innerText(), /read only/i);
+    if (id !== 'segment_explorer') assert.ok(await page.locator('[data-suggested]').count() > 0, 'each row still shows its ★ suggestion');
+    assert.deepEqual(seen.errors, []);
+    await context.close();
+  });
+}

@@ -141,19 +141,61 @@ test('the planner opens with What to do now, draws the plan, its limits and what
   await context.close();
 });
 
-test('a plan with no decisions and no editable override column stays read only', async () => {
-  const info = appInfo({}, 1, {}, 'examples/planner.json');
-  const routes = plannerRoutes([], []);
-  const records = routes.records;
-  routes.records = (arg) => {
-    const fulfill = arg.json;
-    return records({ ...arg, json: (status, data) => fulfill(status, { ...data, actions: false }) });
-  };
-  const { page, seen, context } = await openApp(browser, base, info, { routes });
-  const row = page.locator('[data-plan-row="K1"]');
-  await row.waitFor();
-  assert.equal(await row.getByRole('button', { name: 'Accept' }).count(), 0);
-  assert.match(await page.locator('[data-section="plan_table"]').innerText(), /read only/);
+test('a plan with no decisions shows its suggestions with no accept, no override and no per-row read only', async () => {
+  for (const [settings, said] of [[{}, 'This App does not record decisions, so this list shows its suggestions only.'],
+    [DECIDE, 'This list is not linked to the records of the use case, so the App cannot save a decision on it yet.']]) {
+    const info = appInfo(settings, 1, {}, 'examples/planner.json');
+    const { page, seen, context } = await openApp(browser, base, info, { routes: plannerRoutes([], [], { actions: false }) });
+    const row = page.locator('[data-plan-row="K1"]');
+    await row.waitFor();
+    const plan = page.locator('[data-section="plan_table"]');
+    assert.equal(await plan.getByRole('button', { name: 'Accept' }).count(), 0);
+    assert.equal(await plan.getByRole('button', { name: 'Override' }).count(), 0);
+    assert.equal(await plan.locator('[data-take-all]').count(), 0);
+    assert.equal(await plan.locator('[data-no-decisions]').innerText(), said);
+    assert.doesNotMatch(await plan.innerText(), /read only|Accept a line|override it with a reason/i, 'no invitation to decide and no per-row read only');
+    assert.equal(await row.locator('td').count(), 5, 'the row keeps its values, status and Ask Genie with no empty decide cell');
+    assert.equal(await page.locator('[data-step="plan"]').count(), 0);
+    assert.match(await page.locator('[data-step="plan_read"]').innerText(), /Read each line of the plan next to its ★ suggested value/);
+    assert.deepEqual(seen.errors, []);
+    await context.close();
+  }
+});
+
+test('every plan line can be accepted, overridden with a reason or taken all at once, and a reload keeps each decision', async () => {
+  const info = appInfo(DECIDE, 1, {}, 'examples/planner.json');
+  const decided = [];
+  const { page, seen, context } = await openApp(browser, base, info, { routes: plannerRoutes(decided, [], { keep: true }) });
+  const line = (key) => page.locator(`[data-plan-row="${key}"]`);
+  await line('K1').waitFor();
+  const plan = page.locator('[data-section="plan_table"]');
+  assert.equal(await plan.locator('[data-no-decisions]').count(), 0);
+  assert.match(await plan.innerText(), /Accept a line, or override it with a reason/);
+  assert.match(await page.locator('[data-step="plan"]').innerText(), /Take the ★ suggested line in the plan, or override it with a reason/);
+  assert.equal(await plan.locator('[data-take-all]').innerText(), 'Take all 6 ★ suggestions');
+  await line('K1').getByRole('button', { name: 'Accept' }).click();
+  await line('K1').locator('[data-decided]').waitFor();
+  assert.equal(await line('K1').locator('[data-decided]').innerText(), 'Accepted the recommended 90');
+  assert.equal(await line('K1').getByRole('button', { name: 'Accept' }).count(), 0, 'a decided line offers no second accept');
+  await line('K2').getByRole('button', { name: 'Override' }).click();
+  await page.getByLabel('Your value').fill('95');
+  await page.getByLabel('Why you override it').fill('Supplier is short');
+  await page.getByRole('button', { name: 'Save override' }).click();
+  await line('K2').locator('[data-decided]').waitFor();
+  assert.equal(await line('K2').locator('[data-decided]').innerText(), 'Override to 95 instead of 110: Supplier is short');
+  assert.deepEqual(decided.map((d) => [d.record_key, d.decision]), [['K1', 'accept'], ['K2', 'override']]);
+  await page.reload();
+  await line('K2').locator('[data-decided]').waitFor();
+  assert.equal(await line('K1').locator('[data-decided]').innerText(), 'Accepted the recommended 90');
+  assert.equal(await line('K2').locator('[data-decided]').innerText(), 'Override to 95 instead of 110: Supplier is short');
+  assert.match(await line('K1').innerText(), /Done/);
+  assert.equal(await plan.locator('[data-take-all]').innerText(), 'Take all 4 ★ suggestions');
+  await plan.locator('[data-take-all]').click();
+  await page.waitForFunction(() => document.querySelector('.toast .toast-t')?.textContent === 'Accepted 4 suggested lines');
+  await page.waitForFunction(() => document.querySelectorAll('[data-plan-row] [data-decided]').length === 6);
+  assert.deepEqual(decided.slice(2).map((d) => [d.record_key, d.decision, d.seen]), [['K3', 'accept', '502'], ['K4', 'accept', '503'], ['K5', 'accept', '504'], ['K6', 'accept', '505']]);
+  assert.equal(await plan.locator('[data-take-all]').count(), 0);
+  assert.equal(await plan.getByRole('button', { name: 'Accept' }).count(), 0);
   assert.deepEqual(seen.errors, []);
   await context.close();
 });

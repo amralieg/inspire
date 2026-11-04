@@ -1,11 +1,11 @@
 import { Suspense, lazy, useEffect, useState } from 'react';
 import { decidePlan, getRecords, runSettingsNow } from './api.js';
 import { formatValue, integer, numberOf } from './format.js';
-import { recordKeyOf } from './records.js';
+import { canDecide, noDecisionText, recordKeyOf } from './records.js';
 import { Icon, GenieMark } from './icons.jsx';
 import { Skeleton, useToast } from './ui.jsx';
 import { genieOn } from './genieAsk.js';
-import { ChartsReady, SECTION_PARTS } from './KindParts.jsx';
+import { ChartsReady, SECTION_PARTS, TakeAll, decidedText, isClosed } from './KindParts.jsx';
 import { AskGenie } from './AskGenie.jsx';
 import { RowGenie } from './DataTable.jsx';
 import { tableContext } from './explain.js';
@@ -39,7 +39,7 @@ export function useList(pageId, filters, ready, nonce, limit, on = true, view = 
 
 const decisionSection = (page) => Object.keys(page?.layout?.holds || {}).find((s) => ['plan', 'records'].includes(page.layout.holds[s])) || 'records';
 
-export function todoSteps(page, list, { genie = false, modify = false, accept = false } = {}) {
+export function todoSteps(page, list, { genie = false, modify = false, accept = false, plan = false } = {}) {
   const label = page.records?.label;
   const to = decisionSection(page);
   const first = list?.rows?.[0];
@@ -59,7 +59,8 @@ export function todoSteps(page, list, { genie = false, modify = false, accept = 
     if (page.filters?.length) steps.push({ id: 'filters', text: 'Use the filters at the top to narrow every chart to the part you own.', action: null });
   } else if (first) {
     steps.push({ id: 'first', text: `Start with ${first[label] ?? recordKeyOf(first)}: it is first in the list because it matters most.`, action: 'Show me', to });
-    if (page.plan) steps.push({ id: 'plan', text: 'Take the ★ suggested line in the plan, or override it with a reason.', action: 'Open the plan', to });
+    if (page.plan && plan) steps.push({ id: 'plan', text: 'Take the ★ suggested line in the plan, or override it with a reason.', action: 'Open the plan', to });
+    else if (page.plan) steps.push({ id: 'plan_read', text: 'Read each line of the plan next to its ★ suggested value, largest change first.', action: 'Open the plan', to });
     else if (accept) steps.push({ id: 'accept', text: 'Accept the suggested action where you agree: one row at a time, or select several and accept them together.', action: 'Show me', to });
     else steps.push({ id: 'down', text: 'Work down the list in order and record what you did on each one.', action: null });
   }
@@ -72,7 +73,8 @@ export function TodoNow({ page, app, ready, nonce, onAsk, shared }) {
   const fetched = useList(page.id, {}, ready, nonce, TODO_ROWS, decided && shared === undefined);
   const list = shared === undefined ? fetched : shared || {};
   const genie = genieOn(app, page.id) && !!onAsk;
-  const steps = todoSteps(page, list.data, { genie, modify: !!app?.options?.modify, accept: !!(list.data?.actions && page.records?.action) });
+  const steps = todoSteps(page, list.data, { genie, modify: !!app?.options?.modify, accept: !!(list.data?.actions && page.records?.action),
+    plan: !!(page.plan && list.data && planDecides(app, page.plan, list.data)) });
   const summary = list.data?.summary;
   const waiting = summary?.open ?? list.data?.total ?? 0;
   const all = Math.max(waiting, (summary?.open ?? 0) + (summary?.done ?? 0), list.data?.total ?? 0);
@@ -114,6 +116,13 @@ function planFields(page, plan, row) {
     Status: row._inspire_status || row.action_status || 'New' };
 }
 
+export async function decidePlanLine(page, plan, row, decision, reason = '', value = null) {
+  return decidePlan({ page: page.id, record_key: String(recordKeyOf(row)), seen: String(row._inspire_version), decision, reason,
+    recommended: numberOf(row[plan.recommended]), ...(decision === 'override' ? { value: Number(value) } : {}) });
+}
+
+const planOpen = (row) => recordKeyOf(row) != null && !!row._inspire_version && !isClosed(row);
+
 function PlanRow({ page, app, plan, row, actions, onDecided }) {
   const [open, setOpen] = useState(false);
   const [value, setValue] = useState('');
@@ -125,12 +134,12 @@ function PlanRow({ page, app, plan, row, actions, onDecided }) {
   const fmt = (v) => formatValue(v, plan.format, plan.currency);
   const delta = planDelta(plan, row);
   const status = row._inspire_status || row.action_status;
+  const decided = isClosed(row);
   const decide = async (decision) => {
     setBusy(true);
     setError('');
     try {
-      await decidePlan({ page: page.id, record_key: String(key), seen: String(row._inspire_version), decision, reason,
-        recommended: numberOf(row[plan.recommended]), ...(decision === 'override' ? { value: Number(value) } : {}) });
+      await decidePlanLine(page, plan, row, decision, reason, value);
       toast(decision === 'accept' ? 'Accepted the suggested line' : 'Saved your override and its reason');
       setOpen(false);
       onDecided();
@@ -140,7 +149,8 @@ function PlanRow({ page, app, plan, row, actions, onDecided }) {
       setBusy(false);
     }
   };
-  const can = actions && key != null && !!row._inspire_version;
+  const can = actions && planOpen(row);
+  const cols = actions ? 7 : 6;
   return (
     <>
       <tr data-plan-row={key}>
@@ -149,19 +159,22 @@ function PlanRow({ page, app, plan, row, actions, onDecided }) {
         <td className="num plan-rec"><span aria-hidden="true">★ </span>{fmt(row[plan.recommended])}</td>
         <td className={`num ${delta > 0 ? 'is-up' : delta < 0 ? 'is-down' : ''}`}>{delta == null ? '' : `${delta > 0 ? '+' : ''}${fmt(delta)}`}</td>
         <td>{status || 'New'}</td>
-        <td className="plan-act">
-          {can ? (
-            <>
-              <button type="button" className="btn btn--sm btn--pri" disabled={busy} onClick={() => decide('accept')}>Accept</button>
-              <button type="button" className="btn btn--sm" disabled={busy} aria-expanded={open} onClick={() => setOpen(!open)}>Override</button>
-            </>
-          ) : <span className="muted">Read only</span>}
-        </td>
+        {actions && (
+          <td className="plan-act">
+            {decided && <span className="choice-done" data-decided><Icon name="check" size={13} />{decidedText(row)}</span>}
+            {can && (
+              <>
+                <button type="button" className="btn btn--sm btn--pri" disabled={busy} onClick={() => decide('accept')}>Accept</button>
+                <button type="button" className="btn btn--sm" disabled={busy} aria-expanded={open} onClick={() => setOpen(!open)}>Override</button>
+              </>
+            )}
+          </td>
+        )}
         <td className="ask-c"><RowGenie about={genieOn(app, page.id) && key != null ? { pageId: page.id, recordKey: String(key), label: lineName(page, row) } : null}
           element={{ title: lineName(page, row), page: page.id, context: { hint: `A line of ${plan.title}.`, fields: planFields(page, plan, row) } }} /></td>
       </tr>
       {open && (
-        <tr className="plan-form"><td colSpan={7}>
+        <tr className="plan-form"><td colSpan={cols}>
           <form onSubmit={(e) => { e.preventDefault(); decide('override'); }}>
             <label>Your value<input type="number" step="any" required value={value} onChange={(e) => setValue(e.target.value)} /></label>
             <label className="grow">Why you override it<input required maxLength={300} value={reason} onChange={(e) => setReason(e.target.value)} /></label>
@@ -169,12 +182,12 @@ function PlanRow({ page, app, plan, row, actions, onDecided }) {
           </form>
         </td></tr>
       )}
-      {error && <tr><td colSpan={7}><p className="tile-err" role="alert"><Icon name="info" size={12} />{error}</p></td></tr>}
+      {error && <tr><td colSpan={cols}><p className="tile-err" role="alert"><Icon name="info" size={12} />{error}</p></td></tr>}
     </>
   );
 }
 
-const planDecides = (app, plan, list) => !!(list?.actions && app.options?.decisions) || !!(plan.override && app.options?.modify);
+const planDecides = (app, plan, list) => canDecide(app, list) || !!(plan.override && app.options?.modify);
 
 function Resolve({ page }) {
   const [state, setState] = useState({ busy: false, said: '' });
@@ -202,18 +215,41 @@ export function PlanTable({ page, app, filters, ready, nonce, onChanged }) {
   const list = useList(page.id, filters, ready, nonce, PLAN_ROWS);
   const rows = list.data?.rows || [];
   const can = planDecides(app, plan, list.data);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const toast = useToast();
+  const open = can ? rows.filter(planOpen) : [];
+  const acceptAll = async () => {
+    setBusy(true);
+    setError('');
+    let done = 0;
+    try {
+      for (const row of open) {
+        await decidePlanLine(page, plan, row, 'accept');
+        done += 1;
+      }
+      toast(done === 1 ? 'Accepted the suggested line' : `Accepted ${integer(done)} suggested lines`);
+    } catch (e) {
+      setError(done ? `Accepted ${integer(done)} of ${integer(open.length)} lines, then: ${e.message}` : e.message);
+    } finally {
+      setBusy(false);
+      if (done) onChanged();
+    }
+  };
   return (
     <section className="card card--table plan" aria-label={plan.title}>
-      <header className="card-h"><div><h2>{plan.title}</h2>{plan.hint && <p>{plan.hint}</p>}
-        {list.data && !can && <p className="muted">This App keeps no decisions on these lines, so the plan is read only.</p>}
+      <header className="card-h"><div><h2>{plan.title}</h2>
+        {list.data && !can ? <p className="muted" data-no-decisions>{noDecisionText(app)}</p> : plan.hint && <p>{plan.hint}</p>}
       </div>
+      {open.length > 0 && <TakeAll count={open.length} busy={busy} onClick={acceptAll} />}
       <AskGenie kind="table" title={plan.title} context={tableContext(plan.hint || '', rows, (row) => planFields(page, plan, row), list.data?.total)} /></header>
       {!list.data && !list.error && <div style={{ padding: 16 }}><Skeleton height={22} /></div>}
       {list.error && <p className="tile-err"><Icon name="info" size={14} />The plan could not load: {list.error}</p>}
+      {error && <p className="tile-err" role="alert"><Icon name="info" size={14} />{error}</p>}
       {list.data && !rows.length && <p className="empty">No plan lines for these filters.</p>}
       {rows.length > 0 && (
         <div className="tw"><table className="plan-t">
-          <thead><tr><th scope="col">{page.records.label_title || 'Line'}</th><th scope="col">Now</th><th scope="col">Suggested</th><th scope="col">Change</th><th scope="col">Status</th><th scope="col"><span className="sr">Decide</span></th><th scope="col"><span className="sr">Ask Genie</span></th></tr></thead>
+          <thead><tr><th scope="col">{page.records.label_title || 'Line'}</th><th scope="col">Now</th><th scope="col">Suggested</th><th scope="col">Change</th><th scope="col">Status</th>{can && <th scope="col"><span className="sr">Decide</span></th>}<th scope="col"><span className="sr">Ask Genie</span></th></tr></thead>
           <tbody>{rows.map((row) => <PlanRow key={recordKeyOf(row)} page={page} app={app} plan={plan} row={row} actions={can} onDecided={onChanged} />)}</tbody>
         </table></div>
       )}
