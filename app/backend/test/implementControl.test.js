@@ -420,7 +420,7 @@ test('the control tower shows a tile for every output: live when built, building
   const kinds = (tower) => tower.tiles.map((t) => `${t.output.id}:${t.kind}`);
   const live = { targets: { job: '77', dashboard: 'd1' }, assets: { dashboard: { ok: true, published: true }, job: { ok: true, schedule: null, active_runs: [] } } };
   const chosen = { ...LATEST, spec_json: { outputs: { dashboard: true, genie_space: true, alert: true } } };
-  const building = v.controlTiles(live, { ...chosen, status: 'building_outputs' }, { active: true, buildingNow: 'Genie Agent' });
+  const building = v.controlTiles(live, { ...chosen, status: 'building_outputs' }, { active: true, building: new Set(['genie_space']) });
   assert.deepEqual(kinds(building), ['dashboard:live', 'genie_space:building', 'app:off', 'alert:building']);
   assert.deepEqual(building.tiles.filter((t) => t.kind === 'building').map((t) => t.now), [true, false], 'only the output Genie is on now says so');
   assert.deepEqual(building.strips.map((r) => r.id), ['job']);
@@ -458,7 +458,7 @@ test('while a version builds, only the outputs its recorded plan touches show bu
   const steps = [planStep(PLANNED({ refresh: ['app'] })), phaseStep('Genie Code', 'ended_success', '10:00:59'), phaseStep('App', 'started', '10:01:21')];
   const plan = p.versionPlan(steps, latest);
   const stages = p.mvpStages(steps, latest, { now: Date.parse('2026-01-02T10:02:00Z') });
-  const tower = v.controlTiles(ALL_LIVE, latest, { active: true, buildingNow: 'App', plan, stages });
+  const tower = v.controlTiles(ALL_LIVE, latest, { active: true, building: p.buildingAssets(stages, true), plan, stages });
   assert.deepEqual(tower.tiles.map((t) => [t.output.id, t.kind, t.building || null]), [
     ['dashboard', 'live', null], ['genie_space', 'live', null], ['app', 'live', { now: true, doing: 'Genie is rebuilding it now' }], ['alert', 'live', null],
   ], 'the App tile alone is building; the others stay on their live version');
@@ -469,7 +469,7 @@ test('while a version builds, only the outputs its recorded plan touches show bu
     'an output built a moment ago reads its live status, never missing');
   assert.equal(v.controlTiles(noApp, latest, { active: true, plan, stages }).tiles[2].kind, 'building');
   assert.equal(v.controlTiles(noApp, { ...latest, status: 'ready' }, { plan, stages: doneStages }).tiles[2].kind, 'missing', 'once the version is done, a missing App is missing');
-  const noLive = v.controlTiles(null, latest, { active: true, buildingNow: 'App', plan, stages });
+  const noLive = v.controlTiles(null, latest, { active: true, building: p.buildingAssets(stages, true), plan, stages });
   assert.deepEqual(noLive.tiles.map((t) => `${t.output.id}:${t.kind}`), ['dashboard:checking', 'genie_space:checking', 'app:building', 'alert:checking'],
     'a chosen output the plan does not touch is never shown as building');
   const pending = v.controlTiles(null, { ...latest, status: 'queued' }, { active: true, plan: p.PLAN_PENDING });
@@ -479,6 +479,33 @@ test('while a version builds, only the outputs its recorded plan touches show bu
   assert.equal(back.tiles[0].building.doing, 'Inspire is putting v2 back now');
   assert.equal(back.tiles[0].building.now, false, 'without the stages, it waits for its turn');
   assert.equal(v.controlTiles(ALL_LIVE, latest, { active: false, plan }).tiles[2].building, undefined, 'a finished version builds nothing');
+});
+
+test('the tiles that say Genie is on them now are the asset cards the progress line animates: one step mapping for both', async () => {
+  const v = await view();
+  const p = await progress();
+  const latest = { ...LATEST, spec_version: 3, status: 'building_outputs', spec_json: { ...LATEST.spec_json, vibes: 'a filter on every column' } };
+  const plan = p.versionPlan([planStep(PLANNED({ refresh: ['app', 'dashboard'] }))], latest);
+  const at = (time) => ({ now: Date.parse(`2026-01-02T${time}Z`) });
+  const runs = [
+    [[phaseStep('Genie Code', 'started', '10:00:40')], at('10:01:00')],
+    [[phaseStep('Genie Code', 'ended_success', '10:00:59'), phaseStep('Dashboard', 'started', '10:01:21')], at('10:02:00')],
+    [[phaseStep('Dashboard', 'started', '10:01:21'), phaseStep('Dashboard', 'ended_success', '10:03:00')], at('10:03:02')],
+    [[phaseStep('Dashboard', 'started', '10:01:21'), phaseStep('Dashboard', 'ended_success', '10:03:00'), phaseStep('App', 'started', '10:03:05')], at('10:04:00')],
+  ];
+  const outputs = new Set(v.controlTiles(ALL_LIVE, latest).tiles.map((t) => t.output.id));
+  const seen = [];
+  for (const [rows, clock] of runs) {
+    const steps = [planStep(PLANNED({ refresh: ['app', 'dashboard'] })), ...rows];
+    const stages = p.mvpStages(steps, latest, clock);
+    const building = p.buildingAssets(stages, true);
+    const now = v.controlTiles(ALL_LIVE, latest, { active: true, building, plan, stages }).tiles.filter((t) => t.building?.now).map((t) => t.output.id);
+    assert.deepEqual(now, [...building].filter((id) => outputs.has(id)), 'the tiles marked now are the animated cards');
+    seen.push([now, [...building]]);
+  }
+  assert.deepEqual(seen, [[[], ['notebook']], [['dashboard'], ['dashboard']], [['app'], ['app']], [['app'], ['app']]],
+    'each step moves both together, the step about to start included');
+  assert.equal(v.controlTiles(ALL_LIVE, latest, { active: true, plan, stages: [] }).tiles.some((t) => t.building?.now), false, 'with no live step, no tile says now');
 });
 
 const builtRow = (version, assets, outputs = {}) => ({

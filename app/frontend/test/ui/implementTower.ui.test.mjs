@@ -1143,7 +1143,9 @@ test('while the plan runs, the Job card alone glows with a moving border and a s
     assert.deepEqual(await animatedTiles(page), ['job'], 'only the card whose step is running animates');
     const job = page.locator('[data-asset-tile="job"]');
     assert.equal(await job.locator('[data-tile-spinner]').count(), 1);
-    assert.equal(await job.locator('[data-tile-state]').textContent(), 'Building');
+    assert.equal(await job.getAttribute('data-tile-kind'), 'failed', 'this Job card could not be read');
+    assert.equal(await job.locator('[data-tile-state]').textContent(), 'Cannot read', 'it keeps its failed read on the status line while it animates');
+    assert.match(await job.locator('[data-tile-state]').getAttribute('class'), /text-error-fg/);
     assert.equal(await page.locator('[data-asset-tiles] [data-tile-spinner]').count(), 1, 'no spinner on a card that is not building');
     await page.emulateMedia({ reducedMotion: 'no-preference' });
     const moving = await job.evaluate((el) => ({ names: getComputedStyle(el).animationName, spin: getComputedStyle(el.querySelector('[data-tile-spinner]')).animationName }));
@@ -1183,6 +1185,8 @@ test('while Genie rebuilds the App, the App card animates and the Job and Notebo
     assert.match(await text(progress.locator('[data-stage="Job"]')), /^Job5s/, 'the Job chip carries the plan time');
     await page.waitForFunction(() => document.querySelector('[data-asset-tile="app"]')?.classList.contains('asset-building'), null, { timeout: 20000 });
     assert.deepEqual(await animatedTiles(page), ['app']);
+    assert.equal(await page.locator('[data-asset-tile="app"] [data-tile-state]').textContent(), 'Building', 'a card that read fine says Building');
+    assert.equal(await page.locator('[data-asset-tile="app"]').getAttribute('data-tile-building'), 'now', 'and its tile says Genie is on it now, from the same step');
     for (const id of ['job', 'notebook', 'dashboard', 'genie_space']) assert.doesNotMatch(await tileClass(page, id), /asset-building/, id);
     const log = progress.locator('[data-build-log]');
     const before = (await log.boundingBox()).height;

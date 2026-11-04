@@ -1048,9 +1048,8 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
   const notebookPath = item.uc?.notebook_path || '';
   const vibeTargets = vibeCards(status?.history, latest, stalled, workspaceNotebookUrl(databricksHost, notebookPath), plan);
   const pickable = assetGroups(vibeTargets, controlRows(live, latest)).flatMap((group) => group.assets);
-  const buildingNow = progress.current?.state === 'running' ? progress.current.id : '';
   const building = buildingAssets(stages, progress.active);
-  const { strips, tiles } = controlTiles(live, latest, { active, buildingNow, plan, stages });
+  const { strips, tiles } = controlTiles(live, latest, { active, building, plan, stages });
   const stopAction = strips.find((entry) => entry.id === 'build')?.actions?.[0] || null;
   const jobRow = strips.find((entry) => entry.id === 'job') || null;
   const fromCard = (send) => async (...args) => {
@@ -1232,7 +1231,7 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
 
   const jobBody = () => (
     <>
-      <BuildControls kept={kept} live={live} liveError={liveError} latest={latest} useCaseId={useCaseId} active={active} buildingNow={buildingNow}
+      <BuildControls kept={kept} live={live} liveError={liveError} latest={latest} useCaseId={useCaseId} active={active}
         actionBusy={actionBusy} submitBusy={submitBusy} readOnly={readOnly} onAction={runControl} onRemoveKept={removeKept} onToggleSchedule={toggleSchedule} onRefresh={loadLive}
         onOpenRun={onOpenRun} />
       {stalled?.run_url && (

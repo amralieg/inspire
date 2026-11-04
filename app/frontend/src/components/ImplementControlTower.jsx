@@ -205,7 +205,7 @@ export function AssetTile({
   const kind = tile?.kind || (!state ? 'off' : state.tone === 'error' ? 'failed' : 'live');
   const failing = kind === 'failed' || Boolean(failed);
   const settled = failed || tile?.kind === 'failed' ? TILE_LOOK.failed : tile ? tileState(tile) : state || TILE_LOOK.off;
-  const shown = building ? TILE_LOOK.building : settled;
+  const shown = building && !failing ? TILE_LOOK.building : settled;
   const live = tile ? tile.row || null : row;
   const controls = useAssetControls({ output, row: live, uninstall, useCaseId, submitBusy, actionBusy, onAction, onRemove });
   const Icon = icon || ASSET_ICONS[id];
@@ -454,11 +454,11 @@ function KeptVersions({ kept, locked, lockedReason = '', onRemove }) {
 const keptNames = (entry) => entry.assets.map((asset) => asset.label).join(', ');
 
 export function BuildControls({
-  kept = [], live, liveError, latest, useCaseId, active, buildingNow, actionBusy, submitBusy, readOnly = false, onAction, onRemoveKept, onToggleSchedule, onRefresh,
+  kept = [], live, liveError, latest, useCaseId, active, actionBusy, submitBusy, readOnly = false, onAction, onRemoveKept, onToggleSchedule, onRefresh,
   onOpenRun = null,
 }) {
   const [removingKept, setRemovingKept] = useState(null);
-  const { strips } = controlTiles(live, latest, { active, buildingNow });
+  const { strips } = controlTiles(live, latest, { active });
   const actions = (live?.actions || []).slice(0, 5);
   const confirmRemoveKept = async () => {
     if (await onRemoveKept(removingKept.version)) setRemovingKept(null);
