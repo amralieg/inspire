@@ -1119,7 +1119,7 @@ Stored in `__inspire_session.widget_values` at session initialization. This capt
 | `operation_mode` | string | `"Discover Use Cases"` or `"Generate Use Cases"` |
 | `table_election_mode` | string | `"Let Inspire Decides"`, `"All Tables"`, or `"Transactional Only"` |
 | `use_cases_quality` | string | Canonical quality mode: `"Good"`, `"High"`, or `"Ultra High"` (legacy labels are stored as their canonical mode); see 9.2 |
-| `discovery_type` | string | v1.3.0, widget `03_discovery_type`: `"Deep"` (default; aggregates over the data, never a row sent to the AI) or `"Standard"` (metadata plus the aggregate kind evidence checks of forecast, scenario, impact and process use cases, never a row sent to the AI). Matching is case-insensitive; an empty value means `"Deep"`; any other value stops the run |
+| `discovery_type` | string | v1.3.0, widget `03_discovery_type`: `"Deep"` (default; aggregates over the data, never a row sent to the AI) or `"Standard"` (never reads data). Matching is case-insensitive; an empty value means `"Deep"`; any other value stops the run |
 | `strategic_context` | string | v1.3.0, widget `10_strategic_context`: the raw widget text, inline JSON or a Workspace or Volumes path starting with `/`; empty for none. The parsed tree is stored in the session column `strategic_context` and in `results_json.strategic_context` |
 | `best_of_best_count` | string | v1.3.0, widget `16_best_of_best_count`: empty (20, or the number in the generation instructions) or a whole number from 0 to 100; any other value stops the run |
 | `technical_exclusion_strategy` | string | Always `"Aggressive"`: technical and system tables are always filtered out; no other strategy is accepted |

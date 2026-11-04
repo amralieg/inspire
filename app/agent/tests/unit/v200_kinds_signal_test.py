@@ -5,23 +5,27 @@
 3. A process needs at least three distinct steps on real case rows.
 4. Each minimum is a runtime parameter, and a use case the instructions ask for stays with thin data.
 5. A stated kind whose companion tables its tables cannot fill is relabelled to its technique's own kind.
-6. The forecast, scenario, impact and process checks run in every discovery mode; only Deep reads anything else.
+6. Deep reads the data for the forecast, scenario, impact and process checks. Standard reads no data: it decides from
+   column types alone what they can decide, and marks the rest data not checked without dropping the use case.
 """
 import json
 import os
-import types
 import sys
 from unittest.mock import MagicMock
 
 import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from v120_artifacts_support import FakeSpark, make_inspire, make_uc  # noqa: E402
+from v120_artifacts_support import FakeSpark  # noqa: E402
 from v120_genie_support import StatusRecorder, build_inspire  # noqa: E402
 
 ORDERS = "main.s.orders"
+LEDGER = "main.s.ledger"
+TEXT_DATED = "main.s.visits"
 COLUMNS = {ORDERS: {"order_id": "bigint", "status": "string", "event_time": "timestamp", "store": "string",
-                    "price": "double", "discount": "double", "units": "int"}}
+                    "price": "double", "discount": "double", "units": "int"},
+           LEDGER: {"ledger_id": "bigint", "category": "string", "branch": "string", "amount": "double"},
+           TEXT_DATED: {"visit_id": "bigint", "stage": "string", "visit_date": "string", "spend": "double"}}
 SCENARIO = {"levers": ["price", "discount"], "outcome": "units"}
 IMPACT = {"group": "store", "time": "event_time"}
 PROCESS = {"case_key": "order_id", "step": "status", "time": "event_time"}
@@ -52,8 +56,8 @@ def uc(uc_id, technique, kind=None, **extra):
     return out
 
 
-def answer(uc_id, roles):
-    return {"No": uc_id, "table": ORDERS, "roles": roles, "note": ""}
+def answer(uc_id, roles, table=ORDERS):
+    return {"No": uc_id, "table": table, "roles": roles, "note": ""}
 
 
 def responder(rows):
@@ -262,100 +266,141 @@ FLAT_PRICE = {"n": 1000, "lever_values": 40, "pooled": -0.0006, "within": 0.001}
 SERIES = {"time": "event_time", "measure": "units"}
 LEVER = {"lever": "price", "outcome": "units"}
 MODES = ("Deep", "Standard")
+KIND_CHECKS = ("series", "scenario", "impact", "process")
 
 
-def mode_inspire(agent_ns, mode, answers, rows):
-    rows = dict(rows, **{"SELECT COUNT(*) AS n FROM": {"n": 1000}})
-    if mode == "Deep":
-        return deep_inspire(agent_ns, answers, rows)
-    spark = FakeSpark(responder=responder(rows))
+def no_read(statement):
+    raise AssertionError(f"Standard discovery sent a statement: {statement}")
+
+
+def standard_inspire(agent_ns, answers, **attrs):
+    spark = FakeSpark(responder=no_read)
     agent = Agent(answers)
-    inst = build_inspire(agent_ns, loader=Loader(), agent=agent, spark=spark, discovery_type=mode, deep_evidence=None)
+    inst = build_inspire(agent_ns, loader=Loader(), agent=agent, spark=spark, discovery_type="Standard", deep_evidence=None)
     inst.logger = MagicMock()
     inst.discovery_evidence = {"profiles": {}, "join_matches": [], "data_access": {}}
     inst._emit_pipeline_status = StatusRecorder()
     inst.user_business_domains = []
+    for key, value in attrs.items():
+        setattr(inst, key, value)
     return inst, agent, spark
+
+
+def kind_use_cases(table=ORDERS):
+    tables = {"Tables Involved": table}
+    return [uc("N01-U01", "Forecasting", **tables), uc("N01-U02", "Simulation", "driver_scenarios", **tables),
+            uc("N01-U03", "Causal Impact", **tables), uc("N01-U04", "Process Mining", **tables),
+            uc("N01-U05", "Optimization", "allocation", **tables)]
 
 
 def test_the_modes_tested_are_every_discovery_mode(agent_ns):
     assert tuple(sorted(agent_ns["DISCOVERY_TYPE_VALID"])) == tuple(sorted(MODES))
 
 
-@pytest.mark.parametrize("mode", MODES)
-def test_every_discovery_mode_applies_each_kind_check(agent_ns, mode):
-    ucs = [uc("N01-U01", "Forecasting"), uc("N01-U02", "Simulation", "driver_scenarios"), uc("N01-U03", "Causal Impact"),
-           uc("N01-U04", "Process Mining"), uc("N01-U05", "Optimization", "allocation")]
+def test_deep_reads_the_data_for_each_kind_check(agent_ns):
     answers = [{"results": [answer("N01-U01", SERIES), answer("N01-U02", SCENARIO), answer("N01-U03", IMPACT),
                             answer("N01-U04", PROCESS), answer("N01-U05", LEVER)]}]
     rows = {"AS median_gap": SHORT_SERIES, "corr(l0, o)": ONE_LEVER, "AS compared_groups": SHORT_HISTORY,
             "AS steps": TWO_STEPS, "AS pooled": FLAT_PRICE}
-    inst, agent, spark = mode_inspire(agent_ns, mode, answers, rows)
-    kept, dropped = inst._check_data_signal(ucs, [])
-    listing = agent.calls[0]["vars"]["use_cases_listing"]
-    assert [u["No"] for u in dropped][:4] == ["N01-U01", "N01-U02", "N01-U03", "N01-U04"]
+    inst, _agent, spark = deep_inspire(agent_ns, answers, rows)
+    kept, dropped = inst._check_data_signal(kind_use_cases(), [])
+    assert kept == [] and [u["No"] for u in dropped] == ["N01-U01", "N01-U02", "N01-U03", "N01-U04", "N01-U05"]
     assert "1.5 seasonal cycles" in dropped[0]["selection_drop_reason"]
     assert "too few distinct steps (2)" in dropped[3]["selection_drop_reason"]
-    if mode == "Deep":
-        assert [u["No"] for u in dropped] == ["N01-U01", "N01-U02", "N01-U03", "N01-U04", "N01-U05"]
-    else:
-        assert [u["No"] for u in kept] == ["N01-U05"] and "data_signal" not in ucs[4]
-        assert "N01-U05" not in listing, "a check outside the kind evidence checks is never asked for outside Deep"
-        assert inst.deep_evidence is None, "only the signal reader exists outside Deep"
-        assert len(spark.statements) == 8, "at most a row count and one aggregate read per checked use case"
-        access = inst._v130_results_keys()["data_access"]
-        assert access["discovery_type"] == mode and access["tables_read_count"] == 1
+    assert spark.statements, "Deep reads aggregates of the data"
 
 
-@pytest.mark.parametrize("mode", MODES)
-def test_data_that_holds_each_kind_keeps_its_use_case_in_every_mode(agent_ns, mode):
-    ucs = [uc("N01-U01", "Simulation", "driver_scenarios"), uc("N01-U02", "Causal Impact"), uc("N01-U03", "Process Mining")]
-    answers = [{"results": [answer("N01-U01", SCENARIO), answer("N01-U02", IMPACT), answer("N01-U03", PROCESS)]}]
-    rows = {"corr(l0, o)": TWO_LEVERS, "AS compared_groups": LONG_HISTORY, "AS steps": FIVE_STEPS}
-    inst, _agent, _spark = mode_inspire(agent_ns, mode, answers, rows)
+def test_standard_sends_no_statement_and_marks_what_needs_data_as_data_not_checked(agent_ns):
+    ucs = kind_use_cases()
+    answers = [{"results": [answer("N01-U01", SERIES), answer("N01-U02", SCENARIO), answer("N01-U03", IMPACT),
+                            answer("N01-U04", PROCESS), answer("N01-U05", LEVER)]}]
+    inst, agent, spark = standard_inspire(agent_ns, answers)
     kept, dropped = inst._check_data_signal(ucs, [])
-    assert [u["No"] for u in kept] == ["N01-U01", "N01-U02", "N01-U03"] and dropped == []
-    assert all(u["data_signal"]["status"] == "passed" and u["Data Evidence"]["signal"]["status"] == "passed" for u in ucs)
+    assert spark.statements == [], "Standard discovery never sends a statement against the tables"
+    assert inst.deep_evidence is None
+    assert [u["No"] for u in kept] == ["N01-U01", "N01-U02", "N01-U03", "N01-U04", "N01-U05"] and dropped == []
+    assert [u["data_signal"]["check"] for u in ucs[:4]] == list(KIND_CHECKS)
+    assert all(u["data_signal"]["status"] == "not_checked" and u["data_signal"]["reason"].startswith(
+        "Data not checked: Standard discovery reads no data, so Inspire did not check that ") for u in ucs[:4])
+    assert "at least 2 of the levers move the outcome" in ucs[1]["data_signal"]["reason"]
+    assert "at least 3 distinct steps" in ucs[3]["data_signal"]["reason"]
+    assert ucs[3]["Data Evidence"]["signal"]["status"] == "not_checked"
+    assert "data_signal" not in ucs[4], "a check outside the four kind checks never runs outside Deep"
+    assert "N01-U05" not in agent.calls[0]["vars"]["use_cases_listing"]
+    access = inst._v130_results_keys()["data_access"]
+    assert access["discovery_type"] == "Standard" and access["tables_read_count"] == 0
 
 
-@pytest.mark.parametrize("mode", MODES)
-def test_a_must_have_use_case_is_kept_and_flagged_in_every_mode(agent_ns, mode):
-    ucs = [uc("N01-U01", "Process Mining", user_request="R1"), uc("N01-U02", "Process Mining")]
-    answers = [{"results": [answer("N01-U01", PROCESS), answer("N01-U02", PROCESS)]}]
-    inst, _agent, _spark = mode_inspire(agent_ns, mode, answers, {"AS steps": TWO_STEPS})
-    inst.parsed_generation_instructions = {"use_case_requests": [{"id": "R1", "ask": "an order process map", "minimum": 1}]}
+def test_standard_drops_what_the_column_types_alone_rule_out(agent_ns):
+    ucs = kind_use_cases(LEDGER)[:4]
+    answers = [{"results": [answer("N01-U01", {"time": "", "measure": "amount"}, LEDGER),
+                            answer("N01-U02", {"levers": ["amount"], "outcome": "amount"}, LEDGER),
+                            answer("N01-U03", {"group": "branch", "time": ""}, LEDGER),
+                            answer("N01-U04", {"case_key": "ledger_id", "step": "category", "time": ""}, LEDGER)]}]
+    inst, _agent, spark = standard_inspire(agent_ns, answers)
     kept, dropped = inst._check_data_signal(ucs, [])
-    assert [u["No"] for u in kept] == ["N01-U01"] and [u["No"] for u in dropped] == ["N01-U02"]
-    assert ucs[0]["data_signal"]["status"] == "no_signal"
-    assert "Inspire kept it because the instructions ask for an order process map" in ucs[0]["data_signal"]["reason"]
+    assert spark.statements == []
+    assert kept == [] and [u["No"] for u in dropped] == ["N01-U01", "N01-U02", "N01-U03", "N01-U04"]
+    assert all(u["data_signal"]["status"] == "failed" for u in ucs)
+    assert dropped[0]["selection_drop_reason"] == (
+        "the data shows no signal: From the column types alone: none of its tables (main.s.ledger) has a date or "
+        "timestamp column, or a key that joins to one, so there is no history to forecast.")
+    assert "so there is no before and after to compare" in dropped[2]["selection_drop_reason"]
+    assert "so the steps cannot be put in order" in dropped[3]["selection_drop_reason"]
+    assert dropped[1]["selection_drop_reason"].endswith(
+        "its tables (main.s.ledger) hold 1 numeric measure column (amount), and a scenario needs at least 3: "
+        "2 levers to change and an outcome they move.")
 
 
-def test_outside_deep_the_reader_refuses_every_read_but_the_kind_checks(agent_ns):
-    spark = FakeSpark(responder=lambda statement: [{"n": 10}])
+def test_standard_keeps_a_date_held_as_text_for_the_data_to_decide(agent_ns):
+    ucs = kind_use_cases(TEXT_DATED)[:1] + kind_use_cases(TEXT_DATED)[3:4]
+    answers = [{"results": [answer("N01-U01", {"time": "visit_date", "measure": "spend"}, TEXT_DATED),
+                            answer("N01-U04", {"case_key": "visit_id", "step": "stage", "time": "visit_date"}, TEXT_DATED)]}]
+    inst, _agent, spark = standard_inspire(agent_ns, answers)
+    kept, dropped = inst._check_data_signal(ucs, [])
+    assert spark.statements == [] and dropped == [] and [u["No"] for u in kept] == ["N01-U01", "N01-U04"]
+    assert all(u["data_signal"]["status"] == "not_checked" for u in ucs)
+
+
+def test_a_must_have_use_case_is_kept_and_flagged_in_every_mode(agent_ns):
+    instructions = {"use_case_requests": [{"id": "R1", "ask": "an order process map", "minimum": 1}]}
+    for mode in MODES:
+        table = ORDERS if mode == "Deep" else LEDGER
+        roles = PROCESS if mode == "Deep" else {"case_key": "ledger_id", "step": "category", "time": ""}
+        ucs = [uc("N01-U01", "Process Mining", user_request="R1", **{"Tables Involved": table}),
+               uc("N01-U02", "Process Mining", **{"Tables Involved": table})]
+        answers = [{"results": [answer("N01-U01", roles, table), answer("N01-U02", roles, table)]}]
+        if mode == "Deep":
+            inst, _agent, _spark = deep_inspire(agent_ns, answers, {"AS steps": TWO_STEPS},
+                                                parsed_generation_instructions=instructions)
+        else:
+            inst, _agent, _spark = standard_inspire(agent_ns, answers, parsed_generation_instructions=instructions)
+        kept, dropped = inst._check_data_signal(ucs, [])
+        assert [u["No"] for u in kept] == ["N01-U01"] and [u["No"] for u in dropped] == ["N01-U02"], mode
+        assert ucs[0]["data_signal"]["status"] == "no_signal", mode
+        assert "Inspire kept it because the instructions ask for an order process map" in ucs[0]["data_signal"]["reason"]
+
+
+def test_standard_never_builds_a_data_reader(agent_ns):
+    spark = FakeSpark(responder=no_read)
     with pytest.raises(agent_ns["StandardModeDataReadError"]):
         agent_ns["DeepEvidence"](spark, "Standard", MagicMock())
-    reader = agent_ns["DeepEvidence"](spark, "Standard", MagicMock(), signal_only=True)
-    with pytest.raises(agent_ns["StandardModeDataReadError"]):
-        reader._read("profile", ORDERS, "SELECT 1")
-    with pytest.raises(agent_ns["StandardModeDataReadError"]):
-        reader.signal_measures("lever", "`t`", ORDERS, {"roles": LEVER}, 10)
-    with pytest.raises(agent_ns["StandardModeDataReadError"]):
-        reader.measure_kpi({"aggregation": "COUNT", "table": ORDERS})
+    reads = agent_ns["deep_signal_check_reads"]
+    others = ("lever", "outcome", "groups", "text", "measure", "basket", "features")
+    assert [reads(check, "Standard") for check in KIND_CHECKS + others] == ["metadata"] * 4 + [""] * len(others)
+    assert all(reads(check, "Deep") == "data" for check in KIND_CHECKS + others)
     assert spark.statements == []
-    assert reader.summary()["discovery_type"] == "Standard"
-    assert [agent_ns["deep_signal_check_runs"](check, "Standard") for check in ("series", "scenario", "impact", "process",
-                                                                                "lever", "outcome", "groups")] == [True] * 4 + [False] * 3
-    assert all(agent_ns["deep_signal_check_runs"](check, "Deep") for check in ("lever", "outcome", "groups", "text"))
 
 
-def test_a_standard_run_that_read_kind_checks_says_so_in_every_language(agent_ns):
+def test_the_standard_disclaimer_still_says_no_data_was_read(agent_ns):
     ts = agent_ns["TranslationService"]
-    for language, texts in {"English": ts.ENGLISH_TRANSLATIONS, **ts.TRANSLATION_FALLBACKS}.items():
-        assert "{tables}" in texts["doc_data_access_standard_checks"], language
+    assert all("doc_data_access_standard_checks" not in texts
+               for texts in [ts.ENGLISH_TRANSLATIONS, *ts.TRANSLATION_FALLBACKS.values()])
+    ucs = kind_use_cases()[:1]
+    inst, _agent, _spark = standard_inspire(agent_ns, [{"results": [answer("N01-U01", SERIES)]}])
+    inst._check_data_signal(ucs, [])
     t = dict(ts.ENGLISH_TRANSLATIONS)
-    inst = make_inspire(agent_ns, discovery_type="Standard", deep_evidence=None)
-    inst.signal_evidence = types.SimpleNamespace(summary=lambda: {"tables_read_count": 3})
-    model = inst._document_model("English", t, {}, {"Sales": [make_uc("N01-U01")]}, "Acme")
+    model = inst._document_model("English", t, {}, {"Sales": ucs}, "Acme")
     _title, items = inst._doc_disclaimer(model, t)
-    assert items[0] == t["doc_data_access_standard_checks"].format(tables=3)
-    assert "read aggregates from the tables its use cases name, 3 in total" in items[0]
+    assert items[0] == t["doc_data_access_standard"]
+    assert "read no customer data" in items[0]
