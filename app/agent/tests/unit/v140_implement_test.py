@@ -5369,6 +5369,36 @@ def test_every_build_step_message_reaches_the_run_log(agent_ns, status, level):
     assert inst.emitted[-1]["message"] == "round 1/3 failed, sent back to Genie: AttributeError: RAW"
 
 
+def test_a_failed_step_whose_error_the_build_logs_once_is_a_warning_with_its_status_kept(agent_ns):
+    inst = _inspire(agent_ns, FakeSpark())
+    inst._implement_emit("N01-U01", "Alert", "the alert API refused", "ended_error", error_logged_elsewhere=True)
+    stage = agent_ns["IMPLEMENT_STAGE"]
+    assert inst.logger.records == [("WARNING", f"[{stage}] N01-U01 · Alert: the alert API refused")]
+    assert inst.emitted[-1]["status"] == "ended_error" and inst.emitted[-1]["message"] == "the alert API refused"
+
+
+def test_every_failed_step_that_raises_to_the_build_leaves_its_one_error_to_the_build():
+    source = agent_source()
+    raising, flagged = 0, 0
+    for node in ast.walk(ast.parse(source)):
+        for body in (getattr(node, field, None) for field in ("body", "orelse", "finalbody", "handlers")):
+            if not isinstance(body, list):
+                continue
+            for stmt, following in zip(body, body[1:]):
+                call = stmt.value if isinstance(stmt, ast.Expr) else None
+                if not (isinstance(call, ast.Call) and isinstance(call.func, ast.Attribute)
+                        and call.func.attr == "_implement_emit" and isinstance(following, ast.Raise)):
+                    continue
+                if any(isinstance(arg, ast.Constant) and arg.value == "ended_error" for arg in call.args):
+                    raising += 1
+                    flagged += any(kw.arg == "error_logged_elsewhere" and getattr(kw.value, "value", None) is True
+                                   for kw in call.keywords)
+    assert raising == 12 and flagged == raising, (raising, flagged)
+    failed = source[source.index("    def _implement_failed("):]
+    failed = failed[:failed.index("\n    def ", 10)]
+    assert failed.count("self.logger.error(") == 2 and "error_logged_elsewhere=True" in failed
+
+
 def _no_kpis(ns):
     return _churn_page(ns, kpis=[])
 

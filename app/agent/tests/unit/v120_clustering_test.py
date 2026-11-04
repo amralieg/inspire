@@ -355,6 +355,76 @@ class TestUserDomainsAreImmutable:
         assert {u["No"]: u["Business Domain"] for u in out}["T1"] == "Tiny"
 
 
+def flaky(failures, result):
+    calls = []
+
+    def handler(*args):
+        calls.append(args)
+        if len(calls) <= failures:
+            raise RuntimeError("endpoint returned 500")
+        return result(*args)
+    return handler, calls
+
+
+def recorded(o):
+    from v120_runtime_reliability_test import RecordingLogger
+    o.logger = RecordingLogger()
+    return o.logger
+
+
+def errors_of(log):
+    return [line for level, line in log.records if level == "ERROR"]
+
+
+class TestAFailedLlmCallIsOneErrorOnlyWhenEveryAttemptFails:
+    def _placeholders(self):
+        ucs = ucs_on([("U1", "t"), ("U2", "t")])
+        for u in ucs:
+            u["Business Domain"] = "Domain1"
+            u["Subdomain"] = "Demand Planning"
+        return ucs
+
+    def test_a_rename_call_that_fails_then_succeeds_logs_no_error(self, ns):
+        rename, calls = flaky(1, lambda prompt: "Revenue")
+        agent = FakeAgent(rename=rename)
+        o = make(ns, agent)
+        log = recorded(o)
+        out = o._rename_placeholder_domains_from_subdomains(self._placeholders())
+        assert {u["Business Domain"] for u in out} == {"Revenue"} and len(calls) == 2
+        assert [c["kw"].get("skip_cache") for c in agent.calls] == [False, True]
+        assert errors_of(log) == []
+
+    def test_a_rename_call_that_fails_every_attempt_logs_exactly_one_error_naming_the_call(self, ns):
+        rename, calls = flaky(99, lambda prompt: "Revenue")
+        o = make(ns, FakeAgent(rename=rename))
+        log = recorded(o)
+        out = o._rename_placeholder_domains_from_subdomains(self._placeholders())
+        assert {u["Business Domain"] for u in out} == {"Domain1"} and len(calls) == 2
+        errors = errors_of(log)
+        assert len(errors) == 1 and "PlaceholderDomainRename_Domain1" in errors[0] and "endpoint returned 500" in errors[0], errors
+
+    def _repair(self, ns, failures):
+        missing = ucs_on([("U2", "main.hr.staff_roster")])
+        assigned = ucs_on([("U1", "main.sales.store_sales")])
+        assigned[0]["Business Domain"] = "Sales"
+        domain, calls = flaky(failures, lambda prompt_vars, step, kw, template: domain_csv({"U2": "Workforce"}))
+        o = make(ns, FakeAgent(domain=domain))
+        log = recorded(o)
+        o._repair_unassigned_domains(missing, assigned, ["No", "Name", "Tables Involved"], "English", {"Sales"})
+        return missing[0], calls, log
+
+    def test_a_domain_repair_call_that_fails_then_succeeds_logs_no_error(self, ns):
+        uc, calls, log = self._repair(ns, failures=1)
+        assert uc["Business Domain"] == "Workforce" and len(calls) == 2
+        assert errors_of(log) == []
+
+    def test_a_domain_repair_call_that_fails_every_attempt_logs_exactly_one_error_naming_the_call(self, ns):
+        uc, calls, log = self._repair(ns, failures=99)
+        assert uc["Business Domain"] != "Workforce" and len(calls) == 2
+        errors = errors_of(log)
+        assert len(errors) == 1 and "Detect_Domains_Repair_English" in errors[0] and "endpoint returned 500" in errors[0], errors
+
+
 class TestMegaSplitCoverage:
     def _mega(self):
         ucs = ucs_on([(f"U{i}", "main.shop.t_a") for i in range(1, 6)] + [(f"U{i}", "main.shop.t_b") for i in range(6, 11)]

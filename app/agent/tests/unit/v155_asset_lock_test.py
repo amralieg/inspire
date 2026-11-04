@@ -50,7 +50,7 @@ def _builds(ns, table, second_fail=None):
     first, second = _inspire(ns, FakeSpark()), _inspire(ns, FakeSpark())
     first.atomic_writer, second.atomic_writer = table.writer("A"), table.writer("B", second_fail)
     second.steps = []
-    second._implement_emit = lambda uc, label, message, status, extra=None, step_id=None: second.steps.append(
+    second._implement_emit = lambda uc, label, message, status, extra=None, step_id=None, error_logged_elsewhere=False: second.steps.append(
         (uc, label, message, status, step_id)) or 7
     return first, second
 

@@ -370,8 +370,10 @@ def test_an_inspire_step_that_crashes_is_tried_once_more_with_no_genie_rebuild_a
     logged = [line for level, line in inst.logger.records if level == "WARNING" and "[IMPLEMENT-ERROR]" in line]
     assert len(logged) == 2, "each caught exception is logged once"
     errors = [line for level, line in inst.logger.records if level == "ERROR"]
-    assert errors and all("Inspire tried 2 times and could not build it" in line for line in errors), \
-        "only the build that gives up is an error, never one of its attempts"
+    assert len(errors) == 1 and errors[0].startswith("[IMPLEMENT-FAILED]"), errors
+    assert "Inspire tried 2 times and could not build it" in errors[0]
+    assert [line for level, line in inst.logger.records if level == "WARNING" and "· Implement: Inspire tried 2 times" in line], \
+        "the step status still carries the give-up text, as a warning"
     assert "Traceback (most recent call last)" in logged[0] and "in _implement_carried" in logged[0] and "internal error" in logged[0]
     assert TOKEN not in logged[0] and "adb-42.example.net" not in logged[0], "the traceback never carries a token or a host"
     assert "<redacted>" in logged[0] and "https://<host>/api/2.2/jobs/get" in logged[0]

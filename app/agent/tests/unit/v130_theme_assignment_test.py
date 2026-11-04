@@ -103,7 +103,9 @@ def test_a_degenerate_answer_is_retried_without_cache_then_falls_back_to_subdoma
     assert [c["skip_cache"] for c in agent.calls] == [False, True]
     assert report["source"] == "fallback" and report["fallback"] == 30 and report["themes"] == 7
     assert {uc["idea_theme"] for uc in ucs} == {f"Subdomain {i}" for i in range(7)}
-    assert "[THEME-ASSIGN FALLBACK] the answer put 30 use cases in 1 theme, fewer than 5" in logged(inst, "warning")
+    assert inst.logger.error.call_count == 1
+    assert "[THEME-ASSIGN FALLBACK] the Idea_Themes call gave no usable answer: the answer put 30 use cases in 1 theme, fewer than 5" \
+        in logged(inst, "error")
     assert "[THEME-ASSIGN FIRED]" not in logged(inst)
 
 
@@ -116,7 +118,17 @@ def test_a_failed_call_falls_back_to_subdomains_never_to_one_bucket(agent_ns):
     report = inst._assign_idea_themes(ucs)
     assert len(agent.calls) == 1, "a raised call has already been through the model cascade"
     assert [uc["idea_theme"] for uc in ucs] == ["Pricing", "Pricing", "Sales", "Unclassified"]
-    assert report["source"] == "fallback" and "the theme call failed (endpoint unavailable)" in logged(inst, "warning")
+    assert report["source"] == "fallback" and inst.logger.error.call_count == 1
+    assert "Idea_Themes call gave no usable answer: the theme call failed (endpoint unavailable)" in logged(inst, "error")
+
+
+def test_a_theme_answer_that_is_usable_on_the_retry_logs_no_error(agent_ns):
+    ucs = portfolio(30, subdomain="Store Operations")
+    one_bucket = [{"No": uc["No"], "idea_theme": "Analytics"} for uc in ucs]
+    inst, agent = inst_with(agent_ns, [one_bucket, grouped(ucs, 6)])
+    report = inst._assign_idea_themes(ucs)
+    assert [c["skip_cache"] for c in agent.calls] == [False, True] and report["source"] == "model"
+    assert inst.logger.error.call_count == 0
 
 
 def test_over_fragmentation_is_flagged_and_a_healthy_portfolio_is_not(agent_ns):
