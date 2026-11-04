@@ -82,9 +82,10 @@ test('with no sign-in the Setup page shows the sign-in refusal under the catalog
   const { page, pageErrors } = ui;
   try {
     const why = page.locator('[data-uc-why]');
-    for (let i = 0; i < 5 && !(await why.count()); i += 1) {
-      const next = page.getByRole('button', { name: 'Continue' });
-      await next.waitFor();
+    const next = page.getByRole('button', { name: 'Continue' });
+    for (let i = 0; i < 5; i += 1) {
+      await why.or(next).first().waitFor();
+      if (await why.count()) break;
       await next.click();
       await page.waitForLoadState('networkidle');
     }
