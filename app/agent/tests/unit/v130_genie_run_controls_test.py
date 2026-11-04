@@ -84,6 +84,24 @@ def _launcher(ns, launch_result=None, outcome=None, path="/Workspace/Shared/demo
     return FakeLauncher, calls
 
 
+def _id_tags(priority):
+    return [key for key in priority if key.endswith(("_id", "_ids"))]
+
+
+def _kind_tag_problems(agent_ns, job_tags, technique, priority=None):
+    priority = list(priority or agent_ns["JobLauncher"].TAG_PRIORITY)
+    kind = agent_ns["_inspire_kind_for_technique"](technique)
+    problems = []
+    if job_tags.get("dbx_inspire_ai_kind") != kind["id"]:
+        problems.append("kind")
+    if job_tags.get("dbx_inspire_ai_layout") != kind["layout"]:
+        problems.append("layout")
+    last_id = max(priority.index(key) for key in _id_tags(priority))
+    if any(key not in priority or priority.index(key) < last_id for key in ("dbx_inspire_ai_kind", "dbx_inspire_ai_layout")):
+        problems.append("rank")
+    return problems
+
+
 @pytest.mark.parametrize("family,technique", sorted(FAMILIES.items()))
 def test_every_notebook_has_the_card_the_instruction_and_the_run_controls(agent_ns, family, technique):
     _inst, uc, nb = _notebook(agent_ns, technique)
@@ -112,9 +130,8 @@ def test_every_notebook_has_the_card_the_instruction_and_the_run_controls(agent_
         "the business tag is spelled the way every other Inspire job spells it, so one filter finds them all"
     assert run["job_tags"]["dbx_inspire_ai_session"] == run["job_tags"]["dbx_inspire_ai_session_id"]
     assert run["job_tags"]["inspire_version"] == run["job_tags"]["dbx_inspire_ai_version"] == agent_ns["__AGENT_VERSION__"]
-    kind = agent_ns["_inspire_kind_for_technique"](technique)
-    assert (run["job_tags"]["dbx_inspire_ai_kind"], run["job_tags"]["dbx_inspire_ai_layout"]) == (kind["id"], kind["layout"]), \
-        "the kind and layout tags name the registry kind of the use case's technique"
+    assert _kind_tag_problems(agent_ns, run["job_tags"], technique) == [], \
+        "the kind and layout tags name the registry kind of the use case's technique and rank below every id"
     assert run["widget_names"][:2] == ["result_table", "lookback_weeks"] and run["wait_minutes"] == 30
 
 
@@ -453,3 +470,44 @@ def test_round_41_a_test_run_is_submitted_with_the_widget_name_and_only_after_th
     for technique in FAMILIES.values():
         assert rule in inst._genie_platform_rules(inst._genie_notebook_spec(make_uc(**{"Analytics Technique": technique}))), technique
     assert rule.isascii()
+
+
+def _kind_tags(agent_ns, technique):
+    return ast.literal_eval(_text(_notebook(agent_ns, technique)[2]["cells"][-1]).split("INSPIRE_RUN = ", 1)[1].split("\n\n\n", 1)[0])["job_tags"]
+
+
+def _other_kind(agent_ns, kind_id):
+    return next(kind["id"] for kind in agent_ns["_inspire_kinds"]()["kinds"] if kind["id"] != kind_id)
+
+
+def _layout_above_an_id(priority):
+    moved = [key for key in priority if key != "dbx_inspire_ai_layout"]
+    moved.insert(moved.index("dbx_inspire_ai_usecase_id"), "dbx_inspire_ai_layout")
+    return tuple(moved)
+
+
+@pytest.mark.parametrize("case,expected", [("kind_of_another_registry_kind", ["kind"]), ("layout_tag_missing", ["layout"]),
+                                           ("layout_ranked_above_an_id", ["rank"])])
+def test_the_kind_tag_check_fails_on_a_wrong_kind_a_missing_layout_or_a_tag_ranked_above_an_id(agent_ns, case, expected):
+    technique = "Forecasting"
+    tags = _kind_tags(agent_ns, technique)
+    priority = agent_ns["JobLauncher"].TAG_PRIORITY
+    assert _kind_tag_problems(agent_ns, tags, technique) == []
+    if case == "kind_of_another_registry_kind":
+        tags["dbx_inspire_ai_kind"] = _other_kind(agent_ns, tags["dbx_inspire_ai_kind"])
+    elif case == "layout_tag_missing":
+        del tags["dbx_inspire_ai_layout"]
+    else:
+        priority = _layout_above_an_id(priority)
+    assert _kind_tag_problems(agent_ns, tags, technique, priority) == expected
+
+
+def test_the_tag_cap_keeps_every_id_and_drops_the_kind_tags_first_when_every_tag_is_set(agent_ns):
+    launcher = agent_ns["JobLauncher"]
+    ids = _id_tags(launcher.TAG_PRIORITY)
+    assert {"dbx_inspire_ai_usecase_id", "dbx_inspire_ai_session_id", "dbx_inspire_ai_app_id"} <= set(ids)
+    every = {key: "x" for key in launcher.TAG_PRIORITY}
+    assert len(every) > launcher.TAG_LIMIT
+    kept, dropped = launcher.capped_tags(every)
+    assert len(kept) == launcher.TAG_LIMIT and set(ids) <= set(kept)
+    assert dropped[-2:] == ["dbx_inspire_ai_kind", "dbx_inspire_ai_layout"]
