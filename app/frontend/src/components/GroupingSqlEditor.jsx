@@ -15,6 +15,17 @@ export const GROUPING_SQL_LABEL = 'Grouping SQL';
 export const GROUPING_SQL_PREVIEW = 'Preview';
 export const GROUPING_SQL_USE = 'Use this grouping';
 export const GROUPING_SQL_NO_TABLE = 'Inspire needs to read the use case table before it can check a custom grouping; pick another grouping or come back once the table is read.';
+export const FIRST_RUN_SQL_LABEL = 'First run SQL';
+export const FIRST_RUN_SQL_USE = 'Use this first run';
+const PURPOSES = {
+  grouping: { label: GROUPING_SQL_LABEL, use: GROUPING_SQL_USE, setting: 'group_sql', none: GROUPING_SQL_NO_TABLE,
+    asks: (table, keys) => `Write one SELECT that returns one row per record of ${table}: the key ${keys.length === 1 ? 'column' : 'columns'} ${keys.join(', ')} and group_name.`,
+    saved: (table) => `Saved for ${table}; its runs group records with this SQL.`, kept: 'grouping' },
+  first_run: { label: FIRST_RUN_SQL_LABEL, use: FIRST_RUN_SQL_USE, setting: 'scope_sql',
+    none: 'Inspire needs to read the use case table before it can check a custom first run; pick another first run or come back once the table is read.',
+    asks: (table, keys) => `Write one SELECT that returns the key ${keys.length === 1 ? 'column' : 'columns'} ${keys.join(', ')} of the records of ${table} the first run covers, and no other column.`,
+    saved: (table) => `Saved for ${table}; its runs cover only the records this SQL returns.`, kept: 'first run' },
+};
 
 const NOTE = 'text-[11px] text-text-secondary';
 const BUTTON = 'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold disabled:opacity-50';
@@ -36,6 +47,8 @@ const SQL_LOOK = EditorView.theme({
   '.cm-tooltip': { backgroundColor: 'var(--t-surface)', color: 'var(--t-text-primary)', border: '1px solid var(--t-border-strong)' },
   '.cm-tooltip-autocomplete ul li[aria-selected]': { backgroundColor: 'var(--t-info-bg)', color: 'var(--t-text-primary)' },
 });
+
+const SAMPLE_COLUMNS = (keys) => keys.map((k) => ({ key: k, label: k, value: (r) => r[k], className: 'py-0.5 break-all' }));
 
 const PREVIEW_COLUMNS = [
   { key: 'group', label: 'Group', value: (g) => (g.group_name == null ? 'No group' : g.group_name), className: 'py-0.5 break-all' },
@@ -61,13 +74,22 @@ function PreviewView({ data }) {
           grid="grouping:preview" tableClassName="w-full text-[12px]" headRowClassName="text-left text-text-secondary"
           headClassName="font-medium py-0.5" rowProps={() => ({ 'data-grouping-sql-group': '', className: 'border-t border-border-subtle text-text-primary' })} />
       )}
+      {(data.sample || []).length > 0 && (
+        <DataGrid columns={SAMPLE_COLUMNS(data.key_columns || [])} rows={data.sample} rowKey={(_r, i) => String(i)} label="Sample records"
+          grid="first_run:preview" tableClassName="w-full text-[12px]" headRowClassName="text-left text-text-secondary"
+          headClassName="font-medium py-0.5" rowProps={() => ({ 'data-first-run-sql-sample': '', className: 'border-t border-border-subtle text-text-primary' })} />
+      )}
       {data.truncated && <p data-grouping-sql-truncated="" className={NOTE}>Databricks returned only part of the answer, so these numbers may be low.</p>}
     </div>
   );
 }
 
-export default function GroupingSqlEditor({ apiPostJson, profileKey, profile, resultTable = '', saved = null, editable = true, onSaved = null }) {
-  const start = saved?.group_sql || profile?.prefill?.sql || '';
+export default function GroupingSqlEditor({
+  apiPostJson, profileKey, profile, resultTable = '', saved = null, startSql = '', editable = true, onSaved = null, purpose = 'grouping',
+}) {
+  const words = PURPOSES[purpose] || PURPOSES.grouping;
+  const keysSql = profile?.table && groupingKeysOf(profile).length ? `SELECT ${groupingKeysOf(profile).join(', ')}\nFROM ${profile.table}\nWHERE ` : '';
+  const start = startSql || saved?.[words.setting] || (purpose === 'first_run' ? keysSql : profile?.prefill?.sql) || '';
   const [sql, setSql] = useState(start);
   const [preview, setPreview] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -94,14 +116,14 @@ export default function GroupingSqlEditor({ apiPostJson, profileKey, profile, re
         SQL_LOOK,
         EditorView.lineWrapping,
         EditorView.editable.of(Boolean(editable)),
-        EditorView.contentAttributes.of({ 'aria-label': GROUPING_SQL_LABEL }),
+        EditorView.contentAttributes.of({ 'aria-label': words.label }),
         EditorView.updateListener.of((u) => { if (u.docChanged) setSql(u.state.doc.toString()); }),
       ],
     });
     return () => view.destroy();
   }, [ready]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (!ready) return <p data-grouping-sql-unready="" className={NOTE}>{GROUPING_SQL_NO_TABLE}</p>;
+  if (!ready) return <p data-grouping-sql-unready="" className={NOTE}>{words.none}</p>;
 
   const post = async (route, body) => {
     const stop = new AbortController();
@@ -112,7 +134,7 @@ export default function GroupingSqlEditor({ apiPostJson, profileKey, profile, re
       live.current.delete(stop);
     }
   };
-  const base = profileBody(profileKey);
+  const base = { ...profileBody(profileKey), ...(purpose === 'first_run' ? { purpose } : {}) };
   const runPreview = async () => {
     setMessage('');
     setPreview({ state: 'busy' });
@@ -128,7 +150,7 @@ export default function GroupingSqlEditor({ apiPostJson, profileKey, profile, re
     try {
       const got = await post(GROUPING_SAVE_ROUTE, groupingSqlRequest(base, profile, sql, resultTable));
       onSaved?.({ ...got.setting, result_table: got.result_table });
-      setMessage(`Saved for ${got.result_table}; its runs group records with this SQL.`);
+      setMessage(words.saved(got.result_table));
     } catch (e) {
       if (!aborted(e)) setMessage(e.message);
     } finally {
@@ -137,12 +159,11 @@ export default function GroupingSqlEditor({ apiPostJson, profileKey, profile, re
   };
   const keys = groupingKeysOf(profile);
   const fits = groupingPreviewFits(preview?.data, checked);
-  const savedNow = Boolean(saved?.group_sql) && checked.ok && saved.group_sql === checked.sql;
+  const savedNow = Boolean(saved?.[words.setting]) && checked.ok && saved[words.setting] === checked.sql;
   return (
-    <div data-grouping-sql="" className="space-y-2">
+    <div data-grouping-sql={purpose} className="space-y-2">
       <p data-grouping-sql-hint="" className={NOTE}>
-        Write one SELECT that returns one row per record of {profile.table}: the key {keys.length === 1 ? 'column' : 'columns'} {keys.join(', ')} and group_name.
-        Inspire runs it only as a single SELECT, so it never changes data.
+        {words.asks(profile.table, keys)} Inspire runs it only as a single SELECT, so it never changes data.
       </p>
       <div ref={host} data-grouping-sql-editor="" className="rounded-lg border border-border overflow-hidden" />
       <p data-grouping-sql-check={checked.ok ? 'ok' : checked.rule} className={`text-[11px] ${checked.ok ? 'text-text-secondary' : 'text-error-fg'}`}>
@@ -155,7 +176,7 @@ export default function GroupingSqlEditor({ apiPostJson, profileKey, profile, re
             {preview?.state === 'busy' ? <Loader2 size={12} className="animate-spin" aria-hidden /> : null}{GROUPING_SQL_PREVIEW}
           </button>
           <button type="button" disabled={!fits || saving} onClick={use} className={`${BUTTON} text-white bg-db-red-solid`}>
-            {saving ? <Loader2 size={12} className="animate-spin" aria-hidden /> : null}{GROUPING_SQL_USE}
+            {saving ? <Loader2 size={12} className="animate-spin" aria-hidden /> : null}{words.use}
           </button>
           {!fits && checked.ok && preview?.state === 'done' && preview.data?.sql !== checked.sql && (
             <span data-grouping-sql-stale="" className={NOTE}>The SQL changed since the preview; press Preview again.</span>
@@ -164,8 +185,8 @@ export default function GroupingSqlEditor({ apiPostJson, profileKey, profile, re
       )}
       {preview?.state === 'error' && <p role="alert" data-grouping-sql-error="" className="text-[11px] text-error-fg">{preview.error}</p>}
       {preview?.state === 'done' && preview.data && <PreviewView data={preview.data} />}
-      {saved?.group_sql && !savedNow && (
-        <p data-grouping-sql-unsaved="" className={NOTE}>Runs keep the grouping saved before until you press {GROUPING_SQL_USE} again.</p>
+      {saved?.[words.setting] && !savedNow && (
+        <p data-grouping-sql-unsaved="" className={NOTE}>Runs keep the {words.kept} saved before until you press {words.use} again.</p>
       )}
       {message && <p role="status" data-grouping-sql-saved="" className="text-[12px] text-text-primary">{message}</p>}
     </div>

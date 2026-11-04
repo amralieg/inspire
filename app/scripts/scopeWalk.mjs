@@ -35,7 +35,8 @@ export function checkWizardSteps(steps, profile) {
   if (!profile) return [{ check: 'the table profile', ok: null, detail: 'the wizard never read a Grouping profile, so nothing can be compared' }];
   const asked = steps.includes('Grouping');
   return [
-    { check: 'the wizard asks Grouping only when the use case qualifies', ok: asked === Boolean(profile.qualifies), detail: `qualifies ${Boolean(profile.qualifies)}, asked ${asked}` },
+    { check: 'the wizard asks Grouping whenever grouping applies to the technique', ok: asked === Boolean(profile.applies), detail: `applies ${Boolean(profile.applies)}, asked ${asked}` },
+    { check: 'First run comes right after Grouping', ok: !asked || steps.indexOf('First run') === steps.indexOf('Grouping') + 1, detail: steps.join(' > ') },
     { check: 'the wizard asks First run', ok: steps.includes('First run'), detail: steps.join(' > ') },
   ];
 }
@@ -49,12 +50,12 @@ export async function checkScope(root, profile, { part = 'both' } = {}) {
     return list;
   }
   if (part !== 'first_run') {
-    await check(list, 'Grouping is shown only when the use case qualifies', async () => {
+    await check(list, 'Grouping is shown whenever grouping applies to the technique', async () => {
       const shown = (await grouping.count()) > 0;
-      return { ok: shown === Boolean(profile.qualifies), detail: `qualifies ${Boolean(profile.qualifies)}, shown ${shown}` };
+      return { ok: shown === Boolean(profile.applies), detail: `applies ${Boolean(profile.applies)}, shown ${shown}` };
     });
   }
-  if (part !== 'first_run' && profile.qualifies && (await grouping.count())) {
+  if (part !== 'first_run' && profile.applies && (await grouping.count())) {
     await check(list, 'Inspire recommends grouping columns', async () => {
       const marked = await grouping.getByText('Recommended').count();
       const expected = Array.isArray(profile.recommended) ? profile.recommended.length > 0 : Boolean(profile.recommended);
@@ -65,6 +66,8 @@ export async function checkScope(root, profile, { part = 'both' } = {}) {
       const expected = Boolean(profile.example && Array.isArray(profile.example.small_groups) && profile.example.small_groups.length);
       return { ok: said > 0 === expected, detail: `said ${said > 0}, the profile names a small group ${expected}` };
     });
+  }
+  if (part !== 'first_run' && profile.applies && (await grouping.count())) {
     await check(list, 'Global (All) is always offered', async () => ({ ok: (await grouping.getByRole('radio', { name: 'Global (All)' }).count()) === 1 }));
     await check(list, 'Custom is offered', async () => ({ ok: (await grouping.getByRole('radio', { name: 'Custom' }).count()) === 1 }));
     pending(list, 'Custom editor: Run, refusal and Use this grouping', 'the custom SQL editor has not landed in app-scope or app-scope-api');
@@ -74,11 +77,11 @@ export async function checkScope(root, profile, { part = 'both' } = {}) {
     await check(list, 'First run is the default above 1,000 records', async () => {
       const picked = choices.find((c) => c.checked);
       const over = Number(profile.records) > FIRST_RUN_LINE;
-      const everything = Boolean(picked) && /^Everything\b/.test(picked.text);
+      const everything = Boolean(picked) && /^(Everything|The last \d+ days|A recent period)\b/.test(picked.text);
       return { ok: Boolean(picked) && (over ? !everything : true), detail: `${profile.records} records, picked ${picked ? picked.text.slice(0, 60) : 'none'}` };
     });
     await check(list, 'each First run choice states its record count', async () => {
-      const missing = choices.filter((c) => !RECORDS_RE.test(c.text));
+      const missing = choices.filter((c) => !/^Custom SQL\b/.test(c.text) && !RECORDS_RE.test(c.text));
       return { ok: choices.length > 0 && missing.length === 0, detail: missing.length ? `no count on ${missing.map((m) => m.text.slice(0, 40)).join(', ')}` : `${choices.length} choices` };
     });
   }

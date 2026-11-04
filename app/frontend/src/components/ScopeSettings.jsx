@@ -5,8 +5,9 @@ import { PROFILE_READING } from '../lib/groupingProfile';
 import { SETTINGS_NEXT_RUN } from '../lib/useCaseSettings';
 import {
   FIRST_RUN_KEEPS, GROUP_ALL, GROUP_BY, GROUP_CUSTOM, GROUP_KIND_WORDS, GROUPING_PLAIN, RUN_SCOPE, RUN_SCOPE_UNRECORDED, RUN_SCOPES, SCOPE_DAYS, SCOPE_GROUPS,
-  SCOPE_LABELS, SCOPE_RECORDS, SCOPE_SAVE_LABEL, firstRunChoices, groupByColumns, groupingChoices, groupingExampleText, groupingMovesUpText, profileHeldText,
-  sameGrouping, isScopeSetting, scopeChanges, scopeProblems, scopeValues, suggestedGroups, withUnrecordedScope,
+  SCOPE_LABELS, SCOPE_RECORDS, SCOPE_SAVE_LABEL, firstRunChoices, groupByColumns, groupingChoices, groupingExampleText, groupingMovesUpText, groupingReasonText, profileHeldText,
+  sameGrouping, isScopeSetting, scopeChanges, scopeProblems, scopeValues, suggestedGroups, withUnrecordedScope, chosenGroupsText, finestGroupColumn,
+  scopeGroupKey, scopeGroupText, scopeGroupsOf, scopeGroupsValue,
 } from '../lib/runScope';
 
 const GroupingSqlEditor = lazy(() => import('./GroupingSqlEditor'));
@@ -32,51 +33,75 @@ function GroupingPart({ values, onChange, profile, settings, editable, custom })
   const current = values[GROUP_BY] || GROUP_ALL;
   const isCustom = String(current).toLowerCase() === GROUP_CUSTOM;
   const listed = groupingChoices(profile, setting?.choices);
+  const [joinedPick, setJoinedPick] = useState(() => (isCustom && !custom?.saved ? listed.find((c) => c.recommended && c.sql)?.value || '' : ''));
+  const fromJoined = isCustom ? listed.find((c) => c.sql && c.value === joinedPick) : null;
   const known = isCustom || listed.some((c) => c.value !== GROUP_CUSTOM && sameGrouping(c.value, current));
   const choices = known ? listed : [...listed.slice(0, -1), { value: current, label: groupByColumns(current).join(', then '), columns: groupByColumns(current) }, listed[listed.length - 1]];
-  const pickedOf = (c) => (c.value === GROUP_CUSTOM ? isCustom : !isCustom && sameGrouping(c.value, current));
+  const pickedOf = (c) => (c.sql ? Boolean(fromJoined) && fromJoined.value === c.value
+    : c.value === GROUP_CUSTOM ? isCustom && !fromJoined : !isCustom && sameGrouping(c.value, current));
+  const pick = (c) => {
+    if (c.sql) {
+      setJoinedPick(c.value);
+      onChange(GROUP_BY, GROUP_CUSTOM);
+      custom?.onPicked?.();
+      return;
+    }
+    setJoinedPick('');
+    onChange(GROUP_BY, c.value);
+    if (c.value === GROUP_CUSTOM) custom?.onPicked?.();
+  };
   const example = groupingExampleText(profile);
   const moves = groupingMovesUpText(profile);
+  const reason = groupingReasonText(profile);
   return (
     <fieldset aria-label={SCOPE_LABELS[GROUP_BY]} data-scope-part="grouping" className="space-y-2">
       <legend className="text-[12px] font-semibold text-text-primary">{SCOPE_LABELS[GROUP_BY]}</legend>
       <p data-grouping-why="" className={NOTE}>{GROUPING_PLAIN}{example ? ` ${example}` : ''}</p>
+      {reason && <p data-grouping-reason="" className={NOTE}>{reason}</p>}
       {moves && <p data-grouping-moves="" className={NOTE}>{moves}</p>}
       <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
         {choices.map((c) => (
-          <label key={c.value} data-grouping-choice={c.value} className={`${ROW} ${editable ? 'cursor-pointer' : ''}`}>
-            <input type="radio" name="inspire-grouping" className="mt-0.5" checked={pickedOf(c)} disabled={!editable}
-              onChange={() => { onChange(GROUP_BY, c.value); if (c.value === GROUP_CUSTOM) custom?.onPicked?.(); }} />
+          <label key={c.value} data-grouping-choice={c.value} data-grouping-joined={c.sql ? '' : undefined} className={`${ROW} ${editable ? 'cursor-pointer' : ''}`}>
+            <input type="radio" name="inspire-grouping" className="mt-0.5" checked={pickedOf(c)} disabled={!editable} onChange={() => pick(c)} />
             <span className="min-w-0">
               <span className="font-medium">{c.label}</span>
               {c.recommended && <span data-grouping-recommended="" className="text-text-secondary"> · Recommended</span>}
+              {c.note && <span data-grouping-join-note="" className="block text-[11px] text-text-secondary">{c.note}</span>}
             </span>
           </label>
         ))}
       </div>
       {isCustom && custom && (
         <Suspense fallback={<p data-grouping-sql-loading="" className={`${NOTE} inline-flex items-center gap-1.5`}><Loader2 size={12} className="animate-spin" aria-hidden /> Opening the SQL editor</p>}>
-          <GroupingSqlEditor apiPostJson={custom.apiPostJson} profileKey={custom.profileKey} profile={profile} resultTable={custom.resultTable || ''}
-            saved={custom.saved || null} editable={editable} onSaved={custom.onSaved} />
+          <GroupingSqlEditor key={fromJoined ? fromJoined.value : GROUP_CUSTOM} apiPostJson={custom.apiPostJson} profileKey={custom.profileKey} profile={profile}
+            resultTable={custom.resultTable || ''} saved={custom.saved || null} startSql={fromJoined ? fromJoined.sql : ''} editable={editable}
+            onSaved={custom.onSaved} />
         </Suspense>
       )}
     </fieldset>
   );
 }
 
-function FirstRunPart({ values, onChange, profile, settings, editable, unrecorded }) {
+function FirstRunPart({ values, onChange, profile, settings, editable, unrecorded, everything, custom }) {
   const setting = settings.find((s) => s.name === RUN_SCOPE);
   const allowed = Array.isArray(setting?.choices) && setting.choices.length ? setting.choices.map(String) : RUN_SCOPES;
   const current = values[RUN_SCOPE] || GROUP_ALL;
-  const choices = firstRunChoices(profile, values)
+  const choices = firstRunChoices(profile, values, everything)
     .filter((c) => allowed.includes(c.id) && (c.id === current || (profile ? c.available : true)));
   const groups = suggestedGroups(profile);
-  const picked = groupByColumns(values[SCOPE_GROUPS]);
-  const toggle = (value, on) => {
-    const next = groups.map((g) => g.value).filter((v) => (v === value ? on : picked.some((p) => p.toLowerCase() === v.toLowerCase())));
-    const kept = picked.filter((p) => !groups.some((g) => g.value.toLowerCase() === p.toLowerCase()));
-    onChange(SCOPE_GROUPS, [...next, ...kept].join(', '));
+  const picked = scopeGroupsOf(values[SCOPE_GROUPS], finestGroupColumn(profile));
+  const isPicked = (g) => picked.some((p) => scopeGroupKey(p) === scopeGroupKey(g.parts));
+  const toggle = (group, on) => {
+    const kept = picked.filter((p) => !groups.some((g) => scopeGroupKey(g.parts) === scopeGroupKey(p)));
+    const next = groups.filter((g) => (g === group ? on : isPicked(g))).map((g) => g.parts);
+    onChange(SCOPE_GROUPS, scopeGroupsValue([...next, ...kept]));
   };
+  const pick = (id) => {
+    onChange(RUN_SCOPE, id);
+    if (id === 'groups' && !picked.length && groups.length) onChange(SCOPE_GROUPS, scopeGroupsValue(groups.map((g) => g.parts)));
+    if (id === 'custom') custom?.firstRun?.onPicked?.();
+  };
+  const groupsText = chosenGroupsText(profile, values);
   const held = profileHeldText(profile);
   return (
     <fieldset aria-label={SCOPE_LABELS[RUN_SCOPE]} data-scope-part="first_run" className="space-y-2">
@@ -88,21 +113,22 @@ function FirstRunPart({ values, onChange, profile, settings, editable, unrecorde
         {choices.map((c) => (
           <div key={c.id} data-first-run-choice={c.id} className={`${ROW} flex-col`}>
             <label className={`flex items-start gap-2 ${editable ? 'cursor-pointer' : ''}`}>
-              <input type="radio" name="inspire-first-run" className="mt-0.5" checked={current === c.id} disabled={!editable} onChange={() => onChange(RUN_SCOPE, c.id)} />
+              <input type="radio" name="inspire-first-run" className="mt-0.5" checked={current === c.id} disabled={!editable} onChange={() => pick(c.id)} />
               <span className="min-w-0">
                 <span className="font-medium">{c.label}</span>
                 {c.records != null && <span data-first-run-records="" className="text-text-secondary"> · {counted(c.records, 'record')}</span>}
+                {c.estimate && <span data-first-run-estimate="" className="block text-[11px] text-text-secondary">{c.estimate}</span>}
               </span>
             </label>
             {current === c.id && c.id === 'groups' && (groups.length ? (
               <div role="group" aria-label={SCOPE_LABELS[SCOPE_GROUPS]} className="ml-6 space-y-1">
                 {groups.map((g) => (
                   <label key={g.value} data-scope-group={g.value} className="flex items-center gap-2">
-                    <input type="checkbox" disabled={!editable} checked={picked.some((p) => p.toLowerCase() === g.value.toLowerCase())}
-                      onChange={(e) => toggle(g.value, e.target.checked)} />
-                    <span>{g.value}{GROUP_KIND_WORDS[g.kind] ? `, ${GROUP_KIND_WORDS[g.kind]}` : ''}{g.records != null ? ` · ${counted(g.records, 'record')}` : ''}</span>
+                    <input type="checkbox" disabled={!editable} checked={isPicked(g)} onChange={(e) => toggle(g, e.target.checked)} />
+                    <span>{g.parts.length > 1 ? scopeGroupText(g.parts) : g.value}{GROUP_KIND_WORDS[g.kind] ? `, ${GROUP_KIND_WORDS[g.kind]}` : ''}{g.records != null ? ` · ${counted(g.records, 'record')}` : ''}</span>
                   </label>
                 ))}
+                {groupsText && <p data-first-run-groups-text="" className={NOTE}>{groupsText}</p>}
               </div>
             ) : (
               <label className="ml-6 flex items-center gap-2">
@@ -117,6 +143,14 @@ function FirstRunPart({ values, onChange, profile, settings, editable, unrecorde
                 <input type="text" inputMode="numeric" aria-label={SCOPE_LABELS[SCOPE_DAYS]} disabled={!editable} className={NUMBER} value={values[SCOPE_DAYS]}
                   onChange={(e) => onChange(SCOPE_DAYS, e.target.value)} />
               </label>
+            )}
+            {current === c.id && c.id === 'custom' && custom?.firstRun && (
+              <div className="ml-6">
+                <Suspense fallback={<p data-first-run-sql-loading="" className={`${NOTE} inline-flex items-center gap-1.5`}><Loader2 size={12} className="animate-spin" aria-hidden /> Opening the SQL editor</p>}>
+                  <GroupingSqlEditor purpose="first_run" apiPostJson={custom.apiPostJson} profileKey={custom.profileKey} profile={profile}
+                    resultTable={custom.resultTable || ''} saved={custom.firstRun.saved || null} editable={editable} onSaved={custom.firstRun.onSaved} />
+                </Suspense>
+              </div>
             )}
             {current === c.id && c.id === 'records' && (
               <label className="ml-6 flex items-center gap-2">
@@ -135,7 +169,7 @@ function FirstRunPart({ values, onChange, profile, settings, editable, unrecorde
 
 export default function ScopeSettings({
   part = 'both', values, onChange, profile = null, profileState = 'off', profileError = '', settings = [], editable = true, custom = null, children = null,
-  unrecorded = false,
+  unrecorded = false, everything = '',
 }) {
   const problems = scopeProblems(values, profile, part, custom);
   const editableOf = (name) => editable && settings.find((s) => s.name === name)?.editable !== false;
@@ -144,7 +178,8 @@ export default function ScopeSettings({
       <ProfileNote state={profileState} error={profileError} />
       {part !== 'first_run' && <GroupingPart values={values} onChange={onChange} profile={profile} settings={settings} editable={editableOf(GROUP_BY)} custom={custom} />}
       {part !== 'grouping' && (
-        <FirstRunPart values={values} onChange={onChange} profile={profile} settings={settings} editable={editableOf(RUN_SCOPE)} unrecorded={unrecorded} />
+        <FirstRunPart values={values} onChange={onChange} profile={profile} settings={settings} editable={editableOf(RUN_SCOPE)} unrecorded={unrecorded} everything={everything}
+          custom={custom} />
       )}
       {problems.length > 0 && <ul className="space-y-0.5">{problems.map((p) => <li key={p} data-scope-problem="" className="text-[11px] text-error-fg">{p}</li>)}</ul>}
       {children}
@@ -152,14 +187,16 @@ export default function ScopeSettings({
   );
 }
 
-export function ScopeSection({ settings, editable, scope = null, onSave, apiPostJson = null, children = null }) {
+export function ScopeSection({ settings, editable, scope = null, onSave, apiPostJson = null, children = null, everything = '' }) {
   const [draft, setDraft] = useState(null);
   const [note, setNote] = useState('');
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
   const [customSaved, setCustomSaved] = useState(undefined);
+  const [firstRunSaved, setFirstRunSaved] = useState(undefined);
   const custom = apiPostJson && scope?.key ? {
     apiPostJson, profileKey: scope.key, saved: customSaved, onSaved: setCustomSaved, onPicked: () => setCustomSaved((was) => was || null),
+    firstRun: { saved: firstRunSaved, onSaved: setFirstRunSaved, onPicked: () => setFirstRunSaved((was) => was || null) },
   } : null;
   const list = (settings || []).filter(isScopeSetting);
   if (!list.length) return null;
@@ -189,9 +226,9 @@ export function ScopeSection({ settings, editable, scope = null, onSave, apiPost
   return (
     <div data-setting-group="run_scope" className="space-y-2">
       <h4 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-text-secondary">Grouping and First run</h4>
-      <ScopeSettings part={part} values={shown} onChange={(name, value) => setDraft({ ...shown, [name]: value })}
+      <ScopeSettings part={part} values={shown} onChange={(name, value) => setDraft((was) => ({ ...(was || saved), [name]: value }))}
         profile={scope?.profile || null} profileState={scope?.state || 'off'} profileError={scope?.error || ''} settings={list} editable={canEdit} custom={custom}
-        unrecorded={unrecorded}>
+        unrecorded={unrecorded} everything={everything}>
         {canEdit && changed.length > 0 && (
           <div className="flex flex-wrap items-center gap-2">
             <input aria-label="Note for the Grouping and First run change" placeholder="Why, for the history (optional)" maxLength={300}
