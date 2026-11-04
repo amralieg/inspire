@@ -343,6 +343,7 @@ REVIEWED = {
         ('_implement_one_locked', "'; '.join(removal)"),
         ('_implement_one_locked', "'; '.join(problems)"),
         ('_implement_one_locked', "'; '.join(unbuilt)"),
+        ('_implement_one_locked', 'personal'),
         ('_implement_one_locked', "'; '.join(widget_problems)"),
         ('_implement_source_checks', 'implement_missing_tables_message(missing, self._implement_builder(), self._implement_builder_label())'),
         ('_implement_keep_untargeted', 'implement_untargeted_missed(name, blocked)'),
