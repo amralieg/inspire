@@ -119,3 +119,16 @@ test('the use case route normalizes the kind columns: blank is null, the selecti
   const old = normalizeV130UseCaseFields({ analytics_technique: 'Classification' });
   assert.equal(old.use_case_kind, null, 'an old row has no stored kind; the page derives it from the technique');
 });
+
+test('the list and detail title is the stored name with its technique, and the Name alone when a row has none', async () => {
+  const { nameOfUseCase, cardTitlesOfUseCase } = await lib('useCaseFields.js');
+  const { copyV130TrackingFields } = await lib('v130UseCase.js');
+  const route = normalizeV130UseCaseFields({ Name: 'Forecast demand', name_with_technique: ' Forecast demand using forecasting ' });
+  assert.equal(route.name_with_technique, 'Forecast demand using forecasting');
+  assert.equal(normalizeV130UseCaseFields({ name_with_technique: '  ' }).name_with_technique, null);
+  const uc = { Name: 'Forecast demand' };
+  copyV130TrackingFields(uc, route);
+  assert.equal(nameOfUseCase(uc), 'Forecast demand using forecasting');
+  assert.equal(cardTitlesOfUseCase(uc).title, 'Forecast demand using forecasting');
+  assert.equal(nameOfUseCase({ Name: 'Forecast demand', name_with_technique: null }), 'Forecast demand', 'an old row keeps its Name');
+});

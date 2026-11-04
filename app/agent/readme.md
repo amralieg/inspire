@@ -1418,6 +1418,7 @@ After a successful run, your `Generation Path` contains:
 | **`selection_basis`** | **STRING** | **NEW in v1.4.0**: why the use case was kept: `earned`, `kind_floor` or `user_request` |
 | **`selection_replaced`** | **STRING** | **NEW in v1.4.0**: the use case whose place it took, blank when it replaced none |
 | **`selection_score_gap`** | **STRING** | **NEW in v1.4.0**: Best-of-Best score of the replaced use case minus its own, blank when it replaced none |
+| **`name_with_technique`** | **STRING** | **NEW in v1.4.0**: the name the catalog shows, `<Name> using <technique in lower case>`, or the Name alone when the use case has no technique |
 | `tables_involved` | STRING | Comma-separated list |
 | `result_json` | STRING | Raw JSON of the full UC record |
 | `last_updated` | TIMESTAMP | Writer-side stamp; use `result_json:event_at` for event ordering |

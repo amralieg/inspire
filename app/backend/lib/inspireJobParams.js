@@ -327,7 +327,7 @@ function belowBarLabelFromUseCase(uc) {
 const V130_JSON_FIELDS = ['strategy_alignment', 'kpis', 'expected_key_results', 'data_evidence'];
 const V130_LINE_FIELDS = ['measures_of_success', 'financial_benefits', 'non_financial_benefits'];
 const KIND_TEXT_FIELDS = ['use_case_kind', 'kind_family', 'app_layout', 'serving_summary', 'method_summary', 'value_source',
-  'selection_basis', 'selection_replaced'];
+  'selection_basis', 'selection_replaced', 'name_with_technique'];
 
 function splitText(value, separator) {
   if (value == null || value === '') return [];

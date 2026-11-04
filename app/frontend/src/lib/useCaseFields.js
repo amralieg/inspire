@@ -306,7 +306,7 @@ export function subtitleOfUseCase(uc, titlePlain) {
 
 export function nameOfUseCase(uc) {
   const u = uc && typeof uc === 'object' ? uc : {};
-  return displayCleanText([u.Name, u.use_case_name, u.name, u.title].map((v) => (v == null ? '' : String(v))).find(Boolean) || '');
+  return displayCleanText([u.name_with_technique, u.Name, u.use_case_name, u.name, u.title].map((v) => (v == null ? '' : String(v))).find(Boolean) || '');
 }
 
 export function cardTitlesOfUseCase(uc, index = 0) {

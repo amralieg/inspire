@@ -16,7 +16,7 @@ const KINDED = {
   domains: RESULTS.domains.map((d) => ({
     ...d,
     use_cases: d.use_cases.map((u) => (u.No === 'N02-U01'
-      ? { ...u, use_case_kind: 'forecast', kind_family: 'predict', app_layout: 'forecast_cockpit', ...LINES }
+      ? { ...u, use_case_kind: 'forecast', kind_family: 'predict', app_layout: 'forecast_cockpit', name_with_technique: 'Forecast stock using forecasting', ...LINES }
       : u)),
   })),
 };
@@ -125,6 +125,25 @@ test('an open card says what you get above the problem statement, with the 3 lin
     await upsell.locator('[aria-expanded]').click();
     await upsell.getByText('Problem Statement').waitFor();
     assert.equal(await upsell.locator('[data-what-you-get]').count(), 0, 'no kind, no section');
+    assert.deepEqual(ui.pageErrors, []);
+  } finally {
+    await ui.close();
+  }
+});
+
+test('the card title is the name with its technique in lower case, and a use case without one keeps its Name', async () => {
+  const ui = await openUi('results', STATE);
+  const { page } = ui;
+  try {
+    await ready(page);
+    const forecast = card(page, 'Forecast stock using forecasting');
+    assert.equal(await forecast.count(), 1);
+    await forecast.locator('[aria-expanded]').click();
+    await forecast.locator('[data-what-you-get]').waitFor();
+    assert.match(await forecast.innerText(), /^Forecast stock using forecasting$/m, 'the open card keeps the same title');
+    assert.doesNotMatch(await card(page, 'Spot late suppliers').innerText(), /Spot late suppliers using/, 'an old row has no stored name, so the Name stays');
+    await page.getByPlaceholder('Search use cases...').fill('using forecasting');
+    assert.equal(await cards(page).count(), 1, 'search finds the title as shown');
     assert.deepEqual(ui.pageErrors, []);
   } finally {
     await ui.close();
