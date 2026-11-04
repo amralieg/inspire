@@ -21,6 +21,7 @@ const PRIVATE_RE = new RegExp([
 ].map((re) => re.source).join('|'), 'gi');
 const TIME_KEY_RE = /(?:time|date|_at|_ms|_ts|timestamp|created|updated|modified|started|ended)$/i;
 const TIME_VALUE_RE = /^[\d\s:.+TZ-]+$/;
+const ISO_TIME_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})?$/;
 const HOSTED_URLS = ['app_url', 'dashboard_url', 'genie_space_url'];
 
 const isObject = (x) => x !== null && typeof x === 'object' && !Array.isArray(x);
@@ -28,7 +29,20 @@ const isTime = (key, v) => TIME_KEY_RE.test(key) && TIME_VALUE_RE.test(String(v)
 
 const spellings = (s) => [...new Set([s, s.replace(/_/g, ' ')])];
 
-function makeSanitizer({ replace = {}, sessionId = '', mvpUrls = {}, hostedPaths = {} } = {}) {
+function wallClock(recordedAt) {
+  if (!recordedAt) return (v) => v;
+  const since = Date.parse(recordedAt.since);
+  const as = Date.parse(recordedAt.as);
+  if (!Number.isFinite(since) || !Number.isFinite(as)) throw new Error('a demo recording pins its walk times with an ISO since and as');
+  return (v) => {
+    const at = typeof v === 'number' ? v : Date.parse(String(v));
+    if (!Number.isFinite(at) || at < since) return v;
+    return typeof v === 'number' ? as : new Date(as).toISOString();
+  };
+}
+
+function makeSanitizer({ replace = {}, sessionId = '', mvpUrls = {}, hostedPaths = {}, recordedAt = null } = {}) {
+  const pinned = wallClock(recordedAt);
   const pairs = Object.entries(replace).filter(([from]) => from)
     .flatMap(([from, to]) => spellings(from).map((f, i) => [f, i ? String(to).replace(/_/g, ' ') : to]))
     .sort(([a], [b]) => b.length - a.length);
@@ -70,12 +84,13 @@ function makeSanitizer({ replace = {}, sessionId = '', mvpUrls = {}, hostedPaths
 
   const value = (v, key = '') => {
     if (typeof v === 'string') {
-      if (isTime(key, v)) return v;
+      if (isTime(key, v) || ISO_TIME_RE.test(v)) return pinned(v);
       const s = text(v);
       return /^https?:\/\//i.test(v.trim()) && s.trim().startsWith(DEMO_HOST) ? '' : s;
     }
     if (typeof v === 'number') {
-      if (!Number.isInteger(v) || Math.abs(v) < 1e11 || isTime(key, v)) return v;
+      if (isTime(key, v)) return pinned(v);
+      if (!Number.isInteger(v) || Math.abs(v) < 1e11) return v;
       return Number(number(String(v)));
     }
     if (Array.isArray(v)) return v.map((x) => value(x, key));
@@ -209,11 +224,11 @@ function notJson({ method, type, unparsed, body }, pathname) {
   return '';
 }
 
-function makeRecorder({ id, title, business, summary = '', sessionId, replace = {}, mvps = [] }) {
+function makeRecorder({ id, title, business, summary = '', sessionId, replace = {}, mvps = [], recordedAt = null }) {
   if (!sessionId) throw new Error('a demo recording needs the session id');
   const hostedPaths = Object.fromEntries(mvps.map((m) => [m.id, showcaseMvpPath(id, m.id)]));
   const mvpUrls = Object.fromEntries(mvps.filter((m) => m.url).map((m) => [m.id, m.url]));
-  const clean = makeSanitizer({ replace, sessionId, mvpUrls, hostedPaths });
+  const clean = makeSanitizer({ replace, sessionId, mvpUrls, hostedPaths, recordedAt });
   const inspire = {};
   const apps = Object.fromEntries(mvps.map((m) => [m.id, {}]));
   const notJsonAnswers = [];

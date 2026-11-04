@@ -197,6 +197,7 @@ log(`${useCases.length} use cases: ${useCases.map((uc) => `${uc.No} ${uc.use_cas
 const infos = USE_CASES.map((u) => appInfo(mvpSettings(u), 1, mvpPage(u), exampleName(u)));
 const shell = appShellFiles(appShellPayload(bundledAppShellText()));
 
+const walkStarted = new Date().toISOString();
 const inspire = [];
 const blocked = [];
 const ui = await openUi('app', inspireState(useCases), '', {
@@ -229,6 +230,7 @@ try {
   const recorder = makeRecorder({
     id: KINDS_DEMO.id, title: KINDS_DEMO.title, business: KINDS_DEMO.business, summary: KINDS_DEMO.summary, sessionId: sid,
     replace: { 'amr@x': 'person@example.com', Amr: 'Demo User' },
+    recordedAt: { since: walkStarted, as: KINDS_DEMO.recordedAt },
     mvps: USE_CASES.map((u, i) => ({ id: u.no, title: infos[i].title, url: appUrlOf(u) })),
   });
   for (const x of inspire) recorder.addInspire(x);

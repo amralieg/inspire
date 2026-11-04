@@ -81,6 +81,29 @@ test('every use case of the kinds demo has its MVP App, laid out for its kind, w
   assert.deepEqual([...layouts].sort(), [...DEMO_LAYOUTS].sort());
 });
 
+test('each kinds demo use case takes its kind from kinds.json and opens the layout the registry serves for that kind', async () => {
+  const { USE_CASES } = await kinds();
+  const registry = JSON.parse(fs.readFileSync(path.join(__dirname, '..', '..', 'agent', 'agent', 'app_shell', 'kinds.json'), 'utf8'));
+  const served = new Set(registry.layouts.filter((l) => l.enabled).map((l) => l.id));
+  const b = bundle();
+  for (const u of USE_CASES) {
+    const kind = registry.kinds.find((k) => k.id === u.kind);
+    assert.ok(kind, `${u.no} names a kind of the registry`);
+    assert.ok(served.has(kind.layout), `${u.no} ${kind.layout} is served`);
+    assert.equal(u.mvp.layout, kind.layout, u.no);
+    assert.equal(b.mvps[u.no].api['GET /api/app'].body.pages[0].layout.id, kind.layout, u.no);
+  }
+});
+
+test('a kinds demo list says no record left it, because the demo has no earlier run', () => {
+  const lists = Object.entries(bundle().mvps).flatMap(([no, mvp]) => answersOf(mvp).filter(([key]) => key.startsWith('POST /api/records ')).map(([key, a]) => [`${no} ${key}`, a.body]));
+  assert.ok(lists.length >= 10, `${lists.length} recorded lists`);
+  for (const [key, body] of lists) {
+    assert.equal(body.summary.left, 0, key);
+    assert.equal(body.summary.open, body.total, key);
+  }
+});
+
 test('the Inspire App hosts each kinds demo MVP App: the shell, its reads and Genie come from the file, and a change is refused', async () => {
   const { USE_CASES } = await kinds();
   const { srv, reached } = await serve();
@@ -117,4 +140,14 @@ test('the demo answers My work and Scenario lab reads, and replays the same answ
   assert.equal(S.showcaseKey('POST', '/api/my_work', {}, { window: 'week', time_zone: 'Asia/Dubai' }), S.showcaseKey('POST', '/api/my_work', {}, { window: 'week', time_zone: 'UTC' }));
   assert.notEqual(S.showcaseKey('POST', '/api/my_work', {}, { window: 'week' }), S.showcaseKey('POST', '/api/my_work', {}, { window: 'month' }));
   assert.equal(S.showcaseKey('GET', '/api/genie/message', { message_id: 'm1', conversation_id: 'c1' }), S.showcaseKey('GET', '/api/genie/message', { message_id: 'm1', conversation_id: 'c2' }));
+});
+
+test('the kinds demo holds no time later than its recording time, so no clock of the walk that wrote it is in the file', async () => {
+  const { KINDS_DEMO } = await kinds();
+  const latest = Date.parse(KINDS_DEMO.recordedAt);
+  const text = fs.readFileSync(FILE).length && JSON.stringify(bundle());
+  const times = [...text.matchAll(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})?/g)].map(([t]) => t);
+  assert.ok(times.length > 0);
+  assert.deepEqual([...new Set(times.filter((t) => Date.parse(t) > latest))], []);
+  assert.ok(times.includes(KINDS_DEMO.recordedAt), 'the live checks carry the recording time');
 });

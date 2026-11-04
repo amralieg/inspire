@@ -109,6 +109,37 @@ test('the sanitizer drops workspace links and points a use case MVP at the App I
   assert.equal(clean.text(`${MVP_URL}/#/records`), `${hosted}#/records`);
 });
 
+test('a recording pins every time stamped during its walk to the demo time, so two walks write the same bytes, and keeps the times of its data', () => {
+  const walk = (since, offset) => {
+    const at = (s) => new Date(Date.parse(since) + s * 1000 + offset).toISOString();
+    const rec = recorder({ recordedAt: { since, as: '2026-11-02T06:05:00.000Z' } });
+    rec.addInspire({
+      method: 'GET', url: '/api/inspire/implement/live?use_case_id=N01-U01', status: 200,
+      body: { checked_at: at(3), polled_ms: Date.parse(at(4)), updated_at: '2026-10-25T08:00:00Z', duration_ms: 3000,
+        assets: { alert: { checked_at: '2026-11-02T06:00:00Z' } } },
+    });
+    rec.addMvp('N01-U01', { method: 'GET', url: `${MVP_URL}/api/app`, status: 200, body: { title: 'Fare desk' } });
+    rec.addMvp('N01-U01', { method: 'GET', url: `${MVP_URL}/api/freshness`, status: 200, body: { last_run: at(9), data_through: '2026-11-02' } });
+    return rec.bundle();
+  };
+  const first = walk('2026-11-04T06:00:00.000Z', 0);
+  const second = walk('2026-12-09T17:30:00.000Z', 777);
+  assert.ok(R.showcaseFile(first).equals(R.showcaseFile(second)), 'two walks at different times write different bytes');
+  const live = Object.values(first.inspire)[0].body;
+  assert.equal(live.checked_at, '2026-11-02T06:05:00.000Z');
+  assert.equal(live.polled_ms, Date.parse('2026-11-02T06:05:00.000Z'));
+  assert.equal(live.updated_at, '2026-10-25T08:00:00Z');
+  assert.equal(live.duration_ms, 3000);
+  assert.equal(live.assets.alert.checked_at, '2026-11-02T06:00:00Z');
+  assert.equal(first.mvps['N01-U01'].api['GET /api/freshness'].body.last_run, '2026-11-02T06:05:00.000Z');
+  assert.equal(first.mvps['N01-U01'].api['GET /api/freshness'].body.data_through, '2026-11-02');
+  const unpinned = recorder();
+  unpinned.addMvp('N01-U01', { method: 'GET', url: `${MVP_URL}/api/app`, status: 200, body: { title: 'Fare desk' } });
+  unpinned.addInspire({ method: 'GET', url: '/api/inspire/implement/live?use_case_id=N01-U01', status: 200, body: { checked_at: '2026-11-04T06:00:03.000Z' } });
+  assert.equal(Object.values(unpinned.bundle().inspire)[0].body.checked_at, '2026-11-04T06:00:03.000Z');
+  assert.throws(() => recorder({ recordedAt: { since: 'soon', as: '2026-11-02T06:05:00.000Z' } }), /ISO since and as/);
+});
+
 test('a recorded answer is keyed the way the demo frontend asks for it', () => {
   const rec = recorder();
   const key = rec.addInspire({

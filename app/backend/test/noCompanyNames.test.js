@@ -2,6 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+const zlib = require('node:zlib');
 const { spawnSync } = require('node:child_process');
 
 const REPO = path.resolve(__dirname, '..', '..', '..');
@@ -59,6 +60,28 @@ const EXAMPLE = /e\.g\.([^\n]{0,120})/g;
 const TITLED = SUFFIXES.map((word) => word[0].toUpperCase() + word.slice(1)).join('|');
 const BRANDS = [new RegExp(`\\b([A-Z][a-z]+) (?:${TITLED})\\b`, 'g'), new RegExp(`\\b([a-z]+)_(?:${SUFFIXES.join('|')})\\b`, 'g')];
 const BUNDLE = /^module\.exports = "([A-Za-z0-9+/=]+)";\n?$/;
+const SHELL_PAYLOAD = 'app/agent/agent/app_shell/app_shell.b64';
+const WORLD_MAPS = new Set(['app/agent/agent/app_shell/web/src/maps/world.json', `${SHELL_PAYLOAD}!static/assets/echartsGeo.js`]);
+const COUNTRY = /"name":"([^"]*)","a2":"([A-Z]{2})"/g;
+const REGIONS = new Intl.DisplayNames(['en'], { type: 'region' });
+
+function isoName(code) {
+  try {
+    return REGIONS.of(code);
+  } catch {
+    return null;
+  }
+}
+
+function withoutCountryNames(label, text) {
+  if (!WORLD_MAPS.has(label)) return text;
+  return text.replace(COUNTRY, (whole, name, code) => (name === isoName(code) ? `"name":"","a2":"${code}"` : whole));
+}
+
+function shellTexts(base64) {
+  const payload = JSON.parse(zlib.inflateSync(Buffer.from(base64.trim(), 'base64')).toString('utf8'));
+  return Object.entries(payload.files).map(([name, text]) => [`${SHELL_PAYLOAD}!${name}`, String(text)]);
+}
 
 function productFiles() {
   const run = spawnSync('git', ['ls-files', '-z', '--cached', '--others', '--exclude-standard', '--', 'app', 'inspire_installer.py'],
@@ -95,12 +118,21 @@ function brandedExamples(text) {
   return found;
 }
 
+function scannedTexts(rel) {
+  const text = readText(rel);
+  if (text === null) return [];
+  return rel === SHELL_PAYLOAD ? shellTexts(text) : [[rel, text]];
+}
+
+function namesIn(label, text) {
+  const scanned = withoutCountryNames(label, text);
+  return [...new Set([...denylisted(scanned), ...brandedExamples(scanned)])];
+}
+
 function offenders() {
-  return productFiles().flatMap((rel) => {
-    const text = readText(rel);
-    if (text === null) return [];
-    const names = [...denylisted(text), ...brandedExamples(text)];
-    return names.length ? [`${rel}: ${[...new Set(names)].join(', ')}`] : [];
+  return productFiles().flatMap(scannedTexts).flatMap(([label, text]) => {
+    const names = namesIn(label, text);
+    return names.length ? [`${label}: ${names.join(', ')}`] : [];
   });
 }
 
@@ -117,6 +149,30 @@ test('the denylist and the example rule catch a real company name and pass a neu
     'e.g. an airline']) {
     assert.deepEqual([...denylisted(text), ...brandedExamples(text)], [], `a neutral text is flagged: ${text}`);
   }
+});
+
+test('a country name passes only as the ISO name of its own code inside the bundled world map, and the same word anywhere else still fails', () => {
+  const map = 'app/agent/agent/app_shell/web/src/maps/world.json';
+  const country = '{"type":"Feature","properties":{"name":"Qatar","a2":"QA","a3":"QAT","n":"634"}}';
+  assert.deepEqual(namesIn(map, country), []);
+  assert.deepEqual(namesIn(`${SHELL_PAYLOAD}!static/assets/echartsGeo.js`, `JSON.parse('${country}')`), []);
+  assert.deepEqual(namesIn('app/agent/agent/app_shell/web/src/maps/other.json', country), ['Qatar']);
+  assert.deepEqual(namesIn(`${SHELL_PAYLOAD}!static/assets/app.js`, country), ['Qatar']);
+  assert.deepEqual(namesIn('app/frontend/src/pages/StartPage.jsx', 'A run for Qatar'), ['Qatar']);
+  assert.deepEqual(namesIn(map, '{"properties":{"name":"Qatar","a2":"AE"}}'), ['Qatar']);
+  assert.deepEqual(namesIn(map, '{"properties":{"name":"Qatar Airways","a2":"QA"}}'), ['Qatar Airways']);
+  assert.deepEqual(namesIn(map, `{"license":"made for Qatar","features":[${country}]}`), ['Qatar']);
+  assert.deepEqual(namesIn(map, '{"properties":{"name":"Qatar","a2":"-99"}}'), ['Qatar']);
+  assert.deepEqual(namesIn(map, '{"properties":{"name":"Vodafone","a2":"QA"}}'), ['Vodafone']);
+});
+
+test('the scan reads every file inside the compressed App shell payload', () => {
+  const planted = zlib.deflateSync(Buffer.from(JSON.stringify({ version: 1, files: { 'static/app.js': 'const brand = "Vodafone";', 'static/index.html': '<p>fine</p>' } }))).toString('base64');
+  assert.deepEqual(shellTexts(planted).map(([label, text]) => [label, namesIn(label, text)]),
+    [[`${SHELL_PAYLOAD}!static/app.js`, ['Vodafone']], [`${SHELL_PAYLOAD}!static/index.html`, []]]);
+  const shipped = scannedTexts(SHELL_PAYLOAD).map(([label]) => label);
+  assert.ok(shipped.includes(`${SHELL_PAYLOAD}!static/index.html`) && shipped.includes(`${SHELL_PAYLOAD}!static/assets/echartsGeo.js`),
+    'the scan reads the shipped App shell, map chunk included');
 });
 
 test('the bundled demo notebook is read as the text it embeds', () => {

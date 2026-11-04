@@ -11,6 +11,7 @@ export const KINDS_DEMO = {
   business: 'Retail and supply chain',
   summary: 'Use cases of every kind, each built as an MVP App you can open',
   sessionId: '2001',
+  recordedAt: '2026-11-02T06:05:00.000Z',
 };
 export const DEMO_CATALOG = 'main.retail';
 export const DEMO_OWNER = 'owner@example.com';
@@ -29,10 +30,15 @@ const DOMAINS = {
 };
 
 const curve = (start, step, wiggle = 0) => MONTHS.map((m, i) => [m, Math.round(start + i * step + (i % 3 === 1 ? wiggle : 0))]);
+const DAYS = Array.from({ length: 30 }, (_, i) => new Date(Date.UTC(2026, 9, 4 + i)).toISOString().slice(0, 10));
+const band = (expected, spikes) => DAYS.map((x, i) => {
+  const mean = expected - (i % 7 >= 5 ? 4000 : 0);
+  return [x, Math.round(mean * (spikes.includes(i) ? 1.3 + (i % 3) / 10 : 1 + ((i * 7) % 5 - 2) / 100)), mean, Math.round(mean * 0.9), Math.round(mean * 1.1)];
+});
 
-export const USE_CASES = [
+const DRAFTS = [
   {
-    no: 'N01-U01', kind: 'risk_propensity', technique: 'Classification', name: 'Call the repeat buyers most likely to lapse this month',
+    no: 'N01-U01', kind_num: 6, technique: 'Classification', name: 'Call the repeat buyers most likely to lapse this month',
     headline: 'Win Back Lapsing Repeat Buyers to Protect Margin', subdomain: 'Retention', sponsor: 'Head of CRM', beneficiary: 'CRM Team', cadence: 'Weekly', bob: 8.3,
     serve: 'A call list for the Head of CRM: every week, the repeat buyers most likely to stop buying, with the reasons and the value each one carries.',
     how: 'Classification: a model learns from past buyers who lapsed which patterns come first (longer gaps, smaller baskets, more returns) and scores every active buyer.',
@@ -45,7 +51,6 @@ export const USE_CASES = [
       g('Which reasons drive this week\'s Act now list?', 'The gap since the last order (34%) and smaller baskets (22%). Returns matter most for the top 50 buyers.', "SELECT reason, COUNT(*) AS buyers FROM lapse_risk LATERAL VIEW EXPLODE(top_reasons) r AS reason WHERE tier = 'Act now' GROUP BY reason ORDER BY buyers DESC"),
     ],
     mvp: {
-      layout: 'decision_queue',
       kpi_direction: 'decrease',
       kpis: [['Value at stake', 'currency', 3100000, 2800000], ['Buyers likely to lapse', 'percent', 4.6, 4.1], ['Buyers on the call list', 'integer', 1240, 1180]],
       trend: ['Value at stake by month', 'Value at stake', curve(2400000, 60000, 40000)],
@@ -67,7 +72,7 @@ export const USE_CASES = [
     },
   },
   {
-    no: 'N01-U04', kind: 'working_capital', technique: 'Survival Analysis', name: 'Call the overdue invoices most likely to slip past 90 days',
+    no: 'N01-U04', kind_num: 36, technique: 'Survival Analysis', name: 'Call the overdue invoices most likely to slip past 90 days',
     headline: 'Collect Overdue Invoices Before They Pass 90 Days', subdomain: 'Collections', sponsor: 'Credit Manager', beneficiary: 'Collectors', cadence: 'Daily', bob: 7.9,
     serve: 'A daily call list for collectors: the overdue invoices most likely to slip past 90 days, with the cash each one holds.',
     how: 'Survival analysis: a time-to-pay model learns from paid invoices how payment speed depends on the customer\'s history, the invoice size and the terms, and gives each open invoice its chance of paying within 90 days.',
@@ -80,7 +85,6 @@ export const USE_CASES = [
       g('Which customers pay later every quarter?', '3 customers got slower 3 quarters in a row; together they hold $410K of open invoices.', 'SELECT customer, quarter, median_days_to_pay FROM late_payment_risk__history ORDER BY customer, quarter'),
     ],
     mvp: {
-      layout: 'decision_queue',
       kpi_direction: 'decrease',
       kpis: [['Cash at risk past 90 days', 'currency', 1900000, 1700000], ['Invoices likely to slip', 'percent', 7.4, 6.9], ['Overdue invoices', 'integer', 860, 812]],
       trend: ['Cash at risk by month', 'Cash at risk', curve(1300000, 50000, 30000)],
@@ -100,7 +104,7 @@ export const USE_CASES = [
     },
   },
   {
-    no: 'N02-U02', kind: 'leakage_reconciliation', technique: 'Controls Testing', name: 'Catch freight invoices billed above the contract rate',
+    no: 'N02-U02', kind_num: 24, technique: 'Controls Testing', name: 'Catch freight invoices billed above the contract rate',
     headline: 'Recover Freight Overbilling Before Invoices Are Paid', subdomain: 'Freight audit', sponsor: 'Accounts Payable Manager', beneficiary: 'Accounts Payable', cadence: 'Daily', bob: 8.1,
     serve: 'A daily exceptions queue for Accounts Payable: freight invoices billed above the contract rate, duplicated, or charged for more weight than was shipped, before they are paid.',
     how: 'Reconciliation and control tests: every invoice line is matched to its shipment and its contract rate. A line is flagged when the amount falls outside what the contract and the shipped weight allow, or when it repeats another invoice.',
@@ -113,27 +117,25 @@ export const USE_CASES = [
       g('Which exceptions did we close as not an issue that look like these?', '6 were fuel surcharges approved by email. Because they were closed with "apply to similar", the next run skips that pattern.', "SELECT * FROM freight_exceptions__decisions WHERE decision = 'not_an_issue'"),
     ],
     mvp: {
-      layout: 'decision_queue',
-      kpi_direction: 'decrease',
-      kpis: [['Billed above contract', 'currency', 412000, 296000], ['Share of freight spend', 'percent', 3.8, 2.9], ['Open exceptions', 'integer', 37, 28]],
-      trend: ['Billed above contract by month', 'Billed above contract', curve(180000, 20000, 15000)],
-      byCategory: ['Where the overbilling sits', 'Billed above contract', [['Rate above contract', 231000], ['Duplicate invoice', 96000], ['Weight above shipped', 61000], ['Fuel surcharge above cap', 24000]]],
-      mix: ['Overbilling by carrier over time', ['Carrier A', 'Carrier B', 'Carrier C', 'Carrier D']],
-      pareto: 'How concentrated the overbilling is',
-      records: ['Exceptions queue', 'Invoices from the latest run, the largest amount above contract first.', 'Above contract'],
-      filters: { category: ['Rule', ['Rate above contract', 'Duplicate invoice', 'Weight above shipped', 'Fuel surcharge above cap']], channel: ['Carrier', ['Carrier A', 'Carrier B', 'Carrier C', 'Carrier D']], region: ['Age', ['0 to 2 days', '3 to 7 days', '8 to 30 days', '30+ days']] },
+      kpi: 'Billed above contract', kpi_direction: 'decrease',
+      kpis: { open_n: [37, 28], exposure: [412000, 296000], anomalies: [9, 5], old_n: [4, 3] },
+      signal: band(13700, [2, 5, 9, 12, 16, 19, 23, 26, 28]),
+      rules: [['Rate above contract', 18], ['Duplicate invoice', 9], ['Weight above shipped', 6], ['Fuel surcharge above cap', 4]],
+      ages: [['0 to 2 days', 9, 98000], ['3 to 7 days', 11, 141000], ['8 to 30 days', 13, 127000], ['30+ days', 4, 46000]],
+      records: ['Exceptions queue', 'Open invoices from the latest run, the largest amount above contract first.'],
+      filters: { region: ['Carrier', ['Carrier A', 'Carrier B', 'Carrier C', 'Carrier D']], segment: ['Lane', ['Inbound', 'Outbound', 'Store transfer']], channel: ['Mode', ['Road', 'Rail']] },
       rows: [
-        ['INV-8812', 'Rate above contract', 2860, 'Hold payment and dispute with Carrier A', ['Billed $6,980 against a $4,120 contract', 'Lane rate changed Sep 1'], 'Carrier A', '0 to 2 days'],
-        ['INV-8790', 'Duplicate invoice', 2300, 'Reject as a duplicate', ['Same shipment billed twice'], 'Carrier C', '3 to 7 days'],
-        ['INV-8731', 'Rate above contract', 1170, 'Hold payment and dispute', ['Billed $3,050 against a $1,880 contract'], 'Carrier A', '8 to 30 days'],
-        ['INV-8702', 'Weight above shipped', 650, 'Ask for the weight ticket', ['Billed weight 68% above shipped'], 'Carrier B', '8 to 30 days'],
-        ['INV-8655', 'Fuel surcharge above cap', 310, 'Pay the capped surcharge only', ['Surcharge above the contract cap'], 'Carrier D', '8 to 30 days'],
-        ['INV-8644', 'Rate above contract', 800, 'Escalate: waiting over 30 days', ['Billed $4,100 against a $3,300 contract'], 'Carrier B', '30+ days'],
+        ['INV-8812', 'Rate above contract', 2860, 1, 'Hold payment and dispute with Carrier A', ['Billed $6,980 against a $4,120 contract', 'Lane rate changed Sep 1'], 'Carrier A', 'Inbound', 'Road'],
+        ['INV-8790', 'Duplicate invoice', 2300, 4, 'Reject as a duplicate', ['Same shipment billed twice'], 'Carrier C', 'Outbound', 'Road'],
+        ['INV-8731', 'Rate above contract', 1170, 12, 'Hold payment and dispute', ['Billed $3,050 against a $1,880 contract'], 'Carrier A', 'Inbound', 'Rail'],
+        ['INV-8702', 'Weight above shipped', 650, 18, 'Ask for the weight ticket', ['Billed weight 68% above shipped'], 'Carrier B', 'Store transfer', 'Road'],
+        ['INV-8655', 'Fuel surcharge above cap', 310, 24, 'Pay the capped surcharge only', ['Surcharge above the contract cap'], 'Carrier D', 'Outbound', 'Road'],
+        ['INV-8644', 'Rate above contract', 800, 41, 'Escalate: waiting over 30 days', ['Billed $4,100 against a $3,300 contract'], 'Carrier B', 'Inbound', 'Rail'],
       ],
     },
   },
   {
-    no: 'N03-U01', kind: 'forecast', technique: 'Forecasting', name: "Set next week's store orders from forecast demand",
+    no: 'N03-U01', kind_num: 5, technique: 'Forecasting', name: "Set next week's store orders from forecast demand",
     headline: 'Order to Forecast Demand to Cut Stockouts and Overstock', subdomain: 'Store ordering', sponsor: 'Head of Replenishment', beneficiary: 'Replenishment Planners', cadence: 'Weekly', bob: 8.4,
     serve: 'A forecast cockpit for replenishment: the coming weeks\' demand per item and store with its range, and the order to place, which planners accept or override.',
     how: 'Forecasting: one exponential smoothing model per series learns trend, weekly seasonality and holiday effects from 2 years of sales, and must beat a seasonal naive forecast before it is used.',
@@ -146,7 +148,6 @@ export const USE_CASES = [
       g('Which series did the model miss most last month?', 'Item 7781 at Store 12: it forecast 210 and sold 340, because a local event was not in the data. Planners overrode it twice, and both overrides were closer.', 'SELECT series_id, backtest_mase FROM demand_forecast__series GROUP BY 1,2 ORDER BY 2 DESC LIMIT 5'),
     ],
     mvp: {
-      layout: 'forecast_cockpit',
       kpi: 'Store-items at risk of running out', kpi_direction: 'decrease',
       orders: [['Item 4471 at Store 12', 'Outerwear', 140, 620, 'Raise the order', ['Holiday weekend ahead', 'Demand up 18%']], ['Item 1209 at Store 31', 'Footwear', 380, 410, 'Raise the order a little', ['Demand rising']],
         ['Item 7781 at Store 12', 'Camping', 40, 300, 'Raise the order', ['Local event last year', 'Forecast range wide']], ['Item 3306 at Store 7', 'Bags', 210, 260, 'Raise the order a little', ['Demand rising']],
@@ -155,7 +156,7 @@ export const USE_CASES = [
     },
   },
   {
-    no: 'N04-U02', kind: 'driver_scenarios', technique: 'Simulation', name: "Test price and cost moves on next quarter's margin",
+    no: 'N04-U02', kind_num: 16, technique: 'Simulation', name: "Test price and cost moves on next quarter's margin",
     headline: 'Plan Next Quarter Margin Against Price and Cost Moves', subdomain: 'Margin planning', sponsor: 'CFO', beneficiary: 'Finance Team', cadence: 'Monthly', bob: 7.6,
     serve: 'A scenario lab for the CFO: move price, cost and volume levers and see next quarter\'s margin with its range and the chance of hitting target, then save a plan of record.',
     how: 'Simulation: a driver model fitted on 3 years of sales links margin to each lever. 2,400 Monte Carlo scenarios give every lever combination a range instead of one number.',
@@ -168,7 +169,6 @@ export const USE_CASES = [
       g('Compare the base and the downside cases', 'Downside (cost up 5%, volume down 3%) lands at $3.73M P50 with a 14% chance of target, against $4.20M and 82% for the base case.', "SELECT scenario_id, p10, p50, p90, prob_target FROM margin_scenarios__scenarios WHERE scenario_id IN ('base','downside')"),
     ],
     mvp: {
-      layout: 'scenario_lab',
       kpi: 'Chance of the $4.0M margin target',
       base: 4200000, target: 4000000, sd: 220000,
       levers: [['price', 'Price change, %', 0.09], ['volume', 'Volume change, %', 0.04], ['unit_cost', 'Unit cost change, %', -0.07]],
@@ -176,7 +176,7 @@ export const USE_CASES = [
     },
   },
   {
-    no: 'N05-U01', kind: 'inventory_replenishment', technique: 'Optimization', name: 'Rebalance stock between warehouses at the lowest cost',
+    no: 'N05-U01', kind_num: 11, technique: 'Optimization', name: 'Rebalance stock between warehouses at the lowest cost',
     headline: 'Cut Freight and Holding Cost by Rebalancing Warehouse Stock', subdomain: 'Stock balancing', sponsor: 'Head of Supply', beneficiary: 'Supply Planners', cadence: 'Weekly', bob: 8.6,
     serve: 'A planner for the Head of Supply: each week it proposes which units to move between warehouses, and each line is accepted or overridden.',
     how: 'Optimization: a solver picks the moves that cover forecast demand at the lowest freight and holding cost, within warehouse capacity, truck slots and the weekly budget.',
@@ -189,7 +189,7 @@ export const USE_CASES = [
       g("How much did last week's accepted lines save?", '31 of 34 lines were accepted; measured saving $268K against $290K planned. The 3 overrides saved $4K less than the plan would have.', "SELECT decision, SUM(saving_planned), SUM(saving_measured) FROM stock_rebalance__history WHERE week = '2026-W44' GROUP BY 1"),
     ],
     mvp: {
-      layout: 'planner', objective: ['Saving vs the current plan', 310000], changed: 'Moves in the plan', binding: 'Limits that bind',
+      objective: ['Saving vs the current plan', 310000], changed: 'Moves in the plan', binding: 'Limits that bind',
       lines: [['W1 to W4', 'Item 1209', 0, 300, 41200], ['W3 to W5', 'Item 7781', 40, 240, 22900], ['W2 to W5', 'Item 4471', 0, 120, 18400], ['W2 to W6', 'Item 3306', 0, 180, 9800],
         ['W3 to W6', 'Item 5120', 60, 220, 7400], ['W2 to W4', 'Item 2290', 0, 90, 3100], ['W1 to W5', 'Item 6610', 30, 60, 2600], ['W3 to W4', 'Item 9015', 0, 50, 1900]],
       limits: [['W5 capacity', 98, 100, 12], ['Tuesday truck slots', 100, 100, 640], ['Weekly freight budget', 96, 100, 0.31], ['W2 safety stock', 71, 100, 0], ['Lead time under 3 days', 64, 100, 0]],
@@ -197,7 +197,7 @@ export const USE_CASES = [
     },
   },
   {
-    no: 'N05-U03', kind: 'staffing_queueing', technique: 'Queueing', name: "Staff each store's checkouts to the forecast footfall",
+    no: 'N05-U03', kind_num: 12, technique: 'Queueing', name: "Staff each store's checkouts to the forecast footfall",
     headline: 'Match Checkout Staffing to Footfall to Cut Labor Cost', subdomain: 'Store labor', sponsor: 'Store Operations Director', beneficiary: 'Store Managers', cadence: 'Weekly', bob: 7.8,
     serve: 'A staffing planner for store operations: next week\'s checkout shifts per store and hour, so the 90th-percentile wait stays under 5 minutes at the lowest labor cost.',
     how: 'Queueing and optimization: an Erlang C model turns forecast footfall into the staff needed per hour, and a solver builds shifts that meet it within the labor budget and the shift rules.',
@@ -210,7 +210,7 @@ export const USE_CASES = [
       g('Where do waits still miss the target?', '4% of store-hours, mostly Store 31 on Sunday afternoons, where the budget runs out first.'),
     ],
     mvp: {
-      layout: 'planner', objective: ['Labor saving', 38000], changed: 'Shifts changed', binding: 'Limits that bind',
+      objective: ['Labor saving', 38000], changed: 'Shifts changed', binding: 'Limits that bind',
       lines: [['Store 12, Tue 14 to 18', 'Checkout', 4, 2, 2100], ['Store 7, Mon 08 to 12', 'Checkout', 3, 2, 1400], ['Store 31, Wed 16 to 20', 'Checkout', 4, 3, 900],
         ['Store 31, Sun 12 to 16', 'Checkout', 3, 4, -600], ['Store 12, Sat 10 to 14', 'Checkout', 3, 5, -1200]],
       limits: [['Labor budget', 99, 100, 1.1], ['Max shift length 8 h', 100, 100, 0.8], ['Min 2 staff open hours', 80, 100, 0], ['Breaks per shift', 60, 100, 0]],
@@ -218,7 +218,7 @@ export const USE_CASES = [
     },
   },
   {
-    no: 'N06-U01', kind: 'cost_to_serve', technique: 'Segmentation', name: 'Serve each customer group at a cost it can carry',
+    no: 'N06-U01', kind_num: 30, technique: 'Segmentation', name: 'Serve each customer group at a cost it can carry',
     headline: 'Align Service Cost With the Margin Each Segment Earns', subdomain: 'Customer value', sponsor: 'Head of Customer', beneficiary: 'Customer Team', cadence: 'Quarterly', bob: 8.0,
     serve: 'A segment explorer for the Head of Customer: buyers grouped by how they buy and what they cost to serve, with one treatment chosen per segment.',
     how: 'Clustering: k-means groups buyers on order frequency, basket size, returns, discount share and service contacts. Cost to serve is allocated per buyer from returns, shipping and contacts.',
@@ -231,7 +231,6 @@ export const USE_CASES = [
       g('Which segment costs most to serve per dollar of margin?', 'Costly returners: $1.31 of cost per dollar of margin, then Price hunters at $0.57.'),
     ],
     mvp: {
-      layout: 'segment_explorer',
       kpi: 'Yearly margin per customer group',
       segments: [['S1', 'Loyal high value', 12, 48, 'Priority service', [9, 8, 2, 3, 4, 9]], ['S2', 'Growing', 18, 22, 'Standard service', [6, 6, 3, 4, 3, 6]],
         ['S3', 'Price hunters', 27, 14, 'Self-service only', [5, 4, 4, 9, 4, 3]], ['S4', 'Occasional', 31, 19, 'Standard service', [2, 5, 3, 5, 2, 4]],
@@ -242,7 +241,7 @@ export const USE_CASES = [
     },
   },
   {
-    no: 'N06-U04', kind: 'next_best_action', technique: 'Recommendation', name: 'Pick the next product to offer each loyal buyer',
+    no: 'N06-U04', kind_num: 31, technique: 'Recommendation', name: 'Pick the next product to offer each loyal buyer',
     headline: 'Raise Repeat Orders With the Next Best Product Offer', subdomain: 'Personalization', sponsor: 'Head of E-commerce', beneficiary: 'Campaign Team', cadence: 'Weekly', bob: 7.7,
     serve: 'An offer desk for e-commerce: the next 3 products to offer each loyal buyer, with the reason, sent to the weekly campaign.',
     how: 'Recommendation: item-to-item similarity learned from what buyers bought together and in sequence, checked against offering the most popular items to everyone.',
@@ -255,7 +254,6 @@ export const USE_CASES = [
       g('Who should get the spring outerwear offer?', '6,400 loyal buyers have outerwear as their top offer; 2,100 of them bought outerwear last spring.'),
     ],
     mvp: {
-      layout: 'recommendation_desk',
       kpi: 'Margin from accepted offers',
       buyers: [['Buyer 10432', [['Trail jacket', 0.82, 'Bought hiking boots and a backpack; 41% of such buyers buy a jacket next'], ['Wool socks', 0.77, 'Bought boots 3 weeks ago'], ['Rain cover', 0.64, 'Bought a backpack, no cover']]],
         ['Buyer 22871', [['Kids raincoat', 0.79, 'Bought kids boots twice'], ['Lunch box', 0.66, 'School season, past buyer'], ['Water bottle', 0.58, 'Bought with lunch boxes 28% of the time']]],
@@ -264,7 +262,7 @@ export const USE_CASES = [
     },
   },
   {
-    no: 'N07-U01', kind: 'variance_to_plan', technique: 'Decomposition', name: 'Explain the margin gap to plan by price, volume and mix',
+    no: 'N07-U01', kind_num: 1, technique: 'Decomposition', name: 'Explain the margin gap to plan by price, volume and mix',
     headline: 'Close the Margin Gap to Plan by Fixing Its Drivers', subdomain: 'Variance to plan', sponsor: 'FP&A Lead', beneficiary: 'Regional Managers', cadence: 'Monthly', bob: 7.8,
     serve: 'A variance explainer for FP&A: why margin missed plan, split into price, volume, mix and cost, with an owner for every unit outside tolerance.',
     how: 'Decomposition: a price-volume-mix bridge splits the gap between plan and actual per region and category, and flags the units whose gap is outside the 3% tolerance.',
@@ -277,26 +275,31 @@ export const USE_CASES = [
       g('Summarize what store comments say about the miss', 'Late deliveries (31% of comments), a competitor\'s promotion (22%) and short staffing (14%). The late deliveries cluster in the North.'),
     ],
     mvp: {
-      layout: 'decision_queue',
-      kpis: [['Gap to plan', 'currency', -400000, -150000], ['Gap as a share of plan', 'percent', -8.7, -3.2], ['Units outside tolerance', 'integer', 6, 3]],
-      trend: ['Gap to plan by month', 'Gap to plan', curve(-90000, -26000, -20000)],
-      byCategory: ['Gap by driver', 'Gap to plan', [['Volume', -210000], ['Price', -120000], ['Cost', -110000], ['Mix', 40000]]],
-      mix: ['Gap by region over time', ['North', 'South', 'East', 'West']],
-      pareto: 'How concentrated the gap is',
-      records: ['Units outside tolerance', 'Region and category units from the latest month, the largest gap first.', 'Gap to plan'],
-      filters: { category: ['Driver', ['Volume', 'Price', 'Cost', 'Mix']], channel: ['Region', ['North', 'South', 'East', 'West']], region: ['Category', ['Outerwear', 'Footwear', 'Kids', 'Camping', 'Bags']] },
+      kpi: 'Gap to plan',
+      labels: { actual: 'Margin', plan: 'Plan', variance: 'Gap to plan', outside_n: 'Units outside tolerance' },
+      kpis: { actual: [4200000, 4450000], plan: [4600000, 4600000], variance: [-400000, -150000], outside_n: [6, 3] },
+      walk: ['Plan to actual margin', ['Plan', 4600000], [['Volume', -210000], ['Price', -120000], ['Cost', -110000], ['Mix', 40000]], ['Actual', 4200000]],
+      peers: ['Each unit against its plan', 'Plan', 'Actual', 'Below the line missed plan; the farther below, the larger the gap.'],
+      gaps: ['Gap to plan by unit', 'Driver', 'Plan'],
+      said: [
+        ['North, Outerwear', 'Late deliveries', 'Two weeks of late deliveries left the top coats out of stock.', 'Regional manager, North'],
+        ['West, Kids', 'Markdowns', 'We marked the school range down early to clear the old season.', 'Regional manager, West'],
+        ['South, Camping', 'Supplier cost', 'The new tent supplier raised its unit cost from October.', 'Regional manager, South'],
+      ],
+      records: ['Units against plan', 'Region and category units from the latest month, the largest gap first. Tolerance is 3% of plan.'],
+      filters: { region: ['Region', ['North', 'South', 'East', 'West']], segment: ['Category', ['Outerwear', 'Footwear', 'Kids', 'Camping', 'Bags']], channel: ['Driver', ['Volume', 'Price', 'Cost', 'Mix']] },
       rows: [
-        ['North, Outerwear', 'Volume', -130000, 'Fix the late deliveries in the North', ['Units down 17.5% against plan', 'Store comments: late deliveries'], 'North', 'Outerwear'],
-        ['North, Footwear', 'Volume', -72000, 'Fix the late deliveries in the North', ['Units down 12.9% against plan'], 'North', 'Footwear'],
-        ['West, Kids', 'Price', -30000, 'Review the kids markdowns', ['Price 9.1% under plan'], 'West', 'Kids'],
-        ['South, Camping', 'Cost', -24000, 'Check the new supplier cost', ['Unit cost 8.3% over plan'], 'South', 'Camping'],
-        ['East, Bags', 'Price', -14000, 'Review the bag promotions', ['Price 6.6% under plan'], 'East', 'Bags'],
-        ['North, Bags', 'Cost', -8000, 'Check the freight cost', ['Unit cost 5% over plan'], 'North', 'Bags'],
+        ['North, Outerwear', 'Outerwear', -130000, 743000, 'Fix the late deliveries in the North', ['Units down 17.5% against plan', 'Store comments: late deliveries'], 'North', 'Volume'],
+        ['North, Footwear', 'Footwear', -72000, 558000, 'Fix the late deliveries in the North', ['Units down 12.9% against plan'], 'North', 'Volume'],
+        ['West, Kids', 'Kids', -30000, 330000, 'Review the kids markdowns', ['Price 9.1% under plan'], 'West', 'Price'],
+        ['South, Camping', 'Camping', -24000, 289000, 'Check the new supplier cost', ['Unit cost 8.3% over plan'], 'South', 'Cost'],
+        ['East, Bags', 'Bags', -14000, 212000, 'Review the bag promotions', ['Price 6.6% under plan'], 'East', 'Price'],
+        ['North, Bags', 'Bags', -8000, 160000, 'Check the freight cost', ['Unit cost 5% over plan'], 'North', 'Cost'],
       ],
     },
   },
   {
-    no: 'N07-U03', kind: 'peer_benchmarking', technique: 'Peer Benchmarking', name: 'Bring under-performing stores up to their peer group',
+    no: 'N07-U03', kind_num: 3, technique: 'Peer Benchmarking', name: 'Bring under-performing stores up to their peer group',
     headline: 'Lift Store Margin to the Peer Group Median', subdomain: 'Benchmarking', sponsor: 'Regional Director', beneficiary: 'Store Managers', cadence: 'Monthly', bob: 7.4,
     serve: 'A peer benchmark for regional directors: each store\'s margin against stores of the same size, format and catchment, with the gap in dollars and a practice to copy.',
     how: 'Peer benchmarking: a regression adjusts margin for store size, format and local income, so each store is compared with what its peers achieve, not with the average.',
@@ -309,25 +312,34 @@ export const USE_CASES = [
       g('Which gaps are worth the most?', 'Store 61 ($410K), Store 27 ($350K) and Store 19 ($280K) hold half of the $2.1M gap.'),
     ],
     mvp: {
-      layout: 'decision_queue',
-      kpi_direction: 'decrease',
-      kpis: [['Gap to peers, a year', 'currency', 2100000, 2300000], ['Margin, all stores', 'percent', 28.4, 28.1], ['Stores below peers', 'integer', 9, 11]],
-      trend: ['Gap to peers by month', 'Gap to peers', curve(2400000, -25000, 20000)],
-      byCategory: ['Gap by peer group', 'Gap to peers', [['Mid-size urban', 690000], ['Large urban', 520000], ['Small suburban', 410000], ['Rural', 280000]]],
-      mix: ['Gap by cause over time', ['Markdowns', 'Shrink', 'Staff hours', 'Mix']],
-      pareto: 'How concentrated the gap is',
-      records: ['Stores below their peers', 'Stores from the latest run, the largest gap in dollars first.', 'Gap a year'],
-      filters: { category: ['Peer group', ['Mid-size urban', 'Large urban', 'Small suburban', 'Rural']], channel: ['Cause', ['Markdowns', 'Shrink', 'Staff hours', 'Mix']], region: ['Region', ['North', 'South', 'East', 'West']] },
+      kpi: 'Gap to peers, a year', kpi_direction: 'decrease',
+      labels: { actual: 'Margin, a year', plan: 'Peer median, a year', variance: 'Gap to peers', outside_n: 'Stores below peers' },
+      kpis: { actual: [12500000, 12300000], plan: [14600000, 14600000], variance: [-2100000, -2300000], outside_n: [9, 11] },
+      walk: ['Peer median to actual margin', ['Peer median', 14600000], [['Markdowns', -900000], ['Mix', -520000], ['Shrink', -410000], ['Staff hours', -270000]], ['Actual', 12500000]],
+      peers: ['Each store against its peer median', 'Peer median', 'This store', 'Above the line beats its peers; below it trails them.'],
+      gaps: ['Gap to the peer median', 'Cause', 'Peer median'],
+      said: [
+        ['Store 61', 'Markdowns', 'We start markdowns in week 6 of the season; Store 44 waits until week 9.', 'Store manager, Store 61'],
+        ['Store 27', 'Range', 'Two high-margin lines were dropped when the shelf plan changed.', 'Store manager, Store 27'],
+        ['Store 19', 'Returns', 'Returns without a receipt doubled after the policy change.', 'Store manager, Store 19'],
+      ],
+      records: ['Stores below their peers', 'Stores from the latest run, the largest gap in dollars first. Tolerance is 3% of the peer median.'],
+      filters: { region: ['Region', ['North', 'South', 'East', 'West']], segment: ['Peer group', ['Mid-size urban', 'Large urban', 'Small suburban', 'Rural']], channel: ['Cause', ['Markdowns', 'Shrink', 'Staff hours', 'Mix']] },
       rows: [
-        ['Store 61', 'Mid-size urban', 410000, 'Copy Store 44 markdown timing', ['Margin 22.9% against a peer median of 29.8%'], 'Markdowns', 'North'],
-        ['Store 27', 'Large urban', 350000, 'Add high-margin lines', ['Margin 26.2% against 31%', 'Fewer high-margin lines'], 'Mix', 'West'],
-        ['Store 19', 'Mid-size urban', 280000, 'Tighten the returns check', ['Margin 24% against 29.1%', 'Returns above peers'], 'Shrink', 'South'],
-        ['Store 7', 'Small suburban', 90000, 'Match the peer staff hours', ['Margin 25.1% against 28%', 'Staff hours above peers'], 'Staff hours', 'East'],
+        ['Store 61', 'Mid-size urban', -410000, 1790000, 'Copy Store 44 markdown timing', ['Margin 22.9% against a peer median of 29.8%'], 'North', 'Markdowns'],
+        ['Store 27', 'Large urban', -350000, 2260000, 'Add high-margin lines', ['Margin 26.2% against 31%', 'Fewer high-margin lines'], 'West', 'Mix'],
+        ['Store 19', 'Mid-size urban', -280000, 1600000, 'Tighten the returns check', ['Margin 24% against 29.1%', 'Returns above peers'], 'South', 'Shrink'],
+        ['Store 52', 'Large urban', -260000, 2100000, 'Copy Store 44 markdown timing', ['Markdowns 3 weeks earlier than peers'], 'East', 'Markdowns'],
+        ['Store 14', 'Small suburban', -230000, 1150000, 'Add high-margin lines', ['Two fewer high-margin lines than peers'], 'North', 'Mix'],
+        ['Store 40', 'Rural', -190000, 960000, 'Copy the peer markdown timing', ['Markdowns deeper than peers'], 'South', 'Markdowns'],
+        ['Store 8', 'Small suburban', -160000, 1080000, 'Tighten the returns check', ['Shrink 1.1 points above peers'], 'West', 'Shrink'],
+        ['Store 45', 'Rural', -130000, 890000, 'Match the peer staff hours', ['Staff hours 9% above peers'], 'East', 'Staff hours'],
+        ['Store 7', 'Small suburban', -90000, 1010000, 'Match the peer staff hours', ['Margin 25.1% against 28%', 'Staff hours above peers'], 'East', 'Staff hours'],
       ],
     },
   },
   {
-    no: 'N08-U01', kind: 'promotion_lift', technique: 'Causal Impact', name: 'Keep, change or stop each promotion by its true net lift',
+    no: 'N08-U01', kind_num: 19, technique: 'Causal Impact', name: 'Keep, change or stop each promotion by its true net lift',
     headline: 'Move Promotion Spend to Promotions With Real Lift', subdomain: 'Promotion review', sponsor: 'Head of Promotions', beneficiary: 'Promotion Planners', cadence: 'After each promotion', bob: 8.2,
     serve: 'A lift readout for promotions: what each promotion really added after cannibalization and pull-forward, with a keep, change or stop call.',
     how: 'Causal impact: difference-in-differences compares stores with the promotion against matched stores without it, with the 12 weeks before as the baseline.',
@@ -340,14 +352,13 @@ export const USE_CASES = [
       g('What should we test next?', 'Loyalty 15% off: its range crosses zero. A 4-week test in 20 stores with 20 matched stores would settle it.'),
     ],
     mvp: {
-      layout: 'lift_readout',
       kpi: 'Net lift per promotion',
       promos: [['Spring 2-for-1', 212000, 140000, 280000, 19, 0.01, 230, 'Scale it: strong net lift', 92000], ['Back-to-school bundle', 96000, 40000, 150000, 9, 0.02, 180, 'Keep it as it is', 53000],
         ['Loyalty 15% off', 64000, -10000, 138000, 5, 0.09, 120, 'Not sure yet: test again', 53000], ['Clearance week', -35000, -80000, 8000, -3, 0.12, 60, 'Stop it: no real lift', 58000]],
     },
   },
   {
-    no: 'N09-U01', kind: 'process_mining', technique: 'Process Mining', name: 'Cut order-to-ship delays at the slowest warehouses',
+    no: 'N09-U01', kind_num: 34, technique: 'Process Mining', name: 'Cut order-to-ship delays at the slowest warehouses',
     headline: 'Ship Orders on Time by Removing Fulfillment Bottlenecks', subdomain: 'Order flow', sponsor: 'Head of Fulfillment', beneficiary: 'Warehouse Leads', cadence: 'Weekly', bob: 7.9,
     serve: 'A process view for fulfillment: how orders really flow from placed to shipped, where they wait, and which open orders will miss the promised date.',
     how: 'Process mining: the order status timestamps form an event log. Inspire rebuilds each order\'s path, measures the wait between steps and scores open orders for the risk of missing their date.',
@@ -360,7 +371,6 @@ export const USE_CASES = [
       g('How much faster is the happy path?', '31 hours median against 46 hours for orders that get repacked.'),
     ],
     mvp: {
-      layout: 'process_flow',
       kpi: 'Orders that may miss the promised date', kpi_direction: 'decrease',
       kpis: { open: 4120, at_risk: 412, age: 31 },
       moves: [['Placed', 'Picked', 4120, 3.1, 7], ['Picked', 'Packed', 3980, 5.2, 12], ['Packed', 'Label printed', 3900, 14.6, 29], ['Label printed', 'Shipped', 3850, 8, 17],
@@ -378,7 +388,7 @@ export const USE_CASES = [
     },
   },
   {
-    no: 'N10-U01', kind: 'site_territory', technique: 'Geospatial Analysis', name: 'Choose the next five store sites by unmet demand',
+    no: 'N10-U01', kind_num: 13, technique: 'Geospatial Analysis', name: 'Choose the next five store sites by unmet demand',
     headline: 'Grow Sales With the Right Next Store Sites', subdomain: 'Expansion', sponsor: 'Head of Expansion', beneficiary: 'Real Estate Team', cadence: 'Quarterly', bob: 7.7,
     serve: 'A site map for expansion: candidate locations ranked by unmet demand nearby, net of the sales they would take from current stores.',
     how: 'Geospatial analysis and optimization: demand is estimated around each candidate from buyers\' home locations, and a solver picks the 5 sites that add the most net demand together.',
@@ -391,7 +401,6 @@ export const USE_CASES = [
       g('What if we open only 3 sites?', 'This needs a re-solve. The best 3 would likely be S1, S2 and S4, worth about $5.0M a year.'),
     ],
     mvp: {
-      layout: 'location_view',
       kpi: 'Unmet demand a year',
       sites: [
         ['S1', 'Leeds North', 'GB', 53.83, -1.55, 2100000, 'Shortlist it: open first', ['Unmet demand nearby', 'Takes 4% from current stores'], 'Large'],
@@ -405,7 +414,7 @@ export const USE_CASES = [
     },
   },
   {
-    no: 'N10-U03', kind: 'fraud_rings', technique: 'Network Analysis', name: 'Break up return-abuse rings across accounts',
+    no: 'N10-U03', kind_num: 27, technique: 'Network Analysis', name: 'Break up return-abuse rings across accounts',
     headline: 'Stop Refund Abuse by Coordinated Account Rings', subdomain: 'Loss prevention', sponsor: 'Head of Loss Prevention', beneficiary: 'Loss Prevention Analysts', cadence: 'Weekly', bob: 8.0,
     serve: 'A network view for loss prevention: groups of accounts linked by shared cards, addresses or devices that return far more than normal.',
     how: 'Network analysis: accounts become nodes, shared attributes become links, and community detection finds tight groups whose return pattern stands out.',
@@ -418,7 +427,6 @@ export const USE_CASES = [
       g('How many flagged rings were confirmed?', 'Of 14 rings decided so far, 11 were blocked after review and 3 were families sharing a card.'),
     ],
     mvp: {
-      layout: 'network_explorer',
       kpi: 'Accounts central to a ring', kpi_direction: 'decrease',
       kpis: { accounts: 74, rings: 11, central: 9 },
       accounts: [
@@ -438,7 +446,7 @@ export const USE_CASES = [
     },
   },
   {
-    no: 'N11-U01', kind: 'data_agent', technique: 'Data Agent', name: 'Answer any sales and stock question with the SQL behind it',
+    no: 'N11-U01', kind_num: 40, technique: 'Data Agent', name: 'Answer any sales and stock question with the SQL behind it',
     headline: 'Answer Commercial Data Questions in Plain Words', subdomain: 'Self-service', sponsor: 'Head of Commercial', beneficiary: 'Commercial Teams', cadence: 'On demand', bob: 7.2,
     serve: 'A data agent for commercial teams: ask the sales and stock data anything in plain words and get the answer with the SQL it ran.',
     how: 'Genie answers from a room built on the sales and stock tables, with checked example questions. ai_query writes the short summaries.',
@@ -453,14 +461,13 @@ export const USE_CASES = [
       g('What share of sales came from promotions last month?', '27% of sales, up from 22% a year ago. Grocery is the most promoted category at 41%.'),
     ],
     mvp: {
-      layout: 'agent_chat',
       kpi: 'Net sales this quarter',
       kpis: { rows: 1840000, accounts: 9400, net: 48200000 },
       filters: { region: ['Region', ['North', 'South', 'East', 'West']], account: ['Store', ['Store 4', 'Store 12', 'Store 31']], cost_center: ['Category', ['Camping', 'Kids', 'Home', 'Grocery']] },
     },
   },
   {
-    no: 'N12-U01', kind: 'driver_breakdown', technique: 'Decomposition', name: "Split this month's margin change into price, volume and mix",
+    no: 'N12-U01', kind_num: 2, technique: 'Decomposition', name: "Split this month's margin change into price, volume and mix",
     headline: 'Show Monthly Margin Movement by Price, Volume and Mix', subdomain: 'Monthly margin', sponsor: 'Finance Business Partner', beneficiary: 'Finance Team', cadence: 'Monthly', bob: 7.6,
     serve: 'A monthly dashboard for finance: how much of the change in margin came from price, volume, mix and cost, by region and category.',
     how: 'A price-volume-mix bridge: the change in margin is split into what price, units sold, the mix of items and unit cost each contributed, line by line.',
@@ -473,24 +480,29 @@ export const USE_CASES = [
       g('How does this month compare with last year?', 'Last November margin fell $0.22M, almost all from volume. Price was flat.'),
     ],
     mvp: {
-      layout: 'decision_queue',
-      kpis: [['Margin this month', 'currency', 4200000, 4600000], ['Margin rate', 'percent', 31.2, 32.4], ['Lines that moved margin', 'integer', 48, 37]],
-      trend: ['Margin by month', 'Margin', curve(4500000, -8000, 60000)],
-      byCategory: ['Volume effect by region', 'Volume effect', [['North', -130000], ['East', -52000], ['South', -21000], ['West', -7000]]],
-      mix: ['Mix effect by category over time', ['Footwear', 'Outerwear', 'Camping', 'Apparel']],
-      pareto: 'How concentrated the change is',
-      records: ['Lines that moved margin', 'Region and category lines from this month, the largest change first.', 'Change in margin'],
-      filters: { category: ['Driver', ['Volume', 'Price', 'Mix', 'Cost']], channel: ['Region', ['North', 'South', 'East', 'West']], region: ['Category', ['Footwear', 'Outerwear', 'Camping', 'Apparel']] },
+      kpi: 'Margin this month',
+      labels: { revenue: 'Margin this month', prior: 'Margin last month', growth: 'Change on last month' },
+      kpis: { revenue: [4200000, 4600000], prior: [4600000], growth: [-8.7] },
+      trend: ['Margin by month', curve(4500000, -8000, 60000), curve(4300000, -2000, 40000)],
+      byRegion: [['North', 1050000, 1220000], ['East', 1100000, 1180000], ['South', 1000000, 1060000], ['West', 1050000, 1140000]],
+      filters: { region: ['Region', ['North', 'South', 'East', 'West']], segment: ['Category', ['Footwear', 'Outerwear', 'Camping', 'Apparel']], channel: ['Driver', ['Volume', 'Price', 'Mix', 'Cost']] },
       rows: [
-        ['North, Apparel', 'Volume', -130000, 'Fix the North deliveries first', ['Two weeks of late deliveries'], 'North', 'Apparel'],
-        ['East, Apparel', 'Price', -91000, 'Review the apparel markdowns', ['Markdowns started in week 44'], 'East', 'Apparel'],
-        ['South, Camping', 'Cost', -40000, 'Check the camping supplier cost', ['Unit cost up'], 'South', 'Camping'],
-        ['West, Footwear', 'Mix', 38000, 'Keep the footwear range in stock', ['More footwear sold at a higher margin'], 'West', 'Footwear'],
-        ['North, Outerwear', 'Mix', 21000, 'Keep the outerwear range in stock', ['More outerwear sold at a higher margin'], 'North', 'Outerwear'],
+        ['North, Apparel', 'North', 'Apparel', 'Volume', -130000, 610000],
+        ['East, Apparel', 'East', 'Apparel', 'Price', -91000, 540000],
+        ['South, Camping', 'South', 'Camping', 'Cost', -40000, 330000],
+        ['West, Footwear', 'West', 'Footwear', 'Mix', 38000, 420000],
+        ['North, Outerwear', 'North', 'Outerwear', 'Mix', 21000, 390000],
       ],
     },
   },
 ];
+const KINDS = JSON.parse(fs.readFileSync(path.join(SHELL_DIR, 'kinds.json'), 'utf8')).kinds;
+function withKind({ kind_num, ...u }) {
+  const kind = KINDS.find((k) => k.num === kind_num);
+  if (!kind) throw new Error(`kinds.json has no kind ${kind_num} for ${u.no}`);
+  return { no: u.no, kind: kind.id, ...u, mvp: { layout: kind.layout, ...u.mvp } };
+}
+export const USE_CASES = DRAFTS.map(withKind);
 
 const fq = (table) => `${DEMO_CATALOG}.${table}`;
 const priorityOf = (bob) => (bob >= 8 ? 'Very High' : 'High');
@@ -932,8 +944,144 @@ function chatData(u) {
   return { kpis: { rows: { now: k.rows }, accounts: { now: k.accounts }, net: { now: k.net } }, charts: {}, tables: {}, errors: {} };
 }
 
+const FILTERED = ['region', 'segment', 'channel'];
+function kept(rows, picked) {
+  const found = rows.filter((r) => FILTERED.every((k) => !picked?.[k]?.length || picked[k].includes(r[k])));
+  return { found, scale: rows.length ? found.length / rows.length : 0 };
+}
+const kpiData = (kpis, scale, scaled) => Object.fromEntries(Object.entries(kpis).map(([id, [now, before]]) => {
+  const s = scaled.includes(id) ? scale : 1;
+  return [id, before === undefined ? { now: now * s } : { now: now * s, before: before * s }];
+}));
+const queueRow = (i, version, label, fields, action, reasons) => ({
+  record_key: `K${i + 1}`, _inspire_key: `K${i + 1}`, _inspire_version: String(version + i), entity_id: label, entity_label: label, ...fields,
+  priority_tier: TIERS[Math.min(2, Math.floor(i / 2))], rank: i + 1, recommended_action: action, top_reasons: reasons, as_of_date: AS_OF,
+});
+
+function monitorPage(u, spec) {
+  const m = u.mvp;
+  return {
+    ...base(u, spec), story: u.story,
+    kpis: byId(spec.kpis, { exposure: { label: 'Billed above contract' }, anomalies: { label: 'Days outside the range' } }),
+    charts: textOf(spec.charts, {
+      signal: { title: 'Freight billed each day against the contract', hint: 'Expected and its range come from the contract rates and the shipped weight.',
+        so_what: 'Days above the range are where the exceptions in the queue come from.', y: ['Billed', 'Expected', 'Low', 'High'] },
+      by_rule: { hint: 'Open exceptions by the control test that raised them.', so_what: 'Fix the rate table behind the top rule and most of the queue clears.' },
+      by_age: { so_what: 'Clear the oldest first: a carrier pays back less the longer an invoice waits.', y: ['Open exceptions', 'Above contract'] },
+    }),
+    records: { ...spec.records, title: m.records[0], hint: m.records[1], columns: textOf(spec.records.columns, { value: { label: 'Above contract' } }),
+      detail: textOf(spec.records.detail, Object.fromEntries(FILTERED.map((id) => [id, { label: m.filters[id][0] }]))) },
+    filters: filterText(spec, m.filters),
+  };
+}
+
+const monitorRows = (u) => u.mvp.rows.map(([label, exception_rule, value, age_days, action, reasons, region, segment, channel], i) =>
+  queueRow(i, 1300, label, { exception_rule, age_days, value, region, segment, channel }, action, reasons));
+
+function monitorData(u, picked) {
+  const m = u.mvp;
+  const { scale } = kept(monitorRows(u), picked);
+  return {
+    kpis: kpiData(m.kpis, scale, ['open_n', 'exposure', 'old_n']),
+    charts: {
+      signal: { columns: [], rows: m.signal.map(([x, ...ys]) => ({ x, ...Object.fromEntries(ys.map((y, i) => [`y${i}`, Math.round(y * scale)])) })), truncated: false },
+      by_rule: { columns: [], rows: m.rules.map(([x, y0]) => ({ x, y0: Math.round(y0 * scale) })), truncated: false },
+      by_age: { columns: [], rows: m.ages.map(([x, y0, y1]) => ({ x, y0: Math.round(y0 * scale), y1: Math.round(y1 * scale) })), truncated: false },
+    },
+    tables: {},
+    errors: {},
+  };
+}
+
+function explainerPage(u, spec) {
+  const m = u.mvp;
+  const [title, xLabel, yLabel, hint] = m.peers;
+  const peers = spec.charts.find((c) => c.id === 'vs_peers');
+  const gaps = spec.tables.find((t) => t.id === 'peer_gaps');
+  return {
+    ...base(u, spec), story: u.story,
+    kpis: byId(spec.kpis, Object.fromEntries(Object.entries(m.labels).map(([id, label]) => [id, { label }]))),
+    charts: textOf(spec.charts, {
+      walk: { title: m.walk[0], hint: `Each step adds up from ${m.walk[1][0].toLowerCase()} to ${m.walk[3][0].toLowerCase()}.` },
+      vs_peers: { title, hint, x: { ...peers.x, label: xLabel }, y: [yLabel] },
+    }),
+    tables: textOf(spec.tables, {
+      peer_gaps: { title: m.gaps[0], hint: `Each unit with its ${m.gaps[2].toLowerCase()} and its gap.`,
+        columns: textOf(gaps.columns, { peer_group: { label: m.filters.segment[0] }, metric: { label: m.gaps[1] }, peer_median: { label: m.gaps[2] } }) },
+    }),
+    records: { ...spec.records, title: m.records[0], hint: m.records[1],
+      columns: textOf(spec.records.columns, { actual: { label: m.labels.actual }, plan: { label: m.gaps[2] }, variance: { label: m.labels.variance } }),
+      detail: textOf(spec.records.detail, { region: { label: m.filters.region[0] }, channel: { label: m.filters.channel[0] } }) },
+    filters: filterText(spec, m.filters),
+  };
+}
+
+const explainerRows = (u) => u.mvp.rows.map(([label, segment, variance, plan, action, reasons, region, channel], i) =>
+  queueRow(i, 1400, label, { segment, region, channel, value: -variance, actual: plan + variance, plan, variance, tolerance: Math.round(plan * 0.03), period: '2026-10-01' }, action, reasons));
+
+function explainerData(u, picked) {
+  const m = u.mvp;
+  const { found, scale } = kept(explainerRows(u), picked);
+  const [, [start, from], steps, [end, to]] = m.walk;
+  const walk = [[start, from * scale], ...steps.map(([x, v]) => [x, v * scale]), [end, to * scale]];
+  return {
+    kpis: { ...kpiData(m.kpis, scale, ['actual', 'plan', 'variance']), outside_n: { now: found.length, before: m.kpis.outside_n[1] } },
+    charts: {
+      walk: { columns: [], rows: walk.map(([x, y0]) => ({ x, y0: Math.round(y0) })), truncated: false },
+      vs_peers: { columns: [], rows: found.map((r) => ({ x_label: r.entity_label, x: r.plan, y0: r.actual })), truncated: false },
+      drivers: { columns: [], rows: [...steps].sort((a, b) => Math.abs(b[1]) - Math.abs(a[1])).map(([x, v]) => ({ x, y0: Math.round(Math.min(v, 0) * scale), y1: Math.round(Math.max(v, 0) * scale) })), truncated: false },
+    },
+    tables: {
+      peer_gaps: { columns: [], rows: found.map((r) => ({ unit_label: r.entity_label, peer_group: r.segment, metric: r.channel, peer_median: r.plan, gap: r.variance })), truncated: false },
+      said: { columns: [], rows: m.said.filter(([unit]) => found.some((r) => r.entity_label === unit)).map(([unit_label, reason, remark, author]) => ({ unit_label, reason, remark, author })), truncated: false },
+    },
+    errors: {},
+  };
+}
+
+function dashboardPage(u, spec) {
+  const m = u.mvp;
+  const rows = spec.tables.find((t) => t.id === 'rows');
+  const line = { entity_label: { label: 'Line' }, revenue: { label: 'Margin' }, prior_value: { label: 'Last month' } };
+  return {
+    ...base(u, spec), story: u.story,
+    kpis: byId(spec.kpis, Object.fromEntries(Object.entries(m.labels).map(([id, label]) => [id, { label }]))),
+    charts: textOf(spec.charts, {
+      trend: { title: m.trend[0], hint: 'Monthly margin against the same month last year.', so_what: 'A gap that widens two months running is the trend to act on; ask Genie which driver moved it.', y: ['Margin', 'Last year'] },
+      movers: { title: 'Lines that moved margin most', hint: 'Region and category lines with the largest change on last month.', so_what: 'Ask the owners of the top three lines what changed before the month closes.',
+        x: { ...spec.charts.find((c) => c.id === 'movers').x, label: 'Line' }, y: ['Change in margin'] },
+      by_region: { title: 'Margin by region', hint: 'Margin by region this month and last month.', so_what: 'A region that fell more than its share needs its own review.', y: ['This month', 'Last month'] },
+    }),
+    tables: textOf(spec.tables, { rows: { title: 'Lines behind the change', hint: 'Each line with its margin and its change on last month.', so_what: 'Sort by change to find the lines behind the movers chart.',
+      columns: textOf(rows.columns, line) } }),
+    filters: filterText(spec, m.filters),
+  };
+}
+
+const dashboardLines = (u) => u.mvp.rows.map(([entity_label, region, segment, channel, change, prior_value]) =>
+  ({ entity_label, region, segment, channel, revenue: prior_value + change, prior_value, change }));
+
+function dashboardData(u, picked) {
+  const m = u.mvp;
+  const { found, scale } = kept(dashboardLines(u), picked);
+  const regions = m.byRegion.filter(([x]) => !picked?.region?.length || picked.region.includes(x));
+  return {
+    kpis: { revenue: { now: m.kpis.revenue[0] * scale, before: m.kpis.revenue[1] * scale }, prior: { now: m.kpis.prior[0] * scale }, growth: { now: m.kpis.growth[0] } },
+    charts: {
+      trend: { columns: [], rows: m.trend[1].map(([x, y0], i) => ({ x, y0: Math.round(y0 * scale), y1: Math.round(m.trend[2][i][1] * scale) })), truncated: false },
+      movers: { columns: [], rows: found.map(({ entity_label: x, change: y0 }) => ({ x, y0 })), truncated: false },
+      by_region: { columns: [], rows: regions.map(([x, y0, y1]) => ({ x, y0, y1 })), truncated: false },
+    },
+    tables: { rows: { columns: [], rows: found, truncated: false } },
+    errors: {},
+  };
+}
+
 const LAYOUTS = {
   decision_queue: { page: decisionPage, rows: decisionRows, data: decisionData },
+  monitor_triage: { page: monitorPage, rows: monitorRows, data: monitorData },
+  performance_explainer: { page: explainerPage, rows: explainerRows, data: explainerData },
+  dashboard: { page: dashboardPage, rows: () => [], data: dashboardData },
   forecast_cockpit: { page: forecastPage, rows: forecastRows, data: forecastData },
   planner: { page: plannerPage, rows: plannerRows, data: plannerData },
   scenario_lab: { page: scenarioPage, rows: () => [], data: scenarioData },
@@ -1029,7 +1177,7 @@ export function mvpApi(u, info, shared = {}) {
       const offset = body?.offset || 0;
       const limit = body?.limit || 25;
       return { rows: found.slice(offset, offset + limit), total: found.length, offset, limit, actions: false, changes: false,
-        summary: { open: found.length, done: 0, resolved: 0, left: found.length, owners: [] }, errors: {} };
+        summary: { open: found.length, done: 0, resolved: 0, left: 0, owners: [] }, errors: {} };
     },
     'POST scenario/evaluate': (body) => scenarioEvaluate(u, body?.values || {}),
     'POST my_work': (body) => myWork(info, body || {}),
