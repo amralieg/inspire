@@ -10,6 +10,7 @@
    share and score-gap limits, never with a use case the data minimum refused, never for a kind the data does
    not support or the instructions exclude.
 """
+import json
 import logging
 import os
 import sys
@@ -222,3 +223,103 @@ def test_a_kind_floor_seat_keeps_the_bar_the_gap_and_the_switch(ns, rt):
     rt["kind_floor_seats_per_kind"] = 0
     out = _trim(_inst(ns), _pool(_uc("S0", 8.99, kind="sla_aging")))
     assert "S0" not in out and "P0" in out
+
+
+@pytest.mark.parametrize("name,op,value,column", [
+    ("Stores with at least one loss-making line", "<", 0, "profit"),
+    ("Stores with at least one loss-making line", "<=", 0, "margin"),
+    ("Orders with at least a single return", ">", 0, "returned_qty"),
+    ("Units sold under a promotion", ">", 0, "discount_pct"),
+    ("Share of units sold under a promotion", ">", 0, "promo_id"),
+    ("Units sold under the campaign", "=", 1, "campaign_flag"),
+    ("Policies under review", ">", 0, "open_items"),
+])
+def test_an_existence_count_or_a_condition_preposition_is_not_a_comparison(agent_ns, name, op, value, column):
+    assert agent_ns["kpi_comparison_problem"](_kpi(name, op, value, column)) == ""
+
+
+@pytest.mark.parametrize("name,op,value,column", [
+    ("Orders with at least 3 items", "<", 3, "qty"),
+    ("Stores with at least 1.5 returns per day", "<", 1.5, "returns"),
+    ("Stores with at least 1% returns", "<", 1, "return_pct"),
+    ("Units sold under list price", ">", 100, "unit_price"),
+    ("Trips over the fare limit", "<", 100, "fare_amount"),
+])
+def test_a_real_comparison_on_the_wrong_side_is_still_refused(agent_ns, name, op, value, column):
+    assert agent_ns["kpi_comparison_problem"](_kpi(name, op, value, column)).startswith(MISMATCH)
+
+
+def _price(ns, column, dtype="DOUBLE"):
+    return ns["DatabricksInspire"]._column_roles({column: dtype})[0]["price"]
+
+
+@pytest.mark.parametrize("column", ["fare_amount", "delivery_fee", "monthly_premium", "tolls_amount", "hourly_rate",
+                                    "room_rate", "service_surcharge", "tariff"])
+def test_a_per_unit_charge_is_also_a_price_signal(agent_ns, column):
+    assert _price(agent_ns, column) == [column]
+
+
+@pytest.mark.parametrize("column,dtype", [
+    ("total_fare", "DOUBLE"), ("fare_revenue", "DOUBLE"), ("total_charges", "DOUBLE"), ("gross_fees", "DOUBLE"),
+    ("premium_total", "DOUBLE"), ("avg_fare", "DOUBLE"), ("sum_tolls", "DOUBLE"), ("revenue", "DOUBLE"),
+    ("net_sales", "DOUBLE"), ("conversion_rate", "DOUBLE"), ("fare_date", "TIMESTAMP"), ("has_fee", "BOOLEAN"),
+    ("fee_id", "BIGINT"), ("fare_ytd", "DOUBLE"),
+])
+def test_a_total_or_revenue_aggregate_never_becomes_a_price_signal(agent_ns, column, dtype):
+    assert _price(agent_ns, column, dtype) == []
+
+
+def test_a_named_price_comes_before_a_per_unit_charge(agent_ns):
+    roles = agent_ns["DatabricksInspire"]._column_roles({"fee": "DOUBLE", "unit_price": "DOUBLE"})[0]
+    assert roles["price"] == ["unit_price", "fee"] and roles["cost"] == ["fee"]
+
+
+def test_a_transaction_table_priced_by_a_per_unit_charge_offers_pricing_counted_by_rows(agent_ns):
+    obj = _detector(agent_ns)
+    found = {k["kind"]: k for k in obj.detect_supported_kinds(TRIPS, {}, log=False)}
+    assert found["pricing"]["columns"]["price"] == ["c.s.trips.fare_amount"]
+    assert found["pricing"]["columns"]["quantity"] == ["c.s.trips.COUNT(*)"]
+    obj.detected_kinds = list(found.values())
+    obj._kind_metadata = None
+    assert "price fare_amount, quantity COUNT(*)" in obj._kinds_checklist_lines(None)
+
+
+@pytest.mark.parametrize("metadata", [
+    _meta(pickup_ts="TIMESTAMP", total_fare="DOUBLE", pickup_zip="INT"),
+    _meta(fare_amount="DOUBLE", pickup_zip="INT"),
+])
+def test_a_total_or_an_untimed_charge_does_not_offer_pricing(agent_ns, metadata):
+    assert "pricing" not in {k["kind"] for k in _detector(agent_ns).detect_supported_kinds(metadata, {}, log=False)}
+
+
+def test_a_row_count_stands_in_only_for_the_demand_of_a_price(agent_ns):
+    found = {k["kind"] for k in _detector(agent_ns).detect_supported_kinds(
+        _meta(posted_ts="TIMESTAMP", processing_fee="DOUBLE"), {}, log=False)}
+    assert "pricing" in found and "inventory_replenishment" not in found
+
+
+def test_a_region_code_alone_offers_only_segmentation_and_peer_benchmarking(agent_ns):
+    found = {k["kind"] for k in _detector(agent_ns).detect_supported_kinds(TRIPS, {}, log=False)}
+    assert {"segmentation", "peer_benchmarking"} <= found
+    assert not found & {"lifetime_value", "next_best_action", "data_agent", "assortment"}
+
+
+def test_a_declared_dimension_still_offers_the_kinds_a_region_code_does_not(agent_ns):
+    metadata = dict(_meta(order_ts="TIMESTAMP", net_amount="DOUBLE", customer_id="BIGINT", ship_zip="INT"),
+                    **{"c.s.customers": {"columns": {"customer_id": {"type": "BIGINT", "comment": ""},
+                                                     "name": {"type": "STRING", "comment": ""}}}})
+    graph = {"c.s.trips": [("customer_id", "c.s.customers", "customer_id")]}
+    found = {k["kind"] for k in _detector(agent_ns).detect_supported_kinds(metadata, graph, log=False)}
+    assert {"lifetime_value", "next_best_action", "data_agent"} <= found
+
+
+def test_a_long_list_in_a_log_says_how_many_were_cut(agent_ns):
+    listing = agent_ns["inspire_listing"]
+    assert listing([f"N{i}" for i in range(37)]).endswith("; N19; and 17 more")
+    assert listing([f"N{i}" for i in range(20)]).endswith("; N19") and "more" not in listing(["a", "b"], ", ")
+    path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "agent",
+                        "dbx_inspire_ai_agent.ipynb")
+    with open(path, encoding="utf-8") as handle:
+        source = "".join(json.load(handle)["cells"][1]["source"])
+    assert "inspire_listing(retechniqued)" in source and "inspire_listing(relabelled)" in source
+    assert "retechniqued[:20]" not in source and "relabelled[:20]" not in source
