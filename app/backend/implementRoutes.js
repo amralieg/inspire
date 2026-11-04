@@ -928,7 +928,7 @@ function registerImplementRoutes(app, deps) {
   });
 
   async function stalledOf(req, row) {
-    if (!row || !I.IMPLEMENT_ACTIVE_STATUSES.includes(row.status)) return null;
+    if (!row || (!I.IMPLEMENT_ACTIVE_STATUSES.includes(row.status) && !I.implementEndedRecord(row))) return null;
     const runId = String(row.implement_run_id ?? '');
     const got = /^\d{1,19}$/.test(runId)
       ? await jsonOf(dbFetch, req.dbHost, req.dbToken, `/api/2.1/jobs/runs/get?run_id=${runId}`).catch(() => null)
@@ -940,7 +940,7 @@ function registerImplementRoutes(app, deps) {
     try {
       await executeSql(req.dbHost, req.dbToken, warehouseOf(req), ended.sql, ended.parameters);
       Object.assign(row, { status: 'failed', status_message: stalled.reason });
-      return null;
+      return stalled;
     } catch (e) {
       console.warn(`implement ended-run write failed: ${e.message}`);
       return stalled;

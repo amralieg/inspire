@@ -67,6 +67,7 @@ const {
   implementRunStartedStatement,
   implementStartFailedStatement,
   implementRunEndedStatement,
+  implementEndedRecord,
   implementStalled,
   IMPLEMENT_STALE_AFTER_MS,
 } = require('../lib/inspireImplement');
@@ -275,6 +276,17 @@ test('only a run seen ended writes its version failed, guarded by the status and
   assert.equal(implementRunEndedStatement('t', { ...row, status: 'ready' }, implementStalled(row, cancelled, now)), null);
   assert.equal(implementRunEndedStatement('t', { ...row, implement_run_id: '999' }, implementStalled(row, cancelled, now)), null, 'a newer run on the row is never overwritten');
   assert.equal(implementRunEndedStatement('t', row, null), null);
+});
+
+test('only the failed record Inspire wrote for an ended run reads as stopped again, never a failure the agent wrote', () => {
+  const row = { spec_version: 3, status: 'failed', implement_run_id: '77', status_message: 'the run building v3 ended (CANCELED: Run cancelled) while v3 was still building outputs' };
+  assert.equal(implementEndedRecord(row), true);
+  assert.deepEqual(implementStalled(row, { run_page_url: 'https://x/run/77' }), { run_id: '77', run_url: 'https://x/run/77', reason: row.status_message, ended: true });
+  assert.equal(implementEndedRecord({ ...row, status_message: 'the notebook failed: the run building v3 ended' }), false);
+  assert.equal(implementEndedRecord({ ...row, status_message: row.status_message.replace('v3 was', 'v2 was') }), false, 'another version');
+  assert.equal(implementEndedRecord({ ...row, status: 'ready' }), false);
+  assert.equal(implementEndedRecord({ ...row, implement_run_id: null }), false);
+  assert.equal(implementStalled({ ...row, status_message: 'boom' }, null), null);
 });
 
 test('an edit from a stale version is a conflict', () => {

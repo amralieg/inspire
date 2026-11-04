@@ -2132,20 +2132,26 @@ export function heldNoReasonText(version) {
   return `Inspire held v${version} but wrote no reason, so this page cannot say what was not met or what stays live: press Try again to build it again`;
 }
 
+export function runStopped(status, stalled = null) {
+  const s = String(status || '');
+  return Boolean(stalled) && (IMPLEMENT_ACTIVE_STATUSES.includes(s) || (s === 'failed' && stalled.ended === true));
+}
+
 export function statusChip(status, stalled = null) {
   const s = String(status || '');
   if (s === 'ready') return { label: 'Ready', tone: 'success' };
   if (s === IMPLEMENT_UNINSTALLED) return { label: 'Uninstalled', tone: 'idle' };
   if (s === 'ready_with_warnings') return { label: 'Warnings', tone: 'warning' };
   if (s === IMPLEMENT_VIBE_NOT_MET) return { label: 'Vibes not met', tone: 'warning' };
+  if (runStopped(s, stalled)) return { label: 'Stopped', tone: 'error' };
   if (s === 'failed') return { label: 'Failed', tone: 'error' };
-  if (IMPLEMENT_ACTIVE_STATUSES.includes(s)) return stalled ? { label: 'Stopped', tone: 'error' } : { label: s.replace(/_/g, ' '), tone: 'busy' };
+  if (IMPLEMENT_ACTIVE_STATUSES.includes(s)) return { label: s.replace(/_/g, ' '), tone: 'busy' };
   return { label: s || 'New', tone: 'idle' };
 }
 
 export function statusReason(latest, stalled = null) {
   const s = String(latest?.status || '');
-  if (stalled && IMPLEMENT_ACTIVE_STATUSES.includes(s)) {
+  if (runStopped(s, stalled)) {
     return `${String(stalled.reason || 'its run stopped before it finished').trim()}. Rebuild in ${VIBE_FEATURES_LABEL} submits a new version.`;
   }
   if (s === IMPLEMENT_VIBE_NOT_MET) {
@@ -2171,6 +2177,7 @@ export function historyStatus(row, latest, stalled = null) {
   const s = String(row?.status || '');
   if (s === IMPLEMENT_VIBE_NOT_MET) return VIBE_NOT_MET_WORDS.toLowerCase();
   if (['ready', 'ready_with_warnings'].includes(s) && openVibeAsks(row).length) return VIBES_WAITING_WORDS;
+  if (row?.spec_version === latest?.spec_version && s === 'failed' && runStopped(s, stalled)) return 'stopped before it finished';
   if (!IMPLEMENT_ACTIVE_STATUSES.includes(s)) return s;
   return row?.spec_version !== latest?.spec_version || stalled ? 'stopped before it finished' : s;
 }
@@ -2258,8 +2265,8 @@ export function implementState(latest, notebook = null) {
     if (s === 'ready') return { group: 'ready', label: 'MVP ready', tone: 'success', kind: 'mvp' };
     if (s === 'ready_with_warnings') return { group: 'ready', label: 'MVP ready with warnings', tone: 'warning', kind: 'mvp' };
     if (s === IMPLEMENT_VIBE_NOT_MET) return { group: 'held', label: 'MVP vibes not met', tone: 'warning', kind: 'mvp' };
+    if (runStopped(s, latest.stalled)) return { group: 'failed', label: 'MVP stopped', tone: 'error', kind: 'mvp' };
     if (s === 'failed') return { group: 'failed', label: 'MVP failed', tone: 'error', kind: 'mvp' };
-    if (IMPLEMENT_ACTIVE_STATUSES.includes(s) && latest.stalled) return { group: 'failed', label: 'MVP stopped', tone: 'error', kind: 'mvp' };
     if (IMPLEMENT_ACTIVE_STATUSES.includes(s)) return { group: 'in_progress', label: 'MVP running', tone: 'busy', kind: 'mvp' };
     return { group: 'in_progress', label: `MVP ${s.replace(/_/g, ' ')}`, tone: 'idle', kind: 'mvp' };
   }

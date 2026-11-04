@@ -1635,7 +1635,17 @@ function implementRunEndedStatement(table, row, stalled) {
   };
 }
 
+function implementEndedRecord(row) {
+  if (!row || row.status !== 'failed' || !/^\d{1,19}$/.test(str(row.implement_run_id))) return false;
+  const version = `v${row.spec_version}`;
+  const doing = IMPLEMENT_ACTIVE_STATUSES.map((s) => s.replace(/_/g, ' ')).join('|');
+  return new RegExp(`^the run building ${version} ended \\([\\s\\S]+\\) while ${version} was still (?:${doing})$`).test(str(row.status_message));
+}
+
 function implementStalled(row, run, now = Date.now()) {
+  if (implementEndedRecord(row)) {
+    return { run_id: str(row.implement_run_id), run_url: str(run && run.run_page_url) || null, reason: str(row.status_message), ended: true };
+  }
   if (!row || !IMPLEMENT_ACTIVE_STATUSES.includes(row.status)) return null;
   const version = `v${row.spec_version}`;
   const doing = String(row.status).replace(/_/g, ' ');
@@ -3290,6 +3300,7 @@ module.exports = {
   implementStartFailedStatement,
   implementRunEndedStatement,
   implementStalled,
+  implementEndedRecord,
   parseImplementRow,
   carriedAssets,
   rollbackSpec,

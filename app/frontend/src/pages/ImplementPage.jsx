@@ -5,7 +5,7 @@ import {
 } from 'lucide-react';
 import {
   statusChip, statusReason, nextSpecFrom, retryableOutputs, lostTables, lostTablesText, genieQuestions, appStatusRows, editedNotebook,
-  runProfileText, versionActive, historyStatus, implementGroups, notebookRunEnded, notebookStatus, START_MVP_LABEL, IMPLEMENT_ACTIVE_STATUSES, IMPLEMENT_UNINSTALLED,
+  runProfileText, runStopped, versionActive, historyStatus, implementGroups, notebookRunEnded, notebookStatus, START_MVP_LABEL, IMPLEMENT_ACTIVE_STATUSES, IMPLEMENT_UNINSTALLED,
   vibesPreview, canBuildAgain, buildAgainChanges, buildAgainHint, resultTableMoveNote, IMPLEMENT_DONE_STATUSES, specFromHeld, builtVersion, vibePreviousChoices,
   vibesProblems, OPEN_ALL_SETTINGS, VIBE_FEATURES_LABEL,
 } from '../lib/implementWizard';
@@ -1085,7 +1085,7 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
     runError: notebookRunError || '',
   };
   const failedStage = stages.find((s) => s.state === 'error') || null;
-  const stopped = Boolean(stalled) && IMPLEMENT_ACTIVE_STATUSES.includes(String(latest?.status || ''));
+  const stopped = runStopped(latest?.status, stalled);
   const versionCount = status?.history?.length ?? 0;
   const runCount = status?.runs?.ok === false ? null : status?.runs?.runs?.length ?? 0;
   const historyHint = status

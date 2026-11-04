@@ -1277,6 +1277,19 @@ test('a stalled version reads as stopped, frees the Implement page actions, says
   assert.equal(w.historyStatus(latest, latest), 'filling');
   assert.equal(w.historyStatus(latest, latest, stalled), 'stopped before it finished');
   assert.equal(w.historyStatus({ spec_version: 2, status: 'ready_with_warnings' }, latest, stalled), 'ready_with_warnings');
+  const recorded = { spec_version: 4, status: 'failed', status_message: stalled.reason };
+  const ended = { ...stalled, ended: true };
+  assert.deepEqual(w.statusChip('failed', ended), { label: 'Stopped', tone: 'error' }, 'the failed record Inspire wrote for the ended run');
+  assert.deepEqual(w.statusChip('failed', stalled), { label: 'Failed', tone: 'error' });
+  assert.equal(w.statusReason(recorded, ended), 'the run building v4 ended (CANCELED) while v4 was still filling. Rebuild in Vibe/Add/Remove Features submits a new version.');
+  assert.equal(w.historyStatus(recorded, recorded, ended), 'stopped before it finished');
+  assert.equal(w.historyStatus(recorded, recorded, stalled), 'failed');
+  assert.equal(w.historyStatus({ spec_version: 3, status: 'failed' }, recorded, ended), 'failed', 'an older failed version stays failed');
+  assert.equal(w.versionActive(recorded, ended), false);
+  assert.deepEqual([w.runStopped('failed', ended), w.runStopped('failed', stalled), w.runStopped('filling', stalled), w.runStopped('ready', ended), w.runStopped('failed', null)],
+    [true, false, true, false, false]);
+  assert.equal(w.implementState({ ...recorded, stalled: ended }).label, 'MVP stopped');
+  assert.equal(w.implementState({ ...recorded, stalled }).label, 'MVP failed');
 });
 
 test('a notebook run counts as ended when it stops running or a newer finished run replaces it, never on the first read', async () => {
