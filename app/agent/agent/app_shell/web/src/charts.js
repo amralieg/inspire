@@ -1,6 +1,6 @@
 import { addCounts, axisValue, dayLabel, formatValue, largestFirst, numberOf, shortMonth, sumOf } from './format.js';
 import { TIERS } from './theme.js';
-import { labelTilt } from './layout.js';
+import { CHART_WIDTH, categoryLabels } from './layout.js';
 import { KIND_CHARTS } from './kindCharts.js';
 
 const BAR_MAX = 36;
@@ -120,21 +120,22 @@ function controlOption({ chart, rows, P, valueFmt, axisFmt, xLabel }) {
   };
 }
 
-function tornadoOption({ chart, rows, P, valueFmt, axisFmt }) {
+function tornadoOption({ chart, rows, P, valueFmt, axisFmt, width }) {
   const sorted = [...rows].sort((a, b) => largestFirst(Math.abs(numberOf(a.y1) - numberOf(a.y0)), Math.abs(numberOf(b.y1) - numberOf(b.y0))));
   const names = chart.y.map((y) => y.label);
+  const cats = categoryLabels(sorted.map((r) => keyOf(r.x)), { width, fontSize: 11, side: true });
   return {
-    grid: { left: 120, right: 24, top: 30, bottom: 24 },
+    grid: { left: cats.left, right: 24, top: 30, bottom: 24 },
     tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' }, valueFormatter: valueFmt(0) },
     legend: legend(P, names),
     xAxis: { type: 'value', axisLabel: label(P, { formatter: axisFmt(0) }), splitLine: split(P) },
-    yAxis: { type: 'category', inverse: true, data: sorted.map((r) => keyOf(r.x)), axisLabel: label(P, { fontSize: 11, formatter: (v) => truncate(v, 18) }), axisLine: axisLine(P), axisTick: { show: false } },
+    yAxis: { type: 'category', inverse: true, data: sorted.map((r) => keyOf(r.x)), axisLabel: label(P, cats.axisLabel), axisLine: axisLine(P), axisTick: { show: false } },
     series: names.map((name, i) => ({ name, type: 'bar', stack: 'swing', barMaxWidth: 22, data: sorted.map((r) => r[`y${i}`]),
       itemStyle: { color: i ? P.series[0] : P.series[5] } })),
   };
 }
 
-function bridgeOption({ chart, rows, P, valueFmt, axisFmt }) {
+function bridgeOption({ chart, rows, P, valueFmt, axisFmt, width }) {
   let run = 0;
   const steps = rows.map((r, i) => {
     const value = numberOf(r.y0);
@@ -146,7 +147,7 @@ function bridgeOption({ chart, rows, P, valueFmt, axisFmt }) {
   return {
     grid: { left: 58, right: 16, top: 16, bottom: 64 },
     tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' }, formatter: (ps) => { const s = steps[ps[0]?.dataIndex]; return s ? `${s.name}<br><b>${valueFmt(0)(s.value)}</b>` : ''; } },
-    xAxis: { type: 'category', data: steps.map((s) => s.name), axisLabel: label(P, { rotate: labelTilt(steps.map((s) => truncate(s.name, 12))), formatter: (v) => truncate(v, 12) }), axisLine: axisLine(P), axisTick: { show: false } },
+    xAxis: { type: 'category', data: steps.map((s) => s.name), axisLabel: label(P, categoryLabels(steps.map((s) => s.name), { width }).axisLabel), axisLine: axisLine(P), axisTick: { show: false } },
     yAxis: { type: 'value', axisLabel: label(P, { formatter: axisFmt(0) }), splitLine: split(P) },
     series: [
       { name: 'base', type: 'bar', stack: 'bridge', silent: true, itemStyle: { color: 'transparent' }, data: steps.map((s) => s.start), tooltip: { show: false } },
@@ -156,15 +157,16 @@ function bridgeOption({ chart, rows, P, valueFmt, axisFmt }) {
   };
 }
 
-function bulletOption({ chart, rows, P, valueFmt, axisFmt }) {
+function bulletOption({ chart, rows, P, valueFmt, axisFmt, width }) {
+  const cats = categoryLabels(rows.map((r) => keyOf(r.x)), { width, fontSize: 11, side: true });
   const names = chart.y.map((y) => y.label);
   const binding = (r) => numberOf(r.y1) > 0 && numberOf(r.y0) >= numberOf(r.y1) * 0.98;
   return {
-    grid: { left: 120, right: 24, top: 30, bottom: 24 },
+    grid: { left: cats.left, right: 24, top: 30, bottom: 24 },
     tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' }, valueFormatter: valueFmt(0) },
     legend: legend(P, names),
     xAxis: { type: 'value', axisLabel: label(P, { formatter: axisFmt(0) }), splitLine: split(P) },
-    yAxis: { type: 'category', inverse: true, data: rows.map((r) => keyOf(r.x)), axisLabel: label(P, { fontSize: 11, formatter: (v) => truncate(v, 18) }), axisLine: axisLine(P), axisTick: { show: false } },
+    yAxis: { type: 'category', inverse: true, data: rows.map((r) => keyOf(r.x)), axisLabel: label(P, cats.axisLabel), axisLine: axisLine(P), axisTick: { show: false } },
     series: [
       { name: names[1], type: 'bar', barWidth: 18, barGap: '-100%', itemStyle: { color: P.well, borderColor: P.line, borderRadius: 3 }, data: rows.map((r) => r.y1), z: 1 },
       { name: names[0], type: 'bar', barWidth: 10, itemStyle: { borderRadius: 3 }, z: 2,
@@ -173,16 +175,17 @@ function bulletOption({ chart, rows, P, valueFmt, axisFmt }) {
   };
 }
 
-function ganttOption({ chart, rows, P, valueFmt, axisFmt }) {
+function ganttOption({ chart, rows, P, valueFmt, axisFmt, width }) {
   const timed = ['date', 'month'].includes(chart.y[0]?.format);
   const at = (v) => (v == null ? NaN : timed ? Date.parse(String(v)) : numberOf(v));
   const bars = rows.map((r) => ({ name: keyOf(r.x), start: at(r.y0), end: at(r.y1), from: r.y0, to: r.y1 }))
     .filter((b) => Number.isFinite(b.start) && Number.isFinite(b.end));
+  const cats = categoryLabels(bars.map((b) => b.name), { width, fontSize: 11, side: true });
   return {
-    grid: { left: 120, right: 24, top: 16, bottom: 28 },
+    grid: { left: cats.left, right: 24, top: 16, bottom: 28 },
     tooltip: { trigger: 'item', formatter: (p) => { const b = bars[p.dataIndex]; return b ? `<b>${b.name}</b><br>${valueFmt(0)(b.from)} to ${valueFmt(1)(b.to)}` : ''; } },
     xAxis: { type: timed ? 'time' : 'value', scale: true, axisLabel: label(P, timed ? {} : { formatter: axisFmt(0) }), splitLine: split(P) },
-    yAxis: { type: 'category', inverse: true, data: bars.map((b) => b.name), axisLabel: label(P, { fontSize: 11, formatter: (v) => truncate(v, 18) }), axisLine: axisLine(P), axisTick: { show: false } },
+    yAxis: { type: 'category', inverse: true, data: bars.map((b) => b.name), axisLabel: label(P, cats.axisLabel), axisLine: axisLine(P), axisTick: { show: false } },
     series: [{
       type: 'custom', name: chart.y[0].label, encode: { x: [1, 2], y: 0 }, data: bars.map((b, i) => [i, b.start, b.end]),
       renderItem: (params, api) => {
@@ -198,7 +201,7 @@ function ganttOption({ chart, rows, P, valueFmt, axisFmt }) {
 const LAYOUT_CHARTS = { band: bandOption, control: controlOption, tornado: tornadoOption, bridge: bridgeOption, bullet: bulletOption,
   treemap: treemapOption, radar: radarOption, sankey: sankeyOption, gantt: ganttOption, ...KIND_CHARTS };
 
-export function chartOption(chart, rows, P, { reduced = false } = {}) {
+export function chartOption(chart, rows, P, { reduced = false, width = CHART_WIDTH } = {}) {
   const y0 = chart.y[0] || {};
   const fmt = (i) => chart.y[i] || y0;
   const valueFmt = (i = 0) => (v) => formatValue(v, fmt(i).format, fmt(i).currency);
@@ -208,7 +211,7 @@ export function chartOption(chart, rows, P, { reduced = false } = {}) {
   const additive = ['stacked_bar', 'stacked_area', 'pareto', 'donut'].includes(chart.type);
   const top = chart.series?.top || 5;
 
-  if (LAYOUT_CHARTS[chart.type]) return base(P, reduced, LAYOUT_CHARTS[chart.type]({ chart, rows, P, valueFmt, axisFmt, xLabel }));
+  if (LAYOUT_CHARTS[chart.type]) return base(P, reduced, LAYOUT_CHARTS[chart.type]({ chart, rows, P, valueFmt, axisFmt, xLabel, width }));
 
   if (chart.type === 'donut') {
     const total = sumOf(rows, (r) => r.y0);
@@ -237,11 +240,12 @@ export function chartOption(chart, rows, P, { reduced = false } = {}) {
     const xs = uniq(rows.map((r) => keyOf(r.x)));
     const ys = uniq(rows.map((r) => keyOf(r.s)));
     const values = rows.map((r) => numberOf(r.y0));
+    const rowsSide = categoryLabels(ys, { width, side: true });
     return base(P, reduced, {
-      grid: { left: 96, right: 16, top: 12, bottom: 54 },
+      grid: { left: rowsSide.left, right: 16, top: 12, bottom: 54 },
       tooltip: { formatter: (p) => `${ys[p.data[1]]} · ${xLabel(xs[p.data[0]])}<br><b>${valueFmt(0)(p.data[2])}</b>` },
-      xAxis: { type: 'category', data: xs.map(xLabel), axisLabel: label(P, { rotate: labelTilt(xs.map((v) => truncate(xLabel(v)))), formatter: (v) => truncate(v) }), axisLine: axisLine(P), axisTick: { show: false } },
-      yAxis: { type: 'category', data: ys, axisLabel: label(P, { formatter: (v) => truncate(v, 16) }), axisLine: axisLine(P), axisTick: { show: false } },
+      xAxis: { type: 'category', data: xs.map(xLabel), axisLabel: label(P, categoryLabels(xs.map(xLabel), { width, left: rowsSide.left }).axisLabel), axisLine: axisLine(P), axisTick: { show: false } },
+      yAxis: { type: 'category', data: ys, axisLabel: label(P, rowsSide.axisLabel), axisLine: axisLine(P), axisTick: { show: false } },
       visualMap: { show: false, min: Math.min(0, ...values), max: Math.max(1e-9, ...values), inRange: { color: [P.well, P.series[1]] } },
       series: [{ type: 'heatmap', data: rows.map((r) => [xs.indexOf(keyOf(r.x)), ys.indexOf(keyOf(r.s)), r.y0]), itemStyle: { borderColor: P.card, borderWidth: 2, borderRadius: 4 } }],
     });
@@ -254,7 +258,7 @@ export function chartOption(chart, rows, P, { reduced = false } = {}) {
       grid: { left: 58, right: 44, top: 28, bottom: 64 },
       tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
       legend: legend(P, [y0.label, 'Running share']),
-      xAxis: { type: 'category', data: rows.map((r) => keyOf(r.x)), axisLabel: label(P, { rotate: labelTilt(rows.map((r) => truncate(keyOf(r.x), 12))), formatter: (v) => truncate(v, 12) }), axisLine: axisLine(P), axisTick: { show: false } },
+      xAxis: { type: 'category', data: rows.map((r) => keyOf(r.x)), axisLabel: label(P, categoryLabels(rows.map((r) => keyOf(r.x)), { width, right: 44 }).axisLabel), axisLine: axisLine(P), axisTick: { show: false } },
       yAxis: [{ type: 'value', axisLabel: label(P, { formatter: axisFmt(0) }), splitLine: split(P) },
         { type: 'value', min: 0, max: (v) => Math.min(100, Math.ceil(v.max / 10) * 10), axisLabel: label(P, { formatter: '{value}%' }), splitLine: { show: false } }],
       series: [
@@ -305,13 +309,14 @@ export function chartOption(chart, rows, P, { reduced = false } = {}) {
   const twoAxes = !horizontal && !chart.series && chart.y.some((y, i) => i > 0 && y.format !== chart.y[0]?.format);
   const secondIndex = chart.y.findIndex((y, i) => i > 0 && y.format !== chart.y[0]?.format);
   const names = series.map((s) => s.name);
+  const cats = categoryLabels(xs.map(xLabel), horizontal ? { width, fontSize: 11, side: true } : { width, right: twoAxes ? 52 : 16 });
   const categoryAxis = {
     type: 'category', data: xs.map(xLabel), boundaryGap: !line, axisLine: axisLine(P), axisTick: { show: false },
-    axisLabel: label(P, horizontal ? { fontSize: 11, formatter: (v) => truncate(v, 18) } : { rotate: time ? 0 : labelTilt(xs.map((v) => truncate(xLabel(v), 12))), formatter: (v) => (time ? v : truncate(v, 12)) }),
+    axisLabel: label(P, time && !horizontal ? { rotate: 0 } : cats.axisLabel),
   };
   const valueAxis = (i) => ({ type: 'value', scale: line && !stacked, axisLabel: label(P, { formatter: axisFmt(i) }), splitLine: i === 0 ? split(P) : { show: false } });
   return base(P, reduced, {
-    grid: horizontal ? { left: 110, right: 24, top: names.length > 1 ? 30 : 12, bottom: 24 } : { left: 58, right: twoAxes ? 52 : line && time ? 34 : 16, top: names.length > 1 ? 34 : 16, bottom: !time && xs.length > 8 ? 64 : 30 },
+    grid: horizontal ? { left: cats.left, right: 24, top: names.length > 1 ? 30 : 12, bottom: 24 } : { left: 58, right: twoAxes ? 52 : line && time ? 34 : 16, top: names.length > 1 ? 34 : 16, bottom: !time && xs.length > 8 ? 64 : 30 },
     tooltip: { trigger: 'axis', axisPointer: { type: line ? 'line' : 'shadow' } },
     legend: names.length > 1 ? legend(P, names) : undefined,
     xAxis: horizontal ? valueAxis(0) : categoryAxis,

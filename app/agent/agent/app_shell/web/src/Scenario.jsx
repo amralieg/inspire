@@ -5,6 +5,7 @@ import { evaluateScenario, writeRecord } from './api.js';
 import { formatValue, numberOf } from './format.js';
 import { chartPalette, reducedMotion } from './theme.js';
 import { Icon } from './icons.jsx';
+import { categoryLabels } from './layout.js';
 import { Skeleton, useDebounced, useToast } from './ui.jsx';
 import { AskGenie } from './AskGenie.jsx';
 
@@ -41,10 +42,13 @@ export function gaugeOption(chance, P) {
 export function sensitivityOption(result, levers, P) {
   const label = Object.fromEntries(levers.map((l) => [l.lever, l.label]));
   const rows = [...result.contributions].sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta));
+  const names = rows.map((r) => label[r.lever] || r.lever);
+  const cats = categoryLabels(names, { fontSize: 12, side: true });
   return {
-    grid: { left: 120, right: 24, top: 10, bottom: 24 },
+    grid: { left: cats.left, right: 24, top: 10, bottom: 24 },
+    tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
     xAxis: { type: 'value', axisLabel: { color: P.muted } },
-    yAxis: { type: 'category', inverse: true, data: rows.map((r) => label[r.lever] || r.lever), axisLabel: { color: P.muted } },
+    yAxis: { type: 'category', inverse: true, data: names, axisLabel: { color: P.muted, ...cats.axisLabel } },
     series: [{ type: 'bar', barMaxWidth: 20, data: rows.map((r) => ({ value: r.delta, itemStyle: { color: r.delta >= 0 ? P.series[2] : P.series[5], borderRadius: 3 } })) }],
   };
 }

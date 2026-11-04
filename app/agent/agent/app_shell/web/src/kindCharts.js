@@ -1,4 +1,5 @@
 import { numberOf } from './format.js';
+import { categoryLabels } from './layout.js';
 
 export const WORLD = 'inspire_world';
 export const FLOW_EDGE_LABELS = 24;
@@ -115,13 +116,13 @@ function flowOption({ chart, rows, P, valueFmt }) {
   };
 }
 
-function boxOption({ chart, rows, P, valueFmt, axisFmt }) {
+function boxOption({ chart, rows, P, valueFmt, axisFmt, width }) {
   const names = chart.y.map((y) => y.label);
   const sorted = [...rows].sort((a, b) => numberOf(b.y2) - numberOf(a.y2));
   return {
     grid: { left: 58, right: 16, top: 16, bottom: 56 },
     tooltip: { trigger: 'item', formatter: (p) => [`<b>${keyOf(sorted[p.dataIndex]?.x)}</b>`, ...names.map((n, i) => `${n}: ${valueFmt(i)(sorted[p.dataIndex]?.[`y${i}`])}`)].join('<br>') },
-    xAxis: { type: 'category', data: sorted.map((r) => keyOf(r.x)), axisLabel: label(P, { formatter: (v) => truncate(v, 12) }), axisLine: split(P), axisTick: { show: false } },
+    xAxis: { type: 'category', data: sorted.map((r) => keyOf(r.x)), axisLabel: label(P, categoryLabels(sorted.map((r) => keyOf(r.x)), { width }).axisLabel), axisLine: split(P), axisTick: { show: false } },
     yAxis: { type: 'value', axisLabel: label(P, { formatter: axisFmt(2) }), splitLine: split(P) },
     series: [{ type: 'boxplot', data: sorted.map((r) => [0, 1, 2, 3, 4].map((i) => numberOf(r[`y${i}`]))),
       itemStyle: { color: P.well, borderColor: P.series[0], borderWidth: 1.5 } }],
@@ -143,14 +144,15 @@ function mapPointsOption({ chart, rows, P, valueFmt }) {
   };
 }
 
-function regionBars({ chart, rows, P, valueFmt, axisFmt }) {
+function regionBars({ chart, rows, P, valueFmt, axisFmt, width }) {
   const sorted = [...rows].sort((a, b) => numberOf(b.y0) - numberOf(a.y0)).slice(0, 25);
+  const cats = categoryLabels(sorted.map((r) => keyOf(r.x)), { width, fontSize: 11, side: true });
   return {
     title: note(P, 'No region code matches a bundled country shape, so the regions show ranked instead of on a map'),
-    grid: { left: 110, right: 24, top: 12, bottom: 30 },
+    grid: { left: cats.left, right: 24, top: 12, bottom: 30 },
     tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' }, valueFormatter: valueFmt(0) },
     xAxis: { type: 'value', axisLabel: label(P, { formatter: axisFmt(0) }), splitLine: split(P) },
-    yAxis: { type: 'category', inverse: true, data: sorted.map((r) => keyOf(r.x)), axisLabel: label(P, { fontSize: 11 }), axisTick: { show: false } },
+    yAxis: { type: 'category', inverse: true, data: sorted.map((r) => keyOf(r.x)), axisLabel: label(P, cats.axisLabel), axisTick: { show: false } },
     series: [{ name: chart.y[0].label, type: 'bar', barMaxWidth: 22, itemStyle: { color: P.series[0], borderRadius: [0, 3, 3, 0] },
       data: sorted.map((r) => ({ value: r.y0, pick: keyOf(r.x) })) }],
   };

@@ -13,13 +13,16 @@ import { genieOn } from './genieAsk.js';
 import { useFx } from './Fx.jsx';
 import { FoldButton, useFold } from './MyView.jsx';
 
-export function useChart(option, deps) {
+export function useChart(option, deps, onWidth) {
   const el = useRef(null);
   const inst = useRef(null);
   useEffect(() => {
     if (!el.current || !option) return undefined;
     inst.current = echarts.init(el.current, null, { renderer: 'canvas' });
-    const observer = new ResizeObserver(() => inst.current?.resize());
+    const observer = new ResizeObserver(() => {
+      inst.current?.resize();
+      if (onWidth && el.current) onWidth(Math.round(el.current.clientWidth / WIDTH_STEP) * WIDTH_STEP);
+    });
     observer.observe(el.current);
     return () => { observer.disconnect(); inst.current?.dispose(); inst.current = null; };
   }, [!!option]);
@@ -30,6 +33,7 @@ export function useChart(option, deps) {
 }
 
 const VBAR_PX = 118;
+const WIDTH_STEP = 8;
 
 function HBar({ b, max, onPick, picked }) {
   const { props, tip } = useFx(b.formula);
@@ -100,8 +104,9 @@ export default function ChartCard({ chart, wide, result, error, loading, themeKe
   const shown = chart.type === 'band' && horizon ? { ...chart, horizon } : chart;
   const rows = result?.rows || [];
   const empty = !loading && !error && chartIsEmpty(chart, rows);
-  const option = !fold.folded && !loading && !error && !empty ? chartOption(shown, rows, chartPalette(), { reduced: reducedMotion() }) : null;
-  const { el, inst } = useChart(option, [result, themeKey, loading, error, fold.folded, horizon]);
+  const [width, setWidth] = useState(0);
+  const option = !fold.folded && !loading && !error && !empty ? chartOption(shown, rows, chartPalette(), { reduced: reducedMotion(), width: width || undefined }) : null;
+  const { el, inst } = useChart(option, [result, themeKey, loading, error, fold.folded, horizon, width], setWidth);
   const toast = useToast();
   const more = useRef(null);
   const [menu, setMenu] = useState(false);
@@ -124,7 +129,7 @@ export default function ChartCard({ chart, wide, result, error, loading, themeKe
       saveDataUrl(inst.current.getDataURL({ type: 'png', pixelRatio: 2, backgroundColor: P.card }), `${name}.png`);
     } else {
       const ssr = echarts.init(null, null, { renderer: 'svg', ssr: true, width: el.current.clientWidth, height: el.current.clientHeight });
-      ssr.setOption({ ...chartOption(shown, rows, P, { reduced: true }), animation: false, backgroundColor: P.card });
+      ssr.setOption({ ...chartOption(shown, rows, P, { reduced: true, width: el.current.clientWidth }), animation: false, backgroundColor: P.card });
       const svg = ssr.renderToSVGString();
       ssr.dispose();
       saveBlob(new Blob([svg], { type: 'image/svg+xml' }), `${name}.svg`);
