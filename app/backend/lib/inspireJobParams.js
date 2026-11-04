@@ -324,10 +324,10 @@ function belowBarLabelFromUseCase(uc) {
   return '';
 }
 
-const V130_JSON_FIELDS = ['strategy_alignment', 'kpis', 'expected_key_results', 'data_evidence'];
+const V130_JSON_FIELDS = ['strategy_alignment', 'kpis', 'expected_key_results', 'data_evidence', 'value_estimate'];
 const V130_LINE_FIELDS = ['measures_of_success', 'financial_benefits', 'non_financial_benefits'];
 const KIND_TEXT_FIELDS = ['use_case_kind', 'kind_family', 'app_layout', 'serving_summary', 'method_summary', 'value_source',
-  'selection_basis', 'selection_replaced', 'name_with_technique', 'suggested_group_by', 'record_level'];
+  'selection_basis', 'selection_replaced', 'name_with_technique', 'suggested_group_by', 'record_level', 'value_estimate_text'];
 
 function splitText(value, separator) {
   if (value == null || value === '') return [];

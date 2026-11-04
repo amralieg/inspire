@@ -25,6 +25,7 @@ export const V130_TRACKING_FIELDS = [
   'best_of_best', 'best_of_best_rank', 'best_of_best_score', 'best_of_best_reason',
   'use_case_kind', 'kind_family', 'app_layout', 'serving_summary', 'method_summary', 'value_source', 'selection_basis',
   'selection_replaced', 'selection_score_gap', 'name_with_technique', 'suggested_group_by', 'record_level',
+  'value_estimate', 'value_estimate_text',
 ];
 
 const KPI_UP = /\b(increase|increasing|up|higher|maximi[sz]e|raise|grow|growth)\b/i;
@@ -145,12 +146,18 @@ export function v130View(uc) {
     ? evidence.tables : {};
   const evidenceJoins = evidence && Array.isArray(evidence.joins) ? evidence.joins : [];
   const evidenceSignal = dataSignalOf(evidence);
+  const estimate = parseJson(fieldOf(u, 'Value Estimate', 'value_estimate'));
+  const estimateText = String((estimate && typeof estimate === 'object' && !Array.isArray(estimate) ? estimate.text : '') || u.value_estimate_text || '').trim();
+  const valueEstimate = estimateText
+    ? { text: estimateText, measured: !!(estimate && estimate.status === 'measured'), currency: (estimate && estimate.currency) || null }
+    : null;
   return {
     alignments,
     paths,
     hasStrategyData,
     notAligned: hasStrategyData && paths.length === 0,
     priorityText: String(u['Business Priority Alignment'] ?? '').trim(),
+    valueEstimate,
     kpis,
     keyResults,
     measures,
@@ -162,7 +169,7 @@ export function v130View(uc) {
     feedbackStatus: String(u['Feedback Status'] ?? '').trim().toLowerCase(),
     bestOfBest: bestOfBestOf(u),
     notStarredReason: String(u.best_of_best ?? '').trim().toUpperCase() === 'N' ? String(u.best_of_best_reason ?? '').trim() : '',
-    hasValue: kpis.length + keyResults.length + measures.length + financial.length + nonFinancial.length > 0,
+    hasValue: (valueEstimate ? 1 : 0) + kpis.length + keyResults.length + measures.length + financial.length + nonFinancial.length > 0,
     kind: useCaseKindView(u),
   };
 }

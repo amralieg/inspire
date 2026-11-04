@@ -18,7 +18,8 @@ NEW_COLUMNS = ["code_structure_mandate", "quality", "quality_mode", "elite_statu
 V130_COLUMNS = ["strategy_alignment", "strategy_path", "kpis", "expected_key_results", "measures_of_success",
                 "financial_benefits", "non_financial_benefits", "data_evidence", "foundation_ids", "use_case_key",
                 "best_of_best", "best_of_best_rank", "best_of_best_score", "best_of_best_reason", "table_joins",
-                "use_case_kind", "kind_family", "app_layout", "serving_summary", "method_summary", "value_source", "selection_basis",
+                "use_case_kind", "kind_family", "app_layout", "serving_summary", "method_summary", "value_source", "value_estimate",
+                "value_estimate_text", "selection_basis",
                 "selection_replaced", "selection_score_gap", "name_with_technique", "suggested_group_by", "record_level",
                 "meets_quality_bar", "below_bar_reason"]
 

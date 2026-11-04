@@ -147,6 +147,11 @@ export function UseCaseStrategyDetail({ info, knownPriorities, strategy = null }
           </ul>
         </Section>
       )}
+      {info.valueEstimate && (
+        <Section title="Value estimate" tone={info.valueEstimate.measured ? 'text-success-fg' : 'text-text-secondary'}>
+          <p data-testid="value-estimate" className="text-sm text-text-secondary leading-relaxed">{info.valueEstimate.text}</p>
+        </Section>
+      )}
       {info.keyResults.length > 0 && (
         <Section title="Expected key results" tone="text-success-fg">
           <ul className="space-y-1">
