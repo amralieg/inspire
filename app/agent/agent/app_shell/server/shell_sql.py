@@ -149,8 +149,10 @@ _SQL_WORDS = frozenset(("distinct", "case", "when", "then", "else", "end", "and"
                         "like", "ilike", "rlike", "between", "interval", "filter", "over", "partition", "by", "order", "asc", "desc",
                         "nulls", "first", "last", "within", "group", "int", "integer", "bigint", "smallint", "tinyint", "double", "float",
                         "decimal", "string", "date", "timestamp", "boolean", "day", "days", "month", "months", "year", "years"))
-FORMATS = ("number", "integer", "currency", "percent", "text", "date", "month")
-DATE_FORMATS = ("date", "month")
+DATE_LENGTHS = {"date": ("Days", "DATEDIFF(CAST(y1 AS DATE), CAST(y0 AS DATE))"),
+                "month": ("Months", "CAST(months_between(CAST(y1 AS DATE), CAST(y0 AS DATE)) AS INT)")}
+DATE_FORMATS = tuple(DATE_LENGTHS)
+FORMATS = ("number", "integer", "currency", "percent", "text") + DATE_FORMATS
 DURATION_CHARTS = ("gantt",)
 CHART_TYPES = ("bar", "horizontal_bar", "stacked_bar", "line", "area", "stacked_area", "pareto", "scatter", "donut", "heatmap", "band",
                "control", "tornado", "bridge", "bullet", "treemap", "radar", "sankey", "flow", "box", "map_points", "map_regions", "graph", "gantt")
@@ -692,8 +694,25 @@ def _format_problems(where: str, item: dict) -> list:
     return problems
 
 
-def date_measure(item=None, values=()) -> bool:
-    return (item or {}).get("format") in DATE_FORMATS or any(isinstance(v, datetime.date) for v in values or ())
+def _date_text(value) -> bool:
+    text = value.strip() if isinstance(value, str) else ""
+    if not _DATE.match(text[:10]):
+        return False
+    try:
+        datetime.datetime.fromisoformat(text[:-1] + "+00:00" if text.endswith("Z") else text)
+    except ValueError:
+        return False
+    return True
+
+
+def date_measure(item=None, values=(), sql_type=None) -> bool:
+    if (item or {}).get("format") in DATE_FORMATS:
+        return True
+    kind = FIELD_KINDS.get(str(sql_type or "").upper())
+    if kind in ("date", "timestamp", "integer", "decimal", "boolean"):
+        return kind in ("date", "timestamp")
+    found = [v for v in values or () if v is not None]
+    return bool(found) and all(isinstance(v, datetime.date) or _date_text(v) for v in found)
 
 
 def _date_measure_problem(where: str, kind: str) -> str:
@@ -708,14 +727,15 @@ def _chart_measures(chart: dict) -> list:
     return named + ([("x", "x", x)] if chart.get("type") == "scatter" else [])
 
 
-def chart_date_problems(page: dict, shapes: dict = None) -> list:
+def chart_date_problems(page: dict, shapes: dict = None, types: dict = None) -> list:
     problems = []
     for chart in page.get("charts") or []:
         if not isinstance(chart, dict) or chart.get("type") in DURATION_CHARTS:
             continue
         rows = (shapes or {}).get(chart.get("id")) or []
+        typed = (types or {}).get(chart.get("id")) or {}
         for name, key, item in _chart_measures(chart):
-            if date_measure(item, [row.get(key) for row in rows if isinstance(row, dict)]):
+            if date_measure(item, [row.get(key) for row in rows if isinstance(row, dict)], typed.get(key)):
                 problems.append(_date_measure_problem(f"chart {chart.get('id')} {name}", chart.get("type")))
     return problems
 
