@@ -5,7 +5,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
 import { ASK_GROUPS as GROUPS, appInfo, askAudit as audit, chartsDrawn, openApp, pageData, resizeTo, serveDist, until } from './harness.mjs';
-import { EXAMPLES } from './exampleRoutes.mjs';
+import { CASES, EXAMPLES, kindRoutes } from './exampleRoutes.mjs';
 import { ASK_CHARS, BUSY_TITLE, SUGGESTIONS, cutText, receives, rowTitle, scoped } from '../src/explain.js';
 
 let served;
@@ -124,12 +124,12 @@ test('every element kind on every page in examples shows a visible Ask Genie, on
   }
 });
 
-function exampleWithGenie(file) {
+function exampleWithGenie(file, made = EXAMPLES[file].routes) {
   const { calls, routes } = genieRoutes();
   const { page: drawn, ...asks } = routes;
   const example = EXAMPLES[file];
   const info = appInfo(example.settings, 1, {}, `examples/${file}`);
-  return { calls, info, example, opened: open(info, { routes: { ...example.routes(), ...asks } }) };
+  return { calls, info, example, opened: open(info, { routes: { ...made(), ...asks } }) };
 }
 
 test('a plan line asks Genie about its own record, the plan sends its lines, and the audit catches a layout part with no Ask Genie', async () => {
@@ -211,8 +211,20 @@ test('a segment card sends its size, value, profile and members waiting, and the
   assert.match(await one.page.locator('[data-segment="S2"] [data-seg-open]').innerText(), /^2 of 380 members/);
   const all = await ask(one.page, segments.calls, 'Segments', undefined, one.page.locator('section:has([data-segment])'));
   assert.deepEqual([all.kind, all.context.row_count], ['table', 4]);
+  await one.page.locator('[data-segment="S2"] [data-treatment="Win-back offer"]').click();
+  await one.page.locator('[data-segment="S2"] [data-treated="Win-back offer"]').waitFor();
+  const treated = await ask(one.page, segments.calls, 'Lapsing families');
+  assert.deepEqual([treated.context.fields['Members waiting'], treated.context.fields['Treatment: Win-back offer']], [0, 2]);
   assert.deepEqual(one.seen.errors, []);
   await one.context.close();
+  const blind = exampleWithGenie('segment_explorer.json', () => kindRoutes(CASES.segment_explorer.data(), CASES.segment_explorer.rows, [], {}, {}, true));
+  const dark = await blind.opened;
+  await blind.example.ready(dark.page);
+  await dark.page.locator('[data-segment="S2"] [data-treated-unread]').waitFor();
+  const unread = await ask(dark.page, blind.calls, 'Lapsing families');
+  assert.equal(unread.context.fields['Treatment counts'], 'The treatment counts could not be read. Reload the page to see them.');
+  assert.deepEqual(Object.keys(unread.context.fields).filter((k) => k.startsWith('Treatment: ')), []);
+  await dark.context.close();
   const desk = exampleWithGenie('recommendation_desk.json');
   const two = await desk.opened;
   await desk.example.ready(two.page);

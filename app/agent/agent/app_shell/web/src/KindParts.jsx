@@ -350,7 +350,8 @@ export function SegmentCards({ page, app, ready, nonce, filters, onChanged, onPi
             return (
               <article key={id} className={`seg-card${pickState(filters, block.filter, id)}`} data-card={`segment:${id}`} data-segment={id}>
                 <header><PickButton filter={block.filter} value={id} label={row.label} filters={filters} onPick={onPick} what="segment" /><AskGenie kind="segment" title={row.label} context={{ hint: row.profile != null ? String(row.profile) : '',
-                  fields: { ...specFields(row, table?.columns), ...(c.waiting != null ? { 'Members waiting': c.waiting } : {}), ...(star ? { Suggested: star } : {}) } }} /></header>
+                  fields: { ...specFields(row, table?.columns), ...(c.waiting != null ? { 'Members waiting': c.waiting } : {}), ...(star ? { Suggested: star } : {}),
+                  ...Object.fromEntries(treated.map((t) => [`${TREATMENT_NOTE}: ${t.treatment}`, t.n])), ...(c.unread ? { 'Treatment counts': TREATMENTS_UNREAD } : {}) } }} /></header>
                 <dl>
                   <div><dt>{cols.size?.label || 'Size'}</dt><dd>{shown(cols.size || { format: 'integer' }, row.size)}</dd></div>
                   <div><dt>{cols.value?.label || 'Value'}</dt><dd>{shown(cols.value || { format: 'number' }, row.value)}</dd></div>

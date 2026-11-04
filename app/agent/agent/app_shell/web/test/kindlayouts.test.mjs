@@ -46,7 +46,8 @@ const itemsIn = (page, section) => page.locator(`[data-section="${section}"]`).e
   return sum + (rows || cards || (n.querySelector('canvas, table, .kpi') ? 1 : 0));
 }, 0));
 const listAsked = (page, test) => page.waitForRequest((r) => new URL(r.url()).pathname.endsWith('/api/records') && test(r.postDataJSON() || {}));
-const pageAsked = (page) => page.waitForRequest((r) => new URL(r.url()).pathname.endsWith('/api/page')).then((r) => r.postDataJSON());
+const pageAsked = (page, wanted = () => true) => page.waitForRequest((r) => new URL(r.url()).pathname.endsWith('/api/page') && wanted(r.postDataJSON()))
+  .then((r) => r.postDataJSON());
 const sectionsOf = (page) => page.evaluate(() => [...document.querySelectorAll('[data-section]')].map((n) => n.dataset.section));
 
 const exampleOf = (id) => JSON.parse(readFileSync(join(HERE, '..', '..', 'examples', `${id}.json`), 'utf8'));
@@ -155,7 +156,7 @@ test('a picked segment keeps every other card in view, dimmed and clickable, and
   assert.ok(s1.length === 3 && rows.filter((r) => s1.includes(r.record_key)).every((r) => r.segment === 'S1'), `a dimmed card treats only its own members: ${s1}`);
   assert.deepEqual(acts.map((a) => [a.match.filters.segment, a.treatment]), [[['S2'], 'Win-back offer'], [['S1'], 'Loyalty upgrade']]);
   assert.ok(rows.filter((r) => r.segment !== 'S1' && r.segment !== 'S2').every((r) => !r._treatment), 'no treatment reached another segment');
-  const added = pageAsked(page);
+  const added = pageAsked(page, (body) => (body.filters?.segment || []).includes('S3'));
   await page.locator('[data-segment="S3"] [data-pick="S3"]').click();
   assert.deepEqual([...(await added).filters.segment].sort(), ['S2', 'S3'], 'a dimmed card is still a pick');
   assert.deepEqual(seen.errors, []);
