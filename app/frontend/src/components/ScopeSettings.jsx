@@ -4,8 +4,8 @@ import { counted } from '../lib/plural';
 import { PROFILE_READING } from '../lib/groupingProfile';
 import { SETTINGS_NEXT_RUN } from '../lib/useCaseSettings';
 import {
-  FIRST_RUN_KEEPS, GROUP_ALL, GROUP_BY, GROUP_CUSTOM, GROUP_KIND_WORDS, GROUPING_PLAIN, RUN_SCOPE, RUN_SCOPE_UNRECORDED, RUN_SCOPES, SCOPE_DAYS, SCOPE_GROUPS,
-  SCOPE_LABELS, SCOPE_RECORDS, SCOPE_SAVE_LABEL, firstRunChoices, groupByColumns, groupingChoices, groupingExampleText, groupingMovesUpText, profileHeldText,
+  FIRST_RUN_KEEPS, GROUP_ALL, GROUP_BY, GROUP_CUSTOM, GROUP_KIND_WORDS, GROUPING_DEEP_MARK, GROUPING_PLAIN, RUN_SCOPE, RUN_SCOPE_UNRECORDED, RUN_SCOPES, SCOPE_DAYS, SCOPE_GROUPS,
+  SCOPE_LABELS, SCOPE_RECORDS, SCOPE_SAVE_LABEL, deepGrouping, firstRunChoices, groupByColumns, groupingChoices, groupingExampleText, groupingMovesUpText, profileHeldText,
   sameGrouping, isScopeSetting, scopeChanges, scopeProblems, scopeValues, suggestedGroups, withUnrecordedScope,
 } from '../lib/runScope';
 
@@ -37,11 +37,13 @@ function GroupingPart({ values, onChange, profile, settings, editable, custom })
   const pickedOf = (c) => (c.value === GROUP_CUSTOM ? isCustom : !isCustom && sameGrouping(c.value, current));
   const example = groupingExampleText(profile);
   const moves = groupingMovesUpText(profile);
+  const level = deepGrouping(profile).length ? String(profile.deep_suggestion.record_level || '').trim() : '';
   return (
     <fieldset aria-label={SCOPE_LABELS[GROUP_BY]} data-scope-part="grouping" className="space-y-2">
       <legend className="text-[12px] font-semibold text-text-primary">{SCOPE_LABELS[GROUP_BY]}</legend>
       <p data-grouping-why="" className={NOTE}>{GROUPING_PLAIN}{example ? ` ${example}` : ''}</p>
       {moves && <p data-grouping-moves="" className={NOTE}>{moves}</p>}
+      {level && <p data-grouping-record-level="" className={NOTE}>Deep discovery found one record per {level} in {profile?.table || 'the main table'}.</p>}
       <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
         {choices.map((c) => (
           <label key={c.value} data-grouping-choice={c.value} className={`${ROW} ${editable ? 'cursor-pointer' : ''}`}>
@@ -49,6 +51,7 @@ function GroupingPart({ values, onChange, profile, settings, editable, custom })
               onChange={() => { onChange(GROUP_BY, c.value); if (c.value === GROUP_CUSTOM) custom?.onPicked?.(); }} />
             <span className="min-w-0">
               <span className="font-medium">{c.label}</span>
+              {c.deep && <span data-grouping-deep="" className="text-text-secondary"> · {GROUPING_DEEP_MARK}</span>}
               {c.recommended && <span data-grouping-recommended="" className="text-text-secondary"> · Recommended</span>}
             </span>
           </label>

@@ -121,11 +121,31 @@ export function suggestedGroups(profile) {
     .map((g) => ({ value: text(g.value), records: finite(g.records), kind: text(g.kind) })).filter((g) => g.value);
 }
 
+export const GROUPING_DEEP_MARK = 'Suggested by Deep discovery';
+
+export function deepGrouping(profile) {
+  const columns = Array.isArray(profile?.deep_suggestion?.columns) ? profile.deep_suggestion.columns : [];
+  return groupByColumns(columns.map(text).filter(Boolean).join(', '));
+}
+
+export function withGroupingDefault(values, profile, raw = '') {
+  const deep = deepGrouping(profile);
+  return text(raw) || !deep.length ? values : { ...values, [GROUP_BY]: deep.join(', ') };
+}
+
+function groupsOfProfile(values, profile) {
+  const finest = groupByColumns(values[GROUP_BY]).pop();
+  const profiled = (Array.isArray(profile?.recommended) ? profile.recommended : []).map(text).filter(Boolean).pop();
+  return !finest || finest.toLowerCase() === GROUP_ALL || (profiled && finest.toLowerCase() === profiled.toLowerCase());
+}
+
 export function withScopeDefaults(values, profile) {
   if (!isMap(profile) || text(values[RUN_SCOPE])) return values;
   const chosen = firstRunDefault(profile);
   const next = { ...values, [RUN_SCOPE]: chosen };
-  if (chosen === 'groups' && !text(values[SCOPE_GROUPS])) next[SCOPE_GROUPS] = suggestedGroups(profile).map((g) => g.value).join(', ');
+  if (chosen === 'groups' && !text(values[SCOPE_GROUPS]) && groupsOfProfile(values, profile)) {
+    next[SCOPE_GROUPS] = suggestedGroups(profile).map((g) => g.value).join(', ');
+  }
   return next;
 }
 
@@ -137,9 +157,13 @@ export function groupingChoices(profile, settingChoices = []) {
   const recommended = (Array.isArray(profile?.recommended) ? profile.recommended : []).map(text).filter(Boolean);
   const known = recommended.length ? recommended : (settingChoices || []).map(text).filter((c) => c && ![GROUP_ALL, GROUP_CUSTOM].includes(c.toLowerCase()));
   const list = [{ value: GROUP_ALL, label: GROUPING_GLOBAL_LABEL, columns: [] }];
-  if (recommended.length) list.push({ value: recommended.join(', '), label: recommended.join(', then '), columns: recommended, recommended: true });
+  const deep = deepGrouping(profile);
+  if (deep.length) list.push({ value: deep.join(', '), label: deep.join(', then '), columns: deep, deep: true, recommended: sameGrouping(deep.join(','), recommended.join(',')) });
+  if (recommended.length && !list.some((c) => sameGrouping(c.value, recommended.join(',')))) {
+    list.push({ value: recommended.join(', '), label: recommended.join(', then '), columns: recommended, recommended: true });
+  }
   for (const column of known) {
-    if (recommended.length === 1 && column === recommended[0]) continue;
+    if (list.some((c) => sameGrouping(c.value, column))) continue;
     list.push({ value: column, label: column, columns: [column] });
   }
   list.push({ value: GROUP_CUSTOM, label: GROUPING_CUSTOM_LABEL, columns: [] });
@@ -250,7 +274,7 @@ export function runScopeFacts(runs) {
 
 export function scopeStepsOf(profileState, profile, builtFirstRun = false) {
   const ready = profileState === 'ready' && isMap(profile);
-  return { grouping: ready && profile.qualifies === true, firstRun: ready || profileState === 'error' || (builtFirstRun === true && profileState === 'loading') };
+  return { grouping: ready && (profile.qualifies === true || deepGrouping(profile).length > 0), firstRun: ready || profileState === 'error' || (builtFirstRun === true && profileState === 'loading') };
 }
 
 export function builtFirstRunOf(model) {

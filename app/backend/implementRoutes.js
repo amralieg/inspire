@@ -1554,7 +1554,7 @@ function registerImplementRoutes(app, deps) {
         const paths = await rows(GP.pathsSql(main, first.recommended), null, GP.PROFILE_PATH_ROWS);
         return draft(paths);
       }, GP.PROFILE_MS);
-      return res.json(view);
+      return res.json({ ...view, deep_suggestion: GP.deepSuggestionOf(useCase) });
     } catch (err) {
       stop.abort();
       if (err && err.code === 'SQL_CANCELLED') return undefined;

@@ -28,6 +28,7 @@ test('the names, constants, labels and techniques of the shared cases are the on
   assert.deepEqual(techniques.standalone_records, R.STANDALONE_TECHNIQUES);
   assert.deepEqual([R.FIRST_RUN_RECORDS_LINE, R.SUGGESTED_GROUPS, R.SCOPE_DAYS, R.SCOPE_RECORDS], [1000, 3, 30, 1000]);
   assert.deepEqual([constants.first_run_records_line, constants.scope_via_keys_max], [R.FIRST_RUN_RECORDS_LINE, R.SCOPE_VIA_KEYS_MAX]);
+  assert.equal(constants.group_max_null_share, R.GROUP_MAX_NULL_SHARE);
   assert.deepEqual(R.RUN_SCOPES, ['all', 'groups', 'recent', 'records']);
 });
 

@@ -16,7 +16,7 @@ def _excel_section():
 
 
 def test_the_readme_lists_every_export_column_in_order(agent_ns):
-    header = [h for h, _getter, _numeric in make_inspire(agent_ns)._export_columns(False, True)]
+    header = [h for h, _getter, _numeric in make_inspire(agent_ns)._export_columns(False, True, show_grouping=True)]
     _text, section = _excel_section()
     pos = 0
     for name in header:

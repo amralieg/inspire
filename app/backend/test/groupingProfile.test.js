@@ -86,8 +86,8 @@ test('the profile reads the main table with the person token only, bounded, and 
     assert.equal(got.status, 200, JSON.stringify(got.data));
     const d = got.data;
     assert.deepEqual(Object.keys(d), ['table', 'records', 'qualifies', 'reason', 'standalone', 'columns', 'recommended', 'example', 'time_column', 'time_via', 'recent',
-      'suggested_groups', 'first_run', 'default_scope', 'prefill', 'read_at']);
-    assert.deepEqual([d.table, d.records, d.qualifies, d.standalone], ['main.sales.orders', 10000, true, false]);
+      'suggested_groups', 'first_run', 'default_scope', 'prefill', 'read_at', 'deep_suggestion']);
+    assert.deepEqual([d.table, d.records, d.qualifies, d.standalone, d.deep_suggestion], ['main.sales.orders', 10000, true, false, null]);
     assert.equal(d.reason, 'Grouping applies: Anomaly Detection compares each record with the records like it, and region, country can group main.sales.orders.');
     assert.deepEqual(d.columns, [
       { name: 'region', type: 'STRING', distinct: 5, smallest: 30, largest: 4000, nulls: 0, parent: null },
@@ -129,6 +129,26 @@ test('saved Discover joins come before the Unity Catalog keys in the starting SQ
       'a join to a table that is not catalog.schema.table is dropped');
     assert.match(got.data.prefill.sql, /\nLEFT JOIN `main`\.`sales`\.`stores` j1 ON m\.`store_id` = j1\.`store_id`$/);
   });
+});
+
+test('a Deep discovery grouping on the use case comes back with the profile, and never for a technique that does not group (must-exclude)', async () => {
+  const deep = { id: 'N01-U01', primary_table: 'main.sales.orders', analytics_technique: 'Anomaly Detection', suggested_group_by: ' stores.region , store_id, store_id',
+    record_level: ' order_id ' };
+  await withApp(profiled({ useCase: deep }), async (srv) => {
+    const got = await post(srv, ASK);
+    assert.equal(got.status, 200, JSON.stringify(got.data));
+    assert.deepEqual(got.data.deep_suggestion, { columns: ['stores.region', 'store_id'], record_level: 'order_id' });
+    assert.deepEqual(got.data.recommended, ['region', 'country'], 'the build-time profile is still read and answered beside it');
+  });
+  await withApp(profiled({ useCase: { ...deep, analytics_technique: 'Text Classification' } }), async (srv) => {
+    assert.equal((await post(srv, ASK)).data.deep_suggestion, null);
+  });
+  assert.deepEqual(GP.deepSuggestionOf({ analytics_technique: 'Time Series Forecasting', suggested_group_by: 'store_id', record_level: '' }),
+    { columns: ['store_id'], record_level: null });
+  for (const empty of [{ ...deep, suggested_group_by: '' }, { ...deep, suggested_group_by: null }, { ...deep, suggested_group_by: 'all' },
+    { ...deep, suggested_group_by: 'custom' }, null, undefined]) {
+    assert.equal(GP.deepSuggestionOf(empty), null, JSON.stringify(empty));
+  }
 });
 
 test('with only the App token the profile is a 401 with the shared sign-in answer and reads nothing (must-refuse)', async () => {

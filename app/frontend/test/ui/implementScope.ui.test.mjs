@@ -159,6 +159,61 @@ test('Next on Data waits for a slow read and lands on Grouping, and a first run 
   }
 });
 
+test('a Deep discovery grouping is picked and marked on a first build, the person can still pick Global, and Global is what is sent', async () => {
+  const calls = [];
+  const deep = { ...PROFILE, deep_suggestion: { columns: ['stores.region', 'store_id'], record_level: 'order_id' } };
+  const ui = await openUi('wizard', { me: ME, useCase: { ...HARNESS_USE_CASE, genie_instruction: INSTRUCTION } }, '', { init: profileAt(calls, deep) });
+  const { page, made } = ui;
+  try {
+    await toStep(page, 'Grouping');
+    const grouping = page.getByRole('region', { name: 'Compare like with like?', exact: true });
+    await grouping.locator('[data-grouping-choice]').first().waitFor();
+    assert.deepEqual(await grouping.locator('[data-grouping-choice]').evaluateAll((rows) => rows.map((r) => r.dataset.groupingChoice)),
+      ['all', 'stores.region, store_id', 'region, country', 'region', 'country', 'custom']);
+    assert.deepEqual(await checkedChoice(page, 'data-grouping-choice'), ['stores.region, store_id'], 'the Deep grouping is picked before the person chooses');
+    assert.equal(await grouping.locator('[data-grouping-choice="stores.region, store_id"]').innerText(),
+      'stores.region, then store_id · Suggested by Deep discovery');
+    assert.equal(await grouping.locator('[data-grouping-choice="region, country"]').innerText(), 'region, then country · Recommended');
+    assert.equal(await grouping.locator('[data-grouping-record-level]').textContent(), 'Deep discovery found one record per order_id in main.sales.orders.');
+    await grouping.locator('[data-grouping-choice="all"] input').check();
+    await next(page);
+    await onStep(page, 'First run');
+    await page.getByRole('button', { name: 'Back' }).click();
+    await onStep(page, 'Grouping');
+    assert.deepEqual(await checkedChoice(page, 'data-grouping-choice'), ['all'], 'the person picked Global, so going back never puts the Deep grouping back');
+    await toStep(page, 'Vibes');
+    await page.waitForFunction(() => [...document.querySelectorAll('button')].some((b) => b.textContent.trim() === 'Start MVP' && !b.disabled), null, { timeout: 30000 });
+    await page.getByRole('button', { name: 'Start MVP', exact: true }).click();
+    await until(() => made.jobs.length === 1, 'the build', 30000);
+    const [sent] = insertsOf(made);
+    assert.equal(sent.config.widgets.group_by, 'all');
+    assert.deepEqual(ui.pageErrors, []);
+  } finally {
+    await ui.close();
+  }
+});
+
+test('a Deep discovery grouping left as picked is the grouping the build sends, and its first run lets the run pick the groups', async () => {
+  const calls = [];
+  const deep = { ...PROFILE, deep_suggestion: { columns: ['store_id'], record_level: 'order_id' } };
+  const ui = await openUi('wizard', { me: ME, useCase: { ...HARNESS_USE_CASE, genie_instruction: INSTRUCTION } }, '', { init: profileAt(calls, deep) });
+  const { page, made } = ui;
+  try {
+    await toStep(page, 'Grouping');
+    assert.deepEqual(await checkedChoice(page, 'data-grouping-choice'), ['store_id']);
+    await toStep(page, 'Vibes');
+    await page.waitForFunction(() => [...document.querySelectorAll('button')].some((b) => b.textContent.trim() === 'Start MVP' && !b.disabled), null, { timeout: 30000 });
+    await page.getByRole('button', { name: 'Start MVP', exact: true }).click();
+    await until(() => made.jobs.length === 1, 'the build', 30000);
+    const [sent] = insertsOf(made);
+    assert.deepEqual([sent.config.widgets.group_by, sent.config.widgets.run_scope, sent.config.widgets.scope_groups || ''], ['store_id', 'groups', ''],
+      'the profiled groups are countries, so none are sent for a store_id grouping');
+    assert.deepEqual(ui.pageErrors, []);
+  } finally {
+    await ui.close();
+  }
+});
+
 test('a technique grouping does not apply to asks only for the first run, and a small table defaults to everything', async () => {
   const calls = [];
   const small = { ...PROFILE, records: 800, qualifies: false, standalone: true, default_scope: 'all', first_run: { all: 800, groups: 600, recent: 120, records: 800 }, recent: { days: 30, records: 120 } };

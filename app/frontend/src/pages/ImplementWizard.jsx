@@ -198,7 +198,8 @@ import {
 import ScopeSettings from '../components/ScopeSettings';
 import { PROFILE_WAITING, useGroupingProfile } from '../lib/groupingProfile';
 import {
-  FIRST_RUN_TITLE, GROUPING_TITLE, RUN_SCOPE_UNRECORDED_HIDDEN, builtFirstRunOf, isScopeSetting, latestRunScope, scopeChanges, scopeStepsOf, scopeValues, withScopeDefaults, withUnrecordedScope,
+  FIRST_RUN_TITLE, GROUPING_TITLE, RUN_SCOPE_UNRECORDED_HIDDEN, builtFirstRunOf, isScopeSetting, latestRunScope, scopeChanges, scopeStepsOf, scopeValues, withGroupingDefault, withScopeDefaults, withUnrecordedScope,
+  GROUP_BY,
 } from '../lib/runScope';
 
 const ICONS = { notebook: NotebookPen, dashboard: LayoutDashboard, genie_space: Sparkles, app: AppWindow, alert: Bell };
@@ -212,7 +213,7 @@ const PLACE_CHECKS = ['app_name'];
 
 function withFirstRunDefault(spec, profile, defaults = withScopeDefaults) {
   const before = scopeValues((name) => spec.config.widgets?.[name]);
-  const after = defaults(before, profile);
+  const after = defaults(before, profile, spec.config.widgets?.[GROUP_BY]);
   return scopeChanges(before, after).reduce((next, name) => withSetting(next, { name, source: 'widget' }, after[name]), spec);
 }
 const ACCESS_CHECKS = ['app_warehouse'];
@@ -643,6 +644,7 @@ export default function ImplementWizard({
         profile = done.profile;
       }
       const next = list[stepIndexOf(list, stepId) + 1];
+      if (next.id === 'grouping' && !context?.latest) setSpec((prev) => withFirstRunDefault(prev, profile, withGroupingDefault));
       if (next.id === 'first_run' && !context?.latest) setSpec((prev) => withFirstRunDefault(prev, profile));
       setStep(next.id);
     } catch (e) {

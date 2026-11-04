@@ -132,3 +132,13 @@ test('the list and detail title is the stored name with its technique, and the N
   assert.equal(cardTitlesOfUseCase(uc).title, 'Forecast demand using forecasting');
   assert.equal(nameOfUseCase({ Name: 'Forecast demand', name_with_technique: null }), 'Forecast demand', 'an old row keeps its Name');
 });
+
+test('the use case route and the results page carry the Deep grouping and record level, and a blank one is null', async () => {
+  const { copyV130TrackingFields } = await lib('v130UseCase.js');
+  const route = normalizeV130UseCaseFields({ Name: 'Spot odd sales', suggested_group_by: ' item.category, store_sk ', record_level: ' ticket_number ' });
+  assert.deepEqual([route.suggested_group_by, route.record_level], ['item.category, store_sk', 'ticket_number']);
+  const blank = normalizeV130UseCaseFields({ suggested_group_by: '  ', record_level: null });
+  assert.deepEqual([blank.suggested_group_by, blank.record_level], [null, null]);
+  const uc = copyV130TrackingFields({ Name: 'Spot odd sales' }, route);
+  assert.deepEqual([uc.suggested_group_by, uc.record_level], ['item.category, store_sk', 'ticket_number']);
+});

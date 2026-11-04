@@ -27,7 +27,8 @@
     "group_max_groups": 500,
     "group_min_groups": 2,
     "scope_via_keys_max": 10000,
-    "first_run_records_line": 1000
+    "first_run_records_line": 1000,
+    "group_max_null_share": 0.5
   },
   "techniques": {
     "grouping": [

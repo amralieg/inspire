@@ -168,6 +168,12 @@ function eliteAssessmentOf(raw) {
   return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
 }
 
+function deepSuggestionOf(useCase) {
+  const columns = R.groupByColumns(useCase && useCase.suggested_group_by);
+  if (!R.groupingApplies(useCase && useCase.analytics_technique) || !columns.length) return null;
+  return { columns, record_level: str(useCase.record_level).trim() || null };
+}
+
 function declaredKeys(rows) {
   const primary = (rows || []).filter((r) => r.constraint_type === 'PRIMARY KEY').map((r) => str(r.column_name)).filter(Boolean);
   const joins = (rows || []).filter((r) => r.constraint_type === 'FOREIGN KEY' && r.ref_table && r.ref_column)
@@ -259,6 +265,7 @@ module.exports = {
   profiledColumns,
   savedJoins,
   eliteAssessmentOf,
+  deepSuggestionOf,
   declaredKeys,
   prefillSql,
   profileView,

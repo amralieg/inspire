@@ -61,6 +61,34 @@ test('Grouping offers Global first, the recommended columns coarse to fine, each
   assert.ok(!S.sameGrouping('country', 'region, country'));
 });
 
+test('a Deep discovery grouping is picked first and marked, a profile without one keeps Global, and a person\u2019s pick is never replaced (must-exclude)', async () => {
+  const S = await lib('runScope.js');
+  const DEEP = { ...PROFILE, deep_suggestion: { columns: ['stores.region', 'store_id'], record_level: 'order_id' } };
+  assert.deepEqual(S.groupingChoices(DEEP).map((c) => [c.value, c.label, Boolean(c.deep), Boolean(c.recommended)]), [
+    ['all', 'Global (All)', false, false], ['stores.region, store_id', 'stores.region, then store_id', true, false],
+    ['region, country', 'region, then country', false, true], ['region', 'region', false, false], ['country', 'country', false, false], ['custom', 'Custom', false, false]]);
+  const same = S.groupingChoices({ ...PROFILE, deep_suggestion: { columns: ['Region', 'country'] } });
+  assert.deepEqual(same.map((c) => [c.value, Boolean(c.deep), Boolean(c.recommended)]), [['all', false, false], ['Region, country', true, true],
+    ['region', false, false], ['country', false, false], ['custom', false, false]], 'Deep and the profile agreeing is one choice with both marks');
+  assert.equal(S.GROUPING_DEEP_MARK, 'Suggested by Deep discovery');
+  const fresh = S.scopeValues(() => undefined);
+  assert.equal(S.withGroupingDefault(fresh, DEEP, '').group_by, 'stores.region, store_id', 'nothing picked yet, so the Deep grouping is picked');
+  assert.equal(S.withGroupingDefault(fresh, PROFILE, '').group_by, 'all', 'no Deep grouping: the build-time profile only marks its recommendation');
+  assert.equal(S.withGroupingDefault(fresh, null, '').group_by, 'all');
+  assert.equal(S.withGroupingDefault({ ...fresh, group_by: 'all' }, DEEP, 'all').group_by, 'all', 'the person picked Global, so it stays');
+  assert.equal(S.withGroupingDefault({ ...fresh, group_by: 'country' }, DEEP, 'country').group_by, 'country', 'the person picked a column, so it stays');
+  assert.equal(S.withGroupingDefault(fresh, { ...DEEP, deep_suggestion: { columns: ['', null] } }, '').group_by, 'all');
+  assert.deepEqual(S.scopeStepsOf('ready', { ...DEEP, qualifies: false }), { grouping: true, firstRun: true }, 'a Deep grouping shows the Grouping step');
+  assert.deepEqual(S.scopeStepsOf('ready', { ...PROFILE, qualifies: false, deep_suggestion: null }), { grouping: false, firstRun: true });
+  const deepFirst = S.withScopeDefaults(S.withGroupingDefault(fresh, DEEP, ''), DEEP);
+  assert.deepEqual([deepFirst.run_scope, deepFirst.scope_groups], ['groups', ''],
+    'the profile groups are countries, not store_id values, so the run picks the largest groups of the Grouping itself');
+  const profiled = S.withScopeDefaults({ ...fresh, group_by: 'region, country' }, PROFILE);
+  assert.deepEqual([profiled.run_scope, profiled.scope_groups], ['groups', 'USA, Spain, Cyprus']);
+  const other = S.withScopeDefaults({ ...fresh, group_by: 'region' }, PROFILE);
+  assert.equal(other.scope_groups, '', 'a Grouping whose finest column is not the profiled one gets no country values');
+});
+
 test('First run offers a number of records only when each record stands alone, a recent period only with a date column, and counts each choice', async () => {
   const S = await lib('runScope.js');
   const values = S.withScopeDefaults(S.scopeValues(() => undefined), PROFILE);

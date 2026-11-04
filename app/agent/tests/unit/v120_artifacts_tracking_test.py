@@ -19,7 +19,7 @@ V130_COLUMNS = ["strategy_alignment", "strategy_path", "kpis", "expected_key_res
                 "financial_benefits", "non_financial_benefits", "data_evidence", "foundation_ids", "use_case_key",
                 "best_of_best", "best_of_best_rank", "best_of_best_score", "best_of_best_reason", "table_joins",
                 "use_case_kind", "kind_family", "app_layout", "serving_summary", "method_summary", "value_source", "selection_basis",
-                "selection_replaced", "selection_score_gap", "name_with_technique"]
+                "selection_replaced", "selection_score_gap", "name_with_technique", "suggested_group_by", "record_level"]
 
 
 @pytest.fixture
