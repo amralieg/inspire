@@ -320,7 +320,8 @@ def test_arabic_pdf_is_rtl_with_isolated_dates_and_page_numbers(docs, captured_h
     summary_dict = dict(summary(), Executive="<p>Exec one.</p><p>ملخص تنفيذي للأعمال.</p><p>Databricks Genie Code يحلل بيانات المبيعات اليومية.</p>")
     _, html = pdf_html(docs, captured_html, grouped, summary_dict, language="Arabic")
     assert '<html lang="ar" dir="rtl" class="rtl nocaps"' in html
-    assert f'<p class="first" dir="ltr">{SALES_PROSE}</p>' in html and '<p class="first" dir="ltr">Exec one.</p>' in html
+    assert f'<p class="first" dir="ltr">{SALES_PROSE}</p>' in html and '<p class="" dir="ltr">Exec one.</p>' in html
+    assert '<p class="first">\u2066' + '7\u2069 من \u2066' + '8\u2069 حالة استخدام' in html
     assert '<p class="">ملخص تنفيذي للأعمال.</p>' in html and '<p class="">\u2066Databricks Genie Code\u2069 يحلل بيانات المبيعات اليومية.</p>' in html
     card = section(html, 'id="uc-N01-U01"', "</article>")
     assert '<td><span dir="ltr">Reduce Cost (waste)</span></td>' in card and "<td>مدير المتجر</td>" in card

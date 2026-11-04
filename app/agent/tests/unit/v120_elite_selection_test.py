@@ -299,10 +299,13 @@ def test_full_stage_order_and_elite_fields(ns):
     final, rejected = select(obj, ucs)
     assert stages(obj) == ["combined_scoring", "elite_candidate_pool", "elite_bob_prescreen", "elite_judge",
                            "elite_evidence_repair", "elite_verification", "elite_second_opinion", "elite_overlap",
-                           "elite_domain_coverage", "elite_final", "final_guard"]
-    assert {u["No"] for u in final} == {"E1", "E2"} and [u["No"] for u in rejected] == ["L1"]
+                           "elite_domain_coverage", "elite_final", "final_guard", "below_bar_kept"]
+    assert [u["No"] for u in final][2:] == ["L1"] and rejected == []
+    assert final[2]["meets_quality_bar"] == "N" and final[2]["elite_status"] == "FALLBACK_BELOW_BAR"
+    final = final[:2]
+    assert {u["No"] for u in final} == {"E1", "E2"}
     for uc in final:
-        assert uc["elite_status"] == "ELITE"
+        assert uc["elite_status"] == "ELITE" and uc["meets_quality_bar"] == "Y"
         a = uc["elite_assessment"]
         assert a["verification"]["passed"] is True and a["failed_gates"] == [] and a["second_opinion"] is None
         assert set(a) >= {"decision", "decision_owner", "cadence", "kpi", "kpi_direction", "value_driver", "value_tier",
@@ -362,12 +365,13 @@ def test_unjudged_use_case_is_retried_without_cache_then_excluded(ns):
     obj.ai_agent.judge = {"OK": assessment(), "FLAKY": assessment()}
     obj.ai_agent.fail_judge_once = {"FLAKY"}
     final, _ = select(obj, ucs)
-    assert {u["No"] for u in final} == {"OK", "FLAKY"}
+    assert {u["No"] for u in final if u["meets_quality_bar"] == "Y"} == {"OK", "FLAKY"}
+    assert [u["No"] for u in final if u["meets_quality_bar"] == "N"] == ["NEVER"]
     retries = [c for c in obj.ai_agent.prompts(JUDGE) if c["skip_cache"]]
     assert retries and all(set(ids(c["vars"]["use_cases_to_judge"])) <= {"FLAKY", "NEVER"} for c in retries)
     assert ledger(obj, "elite_judge")["drops"] == {"unjudged": 1}
     never = [u for u in ucs if u["No"] == "NEVER"][0]
-    assert "elite_status" not in never and "no valid assessment" in never["selection_drop_reason"]
+    assert never["elite_status"] == "FALLBACK_BELOW_BAR" and "no valid assessment" in never["fallback_reason"]
 
 
 def test_failed_verification_and_bar_gates_are_recorded_in_the_near_miss_ledger(ns):
@@ -381,15 +385,15 @@ def test_failed_verification_and_bar_gates_are_recorded_in_the_near_miss_ledger(
         "LOWV": assessment(scores={"business_value": 5}, verdict="REJECT"),
     }
     final, rejected = select(obj, ucs)
-    # Zero elites with no coverage pick -> near-miss fallback ships the weak-but-not-wrong candidates
-    # ranked by elite score; fatal-flaw rejects (verification failure, fatal flaw) never ship.
-    assert [u["No"] for u in final] == ["TIER", "LOWV"]
-    assert all(u["elite_status"] == "FALLBACK_BELOW_BAR" and u["fallback_kind"] == "near_miss"
+    # Zero elites with no coverage pick -> the near misses come first ranked by elite score, then the
+    # fatal-flaw rejects, all kept below the bar with their reason.
+    assert [u["No"] for u in final][:2] == ["TIER", "LOWV"] and {u["No"] for u in final[2:]} == {"BADCOL", "FATAL"}
+    assert all(u["elite_status"] == "FALLBACK_BELOW_BAR" and u["meets_quality_bar"] == "N"
                and u["fallback_bar"] == "Ultra High" for u in final)
     assert "failed check: value tier (value_tier)" in final[0]["fallback_reason"]
     assert "failed check: business value score (score:business_value)" in final[1]["fallback_reason"]
-    assert {u["No"] for u in rejected} >= {"BADCOL", "FATAL"}
-    assert all(u.get("elite_status") != "FALLBACK_BELOW_BAR" for u in rejected)
+    assert all(u["fallback_reason"] for u in final[2:])
+    assert not {u["No"] for u in rejected} & {"BADCOL", "FATAL"}
     assert ledger(obj, "elite_verification")["drops"] == {"verification": 1, "red_team": 1, "value_tier": 1,
                                                           "score:business_value": 1}
     assert ledger(obj, "zero_bar_fallback") == {"stage": "zero_bar_fallback", "in": 4, "out": 2,
@@ -432,7 +436,8 @@ def test_near_miss_gets_one_independent_uncached_second_opinion_from_the_next_mo
                            "N2": assessment(verdict="NEAR_MISS", scores={"implementability": 7}),
                            "N3": assessment(verdict="REJECT", scores={"business_value": 4})}
     final, _ = select(obj, ucs)
-    assert [u["No"] for u in final] == ["N1"]
+    assert [u["No"] for u in final if u["meets_quality_bar"] == "Y"] == ["N1"]
+    assert {u["No"] for u in final if u["meets_quality_bar"] == "N"} == {"N2", "N3"}
     second_calls = [c for c in obj.ai_agent.prompts(JUDGE) if "SecondOpinion" in c["step"]]
     first_calls = [c for c in obj.ai_agent.prompts(JUDGE) if "SecondOpinion" not in c["step"]]
     cascade = ns["get_full_fallback_cascade"](JUDGE)
@@ -550,7 +555,8 @@ def test_only_coverage_picks_ship_labelled_when_nothing_clears_the_bar(ns):
     obj.ai_agent.judge = {"S1": assessment(scores={"business_value": 6}, verdict="REJECT"),
                           "S2": assessment(scores={"business_value": 5}, verdict="REJECT")}
     final, _ = select(obj, [make_uc("S1"), make_uc("S2")])
-    assert [(u["No"], u["elite_status"]) for u in final] == [("S1", "DOMAIN_COVERAGE_PICK")]
+    assert [(u["No"], u["elite_status"]) for u in final] == [("S1", "DOMAIN_COVERAGE_PICK"), ("S2", "FALLBACK_BELOW_BAR")]
+    assert [u["meets_quality_bar"] for u in final] == ["N", "N"]
     assert obj.elite_outcome["elite"] == 0 and obj.elite_outcome["coverage_picks"] == 1
     assert obj.elite_outcome["message"].startswith("0 use cases met the Ultra High bar; 1 domain coverage pick")
     done = [s for s in obj.atomic_writer.steps if "coverage_picks" in s["result_json"]]
@@ -563,10 +569,10 @@ def test_zero_elite_without_user_domains_ships_near_miss_fallback(ns):
     final, rejected = select(obj, [make_uc("A"), make_uc("B", "Low")])
     # A is judged and rejected without a fatal flaw (verdict REJECT, survives red team, verification
     # passes) -> it is a near miss and ships as the closest below-bar candidate. B is below the pool.
-    assert [u["No"] for u in final] == ["A"]
+    assert [u["No"] for u in final] == ["A", "B"]
     assert final[0]["elite_status"] == "FALLBACK_BELOW_BAR" and final[0]["fallback_kind"] == "near_miss"
-    assert final[0]["fallback_bar"] == "Ultra High"
-    assert "B" in {u["No"] for u in rejected}
+    assert final[0]["fallback_bar"] == "Ultra High" and final[1]["meets_quality_bar"] == "N"
+    assert "B" not in {u["No"] for u in rejected}
     assert ledger(obj, "elite_final") == {"stage": "elite_final", "in": 2, "out": 0, "drops": {"not_selected": 2}}
     assert obj.elite_outcome["fallback_picks"] == 1
     assert "closest candidate" in obj.elite_outcome["message"]
@@ -593,4 +599,7 @@ def test_good_and_high_selection_do_not_touch_the_elite_stage(ns):
         obj._select_elite_use_cases = lambda *a, **kw: (_ for _ in ()).throw(AssertionError("elite stage in " + mode))
         final, _ = select(obj, [make_uc("A"), make_uc("B", "Medium")])
         assert not any(s.startswith("elite_") for s in stages(obj)), mode
-        assert all("elite_status" not in u and "elite_score" not in u for u in final), mode
+        assert all("elite_score" not in u for u in final), mode
+        assert [(u["No"], u.get("elite_status")) for u in final if u["meets_quality_bar"] == "N"] == \
+            ([] if mode == "Good" else [("B", "FALLBACK_BELOW_BAR")]), mode
+        assert all("elite_status" not in u for u in final if u["meets_quality_bar"] == "Y"), mode

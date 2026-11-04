@@ -4,7 +4,8 @@ import DrawerShell from './DrawerShell';
 import ImplementStatusBadge from './ImplementStatusBadge';
 import { FeedbackChip, StrategyChip } from './UseCaseStrategyDetail';
 import { bestOfBestLabel } from '../lib/v130UseCase';
-import { belowBarLabelFromUseCase, priorityPillClass, subtitleOfUseCase } from '../lib/useCaseFields';
+import QualityBarChip, { QualityBarReason } from './QualityBarChip';
+import { priorityPillClass, subtitleOfUseCase } from '../lib/useCaseFields';
 
 const typingTarget = (el) => !!el && (/^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName) || el.isContentEditable);
 
@@ -48,7 +49,6 @@ export default function UseCaseDrawer({
   if (!row) return null;
   const uc = row.uc || {};
   const v130 = uc._v130 || null;
-  const belowBar = belowBarLabelFromUseCase(uc);
   const subtitle = subtitleOfUseCase(uc, row.title);
   const eyebrow = [row.id, row.domain, row.subdomain].filter(Boolean);
 
@@ -109,9 +109,7 @@ export default function UseCaseDrawer({
                 Best of Best{row.bob.rank ? ` #${row.bob.rank}` : ''}
               </span>
             )}
-            {belowBar && (
-              <span className="rounded-md border border-warning/35 bg-warning-bg px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-warning-fg" title={belowBar}>Below bar</span>
-            )}
+            <QualityBarChip uc={uc} />
             {row.priority && (
               <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold ${priorityPillClass(row.priority)}`}>{row.priority}</span>
             )}
@@ -123,6 +121,7 @@ export default function UseCaseDrawer({
             <FeedbackChip status={row.feedbackStatus} />
             <ImplementStatusBadge state={row.status} />
           </div>
+          <QualityBarReason uc={uc} className="mt-2" />
 
           <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
             <ScoreTile label="Inspire score" value={row.inspire} hint="Inspire composite score" />

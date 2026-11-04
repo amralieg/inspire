@@ -62,8 +62,10 @@ def test_every_canonical_mode_applies_its_label_filter(fresh_ns, tmp_path, resto
                make_uc("M", "Medium", name="Detect late deliveries per customer"),
                make_uc("L", "Low", name="Rank customers by repeat potential")]
         final, rejected = obj._select_scored_use_cases(ucs, [], {})
-        assert [u["No"] for u in final] == kept
-        assert "L" in {u["No"] for u in rejected}
+        assert [u["No"] for u in final if u["meets_quality_bar"] == "Y"] == kept
+        below = [u for u in final if u["meets_quality_bar"] == "N"]
+        assert {u["No"] for u in below} == {"H", "M", "L"} - set(kept) and rejected == []
+        assert all(u["fallback_reason"] == "scored %s, below the %s bar" % (u["Quality"], mode) for u in below)
         assert "below the %s bar" % mode in [u for u in ucs if u["No"] == "L"][0]["selection_drop_reason"]
     finally:
         _cleanup(obj)
@@ -305,7 +307,8 @@ def test_repair_happens_once_per_use_case_in_a_mixed_batch(ns):
                           "STOCK": stock_assessment(time_column="c.s.stock.bin_label")}
     obj.ai_agent.repair = {"SLIP": assessment(), "STOCK": stock_assessment(time_column=None)}
     final, _ = select(obj, ucs)
-    assert {u["No"] for u in final} == {"OK", "SLIP"}
+    assert {u["No"] for u in final if u["meets_quality_bar"] == "Y"} == {"OK", "SLIP"}
+    assert [u["No"] for u in final if u["meets_quality_bar"] == "N"] == ["STOCK"]
     repaired = [i for c in repair_calls(obj) for i in ids(c["vars"]["use_cases_to_judge"])]
     assert sorted(repaired) == ["SLIP", "STOCK"]
     assert ledger(obj, "elite_evidence_repair") == {"stage": "elite_evidence_repair", "in": 2, "out": 1,

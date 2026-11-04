@@ -165,13 +165,59 @@ function isHighTierLabel(uc) {
   return false;
 }
 
-export function belowBarLabelFromUseCase(uc) {
-  if (!uc || typeof uc !== 'object') return '';
+function selectionFlagsOf(uc) {
   let flags = uc.selection_flags ?? uc.selectionFlags;
   if (typeof flags === 'string') {
     try { flags = JSON.parse(flags); } catch { flags = null; }
   }
-  if (flags && typeof flags === 'object') {
+  return flags && typeof flags === 'object' ? flags : null;
+}
+
+const BELOW_BAR_STATUSES = new Set(['FALLBACK_BELOW_BAR', 'DOMAIN_COVERAGE_PICK']);
+
+export function meetsQualityBarOf(uc) {
+  if (!uc || typeof uc !== 'object') return null;
+  const flag = String(uc.meets_quality_bar ?? uc.meetsQualityBar ?? '').trim().toUpperCase();
+  if (flag === 'Y' || flag === 'YES' || flag === 'TRUE') return true;
+  if (flag === 'N' || flag === 'NO' || flag === 'FALSE') return false;
+  const status = String(uc.elite_status ?? uc.eliteStatus ?? '').trim().toUpperCase();
+  if (BELOW_BAR_STATUSES.has(status)) return false;
+  return null;
+}
+
+export function belowBarReasonOf(uc) {
+  if (!uc || typeof uc !== 'object') return '';
+  const flags = selectionFlagsOf(uc) || {};
+  for (const v of [uc.fallback_reason, uc.below_bar_reason, uc['Below Bar Reason'], flags.fallback_reason,
+    uc.coverage_pick_reason, flags.coverage_pick_reason]) {
+    if (v != null && typeof v !== 'object' && String(v).trim()) return String(v).trim();
+  }
+  return '';
+}
+
+export function qualityBarFilterMatches(filter, uc) {
+  if (filter === 'meets') return meetsQualityBarOf(uc) !== false;
+  if (filter === 'below') return meetsQualityBarOf(uc) === false;
+  return true;
+}
+
+export function compareMeetsQualityBarFirst(a, b) {
+  return (meetsQualityBarOf(a) === false ? 1 : 0) - (meetsQualityBarOf(b) === false ? 1 : 0);
+}
+
+export function qualityBarCountsOf(list) {
+  const items = Array.isArray(list) ? list.filter((uc) => uc && typeof uc === 'object') : [];
+  const below = items.filter((uc) => meetsQualityBarOf(uc) === false).length;
+  return { found: items.length, meets: items.length - below, below };
+}
+
+export function belowBarLabelFromUseCase(uc) {
+  if (!uc || typeof uc !== 'object') return '';
+  const meets = meetsQualityBarOf(uc);
+  if (meets === false) return belowBarReasonOf(uc) || 'Below your quality bar';
+  if (meets === true) return '';
+  const flags = selectionFlagsOf(uc);
+  if (flags) {
     for (const key of ['elite_fallback_pick', 'elite_fallback_near_miss', 'elite_coverage_pick', 'label', 'reason']) {
       const v = flags[key];
       if (v != null && String(v).trim()) return String(v).trim();

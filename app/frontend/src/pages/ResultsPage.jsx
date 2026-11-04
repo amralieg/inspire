@@ -33,6 +33,7 @@ import {
   Star,
   ShieldAlert,
   Boxes,
+  AlertTriangle,
 } from 'lucide-react';
 import GenieMarkdownPreview from '../components/GenieMarkdownPreview';
 import GlassCard from '../components/GlassCard';
@@ -73,7 +74,11 @@ import {
   hasShippedGenieCode,
   sponsorFromUc,
   trackingIdOf,
+  compareMeetsQualityBarFirst,
+  qualityBarCountsOf,
+  qualityBarFilterMatches,
 } from '../lib/useCaseFields';
+import { runOutcomeOf } from '../lib/runOutcome';
 import { EXCEL_OLD_FORMAT, EXCEL_UNREADABLE, csvPreview, fileExtension, quickAccessFiles, sheetPreview, visibleArtifactFiles } from '../lib/artifactFiles';
 import FilePreview from '../components/FilePreview';
 import { generationFolder, workspaceNotebookUrl, workspaceWebUiHashPath } from '../lib/workspaceLinks';
@@ -164,6 +169,7 @@ export default function ResultsPage({
   const [filterSponsor, setFilterSponsor] = useState('all');
   /** `all` | `yes` | `no` — filter by presence of Genie instruction on the use case. */
   const [filterHasGenie, setFilterHasGenie] = useState('all');
+  const [filterQualityBar, setFilterQualityBar] = useState('all');
   const [filterMvp, setFilterMvp] = useState('all');
   const [filterStrategy, setFilterStrategy] = useState('all');
   const [filterBizPriority, setFilterBizPriority] = useState('all');
@@ -482,6 +488,8 @@ export default function ResultsPage({
 
   // ── Extract use cases (defensive — guard against non-array shapes) ──
   const allUseCases = useMemo(() => buildUseCaseList(results, usecases), [results, usecases]);
+  const qualityBarCounts = useMemo(() => qualityBarCountsOf(allUseCases), [allUseCases]);
+  const runOutcome = runOutcomeOf(results, qualityBarCounts);
   const bizPriorities = useMemo(() => knownPriorities(results), [results]);
   const strategy = useMemo(() => strategyContext(results), [results]);
 
@@ -512,6 +520,7 @@ export default function ResultsPage({
         if (filterBizPriority !== 'all' && !priorityMatches(uc._v130?.priorityText, bizPriorities).includes(filterBizPriority)) return false;
         if (filterHasGenie === 'yes' && !hasGenieInstruction(uc)) return false;
         if (filterHasGenie === 'no' && hasGenieInstruction(uc)) return false;
+        if (!qualityBarFilterMatches(filterQualityBar, uc)) return false;
         if (!mvpFilterMatches(filterMvp, mvpStateOf(uc))) return false;
         if (searchQuery) {
           const q = searchQuery.toLowerCase();
@@ -529,6 +538,8 @@ export default function ResultsPage({
         return true;
       })
       .sort((a, b) => {
+        const meetsFirst = compareMeetsQualityBarFirst(a, b);
+        if (meetsFirst !== 0) return meetsFirst;
         const starred = compareBestOfBestFirst(a._v130, b._v130);
         if (starred !== 0) return starred;
         const sa = inspireScoreFromUc(a);
@@ -700,6 +711,7 @@ export default function ResultsPage({
     filterStrategy !== 'all' ||
     filterBizPriority !== 'all' ||
     filterHasGenie !== 'all' ||
+    filterQualityBar !== 'all' ||
     filterMvp !== 'all' ||
     showBestOfBestOnly;
 
@@ -710,6 +722,7 @@ export default function ResultsPage({
     setFilterBeneficiary('all'); setFilterSponsor('all');
     setFilterStrategy('all'); setFilterBizPriority('all');
     setFilterHasGenie('all');
+    setFilterQualityBar('all');
     setFilterMvp('all');
     setShowBestOfBestOnly(false);
   };
@@ -1289,16 +1302,25 @@ export default function ResultsPage({
             <div className="bg-surface border border-border/70 rounded-xl overflow-hidden mb-4 shadow-elevated">
               <div className="px-4 py-3 sm:px-5">
                 <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-success/10 ring-1 ring-inset ring-success/20">
-                      <CheckCircle2 size={14} className="text-success-fg" />
+                  <div className="flex items-center gap-3" data-testid="execution-complete" data-status={runOutcome.warning ? 'warning' : 'success'}>
+                    <div className={`flex h-8 w-8 items-center justify-center rounded-lg ring-1 ring-inset ${runOutcome.warning ? 'bg-warning/10 ring-warning/20' : 'bg-success/10 ring-success/20'}`}>
+                      {runOutcome.warning
+                        ? <AlertTriangle size={14} className="text-warning-fg" />
+                        : <CheckCircle2 size={14} className="text-success-fg" />}
                     </div>
                     <div>
-                      <h3 className="text-sm font-bold text-text-primary tracking-tight">Execution Complete</h3>
+                      <h3 className="text-sm font-bold text-text-primary tracking-tight">
+                        {runOutcome.warning ? 'Execution Complete, with a warning' : 'Execution Complete'}
+                      </h3>
                       <p className="text-[11px] text-text-secondary">Every step of the run finished.</p>
-                      {(results.selection_outcome || results.elite_outcome) && (
-                        <p className="text-[10px] text-warning-fg mt-0.5">
-                          {displayCleanText(String(results.selection_outcome || results.elite_outcome))}
+                      {qualityBarCounts.found > 0 && (
+                        <p className="text-[11px] text-text-secondary mt-0.5" data-testid="quality-bar-counts">
+                          {qualityBarCounts.found} found, {qualityBarCounts.meets} {qualityBarCounts.meets === 1 ? 'meets' : 'meet'} your quality bar
+                        </p>
+                      )}
+                      {(runOutcome.barMessage || runOutcome.notes.length > 0) && (
+                        <p className="text-[10px] text-warning-fg mt-0.5" data-testid="execution-outcome">
+                          {displayCleanText(runOutcome.barMessage || runOutcome.notes[0])}
                         </p>
                       )}
                     </div>
@@ -2083,6 +2105,20 @@ export default function ResultsPage({
                     <option value="no">Has Genie: No</option>
                   </select>
 
+                  {qualityBarCounts.below > 0 && (
+                    <select
+                      data-testid="quality-bar-filter"
+                      value={filterQualityBar}
+                      onChange={(e) => setFilterQualityBar(e.target.value)}
+                      title="Filter by whether the use case meets your quality bar"
+                      className="px-2 py-1.5 text-[11px] border border-border rounded-lg bg-bg text-text-primary focus:outline-none focus:border-db-red/30 transition-smooth min-w-[10.5rem]"
+                    >
+                      <option value="all">Quality bar: Any ({qualityBarCounts.found})</option>
+                      <option value="meets">Meets your quality bar ({qualityBarCounts.meets})</option>
+                      <option value="below">Below your bar ({qualityBarCounts.below})</option>
+                    </select>
+                  )}
+
                   <select
                     value={filterMvp}
                     onChange={(e) => setFilterMvp(e.target.value)}
@@ -2165,6 +2201,12 @@ export default function ResultsPage({
                       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-db-red-50 text-db-red-fg text-[10px] font-medium border border-db-red/20">
                         Q: {filterQuality}
                         <button onClick={() => setFilterQuality('all')} className="hover:text-db-red-fg">&times;</button>
+                      </span>
+                    )}
+                    {filterQualityBar !== 'all' && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-db-red-50 text-db-red-fg text-[10px] font-medium border border-db-red/20">
+                        {filterQualityBar === 'meets' ? 'Meets your quality bar' : 'Below your bar'}
+                        <button type="button" onClick={() => setFilterQualityBar('all')} className="hover:text-db-red-fg">&times;</button>
                       </span>
                     )}
                     {filterHasGenie !== 'all' && (

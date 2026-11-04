@@ -84,7 +84,7 @@ export function buildUseCaseList(results, usecases) {
         copyScore('priority_score');
         copyScore('value_score');
         copyScore('feasibility_score');
-        for (const field of ['quality', 'quality_mode', 'elite_status', 'elite_score', 'elite_assessment', 'selection_flags', 'selection_drop_reason']) {
+        for (const field of ['quality', 'quality_mode', 'elite_status', 'elite_score', 'elite_assessment', 'selection_flags', 'selection_drop_reason', 'meets_quality_bar', 'below_bar_reason']) {
           if (row[field] != null && row[field] !== '' && (uc[field] == null || uc[field] === '')) uc[field] = row[field];
         }
         copyV130TrackingFields(uc, row);

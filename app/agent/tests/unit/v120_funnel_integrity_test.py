@@ -438,7 +438,8 @@ def test_bob_unscored_use_case_is_excluded(agent_ns):
     obj._score_best_of_best = fake_bob
     ucs = [_scored(f"U{i:02d}") for i in range(22)]
     final, _ = obj._select_scored_use_cases(ucs, [], {})
-    assert "U00" not in {u["No"] for u in final} and len(final) == 21
+    assert "U00" not in {u["No"] for u in final if u["meets_quality_bar"] == "Y"} and len(final) == 22
+    assert [u["No"] for u in final if u["meets_quality_bar"] == "N"] == ["U00"]
     assert any(e["stage"] == "bob_scoring" and e["drops"] == {"unscored": 1} for e in obj.funnel_ledger)
 
 
@@ -459,7 +460,8 @@ def test_K5_balanced_small_portfolio_is_not_topped_up(agent_ns):
     obj = make_inspire(agent_ns)
     ucs = [_scored("U1", quality="High"), _scored("U2", quality="Medium"), _scored("U3", quality="Low", inspire=9.9)]
     final, _ = obj._select_scored_use_cases(ucs, [], {})
-    assert [u["No"] for u in final] == ["U1", "U2"]
+    assert [(u["No"], u["meets_quality_bar"]) for u in final] == [("U1", "Y"), ("U2", "Y"), ("U3", "N")]
+    assert final[2]["fallback_reason"] == "scored Low, below the Good bar"
 
 
 def test_K5_recovery_and_topup_code_removed_from_run():
@@ -487,7 +489,7 @@ def test_K5_high_zero_at_bar_fallback_ships_medium_and_records_outcome(agent_ns)
     assert out["fallback_count"] == 12 and out["mode"] == "High"
     step = [s for s in obj.atomic_writer.steps if (s.get("result_json") or {}).get("fallback")][-1]
     assert step["status"] == "ended_warning"
-    assert any(e["stage"] == "zero_bar_fallback" and e["out"] == 12 for e in obj.funnel_ledger)
+    assert any(e["stage"] == "below_bar_kept" and e["out"] == 12 for e in obj.funnel_ledger)
     obj._publish_funnel_ledger()
     assert obj.final_inspire_results_json["selection_outcome"]["fallback"] is True
     assert obj.final_inspire_results_json["selection_outcome"]["accepted"] == 0
@@ -512,11 +514,12 @@ def test_no_fallback_when_at_least_one_use_case_clears_the_bar(agent_ns):
         passing = _scored("P", quality=pass_q, inspire=8.0)
         weak = [_scored("W1", quality="Low", inspire=9.9), _scored("W2", quality="Very Low", inspire=9.8)]
         final, rejected = obj._select_scored_use_cases([passing] + weak, [], {})
-        assert [u["No"] for u in final] == ["P"], mode
-        assert all(u.get("elite_status") != "FALLBACK_BELOW_BAR" for u in final), mode
-        assert {u["No"] for u in rejected} == {"W1", "W2"}, mode
+        assert [(u["No"], u["meets_quality_bar"]) for u in final] == [("P", "Y"), ("W1", "N"), ("W2", "N")], mode
+        assert final[0].get("elite_status") != "FALLBACK_BELOW_BAR", mode
+        assert rejected == [], mode
         assert not any(e["stage"] == "zero_bar_fallback" for e in obj.funnel_ledger), mode
         assert getattr(obj, "fallback_outcome", None) is None, mode
+        assert obj.quality_bar_outcome["meets"] == 1 and obj._quality_bar_warning() == "", mode
 
 
 def test_coverage_pick_prevents_the_zero_bar_fallback(agent_ns):
@@ -527,10 +530,10 @@ def test_coverage_pick_prevents_the_zero_bar_fallback(agent_ns):
                    selection_drop_reason="quality 'Medium' is below the High bar"),
            _scored("O2", quality="Low", inspire=5.0, domain="Ops")]
     final, _ = obj._select_scored_use_cases(ucs, [], {})
-    assert [(u["No"], u["elite_status"]) for u in final] == [("O1", "DOMAIN_COVERAGE_PICK")]
-    assert all(u.get("elite_status") != "FALLBACK_BELOW_BAR" for u in final)
+    assert [(u["No"], u["elite_status"]) for u in final] == [("O1", "DOMAIN_COVERAGE_PICK"), ("O2", "FALLBACK_BELOW_BAR")]
+    assert [u["meets_quality_bar"] for u in final] == ["N", "N"]
     assert not any(e["stage"] == "zero_bar_fallback" for e in obj.funnel_ledger)
-    assert getattr(obj, "fallback_outcome", None) is None
+    assert obj.fallback_outcome["fallback_count"] == 2
 
 
 def test_fallback_picks_keep_their_real_scores_and_invent_nothing(agent_ns):
@@ -628,7 +631,7 @@ def test_selection_records_every_stage_in_order(agent_ns):
     obj._select_scored_use_cases(ucs, [], {})
     stages = [e["stage"] for e in obj.funnel_ledger]
     assert stages == ["combined_scoring", "quality_filter", "bob_scoring", "bob_hard_veto",
-                      "canonical_title_dedup", "domain_coverage_picks", "final_guard"]
+                      "canonical_title_dedup", "domain_coverage_picks", "final_guard", "below_bar_kept"]
     by = {e["stage"]: e for e in obj.funnel_ledger}
     assert by["quality_filter"]["drops"] == {"Low": 1}
     assert by["bob_hard_veto"]["drops"] == {"D9": 1}
