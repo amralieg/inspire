@@ -17,8 +17,8 @@ const ACTION_ICONS = { stop: Square, start: Play, unpublish: EyeOff, publish: Ey
 const ASSET_ICONS = { build: Hammer, job: Briefcase, dashboard: LayoutDashboard, genie_space: GenieLogo, app: AppWindow, alert: Bell, notebook: NotebookPen };
 const TONE_CHIP = { success: 'success', error: 'error', warning: 'warning', busy: 'red', idle: 'idle' };
 const BUTTON = 'inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium disabled:opacity-50';
-const FIT_BUTTON = 'flex w-full min-h-7 min-w-0 items-center justify-center gap-1 px-2 py-1 rounded-lg text-xs font-medium leading-tight text-center disabled:opacity-50';
-const fitted = (fit, text) => (fit ? <span className="min-w-0 break-words">{text}</span> : text);
+const FIT_BUTTON = 'flex w-full h-8 min-w-0 overflow-hidden items-center justify-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-medium leading-[13px] text-center disabled:opacity-50';
+const fitted = (fit, text) => (fit ? <span className="min-w-0 break-words line-clamp-2">{text}</span> : text);
 
 export function ConfirmDialog({ title, confirmLabel, useCaseId, busy, onCancel, onConfirm, children }) {
   const [typed, setTyped] = useState('');

@@ -186,8 +186,8 @@ def test_the_lift_readout_needs_the_action_its_suggested_choice_reads_and_a_keep
     (SEGMENT, "segment_profile", "x", "goes in one of"),
     (SEGMENT, "size_value_treemap", "scatter", "goes in one of: projection"),
     (SEGMENT, "migration_flow", "treemap", "goes in one of: size_value_treemap"),
-    (RECS, "affinity_heatmap", "sankey", "goes in one of: no section"),
-    (LIFT, "response_curves", "radar", "goes in one of: no section"),
+    (RECS, "affinity_heatmap", "sankey", "a recommendation_desk page has no section that holds one: remove it"),
+    (LIFT, "response_curves", "radar", "a lift_readout page has no section that holds one: remove it"),
 ])
 def test_each_chart_type_goes_only_in_a_section_that_draws_it(page, section, kind, fragment):
     if kind == "x":
