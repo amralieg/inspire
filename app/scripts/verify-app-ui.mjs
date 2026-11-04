@@ -16,7 +16,7 @@ import { fileURLToPath } from 'url';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const distJs = path.join(root, 'frontend/dist/assets');
 const { INSPIRE_AGENT_VERSION } = createRequire(import.meta.url)(path.join(root, 'backend/lib/inspireJobParams.js'));
-const V130_UI_STRINGS = ['Discovery Type', 'Strategy and organization', 'Strategy coverage', 'Hidden by feedback', 'Your feedback'];
+const V130_UI_STRINGS = ['Discovery Type', 'Strategy and organization', 'Not tied to your strategy', 'Hidden by feedback', 'Your feedback'];
 
 function checkLocalBundle() {
   if (!fs.existsSync(distJs)) {

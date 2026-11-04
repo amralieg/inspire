@@ -51,7 +51,9 @@ import {
   latestFeedbackMap,
   matchesStrategyFilter,
   priorityMatches,
+  strategyContext,
   strategyFilterOptions,
+  STRATEGY_NOT_TIED,
 } from '../lib/v130UseCase';
 import {
   FAVORITES_STORAGE_KEY,
@@ -479,6 +481,7 @@ export default function ResultsPage({
   // ── Extract use cases (defensive — guard against non-array shapes) ──
   const allUseCases = useMemo(() => buildUseCaseList(results, usecases), [results, usecases]);
   const bizPriorities = useMemo(() => knownPriorities(results), [results]);
+  const strategy = useMemo(() => strategyContext(results), [results]);
 
   // ── Resolve table from registry ──
   const tableRegistry = results?.table_registry;
@@ -616,8 +619,8 @@ export default function ResultsPage({
 
   const v130Session = !!(results && (results.discovery_type || results.strategy_coverage));
   const strategyFilter = strategyFilterOptions(allUseCases.map((uc) => uc?._v130), results?.strategy_coverage?.entries);
-  const strategyOptions = strategyFilter.notAligned > 0
-    ? [...strategyFilter.options, { value: NOT_ALIGNED_FILTER, label: 'Not aligned', count: strategyFilter.notAligned, depth: 0 }]
+  const strategyOptions = strategyFilter.notAligned > 0 && strategy.hasEntries
+    ? [...strategyFilter.options, { value: NOT_ALIGNED_FILTER, label: STRATEGY_NOT_TIED, count: strategyFilter.notAligned, depth: 0 }]
     : strategyFilter.options;
   const bizPriorityCounts = {};
   let bizPriorityUseCases = 0;
@@ -933,6 +936,7 @@ export default function ResultsPage({
       showcase,
       allNotebookFiles,
       knownPriorities: bizPriorities,
+      strategy,
       foundationsById,
       feedbackAvailable: feedbackState.available,
       feedbackBusy: !!key && feedbackBusyKey === key,
@@ -1711,8 +1715,6 @@ export default function ResultsPage({
                 feedback={feedbackState}
                 describe={describeUseCase}
                 onOpenUseCase={openUseCase}
-                onSelectPath={(path) => setFilterStrategy(path)}
-                onSelectNotAligned={() => setFilterStrategy(NOT_ALIGNED_FILTER)}
               />
             </>
           )}
@@ -1866,10 +1868,10 @@ export default function ResultsPage({
                 )}
               </div>
 
-              {strategyFilter.withData > 0 && (
+              {strategyOptions.length > 0 && (
                 <SidebarFilterPanel
                   title="Strategy"
-                  subtitle={`${strategyFilter.withData - strategyFilter.notAligned} aligned \u00b7 ${strategyFilter.notAligned} not aligned`}
+                  subtitle={`${strategyFilter.withData - strategyFilter.notAligned} tied to a goal \u00b7 ${strategyFilter.notAligned} not tied`}
                   icon={Compass}
                   open={strategyPanelOpen}
                   onToggle={() => setStrategyPanelOpen((o) => !o)}

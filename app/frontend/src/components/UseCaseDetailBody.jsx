@@ -62,6 +62,7 @@ export default function UseCaseDetailBody({
   allNotebookFiles = [],
   v130 = null,
   knownPriorities: priorityList = [],
+  strategy = null,
   foundationsById,
   feedbackAvailable = null,
   feedbackCurrent,
@@ -209,14 +210,14 @@ export default function UseCaseDetailBody({
       )}
 
       <BestOfBestDetail info={v130} />
-      <UseCaseStrategyDetail info={v130} knownPriorities={priorityList} foundationsById={foundationsById} />
+      <UseCaseStrategyDetail info={v130} knownPriorities={priorityList} foundationsById={foundationsById} strategy={strategy} />
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-[11px]">
         {[
           { label: 'Beneficiary', val: beneficiary },
           { label: 'Sponsor', val: sponsor },
           { label: 'Quality', val: quality },
-          { label: 'Priority Alignment', val: alignment },
+          ...(v130?.hasStrategyData ? [] : [{ label: 'Priority Alignment', val: alignment }]),
           {
             label: 'Tables',
             val: String(tablesInvolved || '')

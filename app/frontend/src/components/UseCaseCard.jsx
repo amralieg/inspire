@@ -103,7 +103,7 @@ export default function UseCaseCard({
               <InspireScoreBadge score={inspireScoreNum} />
             </div>
             <div className="flex items-center gap-2 flex-wrap mt-2">
-              <StrategyChip info={v130} />
+              <StrategyChip info={v130} strategy={detailProps.strategy} />
               <FeedbackChip status={feedbackCurrent?.status || v130?.feedbackStatus} />
               {showPriorityPill && (
                 <span className={`text-[10px] px-2 py-0.5 rounded-full border font-semibold ${priorityPillClass(priority)}`}>

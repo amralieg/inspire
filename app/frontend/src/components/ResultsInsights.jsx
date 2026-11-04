@@ -1,16 +1,14 @@
 import { useState } from 'react';
-import { ChevronRight, Compass, Eye, Layers, Lock, MessageSquareText } from 'lucide-react';
+import { ChevronRight, Eye, Layers, Lock, MessageSquareText } from 'lucide-react';
 import {
-  FEEDBACK_EMPTY_TEXT, FEEDBACK_OFF_TEXT, KPI_TRACKING_NOT_MEASURED, STRATEGY_PATH_SEPARATOR, dataAccessSummary, excludedFeedbackText, feedbackLabel,
+  FEEDBACK_EMPTY_TEXT, FEEDBACK_OFF_TEXT, KPI_TRACKING_NOT_MEASURED, dataAccessSummary, excludedFeedbackText, feedbackLabel,
   formatBaseline, trackedKpiNote, trackedKpiValue,
 } from '../lib/v130UseCase';
 import { scoreText } from '../lib/reviewFigures';
 import { plural } from '../lib/plural';
 import DataGrid from './DataGrid';
-import { placeholderWords } from '../lib/placeholderWords';
 
 const LIST_PREVIEW = 5;
-const COVERAGE_PREVIEW = 8;
 
 function ShowAll({ total, shown, open, onToggle, noun = '' }) {
   if (total <= shown) return null;
@@ -171,83 +169,7 @@ export function DataAccessBadge({ results }) {
   );
 }
 
-const showsCoverage = (coverage) => !!coverage && Array.isArray(coverage.entries);
 const showsFoundations = (foundations) => Array.isArray(foundations);
-
-export function StrategyCoveragePanel({ coverage, onSelectPath, onSelectNotAligned }) {
-  const entries = usePreview(coverage?.entries, COVERAGE_PREVIEW);
-  const shownPriorities = usePreview(coverage?.priorities, LIST_PREVIEW);
-  if (!showsCoverage(coverage)) return null;
-  const gaps = Array.isArray(coverage.gaps) ? coverage.gaps : [];
-  const gapIds = new Set(gaps.map((g) => g.id));
-  const priorities = Array.isArray(coverage.priorities) ? coverage.priorities : [];
-  const priorityGaps = new Set(coverage.priority_gaps || []);
-  const summary = `${coverage.aligned ?? 0} of ${coverage.use_cases ?? 0} use cases aligned · ${plural(gaps.length, 'gap')}` +
-    (priorities.length ? ` · ${priorities.length - priorityGaps.size} of ${priorities.length} priorities covered` : '');
-  return (
-    <InsightCard icon={Compass} title="Strategy coverage" summary={summary}>
-      {coverage.source !== 'customer' && (
-        <p className="text-[11px] text-text-secondary">No strategy was given, so Inspire used its built-in goals.</p>
-      )}
-      <ul className="space-y-1" aria-label="Strategy entries">
-        {entries.shown.map((e) => {
-          const parts = String(e.path || '').split(STRATEGY_PATH_SEPARATOR);
-          const isGap = gapIds.has(e.id);
-          const count = Number(e.use_cases) || 0;
-          return (
-            <li key={e.id} style={{ paddingLeft: `${(parts.length - 1) * 0.9}rem` }} className="flex items-center gap-2">
-              <button
-                type="button"
-                disabled={!count || !onSelectPath}
-                onClick={() => onSelectPath?.(e.path)}
-                title={e.path}
-                className="min-w-0 flex-1 truncate text-left text-[11px] text-text-primary enabled:hover:text-db-red-fg disabled:cursor-default"
-              >
-                {parts[parts.length - 1]}
-                {e.level && <span className="ml-1 text-[9px] text-text-tertiary"> {e.level}</span>}
-              </button>
-              {isGap && (
-                <span
-                  className="shrink-0 rounded border border-warning/35 bg-warning-bg px-1.5 py-0.5 text-[9px] font-semibold text-warning-fg"
-                  title={gaps.find((g) => g.id === e.id)?.reason || ''}
-                >
-                  Gap
-                </span>
-              )}
-              <span className={`shrink-0 font-mono text-[10px] ${count ? 'text-text-secondary' : 'text-text-tertiary'}`}>{count}</span>
-            </li>
-          );
-        })}
-      </ul>
-      {entries.toggle}
-      {gaps.length > 0 && (
-        <p className="text-[11px] text-text-secondary">{gaps[0].reason}. A gap is never filled with a made-up use case.</p>
-      )}
-      {(coverage.not_aligned ?? 0) > 0 && (
-        <button type="button" onClick={onSelectNotAligned} className="text-[11px] font-medium text-db-red-fg hover:underline">
-          {plural(coverage.not_aligned, 'use case')} not aligned to any entry
-        </button>
-      )}
-      {priorities.length > 0 && (
-        <div>
-          <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-text-tertiary mb-1">Business priorities</p>
-          <ul className="space-y-1" aria-label="Business priorities">
-            {shownPriorities.shown.map((p) => (
-              <li key={p.priority} className="flex items-center gap-2 text-[11px]">
-                <span className="min-w-0 flex-1 truncate text-text-primary" title={placeholderWords(p.priority)}>{placeholderWords(p.priority)}</span>
-                {priorityGaps.has(p.priority) && (
-                  <span className="shrink-0 rounded border border-warning/35 bg-warning-bg px-1.5 py-0.5 text-[9px] font-semibold text-warning-fg">Gap</span>
-                )}
-                <span className="shrink-0 font-mono text-[10px] text-text-secondary">{p.use_cases}</span>
-              </li>
-            ))}
-          </ul>
-          {shownPriorities.toggle}
-        </div>
-      )}
-    </InsightCard>
-  );
-}
 
 function UseCaseLink({ entry, onOpen }) {
   if (!entry.useCase || !onOpen) return <span className="min-w-0 break-words text-text-primary">{entry.name}</span>;
@@ -453,29 +375,16 @@ export function FeedbackPanel({ results, feedback }) {
   );
 }
 
-export function InsightsGrid({ results, feedback, describe, onOpenUseCase, onSelectPath, onSelectNotAligned }) {
-  const big = [
-    showsCoverage(results?.strategy_coverage) && (
-      <StrategyCoveragePanel key="strategy" coverage={results.strategy_coverage} onSelectPath={onSelectPath} onSelectNotAligned={onSelectNotAligned} />
-    ),
-    showsFoundations(results?.foundations) && (
-      <FoundationsPanel key="foundations" foundations={results.foundations} deliveryOrder={results.delivery_order} describe={describe} onOpenUseCase={onOpenUseCase} />
-    ),
-  ].filter(Boolean);
+export function InsightsGrid({ results, feedback, describe, onOpenUseCase }) {
+  const foundations = showsFoundations(results?.foundations) && (
+    <FoundationsPanel key="foundations" foundations={results.foundations} deliveryOrder={results.delivery_order} describe={describe} onOpenUseCase={onOpenUseCase} />
+  );
   const notes = feedbackParts(results, feedback).shows ? <FeedbackPanel key="feedback" results={results} feedback={feedback} /> : null;
-  const count = big.length + (notes ? 1 : 0);
+  const count = (foundations ? 1 : 0) + (notes ? 1 : 0);
   if (!count) return null;
-  if (big.length === 2) {
-    return (
-      <div data-insights-grid={count} data-insights-columns="2" className="grid grid-cols-1 md:grid-cols-2 items-start gap-3 mb-4">
-        <div className="flex min-w-0 flex-col gap-3">{big[0]}{notes}</div>
-        <div className="flex min-w-0 flex-col gap-3">{big[1]}</div>
-      </div>
-    );
-  }
   return (
     <div data-insights-grid={count} data-insights-columns="1" className="flex min-w-0 flex-col gap-3 mb-4">
-      {big}
+      {foundations}
       {notes}
     </div>
   );

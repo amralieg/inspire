@@ -240,44 +240,30 @@ const blankBelow = (page) => page.locator('[data-insight]').evaluateAll((els) =>
   return { title: el.dataset.insight, blank: Math.round(el.getBoundingClientRect().bottom - last) };
 }));
 
-const columnsOf = (page) => page.locator('[data-insights-grid] > div').evaluateAll((els) => els.map((el) => {
-  const r = el.getBoundingClientRect();
-  return { left: Math.round(r.left), right: Math.round(r.right), top: Math.round(r.top), cards: [...el.children].map((c) => c.dataset.insight) };
-}));
-
-test('the insight cards sit in two columns that fill the width, no card holds a tall empty area, and Data foundations opens a use case', async () => {
+test('the insight cards stack at full width with no Strategy coverage card, no card holds a tall empty area, and Data foundations opens a use case', async () => {
   const ui = await openUi('results', REVIEW_STATE);
   const { page } = ui;
   try {
     await ready(page);
     const grid = page.locator('[data-insights-grid]');
     await grid.waitFor();
-    assert.equal(await grid.getAttribute('data-insights-grid'), '3');
-    for (const width of [1440, 1024, 800]) {
+    assert.equal(await grid.getAttribute('data-insights-grid'), '2');
+    assert.equal(await grid.getAttribute('data-insights-columns'), '1');
+    assert.equal(await insight(page, 'Strategy coverage').count(), 0, 'no Strategy coverage card');
+    for (const width of [1440, 1024, 700]) {
       await page.setViewportSize({ width, height: 1000 });
       await settled(page, '[data-insights-grid]');
-      const cols = await columnsOf(page);
-      const edge = await grid.evaluate((el) => { const r = el.getBoundingClientRect(); return { left: Math.round(r.left), right: Math.round(r.right) }; });
-      assert.deepEqual(cols.map((c) => c.cards), [['Strategy coverage', 'Feedback and value'], ['Data foundations']],
-        `${width}: Strategy coverage and the feedback note on the left, Data foundations on the right`);
-      assert.equal(cols[0].top, cols[1].top, `${width}: the columns start together`);
-      assert.ok(Math.abs(cols[0].left - edge.left) <= 1 && Math.abs(cols[1].right - edge.right) <= 1, `${width}: the columns reach both edges`);
+      const order = await page.locator('[data-insight]').evaluateAll((els) => els.map((el) => el.dataset.insight));
+      assert.deepEqual(order, ['Data foundations', 'Feedback and value'], `${width}: Data foundations first, then the feedback note`);
+      const widths = await page.locator('[data-insight]').evaluateAll((els) => els.map((el) => Math.round(el.getBoundingClientRect().width)));
+      assert.equal(new Set(widths).size, 1, `${width}: each card takes the whole width`);
       for (const b of await blankBelow(page)) assert.ok(b.blank <= 24, `${width}: ${b.title} ends where its content ends (${b.blank}px blank)`);
     }
-    await page.setViewportSize({ width: 700, height: 1000 });
-    await settled(page, '[data-insights-grid]');
-    const narrow = await page.locator('[data-insight]').evaluateAll((els) => els.map((el) => Math.round(el.getBoundingClientRect().left)));
-    assert.equal(new Set(narrow).size, 1, '700px: one column');
     await page.setViewportSize({ width: 1440, height: 1000 });
 
     const note = insight(page, 'Feedback and value');
     assert.equal(await note.locator('[data-feedback-note]').innerText(), V.FEEDBACK_OFF_TEXT);
     assert.doesNotMatch(await note.innerText(), /\bv?\d+\.\d+(\.\d+)?\b/, 'no version number');
-
-    const coverage = insight(page, 'Strategy coverage');
-    assert.equal(await coverage.getByRole('list', { name: 'Strategy entries' }).getByRole('listitem').count(), 8);
-    await coverage.getByRole('button', { name: 'Show all 10' }).click();
-    assert.equal(await coverage.getByRole('list', { name: 'Strategy entries' }).getByRole('listitem').count(), 10);
 
     const foundations = insight(page, 'Data foundations');
     const f1 = foundations.getByRole('list', { name: 'Use cases on Orders and customers' });
@@ -299,7 +285,7 @@ test('the insight cards sit in two columns that fill the width, no card holds a 
     for (const dark of [false, true]) {
       await setDark(page, dark);
       const measured = await lowContrast(page, ['[data-insights-grid]']);
-      assert.ok(measured.checked >= 60, `${dark ? 'dark' : 'light'}: measured ${measured.checked}`);
+      assert.ok(measured.checked >= 40, `${dark ? 'dark' : 'light'}: measured ${measured.checked}`);
       assert.deepEqual(measured.low, [], `${dark ? 'dark' : 'light'} insight cards`);
     }
     assert.deepEqual(ui.pageErrors, []);
