@@ -59,7 +59,18 @@ def error_text(error, secrets=(), known: str = "") -> str:
     if text is None:
         text = error.args[0] if own and isinstance(error, KeyError) and len(error.args) == 1 else error
     text = str(text).strip() or type(error).__name__
-    return plain_error(text if own else inspire_redact_text(text, set(), known, secrets))
+    return text if own else inspire_redact_text(text, set(), known, secrets)
+
+
+PLAIN_KEYS = frozenset({"error", "errors", "message", "reason", "problem", "note", "backend_note"})
+
+
+def plain_answer(answer, plain: bool = False):
+    if isinstance(answer, dict):
+        return {key: plain_answer(value, plain or key in PLAIN_KEYS) for key, value in answer.items()}
+    if isinstance(answer, list):
+        return [plain_answer(value, plain) for value in answer]
+    return plain_error(answer) if plain and isinstance(answer, str) else answer
 
 
 SPEC_VERSION = 2

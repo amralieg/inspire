@@ -1765,6 +1765,10 @@ class Shell:
         return result, at
 
     def handle(self, method: str, path: str, query: dict, headers: dict, body: bytes) -> tuple:
+        status, answer = self.answer(method, path, query, headers, body)
+        return status, shell_sql.plain_answer(answer)
+
+    def answer(self, method: str, path: str, query: dict, headers: dict, body: bytes) -> tuple:
         try:
             if len(body or b"") > MAX_BODY:
                 raise HttpError(413, "the request is too large")

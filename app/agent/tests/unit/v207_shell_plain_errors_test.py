@@ -20,9 +20,16 @@ def _plain(text):
 
 
 def test_a_permission_error_reaches_the_page_as_a_plain_sentence_and_the_log_keeps_the_detail(capsys):
-    said = shell_sql.error_text(shell_db.QueryError(f"the SQL warehouse did not answer: {DENIED}"))
-    assert said == shell_sql.PLAIN_ERRORS["not_allowed"] and _plain(said)
+    detail = shell_sql.error_text(shell_db.QueryError(f"the SQL warehouse did not answer: {DENIED}"))
+    assert "INSUFFICIENT_PERMISSIONS" in detail, "the build check keeps the error class to repair the page"
+    answer = {"rows": [{"note": "SQLSTATE kept in data"}], "errors": {"impact": detail}, "error": detail, "facts": {"reason": "Fine words."},
+              "tiles": [{"problem": f"stake failed: {detail}"}]}
+    shown = shell_sql.plain_answer(answer)
+    assert shown["errors"]["impact"] == shown["error"] == shell_sql.PLAIN_ERRORS["not_allowed"] and _plain(shown["tiles"][0]["problem"])
+    assert shown["facts"]["reason"] == "Fine words." and shown["rows"] == [{"note": shell_sql.plain_error("SQLSTATE kept in data")}]
     assert "[PLAIN-ERROR FIRED] not_allowed" in capsys.readouterr().err
+    core = open(os.path.join(SERVER, "shell_core.py"), encoding="utf-8").read()
+    assert "        status, answer = self.answer(method, path, query, headers, body)\n        return status, shell_sql.plain_answer(answer)\n" in core
 
 
 def test_every_sql_error_class_has_a_plain_sentence_with_a_next_step():
@@ -45,6 +52,7 @@ def test_plain_words_the_shell_wrote_itself_pass_through_untouched():
                  "[KIND-DETECT FIRED] a log tag is not an error class", "the list changed; reload it and try again", ""):
         assert shell_sql.plain_error(text) == text
     assert shell_sql.error_text(ValueError("")) == "ValueError"
+    assert shell_sql.plain_answer({"error": "a page named x does not exist"}) == {"error": "a page named x does not exist"}
 
 
 def test_the_run_errors_live_once_and_the_run_page_codes_still_read_the_raw_message():
