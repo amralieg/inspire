@@ -355,3 +355,44 @@ def test_a_refused_write_names_who_lacks_the_privilege():
                                                   "(PERMISSION_DENIED: no MODIFY). Ask the owner of that table for SELECT and MODIFY on it")
     shell.settings = {"auth": "sp"}
     assert shell.write_refused("`main`.`s`.`t`", "x").message.startswith("Nothing was saved: this App's service principal may not")
+
+
+class OutputsCatalog(Catalog):
+    def __init__(self, present, **kwargs):
+        super().__init__(**kwargs)
+        self.present = set(present)
+
+    def sql(self, statement, *args, **kwargs):
+        text = " ".join(str(statement).split())
+        if text.startswith("SELECT lower(table_name) AS t FROM system.information_schema.tables"):
+            self.statements.append(text)
+            asked = set((kwargs.get("args") or {}).values())
+            return _Rows([{"t": name} for name in sorted(self.present & asked)])
+        return super().sql(statement, *args, **kwargs)
+
+
+def test_the_app_service_principal_reads_every_output_table_the_run_wrote_and_nothing_that_does_not_exist(agent_ns, sdk_stub):
+    present = {"churn_out_closed", "churn_out_closes", "churn_out_acted", "churn_out__series"}
+    spark = OutputsCatalog(present)
+    inst, context, _calls, _imported = _deploy_inspire(agent_ns, list(NEW_APP))
+    inst.spark = spark
+    fields = inst._implement_deploy_app(context, "churn-desk", SHELL_FILES, READS, poll_s=0, page_tables=[RESULT])
+    assert fields["app_url"] == "https://churn-desk.example"
+    granted = {target for privilege, target in spark.held if privilege == "SELECT"}
+    assert {f"main.inspire.{name}" for name in present} <= granted, granted
+    assert not {t for t in granted if t.endswith(("_out_changes", "_out__geo", "_out__nodes", "_out_ai_summary"))}, \
+        "a companion table the run never wrote gets no grant"
+    needs = inst._implement_app_needs([{"id": "p1", "result_table": RESULT}], {})[0]
+    assert {"main.inspire.churn_out__series", "main.inspire.churn_out_closed"} <= needs, \
+        "the revoke side counts the same output tables the grant side reads"
+
+
+def test_a_per_user_app_never_asks_which_output_tables_exist(agent_ns, sdk_stub):
+    answers = [NEW_APP[0], NEW_APP[1], dict(NEW_APP[1], user_api_scopes=["sql:restricted-query", "genie"])] + NEW_APP[2:]
+    spark = OutputsCatalog({"churn_out_closed"})
+    inst, context, _calls, _imported = _deploy_inspire(agent_ns, list(answers))
+    inst.spark = spark
+    context["spec"] = dict(context["spec"], outputs=dict(context["spec"]["outputs"], app_access="user", app_options={"decisions": False}))
+    inst._implement_deploy_app(context, "churn-desk", SHELL_FILES, READS, poll_s=0, page_tables=[RESULT])
+    assert not any(s.startswith("SELECT lower(table_name)") for s in spark.statements)
+    assert not any(s.startswith("GRANT") for s in spark.statements)
