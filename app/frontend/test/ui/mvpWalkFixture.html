@@ -34,6 +34,8 @@
       };
       const render = () => {
         const [route, query] = location.hash.split('?');
+        for (const b of document.querySelectorAll('nav.side button')) b.toggleAttribute('aria-current', b.dataset.to === route);
+        for (const b of document.querySelectorAll('nav.side button[aria-current]')) b.setAttribute('aria-current', 'page');
         main.innerHTML = '';
         if (route === '#/detail') {
           main.insertAdjacentHTML('beforeend', '<h1>Detail</h1>');
@@ -42,10 +44,10 @@
           if (rec !== null) drawer(`record ${rec}`, false);
           return;
         }
-        main.insertAdjacentHTML('beforeend', '<h1>Overview</h1>');
+        main.insertAdjacentHTML('beforeend', '<h1>Overview</h1><nav class="views"><button type="button" role="tab">Today</button></nav>');
         table('overview', (n) => { seen('overview', n); location.hash = `#/detail?rec=${n}`; });
       };
-      for (const b of document.querySelectorAll('nav.side button')) b.addEventListener('click', () => { location.hash = b.dataset.to; });
+      for (const b of document.querySelectorAll('nav.side button')) b.addEventListener('click', () => setTimeout(() => { location.hash = b.dataset.to; }, 600));
       window.addEventListener('hashchange', render);
       if (!location.hash) location.hash = '#/overview';
       render();

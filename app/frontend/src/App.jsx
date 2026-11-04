@@ -10,7 +10,7 @@ import ResultsPage from './pages/ResultsPage';
 import ChoosePage from './pages/ChoosePage';
 import ImplementPage from './pages/ImplementPage';
 import RunPage from './pages/RunPage';
-import { REVIEW_LEFT_DEMO, REVIEW_TAB, RUN_LEFT_DEMO, RUN_TAB, hashLink, queryLink, runHashLink } from './lib/runPages';
+import { REVIEW_LEFT_DEMO, REVIEW_TAB, RUN_LEFT_DEMO, RUN_TAB, demoRunPages, hashLink, queryLink, runHashLink } from './lib/runPages';
 import ScrollProgressRing from './components/ScrollProgressRing';
 import ParticleField from './components/ParticleField';
 import ShowcaseBar from './components/ShowcaseBar';
@@ -345,6 +345,13 @@ export default function App() {
     nav('run');
   }, [nav, focusRun]);
 
+  const [demoRun, setDemoRun] = useState(null);
+  const clearDemoRun = useCallback(() => setDemoRun(null), []);
+  const demoMvps = useMemo(() => {
+    const ids = inDemo ? demoRunPages(demo.showcase).map((p) => p.id) : [];
+    return ids.length ? { ids, open: (id) => { setDemoRun(id); nav('run'); } } : null;
+  }, [inDemo, demo.showcase, nav]);
+
   const openRunLink = useCallback((id) => {
     setRunFocus(id);
     setRunLink((prev) => ({ n: prev.n + 1, notice: inDemo ? RUN_LEFT_DEMO : '' }));
@@ -539,6 +546,7 @@ export default function App() {
               focusId={implementFocus}
               onFocus={inDemo ? onDemoFocus : onImplementFocus}
               onOpenRun={inDemo ? null : openRun}
+              demoMvps={demoMvps}
               filter={inDemo ? null : implement.filter || null}
               onPickRun={pickBuildRun}
               onClearFilter={clearBuildFilter}
@@ -551,8 +559,8 @@ export default function App() {
             <RunPage
               key={demoScope || `workspace-${runLink.n}`}
               settings={inDemo ? pageSettings : settings}
-              focusId={inDemo ? null : runFocus}
-              onFocus={inDemo ? noop : focusRun}
+              focusId={inDemo ? demoRun : runFocus}
+              onFocus={inDemo ? clearDemoRun : focusRun}
               onFull={setRunFull}
               showcase={inDemo ? demo.showcase : null}
               notice={inDemo ? '' : runLink.notice}

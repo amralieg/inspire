@@ -6,10 +6,13 @@ import path from 'node:path';
 import { createRequire } from 'node:module';
 import { closeBrowser, openUi } from './uiSupport.mjs';
 import { apiWatch, tabButton, walkInspireDemo } from '../../../scripts/showcaseRecorder.mjs';
+import { DEMO_LAYOUTS, DEMO_RECORDED, KINDS_DEMO, USE_CASES } from '../../../scripts/kindsShowcase.mjs';
 import { SHOWCASE_BUTTON, SHOWCASE_NOTE } from '../../src/lib/showcase.js';
+import { RUN_BACK } from '../../src/lib/runPages.js';
 
 const require = createRequire(import.meta.url);
 const { SHOWCASE_DIR, SHOWCASE_HEADER, SHOWCASE_MISSING, loadShowcases, registerShowcaseRoutes } = require('../../../backend/lib/showcase.js');
+const { appShellFiles, appShellPayload, bundledAppShellText } = require('../../../backend/lib/appShell.js');
 
 test.after(closeBrowser);
 
@@ -24,18 +27,20 @@ const demoBar = (page) => page.getByRole('region', { name: 'Demo' });
 const cardsOf = (page) => page.getByRole('region', { name: 'Use case list' }).locator('[aria-expanded]');
 const useCasesOf = (bundle) => bundle.inspire[`GET /api/inspire/usecases?session_id=${bundle.session_id}`].body.usecases;
 
-async function openDemoApp(dir) {
+async function openDemoApp(dir, shellFiles = SHELL) {
   const ui = await openUi('app', {}, '', {
     mount: (app) => {
       app.get('/api/defaults', (_req, res) => res.json(DEFAULTS));
-      registerShowcaseRoutes(app, { dir, shellFiles: SHELL, log: { error: (m) => { throw new Error(m); } } });
+      registerShowcaseRoutes(app, { dir, shellFiles, log: { error: (m) => { throw new Error(m); } } });
     },
   });
   const missing = [];
   const outside = [];
+  const framed = [];
   ui.page.on('request', (r) => {
     const p = new URL(r.url()).pathname;
-    if (p.startsWith('/api/') && !['/api/showcase', '/api/defaults'].includes(p) && !r.headers()[SHOWCASE_HEADER]) outside.push(`${r.method()} ${p}`);
+    if (r.frame() !== ui.page.mainFrame()) framed.push(`${r.method()} ${p}`);
+    else if (p.startsWith('/api/') && !['/api/showcase', '/api/defaults'].includes(p) && !r.headers()[SHOWCASE_HEADER]) outside.push(`${r.method()} ${p}`);
   });
   ui.page.on('response', async (r) => {
     const p = new URL(r.url()).pathname;
@@ -43,16 +48,120 @@ async function openDemoApp(dir) {
     const body = await r.json().catch(() => ({}));
     if (body.error === SHOWCASE_MISSING) missing.push(`${r.request().headers()[SHOWCASE_HEADER]}: ${r.request().method()} ${p}${new URL(r.url()).search}`);
   });
-  return { ...ui, missing, outside };
+  return { ...ui, missing, outside, framed };
 }
 
-test('the App carries the recorded demos: NYC Taxi first, then TPC-DS Retail, each a results-only demo with its own use cases', () => {
-  assert.deepEqual(FILES, ['nyctaxi.json.gz', 'tpcds-retail.json.gz']);
-  assert.deepEqual(Object.keys(COMMITTED), ['nyctaxi', 'tpcds-retail']);
+const KINDS_FILE = `${KINDS_DEMO.id}.json.gz`;
+const REAL_SHELL = appShellFiles(appShellPayload(bundledAppShellText()));
+
+async function openKindsDemo() {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'inspire-kinds-'));
+  fs.copyFileSync(path.join(SHOWCASE_DIR, KINDS_FILE), path.join(dir, KINDS_FILE));
+  const ui = await openDemoApp(dir, REAL_SHELL);
+  const close = ui.close;
+  ui.close = async () => { await close(); fs.rmSync(dir, { recursive: true, force: true }); };
+  await ui.page.getByRole('button', { name: SHOWCASE_BUTTON, exact: true }).first().click();
+  await cardsOf(ui.page).first().waitFor({ timeout: 60000 });
+  return ui;
+}
+
+async function openMvpFromBuild(page, settle, u) {
+  await tabButton(page, 'implement').click();
+  const item = page.locator('nav[aria-label="Use cases"] section button').filter({ hasText: u.no });
+  await item.first().waitFor({ timeout: 60000 });
+  await item.first().click();
+  await settle();
+  const open = page.locator(`[data-demo-open-mvp="${u.no}"]`);
+  await open.waitFor();
+  assert.equal((await open.innerText()).trim(), 'Open MVP');
+  await open.click();
+  await page.locator(`[data-run-full] iframe[data-run-frame="${u.no}"]`).waitFor();
+  const frame = page.frameLocator(`[data-run-full] iframe[data-run-frame="${u.no}"]`);
+  await frame.locator('main h1').first().waitFor({ timeout: 60000 });
+  return frame;
+}
+
+const backToRun = async (page, settle) => {
+  await page.locator('[data-run-control-toggle]').click();
+  await page.getByRole('button', { name: RUN_BACK, exact: true }).click();
+  await page.locator('[data-run-page-root]').waitFor();
+  await settle();
+};
+
+test('the App carries the recorded demos: the kinds demo first with an MVP App for each use case, then NYC Taxi and TPC-DS Retail, results-only', () => {
+  assert.deepEqual(FILES, [KINDS_FILE, 'nyctaxi.json.gz', 'tpcds-retail.json.gz']);
+  assert.deepEqual(Object.keys(COMMITTED), [KINDS_DEMO.id, 'nyctaxi', 'tpcds-retail']);
   for (const bundle of Object.values(COMMITTED)) {
     assert.ok(useCasesOf(bundle).length > 0, `${bundle.id} has use cases`);
     assert.ok(useCasesOf(bundle).every((u) => String(u.session_id) === bundle.session_id), `${bundle.id} has the use cases of its own run alone`);
-    assert.deepEqual(bundle.mvps, {}, `${bundle.id} is a results-only demo`);
+    if (bundle.id === KINDS_DEMO.id) assert.deepEqual(Object.keys(bundle.mvps).sort(), useCasesOf(bundle).map((u) => u.id).sort(), 'every use case of the kinds demo has its MVP App');
+    else assert.deepEqual(bundle.mvps, {}, `${bundle.id} is a results-only demo`);
+  }
+});
+
+test('the kinds demo names every use case in the kinds style on Review, with its kind chip and the technique in the name', async () => {
+  const ui = await openKindsDemo();
+  try {
+    const bundle = COMMITTED[KINDS_DEMO.id];
+    assert.equal(await cardsOf(ui.page).count(), USE_CASES.length);
+    const text = await ui.page.getByRole('region', { name: 'Use case list' }).innerText();
+    for (const u of useCasesOf(bundle)) {
+      assert.equal(u.name_with_technique, `${u.Name} using ${u['Analytics Technique'].toLowerCase()}`, `${u.id} keeps the technique out of the name and shows it once`);
+      assert.ok(text.includes(u.name_with_technique), `${u.id} shows ${u.name_with_technique}`);
+      assert.ok(await ui.page.locator(`[data-kind-chip="${u.use_case_kind}"]`).count() > 0, `${u.id} shows its kind ${u.use_case_kind}`);
+    }
+    assert.deepEqual(new Set(useCasesOf(bundle).map((u) => u.use_case_kind)).size, USE_CASES.length, 'each use case shows a different kind');
+    assert.deepEqual(ui.outside, []);
+  } finally {
+    await ui.close();
+  }
+});
+
+test('Build shows Open MVP on every use case of the kinds demo, and each opens its MVP App, hosted by the Inspire App, with no call to the workspace', async () => {
+  const ui = await openKindsDemo();
+  const { page } = ui;
+  try {
+    const settle = apiWatch(page);
+    const layouts = new Set();
+    for (const u of USE_CASES) {
+      const frame = await openMvpFromBuild(page, settle, u);
+      assert.equal((await frame.locator('main h1').first().innerText()).trim(), u.title, `${u.no} opens its own MVP App`);
+      layouts.add(u.mvp.layout);
+      await backToRun(page, settle);
+    }
+    assert.deepEqual([...layouts].sort(), [...DEMO_LAYOUTS].sort(), 'the demo opens an MVP App of every layout it carries');
+    const hosted = `/showcase/${KINDS_DEMO.id}/mvp/`;
+    assert.ok(ui.framed.length > 0, 'the MVP Apps made their requests');
+    assert.deepEqual(ui.framed.filter((r) => !r.split(' ')[1].startsWith(hosted)), [], 'every MVP App request stays inside the demo');
+    assert.deepEqual(ui.missing, []);
+    assert.deepEqual(ui.outside, []);
+    assert.equal(ui.made.sqlCalls.length, 0);
+    assert.equal(ui.made.fetches.length, 0);
+    assert.equal(ui.made.jobs.length, 0);
+  } finally {
+    await ui.close();
+  }
+});
+
+test('Genie in a kinds demo MVP App answers a suggested question with the recorded answer, marked as a demo answer', async () => {
+  const ui = await openKindsDemo();
+  const { page } = ui;
+  try {
+    const settle = apiWatch(page);
+    const u = USE_CASES[0];
+    const frame = await openMvpFromBuild(page, settle, u);
+    await frame.locator('header.top button.genie-btn').click();
+    const ask = frame.locator('.genie .g-sugg button.sugg').filter({ hasText: u.genie[0].q });
+    await ask.first().click();
+    const answer = frame.locator('.msg--genie').last();
+    await answer.filter({ hasText: DEMO_RECORDED }).waitFor({ timeout: 60000 });
+    const said = await answer.innerText();
+    assert.ok(said.includes(u.genie[0].a), 'Genie gives the answer recorded for the question');
+    assert.ok(said.includes(DEMO_RECORDED), 'the answer says it is a recorded demo answer');
+    assert.deepEqual(ui.missing, []);
+    assert.equal(ui.made.fetches.length, 0);
+  } finally {
+    await ui.close();
   }
 });
 
@@ -64,14 +173,15 @@ for (const name of FILES) {
     const ui = await openDemoApp(dir);
     try {
       const settle = apiWatch(ui.page);
-      const walk = await walkInspireDemo(ui.page, { settle, mvps: false });
+      const walk = await walkInspireDemo(ui.page, { settle, mvps: Object.keys(bundle.mvps).length > 0 });
       const n = useCasesOf(bundle).length;
       t.diagnostic(`${name}: ${fs.statSync(path.join(dir, name)).size} bytes, ${n} use cases`);
       await demoBar(ui.page).locator('p').getByText(bundle.title, { exact: true }).waitFor();
       assert.equal(walk.runs, 1, 'Review lists the demo run alone');
       assert.equal(walk.results, n, 'Review shows every use case of the run');
       assert.equal(walk.build.length, n, 'Build lists every use case of the run');
-      assert.deepEqual(walk.build.filter((b) => b.tabs.length), [], 'no use case of a results-only demo opens an MVP');
+      if (Object.keys(bundle.mvps).length) assert.deepEqual(walk.build.filter((b) => !b.tabs.length), [], 'every use case of a demo with MVP Apps is built');
+      else assert.deepEqual(walk.build.filter((b) => b.tabs.length), [], 'no use case of a results-only demo opens an MVP');
       assert.equal(walk.start.runs, 1, 'Start lists the demo run alone');
       assert.deepEqual(walk.monitor, { steps: true }, 'Monitor shows the steps of the run');
       assert.deepEqual(ui.missing, [], 'every view the walk opened has a saved answer');
@@ -93,10 +203,11 @@ test('with more than one demo, the demo bar lists them and switches to the use c
   try {
     const settle = apiWatch(page);
     const [first, second] = Object.values(COMMITTED);
+    const titles = Object.values(COMMITTED).map((b) => b.title);
     await page.getByRole('button', { name: SHOWCASE_BUTTON, exact: true }).first().click();
     await demoBar(page).getByText(SHOWCASE_NOTE).waitFor();
     const pick = demoBar(page).getByRole('combobox', { name: 'Choose a demo' });
-    assert.deepEqual(await pick.locator('option').allInnerTexts(), [first.title, second.title]);
+    assert.deepEqual(await pick.locator('option').allInnerTexts(), titles);
     for (const bundle of [first, second, first]) {
       if ((await pick.inputValue()) !== bundle.id) await pick.selectOption(bundle.id);
       await demoBar(page).locator('p').getByText(bundle.title, { exact: true }).waitFor();

@@ -240,6 +240,12 @@ export default function RunPage({ settings, focusId = null, onFocus = ignore, on
     else window.history.replaceState(state, '', window.location.href);
     setDemoFull(key);
   };
+  const demoFocus = showcase && focusId ? pages.find((p) => p.kind === RUN_DEMO_KIND && p.id === focusId) : null;
+  useEffect(() => {
+    if (!demoFocus) return;
+    showDemo(runKey(demoFocus), true);
+    onFocus(null);
+  }, [demoFocus]); // eslint-disable-line react-hooks/exhaustive-deps
   const show = (page, { push }) => {
     const key = runKey(page);
     setPicked(key);

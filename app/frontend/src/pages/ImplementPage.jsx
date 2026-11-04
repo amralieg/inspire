@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import {
-  AlertTriangle, AppWindow, BellRing, CheckCircle2, ChevronDown, CircleDashed, ExternalLink, FileText, Hammer, History, LayoutDashboard, Loader2,
+  AlertTriangle, AppWindow, ArrowRight, BellRing, CheckCircle2, ChevronDown, CircleDashed, ExternalLink, FileText, Hammer, History, LayoutDashboard, Loader2,
   NotebookPen, Pencil, RefreshCw, Rocket, RotateCcw, Search, Settings2, Sparkles, Square, Trash2, XCircle,
 } from 'lucide-react';
 import {
@@ -367,7 +367,7 @@ function BuildFilterStrip({ filter, sessionId, onPickRun, onClear }) {
   );
 }
 
-export default function ImplementPage({ settings, sessionId, focusId = null, onFocus, onOpenRun = null, filter = null, onPickRun, onClearFilter }) {
+export default function ImplementPage({ settings, sessionId, focusId = null, onFocus, onOpenRun = null, demoMvps = null, filter = null, onPickRun, onClearFilter }) {
   const { token, databricksHost, showcase = '' } = settings;
   const readOnly = Boolean(showcase);
   const apiFetch = useMemo(() => makeApiFetch({ token, databricksHost, showcase }), [token, databricksHost, showcase]);
@@ -527,6 +527,7 @@ export default function ImplementPage({ settings, sessionId, focusId = null, onF
               onProgress={reportProgress}
               onEdit={readOnly ? undefined : (focus, live) => setWizard({ uc: selected.uc, focus, live })}
               onOpenRun={onOpenRun}
+              onOpenDemoMvp={readOnly && demoMvps?.ids.includes(selected.id) ? () => demoMvps.open(selected.id) : null}
               readOnly={readOnly}
             />
           ) : (
@@ -782,7 +783,7 @@ function PartTabs({ assets, picked, onPick }) {
 }
 
 function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson, databricksHost, notebookRunError, refreshKey, collectedKey,
-  onEdit, onOpenRun = null, onProgress = null, readOnly = false }) {
+  onEdit, onOpenRun = null, onOpenDemoMvp = null, onProgress = null, readOnly = false }) {
   const useCaseId = item.id;
   const hasMvp = Boolean(item.latest);
   const viewId = useId();
@@ -1479,7 +1480,11 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
               <FileText size={13} /> Use case details
             </button>
           )}
-          {readOnly ? null : built ? (
+          {readOnly ? (built && onOpenDemoMvp && (
+            <button type="button" data-demo-open-mvp={useCaseId} onClick={onOpenDemoMvp} className={PRIMARY_BUTTON}>
+              <ArrowRight size={13} /> Open MVP
+            </button>
+          )) : built ? (
             <>
               <button type="button" data-vibe-features="" data-collected={vibes.length} onClick={() => openFeatures()}
                 className={`${vibes.length ? PRIMARY_BUTTON : OUTLINE_BUTTON} ${vibes.length > 0 && !active ? 'edit-mvp-invite' : ''}`}>

@@ -461,6 +461,7 @@ export async function recordMvpApp(context, { url, authHeaders = {}, exchanges, 
       const title = (await nav.nth(i).innerText()).split('\n')[0].trim();
       const here = nav.nth(i);
       await here.click();
+      await page.waitForFunction((at) => document.querySelectorAll('nav.side button')[at]?.getAttribute('aria-current') === 'page', i, { timeout: 30000 });
       await settle();
       const shared = ['Overview', 'Impact'].includes(title);
       const hash = await page.evaluate(() => location.hash);

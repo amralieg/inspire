@@ -12,14 +12,14 @@ const SHOWCASE_HEADER = 'x-inspire-showcase';
 const SHOWCASE_DIR = path.join(BACKEND_DIR, 'showcase');
 const SHOWCASE_ID_RE = /^[a-z0-9][a-z0-9-]{0,39}$/;
 const SHOWCASE_FILE_RE = /\.json(\.gz)?$/;
-const SHOWCASE_IGNORED = new Set(['inspire_database', 'warehouse_id']);
+const SHOWCASE_IGNORED = new Set(['inspire_database', 'warehouse_id', 'conversation_id', 'time_zone']);
 const SHOWCASE_READ_ONLY = 'This is the demo, so nothing in it changes. Choose Get Started to find use cases and build MVPs on your own data.';
 const SHOWCASE_MISSING = 'The demo has no saved answer for this view. Choose Get Started to see it on your own data.';
 const SHOWCASE_UNKNOWN = 'This demo is not in this Inspire App.';
 const SHOWCASE_GENIE = 'In the demo, Genie answers the questions it suggests. Ask your own questions in an MVP built on your data.';
 const SHOWCASE_GENIE_ASK = 'POST /api/genie/ask';
 const SHOWCASE_READS = new Set([
-  'POST /api/page', 'POST /api/records', 'POST /api/overview', 'POST /api/genie/explain', 'POST /api/alerts/preview',
+  'POST /api/page', 'POST /api/records', 'POST /api/overview', 'POST /api/genie/explain', 'POST /api/alerts/preview', 'POST /api/scenario/evaluate', 'POST /api/my_work',
   'POST /api/inspire/implement/readiness', 'POST /api/inspire/implement/plan', 'POST /api/inspire/implement/swaps',
 ]);
 const SHELL_PATH_RE = /^[A-Za-z0-9_-][A-Za-z0-9._-]*(\/[A-Za-z0-9_-][A-Za-z0-9._-]*)*$/;
