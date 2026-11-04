@@ -122,6 +122,7 @@ export function suggestedGroups(profile) {
 }
 
 export const GROUPING_DEEP_MARK = 'Suggested by Deep discovery';
+export const GROUPING_DEEP_PICKED = 'Deep discovery picked this grouping. It becomes your choice when you pick it or another one.';
 
 export function deepGrouping(profile) {
   const columns = Array.isArray(profile?.deep_suggestion?.columns) ? profile.deep_suggestion.columns : [];
@@ -131,6 +132,11 @@ export function deepGrouping(profile) {
 export function withGroupingDefault(values, profile, raw = '') {
   const deep = deepGrouping(profile);
   return text(raw) || !deep.length ? values : { ...values, [GROUP_BY]: deep.join(', ') };
+}
+
+export function groupingChosenBy(raw, profile) {
+  if (text(raw)) return 'person';
+  return deepGrouping(profile).length ? 'deep' : '';
 }
 
 function groupsOfProfile(values, profile) {

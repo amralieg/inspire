@@ -6,8 +6,10 @@
    a measure, a date key and a personal column never are.
 3. A column the model names for the use case is preferred, but only when the aggregate check passes it.
 4. Standard mode records nothing; the fields go to __inspire_usecases, the Excel/CSV export and the JSON catalog.
-5. A build with no Grouping chosen starts from the Deep suggestion, and a run resolves a joined column to the records'
-   own column.
+5. A build with no Grouping chosen starts from the Deep suggestion and records it as chosen by Deep discovery; it is the
+   person's only once they pick it or another grouping.
+6. A joined grouping column carries its join (main key, dimension table, dimension key) from Deep discovery through the
+   use case's table joins into the run plan, and the run joins it itself; a column the records cannot get stops the run.
 """
 import json
 import os
@@ -23,6 +25,8 @@ SALES = "main.s.sales"
 ITEM = "main.s.item"
 STORE = "main.s.store"
 ROWS = 120000
+ITEM_JOIN = {"table": SALES, "column": "item_sk", "ref_table": ITEM, "ref_column": "item_sk", "source": "deep_discovery",
+             "confidence": 0.98}
 FIXTURE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "fixtures", "implement_grouping_cases.json")
 
 
@@ -64,7 +68,7 @@ def suggest(agent_ns, technique="Anomaly Detection", profiles=None, joins=(), pe
 def test_a_star_fact_with_integer_keys_is_grouped_by_its_store_key(agent_ns):
     profiles, joins = star()
     found = suggest(agent_ns, profiles=profiles, joins=joins)
-    assert found == {"group_by": ["store_sk"], "record_level": "ticket_number"}
+    assert found == {"group_by": ["store_sk"], "record_level": "ticket_number", "joins": []}
 
 
 def test_the_measure_the_date_key_and_a_dominated_flag_are_never_the_grouping(agent_ns):
@@ -81,6 +85,7 @@ def test_a_dimension_column_one_join_away_is_suggested_and_nests_over_its_key(ag
     found = suggest(agent_ns, profiles=profiles, joins=joins)
     assert found["group_by"] == ["item.category"]
     assert "item.manager_email" not in found["group_by"] and "item.item_description" not in found["group_by"]
+    assert found["joins"] == [ITEM_JOIN], "the join Deep measured travels with the joined column"
 
 
 def test_a_near_unique_column_and_too_few_records_per_group_are_not_suggested(agent_ns):
@@ -88,7 +93,7 @@ def test_a_near_unique_column_and_too_few_records_per_group_are_not_suggested(ag
     profiles = {table: {"rows": 9000, "sampled": False, "columns": {
         "region": col(6, "string"), "invoice_code": col(8900, "string"), "batch": col(400, "string"), "branch": col(300, "string")}}}
     found = suggest(agent_ns, profiles=profiles, table=table)
-    assert found == {"group_by": ["region"], "record_level": "invoice_code"}
+    assert found == {"group_by": ["region"], "record_level": "invoice_code", "joins": []}
     profiles[table]["columns"].pop("region")
     assert suggest(agent_ns, profiles=profiles, table=table)["group_by"] == ["branch"], "300 groups of 30 records pass; 400 of 22.5 do not"
     profiles[table]["columns"]["branch"] = col(301, "string")
@@ -98,7 +103,7 @@ def test_a_near_unique_column_and_too_few_records_per_group_are_not_suggested(ag
 def test_the_record_level_falls_back_to_the_table_and_reads_the_sample_size(agent_ns):
     table = "main.s.events"
     profiles = {table: {"rows": 5000000, "sampled": True, "columns": {"site_code": col(40, "string"), "event_ref": col(990000, "string")}}}
-    assert suggest(agent_ns, profiles=profiles, table=table) == {"group_by": ["site_code"], "record_level": "event_ref"}
+    assert suggest(agent_ns, profiles=profiles, table=table) == {"group_by": ["site_code"], "record_level": "event_ref", "joins": []}
     profiles[table]["columns"]["event_ref"] = col(500000, "string")
     assert suggest(agent_ns, profiles=profiles, table=table)["record_level"] == "events"
 
@@ -226,9 +231,10 @@ def test_the_build_instruction_says_how_to_bring_a_joined_grouping_column_in(age
 
 
 def test_a_build_with_no_grouping_chosen_starts_from_the_deep_suggestion(agent_ns):
-    plan = agent_ns["implement_grouping_plan"]("Anomaly Detection", [], "", "", ["item.category"])
+    plan = agent_ns["implement_grouping_plan"]("Anomaly Detection", [], "", "", ["item.category"], "deep")
     assert plan["applies"] and plan["default"] == "item.category" and plan["columns"] == ["item.category"]
-    assert plan["chosen_by"] == "Inspire"
+    assert plan["chosen_by"] == "deep"
+    assert agent_ns["implement_grouping_plan"]("Anomaly Detection", [], "", "", ["region"])["chosen_by"] == "Inspire"
     person = agent_ns["implement_grouping_plan"]("Anomaly Detection", ["region"], "region", "", [])
     assert person["default"] == "region" and person["chosen_by"] == "person"
     obj = make_inspire(agent_ns)
@@ -239,14 +245,151 @@ def test_a_build_with_no_grouping_chosen_starts_from_the_deep_suggestion(agent_n
     spec = {"config": {"widgets": {}}, "data": {}, "outputs": {}}
     deep = obj._implement_grouping(uc, spec, ("42", "N01-U01"), {})
     assert deep["default"] == "item.category" and asked == []
+    assert deep["chosen_by"] == "deep", "a Grouping nobody picked is recorded as Deep discovery's, never the person's"
+    assert any("Grouping item.category (deep)" in msg for _level, msg in obj.logger.records)
+    spec["config"]["widgets"]["group_by"] = "item.category"
+    confirmed = obj._implement_grouping(uc, spec, ("42", "N01-U01"), {})
+    assert (confirmed["default"], confirmed["chosen_by"]) == ("item.category", "person"), "confirming the suggestion makes it the person's"
     spec["config"]["widgets"]["group_by"] = "all"
-    assert obj._implement_grouping(uc, spec, ("42", "N01-U01"), {})["default"] == "all", "the person's choice wins"
+    changed = obj._implement_grouping(uc, spec, ("42", "N01-U01"), {})
+    assert (changed["default"], changed["chosen_by"]) == ("all", "person"), "the person's choice wins"
     uc.pop("suggested_group_by")
     spec["config"]["widgets"] = {}
-    assert obj._implement_grouping(uc, spec, ("42", "N01-U01"), {})["default"] == "region" and asked == [SALES]
+    described = obj._implement_grouping(uc, spec, ("42", "N01-U01"), {})
+    assert (described["default"], described["chosen_by"]) == ("region", "Inspire") and asked == [SALES]
 
 
 def test_the_null_share_limit_is_the_one_the_app_uses(agent_ns):
     with open(FIXTURE, encoding="utf-8") as handle:
         constants = json.load(handle)["constants"]
     assert constants["group_max_null_share"] == agent_ns["INSPIRE_GROUP_MAX_NULL_SHARE"]
+
+
+def test_deep_discovery_saves_the_join_of_its_joined_grouping_in_the_use_case_table_joins(agent_ns):
+    profiles, joins = star(with_item=True)
+    obj, spark = _deep_inspire(agent_ns, profiles, joins)
+    ucs = [make_uc("N01-U01", **{"Analytics Technique": "Anomaly Detection", "Primary Table": SALES})]
+    obj._suggest_deep_grouping(ucs)
+    assert ucs[0]["suggested_group_by"] == "item.category" and ucs[0]["table_joins"] == [ITEM_JOIN]
+    declared = {"table": SALES, "column": "store_sk", "ref_table": STORE, "ref_column": "store_sk", "source": "declared", "confidence": 1.0}
+    same = dict(ITEM_JOIN, source="declared", confidence=1.0)
+    ucs = [make_uc("N01-U01", **{"Analytics Technique": "Anomaly Detection", "Primary Table": SALES, "table_joins": json.dumps([declared])}),
+           make_uc("N01-U02", **{"Analytics Technique": "Anomaly Detection", "Primary Table": SALES, "table_joins": [same]})]
+    obj._suggest_deep_grouping(ucs)
+    assert ucs[0]["table_joins"] == [declared, ITEM_JOIN], "the saved joins stay and the measured one is added"
+    assert ucs[1]["table_joins"] == [same], "a join already saved is never added twice"
+    profiles, joins = star()
+    obj, spark = _deep_inspire(agent_ns, profiles, joins)
+    ucs = [make_uc("N01-U01", **{"Analytics Technique": "Anomaly Detection", "Primary Table": SALES})]
+    obj._suggest_deep_grouping(ucs)
+    assert ucs[0]["suggested_group_by"] == "store_sk" and "table_joins" not in ucs[0], "a grouping of the main table's own column adds no join"
+    assert spark.statements == []
+
+
+def test_the_build_plan_carries_the_join_of_each_joined_grouping_column(agent_ns):
+    joins_of = agent_ns["implement_grouping_joins"]
+    item = {"table": ITEM, "key": "item_sk", "ref_column": "item_sk"}
+    assert joins_of(["item.category", "store_sk"], [ITEM_JOIN], [SALES]) == {"item.category": item}
+    assert joins_of(["item.category"], [dict(ITEM_JOIN, table="main.s.returns")], [SALES]) == {}, "a join of another table never counts"
+    assert joins_of(["item.category"], [dict(ITEM_JOIN, ref_column="")], [SALES]) == {}
+    assert joins_of(["store.store_name"], [ITEM_JOIN], [SALES]) == {}
+    assert joins_of(["item.category"], [dict(ITEM_JOIN, table="`main`.`s`.`sales`")], ["main.s.sales_v2", SALES]) == {"item.category": item}
+    obj = make_inspire(agent_ns)
+    obj._implement_columns_of = lambda tables, cache: {tables[0]: [{"column_name": "region", "data_type": "string"}]}
+    uc = make_uc("N01-U01", **{"Analytics Technique": "Anomaly Detection", "suggested_group_by": "item.category",
+                               "table_joins": json.dumps([ITEM_JOIN])})
+    plan = obj._implement_grouping(uc, {"config": {"widgets": {}}, "data": {}, "outputs": {}}, ("42", "N01-U01"), {})
+    assert plan["joins"] == {"item.category": item}
+    assert any("joins {'item.category'" in msg for _level, msg in obj.logger.records)
+    uc["table_joins"] = []
+    assert obj._implement_grouping(uc, {"config": {"widgets": {}}, "data": {}, "outputs": {}}, ("42", "N01-U01"), {})["joins"] == {}
+
+
+def test_the_run_plan_and_the_build_instruction_carry_the_join(agent_ns):
+    import ast
+    from v120_genie_support import build_inspire, make_uc as genie_uc
+    from v130_genie_run_controls_test import INSTRUCTION
+    item = {"table": ITEM, "key": "item_sk", "ref_column": "item_sk"}
+    grouping = {"applies": True, "columns": ["item.category", "store_sk"], "default": "item.category", "recommended": ["item.category"],
+                "time_column": "", "link": "https://inspire.example.com/?review=7&uc=N01-U01", "table": SALES, "chosen_by": "deep",
+                "joins": {"item.category": item}}
+    inst = build_inspire(agent_ns)
+    uc = genie_uc(**{"Analytics Technique": "Anomaly Detection", "_implement_grouping": dict(grouping)})
+    spec = inst._genie_notebook_spec(uc)
+    run = ast.literal_eval(inst._genie_run_controls_source(uc, spec, INSTRUCTION).split("INSPIRE_RUN = ", 1)[1].split("\n\n\n", 1)[0])
+    assert run["grouping"]["joins"] == {"item.category": item}
+    rule = agent_ns["genie_grouping_rule"](grouping)
+    assert "keep the main table's key column item_sk in the records" in rule and "never join it yourself" in rule
+    assert "the key the use case's table joins name" not in rule
+    plain = dict(grouping, joins={})
+    uc = genie_uc(**{"Analytics Technique": "Anomaly Detection", "_implement_grouping": plain})
+    run = ast.literal_eval(inst._genie_run_controls_source(uc, inst._genie_notebook_spec(uc), INSTRUCTION)
+                           .split("INSPIRE_RUN = ", 1)[1].split("\n\n\n", 1)[0])
+    assert "joins" not in run["grouping"]
+    assert "the key the use case's table joins name" in agent_ns["genie_grouping_rule"](plain)
+
+
+class _Dimension:
+    def __init__(self, frame):
+        self.frame, self.selected = frame, ()
+
+    def select(self, *names):
+        self.selected = names
+        return self
+
+    def toPandas(self):
+        return self.frame
+
+
+class _Session:
+    def __init__(self, frame, fail=None):
+        self.frame, self.fail, self.tables = frame, fail, []
+
+    def table(self, name):
+        self.tables.append(name)
+        if self.fail:
+            raise self.fail
+        return _Dimension(self.frame)
+
+
+def _joined_run(ns, joins):
+    ns["INSPIRE_RUN"] = {"use_case_id": "N01-U01", "grouping": {"link": "https://inspire.example.com/?review=7&uc=N01-U01", "joins": joins}}
+
+
+def test_a_run_joins_the_dimension_for_a_joined_grouping_column_itself(fresh_ns):
+    pd = pytest.importorskip("pandas")
+    records = pd.DataFrame({"item_sk": list(range(80)), "net_paid": [float(i) for i in range(80)]}, index=range(100, 180))
+    item = pd.DataFrame({"item_sk": [str(i) for i in range(80)] + ["0"], "category": [f"c{i % 2}" for i in range(80)] + ["c0"]})
+    _joined_run(fresh_ns, {"item.category": {"table": ITEM, "key": "item_sk", "ref_column": "item_sk"}})
+    session, printed = _Session(item), []
+    out = fresh_ns["inspire_group_records"](records, group_by="item.category", out=printed.append, spark_session=session)
+    assert len(session.tables) == 1 and list(out.index) == list(range(100, 180))
+    assert sorted(set(out["inspire_group"])) == ["c0", "c1"] and fresh_ns["INSPIRE_RUN_GROUPING"]["group_by"] == ["category"]
+    assert any("[GROUP-JOIN FIRED] Grouping item.category: joined main.s.item on item_sk = item_sk" in line for line in printed)
+    session = _Session(item)
+    kept = fresh_ns["inspire_group_records"](records.assign(category=["c0"] * 40 + ["c1"] * 40), group_by="item.category",
+                                             out=lambda *_a: None, spark_session=session)
+    assert session.tables == [] and sorted(set(kept["inspire_group"])) == ["c0", "c1"], "records that hold the column are never joined"
+
+
+def test_a_run_whose_grouping_column_the_records_cannot_get_stops_never_falls_back_to_global(fresh_ns):
+    pd = pytest.importorskip("pandas")
+    records = pd.DataFrame({"item_sk": list(range(80)), "net_paid": [float(i) for i in range(80)]})
+    item = pd.DataFrame({"item_sk": [str(i) for i in range(80)], "category": [f"c{i % 2}" for i in range(80)]})
+    join = {"table": ITEM, "key": "item_sk", "ref_column": "item_sk"}
+    _joined_run(fresh_ns, {"item.category": join})
+    with pytest.raises(ValueError, match="have no column item_sk; keep item_sk in the records"):
+        fresh_ns["inspire_group_records"](records.drop(columns=["item_sk"]), group_by="item.category", out=lambda *_a: None,
+                                          spark_session=_Session(item))
+    _joined_run(fresh_ns, {})
+    with pytest.raises(fresh_ns["InspireRunStop"], match="carries no join to that table.*change the grouping on the Run page: https://"):
+        fresh_ns["inspire_group_records"](records, group_by="item.category", out=lambda *_a: None, spark_session=_Session(item))
+    _joined_run(fresh_ns, {"item.category": join})
+    with pytest.raises(fresh_ns["InspireRunStop"], match="could not join main.s.item on item_sk = item_sk to read it .*TABLE_OR_VIEW_NOT_FOUND"):
+        fresh_ns["inspire_group_records"](records, group_by="item.category", out=lambda *_a: None,
+                                          spark_session=_Session(item, RuntimeError("[TABLE_OR_VIEW_NOT_FOUND] main.s.item")))
+    unmatched = item.assign(item_sk=[str(i + 1000) for i in range(80)])
+    with pytest.raises(fresh_ns["InspireRunStop"], match="no item_sk of the records matches item_sk in main.s.item, so every record would fall "
+                                                         "in the one Global group"):
+        fresh_ns["inspire_group_records"](records, group_by="item.category", out=lambda *_a: None, spark_session=_Session(unmatched))
+    assert "INSPIRE_RUN_GROUPING" not in fresh_ns or fresh_ns["INSPIRE_RUN_GROUPING"].get("group_by") != "all"

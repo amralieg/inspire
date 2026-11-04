@@ -198,7 +198,7 @@ import {
 import ScopeSettings from '../components/ScopeSettings';
 import { PROFILE_WAITING, useGroupingProfile } from '../lib/groupingProfile';
 import {
-  FIRST_RUN_TITLE, GROUPING_TITLE, RUN_SCOPE_UNRECORDED_HIDDEN, builtFirstRunOf, isScopeSetting, latestRunScope, scopeChanges, scopeStepsOf, scopeValues, withGroupingDefault, withScopeDefaults, withUnrecordedScope,
+  FIRST_RUN_TITLE, GROUPING_TITLE, RUN_SCOPE_UNRECORDED_HIDDEN, builtFirstRunOf, groupingChosenBy, isScopeSetting, latestRunScope, scopeChanges, scopeStepsOf, scopeValues, withGroupingDefault, withScopeDefaults, withUnrecordedScope,
   GROUP_BY,
 } from '../lib/runScope';
 
@@ -212,8 +212,8 @@ const TILE_CHECKS = { app: ['app_access', 'apps'], genie_space: ['genie_spaces']
 const PLACE_CHECKS = ['app_name'];
 
 function withFirstRunDefault(spec, profile, defaults = withScopeDefaults) {
-  const before = scopeValues((name) => spec.config.widgets?.[name]);
-  const after = defaults(before, profile, spec.config.widgets?.[GROUP_BY]);
+  const before = withGroupingDefault(scopeValues((name) => spec.config.widgets?.[name]), profile, spec.config.widgets?.[GROUP_BY]);
+  const after = defaults(before, profile);
   return scopeChanges(before, after).reduce((next, name) => withSetting(next, { name, source: 'widget' }, after[name]), spec);
 }
 const ACCESS_CHECKS = ['app_warehouse'];
@@ -527,7 +527,7 @@ export default function ImplementWizard({
   const exclusionRefs = (spec.data.filters || []).filter((f) => f.op === 'not in').map((f) => `${f.table}.${f.column}`);
   const built = builtVersion(context?.history);
   const kpiOptions = useMemo(() => kpiTargetOptions(ucRow, context?.history), [ucRow, context?.history]);
-  const scopeShown = scopeValues((name) => spec.config.widgets?.[name]);
+  const scopeShown = withGroupingDefault(scopeValues((name) => spec.config.widgets?.[name]), scopeProfile.profile, spec.config.widgets?.[GROUP_BY]);
   const trackedKpi = trackedKpiOf(context?.history);
   const chosenKpi = kpiTargetOf(spec);
   const sampleStake = trackedKpi && (!chosenKpi || kpiKey(chosenKpi) === kpiKey(trackedKpi.record.name)) ? trackedKpi.impact : null;
@@ -644,7 +644,6 @@ export default function ImplementWizard({
         profile = done.profile;
       }
       const next = list[stepIndexOf(list, stepId) + 1];
-      if (next.id === 'grouping' && !context?.latest) setSpec((prev) => withFirstRunDefault(prev, profile, withGroupingDefault));
       if (next.id === 'first_run' && !context?.latest) setSpec((prev) => withFirstRunDefault(prev, profile));
       setStep(next.id);
     } catch (e) {
@@ -1206,7 +1205,8 @@ export default function ImplementWizard({
             <h3 className="text-sm font-semibold text-text-primary">{stepId === 'grouping' ? GROUPING_TITLE : FIRST_RUN_TITLE}</h3>
             <ScopeSettings part={stepId} values={scopeShown} profile={scopeProfile.profile} profileState={scopeProfile.state} profileError={scopeProfile.error}
               settings={scopeSettingList} onChange={(name, value) => setSpec((prev) => withSetting(prev, { name, source: 'widget' }, value))}
-              custom={stepId === 'grouping' ? customGrouping : null} unrecorded={firstRunUnrecorded} />
+              custom={stepId === 'grouping' ? customGrouping : null} unrecorded={firstRunUnrecorded}
+              groupingChosenBy={groupingChosenBy(spec.config.widgets?.[GROUP_BY], scopeProfile.profile)} />
           </section>
         )}
 

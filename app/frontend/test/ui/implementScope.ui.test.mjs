@@ -175,7 +175,10 @@ test('a Deep discovery grouping is picked and marked on a first build, the perso
       'stores.region, then store_id · Suggested by Deep discovery');
     assert.equal(await grouping.locator('[data-grouping-choice="region, country"]').innerText(), 'region, then country · Recommended');
     assert.equal(await grouping.locator('[data-grouping-record-level]').textContent(), 'Deep discovery found one record per order_id in main.sales.orders.');
+    assert.equal(await grouping.locator('[data-grouping-chosen-by="deep"]').textContent(),
+      'Deep discovery picked this grouping. It becomes your choice when you pick it or another one.');
     await grouping.locator('[data-grouping-choice="all"] input').check();
+    assert.equal(await grouping.locator('[data-grouping-chosen-by]').count(), 0, 'once the person picks, the grouping is theirs');
     await next(page);
     await onStep(page, 'First run');
     await page.getByRole('button', { name: 'Back' }).click();
@@ -193,7 +196,7 @@ test('a Deep discovery grouping is picked and marked on a first build, the perso
   }
 });
 
-test('a Deep discovery grouping left as picked is the grouping the build sends, and its first run lets the run pick the groups', async () => {
+test('a Deep discovery grouping left as picked is never sent as the person\'s choice, and its first run lets the run pick the groups', async () => {
   const calls = [];
   const deep = { ...PROFILE, deep_suggestion: { columns: ['store_id'], record_level: 'order_id' } };
   const ui = await openUi('wizard', { me: ME, useCase: { ...HARNESS_USE_CASE, genie_instruction: INSTRUCTION } }, '', { init: profileAt(calls, deep) });
@@ -206,8 +209,32 @@ test('a Deep discovery grouping left as picked is the grouping the build sends, 
     await page.getByRole('button', { name: 'Start MVP', exact: true }).click();
     await until(() => made.jobs.length === 1, 'the build', 30000);
     const [sent] = insertsOf(made);
-    assert.deepEqual([sent.config.widgets.group_by, sent.config.widgets.run_scope, sent.config.widgets.scope_groups || ''], ['store_id', 'groups', ''],
-      'the profiled groups are countries, so none are sent for a store_id grouping');
+    assert.deepEqual([sent.config.widgets.group_by ?? '', sent.config.widgets.run_scope, sent.config.widgets.scope_groups || ''], ['', 'groups', ''],
+      'no group_by is sent, so the agent builds on the Deep grouping and records it as chosen by Deep discovery; the profiled groups are countries, so none are sent for a store_id grouping');
+    assert.deepEqual(ui.pageErrors, []);
+  } finally {
+    await ui.close();
+  }
+});
+
+test('confirming the Deep discovery grouping makes it the person\'s choice, and that is what the build sends', async () => {
+  const calls = [];
+  const deep = { ...PROFILE, deep_suggestion: { columns: ['store_id'], record_level: 'order_id' } };
+  const ui = await openUi('wizard', { me: ME, useCase: { ...HARNESS_USE_CASE, genie_instruction: INSTRUCTION } }, '', { init: profileAt(calls, deep) });
+  const { page, made } = ui;
+  try {
+    await toStep(page, 'Grouping');
+    const grouping = page.getByRole('region', { name: 'Compare like with like?', exact: true });
+    assert.equal(await grouping.locator('[data-grouping-chosen-by="deep"]').count(), 1);
+    await grouping.locator('[data-grouping-choice="store_id"] input').click();
+    await grouping.locator('[data-grouping-chosen-by]').waitFor({ state: 'detached' });
+    assert.deepEqual(await checkedChoice(page, 'data-grouping-choice'), ['store_id']);
+    await toStep(page, 'Vibes');
+    await page.waitForFunction(() => [...document.querySelectorAll('button')].some((b) => b.textContent.trim() === 'Start MVP' && !b.disabled), null, { timeout: 30000 });
+    await page.getByRole('button', { name: 'Start MVP', exact: true }).click();
+    await until(() => made.jobs.length === 1, 'the build', 30000);
+    const [sent] = insertsOf(made);
+    assert.equal(sent.config.widgets.group_by, 'store_id');
     assert.deepEqual(ui.pageErrors, []);
   } finally {
     await ui.close();

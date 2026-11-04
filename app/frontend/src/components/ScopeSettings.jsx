@@ -4,7 +4,7 @@ import { counted } from '../lib/plural';
 import { PROFILE_READING } from '../lib/groupingProfile';
 import { SETTINGS_NEXT_RUN } from '../lib/useCaseSettings';
 import {
-  FIRST_RUN_KEEPS, GROUP_ALL, GROUP_BY, GROUP_CUSTOM, GROUP_KIND_WORDS, GROUPING_DEEP_MARK, GROUPING_PLAIN, RUN_SCOPE, RUN_SCOPE_UNRECORDED, RUN_SCOPES, SCOPE_DAYS, SCOPE_GROUPS,
+  FIRST_RUN_KEEPS, GROUP_ALL, GROUP_BY, GROUP_CUSTOM, GROUP_KIND_WORDS, GROUPING_DEEP_MARK, GROUPING_DEEP_PICKED, GROUPING_PLAIN, RUN_SCOPE, RUN_SCOPE_UNRECORDED, RUN_SCOPES, SCOPE_DAYS, SCOPE_GROUPS,
   SCOPE_LABELS, SCOPE_RECORDS, SCOPE_SAVE_LABEL, deepGrouping, firstRunChoices, groupByColumns, groupingChoices, groupingExampleText, groupingMovesUpText, profileHeldText,
   sameGrouping, isScopeSetting, scopeChanges, scopeProblems, scopeValues, suggestedGroups, withUnrecordedScope,
 } from '../lib/runScope';
@@ -27,7 +27,7 @@ function ProfileNote({ state, error }) {
   return null;
 }
 
-function GroupingPart({ values, onChange, profile, settings, editable, custom }) {
+function GroupingPart({ values, onChange, profile, settings, editable, custom, chosenBy }) {
   const setting = settings.find((s) => s.name === GROUP_BY);
   const current = values[GROUP_BY] || GROUP_ALL;
   const isCustom = String(current).toLowerCase() === GROUP_CUSTOM;
@@ -44,11 +44,13 @@ function GroupingPart({ values, onChange, profile, settings, editable, custom })
       <p data-grouping-why="" className={NOTE}>{GROUPING_PLAIN}{example ? ` ${example}` : ''}</p>
       {moves && <p data-grouping-moves="" className={NOTE}>{moves}</p>}
       {level && <p data-grouping-record-level="" className={NOTE}>Deep discovery found one record per {level} in {profile?.table || 'the main table'}.</p>}
+      {chosenBy === 'deep' && <p data-grouping-chosen-by="deep" className={NOTE}>{GROUPING_DEEP_PICKED}</p>}
       <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
         {choices.map((c) => (
           <label key={c.value} data-grouping-choice={c.value} className={`${ROW} ${editable ? 'cursor-pointer' : ''}`}>
             <input type="radio" name="inspire-grouping" className="mt-0.5" checked={pickedOf(c)} disabled={!editable}
-              onChange={() => { onChange(GROUP_BY, c.value); if (c.value === GROUP_CUSTOM) custom?.onPicked?.(); }} />
+              onChange={() => { onChange(GROUP_BY, c.value); if (c.value === GROUP_CUSTOM) custom?.onPicked?.(); }}
+              onClick={() => { if (chosenBy === 'deep' && c.deep && pickedOf(c)) onChange(GROUP_BY, c.value); }} />
             <span className="min-w-0">
               <span className="font-medium">{c.label}</span>
               {c.deep && <span data-grouping-deep="" className="text-text-secondary"> · {GROUPING_DEEP_MARK}</span>}
@@ -138,14 +140,14 @@ function FirstRunPart({ values, onChange, profile, settings, editable, unrecorde
 
 export default function ScopeSettings({
   part = 'both', values, onChange, profile = null, profileState = 'off', profileError = '', settings = [], editable = true, custom = null, children = null,
-  unrecorded = false,
+  unrecorded = false, groupingChosenBy = '',
 }) {
   const problems = scopeProblems(values, profile, part, custom);
   const editableOf = (name) => editable && settings.find((s) => s.name === name)?.editable !== false;
   return (
     <section aria-label="Grouping and First run" data-scope-settings={part} className="space-y-3">
       <ProfileNote state={profileState} error={profileError} />
-      {part !== 'first_run' && <GroupingPart values={values} onChange={onChange} profile={profile} settings={settings} editable={editableOf(GROUP_BY)} custom={custom} />}
+      {part !== 'first_run' && <GroupingPart values={values} onChange={onChange} profile={profile} settings={settings} editable={editableOf(GROUP_BY)} custom={custom} chosenBy={groupingChosenBy} />}
       {part !== 'grouping' && (
         <FirstRunPart values={values} onChange={onChange} profile={profile} settings={settings} editable={editableOf(RUN_SCOPE)} unrecorded={unrecorded} />
       )}
