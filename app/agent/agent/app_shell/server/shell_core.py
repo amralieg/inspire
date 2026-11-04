@@ -231,9 +231,25 @@ def acted(current, batch_id: str) -> bool:
     return bool(current) and current.get("change_source") == "action" and str(current.get(shell_sql.BATCH_COLUMN) or "") == batch_id
 
 
-def batch_values(sent: dict, values: dict) -> str:
+def batch_values(sent: dict, values: dict, treatment: str = None) -> str:
     shown = {k: values.get(k) for k in sent if k != shell_sql.ACT_NOTE}
+    if treatment is not None:
+        shown[shell_sql.TREATMENT_KEY] = treatment
     return json.dumps(shown, ensure_ascii=False, sort_keys=True, default=str)
+
+
+def treatment_of(page: dict, data: dict, values: dict):
+    treatment = data.get(shell_sql.TREATMENT_KEY)
+    if treatment is None:
+        return None
+    named = (page.get("segments") or {}).get("treatments") if isinstance(page.get("segments"), dict) else None
+    if not named:
+        raise HttpError(400, f"page {page['id']} has no segment treatments, so an action on it names none")
+    if treatment not in named:
+        raise HttpError(400, f"treatment must be one of this page's segment treatments: {', '.join(named)}")
+    if values.get("action_status") != "In progress":
+        raise HttpError(400, "a treatment starts work on its members, so it goes with action_status In progress")
+    return treatment
 
 
 def batch_view(row: dict) -> dict:
@@ -2064,7 +2080,7 @@ class Shell:
             plan["total"] = shell_sql.facts_total_query(facts, context["table"], {f["name"] for f in fields or []})
         if context["categories"] and request["ai_counts"]:
             plan["ai"] = shell_sql.ai_counts_query(page, values, context, request["columns"])
-        limits = {"rows": request["limit"], "ai": shell_sql.CAPS["options"]}
+        limits = {"rows": request["limit"], "ai": shell_sql.CAPS["options"], "treatments": shell_sql.CAPS["options"]}
         jobs = {("list", name): (lambda q=query, n=limits.get(name, 1): self.read_at(ws, who, *q, n)) for name, query in plan.items()}
         closing, closed = context["actions"] and not request["window"], {}
         if closing:
@@ -2125,7 +2141,10 @@ class Shell:
                 "catching_up": self.catching_up(), "ai": ai, "money": shell_sql.public_money(model),
                 "window": {"window": window["window"], "limit": window.get("limit"), "shown": shown, "more": total - shown,
                            "today": window["today"]} if window else None,
-                "as_of_us": self.as_of_us(served_by(done), read_at)}
+                "as_of_us": self.as_of_us(served_by(done), read_at),
+                **({"treatments": [{"segment": r.get("s"), "treatment": r.get("v"), "n": int(r.get("n") or 0)}
+                                   for r in (done.get(("list", "treatments")) or {}).get("rows") or []] if context["treatments"] else None}
+                   if request["treatments"] else {})}
 
     def with_closes(self, headers: dict, ws, who, page: dict, context: dict, fields, rows: list, failures: dict) -> list:
         keys = list(dict.fromkeys(str(r["_inspire_key"]) for r in rows
@@ -3188,10 +3207,11 @@ class Shell:
         editor = self.editor(headers)
         keys, seen, match = self.act_target(data)
         values = shell_sql.action_values(data.get("values"), self.now().date())
+        treatment = treatment_of(page, data, values)
         ws, who = self.workspace(headers)
         writer = self.decision_writer(ws)
         fields = self.change_table(ws, who, page)
-        batch = {"id": uuid.uuid4().hex, "values": batch_values(data["values"], values)}
+        batch = {"id": uuid.uuid4().hex, "values": batch_values(data["values"], values, treatment)}
         if match is not None:
             out = self.act_on_match(ws, writer, who, page, fields, match, editor, values, batch)
         else:

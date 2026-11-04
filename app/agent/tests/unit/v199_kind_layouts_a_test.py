@@ -10,8 +10,9 @@ import pytest
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 SHELL = os.path.join(ROOT, "agent", "app_shell")
 SERVER = os.path.join(SHELL, "server")
-if SERVER not in sys.path:
-    sys.path.insert(0, SERVER)
+for folder in (SERVER, os.path.dirname(os.path.abspath(__file__))):
+    if folder not in sys.path:
+        sys.path.insert(0, folder)
 
 import shell_core  # noqa: E402
 import shell_sql  # noqa: E402
@@ -95,9 +96,9 @@ def test_a_card_table_must_read_its_companion_table(page, section, companion):
 @pytest.mark.parametrize("change, fragment", [
     (lambda p: p.pop("segments"), "needs a segments section"),
     (lambda p: p["segments"].update(filter="nowhere"), "must be a multi_select filter"),
-    (lambda p: p["filters"][1]["columns"].pop("segments"), "must map the records dataset and the segment_id column of the segment cards dataset"),
-    (lambda p: p["filters"][1]["columns"].pop("records"), "must map the records dataset and the segment_id column of the segment cards dataset"),
-    (lambda p: p["filters"][1]["columns"].update(segments="label"), "so picking a card shows its segment"),
+    (lambda p: p["filters"][1]["columns"].pop("records"), "must map the records dataset, so a segment's treatment reaches all of its members"),
+    (lambda p: p["filters"][1]["columns"].update(segments="segment_id"), "must not map the segment cards dataset, so picking a card keeps every"),
+    (lambda p: p["filters"][1]["columns"].update(segments="label"), "must not map the segment cards dataset"),
     (lambda p: p["records"].update(column_filters=False), "so its decision list keeps its column filters"),
     (lambda p: p["segments"].update(treatments=["Only one"]), "needs 2 to 6 treatments; it has 1"),
     (lambda p: p["segments"].update(treatments=[f"T{i}" for i in range(7)]), "needs 2 to 6 treatments; it has 7"),
@@ -325,3 +326,110 @@ def test_the_dashboard_draws_the_new_chart_types_as_the_nearest_dashboard_chart(
     widgets = agent_ns["IMPLEMENT_DASHBOARD_CHART_WIDGETS"]
     assert {t: widgets[t] for t in ("treemap", "radar", "sankey")} == {"treemap": "bar", "radar": "heatmap", "sankey": "heatmap"}
     assert set(shell_sql.CHART_TYPES) <= set(widgets)
+
+
+def test_the_segment_filter_keeps_every_card_in_view_and_still_reaches_each_member():
+    found = next(f for f in SEGMENT["filters"] if f["id"] == SEGMENT["segments"]["filter"])
+    assert "segments" not in found["columns"] and found["columns"]["records"] == "segment"
+    assert problems(SEGMENT) == []
+
+
+
+@pytest.mark.parametrize("page, values, treatment, status, fragment", [
+    ("plain", {"action_status": "In progress", "note": "Treatment: Win-back offer"}, "Win-back offer", 400, "has no segment treatments"),
+    ("segment", {"action_status": "In progress", "note": "Treatment: Upsell"}, "Upsell", 400, "must be one of this page's segment treatments"),
+    ("segment", {"action_status": "In progress"}, "win-back offer", 400, "must be one of this page's segment treatments"),
+    ("segment", {"action_status": "Done"}, "Win-back offer", 400, "goes with action_status In progress"),
+    ("segment", {"action_status": "In progress", "note": "Treatment: Win-back offer"}, "Win-back offer", 200, None),
+    ("segment", {"action_status": "In progress", "note": "Treatment: Win-back offer"}, None, 200, None),
+])
+def test_an_act_records_its_treatment_only_when_the_page_offers_it_and_work_starts(tmp_path, page, values, treatment, status, fragment):
+    from v141_app_shell_test import call
+    from v142_edits_test import edit_page
+    from v144_app_data_test import DECIDE, EDITOR, shell
+    target = SEGMENT if page == "segment" else edit_page()
+    s, ws, _made = shell(tmp_path, settings=dict(DECIDE, pages=[target["id"]]), pages=[target])
+    body = {"page": target["id"], "record_keys": ["k1"], "seen": {"k1": "101"}, "values": values,
+            **({"treatment": treatment} if treatment is not None else {})}
+    got, out = call(s, "POST", "records/act", headers=EDITOR, body=body)
+    assert got == status, out
+    if fragment:
+        assert fragment in out["error"] and ws.queries("MERGE INTO") == []
+        return
+    (_sql, params), = ws.queries("MERGE INTO")
+    written = [json.loads(p["value"]) for p in params if str(p["value"]).startswith('{"action_status"')]
+    assert written == [{"action_status": "In progress", **({"treatment": treatment} if treatment else {})}]
+
+
+def test_the_batch_values_name_the_treatment_beside_the_values_sent_and_never_the_note():
+    values = {"action_status": "In progress", shell_sql.BATCH_NOTE: "Treatment: Win-back offer"}
+    sent = {"action_status": "In progress", "note": "Treatment: Win-back offer"}
+    assert json.loads(shell_core.batch_values(sent, values, "Win-back offer")) == {"action_status": "In progress", "treatment": "Win-back offer"}
+    assert json.loads(shell_core.batch_values(sent, values)) == {"action_status": "In progress"}
+
+
+def test_only_a_list_with_a_segments_section_and_recorded_batches_counts_treatments():
+    from v144_app_data_test import TRACKED
+    names = {"record_key", "entity_id", "segment", "segment_label"}
+    fields = shell_sql.change_fields(TRACKED)
+    context = shell_sql.list_context(SEGMENT, names, fields, True)
+    assert context["treatments"] == "segment"
+    without = shell_sql.change_fields([c for c in TRACKED if c["name"] != shell_sql.BATCH_VALUES])
+    assert shell_sql.list_context(SEGMENT, names, without, True)["treatments"] is None
+    assert shell_sql.list_context(SEGMENT, names, fields, False)["treatments"] is None
+    assert shell_sql.list_context(changed(SEGMENT, lambda p: p.pop("segments")), names, fields, True)["treatments"] is None
+    assert shell_sql.list_context(RECS, {"record_key", "customer_name"}, fields, True)["treatments"] is None
+    assert "treatments" not in shell_sql.list_queries(SEGMENT, {}, shell_sql.list_request(SEGMENT, {}, context), context, "p")
+    with pytest.raises(ValueError, match="treatments takes true or false"):
+        shell_sql.list_request(SEGMENT, {"treatments": "yes"}, context)
+
+
+def segment_workspace():
+    from v148_app_hub_test import COLUMNS, PERSON, SqliteWorkspace, version
+    pytest.importorskip("sqlglot")
+    win = '{"action_status": "In progress", "treatment": "Win-back offer"}'
+    rows = [
+        version("k1", "Act now", 900.0, action_status="In progress", action_batch_values=win),
+        version("k2", "Act now", 800.0, action_status="In progress", action_batch_values=win, changed_by=PERSON),
+        version("k3", "Review", 300.0, action_status="In progress",
+                action_batch_values='{"action_status": "In progress", "treatment": "Leave as is"}'),
+        version("k4", "Review", 200.0, current=False, ends="2026-10-21 06:00:00", action_status="In progress", action_batch_values=win),
+        version("k4", "Review", 200.0, at="2026-10-21 06:00:00", action_status="New"),
+        version("k5", "Monitor", 100.0, action_status="In progress", action_note="Treatment: Win-back offer",
+                action_batch_note="Treatment: Win-back offer", action_batch_values='{"action_status": "In progress"}'),
+        version("k6", "Monitor", 100.0, source="delete", action_batch_values=win),
+    ]
+    ws = SqliteWorkspace(tables={})
+    extra = ("top_reasons", "recommended_action", "value")
+    quoted = ", ".join(f'"{c}"' for c in COLUMNS + extra)
+    ws.db.execute(f'CREATE TABLE "customer_segments_out" ({quoted})')
+    ws.db.executemany(f'INSERT INTO "customer_segments_out" VALUES ({", ".join("?" for _ in COLUMNS + extra)})',
+                      [tuple(r[c] for c in COLUMNS) + ("Spend fell", "Win back", r["value_at_stake"]) for r in rows])
+    segment_of = {"k1": "S1", "k2": "S1", "k3": "S2", "k4": "S2", "k5": "S1", "k6": "S1"}
+    ws.db.execute('CREATE TABLE "customer_segments_out__assign" ("entity", "segment", "x", "y")')
+    ws.db.executemany('INSERT INTO "customer_segments_out__assign" VALUES (?, ?, 0, 0)', list(segment_of.items()))
+    ws.db.execute('CREATE TABLE "customer_segments_out__segments" ("segment_id", "label", "size", "value", "profile")')
+    ws.db.executemany('INSERT INTO "customer_segments_out__segments" VALUES (?, ?, 4, 1, ?)', [("S1", "Loyal", "{}"), ("S2", "Lapsing", "{}")])
+    ws.db.execute('CREATE TABLE "customers" ("customer_id", "region", "channel", "plan_type")')
+    ws.db.executemany('INSERT INTO "customers" VALUES (?, ?, ?, ?)', [(k, "North", "Web", "Basic") for k in segment_of])
+    return ws
+
+
+def segment_records(tmp_path, page=None, **body):
+    from v141_app_shell_test import SETTINGS, call
+    from v148_app_hub_test import PERSON, hub_shell
+    page = page or SEGMENT
+    s, _ws, _made = hub_shell(tmp_path, settings=dict(SETTINGS, options=dict(SETTINGS["options"], decisions=True)), pages=[page],
+                              ws=segment_workspace())
+    status, out = call(s, "POST", "records", headers={"x-forwarded-email": PERSON}, body=dict({"page": page["id"], "limit": 25}, **body))
+    assert status == 200, out
+    return out
+
+
+def test_a_reload_counts_each_segments_treatments_from_the_current_recorded_decisions_not_from_note_text(tmp_path):
+    out = segment_records(tmp_path, treatments=True)
+    assert out["treatments"] == [{"segment": "S1", "treatment": "Win-back offer", "n": 2},
+                                 {"segment": "S2", "treatment": "Leave as is", "n": 1}], out.get("errors")
+    picked = segment_records(tmp_path / "b", treatments=True, filters={"segment": ["S2"]})
+    assert picked["treatments"] == [{"segment": "S2", "treatment": "Leave as is", "n": 1}]
+    assert "treatments" not in segment_records(tmp_path / "c")

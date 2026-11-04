@@ -5,7 +5,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
 import { DECIDE, SRC, appInfo, bundleEntry, openApp, openBundle, serveDist } from './harness.mjs';
-import { AS_OF, CASES, kindRoutes } from './exampleRoutes.mjs';
+import { AS_OF, CASES, MEMBERS, kindRoutes, statusOf } from './exampleRoutes.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const KINDS = JSON.parse(readFileSync(join(HERE, '..', '..', 'kinds.json'), 'utf8'));
@@ -49,11 +49,13 @@ const listAsked = (page, test) => page.waitForRequest((r) => new URL(r.url()).pa
 const pageAsked = (page) => page.waitForRequest((r) => new URL(r.url()).pathname.endsWith('/api/page')).then((r) => r.postDataJSON());
 const sectionsOf = (page) => page.evaluate(() => [...document.querySelectorAll('[data-section]')].map((n) => n.dataset.section));
 
-async function open(id, acts = []) {
+const exampleOf = (id) => JSON.parse(readFileSync(join(HERE, '..', '..', 'examples', `${id}.json`), 'utf8'));
+
+async function open(id, acts = [], rows = CASES[id].rows.map((r) => ({ ...r }))) {
   const info = appInfo(DECIDE, 1, {}, `examples/${id}.json`);
-  const opened = await openApp(browser, base, info, { routes: kindRoutes(CASES[id].data(), CASES[id].rows, acts) });
+  const opened = await openApp(browser, base, info, { routes: kindRoutes(CASES[id].data(), rows, acts, exampleOf(id)) });
   await opened.page.locator(CASES[id].ready).first().waitFor();
-  return { ...opened, info };
+  return { ...opened, info, rows };
 }
 
 for (const id of Object.keys(CASES)) {
@@ -87,13 +89,59 @@ test('a segment treatment is chosen once and reaches every member still without 
   await card.locator('[data-treatment="Leave as is"]').click();
   await page.waitForFunction(() => document.querySelector('.toast .toast-t')?.textContent === 'Leave as is chosen for 2 members of Lapsing families');
   assert.deepEqual(acts[0], { page: 'n04_u01', match: { filters: { segment: ['S2'] }, view: { column_filters: { action_status: ['New'] } }, as_of_us: AS_OF },
-    values: { action_status: 'In progress', note: 'Treatment: Leave as is' } });
+    treatment: 'Leave as is', values: { action_status: 'In progress', note: 'Treatment: Leave as is' } });
   assert.match(await card.locator('[data-decided]').innerText(), /Treatment: Leave as is/);
   await page.locator('[data-take-all]').click();
   await page.waitForFunction((n) => document.querySelectorAll('[data-segment] [data-decided]').length === n, 4);
   assert.deepEqual(acts.slice(1).map((a) => [a.match.filters.segment[0], a.values.note]),
     [['S1', 'Treatment: Loyalty upgrade'], ['S3', 'Treatment: Leave as is'], ['S4', 'Treatment: Win-back offer']]);
   assert.equal(await page.locator('[data-section="segment_cards"] .card--table').count() > 0, true, 'the members list sits under the segment cards');
+  assert.deepEqual(seen.errors, []);
+  await context.close();
+});
+
+test('after a reload each segment card shows the treatments its members got, counted by the server from the recorded decisions', async () => {
+  const rows = MEMBERS.map((r) => ({ ...r }));
+  rows.filter((r) => r.segment === 'S2' && statusOf(r) === 'New').forEach((r) => Object.assign(r, { _inspire_status: 'In progress', _treatment: 'Win-back offer' }));
+  rows.filter((r) => r.segment === 'S1').slice(0, 1).forEach((r) => Object.assign(r, { _inspire_status: 'In progress', _treatment: 'Loyalty upgrade', _inspire_closed_note: 'Treatment: Win-back offer' }));
+  const { page, seen, context } = await open('segment_explorer', [], rows);
+  await page.locator('[data-segment="S2"] [data-treated]').first().waitFor();
+  assert.equal(await page.locator('[data-segment="S2"] [data-treated]').innerText(), 'Treatment: Win-back offer, 2 members');
+  assert.equal(await page.locator('[data-segment="S1"] [data-treated]').innerText(), 'Treatment: Loyalty upgrade, 1 member');
+  assert.equal(await page.locator('[data-segment="S3"] [data-treated], [data-segment="S4"] [data-treated]').count(), 0);
+  assert.equal(await page.locator('[data-segment="S2"] [data-seg-open]').innerText(), 'Every member has a treatment or a decision');
+  assert.equal(await page.locator('[data-chosen]').count(), 0, 'nothing was chosen in this visit, the counts come from the recorded decisions');
+  assert.ok(seen.records.some((b) => b.treatments === true && !b.filters?.segment), 'one page-wide request asks for the treatment counts');
+  assert.deepEqual(seen.errors, []);
+  await context.close();
+});
+
+test('a picked segment keeps every other card in view, dimmed and clickable, and a treatment reaches only the members of its own card', async () => {
+  const acts = [];
+  const { page, seen, context, rows } = await open('segment_explorer', acts);
+  const asked = pageAsked(page);
+  await page.locator('[data-segment="S2"] [data-pick="S2"]').click();
+  assert.deepEqual((await asked).filters.segment, ['S2']);
+  await page.waitForFunction(() => document.querySelector('[data-segment="S2"]')?.classList.contains('is-picked'));
+  assert.equal(await page.locator('.seg-card').count(), 4, 'picking a segment never hides the other segments');
+  assert.deepEqual(await page.locator('.seg-card.is-dimmed').evaluateAll((n) => n.map((c) => c.dataset.segment)), ['S1', 'S3', 'S4']);
+  const before = rows.map((r) => [r.record_key, statusOf(r), r._treatment]);
+  await page.locator('[data-segment="S2"] [data-treatment="Win-back offer"]').click();
+  await page.locator('[data-segment="S2"] [data-treated="Win-back offer"]').waitFor();
+  const changedKeys = (from) => rows.filter((r, i) => statusOf(r) !== from[i][1] || r._treatment !== from[i][2]).map((r) => r.record_key);
+  const s2 = changedKeys(before);
+  assert.deepEqual(s2.sort(), MEMBERS.filter((r) => r.segment === 'S2' && statusOf(r) === 'New').map((r) => r.record_key).sort());
+  assert.ok(rows.filter((r) => s2.includes(r.record_key)).every((r) => r.segment === 'S2' && r._treatment === 'Win-back offer'));
+  const middle = rows.map((r) => [r.record_key, statusOf(r), r._treatment]);
+  await page.locator('[data-segment="S1"] [data-treatment="Loyalty upgrade"]').click();
+  await page.locator('[data-segment="S1"] [data-treated="Loyalty upgrade"]').waitFor();
+  const s1 = changedKeys(middle);
+  assert.ok(s1.length === 3 && rows.filter((r) => s1.includes(r.record_key)).every((r) => r.segment === 'S1'), `a dimmed card treats only its own members: ${s1}`);
+  assert.deepEqual(acts.map((a) => [a.match.filters.segment, a.treatment]), [[['S2'], 'Win-back offer'], [['S1'], 'Loyalty upgrade']]);
+  assert.ok(rows.filter((r) => r.segment !== 'S1' && r.segment !== 'S2').every((r) => !r._treatment), 'no treatment reached another segment');
+  const added = pageAsked(page);
+  await page.locator('[data-segment="S3"] [data-pick="S3"]').click();
+  assert.deepEqual([...(await added).filters.segment].sort(), ['S2', 'S3'], 'a dimmed card is still a pick');
   assert.deepEqual(seen.errors, []);
   await context.close();
 });
@@ -190,14 +238,15 @@ test('picking an effect card filters the page to that promotion through the prom
   assert.deepEqual((await asked).filters.promotion, ['Spring bundle']);
   assert.ok(await decisions, 'the keep, scale or stop list follows the pick');
   await page.waitForFunction(() => document.querySelector('[data-card="effect:Spring bundle"]')?.classList.contains('is-picked'));
-  await page.waitForFunction(() => document.querySelector('[data-card="effect:Flash sale"] [data-pick]')?.getAttribute('aria-pressed') === 'false');
+  await page.waitForFunction(() => document.querySelectorAll('[data-card^="effect:"]').length === 1, null, { timeout: 5000 });
+  assert.equal(await page.locator('[data-card="effect:Spring bundle"] [data-pick]').getAttribute('aria-pressed'), 'true');
   assert.deepEqual(seen.errors, []);
   await context.close();
 });
 
 test('the choice helpers pick the earliest named choice, map a skip to a dismissal with its reason, and judge an effect by p and range', async () => {
   const got = await inBundle(({ choices }) => {
-    const { suggestedChoice, choiceValues, treatmentValues, groupByEntity, effectVerdict, pickedIn } = window.kinds;
+    const { suggestedChoice, choiceValues, treatmentValues, treatedBySegment, groupByEntity, effectVerdict, pickedIn } = window.kinds;
     return {
       scale: suggestedChoice(choices, 'Scale it, do not stop')?.id,
       stop: suggestedChoice(choices, 'stop it, then scale later')?.id,
@@ -206,6 +255,9 @@ test('the choice helpers pick the earliest named choice, map a skip to a dismiss
       skip: choiceValues({ id: 'skip', label: 'Skip', status: 'Dismissed' }, 'Bad timing'),
       send: choiceValues({ id: 'send', label: 'Send', status: 'Done' }),
       treat: treatmentValues('Win-back offer'),
+      treated: treatedBySegment([{ segment: 'S1', treatment: 'Win back', n: 2 }, { segment: 1, treatment: 'Leave', n: '3' }, { segment: 'S1', treatment: 'Leave', n: 1 },
+        { segment: null, treatment: 'Win back', n: 9 }, { segment: 'S2', treatment: '', n: 4 }, null]),
+      none_treated: treatedBySegment(null),
       grouped: groupByEntity([{ e: 'A', r: 3 }, { e: 'A', r: 1 }, { e: 'B', r: 2 }, { e: 'A', r: 2 }], 'e', 'r', 2).map(([n, items]) => [n, items.map((i) => i.r)]),
       real: effectVerdict({ p_value: 0.01, lower: 0.02, upper: 0.1 }).real,
       crosses: effectVerdict({ p_value: 0.01, lower: -0.02, upper: 0.1 }).real,
@@ -223,6 +275,7 @@ test('the choice helpers pick the earliest named choice, map a skip to a dismiss
     scale: 'scale', stop: 'stop', none: null, empty: null,
     skip: { action_status: 'Dismissed', dismiss_reason: 'Skip: Bad timing' }, send: { action_status: 'Done', note: 'Send' },
     treat: { action_status: 'In progress', note: 'Treatment: Win-back offer' },
+    treated: { S1: [{ treatment: 'Win back', n: 2 }, { treatment: 'Leave', n: 1 }], 1: [{ treatment: 'Leave', n: 3 }] }, none_treated: {},
     grouped: [['A', [1, 2]], ['B', [2]]], real: true, crosses: false, weak: false, missing: false,
     states: ['real', 'loses', 'loses', 'unproven', 'loses', 'real', 'unproven'],
     picked: [true, false, false, true, false],

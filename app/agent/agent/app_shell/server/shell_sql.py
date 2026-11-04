@@ -56,6 +56,7 @@ GONE_STATES = shell_facts.GONE_STATES
 ACTION_EDITABLE = ("action_owner", "action_status", "action_due", "action_note", "dismiss_reason", SNOOZE_COLUMN) + tuple(CLOSE_TYPES)
 UNDONE_KEYS = ("action_owner", "action_status", "action_due", "action_note", "dismiss_reason", SNOOZE_COLUMN) + tuple(CLOSE_TYPES)
 ACT_NOTE = "note"
+TREATMENT_KEY = "treatment"
 WINDOWS = ("hour", "today", "week", "month", "all")
 ZONE_NAME = re.compile(r"^[A-Za-z][A-Za-z0-9_+-]{0,30}(/[A-Za-z0-9_+-]{1,30}){0,2}$")
 FIXED_OFFSET_GONE = ("send time_zone, the name of a time zone such as Asia/Dubai, instead of utc_offset_min: a fixed offset counts the "
@@ -1170,7 +1171,7 @@ def quality_problems(page: dict, event_date: bool = False) -> list:
     whole = run_level_datasets(page)
     if not whole and len(segments) < SEGMENT_FILTERS_MIN:
         problems.append(f"the page has {plural(len(segments), 'segment filter')}; add at least {SEGMENT_FILTERS_MIN} people can slice by")
-    covered = {d for f in filters for d in (f.get("columns") or {})} | whole
+    covered = {d for f in filters for d in (f.get("columns") or {})} | whole | segment_card_datasets(page)
     for kind, items in (("KPI", page.get("kpis") or []), ("chart", page.get("charts") or []), ("table", page.get("tables") or [])):
         for item in items:
             if item.get("dataset") and item["dataset"] not in covered:
@@ -1418,6 +1419,12 @@ def scenario_problems(scenario, names: set, wanted: bool) -> list:
     if save is not None and (not isinstance(save, dict) or any(not IDENT.match(str(save.get(k) or "")) for k in SCENARIO_SAVE)):
         problems.append(f"the scenario save names the result table columns a saved scenario writes: {', '.join(SCENARIO_SAVE)}")
     return problems
+
+
+def segment_card_datasets(page: dict) -> set:
+    if not isinstance(page.get("segments"), dict):
+        return set()
+    return {str(t.get("dataset")) for t in section_items(page, "segment_cards") if t in (page.get("tables") or []) and t.get("dataset")}
 
 
 def run_level_datasets(page: dict) -> set:
@@ -2121,7 +2128,25 @@ def list_context(page: dict, columns, fields, decisions: bool) -> dict:
             "tie": "record_key" if "record_key" in columns else key, "ai": ai,
             "categories": [n for n in ai if AI_CATEGORY.match(n)],
             "scopes": table_name(str(page["result_table"]).strip() + SUMMARY_SUFFIX) if join and page_scopes(page) else None,
+            "treatments": segment_column(page) if join and decisions and BATCH_VALUES in names else None,
             "unjoined": "" if join else unjoined_reason(page, columns, fields)}
+
+
+def segment_column(page: dict):
+    block = page.get("segments") if isinstance(page.get("segments"), dict) else {}
+    found = next((f for f in page.get("filters") or [] if isinstance(f, dict) and f.get("id") == block.get("filter")), None)
+    column = ((found or {}).get("columns") or {}).get(RECORDS_DATASET)
+    return column if IDENT.match(str(column or "")) else None
+
+
+def treatments_sql(context: dict, relation: str) -> str:
+    join = context["join"]
+    mapped = f", CAST({quote(join)} AS STRING) AS `_inspire_join`" if join != "record_key" else ""
+    current = (f"SELECT `record_key` AS `_inspire_key`{mapped}, get_json_object(`{BATCH_VALUES}`, '$.{TREATMENT_KEY}') AS `_inspire_treatment` "
+               f"FROM {context.get('current') or context['table']} WHERE `is_current` AND `change_source` <> 'delete'")
+    return (f"SELECT CAST({relation}.{quote(context['treatments'])} AS STRING) AS s, c.`_inspire_treatment` AS v, COUNT(*) AS n "
+            f"FROM {relation} JOIN ({current}) AS c ON {_current_on(context, relation)} WHERE c.`_inspire_treatment` IS NOT NULL "
+            "GROUP BY 1, 2 ORDER BY n DESC, s, v")
 
 
 def ai_alias(name: str) -> str:
@@ -2291,13 +2316,16 @@ def _list_request(page: dict, data: dict, context: dict, allowed: list) -> dict:
     mine, changed, counts = data.get("mine", False), data.get("changed", False), data.get("ai_counts", False)
     if not isinstance(mine, bool) or not isinstance(changed, bool) or not isinstance(counts, bool):
         raise ValueError("mine, changed and ai_counts take true or false")
+    treated = data.get("treatments", False)
+    if not isinstance(treated, bool):
+        raise ValueError("treatments takes true or false")
     if mine and not context["actions"]:
         raise ValueError("this decision list keeps no action owners, so it cannot show your actions")
     if changed and not context["changes"]:
         raise ValueError("this decision list keeps no runs to compare, so it cannot show what changed since the last run")
     return {"sort": key, "dir": direction, "offset": offset, "limit": limit, "search": search.strip(), "mine": mine, "changed": changed,
             "ai": ai_request(data.get("ai"), context), "columns": data.get(COLUMN_FILTERS) or {}, "cursor": list_cursor_value(data.get("cursor")),
-            "ai_counts": counts}
+            "ai_counts": counts, "treatments": treated}
 
 
 def _cursor_cell(value) -> bool:
@@ -3190,9 +3218,12 @@ def list_queries(page: dict, values: dict, request: dict, context: dict, editor:
         late = _change_columns(context)
     outer = f"SELECT {', '.join([f'{shown}.*'] + late)} FROM {shown}" + (_change_joins(context, f"{shown}.`_inspire_key`") if late else "")
     counting = dict(ctes, f=plan["plain"]) if plan["plain"] else ctes
-    return {"rows": (f"{_with(ctes, ['d', 'c', 'r', 'n', 'l0', 'o0', 'p0', 'f', 'w', 's', 'k', 'l', 'o', 'p'])} {outer} ORDER BY {order}",
-                     params.items),
-            "total": (f"{_with(counting, counted)} {capped_count('f')}", counted_params)}
+    out = {"rows": (f"{_with(ctes, ['d', 'c', 'r', 'n', 'l0', 'o0', 'p0', 'f', 'w', 's', 'k', 'l', 'o', 'p'])} {outer} ORDER BY {order}",
+                    params.items),
+           "total": (f"{_with(counting, counted)} {capped_count('f')}", counted_params)}
+    if request.get("treatments") and context.get("treatments"):
+        out["treatments"] = (f"{_with(counting, counted)} {treatments_sql(context, 'f')}", counted_params)
+    return out
 
 
 def list_match_query(page: dict, values: dict, request: dict, context: dict, editor: str = "", params=None) -> dict:
@@ -4897,12 +4928,15 @@ def segments_problems(page: dict) -> list:
         return ["a segment explorer page needs a segments section naming the filter that picks a segment's members and its treatments"]
     problems = []
     found = next((f for f in page.get("filters") or [] if isinstance(f, dict) and f.get("id") == block.get("filter")), None)
-    cards = [t.get("dataset") for t in section_items(page, "segment_cards") if t in (page.get("tables") or [])]
+    cards = segment_card_datasets(page)
     if found is None or found.get("type") != "multi_select":
         problems.append(f"the segments filter {block.get('filter')!r} must be a multi_select filter of the page")
-    elif RECORDS_DATASET not in (found.get("columns") or {}) or any((found.get("columns") or {}).get(d) != "segment_id" for d in cards):
-        problems.append(f"the segments filter {block.get('filter')} must map the {RECORDS_DATASET} dataset and the segment_id column of the "
-                        "segment cards dataset, so picking a card shows its segment and its treatment reaches all of its members")
+    elif RECORDS_DATASET not in (found.get("columns") or {}):
+        problems.append(f"the segments filter {block.get('filter')} must map the {RECORDS_DATASET} dataset, so a segment's treatment reaches "
+                        "all of its members")
+    elif any(d in (found.get("columns") or {}) for d in cards):
+        problems.append(f"the segments filter {block.get('filter')} must not map the segment cards dataset, so picking a card keeps every "
+                        "segment in view")
     if (page.get("records") or {}).get(COLUMN_FILTERS) is False:
         problems.append("a segment explorer counts the members of each segment that still need a treatment by their status, so its decision "
                         "list keeps its column filters")

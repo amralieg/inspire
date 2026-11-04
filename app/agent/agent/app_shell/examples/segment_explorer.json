@@ -55,7 +55,6 @@
       "label": "Segment",
       "columns": {
         "records": "segment",
-        "segments": "segment_id",
         "profile": "segment",
         "members": "segment",
         "moves": "from_segment"

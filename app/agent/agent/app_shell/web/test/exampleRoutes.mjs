@@ -106,7 +106,7 @@ const row = (i, extra) => ({ record_key: `K${i}`, _inspire_key: `K${i}`, _inspir
 
 const SEGMENTS = [['S1', 'Loyal regulars', 420, 1200, 'Loyalty upgrade'], ['S2', 'Lapsing families', 380, 640, 'Win-back offer'],
   ['S3', 'New and curious', 150, 300, 'Leave as is'], ['S4', 'Bargain hunters', 260, 410, 'Win-back offer']];
-const MEMBERS = Array.from({ length: 12 }, (_, i) => row(i + 1, { entity_label: `Customer ${i + 1}`, segment: SEGMENTS[i % 4][0], segment_label: SEGMENTS[i % 4][1],
+export const MEMBERS = Array.from({ length: 12 }, (_, i) => row(i + 1, { entity_label: `Customer ${i + 1}`, segment: SEGMENTS[i % 4][0], segment_label: SEGMENTS[i % 4][1],
   recommended_action: 'Keep them', region: 'North', channel: 'Online', ...(i === 5 ? { _inspire_status: 'Dismissed', _inspire_closed_reason: 'Moved away' } : {}) }));
 const CUSTOMERS = ['Ana', 'Bo', 'Cy', 'Di', 'Ed', 'Flo', 'Gus', 'Hal'];
 const OFFERS = ['Travel card', 'Savings plan', 'Phone upgrade'];
@@ -116,7 +116,7 @@ const PROMOS = [['Spring bundle', 'Scale it: strong net lift'], ['Loyalty points
   ['Flash sale', 'Stop it: no real lift']].map(([label, action], i) => row(i + 1, { entity_label: label, entity_id: label, recommended_action: action,
   effect: 12 - i * 4, roi: 140 - i * 50, incremental_value: 90000 - i * 30000, channel: 'Online' }));
 
-const statusOf = (r) => r._inspire_status || 'New';
+export const statusOf = (r) => r._inspire_status || 'New';
 
 function listed(rows, body) {
   const wanted = body.filters?.segment;
@@ -127,23 +127,49 @@ function listed(rows, body) {
     .filter((r) => !words || [r.entity_label, r.customer_name, r.record_key].some((v) => String(v ?? '').toLowerCase().includes(words)));
 }
 
-export function kindRoutes(data, rows, acts) {
+function scoped(spec, data, body) {
+  const tables = Object.fromEntries(Object.entries(data.tables || {}).map(([id, result]) => {
+    const dataset = (spec.tables || []).find((t) => t.id === id)?.dataset;
+    const narrowed = (spec.filters || []).reduce((rows, f) => {
+      const column = f.columns?.[dataset];
+      const wanted = Array.isArray(body.filters?.[f.id]) ? body.filters[f.id].map(String) : [];
+      return column && wanted.length ? rows.filter((r) => wanted.includes(String(r[column]))) : rows;
+    }, result.rows);
+    return [id, { ...result, rows: narrowed }];
+  }));
+  return { ...data, tables };
+}
+
+function treatmentsOf(rows) {
+  const counted = new Map();
+  rows.filter((r) => r._treatment).forEach((r) => {
+    const key = `${r.segment}\u0001${r._treatment}`;
+    counted.set(key, { segment: r.segment, treatment: r._treatment, n: (counted.get(key)?.n || 0) + 1 });
+  });
+  return [...counted.values()].sort((a, b) => b.n - a.n || a.segment.localeCompare(b.segment));
+}
+
+export function kindRoutes(data, rows, acts, spec = {}) {
   return {
     page: ({ route, json, seen }) => {
-      seen.pages.push(route.request().postDataJSON());
-      return json(200, data);
+      const body = route.request().postDataJSON();
+      seen.pages.push(body);
+      return json(200, scoped(spec, data, body));
     },
     records: ({ route, json, seen }) => {
       const body = route.request().postDataJSON();
       seen.records.push(body);
       const found = listed(rows, body);
       return json(200, { rows: found.slice(0, body.limit || 25), total: found.length, offset: 0, limit: body.limit || 25, actions: true, changes: false,
-        as_of_us: AS_OF, summary: { open: found.length, done: 0, resolved: 0, left: found.length, owners: [] }, errors: {} });
+        as_of_us: AS_OF, summary: { open: found.length, done: 0, resolved: 0, left: found.length, owners: [] }, errors: {},
+        ...(body.treatments ? { treatments: treatmentsOf(rows) } : {}) });
     },
     'records/act': ({ route, json }) => {
       const body = route.request().postDataJSON();
       acts.push(body);
-      return json(200, { written: body.record_keys || ['K1', 'K5', 'K9'], conflicts: [], batch_id: `b${acts.length}` });
+      const hit = body.match ? listed(rows, { ...body.match.view, filters: body.match.filters }) : [];
+      hit.forEach((r) => Object.assign(r, { _inspire_status: body.values.action_status, ...(body.treatment ? { _treatment: body.treatment } : {}) }));
+      return json(200, { written: hit.length ? hit.map((r) => r.record_key) : body.record_keys || ['K1', 'K5', 'K9'], conflicts: [], batch_id: `b${acts.length}` });
     },
   };
 }

@@ -267,6 +267,15 @@ export function ChoiceList({ page, app, filters, ready, nonce, onChanged }) {
   );
 }
 
+export function treatedBySegment(counted) {
+  const out = {};
+  (counted || []).forEach((t) => {
+    if (t?.segment == null || !t.treatment) return;
+    (out[String(t.segment)] ||= []).push({ treatment: String(t.treatment), n: Number(t.n) || 0 });
+  });
+  return out;
+}
+
 function useSegmentCounts(page, ids, ready, nonce) {
   const filter = page.segments?.filter;
   const [counts, setCounts] = useState({});
@@ -274,11 +283,12 @@ function useSegmentCounts(page, ids, ready, nonce) {
   useEffect(() => {
     if (!ready || !filter || !ids.length) return undefined;
     let live = true;
-    getRecords({ page: page.id, filters: {}, offset: 0, limit: 1 })
+    getRecords({ page: page.id, filters: {}, offset: 0, limit: 1, treatments: true })
       .then((probe) => {
         const view = probe.actions ? UNTREATED : {};
+        const treated = treatedBySegment(probe.treatments);
         return Promise.all(ids.map((id) => getRecords({ ...view, page: page.id, filters: { [filter]: [id] }, offset: 0, limit: 1 })
-          .then((data) => [id, { waiting: data.total ?? 0, asOf: listAsOf(data), actions: !!data.actions, view }])
+          .then((data) => [id, { waiting: data.total ?? 0, asOf: listAsOf(data), actions: !!data.actions, view, treated: treated[id] || [] }])
           .catch((e) => [id, { error: e.message }])));
       })
       .catch((e) => ids.map((id) => [id, { error: e.message }]))
@@ -305,7 +315,7 @@ export function SegmentCards({ page, app, ready, nonce, filters, onChanged, onPi
     const c = counts[id] || {};
     if (!c.asOf || !c.waiting) return;
     setPicked((all) => ({ ...all, [id]: treatment }));
-    await decide.run(`seg:${id}`, { match: matchOf({ ...c.view, filters: { [block.filter]: [id] } }, c.asOf) }, treatmentValues(treatment),
+    await decide.run(`seg:${id}`, { match: matchOf({ ...c.view, filters: { [block.filter]: [id] } }, c.asOf), treatment }, treatmentValues(treatment),
       `${treatment} chosen for ${integer(c.waiting)} members of ${row.label}`);
   };
   const suggestedOf = (row) => (block.suggest && (block.treatments || []).find((t) => t.toLowerCase() === String(row[block.suggest] ?? '').toLowerCase())) || null;
@@ -327,10 +337,12 @@ export function SegmentCards({ page, app, ready, nonce, filters, onChanged, onPi
             const id = String(row.segment_id);
             const c = counts[id] || {};
             const star = suggestedOf(row);
-            const chosen = picked[id];
+            const treated = c.treated || [];
+            const chosen = picked[id] && !treated.some((t) => t.treatment === picked[id]) ? picked[id] : null;
             const done = c.actions && c.waiting === 0;
+            const state = pickedIn(filters, block.filter, id) ? ' is-picked' : (filters?.[block.filter] || []).length ? ' is-dimmed' : '';
             return (
-              <article key={id} className={`seg-card${pickedIn(filters, block.filter, id) ? ' is-picked' : ''}`} data-card={`segment:${id}`} data-segment={id}>
+              <article key={id} className={`seg-card${state}`} data-card={`segment:${id}`} data-segment={id}>
                 <header><PickButton filter={block.filter} value={id} label={row.label} filters={filters} onPick={onPick} what="segment" /><AskGenie kind="segment" title={row.label} context={{ hint: row.profile != null ? String(row.profile) : '',
                   fields: { ...specFields(row, table?.columns), ...(c.waiting != null ? { 'Members waiting': c.waiting } : {}), ...(star ? { Suggested: star } : {}) } }} /></header>
                 <dl>
@@ -341,7 +353,12 @@ export function SegmentCards({ page, app, ready, nonce, filters, onChanged, onPi
                 <p className="seg-wait" data-seg-open>{c.error ? c.error : c.waiting == null ? 'Counting members…'
                   : !c.actions ? `${plural(c.waiting, 'member')} in the decision list` : done ? 'Every member has a treatment or a decision'
                   : `${integer(c.waiting)} of ${shown(cols.size || { format: 'integer' }, row.size)} members still need a treatment`}</p>
-                {chosen && <p className="choice-done" data-decided><Icon name="check" size={13} />{TREATMENT_NOTE}: {chosen}</p>}
+                {(chosen || treated.length > 0) && (
+                  <p className="choice-done seg-treated" data-decided><Icon name="check" size={13} />
+                    {chosen && <span data-chosen>{TREATMENT_NOTE}: {chosen}</span>}
+                    {treated.map((t) => <span key={t.treatment} data-treated={t.treatment}>{TREATMENT_NOTE}: {t.treatment}, {plural(t.n, 'member')}</span>)}
+                  </p>
+                )}
                 {can && c.actions && (
                   <div className="seg-act" role="group" aria-label={`Treatment for ${row.label}`}>
                     {(block.treatments || []).map((t) => (
