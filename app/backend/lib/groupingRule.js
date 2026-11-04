@@ -1,4 +1,5 @@
 const { RUN_SCOPES } = require('../../frontend/src/lib/runScope.js');
+const { PERSONAL_NAME_RE, PERSONAL_TAG_RE, personalColumn } = require('../../frontend/src/lib/personalColumns.js');
 const GROUP_BY = 'group_by';
 const GROUP_LABEL = 'Grouping';
 const GROUP_ALL = 'all';
@@ -26,11 +27,6 @@ const STANDALONE_TECHNIQUES = ['classif', 'extract', 'summar', 'sentiment', 'tag
 const GROUP_ID_RE = /(?:^|_)(?:id|key|uuid|guid|sk|nk|hash)$/i;
 const GROUP_TYPES = ['string', 'varchar', 'char', 'boolean'];
 const GROUP_KEY_TYPES = ['int', 'integer', 'bigint', 'smallint', 'tinyint', 'long', 'short', 'byte', 'string', 'varchar', 'char'];
-const PERSONAL_NAME_RE = new RegExp('(e[-_]?mail|phone|mobile|msisdn|fax|first[_-]?name|last[_-]?name|full[_-]?name|middle[_-]?name|surname|'
-  + 'given[_-]?name|maiden|address|street|postcode|post[_-]?code|zip[_-]?code|zipcode|\\bssn\\b|social[_-]?security|'
-  + 'national[_-]?id|tax[_-]?id|passport|licen[cs]e[_-]?(no|num|number)|iban|swift|account[_-]?(no|num|number)|'
-  + 'card[_-]?(no|num|number)|credit[_-]?card|\\bcvv\\b|birth|\\bdob\\b|ip[_-]?addr|(^|_)ip($|_)|latitude|longitude|geo[_-]?loc)', 'i');
-const PERSONAL_TAG_RE = /pii|personal|sensitive|confidential|gdpr|hipaa|\bphi\b|\bpci\b|restricted/i;
 const TIME_TYPES = ['date', 'timestamp'];
 const TIME_NAME_RE = /(date|time|day)|_at$|_ts$/i;
 const TEXT_NAME_TOKENS = ['text', 'comment', 'review', 'description', 'desc', 'note', 'feedback', 'transcript', 'body', 'message', 'title', 'subject',
@@ -140,11 +136,6 @@ function recommendation(profiles, nests = []) {
     if (!picked.length || nested.has(`${lower(picked[picked.length - 1])}\u0000${lower(profile.column)}`)) picked.push(str(profile.column));
   }
   return picked;
-}
-
-function personalColumn(name, tags = {}) {
-  if (PERSONAL_NAME_RE.test(str(name))) return true;
-  return Object.entries(tags || {}).some(([tag, value]) => PERSONAL_TAG_RE.test(`${str(tag)} ${str(value)}`));
 }
 
 const baseType = (kind) => lower(kind).replace(/\(.*$/, '').trim();

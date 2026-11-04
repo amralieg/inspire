@@ -1780,3 +1780,28 @@ test('one helper writes every A, B and C list on the wizard and the Build page, 
   const named = frontendSources(root).filter((file) => /function (namesText|andList)\b/.test(fs.readFileSync(file, 'utf8')));
   assert.deepEqual(named, []);
 });
+
+test('personal or card-number columns are never offered or accepted as the key of the result, and the data step says why (must-exclude)', async () => {
+  const w = await load();
+  const P = await import(pathToFileURL(path.resolve(__dirname, '..', '..', 'frontend', 'src', 'lib', 'personalColumns.js')).href);
+  const G = require('../lib/groupingRule.js');
+  assert.equal(G.PERSONAL_NAME_RE, P.PERSONAL_NAME_RE, 'one personal-column rule for grouping and the result key');
+  const columns = { 'main.s.payments': ['payment_id', 'customer_id', 'cardNumber', 'card_no', 'email_id', 'phone_number', 'ssn', 'iban', 'account_number', 'card_type']
+    .map((column_name) => ({ column_name, data_type: 'STRING' })) };
+  const offered = w.entityKeyOptions(columns, ['main.s.payments']).map((k) => k.column);
+  for (const personal of ['cardNumber', 'card_no', 'email_id', 'phone_number', 'account_number']) assert.ok(!offered.includes(personal), personal);
+  assert.deepEqual(offered.filter((c) => ['payment_id', 'customer_id'].includes(c)), ['payment_id', 'customer_id'], 'entity ids stay (must-keep)');
+  assert.equal(w.columnRoleProblem('entity_id', 'cardNumber', 'STRING'), P.PERSONAL_KEY_REASON);
+  assert.equal(w.columnRoleProblem('entity_id', 'customer_id', 'STRING'), '');
+  assert.equal(w.columnRoleProblem('segment', 'card_type', 'STRING'), '', 'only the key role is refused');
+  const uc = { ...STICK_UC, Name: 'Flag risky payments', statement: 'Flag payments for review',
+    elite_assessment: JSON.stringify({ entity_key_column: 'main.s.payments.cardNumber' }) };
+  const spec = w.defaultSpecFromUseCase(uc, { warehouseId: 'wh1', inspireDatabase: 'main.inspire', owner: 'amr@example.com' });
+  const check = w.grainCheck(spec, uc, columns, ['main.s.payments']);
+  assert.equal(check.state, 'personal');
+  assert.equal(check.suggest.ref, 'main.s.payments.payment_id');
+  assert.equal(w.grainText(check), `main.s.payments.cardNumber cannot be the key of the result: ${P.PERSONAL_KEY_REASON}.`);
+  const picked = w.withEntityKey(spec, 'main.s.payments.cardNumber');
+  assert.deepEqual(w.columnRoleProblems(picked.data.column_roles, columns), [`entity id main.s.payments.cardNumber: ${P.PERSONAL_KEY_REASON}`]);
+  assert.equal(w.grainCheck(w.withEntityKey(spec, 'main.s.payments.payment_id'), uc, columns, ['main.s.payments']).state === 'personal', false);
+});

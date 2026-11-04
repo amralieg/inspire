@@ -54,7 +54,7 @@ export function TeamCapacity({ spec, suggestion, inputClass, onType, onSuggest }
 export function RowSubjectCheck({ check, options, chosen, inputClass, onPick }) {
   const text = grainText(check);
   if (!text && !options.length) return null;
-  const warn = check.state === 'mismatch' && !check.row.chosen;
+  const warn = check.state === 'personal' || (check.state === 'mismatch' && !check.row.chosen);
   const picks = chosen && !options.some((o) => o.ref === chosen) ? [{ ref: chosen }, ...options] : options;
   return (
     <section
@@ -64,14 +64,14 @@ export function RowSubjectCheck({ check, options, chosen, inputClass, onPick }) 
     >
       <h3 className="text-sm font-semibold text-text-primary">What one row of the result means</h3>
       {text && <p role="status" className={`text-[12px] ${warn ? 'text-warning-fg' : 'text-text-secondary'}`}>{text}</p>}
-      {check.state === 'mismatch' && (
+      {(check.state === 'mismatch' || check.state === 'personal') && (
         <div className="flex flex-wrap gap-3 text-[11px]">
           {check.suggest && (
             <button type="button" className="text-db-red-fg font-medium" onClick={() => onPick(check.suggest.ref)}>
               Group by {check.suggest.column}
             </button>
           )}
-          {!check.row.chosen && (
+          {check.state === 'mismatch' && !check.row.chosen && (
             <button type="button" className="text-text-secondary hover:text-text-primary" onClick={() => onPick(check.row.ref)}>
               Keep one row per {check.rowNoun}
             </button>

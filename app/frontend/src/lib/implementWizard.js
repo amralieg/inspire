@@ -1,6 +1,7 @@
 import { compareMeetsQualityBarFirst, subtitleOfUseCase } from './useCaseFields.js';
 import { placeholderWords } from './placeholderWords.js';
 import { plural } from './plural.js';
+import { PERSONAL_KEY_REASON, personalColumn } from './personalColumns.js';
 import { specVibeAsks, vibeRefusalText, vibeRefusals } from './vibeLimits.js';
 import { kpiTargetOf, kpiTargetProblems, stakeWords, withKpiTarget } from './targetKpi.js';
 import { latestRunScope, scopeProblems, scopeValues } from './runScope.js';
@@ -1042,6 +1043,7 @@ export function columnRoleProblem(role, column, type, { trainsModel = true } = {
   const keyLike = isKeyLikeColumn(column);
   const tokens = nameTokens(column);
   const freeText = family === 'string' && [...ROLE_RULES.textNameTokens, ...ROLE_RULES.personNameTokens].some((t) => tokens.includes(t));
+  if (role === 'entity_id' && personalColumn(column)) return PERSONAL_KEY_REASON;
   if (role === 'entity_id' && (dateKey || family === 'temporal' || family === 'boolean' || (family === 'numeric' && !keyLike))) {
     return 'a date, a date key or a measure is not the entity the decision acts on';
   }
@@ -2056,6 +2058,10 @@ export function grainCheck(spec, uc, columnsByTable, tables) {
   const keys = entityKeyOptions(columnsByTable, tables);
   const subject = subjectOfUseCase(uc, keys);
   const row = rowKeyOf(spec, uc);
+  if (row && personalColumn(columnOfRef(row.ref))) {
+    const suggest = keys.find((k) => sameTable(k.table, tableOfRef(row.ref)) && (!subject || k.noun === subject.noun)) || null;
+    return { state: 'personal', subject, row, rowNoun: '', suggest };
+  }
   const rowNoun = row ? keyNoun(columnOfRef(row.ref)) : '';
   if (!subject || !row || !rowNoun) return { state: 'unknown', subject, row, rowNoun };
   if (rowNoun === subject.noun) return { state: 'ok', subject, row, rowNoun };
@@ -2066,6 +2072,7 @@ export function grainCheck(spec, uc, columnsByTable, tables) {
 
 export function grainText(check) {
   if (!check || check.state === 'unknown') return '';
+  if (check.state === 'personal') return `${check.row.ref} cannot be the key of the result: ${PERSONAL_KEY_REASON}.`;
   const subject = check.subject.noun;
   if (check.state === 'ok') return `One row of the result is one ${subject} (${check.row.ref}).`;
   const group = check.suggest ? `group by ${check.suggest.column}` : `pick the column that names one ${subject}`;
