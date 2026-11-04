@@ -267,6 +267,9 @@ export const CASES = {
   segment_explorer: { data: segmentData, rows: MEMBERS, ready: '[data-segment]' },
   recommendation_desk: { data: recsData, rows: RECS, ready: '[data-choice-row]' },
   lift_readout: { data: liftData, rows: PROMOS, ready: '[data-verdict]' },
+};
+
+export const LAYOUT_B_CASES = {
   process_flow: { data: processData, rows: CASES_ROWS, ready: '[data-choice-row]', canvases: 4, lists: { breach_risk_cases: 20 } },
   location_view: { data: locationData, rows: SITE_ROWS, ready: '[data-choice-row]', canvases: 3, lists: { ranked_sites: 3 } },
   network_explorer: { data: networkData, rows: NODE_ROWS, ready: '[data-choice-row]', canvases: 1, lists: { centrality_list: 10 } },
@@ -280,6 +283,6 @@ export const EXAMPLES = {
     ready: (page) => page.waitForFunction(() => document.querySelectorAll('[data-section] canvas').length >= 3 && document.querySelector('[data-plan-row="K1"]')) },
   'scenario_lab.json': { settings: { options: { modify: true, replace_edits: false, decisions: false } }, routes: () => scenarioRoutes([], []),
     ready: (page) => page.waitForFunction(() => document.querySelectorAll('[data-section] canvas').length >= 4 && document.querySelector('[data-lever="price"]')) },
-  ...Object.fromEntries(Object.entries(CASES).map(([id, c]) => [`${id}.json`, { settings: DECIDE, routes: () => kindRoutes(c.data(), c.rows, []),
+  ...Object.fromEntries(Object.entries({ ...CASES, ...LAYOUT_B_CASES }).map(([id, c]) => [`${id}.json`, { settings: DECIDE, routes: () => kindRoutes(c.data(), c.rows, []),
     ready: (page) => page.waitForFunction(([ready, canvases]) => document.querySelectorAll('[data-section] canvas').length >= canvases && document.querySelector(ready), [c.ready, c.canvases ?? 3]) }])),
 };

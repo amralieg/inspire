@@ -5,7 +5,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
 import { DECIDE, SRC, appInfo, bundleEntry, openApp, openBundle, serveDist } from './harness.mjs';
-import { CASES as ALL, MOVES, STEPS, kindRoutes } from './exampleRoutes.mjs';
+import { LAYOUT_B_CASES as CASES, MOVES, STEPS, kindRoutes } from './exampleRoutes.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ASSETS = join(HERE, '..', 'dist', 'assets');
@@ -40,7 +40,6 @@ async function inBundle(run, arg) {
   return out;
 }
 
-const CASES = Object.fromEntries(['process_flow', 'location_view', 'network_explorer', 'agent_chat'].map((id) => [id, ALL[id]]));
 const layoutOf = (id) => KINDS.layouts.find((l) => l.id === id);
 
 const exampleOf = (id) => JSON.parse(readFileSync(join(HERE, '..', '..', 'examples', `${id}.json`), 'utf8'));
