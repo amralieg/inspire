@@ -6,6 +6,7 @@ import { REVIEW_RESULTS, REVIEW_SESSIONS, REVIEW_STATE, RUN_SUMMARY } from './re
 import { LATEST_RUN_LABEL } from '../../src/lib/reviewFigures.js';
 import * as V from '../../src/lib/v130UseCase.js';
 import * as A from '../../src/lib/artifactFiles.js';
+import { START_MVP_LABEL } from '../../src/lib/implementWizard.js';
 
 const AdmZip = createRequire(import.meta.url)('../../../backend/node_modules/adm-zip');
 
@@ -368,5 +369,29 @@ test('an Excel catalog previews from the code Inspire ships, with no script from
     assert.deepEqual(ui.pageErrors, []);
   } finally {
     await ui.close();
+  }
+});
+
+test('a live preview heads the run with its business name and offers no MVP start for use cases the run has not saved yet (must-exclude)', async () => {
+  const { title: _final, ...preview } = REVIEW_RESULTS;
+  const live = await openUi('results', { ...REVIEW_STATE, results: null, stepResults: { ...preview, _progressive: true, _use_case_count: 3, _step_count: 4 } });
+  try {
+    await ready(live.page);
+    await live.page.getByText('Live Preview', { exact: true }).waitFor();
+    const named = (await heading(live.page).locator('h2').innerText()).trim();
+    const business = (await heading(live.page).locator('[data-run-business]').innerText()).trim();
+    assert.equal(named, `${business} Use Cases Catalog`, 'the heading names the business, never its description');
+    assert.equal(await live.page.getByRole('button', { name: START_MVP_LABEL }).count(), 0, 'a preview row is not in the use case table yet');
+    assert.ok((await live.page.getByText(`${START_MVP_LABEL} opens on each use case once the run has saved it.`).count()) > 0);
+    assert.deepEqual(live.pageErrors, []);
+  } finally {
+    await live.close();
+  }
+  const saved = await openUi('results', REVIEW_STATE);
+  try {
+    await ready(saved.page);
+    assert.ok((await saved.page.getByRole('button', { name: START_MVP_LABEL }).count()) > 0, 'a finished run still offers the MVP start');
+  } finally {
+    await saved.close();
   }
 });

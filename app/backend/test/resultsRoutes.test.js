@@ -15,6 +15,8 @@ const STEP_ROWS = [
   ['2', 'Executive Readout', 'Building Executive Summary', 'ended_success', JSON.stringify({
     prompt_name: 'SUMMARY_GEN_PROMPT', entity_id: 'SUMMARY_GEN_PROMPT:Executive_Summary_English', response_chars: 40,
     rows: [{ Summary: '<p>Text the App must not read from a step row.</p>' }] })],
+  ['3', 'Business Context', 'Business Context', 'ended_success', JSON.stringify({
+    prompt_name: 'BUSINESS_CONTEXT_WORKER_PROMPT', json: { business_context: 'Acme bakes bread in 40 shops. UNKNOWN_FROM_METADATA covers the rest.' } })],
 ];
 
 const asText = (v) => (typeof v === 'string' ? v : JSON.stringify(v));
@@ -144,6 +146,8 @@ test('GET /api/inspire/step-results answers the summary from the session results
   assert.equal(status, 200);
   assert.equal(body.results.executive_summary, SUMMARY);
   assert.equal(body.results._use_case_count, 1);
+  assert.equal(body.results.title, undefined, 'a live preview names no title, so the page heads it with the run business name, never the business description (must-exclude)');
+  assert.ok(!JSON.stringify(body.results).includes('UNKNOWN_FROM_METADATA'));
   const read = warehouse.state.statements.find((s) => String(s.statement).startsWith(`SELECT results_json FROM ${SESSION}`));
   assert.ok(read, 'the progressive route reads the session row');
   assert.deepEqual(read.parameters, [{ name: 'sid', value: '42', type: 'BIGINT' }]);

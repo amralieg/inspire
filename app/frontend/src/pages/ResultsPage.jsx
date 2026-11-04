@@ -84,7 +84,7 @@ import FilePreview from '../components/FilePreview';
 import { generationFolder, workspaceNotebookUrl, workspaceWebUiHashPath } from '../lib/workspaceLinks';
 import ImplementWizard from './ImplementWizard';
 import { kindFilterLabel, kindFilterOptions, matchesKindFilter } from '../lib/useCaseKind';
-import { MVP_FILTERS, implementState, mvpCounts, mvpFilterMatches, notebookRunEnded, notebookStatus, versionActive } from '../lib/implementWizard';
+import { MVP_FILTERS, START_MVP_LABEL, implementState, mvpCounts, mvpFilterMatches, notebookRunEnded, notebookStatus, versionActive } from '../lib/implementWizard';
 import { buildUseCaseList } from '../lib/useCaseList';
 import { makeApiFetch, makeApiPostJson, requestHeaders } from '../lib/apiClient';
 import { reviewLinkText } from '../lib/runPages';
@@ -941,7 +941,7 @@ export default function ResultsPage({
 
   const highPriorityCount = computeHighPriorityCount(allUseCases);
   const hasMvpData = !!(selectedSessionId && inspireDb && warehouseId);
-  const canImplement = !showcase && hasMvpData;
+  const canImplement = !showcase && hasMvpData && !isProgressive;
   const selectedFigures = selectedSessionId ? portfolio?.sessions?.[String(selectedSessionId)] || null : null;
   const startImplement = (uc) => { setImplementFocus(null); setImplementUc(uc); };
   const feedbackCurrentFor = (uc) => (uc?._v130?.useCaseKey ? feedbackLatest[uc._v130.useCaseKey] : undefined);
@@ -1243,7 +1243,7 @@ export default function ResultsPage({
                 <span className="text-sm font-semibold text-warning-fg">Live Preview</span>
                 <span className="text-xs text-text-secondary ml-2">
                   Showing {allUseCases.length} use cases from {results._step_count || 0} completed steps.
-                  Results will be enriched as the pipeline progresses.
+                  Results will be enriched as the pipeline progresses. {START_MVP_LABEL} opens on each use case once the run has saved it.
                 </span>
               </div>
               <button

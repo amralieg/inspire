@@ -2348,7 +2348,6 @@ app.get('/api/inspire/step-results', requireToken, async (req, res) => {
     // Use cases keyed by id to allow merging across phases
     const ucMap = new Map();       // id → use case object
     const domainsList = [];        // { domain_name, use_case_ids }
-    let businessContext = null;
 
     for (const step of steps) {
       const rj = step.result_json;
@@ -2420,11 +2419,6 @@ app.get('/api/inspire/step-results', requireToken, async (req, res) => {
         }
       }
 
-      // 7) Business Context
-      if (prompt === 'BUSINESS_CONTEXT_WORKER_PROMPT' && rj.json) {
-        businessContext = rj.json;
-      }
-
       // 8) Translation rows — may carry full use case objects
       if (prompt === 'USE_CASE_TRANSLATE_PROMPT' && Array.isArray(rj.rows)) {
         for (const row of rj.rows) {
@@ -2468,7 +2462,6 @@ app.get('/api/inspire/step-results', requireToken, async (req, res) => {
     }));
 
     const progressiveResults = {
-      title: businessContext ? `${businessContext.business_context || ''} Use Cases Catalog` : 'Use Cases Catalog (In Progress)',
       executive_summary: executiveSummary,
       domains_summary: domains.map(d => `${d.domain_name}: ${d.use_cases.length} use cases`).join(', '),
       domains,
