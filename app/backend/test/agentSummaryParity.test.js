@@ -47,6 +47,8 @@ class Run:
         return {}
     def _v130_results_keys(self):
         return {}
+    def run_exit_value(self):
+        return ""
 Run._record_executive_summary = ns["_record_executive_summary"]
 Run._merge_run_outcome_into_results = ns["_merge_run_outcome_into_results"]
 fixture = json.load(open(cases["fixture"], encoding="utf-8"))
