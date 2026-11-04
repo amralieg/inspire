@@ -271,6 +271,26 @@ test('tag values are cleaned exactly the way the agent cleans them, and the use 
   assert.deepEqual(fixture.use_case_tag_keys.filter((key) => !(key in tags)), []);
 });
 
+test('on a GCP workspace every tag value fits the 63 characters GCP allows, and other clouds keep 255', () => {
+  const { inspireJobTags, inspireTagValue, inspireTagValueMax } = require('../lib/inspireJobParams');
+  assert.equal(inspireTagValueMax('1234567890.gcp.databricks.com'), 63);
+  assert.equal(inspireTagValueMax('dbc-1.cloud.databricks.com'), 255);
+  assert.equal(inspireTagValueMax('adb-1.12.azuredatabricks.net'), 255);
+  assert.equal(inspireTagValueMax(''), 255);
+  const before = process.env.DATABRICKS_HOST;
+  process.env.DATABRICKS_HOST = '1234567890.gcp.databricks.com';
+  try {
+    assert.equal(inspireTagValue('x'.repeat(300)).length, 63);
+    const ids = Array.from({ length: 20 }, (_, i) => `N${String(i + 1).padStart(2, '0')}-U01`);
+    const tags = inspireJobTags({ runType: 'implement', params: { '14_session_id': '42' }, businessName: 'b'.repeat(90), notebookFilename: 'n'.repeat(90), useCaseIds: ids });
+    assert.deepEqual(Object.entries(tags).filter(([, value]) => value.length > 63), []);
+    assert.equal(tags.dbx_inspire_ai_usecase_id.split('_')[0], 'N01-U01');
+    assert.equal(tags.dbx_inspire_ai_usecases, '20');
+  } finally {
+    if (before === undefined) delete process.env.DATABRICKS_HOST; else process.env.DATABRICKS_HOST = before;
+  }
+});
+
 test('every job the App creates takes its tags from inspireJobTags', () => {
   const fs = require('fs');
   const path = require('path');

@@ -195,6 +195,11 @@ function buildDemoInspireDiscoveryParams({ inspireDatabase, sessionId, generateT
 }
 
 const INSPIRE_TAG_VALUE_MAX = 255;
+const INSPIRE_GCP_TAG_VALUE_MAX = 63;
+
+function inspireTagValueMax(host = process.env.DATABRICKS_HOST) {
+  return /\.gcp\.databricks\.com/i.test(String(host || '')) ? INSPIRE_GCP_TAG_VALUE_MAX : INSPIRE_TAG_VALUE_MAX;
+}
 
 function inspireTagValue(value) {
   return String(value ?? '')
@@ -203,14 +208,14 @@ function inspireTagValue(value) {
     .replace(/^_+|_+$/g, '')
     .replace(/^\.+|\.+$/g, '')
     .replace(/^-+|-+$/g, '')
-    .slice(0, INSPIRE_TAG_VALUE_MAX);
+    .slice(0, inspireTagValueMax());
 }
 
 function inspireUseCaseIdsTag(useCaseIds) {
   let joined = '';
   for (const id of useCaseIds) {
     const next = joined ? `${joined}_${id}` : id;
-    if (next.length > INSPIRE_TAG_VALUE_MAX) break;
+    if (next.length > inspireTagValueMax()) break;
     joined = next;
   }
   return joined;
@@ -375,6 +380,7 @@ module.exports = {
   DEFAULT_GENERATION_PATH,
   buildDemoInspireDiscoveryParams,
   inspireTagValue,
+  inspireTagValueMax,
   inspireJobTags,
   withInspireInstallParams,
   INSPIRE_TEST_TAG,

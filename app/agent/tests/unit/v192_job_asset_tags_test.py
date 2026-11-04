@@ -145,6 +145,21 @@ def test_alert_ids_that_do_not_fit_keep_whole_ids_and_the_full_count(ns):
     assert len(ns["implement_asset_tags"]({"dashboard": "d" * 400}, {})["dbx_inspire_ai_dashboard_id"]) == 255
 
 
+@pytest.mark.parametrize("host, cap", [("1234567890.gcp.databricks.com", 63), ("dbc-1.cloud.databricks.com", 255),
+                                       ("adb-1.12.azuredatabricks.net", 255), ("", 255)])
+def test_tag_values_fit_the_cloud_of_the_workspace(ns, monkeypatch, host, cap):
+    launcher = ns["JobLauncher"]
+    monkeypatch.setattr(launcher, "_tag_value_max", None)
+    monkeypatch.setenv("DATABRICKS_HOST", host)
+    title = "N02-U01 - win back the high value travelers who have stopped booking"
+    assert launcher._sanitize_tag(title) == "N02-U01_-_win_back_the_high_value_travelers_who_have_stopped_booking"[:cap]
+    assert len(launcher._sanitize_tag("x" * 300)) == cap
+    tags = launcher("/Users/someone@example.com/nb", {}, {"dbx_inspire_ai_usecase": "y" * 300, "dbx_inspire_ai_business": "z" * 300}).job_tags
+    assert {len(value) for value in tags.values()} == {cap}
+    alerts = ns["implement_asset_tags"]({"alert": "a" * 40}, {"alert": {"state": "ready", "digest_id": "b" * 40}})
+    assert alerts["dbx_inspire_ai_alert_ids"] == ("a" * 40 if cap == 63 else f"{'a' * 40},{'b' * 40}")
+
+
 def test_the_tag_cap_keeps_twenty_and_drops_the_lowest_priority_inspire_tags(ns, capsys):
     launcher = ns["JobLauncher"]
     inspire = {key: "v" for key in launcher.TAG_PRIORITY}
