@@ -2,7 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const zlib = require('zlib');
 const { appShellFiles, appShellPayload, bundledAppShellText } = require('./appShell');
-const { assetType } = require('./assetTypes');
+const { assetType, encodedCache, sendAsset } = require('./assetTypes');
 const { parseExactJson } = require('./exactJson');
 const { sameOriginCsp } = require('./hostedRun');
 const { BACKEND_DIR } = require('./appPaths');
@@ -160,6 +160,7 @@ function registerShowcaseRoutes(app, { dir = SHOWCASE_DIR, shellFiles, log = con
     log.error(`The demo is off: ${loadError}`);
   }
   let shell = shellFiles || null;
+  const encodeShell = encodedCache();
   const shellFile = (name) => {
     if (!shell) shell = appShellFiles(appShellPayload(bundledAppShellText()));
     return shell[name];
@@ -210,9 +211,7 @@ function registerShowcaseRoutes(app, { dir = SHOWCASE_DIR, shellFiles, log = con
       res.status(404).set('X-Content-Type-Options', 'nosniff').type('text/plain').send(SHOWCASE_MISSING);
       return;
     }
-    res.setHeader('Content-Type', type);
-    res.setHeader('Content-Security-Policy', sameOriginCsp());
-    res.set({ 'X-Content-Type-Options': 'nosniff', 'Cache-Control': rel ? 'public, max-age=300' : 'no-cache' }).send(Buffer.isBuffer(body) ? body : Buffer.from(body, 'utf8'));
+    sendAsset(req, res, name, body, encodeShell, { 'Content-Security-Policy': sameOriginCsp() });
   };
 
   app.get('/showcase/:id/mvp/:mvp', (req, res) => sendShell(req, res, ''));

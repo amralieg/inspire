@@ -380,3 +380,39 @@ test('the demo serves every typed file of the App shell with its own type and no
     await srv.close();
   }
 });
+
+test('the demo sends the App shell bundle compressed under its same-origin policy, and its page and files revalidate', async () => {
+  const zlib = require('zlib');
+  const { sameOriginCsp } = require('../lib/hostedRun');
+  const { appShellFiles, appShellPayload, bundledAppShellText } = require('../lib/appShell');
+  const shell = appShellFiles(appShellPayload(bundledAppShellText()));
+  const bundle = Buffer.from(shell['static/assets/app.js']);
+  const { srv } = await serve(undefined, shell);
+  const base = `${srv.url}/showcase/taxi/mvp/N01-U01/`;
+  try {
+    const resp = await fetch(base + 'assets/app.js', { headers: { 'accept-encoding': 'br' } });
+    assert.equal(resp.status, 200);
+    assert.equal(resp.headers.get('content-encoding'), 'br');
+    assert.equal(resp.headers.get('content-security-policy'), sameOriginCsp());
+    assert.equal(resp.headers.get('cache-control'), 'no-cache');
+    assert.equal(resp.headers.get('x-content-type-options'), 'nosniff');
+    assert.ok(Buffer.from(await resp.arrayBuffer()).equals(bundle), 'fetch decodes it back to the exact bundle');
+    const http = require('http');
+    const wire = await new Promise((resolve, reject) => {
+      http.get(base + 'assets/app.js', { headers: { 'accept-encoding': 'gzip' } }, (res) => {
+        const chunks = [];
+        res.on('data', (c) => chunks.push(c));
+        res.on('end', () => resolve({ headers: res.headers, body: Buffer.concat(chunks) }));
+      }).on('error', reject);
+    });
+    assert.equal(wire.headers['content-encoding'], 'gzip');
+    assert.ok(wire.body.length < bundle.length / 2, `${wire.body.length} of ${bundle.length} bytes`);
+    assert.ok(zlib.gunzipSync(wire.body).equals(bundle));
+    const page = await fetch(base, { headers: { 'accept-encoding': 'identity' } });
+    assert.equal(page.headers.get('cache-control'), 'no-cache');
+    assert.equal(page.headers.get('content-security-policy'), sameOriginCsp());
+    await page.arrayBuffer();
+  } finally {
+    await srv.close();
+  }
+});

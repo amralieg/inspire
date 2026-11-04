@@ -649,7 +649,7 @@ function createHostedRun(options = {}) {
     const secured = { 'Content-Security-Policy': hostedCsp(pageOrigin(req), id), 'X-Content-Type-Options': 'nosniff' };
     const upstream = http.request({
       host: '127.0.0.1', port: run.port, method: req.method, path: rest,
-      headers: { ...forwardedHeaders(req.headers), host: `127.0.0.1:${run.port}` },
+      headers: { ...forwardedHeaders(req.headers), ...(patched || !req.headers['accept-encoding'] ? {} : { 'accept-encoding': req.headers['accept-encoding'] }), host: `127.0.0.1:${run.port}` },
     }, (answer) => {
       const headers = {};
       for (const [name, value] of Object.entries(answer.headers)) if (!HOSTED_DROPPED_RESPONSE_HEADERS.includes(name)) headers[name] = value;

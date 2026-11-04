@@ -203,3 +203,24 @@ test('Start lists a run with no news for longer than the bound as No news, not I
     await ui.close();
   }
 });
+
+test('the run line names the business and the start time on the person\u2019s own clock, with the raw job name only in its tooltip', async () => {
+  const raw = 'Inspire AI - Acme Retail - 2026-11-04T14:57:44';
+  const started = Date.parse('2026-11-04T14:57:44Z');
+  const backend = sessionBackend({
+    session: () => ({ processing_status: 'ready', completed_percent: 0, completed_on: null, last_updated: ago(MINUTE) }),
+    run: { life_cycle_state: 'PENDING', run_name: raw, start_time: started, tasks: [] },
+  });
+  const ui = await openMonitor(backend, { sessionOnly: false });
+  try {
+    const line = ui.page.locator(`p[title="${raw}"]`);
+    await line.waitFor({ timeout: 10000 });
+    const local = await ui.page.evaluate((ms) => new Date(ms).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }), started);
+    assert.equal(await line.innerText(), `Acme Retail, started ${local}`);
+    assert.equal(await ui.page.getByText(raw, { exact: true }).count(), 0, 'the raw UTC job name is not shown as text');
+    assert.equal(await ui.page.getByText('2026-11-04T14:57:44').count(), 0);
+    assert.deepEqual(ui.pageErrors, []);
+  } finally {
+    await ui.close();
+  }
+});

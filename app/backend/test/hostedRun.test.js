@@ -730,3 +730,25 @@ test('a document load that cannot read the live record is refused, never served 
     await s.close();
   }
 });
+
+test('the proxy passes the browser Accept-Encoding to the page for its files, but not for the app answer it rewrites (must-exclude)', async () => {
+  const rec = record('n01-u01-gz');
+  const s = await setup({ folders: folderOf(rec) });
+  try {
+    s.hosted.setListed([entry(rec)], { key: 'db' });
+    const asset = await call(s.base, `/run/${rec.id}/assets/app.js`, { headers: { ...TOKEN, 'accept-encoding': 'gzip, br' } });
+    assert.equal(asset.status, 200, asset.text);
+    assert.equal(s.up.seen.at(-1).headers['accept-encoding'], 'gzip, br', 'the page can compress its own files');
+    s.hosted.useAlerts(async () => ({ ok: true }));
+    const info = await call(s.base, `/run/${rec.id}/api/app`, { headers: { ...TOKEN, 'accept-encoding': 'gzip, br' } });
+    assert.equal(info.status, 200, info.text);
+    assert.equal(s.up.seen.at(-1).url, '/api/app');
+    assert.equal(Object.hasOwn(s.up.seen.at(-1).headers, 'accept-encoding'), false, 'the answer Inspire rewrites comes back as plain text');
+    assert.equal(JSON.parse(info.text).alerting.on, true);
+    const plain = await call(s.base, `/run/${rec.id}/assets/app.js`, { headers: TOKEN });
+    assert.equal(plain.status, 200);
+    assert.equal(Object.hasOwn(s.up.seen.at(-1).headers, 'accept-encoding'), false, 'no Accept-Encoding is invented');
+  } finally {
+    await s.close();
+  }
+});

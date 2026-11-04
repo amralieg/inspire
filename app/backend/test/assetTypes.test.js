@@ -79,7 +79,8 @@ test('a file of an unknown type is served as application/octet-stream with nosni
 test('the Inspire App server mounts its static files with these headers and answers its page fallback with nosniff', () => {
   const server = fs.readFileSync(path.resolve(__dirname, '..', 'server.js'), 'utf8');
   assert.match(server, /app\.use\(express\.static\(STATIC_DIR, \{ setHeaders: staticHeaders \}\)\);/);
-  assert.match(server, /res\.set\('X-Content-Type-Options', 'nosniff'\)\.type\('html'\)\.send\(indexHtml\);/);
+  assert.match(server, /res\.set\(\{ 'X-Content-Type-Options': 'nosniff', 'Cache-Control': CACHE_REVALIDATE \}\)\.type\('html'\)\.send\(indexHtml\);/);
+  assert.match(server, /app\.use\(compressedStatic\(STATIC_DIR\)\);\n\s*app\.use\(express\.static\(STATIC_DIR/, 'the compressor answers before the plain static server');
   const mounts = server.split('\n').filter((line) => line.includes('express.static('));
   assert.equal(mounts.length, 2);
   assert.deepEqual(mounts.filter((line) => !/express\.static\([^\n]*setHeaders: staticHeaders \}\)/.test(line)), [], 'every static route types its files, so none is left untyped');

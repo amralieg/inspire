@@ -49,6 +49,7 @@ import { sessionFailed, sessionFinished } from '../lib/monitorState';
 import { responseError } from '../lib/apiClient';
 import { placeholderWords } from '../lib/placeholderWords';
 import { nameOfUseCase } from '../lib/useCaseFields';
+import { counted } from '../lib/plural';
 
 /* ─── Constants — notebook v1.2.0 widget `05_use_cases_quality` ─── */
 const QUALITY_OPTIONS = ['Good', 'High', 'Ultra High'];
@@ -774,44 +775,42 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
     [catalogBrowseError, effectiveDb, selectedCatalogs, warehouseId],
   );
 
-  /** Warn on many explicit tables, or when an entire schema/catalog is in scope. */
   const tableSelectionWarning = useMemo(() => {
+    const longer = 'so this run will likely take longer.';
     if (selectedTables.length > TABLE_SELECTION_WARN_THRESHOLD) {
       return {
         show: true,
-        summary: `${selectedTables.length} tables selected`,
+        heading: `You selected ${selectedTables.length} tables, ${longer}`,
         tableCount: selectedTables.length,
         scope: 'tables',
       };
     }
     if (selectedSchemas.length > 0 && selectedTables.length === 0) {
+      if (loadingTables || tables.length <= TABLE_SELECTION_WARN_THRESHOLD) return { show: false };
       const names = selectedSchemas.join(', ');
-      const n = selectedSchemas.length;
+      const held = counted(tables.length, 'table');
       return {
         show: true,
-        summary:
-          n === 1
-            ? `entire schema ${names} (all tables in that schema)`
-            : `${n} entire schemas (${names}), with all tables in each schema`,
-        tableCount: null,
+        heading: selectedSchemas.length === 1
+          ? `The schema ${names} holds ${held}, ${longer}`
+          : `The ${selectedSchemas.length} schemas ${names} hold ${held} in total, ${longer}`,
+        tableCount: tables.length,
         scope: 'schemas',
       };
     }
     if (selectedCatalogs.length > 0 && selectedSchemas.length === 0 && selectedTables.length === 0) {
       const names = selectedCatalogs.join(', ');
-      const n = selectedCatalogs.length;
       return {
         show: true,
-        summary:
-          n === 1
-            ? `entire catalog ${names} (all schemas and tables)`
-            : `${n} entire catalogs (${names}), with all schemas and tables`,
+        heading: selectedCatalogs.length === 1
+          ? `The whole catalog ${names} is in scope, with all its schemas and tables, ${longer}`
+          : `The ${selectedCatalogs.length} whole catalogs ${names} are in scope, with all their schemas and tables, ${longer}`,
         tableCount: null,
         scope: 'catalogs',
       };
     }
     return { show: false };
-  }, [selectedTables, selectedSchemas, selectedCatalogs]);
+  }, [selectedTables, selectedSchemas, selectedCatalogs, tables, loadingTables]);
 
   /** Shown in the page `<h1>` — updates after a short typing pause or immediately on blur (“finished writing”). */
   const [headlineBusiness, setHeadlineBusiness] = useState('');
@@ -1133,7 +1132,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
 
                 {tableSelectionWarning.show && (
                   <TableSelectionGuidanceWarning
-                    selectionSummary={tableSelectionWarning.summary}
+                    heading={tableSelectionWarning.heading}
                     tableCount={tableSelectionWarning.tableCount}
                     scope={tableSelectionWarning.scope}
                     idealMax={TABLE_SELECTION_IDEAL_MAX}
@@ -1663,7 +1662,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
         {tableSelectionWarning.show && (
           <div className="mb-5">
             <TableSelectionGuidanceWarning
-              selectionSummary={tableSelectionWarning.summary}
+              heading={tableSelectionWarning.heading}
               tableCount={tableSelectionWarning.tableCount}
               scope={tableSelectionWarning.scope}
               idealMax={TABLE_SELECTION_IDEAL_MAX}
@@ -1860,7 +1859,7 @@ function Chip({ children, icon }) {
 }
 
 function TableSelectionGuidanceWarning({
-  selectionSummary,
+  heading,
   tableCount,
   scope = 'tables',
   idealMax,
@@ -1878,7 +1877,7 @@ function TableSelectionGuidanceWarning({
         <AlertCircle size={compact ? 16 : 18} className="text-warning-fg shrink-0 mt-0.5" />
         <div className="min-w-0 space-y-2 text-sm text-text-secondary leading-relaxed">
           <p className="font-semibold text-warning-fg">
-            {selectionSummary}, so this run will likely take longer
+            {heading}
           </p>
           {isBroadScope && (
             <p className="text-xs text-text-primary">

@@ -3,6 +3,7 @@ import time
 
 from fastapi import FastAPI, Request
 from fastapi.concurrency import run_in_threadpool
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -14,8 +15,10 @@ ASSET_TYPES = {".html": "text/html; charset=utf-8", ".js": "text/javascript; cha
                ".json": "application/json", ".map": "application/json", ".svg": "image/svg+xml", ".png": "image/png", ".jpg": "image/jpeg",
                ".jpeg": "image/jpeg", ".gif": "image/gif", ".webp": "image/webp", ".ico": "image/x-icon", ".woff2": "font/woff2"}
 NO_ASSET = "the App serves no file of that type"
+COMPRESS_MIN_BYTES = 1024
 shell = Shell(ROOT)
 app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
+app.add_middleware(GZipMiddleware, minimum_size=COMPRESS_MIN_BYTES)
 
 
 @app.middleware("http")
@@ -32,6 +35,7 @@ class Assets(StaticFiles):
             return JSONResponse({"error": NO_ASSET}, status_code=404)
         response = super().file_response(full_path, stat_result, scope, status_code)
         response.headers["content-type"] = kind
+        response.headers["cache-control"] = "no-cache"
         return response
 
 

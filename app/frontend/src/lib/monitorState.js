@@ -1,4 +1,4 @@
-import { formatClockUtc, utcDate } from './formatWhen.js';
+import { formatClockUtc, formatWhen, utcDate } from './formatWhen.js';
 
 export const SESSION_QUIET_AFTER_MS = 30 * 60 * 1000;
 
@@ -35,6 +35,12 @@ export function sessionStatus(session, now) {
 
 export function quietLine(since, now) {
   return `No news from this run since ${formatClockUtc(since, now)}.`;
+}
+
+export function runTitle(runInfo, businessName) {
+  const business = String(businessName || '').trim() || 'Inspire run';
+  const started = Number(runInfo?.start_time) > 0 ? formatWhen(Number(runInfo.start_time)) : '';
+  return started ? `${business}, started ${started}` : business;
 }
 
 export function stepCategory(status, live) {

@@ -20,6 +20,7 @@ const { runWithRequestDeadline } = require('./lib/sqlStatements');
 const { fsApiPath } = require('./lib/workspacePaths');
 const { int64Id, isInt64Id, requireInt64Id, jsonWithInt64Ids } = require('./lib/int64Id');
 const { parseExactJson } = require('./lib/exactJson');
+const { grantJobViewer } = require('./lib/jobViewer');
 
 function sendError(res, err) {
   const code = err && Number.isFinite(err.statusCode) ? err.statusCode : 500;
@@ -1845,6 +1846,7 @@ function registerImplementRoutes(app, deps) {
       await refuseMissingSources(req, warehouseId, latest.spec_json, useCase);
       const jobId = requireInt64Id(latest.job_id, 'job_id');
       const warning = await alignJobSettings(req.dbHost, req.dbToken, jobId);
+      const viewer = await grantJobViewer(dbFetch, req.dbHost, req.dbToken, jobId, (await personOf(req)).username);
       const resp = await dbFetch(req.dbHost, req.dbToken, '/api/2.1/jobs/run-now', {
         method: 'POST',
         body: jsonWithInt64Ids({ job_id: jobId, notebook_params: notebookParams, only: [I.IMPLEMENT_NOTEBOOK_TASK_KEY] }, ['job_id']),
@@ -1863,6 +1865,8 @@ function registerImplementRoutes(app, deps) {
         job_run_url: databricksJobRunUrl(req.dbHost, latest.job_id, data.run_id),
         notebook_params: notebookParams,
         ...(warning ? { warning } : {}),
+        viewer_granted: viewer.granted,
+        ...(viewer.note ? { viewer_note: viewer.note } : {}),
       });
     } catch (err) {
       sendError(res, err);

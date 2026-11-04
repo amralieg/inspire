@@ -2,6 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const { APP_DIR, BACKEND_DIR } = require('./appPaths');
 const { buildDemoSchemaName } = require('./demoDataService');
+const { grantJobViewer } = require('./jobViewer');
 const {
   buildDemoInspireDiscoveryParams,
   inspireJobEnvironments,
@@ -191,6 +192,7 @@ async function triggerDemoDataPipeline(
     plantKindSignals = true,
     ensureInspireNotebookPublished,
     resolveWorkspaceNotebookObjectPath,
+    launchedBy = '',
   },
 ) {
   const desc = String(description || '').trim();
@@ -284,6 +286,8 @@ async function triggerDemoDataPipeline(
     throw new Error(`Demo pipeline job create failed: ${errText}`);
   }
   const { job_id: jobId } = await createResp.json();
+  const viewer = await grantJobViewer(dbFetch, host, token, jobId, launchedBy);
+  if (viewer.note) console.warn(`⚠️ ${viewer.note}`);
 
   const runResp = await dbFetch(host, token, '/api/2.1/jobs/run-now', {
     method: 'POST',
@@ -300,6 +304,8 @@ async function triggerDemoDataPipeline(
     job_id: jobId,
     run_id: runId,
     job_run_url: databricksJobRunUrl(host, jobId, runId),
+    viewer_granted: viewer.granted,
+    ...(viewer.note ? { viewer_note: viewer.note } : {}),
     pipeline: {
       step1_notebook: generateNotebookPath,
       step2_notebook: inspireNotebookPath,

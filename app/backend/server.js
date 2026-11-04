@@ -55,7 +55,8 @@ const { createHostedRun, workspaceFiles } = require('./lib/hostedRun');
 const RP = require('./lib/routePolicy');
 const L = require('./lib/launchLedger');
 const { workspacePathProblem, rejectUnsafeQueryPath, fsApiPath } = require('./lib/workspacePaths');
-const { staticHeaders } = require('./lib/assetTypes');
+const { CACHE_REVALIDATE, compressedStatic, staticHeaders } = require('./lib/assetTypes');
+const { grantJobViewer } = require('./lib/jobViewer');
 
 const app = express();
 const routePolicy = RP.createRoutePolicy({
@@ -906,6 +907,8 @@ async function triggerInspireNotebookJob(host, token, { params, notebook_path, c
 
   const { job_id } = parseExactJson(await createResp.text());
   console.log(`✅ Job created: ${job_id}`);
+  const viewer = await grantJobViewer(dbFetch, host, token, job_id, launchedBy);
+  if (viewer.note) console.warn(`⚠️ ${viewer.note}`);
 
   const response = await dbFetch(host, token, '/api/2.1/jobs/run-now', {
     method: 'POST',
@@ -937,6 +940,8 @@ async function triggerInspireNotebookJob(host, token, { params, notebook_path, c
     job_run_url: jobRunUrl,
     launcher_recorded: launch.recorded,
     ...(launch.note ? { launcher_note: launch.note } : {}),
+    viewer_granted: viewer.granted,
+    ...(viewer.note ? { viewer_note: viewer.note } : {}),
   };
 }
 
@@ -2012,6 +2017,7 @@ app.post('/api/demo-data/start', requireToken, async (req, res) => {
         plantKindSignals: req.body?.plant_kind_signals !== false,
         ensureInspireNotebookPublished: ensureNotebookPublished,
         resolveWorkspaceNotebookObjectPath,
+        launchedBy: RP.forwardedPerson(req.headers),
       },
     );
 
@@ -2022,6 +2028,8 @@ app.post('/api/demo-data/start', requireToken, async (req, res) => {
       inspire_run_id: pipelineRun.run_id,
       inspire_job_id: pipelineRun.job_id,
       job_run_url: pipelineRun.job_run_url,
+      viewer_granted: pipelineRun.viewer_granted,
+      ...(pipelineRun.viewer_note ? { viewer_note: pipelineRun.viewer_note } : {}),
       steps: [
         { key: 'generate_demo_data', label: 'Generate & store demo data', notebook: pipelineRun.pipeline.step1_notebook },
         {
@@ -2961,6 +2969,7 @@ app.get('/api/workspace/status', rejectUnsafeQueryPath, requireToken, async (req
 app.use('/api', (req, res) => res.status(404).json({ error: `Inspire has no API route ${req.method} ${req.originalUrl.split('?')[0]}.` }));
 
 if (fs.existsSync(STATIC_DIR)) {
+  app.use(compressedStatic(STATIC_DIR));
   app.use(express.static(STATIC_DIR, { setHeaders: staticHeaders }));
 
   // When running as a Databricks App with installer-injected config,
@@ -2999,7 +3008,7 @@ if (fs.existsSync(STATIC_DIR)) {
     : indexHtmlRaw;
 
   app.get('{*path}', (req, res) => {
-    res.set('X-Content-Type-Options', 'nosniff').type('html').send(indexHtml);
+    res.set({ 'X-Content-Type-Options': 'nosniff', 'Cache-Control': CACHE_REVALIDATE }).type('html').send(indexHtml);
   });
 }
 
