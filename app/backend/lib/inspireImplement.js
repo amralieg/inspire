@@ -11,6 +11,7 @@ const {
 } = require('../../frontend/src/lib/useCaseSettings.js');
 const { specVibeAsks, vibeRefusalText, vibeRefusals } = require('../../frontend/src/lib/vibeLimits.js');
 const { PERSONAL_KEY_REASON, personalColumn } = require('../../frontend/src/lib/personalColumns.js');
+const { rowKeyOf } = require('../../frontend/src/lib/implementWizard.js');
 
 const IMPLEMENT_OPERATION = 'Implement Use Cases';
 const IMPLEMENT_TABLE = '__inspire_implement';
@@ -300,8 +301,12 @@ function personalKeyProblem(ref) {
   return `column role entity_id ${ref}: ${PERSONAL_KEY_REASON}`;
 }
 
-function personalKeyOf(spec, tags) {
-  const ref = str(spec && spec.data && spec.data.column_roles && spec.data.column_roles.entity_id);
+function resultKeyRef(spec, useCase) {
+  return str((rowKeyOf(spec, useCase) || {}).ref).replace(/`/g, '');
+}
+
+function personalKeyOf(spec, useCase, tags) {
+  const ref = resultKeyRef(spec, useCase);
   if (!ref) return '';
   return personalColumn(ref.split('.').pop(), tags[ref.toLowerCase()] || {}) ? personalKeyProblem(ref) : '';
 }
@@ -3164,6 +3169,7 @@ function quoteColumn(name) {
 
 module.exports = {
   personalKeyOf,
+  resultKeyRef,
   personalKeyProblem,
   IMPLEMENT_OPERATION,
   IMPLEMENT_TABLE,

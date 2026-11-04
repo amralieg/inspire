@@ -237,3 +237,24 @@ test('an MVP run is refused when its chosen result key is a PII-tagged column or
     assert.equal(made.jobs.length, 1, 'an untagged ordinary key is allowed (must-keep)');
   });
 });
+
+test('an MVP run is refused when the result key Inspire picked itself is PII-tagged or a personal name, with no key chosen by the person (must-exclude)', async () => {
+  const readable = { readableTables: { [PERSON_TOKEN]: ['main.s.orders', 'main.s.returns_v2'] } };
+  const picked = (ref) => ({ ...USE_CASE, elite_assessment: JSON.stringify({ entity_key_column: ref }) });
+  await withApp({ history: [], ...readable, columnTags: [PII_TAG], useCase: picked('main.s.orders.ref_code') }, async (url, made) => {
+    const got = await call(url, '/api/inspire/implement/submit', { method: 'POST', body: { ...DB, spec: SPEC } });
+    assert.deepEqual([got.status, got.data.error], [400, I.personalKeyProblem('main.s.orders.ref_code')]);
+    ruleOut(made);
+  });
+  await withApp({ history: [], ...readable, useCase: picked('main.s.orders.cardNumber') }, async (url, made) => {
+    const got = await call(url, '/api/inspire/implement/submit', { method: 'POST', body: { ...DB, spec: SPEC } });
+    assert.deepEqual([got.status, got.data.error], [400, I.personalKeyProblem('main.s.orders.cardNumber')]);
+    ruleOut(made);
+  });
+  await withApp({ history: [], ...readable, columnTags: [PII_TAG], useCase: picked('main.s.returns.order_id') }, async (url, made) => {
+    const got = await call(url, '/api/inspire/implement/submit', { method: 'POST', body: { ...DB, spec: SPEC } });
+    assert.equal(got.status, 200, JSON.stringify(got.data));
+    assert.equal(made.jobs.length, 1, 'an untagged key Inspire picked is allowed (must-keep)');
+  });
+  assert.equal(I.resultKeyRef(SPEC, picked('main.s.returns.order_id')), 'main.s.returns_v2.order_id', 'the picked key follows a swapped table');
+});

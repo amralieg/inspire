@@ -1026,10 +1026,11 @@ function registerImplementRoutes(app, deps) {
     if (problems.length) throw I.badRequest(problems.join('; '));
     const kpiIssues = I.implementKpiTargetProblems(raw, I.implementKpiOptions(useCase, history), history);
     if (kpiIssues.length) throw I.badRequest(kpiIssues.join('; '));
-    const keyRef = spec.data && spec.data.column_roles && spec.data.column_roles.entity_id;
-    if (keyRef && P.personTokenOf(req)) {
-      const read = await readColumnTags(req, P.personTokenOf(req), warehouseId, [keyRef.split('.').slice(0, 3).join('.')]);
-      const personal = I.personalKeyOf(spec, read.tags);
+    const keyRef = I.resultKeyRef(spec, useCase);
+    if (keyRef) {
+      const read = P.personTokenOf(req)
+        ? await readColumnTags(req, P.personTokenOf(req), warehouseId, [keyRef.split('.').slice(0, 3).join('.')]) : { tags: {} };
+      const personal = I.personalKeyOf(spec, useCase, read.tags);
       if (personal) throw I.badRequest(personal);
     }
     const assumptionIssues = I.implementAssumptionProblems(spec, I.implementSettingsModel(history));
