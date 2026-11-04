@@ -2163,6 +2163,11 @@ export function statusReason(latest, stalled = null) {
   if (s === IMPLEMENT_VIBE_NOT_MET) {
     return String(latest?.asset_status?.held?.reason ?? '').trim() || heldNoReasonText(versionOf(latest));
   }
+  const unreliable = ['ready', 'ready_with_warnings'].includes(s) ? unreliableHold(latest) : '';
+  if (unreliable) {
+    return `The latest run marked its results not reliable: ${unreliable.replace(/[.\s]+$/, '')}. The App is not published until a run can be trusted. `
+      + `Next step: fix what it names, then build again with ${VIBE_FEATURES_LABEL}.`;
+  }
   if (!['ready_with_warnings', 'failed'].includes(s)) return '';
   return String(latest?.status_message || '').trim();
 }
@@ -2263,10 +2268,20 @@ export const IMPLEMENT_GROUPS = [
 
 const NOTEBOOK_GROUP = { running: 'in_progress', ready: 'ready', failed: 'failed', requested: 'not_started' };
 
+export const NOT_RELIABLE_RECORD = 'not_reliable';
+export const UNRELIABLE_LABEL = 'MVP built, results not trusted yet';
+
+export function unreliableHold(latest) {
+  const held = latest?.asset_status?.[NOT_RELIABLE_RECORD];
+  const reason = held && typeof held === 'object' ? String(held.reason ?? '').trim() : '';
+  return reason && String(held.spec_version ?? '') === String(latest?.spec_version ?? '') ? reason : '';
+}
+
 export function implementState(latest, notebook = null) {
   const s = String(latest?.status || '');
   if (s === IMPLEMENT_UNINSTALLED) return { group: 'not_started', label: 'MVP uninstalled', tone: 'idle', kind: 'uninstalled' };
   if (s) {
+    if (['ready', 'ready_with_warnings'].includes(s) && unreliableHold(latest)) return { group: 'held', label: UNRELIABLE_LABEL, tone: 'warning', kind: 'mvp' };
     if (['ready', 'ready_with_warnings'].includes(s) && openVibeAsks(latest).length) return { group: 'unmet', label: 'MVP vibes not met', tone: 'warning', kind: 'mvp' };
     if (s === 'ready') return { group: 'ready', label: 'MVP ready', tone: 'success', kind: 'mvp' };
     if (s === 'ready_with_warnings') return { group: 'ready', label: 'MVP ready with warnings', tone: 'warning', kind: 'mvp' };

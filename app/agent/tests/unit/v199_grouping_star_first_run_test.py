@@ -247,12 +247,13 @@ def test_a_first_run_on_records_of_a_grouping_technique_takes_whole_groups_and_n
     resolved = fresh_ns["inspire_scope_resolve"](spark, chosen)
     assert spark.statements == ["SELECT CAST(`region` AS STRING) AS g, COUNT(*) AS n FROM `main`.`sales`.`orders` WHERE `region` IS NOT NULL "
                                 "GROUP BY CAST(`region` AS STRING) HAVING COUNT(*) >= 30 ORDER BY n DESC, g LIMIT 500"]
-    assert resolved["values"] == ["EMEA", "LATAM"]
+    assert resolved["values"] == ["EMEA", "APAC", "LATAM"], "at least three whole groups when three fit, even past about 1,000"
     fresh_ns["INSPIRE_SCOPE"], fresh_ns["INSPIRE_RUN_LOG"] = resolved, {}
     frame = fresh_ns["inspire_read_source"]("main.sales.orders", spark=Session(["order_id", "region"]))
-    assert frame.steps == [("where", "CAST(`region` AS STRING) IN ('EMEA', 'LATAM')")], "whole groups are filtered, never cut to N rows"
-    assert fresh_ns["inspire_scope_text"](resolved) == ("about 1000 records of main.sales.orders, in 2 whole groups so no group is cut: "
-                                                        "region = EMEA, 600 records; region = LATAM, 300 records")
+    assert frame.steps == [("where", "CAST(`region` AS STRING) IN ('EMEA', 'APAC', 'LATAM')")], "whole groups are filtered, never cut to N rows"
+    assert fresh_ns["inspire_scope_text"](resolved) == ("1400 records of main.sales.orders, in 3 whole groups, so the first run sees more than "
+                                                        "one group and no group is cut: region = EMEA, 600 records; region = APAC, 500 records; "
+                                                        "region = LATAM, 300 records")
     assert fresh_ns["inspire_scope_record"](resolved)["whole_groups"] is True
 
 

@@ -2196,6 +2196,10 @@
             {
               "value": "y",
               "records": 400
+            },
+            {
+              "value": "z",
+              "records": 400
             }
           ]
         },
@@ -2434,6 +2438,72 @@
             {
               "value": "e",
               "records": 40
+            }
+          ]
+        },
+        {
+          "sizes": [
+            {
+              "value": "Ginger",
+              "records": 586
+            },
+            {
+              "value": "Oatmeal",
+              "records": 571
+            },
+            {
+              "value": "Pecan",
+              "records": 560
+            },
+            {
+              "value": "Mint",
+              "records": 549
+            },
+            {
+              "value": "Lemon",
+              "records": 540
+            },
+            {
+              "value": "Cocoa",
+              "records": 527
+            }
+          ],
+          "target": "1000",
+          "picked": [
+            {
+              "value": "Ginger",
+              "records": 586
+            },
+            {
+              "value": "Pecan",
+              "records": 560
+            },
+            {
+              "value": "Cocoa",
+              "records": 527
+            }
+          ]
+        },
+        {
+          "sizes": [
+            {
+              "value": "p",
+              "records": 700
+            },
+            {
+              "value": "q",
+              "records": 650
+            }
+          ],
+          "target": "1000",
+          "picked": [
+            {
+              "value": "p",
+              "records": 700
+            },
+            {
+              "value": "q",
+              "records": 650
             }
           ]
         }

@@ -539,3 +539,17 @@ test('First run never counts or lists the groups of another column than the grou
   assert.equal(S.firstRunChoices(PAY, same).find((c) => c.id === 'groups').records, 3333);
   assert.equal(S.groupingProfiled({ ...other, group_by: 'all' }, PAY), true);
 });
+
+test('a first run on about 1,000 records of a small table with groups of about 550 takes three whole groups, never one, and names the real count (must-exclude)', async () => {
+  const S = await lib('runScope.js');
+  const sizes = [['Ginger', 586], ['Oatmeal', 571], ['Pecan', 560], ['Mint', 549], ['Lemon', 540], ['Cocoa', 527]].map(([value, records]) => ({ value, records }));
+  const picked = S.wholeGroups(sizes, '1000');
+  assert.deepEqual(picked.map((g) => g.value), ['Ginger', 'Pecan', 'Cocoa'], 'the biggest, a typical and the smallest product');
+  assert.notEqual(picked.length, 1, 'one product is never the whole first run when three fit (must-exclude)');
+  const said = S.recordGroupsText({ table: 't', standalone: false, group_column: 'product', group_sizes: sizes }, { scope_records: '1000' });
+  assert.equal(said, '1,673 records, in 3 whole groups, so the first run sees more than one group and no group is cut: product = Ginger, 586 records; '
+    + 'product = Pecan, 560 records; product = Cocoa, 527 records');
+  assert.doesNotMatch(said, /smallest whole group|About 1,000/);
+  assert.deepEqual(S.wholeGroups([{ value: 'A', records: 900 }, { value: 'B', records: 5000 }], '1000').map((g) => g.value), ['A'], 'only one group fits, so one group runs');
+  assert.equal(S.WHOLE_GROUPS_MIN, 3);
+});

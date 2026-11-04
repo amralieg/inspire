@@ -143,6 +143,7 @@ export function suggestedGroups(profile) {
 }
 
 export const WHOLE_GROUPS_MAX = 20;
+export const WHOLE_GROUPS_MIN = 3;
 export const SCOPE_GROUP_AND = ' and ';
 
 export function wholeGroups(sizes, target) {
@@ -161,6 +162,10 @@ export function wholeGroups(sizes, target) {
       picked.push(g);
       total += g.records;
     }
+  }
+  for (const g of order) {
+    if (picked.length >= Math.min(WHOLE_GROUPS_MIN, fits.length)) break;
+    if (!picked.includes(g)) picked.push(g);
   }
   if (!picked.length && eligible.length) picked.push(eligible[eligible.length - 1]);
   return picked.sort((a, b) => eligible.indexOf(a) - eligible.indexOf(b));
@@ -332,9 +337,11 @@ export function recordGroupsText(profile, values) {
   }
   const column = finestGroupColumn(profile);
   const total = picked.reduce((sum, g) => sum + g.records, 0);
-  const lead = total > goal
+  const lead = picked.length === 1 && total > goal
     ? `${counted(total, 'record')} in the smallest whole group, since every group of ${column || 'the grouping'} holds more than ${counted(goal, 'record')}, so no group is cut: `
-    : `About ${counted(goal, 'record')}, in ${counted(picked.length, 'whole group')} so no group is cut: `;
+    : total > goal
+      ? `${counted(total, 'record')}, in ${counted(picked.length, 'whole group')}, so the first run sees more than one group and no group is cut: `
+      : `About ${counted(goal, 'record')}, in ${counted(picked.length, 'whole group')} so no group is cut: `;
   return lead + picked.map((g) => `${column ? `${column} = ` : ''}${g.value}, ${counted(g.records, 'record')}`).join('; ');
 }
 
