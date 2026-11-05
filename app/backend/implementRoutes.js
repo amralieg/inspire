@@ -1433,13 +1433,13 @@ function registerImplementRoutes(app, deps) {
   }
 
   const profileFailures = (table) => ({
-    deadline: () => [504, `Inspire read ${table} for the Grouping for ${GP.PROFILE_MS / 1000} seconds with no answer, so it stopped; `
+    deadline: () => [504, `Inspire read ${table} for Data groups for ${GP.PROFILE_MS / 1000} seconds with no answer, so it stopped; `
       + 'try again once the warehouse is running.'],
-    sign_in: (m) => [401, `Databricks did not accept your sign-in to read ${table} for the Grouping: ${m}`],
+    sign_in: (m) => [401, `Databricks did not accept your sign-in to read ${table} for Data groups: ${m}`],
     denied: () => [403, `${U.runUnreadableText([table])}.`],
-    submitted: (m) => [502, `Databricks could not read ${table} for the Grouping: ${m}`],
+    submitted: (m) => [502, `Databricks could not read ${table} for Data groups: ${m}`],
     missing: () => [403, `${U.runUnreadableText([table])}.`],
-    failed: (m) => [400, `Inspire could not read ${table} for the Grouping: ${m}`],
+    failed: (m) => [400, `Inspire could not read ${table} for Data groups: ${m}`],
   });
 
   function builtData(history) {
@@ -1470,6 +1470,7 @@ function registerImplementRoutes(app, deps) {
       const useCaseId = I.validateUseCaseId(q(req, 'use_case_id'));
       const days = GP.scopeDaysOf(req.body?.scope_days ?? req.query.scope_days);
       if (days === null) throw I.badRequest(`scope_days must be a whole number of days from 1 to ${GP.PROFILE_DAYS_MAX}.`);
+      const groupBy = GR.groupByColumns(req.body?.group_by ?? req.query.group_by);
       const [useCase, history] = await Promise.all([loadUseCase(req.dbHost, req.dbToken, warehouseId, catalog, schema, sid, useCaseId),
         loadHistory(req.dbHost, req.dbToken, warehouseId, catalog, schema, sid, useCaseId)]);
       if (!useCase) throw I.badRequest(`No use case ${useCaseId} in this session.`, 404);
@@ -1477,7 +1478,7 @@ function registerImplementRoutes(app, deps) {
       table = profiledTable(useCase, data);
       const main = G.groupingMainTable(table);
       if (!main || !/^[^`]+\.[^`]+\.[^`]+$/.test(table)) {
-        throw I.badRequest(`Use case ${useCaseId} names no main table as catalog.schema.table, so Inspire cannot read it for the Grouping.`);
+        throw I.badRequest(`Use case ${useCaseId} names no main table as catalog.schema.table, so Inspire cannot read it for Data groups.`);
       }
       const options = (rowLimit) => ({ rowLimit, byteLimit: GP.PROFILE_BYTE_LIMIT, waitTimeout: '10s', signal: stop.signal });
       const rows = async (sql, parameters, rowLimit) => sqlResultToObjects(await executeSql(req.dbHost, token, warehouseId, sql, parameters, options(rowLimit)));
@@ -1488,7 +1489,7 @@ function registerImplementRoutes(app, deps) {
         const [columns, keyRows] = await Promise.all([rows(columnsAsked.sql, columnsAsked.parameters, GP.PROFILE_META_ROWS),
           rows(keysAsked.sql, keysAsked.parameters, GP.PROFILE_META_ROWS).catch((err) => {
             if (['SQL_DEADLINE', 'SQL_CANCELLED'].includes(err && err.code)) throw err;
-            console.warn(`grouping profile: the declared keys of ${table} could not be read, so the Grouping uses no declared key: ${err.message}`);
+            console.warn(`grouping profile: the declared keys of ${table} could not be read, so Data groups use no declared key: ${err.message}`);
             return [];
           })]);
         if (!columns.length) throw I.badRequest(`${U.runUnreadableText([table])}.`, 403);
@@ -1531,10 +1532,11 @@ function registerImplementRoutes(app, deps) {
         const values = picked.length ? await rows(GP.valuesSql(main, picked, profiledJoined), null, GP.PROFILE_VALUE_ROWS) : [];
         const deep = GP.deepSuggestionOf(useCase);
         const draft = (paths) => GP.profileView({ table, technique: useCase.analytics_technique, columns, candidates, stats, sample, values, paths,
-          time, days, joined: profiledJoined, deep: deep ? deep.columns : [], readAt: new Date().toISOString() });
+          time, days, joined: profiledJoined, deep: deep ? deep.columns : [], groupBy, readAt: new Date().toISOString() });
         const first = draft(null);
-        if (first.recommended.length < 2) return first;
-        const paths = await rows(GP.pathsSql(main, first.recommended, profiledJoined), null, GP.PROFILE_PATH_ROWS);
+        const grouped = GR.groupByColumns(first.groups_for);
+        if (grouped.length < 2) return first;
+        const paths = await rows(GP.pathsSql(main, grouped, profiledJoined), null, GP.PROFILE_PATH_ROWS);
         return draft(paths);
       }, GP.PROFILE_MS);
       return res.json({ ...view, deep_suggestion: GP.deepSuggestionOf(useCase) });

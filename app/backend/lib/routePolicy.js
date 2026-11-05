@@ -167,7 +167,7 @@ const ROUTE_POLICY = {
   'POST /api/inspire/implement/alerts/pause': owners('pause its alert'),
   'POST /api/inspire/implement/alerts/delete': owners('delete its alert'),
   'POST /api/inspire/implement/table-change': owners('change its tables'),
-  'POST /api/grouping/profile': tracked('read the main table of a use case for its Grouping',
+  'POST /api/grouping/profile': tracked('read the main table of a use case for its Data groups',
     'reads the use case record from the Inspire tracking tables in the App database, and reads the use case table only with your own sign-in'),
 };
 

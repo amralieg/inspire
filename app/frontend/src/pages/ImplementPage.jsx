@@ -47,8 +47,8 @@ import GenieFeed from '../components/GenieFeed';
 import MoneyReview, { NothingToActCard } from '../components/MoneyReview';
 import TargetKpiCard from '../components/TargetKpiCard';
 import UseCaseSettings from '../components/UseCaseSettings';
-import { useGroupingProfile } from '../lib/groupingProfile';
-import { isScopeSetting, runScopeFacts } from '../lib/runScope';
+import { useScopeProfiles } from '../lib/groupingProfile';
+import { GROUP_BY, isScopeSetting, runScopeFacts } from '../lib/runScope';
 import { SETTINGS_ROUTES, settingsViewSaved } from '../lib/useCaseSettings';
 import UseCaseAlerts from '../components/UseCaseAlerts';
 import UseCaseTables from '../components/UseCaseTables';
@@ -902,9 +902,10 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
     setSettingsView((prev) => settingsViewSaved(prev, view));
   }, [settingsPost]);
   const runSettings = useCallback(() => settingsPost('run', {}), [settingsPost]);
-  const scopeProfile = useGroupingProfile({
+  const scopeProfile = useScopeProfiles({
     apiPostJson, inspireDatabase: settings.inspireDatabase, sessionId, useCaseId, warehouseId: settings.warehouseId,
     enabled: !readOnly && Boolean(settingsView?.settings?.some(isScopeSetting)),
+    groupBy: String(settingsView?.settings?.find((s) => s?.name === GROUP_BY)?.value ?? ''),
   });
   const [tablesView, setTablesView] = useState(null);
   useEffect(() => {

@@ -25,5 +25,6 @@ test('the First run read rule has one cases fixture that the notebook reader and
   assert.match(js, new RegExp(`agent/tests/fixtures/${name}`), 'the runScope.js test reads it');
   assert.doesNotMatch(js, /\['5', RECORDED_RUN_SCOPE|LEGACY_VALUES/, 'no second table of cases in the JS test');
   const cases = JSON.parse(fs.readFileSync(path.join(AGENT_FIXTURES, name), 'utf8'));
-  assert.ok(cases.read.length >= 20 && cases.unrecorded_default.length >= 5, 'the cases cover the mapping and the fallback');
+  assert.ok(cases.read.length >= 20 && cases.unrecorded_default.length >= 5 && cases.v1_4_0.length >= 8, 'the cases cover the mapping, the fallback and v1.4.0');
+  assert.match(read('agent', 'tests', 'unit', 'v214_data_groups_first_run_test.py'), new RegExp(`"${name}"`), 'the v1.4.0 cases run in the notebook too');
 });

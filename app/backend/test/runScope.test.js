@@ -14,12 +14,26 @@ const PROFILE = {
   time_column: 'order_date', recent: { days: 30, records: 3120 },
   suggested_groups: [{ value: 'USA', records: 18200, kind: 'biggest' }, { value: 'Spain', records: 1400, kind: 'typical' }, { value: 'Cyprus', records: 12, kind: 'smallest' }],
   first_run: { all: 48210, groups: 19612, recent: 3120, records: null }, default_scope: 'groups', read_at: '2026-11-01T15:00:00Z',
+  group_column: 'country', group_sizes: [{ value: 'USA', records: 18200 }, { value: 'Spain', records: 1400 }, { value: 'Malta', records: 300 }],
+  groups_for: 'region, country',
+  group_list: [['AMER', 'USA', 18200], ['EMEA', 'Spain', 1400], ['EMEA', 'Malta', 300], ['EMEA', 'Cyprus', 12]]
+    .map(([region, country, records]) => ({ value: `${region} / ${country}`, records, parts: [{ column: 'region', value: region }, { column: 'country', value: country }] })),
+  column_groups: { region: [{ value: 'AMER', records: 30110 }, { value: 'EMEA', records: 17890 }, { value: 'APAC', records: 210 }],
+    country: [{ value: 'USA', records: 18200 }, { value: 'Spain', records: 1400 }, { value: 'Malta', records: 300 }, { value: 'Cyprus', records: 12 }] },
 };
 
 test('the scope settings carry the contract keys, labels and defaults, and an empty value reads as its default', async () => {
   const S = await lib('runScope.js');
   assert.deepEqual(S.SCOPE_SETTINGS, ['group_by', 'run_scope', 'scope_groups', 'scope_days', 'scope_records']);
-  assert.deepEqual(Object.values(S.SCOPE_LABELS), ['Grouping', 'First run', 'Groups to run on', 'Days to run on', 'Records to run on']);
+  assert.deepEqual(Object.values(S.SCOPE_LABELS), ['Data groups', 'First run', 'Groups to run on', 'Days to run on', 'Records to run on']);
+  assert.deepEqual([S.GROUPING_SETTINGS, S.FIRST_RUN_SETTINGS], [['group_by'], ['run_scope', 'scope_groups', 'scope_days', 'scope_records']],
+    'Data groups owns group_by and First run owns the rest, with nothing in both and nothing left out');
+  assert.deepEqual([...S.GROUPING_SETTINGS, ...S.FIRST_RUN_SETTINGS].sort(), [...S.SCOPE_SETTINGS].sort());
+  for (const name of S.SCOPE_SETTINGS) {
+    assert.notEqual(S.isGroupingSetting({ name }), S.isFirstRunSetting({ name }), `${name} belongs to exactly one step`);
+  }
+  assert.equal(S.isGroupingSetting({ name: 'horizon' }) || S.isFirstRunSetting({ name: 'horizon' }), false, 'another setting is in neither step (must-exclude)');
+  assert.deepEqual([S.GROUPING_SAVE_LABEL, S.FIRST_RUN_SAVE_LABEL], ['Save Data groups', 'Save First run']);
   assert.deepEqual(S.RUN_SCOPES, ['all', 'groups', 'recent', 'records']);
   assert.equal(S.FIRST_RUN_RECORDS_LINE, undefined, 'the 1,000 record line lives once, in the backend grouping rule that answers default_scope');
   assert.equal(S.GROUP_MIN_RECORDS, undefined, 'the smallest group size lives once, in the backend grouping rule');
@@ -34,7 +48,7 @@ test('the scope settings carry the contract keys, labels and defaults, and an em
 test('First run defaults to the scope the profile answers, and never over a choice the person made', async () => {
   const S = await lib('runScope.js');
   assert.equal(S.firstRunDefault(PROFILE), PROFILE.default_scope);
-  assert.equal(S.firstRunDefault({ ...PROFILE, records: 1000, default_scope: 'all' }), 'all', 'the backend answers all at 1,000 records or fewer');
+  assert.equal(S.firstRunDefault({ ...PROFILE, records: 1000, default_scope: 'all' }), 'records', 'everything is never the default, not even from an older answer (must-exclude)');
   assert.equal(S.firstRunDefault({ ...PROFILE, records: 1001, default_scope: 'recent' }), 'recent');
   assert.equal(S.firstRunDefault({ ...PROFILE, default_scope: 'nonsense' }), 'records', 'an answer the App cannot read never defaults to everything (must-exclude)');
   assert.equal(S.firstRunDefault(null), '');
@@ -42,13 +56,13 @@ test('First run defaults to the scope the profile answers, and never over a choi
   assert.deepEqual([fresh.run_scope, fresh.scope_groups], ['groups', '[[{"column":"country","value":"USA"}],[{"column":"country","value":"Spain"}],[{"column":"country","value":"Cyprus"}]]'], 'the suggested biggest, typical and smallest groups are ticked');
   const chosen = S.withScopeDefaults({ ...S.scopeValues(() => undefined), run_scope: 'all' }, PROFILE);
   assert.deepEqual([chosen.run_scope, chosen.scope_groups], ['all', ''], 'the person chose everything, so the default does not apply');
-  assert.equal(S.withScopeDefaults({ run_scope: '' }, { ...PROFILE, records: 400, default_scope: 'all' }).run_scope, 'all');
+  assert.equal(S.withScopeDefaults({ run_scope: '' }, { ...PROFILE, records: 400, default_scope: 'all' }).run_scope, 'records', 'a small table runs about 1,000 records, which covers it, never a silent everything');
 });
 
 test('Grouping offers Global first, the recommended columns coarse to fine, and each column, with no custom SQL choice and a real example', async () => {
   const S = await lib('runScope.js');
   assert.deepEqual(S.groupingChoices(PROFILE).map((c) => [c.value, c.label, Boolean(c.recommended)]), [
-    ['all', 'Global (All)', false], ['region, country', 'region, then country', true], ['region', 'region', false], ['country', 'country', false]]);
+    ['all', 'Whole data as one group', false], ['region, country', 'region, then country', true], ['region', 'region', false], ['country', 'country', false]]);
   assert.deepEqual(S.groupingChoices(null, ['store', 'all']).map((c) => c.value), ['all', 'store'], 'without a profile the columns the agent read are offered');
   assert.deepEqual(S.groupingChoices(null).map((c) => c.value), ['all'], 'Global is always offered, and never a custom SQL choice');
   assert.deepEqual(S.groupingChoices(null, ['custom', 'region']).map((c) => c.value), ['all', 'region'], 'a recorded custom choice is not offered back');
@@ -62,14 +76,14 @@ test('Grouping offers Global first, the recommended columns coarse to fine, and 
   assert.ok(!S.sameGrouping('country', 'region, country'));
 });
 
-test('a Deep discovery grouping runs first on whole groups that the run picks, and a table small enough to run whole or no Deep grouping keeps its default (must-exclude)', async () => {
+test('a Deep discovery grouping sets Data groups only, and First run keeps its own default of about 1,000 records in whole groups (must-exclude)', async () => {
   const S = await lib('runScope.js');
   const DEEP = { ...PROFILE, default_scope: 'records', deep_suggestion: { columns: ['store_id'], record_level: 'order_id' } };
-  assert.equal(S.firstRunDefault(DEEP), 'groups', 'the first 1,000 records would cut the Deep groups, so the run takes whole groups');
+  assert.equal(S.firstRunDefault(DEEP), 'records', 'the Data groups choice never decides the First run choice');
   const fresh = S.scopeValues(() => undefined);
   const scoped = S.withScopeDefaults(S.withGroupingDefault(fresh, DEEP, ''), DEEP);
-  assert.deepEqual([scoped.run_scope, scoped.scope_groups || ''], ['groups', ''], 'the profiled groups are of another column, so none are sent and the run picks the Deep groups');
-  assert.equal(S.firstRunDefault({ ...DEEP, default_scope: 'all' }), 'all', 'a table small enough to run whole runs whole, never narrowed to groups');
+  assert.deepEqual([scoped.group_by, scoped.run_scope, scoped.scope_groups || ''], ['store_id', 'records', '']);
+  assert.equal(S.firstRunDefault({ ...DEEP, default_scope: 'all' }), 'records', 'never a silent everything (must-exclude)');
   assert.equal(S.firstRunDefault({ ...DEEP, deep_suggestion: null }), 'records', 'no Deep grouping: the profile default stays');
   assert.equal(S.firstRunDefault({ ...DEEP, deep_suggestion: { columns: ['', null] } }), 'records', 'a blank Deep grouping is no Deep grouping');
 });
@@ -78,7 +92,7 @@ test('a Deep discovery grouping is picked first and marked, a profile without on
   const S = await lib('runScope.js');
   const DEEP = { ...PROFILE, deep_suggestion: { columns: ['stores.region', 'store_id'], record_level: 'order_id' } };
   assert.deepEqual(S.groupingChoices(DEEP).map((c) => [c.value, c.label, Boolean(c.deep), Boolean(c.recommended)]), [
-    ['all', 'Global (All)', false, false], ['stores.region, store_id', 'stores.region, then store_id', true, false],
+    ['all', 'Whole data as one group', false, false], ['stores.region, store_id', 'stores.region, then store_id', true, false],
     ['region, country', 'region, then country', false, true], ['region', 'region', false, false], ['country', 'country', false, false]]);
   const same = S.groupingChoices({ ...PROFILE, deep_suggestion: { columns: ['Region', 'country'] } });
   assert.deepEqual(same.map((c) => [c.value, Boolean(c.deep), Boolean(c.recommended)]), [['all', false, false], ['Region, country', true, true],
@@ -102,36 +116,88 @@ test('a Deep discovery grouping is picked first and marked, a profile without on
   assert.equal(S.GROUPING_DEEP_PICKED, 'Deep discovery picked this grouping. It becomes your choice when you pick it or another one.');
   const deepFirst = S.withScopeDefaults(S.withGroupingDefault(fresh, DEEP, ''), DEEP);
   assert.deepEqual([deepFirst.run_scope, deepFirst.scope_groups], ['groups', ''],
-    'the profile groups are countries, not store_id values, so the run picks the largest groups of the Grouping itself');
+    'the profile answers groups, and its groups are countries, not values of the Deep grouping, so none are ticked for it (must-exclude)');
   const profiled = S.withScopeDefaults({ ...fresh, group_by: 'region, country' }, PROFILE);
   assert.deepEqual([profiled.run_scope, JSON.parse(profiled.scope_groups)], ['groups', ['USA', 'Spain', 'Cyprus'].map((value) => [{ column: 'country', value }])]);
   const other = S.withScopeDefaults({ ...fresh, group_by: 'region' }, PROFILE);
-  assert.equal(other.scope_groups, '', 'a Grouping whose finest column is not the profiled one gets no country values');
+  assert.equal(other.scope_groups, '', 'Data groups whose finest column is not the profiled one get no country values');
 });
 
-test('First run always offers about 1,000 records, a recent period only with a date column, never custom SQL, and counts each choice', async () => {
+test('First run offers one group, several groups of the chosen Data groups, about 1,000 records, a recent period only with a date column, and everything last', async () => {
   const S = await lib('runScope.js');
-  const values = S.withScopeDefaults(S.scopeValues(() => undefined), PROFILE);
+  const values = { ...S.withScopeDefaults(S.scopeValues(() => undefined), PROFILE), group_by: 'country' };
   const choices = S.firstRunChoices(PROFILE, values);
-  assert.deepEqual(choices.map((c) => [c.id, c.available, c.records]), [['groups', true, 19612], ['recent', true, 3120], ['records', true, 1000], ['all', true, 48210]]);
-  assert.equal(choices[1].label, 'The last 30 days of order_date');
+  assert.deepEqual(choices.map((c) => [c.id, c.scope, c.available, c.records]), [['one', 'groups', true, null], ['groups', 'groups', true, 19612],
+    ['records', 'records', true, 300], ['recent', 'recent', true, 3120], ['all', 'all', true, 48210]]);
+  assert.equal(choices[2].label, 'About 1,000 records, in 1 whole group so no group is cut: country = Malta, 300 records');
+  assert.equal(choices[3].label, 'The last 30 days of order_date');
   const two = S.firstRunChoices(PROFILE, { ...values, scope_groups: 'USA, Cyprus' });
-  assert.equal(two[0].records, 18212, 'the records of the ticked groups');
+  assert.equal(two[1].records, 18212, 'the records of the ticked groups');
+  assert.equal(S.firstRunChoices(PROFILE, { ...values, scope_groups: 'USA' })[0].records, 18200, 'one group counts its own records');
   const week = S.firstRunChoices(PROFILE, { ...values, scope_days: '7' });
-  assert.equal(week[1].label, 'The last 7 days of order_date');
+  assert.equal(week[3].label, 'The last 7 days of order_date');
   const standalone = S.firstRunChoices({ ...PROFILE, standalone: true, time_column: null, recent: null }, { ...values, scope_records: '500' });
-  assert.deepEqual(standalone.map((c) => [c.id, c.available]), [['groups', true], ['recent', false], ['records', true], ['all', true]]);
+  assert.deepEqual(standalone.map((c) => [c.id, c.available]), [['one', true], ['groups', true], ['records', true], ['recent', false], ['all', true]]);
   assert.equal(standalone[2].label, 'The first 500 records');
   assert.equal(standalone[2].records, 500);
   const via = { ...PROFILE, records: 718931, suggested_groups: [], first_run: { all: 718931, groups: null, recent: 21000, records: null }, default_scope: 'recent',
     time_column: 'ws_ship_date_sk', time_via: { table: 'samples.tpcds_sf1.date_dim', key: 'd_date_sk', date: 'd_date' }, recent: { days: 30, records: 21000 } };
   const viaValues = S.withScopeDefaults(S.scopeValues(() => undefined), via);
-  assert.equal(viaValues.run_scope, 'recent', 'a recent period the person picked is kept');
+  assert.equal(viaValues.run_scope, 'recent', 'a recent period the profile answers is kept');
   const fresh = S.withScopeDefaults(S.scopeValues(() => undefined), { ...via, default_scope: 'records' });
   assert.equal(fresh.run_scope, 'records', '718,931 records first run on about 1,000 records, never a recent period by default');
   const dated = S.firstRunChoices(via, viaValues);
-  assert.deepEqual(dated.filter((c) => c.available).map((c) => [c.id, c.records]), [['recent', 21000], ['records', 1000], ['all', 718931]]);
-  assert.equal(dated[1].label, 'The last 30 days of d_date in samples.tpcds_sf1.date_dim, through ws_ship_date_sk');
+  assert.deepEqual(dated.filter((c) => c.available).map((c) => [c.id, c.records]), [['records', 1000], ['recent', 21000], ['all', 718931]],
+    'the whole data as one group has no group to pick (must-exclude)');
+  assert.equal(dated[2].label, 'The first 1,000 records of the whole data, which is one group');
+  assert.equal(dated[3].label, 'The last 30 days of d_date in samples.tpcds_sf1.date_dim, through ws_ship_date_sk');
+});
+
+test('the groups First run lists are the groups of the Data groups chosen in the step before, with their sizes, and a grouping the profile did not list is read again (must-exclude)', async () => {
+  const S = await lib('runScope.js');
+  const nested = S.groupingGroupsOf(PROFILE, 'Region , Country');
+  assert.deepEqual(nested.map((g) => [g.value, g.records, g.parts.map((p) => p.column)]), [['AMER / USA', 18200, ['region', 'country']],
+    ['EMEA / Spain', 1400, ['region', 'country']], ['EMEA / Malta', 300, ['region', 'country']], ['EMEA / Cyprus', 12, ['region', 'country']]]);
+  assert.deepEqual(S.groupingGroupsOf(PROFILE, 'region').map((g) => [g.value, g.records, g.parts]),
+    [['AMER', 30110, [{ column: 'region', value: 'AMER' }]], ['EMEA', 17890, [{ column: 'region', value: 'EMEA' }]], ['APAC', 210, [{ column: 'region', value: 'APAC' }]]]);
+  assert.deepEqual(S.groupingGroupsOf(PROFILE, 'all'), [], 'the whole data as one group lists no group to pick');
+  assert.deepEqual(S.groupingGroupsOf(PROFILE, ''), []);
+  assert.equal(S.groupingGroupsOf(PROFILE, 'country, region'), null, 'another order is another grouping, which the profile did not list');
+  assert.equal(S.groupingGroupsOf(PROFILE, 'store'), null, 'a column the profile did not keep');
+  assert.equal(S.groupingGroupsOf(null, 'region'), null);
+  assert.equal(S.groupsReadNeeded(PROFILE, 'country, region'), true);
+  assert.equal(S.groupsReadNeeded(PROFILE, 'region'), true, 'its groups are listed, but a sample in whole groups needs the sizes of region groups');
+  assert.equal(S.groupsReadNeeded(PROFILE, 'region, country'), false);
+  assert.equal(S.groupsReadNeeded(PROFILE, 'country'), false);
+  assert.equal(S.groupsReadNeeded(PROFILE, 'all'), false);
+  assert.equal(S.groupsReadNeeded(null, 'region'), false, 'nothing read yet, nothing to read again');
+  const STAR = { ...PROFILE, columns: [...PROFILE.columns, { name: 'item.i_category', distinct: 3, join: { table: 'main.retail.item', key: 'ss_item_sk', ref_column: 'i_item_sk' } }],
+    column_groups: { ...PROFILE.column_groups, 'item.i_category': [{ value: 'Home', records: 900 }, { value: '', records: 3 }, { value: null, records: 4 }] } };
+  assert.deepEqual(S.groupingGroupsOf(STAR, 'item.i_category'), [{ value: 'Home', records: 900,
+    parts: [{ column: 'item.i_category', value: 'Home', join: { table: 'main.retail.item', key: 'ss_item_sk', ref_column: 'i_item_sk' } }] }],
+  'a joined column carries its join, and an empty value is no group (must-exclude)');
+  assert.equal(S.wholeGroupColumn('region, item.i_category'), 'region', 'a sample in whole groups takes the finest column of the main table, as the run does');
+  assert.equal(S.wholeGroupColumn('item.i_category'), '');
+  assert.equal(S.wholeGroupColumn('all'), '');
+});
+
+test('First run says in plain words what it covers, for every choice, and a small table is covered whole by about 1,000 records', async () => {
+  const S = await lib('runScope.js');
+  const base = { ...S.scopeValues(() => undefined), group_by: 'country', scope_groups: '' };
+  const covers = (values, profile = PROFILE) => S.firstRunCoversText(profile, { ...base, ...values });
+  assert.equal(covers({ run_scope: 'groups', scope_groups: 'USA' }), 'The first run covers 1 group of country: country = USA, 18,200 records. Every other group waits for a run on everything.');
+  assert.equal(covers({ run_scope: 'groups', scope_groups: 'USA, Spain' }),
+    'The first run covers 2 groups of country: country = USA; country = Spain, 19,600 records. Every other group waits for a run on everything.');
+  assert.equal(covers({ run_scope: 'groups' }), 'The first run covers no group yet; pick the groups it runs on.');
+  assert.equal(covers({ run_scope: 'records' }), 'The first run covers about 1,000 records, in 1 whole group so no group is cut: country = Malta, 300 records.');
+  assert.equal(covers({ run_scope: 'records' }, { ...PROFILE, records: 700 }), 'The first run covers all 700 records of main.sales.orders, since it holds no more than 1,000 records.');
+  assert.equal(covers({ run_scope: 'recent' }), 'The first run covers the last 30 days of order_date, 3,120 records.');
+  assert.match(covers({ run_scope: 'all' }), /^The first run covers everything, 48,210 records\. Everything is 48,210 records, about 48 times a 1,000-record first run/);
+  assert.equal(covers({ run_scope: '' }), '', 'no choice yet says nothing, never everything (must-exclude)');
+  assert.equal(S.firstRunChoiceOf({ run_scope: 'groups', scope_groups: 'USA' }), 'one');
+  assert.equal(S.firstRunChoiceOf({ run_scope: 'groups', scope_groups: 'USA, Spain' }), 'groups');
+  assert.equal(S.firstRunChoiceOf({ run_scope: 'groups', scope_groups: '' }), 'groups');
+  assert.equal(S.firstRunChoiceOf({ run_scope: '' }), '');
 });
 
 test('the scope checks refuse what the agent would refuse, and accept what it runs', async () => {
@@ -141,12 +207,15 @@ test('the scope checks refuse what the agent would refuse, and accept what it ru
   assert.deepEqual(S.scopeProblems({ ...base, run_scope: 'records' }), [], 'the first 1,000 records');
   assert.deepEqual(S.scopeProblems({ ...base, run_scope: 'records', scope_records: '0' }), ["Records to run on is '0'; allowed: a whole number, at least 1"]);
   assert.deepEqual(S.scopeProblems({ ...base, run_scope: 'custom' }, 'first_run'), [`First run is 'custom': ${S.CUSTOM_SQL_REFUSED}`]);
-  assert.deepEqual(S.scopeProblems({ ...base, group_by: 'region, custom' }, 'grouping'), [`Grouping is 'region, custom': ${S.CUSTOM_SQL_REFUSED}`]);
+  assert.deepEqual(S.scopeProblems({ ...base, group_by: 'region, custom' }, 'grouping'), [`Data groups is 'region, custom': ${S.CUSTOM_SQL_REFUSED}`]);
   assert.deepEqual(S.scopeProblems({ ...base, run_scope: 'recent', scope_days: '0' }), ["Days to run on is '0'; allowed: a whole number, at least 1"]);
   assert.deepEqual(S.scopeProblems({ ...base, run_scope: 'recent', scope_days: '2.5' }), ["Days to run on is '2.5'; allowed: a whole number, at least 1"]);
   assert.deepEqual(S.scopeProblems({ ...base, run_scope: 'everything' }), ["First run is 'everything'; allowed: all, groups, recent, records"]);
-  assert.deepEqual(S.scopeProblems({ ...base, group_by: 'all, country' }), ["Grouping is 'all, country'; choose all or column names, not a mix"]);
-  assert.deepEqual(S.scopeProblems({ ...base, run_scope: 'groups', group_by: 'region, country' }), []);
+  assert.deepEqual(S.scopeProblems({ ...base, group_by: 'all, country' }), ["Data groups is 'all, country'; choose all or column names, not a mix"]);
+  assert.deepEqual(S.scopeProblems({ ...base, run_scope: 'groups', group_by: 'region, country', scope_groups: 'USA' }), []);
+  assert.deepEqual(S.scopeProblems({ ...base, run_scope: 'groups', group_by: 'region, country' }, 'first_run'), ['Groups to run on is empty; pick at least one group'],
+    'a first run on groups with no group picked is refused, never a silent pick (must-exclude)');
+  assert.deepEqual(S.scopeProblems({ ...base, run_scope: 'groups', group_by: 'region, country' }, 'grouping'), [], 'Data groups never names a First run problem');
 });
 
 test('the scope reads as the agent writes it, and counts carry thousands separators', async () => {
@@ -160,7 +229,7 @@ test('the scope reads as the agent writes it, and counts carry thousands separat
   assert.equal(P.counted(48210, 'record'), '48,210 records');
   assert.equal(P.counted(1, 'record'), '1 record');
   assert.equal(S.profileHeldText(PROFILE), 'main.sales.orders holds 48,210 records, so Inspire suggests a smaller first run to show results sooner.');
-  assert.equal(S.profileHeldText({ ...PROFILE, records: 800, default_scope: 'all' }), 'main.sales.orders holds 800 records.');
+  assert.equal(S.profileHeldText({ ...PROFILE, records: 800, default_scope: 'all' }), 'main.sales.orders holds 800 records, so a first run of about 1,000 records covers all of it.');
 });
 
 test('the wizard shows Grouping only when the profile says it applies, First run whenever the table was read or the read failed, and each step names only its own problems', async () => {
@@ -173,7 +242,7 @@ test('the wizard shows Grouping only when the profile says it applies, First run
   assert.deepEqual(S.scopeStepsOf('error', null), { grouping: false, firstRun: true }, 'a refused read still lets the person pick the first run');
   for (const state of ['loading', 'none', 'off']) assert.deepEqual(S.scopeStepsOf(state, null), { grouping: false, firstRun: false }, state);
   const values = { ...S.scopeValues(() => undefined), group_by: 'all, country', run_scope: 'records', scope_records: '0' };
-  const grouping = "Grouping is 'all, country'; choose all or column names, not a mix";
+  const grouping = "Data groups is 'all, country'; choose all or column names, not a mix";
   const records = "Records to run on is '0'; allowed: a whole number, at least 1";
   assert.deepEqual(S.scopeProblems(values, 'grouping'), [grouping]);
   assert.deepEqual(S.scopeProblems(values, 'first_run'), [records]);
@@ -334,13 +403,13 @@ test('a First run a build recorded as a number or another word is mapped on read
 test('a First run that cannot be known starts from the default the First run step uses for that table, and about 1,000 records, never everything, when the table was not read', async () => {
   const S = await lib('runScope.js');
   const empty = { run_scope: '', scope_groups: '' };
-  assert.deepEqual(S.withUnrecordedScope(empty, PROFILE), { run_scope: 'groups', scope_groups: '[[{"column":"country","value":"USA"}],[{"column":"country","value":"Spain"}],[{"column":"country","value":"Cyprus"}]]' });
-  assert.deepEqual(S.withUnrecordedScope(empty, { ...PROFILE, default_scope: 'all' }), { run_scope: 'all', scope_groups: '' });
-  for (const profile of [null, undefined, 'x']) assert.deepEqual(S.withUnrecordedScope(empty, profile), { run_scope: 'records', scope_groups: '' }, String(profile));
-  assert.deepEqual(S.withUnrecordedScope({ run_scope: 'recent' }, PROFILE), { run_scope: 'recent' }, 'never over a choice');
-  assert.equal(S.withUnrecordedScope(empty, null).run_scope, S.firstRunDefault({}));
+  assert.deepEqual(S.withScopeDefaults(empty, PROFILE), { run_scope: 'groups', scope_groups: '[[{"column":"country","value":"USA"}],[{"column":"country","value":"Spain"}],[{"column":"country","value":"Cyprus"}]]' });
+  assert.deepEqual(S.withScopeDefaults(empty, { ...PROFILE, default_scope: 'all' }), { run_scope: 'records', scope_groups: '' }, 'never everything by default (must-exclude)');
+  for (const profile of [null, undefined, 'x']) assert.deepEqual(S.withScopeDefaults(empty, profile), { run_scope: 'records', scope_groups: '' }, String(profile));
+  assert.deepEqual(S.withScopeDefaults({ run_scope: 'recent' }, PROFILE), { run_scope: 'recent' }, 'never over a choice');
+  assert.equal(S.withScopeDefaults(empty, null).run_scope, S.firstRunDefault({}));
   for (const { table_default: given, run_scope: expected } of LEGACY.unrecorded_default) {
-    assert.equal(S.withUnrecordedScope(empty, given == null ? null : { default_scope: given }).run_scope, expected, String(given));
+    assert.equal(S.withScopeDefaults(empty, given == null ? null : { default_scope: given }).run_scope, expected, String(given));
   }
 });
 
@@ -420,30 +489,41 @@ const STAR_PROFILE = {
       { column: 'item.i_category', value: 'Electronics', join: { table: 'main.retail.item', key: 'ss_item_sk', ref_column: 'i_item_sk' } }] },
     { value: '7 / Home', records: 28180, kind: 'typical', parts: [{ column: 'ss_store_sk', value: '7' },
       { column: 'item.i_category', value: 'Home', join: { table: 'main.retail.item', key: 'ss_item_sk', ref_column: 'i_item_sk' } }] }],
-  group_column: 'item.i_category',
-  group_sizes: [{ value: 'Electronics', records: 295000 }, { value: 'Home', records: 280000 }],
+  group_column: 'ss_store_sk',
+  group_sizes: [{ value: '1', records: 490000 }, { value: '7', records: 470000 }],
+  groups_for: 'ss_store_sk, item.i_category',
+  group_list: [
+    { value: '1 / Electronics', records: 49210, parts: [{ column: 'ss_store_sk', value: '1' },
+      { column: 'item.i_category', value: 'Electronics', join: { table: 'main.retail.item', key: 'ss_item_sk', ref_column: 'i_item_sk' } }] },
+    { value: '7 / Home', records: 28180, parts: [{ column: 'ss_store_sk', value: '7' },
+      { column: 'item.i_category', value: 'Home', join: { table: 'main.retail.item', key: 'ss_item_sk', ref_column: 'i_item_sk' } }] }],
+  column_groups: { ss_store_sk: [{ value: '1', records: 490000 }, { value: '7', records: 470000 }],
+    'item.i_category': [{ value: 'Electronics', records: 295000 }, { value: 'Home', records: 280000 }] },
   first_run: { all: 2880404, groups: 77390, recent: null, records: null }, default_scope: 'records', read_at: '2026-11-04T05:00:00Z',
 };
 
 test('a star-schema forecast above 1,000 records defaults to whole groups, never everything or a recent period, and names every group with its records (must-exclude)', async () => {
   const S = await lib('runScope.js');
-  const values = S.withScopeDefaults(S.scopeValues(() => undefined), STAR_PROFILE);
+  const values = S.withScopeDefaults(S.withGroupingDefault(S.scopeValues(() => undefined), STAR_PROFILE), STAR_PROFILE);
+  assert.equal(values.group_by, 'ss_store_sk, item.i_category');
   assert.equal(values.run_scope, 'records');
   assert.notEqual(values.run_scope, 'all');
   assert.notEqual(values.run_scope, 'recent');
   const choices = S.firstRunChoices(STAR_PROFILE, values);
   assert.deepEqual(choices.map((c) => [c.id, c.available, c.records]),
-    [['groups', true, 77390], ['recent', true, 0], ['records', true, 280000], ['all', true, 2880404]]);
-  assert.equal(choices[2].label, '280,000 records in the smallest whole group, since every group of item.i_category holds more than 1,000 records, so no group is cut: item.i_category = Home, 280,000 records');
-  assert.equal(choices[3].estimate, 'Everything is 2,880,404 records, about 2,880 times a 1,000-record first run; how long it takes is unknown until a larger run is measured');
+    [['one', true, null], ['groups', true, null], ['records', true, 470000], ['recent', true, 0], ['all', true, 2880404]]);
+  assert.equal(choices[2].label, '470,000 records in the smallest whole group, since every group of ss_store_sk holds more than 1,000 records, so no group is cut: ss_store_sk = 7, 470,000 records',
+    'whole groups of the finest column of the main table, as the run takes them, never of the joined column');
+  assert.equal(choices[4].estimate, 'Everything is 2,880,404 records, about 2,880 times a 1,000-record first run; how long it takes is unknown until a larger run is measured');
   assert.equal(S.everythingEstimate('', 8000, 1000), 'Everything is 8,000 records, about 8 times a 1,000-record first run, so it takes up to about 8 times as long');
   assert.equal(S.everythingEstimate('', 1000, 1000), '');
   assert.equal(S.everythingEstimate('the server said so', 7500000, 1000), 'the server said so');
   assert.deepEqual(S.scopeProblems(values, 'first_run'), []);
-  assert.equal(S.scopeText(values, STAR_PROFILE), 'First run: 280,000 records in the smallest whole group, since every group of item.i_category holds more than 1,000 records, so no group is cut: item.i_category = Home, 280,000 records');
+  assert.equal(S.scopeText(values, STAR_PROFILE), 'First run: 470,000 records in the smallest whole group, since every group of ss_store_sk holds more than 1,000 records, so no group is cut: ss_store_sk = 7, 470,000 records');
   const picked = { ...values, run_scope: 'groups', scope_groups: JSON.stringify(STAR_PROFILE.suggested_groups.map((g) => g.parts)) };
-  assert.equal(S.chosenGroupsText(STAR_PROFILE, picked),
-    'First run uses 2 groups: ss_store_sk = 1 and item.i_category = Electronics, 49,210 records; ss_store_sk = 7 and item.i_category = Home, 28,180 records');
+  assert.equal(S.chosenGroupsText, undefined, 'the First run covers line is the one sentence that names the chosen groups');
+  assert.equal(S.firstRunCoversText(STAR_PROFILE, picked), 'The first run covers 2 groups of ss_store_sk, then item.i_category: ss_store_sk = 1 and '
+    + 'item.i_category = Electronics; ss_store_sk = 7 and item.i_category = Home, 77,390 records. Every other group waits for a run on everything.');
   assert.equal(S.scopeText(picked), 'First run: 2 groups (ss_store_sk = 1 and item.i_category = Electronics; ss_store_sk = 7 and item.i_category = Home)');
 });
 
@@ -477,12 +557,18 @@ test('a custom first run is refused on the First run step only, and is never des
 
 test('a first run on records of a grouping technique takes whole groups, and falls back to the first records with a plain note when the table has none', async () => {
   const S = await lib('runScope.js');
-  const values = { ...S.scopeValues(() => undefined), run_scope: 'records', scope_records: '600000' };
-  assert.deepEqual(S.recordGroups(STAR_PROFILE, values), [{ value: 'Electronics', records: 295000 }, { value: 'Home', records: 280000 }]);
+  const values = { ...S.scopeValues(() => undefined), group_by: 'ss_store_sk, item.i_category', run_scope: 'records', scope_records: '1000000' };
+  assert.deepEqual(S.recordGroups(STAR_PROFILE, values), [{ value: '1', records: 490000 }, { value: '7', records: 470000 }]);
+  assert.equal(S.recordGroups(STAR_PROFILE, { ...values, group_by: 'all' }), null, 'the whole data as one group has no group to keep whole');
+  assert.equal(S.recordGroupsText(STAR_PROFILE, { ...values, group_by: 'all' }), 'The first 1,000,000 records of the whole data, which is one group');
+  assert.equal(S.recordGroups(STAR_PROFILE, { ...values, group_by: 'ss_sold_date_sk' }), null,
+    'whole groups of another column than the profiled one are not counted until they are read (must-exclude)');
+  assert.equal(S.recordGroups(STAR_PROFILE, { ...values, group_by: 'item.i_category, ss_store_sk' }).length, 2, 'the finest column of the main table decides, whatever the joined one');
+  assert.equal(S.recordGroupsText({ ...STAR_PROFILE, group_column: 'item.i_category' }, values), 'About 1,000,000 records, in whole groups of ss_store_sk so no group is cut');
   assert.deepEqual(S.scopeProblems(values, 'first_run'), []);
   const none = { ...STAR_PROFILE, group_sizes: [] };
   assert.deepEqual(S.scopeProblems(values, 'first_run'), []);
-  assert.match(S.recordGroupsText(none, values), /^The first 600,000 records; this technique reads records together/);
+  assert.match(S.recordGroupsText(none, values), /^The first 1,000,000 records; this technique reads records together/);
 });
 
 test('a first run on about 1,000 records names the real count when every whole group is larger, and never calls it about 1,000 (must-exclude)', async () => {
@@ -525,18 +611,21 @@ test('a grouping on a joined column is one choice that names its join, never a g
   assert.equal(choices.filter((c) => S.sameGrouping(c.value, 'item.i_category')).length, 1, 'one candidate list: the joined column is listed once');
 });
 
-test('First run never counts or lists the groups of another column than the grouping, and says the run picks them (must-exclude: the profiled grouping keeps its count)', async () => {
+test('First run never counts or lists the groups of another column than the chosen Data groups, and reads them again instead (must-exclude)', async () => {
   const S = await lib('runScope.js');
-  const PAY = { ...PROFILE, recommended: ['paymentMethod'], group_column: 'paymentMethod', example: { column: 'paymentMethod' }, first_run: { ...PROFILE.first_run, groups: 3333 },
-    suggested_groups: [{ value: 'mastercard', records: 1144, kind: 'biggest' }, { value: 'visa', records: 1083, kind: 'smallest' }] };
-  const other = { ...S.scopeValues(() => undefined), group_by: 'product', run_scope: 'groups' };
+  const PAY = { ...PROFILE, recommended: ['paymentMethod'], group_column: 'paymentMethod', groups_for: 'paymentMethod', example: { column: 'paymentMethod' },
+    first_run: { ...PROFILE.first_run, groups: 3333 }, suggested_groups: [{ value: 'mastercard', records: 1144, kind: 'biggest' }, { value: 'visa', records: 1083, kind: 'smallest' }],
+    group_list: [{ value: 'mastercard', records: 1144, parts: [{ column: 'paymentMethod', value: 'mastercard' }] }, { value: 'visa', records: 1083, parts: [{ column: 'paymentMethod', value: 'visa' }] }],
+    column_groups: { paymentMethod: [{ value: 'mastercard', records: 1144 }, { value: 'visa', records: 1083 }] } };
+  const other = { ...S.scopeValues(() => undefined), group_by: 'product', run_scope: 'groups', scope_groups: 'mastercard' };
   assert.equal(S.groupingProfiled(other, PAY), false);
-  assert.equal(S.firstRunChoices(PAY, other).find((c) => c.id === 'groups').records, null);
+  assert.deepEqual(S.firstRunChoices(PAY, other).filter((c) => c.scope === 'groups').map((c) => [c.id, c.available, c.records]), [['one', false, null], ['groups', false, null]]);
+  assert.equal(S.groupsReadNeeded(PAY, 'product'), true);
   assert.equal(S.groupsPickedByRunText(other),
     'Inspire profiled the groups of another column, so the run picks whole groups of product itself; type groups below to choose them.');
-  const same = { ...other, group_by: 'paymentMethod' };
+  const same = { ...other, group_by: 'paymentMethod', scope_groups: 'mastercard, visa' };
   assert.equal(S.groupingProfiled(same, PAY), true);
-  assert.equal(S.firstRunChoices(PAY, same).find((c) => c.id === 'groups').records, 3333);
+  assert.equal(S.firstRunChoices(PAY, same).find((c) => c.id === 'groups').records, 2227, 'the records of the groups picked, never the count of other groups');
   assert.equal(S.groupingProfiled({ ...other, group_by: 'all' }, PAY), true);
 });
 
@@ -552,4 +641,30 @@ test('a first run on about 1,000 records of a small table with groups of about 5
   assert.doesNotMatch(said, /smallest whole group|About 1,000/);
   assert.deepEqual(S.wholeGroups([{ value: 'A', records: 900 }, { value: 'B', records: 5000 }], '1000').map((g) => g.value), ['A'], 'only one group fits, so one group runs');
   assert.equal(S.WHOLE_GROUPS_MIN, 3);
+});
+
+test('what a v1.4.0 build saved reads in the App as the notebook runs it, from the shared cases (must-exclude: a suggested all is never the default)', async () => {
+  const S = await lib('runScope.js');
+  assert.ok(LEGACY.v1_4_0.length >= 8);
+  for (const c of LEGACY.v1_4_0) {
+    const read = S.recordedRunScope(S.scopeValues((name) => c.widgets[name])).values;
+    const values = S.withScopeDefaults(read, { default_scope: c.spec.default });
+    assert.equal(values.run_scope, c.app.run_scope, c.name);
+    assert.equal(S.firstRunChoiceOf(values), c.app.choice, c.name);
+    assert.deepEqual(S.scopeProblems(values), c.app.problems, c.name);
+    if (c.widgets.group_sql) assert.ok(S.customSqlProblems(c.widgets).some((p) => p.startsWith('group_sql: ')), c.name);
+  }
+});
+
+test('with Data groups as the whole data, saved groups name their own column and say where they came from, never "groups of all" (must-exclude)', async () => {
+  const S = await lib('runScope.js');
+  const values = { ...S.scopeValues(() => undefined), group_by: 'all', run_scope: 'groups', scope_groups: 'USA, Spain' };
+  const covers = S.firstRunCoversText(PROFILE, values);
+  assert.match(covers, /covers 2 groups of country: country = USA; country = Spain/);
+  assert.doesNotMatch(covers, /of all/);
+  assert.equal(S.groupsPickedByRunText(values), S.GROUPS_FROM_EARLIER);
+  assert.match(S.groupsPickedByRunText({ group_by: 'region, store_id' }), /whole groups of store_id itself/);
+  assert.equal(S.groupsPickedByRunText({ group_by: '' }), '');
+  const unnamed = S.firstRunCoversText({ ...PROFILE, group_column: null, recommended: [] }, { ...values, scope_groups: 'USA' });
+  assert.doesNotMatch(unnamed, / of :|of all/, unnamed);
 });

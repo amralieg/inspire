@@ -14,7 +14,7 @@ test('the App runs the agent own shared grouping cases file, with no App copy of
 });
 
 test('the names, constants, labels and techniques of the shared cases are the ones the App rule uses', () => {
-  const { settings, constants, labels, techniques } = data();
+  const { settings, constants, labels } = data();
   assert.deepEqual([settings.group_by.name, settings.group_by.label, settings.group_by.all, settings.group_by.custom],
     [R.GROUP_BY, R.GROUP_LABEL, R.GROUP_ALL, R.GROUP_CUSTOM]);
   assert.deepEqual(settings.group_by.solo, [R.GROUP_ALL]);
@@ -24,25 +24,37 @@ test('the names, constants, labels and techniques of the shared cases are the on
     [R.GROUP_GLOBAL, R.GROUP_OTHER, R.GROUP_NONE, R.GROUP_SEPARATOR, R.GROUP_ALL, R.GROUP_CUSTOM]);
   assert.equal(R.groupPart('country', null), labels.missing.replace('{column}', 'country'));
   assert.equal(R.groupPart('country', '  '), 'no country');
-  assert.deepEqual(techniques.grouping, R.GROUP_TECHNIQUES);
-  assert.deepEqual(techniques.standalone_records, R.STANDALONE_TECHNIQUES);
-  assert.deepEqual([R.FIRST_RUN_RECORDS_LINE, R.SUGGESTED_GROUPS, R.SCOPE_DAYS, R.SCOPE_RECORDS], [1000, 3, 30, 1000]);
-  assert.deepEqual([constants.first_run_records_line, constants.scope_via_keys_max], [R.FIRST_RUN_RECORDS_LINE, R.SCOPE_VIA_KEYS_MAX]);
+  assert.equal('techniques' in data(), false, 'the techniques that need Data groups live in the kinds registry only, never in a second list');
+  assert.deepEqual([R.FIRST_RUN_DEFAULT, R.SUGGESTED_GROUPS, R.SCOPE_DAYS, R.SCOPE_RECORDS], ['records', 3, 30, 1000]);
+  assert.deepEqual([constants.first_run_records_line, constants.scope_via_keys_max], [R.SCOPE_RECORDS, R.SCOPE_VIA_KEYS_MAX]);
   assert.equal(constants.group_max_null_share, R.GROUP_MAX_NULL_SHARE);
   assert.deepEqual(R.RUN_SCOPES, ['all', 'groups', 'recent', 'records']);
 });
 
-test('the technique decides where grouping applies, and where each record stands alone', () => {
+test('the technique table of the kinds registry decides where Data groups apply, and where each record stands alone', () => {
   const { applies } = data();
-  for (const c of applies) assert.equal(R.groupingApplies(c.technique), c.applies, c.technique);
-  assert.ok(applies.some((c) => c.applies) && applies.some((c) => !c.applies));
-  for (const [technique, alone] of [['Text Classification', true], ['Document Summarization', true], ['Named Entity Extraction', true],
-    ['Sentiment Analysis', true], ['Anomaly Detection', false], ['Time Series Forecasting', false], ['', false], [null, false]]) {
-    assert.equal(R.standaloneRecords(technique), alone, String(technique));
+  for (const c of applies) {
+    assert.equal(R.groupingApplies(c.technique), c.applies, String(c.technique));
+    assert.equal(R.techniqueRecords(c.technique), c.records, String(c.technique));
+    assert.equal(R.standaloneRecords(c.technique), c.records === 'alone', String(c.technique));
   }
+  assert.ok(applies.some((c) => c.applies) && applies.some((c) => !c.applies && c.records === '') && applies.some((c) => c.records === 'alone'));
+  assert.equal(R.groupingApplies('Anomaly Detection for stores'), false, 'free text that only contains a registry label is no registry technique (must-exclude)');
+  assert.equal(R.groupingApplies('Forecast'), false, 'a part of a label is no label (must-exclude)');
 });
 
-test('the Grouping text parses coarse to fine, and all and custom stand alone', () => {
+test('every technique of the kinds registry is classified once, as groups, alone or together', () => {
+  const kinds = require('../../agent/agent/app_shell/kinds.json');
+  const named = new Set([...Object.keys(kinds.technique_kind), ...kinds.kinds.flatMap((k) => k.techniques)]);
+  assert.deepEqual([...named].filter((t) => !(t in R.TECHNIQUE_RECORDS)), [], 'a registry technique with no Data groups answer');
+  assert.deepEqual(Object.keys(R.TECHNIQUE_RECORDS).filter((t) => !named.has(t)), [], 'a classified technique that is not in the registry');
+  assert.deepEqual(Object.entries(R.TECHNIQUE_RECORDS).filter(([, kind]) => !R.TECHNIQUE_RECORD_KINDS.includes(kind)), []);
+  const lowered = Object.keys(R.TECHNIQUE_RECORDS).map((t) => t.toLowerCase());
+  assert.equal(new Set(lowered).size, lowered.length, 'two labels that differ only by case would make the lookup ambiguous');
+  for (const kind of R.TECHNIQUE_RECORD_KINDS) assert.ok(Object.values(R.TECHNIQUE_RECORDS).includes(kind), kind);
+});
+
+test('the Data groups text parses coarse to fine, and all and custom stand alone', () => {
   for (const c of data().parse) {
     assert.equal(R.groupByMode(c.text).mode, c.mode, c.text);
     assert.deepEqual(R.groupByColumns(c.text), c.columns, c.text);
@@ -61,14 +73,9 @@ test('small groups move up a level exactly as the shared cases say', () => {
   for (const c of data().effective) assert.deepEqual(R.effectiveGroups(c.group_by, c.groups, c.time_series), c.expected, c.name);
 });
 
-test('First run defaults to about 1,000 records above 1,000 records, exactly as the shared cases say, never a recent period or everything', () => {
-  for (const c of data().first_run.default) assert.equal(R.firstRunDefault({ records: c.records }), c.expected, c.name);
-  const cases = [[999, 'all'], [1000, 'all'], [1001, 'records'], [718931, 'records'], [1e9, 'records'], [null, 'records'], [undefined, 'records'], [NaN, 'records']];
-  assert.deepEqual(cases.map(([records]) => R.firstRunDefault({ records })), cases.map(([, want]) => want));
-  for (const records of [1001, 5000, 718931, 1e9]) {
-    for (const scope of ['all', 'recent', 'groups', '']) assert.notEqual(R.firstRunDefault({ records }), scope, `${records} records never default to ${scope || 'no pick'} (must-exclude)`);
-  }
-  for (const records of [null, undefined, NaN, '']) assert.notEqual(R.firstRunDefault({ records }), 'all', `an unknown count (${records}) never defaults to everything (must-exclude)`);
+test('First run defaults to about 1,000 records whatever the table holds, exactly as the shared cases say, never a recent period or everything', () => {
+  for (const c of data().first_run.default) assert.equal(c.expected, R.FIRST_RUN_DEFAULT, c.name);
+  assert.equal('firstRunDefault' in R, false, 'no second default rule that a record count can turn into everything');
 });
 
 const rows = (pairs) => pairs.map(([column_name, data_type]) => ({ column_name, data_type }));

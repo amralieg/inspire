@@ -239,29 +239,36 @@ function columnTagsOf(rows) {
   return out;
 }
 
-function reasonOf({ technique, qualifies, standalone, recommended, table }) {
+function reasonOf({ technique, qualifies, standalone, recommended, table, groups }) {
   const named = str(technique).trim() || 'this use case';
-  if (qualifies) return `Grouping applies: ${named} compares each record with the records like it, and ${recommended.join(', ')} can group ${table}.`;
-  if (!R.groupingApplies(technique)) {
-    return standalone ? `Grouping does not apply: ${named} looks at each record on its own, so every record is in one Global group.`
-      : `Grouping does not apply: ${named} does not compare records with each other, so every record is in one Global group.`;
+  if (qualifies) {
+    return `Inspire recommends ${recommended.join(', then ')} because ${named} works out what is normal inside each group, and ${recommended[recommended.length - 1]} `
+      + `splits ${table} into ${groups} groups.`;
   }
-  return `Grouping applies: ${named} compares each record with the records like it, but no column of ${table} or of a table it joins makes `
-    + `${R.GROUP_MIN_GROUPS} to ${R.GROUP_MAX_GROUPS} groups with ${R.GROUP_MIN_RECORDS} records each on average, so Global is picked and every record `
-    + 'is compared with every other record.';
+  if (!R.techniqueRecords(technique)) return `Data groups do not apply: ${named} is not a technique in Inspire's technique table, so every record is in one group.`;
+  if (!R.groupingApplies(technique)) {
+    return standalone ? `Data groups do not apply: ${named} looks at each record on its own, so every record is in one group.`
+      : `Data groups do not apply: ${named} does not work out what is normal inside groups, so every record is in one group.`;
+  }
+  return `Inspire recommends the whole data as one group because no column of ${table} or of a table it joins splits it into ${R.GROUP_MIN_GROUPS} to `
+    + `${R.GROUP_MAX_GROUPS} groups with ${R.GROUP_MIN_RECORDS} records each on average.`;
 }
 
 function joinOf(candidate) {
   return { table: candidate.table, key: candidate.key, ref_column: candidate.ref_column };
 }
 
-function deepRecommended(deep, keptNames, heavy) {
-  const kept = new Map(keptNames.filter((n) => !heavy.has(n)).map((n) => [n.toLowerCase(), n]));
-  const named = (deep || []).map((c) => kept.get(str(c).trim().toLowerCase()));
+function keptColumns(asked, keptNames, skip = new Set()) {
+  const kept = new Map(keptNames.filter((n) => !skip.has(n)).map((n) => [n.toLowerCase(), n]));
+  const named = (asked || []).map((c) => kept.get(str(c).trim().toLowerCase()));
   return named.length && named.every(Boolean) && new Set(named).size === named.length ? named : null;
 }
 
-function profileView({ table, technique, columns, candidates, stats, sample, values, paths, time, days, joined = [], deep = [], readAt }) {
+function bySize(list) {
+  return list.sort((a, b) => b.records - a.records || (a.value < b.value ? -1 : a.value > b.value ? 1 : 0));
+}
+
+function profileView({ table, technique, columns, candidates, stats, sample, values, paths, time, days, joined = [], deep = [], groupBy = [], readAt }) {
   const records = num(stats.records);
   const standalone = R.standaloneRecords(technique);
   const picked = profiledColumns(stats, candidates);
@@ -272,23 +279,29 @@ function profileView({ table, technique, columns, candidates, stats, sample, val
   const keptNames = kept.map((p) => p.name);
   const { profiles, nests } = sampleProfile(sample, candidates);
   const heavy = new Set(kept.filter((p) => R.nullHeavy({ records, nulls: p.nulls })).map((p) => p.name));
-  const recommended = deepRecommended(deep, keptNames, heavy) || R.recommendation(profiles.filter((p) => keptNames.includes(p.column) && !heavy.has(p.column)), nests);
+  const recommended = keptColumns(deep, keptNames, heavy) || R.recommendation(profiles.filter((p) => keptNames.includes(p.column) && !heavy.has(p.column)), nests);
+  const grouped = keptColumns(groupBy, keptNames) || recommended;
   const shown = kept.map((p) => {
     const sizes = [...groups.get(p.name).values()].map((g) => g.records);
     return { name: p.name, type: types.get(p.name) || '', distinct: sizes.length, smallest: Math.min(...sizes), largest: Math.max(...sizes), nulls: p.nulls,
       parent: parentOf(p.name, groups, nests, keptNames), ...(dimension.has(p.name) ? { join: joinOf(dimension.get(p.name)) } : {}) };
   });
-  const finest = recommended[recommended.length - 1];
+  const columnGroups = Object.fromEntries(keptNames.map((name) => [name, bySize([...groups.get(name).values()].filter((g) => g.value != null)
+    .map((g) => ({ value: g.value, records: g.records }))).slice(0, R.GROUP_MAX_GROUPS)]));
+  const finest = grouped[grouped.length - 1];
   const partOf = (column, value) => ({ column, value, ...(dimension.has(column) ? { join: joinOf(dimension.get(column)) } : {}) });
   const sizes = finest ? [...groups.get(finest).values()].filter((g) => g.value != null) : [];
-  const combos = recommended.length > 1
-    ? (paths || []).map((row) => recommended.map((_c, i) => (row[`p${i}`] == null ? null : str(row[`p${i}`]))))
+  const combos = grouped.length > 1
+    ? (paths || []).map((row) => grouped.map((_c, i) => (row[`p${i}`] == null ? null : str(row[`p${i}`]))))
       .map((path, i) => ({ path, records: num(paths[i].records) })).filter((c) => c.path.every((v) => v != null && v.trim() !== ''))
     : [];
   const byValue = new Map(combos.map((c) => [c.path.join(R.GROUP_SEPARATOR), c.path]));
-  const suggested = recommended.length > 1
+  const groupList = grouped.length > 1
+    ? bySize(combos.map((c) => ({ value: c.path.join(R.GROUP_SEPARATOR), records: c.records, parts: grouped.map((column, i) => partOf(column, c.path[i])) })))
+    : bySize(sizes.map((g) => ({ value: g.value, records: g.records, parts: [partOf(finest, g.value)] })));
+  const suggested = grouped.length > 1
     ? R.suggestedGroups([...byValue.keys()].map((value) => ({ value, records: combos.find((c) => c.path.join(R.GROUP_SEPARATOR) === value).records })))
-      .map((g) => ({ ...g, parts: recommended.map((column, i) => partOf(column, byValue.get(g.value)[i])) }))
+      .map((g) => ({ ...g, parts: grouped.map((column, i) => partOf(column, byValue.get(g.value)[i])) }))
     : R.suggestedGroups(sizes).map((g) => ({ ...g, parts: [partOf(finest, g.value)] }));
   const applies = R.groupingApplies(technique);
   const qualifies = applies && recommended.length > 0;
@@ -297,18 +310,19 @@ function profileView({ table, technique, columns, candidates, stats, sample, val
   const recent = timeColumn ? { days, records: num(stats.recent) } : null;
   const inGroups = suggested.length ? suggested.reduce((sum, g) => sum + g.records, 0) : null;
   const firstRun = { all: records, groups: inGroups, recent: recent ? recent.records : null, records: standalone ? Math.min(records, R.SCOPE_RECORDS) : null };
-  const wholeColumn = standalone ? null : finest || keptNames[0] || null;
+  const wholeColumn = standalone ? null : [...grouped].reverse().find((c) => !dimension.has(c)) || finest || keptNames[0] || null;
   const wholeSizes = wholeColumn ? [...groups.get(wholeColumn).values()].filter((g) => g.value != null) : [];
+  const recommendedGroups = recommended.length ? groups.get(recommended[recommended.length - 1]).size : 0;
   return {
     table,
     records,
     applies,
     qualifies,
-    reason: reasonOf({ technique, qualifies, standalone, recommended, table }),
+    reason: reasonOf({ technique, qualifies, standalone, recommended, table, groups: recommendedGroups }),
     standalone,
     columns: shown,
     recommended,
-    example: exampleOf(recommended, groups, paths),
+    example: exampleOf(recommended, groups, grouped.join(',') === recommended.join(',') ? paths : null),
     time_column: timeColumn || null,
     time_via: timeColumn ? via : null,
     recent,
@@ -316,8 +330,11 @@ function profileView({ table, technique, columns, candidates, stats, sample, val
     group_column: wholeColumn,
     group_sizes: wholeSizes.filter((g) => g.records >= R.GROUP_MIN_RECORDS).sort((a, b) => b.records - a.records || (a.value < b.value ? -1 : 1)).slice(0, R.GROUP_MAX_GROUPS)
       .map((g) => ({ value: g.value, records: g.records })),
+    groups_for: grouped.join(', '),
+    group_list: groupList.slice(0, R.GROUP_MAX_GROUPS),
+    column_groups: columnGroups,
     first_run: firstRun,
-    default_scope: R.firstRunDefault({ records }),
+    default_scope: R.FIRST_RUN_DEFAULT,
     read_at: readAt,
   };
 }

@@ -1,6 +1,5 @@
 const profileRoute = await import('../frontend/src/lib/groupingProfile.js').then((m) => m.GROUPING_PROFILE_ROUTE || '', () => '');
 export const SCOPE_WALK_READS = new Set(profileRoute ? [`POST ${profileRoute}`] : []);
-const FIRST_RUN_LINE = 1000;
 const RECORDS_RE = /· [\d,]+ records?\b/;
 const SCOPE_WORDS_RE = /\b(All records|records?|groups?|days?)\b/;
 
@@ -32,25 +31,25 @@ async function choicesOf(group) {
 }
 
 export function checkWizardSteps(steps, profile) {
-  if (!profile) return [{ check: 'the table profile', ok: null, detail: 'the wizard never read a Grouping profile, so nothing can be compared' }];
-  const asked = steps.includes('Grouping');
+  if (!profile) return [{ check: 'the table profile', ok: null, detail: 'the wizard never read a Data groups profile, so nothing can be compared' }];
+  const asked = steps.includes('Data groups');
   return [
-    { check: 'the wizard asks Grouping whenever grouping applies to the technique', ok: asked === Boolean(profile.applies), detail: `applies ${Boolean(profile.applies)}, asked ${asked}` },
-    { check: 'First run comes right after Grouping', ok: !asked || steps.indexOf('First run') === steps.indexOf('Grouping') + 1, detail: steps.join(' > ') },
+    { check: 'the wizard asks Data groups whenever the technique works in groups', ok: asked === Boolean(profile.applies), detail: `applies ${Boolean(profile.applies)}, asked ${asked}` },
+    { check: 'First run comes right after Data groups', ok: !asked || steps.indexOf('First run') === steps.indexOf('Data groups') + 1, detail: steps.join(' > ') },
     { check: 'the wizard asks First run', ok: steps.includes('First run'), detail: steps.join(' > ') },
   ];
 }
 
 export async function checkScope(root, profile, { part = 'both' } = {}) {
   const list = [];
-  const grouping = root.getByRole('group', { name: 'Grouping', exact: true });
+  const grouping = root.getByRole('group', { name: 'Data groups', exact: true });
   const firstRun = root.getByRole('group', { name: 'First run', exact: true });
   if (!profile) {
-    pending(list, 'the table profile', 'the page never read a Grouping profile, so nothing can be compared');
+    pending(list, 'the table profile', 'the page never read a Data groups profile, so nothing can be compared');
     return list;
   }
   if (part !== 'first_run') {
-    await check(list, 'Grouping is shown whenever grouping applies to the technique', async () => {
+    await check(list, 'Data groups is shown whenever the technique works in groups', async () => {
       const shown = (await grouping.count()) > 0;
       return { ok: shown === Boolean(profile.applies), detail: `applies ${Boolean(profile.applies)}, shown ${shown}` };
     });
@@ -68,16 +67,15 @@ export async function checkScope(root, profile, { part = 'both' } = {}) {
     });
   }
   if (part !== 'first_run' && profile.applies && (await grouping.count())) {
-    await check(list, 'Global (All) is always offered', async () => ({ ok: (await grouping.getByRole('radio', { name: 'Global (All)' }).count()) === 1 }));
-    await check(list, 'no custom SQL is offered', async () => ({ ok: (await grouping.getByRole('radio', { name: 'Custom' }).count()) === 0 }));
+    await check(list, 'the whole data as one group is always offered', async () => ({ ok: (await grouping.getByRole('radio', { name: 'Whole data as one group' }).count()) === 1 }));
+    await check(list, 'no custom SQL is offered', async () => ({ ok: (await grouping.getByRole('radio', { name: /custom|sql/i }).count()) === 0 && (await grouping.locator('textarea').count()) === 0 }));
   }
   if (part !== 'grouping' && (await firstRun.count())) {
     const choices = await choicesOf(firstRun);
-    await check(list, 'First run is the default above 1,000 records', async () => {
+    await check(list, 'Everything is never the default first run', async () => {
       const picked = choices.find((c) => c.checked);
-      const over = Number(profile.records) > FIRST_RUN_LINE;
       const everything = Boolean(picked) && /^(Everything|The last \d+ days|A recent period)\b/.test(picked.text);
-      return { ok: Boolean(picked) && (over ? !everything : true), detail: `${profile.records} records, picked ${picked ? picked.text.slice(0, 60) : 'none'}` };
+      return { ok: Boolean(picked) && !everything, detail: `${profile.records} records, picked ${picked ? picked.text.slice(0, 60) : 'none'}` };
     });
     await check(list, 'each First run choice states its record count', async () => {
       const missing = choices.filter((c) => !RECORDS_RE.test(c.text));
@@ -89,9 +87,9 @@ export async function checkScope(root, profile, { part = 'both' } = {}) {
 
 export async function checkRunScope(page) {
   const list = [];
-  const region = page.getByRole('region', { name: 'Grouping and First run of this use case' });
+  const region = page.getByRole('region', { name: 'Data groups and First run of this use case' });
   if (!(await region.count())) {
-    pending(list, 'the Run tab Grouping and First run', 'this page has no scope settings');
+    pending(list, 'the Run tab Data groups and First run', 'this page has no scope settings');
     return list;
   }
   const firstRun = region.getByRole('group', { name: 'First run', exact: true });

@@ -1050,11 +1050,11 @@ test('Edit opens the wizard on the step it was asked for, and on Choose otherwis
   assert.equal(w.initialStepIndex({ step: 'delivery' }, 'notebook'), 0);
 });
 
-test('Grouping and First run come right after Data, Grouping only when the profile says it applies, and the step a person is on keeps its place when they appear', async () => {
+test('Data groups and First run come right after Data, Data groups only when the profile says it applies, and the step a person is on keeps its place when they appear', async () => {
   const w = await load();
   const both = { grouping: true, firstRun: true };
   const S = [{ name: 'top_k', source: 'widget' }];
-  assert.deepEqual([w.GROUPING_STEP.label, w.FIRST_RUN_STEP.label], ['Grouping', 'First run']);
+  assert.deepEqual([w.GROUPING_STEP.label, w.FIRST_RUN_STEP.label], ['Data groups', 'First run']);
   assert.deepEqual(w.wizardSteps('mvp', null, S, both).map((s) => s.id), ['choose', 'data', 'grouping', 'first_run', 'results', 'delivery', 'settings', 'vibes']);
   assert.deepEqual(w.wizardSteps('mvp', null, [], both).map((s) => s.id), ['choose', 'data', 'grouping', 'first_run', 'results', 'delivery', 'vibes'],
     'with no settings left after First run takes its own, the Settings step goes away');
@@ -1081,7 +1081,7 @@ test('Grouping and First run come right after Data, Grouping only when the profi
   assert.deepEqual(w.stepErrors('grouping', spec, extras), []);
   assert.deepEqual(w.stepErrors('first_run', spec, extras), []);
   const mixed = { ...spec, config: { ...spec.config, widgets: { group_by: 'all, country', run_scope: 'records', scope_records: '0' } } };
-  assert.deepEqual(w.stepErrors('grouping', mixed, extras), ["Grouping is 'all, country'; choose all or column names, not a mix"]);
+  assert.deepEqual(w.stepErrors('grouping', mixed, extras), ["Data groups is 'all, country'; choose all or column names, not a mix"]);
   assert.deepEqual(w.stepErrors('first_run', mixed, extras), ["Records to run on is '0'; allowed: a whole number, at least 1"]);
   const thousand = { ...spec, config: { ...spec.config, widgets: { run_scope: 'records', scope_records: '1000' } } };
   assert.deepEqual(w.stepErrors('first_run', thousand, extras), [], 'about 1,000 records is a first run for every technique: whole groups or the first records');
@@ -1864,7 +1864,7 @@ test('a fresh Full MVP lists every step and the wizard offers no shortcut that h
   const w = await load();
   const S = [{ name: 'min_interactions' }];
   assert.deepEqual(w.wizardSteps('mvp', { outputs: { app: true } }, S, { grouping: true, firstRun: true }).map((s) => s.label),
-    ['Choose', 'Data', 'Grouping', 'First run', 'Results', 'Delivery', 'App placement', 'App access', 'App look', 'Settings', 'Vibes']);
+    ['Choose', 'Data', 'Data groups', 'First run', 'Results', 'Delivery', 'App placement', 'App access', 'App look', 'Settings', 'Vibes']);
   for (const gone of ['shownSteps', 'quickSteps', 'customizeFromFocus', 'hiddenStepGaps', 'START_STEP', 'QUICK_PATH_NOTE', 'CUSTOMIZE_LABEL', 'quickSummary']) {
     assert.equal(w[gone], undefined, gone);
   }

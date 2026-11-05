@@ -1,7 +1,8 @@
 const { RUN_SCOPES } = require('../../frontend/src/lib/runScope.js');
 const { PERSONAL_NAME_RE, PERSONAL_TAG_RE, personalColumn } = require('../../frontend/src/lib/personalColumns.js');
+const { technique_records: TECHNIQUE_RECORDS } = require('../../agent/agent/app_shell/kinds.json');
 const GROUP_BY = 'group_by';
-const GROUP_LABEL = 'Grouping';
+const GROUP_LABEL = 'Data groups';
 const GROUP_ALL = 'all';
 const GROUP_CUSTOM = 'custom';
 const GROUP_GLOBAL = 'Global';
@@ -12,7 +13,7 @@ const GROUP_MIN_RECORDS = 30;
 const GROUP_MIN_PERIODS = 30;
 const GROUP_MAX_GROUPS = 500;
 const GROUP_MIN_GROUPS = 2;
-const FIRST_RUN_RECORDS_LINE = 1000;
+const FIRST_RUN_DEFAULT = 'records';
 const SUGGESTED_GROUPS = 3;
 const SCOPE_DAYS = 30;
 const SCOPE_RECORDS = 1000;
@@ -21,9 +22,7 @@ const GROUP_MAX_NULL_SHARE = 0.5;
 const GROUP_CANDIDATES = 12;
 const GROUP_PROFILED = 6;
 const GROUP_SAMPLE_ROWS = 100000;
-const GROUP_TECHNIQUES = ['anomal', 'outlier', 'forecast', 'predict', 'threshold', 'benchmark', 'rank', 'propensity', 'churn', 'cluster', 'segment',
-  'baseline', 'deviation', 'trend'];
-const STANDALONE_TECHNIQUES = ['classif', 'extract', 'summar', 'sentiment', 'tag', 'categor', 'entity', 'translat', 'document'];
+const TECHNIQUE_RECORD_KINDS = ['groups', 'alone', 'together'];
 const GROUP_ID_RE = /(?:^|_)(?:id|key|uuid|guid|sk|nk|hash)$/i;
 const GROUP_TYPES = ['string', 'varchar', 'char', 'boolean'];
 const GROUP_KEY_TYPES = ['int', 'integer', 'bigint', 'smallint', 'tinyint', 'long', 'short', 'byte', 'string', 'varchar', 'char'];
@@ -39,13 +38,14 @@ const whole = (v) => {
   return Number.isFinite(n) ? n : 0;
 };
 
-function techniqueHas(technique, words) {
-  const text = lower(technique);
-  return words.some((word) => text.includes(word));
+function techniqueRecords(technique) {
+  const label = lower(technique).split(/\s+/).filter(Boolean).join(' ');
+  const key = Object.keys(TECHNIQUE_RECORDS).find((name) => name.toLowerCase() === label);
+  return key === undefined ? '' : TECHNIQUE_RECORDS[key];
 }
 
-const groupingApplies = (technique) => techniqueHas(technique, GROUP_TECHNIQUES);
-const standaloneRecords = (technique) => techniqueHas(technique, STANDALONE_TECHNIQUES);
+const groupingApplies = (technique) => techniqueRecords(technique) === 'groups';
+const standaloneRecords = (technique) => techniqueRecords(technique) === 'alone';
 
 function groupByParts(text) {
   const picked = [];
@@ -288,11 +288,6 @@ function suggestedGroups(values) {
   return out.slice(0, SUGGESTED_GROUPS);
 }
 
-function firstRunDefault({ records }) {
-  const known = Number.parseInt(str(records), 10);
-  return Number.isFinite(known) && known <= FIRST_RUN_RECORDS_LINE ? 'all' : 'records';
-}
-
 module.exports = {
   GROUP_BY,
   GROUP_LABEL,
@@ -306,7 +301,7 @@ module.exports = {
   GROUP_MIN_PERIODS,
   GROUP_MAX_GROUPS,
   GROUP_MIN_GROUPS,
-  FIRST_RUN_RECORDS_LINE,
+  FIRST_RUN_DEFAULT,
   SUGGESTED_GROUPS,
   SCOPE_DAYS,
   SCOPE_RECORDS,
@@ -315,8 +310,9 @@ module.exports = {
   GROUP_CANDIDATES,
   GROUP_PROFILED,
   GROUP_SAMPLE_ROWS,
-  GROUP_TECHNIQUES,
-  STANDALONE_TECHNIQUES,
+  TECHNIQUE_RECORDS,
+  TECHNIQUE_RECORD_KINDS,
+  techniqueRecords,
   RUN_SCOPES,
   TEXT_NAME_TOKENS,
   groupingApplies,
@@ -342,5 +338,4 @@ module.exports = {
   timeSourceOf,
   timeRefsOf,
   suggestedGroups,
-  firstRunDefault,
 };

@@ -41,7 +41,7 @@ export const SETTINGS_STEP = { id: 'settings', label: 'Settings', sections: ['se
 
 export const VIBES_STEP = { id: 'vibes', label: 'Vibes', sections: ['vibes'], advanced: [] };
 
-export const GROUPING_STEP = { id: 'grouping', label: 'Grouping', sections: ['grouping'], advanced: [] };
+export const GROUPING_STEP = { id: 'grouping', label: 'Data groups', sections: ['grouping'], advanced: [] };
 
 export const FIRST_RUN_STEP = { id: 'first_run', label: 'First run', sections: ['first_run'], advanced: [] };
 

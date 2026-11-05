@@ -86,10 +86,11 @@ test('the profile reads the main table with the person token only, bounded, and 
     assert.equal(got.status, 200, JSON.stringify(got.data));
     const d = got.data;
     assert.deepEqual(Object.keys(d), ['table', 'records', 'applies', 'qualifies', 'reason', 'standalone', 'columns', 'recommended', 'example', 'time_column', 'time_via', 'recent',
-      'suggested_groups', 'group_column', 'group_sizes', 'first_run', 'default_scope', 'read_at', 'deep_suggestion']);
+      'suggested_groups', 'group_column', 'group_sizes', 'groups_for', 'group_list', 'column_groups', 'first_run', 'default_scope', 'read_at', 'deep_suggestion']);
     assert.equal('prefill' in d, false, 'the profile carries no starting SQL, since Inspire runs no typed SQL');
     assert.deepEqual([d.table, d.records, d.applies, d.qualifies, d.standalone, d.deep_suggestion], ['main.sales.orders', 10000, true, true, false, null]);
-    assert.equal(d.reason, 'Grouping applies: Anomaly Detection compares each record with the records like it, and region, country can group main.sales.orders.');
+    assert.equal(d.reason, 'Inspire recommends region, then country because Anomaly Detection works out what is normal inside each group, and country splits '
+      + 'main.sales.orders into 10 groups.');
     assert.deepEqual(d.columns, [
       { name: 'region', type: 'STRING', distinct: 5, smallest: 30, largest: 4000, nulls: 0, parent: null },
       { name: 'country', type: 'STRING', distinct: 10, smallest: 12, largest: 3000, nulls: 0, parent: 'region' },
@@ -106,6 +107,13 @@ test('the profile reads the main table with the person token only, bounded, and 
     assert.ok(d.group_sizes.length > 0 && d.group_sizes.every((g) => g.records >= 30), 'whole groups are only groups of 30 records or more');
     assert.deepEqual(d.first_run, { all: 10000, groups: 4993, recent: 850, records: null });
     assert.equal(d.default_scope, 'records', 'more than 1,000 records, so the First run takes about 1,000 records in whole groups (decision 5B, 4A)');
+    assert.equal(d.groups_for, 'region, country', 'with no Data groups asked, the groups listed are those of the recommended grouping');
+    assert.equal(d.group_list.length, COUNTRIES.length, 'every group of the grouping is listed with its size, not only the suggested three');
+    assert.deepEqual(d.group_list[0], { value: 'AMER / USA', records: 3000, parts: part('AMER', 'USA') });
+    assert.ok(d.group_list.every((g, i) => i === 0 || d.group_list[i - 1].records >= g.records), 'largest group first');
+    assert.deepEqual(Object.keys(d.column_groups), ['region', 'country', 'ragged']);
+    assert.deepEqual(d.column_groups.region, REGIONS.map(([value, records]) => ({ value, records })).sort((a, b) => b.records - a.records));
+    assert.ok(d.column_groups.ragged.every((g) => g.value != null), 'an empty value is no group to pick');
     assert.ok(!Number.isNaN(Date.parse(d.read_at)));
     const reads = tableReads(made.sqlCalls);
     assert.equal(reads.length, 8, reads.map((c) => c.sql.slice(0, 60)).join('\n'));
@@ -120,6 +128,31 @@ test('the profile reads the main table with the person token only, bounded, and 
   });
 });
 
+test('First run lists the groups of the Data groups the person chose, and never of a column the profile did not keep (must-exclude)', async () => {
+  for (const [groupBy, want] of [['region', 'region'], [' Region ', 'region'], ['country, region', 'country, region'], ['nope', 'region, country'],
+    ['region, nope', 'region, country'], ['all', 'region, country'], ['sku', 'region, country']]) {
+    const made = profiled();
+    await withApp(made, async (srv) => {
+      const got = await post(srv, { ...ASK, group_by: groupBy });
+      assert.equal(got.status, 200, JSON.stringify(got.data));
+      assert.equal(got.data.groups_for, want, groupBy);
+      assert.deepEqual(got.data.recommended, ['region', 'country'], 'the recommendation stays what Inspire recommends, whatever the person chose');
+      const finest = want.split(', ').pop();
+      assert.ok(got.data.group_list.every((g) => g.parts.length === want.split(', ').length && g.parts[g.parts.length - 1].column === finest), groupBy);
+      assert.equal(got.data.group_column, finest, 'a sample in whole groups takes whole groups of the chosen Data groups');
+      const paths = tableReads(made.sqlCalls).filter((c) => c.sql.includes('AS p0'));
+      assert.equal(paths.length, want.includes(',') ? 1 : 0, `${groupBy}: the combined groups are read only for a grouping of more than one column`);
+    });
+  }
+  const one = profiled();
+  await withApp(one, async (srv) => {
+    const got = await post(srv, { ...ASK, group_by: 'region' });
+    assert.deepEqual(got.data.group_list.map((g) => g.value), REGIONS.map(([v, n]) => [v, n]).sort((a, b) => b[1] - a[1]).map(([v]) => v));
+    assert.deepEqual(got.data.suggested_groups.map((g) => g.parts[0].column), got.data.suggested_groups.map(() => 'region'));
+    assert.equal(got.data.example, null, 'the example of the recommended grouping needs its combined groups, which this read did not take, so none is made up');
+  });
+});
+
 test('a Deep discovery grouping on the use case comes back with the profile, and never for a technique that does not group (must-exclude)', async () => {
   const deep = { id: 'N01-U01', primary_table: 'main.sales.orders', analytics_technique: 'Anomaly Detection', suggested_group_by: ' stores.region , store_id, store_id',
     record_level: ' order_id ' };
@@ -129,10 +162,10 @@ test('a Deep discovery grouping on the use case comes back with the profile, and
     assert.deepEqual(got.data.deep_suggestion, { columns: ['stores.region', 'store_id'], record_level: 'order_id' });
     assert.deepEqual(got.data.recommended, ['region', 'country'], 'the build-time profile is still read and answered beside it');
   });
-  await withApp(profiled({ useCase: { ...deep, analytics_technique: 'Text Classification' } }), async (srv) => {
+  await withApp(profiled({ useCase: { ...deep, analytics_technique: 'Sentiment Analysis' } }), async (srv) => {
     assert.equal((await post(srv, ASK)).data.deep_suggestion, null);
   });
-  assert.deepEqual(GP.deepSuggestionOf({ analytics_technique: 'Time Series Forecasting', suggested_group_by: 'store_id', record_level: '' }),
+  assert.deepEqual(GP.deepSuggestionOf({ analytics_technique: 'Forecasting', suggested_group_by: 'store_id', record_level: '' }),
     { columns: ['store_id'], record_level: null });
   for (const empty of [{ ...deep, suggested_group_by: '' }, { ...deep, suggested_group_by: null }, { ...deep, suggested_group_by: 'all' },
     { ...deep, suggested_group_by: 'custom' }, null, undefined]) {
@@ -179,13 +212,12 @@ test('a column of 501 groups and one of about 900 are left out, and the second i
 });
 
 test('a column with more than half its records empty is listed but never recommended (must-exclude)', () => {
-  const base = { table: 'main.sales.orders', technique: 'Churn Prediction', columns: [{ column_name: 'ragged', data_type: 'STRING' }], candidates: ['ragged'],
+  const base = { table: 'main.sales.orders', technique: 'Predictive Modeling', columns: [{ column_name: 'ragged', data_type: 'STRING' }], candidates: ['ragged'],
     sample: [{ kind: 'size', coarse: '0', fine: '-1', groups: '3', records: '10000' }], paths: null, time: null, days: 30, keys: { primary: [], joins: [] },
     joins: [], readAt: 'now', values: [{ col: '0', value: 'A', records: '2000' }, { col: '0', value: 'B', records: '2000' }, { col: '0', value: null, records: '6000' }] };
   const heavy = GP.profileView({ ...base, stats: { records: '10000', d0: '2', n0: '6000' } });
   assert.deepEqual([heavy.columns.map((c) => c.name), heavy.recommended, heavy.applies, heavy.qualifies], [['ragged'], [], true, false]);
-  assert.match(heavy.reason, /^Grouping applies: Churn Prediction compares each record with the records like it, but no column of main\.sales\.orders or of a table it joins makes 2 to 500 groups/);
-  assert.match(heavy.reason, /so Global is picked/);
+  assert.match(heavy.reason, /^Inspire recommends the whole data as one group because no column of main\.sales\.orders or of a table it joins splits it into 2 to 500 groups/);
   const filled = GP.profileView({ ...base, stats: { records: '10000', d0: '2', n0: '4000' } });
   assert.deepEqual([filled.recommended, filled.qualifies], [['ragged'], true], 'the same column at 40% empty is recommended');
 });
@@ -211,7 +243,7 @@ test('reads past the 60 second deadline are a 504 that says Inspire stopped', as
   await withApp(made, async (srv) => {
     const got = await post(srv, ASK);
     assert.equal(got.status, 504);
-    assert.equal(got.data.error, 'Inspire read main.sales.orders for the Grouping for 60 seconds with no answer, so it stopped; try again once the warehouse is running.');
+    assert.equal(got.data.error, 'Inspire read main.sales.orders for Data groups for 60 seconds with no answer, so it stopped; try again once the warehouse is running.');
   });
 });
 
@@ -237,8 +269,8 @@ test('when the caller leaves, the running read gets the cancel signal', { timeou
 
 test('a small table runs everything, and a standalone technique with no group and no time column first runs on 1,000 records', async () => {
   const small = profiled({}, { approx_count_distinct: [stats({ records: '900' })] });
-  await withApp(small, async (srv) => assert.equal((await post(srv, ASK)).data.default_scope, 'all'));
-  const alone = profiled({ useCase: { id: 'N01-U01', primary_table: 'main.sales.orders', analytics_technique: 'Text Classification' } },
+  await withApp(small, async (srv) => assert.equal((await post(srv, ASK)).data.default_scope, 'records', 'a small table never runs everything by default (must-exclude)'));
+  const alone = profiled({ useCase: { id: 'N01-U01', primary_table: 'main.sales.orders', analytics_technique: 'Sentiment Analysis' } },
     { 'information_schema.columns': COLUMNS.filter((c) => c.data_type !== 'DATE'), 'AS col, left(': [] });
   await withApp(alone, async (srv) => {
     const got = await post(srv, ASK);
@@ -246,7 +278,7 @@ test('a small table runs everything, and a standalone technique with no group an
       [true, false, false, null, null, []]);
     assert.deepEqual(got.data.first_run, { all: 10000, groups: null, recent: null, records: 1000 });
     assert.equal(got.data.default_scope, 'records');
-    assert.match(got.data.reason, /^Grouping does not apply: Text Classification looks at each record on its own/);
+    assert.match(got.data.reason, /^Data groups do not apply: Sentiment Analysis looks at each record on its own/);
   });
 });
 
@@ -272,7 +304,7 @@ test('a built use case is profiled on the table its build swapped in, and bad in
   await withApp(none, async (srv) => {
     const got = await post(srv, ASK);
     assert.equal(got.status, 400);
-    assert.equal(got.data.error, 'Use case N01-U01 names no main table as catalog.schema.table, so Inspire cannot read it for the Grouping.');
+    assert.equal(got.data.error, 'Use case N01-U01 names no main table as catalog.schema.table, so Inspire cannot read it for Data groups.');
     assert.deepEqual(tableReads(none.sqlCalls), []);
   });
 });
@@ -309,8 +341,8 @@ function webSales({ records, recent = '21000', keys = '30', joins = WS_JOINS, el
   });
 }
 
-for (const [records, expected] of [[999, 'all'], [1000, 'all'], [1001, 'records'], [718931, 'records']]) {
-  test(`a fact table dated only through its date table offers a recent period, and ${records.toLocaleString('en-US')} records default to ${expected}, never recent`,
+for (const [records, expected] of [[999, 'records'], [1000, 'records'], [1001, 'records'], [718931, 'records']]) {
+  test(`a fact table dated only through its date table offers a recent period, and ${records.toLocaleString('en-US')} records default to ${expected}, never recent or everything`,
     async () => {
       const made = webSales({ records });
       await withApp(made, async (srv) => {
@@ -335,8 +367,12 @@ for (const [records, expected] of [[999, 'all'], [1000, 'all'], [1001, 'records'
     });
 }
 
-test('an unknown record count runs about 1,000 records first, never everything, as the agent does (must-exclude)', () => {
-  for (const records of [undefined, null, '']) assert.equal(R.firstRunDefault({ records, groups: 300, recent: 21000, standalone: true }), 'records');
+test('the profile answers about 1,000 records as the first run whatever the table holds, never everything, as the agent does (must-exclude)', () => {
+  assert.equal(R.FIRST_RUN_DEFAULT, 'records');
+  const base = { table: 'main.sales.orders', technique: 'Anomaly Detection', columns: [], candidates: [], sample: [], values: [], paths: null, time: null, days: 30 };
+  for (const records of [undefined, null, '', 0, 12, 999, 1000, 1001, 5000000]) {
+    assert.equal(GP.profileView({ ...base, stats: { records } }).default_scope, 'records', String(records));
+  }
 });
 
 test('a date key with no dated join, or one whose period covers more than 10,000 keys, is no recent period (must-exclude)', async () => {
@@ -400,7 +436,7 @@ function starSales(fact) {
     .flatMap(([, i, expr]) => starSizes(starName(expr)).map((g) => ({ col: i, ...g }))), manifest: {} });
   const tags = { rows: [{ catalog_name: 'main', schema_name: 'retail', table_name: 'item', column_name: 'i_brand', tag_name: 'class', tag_value: 'pii' }], manifest: {} };
   const table = `main.retail.${fact}`;
-  const technique = 'Time Series Forecasting';
+  const technique = 'Forecasting';
   return profiled({ useCase: { id: 'N01-U01', primary_table: table, tables_involved: `${table}, main.retail.item`, analytics_technique: technique,
     use_case: `Forecast weekly sales by item category for each ${fact === 'store_sales' ? 'store' : 'web order'}`, table_joins: '[]', elite_assessment: '{}' } }, {
     'information_schema.table_constraints': constraints,
@@ -454,7 +490,7 @@ test('a fact table with no category of its own recommends the category it joins'
 
 test('a standalone technique on a star fact table hides the Grouping step', async () => {
   const made = starSales('store_sales');
-  made.state.useCase.analytics_technique = 'Text Classification';
+  made.state.useCase.analytics_technique = 'Sentiment Analysis';
   await withApp(made, async (srv) => {
     const d = (await post(srv, ASK)).data;
     assert.deepEqual([d.applies, d.qualifies, d.standalone], [false, false, true]);

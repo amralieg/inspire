@@ -200,10 +200,11 @@ import {
 } from '../lib/useCaseSettings';
 import ScopeSettings from '../components/ScopeSettings';
 import CatalogPicker from '../components/CatalogPicker';
-import { PROFILE_WAITING, useGroupingProfile } from '../lib/groupingProfile';
+import { PROFILE_WAITING, useScopeProfiles } from '../lib/groupingProfile';
 import {
-  FIRST_RUN_TITLE, GROUPING_TITLE, RUN_SCOPE_UNRECORDED_HIDDEN, builtFirstRunOf, deepGrouping, groupingChosenBy, isScopeSetting, latestRunScope, scopeChanges, scopeStepsOf, scopeValues,
-  withGroupingDefault, withScopeDefaults, withUnrecordedScope, GROUP_BY,
+  FIRST_RUN_TITLE, GROUPING_TITLE, RUN_SCOPE_UNRECORDED_HIDDEN, builtFirstRunOf, deepGrouping, groupingChosenBy, isFirstRunSetting, isGroupingSetting, isScopeSetting,
+  latestRunScope, scopeChanges, scopeStepsOf, scopeValues,
+  withGroupingDefault, withScopeDefaults, GROUP_BY,
 } from '../lib/runScope';
 
 const ICONS = { notebook: NotebookPen, dashboard: LayoutDashboard, genie_space: Sparkles, app: AppWindow, alert: Bell };
@@ -399,13 +400,16 @@ export default function ImplementWizard({
   const settingsModel = useMemo(() => settingsModelOf(context?.history), [context?.history]);
   const alertOn = Boolean(spec.outputs.alert);
   const everySetting = useMemo(() => contextSettings(context, { outputs: { alert: alertOn } }), [context, alertOn]);
-  const scopeProfile = useGroupingProfile({ apiPostJson, inspireDatabase, sessionId, useCaseId: spec.use_case_id, warehouseId, enabled: mode === 'mvp' });
+  const scopeProfile = useScopeProfiles({ apiPostJson, inspireDatabase, sessionId, useCaseId: spec.use_case_id, warehouseId, enabled: mode === 'mvp',
+    groupBy: spec.config.widgets?.[GROUP_BY] });
   const builtFirstRun = builtFirstRunOf(settingsModel);
   const firstRunUnrecorded = useMemo(() => latestRunScope(context?.latest).unrecorded, [context?.latest]);
   const scopeSteps = scopeStepsOf(scopeProfile.state, scopeProfile.profile, builtFirstRun);
   const scopeSettingList = useMemo(() => everySetting.filter(isScopeSetting), [everySetting]);
-  const settingsFor = useCallback((scope) => (scope.firstRun ? everySetting.filter((s) => !isScopeSetting(s)) : everySetting), [everySetting]);
-  const settingsList = useMemo(() => settingsFor({ firstRun: scopeSteps.firstRun }), [settingsFor, scopeSteps.firstRun]);
+  const settingsFor = useCallback((scope, read) => everySetting.filter((s) => !(isGroupingSetting(s) && (scope.grouping || read))
+    && !(isFirstRunSetting(s) && scope.firstRun)), [everySetting]);
+  const profileRead = scopeProfile.state === 'ready';
+  const settingsList = useMemo(() => settingsFor(scopeSteps, profileRead), [settingsFor, scopeSteps.grouping, scopeSteps.firstRun, profileRead]); // eslint-disable-line react-hooks/exhaustive-deps
   const steps = wizardSteps(mode, spec, settingsList, scopeSteps);
   const stepIndex = stepIndexOf(steps, step);
   const stepId = steps[stepIndex].id;
@@ -531,7 +535,7 @@ export default function ImplementWizard({
 
   useEffect(() => {
     if (!firstRunUnrecorded || scopeProfile.state === 'loading') return;
-    setSpec((prev) => withProfileDefaults(prev, scopeProfile.profile, withUnrecordedScope));
+    setSpec((prev) => withProfileDefaults(prev, scopeProfile.profile));
   }, [firstRunUnrecorded, scopeProfile.state, scopeProfile.profile]);
 
   const groups = context?.widget_groups || NO_WIDGET_GROUPS;
@@ -650,7 +654,7 @@ export default function ImplementWizard({
         setChecking(PROFILE_WAITING);
         const done = await scopeProfile.wait();
         const doneSteps = scopeStepsOf(done.state, done.profile, builtFirstRun);
-        list = wizardSteps(mode, spec, settingsFor(doneSteps), doneSteps);
+        list = wizardSteps(mode, spec, settingsFor(doneSteps, done.state === 'ready'), doneSteps);
         profile = done.profile;
       }
       const next = list[stepIndexOf(list, stepId) + 1];
@@ -1237,7 +1241,7 @@ export default function ImplementWizard({
           <section aria-label={stepId === 'grouping' ? GROUPING_TITLE : FIRST_RUN_TITLE} data-scope-step={stepId} className="space-y-3">
             <h3 className="text-sm font-semibold text-text-primary">{stepId === 'grouping' ? GROUPING_TITLE : FIRST_RUN_TITLE}</h3>
             <ScopeSettings part={stepId} values={scopeShown} profile={scopeProfile.profile} profileState={scopeProfile.state} profileError={scopeProfile.error}
-              settings={scopeSettingList} onChange={(name, value) => setSpec((prev) => withSetting(prev, { name, source: 'widget' }, value))}
+              groups={stepId === 'first_run' ? scopeProfile.firstRun : null} settings={scopeSettingList} onChange={(name, value) => setSpec((prev) => withSetting(prev, { name, source: 'widget' }, value))}
               unrecorded={firstRunUnrecorded}
               groupingChosenBy={groupingChosenBy(spec.config.widgets?.[GROUP_BY], scopeProfile.profile)} />
           </section>

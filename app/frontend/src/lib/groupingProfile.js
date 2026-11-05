@@ -1,13 +1,16 @@
 import { useEffect, useRef, useState } from 'react';
+import { GROUP_BY, GROUP_ALL, groupByColumns, groupsReadNeeded } from './runScope.js';
 
 export const GROUPING_PROFILE_ROUTE = '/api/grouping/profile';
-export const PROFILE_READING = 'Inspire is reading the table to suggest a grouping and a first run.';
+export const PROFILE_READING = 'Inspire is reading the table to suggest Data groups and a first run.';
 export const PROFILE_WAITING = 'Reading the table';
 
-export function profileKey({ inspireDatabase, sessionId, useCaseId, warehouseId, enabled = true }) {
+export function profileKey({ inspireDatabase, sessionId, useCaseId, warehouseId, enabled = true, groupBy = '' }) {
   const [db, sid, uc, wh] = [inspireDatabase, sessionId, useCaseId, warehouseId].map((part) => String(part ?? '').trim());
   if (!enabled || !db || !sid || !uc) return '';
-  return new URLSearchParams({ inspire_database: db, session_id: sid, use_case_id: uc, warehouse_id: wh }).toString();
+  const columns = groupByColumns(groupBy).filter((c) => c.toLowerCase() !== GROUP_ALL);
+  return new URLSearchParams({ inspire_database: db, session_id: sid, use_case_id: uc, warehouse_id: wh, ...(columns.length ? { [GROUP_BY]: columns.join(', ') } : {}) })
+    .toString();
 }
 
 export function profileBody(key) {
@@ -21,8 +24,8 @@ export function profileState(key, got) {
   return { state: got.status === 404 ? 'none' : 'error', profile: null, error: got.error };
 }
 
-export function useGroupingProfile({ apiPostJson, inspireDatabase, sessionId, useCaseId, warehouseId, enabled = true }) {
-  const key = profileKey({ inspireDatabase, sessionId, useCaseId, warehouseId, enabled });
+export function useGroupingProfile({ apiPostJson, inspireDatabase, sessionId, useCaseId, warehouseId, enabled = true, groupBy = '' }) {
+  const key = profileKey({ inspireDatabase, sessionId, useCaseId, warehouseId, enabled, groupBy });
   const [got, setGot] = useState(null);
   const post = useRef(apiPostJson);
   const pending = useRef({ key: '', promise: null });
@@ -45,4 +48,11 @@ export function useGroupingProfile({ apiPostJson, inspireDatabase, sessionId, us
     return profileState(key, pending.current.key === key ? await pending.current.promise : null);
   };
   return { ...profileState(key, got), key, wait };
+}
+
+export function useScopeProfiles({ groupBy = '', ...ask }) {
+  const base = useGroupingProfile(ask);
+  const reread = base.state === 'ready' && groupsReadNeeded(base.profile, groupBy);
+  const chosen = useGroupingProfile({ ...ask, enabled: ask.enabled !== false && reread, groupBy });
+  return { ...base, firstRun: reread ? chosen : base };
 }
