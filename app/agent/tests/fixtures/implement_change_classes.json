@@ -8044,7 +8044,7 @@
           }
         }
       },
-      "error": "the App has no option 'export'; its options are modify, replace_edits, alerts"
+      "error": "the App has no option 'export'; its options are modify, replace_edits, decisions"
     },
     {
       "name": "App download option turned on, which Inspire no longer offers",
@@ -8058,7 +8058,7 @@
           }
         }
       },
-      "error": "the App has no option 'download'; its options are modify, replace_edits, alerts"
+      "error": "the App has no option 'download'; its options are modify, replace_edits, decisions"
     },
     {
       "name": "App download option turned off, which Inspire no longer offers",
@@ -8072,7 +8072,7 @@
           }
         }
       },
-      "error": "the App has no option 'download'; its options are modify, replace_edits, alerts"
+      "error": "the App has no option 'download'; its options are modify, replace_edits, decisions"
     },
     {
       "name": "merge into an output Inspire cannot add to",
