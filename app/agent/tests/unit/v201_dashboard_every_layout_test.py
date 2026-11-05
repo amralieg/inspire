@@ -39,8 +39,8 @@ def _header(doc):
 
 def test_the_examples_cover_layouts_with_and_without_a_decision_list():
     decides = {name: shell_sql.public_layout(example(name))["decides"] for name in EXAMPLES}
-    assert {n for n, d in decides.items() if not d} >= {"dashboard", "scenario_lab", "agent_chat"}
-    assert any(decides.values())
+    assert {n for n, d in decides.items() if not d} >= {"dashboard", "agent_chat"}
+    assert decides["scenario_lab"]
 
 
 @pytest.mark.parametrize("name", EXAMPLES)

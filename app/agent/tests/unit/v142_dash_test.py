@@ -176,7 +176,12 @@ def _no_dates(ns):
 
 def _no_records(ns):
     page = _churn_page(ns)
-    page["datasets"] = [d for d in page["datasets"] if d["name"] != "records"]
+    for dataset in page["datasets"]:
+        if dataset["name"] == "records":
+            dataset["name"] = "listed"
+    for item in (page.get("charts") or []) + (page.get("tables") or []):
+        if item.get("dataset") == "records":
+            item["dataset"] = "listed"
     page.pop("records")
     for f in page["filters"]:
         f["columns"].pop("records", None)
