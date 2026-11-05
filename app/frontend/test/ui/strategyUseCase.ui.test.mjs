@@ -139,3 +139,73 @@ test('with no strategy and no built-in goals, nothing is called Not tied to your
     await ui.close();
   }
 });
+
+const LEVELED = withUseCases({
+  ...REVIEW_RESULTS,
+  strategy_coverage: { ...REVIEW_RESULTS.strategy_coverage, levels: ['Theme', 'Ambition'], entries: REVIEW_RESULTS.strategy_coverage.entries.map((e) => ({ ...e, level: '' })) },
+}, {
+  'N01-U01': { kpis: JSON.stringify([{ name: 'Churn rate', direction: 'decrease', source: 'strategy' }, { name: 'Save rate', source: 'proposed' }]) },
+  'N01-U02': { kpis: JSON.stringify([{ name: 'Basket size', source: 'proposed' }]) },
+  'N02-U01': { strategy_alignment: JSON.stringify([{ id: 'S4', path: 'Run lean > Stock right', evidence: 'stock' }]),
+    kpis: JSON.stringify([{ name: 'churn rate', source: 'strategy' }]) },
+});
+
+test('with the user own level names, each card and detail names the entry at every level, and Results filters by each level and by KPI', async () => {
+  const ui = await openUi('results', { ...REVIEW_STATE, results: LEVELED });
+  const { page } = ui;
+  try {
+    await ready(page);
+    assert.equal((await card(page, 'Predict churn').locator('[data-strategy-chip]').innerText()).trim(), 'Ambition: Keep customers');
+    assert.equal((await card(page, 'Price elasticity').locator('[data-strategy-chip]').innerText()).trim(), V.STRATEGY_NOT_TIED);
+    assert.equal(await page.getByRole('button', { name: /^Strategy\b/ }).count(), 0, 'the level panels replace the single Strategy tree');
+
+    await openCard(page, 'Predict churn');
+    const levels = list(page).locator('[data-strategy-levels]');
+    assert.equal((await levels.innerText()).replace(/\s+/g, ' ').trim(), 'Theme Grow Ambition Keep customers');
+    const origins = await list(page).locator('[data-kpi-origin]').allInnerTexts();
+    assert.deepEqual(origins.map((t) => t.trim()), [V.KPI_FROM_STRATEGY, V.KPI_PROPOSED]);
+    await card(page, 'Predict churn').click();
+
+    await panel(page, 'Theme').click();
+    await page.getByRole('button', { name: /^Run lean\b/ }).click();
+    await card(page, 'Predict churn').waitFor({ state: 'detached' });
+    assert.deepEqual(await shown(page), ['Forecast stock']);
+    await page.getByRole('button', { name: /^Grow\b/ }).click();
+    await card(page, 'Predict churn').waitFor();
+    assert.deepEqual(await shown(page), ['Predict churn', 'Score upsell']);
+
+    await panel(page, 'Ambition').click();
+    await page.getByRole('button', { name: /^Sell more\b/ }).click();
+    await card(page, 'Predict churn').waitFor({ state: 'detached' });
+    assert.deepEqual(await shown(page), ['Score upsell']);
+    await page.getByRole('button', { name: /^Sell more\b/ }).click();
+    await page.getByRole('button', { name: /^Grow\b/ }).click();
+    await card(page, 'Forecast stock').waitFor();
+
+    await panel(page, 'KPIs').click();
+    const kpiButtons = await page.getByRole('button', { name: /^(Churn rate|Save rate|Basket size)\b/ }).allInnerTexts();
+    assert.deepEqual(kpiButtons.map((t) => t.split('\n')[0].trim()), ['Churn rate', 'Basket size', 'Save rate'], 'your KPIs first, then proposed ones');
+    await page.getByRole('button', { name: /^Churn rate\b/ }).click();
+    await card(page, 'Score upsell').waitFor({ state: 'detached' });
+    assert.deepEqual(await shown(page), ['Forecast stock', 'Predict churn'], 'a KPI name matches whatever its case');
+    assert.deepEqual(ui.pageErrors, []);
+  } finally {
+    await ui.close();
+  }
+});
+
+test('without user level names the card, detail and filters stay as they were (must-exclude)', async () => {
+  const ui = await openUi('results', { ...REVIEW_STATE, results: CUSTOMER });
+  const { page } = ui;
+  try {
+    await ready(page);
+    assert.equal((await card(page, 'Score upsell').locator('[data-strategy-chip]').innerText()).trim(), 'Sell more');
+    assert.equal(await page.getByRole('button', { name: /^KPIs\b/ }).count(), 0);
+    assert.equal(await page.getByRole('button', { name: /^Strategy\b/ }).count(), 1);
+    await openCard(page, 'Predict churn');
+    assert.equal(await list(page).locator('[data-strategy-levels]').count(), 0);
+    assert.equal(await list(page).locator('[data-kpi-origin]').count(), 0, 'a KPI with no source gets no badge');
+  } finally {
+    await ui.close();
+  }
+});

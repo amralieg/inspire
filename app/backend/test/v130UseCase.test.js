@@ -343,3 +343,60 @@ test('Not tied to your strategy shows only when a strategy or built-in goals exi
   assert.equal(none.hasEntries, true);
   assert.equal(lib.STRATEGY_NOT_TIED, 'Not tied to your strategy');
 });
+
+test('the user level names split each alignment path into one entry per level, only for a customer strategy', async () => {
+  const lib = await load();
+  const results = { strategy_coverage: { source: 'customer', levels: ['Theme', 'Ambition', 'Focus Area'], entries: [] } };
+  const context = lib.strategyContext(results);
+  assert.deepEqual(context.levelNames, ['Theme', 'Ambition', 'Focus Area']);
+  const info = lib.v130View({ strategy_alignment: JSON.stringify([
+    { id: 'S1.1', path: 'Customer > Win loyalty' }, { id: 'S1.2', path: 'Customer > Grow basket' }, { id: 'S2.1', path: 'Operations > Run lean' }]) });
+  assert.deepEqual(lib.strategyLevelNames(info, context), [
+    { level: 'Theme', names: ['Customer', 'Operations'] },
+    { level: 'Ambition', names: ['Win loyalty', 'Grow basket', 'Run lean'] },
+  ], 'a level no path reaches is left out');
+  const builtin = lib.strategyContext({ strategy_coverage: { source: 'builtin', levels: ['Strategic Goal'], entries: [] } });
+  assert.deepEqual(builtin.levelNames, [], 'built-in goals are not the user levels (must-exclude)');
+  assert.deepEqual(lib.strategyLevelNames(info, builtin), []);
+  assert.deepEqual(lib.strategyContext(null).levelNames, []);
+});
+
+test('one filter per user level lists the entries in use at that level', async () => {
+  const lib = await load();
+  const context = lib.strategyContext({ strategy_coverage: { source: 'customer', levels: ['Theme', 'Ambition', 'Focus Area'], entries: [] } });
+  const infos = [
+    lib.v130View({ strategy_alignment: JSON.stringify([{ id: 'S1.1', path: 'Customer > Win loyalty' }]) }),
+    lib.v130View({ strategy_alignment: JSON.stringify([{ id: 'S2.1', path: 'Operations > Win loyalty' }]) }),
+    lib.v130View({ strategy_alignment: '[]' }),
+  ];
+  const panels = lib.strategyLevelFilters(infos, [], context);
+  assert.deepEqual(panels.map((p) => [p.level, p.options.map((o) => [o.value, o.label, o.count])]), [
+    ['Theme', [['Customer', 'Customer', 1], ['Operations', 'Operations', 1]]],
+    ['Ambition', [['Customer > Win loyalty', 'Win loyalty', 1], ['Operations > Win loyalty', 'Win loyalty', 1]]],
+  ], 'the same name under two parents stays two filters');
+  assert.equal(lib.matchesStrategyFilter(infos[0], 'Customer'), true);
+  assert.equal(lib.matchesStrategyFilter(infos[1], 'Customer > Win loyalty'), false);
+  assert.deepEqual(lib.strategyLevelFilters(infos, [], lib.strategyContext({})), []);
+});
+
+test('the KPI filter puts the user KPIs first, matches names whatever their case, and marks proposed ones', async () => {
+  const lib = await load();
+  const infos = [
+    { kpis: [{ name: 'Churn rate', source: 'strategy' }, { name: 'Save rate', source: 'proposed' }, { name: 'churn rate' }] },
+    { kpis: [{ name: 'Basket size', source: 'proposed' }] },
+    { kpis: [{ name: 'Basket Size', source: 'proposed' }] },
+    { kpis: [{ name: 'Lead time' }] },
+  ];
+  const options = lib.kpiFilterOptions(infos);
+  assert.deepEqual(options.map((o) => [o.value, o.label, o.count, o.origin]), [
+    ['churn rate', 'Churn rate', 1, lib.KPI_FROM_STRATEGY],
+    ['basket size', 'Basket size', 2, lib.KPI_PROPOSED],
+    ['lead time', 'Lead time', 1, ''],
+    ['save rate', 'Save rate', 1, lib.KPI_PROPOSED],
+  ]);
+  assert.equal(options[1].title, 'Basket size (Proposed new KPI)');
+  assert.equal(lib.matchesKpiFilter(infos[2], 'basket size'), true);
+  assert.equal(lib.matchesKpiFilter(infos[3], 'basket size'), false);
+  assert.equal(lib.matchesKpiFilter(infos[3], 'all'), true);
+  assert.equal(lib.kpiOrigin({ source: 'other' }), '', 'an unknown source is not shown as either');
+});

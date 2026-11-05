@@ -4,12 +4,15 @@ import {
   bestOfBestLabel,
   dataSignalLine,
   feedbackLabel,
+  kpiOrigin,
   kpiSource,
   kpiText,
+  KPI_FROM_STRATEGY,
   matchRateText,
   priorityMatches,
   showsNotTied,
   strategyGoals,
+  strategyLevelNames,
   STRATEGY_BUILTIN_NOTE,
   STRATEGY_NOT_TIED,
 } from '../lib/v130UseCase';
@@ -47,13 +50,14 @@ export function StrategyChip({ info, strategy = null }) {
   }
   const goals = strategyGoals(info, strategy);
   const extra = goals.length - 1;
+  const level = strategy?.levelNames?.length ? goals[0].level : '';
   return (
     <span
       data-strategy-chip=""
       className="max-w-[22rem] truncate text-[10px] px-2 py-0.5 rounded-full border border-db-red/20 bg-db-red-50 text-db-red-fg font-medium"
       title={info.paths.join('\n')}
     >
-      {goals[0].name}{extra > 0 ? ` +${extra}` : ''}
+      {level ? `${level}: ` : ''}{goals[0].name}{extra > 0 ? ` +${extra}` : ''}
     </span>
   );
 }
@@ -62,9 +66,20 @@ function StrategySection({ info, priorities, strategy }) {
   const goals = strategyGoals(info, strategy);
   const notTied = !goals.length && showsNotTied(info, strategy);
   const kpis = info.kpis.map((k) => String(k.name ?? '').trim()).filter(Boolean);
+  const levels = strategyLevelNames(info, strategy);
   return (
     <Section title="Strategy" tone="text-db-red-fg">
       <div data-strategy-line="" className="space-y-1.5">
+        {levels.length > 0 && (
+          <dl data-strategy-levels="" className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-xs">
+            {levels.map(({ level, names }) => (
+              <div key={level} className="contents">
+                <dt className="font-semibold text-text-primary">{level}</dt>
+                <dd className="text-text-secondary">{names.join('; ')}</dd>
+              </div>
+            ))}
+          </dl>
+        )}
         {goals.map((g) => (
           <div key={g.path}>
             <p className="text-sm text-text-primary">
@@ -133,6 +148,16 @@ export function UseCaseStrategyDetail({ info, knownPriorities, foundationsById, 
             {info.kpis.map((k, i) => (
               <li key={`${k.name}-${i}`}>
                 <span className="text-sm text-text-primary">{kpiText(k)}</span>
+                {kpiOrigin(k) && (
+                  <span
+                    data-kpi-origin=""
+                    className={`ml-1.5 rounded border px-1.5 py-0.5 align-middle text-[9px] font-semibold ${
+                      kpiOrigin(k) === KPI_FROM_STRATEGY ? 'border-success/30 text-success-fg' : 'border-border text-text-tertiary'
+                    }`}
+                  >
+                    {kpiOrigin(k)}
+                  </span>
+                )}
                 {kpiSource(k) && <span className="block font-mono text-[10px] text-text-tertiary">{kpiSource(k)}</span>}
                 {!k.baseline && k.computable && (
                   <span className="block text-[10px] text-text-tertiary">No baseline measured yet. The query measures it.</span>

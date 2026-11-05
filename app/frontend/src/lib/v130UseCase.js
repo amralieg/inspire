@@ -179,8 +179,10 @@ export function v130View(uc) {
   };
 }
 
+const pathParts = (path) => String(path || '').split(STRATEGY_PATH_SEPARATOR).map((p) => p.trim()).filter(Boolean);
+
 export function strategyPathPrefixes(path) {
-  const parts = String(path || '').split(STRATEGY_PATH_SEPARATOR).map((p) => p.trim()).filter(Boolean);
+  const parts = pathParts(path);
   return parts.map((_, i) => parts.slice(0, i + 1).join(STRATEGY_PATH_SEPARATOR));
 }
 
@@ -236,13 +238,73 @@ export function strategyContext(results) {
     const level = String(e.level ?? '').trim() || depthLevels[path.split(STRATEGY_PATH_SEPARATOR).length - 1] || '';
     if (level) levels.set(path, level);
   }
-  return { builtIn: !!coverage && coverage.source !== 'customer', hasEntries: entries ? entries.length > 0 : true, levels };
+  return {
+    builtIn: !!coverage && coverage.source !== 'customer',
+    hasEntries: entries ? entries.length > 0 : true,
+    levels,
+    levelNames: coverage?.source === 'customer' ? depthLevels.filter(Boolean) : [],
+  };
+}
+
+export function strategyLevelNames(info, context) {
+  const levels = context?.levelNames || [];
+  const byLevel = levels.map(() => []);
+  for (const path of info?.paths || []) {
+    pathParts(path).forEach((part, depth) => {
+      if (depth < levels.length && !byLevel[depth].includes(part)) byLevel[depth].push(part);
+    });
+  }
+  return levels.map((level, depth) => ({ level, names: byLevel[depth] })).filter((l) => l.names.length);
+}
+
+export function strategyLevelFilters(infos, coverageEntries, context) {
+  const levels = context?.levelNames || [];
+  if (!levels.length) return [];
+  const { options } = strategyFilterOptions(infos, coverageEntries);
+  return levels
+    .map((level, depth) => ({ level, options: options.filter((o) => o.depth === depth).map((o) => ({ ...o, depth: 0 })) }))
+    .filter((panel) => panel.options.length);
+}
+
+export const KPI_FROM_STRATEGY = 'From your strategy';
+export const KPI_PROPOSED = 'Proposed new KPI';
+
+export function kpiOrigin(spec) {
+  if (spec?.source === 'strategy') return KPI_FROM_STRATEGY;
+  if (spec?.source === 'proposed') return KPI_PROPOSED;
+  return '';
+}
+
+const kpiKey = (name) => String(name ?? '').trim().toLowerCase();
+
+export function kpiFilterOptions(infos) {
+  const found = new Map();
+  for (const info of infos || []) {
+    const seen = new Set();
+    for (const kpi of info?.kpis || []) {
+      const key = kpiKey(kpi.name);
+      if (!key || seen.has(key)) continue;
+      seen.add(key);
+      const option = found.get(key) || { value: key, label: String(kpi.name).trim(), count: 0, origin: kpiOrigin(kpi) };
+      option.count += 1;
+      if (kpiOrigin(kpi) === KPI_FROM_STRATEGY) option.origin = KPI_FROM_STRATEGY;
+      found.set(key, option);
+    }
+  }
+  return [...found.values()]
+    .sort((a, b) => (b.origin === KPI_FROM_STRATEGY) - (a.origin === KPI_FROM_STRATEGY) || b.count - a.count || a.label.localeCompare(b.label))
+    .map((o) => ({ ...o, title: o.origin ? `${o.label} (${o.origin})` : o.label }));
+}
+
+export function matchesKpiFilter(info, filter) {
+  if (!filter || filter === 'all') return true;
+  return (info?.kpis || []).some((kpi) => kpiKey(kpi.name) === filter);
 }
 
 export function strategyGoals(info, context) {
   const items = info?.alignments?.length ? info.alignments : (info?.paths || []).map((path) => ({ id: '', path, evidence: '' }));
   return items.map((a) => {
-    const parts = a.path.split(STRATEGY_PATH_SEPARATOR).map((p) => p.trim()).filter(Boolean);
+    const parts = pathParts(a.path);
     return {
       path: a.path,
       name: parts[parts.length - 1] || a.path,

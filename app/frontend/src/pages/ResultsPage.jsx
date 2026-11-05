@@ -50,11 +50,15 @@ import {
   NOT_ALIGNED_FILTER,
   compareBestOfBestFirst,
   knownPriorities,
+  kpiFilterOptions,
+  KPI_FROM_STRATEGY,
   latestFeedbackMap,
+  matchesKpiFilter,
   matchesStrategyFilter,
   priorityMatches,
   strategyContext,
   strategyFilterOptions,
+  strategyLevelFilters,
   STRATEGY_NOT_TIED,
 } from '../lib/v130UseCase';
 import {
@@ -175,6 +179,8 @@ export default function ResultsPage({
   const [filterMvp, setFilterMvp] = useState('all');
   const [filterStrategy, setFilterStrategy] = useState('all');
   const [filterBizPriority, setFilterBizPriority] = useState('all');
+  const [filterLevels, setFilterLevels] = useState({});
+  const [filterKpi, setFilterKpi] = useState('all');
   const [sortBy, setSortBy] = useState('inspire');
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
   const [showBestOfBestOnly, setShowBestOfBestOnly] = useState(false);
@@ -220,6 +226,8 @@ export default function ResultsPage({
   const [sponsorPanelOpen, setSponsorPanelOpen] = useState(false);
   const [strategyPanelOpen, setStrategyPanelOpen] = useState(false);
   const [bizPriorityPanelOpen, setBizPriorityPanelOpen] = useState(false);
+  const [levelPanelOpen, setLevelPanelOpen] = useState({});
+  const [kpiPanelOpen, setKpiPanelOpen] = useState(false);
   // Only one card expanded at a time
   const [expandedUseCase, setExpandedUseCase] = useState(null);
   const [implementUc, setImplementUc] = useState(null);
@@ -520,6 +528,8 @@ export default function ResultsPage({
         if (filterBeneficiary !== 'all' && beneficiaryFromUc(uc) !== filterBeneficiary) return false;
         if (filterSponsor !== 'all' && sponsorFromUc(uc) !== filterSponsor) return false;
         if (filterStrategy !== 'all' && !matchesStrategyFilter(uc._v130, filterStrategy)) return false;
+        if (!Object.values(filterLevels).every((value) => matchesStrategyFilter(uc._v130, value))) return false;
+        if (!matchesKpiFilter(uc._v130, filterKpi)) return false;
         if (filterBizPriority !== 'all' && !priorityMatches(uc._v130?.priorityText, bizPriorities).includes(filterBizPriority)) return false;
         if (filterHasGenie === 'yes' && !hasGenieInstruction(uc)) return false;
         if (filterHasGenie === 'no' && hasGenieInstruction(uc)) return false;
@@ -640,6 +650,11 @@ export default function ResultsPage({
   const strategyOptions = strategyFilter.notAligned > 0 && strategy.hasEntries
     ? [...strategyFilter.options, { value: NOT_ALIGNED_FILTER, label: STRATEGY_NOT_TIED, count: strategyFilter.notAligned, depth: 0 }]
     : strategyFilter.options;
+  const levelFilters = strategyLevelFilters(allUseCases.map((uc) => uc?._v130), results?.strategy_coverage?.entries, strategy);
+  if (levelFilters.length && strategyFilter.notAligned > 0 && strategy.hasEntries) {
+    levelFilters[0].options.push({ value: NOT_ALIGNED_FILTER, label: STRATEGY_NOT_TIED, count: strategyFilter.notAligned, depth: 0 });
+  }
+  const kpiOptions = strategy.levelNames.length ? kpiFilterOptions(allUseCases.map((uc) => uc?._v130)) : [];
   const bizPriorityCounts = {};
   let bizPriorityUseCases = 0;
   for (const uc of allUseCases) {
@@ -713,6 +728,8 @@ export default function ResultsPage({
     filterSponsor !== 'all' ||
     filterStrategy !== 'all' ||
     filterBizPriority !== 'all' ||
+    Object.keys(filterLevels).length > 0 ||
+    filterKpi !== 'all' ||
     filterHasGenie !== 'all' ||
     filterQualityBar !== 'all' ||
     filterMvp !== 'all' ||
@@ -724,6 +741,7 @@ export default function ResultsPage({
     setFilterQuality('all');
     setFilterBeneficiary('all'); setFilterSponsor('all');
     setFilterStrategy('all'); setFilterBizPriority('all');
+    setFilterLevels({}); setFilterKpi('all');
     setFilterHasGenie('all');
     setFilterQualityBar('all');
     setFilterMvp('all');
@@ -1908,7 +1926,43 @@ export default function ResultsPage({
                 )}
               </div>
 
-              {strategyOptions.length > 0 && (
+              {levelFilters.map(({ level, options }) => (
+                <SidebarFilterPanel
+                  key={`level-${level}`}
+                  title={level}
+                  subtitle={`${options.filter((o) => o.value !== NOT_ALIGNED_FILTER).length} in use \u00b7 your strategy`}
+                  icon={Compass}
+                  open={!!levelPanelOpen[level]}
+                  onToggle={() => setLevelPanelOpen((o) => ({ ...o, [level]: !o[level] }))}
+                  allLabel="All use cases"
+                  allCount={allUseCases.length}
+                  options={options}
+                  value={filterLevels[level] || 'all'}
+                  onChange={(value) => setFilterLevels((f) => {
+                    const next = { ...f };
+                    if (value === 'all') delete next[level];
+                    else next[level] = value;
+                    return next;
+                  })}
+                />
+              ))}
+
+              {kpiOptions.length > 0 && (
+                <SidebarFilterPanel
+                  title="KPIs"
+                  subtitle={`${kpiOptions.filter((o) => o.origin === KPI_FROM_STRATEGY).length} from your strategy \u00b7 ${kpiOptions.filter((o) => o.origin !== KPI_FROM_STRATEGY).length} proposed`}
+                  icon={Target}
+                  open={kpiPanelOpen}
+                  onToggle={() => setKpiPanelOpen((o) => !o)}
+                  allLabel="All KPIs"
+                  allCount={allUseCases.filter((uc) => uc?._v130?.kpis?.length).length}
+                  options={kpiOptions}
+                  value={filterKpi}
+                  onChange={setFilterKpi}
+                />
+              )}
+
+              {levelFilters.length === 0 && strategyOptions.length > 0 && (
                 <SidebarFilterPanel
                   title="Strategy"
                   subtitle={`${strategyFilter.withData - strategyFilter.notAligned} tied to a goal \u00b7 ${strategyFilter.notAligned} not tied`}
