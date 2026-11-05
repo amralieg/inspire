@@ -129,6 +129,17 @@ def test_a_model_that_only_timed_out_is_used_rather_than_stopping(agent_ns, monk
     assert inst._implement_genie_model() == (first, "")
 
 
+def test_a_write_conflict_is_still_read_as_transient_from_the_redacted_text_and_a_refusal_is_not(agent_ns):
+    transient = agent_ns["implement_transient"]
+    ConcurrentAppendException = type("ConcurrentAppendException", (RuntimeError,), {})
+    token = "dapi" + "cd" * 16
+    assert transient(ConcurrentAppendException(f"Files were added to the root of the table by a concurrent update ({token})"))
+    assert transient(RuntimeError(f"[DELTA_CONCURRENT_APPEND] files were added with {token} at https://adb-zqv.example.net"))
+    assert transient(RuntimeError("429 Too Many Requests")) and transient(BUSY)
+    assert not transient(RuntimeError(f"PERMISSION_DENIED: {token} may not call the model"))
+    assert not transient(agent_ns["ImplementBlocked"]("Files were added by a concurrent update"))
+
+
 def test_served_models_follow_the_roster_family_order_after_the_first_model(agent_ns):
     first = agent_ns["GENIE_CODE_MODEL"]
     slugs = ["system.ai.glm-5-3", "system.ai.gpt-5-6-sol", "system.ai.claude-haiku-4-5", "system.ai.claude-sonnet-4-6",
