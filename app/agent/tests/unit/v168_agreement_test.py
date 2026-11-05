@@ -25,6 +25,7 @@ SINGULAR_PRONOUNS = {"it", "its", "itself"}
 SUBJECT_AFTER = {"", "and", "but", "so", "because", "while", "then", "when", "since", "that", "which", "where", "if", "as", "only",
                  ";", ":", ",", "]", "[", "!", "?"}
 PREPOSITION = {"of", "in", "under", "from", "for", "with", "at", "on", "across", "over", "into", "to", "by", "per", "among", "within"}
+ADVERBS = {"still", "also", "now", "already", "never"}
 PLURAL_CALLS = {"inspire_plural", "plural"}
 TEMPLATE_SLOT = re.compile(r"@@\w+@@")
 COUNTS = (0, 1, 2)
@@ -73,6 +74,8 @@ def _problems(text, count):
     lead = _words(before)
     subject = (lead[-1].lower() if lead else "") in SUBJECT_AFTER
     clause = _until(_words(after), {";", ":", ".", "(", ")", "!", "?"})
+    while clause and clause[0] in ADVERBS:
+        clause = clause[1:]
     found = []
     if subject and not {w.lower() for w in _words(phrase)} & (PLURAL_VERBS | SINGULAR_VERBS):
         index = 0
