@@ -692,7 +692,9 @@ def test_runs_join_each_run_summary_by_run_id_to_its_job_run_and_say_what_it_cov
     assert (latest["run_id"], latest["job_run_id"], latest["status"], latest["trigger"], latest["by"]) == ("u4", "408", "failed", "refresh", SAM)
     assert (latest["started"], latest["duration_s"]) == ("2026-10-27T08:00:00Z", 360), "the job run's own clock wins"
     assert (latest["segments"], latest["tables"], latest["records"], latest["to_fix"], latest["could_save"]) == ([], [], 0, 0, None)
-    assert latest["error"] == MISSING and latest["nothing_to_act"].startswith("No record has 1000 USD") and latest["summary"] == ""
+    assert latest["error"] == shell_sql.PLAIN_ERRORS["missing_table"] and latest["nothing_to_act"].startswith("No record has 1000 USD") and latest["summary"] == ""
+    assert latest["error_code"] == "missing_table", "the run keeps the error class of the raw job message, and only the answer is made plain"
+    assert MISSING not in json.dumps(out), "no raw warehouse error reaches the page"
     assert scheduled["segments"] == [{"column": "category", "label": "Category", "values": ["Books", "Music"], "more": 0},
                                      {"column": "store_id", "label": "Store id", "values": ["12", "4"], "more": 0}]
     unscoped = {"rows_total": None, "scoped": False}

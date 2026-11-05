@@ -877,7 +877,7 @@ def job_run_view(run: dict, job_url: str) -> dict:
     return {"run_id": run_id, "trigger": TRIGGERS.get(trigger, trigger.lower().replace("_", " ") or None),
             "by": requested_by(run), "started": started, "ended": ended,
             "duration_s": round(int(duration) / 1000) if duration else None, "state": life.lower(), "result": outcome,
-            "message": shell_sql.plain_error(inspire_redact_text(details.get("message") or state.get("state_message"), set(), "")) if outcome in ("failed", "canceled", "skipped") else "",
+            "message": inspire_redact_text(details.get("message") or state.get("state_message"), set(), "") if outcome in ("failed", "canceled", "skipped") else "",
             "url": f"{job_url}/runs/{run_id}" if job_url and run_id else ""}
 
 

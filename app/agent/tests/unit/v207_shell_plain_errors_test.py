@@ -88,8 +88,10 @@ def test_the_run_errors_live_once_and_the_run_page_codes_still_read_the_raw_mess
 def test_a_failed_job_run_message_and_a_failed_genie_answer_are_plain():
     view = shell_core.job_run_view({"run_id": 7, "state": {"life_cycle_state": "TERMINATED", "result_state": "FAILED", "state_message": DENIED},
                                     "start_time": 1, "end_time": 2}, "")
-    assert view["result"] == "failed" and view["message"] == shell_sql.PLAIN_ERRORS["not_allowed"], view
+    assert view["result"] == "failed" and view["message"] == DENIED, "the job run keeps its raw message so the run keeps its error class"
+    assert shell_core.run_error_code(view["message"]) == "not_allowed"
+    assert shell_sql.plain_answer({"runs": [view]})["runs"][0]["message"] == shell_sql.PLAIN_ERRORS["not_allowed"], "the answer is plain"
     source = open(os.path.join(SERVER, "shell_db.py")).read()
     assert '"error": plain_error(inspire_redact_text((message.get("error") or {}).get("error")' in source
     core = open(os.path.join(SERVER, "shell_core.py")).read()
-    assert core.count("shell_sql.plain_error(inspire_redact_text(") == 2 and core.count("shell_sql.plain_error(f\"Inspire could not read the page files") == 1
+    assert core.count("shell_sql.plain_error(inspire_redact_text(") == 1 and core.count("shell_sql.plain_error(f\"Inspire could not read the page files") == 1
