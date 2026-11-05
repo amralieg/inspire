@@ -1054,6 +1054,18 @@ test('a build that failed the same way twice lists what Inspire tried, drops Try
   } finally {
     await once.close();
   }
+  const userStopped = built({ spec_version: 2, status: 'failed', implement_run_id: '5555555555555555',
+    status_message: 'the run building v2 ended (CANCELED: Run cancelled) while v2 was still filling' });
+  const cancelled = await openUi('implement', { ...STUDIO_STATE, history: [userStopped, built()] });
+  try {
+    await expandBuild(cancelled.page);
+    const banner = cancelled.page.getByRole('region', { name: 'Build failed' });
+    await banner.getByRole('button', { name: 'Try again' }).waitFor();
+    assert.equal(await banner.locator('[data-failure-choice]').count(), 0, 'a run the user stopped did not fail, so it offers no failure choices');
+    assert.deepEqual(cancelled.pageErrors, []);
+  } finally {
+    await cancelled.close();
+  }
 });
 
 test('Try again on a failed build sends the version that failed again as the next one, with its asks, and a notebook edit keeps its own rebuild', async () => {
