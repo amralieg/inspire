@@ -127,6 +127,52 @@ test('a reload, or a deep link opened in a new tab, shows the page the address n
   }
 });
 
+test('an address changed while Inspire still loads opens the page it names once loading ends, never the page of the address it started on', async () => {
+  let release;
+  const held = new Promise((resolve) => { release = resolve; });
+  const slow = (app) => {
+    app.get('/api/defaults', async (_req, res) => { await held; res.json(DEFAULTS); });
+    app.get('/api/showcase', (_req, res) => res.json({}));
+  };
+  const ui = await openUi('app', KNOWN, '', { mount: slow });
+  const { page } = ui;
+  try {
+    await page.evaluate(() => { window.location.hash = '#/build/42'; });
+    release();
+    await SHOWN['#/build/42'](page);
+    assert.equal(await hash(page), '#/build/42');
+    assert.equal(await page.getByText('Scroll to explore').count(), 0, 'the home page of the first address is not shown (must-exclude)');
+    assert.deepEqual(ui.pageErrors, []);
+  } finally {
+    release();
+    await ui.close();
+  }
+});
+
+test('opening a page from the address never writes the address of the page it leaves while the page changes', async () => {
+  const ui = await openUi('app', KNOWN, '', { mount: mounted(DEFAULTS) });
+  const { page } = ui;
+  try {
+    await SHOWN['#/home'](page);
+    await page.evaluate(() => {
+      window.writtenHashes = [];
+      const replace = window.history.replaceState.bind(window.history);
+      window.history.replaceState = (state, title, url) => { window.writtenHashes.push(new URL(url, window.location.href).hash); return replace(state, title, url); };
+    });
+    await page.evaluate(() => { window.location.hash = '#/build/42'; });
+    await SHOWN['#/build/42'](page);
+    assert.equal(await hash(page), '#/build/42');
+    const written = await page.evaluate(() => window.writtenHashes);
+    assert.equal(written.includes('#/home'), false, `the address went back to the page being left: ${written.join(', ')} (must-exclude)`);
+    await page.evaluate(() => { window.location.hash = '#/nowhere'; });
+    await at(page, '#/build/42');
+    assert.equal(await current(page), '05 Build', 'an address that names no page is still put back');
+    assert.deepEqual(ui.pageErrors, []);
+  } finally {
+    await ui.close();
+  }
+});
+
 test('a reload on a page link before Inspire is set up still shows the setup wizard first, then the page', async () => {
   const ui = await openUi('app', KNOWN, '', { mount: mounted(SETUP_FIRST) });
   const { page, origin } = ui;
@@ -163,8 +209,10 @@ test('the demo keeps its own addresses: a reload stays in the demo on the same p
     assert.equal(await hash(page), '#/demo/acme/build');
     await page.goBack();
     await at(page, '#/demo/acme/review');
+    await page.locator('header nav button[aria-current="page"]').filter({ hasText: /Review$/ }).waitFor({ timeout: 20000 });
     await bar.waitFor();
     assert.equal(await current(page), '04 Review');
+    assert.equal(await hash(page), '#/demo/acme/review');
     assert.equal(await page.locator('[data-review-left-demo], [data-run-left-demo]').count(), 0, 'going Back inside the demo never says the demo was left');
   } finally {
     await ui.close();

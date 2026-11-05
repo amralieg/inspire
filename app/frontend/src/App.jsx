@@ -187,7 +187,6 @@ export default function App() {
     (async () => {
       const moved = queryLink(window.location);
       if (moved) window.history.replaceState(window.history.state, '', moved);
-      const link = hashLink(window.location.hash);
       try {
         // 1. Fetch server-side defaults (always available, no auth needed)
         const defResp = await fetch('/api/defaults');
@@ -303,6 +302,7 @@ export default function App() {
         }
       }
 
+      const link = hashLink(window.location.hash);
       if (link?.demo) {
         const showcase = (await showcasesLoaded.current)?.find((s) => s.id === link.demo);
         if (showcase) {
@@ -427,6 +427,7 @@ export default function App() {
   const routeHash = page === 'loading' || page === 'setup' ? '' : pageHash(route);
 
   useEffect(() => {
+    if (transitioning) return;
     const push = pushNext.current;
     pushNext.current = false;
     if (!routeHash) return;
@@ -435,7 +436,7 @@ export default function App() {
     const next = `${window.location.pathname}${window.location.search}${routeHash}`;
     if (push && routeHash !== window.location.hash) window.history.pushState({ [INSPIRE_ENTRY]: true }, '', next);
     else window.history.replaceState({ ...(state && typeof state === 'object' ? state : {}), [INSPIRE_ENTRY]: true }, '', next);
-  }, [page, routeHash, hashTick]);
+  }, [page, routeHash, hashTick, transitioning]);
 
   const pageSettings = useMemo(() => showcaseSettings(settings, demo.showcase), [settings, demo.showcase]);
 
