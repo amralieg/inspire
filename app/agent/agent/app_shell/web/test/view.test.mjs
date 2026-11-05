@@ -489,13 +489,19 @@ test('a window reaches only lists that keep actions: a list that keeps none read
   assert.deepEqual(known.seen.errors, []);
   await known.context.close();
 
-  const informational = appInfo({}, 1, TABLE);
-  informational.pages[0].layout = { ...informational.pages[0].layout, decides: false, informational: true };
-  const plain = await openWith(informational, {}, { prefs: { window: 'today', limit: 10 } });
+  const plain = await openWith(appInfo({}, 1, TABLE), {}, { prefs: { window: 'today', limit: 10 } });
   await listed(plain.page);
-  assert.deepEqual(plain.seen.records.filter((b) => 'window' in b || 'window_limit' in b), [], 'an informational page tracks no decisions, so it never sends the window');
+  assert.deepEqual(plain.seen.records.filter((b) => 'window' in b || 'window_limit' in b), [], 'a page that tracks no decisions never sends the window');
   assert.deepEqual(plain.seen.errors, []);
   await plain.context.close();
+
+  const informational = appInfo(DECIDE, 1, TABLE);
+  informational.pages[0].layout = { ...informational.pages[0].layout, decides: false, informational: true };
+  const board = await openWith(informational, {}, { prefs: { window: 'today', limit: 10 } });
+  await listed(board.page);
+  assert.deepEqual(board.seen.records.filter((b) => 'window' in b || 'window_limit' in b), [], 'an informational page tracks no decisions, so it never sends the window');
+  assert.deepEqual(board.seen.errors, []);
+  await board.context.close();
 });
 
 test('All open names its window to the Overview, and a use case that keeps no actions is called out only once you pick a window or a limit', async () => {

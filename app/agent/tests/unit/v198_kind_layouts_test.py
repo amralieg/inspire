@@ -189,7 +189,7 @@ def test_the_bridge_chart_reads_its_steps_in_their_order():
 def test_the_public_page_carries_the_layout_its_sections_the_plan_and_each_so_what_line():
     public = shell_core.public_page(FORECAST)
     assert public["layout"] == {"id": "forecast_cockpit", "label": "Forecast cockpit", "tab_label": "Forecast",
-                                "sections": layout("forecast_cockpit")["sections"], "decides": True,
+                                "sections": layout("forecast_cockpit")["sections"], "decides": True, "informational": False,
                                 "holds": {"todo": "todo", "kpis": "kpis", "horizon_selector": "horizon", "at_risk_series": "plan"}}
     assert public["plan"]["recommended"] == "recommended_order" and public["scenario"] is None
     fan = next(c for c in public["charts"] if c["id"] == "fan")
@@ -583,6 +583,7 @@ def test_the_page_takes_its_layout_and_only_a_deciding_layout_needs_the_decision
     allowed = [SCENARIO["result_table"]] + [f"{SCENARIO['result_table']}{s}" for s in ("__scenarios", "__sensitivity", "__scenario_model")]
     assert agent_ns["implement_app_page_problems"](page, shell_sql, allowed, False) == []
     stray = agent_ns["implement_app_page"](copy.deepcopy(SCENARIO), "N04-U01", {}, SCENARIO["result_table"], layout="decision_queue")
+    stray["datasets"] = [d for d in stray["datasets"] if d["name"] != "records"]
     assert any("no dataset named records" in p for p in agent_ns["implement_app_page_problems"](stray, shell_sql, allowed, False))
     planner = agent_ns["implement_app_page"](copy.deepcopy(PLANNER), "N03-U02", {}, PLANNER["result_table"], layout="planner")
     planner["datasets"] = [d for d in planner["datasets"] if d["name"] != "records"]
@@ -598,7 +599,9 @@ def test_the_layout_brief_names_its_sections_minimums_and_companion_tables_and_d
     assert 'Inspire sets layout to "scenario_lab"' in lab and "`main.s.m__scenarios` (scenario_id, p50)" in lab
     assert "scenario_table (a table of the base, upside and downside scenarios; put tables here, at least 3 rows at the default filters)" in lab
     assert "lever_sliders (the levers people move, at least 2 items)" in lab
-    assert "leave out the records dataset" in lab and "the user's asks win over both" in lab
+    assert "leave out the records dataset" not in lab and "the user's asks win over both" in lab
+    board = brief("dashboard", {}, shell_sql)
+    assert "This layout has no decision list, so leave out the records dataset" in board
     cockpit = brief("forecast_cockpit", {}, shell_sql)
     assert "fan_chart (a band chart of actuals, forecast and its range; put charts of type band here, at least 1 items)" in cockpit
     assert "leave out the records dataset" not in cockpit

@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { chromium } from 'playwright';
 import { SRC, TABLE, appInfo, chartsDrawn, openApp, serveDist } from './harness.mjs';
 
-const ALL_ON = { modify: true, replace_edits: true };
+const ALL_ON = { modify: true, replace_edits: true, decisions: true };
 const DATA_DOWNLOAD = /csv|download (the )?(data|answer)/i;
 let served;
 let browser;
@@ -33,8 +33,8 @@ const watchDownloads = (page) => {
 };
 
 test('a per-user App shows no download and no chart export anywhere', async () => {
-  const info = appInfo({ auth: 'user', options: ALL_ON }, 1, TABLE);
-  assert.deepEqual([info.image_export, info.options.modify], [false, true]);
+  const info = appInfo({ auth: 'user', options: { ...ALL_ON, decisions: false } }, 1, TABLE);
+  assert.deepEqual([info.options.decisions, info.image_export, info.options.modify], [false, false, true]);
   assert.equal('download' in info.options, false);
   const { page, seen, context } = await openApp(browser, served.base, info);
   const asked = watchDownloads(page);

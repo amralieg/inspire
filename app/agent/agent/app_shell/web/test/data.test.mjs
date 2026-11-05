@@ -249,6 +249,7 @@ test('a decision on records the viewer cannot read says how many were left out, 
 test('in a per-user App with decisions on the list offers the tracker, and a bulk act says how many records were left out', async () => {
   const info = appInfo({ ...DECIDE, auth: 'user' }, 1, TABLE);
   assert.equal(info.auth, 'user');
+  assert.equal(info.options.decisions, true, 'a per-user App keeps decisions on');
   const { calls, routes } = tracked({
     'records/act': ({ route, json }) => {
       const body = actBody(route);
@@ -273,6 +274,30 @@ test('in a per-user App with decisions on the list offers the tracker, and a bul
   await page.locator('dialog.drawer .dr-act').waitFor();
   assert.deepEqual(seen.errors, []);
   await context.close();
+});
+
+test('without the decisions option the list offers no action tracker, in a shared or a per-user App', async () => {
+  const off = { options: { modify: true, replace_edits: false, decisions: false } };
+  for (const info of [appInfo(off, 1, TABLE), appInfo({ ...off, auth: 'user' }, 1, TABLE)]) {
+    const { calls, routes } = tracked();
+    const { page, seen, context } = await open(info, routes);
+    await page.waitForFunction(() => document.querySelector('.card--table tbody .cell-t'));
+    assert.equal(info.options.decisions, false);
+    assert.equal(calls.fields, 0);
+    assert.equal(await page.getByRole('button', { name: 'Owner' }).count(), 0);
+    assert.equal(await page.getByRole('button', { name: 'My actions' }).count(), 0);
+    assert.equal(await page.getByRole('checkbox').count(), 0);
+    assert.equal(await page.locator('.impact').count(), 0);
+    assert.equal(await page.locator('[data-act-all], [data-start-work]').count(), 0);
+    await page.locator('.cell-t').first().click();
+    await page.locator('dialog.drawer .hist-i').first().waitFor();
+    assert.equal(await page.locator('.dr-act').count(), 0);
+    assert.equal(await page.locator('dialog.drawer [data-act]').count(), 0, 'the drawer of an informational row has no Mark done, Not an issue or Ask Genie to fix');
+    assert.equal(await page.locator('dialog.drawer').getByRole('button', { name: /^Explain/ }).count(), 1, 'the drawer offers Explain while Genie is on');
+    assert.deepEqual(calls.acts, []);
+    assert.deepEqual(seen.errors, []);
+    await context.close();
+  }
 });
 
 test('a page whose layout does not decide offers no action tracker even when the list keeps actions, in a shared or a per-user App', async () => {

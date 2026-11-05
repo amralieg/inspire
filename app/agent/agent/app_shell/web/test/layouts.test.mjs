@@ -149,8 +149,8 @@ test('the planner opens with What to do now, draws the plan, its limits and what
   await context.close();
 });
 
-test('a plan whose list keeps no actions shows its suggestions with no accept, no override and no per-row read only, whatever the App options say', async () => {
-  for (const [settings, said] of [[{}, 'This list is not linked to the records of the use case, so the App cannot save a decision on it yet.'],
+test('a plan with no decisions shows its suggestions with no accept, no override and no per-row read only', async () => {
+  for (const [settings, said] of [[{}, 'This App does not record decisions, so this list shows its suggestions only.'],
     [DECIDE, 'This list is not linked to the records of the use case, so the App cannot save a decision on it yet.']]) {
     const info = appInfo(settings, 1, {}, 'examples/planner.json');
     const { page, seen, context } = await openApp(browser, base, info, { routes: plannerRoutes([], [], { actions: false }) });

@@ -72,7 +72,7 @@
   },
   "similar": {
     "request": {"method": "GET", "path": "records/similar", "query": {"page": "n01_u05", "record_key": "k1", "by": "category"}},
-    "response": {"by": [{"filter": "category", "label": "Category", "value": "Books"}], "count": 1,
+    "response": {"by": [{"filter": "category", "label": "Category", "value": "Books", "values": ["Books"]}], "count": 1,
                  "sample": [{"record_key": "k2", "label": "Item 2", "valid_from_us": "1001"}],
                  "match": {"filters": {"category": ["Books"]}, "view": {"window": "all", "exclude": ["k1"]},
                            "as_of_us": "5555555555555555"}}

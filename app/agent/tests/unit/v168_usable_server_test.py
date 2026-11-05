@@ -473,8 +473,9 @@ class UsableWorkspace(DataWorkspace):
             return {"columns": [], "rows": self.batch_rows, "truncated": False}
         if "AS `_inspire_done`" in sql:
             return {"columns": [], "rows": self.batch_record_rows, "truncated": False}
-        if "SELECT CAST(d.`category` AS STRING) AS `category`" in sql:
-            return {"columns": [], "rows": [] if self.similar_value is None else [{"category": self.similar_value}], "truncated": False}
+        if "c.`_inspire_key` AS `_inspire_key`, CAST(d.`category` AS STRING) AS `category`" in sql:
+            rows = [] if self.similar_value is None else [{"_inspire_key": "k1", "category": self.similar_value}]
+            return {"columns": [], "rows": rows, "truncated": False}
         if "NOT IN (SELECT explode(from_json(" in sql and "MERGE INTO" not in sql:
             if " OFFSET " in sql:
                 return {"columns": [], "rows": self.rows, "truncated": False}
@@ -1120,7 +1121,7 @@ def test_on_postgres_similar_records_are_open_ones_with_the_same_values_never_th
     assert [r["record_key"] for r in pg_run(pg, *plan["rows"], tables)] == ["k2"]
     assert pg_run(pg, *plan["total"], tables)[0]["total"] == 1
     sql, params = shell_sql.similar_values_query(PG_PAGE, context, "k1", shell_sql.similar_filters(PG_PAGE))
-    assert pg_run(pg, sql, params, tables) == [{"category": "Books"}]
+    assert pg_run(pg, sql, params, tables) == [{"_inspire_key": "k1", "category": "Books"}]
 
 
 def test_the_delta_and_lakebase_paths_read_one_window_definition():

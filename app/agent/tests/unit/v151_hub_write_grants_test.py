@@ -1,4 +1,6 @@
 """An App that lets people change records or record decisions may write the result table of every page it holds, not only the building one."""
+import json
+
 import pytest
 
 from v140_implement_test import READS, SHELL_FILES, _app_flow, _churn_page, _deploy_inspire, sdk_stub  # noqa: F401
@@ -10,13 +12,18 @@ MODIFY_OWN = GRANT.format("MODIFY", "TABLE `main`.`inspire`.`churn_out`")
 MODIFY_OTHER = GRANT.format("MODIFY", "TABLE `main`.`inspire`.`sales_out`")
 
 
-def _deploy(agent_ns, options, page_tables, access="sp"):
+def _files(layout=None):
+    other = {"id": "n02_u01", "result_table": OTHER, "records": {"key": "entity_id"}, **({"layout": layout} if layout else {})}
+    return dict(SHELL_FILES, **{"pages/n02_u01.json": json.dumps(other)})
+
+
+def _deploy(agent_ns, options, page_tables, access="sp", files=None):
     spark = Catalog(schema=[("entity_id", "string")])
     scoped = [dict(NEW_APP[1], user_api_scopes=["sql", "genie"])] if access == "user" else []
     inst, context, _calls, _imported = _deploy_inspire(agent_ns, NEW_APP[:2] + scoped + NEW_APP[2:])
     inst.spark = spark
     context["spec"] = dict(context["spec"], outputs=dict(context["spec"]["outputs"], app_options=options, app_access=access))
-    fields = inst._implement_deploy_app(context, "churn-desk", SHELL_FILES, READS, poll_s=0, page_tables=page_tables)
+    fields = inst._implement_deploy_app(context, "churn-desk", files or _files(), READS, poll_s=0, page_tables=page_tables)
     return spark, fields
 
 
@@ -42,6 +49,12 @@ def test_a_hub_that_writes_records_gets_modify_on_every_page_result_table(agent_
     assert MODIFY_OWN in spark.statements and MODIFY_OTHER in spark.statements
     assert spark.statements.count(MODIFY_OTHER) == 1
     assert "_warnings" not in fields
+
+
+@pytest.mark.parametrize("access, options", [("sp", {"modify": False, "decisions": True}), ("user", {"modify": True, "decisions": True})])
+def test_a_hub_that_records_decisions_gets_no_modify_on_the_table_of_an_informational_page(agent_ns, sdk_stub, access, options):
+    spark, _fields = _deploy(agent_ns, options, ["main.inspire.churn_out", OTHER], access=access, files=_files("dashboard"))
+    assert MODIFY_OWN in spark.statements and MODIFY_OTHER not in spark.statements
 
 
 def test_a_hub_that_only_reads_its_records_gets_modify_on_no_page_result_table(agent_ns, sdk_stub):

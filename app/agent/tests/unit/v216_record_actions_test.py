@@ -76,13 +76,14 @@ def act_on(s, page_id: str, values=None):
     return call(s, "POST", "records/act", headers=EDITOR, body=body)
 
 
-NO_OPTION = dict(SETTINGS, options={k: v for k, v in SETTINGS["options"].items() if k != "decisions"})
+DECIDE = dict(SETTINGS, options=dict(SETTINGS["options"], decisions=True))
+OFF = dict(SETTINGS, options=dict(SETTINGS["options"], decisions=False))
 
 
 @pytest.mark.parametrize("layout", INFORMATIONAL)
 def test_an_informational_page_shows_no_actions_and_refuses_every_decision_route_before_any_sql(tmp_path, layout):
     page = example(layout)
-    s, ws, _made = shell(tmp_path, settings=dict(NO_OPTION, pages=[page["id"]]), pages=[page])
+    s, ws, _made = shell(tmp_path, settings=dict(DECIDE, pages=[page["id"]]), pages=[page])
     label = LAYOUTS[layout]["label"].lower()
     for values in ({"action_status": "Done"}, {"action_status": "Dismissed", "dismiss_reason": "not ours"}, {"snooze_until": "2026-12-01"}):
         status, out = act_on(s, page["id"], values)
@@ -96,7 +97,7 @@ def test_an_informational_page_shows_no_actions_and_refuses_every_decision_route
 
 
 def test_a_dashboard_page_with_a_records_list_still_records_no_decision(tmp_path):
-    s, ws, _made = shell(tmp_path, settings=NO_OPTION, pages=[edit_page(layout="dashboard", charts=example("dashboard")["charts"],
+    s, ws, _made = shell(tmp_path, settings=DECIDE, pages=[edit_page(layout="dashboard", charts=example("dashboard")["charts"],
                                                                           datasets=edit_page()["datasets"] + example("dashboard")["datasets"])])
     status, out = act(s, values={"action_status": "Done"})
     assert status == 403 and "is a dashboard page: it shows information only" in out["error"]
@@ -105,14 +106,34 @@ def test_a_dashboard_page_with_a_records_list_still_records_no_decision(tmp_path
 
 
 @pytest.mark.parametrize("layout", DECIDING)
-def test_a_deciding_page_of_every_layout_records_decisions_without_any_app_option(tmp_path, layout):
+def test_a_deciding_page_of_every_layout_records_decisions_when_the_app_records_them(tmp_path, layout):
     page = example(layout) if layout != "decision_queue" else edit_page()
-    s, ws, _made = shell(tmp_path, settings=dict(NO_OPTION, pages=[page["id"]]), pages=[page])
+    s, ws, _made = shell(tmp_path, settings=dict(DECIDE, pages=[page["id"]]), pages=[page])
     status, out = act_on(s, page["id"])
     assert status == 200 and out["written"] == ["k1"], out
     assert len(ws.queries("MERGE INTO")) == 1
     shown = call(s, "GET", "app", headers=EDITOR)[1]["pages"][0]
     assert shown["layout"]["decides"] is True and shown["layout"]["informational"] is False
+
+
+@pytest.mark.parametrize("layout", DECIDING)
+def test_an_app_whose_maker_turned_decisions_off_keeps_them_off_on_a_deciding_page(tmp_path, layout):
+    page = example(layout) if layout != "decision_queue" else edit_page()
+    s, ws, _made = shell(tmp_path, settings=dict(OFF, pages=[page["id"]]), pages=[page])
+    status, out = act_on(s, page["id"])
+    assert status == 403 and out["error"] == "this App does not let people record decisions on its records", out
+    assert ws.queries("MERGE INTO") == []
+    shown = call(s, "GET", "app", headers=EDITOR)[1]
+    assert shown["options"]["decisions"] is False and shown["pages"][0]["layout"]["decides"] is True
+
+
+@pytest.mark.parametrize("layout", INFORMATIONAL)
+def test_an_informational_page_names_its_layout_even_when_decisions_are_off(tmp_path, layout):
+    page = example(layout)
+    s, ws, _made = shell(tmp_path, settings=dict(OFF, pages=[page["id"]]), pages=[page])
+    status, out = act_on(s, page["id"])
+    assert status == 403 and "shows information only" in out["error"], out
+    assert ws.queries("MERGE INTO") == []
 
 
 def test_a_request_id_becomes_the_batch_id_so_the_act_can_be_undone_by_it(tmp_path):
