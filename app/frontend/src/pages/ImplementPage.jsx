@@ -510,15 +510,15 @@ export default function ImplementPage({ settings, sessionId, focusId = null, onF
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-6 py-6 space-y-4 md:flex md:flex-col md:h-[calc(100dvh-3.5rem-1px)]" data-implement-page="">
+    <div className="max-w-7xl mx-auto px-6 py-6 space-y-4 md:flex md:flex-col md:max-h-[calc(100dvh-3.5rem-1px)] md:has-[[data-progress-open=true]]:h-[calc(100dvh-3.5rem-1px)]" data-implement-page="">
       <PageHeader summary={summary} loading={listLoading} query={query} onQuery={setQuery} />
       {!listLoading && !listError && <SummaryBanner summary={summary} />}
       {filter && <BuildFilterStrip filter={filter} sessionId={sessionId} onPickRun={onPickRun} onClear={clearFilter} />}
       {listError && <p className={ERROR_BOX}>{listError}</p>}
       {railError && <p className={ERROR_BOX}>{railError}</p>}
-      <div className="flex flex-col md:flex-row gap-4 md:gap-2 md:items-start md:flex-1 md:min-h-0">
+      <div className="flex flex-col md:flex-row gap-4 md:gap-2 md:flex-1 md:min-h-0">
         <div data-implement-rail="" style={{ '--rail-w': `${railPx}px` }}
-          className="w-full md:w-(--rail-w) shrink-0 md:self-start flex flex-col gap-3 max-h-[50dvh] md:max-h-full">
+          className="w-full md:w-(--rail-w) shrink-0 flex flex-col gap-3 max-h-[50dvh] md:max-h-none md:min-h-0">
           {!listLoading && <AssetFilters counts={assetCounts} asset={assetFilter} onAsset={pickAsset} />}
           <Rail groups={groups} listLoading={listLoading} query={query} asset={assetFilter} mvp={mvpFilter}
             assetLabel={assetCounts.find((entry) => entry.id === assetFilter)?.label || ''} shownId={shownId} progress={progress} onSelect={select} />

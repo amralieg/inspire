@@ -146,7 +146,7 @@ const TOGGLE_CLASS = 'shrink-0 inline-flex h-7 w-7 items-center justify-center r
 function sizeClass(view, active) {
   if (!view.open) return 'shrink-0';
   if (view.large) return 'min-h-[40rem] md:min-h-[80vh]';
-  return active ? 'min-h-[32rem] md:min-h-[28rem] md:flex-1' : 'min-h-[24rem] md:min-h-[16rem] md:flex-1';
+  return active ? 'min-h-[32rem] md:min-h-[28rem] md:flex-1' : 'min-h-[24rem] md:min-h-[14rem] md:flex-1';
 }
 
 export default function MvpProgress({

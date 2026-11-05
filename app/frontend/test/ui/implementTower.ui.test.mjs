@@ -1404,3 +1404,36 @@ for (const [name, width] of [['wide', 1440], ['narrow', 720]]) {
     }
   });
 }
+
+test('a Build page with short content ends where its content ends: the list and the use case end together, with no empty band below them (must-exclude: no forced full-screen height)', async () => {
+  for (const [name, state] of [['not built', {}], ['built, progress folded', STATE]]) {
+    const ui = await openUi('implement', state);
+    const { page } = ui;
+    try {
+      await page.getByRole('heading', { name: 'Build', exact: true }).waitFor();
+      await page.getByRole('region', { name: 'Use case', exact: true }).locator('[data-pinned-name]').waitFor({ timeout: 15000 });
+      if (state.history) {
+        await page.locator('[data-asset-tiles]').waitFor({ timeout: 15000 });
+        assert.equal(await page.locator('[data-mvp-progress]').getAttribute('data-progress-open'), 'false', `${name}: the progress starts folded`);
+      }
+      for (const [width, height] of [[1440, 900], [1920, 1080]]) {
+        await page.setViewportSize({ width, height });
+        await painted(page);
+        const m = await page.evaluate(() => {
+          const bottom = (s) => Math.round(document.querySelector(s).getBoundingClientRect().bottom);
+          const pane = document.querySelector('[data-use-case-pane]');
+          const content = Math.max(...[...pane.children].map((el) => el.getBoundingClientRect().bottom));
+          return { page: bottom('[data-implement-page]'), rail: bottom('[data-implement-rail]'), section: bottom('section[aria-label="Use case"]'),
+            content: Math.round(content), vh: window.innerHeight };
+        });
+        const at = `${name} at ${width}x${height} ${JSON.stringify(m)}`;
+        assert.ok(m.page < m.vh - 100, `the page is as tall as its content, not the window: ${at}`);
+        assert.ok(Math.abs(m.rail - m.section) <= 2, `the list and the use case end together: ${at}`);
+        assert.ok(m.section - m.content <= 40, `the use case holds no empty band under its content: ${at}`);
+      }
+      assert.deepEqual(ui.pageErrors, []);
+    } finally {
+      await ui.close();
+    }
+  }
+});
