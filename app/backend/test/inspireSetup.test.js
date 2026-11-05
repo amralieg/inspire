@@ -7,17 +7,23 @@ const INSTALLER = path.resolve(__dirname, '..', '..', 'installer', 'inspire_setu
 
 const INSTALLER_LOADER = String.raw`
 import ast as _ast, re as _re, types as _types
+def _assigned(n):
+    return [t.id for t in n.targets if isinstance(t, _ast.Name)] if isinstance(n, _ast.Assign) else []
 def load_installer(tree, body, ns, path):
     defs = {n.name: n for n in tree.body if isinstance(n, _ast.FunctionDef)}
+    consts = {name: n for n in tree.body for name in _assigned(n)}
     body = list(body)
-    have = {n.name for n in body if isinstance(n, _ast.FunctionDef)} | set(ns)
+    have = {n.name for n in body if isinstance(n, _ast.FunctionDef)} | {name for n in body for name in _assigned(n)} | set(ns)
     todo = list(body)
     while todo:
         for x in _ast.walk(todo.pop()):
-            if isinstance(x, _ast.Name) and x.id in defs and x.id not in have:
-                have.add(x.id)
-                body.append(defs[x.id])
-                todo.append(defs[x.id])
+            if isinstance(x, _ast.Name) and x.id not in have and (x.id in defs or x.id in consts):
+                node = defs.get(x.id) or consts[x.id]
+                have.update([x.id, *_assigned(node)])
+                body.append(node)
+                todo.append(node)
+    body = sorted((n for n in body if isinstance(n, _ast.Assign)), key=lambda n: n.lineno) + [n for n in body if not isinstance(n, _ast.Assign)]
+    ns.setdefault("base64", __import__("base64"))
     ns.setdefault("re", _re)
     ns.setdefault("requests", _types.SimpleNamespace(exceptions=_types.SimpleNamespace(HTTPError=type("HTTPError", (Exception,), {}))))
     exec(compile(_ast.Module(body=body, type_ignores=[]), path, "exec"), ns)
@@ -293,7 +299,7 @@ module = ast.Module(body=[n for n in tree.body if (isinstance(n, ast.FunctionDef
                           or (isinstance(n, ast.Assign) and any(isinstance(t, ast.Name) and t.id in consts for t in n.targets))],
                     type_ignores=[])
 ns = {"os": os, "print": lambda *a, **k: None, "time": types.SimpleNamespace(sleep=lambda s: None),
-      "write_app_yaml_deploy": lambda *a: None}
+      "write_app_yaml_deploy": lambda *a: "env: written\n"}
 load_installer(tree, module.body, ns, path)
 source = "/Workspace/Users/me/InspireAI/bundle_new"
 app = {"compute_status": {"state": "ACTIVE"}, "url": "https://app", "service_principal_client_id": "SPNEW",
@@ -420,7 +426,7 @@ module = ast.Module(body=[n for n in tree.body if (isinstance(n, ast.FunctionDef
                           or (isinstance(n, ast.Assign) and any(isinstance(t, ast.Name) and t.id in consts for t in n.targets))],
                     type_ignores=[])
 ns = {"os": os, "print": lambda *a, **k: None, "time": types.SimpleNamespace(sleep=lambda s: None),
-      "write_app_yaml_deploy": lambda *a: None}
+      "write_app_yaml_deploy": lambda *a: "env: written\n"}
 load_installer(tree, module.body, ns, path)
 source = "/Workspace/Users/me/InspireAI/bundle_new"
 def run(first_state):
@@ -639,7 +645,7 @@ wanted = {"step_deploy_and_find_sp", "_workspace_api_path", "_list_apps", "_app_
 consts = {"INSPIRE_APP_OWN_SCOPES", "USER_SCOPES_REFUSED", "USER_SCOPE_CONSTANTS", "APP_DESCRIPTION_NOT_UPDATED"}
 body = [n for n in tree.body if (isinstance(n, ast.FunctionDef) and n.name in wanted)
         or (isinstance(n, ast.Assign) and any(isinstance(t, ast.Name) and t.id in consts for t in n.targets))]
-ns = {"os": os, "print": lambda *a, **k: None, "time": types.SimpleNamespace(sleep=lambda s: None), "write_app_yaml_deploy": lambda *a: None}
+ns = {"os": os, "print": lambda *a, **k: None, "time": types.SimpleNamespace(sleep=lambda s: None), "write_app_yaml_deploy": lambda *a: "env: written\n"}
 load_installer(tree, body, ns, path)
 class Resp:
     def __init__(self, status, text="", data=None):

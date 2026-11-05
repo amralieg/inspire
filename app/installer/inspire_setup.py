@@ -202,12 +202,8 @@ def write_app_yaml_deploy(path, inspire_db, warehouse_id, notebook_path, sp_reso
 APP_DEPLOY_TRIES = 3
 
 
-def _api_path(path):
-    return path[len("/Workspace"):] if path.startswith("/Workspace/") else path
-
-
 def _workspace_file_text(api, path):
-    resp = api("GET", f"/api/2.0/workspace/export?path={requests.utils.quote(_api_path(path))}&format=AUTO")
+    resp = api("GET", f"/api/2.0/workspace/export?path={requests.utils.quote(_workspace_api_path(path))}&format=AUTO")
     if resp.status_code != 200:
         return None, f"{resp.status_code} {resp.text[:200]}"
     return base64.b64decode((resp.json() or {}).get("content") or "").decode("utf-8", "replace"), None
@@ -215,7 +211,7 @@ def _workspace_file_text(api, path):
 
 def _put_app_yaml(api, path, text):
     resp = api("POST", "/api/2.0/workspace/import",
-               {"path": _api_path(path), "format": "AUTO", "overwrite": True, "content": base64.b64encode(text.encode("utf-8")).decode("ascii")})
+               {"path": _workspace_api_path(path), "format": "AUTO", "overwrite": True, "content": base64.b64encode(text.encode("utf-8")).decode("ascii")})
     if resp.status_code not in (200, 201):
         raise RuntimeError(f"Could not save {path} in the workspace ({resp.status_code} {resp.text[:200]}), so the App would start without "
                            f"its settings. Run the installer again.")
