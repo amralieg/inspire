@@ -82,7 +82,7 @@ def test_identical_title_and_name_show_no_subtitle(docs):
     assert obj._use_case_view(model["ranked"][0], model, labels(docs))["name"] == ""
 
 
-def test_summary_highlights_use_the_displayed_title_and_no_counts(docs):
+def test_summary_highlights_use_the_catalog_name_and_no_counts(docs):
     seen = []
 
     def run_worker(step_name, worker_prompt_path, prompt_vars, response_schema, **kw):
@@ -94,8 +94,8 @@ def test_summary_highlights_use_the_displayed_title_and_no_counts(docs):
     obj._get_salesy_summary({"Sales": [english, make_uc("N01-U02", "Sales")]}, "Acme", "English", labels(docs))
     obj._get_salesy_summary({"المبيعات": [translated_arabic(docs, english)]}, "Acme", "Arabic", labels(docs, "Arabic"))
     en, ar = seen[0]["domain_use_case_highlights"], seen[1]["domain_use_case_highlights"]
-    assert "- Forecast Bakery Demand:" in en and "Forecast daily demand per store" not in en
-    assert f"- {AR_HEADLINE}:" in ar and AR_NAME not in ar
+    assert "- Forecast daily demand per store:" in en and "Forecast Bakery Demand" not in en
+    assert f"- {AR_NAME}:" in ar and f"- {AR_HEADLINE}:" not in ar
     assert "use cases)" not in en and "(2" not in en
     assert "total_cases" not in seen[0]
     template = docs["PROMPT_TEMPLATES"]["SUMMARY_GEN_PROMPT"]

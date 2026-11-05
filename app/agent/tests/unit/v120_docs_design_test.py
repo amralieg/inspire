@@ -199,7 +199,7 @@ def test_highlights_follow_the_final_rank_so_the_prose_names_the_shown_top_cases
     plain = make_uc("N01-U01", "Sales", Name="Plain high", **{"Inspire Score": 9.0})
     obj._get_salesy_summary({"Sales": [plain, elite]}, "Acme", "English", labels(docs))
     highlights = seen[0]["domain_use_case_highlights"]
-    assert highlights.index(obj._doc_use_case_title(elite, "English")) < highlights.index(obj._doc_use_case_title(plain, "English"))
+    assert highlights.index(obj._summary_use_case_name(elite, "English")) < highlights.index(obj._summary_use_case_name(plain, "English"))
 
 
 def test_markdown_catalog_uses_the_canonical_domain_summary(docs):
