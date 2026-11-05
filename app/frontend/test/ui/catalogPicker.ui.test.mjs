@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { closeBrowser, dataToResults, onStep, openUi, customize } from './uiSupport.mjs';
+import { closeBrowser, dataToResults, onStep, openUi } from './uiSupport.mjs';
 
 test.after(closeBrowser);
 
@@ -10,7 +10,6 @@ const many = Array.from({ length: 80 }, (_, i) => `cat_${String(i).padStart(3, '
 async function resultStep(state) {
   const ui = await openUi('wizard', { me: { userName: 'owner@example.com', displayName: 'Owner' }, schemas: { main: ['inspire'] }, ...state });
   await onStep(ui.page, 'Choose');
-  await customize(ui.page);
   await next(ui.page);
   await onStep(ui.page, 'Data');
   await dataToResults(ui.page);

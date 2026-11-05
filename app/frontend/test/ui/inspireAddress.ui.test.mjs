@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { OWNER } from './implementFixtures.js';
-import { closeBrowser, onStep, openUi, startMvp, until, customize } from './uiSupport.mjs';
+import { closeBrowser, onStep, openUi, startMvp, until } from './uiSupport.mjs';
 
 test.after(closeBrowser);
 
@@ -20,7 +20,6 @@ test('the wizard sends the Inspire address for every App placement, so each App 
     const { page, made } = ui;
     try {
       await onStep(page, 'Choose');
-      await customize(page);
       for (const step of ['Data', 'First run', 'Results', 'Delivery', 'App placement']) {
         await page.getByRole('button', { name: 'Next' }).click();
         await onStep(page, step);
@@ -49,7 +48,6 @@ test('the wizard sends the Inspire address for a dashboard with no App, and none
     const what = untick.map(String).join(' ');
     try {
       await onStep(page, 'Choose');
-      await customize(page);
       for (const step of ['Data', 'First run', 'Results', 'Delivery']) {
         await page.getByRole('button', { name: 'Next' }).click();
         await onStep(page, step);

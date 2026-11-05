@@ -4,7 +4,7 @@ import { buildAgainHint, DATA_STOP_HINT, lostTablesText, VIBE_FEATURES_LABEL } f
 import {
   HARNESS_USE_CASE, HARNESS_SETTINGS, HARNESS_SESSION_ID, MVP_JOB, OWNER, RESULT_TABLE, STUDIO_STATE, built, builtSpec,
 } from './implementFixtures.js';
-import { closeAsset, closeBrowser, dataToResults, expandBuild, FAKE_CLOCK, lowContrast, onStep, openAsset, openFeatures, openSettings, openUi, painted, pollNow, setDark, settled, shot, startMvp, stepsAre, toAppAccess, toVibes, until, customize } from './uiSupport.mjs';
+import { closeAsset, closeBrowser, dataToResults, expandBuild, FAKE_CLOCK, lowContrast, onStep, openAsset, openFeatures, openSettings, openUi, painted, pollNow, setDark, settled, shot, startMvp, stepsAre, toAppAccess, toVibes, until } from './uiSupport.mjs';
 
 const GONE = '[TABLE_OR_VIEW_NOT_FOUND] The table or view `main`.`s`.`returns` cannot be found. Verify the spelling. SQLSTATE: 42P01';
 
@@ -43,7 +43,6 @@ async function openHistory(page) {
 
 async function toData(page) {
   await onStep(page, 'Choose');
-  await customize(page);
   await next(page);
   await onStep(page, 'Data');
 }
@@ -76,7 +75,6 @@ test('the wizard starts with the dashboard, Genie Agent and App ticked, drops Ap
   const withApp = ['1. Choose', '2. Data', '3. First run', '4. Results', '5. Delivery', '6. App placement', '7. App access', '8. App look', '9. Settings', '10. Vibes'];
   try {
     await onStep(page, 'Choose');
-    await customize(page);
     await stepsAre(page, withApp);
     const summary = page.getByRole('region', { name: 'Executive summary' });
     await summary.getByText('Cut churn in the top segment').waitFor();
@@ -152,7 +150,6 @@ test('the wizard names the use case as the card the person clicked, while the da
   const { page, made } = ui;
   try {
     await onStep(page, 'Choose');
-    await customize(page);
     const summary = page.getByRole('region', { name: 'Executive summary' });
     await summary.getByText('Keep the top segment buying').waitFor();
     assert.equal(await summary.locator('h3').innerText(), HARNESS_USE_CASE.Name);
@@ -1555,7 +1552,6 @@ test('a use case with no MVP offers to start one, reads no result table, and the
     assert.equal(never.made.sqlCalls.some((c) => /^SELECT \* FROM `main`\.`inspire`\.`n01_u01_s42_out`/.test(String(c.sql))), false, 'no result table read');
     await never.page.getByRole('button', { name: 'Start Use Case MVP with Genie' }).click();
     await onStep(never.page, 'Choose');
-    await customize(never.page);
     assert.equal(await never.page.getByRole('region', { name: 'Executive summary' }).locator('h3').innerText(), HARNESS_USE_CASE.Name);
     const header = never.page.locator('[data-wizard-header]');
     for (const label of ['Choose', 'Data', 'First run', 'Results', 'Delivery']) {
@@ -1848,7 +1844,6 @@ test('the Implement page groups every use case by its state, searches by name, i
     assert.equal(await page.locator('[data-asset-tiles]').count(), 0);
     await page.getByRole('button', { name: 'Start Use Case MVP with Genie' }).click();
     await onStep(page, 'Choose');
-    await customize(page);
     assert.equal(await page.getByRole('region', { name: 'Executive summary' }).locator('h3').innerText(), 'Forecast demand');
     await page.getByRole('button', { name: 'Close' }).click();
     await page.locator('[data-implement-overlay]').waitFor({ state: 'detached' });

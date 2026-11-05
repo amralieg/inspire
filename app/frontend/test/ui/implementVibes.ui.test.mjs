@@ -5,7 +5,7 @@ import { createRequire } from 'node:module';
 import path from 'node:path';
 import { defaultSpecFromUseCase } from '../../src/lib/implementWizard.js';
 import { HARNESS_USE_CASE, HARNESS_SETTINGS, HARNESS_SESSION_ID } from './implementFixtures.js';
-import { clippedExamples, closeAsset, closeBrowser, dataToResults, expandBuild, featuresBox, featuresHeld, featuresText, lowContrast, onStep, openAsset, openFeatures, openSettings, openUi, setDark, startMvp, toAppAccess, toVibes, until, wizardFits, customize } from './uiSupport.mjs';
+import { clippedExamples, closeAsset, closeBrowser, dataToResults, expandBuild, featuresBox, featuresHeld, featuresText, lowContrast, onStep, openAsset, openFeatures, openSettings, openUi, setDark, startMvp, toAppAccess, toVibes, until, wizardFits } from './uiSupport.mjs';
 
 const OWNER = ['owner', 'example.com'].join('@');
 const SHOTS = process.env.VIBES_SHOTS || '';
@@ -20,7 +20,6 @@ const wizardBox = (page) => page.getByRole('region', { name: 'Vibes', exact: tru
 
 async function toDelivery(page) {
   await onStep(page, 'Choose');
-  await customize(page);
   await next(page);
   await onStep(page, 'Data');
   await dataToResults(page);

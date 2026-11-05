@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { closeBrowser, dataToResults, openUi, onStep, startMvp, toAppAccess, customize } from './uiSupport.mjs';
+import { closeBrowser, dataToResults, openUi, onStep, startMvp, toAppAccess } from './uiSupport.mjs';
 
 const OWNER = ['owner', 'example.com'].join('@');
 const PAT = ['pat', 'example.com'].join('@');
@@ -17,7 +17,6 @@ const advanced = (page) => page.getByRole('button', { name: 'Advanced settings' 
 
 async function toResults(page) {
   await onStep(page, 'Choose');
-  await customize(page);
   await next(page);
   await onStep(page, 'Data');
   await dataToResults(page);

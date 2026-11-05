@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { REMOVE_TABLE, pickedTable } from '../../src/lib/implementWizard.js';
 import { OWNER, built, builtSpec } from './implementFixtures.js';
 import { createRequire } from 'node:module';
-import { closeBrowser, lowContrast, onStep, openAsset, openBuild, openUi, until, customize } from './uiSupport.mjs';
+import { closeBrowser, lowContrast, onStep, openAsset, openBuild, openUi, until } from './uiSupport.mjs';
 
 const { NO_PERSON_TOKEN } = createRequire(import.meta.url)('../../../backend/lib/routePolicy.js');
 
@@ -214,7 +214,6 @@ test('similar tables come from the person\u2019s own sign-in: a table only the A
   try {
     const { page } = ui;
     await onStep(page, 'Choose');
-    await customize(page);
     await page.getByRole('button', { name: 'Next' }).click();
     await onStep(page, 'Data');
     await page.getByRole('alert').getByText(NO_PERSON_TOKEN, { exact: true }).waitFor({ timeout: 15000 });

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { APP_READ_ACTION, NEW_APPS_ACCESS_ACTION } from '../../src/lib/implementWizard.js';
-import { closeBrowser, dataToResults, onStep, openUi, until, customize } from './uiSupport.mjs';
+import { closeBrowser, dataToResults, onStep, openUi, until } from './uiSupport.mjs';
 
 test.after(closeBrowser);
 
@@ -55,7 +55,6 @@ test('Let Inspire read these tables runs the exact grants with the person sign-i
   const { page } = ui;
   try {
     await onStep(page, 'Choose');
-    await customize(page);
     const panel = panelOf(page);
     await panel.waitFor({ timeout: 15000 });
     const reason = await panel.locator('p').first().textContent();
@@ -139,7 +138,6 @@ test('the App tile offers to let new Apps use the result table catalog, grants w
   const CATALOG_GRANT = 'GRANT USE CATALOG ON CATALOG `main` TO `account users`';
   try {
     await onStep(page, 'Choose');
-    await customize(page);
     await page.getByRole('button', { name: 'Next' }).click();
     await onStep(page, 'Data');
     await dataToResults(page);

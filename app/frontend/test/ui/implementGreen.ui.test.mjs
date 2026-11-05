@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { STUDIO_STATE, built } from './implementFixtures.js';
-import { closeBrowser, customize, expandBuild, onStep, openAsset, openUi, toAppAccess } from './uiSupport.mjs';
+import { closeBrowser, expandBuild, onStep, openAsset, openUi, toAppAccess } from './uiSupport.mjs';
 
 test.after(closeBrowser);
 
@@ -46,7 +46,6 @@ test('App look turns the trend chart off with one line when the input tables car
     const { page } = ui;
     for (const [step, go] of [['Choose', true], ['Data', true], ['First run', true], ['Results', true], ['Delivery', false]]) {
       await onStep(page, step);
-      if (step === 'Choose') await customize(page);
       if (go) await next(page);
     }
     await toAppAccess(page);
@@ -95,7 +94,6 @@ test('a business with an App for all its use cases joins it, cannot create a sec
   try {
     for (const step of ['Choose', 'Data', 'First run', 'Results']) {
       await onStep(page, step);
-      if (step === 'Choose') await customize(page);
       await next();
     }
     await onStep(page, 'Delivery');

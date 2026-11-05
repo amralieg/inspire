@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { closeBrowser, dataToResults, openAsset, openSettings, openUi, onStep, startMvp, until, customize } from './uiSupport.mjs';
+import { closeBrowser, dataToResults, openAsset, openSettings, openUi, onStep, startMvp, until } from './uiSupport.mjs';
 import { STUDIO_STATE } from './implementFixtures.js';
 
 const OWNER = ['owner', 'example.com'].join('@');
@@ -35,7 +35,6 @@ test('the wizard groups the rows by the use case\'s subject, suggests a team cap
   });
   try {
     await onStep(page, 'Choose');
-    await customize(page);
     await next(page);
     await onStep(page, 'Data');
     const grain = page.getByRole('region', { name: 'What one row means' });
@@ -102,7 +101,6 @@ test('removing an App another use case shares offers to take this use case\'s pa
   const { page, pageErrors } = ui;
   try {
     await onStep(page, 'Choose');
-    await customize(page);
     await next(page);
     await onStep(page, 'Data');
     await dataToResults(page);
