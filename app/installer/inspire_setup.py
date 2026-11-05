@@ -489,7 +489,7 @@ def genie_code_install_check(api, notebook_text, person):
             refused.append(f"{model} through the {route}: {resp.status_code} {str(resp.text or '')[:120]}")
     except Exception as exc:
         return f"⚠️ not checked: Unity Gateway did not answer ({_error_words(exc)}); the first MVP build checks again before Genie starts"
-    return (f"⚠️ Genie Code reaches no model for {person} (tried {'; '.join(refused)}). Notebook only still works: Inspire writes the "
+    return (f"⚠️ Genie Code reaches no model for {person} (tried {'; '.join(refused)}). I will build it myself still works: Inspire writes the "
             f"notebook and you run it. To let Inspire build MVPs, {k['GENIE_CODE_ADMIN_FIX']}")
 
 

@@ -61,7 +61,7 @@ test('gpt-oss models are never probed or chosen on either route, even when they 
   assert.equal((await GC.createGenieCodeCheck()('https://h', 't', ok.fetchJson)).model, 'system.ai.kimi-k3', 'other listed models still qualify');
 });
 
-test('with both routes empty or refusing, the check names every model tried and the admin fix, and offers Notebook only', async () => {
+test('with both routes empty or refusing, the check names every model tried and the admin fix, and offers I will build it myself', async () => {
   const gw = gateway({ claude: ['system.ai.claude-opus-4-7'], answers: { [`${MLFLOW}/responses|system.ai.claude-opus-4-7`]: 403 } });
   const verdict = await GC.createGenieCodeCheck()('https://h', 't', gw.fetchJson);
   assert.equal(verdict.available, false);
@@ -69,7 +69,7 @@ test('with both routes empty or refusing, the check names every model tried and 
     .replace('{tried}', `2 models: gpt-5.6-sol through the Codex route: ${GC.GENIE_CODE_MODEL_MISSING}; `
       + `system.ai.claude-opus-4-7 through the Anthropic route: ${GC.GENIE_CODE_MODEL_DENIED}; the Codex route lists no model`)
     .replace('{choices}', GC.GENIE_CODE_NO_MODEL_CHOICES));
-  assert.match(verdict.reason, /choose Notebook only and run the notebook yourself/);
+  assert.match(verdict.reason, /choose I will build it myself and run the notebook yourself/);
   assert.match(verdict.fix, /^Ask a workspace admin to serve a model to Genie Code through Unity Gateway/);
   assert.doesNotMatch(`${verdict.reason} ${verdict.fix}`, /contact|ticket|support/i);
   const none = await GC.createGenieCodeCheck()('https://h', 't', gateway({ listStatus: 404 }).fetchJson);

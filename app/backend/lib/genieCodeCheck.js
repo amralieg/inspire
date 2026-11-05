@@ -9,7 +9,7 @@ const GENIE_CODE_NO_MODEL = 'Genie Code is not available in this workspace: Unit
   + 'build stopped before Genie started and did not retry. Tried {tried}. {choices}';
 const GENIE_CODE_ADMIN_FIX = 'ask a workspace admin to serve a model to Genie Code through Unity Gateway (a model on its Codex route, or a '
   + "Claude model on its Anthropic route) and give this run's identity permission to query it";
-const GENIE_CODE_NO_MODEL_CHOICES = `To build now, choose Notebook only and run the notebook yourself. To let Inspire build it, ${GENIE_CODE_ADMIN_FIX}, then Rebuild.`;
+const GENIE_CODE_NO_MODEL_CHOICES = `To build now, choose I will build it myself and run the notebook yourself. To let Inspire build it, ${GENIE_CODE_ADMIN_FIX}, then Rebuild.`;
 const GENIE_CODE_MODEL_MISSING = 'Unity Gateway has no such model or endpoint here';
 const GENIE_CODE_MODEL_DENIED = "this run's identity may not query it";
 const GENIE_CODE_UNFIT_MODEL_PATTERN = 'gpt[-_.]?oss';

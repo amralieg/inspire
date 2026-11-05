@@ -1479,7 +1479,7 @@ class GenieCodeInstallCheckTest(unittest.TestCase):
         self.assertTrue(said.startswith("⚠️"), said)
         self.assertIn("403 denied", said)
         self.assertIn("claude-opus-4-7 through the Anthropic route: 404", said)
-        self.assertIn("Notebook only", said)
+        self.assertIn("I will build it myself", said)
         self.assertIn(self.K["GENIE_CODE_ADMIN_FIX"], said)
         self.assertNotRegex(said.lower(), r"contact|ticket|support")
 

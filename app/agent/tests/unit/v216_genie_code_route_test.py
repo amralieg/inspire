@@ -94,7 +94,7 @@ def test_both_routes_empty_is_no_route_with_the_plain_reason_the_admin_fix_and_t
     assert verdict["available"] is False and verdict["model"] == ""
     assert "Tried 1 model: " + agent_ns["GENIE_CODE_MODEL"] + " through the Codex route" in verdict["reason"]
     assert "the Codex route and the Anthropic route list no model" in verdict["reason"]
-    assert "choose Notebook only and run the notebook yourself" in verdict["reason"]
+    assert "choose I will build it myself and run the notebook yourself" in verdict["reason"]
     assert verdict["fix"].startswith("Ask a workspace admin to serve a model to Genie Code through Unity Gateway")
     assert "ticket" not in verdict["reason"].lower() and "contact" not in verdict["reason"].lower()
 
