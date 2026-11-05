@@ -189,7 +189,7 @@ def test_the_bridge_chart_reads_its_steps_in_their_order():
 def test_the_public_page_carries_the_layout_its_sections_the_plan_and_each_so_what_line():
     public = shell_core.public_page(FORECAST)
     assert public["layout"] == {"id": "forecast_cockpit", "label": "Forecast cockpit", "tab_label": "Forecast",
-                                "sections": layout("forecast_cockpit")["sections"], "decides": True,
+                                "sections": layout("forecast_cockpit")["sections"] + ["charts", "tables"], "decides": True,
                                 "holds": {"todo": "todo", "kpis": "kpis", "horizon_selector": "horizon", "at_risk_series": "plan"}}
     assert public["plan"]["recommended"] == "recommended_order" and public["scenario"] is None
     fan = next(c for c in public["charts"] if c["id"] == "fan")
@@ -748,7 +748,8 @@ def test_the_planner_draws_a_gantt_and_an_allocation_flow_in_their_own_sections(
     (lambda c: c.pop("series"), "is a sankey, so it needs a series column"),
     (lambda c: c.update(type="gantt", y=c["y"][:1], series=None), "is a gantt, so y holds exactly 2 measures in this order: start, end"),
     (lambda c: c.update(section="sensitivity_tornado"), "names section 'sensitivity_tornado'; on a planner page a sankey goes in one of: allocation_flow"),
-    (lambda c: c.update(type="bar"), "chart moves is a bar, and a planner page has no section that holds one: remove it"),
+    (lambda c: c.update(type="bar"), "chart moves names section 'allocation_flow'; on a planner page a bar goes in one of: charts"),
+    (lambda c: c.update(type="radar"), "chart moves is a radar, which no section of a planner page draws, and Inspire sets the planner layout"),
 ])
 def test_a_gantt_or_a_sankey_must_have_its_shape_and_its_section(change, needle):
     page = planned()
@@ -925,6 +926,5 @@ def test_a_chart_type_a_layout_cannot_hold_is_refused_with_a_way_out_genie_can_t
     assert shell_sql.layout_problems(page, set()) == []
     page.setdefault("charts", []).append({"id": "fare_trend", "type": chart_type, "section": section})
     found = [p for p in shell_sql.layout_problems(page, set()) if "fare_trend" in p]
-    assert found == [f"chart fare_trend is a {chart_type}, and a network_explorer page has no section that holds one: remove it from "
-                     f"this page, or put it on a page with the decision_queue layout"]
-    assert not any("leave it out" in p for p in shell_sql.layout_problems(page, set()))
+    assert found == [f"chart fare_trend names section {section!r}; on a network_explorer page a {chart_type} goes in one of: charts"]
+    assert not any("leave it out" in p or "decision_queue" in p for p in shell_sql.layout_problems(page, set()))

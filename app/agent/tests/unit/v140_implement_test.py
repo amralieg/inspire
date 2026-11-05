@@ -5571,3 +5571,19 @@ def test_a_stop_reason_or_an_error_is_still_the_reason_of_the_stop_message(agent
     assert stop({"status": "stopped", "stop_reason": "no rows match"}, {}) == "the preview run did not write usable rows: no rows match"
     assert stop({"status": "failed", "error": "boom"}, {}) == "the preview run did not write usable rows: boom"
     assert stop({}, {}) == "the preview run did not write usable rows: no reason given"
+
+
+def test_a_round_that_fails_exactly_as_the_round_before_is_told_its_change_did_not_reach_the_failure(agent_ns):
+    inst = _flow_inspire(agent_ns, [])
+    marker = "This is the same failure, word for word, as your previous round"
+    same = _FakeRunner([{"exit": 0}] * 3)
+    with pytest.raises(RuntimeError, match="after 3 Genie rounds"):
+        inst._implement_genie_loop(dict(LOOP_CONTEXT), same, "App", "write it",
+                                   lambda w: (_ for _ in ()).throw(RuntimeError("chart fare_by_hour is a line")))
+    assert marker not in same.prompts[1] and marker in same.prompts[2]
+    reasons = iter(["chart fare_by_hour is a line", "chart trips_per_corridor is a bar", "chart fare_by_hour is a line"])
+    changing = _FakeRunner([{"exit": 0}] * 3)
+    with pytest.raises(RuntimeError, match="after 3 Genie rounds"):
+        inst._implement_genie_loop(dict(LOOP_CONTEXT), changing, "App", "write it",
+                                   lambda w: (_ for _ in ()).throw(RuntimeError(next(reasons))))
+    assert not any(marker in p for p in changing.prompts)

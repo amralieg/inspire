@@ -324,6 +324,7 @@ SCENARIO_SWING = 0.1
 SCENARIO_SAVE = ("name", "levers", "outcome")
 DRAWN_CHARTS = {"scenario": 2, "target": 1}
 SO_WHAT_LAYOUTS = ("dashboard",)
+ASKED_SECTIONS = ("charts", "tables")
 RUN_LEVEL_SUFFIXES = ("__bridge",)
 PLAN_FIELDS = ("title", "hint", "current", "recommended", "delta", "override", "format", "currency")
 CHART_KINDS = ("trend", "bars", "split", "pareto", "scatter")
@@ -1418,6 +1419,13 @@ def page_layout(page: dict) -> str:
     return str(page.get("layout") or DEFAULT_LAYOUT) if isinstance(page, dict) else DEFAULT_LAYOUT
 
 
+def layout_sections(ident: str) -> list:
+    sections = [str(s) for s in (layouts().get(ident) or {}).get("sections") or []]
+    if ident == DEFAULT_LAYOUT:
+        return sections
+    return sections + [s for s in ASKED_SECTIONS if s not in sections]
+
+
 def layout_contract(page: dict) -> dict:
     layout = layouts().get(page_layout(page)) or {}
     return ((kinds_registry().get("contracts") or {}).get(layout.get("contract")) or {}).get("suffixes") or {}
@@ -1511,7 +1519,7 @@ def layout_problems(page: dict, names: set) -> list:
         return [f"the {ident} layout is not served yet; use one of {', '.join(enabled_layouts())}"]
     if ident == DEFAULT_LAYOUT:
         return part_problems(page)
-    sections = [str(s) for s in layout.get("sections") or []]
+    sections = layout_sections(ident)
     holds = {(SECTIONS.get(s) or {}).get("holds") for s in sections}
     problems = []
     for group, word in (("charts", "chart"), ("tables", "table")):
@@ -1521,8 +1529,9 @@ def layout_problems(page: dict, names: set) -> list:
             section = item.get("section")
             fits = [s for s in sections if _section_fits(s, group, item.get("type"))]
             if not fits:
-                problems.append(f"{word} {item.get('id')} is a {item.get('type') or word}, and a {ident} page has no section that holds one: "
-                                f"remove it from this page, or put it on a page with the {DEFAULT_LAYOUT} layout")
+                problems.append(f"{word} {item.get('id')} is a {item.get('type') or word}, which no section of a {ident} page draws, and "
+                                f"Inspire sets the {ident} layout from the use case's kind: draw what it shows as another type, or "
+                                f"remove it from this page")
             elif section not in sections or not _section_fits(section, group, item.get("type")):
                 problems.append(f"{word} {item.get('id')} names section {section!r}; on a {ident} page a {item.get('type') or word} goes in "
                                 f"one of: {', '.join(fits)}")
@@ -1724,8 +1733,8 @@ def public_layout(page: dict) -> dict:
     ident = page_layout(page)
     layout = layouts().get(ident) or {}
     return {"id": ident, "label": layout.get("label") or ident, "tab_label": layout.get("tab_label") or "",
-            "sections": [str(s) for s in layout.get("sections") or []],
-            "holds": {str(s): SECTIONS[s]["holds"] for s in layout.get("sections") or [] if (SECTIONS.get(s) or {}).get("holds")},
+            "sections": layout_sections(ident),
+            "holds": {str(s): SECTIONS[s]["holds"] for s in layout_sections(ident) if (SECTIONS.get(s) or {}).get("holds")},
             "decides": ident == DEFAULT_LAYOUT or decision_section(page) is not None}
 
 

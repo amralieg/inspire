@@ -83,6 +83,7 @@ SHELL_ENTRY_POINTS = {
     ("implement_layout_brief", "shell_sql.decision_section"),
     ("implement_layout_brief", "shell_sql.layouts"),
     ("implement_layout_brief", "shell_sql.section_words"),
+    ("implement_layout_brief", "shell_sql.layout_sections"),
     ("implement_layout_brief", "shell_sql.decision_section"),
     ("implement_layout_brief", "shell_sql.layouts"),
     ("implement_layout_brief", "shell_sql.section_words"),
