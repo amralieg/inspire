@@ -668,3 +668,13 @@ test('with Data groups as the whole data, saved groups name their own column and
   const unnamed = S.firstRunCoversText({ ...PROFILE, group_column: null, recommended: [] }, { ...values, scope_groups: 'USA' });
   assert.doesNotMatch(unnamed, / of :|of all/, unnamed);
 });
+
+test('with one group picked, only One group carries its count, never Several groups (must-exclude)', async () => {
+  const S = await lib('runScope.js');
+  const one = { ...S.scopeValues(() => undefined), group_by: 'country', run_scope: 'groups', scope_groups: 'USA' };
+  const many = { ...one, scope_groups: 'USA, Spain' };
+  const counts = (values) => Object.fromEntries(S.firstRunChoices(PROFILE, values).filter((c) => c.scope === 'groups').map((c) => [c.id, c.records]));
+  assert.equal(counts(one).groups, null);
+  assert.notEqual(counts(one).one, undefined);
+  assert.equal(counts(many).one, null);
+});

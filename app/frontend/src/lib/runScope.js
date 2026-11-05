@@ -437,7 +437,7 @@ export function firstRunChoices(profile, values, everything = '') {
   const grouped = Array.isArray(inGroups) && inGroups.length > 0;
   return [
     { id: 'one', scope: 'groups', label: FIRST_RUN_ONE_LABEL, available: listed.length > 0, records: picked.length === 1 ? pickedTotal : null },
-    { id: 'groups', scope: 'groups', label: FIRST_RUN_SEVERAL_LABEL, available: listed.length > 1, records: picked.length ? pickedTotal : null },
+    { id: 'groups', scope: 'groups', label: FIRST_RUN_SEVERAL_LABEL, available: listed.length > 1, records: picked.length > 1 ? pickedTotal : null },
     {
       id: 'records',
       scope: 'records',
