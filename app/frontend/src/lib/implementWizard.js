@@ -2,7 +2,7 @@ import { compareMeetsQualityBarFirst, subtitleOfUseCase } from './useCaseFields.
 import { placeholderWords } from './placeholderWords.js';
 import { plural } from './plural.js';
 import { PERSONAL_KEY_REASON, personalColumn } from './personalColumns.js';
-import { specVibeAsks, vibeRefusalText, vibeRefusals } from './vibeLimits.js';
+import { specVibeAsks, vibeConflicts, vibeRefusalText, vibeRefusals } from './vibeLimits.js';
 import { kpiTargetOf, kpiTargetProblems, stakeWords, withKpiTarget } from './targetKpi.js';
 import { latestRunScope, scopeProblems, scopeValues } from './runScope.js';
 import {
@@ -472,8 +472,13 @@ export function vibesRefusedProblem(spec) {
   return refused.length ? `take out ${refused.length === 1 ? 'the ask Inspire does not build' : `the ${refused.length} asks Inspire does not build`} first: ${vibeRefusalText(refused)}` : '';
 }
 
+export function vibesConflictProblem(spec) {
+  const conflicts = vibeConflicts(specVibeAsks(spec));
+  return conflicts.length ? `settle the asks that ask for opposite things first: ${conflicts.map((c) => c.note).join('; ')}` : '';
+}
+
 export function vibesProblems(spec, built = null) {
-  return [vibesProblem('mvp', spec?.vibes, 'MVP'), vibesRefusedProblem(spec), vibePreviousProblem(spec, built)].filter(Boolean);
+  return [vibesProblem('mvp', spec?.vibes, 'MVP'), vibesRefusedProblem(spec), vibesConflictProblem(spec), vibePreviousProblem(spec, built)].filter(Boolean);
 }
 
 export function heldAsks(text) {

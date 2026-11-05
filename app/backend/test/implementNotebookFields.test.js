@@ -53,7 +53,9 @@ test('a changed vibe for the value formula names it in the impact the built note
   assert.ok(FIXTURE.part_problems.length >= 6);
   for (const c of FIXTURE.part_problems) {
     const history = [row(1, { assets: c.asset_status, notebook: c.asset_status.notebook, spec: c.previous })];
-    assert.throws(() => I.planSubmission(history, valid(c.spec)), { message: c.problems.join('; ') }, `${c.name} ${JSON.stringify(c.asset_status.notebook.impact)}`);
+    const why = `${c.name} ${JSON.stringify(c.asset_status.notebook.impact)}`;
+    if (c.problems.length) assert.throws(() => I.planSubmission(history, valid(c.spec)), { message: c.problems.join('; ') }, why);
+    else assert.deepEqual(I.planSubmission(history, valid(c.spec)).spec.retry_outputs, c.retry, why);
   }
 });
 

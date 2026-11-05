@@ -55,6 +55,9 @@ function sameThing(a, b) {
   return shorter.filter((w) => longer.has(w)).length / shorter.length >= 0.7;
 }
 
+const RULED_OUT = /[,;]?\s*(?:but\s+)?(?:never|not|no)\s+([\p{L}\p{N}-]+(?:\s+[\p{L}\p{N}-]+)?)\s*[.!]?$/iu;
+const NEGATED_WORD = (text, word) => new RegExp(String.raw`\b(?:never|not|no)\s+(?:\S+\s+){0,2}${word}`, 'i').test(clean(text));
+
 export function vibeConflicts(asks) {
   const list = (asks || []).map(clean).filter(Boolean);
   const out = [];
@@ -68,6 +71,20 @@ export function vibeConflicts(asks) {
         out.push({ asks: i < j ? [ask, other] : [other, ask],
           note: `“${ask}” and “${other}” ask for opposite things, so Genie cannot do both. Take out the one you do not want before you rebuild` });
       }
+    });
+  });
+  list.forEach((ask, i) => {
+    const ruled = RULED_OUT.exec(ask);
+    if (!ruled) return;
+    const banned = wordsOf(ruled[1]);
+    const rest = wordsOf(ask.slice(0, ruled.index));
+    list.forEach((other, j) => {
+      if (i === j || out.some((c) => c.asks.includes(ask) && c.asks.includes(other))) return;
+      const words = wordsOf(other);
+      if (!banned.length || !banned.every((w) => words.includes(w)) || NEGATED_WORD(other, banned[0])) return;
+      if (!sameThing(words.filter((w) => !banned.includes(w)), rest)) return;
+      out.push({ asks: i < j ? [ask, other] : [other, ask],
+        note: `“${other}” and “${ask}” ask for opposite things, so Genie cannot do both. Take out the one you do not want before you rebuild` });
     });
   });
   return out;

@@ -1049,7 +1049,7 @@ function registerImplementRoutes(app, deps) {
     if (tables.change) plan.summary.table_change = tables.change;
     if (tables.error) plan.summary.table_change_error = tables.error;
     if (plan.summary.refill || (tables.change && tables.change.class === 'settings')) await refuseMissingSources(req, warehouseId, spec, useCase);
-    return { sid, warehouseId, inspire_database, catalog, schema, spec, useCaseId, useCase, session, history, plan, person };
+    return { sid, warehouseId, inspire_database, catalog, schema, spec: plan.spec, useCaseId, useCase, session, history, plan, person };
   }
 
   async function refusePersonUnreadable(req, spec, useCase) {

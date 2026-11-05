@@ -1930,10 +1930,11 @@
    },
    "problems": [
     "Inspire has not built the amount at stake formula on this MVP, so it cannot rebuild it with your vibes; pick one this MVP built"
-   ]
+   ],
+   "retry": []
   },
   {
-   "name": "built and not listed to rebuild",
+   "name": "built and not listed to rebuild, so it is rebuilt with its vibes",
    "asset_status": {
     "notebook": {
      "state": "ready",
@@ -2246,8 +2247,9 @@
      ]
     }
    },
-   "problems": [
-    "the vibes for the amount at stake formula changed, so list value_formula in retry_outputs to rebuild it with them"
+   "problems": [],
+   "retry": [
+    "value_formula"
    ]
   },
   {
@@ -2566,10 +2568,11 @@
    },
    "problems": [
     "Inspire has not built the money at stake formula on this MVP, so it cannot rebuild it with your vibes; pick one this MVP built"
-   ]
+   ],
+   "retry": []
   },
   {
-   "name": "built and not listed to rebuild",
+   "name": "built and not listed to rebuild, so it is rebuilt with its vibes",
    "asset_status": {
     "notebook": {
      "state": "ready",
@@ -2885,8 +2888,9 @@
      ]
     }
    },
-   "problems": [
-    "the vibes for the money at stake formula changed, so list value_formula in retry_outputs to rebuild it with them"
+   "problems": [],
+   "retry": [
+    "value_formula"
    ]
   },
   {
@@ -3205,10 +3209,11 @@
    },
    "problems": [
     "Inspire has not built the hours at stake formula on this MVP, so it cannot rebuild it with your vibes; pick one this MVP built"
-   ]
+   ],
+   "retry": []
   },
   {
-   "name": "built and not listed to rebuild",
+   "name": "built and not listed to rebuild, so it is rebuilt with its vibes",
    "asset_status": {
     "notebook": {
      "state": "ready",
@@ -3524,8 +3529,9 @@
      ]
     }
    },
-   "problems": [
-    "the vibes for the hours at stake formula changed, so list value_formula in retry_outputs to rebuild it with them"
+   "problems": [],
+   "retry": [
+    "value_formula"
    ]
   }
  ],

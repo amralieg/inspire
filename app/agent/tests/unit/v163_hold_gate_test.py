@@ -647,9 +647,9 @@ def test_a_held_version_stores_a_spec_that_validates_clean_for_try_again_and_pub
     published, errors = validate(dict(json.loads(json.dumps(stored)), publish_held=3, based_on_version=3))
     assert errors == [] and published["publish_held"] == 3
     bare, _ = validate(dict(json.loads(json.dumps(stored)), retry_outputs=[]))
-    assert problems(status, validate(previous)[0], bare) == [
-        "the vibes for the App page n01_u01 changed, so list app:page:n01_u01 in retry_outputs to rebuild it with them"], \
-        "without its retry_outputs the same spec is refused, which is what the held spec avoids"
+    assert problems(status, validate(previous)[0], bare) == []
+    assert agent_ns["implement_with_vibed_parts"](status, validate(previous)[0], bare)["retry_outputs"] == [PAGE_ID], \
+        "without its retry_outputs the same spec rebuilds the page its vibes changed"
 
 
 def test_a_published_version_keeps_the_spec_it_was_sent_with_its_routed_asks_only(agent_ns):

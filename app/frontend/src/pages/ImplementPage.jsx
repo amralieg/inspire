@@ -1080,7 +1080,7 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
     return ok;
   };
   const rephraseHeld = () => openFeatures(rephraseOf(checklist, latest));
-  const tryHeldAgain = heldAction('retry', () => submitSpec(specFromHeld(latest)));
+  const tryHeldAgain = heldAction('retry', () => submitChecked(specFromHeld(latest)));
   const publishHeldAnyway = heldAction('publish', publishHeld);
   const alertAsset = latest?.asset_status?.alert || {};
   const notebookState = uninstalled ? item.notebook || null : item.notebook || (vibeTargets.some((c) => c.id === 'notebook') ? notebookStatus({ has_genie_code: 'Y' }, null) : null);
@@ -1106,21 +1106,23 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
   const buildAgain = canBuildAgain(latest, { edited, missing });
   const sendsAgain = buildAgain && !IMPLEMENT_DONE_STATUSES.includes(String(latest?.status || ''));
   const rebuildBlocked = !vibes.length && !sendsAgain ? REBUILD_NOTHING : '';
+  const submitChecked = async (next) => {
+    const problems = vibesProblems(next, builtOn);
+    if (!problems.length) return submitSpec(next);
+    if (!features) openFeatures();
+    setRebuildError(`Rebuild needs one more thing: ${problems.join('; ')}.`);
+    return false;
+  };
+  const sendAgain = () => submitChecked(nextSpecFrom(latest, buildAgainChanges(latest)));
   const rebuild = async () => {
     setRebuildError('');
     if (!vibes.length) {
-      if (await submitNext(buildAgainChanges(latest))) setFeatures(null);
-      return;
-    }
-    const next = rebuildSpec(latest, vibes, builtOn, previous);
-    const problems = vibesProblems(next, builtOn);
-    if (problems.length) {
-      setRebuildError(`Rebuild needs one more thing: ${problems.join('; ')}.`);
+      if (await sendAgain()) setFeatures(null);
       return;
     }
     const sent = vibes;
     keepCollected([]);
-    if (!(await submitSpec(next))) {
+    if (!(await submitChecked(rebuildSpec(latest, vibes, builtOn, previous)))) {
       keepCollected(sent);
       return;
     }
@@ -1208,7 +1210,7 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
       {(buildAgain || onEdit || buildRunUrl) && (
         <div className="flex flex-wrap gap-2">
           {buildAgain && !dataStop && (
-            <button type="button" disabled={locked} title={lockedReason || undefined} onClick={() => submitNext(buildAgainChanges(latest))} className={PRIMARY_BUTTON}>
+            <button type="button" disabled={locked} title={lockedReason || undefined} onClick={() => sendAgain()} className={PRIMARY_BUTTON}>
               {submitBusy ? <Loader2 size={12} className="animate-spin" /> : <RotateCcw size={12} />} Try again
             </button>
           )}
@@ -1600,7 +1602,7 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
           <MvpProgress stages={stages} summary={progress} chip={chip} reason={reason} toneClass={toneClass} version={latest?.spec_version} sorted={sorted}
             stop={stop} boxRef={boxRef} logRef={logRef} view={progressView} warnings={statusWarnings(latest).length} attention={needsAttention ? attention : null}>
             <VibeChecklist checklist={checklist} assets={latest?.asset_status} readOnly={readOnly} locked={locked} lockedReason={lockedReason} busy={submitBusy}
-              onSendAgain={buildAgain ? () => submitNext(buildAgainChanges(latest)) : undefined} onEdit={onEdit ? () => openFeatures() : undefined} />
+              onSendAgain={buildAgain ? () => sendAgain() : undefined} onEdit={onEdit ? () => openFeatures() : undefined} />
             <StageNotes stages={stages} />
             <ScopeNotes scope={scope} />
             <NothingToActCard run={money?.run} />

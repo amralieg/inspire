@@ -714,25 +714,40 @@ function partVibes(outputs) {
   return found;
 }
 
-function partProblems(built, spec) {
-  const assets = built && isPlainObject(built.asset_status) ? built.asset_status : {};
+function partAssets(built) {
+  return built && isPlainObject(built.asset_status) ? built.asset_status : {};
+}
+
+function vibedParts(built, spec) {
   const before = partVibes(built && isPlainObject(built.spec_json) ? built.spec_json.outputs : null);
   const after = partVibes(spec.outputs);
   const ticked = spec.outputs || {};
   const rolling = Object.keys(spec.rollback_outputs || {});
-  const retry = (spec.retry_outputs || []).filter((id) => implementPart(id));
-  const changed = [...new Set([...Object.keys(before), ...Object.keys(after)])].filter((id) => {
+  return [...new Set([...Object.keys(before), ...Object.keys(after)])].filter((id) => {
     const { output } = implementPart(id);
     return (output === IMPLEMENT_NOTEBOOK || ticked[output]) && !rolling.includes(output) && str(before[id]).trim() !== str(after[id]).trim();
   });
+}
+
+function partBuilt(built, id) {
+  const entry = partAssets(built)[id];
+  return isPlainObject(entry) && IMPLEMENT_PART_STATES.includes(entry.state);
+}
+
+function withVibedParts(built, spec) {
+  const retry = Array.isArray(spec.retry_outputs) ? spec.retry_outputs.map(String) : [];
+  const added = vibedParts(built, spec).filter((id) => partBuilt(built, id) && !retry.includes(id));
+  return added.length ? { ...spec, retry_outputs: [...retry, ...added] } : spec;
+}
+
+function partProblems(built, spec) {
+  const assets = partAssets(built);
+  const retry = (spec.retry_outputs || []).filter((id) => implementPart(id));
   const problems = [];
-  for (const id of [...new Set([...retry, ...changed])]) {
-    const { label } = implementPart(id, implementNotebookImpact(assets));
-    const entry = assets[id];
-    if (!isPlainObject(entry) || !IMPLEMENT_PART_STATES.includes(entry.state)) {
+  for (const id of [...new Set([...retry, ...vibedParts(built, spec)])]) {
+    if (!partBuilt(built, id)) {
+      const { label } = implementPart(id, implementNotebookImpact(assets));
       problems.push(`Inspire has not built the ${label} on this MVP, so it cannot rebuild it with your vibes; pick one this MVP built`);
-    } else if (!retry.includes(id)) {
-      problems.push(`the vibes for the ${label} changed, so list ${id} in retry_outputs to rebuild it with them`);
     }
   }
   return problems;
@@ -1979,6 +1994,7 @@ function planSubmission(history, spec, stalled = null, { requester = null, table
     throw badRequest(`v${built.spec_version} was built after the version you edited (v${spec.based_on_version}); `
       + 'reopen Vibe/Add/Remove Features to see it and rebuild again', 409);
   }
+  spec = withVibedParts(built, spec);
   const parts = [...partProblems(built, spec), ...mvpActionProblems(rows, spec)];
   if (parts.length) throw badRequest(parts.join('; '));
   const before = previousBuilt(rows);
@@ -1994,7 +2010,7 @@ function planSubmission(history, spec, stalled = null, { requester = null, table
       + 'which you unticked; Inspire never deletes an output without asking');
   }
   const unchanged = Boolean(summary.nothing_to_do && latest && IMPLEMENT_DONE_STATUSES.includes(latest.status));
-  return { nextVersion: latest ? latest.spec_version + 1 : 1, latest, built, summary, unchanged };
+  return { nextVersion: latest ? latest.spec_version + 1 : 1, latest, built, summary, unchanged, spec };
 }
 
 function refuseUnchanged(plan) {

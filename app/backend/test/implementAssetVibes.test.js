@@ -147,13 +147,33 @@ test('submit rebuilds one built part with the vibes exactly as typed, and plan s
   }
 });
 
+test('a rebuild after a held version whose App page carries vibes rebuilds that page itself instead of refusing in retry_outputs words', async () => {
+  const held = ['Put the rows to act on first', 'Add a map by region', 'Show the churn trend', 'Sort by risk', 'Name the owner', 'Add a total'];
+  const history = [versionRow(2, { status: 'vibe_not_met', outputs: { [`${PAGE}_vibes`]: held.join('\n') }, top: { retry_outputs: [PAGE] } }),
+    versionRow(1, { assets: { [PAGE]: { state: 'ready', spec_version: 1, name: 'Decisions' } } })];
+  for (const asks of [held, held.slice(0, 2)]) {
+    await served(history, async (url, { sqlCalls, jobs }) => {
+      const plan = await call(url, '/api/inspire/implement/plan', submitBody({ ...BASE, based_on_version: 2, outputs: { ...BASE.outputs, [`${PAGE}_vibes`]: asks.join('\n') } }));
+      assert.equal(plan.status, 200, JSON.stringify(plan.data));
+      const got = await call(url, '/api/inspire/implement/submit', submitBody({ ...BASE, based_on_version: 2, outputs: { ...BASE.outputs, [`${PAGE}_vibes`]: asks.join('\n') } }));
+      assert.equal(got.status, 200, JSON.stringify(got.data));
+      assert.deepEqual(storedSpec(sqlCalls).spec.retry_outputs, [PAGE], 'the page whose vibes differ from the built version is rebuilt with them');
+      assert.equal(jobs.length, 1);
+    });
+  }
+  await served(history, async (url, { sqlCalls }) => {
+    const got = await call(url, '/api/inspire/implement/submit', submitBody({ ...BASE, based_on_version: 2, outputs: { ...BASE.outputs, 'app:page:never_vibes': 'Bigger' } }));
+    assert.deepEqual([got.status, got.data.error], [400, NOT_BUILT('App page never')], 'a page this MVP never built is still refused');
+    assert.equal(storedSpec(sqlCalls), null);
+  });
+});
+
 test('submit and plan refuse a part that is not a built asset with a clear 400, and write and launch nothing', async () => {
   const history = [versionRow(2, { assets: PARTS }), versionRow(1)];
   const cases = [
     [{ retry_outputs: ['app:page:missing'] }, NOT_BUILT('App page missing')],
     [{ retry_outputs: ['app:page:gone'] }, NOT_BUILT('App page gone')],
     [{ outputs: { ...BASE.outputs, 'dashboard:nope_vibes': 'x' }, retry_outputs: ['dashboard:nope'] }, NOT_BUILT('dashboard chart nope')],
-    [{ outputs: { ...BASE.outputs, [`${PAGE}_vibes`]: 'Bigger' } }, `the vibes for the App page decisions changed, so list ${PAGE} in retry_outputs to rebuild it with them`],
     [{ retry_outputs: ['app:page:missing', 'ai_reasoning', 'dashboard:nope'] }, `${NOT_BUILT('App page missing')}; ${NOT_BUILT('dashboard chart nope')}`],
   ];
   for (const [patch, message] of cases) {

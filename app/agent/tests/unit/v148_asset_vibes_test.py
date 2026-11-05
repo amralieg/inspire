@@ -147,8 +147,10 @@ def test_an_unbuilt_part_or_new_part_vibes_without_a_rebuild_keep_the_wizard_s_r
     vibed = _spec(agent_ns, outputs={**ALL, "app:page:n01_u01_vibes": PAGE_VIBES}, retry_outputs=["app:page:n01_u01"])[0]
     assert problems(status, before, vibed) == []
     unlisted = _spec(agent_ns, outputs={**ALL, "app:page:n01_u01_vibes": PAGE_VIBES})[0]
-    assert problems(status, before, unlisted) == [
-        "the vibes for the App page n01_u01 changed, so list app:page:n01_u01 in retry_outputs to rebuild it with them"]
+    assert problems(status, before, unlisted) == []
+    assert agent_ns["implement_with_vibed_parts"](status, before, unlisted)["retry_outputs"] == ["app:page:n01_u01"]
+    unbuilt = _spec(agent_ns, outputs={**ALL, "dashboard:by_store_vibes": "Red"})[0]
+    assert agent_ns["implement_with_vibed_parts"](status, before, unbuilt) is unbuilt, "a part this MVP never built is not added"
     for part in ("dashboard:gone", "dashboard:by_store", "value_formula"):
         retried = _spec(agent_ns, outputs=ALL, retry_outputs=[part])[0]
         assert problems(status, before, retried) == [

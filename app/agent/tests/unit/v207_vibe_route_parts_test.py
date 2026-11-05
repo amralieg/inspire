@@ -1,3 +1,6 @@
+import json
+import os
+
 import pytest
 
 TARGETS = {"app": "App (Billing breaks)", "dashboard": "Dashboard", "genie_space": "Genie Agent", "alert": "Alert",
@@ -156,3 +159,16 @@ def test_the_run_turns_a_taken_out_ask_into_an_undo_before_it_plans():
     assert "implement_undo_routes(implement_removed_asks(previous_spec, spec)" in source
     assert source.index("implement_undo_routes(") < source.index("plan = implement_plan(")
     assert "[VIBE-UNDO FIRED]" in source
+
+
+def test_a_built_part_whose_vibes_changed_is_rebuilt_with_them_and_an_unbuilt_one_is_refused_as_the_app_does(agent_ns):
+    with open(os.path.join(os.path.dirname(__file__), "..", "fixtures", "implement_notebook_parity.json")) as handle:
+        cases = json.load(handle)["part_problems"]
+    assert len(cases) >= 6 and any(c["problems"] == [] for c in cases) and any(c["problems"] for c in cases)
+    validate = agent_ns["validate_implement_spec"]
+    for case in cases:
+        impact = agent_ns["implement_notebook_impact"](case["asset_status"])
+        previous, spec = validate(case["previous"], impact=impact)[0], validate(case["spec"], impact=impact)[0]
+        rebuilt = agent_ns["implement_with_vibed_parts"](case["asset_status"], previous, spec)
+        assert rebuilt["retry_outputs"] == case["retry"], case["name"]
+        assert agent_ns["implement_part_problems"](case["asset_status"], previous, rebuilt) == case["problems"], case["name"]
