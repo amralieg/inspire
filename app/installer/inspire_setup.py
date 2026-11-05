@@ -193,8 +193,60 @@ def write_app_yaml_deploy(path, inspire_db, warehouse_id, notebook_path, sp_reso
         f"  - name: {_yaml_quote(sp_resource_name)}",
         '    type: "service-principal"',
     ]
+    text = "\n".join(lines) + "\n"
     with open(path, "w", encoding="utf-8") as f:
-        f.write("\n".join(lines) + "\n")
+        f.write(text)
+    return text
+
+
+APP_DEPLOY_TRIES = 3
+
+
+def _api_path(path):
+    return path[len("/Workspace"):] if path.startswith("/Workspace/") else path
+
+
+def _workspace_file_text(api, path):
+    resp = api("GET", f"/api/2.0/workspace/export?path={requests.utils.quote(_api_path(path))}&format=AUTO")
+    if resp.status_code != 200:
+        return None, f"{resp.status_code} {resp.text[:200]}"
+    return base64.b64decode((resp.json() or {}).get("content") or "").decode("utf-8", "replace"), None
+
+
+def _put_app_yaml(api, path, text):
+    resp = api("POST", "/api/2.0/workspace/import",
+               {"path": _api_path(path), "format": "AUTO", "overwrite": True, "content": base64.b64encode(text.encode("utf-8")).decode("ascii")})
+    if resp.status_code not in (200, 201):
+        raise RuntimeError(f"Could not save {path} in the workspace ({resp.status_code} {resp.text[:200]}), so the App would start without "
+                           f"its settings. Run the installer again.")
+
+
+def _deployed_settings_problem(api, api_get, app_name, deploy_id, wanted):
+    deployment = api_get(f"/api/2.0/apps/{app_name}/deployments/{deploy_id}")
+    snapshot = (deployment.get("deployment_artifacts") or {}).get("source_code_path")
+    if not snapshot:
+        return None, "the deployment names no copy of its files"
+    text, error = _workspace_file_text(api, f"{snapshot}/app.yaml")
+    if text is None:
+        return None, f"its app.yaml could not be read ({error})"
+    if text.strip() != wanted.strip():
+        return "the App started from an app.yaml without the warehouse and database this installer wrote", None
+    return None, None
+
+
+def _app_defaults_problem(ctx, app_url):
+    probe = ctx.get("app_defaults")
+    if not probe or not str(app_url or "").startswith("https://"):
+        return None, "the App has no address yet"
+    try:
+        status, body = probe(app_url)
+    except Exception as exc:
+        return None, f"the App did not answer ({_error_words(exc)})"
+    if status != 200 or not isinstance(body, dict):
+        return None, f"the App answered {status}"
+    if body.get("envSkipsSetupWizard") is not True:
+        return "the App says it has no warehouse or database, so it would open on the workspace connection wizard", None
+    return None, None
 
 
 def export_workspace_b64(ctx, source_path, export_formats=("JUPYTER",)):
@@ -658,6 +710,13 @@ def build_runtime_context(env):
         response.raise_for_status()
         return response.json()
 
+    def app_defaults(app_url):
+        response = requests.get(f"{app_url.rstrip('/')}/api/defaults", headers=api_headers, timeout=30, allow_redirects=False)
+        try:
+            return response.status_code, response.json()
+        except ValueError:
+            return response.status_code, None
+
     ctx = {
         "ready": True,
         "w": w,
@@ -682,6 +741,7 @@ def build_runtime_context(env):
         "available_catalogs": available_catalogs,
         "api": api,
         "api_get": api_get,
+        "app_defaults": app_defaults,
     }
     return ctx
 
@@ -865,6 +925,30 @@ def step_schema_and_notebooks(ctx):
     ctx["GENERATE_DEMO_DEST"] = generate_demo_dest
 
 
+def _deploy_once(api, api_get, app_name, source_folder, app_url):
+    resp = api("POST", f"/api/2.0/apps/{app_name}/deployments", {"source_code_path": source_folder})
+    if resp.status_code not in (200, 201):
+        raise RuntimeError(f"Deploy failed: {resp.text[:300]}")
+    deploy_id = resp.json().get("deployment_id", "")
+    for _ in range(30):
+        data = api_get(f"/api/2.0/apps/{app_name}")
+        pending, active = data.get("pending_deployment", {}), data.get("active_deployment", {})
+        deployment = (
+            pending if pending.get("deployment_id") == deploy_id
+            else active if active.get("deployment_id") == deploy_id
+            else pending or active
+        )
+        state = deployment.get("status", {}).get("state", "?")
+        print(f"  Deploy: {state}")
+        app_url = _noted_app_url(app_url, data)
+        if state == "SUCCEEDED":
+            return deploy_id, app_url
+        if state in ("FAILED", "CANCELLED"):
+            raise RuntimeError(f"Deploy {state}: {deployment.get('status', {}).get('message', '')}")
+        time.sleep(10)
+    raise RuntimeError(f"The App {app_name} was still deploying after 5 minutes. Check Compute → Apps → {app_name}, then run the installer again.")
+
+
 def step_deploy_and_find_sp(ctx):
     api = ctx["api"]
     api_get = ctx["api_get"]
@@ -886,7 +970,8 @@ def step_deploy_and_find_sp(ctx):
     print(f"SPs before deploy: {len(sp_before)}")
 
     app_yaml_path = f"{source_folder}/app.yaml"
-    write_app_yaml_deploy(app_yaml_path, inspire_db, warehouse_id, notebook_path, sp_name, ctx.get("ASSETS_PATH"), ctx.get("TEST_TAG"))
+    wanted_yaml = write_app_yaml_deploy(app_yaml_path, inspire_db, warehouse_id, notebook_path, sp_name, ctx.get("ASSETS_PATH"),
+                                        ctx.get("TEST_TAG"))
     print("app.yaml: ✅")
 
     app_url = ""
@@ -935,29 +1020,29 @@ def step_deploy_and_find_sp(ctx):
             f"Start it manually: Compute → Apps → {app_name} → Start, then re-run."
         )
 
-    resp = api("POST", f"/api/2.0/apps/{app_name}/deployments", {"source_code_path": source_folder})
-    if resp.status_code not in (200, 201):
-        raise RuntimeError(f"Deploy failed: {resp.text[:300]}")
-    deploy_id = resp.json().get("deployment_id", "")
-
-    for _ in range(30):
-        data = api_get(f"/api/2.0/apps/{app_name}")
-        pending, active = data.get("pending_deployment", {}), data.get("active_deployment", {})
-        deployment = (
-            pending if pending.get("deployment_id") == deploy_id
-            else active if active.get("deployment_id") == deploy_id
-            else pending or active
-        )
-        state = deployment.get("status", {}).get("state", "?")
-        print(f"  Deploy: {state}")
-        app_url = _noted_app_url(app_url, data)
-        if state == "SUCCEEDED":
+    unread = unasked = None
+    for attempt in range(1, APP_DEPLOY_TRIES + 1):
+        _put_app_yaml(api, app_yaml_path, wanted_yaml)
+        deploy_id, app_url = _deploy_once(api, api_get, app_name, source_folder, app_url)
+        problem, unread = _deployed_settings_problem(api, api_get, app_name, deploy_id, wanted_yaml)
+        if not problem:
+            problem, unasked = _app_defaults_problem(ctx, app_url)
+        if not problem:
             break
-        if state in ("FAILED", "CANCELLED"):
-            raise RuntimeError(f"Deploy {state}: {deployment.get('status', {}).get('message', '')}")
+        if attempt == APP_DEPLOY_TRIES:
+            raise RuntimeError(f"Deployed {APP_DEPLOY_TRIES} times, and each time {problem}. Run the installer again; if it fails the same "
+                               f"way, check that you can manage the App {app_name}.")
+        print(f"  ⚠️ Deploy {attempt} of {APP_DEPLOY_TRIES}: {problem}. Deploying again.")
         time.sleep(10)
 
     print("Deployed ✅")
+    if not unasked:
+        print("App settings: ✅ the App reports its warehouse and database, so it opens past the setup wizard")
+    elif not unread:
+        print("App settings: ✅ the deployed app.yaml holds the warehouse and database")
+    else:
+        print(f"  ⚠️ Could not confirm the App's settings: {unread}, and {unasked}. Open the App: if it asks for a workspace "
+              f"connection, run the installer again.")
     if ctx.get("BUNDLE_ROOT"):
         try:
             in_use = _app_source_paths(api_get)

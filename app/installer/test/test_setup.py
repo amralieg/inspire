@@ -393,7 +393,7 @@ class AppYamlTest(unittest.TestCase):
     def deploy(self, extra):
         written = []
         saved, clock = setup.write_app_yaml_deploy, setup.time
-        setup.write_app_yaml_deploy = lambda *a: written.append(a)
+        setup.write_app_yaml_deploy = lambda *a: written.append(a) or "env: wanted\n"
         setup.time = types.SimpleNamespace(sleep=lambda s: None)
         try:
             app = {"compute_status": {"state": "ACTIVE"}, "url": "https://app", "service_principal_client_id": "SPNEW",
@@ -925,6 +925,146 @@ class LakebaseSetupTest(unittest.TestCase):
 APP_URL = "https://inspire-ai-1234.aws.databricksapps.com"
 
 
+WANTED_YAML = 'env:\n  - name: "INSPIRE_DATABASE"\n    value: "main._inspire"\n  - name: "INSPIRE_WAREHOUSE_ID"\n    value: "wh"\n'
+ZIP_YAML = 'env:\n  - name: "NODE_ENV"\n    value: "production"\n'
+
+
+class DeployedSettingsTest(unittest.TestCase):
+    def deploy(self, snapshots, defaults=None, polls_to_succeed=1, imported=(200, ""), artifacts=True):
+        calls, deployed, polls = [], [], {"n": 0}
+        defaults = list(defaults) if defaults is not None else None
+
+        def api(method, path, body=None):
+            calls.append((method, path, body))
+            if method == "POST" and path == "/api/2.0/apps":
+                return Resp(409, {}, "App already exists")
+            if path == "/api/2.0/workspace/import":
+                return Resp(imported[0], {}, imported[1])
+            if method == "POST" and path == "/api/2.0/apps/inspire-ai/deployments":
+                deployed.append(f"d{len(deployed) + 1}")
+                polls["n"] = 0
+                return Resp(200, {"deployment_id": deployed[-1]})
+            if path.startswith("/api/2.0/workspace/export"):
+                which = len(deployed) - 1
+                text = snapshots[min(which, len(snapshots) - 1)]
+                if text is None:
+                    return Resp(403, {}, "PERMISSION_DENIED")
+                return Resp(200, {"content": setup.base64.b64encode(text.encode()).decode()})
+            return Resp(200, {})
+
+        def api_get(path):
+            if path == "/api/2.0/apps/inspire-ai":
+                polls["n"] += 1
+                done = deployed and polls["n"] >= polls_to_succeed
+                state = {"deployment_id": deployed[-1] if deployed else "", "status": {"state": "SUCCEEDED" if done else "IN_PROGRESS"}}
+                return {"url": APP_URL, "compute_status": {"state": "ACTIVE"}, "description": "Inspire AI v1.4.0",
+                        "user_api_scopes": list(setup.INSPIRE_APP_OWN_SCOPES), "service_principal_client_id": "SPNEW",
+                        "service_principal_name": "app-sp", **({"active_deployment": state} if done else {"pending_deployment": state})}
+            if path.startswith("/api/2.0/apps/inspire-ai/deployments/"):
+                deployment_id = path.rsplit("/", 1)[1]
+                return {"deployment_artifacts": {"source_code_path": f"/Workspace/Users/sp/src/{deployment_id}"}} if artifacts else {}
+            return {"Resources": [{"id": "1"}]}
+
+        def app_defaults(url):
+            self.assertEqual(url, APP_URL)
+            return defaults.pop(0) if len(defaults) > 1 else defaults[0]
+
+        saved, clock = setup.write_app_yaml_deploy, setup.time
+        setup.write_app_yaml_deploy = lambda *a: WANTED_YAML
+        setup.time = types.SimpleNamespace(sleep=lambda s: None)
+        ctx = {"api": api, "api_get": api_get, "SOURCE_FOLDER": "/Workspace/Shared/inspire-ai/apps/inspire-ai/b", "INSPIRE_DB": "main._inspire",
+               "WAREHOUSE_ID": "wh", "NOTEBOOK_PATH": "/Shared/inspire-ai/dbx_inspire_ai_agent", "SP_NAME": "inspire-ai-sp",
+               "APP_NAME": "inspire-ai", "CATALOG": "main", "RELEASE_VERSION": "v1.4.0"}
+        if defaults is not None:
+            ctx["app_defaults"] = app_defaults
+        out, error = io.StringIO(), None
+        try:
+            with contextlib.redirect_stdout(out):
+                setup.step_deploy_and_find_sp(ctx)
+        except RuntimeError as exc:
+            error = str(exc)
+        finally:
+            setup.write_app_yaml_deploy, setup.time = saved, clock
+        return calls, deployed, out.getvalue(), error
+
+    def test_a_deployment_that_copied_the_old_app_yaml_is_deployed_again_with_the_settings(self):
+        calls, deployed, said, error = self.deploy([ZIP_YAML, WANTED_YAML], defaults=[(200, {"envSkipsSetupWizard": True})])
+        self.assertIsNone(error)
+        self.assertEqual(deployed, ["d1", "d2"])
+        self.assertIn("Deploy 1 of 3: the App started from an app.yaml without the warehouse and database this installer wrote. Deploying again.", said)
+        self.assertIn("App settings: ✅ the App reports its warehouse and database, so it opens past the setup wizard", said)
+        imports = [body for method, path, body in calls if path == "/api/2.0/workspace/import"]
+        self.assertEqual(len(imports), 2, "app.yaml is saved through the workspace before every deploy")
+
+    def test_the_app_yaml_is_saved_through_the_workspace_before_the_deploy_copies_it(self):
+        calls, _, _, error = self.deploy([WANTED_YAML], defaults=[(200, {"envSkipsSetupWizard": True})])
+        self.assertIsNone(error)
+        order = [path for method, path, body in calls if path in ("/api/2.0/workspace/import", "/api/2.0/apps/inspire-ai/deployments")]
+        self.assertEqual(order, ["/api/2.0/workspace/import", "/api/2.0/apps/inspire-ai/deployments"])
+        body = [b for m, p, b in calls if p == "/api/2.0/workspace/import"][0]
+        self.assertEqual(body["path"], "/Shared/inspire-ai/apps/inspire-ai/b/app.yaml")
+        self.assertTrue(body["overwrite"])
+        self.assertEqual(setup.base64.b64decode(body["content"]).decode(), WANTED_YAML)
+        exported = [p for m, p, b in calls if p.startswith("/api/2.0/workspace/export")]
+        self.assertEqual(exported, ["/api/2.0/workspace/export?path=/Users/sp/src/d1/app.yaml&format=AUTO"])
+
+    def test_an_app_that_never_gets_its_settings_fails_plainly_and_never_says_deployed(self):
+        _, deployed, said, error = self.deploy([ZIP_YAML], defaults=[(200, {"envSkipsSetupWizard": True})])
+        self.assertEqual(deployed, ["d1", "d2", "d3"])
+        self.assertIn("Deployed 3 times, and each time the App started from an app.yaml without the warehouse and database", error)
+        self.assertNotIn("Deployed ✅", said)
+
+    def test_an_app_that_says_the_wizard_is_not_skipped_is_deployed_again(self):
+        _, deployed, said, error = self.deploy([WANTED_YAML], defaults=[(200, {"envSkipsSetupWizard": False}),
+                                                                       (200, {"envSkipsSetupWizard": True})])
+        self.assertIsNone(error)
+        self.assertEqual(deployed, ["d1", "d2"])
+        self.assertIn("Deploy 1 of 3: the App says it has no warehouse or database, so it would open on the workspace connection wizard.", said)
+        self.assertIn("Deployed ✅", said)
+
+    def test_an_app_that_keeps_showing_the_wizard_fails_the_install(self):
+        _, deployed, said, error = self.deploy([WANTED_YAML], defaults=[(200, {"envSkipsSetupWizard": False})])
+        self.assertEqual(len(deployed), 3)
+        self.assertIn("each time the App says it has no warehouse or database", error)
+        self.assertNotIn("Deployed ✅", said)
+        for not_true in ({}, {"envSkipsSetupWizard": "true"}, {"envSkipsSetupWizard": None}):
+            self.assertIn("each time the App says", self.deploy([WANTED_YAML], defaults=[(200, not_true)])[3])
+
+    def test_an_app_that_cannot_be_asked_rests_on_the_deployed_app_yaml(self):
+        for answer in ((302, None), (401, {"error": "unauthorized"}), (502, None)):
+            _, deployed, said, error = self.deploy([WANTED_YAML], defaults=[answer])
+            self.assertIsNone(error)
+            self.assertEqual(deployed, ["d1"])
+            self.assertIn("App settings: ✅ the deployed app.yaml holds the warehouse and database", said)
+        _, _, said, error = self.deploy([WANTED_YAML])
+        self.assertIsNone(error)
+        self.assertIn("App settings: ✅ the deployed app.yaml holds the warehouse and database", said)
+
+    def test_settings_that_cannot_be_checked_either_way_are_said_plainly(self):
+        _, deployed, said, error = self.deploy([None], defaults=[(302, None)])
+        self.assertIsNone(error)
+        self.assertEqual(deployed, ["d1"])
+        self.assertIn("⚠️ Could not confirm the App's settings: its app.yaml could not be read (403 PERMISSION_DENIED), and the App "
+                      "answered 302. Open the App: if it asks for a workspace connection, run the installer again.", said)
+        self.assertIn("the deployment names no copy of its files", self.deploy([WANTED_YAML], defaults=[(302, None)], artifacts=False)[2])
+
+    def test_an_unreadable_snapshot_still_fails_when_the_app_shows_the_wizard(self):
+        _, deployed, _, error = self.deploy([None], defaults=[(200, {"envSkipsSetupWizard": False})])
+        self.assertEqual(len(deployed), 3)
+        self.assertIn("the App says it has no warehouse or database", error)
+
+    def test_a_deployment_that_never_finishes_fails_instead_of_saying_deployed(self):
+        _, deployed, said, error = self.deploy([WANTED_YAML], defaults=[(200, {"envSkipsSetupWizard": True})], polls_to_succeed=99)
+        self.assertEqual(deployed, ["d1"])
+        self.assertIn("The App inspire-ai was still deploying after 5 minutes", error)
+        self.assertNotIn("Deployed ✅", said)
+
+    def test_a_refused_app_yaml_save_stops_before_any_deploy(self):
+        _, deployed, _, error = self.deploy([WANTED_YAML], defaults=[(200, {"envSkipsSetupWizard": True})], imported=(403, "PERMISSION_DENIED"))
+        self.assertEqual(deployed, [])
+        self.assertIn("Could not save /Workspace/Shared/inspire-ai/apps/inspire-ai/b/app.yaml in the workspace (403 PERMISSION_DENIED)", error)
+
+
 class AppUrlTest(unittest.TestCase):
     def deploy(self, exists=False, described="Inspire AI v1.3.0", update=(200, "SUCCEEDED"), calls=None):
         scopes = list(setup.INSPIRE_APP_OWN_SCOPES)
@@ -950,7 +1090,7 @@ class AppUrlTest(unittest.TestCase):
             return {"Resources": [{"id": "1"}]}
 
         saved, clock = setup.write_app_yaml_deploy, setup.time
-        setup.write_app_yaml_deploy = lambda *a: None
+        setup.write_app_yaml_deploy = lambda *a: "env: wanted\n"
         setup.time = types.SimpleNamespace(sleep=lambda s: None)
         ctx = {"api": api, "api_get": api_get, "SOURCE_FOLDER": "/Workspace/b", "INSPIRE_DB": "main._inspire", "WAREHOUSE_ID": "wh",
                "NOTEBOOK_PATH": "/Shared/inspire-ai/dbx_inspire_ai_agent", "SP_NAME": "inspire-ai-sp", "APP_NAME": "inspire-ai",
