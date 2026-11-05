@@ -342,8 +342,9 @@ def test_a_stopped_mark_that_cannot_be_written_is_printed_and_the_run_s_own_erro
         raise ValueError("bad column zone_id")
 
     ns, spark, printed, run = _main_run(agent_ns, use_case, fail_marks=True)
-    with pytest.raises(ValueError, match="bad column zone_id"):
+    with pytest.raises(ns["InspireOutcomeMissing"], match="raised ValueError: bad column zone_id") as raised:
         run()
+    assert isinstance(raised.value.__cause__, ValueError)
     assert any(p.startswith("Run progress: Inspire could not record that this run stopped for the App") and "PERMISSION_DENIED" in p
                for p in printed)
     assert [m["state"] for m in _stage_marks(spark)] == ["running", "running", "stopped"], "the stopped mark is tried once, and only once"
