@@ -13,7 +13,7 @@ from _nbload import AGENT_NB, ROOT, notebook_assets, notebook_cells, packed_text
 
 PYTHON_310 = "/opt/homebrew/bin/python3.10"
 SHIPPED_FILES = ("agent/**/*.py", "demos/**/*.py", "inspire_installer.py", "app/installer/**/*.py", "release/**/*.py")
-SHELL_MODULES = ("shell_redact", "shell_sql", "shell_facts", "shell_db", "shell_pg", "shell_alerts", "shell_core")
+SHELL_MODULES = ("shell_redact", "shell_sql", "shell_facts", "shell_db", "shell_pg", "shell_alerts", "shell_agent", "shell_core")
 BASE64 = re.compile(r"^[A-Za-z0-9+/=\s]{400,}$")
 MARKER = re.compile(r"@@[A-Z_]+@@")
 CODE = (ast.Import, ast.ImportFrom, ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef, ast.Assign, ast.AugAssign,

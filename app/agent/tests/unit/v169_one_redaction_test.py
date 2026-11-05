@@ -336,7 +336,7 @@ def test_every_site_in_the_notebook_and_the_code_it_runs_turns_errors_into_text_
 
 SHELL_SINKS = SINKS + ("error_text",)
 SHELL_QUIET = QUIET | {"set_exception"}
-SHELL_FILES = ("shell_redact.py", "shell_sql.py", "shell_db.py", "shell_pg.py", "shell_alerts.py", "shell_core.py", "app.py")
+SHELL_FILES = ("shell_redact.py", "shell_sql.py", "shell_db.py", "shell_pg.py", "shell_alerts.py", "shell_agent.py", "shell_core.py", "app.py")
 
 
 def shell_library(files=None):

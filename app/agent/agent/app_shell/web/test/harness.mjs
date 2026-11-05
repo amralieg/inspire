@@ -55,6 +55,7 @@ print(json.dumps(shell.app_info({"x-forwarded-email": "pat.lee@example.com", "x-
 `;
 
 export const TABLE = { result_table: 'main.pricing.loss_desk_out' };
+export const GENIE_ONLY = { mode: 'genie', note: '', genie: true, model: '' };
 
 export function appInfo(overrides = {}, pages = 1, pageChanges = {}, example = 'example_page.json') {
   const settings = {
@@ -241,6 +242,7 @@ export async function openApp(browser, base, info, { width = 1440, height = 900,
     if (path === 'settings') return json(200, NO_SETTINGS);
     if (path === 'impact') return json(200, NO_IMPACT);
     if (path === 'records/batches') return json(200, { ...CONTRACT.batches.response, batches: [] });
+    if (path === 'agent/status') return json(200, GENIE_ONLY);
     if (path === 'page') {
       const body = route.request().postDataJSON();
       seen.pages.push(body);
@@ -288,7 +290,9 @@ export async function openBundle(browser, bundle, props, routes = {}, { width = 
   await page.route('**/api/**', (route) => {
     const path = new URL(route.request().url()).pathname.replace(/^\/api\//, '');
     const json = (status, data) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(data) });
-    return routes[path] ? routes[path]({ route, json }) : json(404, { error: 'no route' });
+    if (routes[path]) return routes[path]({ route, json });
+    if (path === 'agent/status') return json(200, GENIE_ONLY);
+    return json(404, { error: 'no route' });
   });
   const html = `<!doctype html><html><head><style>${bundle.css}</style></head><body><div id="root"></div>`
     + `<script>window.props = ${JSON.stringify(props)};</script><script>${bundle.js}</script></body></html>`;
