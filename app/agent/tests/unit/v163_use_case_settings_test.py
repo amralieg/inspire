@@ -197,8 +197,8 @@ def _main(agent_ns, steps, trigger_widgets, run_extra):
 
 
 PROBABILITY = {"name": "min_probability", "kind": "percent", "low": 0.0, "high": 1.0, "allowed": "0 to 1"}
-UNREAD = "def run_use_case():\n    return {'status': 'written', 'rows_written': 1}\n"
-READ = "def score(p):\n    return p >= min_probability\n\ndef run_use_case():\n    score(0.7)\n    return {'status': 'written', 'rows_written': 1}\n"
+UNREAD = "def run_use_case():\n    return {'status': 'written', 'rows_written': 1, 'as_of_date': '2026-01-01', 'run_id': 'r-1'}\n"
+READ = "def score(p):\n    return p >= min_probability\n\ndef run_use_case():\n    score(0.7)\n    return {'status': 'written', 'rows_written': 1, 'as_of_date': '2026-01-01', 'run_id': 'r-1'}\n"
 
 
 def test_a_declared_setting_no_step_reads_is_refused_at_build(agent_ns):
@@ -223,7 +223,7 @@ def test_a_scheduled_run_warns_about_an_unread_setting_and_an_older_notebook_is_
 
 
 def test_an_assumption_constant_no_step_reads_is_refused_at_build(agent_ns):
-    steps = "def run_use_case():\n    return {'status': 'written', 'rows_written': 1}\n"
+    steps = "def run_use_case():\n    return {'status': 'written', 'rows_written': 1, 'as_of_date': '2026-01-01', 'run_id': 'r-1'}\n"
     ns, dbu, printed = _main(agent_ns, steps, {"execution": "Here"}, {"settings": [], "settings_read": True})
     ns.update(WEEKS_LEFT=12, VALUE_AT_STAKE_FORMULA="{m:money} lost a week x {WEEKS_LEFT:number} weeks")
     with pytest.raises(RuntimeError, match="no step of this notebook reads WEEKS_LEFT"):

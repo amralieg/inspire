@@ -454,7 +454,7 @@ def test_the_vibes_calls_go_through_the_agent_s_llm_with_the_supremacy_preamble(
     assert calls[0]["prompt_name"] == "implement_vibes_split" and calls[0]["response_schema"] == agent_ns["IMPLEMENT_VIBES_SPLIT_SCHEMA"]
     source = agent_source()
     body = source[source.index("    def _call_ai_query(self, prompt: str"):]
-    assert body.split("\n", 2)[1].strip() == "prompt = with_user_directive_preamble(prompt)"
+    assert body.split("\n", 2)[1].strip() == "prompt, withheld = self._gate().mask(with_user_directive_preamble(prompt))"
 
 
 def test_the_reasoning_asks_reach_only_the_record_reasoning_and_the_formula_asks_only_the_notebook(agent_ns):

@@ -246,7 +246,7 @@ def chart_types(chart: dict) -> list:
 
 def strings(raw, cap: int = 20) -> list:
     if not isinstance(raw, list) or not 1 <= len(raw) <= cap:
-        raise ValueError(f"values takes 1 to {cap} values")
+        raise ValueError(f"values takes 1 to {shell_sql.plural(cap, 'value')}")
     out = [str(v) for v in raw if isinstance(v, (str, int, float)) and not isinstance(v, bool)]
     if len(out) != len(raw) or any(not v or len(v) > shell_sql.CAPS["value_chars"] for v in out):
         raise ValueError("each value is text of at most 300 characters")
@@ -765,7 +765,7 @@ class Agent:
         elif isinstance(args.get("match"), dict):
             found = self.listing(job, args["match"], ACT_ROWS)
             if found["total"] > ACT_ROWS:
-                raise ValueError(f"these filters match {found['total']:,} records; a change from the chat takes at most {ACT_ROWS}: narrow it")
+                raise ValueError(f"these filters match {shell_sql.plural(found['total'], 'record')}; a change from the chat takes at most {ACT_ROWS}: narrow it")
             keys = [str(r.get("_inspire_key") or r.get("record_key")) for r in found["rows"] if (r.get("_inspire_key") or r.get("record_key"))]
             if not keys:
                 raise ValueError("no record matches these filters")

@@ -232,7 +232,7 @@ def similar_keys(query: dict) -> list:
     cap = shell_sql.CAPS["exclude_keys"]
     if (not isinstance(keys, list) or not 1 <= len(keys) <= cap or len(set(map(str, keys))) != len(keys)
             or any(not isinstance(k, str) or not k or len(k) > RECORD_KEY_CHARS for k in keys)):
-        raise HttpError(400, f"record_keys takes a JSON list of 1 to {cap} distinct record keys")
+        raise HttpError(400, f"record_keys takes a JSON list of 1 to {shell_sql.plural(cap, 'distinct record key')}")
     return keys
 
 

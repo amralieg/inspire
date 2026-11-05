@@ -208,6 +208,10 @@ def test_the_run_controls_record_a_stop_right_after_the_use_case_returns(agent_n
     template = agent_ns["GENIE_RUN_CONTROLS_TEMPLATE"]
     assert ("                try:\n                    outcome = use_case()\n                except InspireRunStop as stop:\n"
             "                    outcome = {\"status\": \"stopped\", \"stop_reason\": str(stop)}\n                    out(str(stop))\n"
+            "                except Exception as caught:\n                    missing = inspire_failure_text(caught)\n"
+            "                    out(f\"Use case outcome: {missing}.\")\n                    raise InspireOutcomeMissing(missing) from caught\n"
+            "                missing = inspire_outcome_problem(outcome)\n                if missing:\n"
+            "                    out(f\"Use case outcome: {missing}.\")\n                    raise InspireOutcomeMissing(missing)\n"
             "                inspire_record_stop(run, outcome, out=out)\n") in template
 
 

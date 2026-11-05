@@ -216,7 +216,7 @@ def test_main_sets_the_changed_assumptions_before_the_use_case_runs(agent_ns):
     ns, _call = _controls(agent_ns)
     seen, printed = {}, []
     ns.update(WEEKS_LEFT=12, KEEP_RATE=0.5, VALUE_AT_STAKE_FORMULA=FORMULA, spark=_latest(EDITS[:2]))
-    ns["run_use_case"] = lambda: seen.update(weeks=ns["WEEKS_LEFT"], keep=ns["KEEP_RATE"]) or {"status": "written", "rows_written": 3}
+    ns["run_use_case"] = lambda: seen.update(weeks=ns["WEEKS_LEFT"], keep=ns["KEEP_RATE"]) or {"status": "written", "rows_written": 3, "as_of_date": "2026-01-01", "run_id": "r-1"}
     dbu = _dbutils(execution="Here")
     dbu.notebook.exit = lambda text: printed.append(("exit", text))
     ns["inspire_main"](dbu=dbu, out=printed.append)

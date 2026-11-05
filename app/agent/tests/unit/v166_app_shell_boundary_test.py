@@ -80,13 +80,11 @@ SHELL_ENTRY_POINTS = {
     ("implement_put_back_checked", "shell_sql.spec_problems"),
     ("implement_app_page_problems", "shell_sql.spec_problems"),
     ("implement_page_decision_problems", "shell_sql.public_layout"),
-    ("implement_layout_brief", "shell_sql.decision_section"),
     ("implement_layout_brief", "shell_sql.layouts"),
     ("implement_layout_brief", "shell_sql.section_words"),
     ("implement_layout_brief", "shell_sql.layout_sections"),
     ("implement_unasked_part_problems", "shell_sql.layout_sections"),
     ("implement_unasked_part_problems", "shell_sql.page_layout"),
-    ("implement_layout_brief", "shell_sql.decision_section"),
     ("implement_layout_brief", "shell_sql.layouts"),
     ("implement_layout_brief", "shell_sql.section_words"),
     ("implement_block_images", "shell_sql.image_blocks"),
@@ -129,6 +127,7 @@ SHELL_ENTRY_POINTS = {
     ("implement_digest_body", "shell_sql.stake_noun"),
     ("implement_digest_body", "shell_sql.stake_words"),
     ("implement_driver_problems", "shell_sql.driver_charts"),
+    ("implement_layout_brief", "shell_sql.layout_decides"),
 }
 PURE_ENTRY_POINTS = {
     "shell_sql.impact_of": ("reads the impact kind, the unit and the currency the run's summary row names into one impact for the "
@@ -137,6 +136,8 @@ PURE_ENTRY_POINTS = {
                                         "the person chose; it reads no rows and builds no error text, so it needs no redaction"),
     "shell_sql.stake_words": ("turns that impact into the words '<unit> at stake' of the digest lines; it reads no rows and builds no "
                               "error text, so it needs no redaction"),
+    "shell_sql.layout_decides": ("reads whether a layout of the kinds registry is informational, for the build brief; it reads no rows "
+                                 "and builds no error text, so it needs no redaction"),
     "shell_sql.stake_noun": ("turns that impact into the unit word of the digest lines; it reads no rows and builds no error text, so "
                              "it needs no redaction"),
 }
