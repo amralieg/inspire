@@ -72,6 +72,15 @@ def test_only_q3_and_q5_route_drops_below_the_bar_while_q1_and_q2_still_remove()
     assert q1 < first_keep and q2 < first_keep
 
 
+@pytest.mark.parametrize("method,gate", [("_phaseQ3_validate_relevance", "Q3 RELEVANCE"),
+                                         ("_phaseQ5_decision_readiness", "Q5 DECISION_READINESS")])
+def test_the_gates_whose_failures_stay_below_the_bar_never_log_them_as_dropped(method, gate):
+    src = ast.unparse(method_node("DatabricksInspire", method))
+    assert f"{gate}: dropped" not in src and "'  dropped " not in src and '"  dropped ' not in src, \
+        "the run kept 49 of 49 below the bar while this gate logged 'dropped 49 of 49'"
+    assert f"{gate} failed for" in src and "gate ledger" in src
+
+
 def test_incident_replay_keeps_all_48_below_the_high_bar_and_warns(agent_ns):
     obj = _inspire(agent_ns, empty=EMPTY)
     ucs = [_uc(f"U{i:02d}", inspire=8.0 - i / 100) for i in range(48)]
