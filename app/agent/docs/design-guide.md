@@ -86,18 +86,21 @@ goal-oriented Genie Code instructions: all without touching your actual data.
 
 ## Privacy: Discovery Types (v1.3.0)
 
-The `03_discovery_type` widget decides whether Inspire may read your data.
+The `03_discovery_type` widget decides whether the AI may see what Inspire measures (v1.4.0).
 
-- **Standard** reads your metadata (catalog, schema, table and column names, column types,
-  comments, key constraints, tags and table properties), Unity Catalog metric view definitions,
-  usage counts from `system.access.table_lineage` and Inspire's own tables. It never reads a row
-  of your data. A static guard and a runtime guard both stop any data read in Standard.
-- **Deep** (the default) also computes aggregates in one class, `DeepEvidence`, the only code that
-  reads customer data: row counts, null share and approximate distinct counts, the date range of
+- **Standard Discovery** (the default) reads your metadata (catalog, schema, table and column
+  names, column types, comments, key constraints, tags and table properties), Unity Catalog metric
+  view definitions, usage counts from `system.access.table_lineage`, Inspire's own tables, and
+  aggregates over your data to decide each use case. One gate, `InspireAIGate`, masks every
+  measured number in every prompt inside `AIAgent._call_ai_query` and restores it in the reply,
+  so the AI sees metadata only.
+- **AI Enhanced Discovery** (named Deep before v1.4.0) runs the same checks and also shows the
+  aggregates to the AI: row counts, null share and approximate distinct counts, the date range of
   non-personal date columns, the most frequent values of non-personal low-cardinality text
-  columns, join match rates, query-history join edges and KPI baselines. Every statement is
-  logged and counted in `results_json.data_access`, and every read is bounded by time and count
-  budgets.
+  columns, join match rates, query-history join edges and KPI baselines.
+
+Every customer-data read lives in one class, `DeepEvidence`. Every statement is logged and counted
+in `results_json.data_access`, and every read is bounded by time and count budgets.
 
 In both types no data row is sent to the AI, and the values of personal columns (matched by name
 or by a PII tag) are never read. The `Ultra High` elite verification still checks cited tables,
@@ -1083,7 +1086,7 @@ backward compatibility for all existing v0.7.2-era integrations that read a fixe
 │  01  │ Business Name      │ YES                   │ (empty)              │
 │  02  │ UC Metadata        │ YES                   │ (empty)              │
 │  03  │ Inspire Database   │ no                    │ (empty, optional)    │
-│  04  │ Discovery Type     │ no                    │ Deep                 │
+│  04  │ Discovery Type     │ no                    │ Standard Discovery   │
 │  05  │ Table Election     │ no                    │ Let Inspire Decides  │
 │  06  │ Use Cases Quality  │ no                    │ Good                 │
 │  07  │ Business Domains   │ no                    │ (auto-detected)      │
@@ -2149,7 +2152,9 @@ working one, but some customers must be able to guarantee that no data is read.
 
 **Decision.** **Accepted**. A static guard keeps every customer-data read inside `DeepEvidence`,
 and a runtime guard stops it in Standard. KPI queries are built only by `DeepEvidence.kpi_sql`
-from validated specs; the model never writes SQL that Inspire runs.
+from validated specs; the model never writes SQL that Inspire runs. v1.4.0 keeps the one reader
+and moves the guarantee to the prompt: Standard Discovery reads aggregates to decide each use case,
+and `InspireAIGate` withholds every measured number from the AI.
 
 ### ADR-13: AI Call Log In Semunity's Design (v1.3.0)
 

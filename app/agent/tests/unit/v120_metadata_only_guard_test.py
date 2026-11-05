@@ -7,7 +7,7 @@ tables. This test extracts every SQL statement the agent can execute through `sp
 `_spark.sql` / `spark_session.sql` / `execute_sql` / `inspire_sql` and checks every FROM / JOIN /
 MERGE USING target and every write target. Prompt text (PROMPT_TEMPLATES, including the Genie Code
 SQL examples that Genie runs later in user notebooks) is not executed by the agent and is excluded.
-DeepEvidence is the only class allowed to read customer data (aggregates only, Deep mode only); its
+DeepEvidence is the only class allowed to read customer data (aggregates only, in both Discovery Types); its
 reads are collected separately and must stay inside that class. The Implement Use Cases operation
 (functions named implement_* / _implement_*) may also read and write the result table it builds,
 and probe source tables with zero-row reads (LIMIT 0); nowhere else.

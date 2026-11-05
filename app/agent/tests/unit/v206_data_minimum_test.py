@@ -94,7 +94,7 @@ def test_build_refuses_a_user_kept_use_case_with_the_discover_shortfall_before_g
     build, agent, spark = builder(agent_ns, "Deep")
     status = {}
     with pytest.raises(agent_ns["ImplementBlocked"]) as raised:
-        build._implement_data_minimum(KEY, {}, stored, status)
+        build._implement_data_minimum(KEY, {}, stored, status, adapt=False)
     assert str(raised.value).startswith(agent_ns["IMPLEMENT_DATA_MINIMUM_LEAD"] + ": ")
     assert "(11); at least 200" in str(raised.value)
     assert status["data"]["state"] == "failed" and "(11); at least 200" in status["data"]["data_minimum"]
@@ -121,7 +121,7 @@ def test_build_measures_a_use_case_discover_could_not_check_and_refuses_it_when_
     build, agent, spark = builder(agent_ns, "Deep", [roles_answer()], outcome_responder(FEW))
     status = {}
     with pytest.raises(agent_ns["ImplementBlocked"]) as raised:
-        build._implement_data_minimum(KEY, {}, unchecked, status)
+        build._implement_data_minimum(KEY, {}, unchecked, status, adapt=False)
     assert FEW_TEXT in str(raised.value)
     assert agent.calls and agent.calls[0]["prompt"] == "SIGNAL_CHECK_PROMPT"
     assert any("AS outcome_values" in s for s in spark.statements)
@@ -154,14 +154,14 @@ def test_a_build_tried_again_measures_the_data_once(agent_ns):
     assert len(agent.calls) == 1 and spark.statements == reads
 
 
-def test_build_never_reads_data_in_standard_and_says_the_check_did_not_run(agent_ns):
+def test_build_counts_the_data_in_standard_too_and_never_shows_the_ai_the_count(agent_ns):
     unchecked = churn(data_signal={"status": "not_checked", "check": "outcome", "family": "A",
-                                   "reason": "Data not checked: Standard discovery reads no data."})
-    build, agent, spark = builder(agent_ns, "Standard")
-    build._implement_data_minimum(KEY, {}, unchecked, {})
-    assert spark.statements == [] and agent.calls == []
-    assert any(line.startswith("[DATA-MINIMUM FIRED] N01-U01: not checked before Genie started")
-               for line in logged(build, "info"))
+                                   "reason": "Data not checked."})
+    build, agent, spark = builder(agent_ns, "Standard", [roles_answer()], outcome_responder(FEW))
+    with pytest.raises(agent_ns["ImplementBlocked"]) as raised:
+        build._implement_data_minimum(KEY, {}, unchecked, {}, adapt=False)
+    assert FEW_TEXT in str(raised.value) and any("AS outcome_values" in s for s in spark.statements)
+    assert agent.calls and "(11)" not in str(agent.calls[0]["vars"])
 
 
 def test_build_refuses_in_standard_when_the_column_types_alone_show_the_gap(agent_ns):
@@ -191,9 +191,10 @@ def test_build_checks_the_minimum_before_genie_on_every_notebook_build(agent_ns)
     inst._implement_missing_tables = lambda tables: []
     inst._implement_role_problems = lambda spec, use_case: []
     order = []
-    inst._implement_data_minimum = lambda key, spec, use_case, status: order.append((key, use_case["No"]))
+    inst._implement_data_minimum = lambda key, spec, use_case, status, adapt=True: order.append((key, use_case["No"], adapt))
     inst._implement_source_checks(KEY, {}, churn(), {})
-    assert order == [(KEY, "N01-U01")]
+    inst._implement_source_checks(KEY, {}, churn(), {}, adapt=False)
+    assert order == [(KEY, "N01-U01", True), (KEY, "N01-U01", False)]
 
 
 def test_one_minimum_feeds_discover_build_and_the_genie_instruction(agent_ns):

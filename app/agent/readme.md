@@ -46,7 +46,7 @@
 24. [v0.7.2 Known Issues (Resolved In v0.7.3)](#v072-known-issues-resolved-in-v073)
 
 Inspire reads the structure of your data tables in Databricks Unity Catalog: catalog, schema, table and column names, column types, comments, key constraints, tags, table properties, metric view definitions and usage counts.
-The `04. Discovery Type` widget decides whether it may read your data. In **Standard** it never reads a row of your data. In **Deep** (the default) it also computes aggregates over your tables, such as row counts, date coverage and join match rates. No data row is ever sent to the AI, and Inspire never reads the values of personal columns. See [Discovery Type](#a-discovery-type-standard-and-deep).
+Both values of the `04. Discovery Type` widget compute aggregates over your tables, such as row counts, date coverage and join match rates, to decide whether each use case can work. In **Standard Discovery** (the default and the recommended choice) none of those numbers ever reaches the AI. In **AI Enhanced Discovery** the AI also sees them. No data row is ever sent to the AI, and Inspire never reads the values of personal columns. See [Discovery Type](#a-discovery-type-standard-and-deep).
 
 From that evidence, Inspire:
 
@@ -123,7 +123,7 @@ v1.3.0 separates finding use cases from judging them against a strategy. Discove
 
 ### A. Discovery Type: Standard And Deep
 
-`04. Discovery Type` (`03_discovery_type`) is `Deep` by default.
+`04. Discovery Type` (`03_discovery_type`) is `Standard Discovery` by default from v1.4.0. v1.4.0 renamed `Deep` to `AI Enhanced Discovery` and made `Standard Discovery` read the same aggregates while showing none of them to the AI; see [Discovery Type](#discovery-type). The table below describes v1.3.0.
 
 | | Standard | Deep (default) |
 |---|---|---|
@@ -616,7 +616,7 @@ From metadata alone, Inspire produces:
 - PDF catalogs, PowerPoint presentations, and Excel spreadsheets
 - JSON catalogs for programmatic consumption
 
-Inspire supports 23 languages for all generated artifacts. It is privacy-first by design: in Standard discovery only metadata is read, and in Deep discovery (the default) Inspire adds aggregates over your tables. No data row is ever sent to the AI, and the values of personal columns are never read.
+Inspire supports 23 languages for all generated artifacts. It is privacy-first by design: both discovery types read aggregates over your tables to judge each use case, and in Standard Discovery (the default) the AI never sees them. No data row is ever sent to the AI, and the values of personal columns are never read.
 
 ---
 
@@ -671,12 +671,16 @@ These two must be filled correctly or the run will fail immediately.
 
 ### Discovery Type
 
-**04. Discovery Type** (dropdown, default `Deep`; widget key `03_discovery_type`)
+**04. Discovery Type** (dropdown, default `Standard Discovery`; widget key `03_discovery_type`)
 
 | Value | Behavior |
 |-------|----------|
-| `Deep` | Reads metadata, metric view definitions and usage counts, plus aggregates over your tables (row counts, null share, distinct counts, date coverage, short value lists of non-personal low-cardinality columns, join match rates, KPI baselines). Never sends a data row to the AI and never reads the values of personal columns |
-| `Standard` | Reads metadata, metric view definitions and usage counts only. Never reads a row of your data. The forecast, scenario, impact and process checks decide from column types alone (no date column, or too few numeric columns for the levers and the outcome); a check that needs data is marked data not checked and its use case is kept |
+| `Standard Discovery` (default, recommended) | Reads metadata, metric view definitions and usage counts, plus aggregates over your tables (row counts, distinct counts, first and last dates, null share, group sizes, outcome and interaction counts). Inspire uses those numbers only to decide each use case; one gate (`InspireAIGate`) withholds every measured number from every AI prompt, so the AI sees metadata only |
+| `AI Enhanced Discovery` | The same aggregate checks, and the AI also sees the aggregates (row counts, null share, distinct counts, date coverage, short value lists of non-personal low-cardinality columns, join match rates, KPI baselines) when it writes and grades use cases |
+
+In both, no data row is sent to the AI and the values of personal columns are never read. A use case short of a hard data minimum (for example a prediction with 11 outcome rows) is dropped with its reason; a use case you asked for, and the strongest use case of a domain you named, are kept and carry the reason. The values `Deep`, `Deep Discovery` and `AI Enhanced` still work and mean `AI Enhanced Discovery`; `Standard` means `Standard Discovery`. A use case of a decision kind must name a decision or action and a measurable outcome; an informational kind (such as a driver breakdown or a journey path) is labelled Informational.
+
+When a use case is built, Inspire counts its data before Genie starts. When the data is short of the method's minimum, Genie gets the measured numbers and must pick a method valid at that size, and the build summary says what changed.
 
 See [Discovery Type: Standard And Deep](#a-discovery-type-standard-and-deep) for the exact reads and limits.
 

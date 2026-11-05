@@ -20,7 +20,8 @@ from v120_artifacts_support import CapturingLogger, make_inspire, make_uc
 
 NEW_LABELS = ("strategy_path", "kpis", "expected_key_results", "measures_of_success", "financial_benefits",
               "non_financial_benefits", "foundations", "doc_foundations_title", "doc_foundations_lead",
-              "doc_foundation_tables", "doc_foundation_unlocks", "doc_data_access_standard", "doc_data_access_deep",
+              "doc_foundation_tables", "doc_foundation_unlocks", "doc_discovery_standard", "doc_discovery_ai_enhanced",
+              "doc_data_access_mode", "doc_data_access_none", "doc_data_access_read", "doc_data_access_kept", "doc_data_access_shared",
               "doc_method_1_deep", "doc_guide_lead_deep", "value_not_aligned", "kpi_baseline", "kpi_baseline_newest",
               "kpi_baseline_undated")
 
@@ -388,7 +389,7 @@ def test_data_access_statement_follows_the_discovery_type(agent_ns):
     standard = make_inspire(agent_ns, discovery_type="Standard", deep_evidence=None)
     model = standard._document_model("English", t, {}, {"Sales": [make_uc("N01-U01")]}, "Acme")
     _title, items = standard._doc_disclaimer(model, t)
-    assert items[0] == t["doc_data_access_standard"] and "aggregates" not in " ".join(items)
+    assert items[0] == t["doc_data_access_none"] and "aggregates" not in " ".join(items)
     assert model["method_steps"][0] == t["doc_method_1"] and model["guide_lead_key"] == "doc_guide_lead"
     nothing_read = make_inspire(agent_ns, discovery_type="Deep",
                                 deep_evidence=types.SimpleNamespace(summary=lambda: {"tables_read_count": 0}))
@@ -405,10 +406,10 @@ def test_results_keys_of_a_loaded_catalog_never_take_the_widget_discovery_type(a
     obj = make_inspire(agent_ns, discovery_type="Deep", deep_evidence=None)
     obj._loaded_catalog_meta = {key: None for key in obj._V130_CATALOG_KEYS}
     keys = obj._v130_results_keys()
-    assert keys["discovery_type"] == "Standard" and keys["data_access"]["tables_read_count"] == 0
+    assert keys["discovery_type"] == "Standard Discovery" and keys["data_access"]["tables_read_count"] == 0
     obj._loaded_catalog_meta = {"discovery_type": "Deep", "data_access": {"tables_read_count": 5}}
     keys = obj._v130_results_keys()
-    assert keys["discovery_type"] == "Deep" and keys["data_access"] == {"tables_read_count": 5}
+    assert keys["discovery_type"] == "AI Enhanced Discovery" and keys["data_access"] == {"tables_read_count": 5}
     live = v130_obj(agent_ns)
     assert live._v130_results_keys()["foundations"] == foundations()
 
@@ -421,7 +422,7 @@ def test_docs_only_load_restores_the_run_level_metadata(fresh_ns):
     fresh_ns["read_user_text_file"] = lambda path, w_client=None: json.dumps(catalog)
     obj = make_inspire(fresh_ns, discovery_type="Standard")
     obj._load_usecases_catalog_json("/Workspace/out/catalog.json")
-    assert obj._doc_data_access() == ("Deep", 3)
+    assert obj._doc_data_access() == ("AI Enhanced Discovery", 3)
     assert obj.data_foundations == foundations() and obj.delivery_order == ["N01-U01"]
     assert obj.strategy_tree == TREE and obj.strategy_coverage == {"entries": []}
 

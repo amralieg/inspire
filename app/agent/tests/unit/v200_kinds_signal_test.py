@@ -74,8 +74,8 @@ def deep_inspire(agent_ns, answers, rows, **attrs):
     agent = Agent(answers)
     inst = build_inspire(agent_ns, loader=Loader(), agent=agent)
     inst.logger = MagicMock()
-    inst.discovery_type = "Deep"
-    inst.deep_evidence = agent_ns["DeepEvidence"](spark, "Deep", MagicMock())
+    inst.discovery_type = attrs.pop("discovery_type", "Deep")
+    inst.deep_evidence = agent_ns["DeepEvidence"](spark, inst.discovery_type, MagicMock())
     inst.discovery_evidence = {"profiles": {ORDERS: {"rows": 1000, "sampled": False, "columns": {}}},
                                "join_matches": [], "data_access": {}}
     inst._emit_pipeline_status = StatusRecorder()
@@ -265,7 +265,7 @@ SHORT_SERIES = {"periods": 18, "median_gap": 30, "first_period": "2024-01-01", "
 FLAT_PRICE = {"n": 1000, "lever_values": 40, "pooled": -0.0006, "within": 0.001}
 SERIES = {"time": "event_time", "measure": "units"}
 LEVER = {"lever": "price", "outcome": "units"}
-MODES = ("Deep", "Standard")
+MODES = ("AI Enhanced Discovery", "Standard Discovery")
 KIND_CHECKS = ("series", "scenario", "impact", "process")
 
 
@@ -273,8 +273,8 @@ def no_read(statement):
     raise AssertionError(f"Standard discovery sent a statement: {statement}")
 
 
-def standard_inspire(agent_ns, answers, **attrs):
-    spark = FakeSpark(responder=no_read)
+def standard_inspire(agent_ns, answers, spark=None, **attrs):
+    spark = spark or FakeSpark(responder=no_read)
     agent = Agent(answers)
     inst = build_inspire(agent_ns, loader=Loader(), agent=agent, spark=spark, discovery_type="Standard", deep_evidence=None)
     inst.logger = MagicMock()
@@ -297,38 +297,29 @@ def test_the_modes_tested_are_every_discovery_mode(agent_ns):
     assert tuple(sorted(agent_ns["DISCOVERY_TYPE_VALID"])) == tuple(sorted(MODES))
 
 
-def test_deep_reads_the_data_for_each_kind_check(agent_ns):
+@pytest.mark.parametrize("mode", MODES)
+def test_every_mode_reads_the_data_for_each_kind_check(agent_ns, mode):
     answers = [{"results": [answer("N01-U01", SERIES), answer("N01-U02", SCENARIO), answer("N01-U03", IMPACT),
                             answer("N01-U04", PROCESS), answer("N01-U05", LEVER)]}]
     rows = {"AS median_gap": SHORT_SERIES, "corr(l0, o)": ONE_LEVER, "AS compared_groups": SHORT_HISTORY,
             "AS steps": TWO_STEPS, "AS pooled": FLAT_PRICE}
-    inst, _agent, spark = deep_inspire(agent_ns, answers, rows)
+    inst, _agent, spark = deep_inspire(agent_ns, answers, rows, discovery_type=mode)
     kept, dropped = inst._check_data_signal(kind_use_cases(), [])
     assert kept == [] and [u["No"] for u in dropped] == ["N01-U01", "N01-U02", "N01-U03", "N01-U04", "N01-U05"]
     assert "1.5 seasonal cycles" in dropped[0]["selection_drop_reason"]
     assert "too few distinct steps (2)" in dropped[3]["selection_drop_reason"]
-    assert spark.statements, "Deep reads aggregates of the data"
+    assert spark.statements, "both modes read aggregates of the data"
 
 
-def test_standard_sends_no_statement_and_marks_what_needs_data_as_data_not_checked(agent_ns):
-    ucs = kind_use_cases()
-    answers = [{"results": [answer("N01-U01", SERIES), answer("N01-U02", SCENARIO), answer("N01-U03", IMPACT),
-                            answer("N01-U04", PROCESS), answer("N01-U05", LEVER)]}]
-    inst, agent, spark = standard_inspire(agent_ns, answers)
+def test_standard_builds_its_data_reader_when_discovery_read_nothing(agent_ns):
+    ucs = kind_use_cases()[:1]
+    spark = FakeSpark(responder=responder({"AS median_gap": SHORT_SERIES, "COUNT(*) AS n FROM": {"n": 1000}}))
+    inst, _agent, _spark = standard_inspire(agent_ns, [{"results": [answer("N01-U01", SERIES)]}], spark=spark)
     kept, dropped = inst._check_data_signal(ucs, [])
-    assert spark.statements == [], "Standard discovery never sends a statement against the tables"
-    assert inst.deep_evidence is None
-    assert [u["No"] for u in kept] == ["N01-U01", "N01-U02", "N01-U03", "N01-U04", "N01-U05"] and dropped == []
-    assert [u["data_signal"]["check"] for u in ucs[:4]] == list(KIND_CHECKS)
-    assert all(u["data_signal"]["status"] == "not_checked" and u["data_signal"]["reason"].startswith(
-        "Data not checked: Standard discovery reads no data, so Inspire did not check that ") for u in ucs[:4])
-    assert "at least 2 of the levers move the outcome" in ucs[1]["data_signal"]["reason"]
-    assert "at least 3 distinct steps" in ucs[3]["data_signal"]["reason"]
-    assert ucs[3]["Data Evidence"]["signal"]["status"] == "not_checked"
-    assert "data_signal" not in ucs[4], "a check outside the four kind checks never runs outside Deep"
-    assert "N01-U05" not in agent.calls[0]["vars"]["use_cases_listing"]
+    assert kept == [] and [u["No"] for u in dropped] == ["N01-U01"]
+    assert spark.statements and inst.deep_evidence is not None
     access = inst._v130_results_keys()["data_access"]
-    assert access["discovery_type"] == "Standard" and access["tables_read_count"] == 0
+    assert access["discovery_type"] == "Standard Discovery" and access["tables_read_count"] == 1
 
 
 def test_standard_drops_what_the_column_types_alone_rule_out(agent_ns):
@@ -352,25 +343,26 @@ def test_standard_drops_what_the_column_types_alone_rule_out(agent_ns):
         "2 levers to change and an outcome they move.")
 
 
-def test_standard_keeps_a_date_held_as_text_for_the_data_to_decide(agent_ns):
+def test_standard_leaves_a_date_held_as_text_to_the_data(agent_ns):
     ucs = kind_use_cases(TEXT_DATED)[:1] + kind_use_cases(TEXT_DATED)[3:4]
     answers = [{"results": [answer("N01-U01", {"time": "visit_date", "measure": "spend"}, TEXT_DATED),
                             answer("N01-U04", {"case_key": "visit_id", "step": "stage", "time": "visit_date"}, TEXT_DATED)]}]
-    inst, _agent, spark = standard_inspire(agent_ns, answers)
-    kept, dropped = inst._check_data_signal(ucs, [])
-    assert spark.statements == [] and dropped == [] and [u["No"] for u in kept] == ["N01-U01", "N01-U04"]
-    assert all(u["data_signal"]["status"] == "not_checked" for u in ucs)
+    spark = FakeSpark(responder=lambda statement: [])
+    inst, _agent, _spark = standard_inspire(agent_ns, answers, spark=spark)
+    inst._check_data_signal(ucs, [])
+    assert spark.statements, "the metadata check passes a text date on to the data"
+    assert not any("From the column types alone" in str(u.get("data_signal", {}).get("reason")) for u in ucs)
 
 
 def test_a_must_have_use_case_is_kept_and_flagged_in_every_mode(agent_ns):
     instructions = {"use_case_requests": [{"id": "R1", "ask": "an order process map", "minimum": 1}]}
     for mode in MODES:
-        table = ORDERS if mode == "Deep" else LEDGER
-        roles = PROCESS if mode == "Deep" else {"case_key": "ledger_id", "step": "category", "time": ""}
+        table = ORDERS if mode == "AI Enhanced Discovery" else LEDGER
+        roles = PROCESS if mode == "AI Enhanced Discovery" else {"case_key": "ledger_id", "step": "category", "time": ""}
         ucs = [uc("N01-U01", "Process Mining", user_request="R1", **{"Tables Involved": table}),
                uc("N01-U02", "Process Mining", **{"Tables Involved": table})]
         answers = [{"results": [answer("N01-U01", roles, table), answer("N01-U02", roles, table)]}]
-        if mode == "Deep":
+        if mode == "AI Enhanced Discovery":
             inst, _agent, _spark = deep_inspire(agent_ns, answers, {"AS steps": TWO_STEPS},
                                                 parsed_generation_instructions=instructions)
         else:
@@ -381,26 +373,16 @@ def test_a_must_have_use_case_is_kept_and_flagged_in_every_mode(agent_ns):
         assert "Inspire kept it because the instructions ask for an order process map" in ucs[0]["data_signal"]["reason"]
 
 
-def test_standard_never_builds_a_data_reader(agent_ns):
-    spark = FakeSpark(responder=no_read)
-    with pytest.raises(agent_ns["StandardModeDataReadError"]):
-        agent_ns["DeepEvidence"](spark, "Standard", MagicMock())
-    reads = agent_ns["deep_signal_check_reads"]
-    others = ("lever", "outcome", "groups", "text", "measure", "basket", "features")
-    assert [reads(check, "Standard") for check in KIND_CHECKS + others] == ["metadata"] * 4 + [""] * len(others)
-    assert all(reads(check, "Deep") == "data" for check in KIND_CHECKS + others)
-    assert spark.statements == []
-
-
-def test_the_standard_disclaimer_still_says_no_data_was_read(agent_ns):
+def test_the_standard_disclaimer_says_no_aggregate_reached_the_ai(agent_ns):
     ts = agent_ns["TranslationService"]
     assert all("doc_data_access_standard_checks" not in texts
                for texts in [ts.ENGLISH_TRANSLATIONS, *ts.TRANSLATION_FALLBACKS.values()])
     ucs = kind_use_cases()[:1]
-    inst, _agent, _spark = standard_inspire(agent_ns, [{"results": [answer("N01-U01", SERIES)]}])
+    spark = FakeSpark(responder=responder({"AS median_gap": SHORT_SERIES, "COUNT(*) AS n FROM": {"n": 1000}}))
+    inst, _agent, _spark = standard_inspire(agent_ns, [{"results": [answer("N01-U01", SERIES)]}], spark=spark)
     inst._check_data_signal(ucs, [])
     t = dict(ts.ENGLISH_TRANSLATIONS)
     model = inst._document_model("English", t, {}, {"Sales": ucs}, "Acme")
     _title, items = inst._doc_disclaimer(model, t)
-    assert items[0] == t["doc_data_access_standard"]
-    assert "read no customer data" in items[0]
+    assert items[0].startswith("Standard Discovery: Inspire read aggregates from the tables in scope, 1 in total")
+    assert items[0].endswith(t["doc_data_access_kept"])

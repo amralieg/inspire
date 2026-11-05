@@ -75,46 +75,32 @@ def _obj(agent_ns, discovery_type, responder, tags=None):
     return make_inspire(agent_ns, spark=spark, discovery_type=discovery_type, data_loader=_loader(tags)), spark
 
 
-def test_discovery_type_is_canonical_and_defaults_to_deep(agent_ns):
+def test_discovery_type_is_canonical_and_defaults_to_standard_discovery(agent_ns):
     canonical = agent_ns["canonical_discovery_type"]
-    assert canonical(None) == canonical("") == canonical("  ") == "Deep"
-    assert canonical("standard") == canonical(" STANDARD ") == "Standard"
-    assert canonical("deep") == "Deep"
-    with pytest.raises(ValueError, match="Valid options: 'Deep', 'Standard'"):
+    assert canonical(None) == canonical("") == canonical("  ") == "Standard Discovery"
+    assert canonical("standard") == canonical(" STANDARD ") == "Standard Discovery"
+    assert canonical("deep") == canonical("AI ENHANCED discovery") == "AI Enhanced Discovery"
+    with pytest.raises(ValueError, match="Valid options: 'Standard Discovery', 'AI Enhanced Discovery'"):
         canonical("Shallow")
 
 
-def test_deep_evidence_refuses_to_exist_in_standard_mode(agent_ns):
-    with pytest.raises(agent_ns["StandardModeDataReadError"]):
-        agent_ns["DeepEvidence"](FakeSpark(), "Standard", None)
-    spark = FakeSpark()
-    deep = agent_ns["DeepEvidence"](spark, "Deep", make_inspire(agent_ns).logger)
-    deep.discovery_type = "Standard"
-    with pytest.raises(agent_ns["StandardModeDataReadError"]):
-        deep.measure_kpi({"aggregation": "COUNT", "table": "main.s.orders"})
-    assert spark.statements == []
+def test_deep_evidence_reads_in_both_modes_and_its_query_text_needs_no_instance(agent_ns):
+    assert agent_ns["DeepEvidence"](FakeSpark(), "Standard", None).discovery_type == "Standard Discovery"
+    assert agent_ns["DeepEvidence"](FakeSpark(), "Deep", None).discovery_type == "AI Enhanced Discovery"
     assert agent_ns["DeepEvidence"].kpi_sql({"aggregation": "COUNT", "table": "main.s.orders"}) == \
         "SELECT COUNT(*) AS v FROM `main`.`s`.`orders`", "building the query text needs no instance and reads nothing"
 
 
-def test_standard_mode_reads_metadata_only(agent_ns):
-    def responder(statement):
-        if "system.access.table_lineage" in statement and "COLLECT_SET" in statement:
-            return [Row(t="main.s.orders", n=40, u=3, kinds=["NOTEBOOK", "DASHBOARD"])]
-        return []
-    obj, spark = _obj(agent_ns, "Standard", responder)
+def test_standard_mode_reads_aggregates_and_shares_none_with_the_ai(agent_ns):
+    obj, spark = _obj(agent_ns, "Standard", _deep_responder)
     evidence = obj._collect_discovery_evidence(BUSINESS_DETAILS)
-    assert obj.deep_evidence is None
-    assert evidence["profiles"] == {} and evidence["join_matches"] == [] and evidence["history_joins"] == []
-    assert evidence["data_access"]["tables_read_count"] == 0 and evidence["data_access"]["rows_sent_to_ai"] == 0
-    assert spark.statements, "Standard still lists metric views and lineage counts"
-    for statement in spark.statements:
-        assert "information_schema" in statement or "system.access.table_lineage" in statement, statement
-        assert "system.query.history" not in statement
-    assert evidence["usage"]["reads"] == {"main.s.orders": 40}
+    assert obj.deep_evidence is not None and evidence["profiles"]["main.s.orders"]["rows"] == 1000
+    access = evidence["data_access"]
+    assert access["tables_read_count"] == 2 and access["rows_sent_to_ai"] == 0
+    assert access["aggregates_sent_to_ai"] is False
+    assert obj._evidence_prompt_block(["main.s.orders"])[0].count("1000") == 0
     results = obj._merge_run_outcome_into_results()
-    assert results["discovery_type"] == "Standard"
-    assert results["data_access"]["tables_read_count"] == 0 and results["usage_signals"]["available"] is True
+    assert results["discovery_type"] == "Standard Discovery"
 
 
 def test_deep_mode_profiles_aggregates_and_excludes_pii_values(agent_ns):
@@ -138,7 +124,7 @@ def test_deep_mode_profiles_aggregates_and_excludes_pii_values(agent_ns):
     assert access["pii_columns_excluded"] == 2
     history = next(s for s in spark.statements if "system.query.history" in s)
     assert "LIKE :c0" in history and "ORDER BY start_time DESC" in history
-    assert obj.logger.matching("[EVIDENCE FIRED] discovery_type=Deep")
+    assert obj.logger.matching("[EVIDENCE FIRED] discovery_type=AI Enhanced Discovery")
 
 
 def test_deep_mode_never_reads_the_date_range_of_a_personal_column(agent_ns):
@@ -281,7 +267,7 @@ def test_usage_election_keeps_heavily_read_master_tables_only(agent_ns):
 
 
 def test_evidence_prompt_block_is_scoped_to_the_batch(agent_ns):
-    obj = make_inspire(agent_ns)
+    obj = make_inspire(agent_ns, discovery_type="AI Enhanced Discovery")
     assert obj._evidence_prompt_block(["main.s.orders"]) == ("", [])
     obj.discovery_evidence = {
         "usage": {"reads": {"main.s.orders": 40}, "readers": {"main.s.orders": 3},
@@ -383,6 +369,6 @@ def test_deep_results_json_reports_the_live_summary(agent_ns):
     obj, _spark = _obj(agent_ns, "Deep", _deep_responder)
     obj._collect_discovery_evidence(BUSINESS_DETAILS)
     results = obj._merge_run_outcome_into_results()
-    assert results["discovery_type"] == "Deep"
+    assert results["discovery_type"] == "AI Enhanced Discovery"
     assert results["data_access"]["tables_read_count"] == 2 and results["data_access"]["rows_sent_to_ai"] == 0
     assert results["usage_signals"]["available"] is False
