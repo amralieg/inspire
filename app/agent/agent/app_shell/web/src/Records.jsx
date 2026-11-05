@@ -4,7 +4,7 @@ import DataTable, { columnOf } from './DataTable.jsx';
 import { GenieMark, Icon } from './icons.jsx';
 import { ExplainButton } from './Genie.jsx';
 import { AGENT_OPEN, showVisible } from './agentView.js';
-import { askGenie, genieOn } from './genieAsk.js';
+import { askGenieAbout, fixQuestion, genieOn } from './genieAsk.js';
 import { BUSY_TITLE, fieldsOf, tableContext } from './explain.js';
 import { AskGenie } from './AskGenie.jsx';
 import { withRecord, withoutRecord } from './links.js';
@@ -30,7 +30,7 @@ import {
   missingSince, NOT_IN_RUN, notInRunText, overdueFirst, pageText, recordCurrency, recordKeyOf, recordRef, recordView, recordsText, savingText, statusClass,
   statusLabel, actError, withoutWindow, NO_AS_OF, listAsOf,
   CODES, isStaleRecord, closedText, closedBatchOf, undoBatchOf, UNDO_CLOSE, isClosed, skippedText, READ_ONLY, READ_ONLY_KEPT, READ_ONLY_THEIRS,
-  CLOSED_PICK, ACCEPTED, acceptable, acceptedText, quietList, claimTarget, claimText,
+  CLOSED_PICK, ACCEPTED, acceptable, acceptedText, quietList, claimTarget, claimText, pageDecides,
 } from './records.js';
 
 const tierClass = (t) => `tier tier--${String(t).toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
@@ -224,7 +224,7 @@ function ActionPanel({ action, owners, pageId, reason, owner, closing, unit, kin
         )}
         {form.status === 'Dismissed' && (
           <label className="in in--wide">
-            <span>Why is it not a real issue? *<small> · {form.reason.trim().length}/{REASON_CHARS}</small></span>
+            <span>Why is it not an issue? *<small> · {form.reason.trim().length}/{REASON_CHARS}</small></span>
             <textarea ref={reason} name="dismiss_reason" rows={2} maxLength={REASON_CHARS} value={form.reason} onChange={set('reason')} aria-invalid={problem ? true : undefined} required />
             {problem && <small className="in-err">{problem}</small>}
           </label>
@@ -302,7 +302,7 @@ function Drawer({ meta, row: given, onClose, history, canModify, tracker, owners
   const ask = (question) => {
     const recordKey = String(log.data?.record_key ?? recordKeyOf(row) ?? row?.[meta.key] ?? '');
     onClose();
-    askGenie({ pageId, recordKey, label: title, question });
+    askGenieAbout({ pageId, recordKey, label: title }, question);
   };
   const dismiss = () => {
     flushSync(() => action.setForm((f) => ({ ...f, status: 'Dismissed' })));
@@ -408,9 +408,9 @@ function Drawer({ meta, row: given, onClose, history, canModify, tracker, owners
             {work && <WorkBar key={linkKey} work={work} action={action} tomorrow={tomorrow} canAct={acting} />}
             {acting && !work && !closed && (
               <>
-                <button className="btn btn--pri" onClick={() => action.save({ ...action.form, status: 'Done' }, 'Marked as fixed. The next run checks whether it worked.')}
-                  disabled={action.saving} data-key="d"><Icon name="check" size={15} />Fixed</button>
-                <button className="btn" onClick={dismiss} disabled={action.saving}>Not a real issue</button>
+                <button className="btn btn--pri" onClick={() => action.save({ ...action.form, status: 'Done' }, 'Marked done. The next run checks whether it worked.')}
+                  disabled={action.saving} data-key="d" data-act="done"><Icon name="check" size={15} />Mark done</button>
+                <button className="btn" onClick={dismiss} disabled={action.saving} data-act="dismiss">Not an issue</button>
                 <button className="btn" onClick={() => action.save({ ...action.form, status: 'Could not fix' }, 'Marked as could not fix. The next run still checks it.')}
                   disabled={action.saving}>Could not fix</button>
                 <select className="btn" aria-label="Give to someone" value="" onChange={giveTo} disabled={action.saving}>
@@ -420,6 +420,7 @@ function Drawer({ meta, row: given, onClose, history, canModify, tracker, owners
                   <option value={SOMEONE_ELSE}>Someone else…</option>
                 </select>
                 <SnoozeButton action={action} tomorrow={tomorrow} />
+                {genieOn(app, pageId) && <button type="button" className="btn" onClick={() => ask(fixQuestion(title))} data-act="genie"><GenieMark size={14} />Ask Genie to fix</button>}
               </>
             )}
             {undoBatch && !work && !undoAsk && (
@@ -444,6 +445,31 @@ function Drawer({ meta, row: given, onClose, history, canModify, tracker, owners
         </div>
       )}
     </dialog>
+  );
+}
+
+export function RecordPanel({ meta, app, pageId, row, list, onClose, onChanged, similarBy, onExplain, genieBusy }) {
+  const [nonce, setNonce] = useState(0);
+  const today = localDay();
+  const acted = useCallback(() => {
+    setNonce((n) => n + 1);
+    onChanged?.();
+  }, [onChanged]);
+  const labelOf = (c) => plainText(c?.label ?? c?.record_key ?? '');
+  const acts = useActs({ pageId, similarBy, onActed: acted, labelOf });
+  const toast = useToast();
+  const decides = pageDecides((app.pages || []).find((p) => p.id === pageId) || { records: meta });
+  return (
+    <>
+      <Drawer meta={meta} row={row} onClose={onClose} history canModify={false} tracker={!!(decides && list?.actions)} owners={list?.summary?.owners || []} app={app}
+        pageId={pageId} nonce={nonce} aliases={list?.ai?.columns || NO_ALIASES} acts={acts} onExplain={onExplain} genieBusy={genieBusy} model={list?.money}
+        work={null} tomorrow={nextDay(today)} today={today} />
+      <ConflictNote conflicts={acts.conflicts} labelOf={labelOf} onClose={acts.clearConflicts} />
+      {acts.similar && (
+        <SimilarDialog similar={acts.similar} onClose={acts.closeSimilar}
+          onApply={(values) => acts.act({ match: acts.similar.match }, values).catch((err) => toast(actError(err), toneOf(err)))} />
+      )}
+    </>
   );
 }
 
@@ -475,7 +501,8 @@ export default function Records({ meta, app, pageId, filters, ai, onFilter, hist
   const today = localDay();
   const tomorrow = nextDay(today);
   const [kept, setKept] = useState(() => KEPT.get(pageId));
-  const noActions = !history || !app.options.decisions || keepsActions === false || kept === false;
+  const decides = pageDecides((app.pages || []).find((p) => p.id === pageId) || { records: meta });
+  const noActions = !history || !decides || keepsActions === false || kept === false;
   const cap = noActions ? 0 : listLimit(prefs);
   const windowed = noActions ? {} : listWindow(prefs);
   const aiPicks = ai || NO_PICKS;
@@ -522,7 +549,7 @@ export default function Records({ meta, app, pageId, filters, ai, onFilter, hist
     return () => window.removeEventListener(AGENT_OPEN, opened);
   }, [pageId]);
   const aliases = data?.ai?.columns || NO_ALIASES;
-  const tracker = !!(history && app.options.decisions && data?.actions);
+  const tracker = !!(history && decides && data?.actions);
   const everything = prefs.window === EVERYTHING;
   const owners = data?.summary?.owners || [];
   const person = app.user?.email || '';
@@ -673,7 +700,7 @@ export default function Records({ meta, app, pageId, filters, ai, onFilter, hist
     const sum = work.done + work.snoozed + work.skipped;
     setWork(null);
     close();
-    if (sum) toast(`Stopped. ${integer(work.done)} marked as fixed, ${integer(work.snoozed)} snoozed, ${integer(work.skipped)} skipped.`);
+    if (sum) toast(`Stopped. ${integer(work.done)} marked done, ${integer(work.snoozed)} snoozed, ${integer(work.skipped)} skipped.`);
   };
   const handled = useRef(0);
   useEffect(() => {
@@ -853,6 +880,9 @@ export default function Records({ meta, app, pageId, filters, ai, onFilter, hist
         <div className="list-tools">
           {tracker && tableRows.length > 0 && !everything && <button className="btn btn--pri" onClick={startWork} data-start-work><Icon name="right" size={14} />Start working</button>}
           {tracker && <WindowChips />}
+          {tracker && shownTotal > 0 && !everything && !matching && (
+            <button className="pick-i" onClick={selectAll} data-act-all>Act on all {capped ? 'more than ' : ''}{integer(shownTotal)} matching</button>
+          )}
           {(freshCount > 0 || fresh) && (
             <button className={`pick-i pick-i--you ${fresh ? 'is-on' : ''}`} aria-pressed={fresh} onClick={() => setFresh(!fresh)} data-fresh>
               New since your last visit · {integer(freshCount)} on this page
@@ -879,7 +909,8 @@ export default function Records({ meta, app, pageId, filters, ai, onFilter, hist
       <ConflictNote conflicts={acts.conflicts} labelOf={labelOf} onClose={acts.clearConflicts} />
       {(picked.size > 0 || matching) && (
         <BulkBar picked={picked} matching={matching} total={shownTotal} capped={capped} allOnPage={allPicked} owners={owners} person={person} busy={acting} tomorrow={tomorrow}
-          canMatch={!everything} onAct={actOn} onAll={selectAll} onClear={clearPicks} onAccept={meta.action && !matching ? acceptPicked : null} />
+          canMatch={!everything} onAct={actOn} onAll={selectAll} onClear={clearPicks} onAccept={meta.action && !matching ? acceptPicked : null}
+          onSimilar={similarBy?.length ? () => acts.findSimilar([...picked.keys()], { label: `the ${recordsText(picked.size)} you selected` }) : null} />
       )}
       {!data && list.busy && <div style={{ padding: 16, display: 'grid', gap: 10 }}>{[1, 2, 3, 4].map((i) => <Skeleton key={i} height={22} />)}</div>}
       {list.error && <p className="tile-err"><Icon name="info" size={14} />The list could not load: {list.error}</p>}

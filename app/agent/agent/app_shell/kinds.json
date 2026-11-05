@@ -134,12 +134,14 @@
     "lever_sliders",
     "outcome_distribution",
     "fan_chart",
+    "exposures",
     "scenario_table",
     "target_gauge",
     "tornado"
    ],
    "min_items": {
     "lever_sliders": 2,
+    "exposures": 3,
     "scenario_table": 3
    }
   },
@@ -404,6 +406,7 @@
    "label": "Data agent",
    "tab_label": "Ask",
    "enabled": true,
+   "informational": true,
    "contract": null,
    "sections": [
     "todo",
@@ -422,6 +425,7 @@
    "label": "Dashboard",
    "tab_label": "Overview",
    "enabled": true,
+   "informational": true,
    "contract": null,
    "sections": [
     "todo",
@@ -3981,7 +3985,7 @@
    "family": "text_agents",
    "label": "Data agent",
    "question": "Can people ask plain questions about this data and get trusted answers?",
-   "informational": false,
+   "informational": true,
    "layout": "agent_chat",
    "decision_layout": null,
    "signature": {

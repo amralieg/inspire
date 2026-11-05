@@ -13,7 +13,7 @@ import { GenieMark, Icon } from './icons.jsx';
 import FilterBar from './FilterBar.jsx';
 import Kpis, { Story, Tiles } from './Kpis.jsx';
 import ChartCard, { BarsCard } from './ChartCard.jsx';
-import DataTable, { columnOf } from './DataTable.jsx';
+import DataTable, { RowDetails, columnOf } from './DataTable.jsx';
 import Records from './Records.jsx';
 import Runs, { runCounts, useRuns } from './Runs.jsx';
 import Alerts from './Alerts.jsx';
@@ -85,6 +85,8 @@ function TableCard({ table, result, error, loading, onFilter, pageId, filters, v
   const columns = withColumnFilters(table.columns.map((c) => columnOf(c, onFilter)), filters, values, onColumn, pageId, table.id);
   const cut = !!result?.truncated;
   const served = cut || !!sort ? { sort: sort ? { key: sort.key, dir: sort.dir === 'desc' ? -1 : 1 } : null, onSort: (s) => onSort({ key: s.key, dir: s.dir > 0 ? 'asc' : 'desc' }) } : {};
+  const [opened, setOpened] = useState(null);
+  const element = (row) => ({ kind: ITEM_KINDS[table.section], title: rowTitle(row, columns), context: { hint: `A row of the table "${table.title}".`, fields: fieldsOf(row, columns) } });
   return (
     <section className="card card--table" aria-label={table.title}>
       <header className="card-h">
@@ -95,7 +97,8 @@ function TableCard({ table, result, error, loading, onFilter, pageId, filters, v
       {loading && <div style={{ padding: 16, display: 'grid', gap: 10 }}>{[1, 2, 3].map((i) => <Skeleton key={i} height={22} />)}</div>}
       {error && <p className="tile-err"><Icon name="info" size={14} />This table could not load: {error}</p>}
       {!loading && !error && <DataTable label={table.title} columns={columns} rows={result?.rows || []} filtering="server" grid={`page:${pageId}:table:${table.id}`} {...served}
-        askRow={(row) => ({ kind: ITEM_KINDS[table.section], title: rowTitle(row, columns), context: { hint: `A row of the table "${table.title}".`, fields: fieldsOf(row, columns) } })} />}
+        askRow={element} onRow={(row) => setOpened((o) => (o === row ? null : row))}
+        detail={(row) => (row === opened ? <RowDetails title={rowTitle(row, columns)} fields={fieldsOf(row, columns)} element={element(row)} onClose={() => setOpened(null)} /> : null)} />}
       {!loading && !error && cut && <p className="more" data-cut>Showing the first {integer(result.rows.length)} rows. Sorting and the column filters use every row.</p>}
     </section>
   );

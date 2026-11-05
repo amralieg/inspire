@@ -28,7 +28,8 @@ LAYOUTS = ("sidebar", "tabs", "home")
 AUTHS = ("user", "sp")
 THEMES = ("light", "dark")
 PALETTES = ("default", "muted", "vivid", "ocean", "sunset", "earth", "jewel", "nordic", "berry", "pop", "neon", "solid", "mono")
-OPTIONS = ("modify", "replace_edits", "decisions", "alerts")
+OPTIONS = ("modify", "replace_edits", "alerts")
+RETIRED_OPTIONS = ("decisions",)
 SCREENS = ("runs", "impact")
 USER_OFF = ("alerts",)
 OFF_WHEN_UNSET = ("alerts",)
@@ -218,6 +219,32 @@ def conflict_text(current) -> str:
             "change, then make yours again")
 
 
+def similar_keys(query: dict) -> list:
+    raw = query.get("record_keys")
+    if raw is None:
+        key = str(query.get("record_key") or "")
+        if not key or len(key) > RECORD_KEY_CHARS:
+            raise HttpError(400, "name the record_key of the record to find similar records for")
+        return [key]
+    try:
+        keys = json.loads(raw) if isinstance(raw, str) else raw
+    except ValueError:
+        keys = None
+    cap = shell_sql.CAPS["exclude_keys"]
+    if (not isinstance(keys, list) or not 1 <= len(keys) <= cap or len(set(map(str, keys))) != len(keys)
+            or any(not isinstance(k, str) or not k or len(k) > RECORD_KEY_CHARS for k in keys)):
+        raise HttpError(400, f"record_keys takes a JSON list of 1 to {cap} distinct record keys")
+    return keys
+
+
+def informational_text(page: dict) -> str:
+    ident = shell_sql.page_layout(page)
+    if shell_sql.layout_decides(ident):
+        return f"page {page.get('id')} has no decision list, so people record no decisions on it"
+    label = (shell_sql.layouts().get(ident) or {}).get("label") or ident
+    return f"page {page.get('id')} is a {label.lower()} page: it shows information only, so people record no decisions on it"
+
+
 def unreadable_text(count: int) -> str:
     if count == 1:
         return ("you cannot read this record in Unity Catalog, or it is no longer in the result table, so the App records no decision "
@@ -297,7 +324,7 @@ def settings_problems(settings: dict, pages: list) -> list:
         if settings.get(key) not in allowed:
             problems.append(f"the App {key} must be one of {', '.join(allowed)}")
     options = settings.get("options")
-    unknown = sorted(str(k) for k in options if k not in OPTIONS) if isinstance(options, dict) else []
+    unknown = sorted(str(k) for k in options if k not in OPTIONS + RETIRED_OPTIONS) if isinstance(options, dict) else []
     if not isinstance(options, dict) or any(not isinstance(options.get(k), bool) for k in OPTIONS
                                             if k not in OFF_WHEN_UNSET or k in options):
         problems.append(f"the App options must set {', '.join(k for k in OPTIONS if k not in OFF_WHEN_UNSET)} to true or false, "
@@ -2118,7 +2145,7 @@ class Shell:
         if page.get("records") and tables is None:
             jobs[("list", "types")] = lambda: self.list_columns(ws, who, page)
         done, _errors = self._parallel(jobs, probe)
-        actions = bool(page.get("records") and page.get("result_table") and self.option("decisions"))
+        actions = bool(page.get("result_table") and shell_sql.page_decides(page))
         return {"list": done.get(("list", "types")), "actions": actions,
                 "tables": {ident: found for (kind, ident), found in done.items() if kind == "table"}}
 
@@ -2135,7 +2162,7 @@ class Shell:
         return reads
 
     def list_base(self, ws, who, page: dict, columns: dict, fields, delta: bool = False) -> tuple:
-        context = shell_sql.list_context(page, columns, fields, self.option("decisions"))
+        context = shell_sql.list_context(page, columns, fields, shell_sql.page_decides(page))
         history = self.history_for(ws, who, page, fields) if context["join"] else None
         facts, fresh = self.run_facts(ws, who, page, history)
         context.update(types=columns, history=history, facts=facts if fresh["runs"] else None,
@@ -2426,7 +2453,7 @@ class Shell:
     def keeps_actions(self, ws, who, page: dict, fields) -> bool:
         if not page.get("records") or fields is None:
             return False
-        return shell_sql.list_context(page, self.list_columns(ws, who, page), fields, self.option("decisions"))["actions"]
+        return shell_sql.list_context(page, self.list_columns(ws, who, page), fields, shell_sql.page_decides(page))["actions"]
 
     def minutes_per_record(self, ws, who, page: dict):
         try:
@@ -2902,7 +2929,7 @@ class Shell:
         return problems
 
     def check_decidable(self, probe, page: dict, columns: dict, where: str) -> list:
-        if not (self.option("decisions") or self.plan_editable(page)):
+        if not (shell_sql.page_decides(page) or self.plan_editable(page)):
             return []
         try:
             fields = self.table_fields(probe.ws, None, page) if page.get("result_table") else []
@@ -3038,7 +3065,7 @@ class Shell:
             problems += self.check_lakebase_reads(headers, page, defaults, where)
             if self.option("modify"):
                 problems += [f"{where}: people cannot change its records: {p}" for p in self.write_problems(headers, page)]
-            if self.option("decisions"):
+            if shell_sql.page_decides(page):
                 problems += [f"{where}: people cannot record decisions on its records: {p}"
                              for p in self.write_problems(headers, page, decisions=True)]
             problems += slow_problems(where, probe.seconds)
@@ -3374,9 +3401,7 @@ class Shell:
         return keys, seen, None
 
     def record_act(self, headers: dict, data: dict) -> dict:
-        if not self.option("decisions"):
-            raise HttpError(403, "this App does not let people record decisions on its records")
-        page = self.page(data.get("page"))
+        page = self.deciding_page(data.get("page"))
         editor = self.editor(headers)
         keys, seen, match = self.act_target(data)
         values = shell_sql.action_values(data.get("values"), self.now().date())
@@ -3392,14 +3417,20 @@ class Shell:
         notice = self.alerts.assigned(headers, page, values.get("action_owner"), editor) if values.get("action_owner") else ""
         return dict(out, **({"notice": notice} if notice else {}))
 
+    def deciding_page(self, ident) -> dict:
+        page = self.page(ident)
+        if not shell_sql.page_decides(page):
+            raise HttpError(403, informational_text(page))
+        return page
+
     def plan_decide(self, headers: dict, data: dict) -> dict:
         page = self.page(data.get("page"))
         plan = page.get("plan")
         if not isinstance(plan, dict):
             raise HttpError(404, f"page {page['id']} has no plan to decide")
-        decisions, editable = self.option("decisions"), self.plan_editable(page)
+        decisions, editable = shell_sql.page_decides(page), self.plan_editable(page)
         if not decisions and not editable:
-            raise HttpError(403, "this App does not let people record decisions on its records")
+            raise HttpError(403, informational_text(page))
         key, seen = str(data.get("record_key") or ""), str(data.get("seen") or "")
         if not key or len(key) > RECORD_KEY_CHARS:
             raise HttpError(400, "name the record_key of the plan line you decide")
@@ -3550,9 +3581,7 @@ class Shell:
                 "limit": shell_sql.CAPS["batches"]}
 
     def undo(self, headers: dict, data: dict) -> dict:
-        if not self.option("decisions"):
-            raise HttpError(403, "this App does not let people record decisions on its records")
-        page = self.page(data.get("page"))
+        page = self.deciding_page(data.get("page"))
         editor = self.editor(headers)
         undone = str(data.get("batch_id") or "")
         if not shell_sql.BATCH_ID.match(undone):
@@ -3606,9 +3635,7 @@ class Shell:
 
     def similar(self, headers: dict, query: dict) -> dict:
         page = self.page(query.get("page"))
-        record_key = str(query.get("record_key") or "")
-        if not record_key or len(record_key) > RECORD_KEY_CHARS:
-            raise HttpError(400, "name the record_key of the record to find similar records for")
+        keys = similar_keys(query)
         offered = {f["id"]: f for f in shell_sql.similar_filters(page)}
         if not offered:
             raise HttpError(409, f"this page names no columns to find similar records by; {shell_sql.rebuild_action('the use case')} so its page records them")
@@ -3623,15 +3650,19 @@ class Shell:
         context, _fields = self.list_context(ws, who, page, delta=True)
         if not context["actions"]:
             raise HttpError(409, "this decision list keeps no actions, so it has no open records to compare")
-        sql, params = shell_sql.similar_values_query(page, context, record_key, [offered[b] for b in by])
-        found = (self.execute(ws, sql, params, 1, delta=True)["rows"] or [None])[0]
-        if found is None:
-            raise HttpError(404, f"record {record_key} is not on this page's decision list")
-        filters = {b: [str(found[b])] for b in by if found.get(b) is not None}
+        sql, params = shell_sql.similar_values_query(page, context, keys, [offered[b] for b in by])
+        found = self.execute(ws, sql, params, len(keys), delta=True)["rows"]
+        named = keys[0] if len(keys) == 1 else f"none of the {shell_sql.plural(len(keys), 'record')}"
+        if not found:
+            raise HttpError(404, f"record {named} is not on this page's decision list" if len(keys) == 1 else
+                            f"{named} is on this page's decision list")
+        filters = {b: sorted({str(r[b]) for r in found if r.get(b) is not None}) for b in by}
+        filters = {b: values for b, values in filters.items() if values}
         if not filters:
-            raise HttpError(409, f"record {record_key} has no value in {', '.join(offered[b].get('label') or b for b in by)}, so no record "
-                                 "is similar to it by them")
-        view = {"window": "all", "exclude": [record_key]}
+            where = ", ".join(offered[b].get("label") or b for b in by)
+            raise HttpError(409, f"record {named} has no value in {where}, so no record is similar to it by them" if len(keys) == 1 else
+                            f"{named} has a value in {where}, so no record is similar to them")
+        view = {"window": "all", "exclude": keys}
         request = shell_sql.list_request(page, dict(view, limit=shell_sql.CAPS["similar_sample"]), context, self.now())
         plan = shell_sql.list_queries(page, filters, request, context)
         read_at = self.clock()
@@ -3643,7 +3674,7 @@ class Shell:
         records = page.get("records") or {}
         sample = [{"record_key": r.get("_inspire_key"), "label": r.get(records.get("label")), "valid_from_us": r.get("_inspire_version")}
                   for r in rows]
-        return {"by": [{"filter": b, "label": offered[b].get("label"), "value": filters[b][0]} for b in by if b in filters],
+        return {"by": [{"filter": b, "label": offered[b].get("label"), "value": ", ".join(filters[b]), "values": filters[b]} for b in by if b in filters],
                 "count": int((done[("similar", "total")]["rows"] or [{}])[0].get("total") or 0), "sample": sample,
                 "match": {"filters": filters, "view": view, "as_of_us": self.as_of_us(["delta"], read_at)}}
 

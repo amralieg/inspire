@@ -9,15 +9,18 @@ export const SOURCES = { run: 'Written by the job', edit: 'Edited', add: 'Added'
 export const ACTION_LABELS = { action_owner: 'Owner', action_status: 'Status', action_due: 'Due', action_note: 'Note', dismiss_reason: 'Why it is wrong',
   action_outcome: 'Outcome', realized_note: 'How you know' };
 export const STATUSES = ['New', 'In progress', 'Done', 'Dismissed', 'Could not fix'];
-export const STATUS_LABELS = { Done: 'Fixed', Dismissed: 'Not a real issue' };
+export const STATUS_LABELS = { Dismissed: 'Not an issue' };
 export const statusLabel = (status) => STATUS_LABELS[status] || status;
 export const CLOSED_STATUSES = ['Done', 'Dismissed', 'Could not fix'];
-export const canDecide = (app, list) => !!(app?.options?.decisions && list?.actions);
-export const NO_DECISIONS = 'This App does not record decisions, so this list shows its suggestions only.';
+export const canDecide = (list) => !!list?.actions;
+export const pageDecides = (page) => !!page?.records && page?.layout?.decides !== false;
+export const INFORMATIONAL = 'This page shows information only, so its rows carry no status. Open a row to see its details or ask Genie about it.';
 export const UNLINKED = 'This list is not linked to the records of the use case, so the App cannot save a decision on it yet.';
-export const noDecisionText = (app) => (app?.options?.decisions ? UNLINKED : NO_DECISIONS);
+export const noDecisionText = (page) => (pageDecides(page) ? UNLINKED : INFORMATIONAL);
 export const PAGE_SIZES = [25, 50, 100];
 export const ACT_LIMIT = 200;
+export const SIMILAR_KEYS = 50;
+export const NO_SIMILAR = 'No other open record shares the values of these records.';
 export const REASON_CHARS = 300;
 export const NOTE_CHARS = 500;
 const AMOUNT = /^\d+(\.\d+)?$/;
@@ -62,7 +65,7 @@ const VIEW_KEYS = ['ai', 'search', 'mine', 'changed', 'column_filters', 'window'
 const WINDOW_KEYS = ['window', 'window_limit', 'time_zone'];
 
 export const withoutWindow = (body) => Object.fromEntries(Object.entries(body).filter(([k]) => !WINDOW_KEYS.includes(k)));
-const STATUS_WORDS = { Done: 'marked as fixed', Dismissed: 'marked as not a real issue', 'Could not fix': 'marked as could not fix' };
+const STATUS_WORDS = { Done: 'marked done', Dismissed: 'marked as not an issue', 'Could not fix': 'marked as could not fix' };
 const howMany = (v) => (Array.isArray(v) ? v.length : countOf(v));
 
 export const recordsText = (n) => `${count(n)} ${n === 1 ? 'record' : 'records'}`;
@@ -211,7 +214,7 @@ export function actionProblem(form, unit = '', kind = '') {
     return String(form.how ?? '').trim().length > NOTE_CHARS ? `Keep how you know to ${NOTE_CHARS} characters` : '';
   }
   if (form.status !== 'Dismissed') return '';
-  if (!form.reason.trim()) return 'Say why it is not a real issue';
+  if (!form.reason.trim()) return 'Say why it is not an issue';
   return form.reason.trim().length > REASON_CHARS ? `Keep the reason to ${REASON_CHARS} characters` : '';
 }
 
@@ -314,9 +317,9 @@ export function doneText(current, currency = '', kind = '') {
     const amount = current.realized_value;
     const reported = !isAmount(amount) ? ''
       : ` People reported it ${savedVerb(currency, kind)} ${savingText(amount, currency, kind)}${String(current.realized_note ?? '').trim() ? `: ${String(current.realized_note).trim()}` : ''}.`;
-    if (outcome === 'Resolved') return `Marked as fixed. A later run found it resolved.${reported}`;
-    if (outcome === 'Still flagged') return `Marked as fixed, but a later run still flags it.${reported}`;
-    return (outcome ? `Marked as fixed. A later run says: ${outcome}` : 'Marked as fixed. The next run checks whether it worked.') + reported;
+    if (outcome === 'Resolved') return `Marked done. A later run found it resolved.${reported}`;
+    if (outcome === 'Still flagged') return `Marked done, but a later run still flags it.${reported}`;
+    return (outcome ? `Marked done. A later run says: ${outcome}` : 'Marked done. The next run checks whether it worked.') + reported;
   }
   if (current?.action_status === 'Could not fix') {
     if (outcome === 'Resolved') return 'Marked as could not fix. A later run found it resolved anyway.';
@@ -325,7 +328,7 @@ export function doneText(current, currency = '', kind = '') {
   }
   if (current?.action_status === 'Dismissed') {
     const reason = String(current.dismiss_reason ?? '').trim();
-    return reason ? `Marked as not a real issue. Reason: ${reason}` : 'Marked as not a real issue.';
+    return reason ? `Marked as not an issue. Reason: ${reason}` : 'Marked as not an issue.';
   }
   return '';
 }

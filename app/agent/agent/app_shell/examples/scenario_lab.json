@@ -18,6 +18,10 @@
   ],
   "datasets": [
     {
+      "name": "records",
+      "sql": "SELECT o.record_key, o.entity_id, o.entity_label, o.priority_tier, o.`rank`, o.top_reasons, o.recommended_action, o.value, o.as_of_date, o.region FROM main.finance.margin_out AS o WHERE o.is_current AND o.change_source <> 'delete'"
+    },
+    {
       "name": "model",
       "sql": "SELECT m.driver, m.coefficient FROM main.finance.margin_out__scenario_model AS m"
     },
@@ -42,6 +46,7 @@
       "grain": "month",
       "default": "12m",
       "columns": {
+        "records": "as_of_date",
         "runs": "as_of_date"
       }
     },
@@ -50,6 +55,7 @@
       "type": "multi_select",
       "label": "Region",
       "columns": {
+        "records": "region",
         "runs": "region"
       }
     }
@@ -193,5 +199,30 @@
       "levers": "lever_values",
       "outcome": "expected_outcome"
     }
+  },
+  "records": {
+    "title": "Margin at risk",
+    "hint": "The lines the base case puts furthest from the target, ranked by margin at stake.",
+    "key": "entity_id",
+    "label": "entity_label",
+    "rank": "rank",
+    "tier": "priority_tier",
+    "reasons": "top_reasons",
+    "action": "recommended_action",
+    "columns": [
+      {
+        "column": "value",
+        "label": "Margin",
+        "format": "currency",
+        "currency": "USD"
+      }
+    ],
+    "detail": [
+      {
+        "column": "region",
+        "label": "Region",
+        "format": "text"
+      }
+    ]
   }
 }

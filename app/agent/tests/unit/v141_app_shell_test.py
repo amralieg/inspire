@@ -601,11 +601,23 @@ class ShapedWorkspace(FakeWorkspace):
         return dict(out, rows=change) if change is not None else out
 
 
-def checked(tmp_path, shape):
+NO_RESULT_TABLE = ["page n01_u05: people cannot record a decision on any row of the decision list, because the page names no result "
+                   "table; select record_key from the result table in the records dataset, joined to the companion and input tables "
+                   "it reads, so each row is one record of the result table",
+                   "page n01_u05: people cannot record decisions on its records: this page names no result table, so its records keep "
+                   "no history"]
+
+
+def deciding(problems: list, expect=tuple(NO_RESULT_TABLE)) -> list:
+    assert all(p in problems for p in expect), "the example page decides and names no result table, so its check says so"
+    return [p for p in problems if p not in NO_RESULT_TABLE]
+
+
+def checked(tmp_path, shape, expect=tuple(NO_RESULT_TABLE)):
     ws = ShapedWorkspace(shape)
     s = shell_core.Shell(app_dir(tmp_path), env={"DATABRICKS_WAREHOUSE_ID": "wh1"}, sp_factory=lambda: ws,
                          user_factory=lambda h, t: ws)
-    return s.check({}), ws
+    return deciding(s.check({}), expect), ws
 
 
 def test_check_runs_every_query_at_the_default_filters(tmp_path):
@@ -629,7 +641,7 @@ def test_check_names_every_broken_or_empty_tile(tmp_path):
             return shell_db.QueryError("TABLE_OR_VIEW_NOT_FOUND")
         return []
 
-    problems, _ws = checked(tmp_path, shape)
+    problems, _ws = checked(tmp_path, shape, expect=NO_RESULT_TABLE[1:])
     for f in ("category", "channel", "region"):
         assert f"page n01_u05: filter {f} found no values to pick" in problems
     for k in ("total_loss", "loss_rate", "items"):
@@ -680,7 +692,7 @@ def test_check_sends_back_a_chart_whose_undeclared_measure_holds_dates(tmp_path,
     ws = TypedWorkspace(lambda sql: rows if _by_category(sql) else None, columns)
     s = shell_core.Shell(app_dir(tmp_path), env={"DATABRICKS_WAREHOUSE_ID": "wh1"}, sp_factory=lambda: ws,
                          user_factory=lambda h, t: ws)
-    dated = [p for p in s.check({}) if " is a date, so a " in p]
+    dated = [p for p in deciding(s.check({})) if " is a date, so a " in p]
     assert dated == (["page n01_u05: chart by_category measure 1 is a date, so a horizontal_bar cannot draw it as a height or a size; show the "
                       "date as text in a KPI or a table column, count the rows instead, or draw a gantt of each start and end"]
                      if refused else []), dated
@@ -751,7 +763,7 @@ def test_check_keeps_a_one_value_filter_when_three_others_slice(tmp_path):
     ws = ShapedWorkspace(lambda sql: [{"v": "Monitor"}] if sql.startswith("SELECT v FROM") and "`action_level`" in sql else None)
     s = shell_core.Shell(app_dir(tmp_path, pages=[page]), env={"DATABRICKS_WAREHOUSE_ID": "wh1"}, sp_factory=lambda: ws,
                          user_factory=lambda h, t: ws)
-    assert s.check({}) == []
+    assert deciding(s.check({})) == []
     assert any(sql.startswith("SELECT v FROM") and "`action_level`" in sql for sql, _p, _l in ws.sql)
 
 

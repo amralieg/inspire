@@ -13,7 +13,7 @@ const DAY_MS = 86400000;
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
 const NUMBER = /\d[\d,]*(?:\.\d+)?/g;
 export const KINDS = {
-  fixed: 'Fixed', dismissed: 'Closed as not a real issue', could_not: 'Closed as could not fix', assigned: 'Assigned', note: 'Added a note',
+  fixed: 'Fixed', dismissed: 'Closed as not an issue', could_not: 'Closed as could not fix', assigned: 'Assigned', note: 'Added a note',
   changed: 'Changed',
 };
 
@@ -108,7 +108,7 @@ export function notableOf(facts) {
 export function factLines(facts) {
   const w = facts.worked;
   const lines = [`Period: ${facts.period}`, `Records changed: ${grouped(w.records)}`, `Fixed: ${grouped(w.fixed)}`,
-    `Closed as not a real issue: ${grouped(w.dismissed)}`, `Closed as could not fix: ${grouped(w.could_not)}`,
+    `Closed as not an issue: ${grouped(w.dismissed)}`, `Closed as could not fix: ${grouped(w.could_not)}`,
     `Assigned: ${grouped(w.assigned)}`, `Notes added: ${grouped(w.notes)}`];
   [['measured', 'Measured savings on your fixes'], ['reported', 'Savings people reported on your fixes'],
     ['estimated', 'Estimated savings on your fixes']].forEach(([basis, label]) => {
@@ -125,7 +125,7 @@ export function factLines(facts) {
 export function templateText(facts) {
   const w = facts.worked;
   if (!w.records) return `You changed no records ${facts.period}.`;
-  const closed = [w.fixed ? `fixed ${plural(w.fixed, 'record')}` : '', w.dismissed ? `closed ${grouped(w.dismissed)} as not a real issue` : '',
+  const closed = [w.fixed ? `fixed ${plural(w.fixed, 'record')}` : '', w.dismissed ? `closed ${grouped(w.dismissed)} as not an issue` : '',
     w.could_not ? `closed ${grouped(w.could_not)} as could not fix` : ''].filter(Boolean);
   const did = closed.length ? closed.join(', ') : `changed ${plural(w.records, 'record')}`;
   const money = ['measured', 'reported', 'estimated'].map((b) => (facts.money[b] ? `${facts.money[b].text} ${b}` : '')).filter(Boolean);

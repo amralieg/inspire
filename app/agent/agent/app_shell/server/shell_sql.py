@@ -263,6 +263,7 @@ SECTIONS = {
     "small_multiples": {"charts": TRENDS, "words": "small multiples of the series"},
     "lever_sliders": {"holds": "levers", "suffix": "__scenario_model", "words": "the levers people move"},
     "outcome_distribution": {"holds": "scenario", "words": "the outcome distribution"},
+    "exposures": {"holds": "records", "unit": "rows", "words": "the records the scenario puts at risk, ranked, to act on"},
     "scenario_table": {"tables": True, "unit": "rows", "suffix": "__scenarios", "words": "a table of the base, upside and downside scenarios"},
     "target_gauge": {"holds": "target", "words": "the chance of reaching the target"},
     "tornado": {"charts": ("tornado",), "suffix": "__sensitivity", "words": "a tornado chart of what moves the outcome"},
@@ -1436,6 +1437,14 @@ def section_items(page: dict, section: str) -> list:
     return [item for group in ("charts", "tables") for item in page.get(group) or [] if isinstance(item, dict) and item.get("section") == section]
 
 
+def layout_decides(ident: str) -> bool:
+    return (layouts().get(ident) or {}).get("informational") is not True
+
+
+def page_decides(page: dict) -> bool:
+    return isinstance(page, dict) and bool(page.get("records")) and layout_decides(page_layout(page))
+
+
 def decision_section(page: dict):
     sections = (layouts().get(page_layout(page)) or {}).get("sections") or []
     return next((s for s in sections if (SECTIONS.get(s) or {}).get("holds") in DECISION_HOLDS), None)
@@ -1736,7 +1745,7 @@ def public_layout(page: dict) -> dict:
     return {"id": ident, "label": layout.get("label") or ident, "tab_label": layout.get("tab_label") or "",
             "sections": layout_sections(ident, page),
             "holds": {str(s): SECTIONS[s]["holds"] for s in layout_sections(ident, page) if (SECTIONS.get(s) or {}).get("holds")},
-            "decides": ident == DEFAULT_LAYOUT or decision_section(page) is not None}
+            "decides": page_decides(page), "informational": not layout_decides(ident)}
 
 
 def public_scenario(scenario) -> dict:
@@ -4772,12 +4781,14 @@ def batch_records_query(page: dict, batch_id: str, restored_by: str) -> tuple:
             f"ORDER BY `_inspire_done`, x.`record_key` LIMIT {CAPS['conflicts_shown']}", params.items)
 
 
-def similar_values_query(page: dict, context: dict, record_key: str, filters: list) -> tuple:
+def similar_values_query(page: dict, context: dict, record_keys, filters: list) -> tuple:
+    keys = [str(k) for k in ([record_keys] if isinstance(record_keys, str) else record_keys)]
     params = _Params()
     columns = ", ".join(f"CAST(d.{quote(f['columns'][RECORDS_DATASET])} AS STRING) AS {quote(f['id'])}" for f in filters)
     ctes = {"d": f"SELECT * FROM ({_dataset(page, RECORDS_DATASET)}) AS d", "c": _current_cte(context)}
-    return (f"{_with(ctes, ['d', 'c'])} SELECT {columns} FROM d JOIN c ON {_current_on(context, 'd')} WHERE c.`_inspire_key` = "
-            f"{params.add(str(record_key))} LIMIT 1", params.items)
+    wanted = ", ".join(params.add(k) for k in keys)
+    return (f"{_with(ctes, ['d', 'c'])} SELECT c.`_inspire_key` AS `_inspire_key`, {columns} FROM d JOIN c ON {_current_on(context, 'd')} "
+            f"WHERE c.`_inspire_key` IN ({wanted}) LIMIT {len(keys)}", params.items)
 
 
 def similar_filters(page: dict) -> list:

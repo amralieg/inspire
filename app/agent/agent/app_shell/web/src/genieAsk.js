@@ -32,6 +32,15 @@ export function askGenie(detail) {
   window.dispatchEvent(new CustomEvent(GENIE_ASK, { detail }));
 }
 
+export const fixQuestion = (label) => `How do I fix ${label || 'this record'}? Say what to do first and why.`;
+
+export function askGenieAbout(record, question = '') {
+  const recordKey = String(record?.recordKey ?? '');
+  if (!record?.pageId || !recordKey) return false;
+  askGenie({ pageId: record.pageId, recordKey, label: String(record.label || recordKey), question: String(question || '') });
+  return true;
+}
+
 export function genieKey(app, id) {
   if (app.pages.some((p) => p.id === id)) return id;
   return app.pages.length === 1 ? app.pages[0].id : '';

@@ -1,11 +1,11 @@
 import { Suspense, lazy, useEffect, useState } from 'react';
 import { decidePlan, getRecords, runSettingsNow } from './api.js';
 import { entityName, formatValue, integer, numberOf } from './format.js';
-import { canDecide, noDecisionText, recordKeyOf } from './records.js';
+import { canDecide, noDecisionText, pageDecides, recordKeyOf } from './records.js';
 import { Icon, GenieMark } from './icons.jsx';
 import { SaidNote, Skeleton, useToast } from './ui.jsx';
 import { genieOn } from './genieAsk.js';
-import { ChartsReady, SECTION_PARTS, TakeAll, decidedText, isClosed } from './KindParts.jsx';
+import { ChartsReady, RowPanel, SECTION_PARTS, TakeAll, decidedText, isClosed, useOpenRow } from './KindParts.jsx';
 import { AskGenie } from './AskGenie.jsx';
 import { RowGenie } from './DataTable.jsx';
 import { tableContext } from './explain.js';
@@ -17,7 +17,7 @@ export const DEFAULT_LAYOUT = 'decision_queue';
 export const layoutOf = (page) => page?.layout?.id || DEFAULT_LAYOUT;
 export const isLaidOut = (page) => layoutOf(page) !== DEFAULT_LAYOUT;
 export const tabLabel = (page, fallback) => (isLaidOut(page) && page.layout?.tab_label) || fallback;
-export const decides = (page) => !!page?.records && page?.layout?.decides !== false;
+export const decides = pageDecides;
 const PLAN_ROWS = 50;
 const TODO_ROWS = 5;
 
@@ -123,7 +123,7 @@ export async function decidePlanLine(page, plan, row, decision, reason = '', val
 
 const planOpen = (row) => recordKeyOf(row) != null && !!row._inspire_version && !isClosed(row);
 
-function PlanRow({ page, app, plan, row, actions, onDecided }) {
+function PlanRow({ page, app, plan, row, actions, onDecided, onOpen }) {
   const [open, setOpen] = useState(false);
   const [value, setValue] = useState('');
   const [reason, setReason] = useState('');
@@ -158,7 +158,7 @@ function PlanRow({ page, app, plan, row, actions, onDecided }) {
   return (
     <>
       <tr data-plan-row={key}>
-        <th scope="row">{lineName(page, row)}</th>
+        <th scope="row"><button type="button" className="choice-open" onClick={() => onOpen(row)} data-open-row={key} aria-label={`Open ${lineName(page, row)}`}>{lineName(page, row)}</button></th>
         <td className="num">{fmt(row[plan.current])}</td>
         <td className="num plan-rec"><span aria-hidden="true">★ </span>{fmt(row[plan.recommended])}</td>
         <td className={`num ${delta > 0 ? 'is-up' : delta < 0 ? 'is-down' : ''}`}>{delta == null ? '' : `${delta > 0 ? '+' : ''}${fmt(delta)}`}</td>
@@ -192,7 +192,7 @@ function PlanRow({ page, app, plan, row, actions, onDecided }) {
   );
 }
 
-const planDecides = (app, plan, list) => canDecide(app, list) || !!(plan.override && app.options?.modify);
+const planDecides = (app, plan, list) => canDecide(list) || !!(plan.override && app.options?.modify);
 
 function Resolve({ page }) {
   const [state, setState] = useState({ busy: false, said: '' });
@@ -218,6 +218,7 @@ function Resolve({ page }) {
 export function PlanTable({ page, app, filters, ready, nonce, onChanged }) {
   const plan = page.plan;
   const list = useList(page.id, filters, ready, nonce, PLAN_ROWS);
+  const opened = useOpenRow();
   const rows = list.data?.rows || [];
   const can = planDecides(app, plan, list.data);
   const [busy, setBusy] = useState(false);
@@ -250,7 +251,7 @@ export function PlanTable({ page, app, filters, ready, nonce, onChanged }) {
   return (
     <section className="card card--table plan" aria-label={plan.title}>
       <header className="card-h"><div><h2>{plan.title}</h2>
-        {list.data && !can ? <p className="muted" data-no-decisions>{noDecisionText(app)}</p> : plan.hint && <p>{plan.hint}</p>}
+        {list.data && !can ? <p className="muted" data-no-decisions>{noDecisionText(page)}</p> : plan.hint && <p>{plan.hint}</p>}
       </div>
       {open.length > 0 && <TakeAll count={open.length} busy={busy} onClick={acceptAll} />}
       <AskGenie kind="table" title={plan.title} context={tableContext(plan.hint || '', rows, (row) => planFields(page, plan, row), list.data?.total)} /></header>
@@ -262,9 +263,10 @@ export function PlanTable({ page, app, filters, ready, nonce, onChanged }) {
       {rows.length > 0 && (
         <div className="tw"><table className="plan-t">
           <thead><tr><th scope="col">{page.records.label_title || 'Line'}</th><th scope="col">Now</th><th scope="col">Suggested</th><th scope="col">Change</th><th scope="col">Status</th>{can && <th scope="col"><span className="sr">Decide</span></th>}<th scope="col"><span className="sr">Ask Genie</span></th></tr></thead>
-          <tbody>{rows.map((row) => <PlanRow key={recordKeyOf(row)} page={page} app={app} plan={plan} row={row} actions={can} onDecided={onChanged} />)}</tbody>
+          <tbody>{rows.map((row) => <PlanRow key={recordKeyOf(row)} page={page} app={app} plan={plan} row={row} actions={can} onDecided={onChanged} onOpen={opened.open} />)}</tbody>
         </table></div>
       )}
+      <RowPanel page={page} app={app} list={list.data} opened={opened} filters={filters} onChanged={onChanged} />
     </section>
   );
 }

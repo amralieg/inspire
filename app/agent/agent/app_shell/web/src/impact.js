@@ -48,8 +48,8 @@ export function wrongFigure(entry) {
   const wrong = countOf(entry.closed?.Dismissed?.n);
   if (!closed) return none('Nobody has closed a record yet');
   const share = percentOf(wrong, closed);
-  return { value: `${share}%`, amount: share, n: closed, formula: `${wrong} not a real issue / ${closed} closed x 100 = ${share}%`,
-    how: `People marked ${wrong} of ${plural(closed, 'closed record')} not a real issue, so ${100 - share}% were right` };
+  return { value: `${share}%`, amount: share, n: closed, formula: `${wrong} not an issue / ${closed} closed x 100 = ${share}%`,
+    how: `People marked ${wrong} of ${plural(closed, 'closed record')} not an issue, so ${100 - share}% were right` };
 }
 
 export function figuresOf(entry, currency, kind = '') {
@@ -71,8 +71,8 @@ export function totalWrong(rows) {
   const wrong = sumOf(counted, (r) => r.entry.closed?.Dismissed?.n);
   if (!closed) return { value: NOT_MEASURED, sub: 'Nobody has closed a record yet' };
   const share = percentOf(wrong, closed);
-  return { value: `${share}%`, formula: `${wrong} not a real issue / ${closed} closed x 100 = ${share}%`,
-    sub: `People marked ${wrong} of ${plural(closed, 'closed record')} not a real issue, so ${100 - share}% were right` };
+  return { value: `${share}%`, formula: `${wrong} not an issue / ${closed} closed x 100 = ${share}%`,
+    sub: `People marked ${wrong} of ${plural(closed, 'closed record')} not an issue, so ${100 - share}% were right` };
 }
 
 export function impactTiles(rows) {

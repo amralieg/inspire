@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { GenieMark, Icon } from './icons.jsx';
 import { DATE_FORMATS, cellText, compareValues, isAmount, numberOf, plainText, plainWords } from './format.js';
-import { askGenie } from './genieAsk.js';
+import { askGenieAbout } from './genieAsk.js';
 import { ColumnFilterStatus, withColumnFilters } from './ColumnFilters.jsx';
 import { columnFiltersOn, withValue } from './filters.js';
 import { columnName, filterRows, localFilters, movableKeys, moveKey, orderColumns, sameOrder, savedOrder } from './grid.js';
@@ -29,7 +29,7 @@ export function columnOf(c, onFilter) {
 export function RowAsk({ about }) {
   return (
     <button type="button" className="row-ask" aria-label={`Ask Genie about ${about.label}`}
-      onClick={(e) => { e.stopPropagation(); askGenie({ ...about, question: '' }); }} onKeyDown={(e) => e.stopPropagation()}>
+      onClick={(e) => { e.stopPropagation(); askGenieAbout(about); }} onKeyDown={(e) => e.stopPropagation()}>
       <GenieMark size={13} /><span>Ask Genie</span>
     </button>
   );
@@ -38,6 +38,17 @@ export function RowAsk({ about }) {
 export function RowGenie({ about, element }) {
   if (about) return <RowAsk about={about} />;
   return element ? <AskGenie kind={element.kind || 'record'} title={element.title} context={element.context} page={element.page} /> : null;
+}
+
+export function RowDetails({ title, fields, element, onClose }) {
+  return (
+    <div className="row-detail" role="group" aria-label={`Details of ${title}`} data-row-detail>
+      <div className="mgrid">{Object.entries(fields || {}).map(([label, value]) => (
+        <div key={label}><span>{label}</span><b>{value == null || value === '' ? 'Not recorded' : Array.isArray(value) ? value.join(', ') : String(value)}</b></div>
+      ))}</div>
+      <div className="row-detail-f"><RowGenie element={element} /><span className="sp" /><button type="button" className="link" onClick={onClose}>Close</button></div>
+    </div>
+  );
 }
 
 function askColumn(askAbout, askRow) {

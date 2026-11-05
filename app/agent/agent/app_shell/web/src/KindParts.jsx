@@ -1,8 +1,9 @@
 import { Suspense, lazy, useEffect, useState } from 'react';
 import { getRecords } from './api.js';
 import { cellText, formatValue, integer, isKeyColumn, numberOf } from './format.js';
-import { CLOSED_STATUSES, actError, canDecide, listAsOf, matchOf, noDecisionText, recordKeyOf, statusLabel } from './records.js';
-import { useActs } from './Work.jsx';
+import { CLOSED_STATUSES, actError, canDecide, listAsOf, matchOf, noDecisionText, pageDecides, recordKeyOf, statusLabel } from './records.js';
+import { QueueBulk, useActs } from './Work.jsx';
+import { RecordPanel } from './Records.jsx';
 import { useList } from './Layouts.jsx';
 import { Icon } from './icons.jsx';
 import { Skeleton } from './ui.jsx';
@@ -142,14 +143,16 @@ function useChoices(page, onChanged) {
   return { choose, takeAll, busy, error, run };
 }
 
-function ChoiceRow({ page, app, row, choices, suggested, canAct, busy, onChoose, detail, ask, children }) {
+function ChoiceRow({ page, app, row, choices, suggested, canAct, busy, onChoose, onOpen, detail, ask, children }) {
   const [skipping, setSkipping] = useState(null);
   const key = String(recordKeyOf(row));
   const closed = isClosed(row);
   return (
     <li className="choice-row" data-choice-row={key}>
       <div className="choice-main">
-        <b>{row[page.records?.label] ?? key}</b>
+        <button type="button" className="choice-open" onClick={() => onOpen(row)} data-open-row={key} aria-label={`Open ${nameOf(page, row)}`}>
+          <b>{row[page.records?.label] ?? key}</b>
+        </button>
         {detail}
         {children}
       </div>
@@ -178,17 +181,33 @@ function ChoiceRow({ page, app, row, choices, suggested, canAct, busy, onChoose,
   );
 }
 
-function ListShell({ page, app, title, hint, section, list, empty, actions, error, children }) {
-  const off = !!list.data && !canDecide(app, list.data);
+export function useOpenRow() {
+  const [open, setOpen] = useState(null);
+  return { row: open, open: setOpen, close: () => setOpen(null) };
+}
+
+export function RowPanel({ page, app, list, opened, filters, view, onChanged }) {
+  return (
+    <>
+      {canDecide(list) && <QueueBulk pageId={page.id} list={list} asked={{ page: page.id, filters: filters || {}, ...(view || {}) }} person={app.user?.email || ''}
+        onChanged={onChanged} />}
+      <RecordPanel meta={page.records} app={app} pageId={page.id} row={opened.row} list={list} onClose={opened.close} onChanged={onChanged} similarBy={page.similar_by} />
+    </>
+  );
+}
+
+function ListShell({ page, app, title, hint, section, list, empty, actions, error, filters, view, onChanged, opened, children }) {
+  const off = !!list.data && !canDecide(list.data);
   return (
     <section className="card card--table choices" aria-label={title} data-part={section}>
-      <header className="card-h"><div><h2>{title}</h2>{off ? <p className="muted" data-no-decisions>{noDecisionText(app)}</p> : hint && <p>{hint}</p>}</div>{actions}
+      <header className="card-h"><div><h2>{title}</h2>{off ? <p className="muted" data-no-decisions>{noDecisionText(page)}</p> : hint && <p>{hint}</p>}</div>{actions}
         <AskGenie kind="table" title={title} context={tableContext(hint || '', list.data?.rows || [], (row) => choiceFields(page, row), list.data?.total)} /></header>
       {!list.data && !list.error && <div style={{ padding: 16 }}><Skeleton height={22} /></div>}
       {list.error && <p className="tile-err"><Icon name="info" size={14} />The list could not load: {list.error}</p>}
       {error && <p className="tile-err" role="alert"><Icon name="info" size={14} />{error}</p>}
       {list.data && !(list.data.rows || []).length && <p className="empty">{empty}</p>}
       {children}
+      <RowPanel page={page} app={app} list={list.data} opened={opened} filters={filters} view={view} onChanged={onChanged} />
     </section>
   );
 }
@@ -212,12 +231,14 @@ function Lookup({ label, value, onLook }) {
 
 export function RecList({ page, app, filters, ready, nonce, onChanged }) {
   const [search, setSearch] = useState('');
-  const list = useList(page.id, filters, ready, nonce, LIST_ROWS, true, search ? { search } : null);
+  const view = search ? { search } : null;
+  const list = useList(page.id, filters, ready, nonce, LIST_ROWS, true, view);
+  const opened = useOpenRow();
   const choices = page.choices || [];
   const recs = page.recs || {};
   const meta = page.records || {};
   const rows = list.data?.rows || [];
-  const can = canDecide(app, list.data);
+  const can = canDecide(list.data);
   const decide = useChoices(page, onChanged);
   const suggest = (row) => suggestedChoice(choices, row[meta.action]);
   const groups = groupByEntity(rows, recs.entity, meta.rank, recs.per_entity || 3);
@@ -227,6 +248,7 @@ export function RecList({ page, app, filters, ready, nonce, onChanged }) {
   const who = String((meta.columns || []).find((c) => c.column === recs.entity)?.label || 'name').toLowerCase();
   return (
     <ListShell page={page} app={app} title={meta.title || 'Recommendations'} hint={meta.hint} section="rec_list" list={list} error={decide.error}
+      filters={filters} view={view} onChanged={onChanged} opened={opened}
       empty={search ? `Nothing matches ${search}.` : 'No recommendations for these filters.'}
       actions={<><Lookup label={who} value={search} onLook={setSearch} />{can && <TakeAll count={open} busy={decide.busy} onClick={() => decide.takeAll(shownRows, suggest)} />}</>}>
       {groups.map(([entity, items]) => (
@@ -235,7 +257,7 @@ export function RecList({ page, app, filters, ready, nonce, onChanged }) {
           <ol className="choice-list">
             {items.map((row) => (
               <ChoiceRow key={recordKeyOf(row)} page={page} app={app} row={row} choices={choices} suggested={suggest(row)} canAct={can} busy={decide.busy}
-                onChoose={decide.choose}
+                onChoose={decide.choose} onOpen={opened.open}
                 detail={row[recs.score] != null && <span className="choice-score">{scoreMeta?.label || 'Score'} {shown(scoreMeta || { format: 'number' }, row[recs.score])}</span>}>
                 {reasonsOf(row[meta.reasons]).length > 0 && <div className="reasons">{reasonsOf(row[meta.reasons]).map((t) => <span key={t} className="chip chip--static">{t}</span>)}</div>}
               </ChoiceRow>
@@ -249,20 +271,22 @@ export function RecList({ page, app, filters, ready, nonce, onChanged }) {
 
 export function ChoiceList({ page, app, filters, ready, nonce, onChanged, section = 'keep_scale_stop' }) {
   const list = useList(page.id, filters, ready, nonce, LIST_ROWS);
+  const opened = useOpenRow();
   const choices = page.choices || [];
   const meta = page.records || {};
   const rows = list.data?.rows || [];
-  const can = canDecide(app, list.data);
+  const can = canDecide(list.data);
   const decide = useChoices(page, onChanged);
   const suggest = (row) => suggestedChoice(choices, row[meta.action]);
   const open = rows.filter((r) => !isClosed(r) && suggest(r)).length;
   return (
     <ListShell page={page} app={app} title={meta.title || 'Decide each one'} hint={meta.hint} section={section} list={list} error={decide.error}
+      filters={filters} onChanged={onChanged} opened={opened}
       empty="Nothing to decide for these filters." actions={can && <TakeAll count={open} busy={decide.busy} onClick={() => decide.takeAll(rows, suggest)} />}>
       <ol className="choice-list">
         {rows.map((row) => (
           <ChoiceRow key={recordKeyOf(row)} page={page} app={app} row={row} choices={choices} suggested={suggest(row)} canAct={can} busy={decide.busy}
-            onChoose={decide.choose} ask={ITEM_KINDS[section]}
+            onChoose={decide.choose} onOpen={opened.open} ask={ITEM_KINDS[section]}
             detail={<span className="choice-cols">{(meta.columns || []).slice(0, 4).map((c) => <span key={c.column}>{c.label} <b>{shown(c, row[c.column])}</b></span>)}</span>}>
             {row[meta.action] && <p className="choice-why-text">{row[meta.action]}</p>}
           </ChoiceRow>
@@ -315,7 +339,7 @@ export function SegmentCards({ page, app, ready, nonce, filters, onChanged, onPi
   const counts = useSegmentCounts(page, ids, ready, nonce);
   const decide = useChoices(page, onChanged);
   const [picked, setPicked] = useState({});
-  const can = !!app?.options?.decisions;
+  const can = pageDecides(page);
   const counted = ids.filter((id) => counts[id] && !counts[id].error && counts[id].waiting != null);
   const off = !can || (counted.length > 0 && !counted.some((id) => counts[id].actions));
   const choose = async (row, treatment) => {
@@ -333,7 +357,7 @@ export function SegmentCards({ page, app, ready, nonce, filters, onChanged, onPi
     <>
       <section className="card segments" aria-label={table?.title || 'Segments'} data-part="segment_cards">
         <header className="card-h"><div><h2>{table?.title || 'Segments'}</h2>
-          {off ? <p className="muted" data-no-decisions>{noDecisionText(app)}</p>
+          {off ? <p className="muted" data-no-decisions>{noDecisionText(page)}</p>
             : <p>{table?.hint || 'Choose a treatment for each segment once: every member of the segment gets it.'}</p>}</div>
           {can && waiting.length > 0 && <TakeAll count={waiting.length} busy={decide.busy} onClick={async () => { for (const r of waiting) await choose(r, suggestedOf(r)); }} />}
           <AskGenie kind="table" title={table?.title || 'Segments'} context={tableContext(table?.hint || '', rows, (row) => specFields(row, table?.columns))} />

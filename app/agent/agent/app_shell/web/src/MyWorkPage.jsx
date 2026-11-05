@@ -25,7 +25,7 @@ function moneyTile(id, label, line, sub) {
 
 function tilesOf(facts) {
   const w = facts.worked;
-  const closed = [`${grouped(w.fixed)} fixed`, `${grouped(w.dismissed)} not a real issue`, `${grouped(w.could_not)} could not fix`].join(', ');
+  const closed = [`${grouped(w.fixed)} fixed`, `${grouped(w.dismissed)} not an issue`, `${grouped(w.could_not)} could not fix`].join(', ');
   const tiles = [
     { id: 'records', label: 'Records you changed', value: grouped(w.records), sub: closed },
     moneyTile('measured', 'Measured', facts.money.measured, 'confirmed by a later run'),
@@ -95,7 +95,7 @@ function Summary({ app, facts }) {
 }
 
 const useCaseFields = (r) => ({
-  'Use case': r.page.title, Changed: r.worked.records || 0, Fixed: r.worked.fixed || 0, 'Not a real issue': r.worked.dismissed || 0, 'Could not fix': r.worked.could_not || 0,
+  'Use case': r.page.title, Changed: r.worked.records || 0, Fixed: r.worked.fixed || 0, 'Not an issue': r.worked.dismissed || 0, 'Could not fix': r.worked.could_not || 0,
   Assigned: r.worked.assigned || 0, Notes: r.worked.notes || 0, Pace: rateText(r), 'Time to close': closeText(r),
   'Largest closed': r.best ? `${r.best.label || r.best.key}, ${r.best.text} ${r.best.basis}` : 'none',
 });
@@ -115,7 +115,7 @@ function ByUseCase({ facts, onRecord }) {
       <div className="tbl-wrap">
         <table className="tbl" data-by-use-case>
           <thead>
-            <tr><th>Use case</th><th className="num">Changed</th><th className="num">Fixed</th><th className="num">Not a real issue</th><th className="num">Could not fix</th>
+            <tr><th>Use case</th><th className="num">Changed</th><th className="num">Fixed</th><th className="num">Not an issue</th><th className="num">Could not fix</th>
               <th className="num">Assigned</th><th className="num">Notes</th><th>Pace</th><th>Time to close</th><th>Largest closed</th><th className="ask-c"><span className="sr">Ask Genie</span></th></tr>
           </thead>
           <tbody>
