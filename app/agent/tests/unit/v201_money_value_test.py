@@ -373,7 +373,9 @@ def test_live_at_risk_customers_case_gets_no_number_from_the_order_value_total(n
 
 
 def test_only_a_kind_valued_as_a_change_in_its_own_kpi_takes_a_number_from_that_kpi(ns):
-    for kind_id in sorted(ns["INSPIRE_VALUE_FROM_KPI_KINDS"]):
+    flagged = sorted(kind["id"] for kind in ns["_inspire_kinds"]()["kinds"] if kind.get("value_from_kpi") is True)
+    assert flagged == ["forecast", "marketing_mix", "promotion_lift"]
+    for kind_id in flagged:
         assert "{kpi}" in ns["_inspire_kind"](kind_id)["value_formula"], kind_id
     revenue = kpi(ns, name="Order value")
     assert estimate_of(ns, money_uc(ns, revenue))["status"] == "measured"
@@ -386,3 +388,19 @@ def test_only_a_kind_valued_as_a_change_in_its_own_kpi_takes_a_number_from_that_
         assert estimate_of(ns, money_uc(ns, revenue, use_case_kind=kind_id))["status"] == "not measured yet", kind_id
     assert estimate_of(ns, money_uc(ns, revenue, use_case_kind="leakage_reconciliation"), "Value the use cases on order value")["status"] == "measured"
     assert ns["inspire_value_estimate"](make_uc("N01-U09", KPIs=[revenue]))["status"] == "not measured yet"
+
+
+def test_a_new_kind_flagged_in_the_registry_takes_its_number_from_its_kpi_with_no_code_change(ns, monkeypatch):
+    registry = ns["_inspire_kinds"]()
+    base = dict(ns["_inspire_kind"]("variance_to_plan"))
+    flagged = dict(base, id="kpi_lift_new", label="KPI lift", value_from_kpi=True,
+                   value_formula="the change in {kpi} from the plan, from {signal_columns}; current estimate {value_at_stake}")
+    unflagged = dict(flagged, id="kpi_lift_plain", value_from_kpi=False)
+    monkeypatch.setitem(registry, "kinds", list(registry["kinds"]) + [flagged, unflagged])
+    revenue = kpi(ns, name="Order value")
+    measured = estimate_of(ns, money_uc(ns, revenue, use_case_kind="kpi_lift_new"))
+    assert measured["status"] == "measured" and "value_low" in measured, measured
+    assert estimate_of(ns, money_uc(ns, revenue, use_case_kind="kpi_lift_plain"))["status"] == "not measured yet"
+    for not_true in ("true", 1, None):
+        monkeypatch.setitem(registry, "kinds", list(registry["kinds"][:-2]) + [dict(flagged, value_from_kpi=not_true)])
+        assert estimate_of(ns, money_uc(ns, revenue, use_case_kind="kpi_lift_new"))["status"] == "not measured yet", not_true

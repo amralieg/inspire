@@ -1146,6 +1146,7 @@
    ],
    "contract": "forecast",
    "value_lever": "cost",
+   "value_from_kpi": true,
    "value_formula": "better orders or staffing from a forecast that beats the seasonal naive one: error reduction × {kpi} at stake, from {signal_columns}; current estimate {value_at_stake}",
    "serving_template": "A forecast cockpit for {owner} that shows the expected {kpi} per {objects} with its range, and flags the ones at risk: app, dashboard, Genie room, alert.",
    "method_plain": {
@@ -2283,6 +2284,7 @@
    ],
    "contract": "impact",
    "value_lever": "revenue",
+   "value_from_kpi": true,
    "value_formula": "incremental {kpi} net of promotion cost per promotion, from {signal_columns}; current estimate {value_at_stake}",
    "serving_template": "A lift readout for {owner} that measures what each intervention on {objects} really added, net of cost: app, dashboard, Genie room, alert.",
    "method_plain": {
@@ -2444,6 +2446,7 @@
    ],
    "contract": "impact",
    "value_lever": "revenue",
+   "value_from_kpi": true,
    "value_formula": "{kpi} gained by moving spend to channels with higher return, from {signal_columns}; current estimate {value_at_stake}",
    "serving_template": "A lift readout for {owner} that measures what each intervention on {objects} really added, net of cost: app, dashboard, Genie room, alert.",
    "method_plain": {
