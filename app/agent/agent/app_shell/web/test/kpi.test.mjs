@@ -95,8 +95,8 @@ test('every text about what a fix saved names the KPI unit, and money only for a
   assert.equal(actionProblem({ status: 'Done', saved: 'ten', how: '' }, 'hours', 'hours'), 'Enter the hours it saved as a number, 0 or more');
   assert.equal(actionProblem({ status: 'Done', saved: 'ten', how: '' }), 'Enter the money it saved as a number, 0 or more');
   assert.equal(doneText({ action_status: 'Done', realized_value: 3 }, 'late shipments', 'count'),
-    'Marked as fixed. The next run checks whether it worked. People reported it avoided 3 late shipments.');
-  assert.equal(doneText({ action_status: 'Done', realized_value: 900 }, 'USD'), 'Marked as fixed. The next run checks whether it worked. People reported it saved $900.');
+    'Marked done. The next run checks whether it worked. People reported it avoided 3 late shipments.');
+  assert.equal(doneText({ action_status: 'Done', realized_value: 900 }, 'USD'), 'Marked done. The next run checks whether it worked. People reported it saved $900.');
   assert.equal(reportedFigure(ENTRY, 'hours', 'hours').value, '8 hours');
   assert.deepEqual(reportedFigure({ ...ENTRY, closing: false }, 'hours', 'hours'), reportedFigure(ENTRY, 'hours', 'hours'),
     'every result table keeps the amount a fix saved, so no flag hides it');

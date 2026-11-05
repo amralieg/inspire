@@ -71,7 +71,7 @@ test('the scope line counts its use cases in plain words', () => {
 
 test('the plain summary reads from the facts, and says so when nothing was done', () => {
   const facts = workFacts({ period: WEEK, pages: { n01_u05: entry() } }, PAGES, {});
-  assert.equal(templateText(facts), 'From Oct 19, 2026 to Oct 25, 2026, Asia/Dubai time, you fixed 2 records, closed 1 as not a real issue, closed 1 as could not fix '
+  assert.equal(templateText(facts), 'From Oct 19, 2026 to Oct 25, 2026, Asia/Dubai time, you fixed 2 records, closed 1 as not an issue, closed 1 as could not fix '
     + 'in 1 use case. Your fixes show $900 measured, $500 reported, $3,000 estimated.');
   const idle = workFacts({ period: WEEK, pages: { n01_u05: entry({ worked: { ...WORKED, records: 0, fixed: 0, dismissed: 0, could_not: 0 } }) } }, PAGES, {});
   assert.equal(templateText(idle), 'You changed no records from Oct 19, 2026 to Oct 25, 2026, Asia/Dubai time.');

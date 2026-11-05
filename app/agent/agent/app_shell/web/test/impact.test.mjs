@@ -1,7 +1,7 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
-import { ASK_GROUPS, TABLE, appInfo, askAudit, openApp, pageData, serveDist, toastSays, until } from './harness.mjs';
+import { actBody, ASK_GROUPS, TABLE, appInfo, askAudit, openApp, pageData, serveDist, toastSays, until } from './harness.mjs';
 import { closedRows, estimatedFigure, figuresOf, heldShare, holdoutOffText, holdoutView, impactTiles, measuredFigure, promisedView, reportedFigure, wrongFigure } from '../src/impact.js';
 import { actionForm, actionProblem, actionValues, doneText, statusLabel } from '../src/records.js';
 
@@ -40,15 +40,15 @@ test('each figure shows its number with the formula behind it, and the three amo
   assert.deepEqual(measuredFigure(ENTRY, 'USD'), { value: '$1,800', amount: 1800, n: 2,
     formula: 'On each of the 2 fixes a later run confirmed: money at stake when fixed minus what that run still finds, added up = $1,800',
     how: 'Money at stake when fixed, less what a later run still finds, on 2 fixes a later run confirmed. 2 fixes a later run still flags' });
-  assert.deepEqual(wrongFigure(ENTRY), { value: '25%', amount: 25, n: 8, formula: '2 not a real issue / 8 closed x 100 = 25%',
-    how: 'People marked 2 of 8 closed records not a real issue, so 75% were right' });
+  assert.deepEqual(wrongFigure(ENTRY), { value: '25%', amount: 25, n: 8, formula: '2 not an issue / 8 closed x 100 = 25%',
+    how: 'People marked 2 of 8 closed records not an issue, so 75% were right' });
   const tiles = impactTiles([{ page: { title: 'Price desk' }, entry: ENTRY, currency: 'USD', figures: figuresOf(ENTRY, 'USD') },
     { page: { title: 'Euro desk' }, entry: ENTRY, currency: 'EUR', figures: figuresOf(ENTRY, 'EUR') }]);
   assert.deepEqual(tiles.map((t) => [t.label, t.value]), [['Estimated', '$15,000 + €15,000'], ['Reported', '$2,500 + €2,500'], ['Measured', '$1,800 + €1,800'],
     ['Said wrong', '25%']], 'amounts add up per figure and per currency, never across figures');
   assert.equal(tiles[2].sub, 'Money at stake when fixed, less what a later run still finds, on 4 fixes across 2 use cases');
   assert.deepEqual(tiles.map((t) => t.formula), ['Price desk $15,000 + Euro desk \u20ac15,000 = $15,000 + \u20ac15,000', 'Price desk $2,500 + Euro desk \u20ac2,500 = $2,500 + \u20ac2,500',
-    'Price desk $1,800 + Euro desk \u20ac1,800 = $1,800 + \u20ac1,800', '4 not a real issue / 16 closed x 100 = 25%'], 'every tile shows the arithmetic behind it');
+    'Price desk $1,800 + Euro desk \u20ac1,800 = $1,800 + \u20ac1,800', '4 not an issue / 16 closed x 100 = 25%'], 'every tile shows the arithmetic behind it');
 });
 
 test('a use case without money says Not measured yet with why and never shows a number, and every use case keeps actions', () => {
@@ -103,9 +103,9 @@ test('promised reads the catalog business value and benefits, and each closed re
     { value: '', benefits: [], estimate: 'Value not measured yet: measure the order total.' });
   assert.deepEqual(promisedView({ promised: { ...PROMISED, estimate: 'AED 2.4K-6K a year' } }).estimate, 'AED 2.4K-6K a year');
   assert.deepEqual(closedRows(ENTRY, 'USD'), [
-    { key: 'k7', label: 'Wool coat, store 4', outcome: 'Fixed', state: 'No longer flagged', measured: '$1,200 when fixed minus $100 now = $1,100', reported: '$900',
+    { key: 'k7', label: 'Wool coat, store 4', outcome: 'Done', state: 'No longer flagged', measured: '$1,200 when fixed minus $100 now = $1,100', reported: '$900',
       note: 'Repriced on Monday', closed: 'Oct 6', amounts: { measured: 1100, reported: 900, closed: '2026-10-06T06:00:00.000Z' } },
-    { key: 'k6', label: 'Linen trousers', outcome: 'Not a real issue', state: 'The store closed', measured: '', reported: '', note: '', closed: 'Oct 5',
+    { key: 'k6', label: 'Linen trousers', outcome: 'Not an issue', state: 'The store closed', measured: '', reported: '', note: '', closed: 'Oct 5',
       amounts: { measured: null, reported: null, closed: '2026-10-05T09:00:00.000Z' } }]);
 });
 
@@ -125,10 +125,10 @@ test('closing a record as fixed can carry the money it saved and how you know, a
   assert.equal(actionProblem({ status: 'Done', saved: '10', how: 'x'.repeat(501) }), 'Keep how you know to 500 characters');
   assert.equal(actionProblem({ status: 'Done', saved: '', how: '' }), '');
   assert.equal(doneText({ action_status: 'Done', realized_value: 900, realized_note: 'Repriced' }, 'USD'),
-    'Marked as fixed. The next run checks whether it worked. People reported it saved $900: Repriced.');
+    'Marked done. The next run checks whether it worked. People reported it saved $900: Repriced.');
   assert.equal(doneText({ action_status: 'Could not fix', action_outcome: 'Resolved' }), 'Marked as could not fix. A later run found it resolved anyway.');
   assert.equal(doneText({ action_status: 'Could not fix' }), 'Marked as could not fix. The next run still checks it.');
-  assert.deepEqual(['Done', 'Dismissed', 'Could not fix', 'In progress'].map(statusLabel), ['Fixed', 'Not a real issue', 'Could not fix', 'In progress']);
+  assert.deepEqual(['Done', 'Dismissed', 'Could not fix', 'In progress'].map(statusLabel), ['Done', 'Not an issue', 'Could not fix', 'In progress']);
 });
 
 const tile = (page) => page.locator('.kpi').evaluateAll((tiles) => tiles.map((t) => [t.querySelector('.kpi-l').innerText, t.querySelector('.kpi-v').innerText,
@@ -150,7 +150,7 @@ test('the Impact page shows estimated, reported and measured apart, promised aga
     ['Estimated', '$15,000', 'Money at stake on the 10 open records flagged Act now or Review across 1 use case, added up'],
     ['Reported', '$2,500', 'Amounts people entered when they marked 3 records fixed across 1 use case'],
     ['Measured', '$1,800', 'Money at stake when fixed, less what a later run still finds, on 2 fixes across 1 use case'],
-    ['Said wrong', '25%', 'People marked 2 of 8 closed records not a real issue, so 75% were right']]);
+    ['Said wrong', '25%', 'People marked 2 of 8 closed records not an issue, so 75% were right']]);
   assert.deepEqual(asked.sort(), ['n01_u05', 'n02_u01'], 'each use case reads its own impact once');
   const card = page.locator('.imp[data-page="n01_u05"]');
   assert.equal(await card.locator('.imp-promised p').innerText(), PROMISED.value);
@@ -162,7 +162,7 @@ test('the Impact page shows estimated, reported and measured apart, promised aga
   assert.equal(await card.locator('.imp-hold > p:not(.imp-why)').first().innerText(), '20 records of 200 (10%) are held back now');
   assert.deepEqual(await card.locator('.imp-reasons li').allInnerTexts(), ['The store closed\n2']);
   const rows = await card.locator('.tbl--closed tbody tr').evaluateAll((trs) => trs.map((tr) => [...tr.querySelectorAll('td')].map((td) => td.innerText)));
-  assert.deepEqual(rows[0], ['Wool coat, store 4', 'Fixed', 'No longer flagged', '$1,200 when fixed minus $100 now = $1,100', '$900\nRepriced on Monday', 'Oct 6', 'Ask Genie']);
+  assert.deepEqual(rows[0], ['Wool coat, store 4', 'Done', 'No longer flagged', '$1,200 when fixed minus $100 now = $1,100', '$900\nRepriced on Monday', 'Oct 6', 'Ask Genie']);
   const other = page.locator('.imp[data-page="n02_u01"]');
   assert.equal(await other.locator('.card-h p').innerText(), 'no run of this use case has written its results yet');
   assert.deepEqual(await other.locator('.imp-figs b').allInnerTexts(), Array(4).fill('Not measured yet'));
@@ -235,18 +235,18 @@ function drawerRoutes(fields, current, calls) {
     },
     'records/fields': ({ json }) => json(200, { fields, key_field: 'entity_id', actions: true }),
     'records/history': ({ json }) => json(200, { record_key: 'R001', fields, versions: [now], current: now, deleted: false, truncated: false }),
-    'records/act': ({ route, json }) => { const body = route.request().postDataJSON(); calls.acts.push(body); return json(200, { written: body.record_keys, conflicts: [] }); },
+    'records/act': ({ route, json }) => { const body = actBody(route); calls.acts.push(body); return json(200, { written: body.record_keys, conflicts: [] }); },
   };
 }
 
-test('the record panel closes a record as fixed, not a real issue or could not fix, and a fix can carry the money it saved', async () => {
+test('the record panel closes a record as fixed, not an issue or could not fix, and a fix can carry the money it saved', async () => {
   const calls = { acts: [] };
   const { page, seen, context } = await openApp(browser, served.base, appInfo(DECIDE, 1, TABLE), { routes: drawerRoutes(CLOSE_FIELDS, {}, calls) });
   await page.goto(`${served.base}#/n01_u05`);
   await page.locator('.cell-t').first().click();
   const drawer = page.locator('dialog.drawer');
   await drawer.locator('.dr-act').waitFor();
-  assert.deepEqual(await drawer.locator('.panel-f > button').allInnerTexts(), ['Fixed', 'Not a real issue', 'Could not fix', 'Snooze…']);
+  assert.deepEqual(await drawer.locator('.panel-f > button').allInnerTexts(), ['Mark done', 'Not an issue', 'Could not fix', 'Snooze…', 'Ask Genie to fix']);
   assert.equal(await drawer.locator('input[name="realized_value"]').count(), 0, 'the amount shows only for a fix');
   await drawer.locator('select[name="action_status"]').selectOption('Done');
   await drawer.locator('input[name="realized_value"]').fill('-3');
@@ -356,7 +356,7 @@ test('every card, key number and closed record on Impact shows a visible Ask Gen
   await until(() => explained.length === 1);
   const sent = explained[0];
   assert.deepEqual([sent.kind, sent.page, sent.title, sent.question, sent.context.hint], ['record', 'n01_u05', 'Wool coat, store 4', 'Did the fix hold?', 'A closed record of this use case.']);
-  assert.deepEqual(sent.context.fields, { Record: 'Wool coat, store 4', Outcome: 'Fixed', 'What a later run found': 'No longer flagged', Measured: 1100, Reported: 900,
+  assert.deepEqual(sent.context.fields, { Record: 'Wool coat, store 4', Outcome: 'Done', 'What a later run found': 'No longer flagged', Measured: 1100, Reported: 900,
     Closed: '2026-10-06T06:00:00.000Z' });
   await page.locator('aside.genie .msg-sql').waitFor({ timeout: 15000 });
   assert.match(await page.locator('aside.genie .g-h small').innerText(), /^Answers from the Genie Agent/);

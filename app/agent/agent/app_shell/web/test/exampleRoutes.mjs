@@ -1,4 +1,4 @@
-import { DECIDE } from './harness.mjs';
+import { actBody, DECIDE } from './harness.mjs';
 
 const WEEKS = Array.from({ length: 20 }, (_, i) => new Date(Date.UTC(2026, 6, 6 + i * 7)).toISOString().slice(0, 10));
 export const fanRows = WEEKS.map((x, i) => (i < 12 ? { x, y0: 900 + i * 10, y1: null, y2: null, y3: null }
@@ -183,7 +183,7 @@ export function kindRoutes(data, rows, acts, spec = {}, extra = {}, unread = fal
         ...(body.treatments && unread ? { errors: { treatments: '[SQL_ERROR] the treatment count failed' } } : {}) });
     },
     'records/act': ({ route, json }) => {
-      const body = route.request().postDataJSON();
+      const body = actBody(route);
       acts.push(body);
       const hit = body.match ? listed(rows, { ...body.match.view, filters: body.match.filters }) : [];
       hit.forEach((r) => Object.assign(r, { _inspire_status: body.values.action_status, ...(body.treatment ? { _treatment: body.treatment } : {}) }));

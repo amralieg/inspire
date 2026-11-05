@@ -175,6 +175,15 @@ export function lister(rows, extra = {}, total = null) {
   };
 }
 
+export const REQUEST_IDS = [];
+
+export function actBody(route) {
+  const { request_id: id, ...body } = route.request().postDataJSON();
+  if (!/^[0-9a-f]{32}$/.test(String(id))) throw new Error(`records/act was sent without a 32 hex request_id: ${JSON.stringify(id)}`);
+  REQUEST_IDS.push(id);
+  return body;
+}
+
 export function tracked(overrides = {}) {
   const calls = { acts: [], history: 0, fields: 0, undos: [], similar: [], batches: 0 };
   const routes = {
@@ -182,7 +191,7 @@ export function tracked(overrides = {}) {
     'records/fields': ({ json }) => { calls.fields += 1; return json(200, { fields: FIELDS, key_field: 'entity_id', actions: true }); },
     'records/history': ({ json }) => { calls.history += 1; return json(200, HISTORY); },
     'records/act': ({ route, json }) => {
-      const body = route.request().postDataJSON();
+      const body = actBody(route);
       calls.acts.push(body);
       return json(200, { written: body.record_keys, conflicts: [] });
     },

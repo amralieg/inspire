@@ -341,7 +341,7 @@ def test_the_weekly_digest_reads_the_impact_of_the_last_seven_days_in_plain_rows
         ("Held back to measure impact", "43% vs 33%")]
     assert rows[3]["how"] == ("Money at stake when fixed, less what a later run still finds, on 2 fixes a later run confirmed this week; "
                               "1,800 USD on 2 fixes so far")
-    assert rows[4]["how"] == "2 fixed, 1 not a real issue, 1 could not fix"
+    assert rows[4]["how"] == "2 fixed, 1 not an issue, 1 could not fix"
     plain = Workspace([dict(r, held_back=None, run_tier=None) for r in ROWS])
     assert [r["figure"] for r in plain.run_sql("wh1", week, [])["rows"]][-1] == "Recommendations people said were wrong", \
         "a use case that holds nothing back sends no holdout row"

@@ -149,12 +149,12 @@ test('an act says how many records it wrote and how many it left as they were, a
   assert.deepEqual(actOutcome({ written: ['R1', 'R2'], conflicts: [] }), { written: 2, conflicts: 0, sample: [], batch: '', matched: null, leftOut: 0 });
   const hidden = actOutcome({ written: 5, conflicts: [], left_out: 3 });
   assert.equal(hidden.leftOut, 3);
-  assert.equal(actedText(hidden, { action_status: 'Done' }), '5 records marked as fixed. 3 records you cannot read were left out.');
-  assert.equal(actedText(actOutcome({ written: 1, left_out: 1 }), { action_status: 'Done' }), '1 record marked as fixed. 1 record you cannot read was left out.');
+  assert.equal(actedText(hidden, { action_status: 'Done' }), '5 records marked done. 3 records you cannot read were left out.');
+  assert.equal(actedText(actOutcome({ written: 1, left_out: 1 }), { action_status: 'Done' }), '1 record marked done. 1 record you cannot read was left out.');
   assert.equal(undoText({ restored: 2, skipped: [], left_out: 4 }), 'Undone: 2 records are back as they were. 4 records you cannot read were left out.');
   assert.equal(actOutcome({ written: 1, conflicts_count: 900, conflicts: Array.from({ length: 30 }, (_, i) => ({ record_key: `k${i}` })) }).sample.length, 20);
   assert.equal(actedText(most, { action_status: 'Done', note: 'Closed the promo' }),
-    '28 records marked as fixed. 2 records changed since you loaded them and were left as they are.');
+    '28 records marked done. 2 records changed since you loaded them and were left as they are.');
   assert.equal(actedText(actOutcome({ written: ['R1'] }), { action_owner: SAM }), `1 record given to ${SAM}.`);
   assert.equal(actedText(actOutcome({ written: 3 }), { snooze_until: '2026-11-03' }), '3 records snoozed until Nov 3, 2026.');
   assert.equal(changeWords({ note: 'Called them' }), 'noted');
@@ -188,7 +188,7 @@ test('similar records are named by the values they share, and a change in the hi
   assert.equal(byWords(null), '');
   assert.equal(byWords([null, {}]), '');
   assert.equal(batchText({ batch_id: 'b', editor: ME, at: '2026-10-27T09:10:00Z', count: 30, values: { action_status: 'Done' }, note: ' Closed the promo ' }),
-    `Oct 27, 2026, 09:10 AM UTC, ${ME}: 30 records marked as fixed. Note: Closed the promo`);
+    `Oct 27, 2026, 09:10 AM UTC, ${ME}: 30 records marked done. Note: Closed the promo`);
   assert.equal(batchText({ at: '2026-10-27T09:10:00Z', count: 1, values: { action_owner: SAM } }), `Oct 27, 2026, 09:10 AM UTC, someone: 1 record given to ${SAM}`);
   assert.equal(batchText({ at: '2026-10-27T09:12:00Z', editor: 'dana', count: 2, values: { action_status: 'New' }, undoes: 'b-1' }),
     'Oct 27, 2026, 09:12 AM UTC, dana: undid an earlier change on 2 records');
@@ -208,7 +208,7 @@ test('only an open record past its due date is overdue, and overdue records go f
   assert.deepEqual(overdueFirst([{ k: 1 }], today), { rows: [{ k: 1 }], late: 0 });
 });
 
-test('done today adds up the count of records each use case says I marked as fixed today, and says nothing when no use case knows', () => {
+test('done today adds up the count of records each use case says I marked done today, and says nothing when no use case knows', () => {
   const page = (mine) => ({ done: { fixed: 9, mine_today: mine } });
   const dubai = { name: 'Asia/Dubai', sent: true };
   assert.deepEqual(doneTodayOf([page(CONTRACT.overview_window.page_fields.done.mine_today), page(2), page(null), {}], dubai), { n: 5, utc: false });
@@ -371,8 +371,8 @@ test('undo names the records it left, and a match act says how many of the match
   const matched = actOutcome(CONTRACT.act_match.response);
   assert.equal(matched.matched, 3);
   assert.equal(actedText(matched, CONTRACT.act_match.request.body.values),
-    '2 of 3 matching records marked as fixed. 1 record changed since you loaded it and was left as it is.');
-  assert.equal(actedText(actOutcome({ written: 3, matched: 3, conflicts: [], conflicts_count: 0 }), { action_status: 'Done' }), '3 records marked as fixed.');
+    '2 of 3 matching records marked done. 1 record changed since you loaded it and was left as it is.');
+  assert.equal(actedText(actOutcome({ written: 3, matched: 3, conflicts: [], conflicts_count: 0 }), { action_status: 'Done' }), '3 records marked done.');
   assert.equal(actOutcome(CONTRACT.act_keys.response).matched, null, 'an act on picked records names no match');
   assert.equal(actedText(actOutcome(CONTRACT.act_keys.response), CONTRACT.act_keys.request.body.values).startsWith('1 record '), true);
 });

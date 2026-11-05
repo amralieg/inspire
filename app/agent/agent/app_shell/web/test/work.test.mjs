@@ -1,7 +1,7 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
-import { CURRENT, DECIDE, HISTORY, LABEL, OTHER, ROWS, SUMMARY, TABLE, appInfo, lister, openApp, serveDist, tracked, until } from './harness.mjs';
+import { actBody, CURRENT, DECIDE, HISTORY, LABEL, OTHER, ROWS, SUMMARY, TABLE, appInfo, lister, openApp, serveDist, tracked, until } from './harness.mjs';
 
 let served;
 let browser;
@@ -19,7 +19,7 @@ function routesFor(reply, more = {}) {
   return tracked({
     records: lister(ROWS, { actions: true, changes: true, summary: SUMMARY, as_of_us: AS_OF }),
     'records/act': ({ route, json, seen }) => {
-      const body = route.request().postDataJSON();
+      const body = actBody(route);
       (seen.acts ||= []).push(body);
       return json(200, reply.act ? reply.act(body) : { written: body.record_keys || [], conflicts: [], batch_id: `b-${seen.acts.length}` });
     },
@@ -57,7 +57,7 @@ test('Select all matching acts on every matching record with the load time and t
   assert.equal(await page.locator('.bulk b').innerText(), 'All 30 matching records selected');
   assert.equal(await page.locator('.bulk-asof').innerText(), 'As of Oct 27, 2026, 09:29 AM UTC. A record that changes after that is left as it is.');
   const loaded = seen.records.at(-1);
-  await page.getByRole('button', { name: 'Mark done…' }).click();
+  await page.getByRole('button', { name: 'Mark all done…' }).click();
   assert.equal(await page.locator('textarea[name="bulk_note"]').getAttribute('maxlength'), '500');
   await page.locator('textarea[name="bulk_note"]').fill('Closed the promo for all of them');
   await page.getByRole('button', { name: 'Mark 30 records done' }).click();
@@ -70,7 +70,7 @@ test('Select all matching acts on every matching record with the load time and t
   assert.deepEqual(act.match.view, { ai: {}, search: '', mine: false, changed: false, window: 'all', time_zone: 'Asia/Dubai' }, 'the match carries the All open window the list read');
   assert.equal(act.match.as_of_us, AS_OF, 'the match is as of the moment the server read the list, never the browser clock');
   await page.waitForFunction(() => document.querySelector('.toast.is-on .toast-t'));
-  assert.equal(await toastText(page), '28 records marked as fixed. 2 records changed since you loaded them and were left as they are.');
+  assert.equal(await toastText(page), '28 records marked done. 2 records changed since you loaded them and were left as they are.');
   assert.deepEqual(await toastButtons(page), ['Undo']);
   assert.equal(await page.locator('.conflicts').innerText(),
     `2 records changed since you loaded them and were left as they are: ${label(4)}, ${label(9)}.`);
@@ -136,7 +136,7 @@ test('Apply to similar shows the count and five of the records the server found,
   const drawer = page.locator('dialog.drawer');
   await page.locator('.cell-t').first().click();
   await drawer.locator('.dr-act').waitFor();
-  await drawer.getByRole('button', { name: 'Fixed' }).click();
+  await drawer.getByRole('button', { name: 'Mark done' }).click();
   await until(() => seen.acts?.length === 1);
   await page.waitForFunction(() => document.querySelectorAll('.toast.is-on .toast-a button').length === 2);
   assert.deepEqual(asked, [{ page: 'n01_u05', record_key: 'R001', by: 'category,region' }], 'by is one value of the filter ids the page names, comma separated');
@@ -191,9 +191,9 @@ test('Recent changes lists each change newest first, and Undo on one says what i
   const dialog = page.getByRole('dialog', { name: 'Recent changes' });
   await dialog.locator('.batches li').first().waitFor();
   assert.deepEqual(await dialog.locator('.batches li > span').allInnerTexts(), [
-    `Oct 27, 2026, 09:30 AM UTC, ${OTHER}: 3 records marked as fixed`,
+    `Oct 27, 2026, 09:30 AM UTC, ${OTHER}: 3 records marked done`,
     'Oct 27, 2026, 09:20 AM UTC, dana: undid an earlier change on 1 record',
-    `Oct 27, 2026, 09:10 AM UTC, ${batches[2].editor}: 30 records marked as fixed. Note: Closed the promo`,
+    `Oct 27, 2026, 09:10 AM UTC, ${batches[2].editor}: 30 records marked done. Note: Closed the promo`,
     `Oct 26, 2026, 04:00 PM UTC, ${OTHER}: 2 records given to ${OTHER}`]);
   assert.equal(await dialog.locator('[data-batch="b-1"] button').count(), 0, 'an undone change offers no second Undo');
   assert.equal(await dialog.locator('[data-batch="b-3"] button').count(), 0, 'an undo is not undone from here');
@@ -233,7 +233,7 @@ test('Start working shows one record at a time with k of N, Done and next and Sn
   const done = page.getByRole('dialog', { name: 'All caught up' });
   await done.waitFor();
   assert.deepEqual(seen.acts[1], { page: 'n01_u05', record_keys: ['R003'], seen: { R003: '202' }, values: { snooze_until: TOMORROW } });
-  assert.equal(await done.locator('p').innerText(), 'You went through 3 records: 1 marked as fixed, 1 snoozed and 1 skipped.');
+  assert.equal(await done.locator('p').innerText(), 'You went through 3 records: 1 marked done, 1 snoozed and 1 skipped.');
   assert.equal(await page.locator('dialog.drawer[open]').count(), 0, 'the record panel closed at the end');
   assert.equal(await page.evaluate(() => document.querySelector('.toast.is-on .toast-t')?.textContent), '1 record snoozed until Oct 28, 2026.',
     'the Undo toast outlives the record panel it was shown in');
@@ -291,7 +291,7 @@ test('the keyboard moves through the list, opens, marks done, snoozes, selects a
   await page.keyboard.press('d');
   await until(() => seen.acts?.length === 1);
   assert.deepEqual(seen.acts[0], { page: 'n01_u05', record_keys: ['R002'], seen: { R002: '101' }, values: { action_status: 'Done' } });
-  await page.waitForFunction(() => document.querySelector('.toast .toast-t')?.textContent === '1 record marked as fixed.');
+  await page.waitForFunction(() => document.querySelector('.toast .toast-t')?.textContent === '1 record marked done.');
   await page.keyboard.press('u');
   await until(() => seen.undos?.length === 1);
   assert.deepEqual(seen.undos[0], { page: 'n01_u05', batch_id: 'b-1' });

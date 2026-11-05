@@ -4,7 +4,7 @@ import { readFileSync, statSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
-import { DECIDE, ROWS, SRC, TABLE, appInfo, bundleEntry, openApp, openBundle, serveDist, tracked } from './harness.mjs';
+import { actBody, DECIDE, ROWS, SRC, TABLE, appInfo, bundleEntry, openApp, openBundle, serveDist, tracked } from './harness.mjs';
 import { dashboardRoutes, evaluated, explainerRoutes, fanRows, forecastRoutes, monitorRoutes, plannerRoutes, scenarioRoutes } from './exampleRoutes.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -149,8 +149,8 @@ test('the planner opens with What to do now, draws the plan, its limits and what
   await context.close();
 });
 
-test('a plan with no decisions shows its suggestions with no accept, no override and no per-row read only', async () => {
-  for (const [settings, said] of [[{}, 'This App does not record decisions, so this list shows its suggestions only.'],
+test('a plan whose list keeps no actions shows its suggestions with no accept, no override and no per-row read only, whatever the App options say', async () => {
+  for (const [settings, said] of [[{}, 'This list is not linked to the records of the use case, so the App cannot save a decision on it yet.'],
     [DECIDE, 'This list is not linked to the records of the use case, so the App cannot save a decision on it yet.']]) {
     const info = appInfo(settings, 1, {}, 'examples/planner.json');
     const { page, seen, context } = await openApp(browser, base, info, { routes: plannerRoutes([], [], { actions: false }) });
@@ -295,13 +295,13 @@ test('the scenario lab opens with What to do now, moves the outcome with each le
   const layout = KINDS.layouts.find((l) => l.id === 'scenario_lab');
   assert.equal(layout.enabled, true);
   assert.deepEqual(info.pages[0].layout.sections, layout.sections);
-  assert.equal(info.pages[0].layout.decides, false);
+  assert.equal(info.pages[0].layout.decides, true, 'the scenario lab ranks the records the scenario puts at risk, so people act on them');
   const asked = [];
   const saved = [];
   const { page, seen, context } = await openApp(browser, base, info, { routes: scenarioRoutes(asked, saved) });
   await page.locator('[data-lever="price"]').waitFor();
   await page.waitForFunction(() => document.querySelectorAll('[data-section] canvas').length >= 4);
-  assert.deepEqual([...new Set(await sectionsOf(page))], ['todo', 'kpis', 'lever_sliders', 'outcome_distribution', 'scenario_table', 'target_gauge', 'tornado']);
+  assert.deepEqual([...new Set(await sectionsOf(page))], ['todo', 'kpis', 'lever_sliders', 'outcome_distribution', 'exposures', 'scenario_table', 'target_gauge', 'tornado']);
   assert.equal(await page.locator('[data-lever]').count(), 3);
   assert.ok(await page.locator('[data-section="scenario_table"] tbody tr').count() >= layout.min_items.scenario_table);
   assert.ok(await page.locator('[data-lever]').count() >= layout.min_items.lever_sliders);
@@ -403,7 +403,21 @@ test('the dashboard is read only: What to do now, a So what line and Ask Genie o
   assert.deepEqual(await page.locator('[data-section="todo"] [data-step]').evaluateAll((n) => n.map((s) => s.dataset.step)), ['read', 'so_what', 'filters', 'genie']);
   assert.equal(await page.locator('[data-todo-count]').count(), 0);
   assert.equal(await page.getByRole('button', { name: 'Accept' }).count(), 0);
+  assert.equal(info.pages[0].layout.informational, true);
+  const acts = [];
+  await page.route('**/api/records/act', (route) => { acts.push(route.request().postDataJSON()); return route.fulfill({ status: 500, body: '{}' }); });
+  await page.locator('[data-section="tables"] tbody tr').first().click();
+  const detail = page.locator('[data-row-detail]');
+  await detail.waitFor();
+  assert.match(await detail.innerText(), /Oat bar/);
+  const ACTIONS = /^(Mark done|Mark done…|Mark all done…|Not an issue|Not an issue…|Snooze…|Snooze all…|Ask Genie to fix|Could not fix)$/;
+  assert.equal(await page.getByRole('button', { name: ACTIONS }).count(), 0, 'an informational page offers no record action anywhere');
+  assert.equal(await page.locator('[data-act], [data-bulk], [data-act-all], .bulk, [data-start-work]').count(), 0);
+  assert.equal(await page.getByRole('checkbox').count(), 0, 'an informational page selects no rows to act on');
+  await detail.getByRole('button', { name: 'Close' }).click();
+  await page.waitForFunction(() => !document.querySelector('[data-row-detail]'));
   assert.deepEqual(asked, [], 'a dashboard never asks for a decision list');
+  assert.deepEqual(acts, [], 'a dashboard never records a decision');
   assert.deepEqual(seen.errors, []);
   await context.close();
 });
@@ -450,7 +464,7 @@ test('a records-list row action says its result in the row, a bulk action and Un
   const done = new Map();
   const { calls, routes } = tracked({
     'records/act': ({ route, json }) => {
-      const body = route.request().postDataJSON();
+      const body = actBody(route);
       calls.acts.push(body);
       for (const k of body.record_keys || []) done.set(k, `b${calls.acts.length}`);
       return json(200, { written: body.record_keys, conflicts: [], batch_id: `b${calls.acts.length}` });

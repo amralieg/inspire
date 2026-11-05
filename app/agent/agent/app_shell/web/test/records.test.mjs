@@ -245,11 +245,11 @@ test('the owner, the due date and the done line read like a person wrote them', 
   assert.equal(dueText('2026-10-20', 'Done', '2026-10-28').late, false, 'a done record is never late');
   assert.equal(dueText('2026-10-28', 'In progress', '2026-10-28').late, false, 'due today is not late yet');
   assert.equal(dueText(null, 'New'), null);
-  assert.equal(doneText({ action_status: 'Done' }), 'Marked as fixed. The next run checks whether it worked.');
-  assert.equal(doneText({ action_status: 'Done', action_outcome: 'Resolved' }), 'Marked as fixed. A later run found it resolved.');
-  assert.equal(doneText({ action_status: 'Done', action_outcome: 'Still flagged' }), 'Marked as fixed, but a later run still flags it.');
-  assert.equal(doneText({ action_status: 'Dismissed', dismiss_reason: ' The store closed. ' }), 'Marked as not a real issue. Reason: The store closed.');
-  assert.equal(doneText({ action_status: 'Dismissed' }), 'Marked as not a real issue.');
+  assert.equal(doneText({ action_status: 'Done' }), 'Marked done. The next run checks whether it worked.');
+  assert.equal(doneText({ action_status: 'Done', action_outcome: 'Resolved' }), 'Marked done. A later run found it resolved.');
+  assert.equal(doneText({ action_status: 'Done', action_outcome: 'Still flagged' }), 'Marked done, but a later run still flags it.');
+  assert.equal(doneText({ action_status: 'Dismissed', dismiss_reason: ' The store closed. ' }), 'Marked as not an issue. Reason: The store closed.');
+  assert.equal(doneText({ action_status: 'Dismissed' }), 'Marked as not an issue.');
   assert.equal(doneText({ action_status: 'In progress' }), '');
   assert.equal(doneText(null), '');
 });

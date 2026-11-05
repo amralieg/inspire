@@ -1,7 +1,7 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
-import { ASK_GROUPS, TABLE, appInfo, askAudit, openApp, pageData, serveDist, until } from './harness.mjs';
+import { actBody, ASK_GROUPS, TABLE, appInfo, askAudit, openApp, pageData, serveDist, until } from './harness.mjs';
 import {
   blankForm, capText, capped, defaultName, filtersText, formFrom, formProblem, operatorLabel, parseEmails, previewText, ruleText, stateFlag, watchOf,
   withNotice,
@@ -356,7 +356,7 @@ test('assigning records tells the person who assigned them that the owner gets a
       return json(200, { rows: rows.slice(body.offset, body.offset + body.limit), total: rows.length, offset: body.offset, limit: body.limit, actions: true,
         changes: false, summary: { open: 0, done: 0, resolved: 0, owners: [] }, errors: {} });
     },
-    'records/act': ({ route, json }) => { const body = route.request().postDataJSON(); acts.push(body); return json(200, { written: body.record_keys, conflicts: [], notice }); },
+    'records/act': ({ route, json }) => { const body = actBody(route); acts.push(body); return json(200, { written: body.record_keys, conflicts: [], notice }); },
   };
   const { page, seen, context } = await open(appInfo(ON, 1, TABLE), routes);
   await page.waitForFunction(() => document.querySelectorAll('.card--table tbody input[type="checkbox"]').length === 25);

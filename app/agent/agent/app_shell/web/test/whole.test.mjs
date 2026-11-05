@@ -45,7 +45,7 @@ test('a whole number sent as text shows with every digit wherever the App writes
   assert.equal(recordsText(acted.matched), `${COUNT_SHOWN} records`);
   assert.equal(recordsText(acted.conflicts), `${COUNT_SHOWN} records`);
   assert.equal(undoText({ restored: COUNT, skipped: 0 }), `Undone: ${COUNT_SHOWN} records are back as they were.`);
-  assert.match(batchText({ editor: 'pat', count: COUNT, values: { action_status: 'Done' }, at: '2026-10-20T09:00:00Z' }), new RegExp(`pat: ${COUNT_SHOWN} records marked as fixed`));
+  assert.match(batchText({ editor: 'pat', count: COUNT, values: { action_status: 'Done' }, at: '2026-10-20T09:00:00Z' }), new RegExp(`pat: ${COUNT_SHOWN} records marked done`));
 });
 
 test('a number that fits a browser keeps its usual shape, so only the whole numbers past 2^53 - 1 change', () => {

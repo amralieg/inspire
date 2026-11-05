@@ -489,9 +489,11 @@ test('a window reaches only lists that keep actions: a list that keeps none read
   assert.deepEqual(known.seen.errors, []);
   await known.context.close();
 
-  const plain = await openWith(appInfo({}, 1, TABLE), {}, { prefs: { window: 'today', limit: 10 } });
+  const informational = appInfo({}, 1, TABLE);
+  informational.pages[0].layout = { ...informational.pages[0].layout, decides: false, informational: true };
+  const plain = await openWith(informational, {}, { prefs: { window: 'today', limit: 10 } });
   await listed(plain.page);
-  assert.deepEqual(plain.seen.records.filter((b) => 'window' in b || 'window_limit' in b), [], 'a page that tracks no decisions never sends the window');
+  assert.deepEqual(plain.seen.records.filter((b) => 'window' in b || 'window_limit' in b), [], 'an informational page tracks no decisions, so it never sends the window');
   assert.deepEqual(plain.seen.errors, []);
   await plain.context.close();
 });
@@ -565,7 +567,7 @@ test('Everything shows the fixed and dismissed records All open hides, each with
   const chips = page.getByRole('group', { name: 'Your window' });
   assert.equal(await chips.getByRole('button', { name: 'Everything' }).getAttribute('aria-pressed'), 'true');
   assert.equal(await page.locator('[data-start-work]').count(), 0, 'Start working goes through open records, so it waits for a window of open ones');
-  assert.deepEqual(await page.locator('.card--table tbody td .status').allInnerTexts(), ['New', 'Fixed', 'Not a real issue']);
+  assert.deepEqual(await page.locator('.card--table tbody td .status').allInnerTexts(), ['New', 'Done', 'Not an issue']);
   assert.deepEqual(await page.locator('.card--table tbody [data-closed-by]').allInnerTexts(), [
     `By ${OTHER} on Oct 26, 2026, 03:20 PM UTC. Note: Repriced the shelf`,
     `By ${PERSON} on Oct 25, 2026, 08:00 AM UTC. Why: Known issue`]);

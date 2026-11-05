@@ -1,7 +1,7 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
-import { CONTRACT as C, CURRENT, DECIDE, HISTORY, NO_RUNS, PERSON, ROWS, SILENT, SUMMARY, TABLE, appInfo, lister, openApp, prefsFirst, serveDist, until } from './harness.mjs';
+import { actBody, CONTRACT as C, CURRENT, DECIDE, HISTORY, NO_RUNS, PERSON, ROWS, SILENT, SUMMARY, TABLE, appInfo, lister, openApp, prefsFirst, serveDist, until } from './harness.mjs';
 
 let served;
 let browser;
@@ -25,7 +25,7 @@ function contractRoutes(rows, { listed = {}, acts = [], undo = C.undo.response, 
   const routes = {
     records: lister(rows, { actions: true, changes: true, summary: SUMMARY, ...listed }),
     'records/act': ({ route, json }) => {
-      asked.acts.push(route.request().postDataJSON());
+      asked.acts.push(actBody(route));
       const [status, body] = replies.shift() || [200, C.act_keys.response];
       return json(status, body);
     },
@@ -116,7 +116,7 @@ test('Select all matching under a limit acts on what the limit shows: the match 
     await page.getByRole('checkbox', { name: 'Select every record on this page' }).check();
     await page.getByRole('button', { name: 'Select all 50 matching' }).click();
     assert.equal(await page.locator('.bulk b').innerText(), 'All 50 matching records selected', 'the count is what the limit shows, not the 60 that match');
-    await page.getByRole('button', { name: 'Mark done…' }).click();
+    await page.getByRole('button', { name: 'Mark all done…' }).click();
     await page.locator('textarea[name="bulk_note"]').fill(C.act_match.request.body.values.note);
     await page.getByRole('button', { name: 'Mark 50 records done' }).click();
   };
@@ -129,7 +129,7 @@ test('Select all matching under a limit acts on what the limit shows: the match 
   assert.equal(act.match.as_of_us, C.records_window.response_fields.as_of_us, 'the match is as of the moment the list was read on the server');
   assert.deepEqual([act.match.view.window, act.match.view.window_limit, act.match.view.time_zone], ['all', 50, 'Asia/Dubai']);
   assert.deepEqual(act.match.filters, seen.records.at(-1).filters);
-  await toastSaid(page, '2 of 3 matching records marked as fixed. 1 record changed since you loaded it and was left as it is.');
+  await toastSaid(page, '2 of 3 matching records marked done. 1 record changed since you loaded it and was left as it is.');
   assert.deepEqual(await toastButtons(page), ['Undo']);
   assert.equal(await page.locator('.conflicts').innerText(), `1 record changed since you loaded it and was left as it is: ${label(3)}.`);
   await markAll();
@@ -183,7 +183,7 @@ test('Apply to similar asks by the ids the page names in one by value, shows the
   await page.locator('.cell-t').first().click();
   const drawer = page.locator('dialog.drawer');
   await drawer.locator('.dr-act').waitFor();
-  await drawer.getByRole('button', { name: 'Fixed' }).click();
+  await drawer.getByRole('button', { name: 'Mark done' }).click();
   await until(() => asked.acts.length === 1 && asked.similar.length === 1);
   assert.deepEqual([asked.acts[0].record_keys, asked.acts[0].seen], [C.act_keys.request.body.record_keys, C.act_keys.request.body.seen]);
   assert.deepEqual(asked.similar[0], C.similar.request.query);
@@ -211,7 +211,7 @@ test('Recent changes reads the contract batches, and Undo on one sends the contr
   await page.getByRole('button', { name: 'Recent changes' }).click();
   const dialog = page.getByRole('dialog', { name: 'Recent changes' });
   await dialog.locator('.batches li').first().waitFor();
-  assert.deepEqual(await dialog.locator('.batches li > span').allInnerTexts(), ['Oct 27, 2026, 09:10 AM UTC, dana: 2 records marked as fixed. Note: Repriced the shelf']);
+  assert.deepEqual(await dialog.locator('.batches li > span').allInnerTexts(), ['Oct 27, 2026, 09:10 AM UTC, dana: 2 records marked done. Note: Repriced the shelf']);
   await dialog.locator(`[data-batch="${C.batches.response.batches[0].batch_id}"]`).getByRole('button', { name: 'Undo' }).click();
   await until(() => asked.undos.length === 1);
   assert.deepEqual(asked.undos[0], C.undo.request.body);

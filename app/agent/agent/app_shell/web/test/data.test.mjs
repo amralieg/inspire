@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
 import { build } from 'vite';
 import react from '@vitejs/plugin-react';
-import { CURRENT, DECIDE, F, FIELDS, FILTERS, HISTORY, LABEL, OTHER, PERSON, ROWS, SUMMARY, TABLE, appInfo, lister, openApp, serveDist, tracked, until }
+import { actBody, CURRENT, DECIDE, F, FIELDS, FILTERS, HISTORY, LABEL, OTHER, PERSON, ROWS, SUMMARY, TABLE, appInfo, lister, openApp, serveDist, tracked, until }
   from './harness.mjs';
 import { actOutcome, actedText, actionForm, actionProblem, actionValues, changeBadge, explainContext, impactText, leftText, pageText, recordRef, undoText }
   from '../src/records.js';
@@ -62,7 +62,7 @@ test('an action sends only what changed, and a dismissal needs a reason of at mo
   assert.deepEqual(actionValues(null, actionForm(null, PERSON)), { action_owner: PERSON, action_status: 'New' });
   assert.deepEqual(actionValues({ action_owner: PERSON }, { owner: `  ${OTHER} `, status: 'In progress', due: '', note: ' ', reason: '' }),
     { action_owner: OTHER, action_status: 'In progress' });
-  assert.equal(actionProblem({ status: 'Dismissed', reason: '  ' }), 'Say why it is not a real issue');
+  assert.equal(actionProblem({ status: 'Dismissed', reason: '  ' }), 'Say why it is not an issue');
   assert.equal(actionProblem({ status: 'Dismissed', reason: 'x'.repeat(301) }), 'Keep the reason to 300 characters');
   assert.equal(actionProblem({ status: 'Dismissed', reason: 'x'.repeat(300) }), '');
   assert.equal(actionProblem({ status: 'Done', reason: '' }), '');
@@ -236,9 +236,9 @@ test('a filter with 500 choices searches the server and keeps the picked values 
 test('a decision on records the viewer cannot read says how many were left out, in the act and the undo text', () => {
   const outcome = actOutcome({ written: ['R1'], conflicts: [], conflicts_count: 0, left_out: 2, batch_id: 'b' });
   assert.equal(outcome.leftOut, 2);
-  assert.equal(actedText(outcome, { action_status: 'Done' }), '1 record marked as fixed. 2 records you cannot read were left out.');
+  assert.equal(actedText(outcome, { action_status: 'Done' }), '1 record marked done. 2 records you cannot read were left out.');
   assert.equal(actedText(actOutcome({ written: ['R1'], conflicts_count: 1, left_out: 1 }), { action_status: 'Done' }),
-    '1 record marked as fixed. 1 record changed since you loaded it and was left as it is. 1 record you cannot read was left out.');
+    '1 record marked done. 1 record changed since you loaded it and was left as it is. 1 record you cannot read was left out.');
   assert.equal(actOutcome({ written: ['R1'] }).leftOut, 0, 'an older server that sends no count leaves nothing out');
   assert.equal(undoText({ restored: 1, skipped: 0, left_out: 1 }), 'Undone: 1 record is back as it was. 1 record you cannot read was left out.');
   assert.equal(undoText({ restored: 2, skipped: 1, skipped_sample: [{ record_key: 'R3' }], left_out: 3 }),
@@ -249,10 +249,9 @@ test('a decision on records the viewer cannot read says how many were left out, 
 test('in a per-user App with decisions on the list offers the tracker, and a bulk act says how many records were left out', async () => {
   const info = appInfo({ ...DECIDE, auth: 'user' }, 1, TABLE);
   assert.equal(info.auth, 'user');
-  assert.equal(info.options.decisions, true, 'a per-user App keeps decisions on');
   const { calls, routes } = tracked({
     'records/act': ({ route, json }) => {
-      const body = route.request().postDataJSON();
+      const body = actBody(route);
       calls.acts.push(body);
       return json(200, { written: body.record_keys.slice(1), conflicts: [], conflicts_count: 0, left_out: 1, batch_id: 'a'.repeat(32) });
     },
@@ -276,22 +275,24 @@ test('in a per-user App with decisions on the list offers the tracker, and a bul
   await context.close();
 });
 
-test('without the decisions option the list offers no action tracker, in a shared or a per-user App', async () => {
-  const off = { options: { modify: true, replace_edits: false, decisions: false } };
-  for (const info of [appInfo(off, 1, TABLE), appInfo({ ...off, auth: 'user' }, 1, TABLE)]) {
+test('a page whose layout does not decide offers no action tracker even when the list keeps actions, in a shared or a per-user App', async () => {
+  for (const info of [appInfo(DECIDE, 1, TABLE), appInfo({ ...DECIDE, auth: 'user' }, 1, TABLE)]) {
+    info.pages[0].layout = { ...info.pages[0].layout, decides: false, informational: true };
     const { calls, routes } = tracked();
     const { page, seen, context } = await open(info, routes);
     await page.waitForFunction(() => document.querySelector('.card--table tbody .cell-t'));
-    assert.equal(info.options.decisions, false);
     assert.equal(calls.fields, 0);
     assert.equal(await page.getByRole('button', { name: 'Owner' }).count(), 0);
     assert.equal(await page.getByRole('button', { name: 'My actions' }).count(), 0);
     assert.equal(await page.getByRole('checkbox').count(), 0);
     assert.equal(await page.locator('.impact').count(), 0);
+    assert.equal(await page.locator('[data-act-all], [data-start-work]').count(), 0);
     await page.locator('.cell-t').first().click();
     await page.locator('dialog.drawer .hist-i').first().waitFor();
     assert.equal(await page.locator('.dr-act').count(), 0);
+    assert.equal(await page.locator('dialog.drawer [data-act]').count(), 0, 'the drawer of an informational row has no Mark done, Not an issue or Ask Genie to fix');
     assert.equal(await page.locator('dialog.drawer').getByRole('button', { name: /^Explain/ }).count(), 1, 'the drawer offers Explain while Genie is on');
+    assert.deepEqual(calls.acts, []);
     assert.deepEqual(seen.errors, []);
     await context.close();
   }
@@ -341,7 +342,7 @@ test('the drawer saves an action with the version it read, and a dismissal needs
   const drawer = page.locator('dialog.drawer');
   await drawer.locator('.dr-act').waitFor();
   assert.equal(await drawer.locator('input[name="action_owner"]').inputValue(), PERSON);
-  assert.deepEqual(await drawer.locator('select[name="action_status"] option').allInnerTexts(), ['New', 'In progress', 'Fixed', 'Not a real issue', 'Could not fix']);
+  assert.deepEqual(await drawer.locator('select[name="action_status"] option').allInnerTexts(), ['New', 'In progress', 'Done', 'Not an issue', 'Could not fix']);
   assert.ok(await drawer.locator(`datalist option[value="${OTHER}"]`).count() === 1, 'owner suggestions come from the current owners');
   await drawer.locator('select[name="action_status"]').selectOption('Done');
   await drawer.locator('input[name="action_due"]').fill('2026-11-15');
@@ -356,15 +357,15 @@ test('the drawer saves an action with the version it read, and a dismissal needs
   await until(() => calls.history > loads);
   await page.waitForFunction(() => document.querySelector('dialog.drawer select[name="action_status"]')?.value === 'New');
   await page.evaluate(() => window.addEventListener('click', () => { window.focusedByClick = document.activeElement?.name ?? null; }, { once: true }));
-  await drawer.getByRole('button', { name: 'Not a real issue' }).click();
+  await drawer.getByRole('button', { name: 'Not an issue' }).click();
   const reason = drawer.locator('textarea[name="dismiss_reason"]');
   await reason.waitFor();
   assert.equal(await page.evaluate(() => window.focusedByClick), 'dismiss_reason', 'the reason box takes focus with the click, before any timer runs');
   assert.equal(await page.evaluate(() => document.activeElement?.name), 'dismiss_reason');
   assert.equal(await reason.getAttribute('maxlength'), '300');
-  assert.match(await drawer.locator('label:has(textarea[name="dismiss_reason"]) > span').innerText(), /^Why is it not a real issue\? \*/);
+  assert.match(await drawer.locator('label:has(textarea[name="dismiss_reason"]) > span').innerText(), /^Why is it not an issue\? \*/);
   assert.equal(await drawer.getByRole('button', { name: 'Save action' }).isDisabled(), true);
-  assert.equal(await drawer.locator('.in-err').innerText(), 'Say why it is not a real issue');
+  assert.equal(await drawer.locator('.in-err').innerText(), 'Say why it is not an issue');
   await reason.fill('The store closed in May');
   await drawer.getByRole('button', { name: 'Save action' }).click();
   await until(() => calls.acts.length === 2);
@@ -452,7 +453,7 @@ test('row checkboxes feed one bulk call to assign or set status, and conflicts a
   let reply = null;
   const { calls, routes } = tracked({
     'records/act': ({ route, json }) => {
-      const body = route.request().postDataJSON();
+      const body = actBody(route);
       calls.acts.push(body);
       return json(200, reply || { written: body.record_keys, conflicts: [] });
     },
@@ -487,7 +488,7 @@ test('row checkboxes feed one bulk call to assign or set status, and conflicts a
   assert.equal(calls.acts[1].record_keys.length, 25);
   assert.deepEqual(calls.acts[1].values, { action_status: 'Dismissed', dismiss_reason: 'These items left the range' });
   await page.waitForFunction(() => document.querySelector('.toast .toast-t')?.textContent
-    === '1 record marked as not a real issue. 24 records changed since you loaded them and were left as they are.');
+    === '1 record marked as not an issue. 24 records changed since you loaded them and were left as they are.');
   assert.match(await page.locator('.conflicts').innerText(),
     /^24 records changed since you loaded them and were left as they are: R02, R03, (?:[^,]+, ){17}Item number 21 with a long descriptive name, and 4 more\.$/,
     'the notice names the 20 the server sampled, by label when the record is on the page, and counts the rest');
@@ -609,7 +610,7 @@ function panelRoutes(current, calls = { acts: [] }) {
     records: json({ rows, total: 3, offset: 0, limit: 25, actions: true, changes: true, summary: SUMMARY, errors: {}, ai: { columns: ALIASES, categories: [], picked: {} } }),
     'records/fields': json({ fields: [...FIELDS, ...AI_FIELDS], key_field: 'entity_id', actions: true }),
     'records/history': json({ ...HISTORY, fields: [...FIELDS, ...AI_FIELDS], versions: [{ ...now, is_current: false, valid_from_us: '101', ai_explanation: 'An older reason.' }, now], current: now }),
-    'records/act': (route) => { const body = route.request().postDataJSON(); calls.acts.push(body); return json({ written: body.record_keys, conflicts: [] })(route); },
+    'records/act': (route) => { const body = actBody(route); calls.acts.push(body); return json({ written: body.record_keys, conflicts: [] })(route); },
   };
 }
 
@@ -694,7 +695,7 @@ test('the record panel shows the saving with its formula, why the AI flagged it,
   assert.deepEqual(await panel.locator('.panel-b > section h3').allInnerTexts(),
     ['Could save', 'Why it is flagged', 'How sure the AI is', 'Next best action', 'Action', 'Add a note', 'Ask Genie about this', 'Details', 'History']);
   assert.match(await panel.locator('.hist-i').first().innerText(), /No value changed\./, 'a new AI reason is never shown as a business change');
-  assert.deepEqual(await panel.locator('.panel-f > button').allInnerTexts(), ['Fixed', 'Not a real issue', 'Could not fix', 'Snooze…']);
+  assert.deepEqual(await panel.locator('.panel-f > button').allInnerTexts(), ['Mark done', 'Not an issue', 'Could not fix', 'Snooze…', 'Ask Genie to fix']);
   assert.deepEqual(await panel.getByLabel('Give to someone').locator('option').allInnerTexts(),
     [`With ${PERSON}`, `Give to ${OTHER}`, 'Someone else…']);
   const ask = panel.getByRole('region', { name: 'Ask Genie about this' });
@@ -708,11 +709,11 @@ test('the record panel shows the saving with its formula, why the AI flagged it,
   assert.deepEqual((await page.evaluate(() => window.asked)).at(-1), { pageId: 'n01_u05', recordKey: 'R001', label: LABEL, question: '' });
   await page.locator('.cell-t').first().click();
   await panel.locator('.dr-act').waitFor();
-  await panel.getByRole('button', { name: 'Fixed' }).click();
+  await panel.getByRole('button', { name: 'Mark done' }).click();
   await until(() => calls.acts.length === 1);
   assert.deepEqual(calls.acts[0], { page: 'n01_u05', record_keys: ['R001'], values: { action_status: 'Done' }, seen: { R001: '102' } });
   await page.locator('.toast.is-on').waitFor();
-  assert.equal(await page.locator('.toast').innerText(), 'Marked as fixed. The next run checks whether it worked.');
+  assert.equal(await page.locator('.toast').innerText(), 'Marked done. The next run checks whether it worked.');
   await panel.getByLabel('Give to someone').selectOption(`Give to ${OTHER}`);
   await until(() => calls.acts.length === 2);
   assert.deepEqual(calls.acts[1].values, { action_owner: OTHER });
@@ -762,7 +763,7 @@ test('a low confidence record says so, an older table shows only what it has, an
   const done = await isolated(code, props, panelRoutes({ ...EXPLAINED, action_status: 'Done', action_outcome: 'Resolved' }));
   await done.page.locator('.cell-t').first().click();
   await done.page.locator('dialog.drawer .dr-act').waitFor();
-  assert.equal(await done.page.locator('dialog.drawer .done').innerText(), 'Marked as fixed. A later run found it resolved.');
+  assert.equal(await done.page.locator('dialog.drawer .done').innerText(), 'Marked done. A later run found it resolved.');
   assert.deepEqual(await done.page.locator('dialog.drawer .panel-f > button').allInnerTexts(), ['Close']);
   assert.equal(await done.page.getByLabel('Give to someone').count(), 0);
   assert.deepEqual([...low.errors, ...old.errors, ...done.errors], []);
