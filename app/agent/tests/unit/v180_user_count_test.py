@@ -209,15 +209,15 @@ def test_the_interpreter_keeps_a_count_only_answer_as_parsed(agent_ns):
     parsed = inst._interpret_generation_instructions()
     assert parsed["interpretation_status"] == "ok"
     assert inst._user_use_case_count()["count"] == 30
-    assert inst._user_use_case_requests() == {"R1": {"id": "R1", "ask": "forecasting use cases", "minimum": 3}}
+    assert inst._user_use_case_requests() == {"R1": {"id": "R1", "ask": "forecasting use cases", "minimum": 3, "name": ""}}
 
 
 def test_requests_get_ids_and_a_minimum_of_one_when_none_is_stated(agent_ns):
     inst = _inspire(agent_ns, requests=[{"ask": "a churn model"}, {"id": "R1", "ask": "  fraud   detection ", "minimum": "2"},
                                         {"id": "x", "ask": "pricing", "minimum": 0}, {"ask": ""}, "forecasts"])
-    assert inst._user_use_case_requests() == {"R1": {"id": "R1", "ask": "a churn model", "minimum": 1},
-                                              "R2": {"id": "R2", "ask": "fraud detection", "minimum": 2},
-                                              "R3": {"id": "R3", "ask": "pricing", "minimum": 1}}
+    assert inst._user_use_case_requests() == {"R1": {"id": "R1", "ask": "a churn model", "minimum": 1, "name": ""},
+                                              "R2": {"id": "R2", "ask": "fraud detection", "minimum": 2, "name": ""},
+                                              "R3": {"id": "R3", "ask": "pricing", "minimum": 1, "name": ""}}
 
 
 def test_the_scorer_sees_the_requests_and_only_a_known_request_id_is_kept(agent_ns):
