@@ -31,7 +31,7 @@ test('context returns the use case, widgets and empty history', async () => {
     const got = await call(srv.url, `/api/inspire/implement/context?${Q}`);
     assert.equal(got.status, 200);
     assert.equal(got.data.use_case.id, 'N01-U01');
-    assert.equal(got.data.discovery_type, 'Deep');
+    assert.equal(got.data.discovery_type, 'AI Enhanced Discovery', 'a stored Deep session reads back under the new name');
     assert.ok(got.data.widgets.some((w) => w.name === 'top_k'));
     assert.equal(got.data.me.username, 'amr@x');
   } finally {

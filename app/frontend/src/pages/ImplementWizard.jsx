@@ -569,7 +569,6 @@ export default function ImplementWizard({
     dateColumn: eventRef && refTable(eventRef).toLowerCase() === primaryChosen.toLowerCase() ? refColumn(eventRef) : '',
     windowDays,
     dataWindow: spec.data.window,
-    discoveryType,
     ...more,
   }).text;
 
@@ -626,7 +625,7 @@ export default function ImplementWizard({
     }
     if (blockedBy(stepId)) return;
     try {
-      if (stepId === 'data' && discoveryType && discoveryType !== 'Standard') {
+      if (stepId === 'data') {
         const scope = readinessScope(spec, ucRow);
         if (scope.table) {
           setChecking('Checking the data');
@@ -1199,7 +1198,7 @@ export default function ImplementWizard({
                 ))}
               </div>
               <p className="text-[11px] text-text-tertiary">
-                {discoveryType === 'Deep' ? 'Deep discovery: Next counts the rows to work with.' : 'metadata only, readiness checked at preview run'}
+                Next counts the rows to work with before Genie starts.
               </p>
               {mode === 'mvp' && <p data-settings-pointer="" className="text-[11px] text-text-secondary">{SETTINGS_ON_THEIR_STEP}</p>}
               {[['Business rules', groups.business], ['Model', groups.model], ['AI', groups.ai], ['Use-case extras', groups.extras]]

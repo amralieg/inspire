@@ -2,6 +2,8 @@ import { KINDS, familyOf, kindForTechnique, kindOf } from './kinds.js';
 import { fieldOf } from './useCaseFields.js';
 import { placeholderWords } from './placeholderWords.js';
 
+export const KIND_INFORMATIONAL_LABEL = 'Informational';
+export const KIND_INFORMATIONAL_TITLE = 'Informs a decision rather than making one: it explains or shows what happened, so no single action or measurable outcome follows from it alone.';
 export const KIND_FILTER_FAMILY = 'family:';
 export const KIND_FILTER_KIND = 'kind:';
 export const KIND_LINE_FIELDS = [
@@ -27,6 +29,7 @@ export function useCaseKindView(uc) {
     familyLabel: text(u.kind_family_label) || family.label,
     color: text(family.color),
     question: kind.question,
+    informational: Boolean(kind.informational),
     technique,
     lines,
   };

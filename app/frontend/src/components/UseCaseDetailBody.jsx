@@ -6,7 +6,7 @@ import { workspaceNotebookUrl } from '../lib/workspaceLinks';
 import { placeholderWords } from '../lib/placeholderWords';
 import { requestHeaders } from '../lib/apiClient';
 import { NOTEBOOK_MODE_LABEL, START_MVP_LABEL } from '../lib/implementWizard';
-import { kindChipStyle } from '../lib/useCaseKind';
+import { KIND_INFORMATIONAL_LABEL, kindChipStyle } from '../lib/useCaseKind';
 import { beneficiaryFromUc, expandWorkspaceListCandidates, fieldOf, hasShippedGenieCode, notebookPathOf, sponsorFromUc } from '../lib/useCaseFields';
 
 const notebookCache = new Map();
@@ -187,7 +187,7 @@ export default function UseCaseDetailBody({
             What you get
           </h4>
           <p className="text-[11px] font-semibold text-text-primary mb-1.5">
-            {kind.familyLabel} · {kind.label}{kind.technique ? ` · ${kind.technique}` : ''}
+            {kind.familyLabel} · {kind.label}{kind.technique ? ` · ${kind.technique}` : ''}{kind.informational ? ` · ${KIND_INFORMATIONAL_LABEL}` : ''}
           </p>
           {kind.lines.length > 0 ? (
             <dl className="space-y-1 text-sm text-text-secondary leading-relaxed">

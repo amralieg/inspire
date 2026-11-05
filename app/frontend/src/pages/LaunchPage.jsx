@@ -51,41 +51,42 @@ import { placeholderWords } from '../lib/placeholderWords';
 import { nameOfUseCase } from '../lib/useCaseFields';
 import { counted } from '../lib/plural';
 import { catalogListNote, typedCatalog } from '../lib/catalogList';
+import { DISCOVERY_AI_ENHANCED, DISCOVERY_MODE_TEXT, DISCOVERY_RECOMMENDED, DISCOVERY_STANDARD, DISCOVERY_TYPE_DEFAULT, discoveryTypeOf } from '../lib/discoveryType';
 
 /* ─── Constants — notebook v1.2.0 widget `05_use_cases_quality` ─── */
 const QUALITY_OPTIONS = ['Good', 'High', 'Ultra High'];
 
 const DISCOVERY_OPTIONS = [
   {
-    key: 'Deep',
-    icon: Eye,
-    badge: 'Highly recommended',
-    desc: 'Checks your data with aggregates before it suggests use cases. Never sends a data row to the AI and never reads the values of personal columns.',
+    key: DISCOVERY_STANDARD,
+    icon: Lock,
+    badge: 'Recommended',
+    desc: DISCOVERY_MODE_TEXT[DISCOVERY_STANDARD],
   },
   {
-    key: 'Standard',
-    icon: Lock,
-    desc: 'Reads metadata only. Never reads a row of your data.',
+    key: DISCOVERY_AI_ENHANCED,
+    icon: Sparkles,
+    desc: DISCOVERY_MODE_TEXT[DISCOVERY_AI_ENHANCED],
   },
 ];
-const DEEP_PANEL = [
+const DISCOVERY_PANEL = [
   {
     key: 'why',
     icon: Search,
-    title: 'Why Deep',
-    text: 'Deep checks your data before it suggests use cases. It counts the rows in each table, finds the dates each table covers, measures how empty each column is, and tests whether joins between tables really match. For each use case, it also checks that the data holds a real signal, for example that the groups it compares, such as stores or regions, hold enough rows.',
+    title: 'Both modes check your data',
+    text: 'Before Inspire keeps a use case, it counts what the use case needs: the rows in each table, the dates each table covers, how empty each column is, whether joins really match, how many records each group holds and how many past examples of the outcome there are. A use case the data cannot support is dropped with its reason.',
   },
   {
     key: 'quality',
     icon: Target,
-    title: 'Higher quality',
-    text: 'Your use cases rest on data that is really there. Fewer use cases built on empty or thin tables, broken joins or the wrong dates get through. Each use case shows the data evidence behind it.',
+    title: 'Use cases you can build',
+    text: 'You get fewer use cases built on empty or thin tables, broken joins or the wrong dates. A use case you asked for is always kept, and it shows why the data may be thin.',
   },
   {
     key: 'privacy',
     icon: Shield,
     title: 'Your data stays private',
-    text: 'Only aggregates are used, such as row counts, date ranges, empty shares, join match rates, and the most common values of non-personal category columns. No data row is ever sent to the AI. Personal columns are only counted, and their values are never read. The AI runs on Databricks model serving, so your data never leaves Databricks.',
+    text: 'Only counts are read, never a data row, and the values of personal columns are never read. Standard Discovery keeps every count away from the AI. AI Enhanced Discovery shows the counts to the AI. The AI runs on Databricks model serving, so your data never leaves Databricks.',
   },
 ];
 const TABLE_ELECTION = ['Let Inspire Decides', 'All Tables', 'Transactional Only'];
@@ -199,7 +200,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
     '00_business_name': '',
     '01_uc_metadata': '',
     '02_inspire_database': inspireDatabase || '',
-    '03_discovery_type': 'Deep',
+    '03_discovery_type': DISCOVERY_TYPE_DEFAULT,
     '04_table_election': 'Let Inspire Decides',
     '05_use_cases_quality': 'Good',
     '06_business_domains': '',
@@ -636,8 +637,9 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
         if (cancelled) return;
         const wv = data?.session?.widget_values || {};
         const next = {};
-        if (!discoveryTouched && (wv.discovery_type === 'Deep' || wv.discovery_type === 'Standard')) {
-          next['03_discovery_type'] = wv.discovery_type;
+        const storedDiscovery = discoveryTypeOf(wv.discovery_type);
+        if (!discoveryTouched && storedDiscovery) {
+          next['03_discovery_type'] = storedDiscovery;
         }
         const prefillStrategy = !strategyTouched && wv.strategic_context ? String(wv.strategic_context) : '';
         if (Object.keys(next).length || prefillStrategy) {
@@ -1422,7 +1424,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
             </div>
 
             {/* Discovery Type — v1.3.0 widget 03_discovery_type */}
-            <FieldSection label="Discovery Type" hint="Whether Inspire may read sample values from your tables">
+            <FieldSection label="Discovery Type" hint="Both modes count your data; only AI Enhanced Discovery shows the counts to the AI">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                 {DISCOVERY_OPTIONS.map((opt) => {
                   const active = params['03_discovery_type'] === opt.key;
@@ -1442,7 +1444,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                       <span className={`flex items-center gap-1.5 text-xs font-semibold ${active ? 'text-db-red-fg' : 'text-text-primary'}`}>
                         <Icon size={13} className={active ? 'text-db-red-fg' : 'text-text-tertiary'} />
                         {opt.key}
-                        {opt.key === 'Deep' && <span className="text-[10px] font-normal text-text-tertiary">(default)</span>}
+                        {opt.key === DISCOVERY_TYPE_DEFAULT && <span className="text-[10px] font-normal text-text-tertiary">(default)</span>}
                         {opt.badge && (
                           <span data-discovery-badge={opt.key} className="ml-1 rounded-full bg-success-bg px-2 py-0.5 text-[10px] font-semibold text-success-fg">
                             {opt.badge}
@@ -1455,16 +1457,16 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                   );
                 })}
               </div>
-              <div data-deep-panel className="mt-2.5 rounded-xl border border-success/30 bg-success-bg p-3.5">
+              <div data-discovery-panel className="mt-2.5 rounded-xl border border-success/30 bg-success-bg p-3.5">
                 <p className="flex items-center gap-1.5 text-xs font-bold text-success-fg">
                   <Eye size={13} />
-                  Deep discovery is highly recommended
+                  {DISCOVERY_RECOMMENDED} is recommended
                 </p>
                 <div className="mt-2 grid grid-cols-1 gap-2.5 md:grid-cols-3">
-                  {DEEP_PANEL.map((part) => {
+                  {DISCOVERY_PANEL.map((part) => {
                     const PartIcon = part.icon;
                     return (
-                      <div key={part.key} data-deep-panel-part={part.key} className="rounded-lg bg-surface/70 p-2.5">
+                      <div key={part.key} data-discovery-panel-part={part.key} className="rounded-lg bg-surface/70 p-2.5">
                         <p className="flex items-center gap-1.5 text-[11px] font-semibold text-text-primary">
                           <PartIcon size={12} className="text-success-fg" />
                           {part.title}
@@ -1710,8 +1712,8 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
               </Chip>
             )}
             <Chip icon={<Sliders size={10} />}>{params['05_use_cases_quality']}</Chip>
-            <Chip icon={params['03_discovery_type'] === 'Standard' ? <Lock size={10} /> : <Eye size={10} />}>
-              {params['03_discovery_type'] || 'Deep'}
+            <Chip icon={params['03_discovery_type'] === DISCOVERY_AI_ENHANCED ? <Sparkles size={10} /> : <Lock size={10} />}>
+              {params['03_discovery_type'] || DISCOVERY_TYPE_DEFAULT}
             </Chip>
             {strategyBase && <Chip icon={<Target size={10} />}>Strategy set</Chip>}
             <Chip icon={<Star size={10} />}>

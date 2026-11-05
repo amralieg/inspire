@@ -142,3 +142,14 @@ test('the use case route and the results page carry the Deep grouping and record
   const uc = copyV130TrackingFields({ Name: 'Spot odd sales' }, route);
   assert.deepEqual([uc.suggested_group_by, uc.record_level], ['item.category, store_sk', 'ticket_number']);
 });
+
+test('an informational kind is labelled Informational, and a decision kind never is (must-exclude)', async () => {
+  const { useCaseKindView, KIND_INFORMATIONAL_LABEL } = await lib('useCaseKind.js');
+  const informational = REGISTRY.kinds.filter((k) => k.informational).map((k) => k.id);
+  assert.ok(informational.length > 0);
+  for (const id of informational) assert.equal(useCaseKindView({ use_case_kind: id }).informational, true, id);
+  assert.equal(useCaseKindView(STORED).informational, false, 'a forecast decides an order, so it is not informational');
+  assert.equal(KIND_INFORMATIONAL_LABEL, 'Informational');
+  const card = fs.readFileSync(path.resolve(__dirname, '..', '..', 'frontend', 'src', 'components', 'UseCaseCard.jsx'), 'utf8');
+  assert.match(card, /\{kind\?\.informational && \([\s\S]{0,300}\{KIND_INFORMATIONAL_LABEL\}/);
+});

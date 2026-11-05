@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { closeBrowser, openUi, painted } from './uiSupport.mjs';
 import { APP_TABS } from '../../src/lib/tabs.js';
 import { SHOWCASE_BUTTON } from '../../src/lib/showcase.js';
+import { DISCOVERY_MODE_TEXT } from '../../src/lib/discoveryType.js';
 
 test.after(closeBrowser);
 
@@ -130,6 +131,26 @@ test('the home page walks through the five tabs as they work now and keeps none 
     await page.setViewportSize({ width: 1024, height: 768 });
     await hint.waitFor({ state: 'hidden', timeout: 15000 });
     assert.equal(await hint.isVisible(), false, 'on a short screen the scroll hint gives way to the setup note and the disclaimer');
+    assert.deepEqual(ui.pageErrors, []);
+  } finally {
+    await ui.close();
+  }
+});
+
+test('the home page highlights both discovery modes, and only Standard Discovery is marked recommended', async () => {
+  const ui = await openUi('landing');
+  const { page } = ui;
+  try {
+    const modes = page.locator('[data-landing-discovery-mode]');
+    await modes.first().waitFor();
+    assert.deepEqual(await modes.evaluateAll((els) => els.map((el) => el.getAttribute('data-landing-discovery-mode'))),
+      ['Standard Discovery', 'AI Enhanced Discovery']);
+    const standard = await modes.nth(0).innerText();
+    const enhanced = await modes.nth(1).innerText();
+    assert.match(standard, /Recommended/);
+    assert.doesNotMatch(enhanced, /Recommended/, 'AI Enhanced Discovery is never marked recommended');
+    assert.ok(standard.includes(DISCOVERY_MODE_TEXT['Standard Discovery']));
+    assert.ok(enhanced.includes(DISCOVERY_MODE_TEXT['AI Enhanced Discovery']));
     assert.deepEqual(ui.pageErrors, []);
   } finally {
     await ui.close();

@@ -23,6 +23,7 @@ import ResultsPage from './ResultsPage';
 import { countEntries, parseStrategicContext, treeDepth } from '../lib/strategyContext';
 import { formatDuration } from '../lib/formatWhen';
 import { counted } from '../lib/plural';
+import { aiSeesAggregates, discoveryTypeOf } from '../lib/discoveryType';
 import { mergeSteps, quietLine, runTitle, viewerLine, sessionFailed, sessionFinished, sessionQuietSince, sessionSucceeded, stepCategory } from '../lib/monitorState';
 import { requestHeaders, responseError } from '../lib/apiClient';
 import StopRunControl from '../components/StopRunControl';
@@ -1161,7 +1162,7 @@ function ResultJsonDisplay({ resultJson }) {
 }
 
 function RunSetupSummary({ widgetValues }) {
-  const discovery = String(widgetValues?.discovery_type || '').trim();
+  const discovery = discoveryTypeOf(widgetValues?.discovery_type) ?? String(widgetValues?.discovery_type || '').trim();
   const strategyText = String(widgetValues?.strategic_context || '').trim();
   if (!discovery && !strategyText) return null;
   const parsed = parseStrategicContext(strategyText);
@@ -1179,7 +1180,7 @@ function RunSetupSummary({ widgetValues }) {
     <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px]">
       {discovery && (
         <span className="px-2 py-0.5 rounded-full border border-border bg-bg-subtle text-text-secondary">
-          {discovery === 'Standard' ? 'Standard discovery: no data read' : 'Deep discovery: aggregates only'}
+          {aiSeesAggregates(discovery) ? `${discovery}: the AI sees the aggregates` : `${discovery}: aggregates kept from the AI`}
         </span>
       )}
       <span className="px-2 py-0.5 rounded-full border border-border bg-bg-subtle text-text-secondary" title={parsed.error || ''}>

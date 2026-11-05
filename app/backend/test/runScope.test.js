@@ -97,7 +97,7 @@ test('a Deep discovery grouping is picked first and marked, a profile without on
   const same = S.groupingChoices({ ...PROFILE, deep_suggestion: { columns: ['Region', 'country'] } });
   assert.deepEqual(same.map((c) => [c.value, Boolean(c.deep), Boolean(c.recommended)]), [['all', false, false], ['Region, country', true, true],
     ['region', false, false], ['country', false, false]], 'Deep and the profile agreeing is one choice with both marks');
-  assert.equal(S.GROUPING_DEEP_MARK, 'Suggested by Deep discovery');
+  assert.equal(S.GROUPING_DEEP_MARK, 'Suggested by discovery');
   const fresh = S.scopeValues(() => undefined);
   assert.equal(S.withGroupingDefault(fresh, DEEP, '').group_by, 'stores.region, store_id', 'nothing picked yet, so the Deep grouping is picked');
   assert.equal(S.withGroupingDefault(fresh, PROFILE, '').group_by, 'region, country', 'no Deep grouping: the build-time recommendation is picked');
@@ -113,7 +113,7 @@ test('a Deep discovery grouping is picked first and marked, a profile without on
   assert.equal(S.groupingChosenBy('all', DEEP), 'person');
   assert.equal(S.groupingChosenBy('', PROFILE), '', 'no Deep grouping: nothing is chosen until the person picks');
   assert.equal(S.groupingChosenBy('', null), '');
-  assert.equal(S.GROUPING_DEEP_PICKED, 'Deep discovery picked this grouping. It becomes your choice when you pick it or another one.');
+  assert.equal(S.GROUPING_DEEP_PICKED, 'Discovery picked this grouping. It becomes your choice when you pick it or another one.');
   const deepFirst = S.withScopeDefaults(S.withGroupingDefault(fresh, DEEP, ''), DEEP);
   assert.deepEqual([deepFirst.run_scope, deepFirst.scope_groups], ['groups', ''],
     'the profile answers groups, and its groups are countries, not values of the Deep grouping, so none are ticked for it (must-exclude)');

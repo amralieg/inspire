@@ -705,14 +705,14 @@ test('the run count and cost hint follow the cron', async () => {
   assert.equal(w.costHint(on('0 0 25 * * ?')), "one preview run now; the schedule's run count is unknown until its cron is valid.");
 });
 
-test('profile estimates come from Deep evidence, and say unknown when there is none', async () => {
+test('profile estimates come from the discovery evidence in either mode, and say unknown when there is none', async () => {
   const w = await load();
   const evidence = { tables: { 'main.s.orders': { rows: 3650, sampled: false, date_ranges: { order_date: { min: '2024-01-01', max: '2024-12-31' } } },
     'main.s.events': { rows: 500, sampled: true, date_ranges: {} } } };
-  const base = { evidence, table: 'main.s.orders', dateColumn: 'order_date', discoveryType: 'Deep', dataWindow: {} };
-  assert.deepEqual(w.profileEstimate({ ...base, discoveryType: 'Standard' }), { rows: null, text: 'unknown: Standard discovery read no rows' });
-  assert.deepEqual(w.profileEstimate({ ...base, evidence: null }), { rows: null, text: 'unknown: Standard discovery read no rows' });
-  assert.equal(w.profileEstimate({ ...base, table: 'main.s.orders_v2' }).text, 'unknown: Deep discovery has no row count for main.s.orders_v2');
+  const base = { evidence, table: 'main.s.orders', dateColumn: 'order_date', dataWindow: {} };
+  assert.equal(w.profileEstimate({ ...base, discoveryType: 'Standard Discovery' }).rows, 3650, 'Standard Discovery counts rows too');
+  assert.deepEqual(w.profileEstimate({ ...base, evidence: null }), { rows: null, text: 'unknown: discovery read no rows' });
+  assert.equal(w.profileEstimate({ ...base, table: 'main.s.orders_v2' }).text, 'unknown: discovery has no row count for main.s.orders_v2');
   assert.deepEqual(w.profileEstimate(base), { rows: 3650, text: 'about 3,650 rows of main.s.orders (366 of 366 days of order_date)' });
   assert.equal(w.profileEstimate({ ...base, windowDays: '30' }).rows, Math.round(3650 * 30 / 366));
   const windowed = w.profileEstimate({ ...base, dataWindow: { start: '2024-07-01', end: '2024-07-31' }, windowDays: '90' });

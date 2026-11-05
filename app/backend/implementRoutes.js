@@ -18,6 +18,7 @@ const GR = require('./lib/groupingRule');
 const GP = require('./lib/groupingProfile');
 const { TAGS_UNREAD_NOTE, personalColumn } = require('../frontend/src/lib/personalColumns.js');
 const { nextAppName } = require('../frontend/src/lib/implementWizard.js');
+const { canonicalDiscoveryType } = require('../frontend/src/lib/discoveryType.js');
 const { runWithRequestDeadline } = require('./lib/sqlStatements');
 const { fsApiPath } = require('./lib/workspacePaths');
 const { int64Id, isInt64Id, requireInt64Id, jsonWithInt64Ids } = require('./lib/int64Id');
@@ -511,7 +512,7 @@ function registerImplementRoutes(app, deps) {
       res.json({
         session_id: sid,
         use_case: useCase,
-        discovery_type: session.discovery_type || 'Standard',
+        discovery_type: canonicalDiscoveryType(session.discovery_type),
         business_name: session.business_name || '',
         generation_path: session.generation_path || '',
         me: person,
@@ -708,10 +709,6 @@ function registerImplementRoutes(app, deps) {
   app.post('/api/inspire/implement/readiness', requireToken, async (req, res) => {
     try {
       const warehouseId = warehouseOf(req);
-      const discovery = String(req.body?.discovery_type || '').trim() || 'Standard';
-      if (discovery === 'Standard') {
-        return res.json({ skipped: true, reason: 'metadata only, readiness checked at preview run', row_count: null, null_share: {} });
-      }
       const table = q(req, 'table');
       const statement = I.readinessStatement(table, {
         columns: req.body?.columns || [],

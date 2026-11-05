@@ -202,11 +202,11 @@ test('a Deep discovery grouping is picked and marked on a first build, the perso
       ['all', 'stores.region, store_id', 'region, country', 'region', 'country']);
     assert.deepEqual(await checkedChoice(page, 'data-grouping-choice'), ['stores.region, store_id'], 'the Deep grouping is picked before the person chooses');
     assert.equal(await grouping.locator('[data-grouping-choice="stores.region, store_id"]').innerText(),
-      'stores.region, then store_id · Suggested by Deep discovery');
+      'stores.region, then store_id · Suggested by discovery');
     assert.equal(await grouping.locator('[data-grouping-choice="region, country"]').innerText(), 'region, then country · Recommended');
-    assert.equal(await grouping.locator('[data-grouping-record-level]').textContent(), 'Deep discovery found one record per order_id in main.sales.orders.');
+    assert.equal(await grouping.locator('[data-grouping-record-level]').textContent(), 'Discovery found one record per order_id in main.sales.orders.');
     assert.equal(await grouping.locator('[data-grouping-chosen-by="deep"]').textContent(),
-      'Deep discovery picked this grouping. It becomes your choice when you pick it or another one.');
+      'Discovery picked this grouping. It becomes your choice when you pick it or another one.');
     await grouping.locator('[data-grouping-choice="all"] input').check();
     assert.equal(await grouping.locator('[data-grouping-chosen-by]').count(), 0, 'once the person picks, the grouping is theirs');
     await next(page);

@@ -290,12 +290,14 @@ components:
             03_discovery_type:
               type: string
               description: |
-                v1.3.0 Discovery Type. `Deep` (default) may read aggregates over the scanned tables (row counts, null
-                share, distinct counts, date coverage, short value lists of non-personal columns, join match rates, KPI
-                baselines) and never sends a data row to the AI. `Standard` never reads data. Matching ignores case;
-                empty means `Deep`; any other value is refused with 400.
-              enum: [Deep, Standard]
-              default: Deep
+                Discovery Type. Both modes read aggregates over the scanned tables (row counts, null share, distinct
+                counts, date coverage, per-group sizes, outcome counts, join match rates) to decide each use case, and
+                never send a data row to the AI. `Standard Discovery` (default) sends none of the aggregates to the AI.
+                `AI Enhanced Discovery` also shows the aggregates to the AI. Matching ignores case; empty means
+                `Standard Discovery`; the legacy values `Standard` and `Deep` map to `Standard Discovery` and
+                `AI Enhanced Discovery`; any other value is refused with 400.
+              enum: [Standard Discovery, AI Enhanced Discovery, Standard, Deep]
+              default: Standard Discovery
             10_strategic_context:
               type: string
               description: |

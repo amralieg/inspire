@@ -121,12 +121,12 @@ function InsightCard({ icon, title, summary, children }) {
 export function DataAccessBadge({ results }) {
   const access = dataAccessSummary(results);
   if (!access) return null;
-  if (!access.deep) {
+  if (!access.dataRead) {
     return (
       <div className="mb-4 flex items-start gap-2 rounded-xl border border-border bg-surface px-3 py-2.5 text-[11px] text-text-secondary shadow-sm">
         <Lock size={13} className="mt-0.5 shrink-0 text-success-fg" />
         <span>
-          <span className="font-semibold text-text-primary">Standard discovery: no data read.</span> Inspire used table and column
+          <span className="font-semibold text-text-primary">{access.type}: no data read.</span> Inspire used table and column
           metadata, metric views, lineage and access counts only.
         </span>
       </div>
@@ -138,10 +138,11 @@ export function DataAccessBadge({ results }) {
       <summary className="flex cursor-pointer items-start gap-2 px-3 py-2.5 text-[11px] text-text-secondary">
         <Eye size={13} className="mt-0.5 shrink-0 text-db-red-fg" />
         <span>
-          <span className="font-semibold text-text-primary">Deep discovery:</span> read aggregates from{' '}
+          <span className="font-semibold text-text-primary">{access.type}:</span> read aggregates from{' '}
           {plural(access.tablesReadCount, 'table')} in {plural(access.statements, 'statement')}.{' '}
           {access.piiColumnsExcluded > 0 && `${plural(access.piiColumnsExcluded, 'personal column')} counted only. `}
-          {access.rowsSentToAi} rows sent to the AI.
+          {access.aiSeesAggregates ? 'The AI also saw these aggregates' : 'None of these aggregates was sent to the AI'};{' '}
+          {plural(access.rowsSentToAi, 'data row')} sent to the AI.
         </span>
       </summary>
       <div className="px-4 pb-3 space-y-2">

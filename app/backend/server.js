@@ -59,6 +59,7 @@ const L = require('./lib/launchLedger');
 const { workspacePathProblem, rejectUnsafeQueryPath, fsApiPath } = require('./lib/workspacePaths');
 const { CACHE_REVALIDATE, compressedStatic, staticHeaders } = require('./lib/assetTypes');
 const { grantJobViewer, rememberViewer, viewerNoteOf } = require('./lib/jobViewer');
+const { discoveryTypeOf } = require('../frontend/src/lib/discoveryType.js');
 
 const app = express();
 const routePolicy = RP.createRoutePolicy({
@@ -2252,8 +2253,8 @@ app.get('/api/inspire/session', requireToken, async (req, res) => {
       enriched_value_chain: session.enriched_value_chain || '',
       enriched_revenue_model: session.enriched_revenue_model || '',
       generation_instructions_section: session.generation_instructions_section || '',
-      discovery_type: session.discovery_type || '',
-      '03_discovery_type': session.discovery_type || '',
+      discovery_type: discoveryTypeOf(session.discovery_type) ?? session.discovery_type,
+      '03_discovery_type': discoveryTypeOf(session.discovery_type) ?? session.discovery_type,
       strategic_context: session.strategic_context || '',
       '10_strategic_context': session.strategic_context || '',
     };

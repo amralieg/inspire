@@ -7,7 +7,7 @@ People who install Inspire do not need this README: they download `inspire_insta
 ## v1.4.0: exec notes
 
 - **Agent:** `dbx_inspire_ai_agent` `__AGENT_VERSION__ = v1.4.0`
-- **Discovery Type:** widget `03_discovery_type` = Deep (default) / Standard; an unknown value is refused with 400
+- **Discovery Type:** widget `03_discovery_type` = Standard Discovery (default) / AI Enhanced Discovery; legacy Standard / Deep are mapped; an unknown value is refused with 400
 - **Strategic Context:** widget `10_strategic_context` (inline JSON or `/` path, at most 900000 bytes), edited on Launch under Strategy (optional): your own level names (default Pillar, Goal, Objective, Priority), a priority level, KPIs, key results and sponsors, typed or pasted as a list or table
 - **Feedback:** `POST /api/inspire/feedback` and `GET /api/inspire/feedback` on `__inspire_feedback` (created by the agent); every value is a bound parameter
 - **Tracking:** the 10 v1.3.0 `__inspire_usecases` columns are nullable; older sessions render as before

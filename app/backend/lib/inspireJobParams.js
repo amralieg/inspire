@@ -36,8 +36,12 @@ const INSPIRE_TEST_TAG = 'dbx_inspire_ai_test';
 const USE_CASES_QUALITY_VALID = ['Good', 'High', 'Ultra High'];
 const USE_CASES_QUALITY_DEFAULT = 'Good';
 
-const DISCOVERY_TYPE_VALID = ['Deep', 'Standard'];
-const DISCOVERY_TYPE_DEFAULT = 'Deep';
+const {
+  DISCOVERY_TYPE_VALID,
+  DISCOVERY_TYPE_DEFAULT,
+  DISCOVERY_TYPE_ALIASES,
+  discoveryTypeOf,
+} = require('../../frontend/src/lib/discoveryType.js');
 
 const GENIE_CODE_DEFAULT_COUNT = '0';
 
@@ -94,9 +98,12 @@ function normalizeDiscoveryTypeParams(params) {
     params['03_discovery_type'] = DISCOVERY_TYPE_DEFAULT;
     return params;
   }
-  const mode = DISCOVERY_TYPE_VALID.find((m) => m.toLowerCase() === raw.toLowerCase());
+  const mode = discoveryTypeOf(raw);
   if (!mode) {
-    throw paramError(`Discovery Type "${raw}" is not supported. Valid options: ${DISCOVERY_TYPE_VALID.join(', ')}.`);
+    throw paramError(
+      `Discovery Type "${raw}" is not supported. Valid options: ${DISCOVERY_TYPE_VALID.join(', ')}. ` +
+        `Accepted legacy labels: ${Object.keys(DISCOVERY_TYPE_ALIASES).join(', ')}.`,
+    );
   }
   params['03_discovery_type'] = mode;
   return params;
@@ -375,6 +382,7 @@ module.exports = {
   USE_CASES_QUALITY_ALIASES,
   DISCOVERY_TYPE_VALID,
   DISCOVERY_TYPE_DEFAULT,
+  DISCOVERY_TYPE_ALIASES,
   GENIE_CODE_DEFAULT_COUNT,
   STRATEGIC_CONTEXT_MAX_BYTES,
   BEST_OF_BEST_MAX_COUNT,

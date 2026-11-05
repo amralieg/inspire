@@ -9,6 +9,7 @@ const {
   INSPIRE_AGENT_VERSION,
   INSPIRE_NOTEBOOK_WIDGET_KEYS,
 } = require('../lib/inspireJobParams');
+const { DISCOVERY_STANDARD, DISCOVERY_AI_ENHANCED, DISCOVERY_TYPE_ALIASES } = require('../../frontend/src/lib/discoveryType.js');
 
 const appRoot = path.resolve(__dirname, '..', '..');
 const notebookPath = path.join(appRoot, 'dbx_inspire_ai_agent.ipynb');
@@ -25,8 +26,14 @@ test(`bundled notebook is a valid ${INSPIRE_AGENT_VERSION} Jupyter notebook`, ()
   assert.doesNotMatch(source, /discover_auto_genie_top_n/);
   assert.match(source, /dbx_inspire_ai_child_run/);
   assert.match(source, /funnel_ledger/);
-  assert.match(source, /DISCOVERY_TYPE_VALID\s*=\s*\(\s*"Deep",\s*"Standard"\s*\)/);
-  assert.match(source, /DISCOVERY_TYPE_DEFAULT\s*=\s*"Deep"/);
+  assert.match(source, new RegExp(`DISCOVERY_STANDARD\\s*=\\s*"${DISCOVERY_STANDARD}"`));
+  assert.match(source, new RegExp(`DISCOVERY_AI_ENHANCED\\s*=\\s*"${DISCOVERY_AI_ENHANCED}"`));
+  assert.match(source, /DISCOVERY_TYPE_VALID\s*=\s*\(DISCOVERY_STANDARD, DISCOVERY_AI_ENHANCED\)/);
+  assert.match(source, /DISCOVERY_TYPE_DEFAULT\s*=\s*DISCOVERY_STANDARD\n/);
+  const aliases = source.match(/DISCOVERY_TYPE_ALIASES\s*=\s*\{([\s\S]*?)\}/)[1];
+  const notebookAliases = Object.fromEntries([...aliases.matchAll(/"([^"]+)":\s*(DISCOVERY_\w+)/g)]
+    .map(([, legacy, mode]) => [legacy, mode === 'DISCOVERY_STANDARD' ? DISCOVERY_STANDARD : DISCOVERY_AI_ENHANCED]));
+  assert.deepEqual(notebookAliases, DISCOVERY_TYPE_ALIASES, 'the App and the notebook map the same legacy values');
   assert.equal(GENIE_CODE_DEFAULT_COUNT, '0');
   assert.match(source, new RegExp(`GENIE_CODE_DEFAULT_COUNT\\s*=\\s*"${GENIE_CODE_DEFAULT_COUNT}"`));
   assert.match(source, /"13_generate_genie_code_for", GENIE_CODE_DEFAULT_COUNT,/);
@@ -108,7 +115,7 @@ test('launch UI exposes v1.2.0 quality modes and Auto-Genie widget 13', () => {
   assert.match(launchPage, /'13_generate_genie_code_for':\s*'0'/);
   const afterDemo = fs.readFileSync(path.join(appRoot, 'dbx_inspire_after_demo.py'), 'utf8');
   assert.match(afterDemo, /"13_generate_genie_code_for":\s*"0"/);
-  assert.match(launchPage, /'03_discovery_type':\s*'Deep'/);
+  assert.match(launchPage, /'03_discovery_type':\s*DISCOVERY_TYPE_DEFAULT/);
   assert.match(launchPage, /'10_strategic_context':\s*''/);
   assert.match(launchPage, /Discovery Type/);
   assert.match(launchPage, /StrategyEditor/);
@@ -153,7 +160,7 @@ test('OpenAPI documents v1.2.0 operation and artifact values', () => {
   assert.match(openapi, /enum: \[Good, High, Ultra High\]/);
   assert.doesNotMatch(openapi, /operation_mode:\s*full/);
   assert.doesNotMatch(openapi, /generate_choices:\s*genie,pdf/);
-  assert.match(openapi, /03_discovery_type:[\s\S]{0,800}enum: \[Deep, Standard\]/);
+  assert.match(openapi, /03_discovery_type:[\s\S]{0,1000}enum: \[Standard Discovery, AI Enhanced Discovery, Standard, Deep\]\n\s*default: Standard Discovery/);
   assert.match(openapi, /10_strategic_context:/);
   assert.match(openapi, /\/api\/inspire\/feedback:\n    post:[\s\S]*?\n    get:/);
   assert.match(openapi, /enum: \[accepted, rejected, planned, implemented\]/);

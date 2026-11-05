@@ -1,4 +1,5 @@
 const { DEFAULT_GENERATION_PATH, GENIE_CODE_DEFAULT_COUNT, normalizeUseCasesQualityParams } = require('./inspireJobParams');
+const { canonicalDiscoveryType } = require('../../frontend/src/lib/discoveryType.js');
 
 function buildUcMetadataFromSessionRow(session) {
   const jf = String(session.json_file_path || '').trim();
@@ -37,7 +38,7 @@ function notebookParamsFromSessionForGenerateRun(session, targetSessionIdStr) {
   const outLang = String(session.output_language || 'English').trim() || 'English';
   const priorities = String(session.business_priorities || 'Increase Revenue').trim() || 'Increase Revenue';
   const instruct = String(session.generation_instructions_section || '').trim();
-  const discoveryType = String(session.discovery_type || '').trim() || 'Standard';
+  const discoveryType = canonicalDiscoveryType(session.discovery_type);
 
   return {
     '15_operation': 'Generate Use Cases',

@@ -29,7 +29,7 @@ test('demo discovery parameters use v1.2.0 generation choices and the v1.3.0 dis
   assert.equal(params['13_generate_genie_code_for'], '0');
   assert.equal(params['14_session_id'], '123456789');
   assert.equal(params['05_use_cases_quality'], 'Good');
-  assert.equal(params['03_discovery_type'], 'Deep');
+  assert.equal(params['03_discovery_type'], 'Standard Discovery');
   assert.equal(params['10_strategic_context'], '');
 });
 
@@ -79,7 +79,7 @@ test('sanitizer forwards only notebook widget keys and valid generation choices'
     '13_generate_genie_code_for',
     '16_best_of_best_count',
   ]);
-  assert.equal(params['03_discovery_type'], 'Deep');
+  assert.equal(params['03_discovery_type'], 'Standard Discovery');
   assert.equal(params['10_strategic_context'], '');
   assert.equal(params['09_generation_options'], 'PDF Catalog');
   assert.equal(params['13_generate_genie_code_for'], 'all');
@@ -116,18 +116,20 @@ test('the implement run id reaches the job but is not a notebook widget, so a fo
   assert.ok(!('not_a_param' in params), 'anything else that is not a widget is still dropped');
 });
 
-test('discovery type keeps Deep or Standard, defaults to Deep and refuses anything else', () => {
-  for (const [input, expected] of [['Deep', 'Deep'], ['standard', 'Standard'], [' STANDARD ', 'Standard'], ['', 'Deep'], [undefined, 'Deep']]) {
+test('discovery type keeps its two modes, maps the legacy values, defaults to Standard Discovery and refuses anything else', () => {
+  for (const [input, expected] of [['Standard Discovery', 'Standard Discovery'], ['ai enhanced discovery', 'AI Enhanced Discovery'],
+    ['Deep', 'AI Enhanced Discovery'], ['deep discovery', 'AI Enhanced Discovery'], ['standard', 'Standard Discovery'],
+    [' STANDARD ', 'Standard Discovery'], ['', 'Standard Discovery'], [undefined, 'Standard Discovery']]) {
     const params = { '03_discovery_type': input };
     normalizeDiscoveryTypeParams(params);
     assert.equal(params['03_discovery_type'], expected, String(input));
   }
-  for (const bad of ['Standrad', 'Deeper', 'off']) {
+  for (const bad of ['Standrad', 'Deeper', 'off', 'AI', 'Enhanced']) {
     assert.throws(() => normalizeDiscoveryTypeParams({ '03_discovery_type': bad }),
       (err) => err.statusCode === 400 && /not supported/.test(err.message), bad);
   }
   assert.throws(() => sanitizeInspireNotebookJobParams({ '03_discovery_type': 'Standrad' }), (err) => err.statusCode === 400,
-    'a mistyped Standard never reaches the notebook as Deep');
+    'a mistyped Standard never reaches the notebook as the default');
 });
 
 test('strategic context is trimmed and capped at the agent limit in bytes', () => {

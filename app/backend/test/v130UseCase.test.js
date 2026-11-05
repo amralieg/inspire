@@ -236,12 +236,15 @@ test('priorities match whole names, including names with a comma, and nothing pa
 test('data access, KPI source, match rate and feedback helpers', async () => {
   const lib = await load();
   const deep = lib.dataAccessSummary({ discovery_type: 'Deep', data_access: { tables_read: ['a.b.c'], tables_read_count: 1, statements: 9, pii_columns_excluded: 2, rows_sent_to_ai: 0 } });
-  assert.equal(deep.deep, true);
+  assert.deepEqual([deep.type, deep.aiSeesAggregates, deep.dataRead], ['AI Enhanced Discovery', true, true], 'a legacy Deep catalog reads as AI Enhanced');
   assert.equal(deep.tablesReadCount, 1);
   assert.equal(deep.piiColumnsExcluded, 2);
   const standard = lib.dataAccessSummary({ discovery_type: 'Standard', data_access: { tables_read: [], tables_read_count: 0, statements: 0 } });
-  assert.equal(standard.deep, false);
+  assert.deepEqual([standard.type, standard.aiSeesAggregates, standard.dataRead], ['Standard Discovery', false, false], 'a legacy Standard catalog read no data');
   assert.equal(standard.tablesReadCount, 0);
+  const counted = lib.dataAccessSummary({ discovery_type: 'Standard Discovery', data_access: { tables_read: ['a.b.c'], tables_read_count: 1 } });
+  assert.deepEqual([counted.aiSeesAggregates, counted.dataRead], [false, true], 'Standard Discovery reads aggregates and keeps them from the AI');
+  assert.equal(lib.dataAccessSummary({ discovery_type: 'Shallow' }).type, 'Shallow', 'an unknown stored value is shown as stored');
   assert.equal(lib.dataAccessSummary({}), null);
   assert.equal(lib.kpiSource(KPIS[0]), 'metric view main.m.sales_mv, measure repeat_rate');
   assert.equal(lib.kpiSource({ table: 'main.s.orders', column: 'amount', aggregation: 'SUM' }), 'main.s.orders.amount (sum)');

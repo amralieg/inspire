@@ -226,8 +226,8 @@ export function scopeGroupText(group) {
   return (group || []).map((p) => (p.column ? `${p.column} = ${p.value}` : p.value)).join(SCOPE_GROUP_AND);
 }
 
-export const GROUPING_DEEP_MARK = 'Suggested by Deep discovery';
-export const GROUPING_DEEP_PICKED = 'Deep discovery picked this grouping. It becomes your choice when you pick it or another one.';
+export const GROUPING_DEEP_MARK = 'Suggested by discovery';
+export const GROUPING_DEEP_PICKED = 'Discovery picked this grouping. It becomes your choice when you pick it or another one.';
 
 export function deepGrouping(profile) {
   const columns = Array.isArray(profile?.deep_suggestion?.columns) ? profile.deep_suggestion.columns : [];

@@ -1277,10 +1277,10 @@ function dayNumber(text) {
   return Number.isFinite(time) ? Math.floor(time / 86400000) : null;
 }
 
-export function profileEstimate({ evidence, table, dateColumn, windowDays, dataWindow, entityCap, sampleEntities, discoveryType }) {
-  if (discoveryType === 'Standard' || !evidence) return { rows: null, text: 'unknown: Standard discovery read no rows' };
+export function profileEstimate({ evidence, table, dateColumn, windowDays, dataWindow, entityCap, sampleEntities }) {
+  if (!evidence) return { rows: null, text: 'unknown: discovery read no rows' };
   const entry = Object.entries(evidence.tables || {}).find(([name]) => sameTable(name, table));
-  if (!entry || entry[1].rows == null) return { rows: null, text: `unknown: Deep discovery has no row count for ${table || 'the main table'}` };
+  if (!entry || entry[1].rows == null) return { rows: null, text: `unknown: discovery has no row count for ${table || 'the main table'}` };
   const { rows, date_ranges: ranges = {}, sampled } = entry[1];
   const range = dateColumn ? ranges[dateColumn] || ranges[Object.keys(ranges).find((c) => c.toLowerCase() === dateColumn.toLowerCase())] : null;
   let estimate = rows;

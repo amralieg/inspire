@@ -58,7 +58,7 @@ function GroupingPart({ values, onChange, profile, settings, editable, chosenBy 
       {reason && <p data-grouping-reason="" className="text-[12px] text-text-primary">{reason}</p>}
       {example && <p data-grouping-example="" className={NOTE}>{example}</p>}
       {moves && <p data-grouping-moves="" className={NOTE}>{moves}</p>}
-      {level && <p data-grouping-record-level="" className={NOTE}>Deep discovery found one record per {level} in {profile?.table || 'the main table'}.</p>}
+      {level && <p data-grouping-record-level="" className={NOTE}>Discovery found one record per {level} in {profile?.table || 'the main table'}.</p>}
       {chosenBy === 'deep' && <p data-grouping-chosen-by="deep" className={NOTE}>{GROUPING_DEEP_PICKED}</p>}
       <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
         {choices.map((c) => (

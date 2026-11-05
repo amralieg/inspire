@@ -171,8 +171,9 @@ test('a Genie Code notebook run reads the session\u2019s UC Metadata, so it star
   });
 });
 
-test('the readiness count of any table reads only with the person\u2019s token', async () => {
-  const count = (url, table) => call(url, `/api/inspire/implement/readiness?${Q}`, { method: 'POST', body: { table, discovery_type: 'Deep', columns: [] } });
+test('the readiness count of any table reads only with the person\u2019s token, in both discovery modes', async () => {
+  const modes = { 'main.s.orders': 'Standard Discovery', 'main.hr.salaries': 'AI Enhanced Discovery' };
+  const count = (url, table) => call(url, `/api/inspire/implement/readiness?${Q}`, { method: 'POST', body: { table, discovery_type: modes[table], columns: [] } });
   const counts = (made) => readsOf(made, /^SELECT COUNT\(\*\) AS row_count/).map((c) => c.token);
   await withApp(APP_ONLY, async (url, made) => {
     for (const table of ['main.s.orders', 'main.hr.salaries']) {
@@ -185,6 +186,7 @@ test('the readiness count of any table reads only with the person\u2019s token',
     for (const table of ['main.s.orders', 'main.hr.salaries']) {
       const got = await count(url, table);
       assert.equal(got.status, 200, JSON.stringify(got.data));
+      assert.equal(got.data.skipped, false, `${modes[table]} counts the rows before Genie starts`);
     }
     assert.deepEqual(counts(made), [PERSON_TOKEN, PERSON_TOKEN]);
   });

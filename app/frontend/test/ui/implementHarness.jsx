@@ -10,7 +10,7 @@ createRoot(document.getElementById('root')).render(
     <HarnessApp
       open={params.get('open')}
       nest={params.get('nest') === '1'}
-      discoveryType={params.get('discovery') || 'Standard'}
+      discoveryType={params.get('discovery') || 'Standard Discovery'}
       step={params.get('step') || ''}
       run={params.get('run') || ''}
     />

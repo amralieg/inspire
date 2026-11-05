@@ -5,7 +5,7 @@ import UseCaseDetailBody from './UseCaseDetailBody';
 import { FeedbackChip, StrategyChip } from './UseCaseStrategyDetail';
 import QualityBarChip, { QualityBarReason } from './QualityBarChip';
 import { bestOfBestLabel } from '../lib/v130UseCase';
-import { kindChipStyle } from '../lib/useCaseKind';
+import { KIND_INFORMATIONAL_LABEL, KIND_INFORMATIONAL_TITLE, kindChipStyle } from '../lib/useCaseKind';
 import {
   cardTitlesOfUseCase,
   fieldOf,
@@ -109,6 +109,15 @@ export default function UseCaseCard({
                   title={`${kind.familyLabel}: ${kind.question}`}
                 >
                   {kind.familyLabel} · {kind.label}
+                </span>
+              )}
+              {kind?.informational && (
+                <span
+                  data-kind-informational=""
+                  className="text-[10px] px-2 py-0.5 rounded-full border leading-none text-text-secondary border-border bg-bg-subtle"
+                  title={KIND_INFORMATIONAL_TITLE}
+                >
+                  {KIND_INFORMATIONAL_LABEL}
                 </span>
               )}
               {kind && technique && (

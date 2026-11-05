@@ -2,6 +2,7 @@ import { fieldOf, isBlankField } from './useCaseFields.js';
 import { KPI_BASELINE_MISMATCH, KPI_FILTER_MISMATCH_TEXT, kpiFilterMismatch, kpiFilterShown } from './kpiFilter.js';
 import { placeholderWords } from './placeholderWords.js';
 import { useCaseKindView } from './useCaseKind.js';
+import { aiSeesAggregates, discoveryTypeOf } from './discoveryType.js';
 import {
   PYTHON_DIGIT as DIGIT, PYTHON_SPACE as SPACE, PYTHON_WORD as WORD, pyFloat, pyRegexLiteral, pySpaced, pyStr, pyStrip, pyTruthy,
 } from './pythonText.js';
@@ -470,15 +471,18 @@ export function latestFeedbackMap(latest) {
 }
 
 export function dataAccessSummary(results) {
-  const type = String(results?.discovery_type || '').trim();
-  if (!type) return null;
+  const raw = String(results?.discovery_type || '').trim();
+  if (!raw) return null;
+  const type = discoveryTypeOf(raw) || raw;
   const access = results?.data_access && typeof results.data_access === 'object' ? results.data_access : {};
   const tables = Array.isArray(access.tables_read) ? access.tables_read : [];
+  const tablesReadCount = finiteNumber(access.tables_read_count) ?? tables.length;
   return {
     type,
-    deep: type === 'Deep',
+    aiSeesAggregates: aiSeesAggregates(type),
+    dataRead: tablesReadCount > 0,
     tablesRead: tables,
-    tablesReadCount: finiteNumber(access.tables_read_count) ?? tables.length,
+    tablesReadCount,
     statements: finiteNumber(access.statements) ?? 0,
     piiColumnsExcluded: finiteNumber(access.pii_columns_excluded) ?? 0,
     tablesSkipped: access.tables_skipped && typeof access.tables_skipped === 'object' ? access.tables_skipped : {},
