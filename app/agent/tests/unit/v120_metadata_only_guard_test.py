@@ -304,8 +304,18 @@ def implement_permits(function, kind, target, sql, implement=None):
     return bool(IMPLEMENT_RESULT_PLACEHOLDER.match(target)) or (kind == "read" and bool(ZERO_ROW_PROBE.search(sql)))
 
 
+def add_global_builders(index, source):
+    for text, space in runtime_sources(source)[0].values():
+        if space != "globals()":
+            continue
+        for node in ast.walk(ast.parse(text)):
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                index.functions.setdefault(node.name, []).append(node)
+
+
 def audit(source, with_deep_reads=False, with_implement_reads=False, scope=None):
     index = SqlIndex(ast.parse(source))
+    add_global_builders(index, source)
     runs = (lambda lineno: True) if scope is None else (lambda lineno: scope(lineno)[0])
     implement = (lambda lineno: None) if scope is None else (lambda lineno: scope(lineno)[1])
     executed, unresolved, owned = [], [], []
@@ -592,6 +602,33 @@ def test_guard_catches_business_table_reads():
     assert "{result_table}" not in flagged_targets, "prompt text must not be treated as executed SQL"
     assert dataframe_reads and "spark.table" in dataframe_reads[0][1]
     assert len(flagged_lines) >= 6
+
+
+GLOBAL_BUILDER_SOURCE = '''
+SHARED_SOURCE = """
+def shared_names_sql(count):
+    return "SELECT lower(table_name) AS t FROM system.information_schema.tables WHERE table_catalog = lower(:c) AND table_schema = lower(:s)"
+
+def shared_rows_sql(table):
+    return f"SELECT * FROM {table}"
+"""
+exec(compile(SHARED_SOURCE, "<shared>", "exec"), globals())
+
+def names(self):
+    return self.spark.sql(shared_names_sql(2), args={"c": "main", "s": "sales"}).collect()
+
+def rows(self):
+    return self.spark.sql(shared_rows_sql("main.sales.orders")).collect()
+'''
+
+
+def test_guard_follows_a_sql_builder_the_agent_compiles_into_its_globals():
+    executed, unresolved, bad, _frames = audit(GLOBAL_BUILDER_SOURCE)
+    assert not unresolved, unresolved
+    assert any("system.information_schema.tables" in sql for _line, sql in executed)
+    assert {(kind, target) for _line, kind, target, _sql in bad} == {("read", "{table}")}, bad
+    kept = GLOBAL_BUILDER_SOURCE.replace('exec(compile(SHARED_SOURCE, "<shared>", "exec"), globals())', "")
+    assert len(audit(kept)[1]) == 2, "a builder the agent never compiles into its globals stays unresolved"
 
 
 def test_guard_reads_copy_only_as_a_copy_into_statement():

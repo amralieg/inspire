@@ -45,7 +45,8 @@ def test_an_auto_picked_key_with_a_pii_tag_is_refused_before_any_build(agent_ns)
     reason = inst._implement_personal_key("UC-1", {"data": {}}, _auto("main.s.orders.ref_code"))
     assert reason.startswith("result key main.s.orders.ref_code: ") and "never the key of the result" in reason
     statement, args = spark.calls[0]
-    assert "FROM `main`.information_schema.column_tags" in statement and args == {"s": "s", "t": "orders", "c": "ref_code"}
+    assert "FROM system.information_schema.column_tags WHERE catalog_name = lower(:k)" in statement
+    assert args == {"k": "main", "s": "s", "t": "orders", "c": "ref_code"}
 
 
 def test_an_auto_picked_personal_name_is_refused_even_when_the_tags_cannot_be_read(agent_ns):
@@ -74,7 +75,7 @@ def test_the_users_chosen_key_wins_over_the_auto_pick_and_follows_a_swapped_tabl
     inst = _inspire(agent_ns, spark)
     assert "never the key" in inst._implement_personal_key("UC-1", {"data": {"tables": {"main.s.returns": "main.s.returns_v2"}}},
                                                            _auto("main.s.returns.card_no"))
-    assert spark.calls[0][1] == {"s": "s", "t": "returns_v2", "c": "card_no"}
+    assert spark.calls[0][1] == {"k": "main", "s": "s", "t": "returns_v2", "c": "card_no"}
 
 
 def test_the_build_refuses_the_key_before_the_source_checks_and_any_build_step():
