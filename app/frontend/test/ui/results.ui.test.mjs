@@ -169,7 +169,7 @@ test('the header reads at 4.5:1 or better in light and in dark on its current, o
     const nav = page.locator('header nav');
     await nav.waitFor();
     assert.equal(await nav.getByRole('button', { name: /Build/ }).isDisabled(), true, 'a locked step');
-    assert.equal(await nav.getByRole('button', { name: /^01\s*Start$/ }).isEnabled(), true, 'an open step');
+    assert.equal(await nav.getByRole('button', { name: /^02\s*Start$/ }).isEnabled(), true, 'an open step');
     for (const dark of [false, true]) {
       await setDark(page, dark);
       const mode = dark ? 'dark' : 'light';
