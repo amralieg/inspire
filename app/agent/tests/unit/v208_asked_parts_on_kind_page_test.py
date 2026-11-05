@@ -27,20 +27,31 @@ def corridor_watch(page, section=True):
     out["title"] = "Corridor Watch"
     dataset = out["datasets"][0]["name"]
     columns = [c for c in (out.get("charts") or [{}])[0].get("y") or []][:1] or ["fare_value"]
-    asked = [("fare_by_hour", "line"), ("trips_per_corridor", "bar"), ("average_fare_by_pickup", "bar")]
-    for ident, kind in asked:
+    asked = [("fare_by_hour", "line", "Hour", "Fare value"), ("trips_per_corridor", "bar", "Corridor", "Trips"),
+             ("average_fare_by_pickup", "bar", "Pickup zone", "Average fare")]
+    for ident, kind, x, y in asked:
         out.setdefault("charts", []).append(dict(copy.deepcopy(out["charts"][0]), id=ident, type=kind, title=ident.replace("_", " "),
                                                  **({"section": "charts"} if section else {})))
         out["charts"][-1].pop("series", None)
         if not section:
             out["charts"][-1].pop("section", None)
-        out["charts"][-1]["y"] = columns
+        out["charts"][-1]["x"] = dict(out["charts"][-1]["x"], label=x)
+        out["charts"][-1]["y"] = [dict(columns[0], label=y)]
     table = dict(copy.deepcopy((out.get("tables") or [{}])[0]), id="all_corridors", title="All corridors", dataset=dataset)
     table.pop("section", None)
     if section:
         table["section"] = "tables"
     out.setdefault("tables", []).append(table)
     return out
+
+
+CORRIDOR_ASKS = ("Add a new App page called Corridor Watch with a line chart of fare value by hour, a bar chart of trips per corridor, "
+                 "a bar chart of average fare by pickup zone, and a table of all corridors")
+
+
+def unasked(agent_ns, page, vibes):
+    asks = agent_ns["implement_page_asks"]({"app_purpose": vibes} if vibes else {}, "app")
+    return [p.split(" sits in ")[0] for p in agent_ns["implement_unasked_part_problems"](page, shell_sql, asks)]
 
 
 def asked_problems(page):
@@ -121,21 +132,44 @@ def test_the_genie_brief_names_the_asked_sections_only_when_the_customer_asked_f
     assert "charts (a chart" not in plain and "tables (a table" not in plain and "come after the" not in plain, plain
 
 
-def test_an_unasked_chart_or_table_in_an_asked_section_is_refused_and_an_asked_one_is_kept(agent_ns):
+def test_an_unasked_chart_or_table_in_an_asked_section_is_refused_and_each_asked_one_is_kept(agent_ns):
     page = corridor_watch(example("network_explorer"))
-    unasked = agent_ns["implement_unasked_part_problems"](page, shell_sql, False)
-    assert unasked == [f"{word} {ident} sits in the {section} section, which holds only the charts and tables the customer asks for, "
-                       f"and the customer asked for none on this page: put it in a section of the network_explorer layout or leave it out"
-                       for word, ident, section in (("chart", "fare_by_hour", "charts"), ("chart", "trips_per_corridor", "charts"),
-                                                    ("chart", "average_fare_by_pickup", "charts"), ("table", "all_corridors", "tables"))]
-    assert agent_ns["implement_unasked_part_problems"](page, shell_sql, True) == []
-    assert agent_ns["implement_unasked_part_problems"](example("network_explorer"), shell_sql, False) == []
+    found = agent_ns["implement_unasked_part_problems"](page, shell_sql, [])
+    assert found == [f"{word} {ident} sits in the {section} section, which holds only the charts and tables the customer asks for, "
+                     f"and no ask for this page names it (a chart by its type and what it shows, a table by its name): put it in a "
+                     f"section of the network_explorer layout or leave it out"
+                     for word, ident, section in (("chart", "fare_by_hour", "charts"), ("chart", "trips_per_corridor", "charts"),
+                                                  ("chart", "average_fare_by_pickup", "charts"), ("table", "all_corridors", "tables"))]
+    assert unasked(agent_ns, page, CORRIDOR_ASKS) == []
+    assert agent_ns["implement_unasked_part_problems"](example("network_explorer"), shell_sql, []) == []
     dashboard = dict(copy.deepcopy(page), layout="dashboard")
-    assert agent_ns["implement_unasked_part_problems"](dashboard, shell_sql, False) == []
+    assert agent_ns["implement_unasked_part_problems"](dashboard, shell_sql, []) == []
+
+
+def test_one_ask_for_a_line_chart_does_not_let_an_unasked_bar_chart_through(agent_ns):
+    page = corridor_watch(example("network_explorer"))
+    page["charts"] = [c for c in page["charts"] if c["id"] != "average_fare_by_pickup"]
+    page["tables"] = [t for t in page["tables"] if t["id"] != "all_corridors"]
+    assert unasked(agent_ns, page, "Add a line chart of fare value by hour") == ["chart trips_per_corridor"]
+
+
+def test_a_part_is_kept_only_when_one_ask_names_both_its_type_and_what_it_shows(agent_ns):
+    page = corridor_watch(example("network_explorer"))
+    assert unasked(agent_ns, page, "Add a line chart of fare value by hour") == [
+        "chart trips_per_corridor", "chart average_fare_by_pickup", "table all_corridors"]
+    assert unasked(agent_ns, page, "Add a bar chart of fare value by hour") == [
+        "chart fare_by_hour", "chart trips_per_corridor", "chart average_fare_by_pickup", "table all_corridors"]
+    assert unasked(agent_ns, page, "Add a line chart of trips per corridor. Add a table of all corridors") == [
+        "chart fare_by_hour", "chart trips_per_corridor", "chart average_fare_by_pickup"]
+    assert unasked(agent_ns, page, "Show average fare by pickup zone as a bar chart") == [
+        "chart fare_by_hour", "chart trips_per_corridor", "table all_corridors"]
+    assert unasked(agent_ns, page, "Show the trips in a table") == [
+        "chart fare_by_hour", "chart trips_per_corridor", "chart average_fare_by_pickup", "table all_corridors"]
 
 
 def test_a_page_is_asked_for_parts_by_its_vibes_or_the_app_purpose(agent_ns):
-    asked = agent_ns["implement_page_asked"]
-    assert asked({}, "app") is False and asked({"app_purpose": ""}, "app") is False
-    assert asked({"app_purpose": "Add a page called Corridor Watch"}, "app") is True
-    assert asked({"app_purpose": "Add a page called Corridor Watch"}, "dashboard") is False
+    asks = agent_ns["implement_page_asks"]
+    assert asks({}, "app") == [] and asks({"app_purpose": ""}, "app") == []
+    assert asks({"app_purpose": "Add a page called Corridor Watch, with a line chart of fare by hour."}, "app") == [
+        "Add a page called Corridor Watch", "with a line chart of fare by hour"]
+    assert asks({"app_purpose": "Add a page called Corridor Watch"}, "dashboard") == []
