@@ -10,7 +10,7 @@ import { checkRunScope, checkScope, checkWizardSteps } from '../../../scripts/sc
 test.after(closeBrowser);
 
 const SCOPE_UI = fs.existsSync(path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', 'src', 'lib', 'runScope.js'));
-const skip = SCOPE_UI ? false : 'the Grouping and First run UI is not in this build yet';
+const skip = SCOPE_UI ? false : 'the Data groups and First run UI is not in this build yet';
 
 const ME = { userName: OWNER, displayName: 'Owner' };
 const PERSON = 'person-token';
@@ -26,7 +26,7 @@ const PROFILE = {
   first_run: { all: 48210, groups: 19612, recent: 3120, records: null }, default_scope: 'records', read_at: '2026-11-01T15:00:00Z',
 };
 const INSTRUCTION = '## Parameters\n| widget | type | default | allowed | used for |\n|---|---|---|---|---|\n'
-  + '| `act_now_share` | text | 0.05 | 0 to 1 | Act now share |\n| `group_by` | text | all | | Grouping |\n| `run_scope` | text | all | | First run |\n';
+  + '| `act_now_share` | text | 0.05 | 0 to 1 | Act now share |\n| `group_by` | text | all | | Data groups |\n| `run_scope` | text | all | | First run |\n';
 
 const profileAt = (calls, answer, { status = 200, after = 0 } = {}) => async (page) => {
   await page.route('**/api/grouping/profile', async (route) => {
@@ -52,7 +52,7 @@ async function toStep(page, label) {
 const SCOPE_MODEL = [
   { name: 'act_now_share', label: 'Act now share', group: 'flagging', kind: 'percent', low: 0, high: 1, allowed: '0 to 1', source: 'widget', default: '0.05', unit: '%',
     reason: "Inspire's default", help: 'The share that is Act now.', applies: 'run' },
-  { name: 'group_by', label: 'Grouping (columns coarse to fine, or all)', group: 'scope', kind: 'text', allowed: 'all or columns', source: 'widget',
+  { name: 'group_by', label: 'Data groups (columns coarse to fine, or all)', group: 'scope', kind: 'text', allowed: 'all or columns', source: 'widget',
     default: 'all', choices: ['region', 'country'], unit: '', reason: '', help: '', applies: 'run' },
   { name: 'run_scope', label: 'First run', group: 'scope', kind: 'choice', choices: ['all', 'groups', 'recent', 'records'], source: 'widget', default: 'all', unit: '',
     reason: '', help: '', applies: 'run' },
@@ -80,7 +80,7 @@ test('the offline walk checks the wizard of a large table that qualifies', { ski
   const ui = await openUi('wizard', { me: ME, useCase: { ...HARNESS_USE_CASE, genie_instruction: INSTRUCTION } }, '', { init: profileAt(calls, PROFILE) });
   const { page } = ui;
   try {
-    await toStep(page, 'Grouping');
+    await toStep(page, 'Data groups');
     const grouping = await checkScope(page, PROFILE, { part: 'grouping' });
     await next(page);
     await onStep(page, 'First run');
@@ -91,13 +91,13 @@ test('the offline walk checks the wizard of a large table that qualifies', { ski
     assert.deepEqual(failed(all), []);
     assert.equal(all.filter((c) => c.ok === true).length, 10);
     assert.deepEqual(all.filter((c) => c.ok === null).map((c) => c.check), []);
-    assert.equal(checkWizardSteps(await names(page), { ...PROFILE, applies: false })[0].ok, false, 'a profile where grouping does not apply fails a wizard that asks Grouping');
+    assert.equal(checkWizardSteps(await names(page), { ...PROFILE, applies: false })[0].ok, false, 'a profile where Data groups do not apply fails a wizard that asks Data groups');
   } finally {
     await ui.close();
   }
 });
 
-test('the offline walk checks the wizard of a small table, no Grouping and Everything by default', { skip }, async () => {
+test('the offline walk checks the wizard of a small table, no Data groups and never Everything by default', { skip }, async () => {
   const calls = [];
   const small = { ...PROFILE, records: 800, applies: false, qualifies: false, standalone: true, default_scope: 'all', first_run: { all: 800, groups: 600, recent: 120, records: 800 }, recent: { days: 30, records: 120 } };
   const ui = await openUi('wizard', { me: ME }, '', { init: profileAt(calls, small) });
@@ -107,8 +107,9 @@ test('the offline walk checks the wizard of a small table, no Grouping and Every
     const all = [...await checkScope(page, small, { part: 'first_run' }), ...checkWizardSteps(await names(page), small)];
     console.log(JSON.stringify(all));
     assert.deepEqual(failed(all), []);
-    const lying = await checkScope(page, { ...small, records: 48210 }, { part: 'first_run' });
-    assert.deepEqual(failed(lying).map((c) => c.check), ['First run is the default above 1,000 records'], 'Everything picked above 1,000 records fails');
+    await page.locator('[data-first-run-choice="all"] input[type="radio"]').check();
+    const lying = await checkScope(page, small, { part: 'first_run' });
+    assert.deepEqual(failed(lying).map((c) => c.check), ['Everything is never the default first run'], 'Everything picked fails, even on a small table (must-exclude)');
   } finally {
     await ui.close();
   }
@@ -128,7 +129,7 @@ test('the offline walk checks the Run tab section', { skip }, async () => {
   const ui = await openUi('run', state, '', { init: profileAt(calls, PROFILE) });
   const { page, made } = ui;
   try {
-    const section = page.getByRole('region', { name: 'Grouping and First run of this use case', exact: true });
+    const section = page.getByRole('region', { name: 'Data groups and First run of this use case', exact: true });
     await section.locator('[data-scope-part="first_run"] input[type="radio"]').first().waitFor({ timeout: 30000 });
     const all = await checkRunScope(page);
     console.log(JSON.stringify(all));

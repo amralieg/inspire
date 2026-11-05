@@ -132,7 +132,7 @@ export async function openAdvanced(page) {
 }
 
 export async function dataToResults(page, { grouping = false } = {}) {
-  for (const label of [...(grouping ? ['Grouping'] : []), 'First run', 'Results']) {
+  for (const label of [...(grouping ? ['Data groups'] : []), 'First run', 'Results']) {
     await page.getByRole('button', { name: 'Next' }).click();
     await onStep(page, label);
   }
