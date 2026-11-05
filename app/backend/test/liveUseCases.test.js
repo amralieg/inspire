@@ -16,8 +16,8 @@ test('the live count keeps every drafted use case of every batch, even when two 
   const got = L.liveUseCasesOf(steps);
   assert.deepEqual(got.map((uc) => uc.Name), ['Forecast weekly demand by store', 'Spot late supplier deliveries', 'Rank stores by shrink risk']);
   assert.equal(got[2].Quality, 'High');
-  assert.equal(L.liveCountText(got.length), '3 use cases drafted so far');
-  assert.equal(L.liveCountText(1), '1 use case drafted so far');
+  assert.equal(L.liveCountText(got.length), '3 use cases so far');
+  assert.equal(L.liveCountText(1), '1 use case so far');
 });
 
 test('placeholder rows the model echoed from its template never count or show as use cases (must-exclude)', () => {
@@ -30,10 +30,11 @@ test('placeholder rows the model echoed from its template never count or show as
   for (const name of ['Use case mining for returns', 'Name the top churn drivers', 'Forecast demand']) assert.equal(L.isPlaceholderName(name), false, name);
 });
 
-test('a step still running or failed adds nothing to the live count (must-exclude)', () => {
-  const steps = [gen([{ id: '1', name: 'Price baskets by margin' }], 'running'), gen([{ id: '2', name: 'Plan staff by footfall' }], 'ended_error'),
+test('the live preview lists the use cases of a step still running as they arrive, as in rc.3', () => {
+  const steps = [gen([{ id: '1', name: 'Price baskets by margin' }], 'running'), gen([{ id: '2', name: 'Plan staff by footfall' }], 'started'),
     gen([{ id: '3', name: 'Find duplicate customer records' }], 'ended_warning')];
-  assert.deepEqual(L.liveUseCasesOf(steps).map((uc) => uc.Name), ['Find duplicate customer records']);
+  assert.deepEqual(L.liveUseCasesOf(steps).map((uc) => uc.Name), ['Price baskets by margin', 'Plan staff by footfall', 'Find duplicate customer records']);
+  assert.equal(L.liveUseCasesOf([gen([{ id: '1', name: 'Price baskets by margin' }], 'running')]).length, 1, 'a running step alone already shows its use case');
 });
 
 test('Monitor and the Review live preview count use cases through the same function', () => {

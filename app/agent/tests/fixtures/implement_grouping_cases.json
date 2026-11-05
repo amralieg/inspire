@@ -963,9 +963,9 @@
         "expected": "region"
       },
       {
-        "name": "a custom Grouping is refused, since Inspire runs no typed SQL",
+        "name": "a saved custom Grouping runs on the use case group column, since Inspire runs no typed SQL",
         "group_by": "custom",
-        "refused": "the Grouping is 'custom': Inspire does not run SQL typed into Grouping or First run"
+        "expected": "region"
       }
     ],
     "compare": {

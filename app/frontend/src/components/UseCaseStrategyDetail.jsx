@@ -116,11 +116,11 @@ export function BestOfBestDetail({ info }) {
   );
 }
 
-export function UseCaseStrategyDetail({ info, knownPriorities, strategy = null }) {
+export function UseCaseStrategyDetail({ info, knownPriorities, foundationsById, strategy = null }) {
   if (!info) return null;
   const priorities = priorityMatches(info.priorityText, knownPriorities);
   const showsStrategy = info.hasStrategyData && (info.paths.length > 0 || showsNotTied(info, strategy) || priorities.length > 0);
-  if (!showsStrategy && !info.hasValue && !info.dataEvidence) return null;
+  if (!showsStrategy && !info.hasValue && !info.dataEvidence && !info.foundations.length) return null;
   const evidenceTables = info.dataEvidence ? Object.entries(info.dataEvidence.tables) : [];
   const evidenceJoins = info.dataEvidence ? info.dataEvidence.joins : [];
   const signal = info.dataEvidence ? dataSignalLine(info.dataEvidence.signal) : null;
@@ -209,6 +209,20 @@ export function UseCaseStrategyDetail({ info, knownPriorities, strategy = null }
               </li>
             ))}
           </ul>
+        </Section>
+      )}
+      {info.foundations.length > 0 && (
+        <Section title="Data foundations" tone="text-text-secondary">
+          <div className="flex flex-wrap gap-1.5">
+            {info.foundations.map((id) => {
+              const f = foundationsById?.get(id);
+              return (
+                <span key={id} title={(f?.tables || []).join(', ')} className="rounded-full border border-border bg-surface px-2 py-0.5 text-[10px] text-text-secondary">
+                  {id}{f?.name ? ` · ${f.name}` : ''}
+                </span>
+              );
+            })}
+          </div>
         </Section>
       )}
     </div>

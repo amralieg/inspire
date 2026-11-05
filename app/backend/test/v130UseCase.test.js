@@ -1,5 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
 const { normalizeV130UseCaseFields } = require('../lib/inspireJobParams');
@@ -288,8 +289,13 @@ test('the use case view exposes the star, the reason it was not starred, and the
   for (const field of ['best_of_best', 'best_of_best_rank', 'best_of_best_score', 'best_of_best_reason']) {
     assert.ok(V130_TRACKING_FIELDS.includes(field), field);
   }
-  assert.ok(!V130_TRACKING_FIELDS.includes('foundation_ids'), 'the App reads no data foundations');
-  assert.equal('foundations' in v130View({ Foundations: ['F1'], foundation_ids: 'F1' }), false, 'the use case view carries no data foundations');
+  assert.ok(V130_TRACKING_FIELDS.includes('foundation_ids'), 'the App reads each use case\'s foundation tags again');
+  assert.deepEqual(v130View({ foundation_ids: ['F1', 'F2'] }).foundations, ['F1', 'F2']);
+  assert.deepEqual(normalizeV130UseCaseFields({ foundation_ids: 'F1,F2' }).foundation_ids, ['F1', 'F2'], 'the job rows split their foundation tags again');
+  assert.deepEqual(v130View({ Foundations: ['F1'] }).foundations, ['F1']);
+  assert.deepEqual(v130View({}).foundations, []);
+  const detail = fs.readFileSync(path.join(__dirname, '..', '..', 'frontend', 'src', 'components', 'UseCaseStrategyDetail.jsx'), 'utf8');
+  assert.match(detail, /info\.foundations\.map\(\(id\) =>/, 'the use case detail shows its foundation tags');
   const merged = copyV130TrackingFields({ Name: 'x' }, { best_of_best: 'Y', best_of_best_rank: 1 });
   assert.equal(v130View(merged).bestOfBest.rank, 1);
 });

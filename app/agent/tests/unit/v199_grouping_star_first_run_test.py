@@ -334,10 +334,12 @@ def test_two_groups_or_together_and_a_record_outside_both_is_left_out(fresh_ns):
 
 
 @pytest.mark.parametrize("asked", ["custom", "Custom"])
-def test_a_custom_first_run_is_refused_before_any_sql_runs(fresh_ns, asked):
-    with pytest.raises(ValueError, match="Inspire does not run SQL typed into Grouping or First run") as caught:
-        fresh_ns["inspire_scope_choice"](scope=_scope(run_scope=asked))
-    assert str(caught.value).startswith("First run is 'custom'")
+def test_a_saved_custom_first_run_runs_the_plain_default_with_a_note_and_no_sql(fresh_ns, asked):
+    said = []
+    plain = fresh_ns["inspire_scope_choice"](scope=_scope(run_scope=asked), out=said.append)
+    default = fresh_ns["inspire_scope_choice"](scope=_scope(), out=lambda *_a: None)
+    assert plain == default, "a saved custom first run runs what the default first run runs"
+    assert [line for line in said if "First run" in line and "build the MVP again" in line], said
     assert fresh_ns["inspire_scope_choice"](scope=_scope(run_scope="all")) == {"scope": "all", "table": "main.sales.orders"}, "a first run choice still runs"
     for name in ("inspire_scope_custom", "inspire_grouping_sql_check", "inspire_group_custom", "inspire_group_sql_saved", "implement_grouping_sql_check"):
         assert name not in fresh_ns, f"{name} is gone, so no typed SQL can run"

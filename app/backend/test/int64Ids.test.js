@@ -67,7 +67,7 @@ test('the Choose page overview names each 19-digit session exactly, so its count
   for (const c of asked) assert.ok(c.statement.includes(`IN (${MAX},${HALF},17)`), c.statement);
 });
 
-test('the Choose page counts high priority only for a use case that meets the bar and scores 7 or more of 10, so a run below the bar shows no high priority (must-exclude)', async () => {
+test('the Choose page counts high priority as in rc.3, every use case scored 3 or more, and counts the ones that meet the bar on their own', async () => {
   S.reset({
     sessionList: [{ session_id: MAX, business_name: 'Acme', completed_percent: 100, create_at: '2026-11-02T10:00:00Z', business_runs: 1, business_rank: 1 }],
     usecases: [
@@ -80,9 +80,10 @@ test('the Choose page counts high priority only for a use case that meets the ba
   const got = await S.request('GET', LIST, { person: 'reader@example.com' });
   assert.equal(got.status, 200, got.text.slice(0, 300));
   const { total, high, meets } = got.data.sessions[0].usecase_overview;
-  assert.deepEqual({ total, high, meets }, { total: 4, high: 1, meets: 2 });
+  assert.deepEqual({ total, high, meets }, { total: 4, high: 4, meets: 2 });
   const statement = S.state.calls.find((c) => c.statement.includes('AS usecase_count')).statement;
-  assert.equal(statement.includes('priority_score, 0) >= 3 '), false, 'the old 0-5 cut counted every kept use case as high priority');
+  assert.ok(statement.includes('WHEN COALESCE(priority_score, 0) >= 3 THEN'), statement);
+  assert.equal(statement.includes('>= 7'), false, 'no 7-of-10 cut (must-exclude)');
 });
 
 test('a session id beyond 63 bits is left out of the overview query instead of naming a rounded neighbour (must-exclude)', async () => {

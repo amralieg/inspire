@@ -41,7 +41,7 @@ test('Launch Quick view lists the name with its technique, and a use case withou
   }
 });
 
-test('Monitor lists the use cases drafted so far by the name with its technique, and one without it keeps its Name', async () => {
+test('Monitor lists the use cases so far by the name with its technique, and one without it keeps its Name', async () => {
   const steps = [{ step_id: '1', session_id: '42', stage_name: 'Generate', step_name: 'Use cases', sub_step_name: '', status: 'ended_success',
     message: '', progress_increment: 0, last_updated: ago(30000),
     result_json: { use_cases: [{ No: 'N01-U01', 'Business Domain': 'Supply', ...LABELLED }, { No: 'N01-U02', 'Business Domain': 'Supply', ...PLAIN }] } }];
@@ -54,7 +54,7 @@ test('Monitor lists the use cases drafted so far by the name with its technique,
   const ui = await openUi('monitor', {}, '&run=none', { mount });
   const { page } = ui;
   try {
-    const live = page.getByText('2 use cases drafted so far').locator('xpath=ancestor::div[contains(@class, "rounded")][1]');
+    const live = page.getByText('2 use cases so far').locator('xpath=ancestor::div[contains(@class, "rounded")][1]');
     await live.waitFor({ timeout: 15000 });
     const names = await live.locator('p.font-medium').allInnerTexts();
     assert.deepEqual(names, ['Forecast stock using forecasting', 'Spot late suppliers']);

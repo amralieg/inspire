@@ -21,7 +21,7 @@ export const FEEDBACK_EMPTY_TEXT = 'No feedback yet: open a use case, mark it Ac
 
 export const V130_TRACKING_FIELDS = [
   'strategy_alignment', 'strategy_path', 'kpis', 'expected_key_results', 'measures_of_success',
-  'financial_benefits', 'non_financial_benefits', 'data_evidence', 'use_case_key',
+  'financial_benefits', 'non_financial_benefits', 'data_evidence', 'foundation_ids', 'use_case_key',
   'best_of_best', 'best_of_best_rank', 'best_of_best_score', 'best_of_best_reason',
   'use_case_kind', 'kind_family', 'app_layout', 'serving_summary', 'method_summary', 'value_source', 'selection_basis',
   'selection_replaced', 'selection_score_gap', 'name_with_technique', 'suggested_group_by', 'record_level',
@@ -169,6 +169,7 @@ export function v130View(uc) {
     nonFinancial,
     dataEvidence: Object.keys(evidenceTables).length || evidenceJoins.length || evidenceSignal
       ? { tables: evidenceTables, joins: evidenceJoins, signal: evidenceSignal } : null,
+    foundations: textList(fieldOf(u, 'Foundations', 'foundation_ids')),
     useCaseKey: String(u.use_case_key ?? '').trim(),
     feedbackStatus: String(u['Feedback Status'] ?? '').trim().toLowerCase(),
     bestOfBest: bestOfBestOf(u),

@@ -111,7 +111,7 @@ function answerSql(body) {
       return sqlResult(['session_id', 'usecase_count', 'high_priority_count', 'meets_bar_count', 'domain_count'], sids.map((sid) => {
         const mine = rows.filter((u) => u.session_id === sid);
         const meets = mine.filter((u) => !BELOW_BAR_ELITE_STATUSES.includes(String(u.elite_status || '').trim().toUpperCase()));
-        const high = meets.filter((u) => (u.priority_score || 0) >= HIGH_PRIORITY_MIN_SCORE);
+        const high = mine.filter((u) => (u.priority_score || 0) >= HIGH_PRIORITY_MIN_SCORE);
         return [sid, String(mine.length), String(high.length), String(meets.length), String(new Set(mine.map((u) => u.business_domain)).size)];
       }));
     }

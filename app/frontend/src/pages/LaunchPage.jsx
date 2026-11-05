@@ -50,7 +50,7 @@ import { responseError } from '../lib/apiClient';
 import { placeholderWords } from '../lib/placeholderWords';
 import { nameOfUseCase } from '../lib/useCaseFields';
 import { counted } from '../lib/plural';
-import { catalogListNote, shownCatalogs, typedCatalog } from '../lib/catalogList';
+import { catalogListNote, typedCatalog } from '../lib/catalogList';
 
 /* ─── Constants — notebook v1.2.0 widget `05_use_cases_quality` ─── */
 const QUALITY_OPTIONS = ['Good', 'High', 'Ultra High'];
@@ -89,13 +89,11 @@ const DEEP_PANEL = [
   },
 ];
 const TABLE_ELECTION = ['Let Inspire Decides', 'All Tables', 'Transactional Only'];
-const TABLE_ELECTION_LABELS = { 'Let Inspire Decides': 'Let Inspire decide', 'All Tables': 'All tables', 'Transactional Only': 'Transactional tables only' };
 /** Show guidance when explicit table selection exceeds this count. */
 const TABLE_SELECTION_WARN_THRESHOLD = 10;
 /** Documented sweet spot for discovery quality and runtime. */
 const TABLE_SELECTION_IDEAL_MAX = 25;
 const OPERATION_WIDGET_OPTIONS = ['Discover Use Cases', 'Generate Use Cases'];
-const OPERATION_LABELS = { 'Discover Use Cases': 'Discover use cases', 'Generate Use Cases': 'Rewrite Genie instructions for flagged use cases' };
 const GENERATION_OPTIONS = [
   { key: 'PDF Catalog', icon: FileText, desc: 'Professional PDF use case catalog' },
   { key: 'Presentation', icon: Target, desc: 'Executive-ready slide deck' },
@@ -725,7 +723,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
   // Derived
   const typedCatalogItem = typedCatalog(catalogs, catalogsCut, catalogSearch);
   const filteredCatalogs = [
-    ...shownCatalogs(catalogs, catalogSearch).filter((c) => !catalogSearch || c.name.toLowerCase().includes(catalogSearch.toLowerCase())),
+    ...catalogs.filter((c) => !catalogSearch || c.name.toLowerCase().includes(catalogSearch.toLowerCase())),
     ...(typedCatalogItem ? [typedCatalogItem] : []),
   ];
   const filteredSchemas = schemas.filter(
@@ -1087,7 +1085,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
             </Field>
 
             {/* UC Metadata — Catalog/Schema/Table pickers with shopping basket */}
-            <Field label="Which data should Inspire look at?" required icon={Database} hint="Pick the catalogs, schemas or tables that hold your business data">
+            <Field label="Unity Catalog Metadata" required icon={Database} hint="Pick the catalogs, schemas or tables that hold your business data">
                 {catalogBrowseGuidance && <UcPermissionErrorHelp guidance={catalogBrowseGuidance} />}
                 {catalogsWhy && <p role="note" data-uc-why="" className="mb-3 text-xs text-text-secondary">{catalogsWhy}</p>}
                 {onNoData && (
@@ -1290,7 +1288,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
               </Field>
 
             {/* Generation Instructions — optional */}
-            <FieldSection label="Describe your business and this year's goals" hint="Optional. What the business does, what it wants this year, and anything Inspire should focus on or leave out">
+            <FieldSection label="Generation Instructions" hint="Optional. What the business does, what it wants this year, and anything Inspire should focus on or leave out">
               <div className="relative">
                 <Target size={14} className="absolute left-3 top-3 text-text-tertiary" />
                 <textarea
@@ -1487,7 +1485,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
               <Settings2 size={16} className="text-text-secondary" />
             </div>
             <div className="flex-1">
-              <h2 className="text-sm font-bold text-text-primary">Admin settings</h2>
+              <h2 className="text-sm font-bold text-text-primary">Advanced Settings</h2>
               <p className="text-xs text-text-secondary">
                 Where Inspire keeps its tables and files, run mode, documents and quality
               </p>
@@ -1511,12 +1509,11 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                 />
               </Field>
 
-              <FieldSection label="Operation" hint="Discover finds use cases; Rewrite Genie instructions writes them again for the use cases you flagged">
+              <FieldSection label="Operation" hint="Discover finds use cases; Generate writes the Genie instructions again for flagged use cases only">
                 <GlowSelect
                   value={params['15_operation']}
                   onChange={(v) => updateParam('15_operation', v)}
                   options={OPERATION_WIDGET_OPTIONS}
-                  labels={OPERATION_LABELS}
                 />
               </FieldSection>
 
@@ -1599,12 +1596,11 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
 
               {/* Row: Table Election + Quality */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                <FieldSection label="Which tables to use">
+                <FieldSection label="Table Election">
                   <GlowSelect
                     value={params['04_table_election']}
                     onChange={(v) => updateParam('04_table_election', v)}
                     options={TABLE_ELECTION}
-                    labels={TABLE_ELECTION_LABELS}
                   />
                   <p className="text-[10px] text-text-tertiary mt-1">Which of the tables you picked Inspire reads</p>
                 </FieldSection>
@@ -1724,7 +1720,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
         {!outputCheck.ready && (
           <div className="mb-4">
             <OutputFolderCheck check={outputCheck} id="output-folder-check-launch"
-              where={showAdvanced ? 'Change Generation Path in Admin settings above' : 'Change it in Admin settings, Generation Path'} />
+              where={showAdvanced ? 'Change Generation Path in Advanced Settings above' : 'Change it in Advanced Settings, Generation Path'} />
           </div>
         )}
 
@@ -1748,12 +1744,10 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
           )}
         </button>
 
-        {showAdvanced && (
-          <p data-admin-footer="" className="text-xs text-text-tertiary mt-3 text-center">
-            Notebook: <span className="font-mono text-text-secondary">{notebookPath || 'not set'}</span>
-            {warehouseId && <> &middot; Warehouse: <span className="font-mono text-text-secondary">{warehouseId.slice(0, 12)}...</span></>}
-          </p>
-        )}
+        <p data-admin-footer="" className="text-xs text-text-tertiary mt-3 text-center">
+          Notebook: <span className="font-mono text-text-secondary">{notebookPath || 'not set'}</span>
+          {warehouseId && <> &middot; Warehouse: <span className="font-mono text-text-secondary">{warehouseId.slice(0, 12)}...</span></>}
+        </p>
       </div>
     </div>
   );
@@ -1799,7 +1793,7 @@ function FieldSection({ label, required, hint, children }) {
   );
 }
 
-function GlowSelect({ value, onChange, options, labels = {} }) {
+function GlowSelect({ value, onChange, options }) {
   return (
     <select
       className="w-full px-4 py-2.5 text-sm border border-border rounded-lg bg-surface text-text-primary glow-focus transition-smooth"
@@ -1807,7 +1801,7 @@ function GlowSelect({ value, onChange, options, labels = {} }) {
       onChange={(e) => onChange(e.target.value)}
     >
       {options.map((o) => (
-        <option key={o} value={o}>{labels[o] || o}</option>
+        <option key={o} value={o}>{o}</option>
       ))}
     </select>
   );

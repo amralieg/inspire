@@ -1,5 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
 
@@ -21,12 +22,13 @@ test('the catalog list note says when Unity Catalog cut the list, and a typed na
   }
 });
 
-test('the catalog pickers hide system and hive_metastore unless the user typed one of them, and keep every other catalog (must-exclude)', async () => {
+test('the catalog pickers list system and hive_metastore with every other catalog, and no catalog is hidden by name', async () => {
   const C = await lib();
   const listed = ['main', 'system', { name: 'hive_metastore' }, 'samples', 'sales'];
-  assert.deepEqual(C.catalogNames(C.shownCatalogs(listed)), ['main', 'samples', 'sales']);
-  assert.deepEqual(C.catalogNames(C.shownCatalogs(listed, ' System ')), ['main', 'system', 'samples', 'sales']);
-  assert.deepEqual(C.catalogNames(C.shownCatalogs(listed, 'hive_metastore')), ['main', 'hive_metastore', 'samples', 'sales']);
-  assert.deepEqual(C.catalogNames(C.shownCatalogs(listed, 'sys')), ['main', 'samples', 'sales'], 'part of the name is not asking for it');
-  assert.deepEqual(C.shownCatalogs(null), []);
+  assert.deepEqual(C.catalogNames(listed), ['main', 'system', 'hive_metastore', 'samples', 'sales']);
+  assert.equal('shownCatalogs' in C || 'HIDDEN_CATALOGS' in C, false, 'no hidden-catalog filter');
+  const picker = fs.readFileSync(path.join(__dirname, '..', '..', 'frontend', 'src', 'components', 'CatalogPicker.jsx'), 'utf8');
+  const launch = fs.readFileSync(path.join(__dirname, '..', '..', 'frontend', 'src', 'pages', 'LaunchPage.jsx'), 'utf8');
+  assert.match(picker, /const names = catalogNames\(catalogs\);/);
+  assert.match(launch, /\.\.\.catalogs\.filter\(\(c\) => !catalogSearch/);
 });

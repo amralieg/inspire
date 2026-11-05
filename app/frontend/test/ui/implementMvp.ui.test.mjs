@@ -99,7 +99,7 @@ test('Uninstall all names what goes and what stays, asks for the use case id, an
   const ui = await openBuild();
   const { page, made } = ui;
   try {
-    assert.doesNotMatch(await page.getByRole('button', { name: 'Uninstall all', exact: true }).getAttribute('class'), /error|db-red/, 'Uninstall all is a secondary button (must-exclude)');
+    assert.match(await page.getByRole('button', { name: 'Uninstall all', exact: true }).getAttribute('class'), /text-error-fg/, 'Uninstall all is red again, as in rc.3');
     await page.getByRole('button', { name: 'Uninstall all', exact: true }).click();
     const dialog = page.getByRole('dialog', { name: 'Uninstall everything N01-U01 built' });
     assert.match(await dialog.getByRole('button', { name: 'Uninstall all', exact: true }).getAttribute('class'), /bg-error-solid/, 'the confirm step stays red (must-keep)');

@@ -133,3 +133,23 @@ test('a field reads its display key, falls back to the tracking-table column whe
   assert.equal(f.isBlankField('  '), true);
   assert.equal(f.isBlankField(false), false);
 });
+
+test('High priority keeps its rc.3 meaning: the most of the High tier labels, the scores of 3 or more, and the top third by score', async () => {
+  const f = await load();
+  const below = { elite_status: 'FALLBACK_BELOW_BAR' };
+  const list = [
+    { Priority: 'Very High', priority_score: 2, ...below }, { Priority: 'Medium', priority_score: 4.5, ...below },
+    { Priority: 'Low', priority_score: 3.2 }, { Priority: 'Low', priority_score: 1 },
+  ];
+  assert.equal(f.computeHighPriorityCount(list), 2, 'scores of 3 or more count even below the bar and below 7 of 10');
+  assert.equal(f.computeHighPriorityCount([{ Priority: 'High' }, { Priority: 'Ultra High' }, { Priority: 'Low' }]), 2, 'tier labels count with no score');
+  assert.equal(f.computeHighPriorityCount([]), 0);
+  assert.equal('isHighPriorityUseCase' in f || 'HIGH_PRIORITY_MIN_SCORE' in f, false, 'no 7-of-10 rule (must-exclude)');
+});
+
+test('Review shows the Best of Best, High Priority and Avg Inspire score tiles and the Feedback panel even when no use case meets the bar', () => {
+  const fs = require('node:fs');
+  const page = fs.readFileSync(path.join(__dirname, '..', '..', 'frontend', 'src', 'pages', 'ResultsPage.jsx'), 'utf8');
+  assert.equal(/!noneMeetsBar && <StatCard|!noneMeetsBar && <InsightsGrid|\{!noneMeetsBar && \(\s*<StatCard/.test(page), false, 'no tile or panel hidden by the bar (must-exclude)');
+  assert.match(page, /label="High Priority"[\s\S]{0,120}renderValue=\{noneMeetsBar \? 'n\/a' : undefined\}/, 'High Priority claims no count when none meets the bar');
+});

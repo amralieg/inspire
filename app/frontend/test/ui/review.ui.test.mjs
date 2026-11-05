@@ -186,7 +186,7 @@ test('a run that is still going shows the summary its results_json already holds
     try {
       await ready(page);
       await page.getByText('Live Preview').waitFor();
-      assert.match(await page.locator('[data-testid="live-use-case-count"]').innerText(), /^\d+ use cases? drafted so far$/, label);
+      assert.match(await page.locator('[data-testid="live-use-case-count"]').innerText(), /^\d+ use cases? so far$/, label);
       assert.doesNotMatch(await page.locator('body').innerText(), /completed steps/, label);
       assert.deepEqual(await page.locator('[data-executive-summary] p').allInnerTexts(), shown, label);
       assert.deepEqual(ui.pageErrors, [], label);
@@ -243,7 +243,7 @@ const blankBelow = (page) => page.locator('[data-insight]').evaluateAll((els) =>
   return { title: el.dataset.insight, blank: Math.round(el.getBoundingClientRect().bottom - last) };
 }));
 
-test('the insight cards stack at full width with no Strategy coverage card and no Data foundations card, and no card holds a tall empty area', async () => {
+test('the insight cards stack at full width with no Strategy coverage card and no Data foundations card, the Suggested build order is back and opens a use case, and no card holds a tall empty area', async () => {
   const ui = await openUi('results', REVIEW_STATE);
   const { page } = ui;
   try {
@@ -251,16 +251,16 @@ test('the insight cards stack at full width with no Strategy coverage card and n
     const grid = page.locator('[data-insights-grid]');
     await grid.waitFor();
     assert.ok(REVIEW_STATE.results.foundations.length > 0, 'the results still carry shared foundations');
-    assert.equal(await grid.getAttribute('data-insights-grid'), '1');
+    assert.equal(await grid.getAttribute('data-insights-grid'), '2');
     assert.equal(await grid.getAttribute('data-insights-columns'), '1');
     assert.equal(await insight(page, 'Strategy coverage').count(), 0, 'no Strategy coverage card');
-    assert.equal(await insight(page, 'Data foundations').count(), 0, 'no Data foundations card');
-    assert.equal(await page.getByText('Data foundations').count(), 0, 'the page never says Data foundations');
+    assert.equal(await insight(page, 'Data foundations').count(), 0, 'no Data foundations card (must-exclude)');
+    assert.equal(await page.locator('[data-foundation]').count(), 0, 'no shared foundation list');
     for (const width of [1440, 1024, 700]) {
       await page.setViewportSize({ width, height: 1000 });
       await settled(page, '[data-insights-grid]');
       const order = await page.locator('[data-insight]').evaluateAll((els) => els.map((el) => el.dataset.insight));
-      assert.deepEqual(order, ['Feedback and value'], `${width}: the feedback note alone`);
+      assert.deepEqual(order, ['Suggested build order', 'Feedback and value'], `${width}: the build order, then the feedback note`);
       const widths = await page.locator('[data-insight]').evaluateAll((els) => els.map((el) => Math.round(el.getBoundingClientRect().width)));
       assert.equal(new Set(widths).size, 1, `${width}: each card takes the whole width`);
       for (const b of await blankBelow(page)) assert.ok(b.blank <= 24, `${width}: ${b.title} ends where its content ends (${b.blank}px blank)`);
@@ -271,9 +271,14 @@ test('the insight cards stack at full width with no Strategy coverage card and n
     assert.equal(await note.locator('[data-feedback-note]').innerText(), V.FEEDBACK_OFF_TEXT);
     assert.doesNotMatch(await note.innerText(), /\bv?\d+\.\d+(\.\d+)?\b/, 'no version number');
 
-    await card(page, 'Score upsell').click();
+    const steps = insight(page, 'Suggested build order').getByRole('list', { name: 'Suggested build order' }).getByRole('listitem');
+    assert.equal(await steps.count(), 5, 'five steps before Show all');
+    assert.deepEqual((await steps.first().innerText()).split('\n').map((t) => t.trim()).filter(Boolean), ['1.', 'Predict churn', 'Customer', '4.6']);
+    await page.getByPlaceholder('Search use cases...').fill('no use case matches this');
+    await page.getByText('No use cases match your filters.').waitFor();
+    await insight(page, 'Suggested build order').getByRole('button', { name: 'Score upsell' }).click();
     await until(async () => (await card(page, 'Score upsell').getAttribute('aria-expanded')) === 'true', 'the use case opens');
-    assert.equal(await page.getByText('Data foundations').count(), 0, 'an open use case shows no Data foundations');
+    assert.equal(await page.getByPlaceholder('Search use cases...').inputValue(), '', 'the filters that hid it are cleared');
 
     for (const dark of [false, true]) {
       await setDark(page, dark);
@@ -287,14 +292,14 @@ test('the insight cards stack at full width with no Strategy coverage card and n
   }
 });
 
-test('with feedback on and none given yet, the feedback note says how to give it and stands alone', async () => {
+test('with feedback on and none given yet, the feedback note says how to give it, next to the build order', async () => {
   const feedback = (app) => app.get('/api/inspire/feedback', (_req, res) => res.json({ available: true, latest: [], history: [] }));
   const { strategy_coverage: _s, ...noCoverage } = REVIEW_RESULTS;
   const ui = await openUi('results', { ...REVIEW_STATE, results: noCoverage }, '', { mount: feedback });
   const { page } = ui;
   try {
     await ready(page);
-    const grid = page.locator('[data-insights-grid="1"]');
+    const grid = page.locator('[data-insights-grid="2"]');
     await grid.waitFor();
     assert.equal(await grid.getAttribute('data-insights-columns'), '1');
     assert.equal(await insight(page, 'Feedback and value').locator('[data-feedback-note]').innerText(), V.FEEDBACK_EMPTY_TEXT);

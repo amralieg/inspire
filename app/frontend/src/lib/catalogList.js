@@ -2,16 +2,6 @@ export const CATALOG_SEARCH_FROM = 50;
 
 const nameOf = (c) => (typeof c === 'string' ? c : c && typeof c.name === 'string' ? c.name : '');
 
-export const HIDDEN_CATALOGS = ['system', 'hive_metastore'];
-
-export function shownCatalogs(catalogs, typed = '') {
-  const asked = String(typed || '').trim().toLowerCase();
-  return (Array.isArray(catalogs) ? catalogs : []).filter((c) => {
-    const name = nameOf(c).toLowerCase();
-    return !HIDDEN_CATALOGS.includes(name) || (asked && name === asked);
-  });
-}
-
 export function catalogNames(catalogs) {
   return (Array.isArray(catalogs) ? catalogs : []).map(nameOf).filter(Boolean);
 }

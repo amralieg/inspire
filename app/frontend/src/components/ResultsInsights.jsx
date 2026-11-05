@@ -1,10 +1,32 @@
-import { ChevronRight, Eye, Lock, MessageSquareText } from 'lucide-react';
+import { useState } from 'react';
+import { ChevronRight, Eye, ListOrdered, Lock, MessageSquareText } from 'lucide-react';
 import {
   FEEDBACK_EMPTY_TEXT, FEEDBACK_OFF_TEXT, KPI_TRACKING_NOT_MEASURED, dataAccessSummary, excludedFeedbackText, feedbackLabel,
   formatBaseline, trackedKpiNote, trackedKpiValue,
 } from '../lib/v130UseCase';
+import { scoreText } from '../lib/reviewFigures';
 import { plural } from '../lib/plural';
 import DataGrid from './DataGrid';
+
+const LIST_PREVIEW = 5;
+
+function ShowAll({ total, shown, open, onToggle, noun = '' }) {
+  if (total <= shown) return null;
+  return (
+    <button type="button" onClick={onToggle} aria-expanded={open} className="text-[11px] font-medium text-db-red-fg hover:underline">
+      {open ? 'Show fewer' : `Show all ${total}${noun ? ` ${noun}` : ''}`}
+    </button>
+  );
+}
+
+function usePreview(items, size, noun = '') {
+  const [open, setOpen] = useState(false);
+  const list = Array.isArray(items) ? items : [];
+  return {
+    shown: open ? list : list.slice(0, size),
+    toggle: <ShowAll total={list.length} shown={size} open={open} noun={noun} onToggle={() => setOpen((o) => !o)} />,
+  };
+}
 
 export function SidebarFilterPanel({ title, subtitle, icon, open, onToggle, allLabel, allCount, options, value, onChange }) {
   const Icon = icon;
@@ -147,6 +169,51 @@ export function DataAccessBadge({ results }) {
   );
 }
 
+function UseCaseLink({ entry, onOpen }) {
+  if (!entry.useCase || !onOpen) return <span className="min-w-0 break-words text-text-primary">{entry.name}</span>;
+  return (
+    <button type="button" onClick={() => onOpen(entry.useCase)} title={`Open ${entry.name} in the list`}
+      className="min-w-0 text-left break-words text-text-primary hover:text-db-red-fg hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-db-red/30 rounded">
+      {entry.name}
+    </button>
+  );
+}
+
+function BuildOrder({ order, describe, onOpenUseCase }) {
+  const list = usePreview(order, LIST_PREVIEW);
+  return (
+    <div>
+      <ol className="space-y-1 text-[11px]" aria-label="Suggested build order">
+        {list.shown.map((id, i) => {
+          const entry = describe(id);
+          return (
+            <li key={id} className="grid grid-cols-[1.5rem_minmax(0,1fr)_auto] items-baseline gap-x-2">
+              <span className="font-mono text-[10px] text-text-secondary tabular-nums">{i + 1}.</span>
+              <span className="min-w-0">
+                <UseCaseLink entry={entry} onOpen={onOpenUseCase} />
+                {entry.domain && <span className="block text-[10px] text-text-secondary">{entry.domain}</span>}
+              </span>
+              <span className="font-mono text-[10px] text-text-secondary tabular-nums" title="Inspire Score">{scoreText(entry.score)}</span>
+            </li>
+          );
+        })}
+      </ol>
+      <div className="mt-1">{list.toggle}</div>
+      <p className="mt-1 text-[11px] text-text-secondary">Ordered by shared foundation, then Inspire Score. The pace is yours to set.</p>
+    </div>
+  );
+}
+
+export function BuildOrderPanel({ deliveryOrder, describe, onOpenUseCase }) {
+  const order = Array.isArray(deliveryOrder) ? deliveryOrder : [];
+  if (!order.length || typeof describe !== 'function') return null;
+  return (
+    <InsightCard icon={ListOrdered} title="Suggested build order" summary={plural(order.length, 'use case')}>
+      <BuildOrder order={order} describe={describe} onOpenUseCase={onOpenUseCase} />
+    </InsightCard>
+  );
+}
+
 function pointValue(point) {
   return point && point.value != null && Number.isFinite(Number(point.value)) ? Number(point.value) : null;
 }
@@ -266,11 +333,17 @@ export function FeedbackPanel({ results, feedback }) {
   );
 }
 
-export function InsightsGrid({ results, feedback }) {
-  if (!feedbackParts(results, feedback).shows) return null;
+export function InsightsGrid({ results, feedback, describe, onOpenUseCase }) {
+  const order = Array.isArray(results?.delivery_order) && results.delivery_order.length > 0 && typeof describe === 'function'
+    ? <BuildOrderPanel key="order" deliveryOrder={results.delivery_order} describe={describe} onOpenUseCase={onOpenUseCase} />
+    : null;
+  const notes = feedbackParts(results, feedback).shows ? <FeedbackPanel key="feedback" results={results} feedback={feedback} /> : null;
+  const count = (order ? 1 : 0) + (notes ? 1 : 0);
+  if (!count) return null;
   return (
-    <div data-insights-grid="1" data-insights-columns="1" className="flex min-w-0 flex-col gap-3 mb-4">
-      <FeedbackPanel results={results} feedback={feedback} />
+    <div data-insights-grid={count} data-insights-columns="1" className="flex min-w-0 flex-col gap-3 mb-4">
+      {order}
+      {notes}
     </div>
   );
 }

@@ -1,5 +1,5 @@
 export const LIVE_STEP_STATUSES = ['ended_success', 'ended_warning'];
-export const LIVE_COUNT_WORDS = 'drafted so far';
+export const LIVE_COUNT_WORDS = 'so far';
 
 const FIELD_WORDS = new Set(['name', 'use case', 'use_case', 'usecase', 'use case name', 'title', 'type', 'id', 'domain', 'business domain']);
 const PLACEHOLDER = /^(?:use[ _-]?case[ _-]*\d*|example|sample|placeholder|tbd|todo|n\/?a|none|null|undefined|untitled|\.{2,}|<[^>]*>|\{[^}]*\}|\[[^\]]*\])$/i;
@@ -31,7 +31,6 @@ export function liveUseCasesOf(steps) {
     if (ident && !keyOfId.has(ident)) keyOfId.set(ident, key);
   };
   for (const step of Array.isArray(steps) ? steps : []) {
-    if (step?.status && !LIVE_STEP_STATUSES.includes(String(step.status))) continue;
     const rj = step?.result_json;
     if (!rj || typeof rj !== 'object') continue;
     const prompt = rj.prompt_name || '';

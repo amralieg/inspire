@@ -9,7 +9,6 @@ APPS_PARENT = "/Workspace/Shared/inspire-ai/apps"
 ASSETS_MANIFEST = "manifest.json"
 ASSETS_FORMAT = 1
 SCAN_ALL = "all"
-SCAN_DEFAULT = ()
 SCAN_NONE_SAID = ("The Inspire App reads no catalog of yours yet, only `{catalog}`. To let it read your data, set SCAN_CATALOGS at the top of the "
                   'installer to the catalogs it may read, such as ["main", "sales"], and run the installer again.')
 SCAN_SKIPPED = ("samples", "system", "__databricks_internal", "information_schema")
@@ -729,7 +728,7 @@ def build_runtime_context(env):
         "RELEASE_VERSION": release_version,
         "SOURCE_ZIP": source_zip,
         "BUNDLE_ROOT": f"{APPS_PARENT}/{app_name}",
-        "SCAN_CATALOGS": env.get("scan_catalogs", list(SCAN_DEFAULT)),
+        "SCAN_CATALOGS": env.get("scan_catalogs", SCAN_ALL),
         "NEW_APPS_CATALOG_ACCESS": _new_apps_setting(env.get("new_apps_catalog_access", NEW_APPS_ACCOUNT_USERS)),
         "ASSETS_TAR": assets_tar,
         "TEST_TAG": str(settings.get("test_tag") or "").strip(),
@@ -1365,7 +1364,7 @@ def step_grant_permissions(ctx):
     catalog = ctx["CATALOG"]
     schema = ctx["SCHEMA"]
     api = ctx["api"]
-    scan = ctx.get("SCAN_CATALOGS", list(SCAN_DEFAULT))
+    scan = ctx.get("SCAN_CATALOGS", SCAN_ALL)
 
     if new_sp_app_id and warehouse_id:
         sp = new_sp_app_id
@@ -1689,7 +1688,7 @@ def step_preflight(ctx):
         problems.append(f"Inspire cannot check catalog `{catalog}`: {_rights_unread(exc, catalog, ctx['USER_EMAIL'])}.")
     scan = None
     try:
-        scan = _scan_catalogs(ctx.get("SCAN_CATALOGS", list(SCAN_DEFAULT)), set(ctx["available_catalogs"]))
+        scan = _scan_catalogs(ctx.get("SCAN_CATALOGS", SCAN_ALL), set(ctx["available_catalogs"]))
         ctx["SCAN_CATALOGS"] = scan
     except ValueError as exc:
         problems.append(str(exc))

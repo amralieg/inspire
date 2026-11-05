@@ -74,7 +74,7 @@ wanted = {"step_grant_permissions", "_catalog_access_for_new_apps", "_lakebase_p
           "_workspace_api_path", "_grant_plan", "_scan_label", "_plural", "_privilege_word", "_can_grant", "_below_catalog_sql", "_real_grants",
           "_new_apps_catalog_decision", "_run_statement", "_statement_rows", "_wait_statement", "_scan_split", "_person_privileges",
           "_grant_refusal", "agent_lakebase"}
-consts = {"LAKEBASE_CONSTANTS", "LAKEBASE_DELTA", "LAKEBASE_POLLS", "LAKEBASE_POLL_S", "ASSETS_PARENT", "SCAN_ALL", "SCAN_DEFAULT", "SCAN_NONE_SAID", "SCAN_SKIPPED", "SCAN_GRANTS", "NEW_APPS_ACCOUNT_USERS", "NEW_APPS_OFF",
+consts = {"LAKEBASE_CONSTANTS", "LAKEBASE_DELTA", "LAKEBASE_POLLS", "LAKEBASE_POLL_S", "ASSETS_PARENT", "SCAN_ALL", "SCAN_NONE_SAID", "SCAN_SKIPPED", "SCAN_GRANTS", "NEW_APPS_ACCOUNT_USERS", "NEW_APPS_OFF",
           "SYSTEM_SCHEMA", "BELOW_CATALOG_VIEWS", "REAL_GRANTS_SHOWN"}
 module = ast.Module(body=[n for n in tree.body if (isinstance(n, ast.FunctionDef) and n.name in wanted)
                           or (isinstance(n, ast.Assign) and [t.id for t in n.targets if isinstance(t, ast.Name)][:1] in [[c] for c in consts])],
@@ -152,8 +152,11 @@ assert not [s for s in executed if "\x60account users\x60" in s], executed
 assert not [s for s in executed if s.startswith("GRANT MANAGE ON CATALOG")], executed
 assert not [s for s in executed if "inspire_lakebase" in s], executed
 unset_sql, _, unset_said = run([], scan=None)
-assert not [s for s in unset_sql if "\x60sales\x60" in s or "samples" in s], unset_sql
-assert "reads no catalog of yours yet, only \x60main\x60" in unset_said and "SCAN_CATALOGS" in unset_said, unset_said
+assert not [s for s in unset_sql if "samples" in s], unset_sql
+assert "all: every catalog you can see and grant on" in unset_said and "reads no catalog of yours yet" not in unset_said, unset_said
+empty_sql, _, empty_said = run([], scan=[])
+assert not [s for s in empty_sql if "\x60sales\x60" in s or "samples" in s], empty_sql
+assert "reads no catalog of yours yet, only \x60main\x60" in empty_said and "SCAN_CATALOGS" in empty_said, empty_said
 refused_sql, _, refused_said = run([], grantable=())
 assert not [s for s in refused_sql if "\x60sales\x60" in s], refused_sql
 assert "sales" in refused_said and "you are not its owner or a metastore admin" in refused_said, refused_said

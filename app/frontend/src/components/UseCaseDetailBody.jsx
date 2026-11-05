@@ -64,6 +64,7 @@ export default function UseCaseDetailBody({
   v130 = null,
   knownPriorities: priorityList = [],
   strategy = null,
+  foundationsById,
   feedbackAvailable = null,
   feedbackCurrent,
   feedbackBusy = false,
@@ -233,7 +234,7 @@ export default function UseCaseDetailBody({
       )}
 
       <BestOfBestDetail info={v130} />
-      <UseCaseStrategyDetail info={v130} knownPriorities={priorityList} strategy={strategy} />
+      <UseCaseStrategyDetail info={v130} knownPriorities={priorityList} foundationsById={foundationsById} strategy={strategy} />
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-[11px]">
         {[

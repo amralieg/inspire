@@ -762,9 +762,7 @@ test('a use case that joined another use case\'s App reads it live as part of a 
     assert.equal(await app.getByRole('button', { name: 'Remove from sales-hub', exact: true }).count(), 1, 'its uninstall takes only this use case out');
     const result = await lowContrast(page, ['[data-asset-panel="app"]']);
     assert.deepEqual(result.low, []);
-    for (const name of ['Stop the App', 'Remove from sales-hub']) {
-      assert.doesNotMatch(await app.getByRole('button', { name, exact: true }).getAttribute('class'), /error|db-red/, `${name} is a secondary button, not a red one`);
-    }
+    assert.match(await app.getByRole('button', { name: 'Remove from sales-hub', exact: true }).getAttribute('class'), /\btext-error-fg\b/, 'a remove button is red again');
 
     await app.getByRole('button', { name: 'Stop the App', exact: true }).click();
     const dialog = page.getByRole('dialog', { name: 'Stop the App for every use case in it' });
@@ -782,7 +780,6 @@ test('a use case that joined another use case\'s App reads it live as part of a 
     await showAsset(page, 'dashboard');
     const board = page.locator('[data-asset-panel="dashboard"]');
     assert.equal(await board.locator('[data-shared-note]').textContent(), 'Dashboard also holds the pages of Forecast demand.');
-    assert.doesNotMatch(await board.getByRole('button', { name: 'Unpublish', exact: true }).getAttribute('class'), /error|db-red/, 'Unpublish is a secondary button');
     await board.getByRole('button', { name: 'Unpublish', exact: true }).click();
     const unpublish = page.getByRole('dialog', { name: 'Unpublish for every use case in it' });
     await unpublish.getByText("Inspire unpublishes Dashboard for every use case in it: the pages of Forecast demand are unpublished with this use case's pages.",

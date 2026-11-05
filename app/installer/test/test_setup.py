@@ -1385,10 +1385,9 @@ class RuntimeContextTest(unittest.TestCase):
                           "/Workspace/Shared/inspire-ai/assets/v1.3.0", "inspire-ai", ["admins"]))
         self.assertNotIn("/Users/", ctx["BUNDLE_ROOT"])
 
-    def test_scan_catalogs_comes_from_the_installer_and_is_no_catalog_when_an_installer_sends_none(self):
+    def test_scan_catalogs_comes_from_the_installer_and_is_all_when_an_installer_sends_none(self):
         base = {"manifest": {"version": "v1.3.0"}, "files": {"inspire-app.zip": "/z", "inspire-assets.tar": "/t"}, "settings": {}}
-        self.assertEqual(self.context(base)[0]["SCAN_CATALOGS"], [])
-        self.assertNotEqual(self.context(base)[0]["SCAN_CATALOGS"], "all")
+        self.assertEqual(self.context(base)[0]["SCAN_CATALOGS"], "all")
         self.assertEqual(self.context(dict(base, scan_catalogs=["sales"]))[0]["SCAN_CATALOGS"], ["sales"])
         self.assertEqual(self.context(dict(base, scan_catalogs="all"))[0]["SCAN_CATALOGS"], "all")
 

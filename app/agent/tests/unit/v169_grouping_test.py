@@ -136,9 +136,12 @@ def test_the_run_helper_refuses_a_column_the_records_lack_and_a_mixed_grouping(f
         fresh_ns["inspire_group_records"](frame, group_by="region, country", out=lambda *_a: None)
     with pytest.raises(fresh_ns["InspireRunStop"], match="all stands alone"):
         fresh_ns["inspire_group_records"](frame, group_by="region, all", out=lambda *_a: None)
-    for asked in ("custom", "region, Custom"):
-        with pytest.raises(fresh_ns["InspireRunStop"], match="Inspire does not run SQL typed into Grouping or First run"):
-            fresh_ns["inspire_group_records"](frame, group_by=asked, out=lambda *_a: None)
+    for asked, plain, groups in (("custom", "the Grouping all", {"Global"}), ("region, Custom", "the Grouping region", {"EMEA"})):
+        said = []
+        got = fresh_ns["inspire_group_records"](frame, group_by=asked, out=said.append)
+        assert set(got["inspire_group"]) == groups
+        assert fresh_ns["INSPIRE_CUSTOM_SQL_PLAIN"].format(part="Grouping", plain=plain) in said, said
+        assert "build the MVP again" in said[0]
     with pytest.raises(TypeError):
         fresh_ns["inspire_group_records"]([1, 2], group_by="all", out=lambda *_a: None)
     assert not issubclass(fresh_ns["InspireRunStop"], Exception), "a broad except Exception in Genie's code cannot swallow the stop"
