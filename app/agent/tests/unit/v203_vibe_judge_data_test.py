@@ -244,3 +244,27 @@ def test_the_hold_runs_before_the_notebook_is_written_and_reaches_its_instructio
     assert hold < source.index("notebook_path = self._implement_write_notebook(use_case, spec, basis, key")
     assert 'held=use_case.get("_implement_held"))' in source
     assert '"held_asks": ((use_case or {}).get("_implement_held") or {}).get(asset) or {}' in source
+
+
+LIVE_ASK = "each supplier's carbon emissions and ESG score"
+
+
+def test_the_live_carbon_ask_is_held_although_the_use_case_carries_its_own_notes(agent_ns):
+    live = dict(USE_CASE, _implement_notes=f"Add {LIVE_ASK}.", _implement_repair_note=LIVE_ASK, _implement_job_name="N02-U05 v4")
+    assert {"carbon", "emission", "esg"} <= set(agent_ns["implement_vibes_absent_terms"](
+        LIVE_ASK, agent_ns["implement_vibes_held_terms"](SOURCES, live)))
+    inst = _inspire(agent_ns, FakeSpark())
+    asked = []
+
+    def llm(kind, prompt, schema):
+        asked.append(kind)
+        if kind == "split":
+            return {"asks": [{"ask": LIVE_ASK, "check": None, "keep": False, "where": ""}]}
+        return {"checks": [{"n": 1, "status": "no_data", "evidence": REASON, "where": ""}]}
+
+    inst._implement_vibes_llm = llm
+    inst._implement_vibes_sources = lambda spec, use_case: SOURCES
+    held = inst._implement_vibes_hold("N02-U05", live, {"data": {"notes": f"Add {LIVE_ASK}."}, "outputs": {}}, {})
+    assert held == {agent_ns["IMPLEMENT_NOTEBOOK"]: {LIVE_ASK: agent_ns["IMPLEMENT_VIBES_NO_DATA"] + REASON}}
+    assert asked.count("judge") == 1
+    assert agent_ns["implement_vibes_absent_terms"]("the late-line rate by nation", agent_ns["implement_vibes_held_terms"](SOURCES, live)) == []
