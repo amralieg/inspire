@@ -5545,9 +5545,11 @@ def test_a_genie_exit_says_its_reason_in_plain_text_without_terminal_codes_or_cl
 ])
 def test_a_preview_that_ends_without_its_outcome_sentence_says_so_in_plain_words_and_tells_genie_the_sentence(agent_ns, outcome, ended):
     said = agent_ns["implement_stop_message"](outcome, {})
-    assert said == (f"the preview run did not write usable rows: the notebook ran but ended {ended}; its last cell must exit with the "
-                    "sentence 'wrote N rows for as_of_date D with run_id R', or 'stopped without writing: ' and the reason")
+    assert said == (f"the preview run did not write usable rows: the notebook ran but ended {ended}, so Inspire could not check its rows; "
+                    "its run step must return how many rows it wrote or why it stopped, and the notebook must not end itself before that")
     assert "{" not in said and "job_url" not in said and "status" not in said
+    for word in ("run_id", "as_of_date", "wrote N rows", "stopped without writing", "'"):
+        assert word not in said, word
 
 
 def test_a_failed_preview_after_a_genie_build_that_did_not_finish_says_genie_did_not_finish(agent_ns):

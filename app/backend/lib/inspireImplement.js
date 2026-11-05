@@ -1613,6 +1613,8 @@ function implementVersionParameters({ sessionId, useCaseId, specVersion }) {
   ];
 }
 
+const IMPLEMENT_RUN_STARTED_MESSAGE = 'Inspire started building this version.';
+
 function implementRunStartedStatement(table, { sessionId, useCaseId, specVersion, runId, message }) {
   const run = /^\d{1,19}$/.test(str(runId)) ? { name: 'run', value: str(runId), type: 'BIGINT' } : { name: 'run', type: 'BIGINT' };
   return {
@@ -3174,6 +3176,7 @@ function quoteColumn(name) {
 }
 
 module.exports = {
+  IMPLEMENT_RUN_STARTED_MESSAGE,
   personalKeyOf,
   resultKeyRef,
   personalKeyProblem,

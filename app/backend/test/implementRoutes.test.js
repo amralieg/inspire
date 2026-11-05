@@ -135,7 +135,7 @@ test('submit records the run it started on the version it wrote', async () => {
     assert.deepEqual(writes.map((c) => String(c.sql).split(' ')[0]), ['INSERT', 'UPDATE']);
     assert.match(writes[1].sql, /SET implement_run_id = :run, status_message = CASE WHEN status = 'queued'/);
     assert.deepEqual(writes[1].parameters.map((p) => [p.name, p.value]),
-      [['run', '99'], ['message', 'https://example/#job/7/run/99'], ['sid', '42'], ['uc', 'N01-U01'], ['v', '1']]);
+      [['run', '99'], ['message', 'Inspire started building this version.'], ['sid', '42'], ['uc', 'N01-U01'], ['v', '1']]);
   });
 });
 

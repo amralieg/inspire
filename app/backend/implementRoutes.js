@@ -1121,7 +1121,7 @@ function registerImplementRoutes(app, deps) {
       }
       throw err;
     }
-    const started = I.implementRunStartedStatement(table, { ...version, runId: out.run_id, message: out.job_run_url || `run ${out.run_id}` });
+    const started = I.implementRunStartedStatement(table, { ...version, runId: out.run_id, message: I.IMPLEMENT_RUN_STARTED_MESSAGE });
     try {
       await executeSql(req.dbHost, req.dbToken, warehouseId, started.sql, started.parameters);
     } catch (e) {

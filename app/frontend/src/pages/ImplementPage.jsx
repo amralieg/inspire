@@ -7,7 +7,7 @@ import {
   statusChip, statusReason, nextSpecFrom, retryableOutputs, lostTables, lostTablesText, genieQuestions, appStatusRows, editedNotebook,
   runProfileText, runStopped, versionActive, historyStatus, implementGroups, notebookRunEnded, notebookStatus, START_MVP_LABEL, IMPLEMENT_ACTIVE_STATUSES, IMPLEMENT_UNINSTALLED,
   vibesPreview, canBuildAgain, buildAgainChanges, buildAgainHint, resultTableMoveNote, IMPLEMENT_DONE_STATUSES, specFromHeld, builtVersion, vibePreviousChoices,
-  vibesProblems, OPEN_ALL_SETTINGS, VIBE_FEATURES_LABEL, DATA_STOP_HINT, dataStopped,
+  vibesProblems, OPEN_ALL_SETTINGS, VIBE_FEATURES_LABEL, DATA_STOP_HINT, dataStopped, shownStatusMessage,
 } from '../lib/implementWizard';
 import { makeApiFetch, makeApiPostJson } from '../lib/apiClient';
 import { buildUseCaseList } from '../lib/useCaseList';
@@ -115,7 +115,7 @@ function SummaryBanner({ summary }) {
   if (building.length) {
     mark = { icon: Rocket, tone: 'red', live: true };
     title = `${plural(building.length, 'MVP')} building now`;
-    line = building.map((item) => `${item.id}${item.latest?.status_message ? `: ${item.latest.status_message}` : ''}`).join(' · ');
+    line = building.map((item) => `${item.id}${shownStatusMessage(item.latest) ? `: ${shownStatusMessage(item.latest)}` : ''}`).join(' · ');
   } else if (summary.mvps) {
     mark = summary.failed || summary.held || summary.unmet ? { icon: AlertTriangle, tone: 'warning' } : { icon: CheckCircle2, tone: 'success' };
     title = `${summary.ready} of ${plural(summary.mvps, 'MVP')} ready`;
@@ -225,7 +225,7 @@ function AssetFilters({ counts, asset, onAsset }) {
 }
 
 function RailProgress({ item, progress }) {
-  const step = progress?.step || item.latest?.status_message || '';
+  const step = progress?.step || shownStatusMessage(item.latest);
   const percent = progress?.percent;
   return (
     <div data-rail-progress={percent ?? ''} className="mt-1.5 space-y-1">

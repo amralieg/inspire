@@ -2166,6 +2166,13 @@ export function buildAgainHint(latest) {
   return `Try again asks for v${version} again as v${version + 1}, with the same choices, and Inspire repairs what it can on the way.`;
 }
 
+const BARE_RUN_MESSAGE = /^(?:https?:\/\/\S+|run \d+)$/i;
+
+export function shownStatusMessage(latest) {
+  const message = String(latest?.status_message || '').trim();
+  return BARE_RUN_MESSAGE.test(message) ? '' : message;
+}
+
 export const DATA_STOP_HINT = 'Trying again stops on the same data. Change the ask in Vibe/Add/Remove Features, or the tables and columns in all settings, then rebuild.';
 
 export function dataStopped(latest) {

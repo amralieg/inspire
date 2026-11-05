@@ -31,3 +31,18 @@ test('a reliable run, an older version hold or a blank reason keeps the ready st
   assert.equal(W.implementState(row('failed', { reason: REASON, spec_version: 3 })).label, 'MVP failed', 'a failed build stays failed');
   assert.equal(W.NOT_RELIABLE_RECORD, 'not_reliable', 'the agent writes this record');
 });
+
+test('a build that just started says so in words, never the job run link or a bare run id (rc.4 live R38)', async () => {
+  const W = await lib('implementWizard.js');
+  const I = require('../lib/inspireImplement');
+  const live = 'https://adb-1111111111111111.11.azuredatabricks.net/#job/222222222222222/run/333333333333333';
+  assert.equal(W.shownStatusMessage({ status_message: live }), '', 'a row written before this release still hides its link');
+  assert.equal(W.shownStatusMessage({ status_message: 'run 333333333333333' }), '');
+  assert.equal(W.shownStatusMessage({ status_message: ` ${I.IMPLEMENT_RUN_STARTED_MESSAGE} ` }), I.IMPLEMENT_RUN_STARTED_MESSAGE);
+  assert.equal(W.shownStatusMessage({ status_message: 'Genie stopped the build: see https://x/y for the run' }), 'Genie stopped the build: see https://x/y for the run');
+  const started = I.implementRunStartedStatement('t', { sessionId: 1, useCaseId: 'N01-U01', specVersion: 1, runId: '5', message: I.IMPLEMENT_RUN_STARTED_MESSAGE });
+  assert.equal(started.parameters[1].value, 'Inspire started building this version.');
+  const routes = require('node:fs').readFileSync(path.resolve(__dirname, '..', 'implementRoutes.js'), 'utf8');
+  assert.match(routes, /implementRunStartedStatement\(table, \{ \.\.\.version, runId: out\.run_id, message: I\.IMPLEMENT_RUN_STARTED_MESSAGE \}\)/);
+  assert.doesNotMatch(routes, /message: out\.job_run_url/);
+});
