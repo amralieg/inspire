@@ -293,9 +293,16 @@ test('a kinds demo plan takes Accept, Override with a reason, refuses an Overrid
     const line = (key) => plan().locator(`tr[data-plan-row="${key}"]`);
     const takeAll = () => plan().locator('[data-take-all]');
     assert.equal((await takeAll().innerText()).trim(), `Take all ${keys.length} ★ suggestions`);
+    const counter = () => frame.locator('[data-todo-count]');
+    const total = Number((await counter().innerText()).match(/of (\d+) waiting/)[1]);
+    assert.equal(total, keys.length, 'the counter counts the plan lines');
+    const waits = (n) => until(async () => (await counter().innerText()).trim() === `${n} of ${total} waiting for you`, `${n} of ${total} waiting`);
+    await waits(total);
 
     await line(keys[0]).getByRole('button', { name: 'Accept', exact: true }).click();
     await line(keys[0]).locator('[data-decided]').filter({ hasText: /^Accepted the recommended / }).waitFor();
+    assert.equal((await line(keys[0]).locator('td').nth(3).innerText()).trim(), 'Done', 'the accepted line no longer says New');
+    await waits(total - 1);
 
     await line(keys[1]).getByRole('button', { name: 'Override', exact: true }).click();
     const form = plan().locator('tr.plan-form form');
@@ -310,11 +317,13 @@ test('a kinds demo plan takes Accept, Override with a reason, refuses an Overrid
     await save.click();
     await line(keys[1]).locator('[data-decided]').filter({ hasText: /^Override to 7 instead of .+: Store event this week$/ }).waitFor();
     assert.deepEqual([decided[1].decision, decided[1].value, decided[1].reason], ['override', 7, 'Store event this week']);
+    await waits(total - 2);
 
     assert.equal((await takeAll().innerText()).trim(), keys.length - 2 === 1 ? 'Take the ★ suggestion' : `Take all ${keys.length - 2} ★ suggestions`);
     await takeAll().click();
     await until(async () => (await plan().locator('[data-decided]').count()) === keys.length, 'every line is decided');
     assert.equal(await takeAll().count(), 0);
+    await waits(total - keys.length);
     assert.deepEqual(decided.map((d) => d.record_key).sort(), [...keys].sort(), 'Take all accepted only the lines still open, each once');
 
     await page.reload();
@@ -326,6 +335,7 @@ test('a kinds demo plan takes Accept, Override with a reason, refuses an Overrid
     assert.match((await line(keys[1]).locator('[data-decided]').innerText()).trim(), /^Override to 7 instead of .+: Store event this week$/);
     assert.match((await line(keys[0]).locator('[data-decided]').innerText()).trim(), /^Accepted the recommended /);
     assert.equal(await takeAll().count(), 0, 'after a refresh Take all offers no line already decided');
+    await waits(total - keys.length);
     assert.equal(decided.length, keys.length, 'the refresh decided nothing again');
     assert.deepEqual(ui.missing, []);
     assert.deepEqual(ui.outside, []);

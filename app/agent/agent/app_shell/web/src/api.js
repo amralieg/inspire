@@ -1,3 +1,4 @@
+import { CLOSED_STATUSES } from './records.js';
 export const DEMO_NOTE = 'This is a demo, so it is read-only: nothing you do here changes any data.';
 export const toneOf = (err) => (err?.calm ? 'info' : 'error');
 export const failureOf = (err, text) => ({ text: text ?? (err?.message || ''), calm: !!err?.calm });
@@ -54,12 +55,18 @@ function rememberDemo(page, key, row) {
   if (!store) return;
   try { store.setItem(demoKey(page), JSON.stringify({ ...demoDecided(page), [key]: row })); } catch { return; }
 }
-export const withDemoDecisions = (page, list) => {
+const filtered = (filters) => Object.values(filters || {}).some((v) => (Array.isArray(v) ? v.length > 0
+  : v && typeof v === 'object' ? Object.values(v).some((x) => x != null && x !== '') : v != null && v !== ''));
+export const withDemoDecisions = (page, list, filters = {}) => {
   const decided = demoDecided(page);
-  if (!list || !Array.isArray(list.rows) || !Object.keys(decided).length) return list;
-  return { ...list, rows: list.rows.map((r) => (decided[String(r.record_key)] ? { ...r, ...decided[String(r.record_key)] } : r)) };
+  const keys = Object.keys(decided);
+  if (!list || !Array.isArray(list.rows) || !keys.length) return list;
+  const listed = new Map(list.rows.map((r) => [String(r.record_key), r]));
+  const moved = keys.filter((k) => (listed.has(k) ? !CLOSED_STATUSES.includes(listed.get(k)._inspire_status) : !filtered(filters))).length;
+  const summary = list.summary && moved ? { ...list.summary, open: Math.max(0, (list.summary.open ?? 0) - moved), done: (list.summary.done ?? 0) + moved } : list.summary;
+  return { ...list, ...(summary ? { summary } : {}), rows: list.rows.map((r) => (decided[String(r.record_key)] ? { ...r, ...decided[String(r.record_key)] } : r)) };
 };
-export const getRecords = async (body) => withDemoDecisions(body?.page, await json('POST', 'records', body));
+export const getRecords = async (body) => withDemoDecisions(body?.page, await json('POST', 'records', body), body?.filters);
 export const actRecords = (body) => json('POST', 'records/act', body);
 export const decidePlan = async (body) => {
   const got = await json('POST', 'plan/decide', body);

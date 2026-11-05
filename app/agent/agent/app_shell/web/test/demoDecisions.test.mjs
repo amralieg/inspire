@@ -19,7 +19,8 @@ globalThis.fetch = async (url, init) => {
 const { decidePlan, demoDecided, getRecords } = await import('../src/api.js');
 
 const ROWS = [{ record_key: 'A', _inspire_version: '1' }, { record_key: 'B', _inspire_version: '1' }, { record_key: 'C', _inspire_version: '1' }];
-const listed = () => { answer = () => ({ rows: ROWS.map((r) => ({ ...r })), actions: true }); return getRecords({ page: 'plan', filters: {} }); };
+const SUMMARY = { open: 5, done: 0, resolved: 0, left: 0, owners: [] };
+const listed = (filters = {}, rows = ROWS) => { answer = () => ({ rows: rows.map((r) => ({ ...r })), total: 5, summary: { ...SUMMARY }, actions: true }); return getRecords({ page: 'plan', filters }); };
 const decide = (key, row) => { answer = () => ({ showcase: true, saved: false, note: 'demo', row }); return decidePlan({ page: 'plan', record_key: key, decision: 'accept', recommended: 1 }); };
 
 test('a demo plan decision is kept in this browser session per page and shows on every later read of the list, so a decided line is not offered again', async () => {
@@ -30,6 +31,10 @@ test('a demo plan decision is kept in this browser session per page and shows on
   assert.deepEqual(after.map((r) => r._inspire_status), ['Done', undefined, 'Done']);
   assert.equal(after[2]._inspire_closed_note, 'Override to 4 instead of 1: event week');
   assert.deepEqual(Object.keys(demoDecided('plan')).sort(), ['A', 'C']);
+  assert.deepEqual([(await listed()).summary.open, (await listed()).summary.done], [3, 2], 'the waiting counter counts the decided lines as done');
+  assert.deepEqual([(await listed({}, ROWS.slice(1, 2))).summary.open], [3], 'a line decided outside the shown window still leaves the whole list');
+  assert.deepEqual([(await listed({ category: ['X'] }, ROWS.slice(1, 2))).summary.open], [5], 'a filtered list counts only the decided lines it shows (must-exclude)');
+  assert.deepEqual([(await listed({ category: [] }, ROWS.slice(1, 2))).summary.open], [3], 'an empty filter is no filter');
   assert.deepEqual(demoDecided('other'), {}, 'another page keeps its own decisions');
   assert.deepEqual([...stores.keys()], ['inspire-demo-decisions:/showcase/kinds-retail/mvp/plan/:plan'], 'the store is keyed by the hosted MVP and the page');
 });
