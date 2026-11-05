@@ -64,6 +64,15 @@ export function runsOfCard(key, sessions, portfolio) {
   return keep ? (Array.isArray(sessions) ? sessions : []).filter((session) => keep(session, portfolio)) : [];
 }
 
+export function runMvpText(session, portfolio) {
+  const built = figureOf(portfolio, session, 'mvps_live');
+  const started = Math.max(figureOf(portfolio, session, 'mvps_started'), built);
+  if (!started) return '';
+  const more = started - built;
+  if (!built) return `${counted(more, { one: 'MVP', many: 'MVPs' })} started`;
+  return `${counted(built, { one: 'MVP', many: 'MVPs' })} built${more ? `, ${more.toLocaleString('en-US')} more started` : ''}`;
+}
+
 export function buildRunsOfCard(key, sessions, portfolio) {
   if (portfolioCard(key)?.opens !== 'build') return [];
   return (Array.isArray(sessions) ? sessions : [])

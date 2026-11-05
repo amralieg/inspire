@@ -6,9 +6,9 @@ import { SkeletonCard } from '../components/SkeletonLoader';
 import LatestRunBadge from '../components/LatestRunBadge';
 import PortfolioCards, { usePortfolio } from '../components/PortfolioCards';
 import { makeApiFetch, requestHeaders } from '../lib/apiClient';
-import { buildFilterOf, portfolioCard, runBusiness, runFilterText, runsOfCard } from '../lib/reviewFigures';
-import { SHOWCASE_BUTTON } from '../lib/showcase';
+import { buildFilterOf, portfolioCard, runBusiness, runFilterText, runMvpText, runsOfCard } from '../lib/reviewFigures';
 import { sessionStatus, sessionSucceeded } from '../lib/monitorState';
+import { SHOWCASE_BUTTON } from '../lib/showcase';
 import { computeHighPriorityCount, nameOfUseCase, qualityBarCountsOf, useCaseCountsText } from '../lib/useCaseFields';
 
 const STATUS_CONFIG = {
@@ -375,6 +375,7 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
               const listOverview = getListRowOverview(session);
               const panelSummary = legacySummary || buildSummaryFromUclist(quickViewUcsBySession[sidStr]);
               const canQuickView = !!(legacySummary || listOverview?.total > 0);
+              const mvpText = runMvpText(session, portfolio);
 
               // Build a short text description from domain names and catalog
               const description = (() => {
@@ -451,6 +452,9 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
                         <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${cfg.bg} ${cfg.text}`}>
                           {cfg.label}
                         </span>
+                        {mvpText && (
+                          <span data-run-mvps="" className="text-[10px] px-1.5 py-0.5 rounded font-medium bg-db-red-50 text-db-red-fg">{mvpText}</span>
+                        )}
                       </div>
                       {listOverview && (
                         <>

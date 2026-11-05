@@ -344,3 +344,29 @@ test('Start offers three unmistakable ways in: your own data, sample data Inspir
     await ui.close();
   }
 });
+
+test('each Start run row says how many MVPs were built for that run, from the same portfolio read, and a run with none says nothing', async () => {
+  const state = {
+    ...REVIEW_STATE,
+    portfolioMvps: [
+      { sid: null, is_total: '1', mvps_started: '5', mvps_live: '3', apps: '1', dashboards: '2', genie_spaces: '2', alerts: '1' },
+      { sid: '42', is_total: '0', mvps_started: '3', mvps_live: '2', apps: '1', dashboards: '1', genie_spaces: '1', alerts: '1' },
+      { sid: '41', is_total: '0', mvps_started: '1', mvps_live: '1', apps: '0', dashboards: '1', genie_spaces: '1', alerts: '0' },
+      { sid: '50', is_total: '0', mvps_started: '0', mvps_live: '0', apps: '0', dashboards: '0', genie_spaces: '0', alerts: '0' },
+    ],
+  };
+  const ui = await openStart(state);
+  const { page } = ui;
+  try {
+    const mvps = (sid) => page.locator(`[data-run="${sid}"] [data-run-mvps]`);
+    await mvps('42').waitFor({ timeout: 20000 });
+    assert.equal((await mvps('42').innerText()).trim(), '2 MVPs built, 1 more started');
+    assert.equal((await mvps('41').innerText()).trim(), '1 MVP built');
+    assert.equal(await mvps('50').count(), 0, 'a run with no MVP shows no count (must-exclude)');
+    const all = await page.locator('[data-run]').evaluateAll((els) => els.map((el) => [el.getAttribute('data-run'), Boolean(el.querySelector('[data-run-mvps]'))]));
+    assert.deepEqual(all.filter(([, shown]) => shown).map(([sid]) => sid), ['42', '41']);
+    assert.deepEqual(ui.pageErrors, []);
+  } finally {
+    await ui.close();
+  }
+});

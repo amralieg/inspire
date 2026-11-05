@@ -134,3 +134,17 @@ test('the totals live on Start alone: Review renders no portfolio cards and Star
   assert.match(read('pages/ChoosePage.jsx'), /all: '1'/);
   assert.doesNotMatch(read('pages/ResultsPage.jsx'), /all: '1'/, 'Review keeps its short run list');
 });
+
+test('each Start run row counts the MVPs of that run from the same portfolio figures, and says nothing for a run with none', async () => {
+  const { runMvpText } = await lib('reviewFigures.js');
+  assert.equal(runMvpText(SESSIONS[0], PORTFOLIO), '1 MVP built, 1 more started');
+  assert.equal(runMvpText(SESSIONS[1], PORTFOLIO), '1 MVP started');
+  assert.equal(runMvpText(SESSIONS[2], PORTFOLIO), '', 'a run with no MVP shows no count');
+  assert.equal(runMvpText(SESSIONS[3], PORTFOLIO), '', 'a run the portfolio does not list shows no count');
+  assert.equal(runMvpText(SESSIONS[0], null), '', 'no count before the portfolio loads');
+  const many = { sessions: { 42: { mvps_started: 1500, mvps_live: 1200 } } };
+  assert.equal(runMvpText(SESSIONS[0], many), '1,200 MVPs built, 300 more started');
+  assert.equal(runMvpText(SESSIONS[0], { sessions: { 42: { mvps_started: 2, mvps_live: 2 } } }), '2 MVPs built');
+  assert.equal(runMvpText(SESSIONS[0], { sessions: { 42: { mvps_started: 0, mvps_live: 3 } } }), '3 MVPs built', 'a live MVP always counts as started');
+  assert.equal(runMvpText(SESSIONS[0], { sessions: { 42: { mvps_started: 'x', mvps_live: null } } }), '');
+});
