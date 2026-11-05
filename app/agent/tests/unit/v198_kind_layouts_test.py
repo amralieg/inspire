@@ -591,6 +591,16 @@ def test_the_page_takes_its_layout_and_only_a_deciding_layout_needs_the_decision
     assert agent_ns["implement_app_page"](copy.deepcopy(PAGE), "N01-U01", {})["layout"] == PAGE.get("layout")
 
 
+def test_a_deciding_layout_that_drops_its_whole_decision_list_is_sent_back_and_an_informational_one_is_not(agent_ns, tmp_path):
+    shell_sql = _modules(agent_ns, tmp_path)[1]["shell_sql"]
+    for layout in ("decision_queue", "planner", "scenario_lab"):
+        page = {"layout": layout, "datasets": [{"name": "trend", "sql": "SELECT 1"}]}
+        assert agent_ns["implement_page_decision_problems"](page, shell_sql), layout
+    for layout in ("dashboard", "agent_chat"):
+        page = {"layout": layout, "datasets": [{"name": "trend", "sql": "SELECT 1"}]}
+        assert agent_ns["implement_page_decision_problems"](page, shell_sql) == [], layout
+
+
 def test_the_layout_brief_names_its_sections_minimums_and_companion_tables_and_drops_the_list_only_for_a_layout_without_one(agent_ns, tmp_path):
     shell_sql = _modules(agent_ns, tmp_path)[1]["shell_sql"]
     brief = agent_ns["implement_layout_brief"]

@@ -45,14 +45,15 @@ CONTRACTS = {
     "monitor": {"__signal": ["series", "period", "value", "expected", "lower", "upper", "is_anomaly", "rule"]},
     "decision_queue": {"__score_bins": ["bin", "count", "cutoff"], "__lift": ["decile", "captured_share", "cost_at_cutoff"]},
 }
-INFORMATIONAL = {2: "performance_explainer", 4: "forecast_cockpit", 33: "process_flow", 37: "location_view", 39: "performance_explainer"}
+INFORMATIONAL = {2: "performance_explainer", 4: "forecast_cockpit", 33: "process_flow", 37: "location_view", 39: "performance_explainer",
+                 40: None}
 PLAN_LAYOUT = {1: "performance_explainer", 3: "performance_explainer", 5: "forecast_cockpit", 6: "decision_queue", 7: "decision_queue",
                8: "recommendation_desk", 9: "planner", 10: "planner", 11: "planner", 12: "planner", 13: "location_view", 14: "decision_queue",
                15: "planner", 16: "scenario_lab", 17: "scenario_lab", 18: "forecast_cockpit", 19: "lift_readout", 20: "lift_readout",
                21: "lift_readout", 22: "decision_queue", 23: "monitor_triage", 24: "monitor_triage", 25: "monitor_triage",
                26: "monitor_triage", 27: "network_explorer", 28: "segment_explorer", 29: "segment_explorer", 30: "segment_explorer",
                31: "recommendation_desk", 32: "network_explorer", 34: "process_flow", 35: "monitor_triage", 36: "decision_queue",
-               38: "network_explorer", 40: "agent_chat"}
+               38: "network_explorer"}
 NEW_TECHNIQUES = ["Decomposition", "Peer Benchmarking", "Process Mining", "Sequence Analysis", "Causal Impact", "Uplift Modeling",
                   "Marketing Mix Modeling", "Threshold Optimization", "Queueing", "Controls Testing", "Statistical Process Control",
                   "Entity Matching", "Lifetime Value", "Data Agent"]
@@ -112,7 +113,8 @@ def registry_problems(doc: dict) -> list:
             continue
         decision = kind.get("decision_layout")
         if kind.get("informational"):
-            if kind["layout"] != "dashboard" or decision not in layouts or decision == "dashboard":
+            own = decision is None and kind["layout"] != "dashboard" and layouts[kind["layout"]].get("informational") is True
+            if not own and (kind["layout"] != "dashboard" or decision not in layouts or decision == "dashboard"):
                 out.append(f"{name}: an informational kind is served as a dashboard with a decision layout")
         elif decision is not None or kind["layout"] == "dashboard":
             out.append(f"{name}: a decision kind has its own decision layout and no alternative")
