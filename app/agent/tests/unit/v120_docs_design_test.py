@@ -249,7 +249,8 @@ def test_every_document_label_exists_in_all_23_languages_with_its_placeholders(d
         for key in keys:
             assert set(placeholder.findall(fallbacks[key])) == set(placeholder.findall(ts.ENGLISH_TRANSLATIONS[key])), (language, key)
     for language in ("Arabic", "Japanese", "Korean", "Hindi", "Tamil", "Chinese (Mandarin)", "Russian", "Ukrainian"):
-        same = [k for k in keys if k.startswith("doc_") and ts.TRANSLATION_FALLBACKS[language][k] == ts.ENGLISH_TRANSLATIONS[k]]
+        same = [k for k in keys if k.startswith("doc_") and re.search(r"[A-Za-z]", placeholder.sub("", ts.ENGLISH_TRANSLATIONS[k]))
+                and ts.TRANSLATION_FALLBACKS[language][k] == ts.ENGLISH_TRANSLATIONS[k]]
         assert not same, (language, same)
 
 
@@ -600,7 +601,7 @@ def test_deck_index_pages_share_the_rows_evenly(docs, count, rows):
     assert [len(set(re.findall(r"N01-U\d\d", text))) for text in index_slides] == rows
 
 
-COUNTED_LABELS = {"doc_domain_fallback": ("count",), "doc_data_access_deep": ("tables",), "doc_index_lead": ("count",),
+COUNTED_LABELS = {"doc_domain_fallback": ("count",), "doc_data_access_read": ("tables",), "doc_index_lead": ("count",),
                   "doc_deck_scope": ("count", "total"), "doc_deck_scope_all": ("total",)}
 NUMBER_DEPENDENT_WORDS = {
     "English": ("use case", "table"), "Arabic": ("حالات", "حالة", "جداول", "جدول"), "Spanish": ("casos", "tablas", "mejores"),
@@ -625,8 +626,8 @@ def test_a_counted_label_never_puts_its_number_before_a_word_whose_form_depends_
     obj = make_inspire(docs)
     one = obj._doc_text({}, "doc_domain_fallback", "English", count=1, subdomains="Pricing")
     assert one.startswith("This domain brings together use cases across Pricing, 1 in total.") and "1 use cases" not in one
-    assert obj._doc_text({}, "doc_data_access_deep", "English", tables=1).startswith(
-        "Deep discovery: Inspire read aggregates from the tables in scope, 1 in total (row counts")
+    assert obj._doc_text({}, "doc_data_access_read", "English", tables=1).startswith(
+        "Inspire read aggregates from the tables in scope, 1 in total (row counts")
     assert obj._doc_text({}, "doc_index_lead", "English", count=1) == "All use cases in final rank order, 1 in total."
     assert obj._doc_text({}, "doc_deck_scope", "Russian", count=22, total=95) == (
         "В этой презентации подробно описаны сценарии использования с наивысшим рейтингом (22 из 95). В PDF-каталоге описаны все.")

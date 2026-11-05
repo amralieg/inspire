@@ -241,7 +241,7 @@ def test_markdown_order_elite_score_and_coverage_label_without_the_elite_panel(r
     assert "- **Elite Score:** 9.9 / 10\n" in md
     for text in REMOVED_ELITE_PANEL_TEXT:
         assert text not in md, text
-    standard = ranked["TranslationService"].ENGLISH_TRANSLATIONS["doc_data_access_standard"]
+    standard = ranked["TranslationService"].ENGLISH_TRANSLATIONS["doc_data_access_none"]
     assert md.rstrip().endswith("*") and "## Disclaimer" in md and standard in md and "read no customer data" in standard
 
 

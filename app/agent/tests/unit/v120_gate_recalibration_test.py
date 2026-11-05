@@ -137,7 +137,7 @@ def U(no, name, tech, tables, solution, bv="", hld="", statement=None, **extra):
         "No": no, "Name": name, "usecase": name, "type": "Problem", "Analytics Technique": tech,
         "Statement": statement or f"{name}: the team cannot see which records drive the outcome today and acts late.",
         "Solution": solution,
-        "Business Value": bv or "Gives the owning team an earlier, evidence-based decision on where to act.",
+        "Business Value": bv or "Gives the owning team an earlier decision on where to act, measured as a lower share of missed weekly targets.",
         "Beneficiary": "Head of Operations", "Sponsor": "Chief Operating Officer",
         "Tables Involved": tables, "High Level Design": hld,
         "Business Domain": "Sales", "Subdomain": "Demand Planning",
