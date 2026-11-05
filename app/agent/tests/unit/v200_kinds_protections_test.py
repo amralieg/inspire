@@ -230,7 +230,8 @@ def test_q5_drops_a_use_case_of_an_excluded_kind_and_keeps_the_rest(ns):
     parsed = {"use_case_kinds": {"asked": [], "excluded": ["Process mining"]}}
     inst = _inst(ns, parsed=parsed)
     base = {"Statement": "Late orders cost margin.", "Solution": "Score each order with a classification model.",
-            "High Level Design": "Train a classification model on orders.", "Beneficiary": "Fulfilment manager"}
+            "High Level Design": "Train a classification model on orders.", "Beneficiary": "Fulfilment manager",
+            "Business Value": "Reduces the late delivery rate."}
     keep = dict(base, No="K1", Name="Predict Late Orders to Expedite Shipments", **{"Use Case Kind": "risk_propensity",
                                                                                    "Analytics Technique": "Classification"})
     drop = dict(base, No="X1", Name="Predict Late Orders to Expedite Shipments", **{"Use Case Kind": "process_mining",
@@ -327,7 +328,8 @@ def test_kind_coverage_warns_when_floor_picks_sit_far_below_the_portfolio(ns):
 
 def _q5_uc(no, name, statement, solution, design, owner="Collections lead", kind="risk_propensity", **extra):
     uc = {"No": no, "Name": name, "Statement": statement, "Solution": solution, "High Level Design": design,
-          "Beneficiary": owner, "Sponsor": "", "Use Case Kind": kind, "Analytics Technique": TECHNIQUE_OF[kind]}
+          "Beneficiary": owner, "Sponsor": "", "Use Case Kind": kind, "Analytics Technique": TECHNIQUE_OF[kind],
+          "Business Value": "Reduces the late delivery rate."}
     uc.update(extra)
     return uc
 

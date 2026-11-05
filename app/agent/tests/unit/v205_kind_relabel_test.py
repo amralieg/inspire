@@ -132,16 +132,12 @@ def test_an_asked_kind_is_not_relabelled_even_when_its_design_names_another_tech
     assert "Q5_D5_KIND_TECHNIQUE_MISMATCH:inventory_replenishment" in stockout["gate_flags"]
 
 
-def test_standard_discovery_never_reads_a_row_count(ns):
-    with pytest.raises(ns["StandardModeDataReadError"]):
-        ns["DeepEvidence"](None, "Standard", make_inspire(ns).logger)
-    deep = ns["DeepEvidence"].__new__(ns["DeepEvidence"])
-    deep.discovery_type = "Standard"
-    with pytest.raises(ns["StandardModeDataReadError"]):
-        deep.measure_kpi({"name": "Units on hand", "table": "samples.tpcds_sf1.inventory", "aggregation": "SUM",
-                          "column": "inv_quantity_on_hand"})
-    inst = _inst(ns)
-    inst.deep_evidence = None
+def test_standard_discovery_reads_aggregates_but_never_stores_a_kpi_baseline(ns):
+    assert "StandardModeDataReadError" not in ns
+    deep = ns["DeepEvidence"](None, "Standard", make_inspire(ns).logger)
+    assert deep.discovery_type == "Standard Discovery" and deep.summary()["aggregates_sent_to_ai"] is False
+    inst = _inst(ns, discovery_type="Standard Discovery")
+    inst.deep_evidence = deep
     ucs = [{"KPIs": [{"name": "Units on hand", "computable": True, "query": "SELECT 1"}]}]
     assert inst._measure_kpi_baselines(ucs) == {"computable": 1, "measured": 0, "unmeasured": 0, "skipped": 0}
     assert "baseline" not in ucs[0]["KPIs"][0] and not _messages(inst, "no rows")
@@ -235,7 +231,7 @@ def test_a_kpi_on_a_table_with_no_rows_is_not_measured(ns):
 
 def test_baselines_on_empty_tables_stay_unmeasured_and_are_logged_once(ns):
     import types
-    inst = _inst(ns)
+    inst = _inst(ns, discovery_type="AI Enhanced Discovery")
 
     def measure(spec):
         if spec["query"] != "SELECT 3":

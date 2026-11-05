@@ -53,17 +53,23 @@ def test_the_deep_evidence_reads_move_the_percent_while_they_run(agent_ns, tmp_p
     assert writer.progress_plan.fraction("tables") < 1.0, "the step that runs the reads is still open"
 
 
-def test_standard_discovery_declares_no_evidence_reads(agent_ns, tmp_path, monkeypatch):
-    writer = _writer(agent_ns, _ViewSpark(), tmp_path, monkeypatch, operation="Discover Use Cases")
+def _declared_evidence_units(agent_ns, tmp_path, monkeypatch, mode):
+    writer = _writer(agent_ns, _ViewSpark(), tmp_path / mode.replace(" ", "_"), monkeypatch, operation="Discover Use Cases")
     try:
         _plan(writer)
         units = writer.progress_plan.phases["tables"][0]
-        inst = make_inspire(agent_ns, spark=FakeSpark(responder=lambda _s: []), discovery_type="Standard",
+        inst = make_inspire(agent_ns, spark=FakeSpark(responder=lambda _s: []), discovery_type=mode,
                             data_loader=_loader(), atomic_writer=writer)
         inst._collect_discovery_evidence(_details(9))
-        assert writer.progress_plan.phases["tables"][0] == units
+        return units, writer.progress_plan.phases["tables"][0]
     finally:
         _stop(writer)
+
+
+def test_both_discovery_modes_declare_the_evidence_reads_and_only_ai_enhanced_the_query_history(agent_ns, tmp_path, monkeypatch):
+    before, standard = _declared_evidence_units(agent_ns, tmp_path, monkeypatch, "Standard Discovery")
+    _before, enhanced = _declared_evidence_units(agent_ns, tmp_path, monkeypatch, "AI Enhanced Discovery")
+    assert standard > before and enhanced == standard + 1
 
 
 def _ready_writer(agent_ns, spark, tmp_path, monkeypatch):

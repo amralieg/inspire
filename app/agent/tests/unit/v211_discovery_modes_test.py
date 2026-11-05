@@ -105,6 +105,32 @@ def test_both_modes_read_the_outcome_history_and_drop_the_11_outcome_use_case(ag
     assert "(11)" not in str(agent.calls[0]["vars"])
 
 
+FEW_PAIRS = {"baskets": 300, "interactions": 743, "items": 150, "multi_item_baskets": 200, "supported_pairs": 30, "pair_lift": 1.9}
+MANY_PAIRS = {"baskets": 2000, "interactions": 9000, "items": 300, "multi_item_baskets": 1800, "supported_pairs": 40, "pair_lift": 1.9}
+
+
+def basket_rows(*rows):
+    pending = list(rows)
+
+    def respond(statement):
+        if "AS pair_lift" in statement:
+            return [pending.pop(0)]
+        raise AssertionError(f"unexpected statement: {statement}")
+    return respond
+
+
+@pytest.mark.parametrize("mode", ["Standard", "Standard Discovery", "Deep", "AI Enhanced Discovery"])
+def test_both_modes_drop_the_743_of_1000_interactions_use_case_at_discovery(agent_ns, mode):
+    ucs = [uc("N01-U01", "Recommendation"), uc("N01-U02", "Recommendation")]
+    answers = [{"results": [answer(i, {"basket": "ticket_number", "item": "item_sk"}) for i in ("N01-U01", "N01-U02")]}]
+    inst, agent, _spark = inspire(agent_ns, mode, answers, basket_rows(FEW_PAIRS, MANY_PAIRS))
+    kept, dropped = inst._check_data_signal(ucs, [])
+    assert [u["No"] for u in kept] == ["N01-U02"] and [u["No"] for u in dropped] == ["N01-U01"]
+    assert dropped[0]["selection_drop_reason"] == ("the data shows no signal: There are too few past interactions (743); at least "
+                                                   "1000 are needed to learn preferences.")
+    assert "743" not in str(agent.calls[0]["vars"])
+
+
 def test_standard_keeps_a_must_have_use_case_short_of_the_minimum_with_its_reason(agent_ns):
     ucs = [churn("N01-U01", user_request="R1"), churn("N01-U02")]
     inst, _agent, _spark = inspire(agent_ns, "Standard Discovery", [roles("N01-U01", "N01-U02")], outcome_rows(FEW, FEW))
@@ -173,17 +199,70 @@ def test_the_evidence_block_carries_profiles_only_in_ai_enhanced(agent_ns, mode,
         assert (measured in block + " ".join(joins)) is shared, measured
     assert "metric view `main.s.mv`" in block
     context = inst._alignment_context({})
-    assert bool(context["profiles"]) is shared
+    assert context["profiles"] == PROFILE, "the KPI checks read the profiles in both modes; only the prompt is gated"
 
 
-def test_standard_never_measures_kpi_baselines_or_drops_on_their_share(agent_ns):
+def test_standard_never_stores_kpi_baselines(agent_ns):
     inst, _agent, spark = inspire(agent_ns, "Standard Discovery", responder=lambda s: [{"v": 1.0}])
     inst.deep_evidence = agent_ns["DeepEvidence"](spark, "Standard Discovery", MagicMock())
     spec = {"computable": True, "query": "SELECT SUM(x) AS v FROM t", "name": "revenue"}
     stats = inst._measure_kpi_baselines([{"KPIs": [spec]}])
     assert stats["measured"] == 0 and spark.statements == [] and "baseline" not in spec
-    ucs = [{"No": "N01-U01", "KPIs": [spec]}]
+
+
+class _Stakes:
+    max_kpi_baselines = 10
+
+    def __init__(self, in_scope, total=1000.0):
+        self.in_scope, self.total, self.calls = in_scope, total, []
+
+    def measure_kpi(self, spec):
+        self.calls.append(dict(spec))
+        return self.in_scope[spec["filter_value"]] if spec.get("filter_value") else self.total
+
+
+def _stake(no, region, **extra):
+    return {"No": no, "Name": f"Grow {region} revenue", "Business Domain": "Sales", "bob_score": 7.0,
+            "KPIs": [dict({"name": "Revenue", "table": "main.ops.orders", "aggregation": "SUM", "column": "amount",
+                           "computable": True, "query": f"q{no}", "filter_column": "region", "filter_value": region}, **extra)]}
+
+
+def _stake_inspire(agent_ns, mode, deep):
+    inst = make_inspire(agent_ns, parsed_generation_instructions={}, user_business_domains=[], detected_kinds=[],
+                        deep_evidence=deep, discovery_type=mode)
+    inst._kind_floor_reasons = {}
+    inst.logger = MagicMock()
+    return inst
+
+
+def test_standard_drops_a_use_case_the_data_shows_too_small_without_storing_or_sending_its_value(agent_ns):
+    deep = _Stakes({"West": 5.0, "East": 500.0})
+    inst = _stake_inspire(agent_ns, "Standard Discovery", deep)
+    tiny, big = _stake("N01-U01", "West"), _stake("N01-U02", "East")
+    kept = inst._drop_low_stake_use_cases([tiny, big])
+    assert [u["No"] for u in kept] == ["N01-U02"]
+    assert tiny["selection_drop_reason"].startswith("the value in scope is 0.50% of the business total")
+    assert all("baseline" not in u["KPIs"][0] for u in (tiny, big))
+    agent, sent = gated_agent(agent_ns, inst._ai_gate(), ["ok"])
+    agent._call_ai_query(f"Explain: {tiny['selection_drop_reason']}", "TRANSLATE_TEST")
+    assert "0.50%" not in sent[0] and "\u27e6M1\u27e7" in sent[0]
+
+
+def test_standard_keeps_every_use_case_whose_share_clears_the_floor_or_cannot_be_measured(agent_ns):
+    deep = _Stakes({"West": 50.0, "East": 500.0})
+    inst = _stake_inspire(agent_ns, "Standard Discovery", deep)
+    ucs = [_stake("N01-U01", "West"), _stake("N01-U02", "East"), _stake("N01-U03", "North", computable=False)]
     assert inst._drop_low_stake_use_cases(ucs) == ucs
+    assert not any(call.get("filter_value") == "North" for call in deep.calls)
+
+
+def test_standard_measures_at_most_the_kpi_baseline_cap_for_the_value_gate(agent_ns):
+    deep = _Stakes({"West": 5.0, "East": 5.0})
+    deep.max_kpi_baselines = 1
+    inst = _stake_inspire(agent_ns, "Standard Discovery", deep)
+    kept = inst._drop_low_stake_use_cases([_stake("N01-U01", "West"), _stake("N01-U02", "East"), _stake("N01-U03", "West")])
+    assert [u["No"] for u in kept] == ["N01-U02", "N01-U03"]
+    assert len([call for call in deep.calls if call.get("filter_value")]) == 1
 
 
 def test_the_disclaimer_names_each_mode_and_what_the_ai_saw(agent_ns):
@@ -234,11 +313,26 @@ def test_a_fresh_widget_defaults_to_standard_discovery(agent_ns, monkeypatch):
     assert widgets.state["03_discovery_type"]["value"] == "Standard Discovery"
 
 
-def test_a_build_short_of_the_minimum_sends_the_measured_numbers_to_genie_first(agent_ns):
-    discovered = churn(data_signal={"status": "failed", "check": "outcome", "family": "A", "reason": FEW_TEXT,
-                                    "measures": {"row_count": 1000, "positives": 11, "class_rate": 0.011},
-                                    "columns": {"outcome": "is_return", "signals": ["net_profit"]}})
-    inst, agent, spark = inspire(agent_ns, "Standard Discovery")
+SPEC_A = {"family": "A", "check": "outcome", "table": SALES, "roles": {"outcome": "is_return", "signals": ["net_profit"]},
+          "outcome_kind": "boolean"}
+CHOICES = ("Your choices: lower Minimum positive outcomes in the build settings so Genie builds a simpler method, Rebuild once the "
+           "data has at least 200 past examples of the outcome, or build another use case the data supports.")
+
+
+def stored(status="failed", positives=11, reason=FEW_TEXT, spec=SPEC_A):
+    record = {"status": status, "check": "outcome", "family": "A", "reason": reason, "table": SALES,
+              "measures": {"row_count": 1000, "positives": positives, "class_rate": positives / 1000},
+              "columns": {"outcome": "is_return", "signals": ["net_profit"]}}
+    return dict(record, spec=dict(spec)) if spec else record
+
+
+def count_statements(spark):
+    return [s for s in spark.statements if "AS outcome_values" in s]
+
+
+def test_a_build_short_of_the_minimum_counts_again_and_sends_the_measured_numbers_to_genie_first(agent_ns):
+    discovered = churn(data_signal=stored())
+    inst, agent, spark = inspire(agent_ns, "Standard Discovery", responder=outcome_rows(FEW))
     status = {}
     inst._implement_data_minimum(KEY, {}, discovered, status)
     short = discovered["_implement_measured_short"]
@@ -246,30 +340,94 @@ def test_a_build_short_of_the_minimum_sends_the_measured_numbers_to_genie_first(
                                         "the outcome (11); at least 200")
     assert "never one the measured 11 past examples of the outcome cannot meet" in short["feedback"]
     assert short["short"]["observed"] == "11" and short["repaired"]
-    assert status["data"]["state"] == "short" and spark.statements == [] and agent.calls == []
+    assert status["data"]["state"] == "short" and len(count_statements(spark)) == 1 and agent.calls == []
     told = inst._implement_emit.call_args.args
     assert told[1] == "Data minimum" and told[3] == "ended_warning"
     assert told[2].startswith(f"Inspire counted the data before Genie started: {FEW_TEXT} Genie builds with a method that is valid "
                               "at 11 past examples of the outcome instead of stopping")
 
 
-def test_a_build_without_a_genie_round_is_still_refused_when_short(agent_ns):
-    discovered = churn(data_signal={"status": "failed", "check": "outcome", "family": "A", "reason": FEW_TEXT})
-    inst, _agent, _spark = inspire(agent_ns, "Standard Discovery")
+def test_a_use_case_that_passed_discovery_is_caught_at_build_when_the_data_no_longer_meets_the_minimum(agent_ns):
+    ucs = [churn("N01-U01")]
+    inst, _agent, _spark = inspire(agent_ns, "Standard Discovery", [roles("N01-U01")], outcome_rows(MANY))
+    kept, _dropped = inst._check_data_signal(ucs, [])
+    assert kept and ucs[0]["data_signal"]["status"] == "passed"
+    from_db = {k: v for k, v in json.loads(json.dumps(ucs[0])).items() if k != "data_signal"}
+    assert from_db["Data Evidence"]["signal"]["spec"]["roles"] == SPEC_A["roles"]
+    builder, agent, spark = inspire(agent_ns, "Standard Discovery", responder=outcome_rows(FEW))
+    with pytest.raises(agent_ns["ImplementBlocked"]) as raised:
+        builder._implement_data_minimum(KEY, {}, from_db, {}, adapt=False)
+    assert str(raised.value) == f"{agent_ns['IMPLEMENT_DATA_MINIMUM_LEAD']}: {FEW_TEXT} {CHOICES}"
+    assert len(count_statements(spark)) == 1 and agent.calls == []
+    assert any("[DATA-MINIMUM RECOUNT] N01-U01: counted the data again before Genie started (outcome): failed, changed since "
+               "discovery:" in str(c.args[0]) and "positives 900 -> 11" in str(c.args[0]) for c in builder.logger.info.call_args_list)
+
+
+def test_a_use_case_short_at_discovery_builds_when_the_data_has_grown(agent_ns):
+    discovered = churn(data_signal=stored())
+    inst, agent, spark = inspire(agent_ns, "Standard Discovery", responder=outcome_rows(MANY))
+    status = {}
+    inst._implement_data_minimum(KEY, {}, discovered, status, adapt=False)
+    assert status == {} and "_implement_measured_short" not in discovered and len(count_statements(spark)) == 1
+    inst._implement_emit.assert_not_called()
+
+
+def test_a_legacy_record_without_its_columns_asks_for_the_roles_and_counts_before_genie(agent_ns):
+    discovered = churn(data_signal=stored(spec=None))
+    inst, agent, spark = inspire(agent_ns, "Standard Discovery", [roles("N01-U01")], outcome_rows(MANY))
+    inst._build_schema_details_from_use_cases = lambda use_cases: []
+    status = {}
+    inst._implement_data_minimum(KEY, {}, discovered, status, adapt=False)
+    assert [c["prompt"] for c in agent.calls] == ["SIGNAL_CHECK_PROMPT"] and len(count_statements(spark)) == 1
+    assert status == {}
+
+
+def test_a_failed_count_at_build_falls_back_to_the_discovery_count_and_says_so(agent_ns):
+    discovered = churn(data_signal=stored())
+    inst, _agent, _spark = inspire(agent_ns, "Standard Discovery",
+                                   responder=lambda s: (_ for _ in ()).throw(RuntimeError("PERMISSION_DENIED: no SELECT")))
     with pytest.raises(agent_ns["ImplementBlocked"]) as raised:
         inst._implement_data_minimum(KEY, {}, discovered, {}, adapt=False)
-    assert str(raised.value) == f"{agent_ns['IMPLEMENT_DATA_MINIMUM_LEAD']}: {FEW_TEXT}"
+    assert str(raised.value) == f"{agent_ns['IMPLEMENT_DATA_MINIMUM_LEAD']}: {FEW_TEXT} {CHOICES}"
+    assert any(str(c.args[0]).startswith("[DATA-MINIMUM RECOUNT] N01-U01: the count before Genie could not run, so the build uses "
+                                         "the count from discovery") for c in inst.logger.warning.call_args_list)
+
+
+def test_the_count_runs_once_per_spec_version(agent_ns):
+    discovered = churn(data_signal=stored(status="passed", positives=900, reason="ok"))
+    inst, _agent, spark = inspire(agent_ns, "Standard Discovery", responder=outcome_rows(MANY))
+    inst._implement_data_minimum(KEY, {}, discovered, {})
+    inst._implement_data_minimum(KEY, {}, discovered, {})
+    assert len(count_statements(spark)) == 1
+
+
+def test_a_build_without_a_genie_round_is_refused_with_the_choices_when_short(agent_ns):
+    discovered = churn(data_signal=stored())
+    inst, _agent, _spark = inspire(agent_ns, "Standard Discovery", responder=outcome_rows(FEW))
+    with pytest.raises(agent_ns["ImplementBlocked"]) as raised:
+        inst._implement_data_minimum(KEY, {}, discovered, {}, adapt=False)
+    assert str(raised.value) == f"{agent_ns['IMPLEMENT_DATA_MINIMUM_LEAD']}: {FEW_TEXT} {CHOICES}"
     assert "_implement_measured_short" not in discovered
 
 
+def test_the_choices_name_no_setting_when_the_shortfall_has_none(agent_ns):
+    choices = agent_ns["implement_data_minimum_choices"]
+    assert choices({}, "A") == ("Your choices: Rebuild once the data has the minimum above, or build another use case the data "
+                                "supports.")
+    short = agent_ns["implement_readiness_shortfall"]("There are too few past interactions (743); at least 1000 are needed to learn "
+                                                      "preferences.", "D")
+    assert choices(short, "D").startswith("Your choices: lower Minimum interactions in the build settings")
+    assert "at least 1,000 past interactions" in choices(short, "D")
+    assert not choices(short, "A").startswith("Your choices: lower")
+
+
 def test_a_minimum_the_user_set_is_never_lowered_before_the_build(agent_ns):
-    discovered = churn(data_signal={"status": "failed", "check": "outcome", "family": "A", "reason": FEW_TEXT,
-                                    "measures": {"row_count": 1000, "positives": 11, "class_rate": 0.011},
-                                    "columns": {"outcome": "is_return", "signals": ["net_profit"]}})
-    inst, _agent, _spark = inspire(agent_ns, "Standard Discovery")
+    discovered = churn(data_signal=stored())
+    inst, _agent, _spark = inspire(agent_ns, "Standard Discovery", responder=outcome_rows(FEW))
     with pytest.raises(agent_ns["ImplementBlocked"]) as raised:
         inst._implement_data_minimum(KEY, {"config": {"widgets": {"min_positives": "200"}}}, discovered, {})
     assert "(11); at least 200" in str(raised.value) and "so Inspire kept your setting" in str(raised.value)
+    assert "Your choices" not in str(raised.value)
     assert "_implement_measured_short" not in discovered
 
 

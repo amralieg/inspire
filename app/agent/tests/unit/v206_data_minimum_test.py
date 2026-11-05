@@ -91,7 +91,7 @@ def test_build_refuses_a_user_kept_use_case_with_the_discover_shortfall_before_g
     inst._user_use_case_requests = lambda: {"R1": {"id": "R1", "ask": "a churn model", "minimum": 1}}
     inst._check_data_signal([discovered], [])
     stored = {key: value for key, value in discovered.items() if key != "data_signal"}
-    build, agent, spark = builder(agent_ns, "Deep")
+    build, agent, spark = builder(agent_ns, "Deep", responder=outcome_responder(FEW))
     status = {}
     with pytest.raises(agent_ns["ImplementBlocked"]) as raised:
         build._implement_data_minimum(KEY, {}, stored, status, adapt=False)
@@ -99,7 +99,8 @@ def test_build_refuses_a_user_kept_use_case_with_the_discover_shortfall_before_g
     assert "(11); at least 200" in str(raised.value)
     assert status["data"]["state"] == "failed" and "(11); at least 200" in status["data"]["data_minimum"]
     build._implement_update.assert_called_once_with(KEY, asset_status=status)
-    assert spark.statements == [] and agent.calls == [], "the stored shortfall is enough: nothing is read again"
+    assert len([s for s in spark.statements if "AS outcome_values" in s]) == 1 and agent.calls == [], \
+        "the build counts the data again with the stored columns, and asks the AI nothing"
     assert any(line.startswith("[DATA-MINIMUM FIRED] N01-U01: refused before Genie started") for line in logged(build, "warning"))
 
 
@@ -108,10 +109,10 @@ def test_build_keeps_going_for_a_use_case_that_met_its_minimum(agent_ns):
     inst, _agent, _spark = deep_inspire(agent_ns, [roles_answer()], outcome_responder(MANY))
     inst._check_data_signal([discovered], [])
     assert discovered["data_signal"]["status"] == "passed"
-    build, agent, spark = builder(agent_ns, "Deep")
+    build, agent, spark = builder(agent_ns, "Deep", responder=outcome_responder(MANY))
     status = {}
     build._implement_data_minimum(KEY, {}, discovered, status)
-    assert status == {} and spark.statements == [] and agent.calls == []
+    assert status == {} and len([s for s in spark.statements if "AS outcome_values" in s]) == 1 and agent.calls == []
     assert any(line.startswith("[DATA-MINIMUM FIRED] N01-U01: passed before Genie started") for line in logged(build, "info"))
 
 
@@ -178,10 +179,10 @@ def test_build_uses_the_minimum_the_user_set_in_the_wizard(agent_ns):
     inst, _agent, _spark = deep_inspire(agent_ns, [roles_answer()], outcome_responder(FEW))
     inst._check_data_signal([discovered], [])
     assert discovered["selection_drop_reason"].endswith(FEW_TEXT)
-    build, agent, spark = builder(agent_ns, "Deep")
+    build, agent, spark = builder(agent_ns, "Deep", responder=outcome_responder(FEW))
     status = {}
     build._implement_data_minimum(KEY, {"config": {"widgets": {"min_positives": "10"}}}, discovered, status)
-    assert status == {} and spark.statements == []
+    assert status == {} and len([s for s in spark.statements if "AS outcome_values" in s]) == 1
     with pytest.raises(agent_ns["ImplementBlocked"]):
         build._implement_data_minimum(KEY, {"config": {"widgets": {"min_positives": "12"}}}, discovered, {})
 

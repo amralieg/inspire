@@ -274,6 +274,7 @@ def test_standard_emits_the_kpi_query_and_deep_measures_the_baseline(agent_ns):
     spark = FakeSpark(responder=lambda statement: [Row(v=4200)])
     deep = agent_ns["DeepEvidence"](spark, "Deep", standard.logger)
     obj = harness(agent_ns, answers={"U1": answer("U1"), "U2": answer("U2")}, deep=deep)
+    obj.discovery_type = "AI Enhanced Discovery"
     ucs = [uc("U1"), uc("U2")]
     obj._run_strategy_alignment(ucs)
     assert ucs[0]["KPIs"][0]["baseline"]["value"] == 4200.0 and ucs[0]["KPIs"][0]["baseline"]["window_days"] == 90
@@ -643,6 +644,7 @@ def test_a_proposed_key_result_takes_the_baseline_of_the_kpi_it_names(agent_ns):
 def test_kpi_baselines_are_measured_round_robin_and_a_capped_skip_is_logged(agent_ns):
     from unittest.mock import MagicMock
     obj = harness(agent_ns, answers={})
+    obj.discovery_type = "AI Enhanced Discovery"
     calls = []
     obj.deep_evidence = types.SimpleNamespace(max_kpi_baselines=3, measure_kpi=lambda spec: calls.append(spec["query"]) or 7.0)
     obj.logger = MagicMock()

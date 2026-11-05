@@ -175,14 +175,16 @@ def test_the_queries_quote_every_column_and_sample_only_large_tables(agent_ns):
     assert "yes" not in text_outcome, "the positive value is a parameter, never spliced into the SQL"
 
 
-def test_standard_mode_never_reads_data_and_keeps_every_use_case(agent_ns):
-    spark = FakeSpark(responder=lambda s: (_ for _ in ()).throw(AssertionError(s)))
-    agent = Agent([])
-    inst = build_inspire(agent_ns, loader=Loader(), agent=agent, spark=spark, discovery_type="Standard", deep_evidence=None)
+def test_standard_mode_reads_the_data_and_sends_no_measured_value_to_the_ai(agent_ns):
+    answers = [{"results": [answer("N01-U01", {"lever": "sales_price", "outcome": "quantity"})]}]
+    inst, agent, spark = deep_inspire(agent_ns, answers, responder_for({"lever": FLAT_PRICE}))
+    inst.discovery_type = "Standard"
+    inst.deep_evidence = agent_ns["DeepEvidence"](spark, "Standard", MagicMock())
     ucs = [uc("N01-U01", "Optimization")]
     kept, dropped = inst._check_data_signal(ucs, [])
-    assert kept == ucs and dropped == [] and spark.statements == [] and agent.calls == []
-    assert "data_signal" not in ucs[0]
+    assert kept == [] and [u["No"] for u in dropped] == ["N01-U01"] and any("AS pooled" in s for s in spark.statements)
+    assert [c["prompt"] for c in agent.calls] == ["SIGNAL_CHECK_PROMPT"]
+    assert inst.deep_evidence.summary()["aggregates_sent_to_ai"] is False
 
 
 def test_deep_drops_the_use_case_whose_data_shows_no_signal_and_keeps_the_rest(agent_ns):
@@ -262,10 +264,10 @@ def test_a_personal_column_is_read_only_where_its_values_are_counted(agent_ns):
     assert "`customer_email` AS g" in spark.statements[1], "a personal group is only counted"
     assert [u["data_signal"]["status"] for u in ucs] == ["not_checked", "not_checked", "passed", "passed", "not_checked"]
     assert ucs[0]["data_signal"]["reason"] == ("Not checked: every signal column named for it is personal (birth_year), "
-                                               "and Deep reads only counts of a personal column.")
-    assert ucs[1]["data_signal"]["reason"] == ("Not checked: the text column customer_email is personal, and Deep reads "
+                                               "and Inspire reads only counts of a personal column.")
+    assert ucs[1]["data_signal"]["reason"] == ("Not checked: the text column customer_email is personal, and Inspire reads "
                                                "only counts of a personal column.")
-    assert ucs[4]["data_signal"]["reason"] == ("Not checked: the time column birth_date is personal, and Deep reads "
+    assert ucs[4]["data_signal"]["reason"] == ("Not checked: the time column birth_date is personal, and Inspire reads "
                                                "only counts of a personal column.")
 
 
@@ -369,7 +371,7 @@ def test_a_spent_budget_keeps_the_use_case_unchecked_and_says_why(agent_ns):
     inst.deep_evidence.signal_spent_seconds = inst.deep_evidence.signal_budget_seconds
     kept, dropped = inst._check_data_signal(ucs, [])
     assert kept == ucs and dropped == [] and spark.statements == []
-    assert kept[0]["data_signal"]["reason"] == "Not checked: the Deep signal check budget of 600s is spent."
+    assert kept[0]["data_signal"]["reason"] == "Not checked: the data signal check budget of 600s is spent."
     assert inst.deep_evidence.spent_seconds == 0.0, "the signal check never spends the evidence budget"
 
 

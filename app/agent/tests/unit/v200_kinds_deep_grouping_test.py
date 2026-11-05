@@ -145,13 +145,18 @@ def test_a_personal_column_is_never_suggested_and_nothing_is_read(agent_ns):
     assert any("[DEEP-GROUPING FIRED]" in msg and "1 of 1 grouping use case" in msg for _level, msg in obj.logger.records)
 
 
-def test_standard_mode_records_nothing(agent_ns):
+def test_both_modes_suggest_the_same_grouping_and_nothing_without_profiles(agent_ns):
     profiles, joins = star()
-    obj, spark = _deep_inspire(agent_ns, profiles, joins, discovery_type="Standard")
+    found = {}
+    for mode in ("Standard Discovery", "AI Enhanced Discovery"):
+        obj, spark = _deep_inspire(agent_ns, profiles, joins, discovery_type=mode)
+        ucs = [make_uc("N01-U01", **{"Analytics Technique": "Anomaly Detection", "Primary Table": SALES})]
+        obj._suggest_deep_grouping(ucs)
+        found[mode] = (ucs[0].get("suggested_group_by"), ucs[0].get("record_level"))
+        assert spark.statements == []
+    assert found["Standard Discovery"] == found["AI Enhanced Discovery"] and found["Standard Discovery"][1] is not None
+    obj, _spark = _deep_inspire(agent_ns, {}, [], discovery_type="Standard Discovery")
     ucs = [make_uc("N01-U01", **{"Analytics Technique": "Anomaly Detection", "Primary Table": SALES})]
-    assert obj._suggest_deep_grouping(ucs) == []
-    assert "suggested_group_by" not in ucs[0] and "record_level" not in ucs[0] and spark.statements == []
-    obj, _spark = _deep_inspire(agent_ns, {}, [], discovery_type="Deep")
     assert obj._suggest_deep_grouping(ucs) == [] and "suggested_group_by" not in ucs[0]
 
 
