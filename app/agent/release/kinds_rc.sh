@@ -98,11 +98,12 @@ if [ "$MODE" = --prestage-assets ]; then
   step "P. stage inspire-assets.tar into a draft pre-release $TAG (not public, no tag, never latest)"
   gh_env
   gh release view "$TAG" --repo "$REPO" >/dev/null 2>&1 && [ -z "$(draft_id)" ] && fail "$TAG already exists as a published release"
-  if [ -z "$(draft_id)" ]; then
-    gh release create "$TAG" --repo "$REPO" --draft --prerelease --latest=false --target "$SHA" \
-      --title "Inspire $TAG (release candidate)" --notes "Release candidate $TAG, staging." >/dev/null
+  ID=$(draft_id)
+  if [ -z "$ID" ]; then
+    ID=$(gh api -X POST "repos/$REPO/releases" -f tag_name="$TAG" -f target_commitish="$SHA" -f name="Inspire $TAG (release candidate)" \
+      -f body="Release candidate $TAG, staging." -F draft=true -F prerelease=true -f make_latest=false --jq .id)
   fi
-  ID=$(draft_id); [ -n "$ID" ] || fail "no draft for $TAG after create"
+  [ -n "$ID" ] || fail "no draft for $TAG after create"
   gh api "repos/$REPO/git/ref/tags/$TAG" >/dev/null 2>&1 && fail "tag $TAG exists on $REPO; a draft must not have one"
   TAR="$SCRATCH/assets_out/inspire-assets.tar"
   WANT="sha256:$(shasum -a 256 "$TAR" | cut -d' ' -f1)"

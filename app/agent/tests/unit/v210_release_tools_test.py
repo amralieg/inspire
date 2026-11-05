@@ -284,3 +284,10 @@ def test_kinds_rc_checks_latest_against_the_latest_tag_setting(release_tool):
     text = open(os.path.join(release_tool.release, "kinds_rc.sh"), encoding="utf-8").read()
     assert 'LATEST=$(setting latest_tag)' in text
     assert '[ "${loc##*/}" = "$LATEST" ] && [ "$LATEST" != "$TAG" ] || fail' in text
+
+
+def test_kinds_rc_takes_the_draft_id_from_the_create_reply_not_from_a_later_listing(release_tool):
+    text = open(os.path.join(release_tool.release, "kinds_rc.sh"), encoding="utf-8").read()
+    assert 'ID=$(gh api -X POST "repos/$REPO/releases"' in text and "-F draft=true -F prerelease=true -f make_latest=false --jq .id)" in text
+    assert "gh release create \"$TAG\" --repo \"$REPO\" --draft" not in text
+    assert text.count("ID=$(draft_id)") == 1
