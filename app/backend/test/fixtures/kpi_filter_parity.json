@@ -3125,6 +3125,746 @@
    "problem": "its filter does not match its name: the name says above, a comparison, but the filter ws_promo = 1 keeps the rows where ws_promo equals one value; compare with ws_promo > a threshold instead",
    "mismatch": "its filter does not match its name: the name says above, a comparison, but the filter ws_promo = 1 keeps the rows where ws_promo equals one value; compare with ws_promo > a threshold instead",
    "distinct": "2"
+  },
+  {
+   "name": "a negated sign word: non-positive amounts filtered with <= 0",
+   "spec": {
+    "name": "Share of non-positive payment amounts",
+    "direction": "decrease",
+    "unit": "%",
+    "aggregation": "COUNT",
+    "table": "main.billing.payments",
+    "column": null,
+    "filter_column": "amount",
+    "filter_value": 0,
+    "computable": true,
+    "denominator": {
+     "aggregation": "COUNT",
+     "column": null,
+     "filter_column": null,
+     "filter_value": null
+    },
+    "baseline": {
+     "value": 1.5,
+     "window_days": null,
+     "measured_on": "2026-11-01"
+    },
+    "filter_op": "<=",
+    "filter_type": "decimal"
+   },
+   "problem": "",
+   "mismatch": ""
+  },
+  {
+   "name": "a negated sign word: non-positive amounts filtered with < 1",
+   "spec": {
+    "name": "Share of non-positive payment amounts",
+    "direction": "decrease",
+    "unit": "%",
+    "aggregation": "COUNT",
+    "table": "main.billing.payments",
+    "column": null,
+    "filter_column": "amount",
+    "filter_value": 1,
+    "computable": true,
+    "denominator": {
+     "aggregation": "COUNT",
+     "column": null,
+     "filter_column": null,
+     "filter_value": null
+    },
+    "baseline": {
+     "value": 1.5,
+     "window_days": null,
+     "measured_on": "2026-11-01"
+    },
+    "filter_op": "<",
+    "filter_type": "decimal"
+   },
+   "problem": "its filter does not match its name: the name says non positive, but the filter amount < 1 does not keep exactly the non positive values; non positive needs amount <= 0",
+   "mismatch": "its filter does not match its name: the name says non positive, but the filter amount < 1 does not keep exactly the non positive values; non positive needs amount <= 0"
+  },
+  {
+   "name": "a negated sign word: non-positive amounts filtered with > 0",
+   "spec": {
+    "name": "Share of non-positive payment amounts",
+    "direction": "decrease",
+    "unit": "%",
+    "aggregation": "COUNT",
+    "table": "main.billing.payments",
+    "column": null,
+    "filter_column": "amount",
+    "filter_value": 0,
+    "computable": true,
+    "denominator": {
+     "aggregation": "COUNT",
+     "column": null,
+     "filter_column": null,
+     "filter_value": null
+    },
+    "baseline": {
+     "value": 1.5,
+     "window_days": null,
+     "measured_on": "2026-11-01"
+    },
+    "filter_op": ">",
+    "filter_type": "decimal"
+   },
+   "problem": "its filter does not match its name: the name says non positive, but the filter amount > 0 keeps the rows above 0",
+   "mismatch": "its filter does not match its name: the name says non positive, but the filter amount > 0 keeps the rows above 0"
+  },
+  {
+   "name": "a negated sign word: non-positive amounts filtered with < 0",
+   "spec": {
+    "name": "Share of non-positive payment amounts",
+    "direction": "decrease",
+    "unit": "%",
+    "aggregation": "COUNT",
+    "table": "main.billing.payments",
+    "column": null,
+    "filter_column": "amount",
+    "filter_value": 0,
+    "computable": true,
+    "denominator": {
+     "aggregation": "COUNT",
+     "column": null,
+     "filter_column": null,
+     "filter_value": null
+    },
+    "baseline": {
+     "value": 1.5,
+     "window_days": null,
+     "measured_on": "2026-11-01"
+    },
+    "filter_op": "<",
+    "filter_type": "decimal"
+   },
+   "problem": "",
+   "mismatch": ""
+  },
+  {
+   "name": "a negated sign word: non positive amounts spaced, filtered with <= 0",
+   "spec": {
+    "name": "Share of non positive payment amounts",
+    "direction": "decrease",
+    "unit": "%",
+    "aggregation": "COUNT",
+    "table": "main.billing.payments",
+    "column": null,
+    "filter_column": "amount",
+    "filter_value": 0,
+    "computable": true,
+    "denominator": {
+     "aggregation": "COUNT",
+     "column": null,
+     "filter_column": null,
+     "filter_value": null
+    },
+    "baseline": {
+     "value": 1.5,
+     "window_days": null,
+     "measured_on": "2026-11-01"
+    },
+    "filter_op": "<=",
+    "filter_type": "decimal"
+   },
+   "problem": "",
+   "mismatch": ""
+  },
+  {
+   "name": "a negated sign word: nonpositive amounts joined, filtered with <= 0",
+   "spec": {
+    "name": "Share of nonpositive payment amounts",
+    "direction": "decrease",
+    "unit": "%",
+    "aggregation": "COUNT",
+    "table": "main.billing.payments",
+    "column": null,
+    "filter_column": "amount",
+    "filter_value": 0,
+    "computable": true,
+    "denominator": {
+     "aggregation": "COUNT",
+     "column": null,
+     "filter_column": null,
+     "filter_value": null
+    },
+    "baseline": {
+     "value": 1.5,
+     "window_days": null,
+     "measured_on": "2026-11-01"
+    },
+    "filter_op": "<=",
+    "filter_type": "decimal"
+   },
+   "problem": "",
+   "mismatch": ""
+  },
+  {
+   "name": "a negated sign word: non-negative balances filtered with >= 0",
+   "spec": {
+    "name": "Share of non-negative balances",
+    "direction": "decrease",
+    "unit": "%",
+    "aggregation": "COUNT",
+    "table": "main.billing.payments",
+    "column": null,
+    "filter_column": "balance",
+    "filter_value": 0,
+    "computable": true,
+    "denominator": {
+     "aggregation": "COUNT",
+     "column": null,
+     "filter_column": null,
+     "filter_value": null
+    },
+    "baseline": {
+     "value": 1.5,
+     "window_days": null,
+     "measured_on": "2026-11-01"
+    },
+    "filter_op": ">=",
+    "filter_type": "decimal"
+   },
+   "problem": "",
+   "mismatch": ""
+  },
+  {
+   "name": "a negated sign word: non-negative balances filtered with > 0",
+   "spec": {
+    "name": "Share of non-negative balances",
+    "direction": "decrease",
+    "unit": "%",
+    "aggregation": "COUNT",
+    "table": "main.billing.payments",
+    "column": null,
+    "filter_column": "balance",
+    "filter_value": 0,
+    "computable": true,
+    "denominator": {
+     "aggregation": "COUNT",
+     "column": null,
+     "filter_column": null,
+     "filter_value": null
+    },
+    "baseline": {
+     "value": 1.5,
+     "window_days": null,
+     "measured_on": "2026-11-01"
+    },
+    "filter_op": ">",
+    "filter_type": "decimal"
+   },
+   "problem": "",
+   "mismatch": ""
+  },
+  {
+   "name": "a negated sign word: non-negative balances filtered with < 0",
+   "spec": {
+    "name": "Share of non-negative balances",
+    "direction": "decrease",
+    "unit": "%",
+    "aggregation": "COUNT",
+    "table": "main.billing.payments",
+    "column": null,
+    "filter_column": "balance",
+    "filter_value": 0,
+    "computable": true,
+    "denominator": {
+     "aggregation": "COUNT",
+     "column": null,
+     "filter_column": null,
+     "filter_value": null
+    },
+    "baseline": {
+     "value": 1.5,
+     "window_days": null,
+     "measured_on": "2026-11-01"
+    },
+    "filter_op": "<",
+    "filter_type": "decimal"
+   },
+   "problem": "its filter does not match its name: the name says non negative, but the filter balance < 0 keeps the rows below 0",
+   "mismatch": "its filter does not match its name: the name says non negative, but the filter balance < 0 keeps the rows below 0"
+  },
+  {
+   "name": "a negated sign word: margins not positive filtered with <= 0",
+   "spec": {
+    "name": "Share of orders whose margin is not positive",
+    "direction": "decrease",
+    "unit": "%",
+    "aggregation": "COUNT",
+    "table": "main.billing.payments",
+    "column": null,
+    "filter_column": "margin",
+    "filter_value": 0,
+    "computable": true,
+    "denominator": {
+     "aggregation": "COUNT",
+     "column": null,
+     "filter_column": null,
+     "filter_value": null
+    },
+    "baseline": {
+     "value": 1.5,
+     "window_days": null,
+     "measured_on": "2026-11-01"
+    },
+    "filter_op": "<=",
+    "filter_type": "decimal"
+   },
+   "problem": "",
+   "mismatch": ""
+  },
+  {
+   "name": "a negated sign word: balances never negative filtered with >= 0",
+   "spec": {
+    "name": "Share of accounts never negative",
+    "direction": "decrease",
+    "unit": "%",
+    "aggregation": "COUNT",
+    "table": "main.billing.payments",
+    "column": null,
+    "filter_column": "balance",
+    "filter_value": 0,
+    "computable": true,
+    "denominator": {
+     "aggregation": "COUNT",
+     "column": null,
+     "filter_column": null,
+     "filter_value": null
+    },
+    "baseline": {
+     "value": 1.5,
+     "window_days": null,
+     "measured_on": "2026-11-01"
+    },
+    "filter_op": ">=",
+    "filter_type": "decimal"
+   },
+   "problem": "",
+   "mismatch": ""
+  },
+  {
+   "name": "a negated sign word: non-positive amounts filtered with = 0",
+   "spec": {
+    "name": "Share of non-positive payment amounts",
+    "direction": "decrease",
+    "unit": "%",
+    "aggregation": "COUNT",
+    "table": "main.billing.payments",
+    "column": null,
+    "filter_column": "amount",
+    "filter_value": 0,
+    "computable": true,
+    "denominator": {
+     "aggregation": "COUNT",
+     "column": null,
+     "filter_column": null,
+     "filter_value": null
+    },
+    "baseline": {
+     "value": 1.5,
+     "window_days": null,
+     "measured_on": "2026-11-01"
+    },
+    "filter_op": "=",
+    "filter_type": "decimal"
+   },
+   "problem": "its filter does not match its name: the name says non positive, a comparison, but the filter amount = 0 keeps the rows where amount equals one value; compare with amount <= 0 instead",
+   "mismatch": "its filter does not match its name: the name says non positive, a comparison, but the filter amount = 0 keeps the rows where amount equals one value; compare with amount <= 0 instead"
+  },
+  {
+   "name": "a negated sign word: non-positive amounts with no filter",
+   "spec": {
+    "name": "Share of non-positive payment amounts",
+    "direction": "decrease",
+    "unit": "%",
+    "aggregation": "COUNT",
+    "table": "main.billing.payments",
+    "column": null,
+    "filter_column": null,
+    "filter_value": null,
+    "computable": true,
+    "denominator": {
+     "aggregation": "COUNT",
+     "column": null,
+     "filter_column": null,
+     "filter_value": null
+    },
+    "baseline": {
+     "value": 1.5,
+     "window_days": null,
+     "measured_on": "2026-11-01"
+    }
+   },
+   "problem": "its filter does not match its name: the name says non positive, a comparison, but no filter compares a value, so it measures every row",
+   "mismatch": "its filter does not match its name: the name says non positive, a comparison, but no filter compares a value, so it measures every row"
+  },
+  {
+   "name": "a negated comparison word: deliveries not late filtered with <= 0",
+   "spec": {
+    "name": "Share of deliveries not late",
+    "direction": "decrease",
+    "unit": "%",
+    "aggregation": "COUNT",
+    "table": "main.billing.payments",
+    "column": null,
+    "filter_column": "delay_days",
+    "filter_value": 0,
+    "computable": true,
+    "denominator": {
+     "aggregation": "COUNT",
+     "column": null,
+     "filter_column": null,
+     "filter_value": null
+    },
+    "baseline": {
+     "value": 1.5,
+     "window_days": null,
+     "measured_on": "2026-11-01"
+    },
+    "filter_op": "<=",
+    "filter_type": "decimal"
+   },
+   "problem": "",
+   "mismatch": ""
+  },
+  {
+   "name": "a negated comparison word: deliveries not late filtered with > 0",
+   "spec": {
+    "name": "Share of deliveries not late",
+    "direction": "decrease",
+    "unit": "%",
+    "aggregation": "COUNT",
+    "table": "main.billing.payments",
+    "column": null,
+    "filter_column": "delay_days",
+    "filter_value": 0,
+    "computable": true,
+    "denominator": {
+     "aggregation": "COUNT",
+     "column": null,
+     "filter_column": null,
+     "filter_value": null
+    },
+    "baseline": {
+     "value": 1.5,
+     "window_days": null,
+     "measured_on": "2026-11-01"
+    },
+    "filter_op": ">",
+    "filter_type": "decimal"
+   },
+   "problem": "its filter does not match its name: the name says not late, but the filter delay_days > 0 keeps the rows above 0",
+   "mismatch": "its filter does not match its name: the name says not late, but the filter delay_days > 0 keeps the rows above 0"
+  },
+  {
+   "name": "a positive word kept: positive amounts filtered with > 0",
+   "spec": {
+    "name": "Share of positive payment amounts",
+    "direction": "decrease",
+    "unit": "%",
+    "aggregation": "COUNT",
+    "table": "main.billing.payments",
+    "column": null,
+    "filter_column": "amount",
+    "filter_value": 0,
+    "computable": true,
+    "denominator": {
+     "aggregation": "COUNT",
+     "column": null,
+     "filter_column": null,
+     "filter_value": null
+    },
+    "baseline": {
+     "value": 1.5,
+     "window_days": null,
+     "measured_on": "2026-11-01"
+    },
+    "filter_op": ">",
+    "filter_type": "decimal"
+   },
+   "problem": "",
+   "mismatch": ""
+  },
+  {
+   "name": "a positive word kept: positive amounts filtered with >= 0",
+   "spec": {
+    "name": "Share of positive payment amounts",
+    "direction": "decrease",
+    "unit": "%",
+    "aggregation": "COUNT",
+    "table": "main.billing.payments",
+    "column": null,
+    "filter_column": "amount",
+    "filter_value": 0,
+    "computable": true,
+    "denominator": {
+     "aggregation": "COUNT",
+     "column": null,
+     "filter_column": null,
+     "filter_value": null
+    },
+    "baseline": {
+     "value": 1.5,
+     "window_days": null,
+     "measured_on": "2026-11-01"
+    },
+    "filter_op": ">=",
+    "filter_type": "decimal"
+   },
+   "problem": "its filter does not match its name: the name says positive, but the filter amount >= 0 does not keep exactly the positive values; positive needs amount > 0",
+   "mismatch": "its filter does not match its name: the name says positive, but the filter amount >= 0 does not keep exactly the positive values; positive needs amount > 0"
+  },
+  {
+   "name": "a treatment arm is not a comparison: orders under promotion",
+   "spec": {
+    "name": "Share of orders under promotion",
+    "direction": "increase",
+    "unit": "%",
+    "aggregation": "COUNT",
+    "table": "main.billing.payments",
+    "column": null,
+    "filter_column": "promo_flag",
+    "filter_value": "Y",
+    "computable": true,
+    "denominator": {
+     "aggregation": "COUNT",
+     "column": null,
+     "filter_column": null,
+     "filter_value": null
+    },
+    "baseline": {
+     "value": 1.5,
+     "window_days": null,
+     "measured_on": "2026-11-01"
+    },
+    "filter_op": "=",
+    "filter_type": "text"
+   },
+   "problem": "",
+   "mismatch": ""
+  },
+  {
+   "name": "a treatment arm is not a comparison: stores under the campaigns",
+   "spec": {
+    "name": "Revenue of stores under the campaigns",
+    "direction": "increase",
+    "unit": "%",
+    "aggregation": "COUNT",
+    "table": "main.billing.payments",
+    "column": null,
+    "filter_column": "campaign",
+    "filter_value": "spring",
+    "computable": true,
+    "denominator": {
+     "aggregation": "COUNT",
+     "column": null,
+     "filter_column": null,
+     "filter_value": null
+    },
+    "baseline": {
+     "value": 1.5,
+     "window_days": null,
+     "measured_on": "2026-11-01"
+    },
+    "filter_op": "=",
+    "filter_type": "text"
+   },
+   "problem": "",
+   "mismatch": ""
+  },
+  {
+   "name": "a treatment arm is not a comparison: units under a warranty",
+   "spec": {
+    "name": "Units under a warranty",
+    "direction": "increase",
+    "unit": "%",
+    "aggregation": "COUNT",
+    "table": "main.billing.payments",
+    "column": null,
+    "filter_column": "covered",
+    "filter_value": "Y",
+    "computable": true,
+    "denominator": {
+     "aggregation": "COUNT",
+     "column": null,
+     "filter_column": null,
+     "filter_value": null
+    },
+    "baseline": {
+     "value": 1.5,
+     "window_days": null,
+     "measured_on": "2026-11-01"
+    },
+    "filter_op": "=",
+    "filter_type": "text"
+   },
+   "problem": "",
+   "mismatch": ""
+  },
+  {
+   "name": "at least one is not a comparison: customers with at least one order",
+   "spec": {
+    "name": "Customers with at least one order",
+    "direction": "increase",
+    "unit": "%",
+    "aggregation": "COUNT",
+    "table": "main.billing.payments",
+    "column": null,
+    "filter_column": null,
+    "filter_value": null,
+    "computable": true,
+    "denominator": {
+     "aggregation": "COUNT",
+     "column": null,
+     "filter_column": null,
+     "filter_value": null
+    },
+    "baseline": {
+     "value": 1.5,
+     "window_days": null,
+     "measured_on": "2026-11-01"
+    }
+   },
+   "problem": "",
+   "mismatch": ""
+  },
+  {
+   "name": "at least one is not a comparison: at least a single visit",
+   "spec": {
+    "name": "Members with at least a single visit",
+    "direction": "increase",
+    "unit": "%",
+    "aggregation": "COUNT",
+    "table": "main.billing.payments",
+    "column": null,
+    "filter_column": null,
+    "filter_value": null,
+    "computable": true,
+    "denominator": {
+     "aggregation": "COUNT",
+     "column": null,
+     "filter_column": null,
+     "filter_value": null
+    },
+    "baseline": {
+     "value": 1.5,
+     "window_days": null,
+     "measured_on": "2026-11-01"
+    }
+   },
+   "problem": "",
+   "mismatch": ""
+  },
+  {
+   "name": "at least one and a half is not a comparison either",
+   "spec": {
+    "name": "Trips of at least one and a half hours",
+    "direction": "increase",
+    "unit": "%",
+    "aggregation": "COUNT",
+    "table": "main.billing.payments",
+    "column": null,
+    "filter_column": null,
+    "filter_value": null,
+    "computable": true,
+    "denominator": {
+     "aggregation": "COUNT",
+     "column": null,
+     "filter_column": null,
+     "filter_value": null
+    },
+    "baseline": {
+     "value": 1.5,
+     "window_days": null,
+     "measured_on": "2026-11-01"
+    }
+   },
+   "problem": "",
+   "mismatch": ""
+  },
+  {
+   "name": "at least 1.5 still compares",
+   "spec": {
+    "name": "Trips of at least 1.5 hours",
+    "direction": "increase",
+    "unit": "%",
+    "aggregation": "COUNT",
+    "table": "main.billing.payments",
+    "column": null,
+    "filter_column": null,
+    "filter_value": null,
+    "computable": true,
+    "denominator": {
+     "aggregation": "COUNT",
+     "column": null,
+     "filter_column": null,
+     "filter_value": null
+    },
+    "baseline": {
+     "value": 1.5,
+     "window_days": null,
+     "measured_on": "2026-11-01"
+    }
+   },
+   "problem": "its filter does not match its name: the name says at least, a comparison, but no filter compares a value, so it measures every row",
+   "mismatch": "its filter does not match its name: the name says at least, a comparison, but no filter compares a value, so it measures every row"
+  },
+  {
+   "name": "at least one percent still compares",
+   "spec": {
+    "name": "Stores with at least one percent growth",
+    "direction": "increase",
+    "unit": "%",
+    "aggregation": "COUNT",
+    "table": "main.billing.payments",
+    "column": null,
+    "filter_column": null,
+    "filter_value": null,
+    "computable": true,
+    "denominator": {
+     "aggregation": "COUNT",
+     "column": null,
+     "filter_column": null,
+     "filter_value": null
+    },
+    "baseline": {
+     "value": 1.5,
+     "window_days": null,
+     "measured_on": "2026-11-01"
+    }
+   },
+   "problem": "its filter does not match its name: the name says at least, a comparison, but no filter compares a value, so it measures every row",
+   "mismatch": "its filter does not match its name: the name says at least, a comparison, but no filter compares a value, so it measures every row"
+  },
+  {
+   "name": "at least one third still compares",
+   "spec": {
+    "name": "Stores with at least one third returning",
+    "direction": "increase",
+    "unit": "%",
+    "aggregation": "COUNT",
+    "table": "main.billing.payments",
+    "column": null,
+    "filter_column": null,
+    "filter_value": null,
+    "computable": true,
+    "denominator": {
+     "aggregation": "COUNT",
+     "column": null,
+     "filter_column": null,
+     "filter_value": null
+    },
+    "baseline": {
+     "value": 1.5,
+     "window_days": null,
+     "measured_on": "2026-11-01"
+    }
+   },
+   "problem": "its filter does not match its name: the name says at least, a comparison, but no filter compares a value, so it measures every row",
+   "mismatch": "its filter does not match its name: the name says at least, a comparison, but no filter compares a value, so it measures every row"
   }
  ],
  "kpi_text": [

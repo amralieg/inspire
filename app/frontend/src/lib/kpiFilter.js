@@ -22,6 +22,8 @@ const COMPARISON_WORDS = [
     + 'no less than|late|overdue|past due|delayed')],
 ];
 const SIGN_WORDS = { negative: '<', positive: '>' };
+const FLIPPED = { '<': '>', '>': '<' };
+const TREATMENT_TOKENS = ['ab', 'arm', 'campaign', 'coupon', 'experiment', 'holdout', 'offer', 'promo', 'promotion', 'treatment', 'variant'];
 const NOT_COMPARISON_RE = new RegExp([
   `over${SPACE}+time`,
   `over${SPACE}+(?:the${SPACE}+)?(?:last|past|next|previous|prior|coming|following)`,
@@ -29,8 +31,16 @@ const NOT_COMPARISON_RE = new RegExp([
     + `(?:${DIGIT}+(?:\\.${DIGIT}+)?${SPACE}*-?${SPACE}*)?(?:(?:business|calendar|working)${SPACE}+)?`
     + `(?:day|week|month|quarter|year|period|window|horizon|season)s?(?:${SPACE}+(?:window|period|horizon))?`,
   'over[- ]the[- ]counter',
-  `under${SPACE}+(?:management|review|contract|warranty|construction|investigation)`,
-].map((body) => `(?<!${WORD})${pyIgnoreCase(body)}(?!${WORD})`).join('|'), 'giu');
+  `under${SPACE}+(?:(?:a|an|the|its|their|this|that)${SPACE}+)?(?:management|review|contract|warranty|construction|investigation|`
+    + `${TREATMENT_TOKENS.join('|')})s?`,
+].map((body) => `(?<!${WORD})${pyIgnoreCase(body)}(?!${WORD})`).concat(
+  `(?<!${WORD})${pyIgnoreCase(`at${SPACE}+least${SPACE}+(?:one|a|an|1|a${SPACE}+single)`)}(?!${WORD})`
+    + `(?![.,]${DIGIT}|${SPACE}*(?:%|${pyIgnoreCase('percent')}|${pyIgnoreCase(`per${SPACE}*cent`)}|`
+    + `${pyIgnoreCase('(?:half|third|quarter|fifth|tenth)s?')}(?!${WORD})))`,
+).join('|'), 'giu');
+const SIGN_JOINED_RE = new RegExp(`(?<!${WORD})${pyIgnoreCase('non')}(?=${pyIgnoreCase('(?:positive|negative)')}(?!${WORD}))`, 'giu');
+const NEGATION_BEFORE_RE = new RegExp(`(?:(?<!${WORD})${pyIgnoreCase('(?:not|non|never|no)')}|${pyIgnoreCase("n't")})(?:${SPACE}|-)+`
+  + `(?:${pyIgnoreCase('be')}${SPACE}+)?$`, 'u');
 const IDIOM_THE_RE = new RegExp(`(?<!${WORD})(?:over|under|above|below|beyond)-the-${LETTER}+(?!${WORD})`, 'iuy');
 const IDIOM_SAME_RE = new RegExp(`(?<!${WORD})(${LETTER}+)-over-`, 'iuy');
 const IDIOM_LATE_RE = new RegExp(`(?<!${WORD})${pyIgnoreCase(
@@ -177,13 +187,16 @@ export function kpiComparisonProblem(spec, definition = '', distinct = null) {
   if (pyTruthy(entry.metric_view)) return '';
   const name = pyTruthy(entry.name) ? pyStr(entry.name) : '';
   const said = withoutIdioms(pySpaced(`${name} ${pyTruthy(definition) ? pyStr(definition) : ''}`)).replace(HYPHEN_RE, ' ')
-    .replace(STATE_OVER_RE, (_match, word) => `${word} over`).replace(NOT_COMPARISON_RE, ' ');
+    .replace(STATE_OVER_RE, (_match, word) => `${word} over`).replace(NOT_COMPARISON_RE, ' ').replace(SIGN_JOINED_RE, 'non ');
   const measured = tokens(entry.column);
   const found = new Map();
   for (const [direction, pattern] of COMPARISON_WORDS) {
     for (const match of said.matchAll(pattern)) {
       const word = match[1].toLowerCase();
-      if (!pySpaced(word).split(' ').every((w) => measured.has(w)) && !found.has(word)) found.set(word, direction);
+      if (pySpaced(word).split(' ').every((w) => measured.has(w))) continue;
+      const negation = NEGATION_BEFORE_RE.exec(said.slice(0, match.index));
+      const phrase = negation ? pySpaced(said.slice(negation.index, match.index + match[0].length).toLowerCase()) : word;
+      if (!found.has(phrase)) found.set(phrase, { direction: negation ? FLIPPED[direction] : direction, word, negated: Boolean(negation) });
     }
   }
   if (!found.size) return '';
@@ -198,23 +211,26 @@ export function kpiComparisonProblem(spec, definition = '', distinct = null) {
   const [column, op, literal] = clause;
   const shown = clause.join(' ');
   if (KPI_FILTER_COMPARISONS.includes(op)) {
-    const wrong = [...found].filter(([, direction]) => direction !== op[0]).map(([word]) => word);
+    const wrong = [...found].filter(([, { direction }]) => direction !== op[0]).map(([phrase]) => phrase);
     if (wrong.length) {
       return `${KPI_FILTER_MISMATCH_LEAD}the name says ${wrong.join(', ')}, but the filter ${shown} keeps the rows ${op[0] === '<' ? 'below' : 'above'} ${literal}`;
     }
     const raw = entry.filter_type === 'decimal' || entry.filter_type === 'integer' ? entry.filter_value : null;
     const number = typeof raw === 'number' ? raw : null;
-    for (const [word, sign] of Object.entries(SIGN_WORDS)) {
-      const exact = number !== null && { '<': number <= 0, '<=': number < 0, '>': number >= 0, '>=': number > 0 }[op];
-      if (found.has(word) && !exact) {
-        return `${KPI_FILTER_MISMATCH_LEAD}the name says ${word}, but the filter ${shown} does not keep exactly the ${word} values; ${word} needs ${column} ${sign} 0`;
+    for (const [phrase, { direction, word, negated }] of found) {
+      if (!Object.hasOwn(SIGN_WORDS, word)) continue;
+      const exact = number !== null
+        && { '<': number <= 0, '<=': negated ? number <= 0 : number < 0, '>': number >= 0, '>=': negated ? number >= 0 : number > 0 }[op];
+      if (!exact) {
+        return `${KPI_FILTER_MISMATCH_LEAD}the name says ${phrase}, but the filter ${shown} does not keep exactly the ${phrase} values; `
+          + `${phrase} needs ${column} ${direction}${negated ? '=' : ''} 0`;
       }
     }
     return '';
   }
   if (isCategory(entry, distinct)) return '';
-  const [first, direction] = [...found][0];
-  const hint = Object.hasOwn(SIGN_WORDS, first) ? `${column} ${SIGN_WORDS[first]} 0` : `${column} ${direction} a threshold`;
+  const [, { direction, word, negated }] = [...found][0];
+  const hint = Object.hasOwn(SIGN_WORDS, word) ? `${column} ${direction}${negated ? '=' : ''} 0` : `${column} ${direction} a threshold`;
   return `${KPI_FILTER_MISMATCH_LEAD}the name says ${listed}, a comparison, but the filter ${shown} keeps the rows where ${column} `
     + `${op === '=' ? 'equals' : 'differs from'} one value; compare with ${hint} instead`;
 }
