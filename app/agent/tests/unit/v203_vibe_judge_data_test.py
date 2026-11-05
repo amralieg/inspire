@@ -268,3 +268,26 @@ def test_the_live_carbon_ask_is_held_although_the_use_case_carries_its_own_notes
     assert held == {agent_ns["IMPLEMENT_NOTEBOOK"]: {LIVE_ASK: agent_ns["IMPLEMENT_VIBES_NO_DATA"] + REASON}}
     assert asked.count("judge") == 1
     assert agent_ns["implement_vibes_absent_terms"]("the late-line rate by nation", agent_ns["implement_vibes_held_terms"](SOURCES, live)) == []
+
+
+def test_an_ask_is_never_held_before_genie_when_a_source_table_s_columns_could_not_be_read(agent_ns):
+    unread = dict(SOURCES, **{"samples.tpch.supplier_esg": []})
+    live = dict(USE_CASE, _implement_notes=f"Add {LIVE_ASK}.")
+    assert agent_ns["implement_vibes_held_terms"](unread, live) == frozenset()
+    assert agent_ns["implement_vibes_absent_terms"](LIVE_ASK, agent_ns["implement_vibes_held_terms"](unread, live)) == []
+    inst = _inspire(agent_ns, FakeSpark())
+    asked = []
+
+    def llm(kind, prompt, schema):
+        asked.append(kind)
+        if kind == "split":
+            return {"asks": [{"ask": LIVE_ASK, "check": None, "keep": False, "where": ""}]}
+        return {"checks": [{"n": 1, "status": "no_data", "evidence": REASON, "where": ""}]}
+
+    inst._implement_vibes_llm = llm
+    inst._implement_vibes_sources = lambda spec, use_case: unread
+    assert inst._implement_vibes_hold("N02-U05", live, {"data": {"notes": f"Add {LIVE_ASK}."}, "outputs": {}}, {}) == {}
+    assert "judge" not in asked
+    found = agent_ns["implement_vibes_judged"]({"checks": [{"n": 1, "status": "no_data", "evidence": REASON}]}, [{"ask": LIVE_ASK}], {},
+                                               "Notebook", None, None, agent_ns["implement_vibes_held_terms"](unread, live))
+    assert found[1] == ("missing", REASON)
