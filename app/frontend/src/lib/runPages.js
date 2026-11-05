@@ -7,6 +7,7 @@ export const RUN_EMPTY = `No use case is deployed yet. To try a page Inside Insp
   + `and on App placement pick ${APP_INSIDE_PLACEMENT.label}. Use cases with an App of their own show up here too.`;
 export const RUN_NO_DOMAIN = 'No domain';
 export const RUN_OPEN_APP = 'Open App';
+export const RUN_REBUILD = 'Open its Build page to rebuild';
 export const RUN_POLL_MS = 3000;
 export const RUN_STATE_LABELS = { starting: 'Starting', ready: 'Ready', stopped: 'Stopped', failed: 'Failed' };
 export const RUN_STOPPED_FIRST = 'Opening it starts it';

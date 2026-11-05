@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, AppWindow, ArrowLeft, ExternalLink, Loader2, Maximize2, Menu, PlayCircle, RefreshCw } from 'lucide-react';
+import { AlertTriangle, AppWindow, ArrowLeft, ExternalLink, Hammer, Loader2, Maximize2, Menu, PlayCircle, RefreshCw } from 'lucide-react';
 import { makeApiFetch } from '../lib/apiClient';
 import { APP_INSIDE, APP_INSIDE_PLACEMENT } from '../lib/implementWizard';
 import {
   RUN_BACK, RUN_BANNER, RUN_CONTROL, RUN_DEMO_KIND, RUN_DEMO_NOTE, RUN_EMPTY, RUN_FULL_STATE, RUN_NEW_TAB, RUN_OPEN, RUN_OPEN_APP, RUN_OPENING, RUN_POLL_MS,
-  RUN_STATE_LABELS, RUN_SWITCH,
+  RUN_REBUILD, RUN_STATE_LABELS, RUN_SWITCH,
   demoRunPages, runAppUrl, runFrameSrc, runFramedPages, runFullPage, runGroups, runKey, runPicked, runPolling, runStateText, runUnknownText,
 } from '../lib/runPages';
 import { PANEL_CLASS } from '../components/BuildUi';
@@ -40,6 +40,7 @@ function PageItem({ page, on, onPick }) {
           {framed ? <PlayCircle size={13} aria-hidden /> : <AppWindow size={13} aria-hidden />} {page.name}
         </span>
         <span className="block text-text-secondary">{pageDetail(page)}</span>
+        {page.older_build && <span data-older-build="" className="block text-warning-fg">{page.older_build}</span>}
       </button>
     </li>
   );
@@ -208,7 +209,7 @@ function RunOutcome({ page, apiFetch, query }) {
   );
 }
 
-export default function RunPage({ settings, focusId = null, onFocus = ignore, onFull = ignore, showcase = null, notice = '' }) {
+export default function RunPage({ settings, focusId = null, onFocus = ignore, onFull = ignore, showcase = null, notice = '', onOpenBuild = null }) {
   const { token, databricksHost, inspireDatabase, warehouseId } = settings || {};
   const apiFetch = useMemo(() => makeApiFetch({ token, databricksHost }), [token, databricksHost]);
   const [data, setData] = useState(null);
@@ -335,6 +336,16 @@ export default function RunPage({ settings, focusId = null, onFocus = ignore, on
           </nav>
           <section aria-label={chosen ? chosen.name : 'Deployed use case'} className={`${PANEL_CLASS} self-start p-4 space-y-3`}>
             {chosen && <h2 className="text-[15px] font-semibold text-text-primary">{chosen.name}</h2>}
+            {chosen && chosen.older_build && (
+              <div role="note" data-older-build="" className="rounded-lg bg-warning-bg px-3 py-2 text-[12px] text-warning-fg ring-1 ring-inset ring-warning/30 space-y-2">
+                <p>{chosen.older_build}</p>
+                {onOpenBuild && chosen.session_id && (
+                  <button type="button" onClick={() => onOpenBuild(chosen.session_id, chosen.use_case_id)} className={PRIMARY_CLASS}>
+                    <Hammer size={12} aria-hidden /> {RUN_REBUILD}
+                  </button>
+                )}
+              </div>
+            )}
             {chosen && !showcase && chosen.kind !== RUN_DEMO_KIND && chosen.session_id && <RunOutcome key={`o:${chosenKey}`} page={chosen} apiFetch={apiFetch} query={query} />}
             {chosen && !showcase && chosen.kind !== RUN_DEMO_KIND && chosen.session_id && <RunScope key={chosenKey} page={chosen} settings={settings} />}
             {chosen && runFrameSrc(chosen) && <FrameDetail page={chosen} userAuthorization={userAuthorization} note={note} onOpen={open} />}

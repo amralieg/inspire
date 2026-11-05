@@ -3542,6 +3542,7 @@ def test_a_genie_code_install_failure_fails_only_the_outputs_genie_builds(agent_
     final = inst.updates[-1]
     assert final["status"] == "ready_with_warnings" and final["status_message"] == f"Genie Agent: {reason}; Dashboard: {reason}"
     assert final["asset_status"].pop("target_kpi")["source"] == "evaluated", "the version records the KPI it tracks"
+    assert final["asset_status"].pop("built_with") == agent_ns["implement_build_stamp"](), "the version records the release it was built with"
     assert final["asset_status"] == {"dashboard": {"state": "failed", "error": reason, "spec_version": 3},
                                      "genie_space": {"state": "failed", "error": reason, "spec_version": 3},
                                      "app": {"state": "ready", "spec_version": 2},

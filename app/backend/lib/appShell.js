@@ -15,6 +15,7 @@ const APP_SHELL_CELL = 1;
 const ASSET_PINS_NAME = 'INSPIRE_NOTEBOOK_ASSETS';
 const ASSET_PINS_CONSTANT = `${ASSET_PINS_NAME} = `;
 const APP_SHELL_ASSET = 'app_shell';
+const AGENT_VERSION_CONSTANT = '__AGENT_VERSION__ = ';
 const APP_SHELL_FILE = path.join(APP_DIR, 'agent', 'agent', 'app_shell', 'app_shell.b64');
 const APP_SHELL_VERSION = 1;
 const APP_SHELL_LISTS = { styles: 'STYLES', layouts: 'LAYOUTS', auths: 'AUTHS', themes: 'THEMES', palettes: 'PALETTES', options: 'OPTIONS' };
@@ -30,7 +31,7 @@ function bundledNotebookText() {
   return Buffer.from(require(NOTEBOOK_BUNDLE_FILE), 'base64').toString('utf8');
 }
 
-function notebookAssetPins(notebookText) {
+function notebookCodeLines(notebookText) {
   let cells;
   try {
     cells = parseExactJson(notebookText).cells;
@@ -38,14 +39,38 @@ function notebookAssetPins(notebookText) {
     throw new Error(`the bundled agent notebook is not valid JSON: ${e.message}`);
   }
   const source = cells && cells[APP_SHELL_CELL] && cells[APP_SHELL_CELL].source;
-  const lines = Array.isArray(source) ? source : String(source || '').split('\n');
-  const hits = lines.filter((line) => line.startsWith(ASSET_PINS_CONSTANT));
+  return Array.isArray(source) ? source : String(source || '').split('\n');
+}
+
+function notebookAssetPins(notebookText) {
+  const hits = notebookCodeLines(notebookText).filter((line) => line.startsWith(ASSET_PINS_CONSTANT));
   if (hits.length !== 1) throw new Error(`the bundled agent notebook pins no assets (${hits.length} ${ASSET_PINS_NAME} lines); ${UPDATE_HINT}`);
   try {
     return parseExactJson(hits[0].slice(ASSET_PINS_CONSTANT.length).trim());
   } catch (e) {
     throw new Error(`the bundled agent notebook's ${ASSET_PINS_NAME} is not JSON: ${e.message}; ${UPDATE_HINT}`);
   }
+}
+
+function notebookBuildStamp(notebookText) {
+  const hits = notebookCodeLines(notebookText).filter((line) => line.startsWith(AGENT_VERSION_CONSTANT));
+  if (hits.length !== 1) throw new Error(`the bundled agent notebook names no version (${hits.length} __AGENT_VERSION__ lines); ${UPDATE_HINT}`);
+  const version = parseExactJson(hits[0].slice(AGENT_VERSION_CONSTANT.length).trim());
+  const pin = notebookAssetPins(notebookText)[APP_SHELL_ASSET];
+  return { version: String(version), shell: String((pin && pin.sha256) || '') };
+}
+
+let stamp = null;
+
+function bundledBuildStamp() {
+  if (!stamp) {
+    try {
+      stamp = notebookBuildStamp(bundledNotebookText());
+    } catch (e) {
+      stamp = { version: '', shell: '', error: e.message || String(e) };
+    }
+  }
+  return stamp;
 }
 
 function pinnedAssetText(notebookText, name, file) {
@@ -222,6 +247,8 @@ module.exports = {
   APP_SHELL_FILE,
   bundledNotebookText,
   notebookAssetPins,
+  notebookBuildStamp,
+  bundledBuildStamp,
   pinnedAssetText,
   bundledAppShellText,
   appShellPayload,

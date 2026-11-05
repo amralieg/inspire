@@ -70,3 +70,10 @@ def test_a_rebuild_that_runs_nothing_still_holds_the_app_when_the_latest_run_is_
 def test_a_summary_with_no_row_holds_nothing(agent_ns):
     status, final, _emitted, built = _build(agent_ns, "", {"not_reliable": None})
     assert "app" in built and agent_ns["IMPLEMENT_NOT_RELIABLE"] not in final["asset_status"]
+
+
+def test_every_build_stamps_the_release_and_app_shell_it_was_built_with(agent_ns):
+    _status, final, _emitted, _built = _build(agent_ns, "", {"not_reliable": ""})
+    stamp = final["asset_status"][agent_ns["IMPLEMENT_BUILT_WITH"]]
+    assert stamp == {"version": agent_ns["__AGENT_VERSION__"], "shell": agent_ns["INSPIRE_NOTEBOOK_ASSETS"]["app_shell"]["sha256"]}
+    assert len(stamp["shell"]) == 64 and stamp["version"].startswith("v")

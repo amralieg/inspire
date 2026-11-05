@@ -568,6 +568,7 @@ export default function App() {
               onFull={setRunFull}
               showcase={inDemo ? demo.showcase : null}
               notice={inDemo ? '' : runLink.notice}
+              onOpenBuild={inDemo ? null : openImplement}
             />
           </ErrorBoundary>
         )}

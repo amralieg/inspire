@@ -54,6 +54,7 @@ function makeApp(overrides = {}, { mount } = {}) {
   if (mount) mount(app);
   app.use('/api/inspire/implement', async (req, _res, next) => { await (state.hold || {})[req.path]; next(); });
   registerImplementRoutes(app, {
+    ...(state.buildStamp ? { buildStamp: () => state.buildStamp } : {}),
     requireToken: (req, _res, next) => {
       req.dbHost = 'https://workspace.example.com';
       req.dbToken = 'tok';

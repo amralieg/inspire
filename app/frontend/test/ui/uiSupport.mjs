@@ -13,6 +13,8 @@ export { expandBuild };
 
 const frontend = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const { makeApp, listen } = createRequire(import.meta.url)('../../../backend/test/support/implementApp.js');
+export const CURRENT_BUILD = createRequire(import.meta.url)('../../../backend/lib/appShell.js').bundledBuildStamp();
+const UNKNOWN_BUILD = { version: '', shell: '' };
 
 export const VITE_CACHE_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'inspire-ui-vite-'));
 process.once('exit', () => fs.rmSync(VITE_CACHE_DIR, { recursive: true, force: true }));
@@ -26,7 +28,7 @@ export async function closeBrowser() {
 
 export async function openUi(open, overrides = {}, query = '', { mount, init } = {}) {
   if (!browser) browser = await chromium.launch();
-  const made = makeApp({ useCase: HARNESS_USE_CASE, ...overrides }, { mount });
+  const made = makeApp({ useCase: HARNESS_USE_CASE, buildStamp: UNKNOWN_BUILD, ...overrides }, { mount });
   const backend = await listen(made.app);
   const vite = await createServer({
     root: frontend,

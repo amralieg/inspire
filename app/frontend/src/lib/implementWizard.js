@@ -2228,7 +2228,10 @@ export function statusReason(latest, stalled = null) {
   }
   const unreliable = ['ready', 'ready_with_warnings'].includes(s) ? unreliableHold(latest) : '';
   if (unreliable) {
-    return `The latest run marked its results not reliable: ${unreliable.replace(/[.\s]+$/, '')}. The App is not published until a run can be trusted. `
+    const heldAtBuild = latest?.asset_status?.[NOT_RELIABLE_RECORD];
+    const appHeld = heldAtBuild && typeof heldAtBuild === 'object' && String(heldAtBuild.spec_version ?? '') === String(latest?.spec_version ?? '');
+    const app = appHeld ? 'The App is not published until a run can be trusted.' : 'Its App pages show Not reliable yet until a run can be trusted.';
+    return `The latest run marked its results not reliable: ${unreliable.replace(/[.\s]+$/, '')}. ${app} `
       + `Next step: fix what it names, then build again with ${VIBE_FEATURES_LABEL}.`;
   }
   if (!['ready_with_warnings', 'failed'].includes(s)) return '';
@@ -2334,7 +2337,20 @@ const NOTEBOOK_GROUP = { running: 'in_progress', ready: 'ready', failed: 'failed
 export const NOT_RELIABLE_RECORD = 'not_reliable';
 export const UNRELIABLE_LABEL = 'MVP built, results not trusted yet';
 
+export const UNRELIABLE_REBUILD_NOTE = 'The newest run says its results are not reliable yet. Fix what it names, then rebuild.';
+
+export function newestRunUnreliable(latest) {
+  const run = latest?.latest_run;
+  return run && typeof run === 'object' ? String(run.not_reliable ?? '').trim() : '';
+}
+
+export function olderBuildNote(latest) {
+  return String(latest?.older_build ?? '').trim();
+}
+
 export function unreliableHold(latest) {
+  const run = latest?.latest_run;
+  if (run && typeof run === 'object') return newestRunUnreliable(latest);
   const held = latest?.asset_status?.[NOT_RELIABLE_RECORD];
   const reason = held && typeof held === 'object' ? String(held.reason ?? '').trim() : '';
   return reason && String(held.spec_version ?? '') === String(latest?.spec_version ?? '') ? reason : '';

@@ -87,10 +87,12 @@ function HarnessContent({ open, discoveryType, demo, step, run }) {
 function RunHarness() {
   const [focus, setFocus] = useState(null);
   const [full, setFull] = useState(false);
+  const [build, setBuild] = useState('');
   return (
     <ThemeProvider>
-      <RunPage settings={SETTINGS} focusId={focus} onFocus={setFocus} onFull={setFull} />
+      <RunPage settings={SETTINGS} focusId={focus} onFocus={setFocus} onFull={setFull} onOpenBuild={(sid, uc) => setBuild(`${sid}:${uc}`)} />
       <output aria-label="Run full window" className="sr-only">{full ? 'yes' : 'no'}</output>
+      <output aria-label="Opened Build" className="sr-only">{build}</output>
     </ThemeProvider>
   );
 }

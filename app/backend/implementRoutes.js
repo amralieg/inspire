@@ -4,7 +4,7 @@ const I = require('./lib/inspireImplement');
 const { createGenieJobGuard } = require('./lib/genieJobGuard');
 const { genieNotebookJobName, latestGenieNotebookRun } = require('./lib/genieNotebookJob');
 const C = require('./lib/implementControl');
-const { appShellCatalog } = require('./lib/appShell');
+const { appShellCatalog, bundledBuildStamp } = require('./lib/appShell');
 const { moneyStatements, moneyView } = require('./lib/implementMoney');
 const { HOSTED_NO_TOKEN } = require('./lib/hostedRun');
 const { inspireJobEnvironmentChange, inspireJobEnvironmentWarning, inspireJobTestTagChange, inspireJobTestTagWarning } = require('./lib/inspireJobParams');
@@ -120,6 +120,7 @@ function registerImplementRoutes(app, deps) {
     ensureTableColumns,
     runRoute1GenieFlagUpdates,
     hostedRun = null,
+    buildStamp = bundledBuildStamp,
     runDefaults = () => ({}),
     appToken = async () => '',
     appBaseUrl = (req) => I.inspireBaseUrl(process.env.DATABRICKS_APP_URL)
@@ -533,6 +534,7 @@ function registerImplementRoutes(app, deps) {
       const [notebook] = await Promise.all([
         latestGenieNotebookRun(fetchJsonFor(req), sid).then((run) => ({ run, error: '' }), (err) => ({ run: null, error: err.message })),
         ...latest.map(async (row) => { row.stalled = await stalledOf(req, row); }),
+        ...latest.map((row) => latestRunOf(req, warehouseId, row)),
       ]);
       res.json({ history, latest, notebook_run: notebook.run, notebook_run_error: notebook.error });
     } catch (err) {
@@ -963,6 +965,18 @@ function registerImplementRoutes(app, deps) {
     }
   });
 
+  async function latestRunOf(req, warehouseId, row) {
+    if (!row) return;
+    row.older_build = I.olderBuildNote(row, buildStamp());
+    const summary = I.runSummaryTable(row);
+    if (!summary) return;
+    try {
+      row.latest_run = I.latestRunFrom(await sqlRows(req.dbHost, req.dbToken, warehouseId, I.latestRunStatement(summary, row.use_case_id)));
+    } catch (err) {
+      if (isMissingTableError(err) || I.isMissingColumnError(err)) row.latest_run = I.latestRunFrom([]);
+    }
+  }
+
   async function stalledOf(req, row) {
     if (!row || (!I.IMPLEMENT_ACTIVE_STATUSES.includes(row.status) && !I.implementEndedRecord(row))) return null;
     const runId = String(row.implement_run_id ?? '');
@@ -1218,6 +1232,7 @@ function registerImplementRoutes(app, deps) {
         jobId ? jsonOf(dbFetch, req.dbHost, req.dbToken, `/api/2.1/jobs/runs/list?job_id=${jobId}&limit=10`) : null,
         stalledOf(req, history[0]),
         held == null ? null : personOf(req),
+        latestRunOf(req, warehouseId, history[0]),
         builtBy ? jsonOf(dbFetch, req.dbHost, req.dbToken, `/api/2.1/jobs/runs/get?run_id=${builtBy}`).catch(() => null) : null,
       ]);
       const listedNone = runInfo && runInfo.ok && !(Array.isArray(runInfo.data && runInfo.data.runs) && runInfo.data.runs.length);
@@ -1248,7 +1263,7 @@ function registerImplementRoutes(app, deps) {
       ? await sqlRows(req.dbHost, req.dbToken, warehouseId, I.useCaseScopeStatement(catalog, schema, sessions))
         .catch((err) => { if (isMissingTableError(err) || I.isMissingColumnError(err)) return []; throw err; })
       : [];
-    return I.runPages(rows, scope);
+    return I.runPages(rows, scope, buildStamp());
   }
 
   const runContext = (req, warehouseId, catalog, schema) => ({ key: `${req.dbHost}|${catalog}.${schema}`, warehouseId, catalog, schema });

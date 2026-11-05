@@ -1814,7 +1814,41 @@ function hostedRecord(row) {
   return { id, source, version, warehouse_id: warehouse, page, published_at: str(hosted.published_at) };
 }
 
-function runPages(rows, scope = []) {
+const RUN_SUMMARY_SUFFIX = '_summary';
+const IMPLEMENT_BUILT_WITH = 'built_with';
+const OLDER_BUILD_STATUSES = new Set(['ready', 'ready_with_warnings', 'vibe_not_met']);
+
+function runSummaryTable(row) {
+  const spec = row && isPlainObject(row.spec_json) ? row.spec_json : {};
+  const table = plainTable(isPlainObject(spec.config) ? spec.config.result_table : '');
+  return IMPLEMENT_TABLE_NAME_RE.test(table) && !table.includes('`') ? `${table}${RUN_SUMMARY_SUFFIX}` : '';
+}
+
+function latestRunStatement(summaryTable, useCaseId) {
+  return {
+    sql: `SELECT CAST(not_reliable AS STRING) AS not_reliable, CAST(updated_at AS STRING) AS updated_at FROM ${quoteTable(summaryTable)} `
+      + 'WHERE use_case_id = :uc ORDER BY updated_at DESC NULLS LAST LIMIT 1',
+    parameters: [{ name: 'uc', value: str(useCaseId), type: 'STRING' }],
+  };
+}
+
+function latestRunFrom(rows) {
+  const row = (rows || [])[0];
+  return { not_reliable: row ? str(row.not_reliable).split(/\s+/).filter(Boolean).join(' ') : '', updated_at: row ? str(row.updated_at) : '' };
+}
+
+function olderBuildNote(row, current) {
+  if (!row || !current || !str(current.version) || !str(current.shell)) return '';
+  if (!OLDER_BUILD_STATUSES.has(str(row.status)) || !(str(row.app_name) || str(row.dashboard_id) || str(row.genie_space_id) || str(row.job_id))) return '';
+  const built = row.asset_status && isPlainObject(row.asset_status[IMPLEMENT_BUILT_WITH]) ? row.asset_status[IMPLEMENT_BUILT_WITH] : null;
+  const version = built ? str(built.version).trim() : '';
+  if (built && version === str(current.version) && str(built.shell) === str(current.shell)) return '';
+  const shown = !version ? 'Built with an earlier Inspire release.'
+    : version === str(current.version) ? `Built with an earlier build of Inspire ${version}.` : `Built with Inspire ${version}.`;
+  return `${shown} Rebuild to get the latest fixes.`;
+}
+
+function runPages(rows, scope = [], current = null) {
   const groups = new Map();
   for (const row of rows || []) {
     const key = `${str(row.session_id)}|${str(row.use_case_id)}`;
@@ -1833,7 +1867,7 @@ function runPages(rows, scope = []) {
     const base = {
       session_id: str(live.session_id), use_case_id: str(live.use_case_id), name: str(spec.use_case_name).trim() || str(live.use_case_id),
       domain: scoped ? str(scoped.domain).trim() : '', business: scoped ? str(scoped.business).trim() : '', version: live.spec_version,
-      published_at: str(live.updated_at), owners: implementOwners(live),
+      published_at: str(live.updated_at), owners: implementOwners(live), older_build: olderBuildNote(live, current),
     };
     const hosted = hostedRecord(live);
     if (hosted) {
@@ -3193,6 +3227,12 @@ function quoteColumn(name) {
 
 module.exports = {
   IMPLEMENT_RUN_STARTED_MESSAGE,
+  RUN_SUMMARY_SUFFIX,
+  IMPLEMENT_BUILT_WITH,
+  runSummaryTable,
+  latestRunStatement,
+  latestRunFrom,
+  olderBuildNote,
   personalKeyOf,
   resultKeyRef,
   personalKeyProblem,

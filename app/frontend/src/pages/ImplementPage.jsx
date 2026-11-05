@@ -8,6 +8,7 @@ import {
   runProfileText, runStopped, versionActive, historyStatus, implementGroups, notebookRunEnded, notebookStatus, START_MVP_LABEL, IMPLEMENT_ACTIVE_STATUSES, IMPLEMENT_UNINSTALLED,
   vibesPreview, canBuildAgain, buildAgainChanges, buildAgainHint, resultTableMoveNote, IMPLEMENT_DONE_STATUSES, specFromHeld, builtVersion, vibePreviousChoices,
   vibesProblems, OPEN_ALL_SETTINGS, VIBE_FEATURES_LABEL, DATA_STOP_HINT, dataStopped, shownStatusMessage,
+  unreliableHold, olderBuildNote, UNRELIABLE_REBUILD_NOTE,
 } from '../lib/implementWizard';
 import { makeApiFetch, makeApiPostJson } from '../lib/apiClient';
 import { buildUseCaseList } from '../lib/useCaseList';
@@ -1485,9 +1486,24 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
     </ul>
   );
 
+  const unreliableNow = hasMvp && !failureBanner && !held && IMPLEMENT_DONE_STATUSES.includes(latest?.status) && Boolean(unreliableHold(latest));
+  const olderNote = hasMvp && !active ? olderBuildNote(latest) : '';
+  const rebuildBanner = (unreliableNow || olderNote) && (
+    <section aria-label="Rebuild" data-rebuild-note="" className="rounded-lg border border-warning/30 bg-warning-bg px-3.5 py-3 text-[12px] space-y-2">
+      {unreliableNow && <p className="text-warning-fg">{UNRELIABLE_REBUILD_NOTE}</p>}
+      {olderNote && <p className="text-warning-fg" data-older-build="">{olderNote}</p>}
+      {!readOnly && (
+        <button type="button" disabled={locked} title={lockedReason || undefined} onClick={() => openFeatures()} className={PRIMARY_BUTTON}>
+          <Sparkles size={12} /> {VIBE_FEATURES_LABEL}
+        </button>
+      )}
+    </section>
+  );
+
   const attention = (
     <>
       {failureBanner}
+      {rebuildBanner}
       {missing.length > 0 && (
         <div className="border border-error/30 bg-error-bg rounded-lg px-3 py-2 text-[12px] space-y-2">
           <p className="text-error-fg">{lostTablesText(missing)}</p>
@@ -1514,7 +1530,7 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
       )}
     </>
   );
-  const needsAttention = Boolean(failureBanner) || missing.length > 0 || Boolean(edited) || Boolean(held);
+  const needsAttention = Boolean(failureBanner) || Boolean(rebuildBanner) || missing.length > 0 || Boolean(edited) || Boolean(held);
 
   const stop = stopAction && (
     <button type="button" data-stop-build="" disabled={readOnly || actionBusy !== ''} title={lockedReason || undefined} onClick={() => runControl(stopAction)} className={QUIET_BUTTON}>
