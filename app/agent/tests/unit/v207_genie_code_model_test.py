@@ -81,14 +81,45 @@ def test_no_served_model_is_a_plain_stop_that_names_every_model_tried(agent_ns, 
     with pytest.raises(agent_ns["ImplementStopped"]) as stop:
         inst._implement_runner("N01-U01")
     message = str(stop.value)
-    assert message.startswith("Genie Code can call no AI model through Unity Gateway on this workspace, so the build stopped "
-                              "before Genie started. Tried 2 models: ")
+    assert message.startswith("Genie Code is not available in this workspace: Unity Gateway serves it no AI model this run can call, "
+                              "so the build stopped before Genie started and did not retry. Tried 2 models: ")
     assert agent_ns["GENIE_CODE_MODEL"] in message and "system.ai.glm-5-3" in message and message.endswith("then Rebuild.")
     assert agent_ns["implement_known_repair"](stop.value, message) == {"kind": "stop", "why": ""}
     assert _genie_steps(inst) == [("ended_error", message)]
     with pytest.raises(agent_ns["ImplementStopped"]):
         inst._implement_runner("N01-U02")
     assert len(gateway.checked()) == 2
+
+
+class NotFound(Exception):
+    def __init__(self, message, error_code):
+        super().__init__(message)
+        self.error_code = error_code
+
+
+ENDPOINT_NOT_FOUND = NotFound("The given endpoint does not exist, please retry after checking the specified model and version "
+                              "deployment exists.", "ENDPOINT_NOT_FOUND")
+
+
+def test_a_workspace_whose_genie_code_endpoint_answers_404_stops_before_genie_with_a_plain_sentence_and_no_retry(agent_ns, monkeypatch):
+    assert not agent_ns["implement_transient"](ENDPOINT_NOT_FOUND)
+    gateway = Gateway([], {agent_ns["GENIE_CODE_MODEL"]: ENDPOINT_NOT_FOUND})
+    inst = _inspire(agent_ns, gateway, monkeypatch)
+    monkeypatch.setattr(agent_ns["GenieCodeRunner"], "install", lambda self: pytest.fail("Genie Code never starts"))
+    with pytest.raises(agent_ns["ImplementStopped"]) as stop:
+        inst._implement_runner("N02-U01")
+    assert str(stop.value) == (
+        "Genie Code is not available in this workspace: Unity Gateway serves it no AI model this run can call, so the build "
+        f"stopped before Genie started and did not retry. Tried 1 model: {agent_ns['GENIE_CODE_MODEL']}: Unity Gateway has no such "
+        "model or endpoint here. Ask a workspace admin to serve a model through Unity Gateway and give this run's identity "
+        "permission to query it, then Rebuild.")
+    assert agent_ns["implement_known_repair"](stop.value, str(stop.value)) == {"kind": "stop", "why": ""}
+    assert gateway.checked() == [agent_ns["GENIE_CODE_MODEL"]] and "please retry" not in str(stop.value)
+
+
+def test_an_output_built_without_a_notebook_rebuild_carries_the_plain_stop_not_an_install_failure():
+    source = ast.unparse(method_node("DatabricksInspire", "_implement_one_locked"))
+    assert "except ImplementStopped as stop: runner_error = str(stop) except Exception as error: runner_error = " in " ".join(source.split())
 
 
 def test_a_model_that_only_timed_out_is_used_rather_than_stopping(agent_ns, monkeypatch):
