@@ -255,11 +255,18 @@ def test_run_use_case_outcomes_read_the_same_here_and_from_the_job_run(agent_ns)
     launcher, _calls = _launcher(ns)
     gate = ns["inspire_main"](dbu=dbu, launcher_cls=launcher, out=lambda *_a: None)
     assert dbu.notebook.exits == ["stopped without writing: row_count 0 < min_rows 1"] and gate["execution"] == "child"
-    ns["run_use_case"] = lambda: None
-    dbu = _dbutils(execution="Here")
-    dbu.notebook.exit = dbu.notebook.exits.append
-    ns["inspire_main"](dbu=dbu, launcher_cls=launcher, out=lambda *_a: None)
-    assert dbu.notebook.exits == ["run_use_case() returned no outcome, so this run's printed summary is its only record"]
+    for returned, said in ((None, "returned None instead of its outcome"), ("custom summary", "returned a str instead of its outcome dict"),
+                           ({"status": "done"}, "returned the status 'done'"),
+                           ({"status": "written", "rows_written": 3}, "its outcome lacks as_of_date, run_id"),
+                           ({"status": "written", "rows_written": "many", "as_of_date": "d", "run_id": "r"},
+                            "lacks a whole number in rows_written")):
+        ns["run_use_case"] = lambda returned=returned: returned
+        dbu = _dbutils(execution="Here")
+        dbu.notebook.exit = dbu.notebook.exits.append
+        with pytest.raises(ns["InspireOutcomeMissing"], match=r"^stopped without writing: run_use_case\(\) ") as raised:
+            ns["inspire_main"](dbu=dbu, launcher_cls=launcher, out=lambda *_a: None)
+        assert said in str(raised.value) and agent_ns["IMPLEMENT_OUTCOME_SHAPE"] in str(raised.value), returned
+        assert dbu.notebook.exits == [], "an off-format outcome fails the run instead of exiting as if it succeeded"
 
 
 def test_the_exit_value_carries_everything_run_use_case_printed(agent_ns, capsys):
@@ -303,8 +310,9 @@ def test_the_exit_value_carries_everything_run_use_case_printed(agent_ns, capsys
     dbu = _dbutils(**{marker: "1"})
     dbu.notebook.exit = dbu.notebook.exits.append
     stream = sys.stdout
-    with pytest.raises(ValueError, match="boom"):
+    with pytest.raises(ns["InspireOutcomeMissing"], match=r"^stopped without writing: run_use_case\(\) raised ValueError: boom \(at broken line") as raised:
         ns["inspire_main"](dbu=dbu, launcher_cls=_launcher(ns)[0], out=lambda *_a: None)
+    assert isinstance(raised.value.__cause__, ValueError), "the original error stays attached for the traceback"
     assert dbu.notebook.exits == [] and sys.stdout is stream, "a failing run raises with its output and restores stdout"
     assert ns["inspire_exit_text"]("stopped without writing: x", "  \n") == "stopped without writing: x"
 
