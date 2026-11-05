@@ -96,6 +96,7 @@ SHELL_ENTRY_POINTS = {
     ("_implement_holder_filters", "shell_sql.table_column_filters"),
     ("implement_column_filter_gate", "shell_sql.list_column_filters"),
     ("implement_column_filter_gate", "shell_sql.list_shown"),
+    ("_implement_vibes_sort_text", "shell_sql.list_shown"),
     ("implement_column_filter_gate", "shell_sql.table_column_filters"),
     ("implement_column_filter_gate", "shell_sql.table_shown"),
     ("implement_dashboard_dataset_sql", "shell_sql.clean_sql"),
