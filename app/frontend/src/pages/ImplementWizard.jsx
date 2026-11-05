@@ -12,6 +12,8 @@ import {
   IMPLEMENT_MODES,
   GENIE_CODE_OFF_TITLE,
   genieCodeOff,
+  MVP_MODE_LABEL,
+  NOTEBOOK_MODE_LABEL,
   wizardSteps,
   contextSettings,
   IMPLEMENT_OUTPUTS,
@@ -1027,7 +1029,7 @@ export default function ImplementWizard({
               )}
               {editing && (
                 <p className="text-[11px] text-text-tertiary">
-                  This use case has an MVP (v{context.latest.spec_version}). Full MVP edits it; Notebook only leaves it as it is.
+                  This use case has an MVP (v{context.latest.spec_version}). {MVP_MODE_LABEL} edits it; {NOTEBOOK_MODE_LABEL} leaves it as it is.
                 </p>
               )}
             </fieldset>
@@ -1038,7 +1040,7 @@ export default function ImplementWizard({
           <section className="space-y-3" aria-label="Tables the notebook uses">
             <h3 className="text-sm font-semibold text-text-primary">Tables the notebook uses</h3>
             <p className="text-[12px] text-text-secondary">
-              Notebook only writes the notebook over the tables this use case was discovered with. To swap, remove or filter a table, go back and choose Full MVP.
+              {NOTEBOOK_MODE_LABEL} writes the notebook over the tables this use case was discovered with. To swap, remove or filter a table, go back and choose {MVP_MODE_LABEL}.
             </p>
             <ul className="space-y-1.5">
               {tablesOf(ucRow).map((t) => (

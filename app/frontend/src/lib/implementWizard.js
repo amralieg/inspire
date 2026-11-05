@@ -16,9 +16,11 @@ export const START_MVP_LABEL = 'Start Use Case MVP with Genie';
 export const VIBE_FEATURES_LABEL = 'Vibe/Add/Remove Features';
 export const OPEN_ALL_SETTINGS = 'Open all settings';
 
+export const MVP_MODE_LABEL = 'Inspire builds the MVP';
+export const NOTEBOOK_MODE_LABEL = 'I will build it myself';
 export const IMPLEMENT_MODES = [
-  { id: 'mvp', label: 'Full MVP', blurb: 'Genie builds the result table, then the outputs you pick: dashboard, Genie Agent, App or alert.' },
-  { id: 'notebook', label: 'Notebook only', blurb: 'Inspire writes the Genie Code notebook for this use case. Nothing else is built; you run the notebook yourself.' },
+  { id: 'mvp', label: MVP_MODE_LABEL, blurb: 'Genie builds the data, then the App, dashboard, alerts or Genie Agent you pick.' },
+  { id: 'notebook', label: NOTEBOOK_MODE_LABEL, blurb: 'Inspire hands you the Genie Code notebook for this use case. Nothing else is built.' },
 ];
 
 const CHOOSE_STEP = { id: 'choose', label: 'Choose', sections: [], advanced: [] };

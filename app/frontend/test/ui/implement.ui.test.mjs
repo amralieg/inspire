@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildAgainHint, DATA_STOP_HINT, GENIE_CODE_OFF_TITLE, lostTablesText, VIBE_FEATURES_LABEL } from '../../src/lib/implementWizard.js';
+import { buildAgainHint, DATA_STOP_HINT, GENIE_CODE_OFF_TITLE, lostTablesText, MVP_MODE_LABEL, NOTEBOOK_MODE_LABEL, VIBE_FEATURES_LABEL } from '../../src/lib/implementWizard.js';
 import {
   HARNESS_USE_CASE, HARNESS_SETTINGS, HARNESS_SESSION_ID, MVP_JOB, OWNER, RESULT_TABLE, STUDIO_STATE, built, builtSpec,
 } from './implementFixtures.js';
@@ -79,8 +79,12 @@ test('the wizard starts with the dashboard, Genie Agent and App ticked, drops Ap
     const summary = page.getByRole('region', { name: 'Executive summary' });
     await summary.getByText('Cut churn in the top segment').waitFor();
     await summary.getByText('Head of Retention').waitFor();
-    assert.equal(await page.getByRole('radio', { name: /^Full MVP \(default\)/ }).isChecked(), true);
-    assert.equal(await page.getByRole('radio', { name: /^Notebook only/ }).isChecked(), false);
+    assert.equal(await page.getByRole('radio', { name: new RegExp(`^${MVP_MODE_LABEL} \\(default\\)`) }).isChecked(), true);
+    assert.equal(await page.getByRole('radio', { name: new RegExp(`^${NOTEBOOK_MODE_LABEL}`) }).isChecked(), false);
+    assert.deepEqual(await page.locator('label:has(input[name="implement-mode"])').allInnerTexts().then((t) => t.map((x) => x.replace(/\s+/g, ' ').trim())), [
+      'Inspire builds the MVP (default) Genie builds the data, then the App, dashboard, alerts or Genie Agent you pick.',
+      'I will build it myself Inspire hands you the Genie Code notebook for this use case. Nothing else is built.',
+    ], 'the Choose step names the two ways in plain words');
     assert.equal(await advanced(page).count(), 0, 'Choose has nothing under Advanced settings');
     await next(page);
     await onStep(page, 'Data');
@@ -1756,15 +1760,15 @@ test('Edit after notebook edits asks on Delivery whether to overwrite them, and 
   }
 });
 
-test('with no Genie Code route, Full MVP is disabled with the reason and the admin fix, and Notebook only is picked for you', async () => {
+test('with no Genie Code route, Inspire builds the MVP is disabled with the reason and the admin fix, and I will build it myself is picked for you', async () => {
   const noRoute = { answer: () => [{ error_code: 'RESOURCE_DOES_NOT_EXIST', message: 'no such model' }, 404] };
   const ui = await openUi('wizard', { me: { userName: OWNER, displayName: 'Owner' }, gateway: noRoute });
   const { page, made } = ui;
   try {
     await onStep(page, 'Choose');
-    const full = page.getByRole('radio', { name: /^Full MVP/ });
+    const full = page.getByRole('radio', { name: new RegExp(`^${MVP_MODE_LABEL}`) });
     assert.equal(await full.isDisabled(), true);
-    assert.equal(await page.getByRole('radio', { name: /^Notebook only/ }).isChecked(), true);
+    assert.equal(await page.getByRole('radio', { name: new RegExp(`^${NOTEBOOK_MODE_LABEL}`) }).isChecked(), true);
     const note = page.getByRole('note', { name: GENIE_CODE_OFF_TITLE });
     await note.getByText(/^Genie Code is not available in this workspace/).waitFor();
     await note.getByText(/^Admin fix: Ask a workspace admin to serve a model to Genie Code/).waitFor();
@@ -1776,18 +1780,18 @@ test('with no Genie Code route, Full MVP is disabled with the reason and the adm
   }
 });
 
-test('with a Genie Code route, Full MVP stays the default and no note shows', async () => {
+test('with a Genie Code route, Inspire builds the MVP stays the default and no note shows', async () => {
   const ui = await openUi('wizard', { me: { userName: OWNER, displayName: 'Owner' } });
   try {
     await onStep(ui.page, 'Choose');
-    assert.equal(await ui.page.getByRole('radio', { name: /^Full MVP/ }).isChecked(), true);
+    assert.equal(await ui.page.getByRole('radio', { name: new RegExp(`^${MVP_MODE_LABEL}`) }).isChecked(), true);
     assert.equal(await ui.page.getByRole('note', { name: GENIE_CODE_OFF_TITLE }).count(), 0);
   } finally {
     await ui.close();
   }
 });
 
-test('Notebook only skips the MVP settings, flags only this use case, starts Generate Use Cases, and the Implement page follows the notebook run', async () => {
+test('I will build it myself skips the MVP settings, flags only this use case, starts Generate Use Cases, and the Implement page follows the notebook run', async () => {
   const notebookPath = '/Users/owner@example.com/inspire/Acme/N01-U01';
   const flaggedRow = { ...HARNESS_USE_CASE, generate_genie_code_instruction: 'Yes', has_genie_code: 'N' };
   const runUrl = 'https://workspace.example.com/#job/7/run/99';
@@ -1800,15 +1804,15 @@ test('Notebook only skips the MVP settings, flags only this use case, starts Gen
   };
   try {
     await onStep(page, 'Choose');
-    await page.getByRole('radio', { name: /^Notebook only/ }).check();
+    await page.getByRole('radio', { name: new RegExp(`^${NOTEBOOK_MODE_LABEL}`) }).check();
     assert.deepEqual(await page.locator('ol li').allTextContents(), ['1. Choose', '2. Data', '3. Notebook']);
     await next(page);
     await onStep(page, 'Data');
     const tables = page.getByRole('region', { name: 'Tables the notebook uses' });
     assert.deepEqual(await tables.locator('li > span.font-mono').allTextContents(), ['main.s.orders', 'main.s.returns']);
     await tables.locator('li', { hasText: 'main.s.orders' }).getByText('primary', { exact: true }).waitFor();
-    assert.equal(await advanced(page).count(), 0, 'Notebook only has no MVP settings');
-    assert.equal(await page.getByRole('button', { name: 'Change' }).count(), 0, 'Notebook only never swaps a table');
+    assert.equal(await advanced(page).count(), 0, 'I will build it myself has no MVP settings');
+    assert.equal(await page.getByRole('button', { name: 'Change' }).count(), 0, 'I will build it myself never swaps a table');
     await next(page);
     await onStep(page, 'Notebook');
     const step = page.getByRole('region', { name: 'Notebook' });
@@ -1823,7 +1827,7 @@ test('Notebook only skips the MVP settings, flags only this use case, starts Gen
     assert.equal(made.jobs[0].jobName, 'Inspire AI - Genie Code - 42');
     assert.equal(made.jobs[0].params['15_operation'], 'Generate Use Cases');
     assert.deepEqual(made.flagged.map((f) => [f.sid, f.ids]), [['42', ['N01-U01']]]);
-    assert.equal(made.sqlCalls.some((c) => String(c.sql).includes('INSERT INTO')), false, 'Notebook only writes no MVP version');
+    assert.equal(made.sqlCalls.some((c) => String(c.sql).includes('INSERT INTO')), false, 'I will build it myself writes no MVP version');
 
     const nav = page.getByRole('navigation', { name: 'Use cases' });
     await nav.getByRole('region', { name: 'Building' }).getByText('Notebook running', { exact: true }).waitFor();
@@ -1862,7 +1866,7 @@ test('Notebook only skips the MVP settings, flags only this use case, starts Gen
   }
 });
 
-test('Notebook only started from the Build page of a use case that has a notebook shows it running at once, not the old notebook as ready', async () => {
+test('I will build it myself started from the Build page of a use case that has a notebook shows it running at once, not the old notebook as ready', async () => {
   const notebookPath = '/Users/owner@example.com/inspire/Acme/N01-U01';
   const runUrl = 'https://workspace.example.com/#job/7/run/99';
   const ui = await openUi('implement', { useCase: { ...HARNESS_USE_CASE, has_genie_code: 'Y', generate_genie_code_instruction: 'No', notebook_path: notebookPath } });
@@ -1877,7 +1881,7 @@ test('Notebook only started from the Build page of a use case that has a noteboo
     await nav.getByRole('region', { name: 'Ready' }).getByText('Notebook ready', { exact: true }).waitFor();
     await page.getByRole('button', { name: 'Start Use Case MVP with Genie' }).click();
     await onStep(page, 'Choose');
-    await page.getByRole('radio', { name: /^Notebook only/ }).check();
+    await page.getByRole('radio', { name: new RegExp(`^${NOTEBOOK_MODE_LABEL}`) }).check();
     await next(page);
     await onStep(page, 'Data');
     await next(page);

@@ -1089,9 +1089,18 @@ test('Data groups and First run come right after Data, Data groups only when the
   assert.throws(() => w.stepErrors('grouping', spec, {}), /unknown wizard step 'grouping'/, 'without the profile the step does not exist');
 });
 
-test('Full MVP is the first mode, and Notebook only swaps Delivery for a Notebook step with nothing to check', async () => {
+test('Inspire builds the MVP is the first mode, and I will build it myself swaps Delivery for a Notebook step with nothing to check', async () => {
   const w = await load();
-  assert.deepEqual(w.IMPLEMENT_MODES.map((m) => [m.id, m.label]), [['mvp', 'Full MVP'], ['notebook', 'Notebook only']]);
+  assert.deepEqual(w.IMPLEMENT_MODES.map((m) => [m.id, m.label]), [['mvp', 'Inspire builds the MVP'], ['notebook', 'I will build it myself']]);
+  assert.deepEqual([w.MVP_MODE_LABEL, w.NOTEBOOK_MODE_LABEL], w.IMPLEMENT_MODES.map((m) => m.label));
+  assert.equal(w.IMPLEMENT_MODES[0].blurb, 'Genie builds the data, then the App, dashboard, alerts or Genie Agent you pick.');
+  assert.equal(w.IMPLEMENT_MODES[1].blurb, 'Inspire hands you the Genie Code notebook for this use case. Nothing else is built.');
+  for (const m of w.IMPLEMENT_MODES) assert.doesNotMatch(`${m.label} ${m.blurb}`, /[\u2013\u2014]/);
+  const fs = require('node:fs');
+  const src = path.resolve(__dirname, '..', '..', 'frontend', 'src');
+  const files = fs.readdirSync(src, { recursive: true }).filter((f) => /\.(js|jsx)$/.test(f));
+  const named = files.filter((f) => /Full MVP|Notebook only|Inspire builds the MVP|I will build it myself/.test(fs.readFileSync(path.join(src, f), 'utf8')));
+  assert.deepEqual(named, [path.join('lib', 'implementWizard.js')], 'every other place shows the mode names through the shared labels');
   assert.deepEqual(w.wizardSteps('mvp').map((s) => s.id), [...w.IMPLEMENT_STEPS.map((s) => s.id), 'vibes'], 'no settings, no Settings step');
   assert.deepEqual(w.wizardSteps('mvp', null, []).map((s) => s.id), [...w.IMPLEMENT_STEPS.map((s) => s.id), 'vibes']);
   assert.deepEqual(w.wizardSteps('mvp', null, [{ name: 'top_k' }]).map((s) => s.id), [...w.IMPLEMENT_STEPS.map((s) => s.id), 'settings', 'vibes']);

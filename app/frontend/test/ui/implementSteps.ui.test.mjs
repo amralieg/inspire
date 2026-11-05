@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { closeBrowser, lowContrast, onStep, openAdvanced, openUi, setDark, toVibes, wizardFits } from './uiSupport.mjs';
+import { NOTEBOOK_MODE_LABEL } from '../../src/lib/implementWizard.js';
 
 test.after(closeBrowser);
 
@@ -21,7 +22,7 @@ function submittedSpec(made) {
   return JSON.parse(inserts[0].parameters.find((p) => p.name === 'spec').value);
 }
 
-test('a fresh Full MVP shows every step in the step bar, with no shortcut that hides them', async () => {
+test('a fresh Inspire builds the MVP shows every step in the step bar, with no shortcut that hides them', async () => {
   const ui = await openUi('wizard', ME);
   const { page } = ui;
   try {
@@ -109,12 +110,12 @@ test('the last step reviews what Inspire picked, with the step to change each on
   }
 });
 
-test('Notebook only keeps its own three steps and shows no review', async () => {
+test('I will build it myself keeps its own three steps and shows no review', async () => {
   const ui = await openUi('wizard', ME);
   const { page } = ui;
   try {
     await onStep(page, 'Choose');
-    await page.getByRole('radio', { name: /^Notebook only/ }).check();
+    await page.getByRole('radio', { name: new RegExp(`^${NOTEBOOK_MODE_LABEL}`) }).check();
     assert.deepEqual(await stepLabels(page), ['Choose', 'Data', 'Notebook']);
     assert.equal(await summary(page).count(), 0);
     assert.deepEqual(ui.pageErrors, []);

@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { assertFitsScreen, closeBrowser, dataToResults, lowContrast, onStep, openAdvanced, openUi, setDark, settled, startMvp, toAppAccess, toVibes, until, watchAsks, wizardFit } from './uiSupport.mjs';
+import { MVP_MODE_LABEL, NOTEBOOK_MODE_LABEL } from '../../src/lib/implementWizard.js';
 
 const { appShellCatalog } = createRequire(import.meta.url)('../../../backend/lib/appShell.js');
 const SHELL = appShellCatalog();
@@ -779,7 +780,7 @@ test('every wizard step fits a 1440x900 screen with nothing to scroll, the App s
   try {
     await page.setViewportSize({ width: 1440, height: 900 });
     await onStep(page, 'Choose');
-    await page.getByRole('radio', { name: /^Notebook only/ }).check();
+    await page.getByRole('radio', { name: new RegExp(`^${NOTEBOOK_MODE_LABEL}`) }).check();
     await next(page);
     await onStep(page, 'Data');
     await fits('0-notebook-data');
@@ -789,7 +790,7 @@ test('every wizard step fits a 1440x900 screen with nothing to scroll, the App s
     await page.getByRole('button', { name: 'Back' }).click();
     await page.getByRole('button', { name: 'Back' }).click();
     await onStep(page, 'Choose');
-    await page.getByRole('radio', { name: /^Full MVP/ }).check();
+    await page.getByRole('radio', { name: new RegExp(`^${MVP_MODE_LABEL}`) }).check();
     await fits('1-choose');
     await next(page);
     await onStep(page, 'Data');

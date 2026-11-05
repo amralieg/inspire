@@ -9,7 +9,7 @@ import {
   vibesPreview, canBuildAgain, buildAgainChanges, buildAgainHint, resultTableMoveNote, IMPLEMENT_DONE_STATUSES, specFromHeld, builtVersion, vibePreviousChoices,
   vibesProblems, OPEN_ALL_SETTINGS, VIBE_FEATURES_LABEL, DATA_STOP_HINT, dataStopped, shownStatusMessage,
   failureChoices, genieNotebookRequest, FAILURE_CHOICES_HEADING, FAILURE_ROUNDS_HEADING, TERMINAL_STOP_HINT, TERMINAL_NEEDS_CHANGE,
-  unreliableHold, olderBuildNote, UNRELIABLE_REBUILD_NOTE,
+  unreliableHold, olderBuildNote, UNRELIABLE_REBUILD_NOTE, NOTEBOOK_MODE_LABEL,
 } from '../lib/implementWizard';
 import { makeApiFetch, makeApiPostJson } from '../lib/apiClient';
 import { buildUseCaseList } from '../lib/useCaseList';
@@ -1649,7 +1649,7 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
         </div>
         {!hasMvp && (
           <p className="text-[12px] text-text-secondary">
-            {readOnly ? SHOWCASE_NO_MVP : `Not built yet. ${START_MVP_LABEL} builds one, or writes only the Genie Code notebook when you choose Notebook only.`}
+            {readOnly ? SHOWCASE_NO_MVP : `Not built yet. ${START_MVP_LABEL} builds one, or writes only the Genie Code notebook when you choose ${NOTEBOOK_MODE_LABEL}.`}
           </p>
         )}
         {uninstalled && (
