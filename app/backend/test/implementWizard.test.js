@@ -212,7 +212,10 @@ test('each Full MVP step runs the checks of every section it shows, and only tho
   ], 'the App name lives on App placement, so Delivery never checks it');
   assert.deepEqual(w.stepErrors('app_place', bad), ['app name must be 3-30 lowercase letters, digits and dashes']);
   assert.deepEqual(w.advancedErrors('data', bad), w.stepErrors('data', bad));
-  assert.deepEqual(w.advancedErrors('results', bad), [], 'the result table lives on its own step, never under Advanced');
+  assert.deepEqual(w.advancedErrors('results', bad), ['pick a catalog and a schema, and name the result table'], 'the catalog and schema sit under Advanced, so their problem opens it');
+  assert.deepEqual(w.advancedErrors('results', { ...bad, config: { ...spec.config, result_table: 'main.inspire.churn_scores' }, kpi: { target: 'Revenue' } }, { kpiOptions: [{ name: 'Churn rate' }] }), [],
+    'the KPI target shows on Results, so its problem never opens Advanced');
+  assert.deepEqual(w.advancedErrors('app_place', bad), [], 'the App name shows on App placement, so its problem never opens Advanced');
   assert.deepEqual(w.stepErrors('app_access', bad), [], 'the App starts reading as its service principal, so the step passes as made');
   assert.deepEqual(w.stepErrors('app_access', { ...bad, outputs: { ...bad.outputs, app_access: '' } }),
     ['choose who the App signs people in as: each person (per-user) or its own service principal']);

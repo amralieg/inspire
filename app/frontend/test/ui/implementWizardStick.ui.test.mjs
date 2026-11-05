@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { closeBrowser, dataToResults, openAsset, openSettings, openUi, onStep, startMvp, until } from './uiSupport.mjs';
+import { closeBrowser, dataToResults, openAdvanced, openAsset, openSettings, openUi, onStep, startMvp, until } from './uiSupport.mjs';
 import { STUDIO_STATE } from './implementFixtures.js';
 
 const OWNER = ['owner', 'example.com'].join('@');
@@ -37,6 +37,7 @@ test('the wizard groups the rows by the use case\'s subject, suggests a team cap
     await onStep(page, 'Choose');
     await next(page);
     await onStep(page, 'Data');
+    await openAdvanced(page);
     const grain = page.getByRole('region', { name: 'What one row means' });
     await grain.getByText('This use case is about customers, but one row of the result would be one order (main.s.orders.order_id). '
       + 'Group the rows by customer_id so one row is one customer.').waitFor();
@@ -45,6 +46,7 @@ test('the wizard groups the rows by the use case\'s subject, suggests a team cap
     await grain.getByText('One row of the result is one customer (main.s.orders.customer_id).').waitFor();
     assert.equal(await grain.getByRole('combobox', { name: 'Entity key' }).inputValue(), 'main.s.orders.customer_id');
     await dataToResults(page);
+    await openAdvanced(page);
     const capacity = page.getByRole('group', { name: 'Team capacity' });
     const box = capacity.getByRole('textbox', { name: 'Rows the team can act on each run' });
     assert.equal(await box.inputValue(), '50', 'a weekly run over 12,400 rows gets the suggested 50');

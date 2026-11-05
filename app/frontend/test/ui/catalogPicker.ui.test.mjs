@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { closeBrowser, dataToResults, onStep, openUi } from './uiSupport.mjs';
+import { closeBrowser, dataToResults, onStep, openAdvanced, openUi } from './uiSupport.mjs';
 
 test.after(closeBrowser);
 
@@ -15,7 +15,8 @@ async function resultStep(state) {
   await dataToResults(ui.page);
   const step = ui.page.getByRole('region', { name: 'Where the result table lives' });
   await step.getByRole('heading', { name: 'Where should the result table live?' }).waitFor();
-  return { ui, step };
+  await openAdvanced(ui.page);
+  return { ui, step: ui.page.getByRole('group', { name: 'Result table catalog and schema' }) };
 }
 
 test('a long catalog list is searched by typing, a cut one says so, and a typed catalog past the cut can be chosen (must-exclude: a short list stays a plain pick)', async () => {

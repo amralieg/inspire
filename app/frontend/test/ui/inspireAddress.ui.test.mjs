@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { OWNER } from './implementFixtures.js';
-import { closeBrowser, onStep, openUi, startMvp, until } from './uiSupport.mjs';
+import { closeBrowser, onStep, openAdvanced, openUi, startMvp, until } from './uiSupport.mjs';
 
 test.after(closeBrowser);
 
@@ -26,7 +26,10 @@ test('the wizard sends the Inspire address for every App placement, so each App 
       }
       await page.getByText('Finding the Apps Inspire built').waitFor({ state: 'detached' });
       await page.getByRole('radio', { name: label }).check();
-      if (id === 'inspire') await page.locator('[data-app-place="inspire"] [data-app-warehouse="pick"]').waitFor();
+      if (id === 'inspire') {
+        await openAdvanced(page);
+        await page.locator('[data-app-place="inspire"] [data-app-warehouse="pick"]').waitFor();
+      }
       await startMvp(page);
       await until(() => made.jobs.length === 1, `the ${id} build`, 20000);
       const [sent] = made.sqlCalls.filter((c) => String(c.sql).includes('INSERT INTO') && (c.parameters || []).some((p) => p.name === 'spec'))

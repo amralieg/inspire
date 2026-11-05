@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
-import { assertFitsScreen, closeBrowser, dataToResults, lowContrast, onStep, openUi, setDark, settled, startMvp, toAppAccess, toVibes, until, watchAsks, wizardFit } from './uiSupport.mjs';
+import { assertFitsScreen, closeBrowser, dataToResults, lowContrast, onStep, openAdvanced, openUi, setDark, settled, startMvp, toAppAccess, toVibes, until, watchAsks, wizardFit } from './uiSupport.mjs';
 
 const { appShellCatalog } = createRequire(import.meta.url)('../../../backend/lib/appShell.js');
 const SHELL = appShellCatalog();
@@ -427,8 +427,10 @@ test('Where results live picks a catalog and a schema from Unity Catalog, offers
     await dataToResults(page);
     const step = page.getByRole('region', { name: 'Where the result table lives' });
     await step.getByRole('heading', { name: 'Where should the result table live?' }).waitFor();
-    const catalog = step.getByLabel('Catalog');
-    const schema = step.getByLabel('Schema');
+    await openAdvanced(page);
+    const place = page.getByRole('group', { name: 'Result table catalog and schema' });
+    const catalog = place.getByLabel('Catalog');
+    const schema = place.getByLabel('Schema');
     await catalog.locator('option[value="sales"]').waitFor({ state: 'attached' });
     assert.deepEqual([await catalog.inputValue(), await schema.inputValue(), await step.getByLabel('Table name').inputValue()], ['main', 'inspire', 'n01_u01_s42_out']);
     await step.getByText("Inspire's default").waitFor();
@@ -798,7 +800,7 @@ test('every wizard step fits a 1440x900 screen with nothing to scroll, the App s
     await readable('first run');
     await next(page);
     await onStep(page, 'Results');
-    await page.getByRole('region', { name: 'Where the result table lives' }).getByLabel('Catalog').locator('option[value="main"]').waitFor({ state: 'attached' });
+    await page.getByRole('region', { name: 'Where the result table lives' }).getByLabel('Table name').waitFor();
     await fits('3-results');
     await readable('results');
     const holdout = page.getByRole('group', { name: 'Measure impact' }).getByRole('checkbox', { name: /^Hold back a share of records/ });
@@ -1005,6 +1007,7 @@ test('the App reads and saves with the SQL warehouse picked on App access, label
     await toAppAccess(page);
     const access = page.getByRole('region', { name: 'App access' });
     await access.getByRole('group', { name: 'Where does the App read its data?' }).getByRole('status').waitFor({ state: 'detached' });
+    await openAdvanced(page);
     const field = access.locator('[data-app-warehouse="pick"]');
     const select = field.locator('select');
     await select.locator('option[value="wh3"]').waitFor({ state: 'attached' });

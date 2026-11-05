@@ -26,7 +26,7 @@ const CHOOSE_STEP = { id: 'choose', label: 'Choose', sections: [], advanced: [] 
 export const IMPLEMENT_STEPS = [
   CHOOSE_STEP,
   { id: 'data', label: 'Data', sections: ['use_case', 'data', 'configure'], advanced: ['use_case', 'data', 'configure'] },
-  { id: 'results', label: 'Results', sections: ['results', 'kpi', 'holdout'], advanced: [] },
+  { id: 'results', label: 'Results', sections: ['results', 'kpi', 'holdout'], advanced: ['results', 'holdout'] },
   { id: 'delivery', label: 'Delivery', sections: ['use_it', 'app_owners', 'alert', 'schedule'], advanced: ['app_owners', 'alert', 'schedule'] },
 ];
 

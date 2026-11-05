@@ -127,6 +127,10 @@ export async function stepsAre(page, expected) {
   }
 }
 
+export async function openAdvanced(page) {
+  await page.getByRole('button', { name: 'Advanced settings' }).click();
+}
+
 export async function dataToResults(page, { grouping = false } = {}) {
   for (const label of [...(grouping ? ['Grouping'] : []), 'First run', 'Results']) {
     await page.getByRole('button', { name: 'Next' }).click();

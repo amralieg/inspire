@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { closeBrowser, dataToResults, openUi, onStep, startMvp, toAppAccess } from './uiSupport.mjs';
+import { closeBrowser, dataToResults, openAdvanced, openUi, onStep, startMvp, toAppAccess } from './uiSupport.mjs';
 
 const OWNER = ['owner', 'example.com'].join('@');
 const PAT = ['pat', 'example.com'].join('@');
@@ -68,9 +68,10 @@ test('Measure impact on Results is off until ticked, takes a share from 1% to 50
     await impact.getByText('Inspire leaves the held-back records alone, so it can compare their results with the records people acted on.', { exact: false }).waitFor();
     assert.equal(await impact.getByRole('spinbutton').count(), 0, 'no share to type while it is off');
     await box.check();
-    const share = impact.getByRole('spinbutton', { name: 'Share of records held back, in percent' });
+    await openAdvanced(page);
+    const share = page.getByRole('spinbutton', { name: 'Share of records held back, in percent' });
     assert.equal(await share.inputValue(), '10');
-    await impact.getByText('picked at random and kept the same on every run', { exact: false }).waitFor();
+    await page.getByText('picked at random and kept the same on every run', { exact: false }).waitFor();
     assert.doesNotMatch(await impact.textContent(), /\u2014|\u2013/);
     await share.fill('60');
     await impact.getByText(SHARE_PROBLEM, { exact: true }).waitFor();

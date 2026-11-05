@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { closeBrowser, lowContrast, onStep, openUi, setDark, toVibes, wizardFits } from './uiSupport.mjs';
+import { closeBrowser, lowContrast, onStep, openAdvanced, openUi, setDark, toVibes, wizardFits } from './uiSupport.mjs';
 
 test.after(closeBrowser);
 
@@ -36,28 +36,50 @@ test('a fresh Full MVP shows every step in the step bar, with no shortcut that h
   }
 });
 
-test('Data and Delivery show the business settings and keep the technical ones under Advanced settings until it is opened', async () => {
+test('Data, Results, Delivery, App placement and App access show the business settings and keep the technical ones under Advanced settings until it is opened', async () => {
   const ui = await openUi('wizard', ME);
   const { page } = ui;
   const field = (label) => page.getByLabel(new RegExp(`^${label.replace(/[()]/g, '\\$&')}`));
   const hidden = async (label) => assert.equal(await field(label).count(), 0, `${label} shows before Advanced settings is opened`);
   const shown = (label) => field(label).first().waitFor();
-  const open = () => page.getByRole('button', { name: 'Advanced settings' }).click();
+  const open = () => openAdvanced(page);
   try {
     await next(page);
     await onStep(page, 'Data');
     await page.getByRole('heading', { name: 'Source tables' }).waitFor();
-    for (const label of ['SQL warehouse id', 'Window start', 'Window end']) await hidden(label);
+    for (const label of ['SQL warehouse id', 'Window start', 'Window end', 'Entity key']) await hidden(label);
     await open();
-    for (const label of ['SQL warehouse id', 'Window start', 'Window end']) await shown(label);
-    for (const step of ['First run', 'Results', 'Delivery']) {
+    for (const label of ['SQL warehouse id', 'Window start', 'Window end', 'Entity key']) await shown(label);
+    for (const step of ['First run', 'Results']) {
       await next(page);
       await onStep(page, step);
     }
+    await shown('Table name');
+    await page.getByRole('checkbox', { name: /^Hold back/ }).check();
+    for (const label of ['Catalog', 'Schema', 'Share of records held back', 'Rows the team can act on each run']) await hidden(label);
+    await open();
+    for (const label of ['Catalog', 'Schema', 'Share of records held back', 'Rows the team can act on each run']) await shown(label);
+    await next(page);
+    await onStep(page, 'Delivery');
     await page.getByRole('group', { name: 'Keep it fresh' }).waitFor();
     for (const label of ['Cron (Quartz)', 'Timezone']) await hidden(label);
     await open();
     for (const label of ['Cron (Quartz)', 'Timezone']) await shown(label);
+    const picker = page.locator('[data-app-warehouse="pick"]');
+    await next(page);
+    await onStep(page, 'App placement');
+    const placed = await page.locator('input[name="app-place"]:checked').getAttribute('value');
+    await page.locator('[data-app-place="inspire"] input[type="radio"]').check();
+    await page.locator('[data-app-place="inspire"] [data-placement-blurb]').waitFor();
+    assert.equal(await picker.count(), 0, 'the App SQL warehouse shows on App placement before Advanced settings is opened');
+    await open();
+    await picker.waitFor();
+    await page.locator(`input[name="app-place"][value="${placed}"]`).check();
+    await next(page);
+    await onStep(page, 'App access');
+    assert.equal(await picker.count(), 0, 'the App SQL warehouse shows on App access before Advanced settings is opened');
+    await open();
+    await picker.waitFor();
     assert.deepEqual(ui.pageErrors, []);
   } finally {
     await ui.close();

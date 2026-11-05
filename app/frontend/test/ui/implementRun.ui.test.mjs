@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { OWNER, STUDIO_STATE, built, builtSpec } from './implementFixtures.js';
-import { closeBrowser, onStep, openUi, startMvp, toVibes, until } from './uiSupport.mjs';
+import { closeBrowser, onStep, openAdvanced, openUi, startMvp, toVibes, until } from './uiSupport.mjs';
 
 const HOSTED_NO_TOKEN = 'Inspire needs permission to act as you to show this page; a workspace admin turns on user authorization for Apps, then reopen Inspire';
 const RUN_BANNER = 'Inside Inspire, only for testing. Give it its own App for real use.';
@@ -196,6 +196,7 @@ test('the wizard offers Inside Inspire as not recommended, then locks per-user a
     assert.equal((await card.locator('[data-placement-tag]').textContent()).trim(), 'Not recommended, only for testing');
     assert.equal(await page.getByLabel('App name').count(), 1, 'a new App asks for its name');
     await page.getByRole('radio', { name: /^Inside Inspire/ }).check();
+    await openAdvanced(page);
     await card.locator('[data-app-warehouse="pick"]').waitFor();
     assert.equal(await card.locator('[data-placement-blurb]').textContent(), INSIDE_BLURB);
     assert.equal(await card.getByText(INSIDE_WAREHOUSE_LABEL).count(), 1);

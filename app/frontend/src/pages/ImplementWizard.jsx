@@ -342,7 +342,8 @@ export default function ImplementWizard({
   const [errors, setErrors] = useState([]);
   const [attempted, setAttempted] = useState({ data: false, delivery: false });
   const [checking, setChecking] = useState('');
-  const [advanced, setAdvanced] = useState({ data: false, delivery: false });
+  const [advanced, setAdvanced] = useState({ data: false, results: false, delivery: false, app_place: false, app_access: false });
+  const toggleAdvanced = (id) => setAdvanced((prev) => ({ ...prev, [id]: !prev[id] }));
   const [columnsByTable, setColumnsByTable] = useState({});
   const [tagNotes, setTagNotes] = useState({});
   const [columnsErrors, setColumnsErrors] = useState({});
@@ -1085,16 +1086,16 @@ export default function ImplementWizard({
               />
             </section>
 
-            <RowSubjectCheck
-              check={grainCheck(spec, ucRow, columnsByTable, sourceTables)}
-              options={entityKeyOptions(columnsByTable, sourceTables)}
-              chosen={spec.data.column_roles.entity_id || ''}
-              tagNotes={sourceTables.filter((t) => tagNotes[t]).map((t) => `${tagNotes[t]}: ${t}.`)}
-              inputClass={inputBase}
-              onPick={(ref) => setSpec((prev) => withEntityKey(prev, ref))}
-            />
 
-            <Advanced open={advanced.data} onToggle={() => setAdvanced((prev) => ({ ...prev, data: !prev.data }))}>
+            <Advanced open={advanced.data} onToggle={() => toggleAdvanced('data')}>
+              <RowSubjectCheck
+                check={grainCheck(spec, ucRow, columnsByTable, sourceTables)}
+                options={entityKeyOptions(columnsByTable, sourceTables)}
+                chosen={spec.data.column_roles.entity_id || ''}
+                tagNotes={sourceTables.filter((t) => tagNotes[t]).map((t) => `${tagNotes[t]}: ${t}.`)}
+                inputClass={inputBase}
+                onPick={(ref) => setSpec((prev) => withEntityKey(prev, ref))}
+              />
               <Field label="Goal sentence">
                 <textarea className={inputCls} rows={3} value={spec.use_case.goal} onChange={(e) => patch('use_case.goal', e.target.value)} />
               </Field>
@@ -1248,18 +1249,10 @@ export default function ImplementWizard({
               parts={resultParts}
               table={spec.config.result_table}
               defaultTable={defaultResultTable(inspireDatabase, spec.use_case_id, sessionId)}
-              catalogs={catalogs}
-              catalogsCut={catalogsCut}
-              catalogsError={catalogsError}
-              schemas={schemas[resultParts.catalog]}
               outputCheck={outputCheck}
               onChange={(parts) => { setSpec((prev) => withResultTable(prev, parts)); setOutputCheck(null); }}
             />
-            <HoldoutSetting
-              spec={spec}
-              onEnabled={(on) => setSpec((prev) => withHoldout(prev, on))}
-              onPercent={(text) => setSpec((prev) => withHoldoutPercent(prev, text))}
-            >
+            <HoldoutSetting spec={spec} onEnabled={(on) => setSpec((prev) => withHoldout(prev, on))}>
               <KpiTargetSetting
                 spec={spec}
                 options={kpiOptions}
@@ -1268,13 +1261,24 @@ export default function ImplementWizard({
                 onPick={(name) => setSpec((prev) => withKpiTarget(prev, name))}
               />
             </HoldoutSetting>
-            <TeamCapacity
-              spec={spec}
-              suggestion={capacitySuggestion(spec, capacityInputs)}
-              inputClass={inputBase}
-              onType={(typed) => setSpec((prev) => withCapacity(prev, typed))}
-              onSuggest={() => setSpec((prev) => withSuggestedCapacity(prev, capacityInputs))}
-            />
+            <Advanced open={advanced.results} onToggle={() => toggleAdvanced('results')}>
+              <ResultPlaceFields
+                parts={resultParts}
+                catalogs={catalogs}
+                catalogsCut={catalogsCut}
+                catalogsError={catalogsError}
+                schemas={schemas[resultParts.catalog]}
+                onChange={(parts) => { setSpec((prev) => withResultTable(prev, parts)); setOutputCheck(null); }}
+              />
+              <HoldoutPercent spec={spec} onPercent={(text) => setSpec((prev) => withHoldoutPercent(prev, text))} />
+              <TeamCapacity
+                spec={spec}
+                suggestion={capacitySuggestion(spec, capacityInputs)}
+                inputClass={inputBase}
+                onType={(typed) => setSpec((prev) => withCapacity(prev, typed))}
+                onSuggest={() => setSpec((prev) => withSuggestedCapacity(prev, capacityInputs))}
+              />
+            </Advanced>
           </>
         )}
 
@@ -1414,7 +1418,7 @@ export default function ImplementWizard({
               </section>
             )}
 
-            <Advanced open={advanced.delivery} onToggle={() => setAdvanced((prev) => ({ ...prev, delivery: !prev.delivery }))}>
+            <Advanced open={advanced.delivery} onToggle={() => toggleAdvanced('delivery')}>
               {spec.outputs.dashboard && (
                 <div className="space-y-2">
                   <h4 className="text-[10px] font-bold uppercase tracking-[0.18em] text-text-tertiary">Dashboard</h4>
@@ -1605,6 +1609,8 @@ export default function ImplementWizard({
             }}
             onName={nameApp}
             onWarehouse={(id) => setSpec((prev) => withAppWarehouse(prev, id))}
+            warehouseOpen={advanced.app_place}
+            onWarehouseToggle={() => toggleAdvanced('app_place')}
             moveNote={moveNote}
             onKeep={() => { setPlaceSet('person'); setSpec((prev) => withHeldApp(prev, savedOutputs)); }}
           />
@@ -1621,6 +1627,8 @@ export default function ImplementWizard({
             onOption={(key, value) => setSpec((prev) => withAppOption(prev, key, value))}
             onBackend={(backend) => setSpec((prev) => withAppBackend(prev, backend))}
             onWarehouse={(id) => setSpec((prev) => withAppWarehouse(prev, id))}
+            warehouseOpen={advanced.app_access}
+            onWarehouseToggle={() => toggleAdvanced('app_access')}
           />
         )}
 
@@ -1844,7 +1852,7 @@ function scrollChosenIntoList(list) {
   else if (bottom > list.scrollTop + list.clientHeight) list.scrollTop = bottom - list.clientHeight;
 }
 
-function InsideInspireCard({ spec, on, lakebase, warehouses, warehousesError, warehouseCheck, onPick, onWarehouse, note = '' }) {
+function InsideInspireCard({ spec, on, lakebase, warehouses, warehousesError, warehouseCheck, onPick, onWarehouse, note = '', warehouseOpen = false, onWarehouseToggle }) {
   const missing = !String(spec.outputs.app_warehouse_id || '').trim();
   return (
     <div data-app-place="inspire" className={on ? placeCard(true) : 'border border-border rounded-lg px-3 py-2'}>
@@ -1862,9 +1870,11 @@ function InsideInspireCard({ spec, on, lakebase, warehouses, warehousesError, wa
       </label>
       {on && (
         <div className="pl-7 space-y-1">
-          <AppWarehouseField spec={spec} lakebase={lakebase} warehouses={warehouses} warehousesError={warehousesError} check={warehouseCheck}
-            label={INSIDE_WAREHOUSE_LABEL} onWarehouse={onWarehouse} />
           {missing && <p data-inside-warehouse-missing="" className="text-[11px] text-error-fg">{INSIDE_WAREHOUSE_PROBLEM}</p>}
+          <Advanced open={warehouseOpen || missing} onToggle={onWarehouseToggle}>
+            <AppWarehouseField spec={spec} lakebase={lakebase} warehouses={warehouses} warehousesError={warehousesError} check={warehouseCheck}
+              label={INSIDE_WAREHOUSE_LABEL} onWarehouse={onWarehouse} />
+          </Advanced>
           {note && <p role="note" aria-label="What happens to the App it has now" data-inside-move-note="" className="text-[11px] text-warning-fg">{note}</p>}
         </div>
       )}
@@ -1873,7 +1883,7 @@ function InsideInspireCard({ spec, on, lakebase, warehouses, warehousesError, wa
 }
 
 function AppPlacementStep({ spec, targets, targetsError, heldApp, scope, warehouses, warehousesError, warehouseCheck, lakebase, nameCheck,
-  moveNote = '', placeSet = '', onJoin, onNew, onName, onWarehouse, onKeep }) {
+  moveNote = '', placeSet = '', onJoin, onNew, onName, onWarehouse, onKeep, warehouseOpen = false, onWarehouseToggle }) {
   const joined = joinsApp(spec) ? spec.outputs.merge.app : '';
   const inside = !joined && insideInspire(spec);
   const listing = targets === null && !targetsError;
@@ -1906,7 +1916,8 @@ function AppPlacementStep({ spec, targets, targetsError, heldApp, scope, warehou
             {!inside && joined && <JoinedWarehouse target={chosen?.target} warehouses={warehouses} />}
           </div>
           <InsideInspireCard spec={spec} on={inside} lakebase={lakebase} warehouses={warehouses} warehousesError={warehousesError}
-            warehouseCheck={warehouseCheck} onPick={() => onNew(APP_INSIDE)} onWarehouse={onWarehouse} note={moveNote} />
+            warehouseCheck={warehouseCheck} onPick={() => onNew(APP_INSIDE)} onWarehouse={onWarehouse} note={moveNote}
+            warehouseOpen={warehouseOpen} onWarehouseToggle={onWarehouseToggle} />
         </div>
       </section>
     );
@@ -1994,7 +2005,8 @@ function AppPlacementStep({ spec, targets, targetsError, heldApp, scope, warehou
           )}
         </div>
         <InsideInspireCard spec={spec} on={inside} lakebase={lakebase} warehouses={warehouses} warehousesError={warehousesError}
-          warehouseCheck={warehouseCheck} onPick={() => onNew(APP_INSIDE)} onWarehouse={onWarehouse} />
+          warehouseCheck={warehouseCheck} onPick={() => onNew(APP_INSIDE)} onWarehouse={onWarehouse}
+          warehouseOpen={warehouseOpen} onWarehouseToggle={onWarehouseToggle} />
       </div>
     </section>
   );
@@ -2029,18 +2041,18 @@ function MergeChoice({ name, label, chosen, targets, targetsError, onPick }) {
   );
 }
 
-function ResultTableStep({ parts, table, defaultTable, catalogs, catalogsCut = false, catalogsError, schemas, outputCheck, onChange }) {
-  const set = (key, value) => onChange({ ...parts, [key]: value, ...(key === 'catalog' && value !== parts.catalog ? { schema: '' } : {}) });
+function resultPartSetter(parts, onChange) {
+  return (key, value) => onChange({ ...parts, [key]: value, ...(key === 'catalog' && value !== parts.catalog ? { schema: '' } : {}) });
+}
+
+function ResultPlaceFields({ parts, catalogs, catalogsCut = false, catalogsError, schemas, onChange }) {
+  const set = resultPartSetter(parts, onChange);
   const schemaOptions = [...new Set([parts.schema, ...((schemas && schemas.names) || [])].filter(Boolean))].sort((a, b) => a.localeCompare(b));
   const typeCatalog = Boolean(catalogsError);
   const typeSchema = typeCatalog || Boolean(schemas && schemas.error);
   return (
-    <section className="space-y-4" aria-label="Where the result table lives">
-      <div>
-        <h3 className="text-sm font-semibold text-text-primary">Where should the result table live?</h3>
-        <p className="text-[11px] text-text-tertiary">Genie writes this MVP&apos;s results to this table, and Inspire writes nowhere else. Next checks live that you can create or write it.</p>
-      </div>
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+    <div className="space-y-2" aria-label="Result table catalog and schema" role="group">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <Field label="Catalog">
           {typeCatalog ? (
             <input className={inputCls} value={parts.catalog} onChange={(e) => set('catalog', e.target.value.trim())} />
@@ -2060,15 +2072,29 @@ function ResultTableStep({ parts, table, defaultTable, catalogs, catalogsCut = f
             </select>
           )}
         </Field>
-        <Field label="Table name">
-          <input className={inputCls} value={parts.table} onChange={(e) => set('table', e.target.value.trim())} />
-        </Field>
       </div>
       {(catalogsError || (schemas && schemas.error)) && (
         <p className="text-[11px] text-text-secondary">
           Inspire could not list the {catalogsError ? 'catalogs' : 'schemas'} ({catalogsError || schemas.error}), so type the name instead.
         </p>
       )}
+    </div>
+  );
+}
+
+function ResultTableStep({ parts, table, defaultTable, outputCheck, onChange }) {
+  const set = resultPartSetter(parts, onChange);
+  return (
+    <section className="space-y-4" aria-label="Where the result table lives">
+      <div>
+        <h3 className="text-sm font-semibold text-text-primary">Where should the result table live?</h3>
+        <p className="text-[11px] text-text-tertiary">Genie writes this MVP&apos;s results to this table, and Inspire writes nowhere else. Next checks live that you can create or write it.</p>
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <Field label="Table name">
+          <input className={inputCls} value={parts.table} onChange={(e) => set('table', e.target.value.trim())} />
+        </Field>
+      </div>
       <div className="rounded-lg border border-border bg-bg px-3 py-2.5 space-y-1" role="group" aria-label="Result table">
         <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
           <span className="font-mono text-[12px] text-text-primary break-all">{table || 'catalog.schema.table'}</span>
@@ -2195,7 +2221,28 @@ function SettingsStep({ spec, settings, recorded, impact, onChange, onNote }) {
   );
 }
 
-function HoldoutSetting({ spec, onEnabled, onPercent, children = null }) {
+function HoldoutPercent({ spec, onPercent }) {
+  if (!holdoutOf(spec).enabled) return null;
+  return (
+    <label className="flex flex-wrap items-center gap-2 text-[12px] text-text-secondary">
+      Hold back
+      <input
+        type="number"
+        inputMode="numeric"
+        min={HOLDOUT_MIN_PERCENT}
+        max={HOLDOUT_MAX_PERCENT}
+        step="1"
+        aria-label="Share of records held back, in percent"
+        className={`${inputBase} w-20`}
+        value={holdoutPercentText(spec)}
+        onChange={(e) => onPercent(e.target.value)}
+      />
+      % of the records ({HOLDOUT_MIN_PERCENT} to {HOLDOUT_MAX_PERCENT}), picked at random and kept the same on every run
+    </label>
+  );
+}
+
+function HoldoutSetting({ spec, onEnabled, children = null }) {
   const { enabled } = holdoutOf(spec);
   const problem = holdoutProblems(spec)[0] || '';
   return (
@@ -2208,23 +2255,6 @@ function HoldoutSetting({ spec, onEnabled, onPercent, children = null }) {
           <span className="text-[12px] font-medium text-text-primary">{HOLDOUT_LABEL}</span>. {HOLDOUT_BLURB}
         </span>
       </label>
-      {enabled && (
-        <label className="ml-6 flex flex-wrap items-center gap-2 text-[12px] text-text-secondary">
-          Hold back
-          <input
-            type="number"
-            inputMode="numeric"
-            min={HOLDOUT_MIN_PERCENT}
-            max={HOLDOUT_MAX_PERCENT}
-            step="1"
-            aria-label="Share of records held back, in percent"
-            className={`${inputBase} w-20`}
-            value={holdoutPercentText(spec)}
-            onChange={(e) => onPercent(e.target.value)}
-          />
-          % of the records ({HOLDOUT_MIN_PERCENT} to {HOLDOUT_MAX_PERCENT}), picked at random and kept the same on every run
-        </label>
-      )}
       {problem && <p className="ml-6 text-[11px] text-error-fg">{problem}</p>}
     </fieldset>
   );
@@ -2304,7 +2334,7 @@ function AppWarehouseField({ spec, lakebase, warehouses, warehousesError, check,
   );
 }
 
-function AppAccessStep({ spec, lakebase, warehouses, warehousesError, warehouseCheck, onAccess, onOption, onBackend, onWarehouse }) {
+function AppAccessStep({ spec, lakebase, warehouses, warehousesError, warehouseCheck, onAccess, onOption, onBackend, onWarehouse, warehouseOpen = false, onWarehouseToggle }) {
   const access = spec.outputs.app_access;
   const options = spec.outputs.app_options;
   const inside = insideInspire(spec);
@@ -2342,8 +2372,10 @@ function AppAccessStep({ spec, lakebase, warehouses, warehousesError, warehouseC
             Each viewer reads with {warehouseText(warehouses, appWarehouseOf(spec))}, picked on App placement.
           </p>
         ) : (
-          <AppWarehouseField spec={spec} lakebase={lakebase} warehouses={warehouses} warehousesError={warehousesError} check={warehouseCheck}
-            onWarehouse={onWarehouse} />
+          <Advanced open={warehouseOpen || warehouseCheck?.ok === false} onToggle={onWarehouseToggle}>
+            <AppWarehouseField spec={spec} lakebase={lakebase} warehouses={warehouses} warehousesError={warehousesError} check={warehouseCheck}
+              onWarehouse={onWarehouse} />
+          </Advanced>
         )}
       </AppBackendChoice>
       <fieldset className="space-y-2">
