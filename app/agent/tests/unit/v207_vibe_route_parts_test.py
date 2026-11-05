@@ -3,6 +3,9 @@ import os
 
 import pytest
 
+from v120_artifacts_support import FakeSpark
+from v140_implement_test import _inspire
+
 TARGETS = {"app": "App (Billing breaks)", "dashboard": "Dashboard", "genie_space": "Genie Agent", "alert": "Alert",
            "notebook": "the analysis notebook that computes the results (columns, model, time windows, scoring)"}
 CLERK = ("Add a bar chart of under-billing leakage by clerk for the top 10 clerks, titled Leakage by clerk, next to Current billing "
@@ -120,7 +123,8 @@ SEEN_WITHOUT = {k: v for k, v in SEEN_WITH.items() if k != "trips_by_pickup_hour
 
 
 def _checked(agent_ns, ask, seen, earlier):
-    return agent_ns["implement_vibes_checked"](ask, "app", {}, seen, None, earlier, "App page n02_u01")
+    gates = _inspire(agent_ns, FakeSpark())._implement_vibes_gates
+    return gates({"asset": "app", "tools": {}}, ask, {}, seen, None, earlier, "App page n02_u01")[0]
 
 
 def test_an_undo_of_a_chart_that_is_still_on_the_page_is_not_met(agent_ns):
