@@ -11,7 +11,7 @@ import { SHOWCASE_BUTTON, SHOWCASE_NOTE } from '../../src/lib/showcase.js';
 import { RUN_BACK } from '../../src/lib/runPages.js';
 
 const require = createRequire(import.meta.url);
-const { SHOWCASE_DIR, SHOWCASE_HEADER, SHOWCASE_MISSING, loadShowcases, registerShowcaseRoutes } = require('../../../backend/lib/showcase.js');
+const { SHOWCASE_DIR, SHOWCASE_HEADER, SHOWCASE_MISSING, SHOWCASE_PLAN_NOTE: S_NOTE, loadShowcases, registerShowcaseRoutes } = require('../../../backend/lib/showcase.js');
 const { appShellFiles, appShellPayload, bundledAppShellText } = require('../../../backend/lib/appShell.js');
 
 test.after(closeBrowser);
@@ -282,8 +282,10 @@ test('a kinds demo plan takes Accept, Override with a reason, refuses an Overrid
   const decided = [];
   page.on('request', (r) => { if (new URL(r.url()).pathname.endsWith('/api/plan/decide')) decided.push(JSON.parse(r.postData() || '{}')); });
   try {
-    const u = USE_CASES.find((c) => c.mvp.layout === 'planner');
-    assert.ok(u, 'the demo carries a planner');
+    const plans = USE_CASES.filter((c) => ['planner', 'forecast_cockpit'].includes(c.mvp.layout));
+    assert.deepEqual([...new Set(plans.map((c) => c.mvp.layout))].sort(), ['forecast_cockpit', 'planner'], 'the demo carries both plan layouts');
+    for (const u of plans) {
+    decided.length = 0;
     let frame = await openMvpFromBuild(page, apiWatch(page), u);
     const plan = () => frame.locator('section.plan');
     const rows = () => plan().locator('tbody tr[data-plan-row]');
@@ -301,6 +303,7 @@ test('a kinds demo plan takes Accept, Override with a reason, refuses an Overrid
 
     await line(keys[0]).getByRole('button', { name: 'Accept', exact: true }).click();
     await line(keys[0]).locator('[data-decided]').filter({ hasText: /^Accepted the recommended / }).waitFor();
+    assert.equal((await plan().locator(`[data-plan-said="${keys[0]}"]`).innerText()).trim(), S_NOTE, 'the demo says next to the line where the decision is kept');
     assert.equal((await line(keys[0]).locator('td').nth(3).innerText()).trim(), 'Done', 'the accepted line no longer says New');
     await waits(total - 1);
 
@@ -323,6 +326,7 @@ test('a kinds demo plan takes Accept, Override with a reason, refuses an Overrid
     await takeAll().click();
     await until(async () => (await plan().locator('[data-decided]').count()) === keys.length, 'every line is decided');
     assert.equal(await takeAll().count(), 0);
+    assert.match(await plan().locator('[data-plan-said="all"]').innerText(), new RegExp(`^Accepted ${keys.length - 2} suggested lines?\\. `));
     await waits(total - keys.length);
     assert.deepEqual(decided.map((d) => d.record_key).sort(), [...keys].sort(), 'Take all accepted only the lines still open, each once');
 
@@ -337,6 +341,8 @@ test('a kinds demo plan takes Accept, Override with a reason, refuses an Overrid
     assert.equal(await takeAll().count(), 0, 'after a refresh Take all offers no line already decided');
     await waits(total - keys.length);
     assert.equal(decided.length, keys.length, 'the refresh decided nothing again');
+    await backToRun(page, apiWatch(page));
+    }
     assert.deepEqual(ui.missing, []);
     assert.deepEqual(ui.outside, []);
     assert.equal(ui.made.sqlCalls.length, 0);

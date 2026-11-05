@@ -23,17 +23,21 @@ const ROWS = ['Oat bar', 'Rye loaf', 'Tea tin', 'Fig jam', 'Soy milk', 'Rice cak
   recommended_action: 'Raise the order', top_reasons: ['demand rising'], as_of_date: '2026-10-15',
 }));
 
-export function forecastRoutes(decided) {
+export function forecastRoutes(decided, { keep = false } = {}) {
+  const lines = ROWS.map((r) => ({ ...r }));
   return {
     page: ({ json }) => json(200, forecastData()),
     records: ({ route, json }) => {
       const body = route.request().postDataJSON();
-      return json(200, { rows: ROWS.slice(0, body.limit || 25), total: ROWS.length, offset: 0, limit: body.limit || 25, actions: true, changes: false,
-        summary: { open: 7, done: 3, resolved: 0, left: 7, owners: [] }, errors: {} });
+      const closed = lines.filter((r) => r._inspire_status === 'Done').length;
+      return json(200, { rows: lines.slice(0, body.limit || 25), total: lines.length, offset: 0, limit: body.limit || 25, actions: true, changes: false,
+        summary: keep ? { open: lines.length - closed, done: closed, resolved: 0, left: lines.length - closed, owners: [] } : { open: 7, done: 3, resolved: 0, left: 7, owners: [] }, errors: {} });
     },
     'plan/decide': ({ route, json }) => {
       const body = route.request().postDataJSON();
       decided.push(body);
+      const line = keep && lines.find((r) => r.record_key === body.record_key);
+      if (line) Object.assign(line, { _inspire_status: 'Done', _inspire_closed_note: planNote(body), _inspire_version: String(Number(line._inspire_version) + 100) });
       return json(200, { written: [body.record_key], conflicts: [], conflicts_count: 0, left_out: 0, batch_id: 'b1', decision: body.decision, edited: false });
     },
   };
@@ -59,8 +63,9 @@ export function plannerRoutes(decided, solved, { keep = false, actions = true } 
     }),
     records: ({ route, json }) => {
       const body = route.request().postDataJSON();
+      const closed = lines.filter((r) => r._inspire_status === 'Done').length;
       return json(200, { rows: lines.slice(0, body.limit || 25), total: lines.length, offset: 0, limit: body.limit || 25, actions, changes: false,
-        summary: { open: 2, done: 1, resolved: 0, left: 2, owners: [] }, errors: {} });
+        summary: keep ? { open: lines.length - closed, done: closed, resolved: 0, left: lines.length - closed, owners: [] } : { open: 2, done: 1, resolved: 0, left: 2, owners: [] }, errors: {} });
     },
     'plan/decide': ({ route, json }) => {
       const body = route.request().postDataJSON();

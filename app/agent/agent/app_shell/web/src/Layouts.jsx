@@ -129,6 +129,7 @@ function PlanRow({ page, app, plan, row, actions, onDecided }) {
   const [reason, setReason] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [said, setSaid] = useState('');
   const toast = useToast();
   const key = recordKeyOf(row);
   const fmt = (v) => formatValue(v, plan.format, plan.currency);
@@ -138,9 +139,12 @@ function PlanRow({ page, app, plan, row, actions, onDecided }) {
   const decide = async (decision) => {
     setBusy(true);
     setError('');
+    setSaid('');
     try {
       const got = await decidePlanLine(page, plan, row, decision, reason, value);
-      toast(got?.showcase ? got.note : decision === 'accept' ? 'Accepted the suggested line' : 'Saved your override and its reason');
+      const text = got?.showcase ? got.note : decision === 'accept' ? 'Accepted the suggested line' : 'Saved your override and its reason';
+      setSaid(text);
+      toast(text);
       setOpen(false);
       onDecided();
     } catch (e) {
@@ -182,6 +186,7 @@ function PlanRow({ page, app, plan, row, actions, onDecided }) {
           </form>
         </td></tr>
       )}
+      {said && !error && <tr className="plan-said"><td colSpan={cols}><p className="choice-done" role="status" data-plan-said={key}><Icon name="check" size={12} />{said}</p></td></tr>}
       {error && <tr><td colSpan={cols}><p className="tile-err" role="alert"><Icon name="info" size={12} />{error}</p></td></tr>}
     </>
   );
@@ -217,11 +222,13 @@ export function PlanTable({ page, app, filters, ready, nonce, onChanged }) {
   const can = planDecides(app, plan, list.data);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [said, setSaid] = useState('');
   const toast = useToast();
   const open = can ? rows.filter(planOpen) : [];
   const acceptAll = async () => {
     setBusy(true);
     setError('');
+    setSaid('');
     let done = 0;
     let demo = '';
     try {
@@ -230,7 +237,9 @@ export function PlanTable({ page, app, filters, ready, nonce, onChanged }) {
         if (got?.showcase) demo = got.note;
         done += 1;
       }
-      toast(`${done === 1 ? 'Accepted the suggested line' : `Accepted ${integer(done)} suggested lines`}${demo ? `. ${demo}` : ''}`);
+      const text = `${done === 1 ? 'Accepted the suggested line' : `Accepted ${integer(done)} suggested lines`}${demo ? `. ${demo}` : ''}`;
+      setSaid(text);
+      toast(text);
     } catch (e) {
       setError(done ? `Accepted ${integer(done)} of ${integer(open.length)} lines, then: ${e.message}` : e.message);
     } finally {
@@ -248,6 +257,7 @@ export function PlanTable({ page, app, filters, ready, nonce, onChanged }) {
       {!list.data && !list.error && <div style={{ padding: 16 }}><Skeleton height={22} /></div>}
       {list.error && <p className="tile-err"><Icon name="info" size={14} />The plan could not load: {list.error}</p>}
       {error && <p className="tile-err" role="alert"><Icon name="info" size={14} />{error}</p>}
+      {said && !error && <p className="choice-done" role="status" data-plan-said="all"><Icon name="check" size={14} />{said}</p>}
       {list.data && !rows.length && <p className="empty">No plan lines for these filters.</p>}
       {rows.length > 0 && (
         <div className="tw"><table className="plan-t">
