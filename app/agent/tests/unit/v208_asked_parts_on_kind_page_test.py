@@ -68,11 +68,20 @@ def test_an_asked_chart_with_no_section_is_told_the_section_it_goes_in_not_a_lay
 
 
 @pytest.mark.parametrize("name", ["network_explorer", "location_view", "planner", "agent_chat", "recommendation_desk"])
-def test_every_kind_layout_lists_the_asked_sections_after_its_own_and_the_default_layout_is_unchanged(name):
+def test_a_kind_layout_lists_an_asked_section_only_when_the_page_uses_it_or_the_customer_asked(name):
     own = [str(s) for s in shell_sql.layouts()[name]["sections"]]
-    assert shell_sql.layout_sections(name) == own + [s for s in shell_sql.ASKED_SECTIONS if s not in own]
-    assert shell_sql.layout_sections(shell_sql.DEFAULT_LAYOUT) == [str(s) for s in shell_sql.layouts()[shell_sql.DEFAULT_LAYOUT]["sections"]]
+    assert shell_sql.layout_sections(name) == own
+    assert shell_sql.layout_sections(name, {"charts": [{"id": "a", "section": own[0]}]}) == own
+    assert shell_sql.layout_sections(name, {"charts": [{"id": "a", "section": "charts"}]}) == own + ["charts"]
+    assert shell_sql.layout_sections(name, {"tables": [{"id": "t", "section": "tables"}]}) == own + ["tables"]
+    assert shell_sql.layout_sections(name, asked=True) == own + [s for s in shell_sql.ASKED_SECTIONS if s not in own]
+    assert shell_sql.layout_sections(shell_sql.DEFAULT_LAYOUT, asked=True) == [str(s) for s in shell_sql.layouts()[shell_sql.DEFAULT_LAYOUT]["sections"]]
     assert shell_sql.layout_sections("dashboard") == [str(s) for s in shell_sql.layouts()["dashboard"]["sections"]]
+
+
+def test_the_public_layout_of_a_kind_page_with_no_asked_parts_has_no_empty_generic_sections():
+    network = example("network_explorer")
+    assert shell_sql.public_layout(network)["sections"] == [str(s) for s in shell_sql.layouts()["network_explorer"]["sections"]]
 
 
 def test_the_asked_sections_do_not_raise_the_chart_minimum_of_a_layout_without_charts_of_its_own():
@@ -103,8 +112,30 @@ def test_inspire_sets_the_kind_layout_on_the_page_genie_writes_and_the_asks_stil
     assert asked_problems(page) == []
 
 
-def test_the_genie_brief_names_the_asked_sections_of_a_kind_layout(agent_ns):
-    brief = agent_ns["implement_layout_brief"]("network_explorer", {}, shell_sql)
+def test_the_genie_brief_names_the_asked_sections_only_when_the_customer_asked_for_parts(agent_ns):
+    brief = agent_ns["implement_layout_brief"]("network_explorer", {}, shell_sql, True)
     assert "charts (a chart; put any chart here)" in brief and "tables (a table; put tables here)" in brief, brief
     assert "The charts and tables sections come after the Network explorer parts" in brief, brief
     assert "the network_explorer layout stays" in brief
+    plain = agent_ns["implement_layout_brief"]("network_explorer", {}, shell_sql)
+    assert "charts (a chart" not in plain and "tables (a table" not in plain and "come after the" not in plain, plain
+
+
+def test_an_unasked_chart_or_table_in_an_asked_section_is_refused_and_an_asked_one_is_kept(agent_ns):
+    page = corridor_watch(example("network_explorer"))
+    unasked = agent_ns["implement_unasked_part_problems"](page, shell_sql, False)
+    assert unasked == [f"{word} {ident} sits in the {section} section, which holds only the charts and tables the customer asks for, "
+                       f"and the customer asked for none on this page: put it in a section of the network_explorer layout or leave it out"
+                       for word, ident, section in (("chart", "fare_by_hour", "charts"), ("chart", "trips_per_corridor", "charts"),
+                                                    ("chart", "average_fare_by_pickup", "charts"), ("table", "all_corridors", "tables"))]
+    assert agent_ns["implement_unasked_part_problems"](page, shell_sql, True) == []
+    assert agent_ns["implement_unasked_part_problems"](example("network_explorer"), shell_sql, False) == []
+    dashboard = dict(copy.deepcopy(page), layout="dashboard")
+    assert agent_ns["implement_unasked_part_problems"](dashboard, shell_sql, False) == []
+
+
+def test_a_page_is_asked_for_parts_by_its_vibes_or_the_app_purpose(agent_ns):
+    asked = agent_ns["implement_page_asked"]
+    assert asked({}, "app") is False and asked({"app_purpose": ""}, "app") is False
+    assert asked({"app_purpose": "Add a page called Corridor Watch"}, "app") is True
+    assert asked({"app_purpose": "Add a page called Corridor Watch"}, "dashboard") is False

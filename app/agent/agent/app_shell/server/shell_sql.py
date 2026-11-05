@@ -1419,11 +1419,12 @@ def page_layout(page: dict) -> str:
     return str(page.get("layout") or DEFAULT_LAYOUT) if isinstance(page, dict) else DEFAULT_LAYOUT
 
 
-def layout_sections(ident: str) -> list:
+def layout_sections(ident: str, page: dict = None, asked: bool = False) -> list:
     sections = [str(s) for s in (layouts().get(ident) or {}).get("sections") or []]
     if ident == DEFAULT_LAYOUT:
         return sections
-    return sections + [s for s in ASKED_SECTIONS if s not in sections]
+    used = {item.get("section") for group in ("charts", "tables") for item in ((page or {}).get(group) or []) if isinstance(item, dict)}
+    return sections + [s for s in ASKED_SECTIONS if s not in sections and (asked or s in used)]
 
 
 def layout_contract(page: dict) -> dict:
@@ -1519,7 +1520,7 @@ def layout_problems(page: dict, names: set) -> list:
         return [f"the {ident} layout is not served yet; use one of {', '.join(enabled_layouts())}"]
     if ident == DEFAULT_LAYOUT:
         return part_problems(page)
-    sections = layout_sections(ident)
+    sections = layout_sections(ident, page, asked=True)
     holds = {(SECTIONS.get(s) or {}).get("holds") for s in sections}
     problems = []
     for group, word in (("charts", "chart"), ("tables", "table")):
@@ -1733,8 +1734,8 @@ def public_layout(page: dict) -> dict:
     ident = page_layout(page)
     layout = layouts().get(ident) or {}
     return {"id": ident, "label": layout.get("label") or ident, "tab_label": layout.get("tab_label") or "",
-            "sections": layout_sections(ident),
-            "holds": {str(s): SECTIONS[s]["holds"] for s in layout_sections(ident) if (SECTIONS.get(s) or {}).get("holds")},
+            "sections": layout_sections(ident, page),
+            "holds": {str(s): SECTIONS[s]["holds"] for s in layout_sections(ident, page) if (SECTIONS.get(s) or {}).get("holds")},
             "decides": ident == DEFAULT_LAYOUT or decision_section(page) is not None}
 
 
