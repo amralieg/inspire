@@ -269,28 +269,31 @@ def test_when_every_group_holds_more_than_1000_records_the_smallest_whole_group_
 
 
 def test_a_standalone_technique_still_runs_on_the_first_records(agent_ns):
-    chosen = agent_ns["inspire_scope_choice"](scope=_scope({"technique": "Text Classification"}, run_scope="records", scope_records="500"))
+    chosen = agent_ns["inspire_scope_choice"](scope=_scope({"technique": "Sentiment Analysis"}, run_scope="records", scope_records="500"))
     assert chosen == {"scope": "records", "table": "main.sales.orders", "records": 500, "key": "order_id"}
 
 
 def test_above_1000_records_the_default_is_about_1000_records_and_never_a_recent_period_or_everything(agent_ns):
     for case in FIRST_RUN["default"]:
         if case["records"] is not None and case["records"] > 1000:
-            got = agent_ns["inspire_default_scope"](case["records"])
+            got = agent_ns["inspire_scope_default"]({"table": SALES, "records": case["records"]})
             assert got == "records" and got not in ("all", "recent", "groups", ""), f"{case['name']} (must-exclude)"
-    assert [agent_ns["inspire_default_scope"](n) for n in (0, 1, 999, 1000)] == ["all"] * 4, "a known count of 1,000 or fewer runs on all of it"
-    assert [agent_ns["inspire_default_scope"](n) for n in (1001, 10 ** 9)] == ["records"] * 2
+    assert "inspire_default_scope" not in agent_ns, "one rule picks the first run default"
+    for known in (0, 1, 999, 1000, 1001, 10 ** 9):
+        assert agent_ns["inspire_scope_default"]({"table": SALES, "records": known}) == "records", f"{known} records never default to everything"
     for unknown in (None, "1000", True, float("nan")):
-        assert agent_ns["inspire_default_scope"](unknown) == "records", f"{unknown!r} records never default to everything (must-exclude)"
         assert agent_ns["inspire_scope_default"]({"table": SALES, "records": unknown}) == "records"
-    assert agent_ns["inspire_scope_default"]({"table": SALES, "records": 999}) == "all" and agent_ns["inspire_scope_default"]({"table": SALES, "records": 1001}) == "records"
+    assert agent_ns["inspire_scope_default"]({"table": SALES, "records": 400, "default": "all"}) == "records", (
+        "a build that suggested all for a small table now runs first on records (must-exclude)")
+    assert agent_ns["inspire_scope_default"]({"records": 400}) == "all", "with no main table there is nothing to take a first run of"
     assert agent_ns["inspire_scope_default"]({"table": SALES, "records": None, "default": "groups"}) == "groups", "a default the build recorded is kept"
     unknown = agent_ns["inspire_scope_settings"](dict({k: v for k, v in SPEC.items() if k != "default"}, records=None))[0]
     assert unknown["default"] == "records" and unknown["reason"] == ("Inspire could not read from its metadata how many records the main "
                                                                       "table holds, so the first run covers about 1,000 records in whole "
                                                                       "groups of region, so no group is cut"), unknown["reason"]
     small = agent_ns["inspire_scope_settings"](dict({k: v for k, v in SPEC.items() if k != "default"}, records=400))[0]
-    assert (small["default"], small["reason"]) == ("all", "Inspire's default: the main table holds 400 records, so the first run covers all of them")
+    assert (small["default"], small["reason"]) == ("records", "Inspire's default: the main table holds 400 records, so a first run of about "
+                                                             "1,000 records covers all of it")
     held = _scope({"default": "records", "records": 718931})
     assert agent_ns["inspire_scope_choice"](scope=dict(held, INSPIRE_SCOPE_VALUES={"run_scope": "all"}))["scope"] == "all", \
         "everything still runs when someone chooses it"

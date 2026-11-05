@@ -117,8 +117,8 @@ def test_a_column_the_model_names_wins_only_when_the_aggregates_pass_it(agent_ns
 
 def test_only_a_grouping_technique_gets_a_suggestion(agent_ns):
     profiles, joins = star()
-    assert suggest(agent_ns, technique="Text Classification", profiles=profiles, joins=joins) is None
-    assert suggest(agent_ns, technique="Time Series Forecasting", profiles=profiles, joins=joins)["group_by"] == ["store_sk"]
+    assert suggest(agent_ns, technique="Sentiment Analysis", profiles=profiles, joins=joins) is None
+    assert suggest(agent_ns, technique="Forecasting", profiles=profiles, joins=joins)["group_by"] == ["store_sk"]
     assert suggest(agent_ns, profiles=profiles, joins=joins, table="main.s.missing") is None
 
 

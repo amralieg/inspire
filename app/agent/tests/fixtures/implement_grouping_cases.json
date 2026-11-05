@@ -2,7 +2,7 @@
   "settings": {
     "group_by": {
       "name": "group_by",
-      "label": "Grouping",
+      "label": "Data groups",
       "all": "all",
       "custom": "custom",
       "format": "comma-separated column names, coarse to fine, or all",
@@ -19,35 +19,6 @@
     "scope_via_keys_max": 10000,
     "first_run_records_line": 1000,
     "group_max_null_share": 0.5
-  },
-  "techniques": {
-    "grouping": [
-      "anomal",
-      "outlier",
-      "forecast",
-      "predict",
-      "threshold",
-      "benchmark",
-      "rank",
-      "propensity",
-      "churn",
-      "cluster",
-      "segment",
-      "baseline",
-      "deviation",
-      "trend"
-    ],
-    "standalone_records": [
-      "classif",
-      "extract",
-      "summar",
-      "sentiment",
-      "tag",
-      "categor",
-      "entity",
-      "translat",
-      "document"
-    ]
   },
   "labels": {
     "global": "Global",
@@ -80,63 +51,93 @@
   "applies": [
     {
       "technique": "Anomaly Detection",
-      "applies": true
+      "applies": true,
+      "records": "groups"
     },
     {
-      "technique": "Isolation Forest outlier scoring",
-      "applies": true
+      "technique": "anomaly   detection",
+      "applies": true,
+      "records": "groups"
     },
     {
-      "technique": "Time Series Forecasting",
-      "applies": true
-    },
-    {
-      "technique": "Churn Prediction",
-      "applies": true
-    },
-    {
-      "technique": "Customer Segmentation (K-Means)",
-      "applies": true
+      "technique": "Forecasting",
+      "applies": true,
+      "records": "groups"
     },
     {
       "technique": "Trend Analysis",
-      "applies": true
+      "applies": true,
+      "records": "groups"
     },
     {
       "technique": "Peer Benchmarking",
-      "applies": true
+      "applies": true,
+      "records": "groups"
     },
     {
-      "technique": "Ranking",
-      "applies": true
+      "technique": "Segmentation",
+      "applies": true,
+      "records": "groups"
     },
     {
-      "technique": "Text Classification",
-      "applies": false
-    },
-    {
-      "technique": "Document Summarization",
-      "applies": false
-    },
-    {
-      "technique": "Named Entity Extraction",
-      "applies": false
+      "technique": "Statistical Process Control",
+      "applies": true,
+      "records": "groups"
     },
     {
       "technique": "Sentiment Analysis",
-      "applies": false
+      "applies": false,
+      "records": "alone"
     },
     {
-      "technique": "Market Basket Analysis",
-      "applies": false
+      "technique": "Document Processing",
+      "applies": false,
+      "records": "alone"
+    },
+    {
+      "technique": "Classification",
+      "applies": false,
+      "records": "alone"
     },
     {
       "technique": "Pareto Analysis",
-      "applies": false
+      "applies": false,
+      "records": "together"
+    },
+    {
+      "technique": "Optimization",
+      "applies": false,
+      "records": "together"
+    },
+    {
+      "technique": "Entity Matching",
+      "applies": false,
+      "records": "together"
+    },
+    {
+      "technique": "Isolation Forest outlier scoring",
+      "applies": false,
+      "records": ""
+    },
+    {
+      "technique": "Time Series Forecasting",
+      "applies": false,
+      "records": ""
+    },
+    {
+      "technique": "Text Classification",
+      "applies": false,
+      "records": ""
     },
     {
       "technique": "",
-      "applies": false
+      "applies": false,
+      "records": ""
+    },
+    {
+      "technique": null,
+      "applies": false,
+      "records": ""
     }
   ],
   "parse": [
@@ -758,22 +759,22 @@
     ],
     "default": [
       {
-        "name": "1,000 records run on all of them",
+        "name": "1,000 records run first on about 1,000 records, which covers all of them, never everything by default",
         "records": 1000,
         "technique": "Anomaly Detection",
         "time_series": false,
         "time_column": "order_date",
         "group_column": "region",
-        "expected": "all"
+        "expected": "records"
       },
       {
-        "name": "999 records run on all of them",
+        "name": "999 records run first on about 1,000 records, which covers all of them, never everything by default",
         "records": 999,
         "technique": "Optimization",
         "time_series": false,
         "time_column": "ws_ship_date_sk",
         "group_column": "",
-        "expected": "all"
+        "expected": "records"
       },
       {
         "name": "718,931 records with only a date key run first on about 1,000 records, never a recent period by default",
@@ -805,7 +806,7 @@
       {
         "name": "1,001 records of a standalone technique run first on records",
         "records": 1001,
-        "technique": "Text Classification",
+        "technique": "Sentiment Analysis",
         "time_series": false,
         "time_column": "order_date",
         "group_column": "region",
@@ -814,7 +815,7 @@
       {
         "name": "a time series with a group column runs first on about 1,000 records in whole groups",
         "records": 5000,
-        "technique": "Time Series Forecasting",
+        "technique": "Forecasting",
         "time_series": true,
         "time_column": "order_date",
         "group_column": "region",
@@ -850,7 +851,7 @@
       {
         "name": "a star-schema forecast with a store key and a date key runs first on about 1,000 records in whole groups",
         "records": 2880404,
-        "technique": "Time Series Forecasting",
+        "technique": "Forecasting",
         "time_series": true,
         "time_column": "ss_sold_date_sk",
         "group_column": "ss_store_sk",
@@ -859,7 +860,7 @@
       {
         "name": "a time series with no group column runs first on the first 1,000 records, never a recent period by default",
         "records": 5000,
-        "technique": "Time Series Forecasting",
+        "technique": "Forecasting",
         "time_series": true,
         "time_column": "order_date",
         "group_column": "",
@@ -868,7 +869,7 @@
       {
         "name": "a standalone technique with no date column runs first on records",
         "records": 5000,
-        "technique": "Text Classification",
+        "technique": "Sentiment Analysis",
         "time_series": false,
         "time_column": "",
         "group_column": "region",

@@ -32,10 +32,10 @@ def test_grouping_is_a_run_setting_with_its_columns_and_all_standing_alone(agent
     _uc, spec = _spec(inst, GROUPING)
     widgets = inst._genie_core_widgets(spec)
     [widget] = [w for w in widgets if w["name"] == "group_by"]
-    assert widget["default"] == "region, country" and widget["label"].startswith("Grouping")
+    assert widget["default"] == "region, country" and widget["label"] == "Data groups (columns coarse to fine, or all)"
     model = agent_ns["inspire_settings_model"](spec, widgets)
     [setting] = [s for s in model if s["name"] == "group_by"]
-    assert (setting["kind"], setting["many"], setting["group"], setting["label"], setting["source"]) == ("choice", True, "scope", "Grouping", "widget")
+    assert (setting["kind"], setting["many"], setting["group"], setting["label"], setting["source"]) == ("choice", True, "scope", "Data groups", "widget")
     assert setting["choices"] == ["region", "country", "channel"] and setting["solo"] == ["all"]
     assert "moves up a level" in setting["help"]
     [run_setting] = [s for s in agent_ns["inspire_run_settings_model"](model) if s["name"] == "group_by"]
@@ -120,9 +120,9 @@ def test_the_cell_check_runs_the_grouping_check_with_the_spec_grouping(agent_ns)
 @pytest.mark.parametrize("technique,candidates,chosen,recommended,applies,default,columns", [
     ("Anomaly Detection", ["region", "country"], "", ["region", "country"], True, "region, country", ["region", "country"]),
     ("Anomaly Detection", ["region"], "", [], True, "all", ["region"]),
-    ("Text Classification", ["region"], "", [], False, "", []),
+    ("Sentiment Analysis", ["region"], "", [], False, "", []),
     ("Anomaly Detection", [], "", [], False, "", []),
-    ("Text Classification", ["region"], "region", [], True, "region", ["region"]),
+    ("Sentiment Analysis", ["region"], "region", [], True, "region", ["region"]),
     ("Anomaly Detection", ["region"], "store_type", [], True, "store_type", ["region", "store_type"]),
     ("Anomaly Detection", ["region"], "all", ["region"], True, "all", ["region"]),
 ])

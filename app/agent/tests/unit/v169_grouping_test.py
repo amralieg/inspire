@@ -26,8 +26,8 @@ def test_the_shared_grouping_fixture_is_stable_and_names_what_the_agent_uses(age
     assert (constants["group_min_records"], constants["group_min_periods"], constants["group_max_groups"], constants["group_min_groups"]) == (
         agent_ns["INSPIRE_GROUP_MIN_RECORDS"], agent_ns["INSPIRE_GROUP_MIN_PERIODS"], agent_ns["INSPIRE_GROUP_MAX_GROUPS"],
         agent_ns["INSPIRE_GROUP_MIN_GROUPS"])
-    assert data["techniques"]["grouping"] == list(agent_ns["INSPIRE_GROUP_TECHNIQUES"])
-    assert data["techniques"]["standalone_records"] == list(agent_ns["INSPIRE_STANDALONE_TECHNIQUES"])
+    assert "techniques" not in data and "INSPIRE_GROUP_TECHNIQUES" not in agent_ns and "INSPIRE_STANDALONE_TECHNIQUES" not in agent_ns, (
+        "the kinds registry is the one list of which techniques group their records")
     assert (labels["global"], labels["other"], labels["no_group"], labels["separator"], labels["group_column"], labels["level_column"],
             labels["custom_level"], labels["all_level"]) == (
         agent_ns["INSPIRE_GROUP_GLOBAL"], agent_ns["INSPIRE_GROUP_OTHER"], agent_ns["INSPIRE_GROUP_NONE"], agent_ns["INSPIRE_GROUP_SEPARATOR"],
@@ -98,7 +98,7 @@ def test_the_pandas_run_helper_gives_each_record_the_shared_cases_group_and_reco
             assert got == [[expected["group"], expected["level"]]], (case["name"], expected)
         record = fresh_ns["INSPIRE_RUN_GROUPING"]
         assert set(record) <= set(fresh_ns["INSPIRE_GROUP_RECORD_KEYS"]) and record["groups"] == len({x["group"] for x in case["expected"]})
-        assert printed and printed[0].startswith("Grouping: ")
+        assert printed and printed[0].startswith("Data groups: ")
 
 
 def test_the_run_record_of_all_is_one_global_group_and_a_grouping_hash_tells_groupings_apart(fresh_ns):
@@ -109,7 +109,7 @@ def test_the_run_record_of_all_is_one_global_group_and_a_grouping_hash_tells_gro
     record = fresh_ns["INSPIRE_RUN_GROUPING"]
     assert set(out["inspire_group"]) == {"Global"} and set(out["inspire_group_level"]) == {"all"}
     assert (record["mode"], record["group_by"], record["groups"]) == ("all", "all", 1)
-    assert printed == ["Grouping: 1 group, Global, since the Grouping is all"]
+    assert printed == ["Data groups: 1 group, Global, since Data groups is all"]
     fresh_ns["inspire_group_records"](frame, group_by="region", out=printed.append)
     by_region = fresh_ns["INSPIRE_RUN_GROUPING"]
     assert (by_region["mode"], by_region["group_by"], by_region["groups"]) == ("columns", ["region"], 2)

@@ -548,11 +548,11 @@ const BY_ONE = { ...BY_COUNTRY, group_by: ['country'], groups: 7, levels: [{ lev
 const AS_ONE = { mode: 'all', group_by: [], groups: 1, levels: [{ level: 'Global', groups: 1 }], hash: 'h1', other_groups: null };
 
 test('a run says how it grouped its records in plain words, and says nothing when it recorded no grouping', () => {
-  assert.equal(groupingText(BY_COUNTRY), 'Grouping: 9 groups by region, country (7 by country, 2 by region)');
-  assert.equal(groupingText({ ...BY_COUNTRY, group_by: ['country'], groups: 1, levels: [{ level: 'country', groups: 1 }] }), 'Grouping: 1 group by country');
-  assert.equal(groupingText(AS_ONE), 'Grouping: all records as one group');
+  assert.equal(groupingText(BY_COUNTRY), 'Data groups: 9 groups by region, country (7 by country, 2 by region)');
+  assert.equal(groupingText({ ...BY_COUNTRY, group_by: ['country'], groups: 1, levels: [{ level: 'country', groups: 1 }] }), 'Data groups: 1 group by country');
+  assert.equal(groupingText(AS_ONE), 'Data groups: all records as one group');
   for (const none of [null, undefined, {}, { ...BY_COUNTRY, groups: null }]) assert.equal(groupingText(none), '');
-  assert.equal(groupingText({ ...BY_COUNTRY, groups: 1234 }), 'Grouping: 1,234 groups by region, country (7 by country, 2 by region)');
+  assert.equal(groupingText({ ...BY_COUNTRY, groups: 1234 }), 'Data groups: 1,234 groups by region, country (7 by country, 2 by region)');
 });
 
 test('the Runs tab shows each run grouping under what it covered, and an older run without one shows only what it covered', async () => {

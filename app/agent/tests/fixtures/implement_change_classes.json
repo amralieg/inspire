@@ -10359,7 +10359,7 @@
         ]
       },
       "value": "custom",
-      "problem": "group_by is 'custom': Inspire does not run SQL typed into Grouping or First run; choose columns to group by and one of the first run choices instead"
+      "problem": "group_by is 'custom': Inspire does not run SQL typed into Data groups or First run; choose columns for Data groups and one of the first run choices instead"
     },
     {
       "setting": {
@@ -10391,7 +10391,7 @@
         ]
       },
       "value": "custom, region",
-      "problem": "group_by is 'custom, region': Inspire does not run SQL typed into Grouping or First run; choose columns to group by and one of the first run choices instead"
+      "problem": "group_by is 'custom, region': Inspire does not run SQL typed into Data groups or First run; choose columns for Data groups and one of the first run choices instead"
     },
     {
       "setting": {
@@ -10407,7 +10407,7 @@
         ]
       },
       "value": "all, custom",
-      "problem": "group_by is 'all, custom': Inspire does not run SQL typed into Grouping or First run; choose columns to group by and one of the first run choices instead"
+      "problem": "group_by is 'all, custom': Inspire does not run SQL typed into Data groups or First run; choose columns for Data groups and one of the first run choices instead"
     },
     {
       "setting": {
@@ -10434,7 +10434,7 @@
         "optional": true
       },
       "value": "SELECT order_id, region AS group_name FROM main.sales.orders",
-      "problem": "group_sql: Inspire does not run SQL typed into Grouping or First run; choose columns to group by and one of the first run choices instead"
+      "problem": "group_sql: Inspire does not run SQL typed into Data groups or First run; choose columns for Data groups and one of the first run choices instead"
     },
     {
       "setting": {
@@ -10456,7 +10456,7 @@
         "optional": true
       },
       "value": "abc",
-      "problem": "scope_sql_hash: Inspire does not run SQL typed into Grouping or First run; choose columns to group by and one of the first run choices instead"
+      "problem": "scope_sql_hash: Inspire does not run SQL typed into Data groups or First run; choose columns for Data groups and one of the first run choices instead"
     },
     {
       "setting": {
@@ -10488,7 +10488,7 @@
         ]
       },
       "value": "region, CUSTOM",
-      "problem": "group_by is 'region, CUSTOM': Inspire does not run SQL typed into Grouping or First run; choose columns to group by and one of the first run choices instead"
+      "problem": "group_by is 'region, CUSTOM': Inspire does not run SQL typed into Data groups or First run; choose columns for Data groups and one of the first run choices instead"
     },
     {
       "setting": {
@@ -10503,7 +10503,7 @@
         ]
       },
       "value": "custom",
-      "problem": "run_scope is 'custom': Inspire does not run SQL typed into Grouping or First run; choose columns to group by and one of the first run choices instead"
+      "problem": "run_scope is 'custom': Inspire does not run SQL typed into Data groups or First run; choose columns for Data groups and one of the first run choices instead"
     },
     {
       "setting": {

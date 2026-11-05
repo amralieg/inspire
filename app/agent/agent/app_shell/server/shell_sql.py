@@ -4023,7 +4023,7 @@ SETTING_ALL = "all"
 SETTING_NUMBER = re.compile(r"^-?[0-9]+(?:\.[0-9]+)?$")
 CUSTOM_SQL_SETTINGS = ("group_sql", "group_sql_tables", "group_sql_hash", "group_sql_checked_by", "group_sql_checked_at",
                        "scope_sql", "scope_sql_tables", "scope_sql_hash", "scope_sql_checked_by", "scope_sql_checked_at")
-CUSTOM_SQL_REFUSED = "Inspire does not run SQL typed into Grouping or First run; choose columns to group by and one of the first run choices instead"
+CUSTOM_SQL_REFUSED = "Inspire does not run SQL typed into Data groups or First run; choose columns for Data groups and one of the first run choices instead"
 SETTINGS_CAP = 80
 SETTING_TEXTS = ("label", "help", "reason", "unit", "allowed", "default", "applies")
 TIER_CUTOFFS = ("act_now_amount", "review_amount")

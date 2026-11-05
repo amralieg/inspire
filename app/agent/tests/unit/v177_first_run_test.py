@@ -73,8 +73,9 @@ def test_an_empty_scope_groups_is_allowed_and_any_other_empty_choice_is_not(agen
 
 @pytest.mark.parametrize("case", FIXTURE["default"], ids=[c["name"] for c in FIXTURE["default"]])
 def test_the_default_runs_first_on_a_scope_only_above_1000_records(agent_ns, case):
-    assert agent_ns["inspire_default_scope"](case["records"]) == case["expected"]
-    assert case["expected"] not in ("recent", "groups", "") and (case["records"] is not None and case["records"] <= 1000 or case["expected"] != "all")
+    spec = {"table": ORDERS, "records": case["records"], "technique": case["technique"], "group_column": case["group_column"]}
+    assert agent_ns["inspire_scope_default"](spec) == case["expected"] == "records", "the first run is never everything by default"
+    assert agent_ns["inspire_scope_settings"](spec)[0]["default"] == case["expected"]
 
 
 def test_the_record_count_comes_from_table_metadata_and_never_from_a_scan_of_a_non_delta_table(agent_ns):
@@ -334,7 +335,7 @@ WS_ASSESSMENT = {"time_column": f"{WEB_SALES}.ws_ship_date_sk", "entity_key_colu
                                    "join": f"{WEB_SALES}.ws_ship_date_sk = {DATE_DIM}.d_date_sk"}}
 
 
-@pytest.mark.parametrize("records, expected", [(999, "all"), (1000, "all"), (1001, "records"), (718931, "records"), (None, "records")])
+@pytest.mark.parametrize("records, expected", [(999, "records"), (1000, "records"), (1001, "records"), (718931, "records"), (None, "records")])
 def test_a_fact_table_dated_only_through_its_date_dimension_offers_a_recent_period_and_runs_first_on_about_1000_records(agent_ns, records, expected):
     inst = make_inspire(agent_ns, spark=_ArgSpark(records, WS_COLUMNS))
     use_case = {"Primary Table": WEB_SALES, "Tables Involved": f"{WEB_SALES}, {DATE_DIM}", "table_joins": WS_JOINS, "elite_assessment": WS_ASSESSMENT}
@@ -417,10 +418,11 @@ def test_a_recent_period_through_a_date_table_with_no_key_or_too_many_is_refused
     ({"table": ORDERS}, "records"),
     ({"table": ORDERS, "records": None, "default": ""}, "records"),
     ({"table": ORDERS, "records": 5000}, "records"),
-    ({"table": ORDERS, "records": 400}, "all"),
+    ({"table": ORDERS, "records": 400}, "records"),
+    ({"table": ORDERS, "records": 400, "default": "all"}, "records"),
     ({"table": ORDERS, "records": None, "default": "groups"}, "groups"),
     (None, "all"),
-], ids=["unknown", "no_count", "blank_default", "large", "small", "recorded", "no_main_table"])
+], ids=["unknown", "no_count", "blank_default", "large", "small", "small_built_all", "recorded", "no_main_table"])
 def test_the_run_controls_widget_starts_from_the_first_run_rule_and_never_from_everything_on_an_unknown_count(agent_ns, scope, expected):
     template = agent_ns["GENIE_RUN_CONTROLS_TEMPLATE"]
     line = next(l for l in template.splitlines() if l.startswith("INSPIRE_SCOPE_VALUES = "))

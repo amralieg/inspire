@@ -166,10 +166,10 @@ export function coveredText(segments) {
 
 export function groupingText(grouping) {
   if (!grouping || grouping.groups == null) return '';
-  if (grouping.mode === 'all') return 'Grouping: all records as one group';
+  if (grouping.mode === 'all') return 'Data groups: all records as one group';
   const levels = (grouping.levels || []).filter((l) => l.level && l.groups != null);
   const shown = levels.length > 1 ? ` (${levels.map((l) => `${integer(l.groups)} by ${l.level}`).join(', ')})` : '';
-  return `Grouping: ${plural(grouping.groups, 'group')} by ${(grouping.group_by || []).join(', ')}${shown}`;
+  return `Data groups: ${plural(grouping.groups, 'group')} by ${(grouping.group_by || []).join(', ')}${shown}`;
 }
 
 export function lastedText(run, now = Date.now()) {
