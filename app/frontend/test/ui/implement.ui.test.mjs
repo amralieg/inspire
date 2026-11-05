@@ -1006,6 +1006,56 @@ test('a build Genie stopped after two repair rounds lists what Genie changed in 
   }
 });
 
+test('a build that failed the same way twice lists what Inspire tried, drops Try again, and offers choices that change the build', async () => {
+  const rounds = [
+    { attempt: 1, error: 'run_use_case() returned None', repair: 'rebuild_with_error', why: 'the notebook failed when it ran' },
+    { attempt: 2, error: 'run_use_case() returned None', repair: 'stop', why: 'the same failure came back' },
+  ];
+  const ended = (terminal) => ({ ...stepRow('Implement', 'ended_error', '10:20:00'),
+    result_json: JSON.stringify({ use_case_id: 'N01-U01', phase: 'Implement', spec_version: 2, attempts: 2, repair_rounds: rounds, terminal }) });
+  const failed = built({ spec_version: 2, status: 'failed', status_message: RUN_FAILED_REASON });
+  const ui = await openUi('implement', { ...STUDIO_STATE, history: [failed, built()], steps: [stepRow('Plan', 'ended_success', '10:01:00'), ended(true)] });
+  const { page, made } = ui;
+  try {
+    const banner = page.getByRole('region', { name: 'Build failed' });
+    const tried = banner.getByLabel('What Inspire tried');
+    await tried.waitFor();
+    const lines = await tried.getByRole('listitem').allInnerTexts();
+    assert.equal(lines.length, 2);
+    assert.match(lines[0], /^Attempt 1 failed: run_use_case\(\) returned None\. Inspire had Genie rebuild the notebook with this error/);
+    assert.match(lines[1], /^Attempt 2 failed: .*Inspire stopped/);
+    assert.equal(await banner.getByRole('button', { name: 'Try again' }).count(), 0, 'an unchanged resend would fail the same way');
+    const choices = banner.locator('[data-failure-choice]');
+    assert.deepEqual(await choices.evaluateAll((els) => els.map((e) => e.dataset.failureChoice)), ['smaller', 'technique', 'notebook', 'ask']);
+    assert.doesNotMatch(await banner.innerText(), /contact|ticket|support/i);
+    for (const dark of [false, true]) {
+      await setDark(page, dark);
+      assert.deepEqual((await lowContrast(page, ['section[aria-label="Build failed"]'])).low, [], dark ? 'dark banner' : 'light banner');
+    }
+    await banner.getByRole('button', { name: 'Build a smaller first run' }).click();
+    await until(() => made.jobs.length === 1, 'the smaller run');
+    const insert = made.sqlCalls.filter((c) => String(c.sql).includes('INSERT INTO'))[0];
+    const sent = JSON.parse(insert.parameters.find((p) => p.name === 'spec').value);
+    assert.equal(sent.config.profiles.preview.entity_cap, 200, 'the next version reads fewer entities');
+    assert.equal(sent.based_on_version, 2);
+    assert.deepEqual(ui.pageErrors, []);
+  } finally {
+    await ui.close();
+  }
+  const once = await openUi('implement', { ...STUDIO_STATE, history: [failed, built()], steps: [ended(false)] });
+  try {
+    const banner = once.page.getByRole('region', { name: 'Build failed' });
+    await banner.getByLabel('What Inspire tried').waitFor();
+    assert.equal(await banner.getByRole('button', { name: 'Try again' }).count(), 1, 'a failure that may pass on a resend keeps Try again');
+    await banner.getByRole('button', { name: 'Switch technique' }).click();
+    await once.page.locator('textarea').filter({ hasText: /simpler analytical technique/ }).first().waitFor();
+    assert.equal(once.made.jobs.length, 0, 'switching technique asks the user before anything is sent');
+    assert.deepEqual(once.pageErrors, []);
+  } finally {
+    await once.close();
+  }
+});
+
 test('Try again on a failed build sends the version that failed again as the next one, with its asks, and a notebook edit keeps its own rebuild', async () => {
   const spec = builtSpec();
   const vibe = 'Put the riskiest customers first';

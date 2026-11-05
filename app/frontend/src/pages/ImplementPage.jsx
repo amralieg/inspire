@@ -8,6 +8,7 @@ import {
   runProfileText, runStopped, versionActive, historyStatus, implementGroups, notebookRunEnded, notebookStatus, START_MVP_LABEL, IMPLEMENT_ACTIVE_STATUSES, IMPLEMENT_UNINSTALLED,
   vibesPreview, canBuildAgain, buildAgainChanges, buildAgainHint, resultTableMoveNote, IMPLEMENT_DONE_STATUSES, specFromHeld, builtVersion, vibePreviousChoices,
   vibesProblems, OPEN_ALL_SETTINGS, VIBE_FEATURES_LABEL, DATA_STOP_HINT, dataStopped, shownStatusMessage,
+  failureChoices, genieNotebookRequest, FAILURE_CHOICES_HEADING, FAILURE_ROUNDS_HEADING, TERMINAL_STOP_HINT, TERMINAL_NEEDS_CHANGE,
   unreliableHold, olderBuildNote, UNRELIABLE_REBUILD_NOTE,
 } from '../lib/implementWizard';
 import { makeApiFetch, makeApiPostJson } from '../lib/apiClient';
@@ -31,6 +32,7 @@ import VibeChecklist, { HeldVersion } from '../components/VibeChecklist';
 import TabStrip, { tabPanel } from '../components/TabStrip';
 import { Counter, CounterDivider, IconChip, PANEL_CLASS, SectionTitle } from '../components/BuildUi';
 import { catalogRow } from '../lib/useCaseFacets';
+import { fieldOf } from '../lib/useCaseFields';
 import {
   ASSET_TILES, CONTROL_REFRESH_MS, RAIL_WIDTH, REBUILD_NOTHING, assetFilterCounts, assetGroups, assetUninstall, buildSummary, canPublishHeld, checksSummary, collectAsk,
   collectRemoval, collectedScope, controlRows, controlTiles, deliveredOutputs, dropCollected, filterByAsset, filterByMvp, heldVersion, keptVersions,
@@ -39,7 +41,7 @@ import {
 } from '../lib/implementControl';
 import {
   buildingAssets, mvpScope, mvpStages, mvpProgressSummary, mvpRepairOf, feedArrivals, railProgress, sortedTo, statusProgress, steadyFeed, versionPlan, vibeChecklist,
-  genieChangesOf, GENIE_CHANGES_HEADING,
+  genieChangesOf, GENIE_CHANGES_HEADING, mvpFailureOf,
 } from '../lib/mvpProgress';
 import MvpProgress, { ProgressLine, ScopeNotes, StageNotes } from '../components/MvpProgress';
 import { useProgressView } from '../lib/progressView';
@@ -809,6 +811,7 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
   const [historyOpen, setHistoryOpen] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  const [writingNotebook, setWritingNotebook] = useState(false);
   const [overrides, setOverrides] = useState({});
   const [rerunBusy, setRerunBusy] = useState(false);
   const [rerunError, setRerunError] = useState(null);
@@ -1115,7 +1118,14 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
     setRebuildError(`Rebuild needs one more thing: ${problems.join('; ')}.`);
     return false;
   };
-  const sendAgain = () => submitChecked(nextSpecFrom(latest, buildAgainChanges(latest)));
+  const failure = mvpFailureOf(status?.steps, latest);
+  const terminal = Boolean(failure?.terminal) && latest?.status === 'failed';
+  const sendAgain = async () => {
+    if (!terminal) return submitChecked(nextSpecFrom(latest, buildAgainChanges(latest)));
+    openFeatures();
+    setRebuildError(TERMINAL_NEEDS_CHANGE);
+    return false;
+  };
   const rebuild = async () => {
     setRebuildError('');
     if (!vibes.length) {
@@ -1197,6 +1207,28 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
   const buildRunUrl = stalled?.run_url || status?.build_run_url || '';
   const dataStop = !readOnly && dataStopped(latest);
   const genieChanges = genieChangesOf(status?.steps, latest);
+  const choicesNow = buildAgain && !dataStop && latest?.status === 'failed' ? failureChoices(latest, {
+    technique: fieldOf(item.uc || {}, 'Analytics Technique', 'analytics_technique'), notebookUrl: notebook?.href || '',
+  }) : [];
+  const writeNotebook = async () => {
+    setWritingNotebook(true);
+    setError('');
+    try {
+      const data = await apiPostJson('/api/inspire/generate-genie', genieNotebookRequest({
+        inspireDatabase: settings.inspireDatabase, warehouseId: settings.warehouseId, sessionId, useCaseId, notebookPath: settings.notebookPath,
+      }));
+      setNotice(`Inspire is writing the notebook${data?.job_run_url ? `: ${data.job_run_url}` : ''}. Open it from Notebook when it is ready, and run it yourself.`);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setWritingNotebook(false);
+    }
+  };
+  const pickChoice = (choice) => {
+    if (choice.changes) return submitChecked(nextSpecFrom(latest, { ...buildAgainChanges(latest), ...choice.changes }));
+    if (choice.seed) return openFeatures(choice.seed.text ? choice.seed : null);
+    return writeNotebook();
+  };
   const failureBanner = hasMvp && chip.tone === 'error' && !held && !checklist?.notDecided && (
     <section aria-label="Build failed" className="rounded-lg border border-error/30 bg-error-bg px-3.5 py-3 text-[12px] space-y-2.5">
       <div className="flex items-start gap-2.5">
@@ -1208,10 +1240,42 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
         </div>
       </div>
       <StageNotes stages={[{ id: 'Notebook', notes: genieChanges }]} label={GENIE_CHANGES_HEADING} heading={GENIE_CHANGES_HEADING} />
-      {buildAgain && <p className="text-error-fg">{dataStop ? DATA_STOP_HINT : buildAgainHint(latest)}</p>}
+      {failure?.rounds?.length > 0 && (
+        <div aria-label={FAILURE_ROUNDS_HEADING} className="space-y-1 text-error-fg">
+          <p className="font-semibold">{FAILURE_ROUNDS_HEADING}</p>
+          <ol className="list-decimal pl-5 space-y-1">
+            {failure.rounds.map((round) => (
+              <li key={round.attempt}>
+                <span>Attempt {round.attempt}{round.error ? ` failed: ${round.error}` : ' failed'}. </span>
+                <span>Inspire {round.tried}{round.why ? `: ${round.why}` : ''}.</span>
+              </li>
+            ))}
+          </ol>
+        </div>
+      )}
+      {buildAgain && <p className="text-error-fg">{dataStop ? DATA_STOP_HINT : terminal ? TERMINAL_STOP_HINT : buildAgainHint(latest)}</p>}
+      {choicesNow.length > 0 && (
+        <div aria-label={FAILURE_CHOICES_HEADING} className="space-y-1.5">
+          <p className="font-semibold text-error-fg">{FAILURE_CHOICES_HEADING}</p>
+          <ul className="grid gap-1.5 sm:grid-cols-2">
+            {choicesNow.map((choice) => (
+              <li key={choice.id} data-failure-choice={choice.id} className="rounded-lg border border-border bg-bg-subtle px-2.5 py-2 space-y-1">
+                {choice.url ? (
+                  <a className={OUTLINE_BUTTON} href={choice.url} target="_blank" rel="noreferrer">{choice.label} <ExternalLink size={12} /></a>
+                ) : (
+                  <button type="button" disabled={locked || writingNotebook} title={lockedReason || undefined} onClick={() => pickChoice(choice)} className={OUTLINE_BUTTON}>
+                    {choice.id === 'notebook' && writingNotebook ? <Loader2 size={12} className="animate-spin" /> : null} {choice.label}
+                  </button>
+                )}
+                <p className="text-text-secondary">{choice.detail}</p>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       {(buildAgain || onEdit || buildRunUrl) && (
         <div className="flex flex-wrap gap-2">
-          {buildAgain && !dataStop && (
+          {buildAgain && !dataStop && !terminal && (
             <button type="button" disabled={locked} title={lockedReason || undefined} onClick={() => sendAgain()} className={PRIMARY_BUTTON}>
               {submitBusy ? <Loader2 size={12} className="animate-spin" /> : <RotateCcw size={12} />} Try again
             </button>
@@ -1619,7 +1683,7 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
           <MvpProgress stages={stages} summary={progress} chip={chip} reason={reason} toneClass={toneClass} version={latest?.spec_version} sorted={sorted}
             stop={stop} boxRef={boxRef} logRef={logRef} view={progressView} warnings={statusWarnings(latest).length} attention={needsAttention ? attention : null}>
             <VibeChecklist checklist={checklist} assets={latest?.asset_status} readOnly={readOnly} locked={locked} lockedReason={lockedReason} busy={submitBusy}
-              onSendAgain={buildAgain ? () => sendAgain() : undefined} onEdit={onEdit ? () => openFeatures() : undefined} />
+              onSendAgain={buildAgain && !terminal ? () => sendAgain() : undefined} onEdit={onEdit ? () => openFeatures() : undefined} />
             <StageNotes stages={stages} />
             <ScopeNotes scope={scope} />
             <NothingToActCard run={money?.run} />

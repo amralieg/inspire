@@ -115,6 +115,29 @@ export function mvpRepairOf(steps, latest) {
   return found;
 }
 
+const IMPLEMENT_PHASE = 'Implement';
+const REPAIR_WORDS = {
+  retry: 'ran it again as it was',
+  rebuild_with_error: 'had Genie rebuild the notebook with this error in its instructions',
+  smaller_query: 'had Genie rebuild the notebook to aggregate in SQL and read fewer rows',
+  stop: 'stopped, because only a change from you can fix it',
+};
+
+export function mvpFailureOf(steps, latest) {
+  let found = null;
+  for (const { row, payload } of stepEvents(steps)) {
+    if (stepPhase(row, payload) !== IMPLEMENT_PHASE || row?.status !== 'ended_error' || !Array.isArray(payload.repair_rounds)
+      || !sameVersion(payload, latest)) continue;
+    const rounds = payload.repair_rounds.filter((r) => r && typeof r === 'object').map((r, i) => {
+      const attempt = Number.isInteger(Number(r.attempt)) && Number(r.attempt) > 0 ? Number(r.attempt) : i + 1;
+      const repair = String(r.repair || 'stop');
+      return { attempt, error: String(r.error || '').trim(), repair, tried: REPAIR_WORDS[repair] || REPAIR_WORDS.stop, why: String(r.why || '').trim() };
+    });
+    found = { rounds, terminal: payload.terminal === true };
+  }
+  return found;
+}
+
 function repairLine(repair, status) {
   if (!repair) return '';
   const count = `${repair.attempt}${repair.attempts ? ` of ${repair.attempts}` : ''}`;

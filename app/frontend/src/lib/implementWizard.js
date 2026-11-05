@@ -2169,6 +2169,43 @@ export function shownStatusMessage(latest) {
   return BARE_RUN_MESSAGE.test(message) ? '' : message;
 }
 
+export const TERMINAL_STOP_HINT = 'Trying again as it is would fail the same way, so Inspire does not offer it. Pick one of these instead:';
+export const TERMINAL_NEEDS_CHANGE = 'This version failed the same way twice, so Inspire will not send it again unchanged. Add an ask here, or pick a choice on the failure panel, then rebuild.';
+export const FAILURE_CHOICES_HEADING = 'What you can do now';
+export const FAILURE_ROUNDS_HEADING = 'What Inspire tried';
+const SMALLER_RUN_SHARE = 5;
+
+export function genieNotebookRequest({ inspireDatabase, warehouseId, sessionId, useCaseId, notebookPath }) {
+  return {
+    inspire_database: inspireDatabase,
+    warehouse_id: warehouseId,
+    session_id: String(sessionId),
+    use_case_ids: [useCaseId],
+    ...(notebookPath ? { notebook_path: notebookPath } : {}),
+  };
+}
+
+export function failureChoices(latest, { technique = '', notebookUrl = '' } = {}) {
+  const spec = specOf(latest);
+  const cap = Number(spec.config?.profiles?.preview?.entity_cap);
+  const choices = [];
+  if (Number.isInteger(cap) && cap > 1) {
+    const smaller = Math.max(1, Math.floor(cap / SMALLER_RUN_SHARE));
+    const profiles = { ...(spec.config?.profiles || {}), preview: { ...(spec.config?.profiles?.preview || {}), entity_cap: smaller } };
+    choices.push({ id: 'smaller', label: 'Build a smaller first run', detail: `The preview run reads ${smaller} entities instead of ${cap}.`,
+      changes: { config: { ...(spec.config || {}), profiles } } });
+  }
+  const using = String(technique || '').trim();
+  choices.push({ id: 'technique', label: 'Switch technique',
+    detail: using ? `Ask Genie for a simpler method than ${using}.` : 'Ask Genie for a simpler analytical method.',
+    seed: { text: `Use a simpler analytical technique than ${using || 'the current one'}, and keep the same result table and outputs.` } });
+  choices.push({ id: 'notebook', label: 'Take the notebook and build it yourself',
+    detail: notebookUrl ? 'Open the Genie Code notebook Inspire wrote for this use case and run it yourself.'
+      : 'Inspire writes the Genie Code notebook for this use case, and you run it yourself.', url: notebookUrl });
+  choices.push({ id: 'ask', label: 'Ask Genie to fix it my way', detail: 'Tell Genie in your own words what to change, then rebuild.', seed: { text: '' } });
+  return choices;
+}
+
 export const DATA_STOP_HINT = 'Trying again stops on the same data. Change the ask in Vibe/Add/Remove Features, or the tables and columns in all settings, then rebuild.';
 
 export function dataStopped(latest) {

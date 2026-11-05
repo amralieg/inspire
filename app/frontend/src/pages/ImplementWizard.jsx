@@ -188,6 +188,7 @@ import {
   entityKeyOptions,
   withEntityKey,
   keptDefaultsText,
+  genieNotebookRequest,
 } from '../lib/implementWizard';
 import { ClearsChoice, DigestChoice, RowSubjectCheck, TeamCapacity } from '../components/WizardStickParts';
 import { placeholderWords } from '../lib/placeholderWords';
@@ -865,13 +866,9 @@ export default function ImplementWizard({
     setErrors([]);
     setBusy(true);
     try {
-      const data = await apiPostJson('/api/inspire/generate-genie', {
-        inspire_database: inspireDatabase,
-        warehouse_id: warehouseId,
-        session_id: String(sessionId),
-        use_case_ids: [spec.use_case_id],
-        ...(settings.notebookPath ? { notebook_path: settings.notebookPath } : {}),
-      });
+      const data = await apiPostJson('/api/inspire/generate-genie', genieNotebookRequest({
+        inspireDatabase, warehouseId, sessionId, useCaseId: spec.use_case_id, notebookPath: settings.notebookPath,
+      }));
       onImplemented({ mode: 'notebook', use_case_id: spec.use_case_id, run_id: data.run_id, job_run_url: data.job_run_url });
     } catch (e) {
       setErrors([e.message]);

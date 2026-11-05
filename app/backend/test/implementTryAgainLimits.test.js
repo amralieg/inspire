@@ -32,7 +32,10 @@ test('every Try again and every Rebuild on the Build page goes through the one c
   const page = fs.readFileSync(path.resolve(__dirname, '..', '..', 'frontend', 'src', 'pages', 'ImplementPage.jsx'), 'utf8');
   assert.equal(page.includes('submitNext(buildAgainChanges(latest))'), false, 'no Try again skips the limits check');
   assert.match(page, /const submitChecked = async \(next\) => \{\n\s+const problems = vibesProblems\(next, builtOn\);/);
-  assert.match(page, /const sendAgain = \(\) => submitChecked\(nextSpecFrom\(latest, buildAgainChanges\(latest\)\)\);/);
+  assert.match(page, /const sendAgain = async \(\) => \{\n\s+if \(!terminal\) return submitChecked\(nextSpecFrom\(latest, buildAgainChanges\(latest\)\)\);\n\s+openFeatures\(\);\n\s+setRebuildError\(TERMINAL_NEEDS_CHANGE\);\n\s+return false;/,
+    'a terminal failure is never sent again unchanged');
+  assert.match(page, /if \(choice\.changes\) return submitChecked\(nextSpecFrom\(latest, \{ \.\.\.buildAgainChanges\(latest\), \.\.\.choice\.changes \}\)\);/,
+    'a failure choice goes through the checked submit');
   assert.equal((page.match(/sendAgain\(\)/g) || []).length, 3, 'the banner, the drawer and the progress card all send again through it');
   assert.match(page, /if \(!\(await submitChecked\(rebuildSpec\(latest, vibes, builtOn, previous\)\)\)\) \{\n\s+keepCollected\(sent\);/);
   assert.match(page, /heldAction\('retry', \(\) => submitChecked\(specFromHeld\(latest\)\)\)/, 'Try again on a held version is checked too');
