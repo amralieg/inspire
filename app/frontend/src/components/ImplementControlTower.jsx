@@ -246,6 +246,11 @@ export function AssetTile({
         <div className={headClass}>{head}</div>
       )}
       <div data-tile-actions="" className="mt-auto flex flex-col gap-1">
+        {link && (
+          <a data-tile-open-button="" href={link} target="_blank" rel="noreferrer" aria-label={`Open the ${label} in a new tab`} title="Open" className={`${TILE_BUTTON} hover:bg-bg-subtle`}>
+            <ExternalLink size={11} className="shrink-0" /> {fitted(true, 'Open')}
+          </a>
+        )}
         {live && (
           <RowControls row={{ ...live, url: '' }} active={active} actionBusy={actionBusy} submitBusy={submitBusy} readOnly={readOnly} failed={failed}
             onAction={controls.act} onToggleSchedule={onToggleSchedule} onRetry={() => onRetry(output.id)} onOpenRun={onOpenRun} fit />

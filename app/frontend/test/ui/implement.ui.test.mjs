@@ -1244,7 +1244,7 @@ test('a failed output offers its own retry, which submits the next version that 
     const agentTile = tile(page, 'genie_space');
     await agentTile.locator('[data-tile-state]').getByText('Failed', { exact: true }).waitFor({ timeout: 20000 });
     assert.equal(await agentTile.getAttribute('title'), 'space create 403', 'the tile says why it failed');
-    assert.equal(await agentTile.locator('[data-tile-open="asset"]').count(), 0, 'a failed tile opens the reason, not the asset');
+    assert.equal(await agentTile.locator('[data-tile-open="asset"], [data-tile-open-button]').count(), 0, 'a failed tile opens the reason, not the asset');
     assert.deepEqual(await page.locator('[data-asset-tile] [data-tile-state]').evaluateAll((els) => els.filter((e) => e.textContent === 'Failed').length), 1, 'only the Genie Agent tile reads Failed');
     await page.locator('[data-asset-tile="app"][data-tile-kind="live"]').waitFor({ timeout: 20000 });
     const retried = [];
@@ -2112,7 +2112,7 @@ test('each output the version lacks shows faded with its name and Add opens Edit
       await off.locator('[data-tile-state]').getByText('Not in this MVP', { exact: true }).waitFor();
       faded[id] = [await off.getAttribute('data-tile-kind'), /border-dashed/.test(await off.getAttribute('class'))];
       assert.equal(await off.locator('[data-tile-versions]').count(), 0, `${id}: nothing to version before it is built`);
-      assert.equal(await off.locator('[data-tile-open]').count(), 0, `${id}: nothing to open before it is built`);
+      assert.equal(await off.locator('[data-tile-open], [data-tile-open-button]').count(), 0, `${id}: nothing to open before it is built`);
       offered[id] = await off.getByRole('button', { name: `Add the ${label}`, exact: true }).count();
     }
     assert.deepEqual(faded, { app: ['off', true], alert: ['off', true], genie_space: ['off', true] }, 'items not in the MVP show faded');

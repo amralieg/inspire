@@ -665,7 +665,7 @@ test('the use case list sits on the left; on the right the name, then Use case d
   }
 });
 
-test('every tile opens its asset in a new tab and has its Versions and per-asset actions, a drawer never carries a vibe box, and the Notebook tile has its Uninstall', async () => {
+test('every tile opens its asset in a new tab from its name and from a visible Open button, has its Versions and per-asset actions, a drawer never carries a vibe box, and the Notebook tile has its Uninstall', async () => {
   const ui = await openTower({ ...STATE, job: MVP_JOB, useCase: { ...HARNESS_USE_CASE, has_genie_code: 'Y', notebook_path: '/Users/owner@example.com/inspire/Acme/N01-U01' } });
   const { page } = ui;
   try {
@@ -675,8 +675,17 @@ test('every tile opens its asset in a new tab and has its Versions and per-asset
     for (const id of TILE_ORDER) {
       const tile = page.locator(`[data-asset-tile="${id}"]`);
       const open = tile.locator('[data-tile-open="asset"]');
+      const button = tile.locator('[data-tile-actions] [data-tile-open-button]');
+      const label = (await tile.locator('[data-tile-open="asset"]').getAttribute('aria-label')).replace(/^Open the /, '');
+      const sizes = await tile.locator('[data-tile-actions] > button, [data-tile-actions] > a').evaluateAll((els) => els.map((el) => {
+        const r = el.getBoundingClientRect();
+        return `${Math.round(r.width)}x${Math.round(r.height)}`;
+      }));
       seen[id] = {
         open: [await open.getAttribute('target'), Boolean(await open.getAttribute('href'))],
+        button: [(await button.innerText()).trim(), await button.getAttribute('target'), await button.getAttribute('rel'), await button.getAttribute('href') === await open.getAttribute('href'),
+          await button.getAttribute('aria-label') === `Open the ${label} in a new tab`, await button.isVisible()],
+        sizes: new Set(sizes).size,
         versions: await tile.locator('[data-tile-versions]').count(),
         uninstall: await tile.locator('[data-tile-uninstall]').count(),
       };
@@ -684,7 +693,7 @@ test('every tile opens its asset in a new tab and has its Versions and per-asset
       seen[id].box = await panel(page).locator('textarea').count();
       seen[id].add = await panel(page).getByRole('button', { name: /^Add vibes?$/ }).count();
     }
-    const each = { open: ['_blank', true], versions: 1, uninstall: 1, box: 0, add: 0 };
+    const each = { open: ['_blank', true], button: ['Open', '_blank', 'noreferrer', true, true, true], sizes: 1, versions: 1, uninstall: 1, box: 0, add: 0 };
     assert.deepEqual(seen, { app: each, dashboard: each, genie_space: each, alert: each, notebook: each, job: { ...each, uninstall: 0 } });
     assert.match(await page.locator('[data-asset-tile="job"] [data-tile-open="asset"]').getAttribute('href'), /#job\/77$/);
     assert.deepEqual(ui.pageErrors, []);
