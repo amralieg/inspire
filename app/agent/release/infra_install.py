@@ -1,20 +1,12 @@
-import argparse, fcntl, json, os, pathlib, re, sys, time, urllib.error, urllib.parse
+import argparse, fcntl, json, pathlib, re, sys, time, urllib.error, urllib.parse
 
-
-def _path_setting(name):
-    value = os.environ.get(name, "").strip()
-    if not value:
-        raise SystemExit(f"set {name}: INSPIRE_RC_TOOLS is the folder that holds rc_install.py, INSPIRE_RC_BASE the folder for "
-                         f"install outputs, INSPIRE_RC_ENVS the shared workspace state file")
-    return pathlib.Path(value)
-
-
-sys.path.insert(0, str(_path_setting("INSPIRE_RC_TOOLS")))
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import rc_install as R
+import rc_settings
 from databricks.sdk import WorkspaceClient
 
-BASE = _path_setting("INSPIRE_RC_BASE")
-ENVS = _path_setting("INSPIRE_RC_ENVS")
+BASE = rc_settings.path(R.S, "infra_base")
+ENVS = rc_settings.path(R.S, "infra_envs")
 
 
 def update_env(profile, **fields):

@@ -1,7 +1,4 @@
-import importlib.util
 import os
-import sys
-import types
 
 import pytest
 
@@ -9,20 +6,8 @@ ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)
 
 
 @pytest.fixture
-def infra(tmp_path, monkeypatch):
-    (tmp_path / "rc_install.py").write_text("")
-    for name, value in (("INSPIRE_RC_TOOLS", tmp_path), ("INSPIRE_RC_BASE", tmp_path / "out"), ("INSPIRE_RC_ENVS", tmp_path / "envs.json")):
-        monkeypatch.setenv(name, str(value))
-    sdk = types.ModuleType("databricks.sdk")
-    sdk.WorkspaceClient = object
-    monkeypatch.setitem(sys.modules, "databricks", types.ModuleType("databricks"))
-    monkeypatch.setitem(sys.modules, "databricks.sdk", sdk)
-    monkeypatch.delitem(sys.modules, "rc_install", raising=False)
-    monkeypatch.setattr(sys, "path", list(sys.path))
-    spec = importlib.util.spec_from_file_location("inspire_infra_install", os.path.join(ROOT, "release", "infra_install.py"))
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
+def infra(release_tool):
+    return release_tool.load("infra_install")
 
 
 def test_an_install_is_ready_only_when_the_app_skips_the_setup_wizard(infra):
@@ -42,8 +27,13 @@ def test_a_not_ready_install_exits_non_zero(infra):
     assert "    if not ready:\n        raise SystemExit(" in source
 
 
-def test_the_tool_refuses_to_run_without_its_path_settings(monkeypatch):
-    monkeypatch.delenv("INSPIRE_RC_TOOLS", raising=False)
-    spec = importlib.util.spec_from_file_location("inspire_infra_install_bare", os.path.join(ROOT, "release", "infra_install.py"))
-    with pytest.raises(SystemExit, match="set INSPIRE_RC_TOOLS"):
-        spec.loader.exec_module(importlib.util.module_from_spec(spec))
+def test_the_tool_refuses_to_run_without_its_settings_file(release_tool, monkeypatch):
+    monkeypatch.delenv("INSPIRE_RC_SETTINGS")
+    with pytest.raises(SystemExit, match="set INSPIRE_RC_SETTINGS"):
+        release_tool.load("infra_install")
+
+
+def test_the_install_output_folders_come_from_the_settings(release_tool, infra):
+    assert str(infra.BASE) == release_tool.settings["infra_base"]
+    assert str(infra.ENVS) == release_tool.settings["infra_envs"]
+    assert infra.R.PROFILE == "test-profile" and infra.R.SCRATCH_APP == "scratch-app"

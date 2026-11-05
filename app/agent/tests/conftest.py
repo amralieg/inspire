@@ -1,3 +1,5 @@
+import importlib.util
+import json
 import os
 import sys
 import types
@@ -9,6 +11,60 @@ if HERE not in sys.path:
     sys.path.insert(0, HERE)
 
 import _agentload  # noqa: E402
+
+RELEASE = os.path.join(os.path.dirname(HERE), "release")
+RELEASE_TOOLS = ("rc_settings", "rc_install", "rc_release", "isolation", "infra_install")
+LEAK_RULES = '''import re
+LEAK = re.compile(r"leaky-word")
+BENIGN = {"leaky-word.example"}
+LONG = re.compile(r"(?<![0-9A-Za-z.])[1-9][0-9]{14,18}(?![0-9A-Za-z])")
+
+
+def synthetic(num):
+    return len(set(num)) <= 4
+'''
+
+
+@pytest.fixture
+def release_tool(tmp_path, monkeypatch):
+    (tmp_path / "leak_scan.py").write_text(LEAK_RULES, encoding="utf-8")
+    settings = {
+        "profile": "test-profile", "warehouse": "wh0", "catalog": "test_cat", "scratch_app": "scratch-app",
+        "protected_apps": ["kept-app", "kept-app-2"], "watched_service_principals": ["sp-watched"], "workspace_folder": "rc_tests",
+        "work": str(tmp_path / "work"), "leak_scan": str(tmp_path / "leak_scan.py"), "extra_leak_pattern": r"secret-host",
+        "repo_dir": str(tmp_path / "repo"), "branch": "feat/test", "latest_tag": "v0.0.1", "compare_to": "v0.0.0",
+        "probe": str(tmp_path / "probe.json"), "assets_cache": str(tmp_path / "cache"),
+        "infra_base": str(tmp_path / "out"), "infra_envs": str(tmp_path / "envs.json"),
+        "isolation": {"watched_apps": ["kept-app"], "lakebase_project": "lb-project", "lakebase_catalog": "lb_cat",
+                      "catalogs": ["kept_cat"], "schemas": ["kept_cat._inspire"], "folders": ["/Shared/kept"],
+                      "trees": ["/Shared/kept/assets/v0.0.1"], "acl_folders": ["/Shared/kept"], "own_paths": ["/v9.9.9"]},
+    }
+    path = tmp_path / "settings.json"
+
+    def write():
+        path.write_text(json.dumps(settings), encoding="utf-8")
+
+    write()
+    monkeypatch.setenv("INSPIRE_RC_SETTINGS", str(path))
+    for name in ("databricks", "databricks.sdk", "databricks.sdk.service", "databricks.sdk.service.jobs",
+                 "databricks.sdk.service.workspace", "databricks.sdk.service.sql"):
+        monkeypatch.setitem(sys.modules, name, types.ModuleType(name))
+    sys.modules["databricks.sdk"].WorkspaceClient = object
+    for name in ("jobs", "workspace", "sql"):
+        setattr(sys.modules["databricks.sdk.service"], name, sys.modules[f"databricks.sdk.service.{name}"])
+
+    def load(name):
+        for tool in RELEASE_TOOLS:
+            sys.modules.pop(tool, None)
+        write()
+        spec = importlib.util.spec_from_file_location(name, os.path.join(RELEASE, f"{name}.py"))
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return module
+
+    yield types.SimpleNamespace(load=load, settings=settings, path=path, write=write, release=RELEASE, root=tmp_path)
+    for tool in RELEASE_TOOLS:
+        sys.modules.pop(tool, None)
 
 
 @pytest.fixture(autouse=True)
