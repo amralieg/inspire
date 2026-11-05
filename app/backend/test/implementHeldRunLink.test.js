@@ -50,3 +50,20 @@ test('the status names the run of a failed build so the panel can link it', () =
     status_message: 'the run building v2 ended (CANCELED: Run cancelled by user) while v2 was still filling' });
   assert.equal(I.implementBuildRunId(ended), null, 'the stall check already reads the run of a cancelled build');
 });
+
+test('the change-the-ask offer waits until Genie\'s own repair rounds are used up, and the failed panel shows what Genie tried', async () => {
+  const W = await lib('implementWizard.js');
+  const P = await lib('mvpProgress.js');
+  const running = row(2, 'filling', {}, {}, { status_message: 'Genie stopped the build: interactions = 743 against 1,000' });
+  assert.equal(W.dataStopped(running), false, 'a stop Genie is still repairing is not the end of the build');
+  assert.notEqual(W.statusChip('filling').tone, 'error', 'so no failed panel shows while Genie repairs');
+  const repairing = [{ step_name: 'Inspire is working on self-repair', status: 'started', last_updated: '2026-01-02T10:05:00.000Z',
+    result_json: { phase: P.MVP_REPAIR_PHASE, attempt: 2, attempts: 3, spec_version: 2, why: 'interactions = 743 against 1,000' } }];
+  assert.equal(P.mvpProgressSummary(P.mvpStages(repairing, running), running, { repair: P.mvpRepairOf(repairing, running) }).detail,
+    'Attempt 2 of 3: Inspire is fixing it: interactions = 743 against 1,000', 'the progress says what Genie is repairing');
+  const defect = 'Genie stopped the build: the sample query failed. Inspire sent it back to Genie 2 times with the error, and it still stopped';
+  assert.equal(W.dataStopped(row(2, 'failed', {}, {}, { status_message: defect })), false, 'a defect Genie could not fix in its rounds keeps Try again');
+  const noMethod = 'Genie stopped the build: interactions = 11 against 200. Genie found no method that is valid at 11 past examples of the outcome, so this use case '
+    + 'becomes buildable once the data has at least 200 past examples of the outcome; Rebuild then. Inspire sent it back to Genie, and it still stopped';
+  assert.equal(W.dataStopped(row(2, 'failed', {}, {}, { status_message: noMethod })), true, 'a data gap no method fits offers changing the ask');
+});

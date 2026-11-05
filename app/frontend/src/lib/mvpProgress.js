@@ -252,8 +252,10 @@ export function mvpStages(steps, latest, { now = Date.now(), stalled = null } = 
     || (s.phases || []).some((p) => p.toLowerCase() === phase.toLowerCase()));
   const rank = { running: 0, done: 1, warning: 2, error: 3 };
   const seenAt = new Map();
+  let lastAt = null;
   for (const { row, payload, at } of stepEvents(steps)) {
     if (since !== null && at !== null && at < since) continue;
+    if (at !== null && (lastAt === null || at > lastAt)) lastAt = at;
     const index = indexOf(stepPhase(row, payload));
     if (index < 0) continue;
     const stage = stages[index];
@@ -295,6 +297,11 @@ export function mvpStages(steps, latest, { now = Date.now(), stalled = null } = 
   if (finished) {
     if (held && finish.state !== 'error') finish.state = 'warning';
     else if (finish.state === 'waiting' || finish.state === 'running') finish.state = status === 'ready' ? 'done' : 'warning';
+    stages.forEach((s) => {
+      if (s.state !== 'running') return;
+      s.state = status === 'ready' ? 'done' : 'warning';
+      if (lastAt !== null && (s.ended === null || s.ended < lastAt)) s.ended = lastAt;
+    });
     stages.forEach((s) => { if (s.state === 'waiting') s.state = 'skipped'; });
   }
   if (failed) {

@@ -2134,7 +2134,9 @@ export function buildAgainHint(latest) {
 export const DATA_STOP_HINT = 'Trying again stops on the same data. Change the ask in Vibe/Add/Remove Features, or the tables and columns in all settings, then rebuild.';
 
 export function dataStopped(latest) {
-  return String(latest?.status || '') === 'failed' && /^Genie stopped the build\b/.test(String(latest?.status_message || '').trim());
+  const message = String(latest?.status_message || '').trim();
+  if (String(latest?.status || '') !== 'failed' || !/^Genie stopped the build\b/.test(message)) return false;
+  return /\bGenie found no method that is valid\b/.test(message) || !/\bInspire sent it back to Genie\b/.test(message);
 }
 
 export const IMPLEMENT_UNINSTALLED = 'uninstalled';

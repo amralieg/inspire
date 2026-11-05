@@ -642,3 +642,26 @@ test('the App reads no count of asks no part can do, no no-part line and no not_
   const source = fs.readFileSync(path.resolve(__dirname, '..', '..', 'frontend', 'src', 'lib', 'mvpProgress.js'), 'utf8');
   for (const gone of ['no part can do', 'not_routed', 'unrouted', 'noPart', 'unnamed']) assert.ok(!source.includes(gone), gone);
 });
+
+test('a held build settles the parts it left running, so no part reads in progress or keeps a growing timer, and the total time runs to the last step', async () => {
+  const { mvpStages, mvpProgressSummary } = await lib('mvpProgress.js');
+  const latest = { ...latestOf('vibe_not_met', { dashboard: true, app: true }), updated_at: '2026-01-02T10:21:00.000Z' };
+  const steps = [...BUILT, row('Preview run', 'started', '10:09:05'), row('Preview run', 'ended_success', '10:09:50'),
+    row('Dashboard', 'started', '10:10:00'), row('App', 'started', '10:12:10'), row('App', 'started', '10:21:00')];
+  for (const now of [at('10:30:00'), at('11:30:00')]) {
+    const stages = mvpStages(steps, latest, { now });
+    const parts = Object.fromEntries(stages.filter((s) => ['Dashboard', 'App'].includes(s.id)).map((s) => [s.id, [s.state, s.elapsed]]));
+    assert.deepEqual(parts, { Dashboard: ['warning', '11m 0s'], App: ['warning', '8m 50s'] }, 'the held parts end when the build ended, whatever the clock says');
+    assert.equal(stages.some((s) => ['running', 'next'].includes(s.state)), false, 'nothing reads in progress after a held build');
+    assert.equal(mvpProgressSummary(stages, latest, { now }).span, 'Took 21m 0s', 'the total runs from the start to the last step');
+  }
+});
+
+test('a ready build settles a part it left running as done, and a running build keeps its part running', async () => {
+  const { mvpStages } = await lib('mvpProgress.js');
+  const steps = [...BUILT, row('Dashboard', 'started', '10:10:00'), row('Implement', 'ended_success', '10:12:00')];
+  const ready = mvpStages(steps, latestOf('ready'), { now: at('10:30:00') }).find((s) => s.id === 'Dashboard');
+  assert.deepEqual([ready.state, ready.elapsed], ['done', '2m 0s']);
+  const running = mvpStages(steps.slice(0, -1), latestOf('running'), { now: at('10:30:00') }).find((s) => s.id === 'Dashboard');
+  assert.deepEqual([running.state, running.elapsed], ['running', '20m 0s']);
+});
