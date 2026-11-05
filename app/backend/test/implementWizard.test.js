@@ -1832,6 +1832,34 @@ test('a column with an innocent name but a PII, personal or sensitive Unity Cata
   assert.equal(P.personalColumn('ref_code', {}), false, 'without tags the innocent name passes the name rule');
 });
 
+test('a column Data Classification tagged class.* with no value is never the result key, in the wizard default, its options and the submit check', async () => {
+  const w = await load();
+  const P = await import(pathToFileURL(path.resolve(__dirname, '..', '..', 'frontend', 'src', 'lib', 'personalColumns.js')).href);
+  const I = require('../lib/inspireImplement.js');
+  const classified = { 'class.email_address': '' };
+  const columns = { 'main.s.members': [
+    { column_name: 'member_id', data_type: 'STRING', tags: {} },
+    { column_name: 'contact_ref', data_type: 'STRING', tags: classified },
+    { column_name: 'holder_code', data_type: 'STRING', tags: { 'class.credit_card': '' } },
+    { column_name: 'plan_code', data_type: 'STRING', tags: { class: 'internal', subclass: 'x', 'business.class': 'gold' } },
+  ] };
+  assert.equal(P.personalColumn('contact_ref', classified), true);
+  assert.equal(P.personalColumn('contact_ref', { 'class.name': '' }), true);
+  assert.equal(P.personalColumn('plan_code', { class: 'internal', 'business.class': 'gold' }), false, 'a tag named class with no dot is not a classification (must-exclude)');
+  const offered = w.entityKeyOptions(columns, ['main.s.members']).map((k) => k.column);
+  assert.ok(!offered.includes('contact_ref') && !offered.includes('holder_code'), 'classified columns are never offered');
+  assert.ok(offered.includes('member_id') && offered.includes('plan_code'), 'unclassified keys stay (must-keep)');
+  const uc = { ...STICK_UC, Name: 'Win back lapsed members', statement: 'Find members to win back',
+    elite_assessment: JSON.stringify({ entity_key_column: 'main.s.members.contact_ref' }) };
+  const spec = w.defaultSpecFromUseCase(uc, { warehouseId: 'wh1', inspireDatabase: 'main.inspire', owner: 'amr@example.com' });
+  const check = w.grainCheck(spec, uc, columns, ['main.s.members']);
+  assert.equal(check.state, 'personal', 'the auto-picked classified key is flagged on the wizard default');
+  assert.equal(check.suggest.ref, 'main.s.members.member_id');
+  const tags = { 'main.s.members.contact_ref': classified };
+  assert.equal(I.personalKeyOf(spec, uc, tags), `column role entity_id main.s.members.contact_ref: ${P.PERSONAL_KEY_REASON}`);
+  assert.equal(I.personalKeyOf(w.withEntityKey(spec, 'main.s.members.member_id'), uc, tags), '', 'the chosen unclassified key passes the submit check');
+});
+
 test('a fresh Full MVP lists every step and the wizard offers no shortcut that hides them', async () => {
   const w = await load();
   const S = [{ name: 'min_interactions' }];
