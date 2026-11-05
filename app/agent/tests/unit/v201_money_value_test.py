@@ -31,11 +31,15 @@ def kpi(ns, name="Weekly sales value", unit="AED", aggregation="SUM", column="am
 
 
 def money_uc(ns, *kpis, **extra):
-    return make_uc("N01-U01", KPIs=list(kpis), **extra)
+    return make_uc("N01-U01", KPIs=list(kpis), **{"use_case_kind": "forecast", **extra})
+
+
+def estimate_of(ns, uc, user_text="", family=""):
+    return ns["inspire_value_estimate"](uc, user_text, family, ns["inspire_use_case_kind"](uc))
 
 
 def test_a_measured_money_baseline_gives_a_range_with_its_assumption_and_source(ns):
-    estimate = ns["inspire_value_estimate"](money_uc(ns, kpi(ns)), "", "predict")
+    estimate = estimate_of(ns, money_uc(ns, kpi(ns)), "", "predict")
     yearly = 29589.0 * 365 / 90
     assert estimate["status"] == "measured"
     assert estimate["value_low"] == round(yearly * 0.02, 2) and estimate["value_high"] == round(yearly * 0.05, 2)
@@ -49,35 +53,35 @@ def test_a_measured_money_baseline_gives_a_range_with_its_assumption_and_source(
 
 def test_no_measured_baseline_says_not_measured_yet_and_never_shows_a_number(ns):
     for uc in (money_uc(ns, kpi(ns, value=None)), money_uc(ns), money_uc(ns, kpi(ns, name="Late orders", unit="orders"))):
-        estimate = ns["inspire_value_estimate"](uc, "", "predict")
+        estimate = estimate_of(ns, uc, "", "predict")
         assert estimate["status"] == "not measured yet" and "value_low" not in estimate and "value_high" not in estimate
         assert estimate["text"].startswith("Value not measured yet: measure ")
         assert not re.search(r"\d", estimate["text"]), estimate["text"]
-    assert "Weekly sales value with its KPI query" in ns["inspire_value_estimate"](money_uc(ns, kpi(ns, value=None)))["text"]
-    assert "sum of a revenue or cost column in c.s.orders" in ns["inspire_value_estimate"](money_uc(ns, kpi(ns, name="Late orders", unit="orders")))["text"]
-    assert "money value per unit of order count" in ns["inspire_value_estimate"](money_uc(ns, kpi(ns, name="Order count", unit="orders", aggregation="COUNT")))["text"]
+    assert "Weekly sales value with its KPI query" in estimate_of(ns, money_uc(ns, kpi(ns, value=None)))["text"]
+    assert "sum of a revenue or cost column in c.s.orders" in estimate_of(ns, money_uc(ns, kpi(ns, name="Late orders", unit="orders")))["text"]
+    assert "money value per unit of order count" in estimate_of(ns, money_uc(ns, kpi(ns, name="Order count", unit="orders", aggregation="COUNT")))["text"]
 
 
 def test_a_money_kpi_that_is_not_a_total_is_not_turned_into_money(ns):
     for spec in (kpi(ns, name="Average order value", aggregation="AVG"),
                  kpi(ns, name="Revenue share", unit="AED", denominator={"aggregation": "SUM", "column": "amount"}),
                  kpi(ns, value=0.0), kpi(ns, value=-5.0)):
-        estimate = ns["inspire_value_estimate"](money_uc(ns, spec), "", "predict")
+        estimate = estimate_of(ns, money_uc(ns, spec), "", "predict")
         assert estimate["status"] == "not measured yet", spec
-    assert "the total of amount over a time window" in ns["inspire_value_estimate"](money_uc(ns, kpi(ns, aggregation="AVG")))["text"]
+    assert "the total of amount over a time window" in estimate_of(ns, money_uc(ns, kpi(ns, aggregation="AVG")))["text"]
 
 
 def test_an_unknown_currency_is_said_and_never_assumed(ns):
-    estimate = ns["inspire_value_estimate"](money_uc(ns, kpi(ns, name="Revenue", unit="")), "Cover ALL domains", "predict")
+    estimate = estimate_of(ns, money_uc(ns, kpi(ns, name="Revenue", unit="")), "Cover ALL domains", "predict")
     assert estimate["status"] == "measured" and estimate["currency"] is None
     assert "(currency not known)" in estimate["text"] and "USD" not in estimate["text"] and "$" not in estimate["text"]
-    assert ns["inspire_value_estimate"](money_uc(ns, kpi(ns, name="Revenue", unit="", column="amount_eur")))["currency"] == "EUR"
+    assert estimate_of(ns, money_uc(ns, kpi(ns, name="Revenue", unit="", column="amount_eur")))["currency"] == "EUR"
 
 
 def test_the_instructions_name_the_currency_the_metric_and_the_uplift_range_first(ns):
     other = kpi(ns, name="Refund cost", unit="USD", value=1000.0)
     text = "Report value in SAR. Focus on weekly sales value; assume an uplift of 4-6% for every use case."
-    estimate = ns["inspire_value_estimate"](money_uc(ns, other, kpi(ns, unit="USD")), text, "predict")
+    estimate = estimate_of(ns, money_uc(ns, other, kpi(ns, unit="USD")), text, "predict")
     assert estimate["kpi"] == "Weekly sales value" and estimate["currency"] == "SAR" and estimate["currency_source"] == "instructions"
     assert (estimate["uplift_low"], estimate["uplift_high"], estimate["uplift_source"]) == (0.04, 0.06, "instructions")
     assert "the range comes from the instructions" in estimate["assumption"]
@@ -91,23 +95,23 @@ def test_the_instructions_name_the_currency_the_metric_and_the_uplift_range_firs
 
 def test_a_cost_kpi_falls_and_the_kind_family_sets_the_default_range(ns):
     spec = kpi(ns, name="Refund cost", direction="reduce")
-    estimate = ns["inspire_value_estimate"](money_uc(ns, spec), "", "detect_protect")
+    estimate = estimate_of(ns, money_uc(ns, spec), "", "detect_protect")
     assert "refund cost falls 5-15%" in estimate["text"]
-    assert ns["inspire_value_estimate"](money_uc(ns, spec), "", "")["uplift_low"] == ns["INSPIRE_VALUE_UPLIFT_DEFAULT"][0]
+    assert estimate_of(ns, money_uc(ns, spec), "", "")["uplift_low"] == ns["INSPIRE_VALUE_UPLIFT_DEFAULT"][0]
 
 
 def test_proposed_key_results_get_the_measured_target_range_or_say_not_measured_yet(ns):
     measured = money_uc(ns, kpi(ns, value=1000.0), **{"Expected Key Results": [
         {"statement": "Raise weekly sales value from 1,000 to [TARGET] within [WINDOW]", "source": "proposed"},
         {"statement": "Keep [TARGET] as the sponsor wrote it", "source": "strategy"}]})
-    estimate = ns["inspire_value_estimate"](measured, "", "predict")
+    estimate = estimate_of(ns, measured, "", "predict")
     ns["inspire_fill_key_result_targets"](measured, estimate)
     shown = ns["inspire_placeholder_words"](measured["Expected Key Results"][0]["statement"])
     assert shown == "Raise weekly sales value from 1,000 to between 1,020 and 1,050 (assumed 2-5% higher) within 12 months, assumed"
     assert measured["Expected Key Results"][1]["statement"] == "Keep [TARGET] as the sponsor wrote it"
     unmeasured = money_uc(ns, kpi(ns, value=None), **{"Expected Key Results": [
         {"statement": "Raise weekly sales value from [BASELINE] to [TARGET] within [WINDOW]", "source": "proposed"}]})
-    ns["inspire_fill_key_result_targets"](unmeasured, ns["inspire_value_estimate"](unmeasured))
+    ns["inspire_fill_key_result_targets"](unmeasured, estimate_of(ns, unmeasured))
     shown = ns["inspire_placeholder_words"](unmeasured["Expected Key Results"][0]["statement"])
     assert "sponsor sets" not in shown and "not measured yet" in shown and not re.search(r"\d", shown)
 
@@ -164,7 +168,7 @@ def per_unit_kpi(ns, value=85.5, table="c.s.orders", window=0, **extra):
 
 
 def test_a_count_kpi_turns_into_money_only_through_a_measured_per_unit_money_kpi_on_the_same_table(ns):
-    estimate = ns["inspire_value_estimate"](money_uc(ns, count_kpi(ns), per_unit_kpi(ns)), "", "run_processes")
+    estimate = estimate_of(ns, money_uc(ns, count_kpi(ns), per_unit_kpi(ns)), "", "run_processes")
     yearly = 1200.0 * 365 / 90 * 85.5
     assert estimate["status"] == "measured" and estimate["currency"] == "AED" and estimate["kpi"] == "Order count"
     assert estimate["value_low"] == round(yearly * 0.03, 2) and estimate["value_high"] == round(yearly * 0.08, 2)
@@ -173,7 +177,7 @@ def test_a_count_kpi_turns_into_money_only_through_a_measured_per_unit_money_kpi
     assert "order count rises 3-8%" in estimate["text"] and "each worth 85.50 AED Average order value across all data" in estimate["text"]
     assert "each order count is worth the measured average order value" in estimate["assumption"]
     for aggregation in ("COUNT_DISTINCT", "SUM"):
-        other = ns["inspire_value_estimate"](money_uc(ns, count_kpi(ns, aggregation=aggregation), per_unit_kpi(ns)))
+        other = estimate_of(ns, money_uc(ns, count_kpi(ns, aggregation=aggregation), per_unit_kpi(ns)))
         assert other["status"] == "not measured yet" and not re.search(r"\d", other["text"]), aggregation
 
 
@@ -185,10 +189,10 @@ def test_a_count_kpi_without_a_measured_per_unit_money_column_gets_no_number(ns)
                money_uc(ns, count_kpi(ns), per_unit_kpi(ns, denominator={"aggregation": "COUNT", "column": "order_id"})),
                money_uc(ns, count_kpi(ns, denominator={"aggregation": "COUNT", "column": "order_id"}), per_unit_kpi(ns)),
                money_uc(ns, count_kpi(ns, value=None), per_unit_kpi(ns))):
-        estimate = ns["inspire_value_estimate"](uc, "", "run_processes")
+        estimate = estimate_of(ns, uc, "", "run_processes")
         assert estimate["status"] == "not measured yet" and "value_low" not in estimate, uc["KPIs"]
         assert not re.search(r"\d", estimate["text"]), estimate["text"]
-    shown = ns["inspire_value_estimate"](money_uc(ns, count_kpi(ns)))["text"]
+    shown = estimate_of(ns, money_uc(ns, count_kpi(ns)))["text"]
     assert shown == ("Value not measured yet: measure the money value per unit of order count, for example the average "
                      "of a price or amount column in c.s.orders over the same rows.")
 
@@ -285,7 +289,7 @@ def late_orders(ns, **extra):
 
 
 def per_unit_estimate(ns, count, unit):
-    return ns["inspire_value_estimate"](money_uc(ns, count, unit), "", "run_processes")
+    return estimate_of(ns, money_uc(ns, count, unit), "", "run_processes")
 
 
 def test_late_orders_with_an_average_order_value_measured_only_on_premium_orders_gives_no_number(ns):
@@ -327,3 +331,58 @@ def test_the_average_converts_a_count_only_when_its_rows_cover_the_counted_rows(
         estimate = per_unit_estimate(ns, count, unit)
         assert estimate["status"] == "not measured yet" and not re.search(r"\d", estimate["text"]), (
             count.get("filter_column"), count.get("filter_op"), unit.get("filter_column"), unit.get("filter_op"), unit["window_days"])
+
+
+LIVE_ORDER_VALUE = {"aggregation": "SUM", "baseline": {"measured_on": "2026-11-04", "value": 43270826358.1, "window_anchor": "newest data",
+                    "window_days": 91}, "column": "o_totalprice", "computable": True, "denominator": None, "direction": "maintain",
+                    "filter_column": None, "filter_op": None, "filter_type": None, "filter_value": None, "metric_view": None,
+                    "name": "Quarterly order header value", "table": "samples.tpch.orders", "time_column": "o_orderdate",
+                    "unit": "currency", "window_days": 91}
+LIVE_LINE_VALUE = dict(LIVE_ORDER_VALUE, baseline=dict(LIVE_ORDER_VALUE["baseline"], value=16879512777.79), column="l_extendedprice",
+                       name="Quarterly line extended price value", table="samples.tpch.lineitem", time_column="l_shipdate")
+LIVE_CUSTOMERS = dict(LIVE_ORDER_VALUE, aggregation="COUNT_DISTINCT", baseline=dict(LIVE_ORDER_VALUE["baseline"], value=213000.0),
+                      column="o_custkey", direction="increase", name="Customers ordering in the last 91 days", unit="customers")
+LIVE_REVENUE = dict(LIVE_ORDER_VALUE, direction="increase", name="Order value, last 91 days")
+
+
+def live_billing_uc():
+    return make_uc("N02-U01", use_case_kind="leakage_reconciliation", KPIs=[dict(LIVE_ORDER_VALUE), dict(LIVE_LINE_VALUE)],
+                   **{"Expected Key Results": [{"source": "proposed", "statement": (
+                       "Reduce the unreconciled gap between Quarterly order header value and Quarterly line extended price value "
+                       "from 16,879,512,778 to [TARGET] within [WINDOW]")}]})
+
+
+def test_live_billing_control_case_gets_no_number_from_the_total_order_value(ns):
+    uc = live_billing_uc()
+    obj = make_inspire(ns)
+    obj._apply_value_estimates([uc])
+    estimate = uc["Value Estimate"]
+    assert estimate["status"] == "not measured yet" and "value_low" not in estimate and "value_at_stake" not in uc
+    assert uc["value_estimate_text"].startswith(
+        "Value not measured yet: measure money recovered on mismatches: sum of the differences on confirmed breaks"), uc["value_estimate_text"]
+    assert "8.7B" not in uc["value_estimate_text"] and "order header value rises" not in uc["value_estimate_text"]
+    statement = uc["Expected Key Results"][0]["statement"]
+    assert "45,434" not in statement and ns["INSPIRE_VALUE_TARGET_UNMEASURED"] in statement, statement
+
+
+def test_live_at_risk_customers_case_gets_no_number_from_the_order_value_total(ns):
+    uc = make_uc("N05-U03", use_case_kind="time_to_event", KPIs=[dict(LIVE_CUSTOMERS), dict(LIVE_REVENUE)])
+    estimate = estimate_of(ns, uc)
+    assert estimate["status"] == "not measured yet" and "value_low" not in estimate
+    assert estimate["text"].startswith("Value not measured yet: measure events prevented before they happen: entities reached in time"), estimate["text"]
+
+
+def test_only_a_kind_valued_as_a_change_in_its_own_kpi_takes_a_number_from_that_kpi(ns):
+    for kind_id in sorted(ns["INSPIRE_VALUE_FROM_KPI_KINDS"]):
+        assert "{kpi}" in ns["_inspire_kind"](kind_id)["value_formula"], kind_id
+    revenue = kpi(ns, name="Order value")
+    assert estimate_of(ns, money_uc(ns, revenue))["status"] == "measured"
+    held = kpi(ns, name="Order value", direction="maintain")
+    assert estimate_of(ns, money_uc(ns, held))["status"] == "not measured yet"
+    other_metric = money_uc(ns, revenue, elite_assessment={"kpi": "Forecast error"})
+    estimate = estimate_of(ns, other_metric)
+    assert estimate["status"] == "not measured yet" and "the change in Forecast error" in estimate["text"]
+    for kind_id in ("leakage_reconciliation", "anomaly", "pricing", "time_to_event", "variance_to_plan"):
+        assert estimate_of(ns, money_uc(ns, revenue, use_case_kind=kind_id))["status"] == "not measured yet", kind_id
+    assert estimate_of(ns, money_uc(ns, revenue, use_case_kind="leakage_reconciliation"), "Value the use cases on order value")["status"] == "measured"
+    assert ns["inspire_value_estimate"](make_uc("N01-U09", KPIs=[revenue]))["status"] == "not measured yet"
