@@ -16,7 +16,11 @@ const VIBE_STAGE = { id: 'Vibe', label: 'Vibe', working: 'Inspire is reading you
 export const MVP_BUILD_ORDER = ['genie_space', 'dashboard', 'alert', 'app'];
 const OUTPUT_LABEL = Object.fromEntries(IMPLEMENT_OUTPUTS.map((o) => [o.id, o.label]));
 export const DECISION_LIST_NOTES = 'decision_list';
-const STAGE_NOTES = { ...Object.fromEntries(IMPLEMENT_OUTPUTS.map((o) => [o.label, [o.id, o.label]])), Done: [DECISION_LIST_NOTES, 'Decision list'] };
+const STAGE_NOTES = {
+  'Genie build': ['notebook', 'Notebook'],
+  ...Object.fromEntries(IMPLEMENT_OUTPUTS.map((o) => [o.label, [o.id, o.label]])),
+  Done: [DECISION_LIST_NOTES, 'Decision list'],
+};
 
 export function assetNotes(row, id) {
   const entry = row?.asset_status?.[id];

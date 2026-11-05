@@ -674,3 +674,20 @@ test('the changes Genie made before a build stopped are read from its own step, 
   assert.deepEqual(genieChangesOf([...BUILT, changed(1, ['an older version change'])], latest), []);
   assert.deepEqual(genieChangesOf(BUILT, latest), []);
 });
+
+test('the settings Genie changed to repair a data shortfall are noted under the notebook build on a build that went on, held or ready', async () => {
+  const { mvpStages } = await lib('mvpProgress.js');
+  const changes = [
+    'Genie found 33 past examples, fewer than the 200 the setting asked for, so it set Minimum positives to 30, not 200: only 33 lapses in the history.',
+    'Genie set Days without a purchase to 7, not 30: the user asked for a 7 day window.',
+  ];
+  const steps = [...BUILT, row('Preview run', 'started', '10:09:05'), row('Preview run', 'ended_success', '10:12:00'),
+    row('Dashboard', 'started', '10:12:05'), row('Dashboard', 'ended_success', '10:14:00')];
+  const latestAt = (status, version, notebook) => ({ ...latestOf(status), spec_version: 4, asset_status: { notebook: { state: 'ready', spec_version: version, notes: notebook } } });
+  for (const status of ['vibe_not_met', 'ready_with_warnings', 'ready']) {
+    const stage = mvpStages(steps, latestAt(status, 4, [...changes, changes[0]]), { now: at('10:30:00') }).find((s) => s.id === 'Genie build');
+    assert.deepEqual(stage.notes, changes.map((note) => `Notebook: ${note}`), status);
+  }
+  const older = mvpStages(steps, latestAt('ready', 3, changes), { now: at('10:30:00') }).find((s) => s.id === 'Genie build');
+  assert.deepEqual(older.notes, [], 'a change Genie made on an earlier version is not noted on this one');
+});
