@@ -1,9 +1,13 @@
+import builtins
 import json
 import pathlib
+import symtable
 
 NOTEBOOK = pathlib.Path(__file__).resolve().parents[2] / "agent" / "dbx_inspire_ai_agent.ipynb"
 RESULT = "main.inspire.churn_out"
 SP = "1f0e-app-sp"
+READS = [RESULT, "main.inspire.churn_out_closed", "main.inspire.churn_out_closes", "main.inspire.churn_out_acted",
+         "main.inspire.churn_out_changes"]
 
 
 class _Rows:
@@ -33,7 +37,7 @@ class Spark:
 
 def test_a_table_made_after_the_build_is_read_by_whoever_reads_the_result_table(agent_ns):
     grants = [{"t": "churn_out", "p": SP}, {"t": "churn_out", "p": "analysts"}, {"t": "churn_out_acted", "p": SP}]
-    plan = agent_ns["inspire_share_plan"](RESULT, ["churn_out", "churn_out_closed", "churn_out_closes", "churn_out_acted"], grants)
+    plan = agent_ns["inspire_share_plan"](RESULT, ["churn_out", "churn_out_closed", "churn_out_closes", "churn_out_acted"], grants, READS)
     assert sorted(plan) == sorted([
         f"GRANT SELECT ON TABLE `main`.`inspire`.`churn_out_closed` TO `{SP}`", "GRANT SELECT ON TABLE `main`.`inspire`.`churn_out_closed` TO `analysts`",
         f"GRANT SELECT ON TABLE `main`.`inspire`.`churn_out_closes` TO `{SP}`", "GRANT SELECT ON TABLE `main`.`inspire`.`churn_out_closes` TO `analysts`",
@@ -42,11 +46,13 @@ def test_a_table_made_after_the_build_is_read_by_whoever_reads_the_result_table(
 
 def test_no_grant_for_a_missing_table_a_held_grant_an_unread_result_or_a_bad_name(agent_ns):
     plan = agent_ns["inspire_share_plan"]
-    assert plan(RESULT, ["churn_out", "churn_out_closed"], [{"t": "churn_out", "p": SP}, {"t": "churn_out_closed", "p": SP}]) == []
-    assert plan(RESULT, ["churn_out", "churn_out_closed"], [{"t": "other_out", "p": SP}]) == [], "nobody reads the result table, so nobody is added"
-    assert plan(RESULT, ["churn_out", "churn_out_closed"], [{"t": "churn_out", "p": "x` TO `y"}]) == []
-    assert plan("not a table", ["churn_out_closed"], [{"t": "churn_out", "p": SP}]) == []
-    assert all("churn_out_changes" not in s for s in plan(RESULT, ["churn_out", "churn_out_closed"], [{"t": "churn_out", "p": SP}]))
+    assert plan(RESULT, ["churn_out", "churn_out_closed"], [{"t": "churn_out", "p": SP}, {"t": "churn_out_closed", "p": SP}], READS) == []
+    assert plan(RESULT, ["churn_out", "churn_out_closed"], [{"t": "other_out", "p": SP}], READS) == [], "nobody reads the result table, so nobody is added"
+    assert plan(RESULT, ["churn_out", "churn_out_closed"], [{"t": "churn_out", "p": "x` TO `y"}], READS) == []
+    assert plan("not a table", ["churn_out_closed"], [{"t": "churn_out", "p": SP}], READS) == []
+    assert plan(RESULT, ["churn_out", "churn_out_closed"], [{"t": "churn_out", "p": SP}], []) == [], "no list from the build, no grant"
+    assert plan(RESULT, ["churn_out"], [{"t": "churn_out", "p": SP}], [RESULT, "other.inspire.churn_out_closed"]) == []
+    assert all("churn_out_changes" not in s for s in plan(RESULT, ["churn_out", "churn_out_closed"], [{"t": "churn_out", "p": SP}], READS))
 
 
 def test_every_table_the_app_reads_beside_the_result_is_covered_by_the_one_list(agent_ns):
@@ -54,14 +60,14 @@ def test_every_table_the_app_reads_beside_the_result_is_covered_by_the_one_list(
     closed = agent_ns["inspire_closed_table"](RESULT)
     assert closed in reads and agent_ns["inspire_closes_table"](RESULT) in reads
     present = [n.split(".")[-1] for n in reads]
-    plan = agent_ns["inspire_share_plan"](RESULT, present, [{"t": "churn_out", "p": SP}])
+    plan = agent_ns["inspire_share_plan"](RESULT, present, [{"t": "churn_out", "p": SP}], reads)
     assert len(plan) == len(reads) - 1, plan
 
 
 def test_the_run_grants_them_and_says_so(agent_ns):
     said = []
     spark = Spark({"churn_out", "churn_out_closed"}, [{"t": "churn_out", "p": SP}])
-    done = agent_ns["inspire_share_outputs"](spark, RESULT, said.append)
+    done = agent_ns["inspire_share_outputs"](spark, RESULT, said.append, run={"app_reads": READS})
     assert spark.ran == [f"GRANT SELECT ON TABLE `main`.`inspire`.`churn_out_closed` TO `{SP}`"] == done
     assert said and said[0].startswith("[APP-READS FIRED]") and "1 grant made" in said[0]
 
@@ -69,7 +75,7 @@ def test_the_run_grants_them_and_says_so(agent_ns):
 def test_a_refused_grant_is_said_plainly_and_the_run_goes_on(agent_ns):
     said = []
     spark = Spark({"churn_out", "churn_out_closed"}, [{"t": "churn_out", "p": SP}], refuse=("churn_out_closed",))
-    agent_ns["inspire_share_outputs"](spark, RESULT, said.append)
+    agent_ns["inspire_share_outputs"](spark, RESULT, said.append, run={"app_reads": READS})
     assert "0 grants made; 1 failed" in said[0], said
 
 
@@ -79,3 +85,39 @@ def test_both_merge_branches_share_the_outputs_before_the_run_ends():
     assert body.count("inspire_share_outputs(spark, table, out)\n") == 2
     assert body.count("inspire_share_outputs(spark, table, out)\n        inspire_cluster_run(") == 1
     assert body.count("inspire_share_outputs(spark, table, out)\n    inspire_cluster_run(") == 1
+
+
+def _inlined(agent_ns):
+    facts = (pathlib.Path(__file__).resolve().parents[2] / "agent" / "app_shell" / "server" / "shell_facts.py").read_text(encoding="utf-8")
+    return "\n".join([agent_ns["REDACT_SOURCE"], agent_ns["implement_shell_facts_snippet"](facts), agent_ns["IMPLEMENT_RESULT_HISTORY_SOURCE"]])
+
+
+def test_the_sources_a_generated_notebook_inlines_name_nothing_only_the_agent_defines(agent_ns):
+    top = symtable.symtable(_inlined(agent_ns), "inlined", "exec")
+    defined = {s.get_name() for s in top.get_symbols() if s.is_assigned() or s.is_imported() or s.is_namespace()}
+    used = set()
+
+    def walk(table):
+        used.update(s.get_name() for s in table.get_symbols() if s.is_global() or (table.get_type() == "module" and s.is_referenced()))
+        for child in table.get_children():
+            walk(child)
+    walk(top)
+    assert sorted(n for n in used - defined if not hasattr(builtins, n)) == []
+    assert "implement_app_result_reads" in agent_ns and "implement_app_result_reads" not in agent_ns["IMPLEMENT_RESULT_HISTORY_SOURCE"]
+
+
+def test_a_generated_notebook_shares_the_tables_its_build_listed_without_the_agent(agent_ns):
+    said, notebook = [], {"__name__": "generated"}
+    exec(compile(_inlined(agent_ns), "<generated>", "exec"), notebook)
+    notebook["INSPIRE_RUN"] = {"app_reads": agent_ns["implement_app_result_reads"](RESULT)}
+    spark = Spark({"churn_out", "churn_out_closed"}, [{"t": "churn_out", "p": SP}])
+    assert notebook["inspire_share_outputs"](spark, RESULT, said.append) == [f"GRANT SELECT ON TABLE `main`.`inspire`.`churn_out_closed` TO `{SP}`"]
+    assert said[0].startswith("[APP-READS FIRED]")
+    notebook["INSPIRE_RUN"], quiet = {}, Spark({"churn_out", "churn_out_closed"}, [{"t": "churn_out", "p": SP}])
+    assert notebook["inspire_share_outputs"](quiet, RESULT, said.append) == [] and quiet.ran == []
+
+
+def test_the_build_writes_the_list_of_tables_the_app_reads_into_the_run():
+    src = "".join(json.loads(NOTEBOOK.read_text())["cells"][1]["source"])
+    assert ('"app_reads": implement_app_result_reads(".".join(inspire_table_parts(spec["result_table"]))),' in
+            src[src.index("def _genie_run_controls_source("):src.index("def _assemble_genie_code_notebook(")])
