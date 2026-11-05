@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { GenieMark, Icon } from './icons.jsx';
-import { askGenie, explainGenie } from './api.js';
+import { agentAsk, agentFeedback, agentStatus, agentTurn, askGenie, explainGenie, undoRecords, writeRecord } from './api.js';
 import { reducedMotion } from './theme.js';
 import { cellText, integer, isKeyColumn, plainWords } from './format.js';
 import DataTable from './DataTable.jsx';
@@ -8,8 +8,14 @@ import Markdown from './Markdown.jsx';
 import { BUSY_TITLE, explainBody } from './explain.js';
 import { GENIE_DEFAULT, GENIE_MIN, clampGenie, genieMax, keyWidth, rememberGenieWidth, storedGenieWidth } from './genieWidth.js';
 import { GENIE_ASK, genieAnswer, genieKey, genieOf, genieOn, paceText } from './genieAsk.js';
+import { AGENT_CHANGED, suggestions } from './agentView.js';
+import { AgentExtras, AgentSteps } from './AgentParts.jsx';
 
 const WORDS_PER_SECOND = 14;
+const AGENT_POLL_MS = 1000;
+const AGENT_GIVE_UP_MS = 300000;
+const HISTORY_SENT = 6;
+const ELEMENT_CHARS = 8000;
 
 function answerColumns(answer) {
   const rows = answer.rows || [];
@@ -37,24 +43,53 @@ function aboutOf(detail) {
   return { pageId, recordKey, label: String(detail?.label ?? '').trim() || recordKey };
 }
 
-export function useGenie(app, current, onOpen) {
+function historyOf(thread) {
+  return thread.filter((m) => m.who === 'genie' && m.state === 'done').slice(-HISTORY_SENT).map((m) => ({
+    question: thread.find((q) => q.n === m.n - 1)?.text || '', answer: String(m.answer?.text || '').slice(0, 1500),
+  }));
+}
+
+function elementView(body) {
+  const element = { kind: body.kind, title: body.title, context: body.context };
+  const text = JSON.stringify(element);
+  return text.length <= ELEMENT_CHARS ? element : { kind: body.kind, title: body.title, context: text.slice(0, ELEMENT_CHARS) };
+}
+
+function agentAnswer(turn) {
+  const g = turn.genie || {};
+  return { text: turn.answer || '', sql: g.sql || '', columns: g.columns || [], rows: g.rows || [], truncated: !!g.truncated };
+}
+
+export function useGenie(app, current, onOpen, view = null) {
   const [threads, setThreads] = useState({});
   const [about, setAbout] = useState(null);
   const [pinned, setPinned] = useState('');
   const [draft, setDraft] = useState('');
+  const [modes, setModes] = useState({});
   const conversations = useRef({});
   const alive = useRef(true);
   const subject = useRef(null);
   const opener = useRef(onOpen);
   const running = useRef(false);
   const shown = useRef(app);
+  const all = useRef({});
+  const modesNow = useRef({});
+  const viewNow = useRef(view);
   const key = about ? about.pageId : pinned || genieKey(app, current);
   const keyNow = useRef(key);
   useEffect(() => () => { alive.current = false; }, []);
   useEffect(() => { setPinned(''); }, [current]);
-  useEffect(() => { opener.current = onOpen; shown.current = app; keyNow.current = key; });
-  const edit = (k, change) => setThreads((all) => ({ ...all, [k]: change(all[k] || []) }));
-  const update = (k, n, patch) => edit(k, (t) => t.map((m) => (m.n === n ? { ...m, ...patch } : m)));
+  useEffect(() => { opener.current = onOpen; shown.current = app; keyNow.current = key; all.current = threads; modesNow.current = modes; viewNow.current = view; });
+  useEffect(() => {
+    if (!key || !genieOn(app, key) || modesNow.current[key]) return;
+    const settle = (mode) => setModes((m) => ({ ...m, [key]: mode }));
+    settle({ mode: 'checking', note: '' });
+    agentStatus(key).then((m) => settle({ mode: m.mode === 'agent' ? 'agent' : 'genie', note: m.note || '' }))
+      .catch(() => settle({ mode: 'genie', note: '' }));
+  }, [app, key]);
+  const edit = (k, change) => setThreads((t) => ({ ...t, [k]: change(t[k] || []) }));
+  const update = (k, n, patch) => edit(k, (t) => t.map((m) => (m.n === n ? { ...m, ...(typeof patch === 'function' ? patch(m) : patch) } : m)));
+  const find = (k, n) => (all.current[k] || []).find((m) => m.n === n);
 
   const send = useCallback(async (k, you, start) => {
     if (!k || !genieOn(shown.current, k)) return;
@@ -71,11 +106,51 @@ export function useGenie(app, current, onOpen) {
     }
   }, []);
 
+  const sendAgent = useCallback(async (k, you, extra) => {
+    if (!k || !genieOn(shown.current, k)) return;
+    const n = Date.now();
+    const history = historyOf(all.current[k] || []);
+    edit(k, (t) => [...t, { n: n - 1, who: 'you', ...you }, { n, k, who: 'genie', agent: true, state: 'running', step: 'Reading your question', steps: [] }]);
+    const seen = viewNow.current?.context(k) || {};
+    const body = { page: k, question: you.text, conversation_id: conversations.current[k] || '', history,
+      view: { ...(seen.view || {}), ...(extra.element ? { element: extra.element } : {}) }, visible: seen.visible || [],
+      ...(extra.about ? { record_key: extra.about.recordKey } : {}) };
+    try {
+      let turn = await agentAsk(body);
+      const until = Date.now() + AGENT_GIVE_UP_MS;
+      while (turn.state === 'running') {
+        update(k, n, { steps: turn.steps, step: turn.steps.length ? turn.steps[turn.steps.length - 1].text : 'Reading your question' });
+        await new Promise((r) => setTimeout(r, AGENT_POLL_MS));
+        if (!alive.current) return;
+        if (Date.now() > until) throw new Error('Genie took longer than five minutes. Try a narrower question.');
+        turn = await agentTurn(turn.turn_id);
+      }
+      if (turn.state === 'no_model') {
+        setModes((m) => ({ ...m, [k]: { mode: 'genie', note: turn.error } }));
+        edit(k, (t) => t.filter((m) => m.n !== n && m.n !== n - 1));
+        send(k, you, (id) => askGenie(k, you.text, id, extra.about));
+        return;
+      }
+      if (turn.state === 'failed') throw new Error(turn.error || 'Genie could not answer this question.');
+      if (turn.conversation_id) conversations.current[k] = turn.conversation_id;
+      const undo = turn.actions?.length ? viewNow.current?.apply(k, turn.actions) || null : null;
+      update(k, n, { state: 'done', turn_id: turn.turn_id, steps: turn.steps, actions: turn.actions, refused: turn.refused, undo,
+        confirm: turn.confirm ? { ...turn.confirm, state: 'ask' } : null, answer: agentAnswer(turn),
+        ids: turn.genie ? { conversation_id: turn.genie.conversation_id, message_id: turn.genie.message_id } : null, shown: reducedMotion() ? Infinity : 0 });
+    } catch (error) {
+      update(k, n, { state: 'failed', error: error.message });
+    }
+  }, [send]);
+
+  const agentOn = (k) => modesNow.current[k]?.mode === 'agent';
+
   const ask = useCallback((question, target = subject.current) => {
     const text = String(question || '').trim();
     const k = target ? target.pageId : keyNow.current;
-    if (text) send(k, { text, about: target }, (id) => askGenie(k, text, id, target));
-  }, [send]);
+    if (!text) return;
+    if (agentOn(k)) sendAgent(k, { text, about: target }, { about: target });
+    else send(k, { text, about: target }, (id) => askGenie(k, text, id, target));
+  }, [send, sendAgent]);
 
   const choose = useCallback((next) => { subject.current = next; setAbout(next); setPinned(''); }, []);
   const clearAbout = useCallback(() => choose(null), [choose]);
@@ -85,8 +160,51 @@ export function useGenie(app, current, onOpen) {
     const you = body.question ? { text: body.question, about: { label: body.title } } : { text: `Explain “${body.title}”`, explain: true };
     const k = genieKey(shown.current, page);
     setPinned(k);
-    send(k, you, (id) => explainGenie({ ...body, conversation_id: id }));
-  }, [send]);
+    if (agentOn(k)) sendAgent(k, you, { element: elementView(body) });
+    else send(k, you, (id) => explainGenie({ ...body, conversation_id: id }));
+  }, [send, sendAgent]);
+
+  const changed = (pageId) => window.dispatchEvent(new CustomEvent(AGENT_CHANGED, { detail: { pageId } }));
+  const confirm = useCallback(async (k, n) => {
+    const c = find(k, n)?.confirm;
+    if (!c || c.state !== 'ask') return;
+    update(k, n, (m) => ({ confirm: { ...m.confirm, state: 'saving' } }));
+    try {
+      const result = await writeRecord(c.route.split('/')[1], c.body);
+      changed(c.body.page);
+      update(k, n, (m) => ({ confirm: { ...m.confirm, state: c.route === 'records/undo' ? 'undone' : 'saved', result } }));
+    } catch (error) {
+      update(k, n, (m) => ({ confirm: { ...m.confirm, state: 'failed', error: error.message } }));
+    }
+  }, []);
+  const cancel = useCallback((k, n) => update(k, n, (m) => ({ confirm: { ...m.confirm, state: 'cancelled' } })), []);
+  const undoSaved = useCallback(async (k, n) => {
+    const c = find(k, n)?.confirm;
+    if (!c?.result?.batch_id) return;
+    try {
+      await undoRecords({ page: c.body.page, batch_id: c.result.batch_id });
+      changed(c.body.page);
+      update(k, n, (m) => ({ confirm: { ...m.confirm, state: 'undone' } }));
+    } catch (error) {
+      update(k, n, (m) => ({ confirm: { ...m.confirm, state: 'failed', error: error.message } }));
+    }
+  }, []);
+  const undoView = useCallback((k, n) => {
+    const m = find(k, n);
+    if (!m?.undo) return;
+    m.undo();
+    update(k, n, { undo: null, viewUndone: true });
+  }, []);
+  const rate = useCallback(async (k, n, rating) => {
+    const m = find(k, n);
+    if (!m?.turn_id) return;
+    try {
+      await agentFeedback(m.turn_id, rating);
+      update(k, n, { rated: rating, rateError: '' });
+    } catch (error) {
+      update(k, n, { rateError: error.message });
+    }
+  }, []);
 
   useEffect(() => {
     const onAsk = (event) => {
@@ -116,7 +234,8 @@ export function useGenie(app, current, onOpen) {
   }, []);
   const busy = thread.some((m) => m.state === 'running');
   useEffect(() => { running.current = busy; }, [busy]);
-  return { key, thread, ask, explain, reset, setThread, busy, about, clearAbout, draft, setDraft };
+  const mode = modes[key] || { mode: 'genie', note: '' };
+  return { key, thread, ask, explain, reset, setThread, busy, about, clearAbout, draft, setDraft, mode, confirm, cancel, undoSaved, undoView, rate };
 }
 
 export function ExplainButton({ title, busy, onClick }) {
@@ -205,12 +324,13 @@ function Typing({ message, onTick }) {
   return <Markdown text={words.slice(0, shown).join('')} cursor={typing} />;
 }
 
-export function Answer({ message, url, onTick }) {
+export function Answer({ message, url, onTick, genie, rating = true }) {
   const a = message.answer;
   const words = String(a.text || '').split(/(\s+)/).length;
   const done = message.shown >= words;
   return (
     <div className="msg-b">
+      <AgentSteps steps={message.steps} />
       <Typing message={message} onTick={onTick} />
       {done && a.rows?.length > 0 && (
         <div className="msg-t">
@@ -222,7 +342,8 @@ export function Answer({ message, url, onTick }) {
       {done && a.sql && (
         <details className="msg-sql"><summary><Icon name="code" size={13} />The SQL Genie ran</summary><pre>{a.sql}</pre></details>
       )}
-      {done && (
+      {done && genie && <AgentExtras message={message} genie={genie} rating={rating} />}
+      {done && (!message.agent || message.ids) && (
         <div className="msg-f">
           {url && <a href={url} target="_blank" rel="noreferrer"><Icon name="external" size={12} />Open in Genie Agent</a>}
         </div>
@@ -246,7 +367,8 @@ export default function GeniePanel({ app, genie, page, pages, onPick, onClose })
   const input = useRef(null);
   const panel = useRef(null);
   const [text, setText] = useState('');
-  const { key, thread, ask, reset, setThread, busy, about, clearAbout, draft, setDraft } = genie;
+  const { key, thread, ask, reset, setThread, busy, about, clearAbout, draft, setDraft, mode } = genie;
+  const agent = mode?.mode === 'agent';
   const width = useGenieWidth(panel);
   const tick = useCallback((n, shown) => setThread((t) => t.map((m) => (m.n === n ? { ...m, shown } : m))), [setThread]);
   useEffect(() => { input.current?.focus(); }, []);
@@ -262,13 +384,15 @@ export default function GeniePanel({ app, genie, page, pages, onPick, onClose })
   const home = key ? app.pages.find((p) => p.id === key) : null;
   const on = Boolean(home) && info.enabled;
   const entity = String(app.pages.find((p) => p.id === about?.pageId)?.records?.label_title || 'record').toLowerCase();
-  const questions = home ? home.questions || [] : [];
+  const asked = thread.filter((m) => m.who === 'you').map((m) => m.text);
+  const questions = home ? (agent ? suggestions(home, null, String(home.records?.label_title || 'record').toLowerCase(), asked) : home.questions || []) : [];
   const answering = pages.filter((p) => p.genie.enabled);
   const submit = (e) => { e.preventDefault(); if (on && text.trim() && !busy) { ask(text); setText(''); } };
   const who = app.auth === 'user' ? 'with your permissions' : "with the App's permissions";
   const subject = about ? `"${about.label}"` : home ? home.title : '';
   const status = !home ? 'Each use case has its own Genie Agent'
-    : on ? `Answers from the Genie Agent${info.title ? ` "${info.title}"` : ''} · ${who}` : 'Ask Genie is off for this use case';
+    : on && agent ? `Answers about this use case ${who}; asks the Genie Agent${info.title ? ` "${info.title}"` : ''} when it needs the data`
+      : on ? `Answers from the Genie Agent${info.title ? ` "${info.title}"` : ''} · ${who}` : 'Ask Genie is off for this use case';
   return (
     <aside ref={panel} className="genie is-open" aria-label="Ask Genie" style={{ '--genie-w': `${width.shown}px` }}>
       <Resizer width={width} />
@@ -281,6 +405,7 @@ export default function GeniePanel({ app, genie, page, pages, onPick, onClose })
         </button>
         <button className="ibtn" onClick={onClose} aria-label="Close Ask Genie"><Icon name="x" size={18} /></button>
       </header>
+      {on && mode?.note && <p className="g-note" role="note" data-agent-note>{mode.note}</p>}
       <div className="g-log" ref={log} role="log" aria-live="polite" aria-label="Genie conversation">
         {!home && (
           <div className="g-empty g-pick">
@@ -295,7 +420,9 @@ export default function GeniePanel({ app, genie, page, pages, onPick, onClose })
         )}
         {home && !on && <div className="g-off"><GenieMark size={28} /><b>Ask Genie is off</b><span>{info.note}</span></div>}
         {on && !thread.length && (
-          <div className="g-empty"><GenieMark size={28} /><p>Ask a question about {subject}. Genie writes the SQL, runs it {app.auth === 'user' ? 'as you' : 'as the App'}, and shows its work.</p></div>
+          <div className="g-empty"><GenieMark size={28} /><p>{agent
+            ? `Ask about ${subject}. Genie reads what the page shows, asks the Genie Agent when it needs the data, can change the view, and asks before it changes a record.`
+            : `Ask a question about ${subject}. Genie writes the SQL, runs it ${app.auth === 'user' ? 'as you' : 'as the App'}, and shows its work.`}</p></div>
         )}
         {home && thread.map((m) => (m.who === 'you' ? (
           <div key={m.n} className="msg msg--you">
@@ -304,9 +431,9 @@ export default function GeniePanel({ app, genie, page, pages, onPick, onClose })
         ) : (
           <div key={m.n} className="msg msg--genie">
             <span className="msg-av"><GenieMark size={14} /></span>
-            {m.state === 'running' && <div className="msg-b"><span className="g-step"><span className="dots"><i /><i /><i /></span>{m.step}…</span><Pace since={m.n} /></div>}
+            {m.state === 'running' && <div className="msg-b"><AgentSteps steps={m.steps} /><span className="g-step"><span className="dots"><i /><i /><i /></span>{m.step}…</span><Pace since={m.n} /></div>}
             {m.state === 'failed' && <div className="msg-b"><p className="g-err">{m.error}</p></div>}
-            {m.state === 'done' && <Answer message={m} url={info.url} onTick={tick} />}
+            {m.state === 'done' && <Answer message={m} url={info.url} onTick={tick} genie={genie} />}
           </div>
         )))}
       </div>
@@ -320,7 +447,7 @@ export default function GeniePanel({ app, genie, page, pages, onPick, onClose })
       )}
       {on && about && (
         <div className="g-sugg" aria-label={`Questions about ${about.label}`}>
-          {recordQuestions(entity).map((q) => <button key={q} className="sugg" onClick={() => ask(q)} disabled={busy}>{q}</button>)}
+          {(agent ? suggestions(home, about, entity) : recordQuestions(entity)).map((q) => <button key={q} className="sugg" onClick={() => ask(q)} disabled={busy}>{q}</button>)}
         </div>
       )}
       {on && !about && questions.length > 0 && thread.length === 0 && (

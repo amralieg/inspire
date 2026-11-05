@@ -106,7 +106,8 @@ export default function ChartCard({ chart, wide, result, error, loading, themeKe
   const empty = !loading && !error && chartIsEmpty(chart, rows);
   const [width, setWidth] = useState(0);
   const option = !fold.folded && !loading && !error && !empty ? chartOption(shown, rows, chartPalette(), { reduced: reducedMotion(), width: width || undefined }) : null;
-  const { el, inst } = useChart(option, [result, themeKey, loading, error, fold.folded, horizon, width], setWidth);
+  const drawnAs = `${chart.type}|${(Array.isArray(chart.y) ? chart.y : []).map((y) => y.label).join('|')}`;
+  const { el, inst } = useChart(option, [result, themeKey, loading, error, fold.folded, horizon, width, drawnAs], setWidth);
   const toast = useToast();
   const more = useRef(null);
   const [menu, setMenu] = useState(false);

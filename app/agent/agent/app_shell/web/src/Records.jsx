@@ -3,6 +3,7 @@ import { flushSync } from 'react-dom';
 import DataTable, { columnOf } from './DataTable.jsx';
 import { GenieMark, Icon } from './icons.jsx';
 import { ExplainButton } from './Genie.jsx';
+import { AGENT_OPEN, showVisible } from './agentView.js';
 import { askGenie, genieOn } from './genieAsk.js';
 import { BUSY_TITLE, fieldsOf, tableContext } from './explain.js';
 import { AskGenie } from './AskGenie.jsx';
@@ -456,11 +457,13 @@ function emptyState({ search, mine, changed, fresh, windowed, narrowedAny, range
 }
 
 export default function Records({ meta, app, pageId, filters, ai, onFilter, history = false, onChanged, nonce = 0, ready = true, onExplain, genieBusy, openKey,
-  columnMeta, columnValues, onColumn, onClearColumns, onClearFilters, seeChanged = 0, onShowRuns, similarBy, keepsActions, onList, section }) {
+  columnMeta, columnValues, onColumn, onClearColumns, onClearFilters, seeChanged = 0, onShowRuns, similarBy, keepsActions, onList, section, sort: lookSort, onSort: onLookSort }) {
   const { prefs, update } = useMyView();
   const [query, setQuery] = useState('');
   const search = useDebounced(query.trim(), 300);
-  const [sort, setSort] = useState(null);
+  const [ownSort, setOwnSort] = useState(null);
+  const sort = onLookSort ? lookSort : ownSort;
+  const setSort = onLookSort || setOwnSort;
   const size = prefs.rows;
   const setSize = (rows) => update((p) => ({ ...p, rows }));
   const [mine, setMine] = useState(false);
@@ -512,6 +515,12 @@ export default function Records({ meta, app, pageId, filters, ai, onFilter, hist
   const searchBox = useRef(null);
   const data = list.data;
   const rows = data?.rows || [];
+  useEffect(() => { showVisible(pageId, rows); }, [pageId, rows]);
+  useEffect(() => {
+    const opened = (e) => { if (e.detail?.pageId === pageId && e.detail.recordKey) setOpen({ record_key: String(e.detail.recordKey) }); };
+    window.addEventListener(AGENT_OPEN, opened);
+    return () => window.removeEventListener(AGENT_OPEN, opened);
+  }, [pageId]);
   const aliases = data?.ai?.columns || NO_ALIASES;
   const tracker = !!(history && app.options.decisions && data?.actions);
   const everything = prefs.window === EVERYTHING;

@@ -12,6 +12,7 @@ import time
 import uuid
 from concurrent.futures import CancelledError, Future, ThreadPoolExecutor
 
+import shell_agent
 import shell_alerts
 import shell_db
 import shell_pg
@@ -316,6 +317,7 @@ def settings_problems(settings: dict, pages: list) -> list:
     if screens is not None and not (isinstance(screens, dict) and all(k in SCREENS and isinstance(v, bool) for k, v in screens.items())):
         problems.append(f"the App screens must set {', '.join(SCREENS)} to true or false, the screens the App shows")
     problems += shell_alerts.folder_problems(settings)
+    problems += shell_agent.configured_problems(settings)
     if isinstance(options, dict) and options.get("modify") is True:
         problems += [f"the App lets people change data, but page {p.get('id')} names no result_table to change"
                      for p in pages if not p.get("result_table")]
@@ -1425,6 +1427,7 @@ class Shell:
         self.job_locks, self.job_locks_guard = {}, threading.Lock()
         self.started = {}
         self.alerts = shell_alerts.Alerts(self)
+        self.agent = shell_agent.Agent(self, clock=clock)
 
     def option(self, key: str) -> bool:
         if key not in OPTIONS or (key in USER_OFF and self.settings["auth"] == "user"):
@@ -1473,6 +1476,9 @@ class Shell:
     def read_refused(page: dict, error, nothing: str) -> HttpError:
         return HttpError(403, f"{nothing}: you cannot read {shell_sql.table_name(page['result_table'])} in Unity Catalog ({error}), so the "
                               "App records no decision on its records")
+
+    def app_title(self) -> str:
+        return hub_title(self.settings)
 
     def host(self) -> str:
         return normalize_host(self.env.get("DATABRICKS_HOST") or "")
@@ -1529,6 +1535,7 @@ class Shell:
     def close(self) -> None:
         for pool in (self.pool, self.list_pool, self.hub_pool, self.stamp_pool, self.state_pool, self.head_pool):
             pool.shutdown(wait=True)
+        self.agent.close()
         if self.lakebase is not None:
             self.lakebase.close()
 
@@ -1810,6 +1817,14 @@ class Shell:
                 return 200, self.genie_ask(headers, data)
             if route == ("POST", "genie/explain"):
                 return 200, self.genie_explain(headers, data)
+            if route == ("GET", "agent/status"):
+                return 200, self.agent.status(headers, query.get("page"))
+            if route == ("POST", "agent/ask"):
+                return 200, self.agent.ask(headers, data)
+            if route == ("GET", "agent/turn"):
+                return 200, self.agent.turn(headers, query)
+            if route == ("POST", "agent/feedback"):
+                return 200, self.agent.feedback(headers, data)
             if route == ("GET", "genie/message"):
                 return 200, self.genie_message(headers, query)
             if route == ("POST", "genie/feedback"):

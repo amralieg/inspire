@@ -1,5 +1,6 @@
 import { Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react';
-import { genieFeedback } from './api.js';
+import { agentFeedback, genieFeedback } from './api.js';
+import { AgentSteps, RATINGS } from './AgentParts.jsx';
 import { AskGenie } from './AskGenie.jsx';
 import { Answer } from './Genie.jsx';
 import { genieOf, genieOn } from './genieAsk.js';
@@ -10,7 +11,7 @@ import { Skeleton } from './ui.jsx';
 import './styles/kindlayouts.css';
 
 export const CHAT_QUESTIONS = 12;
-export const RATINGS = [{ id: 'POSITIVE', label: 'Helpful' }, { id: 'NEGATIVE', label: 'Not helpful' }];
+export { RATINGS };
 const MODULES = { flow: () => import('./echartsFlow.js'), geo: () => import('./echartsGeo.js') };
 const ready = {};
 
@@ -41,7 +42,7 @@ function useChat(page, app, genie) {
   const mine = on && genie.key === page.id;
   const thread = mine ? genie.thread : [];
   const pairs = thread.filter((m) => m.who === 'genie').map((m) => ({ answer: m, question: thread.find((q) => q.n === m.n - 1) }));
-  return { on: mine, info: genieOf(app, page.id), thread, pairs, busy: !!genie?.busy };
+  return { on: mine, info: genieOf(app, page.id), thread, pairs, busy: !!genie?.busy, agent: mine && genie.mode?.mode === 'agent', note: mine ? genie.mode?.note || '' : '' };
 }
 
 function Conversation({ page, app, genie }) {
@@ -59,8 +60,9 @@ function Conversation({ page, app, genie }) {
   return (
     <section className="card chat" aria-label="Ask the data" data-part="conversation">
       <header className="card-h"><div><h2>Ask the data</h2>
-        <p>{chat.on ? `Answers from the Genie Agent${chat.info.title ? ` "${chat.info.title}"` : ''}, ${who}. Genie answers only: nothing on this page changes a record.`
-          : chat.info.note || 'Ask Genie is off for this use case.'}</p></div>
+        <p>{chat.agent ? `Genie answers about this use case ${who}, asks the Genie Agent${chat.info.title ? ` "${chat.info.title}"` : ''} when it needs the data, and asks you before it changes a record.`
+          : chat.on ? `Answers from the Genie Agent${chat.info.title ? ` "${chat.info.title}"` : ''}, ${who}. Genie answers only: nothing on this page changes a record.`
+          : chat.info.note || 'Ask Genie is off for this use case.'}</p>{chat.note && <p className="g-err" role="note" data-agent-note>{chat.note}</p>}</div>
         {chat.on && chat.thread.length > 0 && <button type="button" className="link" onClick={genie.reset}>New chat</button>}
         <AskGenie kind="text" title="Ask the data" context={{ hint: chat.pairs.map((p) => p.question?.text).filter(Boolean).join('; ') || page.question || '' }} />
       </header>
@@ -71,9 +73,9 @@ function Conversation({ page, app, genie }) {
         ) : (
           <div key={m.n} className="msg msg--genie" data-chat={m.state}>
             <span className="msg-av"><GenieMark size={14} /></span>
-            {m.state === 'running' && <div className="msg-b"><span className="g-step"><span className="dots"><i /><i /><i /></span>{m.step}…</span></div>}
+            {m.state === 'running' && <div className="msg-b"><AgentSteps steps={m.steps} /><span className="g-step"><span className="dots"><i /><i /><i /></span>{m.step}…</span></div>}
             {m.state === 'failed' && <div className="msg-b"><p className="g-err">{m.error}</p></div>}
-            {m.state === 'done' && <Answer message={m} url={chat.info.url} onTick={tick} />}
+            {m.state === 'done' && <Answer message={m} url={chat.info.url} onTick={tick} genie={genie} rating={false} />}
           </div>
         )))}
       </div>
@@ -125,11 +127,12 @@ function Feedback({ page, app, genie }) {
   const { pairs, on } = useChat(page, app, genie);
   const [sent, setSent] = useState({});
   const [error, setError] = useState('');
-  const done = pairs.filter((p) => p.answer.state === 'done' && p.answer.ids?.message_id);
+  const done = pairs.filter((p) => p.answer.state === 'done' && !p.answer.refused && (p.answer.turn_id || p.answer.ids?.message_id));
   const rate = async (answer, rating) => {
     setError('');
     try {
-      await genieFeedback(page.id, answer.ids.conversation_id, answer.ids.message_id, rating);
+      if (answer.turn_id) await agentFeedback(answer.turn_id, rating);
+      else await genieFeedback(page.id, answer.ids.conversation_id, answer.ids.message_id, rating);
       setSent((all) => ({ ...all, [answer.n]: rating }));
     } catch (e) {
       setError(e.message);

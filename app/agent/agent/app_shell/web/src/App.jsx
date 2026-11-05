@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { getApp, getDefaults, getFilters, getOverview, getSummary } from './api.js';
 import { applyTheme, hueVars, rememberPalette, storedPalette } from './theme.js';
-import { initialFilterState } from './filters.js';
+import { apiValues, initialFilterState } from './filters.js';
+import { AGENT_OPEN, EMPTY_LOOK, applyActions, changesView, visibleOf } from './agentView.js';
 import { GenieMark, Icon } from './icons.jsx';
 import { ToastProvider } from './ui.jsx';
 import Page from './Page.jsx';
@@ -97,6 +98,34 @@ function Shell({ app }) {
   const [route, setRoute] = useState(readRoute);
   const [metas, setMetas] = useState({});
   const [states, setStates] = useState({});
+  const [looks, setLooks] = useState({});
+  const viewNow = useRef({});
+  viewNow.current = { states, looks, metas };
+  const agentView = useMemo(() => ({
+    context: (id) => {
+      const { states: st, looks: lk } = viewNow.current;
+      return { view: { filters: apiValues(st[id]), columns: st[id]?.columns || {}, look: lk[id] || EMPTY_LOOK }, visible: visibleOf(id) };
+    },
+    apply: (id, actions) => {
+      const { states: st, looks: lk, metas: mt } = viewNow.current;
+      const before = { state: st[id] || initialFilterState(mt[id]?.filters), look: lk[id] || EMPTY_LOOK, hash: window.location.hash };
+      const next = applyActions(before, actions, mt[id]?.filters);
+      const restyled = changesView(actions);
+      if (restyled) {
+        setStates((s) => ({ ...s, [id]: next.state }));
+        setLooks((l) => ({ ...l, [id]: next.look }));
+      }
+      if (next.route) window.location.hash = next.route;
+      if (next.open) window.dispatchEvent(new CustomEvent(AGENT_OPEN, { detail: next.open }));
+      return () => {
+        if (restyled) {
+          setStates((s) => ({ ...s, [id]: before.state }));
+          setLooks((l) => ({ ...l, [id]: before.look }));
+        }
+        if (next.route) window.location.hash = before.hash || '#/';
+      };
+    },
+  }), []);
   const [navOpen, setNavOpen] = useState(false);
   const [genieOpen, setGenieOpen] = useState(false);
   const [view, setView] = useState(DEFAULT_VIEW);
@@ -111,7 +140,7 @@ function Shell({ app }) {
   const screen = route === ADMIN_ROUTE ? 'admin' : routed ? 'page' : route === MY_WORK_ROUTE ? 'mywork'
     : impactOn && IMPACT_ROUTES.includes(route) ? 'impact' : single ? 'page' : 'overview';
   const page = screen === 'page' ? routed || pages[0] : null;
-  const genie = useGenie(app, page ? page.id : screen, () => setGenieOpen(true));
+  const genie = useGenie(app, page ? page.id : screen, () => setGenieOpen(true), agentView);
   const genieState = useMemo(() => ({ app, busy: genie.busy }), [app, genie.busy]);
   const { hub, error: hubError, summaries, load: loadHub } = useHub(pages, JSON.stringify(windowParams(prefs)));
   const shown = visiblePages(pages, hub);
@@ -169,6 +198,7 @@ function Shell({ app }) {
   const ask = (q) => { setGenieOpen(true); genie.ask(q); };
   const explain = (request) => { setGenieOpen(true); genie.explain(request); };
   const setPageState = (id) => (next) => setStates((s) => ({ ...s, [id]: next }));
+  const setPageLook = (id) => (change) => setLooks((l) => ({ ...l, [id]: change(l[id] || EMPTY_LOOK) }));
   const themeKey = `${palette}:${theme}:${app.style}`;
   const times = hubTimes(shown.map((p) => hub?.pages?.[p.id]), hubToday(hub));
   const state = (p) => useCaseState(hub?.pages?.[p.id], summaries[p.id]);
@@ -239,7 +269,7 @@ function Shell({ app }) {
             )}
             {screen === 'admin' && <Admin />}
             {page && (
-              <Page key={page.id} app={app} page={page} meta={metas[page.id]} state={states[page.id]} onState={setPageState(page.id)} themeKey={themeKey}
+              <Page key={page.id} app={app} page={page} meta={metas[page.id]} state={states[page.id]} onState={setPageState(page.id)} look={looks[page.id] || EMPTY_LOOK} onLook={setPageLook(page.id)} themeKey={themeKey}
                 onAsk={ask} onExplain={explain} genieBusy={genie.busy} hubEntry={hub?.pages?.[page.id]} summary={summaries[page.id]} view={view} onView={setView} genie={genie} />
             )}
           </main>

@@ -41,6 +41,10 @@ export const genieMessage = (page, conversationId, messageId) =>
   json('GET', `genie/message?${new URLSearchParams({ page, conversation_id: conversationId, message_id: messageId })}`);
 export const genieFeedback = (page, conversationId, messageId, rating) =>
   json('POST', 'genie/feedback', { page, conversation_id: conversationId, message_id: messageId, rating });
+export const agentStatus = (page) => json('GET', `agent/status?page=${encodeURIComponent(page)}`);
+export const agentAsk = (body) => json('POST', 'agent/ask', body);
+export const agentTurn = (turnId) => json('GET', `agent/turn?turn_id=${encodeURIComponent(turnId)}`);
+export const agentFeedback = (turnId, rating) => json('POST', 'agent/feedback', { turn_id: turnId, rating });
 export const getHistory = (page, ref) => json('GET', `records/history?${new URLSearchParams({ page, ...ref })}`);
 export const getFields = (page) => json('GET', `records/fields?page=${encodeURIComponent(page)}`);
 export const writeRecord = (kind, body) => json('POST', `records/${kind}`, body);

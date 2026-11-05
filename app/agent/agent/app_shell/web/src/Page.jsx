@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { AGENT_CHANGED, EMPTY_LOOK, lookChart } from './agentView.js';
 import { getOverview, getPage } from './api.js';
 import { apiTables, apiValues, clearColumnValues, clearSelections, columnValues, setColumnValue, toggleValue } from './filters.js';
 import { ColumnFilterStatus, withColumnFilters } from './ColumnFilters.jsx';
@@ -252,7 +253,7 @@ function HubBody({ app, page, entry, live, summary, state, onState, view, onView
   );
 }
 
-export default function Page({ app, page, meta, state, onState, themeKey, onAsk, onExplain, genieBusy, hubEntry, summary, view, onView, genie }) {
+export default function Page({ app, page, meta, state, onState, look = EMPTY_LOOK, onLook, themeKey, onAsk, onExplain, genieBusy, hubEntry, summary, view, onView, genie }) {
   const ready = !!state;
   const [nonce, setNonce] = useState(0);
   const [queue, setQueue] = useState(null);
@@ -264,7 +265,13 @@ export default function Page({ app, page, meta, state, onState, themeKey, onAsk,
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settings, setSettings] = useSettings(page.id, nonce);
   const listed = !!(page.history && page.records);
-  const [sorts, setSorts] = useState({});
+  const sorts = useMemo(() => Object.fromEntries(Object.entries(look.sorts || {}).filter(([id]) => id !== 'records')), [look]);
+  const sortBy = (target) => (s) => onLook?.((l) => ({ ...l, sorts: { ...l.sorts, [target]: s } }));
+  useEffect(() => {
+    const changed = (e) => { if (e.detail?.pageId === page.id) setNonce((n) => n + 1); };
+    window.addEventListener(AGENT_CHANGED, changed);
+    return () => window.removeEventListener(AGENT_CHANGED, changed);
+  }, [page.id]);
   const { data, busy, error } = usePageData(page.id, state, ready, nonce, sorts);
   const live = usePageHub(page.id, state, ready, nonce, listed);
   const laidOut = isLaidOut(page);
@@ -318,10 +325,13 @@ export default function Page({ app, page, meta, state, onState, themeKey, onAsk,
     'filters', ...(waiting ? [] : ['kpis']), ...(hubPage ? [] : kpiIds), ...(charted.length || !hubPage ? ['charts'] : []), ...charted.map((c) => c.id),
     ...page.tables.map((t) => t.id), ...(page.records && !unreliable ? ['records'] : [])]));
   const [topSlots, moreSlots] = hubPage ? chartSlots(plan, onTop, more.length > 0) : [NO_SLOTS, slotsOf(plan, 'charts')];
-  const chartCard = (chart, wide) => (
-    <ChartCard key={chart.id} chart={chart} wide={wide} result={data?.charts?.[chart.id]} error={errors[`chart:${chart.id}`]} loading={loading} themeKey={themeKey}
-      app={app} pageId={page.id} onPick={pick} onExplain={explain} genieBusy={genieBusy} />
-  );
+  const chartCard = (given, wide) => {
+    const { chart, result } = lookChart(given, data?.charts?.[given.id], look.charts?.[given.id]);
+    return (
+      <ChartCard key={chart.id} chart={chart} wide={wide} result={result} error={errors[`chart:${chart.id}`]} loading={loading} themeKey={themeKey}
+        app={app} pageId={page.id} onPick={pick} onExplain={explain} genieBusy={genieBusy} />
+    );
+  };
   const chartCards = (charts, lead = [], narrow = false) => {
     const entries = [...lead, ...withBlocks(charts, plan).map((entry) => (narrow && entry.item ? { ...entry, span: 1 } : entry))];
     const spans = gridSpans(entries);
@@ -332,7 +342,7 @@ export default function Page({ app, page, meta, state, onState, themeKey, onAsk,
     <TableCard key={table.id} table={table} result={data?.tables?.[table.id]} error={errors[`table:${table.id}`]} loading={loading} onFilter={pick}
       pageId={page.id} filters={meta?.columns?.tables?.[table.id]} values={columnValues(state, table.id)}
       onColumn={(column, value) => onState(setColumnValue(state, table.id, column, value))} onClear={() => onState(clearColumnValues(state, table.id))}
-      sort={sorts[table.id]} onSort={(s) => setSorts((all) => ({ ...all, [table.id]: s }))} />
+      sort={sorts[table.id]} onSort={sortBy(table.id)} />
   );
   const kpisOf = (kpis, main = true) => <Kpis page={{ ...page, kpis }} data={data?.kpis} errors={errors} loading={loading} plan={main ? plan : null} scope={data?.scope} />;
   const kpisCard = kpisOf(page.kpis);
@@ -340,6 +350,7 @@ export default function Page({ app, page, meta, state, onState, themeKey, onAsk,
     <Records meta={page.records} app={app} pageId={page.id} filters={filters} ready={ready} nonce={nonce} onFilter={pick} history={!!page.history} onList={setQueue} section={laidOut ? undefined : 'records'}
       similarBy={page.similar_by} keepsActions={hubEntry ? !!(hubEntry.tracked && hubEntry.actions) : undefined}
       onChanged={() => setNonce((n) => n + 1)} onExplain={explain} genieBusy={genieBusy} ai={state?.ai} openKey={openKey}
+      sort={look.sorts?.records || null} onSort={sortBy('records')}
       columnMeta={meta?.columns?.list} columnValues={columnValues(state, null)}
       onColumn={(column, value) => onState(setColumnValue(state, null, column, value))} onClearColumns={() => onState(clearColumnValues(state, null))}
       onClearFilters={() => onState(clearColumnValues({ ...clearSelections(state), ai: {} }, null))} seeChanged={seeChanged} onShowRuns={showRuns} />
