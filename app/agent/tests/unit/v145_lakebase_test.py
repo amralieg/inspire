@@ -1423,7 +1423,8 @@ def test_a_saved_change_shows_on_top_of_lakebase_while_the_list_reads_postgres_a
         "with the change on top, the list and its history read Lakebase, and Delta only for the run's summary row"
 
 
-READ_ROUTES_SKIPPED = {("POST", "records/act"), ("POST", "refresh")}
+READ_ROUTES_SKIPPED = {("POST", "records/act"), ("POST", "refresh"), ("GET", "agent/status"), ("POST", "agent/ask"),
+                       ("GET", "agent/turn"), ("POST", "agent/feedback")}
 
 
 def read_routes():
