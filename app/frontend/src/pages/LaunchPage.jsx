@@ -1160,7 +1160,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                   {pickerExpanded ? 'Hide catalog browser' : 'Browse catalogs'}
                   {!pickerExpanded && (selectedCatalogs.length + selectedSchemas.length + selectedTables.length > 0) && (
                     <span className="text-[10px] text-db-red-fg font-medium ml-1">
-                      ({selectedTables.length > 0 ? `${selectedTables.length} tables` : selectedSchemas.length > 0 ? `${selectedSchemas.length} schemas` : `${selectedCatalogs.length} catalogs`} selected)
+                      ({selectedTables.length > 0 ? counted(selectedTables.length, 'table') : selectedSchemas.length > 0 ? counted(selectedSchemas.length, 'schema') : counted(selectedCatalogs.length, 'catalog')} selected)
                     </span>
                   )}
                 </button>

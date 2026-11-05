@@ -133,7 +133,7 @@ export function holdoutOffText(entry) {
 export function heldShare(entry) {
   const current = entry?.current;
   if (!current?.records || !current.held) return '';
-  return `${plural(current.held, 'record')} of ${grouped(current.records)} (${percentOf(current.held, current.records)}%) are held back now`;
+  return `${plural(current.held, 'record')} of ${grouped(current.records)} (${percentOf(current.held, current.records)}%) ${current.held === 1 ? 'is' : 'are'} held back now`;
 }
 
 export function promisedView(page) {

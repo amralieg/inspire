@@ -547,3 +547,14 @@ test('every recorded answer replays byte for byte the same from the compressed d
   fs.writeFileSync(path.join(packed, 'taxi.json.gz'), 'not gzip');
   assert.throws(() => S.loadShowcases(packed), /the demo taxi\.json\.gz is not gzip-compressed JSON: /);
 });
+
+test('the refusal of API answers that are not JSON agrees with a count of 1 and of 2', () => {
+  const page = '<!doctype html><html><body>Inspire</body></html>';
+  const one = recorder();
+  one.addInspire({ method: 'GET', url: '/api/inspire/portfolio', status: 200, type: 'text/html', body: page });
+  assert.throws(() => one.bundle(), /answered 1 API route with something other than JSON, so the installed App does not serve it \(/);
+  const two = recorder();
+  two.addInspire({ method: 'GET', url: '/api/inspire/portfolio', status: 200, type: 'text/html', body: page });
+  two.addInspire({ method: 'GET', url: '/api/inspire/implement/tables', status: 200, body: page });
+  assert.throws(() => two.bundle(), /answered 2 API routes with something other than JSON, so the installed App does not serve them \(/);
+});

@@ -29,6 +29,7 @@ const {
 const { notebookParamsFromSessionForGenerateRun } = require('./lib/inspireSessionParams');
 const { splitInspireDatabase, isTimestampText, stepsStatement } = require('./lib/sqlInputs');
 const { createExecuteSql, runWithRequestDeadline } = require('./lib/sqlStatements');
+const { plural } = require('./lib/plural');
 const { jsonOf, registerImplementRoutes } = require('./implementRoutes');
 const {
   APP_TOKEN, FROM_FORWARDED_TOKEN, FROM_HEADERS, FROM_REQUEST_TOKEN, PERSON_TOKEN, SCIM_ME_PATH, forwardedTokenOf, meResponse, personTokenOf, requestPerson,
@@ -2367,7 +2368,7 @@ app.get('/api/inspire/step-results', requireToken, async (req, res) => {
       _step_count: steps.length,
     };
 
-    console.log(`   📊 step-results: ${allUcs.length} use cases from ${steps.length} steps, ${domains.length} domains`);
+    console.log(`   📊 step-results: ${plural(allUcs.length, 'use case')} from ${plural(steps.length, 'step')}, ${plural(domains.length, 'domain')}`);
     res.json({ results: progressiveResults, session_id });
   } catch (err) {
     if (err.message.includes('TABLE_OR_VIEW_NOT_FOUND') || err.message.includes('does not exist')) {
@@ -2452,8 +2453,8 @@ app.get('/api/inspire/usecases', requireToken, async (req, res) => {
     }
     console.log(
       listAll
-        ? `   📋 usecases: ${rows.length} rows (all_sessions, limit applied)`
-        : `   📋 usecases: ${rows.length} rows for session ${session_id}`
+        ? `   📋 usecases: ${plural(rows.length, 'row')} (all_sessions, limit applied)`
+        : `   📋 usecases: ${plural(rows.length, 'row')} for session ${session_id}`
     );
     res.json({ usecases: rows, count: rows.length, all_sessions: listAll });
   } catch (err) {

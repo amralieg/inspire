@@ -1,4 +1,5 @@
 const { AsyncLocalStorage } = require('node:async_hooks');
+const { plural } = require('./plural');
 
 const PAGE_SQL_DEADLINE_MS = 240000;
 const READ_ONLY_SQL_RE = /^\s*(SELECT|WITH|SHOW|DESCRIBE|DESC|EXPLAIN)\b/i;
@@ -131,7 +132,7 @@ function createExecuteSql(dbFetch, { now = Date.now, sleep = (ms) => new Promise
     }
 
     const rowCount = result.result?.data_array?.length ?? 0;
-    console.log(`   ✅ SQL done: ${rowCount} rows`);
+    console.log(`   ✅ SQL done: ${plural(rowCount, 'row')}`);
     return result;
   }
 

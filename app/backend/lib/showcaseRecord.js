@@ -271,7 +271,7 @@ function makeRecorder({ id, title, business, summary = '', sessionId, replace = 
     },
     bundle: () => {
       if (notJsonAnswers.length) {
-        throw new Error(`the App answered ${plural(notJsonAnswers.length, 'API route')} with something other than JSON, so the installed App does not serve them (an older App answers with its page); install this build first: ${notJsonAnswers.slice(0, 20).join(', ')}`);
+        throw new Error(`the App answered ${plural(notJsonAnswers.length, 'API route')} with something other than JSON, so the installed App does not serve ${notJsonAnswers.length === 1 ? 'it' : 'them'} (an older App answers with its page); install this build first: ${notJsonAnswers.slice(0, 20).join(', ')}`);
       }
       if (textSteps.length) {
         throw new Error(`the App sent the build steps of ${plural(textSteps.length, 'answer')} as JSON text inside JSON, as an App older than this build does, so the demo would show no build stages; install this build first: ${textSteps.slice(0, 20).join(', ')}`);

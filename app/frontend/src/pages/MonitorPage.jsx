@@ -22,6 +22,7 @@ import {
 import ResultsPage from './ResultsPage';
 import { countEntries, parseStrategicContext, treeDepth } from '../lib/strategyContext';
 import { formatDuration } from '../lib/formatWhen';
+import { counted } from '../lib/plural';
 import { mergeSteps, quietLine, runTitle, viewerLine, sessionFailed, sessionFinished, sessionQuietSince, sessionSucceeded, stepCategory } from '../lib/monitorState';
 import { requestHeaders, responseError } from '../lib/apiClient';
 import StopRunControl from '../components/StopRunControl';
@@ -870,7 +871,7 @@ export default function MonitorPage({ settings, update, sessionId, runId, onComp
                 <p className="text-xs text-text-secondary mt-0.5">
                   Results are ready for review.
                   {elapsed && ` Total execution time: ${elapsed}.`}
-                  {totalCount > 0 && ` ${totalCount} steps processed.`}
+                  {totalCount > 0 && ` ${counted(totalCount, 'step')} processed.`}
                 </p>
               </div>
             </div>
