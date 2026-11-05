@@ -181,6 +181,50 @@ def test_deep_skips_the_milestone_case_table(agent_ns):
     assert dropped == [] and [uc["No"] for uc in kept] == ["N01-U03"]
 
 
+def _metadata(rows):
+    out = {}
+    for catalog, schema, table, column, dtype, comment in rows:
+        out.setdefault(f"{catalog}.{schema}.{table}", {"columns": {}})["columns"][column] = {"type": dtype, "comment": comment}
+    return out
+
+
+def _suggested(agent_ns, rows, primary_keys=None):
+    found = _obj(agent_ns, primary_keys=primary_keys).detect_supported_kinds(_metadata(rows), {}, log=False)
+    return {k["kind"]: k for k in found}
+
+
+def test_the_registry_asks_process_mining_for_an_event_log_grain(agent_ns):
+    kind = next(k for k in agent_ns["_inspire_kinds"]()["kinds"] if k["id"] == "process_mining")
+    assert kind["signature"]["grain"] == "event_log"
+
+
+def test_the_kind_checklist_never_suggests_process_mining_on_a_status_snapshot(agent_ns):
+    only_updated = [r for r in SNAPSHOT if r[3] != "created_timestamp"]
+    for rows in (SNAPSHOT, only_updated):
+        assert "process_mining" not in _suggested(agent_ns, rows)
+
+
+def test_the_kind_checklist_suggests_process_mining_on_an_event_log(agent_ns):
+    hit = _suggested(agent_ns, EVENT_LOG)["process_mining"]
+    assert hit["anchor"] == "main.ops.ticket_events"
+    assert hit["columns"]["case_id"] == ["main.ops.ticket_events.ticket_id"]
+
+
+def test_the_kind_checklist_suggests_process_mining_on_milestone_times_and_a_composite_key(agent_ns):
+    assert _suggested(agent_ns, MILESTONES)["process_mining"]["anchor"] == "main.ops.orders"
+    keys = {("main", "ops", "booking_tickets"): ["ticket_id", "updated_timestamp"]}
+    assert "process_mining" in _suggested(agent_ns, SNAPSHOT, primary_keys=keys)
+
+
+def test_the_checklist_and_r14_share_one_event_log_test(agent_ns):
+    obj = _obj(agent_ns)
+    index = obj._gate_schema_index(SCHEMA)
+    gated = set(obj._process_log_tables([".".join(r[:3]) for r in SCHEMA], index["tables"]))
+    suggested = {fqn for fqn in {".".join(r[:3]) for r in SCHEMA}
+                 if "process_mining" in _suggested(agent_ns, [r for r in SCHEMA if ".".join(r[:3]) == fqn])}
+    assert gated == suggested == {"main.ops.ticket_events", "main.ops.orders"}
+
+
 def test_a_flag_column_is_not_an_activity(agent_ns):
     rows = [("main", "ops", "ticket_marks", "mark_id", "BIGINT", ""),
             ("main", "ops", "ticket_marks", "ticket_id", "BIGINT", ""),
