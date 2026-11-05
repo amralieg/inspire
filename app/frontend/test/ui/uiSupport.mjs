@@ -48,7 +48,7 @@ export async function openUi(open, overrides = {}, query = '', { mount, init } =
   await page.goto(`${origin}/test/ui/implement.html?open=${open}${query}`);
   return {
     made, page, pageErrors, origin,
-    close: async () => { await page.close(); await vite.close(); await backend.close(); },
+    close: async () => { await page.unrouteAll({ behavior: 'ignoreErrors' }); await page.close(); await vite.close(); await backend.close(); },
   };
 }
 

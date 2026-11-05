@@ -516,6 +516,7 @@ export async function recordMvpApp(context, { url, authHeaders = {}, exchanges, 
     }
     log(`MVP App ${origin}: walked ${n} screens`);
   } finally {
+    await page.unrouteAll({ behavior: 'ignoreErrors' });
     await page.close();
   }
 }

@@ -595,6 +595,37 @@ test('a change the demo refuses shows as a calm note in plain words, and any oth
   }
 });
 
+test('a page closed while the recorder still passes a read on leaves no stray error behind, so the error that ended the walk is the one reported', async () => {
+  const stray = [];
+  const onStray = (err) => stray.push(String(err && err.message ? err.message : err));
+  process.on('unhandledRejection', onStray);
+  let asked;
+  const reached = new Promise((resolve) => { asked = resolve; });
+  const slow = (app) => {
+    serveDefaults(app);
+    app.get('/api/slow-read', (_req, res) => { asked(); setTimeout(() => res.json({ ok: true }), 1500); });
+  };
+  const exchanges = [];
+  const blocked = [];
+  const ui = await openUi('app', STATE, '', {
+    mount: slow,
+    init: (page, origin) => routeInspireDemo(page, {
+      origin, summary: { ...DEMO, session_id: '42', mvps: [] }, real: { inspire_database: DEFAULTS.inspireDatabase, warehouse_id: DEFAULTS.warehouseId },
+      exchanges, blocked,
+    }),
+  });
+  try {
+    await ui.page.evaluate(() => { fetch('/api/slow-read', { headers: { 'X-Inspire-Showcase': 'acme' } }).catch(() => null); });
+    await reached;
+    await ui.close();
+    await new Promise((resolve) => { setTimeout(resolve, 2500); });
+    assert.deepEqual(stray, []);
+    assert.deepEqual(exchanges, [], 'a read the closed page never got is not recorded (must-exclude)');
+  } finally {
+    process.off('unhandledRejection', onStray);
+  }
+});
+
 test('the recorder fetches nothing from a host outside the App and its MVP Apps: a font link of an MVP page is refused, and the App itself still answers', async () => {
   const ui = await openUi('landing');
   try {
