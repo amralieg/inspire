@@ -3406,16 +3406,40 @@ class Shell:
         keys, seen, match = self.act_target(data)
         values = shell_sql.action_values(data.get("values"), self.now().date())
         treatment = treatment_of(page, data, values)
+        request = data.get("request_id")
+        if request is not None and not shell_sql.BATCH_ID.match(str(request)):
+            raise HttpError(400, "request_id is 32 lowercase hex characters, the same on every retry of one act")
         ws, who = self.workspace(headers)
+        if request is not None:
+            replayed = self.replayed_act(ws, page, str(request), editor, keys)
+            if replayed is not None:
+                return replayed
         writer = self.decision_writer(ws)
         fields = self.change_table(ws, who, page)
-        batch = {"id": uuid.uuid4().hex, "values": batch_values(data["values"], values, treatment)}
+        batch = {"id": str(request) if request is not None else uuid.uuid4().hex, "values": batch_values(data["values"], values, treatment)}
         if match is not None:
             out = self.act_on_match(ws, writer, who, page, fields, match, editor, values, batch)
         else:
             out = self.act_on_keys(ws, writer, page, fields, keys, seen, editor, values, batch)
         notice = self.alerts.assigned(headers, page, values.get("action_owner"), editor) if values.get("action_owner") else ""
         return dict(out, **({"notice": notice} if notice else {}))
+
+    def replayed_act(self, ws, page: dict, request: str, editor: str, keys) -> dict:
+        sql, params = shell_sql.batches_query(page, 1, batch_id=request)
+        made = (self.execute(ws, sql, params, 1, delta=True)["rows"] or [None])[0]
+        if made is None:
+            return None
+        if str(made.get("editor") or "") != str(editor or ""):
+            raise HttpError(409, "another person's act already used this request_id; send a new one")
+        if count_of(made.get("undone")):
+            raise HttpError(409, "this act was saved and then undone, so the App does not save it again; act again to redo it")
+        if keys is None:
+            n = int(made.get("n") or 0)
+            return {"written": n, "matched": n, "conflicts": [], "conflicts_count": 0, "left_out": 0, "batch_id": request, "replayed": True}
+        sql, params = shell_sql.batch_keys_query(page, request)
+        done = {str(r["record_key"]) for r in self.execute(ws, sql, params, len(keys), delta=True)["rows"] if r.get("record_key") is not None}
+        return {"written": [k for k in keys if k in done], "conflicts": [], "conflicts_count": 0, "left_out": 0, "batch_id": request,
+                "replayed": True}
 
     def deciding_page(self, ident) -> dict:
         page = self.page(ident)

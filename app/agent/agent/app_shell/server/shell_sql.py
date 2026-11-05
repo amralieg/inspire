@@ -4615,10 +4615,10 @@ def digest_query(table: str, fields: list, tier: str = "priority_tier", label=No
          f"concat({sql_text(stake_label(impact) + ' when fixed, less what a later run still finds, on ')}, {_digest_count('mes_wn')}, ' fixes a later run "
          f"confirmed this week; ', {_digest_money('mes', currency, money)}, ' on ', {_digest_count('mes_n')}, ' fixes so far')"),
         (5, "'Closed this week'", _digest_count("COALESCE(fixed_w, 0) + COALESCE(wrong_w, 0) + COALESCE(could_w, 0)"),
-         f"concat({_digest_count('fixed_w')}, ' fixed, ', {_digest_count('wrong_w')}, ' not a real issue, ', {_digest_count('could_w')}, "
+         f"concat({_digest_count('fixed_w')}, ' fixed, ', {_digest_count('wrong_w')}, ' not an issue, ', {_digest_count('could_w')}, "
          f"' could not fix')"),
         (6, "'Recommendations people said were wrong'", f"COALESCE({share('wrong', 'closed')}, 'Not measured yet')",
-         f"concat('People marked ', {_digest_count('wrong')}, ' of ', {_digest_count('closed')}, ' closed records not a real issue, so far')"),
+         f"concat('People marked ', {_digest_count('wrong')}, ' of ', {_digest_count('closed')}, ' closed records not an issue, so far')"),
         (7, "'Held back to measure impact'", f"COALESCE(concat({share('shown_hits', 'shown_n')}, ' vs ', {share('held_hits', 'held_n')}), "
                                                f"'Not measured yet')",
          f"concat('Flagged records that left the list or stopped being flagged: ', {_digest_count('shown_hits')}, ' of ', "

@@ -71,7 +71,16 @@ export const withDemoDecisions = (page, list, filters = {}) => {
   return { ...list, ...(summary ? { summary } : {}), rows: list.rows.map((r) => (decided[String(r.record_key)] ? { ...r, ...decided[String(r.record_key)] } : r)) };
 };
 export const getRecords = async (body) => withDemoDecisions(body?.page, await json('POST', 'records', body), body?.filters);
-export const actRecords = (body) => json('POST', 'records/act', body);
+export const requestId = () => Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) => b.toString(16).padStart(2, '0')).join('');
+export const actRecords = async (body) => {
+  const sent = { request_id: requestId(), ...body };
+  try {
+    return await json('POST', 'records/act', sent);
+  } catch (err) {
+    if (err?.status) throw err;
+    return json('POST', 'records/act', sent);
+  }
+};
 export const decidePlan = async (body) => {
   const got = await json('POST', 'plan/decide', body);
   if (got?.showcase === true && got.saved === false && got.row && body?.record_key != null) rememberDemo(body.page, String(body.record_key), got.row);
