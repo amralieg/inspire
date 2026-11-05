@@ -287,8 +287,20 @@ export async function walkRun(page, settle, onPage = null) {
   return n;
 }
 
+export async function openShowcase(page) {
+  const demo = page.getByRole('button', { name: SHOWCASE_BUTTON, exact: true });
+  const landing = page.locator('[data-landing-actions]');
+  await landing.or(demo).first().waitFor({ timeout: 120000 });
+  if (await landing.count()) {
+    await page.getByRole('button', { name: 'Get Started', exact: true }).first().click();
+    await demo.first().waitFor({ timeout: 120000 });
+    await page.waitForLoadState('networkidle', { timeout: 120000 }).catch(() => null);
+  }
+  await demo.first().click();
+}
+
 export async function walkInspireDemo(page, { settle, log = () => {}, mvps = true }) {
-  await page.getByRole('button', { name: SHOWCASE_BUTTON, exact: true }).first().click();
+  await openShowcase(page);
   const list = page.getByRole('region', { name: 'Use case list' });
   const cards = list.locator('[aria-expanded]');
   await cards.first().waitFor({ timeout: 180000 });

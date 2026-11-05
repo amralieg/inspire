@@ -4,8 +4,7 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
-import { apiWatch, readOnlyInspire, recordMvpApp, tabButton, walkMvpViews, walkRun, watchOffline } from './showcaseRecorder.mjs';
-import { SHOWCASE_BUTTON } from '../frontend/src/lib/showcase.js';
+import { apiWatch, openShowcase, readOnlyInspire, recordMvpApp, tabButton, walkMvpViews, walkRun, watchOffline } from './showcaseRecorder.mjs';
 import { START_MVP_LABEL } from '../frontend/src/lib/implementWizard.js';
 import { SCOPE_WALK_READS, checkRunScope, checkScope, checkWizardSteps, profileWatch } from './scopeWalk.mjs';
 
@@ -176,9 +175,10 @@ try {
   });
   await section('Demo', async () => {
     await home();
-    const demo = page.getByRole('button', { name: SHOWCASE_BUTTON, exact: true });
-    if (!(await demo.count())) return 'this App offers no demo';
-    await demo.first().click();
+    await page.getByRole('button', { name: 'Get Started' }).first().click();
+    await page.locator('[data-start-choice="data"]').waitFor({ timeout: 120000 });
+    if (!(await page.locator('[data-start-choice="demo"]').count())) return 'this App offers no demo';
+    await openShowcase(page);
     await page.getByRole('region', { name: 'Use case list' }).waitFor({ timeout: 120000 });
     await settle();
     for (const id of ['results', 'implement', 'run', 'choose']) {

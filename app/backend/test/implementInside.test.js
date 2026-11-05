@@ -444,7 +444,8 @@ test('a #/run/<id> link names a page to open on the Run tab; anything else is no
   assert.equal(runIdOf(R, '#/run/n01-u01-42'), 'n01-u01-42');
   assert.equal(runIdOf(R, '#/run/n01%2Du01'), 'n01-u01');
   for (const bad of ['#/run/N01-U01', '#/run/a_b', '#/run/', '#/run/%E0%A4%A']) assert.equal(runIdOf(R, bad), '', bad);
-  for (const none of ['', '#/', '#/build/x', '#/run/a/b', '#/run', '#run/a']) assert.equal(runIdOf(R, none), null, none);
+  for (const none of ['', '#/', '#/build/x', '#/run/a/b', '#run/a']) assert.equal(runIdOf(R, none), null, none);
+  assert.deepEqual(R.hashLink('#/run'), { page: R.RUN_TAB, id: '', bare: true }, 'the Run tab hash with no page opens the plain Run tab');
   assert.equal(R.runUnknownText('n09-u09-x'), 'Inspire has no page n09-u09-x Inside Inspire that you can open: it may be uninstalled, moved to an App of its own, '
     + 'or not shared with you. Here is every deployed use case.');
   assert.equal(R.runUnknownText(''), 'That link names no page Inside Inspire. Here is every deployed use case.');
@@ -486,10 +487,9 @@ test('a ?run=<id> query, which a sign-in keeps, becomes the #/run/<id> hash with
   assert.equal(runIdOf(R, '#/run/'), '');
   assert.equal(R.queryLink({ pathname: '/', search: '?open=app', hash: '#/run/x' }), '', 'no run query leaves the address alone');
   assert.equal(R.queryLink(), '');
-  assert.equal(R.runHashLink({ pathname: '/', search: '?open=app', hash: '' }, 'n01-u01-42'), '/?open=app#/run/n01-u01-42');
-  assert.equal(R.runHashLink({ pathname: '/', search: '', hash: '#/run/n01-u01-42' }, 'n01-u01-42'), null, 'nothing to change');
-  assert.equal(R.runHashLink({ pathname: '/', search: '', hash: '#/run/n01-u01-42' }, null), '/', 'leaving the Run tab clears its hash');
-  assert.equal(R.runHashLink({ pathname: '/', search: '', hash: '#/somewhere' }, null), null, 'a hash that is not a Run link is left alone');
+  assert.equal(R.pageHash({ page: R.RUN_TAB, id: 'n01-u01-42' }), '#/run/n01-u01-42');
+  assert.equal(R.pageHash({ page: R.RUN_TAB, id: null }), '#/run', 'the Run tab with no page open keeps a hash of its own');
+  assert.equal(R.pageHash({ page: R.REVIEW_TAB }), '#/review', 'leaving the Run tab swaps its hash for the page shown');
   assert.equal(R.RUN_LEFT_DEMO, 'You left the demo to open this link, because it names a page in your workspace and the demo runs only its own '
-    + 'recorded MVP Apps. To see the demo again, choose See Demo on the home page.');
+    + 'recorded MVP Apps. To see the demo again, choose See Demo on the Start page.');
 });

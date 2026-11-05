@@ -24,12 +24,14 @@ function sources() {
   return files;
 }
 
-test('the top tabs read Start, Monitor, Review, Build and Run, in that order, and the header renders that one list', async () => {
-  const { APP_TABS } = await tabs();
+test('the top tabs read Home, Start, Monitor, Review, Build and Run, in that order, and the header renders that one list', async () => {
+  const { APP_TABS, HOME_TAB, NAV_TABS } = await tabs();
   assert.deepEqual(APP_TABS.map((t) => [t.id, t.label]),
     [['choose', 'Start'], ['monitor', 'Monitor'], ['results', 'Review'], ['implement', 'Build'], ['run', 'Run']]);
+  assert.deepEqual(HOME_TAB, { id: 'landing', label: 'Home' });
+  assert.deepEqual(NAV_TABS, [HOME_TAB, ...APP_TABS], 'Home comes first, and the pipeline tabs follow it unchanged');
   const header = fs.readFileSync(path.join(APP, 'frontend', 'src', 'components', 'Header.jsx'), 'utf8');
-  assert.match(header, /import \{ APP_TABS \} from '\.\.\/lib\/tabs'/);
+  assert.match(header, /import \{ NAV_TABS \} from '\.\.\/lib\/tabs'/);
   assert.doesNotMatch(header, /label: '/, 'the header keeps no tab names of its own');
 });
 

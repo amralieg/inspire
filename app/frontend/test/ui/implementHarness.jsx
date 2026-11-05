@@ -11,7 +11,6 @@ createRoot(document.getElementById('root')).render(
       open={params.get('open')}
       nest={params.get('nest') === '1'}
       discoveryType={params.get('discovery') || 'Standard'}
-      demo={params.get('demo') !== '0'}
       step={params.get('step') || ''}
       run={params.get('run') || ''}
     />

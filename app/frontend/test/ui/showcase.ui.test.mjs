@@ -7,7 +7,7 @@ import { createRequire } from 'node:module';
 import { MVP_JOB, RESULTS, STUDIO_STATE, built, builtSpec } from './implementFixtures.js';
 import { REVIEW_PORTFOLIO, REVIEW_SESSIONS, REVIEW_STATE } from './reviewFixtures.js';
 import { closeAsset, closeBrowser, expandBuild, openAsset, openUi, until } from './uiSupport.mjs';
-import { apiWatch, keepToOrigins, readOnlyInspire, recordMvpApp, routeInspireDemo, tabButton, walkInspireDemo, walkMvpViews, watchOffline } from '../../../scripts/showcaseRecorder.mjs';
+import { apiWatch, keepToOrigins, openShowcase, readOnlyInspire, recordMvpApp, routeInspireDemo, tabButton, walkInspireDemo, walkMvpViews, watchOffline } from '../../../scripts/showcaseRecorder.mjs';
 import { DEMO_READS, DEMO_READS_WHEN, routeOf, unrecorded } from '../../../scripts/showcaseRoutes.mjs';
 import { SHOWCASE_BUTTON, SHOWCASE_DASHBOARD_NOTE, SHOWCASE_GENIE_NOTE, SHOWCASE_NOTE, SHOWCASE_OPEN_APP, SHOWCASE_PAGES } from '../../src/lib/showcase.js';
 import { START_MVP_LABEL } from '../../src/lib/implementWizard.js';
@@ -192,9 +192,11 @@ test('the demo replays every view from the bundle with no workspace call, refuse
   });
   const settle = apiWatch(page);
   try {
+    await page.getByRole('button', { name: 'Get Started', exact: true }).first().click();
     await page.getByRole('button', { name: SHOWCASE_BUTTON, exact: true }).first().waitFor();
     await settle();
     const opened = sent.length;
+    const read = { sql: made.sqlCalls.length, fetches: made.fetches.length };
     await page.getByRole('button', { name: SHOWCASE_BUTTON, exact: true }).first().click();
     await demoBar(page).getByText(SHOWCASE_NOTE).waitFor();
     const cards = list(page).locator('[aria-expanded]');
@@ -376,8 +378,8 @@ test('the demo replays every view from the bundle with no workspace call, refuse
     await list(page).getByText('SUM(amount) FROM main.s.orders', { exact: false }).waitFor();
     await settle();
 
-    assert.equal(made.sqlCalls.length, 0, 'the demo reads nothing from the warehouse');
-    assert.equal(made.fetches.length, 0, 'the demo calls no workspace API');
+    assert.equal(made.sqlCalls.length - read.sql, 0, 'the demo reads nothing from the warehouse; only Start read the runs before it opened');
+    assert.equal(made.fetches.length - read.fetches, 0, 'the demo calls no workspace API');
     assert.equal(made.jobs.length, 0);
     assert.deepEqual(failed, ['403 POST /api/inspire/implement/rerun'], 'every view had a saved answer');
     assert.ok(sent.length > opened, 'the demo read its saved answers');
@@ -385,9 +387,9 @@ test('the demo replays every view from the bundle with no workspace call, refuse
     assert.deepEqual(besidesRefusals(ui.pageErrors), []);
 
     await demoBar(page).getByRole('button', { name: 'Leave demo' }).click();
-    await page.getByRole('button', { name: SHOWCASE_BUTTON, exact: true }).first().waitFor();
+    await page.locator('[data-landing-actions]').first().waitFor();
     assert.equal(await demoBar(page).count(), 0);
-    await page.getByRole('button', { name: SHOWCASE_BUTTON, exact: true }).first().click();
+    await openShowcase(page);
     await demoBar(page).waitFor();
     await settle();
     const before = sent.length;
@@ -446,7 +448,7 @@ async function openDemoBuild(history) {
   });
   const settle = apiWatch(ui.page);
   try {
-    await ui.page.getByRole('button', { name: SHOWCASE_BUTTON, exact: true }).first().click();
+    await openShowcase(ui.page);
     await demoBar(ui.page).getByText(SHOWCASE_NOTE).waitFor();
     await list(ui.page).locator('[aria-expanded]').filter({ hasText: 'Predict churn' }).click();
     await settle();
@@ -535,9 +537,9 @@ test('a run link that arrives during the demo leaves the demo and opens the work
   const runTab = page.locator('header nav button', { hasText: 'Run' });
   try {
     const note = 'You left the demo to open this link, because it names a page in your workspace and the demo runs only its own recorded MVP Apps. '
-      + `To see the demo again, choose ${SHOWCASE_BUTTON} on the home page.`;
+      + `To see the demo again, choose ${SHOWCASE_BUTTON} on the Start page.`;
     for (const from of ['Review', 'Run']) {
-      await page.getByRole('button', { name: SHOWCASE_BUTTON, exact: true }).first().click();
+      await openShowcase(page);
       await demoBar(page).getByText(SHOWCASE_NOTE).waitFor();
       if (from === 'Run') {
         assert.equal(await runTab.isDisabled(), false, 'the demo has its own Run tab');
@@ -552,7 +554,7 @@ test('a run link that arrives during the demo leaves the demo and opens the work
       assert.equal(await page.evaluate(() => window.location.hash), '#/run/n01-u01-a');
       if (from === 'Review') {
         await page.locator('header button', { hasText: 'Inspire AI' }).click();
-        await page.getByRole('button', { name: SHOWCASE_BUTTON, exact: true }).first().waitFor({ timeout: 20000 });
+        await page.locator('[data-landing-actions]').first().waitFor({ timeout: 20000 });
       }
     }
     await page.locator('header nav button', { hasText: 'Review' }).click();

@@ -12,28 +12,28 @@ const STALE = ['in under 30 minutes', 'in minutes', 'Scans 100+ tables', 'Genie-
 const groups = (page) => page.locator('[data-landing-actions]');
 const clicks = (page) => page.locator('output[aria-label="Landing clicks"]');
 
-test('the home page offers exactly two calls to action, Get Started and See Demo, in the hero and at the end, and each does what it says', async () => {
+test('the home page offers one call to action, Get Started, in the hero and at the end, and leaves the demo to the Start page', async () => {
   const ui = await openUi('landing');
   const { page } = ui;
   try {
     await page.getByText('Scroll to explore').waitFor();
     assert.equal(await groups(page).count(), 2, 'the hero and the closing section');
     for (let i = 0; i < 2; i += 1) {
-      assert.deepEqual((await groups(page).nth(i).getByRole('button').allInnerTexts()).map((t) => t.trim()), ['Get Started', SHOWCASE_BUTTON]);
+      assert.deepEqual((await groups(page).nth(i).getByRole('button').allInnerTexts()).map((t) => t.trim()), ['Get Started']);
     }
     const names = await page.getByRole('button').evaluateAll((els) => els.map((el) => (el.getAttribute('aria-label') || el.textContent || el.title).trim()));
     assert.equal(names.filter((n) => n === 'Get Started').length, 2, 'Get Started shows only in the two call-to-action groups');
-    assert.equal(names.filter((n) => n === SHOWCASE_BUTTON).length, 2, 'See Demo shows only in the two call-to-action groups');
-    const others = names.filter((n) => !['Get Started', SHOWCASE_BUTTON, 'Workspace setup'].includes(n) && !/^Switch to (dark|light) mode$/.test(n));
+    assert.equal(names.filter((n) => n === SHOWCASE_BUTTON).length, 0, 'the home page offers no demo button (must-exclude)');
+    const others = names.filter((n) => !['Get Started', 'Workspace setup'].includes(n) && !/^Switch to (dark|light) mode$/.test(n));
     assert.deepEqual(others, ['Discover', 'Analyze', 'How it works', 'Agent', 'What you get', 'Try it'],
       'the rest are the section links and the theme switch, so nothing else asks the person to act');
     assert.equal(await page.locator('nav').getByRole('button', { name: 'Get Started' }).count(), 0, 'the top bar holds no third Get Started');
     assert.doesNotMatch(await page.locator('nav').first().innerText(), /\bv\d/i, 'the top bar shows no version badge');
     await groups(page).first().getByRole('button', { name: 'Get Started', exact: true }).click();
-    await groups(page).first().getByRole('button', { name: SHOWCASE_BUTTON, exact: true }).click();
     await groups(page).last().getByRole('button', { name: 'Get Started', exact: true }).click();
-    assert.equal(await clicks(page).textContent(), 'start,demo,start');
-    assert.match(await page.locator('body').innerText(), /or open the demo to see a finished run/);
+    assert.equal(await clicks(page).textContent(), 'start,start');
+    assert.match(await page.locator('body').innerText(), /Point Inspire at your catalog to find your use cases\./);
+    assert.doesNotMatch(await page.locator('body').innerText(), /demo/i);
     assert.deepEqual(ui.pageErrors, []);
   } finally {
     await ui.close();
@@ -61,21 +61,6 @@ test('scrolling the home page down and back step by step, through the section wh
     }
     assert.ok(seen.has('orbRing 0.5s'), `the scroll crosses the section where the rings run, each with its own delay: ${[...seen].join(', ')}`);
     assert.deepEqual(ui.pageErrors, [], 'no rerender mixes the animation shorthand with its delay');
-  } finally {
-    await ui.close();
-  }
-});
-
-test('without a demo in the App the home page offers Get Started alone and does not mention the demo', async () => {
-  const ui = await openUi('landing', {}, '&demo=0');
-  const { page } = ui;
-  try {
-    await page.getByText('Scroll to explore').waitFor();
-    for (let i = 0; i < 2; i += 1) {
-      assert.deepEqual((await groups(page).nth(i).getByRole('button').allInnerTexts()).map((t) => t.trim()), ['Get Started']);
-    }
-    assert.doesNotMatch(await page.locator('body').innerText(), /demo/i);
-    assert.deepEqual(ui.pageErrors, []);
   } finally {
     await ui.close();
   }

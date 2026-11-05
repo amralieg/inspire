@@ -5,9 +5,9 @@ import os from 'node:os';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { closeBrowser, openUi, until } from './uiSupport.mjs';
-import { apiWatch, tabButton, walkInspireDemo } from '../../../scripts/showcaseRecorder.mjs';
+import { apiWatch, openShowcase, tabButton, walkInspireDemo } from '../../../scripts/showcaseRecorder.mjs';
 import { DEMO_LAYOUTS, DEMO_RECORDED, KINDS_DEMO, USE_CASES } from '../../../scripts/kindsShowcase.mjs';
-import { SHOWCASE_BUTTON, SHOWCASE_NOTE } from '../../src/lib/showcase.js';
+import { SHOWCASE_NOTE } from '../../src/lib/showcase.js';
 import { RUN_BACK } from '../../src/lib/runPages.js';
 
 const require = createRequire(import.meta.url);
@@ -37,10 +37,18 @@ async function openDemoApp(dir, shellFiles = SHELL) {
   const missing = [];
   const outside = [];
   const framed = [];
+  let inDemo = false;
+  const mark = { sqlCalls: 0, fetches: 0, jobs: 0 };
+  const made = Object.fromEntries(Object.keys(mark).map((key) => [key, null]));
+  for (const key of Object.keys(mark)) Object.defineProperty(made, key, { get: () => ui.made[key].slice(mark[key]) });
   ui.page.on('request', (r) => {
     const p = new URL(r.url()).pathname;
+    if (r.headers()[SHOWCASE_HEADER] && !inDemo) {
+      inDemo = true;
+      for (const key of Object.keys(mark)) mark[key] = ui.made[key].length;
+    }
     if (r.frame() !== ui.page.mainFrame()) framed.push(`${r.method()} ${p}`);
-    else if (p.startsWith('/api/') && !['/api/showcase', '/api/defaults'].includes(p) && !r.headers()[SHOWCASE_HEADER]) outside.push(`${r.method()} ${p}`);
+    else if (inDemo && p.startsWith('/api/') && !['/api/showcase', '/api/defaults'].includes(p) && !r.headers()[SHOWCASE_HEADER]) outside.push(`${r.method()} ${p}`);
   });
   ui.page.on('response', async (r) => {
     const p = new URL(r.url()).pathname;
@@ -48,7 +56,7 @@ async function openDemoApp(dir, shellFiles = SHELL) {
     const body = await r.json().catch(() => ({}));
     if (body.error === SHOWCASE_MISSING) missing.push(`${r.request().headers()[SHOWCASE_HEADER]}: ${r.request().method()} ${p}${new URL(r.url()).search}`);
   });
-  return { ...ui, missing, outside, framed };
+  return { ...ui, made, missing, outside, framed };
 }
 
 const KINDS_FILE = `${KINDS_DEMO.id}.json.gz`;
@@ -60,7 +68,7 @@ async function openKindsDemo() {
   const ui = await openDemoApp(dir, REAL_SHELL);
   const close = ui.close;
   ui.close = async () => { await close(); fs.rmSync(dir, { recursive: true, force: true }); };
-  await ui.page.getByRole('button', { name: SHOWCASE_BUTTON, exact: true }).first().click();
+  await openShowcase(ui.page);
   await cardsOf(ui.page).first().waitFor({ timeout: 60000 });
   return ui;
 }
@@ -232,7 +240,7 @@ test('with more than one demo, the demo bar lists them and switches to the use c
     const settle = apiWatch(page);
     const [first, second] = Object.values(COMMITTED);
     const titles = Object.values(COMMITTED).map((b) => b.title);
-    await page.getByRole('button', { name: SHOWCASE_BUTTON, exact: true }).first().click();
+    await openShowcase(page);
     await demoBar(page).getByText(SHOWCASE_NOTE).waitFor();
     const pick = demoBar(page).getByRole('combobox', { name: 'Choose a demo' });
     assert.deepEqual(await pick.locator('option').allInnerTexts(), titles);
@@ -267,7 +275,7 @@ test('with one demo the demo bar offers no list to pick from', async () => {
   fs.copyFileSync(path.join(SHOWCASE_DIR, FILES[0]), path.join(dir, FILES[0]));
   const ui = await openDemoApp(dir);
   try {
-    await ui.page.getByRole('button', { name: SHOWCASE_BUTTON, exact: true }).first().click();
+    await openShowcase(ui.page);
     await demoBar(ui.page).getByText(SHOWCASE_NOTE).waitFor();
     assert.equal(await demoBar(ui.page).getByRole('combobox', { name: 'Choose a demo' }).count(), 0);
   } finally {
@@ -331,8 +339,7 @@ test('a kinds demo plan takes Accept, Override with a reason, refuses an Overrid
     assert.deepEqual(decided.map((d) => d.record_key).sort(), [...keys].sort(), 'Take all accepted only the lines still open, each once');
 
     await page.reload();
-    await page.getByRole('button', { name: SHOWCASE_BUTTON, exact: true }).first().click();
-    await cardsOf(page).first().waitFor({ timeout: 60000 });
+    await demoBar(page).getByText(SHOWCASE_NOTE).waitFor({ timeout: 60000 });
     frame = await openMvpFromBuild(page, apiWatch(page), u);
     await rows().first().waitFor({ timeout: 60000 });
     await until(async () => (await plan().locator('[data-decided]').count()) === keys.length, 'the decisions are still there after a refresh');

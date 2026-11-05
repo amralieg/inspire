@@ -10,7 +10,9 @@ import ResultsPage from './pages/ResultsPage';
 import ChoosePage from './pages/ChoosePage';
 import ImplementPage from './pages/ImplementPage';
 import RunPage from './pages/RunPage';
-import { REVIEW_LEFT_DEMO, REVIEW_TAB, RUN_LEFT_DEMO, RUN_TAB, demoRunPages, hashLink, queryLink, runHashLink } from './lib/runPages';
+import {
+  BUILD_TAB, HOME_PAGE, INSPIRE_ENTRY, MONITOR_TAB, REVIEW_LEFT_DEMO, REVIEW_TAB, RUN_LEFT_DEMO, RUN_TAB, demoRunPages, hashLink, pageHash, queryLink,
+} from './lib/runPages';
 import ScrollProgressRing from './components/ScrollProgressRing';
 import ParticleField from './components/ParticleField';
 import ShowcaseBar from './components/ShowcaseBar';
@@ -96,13 +98,19 @@ export default function App() {
   const [showcases, setShowcases] = useState([]);
   const [setupManaged, setSetupManaged] = useState(false);
   const [demo, setDemo] = useState({ showcase: null, focus: null });
+  const [reviewSid, setReviewSid] = useState(null);
+  const showcasesLoaded = useRef(null);
 
   useEffect(() => {
     let cancelled = false;
-    fetch('/api/showcase')
+    showcasesLoaded.current = fetch('/api/showcase')
       .then((r) => (r.ok ? r.json() : {}))
-      .then((data) => { if (!cancelled) setShowcases(showcasesFrom(data)); })
-      .catch(() => {});
+      .then((data) => {
+        const list = showcasesFrom(data);
+        if (!cancelled) setShowcases(list);
+        return list;
+      })
+      .catch(() => []);
     return () => { cancelled = true; };
   }, []);
 
@@ -111,6 +119,7 @@ export default function App() {
   }, []);
 
   const onResultsSession = useCallback((sid) => {
+    setReviewSid(sid);
     setImplement((prev) => (prev.sessionId === sid ? prev : { sessionId: sid, focus: null }));
   }, []);
   const onImplementFocus = useCallback((id) => {
@@ -118,19 +127,48 @@ export default function App() {
   }, []);
   const [runFocus, setRunFocus] = useState(null);
   const [runFull, setRunFull] = useState(false);
-  const pushRun = useRef(false);
+  const pushNext = useRef(false);
+  const [hashTick, setHashTick] = useState(0);
   const focusRun = useCallback((id, { push = false } = {}) => {
     setRunFocus((prev) => {
-      pushRun.current = push && id !== prev;
+      pushNext.current = push && id !== prev;
       return id;
     });
   }, []);
   const [runLink, setRunLink] = useState({ n: 0, notice: '' });
   const [reviewLink, setReviewLink] = useState({ n: 0, link: null, notice: '' });
   const takeReviewLink = useCallback((link, notice) => {
-    window.history.replaceState(window.history.state, '', `${window.location.pathname}${window.location.search}`);
     if (link.valid) setSessionId(link.sessionId);
     setReviewLink((prev) => ({ n: prev.n + 1, link, notice }));
+  }, []);
+  const routeState = useCallback((link, leftDemo) => {
+    if (link.page === RUN_TAB) {
+      setRunFocus(link.bare ? null : link.id);
+      if (!link.bare) setRunLink((prev) => ({ n: prev.n + 1, notice: leftDemo ? RUN_LEFT_DEMO : '' }));
+      return RUN_TAB;
+    }
+    if (link.page === REVIEW_TAB) {
+      if (!link.bare) takeReviewLink(link, leftDemo ? REVIEW_LEFT_DEMO : '');
+      return REVIEW_TAB;
+    }
+    if (link.page === MONITOR_TAB && !link.bare) {
+      setSessionId(link.sessionId);
+      setRunId(link.runId || null);
+    }
+    if (link.page === BUILD_TAB && !link.bare) setImplement({ sessionId: link.sessionId, focus: link.useCaseId || null });
+    return link.page;
+  }, [takeReviewLink]);
+  const [transitioning, setTransitioning] = useState(false);
+  const openDemo = useCallback((showcase, link = null) => {
+    const target = link?.demo && staysInShowcase(link.page) ? link.page : REVIEW_TAB;
+    setTransitioning(true);
+    setTimeout(() => {
+      setDemo({ showcase, focus: target === BUILD_TAB ? link.useCaseId || null : null });
+      setReviewSid(null);
+      pushNext.current = !link;
+      setPage(target);
+      setTransitioning(false);
+    }, 200);
   }, []);
 
   const update = useCallback((key, val) => {
@@ -265,18 +303,17 @@ export default function App() {
         }
       }
 
-      if (link?.page === RUN_TAB) {
-        setRunFocus(link.id);
-        setRunLink((prev) => ({ n: prev.n + 1, notice: '' }));
-        setPage('run');
+      if (link?.demo) {
+        const showcase = (await showcasesLoaded.current)?.find((s) => s.id === link.demo);
+        if (showcase) {
+          openDemo(showcase, link);
+          return;
+        }
+      } else if (link) {
+        setPage(routeState(link, false));
         return;
       }
-      if (link?.page === REVIEW_TAB) {
-        takeReviewLink(link, '');
-        setPage(REVIEW_TAB);
-        return;
-      }
-      setPage('landing');
+      setPage(HOME_PAGE);
     })();
   }, []);
 
@@ -303,13 +340,12 @@ export default function App() {
     })();
   }, [settings.authMode, settings.spClientId, settings.spClientSecret, settings.spTenantId, settings.databricksHost]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const [transitioning, setTransitioning] = useState(false);
   useLayoutEffect(() => {
     window.scrollTo(0, 0);
   }, [page]);
   const inDemo = !!demo.showcase;
   const demoScope = inDemo ? `demo-${demo.showcase.id}` : '';
-  const nav = useCallback((p, { leaveDemo = false } = {}) => {
+  const nav = useCallback((p, { leaveDemo = false, push = true } = {}) => {
     const leaving = inDemo && (leaveDemo || !staysInShowcase(p));
     if (p === page && !leaving) return;
     setTransitioning(true);
@@ -319,7 +355,11 @@ export default function App() {
         setRunLink((prev) => (prev.notice ? { ...prev, notice: '' } : prev));
         setRunFocus(null);
       }
-      if (p !== REVIEW_TAB) setReviewLink((prev) => (prev.notice || prev.link ? { ...prev, link: null, notice: '' } : prev));
+      if (p !== REVIEW_TAB) {
+        setReviewLink((prev) => (prev.notice || prev.link ? { ...prev, link: null, notice: '' } : prev));
+        setReviewSid(null);
+      }
+      pushNext.current = push;
       setPage(p);
       setTransitioning(false);
     }, 200);
@@ -355,51 +395,47 @@ export default function App() {
     return ids.length ? { ids, open: (id) => { setDemoRun(id); nav('run'); } } : null;
   }, [inDemo, demo.showcase, nav]);
 
-  const openRunLink = useCallback((id) => {
-    setRunFocus(id);
-    setRunLink((prev) => ({ n: prev.n + 1, notice: inDemo ? RUN_LEFT_DEMO : '' }));
-    nav('run', { leaveDemo: true });
-  }, [nav, inDemo]);
-
-  const openLink = useCallback((link) => {
-    if (link.page === RUN_TAB) {
-      openRunLink(link.id);
+  const openLink = useCallback((link, { fresh = true } = {}) => {
+    if (link.demo) {
+      const showcase = showcases.find((s) => s.id === link.demo);
+      if (showcase) openDemo(showcase, link);
+      else nav(HOME_PAGE, { leaveDemo: true, push: false });
       return;
     }
-    takeReviewLink(link, inDemo ? REVIEW_LEFT_DEMO : '');
-    nav(REVIEW_TAB, { leaveDemo: true });
-  }, [openRunLink, takeReviewLink, nav, inDemo]);
+    nav(routeState(link, fresh && inDemo), { leaveDemo: true, push: false });
+  }, [showcases, openDemo, routeState, nav, inDemo]);
 
   useEffect(() => {
     const onHash = () => {
       if (page === 'loading' || page === 'setup') return;
       const link = hashLink(window.location.hash);
-      if (link) openLink(link);
-      else if (page === 'run') setRunFocus(null);
+      if (link) openLink(link, { fresh: !window.history.state?.[INSPIRE_ENTRY] });
+      setHashTick((n) => n + 1);
     };
     window.addEventListener('hashchange', onHash);
     return () => window.removeEventListener('hashchange', onHash);
   }, [page, openLink]);
 
-  useEffect(() => {
-    if (page === 'loading' || page === 'setup') return;
-    const onRun = page === 'run' && !inDemo;
-    const push = onRun && pushRun.current;
-    if (onRun) pushRun.current = false;
-    const next = runHashLink(window.location, onRun ? runFocus : null);
-    if (next === null) return;
-    if (push) window.history.pushState(window.history.state, '', next);
-    else window.history.replaceState(window.history.state, '', next);
-  }, [page, runFocus, inDemo]);
+  const implementSessionId = inDemo ? demo.showcase.session_id : implement.sessionId || (sessionId ? String(sessionId) : null);
+  const implementFocus = inDemo ? demo.focus : implement.focus;
+  const route = inDemo ? { page, demo: demo.showcase.id, useCaseId: page === BUILD_TAB ? implementFocus || '' : '' }
+    : page === MONITOR_TAB ? { page, sessionId: sessionId ? String(sessionId) : '', runId: runId ? String(runId) : '' }
+      : page === REVIEW_TAB ? { page, sessionId: reviewSid || '' }
+        : page === BUILD_TAB ? { page, sessionId: implementSessionId || '', useCaseId: implementFocus || '' }
+          : page === RUN_TAB ? { page, id: runFocus || '' }
+            : { page };
+  const routeHash = page === 'loading' || page === 'setup' ? '' : pageHash(route);
 
-  const openDemo = useCallback((showcase) => {
-    setDemo({ showcase, focus: null });
-    setTransitioning(true);
-    setTimeout(() => {
-      setPage('results');
-      setTransitioning(false);
-    }, 200);
-  }, []);
+  useEffect(() => {
+    const push = pushNext.current;
+    pushNext.current = false;
+    if (!routeHash) return;
+    const state = window.history.state;
+    if (routeHash === window.location.hash && state?.[INSPIRE_ENTRY]) return;
+    const next = `${window.location.pathname}${window.location.search}${routeHash}`;
+    if (push && routeHash !== window.location.hash) window.history.pushState({ [INSPIRE_ENTRY]: true }, '', next);
+    else window.history.replaceState({ ...(state && typeof state === 'object' ? state : {}), [INSPIRE_ENTRY]: true }, '', next);
+  }, [page, routeHash, hashTick]);
 
   const pageSettings = useMemo(() => showcaseSettings(settings, demo.showcase), [settings, demo.showcase]);
 
@@ -409,14 +445,12 @@ export default function App() {
     } catch { /* ignore */ }
     const link = hashLink(window.location.hash);
     if (link) openLink(link);
-    else nav('landing');
+    else nav(HOME_PAGE, { push: false });
   }, [nav, openLink]);
 
   const canLaunch = true;
   const canMonitor = inDemo || Boolean(sessionId || runId);
   const canResults = true;
-  const implementSessionId = inDemo ? demo.showcase.session_id : implement.sessionId || (sessionId ? String(sessionId) : null);
-  const implementFocus = inDemo ? demo.focus : implement.focus;
   const bare = page === 'run' && runFull;
 
   return (
@@ -456,7 +490,6 @@ export default function App() {
           <LandingPage
             onStart={() => nav('choose')}
             onOpenSetup={setupManaged ? undefined : () => nav('setup')}
-            onDemo={showcases.length ? () => openDemo(showcases[0]) : undefined}
           />
         )}
 
@@ -466,6 +499,7 @@ export default function App() {
             settings={pageSettings}
             onNewExperiment={() => nav('launch')}
             onNoData={() => nav('generate-data')}
+            onDemo={showcases.length && !inDemo ? () => openDemo(showcases[0]) : undefined}
             onViewResults={(sid, rid) => {
               if (sid && !inDemo) setSessionId(sid);
               if (rid && !inDemo) {

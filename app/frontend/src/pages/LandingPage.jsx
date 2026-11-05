@@ -5,7 +5,6 @@ import {
   BarChart3,
   Globe2,
   ChevronDown,
-  Eye,
   PlayCircle,
   Rocket,
   Wrench,
@@ -13,7 +12,6 @@ import {
 import DatabricksLogo from '../components/DatabricksLogo';
 import { useTheme } from '../ThemeContext';
 import { Sun, Moon } from 'lucide-react';
-import { SHOWCASE_BUTTON } from '../lib/showcase';
 import { APP_TABS } from '../lib/tabs';
 
 /* ═══════════════════════════════════════════════════
@@ -548,11 +546,11 @@ const C = {
 
 const START_GLOW = '0 0 0 1px rgba(255,54,33,0.3), 0 4px 12px rgba(255,54,33,0.2), 0 8px 30px rgba(255,54,33,0.15), 0 20px 60px rgba(255,54,33,0.1)';
 
-function LandingActions({ onStart, onDemo, large = false, className = '', style }) {
+function LandingActions({ onStart, large = false, className = '', style }) {
   const size = large ? 'px-10 py-5 text-base' : 'px-8 py-4 text-sm';
   const icon = large ? 18 : 16;
   return (
-    <div role="group" aria-label="Get started or see the demo" data-landing-actions="" className={`flex flex-wrap items-center gap-3 ${className}`} style={style}>
+    <div role="group" aria-label="Get started" data-landing-actions="" className={`flex flex-wrap items-center gap-3 ${className}`} style={style}>
       <button
         type="button"
         onClick={onStart}
@@ -562,22 +560,11 @@ function LandingActions({ onStart, onDemo, large = false, className = '', style 
         Get Started
         <ArrowRight size={icon} aria-hidden="true" className="group-hover:translate-x-0.5 transition-transform duration-300" />
       </button>
-      {onDemo && (
-        <button
-          type="button"
-          onClick={onDemo}
-          className={`group inline-flex items-center gap-2.5 font-semibold rounded-xl transition-all duration-300 hover:-translate-y-0.5 ${size}`}
-          style={{ color: C.text, backgroundColor: C.btnBg, border: `1px solid ${C.btnBorder}` }}
-        >
-          <Eye size={icon} aria-hidden="true" />
-          {SHOWCASE_BUTTON}
-        </button>
-      )}
     </div>
   );
 }
 
-export default function LandingPage({ onStart, onOpenSetup, onDemo }) {
+export default function LandingPage({ onStart, onOpenSetup }) {
   const typedText = useTypingEffect(HERO_WORDS);
   const scrollContainerRef = useRef(null);
   const { progress, section } = useScrollProgress(scrollContainerRef);
@@ -671,7 +658,7 @@ export default function LandingPage({ onStart, onOpenSetup, onDemo }) {
                   Inspire reads your Unity Catalog metadata and writes use cases ranked for your business and your goals. Genie then builds an MVP for each one you pick.
                 </p>
 
-                <LandingActions onStart={onStart} onDemo={onDemo} />
+                <LandingActions onStart={onStart} />
 
                 {onOpenSetup && (
                   <aside className="mt-5 max-w-lg" aria-label="Workspace setup">
@@ -879,14 +866,11 @@ export default function LandingPage({ onStart, onOpenSetup, onDemo }) {
             </h2>
 
             <p className={`mb-10 transition-all duration-700 delay-200 ${section >= 5 ? 'opacity-100' : 'opacity-0'}`} style={{ color: C.textMuted }}>
-              {onDemo
-                ? 'Point Inspire at your catalog to find your use cases, or open the demo to see a finished run.'
-                : 'Point Inspire at your catalog to find your use cases.'}
+              Point Inspire at your catalog to find your use cases.
             </p>
 
             <LandingActions
               onStart={onStart}
-              onDemo={onDemo}
               large
               className={`justify-center transition-all duration-700 ${section >= 5 ? 'opacity-100 scale-100' : 'opacity-0 scale-95'}`}
               style={{ transitionDelay: '400ms' }}

@@ -1,9 +1,9 @@
 import { Sun, Moon } from 'lucide-react';
 import DatabricksLogo from './DatabricksLogo';
 import { useTheme } from '../ThemeContext';
-import { APP_TABS } from '../lib/tabs';
+import { NAV_TABS } from '../lib/tabs';
 
-const NAV = APP_TABS.map((tab, i) => ({ ...tab, step: i + 1 }));
+const NAV = NAV_TABS.map((tab, i) => ({ ...tab, step: i + 1 }));
 
 export default function Header({
   page,
@@ -16,6 +16,7 @@ export default function Header({
 }) {
   const { theme, toggle } = useTheme();
   const enabled = {
+    landing: true,
     choose: true,
     monitor: canMonitor,
     results: canResults || true,
@@ -50,7 +51,7 @@ export default function Header({
                   disabled={!can}
                   aria-current={active ? 'page' : undefined}
                   className={`
-                    relative shrink-0 whitespace-nowrap px-2 sm:px-4 py-2 text-sm font-medium rounded-md transition-smooth
+                    relative shrink-0 whitespace-nowrap px-1.5 sm:px-4 py-2 text-sm font-medium rounded-md transition-smooth
                     ${active
                       ? 'text-db-red-fg bg-db-red-50'
                       : can

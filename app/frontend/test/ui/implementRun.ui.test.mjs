@@ -56,8 +56,8 @@ test('the Run tab sits right after Build in the header', async () => {
   try {
     const nav = ui.page.locator('header nav button');
     await nav.first().waitFor();
-    assert.deepEqual(await nav.allTextContents(), ['01Start', '02Monitor', '03Review', '04Build', '05Run']);
-    assert.equal(await nav.nth(4).isEnabled(), true);
+    assert.deepEqual(await nav.allTextContents(), ['01Home', '02Start', '03Monitor', '04Review', '05Build', '06Run']);
+    assert.equal(await nav.nth(5).isEnabled(), true);
     assert.doesNotMatch(await ui.page.locator('header').innerText(), /\bv\d/i, 'the header shows no version badge');
     assert.deepEqual(ui.pageErrors, []);
   } finally {
@@ -345,7 +345,7 @@ const toResults = async (page) => {
   await page.waitForFunction(() => !document.querySelector('[data-run-page-root]'));
 };
 
-test('the email link ?run=<id> that a sign-in keeps opens its page on the Run tab, the address turns into #/run/<id>, and leaving the Run tab clears it', async () => {
+test('the email link ?run=<id> that a sign-in keeps opens its page on the Run tab, the address turns into #/run/<id>, and leaving the Run tab swaps it for the page shown', async () => {
   const ui = await openUi('app', runState(), '&run=n01-u01-a', { mount: inspireApp, init: (page) => page.setExtraHTTPHeaders(VIEWER_HEADERS) });
   const { page } = ui;
   try {
@@ -355,20 +355,20 @@ test('the email link ?run=<id> that a sign-in keeps opens its page on the Run ta
     await page.reload();
     await onRunPage(page, 'n01-u01-a');
     await backToInspire(page);
-    await page.waitForFunction(() => window.location.hash === '');
+    await page.waitForFunction(() => window.location.hash === '#/run');
     await page.locator('[data-run-page="app:43:N02-U01"]').click();
     await page.locator('[data-run-open-app]').waitFor();
-    assert.equal(await page.evaluate(() => window.location.hash), '');
+    assert.equal(await page.evaluate(() => window.location.hash), '#/run', 'a page in an App of its own opens there, so the Run address stays the list');
     await page.locator('[data-run-page="inspire:n01-u01-a"]').click();
     await onRunPage(page, 'n01-u01-a');
     await page.waitForFunction(() => window.location.hash === '#/run/n01-u01-a');
     await backToInspire(page);
     assert.deepEqual(ui.pageErrors, []);
     await toResults(page);
-    await page.waitForFunction(() => window.location.hash === '');
+    await page.waitForFunction(() => window.location.hash.startsWith('#/review'));
     await page.reload();
-    await page.getByRole('button', { name: 'Get Started', exact: true }).first().waitFor({ timeout: 20000 });
-    assert.equal(await page.locator('[data-run-page-root]').count(), 0, 'a reload after leaving the Run tab opens the home page, not the Run tab');
+    await page.getByRole('heading', { level: 1, name: 'Review' }).waitFor({ timeout: 20000 });
+    assert.equal(await page.locator('[data-run-page-root]').count(), 0, 'a reload after leaving the Run tab opens the page left on, not the Run tab');
   } finally {
     await ui.close();
   }
@@ -511,7 +511,7 @@ test('full window, the Inspire menu switches use case, opens the page in a new t
     await tab.close();
 
     await backToInspire(page);
-    assert.equal(await hashOf(page), '');
+    assert.equal(await hashOf(page), '#/run');
     assert.equal(await page.locator('[data-run-page="inspire:n03-u01-b"]').getAttribute('aria-current'), 'true', 'Inspire shows the page you came back from');
     assert.equal(await page.locator('header').count(), 1);
     await page.goBack();
@@ -527,7 +527,7 @@ test('full window, the Inspire menu switches use case, opens the page in a new t
     await page.goBack();
     await page.locator('[data-run-page-root]').waitFor({ timeout: 20000 });
     assert.equal(await page.locator('[data-run-full]').count(), 0, 'browser back from a page opened from the list closes it');
-    assert.equal(await hashOf(page), '');
+    assert.equal(await hashOf(page), '#/run');
     assert.deepEqual(ui.pageErrors, []);
   } finally {
     await ui.close();

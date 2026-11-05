@@ -24,7 +24,12 @@ test('a ?review=<session>&uc=<use case> link becomes one Review hash through the
   assert.deepEqual(R.hashLink(`#/review/${SID}/N01-U01`), { page: R.REVIEW_TAB, sessionId: SID, useCaseId: 'N01-U01', valid: true });
   assert.deepEqual(R.hashLink(`#/review/${SID}/`), { page: R.REVIEW_TAB, sessionId: SID, useCaseId: '', valid: true });
   assert.deepEqual(R.hashLink('#/run/n01-u01-a'), { page: R.RUN_TAB, id: 'n01-u01-a' });
-  for (const none of ['', '#/', '#/review', `#/review/${SID}`, `#/review/${SID}/a/b`, '#review/1/2', '#/build/1/2']) assert.equal(R.hashLink(none), null, none);
+  assert.deepEqual(R.hashLink(`#/review/${SID}`), { page: R.REVIEW_TAB, sessionId: SID, useCaseId: '', valid: true }, 'the Review page hash opens the run alone');
+  assert.deepEqual(R.hashLink('#/review'), { page: R.REVIEW_TAB, bare: true });
+  for (const none of ['', '#/', `#/review/${SID}/a/b`, '#review/1/2', '#/nowhere', '#/home/x', '#/build/abc', '#/build/1/', '#/build/1/2/3',
+    '#/monitor/1/x', '#/monitor/x', '#/demo/acme/nowhere', '#/demo/Bad%20Id/review', '#/demo/acme/review/N01-U01', '#/demo/acme/build/', '#/demo/acme', '#/start?x=1']) {
+    assert.equal(R.hashLink(none), null, none);
+  }
 });
 
 test('every quoted use case id opens exactly that use case: spaces, a slash, an ampersand, a plus and non-Latin letters', async () => {
@@ -70,8 +75,31 @@ test('each reason says which: no such run, no read access, or no such use case i
   for (const text of [R.REVIEW_LEFT_DEMO, R.reviewLinkText(link, 'main.inspire', 'denied')]) assert.doesNotMatch(text, /[\u2013\u2014]/);
 });
 
-test('the Run hash follows the Run tab and leaves a Review hash alone', async () => {
+test('every page has one hash, and reading that hash back opens the same page', async () => {
   const R = await lib('runPages.js');
-  assert.equal(R.runHashLink({ pathname: '/', search: '', hash: `#/review/${SID}/N01-U01` }, null), null);
-  assert.equal(R.runHashLink({ pathname: '/', search: '', hash: '#/run/n01-u01-a' }, null), '/');
+  const cases = [
+    [{ page: R.HOME_PAGE }, '#/home', { page: R.HOME_PAGE }],
+    [{ page: R.START_PAGE }, '#/start', { page: R.START_PAGE }],
+    [{ page: 'launch' }, '#/launch', { page: 'launch' }],
+    [{ page: 'generate-data' }, '#/generate-data', { page: 'generate-data' }],
+    [{ page: R.MONITOR_TAB, sessionId: SID, runId: '77' }, `#/monitor/${SID}/77`, { page: R.MONITOR_TAB, sessionId: SID, runId: '77' }],
+    [{ page: R.MONITOR_TAB, sessionId: SID }, `#/monitor/${SID}`, { page: R.MONITOR_TAB, sessionId: SID, runId: '' }],
+    [{ page: R.MONITOR_TAB }, '#/monitor', { page: R.MONITOR_TAB, bare: true }],
+    [{ page: R.REVIEW_TAB, sessionId: SID }, `#/review/${SID}`, { page: R.REVIEW_TAB, sessionId: SID, useCaseId: '', valid: true }],
+    [{ page: R.REVIEW_TAB }, '#/review', { page: R.REVIEW_TAB, bare: true }],
+    [{ page: R.BUILD_TAB, sessionId: SID, useCaseId: 'N01/U 02' }, `#/build/${SID}/N01%2FU%2002`, { page: R.BUILD_TAB, sessionId: SID, useCaseId: 'N01/U 02' }],
+    [{ page: R.BUILD_TAB, sessionId: SID }, `#/build/${SID}`, { page: R.BUILD_TAB, sessionId: SID, useCaseId: '' }],
+    [{ page: R.BUILD_TAB }, '#/build', { page: R.BUILD_TAB, bare: true }],
+    [{ page: R.RUN_TAB, id: 'n01-u01-a' }, '#/run/n01-u01-a', { page: R.RUN_TAB, id: 'n01-u01-a' }],
+    [{ page: R.RUN_TAB }, '#/run', { page: R.RUN_TAB, id: '', bare: true }],
+    [{ page: R.REVIEW_TAB, demo: 'acme' }, '#/demo/acme/review', { page: R.REVIEW_TAB, demo: 'acme', useCaseId: '' }],
+    [{ page: R.BUILD_TAB, demo: 'acme', useCaseId: 'N01-U02' }, '#/demo/acme/build/N01-U02', { page: R.BUILD_TAB, demo: 'acme', useCaseId: 'N01-U02' }],
+    [{ page: R.START_PAGE, demo: 'acme' }, '#/demo/acme/start', { page: R.START_PAGE, demo: 'acme', useCaseId: '' }],
+    [{ page: R.RUN_TAB, demo: 'acme', id: 'x' }, '#/demo/acme/run', { page: R.RUN_TAB, demo: 'acme', useCaseId: '' }],
+  ];
+  for (const [route, hash, back] of cases) {
+    assert.equal(R.pageHash(route), hash, JSON.stringify(route));
+    assert.deepEqual(R.hashLink(hash), back, hash);
+  }
+  for (const none of [null, {}, { page: 'loading' }, { page: 'setup' }, { page: 'nowhere', demo: 'acme' }]) assert.equal(R.pageHash(none), '', JSON.stringify(none));
 });

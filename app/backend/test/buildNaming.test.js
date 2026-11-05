@@ -46,7 +46,7 @@ test('no PoC is left in the App or its API, in words or in code names, and the I
   assert.deepEqual(hits([...app, ...api], ANY_POC), []);
   assert.deepEqual(hits([...app, ...api], OLD_PAGE), []);
   assert.match(fs.readFileSync(path.join(SRC, 'lib', 'tabs.js'), 'utf8'), /\{ id: 'implement', label: 'Build', blurb: /);
-  assert.match(fs.readFileSync(path.join(SRC, 'components', 'Header.jsx'), 'utf8'), /APP_TABS\.map\(\(tab, i\) => \(\{ \.\.\.tab, step: i \+ 1 \}\)\)/);
+  assert.match(fs.readFileSync(path.join(SRC, 'components', 'Header.jsx'), 'utf8'), /NAV_TABS\.map\(\(tab, i\) => \(\{ \.\.\.tab, step: i \+ 1 \}\)\)/);
   assert.match(fs.readFileSync(path.join(SRC, 'pages', 'ImplementPage.jsx'), 'utf8'), /<h1 [^>]*>Build<\/h1>/);
 });
 

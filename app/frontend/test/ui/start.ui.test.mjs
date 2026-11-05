@@ -287,3 +287,60 @@ test('totals that cannot be read say why on Start, and the runs list still works
     await ui.close();
   }
 });
+
+const choice = (page, id) => page.locator(`[data-start-choice="${id}"]`);
+const DEMO_LIST = { showcases: [{ id: 'acme', session_id: '42', title: 'Acme retail', business: 'Acme', summary: 'Demo' }] };
+
+test('Start offers three unmistakable ways in: your own data, sample data Inspire creates for you, or a finished demo, and each opens its page', async () => {
+  const withDemo = (app) => {
+    app.get('/api/defaults', (_req, res) => res.json(DEFAULTS));
+    app.get('/api/showcase', (_req, res) => res.json(DEMO_LIST));
+  };
+  for (const state of [REVIEW_STATE, { ...REVIEW_STATE, sessions: [] }]) {
+    const ui = await openUi('app', state, '', { mount: withDemo });
+    const { page } = ui;
+    try {
+      await page.getByRole('button', { name: 'Get Started', exact: true }).first().click();
+      const ways = page.getByRole('region', { name: 'How do you want to start?' });
+      await ways.waitFor({ timeout: 20000 });
+      assert.deepEqual(await ways.locator('[data-start-choice]').evaluateAll((els) => els.map((el) => el.getAttribute('data-start-choice'))), ['data', 'no-data', 'demo']);
+      assert.equal(await page.getByRole('button', { name: 'I have data in Unity Catalog', exact: true }).count(), 1);
+      assert.equal(await page.getByRole('button', { name: 'No data yet', exact: true }).count(), 1);
+      assert.match(await choice(page, 'no-data').innerText(), /creates sample tables for it and simulates a full run on them/);
+      assert.match(await choice(page, 'data').innerText(), /Inspire finds use cases in your own data/);
+      assert.match(await choice(page, 'demo').innerText(), /Nothing in your workspace changes/);
+      assert.equal(await choice(page, 'no-data').getAttribute('aria-describedby') !== null, true, 'each choice reads its explanation to screen readers');
+      for (const id of ['data', 'no-data', 'demo']) assert.doesNotMatch(await choice(page, id).innerText(), /[\u2013\u2014]/);
+      await page.waitForFunction(() => document.getAnimations().every((a) => a.playState !== 'running' || a.effect?.getTiming().iterations === Infinity));
+      const box = async (id) => choice(page, id).boundingBox();
+      const [data, noData, demo] = [await box('data'), await box('no-data'), await box('demo')];
+      assert.equal(Math.round(data.height), Math.round(noData.height), 'the two ways to run Inspire are the same size, side by side');
+      assert.equal(Math.round(data.y), Math.round(noData.y));
+      assert.ok(demo.y >= noData.y + noData.height, 'the demo sits below them as the third, lighter way in');
+      assert.deepEqual(ui.pageErrors, []);
+      await choice(page, 'demo').click();
+      await page.getByRole('region', { name: 'Demo' }).waitFor({ timeout: 20000 });
+      assert.equal(await page.evaluate(() => window.location.hash), '#/demo/acme/review', 'the demo opens on its Review page');
+    } finally {
+      await ui.close();
+    }
+  }
+  const ui = await openUi('app', REVIEW_STATE, '', { mount });
+  const { page } = ui;
+  try {
+    await page.getByRole('button', { name: 'Get Started', exact: true }).first().click();
+    await choice(page, 'data').waitFor({ timeout: 20000 });
+    assert.equal(await choice(page, 'demo').count(), 0, 'an App with no demo offers none (must-exclude)');
+    await choice(page, 'data').click();
+    await page.waitForFunction(() => window.location.hash === '#/launch', null, { timeout: 20000 });
+    await page.locator('h1').first().waitFor();
+    await page.goBack();
+    await page.waitForFunction(() => window.location.hash === '#/start', null, { timeout: 20000 });
+    await choice(page, 'no-data').click();
+    await page.getByRole('heading', { level: 1, name: "I don't have data" }).waitFor({ timeout: 20000 });
+    assert.equal(await page.evaluate(() => window.location.hash), '#/generate-data');
+    assert.deepEqual(ui.pageErrors, []);
+  } finally {
+    await ui.close();
+  }
+});

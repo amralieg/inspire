@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useId } from 'react';
 import { Rocket, BarChart3, Loader2, AlertCircle, Clock, CheckCircle2, ArrowRight, ChevronRight, ChevronDown, ChevronUp, Trash2, Eye, EyeOff, Target, FileText, Sparkles, X } from 'lucide-react';
 import SessionSparkline from '../components/SessionSparkline';
 import MagneticButton from '../components/MagneticButton';
@@ -7,6 +7,7 @@ import LatestRunBadge from '../components/LatestRunBadge';
 import PortfolioCards, { usePortfolio } from '../components/PortfolioCards';
 import { makeApiFetch, requestHeaders } from '../lib/apiClient';
 import { buildFilterOf, portfolioCard, runBusiness, runFilterText, runsOfCard } from '../lib/reviewFigures';
+import { SHOWCASE_BUTTON } from '../lib/showcase';
 import { sessionStatus, sessionSucceeded } from '../lib/monitorState';
 import { computeHighPriorityCount, nameOfUseCase, qualityBarCountsOf, useCaseCountsText } from '../lib/useCaseFields';
 
@@ -64,6 +65,43 @@ function getSessionSummary(session) {
   }
   if (useCases.length === 0) return null;
   return { total: useCases.length, high: computeHighPriorityCount(useCases), meets: qualityBarCountsOf(useCases).meets, domains: domains.size, domainNames: [...domains], useCases };
+}
+
+const CHOICE = 'group flex w-full items-start gap-4 rounded-2xl border px-5 py-4 text-left transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-db-red/40';
+
+function StartChoice({ choice, icon: Icon, title, text, onClick, strong = false }) {
+  const textId = useId();
+  return (
+    <button type="button" data-start-choice={choice} onClick={onClick} aria-label={title} aria-describedby={textId}
+      className={`${CHOICE} ${strong ? 'border-db-red/30 bg-gradient-to-r from-db-red/[0.06] to-transparent hover:from-db-red/[0.12]' : 'border-border bg-surface hover:border-border-strong'}`}>
+      <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${strong ? 'bg-db-red/10' : 'bg-bg-subtle'}`}>
+        <Icon size={20} aria-hidden className="text-db-red-fg" />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-sm font-semibold text-text-primary">{title}</span>
+        <span id={textId} className="mt-1 block text-[12px] leading-snug text-text-secondary">{text}</span>
+      </span>
+      <ArrowRight size={18} aria-hidden className="mt-2.5 shrink-0 text-text-tertiary group-hover:text-db-red-fg" />
+    </button>
+  );
+}
+
+function StartChoices({ onNewExperiment, onNoData, onDemo }) {
+  return (
+    <section aria-label="How do you want to start?" data-start-choices="" className="space-y-3">
+      <h2 className="text-center text-xs font-semibold uppercase tracking-[0.1em] text-text-secondary">How do you want to start?</h2>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <StartChoice choice="data" icon={Rocket} strong onClick={onNewExperiment} title="I have data in Unity Catalog"
+          text="Pick the catalogs, schemas or tables Inspire reads. Inspire finds use cases in your own data." />
+        <StartChoice choice="no-data" icon={Sparkles} onClick={onNoData} title="No data yet"
+          text="Describe your business. Inspire creates sample tables for it and simulates a full run on them, so you see what Inspire does without your own data." />
+      </div>
+      {onDemo && (
+        <StartChoice choice="demo" icon={Eye} onClick={onDemo} title={SHOWCASE_BUTTON}
+          text="Open a finished run: its use cases and the MVPs built for them. Nothing in your workspace changes." />
+      )}
+    </section>
+  );
 }
 
 const PRIORITY_SORT_ORDER = ['Ultra High', 'Very High', 'High', 'Medium', 'Low', 'Very Low'];
@@ -127,7 +165,7 @@ function getListRowOverview(session) {
   return null;
 }
 
-export default function ChoosePage({ settings, onNewExperiment, onNoData, onViewResults, onOpenBuild }) {
+export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo, onViewResults, onOpenBuild }) {
   const { token, databricksHost, warehouseId, inspireDatabase, showcase = '' } = settings;
   const [loading, setLoading] = useState(true);
   const [sessions, setSessions] = useState([]);
@@ -241,39 +279,12 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onView
   if (sessions.length === 0 && !error) {
     return (
       <div className="min-h-[calc(100vh-64px)] flex items-start justify-center pt-12 pb-16 px-6">
-        <div className="max-w-lg w-full space-y-6 text-center">
+        <div className="max-w-3xl w-full space-y-6 text-center">
           <h1 className="text-3xl font-bold tracking-tight">Get started with Inspire AI</h1>
           <p className="text-sm text-text-secondary">
-            Use your Unity Catalog data, or generate realistic demo tables first.
+            Start from your own Unity Catalog data, or let Inspire make sample data for you.
           </p>
-          <button
-            type="button"
-            onClick={onNewExperiment}
-            className="group w-full flex items-center gap-4 px-6 py-5 rounded-2xl border border-db-red/20 bg-gradient-to-r from-db-red/[0.06] to-transparent hover:from-db-red/[0.12] text-left transition-all"
-          >
-            <div className="w-12 h-12 rounded-xl bg-db-red/10 flex items-center justify-center">
-              <Rocket size={22} className="text-db-red-fg" />
-            </div>
-            <div className="flex-1">
-              <p className="text-sm font-semibold text-text-primary">I have Unity Catalog data</p>
-              <p className="text-xs text-text-secondary mt-0.5">Pick catalogs, schemas, or tables</p>
-            </div>
-            <ArrowRight size={18} className="text-text-tertiary group-hover:text-db-red-fg" />
-          </button>
-          <button
-            type="button"
-            onClick={onNoData}
-            className="group w-full flex items-center gap-4 px-6 py-5 rounded-2xl border border-border bg-surface hover:border-border-strong text-left transition-all"
-          >
-            <div className="w-12 h-12 rounded-xl bg-bg-subtle flex items-center justify-center">
-              <Sparkles size={22} className="text-db-red-fg" />
-            </div>
-            <div className="flex-1">
-              <p className="text-sm font-semibold text-text-primary">I don&apos;t have data</p>
-              <p className="text-xs text-text-secondary mt-0.5">Describe your business, and Inspire creates demo tables and runs on them</p>
-            </div>
-            <ArrowRight size={18} className="text-text-tertiary" />
-          </button>
+          <StartChoices onNewExperiment={onNewExperiment} onNoData={onNoData} onDemo={onDemo} />
         </div>
       </div>
     );
@@ -316,35 +327,7 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onView
           </p>
         </div>
 
-        {/* ── New experiment CTAs ── */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <button
-            type="button"
-            onClick={onNewExperiment}
-            className="group flex items-center gap-4 px-5 py-4 rounded-2xl border border-db-red/20 bg-gradient-to-r from-db-red/[0.06] to-transparent hover:from-db-red/[0.12] text-left transition-all"
-          >
-            <div className="w-10 h-10 rounded-xl bg-db-red/10 flex items-center justify-center shrink-0">
-              <Rocket size={20} className="text-db-red-fg" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold text-text-primary">I have data</p>
-              <p className="text-[11px] text-text-secondary mt-0.5 truncate">Unity Catalog</p>
-            </div>
-          </button>
-          <button
-            type="button"
-            onClick={onNoData}
-            className="group flex items-center gap-4 px-5 py-4 rounded-2xl border border-border bg-surface hover:border-border-strong text-left transition-all"
-          >
-            <div className="w-10 h-10 rounded-xl bg-bg-subtle flex items-center justify-center shrink-0">
-              <Sparkles size={20} className="text-db-red-fg" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold text-text-primary">No data yet</p>
-              <p className="text-[11px] text-text-secondary mt-0.5 truncate">Generate demo tables</p>
-            </div>
-          </button>
-        </div>
+        <StartChoices onNewExperiment={onNewExperiment} onNoData={onNoData} onDemo={onDemo} />
 
         {inspireDatabase && warehouseId && (
           <PortfolioCards portfolio={portfolio} error={portfolioError} sessions={sessions} active={runFilter} onCard={openCard} />

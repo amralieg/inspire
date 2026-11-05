@@ -22,8 +22,8 @@ import { HARNESS_USE_CASE, HARNESS_SETTINGS, HARNESS_SESSION_ID } from './implem
 const AUTH = { token: 'tok', databricksHost: 'https://workspace.example.com' };
 const SETTINGS = { ...HARNESS_SETTINGS, ...AUTH };
 
-export default function HarnessApp({ open, nest, discoveryType, demo = true, step = '', run = '' }) {
-  const content = <HarnessContent open={open} discoveryType={discoveryType} demo={demo} step={step} run={run} />;
+export default function HarnessApp({ open, nest, discoveryType, step = '', run = '' }) {
+  const content = <HarnessContent open={open} discoveryType={discoveryType} step={step} run={run} />;
   if (!nest) return content;
   return (
     <>
@@ -38,23 +38,23 @@ export default function HarnessApp({ open, nest, discoveryType, demo = true, ste
   );
 }
 
-function LandingHarness({ demo }) {
+function LandingHarness() {
   const [clicks, setClicks] = useState([]);
   const push = (what) => setClicks((prev) => [...prev, what]);
   return (
     <ThemeProvider>
-      <LandingPage onStart={() => push('start')} onOpenSetup={() => push('setup')} onDemo={demo ? () => push('demo') : undefined} />
+      <LandingPage onStart={() => push('start')} onOpenSetup={() => push('setup')} />
       <output aria-label="Landing clicks" className="sr-only">{clicks.join(',')}</output>
     </ThemeProvider>
   );
 }
 
-function HarnessContent({ open, discoveryType, demo, step, run }) {
+function HarnessContent({ open, discoveryType, step, run }) {
   if (open === 'app') return <App />;
   if (open === 'card') return <CardHarness />;
   if (open === 'run') return <RunHarness />;
   if (open === 'results') return <ResultsHarness />;
-  if (open === 'landing') return <LandingHarness demo={demo} />;
+  if (open === 'landing') return <LandingHarness />;
   if (open === 'choose') return <ChooseHarness />;
   if (open === 'setup') return <SetupHarness blank={step === 'blank'} />;
   if (open === 'monitor') {

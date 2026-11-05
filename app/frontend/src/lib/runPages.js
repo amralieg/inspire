@@ -1,5 +1,6 @@
 import { APP_INSIDE, APP_INSIDE_PLACEMENT, OPEN_ALL_SETTINGS, VIBE_FEATURES_LABEL } from './implementWizard.js';
 import { SHOWCASE_BUTTON } from './showcase.js';
+import { HOME_TAB } from './tabs.js';
 
 export const RUN_TAB = 'run';
 export const RUN_BANNER = 'Inside Inspire, only for testing. Give it its own App for real use.';
@@ -17,6 +18,7 @@ export const RUN_NEW_TAB = 'Open in a new tab';
 export const RUN_SWITCH = 'Switch use case';
 export const RUN_CONTROL = 'Inspire menu: back to Inspire, switch use case, or open in a new tab';
 export const RUN_FULL_STATE = 'inspireRunFull';
+export const INSPIRE_ENTRY = 'inspirePage';
 export const RUN_OPENING = 'Opening the page';
 const RUN_PATH_RE = /^\/run\/[a-z0-9-]{1,63}\/#\/[A-Za-z0-9_%-]{1,192}$/;
 
@@ -33,9 +35,20 @@ export function demoRunPages(showcase) {
 
 const RUN_HASH_RE = /^#\/run\/([^/?#]*)$/;
 const RUN_ID_RE = /^[a-z0-9-]{1,63}$/;
-const REVIEW_HASH_RE = /^#\/review\/([^/?#]*)\/([^/?#]*)$/;
+const REVIEW_HASH_RE = /^#\/review\/([^/?#]*)(?:\/([^/?#]*))?$/;
 const REVIEW_SESSION_RE = /^\d{1,19}$/;
 export const REVIEW_TAB = 'results';
+export const BUILD_TAB = 'implement';
+export const MONITOR_TAB = 'monitor';
+export const HOME_PAGE = HOME_TAB.id;
+export const START_PAGE = 'choose';
+
+const PAGE_HASHES = { [HOME_PAGE]: 'home', [START_PAGE]: 'start', launch: 'launch', 'generate-data': 'generate-data' };
+const PAGE_OF_HASH = Object.fromEntries(Object.entries(PAGE_HASHES).map(([page, word]) => [word, page]));
+const DEMO_HASHES = { [START_PAGE]: 'start', [MONITOR_TAB]: 'monitor', [REVIEW_TAB]: 'review', [BUILD_TAB]: 'build', [RUN_TAB]: 'run' };
+const DEMO_PAGE_OF_HASH = Object.fromEntries(Object.entries(DEMO_HASHES).map(([page, word]) => [word, page]));
+const DEMO_ID_RE = /^[a-z0-9][a-z0-9-]{0,39}$/;
+const RUN_JOB_RE = /^\d{1,19}$/;
 
 function decoded(part) {
   try {
@@ -47,25 +60,62 @@ function decoded(part) {
 
 export function hashLink(hash) {
   const text = String(hash || '');
+  if (text === '#/run') return { page: RUN_TAB, id: '', bare: true };
   const run = RUN_HASH_RE.exec(text);
   if (run) {
     const id = decoded(run[1]);
     return { page: RUN_TAB, id: id !== null && RUN_ID_RE.test(id) ? id : '' };
   }
+  if (text === '#/review') return { page: REVIEW_TAB, bare: true };
   const review = REVIEW_HASH_RE.exec(text);
-  if (!review) return null;
-  const sessionId = decoded(review[1]);
-  const useCaseId = decoded(review[2]);
-  if (sessionId === null || useCaseId === null) return { page: REVIEW_TAB, sessionId: '', useCaseId: '', valid: false };
-  const session = sessionId.trim();
-  return { page: REVIEW_TAB, sessionId: session, useCaseId: useCaseId.trim(), valid: REVIEW_SESSION_RE.test(session) };
+  if (review) {
+    const sessionId = decoded(review[1]);
+    const useCaseId = decoded(review[2] ?? '');
+    if (sessionId === null || useCaseId === null) return { page: REVIEW_TAB, sessionId: '', useCaseId: '', valid: false };
+    const session = sessionId.trim();
+    return { page: REVIEW_TAB, sessionId: session, useCaseId: useCaseId.trim(), valid: REVIEW_SESSION_RE.test(session) };
+  }
+  return pageLink(text);
+}
+
+function pageLink(text) {
+  const path = /^#\/([^?#]+)$/.exec(text);
+  if (!path) return null;
+  const words = path[1].split('/').map(decoded);
+  if (words.some((word) => word === null)) return null;
+  const [word, ...rest] = words;
+  if (PAGE_OF_HASH[word]) return rest.length ? null : { page: PAGE_OF_HASH[word] };
+  if ((word === 'monitor' || word === 'build') && !rest.length) return { page: word === 'monitor' ? MONITOR_TAB : BUILD_TAB, bare: true };
+  const sessionOk = rest.length >= 1 && rest.length <= 2 && REVIEW_SESSION_RE.test(rest[0]);
+  if (word === 'monitor' && sessionOk && (rest.length === 1 || RUN_JOB_RE.test(rest[1]))) return { page: MONITOR_TAB, sessionId: rest[0], runId: rest[1] || '' };
+  if (word === 'build' && sessionOk && rest[1] !== '') return { page: BUILD_TAB, sessionId: rest[0], useCaseId: rest[1] || '' };
+  if (word !== 'demo' || !DEMO_ID_RE.test(rest[0] || '') || !DEMO_PAGE_OF_HASH[rest[1]]) return null;
+  const page = DEMO_PAGE_OF_HASH[rest[1]];
+  const extra = rest.slice(2);
+  if (extra.length > (page === BUILD_TAB ? 1 : 0) || extra[0] === '') return null;
+  return { page, demo: rest[0], useCaseId: extra[0] || '' };
+}
+
+const part = (value) => encodeURIComponent(String(value));
+
+export function pageHash(route) {
+  const page = route?.page;
+  if (route?.demo && DEMO_HASHES[page]) {
+    return `#/demo/${part(route.demo)}/${DEMO_HASHES[page]}${page === BUILD_TAB && route.useCaseId ? `/${part(route.useCaseId)}` : ''}`;
+  }
+  if (PAGE_HASHES[page]) return `#/${PAGE_HASHES[page]}`;
+  if (page === MONITOR_TAB) return route.sessionId ? `#/monitor/${part(route.sessionId)}${route.runId ? `/${part(route.runId)}` : ''}` : '#/monitor';
+  if (page === REVIEW_TAB) return route.sessionId ? `#/review/${part(route.sessionId)}` : '#/review';
+  if (page === BUILD_TAB) return route.sessionId ? `#/build/${part(route.sessionId)}${route.useCaseId ? `/${part(route.useCaseId)}` : ''}` : '#/build';
+  if (page === RUN_TAB) return route.id ? `#/run/${part(route.id)}` : '#/run';
+  return '';
 }
 
 export const RUN_QUERY = 'run';
 export const REVIEW_QUERY = 'review';
 export const REVIEW_USE_CASE_QUERY = 'uc';
-export const RUN_LEFT_DEMO = `You left the demo to open this link, because it names a page in your workspace and the demo runs only its own recorded MVP Apps. To see the demo again, choose ${SHOWCASE_BUTTON} on the home page.`;
-export const REVIEW_LEFT_DEMO = `You left the demo to open this link, because it names a run in your workspace and the demo shows only its own recorded run. To see the demo again, choose ${SHOWCASE_BUTTON} on the home page.`;
+export const RUN_LEFT_DEMO = `You left the demo to open this link, because it names a page in your workspace and the demo runs only its own recorded MVP Apps. To see the demo again, choose ${SHOWCASE_BUTTON} on the Start page.`;
+export const REVIEW_LEFT_DEMO = `You left the demo to open this link, because it names a run in your workspace and the demo shows only its own recorded run. To see the demo again, choose ${SHOWCASE_BUTTON} on the Start page.`;
 
 export function queryLink({ pathname = '', search = '' } = {}) {
   const query = new URLSearchParams(search);
@@ -82,11 +132,6 @@ export function queryLink({ pathname = '', search = '' } = {}) {
   }
   const rest = query.toString();
   return `${pathname}${rest ? `?${rest}` : ''}${hash}`;
-}
-
-export function runHashLink({ pathname = '', search = '', hash = '' } = {}, id = null) {
-  const want = id ? `#/run/${encodeURIComponent(id)}` : hashLink(hash)?.page === RUN_TAB ? '' : hash;
-  return want === hash ? null : `${pathname}${search}${want}`;
 }
 
 export function reviewLinkText(link, inspireDatabase, outcome) {
