@@ -110,7 +110,8 @@ def test_a_version_that_shares_hands_the_assumptions_table_to_sharing_only_when_
         assert inst._implement_one_locked({"session_id": 5150, "use_case_id": "N01-U01", "spec_version": 3, "spec_json": dict(VALID)},
                                           (5150, "N01-U01", 3)) == "ready"
         assert shared == [handed]
-        assert _grants(inst) == [], "sharing itself grants the tables, not a second pass"
+        assert _grants(inst) == [GRANT_SELECT.format("planners"), GRANT_REASONS.format("planners"), GRANT_SUMMARY.format("planners")], \
+            "before the outputs build the people it is shared with may read its tables; the rest is granted by sharing itself"
 
 
 def test_sharing_lets_each_principal_read_the_money_assumptions(agent_ns):

@@ -346,6 +346,38 @@ test('the asks you add and the held asks you remove survive a reload; Rebuild wi
   }
 });
 
+test('Rebuild takes the asks it sends out of Changes waiting at the click, before the build answers, and puts them back when it fails', async () => {
+  const ui = await openTower();
+  const { page, made } = ui;
+  try {
+    let release = () => {};
+    const held = new Promise((resolve) => { release = resolve; });
+    let fail = true;
+    await page.route('**/api/inspire/implement/submit', async (route) => {
+      await held;
+      if (fail) await route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ error: 'the warehouse is stopped' }) });
+      else await route.continue();
+    });
+    await openFeatures(page);
+    await mvpBox(page).fill('Show the last 12 weeks');
+    await addVibes(page).click();
+    const choice = dialog(page).getByRole('group', { name: 'What happens to v3?' });
+    await choice.getByRole('radio', { name: /^Keep v3 live/ }).check();
+    await rebuildButton(page).click();
+    await features(page).and(page.locator('[data-collected="0"]')).waitFor({ timeout: 15000 });
+    assert.equal(made.jobs.length, 0, 'the build has not answered yet');
+    release();
+    await features(page).and(page.locator('[data-collected="1"]')).waitFor({ timeout: 15000 });
+    assert.deepEqual(Object.values(await storedVibes(page)), [[{ kind: 'ask', text: 'Show the last 12 weeks' }]], 'a failed build keeps the ask');
+    fail = false;
+    await rebuildButton(page).click();
+    await until(() => made.jobs.length === 1, 'the build with the ask');
+    await features(page).and(page.locator('[data-collected="0"]')).waitFor({ timeout: 15000 });
+  } finally {
+    await ui.close();
+  }
+});
+
 test('closing Vibe/Add/Remove Features or the settings it opens without building keeps every ask you added, and Open all settings carries them to the Vibes step', async () => {
   const ui = await openTower();
   const { page, made } = ui;

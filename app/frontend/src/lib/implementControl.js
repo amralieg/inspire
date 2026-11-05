@@ -709,8 +709,17 @@ export function vibeFeaturesLabel(entries) {
 export const REBUILD_WAITS = 'A build is running. Vibes you add wait for the next build.';
 export const REBUILD_NOTHING = 'Add a vibe or take one out first: nothing changed since the last build.';
 
+export function unmetAsks(latest) {
+  const asks = heldAsks(latest?.spec_json?.vibes);
+  if (!asks.length || (latest?.status !== IMPLEMENT_VIBE_NOT_MET && !openVibeAsks(latest).length)) return [];
+  const listed = Array.isArray(latest?.asset_status?.checklist) ? latest.asset_status.checklist : [];
+  const landed = listed.filter((entry) => entry && (String(entry.status ?? '').trim().toLowerCase() === 'met' || entry.published_anyway));
+  return asks.filter((ask) => !landed.some((entry) => sameText(entry.requirement, ask)));
+}
+
 export function rebuildSpec(latest, entries, built = null, previous = '') {
-  const { vibe_previous: _previous, ...spec } = withCollectedVibes(nextSpecFrom(latest, {}), entries).spec;
+  const carried = unmetAsks(latest).map(asked);
+  const { vibe_previous: _previous, ...spec } = withCollectedVibes(nextSpecFrom(latest, {}), [...carried, ...(entries || [])]).spec;
   return String(spec.vibes ?? '').trim() && built != null && previous ? { ...spec, vibe_previous: previous } : spec;
 }
 

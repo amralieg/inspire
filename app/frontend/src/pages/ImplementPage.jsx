@@ -1118,8 +1118,12 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
       setRebuildError(`Rebuild needs one more thing: ${problems.join('; ')}.`);
       return;
     }
-    if (!(await submitSpec(next))) return;
+    const sent = vibes;
     keepCollected([]);
+    if (!(await submitSpec(next))) {
+      keepCollected(sent);
+      return;
+    }
     setPrevious('');
     setFeatures(null);
   };

@@ -144,3 +144,15 @@ test('a table shows identifiers as written and counts in full, never as 10K or 1
   assert.equal(cellText(null, { name: 'TRIP_COUNT' }), NOT_RECORDED);
   assert.equal(format.formatValue(12000), '12K', 'the compact form stays for KPI tiles');
 });
+
+test('neighbouring axis ticks never share a label, and a whole tick keeps no decimals', () => {
+  const labels = (ticks, fmt, currency) => ticks.map((v) => format.axisValue(v, fmt, currency));
+  assert.deepEqual(labels([0, 250, 500, 750, 1000, 1250, 1500, 1750, 2000]),
+    ['0', '250', '500', '750', '1K', '1.25K', '1.5K', '1.75K', '2K']);
+  assert.deepEqual(labels([1000000, 1500000, 2000000]), ['1M', '1.5M', '2M']);
+  assert.deepEqual(labels([0, 0.5, 1, 1.5, 2], 'percent'), ['0%', '0.5%', '1%', '1.5%', '2%']);
+  assert.deepEqual(labels([0, 1500, 3000, -1500], 'currency', 'USD'), ['$0', '$1.5K', '$3K', '-$1.5K']);
+  for (const ticks of [[1000, 1200, 1400, 1600, 1800, 2000], [10000, 12500, 15000, 17500, 20000], [0, 0.25, 0.5, 0.75, 1]]) {
+    assert.equal(new Set(labels(ticks)).size, ticks.length, ticks.join(', '));
+  }
+});

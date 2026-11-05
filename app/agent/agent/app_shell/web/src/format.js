@@ -271,10 +271,14 @@ export function cellText(v, column = {}) {
   return numeric && isAmount(v) ? (whole ? integer(v) : fullNumber(v)) : plainText(v);
 }
 
+const exactDigits = (x) => [0, 1, 2].find((d) => Math.abs(Number(x.toFixed(d)) - x) <= 1e-9 * Math.max(1, Math.abs(x))) ?? 3;
+const shownScale = (a) => (a >= 1e9 ? a / 1e9 : a >= 1e6 ? a / 1e6 : a >= 1e3 ? a / 1e3 : a);
+
 export function axisValue(v, format, currency) {
-  if (format === 'currency') return money(v, currency, 1);
-  if (format === 'percent') return `${Number(v).toFixed(0)}%`;
-  return compact(v, 1);
+  const n = Number(v);
+  if (format === 'percent') return `${n.toFixed(exactDigits(n))}%`;
+  const digits = exactDigits(shownScale(Math.abs(n)));
+  return format === 'currency' ? money(v, currency, digits) : compact(v, digits);
 }
 
 export function change(now, before) {

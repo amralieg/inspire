@@ -58,3 +58,23 @@ test('Built with marks an ask the agent found not met as waiting with its reason
   const metPage = C.vibeCards([met], met).find((card) => card.id === PAGE);
   assert.deepEqual(metPage ? metPage.waiting : [], []);
 });
+
+test('Rebuild after a version whose asks were not met sends those asks again with the new ones, and drops only the asks that landed', async () => {
+  const C = await lib('implementControl.js');
+  const W = await lib('implementWizard.js');
+  const LAPSE = 'Treat a customer as lapsing after 3 days without an order';
+  const DAILY = 'Count the outcome by day';
+  const SHORT = 'Keep the App short';
+  const held = (status, checklist) => ({ ...row(2, status, { notebook: { spec_version: 2, state: 'ready' }, checklist }), spec_json: { ...spec({}), vibes: `${LAPSE}\n${DAILY}\n${SHORT}` } });
+  const checklist = [{ requirement: LAPSE, part: 'notebook', status: 'not_met', evidence: 'horizon_days stays 30' },
+    { requirement: DAILY, part: 'notebook', status: 'not_met', evidence: 'weekly windows' }, { requirement: SHORT, part: 'app', status: 'met', evidence: 'done' }];
+  const missed = held(W.IMPLEMENT_VIBE_NOT_MET, checklist);
+  assert.deepEqual(C.unmetAsks(missed), [LAPSE, DAILY]);
+  assert.equal(C.rebuildSpec(missed, [{ kind: 'ask', text: 'Add a map by region' }]).vibes, `${LAPSE}\n${DAILY}\nAdd a map by region`);
+  assert.equal(C.rebuildSpec(missed, [{ kind: 'ask', text: DAILY.toUpperCase() }]).vibes, `${LAPSE}\n${DAILY}`, 'an ask sent again is kept once');
+  const anyway = held('ready_with_warnings', checklist.map((entry) => (entry.requirement === LAPSE ? { ...entry, published_anyway: { by: 'someone' } } : entry)));
+  assert.deepEqual(C.unmetAsks(anyway), [DAILY], 'an ask published anyway was the user choice');
+  const landed = held('ready', checklist.map((entry) => ({ ...entry, status: 'met' })));
+  assert.deepEqual(C.unmetAsks(landed), []);
+  assert.equal(String(C.rebuildSpec(landed, []).vibes ?? ''), '', 'a version whose asks all landed sends none again');
+});
