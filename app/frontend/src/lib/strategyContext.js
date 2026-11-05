@@ -3,14 +3,19 @@ export const STRATEGY_MAX_DEPTH = 4;
 export const STRATEGY_MAX_ENTRIES = 200;
 export const STRATEGY_MAX_NAME_CHARS = 300;
 export const STRATEGY_MAX_BYTES = 900000;
-export const STRATEGY_LAYERS = ['Pillar', 'Objective', 'Initiative', 'Project'];
+export const DEFAULT_STRATEGY_LEVELS = ['Pillar', 'Goal', 'Objective', 'Priority'];
+export const DEFAULT_PRIORITY_LEVEL = 'Priority';
 export const KPI_DIRECTIONS = ['increase', 'decrease', 'maintain'];
 
 const text = (value) => String(value ?? '').trim();
 const UNREADABLE = 'The saved strategy could not be read. Start a new one here.';
 
 export function emptyStrategy() {
-  return { strategy: [], priorities: [], sponsors: [] };
+  return { strategy: [], priorities: [], sponsors: [], levels: [...DEFAULT_STRATEGY_LEVELS], priorityLevel: DEFAULT_PRIORITY_LEVEL };
+}
+
+export function levelName(levels, depth) {
+  return text((levels || [])[depth - 1]) || `Level ${depth}`;
 }
 
 export function emptyEntry(name = '') {
@@ -75,12 +80,17 @@ export function parseStrategicContext(widgetText) {
     const owns = Array.isArray(o.owns) ? o.owns : o.owns ? [o.owns] : [];
     return { role: text(o.role), name: text(o.name), reports_to: text(o.reports_to), owns: owns.map(text).filter(Boolean) };
   });
+  const givenLevels = (Array.isArray(data.levels) ? data.levels : []).map(text);
+  const levels = givenLevels.length ? givenLevels : [...DEFAULT_STRATEGY_LEVELS];
+  const priorityLevel = data.priority_level !== undefined ? text(data.priority_level) : givenLevels.length ? '' : DEFAULT_PRIORITY_LEVEL;
   return {
     mode: 'tree',
     model: {
       strategy: (Array.isArray(data.strategy) ? data.strategy : []).map(toEntry),
       priorities,
       sponsors,
+      levels,
+      priorityLevel,
     },
     path: '',
     error: null,
@@ -140,7 +150,9 @@ export function serializeStrategy(model) {
   };
   const out = { schema_version: STRATEGY_SCHEMA_VERSION };
   if (model.strategy.length) {
-    out.levels = STRATEGY_LAYERS.slice(0, treeDepth(model.strategy));
+    out.levels = strategyLevels(model).map(text);
+    const priorityLevel = text(model.priorityLevel);
+    if (priorityLevel && out.levels.some((level) => level.toLowerCase() === priorityLevel.toLowerCase())) out.priority_level = priorityLevel;
     out.strategy = model.strategy.map(entry);
   }
   const priorities = [...new Set(model.priorities.map(text).filter(Boolean))];
@@ -155,6 +167,11 @@ export function serializeStrategy(model) {
   });
   if (sponsors.length) out.sponsors = sponsors;
   return JSON.stringify(out);
+}
+
+export function strategyLevels(model) {
+  const levels = (model && Array.isArray(model.levels) ? model.levels : []);
+  return levels.length ? levels : DEFAULT_STRATEGY_LEVELS;
 }
 
 export function treeDepth(entries, depth = 1) {
@@ -202,6 +219,23 @@ export function validateStrategy(model) {
   walk(model.strategy, 'at the top level');
   const depth = treeDepth(model.strategy);
   if (depth > STRATEGY_MAX_DEPTH) problems.push(`The tree is ${depth} levels deep; the most is ${STRATEGY_MAX_DEPTH}.`);
+  const levels = model.strategy.length ? strategyLevels(model) : [];
+  const seenLevels = new Set();
+  levels.forEach((level, index) => {
+    const problem = nameProblem(level, `Level ${index + 1}`);
+    if (problem) problems.push(problem);
+    const folded = text(level).toLowerCase();
+    if (folded && seenLevels.has(folded)) problems.push(`The level name "${text(level).slice(0, 60)}" is used twice.`);
+    seenLevels.add(folded);
+  });
+  if (levels.length > STRATEGY_MAX_DEPTH) problems.push(`There are ${levels.length} level names; the most is ${STRATEGY_MAX_DEPTH}.`);
+  if (depth > levels.length && depth <= STRATEGY_MAX_DEPTH) {
+    problems.push(`The tree is ${depth} levels deep but only ${levels.length} level name${levels.length === 1 ? ' is' : 's are'} set. Add a level name.`);
+  }
+  const priorityLevel = model.strategy.length ? text(model.priorityLevel) : '';
+  if (priorityLevel && !levels.some((level) => text(level).toLowerCase() === priorityLevel.toLowerCase())) {
+    problems.push(`The priority level "${priorityLevel.slice(0, 60)}" is not one of the level names.`);
+  }
   if (countEntries(model.strategy) > STRATEGY_MAX_ENTRIES) problems.push(`The tree has more than ${STRATEGY_MAX_ENTRIES} entries.`);
   model.priorities.forEach((priority, index) => {
     const problem = nameProblem(priority, `Priority ${index + 1}`);

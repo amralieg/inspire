@@ -134,12 +134,39 @@ test('strategic context is trimmed and capped at the agent limit in bytes', () =
   const params = { '10_strategic_context': '  {"strategy": []}  ' };
   validateStrategicContextParams(params);
   assert.equal(params['10_strategic_context'], '{"strategy": []}');
-  validateStrategicContextParams({ '10_strategic_context': 'a'.repeat(STRATEGIC_CONTEXT_MAX_BYTES) });
+  const atLimit = `{"strategy": []${' '.repeat(STRATEGIC_CONTEXT_MAX_BYTES - 16)}}`;
+  assert.equal(Buffer.byteLength(atLimit), STRATEGIC_CONTEXT_MAX_BYTES);
+  validateStrategicContextParams({ '10_strategic_context': atLimit });
   assert.throws(() => validateStrategicContextParams({ '10_strategic_context': 'a'.repeat(STRATEGIC_CONTEXT_MAX_BYTES + 1) }),
     (err) => err.statusCode === 400 && /Workspace or Volumes file/.test(err.message));
   const arabic = 'ا'.repeat(Math.floor(STRATEGIC_CONTEXT_MAX_BYTES / 2) + 1);
   assert.throws(() => validateStrategicContextParams({ '10_strategic_context': arabic }), (err) => err.statusCode === 400,
     'multibyte text is measured in bytes');
+});
+
+test('strategic context is checked the way the Launch page checks it before a job is started', () => {
+  const ok = (tree) => validateStrategicContextParams({ '10_strategic_context': JSON.stringify(tree) })['10_strategic_context'];
+  const tree = { levels: ['Theme', 'Ambition'], priority_level: 'Ambition', strategy: [{ name: 'Customer', children: ['Win loyalty'] }] };
+  assert.equal(ok(tree), JSON.stringify(tree));
+  assert.equal(ok({ strategy: ['Customer', 'Operations'] }), '{"strategy":["Customer","Operations"]}');
+  for (const file of ['/Workspace/Users/someone/strategy.json', '/Volumes/main/s/v/strategy.json']) {
+    assert.equal(validateStrategicContextParams({ '10_strategic_context': ` ${file} ` })['10_strategic_context'], file);
+  }
+  const rejects = [
+    [{ levels: ['Theme'], strategy: [{ name: 'Customer', children: ['Win loyalty'] }] }, /2 levels deep but only 1 level name is set/],
+    [{ levels: ['Theme', 'theme'], strategy: ['Customer'] }, /level name "theme" is used twice/],
+    [{ ...tree, priority_level: 'Initiative' }, /priority level "Initiative" is not one of the level names/],
+    [{ strategy: ['Customer', 'customer'] }, /appears twice at the top level/],
+    [{ strategy: [{ name: 'Customer', kpis: [{ name: 'Repeat rate', direction: 'sideways' }] }] }, /direction must be one of/],
+  ];
+  for (const [bad, message] of rejects) {
+    assert.throws(() => ok(bad), (err) => err.statusCode === 400 && /^Strategic Context: /.test(err.message) && message.test(err.message), message.source);
+  }
+  for (const bad of ['not json', '[1, 2]', '{"strategy": ']) {
+    assert.throws(() => ok(JSON.parse(JSON.stringify(bad))), (err) => err.statusCode === 400, bad);
+    assert.throws(() => validateStrategicContextParams({ '10_strategic_context': bad }),
+      (err) => err.statusCode === 400 && /strategy object or the path of a Workspace or Volumes file/.test(err.message), bad);
+  }
 });
 
 test('v1.3.0 use case fields are parsed and stay NULL-safe on older rows', () => {

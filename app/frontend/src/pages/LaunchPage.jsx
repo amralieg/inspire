@@ -679,7 +679,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
     if (!params['01_uc_metadata'])
       return setLaunchError('Select at least one catalog, schema, or table for UC Metadata.');
     if (strategyProblems.length)
-      return setLaunchError(`Fix the strategic context first (Advanced → Strategy and organization): ${strategyProblems[0]}`);
+      return setLaunchError(`Fix the strategy first, under Strategy (optional): ${strategyProblems[0]}`);
     if (!outputCheck.ready)
       return setLaunchError(outputCheck.text || 'Wait until Inspire has checked that you can write to the output folder.');
 
@@ -1383,17 +1383,21 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
               </div>
             </FieldSection>
 
-            {/* Strategy and organization — v1.3.0 widget 10_strategic_context */}
-            <div className="border border-border rounded-xl overflow-hidden">
+            <div className="border border-border rounded-xl overflow-hidden" data-testid="launch-strategy">
               <button
                 type="button"
                 onClick={() => setShowStrategy(!showStrategy)}
-                className="w-full flex items-center gap-2 px-4 py-3 text-left hover:bg-bg-subtle/50 transition-smooth"
+                aria-expanded={showStrategy}
+                className="w-full flex items-start gap-2 px-4 py-3 text-left hover:bg-bg-subtle/50 transition-smooth"
               >
-                <Target size={14} className="text-text-tertiary" />
-                <span className="text-xs font-bold text-text-primary">Strategy and organization</span>
-                <span className="text-[10px] text-text-tertiary">
-                  Optional · your goals and teams, used to align and order the use cases
+                <Target size={14} className="text-text-tertiary mt-0.5 shrink-0" />
+                <span className="min-w-0">
+                  <span className="block text-xs font-bold text-text-primary">Strategy (optional)</span>
+                  <span className="block text-[10px] text-text-tertiary">
+                    Your levels, KPIs and sponsors. When you set them, every use case is aligned to them, measured by your KPIs
+                    and sponsored by one of your roles. For example: Customer › Win loyalty, measured by Repeat purchase rate,
+                    sponsored by the Chief Customer Officer.
+                  </span>
                 </span>
                 {(strategyBase || strategyProblems.length > 0) && (
                   <span className={`ml-auto text-[10px] font-semibold ${strategyProblems.length ? 'text-db-red-fg' : 'text-success-fg'}`}>
@@ -1407,7 +1411,12 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
               </button>
               {showStrategy && (
                 <div className="px-4 pb-4 pt-1 border-t border-border">
-                  <StrategyEditor key={strategyEditorKey} value={strategyBase} onChange={handleStrategyChange} />
+                  <StrategyEditor
+                    key={strategyEditorKey}
+                    value={strategyBase}
+                    onChange={handleStrategyChange}
+                    domains={String(params['06_business_domains'] || '').split(',').map((d) => d.trim()).filter(Boolean)}
+                  />
                 </div>
               )}
             </div>

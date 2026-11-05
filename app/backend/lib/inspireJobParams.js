@@ -1,4 +1,5 @@
 const { parseExactJson } = require('./exactJson');
+const { parseStrategicContext, validateStrategy } = require('../../frontend/src/lib/strategyContext.js');
 
 const INSPIRE_AGENT_VERSION = 'v1.4.0';
 const INSPIRE_ENVIRONMENT_KEY = 'Default';
@@ -110,6 +111,12 @@ function validateStrategicContextParams(params) {
         'Store a larger strategy in a Workspace or Volumes file and pass its path instead.',
     );
   }
+  const parsed = parseStrategicContext(text);
+  if (parsed.error) {
+    throw paramError('Strategic Context must be a strategy object or the path of a Workspace or Volumes file that holds one.');
+  }
+  const problems = parsed.mode === 'tree' ? validateStrategy(parsed.model) : [];
+  if (problems.length) throw paramError(`Strategic Context: ${problems.join(' ')}`);
   params['10_strategic_context'] = text;
   return params;
 }

@@ -41,23 +41,46 @@ test('the plan example round-trips and validates', async () => {
   assert.deepEqual(lib.validateStrategy(parsed.model), []);
   const out = JSON.parse(lib.serializeStrategy(parsed.model));
   assert.equal(out.schema_version, 1);
-  assert.deepEqual(out.levels, ['Pillar', 'Objective'], 'the layers are always Pillar, Objective, Initiative, Project');
+  assert.deepEqual(out.levels, ['Strategic Pillar', 'Business Objective'], 'the customer level names travel verbatim');
+  assert.equal(out.priority_level, undefined, 'a tree with its own levels and no priority level names none');
   assert.deepEqual(out.strategy[1].children.map((c) => c.name), ['Cut stockouts', 'Lower delivery cost']);
   assert.deepEqual(out.strategy[0].children[0].key_results, [{ statement: 'Raise repeat purchase rate from 18% to 24%', kpi: 'Repeat purchase rate' }]);
   assert.deepEqual(out.sponsors, [{ role: 'Chief Customer Officer', reports_to: 'Chief Executive Officer', owns: ['Customer'] }]);
   assert.equal(out.labels, undefined, 'the App no longer renames Inspire terms');
+  assert.equal(lib.parseStrategicContext(lib.serializeStrategy(parsed.model)).model.levels.join(), 'Strategic Pillar,Business Objective');
   assert.deepEqual(lib.parseStrategicContext(lib.serializeStrategy(parsed.model)).model, parsed.model, 'a second round trip is stable');
 });
 
-test('the layers follow the depth of the tree and are never asked for', async () => {
+test('the level names are the user own, default to Pillar, Goal, Objective, Priority, and Priority is the default priority level', async () => {
   const lib = await load();
-  const levels = (tree) => JSON.parse(lib.serializeStrategy(lib.parseStrategicContext(JSON.stringify(tree)).model)).levels;
-  assert.deepEqual(lib.STRATEGY_LAYERS, ['Pillar', 'Objective', 'Initiative', 'Project']);
-  assert.deepEqual(levels({ strategy: ['A', 'B'] }), ['Pillar']);
-  assert.deepEqual(levels({ levels: ['Theme', 'Goal', 'Program'], strategy: [{ name: 'A', children: [{ name: 'B', children: ['C'] }] }] }),
-    ['Pillar', 'Objective', 'Initiative']);
-  assert.equal(levels({ priorities: ['Grow revenue'] }), undefined, 'priorities alone send no layers');
+  const sent = (tree) => JSON.parse(lib.serializeStrategy(lib.parseStrategicContext(JSON.stringify(tree)).model));
+  assert.deepEqual(lib.DEFAULT_STRATEGY_LEVELS, ['Pillar', 'Goal', 'Objective', 'Priority']);
+  assert.deepEqual(lib.emptyStrategy().levels, lib.DEFAULT_STRATEGY_LEVELS);
+  assert.deepEqual(sent({ strategy: ['A', 'B'] }).levels, ['Pillar', 'Goal', 'Objective', 'Priority']);
+  assert.equal(sent({ strategy: ['A', 'B'] }).priority_level, 'Priority');
+  const own = sent({ levels: ['Theme', 'Goal', 'Program'], priority_level: 'Program', strategy: [{ name: 'A', children: [{ name: 'B', children: ['C'] }] }] });
+  assert.deepEqual(own.levels, ['Theme', 'Goal', 'Program']);
+  assert.equal(own.priority_level, 'Program');
+  const model = { ...lib.emptyStrategy(), strategy: [lib.emptyEntry('A')], levels: ['Theme', 'Initiative'], priorityLevel: 'Priority' };
+  assert.equal(JSON.parse(lib.serializeStrategy(model)).priority_level, undefined, 'a priority level that is no level is never sent (must-exclude)');
+  assert.equal(sent({ priorities: ['Grow revenue'] }).levels, undefined, 'priorities alone send no levels');
+  assert.equal(lib.levelName(['Theme'], 1), 'Theme');
+  assert.equal(lib.levelName(['Theme'], 2), 'Level 2');
   assert.deepEqual(lib.validateStrategy(lib.parseStrategicContext(JSON.stringify({ strategy: [{ name: 'A', children: ['B'] }] })).model), []);
+});
+
+test('the level names are validated the way the agent reads them', async () => {
+  const lib = await load();
+  const tree = { strategy: [{ name: 'A', children: [{ name: 'B', children: ['C'] }] }] };
+  const problems = (patch) => lib.validateStrategy({ ...lib.parseStrategicContext(JSON.stringify(tree)).model, ...patch }).join(' ');
+  assert.match(problems({ levels: ['Theme', 'Goal'] }), /3 levels deep but only 2 level names are set/);
+  assert.match(problems({ levels: ['Theme', 'theme', 'Goal'] }), /used twice/);
+  assert.match(problems({ levels: ['Theme', ' ', 'Goal'] }), /Level 2 has an empty name/);
+  assert.match(problems({ levels: ['A', 'B', 'C', 'D', 'E'] }), /5 level names; the most is 4/);
+  assert.match(problems({ priorityLevel: 'Nope' }), /priority level "Nope" is not one of the level names/);
+  assert.equal(problems({ levels: ['Theme', 'Goal', 'Program'], priorityLevel: '' }), '');
+  assert.deepEqual(lib.validateStrategy({ ...lib.emptyStrategy(), levels: ['Theme', 'theme'], priorityLevel: 'Nope' }), [],
+    'level names with no entries are never sent, so they block nothing');
 });
 
 test('no message the App shows mentions JSON or a file path', async () => {

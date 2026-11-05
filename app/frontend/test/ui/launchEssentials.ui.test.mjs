@@ -12,7 +12,7 @@ test('Setup keeps the rc.3 names Unity Catalog Metadata, Generation Instructions
   try {
     const essentials = section(page, 'Essentials');
     await essentials.waitFor({ timeout: 15000 });
-    for (const label of ['Business Priorities', 'Business Domains', 'Strategy and organization', 'Generation Instructions', 'Unity Catalog Metadata']) {
+    for (const label of ['Business Priorities', 'Business Domains', 'Strategy (optional)', 'Generation Instructions', 'Unity Catalog Metadata']) {
       assert.ok(await essentials.getByText(label, { exact: false }).count() > 0, `${label} is in Essentials`);
     }
     assert.equal(await essentials.getByText('Inspire Database', { exact: true }).count(), 0, 'admin fields stay out of Essentials');
