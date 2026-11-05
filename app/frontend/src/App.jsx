@@ -100,6 +100,7 @@ export default function App() {
   const [demo, setDemo] = useState({ showcase: null, focus: null });
   const [reviewSid, setReviewSid] = useState(null);
   const showcasesLoaded = useRef(null);
+  const loadingHash = useRef(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -187,6 +188,7 @@ export default function App() {
     (async () => {
       const moved = queryLink(window.location);
       if (moved) window.history.replaceState(window.history.state, '', moved);
+      const startHash = window.location.hash;
       try {
         // 1. Fetch server-side defaults (always available, no auth needed)
         const defResp = await fetch('/api/defaults');
@@ -302,7 +304,7 @@ export default function App() {
         }
       }
 
-      const link = hashLink(window.location.hash);
+      const link = hashLink(loadingHash.current ?? startHash);
       if (link?.demo) {
         const showcase = (await showcasesLoaded.current)?.find((s) => s.id === link.demo);
         if (showcase) {
@@ -407,6 +409,7 @@ export default function App() {
 
   useEffect(() => {
     const onHash = () => {
+      if (page === 'loading') loadingHash.current = window.location.hash;
       if (page === 'loading' || page === 'setup') return;
       const link = hashLink(window.location.hash);
       if (link) openLink(link, { fresh: !window.history.state?.[INSPIRE_ENTRY] });

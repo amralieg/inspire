@@ -593,6 +593,7 @@ test('the Build page shows one row of tiles in a fixed order, each tile opens it
       [`https://workspace.example.com/#workspace/Workspace${NOTEBOOK_PATH}`, '_blank'],
       ['https://workspace.example.com/#job/77', '_blank'],
     ], 'each tile opens its asset in a new tab');
+    await page.context().route('https://workspace.example.com/**', (route) => route.fulfill({ status: 200, contentType: 'text/html', body: '<p>asset</p>' }));
     const [popup] = await Promise.all([page.waitForEvent('popup'), open('dashboard').click()]);
     const opened = await popup.evaluate(() => window.opener === null).catch(() => true);
     assert.equal(opened, true, 'the asset opens without a handle back to Inspire');
