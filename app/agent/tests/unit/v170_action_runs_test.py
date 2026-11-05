@@ -103,7 +103,7 @@ def test_the_sharing_event_names_the_rebuild_once(agent_ns, n):
     spec["config"] = {}
     inst._implement_access_rows = lambda table, warnings: []
     unfixed = agent_ns["implement_unfixed_text"]
-    inst._implement_share_reads = lambda name, tables: [f"Sharing: {unfixed(f'{name} cannot read the reasons view', 0)}"]
+    inst._implement_share_reads = lambda table, names: [f"Sharing: {unfixed(f'{names[0]} cannot read the reasons view', 0)}"]
     inst._implement_grant = lambda *a, **k: []
     warnings = type(inst)._implement_share(inst, "N01-U01", "main.inspire.churn_out", spec, {}, None)
     shared = [e["message"] for e in inst.emitted if e["step_name"] == "Sharing"][-1]

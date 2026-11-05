@@ -281,7 +281,7 @@ GRANT_LOG = f"GRANT SELECT ON TABLE {QUOTED_LOG} TO `{{}}`"
 
 
 def test_the_run_log_is_a_companion_of_the_result_table_wherever_people_or_the_app_read_it(agent_ns, sdk_stub):
-    from v140_implement_test import (ACCESS_TABLE, LIVE_ACCESS, READS, REASONS_VIEW, SHELL_FILES, SUMMARY_TABLE, _access_spark,
+    from v140_implement_test import (ACCESS_TABLE, LIVE_ACCESS, READS, SHELL_FILES, _access_spark,
                                      _deploy_inspire, _spec)
     assert LOG in agent_ns["implement_companion_tables"](TABLE)
     inst, context, _calls, _imported = _deploy_inspire(agent_ns, [
@@ -291,9 +291,9 @@ def test_the_run_log_is_a_companion_of_the_result_table_wherever_people_or_the_a
     context["run_log"] = LOG
     inst._implement_deploy_app(context, "churn-desk", SHELL_FILES, READS, poll_s=0)
     assert GRANT_LOG.format("sp-1") in inst.spark.statements, "the App reads each run's records from the log"
-    shared = _inspire(agent_ns, _access_spark(LIVE_ACCESS))
+    shared = _inspire(agent_ns, _access_spark(LIVE_ACCESS, present=[{"t": "churn_out_run_log"}]))
     shared._implement_api = lambda method, path, body=None, query=None: {}
     shared._implement_emit = lambda *a, **k: None
     spec = dict(_spec(agent_ns)[0], sharing={"principals": [{"type": "user", "name": "amr@x"}]})
-    assert shared._implement_share("N01-U01", ACCESS_TABLE, spec, {}, None, REASONS_VIEW, SUMMARY_TABLE, run_log=LOG) == []
+    assert shared._implement_share("N01-U01", ACCESS_TABLE, spec, {}, None) == []
     assert GRANT_LOG.format("amr@x") in shared.spark.statements, "the people it is shared with read the runs the App lists"

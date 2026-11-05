@@ -140,19 +140,6 @@ def test_the_app_grant_warning_names_the_use_case_s_unit(agent_ns, sdk_stub):
         "can read and change main.inspire.churn_out_assumptions. Inspire could not create it: PERMISSION_DENIED: no CREATE TABLE"]
 
 
-def _denied(statement):
-    raise RuntimeError("PERMISSION_DENIED: no read")
-
-
-def test_the_sharing_warning_names_the_use_case_s_unit(agent_ns):
-    inst = agent_ns["DatabricksInspire"].__new__(agent_ns["DatabricksInspire"])
-    inst.spark = FakeSpark(responder=_denied)
-    warnings = []
-    assert inst._implement_shared_assumptions("main.inspire.churn_out", warnings, HOURS_IMPACT) == ""
-    assert warnings == ["Sharing: Inspire could not check main.inspire.churn_out_assumptions, so the people you share with may not see "
-                        "how the hours at stake is worked out: PERMISSION_DENIED: no read"]
-
-
 class _Log:
     def __init__(self):
         self.lines = []

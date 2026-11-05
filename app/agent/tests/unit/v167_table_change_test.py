@@ -387,7 +387,6 @@ def _outputs_run(agent_ns, columns=None, failing=None):
     inst._implement_repair = lambda *a, **k: {"kind": "stop"}
     inst._implement_result_history = lambda uc_id, table, spec, warnings: seen.__setitem__("warnings", list(warnings))
     inst._implement_reasons_view = inst._implement_summary_table = lambda table, warnings: ""
-    inst._implement_shared_assumptions = lambda table, warnings, impact: ""
     inst._implement_fallback_warning = inst._implement_tier_warning = lambda *a: ""
     inst._implement_record_notebook_parts = inst._implement_record_ai_checks = inst._implement_vibe_checklist = lambda context: None
     inst._implement_notebook_vibes = lambda context: []

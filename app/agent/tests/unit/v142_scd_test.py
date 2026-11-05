@@ -755,8 +755,7 @@ HISTORY_JOINED = "{inspire_table_name(join['table'])}"
 HISTORY_JOINED_READS = (f"SELECT {{key}}, MAX({{value}}) AS {{named}} FROM (SELECT CAST({{ref}} AS STRING) AS {{key}}, {{named}} AS {{value}} "
                         f"FROM {HISTORY_JOINED} WHERE ",)
 KPI_READ = ("inspire_save_kpi", "spark.sql(query)", {"str(kpi.get('query') or '')"}, "_inspire_re.fullmatch(INSPIRE_KPI_QUERY, query)")
-SHARE_GRANT = ("inspire_share_outputs", "spark.sql(statement)", {"inspire_share_plan(table, existing, grants, reads)"}, "inspire_share_plan")
-SQL_VERB = re.compile(r"^\s*(SELECT|INSERT|UPDATE|DELETE|MERGE|CREATE|DROP|ALTER|GRANT|REVOKE|TRUNCATE|OPTIMIZE|WITH)\b", re.I)
+SHARE_GRANT = ("inspire_share_outputs", "spark.sql(statement)", "GRANT SELECT ON TABLE ")
 HISTORY_CLONED = {"{inspire_table_name(table)}", "{inspire_table_name(result_table)}"}
 CLONE_SOURCE = re.compile(rf"\bCLONE\s+({guard.TARGET})", re.I)
 ENSURE = "def inspire_ensure_ai(spark, table, schema, ai, out=print):\n"
@@ -785,8 +784,13 @@ def _bound(scope, name):
 def _history_problems(history):
     tree = ast.parse(history)
     functions = {node.name: node for node in ast.walk(tree) if isinstance(node, ast.FunctionDef)}
-    _, unresolved, bad, frames = guard.audit(history)
+    executed, unresolved, bad, frames = guard.audit(history)
     problems = [f"reads rows through the DataFrame API: {frame}" for frame in frames]
+    share = functions.get(SHARE_GRANT[0])
+    grant_lines = {node.lineno for node in ast.walk(share) if isinstance(node, ast.Call) and ast.unparse(node) == SHARE_GRANT[1]} \
+        if share is not None else set()
+    problems += [f"{SHARE_GRANT[0]} runs {' '.join(sql.split()[:4])}" for line, sql in executed
+                 if line in grant_lines and not sql.startswith(SHARE_GRANT[2])]
     problems += [f"{kind} {target}" for _, kind, target, sql in bad if target not in HISTORY_OBJECTS
                  and not (kind == "read" and target == HISTORY_COUNTED and sql.startswith(f"SELECT COUNT(*) AS n FROM {HISTORY_COUNTED}"))
                  and not (kind == "read" and target == HISTORY_SCOPED and sql.startswith(HISTORY_SCOPED_READS))
@@ -803,8 +807,6 @@ def _history_problems(history):
         if (function, call) == KPI_READ[:2] and _bound(functions[function], "query") == KPI_READ[2] \
                 and KPI_READ[3] in ast.unparse(functions[function]):
             continue
-        if (function, call) == SHARE_GRANT[:2] and _share_grants_only(functions):
-            continue
         name = re.fullmatch(r"spark\.sql\((\w+)\)", call)
         built = {node.targets[0].elts[0].id for node in ast.walk(functions.get(function, tree)) if isinstance(node, ast.Assign)
                  and isinstance(node.targets[0], ast.Tuple) and isinstance(node.targets[0].elts[0], ast.Name)
@@ -812,19 +814,6 @@ def _history_problems(history):
         if not name or name.group(1) not in built:
             problems.append(f"untraced {call} in {function}")
     return sorted(set(problems))
-
-
-def _share_grants_only(functions) -> bool:
-    share, plan = functions.get(SHARE_GRANT[0]), functions.get(SHARE_GRANT[3])
-    if share is None or plan is None or _bound(share, "plan") != SHARE_GRANT[2]:
-        return False
-    loops = [node for node in ast.walk(share) if isinstance(node, ast.For) and ast.unparse(node.target) == "statement"]
-    if len(loops) != 1 or ast.unparse(loops[0].iter) != "plan":
-        return False
-    texts = [node.value if isinstance(node, ast.Constant) else "".join(v.value for v in node.values[:1] if isinstance(v, ast.Constant))
-             for node in ast.walk(plan) if isinstance(node, ast.JoinedStr) or (isinstance(node, ast.Constant) and isinstance(node.value, str))]
-    sql = [text for text in texts if SQL_VERB.match(text)]
-    return bool(sql) and all(text.startswith("GRANT SELECT ON TABLE ") for text in sql)
 
 
 def _facts_built(scope, line) -> bool:
@@ -922,9 +911,12 @@ def test_the_share_step_only_grants_select_on_the_tables_its_plan_lists(history_
     assert _history_problems(history_source) == []
     granted = 'f"GRANT SELECT ON TABLE {inspire_table_name(name)} TO `{p}`"'
     assert granted in history_source
-    for bad in ('f"GRANT MODIFY ON TABLE {inspire_table_name(name)} TO `{p}`"', 'f"DROP TABLE {inspire_table_name(name)}"',
-                'f"SELECT * FROM {inspire_table_name(name)}"'):
-        assert "untraced spark.sql(statement) in inspire_share_outputs" in _history_problems(history_source.replace(granted, bad)), bad
+    share = next(node for node in ast.walk(ast.parse(history_source)) if isinstance(node, ast.FunctionDef) and node.name == SHARE_GRANT[0])
+    loop = next(node.lineno for node in ast.walk(share) if isinstance(node, ast.Call) and ast.unparse(node) == SHARE_GRANT[1])
+    assert any(line == loop and sql.startswith(SHARE_GRANT[2]) for line, sql in guard.audit(history_source)[0])
+    for bad, verb in (('f"GRANT MODIFY ON TABLE {inspire_table_name(name)} TO `{p}`"', "GRANT MODIFY ON TABLE"),
+                      ('f"DROP TABLE {inspire_table_name(name)}"', "DROP TABLE"), ('f"SELECT * FROM {inspire_table_name(name)}"', "SELECT * FROM")):
+        assert any(problem.startswith(f"{SHARE_GRANT[0]} runs {verb}") for problem in _history_problems(history_source.replace(granted, bad))), bad
     rebound = history_source.replace("    plan = inspire_share_plan(table, existing, grants, reads)\n", "    plan = list(names)\n")
     assert rebound != history_source and _history_problems(rebound) == ["untraced spark.sql(statement) in inspire_share_outputs"]
 

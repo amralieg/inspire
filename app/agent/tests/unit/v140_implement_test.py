@@ -3021,18 +3021,25 @@ def test_sharing_names_the_warehouse_when_it_cannot_be_shared(agent_ns):
 INSPIRE_OWNS = [_row("catalog", "OWNER", "inspire-sp", True), _row("table", "OWNER", "inspire-sp", True)]
 
 
-def _access_spark(rows=INSPIRE_OWNS, fail=None):
+SHARED_EXISTS = "SELECT lower(table_name) AS t FROM system.information_schema.tables"
+SHARED_READS = "SELECT lower(table_name) AS t, grantee AS p FROM system.information_schema.table_privileges"
+SHARED_PRESENT = [{"t": t} for t in ("churn_out_summary", "churn_out_reasons", "churn_out_assumptions", "churn_out_run_log")]
+
+
+def _access_spark(rows=INSPIRE_OWNS, fail=None, present=()):
     def respond(statement):
         if statement.startswith("SELECT level, privilege, principal"):
             if fail:
                 raise fail
             return rows
+        if statement.startswith(SHARED_EXISTS):
+            return present
         return None
     return FakeSpark(responder=respond)
 
 
 def _not_access_reads(statements):
-    return [s for s in statements if not s.startswith("SELECT level, privilege, principal")]
+    return [s for s in statements if not s.startswith(("SELECT level, privilege, principal", SHARED_EXISTS, SHARED_READS))]
 
 
 def test_sharing_grants_only_missing_access_and_names_what_inspire_cannot_grant(agent_ns):
@@ -3241,11 +3248,11 @@ def test_an_app_may_read_the_reasons_view_only_when_it_was_created(agent_ns, sdk
 
 
 def test_sharing_lets_each_principal_read_the_reasons_view_and_says_when_it_cannot(agent_ns):
-    inst = _inspire(agent_ns, _access_spark(LIVE_ACCESS))
+    inst = _inspire(agent_ns, _access_spark(LIVE_ACCESS, present=[{"t": "churn_out_reasons"}]))
     inst._implement_api = lambda method, path, body=None, query=None: {}
     inst._implement_emit = lambda *a, **k: None
     spec = dict(_spec(agent_ns)[0], sharing={"principals": [{"type": "user", "name": "amr@x"}, {"type": "group", "name": "bad`name"}]})
-    assert inst._implement_share("N01-U01", ACCESS_TABLE, spec, {}, None, REASONS_VIEW) == []
+    assert inst._implement_share("N01-U01", ACCESS_TABLE, spec, {}, None) == []
     assert _not_access_reads(inst.spark.statements) == [GRANT_SELECT.format("amr@x"), GRANT_REASONS.format("amr@x")]
     inst = _inspire(agent_ns, _access_spark(LIVE_ACCESS))
     inst._implement_api = lambda method, path, body=None, query=None: {}
@@ -3256,12 +3263,14 @@ def test_sharing_lets_each_principal_read_the_reasons_view_and_says_when_it_cann
     def respond(statement):
         if statement == GRANT_REASONS.format("amr@x"):
             raise RuntimeError("PERMISSION_DENIED: not the owner of churn_out_reasons")
+        if statement.startswith(SHARED_EXISTS):
+            return [{"t": "churn_out_reasons"}]
         return LIVE_ACCESS if statement.startswith("SELECT level, privilege, principal") else None
 
     inst = _inspire(agent_ns, FakeSpark(responder=respond))
     inst._implement_api = lambda method, path, body=None, query=None: {}
     inst._implement_emit = lambda *a, **k: None
-    warnings = inst._implement_share("N01-U01", ACCESS_TABLE, spec, {}, None, REASONS_VIEW)
+    warnings = inst._implement_share("N01-U01", ACCESS_TABLE, spec, {}, None)
     assert len(warnings) == 1 and warnings[0].startswith(f"Sharing: {GRANT_REASONS.format('amr@x')} failed: ")
     assert "not the owner of churn_out_reasons" in warnings[0]
 
@@ -3275,13 +3284,13 @@ def test_a_build_creates_the_reasons_view_and_hands_it_to_every_output_it_builds
     inst._implement_genie_space = lambda c, r: seen.append(c) or {"genie_space_id": "g1", "genie_space_url": "https://h/genie/rooms/g1"}
     inst._implement_app = lambda c, r: seen.append(c) or {"app_name": "churn-desk", "app_url": "https://churn-desk.example",
                                                           "app_health": "running"}
-    inst._implement_share = lambda uc, table, spec, assets, job_id, reasons_view, summary_table="", asset_status=None, assumptions_table="", run_log="": shared.append(reasons_view) or []
+    inst._implement_share = lambda uc, table, spec, assets, job_id, asset_status=None: shared.append(table) or []
     assert inst._implement_one_locked({"session_id": 5150, "use_case_id": "N01-U01", "spec_version": 3, "spec_json": dict(VALID)},
                                       (5150, "N01-U01", 3)) == "ready"
     assert [s for s in inst.spark.statements if s.startswith("CREATE VIEW")] == [
         agent_ns["implement_reasons_view_sql"]("main.inspire.churn_out")]
     assert [c["reasons_view"] for c in seen] == [REASONS_VIEW, REASONS_VIEW] and all(REASONS_VIEW in c["allowed"] for c in seen)
-    assert shared == [REASONS_VIEW]
+    assert shared == ["main.inspire.churn_out"] and REASONS_VIEW in agent_ns["implement_app_result_reads"](shared[0])
 
 
 SUMMARY_TABLE = "main.inspire.churn_out_summary"
@@ -3297,12 +3306,13 @@ def test_a_build_creates_the_run_summary_table_the_app_reads_and_hands_it_to_the
     inst._implement_genie_space = lambda c, r: {"genie_space_id": "g1", "genie_space_url": "https://h/genie/rooms/g1"}
     inst._implement_app = lambda c, r: seen.append(c) or {"app_name": "churn-desk", "app_url": "https://churn-desk.example",
                                                           "app_health": "running"}
-    inst._implement_share = lambda uc, table, spec, assets, job_id, reasons_view, summary_table="", asset_status=None, assumptions_table="", run_log="": shared.append(summary_table) or []
+    inst._implement_share = lambda uc, table, spec, assets, job_id, asset_status=None: shared.append(table) or []
     assert inst._implement_one_locked({"session_id": 5150, "use_case_id": "N01-U01", "spec_version": 3, "spec_json": dict(VALID)},
                                       (5150, "N01-U01", 3)) == "ready"
     assert agent_ns["inspire_ai_summary_create_sql"]("main.inspire.churn_out") in inst.spark.statements, \
         "a build that keeps the notebook and runs nothing still leaves the summary table the App reads"
-    assert [c["summary_table"] for c in seen] == [SUMMARY_TABLE] and shared == [SUMMARY_TABLE]
+    assert [c["summary_table"] for c in seen] == [SUMMARY_TABLE] and shared == ["main.inspire.churn_out"]
+    assert SUMMARY_TABLE in agent_ns["implement_app_result_reads"](shared[0])
     assert SUMMARY_TABLE not in seen[0]["allowed"], "Genie and the dashboard are not handed the run summary"
 
 
@@ -3316,13 +3326,13 @@ def test_a_summary_table_that_cannot_be_created_is_a_warning_and_nothing_is_gran
 
 
 def test_sharing_lets_each_principal_read_the_run_summary_the_app_shows(agent_ns):
-    inst = _inspire(agent_ns, _access_spark(LIVE_ACCESS))
+    inst = _inspire(agent_ns, _access_spark(LIVE_ACCESS, present=[{"t": "churn_out_reasons"}, {"t": "churn_out_summary"}]))
     inst._implement_api = lambda method, path, body=None, query=None: {}
     inst._implement_emit = lambda *a, **k: None
     spec = dict(_spec(agent_ns)[0], sharing={"principals": [{"type": "user", "name": "amr@x"}, {"type": "group", "name": "bad`name"}]})
-    assert inst._implement_share("N01-U01", ACCESS_TABLE, spec, {}, None, REASONS_VIEW, SUMMARY_TABLE) == []
-    assert _not_access_reads(inst.spark.statements) == [GRANT_SELECT.format("amr@x"), GRANT_REASONS.format("amr@x"),
-                                                         GRANT_SUMMARY.format("amr@x")]
+    assert inst._implement_share("N01-U01", ACCESS_TABLE, spec, {}, None) == []
+    assert _not_access_reads(inst.spark.statements) == [GRANT_SELECT.format("amr@x"), GRANT_SUMMARY.format("amr@x"),
+                                                         GRANT_REASONS.format("amr@x")]
 
 
 def test_the_apps_service_principal_may_read_the_run_summary(agent_ns, sdk_stub):
@@ -3473,7 +3483,7 @@ def test_a_retry_only_edit_rebuilds_just_the_alert_without_genie_or_a_preview(ag
 
     inst._implement_alert = alert
     inst._implement_dashboard = inst._implement_genie_space = inst._implement_app = lambda c, r: pytest.fail("only the alert is retried")
-    inst._implement_share = lambda uc, table, spec, assets, job_id, reasons_view, summary_table="", asset_status=None, assumptions_table="", run_log="": shared.append((dict(assets), job_id)) or []
+    inst._implement_share = lambda uc, table, spec, assets, job_id, asset_status=None: shared.append((dict(assets), job_id)) or []
     status = inst._implement_one_locked({"session_id": 5150, "use_case_id": "N01-U01", "spec_version": 3,
                                          "spec_json": dict(previous, retry_outputs=["alert"])}, (5150, "N01-U01", 3))
     assert status == "ready" and inst.updates[0]["change_classes"] == "retry"
@@ -3600,7 +3610,7 @@ def test_an_app_that_runs_behind_sign_in_is_ready_and_only_other_health_results_
     inst._implement_schedule = lambda *a: pytest.fail("a retry leaves the schedule alone")
     inst._implement_app = lambda context, runner: {"app_name": "churn-desk", "app_url": "https://churn-desk.example", "app_health": health}
     inst._implement_dashboard = inst._implement_genie_space = inst._implement_alert = lambda c, r: pytest.fail("only the App is retried")
-    inst._implement_share = lambda uc, table, spec, assets, job_id, reasons_view, summary_table="", asset_status=None, assumptions_table="", run_log="": []
+    inst._implement_share = lambda uc, table, spec, assets, job_id, asset_status=None: []
     got = inst._implement_one_locked({"session_id": 5150, "use_case_id": "N01-U01", "spec_version": 3,
                                       "spec_json": dict(previous, retry_outputs=["app"])}, (5150, "N01-U01", 3))
     final = inst.updates[-1]
@@ -3667,7 +3677,7 @@ def test_the_ready_message_counts_the_rows_of_a_preview_only_when_one_ran(agent_
     inst._implement_dashboard = lambda c, r: pytest.fail("the dashboard did not change")
     inst._implement_genie_space = lambda c, r: {"genie_space_id": "g1", "genie_space_url": "https://h/genie/rooms/g1"}
     inst._implement_app = lambda c, r: {"app_name": "churn-desk", "app_url": "https://churn-desk.example", "app_health": "running"}
-    inst._implement_share = lambda uc, table, spec, assets, job_id, reasons_view, summary_table="", asset_status=None, assumptions_table="", run_log="": []
+    inst._implement_share = lambda uc, table, spec, assets, job_id, asset_status=None: []
     got = inst._implement_one_locked({"session_id": 5150, "use_case_id": "N01-U01", "spec_version": 3, "spec_json": dict(VALID)},
                                      (5150, "N01-U01", 3))
     assert got == "ready" and previews == [False], "new outputs with no earlier preview run one preview without a refill"
@@ -3920,7 +3930,7 @@ def test_a_use_case_whose_latest_run_has_nobody_to_act_on_ends_ready_with_a_note
     inst._implement_dashboard = lambda c, r: pytest.fail("the dashboard did not change")
     inst._implement_genie_space = lambda c, r: {"genie_space_id": "g1", "genie_space_url": "https://h/genie/rooms/g1"}
     inst._implement_app = lambda c, r: {"app_name": "churn-desk", "app_url": "https://churn-desk.example", "app_health": "running"}
-    inst._implement_share = lambda uc, table, spec, assets, job_id, reasons_view, summary_table="", asset_status=None, assumptions_table="", run_log="": []
+    inst._implement_share = lambda uc, table, spec, assets, job_id, asset_status=None: []
     inst._implement_tier_counts = lambda table: tables.append(table) or dict(counts)
     if preview:
         previous = dict(VALID, outputs={**VALID["outputs"], "genie_space": False, "app": False})
@@ -3994,7 +4004,7 @@ def _probe_inspire(ns, responder, carried_status):
     inst._genie_widget_names = lambda instruction, spec: ["result_table"]
     inst._genie_involved_tables = lambda uc: ["main.s.orders", "main.s.returns"]
     inst._implement_schedule = lambda *a: None
-    inst._implement_share = lambda uc, table, spec, assets, job_id, reasons_view, summary_table="", asset_status=None, assumptions_table="", run_log="": []
+    inst._implement_share = lambda uc, table, spec, assets, job_id, asset_status=None: []
     return inst
 
 
@@ -4170,7 +4180,7 @@ def test_a_question_note_makes_the_run_ready_with_warnings_and_is_recorded_on_th
                                                 "_asset": {"sample_questions": [ASKED], "question_notes": [{"question": ASKED, "note": "n"}]},
                                                 "_warnings": [warning]}
     inst._implement_app = lambda c, r: {"app_name": "churn-desk", "app_url": "https://churn-desk.example", "app_health": "running"}
-    inst._implement_share = lambda uc, table, spec, assets, job_id, reasons_view, summary_table="", asset_status=None, assumptions_table="", run_log="": []
+    inst._implement_share = lambda uc, table, spec, assets, job_id, asset_status=None: []
     got = inst._implement_one_locked({"session_id": 5150, "use_case_id": "N01-U01", "spec_version": 3, "spec_json": dict(VALID)},
                                      (5150, "N01-U01", 3))
     assert got == "ready_with_warnings"
@@ -4397,7 +4407,7 @@ def test_a_build_that_writes_the_missing_instruction_uses_the_wizards_table_ever
     inst._implement_genie_space = lambda c, r: {"genie_space_id": "g1", "genie_space_url": "https://h/genie/rooms/g1"}
     inst._implement_app = lambda c, r: {"app_name": "churn-desk", "app_url": "https://churn-desk.example", "app_health": "running"}
     inst._implement_schedule = lambda *a: None
-    inst._implement_share = lambda uc, table, spec, assets, job_id, reasons_view, summary_table="", asset_status=None, assumptions_table="", run_log="": keep("shared", table, [])
+    inst._implement_share = lambda uc, table, spec, assets, job_id, asset_status=None: keep("shared", table, [])
     got = inst._implement_one_locked({"session_id": 5150, "use_case_id": "N01-U01", "spec_version": 1, "spec_json": dict(VALID)},
                                      (5150, "N01-U01", 1))
     assert got == "ready", inst.updates[-1]

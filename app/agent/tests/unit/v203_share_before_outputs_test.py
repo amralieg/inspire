@@ -5,7 +5,7 @@ from v140_implement_test import GRANT_CATALOG, GRANT_SCHEMA, GRANT_SELECT, INSPI
 GRANT_REASONS = "GRANT SELECT ON TABLE `main`.`inspire`.`churn_out_reasons` TO `{}`"
 GRANT_SUMMARY = "GRANT SELECT ON TABLE `main`.`inspire`.`churn_out_summary` TO `{}`"
 GRANT_ASSUMPTIONS = "GRANT SELECT ON TABLE `main`.`inspire`.`churn_out_assumptions` TO `{}`"
-ASSUMPTIONS_DESCRIBE = "DESCRIBE TABLE `main`.`inspire`.`churn_out_assumptions`"
+EXISTS = "SELECT lower(table_name) AS t FROM system.information_schema.tables"
 SHARED = {"principals": [{"type": "user", "name": "amr@x"}, {"type": "group", "name": "planners"}]}
 
 
@@ -17,6 +17,8 @@ def _build(ns, responder=None, sharing=SHARED):
     def respond(statement):
         if statement.startswith("SELECT level, privilege, principal"):
             return INSPIRE_OWNS
+        if statement.startswith(EXISTS):
+            return [{"t": "churn_out_summary"}, {"t": "churn_out_reasons"}, {"t": "churn_out_assumptions"}]
         return responder(statement) if responder else None
 
     inst = _probe_inspire(ns, respond, {"dashboard": {"state": "ready", "spec_version": 2}})
@@ -38,15 +40,13 @@ def _build(ns, responder=None, sharing=SHARED):
 
 
 def test_the_people_a_build_is_shared_with_can_read_its_tables_before_the_genie_agent_and_app_are_built(agent_ns):
-    inst, status, seen = _build(agent_ns, lambda s: [{"col_name": "name", "data_type": "string"}] if s == ASSUMPTIONS_DESCRIBE else None)
+    inst, status, seen = _build(agent_ns)
     assert status == "ready", inst.updates[-1].get("status_message")
     early = [grant.format(name) for name in ("amr@x", "planners")
-             for grant in (GRANT_CATALOG, GRANT_SCHEMA, GRANT_SELECT, GRANT_REASONS, GRANT_SUMMARY)]
+             for grant in (GRANT_CATALOG, GRANT_SCHEMA, GRANT_SELECT, GRANT_SUMMARY, GRANT_REASONS, GRANT_ASSUMPTIONS)]
     assert seen["genie_space"] == early, "the Genie Agent's sample questions read the result table as the people it is shared with"
     assert seen["app"] == early
-    shared = [grant.format(name) for name in ("amr@x", "planners")
-              for grant in (GRANT_CATALOG, GRANT_SCHEMA, GRANT_SELECT, GRANT_REASONS, GRANT_SUMMARY, GRANT_ASSUMPTIONS)]
-    assert _grants(inst.spark.statements) == early + shared, "the Sharing step still grants every table, the assumptions table too"
+    assert _grants(inst.spark.statements) == early + early, "the Sharing step grants every table of the read list again"
 
 
 def test_a_grant_that_fails_before_the_outputs_is_a_warning_once_and_the_outputs_still_build(agent_ns):

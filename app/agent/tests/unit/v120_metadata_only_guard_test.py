@@ -186,6 +186,11 @@ class SqlIndex:
                                 reasons += r
                     else:
                         reasons.append(f"loop variable {name} over a non-literal sequence")
+            elif isinstance(node, ast.For) and isinstance(node.target, ast.Name) and node.target.id == name:
+                found = True
+                t, r = self.resolve_items(node.iter, scope, depth)
+                templates += t
+                reasons += r
         if found:
             return templates, reasons
         params = [a.arg for a in scope.args.args]
@@ -199,6 +204,50 @@ class SqlIndex:
                 reasons = [] if templates else reasons + r
             return templates, reasons
         return [], [f"name {name} not bound in {scope.name}"]
+
+    def resolve_items(self, expr, scope, depth):
+        if depth > 4:
+            return [], [f"resolution depth exceeded at {ast.unparse(expr)[:60]}"]
+        if isinstance(expr, (ast.List, ast.Tuple)):
+            templates, reasons = [], []
+            for element in expr.elts:
+                t, r = self.resolve(element, scope, depth + 1)
+                templates += t
+                reasons += r
+            return templates, reasons
+        if isinstance(expr, (ast.ListComp, ast.GeneratorExp)):
+            return self.resolve(expr.elt, scope, depth + 1)
+        if isinstance(expr, ast.BinOp) and isinstance(expr.op, ast.Add):
+            left, right = self.resolve_items(expr.left, scope, depth + 1), self.resolve_items(expr.right, scope, depth + 1)
+            return left[0] + right[0], left[1] + right[1]
+        if isinstance(expr, ast.Name) and scope is not None:
+            templates, reasons, found = [], [], False
+            for node in ast.walk(scope):
+                value = None
+                if isinstance(node, ast.Assign) and any(isinstance(t, ast.Name) and t.id == expr.id for t in node.targets):
+                    value = node.value
+                elif isinstance(node, ast.AugAssign) and isinstance(node.target, ast.Name) and node.target.id == expr.id:
+                    value = node.value
+                if value is not None:
+                    found = True
+                    t, r = self.resolve_items(value, scope, depth + 1)
+                    templates += t
+                    reasons += r
+            return (templates, reasons) if found else ([], [f"sequence {expr.id} not bound in {scope.name}"])
+        if isinstance(expr, ast.Call):
+            callee = expr.func.attr if isinstance(expr.func, ast.Attribute) else \
+                expr.func.id if isinstance(expr.func, ast.Name) else None
+            builders = self.functions.get(callee) or []
+            templates, reasons = [], []
+            for builder in builders:
+                for node in ast.walk(builder):
+                    if isinstance(node, ast.Return) and node.value is not None:
+                        t, r = self.resolve_items(node.value, builder, depth + 1)
+                        templates += t
+                        reasons += r
+            if builders:
+                return templates, ([] if templates else reasons or [f"builder {callee} returns no SQL literal"])
+        return [], [f"loop over a non-literal sequence {ast.unparse(expr)[:80]}"]
 
     def resolve_from_callers(self, func, name, position, depth):
         is_method = bool(func.args.args) and func.args.args[0].arg == "self"
@@ -629,6 +678,52 @@ def test_guard_follows_a_sql_builder_the_agent_compiles_into_its_globals():
     assert {(kind, target) for _line, kind, target, _sql in bad} == {("read", "{table}")}, bad
     kept = GLOBAL_BUILDER_SOURCE.replace('exec(compile(SHARED_SOURCE, "<shared>", "exec"), globals())', "")
     assert len(audit(kept)[1]) == 2, "a builder the agent never compiles into its globals stays unresolved"
+
+
+LOOP_BUILDER_SOURCE = '''
+def plan_statements(table, readers):
+    out = []
+    out += [f"GRANT SELECT ON TABLE {table} TO `{p}`" for p in readers]
+    return out
+
+
+def share(spark, table, readers):
+    plan = plan_statements(table, readers)
+    for statement in plan:
+        spark.sql(statement)
+
+
+def share_direct(spark, table, readers):
+    for statement in plan_statements(table, readers):
+        spark.sql(statement)
+'''
+
+
+def _call_lines(source):
+    return sorted(n.lineno for n in ast.walk(ast.parse(source))
+                  if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute) and n.func.attr == "sql")
+
+
+def test_guard_follows_a_loop_variable_over_a_builder_that_returns_permission_statements():
+    executed, unresolved, bad, _frames = audit(LOOP_BUILDER_SOURCE)
+    assert not unresolved, unresolved
+    assert sorted(line for line, sql in executed if sql.startswith("GRANT SELECT ON TABLE")) == _call_lines(LOOP_BUILDER_SOURCE)
+    assert not bad, bad
+
+
+def test_guard_flags_a_loop_variable_over_a_builder_that_returns_row_reads():
+    leaky = LOOP_BUILDER_SOURCE.replace("f\"GRANT SELECT ON TABLE {table} TO `{p}`\"", "f\"SELECT * FROM {table}\"")
+    executed, unresolved, bad, _frames = audit(leaky)
+    assert not unresolved, unresolved
+    flagged = {line for line, kind, target, _sql in bad if (kind, target) == ("read", "{table}")}
+    assert set(_call_lines(leaky)) <= flagged, (bad, _call_lines(leaky))
+
+
+def test_guard_leaves_a_loop_over_an_unknown_sequence_unresolved():
+    unknown = LOOP_BUILDER_SOURCE.replace("plan = plan_statements(table, readers)", "plan = fetch_statements(table)").replace(
+        "for statement in plan_statements(table, readers):", "for statement in fetch_statements(table):")
+    unresolved = audit(unknown)[1]
+    assert [u[1] for u in unresolved] == ["share", "share_direct"], unresolved
 
 
 def test_guard_reads_copy_only_as_a_copy_into_statement():
