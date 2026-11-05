@@ -28,8 +28,7 @@ LAYOUTS = ("sidebar", "tabs", "home")
 AUTHS = ("user", "sp")
 THEMES = ("light", "dark")
 PALETTES = ("default", "muted", "vivid", "ocean", "sunset", "earth", "jewel", "nordic", "berry", "pop", "neon", "solid", "mono")
-OPTIONS = ("modify", "replace_edits", "alerts")
-RETIRED_OPTIONS = ("decisions",)
+OPTIONS = ("modify", "replace_edits", "decisions", "alerts")
 SCREENS = ("runs", "impact")
 USER_OFF = ("alerts",)
 OFF_WHEN_UNSET = ("alerts",)
@@ -324,7 +323,7 @@ def settings_problems(settings: dict, pages: list) -> list:
         if settings.get(key) not in allowed:
             problems.append(f"the App {key} must be one of {', '.join(allowed)}")
     options = settings.get("options")
-    unknown = sorted(str(k) for k in options if k not in OPTIONS + RETIRED_OPTIONS) if isinstance(options, dict) else []
+    unknown = sorted(str(k) for k in options if k not in OPTIONS) if isinstance(options, dict) else []
     if not isinstance(options, dict) or any(not isinstance(options.get(k), bool) for k in OPTIONS
                                             if k not in OFF_WHEN_UNSET or k in options):
         problems.append(f"the App options must set {', '.join(k for k in OPTIONS if k not in OFF_WHEN_UNSET)} to true or false, "
@@ -1461,6 +1460,14 @@ class Shell:
             return False
         return bool(self.settings["options"].get(key))
 
+    def decides(self, page: dict) -> bool:
+        return self.option("decisions") and shell_sql.page_decides(page)
+
+    def undecided_text(self, page: dict) -> str:
+        if shell_sql.layout_decides(shell_sql.page_layout(page)) and not self.option("decisions"):
+            return "this App does not let people record decisions on its records"
+        return informational_text(page)
+
     def screen(self, key: str) -> bool:
         return key in SCREENS and (self.settings.get("screens") or {}).get(key) is not False
 
@@ -2145,7 +2152,7 @@ class Shell:
         if page.get("records") and tables is None:
             jobs[("list", "types")] = lambda: self.list_columns(ws, who, page)
         done, _errors = self._parallel(jobs, probe)
-        actions = bool(page.get("result_table") and shell_sql.page_decides(page))
+        actions = bool(page.get("result_table") and self.decides(page))
         return {"list": done.get(("list", "types")), "actions": actions,
                 "tables": {ident: found for (kind, ident), found in done.items() if kind == "table"}}
 
@@ -2162,7 +2169,7 @@ class Shell:
         return reads
 
     def list_base(self, ws, who, page: dict, columns: dict, fields, delta: bool = False) -> tuple:
-        context = shell_sql.list_context(page, columns, fields, shell_sql.page_decides(page))
+        context = shell_sql.list_context(page, columns, fields, self.decides(page))
         history = self.history_for(ws, who, page, fields) if context["join"] else None
         facts, fresh = self.run_facts(ws, who, page, history)
         context.update(types=columns, history=history, facts=facts if fresh["runs"] else None,
@@ -2453,7 +2460,7 @@ class Shell:
     def keeps_actions(self, ws, who, page: dict, fields) -> bool:
         if not page.get("records") or fields is None:
             return False
-        return shell_sql.list_context(page, self.list_columns(ws, who, page), fields, shell_sql.page_decides(page))["actions"]
+        return shell_sql.list_context(page, self.list_columns(ws, who, page), fields, self.decides(page))["actions"]
 
     def minutes_per_record(self, ws, who, page: dict):
         try:
@@ -2929,7 +2936,7 @@ class Shell:
         return problems
 
     def check_decidable(self, probe, page: dict, columns: dict, where: str) -> list:
-        if not (shell_sql.page_decides(page) or self.plan_editable(page)):
+        if not (self.decides(page) or self.plan_editable(page)):
             return []
         try:
             fields = self.table_fields(probe.ws, None, page) if page.get("result_table") else []
@@ -3065,7 +3072,7 @@ class Shell:
             problems += self.check_lakebase_reads(headers, page, defaults, where)
             if self.option("modify"):
                 problems += [f"{where}: people cannot change its records: {p}" for p in self.write_problems(headers, page)]
-            if shell_sql.page_decides(page):
+            if self.decides(page):
                 problems += [f"{where}: people cannot record decisions on its records: {p}"
                              for p in self.write_problems(headers, page, decisions=True)]
             problems += slow_problems(where, probe.seconds)
@@ -3443,8 +3450,8 @@ class Shell:
 
     def deciding_page(self, ident) -> dict:
         page = self.page(ident)
-        if not shell_sql.page_decides(page):
-            raise HttpError(403, informational_text(page))
+        if not self.decides(page):
+            raise HttpError(403, self.undecided_text(page))
         return page
 
     def plan_decide(self, headers: dict, data: dict) -> dict:
@@ -3452,9 +3459,9 @@ class Shell:
         plan = page.get("plan")
         if not isinstance(plan, dict):
             raise HttpError(404, f"page {page['id']} has no plan to decide")
-        decisions, editable = shell_sql.page_decides(page), self.plan_editable(page)
+        decisions, editable = self.decides(page), self.plan_editable(page)
         if not decisions and not editable:
-            raise HttpError(403, informational_text(page))
+            raise HttpError(403, self.undecided_text(page))
         key, seen = str(data.get("record_key") or ""), str(data.get("seen") or "")
         if not key or len(key) > RECORD_KEY_CHARS:
             raise HttpError(400, "name the record_key of the plan line you decide")

@@ -12,11 +12,12 @@ export const STATUSES = ['New', 'In progress', 'Done', 'Dismissed', 'Could not f
 export const STATUS_LABELS = { Dismissed: 'Not an issue' };
 export const statusLabel = (status) => STATUS_LABELS[status] || status;
 export const CLOSED_STATUSES = ['Done', 'Dismissed', 'Could not fix'];
-export const canDecide = (list) => !!list?.actions;
+export const canDecide = (app, list) => !!(app?.options?.decisions && list?.actions);
 export const pageDecides = (page) => !!page?.records && page?.layout?.decides !== false;
+export const NO_DECISIONS = 'This App does not record decisions, so this list shows its suggestions only.';
 export const INFORMATIONAL = 'This page shows information only, so its rows carry no status. Open a row to see its details or ask Genie about it.';
 export const UNLINKED = 'This list is not linked to the records of the use case, so the App cannot save a decision on it yet.';
-export const noDecisionText = (page) => (pageDecides(page) ? UNLINKED : INFORMATIONAL);
+export const noDecisionText = (app, page) => (!pageDecides(page) ? INFORMATIONAL : app?.options?.decisions ? UNLINKED : NO_DECISIONS);
 export const PAGE_SIZES = [25, 50, 100];
 export const ACT_LIMIT = 200;
 export const SIMILAR_KEYS = 50;

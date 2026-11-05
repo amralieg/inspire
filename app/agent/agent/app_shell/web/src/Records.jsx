@@ -458,7 +458,7 @@ export function RecordPanel({ meta, app, pageId, row, list, onClose, onChanged, 
   const labelOf = (c) => plainText(c?.label ?? c?.record_key ?? '');
   const acts = useActs({ pageId, similarBy, onActed: acted, labelOf });
   const toast = useToast();
-  const decides = pageDecides((app.pages || []).find((p) => p.id === pageId) || { records: meta });
+  const decides = !!app?.options?.decisions && pageDecides((app.pages || []).find((p) => p.id === pageId) || { records: meta });
   return (
     <>
       <Drawer meta={meta} row={row} onClose={onClose} history canModify={false} tracker={!!(decides && list?.actions)} owners={list?.summary?.owners || []} app={app}
@@ -501,7 +501,7 @@ export default function Records({ meta, app, pageId, filters, ai, onFilter, hist
   const today = localDay();
   const tomorrow = nextDay(today);
   const [kept, setKept] = useState(() => KEPT.get(pageId));
-  const decides = pageDecides((app.pages || []).find((p) => p.id === pageId) || { records: meta });
+  const decides = !!app?.options?.decisions && pageDecides((app.pages || []).find((p) => p.id === pageId) || { records: meta });
   const noActions = !history || !decides || keepsActions === false || kept === false;
   const cap = noActions ? 0 : listLimit(prefs);
   const windowed = noActions ? {} : listWindow(prefs);

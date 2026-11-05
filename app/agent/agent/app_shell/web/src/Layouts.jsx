@@ -192,7 +192,7 @@ function PlanRow({ page, app, plan, row, actions, onDecided, onOpen }) {
   );
 }
 
-const planDecides = (app, plan, list) => canDecide(list) || !!(plan.override && app.options?.modify);
+const planDecides = (app, plan, list) => canDecide(app, list) || !!(plan.override && app.options?.modify);
 
 function Resolve({ page }) {
   const [state, setState] = useState({ busy: false, said: '' });
@@ -251,7 +251,7 @@ export function PlanTable({ page, app, filters, ready, nonce, onChanged }) {
   return (
     <section className="card card--table plan" aria-label={plan.title}>
       <header className="card-h"><div><h2>{plan.title}</h2>
-        {list.data && !can ? <p className="muted" data-no-decisions>{noDecisionText(page)}</p> : plan.hint && <p>{plan.hint}</p>}
+        {list.data && !can ? <p className="muted" data-no-decisions>{noDecisionText(app, page)}</p> : plan.hint && <p>{plan.hint}</p>}
       </div>
       {open.length > 0 && <TakeAll count={open.length} busy={busy} onClick={acceptAll} />}
       <AskGenie kind="table" title={plan.title} context={tableContext(plan.hint || '', rows, (row) => planFields(page, plan, row), list.data?.total)} /></header>

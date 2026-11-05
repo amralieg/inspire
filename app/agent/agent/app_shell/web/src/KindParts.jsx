@@ -189,7 +189,7 @@ export function useOpenRow() {
 export function RowPanel({ page, app, list, opened, filters, view, onChanged }) {
   return (
     <>
-      {canDecide(list) && <QueueBulk pageId={page.id} list={list} asked={{ page: page.id, filters: filters || {}, ...(view || {}) }} person={app.user?.email || ''}
+      {canDecide(app, list) && <QueueBulk pageId={page.id} list={list} asked={{ page: page.id, filters: filters || {}, ...(view || {}) }} person={app.user?.email || ''}
         onChanged={onChanged} />}
       <RecordPanel meta={page.records} app={app} pageId={page.id} row={opened.row} list={list} onClose={opened.close} onChanged={onChanged} similarBy={page.similar_by} />
     </>
@@ -197,10 +197,10 @@ export function RowPanel({ page, app, list, opened, filters, view, onChanged }) 
 }
 
 function ListShell({ page, app, title, hint, section, list, empty, actions, error, filters, view, onChanged, opened, children }) {
-  const off = !!list.data && !canDecide(list.data);
+  const off = !!list.data && !canDecide(app, list.data);
   return (
     <section className="card card--table choices" aria-label={title} data-part={section}>
-      <header className="card-h"><div><h2>{title}</h2>{off ? <p className="muted" data-no-decisions>{noDecisionText(page)}</p> : hint && <p>{hint}</p>}</div>{actions}
+      <header className="card-h"><div><h2>{title}</h2>{off ? <p className="muted" data-no-decisions>{noDecisionText(app, page)}</p> : hint && <p>{hint}</p>}</div>{actions}
         <AskGenie kind="table" title={title} context={tableContext(hint || '', list.data?.rows || [], (row) => choiceFields(page, row), list.data?.total)} /></header>
       {!list.data && !list.error && <div style={{ padding: 16 }}><Skeleton height={22} /></div>}
       {list.error && <p className="tile-err"><Icon name="info" size={14} />The list could not load: {list.error}</p>}
@@ -238,7 +238,7 @@ export function RecList({ page, app, filters, ready, nonce, onChanged }) {
   const recs = page.recs || {};
   const meta = page.records || {};
   const rows = list.data?.rows || [];
-  const can = canDecide(list.data);
+  const can = canDecide(app, list.data);
   const decide = useChoices(page, onChanged);
   const suggest = (row) => suggestedChoice(choices, row[meta.action]);
   const groups = groupByEntity(rows, recs.entity, meta.rank, recs.per_entity || 3);
@@ -275,7 +275,7 @@ export function ChoiceList({ page, app, filters, ready, nonce, onChanged, sectio
   const choices = page.choices || [];
   const meta = page.records || {};
   const rows = list.data?.rows || [];
-  const can = canDecide(list.data);
+  const can = canDecide(app, list.data);
   const decide = useChoices(page, onChanged);
   const suggest = (row) => suggestedChoice(choices, row[meta.action]);
   const open = rows.filter((r) => !isClosed(r) && suggest(r)).length;
@@ -339,7 +339,7 @@ export function SegmentCards({ page, app, ready, nonce, filters, onChanged, onPi
   const counts = useSegmentCounts(page, ids, ready, nonce);
   const decide = useChoices(page, onChanged);
   const [picked, setPicked] = useState({});
-  const can = pageDecides(page);
+  const can = !!app?.options?.decisions && pageDecides(page);
   const counted = ids.filter((id) => counts[id] && !counts[id].error && counts[id].waiting != null);
   const off = !can || (counted.length > 0 && !counted.some((id) => counts[id].actions));
   const choose = async (row, treatment) => {
@@ -357,7 +357,7 @@ export function SegmentCards({ page, app, ready, nonce, filters, onChanged, onPi
     <>
       <section className="card segments" aria-label={table?.title || 'Segments'} data-part="segment_cards">
         <header className="card-h"><div><h2>{table?.title || 'Segments'}</h2>
-          {off ? <p className="muted" data-no-decisions>{noDecisionText(page)}</p>
+          {off ? <p className="muted" data-no-decisions>{noDecisionText(app, page)}</p>
             : <p>{table?.hint || 'Choose a treatment for each segment once: every member of the segment gets it.'}</p>}</div>
           {can && waiting.length > 0 && <TakeAll count={waiting.length} busy={decide.busy} onClick={async () => { for (const r of waiting) await choose(r, suggestedOf(r)); }} />}
           <AskGenie kind="table" title={table?.title || 'Segments'} context={tableContext(table?.hint || '', rows, (row) => specFields(row, table?.columns))} />
