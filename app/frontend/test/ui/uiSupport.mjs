@@ -149,8 +149,8 @@ export async function toAppAccess(page) {
 export async function toVibes(page) {
   const current = page.locator('[aria-current="step"]');
   await current.waitFor({ timeout: 15000 });
-  const steps = await page.locator('[data-wizard-header] ol li').count();
-  for (let i = 0; i < steps && !(await current.innerText()).includes('Vibes'); i += 1) {
+  const steps = page.locator('[data-wizard-header] ol li');
+  for (let i = 0; i < (await steps.count()) && !(await current.innerText()).includes('Vibes'); i += 1) {
     const from = await current.innerText();
     await page.getByRole('button', { name: 'Next' }).click({ timeout: 15000 });
     try {
