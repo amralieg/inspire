@@ -479,7 +479,7 @@ test('what blocks a step shows in the footer, opens Advanced on the field to fix
   }
 });
 
-test('an App name another App already uses offers the next name, and Implement waits until the name is free', async () => {
+test('an App name another App already uses is changed to the next free name, and a name the person types back is fixed on the last step', async () => {
   const ui = await openUi('wizard', {
     me: { userName: OWNER, displayName: 'Owner' },
     appsByName: { 'inspire-hub-acme': { name: 'inspire-hub-acme', description: 'Sales forecasting tool' } },
@@ -491,23 +491,21 @@ test('an App name another App already uses offers the next name, and Implement w
     await page.getByRole('checkbox', { name: /^App / }).check();
     await next(page);
     await onStep(page, 'App placement');
+    await page.getByText("'inspire-hub-acme' is used by another App in this workspace, so Inspire named this App 'inspire-hub-acme-2'.").waitFor();
+    assert.equal(await page.getByLabel('App name').inputValue(), 'inspire-hub-acme-2');
+    await page.getByLabel('App name').fill('inspire-hub-acme');
     await page.getByText("'inspire-hub-acme' is used by another App in this workspace; pick another name.", { exact: false }).waitFor();
+    assert.equal(await page.getByLabel('App name').inputValue(), 'inspire-hub-acme', 'a name the person typed is never changed for them');
     await page.getByRole('button', { name: 'Back' }).click();
     await onStep(page, 'Delivery');
     await throughApp(page);
     await toVibes(page);
-    await page.locator('[role="alert"] p', { hasText: "App name: 'inspire-hub-acme' is used by another App in this workspace; pick another name (fix it on App placement)" }).waitFor();
+    await page.locator('[role="alert"] p', { hasText: "App name: 'inspire-hub-acme' is used by another App in this workspace; pick another name" }).waitFor();
     assert.equal(await page.getByRole('button', { name: 'Start MVP', exact: true }).isDisabled(), true);
-    for (let i = 0; i < 4; i += 1) await page.getByRole('button', { name: 'Back' }).click();
-    await onStep(page, 'App placement');
-    await page.getByRole('button', { name: 'Use inspire-hub-acme-2' }).click();
-    assert.equal(await page.getByLabel('App name').inputValue(), 'inspire-hub-acme-2');
-    await page.getByText("'inspire-hub-acme-2' is free").waitFor();
-    await next(page);
-    await onStep(page, 'App access');
-    await page.getByRole('radio', { name: /^Internal data/ }).check();
-    await next(page);
-    await onStep(page, 'App look');
+    const here = page.locator('[data-last-app-name]');
+    await here.getByRole('button', { name: 'Use inspire-hub-acme-2' }).click();
+    await here.getByText("'inspire-hub-acme-2' is free").waitFor();
+    await onStep(page, 'Vibes');
     await implementWhenReady(page);
     await page.getByRole('heading', { name: 'Build', exact: true }).waitFor();
     assert.equal(submittedSpec(made).outputs.app_name, 'inspire-hub-acme-2');

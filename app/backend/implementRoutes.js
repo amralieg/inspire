@@ -17,6 +17,7 @@ const G = require('../frontend/src/lib/tableName.js');
 const GR = require('./lib/groupingRule');
 const GP = require('./lib/groupingProfile');
 const { TAGS_UNREAD_NOTE, personalColumn } = require('../frontend/src/lib/personalColumns.js');
+const { nextAppName } = require('../frontend/src/lib/implementWizard.js');
 const { runWithRequestDeadline } = require('./lib/sqlStatements');
 const { fsApiPath } = require('./lib/workspacePaths');
 const { int64Id, isInt64Id, requireInt64Id, jsonWithInt64Ids } = require('./lib/int64Id');
@@ -80,6 +81,19 @@ function dbOf(req, splitInspireDatabase) {
 async function rowsOf(executeSql, sqlResultToObjects, host, token, warehouseId, statement) {
   const result = await executeSql(host, token, warehouseId, statement.sql, statement.parameters);
   return sqlResultToObjects(result);
+}
+
+const FREE_APP_NAME_TRIES = 5;
+
+async function freeAppName(dbFetch, host, token, taken) {
+  let name = taken;
+  for (let i = 0; i < FREE_APP_NAME_TRIES; i += 1) {
+    name = nextAppName(name);
+    const found = await jsonOf(dbFetch, host, token, `/api/2.0/apps/${encodeURIComponent(name)}`);
+    if (found.status === 404) return name;
+    if (!found.ok) return '';
+  }
+  return '';
 }
 
 async function jsonOf(dbFetch, host, token, path, opts = {}) {
@@ -784,6 +798,10 @@ function registerImplementRoutes(app, deps) {
       if (shares) checks.result_grant = output ? output.grant : { ok: false, detail: 'not checked' };
       if (appName) {
         const name = I.appNameCheck(appName, existingApp && existingApp.ok ? existingApp.data : null, { useCaseId, sessionId: sid });
+        if (!name.ok) {
+          const free = await freeAppName(dbFetch, req.dbHost, req.dbToken, appName);
+          if (free) Object.assign(name, { name: appName, suggested: free });
+        }
         checks.app_name = name;
         if (name.creates) checks.app_access = output ? output.app : { ok: false, detail: 'not checked, because the warehouse could not run the access check' };
         const swaps = !name.creates && I.appWarehouseMoves(existingApp && existingApp.ok ? existingApp.data : null, appWarehouse || warehouseId);

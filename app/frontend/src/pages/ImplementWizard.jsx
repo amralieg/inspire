@@ -53,6 +53,7 @@ import {
   freshnessOf,
   withFreshness,
   nextAppName,
+  appRenamedText,
   widgetValueProblem,
   profileFieldProblem,
   initialStepId,
@@ -397,6 +398,9 @@ export default function ImplementWizard({
   const [schemas, setSchemas] = useState({});
   const bodyRef = useRef(null);
   const groupingDefaulted = useRef(false);
+  const appNameTyped = useRef(false);
+  const [appRenamed, setAppRenamed] = useState(null);
+  const [lastNameShown, setLastNameShown] = useState(false);
   const [placeSet, setPlaceSet] = useState('');
   const settingsModel = useMemo(() => settingsModelOf(context?.history), [context?.history]);
   const alertOn = Boolean(spec.outputs.alert);
@@ -715,6 +719,23 @@ export default function ImplementWizard({
     }, 400);
     return () => { cancelled = true; clearTimeout(timer); };
   }, [buildStep, specKey, ownErrorsKey, planReady, q, grantRound]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const nameApp = (value) => {
+    appNameTyped.current = true;
+    setAppRenamed(null);
+    setPlaceSet('person');
+    patch('outputs.app_name', value);
+  };
+  const appNameCheck = spec.outputs.app && !spec.outputs.merge?.app ? preflight?.checks?.app_name || null : null;
+  useEffect(() => {
+    const check = appNameCheck;
+    if (!check || check.ok !== false || !check.suggested || appNameTyped.current || check.name !== spec.outputs.app_name) return;
+    setAppRenamed({ to: check.suggested, text: appRenamedText(check.name, check.suggested) });
+    patch('outputs.app_name', check.suggested);
+  }, [appNameCheck, spec.outputs.app_name]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (lastStep && appNameCheck?.ok === false && (!appNameCheck.suggested || appNameTyped.current)) setLastNameShown(true);
+  }, [lastStep, appNameCheck]);
 
   const grantAppRead = async () => {
     if (!appUnreadable) return;
@@ -1600,7 +1621,7 @@ export default function ImplementWizard({
               setPlaceSet(targets === null && placement !== APP_INSIDE ? 'waiting' : 'person');
               setSpec((prev) => withNewApp(prev, placement, targets, placeScope));
             }}
-            onName={(value) => { setPlaceSet('person'); patch('outputs.app_name', value); }}
+            onName={nameApp}
             onWarehouse={(id) => setSpec((prev) => withAppWarehouse(prev, id))}
             moveNote={moveNote}
             onKeep={() => { setPlaceSet('person'); setSpec((prev) => withHeldApp(prev, savedOutputs)); }}
@@ -1687,6 +1708,14 @@ export default function ImplementWizard({
                 Go to the Build page
               </button>
             )}
+          </div>
+        )}
+        {appRenamed?.to === spec.outputs.app_name && buildStep && (
+          <p role="note" data-app-renamed="" className="text-xs text-text-secondary">{appRenamed.text}</p>
+        )}
+        {lastStep && lastNameShown && spec.outputs.app && !spec.outputs.merge?.app && (
+          <div data-last-app-name="" className="bg-bg-subtle border border-border rounded-md px-3 py-2">
+            <AppNameField name={spec.outputs.app_name || ''} nameCheck={appNameCheck} onName={nameApp} />
           </div>
         )}
         {lastStep && moveNote && (
@@ -1803,7 +1832,7 @@ function AppNameField({ name, nameCheck, onName }) {
       ) : nameCheck?.ok === false ? (
         <p className="text-[11px] text-error-fg">
           {nameCheck.detail}.{' '}
-          <button type="button" className="text-db-red-fg underline" onClick={() => onName(nextAppName(name))}>Use {nextAppName(name)}</button>
+          <button type="button" className="text-db-red-fg underline" onClick={() => onName(nameCheck.suggested || nextAppName(name))}>Use {nameCheck.suggested || nextAppName(name)}</button>
         </p>
       ) : (
         <p className="text-[11px] text-text-tertiary">{nameCheck?.ok ? nameCheck.detail : 'Up to 30 lowercase letters, digits and dashes.'}</p>

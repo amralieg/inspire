@@ -1866,4 +1866,9 @@ test('Start MVP says what Inspire picked and where to change it', async () => {
   const bare = w.quickSummary({ ...picked, config: { ...picked.config, result_table: '' }, schedule: { enabled: true, cron: '0 15 3 * * ?' } }, []);
   assert.deepEqual(bare.map((r) => r.value), ['none', 'not named yet', 'Notebook, Dashboard, Genie Agent', '0 15 3 * * ?']);
   assert.equal(w.quickSummary({ ...picked, schedule: { enabled: false } }).at(-1).value, 'Off');
+  const withApp = { ...picked, outputs: { ...picked.outputs, app: true, app_name: 'churn-desk-2' } };
+  assert.deepEqual(w.quickSummary(withApp).find((r) => r.id === 'app'), { id: 'app', label: 'App name', value: 'churn-desk-2', step: 'App placement' });
+  assert.equal(w.quickSummary({ ...withApp, outputs: { ...withApp.outputs, merge: { app: 'finance-desk' } } }).some((r) => r.id === 'app'), false);
+  assert.equal(w.quickSummary({ ...withApp, outputs: { ...withApp.outputs, app: false } }).some((r) => r.id === 'app'), false);
+  assert.equal(w.appRenamedText('churn-desk', 'churn-desk-2'), "'churn-desk' is used by another App in this workspace, so Inspire named this App 'churn-desk-2'.");
 });

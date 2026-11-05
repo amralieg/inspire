@@ -628,6 +628,10 @@ export function nextAppName(name) {
   return `${fitAppName(base, APP_NAME_MAX - suffix.length)}${suffix}`;
 }
 
+export function appRenamedText(taken, free) {
+  return `'${taken}' is used by another App in this workspace, so Inspire named this App '${free}'.`;
+}
+
 export function caseIdOf(uc) {
   return String(uc?.id ?? uc?.No ?? uc?.use_case_id ?? '').trim();
 }
@@ -2135,6 +2139,8 @@ export function quickSummary(spec, sourceTables = []) {
     { id: 'data', label: 'Data it reads', value: sourceTables.join(', ') || 'none', step: 'Data' },
     { id: 'result', label: 'Result table', value: String(spec?.config?.result_table || '') || 'not named yet', step: 'Results' },
     { id: 'outputs', label: 'What it builds', value: ['Notebook', ...outputs].join(', '), step: 'Delivery' },
+    ...(spec?.outputs?.app && !spec?.outputs?.merge?.app && spec?.outputs?.app_name
+      ? [{ id: 'app', label: 'App name', value: String(spec.outputs.app_name), step: 'App placement' }] : []),
     { id: 'schedule', label: 'Refresh', value: freshness === 'custom' ? String(spec?.schedule?.cron || '') : FRESHNESS_OPTIONS.find((o) => o.id === freshness).label,
       step: 'Delivery' },
   ];

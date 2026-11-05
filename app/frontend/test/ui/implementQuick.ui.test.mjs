@@ -34,7 +34,7 @@ test('a fresh MVP is three steps, Choose, Vibes and Start MVP, and it sends the 
     const summary = quick.page.getByRole('region', { name: 'What Inspire picked' });
     await summary.waitFor();
     const rows = await summary.locator('[data-quick-row]').evaluateAll((items) => items.map((r) => r.dataset.quickRow));
-    assert.deepEqual(rows, ['data', 'result', 'outputs', 'schedule']);
+    assert.deepEqual(rows, ['data', 'result', 'outputs', 'app', 'schedule']);
     const result = await summary.locator('[data-quick-row="result"] dd').innerText();
     assert.match(result, /\(change it on Results, under Customize\)$/);
     await quick.page.waitForFunction(() => [...document.querySelectorAll('button')].some((b) => b.textContent.trim() === 'Start MVP' && !b.disabled),
@@ -130,6 +130,67 @@ test('each of the three steps fits a 1440x900 screen with nothing to scroll and 
     await onStep(page, 'Start MVP');
     await page.getByRole('region', { name: 'What Inspire picked' }).waitFor();
     await check('quick-start');
+    assert.deepEqual(ui.pageErrors, []);
+  } finally {
+    await ui.close();
+  }
+});
+
+const OTHER_APP = { description: 'Built by someone else', compute_status: { state: 'ACTIVE' } };
+const appRow = (page) => page.locator('[data-quick-row="app"] dd').innerText();
+
+async function defaultAppName() {
+  const ui = await openUi('wizard', ME);
+  try {
+    await toStart(ui.page);
+    const name = (await appRow(ui.page)).split(' ')[0];
+    assert.match(name, /^[a-z0-9-]+$/);
+    return name;
+  } finally {
+    await ui.close();
+  }
+}
+
+test('a default App name another App already uses is changed to a free one with a suffix, and Start MVP stays on', async () => {
+  const taken = await defaultAppName();
+  const ui = await openUi('wizard', { ...ME, appsByName: { [taken]: { name: taken, ...OTHER_APP } } });
+  const { page } = ui;
+  try {
+    await toStart(page);
+    await page.locator('[data-app-renamed]').waitFor({ timeout: 15000 });
+    assert.match(await page.locator('[data-app-renamed]').innerText(), new RegExp(`'${taken}' is used by another App.*'${taken}-2'`));
+    assert.ok((await appRow(page)).startsWith(`${taken}-2`));
+    await page.waitForFunction(() => [...document.querySelectorAll('button')].some((b) => b.textContent.trim() === 'Start MVP' && !b.disabled),
+      null, { timeout: 15000 });
+    assert.equal(await page.locator('[data-last-app-name]').count(), 0);
+    await startButton(page).click();
+    await page.getByRole('heading', { name: 'Build', exact: true }).waitFor();
+    assert.equal(submittedSpec(ui.made).outputs.app_name, `${taken}-2`);
+    assert.deepEqual(ui.pageErrors, []);
+  } finally {
+    await ui.close();
+  }
+});
+
+test('an App name that is still refused is named on Start MVP and fixed right there, with no step back', async () => {
+  const taken = await defaultAppName();
+  const names = [taken, ...[2, 3, 4, 5, 6].map((n) => `${taken}-${n}`)];
+  const ui = await openUi('wizard', { ...ME, appsByName: Object.fromEntries(names.map((n) => [n, { name: n, ...OTHER_APP }])) });
+  const { page } = ui;
+  try {
+    await toStart(page);
+    const field = page.locator('[data-last-app-name]');
+    await field.waitFor({ timeout: 15000 });
+    assert.match(await field.innerText(), new RegExp(`'${taken}' is used by another App in this workspace; pick another name`));
+    assert.equal(await startButton(page).isDisabled(), true);
+    await field.locator('input').fill('quality-desk');
+    await page.waitForFunction(() => [...document.querySelectorAll('button')].some((b) => b.textContent.trim() === 'Start MVP' && !b.disabled),
+      null, { timeout: 15000 });
+    await onStep(page, 'Start MVP');
+    assert.match(await field.innerText(), /'quality-desk' is free/);
+    await startButton(page).click();
+    await page.getByRole('heading', { name: 'Build', exact: true }).waitFor();
+    assert.equal(submittedSpec(ui.made).outputs.app_name, 'quality-desk');
     assert.deepEqual(ui.pageErrors, []);
   } finally {
     await ui.close();

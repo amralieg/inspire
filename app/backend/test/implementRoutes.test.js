@@ -899,6 +899,36 @@ test('preflight refuses an App name used by another App, updates this use case\'
   });
 });
 
+test('preflight names the next free App name when another App holds the name, and names none it could not check', async () => {
+  const other = (name) => ({ name, description: 'Finance team tool' });
+  const taken = { 'churn-desk': other('churn-desk'), 'churn-desk-2': other('churn-desk-2') };
+  await withApp({ appsByName: taken }, async (url, made) => {
+    const got = await call(url, `/api/inspire/implement/preflight?${Q}&${OUT}&app_name=churn-desk`);
+    assert.equal(got.data.ok, false);
+    assert.equal(got.data.checks.app_name.detail, "'churn-desk' is used by another App in this workspace; pick another name");
+    assert.equal(got.data.checks.app_name.name, 'churn-desk');
+    assert.equal(got.data.checks.app_name.suggested, 'churn-desk-3');
+    assert.deepEqual(made.fetches.map((f) => f.path).filter((p) => /\/api\/2\.0\/apps\/churn/.test(p)),
+      ['/api/2.0/apps/churn-desk', '/api/2.0/apps/churn-desk-2', '/api/2.0/apps/churn-desk-3']);
+  });
+  await withApp({ appsByName: { 'churn-desk': other('churn-desk') } }, async (url) => {
+    const free = await call(url, `/api/inspire/implement/preflight?${Q}&${OUT}&app_name=churn-desk-2`);
+    assert.equal(free.data.checks.app_name.ok, true);
+    assert.equal(free.data.checks.app_name.suggested, undefined);
+  });
+  await withApp({ appsByName: { 'churn-desk': other('churn-desk'), 'churn-desk-2': { error_code: 'PERMISSION_DENIED', status_code: 403 } } }, async (url) => {
+    const got = await call(url, `/api/inspire/implement/preflight?${Q}&${OUT}&app_name=churn-desk`);
+    assert.equal(got.data.checks.app_name.ok, false);
+    assert.equal(got.data.checks.app_name.suggested, undefined, 'a name Inspire could not check is never offered as free');
+  });
+  const all = Object.fromEntries(['churn-desk', ...[2, 3, 4, 5, 6].map((n) => `churn-desk-${n}`)].map((n) => [n, other(n)]));
+  await withApp({ appsByName: all }, async (url) => {
+    const got = await call(url, `/api/inspire/implement/preflight?${Q}&${OUT}&app_name=churn-desk`);
+    assert.equal(got.data.checks.app_name.ok, false);
+    assert.equal(got.data.checks.app_name.suggested, undefined);
+  });
+});
+
 const SP_ROW = (level, privilege, principal, mine) => ({ level, privilege, principal, mine: mine ? 'true' : 'false', me: 'inspire-sp' });
 const SP_INSTALL = [SP_ROW('catalog', 'OWNER', 'amr@x', false), SP_ROW('schema', 'OWNER', 'amr@x', false),
   SP_ROW('table', 'OWNER', 'inspire-sp', true), SP_ROW('catalog', 'USE_CATALOG', 'inspire-sp', true),

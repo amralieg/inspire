@@ -164,7 +164,7 @@ function makeApp(overrides = {}, { mount } = {}) {
       if (path.includes('/sql/warehouses')) return json(state.warehouses);
       if (path.match(/\/api\/2\.0\/apps\/.+/) && !path.includes('page_size') && state.appsByName) {
         const found = state.appsByName[decodeURIComponent(path.split('/').pop())];
-        return json(found || { error_code: 'NOT_FOUND' }, found ? 200 : 404);
+        return json(found || { error_code: 'NOT_FOUND' }, found ? found.status_code || 200 : 404);
       }
       if (path.match(/\/api\/2\.0\/apps\/.+/ ) && !path.includes('page_size')) return json(state.app, state.appExists ? 200 : 404);
       if (path.includes('/api/2.0/apps')) return json(state.appsList, state.appsOk ? 200 : 404);
