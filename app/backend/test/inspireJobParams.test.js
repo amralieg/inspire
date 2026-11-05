@@ -16,7 +16,12 @@ const {
 } = require('../lib/inspireJobParams');
 
 test('advertises the integrated notebook version', () => {
-  assert.equal(INSPIRE_AGENT_VERSION, 'v1.4.0');
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const notebook = fs.readFileSync(path.join(__dirname, '..', '..', 'agent', 'agent', 'dbx_inspire_ai_agent.ipynb'), 'utf8');
+  const pinned = notebook.match(/__AGENT_VERSION__ = \\"(v[0-9]\.[0-9]\.[0-9])\\"/);
+  assert.ok(pinned, 'the notebook pins one single-digit __AGENT_VERSION__');
+  assert.equal(INSPIRE_AGENT_VERSION, pinned[1]);
 });
 
 test('demo discovery parameters use v1.2.0 generation choices and the v1.3.0 discovery defaults', () => {
