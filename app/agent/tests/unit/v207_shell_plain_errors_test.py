@@ -55,6 +55,30 @@ def test_plain_words_the_shell_wrote_itself_pass_through_untouched():
     assert shell_sql.plain_answer({"error": "a page named x does not exist"}) == {"error": "a page named x does not exist"}
 
 
+def test_a_sentence_the_shell_wrote_keeps_its_reason_and_next_step_and_only_the_raw_part_in_brackets_goes(capsys):
+    kept = {
+        f"The App did not ask Genie about this record: you cannot read it in Unity Catalog ({DENIED})":
+            "The App did not ask Genie about this record: you cannot read it in Unity Catalog",
+        f"Nothing was saved: you may not change `a`.`b`.`c` in Unity Catalog ({DENIED}). Ask the owner of that table.":
+            "Nothing was saved: you may not change `a`.`b`.`c` in Unity Catalog. Ask the owner of that table.",
+        "Nothing was saved: you cannot read t (Error: [X_FAILED] at line (3)), so the App records no decision on it":
+            "Nothing was saved: you cannot read t, so the App records no decision on it",
+    }
+    for text, plain in kept.items():
+        assert shell_sql.plain_error(text) == plain and _plain(plain), text
+    falls_back = {
+        f"({DENIED})": "not_allowed",
+        f"the SQL warehouse did not answer: {DENIED}": "not_allowed",
+        f"stake failed ({DENIED}) and then [TABLE_OR_VIEW_NOT_FOUND] again": "missing_table",
+        f"the read stopped ({DENIED}": "not_allowed",
+        "it could not read it (warehouse stopped) [DIVIDE_BY_ZERO] Division by zero": "",
+    }
+    for text, code in falls_back.items():
+        assert shell_sql.plain_error(text) == shell_sql.PLAIN_ERRORS[code], text
+    assert shell_sql.plain_error("it could not read it (warehouse stopped)") == "it could not read it (warehouse stopped)"
+    assert capsys.readouterr().err.count("[PLAIN-ERROR FIRED]") == len(kept) + len(falls_back)
+
+
 def test_the_run_errors_live_once_and_the_run_page_codes_still_read_the_raw_message():
     assert shell_core.RUN_ERRORS is shell_sql.RUN_ERRORS and shell_core.run_error_code is shell_sql.run_error_code
     assert shell_core.run_error_code(DENIED) == "not_allowed"

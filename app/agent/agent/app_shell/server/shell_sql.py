@@ -44,13 +44,34 @@ def run_error_code(message: str) -> str:
     return next((code for code, pattern in RUN_ERRORS if pattern.search(str(message or ""))), "")
 
 
+def without_raw_parts(said: str) -> str:
+    out, i = [], 0
+    while i < len(said):
+        if said[i] == "(":
+            depth, j = 0, i
+            while j < len(said):
+                depth += {"(": 1, ")": -1}.get(said[j], 0)
+                if depth == 0:
+                    break
+                j += 1
+            if depth == 0 and RAW_ERROR.search(said[i + 1:j]):
+                while out and out[-1] == " ":
+                    out.pop()
+                i = j + 1
+                continue
+        out.append(said[i])
+        i += 1
+    return "".join(out).strip()
+
+
 def plain_error(text) -> str:
     said = str(text or "")
     if not RAW_ERROR.search(said):
         return said
     code = run_error_code(said)
     print(f"[PLAIN-ERROR FIRED] {code or 'other'}: {said[:4000]}", file=sys.stderr, flush=True)
-    return PLAIN_ERRORS[code]
+    kept = without_raw_parts(said)
+    return kept if kept and not RAW_ERROR.search(kept) else PLAIN_ERRORS[code]
 
 
 def error_text(error, secrets=(), known: str = "") -> str:

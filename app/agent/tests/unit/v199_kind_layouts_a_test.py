@@ -468,6 +468,6 @@ def test_a_reload_counts_each_segments_treatments_from_the_current_recorded_deci
 
 def test_a_treatment_count_that_fails_is_reported_by_name_while_the_rows_are_still_served(tmp_path):
     out = segment_records(tmp_path, fail={"_inspire_treatment": shell_db.QueryError("[SQL_ERROR] the count failed")}, treatments=True)
-    assert "treatments" in out["errors"] and "the count failed" in out["errors"]["treatments"]
+    assert out["errors"]["treatments"] == shell_sql.PLAIN_ERRORS[""] and "SQL_ERROR" not in json.dumps(out)
     assert out.get("treatments") is None and out["total"] == 5 and len(out["rows"]) == 5
     assert "treatments" not in segment_records(tmp_path / "b", treatments=True)["errors"]

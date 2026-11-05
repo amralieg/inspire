@@ -452,11 +452,9 @@ def test_a_record_without_its_label_is_named_by_its_record_key_and_a_deleted_one
 
 @pytest.mark.parametrize("ws,status,needle", [
     (AskWorkspace(fail="[INSUFFICIENT_PERMISSIONS] Insufficient privileges: User does not have SELECT on Table"), 403,
-     "The App did not ask Genie about this record: you cannot read it in Unity Catalog ([INSUFFICIENT_PERMISSIONS] Insufficient "
-     "privileges: User does not have SELECT on Table)"),
+     "The App did not ask Genie about this record: you cannot read it in Unity Catalog"),
     (AskWorkspace(fail="[TABLE_OR_VIEW_NOT_FOUND] The table or view cannot be found"), 403,
-     "The App did not ask Genie about this record: you cannot read it in Unity Catalog ([TABLE_OR_VIEW_NOT_FOUND] The table or view "
-     "cannot be found)"),
+     "The App did not ask Genie about this record: you cannot read it in Unity Catalog"),
     (AskWorkspace(versions=[]), 404, "The App did not ask Genie about this record: you cannot read it, or it is no longer on the list"),
     (AskWorkspace(versions=[dict(EXPLAINED, is_current=False)]), 404,
      "The App did not ask Genie about this record: you cannot read it, or it is no longer on the list"),

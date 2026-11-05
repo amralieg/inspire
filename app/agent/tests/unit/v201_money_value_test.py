@@ -42,9 +42,9 @@ def test_a_measured_money_baseline_gives_a_range_with_its_assumption_and_source(
     assert estimate["currency"] == "AED" and estimate["currency_source"] == "KPI unit" and estimate["period"] == "year"
     assert estimate["measured_from"] == {"table": "c.s.orders", "column": "amount", "window_days": 90,
                                          "measured_on": "2026-11-01", "baseline": 29589.0}
-    assert estimate["text"].startswith("AED 2.4K\u20136K a year, if weekly sales value rises 2\u20135% (measured: 29,589 AED")
+    assert estimate["text"].startswith("AED 2.4K-6K a year, if weekly sales value rises 2-5% (measured: 29,589 AED")
     assert "last 90 days" in estimate["text"] and "an assumption" in estimate["text"]
-    assert "rises 2\u20135%" in estimate["assumption"] and estimate["uplift_source"] == "kind default"
+    assert "rises 2-5%" in estimate["assumption"] and estimate["uplift_source"] == "kind default"
 
 
 def test_no_measured_baseline_says_not_measured_yet_and_never_shows_a_number(ns):
@@ -84,12 +84,15 @@ def test_the_instructions_name_the_currency_the_metric_and_the_uplift_range_firs
     assert ns["inspire_text_currency"]("Cover ALL domains and TOP products") == ""
     assert ns["inspire_text_currency"]("budget is $40,000") == "USD"
     assert ns["inspire_text_currency"]("in AED or USD 100") == ""
+    assert ns["inspire_text_currency"]("report value in AED") == "AED" and ns["inspire_text_currency"]("value 100EUR") == "EUR"
+    for text in ("report value in aed", "report value in Aed", "report value in AEDX", "report value in XAED", "100 AEDs value"):
+        assert ns["inspire_text_currency"](text) == "", text
 
 
 def test_a_cost_kpi_falls_and_the_kind_family_sets_the_default_range(ns):
     spec = kpi(ns, name="Refund cost", direction="reduce")
     estimate = ns["inspire_value_estimate"](money_uc(ns, spec), "", "detect_protect")
-    assert "refund cost falls 5\u201315%" in estimate["text"]
+    assert "refund cost falls 5-15%" in estimate["text"]
     assert ns["inspire_value_estimate"](money_uc(ns, spec), "", "")["uplift_low"] == ns["INSPIRE_VALUE_UPLIFT_DEFAULT"][0]
 
 
@@ -100,7 +103,7 @@ def test_proposed_key_results_get_the_measured_target_range_or_say_not_measured_
     estimate = ns["inspire_value_estimate"](measured, "", "predict")
     ns["inspire_fill_key_result_targets"](measured, estimate)
     shown = ns["inspire_placeholder_words"](measured["Expected Key Results"][0]["statement"])
-    assert shown == "Raise weekly sales value from 1,000 to between 1,020 and 1,050 (assumed 2\u20135% higher) within 12 months, assumed"
+    assert shown == "Raise weekly sales value from 1,000 to between 1,020 and 1,050 (assumed 2-5% higher) within 12 months, assumed"
     assert measured["Expected Key Results"][1]["statement"] == "Keep [TARGET] as the sponsor wrote it"
     unmeasured = money_uc(ns, kpi(ns, value=None), **{"Expected Key Results": [
         {"statement": "Raise weekly sales value from [BASELINE] to [TARGET] within [WINDOW]", "source": "proposed"}]})
@@ -141,8 +144,8 @@ def test_tracking_row_and_every_export_carry_the_value_fields(ns):
     files = obj.w_client.workspace.files
     text = {suffix: next(data for path, data in files.items() if path.endswith(suffix)) for suffix in (".csv", ".md", ".json")}
     decoded = {suffix: data.decode("utf-8-sig") if isinstance(data, bytes) else str(data) for suffix, data in text.items()}
-    assert "Value estimate" in decoded[".csv"] and "AED 2.4K\u20136K a year" in decoded[".csv"]
-    assert "AED 2.4K\u20136K a year" in decoded[".md"]
+    assert "Value estimate" in decoded[".csv"] and "AED 2.4K-6K a year" in decoded[".csv"]
+    assert "AED 2.4K-6K a year" in decoded[".md"]
     catalog = json.loads(decoded[".json"])
     shown = [u for d in catalog["domains"] for u in d["use_cases"]][0]
     assert shown["Value Estimate"]["value_high"] == uc["Value Estimate"]["value_high"]
@@ -167,7 +170,7 @@ def test_a_count_kpi_turns_into_money_only_through_a_measured_per_unit_money_kpi
     assert estimate["value_low"] == round(yearly * 0.03, 2) and estimate["value_high"] == round(yearly * 0.08, 2)
     assert estimate["measured_from"]["per_unit"] == {"kpi": "Average order value", "table": "c.s.orders", "column": "amount",
                                                      "value": 85.5, "measured_on": "2026-11-01"}
-    assert "order count rises 3\u20138%" in estimate["text"] and "each worth 85.50 AED Average order value across all data" in estimate["text"]
+    assert "order count rises 3-8%" in estimate["text"] and "each worth 85.50 AED Average order value across all data" in estimate["text"]
     assert "each order count is worth the measured average order value" in estimate["assumption"]
     for aggregation in ("COUNT_DISTINCT", "SUM"):
         other = ns["inspire_value_estimate"](money_uc(ns, count_kpi(ns, aggregation=aggregation), per_unit_kpi(ns)))
@@ -190,7 +193,7 @@ def test_a_count_kpi_without_a_measured_per_unit_money_column_gets_no_number(ns)
                      "of a price or amount column in c.s.orders over the same rows.")
 
 
-ARABIC_VALUE = "\u0642\u064a\u0645\u0629 \u0645\u0642\u062f\u0631\u0629 AED 2.4K\u20136K \u0641\u064a \u0627\u0644\u0633\u0646\u0629"
+ARABIC_VALUE = "\u0642\u064a\u0645\u0629 \u0645\u0642\u062f\u0631\u0629 AED 2.4K-6K \u0641\u064a \u0627\u0644\u0633\u0646\u0629"
 
 
 class ArabicAgent:
