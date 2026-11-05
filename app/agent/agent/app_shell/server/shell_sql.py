@@ -26,12 +26,19 @@ RUN_ERRORS = (
 )
 RAW_ERROR = re.compile(r"SQLSTATE|\[[A-Z][A-Z0-9_]{3,}(?:\.[A-Z0-9_]+)*\]|Traceback \(most recent call last\)|^\s*File \"[^\"\n]+\", line \d+|"
                        r"org\.apache\.|java\.\w+(?:\.\w+)*(?:Exception|Error)\b|Py4JJavaError|\bat [\w$.]+\([\w$.]+\.(?:java|scala):\d+\)", re.M)
+
+
+def rebuild_action(what: str = "it", first: bool = False) -> str:
+    text = f"build {what} again with Vibe/Add/Remove Features on Inspire's Build page"
+    return text[:1].upper() + text[1:] if first else text
+
+
 PLAIN_ERRORS = {
-    "not_allowed": "This App may not read part of its data yet. Ask the person who built the App to build it again, or ask a data owner to "
-                   "give the App read access.",
+    "not_allowed": f"This App may not read part of its data yet. Ask the person who built the App to {rebuild_action()}, or ask a data "
+                   "owner to give the App read access.",
     "missing_table": "Part of this App's data is not there yet. It appears after the next run; if it stays missing, ask the person who built "
                      "the App to run it again.",
-    "missing_column": "The data changed since the App was built. Ask the person who built the App to build it again.",
+    "missing_column": f"The data changed since the App was built. Ask the person who built the App to {rebuild_action()}.",
     "timed_out": "The data took too long to answer. Try again in a minute.",
     "no_compute": "The SQL warehouse behind this App is not answering. Try again in a few minutes; if it keeps failing, ask the person who "
                   "built the App.",
@@ -4476,11 +4483,6 @@ def _digest_count(number: str) -> str:
 def plural(n, one: str, many: str = "") -> str:
     shown = f"{n:,}" if isinstance(n, int) and not isinstance(n, bool) else n
     return f"{shown} {one if n == 1 else many or one + 's'}"
-
-
-def rebuild_action(what: str = "it", first: bool = False) -> str:
-    text = f"build {what} again with Vibe/Add/Remove Features on Inspire's Build page"
-    return text[:1].upper() + text[1:] if first else text
 
 
 def _plural_sql(number: str, one: str, many: str) -> str:

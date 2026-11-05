@@ -743,7 +743,7 @@ def test_when_the_dates_cannot_be_read_together_each_filter_reads_its_own_and_on
     assert status == 200, out
     found = {f["id"]: f for f in out["filters"]}
     assert found["run_date"]["low"] and found["run_date"]["high"] and not found["run_date"].get("error")
-    assert "action_due" in found["due"]["error"]
+    assert found["due"]["error"] == shell_sql.PLAIN_ERRORS["missing_column"]
     assert len(_bounds_reads(ws)) == 3, "the joint read, then one read for each date filter"
     status, opened = call(s, "GET", "defaults", {"page": page["id"]}, headers)
     assert status == 200 and "run_date" in opened["range"] and "filter:due" in opened["errors"], opened
