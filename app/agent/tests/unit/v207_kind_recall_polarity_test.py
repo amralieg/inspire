@@ -323,3 +323,40 @@ def test_a_long_list_in_a_log_says_how_many_were_cut(agent_ns):
         source = "".join(json.load(handle)["cells"][1]["source"])
     assert "inspire_listing(retechniqued)" in source and "inspire_listing(relabelled)" in source
     assert "retechniqued[:20]" not in source and "relabelled[:20]" not in source
+
+
+def _checklist(ns, covered, parsed=None):
+    obj = _detector(ns)
+    obj.parsed_generation_instructions = parsed or {}
+    obj.detected_kinds = obj.detect_supported_kinds(TRIPS, {}, log=False)
+    obj._kind_metadata = None
+    obj._kinds_covered_by_pass1 = covered
+    return [line for line in obj._kinds_checklist_lines(None).splitlines()]
+
+
+def test_pass_2_sees_the_kinds_pass_1_did_not_cover_first_and_marked_as_gaps(agent_ns):
+    lines = _checklist(agent_ns, {"forecast", "anomaly"})
+    kinds = [line for line in lines if line.startswith("- `")]
+    gaps = [line for line in kinds if line.endswith("(no use case of this kind yet)")]
+    done = [line for line in kinds if line.endswith("(Pass 1 already has one)")]
+    assert kinds == gaps + done and len(done) == 2
+    assert any(line.startswith("- `pricing`") for line in gaps)
+    assert any(line.startswith("- `location_intelligence`") for line in gaps)
+    assert any("are the gaps" in line for line in lines)
+
+
+def test_pass_1_and_an_excluded_kind_get_no_gap_marks(agent_ns):
+    lines = _checklist(agent_ns, None)
+    assert not any("are the gaps" in line or "of this kind yet" in line or "already has one" in line for line in lines)
+    parsed = {"use_case_kinds": {"asked": [], "excluded": ["pricing"]}}
+    assert not any(line.startswith("- `pricing`") for line in _checklist(agent_ns, {"forecast"}, parsed))
+
+
+def test_the_pass_1_kind_gaps_are_logged_strongest_first(agent_ns):
+    inst = make_inspire(agent_ns, parsed_generation_instructions={}, user_business_domains=[],
+                        detected_kinds=[{"id": "pricing", "strength": 0.88}, {"id": "forecast", "strength": 0.9},
+                                        {"id": "anomaly", "strength": 0.8}])
+    covered = inst._mark_pass1_kind_gaps([{"No": "N01-U01", "Use Case Kind": "forecast"}, "not a use case"])
+    assert "forecast" in covered and "pricing" not in covered
+    text = next(msg for _lvl, msg in inst.logger.records if "[KIND-GAP FIRED]" in msg)
+    assert "covered 1 detected kind of 3" in text and text.endswith("gaps first: pricing, anomaly")
