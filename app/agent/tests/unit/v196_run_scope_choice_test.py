@@ -61,13 +61,13 @@ def test_the_genie_code_ready_line_names_the_cpu_whose_cli_builds_the_run_unpack
     monkeypatch.setattr(fresh_ns["os"], "symlink", os.symlink)
     assets = make_assets(fresh_ns, tmp_path / "assets", cli_entries(fresh_ns, "x86_64") + cli_entries(fresh_ns, "aarch64"), machine=machine)
     real = fresh_ns["GenieCodeRunner"]
-    monkeypatch.setitem(fresh_ns, "GenieCodeRunner", lambda host, token, logger, on_line=None, model=None: real(host, token, logger, root=str(tmp_path / "r"), assets=assets, model=model))
+    monkeypatch.setitem(fresh_ns, "GenieCodeRunner", lambda host, token, logger, on_line=None, route=None: real(host, token, logger, root=str(tmp_path / "r"), assets=assets, route=route))
     context = types.SimpleNamespace(apiUrl=lambda: types.SimpleNamespace(get=lambda: "https://h"), apiToken=lambda: types.SimpleNamespace(get=lambda: "t"))
     notebook = types.SimpleNamespace(getContext=lambda: context)
     emitted = []
     fake = types.SimpleNamespace(
         dbutils=types.SimpleNamespace(notebook=types.SimpleNamespace(entry_point=types.SimpleNamespace(getDbutils=lambda: types.SimpleNamespace(notebook=lambda: notebook)))),
-        logger=CapturingLogger(), _implement_genie_model=lambda: (fresh_ns["GENIE_CODE_MODEL"], ""),
+        logger=CapturingLogger(), _implement_genie_route=lambda: (fresh_ns["GENIE_CODE_DEFAULT_ROUTE"], ""),
         _implement_emit=lambda uc, step, message, status, step_id=None, **_kw: emitted.append((step, message, status)) or "s1")
     runner = fresh_ns["DatabricksInspire"]._implement_runner(fake, "N01-U01")
     assert runner.install()["machine"] == named == fresh_ns["inspire_asset_machine"](machine)

@@ -15,11 +15,13 @@ BUSY = TimeoutError("timed out")
 
 
 class Gateway:
-    def __init__(self, slugs, answers):
-        self.slugs, self.answers, self.calls = slugs, answers, []
+    def __init__(self, slugs, answers, claude=()):
+        self.slugs, self.answers, self.claude, self.calls = slugs, answers, list(claude), []
 
     def do(self, method, path, body=None, query=None):
         self.calls.append((method, path, (body or {}).get("model")))
+        if method == "GET" and path.startswith("/ai-gateway/anthropic/"):
+            return {"data": [{"id": s} for s in self.claude]}
         if method == "GET":
             return {"models": [{"slug": s} for s in self.slugs]}
         answer = self.answers.get(body["model"], REFUSED)
@@ -84,11 +86,12 @@ def test_no_served_model_is_a_plain_stop_that_names_every_model_tried(agent_ns, 
     assert message.startswith("Genie Code is not available in this workspace: Unity Gateway serves it no AI model this run can call, "
                               "so the build stopped before Genie started and did not retry. Tried 2 models: ")
     assert agent_ns["GENIE_CODE_MODEL"] in message and "system.ai.glm-5-3" in message and message.endswith("then Rebuild.")
+    assert "the Anthropic route lists no model" in message and "choose Notebook only and run the notebook yourself" in message
     assert agent_ns["implement_known_repair"](stop.value, message) == {"kind": "stop", "why": ""}
     assert _genie_steps(inst) == [("ended_error", message)]
     with pytest.raises(agent_ns["ImplementStopped"]):
         inst._implement_runner("N01-U02")
-    assert len(gateway.checked()) == 2
+    assert len(gateway.checked()) == 4, "a run that found no route looks again for the next use case instead of reusing the stop"
 
 
 class NotFound(Exception):
@@ -110,9 +113,11 @@ def test_a_workspace_whose_genie_code_endpoint_answers_404_stops_before_genie_wi
         inst._implement_runner("N02-U01")
     assert str(stop.value) == (
         "Genie Code is not available in this workspace: Unity Gateway serves it no AI model this run can call, so the build "
-        f"stopped before Genie started and did not retry. Tried 1 model: {agent_ns['GENIE_CODE_MODEL']}: Unity Gateway has no such "
-        "model or endpoint here. Ask a workspace admin to serve a model through Unity Gateway and give this run's identity "
-        "permission to query it, then Rebuild.")
+        f"stopped before Genie started and did not retry. Tried 1 model: {agent_ns['GENIE_CODE_MODEL']} through the Codex route: "
+        "Unity Gateway has no such model or endpoint here; the Codex route and the Anthropic route list no model. To build now, "
+        "choose Notebook only and run the notebook yourself. To let Inspire build it, ask a workspace admin to serve a model to "
+        "Genie Code through Unity Gateway (a model on its Codex route, or a Claude model on its Anthropic route) and give this "
+        "run's identity permission to query it, then Rebuild.")
     assert agent_ns["implement_known_repair"](stop.value, str(stop.value)) == {"kind": "stop", "why": ""}
     assert gateway.checked() == [agent_ns["GENIE_CODE_MODEL"]] and "please retry" not in str(stop.value)
 
@@ -126,7 +131,8 @@ def test_a_model_that_only_timed_out_is_used_rather_than_stopping(agent_ns, monk
     assert agent_ns["implement_transient"](BUSY)
     first = agent_ns["GENIE_CODE_MODEL"]
     inst = _inspire(agent_ns, Gateway([], {first: BUSY}), monkeypatch)
-    assert inst._implement_genie_model() == (first, "")
+    route, note = inst._implement_genie_route()
+    assert (route.model, route.base, note) == (first, "/ai-gateway/codex/v1", "")
 
 
 def test_a_write_conflict_is_still_read_as_transient_from_the_redacted_text_and_a_refusal_is_not(agent_ns):

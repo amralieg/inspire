@@ -3565,7 +3565,7 @@ def test_a_failed_genie_code_install_ends_its_step_with_the_reason(fresh_ns, tmp
     download = _failed_download(fresh_ns, tmp_path, monkeypatch)
 
     class _BrokenRunner:
-        def __init__(self, host, token, logger, on_line=None, model=None):
+        def __init__(self, host, token, logger, on_line=None, route=None):
             self.token = token
 
         def install(self):
@@ -3573,7 +3573,7 @@ def test_a_failed_genie_code_install_ends_its_step_with_the_reason(fresh_ns, tmp
 
     fresh_ns["GenieCodeRunner"] = _BrokenRunner
     inst = _inspire(fresh_ns, FakeSpark())
-    inst._genie_code_model = (fresh_ns["GENIE_CODE_MODEL"], "")
+    inst._genie_code_route = {"route": fresh_ns["GENIE_CODE_DEFAULT_ROUTE"], "refused": [], "waiting": [], "listed": {}}
     context = types.SimpleNamespace(apiUrl=lambda: types.SimpleNamespace(get=lambda: "https://h"),
                                     apiToken=lambda: types.SimpleNamespace(get=lambda: "tok"))
     inst.dbutils = types.SimpleNamespace(notebook=types.SimpleNamespace(entry_point=types.SimpleNamespace(
