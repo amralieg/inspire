@@ -65,6 +65,18 @@ def test_the_built_notebook_carries_the_registry_table_so_it_never_needs_the_age
     ns["INSPIRE_TECHNIQUE_RECORDS"] = dict(KINDS["technique_records"])
     assert ns["inspire_grouping_applies"]("Forecasting") is True and ns["inspire_standalone"]("Extraction") is True
     assert "_inspire_kinds" not in ns, "the built notebook reads the table it carries, never the agent's asset loader"
+    assert "_inspire_kinds" not in template_source, "the inlined source names no agent-only helper"
+
+
+def test_a_notebook_with_no_technique_table_fails_loudly_and_the_agent_loads_its_table_lazily(agent_ns):
+    ns = {}
+    exec(compile(agent_ns["IMPLEMENT_RESULT_HISTORY_SOURCE"], "<result_history>", "exec"), ns)
+    with pytest.raises(RuntimeError, match="technique table is not loaded"):
+        ns["inspire_grouping_applies"]("Forecasting")
+    ns["INSPIRE_TECHNIQUE_RECORDS_LOADER"] = lambda: {"Forecasting": "groups"}
+    assert ns["inspire_grouping_applies"]("Forecasting") is True and ns["inspire_grouping_applies"]("Extraction") is False
+    assert agent_ns["INSPIRE_TECHNIQUE_RECORDS"] is None, "the agent reads the registry only when a technique is asked"
+    assert agent_ns["INSPIRE_TECHNIQUE_RECORDS_LOADER"]() == KINDS["technique_records"]
 
 
 @pytest.mark.parametrize("records", [None, 0, 1, 400, 999, 1000, 1001, 718931])
