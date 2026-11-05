@@ -214,7 +214,7 @@ def test_an_ask_whose_data_exists_still_goes_to_genie(agent_ns):
 
 def test_genie_is_told_to_leave_a_held_ask_out_and_nothing_when_none_is_held(agent_ns):
     held = {agent_ns["IMPLEMENT_NOTEBOOK"]: {ASK: agent_ns["IMPLEMENT_VIBES_NO_DATA"] + REASON}}
-    text = agent_ns["implement_choices_markdown"]({"data": {}, "config": {}, "outputs": {}}, held=held)
+    text = agent_ns["implement_choices_markdown"]({"data": {"notes": ASK}, "config": {}, "outputs": {}}, held=held)
     assert f"Inspire holds these of the customer's asks" in text and f"1. {ASK} ({REASON})" in text
     assert "never stand in for them with other columns or fixed numbers" in text
     assert "Inspire holds" not in agent_ns["implement_choices_markdown"]({"data": {}, "config": {}, "outputs": {}})
@@ -240,7 +240,7 @@ def test_a_held_ask_is_reported_with_its_reason_and_never_judged_or_resent(agent
 
 def test_the_hold_runs_before_the_notebook_is_written_and_reaches_its_instruction():
     source = "".join(json.loads(NOTEBOOK.read_text())["cells"][1]["source"])
-    hold = source.index('use_case["_implement_held"] = self._implement_vibes_hold(uc_id, use_case, spec, vibes_split)')
+    hold = source.index('use_case["_implement_held"] = (self._implement_vibes_hold(uc_id, use_case, spec, vibes_split)')
     assert hold < source.index("notebook_path = self._implement_write_notebook(use_case, spec, basis, key")
     assert 'held=use_case.get("_implement_held"))' in source
     assert '"held_asks": ((use_case or {}).get("_implement_held") or {}).get(asset) or {}' in source
@@ -291,3 +291,75 @@ def test_an_ask_is_never_held_before_genie_when_a_source_table_s_columns_could_n
     found = agent_ns["implement_vibes_judged"]({"checks": [{"n": 1, "status": "no_data", "evidence": REASON}]}, [{"ask": LIVE_ASK}], {},
                                                "Notebook", None, None, agent_ns["implement_vibes_held_terms"](unread, live))
     assert found[1] == ("missing", REASON)
+
+
+def _hold_outputs(agent_ns, outputs, notes=""):
+    inst = _inspire(agent_ns, FakeSpark())
+    asked = []
+
+    def llm(kind, prompt, schema):
+        asked.append((kind, prompt))
+        if kind == "split":
+            text = prompt.split('"""')[1].strip()
+            return {"asks": [{"ask": text, "check": None, "keep": False, "where": ""}]}
+        return {"checks": [{"n": n, "status": "no_data", "evidence": REASON, "where": ""} for n in range(1, 9)]}
+
+    inst._implement_vibes_llm = llm
+    inst._implement_vibes_sources = lambda spec, use_case: SOURCES
+    spec = {"data": {"notes": notes}, "outputs": outputs}
+    return inst._implement_vibes_hold("N02-U05", dict(USE_CASE, _implement_notes=notes), spec, {}), asked
+
+
+def test_the_dashboard_copy_of_the_live_carbon_ask_is_held_before_it_is_built(agent_ns):
+    held, asked = _hold_outputs(agent_ns, {"dashboard": True, "dashboard_vibes": LIVE_ASK}, notes=LIVE_ASK)
+    reason = agent_ns["IMPLEMENT_VIBES_NO_DATA"] + REASON
+    assert held == {agent_ns["IMPLEMENT_NOTEBOOK"]: {LIVE_ASK: reason}, "dashboard": {LIVE_ASK: reason}}
+    assert [k for k, _p in asked if k == "judge"] == ["judge"]
+
+
+def test_every_output_that_takes_asks_is_held_and_an_unticked_one_is_not(agent_ns):
+    outputs = {"dashboard": True, "genie_space": True, "app": True, "alert": True, "dashboard_vibes": LIVE_ASK,
+               "genie_space_vibes": LIVE_ASK, "app_vibes": LIVE_ASK, "alert_vibes": LIVE_ASK}
+    held, _asked = _hold_outputs(agent_ns, outputs)
+    assert set(held) == {"dashboard", "genie_space", "app", "alert"}
+    held, _asked = _hold_outputs(agent_ns, dict(outputs, alert=False))
+    assert "alert" not in held
+    held, asked = _hold_outputs(agent_ns, {"dashboard": True, "dashboard_vibes": "Add a bar chart of the late-line rate by nation"})
+    assert held == {} and [k for k, _p in asked if k == "judge"] == []
+
+
+def test_each_output_builder_is_told_to_leave_its_held_ask_out_with_the_notebook_s_plain_reason(agent_ns):
+    reason = agent_ns["IMPLEMENT_VIBES_NO_DATA"] + REASON
+    block = agent_ns["implement_vibes_block"]
+    for name in agent_ns["IMPLEMENT_OUTPUTS"]:
+        outputs = {name: True, f"{name}_vibes": LIVE_ASK}
+        text = block(outputs, name, "vibes_not_done", held={name: {LIVE_ASK: reason}})
+        assert f"1. {LIVE_ASK} ({REASON})" in text and "never stand in for them with other columns or fixed numbers" in text, name
+        assert "Inspire holds" not in block(outputs, name, "vibes_not_done"), name
+        assert "Inspire holds" not in block(outputs, name, "vibes_not_done", held={agent_ns["IMPLEMENT_NOTEBOOK"]: {LIVE_ASK: reason}}), name
+    notebook = agent_ns["implement_choices_markdown"]({"data": {"notes": LIVE_ASK}, "config": {}, "outputs": {}},
+                                                       held={"dashboard": {LIVE_ASK: reason}})
+    assert "Inspire holds" not in notebook
+
+
+def test_a_held_dashboard_ask_is_reported_with_its_reason_and_never_judged_or_resent(agent_ns):
+    inst = _inspire(agent_ns, FakeSpark())
+    asked = []
+    inst._implement_vibes_llm = lambda kind, prompt, schema: asked.append(kind) or (
+        {"asks": [{"ask": LIVE_ASK, "check": None, "keep": False, "where": ""}]} if kind == "split" else {"checks": []})
+    reason = agent_ns["IMPLEMENT_VIBES_NO_DATA"] + REASON
+    page = {"title": "Supplier lateness", "charts": [{"id": "late", "title": "Late-line rate", "type": "bar"}]}
+    item = {"asset": "dashboard", "text": LIVE_ASK, "artifact": page, "sources": SOURCES, "held_terms": _held(agent_ns),
+            "held_asks": {LIVE_ASK: reason}}
+    found = inst._implement_vibes_round({}, [item], "N02-U05 dashboard")
+    [check] = found["checks"]["dashboard"]
+    assert (check["status"], check["evidence"]) == ("missing", reason) and found["resend"] == {} and "judge" not in asked
+
+
+def test_every_output_builder_and_its_checks_read_the_held_asks():
+    source = "".join(json.loads(NOTEBOOK.read_text())["cells"][1]["source"])
+    assert source.count("implement_vibes_block(") == 4
+    assert source.count('held=(context.get("use_case") or {}).get("_implement_held"))') == 3
+    assert source.count('"held_asks": ((context.get("use_case") or {}).get("_implement_held") or {}).get(asset) or {}') == 1
+    assert "for asset, text in implement_held_vibes(spec).items():" in source
+    assert ('if not held_row and (plan["refill"] or plan["build"] or plan["restyle"] or plan["refresh"]) else {})') in source

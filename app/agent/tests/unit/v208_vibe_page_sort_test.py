@@ -56,3 +56,33 @@ def test_a_chart_name_with_no_chart_still_falls_back_to_the_element_that_has_the
     kpi_ask = {"ask": "Change it", "keep": False, "where": "the Planned bake units chart"}
     targets = agent_ns["implement_untargeted_targets"]("app", [(PART, kpi_ask)], V1, _sorted(), "records")
     assert targets["keys"] == {"kpis:planned_units"}
+
+
+def _keyed(column, label=None, key=None):
+    page = json.loads(json.dumps(V1))
+    page["records"]["columns"] = [dict({"column": column, "format": "number"}, **({"label": label} if label else {}))]
+    page["records"]["sort"] = {"dir": "desc", "key": key or column}
+    return page
+
+
+def test_the_judge_matches_the_asked_sort_by_the_plan_table_s_label_or_its_key(agent_ns):
+    from v141_app_shell_test import shell_sql
+    fact, label, check = agent_ns["implement_vibes_fact"], agent_ns["implement_asset_label"](PART), SPLIT["check"][1]
+    assert fact(check, _keyed("planned_units", "Bake quantity"), label, (), None, shell_sql)[0] == "done"
+    assert fact(check, _keyed("value", "Planned bake units"), label, (), None, shell_sql)[0] == "done"
+    assert fact(check, _keyed("planned_units"), label, (), None, shell_sql)[0] == "done"
+    assert fact(check, _keyed("value", "Bake quantity"), label, (), None, shell_sql)[0] == "missing"
+    assert fact(check, _keyed("value", "Planned bake units"), label)[0] == "done"
+
+
+def test_the_judge_reads_a_role_column_by_the_title_the_plan_table_renders(agent_ns):
+    from v141_app_shell_test import shell_sql
+    fact, label = agent_ns["implement_vibes_fact"], agent_ns["implement_asset_label"](PART)
+    page = json.loads(json.dumps(V1))
+    page["records"]["label_title"] = "Product name"
+    page["records"]["sort"] = {"dir": "asc", "key": "entity_label"}
+    by_name = {"direction": "asc", "kind": "sort", "value": "product name"}
+    assert fact(by_name, page, label, (), None, shell_sql)[0] == "done"
+    assert fact(SPLIT["check"][1], page, label, (), None, shell_sql)[0] == "missing"
+    page["records"].pop("label_title")
+    assert fact(by_name, page, label, (), None, shell_sql)[0] == "missing"
