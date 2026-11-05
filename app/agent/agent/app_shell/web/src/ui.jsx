@@ -155,3 +155,8 @@ export function useDialog(open, onClose) {
   }, [open, onClose]);
   return ref;
 }
+
+export function SaidNote({ text, at, size = 12 }) {
+  if (!text) return null;
+  return <p className="choice-done" role="status" data-said={at}><Icon name="check" size={size} />{text}</p>;
+}

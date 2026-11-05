@@ -303,7 +303,7 @@ test('a kinds demo plan takes Accept, Override with a reason, refuses an Overrid
 
     await line(keys[0]).getByRole('button', { name: 'Accept', exact: true }).click();
     await line(keys[0]).locator('[data-decided]').filter({ hasText: /^Accepted the recommended / }).waitFor();
-    assert.equal((await plan().locator(`[data-plan-said="${keys[0]}"]`).innerText()).trim(), S_NOTE, 'the demo says next to the line where the decision is kept');
+    assert.equal((await plan().locator(`[data-said="${keys[0]}"]`).innerText()).trim(), S_NOTE, 'the demo says next to the line where the decision is kept');
     assert.equal((await line(keys[0]).locator('td').nth(3).innerText()).trim(), 'Done', 'the accepted line no longer says New');
     await waits(total - 1);
 
@@ -326,7 +326,7 @@ test('a kinds demo plan takes Accept, Override with a reason, refuses an Overrid
     await takeAll().click();
     await until(async () => (await plan().locator('[data-decided]').count()) === keys.length, 'every line is decided');
     assert.equal(await takeAll().count(), 0);
-    assert.match(await plan().locator('[data-plan-said="all"]').innerText(), new RegExp(`^Accepted ${keys.length - 2} suggested lines?\\. `));
+    assert.match(await plan().locator('[data-said="all"]').innerText(), new RegExp(`^Accepted ${keys.length - 2} suggested lines?\\. `));
     await waits(total - keys.length);
     assert.deepEqual(decided.map((d) => d.record_key).sort(), [...keys].sort(), 'Take all accepted only the lines still open, each once');
 

@@ -790,7 +790,7 @@ export default function Records({ meta, app, pageId, filters, ai, onFilter, hist
         key: 'action_status', label: 'Status', className: 'wrap',
         render: (r) => {
           const by = closedText(r);
-          return r._inspire_status ? <><span className={statusClass(r._inspire_status)}>{statusLabel(r._inspire_status)}</span>{by && <small className="closed-by" data-closed-by>{by}</small>}</> : '';
+          return <>{r._inspire_status ? <><span className={statusClass(r._inspire_status)}>{statusLabel(r._inspire_status)}</span>{by && <small className="closed-by" data-closed-by>{by}</small>}</> : ''}{acts.saidAt(keyOf(r))}</>;
         },
       },
       ...(meta.action ? [{
@@ -859,6 +859,7 @@ export default function Records({ meta, app, pageId, filters, ai, onFilter, hist
         </div>
       )}
       {impact && <p className="impact"><Icon name="check" size={14} />{impact}</p>}
+      {acts.saidAt('all')}
       {canModify && (
         <p className="note"><Icon name="info" size={14} />
           {app.options.replace_edits

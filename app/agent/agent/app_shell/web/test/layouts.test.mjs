@@ -4,7 +4,7 @@ import { readFileSync, statSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
-import { DECIDE, SRC, TABLE, appInfo, bundleEntry, openApp, openBundle, serveDist, tracked } from './harness.mjs';
+import { DECIDE, ROWS, SRC, TABLE, appInfo, bundleEntry, openApp, openBundle, serveDist, tracked } from './harness.mjs';
 import { dashboardRoutes, evaluated, explainerRoutes, fanRows, forecastRoutes, monitorRoutes, plannerRoutes, scenarioRoutes } from './exampleRoutes.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -99,7 +99,7 @@ test('accepting and overriding a plan line go through plan/decide, and an overri
   assert.match(await first.innerText(), /Oat bar\s+100\s+★ 120\s+\+20/);
   await first.getByRole('button', { name: 'Accept' }).click();
   await page.waitForFunction(() => document.querySelector('.toast .toast-t')?.textContent === 'Accepted the suggested line');
-  assert.equal(await page.locator('[data-plan-said="K1"]').innerText(), 'Accepted the suggested line');
+  assert.equal(await page.locator('[data-said="K1"]').innerText(), 'Accepted the suggested line');
   await waits(`${open0 - 1} of ${all0} waiting for you`);
   assert.deepEqual(decided[0], { page: info.pages[0].id, record_key: 'K1', seen: '500', decision: 'accept', reason: '', recommended: 120 });
   const second = page.locator('[data-plan-row="K2"]');
@@ -111,7 +111,7 @@ test('accepting and overriding a plan line go through plan/decide, and an overri
   await page.getByLabel('Why you override it').fill('Supplier is short');
   await save.click();
   await page.waitForFunction(() => document.querySelector('.toast .toast-t')?.textContent === 'Saved your override and its reason');
-  assert.equal(await page.locator('[data-plan-said="K2"]').innerText(), 'Saved your override and its reason');
+  assert.equal(await page.locator('[data-said="K2"]').innerText(), 'Saved your override and its reason');
   await waits(`${open0 - 2} of ${all0} waiting for you`);
   assert.deepEqual(decided[1], { page: info.pages[0].id, record_key: 'K2', seen: '501', decision: 'override', reason: 'Supplier is short', recommended: 130, value: 95 });
   assert.deepEqual(seen.errors, []);
@@ -187,8 +187,8 @@ test('every plan line can be accepted, overridden with a reason or taken all at 
   await line('K1').getByRole('button', { name: 'Accept' }).click();
   await line('K1').locator('[data-decided]').waitFor();
   assert.equal(await line('K1').locator('[data-decided]').innerText(), 'Accepted the recommended 90');
-  assert.equal(await page.locator('[data-plan-said="K1"]').innerText(), 'Accepted the suggested line', 'the success message shows next to the line, not only in a toast');
-  const below = await page.locator('[data-plan-said="K1"]').boundingBox();
+  assert.equal(await page.locator('[data-said="K1"]').innerText(), 'Accepted the suggested line', 'the success message shows next to the line, not only in a toast');
+  const below = await page.locator('[data-said="K1"]').boundingBox();
   const row = await line('K1').boundingBox();
   assert.ok(below.y >= row.y + row.height - 1 && below.y - (row.y + row.height) < 40, 'the message sits right under its line');
   await waits('5 of 6 waiting for you');
@@ -199,7 +199,7 @@ test('every plan line can be accepted, overridden with a reason or taken all at 
   await page.getByRole('button', { name: 'Save override' }).click();
   await line('K2').locator('[data-decided]').waitFor();
   assert.equal(await line('K2').locator('[data-decided]').innerText(), 'Override to 95 instead of 110: Supplier is short');
-  assert.equal(await page.locator('[data-plan-said="K2"]').innerText(), 'Saved your override and its reason');
+  assert.equal(await page.locator('[data-said="K2"]').innerText(), 'Saved your override and its reason');
   await waits('4 of 6 waiting for you');
   assert.deepEqual(decided.map((d) => [d.record_key, d.decision]), [['K1', 'accept'], ['K2', 'override']]);
   await page.reload();
@@ -208,12 +208,12 @@ test('every plan line can be accepted, overridden with a reason or taken all at 
   assert.equal(await line('K2').locator('[data-decided]').innerText(), 'Override to 95 instead of 110: Supplier is short');
   assert.match(await line('K1').innerText(), /Done/);
   await waits('4 of 6 waiting for you');
-  assert.equal(await page.locator('[data-plan-said]').count(), 0, 'a reload shows the decisions in the lines, not the old messages');
+  assert.equal(await page.locator('[data-said]').count(), 0, 'a reload shows the decisions in the lines, not the old messages');
   assert.equal(await plan.locator('[data-take-all]').innerText(), 'Take all 4 ★ suggestions');
   await plan.locator('[data-take-all]').click();
   await page.waitForFunction(() => document.querySelector('.toast .toast-t')?.textContent === 'Accepted 4 suggested lines');
   await page.waitForFunction(() => document.querySelectorAll('[data-plan-row] [data-decided]').length === 6);
-  assert.equal(await plan.locator('[data-plan-said="all"]').innerText(), 'Accepted 4 suggested lines');
+  assert.equal(await plan.locator('[data-said="all"]').innerText(), 'Accepted 4 suggested lines');
   await waits('0 of 6 waiting for you');
   assert.deepEqual(decided.slice(2).map((d) => [d.record_key, d.decision, d.seen]), [['K3', 'accept', '502'], ['K4', 'accept', '503'], ['K5', 'accept', '504'], ['K6', 'accept', '505']]);
   assert.equal(await plan.locator('[data-take-all]').count(), 0);
@@ -441,6 +441,55 @@ test('accepting a suggested action takes one click on a row, or one click for th
   assert.deepEqual(calls.acts.at(-1), { page: info.pages[0].id, record_keys: ['R003', 'R005'], seen: { R003: '102', R005: '104' },
     values: { action_status: 'In progress', note: 'Accepted the suggested action' } });
   assert.equal(calls.acts.length, 2);
+  assert.deepEqual(seen.errors, []);
+  await context.close();
+});
+
+test('a records-list row action says its result in the row, a bulk action and Undo say it over the list, and the open · done line follows each decision', async () => {
+  const info = appInfo(DECIDE, 1, TABLE);
+  const done = new Map();
+  const { calls, routes } = tracked({
+    'records/act': ({ route, json }) => {
+      const body = route.request().postDataJSON();
+      calls.acts.push(body);
+      for (const k of body.record_keys || []) done.set(k, `b${calls.acts.length}`);
+      return json(200, { written: body.record_keys, conflicts: [], batch_id: `b${calls.acts.length}` });
+    },
+    'records/undo': ({ route, json }) => {
+      const body = route.request().postDataJSON();
+      calls.undos.push(body);
+      const back = [...done].filter(([, b]) => b === body.batch_id).map(([k]) => k);
+      for (const k of back) done.delete(k);
+      return json(200, { restored: back.length, skipped: 0, conflicts: [] });
+    },
+  });
+  const n = ROWS.length;
+  const summary = () => ({ open: n - done.size, done: done.size, resolved: 0, left: 0, owners: [] });
+  routes.records = (ctx) => {
+    const body = ctx.route.request().postDataJSON();
+    ctx.seen.records.push(body);
+    const rows = ROWS.slice(body.offset, body.offset + body.limit);
+    return ctx.json(200, { rows, total: ROWS.length, offset: body.offset, limit: body.limit, actions: true, changes: true, summary: summary(), errors: {} });
+  };
+  const { page, seen, context } = await openApp(browser, base, info, { routes });
+  const impact = (text) => page.waitForFunction((t) => document.querySelector('.impact')?.textContent === t, text, { timeout: 10000 })
+    .catch(async () => assert.fail(`impact is "${await page.locator('.impact').innerText().catch(() => 'none')}", not "${text}"`));
+  await impact(`Actions: ${n} open · 0 done`);
+  await page.locator('[data-accept="R001"]').click();
+  const note = page.locator('[data-said="R001"]');
+  await note.waitFor();
+  assert.match(await note.innerText(), /^Accepted the suggested action on 1 record\./);
+  assert.equal(await page.locator('tr', { has: note }).locator('[data-accept="R001"], .cell-t').count() > 0, true, 'the message sits in the row it is about');
+  await impact(`Actions: ${n - 1} open · 1 done · 0 resolved by a later run (0/1)`);
+  for (const name of ['Item number 3 with a long descriptive name', 'Item number 5 with a long descriptive name']) await page.getByLabel(`Select ${name}`).check();
+  await page.locator('[data-accept-picked]').click();
+  await page.locator('[data-said="all"]').filter({ hasText: /^Accepted the suggested action on 2 records/ }).waitFor();
+  assert.equal(await page.locator('[data-said="R001"]').count(), 0, 'one message at a time: the newest replaces the row note');
+  await impact(`Actions: ${n - 3} open · 3 done · 0 resolved by a later run (0/3)`);
+  await page.locator('.toast').getByRole('button', { name: 'Undo' }).last().click();
+  await page.locator('[data-said="all"]').filter({ hasText: 'Undone: 2 records are back as they were.' }).waitFor();
+  await impact(`Actions: ${n - 1} open · 1 done · 0 resolved by a later run (0/1)`);
+  assert.equal(calls.undos.length, 1);
   assert.deepEqual(seen.errors, []);
   await context.close();
 });

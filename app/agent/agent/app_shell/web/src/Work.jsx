@@ -3,7 +3,7 @@ import { actRecords, getBatches, getSimilar, toneOf, undoRecords } from './api.j
 import { withNotice } from './alerts.js';
 import { compareValues, countOf, integer, plainText } from './format.js';
 import { Icon } from './icons.jsx';
-import { Popover, useDialog, useToast } from './ui.jsx';
+import { Popover, SaidNote, useDialog, useToast } from './ui.jsx';
 import {
   NOTE_CHARS, REASON_CHARS, SIMILAR_SHOWN, STATUSES, UNDO_MS, actOutcome, actedText, actionProblem, asOfText, batchText, byWords, conflictText,
   recordsText, statusLabel, undoText, UNDO_THEIRS,
@@ -27,6 +27,7 @@ export function useActs({ pageId, similarBy, onActed, labelOf }) {
   names.current = labelOf;
   const [conflicts, setConflicts] = useState(null);
   const [similar, setSimilar] = useState(null);
+  const [said, setSaid] = useState(null);
   const undo = useCallback(async (batch) => {
     if (!batch) {
       toast('Nothing to undo yet');
@@ -35,7 +36,9 @@ export function useActs({ pageId, similarBy, onActed, labelOf }) {
     try {
       const out = await undoRecords({ page: pageId, batch_id: batch });
       if (last.current === batch) last.current = '';
-      toast(undoText(out, names.current));
+      const text = undoText(out, names.current);
+      setSaid({ key: 'all', text });
+      toast(text);
       onActed();
       return out;
     } catch (err) {
@@ -54,11 +57,15 @@ export function useActs({ pageId, similarBy, onActed, labelOf }) {
       ...(outcome.batch ? [{ label: 'Undo', run: () => undo(outcome.batch) }] : []),
       ...(compareValues(countOf(found?.count), 0) > 0 && found.match ? [{ label: `Apply to ${integer(found.count)} similar`, run: () => setSimilar({ ...found, values, about }) }] : []),
     ];
-    toast(withNotice(said && !outcome.conflicts && !outcome.leftOut ? said : actedText(outcome, values), out), 'info', { actions, ms: UNDO_MS });
+    const text = withNotice(said && !outcome.conflicts && !outcome.leftOut ? said : actedText(outcome, values), out);
+    const one = about?.record_key ?? (body.record_keys?.length === 1 ? body.record_keys[0] : null);
+    setSaid({ key: one == null ? 'all' : String(one), text });
+    toast(text, 'info', { actions, ms: UNDO_MS });
     onActed();
     return outcome;
   };
-  return { act, undo, undoLast: () => undo(last.current), conflicts, clearConflicts: () => setConflicts(null), similar, closeSimilar: () => setSimilar(null) };
+  const saidAt = (key) => (said && said.key === String(key) ? <SaidNote text={said.text} at={said.key} /> : null);
+  return { act, undo, undoLast: () => undo(last.current), said, saidAt, conflicts, clearConflicts: () => setConflicts(null), similar, closeSimilar: () => setSimilar(null) };
 }
 
 export function NoteField({ name, value, onChange, label = 'Note' }) {
