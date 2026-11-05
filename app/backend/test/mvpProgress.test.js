@@ -665,3 +665,12 @@ test('a ready build settles a part it left running as done, and a running build 
   const running = mvpStages(steps.slice(0, -1), latestOf('running'), { now: at('10:30:00') }).find((s) => s.id === 'Dashboard');
   assert.deepEqual([running.state, running.elapsed], ['running', '20m 0s']);
 });
+
+test('the changes Genie made before a build stopped are read from its own step, for this version only, and none means an empty list', async () => {
+  const { genieChangesOf } = await lib('mvpProgress.js');
+  const latest = { status: 'failed', spec_version: 2 };
+  const changed = (version, changes) => row('Genie changes', 'ended_warning', '10:19:00', { result_json: { phase: 'Genie changes', spec_version: version, genie_changes: changes } });
+  assert.deepEqual(genieChangesOf([...BUILT, changed(2, ['round 1 change', 'round 2 change', 'round 1 change'])], latest), ['round 1 change', 'round 2 change']);
+  assert.deepEqual(genieChangesOf([...BUILT, changed(1, ['an older version change'])], latest), []);
+  assert.deepEqual(genieChangesOf(BUILT, latest), []);
+});

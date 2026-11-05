@@ -82,6 +82,18 @@ function sameVersion(payload, latest) {
   return !Number.isFinite(ours) || !Number.isFinite(theirs) || ours === theirs;
 }
 
+export const GENIE_CHANGES_PHASE = 'Genie changes';
+export const GENIE_CHANGES_HEADING = 'What Genie changed before it stopped';
+
+export function genieChangesOf(steps, latest) {
+  let found = [];
+  for (const { row, payload } of stepEvents(steps)) {
+    if (!isPhase(row, payload, GENIE_CHANGES_PHASE) || !sameVersion(payload, latest) || !Array.isArray(payload.genie_changes)) continue;
+    found = [...new Set(payload.genie_changes.map((c) => String(c ?? '').trim()).filter(Boolean))];
+  }
+  return found;
+}
+
 export function mvpRepairOf(steps, latest) {
   let found = null;
   for (const { row, payload, at } of stepEvents(steps)) {

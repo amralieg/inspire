@@ -943,6 +943,7 @@ test('the Build progress box scrolls Genie\'s messages itself: the page never gr
 });
 
 const FAILED_REASON = 'Genie stopped the build: No approved model yet: candidate precision 0.455 was below baseline precision 0.527.';
+const RUN_STOPPED_AFTER_ROUNDS = 'Genie stopped the build: the sample query failed. Inspire sent it back to Genie 2 times with the error, and it still stopped';
 const RUN_FAILED_REASON = 'The build run failed: the notebook raised NameError: history_pdf.';
 const NOTHING_BUILT = { result_rows: null, asset_status: null, dashboard_id: null, dashboard_url: null, genie_space_id: null, genie_space_url: null,
   app_name: null, app_url: null, alert_id: null, alert_url: null };
@@ -984,6 +985,29 @@ test('a failed build shows a red banner in the Build progress box with the faile
     assert.deepEqual(ui.pageErrors, []);
   } finally {
     await ui.close();
+  }
+});
+
+test('a build Genie stopped after two repair rounds lists what Genie changed in both rounds next to the stop reason, and a stop with no change shows no heading', async () => {
+  const failed = built({ status: 'failed', status_message: RUN_STOPPED_AFTER_ROUNDS, ...NOTHING_BUILT });
+  const changes = ['Genie changed the outcome column: the label is is_churned.', 'Genie changed the date filter: the history starts in 2024.'];
+  const changed = { ...stepRow('Genie changes', 'ended_warning', '10:19:00'),
+    result_json: JSON.stringify({ use_case_id: 'N01-U01', phase: 'Genie changes', genie_changes: changes }) };
+  const steps = [stepRow('Plan', 'ended_success', '10:01:00'), stepRow('Genie build', 'started', '10:04:05'), changed, stepRow('Genie build', 'ended_error', '10:20:00')];
+  for (const [withChanges, want] of [[true, changes], [false, []]]) {
+    const ui = await openUi('implement', { ...STUDIO_STATE, history: [failed], steps: withChanges ? steps : steps.filter((r) => r !== changed) });
+    try {
+      await ui.page.getByRole('heading', { name: 'Build', exact: true }).waitFor();
+      await expandBuild(ui.page);
+      const banner = ui.page.getByRole('region', { name: 'Build failed' });
+      await banner.getByText(RUN_STOPPED_AFTER_ROUNDS, { exact: true }).waitFor();
+      const list = banner.getByRole('list', { name: 'What Genie changed before it stopped' });
+      assert.deepEqual(await list.getByRole('listitem').allInnerTexts(), want);
+      assert.equal(await banner.getByText('What Genie changed before it stopped', { exact: true }).count(), withChanges ? 1 : 0, 'the heading shows only with changes');
+      assert.deepEqual(ui.pageErrors, []);
+    } finally {
+      await ui.close();
+    }
   }
 });
 

@@ -105,15 +105,22 @@ function StageArrows({ stages }) {
   );
 }
 
-export function StageNotes({ stages }) {
+export function StageNotes({ stages, label = 'What Inspire noted on the build', heading = '' }) {
   const noted = (stages || []).filter((stage) => stage.notes?.length);
   if (!noted.length) return null;
-  return (
-    <ul aria-label="What Inspire noted on the build" data-stage-notes="" className="space-y-1 text-[12px] text-text-secondary">
+  const list = (
+    <ul aria-label={label} data-stage-notes="" className="space-y-1 text-[12px] text-text-secondary">
       {noted.flatMap((stage) => stage.notes.map((note) => (
         <li key={`${stage.id}:${note}`} data-stage-note={stage.id}>{note}</li>
       )))}
     </ul>
+  );
+  if (!heading) return list;
+  return (
+    <div className="space-y-1">
+      <p className="text-[12px] font-semibold">{heading}</p>
+      {list}
+    </div>
   );
 }
 

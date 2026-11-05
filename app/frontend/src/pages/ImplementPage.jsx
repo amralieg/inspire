@@ -38,6 +38,7 @@ import {
 } from '../lib/implementControl';
 import {
   buildingAssets, mvpScope, mvpStages, mvpProgressSummary, mvpRepairOf, feedArrivals, railProgress, sortedTo, statusProgress, steadyFeed, versionPlan, vibeChecklist,
+  genieChangesOf, GENIE_CHANGES_HEADING,
 } from '../lib/mvpProgress';
 import MvpProgress, { ProgressLine, ScopeNotes, StageNotes } from '../components/MvpProgress';
 import { useProgressView } from '../lib/progressView';
@@ -1187,6 +1188,7 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
 
   const buildRunUrl = stalled?.run_url || status?.build_run_url || '';
   const dataStop = !readOnly && dataStopped(latest);
+  const genieChanges = genieChangesOf(status?.steps, latest);
   const failureBanner = hasMvp && chip.tone === 'error' && !held && !checklist?.notDecided && (
     <section aria-label="Build failed" className="rounded-lg border border-error/30 bg-error-bg px-3.5 py-3 text-[12px] space-y-2.5">
       <div className="flex items-start gap-2.5">
@@ -1197,6 +1199,7 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
           {reason && <p>{reason}</p>}
         </div>
       </div>
+      <StageNotes stages={[{ id: 'Notebook', notes: genieChanges }]} label={GENIE_CHANGES_HEADING} heading={GENIE_CHANGES_HEADING} />
       {buildAgain && <p className="text-error-fg">{dataStop ? DATA_STOP_HINT : buildAgainHint(latest)}</p>}
       {(buildAgain || onEdit || buildRunUrl) && (
         <div className="flex flex-wrap gap-2">
