@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildAgainHint, DATA_STOP_HINT, lostTablesText, VIBE_FEATURES_LABEL } from '../../src/lib/implementWizard.js';
+import { buildAgainHint, DATA_STOP_HINT, GENIE_CODE_OFF_TITLE, lostTablesText, VIBE_FEATURES_LABEL } from '../../src/lib/implementWizard.js';
 import {
   HARNESS_USE_CASE, HARNESS_SETTINGS, HARNESS_SESSION_ID, MVP_JOB, OWNER, RESULT_TABLE, STUDIO_STATE, built, builtSpec,
 } from './implementFixtures.js';
@@ -1691,6 +1691,37 @@ test('Edit after notebook edits asks on Delivery whether to overwrite them, and 
     assert.deepEqual(fresh.pageErrors, []);
   } finally {
     await fresh.close();
+  }
+});
+
+test('with no Genie Code route, Full MVP is disabled with the reason and the admin fix, and Notebook only is picked for you', async () => {
+  const noRoute = { answer: () => [{ error_code: 'RESOURCE_DOES_NOT_EXIST', message: 'no such model' }, 404] };
+  const ui = await openUi('wizard', { me: { userName: OWNER, displayName: 'Owner' }, gateway: noRoute });
+  const { page, made } = ui;
+  try {
+    await onStep(page, 'Choose');
+    const full = page.getByRole('radio', { name: /^Full MVP/ });
+    assert.equal(await full.isDisabled(), true);
+    assert.equal(await page.getByRole('radio', { name: /^Notebook only/ }).isChecked(), true);
+    const note = page.getByRole('note', { name: GENIE_CODE_OFF_TITLE });
+    await note.getByText(/^Genie Code is not available in this workspace/).waitFor();
+    await note.getByText(/^Admin fix: Ask a workspace admin to serve a model to Genie Code/).waitFor();
+    assert.doesNotMatch(await note.textContent(), /contact|ticket|support/i);
+    assert.deepEqual(await page.locator('ol li').allTextContents(), ['1. Choose', '2. Data', '3. Notebook']);
+    assert.equal(made.jobs.length, 0);
+  } finally {
+    await ui.close();
+  }
+});
+
+test('with a Genie Code route, Full MVP stays the default and no note shows', async () => {
+  const ui = await openUi('wizard', { me: { userName: OWNER, displayName: 'Owner' } });
+  try {
+    await onStep(ui.page, 'Choose');
+    assert.equal(await ui.page.getByRole('radio', { name: /^Full MVP/ }).isChecked(), true);
+    assert.equal(await ui.page.getByRole('note', { name: GENIE_CODE_OFF_TITLE }).count(), 0);
+  } finally {
+    await ui.close();
   }
 });
 

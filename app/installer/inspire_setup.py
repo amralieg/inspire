@@ -366,6 +366,9 @@ def _remove_old_bundles(w, bundle_root, keep, in_use):
 USER_SCOPE_CONSTANTS = ("IMPLEMENT_APP_EDIT_SCOPES", "IMPLEMENT_APP_READ_SCOPES")
 LAKEBASE_CONSTANTS = ("IMPLEMENT_LAKEBASE_PROJECT", "IMPLEMENT_LAKEBASE_PROJECT_SPEC", "IMPLEMENT_LAKEBASE_BRANCH", "IMPLEMENT_LAKEBASE_ENDPOINT",
                       "IMPLEMENT_LAKEBASE_DATABASE", "IMPLEMENT_LAKEBASE_CATALOG")
+GENIE_CODE_CONSTANTS = ("UNITY_GATEWAY_CODEX_PATH", "UNITY_GATEWAY_ANTHROPIC_PATH", "UNITY_GATEWAY_MLFLOW_PATH", "GENIE_CODE_MODEL",
+                        "GENIE_CODE_MODEL_CHECK", "GENIE_CODE_ADMIN_FIX")
+GENIE_CODE_CHECK_TIMEOUT_S = 10
 INSPIRE_APP_OWN_SCOPES = ("apps", "catalog.catalogs:read", "catalog.schemas:read", "catalog.tables:read", "files", "model-serving", "sql",
                           "workspace.workspace")
 USER_SCOPES_REFUSED = ("Inspire was installed without user authorization, so it lists no catalogs, schemas or tables, starts no run "
@@ -454,6 +457,40 @@ def agent_lakebase(notebook_text):
         if not isinstance(value, wanted) or not value:
             raise ValueError(f"{name} in the bundled agent notebook is not a Lakebase {'project spec' if wanted is dict else 'name'}")
     return {key: found[f"IMPLEMENT_LAKEBASE_{key.upper()}"] for key in ("project", "project_spec", "branch", "endpoint", "database", "catalog")}
+
+
+def _gateway_listed(resp):
+    try:
+        data = resp.json() if resp.status_code == 200 else {}
+    except ValueError:
+        data = {}
+    rows = list(data.get("models") or []) + list(data.get("data") or [])
+    return [str(r.get("slug") or r.get("id") or "").strip() for r in rows if isinstance(r, dict) and (r.get("slug") or r.get("id"))]
+
+
+def genie_code_install_check(api, notebook_text, person):
+    try:
+        k = agent_constants(notebook_text, GENIE_CODE_CONSTANTS)
+    except Exception as exc:
+        return f"⚠️ not checked: the bundled agent notebook does not say how Genie Code reaches a model ({_error_words(exc)})"
+    timeout = GENIE_CODE_CHECK_TIMEOUT_S
+    try:
+        claude = sorted((m for m in _gateway_listed(api("GET", f"{k['UNITY_GATEWAY_ANTHROPIC_PATH']}/models", timeout=timeout))
+                         if re.search(r"claude-(?:sonnet|opus)", m, re.IGNORECASE)), reverse=True)
+        tried = [("Codex route", k["UNITY_GATEWAY_CODEX_PATH"], k["GENIE_CODE_MODEL"])] + [
+            ("Anthropic route", k["UNITY_GATEWAY_MLFLOW_PATH"], m) for m in claude[:1]]
+        refused = []
+        for route, base, model in tried:
+            resp = api("POST", f"{base}/responses", dict(k["GENIE_CODE_MODEL_CHECK"], model=model), timeout=timeout)
+            if resp.status_code == 200:
+                return f"✅ Inspire can build MVPs: Genie Code reaches {model} through the {route} (checked as {person})"
+            if resp.status_code == 429 or resp.status_code >= 500:
+                return f"⚠️ not checked: Unity Gateway was busy ({resp.status_code}); the first MVP build checks again before Genie starts"
+            refused.append(f"{model} through the {route}: {resp.status_code} {str(resp.text or '')[:120]}")
+    except Exception as exc:
+        return f"⚠️ not checked: Unity Gateway did not answer ({_error_words(exc)}); the first MVP build checks again before Genie starts"
+    return (f"⚠️ Genie Code reaches no model for {person} (tried {'; '.join(refused)}). Notebook only still works: Inspire writes the "
+            f"notebook and you run it. To let Inspire build MVPs, {k['GENIE_CODE_ADMIN_FIX']}")
 
 
 def inspire_app_scopes(notebook_text):
@@ -687,7 +724,7 @@ def build_runtime_context(env):
             "Authorization": f"Bearer {dbutils.notebook.entry_point.getDbutils().notebook().getContext().apiToken().get()}"
         }
 
-    def api(method, path, body=None):
+    def api(method, path, body=None, timeout=None):
         fn = {
             "GET": requests.get,
             "POST": requests.post,
@@ -698,6 +735,8 @@ def build_runtime_context(env):
         kwargs = {"headers": api_headers}
         if body is not None:
             kwargs["json"] = body
+        if timeout is not None:
+            kwargs["timeout"] = timeout
         return fn(f"{api_base}{path}", **kwargs)
 
     def api_get(path):
@@ -846,6 +885,8 @@ def step_schema_and_notebooks(ctx):
                                    "its own scopes: the Run tab cannot show pages Inside Inspire, and an App it builds may refuse a settings "
                                    "change sent from Inspire")
         print(f"  ⚠️ {ctx['USER_SCOPES_NOTE']}")
+    ctx["GENIE_CODE_SUMMARY"] = genie_code_install_check(api, base64.b64decode(b64).decode("utf-8"), ctx.get("USER_EMAIL") or "you")
+    print(f"Genie Code: {ctx['GENIE_CODE_SUMMARY']}")
     try:
         ctx["LAKEBASE"] = agent_lakebase(base64.b64decode(b64).decode("utf-8"))
     except Exception as exc:
@@ -1472,6 +1513,8 @@ def step_render_done(ctx):
         print(f"  Sign-in:     {ctx['USER_SCOPES_NOTE']}")
     if ctx.get("LAKEBASE_SUMMARY"):
         print(f"  Lakebase:    {ctx['LAKEBASE_SUMMARY']}")
+    if ctx.get("GENIE_CODE_SUMMARY"):
+        print(f"  Genie Code:  {ctx['GENIE_CODE_SUMMARY']}")
     print("=" * 60)
 
     displayHTML(

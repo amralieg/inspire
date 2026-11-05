@@ -1006,7 +1006,8 @@ test('context returns the execution family, whether it trains a model, the Deep 
       assert.equal(got.status, 200, JSON.stringify(got.data));
       assert.deepEqual([got.data.family, got.data.trains_model], [family, trains], mandate);
       assert.equal(got.data.evidence.tables['main.s.orders'].rows, 1200);
-      assert.deepEqual(got.data.features, { apps: true, genie_spaces: false, alerts: true });
+      assert.deepEqual(got.data.features, { apps: true, genie_spaces: false, alerts: true,
+        genie_code: { available: true, route: 'Codex route', model: 'gpt-5.6-sol', reason: '', fix: '' } });
     });
   }
 });

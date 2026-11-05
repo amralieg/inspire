@@ -23,6 +23,7 @@ const { fsApiPath } = require('./lib/workspacePaths');
 const { int64Id, isInt64Id, requireInt64Id, jsonWithInt64Ids } = require('./lib/int64Id');
 const { parseExactJson } = require('./lib/exactJson');
 const { grantJobViewer, rememberViewer } = require('./lib/jobViewer');
+const GC = require('./lib/genieCodeCheck');
 
 function sendError(res, err) {
   const code = err && Number.isFinite(err.statusCode) ? err.statusCode : 500;
@@ -123,6 +124,7 @@ function registerImplementRoutes(app, deps) {
     buildStamp = bundledBuildStamp,
     runDefaults = () => ({}),
     appToken = async () => '',
+    genieCodeCheck = GC.createGenieCodeCheck(),
     appBaseUrl = (req) => I.inspireBaseUrl(process.env.DATABRICKS_APP_URL)
       || I.inspireBaseUrl(String(req.headers['x-forwarded-host'] || '').split(',')[0]),
   } = deps;
@@ -233,13 +235,29 @@ function registerImplementRoutes(app, deps) {
     return session;
   }
 
+  async function loadGenieCode(req) {
+    try {
+      return await genieCodeCheck(req.dbHost, req.dbToken, (path, opts) => jsonOf(dbFetch, req.dbHost, req.dbToken, path, opts));
+    } catch (err) {
+      console.warn(`implement: the Genie Code check did not finish, so it does not block the build: ${err.message}`);
+      return GC.verdictOf({ route: '', refused: [], waiting: [{ why: err.message }], listed: {} });
+    }
+  }
+
   async function loadFeatures(req) {
-    const [apps, spaces, alerts] = await Promise.all([
+    const [apps, spaces, alerts, genieCode] = await Promise.all([
       jsonOf(dbFetch, req.dbHost, req.dbToken, '/api/2.0/apps?page_size=1'),
       jsonOf(dbFetch, req.dbHost, req.dbToken, '/api/2.0/genie/spaces?page_size=1'),
       jsonOf(dbFetch, req.dbHost, req.dbToken, '/api/2.0/alerts?page_size=1'),
+      loadGenieCode(req),
     ]);
-    return { apps: apps.ok, genie_spaces: spaces.ok, alerts: alerts.ok };
+    return { apps: apps.ok, genie_spaces: spaces.ok, alerts: alerts.ok, genie_code: genieCode };
+  }
+
+  async function requireGenieCode(req) {
+    const verdict = await loadGenieCode(req);
+    if (verdict.available !== false) return;
+    throw Object.assign(new Error(verdict.reason), { statusCode: 409, details: { genie_code: verdict } });
   }
 
   async function appWarehouseCheck(req, warehouseId, identity, warehouseName, forApp = false) {
@@ -821,6 +839,7 @@ function registerImplementRoutes(app, deps) {
       } else if (mergeApp) {
         checks.app_access = output ? output.app : { ok: false, detail: 'not checked, because the warehouse could not run the access check' };
       }
+      checks.genie_code = GC.genieCodeLine(features.genie_code);
       if (wantsGenie) {
         checks.genie_spaces = { ok: features.genie_spaces, detail: features.genie_spaces ? 'you can create Genie Agents' : 'you cannot create Genie Agents in this workspace' };
       }
@@ -1170,7 +1189,9 @@ function registerImplementRoutes(app, deps) {
 
   app.post('/api/inspire/implement/submit', requireToken, async (req, res) => {
     try {
-      res.json(await startVersion(req, await prepareSubmission(req)));
+      const prepared = await prepareSubmission(req);
+      if (GC.needsGenieCode(prepared.spec)) await requireGenieCode(req);
+      res.json(await startVersion(req, prepared));
     } catch (err) {
       sendError(res, err);
     }

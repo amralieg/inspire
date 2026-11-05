@@ -10,6 +10,8 @@ import { catalogRow } from '../lib/useCaseFacets';
 import { insideMoveNote } from '../lib/implementControl';
 import {
   IMPLEMENT_MODES,
+  GENIE_CODE_OFF_TITLE,
+  genieCodeOff,
   wizardSteps,
   contextSettings,
   IMPLEMENT_OUTPUTS,
@@ -215,6 +217,7 @@ const COLUMN_ROLES = ['entity_id', 'event_date', 'measure', 'label', 'segment'];
 const ALL_FEATURES = { apps: true, genie_spaces: true, alerts: true };
 const TILE_CHECKS = { app: ['app_access', 'apps'], genie_space: ['genie_spaces'], alert: ['alerts'] };
 const PLACE_CHECKS = ['app_name'];
+const CHOOSE_CHECKS = ['genie_code'];
 
 function withProfileDefaults(spec, profile, defaults = withScopeDefaults) {
   const read = scopeValues((name) => spec.config.widgets?.[name]);
@@ -458,6 +461,7 @@ export default function ImplementWizard({
         const data = await apiFetch(`/api/inspire/implement/context?${q}`);
         if (cancelled) return;
         setContext(data);
+        if (genieCodeOff(data.features)) setMode('notebook');
         setAppUnreadable(data.app_unreadable || null);
         const row = rowWithCard(uc, data.use_case);
         const fallback = defaultSpecFromUseCase(row, {
@@ -924,6 +928,7 @@ export default function ImplementWizard({
 
   const title = caseNameOf(uc) || spec.use_case_name || spec.use_case_id;
   const features = preflight?.features || context?.features || ALL_FEATURES;
+  const genieOff = genieCodeOff(features);
   const unavailable = unavailableOutputs(features, outputCheck, context?.assets);
   const unavailableKey = unavailable.join(',');
 
@@ -946,7 +951,7 @@ export default function ImplementWizard({
   const checkEntries = Object.entries(preflight?.checks || {});
   const generalChecks = checkEntries.filter(([k]) => !TILE_CHECK_KEYS.includes(k));
   const freshness = freshnessOf(spec.schedule);
-  const checkStepOf = (k) => (PLACE_CHECKS.includes(k) ? 'app_place' : ACCESS_CHECKS.includes(k) ? 'app_access' : 'delivery');
+  const checkStepOf = (k) => (CHOOSE_CHECKS.includes(k) ? 'choose' : PLACE_CHECKS.includes(k) ? 'app_place' : ACCESS_CHECKS.includes(k) ? 'app_access' : 'delivery');
   const checkStepLabel = (k) => steps.find((s) => s.id === checkStepOf(k))?.label || 'Delivery';
   const deliveryChecks = buildStep
     ? checkEntries.filter(([k, v]) => !v.ok && checkStepOf(k) !== stepId)
@@ -1000,19 +1005,29 @@ export default function ImplementWizard({
             <fieldset className="space-y-2">
               <legend className="text-[10px] font-bold uppercase tracking-[0.18em] text-text-tertiary mb-1">What to build</legend>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {IMPLEMENT_MODES.map((m) => (
+                {IMPLEMENT_MODES.map((m) => {
+                  const off = m.id === 'mvp' && Boolean(genieOff);
+                  return (
                   <label
                     key={m.id}
-                    className={`flex items-start gap-2.5 border rounded-lg p-3 cursor-pointer ${mode === m.id ? 'border-db-red bg-db-red-50' : 'border-border hover:border-border-strong'}`}
+                    className={`flex items-start gap-2.5 border rounded-lg p-3 ${off ? 'cursor-not-allowed border-border bg-bg-subtle text-text-secondary' : `cursor-pointer ${mode === m.id ? 'border-db-red bg-db-red-50' : 'border-border hover:border-border-strong'}`}`}
                   >
-                    <input type="radio" name="implement-mode" value={m.id} checked={mode === m.id} onChange={() => setMode(m.id)} className="mt-0.5" />
+                    <input type="radio" name="implement-mode" value={m.id} checked={mode === m.id} disabled={off} onChange={() => setMode(m.id)} className="mt-0.5" />
                     <span className="space-y-0.5">
                       <span className="block text-sm font-semibold text-text-primary">{m.label}{m.id === 'mvp' ? ' (default)' : ''}</span>
                       <span className="block text-[12px] text-text-secondary">{m.blurb}</span>
                     </span>
                   </label>
-                ))}
+                  );
+                })}
               </div>
+              {genieOff && (
+                <div role="note" aria-label={GENIE_CODE_OFF_TITLE} className="rounded-lg border border-warning/30 bg-warning-bg px-3 py-2 text-[12px] space-y-1">
+                  <p className="font-semibold text-text-primary">{GENIE_CODE_OFF_TITLE}</p>
+                  <p className="text-text-secondary">{genieOff.reason}</p>
+                  {genieOff.fix && <p className="text-text-secondary">Admin fix: {genieOff.fix}</p>}
+                </div>
+              )}
               {editing && (
                 <p className="text-[11px] text-text-tertiary">
                   This use case has an MVP (v{context.latest.spec_version}). Full MVP edits it; Notebook only leaves it as it is.

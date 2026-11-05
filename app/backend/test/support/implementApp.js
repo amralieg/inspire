@@ -195,6 +195,15 @@ function makeApp(overrides = {}, { mount } = {}) {
         return log === undefined ? json('raw', 404) : json(log);
       }
       if (path.includes('/fs/files')) return state.liveLog === undefined ? json('raw', 404) : json(state.liveLog);
+      if (path.startsWith('/ai-gateway/')) {
+        const gateway = { codex: [], claude: [], answer: () => [{ object: 'response' }], ...(state.gateway || {}) };
+        if (routed.startsWith('GET ')) {
+          return path.startsWith('/ai-gateway/anthropic/') ? json({ data: gateway.claude.map((id) => ({ id })) })
+            : json({ models: gateway.codex.map((slug) => ({ slug })) });
+        }
+        const [data, status = 200] = gateway.answer(path, JSON.parse(opts.body || '{}').model);
+        return json(data, status);
+      }
       return json({ message: 'not mocked ' + path }, 500);
     },
     fetchInspireSessionWidgetRow: async () => state.session,

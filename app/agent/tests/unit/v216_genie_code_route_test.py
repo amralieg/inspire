@@ -274,3 +274,18 @@ def test_a_check_that_crashes_is_an_unknown_verdict_not_a_stop(fresh_ns, monkeyp
     inst._implement_genie_found = lambda: (_ for _ in ()).throw(ValueError("boom"))
     verdict = inst.genie_code_verdict()
     assert verdict["available"] is None and verdict["reason"].startswith("Inspire could not check Genie Code")
+
+
+def test_gpt_oss_models_are_never_probed_or_chosen_on_either_route_because_they_reject_parallel_tool_calls(agent_ns):
+    oss = ["system.ai.gpt-oss-120b", "databricks-gpt-oss-20b", "GPT_OSS_large"]
+    answers = {(base, m): "ok" for base in (f"{CODEX}/responses", f"{MLFLOW}/responses") for m in oss}
+    gateway = Gateway(codex=oss, claude=oss + ["system.ai.claude-sonnet-4-6"],
+                      answers={**answers, (f"{MLFLOW}/responses", "system.ai.claude-sonnet-4-6"): "ok"})
+    found = _discover(agent_ns, gateway)
+    assert found["route"].model == "system.ai.claude-sonnet-4-6"
+    assert gateway.probes() == [(f"{CODEX}/responses", agent_ns["GENIE_CODE_MODEL"]), (f"{MLFLOW}/responses", "system.ai.claude-sonnet-4-6")]
+    only = Gateway(codex=oss, claude=oss, answers=answers)
+    assert _discover(agent_ns, only)["route"] is None
+    assert not any("oss" in model.lower() for _p, model in only.probes())
+    assert agent_ns["genie_code_ranked_models"](["system.ai.kimi-k3"] + oss) == ["system.ai.kimi-k3"]
+    assert not agent_ns["is_genie_code_unfit_model"]("system.ai.claude-opus-4-7")

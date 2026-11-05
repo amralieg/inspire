@@ -1310,7 +1310,15 @@ export function modelNameOf(spec) {
   return String(spec?.config?.widgets?.model_name ?? '').trim();
 }
 
+export function genieCodeOff(features) {
+  const verdict = features && features.genie_code;
+  return verdict && verdict.available === false ? { reason: String(verdict.reason || ''), fix: String(verdict.fix || '') } : null;
+}
+
+export const GENIE_CODE_OFF_TITLE = 'Inspire cannot build the MVP in this workspace yet';
+
 export const PREFLIGHT_LABELS = {
+  genie_code: 'Genie Code',
   warehouse: 'SQL warehouse',
   output: 'Output table',
   model: 'Model registration',

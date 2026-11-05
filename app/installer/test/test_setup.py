@@ -1433,5 +1433,68 @@ class RuntimeContextTest(unittest.TestCase):
                 self.context({"manifest": {"version": "v1.3.0"}, "files": files, "folders": {}, "settings": {}})
 
 
+class GenieCodeInstallCheckTest(unittest.TestCase):
+    TEXT = AGENT_NOTEBOOK.read_text(encoding="utf-8")
+    K = setup.agent_constants(TEXT, setup.GENIE_CODE_CONSTANTS)
+
+    def gateway(self, codex=(200, ""), claude_models=(), claude=(200, ""), raises=None):
+        calls = []
+
+        def api(method, path, body=None, timeout=None):
+            calls.append((method, path, (body or {}).get("model"), timeout))
+            if raises:
+                raise raises
+            if path == f"{self.K['UNITY_GATEWAY_ANTHROPIC_PATH']}/models":
+                return Resp(200, {"data": [{"id": m} for m in claude_models]})
+            if path == f"{self.K['UNITY_GATEWAY_CODEX_PATH']}/responses":
+                return Resp(codex[0], text=codex[1])
+            if path == f"{self.K['UNITY_GATEWAY_MLFLOW_PATH']}/responses":
+                return Resp(claude[0], text=claude[1])
+            return Resp(404)
+        return api, calls
+
+    def check(self, api):
+        return setup.genie_code_install_check(api, self.TEXT, "someone@example.com")
+
+    def test_the_codex_route_answers_and_the_installer_says_mvps_can_be_built(self):
+        api, calls = self.gateway()
+        said = self.check(api)
+        self.assertTrue(said.startswith("✅"), said)
+        self.assertIn(self.K["GENIE_CODE_MODEL"], said)
+        self.assertIn("someone@example.com", said)
+        self.assertTrue(all(c[3] == setup.GENIE_CODE_CHECK_TIMEOUT_S for c in calls))
+        probe = [c for c in calls if c[0] == "POST"]
+        self.assertEqual(probe, [("POST", f"{self.K['UNITY_GATEWAY_CODEX_PATH']}/responses", self.K["GENIE_CODE_MODEL"], 10)])
+
+    def test_codex_refused_falls_back_to_the_listed_claude_model_on_the_anthropic_route(self):
+        api, calls = self.gateway(codex=(404, "model not found"), claude_models=("gpt-x", "claude-sonnet-4-6", "claude-haiku-3"))
+        said = self.check(api)
+        self.assertTrue(said.startswith("✅"), said)
+        self.assertIn("claude-sonnet-4-6 through the Anthropic route", said)
+        self.assertNotIn("claude-haiku-3", [c[2] for c in calls])
+
+    def test_no_route_names_both_refusals_notebook_only_and_the_admin_fix_without_a_ticket(self):
+        api, _ = self.gateway(codex=(403, "denied"), claude_models=("claude-opus-4-7",), claude=(404, "not found"))
+        said = self.check(api)
+        self.assertTrue(said.startswith("⚠️"), said)
+        self.assertIn("403 denied", said)
+        self.assertIn("claude-opus-4-7 through the Anthropic route: 404", said)
+        self.assertIn("Notebook only", said)
+        self.assertIn(self.K["GENIE_CODE_ADMIN_FIX"], said)
+        self.assertNotRegex(said.lower(), r"contact|ticket|support")
+
+    def test_a_busy_or_silent_gateway_is_not_a_verdict(self):
+        api, _ = self.gateway(codex=(503, "busy"))
+        self.assertIn("not checked", self.check(api))
+        api, _ = self.gateway(raises=setup.requests.exceptions.ConnectTimeout("slow"))
+        self.assertIn("not checked", self.check(api))
+
+    def test_a_notebook_without_the_constants_is_reported_not_raised(self):
+        api, calls = self.gateway()
+        said = setup.genie_code_install_check(api, json.dumps({"cells": []}), "someone@example.com")
+        self.assertIn("not checked", said)
+        self.assertEqual(calls, [])
+
+
 if __name__ == "__main__":
     unittest.main()
