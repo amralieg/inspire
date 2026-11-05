@@ -1207,7 +1207,7 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
   const buildRunUrl = stalled?.run_url || status?.build_run_url || '';
   const dataStop = !readOnly && dataStopped(latest);
   const genieChanges = genieChangesOf(status?.steps, latest);
-  const choicesNow = buildAgain && !dataStop && latest?.status === 'failed' ? failureChoices(latest, {
+  const choicesNow = buildAgain && !dataStop && !stopped && latest?.status === 'failed' ? failureChoices(latest, {
     technique: fieldOf(item.uc || {}, 'Analytics Technique', 'analytics_technique'), notebookUrl: notebook?.href || '',
   }) : [];
   const writeNotebook = async () => {
