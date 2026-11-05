@@ -51,6 +51,26 @@ def test_the_priority_level_folds_into_the_priorities_and_keeps_the_widget_picks
     assert renamed["priorities"] == [] and "priority_level" not in renamed, "a label that names no level folds nothing"
 
 
+def test_the_app_names_the_priority_level_without_renaming_any_header(agent_ns):
+    sent = dict(FOUR_LEVELS, labels={}, priority_level="focus area")
+    tree = agent_ns["parse_strategic_context"](json.dumps(sent))
+    assert tree["priority_level"] == "Focus Area" and tree["priorities"] == ["Repeat buyers", "Basket growth"]
+    assert tree["labels"] == {}
+    assert not any("unknown key" in w for w in tree.get("warnings", [])), "the App's own key is not reported as unknown"
+    wrong = agent_ns["parse_strategic_context"](json.dumps(dict(sent, priority_level="Initiative")))
+    assert "priority_level" not in wrong and wrong["priorities"] == []
+    assert any("priority_level 'Initiative' ignored" in w for w in wrong["warnings"])
+
+
+def test_a_named_level_with_no_entries_gets_no_column(agent_ns):
+    obj = make_inspire(agent_ns)
+    obj.strategy_tree = agent_ns["parse_strategic_context"](json.dumps(
+        {"levels": ["Pillar", "Goal", "Objective", "Priority"], "priority_level": "Priority",
+         "strategy": [{"name": "Customer", "children": ["Win loyalty"]}]}))
+    assert [header for header, _get, _numeric in obj._strategy_level_columns()] == ["Pillar", "Goal"]
+    assert agent_ns["strategy_level_names"](obj.strategy_tree, [{"id": "S1.1"}]) == {"Pillar": "Customer", "Goal": "Win loyalty"}
+
+
 def test_a_sponsor_outside_the_customer_roles_is_repaired_onto_the_roster(agent_ns):
     answers = {"U1": answer("U1", alignments=[{"id": "S1.1.1", "evidence": "Repeat orders per `customer_id` move it"}],
                             sponsor_id="SP42"),
