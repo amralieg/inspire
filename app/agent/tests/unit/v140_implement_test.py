@@ -2536,8 +2536,10 @@ def test_the_brief_names_the_reasons_view_and_says_people_never_see_raw_json(age
     brief = inst._implement_use_case_brief(context)
     assert (f"\nReasons view: `{REASONS_VIEW}`, one row per reason in top_reasons, with the columns as_of_date, run_id, use_case_id, "
             "entity_id, entity_label, rank, priority_tier, record_key, valid_from, valid_to, is_current, change_source, reason_position "
-            "(1 for a row's first reason) and reason; read it to filter, "
-            "count or chart by reason, from its current rows WHERE is_current, since it lists every version of each record.\n") in brief
+            "(1 for a row's first reason) and reason; read it to filter or count by reason, "
+            "from its current rows WHERE is_current, since it lists every version of each record. Each reason holds its record's own "
+            "numbers, so never group a chart by reason; group by a categorical column many records share, such as an ai_cat_ category "
+            "or priority_tier.\n") in brief
     assert brief.endswith("Input tables: `main.s.orders`\n"), "the view is not listed as an input table"
     context.update(run_log="main.inspire.churn_out_run_log", allowed=context["allowed"] + ["main.inspire.churn_out_run_log"])
     assert inst._implement_use_case_brief(context).endswith("Input tables: `main.s.orders`\n"), "nor is the run log"

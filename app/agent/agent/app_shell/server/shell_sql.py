@@ -344,6 +344,18 @@ SEGMENT_FILTERS_MIN = 3
 DRIVER = "driver"
 DRIVERS_MIN = 1
 DRIVERS_TITLE = "Drivers"
+CONCENTRATION_CHARTS = ("pareto",)
+REASON_CHARTS = "reason_charts"
+CONCENTRATION_FLOOR = 3
+CONCENTRATION_UNIQUE = (9, 10)
+REASONS_COLUMN = "top_reasons"
+REASON_SPLIT = re.compile(r"\b(?:pos)?explode(?:_outer)?\s*\(\s*`?top_reasons`?\s*\)|\belement_at\s*\(\s*`?top_reasons`?\s*,|"
+                          r"`?\btop_reasons`?\s*\[|\barray_join\s*\(\s*`?top_reasons`?\s*,|\binline\s*\(\s*`?top_reasons`?\s*\)", re.I)
+REASONS_VIEW = re.compile(r"\b(?:FROM|JOIN)\s+[\w`.]*_reasons`?(?![\w`])", re.I)
+PRE_GROUPED = re.compile(r"\bGROUP\s+BY\b|\bSELECT\s+DISTINCT\b", re.I)
+CATEGORY_GROUPING = ("group x by a categorical column that many records share, such as an ai_cat_ category or priority_tier of the "
+                     "result table, never by reason text or any text that holds each record's own numbers, and show the reasons in "
+                     "the decision list")
 GUIDE_PREFIX = "How to read:"
 GUIDE_TITLES = 2
 RUN_COLUMN = "_inspire_run"
@@ -1334,16 +1346,102 @@ def quality_problems(page: dict, event_date: bool = False) -> list:
             problems.append(f"KPI {kpi.get('id')} sums {column}, a ratio or an average; divide two sums instead")
     for chart in page.get("charts") or []:
         problems += _shape_problems(chart)
+    problems += reason_axis_problems(page)
     if page_layout(page) != DEFAULT_LAYOUT:
         return problems + contract_problems(page)
     if len(driver_charts(page)) < DRIVERS_MIN:
         problems.append(f"the page has no Drivers chart: set \"{DRIVER}\": true on at least {DRIVERS_MIN} chart that shows what "
-                        "drives the result, such as where the listed records concentrate or the reasons that put them on the list")
+                        "drives the result, such as the categories where the listed records concentrate, grouped by a "
+                        "categorical column many records share")
     return problems
 
 
 def driver_charts(page: dict) -> list:
     return [c for c in page.get("charts") or [] if isinstance(c, dict) and c.get(DRIVER) is True]
+
+
+def _category_x(chart: dict) -> str:
+    x = chart.get("x") if isinstance(chart.get("x"), dict) else {}
+    column = str(x.get("column") or "")
+    return column if chart.get("type") != "scatter" and x.get("kind") == "category" and IDENT.match(column) else ""
+
+
+def _x_source(sql: str, column: str) -> str:
+    found = re.search(rf"\bAS\s+`?{re.escape(column)}`?(?![\w`])", sql, re.I)
+    if not found:
+        return ""
+    depth, start = 0, found.start()
+    while start > 0 and not (sql[start - 1] in ",(" and depth == 0):
+        depth += {")": 1, "(": -1}.get(sql[start - 1], 0)
+        start -= 1
+    return re.sub(r"^\s*SELECT\s+(?:DISTINCT\s+)?", "", sql[start:found.start()], flags=re.I).strip()
+
+
+def reason_axis(chart: dict, sql: str) -> bool:
+    column = _category_x(chart)
+    if not column:
+        return False
+    if column.lower() == REASONS_COLUMN:
+        return True
+    source = _x_source(str(sql or ""), column)
+    if REASON_SPLIT.search(source) and not re.search(r"\b(?:CASE|WHEN|regexp_\w+|split)\b", source, re.I):
+        return True
+    named = column if not source else source
+    return bool(REASONS_VIEW.search(str(sql or ""))) and bool(re.fullmatch(r"(?:\w+\.)?`?reason`?", named.strip(), re.I))
+
+
+def asked_reason_charts(page: dict, check: str) -> bool:
+    if asked_fewer(page, REASON_CHARTS):
+        print(f"[{check} SKIPPED] page={page.get('id')}: the user asked for charts grouped by reason", flush=True)
+        return True
+    return False
+
+
+def reason_axis_problems(page: dict) -> list:
+    if asked_reason_charts(page, "REASON-AXIS"):
+        return []
+    sql = {str(d.get("name")): str(d.get("sql") or "") for d in page.get("datasets") or [] if isinstance(d, dict)}
+    flagged = [c for c in page.get("charts") or [] if isinstance(c, dict) and reason_axis(c, sql.get(str(c.get("dataset")), ""))]
+    if flagged:
+        print(f"[REASON-AXIS FIRED] page={page.get('id')} charts={','.join(str(c.get('id')) for c in flagged)}", flush=True)
+    return [f"chart {c.get('id')} groups x by the reason text ({_category_x(c)}), which holds each record's own numbers, so every "
+            f"bar is one record and the chart shows no concentration; {CATEGORY_GROUPING}" for c in flagged]
+
+
+def concentration_charts(page: dict) -> list:
+    return [c for c in page.get("charts") or [] if isinstance(c, dict) and _category_x(c)
+            and (c.get("type") in CONCENTRATION_CHARTS or c.get(DRIVER) is True)]
+
+
+def concentration_candidates(page: dict, drawn: dict) -> list:
+    if asked_fewer(page, REASON_CHARTS):
+        return []
+    sql = {str(d.get("name")): str(d.get("sql") or "") for d in page.get("datasets") or [] if isinstance(d, dict)}
+    return [c["id"] for c in concentration_charts(page) if int((drawn or {}).get(c.get("id")) or 0) > CONCENTRATION_FLOOR
+            and not PRE_GROUPED.search(sql.get(str(c.get("dataset")), ""))]
+
+
+def concentration_query(page: dict, ident: str, values: dict) -> tuple:
+    chart = _item(page, "charts", ident)
+    sql, params = _dataset(page, chart["dataset"]), _Params()
+    where = _where(page, chart["dataset"], values, params)
+    return (f"SELECT COUNT(*) AS n, COUNT(DISTINCT x) AS k FROM (SELECT {quote(chart['x']['column'])} AS x FROM ({sql}) AS d{where}) AS g",
+            params.items)
+
+
+def concentration_problems(page: dict, counted: dict) -> list:
+    if asked_reason_charts(page, "CONCENTRATION-CHECK"):
+        return []
+    problems = []
+    for chart in concentration_charts(page):
+        rows, bars = (counted or {}).get(chart.get("id"), (0, 0))
+        if bars > CONCENTRATION_FLOOR and bars * CONCENTRATION_UNIQUE[1] >= rows * CONCENTRATION_UNIQUE[0]:
+            problems.append(f"chart {chart.get('id')} groups {plural(rows, 'row')} into {plural(bars, 'bar')} by {_category_x(chart)} "
+                            f"at the default filters, so nearly every bar is one record and the chart shows no concentration; "
+                            f"{CATEGORY_GROUPING}")
+    if problems:
+        print(f"[CONCENTRATION-CHECK FIRED] page={page.get('id')} charts={len(problems)}", flush=True)
+    return problems
 
 
 def and_words(titles) -> str:

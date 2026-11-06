@@ -2935,6 +2935,15 @@ class Shell:
                             f"table's key for one record, in the {shell_sql.RECORDS_DATASET} dataset")
         return problems
 
+    def check_concentration(self, page: dict, values: dict, probe, drawn: dict) -> dict:
+        queries = {ident: shell_sql.concentration_query(page, ident, values) for ident in shell_sql.concentration_candidates(page, drawn)}
+        done, errors = self._parallel({("concentration", ident): (lambda s=sql, p=params: self.run(probe.ws, None, s, p, 1))
+                                       for ident, (sql, params) in queries.items()}, probe)
+        for (_kind, ident), message in sorted(errors.items()):
+            print(f"[CONCENTRATION-CHECK SKIPPED] page={page.get('id')} chart={ident}: {message[:300]}", flush=True)
+        return {ident: (int(row.get("n") or 0), int(row.get("k") or 0))
+                for (_kind, ident), result in done.items() for row in (result.get("rows") or [])[:1]}
+
     def check_decidable(self, probe, page: dict, columns: dict, where: str) -> list:
         if not (self.decides(page) or self.plan_editable(page)):
             return []
@@ -3061,6 +3070,8 @@ class Shell:
                                      f"filters, so it ranks nothing; chart a measure that differs across the groups"
                                      for label, value in flat_measures(item, rows)]
             charted = data["charts"]
+            problems += [f"{where}: {p}" for p in shell_sql.concentration_problems(
+                page, self.check_concentration(page, defaults, probe, {i: len(r.get("rows") or []) for i, r in charted.items()}))]
             problems += [f"{where}: {p}" for p in shell_sql.chart_date_problems(
                 page, {ident: result.get("rows") or [] for ident, result in charted.items()},
                 {ident: {c.get("name"): c.get("type") for c in result.get("columns") or []} for ident, result in charted.items()})]
