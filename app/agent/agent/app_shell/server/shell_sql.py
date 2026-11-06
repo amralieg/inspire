@@ -348,6 +348,8 @@ CONCENTRATION_CHARTS = ("pareto",)
 REASON_CHARTS = "reason_charts"
 CONCENTRATION_FLOOR = 3
 CONCENTRATION_UNIQUE = (9, 10)
+IDENTITY_COLUMNS = ("record_key", ID_COLUMN, "entity_label")
+IDENTITY_WRAPS = ("cast", "try_cast", "coalesce", "nvl", "ifnull", "trim", "upper", "lower", "initcap", "concat", "concat_ws")
 REASONS_COLUMN = "top_reasons"
 REASON_SPLIT = re.compile(r"\b(?:pos)?explode(?:_outer)?\s*\(\s*`?top_reasons`?\s*\)|\belement_at\s*\(\s*`?top_reasons`?\s*,|"
                           r"`?\btop_reasons`?\s*\[|\barray_join\s*\(\s*`?top_reasons`?\s*,|\binline\s*\(\s*`?top_reasons`?\s*\)", re.I)
@@ -356,6 +358,8 @@ PRE_GROUPED = re.compile(r"\bGROUP\s+BY\b|\bSELECT\s+DISTINCT\b", re.I)
 CATEGORY_GROUPING = ("group x by a categorical column that many records share, such as an ai_cat_ category or priority_tier of the "
                      "result table, never by reason text or any text that holds each record's own numbers, and show the reasons in "
                      "the decision list")
+ONE_ROW_PER_RECORD = ("select one row per record of the result table, such as its current rows, and aggregate any table that holds many "
+                      "rows per record to one row per record before joining it")
 GUIDE_PREFIX = "How to read:"
 GUIDE_TITLES = 2
 RUN_COLUMN = "_inspire_run"
@@ -1408,17 +1412,47 @@ def reason_axis_problems(page: dict) -> list:
             f"bar is one record and the chart shows no concentration; {CATEGORY_GROUPING}" for c in flagged]
 
 
+def _x_expression(sql: str, column: str) -> str:
+    named, seen = column, set()
+    while named.lower() not in seen:
+        seen.add(named.lower())
+        source = _x_source(sql, named)
+        bare = re.fullmatch(r"(?:`?\w+`?\.)*`?(\w+)`?", source)
+        if not source or not bare:
+            return source or named
+        named = bare.group(1)
+    return named
+
+
+def identity_axis(page: dict, chart: dict, sql: str) -> bool:
+    column = _category_x(chart)
+    if not column:
+        return False
+    records = page.get("records") if isinstance(page.get("records"), dict) else {}
+    names = {str(c).lower() for c in (*IDENTITY_COLUMNS, records.get("key"), records.get("label")) if c}
+    expression = re.sub(r"'(?:[^'\\]|\\.)*'", " ", _x_expression(str(sql or ""), column))
+    expression = re.sub(r"\bAS\s+\w+(?:\s*\([\d\s,]*\))?", " ", expression, flags=re.I)
+    expression = re.sub(r"`?\w+`?\s*\.\s*(?=`?\w)", "", expression)
+    words = [(m.group(1).lower(), bool(m.group(2))) for m in re.finditer(r"`?([A-Za-z_]\w*)`?\s*(\()?", expression)]
+    leftover = re.sub(r"`?[A-Za-z_]\w*`?|\d+(?:\.\d+)?|[\s(),|+]", "", expression)
+    return (not leftover and any(not called and word in names for word, called in words)
+            and all(word in IDENTITY_WRAPS if called else word in names for word, called in words))
+
+
+def _dataset_sql(page: dict) -> dict:
+    return {str(d.get("name")): str(d.get("sql") or "") for d in page.get("datasets") or [] if isinstance(d, dict)}
+
+
 def concentration_charts(page: dict) -> list:
     return [c for c in page.get("charts") or [] if isinstance(c, dict) and _category_x(c)
             and (c.get("type") in CONCENTRATION_CHARTS or c.get(DRIVER) is True)]
 
 
 def concentration_candidates(page: dict, drawn: dict) -> list:
-    if asked_fewer(page, REASON_CHARTS):
-        return []
-    sql = {str(d.get("name")): str(d.get("sql") or "") for d in page.get("datasets") or [] if isinstance(d, dict)}
+    asked, sql = asked_fewer(page, REASON_CHARTS), _dataset_sql(page)
     return [c["id"] for c in concentration_charts(page) if int((drawn or {}).get(c.get("id")) or 0) > CONCENTRATION_FLOOR
-            and not PRE_GROUPED.search(sql.get(str(c.get("dataset")), ""))]
+            and not PRE_GROUPED.search(sql.get(str(c.get("dataset")), ""))
+            and (not asked or identity_axis(page, c, sql.get(str(c.get("dataset")), "")))]
 
 
 def concentration_query(page: dict, ident: str, values: dict) -> tuple:
@@ -1430,17 +1464,31 @@ def concentration_query(page: dict, ident: str, values: dict) -> tuple:
 
 
 def concentration_problems(page: dict, counted: dict) -> list:
-    if asked_reason_charts(page, "CONCENTRATION-CHECK"):
-        return []
-    problems = []
+    asked, sql = asked_reason_charts(page, "CONCENTRATION-CHECK"), _dataset_sql(page)
+    problems, fanned, ranked = [], [], []
     for chart in concentration_charts(page):
         rows, bars = (counted or {}).get(chart.get("id"), (0, 0))
-        if bars > CONCENTRATION_FLOOR and bars * CONCENTRATION_UNIQUE[1] >= rows * CONCENTRATION_UNIQUE[0]:
+        if bars <= CONCENTRATION_FLOOR:
+            continue
+        unique = bars * CONCENTRATION_UNIQUE[1] >= rows * CONCENTRATION_UNIQUE[0]
+        if identity_axis(page, chart, sql.get(str(chart.get("dataset")), "")):
+            (ranked if unique else fanned).append(chart)
+        elif unique and not asked:
             problems.append(f"chart {chart.get('id')} groups {plural(rows, 'row')} into {plural(bars, 'bar')} by {_category_x(chart)} "
                             f"at the default filters, so nearly every bar is one record and the chart shows no concentration; "
                             f"{CATEGORY_GROUPING}")
     if problems:
         print(f"[CONCENTRATION-CHECK FIRED] page={page.get('id')} charts={len(problems)}", flush=True)
+    if ranked:
+        print(f"[CONCENTRATION-CHECK SKIPPED] page={page.get('id')} charts={','.join(str(c.get('id')) for c in ranked)}: x is the "
+              "record itself, so one bar per record is the ranking the chart shows", flush=True)
+    if fanned:
+        print(f"[CONCENTRATION-FANOUT FIRED] page={page.get('id')} charts={','.join(str(c.get('id')) for c in fanned)}", flush=True)
+    for chart in fanned:
+        rows, bars = counted[chart.get("id")]
+        problems.append(f"chart {chart.get('id')} ranks {plural(bars, 'record')} by {_category_x(chart)}, but its dataset holds "
+                        f"{plural(rows, 'row')} for them at the default filters, so each bar adds up a record's numbers more than "
+                        f"once; {ONE_ROW_PER_RECORD}")
     return problems
 
 

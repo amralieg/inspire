@@ -5412,7 +5412,7 @@ def test_every_failed_step_that_raises_to_the_build_leaves_its_one_error_to_the_
                     raising += 1
                     flagged += any(kw.arg == "error_logged_elsewhere" and getattr(kw.value, "value", None) is True
                                    for kw in call.keywords)
-    assert raising == 13 and flagged == raising, (raising, flagged)
+    assert raising == 14 and flagged == raising, (raising, flagged)
     failed = source[source.index("    def _implement_failed("):]
     failed = failed[:failed.index("\n    def ", 10)]
     assert failed.count("self.logger.error(") == 2 and "error_logged_elsewhere=True" in failed

@@ -28,6 +28,7 @@ SHELL_ENTRY_POINTS = {
     ("_implement_app_check", "shell_core.Shell"),
     ("_implement_app_check", "shell_core.HttpError"),
     ("_implement_app_check", "shell_core.Shell.check"),
+    ("_implement_app_check", "shell_core.Shell.check_split"),
     ("_implement_app_check", "shell_core.Shell.close"),
     ("_implement_app_check", "shell_core.Shell.speed"),
     ("_implement_app_check", "shell_db.QueryError"),
