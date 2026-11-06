@@ -234,7 +234,7 @@ def test_genie_code_keeps_its_own_names_and_inspire_still_redacts_in_the_same_no
     exec(compile(controls.rstrip().rsplit("\n", 1)[0], "run_controls", "exec"), notebook)
     assert sorted(name for name, value in genie.items() if notebook[name] is not value) == []
     assert notebook["run_use_case"]() == expected
-    assert notebook["fmt_num"](1060) == "1.06K" and notebook["is_missing"](float("nan")) and notebook["fmt_count"](1, "store") == "1 store"
+    assert notebook["fmt_num"](1060) == "1,060" and notebook["is_missing"](float("nan")) and notebook["fmt_count"](1, "store") == "1 store"
     assert notebook["inspire_redact_text"].__code__.co_filename == "run_controls"
     assert notebook["INSPIRE_REDACTED_VALUE"] == "a data value" and notebook["_redact_re"].__name__ == "re"
     _clean([notebook["inspire_redact_text"](FOREIGN, set(), "")])

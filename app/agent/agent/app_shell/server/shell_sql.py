@@ -1877,11 +1877,11 @@ def plan_decision(plan: dict, decision, reason, value, recommended) -> dict:
         raise ValueError(f"the reason takes at most {CAPS['note_chars']} characters")
     suggested = _scenario_number(recommended, "the recommended value")
     if decision == "accept":
-        return {"action_status": PLAN_DECIDED, ACT_NOTE: f"Accepted the recommended {suggested:g}" + (f": {reason}" if reason else "")}
+        return {"action_status": PLAN_DECIDED, ACT_NOTE: f"Accepted the recommended {shown_number(suggested)}" + (f": {reason}" if reason else "")}
     amount = _scenario_number(value, "the override value")
     if not reason:
         raise ValueError("say why you override the recommended line: an override needs a reason")
-    note = f"Override to {amount:g} instead of {suggested:g}: {reason}"
+    note = f"Override to {shown_number(amount)} instead of {shown_number(suggested)}: {reason}"
     return {"action_status": PLAN_DECIDED, ACT_NOTE: note[:CAPS["note_chars"]]}
 
 
@@ -4063,6 +4063,19 @@ def stake_floor(value: float) -> float:
 
 def number_text(value) -> str:
     return ("%.10f" % (float(value) + 0.0)).rstrip("0").rstrip(".")
+
+
+def shown_number(value, grouped=True) -> str:
+    number = float(value) + 0.0
+    if not math.isfinite(number):
+        return str(number)
+    group = "," if grouped else ""
+    if number.is_integer():
+        return f"{int(number):{group}}"
+    if abs(number) >= 1:
+        return f"{number:{group}.4f}".rstrip("0").rstrip(".")
+    digits = max(4, 3 - math.floor(math.log10(abs(number))))
+    return f"{number:.{digits}f}".rstrip("0").rstrip(".")
 
 
 def public_money(model):

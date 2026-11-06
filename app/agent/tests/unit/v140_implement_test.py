@@ -3721,7 +3721,8 @@ def test_the_tier_mix_warning_states_the_runs_value_range_and_flags_and_never_cl
         "column value; 4 of 4 rows (100%) carry a data_quality_flag other than ok, in 2 kinds"), "the warning names no value the run wrote"
     assert warn({"Act now": 1}, "", flagged) == ""
     assert "says why" not in warn({"Monitor": 1}, "https://h/r", clean)
-    assert agent_ns["implement_number_text"](0.4899) == "0.49" and agent_ns["implement_number_text"](2452642) == "2.45M"
+    assert agent_ns["implement_number_text"](0.4899) == "0.49" and agent_ns["implement_number_text"](2452642) == "2,452,642"
+    assert agent_ns["implement_number_text"](2452642.37) == "2.45M"
 
 
 def test_the_tier_mix_warning_names_the_method_behind_the_rows_and_whether_a_model_is_registered(agent_ns):

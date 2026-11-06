@@ -118,7 +118,7 @@ def test_a_first_run_has_no_earlier_value_never_fires_on_a_missing_baseline_and_
     assert agent_ns["implement_alert_previous_text"]({"previous": None}, shell_sql) == words["none"]
     assert agent_ns["implement_alert_previous_text"]({"previous": 73.5}, shell_sql) == "73.5 in the previous run"
     alerts_js = open(os.path.join(WEB, "src", "alerts.js"), encoding="utf-8").read()
-    assert "import { change, changeText } from './format.js';" in alerts_js and "preview.words.none" in alerts_js and "{preview.vs}" in alerts_js
+    assert "import { change, changeText, grouped } from './format.js';" in alerts_js and "preview.words.none" in alerts_js and "{preview.vs}" in alerts_js
     assert not [w for w in list(words.values()) + [shell_sql.COMPARE_RUN] if w in alerts_js], "the words come from shell_sql only"
 
 

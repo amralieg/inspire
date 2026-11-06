@@ -517,9 +517,7 @@ def explain_context_line(value) -> str:
 
 
 def explain_number(value: float) -> str:
-    if value.is_integer():
-        return str(int(value))
-    return str(round(value, 4)) if abs(value) >= 1 else f"{value:.4g}"
+    return shell_sql.shown_number(value, grouped=False)
 
 
 def explain_cell(value) -> str:
@@ -3530,7 +3528,7 @@ class Shell:
                                              {str(l.get("lever")): l.get("step") for l in scenario.get("levers") or []})
         except ValueError as error:
             raise HttpError(400, shell_sql.error_text(error)) from error
-        print(f"[SCENARIO-EVAL FIRED] page={page['id']} levers={len(out['levers'])} clamped={len(out['clamped'])} p50={out['outcome']['p50']:g}", flush=True)
+        print(f"[SCENARIO-EVAL FIRED] page={page['id']} levers={len(out['levers'])} clamped={len(out['clamped'])} p50={shell_sql.shown_number(out['outcome']['p50'])}", flush=True)
         return out
 
     def act_on_keys(self, ws, writer, page: dict, fields: list, keys: list, seen: dict, editor: str, values: dict, batch: dict) -> dict:

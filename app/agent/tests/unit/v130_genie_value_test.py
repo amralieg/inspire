@@ -145,8 +145,9 @@ def test_the_number_function_inspire_writes_is_the_rules_fmt_num(agent_ns):
     for value in [sign * mantissa * 10.0 ** power for power in range(-6, 12) for sign in (1, -1)
                   for mantissa in (1, 1.004, 1.06, 1.2, 2.5, 4.9996, 9.995, 9.9996)]:
         assert text(value) == rule_formatter(value), value
-    for value, shown in ((120, "120"), (120.4, "120"), (100000, "100K"), (1060, "1.06K"), (17400000, "17.4M"), (2.5e9, "2.5B"),
-                         (999.6, "1K"), (999950, "1M"), (-1060, "-1.06K"), (0, "0"), (-0.0, "0"), (0.5, "0.5"), (12.34, "12.3"),
+    for value, shown in ((120, "120"), (120.4, "120"), (100000, "100,000"), (1060, "1,060"), (17400000, "17,400,000"),
+                         (2.5e9, "2,500,000,000"), (1060.4, "1.06K"), (17400000.5, "17.4M"), (2.5e9 + 0.5, "2.5B"),
+                         (999.6, "1K"), (999950, "999,950"), (999950.5, "1M"), (-1060, "-1,060"), (-1060.4, "-1.06K"), (0, "0"), (-0.0, "0"), (0.5, "0.5"), (12.34, "12.3"),
                          (99.95, "100"), (0.0004, "0.0004"), ("12.5", "12.5"), (None, "unknown"), (float("nan"), "unknown"),
                          (float("inf"), "unknown"), ("abc", "unknown"), (agent_ns["pd"].NA, "unknown")):
         assert text(value) == shown, (value, text(value))
@@ -226,6 +227,8 @@ def rule_formatter(x):
     x = float(x)
     if x == 0:
         return "0"
+    if x.is_integer():
+        return f"{int(x):,}"
     x = round(x, 2 - math.floor(math.log10(abs(x))))
     suffix = ""
     for limit, label in ((1e9, "B"), (1e6, "M"), (1e3, "K")):
@@ -257,15 +260,18 @@ def test_the_number_rules_cases_reject_both_formatters_genie_code_wrote(agent_ns
     assert "a multiple ends in 'x' (7.48x the lane median), a share of at most 1 is multiplied by 100 and ends in '%'" in numbers, \
         "a freight reason read 'Ship cost is 23.5 of sales price' for a ship cost 23.5 times the sales price"
     cases = rule_cases(numbers)
-    assert len(cases) == 9 and cases[0.0] == "0" and cases[109.96] == "110" and cases[1060.0] == "1.06K" and cases[250000000.0] == "250M"
+    assert len(cases) == 12 and cases[0.0] == "0" and cases[109.96] == "110" and cases[1060.0] == "1,060" and cases[1060.4] == "1.06K"
+    assert cases[250000000.0] == "250,000,000" and cases[104999.0] == "104,999" and cases[1611.96] == "1.61K"
     assert {value: rule_formatter(value) for value in cases} == cases, "the rule's cases follow the 3-significant-figure algorithm"
     assert {value: inspire_helpers().fmt_num(value) for value in cases} == cases, "Inspire's fmt_num writes the rule's cases"
-    for value, text in {99.95: "100", 999999.0: "1M", 13600.5: "13.6K", 1100.0: "1.1K", 0.00123: "0.00123", 15.0: "15",
-                        0.0: "0", float("nan"): "unknown", None: "unknown"}.items():
+    for value, text in {99.95: "100", 999999.0: "999,999", 999999.5: "1M", 13600.5: "13.6K", 1100.0: "1,100", 1100.4: "1.1K",
+                        0.00123: "0.00123", 15.0: "15", 0.0: "0", float("nan"): "unknown", None: "unknown"}.items():
         assert rule_formatter(value) == text, value
     shim = types.SimpleNamespace(isfinite=math.isfinite)
-    for source, wrong in ((ROUND27_TRAILING_ZERO_FORMATTER, {109.96: "11", 120.4: "12", 999.6: "1", 250000000.0: "25M", -120.4: "-12"}),
-                          (ROUND27_SUFFIX_FIRST_FORMATTER, {999.6: "1000", 0.5: "0.500"})):
+    for source, wrong in ((ROUND27_TRAILING_ZERO_FORMATTER, {109.96: "11", 120.4: "12", 999.6: "1", 250000000.0: "25M", -120.4: "-12",
+                                                            1060.0: "1.06K", 104999.0: "105K"}),
+                          (ROUND27_SUFFIX_FIRST_FORMATTER, {999.6: "1000", 0.5: "0.500", 1060.0: "1.06K", 104999.0: "105K",
+                                                           250000000.0: "250M"})):
         ns = {"math": math, "np": shim}
         exec(source, ns)
         written = {value: ns["fmt_num"](value) for value in cases}
@@ -1281,7 +1287,7 @@ def test_round_30_a_ratio_above_one_is_a_multiple_and_a_count_agrees_with_its_no
     assert "and a share is multiplied by 100 and ends in '%' (23.5% of sales)." not in numbers
     assert "A count's noun agrees with it: '1 prior order', '2 prior orders'" in numbers, \
         "round 30: 4,172 uplift rows and 9,302 lapse rows read '1 prior catalog orders'"
-    assert len(rule_cases(numbers)) == 9, "the formatter cases still parse"
+    assert len(rule_cases(numbers)) == 12, "the formatter cases still parse"
     _, _, mandate = spec_and_mandate(agent_ns, **{"Analytics Technique": "Anomaly Detection"})
     assert "Numbers in text: " + numbers in mandate
     inst = build_inspire(agent_ns)
@@ -1415,15 +1421,15 @@ def test_round_31_counts_and_ranks_are_written_by_inspires_helpers(agent_ns):
         "round 31: 20,891 of 51,644 network rows read '1 new recipients', from a template with a fixed plural"
     assert ("A rank is written by `fmt_rank(r)`: the whole number with thousands separators and its ordinal suffix") in numbers, \
         "round 31: network reasons ranked a sender as '1.01Kth of 51.6K senders by influence'"
-    assert "never through fmt_num, which writes '1.01Kth', with the total it ranks among written as `f'{total:,}'`" in numbers
+    assert "never through fmt_num, which writes '1,010' with no suffix, with the total it ranks among written as `f'{total:,}'`" in numbers
     helpers, na = inspire_helpers(), agent_ns["pd"].NA
     assert [helpers.fmt_rank(v) for v in (1, 2, 3, 11, 12, 13, 21, 112, 21302, 1010)] == \
         ["1st", "2nd", "3rd", "11th", "12th", "13th", "21st", "112th", "21,302nd", "1,010th"], "never '1.01Kth'"
     assert [helpers.fmt_count(n, noun) for n, noun in ((1, "prior order"), (2, "prior order"), (0, "day"), (1060, "ticket"),
                                                          (None, "day"), (na, "day"))] == \
-        ["1 prior order", "2 prior orders", "0 days", "1.06K tickets", "unknown days", "unknown days"]
+        ["1 prior order", "2 prior orders", "0 days", "1,060 tickets", "unknown days", "unknown days"]
     assert helpers.fmt_count(1, "new recipient") == "1 new recipient" and helpers.fmt_count(2, "child", "children") == "2 children"
-    assert len(rule_cases(numbers)) == 9, "the fmt_num cases still parse"
+    assert len(rule_cases(numbers)) == 12, "the fmt_num cases still parse"
     inst = build_inspire(agent_ns)
     for technique in TECHNIQUES + ("Pareto Analysis", "Network Analysis"):
         rules = inst._genie_platform_rules(inst._genie_notebook_spec(make_uc(**{"Analytics Technique": technique})))
@@ -2481,7 +2487,7 @@ def test_round_37_every_formatter_treats_pandas_na_as_missing(agent_ns):
     for value in (None, float("nan"), pd.NA, pd.NaT, float("inf"), pd.array([3, None], dtype="Int64")[1]):
         assert helpers.is_missing(value) and helpers.fmt_num(value) == "unknown" and helpers.fmt_rank(value) == "unknown", value
         assert helpers.fmt_count(value, "day") == "unknown days" and helpers.keep_reasons([("x", (value,))]) == [], value
-    assert len(rule_cases(numbers)) == 9, "the fmt_num cases still parse"
+    assert len(rule_cases(numbers)) == 12, "the fmt_num cases still parse"
     done = subprocess.run([sys.executable, "-c", ROUND_37_NA_PROBE], capture_output=True, text=True, timeout=120)
     assert done.returncode == 0, done.stderr[-2000:]
     out = json.loads(done.stdout)
@@ -2931,7 +2937,8 @@ def test_round_41_a_zero_share_is_asserted_on_the_share_never_on_the_reason_text
     assert [text for text in shares if "0% of its class" in text] == list(shares), "a test on the text also stops on 10% and 100%"
     assert [text for text, share in shares.items() if share == 0] == ["0% of its class's losses"]
     number_rule = agent_ns["GENIE_NUMBER_FORMAT_RULE"]
-    assert "'0' for 0, and otherwise rounds to 3 significant figures" in number_rule
+    assert "'0' for 0, writes a whole number in full with thousands separators" in number_rule
+    assert "and otherwise rounds to 3 significant figures" in number_rule
     fmt_num = inspire_helpers().fmt_num
     assert [share for share in (0.0, 1e-12, 0.0004, 0.0049, 0.04, 0.996) if fmt_num(share * 100) == "0"] == [0.0], \
         "Inspire's fmt_num writes '0' only for a share of 0, so the check on the share's number is the check on its text"

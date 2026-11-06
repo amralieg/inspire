@@ -108,8 +108,7 @@ def clean_watch(raw) -> dict:
 def number_text(value) -> str:
     if value is None:
         return "no value"
-    number = float(value)
-    return str(int(number)) if number.is_integer() else f"{number:.4g}"
+    return shell_sql.shown_number(value)
 
 
 def alert_subscriptions(emails, destinations=()) -> list:

@@ -1,4 +1,4 @@
-import { change, changeText } from './format.js';
+import { change, changeText, grouped } from './format.js';
 
 export const OPERATOR_WORDS = { '>=': 'is at or above', '>': 'is above', '=': 'equals', '!=': 'is not', '<': 'is below', '<=': 'is at or below' };
 export const RISES = ['>=', '>'];
@@ -18,13 +18,20 @@ export const withNotice = (said, out) => (out?.notice ? `${said} ${out.notice}` 
 export function numberText(value) {
   const n = Number(value);
   if (value === '' || value == null || !Number.isFinite(n)) return '';
-  return Number.isInteger(n) ? String(n) : String(Number(n.toPrecision(4)));
+  return String(n);
+}
+
+export function shownNumber(value) {
+  const n = Number(value);
+  if (value === '' || value == null || !Number.isFinite(n)) return '';
+  if (Number.isInteger(n)) return grouped(n);
+  return grouped(n, Math.abs(n) >= 1 ? { maximumFractionDigits: 6 } : { maximumSignificantDigits: 6 });
 }
 
 export function ruleText(watch, measures) {
   const measure = (measures || []).find((m) => m.id === watch.what);
   const label = measure?.label || watch.what;
-  const number = numberText(watch.threshold);
+  const number = shownNumber(watch.threshold);
   if (watch.basis === 'baseline') {
     const way = RISES.includes(watch.operator) ? 'rises above' : 'falls below';
     return `${label} ${way} the usual range of earlier runs`;
