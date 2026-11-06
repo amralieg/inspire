@@ -93,6 +93,8 @@ STALE_LIST, UNKNOWN_COPY, NO_MATCH, OVER_CAP, STALE_RECORD = "stale_list", "unkn
 WRITE_SOURCES = {"records/edit": "edit", "records/add": "add", "records/delete": "delete"}
 ALERT_ROUTES = {"alerts/preview": "preview", "alerts/save": "save", "alerts/pause": "pause", "alerts/delete": "delete"}
 CHECK_SLOW_S = 20
+CHECK_FAILED = "failed"
+CHECK_DESIGN = "design"
 QUERY_LABELS = {"filter": "filter {}", "kpi": "KPI {}", "chart": "chart {}", "table": "table {}", "overview": "the Overview's things to fix",
                 "impact": "the Impact page", "column": "column filter {}"}
 RUN_SUMMARY_FIELDS = ("summary", "nothing_to_act", "act_now_records", "review_records", "records", "value_at_stake", "currency",
@@ -2915,24 +2917,25 @@ class Shell:
         try:
             out = self.records(headers, {"page": page["id"], "filters": values, "ai_counts": True}, probe)
         except (HttpError, QueryError, ValueError) as error:
-            return [f"{where}: {shell_sql.RECORDS_DATASET}:{shell_sql.RECORDS_DATASET} failed: {shell_sql.error_text(error)}"]
+            return [(CHECK_FAILED, f"{where}: {shell_sql.RECORDS_DATASET}:{shell_sql.RECORDS_DATASET} failed: "
+                                   f"{shell_sql.error_text(error)}")]
         counts[("records", shell_sql.RECORDS_DATASET)] = int(out.get("total") or len(out["rows"]))
-        problems = [f"{where}: {LIST_LABELS[name]} failed: {message}" for name, message in sorted(out["errors"].items())]
+        problems = [(CHECK_FAILED, f"{where}: {LIST_LABELS[name]} failed: {message}") for name, message in sorted(out["errors"].items())]
         if not out["rows"]:
-            problems.append(f"{where}: the decision list returned no rows at the default filters")
+            problems.append((CHECK_FAILED, f"{where}: the decision list returned no rows at the default filters"))
         columns = self.list_columns(probe.ws, None, page)
-        problems += [f"{where}: {p}" for p in shell_sql.part_column_problems(page, columns)]
-        problems += self.check_decidable(probe, page, columns, where)
+        problems += [(CHECK_DESIGN, f"{where}: {p}") for p in shell_sql.part_column_problems(page, columns)]
+        problems += [(CHECK_DESIGN, p) for p in self.check_decidable(probe, page, columns, where)]
         sql, params = shell_sql.list_keys_query(page, values, columns)
         done, errors = self._parallel({("list", "keys"): lambda: self.run(probe.ws, None, sql, params, 1)}, probe)
         if ("list", "keys") in errors:
-            return problems + [f"{where}: {LIST_LABELS['keys']} failed: {errors[('list', 'keys')]}"]
+            return problems + [(CHECK_FAILED, f"{where}: {LIST_LABELS['keys']} failed: {errors[('list', 'keys')]}")]
         counted = (done[("list", "keys")].get("rows") or [{}])[0]
         rows_seen, keys_seen = int(counted.get("n") or 0), int(counted.get("k") or 0)
         if keys_seen < rows_seen:
-            problems.append(f"{where}: the decision list repeats keys: {rows_seen} rows carry {keys_seen} distinct keys, so the "
-                            f"page cannot tell its rows apart and their history and edits fail; select record_key, the result "
-                            f"table's key for one record, in the {shell_sql.RECORDS_DATASET} dataset")
+            problems.append((CHECK_DESIGN, f"{where}: the decision list repeats keys: {rows_seen} rows carry {keys_seen} distinct keys, so "
+                             f"the page cannot tell its rows apart and their history and edits fail; select record_key, the result "
+                             f"table's key for one record, in the {shell_sql.RECORDS_DATASET} dataset"))
         return problems
 
     def check_concentration(self, page: dict, values: dict, probe, drawn: dict) -> dict:
@@ -2969,14 +2972,15 @@ class Shell:
         for table, filters in scopes:
             dataset = shell_sql.column_dataset(page, table)
             named = "the decision list" if table is None else f"table {table}"
-            problems += [f"{where}: {named} column filter {f['column']} failed: {f['error']}" for f in filters if f.get("error")]
+            problems += [(CHECK_FAILED, f"{where}: {named} column filter {f['column']} failed: {f['error']}") for f in filters
+                         if f.get("error")]
             sql, params = shell_sql.dataset_columns_query(page, dataset)
             try:
                 found = self.run(probe.ws, None, sql, params, 1)["columns"]
             except QueryError as error:
-                problems.append(f"{where}: the columns of {named} could not be read for its column filters: {error}")
+                problems.append((CHECK_FAILED, f"{where}: the columns of {named} could not be read for its column filters: {error}"))
                 continue
-            problems += shell_sql.column_type_problems(f"{where}: {named}", filters, found)
+            problems += [(CHECK_DESIGN, p) for p in shell_sql.column_type_problems(f"{where}: {named}", filters, found)]
         return problems
 
     def check_overview(self, page: dict, probe, where: str) -> list:
@@ -3022,37 +3026,46 @@ class Shell:
         return []
 
     def check(self, headers: dict) -> list:
-        problems = []
+        return [text for _kind, text in self.checked(headers)]
+
+    def check_split(self, headers: dict) -> tuple:
+        found = self.checked(headers)
+        return [t for k, t in found if k == CHECK_FAILED], [t for k, t in found if k == CHECK_DESIGN]
+
+    def checked(self, headers: dict) -> list:
+        found = []
+        failed = lambda texts: found.extend((CHECK_FAILED, t) for t in texts)
+        design = lambda texts: found.extend((CHECK_DESIGN, t) for t in texts)
         for page in self.pages:
             where = f"page {page['id']}"
             bounds, slicing, single = {}, 0, []
             probe = Probe(self.workspace(headers)[0], self.timer)
             meta = self.filters(headers, page["id"], probe)
-            problems += self.check_column_filters(page, meta["columns"], probe, where)
+            found.extend(self.check_column_filters(page, meta["columns"], probe, where))
             for f in meta["filters"]:
                 if f.get("error"):
-                    problems.append(f"{where}: filter {f['id']} failed: {f['error']}")
+                    failed([f"{where}: filter {f['id']} failed: {f['error']}"])
                 elif f["type"] == "date_range":
                     if f.get("low") is None or f.get("high") is None:
-                        problems.append(f"{where}: date filter {f['id']} found no dates")
+                        failed([f"{where}: date filter {f['id']} found no dates"])
                     bounds[f["id"]] = (f.get("low"), f.get("high"))
                 elif not f.get("options"):
-                    problems.append(f"{where}: filter {f['id']} found no values to pick")
+                    failed([f"{where}: filter {f['id']} found no values to pick"])
                 elif len(f["options"]) < 2:
                     single.append(f"{f['id']} ({f['options'][0]})")
                 else:
                     slicing += 1
             if single and slicing < shell_sql.SEGMENT_FILTERS_MIN:
-                problems.append(f"{where}: {slicing} segment filters offer 2 or more values; {', '.join(single)} offer one, so they "
-                                f"slice nothing. Filter on columns with 2 or more values so at least "
-                                f"{shell_sql.SEGMENT_FILTERS_MIN} can slice")
+                design([f"{where}: {slicing} segment filters offer 2 or more values; {', '.join(single)} offer one, so they "
+                        f"slice nothing. Filter on columns with 2 or more values so at least "
+                        f"{shell_sql.SEGMENT_FILTERS_MIN} can slice"])
             defaults = shell_sql.default_values(page, bounds)
             data = self.page_data(headers, page["id"], defaults, probe)
             errors = data["errors"]
-            problems += [f"{where}: {tile} failed: {message}" for tile, message in sorted(errors.items())]
+            failed([f"{where}: {tile} failed: {message}" for tile, message in sorted(errors.items())])
             for kpi in page.get("kpis") or []:
                 if f"kpi:{kpi['id']}" not in errors and (data["kpis"].get(kpi["id"]) or {}).get("now") is None:
-                    problems.append(f"{where}: KPI {kpi['id']} has no value at the default filters")
+                    failed([f"{where}: KPI {kpi['id']} has no value at the default filters"])
             counts = {}
             for kind in ("chart", "table"):
                 for item in page.get(f"{kind}s") or []:
@@ -3061,33 +3074,33 @@ class Shell:
                         continue
                     counts[(kind, item["id"])] = len(rows)
                     if not rows:
-                        problems.append(f"{where}: {kind} {item['id']} returned no rows at the default filters")
+                        failed([f"{where}: {kind} {item['id']} returned no rows at the default filters"])
                     elif kind == "chart" and len(rows) < 2:
-                        problems.append(f"{where}: chart {item['id']} draws one group at the default filters, so it compares "
-                                        f"nothing; chart a column with 2 or more values")
+                        design([f"{where}: chart {item['id']} draws one group at the default filters, so it compares "
+                                f"nothing; chart a column with 2 or more values"])
                     elif kind == "chart":
-                        problems += [f"{where}: chart {item['id']} gives every group the same {label} ({value}) at the default "
-                                     f"filters, so it ranks nothing; chart a measure that differs across the groups"
-                                     for label, value in flat_measures(item, rows)]
+                        design([f"{where}: chart {item['id']} gives every group the same {label} ({value}) at the default "
+                                f"filters, so it ranks nothing; chart a measure that differs across the groups"
+                                for label, value in flat_measures(item, rows)])
             charted = data["charts"]
-            problems += [f"{where}: {p}" for p in shell_sql.concentration_problems(
-                page, self.check_concentration(page, defaults, probe, {i: len(r.get("rows") or []) for i, r in charted.items()}))]
-            problems += [f"{where}: {p}" for p in shell_sql.chart_date_problems(
+            design([f"{where}: {p}" for p in shell_sql.concentration_problems(
+                page, self.check_concentration(page, defaults, probe, {i: len(r.get("rows") or []) for i, r in charted.items()}))])
+            design([f"{where}: {p}" for p in shell_sql.chart_date_problems(
                 page, {ident: result.get("rows") or [] for ident, result in charted.items()},
-                {ident: {c.get("name"): c.get("type") for c in result.get("columns") or []} for ident, result in charted.items()})]
+                {ident: {c.get("name"): c.get("type") for c in result.get("columns") or []} for ident, result in charted.items()})])
             if page.get("records"):
-                problems += self.check_records(headers, page, defaults, probe, where, counts)
-                problems += self.check_overview(page, probe, where)
-                problems += self.check_impact(page, probe, where) if self.screen("impact") else []
-            problems += [f"{where}: {p}" for p in shell_sql.row_problems(page, counts)]
-            problems += self.check_lakebase_reads(headers, page, defaults, where)
+                found.extend(self.check_records(headers, page, defaults, probe, where, counts))
+                failed(self.check_overview(page, probe, where))
+                failed(self.check_impact(page, probe, where) if self.screen("impact") else [])
+            design([f"{where}: {p}" for p in shell_sql.row_problems(page, counts)])
+            failed(self.check_lakebase_reads(headers, page, defaults, where))
             if self.option("modify"):
-                problems += [f"{where}: people cannot change its records: {p}" for p in self.write_problems(headers, page)]
+                failed([f"{where}: people cannot change its records: {p}" for p in self.write_problems(headers, page)])
             if self.decides(page):
-                problems += [f"{where}: people cannot record decisions on its records: {p}"
-                             for p in self.write_problems(headers, page, decisions=True)]
-            problems += slow_problems(where, probe.seconds)
-        return problems
+                failed([f"{where}: people cannot record decisions on its records: {p}"
+                        for p in self.write_problems(headers, page, decisions=True)])
+            design(slow_problems(where, probe.seconds))
+        return found
 
     def speed(self, headers: dict) -> dict:
         out = {}
