@@ -2180,6 +2180,21 @@ def kpi_query(page: dict, ident: str, values: dict, previous: str = None) -> tup
     return f"{text} LIMIT {CAPS['kpi_rows']}", params.items
 
 
+def split_filters(page: dict, dataset: str) -> list:
+    return [f for f in page.get("filters") or [] if f.get("type") not in RANGE_EDGES and (f.get("columns") or {}).get(dataset)]
+
+
+def kpi_split_query(page: dict, ident: str, filter_ident: str, values: dict, limit: int) -> tuple:
+    kpi = _item(page, "kpis", ident)
+    splits = split_filters(page, kpi["dataset"])
+    split = next((f for f in splits if f.get("id") == filter_ident), None)
+    if split is None:
+        raise ValueError(f"KPI {ident} splits by {', '.join(str(f.get('id')) for f in splits) or 'no filter'} only, not {filter_ident}")
+    chart = {"id": "split", "dataset": kpi["dataset"], "type": "bar", "limit": limit,
+             "x": {"column": split["columns"][kpi["dataset"]], "kind": "category"}, "y": [{"expression": kpi["expression"]}]}
+    return chart_query(dict(page, charts=[chart]), "split", values)
+
+
 def chart_query(page: dict, ident: str, values: dict) -> tuple:
     chart = _item(page, "charts", ident)
     sql, params = _dataset(page, chart["dataset"]), _Params()

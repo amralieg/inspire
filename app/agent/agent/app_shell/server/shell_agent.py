@@ -38,6 +38,7 @@ VIEW_ACTIONS = 6
 ACT_ROWS = 50
 FIND_ROWS = 25
 GENIE_ROWS = 20
+SPLIT_ROWS = 30
 GENIE_WAIT_S = 170
 GENIE_POLL_S = 2.0
 STATUS_HISTORY = 10
@@ -64,7 +65,7 @@ SYSTEM = """You are Genie, the assistant inside the App "{app}", on the page of 
 Scope: answer only about this use case, its data, its page, its charts and its records. The App already checked that this question belongs to this use case, and every table and column the use case reads, its source data included, is in scope: answer it, or say which data you would need and do not have. Never answer that the question is not related to this use case.
 Within this use case, the person's explicit instructions win over your own preferences.
 {data_note}
-Use the context first: when it already answers the question, answer from it without a tool. Call ask_genie only when the answer needs numbers the context does not hold. The context's key_numbers are the page's KPIs at the person's filters, the numbers the page shows: answer a question about one of them with its value, and when a Genie answer disagrees with one, give the page's value and say what Genie counted instead. When you ask Genie, keep every word of the person's question that narrows it, such as failed, open, current, a tier or a time window; never widen the question. Use change_view to change what the page shows. Use find_records, read_record and similar_records to look at records and their peers.
+Use the context first: when it already answers the question, answer from it without a tool. Call ask_genie only when the answer needs numbers the context does not hold. The context's key_numbers are the page's KPIs at the person's filters, the numbers the page shows: answer a question about one of them with its value, and when a Genie answer disagrees with one, give the page's value and say what Genie counted instead. When you ask Genie, keep every word of the person's question that narrows it, such as failed, open, current, a tier or a time window; never widen the question. To split a KPI by one of the page's filters, such as which district has the most of it or each district's share of it, call split_kpi: it reads the page's own data at the person's filters, so the parts add up to the KPI the page shows; never ask Genie for that split. A question about the records or the amount a KPI counts, in other words such as exceptions for failing records, is about that KPI; when you ask Genie about it, name the KPI by its label. Use change_view to change what the page shows. Use find_records, read_record and similar_records to look at records and their peers.
 To mark records done, not an issue, snoozed, assigned or reopened, call propose_action: it never changes anything by itself, it shows the person a confirmation card that lists every affected record, and only their click saves it. Never say a change is saved.
 A record marked not an issue needs the person's reason; ask for it when they gave none. A snooze needs a date.
 Answer briefly in plain business words, in US English, with no em dashes. Name what you looked at."""
@@ -380,6 +381,11 @@ TOOLS = {
     "ask_genie": {"description": "Ask the use case's Genie Agent a data question it answers with SQL on the use case's tables. Use only when "
                                  "the context does not hold the numbers. Keep every word of the person's question that narrows it.",
                   "parameters": {"type": "object", "properties": {"question": {"type": "string"}}, "required": ["question"]}},
+    "split_kpi": {"description": "Split one of the page's KPIs by one of the page's filters, such as a count or an amount per district, "
+                                 "read from the page's own data at the person's filters, so the parts add up to the KPI the page shows. "
+                                 "Use it for which value of a filter has the most of a KPI and for each value's share of it.",
+                  "parameters": {"type": "object", "properties": {"kpi": {"type": "string"}, "filter": {"type": "string"}},
+                                 "required": ["kpi", "filter"]}},
     "change_view": {"description": "Change what the page shows: filters, the time window, the list's column filters, sorting, a chart's type "
                                    "or series, or open a page or record. The person can undo it.",
                     "parameters": {"type": "object", "required": ["actions"], "properties": {"actions": {"type": "array", "maxItems": VIEW_ACTIONS, "items": {
@@ -423,6 +429,8 @@ def tool_step(name: str, args: dict, result: dict) -> str:
         return f"Asked Genie: {cut(args.get('question'), 120)}"
     if name == "change_view":
         return "; ".join(view_text(a) for a in result.get("actions") or [])
+    if name == "split_kpi":
+        return f"Split {cut(result.get('kpi'), 80)} by {cut(result.get('filter'), 80)}"
     if name == "find_records":
         return f"Looked at {shell_sql.plural(len(result.get('rows') or []), 'record')} of {result.get('total', 0):,}"
     if name == "read_record":
@@ -432,7 +440,7 @@ def tool_step(name: str, args: dict, result: dict) -> str:
     return f"Prepared {ACTIONS.get(args.get('action'), 'a change').lower()} for {shell_sql.plural(len((result.get('confirm') or {}).get('rows') or []), 'record')}: waiting for your confirmation"
 
 
-STEP_WORDS = {"ask_genie": "Genie could not answer", "change_view": "Could not change the view", "find_records": "Could not list records",
+STEP_WORDS = {"ask_genie": "Genie could not answer", "split_kpi": "Could not split the KPI", "change_view": "Could not change the view", "find_records": "Could not list records",
               "read_record": "Could not read the record", "similar_records": "Could not compare records", "propose_action": "Could not prepare the change"}
 
 
@@ -620,9 +628,12 @@ class Agent:
                 out["selected_record"] = {"record_key": job["selected"], "error": getattr(error, "message", None) or shell_sql.error_text(error)}
         return out
 
-    def key_numbers(self, ws, who: str, page: dict, view: dict) -> list:
+    def view_values(self, page: dict, view: dict) -> dict:
         values = (view or {}).get("filters")
-        values = values if isinstance(values, dict) and not shell_sql.filter_values_problems(page, values) else {}
+        return values if isinstance(values, dict) and not shell_sql.filter_values_problems(page, values) else {}
+
+    def key_numbers(self, ws, who: str, page: dict, view: dict) -> list:
+        values = self.view_values(page, view)
         out = []
         for kpi in page.get("kpis") or []:
             item = {k: kpi[k] for k in ("id", "label", "format", "currency") if kpi.get(k)}
@@ -641,6 +652,8 @@ class Agent:
 
     def tools_for(self, page: dict) -> list:
         names = (["ask_genie"] if self.genie_on(page) else []) + ["change_view"]
+        if any(shell_sql.split_filters(page, k.get("dataset")) for k in page.get("kpis") or []):
+            names.append("split_kpi")
         if page.get("records"):
             names += list(RECORD_TOOLS)
             if self.shell.option("decisions") and page.get("result_table"):
@@ -729,6 +742,24 @@ class Agent:
                       "truncated": bool(message.get("truncated"))}
         return {"text": message.get("text"), "sql": message.get("sql"), "columns": [c.get("name") for c in message.get("columns") or []],
                 "rows": (message.get("rows") or [])[:GENIE_ROWS], "truncated": bool(message.get("truncated"))}
+
+    def tool_split_kpi(self, turn: Turn, job: dict, args: dict) -> dict:
+        page, ws, asked = job["page"], job["ws"], str(args.get("kpi") or "").strip().casefold()
+        kpi = next((k for k in page.get("kpis") or [] if asked in (str(k.get("id") or "").casefold(), str(k.get("label") or "").casefold())), None)
+        if kpi is None:
+            raise ValueError(f"the page has no KPI {cut(args.get('kpi'), 80)}; its KPIs are {', '.join(str(k.get('id')) for k in page.get('kpis') or [])}")
+        values, by = self.view_values(page, job["view"]), str(args.get("filter") or "").strip()
+        sql, params = shell_sql.kpi_split_query(page, kpi["id"], by, values, SPLIT_ROWS)
+        rows = self.shell.run(ws, turn.who, sql, params, SPLIT_ROWS)["rows"]
+        sql, params = shell_sql.kpi_query(page, kpi["id"], values)
+        total = next((r.get("value") for r in self.shell.run(ws, turn.who, sql, params, shell_sql.CAPS["kpi_rows"])["rows"]
+                      if r.get("period") == "now"), None)
+        shares = shell_sql.is_additive(kpi["expression"]) and isinstance(total, (int, float)) and total != 0
+        split = next(f for f in page.get("filters") or [] if f.get("id") == by)
+        return {"kpi": kpi.get("label") or kpi["id"], "filter": split.get("label") or split["id"], "total": total,
+                "rows": [dict({"value": cut(r.get("x")), "kpi_value": r.get("y0")},
+                              **({"share": r["y0"] / total} if shares and isinstance(r.get("y0"), (int, float)) else {})) for r in rows],
+                "truncated": len(rows) >= SPLIT_ROWS}
 
     def tool_change_view(self, turn: Turn, job: dict, args: dict) -> dict:
         raw = args.get("actions")
