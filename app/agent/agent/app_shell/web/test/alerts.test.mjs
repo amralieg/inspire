@@ -76,6 +76,9 @@ test('the alert words read like a person wrote them and say what fires, in plain
   assert.equal(ruleText(MINE.watch, MEASURES), 'Records on the list is at or above 5');
   assert.equal(ruleText({ what: 'total_loss', operator: '<', threshold: 2.5, basis: 'fixed' }, MEASURES), 'Total loss is below 2.5');
   assert.equal(ruleText({ what: 'records', operator: '<=', threshold: 1, basis: 'baseline' }, MEASURES), 'Records on the list falls below the usual range of earlier runs');
+  assert.equal(ruleText({ what: 'total_loss', operator: '>=', threshold: 1060, basis: 'fixed' }, MEASURES), 'Total loss is at or above 1,060');
+  assert.equal(ruleText({ what: 'total_loss', operator: '>=', threshold: 1234567.891, basis: 'fixed' }, MEASURES), 'Total loss is at or above 1,234,567.891');
+  assert.equal(ruleText({ what: 'total_loss', operator: '<', threshold: 0.0000001234, basis: 'fixed' }, MEASURES), 'Total loss is below 0.0000001234');
   assert.equal(operatorLabel('>', 'baseline'), 'rises above the usual range, until then is above the number');
   assert.equal(operatorLabel('!=', 'fixed'), 'is not');
   assert.equal(filtersText({ filters: { category: ['Books', 'Music'], channel: [] } }, [{ id: 'category', label: 'Category' }]), 'Category: Books, Music');
@@ -128,6 +131,7 @@ test('the form keeps only filters that reach what it watches and refuses what ca
     basis: 'fixed', schedule: 'daily', emails: PERSON, paused: false, notify: true });
   assert.equal(blankForm(LISTING, { email: PERSON }).notify, true, 'a new alert emails again when it clears unless the person says otherwise');
   assert.equal(formFrom({ ...MINE, notify_on_ok: false }).notify, false);
+  assert.equal(formFrom({ ...MINE, watch: { ...MINE.watch, threshold: 1234.5678 } }).threshold, '1234.5678');
 });
 
 test('the Alerts tab lists each alert with its state, last check, schedule and owner, and only its owner can change it', async () => {
@@ -139,7 +143,7 @@ test('the Alerts tab lists each alert with its state, last check, schedule and o
   const rows = await page.locator('.alerts-tbl tbody tr').evaluateAll((trs) => trs.map((tr) => [...tr.querySelectorAll('td')].slice(0, 5).map((td) => td.innerText.trim())));
   assert.deepEqual(rows, [
     ['Books pile up\nRecords on the list is at or above 5 (Category: Books)', 'Firing', stampText(MINE.checked, NOW), 'Every day at 08:00 UTC', `${PERSON}\n1 person`],
-    ['Loss jumps\nTotal loss is above 250000', 'OK', stampText(MINE.checked, NOW), 'Every day at 08:00 UTC', `${SAM}\n3 people`],
+    ['Loss jumps\nTotal loss is above 250,000', 'OK', stampText(MINE.checked, NOW), 'Every day at 08:00 UTC', `${SAM}\n3 people`],
     [`Assigned to ${PERSON}\nEmails ${PERSON} when records are assigned to them`, 'Paused', 'Not yet', 'Every hour', 'The App\n1 person'],
   ]);
   assert.equal(await page.getByRole('button', { name: 'Change Books pile up' }).count(), 1);
@@ -171,7 +175,7 @@ test('every alert and the Alerts card show a visible Ask Genie, and an alert sen
   await until(() => explained.length === 1);
   const sent = explained[0];
   assert.deepEqual([sent.kind, sent.page, sent.title, sent.context.hint], ['record', 'n01_u05', 'Loss jumps', 'An alert of this use case.']);
-  assert.deepEqual([sent.context.fields.Alert, sent.context.fields.State, sent.context.fields['What it checks']], ['Loss jumps', 'OK', 'Total loss is above 250000']);
+  assert.deepEqual([sent.context.fields.Alert, sent.context.fields.State, sent.context.fields['What it checks']], ['Loss jumps', 'OK', 'Total loss is above 250,000']);
   await page.getByRole('button', { name: 'Ask Genie about Alerts', exact: true }).click();
   assert.match(await page.locator('form.ask-box [data-receives]').innerText(), /3 rows/);
   assert.deepEqual(seen.errors, []);

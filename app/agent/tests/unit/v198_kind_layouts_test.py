@@ -434,7 +434,7 @@ def test_post_scenario_evaluate_reads_the_model_and_the_base_case_and_logs_the_e
     assert status == 200, out
     assert out["outcome"]["p50"] == pytest.approx(5400000) and out["outcome"]["target"] == 5200000
     assert [l["lever"] for l in out["levers"]] == ["price", "volume", "unit_cost"]
-    assert "[SCENARIO-EVAL FIRED] page=n01_u05 levers=3 clamped=0 p50=5.4e+06" in capsys.readouterr().out
+    assert "[SCENARIO-EVAL FIRED] page=n01_u05 levers=3 clamped=0 p50=5,400,000" in capsys.readouterr().out
     status, out = call(s, "POST", "scenario/evaluate", headers=EDITOR, body={"page": "n01_u05", "values": {"discount": 1}})
     assert status == 400 and "no lever discount" in out["error"]
     assert "SCENARIO-EVAL FIRED" not in capsys.readouterr().out
@@ -567,7 +567,8 @@ def test_the_app_uses_a_layout_only_when_the_run_wrote_its_companion_tables_and_
     got = inst._implement_app_layout("N04-U01", {"use_case_kind": "driver_scenarios"}, {}, "main.s.margin_out", warnings, inst._implement_schema_reader())
     assert got == ("decision_queue", {})
     assert warnings == ["App: the Scenario lab layout reads tables the run has not written yet (main.s.margin_out__sensitivity does not "
-                        "exist), so the App draws the decision list until a run writes them"]
+                        "exist), so the App page shows only the decision list, without the Scenario lab view, until a run writes "
+                        "them"]
     assert "[APP-LAYOUT FIRED] N04-U01: scenario_lab -> decision_queue, missing=1" in capsys.readouterr().out
     warnings = []
     inst = _layout_inspire(agent_ns, tmp_path / "c", {"main.s.risk_out__score_bins": ["bin", "count", "cutoff"]})

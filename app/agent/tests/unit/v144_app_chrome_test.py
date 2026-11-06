@@ -85,7 +85,7 @@ def test_rows_are_cut_to_40_with_the_count_noted_and_cells_to_160_characters():
     assert shell_core.explain_cell("y" * 161) == "y" * 159 + "…"
     assert shell_core.explain_cell("y" * 160) == "y" * 160
     assert [shell_core.explain_cell(v) for v in (3.0, 4.25, 1234567.891, 0.000012345, True, False, None, "", ["a", "b"])] == [
-        "3", "4.25", "1234567.891", "1.234e-05", "yes", "no", "not recorded", "not recorded", "a · b"]
+        "3", "4.25", "1234567.891", "0.00001234", "yes", "no", "not recorded", "not recorded", "a · b"]
 
 
 def test_the_question_never_passes_8000_characters_and_always_keeps_the_ask():
