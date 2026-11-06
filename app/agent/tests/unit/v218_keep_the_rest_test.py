@@ -146,7 +146,7 @@ def test_with_no_version_before_the_keep_the_rest_ask_falls_back_to_the_judge(ag
 
 
 def test_when_the_other_asks_name_nothing_the_untargeted_check_reads_the_keep_the_rest_ask_falls_back_to_the_judge(agent_ns):
-    loose = [dict(SPLIT[0], where=""), SPLIT[1], SPLIT[2]]
+    loose = [dict(SPLIT[0], ask="Make it calmer", where=""), SPLIT[1], SPLIT[2]]
     assert agent_ns["implement_untargeted_targets"]("app", [(PAGE, a) for a in loose], V1, V2, "records") is None
     checks, judged, _found = _round(agent_ns, V2, split=loose)
     assert any(KEEP in _asks_of(prompt) for prompt in judged)
