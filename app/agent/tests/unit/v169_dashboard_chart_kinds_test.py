@@ -90,7 +90,11 @@ def test_the_dashboard_runs_every_part_dataset_with_its_filters_at_their_default
     inst._implement_dashboard(context, _runner(_churn_page(agent_ns)))
     doc, ran = _doc(seen), [sql for sql, _limit, _calls in seen["queries"]]
     parts = [d for d in doc["datasets"] if d.get("parameters")]
-    assert [d["name"] for d in parts] == ["chart_3_parts"], "the example page's pareto reads its own dataset"
+    assert [d["name"] for d in parts] == ["trend", "chart_3_parts"], \
+        "the pareto reads its own dataset, and the choice filters that list the decision list's values narrow the trend by parameter"
+    for dataset in parts:
+        assert agent_ns["implement_dashboard_check_sql"](dataset) in ran, dataset["name"]
+    parts = parts[1:]
     bound = agent_ns["implement_dashboard_check_sql"](parts[0])
     assert bound in ran and ":filter_" not in bound
     assert ("(CAST(NULL AS STRUCT<min: DATE, max: DATE>) IS NULL OR ((CAST(NULL AS DATE) IS NULL OR CAST(`as_of_date` AS DATE) >= "

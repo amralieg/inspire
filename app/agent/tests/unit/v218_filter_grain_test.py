@@ -2,7 +2,8 @@
 lists its values from the records alone, while it still narrows a detail dataset it names; a filter that names a detail dataset
 (many rows per record, or rows no record holds) but not the records dataset, though the records carry that column, goes back to the
 builder, as does a filter naming a dataset no part of the page reads. A filter on a column only a detail dataset has, used by detail
-parts alone, stays, offline."""
+parts alone, stays, offline. The dashboard does the same: such a filter lists its values from the records field and narrows each
+detail dataset through a query parameter."""
 import copy
 import json
 import os
@@ -16,6 +17,7 @@ if TESTS not in sys.path:
 
 from v140_implement_test import _app_flow, _app_shell, _churn_page  # noqa: E402
 from v141_app_shell_test import PAGE, SETTINGS, FakeWorkspace, app_dir  # noqa: E402
+from v142_dash_test import _palettes  # noqa: E402
 import shell_core  # noqa: E402
 
 RESULT = "main.inspire.n01_u01_out"
@@ -223,3 +225,55 @@ def test_the_live_check_reads_every_records_column_and_tags_the_skipping_filter_
     options = [sql for sql, _p, _l in ws.sql if sql.startswith("SELECT v FROM")]
     assert len(options) == len(SEGMENTS) and not [sql for sql in options if "total_amount" in sql], \
         "the choice filters list their values from the records, never from the detail dataset"
+
+
+def _dashboard(agent_ns, sql_module, page):
+    doc = agent_ns["implement_dashboard_from_page"](agent_ns["implement_app_page"](page, "N01-U01", {}), sql_module, RESULT, {},
+                                                    theme=agent_ns["implement_dashboard_theme"](_palettes(), None, "coral"))
+    canvas = next(p for p in doc["pages"] if p["pageType"] == "PAGE_TYPE_CANVAS")
+    widgets = {w["widget"]["name"]: w["widget"] for w in canvas["layout"] if w["widget"]["name"].startswith("filter_")}
+    return doc, widgets, {d["name"]: d for d in doc["datasets"]}
+
+
+def _field_sets(widget):
+    queries = {q["name"]: q["query"] for q in widget["queries"]}
+    fields = widget["spec"]["encodings"]["fields"]
+    return ({queries[f["queryName"]]["datasetName"] for f in fields if "fieldName" in f},
+            {queries[f["queryName"]]["datasetName"] for f in fields if "parameterName" in f})
+
+
+def test_the_dashboard_lists_choice_values_from_the_records_and_narrows_the_detail_through_a_parameter(agent_ns, sql_module):
+    doc, widgets, datasets = _dashboard(agent_ns, sql_module, _live_page())
+    parts = {name for name in datasets if name.endswith("_parts")}
+    assert parts, "the page's pareto reads its own parts dataset, which the filters narrow through parameters as before"
+    for index, f in enumerate(LIVE_FILTERS):
+        valued, narrowed = _field_sets(widgets[f"filter_{index}"])
+        if f["type"] == "multi_select":
+            assert valued == {"records"} and narrowed == {"bill_activity"} | parts, f["id"]
+        else:
+            assert valued == {"records", "bill_activity"} and narrowed == parts, f["id"]
+    detail = datasets["bill_activity"]
+    sql = "".join(detail["queryLines"])
+    assert [(p["keyword"], p["complexType"]) for p in detail["parameters"]] == [(f"filter_{i}", "MULTI") for i in range(2, 6)]
+    for index, column in enumerate(SEGMENTS, start=2):
+        assert (f"(:filter_{index} IS NULL OR size(:filter_{index}) = 0 OR array_contains(:filter_{index}, CAST(`{column}` AS STRING)))"
+                in sql), "a viewer who picks All sends no list, and every bill stays"
+    assert sql.startswith("SELECT * FROM (") and "total_amount" in sql
+    assert ":filter_0" not in sql and ":filter_1" not in sql, "a date range keeps its bounds on every dataset as a field filter"
+    assert "parameters" not in datasets["records"]
+    bound = agent_ns["implement_dashboard_check_sql"](detail)
+    assert ":filter_" not in bound and "array_contains(CAST(array() AS ARRAY<STRING>), CAST(`district` AS STRING))" in bound
+    assert agent_ns["implement_dashboard_problems"](doc) == []
+    assert agent_ns["check_dashboard_definition"](doc, [RESULT, BILLS, POINTS], "records")[1] == []
+
+
+def test_a_dashboard_filter_on_a_column_only_the_detail_has_stays_a_field_of_the_detail(agent_ns, sql_module):
+    page = _live_page()
+    page["filters"].append({"id": "payment_channel", "type": "multi_select", "label": "Payment channel",
+                            "columns": {"bill_activity": "payment_channel"}})
+    doc, widgets, datasets = _dashboard(agent_ns, sql_module, page)
+    valued, narrowed = _field_sets(widgets[f"filter_{len(LIVE_FILTERS)}"])
+    assert valued == {"bill_activity"} and "bill_activity" not in narrowed
+    assert ":filter_6" not in "".join(datasets["bill_activity"]["queryLines"])
+    assert agent_ns["implement_dashboard_problems"](doc) == []
+

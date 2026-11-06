@@ -102,6 +102,8 @@ SHELL_ENTRY_POINTS = {
     ("implement_dashboard_dataset_sql", "shell_sql.clean_sql"),
     ("implement_dashboard_dataset_sql", "shell_sql.quote"),
     ("implement_dashboard_part_sql", "shell_sql.quote"),
+    ("implement_dashboard_filter_condition", "shell_sql.quote"),
+    ("implement_dashboard_filter_targets", "shell_sql.filter_value_datasets"),
     ("implement_dashboard_from_page", "shell_sql.block_plan"),
     ("implement_dashboard_from_page", "shell_sql.change_text_sql"),
     ("implement_dashboard_from_page", "shell_sql.driver_charts"),

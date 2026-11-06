@@ -17,8 +17,8 @@ KINDS = os.path.join(ROOT, "agent", "app_shell", "kinds.json")
 TEXT = ("_id", "label", "lever", "driver", "segment", "name", "tier", "reason", "from", "to", "group", "lane", "kind", "status",
         "code", "entity", "member", "action", "item", "scenario", "flag", "dimension", "source", "target", "stage", "peer", "step")
 DATES = ("period", "date", "as_of", "start", "end", "week", "ts", "time")
-QUEUE_DASHBOARD_SHA = "7b2b61d233a6ccd757edf3bb58da0585f18a22667b38f1fdafdaad6a02300d48"
-QUEUE_ABOUT_DASHBOARD_SHA = "0ca05b4a79f4e6a68004982c4cc9a9bf17caa48cee4721bb46e85b2c2876b537"
+QUEUE_DASHBOARD_SHA = "2a8274feb37e528ecdaec89a10f4ded3723e63f955b948ada79657fedaa6aa28"
+QUEUE_ABOUT_DASHBOARD_SHA = "2b04126ed53861b20898e2d813271989aea2ff080834d339f5ab3af02bd7bce0"
 QUEUE_ALERT_SHA = "8262a3ba5d680bb374ee662b08b718eb405ea702b45e3c6b5ddf99f75ceb54fd"
 QUEUE_GENIE_SHA = "e7f6dc6c4e423941bf068c51de2d22d9ab8c2af11af8ccd6a8f22a0616512909"
 QUEUE_USE_CASE = {"Name": "Predict churn", "Statement": "Customers leave", "use_case_kind": "risk_propensity",
