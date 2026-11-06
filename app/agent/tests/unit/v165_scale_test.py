@@ -179,7 +179,7 @@ def test_the_default_filters_come_from_the_date_bounds_alone_and_match_what_the_
     s.stamp_pool = Recorder()
     status, out = call(s, "GET", "defaults", {"page": "n01_u05"})
     assert status == 200 and out["errors"] == {}
-    bounds = [sql for sql, _p, _l in ws.sql if "MIN(v) AS low" in sql]
+    bounds = [sql for sql, _p, _l in ws.sql if "low_0 AS low" in sql]
     warmed = [sql for sql, _p, _l in ws.sql if sql.endswith(") AS d LIMIT 0")]
     assert bounds and len(warmed) == 1 and len(bounds) + len(warmed) == len(ws.sql), \
         "only the date bounds run, while the list's columns warm up for the first records"
@@ -189,7 +189,7 @@ def test_the_default_filters_come_from_the_date_bounds_alone_and_match_what_the_
         if f["type"] == "date_range":
             chosen = next(p for p in f["presets"] if p["id"] == f["default"])
             assert out["range"][f["id"]] == {"preset": chosen["id"], "from": chosen["from"], "to": chosen["to"]}
-    assert sum(1 for sql, _p, _l in ws.sql if "MIN(v) AS low" in sql) == len(out["range"]), "the filter bar reuses the bounds the defaults read"
+    assert sum(1 for sql, _p, _l in ws.sql if "low_0 AS low" in sql) == len(out["range"]), "the filter bar reuses the bounds the defaults read"
 
 
 def test_the_same_query_asked_twice_at_once_runs_once(tmp_path):

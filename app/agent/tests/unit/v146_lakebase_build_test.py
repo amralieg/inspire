@@ -434,7 +434,7 @@ class _Reader:
 
 
 def _app_lakebase(ns, tmp_path, outputs=None, host=None, rounds=("COMPLETED",), online=(True,), checks=(), ready=None, synced="pipe-1",
-                  resync=True, designs=()):
+                  resync=True, designs=(), slows=()):
     inst = _inspire(ns, FakeSpark())
     inst.logger = CapturingLogger()
     payload, modules = _app_shell(ns, tmp_path)
@@ -464,10 +464,11 @@ def _app_lakebase(ns, tmp_path, outputs=None, host=None, rounds=("COMPLETED",), 
         return seen["online"].pop(0)
 
     inst._implement_lakebase_online = is_online
-    answers, designed = list(checks), list(designs)
+    answers, designed, slowed = list(checks), list(designs), list(slows)
 
     def app_check(work, files, modules, warehouse, env=None):
         inst._implement_app_speeds, inst._implement_app_design = {}, list(designed.pop(0)) if designed else []
+        inst._implement_app_slow = list(slowed.pop(0)) if slowed else []
         seen["checks"].append((files, env))
         answer = answers.pop(0) if answers else []
         if isinstance(answer, Exception):
@@ -1021,12 +1022,12 @@ def _checked(ns, tmp_path, app_yaml, build_env=ENV):
                                                  "2026-10-28T00:00:00Z", {"app_access": "sp", "app_backend": "lakebase"},
                                                  admin="builder"), backend=held["backend"])
     files = dict(out["files"], **{"app.yaml": app_yaml, core.SETTINGS_FILE: json.dumps(settings)})
-    original = core.Shell.check_split
-    core.Shell.check_split = lambda shell, headers: seen.update(env=shell.env, endpoint=shell.lakebase.endpoint) or ([], [])
+    original = core.Shell.checked
+    core.Shell.checked = lambda shell, headers: seen.update(env=shell.env, endpoint=shell.lakebase.endpoint) or []
     try:
         problems = inst._implement_app_check(str(tmp_path / "work"), files, modules, "wh1", build_env)
     finally:
-        core.Shell.check_split = original
+        core.Shell.checked = original
     return problems, seen
 
 
@@ -1093,7 +1094,7 @@ def test_the_copies_are_indexed_on_the_record_key_and_on_each_sort_of_the_decisi
               {"page": "n01_u01", "dataset": "records", "pg": "churn_desk.n01_u01__d_records_b",
                "columns": [column(n) for n in ("record_key", "rank", "entity_label", "region")]},
               {"page": "n01_u01", "dataset": "trend", "pg": "churn_desk.n01_u01__d_trend_c", "columns": [column("region")]}]
-    texts = [s.as_string(None) if hasattr(s, "as_string") else str(s) for s in agent_ns["implement_lakebase_index_sql"](copies, [page])]
+    texts = [s.as_string(None) if hasattr(s, "as_string") else str(s) for s in agent_ns["implement_lakebase_index_sql"](copies, [page], shell_sql)]
     on = [t.split(" ON ", 1)[1] for t in texts]
     assert on == ['"churn_desk"."n01_u01__t_a" ("record_key")', '"churn_desk"."n01_u01__d_records_b" ("record_key")',
                   '"churn_desk"."n01_u01__d_records_b" ("rank", "record_key")',
@@ -1115,7 +1116,7 @@ def test_every_copy_is_indexed_on_each_column_a_page_filter_reads_from_it_once(a
               {"page": "n01_u01", "dataset": "activity", "pg": "churn_desk.n01_u01__d_activity_c", "columns": [column(n) for n in ("region", "store", "channel")]},
               {"page": "n01_u01", "dataset": "stores", "pg": "churn_desk.n01_u01__d_stores_d", "columns": [column(n) for n in ("store", "region")]},
               {"page": "n01_u02", "dataset": "activity", "pg": "churn_desk.n01_u02__d_activity_e", "columns": [column("region")]}]
-    texts = [s.as_string(None) if hasattr(s, "as_string") else str(s) for s in agent_ns["implement_lakebase_index_sql"](copies, [page])]
+    texts = [s.as_string(None) if hasattr(s, "as_string") else str(s) for s in agent_ns["implement_lakebase_index_sql"](copies, [page], shell_sql)]
     on = [t.split(" ON ", 1)[1] for t in texts]
     assert on == ['"churn_desk"."n01_u01__t_a" ("record_key")', '"churn_desk"."n01_u01__d_records_b" ("record_key")',
                   '"churn_desk"."n01_u01__d_records_b" ("rank", "record_key")', '"churn_desk"."n01_u01__d_records_b" ("region", "record_key")',

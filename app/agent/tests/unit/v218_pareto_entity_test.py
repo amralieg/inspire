@@ -200,9 +200,9 @@ def test_the_real_app_check_splits_on_lakebase_and_names_everything_on_delta(age
             calls.append("check")
             return ["ran", "shown"]
 
-        def check_split(self, headers):
+        def checked(self, headers):
             calls.append("split")
-            return ["ran"], ["shown"]
+            return [(core.CHECK_FAILED, "ran"), (core.CHECK_DESIGN, "shown"), (core.CHECK_SLOW, "slowed")]
 
         def close(self):
             pass
@@ -211,11 +211,12 @@ def test_the_real_app_check_splits_on_lakebase_and_names_everything_on_delta(age
     inst._implement_host = lambda: "https://ws.example"
     inst.w_client = types.SimpleNamespace(config=types.SimpleNamespace(authenticate=lambda: {}))
     patched = dict(modules, shell_core=types.SimpleNamespace(Shell=Shell, HttpError=core.HttpError, SETTINGS_FILE=core.SETTINGS_FILE,
-                                                             PAGES_DIR=core.PAGES_DIR))
+                                                             PAGES_DIR=core.PAGES_DIR, CHECK_FAILED=core.CHECK_FAILED,
+                                                             CHECK_DESIGN=core.CHECK_DESIGN, CHECK_SLOW=core.CHECK_SLOW))
     files = {core.SETTINGS_FILE: json.dumps({})}
     assert inst._implement_app_check(str(tmp_path / "a"), files, patched, "wh1") == ["ran", "shown"]
     assert inst._implement_app_check(str(tmp_path / "b"), files, patched, "wh1", ENV) == ["ran"]
-    assert inst._implement_app_design == ["shown"] and calls == ["check", "split"]
+    assert inst._implement_app_design == ["shown"] and inst._implement_app_slow == ["slowed"] and calls == ["check", "split"]
 
 
 @pytest.mark.parametrize("check", [True, False])

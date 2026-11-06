@@ -25,6 +25,7 @@ CONNECT_TIMEOUT_S = 15
 STATEMENT_TIMEOUT_MS = 30000
 READ_TIMEOUT_MS = 2500
 READ_CURSOR = "inspire_read"
+SLOW_LEAD = "Lakebase did not answer within its read limit of"
 TOKEN_SLACK_S = 300
 TOKEN_LIFE_S = 3600
 SYNC_POLL_S = 5
@@ -71,10 +72,16 @@ SERVED_CALLS = REWRITTEN_CALLS + ("make_date",)
 EPOCH_MICROS = "SELECT CAST('1970-01-01 00:00:00+00' AS TIMESTAMPTZ) + CAST(__us__ AS BIGINT) * INTERVAL '1 microsecond'"
 OVERLAY_KEYS = 500
 OVERLAY_ROWS = 5000
+DISTINCT_STEPS = 20000
+DATED_TYPES = ("DATE", "TIMESTAMP", "TIMESTAMP_NTZ")
 _DIALECT = []
 
 
 class LakebaseError(QueryError):
+    pass
+
+
+class LakebaseSlow(QueryError):
     pass
 
 
@@ -116,6 +123,14 @@ def _columns_problem(name: str, entry) -> list:
     return []
 
 
+def _indexed_problem(name: str, entry: dict) -> list:
+    indexed = entry.get("indexed", [])
+    names = {c["name"] for c in entry["columns"]}
+    if not isinstance(indexed, list) or any(not isinstance(c, str) or c not in names for c in indexed):
+        return [f"the Lakebase copy of {name} must name as indexed only its own columns that an index leads with"]
+    return []
+
+
 def backend_problems(backend, auth: str, pages: list) -> list:
     if not isinstance(backend, dict) or backend.get("kind") not in KINDS:
         return [f"the App backend must be an object whose kind is one of {', '.join(KINDS)}"]
@@ -140,7 +155,7 @@ def backend_problems(backend, auth: str, pages: list) -> list:
         parts = str((entry or {}).get("pg") if isinstance(entry, dict) else "").split(".")
         if len(parts) != 2 or not all(PG_NAME.match(p) for p in parts):
             problems.append(f"the Lakebase copy of {name} must be a Postgres schema.table of letters, digits and underscores")
-        problems += _columns_problem(name, entry)
+        problems += _columns_problem(name, entry) or _indexed_problem(name, entry)
     held = {uc_key(n) for n in tables}
     datasets = backend.get("datasets")
     if not isinstance(datasets, dict):
@@ -603,6 +618,83 @@ def _overlay(entry: dict, overlay: dict, index: int, values: dict):
         f"AS TEXT)) UNION ALL SELECT {names} FROM JSONB_TO_RECORDSET(CAST(%({rows})s AS JSONB)) AS \"_o\"({typed})", read="postgres")
 
 
+def _only(select, allowed) -> bool:
+    return {k for k, v in select.args.items() if v} <= set(allowed)
+
+
+def _plain_table(source):
+    from sqlglot import exp
+    if isinstance(source, exp.Table):
+        return source, None
+    inner = source.this if isinstance(source, exp.Subquery) else None
+    if (isinstance(inner, exp.Select) and _only(inner, ("expressions", "from_"))
+            and all(isinstance(e, exp.Column) and not e.table for e in inner.expressions)
+            and isinstance(inner.args["from_"].this, exp.Table)):
+        return inner.args["from_"].this, {e.name for e in inner.expressions}
+    return None, None
+
+
+def _distinct_column(select, tables: dict, held, overlays):
+    from sqlglot import exp
+    if not (isinstance(select, exp.Select) and _only(select, ("expressions", "from_", "distinct")) and select.args.get("distinct")
+            and not select.args["distinct"].args.get("on") and len(select.expressions) == 1):
+        return None
+    source = select.args["from_"].this
+    table, kept = _plain_table(source)
+    shown = select.expressions[0]
+    inner = shown.this if isinstance(shown, exp.Alias) else shown
+    column = inner.this if isinstance(inner, exp.Cast) and isinstance(shown, exp.Alias) else inner
+    if table is None or not isinstance(column, exp.Column) or column.table not in ("", source.alias_or_name):
+        return None
+    if kept is not None and column.name not in kept:
+        return None
+    key = ".".join(p for p in (table.catalog, table.db, table.name) if p).lower()
+    entry = tables.get(key)
+    if entry is None or key in held or (overlays or {}).get(key) or column.name not in (entry.get("indexed") or ()):
+        return None
+    kind = next((str(c.get("type") or "").upper() for c in entry["columns"] if c["name"] == column.name), "")
+    return None if kind in JSON_TYPES else (table, column)
+
+
+def _index_distinct(tree, tables: dict, held, overlays):
+    import sqlglot
+    from sqlglot import exp
+    for select in list(tree.find_all(exp.Select)):
+        found = _distinct_column(select, tables, held, overlays)
+        if found is None:
+            continue
+        table, column = found
+        source = ".".join(quoted(p) for p in (table.catalog, table.db, table.name) if p)
+        c, s, v, n = quoted(column.name), quoted("_inspire_s"), quoted("_inspire_v"), quoted("_inspire_n")
+        named = select.expressions[0]
+        inner = named.this if isinstance(named, exp.Alias) else named
+        value = exp.column("_inspire_v", quoted=True)
+        shown = exp.alias_(exp.Cast(this=value, to=inner.to.copy()) if isinstance(inner, exp.Cast) else value, named.alias_or_name,
+                           quoted=True)
+        first = f"SELECT {c} FROM {source} WHERE {c} IS NOT NULL ORDER BY {c} ASC NULLS LAST LIMIT 1"
+        after = f"SELECT {c} FROM {source} WHERE {c} > {s}.{v} ORDER BY {c} ASC NULLS LAST LIMIT 1"
+        walked = sqlglot.parse_one(
+            f"SELECT 1 FROM (WITH RECURSIVE {s} AS (SELECT ({first}) AS {v}, 1 AS {n} UNION ALL SELECT ({after}), {s}.{n} + 1 FROM {s} "
+            f"WHERE {s}.{v} IS NOT NULL AND {s}.{n} < {DISTINCT_STEPS}) SELECT {v} FROM {s} WHERE {v} IS NOT NULL "
+            f"UNION SELECT {c} FROM {source} WHERE EXISTS (SELECT 1 FROM {s} WHERE {s}.{n} >= {DISTINCT_STEPS}) "
+            f"UNION SELECT NULL WHERE EXISTS (SELECT 1 FROM {source} WHERE {c} IS NULL)) AS {quoted('_inspire_d')}", read="databricks")
+        walked.set("expressions", [shown])
+        if select is tree:
+            tree = walked
+        else:
+            select.replace(walked)
+    return tree
+
+
+def _date_extremes(tree, kinds: dict) -> None:
+    from sqlglot import exp
+    for total in list(tree.find_all(exp.Min, exp.Max)):
+        cast = total.this
+        if (isinstance(cast, exp.Cast) and cast.to.is_type(exp.DataType.Type.DATE) and isinstance(cast.this, exp.Column)
+                and kinds.get(cast.this.name.lower()) in DATED_TYPES and not isinstance(total.parent, (exp.Window, exp.Filter))):
+            total.replace(exp.Cast(this=type(total)(this=cast.this.copy()), to=cast.to.copy()))
+
+
 def render(sql: str, params, tables: dict, held=(), overlays=None) -> tuple:
     import sqlglot
     from sqlglot import exp
@@ -613,6 +705,7 @@ def render(sql: str, params, tables: dict, held=(), overlays=None) -> tuple:
     except SqlglotError as error:
         raise NotServed(f"the query is not one Lakebase can read: {error_text(error)}") from error
     refuse_unserved(tree)
+    tree = _index_distinct(tree, tables, held, overlays)
     read, values = set(), {p["name"]: param_value(p) for p in params or []}
     for table in list(tree.find_all(exp.Table)):
         parts = [p for p in (table.catalog, table.db, table.name) if p]
@@ -638,6 +731,7 @@ def render(sql: str, params, tables: dict, held=(), overlays=None) -> tuple:
             table.replace(body.subquery(alias))
         read.add(key)
     kinds = column_kinds(tables[k] for k in read)
+    _date_extremes(tree, kinds)
     _truncate_integer_casts(tree, kinds)
     _bigint_sums(tree, kinds)
     _rewrite_json(tree, json_kinds(kinds))
@@ -834,6 +928,14 @@ class Lakebase:
         return getattr(info, "name", "") or ""
 
     @staticmethod
+    def _canceled(error) -> bool:
+        try:
+            import psycopg
+        except ImportError:
+            return False
+        return isinstance(error, psycopg.errors.QueryCanceled)
+
+    @staticmethod
     def _lost(error) -> bool:
         try:
             import psycopg
@@ -866,7 +968,10 @@ class Lakebase:
                 lost = self._lost(error)
                 if not lost:
                     self._give(conn)
-                    raise QueryError(error_text(error, self.secrets(), " ".join(PG_QUOTED.findall(text)))) from error
+                    said = error_text(error, self.secrets(), " ".join(PG_QUOTED.findall(text)))
+                    if self._canceled(error):
+                        raise LakebaseSlow(f"{SLOW_LEAD} {READ_TIMEOUT_MS / 1000:g} s ({said})") from error
+                    raise QueryError(said) from error
                 try:
                     conn.close()
                 except Exception:
