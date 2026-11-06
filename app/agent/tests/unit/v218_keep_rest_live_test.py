@@ -125,7 +125,7 @@ def _asks_of(prompt):
 
 def test_the_live_split_resolves_the_remove_ask_to_its_kpi_and_the_unnamed_add_ask_to_a_new_element(agent_ns):
     targets = agent_ns["implement_untargeted_targets"](ASSET, _asks(), V4, V5, "records", _shell())
-    assert targets == {"keys": {"kpis:response_hours"}, "adds": True, "groups": set()}
+    assert targets == {"keys": {"kpis:response_hours"}, "adds": False, "groups": set(), "allow": {"charts": 1}}
     assert agent_ns["implement_untargeted_changes"](ASSET, V4, V5, targets, "records") == []
     assert agent_ns["implement_vibes_rest_kept"](ASSET, _asks(), V4, V5, LABEL, _shell()) == (
         "done", f"nothing on the built {LABEL} that the other asks did not name changed from the version before")
@@ -169,13 +169,16 @@ def test_every_way_of_naming_the_removed_kpi_targets_it(agent_ns, ask, where):
     assert agent_ns["implement_vibes_rest_kept"](ASSET, _asks(split), V4, V5, LABEL, _shell())[0] == "done"
 
 
-@pytest.mark.parametrize("ask", [ADD, "Please add a horizontal bar chart of expected faults by component type",
-                                 "Also add a new chart showing expected faults per component", "Add 1 more table of faults by component",
-                                 "Add a KPI tile for expected faults by component"])
-def test_an_ask_that_adds_a_new_element_and_names_none_lets_only_new_elements_come(agent_ns, ask):
-    split = [dict(SPLIT[0], ask=ask), SPLIT[1], SPLIT[2]]
+@pytest.mark.parametrize("ask, group", [(ADD, "charts"), ("Please add a horizontal bar chart of expected faults by component type", "charts"),
+                                        ("Also add a new chart showing expected faults per component", "charts"),
+                                        ("Add 1 more table of faults by component", "tables"),
+                                        ("Add a KPI tile for expected faults by component", "kpis"),
+                                        ("Add a filter for component type", "filters"), ("Add a banner at the top", "blocks")])
+def test_an_ask_that_adds_a_new_element_and_names_none_allows_one_new_element_of_its_kind(agent_ns, ask, group):
+    split = [dict(SPLIT[0], ask=ask, draws=""), SPLIT[1], SPLIT[2]]
     targets = agent_ns["implement_untargeted_targets"](ASSET, _asks(split), V4, V5, "records", _shell())
-    assert targets is not None and targets["adds"] is True and targets["keys"] == {"kpis:response_hours"}, targets
+    assert targets is not None and targets["adds"] is False and targets["allow"] == {group: 1}, targets
+    assert targets["keys"] == {"kpis:response_hours"}, targets
     changed = dict(_copy(V5), kpis=[CONFIRMED, COST, dict(EXPECTED, good="up")])
     assert agent_ns["implement_vibes_rest_kept"](ASSET, _asks(split), V4, changed, LABEL, _shell())[0] == "missing"
 
@@ -210,7 +213,7 @@ def test_a_chart_named_only_as_the_place_of_a_new_one_is_never_a_target(agent_ns
                 "Add a chart of expected faults by component type next to the Expected faults by region chart"):
         split = [dict(SPLIT[0], ask=ask), SPLIT[1], SPLIT[2]]
         targets = agent_ns["implement_untargeted_targets"](ASSET, _asks(split), V4, V5, "records", _shell())
-        assert targets == {"keys": {"kpis:response_hours"}, "adds": True, "groups": set()}, ask
+        assert targets == {"keys": {"kpis:response_hours"}, "adds": False, "groups": set(), "allow": {"charts": 1}}, ask
         moved = dict(_copy(V5), charts=[HISTORY, dict(REGIONAL, title="Faults by region"), BY_COMPONENT, DRIVERS, CONCENTRATION])
         assert agent_ns["implement_vibes_rest_kept"](ASSET, _asks(split), V4, moved, LABEL, _shell())[0] == "missing", ask
 
@@ -253,3 +256,81 @@ def test_the_cited_check_covers_new_elements_of_an_add_and_widgets_of_a_dashboar
                  LABEL)[0] == "done"
     assert cited(("missing", region), "", _asks(), seen, None, LABEL) == ("missing", region)
     assert cited(("done", "x"), "", _asks(), seen, earlier, LABEL) == ("done", "x")
+
+
+OPEN = {"dataset": "faults", "expression": "COUNT(DISTINCT fault_id)", "format": "integer", "id": "open_work_orders", "label": "Open work orders"}
+SECOND = dict(BY_COMPONENT, id="expected_faults_by_district", title="Expected faults by district",
+              x={"column": "district", "kind": "category", "label": "District"})
+
+
+def test_one_requested_chart_plus_one_unrequested_kpi_leaves_keep_the_rest_missing_naming_the_kpi(agent_ns):
+    extra = dict(_copy(V5), kpis=[CONFIRMED, COST, EXPECTED, OPEN])
+    verdict = agent_ns["implement_vibes_rest_kept"](ASSET, _asks(), V4, extra, LABEL, _shell())
+    assert verdict[0] == "missing" and "Genie added the Open work orders KPI" in verdict[1], verdict
+    checks, judged, found, _inst = _round(agent_ns, extra)
+    assert checks[KEEP]["status"] == "missing" and "Open work orders KPI" in checks[KEEP]["evidence"]
+    assert all(KEEP not in _asks_of(prompt) for prompt in judged)
+    targets = agent_ns["implement_untargeted_targets"](ASSET, _asks(), V4, extra, "records", _shell())
+    changes = agent_ns["implement_untargeted_changes"](ASSET, V4, extra, targets, "records")
+    merged, restored, blocked = agent_ns["implement_restore_untargeted"](ASSET, V4, extra, changes, targets, "records")
+    assert [k["id"] for k in merged["kpis"]] == ["confirmed_faults", "parts_cost", "expected_faults"] and blocked == []
+    assert "expected_faults_by_component" in [c["id"] for c in merged["charts"]], "the requested chart stays"
+
+
+def test_two_charts_added_for_one_chart_ask_leaves_keep_the_rest_missing_naming_the_second(agent_ns):
+    two = dict(_copy(V5), charts=[HISTORY, REGIONAL, BY_COMPONENT, SECOND, DRIVERS, CONCENTRATION])
+    verdict = agent_ns["implement_vibes_rest_kept"](ASSET, _asks(), V4, two, LABEL, _shell())
+    assert verdict[0] == "missing" and "Genie added the Expected faults by district" in verdict[1], verdict
+    asked_twice = [SPLIT[0], dict(SPLIT[0], ask="Add a chart of expected faults by district"), SPLIT[1], SPLIT[2]]
+    assert agent_ns["implement_vibes_rest_kept"](ASSET, _asks(asked_twice), V4, two, LABEL, _shell())[0] == "done"
+
+
+def test_a_kpi_ask_never_lets_a_new_chart_come(agent_ns):
+    split = [dict(SPLIT[0], ask="Add a KPI tile for expected faults by component", draws="kpi"), SPLIT[1], SPLIT[2]]
+    verdict = agent_ns["implement_vibes_rest_kept"](ASSET, _asks(split), V4, V5, LABEL, _shell())
+    assert verdict[0] == "missing" and "added the Expected faults by component type" in verdict[1], verdict
+
+
+@pytest.mark.parametrize("draws, group", [("chart", "charts"), ("table", "tables"), ("kpi", "kpis"), ("", None), ("data", None)])
+def test_an_add_ask_with_no_element_word_takes_its_kind_from_the_split_or_goes_to_the_judge(agent_ns, draws, group):
+    split = [dict(SPLIT[0], ask="Add expected faults by component type", draws=draws), SPLIT[1], SPLIT[2]]
+    targets = agent_ns["implement_untargeted_targets"](ASSET, _asks(split), V4, V5, "records", _shell())
+    assert (targets["allow"] if targets else None) == ({group: 1} if group else None)
+    column = [dict(SPLIT[0], ask="Add a column for district", draws="table"), SPLIT[1], SPLIT[2]]
+    assert agent_ns["implement_untargeted_targets"](ASSET, _asks(column), V4, V5, "records", _shell()) is None
+
+
+ADD_FIRST = [CALMER, SPLIT[0], SPLIT[1], SPLIT[2]]
+
+
+@pytest.mark.parametrize("evidence, status", [
+    ("The Expected faults by component type chart is new and was not in the version before.", "done"),
+    ("The Open work orders KPI is new and was not in the version before.", "missing"),
+    ("The Expected faults by component type chart and the Expected faults by district chart are new.", "missing"),
+], ids=["requested_chart", "unrequested_kpi", "one_chart_too_many"])
+def test_the_judge_fallback_counts_a_new_element_only_when_it_fits_an_add_ask(agent_ns, evidence, status):
+    two = dict(_copy(V5), kpis=[CONFIRMED, COST, EXPECTED, OPEN], charts=[HISTORY, REGIONAL, BY_COMPONENT, SECOND, DRIVERS, CONCENTRATION])
+    checks, _judged, _found, _inst = _round(agent_ns, two, split=ADD_FIRST, keep_evidence=evidence)
+    assert checks[KEEP]["status"] == status, checks[KEEP]
+
+
+@pytest.mark.parametrize("evidence, where", [
+    ("The Response hours KPI is gone and the layout changed.", ""),
+    ("The Response hours KPI is gone, and the colors differ from the version before.", ""),
+    ("The Response hours KPI is gone; spacing was altered too.", ""),
+    (GONE, "layout"),
+], ids=["and_layout", "comma_colors", "semicolon_spacing", "unknown_where"])
+def test_the_judge_fallback_keeps_missing_when_any_cited_change_maps_to_no_element(agent_ns, evidence, where):
+    calm = dict(_copy(V4), kpis=[CONFIRMED, COST, EXPECTED])
+    checks, _judged, _found, _inst = _round(agent_ns, calm, split=[CALMER, SPLIT[1], SPLIT[2]], keep_evidence=evidence, keep_where=where)
+    assert (checks[KEEP]["status"], checks[KEEP]["evidence"]) == ("missing", evidence)
+
+
+@pytest.mark.parametrize("evidence", [
+    GONE, "The Response hours KPI shown in the earlier version has been removed, and no ask called for that removal.",
+    "The Response hours KPI that was shown in the version before is no longer shown, so not everything else was kept as it was.",
+])
+def test_the_judge_fallback_settles_every_live_wording_of_a_removal_another_ask_names(agent_ns, evidence):
+    calm = dict(_copy(V4), kpis=[CONFIRMED, COST, EXPECTED])
+    checks, _judged, _found, _inst = _round(agent_ns, calm, split=[CALMER, SPLIT[1], SPLIT[2]], keep_evidence=evidence)
+    assert checks[KEEP]["status"] == "done", checks[KEEP]
