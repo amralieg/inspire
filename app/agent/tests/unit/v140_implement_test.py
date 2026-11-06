@@ -2540,8 +2540,8 @@ def test_the_brief_names_the_reasons_view_and_says_people_never_see_raw_json(age
             "from its current rows WHERE is_current, since it lists every version of each record. Each reason holds its record's own "
             "numbers, so never group a chart by reason; group by a categorical column many records share, such as an ai_cat_ category "
             "or priority_tier. A record repeats once per reason here, so never SUM or AVG a per-record measure such as value_at_stake "
-            "over this view or a join to it: Inspire rejects it; add each record's value once from the records dataset, or count "
-            "records with COUNT(DISTINCT record_key).\n") in brief
+            "over this view or a join to it, and never count records there with COUNT(*) or COUNT of a per-record column: Inspire "
+            "rejects both; add each record's value once from the records dataset, or count records with COUNT(DISTINCT record_key).\n") in brief
     assert brief.endswith("Input tables: `main.s.orders`\n"), "the view is not listed as an input table"
     context.update(run_log="main.inspire.churn_out_run_log", allowed=context["allowed"] + ["main.inspire.churn_out_run_log"])
     assert inst._implement_use_case_brief(context).endswith("Input tables: `main.s.orders`\n"), "nor is the run log"
@@ -5415,7 +5415,7 @@ def test_every_failed_step_that_raises_to_the_build_leaves_its_one_error_to_the_
                     raising += 1
                     flagged += any(kw.arg == "error_logged_elsewhere" and getattr(kw.value, "value", None) is True
                                    for kw in call.keywords)
-    assert raising == 13 and flagged == raising, (raising, flagged)
+    assert raising == 14 and flagged == raising, (raising, flagged)
     failed = source[source.index("    def _implement_failed("):]
     failed = failed[:failed.index("\n    def ", 10)]
     assert failed.count("self.logger.error(") == 2 and "error_logged_elsewhere=True" in failed

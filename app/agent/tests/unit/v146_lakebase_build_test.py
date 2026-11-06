@@ -434,7 +434,7 @@ class _Reader:
 
 
 def _app_lakebase(ns, tmp_path, outputs=None, host=None, rounds=("COMPLETED",), online=(True,), checks=(), ready=None, synced="pipe-1",
-                  resync=True):
+                  resync=True, designs=()):
     inst = _inspire(ns, FakeSpark())
     inst.logger = CapturingLogger()
     payload, modules = _app_shell(ns, tmp_path)
@@ -464,9 +464,17 @@ def _app_lakebase(ns, tmp_path, outputs=None, host=None, rounds=("COMPLETED",), 
         return seen["online"].pop(0)
 
     inst._implement_lakebase_online = is_online
-    answers = list(checks)
-    inst._implement_app_check = lambda work, files, modules, warehouse, env=None: (
-        setattr(inst, "_implement_app_speeds", {}) or seen["checks"].append((files, env)) or (answers.pop(0) if answers else []))
+    answers, designed = list(checks), list(designs)
+
+    def app_check(work, files, modules, warehouse, env=None):
+        inst._implement_app_speeds, inst._implement_app_design = {}, list(designed.pop(0)) if designed else []
+        seen["checks"].append((files, env))
+        answer = answers.pop(0) if answers else []
+        if isinstance(answer, Exception):
+            raise answer
+        return answer
+
+    inst._implement_app_check = app_check
     page = ns["implement_app_page"](_churn_page(ns), "N01-U01", {}, "main.inspire.churn_out")
     settings = {"version": modules["shell_core"].SETTINGS_VERSION, "pages": [page["id"]]}
     context = _output_context(ns, **(outputs or {"app_backend": "lakebase"}))
@@ -1013,12 +1021,12 @@ def _checked(ns, tmp_path, app_yaml, build_env=ENV):
                                                  "2026-10-28T00:00:00Z", {"app_access": "sp", "app_backend": "lakebase"},
                                                  admin="builder"), backend=held["backend"])
     files = dict(out["files"], **{"app.yaml": app_yaml, core.SETTINGS_FILE: json.dumps(settings)})
-    original = core.Shell.check
-    core.Shell.check = lambda shell, headers: seen.update(env=shell.env, endpoint=shell.lakebase.endpoint) or []
+    original = core.Shell.check_split
+    core.Shell.check_split = lambda shell, headers: seen.update(env=shell.env, endpoint=shell.lakebase.endpoint) or ([], [])
     try:
         problems = inst._implement_app_check(str(tmp_path / "work"), files, modules, "wh1", build_env)
     finally:
-        core.Shell.check = original
+        core.Shell.check_split = original
     return problems, seen
 
 
