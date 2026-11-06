@@ -222,3 +222,146 @@ def test_a_page_whose_kpis_no_category_filter_narrows_offers_no_split(tmp_path):
     page.pop("records", None)
     assert agent.tools_for(page) == ["ask_genie", "change_view"]
     assert agent.tools_for(PAGE) == ["ask_genie", "change_view", "split_kpi"]
+
+
+def _room(measures=(), filters=(), examples=()):
+    return {"data_sources": {"tables": [{"identifier": RESULT}, {"identifier": "main.billing.bills"}]},
+            "instructions": {"text_instructions": [],
+                             "sql_snippets": {"measures": [copy.deepcopy(m) for m in measures],
+                                              "filters": [copy.deepcopy(f) for f in filters]},
+                             "example_question_sqls": [copy.deepcopy(e) for e in examples]}}
+
+
+LIVE_MEASURE = {"alias": "current_bill_count", "display_name": "Current bill count",
+                "sql": ["COUNT_IF(`bills_out`.`is_current` AND `bills_out`.`change_source` <> 'delete')"],
+                "synonyms": ["current exceptions", "queue size"]}
+LEAK_MEASURE = {"alias": "current_revenue_leakage_usd", "display_name": "Current revenue leakage",
+                "sql": ["SUM(IF(`bills_out`.`is_current` AND `bills_out`.`change_source` <> 'delete', `bills_out`.`value_at_stake`, 0D))"],
+                "synonyms": ["revenue leakage", "leakage at stake"]}
+LIVE_EXAMPLE = {"question": ["Which districts have the most billing control breaks?"],
+                "sql": [f"SELECT b.district, COUNT(*) AS breaks FROM {RESULT} o JOIN main.billing.bills b ON b.bill_id = o.entity_id ",
+                        "WHERE o.is_current AND o.change_source <> 'delete' AND o.value_at_stake > 0 GROUP BY b.district"]}
+GOOD_EXAMPLE = {"question": ["Which districts have the most failing bills?"],
+                "sql": [f"SELECT b.district, COUNT(DISTINCT o.record_key) AS failing FROM {RESULT} o ",
+                        "JOIN main.billing.bills b ON b.bill_id = o.entity_id WHERE o.is_current AND o.value > 0 GROUP BY b.district"]}
+
+
+def _sync_room(ns, room, capsys):
+    space, changed = ns["implement_genie_page_kpis"](room, "N01-U01", PAGE)
+    return space, changed, capsys.readouterr().out
+
+
+def test_the_live_current_bill_count_loses_its_exceptions_synonym_and_keeps_its_meaning(agent_ns, capsys):
+    space, changed, out = _sync_room(agent_ns, _room([LIVE_MEASURE]), capsys)
+    measure = space["instructions"]["sql_snippets"]["measures"][0]
+    assert changed and measure["synonyms"] == ["queue size"] and measure["sql"] == LIVE_MEASURE["sql"]
+    assert "[GENIE-KPI-COLLISION FIRED] measure='current_bill_count' kpi='Bills failing controls' action=synonym 'current exceptions' removed" in out
+
+
+def test_a_measure_named_like_the_kpi_that_counts_every_row_is_rewritten_to_the_kpi(agent_ns, capsys):
+    wrong = {"alias": "failing_bills", "display_name": "Failing bills", "sql": ["COUNT(*)"], "synonyms": ["bills failing controls"]}
+    space, changed, out = _sync_room(agent_ns, _room([wrong]), capsys)
+    measure = space["instructions"]["sql_snippets"]["measures"][0]
+    assert changed and measure["sql"] == ["COUNT_IF(`bills_out`.`is_current` AND `bills_out`.`change_source` <> 'delete' AND `bills_out`.`value` > 0)"]
+    assert measure["synonyms"] == ["bills failing controls"]
+    assert "measure='failing_bills' kpi='Bills failing controls' action=rewritten to the KPI's own records" in out
+    again, changed, out = _sync_room(agent_ns, space, capsys)
+    assert not changed and again == space and "COLLISION" not in out
+
+
+def test_a_money_measure_named_for_the_kpi_records_keeps_its_sum_over_the_kpi_records(agent_ns, capsys):
+    money = {"alias": "exceptions_at_stake", "sql": ["SUM(`bills_out`.`value_at_stake`)"], "synonyms": ["money at stake"]}
+    space, changed, out = _sync_room(agent_ns, _room([money]), capsys)
+    measure = space["instructions"]["sql_snippets"]["measures"][0]
+    assert changed and measure["sql"] == ["SUM(IF(`bills_out`.`is_current` AND `bills_out`.`change_source` <> 'delete' AND "
+                                          "`bills_out`.`value` > 0, `bills_out`.`value_at_stake`, 0D))"]
+    assert measure["synonyms"] == ["money at stake"] and "measure='exceptions_at_stake' kpi='Bills failing controls'" in out
+
+
+def test_a_measure_named_like_a_kpi_of_another_table_is_dropped(agent_ns, capsys):
+    page = copy.deepcopy(PAGE)
+    page["kpis"] = [k for k in page["kpis"] if k["id"] == "runs"]
+    wrong = {"alias": "run_values", "sql": ["COUNT(*)"]}
+    space, changed = agent_ns["implement_genie_page_kpis"](_room([wrong]), "N01-U01", page)
+    assert changed and space["instructions"]["sql_snippets"]["measures"] == []
+    assert "measure='run_values' kpi='Run values' action=dropped" in capsys.readouterr().out
+
+
+def test_the_live_breaks_example_counting_another_population_is_dropped_and_the_right_one_kept(agent_ns, capsys):
+    space, changed, out = _sync_room(agent_ns, _room(examples=[LIVE_EXAMPLE, GOOD_EXAMPLE]), capsys)
+    assert changed and space["instructions"]["example_question_sqls"] == [GOOD_EXAMPLE]
+    assert "example='Which districts have the most billing control breaks?' kpi='Bills failing controls' action=dropped" in out
+
+
+def test_a_filter_named_for_the_kpi_records_but_missing_their_condition_gets_it(agent_ns, capsys):
+    loose = {"alias": "flagged_bills", "sql": ["`bills_out`.`value_at_stake` > 0"], "synonyms": ["failing bills", "money at stake"]}
+    right = {"alias": "failing_bills_filter", "sql": ["`bills_out`.`value` > 0"], "synonyms": ["failing bills"]}
+    space, changed, out = _sync_room(agent_ns, _room(filters=[loose, right]), capsys)
+    filters = space["instructions"]["sql_snippets"]["filters"]
+    assert changed and filters[1] == right and filters[0]["sql"] == [
+        "`bills_out`.`is_current` AND `bills_out`.`change_source` <> 'delete' AND `bills_out`.`value` > 0 AND `bills_out`.`value_at_stake` > 0"]
+    assert filters[0]["synonyms"] == ["failing bills", "money at stake"]
+    assert "filter='flagged_bills' kpi='Bills failing controls'" in out and "failing_bills_filter" not in out
+
+
+def test_measures_that_do_not_collide_or_equal_the_kpi_are_kept_as_they_are(agent_ns, capsys):
+    other = {"alias": "open_queue", "sql": ["COUNT(*)"], "synonyms": ["queue size", "open items"]}
+    narrower = {"alias": "act_now_failing_bills", "sql": ["COUNT_IF(`bills_out`.`value` > 0 AND `bills_out`.`priority_tier` = 'Act now')"],
+                "synonyms": ["act now failing bills"]}
+    same = {"alias": "bills_failing_controls", "sql": ["SUM(CASE WHEN `bills_out`.`value` > 0 THEN 1 ELSE 0 END)"],
+            "synonyms": ["current exceptions"]}
+    room = _room([other, LEAK_MEASURE, narrower, same], examples=[GOOD_EXAMPLE])
+    space, changed, out = _sync_room(agent_ns, room, capsys)
+    assert changed and "COLLISION" not in out
+    assert space["instructions"]["sql_snippets"] == room["instructions"]["sql_snippets"]
+    assert space["instructions"]["example_question_sqls"] == [GOOD_EXAMPLE]
+
+
+def test_kpi_shapes_read_the_same_count_in_every_spelling(agent_ns):
+    shape = agent_ns["implement_genie_measure_shape"]
+    want = shape("SUM(CASE WHEN value > 0 THEN 1 ELSE 0 END)")
+    for sql in ("COUNT_IF(o.value > 0)", "SUM(IF(`o`.`value` > 0, 1, 0))", "COUNT(DISTINCT IF(value > 0, record_key, NULL))",
+                "COUNT_IF(is_current AND change_source <> 'delete' AND value > 0)"):
+        assert shape(sql) == want, sql
+    assert shape("COUNT(*)") != want and shape("COUNT_IF(value_at_stake > 0)") != want
+    assert shape("SUM(IF(is_current, value_at_stake, 0D))") == shape("SUM(value_at_stake)")
+
+
+def test_the_sync_loads_sqlglot_only_when_a_space_item_names_a_kpi(agent_ns):
+    claims = agent_ns["implement_genie_kpi_claims"]
+    assert claims(_room([LEAK_MEASURE | {"alias": "x", "display_name": "", "synonyms": ["queue size"]}]), PAGE) == []
+    assert [c["item"]["alias"] for c in claims(_room([LIVE_MEASURE]), PAGE)] == ["current_bill_count"]
+    assert claims(_room([LIVE_MEASURE]), {"kpis": []}) == []
+
+
+def test_a_ratio_kpi_drops_only_a_measure_named_exactly_for_it(agent_ns, capsys):
+    page = copy.deepcopy(PAGE)
+    page["kpis"] = [{"id": "rate", "label": "Failure rate", "dataset": "records", "expression": "AVG(CASE WHEN value > 0 THEN 1 ELSE 0 END)"}]
+    count = {"alias": "failure_count", "sql": ["COUNT(*)"], "synonyms": ["failures"]}
+    same = {"alias": "failure_rate", "sql": ["AVG(CASE WHEN `bills_out`.`value` > 0 THEN 1 ELSE 0 END)"]}
+    other = {"alias": "failure_rate_all", "display_name": "Failure rate", "sql": ["AVG(`bills_out`.`value_at_stake`)"]}
+    gate = {"alias": "failed_filter", "sql": ["`bills_out`.`value` > 0"], "synonyms": ["failure rate rows"]}
+    space, changed = agent_ns["implement_genie_page_kpis"](_room([count, same, other], filters=[gate]), "N01-U01", page)
+    out = capsys.readouterr().out
+    assert space["instructions"]["sql_snippets"]["measures"] == [count, same]
+    assert space["instructions"]["sql_snippets"]["filters"] == [gate]
+    assert out.count("COLLISION FIRED") == 1 and "measure='failure_rate_all' kpi='Failure rate' action=dropped" in out
+
+
+def test_a_space_without_instructions_or_a_page_without_kpis_is_untouched(agent_ns, capsys):
+    collide = agent_ns["implement_genie_kpi_collisions"]
+    room = _room([LIVE_MEASURE])
+    assert collide({"instructions": "x"}, PAGE) is False and collide(room, {"kpis": []}) is False
+    assert collide(room, None) is False and room == _room([LIVE_MEASURE]) and "COLLISION" not in capsys.readouterr().out
+
+
+def test_the_build_sync_loads_sqlglot_and_writes_the_fixed_room_only_when_an_item_names_a_kpi(agent_ns, capsys):
+    from v218_kpi_genie_parity_test import _sync_inst
+    for room, loads in ((_room([LIVE_MEASURE]), 1), (_room([{"alias": "open_queue", "sql": ["COUNT(*)"], "synonyms": ["leak"]}]), 0)):
+        inst, context, patched = _sync_inst(agent_ns, room, page=PAGE)
+        asked = []
+        inst._require_asset_package = lambda module, purpose: asked.append(module)
+        assert inst._implement_genie_kpi_sync(context, ["app"]) == [] and asked == ["sqlglot"] * loads
+        measures = patched[0][2]["instructions"]["sql_snippets"]["measures"]
+        assert measures[0]["synonyms"] == (["queue size"] if loads else ["leak"])
+    assert capsys.readouterr().out.count("[GENIE-KPI-COLLISION FIRED]") == 1
