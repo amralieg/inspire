@@ -365,3 +365,73 @@ def test_the_build_sync_loads_sqlglot_and_writes_the_fixed_room_only_when_an_ite
         measures = patched[0][2]["instructions"]["sql_snippets"]["measures"]
         assert measures[0]["synonyms"] == (["queue size"] if loads else ["leak"])
     assert capsys.readouterr().out.count("[GENIE-KPI-COLLISION FIRED]") == 1
+
+
+def _page_in(kpis, filters, title):
+    page = copy.deepcopy(PAGE)
+    page["kpis"], page["records"] = kpis, {"title": title}
+    page["filters"] = [{"id": f"f{index}", "type": "multi_select", "label": label, "columns": {"records": column}}
+                       for index, (label, column) in enumerate(filters)]
+    return page
+
+
+AR_PAGE = _page_in([{"id": "failed", "label": "الفواتير المخالفة للضوابط", "dataset": "records",
+                     "expression": "SUM(CASE WHEN value > 0 THEN 1 ELSE 0 END)"},
+                    {"id": "leak", "label": "قيمة التسرب", "dataset": "records", "expression": "SUM(value_at_stake)"}],
+                   [("المنطقة", "district")], "الفواتير ذات الأولوية")
+FR_PAGE = _page_in([{"id": "failed", "label": "Factures en échec de contrôle", "dataset": "records",
+                     "expression": "SUM(CASE WHEN value > 0 THEN 1 ELSE 0 END)"}],
+                   [("Région", "region")], "Factures à traiter")
+
+
+def _sync_page(ns, room, page, capsys):
+    space, changed = ns["implement_genie_page_kpis"](room, "N01-U01", page)
+    return space, changed, capsys.readouterr().out
+
+
+def test_label_words_fold_case_accents_tatweel_harakat_and_the_arabic_article(agent_ns):
+    words = agent_ns["_implement_genie_name_words"]
+    assert words("Contrôles  ÉCHOUÉS") == {"controle", "echoue"}
+    assert words("الفـواتيرُ") == {"فواتير"} and words("بالضوابط") == {"ضوابط"} and words("للضوابط") == {"ضوابط"}
+    assert words("المُخالِفة") == words("مخالفه") == {"مخالفه"} and words("current_bill_count") == {"current", "bill", "count"}
+
+
+def test_the_page_record_noun_and_filter_labels_do_not_name_a_kpi(agent_ns):
+    known = agent_ns["implement_genie_kpi_page_words"](AR_PAGE)
+    assert known[id(AR_PAGE["kpis"][0])]["key"] == {"مخالفه", "ضوابط"}
+    assert known[id(AR_PAGE["kpis"][1])]["key"] == {"قيمه", "تسرب"}
+    fr = agent_ns["implement_genie_kpi_page_words"](FR_PAGE)
+    assert fr[id(FR_PAGE["kpis"][0])] == {"label": {"facture", "echec", "controle"}, "key": {"echec", "controle"}}
+
+
+def test_an_arabic_synonym_naming_the_arabic_kpi_on_a_measure_of_every_row_is_removed(agent_ns, capsys):
+    measure = LIVE_MEASURE | {"synonyms": ["الفواتير المُخالِفة للضوابط الحالية", "حجم قائمة الانتظار"]}
+    space, changed, out = _sync_page(agent_ns, _room([measure]), AR_PAGE, capsys)
+    kept = space["instructions"]["sql_snippets"]["measures"][0]
+    assert changed and kept["synonyms"] == ["حجم قائمة الانتظار"] and kept["sql"] == LIVE_MEASURE["sql"]
+    assert "[GENIE-KPI-COLLISION FIRED] measure='current_bill_count' kpi='الفواتير المخالفة للضوابط' action=synonym" in out
+
+
+def test_a_french_synonym_and_name_for_the_french_kpi_are_fixed_without_accents_or_plurals_mattering(agent_ns, capsys):
+    synonym = LIVE_MEASURE | {"synonyms": ["factures en echec", "file d'attente"]}
+    named = {"alias": "nombre_factures_échecs_contrôles", "sql": ["COUNT(*)"]}
+    space, changed, out = _sync_page(agent_ns, _room([synonym, named]), FR_PAGE, capsys)
+    measures = space["instructions"]["sql_snippets"]["measures"]
+    assert changed and measures[0]["synonyms"] == ["file d'attente"]
+    assert measures[1]["sql"] == ["COUNT_IF(`bills_out`.`is_current` AND `bills_out`.`change_source` <> 'delete' AND `bills_out`.`value` > 0)"]
+    assert out.count("kpi='Factures en échec de contrôle'") == 2 and "action=rewritten to the KPI's own records" in out
+
+
+def test_arabic_synonyms_that_name_only_the_record_noun_or_another_thing_are_kept(agent_ns, capsys):
+    measure = LIVE_MEASURE | {"synonyms": ["الفواتير الحالية", "حجم قائمة الانتظار", "الفواتير حسب المنطقة"]}
+    room = _room([measure, LEAK_MEASURE | {"synonyms": ["قيمة التسرب"]}])
+    space, changed, out = _sync_page(agent_ns, room, AR_PAGE, capsys)
+    assert "COLLISION" not in out and space["instructions"]["sql_snippets"] == room["instructions"]["sql_snippets"]
+
+
+def test_one_shared_word_never_drops_a_measure_by_its_name(agent_ns, capsys):
+    stake = {"alias": "value_at_stake_total", "sql": ["SUM(`bills_out`.`value_at_stake`)"]}
+    cost = {"alias": "control_cost", "sql": ["SUM(`bills_out`.`value_at_stake`)"]}
+    room = _room([stake, cost])
+    space, changed, out = _sync_room(agent_ns, room, capsys)
+    assert "COLLISION" not in out and space["instructions"]["sql_snippets"]["measures"] == room["instructions"]["sql_snippets"]["measures"]
