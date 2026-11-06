@@ -79,7 +79,7 @@ HISTORY_SQL = f"SELECT entity_label, value_at_stake, as_of_date FROM {RESULT}"
 ], ids=["joined_to_many_reasons", "every_run_kept", "record_key", "cast_coalesce"])
 def test_a_pareto_of_records_that_repeat_each_record_goes_back_to_the_builder(x_column, dataset_sql, capsys):
     assert shell_sql.concentration_problems(_queue_page(x_column, dataset_sql), {"drivers": (207, 69)}) == [
-        f"chart drivers ranks 69 records by {x_column}, but its dataset holds 207 rows for them at the default filters, so each bar "
+        f"chart drivers ranks 69 records by {x_column}, but its dataset holds 207 rows at the default filters, so each bar "
         f"adds up a record's numbers more than once; {shell_sql.ONE_ROW_PER_RECORD}"]
     assert "[CONCENTRATION-FANOUT FIRED] page=n01_u05 charts=drivers" in capsys.readouterr().out
 
@@ -87,7 +87,7 @@ def test_a_pareto_of_records_that_repeat_each_record_goes_back_to_the_builder(x_
 def test_a_fanned_out_entity_pareto_is_sent_back_by_the_live_check(tmp_path):
     problems, ws = _checked(tmp_path, _queue_page("entity_label", FANNED_SQL), 25, (207, 69))
     assert _fanned(problems) == [
-        f"page n01_u05: chart drivers ranks 69 records by entity_label, but its dataset holds 207 rows for them at the default "
+        f"page n01_u05: chart drivers ranks 69 records by entity_label, but its dataset holds 207 rows at the default "
         f"filters, so each bar adds up a record's numbers more than once; {shell_sql.ONE_ROW_PER_RECORD}"]
     assert _concentration(problems) == []
 

@@ -1487,7 +1487,7 @@ def concentration_problems(page: dict, counted: dict) -> list:
     for chart in fanned:
         rows, bars = counted[chart.get("id")]
         problems.append(f"chart {chart.get('id')} ranks {plural(bars, 'record')} by {_category_x(chart)}, but its dataset holds "
-                        f"{plural(rows, 'row')} for them at the default filters, so each bar adds up a record's numbers more than "
+                        f"{plural(rows, 'row')} at the default filters, so each bar adds up a record's numbers more than "
                         f"once; {ONE_ROW_PER_RECORD}")
     return problems
 

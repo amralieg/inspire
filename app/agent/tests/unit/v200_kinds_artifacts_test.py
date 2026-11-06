@@ -20,7 +20,7 @@ DATES = ("period", "date", "as_of", "start", "end", "week", "ts", "time")
 QUEUE_DASHBOARD_SHA = "7b2b61d233a6ccd757edf3bb58da0585f18a22667b38f1fdafdaad6a02300d48"
 QUEUE_ABOUT_DASHBOARD_SHA = "0ca05b4a79f4e6a68004982c4cc9a9bf17caa48cee4721bb46e85b2c2876b537"
 QUEUE_ALERT_SHA = "8262a3ba5d680bb374ee662b08b718eb405ea702b45e3c6b5ddf99f75ceb54fd"
-QUEUE_GENIE_SHA = "a6efc7fc7523e235a4ee4e6ad6a7299b6d7523e611a8523f7001f354839f090b"
+QUEUE_GENIE_SHA = "e7f6dc6c4e423941bf068c51de2d22d9ab8c2af11af8ccd6a8f22a0616512909"
 QUEUE_USE_CASE = {"Name": "Predict churn", "Statement": "Customers leave", "use_case_kind": "risk_propensity",
                   "Analytics Technique": "Classification"}
 LAYOUT_KINDS = sorted({(k.get("decision_layout") or k["layout"]): k["id"] for k in json.load(open(KINDS, encoding="utf-8"))["kinds"]
