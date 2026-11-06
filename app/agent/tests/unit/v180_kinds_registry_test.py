@@ -138,7 +138,7 @@ def registry_problems(doc: dict) -> list:
             out.append(f"{name}: the edge_pair pattern needs the edge_pair role")
         if signature.get("grain") not in (None, "event_log"):
             out.append(f"{name}: unknown grain")
-        if signature.get("grain") == "event_log" and not {"case_id", "status_activity", "event_time"} <= set(signature.get("roles_all", [])):
+        if signature.get("grain") == "event_log" and not {"case_id", "status_activity", "event_time"} <= set(signature.get("roles_all", []) + signature.get("roles_any", [])):
             out.append(f"{name}: the event_log grain needs the case_id, status_activity and event_time roles")
         genie = kind.get("genie", {})
         if len(genie.get("questions", [])) < 5 or not genie.get("measures") or not kind.get("alerts") or not kind.get("dashboard", {}).get("widgets"):

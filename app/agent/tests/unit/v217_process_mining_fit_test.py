@@ -33,7 +33,7 @@ MILESTONES = [
     ("main", "ops", "orders", "updated_at", "TIMESTAMP", ""),
 ]
 SCHEMA = SNAPSHOT + EVENT_LOG + MILESTONES
-NO_LOG = "Q3_R14_DATA_FIT_SCALE:R14_PROCESS_NO_EVENT_LOG"
+NO_LOG = "Q3_R14_DATA_FIT_SCALE:R14_NO_EVENT_LOG"
 
 
 class _Loader:
@@ -143,7 +143,7 @@ def test_the_below_bar_reason_says_why_in_plain_words(agent_ns):
     cls = agent_ns["DatabricksInspire"]
     text = cls._below_bar_gate_text("Q3", NO_LOG)
     assert "current status" in text and "too few columns" not in text and "R14" not in text
-    deep = cls._below_bar_gate_text("Q3", "Q3_R14_DATA_FIT_SCALE:R14_PROCESS_CASE_UNIQUE_PER_ROW:main.ops.ticket_events.ticket_id")
+    deep = cls._below_bar_gate_text("Q3", "Q3_R14_DATA_FIT_SCALE:R14_CASE_UNIQUE_PER_ROW:main.ops.ticket_events.ticket_id")
     assert "main.ops.ticket_events.ticket_id" in deep and "one row per case" in deep
     assert "too few columns" in cls._below_bar_gate_text("Q3", "Q3_R14_DATA_FIT_SCALE:R14_RECO_UNDER_COLUMNED")
 
@@ -159,7 +159,7 @@ def test_deep_data_showing_one_row_per_case_fails_the_event_log(agent_ns):
     obj = _obj(agent_ns, profiles=_profile(5000, 5000))
     kept, dropped = obj._phaseQ3_validate_relevance([_event_uc()], SCHEMA)
     assert kept == [] and _reasons(dropped) == {
-        "N01-U02": "Q3_R14_DATA_FIT_SCALE:R14_PROCESS_CASE_UNIQUE_PER_ROW:main.ops.ticket_events.ticket_id"}
+        "N01-U02": "Q3_R14_DATA_FIT_SCALE:R14_CASE_UNIQUE_PER_ROW:main.ops.ticket_events.ticket_id"}
 
 
 def test_deep_data_showing_repeated_cases_keeps_the_event_log(agent_ns):
@@ -171,7 +171,7 @@ def test_deep_data_showing_repeated_cases_keeps_the_event_log(agent_ns):
 def test_deep_data_too_thin_to_judge_keeps_the_event_log(agent_ns):
     obj = _obj(agent_ns, profiles=_profile(12, 12))
     kept, dropped = obj._phaseQ3_validate_relevance([_event_uc()], SCHEMA)
-    assert "R14_PROCESS" not in str(_reasons(dropped))
+    assert "R14_NO_EVENT_LOG" not in str(_reasons(dropped)) and "R14_CASE_UNIQUE_PER_ROW" not in str(_reasons(dropped))
 
 
 def test_deep_skips_the_milestone_case_table(agent_ns):
@@ -236,3 +236,68 @@ def test_a_flag_column_is_not_an_activity(agent_ns):
     obj.data_category_map["main.ops.ticket_marks"] = "TRANSACTIONAL"
     kept, dropped = obj._phaseQ3_validate_relevance([uc], SCHEMA + rows)
     assert kept == [] and _reasons(dropped) == {"N01-U06": NO_LOG}
+
+
+PATH_KINDS = ("process_mining", "journey_path", "next_event")
+PARENTS = [
+    ("main", "ops", "bookings", "booking_id", "BIGINT", ""),
+    ("main", "ops", "bookings", "booking_date", "DATE", ""),
+    ("main", "ops", "tickets", "ticket_id", "BIGINT", ""),
+    ("main", "ops", "tickets", "ticket_priority", "STRING", ""),
+]
+LINKS = {"main.ops.booking_tickets": [("booking_id", "main.ops.bookings", "booking_id")],
+         "main.ops.ticket_events": [("ticket_id", "main.ops.tickets", "ticket_id")]}
+
+
+def _suggested_with_parents(agent_ns, rows):
+    tables = {".".join(r[:3]) for r in rows}
+    links = {child: list(found) for child, found in LINKS.items() if child in tables}
+    found = _obj(agent_ns).detect_supported_kinds(_metadata(rows + PARENTS), links, log=False)
+    return {k["kind"]: k for k in found if k["anchor"] in tables}
+
+
+def test_every_path_kind_in_the_registry_asks_for_an_event_log_grain(agent_ns):
+    kinds = {k["id"]: k for k in agent_ns["_inspire_kinds"]()["kinds"]}
+    assert all(kinds[kind_id]["signature"].get("grain") == "event_log" for kind_id in PATH_KINDS)
+    lifecycle = ("sla_aging", "time_to_event", "working_capital", "staffing_queueing")
+    assert all("grain" not in kinds[kind_id]["signature"] for kind_id in lifecycle)
+
+
+def test_no_path_kind_is_suggested_on_a_status_snapshot(agent_ns):
+    only_updated = [r for r in SNAPSHOT if r[3] != "created_timestamp"]
+    for rows in (SNAPSHOT, only_updated):
+        found = _suggested_with_parents(agent_ns, rows)
+        assert not set(PATH_KINDS) & set(found), sorted(found)
+
+
+def test_every_path_kind_is_suggested_on_an_event_log(agent_ns):
+    found = _suggested_with_parents(agent_ns, EVENT_LOG)
+    for kind_id in PATH_KINDS:
+        assert found[kind_id]["anchor"] == "main.ops.ticket_events", kind_id
+
+
+def test_a_lifecycle_kind_still_reads_the_snapshot(agent_ns):
+    rows = SNAPSHOT + [("main", "ops", "booking_tickets", "resolved_timestamp", "TIMESTAMP", "")]
+    assert "sla_aging" in _suggested_with_parents(agent_ns, rows)
+
+
+def _sequence_uc(no, table, solution):
+    return _uc(no, table, solution, technique="Sequence Analysis")
+
+
+def test_sequence_analysis_fails_on_a_status_snapshot_and_passes_on_an_event_log(agent_ns):
+    snapshot = _sequence_uc("N02-U01", "main.ops.booking_tickets",
+                            "Predict the next `ticket_status` of each `ticket_id` from `updated_timestamp` with a Markov chain.")
+    log = _sequence_uc("N02-U02", "main.ops.ticket_events",
+                       "Predict the next `activity` of each `ticket_id` from the order of `event_ts` with a Markov chain.")
+    kept, dropped = _obj(agent_ns)._phaseQ3_validate_relevance([snapshot, log], SCHEMA)
+    assert _reasons(dropped) == {"N02-U01": NO_LOG} and [uc["No"] for uc in kept] == ["N02-U02"]
+
+
+def test_the_user_asking_for_sequence_analysis_wins(agent_ns):
+    parsed = {"forced_techniques": [{"technique": "Sequence Analysis", "context": "tickets"}],
+              "use_case_kinds": {"asked": [], "excluded": []}}
+    snapshot = _sequence_uc("N02-U01", "main.ops.booking_tickets",
+                            "Predict the next `ticket_status` of each `ticket_id` from `updated_timestamp` with a Markov chain.")
+    kept, dropped = _obj(agent_ns, parsed=parsed)._phaseQ3_validate_relevance([snapshot], SCHEMA)
+    assert dropped == [] and [uc["No"] for uc in kept] == ["N02-U01"]
