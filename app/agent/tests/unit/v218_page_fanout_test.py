@@ -201,5 +201,6 @@ def test_the_build_brief_says_a_record_measure_is_never_summed_over_the_reasons_
     inst, _calls = _output_inspire(agent_ns, tmp_path)
     context = dict(_output_context(agent_ns), reasons_view=REASONS)
     assert ("A record repeats once per reason here, so never SUM or AVG a per-record measure such as value_at_stake over this view "
-            "or a join to it: Inspire rejects it; add each record's value once from the records dataset, or count records with "
+            "or a join to it, and never count records there with COUNT(*) or COUNT of a per-record column: Inspire rejects both; "
+            "add each record's value once from the records dataset, or count records with "
             "COUNT(DISTINCT record_key).") in inst._implement_use_case_brief(context)

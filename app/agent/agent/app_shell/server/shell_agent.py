@@ -64,7 +64,7 @@ SYSTEM = """You are Genie, the assistant inside the App "{app}", on the page of 
 Scope: answer only about this use case, its data, its page, its charts and its records. The App already checked that this question belongs to this use case, and every table and column the use case reads, its source data included, is in scope: answer it, or say which data you would need and do not have. Never answer that the question is not related to this use case.
 Within this use case, the person's explicit instructions win over your own preferences.
 {data_note}
-Use the context first: when it already answers the question, answer from it without a tool. Call ask_genie only when the answer needs numbers the context does not hold. Use change_view to change what the page shows. Use find_records, read_record and similar_records to look at records and their peers.
+Use the context first: when it already answers the question, answer from it without a tool. Call ask_genie only when the answer needs numbers the context does not hold. The context's key_numbers are the page's KPIs at the person's filters, the numbers the page shows: answer a question about one of them with its value, and when a Genie answer disagrees with one, give the page's value and say what Genie counted instead. When you ask Genie, keep every word of the person's question that narrows it, such as failed, open, current, a tier or a time window; never widen the question. Use change_view to change what the page shows. Use find_records, read_record and similar_records to look at records and their peers.
 To mark records done, not an issue, snoozed, assigned or reopened, call propose_action: it never changes anything by itself, it shows the person a confirmation card that lists every affected record, and only their click saves it. Never say a change is saved.
 A record marked not an issue needs the person's reason; ask for it when they gave none. A snooze needs a date.
 Answer briefly in plain business words, in US English, with no em dashes. Name what you looked at."""
@@ -378,7 +378,7 @@ def action_values(action: str, raw: dict) -> dict:
 
 TOOLS = {
     "ask_genie": {"description": "Ask the use case's Genie Agent a data question it answers with SQL on the use case's tables. Use only when "
-                                 "the context does not hold the numbers.",
+                                 "the context does not hold the numbers. Keep every word of the person's question that narrows it.",
                   "parameters": {"type": "object", "properties": {"question": {"type": "string"}}, "required": ["question"]}},
     "change_view": {"description": "Change what the page shows: filters, the time window, the list's column filters, sorting, a chart's type "
                                    "or series, or open a page or record. The person can undo it.",
@@ -610,6 +610,7 @@ class Agent:
                                                         "domain": page.get("domain"), "subdomain": page.get("subdomain"),
                                                         "kind": page.get("kind") or page.get("layout"), "sponsor": page.get("sponsor")},
                "brief": cut(self.shell.use_case_brief(headers, page), shell_sql.CAPS["field_chars"]), "outline": page_outline(page),
+               "key_numbers": self.key_numbers(ws, who, page, job["view"]),
                "view": job["view"], "visible_records": job["visible"], "today": self.shell.now().date().isoformat(),
                "other_pages": [{"id": p["id"], "title": p.get("title")} for p in self.shell.pages if p["id"] != page["id"]]}
         if job["selected"]:
@@ -617,6 +618,21 @@ class Agent:
                 out["selected_record"] = record_facts(page, self.read(ws, who, page, job["selected"]))
             except (HttpError, QueryError) as error:
                 out["selected_record"] = {"record_key": job["selected"], "error": getattr(error, "message", None) or shell_sql.error_text(error)}
+        return out
+
+    def key_numbers(self, ws, who: str, page: dict, view: dict) -> list:
+        values = (view or {}).get("filters")
+        values = values if isinstance(values, dict) and not shell_sql.filter_values_problems(page, values) else {}
+        out = []
+        for kpi in page.get("kpis") or []:
+            item = {k: kpi[k] for k in ("id", "label", "format", "currency") if kpi.get(k)}
+            try:
+                sql, params = shell_sql.kpi_query(page, kpi["id"], values)
+                rows = self.shell.run(ws, who, sql, params, shell_sql.CAPS["kpi_rows"])["rows"]
+                item["value"] = next((r.get("value") for r in rows if r.get("period") == "now"), None)
+            except (HttpError, QueryError, ValueError, KeyError) as error:
+                item["error"] = getattr(error, "message", None) or shell_sql.error_text(error)
+            out.append(item)
         return out
 
     def read(self, ws, who: str, page: dict, value: str) -> dict:
