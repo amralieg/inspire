@@ -123,7 +123,7 @@ def test_a_date_dimension_does_not_count_as_two_lifecycle_timestamps(agent_ns):
                     date_dim={"d_date_sk": "INT", "d_date": "DATE", "d_year": "INT"})
     found = kinds(agent_ns, metadata, graph(("tickets", "opened_date_sk", "date_dim")))
     assert "sla_aging" not in found
-    assert "process_mining" in found
+    assert "process_mining" not in found
 
 
 def test_a_date_key_and_a_time_key_of_one_moment_are_one_timestamp(agent_ns):
