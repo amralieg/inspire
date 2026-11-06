@@ -1422,7 +1422,8 @@
      "status_activity"
     ],
     "min_counts": {},
-    "fk_pattern": "fact_to_dim"
+    "fk_pattern": "fact_to_dim",
+    "grain": "event_log"
    },
    "techniques": [
     "Sequence Analysis",
@@ -3430,7 +3431,8 @@
     ],
     "roles_any": [],
     "min_counts": {},
-    "fk_pattern": null
+    "fk_pattern": null,
+    "grain": "event_log"
    },
    "techniques": [
     "Funnel Analysis",
@@ -3511,7 +3513,8 @@
     ],
     "roles_any": [],
     "min_counts": {},
-    "fk_pattern": null
+    "fk_pattern": null,
+    "grain": "event_log"
    },
    "techniques": [
     "Process Mining"

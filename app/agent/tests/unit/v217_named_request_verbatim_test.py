@@ -146,3 +146,111 @@ def test_the_pin_runs_after_the_last_drop_and_before_the_catalog_is_written(agen
     csv = source.index("self._generate_csv_catalog('English', lang_abbr_en, english_grouped_data)")
     assert drop < pin < order < csv
     assert source.count("self._pin_user_named_use_cases(") == 1
+
+
+SCHEMA = [("cat", "sch", "shipments", "delivery_date", "date", ""), ("cat", "sch", "shipments", "region_id", "bigint", ""),
+          ("cat", "sch", "regions", "region_name", "string", ""), ("cat", "sch", "suppliers", "defect_cost", "double", "")]
+
+
+def _generator(inst, generated=None, error=None):
+    calls = []
+
+    def generate(columns, batch_num, **kwargs):
+        calls.append({"columns": columns, "batch_num": batch_num, **kwargs})
+        if error is not None:
+            raise error
+        return [dict(uc) for uc in (generated or [])]
+
+    inst._process_batch_with_retry = generate
+    inst._phaseG_run_quality_gates = lambda ucs, _schema: list(ucs)
+    inst._phaseQ_run_integrity_gates = lambda ucs, _schema: list(ucs)
+
+    def score(use_cases, full_schema_details, **_kw):
+        for uc in use_cases:
+            uc.update({"scoring_status": "scored", "Quality": "Good", "Quality Score": 3.0, "Priority": 6.0})
+            uc.pop("user_request", None)
+        return use_cases
+
+    inst._score_combined_value_and_quality = score
+    return calls
+
+
+def test_an_unserved_named_request_is_generated_scored_tagged_and_then_named(agent_ns):
+    inst = _inspire(agent_ns, merged_business_context={"business_context": "We ship parcels.", "industry": "Logistics"})
+    calls = _generator(inst, [{"No": "N1", "Name": "Cut late deliveries", "Business Domain": "",
+                               "Tables Involved": "cat.sch.shipments, cat.sch.regions"}])
+    existing = [_uc("U1", "Rank suppliers by defect cost", 8.0), _uc("U2", "Forecast weekly demand by store", 8.5, "R1")]
+    for uc in existing:
+        uc["Tables Involved"] = "cat.sch.shipments"
+    out = inst._inject_unserved_named_requests(existing, SCHEMA, {})
+    assert len(calls) == 1 and len(out) == 3 and out[:2] == existing
+    injected = out[2]
+    assert injected["user_request"] == "R2" and injected["injected_for_request"] == "R2" and injected["scoring_status"] == "scored"
+    assert injected["Inspire Score"] is not None and injected["Business Domain"] == "Operations"
+    call = calls[0]
+    assert NAMED in call["previous_use_cases_feedback"] and "EXACTLY ONE" in call["previous_use_cases_feedback"]
+    assert call["business_context"] == "We ship parcels." and call["industry"] == "Logistics"
+    assert {c[2] for c in call["columns"][:3]} == {"shipments", "regions"}
+    assert any("[NAMED-REQUEST-INJECT FIRED]" in m for m in _messages(inst, "INFO"))
+    inst._pin_user_named_use_cases(out)
+    assert injected["Name"] == NAMED and not inst.unserved_use_case_requests
+
+
+def test_no_injection_when_a_member_already_serves_the_named_request(agent_ns):
+    inst = _inspire(agent_ns)
+    calls = _generator(inst, [{"No": "N1", "Name": "x", "Tables Involved": "cat.sch.shipments"}])
+    existing = [_uc("U1", "Cut late deliveries", 8.0, "R2")]
+    assert inst._inject_unserved_named_requests(existing, SCHEMA, {}) == existing
+    assert calls == []
+
+
+def test_a_kind_request_without_a_name_is_never_injected(agent_ns):
+    inst = _inspire(agent_ns, requests=(KIND,))
+    calls = _generator(inst, [{"No": "N1", "Name": "x", "Tables Involved": "cat.sch.shipments"}])
+    assert inst._inject_unserved_named_requests([], SCHEMA, {}) == [] and calls == []
+
+
+def test_a_failed_injection_warns_and_the_run_summary_still_names_the_missing_use_case(agent_ns):
+    inst = _inspire(agent_ns)
+    _generator(inst, error=RuntimeError("model endpoint unavailable"))
+    existing = [_uc("U1", "Rank suppliers by defect cost", 8.0)]
+    out = inst._inject_unserved_named_requests(existing, SCHEMA, {})
+    assert out == existing
+    failed = [m for m in _messages(inst, "WARNING") if "[NAMED-REQUEST-INJECT]" in m]
+    assert len(failed) == 1 and NAMED in failed[0] and "model endpoint unavailable" in failed[0]
+    inst._pin_user_named_use_cases(out)
+    assert inst.unserved_use_case_requests[0]["id"] == "R2"
+    assert any(NAMED in w for w in inst._run_outcome_warnings())
+
+
+def test_an_injected_use_case_the_gates_remove_or_the_scorer_drops_is_a_failed_injection(agent_ns):
+    inst = _inspire(agent_ns)
+    _generator(inst, [{"No": "N1", "Name": "x", "Tables Involved": "cat.sch.shipments"}])
+    inst._phaseQ_run_integrity_gates = lambda ucs, _schema: []
+    assert inst._inject_unserved_named_requests([], SCHEMA, {}) == []
+    inst._phaseQ_run_integrity_gates = lambda ucs, _schema: list(ucs)
+    inst._score_combined_value_and_quality = lambda use_cases, full_schema_details, **_kw: [
+        dict(uc, scoring_status="unscored") for uc in use_cases]
+    assert inst._inject_unserved_named_requests([], SCHEMA, {}) == []
+    assert len([m for m in _messages(inst, "WARNING") if "[NAMED-REQUEST-INJECT]" in m]) == 2
+
+
+def test_a_generation_without_tables_is_a_failed_injection(agent_ns):
+    inst = _inspire(agent_ns)
+    _generator(inst, [{"No": "N1", "Name": "x", "Tables Involved": ""}])
+    assert inst._inject_unserved_named_requests([], SCHEMA, {}) == []
+    assert any("[NAMED-REQUEST-INJECT]" in m for m in _messages(inst, "WARNING"))
+
+
+def test_the_injection_runs_after_scoring_and_before_selection(agent_ns):
+    source = ast.unparse(method_node("DatabricksInspire", "run"))
+    scores = source.index("self._apply_inspire_scores(final_consolidated_use_cases)")
+    inject = source.index("final_consolidated_use_cases = self._inject_unserved_named_requests(final_consolidated_use_cases, "
+                          "_schema_for_quality, scoring_context)")
+    select = source.index("self._select_scored_use_cases(")
+    assert scores < inject < select and source.count("self._inject_unserved_named_requests(") == 1
+
+
+def test_the_catch_all_and_the_injection_share_one_generation_context(agent_ns):
+    source = ast.unparse(method_node("DatabricksInspire", "_retry_missing_table_coverage"))
+    assert "self._generation_context()" in source and "merged_business_context" not in source

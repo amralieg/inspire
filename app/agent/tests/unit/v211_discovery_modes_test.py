@@ -451,7 +451,7 @@ def test_the_build_adapts_and_tells_the_user_what_changed(agent_ns):
     inst = _family(_flow_inspire(agent_ns, [({"status": "written", "rows_written": 40}, 11, 101)]), "A")
     changed = dict(_fill(), changes=[{"what": "", "why": "11 outcomes are too few for a gradient boosted model",
                                       "method_was": "gradient boosted trees", "method_now": "a rules-based score",
-                                      "setting": "", "value_was": "", "value_now": ""}])
+                                      "setting": "", "value_was": "", "value_now": "", "cause": "data_shortfall"}])
     runner = _FakeRunner([{"exit": 0, "final": changed}])
     repaired = {}
     first = inst._implement_stop_repair("N01-U01", {}, _spec(agent_ns), {"family": "A"}, SHORT_A, None, repaired,

@@ -276,11 +276,20 @@ def table_roles(agent_ns, bundle):
     return {name: _table_roles(agent_ns, spec) for name, spec in bundle["tables"].items()}
 
 
+@pytest.fixture(scope="module")
+def event_logs(agent_ns, bundle, table_roles):
+    obj = agent_ns["DatabricksInspire"].__new__(agent_ns["DatabricksInspire"])
+    return {name for name, spec in bundle["tables"].items()
+            if obj._event_log_grain(f"demo.core.core_{name}", {c: _sql_type(spec["frame"][c]) for c in spec["frame"].columns},
+                                    table_roles[name])}
+
+
 @pytest.mark.parametrize("label", _kind_labels())
-def test_each_kind_signature_is_met_on_one_demo_table(registry, bundle, table_roles, label):
+def test_each_kind_signature_is_met_on_one_demo_table(registry, bundle, table_roles, event_logs, label):
     signature = next(k for k in registry["kinds"] if k["label"] == label)["signature"]
     anchors = [name for name, roles in table_roles.items()
-               if _signature_met(signature, roles, bundle["tables"][name]["fks"])]
+               if _signature_met(signature, roles, bundle["tables"][name]["fks"])
+               and (signature.get("grain") != "event_log" or name in event_logs)]
     assert anchors, f"no demo table carries the column roles of {label}: {signature}"
 
 

@@ -136,6 +136,10 @@ def registry_problems(doc: dict) -> list:
             out.append(f"{name}: unknown foreign-key pattern")
         if signature.get("fk_pattern") == "edge_pair" and "edge_pair" not in signature.get("roles_all", []):
             out.append(f"{name}: the edge_pair pattern needs the edge_pair role")
+        if signature.get("grain") not in (None, "event_log"):
+            out.append(f"{name}: unknown grain")
+        if signature.get("grain") == "event_log" and not {"case_id", "status_activity", "event_time"} <= set(signature.get("roles_all", []) + signature.get("roles_any", [])):
+            out.append(f"{name}: the event_log grain needs the case_id, status_activity and event_time roles")
         genie = kind.get("genie", {})
         if len(genie.get("questions", [])) < 5 or not genie.get("measures") or not kind.get("alerts") or not kind.get("dashboard", {}).get("widgets"):
             out.append(f"{name}: needs 5 Genie questions, measures, alerts and dashboard widgets")
@@ -201,6 +205,8 @@ def test_the_registry_holds_the_40_kinds_14_layouts_and_the_plan_contracts():
 
 @pytest.mark.parametrize("breaks, expected", [
     (lambda d: d["kinds"][0].update(family="nowhere"), "unknown family"),
+    (lambda d: d["kinds"][0]["signature"].update(grain="snapshot"), "unknown grain"),
+    (lambda d: d["kinds"][0]["signature"].update(grain="event_log"), "the event_log grain needs"),
     (lambda d: d["kinds"][0].update(layout="nowhere"), "unknown layout"),
     (lambda d: d["kinds"][4].update(contract="plan"), "is not the one of layout"),
     (lambda d: d["kinds"][1].update(decision_layout=None), "informational kind"),
