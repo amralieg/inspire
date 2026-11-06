@@ -41,7 +41,8 @@ def test_a_743_of_1000_interactions_stop_goes_back_with_the_counts_and_builds_an
     runner = _FakeRunner([{"exit": 0, "final": _stopped(SHORT_D)},
                           {"exit": 0, "final": _adapted(method_was="matrix factorization",
                                                         method_now="item co-occurrence shrunk toward popularity",
-                                                        why="743 interactions are too few to learn preferences")}])
+                                                        why="743 interactions are too few to learn preferences",
+                                                        cause="data_shortfall")}])
     outcome, job_id, _fill_out = _run(agent_ns, inst, runner)
     assert outcome == {"status": "written", "rows_written": 40, "genie_changes": [NOTE_D]} and job_id == 11
     assert len(runner.prompts) == 2
