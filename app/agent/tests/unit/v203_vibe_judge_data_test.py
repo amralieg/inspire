@@ -167,7 +167,7 @@ def test_no_llm_call_inside_a_retry_or_round_loop_can_hit_the_cache():
             bad.append((node.lineno, name, loop))
     assert bad == []
     [vibes] = [n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef) and n.name == "_implement_vibes_llm"]
-    assert "skip_cache=kind not in IMPLEMENT_VIBES_CACHED_KINDS" in ast.unparse(vibes)
+    assert "skip_cache=skip_cache or kind not in IMPLEMENT_VIBES_CACHED_KINDS" in ast.unparse(vibes)
 
 
 VALID = "Add a bar chart of the late-line rate by nation"
@@ -361,5 +361,5 @@ def test_every_output_builder_and_its_checks_read_the_held_asks():
     assert source.count("implement_vibes_block(") == 4
     assert source.count('held=(context.get("use_case") or {}).get("_implement_held"))') == 3
     assert source.count('"held_asks": ((context.get("use_case") or {}).get("_implement_held") or {}).get(asset) or {}') == 1
-    assert "for asset, text in implement_held_vibes(spec).items():" in source
+    assert "for asset, text in implement_held_vibes(spec).items()}" in source
     assert ('if not held_row and (plan["refill"] or plan["build"] or plan["restyle"] or plan["refresh"]) else {})') in source
