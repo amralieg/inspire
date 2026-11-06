@@ -95,6 +95,7 @@ ALERT_ROUTES = {"alerts/preview": "preview", "alerts/save": "save", "alerts/paus
 CHECK_SLOW_S = 20
 CHECK_FAILED = "failed"
 CHECK_DESIGN = "design"
+CHECK_SLOW = "slow"
 QUERY_LABELS = {"filter": "filter {}", "kpi": "KPI {}", "chart": "chart {}", "table": "table {}", "overview": "the Overview's things to fix",
                 "impact": "the Impact page", "column": "column filter {}"}
 RUN_SUMMARY_FIELDS = ("summary", "nothing_to_act", "act_now_records", "review_records", "records", "value_at_stake", "currency",
@@ -418,6 +419,12 @@ def column_scopes(page: dict, types=None) -> list:
     columns = shell_sql.page_column_filters(page, types)
     out = [(("column", f["column"]), None, f) for f in columns["list"]]
     return out + [(("column", f"{table}.{f['column']}"), table, f) for table, filters in columns["tables"].items() for f in filters]
+
+
+def filter_problem(named: str, error: str) -> tuple:
+    if shell_pg.SLOW_LEAD in str(error):
+        return CHECK_SLOW, f"{named} reads Delta tables for its values, because {error}"
+    return CHECK_FAILED, f"{named} failed: {error}"
 
 
 def choice_options(item: dict, result) -> None:
@@ -1540,6 +1547,8 @@ class Shell:
                 if self.strict and reason.table not in self.on_delta:
                     raise QueryError(f"Lakebase cannot serve it: {shell_sql.error_text(reason)}") from reason
             except QueryError as error:
+                if self.strict and isinstance(error, shell_pg.LakebaseSlow):
+                    return dict(self.lakebase.run(sql, params, limit, queued), served=shell_pg.LAKEBASE)
                 if self.strict:
                     raise QueryError(f"Lakebase could not run it: {error}") from error
                 self.lakebase.noted(f"Lakebase could not run a query, so the App read Delta tables instead: {error}")
@@ -2970,8 +2979,7 @@ class Shell:
         for table, filters in scopes:
             dataset = shell_sql.column_dataset(page, table)
             named = "the decision list" if table is None else f"table {table}"
-            problems += [(CHECK_FAILED, f"{where}: {named} column filter {f['column']} failed: {f['error']}") for f in filters
-                         if f.get("error")]
+            problems += [filter_problem(f"{where}: {named} column filter {f['column']}", f["error"]) for f in filters if f.get("error")]
             sql, params = shell_sql.dataset_columns_query(page, dataset)
             try:
                 found = self.run(probe.ws, None, sql, params, 1)["columns"]
@@ -3042,7 +3050,7 @@ class Shell:
             found.extend(self.check_column_filters(page, meta["columns"], probe, where))
             for f in meta["filters"]:
                 if f.get("error"):
-                    failed([f"{where}: filter {f['id']} failed: {f['error']}"])
+                    found.append(filter_problem(f"{where}: filter {f['id']}", f["error"]))
                 elif f["type"] == "date_range":
                     if f.get("low") is None or f.get("high") is None:
                         failed([f"{where}: date filter {f['id']} found no dates"])

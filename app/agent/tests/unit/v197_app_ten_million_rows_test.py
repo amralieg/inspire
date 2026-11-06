@@ -693,7 +693,7 @@ def _dated_hub(tmp_path, ws=None):
 
 
 def _bounds_reads(ws):
-    return [sql for sql, _p, _l in ws.sql if "AS low_0" in sql or "MIN(v) AS low" in sql]
+    return [sql for sql, _p, _l in ws.sql if "AS low_0" in sql]
 
 
 def test_the_page_open_reads_every_date_range_in_one_statement_that_the_defaults_and_the_filters_share(tmp_path):

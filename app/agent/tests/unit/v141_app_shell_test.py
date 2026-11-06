@@ -250,7 +250,7 @@ def test_records_options_bounds_and_defaults():
     sql, _ = shell_sql.options_query(PAGE, "category")
     assert " UNION " in sql and "LIMIT 500" in sql
     sql, _ = shell_sql.bounds_query(PAGE, "run_date")
-    assert "MIN(v) AS low" in sql and " UNION ALL " in sql
+    assert "low_0 AS low" in sql and "MIN(CAST(`as_of_date` AS DATE))" in sql
     assert shell_sql.default_values(PAGE, {"run_date": ("2024-01-05", "2026-10-15")}) == {
         "run_date": {"from": "2025-11-01", "to": "2026-10-15"}}
     assert shell_sql.default_values(PAGE, {}) == {}
@@ -396,7 +396,7 @@ class FakeWorkspace:
 
     def run_sql(self, warehouse, sql, params, limit=5000):
         self.sql.append((sql, params, limit))
-        if "MIN(v) AS low" in sql:
+        if "low_0 AS low" in sql:
             return {"columns": [], "rows": [{"low": "2024-01-05", "high": "2026-10-15"}], "truncated": False}
         if sql.startswith("SELECT v FROM"):
             return {"columns": [], "rows": [{"v": "Books"}, {"v": "Music"}], "truncated": False}
@@ -612,14 +612,14 @@ def test_check_runs_every_query_at_the_default_filters(tmp_path):
     problems, ws = checked(tmp_path, lambda sql: None)
     assert problems == []
     page_sql = [(sql, params) for sql, params, _ in ws.sql
-                if "MIN(v) AS low" not in sql and not sql.startswith("SELECT v FROM") and not sql.endswith("LIMIT 0")]
+                if "low_0 AS low" not in sql and not sql.startswith("SELECT v FROM") and not sql.endswith("LIMIT 0")]
     assert len(page_sql) == len(shell_sql.page_queries(PAGE, {})) + 3, "the list rows, its count and its key count run too"
     assert all("2025-11-01" in json.dumps(params) and "2026-10-15" in json.dumps(params) for _sql, params in page_sql)
 
 
 def test_check_names_every_broken_or_empty_tile(tmp_path):
     def shape(sql):
-        if "MIN(v) AS low" in sql:
+        if "low_0 AS low" in sql:
             return None
         if sql.startswith("SELECT v FROM"):
             return []
@@ -643,7 +643,7 @@ def test_check_names_every_broken_or_empty_tile(tmp_path):
 
 def test_check_sends_back_a_chart_that_draws_one_group(tmp_path):
     def shape(sql):
-        if "`channel`" in sql and "GROUP BY" in sql and "MIN(v)" not in sql:
+        if "`channel`" in sql and "GROUP BY" in sql and "low_0 AS low" not in sql:
             return [{"x": "Web", "y0": 9.0}]
         return None
 
@@ -664,7 +664,7 @@ class TypedWorkspace(ShapedWorkspace):
 
 
 def _by_category(sql):
-    return "`category`" in sql and "GROUP BY" in sql and "MIN(v)" not in sql and "SUM(y0) OVER" not in sql
+    return "`category`" in sql and "GROUP BY" in sql and "low_0 AS low" not in sql and "SUM(y0) OVER" not in sql
 
 
 @pytest.mark.parametrize("y0_type, values, refused", [
@@ -688,7 +688,7 @@ def test_check_sends_back_a_chart_whose_undeclared_measure_holds_dates(tmp_path,
 
 def test_check_sends_back_a_ranked_chart_whose_groups_all_share_one_value(tmp_path):
     def shape(sql):
-        if "`category`" in sql and "GROUP BY" in sql and "MIN(v)" not in sql and "SUM(y0) OVER" not in sql:
+        if "`category`" in sql and "GROUP BY" in sql and "low_0 AS low" not in sql and "SUM(y0) OVER" not in sql:
             return [{"x": "Books", "y0": 10.0}, {"x": "Music", "y0": 10.0}, {"x": "Home", "y0": 10.0}]
         return None
 
@@ -757,7 +757,7 @@ def test_check_keeps_a_one_value_filter_when_three_others_slice(tmp_path):
 
 def test_check_flags_a_date_filter_with_no_dates_and_a_failed_filter(tmp_path):
     def shape(sql):
-        if "MIN(v) AS low" in sql:
+        if "low_0 AS low" in sql:
             return [{"low": None, "high": None}]
         if sql.startswith("SELECT v FROM") and "`region`" in sql:
             return shell_db.QueryError("PERMISSION_DENIED")

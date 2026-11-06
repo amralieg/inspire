@@ -2418,9 +2418,8 @@ def column_options_query(page: dict, table, column: str, search: str = "", limit
 
 
 def bounds_query(page: dict, ident: str) -> tuple:
-    f = _item(page, "filters", ident)
-    parts = [f"SELECT CAST({quote(column)} AS DATE) AS v FROM ({_dataset(page, dataset)}) AS d" for dataset, column in f["columns"].items()]
-    return f"SELECT MIN(v) AS low, MAX(v) AS high FROM ({' UNION ALL '.join(parts)}) AS b", []
+    sql, params = bounds_together_query(page, [ident])
+    return f"SELECT low_0 AS low, high_0 AS high FROM ({sql}) AS t", params
 
 
 def bounds_together_query(page: dict, idents: list) -> tuple:
