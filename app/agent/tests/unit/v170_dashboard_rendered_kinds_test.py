@@ -74,7 +74,7 @@ def _dated(agent_ns, tmp_path):
     page = _page(agent_ns)
     page["filters"].insert(1, {"id": "sold", "type": "date_range", "label": "Sale date", "grain": "day", "columns": {"trend": "month"}})
     doc = agent_ns["implement_dashboard_from_page"](page, _shell(agent_ns, tmp_path), RESULT, {})
-    return page, doc, next(d for d in doc["datasets"] if d.get("parameters"))
+    return page, doc, next(d for d in doc["datasets"] if d["name"].endswith("_parts"))
 
 
 def test_no_dashboard_definition_shows_a_made_up_date_in_a_default_a_parameter_or_a_filter(agent_ns, tmp_path):

@@ -2932,6 +2932,7 @@ class Shell:
             problems.append((CHECK_FAILED, f"{where}: the decision list returned no rows at the default filters"))
         columns = self.list_columns(probe.ws, None, page)
         problems += [(CHECK_DESIGN, f"{where}: {p}") for p in shell_sql.part_column_problems(page, columns)]
+        problems += [(CHECK_DESIGN, f"{where}: {p}") for p in shell_sql.filter_grain_problems(page, columns)]
         problems += [(CHECK_DESIGN, p) for p in self.check_decidable(probe, page, columns, where)]
         sql, params = shell_sql.list_keys_query(page, values, columns)
         done, errors = self._parallel({("list", "keys"): lambda: self.run(probe.ws, None, sql, params, 1)}, probe)

@@ -248,7 +248,7 @@ def test_records_options_bounds_and_defaults():
     sql, _ = shell_sql.records_query(PAGE, {})
     assert sql.endswith("ORDER BY `rank` ASC NULLS LAST LIMIT 5000")
     sql, _ = shell_sql.options_query(PAGE, "category")
-    assert " UNION " in sql and "LIMIT 500" in sql
+    assert " UNION " not in sql and "main.pricing.loss_trend" not in sql and "LIMIT 500" in sql
     sql, _ = shell_sql.bounds_query(PAGE, "run_date")
     assert "low_0 AS low" in sql and "MIN(CAST(`as_of_date` AS DATE))" in sql
     assert shell_sql.default_values(PAGE, {"run_date": ("2024-01-05", "2026-10-15")}) == {

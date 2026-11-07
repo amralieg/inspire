@@ -73,6 +73,8 @@ def _db(runs):
     db.create_aggregate("median", 1, _Median)
     db.create_aggregate("percentile", 2, _Percentile)
     db.create_aggregate("COUNT_IF", 1, _CountIf)
+    db.create_function("size", 1, lambda chosen: len(json.loads(chosen)))
+    db.create_function("array_contains", 2, lambda chosen, value: value in json.loads(chosen))
     db.execute("CREATE TABLE churn_out (record_key TEXT, valid_from TEXT, valid_to TEXT, is_current INT, change_source TEXT, changed_by TEXT, "
                "run_id TEXT, value REAL, bonus REAL, category TEXT)")
     closed = "11:00" if runs > 1 else None
@@ -115,13 +117,25 @@ def _counters(doc):
             if (item["widget"].get("spec") or {}).get("widgetType") == "counter"}
 
 
+def _found(doc, dataset):
+    return next(d for d in doc["datasets"] if d["name"] == dataset)
+
+
 def _measures(doc, dataset):
-    found = next(d for d in doc["datasets"] if d["name"] == dataset)
+    found = _found(doc, dataset)
     return "".join(found["queryLines"]), {c["displayName"]: c["expression"] for c in found.get("columns") or []}
 
 
+def _chosen(sql, found, category):
+    for parameter in found.get("parameters") or []:
+        assert parameter["complexType"] == "MULTI", "only the category filter narrows the rows by run"
+        sql = sql.replace(f":{parameter['keyword']}", "NULL" if category is None else f"'{json.dumps([category])}'")
+    return sql
+
+
 def _dashboard(ns, kpi, runs, category=None):
-    doc = _build(ns, _dash_page(ns, [kpi]))
+    page = _dash_page(ns, [kpi])
+    doc = _build(ns, page)
     widget = _counters(doc)["kpi_0"]
     query = widget["queries"][0]["query"]
     sql, measures = _measures(doc, query["datasetName"])
@@ -129,8 +143,10 @@ def _dashboard(ns, kpi, runs, category=None):
     before = shell_sql.previous_run_measure(kpi["expression"])
     assert change == shell_sql.change_text_sql(now, before), "the counter's change reads the previous run through the one builder"
     shown = [now, before]
-    where = " WHERE category IN (?)" if category else ""
-    row = _db(runs).execute(_local(f"SELECT {', '.join(shown)} FROM ({sql}) AS q{where}"), [category] if category else []).fetchone()
+    found = _found(doc, query["datasetName"])
+    assert [p["keyword"] for p in found["parameters"]] == [f"filter_{i}" for i, f in enumerate(page["filters"]) if f["id"] == "category"], \
+        "the category filter lists its values from the decision list and narrows the rows by run through its parameter"
+    row = _db(runs).execute(_local(f"SELECT {', '.join(shown)} FROM ({_chosen(sql, found, category)}) AS q")).fetchone()
     return tuple(row) + (None,) * (2 - len(row))
 
 
@@ -197,7 +213,7 @@ def test_the_dashboard_and_the_tile_build_the_previous_rows_through_one_definiti
     sql, measures = _measures(doc, "rows_runs")
     page = _dash_page(agent_ns, [_kpi("SUM(value)")])
     rows = agent_ns["implement_dashboard_dataset_sql"](page, "rows", shell_sql)
-    assert sql == shell_sql.runs_compare_sql(rows, RESULT, COLUMNS)
+    assert sql.startswith(f"SELECT * FROM ({shell_sql.runs_compare_sql(rows, RESULT, COLUMNS)}) AS d\nWHERE (:filter_")
     assert sql.count(f"FROM {shell_sql.RUNS_CTE} AS o") == 1 and sql.count("ROW_NUMBER() OVER (ORDER BY `_inspire_ran` DESC)") == 1
     assert shell_sql.previous_rows(dict(page, result_table=RESULT), "rows", COLUMNS) == shell_sql.runs_compare_sql(ROWS_SQL, RESULT, COLUMNS, (1,))
     now = shell_sql.run_measure("SUM(value)", shell_sql.RUN_LATEST)

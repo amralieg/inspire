@@ -396,7 +396,7 @@ def test_the_alert_reports_vibes_it_could_not_do_from_its_own_file_and_a_broken_
                                                                                          if k != "condition_sql"})
 
 
-def test_a_version_whose_ask_is_unmet_after_three_genie_rounds_is_held_and_saves_the_candidate(agent_ns, tmp_path):
+def test_a_version_whose_judge_gives_no_usable_answer_is_held_as_unchecked_and_saves_the_candidate(agent_ns, tmp_path):
     inst, calls, _queries = _alert_inspire(agent_ns, tmp_path, rows=[{"triggered": True}])
     previous = dict(VALID, outputs={**ALL, "genie_space": False, "app": False})
     inst._implement_previous = lambda target: {"spec_version": 2, "spec_json": previous}
@@ -415,25 +415,26 @@ def test_a_version_whose_ask_is_unmet_after_three_genie_rounds_is_held_and_saves
     inst._implement_dashboard = lambda context, runner: pytest.fail("only the alert's vibes changed")
     seen = _verdicts(inst, ["Add a map of the regions"], status="impossible", evidence="no table holds a location")
     status = _run(inst, dict(previous, outputs={**previous["outputs"], "alert_vibes": VIBES}))
-    assert status == "vibe_not_met" and len(runner.prompts) == 3, \
-        "impossible is gone, so the ask goes back to Genie in every round, and still unmet after the last one it holds the version"
-    assert seen.count("judge") == 3, "the last round's verdict is recorded without another judge call"
+    assert status == "vibe_not_met" and len(runner.prompts) == 1, \
+        "a judge that gives no usable answer leaves the ask unchecked, so it never goes back to Genie and the version holds"
+    assert seen.count("judge") == 2, "an unusable verdict is asked again once, past the cache, before the ask is unchecked"
     assert "Inspire split them into these asks and checks each one in what you write:\n1. Add a map of the regions\n" in runner.prompts[0]
-    final, missed = inst.updates[-1], "Genie could not do it in 3 build rounds: the check gave no answer for this ask"
+    final, missed = inst.updates[-1], agent_ns["IMPLEMENT_VIBES_NO_ANSWER"]
     assert final["status"] == "vibe_not_met" and final["asset_status"]["held"]["parts"] == ["alert"]
+    assert final["asset_status"]["held"]["reason"].startswith("1 ask could not be checked, so nothing of v3 is published and v2 stays live")
     assert f"Alert: Add a map of the regions: {missed}" in final["asset_status"]["held"]["reason"], \
-        "the held reason names the ask and that Genie could not do it in its 3 build rounds"
+        "the held reason names the ask and says the check could not run"
     assert "snapshot" not in final["asset_status"]["alert"] and "warnings" not in final["asset_status"]["alert"], \
         "a held alert is not deployed, so its live record gains no snapshot and no warnings of this version"
-    tried = [f"round {n}: the check gave no answer for this ask" for n in (1, 2, 3)]
+    tried = [f"round 1: {missed}"]
     assert final["asset_status"]["alert"]["vibes_checks"] == [{"ask": "Add a map of the regions", "status": "missing",
-                                                               "evidence": "the check gave no answer for this ask", "rounds": 3,
-                                                               "tried": tried}]
+                                                               "evidence": missed, "rounds": 1, "tried": tried}]
     assert final["asset_status"]["checklist_summary"] == {"met": 0, "total": 1}
+    shown = f"{missed}. Nothing shows the ask was missed"
     assert final["asset_status"]["checklist"] == [{"n": 1, "requirement": "Add a map of the regions", "part": "alert", "where": "",
-                                                   "status": "not_met", "evidence": "the check gave no answer for this ask",
-                                                   "fact": "the check gave no answer for this ask", "rounds": 3,
-                                                   "tried": tried, "checks": [], "published_anyway": None}]
+                                                   "status": "not_met", "evidence": f"{shown}: press Try again to check it again",
+                                                   "fact": shown, "rounds": 1, "tried": tried, "checks": [], "published_anyway": None,
+                                                   "unchecked": True}]
     assert "impossible" not in json.dumps(final["asset_status"]) and "doable" not in json.dumps(final["asset_status"])
     saved = next(u for u in inst.updates if "asset_snapshots" in u)
     snapshots = json.loads(saved["asset_snapshots"])

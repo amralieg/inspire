@@ -342,6 +342,39 @@ def test_the_mixed_count_scan_flags_a_bare_count_beside_a_grouped_one_and_spares
     assert _js_bare_of("`${grouped(d)} of ${plural(n, 'row')}` `${shown(m)} of ${plural(n, 'MVP')}` `${CHOICES_SHOWN} of ${plural(n, 'c')}`") == []
 
 
+UPPER_NAME = re.compile(r"^[A-Z][A-Z0-9_]*$")
+COUNT_KEYS = re.compile(r"^(n|count|rows|total|kept|flagged|dropped|records|entities|\w+_count|n_\w+)$")
+
+
+def _bare_template_counts(label, source):
+    found = []
+    for node in ast.walk(ast.parse(source)):
+        if not (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr == "format"
+                and isinstance(node.func.value, ast.Name) and UPPER_NAME.match(node.func.value.id)):
+            continue
+        for keyword in node.keywords:
+            value = keyword.value
+            key = value.slice.value if isinstance(value, ast.Subscript) and isinstance(value.slice, ast.Constant) else None
+            if _plain_count(value) or (isinstance(key, str) and COUNT_KEYS.match(key)) or \
+                    (isinstance(value, ast.Name) and COUNT_KEYS.match(value.id)):
+                found.append(f"{label}:{node.lineno}: {node.func.value.id}.format({keyword.arg}={ast.unparse(value)})")
+    return found
+
+
+
+def test_the_template_scan_flags_a_bare_count_and_spares_a_formatted_one_or_text():
+    flagged = 'A = T.format(n=shared["n"])\nB = T.format(rows=len(x))\nC = T.format(count=count)\n'
+    assert len(_bare_template_counts("seed", flagged)) == 3
+    spared = ('A = T.format(n=implement_number_text(shared["n"]))\nB = T.format(problems=found)\n'
+              'C = T.format(rows=inspire_plural(n, "row"))\nD = text.format(n=n)\n')
+    assert _bare_template_counts("seed", spared) == []
+
+
+def test_no_message_template_is_filled_with_a_bare_count():
+    found = [line for label, source in _sources() for line in _bare_template_counts(label, source)]
+    assert found == [], "\n".join(found)
+
+
 def test_no_sentence_puts_a_bare_count_beside_a_grouped_one():
     found = [line for label, source in _sources() for line in _mixed_counts(label, source)]
     for root in JS_ROOTS:

@@ -279,8 +279,8 @@ def test_impossible_can_no_longer_be_returned_or_stored(agent_ns):
     kept = [{"ask": "Add a map", "status": "missing", "evidence": "old", "doable": False}]
     found = inst._implement_vibes_round({}, [{"asset": ASSET, "text": ask, "artifact": PAGE, "previous": kept, "retry": ["Show the Fix plan table"]}],
                                         "test")
-    assert found["checks"][ASSET] == [{"ask": ask, "status": "missing", "evidence": "the check gave no answer for this ask"}]
-    assert found["resend"] == {ASSET: found["checks"][ASSET]}
+    assert found["checks"][ASSET] == [{"ask": ask, "status": "missing", "evidence": agent_ns["IMPLEMENT_VIBES_NO_ANSWER"]}]
+    assert found["resend"] == {}, "an ask the check could not answer is unchecked, never sent back to Genie as missed"
     assert "doable" not in json.dumps(found) and "impossible" not in json.dumps(found)
 
 

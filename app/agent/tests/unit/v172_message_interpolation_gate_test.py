@@ -113,6 +113,7 @@ REVIEWED = {
         ('python', 'version'),
         ('_gate_family_sets', 'stray'),
         ('_gate_family_sets', 'unknown'),
+        ('_technique_family_keys', 'unknown'),
         ('_load_and_format_prompt', 'prompt_key'),
         ('_validate_model_config', 'model_size'),
         ('_validate_model_config', 'model_type'),
