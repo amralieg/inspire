@@ -1,10 +1,9 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
-import { ASK_GROUPS as GROUPS, appInfo, askAudit as audit, chartsDrawn, openApp, pageData, resizeTo, serveDist, until } from './harness.mjs';
+import { ASK_GROUPS as GROUPS, appInfo, fileNames, askAudit as audit, chartsDrawn, openApp, pageData, resizeTo, serveDist, until } from './harness.mjs';
 import { CASES, EXAMPLES, kindRoutes } from './exampleRoutes.mjs';
 import { ASK_CHARS, BUSY_TITLE, SUGGESTIONS, chartItems, chartKind, cutText, receives, rowTitle, scoped } from '../src/explain.js';
 
@@ -68,7 +67,7 @@ async function ask(page, calls, name, typed, within = page) {
   return calls.explain[before];
 }
 
-const EXAMPLE_FILES = readdirSync(join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'examples')).filter((f) => f.endsWith('.json')).sort();
+const EXAMPLE_FILES = fileNames(join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'examples')).filter((f) => f.endsWith('.json')).sort();
 const GENIE_OFF = { genie: null, genie_note: 'The Genie Agent did not build.' };
 
 const HOLD_CARDS = { todo: 1, plan: 1, records: 1, levers: 1, scenario: 2, target: 1 };

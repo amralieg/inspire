@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, readdirSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
@@ -15,7 +15,7 @@ import {
 import { doneDay, doneTodayOf, limitText, myWorkText } from '../src/hub.js';
 import { blockTitle } from '../src/blocks.js';
 import { parseHash, withRecord } from '../src/links.js';
-import { CONTRACT } from './harness.mjs';
+import { CONTRACT, fileNames } from './harness.mjs';
 import { DEMO_NOTE, actRecords, failureOf, toneOf } from '../src/api.js';
 
 const SRC = join(dirname(fileURLToPath(import.meta.url)), '..', 'src');
@@ -29,7 +29,7 @@ function memory(start = {}) {
 }
 
 test('no request names a fixed utc_offset_min, which the server refuses; every window names its time zone', () => {
-  const sending = readdirSync(SRC).filter((name) => /\.(js|jsx)$/.test(name) && readFileSync(join(SRC, name), 'utf8').includes('utc_offset_min'));
+  const sending = fileNames(SRC).filter((name) => /\.(js|jsx)$/.test(name) && readFileSync(join(SRC, name), 'utf8').includes('utc_offset_min'));
   assert.deepEqual(sending, []);
   for (const window of ['hour', 'today', 'week', 'month', 'all', 'everything']) {
     assert.equal('utc_offset_min' in listWindow({ ...DEFAULT_PREFS, window }, 'Asia/Dubai'), false, window);
@@ -315,7 +315,7 @@ test('a change the read-only demo refuses is a calm note, and every other failur
 });
 
 test('no web file reads the words of a server refusal or a run error to decide what to show', () => {
-  const sources = readdirSync(SRC).filter((f) => /\.(js|jsx)$/.test(f));
+  const sources = fileNames(SRC).filter((f) => /\.(js|jsx)$/.test(f));
   const wording = /\b(message|error|detail)\b(\s*(\|\||\?\?)\s*(''|""))?\s*\)?\s*\??\.(match|includes|startsWith|endsWith|indexOf|search)\(|\.test\([^)]*\b(message|error|detail)\b/;
   const status = /\.status\s*===\s*(400|409)\b/;
   const reads = ["err.message.includes('no window')", "(err.message || '').startsWith('x')", "String(error).match(/x/)", 'error.message?.includes("x")',

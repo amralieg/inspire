@@ -2,6 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+const { fileNames } = require('./support/sourceFiles');
 const { FRONTEND, SRC, relative, sourceFiles, withoutComments } = require('./support/frontendSource');
 
 const DASH = /[\u2013\u2014]|&[mn]dash;|&#821[12];/;
@@ -51,7 +52,7 @@ test('no user-visible text in the App shell web pages uses an em or en dash', ()
 
 test('no message the backend sends or prints, and no API doc page, uses an em or en dash', () => {
   const hits = [];
-  const top = fs.readdirSync(BACKEND).filter((name) => name.endsWith('.js') && !name.endsWith('_bundle.js')).map((name) => path.join(BACKEND, name));
+  const top = fileNames(BACKEND).filter((name) => name.endsWith('.js') && !name.endsWith('_bundle.js')).map((name) => path.join(BACKEND, name));
   for (const file of [...top, ...sourceFiles(path.join(BACKEND, 'lib'), ['.js'])]) {
     hits.push(...dashLines(withoutComments(fs.readFileSync(file, 'utf8')), path.relative(BACKEND, file)));
   }

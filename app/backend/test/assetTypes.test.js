@@ -17,7 +17,8 @@ const EXPECTED = {
 function walk(dir, base = dir) {
   return fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
     const full = path.join(dir, entry.name);
-    return entry.isDirectory() ? walk(full, base) : [path.relative(base, full).split(path.sep).join('/')];
+    if (entry.isDirectory()) return walk(full, base);
+    return entry.isFile() ? [path.relative(base, full).split(path.sep).join('/')] : [];
   });
 }
 

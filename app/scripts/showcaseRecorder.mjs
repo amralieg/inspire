@@ -15,7 +15,23 @@ const TYPES = {
 };
 const REAL_KEYS = ['inspire_database', 'warehouse_id'];
 const GENIE_WAIT_MS = 180000;
-export const BUILD_PANELS = ['Settings', 'Target KPI', 'Build and job', 'Run and schedule', 'History', 'Alerts of this use case'];
+export const SHOWN_WAIT_MS = 20000;
+export const VIEW_PANELS = { notebook: ['Settings', 'Target KPI'], job: ['Build and job', 'Run and schedule', 'History'], alert: ['Alerts of this use case'] };
+export const BUILD_PANELS = Object.values(VIEW_PANELS).flat();
+
+export async function shown(locator, timeout = SHOWN_WAIT_MS) {
+  try {
+    await locator.first().waitFor({ state: 'attached', timeout });
+    return true;
+  } catch (e) {
+    if (e && e.name === 'TimeoutError') return false;
+    throw e;
+  }
+}
+
+export async function idle(page, timeout = SHOWN_WAIT_MS) {
+  await page.locator('[aria-busy="true"]').first().waitFor({ state: 'detached', timeout });
+}
 
 export function apiWatch(page) {
   let inflight = 0;
@@ -230,6 +246,8 @@ async function walkStart(page, settle) {
     await quick.nth(i).click();
     await settle();
   }
+  const loading = page.locator('main [data-portfolio] [data-card-value] [aria-label="Loading"]');
+  await loading.first().waitFor({ state: 'detached', timeout: 120000 });
   const totals = await page.locator('main [data-portfolio] [data-portfolio-card]').count();
   const cards = page.locator('main button[data-portfolio-card]');
   const keys = await cards.evaluateAll((els) => els.map((el) => el.getAttribute('data-portfolio-card')));
@@ -245,7 +263,7 @@ async function walkStart(page, settle) {
       await settle();
       await openTab(page, settle, 'choose');
       await rows.first().waitFor();
-      await page.locator('main [data-portfolio] [data-card-value] [aria-label="Loading"]').first().waitFor({ state: 'detached' });
+      await loading.first().waitFor({ state: 'detached' });
       await settle();
     }
   }
@@ -256,14 +274,14 @@ async function walkMonitor(page, settle) {
   await openTab(page, settle, 'monitor');
   await page.getByRole('heading', { name: 'Pipeline Monitor' }).waitFor({ timeout: 120000 });
   await settle();
-  const steps = page.getByRole('heading', { name: 'Detailed Steps' });
-  const shown = await steps.count();
+  const steps = await shown(page.getByRole('heading', { name: 'Detailed Steps' }));
+  if (steps) await settle();
   const usecases = page.getByRole('button', { name: 'Show the use cases' });
   if (await usecases.count()) {
     await usecases.click();
     await settle();
   }
-  return { steps: shown > 0 };
+  return { steps };
 }
 
 export async function walkRun(page, settle, onPage = null) {
@@ -315,7 +333,7 @@ export async function walkInspireDemo(page, { settle, log = () => {}, mvps = tru
   }
   log(`Review: opened ${n} use cases`);
   const open = list.getByRole('button', { name: 'Open MVP' });
-  if (await open.count()) await open.first().click();
+  if (mvps ? await shown(open) : await open.count()) await open.first().click();
   else if (mvps) throw new Error('the demo session has no MVP on the Review page');
   else await tabButton(page, 'implement').click();
   const rail = page.locator('nav[aria-label="Use cases"] section button');
@@ -328,7 +346,8 @@ export async function walkInspireDemo(page, { settle, log = () => {}, mvps = tru
     await settle();
     const name = (await page.locator('[data-pinned-name] h2').textContent()).trim();
     const panels = new Set();
-    const tabs = await walkMvpViews(page, settle, async () => {
+    const tabs = await walkMvpViews(page, settle, async (id) => {
+      for (const region of VIEW_PANELS[id] || []) await shown(page.getByRole('region', { name: region, exact: true }));
       for (const region of BUILD_PANELS) if (await page.getByRole('region', { name: region, exact: true }).count()) panels.add(region);
     });
     if (tabs.length) log(`Build: ${name}: ${tabs.join(', ')}${panels.size ? `; panels ${[...panels].join(', ')}` : ''}`);
@@ -496,7 +515,11 @@ export async function recordMvpApp(context, { url, authHeaders = {}, exchanges, 
     if (!showcaseCanRead(request.method(), pathname)) return refuse(route, blocked, request.method(), pathname);
     return passOn(route, exchanges, { url: request.url(), headers: { ...request.headers(), ...authHeaders }, postData: request.postData() || undefined });
   });
-  const settle = apiWatch(page);
+  const quiet = apiWatch(page);
+  const settle = async (options) => {
+    await idle(page);
+    return quiet(options);
+  };
   try {
     await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 120000 });
     await page.locator('.app').waitFor({ timeout: 120000 });

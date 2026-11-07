@@ -165,7 +165,7 @@ function jsxFiles(dir) {
   return fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
     const full = path.join(dir, entry.name);
     if (entry.isDirectory()) return jsxFiles(full);
-    return /\.(jsx|js)$/.test(entry.name) ? [full] : [];
+    return entry.isFile() && /\.(jsx|js)$/.test(entry.name) ? [full] : [];
   });
 }
 

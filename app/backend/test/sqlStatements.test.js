@@ -2,6 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+const { fileNames } = require('./support/sourceFiles');
 const {
   createExecuteSql,
   runWithRequestDeadline,
@@ -252,7 +253,7 @@ function columnAddSites(source) {
 test('the backend adds a column to a table only in ensureTableColumns, which keeps a column another writer added', () => {
   const root = path.join(__dirname, '..');
   const files = ['server.js', 'implementRoutes.js', 'stripAiDisclaimer.js', 'dbx_generate_demo_data.py',
-    ...fs.readdirSync(path.join(root, 'lib')).filter((f) => f.endsWith('.js')).map((f) => path.join('lib', f))];
+    ...fileNames(path.join(root, 'lib')).filter((f) => f.endsWith('.js')).map((f) => path.join('lib', f))];
   const found = Object.fromEntries(files.map((f) => [f, columnAddSites(fs.readFileSync(path.join(root, f), 'utf8'))]).filter(([, s]) => s.length));
   assert.deepEqual(found, { 'server.js': ['ensureTableColumns', 'ensureTableColumns'] });
   const server = fs.readFileSync(path.join(root, 'server.js'), 'utf8');

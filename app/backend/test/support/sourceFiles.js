@@ -6,8 +6,12 @@ function walk(dir, ext, skip) {
   return fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
     const full = path.join(dir, e.name);
     if (e.isDirectory()) return e.name === 'node_modules' || skip.includes(e.name) ? [] : walk(full, ext, skip);
-    return ext.some((x) => e.name.endsWith(x)) ? [full] : [];
+    return e.isFile() && ext.some((x) => e.name.endsWith(x)) ? [full] : [];
   });
+}
+
+function fileNames(dir) {
+  return fs.readdirSync(dir, { withFileTypes: true }).filter((e) => e.isFile()).map((e) => e.name);
 }
 
 function sourceFiles(dir, { ext = ['.js'], skip = [] } = {}) {
@@ -19,4 +23,4 @@ function sourceFiles(dir, { ext = ['.js'], skip = [] } = {}) {
   return files.filter((file) => !ignored.has(path.resolve(file)));
 }
 
-module.exports = { sourceFiles };
+module.exports = { fileNames, sourceFiles };

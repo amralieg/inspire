@@ -29,7 +29,7 @@ function walk(dir, extensions) {
   return fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
     const full = path.join(dir, entry.name);
     if (entry.isDirectory()) return SKIPPED_DIRS.has(entry.name) ? [] : walk(full, extensions);
-    return extensions.includes(path.extname(entry.name)) && !GENERATED.has(entry.name) ? [full] : [];
+    return entry.isFile() && extensions.includes(path.extname(entry.name)) && !GENERATED.has(entry.name) ? [full] : [];
   });
 }
 

@@ -2,6 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
+const { fileNames } = require('./support/sourceFiles');
 
 const {
   INSPIRE_ENVIRONMENT_VERSION, inspireJobEnvironmentChange, inspireJobEnvironments, inspireTaskCompute,
@@ -136,7 +137,7 @@ test('the App runs jobs on the serverless environment version the bundled agent 
 
 test('every job the App creates takes its task compute from inspireTaskCompute and its environment from inspireJobEnvironments', () => {
   const sources = [path.join(BACKEND, 'server.js'), path.join(BACKEND, 'implementRoutes.js')].concat(
-    fs.readdirSync(path.join(BACKEND, 'lib')).map((name) => path.join(BACKEND, 'lib', name)),
+    fileNames(path.join(BACKEND, 'lib')).map((name) => path.join(BACKEND, 'lib', name)),
   );
   const creators = sources.filter((file) => fs.readFileSync(file, 'utf8').includes("'/api/2.1/jobs/create'"));
   assert.deepEqual(creators.map((file) => path.basename(file)).sort(), ['demoDataPipeline.js', 'server.js']);

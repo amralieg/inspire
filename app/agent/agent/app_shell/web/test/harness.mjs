@@ -1,17 +1,20 @@
 import { execFileSync } from 'node:child_process';
 import { createServer } from 'node:http';
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { dirname, extname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { build } from 'vite';
 import react from '@vitejs/plugin-react';
+import { ensureDist } from './freshDist.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const DIST = join(HERE, '..', 'dist');
 export const SRC = join(HERE, '..', 'src');
+export const fileNames = (dir) => readdirSync(dir, { withFileTypes: true }).filter((e) => e.isFile()).map((e) => e.name);
 const REPO = join(HERE, '..', '..', '..', '..');
 const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.woff2': 'font/woff2' };
+await ensureDist();
 export const CONTRACT = JSON.parse(readFileSync(join(REPO, 'tests', 'fixtures', 'app_usability_contract.json'), 'utf8'));
 export const SILENT = {
   run_id: null, trigger: null, by: '', started: '2026-10-27T09:00:30Z', ended: null, duration_s: null,

@@ -1098,7 +1098,8 @@ test('Inspire builds the MVP is the first mode, and I will build it myself swaps
   for (const m of w.IMPLEMENT_MODES) assert.doesNotMatch(`${m.label} ${m.blurb}`, /[\u2013\u2014]/);
   const fs = require('node:fs');
   const src = path.resolve(__dirname, '..', '..', 'frontend', 'src');
-  const files = fs.readdirSync(src, { recursive: true }).filter((f) => /\.(js|jsx)$/.test(f));
+  const files = fs.readdirSync(src, { recursive: true, withFileTypes: true }).filter((e) => e.isFile() && /\.(js|jsx)$/.test(e.name))
+    .map((e) => path.relative(src, path.join(e.parentPath, e.name)));
   const named = files.filter((f) => /Full MVP|Notebook only|Inspire builds the MVP|I will build it myself/.test(fs.readFileSync(path.join(src, f), 'utf8')));
   assert.deepEqual(named, [path.join('lib', 'implementWizard.js')], 'every other place shows the mode names through the shared labels');
   assert.deepEqual(w.wizardSteps('mvp').map((s) => s.id), [...w.IMPLEMENT_STEPS.map((s) => s.id), 'vibes'], 'no settings, no Settings step');
@@ -1775,7 +1776,7 @@ const fs = require('node:fs');
 const frontendSources = (dir) => fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
   const full = path.join(dir, entry.name);
   if (entry.isDirectory()) return frontendSources(full);
-  return /\.(js|jsx)$/.test(entry.name) ? [full] : [];
+  return entry.isFile() && /\.(js|jsx)$/.test(entry.name) ? [full] : [];
 });
 
 test('one helper writes every A, B and C list on the wizard and the Build page, and use cases past three are counted', async () => {

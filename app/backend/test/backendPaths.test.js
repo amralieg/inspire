@@ -3,9 +3,10 @@ const assert = require('node:assert/strict');
 const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
+const { fileNames } = require('./support/sourceFiles');
 const { APP_DIR, APP_FILES, APP_FILES_WHEN_PRESENT, BACKEND_DIR, BUNDLE_FILE } = require('../lib/appPaths');
 
-const RUNTIME_FILES = ['server.js', 'implementRoutes.js', 'stripAiDisclaimer.js', ...fs.readdirSync(path.join(BACKEND_DIR, 'lib')).map((f) => `lib/${f}`)]
+const RUNTIME_FILES = ['server.js', 'implementRoutes.js', 'stripAiDisclaimer.js', ...fileNames(path.join(BACKEND_DIR, 'lib')).map((f) => `lib/${f}`)]
   .filter((f) => f.endsWith('.js'));
 const NOT_SHIPPED = new Set(['.env', '../.env', 'backend/.env', 'backend/.notebook_publish_sig', 'backend/dbx_inspire_ai_agent.ipynb', 'backend/node_modules/swagger-ui-dist']);
 const APP_DIR_JOIN = /path\.(?:join|resolve)\(\s*(APP_DIR|BACKEND_DIR)\b([^)]*)\)/g;
