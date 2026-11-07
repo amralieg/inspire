@@ -5267,7 +5267,8 @@ def test_genie_gets_the_apps_own_page_checker_and_is_told_to_run_it(agent_ns, tm
     inst._implement_input_has_dates = lambda context: True
     inst._implement_app(context, None)
     payload, _modules = _app_shell(agent_ns, tmp_path / "shell")
-    assert seen["tools"] == agent_ns["implement_app_check_files"](payload["files"], True, ["trend", "bars", "pareto"])
+    assert seen["tools"] == agent_ns["implement_app_check_files"](payload["files"], True, ["trend", "bars", "pareto"],
+                                                       agent_ns["implement_page_many_sides"](context["result_table"], context.get("artifacts")))
     assert sorted(seen["tools"]) == [".inspire_check/check_page.py", ".inspire_check/kinds.json", ".inspire_check/shell_facts.py",
                                      ".inspire_check/shell_redact.py", ".inspire_check/shell_sql.py"]
     assert "run `python .inspire_check/check_page.py` in your working folder: it runs those same checks on page.json and must " \

@@ -142,18 +142,30 @@ def test_an_app_page_still_asking_a_genie_agent_this_use_case_no_longer_has_turn
 
 def test_an_app_whose_pages_fail_todays_checks_is_rebuilt_by_genie_to_ask_its_genie_agent_with_no_warning(agent_ns, tmp_path, monkeypatch):
     inst, context, seen = _flow(agent_ns, tmp_path, monkeypatch, _own_files(agent_ns, tmp_path, None, page_genie={}))
-    inst._implement_app_check = lambda work, files, modules, warehouse: seen["checked"].append(files) or [CHECK_FAILED]
+    inst._implement_app_check = lambda work, files, modules, warehouse: seen["checked"].append(files) or (
+        [CHECK_FAILED] if len(seen["checked"]) == 1 else [])
     inst._implement_runner = lambda uc: "runner"
     rebuilt = []
     inst._implement_page_spec = lambda context, runner, name, deploy: rebuilt.append((runner, name)) or {"app_name": "churn-desk"}
     fields = inst._implement_app(context, None)
     note = (f"App: its pages no longer passed Inspire's checks ({CHECK_FAILED}), so Genie rebuilt them to ask this use case's Genie "
             "Agent")
-    assert seen["deployed"] == [] and len(seen["checked"]) == 1
+    assert seen["deployed"] == [] and len(seen["checked"]) == 2, "the held pages passed as they were, so the repoint caused the problem"
     assert rebuilt == [("runner", "app")] and fields == {"app_name": "churn-desk"}, "Genie rebuilds the page instead of handing it back"
     assert context["app_host"]["info"] == [note] and context["app_host"]["notes"] == []
     assert _messages(inst, "ended_success")[-1] == note and not _messages(inst, "ended_warning") and not _messages(inst, "ended_error")
     assert "app_rebuild" not in context
+
+
+def test_an_app_whose_pages_already_failed_the_same_check_is_repointed_without_genie_and_says_what_it_kept(agent_ns, tmp_path, monkeypatch):
+    inst, context, seen = _flow(agent_ns, tmp_path, monkeypatch, _own_files(agent_ns, tmp_path, None, page_genie={}))
+    inst._implement_app_check = lambda work, files, modules, warehouse: seen["checked"].append(files) or [CHECK_FAILED]
+    rebuilt = []
+    inst._implement_page_spec = lambda context, runner, name, deploy: rebuilt.append((runner, name)) or {"app_name": "churn-desk"}
+    fields = inst._implement_app(context, None)
+    assert rebuilt == [] and len(seen["deployed"]) == 1 and len(seen["checked"]) == 2, "the repoint caused nothing, so it deploys"
+    kept = f"App: this redeploy kept 1 problem its pages already had; a rebuild of the App fixes: {CHECK_FAILED}"
+    assert kept in fields["_warnings"] and "app_rebuild" not in context
 
 
 def test_an_app_that_no_longer_holds_this_use_cases_page_is_refused_with_the_reason(agent_ns, tmp_path, monkeypatch):

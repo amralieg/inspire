@@ -128,6 +128,11 @@ def _indexed_problem(name: str, entry: dict) -> list:
     names = {c["name"] for c in entry["columns"]}
     if not isinstance(indexed, list) or any(not isinstance(c, str) or c not in names for c in indexed):
         return [f"the Lakebase copy of {name} must name as indexed only its own columns that an index leads with"]
+    prefixed = entry.get("prefixed", {})
+    if not isinstance(prefixed, dict) or any(c not in names or isinstance(n, bool) or not isinstance(n, int) or n < 1
+                                             for c, n in prefixed.items()):
+        return [f"the Lakebase copy of {name} must name as prefixed only its own columns that an index leads with on their first "
+                f"characters, each with that number of characters"]
     return []
 
 
@@ -650,10 +655,13 @@ def _distinct_column(select, tables: dict, held, overlays):
         return None
     key = ".".join(p for p in (table.catalog, table.db, table.name) if p).lower()
     entry = tables.get(key)
-    if entry is None or key in held or (overlays or {}).get(key) or column.name not in (entry.get("indexed") or ()):
+    if entry is None or key in held or (overlays or {}).get(key):
+        return None
+    prefix = (entry.get("prefixed") or {}).get(column.name) if isinstance(entry.get("prefixed"), dict) else None
+    if column.name not in (entry.get("indexed") or ()) and not prefix:
         return None
     kind = next((str(c.get("type") or "").upper() for c in entry["columns"] if c["name"] == column.name), "")
-    return None if kind in JSON_TYPES else (table, column)
+    return None if kind in JSON_TYPES else (table, column, None if column.name in (entry.get("indexed") or ()) else int(prefix))
 
 
 def _index_distinct(tree, tables: dict, held, overlays):
@@ -663,21 +671,25 @@ def _index_distinct(tree, tables: dict, held, overlays):
         found = _distinct_column(select, tables, held, overlays)
         if found is None:
             continue
-        table, column = found
+        table, column, prefix = found
         source = ".".join(quoted(p) for p in (table.catalog, table.db, table.name) if p)
         c, s, v, n = quoted(column.name), quoted("_inspire_s"), quoted("_inspire_v"), quoted("_inspire_n")
+        k = f"LEFT({c}, {prefix})" if prefix else c
         named = select.expressions[0]
         inner = named.this if isinstance(named, exp.Alias) else named
         value = exp.column("_inspire_v", quoted=True)
         shown = exp.alias_(exp.Cast(this=value, to=inner.to.copy()) if isinstance(inner, exp.Cast) else value, named.alias_or_name,
                            quoted=True)
-        first = f"SELECT {c} FROM {source} WHERE {c} IS NOT NULL ORDER BY {c} ASC NULLS LAST LIMIT 1"
-        after = f"SELECT {c} FROM {source} WHERE {c} > {s}.{v} ORDER BY {c} ASC NULLS LAST LIMIT 1"
+        first = f"SELECT {k} FROM {source} WHERE {k} IS NOT NULL ORDER BY {k} ASC NULLS LAST LIMIT 1"
+        after = f"SELECT {k} FROM {source} WHERE {k} > {s}.{v} ORDER BY {k} ASC NULLS LAST LIMIT 1"
+        w = quoted("_inspire_w")
+        whole = (f" AND LENGTH({v}) < {prefix} UNION SELECT {w}.{c} FROM {s}, LATERAL (SELECT DISTINCT {c} FROM {source} WHERE {k} = "
+                 f"{s}.{v}) AS {w} WHERE LENGTH({s}.{v}) >= {prefix}" if prefix else "")
         walked = sqlglot.parse_one(
             f"SELECT 1 FROM (WITH RECURSIVE {s} AS (SELECT ({first}) AS {v}, 1 AS {n} UNION ALL SELECT ({after}), {s}.{n} + 1 FROM {s} "
-            f"WHERE {s}.{v} IS NOT NULL AND {s}.{n} < {DISTINCT_STEPS}) SELECT {v} FROM {s} WHERE {v} IS NOT NULL "
+            f"WHERE {s}.{v} IS NOT NULL AND {s}.{n} < {DISTINCT_STEPS}) SELECT {v} FROM {s} WHERE {v} IS NOT NULL{whole} "
             f"UNION SELECT {c} FROM {source} WHERE EXISTS (SELECT 1 FROM {s} WHERE {s}.{n} >= {DISTINCT_STEPS}) "
-            f"UNION SELECT NULL WHERE EXISTS (SELECT 1 FROM {source} WHERE {c} IS NULL)) AS {quoted('_inspire_d')}", read="databricks")
+            f"UNION SELECT NULL WHERE EXISTS (SELECT 1 FROM {source} WHERE {k} IS NULL)) AS {quoted('_inspire_d')}", read="databricks")
         walked.set("expressions", [shown])
         if select is tree:
             tree = walked

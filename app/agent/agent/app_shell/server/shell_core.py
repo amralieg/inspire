@@ -3035,10 +3035,6 @@ class Shell:
     def check(self, headers: dict) -> list:
         return [text for _kind, text in self.checked(headers)]
 
-    def check_split(self, headers: dict) -> tuple:
-        found = self.checked(headers)
-        return [t for k, t in found if k == CHECK_FAILED], [t for k, t in found if k == CHECK_DESIGN]
-
     def checked(self, headers: dict) -> list:
         found = []
         failed = lambda texts: found.extend((CHECK_FAILED, t) for t in texts)

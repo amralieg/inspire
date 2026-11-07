@@ -241,7 +241,6 @@ def test_a_filter_lakebase_lists_too_slowly_is_reported_as_slow_and_never_fails_
     failed = [t for k, t in found if k == shell_core.CHECK_FAILED]
     assert lb.rendered and slow and all("reads Delta tables for its values, because Lakebase did not answer" in t for t in slow), found
     assert not [t for t in failed if "filter" in t and shell_pg.SLOW_LEAD in t], failed
-    assert s.check_split({}) == ([t for k, t in found if k == shell_core.CHECK_FAILED], [t for k, t in found if k == shell_core.CHECK_DESIGN])
     assert set(s.check({})) == {t for _k, t in found}
 
 
@@ -307,7 +306,8 @@ def _billing_page():
 def test_the_build_indexes_each_column_a_choice_column_filter_lists_and_records_every_indexed_column_in_the_backend(agent_ns):
     from v145_lakebase_test import shell_sql as sql
     copies, page = _copies(agent_ns), _billing_page()
-    columns = [(c["key"], cols) for c, cols in agent_ns["implement_lakebase_index_columns"](copies, [page], sql)]
+    columns_of = agent_ns["implement_lakebase_index_columns"](copies, [page], sql)
+    columns = [(c["key"], cols) for c, cols in columns_of]
     assert ("rt__lb_bill_activity", ("service_type",)) in columns and ("rt__lb_bill_activity", ("connection_status",)) in columns, \
         "the table's choice column filters list their values from the copy, so each is indexed"
     assert ("rt__lb_bill_activity", ("amount",)) not in columns, "a number range reads its bounds, not a list of values"
@@ -316,16 +316,25 @@ def test_the_build_indexes_each_column_a_choice_column_filter_lists_and_records_
     assert ("rt__lbp_bill_activity", ("service_type",)) not in columns and ("rt__lbp_bill_activity", ("district",)) in columns, \
         "the previous run's copy is read only through the page filters"
     assert len(columns) == len(set(columns))
-    indexed = agent_ns["implement_lakebase_indexed"](copies, [page], sql)
-    assert indexed == {"rt__lb_records": ["record_key", "rank", "entity_label", "district", "score", "hidden"],
-                       "rt__lb_bill_activity": ["district", "bill_date", "service_type", "connection_status"],
-                       "rt__lbp_bill_activity": ["district"]}
-    texts = [s.as_string(None) for s in agent_ns["implement_lakebase_index_sql"](copies, [page], sql)]
-    assert len(texts) == len(columns) and any('"n01_u01__d_bill_activity_b" ("connection_status")' in t for t in texts)
+    planned, skipped = agent_ns["implement_lakebase_index_plan"](
+        columns_of, {c["key"]: {n["name"]: 20 for n in c["columns"]} for c in copies})
+    assert skipped == [] and [(c["key"], [n for n, _f in kept]) for c, kept in planned] == [(k, list(cols)) for k, cols in columns]
+    held = {(c["pg"].split(".")[0], agent_ns["implement_lakebase_index_name"](c, kept)) for c, kept in planned}
+    indexed = agent_ns["implement_lakebase_indexed"](planned, held)
+    assert indexed == {"rt__lb_records": {"indexed": ["rank", "score"],
+                                          "prefixed": {"record_key": 256, "entity_label": 256, "district": 256, "hidden": 256}},
+                       "rt__lb_bill_activity": {"indexed": ["bill_date"],
+                                                "prefixed": {"district": 256, "service_type": 256, "connection_status": 256}},
+                       "rt__lbp_bill_activity": {"prefixed": {"district": 256}}}
+    texts = [agent_ns["implement_lakebase_index_sql"](c, kept).as_string(None) for c, kept in planned]
+    assert len(texts) == len(columns) and any('"n01_u01__d_bill_activity_b" ((left("connection_status", 256)))' in t for t in texts)
+    assert any('"n01_u01__d_bill_activity_b" ("bill_date")' in t for t in texts), "a date has a bounded size, so it is indexed whole"
     backend = agent_ns["implement_lakebase_backend"]("pipe-1", copies, indexed)
-    assert backend["tables"]["rt__lb_bill_activity"]["indexed"] == indexed["rt__lb_bill_activity"]
+    assert backend["tables"]["rt__lb_bill_activity"]["prefixed"] == indexed["rt__lb_bill_activity"]["prefixed"]
     assert "indexed" not in agent_ns["implement_lakebase_backend"]("pipe-1", copies)["tables"]["rt__lb_bill_activity"], \
         "a copy whose indexes were not built claims none, so the App never probes an index that is not there"
+    some = set(list(held)[:1])
+    assert agent_ns["implement_lakebase_indexed"](planned, some) != indexed, "only an index Postgres holds is claimed"
 
 
 def test_a_build_whose_indexes_could_not_be_made_claims_none(agent_ns):
@@ -334,12 +343,9 @@ def test_a_build_whose_indexes_could_not_be_made_claims_none(agent_ns):
     from v145_lakebase_test import shell_sql as sql
     inst = _inspire(agent_ns, FakeSpark())
     inst.logger = CapturingLogger()
-    inst._implement_lakebase_sql = lambda env, statements: (_ for _ in ()).throw(RuntimeError("permission denied for schema s"))
+    inst._implement_lakebase_connection = lambda env: (_ for _ in ()).throw(RuntimeError("permission denied for schema s"))
     assert inst._implement_lakebase_indexes("N01-U01", {}, _copies(agent_ns), [_billing_page()], sql) == {}
-    ran = []
-    inst._implement_lakebase_sql = lambda env, statements: ran.append(len(statements))
-    got = inst._implement_lakebase_indexes("N01-U01", {}, _copies(agent_ns), [_billing_page()], sql)
-    assert ran and got == agent_ns["implement_lakebase_indexed"](_copies(agent_ns), [_billing_page()], sql)
+    assert inst.logger.matching("could not reach their database", "WARNING")
 
 
 def test_a_lakebase_app_whose_filter_lists_too_slowly_stays_on_lakebase_and_the_build_names_the_filter(agent_ns, tmp_path):

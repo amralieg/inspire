@@ -537,7 +537,9 @@ def test_a_look_or_backend_edit_of_an_app_whose_pages_fail_todays_checks_is_rebu
     note = ("App: its pages no longer passed Inspire's checks (page n01_u01: the page has 2 charts; it needs 3 to 8; page n01_u01: "
             "kpi:revenue failed: TABLE_OR_VIEW_NOT_FOUND), so Genie rebuilt them with the new look and data backend")
     assert made == ["N01-U01"] and asked == [("runner", "App")], "Genie rebuilds the App instead of refusing the edit"
-    assert len(checks) == 2 and len(inst.deployed) == 1, "the held pages are checked once, then the rebuilt App is checked and deployed"
+    assert len(checks) == 3 and len(inst.deployed) == 1, (
+        "the restyled pages are checked, then the held pages as they are, which passed, so the restyle caused the problems; then the "
+        "rebuilt App is checked and deployed")
     assert note in fields["_notes"] and note not in (fields.get("_warnings") or []), "a fix Genie made is a note, not a warning"
     assert not [e for e in inst.emitted if e.get("status") == "ended_warning"]
     assert note in [e["message"] for e in inst.emitted if e.get("status") == "ended_success"]

@@ -41,6 +41,7 @@ FLOOR_MARGIN = 4
 FACT_NUMBERS = ("current_n", "held_n", "left_n")
 CHANGED_KEYS = "SELECT `_q_key` FROM qk"
 MISSED = "_inspire_missed"
+FANNING_CALLS = re.compile(r"\b(?:explode|explode_outer|posexplode|posexplode_outer|inline|inline_outer)\s*\(", re.I)
 
 
 def quote(name: str) -> str:
@@ -70,6 +71,16 @@ def stored_stake(alias: str = "") -> str:
 
 def stake_of(names, alias: str = "") -> str:
     return stored_stake(alias) if MONEY_COLUMN in names else "CAST(NULL AS DOUBLE)"
+
+
+def names_table(text, name: str) -> bool:
+    return bool(name) and re.search(rf"(?<![\w$]){re.escape(name)}(?![\w$])", str(text or "").replace("`", ""), re.I) is not None
+
+
+def fanning_datasets(page, names) -> dict:
+    sql = {str(d.get("name")): str(d.get("sql") or "").strip().rstrip(";").strip()
+           for d in (page or {}).get("datasets") or [] if isinstance(d, dict)}
+    return {name: text for name, text in sql.items() if any(names_table(text, n) for n in names or ()) or FANNING_CALLS.search(text)}
 
 
 def companion(table: str, suffix: str) -> str:
