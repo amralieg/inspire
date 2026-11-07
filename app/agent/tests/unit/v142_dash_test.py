@@ -322,7 +322,10 @@ def test_every_page_has_a_date_range_and_the_overview_has_the_event_date_and_thr
     assert [s["widget"]["spec"]["frame"]["title"] for s in segments] == ["Category", "Channel", "Region"]
     assert all(q["query"]["disaggregated"] is False for s in segments + dates for q in s["widget"]["queries"])
     assert "".join(_dataset(doc, "trend")["queryLines"]).startswith(
-        "SELECT * EXCEPT (`month`), CAST(`month` AS DATE) AS `month`\nFROM (SELECT "), "a date filter reads a DATE whatever the column type"
+        "SELECT * FROM (SELECT * EXCEPT (`month`), CAST(`month` AS DATE) AS `month`\nFROM (SELECT "), \
+        "a date filter reads a DATE whatever the column type, and the choice filters narrow the trend by parameter around it"
+    assert all({q["query"]["datasetName"] for q in s["widget"]["queries"] if "fields" in q["query"]} == {"records"} for s in segments), \
+        "a choice filter that names the decision list lists its values from it alone"
     health = _widgets(canvases[1], "filter-date-range-picker")[0]["widget"]
     assert health["spec"]["frame"]["title"] == "Run date" and health["queries"][0]["query"]["datasetName"] == "run_health"
 

@@ -1324,8 +1324,8 @@ def public_blocks(page: dict) -> list:
     return out
 
 
-def quality_problems(page: dict, event_date: bool = False) -> list:
-    problems = []
+def quality_problems(page: dict, event_date: bool = False, many_datasets=()) -> list:
+    problems = filter_grain_problems(page, list_columns(page), many_datasets)
     filters = [f for f in page.get("filters") or [] if isinstance(f, dict)]
     dates = [f for f in filters if f.get("type") == "date_range"]
     segments = [f for f in filters if f.get("type") == "multi_select"]
@@ -2407,8 +2407,66 @@ def _choice_query(page: dict, sources, search: str, limit: int) -> tuple:
     return f"SELECT v FROM ({' UNION '.join(parts)}) AS o WHERE v IS NOT NULL{match} ORDER BY v LIMIT {int(limit)}", params.items
 
 
+def filter_value_datasets(f: dict) -> list:
+    columns = f.get("columns") or {}
+    if f.get("type") == "multi_select" and RECORDS_DATASET in columns:
+        return [RECORDS_DATASET]
+    return list(columns)
+
+
 def options_query(page: dict, ident: str, search: str = "", limit: int = CAPS["options"]) -> tuple:
-    return _choice_query(page, _item(page, "filters", ident)["columns"].items(), search, limit)
+    f = _item(page, "filters", ident)
+    return _choice_query(page, [(d, f["columns"][d]) for d in filter_value_datasets(f)], search, limit)
+
+
+def page_read_datasets(page: dict) -> set:
+    names = {str(d.get("name")) for d in page.get("datasets") or [] if isinstance(d, dict)}
+    found = {RECORDS_DATASET} if isinstance(page.get("records"), dict) else set()
+
+    def walk(node):
+        if isinstance(node, dict):
+            for value in node.values():
+                walk(value)
+        elif isinstance(node, list):
+            for value in node:
+                walk(value)
+        elif isinstance(node, str) and node in names:
+            found.add(node)
+
+    walk({k: v for k, v in page.items() if k not in ("filters", "datasets")})
+    return found | run_level_datasets(page)
+
+
+def filter_grain_problems(page: dict, records_columns=(), many_datasets=()) -> list:
+    filters = [f for f in page.get("filters") or [] if isinstance(f, dict) and isinstance(f.get("columns"), dict)]
+    if not filters:
+        return []
+    read = page_read_datasets(page)
+    sqls = {str(d.get("name")): str(d.get("sql") or "") for d in page.get("datasets") or [] if isinstance(d, dict)}
+    result = str(page.get("result_table") or "").strip()
+    listed = {str(c).lower() for c in records_columns or ()}
+    detail = {name for name in sqls if name != RECORDS_DATASET
+              and (name in set(many_datasets or ()) or (result and not reads_table(sqls[name], result)))}
+    problems = []
+    for f in filters:
+        columns = f["columns"]
+        for dataset in columns:
+            if dataset in sqls and dataset not in read:
+                problems.append(f"filter {f.get('id')} names dataset {dataset}, which no KPI, chart, table or the decision list reads, "
+                                f"so it reads values from rows the page does not show; name only the datasets of the parts it filters")
+        apart = [d for d in columns if d in detail]
+        if not isinstance(page.get("records"), dict) or RECORDS_DATASET in columns or not apart:
+            continue
+        held = next((str(c) for c in columns.values() if str(c).lower() in listed), "")
+        if held:
+            problems.append(f"filter {f.get('id')} reads its values from {', '.join(apart)}, which hold{'s' if len(apart) == 1 else ''} "
+                            f"many rows per record or rows no record holds, while the {RECORDS_DATASET} dataset also has {held}: it offers "
+                            f"values no record holds, is slow on many rows, and leaves the decision list as it was; name {held} of the "
+                            f"{RECORDS_DATASET} dataset in this filter, so it lists its values from the records the page shows and "
+                            "narrows them too")
+    if problems:
+        print(f"[FILTER-GRAIN FIRED] page={page.get('id')} problems={len(problems)}", flush=True)
+    return problems
 
 
 def column_filter(page: dict, table, column: str, kind: str = "", types=None) -> tuple:
