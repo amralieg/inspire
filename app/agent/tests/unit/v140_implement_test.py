@@ -3695,7 +3695,7 @@ NO_ACTION = "so it has nobody to act on yet"
 def test_the_tier_mix_warning_fires_only_when_no_row_reached_an_action_tier(agent_ns):
     warn = agent_ns["implement_tier_mix_warning"]
     assert warn({"Monitor": 1000}, "https://h/jobs/7/runs/9") == (
-        f"Decision list: no row of the latest run reached Act now or Review (1000 Monitor), {NO_ACTION}; run: https://h/jobs/7/runs/9")
+        f"Decision list: no row of the latest run reached Act now or Review (1,000 Monitor), {NO_ACTION}; run: https://h/jobs/7/runs/9")
     assert warn({"Monitor": 6, "act now": 4, "no tier": 6}) == (
         f"Decision list: no row of the latest run reached Act now or Review (6 Monitor, 6 no tier, 4 act now), {NO_ACTION}")
     assert warn({"Act now": 0, "Review": None, "Monitor": 5}) == (
@@ -3714,7 +3714,7 @@ def test_the_tier_mix_warning_states_the_runs_value_range_and_flags_and_never_cl
         "values spanning 0.0094; 10 of 10 rows (100%) carry a data_quality_flag other than ok, in 1 kind; run: https://h/r/9")
     clean = {"rows": 1000, "valued": 1000, "distinct": 950, "span": 0.0497, "flagged": 0, "flag_kinds": 0}
     assert warn({"Monitor": 1000}, "", clean) == (
-        f"Decision list: no row of the latest run reached Act now or Review (1000 Monitor), {NO_ACTION}; column value holds 950 "
+        f"Decision list: no row of the latest run reached Act now or Review (1,000 Monitor), {NO_ACTION}; column value holds 950 "
         "distinct values spanning 0.0497; no row is flagged")
     assert warn({"Monitor": 4}, "", {"rows": 4, "valued": 4, "distinct": 1, "span": 0.0, "flagged": 4, "flag_kinds": 2}) == (
         f"Decision list: no row of the latest run reached Act now or Review (4 Monitor), {NO_ACTION}; every row has the same value in "
@@ -3730,7 +3730,7 @@ def test_the_tier_mix_warning_names_the_method_behind_the_rows_and_whether_a_mod
     fallback = {"methods": [("Most popular items", 7200)], "kinds": 1, "versioned_rows": 0}
     profile = {"rows": 7200, "valued": 7200, "distinct": 1, "span": 0.0, "flagged": 0, "flag_kinds": 0}
     assert warn({"Monitor": 7200}, "https://h/r/9", profile, fallback) == (
-        f"Decision list: no row of the latest run reached Act now or Review (7200 Monitor), {NO_ACTION}; every row comes from one "
+        f"Decision list: no row of the latest run reached Act now or Review (7,200 Monitor), {NO_ACTION}; every row comes from one "
         "method in column method, with no registered model; every row has the same value in column value; no row is flagged; run: "
         "https://h/r/9")
     mixed = {"methods": [("Item-item cosine similarity", 30), ("Most popular items", 10)], "kinds": 2, "versioned_rows": 30}
@@ -3780,11 +3780,11 @@ def test_the_tier_warning_says_which_method_wrote_the_rows_and_keeps_its_other_f
             return method_rows
         return []
 
-    facts = ("column value holds 412 distinct values spanning 0.415; 30 of 7200 rows (under 1%) carry a data_quality_flag other than "
+    facts = ("column value holds 412 distinct values spanning 0.415; 30 of 7,200 rows (under 1%) carry a data_quality_flag other than "
              "ok, in 1 kind")
     inst = _inspire(agent_ns, FakeSpark(responder=respond))
     assert inst._implement_tier_warning("N05-U01", "main.inspire.n05_u01_out", "https://h/r/9") == (
-        f"Decision list: no row of the latest run reached Act now or Review (7200 Monitor), {NO_ACTION}; every row comes from "
+        f"Decision list: no row of the latest run reached Act now or Review (7,200 Monitor), {NO_ACTION}; every row comes from "
         f"one method in column method, with no registered model; {facts}; run: https://h/r/9"), "the warning names no value the run wrote"
 
     def no_method_column(statement):
@@ -3794,7 +3794,7 @@ def test_the_tier_warning_says_which_method_wrote_the_rows_and_keeps_its_other_f
 
     bare = _inspire(agent_ns, FakeSpark(responder=no_method_column))
     assert bare._implement_tier_warning("N05-U01", "main.inspire.n05_u01_out", "https://h/r/9") == (
-        f"Decision list: no row of the latest run reached Act now or Review (7200 Monitor), {NO_ACTION}; {facts}; run: https://h/r/9"), \
+        f"Decision list: no row of the latest run reached Act now or Review (7,200 Monitor), {NO_ACTION}; {facts}; run: https://h/r/9"), \
         "a table without the method columns keeps its value range and flags"
     assert any(level == "WARNING" and "could not read the methods of the latest run of main.inspire.n05_u01_out" in msg
                and "UNRESOLVED_COLUMN method" in msg for level, msg in bare.logger.records)
@@ -3806,7 +3806,7 @@ def test_the_tier_warning_says_which_method_wrote_the_rows_and_keeps_its_other_f
 
     methods_only = _inspire(agent_ns, FakeSpark(responder=no_profile))
     got = methods_only._implement_tier_warning("N05-U01", "main.inspire.n05_u01_out", "https://h/r/9")
-    assert got == (f"Decision list: no row of the latest run reached Act now or Review (7200 Monitor), {NO_ACTION}; every row comes "
+    assert got == (f"Decision list: no row of the latest run reached Act now or Review (7,200 Monitor), {NO_ACTION}; every row comes "
                    "from one method in column method, with no registered model; run: https://h/r/9")
     assert "no row is flagged" not in got, "a profile that cannot be read never claims the rows are unflagged"
     acted = _inspire(agent_ns, FakeSpark(responder=lambda s: [{"priority_tier": "Act now", "tier_rows": 1}]))
@@ -4269,10 +4269,10 @@ def test_a_preview_that_wrote_a_date_key_instead_of_a_date_fails_with_what_to_fi
                                                   {"job_tags": {}, "job_slug": "basket", "schedule_cron": None}, "/W/nb",
                                                   ["result_table", "run_profile"])
     assert outcome["status"] == "failed" and "launched" not in outcome
-    assert outcome["error"].startswith("the run wrote 10000 rows that Inspire cannot accept: run_use_case() returned as_of_date "
+    assert outcome["error"].startswith("the run wrote 10,000 rows that Inspire cannot accept: run_use_case() returned as_of_date "
                                        "2452642, which is not a calendar date (YYYY-MM-DD)")
     assert "join that table to read the date" in outcome["error"]
-    assert ("of the 10000 rows of run 1e860fca-a09a-4b4a-a1ac-4d012bf10a1f, 10000 have no as_of_date, so the change history cannot "
+    assert ("of the 10,000 rows of run 1e860fca-a09a-4b4a-a1ac-4d012bf10a1f, 10,000 have no as_of_date, so the change history cannot "
             "say which run date such a row belongs to") in outcome["error"]
     ended = [e for e in inst.emitted if e["step_name"] == "Preview run" and e["status"] != "started"]
     assert len(ended) == 1 and ended[0]["status"] == "ended_error" and ended[0]["message"] == outcome["error"][:1500]
@@ -4457,7 +4457,7 @@ def test_an_accepted_preview_removes_this_use_cases_rows_without_an_as_of_date(a
     inst = _inspire(agent_ns, FakeSpark(responder=_with_history(respond)))
     written = {"status": "written", "rows_written": 10000, "as_of_date": "2003-01-02", "run_id": "r-7"}
     assert inst._implement_checked_outcome("N05-U01", CHURN_UC, dict(written)) == written
-    assert ("WARNING", "[IMPLEMENT-KEYS] N05-U01: removed 60000 rows without an as_of_date from main.inspire.churn_out: notebook "
+    assert ("WARNING", "[IMPLEMENT-KEYS] N05-U01: removed 60,000 rows without an as_of_date from main.inspire.churn_out: notebook "
             "versions that did not write the date left them, and no later run can replace them") in inst.logger.records
 
     def locked(statement):
@@ -4819,7 +4819,7 @@ def test_choices_mention_training_only_when_the_pattern_trains_a_model(agent_ns)
     assert "- Use `main.s.orders_v2.churned` as the label column." in with_model and "churned" not in without
     assert "- Training profile: the last 365 days." in with_model
     assert "- Retrain the model every 4 full runs; otherwise reuse the last trained model." in with_model
-    assert "With `preview`, train on the training profile and score at most 1000 entities" in with_model
+    assert "With `preview`, train on the training profile and score at most 1,000 entities" in with_model
     assert "Preview training sample" not in with_model, "a training window the user set wins over the preview sample"
     assert "train" not in without.lower(), "a pattern without a model is never told to train one"
     for text in (with_model, without):

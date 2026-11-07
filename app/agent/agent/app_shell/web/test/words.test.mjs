@@ -71,7 +71,9 @@ test('axis labels keep one decimal so 1.2K and 1.4K do not both read 1K', () => 
 });
 
 test('the first step and every record title name the entity, not its id', () => {
-  assert.match(src('Layouts.jsx'), /Start with \$\{entityName\(first, label\) \|\| recordKeyOf\(first\)\}/);
+  const layouts = src('Layouts.jsx');
+  assert.match(layouts, /const name = entityName\(first, label\) \|\| recordKeyOf\(first\);\n\s*const value = \['Start with ', name, ': it is first in the list because it matters most\.'\];/);
+  assert.match(layouts, /<bdi>\{s\.value\[1\]\}<\/bdi>/);
   const records = src('Records.jsx');
   assert.match(records, /export const recordName = \(row, meta\) => entityName\(row, meta\?\.label\);/);
   assert.doesNotMatch(records, /plainText\((r|row|doomed)\[meta\.label\]\)/);

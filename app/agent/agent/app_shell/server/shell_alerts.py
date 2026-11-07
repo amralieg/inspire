@@ -78,7 +78,7 @@ def folder_problems(settings: dict) -> list:
     if folder is None:
         return ["the App sends alerts, so its settings need alert_folder, the workspace folder that keeps them"] if on else []
     if not (isinstance(folder, str) and FOLDER.match(folder)):
-        return [f"the App alert_folder must be a workspace folder path of at most {FOLDER_CHARS} characters, not {folder!r}"]
+        return [f"the App alert_folder must be a workspace folder path of at most {shell_sql.shown_number(FOLDER_CHARS)} characters, not {folder!r}"]
     return []
 
 

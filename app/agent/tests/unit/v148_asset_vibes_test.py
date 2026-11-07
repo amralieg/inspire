@@ -82,7 +82,7 @@ def test_part_vibes_are_kept_word_for_word_under_their_own_keys_like_the_wizard_
     dropped, errors = _spec(agent_ns, outputs={**VALID["outputs"], "app": False, "app:page:n01_u01_vibes": "x"})
     assert errors == [] and "app:page:n01_u01_vibes" not in dropped["outputs"], "a part of an unticked output is dropped"
     assert _spec(agent_ns, outputs={**VALID["outputs"], "dashboard:by_region_vibes": "v" * 2001})[1] == [
-        "the dashboard chart by_region vibes are 2001 characters; at most 2000 are allowed"]
+        "the dashboard chart by_region vibes are 2,001 characters; at most 2,000 are allowed"]
     assert _spec(agent_ns, outputs={**VALID["outputs"], "app:page:n01_u01_vibes": 5})[1] == ["outputs.app:page:n01_u01_vibes must be text, not 5"]
     assert agent_ns["IMPLEMENT_PART_RE"].pattern == "^(app:page|dashboard):([A-Za-z0-9_-]{1,64})$"
     assert [agent_ns["implement_part"](a) for a in ("app:page:decisions", "dashboard:by_region", "ai_reasoning", "value_formula",
@@ -102,7 +102,7 @@ def test_part_vibes_are_kept_word_for_word_under_their_own_keys_like_the_wizard_
     (["app"], {"app": "x"}, None, ["retry_asks.app must be a list"]),
     (["app"], {"app": [5]}, None, ["each item of retry_asks.app must be text, not 5"]),
     (["dashboard:by_region"], {"dashboard:by_region": ["v" * 2001]}, None,
-     ["each ask to try again on the dashboard chart by_region must be at most 2000 characters"]),
+     ["each ask to try again on the dashboard chart by_region must be at most 2,000 characters"]),
     (["app"], "x", None, ["retry_asks must be an object"]),
     (["dashboard:by_region"], None, {"dashboard": 1}, ["the Dashboard cannot be retried and rolled back in the same version"]),
 ])

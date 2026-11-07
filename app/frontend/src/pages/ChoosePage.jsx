@@ -67,7 +67,7 @@ function getSessionSummary(session) {
   return { total: useCases.length, high: computeHighPriorityCount(useCases), meets: qualityBarCountsOf(useCases).meets, domains: domains.size, domainNames: [...domains], useCases };
 }
 
-const CHOICE = 'group flex w-full items-start gap-4 rounded-2xl border px-5 py-4 text-left transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-db-red/40';
+const CHOICE = 'group flex w-full items-start gap-4 rounded-2xl border px-5 py-4 text-start transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-db-red/40';
 
 function StartChoice({ choice, icon: Icon, title, text, onClick, strong = false }) {
   const textId = useId();
@@ -411,7 +411,7 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
                   <button
                     type="button"
                     onClick={() => onViewResults(session.session_id, session.starting ? session.run_id : null)}
-                    className="flex min-w-0 flex-1 items-center gap-4 text-left before:absolute before:inset-0 before:rounded-xl before:content-[''] focus-visible:outline-none focus-visible:before:ring-2 focus-visible:before:ring-db-red/30"
+                    className="flex min-w-0 flex-1 items-center gap-4 text-start before:absolute before:inset-0 before:rounded-xl before:content-[''] focus-visible:outline-none focus-visible:before:ring-2 focus-visible:before:ring-db-red/30"
                   >
                     {/* Status indicator */}
                     <div className="flex-shrink-0 relative">

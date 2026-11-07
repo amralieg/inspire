@@ -115,7 +115,7 @@ export default function TableBrowser({
         {/* Search */}
         <div className="relative mb-2">
           <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-text-tertiary" />
-          <input
+          <input dir="auto"
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -155,7 +155,7 @@ export default function TableBrowser({
         {catalogs.length === 0 && !error && (
           <div className="flex items-center justify-center py-8">
             <Loader2 size={16} className="animate-spin text-text-tertiary" />
-            <span className="ml-2 text-sm text-text-tertiary">Loading catalogs...</span>
+            <span className="ms-2 text-sm text-text-tertiary">Loading catalogs...</span>
           </div>
         )}
 
@@ -173,13 +173,13 @@ export default function TableBrowser({
               <Database size={14} className="text-text-secondary group-hover:text-db-red-fg transition-smooth" />
               <span className="font-medium truncate">{cat.name}</span>
               {loading[cat.name] && (
-                <Loader2 size={12} className="ml-auto animate-spin text-text-tertiary" />
+                <Loader2 size={12} className="ms-auto animate-spin text-text-tertiary" />
               )}
             </button>
 
             {/* Schemas */}
             {expanded[cat.name] && schemas[cat.name] && (
-              <div className="ml-4">
+              <div className="ms-4">
                 {schemas[cat.name].map((sch) => {
                   const schKey = `${cat.name}.${sch.name}`;
                   return (
@@ -194,13 +194,13 @@ export default function TableBrowser({
                         }
                         <span className="truncate">{sch.name}</span>
                         {loading[schKey] && (
-                          <Loader2 size={10} className="ml-auto animate-spin text-text-tertiary" />
+                          <Loader2 size={10} className="ms-auto animate-spin text-text-tertiary" />
                         )}
                       </button>
 
                       {/* Tables */}
                       {expandedSchemas[schKey] && tables[schKey] && (
-                        <div className="ml-5">
+                        <div className="ms-5">
                           {filterTables(tables[schKey]).length === 0 ? (
                             <div className="px-2 py-1 text-xs text-text-tertiary">
                               No matching tables
@@ -224,7 +224,7 @@ export default function TableBrowser({
                                     size={12}
                                     className={selected ? 'text-db-red-fg' : 'text-text-tertiary'}
                                   />
-                                  <span className="truncate flex-1 text-left">{tbl.name}</span>
+                                  <span className="truncate flex-1 text-start">{tbl.name}</span>
                                   <span className="text-[10px] text-text-tertiary font-mono">
                                     {tbl.table_type === 'VIEW' ? 'VIEW' : tbl.data_source_format || ''}
                                   </span>

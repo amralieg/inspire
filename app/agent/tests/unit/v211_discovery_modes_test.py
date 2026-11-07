@@ -195,7 +195,7 @@ def test_the_evidence_block_carries_profiles_only_in_ai_enhanced(agent_ns, mode,
                                "metric_views": [{"fqn": "main.s.mv", "source": SALES, "measures": [{"name": "revenue", "expr": "SUM(x)"}]}],
                                "usage": {}}
     block, joins = inst._evidence_prompt_block([SALES])
-    for measured in ("48213", "2021-03-04", "is 97% null", "Gold 37%", "43%"):
+    for measured in ("48,213", "2021-03-04", "is 97% null", "Gold 37%", "43%"):
         assert (measured in block + " ".join(joins)) is shared, measured
     assert "metric view `main.s.mv`" in block
     context = inst._alignment_context({})

@@ -83,7 +83,7 @@ function AlertForm({ listing, start, post, onDone, onCancel }) {
         </label>
         <fieldset className={LABEL}>
           <legend>Compare with</legend>
-          <label className="mr-3 inline-flex items-center gap-1.5 text-[12px] text-text-primary">
+          <label className="me-3 inline-flex items-center gap-1.5 text-[12px] text-text-primary">
             <input type="radio" name="alert-basis" checked={form.basis === 'fixed'} onChange={() => setBasis('fixed')} />A number you set
           </label>
           <label className={`inline-flex items-center gap-1.5 text-[12px] ${measure?.baseline ? 'text-text-primary' : 'text-text-tertiary'}`}>
@@ -108,11 +108,11 @@ function AlertForm({ listing, start, post, onDone, onCancel }) {
           </select>
         </label>
         <label className={LABEL}>Name
-          <input className={FIELD} value={form.name} maxLength={100} aria-label="Name" placeholder="Named after its rule when left empty"
+          <input dir="auto" className={FIELD} value={form.name} maxLength={100} aria-label="Name" placeholder="Named after its rule when left empty"
             onChange={(e) => set({ name: e.target.value })} />
         </label>
         <label className={`${LABEL} md:col-span-3`}>Email addresses, separated by commas
-          <textarea className={FIELD} rows={2} value={form.emails} aria-label="Email addresses" onChange={(e) => set({ emails: e.target.value })} />
+          <textarea dir="auto" className={FIELD} rows={2} value={form.emails} aria-label="Email addresses" onChange={(e) => set({ emails: e.target.value })} />
           <span className="block text-[11px]">{EMAILS_HINT}</span>
         </label>
         <label className={`${LABEL} md:col-span-3 flex items-start gap-2`}>

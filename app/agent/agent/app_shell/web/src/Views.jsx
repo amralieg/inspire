@@ -22,7 +22,7 @@ function SaveDialog({ onSave, onClose }) {
           <h2>Save this view</h2>
           <p>Keeps the filters and the view of this page in this browser, so you can come back to them in one click.</p>
         </header>
-        <label className="in">Name<input autoFocus value={name} onChange={(e) => { setName(e.target.value); setProblem(''); }} placeholder="For example, Weekly review" /></label>
+        <label className="in">Name<input dir="auto" autoFocus value={name} onChange={(e) => { setName(e.target.value); setProblem(''); }} placeholder="For example, Weekly review" /></label>
         {problem && <p className="hint" role="alert">{problem}</p>}
         <footer>
           <button type="button" className="btn" onClick={onClose}>Cancel</button>

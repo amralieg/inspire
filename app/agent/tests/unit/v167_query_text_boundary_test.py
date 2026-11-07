@@ -256,7 +256,7 @@ def test_the_tier_warning_carries_no_value_the_run_wrote(agent_ns):
     inst._implement_latest_run_methods = lambda table: {"methods": [("ZQVMETHODQZ items", 7200)], "versioned_rows": 0}
     warning = inst._implement_tier_warning("N01-U01", "main.inspire.churn_out", "https://h/r/9", "r-1")
     number = agent_ns["implement_number_text"]
-    assert warning.startswith("Decision list: no row of the latest run reached Act now or Review (7200 Monitor)"), warning
+    assert warning.startswith("Decision list: no row of the latest run reached Act now or Review (7,200 Monitor)"), warning
     assert "run: https://h/r/9" in warning and "every row comes from one method in column method" in warning
     assert "a data value" not in warning
     assert _leaks(warning, *[m for _l, m in inst.logger.records],

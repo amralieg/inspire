@@ -4,7 +4,7 @@
 .fold-t{flex:none;font-size:11px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--muted)}
 .fold-sum{flex:1;min-width:0;font-size:12.5px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-variant-numeric:tabular-nums}
 .fold-s.is-folded .fold-h{margin:0;padding:6px 8px 6px 14px;border:1px solid var(--line);border-radius:10px;background:var(--card)}
-.fold-h .fold-b{margin-left:auto}
+.fold-h .fold-b{margin-inline-start:auto}
 .fold-b svg{transition:transform .15s}
 .fold-b.is-folded svg{transform:rotate(-90deg)}
 .card--folded{align-self:start}
@@ -12,7 +12,7 @@
 .blk{position:relative}
 .blk>.fold-b{position:absolute;top:4px;right:4px}
 .blk--folded{padding-top:8px;padding-bottom:8px}
-.blk-sum{margin:0;padding-right:36px;font-size:13px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.blk-sum{margin:0;padding-inline-end:36px;font-size:13px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .money-h{display:flex;align-items:flex-start;gap:8px}
 .money-h h2{flex:1;min-width:0}
 .money--folded h2{margin:0}
@@ -49,7 +49,7 @@
 .work-k{flex-basis:100%;font-size:12.5px;font-weight:650;color:var(--muted);font-variant-numeric:tabular-nums}
 .work-snz input{height:40px;border:1px solid var(--faint);border-radius:8px;background:var(--card);color:var(--ink);padding:0 8px}
 .sim{display:flex;flex-direction:column;gap:6px;padding:10px 12px;border-radius:10px;background:var(--well);font-size:13px}
-.sim ul{margin:0;padding-left:18px}
+.sim ul{margin:0;padding-inline-start:18px}
 .batches{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}
 .batches li{display:flex;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--line);font-size:13px;line-height:1.45}
 .batches li:first-child{border-top:0}
@@ -99,4 +99,4 @@
   .toast{flex-wrap:wrap}
 }
 .runs-steps{grid-column:1/-1}
-.runs-steps ol{margin:0;padding-left:20px;font-size:13.5px;line-height:1.6}
+.runs-steps ol{margin:0;padding-inline-start:20px;font-size:13.5px;line-height:1.6}

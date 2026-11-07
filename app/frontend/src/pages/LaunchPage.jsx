@@ -868,7 +868,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
           <button
             type="button"
             onClick={() => setExperimentsOverviewExpanded((v) => !v)}
-            className="flex w-full items-center gap-3 px-5 py-3 border-b border-border bg-bg-subtle/50 text-left transition-colors hover:bg-bg-subtle/80"
+            className="flex w-full items-center gap-3 px-5 py-3 border-b border-border bg-bg-subtle/50 text-start transition-colors hover:bg-bg-subtle/80"
             aria-expanded={experimentsOverviewExpanded}
           >
             <Layers size={16} className="text-db-red-fg shrink-0" aria-hidden />
@@ -1004,7 +1004,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                             </p>
                           )}
                           {!loadingUc && Array.isArray(ucs) && ucs.length > 0 && (
-                            <ul className="max-h-72 overflow-y-auto space-y-2 pr-1">
+                            <ul className="max-h-72 overflow-y-auto space-y-2 pe-1">
                               {ucs.map((uc, i) => {
                                 const title = nameOfUseCase(uc) || 'Use case';
                                 const blurb = blurbOfUseCase(uc);
@@ -1076,7 +1076,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
           <div className="px-6 py-6 space-y-6">
             {/* Business Name */}
             <Field label="Business Name" required icon={Building2} hint="The company or business unit to analyze">
-              <input
+              <input dir="auto"
                 type="text"
                 placeholder="e.g. Contoso, Acme Corp, Retail Division"
                 value={params['00_business_name']}
@@ -1106,7 +1106,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                     <div className="flex items-center gap-2 mb-2">
                       <ShoppingCart size={12} className="text-db-red-fg" />
                       <span className="text-[11px] font-bold text-db-red-fg">Selected Metadata</span>
-                      <span className="text-[10px] text-text-tertiary ml-auto">
+                      <span className="text-[10px] text-text-tertiary ms-auto">
                         {selectedTables.length > 0 && `${selectedTables.length} table${selectedTables.length > 1 ? 's' : ''}`}
                         {selectedTables.length > 0 && selectedSchemas.length > 0 && ', '}
                         {selectedSchemas.length > 0 && `${selectedSchemas.length} schema${selectedSchemas.length > 1 ? 's' : ''}`}
@@ -1119,20 +1119,20 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                         <span key={t} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-db-red-50 text-db-red-fg text-[10px] font-medium border border-db-red/20">
                           <Table2 size={9} />
                           {t.split('.').pop()}
-                          <button aria-label={`Remove ${t}`} onClick={() => setSelectedTables((p) => p.filter((x) => x !== t))} className="hover:text-db-red-fg ml-0.5"><X size={8} /></button>
+                          <button aria-label={`Remove ${t}`} onClick={() => setSelectedTables((p) => p.filter((x) => x !== t))} className="hover:text-db-red-fg ms-0.5"><X size={8} /></button>
                         </span>
                       ))}
                       {selectedSchemas.map((s) => (
                         <span key={s} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-bg-subtle text-text-secondary text-[10px] font-medium border border-border">
                           {s}
-                          <button aria-label={`Remove ${s}`} onClick={() => { setSelectedSchemas((p) => p.filter((x) => x !== s)); setSelectedTables((p) => p.filter((x) => !x.startsWith(s + '.'))); }} className="hover:text-db-red-fg ml-0.5"><X size={8} /></button>
+                          <button aria-label={`Remove ${s}`} onClick={() => { setSelectedSchemas((p) => p.filter((x) => x !== s)); setSelectedTables((p) => p.filter((x) => !x.startsWith(s + '.'))); }} className="hover:text-db-red-fg ms-0.5"><X size={8} /></button>
                         </span>
                       ))}
                       {selectedCatalogs.map((c) => (
                         <span key={c} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-bg-subtle text-text-secondary text-[10px] font-medium border border-border">
                           <Database size={9} />
                           {c}
-                          <button aria-label={`Remove ${c}`} onClick={() => { setSelectedCatalogs((p) => p.filter((x) => x !== c)); setSelectedSchemas((p) => p.filter((x) => !x.startsWith(c + '.'))); setSelectedTables((p) => p.filter((x) => !x.startsWith(c + '.'))); }} className="hover:text-db-red-fg ml-0.5"><X size={8} /></button>
+                          <button aria-label={`Remove ${c}`} onClick={() => { setSelectedCatalogs((p) => p.filter((x) => x !== c)); setSelectedSchemas((p) => p.filter((x) => !x.startsWith(c + '.'))); setSelectedTables((p) => p.filter((x) => !x.startsWith(c + '.'))); }} className="hover:text-db-red-fg ms-0.5"><X size={8} /></button>
                         </span>
                       ))}
                     </div>
@@ -1159,7 +1159,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                   </div>
                   {pickerExpanded ? 'Hide catalog browser' : 'Browse catalogs'}
                   {!pickerExpanded && (selectedCatalogs.length + selectedSchemas.length + selectedTables.length > 0) && (
-                    <span className="text-[10px] text-db-red-fg font-medium ml-1">
+                    <span className="text-[10px] text-db-red-fg font-medium ms-1">
                       ({selectedTables.length > 0 ? counted(selectedTables.length, 'table') : selectedSchemas.length > 0 ? counted(selectedSchemas.length, 'schema') : counted(selectedCatalogs.length, 'catalog')} selected)
                     </span>
                   )}
@@ -1271,7 +1271,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                     <button
                       type="button"
                       onClick={() => setMetadataPreviewExpanded(!metadataPreviewExpanded)}
-                      className="w-full flex items-center gap-2 px-4 py-2.5 text-left hover:bg-success/5 transition-smooth"
+                      className="w-full flex items-center gap-2 px-4 py-2.5 text-start hover:bg-success/5 transition-smooth"
                     >
                       <CheckCircle2 size={14} className="text-success-fg shrink-0" />
                       <p className="text-[10px] text-success-fg font-semibold uppercase tracking-wider flex-1">Metadata Selected</p>
@@ -1293,7 +1293,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
             <FieldSection label="Generation Instructions" hint="Optional. What the business does, what it wants this year, and anything Inspire should focus on or leave out">
               <div className="relative">
                 <Target size={14} className="absolute left-3 top-3 text-text-tertiary" />
-                <textarea
+                <textarea dir="auto"
                   rows={3}
                   placeholder="Focus on fraud detection, join orders with customers on customer_id, exclude staging tables..."
                   value={params['08_generation_instructions']}
@@ -1313,7 +1313,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                       key={bp.key}
                       type="button"
                       onClick={() => toggleBuiltInPriority(bp.key)}
-                      className={`relative px-3 py-2 rounded-lg text-xs font-medium text-left transition-smooth border ${
+                      className={`relative px-3 py-2 rounded-lg text-xs font-medium text-start transition-smooth border ${
                         active
                           ? 'border-db-red/30 bg-db-red-50 text-db-red-fg'
                           : 'border-border text-text-secondary hover:border-border-strong'
@@ -1338,7 +1338,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                       type="button"
                       aria-label={`Remove ${name}`}
                       onClick={() => removeCustomPriority(name)}
-                      className="ml-auto shrink-0 text-db-red-fg hover:text-text-primary transition-smooth"
+                      className="ms-auto shrink-0 text-db-red-fg hover:text-text-primary transition-smooth"
                     >
                       <X size={12} />
                     </button>
@@ -1346,7 +1346,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                 ))}
               </div>
               <div className="flex gap-2 mt-2">
-                <input
+                <input dir="auto"
                   type="text"
                   value={customPriorityDraft}
                   onChange={(e) => setCustomPriorityDraft(e.target.value)}
@@ -1375,7 +1375,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
             <FieldSection label="Business Domains" hint="Leave empty to auto-infer from data">
               <div className="relative">
                 <Layers size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-tertiary" />
-                <input
+                <input dir="auto"
                   type="text"
                   placeholder="Sales, Marketing, Finance, Operations, Supply Chain..."
                   value={params['06_business_domains']}
@@ -1390,7 +1390,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                 type="button"
                 onClick={() => setShowStrategy(!showStrategy)}
                 aria-expanded={showStrategy}
-                className="w-full flex items-start gap-2 px-4 py-3 text-left hover:bg-bg-subtle/50 transition-smooth"
+                className="w-full flex items-start gap-2 px-4 py-3 text-start hover:bg-bg-subtle/50 transition-smooth"
               >
                 <Target size={14} className="text-text-tertiary mt-0.5 shrink-0" />
                 <span className="min-w-0">
@@ -1402,13 +1402,13 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                   </span>
                 </span>
                 {(strategyBase || strategyProblems.length > 0) && (
-                  <span className={`ml-auto text-[10px] font-semibold ${strategyProblems.length ? 'text-db-red-fg' : 'text-success-fg'}`}>
+                  <span className={`ms-auto text-[10px] font-semibold ${strategyProblems.length ? 'text-db-red-fg' : 'text-success-fg'}`}>
                     {strategyProblems.length ? `${strategyProblems.length} problem${strategyProblems.length > 1 ? 's' : ''}` : 'Set'}
                   </span>
                 )}
                 <ChevronDown
                   size={14}
-                  className={`text-text-tertiary transition-transform duration-200 ${strategyBase || strategyProblems.length > 0 ? '' : 'ml-auto'} ${showStrategy ? 'rotate-180' : ''}`}
+                  className={`text-text-tertiary transition-transform duration-200 ${strategyBase || strategyProblems.length > 0 ? '' : 'ms-auto'} ${showStrategy ? 'rotate-180' : ''}`}
                 />
               </button>
               {showStrategy && (
@@ -1437,7 +1437,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                         setDiscoveryTouched(true);
                         updateParam('03_discovery_type', opt.key);
                       }}
-                      className={`relative p-3 rounded-xl text-left transition-smooth border ${
+                      className={`relative p-3 rounded-xl text-start transition-smooth border ${
                         active ? 'border-db-red/30 bg-db-red-50 shadow-sm' : 'border-border hover:border-border-strong'
                       }`}
                     >
@@ -1446,7 +1446,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                         {opt.key}
                         {opt.key === DISCOVERY_TYPE_DEFAULT && <span className="text-[10px] font-normal text-text-tertiary">(default)</span>}
                         {opt.badge && (
-                          <span data-discovery-badge={opt.key} className="ml-1 rounded-full bg-success-bg px-2 py-0.5 text-[10px] font-semibold text-success-fg">
+                          <span data-discovery-badge={opt.key} className="ms-1 rounded-full bg-success-bg px-2 py-0.5 text-[10px] font-semibold text-success-fg">
                             {opt.badge}
                           </span>
                         )}
@@ -1490,7 +1490,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
           <button
             type="button"
             onClick={() => setShowAdvanced(!showAdvanced)}
-            className="w-full flex items-center gap-3 px-6 py-4 text-left hover:bg-bg-subtle/50 transition-smooth"
+            className="w-full flex items-center gap-3 px-6 py-4 text-start hover:bg-bg-subtle/50 transition-smooth"
           >
             <div className="w-8 h-8 rounded-lg bg-bg-subtle flex items-center justify-center">
               <Settings2 size={16} className="text-text-secondary" />
@@ -1511,7 +1511,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
 
               {/* Inspire Database */}
               <Field label="Inspire Database" icon={Database} hint="catalog.schema format: where Inspire stores its session tracking tables">
-                <input
+                <input dir="auto"
                   type="text"
                   placeholder="e.g. my_catalog._inspire"
                   value={params['02_inspire_database']}
@@ -1543,7 +1543,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                         key={opt.key}
                         type="button"
                         onClick={() => setGenChecks((p) => ({ ...p, [opt.key]: !p[opt.key] }))}
-                        className={`relative p-3.5 rounded-xl text-left transition-smooth border group ${
+                        className={`relative p-3.5 rounded-xl text-start transition-smooth border group ${
                           active
                             ? 'border-db-red/30 bg-db-red-50 shadow-sm'
                             : 'border-border hover:border-border-strong hover:shadow-sm'
@@ -1572,7 +1572,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
               {/* Generation Path + Languages side by side */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
                 <Field label="Generation Path" icon={FileText} hint="Where to write output artifacts">
-                  <input
+                  <input dir="auto"
                     type="text"
                     value={params['11_generation_path']}
                     onChange={(e) => updateParam('11_generation_path', e.target.value)}
@@ -1645,7 +1645,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                   icon={Bot}
                   hint="In Discover, 0 (the default) writes outline notebooks only; all, or a number such as 5, also writes full Genie instructions for that many top use cases."
                 >
-                  <input
+                  <input dir="auto"
                     type="text"
                     value={params['13_generate_genie_code_for']}
                     onChange={(e) => updateParam('13_generate_genie_code_for', e.target.value)}
@@ -1658,7 +1658,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                   icon={Star}
                   hint="How many use cases to star, 0 to 100. Empty uses the number in your generation instructions, or 20. Stars never add, remove or reorder a use case."
                 >
-                  <input
+                  <input dir="auto"
                     type="text"
                     inputMode="numeric"
                     value={params['16_best_of_best_count']}
@@ -1780,7 +1780,7 @@ function Field({ label, required, icon: Icon, hint, children }) {
         )}
         <span className="text-xs font-bold text-text-primary">
           {label}
-          {required && <span className="text-db-red-fg ml-0.5">*</span>}
+          {required && <span className="text-db-red-fg ms-0.5">*</span>}
         </span>
         {hint && <span className="text-[10px] text-text-tertiary">{hint}</span>}
       </div>
@@ -1795,7 +1795,7 @@ function FieldSection({ label, required, hint, children }) {
       <div className="flex items-baseline gap-1.5 mb-1.5">
         <span className="text-xs font-semibold text-text-primary">
           {label}
-          {required && <span className="text-db-red-fg ml-0.5">*</span>}
+          {required && <span className="text-db-red-fg ms-0.5">*</span>}
         </span>
         {hint && <span className="text-[10px] text-text-tertiary">{hint}</span>}
       </div>
@@ -1823,7 +1823,7 @@ function PickerList({ items, selected, onToggle, getKey, getLabel, searchValue, 
     <div className="rounded-lg border border-border bg-bg overflow-hidden flex flex-col min-h-0">
       <div className="relative shrink-0">
         <Search size={12} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-tertiary" />
-        <input
+        <input dir="auto"
           type="text"
           className="w-full bg-transparent border-b border-border pl-8 pr-3 py-2 text-xs text-text-primary placeholder:text-text-tertiary focus:outline-none"
           placeholder={searchPlaceholder}
@@ -1850,7 +1850,7 @@ function PickerList({ items, selected, onToggle, getKey, getLabel, searchValue, 
                 type="button"
                 title={label}
                 onClick={() => onToggle(key)}
-                className={`w-full flex items-start gap-2 px-2.5 py-2 rounded-md text-xs text-left transition-smooth ${
+                className={`w-full flex items-start gap-2 px-2.5 py-2 rounded-md text-xs text-start transition-smooth ${
                   active
                     ? 'bg-db-red-50 text-db-red-fg border border-db-red/20'
                     : 'text-text-primary hover:bg-bg-subtle border border-transparent'
@@ -1912,7 +1912,7 @@ function TableSelectionGuidanceWarning({
             (ideally fewer than {idealMax}) in <strong className="text-text-primary">one business domain</strong>{' '}
             (for example, all sales-related tables).
           </p>
-          <ul className="list-disc pl-4 space-y-1 text-xs sm:text-sm">
+          <ul className="list-disc ps-4 space-y-1 text-xs sm:text-sm">
             <li>
               Prefer <strong className="text-text-primary">transactional</strong> tables that change often with new
               data (for example <span className="font-mono text-[11px]">sales_transactions</span>).

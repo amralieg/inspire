@@ -45,9 +45,9 @@ export default function LanguageBrowser({ selected = 'en', onSelect }) {
               `}
             >
               <span className="font-mono text-xs text-text-tertiary w-5">{lang.code}</span>
-              <span className="flex-1 text-left font-medium">{lang.name}</span>
+              <span className="flex-1 text-start font-medium">{lang.name}</span>
               <span className="text-xs text-text-tertiary">{lang.native}</span>
-              {active && <Check size={14} className="text-db-red-fg ml-1" />}
+              {active && <Check size={14} className="text-db-red-fg ms-1" />}
             </button>
           );
         })}

@@ -51,7 +51,7 @@ export default function RunScope({ page, settings }) {
     return got;
   }, [apiPostJson, query]);
   if (error) return <p role="alert" className="text-[12px] text-error-fg">Inspire could not read the Data groups and First run of this use case: {error}</p>;
-  if (!view || !runs) return <p className={NOTE}><Loader2 size={12} className="inline mr-1 animate-spin" aria-hidden /> Reading the Data groups and First run</p>;
+  if (!view || !runs) return <p className={NOTE}><Loader2 size={12} className="inline me-1 animate-spin" aria-hidden /> Reading the Data groups and First run</p>;
   if (!scopeList.length) return null;
   const facts = runScopeFacts(runs.runs);
   const scope = String(scopeList.find((s) => s.name === RUN_SCOPE)?.value ?? '') || GROUP_ALL;

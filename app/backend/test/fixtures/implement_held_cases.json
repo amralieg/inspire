@@ -712,25 +712,25 @@
    1234,
    "ask",
    null,
-   "1234 asks"
+   "1,234 asks"
   ],
   [
    1234,
    "element",
    null,
-   "1234 elements"
+   "1,234 elements"
   ],
   [
    1234,
    "batch",
    "batches",
-   "1234 batches"
+   "1,234 batches"
   ],
   [
    1234,
    "more widget keeps its default",
    "more widgets keep their defaults",
-   "1234 more widgets keep their defaults"
+   "1,234 more widgets keep their defaults"
   ]
  ]
 }

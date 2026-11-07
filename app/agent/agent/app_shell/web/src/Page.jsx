@@ -388,7 +388,7 @@ export default function Page({ app, page, meta, state, onState, look = EMPTY_LOO
         {app.style === 'c' && genieOn(app, page.id) && (
           <form className="ask" onSubmit={(e) => { e.preventDefault(); if (question.trim()) { onAsk(question); setQuestion(''); } }}>
             <span className="ask-ic"><GenieMark size={18} /></span>
-            <input value={question} onChange={(e) => setQuestion(e.target.value)} placeholder={`Ask Genie about ${page.title.toLowerCase()}…`} aria-label="Ask Genie" maxLength={1000} />
+            <input dir="auto" value={question} onChange={(e) => setQuestion(e.target.value)} placeholder={`Ask Genie about ${page.title.toLowerCase()}…`} aria-label="Ask Genie" maxLength={1000} />
             <button className="btn btn--pri" type="submit"><Icon name="send" size={14} />Ask</button>
           </form>
         )}

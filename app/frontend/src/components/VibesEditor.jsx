@@ -79,7 +79,7 @@ export default function VibesEditor({ id, value, onChange, autoFocus = false, la
   return (
     <div className="space-y-1">
       {heading && <label htmlFor={box} className="block text-[13px] font-semibold text-text-primary">{heading}</label>}
-      <textarea
+      <textarea dir="auto"
         ref={ref}
         id={box}
         aria-label={heading ? undefined : label ? `Vibes for the ${label}` : vibesLabel(id)}
@@ -96,7 +96,7 @@ export default function VibesEditor({ id, value, onChange, autoFocus = false, la
       <div className="flex items-start justify-between gap-3 text-[11px]">
         <p id={hint} className="text-error-fg">{problem}</p>
         <span data-vibes-count="" className={`shrink-0 tabular-nums ${problem ? 'font-semibold text-error-fg' : 'text-text-secondary'}`}>
-          {vibesLength(value)}/{VIBES_MAX}
+          {vibesLength(value).toLocaleString('en-US')}/{VIBES_MAX.toLocaleString('en-US')}
         </span>
       </div>
     </div>

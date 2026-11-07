@@ -150,7 +150,7 @@ export default function ConfigPage({ settings, update, onConfigured }) {
           <div className="px-5 py-4">
             <div className="relative">
               <Globe size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-tertiary" />
-              <input
+              <input dir="auto"
                 type="text"
                 value={databricksHost}
                 onChange={(e) => {
@@ -184,7 +184,7 @@ export default function ConfigPage({ settings, update, onConfigured }) {
             <div className="flex gap-3">
               <div className="relative flex-1">
                 <Key size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-tertiary" />
-          <input
+          <input dir="auto"
             type="password"
                   value={token}
                   onChange={(e) => {
@@ -257,7 +257,7 @@ export default function ConfigPage({ settings, update, onConfigured }) {
                       key={w.id}
                       onClick={() => update('warehouseId', w.id)}
                       className={`
-                        flex items-start gap-3 p-3 rounded-lg border text-left transition-smooth
+                        flex items-start gap-3 p-3 rounded-lg border text-start transition-smooth
                         ${selected
                           ? 'border-db-red/30 bg-db-red-50 glow-active'
                           : 'border-border hover:border-border-strong glow-hover'
@@ -313,7 +313,7 @@ export default function ConfigPage({ settings, update, onConfigured }) {
             <div className="flex items-center gap-3">
               <div className="relative flex-1">
                 <Upload size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-tertiary" />
-                <input
+                <input dir="auto"
                   type="text"
                   value={publishPath || notebookPath || DEFAULT_WORKSPACE_NOTEBOOK_PATH}
                   onChange={(e) => setPublishPath(e.target.value)}

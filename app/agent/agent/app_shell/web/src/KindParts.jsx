@@ -222,7 +222,7 @@ function Lookup({ label, value, onLook }) {
   useEffect(() => setText(value), [value]);
   return (
     <form className="rec-look" role="search" onSubmit={(e) => { e.preventDefault(); onLook(text.trim()); }}>
-      <input type="search" aria-label={`Look up a ${label}`} placeholder={`Look up a ${label}`} value={text} onChange={(e) => setText(e.target.value)} data-rec-search />
+      <input dir="auto" type="search" aria-label={`Look up a ${label}`} placeholder={`Look up a ${label}`} value={text} onChange={(e) => setText(e.target.value)} data-rec-search />
       <button type="submit" className="btn btn--sm">Look up</button>
       {value && <button type="button" className="link" onClick={() => onLook('')}>Show all</button>}
     </form>

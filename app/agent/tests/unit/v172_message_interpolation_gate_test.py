@@ -13,7 +13,7 @@ SINKS = {"inspire_redact_text", "redact_error", "inspire_redact_secrets", "_impl
 UPPER = re.compile(r"^[A-Z_][A-Z0-9_]*$")
 BUILTIN_SAFE = {"len", "sorted", "list", "set", "tuple", "sum", "min", "max", "round", "abs", "int", "repr", "str", "join", "chr",
                 "type", "bool", "float", "any", "all", "frozenset", "dict"}
-WRAPPERS = {"inspire_plural", "inspire_rebuild_action", "implement_and_list"}
+WRAPPERS = {"inspire_plural", "inspire_rebuild_action", "implement_and_list", "implement_number_text", "inspire_number_text"}
 SENTINEL = "ZQV9101QZ"
 TOKEN = "dapi" + "cd" * 16
 HOST = "adb-zqv.example.net"

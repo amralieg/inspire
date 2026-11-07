@@ -173,7 +173,7 @@ def test_a_chart_limit_must_be_a_whole_number_from_1_to_500(value, ok):
 def test_a_table_limit_must_be_a_whole_number_from_1_to_5000(value, ok):
     assert shell_sql.spec_problems(page(tables=[TABLE])) == []
     tabled = shell_sql.spec_problems(page(tables=[dict(TABLE, limit=value)]))
-    assert any("table worst limit must be a whole number from 1 to 5000" in p for p in tabled) is not ok
+    assert any("table worst limit must be a whole number from 1 to 5,000" in p for p in tabled) is not ok
 
 
 def test_spec_problems_catch_structure_errors():

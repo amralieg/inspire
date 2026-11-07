@@ -52,7 +52,7 @@ export function AskGenie({ kind, title, context, page: given, items = [] }) {
               </label>
             )}
             <div className="ask-row">
-              <input autoFocus value={text} onChange={(e) => setText(e.target.value)} placeholder="Ask a question about this" aria-label={`Your question about ${name}`}
+              <input dir="auto" autoFocus value={text} onChange={(e) => setText(e.target.value)} placeholder="Ask a question about this" aria-label={`Your question about ${name}`}
                 maxLength={ASK_CHARS} autoComplete="off" />
               <button className="btn btn--pri" type="submit" disabled={busy || !text.trim()} title={busy ? BUSY_TITLE : undefined}>Ask Genie</button>
             </div>

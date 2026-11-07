@@ -1,4 +1,4 @@
-import { numberOf } from './format.js';
+import { grouped, numberOf } from './format.js';
 import { categoryLabels } from './layout.js';
 import { plural } from './hub.js';
 
@@ -137,7 +137,7 @@ function mapPointsOption({ chart, rows, P, valueFmt }) {
   const dropped = rows.length - points.length;
   return {
     tooltip: { trigger: 'item', formatter: (p) => (p.seriesType === 'scatter' ? `<b>${p.name}</b><br>${chart.y[0].label}: ${valueFmt(0)(p.value[2])}` : '') },
-    title: dropped ? note(P, `${dropped} of ${plural(rows.length, 'row')} ${dropped === 1 ? 'has' : 'have'} no latitude and longitude, so the map leaves ${dropped === 1 ? 'it' : 'them'} out`) : undefined,
+    title: dropped ? note(P, `${grouped(dropped)} of ${plural(rows.length, 'row')} ${dropped === 1 ? 'has' : 'have'} no latitude and longitude, so the map leaves ${dropped === 1 ? 'it' : 'them'} out`) : undefined,
     geo: { map: WORLD, roam: true, silent: true, boundingCoords: framed(points.map((p) => [p.value[0], p.value[1], p.value[0], p.value[1]])),
       itemStyle: { areaColor: P.well, borderColor: P.line }, label: { show: false } },
     series: [{ type: 'scatter', coordinateSystem: 'geo', data: points, symbolSize: (v) => 6 + 18 * Math.sqrt(Math.abs(v[2]) / top),

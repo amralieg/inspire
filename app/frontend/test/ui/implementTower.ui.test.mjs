@@ -290,12 +290,12 @@ test('Vibe/Add/Remove Features opens one tall box for the whole use case: Add vi
     assert.deepEqual(await storedVibes(page), {}, 'the browser keeps nothing once the last ask is taken out');
 
     await mvpBox(page).fill('x'.repeat(2001));
-    await vibeBox(page).getByText('the MVP vibes are 2001 characters; at most 2000 are allowed').waitFor();
+    await vibeBox(page).getByText('the MVP vibes are 2,001 characters; at most 2,000 are allowed').waitFor();
     assert.equal(await addVibes(page).isDisabled(), true, 'an ask over the limit cannot be added');
     await mvpBox(page).fill('a'.repeat(1500));
     await addVibes(page).click();
     await mvpBox(page).fill('b'.repeat(600));
-    await vibeBox(page).getByText('with the asks waiting, the MVP vibes would be 2101 characters; at most 2000 are allowed', { exact: true }).waitFor();
+    await vibeBox(page).getByText('with the asks waiting, the MVP vibes would be 2,101 characters; at most 2,000 are allowed', { exact: true }).waitFor();
     assert.equal(await addVibes(page).isDisabled(), true, 'the asks waiting and the new one must fit the one box a build sends');
     assert.deepEqual(ui.pageErrors, []);
   } finally {

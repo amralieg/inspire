@@ -11,8 +11,8 @@ const TICK_MS = 60;
 const FEED_MARKDOWN = ['p', 'strong', 'em', 'code', 'ul', 'ol', 'li'];
 const FEED_COMPONENTS = {
   p: ({ children }) => <p className="[&+*]:mt-1.5">{children}</p>,
-  ul: ({ children }) => <ul className="list-disc pl-5 space-y-0.5">{children}</ul>,
-  ol: ({ children }) => <ol className="list-decimal pl-5 space-y-0.5">{children}</ol>,
+  ul: ({ children }) => <ul className="list-disc ps-5 space-y-0.5">{children}</ul>,
+  ol: ({ children }) => <ol className="list-decimal ps-5 space-y-0.5">{children}</ol>,
   code: ({ children }) => <code className="px-1 py-px rounded bg-bg-subtle ring-1 ring-inset ring-border font-mono text-[12px]">{children}</code>,
 };
 
@@ -111,10 +111,10 @@ export default function GenieFeed({ feed, arrivals, active, working, scroller })
                   <GenieLogo size={15} />
                 </span>
                 <div className="min-w-0 flex-1">
-                  <div className="inline-block max-w-full rounded-2xl rounded-tl-md px-3.5 py-2.5 bg-surface ring-1 ring-inset ring-border shadow-sm">
+                  <div className="inline-block max-w-full rounded-2xl rounded-ss-md px-3.5 py-2.5 bg-surface ring-1 ring-inset ring-border shadow-sm">
                     <div className={`text-[13px] leading-relaxed break-words ${tone} ${still ? '[&>p:last-of-type]:inline' : ''}`}>
                       <ReactMarkdown allowedElements={FEED_MARKDOWN} unwrapDisallowed components={FEED_COMPONENTS}>{text}</ReactMarkdown>
-                      {still && <span className="ml-0.5 inline-block w-1.5 h-3.5 align-[-2px] bg-db-red-fg animate-cursor-blink" aria-hidden />}
+                      {still && <span className="ms-0.5 inline-block w-1.5 h-3.5 align-[-2px] bg-db-red-fg animate-cursor-blink" aria-hidden />}
                     </div>
                   </div>
                   {time && <p className="mt-1 text-[10px] text-text-tertiary">Genie · {time}</p>}
@@ -124,7 +124,7 @@ export default function GenieFeed({ feed, arrivals, active, working, scroller })
           }
           const Icon = entry.line.who === 'genie' ? Terminal : Info;
           return (
-            <div key={entry.key} className="flex items-start gap-2.5 pl-1 animate-terminal-line" data-feed-kind={entry.item.kind}>
+            <div key={entry.key} className="flex items-start gap-2.5 ps-1 animate-terminal-line" data-feed-kind={entry.item.kind}>
               <Icon size={13} className={`mt-0.5 shrink-0 ${entry.line.tone === 'error' ? 'text-error-fg' : 'text-text-tertiary'}`} aria-hidden />
               <p className={`text-[12px] ${tone}`}>
                 {entry.line.who === 'inspire' && <span className="font-semibold text-text-secondary">Inspire · </span>}

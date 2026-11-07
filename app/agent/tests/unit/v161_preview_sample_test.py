@@ -126,14 +126,14 @@ def test_a_use_case_that_trains_no_model_has_no_training_sample(agent_ns):
     assert agent_ns["implement_preview_training_cap"](_spec(agent_ns), trains_model=False) is None
     lines = agent_ns["_implement_choice_lines"](_spec(agent_ns), trains_model=False)
     assert not any(line.startswith(SAMPLE_LINE) for line in lines)
-    assert any("With `preview`, cover at most 1000 entities" in line for line in lines)
+    assert any("With `preview`, cover at most 1,000 entities" in line for line in lines)
 
 
 def test_the_choices_tell_genie_to_train_a_preview_on_the_sample_only_when_the_user_set_no_bound(agent_ns):
     lines = agent_ns["_implement_choice_lines"](_spec(agent_ns))
     [sample] = [line for line in lines if line.startswith(SAMPLE_LINE)]
     assert ("the user set no data window, training profile or row filter, so the training profile is the whole history, and a "
-            "preview trains on at most 20000 of its entities, 20 times the 1000 it scores") in sample
+            "preview trains on at most 20,000 of its entities, 20 times the 1,000 it scores") in sample
     assert "through `inspire_training_sample(frame, key)`, which the Run controls cell defines" in sample
     assert "in a `full` run it returns every row, so a full run trains on all of them" in sample
     assert ("If the customer's asks for this notebook, or a widget value the user set above, say how much history or which entities "
@@ -141,7 +141,7 @@ def test_the_choices_tell_genie_to_train_a_preview_on_the_sample_only_when_the_u
         in sample
     [profile] = [line for line in lines if "dropdown widget `run_profile`" in line]
     assert "as usual" not in profile, "a preview with no bound trained on the whole history 'as usual' for over 25 minutes"
-    assert ("With `preview`, train on the training profile and score at most 1000 entities, so a run finishes in minutes; with `full`, "
+    assert ("With `preview`, train on the training profile and score at most 1,000 entities, so a run finishes in minutes; with `full`, "
             "train on the whole training profile and score the whole full-load profile.") in profile
     bounded = agent_ns["_implement_choice_lines"](_spec(agent_ns, data={"window": {"start": "2024-01-01", "end": ""}}))
     assert not any(line.startswith(SAMPLE_LINE) for line in bounded)
@@ -264,16 +264,16 @@ def test_the_outcome_says_the_model_trained_on_a_preview_sample_and_the_agent_re
         return written
 
     gate, dbu = _run_main(ns, trains, run_profile="preview")
-    text = "wrote 1000 rows for as_of_date 2026-10-01 with run_id 5f0c1d2e; the model trained on a preview sample of 10 entities"
+    text = "wrote 1,000 rows for as_of_date 2026-10-01 with run_id 5f0c1d2e; the model trained on a preview sample of 10 entities"
     assert gate["outcome"] == text and dbu.notebook.exits == [text]
     parsed = agent_ns["parse_use_case_outcome"](f"Job run finished: {text}\n\nPrinted log of this run:\nPreview sample: this preview ...")
     assert parsed == dict(written, preview_sample_entities=10)
     gate, _dbu = _run_main(ns, lambda: written, run_profile="preview")
-    assert gate["outcome"] == "wrote 1000 rows for as_of_date 2026-10-01 with run_id 5f0c1d2e", \
+    assert gate["outcome"] == "wrote 1,000 rows for as_of_date 2026-10-01 with run_id 5f0c1d2e", \
         "the next run in the same session starts with no sample"
     assert agent_ns["parse_use_case_outcome"](gate["outcome"]) == written
     gate, _dbu = _run_main(ns, trains, run_profile="full")
-    assert gate["outcome"] == "wrote 1000 rows for as_of_date 2026-10-01 with run_id 5f0c1d2e", "a full run trains on every row"
+    assert gate["outcome"] == "wrote 1,000 rows for as_of_date 2026-10-01 with run_id 5f0c1d2e", "a full run trains on every row"
 
 
 def test_the_run_controls_carry_the_sample_size_only_when_a_preview_samples(agent_ns):
@@ -359,7 +359,7 @@ def test_the_ready_message_says_the_model_was_checked_on_a_preview_sample(agent_
     assert status == "ready", inst.updates[-1]
     assert handed == [SAMPLED]
     assert inst.updates[-1]["status_message"] == (
-        "ready: preview wrote 1000 rows; the model was checked on a preview sample of 20000 entities, and the scheduled full run "
+        "ready: preview wrote 1,000 rows; the model was checked on a preview sample of 20,000 entities, and the scheduled full run "
         "trains on every entity")
     assert agent_ns["implement_preview_sample_text"]({"status": "written", "rows_written": 3}) == ""
     assert agent_ns["implement_preview_sample_text"]({"status": "stopped", "preview_sample_entities": 5}) == ""

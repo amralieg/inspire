@@ -398,7 +398,7 @@ def test_the_value_at_stake_part_is_named_in_the_kpi_s_unit_and_money_only_for_a
     validate = agent_ns["validate_implement_spec"]
     for impact, named in ((HOURS_IMPACT, "hours"), (MONEY_IMPACT, "money"), (None, "amount")):
         assert validate(dict(VALID, outputs=long), impact=impact)[1] == [
-            f"the {named} at stake formula vibes are 2001 characters; at most 2000 are allowed"], impact
+            f"the {named} at stake formula vibes are 2,001 characters; at most 2,000 are allowed"], impact
     spec = _spec(agent_ns, outputs={**VALID["outputs"], "value_formula_vibes": "a" * 1990})[0]
     errors = agent_ns["implement_apply_vibe_routes"](spec, {"value_formula": "b" * 20}, HOURS_IMPACT)[2]
     assert errors and errors[0].startswith("the hours at stake formula would hold") and "money" not in errors[0]

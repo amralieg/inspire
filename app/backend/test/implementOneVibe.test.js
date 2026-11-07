@@ -79,7 +79,7 @@ test('a first build takes a vibe with no choice for the version before, and a re
     }
   }
   assert.deepEqual(W.sectionErrors('vibes', { ...clean(), vibes: '' }, { built: 4 }), [], 'an empty box needs no choice');
-  assert.deepEqual(W.sectionErrors('vibes', { ...clean(), vibes: 'x'.repeat(2001) }, { built: null }), ['the MVP vibes are 2001 characters; at most 2000 are allowed']);
+  assert.deepEqual(W.sectionErrors('vibes', { ...clean(), vibes: 'x'.repeat(2001) }, { built: null }), ['the MVP vibes are 2,001 characters; at most 2,000 are allowed']);
 });
 
 test('the summary of a build after an uninstall reads as a first build, as the agent plans it, even when a failed version came after the uninstall', () => {

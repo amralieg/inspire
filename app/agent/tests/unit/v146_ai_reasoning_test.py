@@ -72,7 +72,7 @@ def test_a_run_explains_the_best_ranked_records_first_up_to_its_cap_and_names_th
            "n.record_key" in work[0], "Act now before Review, then by rank"
     assert [s.count("WHERE ai_chunk = ") for s in big.created("reply")] == [1, 1]
     assert "WHERE ai_chunk = 0" in big.created("reply")[0] and "WHERE ai_chunk = 1" in big.created("reply")[1]
-    assert "the next runs explain the other 100, at most 4000 per run like this one" in printed[0]
+    assert "the next runs explain the other 100, at most 4,000 per run like this one" in printed[0]
     preview = _Explain(needed=4100, tallies=[[{"kind": "", "n": 40}]])
     report, printed = preview.run(agent_ns, cap=agent_ns["INSPIRE_AI_PREVIEW_ROWS"])
     assert "LIMIT 40)" in preview.created("work")[0] and report["later"] == 4060 and len(preview.created("reply")) == 1
@@ -208,7 +208,7 @@ def test_a_preview_run_explains_at_most_its_preview_records_and_a_full_run_its_f
 def test_the_run_summary_says_how_old_the_data_is_so_no_row_carries_it(fresh_ns):
     import datetime
     age, today = fresh_ns["inspire_data_age_fact"], datetime.date(2026, 10, 29)
-    assert age("2016-06-30", today) == "The run is as of 2016-06-30, 3773 days before the day it ran."
+    assert age("2016-06-30", today) == "The run is as of 2016-06-30, 3,773 days before the day it ran."
     assert age(datetime.date(2026, 10, 28), today) == "The run is as of 2026-10-28, 1 day before the day it ran."
     assert age("2026-10-28 00:00:00", today) == "The run is as of 2026-10-28, 1 day before the day it ran."
     for fresh in ("2026-10-29", "2026-11-02", "latest", "", None, "2026-13-01", "soon"):
@@ -291,7 +291,7 @@ def test_the_genie_space_treats_the_ai_text_as_free_text_and_the_ai_categories_a
 def test_genie_writes_the_facts_and_the_level_and_never_explains_rows_itself(agent_ns):
     rule = agent_ns["GENIE_EXPLANATION_FACTS_RULE"]
     assert "so never call ai_query to explain rows and never write those columns" in rule
-    assert "at most 4000 per run and 40 per preview run" in rule
+    assert "at most 4,000 per run and 40 per preview run" in rule
     assert "ai_explanation, ai_confidence_reason, ai_next_action, ai_expected_result, ai_other_option, ai_evidence, ai_facts_hash" in rule
     assert "Define `AI_CATEGORIES` at top level, after the Parameters cell" in rule
     columns = [name for name, _kind in agent_ns["INSPIRE_CORE_COLUMNS"]]

@@ -187,14 +187,14 @@ export default function UseCaseDetailBody({
             What you get
           </h4>
           <p className="text-[11px] font-semibold text-text-primary mb-1.5">
-            {kind.familyLabel} · {kind.label}{kind.technique ? ` · ${kind.technique}` : ''}{kind.informational ? ` · ${KIND_INFORMATIONAL_LABEL}` : ''}
+            {kind.familyLabel} · {kind.label}{kind.technique && <> · <bdi>{kind.technique}</bdi></>}{kind.informational ? ` · ${KIND_INFORMATIONAL_LABEL}` : ''}
           </p>
           {kind.lines.length > 0 ? (
             <dl className="space-y-1 text-sm text-text-secondary leading-relaxed">
               {kind.lines.map((line) => (
                 <div key={line.key} data-kind-line={line.key}>
                   <dt className="inline font-semibold text-text-primary">{line.label}: </dt>
-                  <dd className="inline">{line.text}</dd>
+                  <dd dir="auto" className="inline">{line.text}</dd>
                 </div>
               ))}
             </dl>
@@ -204,19 +204,19 @@ export default function UseCaseDetailBody({
         </section>
       )}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div>
+        <div className="min-w-0">
           <h4 className="text-[10px] font-bold text-db-red-fg uppercase tracking-[0.18em] mb-1">
             Problem Statement
           </h4>
-          <p className="text-sm text-text-secondary leading-relaxed">
+          <p dir="auto" data-use-case-text="statement" className="text-sm text-text-secondary leading-relaxed break-words">
             {statement || 'N/A'}
           </p>
         </div>
-        <div>
+        <div className="min-w-0">
           <h4 className="text-[10px] font-bold text-success-fg uppercase tracking-[0.18em] mb-1">
             Proposed Solution
           </h4>
-          <p className="text-sm text-text-secondary leading-relaxed">
+          <p dir="auto" data-use-case-text="solution" className="text-sm text-text-secondary leading-relaxed break-words">
             {solution || 'N/A'}
           </p>
         </div>
@@ -227,7 +227,7 @@ export default function UseCaseDetailBody({
           <h4 className="text-[10px] font-bold text-warning-fg uppercase tracking-[0.18em] mb-1">
             Business Value
           </h4>
-          <p className="text-sm text-text-secondary leading-relaxed">
+          <p dir="auto" data-use-case-text="value" className="text-sm text-text-secondary leading-relaxed break-words">
             {businessValue}
           </p>
         </div>
@@ -251,11 +251,11 @@ export default function UseCaseDetailBody({
             mono: true,
           },
         ].map((item) => (
-          <div key={item.label} className="bg-bg rounded-lg p-2.5 border border-border">
+          <div key={item.label} data-use-case-fact={item.label} className="min-w-0 bg-bg rounded-lg p-2.5 border border-border">
             <span className="text-[9px] text-text-tertiary uppercase tracking-[0.18em] font-bold block mb-0.5">
               {item.label}
             </span>
-            <span className={`text-text-secondary break-words ${item.mono ? 'font-mono text-[10px]' : ''}`}>
+            <span dir="auto" data-use-case-fact-value="" className={`block text-text-secondary break-words ${item.mono ? 'font-mono text-[10px]' : ''}`}>
               {item.val || 'N/A'}
             </span>
           </div>
@@ -268,7 +268,7 @@ export default function UseCaseDetailBody({
             <h4 className="text-[10px] font-bold text-info-fg uppercase tracking-[0.18em]">
               SQL Implementation
               {resultTable && (
-                <span className="text-text-tertiary font-normal normal-case ml-1">
+                <span className="text-text-tertiary font-normal normal-case ms-1">
                   &rarr; {resultTable}
                 </span>
               )}
@@ -276,8 +276,8 @@ export default function UseCaseDetailBody({
             <CopyButton text={sql} />
           </div>
           <div className="relative rounded-lg border border-border overflow-hidden">
-            <div className="absolute left-0 top-0 bottom-0 w-1 bg-info/30 rounded-l-lg" />
-            <pre className="text-[11px] text-text-primary bg-bg p-4 pl-5 overflow-x-auto max-h-60 overflow-y-auto font-mono leading-relaxed whitespace-pre-wrap">
+            <div className="absolute left-0 top-0 bottom-0 w-1 bg-info/30 rounded-s-lg" />
+            <pre className="text-[11px] text-text-primary bg-bg p-4 ps-5 overflow-x-auto max-h-60 overflow-y-auto font-mono leading-relaxed whitespace-pre-wrap">
               {sql}
             </pre>
           </div>
@@ -290,7 +290,7 @@ export default function UseCaseDetailBody({
             <h4 className="text-[10px] font-bold text-db-red-fg uppercase tracking-[0.18em]">
               {shippedGenie ? 'Genie Code Instruction' : 'Use case notebook'}
               {notebookPath && (
-                <span className="text-text-tertiary font-normal normal-case ml-1 font-mono text-[9px] truncate max-w-[300px] inline-block align-bottom">
+                <span className="text-text-tertiary font-normal normal-case ms-1 font-mono text-[9px] truncate max-w-[300px] inline-block align-bottom">
                   {notebookPath.split('/').pop()}
                 </span>
               )}
@@ -331,7 +331,7 @@ export default function UseCaseDetailBody({
                     <div>2. Copy the ENTIRE content of the instruction below</div>
                     <div>3. Paste it into Genie Code and let Genie generate the implementation</div>
                     <div>4. Genie writes the complete code. Review it, iterate, and run it</div>
-                    <div className="absolute bottom-[-5px] right-3 w-2.5 h-2.5 bg-surface border-b border-r border-border rotate-45" />
+                    <div className="absolute bottom-[-5px] right-3 w-2.5 h-2.5 bg-surface border-b border-e border-border rotate-45" />
                   </div>
                 </div>
               )}
@@ -357,8 +357,8 @@ export default function UseCaseDetailBody({
 
           {showNotebook && notebookContent && (
             <div className="relative rounded-lg border border-db-red/20 overflow-hidden">
-              <div className="absolute left-0 top-0 bottom-0 w-1 bg-db-red/30 rounded-l-lg" />
-              <div className="bg-bg p-4 pl-5 overflow-x-auto max-h-[500px] overflow-y-auto">
+              <div className="absolute left-0 top-0 bottom-0 w-1 bg-db-red/30 rounded-s-lg" />
+              <div className="bg-bg p-4 ps-5 overflow-x-auto max-h-[500px] overflow-y-auto">
                 <GenieMarkdownPreview content={notebookContent} />
               </div>
             </div>

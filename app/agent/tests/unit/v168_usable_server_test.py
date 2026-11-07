@@ -502,9 +502,9 @@ def post(s, path, body, headers=EDITOR):
 
 @pytest.mark.parametrize("body, fragment", [
     ({"window": "year"}, CONTRACT["errors"]["bad_window"]["body"]["error"]),
-    ({"window": "today", "window_limit": 0}, "window_limit must be a whole number from 1 to 1000"),
-    ({"window": "today", "window_limit": 1001}, "window_limit must be a whole number from 1 to 1000"),
-    ({"window": "today", "window_limit": "5"}, "window_limit must be a whole number from 1 to 1000"),
+    ({"window": "today", "window_limit": 0}, "window_limit must be a whole number from 1 to 1,000"),
+    ({"window": "today", "window_limit": 1001}, "window_limit must be a whole number from 1 to 1,000"),
+    ({"window": "today", "window_limit": "5"}, "window_limit must be a whole number from 1 to 1,000"),
     ({"window_limit": 5}, "window_limit goes with a window"),
     ({"window": "today", "utc_offset_min": 900}, shell_sql.FIXED_OFFSET_GONE),
     ({"exclude": ["k"] * 51}, "exclude takes a list of at most 50 record keys"),

@@ -113,8 +113,8 @@ test('collected asks that make the box too long are caught by the wizard check b
   const W = await lib('implementWizard.js');
   const spec = JSON.parse(JSON.stringify(SPEC));
   const { spec: next } = W.withCollectedVibes(spec, [{ kind: 'ask', text: 'a'.repeat(1990) }, { kind: 'ask', text: 'b'.repeat(20) }]);
-  assert.deepEqual(W.vibesProblems(next), ['the MVP vibes are 2011 characters; at most 2000 are allowed'], 'the asks are joined by a line, which counts too');
-  assert.deepEqual(served(next).errors, ['the MVP vibes are 2011 characters; at most 2000 are allowed'], 'and the backend refuses it the same way');
+  assert.deepEqual(W.vibesProblems(next), ['the MVP vibes are 2,011 characters; at most 2,000 are allowed'], 'the asks are joined by a line, which counts too');
+  assert.deepEqual(served(next).errors, ['the MVP vibes are 2,011 characters; at most 2,000 are allowed'], 'and the backend refuses it the same way');
 });
 
 test('rail width: clamps to 240-520 px, starts at 320 and survives a broken store', async () => {

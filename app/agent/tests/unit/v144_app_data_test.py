@@ -474,7 +474,7 @@ def test_acting_needs_the_person_who_acts(tmp_path):
     (["k1"], None, {"dismiss_reason": ["x"], "action_status": "Dismissed"}, "dismiss_reason takes text"),
     (["k1"], None, {"action_owner": "x" * 255}, "at most 254 characters"),
     (["k1"], None, {"action_due": "next week"}, "not a YYYY-MM-DD date"),
-    (["k1"], None, {"action_note": "x" * 4001}, "at most 4000"),
+    (["k1"], None, {"action_note": "x" * 4001}, "at most 4,000"),
 ], ids=lambda v: str(v)[:30])
 def test_an_act_validates_its_keys_versions_and_values_before_writing(tmp_path, keys, seen, values, fragment):
     s, ws, _made = shell(tmp_path)

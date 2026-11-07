@@ -69,7 +69,7 @@ def test_text_that_does_not_read_as_dates_stays_unchecked_and_says_how_many_read
     inst, spark = _inspire(agent_ns, answers, _probe(1900, {8: 1200}))
     kept, _dropped = inst._check_data_signal(ucs, [])
     assert kept == ucs and ucs[0]["data_signal"]["status"] == "not_checked"
-    assert ucs[0]["data_signal"]["reason"] == ("Not checked: the time column visit_date is text and only 1200 of 1900 "
+    assert ucs[0]["data_signal"]["reason"] == ("Not checked: the time column visit_date is text and only 1,200 of 1,900 "
                                                "values read as dates.")
     assert len(spark.statements) == 1, "the series is never read on dates that do not parse"
 

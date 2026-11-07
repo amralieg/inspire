@@ -114,7 +114,7 @@ export default function GenerateDataPage({ settings, onBack, onLaunched }) {
             Business name
             <span className="text-db-red-fg">*</span>
           </label>
-          <input
+          <input dir="auto"
             type="text"
             value={businessName}
             onChange={(e) => setBusinessName(e.target.value)}
@@ -130,7 +130,7 @@ export default function GenerateDataPage({ settings, onBack, onLaunched }) {
             Describe your data
             <span className="text-db-red-fg">*</span>
           </label>
-          <textarea
+          <textarea dir="auto"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             rows={5}

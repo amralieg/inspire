@@ -246,7 +246,7 @@ def test_hostile_values_and_keys_reach_sql_only_as_parameters(tmp_path):
     ("seen_at", "yesterday", "YYYY-MM-DD HH:MM"),
     ("seen_at", "2026-10-27T25:00", "YYYY-MM-DD HH:MM"),
     ("flagged", "maybe", "true or false"),
-    ("recommended_action", "x" * 4001, "at most 4000"),
+    ("recommended_action", "x" * 4001, "at most 4,000"),
     ("recommended_action", 12, "takes text"),
     ("top_reasons", ["a"] * 51, "at most 50 lines"),
     ("rank", ["1"], "single value"),

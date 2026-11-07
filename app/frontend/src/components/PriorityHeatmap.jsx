@@ -44,7 +44,7 @@ export default function PriorityHeatmap({ useCases = [], domains = [] }) {
   }));
   const maxCount = Math.max(0, ...rows.flatMap((row) => PRIORITIES.map((p) => row[p])));
   const columns = [
-    { key: 'domain', label: 'Domain', headClassName: 'text-[9px] text-text-tertiary font-medium px-2 py-1.5 text-left',
+    { key: 'domain', label: 'Domain', headClassName: 'text-[9px] text-text-tertiary font-medium px-2 py-1.5 text-start',
       className: 'text-[10px] text-text-primary font-medium px-2 py-1 whitespace-nowrap max-w-[120px] truncate' },
     ...PRIORITIES.map((p) => ({
       key: p, label: p, kind: 'number', className: 'p-0.5',

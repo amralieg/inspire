@@ -80,7 +80,7 @@ function Conversation({ page, app, genie }) {
         )))}
       </div>
       <form className="g-in" onSubmit={submit}>
-        <input value={text} onChange={(e) => setText(e.target.value)} aria-label="Your question" autoComplete="off" maxLength={1000} disabled={!chat.on}
+        <input dir="auto" value={text} onChange={(e) => setText(e.target.value)} aria-label="Your question" autoComplete="off" maxLength={1000} disabled={!chat.on}
           placeholder={chat.on ? 'Ask about the data in this use case' : 'Ask Genie is off'} />
         <button className="btn btn--pri" type="submit" aria-label="Send" disabled={!chat.on || chat.busy || !text.trim()}><Icon name="send" size={15} /></button>
       </form>

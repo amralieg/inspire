@@ -102,7 +102,7 @@ def test_a_date_table_whose_key_repeats_is_never_joined_and_the_use_case_stays_u
     kept, _dropped = inst._check_data_signal(ucs, [])
     record = ucs[0]["data_signal"]
     assert record["status"] == "not_checked" and kept == ucs
-    assert record["reason"] == ("Not checked: the date table main.s.date_dim holds 73049 d_date_sk values for 70000 "
+    assert record["reason"] == ("Not checked: the date table main.s.date_dim holds 73,049 d_date_sk values for 70,000 "
                                 "distinct keys, so joining ws_sold_date_sk to it would repeat rows.")
     assert len(spark.statements) == 1 and "JOIN" not in spark.statements[0]
 

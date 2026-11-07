@@ -1,6 +1,6 @@
 import { IMPLEMENT_OUTPUTS, IMPLEMENT_ACTIVE_STATUSES, IMPLEMENT_DONE_STATUSES, IMPLEMENT_VIBE_NOT_MET, heldAsks, joinWords, partLabel, statusChip } from './implementWizard.js';
 import { formatDuration, formatWhen } from './formatWhen.js';
-import { plural } from './plural.js';
+import { plural, shown } from './plural.js';
 import { rowImpact } from './targetKpi.js';
 
 export const MVP_BUILD_STAGES = [
@@ -650,7 +650,7 @@ export function checklistHeadline(checklist) {
   if (undecided) return undecided.evidence;
   const refused = entries.find((e) => e.refused);
   if (refused) return [...`0 of ${checklist.refused} settings changes applied: ${refused.evidence}`].slice(0, AGENT_STEP_CHARS).join('');
-  return `${checklist.met} of ${plural(checklist.total, 'vibe requirement')} met`
+  return `${shown(checklist.met)} of ${plural(checklist.total, 'vibe requirement')} met`
     + (checklist.selfFixed ? `; Inspire put back ${plural(checklist.selfFixed, 'element')} no ask targets` : '');
 }
 

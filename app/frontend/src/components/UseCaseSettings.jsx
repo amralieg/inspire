@@ -22,7 +22,7 @@ function SettingRow({ setting, editable, draft, onDraft }) {
       </div>
       <span className="font-mono text-[13px] text-text-primary"><span data-setting-value="">{settingValueText(setting, value)}</span></span>
       {editable && setting.editable !== false && (
-        <input aria-label={setting.label || setting.name} className={INPUT} value={draft?.name === setting.name ? draft.value : value}
+        <input dir="auto" aria-label={setting.label || setting.name} className={INPUT} value={draft?.name === setting.name ? draft.value : value}
           onChange={(e) => onDraft({ name: setting.name, value: e.target.value, was: value, label: setting.label || setting.name })} />
       )}
     </div>
@@ -113,7 +113,7 @@ export default function UseCaseSettings({ view, error = '', readOnly = false, im
               {preview?.error ? `Inspire could not preview it: ${preview.error}` : preview ? preview.text : 'Working out which records it moves'}
             </p>
             <div className="flex flex-wrap items-center gap-2">
-              <input aria-label="Note for the change" placeholder="Why, for the history (optional)" maxLength={300} className={`${INPUT} w-64`} value={note}
+              <input dir="auto" aria-label="Note for the change" placeholder="Why, for the history (optional)" maxLength={300} className={`${INPUT} w-64`} value={note}
                 onChange={(e) => setNote(e.target.value)} />
               <button type="button" disabled={busy !== ''} onClick={save} className={`${BUTTON} text-white bg-db-red-solid`}>
                 {busy === 'save' ? <Loader2 size={12} className="animate-spin" /> : null}Save {draft.label}
@@ -134,7 +134,7 @@ export default function UseCaseSettings({ view, error = '', readOnly = false, im
           </button>
         )}
         {history.length > 0 && (
-          <ul aria-label="Setting changes" className="list-disc pl-5 text-text-secondary">
+          <ul aria-label="Setting changes" className="list-disc ps-5 text-text-secondary">
             {history.map((entry, i) => <li key={`${entry.name}-${entry.changed_at}-${i}`}>{settingHistoryLine(entry, settings)}</li>)}
           </ul>
         )}

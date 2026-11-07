@@ -64,7 +64,7 @@ def test_a_choice_for_the_version_before_must_be_keep_or_remove_and_needs_a_vibe
     assert errors == [] and "vibe_previous" not in spec, "a first build has no version before it, so the spec may leave the choice out"
     assert _spec(agent_ns, vibes=RISKY, vibe_previous="archive")[1][0].startswith("vibe_previous 'archive' must be keep or remove")
     assert _spec(agent_ns, vibe_previous="keep")[1] == ["vibe_previous needs vibes: it says what happens to the version before a vibe"]
-    assert _spec(agent_ns, vibes="v" * 2001, vibe_previous="keep")[1] == ["the MVP vibes are 2001 characters; at most 2000 are allowed"]
+    assert _spec(agent_ns, vibes="v" * 2001, vibe_previous="keep")[1] == ["the MVP vibes are 2,001 characters; at most 2,000 are allowed"]
     spec, errors = _spec(agent_ns, vibes="   ", vibe_previous="")
     assert errors == [] and "vibes" not in spec and "vibe_previous" not in spec
     assert _spec(agent_ns, vibes=RISKY, vibe_previous="keep", rollback_outputs={"dashboard": 1})[1] == [
@@ -204,7 +204,7 @@ def test_routed_words_add_to_the_vibes_the_part_holds_once_and_never_past_the_li
     assert changed == {"dashboard_vibes": f"Use dark colors\n{RISKY}", "app:page:risk_vibes": RISKY}
     assert spec["outputs"]["dashboard_vibes"] == "Use dark colors", "the spec it was given is left as it was"
     _routed, _changed, errors = apply({"outputs": {"dashboard_vibes": "v" * 1990}}, {"dashboard": "Add a weekly trend"})
-    assert errors == ["the Dashboard would hold 2009 characters of asks with this vibe, and at most 2000 are allowed: remove some of "
+    assert errors == ["the Dashboard would hold 2,009 characters of asks with this vibe, and at most 2,000 are allowed: remove some of "
                       "its earlier asks from its list on the Build page first"]
 
 

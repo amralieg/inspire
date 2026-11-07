@@ -32,7 +32,7 @@ function Choice({ setting, text, onText }) {
     const next = on ? [...picked, choice] : picked.filter((p) => p !== choice);
     onText(next.length ? next.join(', ') : 'all');
   };
-  if (!setting.choices?.length) return <input name={`setting_${setting.name}`} value={text} onChange={(e) => onText(e.target.value)} />;
+  if (!setting.choices?.length) return <input dir="auto" name={`setting_${setting.name}`} value={text} onChange={(e) => onText(e.target.value)} />;
   return (
     <span className="set-many">
       <label><input type="checkbox" checked={text === 'all'} onChange={(e) => onText(e.target.checked ? 'all' : picked.join(', '))} />Every segment</label>
@@ -82,11 +82,11 @@ function Editor({ pageId, setting, onSaved, onCancel }) {
       <label className="in"><span>{setting.label}{unit}</span>
         {setting.kind === 'choice'
           ? <Choice setting={setting} text={text} onText={setText} />
-          : <input ref={input} name={`setting_${setting.name}`} inputMode={setting.whole ? 'numeric' : 'decimal'} value={text}
+          : <input dir="auto" ref={input} name={`setting_${setting.name}`} inputMode={setting.whole ? 'numeric' : 'decimal'} value={text}
             onChange={(e) => setText(e.target.value)} aria-invalid={problem ? true : undefined} />}
       </label>
       <label className="in"><span>Why it changed</span>
-        <input className="note" name="setting_note" maxLength={NOTE_CHARS} value={note} onChange={(e) => setNote(e.target.value)} />
+        <input dir="auto" className="note" name="setting_note" maxLength={NOTE_CHARS} value={note} onChange={(e) => setNote(e.target.value)} />
       </label>
       <button type="submit" className="btn btn--pri" disabled={saving || !!problem}><Icon name="check" size={14} />{saving ? 'Saving…' : 'Save'}</button>
       <button type="button" className="btn" onClick={onCancel} disabled={saving}>Cancel</button>

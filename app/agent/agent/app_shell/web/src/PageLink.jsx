@@ -68,7 +68,7 @@ function LinkDialog({ url, label, onClose }) {
           <h2>Copy this link</h2>
           <p>This browser did not let the App copy it. The link is selected, so press Ctrl+C, or Cmd+C on a Mac, to copy it.</p>
         </header>
-        <label className="in">{label}<input ref={input} readOnly value={url} onFocus={(e) => e.target.select()} /></label>
+        <label className="in">{label}<input dir="auto" ref={input} readOnly value={url} onFocus={(e) => e.target.select()} /></label>
         <footer><button type="button" className="btn btn--pri" onClick={onClose}>Done</button></footer>
       </div>
     </dialog>

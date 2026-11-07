@@ -113,7 +113,7 @@ function AlertForm({ listing, meta, page, start, onDone, onCancel }) {
           </select>
         </label>
         <label className="in in--wide"><span>Email addresses, separated by commas</span>
-          <textarea value={form.emails} onChange={(e) => set({ emails: e.target.value })} rows={2} aria-label="Email addresses" />
+          <textarea dir="auto" value={form.emails} onChange={(e) => set({ emails: e.target.value })} rows={2} aria-label="Email addresses" />
           <small>Only people with a user in this workspace get the email. It never lists records.</small>
         </label>
         <div className="in in--wide">
@@ -124,7 +124,7 @@ function AlertForm({ listing, meta, page, start, onDone, onCancel }) {
           <small>One more email when the value is back on the right side of the line. Turn it off to hear from the alert only when it fires.</small>
         </div>
         <label className="in in--wide"><span>Name</span>
-          <input value={form.name} onChange={(e) => set({ name: e.target.value })} placeholder={defaultName(listing, form)} maxLength={100} aria-label="Name" />
+          <input dir="auto" value={form.name} onChange={(e) => set({ name: e.target.value })} placeholder={defaultName(listing, form)} maxLength={100} aria-label="Name" />
         </label>
       </div>
       {filters.length > 0 && (

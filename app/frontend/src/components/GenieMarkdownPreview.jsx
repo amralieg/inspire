@@ -185,10 +185,10 @@ const mdComponents = {
     <p className="text-[11px] text-text-secondary leading-relaxed mb-2 last:mb-0" {...props} />
   ),
   ul: (props) => (
-    <ul className="list-disc pl-4 mb-2 space-y-0.5 text-[11px] text-text-secondary leading-relaxed" {...props} />
+    <ul className="list-disc ps-4 mb-2 space-y-0.5 text-[11px] text-text-secondary leading-relaxed" {...props} />
   ),
   ol: (props) => (
-    <ol className="list-decimal pl-4 mb-2 space-y-0.5 text-[11px] text-text-secondary leading-relaxed" {...props} />
+    <ol className="list-decimal ps-4 mb-2 space-y-0.5 text-[11px] text-text-secondary leading-relaxed" {...props} />
   ),
   li: (props) => <li className="leading-relaxed [&>p]:mb-1" {...props} />,
   strong: (props) => <strong className="font-semibold text-text-primary" {...props} />,
@@ -205,7 +205,7 @@ const mdComponents = {
   ),
   blockquote: (props) => (
     <blockquote
-      className="border-l-[3px] border-db-red/35 pl-2.5 my-2 text-[10px] text-text-tertiary italic bg-bg-subtle/40 py-0.5 rounded-r"
+      className="border-s-[3px] border-db-red/35 ps-2.5 my-2 text-[10px] text-text-tertiary italic bg-bg-subtle/40 py-0.5 rounded-e"
       {...props}
     />
   ),
@@ -222,7 +222,7 @@ const mdComponents = {
   tr: (props) => <tr className="hover:bg-bg-subtle/30" {...props} />,
   th: (props) => (
     <th
-      className="px-2 py-1.5 text-left font-semibold text-text-primary text-[10px] whitespace-nowrap"
+      className="px-2 py-1.5 text-start font-semibold text-text-primary text-[10px] whitespace-nowrap"
       {...props}
     />
   ),

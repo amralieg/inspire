@@ -124,7 +124,7 @@ def test_the_spec_names_the_model_the_output_table_and_the_tier_actions(agent_ns
     assert columns == [name for name, _ in agent_ns["INSPIRE_CORE_COLUMNS"]]
     assert "rank is at most floor(`act_now_share` x N)" in mandate and "floor((`act_now_share` + `review_share`) x N)" in mandate
     assert "AI facts: " + agent_ns["GENIE_EXPLANATION_FACTS_RULE"] in mandate
-    assert f"at most {agent_ns['INSPIRE_AI_AUTO_ROWS']} per run" in mandate and "top-ranked of them" not in mandate
+    assert f"at most {agent_ns['INSPIRE_AI_AUTO_ROWS']:,} per run" in mandate and "top-ranked of them" not in mandate
 
 
 def test_elite_values_beneficiary_and_sponsor_reach_the_prompt(agent_ns):

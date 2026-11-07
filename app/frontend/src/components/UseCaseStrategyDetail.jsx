@@ -34,7 +34,7 @@ const SIGNAL_TONES = { passed: 'text-success-fg', warning: 'text-warning-fg', ne
 
 function Bullets({ items }) {
   return (
-    <ul className="list-disc pl-4 space-y-0.5 text-sm text-text-secondary leading-relaxed">
+    <ul className="list-disc ps-4 space-y-0.5 text-sm text-text-secondary leading-relaxed">
       {items.map((item, i) => <li key={i}>{item}</li>)}
     </ul>
   );
@@ -151,7 +151,7 @@ export function UseCaseStrategyDetail({ info, knownPriorities, foundationsById, 
                 {kpiOrigin(k) && (
                   <span
                     data-kpi-origin=""
-                    className={`ml-1.5 rounded border px-1.5 py-0.5 align-middle text-[9px] font-semibold ${
+                    className={`ms-1.5 rounded border px-1.5 py-0.5 align-middle text-[9px] font-semibold ${
                       kpiOrigin(k) === KPI_FROM_STRATEGY ? 'border-success/30 text-success-fg' : 'border-border text-text-tertiary'
                     }`}
                   >
@@ -184,7 +184,7 @@ export function UseCaseStrategyDetail({ info, knownPriorities, foundationsById, 
             {info.keyResults.map((kr, i) => (
               <li key={`${kr.id || 'p'}-${i}`} className="text-sm text-text-secondary leading-relaxed">
                 {kr.statement}{' '}
-                <span className="ml-1 rounded border border-border px-1.5 py-0.5 align-middle text-[9px] font-semibold text-text-tertiary">
+                <span className="ms-1 rounded border border-border px-1.5 py-0.5 align-middle text-[9px] font-semibold text-text-tertiary">
                   {kr.source === 'strategy' ? 'From your strategy' : 'Proposed'}
                 </span>
               </li>
@@ -221,7 +221,7 @@ export function UseCaseStrategyDetail({ info, knownPriorities, foundationsById, 
                 <span className="font-mono">{table}</span>
                 {t?.rows != null && `: ${Number(t.rows).toLocaleString('en-US')} rows${t.sampled ? ' (sampled)' : ''}`}
                 {Object.entries(t?.date_ranges || {}).map(([column, range]) => (
-                  <span key={column} className="block pl-3 text-[10px] text-text-tertiary">
+                  <span key={column} className="block ps-3 text-[10px] text-text-tertiary">
                     {column}: {range.min} to {range.max}
                   </span>
                 ))}
@@ -290,7 +290,7 @@ export function FeedbackControls({ useCaseKey, available, current, busy, error, 
       </div>
       {rejecting && (
         <div className="mt-2 flex flex-wrap gap-2">
-          <input
+          <input dir="auto"
             type="text"
             value={reason}
             maxLength={2000}

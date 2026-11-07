@@ -31,7 +31,7 @@ export function ConfirmDialog({ title, confirmLabel, useCaseId, busy, onCancel, 
           <div className="text-[12px] text-text-secondary space-y-2">{children}</div>
           <label className="block text-[12px] text-text-secondary">
             Type <span className="font-mono font-semibold text-text-primary">{useCaseId}</span> to confirm
-            <input
+            <input dir="auto"
               autoFocus
               aria-label="Type the use case id to confirm"
               value={typed}
@@ -231,7 +231,7 @@ export function AssetTile({
       </span>
     </>
   );
-  const headClass = 'flex items-start gap-2 min-w-0 rounded-lg -m-1 p-1 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-db-red/40';
+  const headClass = 'flex items-start gap-2 min-w-0 rounded-lg -m-1 p-1 text-start focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-db-red/40';
   return (
     <li data-asset-tile={id} data-tile-kind={kind} data-tile-building={busy ? (busy.now ? 'now' : 'waiting') : undefined} data-tile-animated={building ? '' : undefined}
       title={reason || undefined}
@@ -340,7 +340,7 @@ export function AssetPanel({
           {row && failure && <p data-asset-failure="" className="mt-1 text-error-fg">{failure}</p>}
           {look && (
             <p className={kind === 'failed' ? 'text-error-fg' : 'text-text-secondary'}>
-              {busy?.now && <Loader2 size={11} className="inline mr-1 align-[-1px] motion-safe:animate-spin text-db-red-fg" aria-hidden />}
+              {busy?.now && <Loader2 size={11} className="inline me-1 align-[-1px] motion-safe:animate-spin text-db-red-fg" aria-hidden />}
               {look.text}
             </p>
           )}

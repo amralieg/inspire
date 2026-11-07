@@ -1,7 +1,7 @@
 .fresh{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;margin-top:10px;font-size:12.5px;color:var(--muted);max-width:100%}
 .fresh-t{display:inline-flex;align-items:center;gap:6px;min-width:0;overflow-wrap:anywhere}
 .fresh-t>svg{flex:none}
-.fresh-flag{display:inline-block;margin-left:2px;padding:1px 8px;border-radius:999px;border:1px solid var(--amber-bd);background:var(--amber-bg);color:var(--amber-ink);font-size:11px;font-weight:700}
+.fresh-flag{display:inline-block;margin-inline-start:2px;padding:1px 8px;border-radius:999px;border:1px solid var(--amber-bd);background:var(--amber-bg);color:var(--amber-ink);font-size:11px;font-weight:700}
 .fresh--late .fresh-t{color:var(--amber-ink)}
 .fresh-busy{display:inline-flex;flex-wrap:wrap;align-items:center;gap:4px 8px;min-width:0;color:var(--ink);font-size:13px}
 .fresh-busy[data-tone="progress"]>b{color:var(--green-ink)}
@@ -25,7 +25,7 @@
 .runs{margin-top:0}
 .card+.runs{margin-top:14px}
 .runs[aria-busy="true"] .tbl-wrap{opacity:.62;transition:opacity .2s}
-.tbl .runs-x{width:40px;padding-right:0}
+.tbl .runs-x{width:40px;padding-inline-end:0}
 .runs-tog svg{transition:transform .15s}
 .runs-tog[aria-expanded="true"] svg{transform:rotate(90deg)}
 .runs-tbl tr.is-open>td,.runs-tbl tbody tr.runs-d>td,.runs-tbl tbody tr.runs-d:hover>td{background:var(--well)}

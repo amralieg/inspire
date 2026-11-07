@@ -950,7 +950,7 @@ def test_a_write_hands_lakebase_the_rows_to_read_back_and_the_shell_reads_them_f
     assert ws.sql[-1][0] == (f"SELECT {', '.join(shell_pg.quoted(c['name']) for c in RECORD_COLUMNS)} FROM ({records_sql}) AS d "
                              f"WHERE CAST(`record_key` AS STRING) IN (SELECT explode(from_json(:keys, 'ARRAY<STRING>')))"), \
         "a dataset copy is read back through the SQL the Delta fallback runs, which the App may already read"
-    with pytest.raises(shell_db.QueryError, match=f"more than {shell_pg.OVERLAY_ROWS} rows of {TABLE} changed"):
+    with pytest.raises(shell_db.QueryError, match=f"more than {shell_pg.OVERLAY_ROWS:,} rows of {TABLE} changed"):
         s.overlay_rows(TABLE, RESULT_COLUMNS, "record_key", ["many"])
     pages = [edit_page(), edit_page(id="other", records=dict(PAGE["records"], key="entity_id"))]
     other = {"kind": "lakebase", "tables": dict(backend(True)["tables"], **{"main.pricing_lb.other__records": {
