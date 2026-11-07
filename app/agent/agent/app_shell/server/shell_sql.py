@@ -747,7 +747,8 @@ def spec_problems(page: dict) -> list:
         if split:
             problems.append(f"{where} compares with the previous run, but {split}, or set no compare")
     charts = page.get("charts") if isinstance(page.get("charts"), list) else []
-    problems += _count_problem("charts", charts, 0 if not chart_sections(page) else 1 if asked_fewer(page, "fewer_charts") else max(1, CAPS["charts"][0] - drawn_charts(page)))
+    problems += _count_problem("charts", charts, 0 if not chart_sections(page) else 1 if asked_fewer(page, "fewer_charts") else
+                               max(1, layout_chart_least(page_layout(page)) - drawn_charts(page)))
     _ids(charts, "chart", problems)
     for chart in charts:
         problems += _chart_problems(chart, names)
@@ -1529,6 +1530,63 @@ def layout_takes_charts(page: dict) -> bool:
     return placeable is None or bool(placeable)
 
 
+def layout_chart_least(ident: str) -> int:
+    floor = CAPS["charts"][0]
+    if ident == DEFAULT_LAYOUT or ident not in layouts():
+        return floor
+    native = [SECTIONS.get(s) or {} for s in layouts()[ident].get("sections") or []]
+    if any("charts" in spec and spec["charts"] is None for spec in native):
+        return floor
+    return min(floor, sum(1 for spec in native if "charts" in spec))
+
+
+def section_chart_types(section: str) -> tuple:
+    spec = SECTIONS.get(section) or {}
+    if "charts" not in spec:
+        return ()
+    return tuple(t for t in CHART_TYPES if t not in LAYOUT_ONLY_CHARTS) if spec["charts"] is None else tuple(spec["charts"])
+
+
+def item_sections(page: dict, group: str, item: dict) -> list:
+    ident = page_layout(page)
+    return [s for s in layout_sections(ident, page, asked=True) if _section_fits(s, group, item.get("type"))]
+
+
+def place_items(page: dict) -> list:
+    ident = page_layout(page)
+    if ident == DEFAULT_LAYOUT or ident not in layouts():
+        return []
+    native, moved = layout_sections(ident), []
+    for group in ("charts", "tables"):
+        for item in page.get(group) or []:
+            if not isinstance(item, dict):
+                continue
+            fits, current = item_sections(page, group, item), item.get("section")
+            target = [s for s in fits if s not in native]
+            if current in fits or not target:
+                continue
+            moved.append(f"{group[:-1]} {item.get('id')} from {current!r} to {target[0]}")
+            item["section"] = target[0]
+    if moved:
+        print(f"[LAYOUT-PLACE FIRED] page={page.get('id')} layout={ident}: {'; '.join(moved)}", flush=True)
+    return moved
+
+
+def asked_section_items(page: dict) -> list:
+    ident = page_layout(page)
+    if ident == DEFAULT_LAYOUT:
+        return []
+    native = layout_sections(ident)
+    return [(group, group[:-1], item) for group in ("charts", "tables") for item in page.get(group) or []
+            if isinstance(item, dict) and item.get("section") in ASKED_SECTIONS and item.get("section") not in native]
+
+
+def unasked_part_problem(page: dict, word: str, item: dict) -> str:
+    return (f"{word} {item.get('id')} sits in the {item.get('section')} section, which holds only the charts and tables the "
+            f"customer asks for, and no ask for this page names it (a chart by its type and what it shows, a table by its "
+            f"name): put it in a section of the {page_layout(page)} layout or leave it out")
+
+
 def kind_problems(page: dict, kinds, skipped=()) -> tuple:
     drawn = {str(c.get("type")) for c in page.get("charts") or [] if isinstance(c, dict)}
     placeable = placeable_chart_types(page)
@@ -1648,22 +1706,37 @@ def asked_fewer(page: dict, field: str) -> bool:
     return isinstance(page.get(field), str) and bool(page[field].strip())
 
 
-def row_problems(page: dict, counts: dict) -> list:
+def row_shortfalls(page: dict, counts: dict, held=None) -> tuple:
     if asked_fewer(page, "fewer_rows"):
         lows = row_minimums(page)
         if lows:
             print(f"[LAYOUT-ROWS SKIPPED] page={page.get('id')} minimums={len(lows)}: the user asked for fewer rows", flush=True)
-        return []
-    problems = []
+        return [], []
+    problems, notes = [], []
     for section, low, source in row_minimums(page):
-        have = counts.get(source)
-        if have is not None and have < low:
-            named = "the decision list" if source[0] == "records" else f"{source[0]} {source[1]}"
-            problems.append(f"the {section} section of a {page_layout(page)} page shows at least {shown_number(low)} rows; {named} returned {shown_number(have)} at the "
-                            f"default filters, so widen what it selects: {section_words(section)}")
+        have, whole = counts.get(source), (held or {}).get(source)
+        if have is None or have >= low:
+            continue
+        named = "the decision list" if source[0] == "records" else f"{source[0]} {source[1]}"
+        if whole is not None and have >= whole:
+            notes.append(f"the {section} section of a {page_layout(page)} page is meant to show at least {shown_number(low)} rows, and "
+                         f"{named} shows {shown_number(have)}: every record the data holds, so the page shows them all")
+            continue
+        need = low if whole is None else min(low, whole)
+        problems.append(f"the {section} section of a {page_layout(page)} page shows at least {shown_number(need)} rows; {named} returned "
+                        f"{shown_number(have)} at the default filters"
+                        + (f" of the {shown_number(whole)} records the data holds" if whole is not None else "")
+                        + f", so widen what it selects: {section_words(section)}")
     if problems:
         print(f"[LAYOUT-ROWS FIRED] page={page.get('id')} short={len(problems)}", flush=True)
-    return problems
+    if notes:
+        print(f"[LAYOUT-ROWS-HELD FIRED] page={page.get('id')} held={len(notes)}: the data holds fewer records than the layout shows",
+              flush=True)
+    return problems, notes
+
+
+def row_problems(page: dict, counts: dict, held=None) -> list:
+    return row_shortfalls(page, counts, held)[0]
 
 
 def layout_problems(page: dict, names: set) -> list:
@@ -1683,11 +1756,13 @@ def layout_problems(page: dict, names: set) -> list:
             if not isinstance(item, dict):
                 continue
             section = item.get("section")
-            fits = [s for s in sections if _section_fits(s, group, item.get("type"))]
+            fits = item_sections(page, group, item)
             if not fits:
+                held = list(dict.fromkeys(t for s in sections for t in section_chart_types(s)))
                 problems.append(f"{word} {item.get('id')} is a {item.get('type') or word}, which no section of a {ident} page draws, and "
-                                f"Inspire sets the {ident} layout from the use case's kind: draw what it shows as another type, or "
-                                f"remove it from this page")
+                                f"Inspire sets the {ident} layout from the use case's kind: draw what it shows as "
+                                + (f"one of the types this layout holds ({', '.join(held)})" if held else "a table") +
+                                ", or remove it from this page")
             elif section not in sections or not _section_fits(section, group, item.get("type")):
                 problems.append(f"{word} {item.get('id')} names section {section!r}; on a {ident} page a {item.get('type') or word} goes in "
                                 f"one of: {', '.join(fits)}")

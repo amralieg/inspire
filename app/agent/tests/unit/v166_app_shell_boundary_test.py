@@ -27,7 +27,6 @@ SHELL_ENTRY_POINTS = {
     ("_implement_app_block_images", "_implement_app_shell"),
     ("_implement_app_check", "shell_core.Shell"),
     ("_implement_app_check", "shell_core.HttpError"),
-    ("_implement_app_check", "shell_core.Shell.check"),
     ("_implement_app_check", "shell_core.Shell.checked"),
     ("_implement_app_check", "shell_core.Shell.close"),
     ("_implement_app_check", "shell_core.Shell.speed"),
@@ -85,13 +84,20 @@ SHELL_ENTRY_POINTS = {
     ("implement_layout_brief", "shell_sql.layouts"),
     ("implement_layout_brief", "shell_sql.section_words"),
     ("implement_layout_brief", "shell_sql.layout_sections"),
-    ("implement_unasked_part_problems", "shell_sql.layout_sections"),
-    ("implement_unasked_part_problems", "shell_sql.page_layout"),
+    ("implement_unasked_part_problems", "shell_sql.asked_section_items"),
+    ("implement_unasked_part_problems", "shell_sql.unasked_part_problem"),
+    ("implement_drop_misfits", "shell_sql.asked_section_items"),
+    ("implement_drop_misfits", "shell_sql.item_sections"),
+    ("implement_drop_misfits", "shell_sql.page_layout"),
     ("implement_layout_brief", "shell_sql.layouts"),
     ("implement_layout_brief", "shell_sql.section_words"),
     ("implement_block_images", "shell_sql.image_blocks"),
     ("implement_chart_kind_problems", "shell_sql.kind_problems"),
-    ("_implement_page_file", "shell_sql.layout_takes_charts"),
+    ("_implement_page_file.page_problems", "shell_sql.layout_takes_charts"),
+    ("_implement_page_file", "shell_sql.layout_chart_least"),
+    ("_implement_page_file", "shell_sql.page_layout"),
+    ("_implement_page_file", "shell_sql.place_items"),
+    ("_implement_app_prompt", "shell_sql.layout_chart_least"),
     ("_implement_holder_filters", "shell_sql.list_column_filters"),
     ("_implement_holder_filters", "shell_sql.table_column_filters"),
     ("implement_column_filter_gate", "shell_sql.list_column_filters"),
@@ -510,7 +516,7 @@ def test_an_error_the_shell_raises_after_reading_a_row_comes_back_without_the_ro
         def speed(self, headers):
             return {}
 
-        def check(self, headers):
+        def checked(self, headers):
             stop(self.factory)
 
     class Workspace:
@@ -520,7 +526,8 @@ def test_an_error_the_shell_raises_after_reading_a_row_comes_back_without_the_ro
         def run_sql(self, warehouse, sql, params, limit=5000):
             return {"columns": [], "rows": [{"v": secret}]}
 
-    core = types.SimpleNamespace(**{k: getattr(modules["shell_core"], k) for k in ("SETTINGS_FILE", "PAGES_DIR", "HttpError")}, Shell=Shell)
+    core = types.SimpleNamespace(**{k: getattr(modules["shell_core"], k) for k in ("SETTINGS_FILE", "PAGES_DIR", "HttpError", "CHECK_FAILED", "CHECK_DESIGN",
+                                                                                         "CHECK_SLOW", "CHECK_NOTE")}, Shell=Shell)
     inst = _with_workspace(_inspire(agent_ns, FakeSpark()))
     work = tmp_path / "work"
     work.mkdir()
@@ -575,10 +582,10 @@ def test_the_check_reads_lakebase_rows_through_the_same_watch(agent_ns, tmp_path
         def speed(self, headers):
             return {}
 
-        def check(self, headers):
+        def checked(self, headers):
             reader = caught["lakebase_factory"]({"kind": "lakebase"}, {}, None)
             reader.run("SELECT 1", [], 1)
-            return [f"page n01_u01: a Lakebase read named {secret}"]
+            return [(core.CHECK_FAILED, f"page n01_u01: a Lakebase read named {secret}")]
 
     secret = "ZQV77777QZ"
 
@@ -589,7 +596,8 @@ def test_the_check_reads_lakebase_rows_through_the_same_watch(agent_ns, tmp_path
         def run(self, sql, params, limit, queued=False):
             return {"columns": [], "rows": [{"v": secret}, {"v": "n01_u01"}]}
 
-    core = types.SimpleNamespace(**{k: getattr(modules["shell_core"], k) for k in ("SETTINGS_FILE", "PAGES_DIR", "HttpError")}, Shell=Shell)
+    core = types.SimpleNamespace(**{k: getattr(modules["shell_core"], k) for k in ("SETTINGS_FILE", "PAGES_DIR", "HttpError", "CHECK_FAILED", "CHECK_DESIGN",
+                                                                                         "CHECK_SLOW", "CHECK_NOTE")}, Shell=Shell)
     inst = _with_workspace(_inspire(agent_ns, FakeSpark()))
     work = tmp_path / "work"
     work.mkdir()

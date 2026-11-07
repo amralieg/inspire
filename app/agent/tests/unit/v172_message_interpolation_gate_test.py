@@ -388,6 +388,7 @@ REVIEWED = {
         ('acquire_lock', 'message'),
         ('build', "'; '.join(errors)"),
         ('build_output', 'runner_error'),
+        ('build_output', 'locked[name]'),
         ('canonical_use_cases_quality', 'legacy_text'),
         ('canonical_discovery_type', 'legacy_text'),
         ('deploy', "'; '.join(dated)"),

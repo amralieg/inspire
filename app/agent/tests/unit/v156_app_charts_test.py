@@ -198,7 +198,8 @@ def test_the_app_build_hands_genie_a_checker_with_the_kinds_it_must_draw(agent_n
     inst._implement_app(context, None)
     payload, _modules = _app_shell(agent_ns, tmp_path / "shell")
     assert seen["tools"] == agent_ns["implement_app_check_files"](payload["files"], False, ["bars", "pareto"],
-                                                       agent_ns["implement_page_many_sides"](context["result_table"], context.get("artifacts")))
+                                                       agent_ns["implement_page_many_sides"](context["result_table"], context.get("artifacts")),
+                                                       context.get("app_layout") or "", False)
     assert "['bars', 'pareto']" in seen["tools"][".inspire_check/check_page.py"]
 
 

@@ -96,6 +96,7 @@ CHECK_SLOW_S = 20
 CHECK_FAILED = "failed"
 CHECK_DESIGN = "design"
 CHECK_SLOW = "slow"
+CHECK_NOTE = "note"
 QUERY_LABELS = {"filter": "filter {}", "kpi": "KPI {}", "chart": "chart {}", "table": "table {}", "overview": "the Overview's things to fix",
                 "impact": "the Impact page", "column": "column filter {}"}
 RUN_SUMMARY_FIELDS = ("summary", "nothing_to_act", "act_now_records", "review_records", "records", "value_at_stake", "currency",
@@ -2946,6 +2947,22 @@ class Shell:
                              f"table's key for one record, in the {shell_sql.RECORDS_DATASET} dataset"))
         return problems
 
+    def check_held_rows(self, headers: dict, page: dict, values: dict, counts: dict, probe) -> dict:
+        source = ("records", shell_sql.RECORDS_DATASET)
+        if source not in counts:
+            return {}
+        if not [low for _section, low, named in shell_sql.row_minimums(page) if named == source and counts[source] < low]:
+            return {}
+        if not any(v not in (None, "", [], {}) for v in (values or {}).values()):
+            return {source: counts[source]}
+        try:
+            out = self.records(headers, {"page": page["id"], "filters": {}, "limit": 1}, probe)
+        except (HttpError, QueryError, ValueError) as error:
+            print(f"[LAYOUT-ROWS-HELD SKIPPED] page={page.get('id')}: the records the data holds could not be counted: "
+                  f"{shell_sql.error_text(error)[:300]}", flush=True)
+            return {}
+        return {} if out.get("total_more") else {source: int(out.get("total") or len(out["rows"]))}
+
     def check_concentration(self, page: dict, values: dict, probe, drawn: dict) -> dict:
         queries = {ident: shell_sql.concentration_query(page, ident, values) for ident in shell_sql.concentration_candidates(page, drawn)}
         done, errors = self._parallel({("concentration", ident): (lambda s=sql, p=params: self.run(probe.ws, None, s, p, 1))
@@ -3033,7 +3050,7 @@ class Shell:
         return []
 
     def check(self, headers: dict) -> list:
-        return [text for _kind, text in self.checked(headers)]
+        return [text for kind, text in self.checked(headers) if kind != CHECK_NOTE]
 
     def checked(self, headers: dict) -> list:
         found = []
@@ -3095,7 +3112,9 @@ class Shell:
                 found.extend(self.check_records(headers, page, defaults, probe, where, counts))
                 failed(self.check_overview(page, probe, where))
                 failed(self.check_impact(page, probe, where) if self.screen("impact") else [])
-            design([f"{where}: {p}" for p in shell_sql.row_problems(page, counts)])
+            short, held = shell_sql.row_shortfalls(page, counts, self.check_held_rows(headers, page, defaults, counts, probe))
+            design([f"{where}: {p}" for p in short])
+            found.extend((CHECK_NOTE, f"{where}: {n}") for n in held)
             failed(self.check_lakebase_reads(headers, page, defaults, where))
             if self.option("modify"):
                 failed([f"{where}: people cannot change its records: {p}" for p in self.write_problems(headers, page)])

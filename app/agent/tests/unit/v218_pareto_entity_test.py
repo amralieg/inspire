@@ -213,11 +213,12 @@ def test_the_real_app_check_splits_on_lakebase_and_names_everything_on_delta(age
     inst.w_client = types.SimpleNamespace(config=types.SimpleNamespace(authenticate=lambda: {}))
     patched = dict(modules, shell_core=types.SimpleNamespace(Shell=Shell, HttpError=core.HttpError, SETTINGS_FILE=core.SETTINGS_FILE,
                                                              PAGES_DIR=core.PAGES_DIR, CHECK_FAILED=core.CHECK_FAILED,
-                                                             CHECK_DESIGN=core.CHECK_DESIGN, CHECK_SLOW=core.CHECK_SLOW))
+                                                             CHECK_DESIGN=core.CHECK_DESIGN, CHECK_SLOW=core.CHECK_SLOW,
+                                                             CHECK_NOTE=core.CHECK_NOTE))
     files = {core.SETTINGS_FILE: json.dumps({})}
-    assert inst._implement_app_check(str(tmp_path / "a"), files, patched, "wh1") == ["ran", "shown"]
+    assert inst._implement_app_check(str(tmp_path / "a"), files, patched, "wh1") == ["ran", "shown", "slowed"]
     assert inst._implement_app_check(str(tmp_path / "b"), files, patched, "wh1", ENV) == ["ran"]
-    assert inst._implement_app_design == ["shown"] and inst._implement_app_slow == ["slowed"] and calls == ["check", "split"]
+    assert inst._implement_app_design == ["shown"] and inst._implement_app_slow == ["slowed"] and calls == ["split", "split"]
 
 
 @pytest.mark.parametrize("check", [True, False])
