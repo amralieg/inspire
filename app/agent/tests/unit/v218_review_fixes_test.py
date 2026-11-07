@@ -25,6 +25,11 @@ PAGE = {"id": "n01_u01", "datasets": [{"name": "bill_activity", "sql": "SELECT 1
             {"column": "service_type", "format": "text"}, {"column": "notes", "format": "text"}, {"column": "amount"}]}]}
 
 
+def _examined(node):
+    kept = node.get("Actual Rows", 0) + node.get("Rows Removed by Filter", 0) + node.get("Rows Removed by Index Recheck", 0)
+    return kept * node.get("Actual Loops", 1)
+
+
 def _connect(postgres):  # noqa: F811
     return psycopg.connect(host=postgres["host"], port=postgres["port"], dbname="postgres", user="inspire", autocommit=True)
 
@@ -73,7 +78,8 @@ def _held(postgres):  # noqa: F811
 
 def test_a_free_text_column_or_a_refused_index_never_takes_the_other_indexes_down_and_indexed_is_what_postgres_holds(agent_ns, bills):
     inst, indexed = _built(agent_ns, bills)
-    assert indexed == {UC_VIEW: {"indexed": ["bill_date"], "prefixed": {"district": 256, "service_type": 256}}}, \
+    assert indexed == {UC_VIEW: {"indexed": ["bill_date"], "prefixed": {"district": 256, "service_type": 256},
+                                 "prefix_ordered": ["district", "service_type"]}}, \
         "each index is built on its own, so the point column Postgres cannot index and the free-text notes leave the others standing"
     held = _held(bills)
     assert STALE not in held, "an earlier Inspire index on a whole text column is dropped, so it can never fail a sync"
@@ -114,7 +120,7 @@ def test_a_long_value_arriving_after_the_build_never_fails_the_sync_and_the_filt
         assert got == expected and any(len(v) > 2704 for v in got), "the long value is listed whole, not cut to its first characters"
 
         def walk(node):
-            own = node.get("Actual Rows", 0) * node.get("Actual Loops", 1) if node.get("Relation Name") == IX_TABLE else 0
+            own = _examined(node) if node.get("Relation Name") == IX_TABLE else 0
             return own + sum(walk(child) for child in node.get("Plans") or [])
 
         def kinds(node):
@@ -308,3 +314,174 @@ def test_the_notebook_and_the_check_script_share_one_fan_out_rule(agent_ns):
     assert set(agent_ns["implement_page_fanning"](page, many)) == {"reasons"}
     exploded = {"datasets": [{"name": "x", "sql": "SELECT explode(tags) AS t FROM main.s.t"}, {"name": "y", "sql": "SELECT 1"}]}
     assert set(facts.fanning_datasets(exploded, [])) == {"x"}
+
+
+SORTED = "n01_u02__d_bills_y"
+SORTED_VIEW = "main.inspire.rt__lb_bills"
+E256, E257, A256, A257 = "E" * 256, "E" * 257, "A" * 256, "A" * 257
+PAGE2 = {"id": "n01_u02", "datasets": [{"name": "bills", "sql": "SELECT 1"}],
+         "filters": [{"id": "district", "type": "multi_select", "label": "District", "columns": {"bills": "district"}}],
+         "tables": [{"id": "bills", "dataset": "bills", "limit": 20, "sort": {"column": "service_type", "desc": False},
+                     "columns": [{"column": "district", "format": "text"}, {"column": "service_type", "format": "text"},
+                                 {"column": "label", "format": "text"}, {"column": "amount"}]}]}
+
+
+def _sorted_copy(agent_ns):
+    column = agent_ns["implement_lakebase_column"]
+    return {"page": "n01_u02", "dataset": "bills", "key": SORTED_VIEW, "pg": f"{IX_SCHEMA}.{SORTED}",
+            "columns": [column(n, t) for n, t in (("district", "string"), ("service_type", "string"), ("label", "string"),
+                                                   ("amount", "double"), (shell_pg.ROW_COLUMN, "bigint"))]}
+
+
+@pytest.fixture(scope="module")
+def sorted_bills(bills, agent_ns):
+    with _connect(bills) as conn, conn.cursor() as cur:
+        cur.execute(f'CREATE TABLE "{IX_SCHEMA}"."{SORTED}" (district text, service_type text, label text COLLATE "und-x-icu", '
+                    f'amount double precision, "{shell_pg.ROW_COLUMN}" bigint)')
+        cur.execute(f'INSERT INTO "{IX_SCHEMA}"."{SORTED}" SELECT \'D\' || lpad((i % 2000)::text, 4, \'0\'), '
+                    f"'S' || lpad((i % 3000)::text, 4, '0'), 'L' || (i % 50), i * 0.5, i FROM generate_series(1, {IX_ROWS}) AS i")
+        cur.execute(f'INSERT INTO "{IX_SCHEMA}"."{SORTED}" SELECT %s, %s, \'L0\', 1.0, {IX_ROWS} + g FROM generate_series(1, 5) AS g',
+                    (E256, A256))
+    inst, indexed = _built_on(agent_ns, bills, _sorted_copy(agent_ns), PAGE2)
+    with _connect(bills) as conn, conn.cursor() as cur:
+        cur.execute(f'INSERT INTO "{IX_SCHEMA}"."{SORTED}" SELECT %s, %s, \'L1\', 2.0, {IX_ROWS} + 10 + g FROM generate_series(1, 5) AS g',
+                    (E257, A257))
+        cur.execute(f'INSERT INTO "{IX_SCHEMA}"."{SORTED}" SELECT NULL, NULL, NULL, 3.0, {IX_ROWS} + 20 + g FROM generate_series(1, 5) AS g')
+        cur.execute(f'ANALYZE "{IX_SCHEMA}"."{SORTED}"')
+    return inst, indexed
+
+
+def _built_on(agent_ns, postgres, copy, page):  # noqa: F811
+    inst = _inspire(agent_ns, FakeSpark())
+    inst.logger = CapturingLogger()
+    inst._implement_api = lambda method, path, body=None, query=None: {"token": "local"}
+    return inst, inst._implement_lakebase_indexes("N01-U02", _env(postgres), [copy], [page], shell_sql)
+
+
+def _served2(agent_ns, indexed):
+    backend = agent_ns["implement_lakebase_backend"]("pipe-2", [_sorted_copy(agent_ns)], indexed)
+    assert shell_pg.backend_problems(backend, "sp", [PAGE2]) == []
+    return shell_pg.served_page(PAGE2, backend), {shell_pg.uc_key(k): v for k, v in backend["tables"].items()}
+
+
+def _plan(postgres, text, values):  # noqa: F811
+    with _connect(postgres) as conn, conn.cursor() as cur:
+        cur.execute("EXPLAIN (ANALYZE, FORMAT JSON) " + text, values)
+        plan = cur.fetchone()[0][0]["Plan"]
+        cur.execute(text, values)
+        return plan, cur.fetchall()
+
+
+def _read(node):
+    own = _examined(node) if node.get("Relation Name") == SORTED else 0
+    return own + sum(_read(child) for child in node.get("Plans") or [])
+
+
+def _ran(node):
+    return ({node.get("Node Type")} if node.get("Actual Loops") else set()) | {k for c in node.get("Plans") or [] for k in _ran(c)}
+
+
+def test_the_build_records_which_prefixed_columns_sort_by_code_point_and_says_which_sorts_read_every_row(agent_ns, sorted_bills):
+    inst, indexed = sorted_bills
+    assert indexed == {SORTED_VIEW: {"prefixed": {"district": 256, "service_type": 256, "label": 256},
+                                     "prefix_ordered": ["district", "service_type"]}}, \
+        "the label column sorts by language rules, so an index on its first characters cannot serve its sort"
+    said = [m for _level, m in inst.logger.records if "[IMPLEMENT-LAKEBASE]" in m]
+    assert len(said) == 1 and inst.logger.records[-1][0] == "WARNING"
+    assert f"A sort on label of {IX_SCHEMA}.{SORTED} reads every row, because the database orders that text by language rules" in said[0]
+
+
+@pytest.mark.parametrize("picked", [["D0003", E256], [E257], [E256], ["D0003", "nope"]])
+def test_a_choice_filter_on_a_prefixed_column_reads_the_index_and_returns_what_the_unindexed_query_returns(agent_ns, bills,
+                                                                                                          sorted_bills, picked):
+    _inst, indexed = sorted_bills
+    page, held = _served2(agent_ns, indexed)
+    sql, params = shell_sql.table_query(page, "bills", {"district": picked})
+    text, values = shell_pg.render(sql, params, held)[:2]
+    assert 'LEFT(CAST("district" AS TEXT), 256) IN (LEFT(%(p0)s, 256)' in text, text
+    plan, rows = _plan(bills, text, values)
+    assert _read(plan) < 100 and "Seq Scan" not in _ran(plan), text
+    bare = {k: {n: v for n, v in e.items() if n not in ("prefixed", "prefix_ordered")} for k, e in held.items()}
+    plain, plain_values = shell_pg.render(sql, params, bare)[:2]
+    assert "LEFT(" not in plain
+    plain_plan, expected = _plan(bills, plain, plain_values)
+    assert _read(plain_plan) > IX_ROWS, "the same query without the prefix filter reads the whole copy"
+    assert sorted(rows, key=repr) == sorted(expected, key=repr)
+    assert {r[0] for r in rows} == set(picked) & {r[0] for r in expected} and None not in {r[0] for r in rows}
+    if picked == [E256]:
+        assert len(rows) == 5, "a value of 257 bytes that shares the first 256 is not returned"
+
+
+def test_a_sort_on_a_code_point_prefixed_column_reads_the_index_in_the_same_order_including_nulls_and_long_values(agent_ns, bills,
+                                                                                                                 sorted_bills):
+    _inst, indexed = sorted_bills
+    page, held = _served2(agent_ns, indexed)
+    sql, params = shell_sql.table_query(page, "bills", {})
+    text, values = shell_pg.render(sql, params, held)[:2]
+    assert 'ORDER BY LEFT("service_type", 256) ASC, "service_type" ASC LIMIT 20' in text, text
+    plan, rows = _plan(bills, text, values)
+    assert _read(plan) < 300 and "Seq Scan" not in _ran(plan), text
+    assert [r[1] for r in rows] == [A256] * 5 + [A257] * 5 + ["S0000"] * 10, "the 256-byte value sorts before the 257-byte one"
+    bare = {k: {n: v for n, v in e.items() if n not in ("prefixed", "prefix_ordered")} for k, e in held.items()}
+    plain, plain_values = shell_pg.render(sql, params, bare)[:2]
+    for asked in ({"key": "service_type", "dir": "asc"}, {"key": "service_type", "dir": "desc"}, {"key": "district", "dir": "desc"}):
+        sql, params = shell_sql.table_query(page, "bills", {}, asked=asked)
+        whole = lambda s: s.rsplit(" LIMIT ", 1)[0]
+        text = whole(shell_pg.render(sql, params, held)[0])
+        plain = whole(shell_pg.render(sql, params, bare)[0])
+        assert text != plain
+        column = 1 if asked["key"] == "service_type" else 0
+        got, expected = ([r[column] for r in _plan(bills, t, values)[1]] for t in (text, plain))
+        assert got == expected and got.count(None) == 5 and (got[-1] is None), asked
+
+
+def test_a_sort_on_a_language_ordered_column_is_left_as_it_was(agent_ns, sorted_bills):
+    _inst, indexed = sorted_bills
+    page, held = _served2(agent_ns, indexed)
+    sql, params = shell_sql.table_query(page, "bills", {"label": ["L1"]}, asked={"key": "label", "dir": "asc"})
+    text = shell_pg.render(sql, params, held)[0]
+    assert 'ORDER BY "label" ASC LIMIT 20' in text and 'LEFT("label"' not in text, text
+
+
+@pytest.mark.parametrize("row,ordered", [
+    (("default", "d", None, "C", "c"), True), (("default", "d", None, "C.UTF-8", "c"), True), (("default", "d", None, "POSIX", None), True),
+    (("default", "d", None, "C", "b"), True), (("default", "d", None, "en_US.UTF-8", "c"), False), (("default", "d", None, "C", "i"), False),
+    (("C", "c", "C", "en_US.UTF-8", "c"), True), (("ucs_basic", "b", None, "en_US.UTF-8", "c"), True),
+    (("pg_c_utf8", "b", None, "en_US.UTF-8", "c"), True), (("und-x-icu", "i", None, "C", "c"), False),
+    (("en_US", "c", "en_US.UTF-8", "C", "c"), False), ((None, None, None, "C", None), True)])
+def test_only_a_collation_that_orders_by_code_point_lets_a_prefix_index_serve_a_sort(agent_ns, row, ordered):
+    assert agent_ns["implement_lakebase_byte_ordered"](*row) is ordered
+
+
+def test_the_prefix_rewrite_never_changes_what_a_query_means():
+    tables = {"main.s.t": {"pg": "s.t", "columns": [{"name": "d", "type": "STRING"}, {"name": "n", "type": "INT"}],
+                           "prefixed": {"d": 256}, "prefix_ordered": ["d"]}}
+    render = lambda sql: shell_pg.render(sql, [], tables)[0]
+    assert "LEFT" not in render("SELECT DISTINCT d FROM main.s.t ORDER BY d"), "SELECT DISTINCT may only sort on what it shows"
+    assert "LEFT" not in render("SELECT n AS d FROM main.s.t ORDER BY d"), "the sort names a shown alias, not the column"
+    assert render("SELECT d FROM main.s.t ORDER BY d").endswith('ORDER BY LEFT("d", 256) NULLS FIRST, "d" NULLS FIRST'), \
+        "each sort term keeps where its nulls go"
+    assert render("SELECT d FROM main.s.t ORDER BY d DESC NULLS LAST").endswith('ORDER BY LEFT("d", 256) DESC NULLS LAST, "d" DESC NULLS LAST')
+    assert "LEFT" not in render("SELECT d FROM main.s.t UNION SELECT d FROM main.s.t ORDER BY d")
+    assert "LEFT" not in render("SELECT d FROM main.s.t WHERE n = 3 ORDER BY n"), "a number is neither cut nor sorted on its text"
+    assert "LEFT" not in render("SELECT COUNT(*) OVER (ORDER BY d) FROM main.s.t"), "a window keeps its own order"
+    assert "LEFT" not in render("SELECT d FROM main.s.t WHERE d IN (SELECT d FROM main.s.t)")
+    assert "LEFT" not in render("SELECT d FROM main.s.t AS a JOIN main.s.t AS b ON a.d = 'x'"), "only a WHERE filter is rewritten"
+    negated = render("SELECT d FROM main.s.t WHERE NOT d IN ('a', 'b')")
+    assert "NOT (\"d\" IN ('a', 'b') AND LEFT(\"d\", 256) IN (LEFT('a', 256), LEFT('b', 256)))" in negated, negated
+    unordered = dict(tables["main.s.t"], prefix_ordered=[])
+    assert "LEFT" not in shell_pg.render("SELECT d FROM main.s.t ORDER BY d", [], {"main.s.t": unordered})[0]
+
+
+def test_the_prefix_rewrite_is_exact_on_postgres_for_nulls_and_lists_that_hold_null(bills):
+    values = [None, "", "x", E256, E257, A256 + "b", A257]
+    picks = ["x", E256, A257, None]
+    with _connect(bills) as conn, conn.cursor() as cur:
+        for v in values:
+            plain = [None if p is None else p for p in picks]
+            cur.execute("SELECT %s IN (%s, %s, %s, %s), (%s IN (%s, %s, %s, %s) AND left(%s, 256) IN (left(%s, 256), left(%s, 256), "
+                        "left(%s, 256), left(%s, 256))), NOT %s IN (%s, %s, %s, %s), NOT (%s IN (%s, %s, %s, %s) AND left(%s, 256) IN "
+                        "(left(%s, 256), left(%s, 256), left(%s, 256), left(%s, 256)))",
+                        [v, *plain, v, *plain, v, *plain, v, *plain, v, *plain, v, *plain])
+            a, b, c, d = cur.fetchone()
+            assert (a, c) == (b, d), (v, a, b, c, d)
