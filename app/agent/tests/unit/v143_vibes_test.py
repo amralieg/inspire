@@ -108,7 +108,7 @@ def test_vibes_hold_2000_characters_and_longer_or_non_text_vibes_are_errors_neve
     spec, errors = _vibed(agent_ns, **{f"{name}_vibes": "  " + "v" * 2000 + "\n"})
     assert errors == [] and spec["outputs"][f"{name}_vibes"] == "v" * 2000
     spec, errors = _vibed(agent_ns, **{f"{name}_vibes": "v" * 2001})
-    assert errors == [f"the {LABELS[name]} vibes are 2001 characters; at most 2000 are allowed"]
+    assert errors == [f"the {LABELS[name]} vibes are 2,001 characters; at most 2,000 are allowed"]
     assert spec["outputs"][f"{name}_vibes"] == "v" * 2001
     for bad, shown in ((5, "5"), (["a"], '["a"]'), ({"a": 1}, '{"a":1}'), (True, "true")):
         assert _vibed(agent_ns, **{f"{name}_vibes": bad})[1] == [f"outputs.{name}_vibes must be text, not {shown}"], bad
@@ -850,7 +850,7 @@ def test_round_50_the_notebook_vibes_hold_2000_characters_and_longer_or_non_text
     spec, errors = _noted(agent_ns, "  " + "n" * 2000 + "\n")
     assert errors == [] and spec["data"]["notes"] == "n" * 2000
     spec, errors = _noted(agent_ns, "n" * 2001)
-    assert errors == ["the notebook vibes are 2001 characters; at most 2000 are allowed"] and spec["data"]["notes"] == "n" * 2001
+    assert errors == ["the notebook vibes are 2,001 characters; at most 2,000 are allowed"] and spec["data"]["notes"] == "n" * 2001
     for bad, shown in ((5, "5"), (["a"], '["a"]'), ({"a": 1}, '{"a":1}'), (True, "true")):
         assert _noted(agent_ns, bad)[1] == [f"data.notes must be text, not {shown}"], bad
     assert _noted(agent_ns, None)[0]["data"]["notes"] == ""

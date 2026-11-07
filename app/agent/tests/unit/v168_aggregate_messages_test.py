@@ -48,9 +48,9 @@ def test_the_tier_warning_is_built_from_counts_and_names_the_columns(agent_ns):
     inst = _inspire(agent_ns, FakeSpark(responder=_respond()))
     warning = inst._implement_tier_warning("N05-U01", TABLE, "https://h/r/9", "r-1")
     share = agent_ns["implement_share_text"]
-    assert warning == ("Decision list: no row of the latest run reached Act now or Review (7200 Monitor), so it has nobody to act on yet; "
+    assert warning == ("Decision list: no row of the latest run reached Act now or Review (7,200 Monitor), so it has nobody to act on yet; "
                        f"its rows come from 2 methods in column method, the largest on {share(7000, 7200)} of them, with no registered "
-                       f"model; column value holds 412 distinct values spanning {agent_ns['implement_number_text'](0.415)}; 30 of 7200 "
+                       f"model; column value holds 412 distinct values spanning {agent_ns['implement_number_text'](0.415)}; 30 of 7,200 "
                        f"rows ({share(30, 7200)}) carry a data_quality_flag other than ok, in 1 kind; run: https://h/r/9"), warning
     assert _clean(warning, *[m for _l, m in inst.logger.records]) == []
     profile_sql = next(s for s in inst.spark.statements if "flag_kinds" in s)

@@ -317,14 +317,14 @@ def test_promised_is_checked_and_reaches_the_page():
     page = hub_page(promised=PROMISED)
     assert shell_sql.spec_problems(page) == [] and shell_core.public_page(page)["promised"] == PROMISED
     assert shell_sql.spec_problems(dict(page, promised="text")) == ["the page promised must be an object of the catalog's business value and its benefits"]
-    assert shell_sql.spec_problems(dict(page, promised={"value": "x" * 1001})) == ["the page promised value must be text of at most 1000 characters"]
+    assert shell_sql.spec_problems(dict(page, promised={"value": "x" * 1001})) == ["the page promised value must be text of at most 1,000 characters"]
     assert shell_sql.spec_problems(dict(page, promised={"value": "ok", "benefits": ["b"] * 6})) == [
         "the page promised benefits must be at most 5 lines of at most 300 characters"]
     estimate = dict(PROMISED, estimate="AED 2.4K\u20136K a year, if weekly sales value rises 2\u20135%")
     assert shell_sql.spec_problems(dict(page, promised=estimate)) == [] and shell_core.public_page(dict(page, promised=estimate))["promised"] == estimate
     for bad in (["AED"], 12, "x" * 1001):
         assert shell_sql.spec_problems(dict(page, promised=dict(PROMISED, estimate=bad))) == [
-            "the page promised estimate must be text of at most 1000 characters"], bad
+            "the page promised estimate must be text of at most 1,000 characters"], bad
 
 
 def test_the_weekly_digest_reads_the_impact_of_the_last_seven_days_in_plain_rows():

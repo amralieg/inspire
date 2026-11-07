@@ -65,11 +65,11 @@ test('vibes of 2000 characters pass and 2001 is an error that names the output a
     assert.deepEqual(fits.errors, [], name);
     assert.equal(fits.spec.outputs[key].length, 2000, `${name} keeps every character`);
     const over = spec({ [key]: 'a'.repeat(2001) });
-    assert.deepEqual(over.errors, [`the ${LABELS[name]} vibes are 2001 characters; at most 2000 are allowed`], name);
+    assert.deepEqual(over.errors, [`the ${LABELS[name]} vibes are 2,001 characters; at most 2,000 are allowed`], name);
   }
   const emoji = '\u{1F600}';
   assert.deepEqual(spec({ app_vibes: emoji.repeat(2000) }).errors, [], 'a character is a code point, the way the agent counts it');
-  assert.deepEqual(spec({ app_vibes: emoji.repeat(2001) }).errors, ['the App vibes are 2001 characters; at most 2000 are allowed']);
+  assert.deepEqual(spec({ app_vibes: emoji.repeat(2001) }).errors, ['the App vibes are 2,001 characters; at most 2,000 are allowed']);
   assert.equal(I.vibesLength(`${emoji}ab`), 3);
 });
 
@@ -257,7 +257,7 @@ test('the wizard counts, limits and words vibes the way the backend does, and a 
   assert.equal('rollback_outputs' in w.nextSpecFrom(latest, { schedule: { enabled: true } }), false);
   assert.deepEqual(w.nextSpecFrom(latest, { rollback_outputs: { app: 3 } }).rollback_outputs, { app: 3 });
   const ticked = { ...fallback, vibes: 'c'.repeat(2001), outputs: { ...fallback.outputs, genie_space: true } };
-  assert.deepEqual(w.stepErrors('vibes', ticked), ['the MVP vibes are 2001 characters; at most 2000 are allowed'], 'the one box can block Start');
+  assert.deepEqual(w.stepErrors('vibes', ticked), ['the MVP vibes are 2,001 characters; at most 2,000 are allowed'], 'the one box can block Start');
   assert.deepEqual([w.vibesProblem('mvp', ticked.vibes, 'MVP')], spec({}, { vibes: ticked.vibes }).errors, 'in the words the backend uses');
   assert.deepEqual(w.stepErrors('delivery', ticked), [], 'the vibes are checked on the Vibes step, never on Delivery');
   assert.deepEqual(w.planLines({ classes: ['rollback'], refill: false, rollback: ['app', 'dashboard'] }).slice(-1), ['Rolls back: App, Dashboard']);
@@ -268,7 +268,7 @@ test('the Vibes step has one box for the whole MVP, and only what is typed in it
   const held = { data: { notes: 'n'.repeat(2001) }, outputs: { dashboard: true, app: true, app_vibes: 'a'.repeat(2001), dashboard_vibes: 'weekly' } };
   assert.deepEqual(w.vibesProblems(held), [], 'the asks each part holds are not in the box and never block it; the backend checks them');
   assert.deepEqual(w.vibesProblems({ ...held, vibes: `  ${'v'.repeat(2000)}  ` }), [], '2000 characters fit');
-  assert.deepEqual(w.vibesProblems({ ...held, vibes: 'v'.repeat(2001) }), ['the MVP vibes are 2001 characters; at most 2000 are allowed']);
+  assert.deepEqual(w.vibesProblems({ ...held, vibes: 'v'.repeat(2001) }), ['the MVP vibes are 2,001 characters; at most 2,000 are allowed']);
   assert.deepEqual(w.vibesProblems(null), []);
   assert.equal(w.vibesEntries, undefined, 'there is no box per asset');
 });
@@ -345,7 +345,7 @@ test('the notebook vibes hold 2000 characters, and longer or non-text ones are e
   assert.deepEqual(ok.errors, []);
   assert.equal(ok.spec.data.notes, 'n'.repeat(2000));
   const long = noted('n'.repeat(2001));
-  assert.deepEqual(long.errors, ['the notebook vibes are 2001 characters; at most 2000 are allowed']);
+  assert.deepEqual(long.errors, ['the notebook vibes are 2,001 characters; at most 2,000 are allowed']);
   assert.equal(long.spec.data.notes.length, 2001);
   for (const [bad, shown] of [[5, '5'], [['a'], '["a"]'], [{ a: 1 }, '{"a":1}'], [true, 'true']]) {
     assert.deepEqual(noted(bad).errors, [`data.notes must be text, not ${shown}`], JSON.stringify(bad));
@@ -392,7 +392,7 @@ test('the Build page offers the notebook first once it is built, with the asks i
   assert.deepEqual([vibed.errors, vibed.spec.data.notes], [[], 'score every model on the same rows']);
 
   assert.equal(w.vibesLabel('notebook'), 'Notebook vibes');
-  assert.equal(w.vibesProblem('notebook', 'n'.repeat(2001)), 'the notebook vibes are 2001 characters; at most 2000 are allowed');
-  assert.deepEqual(I.validateImplementSpec({ ...BASE, data: { notes: 'n'.repeat(2001) } }).errors, ['the notebook vibes are 2001 characters; at most 2000 are allowed'],
+  assert.equal(w.vibesProblem('notebook', 'n'.repeat(2001)), 'the notebook vibes are 2,001 characters; at most 2,000 are allowed');
+  assert.deepEqual(I.validateImplementSpec({ ...BASE, data: { notes: 'n'.repeat(2001) } }).errors, ['the notebook vibes are 2,001 characters; at most 2,000 are allowed'],
     'the backend checks the notebook asks even with no box for them');
 });

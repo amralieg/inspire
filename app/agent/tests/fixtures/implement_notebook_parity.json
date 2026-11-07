@@ -295,7 +295,7 @@
    },
    "impact": null,
    "errors": [
-    "the amount at stake formula vibes are 2001 characters; at most 2000 are allowed"
+    "the amount at stake formula vibes are 2,001 characters; at most 2,000 are allowed"
    ]
   },
   {
@@ -460,7 +460,7 @@
    },
    "impact": null,
    "errors": [
-    "each ask to try again on the amount at stake formula must be at most 2000 characters"
+    "each ask to try again on the amount at stake formula must be at most 2,000 characters"
    ]
   },
   {
@@ -622,7 +622,7 @@
     "unit": "USD"
    },
    "errors": [
-    "the money at stake formula vibes are 2001 characters; at most 2000 are allowed"
+    "the money at stake formula vibes are 2,001 characters; at most 2,000 are allowed"
    ]
   },
   {
@@ -790,7 +790,7 @@
     "unit": "USD"
    },
    "errors": [
-    "each ask to try again on the money at stake formula must be at most 2000 characters"
+    "each ask to try again on the money at stake formula must be at most 2,000 characters"
    ]
   },
   {
@@ -952,7 +952,7 @@
     "unit": "hours"
    },
    "errors": [
-    "the hours at stake formula vibes are 2001 characters; at most 2000 are allowed"
+    "the hours at stake formula vibes are 2,001 characters; at most 2,000 are allowed"
    ]
   },
   {
@@ -1120,7 +1120,7 @@
     "unit": "hours"
    },
    "errors": [
-    "each ask to try again on the hours at stake formula must be at most 2000 characters"
+    "each ask to try again on the hours at stake formula must be at most 2,000 characters"
    ]
   },
   {
@@ -1282,7 +1282,7 @@
     "unit": "late shipments"
    },
    "errors": [
-    "the late shipments at stake formula vibes are 2001 characters; at most 2000 are allowed"
+    "the late shipments at stake formula vibes are 2,001 characters; at most 2,000 are allowed"
    ]
   },
   {
@@ -1450,7 +1450,7 @@
     "unit": "late shipments"
    },
    "errors": [
-    "each ask to try again on the late shipments at stake formula must be at most 2000 characters"
+    "each ask to try again on the late shipments at stake formula must be at most 2,000 characters"
    ]
   },
   {
@@ -1612,7 +1612,7 @@
     "unit": "hours"
    },
    "errors": [
-    "the AI reasoning vibes are 2001 characters; at most 2000 are allowed"
+    "the AI reasoning vibes are 2,001 characters; at most 2,000 are allowed"
    ]
   }
  ],

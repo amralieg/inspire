@@ -167,7 +167,7 @@ def test_main_is_the_last_line_and_runs_the_use_case_once_here_or_in_the_job_run
         dbu.notebook.exit = dbu.notebook.exits.append
         gate = ns["inspire_main"](dbu=dbu, launcher_cls=launcher, out=out.append)
         assert gate["execution"] == expected and runs == [1] and "launch" not in calls, values
-        text = "wrote 1240 rows for as_of_date 2026-09-30 with run_id 5f0c"
+        text = "wrote 1,240 rows for as_of_date 2026-09-30 with run_id 5f0c"
         assert gate["outcome"] == text and dbu.notebook.exits == [text], \
             "the job run returns its outcome to the notebook that launched it, so a stop is never reported as success"
         assert f"Use case outcome: {text}." in out
@@ -243,7 +243,7 @@ def test_run_use_case_outcomes_read_the_same_here_and_from_the_job_run(agent_ns)
     ns, _call = _controls(agent_ns)
     text = ns["inspire_outcome_text"]
     assert text({"status": "written", "rows_written": np.int64(53999), "as_of_date": datetime.date(2003, 1, 1),
-                 "run_id": "31f0a774"}) == "wrote 53999 rows for as_of_date 2003-01-01 with run_id 31f0a774"
+                 "run_id": "31f0a774"}) == "wrote 53,999 rows for as_of_date 2003-01-01 with run_id 31f0a774"
     assert text({"status": "stopped", "stop_reason": "STOP RULE: halo test empty"}) == \
         "stopped without writing: STOP RULE: halo test empty"
     assert text({"status": "stopped"}) == "stopped without writing: no reason given"
@@ -299,7 +299,7 @@ def test_the_exit_value_carries_everything_run_use_case_printed(agent_ns, capsys
     ns["inspire_main"](dbu=dbu, launcher_cls=_launcher(ns)[0], out=lambda *_a: None)
     capsys.readouterr()
     capped = dbu.notebook.exits[0]
-    assert capped.startswith(headline + "\n\nPrinted log of this run:\n" + "x" * 20000 + "\n... (150000 characters of the printed log left out) ...\n")
+    assert capped.startswith(headline + "\n\nPrinted log of this run:\n" + "x" * 20000 + "\n... (150,000 characters of the printed log left out) ...\n")
     assert capped.endswith("x" * 80000) and len(capped) < 101000, "the job output API returns only the first 1 MB"
 
     def broken():

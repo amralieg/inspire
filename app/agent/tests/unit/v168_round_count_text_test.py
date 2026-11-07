@@ -95,7 +95,7 @@ def test_rounds_that_ran_out_say_their_count_once_and_the_ask_evidence_keeps_onl
     assert reason(RuntimeError("the warehouse is stopped")) == "the warehouse is stopped"
 
 
-@pytest.mark.parametrize("n,words", [(0, "0 asks"), (1, "1 ask"), (2, "2 asks"), (1.0, "1 ask"), (1.5, "1.5 asks"), (1234, "1234 asks")])
+@pytest.mark.parametrize("n,words", [(0, "0 asks"), (1, "1 ask"), (2, "2 asks"), (1.0, "1 ask"), (1.5, "1.5 asks"), (1234, "1,234 asks")])
 def test_the_plural_helper_writes_the_count_and_the_noun_that_fits_it(agent_ns, n, words):
     assert agent_ns["inspire_plural"](n, "ask") == words
     assert agent_ns["inspire_plural"](1, "batch", "batches") == "1 batch" and agent_ns["inspire_plural"](2, "batch", "batches") == "2 batches"

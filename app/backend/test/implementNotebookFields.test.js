@@ -107,7 +107,7 @@ test('Vibe/Add/Remove Features validates with the impact the built notebook reco
       body: JSON.stringify({ ...DB, spec }) });
     const data = await resp.json();
     assert.equal(resp.status, 400, JSON.stringify(data));
-    assert.match(data.error, /the hours at stake formula vibes are 2001 characters; at most 2000 are allowed/);
+    assert.match(data.error, /the hours at stake formula vibes are 2,001 characters; at most 2,000 are allowed/);
   } finally {
     await srv.close();
   }

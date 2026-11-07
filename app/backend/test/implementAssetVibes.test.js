@@ -91,11 +91,11 @@ test('vibes for a part of an output are kept exactly as typed under that part id
 
 test('part vibes over 2000 characters or not text are errors that name the part, and are never cut', () => {
   assert.deepEqual(spec({ [`${PAGE}_vibes`]: ` ${'a'.repeat(2000)} ` }).errors, []);
-  assert.deepEqual(spec({ [`${PAGE}_vibes`]: 'a'.repeat(2001) }).errors, ['the App page decisions vibes are 2001 characters; at most 2000 are allowed']);
+  assert.deepEqual(spec({ [`${PAGE}_vibes`]: 'a'.repeat(2001) }).errors, ['the App page decisions vibes are 2,001 characters; at most 2,000 are allowed']);
   const long = spec({ [`${CHART}_vibes`]: 'b'.repeat(2001) });
-  assert.deepEqual(long.errors, ['the dashboard chart w1a2b3c4 vibes are 2001 characters; at most 2000 are allowed']);
+  assert.deepEqual(long.errors, ['the dashboard chart w1a2b3c4 vibes are 2,001 characters; at most 2,000 are allowed']);
   assert.equal(long.spec.outputs[`${CHART}_vibes`].length, 2001, 'kept whole');
-  assert.deepEqual(spec({ value_formula_vibes: 'c'.repeat(2001) }).errors, ['the amount at stake formula vibes are 2001 characters; at most 2000 are allowed']);
+  assert.deepEqual(spec({ value_formula_vibes: 'c'.repeat(2001) }).errors, ['the amount at stake formula vibes are 2,001 characters; at most 2,000 are allowed']);
   assert.deepEqual(spec({ ai_reasoning_vibes: 5 }).errors, ['outputs.ai_reasoning_vibes must be text, not 5']);
   assert.deepEqual(spec({ [`${PAGE}_vibes`]: ['a'] }).errors, [`outputs.${PAGE}_vibes must be text, not ["a"]`]);
 });
@@ -222,7 +222,7 @@ test('the wizard names, limits and sends part vibes the way the backend reads th
     assert.deepEqual(mine && { output: mine.output, label: mine.label }, I.implementPart(id), String(id));
   }
   assert.deepEqual([w.vibesProblem(PAGE, 'a'.repeat(2001))], spec({ [`${PAGE}_vibes`]: 'a'.repeat(2001) }).errors);
-  assert.equal(w.vibesProblem(PAGE, 'a'.repeat(2001), 'Decisions page'), 'the Decisions page vibes are 2001 characters; at most 2000 are allowed');
+  assert.equal(w.vibesProblem(PAGE, 'a'.repeat(2001), 'Decisions page'), 'the Decisions page vibes are 2,001 characters; at most 2,000 are allowed');
   assert.equal(w.vibesLabel(CHART), 'Vibes for the dashboard chart w1a2b3c4');
   assert.deepEqual([w.partLabel(PAGE, 'Decisions'), w.partLabel(PAGE, 'Row detail page'), w.partLabel(CHART, ' '), w.partLabel('value_formula', 'x')],
     ['Decisions page', 'Row detail page', 'dashboard chart w1a2b3c4', 'amount at stake formula']);
@@ -377,7 +377,7 @@ test('Try again sends retry_asks for an asset it rebuilds, which never carries i
   assert.deepEqual(spec({}, { retry_outputs: ['app'], retry_asks: { app: [] } }).errors, ['retry_asks.app must list at least one ask to try again']);
   assert.deepEqual(spec({}, { retry_outputs: ['app'], retry_asks: { app: 'x' } }).errors, ['retry_asks.app must be a list']);
   assert.deepEqual(spec({}, { retry_outputs: ['app'], retry_asks: ['app'] }).errors, ['retry_asks must be an object']);
-  assert.deepEqual(spec({}, { retry_outputs: [PAGE], retry_asks: { [PAGE]: ['y'.repeat(2001)] } }).errors, ['each ask to try again on the App page decisions must be at most 2000 characters']);
+  assert.deepEqual(spec({}, { retry_outputs: [PAGE], retry_asks: { [PAGE]: ['y'.repeat(2001)] } }).errors, ['each ask to try again on the App page decisions must be at most 2,000 characters']);
   assert.deepEqual(spec({}, { retry_outputs: ['app'], retry_asks: { app: [5] } }).errors, ['each item of retry_asks.app must be text, not 5']);
   const fallback = w.defaultSpecFromUseCase({ id: 'N01-U01', Name: 'Predict churn' }, { warehouseId: 'wh1', inspireDatabase: 'main.inspire' });
   const latest = { spec_version: 4, spec_json: { ...fallback, ...c.tryAgainChanges('dashboard', ['Arabic labels']) } };

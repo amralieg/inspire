@@ -121,7 +121,7 @@ def test_the_explain_route_sends_every_element_kind_with_its_question(tmp_path, 
 @pytest.mark.parametrize("question", [123, ["Why?"], "q" * 1001])
 def test_the_explain_route_refuses_a_question_that_is_not_text_or_is_too_long(tmp_path, question):
     s, sp_ws, _user, _made = shell(tmp_path)
-    assert call(s, "POST", "genie/explain", body=element_body(question=question)) == (400, {"error": "ask a question of at most 1000 characters"})
+    assert call(s, "POST", "genie/explain", body=element_body(question=question)) == (400, {"error": "ask a question of at most 1,000 characters"})
     assert sp_ws.genie == []
 
 

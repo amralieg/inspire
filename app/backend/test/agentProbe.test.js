@@ -63,5 +63,5 @@ test('in the bundled agent the probe reads the redaction and the result history,
 print(json.dumps({"executed": sorted(executed), "plural": [ns["inspire_plural"](1234, "character"), ns["inspire_plural"](1, "character")]}))
 `);
   assert.deepEqual(out.executed, ['IMPLEMENT_RESULT_HISTORY_SOURCE', 'REDACT_SOURCE']);
-  assert.deepEqual(out.plural, ['1234 characters', '1 character']);
+  assert.deepEqual(out.plural, ['1,234 characters', '1 character']);
 });

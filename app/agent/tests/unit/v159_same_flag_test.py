@@ -39,7 +39,7 @@ def test_a_preview_whose_every_row_carries_one_flag_and_a_value_goes_back_to_gen
     outcome, runner, inst, asked = _shared_preview(agent_ns, [_preview("r-1"), _preview("r-2")], {"r-1": shared})
     assert outcome == {"status": "written", "rows_written": 40, "run_id": "r-2"} and len(runner.prompts) == 2 and asked == ["r-1", "r-2"]
     sent = runner.prompts[1]
-    assert ("all 21504 rows of run r-1 carry the same data_quality_flag other than 'ok', and a value, so the flag tells no row apart "
+    assert ("all 21,504 rows of run r-1 carry the same data_quality_flag other than 'ok', and a value, so the flag tells no row apart "
             "and holds every row at 'Monitor'") in sent
     assert POOLED not in sent, "the flag the rows hold never leaves the agent"
     assert ("state it once in the summary step and set data_quality_flag to 'ok' on each row, keeping a reason only on a row whose "
@@ -47,7 +47,7 @@ def test_a_preview_whose_every_row_carries_one_flag_and_a_value_goes_back_to_gen
     assert "a row the method gives no result of its own, such as a unit below the test's minimum, has a NULL value and keeps its flag" in sent
     assert "Keep the decision test and its thresholds as they are." in sent, "Genie never loosens the test to clear the flag"
     assert "The user's Implementation Choices still win over this." in sent
-    assert any(e.get("message") == "the preview run gave all 21504 rows the same data_quality_flag, which tells no row apart, "
+    assert any(e.get("message") == "the preview run gave all 21,504 rows the same data_quality_flag, which tells no row apart, "
                "sent back to Genie to state it once for the run" for e in inst.emitted)
     assert not any(POOLED in str(e) for e in inst.emitted), "the flag the rows hold never reaches an event"
 

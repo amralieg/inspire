@@ -148,7 +148,7 @@ def test_a_notebook_route_adds_to_the_notebook_vibes_and_rebuilds_it_only_throug
     assert errors == [] and again["data"]["notes"] == "Use the new extract" and changed == {}
     assert again["retry_outputs"] == ["notebook"], "an ask the notebook already holds rebuilds it, never leaving the ask undone"
     _routed, _changed, errors = apply(dict(spec, data={"notes": "n" * 1990}), {"notebook": HOLDOUT})
-    assert errors == [f"the notebook would hold {1991 + len(HOLDOUT)} characters of asks with this vibe, and at most 2000 are allowed: "
+    assert errors == [f"the notebook would hold {1991 + len(HOLDOUT):,} characters of asks with this vibe, and at most 2,000 are allowed: "
                       "remove some of its earlier asks from its list on the Build page first"]
 
 
@@ -246,7 +246,7 @@ def test_older_apps_per_part_vibes_still_build_without_the_router(agent_ns):
     assert next(call for call in calls if call[0] == "write")[1] == HOLDOUT
     assert "vibe" not in inst.updates[-1]["asset_status"]
     assert _spec(agent_ns, outputs={**VALID["outputs"], "dashboard_vibes": "v" * 2001})[1] == [
-        "the Dashboard vibes are 2001 characters; at most 2000 are allowed"]
+        "the Dashboard vibes are 2,001 characters; at most 2,000 are allowed"]
 
 
 def test_a_notebook_ask_on_a_rebuild_lands_in_the_notebook_vibes_and_reruns_the_notebook_and_every_output(agent_ns):

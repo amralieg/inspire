@@ -384,14 +384,14 @@ def test_a_preview_that_flags_rows_data_ends_on_data_that_runs_to_their_as_of_da
     outcome, runner, inst, asked = _stale_preview(agent_ns, [_preview("r-1"), _preview("r-2")], {"r-1": flagged})
     assert outcome == {"status": "written", "rows_written": 40, "run_id": "r-2"} and len(runner.prompts) == 2 and asked == ["r-1", "r-2"]
     sent = runner.prompts[1]
-    assert ("run r-1 wrote 21504 rows with a data_quality_flag that starts with data ends and is dated on or after the as_of_date "
+    assert ("run r-1 wrote 21,504 rows with a data_quality_flag that starts with data ends and is dated on or after the as_of_date "
             "of its row, so the staleness check measured to today") in sent
     assert str(DATA_END) not in sent and not any(str(DATA_END) in str(e) for e in inst.emitted), "the dates the rows hold never leave the agent"
     assert ("Measure staleness_cadences from the newest data to the run's as_of_date and never to today, as the Acceptance and Stop "
             "Rule section says") in sent
     assert "Keep every other check, threshold and step as it is." in sent, "Genie never drops a check to clear the flag"
     assert "The user's Implementation Choices still win over this." in sent
-    assert any(e.get("message", "").startswith("the preview run flagged 21504 rows with a data ends flag dated on or after the "
+    assert any(e.get("message", "").startswith("the preview run flagged 21,504 rows with a data ends flag dated on or after the "
                                                 "as_of_date of its row") for e in inst.emitted)
 
 

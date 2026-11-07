@@ -191,7 +191,7 @@ def test_the_typed_question_cap_stays_1000_while_an_explain_may_be_longer(tmp_pa
     rows = [{"Category": f"Category {i} " + "w" * 60, "Loss": i} for i in range(40)]
     status, out = call(s, "POST", "genie/explain", body=explain_body(context=dict(CHART, rows=rows, row_count=40)))
     assert status == 200 and len(out["question"]) > shell_core.ASK_CHARS
-    assert call(s, "POST", "genie/ask", body={"question": out["question"]}) == (400, {"error": "ask a question of at most 1000 characters"})
+    assert call(s, "POST", "genie/ask", body={"question": out["question"]}) == (400, {"error": "ask a question of at most 1,000 characters"})
     assert call(s, "POST", "genie/ask", body={"question": "q" * 1000})[0] == 200
     assert len(sp_ws.genie) == 2
 
@@ -201,8 +201,8 @@ def test_the_typed_question_cap_stays_1000_while_an_explain_may_be_longer(tmp_pa
     ({"kind": ""}, 400, KIND_REFUSED),
     ({"title": ""}, 400, "name what to explain in at most 120 characters"),
     ({"title": "t" * 121}, 400, "name what to explain in at most 120 characters"),
-    ({"context": "rows"}, 400, "send what to explain as an object of at most 12000 characters of JSON"),
-    ({"context": {"filters": "f" * 11990}}, 400, "send what to explain as an object of at most 12000 characters of JSON"),
+    ({"context": "rows"}, 400, "send what to explain as an object of at most 12,000 characters of JSON"),
+    ({"context": {"filters": "f" * 11990}}, 400, "send what to explain as an object of at most 12,000 characters of JSON"),
     ({"page": "nope"}, 404, "the App has no page 'nope'"),
     ({"conversation_id": "../../api/2.0/secrets"}, 400, "the conversation_id is not one Genie returned"),
     ({"kind": "record", "context": {"fields": ["a"]}}, 400, "the context fields must be an object of label to value"),
@@ -489,8 +489,8 @@ def test_a_page_without_a_result_table_refuses_a_record_question_without_reading
     ({"page": "nope"}, None, 404, "the App has no page 'nope'"),
     ({"page": None}, None, 404, "the App has no page None"),
     ({"conversation_id": "../../api/2.0/secrets"}, None, 400, "the conversation_id is not one Genie returned"),
-    ({"question": ""}, None, 400, "ask a question of at most 1000 characters"),
-    ({"question": "q" * 1001}, None, 400, "ask a question of at most 1000 characters"),
+    ({"question": ""}, None, 400, "ask a question of at most 1,000 characters"),
+    ({"question": "q" * 1001}, None, 400, "ask a question of at most 1,000 characters"),
     ({}, dict(SETTINGS, genie=None, genie_note="The Genie Agent did not build"), 409, "The Genie Agent did not build"),
 ])
 def test_a_record_question_is_checked_before_the_app_reads_the_record(tmp_path, changes, settings, status, needle):
