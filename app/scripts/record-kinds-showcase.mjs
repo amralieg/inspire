@@ -14,6 +14,7 @@ import { CONTRACT, NO_HUB, NO_IMPACT, NO_MONEY, NO_RUNS, NO_SETTINGS, NO_SUMMARY
 import { closeBrowser, openUi } from '../frontend/test/ui/uiSupport.mjs';
 import { STUDIO_STATE, built } from '../frontend/test/ui/implementFixtures.js';
 import { defaultSpecFromUseCase } from '../frontend/src/lib/implementWizard.js';
+import { computeHighPriorityCount } from '../frontend/src/lib/useCaseFields.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const require = createRequire(import.meta.url);
@@ -82,7 +83,7 @@ function historyRow(u, uc, i) {
   const result = `${DEMO_CATALOG}.${u.result}`;
   return built({
     session_id: sid, use_case_id: u.no, job_id: String(300 + i), last_preview_run_id: String(9100 + i), result_rows: '120',
-    spec_json: JSON.stringify({ ...spec, outputs: { ...outputs, genie_space: true, app: true, app_name: slugOf(u), alert: true, alert_recipients: [DEMO_OWNER], genie_questions: questions } }),
+    spec_json: JSON.stringify({ ...spec, schedule: { ...spec.schedule, enabled: true, timezone: 'UTC' }, outputs: { ...outputs, genie_space: true, app: true, app_name: slugOf(u), alert: true, alert_recipients: [DEMO_OWNER], genie_questions: questions } }),
     dashboard_id: `d${i + 1}`, dashboard_url: `${WORKSPACE}/dashboardsv3/d${i + 1}/published`,
     genie_space_id: `g${i + 1}`, genie_space_url: `${WORKSPACE}/genie/rooms/g${i + 1}`,
     app_name: slugOf(u), app_url: appUrlOf(u), alert_id: `a${i + 1}`, alert_url: `${WORKSPACE}/sql/alerts-v2/a${i + 1}`,
@@ -90,7 +91,7 @@ function historyRow(u, uc, i) {
     asset_status: JSON.stringify({
       genie_space: { state: 'ready', sample_questions: questions, question_notes: [], check_question: questions[0], check_sql: u.genie[0].sql || `SELECT * FROM ${result} LIMIT 10` },
       app: { state: 'ready', health: 'running', spec_version: 1 },
-      alert: { state: 'ready', trigger: 'Act now rows in the latest run >= 1', check_state: 'OK', subscribers: 1 },
+      alert: { state: 'ready', trigger: 'Act now rows in the latest run are at least 1', check_state: 'OK', subscribers: 1 },
     }),
   });
 }
@@ -113,7 +114,8 @@ function inspireState(useCases) {
     completed_on: '2026-11-02T05:58:00Z', business_name: KINDS_DEMO.business, inspire_database_name: INSPIRE_DATABASE, operation_mode: 'Discover Use Cases',
     generation_path: '/Workspace/Users/person@example.com/inspire/retail', business_domains: '', catalogs: 'main', business_runs: 1, business_rank: 1,
     widget_values: { business: KINDS_DEMO.business, '00_business_name': KINDS_DEMO.business, inspire_database: INSPIRE_DATABASE, operation_mode: 'Discover Use Cases' },
-    usecase_overview: { total: useCases.length, high: useCases.filter((uc) => uc.Priority === 'Very High').length, domains: domains.length, preview_titles: useCases.slice(0, 3).map((uc) => uc.Name) },
+    usecase_overview: { total: useCases.length, high: computeHighPriorityCount(useCases), meets: useCases.length, domains: domains.length,
+      preview_use_cases: useCases.slice(0, 4).map((uc) => ({ Name: uc.Name, name_with_technique: uc.name_with_technique || null })) },
   };
   const counts = { use_cases: String(useCases.length), domains: String(domains.length), subdomains: String(new Set(useCases.map((uc) => uc.Subdomain)).size), best_of_best: String(useCases.length) };
   const mvps = { mvps_started: String(history.length), mvps_live: String(history.length), apps: String(history.length), dashboards: String(history.length), genie_spaces: String(history.length), alerts: String(history.length) };
@@ -133,6 +135,7 @@ function inspireState(useCases) {
     useCases: Object.values(rows),
     history,
     appExists: true,
+    alert: { display_name: 'Act now rows', lifecycle_state: 'ACTIVE', evaluation: { state: 'OK', last_evaluated_at: '2026-11-02T06:00:00Z' } },
     appsByName: Object.fromEntries(USE_CASES.map((u, i) => [slugOf(u), {
       ...STUDIO_STATE.app, name: slugOf(u), url: appUrlOf(u), description: `Inspire use case ${u.no} (session ${sid}): ${useCases[i].Name}`,
     }])),

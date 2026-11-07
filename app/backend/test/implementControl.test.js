@@ -411,7 +411,12 @@ test('the Build summary counts each use case once, by the same state the rail gr
         { id: 'alert', count: 1, text: '1 alert' }] });
   assert.equal(got.mvps + got.notebooks + got.notStarted, items.length, 'every use case lands in exactly one count');
   assert.deepEqual(latest.map((row) => v.deliveredOutputs(row)), [['dashboard', 'genie_space'], ['dashboard'], [], [], ['alert']],
-    'an output counts as delivered only when its link is recorded');
+    'an output with a recorded link counts as delivered');
+  assert.deepEqual(v.deliveredOutputs({ alert_id: 'a1', alert_url: '', asset_status: { alert: { state: 'ready' } } }), ['alert'],
+    'a built alert whose link was not recorded still counts, so Build never reads Alert 0 for it');
+  assert.deepEqual(v.deliveredOutputs({ alert_id: 'a1', asset_status: { alert: { state: 'failed', error: 'no rights' } } }), [],
+    'a failed build that carries an id is not delivered (must-exclude)');
+  assert.deepEqual(v.deliveredOutputs({ dashboard_id: 'd1', asset_status: {} }), [], 'an id without a ready state is not delivered (must-exclude)');
   assert.deepEqual(v.deliveredOutputs(null), []);
   assert.deepEqual(v.buildSummary(null), { mvps: 0, building: [], ready: 0, held: 0, unmet: 0, failed: 0, notebooks: 0, notStarted: 0, delivered: [] });
 });
@@ -619,7 +624,7 @@ test('the dashboard, Genie Agent, alert and job rows read their live state and o
   assert.deepEqual(one('alert', { ok: true, state: 'OK' }).actions, []);
   const running = one('job', { ok: true, schedule: { cron: '0 0 6 * * ?', timezone: 'UTC', paused: true }, active_runs: [{ run_id: 5, url: 'https://w/run/5' }] });
   assert.deepEqual([running.state, running.detail, running.url, actionsOf(running), running.removable],
-    [{ label: '1 running', tone: 'busy' }, 'Schedule paused: 0 0 6 * * ? (UTC)', 'https://w/run/5', ['job:cancel'], false]);
+    [{ label: '1 running', tone: 'busy' }, 'Schedule paused: every day at 06:00 (UTC)', 'https://w/run/5', ['job:cancel'], false]);
   assert.deepEqual(running.schedule, { label: 'Pause the schedule', on: true }, 'the schedule button follows the spec the agent applies');
   const idle = one('job', { ok: true, schedule: null, active_runs: [] }, { ...LATEST, spec_json: { ...LATEST.spec_json, schedule: { enabled: false } } });
   assert.deepEqual([idle.state.label, idle.detail, idle.actions, idle.schedule.label], ['Idle', 'No schedule', [], 'Resume the schedule']);

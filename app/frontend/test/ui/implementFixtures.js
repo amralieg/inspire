@@ -82,7 +82,7 @@ export const built = (extra = {}) => ({
       check_question: 'Which customers should we call first?', check_sql: `SELECT entity_id FROM ${RESULT_TABLE} ORDER BY rank LIMIT 10`,
     },
     app: { state: 'ready', health: 'running', spec_version: 1 },
-    alert: { state: 'ready', trigger: 'Act now rows in the latest run >= 1', check_state: 'OK', subscribers: 1 },
+    alert: { state: 'ready', trigger: 'Act now rows in the latest run are at least 1', check_state: 'OK', subscribers: 1 },
   }),
   ...extra,
 });

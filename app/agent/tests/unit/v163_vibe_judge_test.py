@@ -281,13 +281,13 @@ def test_a_job_schedule_reads_in_plain_words_and_anything_else_says_its_schedule
 def test_an_alert_shows_its_name_schedule_recipients_and_condition_in_plain_words_never_its_sql(agent_ns):
     seen = agent_ns["implement_vibes_seen"]("alert", _alert(agent_ns))
     assert {key: element["lines"] for key, element in seen.items()} == {
-        "alert": ["Alert name: N01-U01 Loss alert", "Fires when Act now rows in the latest run >= 1"],
-        "schedule": ["Checked after each scheduled run of the job (0 0 6 * * ?, Asia/Dubai), once its notebook task has written the results",
+        "alert": ["Alert name: N01-U01 Loss alert", "Fires when Act now rows in the latest run are at least 1"],
+        "schedule": ["Checked after each scheduled run of the job (at 06:00 every day, Asia/Dubai), once its notebook task has written the results",
                      "Runs at 06:00 every day (Asia/Dubai)"],
         "recipients": ["Sent to owner@example.com", "Sent to the destination Ops channel"],
         "clears": ["Sends one more email when it returns to OK"]}
     worded = agent_ns["implement_vibes_seen"]("alert", _alert(agent_ns, alert_condition_text="more than 5 stores lose money"))
-    assert worded["alert"]["lines"][1:] == ["Fires when Act now rows in the latest run >= 1, or more than 5 stores lose money",
+    assert worded["alert"]["lines"][1:] == ["Fires when Act now rows in the latest run are at least 1, or more than 5 stores lose money",
                                             "more than 5 stores lose money"]
     paused = agent_ns["implement_alert_shown"]("a", ALERT_OUTPUTS, dict(SIX, enabled=False))["schedule"]
     assert paused[-1] == "Its schedule, at 06:00 every day (Asia/Dubai), is paused"
@@ -476,15 +476,15 @@ def test_the_alert_gate_judges_the_alert_a_person_will_see_and_that_is_the_alert
                                                                                                                   reported)
     ask = "Fire on any Act now row"
     _judge(inst, {ask: [{"ask": ask, "check": None, "keep": False, "where": ""}]},
-           [{"status": "done", "evidence": "Fires when Act now rows in the latest run >= 1", "where": "alert"}])
+           [{"status": "done", "evidence": "Fires when Act now rows in the latest run are at least 1", "where": "alert"}])
     context = _output_context(agent_ns, **ALERT, alert_vibes=ask)
     inst._implement_alert(context, _FileRunner([{"exit": 0}], [{"alert_condition.sql": ALERT_SQL.replace("main.inspire.loss_out",
                                                                                                         "main.s.orders")}]))
     [artifact] = gated
-    assert artifact is context["artifacts"]["alert"] and artifact["trigger"] == "Act now rows in the latest run >= 1"
+    assert artifact is context["artifacts"]["alert"] and artifact["trigger"] == "Act now rows in the latest run are at least 1"
     assert artifact["recipients"] == ["owner@example.com"] and artifact["schedule"]
     assert context["round_vibes"]["alert"]["checks"]["alert"] == [
-        {"ask": ask, "status": "done", "evidence": "Fires when Act now rows in the latest run >= 1"}]
+        {"ask": ask, "status": "done", "evidence": "Fires when Act now rows in the latest run are at least 1"}]
 
 
 CHANNEL = "Add a channel filter"

@@ -172,7 +172,7 @@ function makeApp(overrides = {}, { mount } = {}) {
       if (path.includes('/genie/spaces')) return json({}, state.spacesOk ? 200 : 404);
       if (path.startsWith('/api/2.0/lakeview/dashboards/') && path.endsWith('/published')) return json({}, state.dashboardPublished === false ? 404 : 200);
       if (path.startsWith('/api/2.0/lakeview/dashboards/')) return json({ display_name: 'Dashboard', lifecycle_state: 'ACTIVE' });
-      if (path.startsWith('/api/2.0/alerts')) return json({}, state.alertsOk ? 200 : 403);
+      if (path.startsWith('/api/2.0/alerts')) return json(state.alert || {}, state.alertsOk ? 200 : 403);
       if (path.startsWith('/api/2.0/notification-destinations')) {
         const pages = Array.isArray(state.destinations) ? state.destinations : [state.destinations];
         const token = new URL(`https://x${path}`).searchParams.get('page_token');

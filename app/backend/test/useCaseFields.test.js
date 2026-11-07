@@ -134,17 +134,24 @@ test('a field reads its display key, falls back to the tracking-table column whe
   assert.equal(f.isBlankField(false), false);
 });
 
-test('High priority keeps its rc.3 meaning: the most of the High tier labels, the scores of 3 or more, and the top third by score', async () => {
+test('High priority is one rule: Inspire Score of 3 or more out of 5, read from the stored score or computed as the pipeline does', async () => {
   const f = await load();
-  const below = { elite_status: 'FALLBACK_BELOW_BAR' };
+  assert.equal(f.HIGH_PRIORITY_MIN_INSPIRE_SCORE, 3);
+  assert.deepEqual([f.INSPIRE_QUALITY_WEIGHT, f.INSPIRE_PRIORITY_WEIGHT], [0.65, 0.35]);
+  assert.equal(f.inspireScoreOutOfFive({ 'Inspire Score': 7.4 }), 3.7, 'the catalog key');
+  assert.equal(f.inspireScoreOutOfFive({ inspire_score: '6' }), 3, 'the tracking-table column');
+  assert.equal(f.inspireScoreOutOfFive({ 'Quality Score': 4, Priority: 7.5 }), (0.65 * 8 + 0.35 * 7.5) / 2);
+  assert.equal(f.inspireScoreOutOfFive({ quality_score: 9, priority_score: -4 }), 0.65 * 10 / 2, 'both inputs are held to 0-10');
+  assert.equal(f.inspireScoreOutOfFive({ Priority: 'Very High', priority_score: 9 }), null, 'no quality score, no Inspire Score (must-exclude)');
   const list = [
-    { Priority: 'Very High', priority_score: 2, ...below }, { Priority: 'Medium', priority_score: 4.5, ...below },
-    { Priority: 'Low', priority_score: 3.2 }, { Priority: 'Low', priority_score: 1 },
+    { 'Inspire Score': 7 }, { inspire_score: '6' }, { 'Inspire Score': 5.9, priority_score: 9.5 },
+    { Priority: 'Ultra High', Quality: 'Very High' }, { priority_score: 8, value_score: 5, feasibility_score: 5 },
+    { 'Quality Score': 4, Priority: 7.5 }, { 'Quality Score': 2, Priority: 3.5 },
   ];
-  assert.equal(f.computeHighPriorityCount(list), 2, 'scores of 3 or more count even below the bar and below 7 of 10');
-  assert.equal(f.computeHighPriorityCount([{ Priority: 'High' }, { Priority: 'Ultra High' }, { Priority: 'Low' }]), 2, 'tier labels count with no score');
+  assert.equal(f.computeHighPriorityCount(list), 3, 'tier labels, priority alone and the top third no longer count (must-exclude)');
   assert.equal(f.computeHighPriorityCount([]), 0);
-  assert.equal('isHighPriorityUseCase' in f || 'HIGH_PRIORITY_MIN_SCORE' in f, false, 'no 7-of-10 rule (must-exclude)');
+  assert.equal(f.computeHighPriorityCount(null), 0);
+  assert.equal('isHighPriorityUseCase' in f || 'HIGH_PRIORITY_MIN_SCORE' in f, false, 'no second rule');
 });
 
 test('Review shows the Best of Best, High Priority and Avg Inspire score tiles and the Feedback panel even when no use case meets the bar', () => {

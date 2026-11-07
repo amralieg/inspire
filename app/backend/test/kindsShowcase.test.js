@@ -221,6 +221,8 @@ test('the demo plan lines take decisions: Accept, Override with a reason and Tak
 test('the kinds demo answers the App\'s own question, what to do first, for every list, with the first record by name', async () => {
   const { FIRST_QUESTION } = await kinds();
   const lists = Object.entries(bundle().mvps).filter(([, mvp]) => Object.keys(mvp.api).some((k) => k.startsWith('POST /api/records ')));
+  const empty = lists.flatMap(([slug, mvp]) => Object.entries(mvp.api).filter(([k, v]) => k.startsWith('POST /api/records ') && !(v.body?.rows || []).length).map(([k]) => `${slug} ${k}`));
+  assert.deepEqual(empty, [], 'every list in the demo shows its records');
   assert.ok(lists.length >= 3, `${lists.length} lists`);
   for (const [slug, mvp] of lists) {
     const ask = Object.entries(mvp.api).find(([k]) => k.startsWith('POST /api/genie/ask ') && FIRST_QUESTION.test(JSON.parse(k.slice('POST /api/genie/ask '.length)).question || ''));
@@ -229,4 +231,50 @@ test('the kinds demo answers the App\'s own question, what to do first, for ever
     assert.match(said?.[1]?.body?.text || '', /^Start with [^:.]*[A-Za-z]/, slug);
     assert.doesNotMatch(said[1].body.text, /read-only/, slug);
   }
+});
+
+test('every table and list in the kinds demo carries each column its page shows, so no cell reads Not recorded for a missing column (must-exclude)', () => {
+  const missing = [];
+  for (const [slug, mvp] of Object.entries(bundle().mvps)) {
+    const page = mvp.api['GET /api/app'].body.pages[0];
+    for (const [key, answer] of Object.entries(mvp.api)) {
+      if (key.startsWith('POST /api/page ')) {
+        for (const table of page.tables || []) {
+          for (const row of answer.body?.tables?.[table.id]?.rows || []) {
+            for (const { column } of table.columns) if (!(column in row)) missing.push(`${slug} table ${table.id}.${column}`);
+          }
+        }
+      }
+      if (key.startsWith('POST /api/records ') && page.records) {
+        const wanted = [page.records.key, page.records.label, ...(page.records.columns || []).map((c) => c.column)].filter(Boolean);
+        for (const row of answer.body?.rows || []) for (const column of wanted) if (!(column in row)) missing.push(`${slug} list ${column}`);
+      }
+    }
+  }
+  assert.deepEqual([...new Set(missing)], []);
+});
+
+test('the kinds demo tells one story about its counts, schedule and alerts: the high count is the one the pages compute, each job runs on the schedule its MVP states, and each alert has been checked (must-exclude)', async () => {
+  const b = bundle();
+  const { computeHighPriorityCount } = await import('../../frontend/src/lib/useCaseFields.js');
+  const list = useCases(b);
+  for (const key of ['GET /api/inspire/sessions', 'GET /api/inspire/sessions?all=1']) {
+    const rows = b.inspire[key].body.sessions || b.inspire[key].body;
+    const overview = (Array.isArray(rows) ? rows : []).map((row) => row.usecase_overview).find(Boolean);
+    assert.ok(overview, `${key} carries the use case overview`);
+    assert.equal(overview.total, list.length);
+    assert.equal(overview.high, computeHighPriorityCount(list));
+    assert.ok(overview.preview_use_cases.length > 0 && overview.preview_use_cases.every((uc) => uc.Name && !('name' in uc)), 'the preview carries the Name the Start card reads');
+  }
+  const history = b.inspire[`GET /api/inspire/implement/history?session_id=${b.session_id}`].body.history;
+  for (const row of history) {
+    const spec = typeof row.spec_json === 'string' ? JSON.parse(row.spec_json) : row.spec_json;
+    const live = b.inspire[`GET /api/inspire/implement/live?session_id=${b.session_id}&use_case_id=${row.use_case_id}`].body.assets;
+    assert.equal(spec.schedule.enabled, true, `${row.use_case_id} keeps its schedule on`);
+    assert.deepEqual([spec.schedule.cron, spec.schedule.timezone], [live.job.schedule.cron, live.job.schedule.timezone], `${row.use_case_id} states the schedule its job runs on`);
+    assert.equal(live.job.schedule.paused, false);
+    assert.deepEqual([live.alert.ok, live.alert.state, Boolean(live.alert.checked_at), Boolean(live.alert.name)], [true, 'OK', true, true], `${row.use_case_id} alert has been checked`);
+  }
+  const before = { ok: true, name: '', state: '', checked_at: '', trashed: false };
+  assert.notDeepEqual([before.state, Boolean(before.checked_at)], ['OK', true], 'an alert never read reads as not checked');
 });

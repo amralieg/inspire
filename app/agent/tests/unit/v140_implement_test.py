@@ -2672,9 +2672,9 @@ def test_alert_texts_say_why_who_and_what_to_do_first(agent_ns):
     use_case = {"Name": "Predict churn", "Statement": "Customers leave", "Solution": "Score every account weekly and call the riskiest first",
                 "elite_assessment": {"decision": "Call at-risk customers", "decision_owner": "Retention lead", "kpi": "churn rate"}}
     summary, description = agent_ns["implement_alert_texts"](SHELL_ALERTS, "N01-U01", use_case, outputs, "https://h/d")
-    assert summary == "N01-U01 Predict churn: Act now rows in the latest run >= 1"
+    assert summary == "N01-U01 Predict churn: Act now rows in the latest run are at least 1"
     assert description.splitlines() == [
-        "What fired: Act now rows in the latest run >= 1.", "Why this threshold: Act now rows >= 1, the number set in the wizard.",
+        "What fired: Act now rows in the latest run are at least 1.", "Why this threshold: Act now rows are at least 1, the number set in the wizard.",
         "How often it checks: after each run of the job; the job has no schedule, so only when someone runs it.", "What to do first:",
         "1. Open the decision list (https://h/d) and work the Act now rows by rank, top first; each row's recommended action says what to do "
         "with it.",
@@ -2723,7 +2723,7 @@ def test_the_alert_is_paused_and_runs_as_a_job_task_after_the_notebook(agent_ns,
     fields = inst._implement_alert(context, None)
     assert fields["alert_id"] == "al-1" and fields["alert_url"] == "https://h/sql/alerts-v2/al-1"
     assert fields["_asset"] == {"condition_text": "", "condition_sql": "", "check_state": "OK",
-                                "trigger": "Act now rows in the latest run >= 1", "subscribers": 2, "threshold_setting": True}
+                                "trigger": "Act now rows in the latest run are at least 1", "subscribers": 2, "threshold_setting": True}
     [(alert, _q)] = _calls_to(calls, "POST", "/api/2.0/alerts")
     assert alert["schedule"]["pause_status"] == "PAUSED" and alert["evaluation"]["notification"]["subscriptions"] == []
     assert alert["evaluation"]["source"]["name"] == "alert_value" and alert["evaluation"]["comparison_operator"] == "GREATER_THAN_OR_EQUAL"

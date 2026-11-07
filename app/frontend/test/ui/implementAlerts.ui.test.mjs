@@ -107,7 +107,7 @@ test('a person sets up an alert on the tiers to act on, it is created in Databri
     assert.equal(await clears.isChecked(), true, 'one more email when it clears unless the person turns it off');
     await clears.uncheck();
     await form.getByRole('button', { name: 'Set up the alert' }).click();
-    const row = panel.locator('[data-alert-row]').filter({ hasText: 'Records on the list is at or above 5' });
+    const row = panel.locator('[data-alert-row]').filter({ hasText: 'Records on the list is at least 5' });
     await row.waitFor({ timeout: 20000 });
     await row.getByText('Tier: Act now', { exact: true }).waitFor();
     await row.getByText(`Set up by ${OWNER}`, { exact: true }).waitFor();
@@ -128,7 +128,7 @@ test('a person sets up an alert on the tiers to act on, it is created in Databri
     assert.equal(await edit.getByRole('checkbox', { name: 'Email again when it clears' }).isChecked(), false, 'the edit form shows what the person chose');
     await edit.getByLabel('Number', { exact: true }).fill('8');
     await edit.getByRole('button', { name: 'Save the alert' }).click();
-    await panel.locator('[data-alert-row]').filter({ hasText: 'is at or above 8' }).waitFor();
+    await panel.locator('[data-alert-row]').filter({ hasText: 'is at least 8' }).waitFor();
     assert.deepEqual(ws.writes().map((c) => [c.method, c.token]), [['POST', PERSON], ['PATCH', PERSON], ['PATCH', PERSON], ['PATCH', PERSON]]);
     assert.equal(ws.writes().pop().body.evaluation.notification.notify_on_ok, false, 'the edit keeps no email when it clears');
     const changed = panel.locator('[data-alert-row]').first();

@@ -263,7 +263,7 @@ def test_the_alert_prompt_carries_its_vibes_and_vibes_alone_now_reach_genie(agen
     fields = inst._implement_alert(_output_context(agent_ns, **ALERT, alert_vibes=VIBES), runner)
     assert len(runner.prompts) == 1 and block in runner.prompts[0]
     assert ("true when the customer's asks below say the alert should fire; the alert already fires when Act now rows in the latest "
-            "run >= 1, and this query adds to that") in runner.prompts[0]
+            "run are at least 1, and this query adds to that") in runner.prompts[0]
     assert fields["_asset"]["condition_text"] == "" and fields["_asset"]["condition_sql"] == GOOD and fields["_asset"]["vibes"] == VIBES
     [(alert, _q)] = _calls_to(calls, "POST", "/api/2.0/alerts")
     assert f"user_condition AS (\n{GOOD}\n)" in alert["query_text"]
@@ -391,7 +391,7 @@ def test_the_alert_reports_vibes_it_could_not_do_from_its_own_file_and_a_broken_
     built = context["artifacts"]["alert"]
     assert {k: built[k] for k in ("condition_text", "condition_sql")} == {"condition_text": "", "condition_sql": GOOD}
     assert (built["name"], built["trigger"], built["recipients"]) == ("N01-U01 Predict churn",
-                                                                      "Act now rows in the latest run >= 1", ["owner@example.com"])
+                                                                      "Act now rows in the latest run are at least 1", ["owner@example.com"])
     assert built["schedule"][-1].startswith("Runs at ") and "SELECT" not in json.dumps({k: v for k, v in built.items()
                                                                                          if k != "condition_sql"})
 
