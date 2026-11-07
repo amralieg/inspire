@@ -220,14 +220,18 @@ const mdComponents = {
   thead: (props) => <thead className="bg-bg-subtle border-b border-border" {...props} />,
   tbody: (props) => <tbody className="divide-y divide-border" {...props} />,
   tr: (props) => <tr className="hover:bg-bg-subtle/30" {...props} />,
-  th: (props) => (
+  th: ({ children, ...props }) => (
     <th
       className="px-2 py-1.5 text-start font-semibold text-text-primary text-[10px] whitespace-nowrap"
       {...props}
-    />
+    >
+      <bdi>{children}</bdi>
+    </th>
   ),
-  td: (props) => (
-    <td className="px-2 py-1.5 text-text-secondary align-top border-t border-border/50 text-[10px]" {...props} />
+  td: ({ children, ...props }) => (
+    <td className="px-2 py-1.5 text-text-secondary align-top border-t border-border/50 text-[10px]" {...props}>
+      <bdi>{children}</bdi>
+    </td>
   ),
   pre: (props) => (
     <pre

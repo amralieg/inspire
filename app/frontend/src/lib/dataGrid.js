@@ -21,6 +21,15 @@ export function dayOf(value) {
   return DAY_TEXT.test(text) ? text.slice(0, 10) : '';
 }
 
+const NUMBER_FIRST = /^[-+]?(\d{1,3}(,\d{3})+|\d+)(\.\d+)?%?(\s+\D+)?$/;
+
+export function numericColumn(c, rows, kind) {
+  if (kind === 'number') return true;
+  if (kind !== 'text') return false;
+  const seen = (rows || []).map(cellOf(c)).filter(present);
+  return seen.length > 0 && seen.every((v) => NUMBER_FIRST.test(String(v).trim()));
+}
+
 export const columnName = (c) => (typeof c.label === 'string' && c.label ? c.label : String(c.key));
 
 export const cellOf = (c) => c.value || ((row) => row[c.key]);

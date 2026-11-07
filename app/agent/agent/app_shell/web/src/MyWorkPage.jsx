@@ -159,7 +159,7 @@ function Activity({ app, data, onMore, onRecord }) {
                     aria-label={`Open ${a.label || a.key} in ${page?.title || a.page}`}>
                     <td className="nw">{whenText(a.at)}</td>
                     <td className="c-uc">{page ? <UseCaseName page={page} wrap /> : a.page}</td>
-                    <td><div className="it"><b>{a.label || a.key}</b>{a.note && a.kind === 'note' && <small>{a.note}</small>}</div></td>
+                    <td><div className="it"><b><bdi>{a.label || a.key}</bdi></b>{a.note && a.kind === 'note' && <small><bdi>{a.note}</bdi></small>}</div></td>
                     <td>{activityText(a)}</td>
                     <td className="nw c-status">{a.status ? <span className={statusClass(a.status)}>{statusLabel(a.status)}</span> : ''}</td>
                     <td className="ask-c"><RowGenie about={genieOn(app, a.page) ? { pageId: a.page, recordKey: String(a.key), label: a.label || a.key } : null}

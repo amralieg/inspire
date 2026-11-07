@@ -73,7 +73,7 @@ function HarnessContent({ open, discoveryType, step, run }) {
       </ThemeProvider>
     );
   }
-  if (open === 'grid') return <GridHarness wide={step === 'wide'} />;
+  if (open === 'grid') return step === 'bidi' ? <BidiGridHarness /> : <GridHarness wide={step === 'wide'} />;
   if (open === 'header') {
     return (
       <ThemeProvider>
@@ -143,6 +143,29 @@ function GridHarness({ wide }) {
       <DataGrid label="Sample use cases" grid="harness:use_cases" columns={columns} rows={GRID_ROWS} rowKey={(r) => r.id} pageSize={3}
         headClassName="px-2 py-1 text-left text-[11px]" cellClassName="px-2 py-1 text-[12px]" />
       <output aria-label="Picked">{picked}</output>
+    </div>
+  );
+}
+
+const BIDI_ROWS = [
+  { id: 'N01-U01', name: 'توقع تسرب العملاء', units: '1,250 قطعة', score: '4.5', sql: 'SELECT churn FROM main.s.customers WHERE tier = 1' },
+  { id: 'N01-U02', name: 'Score upsell', units: '980 pcs', score: '12.25', sql: 'اختر العملاء ذوي الإنفاق المرتفع' },
+  { id: 'N01-U03', name: 'تقسيم المتسوقين', units: '12,400 قطعة', score: '10', sql: 'SELECT basket FROM main.s.orders LIMIT 10' },
+  { id: 'N02-U01', name: 'Forecast stock', units: '7 pcs', score: '2', sql: 'SELECT units FROM main.s.stock' },
+];
+
+function BidiGridHarness() {
+  const columns = [
+    { key: 'id', label: 'No', fixed: true },
+    { key: 'name', label: 'Use case' },
+    { key: 'units', label: 'Units' },
+    { key: 'score', label: 'Score' },
+    { key: 'sql', label: 'Query' },
+  ];
+  return (
+    <div className="p-6">
+      <DataGrid label="Mixed use cases" grid="harness:bidi" columns={columns} rows={BIDI_ROWS} rowKey={(r) => r.id}
+        headClassName="px-2 py-1 text-start text-[11px]" cellClassName="px-2 py-1 text-start text-[12px]" />
     </div>
   );
 }

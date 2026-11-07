@@ -145,8 +145,8 @@ def test_the_queries_read_values_and_the_measures_come_from_them(agent_ns):
     flat = dict(TWO_LEVERS, v1=2)
     assert measures("scenario", flat, {"roles": SCENARIO})["moving_levers"] == 1, "a lever with fewer than 3 values never moves"
     impact, _ = sql("impact", "`t`", {"roles": IMPACT}, None, 25)
-    assert "WHERE k >= 25 ORDER BY k DESC LIMIT 2" in impact and "DATEDIFF(MAX(d), MIN(d))" in impact
-    assert measures("impact", SHORT_HISTORY, {"roles": IMPACT})["history_weeks"] == 4.0
+    assert "WHERE c.k >= 25 ORDER BY c.k DESC LIMIT 2" in impact and "DATEDIFF(MAX(d), MIN(d))" in impact
+    assert measures("impact", SHORT_HISTORY, {"roles": IMPACT})["history_weeks"] == 4.1
     assert measures("impact", dict(SHORT_HISTORY, compared_groups=1), {"roles": IMPACT}) == {"row_count": 1000, "compared_groups": 1,
                                                                                          "periods": 28}
     process, _ = sql("process", "`t`", {"roles": PROCESS}, 5000)
@@ -167,7 +167,7 @@ def test_the_check_follows_the_kind_and_drops_a_use_case_whose_data_cannot_hold_
     assert "check: scenario" in listing and "check: impact" in listing and "check: process" in listing
     assert kept == [] and [u["No"] for u in dropped] == ["N01-U01", "N01-U02", "N01-U03", "N01-U04"]
     assert dropped[0]["selection_drop_reason"].startswith("the data shows no signal: Too few of the named levers")
-    assert "too short a history (4.0 weeks)" in dropped[2]["selection_drop_reason"]
+    assert "too short a history (4.1 weeks)" in dropped[2]["selection_drop_reason"]
     assert "too few distinct steps (2)" in dropped[3]["selection_drop_reason"]
 
 

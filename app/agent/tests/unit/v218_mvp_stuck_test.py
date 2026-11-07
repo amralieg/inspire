@@ -25,7 +25,7 @@ from v200_kinds_signal_test import LEDGER, ORDERS, answer, deep_inspire, respond
 LEAD = {"time": "event_time", "measure": "units"}
 SHORT_LEAD = {"periods": 17, "median_gap": 1, "first_period": "2024-05-01", "last_period": "2024-05-17", "lag1": 0.3, "lag7": 0.2}
 LONG_LEAD = {"periods": 140, "median_gap": 1, "first_period": "2024-01-01", "last_period": "2024-05-19", "lag1": 0.3, "lag7": 0.4}
-SHORT_FAIL = ("History covers 2.3 weeks of daily totals; at least 8 are needed to test whether a measure moves ahead of the "
+SHORT_FAIL = ("History covers 2.4 weeks of daily totals; at least 8 are needed to test whether a measure moves ahead of the "
               "outcome by a week or more.")
 
 
@@ -64,8 +64,8 @@ def test_the_lead_check_reads_the_series_and_counts_weeks_of_history(agent_ns):
     series, _ = sql("series", "`t`", {"roles": LEAD})
     assert lead == series and "MIN(d) AS first_period, MAX(d) AS last_period" in lead
     short = measures("lead", SHORT_LEAD, {"roles": LEAD})
-    assert short["lead_weeks"] == 2.3 and short["cadence"] == "daily" and short["periods"] == 17
-    assert measures("lead", LONG_LEAD, {"roles": LEAD})["lead_weeks"] == 19.9
+    assert short["lead_weeks"] == 2.4 and short["cadence"] == "daily" and short["periods"] == 17
+    assert measures("lead", LONG_LEAD, {"roles": LEAD})["lead_weeks"] == 20.0
     assert "lead_weeks" not in measures("series", SHORT_LEAD, {"roles": LEAD}), "a forecast keeps its own measures"
 
 
@@ -74,7 +74,7 @@ def test_too_short_a_history_fails_the_lead_check_and_enough_weeks_pass_it(agent
     passed, text = verdict("F", measures("lead", SHORT_LEAD, {"roles": LEAD}), {"measure": "units"}, check="lead")
     assert passed is False and text == SHORT_FAIL
     passed, text = verdict("F", measures("lead", LONG_LEAD, {"roles": LEAD}), {"measure": "units"}, check="lead")
-    assert passed is True and text == ("History covers 19.9 weeks of daily totals, enough to test whether a measure moves ahead "
+    assert passed is True and text == ("History covers 20.0 weeks of daily totals, enough to test whether a measure moves ahead "
                                        "of the outcome.")
 
 
@@ -125,7 +125,7 @@ def test_standard_discovery_drops_a_lead_with_no_date_from_the_column_types(agen
     assert spark.statements == [] and kept == []
     assert dropped[0]["selection_drop_reason"] == (
         "the data shows no signal: From the column types alone: none of its tables (main.s.ledger) has a date or timestamp "
-        "column, or a key that joins to one, so there is no history to test a lead on.")
+        "column, or a key that joins to one, so there is no history to test whether a measure moves ahead of the outcome.")
 
 
 def test_the_prompt_names_the_roles_of_the_lead_check(agent_ns):

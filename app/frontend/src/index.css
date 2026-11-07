@@ -125,9 +125,22 @@ body {
 }
 
 @layer base {
-  :where(p, li, dt, dd, h1, h2, h3, h4, h5, h6, td, th, caption, figcaption, blockquote, summary, legend, textarea) {
+  :where(p, li, dt, dd, h1, h2, h3, h4, h5, h6, caption, figcaption, blockquote, summary, legend, textarea) {
     unicode-bidi: plaintext;
     overflow-wrap: break-word;
+  }
+  :where(td, th) {
+    unicode-bidi: isolate;
+    overflow-wrap: break-word;
+  }
+  :where(td[data-num], th[data-num]) {
+    unicode-bidi: isolate;
+    direction: ltr;
+    font-variant-numeric: tabular-nums;
+  }
+  :where(code, pre, kbd, samp) {
+    unicode-bidi: isolate;
+    direction: ltr;
   }
 }
 
