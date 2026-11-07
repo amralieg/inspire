@@ -89,7 +89,7 @@ test('with the strategy left alone the launch sends no strategy, and a level nam
     await until(async () => !(await start.isDisabled()), 'Get Started opens with a clean strategy');
     await section.getByLabel('Level 2 name').fill('pillar');
     assert.match(await section.innerText(), /The level name "pillar" is used twice/);
-    assert.equal(await start.isDisabled(), true, 'nothing can be launched with a broken strategy');
+    await until(() => start.isDisabled(), 'nothing can be launched with a broken strategy');
     assert.match(await section.getByRole('button', { name: /Strategy \(optional\)/ }).innerText(), /1 problem/);
     await page.waitForTimeout(1500);
     assert.equal(await start.isDisabled(), true, 'it stays closed while the problem is there');

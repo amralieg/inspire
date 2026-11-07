@@ -48,7 +48,7 @@ import { formatWhen } from '../lib/formatWhen';
 import { sessionFailed, sessionFinished } from '../lib/monitorState';
 import { responseError } from '../lib/apiClient';
 import { placeholderWords } from '../lib/placeholderWords';
-import { nameOfUseCase } from '../lib/useCaseFields';
+import { inspireScoreFromUc, nameOfUseCase } from '../lib/useCaseFields';
 import { counted } from '../lib/plural';
 import { catalogListNote, typedCatalog } from '../lib/catalogList';
 import { DISCOVERY_AI_ENHANCED, DISCOVERY_MODE_TEXT, DISCOVERY_RECOMMENDED, DISCOVERY_STANDARD, DISCOVERY_TYPE_DEFAULT, discoveryTypeOf } from '../lib/discoveryType';
@@ -111,53 +111,6 @@ const BUSINESS_PRIORITIES = [
   { key: 'Protect Revenue', icon: Lock },
   { key: 'Execute Strategy', icon: Crosshair },
 ];
-
-function isNumericPriorityString(str) {
-  if (str == null) return false;
-  const x = String(str).trim();
-  return x !== '' && /^\d+(\.\d+)?$/.test(x);
-}
-
-function parseLooseScore(v) {
-  if (v == null || v === '') return null;
-  if (typeof v === 'number') return Number.isFinite(v) ? v : null;
-  const s = String(v).trim();
-  const m = s.match(/(\d+\.?\d*)/);
-  if (!m) return null;
-  const x = Number(m[1]);
-  return Number.isFinite(x) ? x : null;
-}
-
-/** Same scoring rules as Results use case cards (for preview badges). */
-function inspireScoreFromUc(uc) {
-  if (!uc || typeof uc !== 'object') return null;
-  const bob = Number(uc.bob_score ?? uc['BoB Score']);
-  if (Number.isFinite(bob)) return bob;
-  const num = (v) => {
-    const x = Number(v);
-    return Number.isFinite(x) ? x : null;
-  };
-  let s = num(uc.priority_score ?? uc.Priority_Score ?? uc.priorityScore);
-  const vs = num(uc.value_score ?? uc.Value_Score);
-  const fs = num(uc.feasibility_score ?? uc.Feasibility_Score);
-  if (s == null && vs != null && fs != null) s = (vs + fs) / 2;
-  else if (s == null && vs != null) s = vs;
-  else if (s == null && fs != null) s = fs;
-  const pr = String(uc.Priority ?? uc.priority ?? '').trim();
-  if (s == null && isNumericPriorityString(pr)) s = num(pr);
-  if (s == null) {
-    const pv = parseLooseScore(uc._value);
-    const pf = parseLooseScore(uc._feasibility);
-    if (pv != null && pf != null) s = (pv + pf) / 2;
-    else if (pv != null) s = pv;
-    else if (pf != null) s = pf;
-  }
-  if (s == null) {
-    const sa = num(uc.strategic_alignment);
-    if (sa != null) s = sa;
-  }
-  return s;
-}
 
 function flattenPreviewFromResults(results) {
   const out = [];

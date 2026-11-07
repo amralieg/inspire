@@ -284,9 +284,9 @@ def test_people_create_list_edit_pause_and_delete_their_own_alerts_as_the_servic
     assert meta == {"v": 1, "kind": "watch", "page": "n01_u05", "by": PERSON, "name": "Category A grows", "watch": dict(WATCH, threshold=2.0),
                     "schedule": "daily", "token": meta["token"], "notify_on_ok": True}
     assert body["display_name"] == f"Category A grows ({meta['token']})"
-    assert body["custom_summary"] == "Category A grows: Records on the list is at least 2"
+    assert body["custom_summary"] == "Category A grows: Records on the list are at least 2"
     assert body["custom_description"].splitlines() == [
-        "What fired: Records on the list on Desk n01_u05 is at least 2, counting only Category: A.",
+        "What fired: Records on the list on Desk n01_u05 are at least 2, counting only Category: A.",
         f"Why this threshold: 2 is the number {PERSON} set for this alert in the App.", "How often it checks: every day at 08:00 UTC.",
         "What to do first:", "1. Open the decision list (https://loss-desk-1.example.com/?open=n01_u05) and work its rows by rank, top "
         "first; each row's recommended action says what to do with it.", "Where to look:", "App: https://loss-desk-1.example.com/?open=n01_u05",
@@ -567,3 +567,17 @@ def test_a_build_time_alert_the_api_reports_deleted_is_made_again_without_patchi
     inst, calls, _q = _alert_inspire(agent_ns, tmp_path, {("PATCH", "/api/2.0/alerts/al-1"): trashed, ("POST", "/api/2.0/alerts"): {"id": "al-3"}})
     assert inst._implement_alert(dict(_output_context(agent_ns, **ALERT), assets={"alert": "al-1"}), None)["alert_id"] == "al-3"
     assert agent_ns["implement_alert_gone"]({"lifecycle_state": "trashed"}) and not agent_ns["implement_alert_gone"]({})
+
+
+def test_an_alert_rule_on_a_count_of_rows_says_are_and_an_amount_says_is_must_exclude():
+    page = copy.deepcopy(PAGE)
+    page["kpis"] = page["kpis"] + [{"id": "act_now", "label": "Act now rows", "dataset": page["kpis"][0]["dataset"], "expression": "COUNT_IF(priority_tier = 'Act now')"}]
+    rule = lambda what, operator=">=", basis="fixed": shell_alerts.rule_text(page, {"what": what, "operator": operator, "threshold": "5", "basis": basis})
+    assert rule("act_now") == "Act now rows are at least 5"
+    assert rule("records", ">") == "Records on the list are more than 5"
+    assert rule("total_loss", "<") == "Loss to discounts is less than 5"
+    assert rule("loss_rate", "<=") == "Loss rate is at most 5"
+    assert rule("records", ">", "baseline").startswith("Records on the list rise above the usual range")
+    assert rule("total_loss", "<", "baseline").startswith("Loss to discounts falls below the usual range")
+    listing = shell_alerts.page_listing(page, [], PERSON, False, "", "", 0, shell_alerts.measure_list(page, ["x"]))
+    assert listing["operator_words"][">="] == "is at least"

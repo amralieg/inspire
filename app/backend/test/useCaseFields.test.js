@@ -31,16 +31,18 @@ test('a notebook file name finds its use case by stored path or id prefix, never
   assert.equal(f.findUcForNotebookFilename('N01-U01.ipynb', []), null);
 });
 
-test('scores read the first finite field and the Inspire score falls back through value and feasibility', async () => {
+test('scores read the first finite field, and the Inspire score is the pipeline score, never the priority score', async () => {
   const f = await load();
   assert.equal(f.scoreOf({ a: '', b: 'x', c: '3.5' }, 'a', 'b', 'c'), 3.5);
   assert.equal(f.scoreOf({ a: null }, 'a'), null);
   assert.equal(f.scoreOf(null, 'a'), null);
-  assert.equal(f.inspireScoreFromUc({ priority_score: '4.2', value_score: '1' }), 4.2);
-  assert.equal(f.inspireScoreFromUc({ value_score: '4', feasibility_score: '2' }), 3);
-  assert.equal(f.inspireScoreFromUc({ Priority: '3.5' }), 3.5);
-  assert.equal(f.inspireScoreFromUc({ Priority: 'High' }), null);
-  assert.equal(f.inspireScoreFromUc(null), null);
+  assert.equal(f.inspireScoreFromUc({ 'Inspire Score': 7.4, priority_score: 9.6 }), 7.4, 'the stored score wins over the priority score');
+  assert.equal(f.inspireScoreFromUc({ inspire_score: '6', Priority: 10 }), 6);
+  assert.equal(f.inspireScoreFromUc({ 'Quality Score': 4, Priority: 7.5 }), 0.65 * 8 + 0.35 * 7.5);
+  assert.equal(f.inspireScoreFromUc({ quality_score: 9, priority_score: -4 }), 6.5, 'both inputs are held to 0-10');
+  for (const uc of [{ priority_score: '4.2', value_score: '1' }, { value_score: '4', feasibility_score: '2' }, { Priority: '3.5' }, { strategic_alignment: 4 }, { Priority: 'High' }, null]) {
+    assert.equal(f.inspireScoreFromUc(uc), null, `${JSON.stringify(uc)} has no Inspire Score (must-exclude)`);
+  }
 });
 
 test('the subtitle is the description or short name, never a repeat of the title', async () => {
@@ -138,11 +140,7 @@ test('High priority is one rule: Inspire Score of 3 or more out of 5, read from 
   const f = await load();
   assert.equal(f.HIGH_PRIORITY_MIN_INSPIRE_SCORE, 3);
   assert.deepEqual([f.INSPIRE_QUALITY_WEIGHT, f.INSPIRE_PRIORITY_WEIGHT], [0.65, 0.35]);
-  assert.equal(f.inspireScoreOutOfFive({ 'Inspire Score': 7.4 }), 3.7, 'the catalog key');
-  assert.equal(f.inspireScoreOutOfFive({ inspire_score: '6' }), 3, 'the tracking-table column');
-  assert.equal(f.inspireScoreOutOfFive({ 'Quality Score': 4, Priority: 7.5 }), (0.65 * 8 + 0.35 * 7.5) / 2);
-  assert.equal(f.inspireScoreOutOfFive({ quality_score: 9, priority_score: -4 }), 0.65 * 10 / 2, 'both inputs are held to 0-10');
-  assert.equal(f.inspireScoreOutOfFive({ Priority: 'Very High', priority_score: 9 }), null, 'no quality score, no Inspire Score (must-exclude)');
+  assert.equal('inspireScoreOutOfFive' in f, false, 'one Inspire Score helper');
   const list = [
     { 'Inspire Score': 7 }, { inspire_score: '6' }, { 'Inspire Score': 5.9, priority_score: 9.5 },
     { Priority: 'Ultra High', Quality: 'Very High' }, { priority_score: 8, value_score: 5, feasibility_score: 5 },

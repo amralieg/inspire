@@ -30,6 +30,8 @@ const DOMAINS = {
 };
 
 const curve = (start, step, wiggle = 0) => MONTHS.map((m, i) => [m, Math.round(start + i * step + (i % 3 === 1 ? wiggle : 0))]);
+const endingAt = (before, now, step, wiggle = 0) => MONTHS.map((m, i) => [m, i === MONTHS.length - 1 ? now : i === MONTHS.length - 2 ? before
+  : Math.round(before - (MONTHS.length - 2 - i) * step + (i % 3 === 1 ? wiggle : 0))]);
 const DAYS = Array.from({ length: 30 }, (_, i) => new Date(Date.UTC(2026, 9, 4 + i)).toISOString().slice(0, 10));
 const band = (expected, spikes) => DAYS.map((x, i) => {
   const mean = expected - (i % 7 >= 5 ? 4000 : 0);
@@ -53,7 +55,7 @@ const DRAFTS = [
     mvp: {
       kpi_direction: 'decrease',
       kpis: [['Value at stake', 'currency', 3100000, 2800000], ['Buyers likely to lapse', 'percent', 4.6, 4.1], ['Buyers on the call list', 'integer', 1240, 1180]],
-      trend: ['Value at stake by month', 'Value at stake', curve(2400000, 60000, 40000)],
+      trend: ['Value at stake by month', 'Value at stake', endingAt(2800000, 3100000, 40000, 30000)],
       byCategory: ['Where the lapse value sits', 'Value at stake', [['Outerwear', 820000], ['Footwear', 640000], ['Kids', 520000], ['Camping', 430000], ['Bags', 380000], ['Home', 310000]]],
       mix: ['Lapse value by channel over time', ['Store', 'Web', 'App']],
       pareto: 'How concentrated the lapse value is',
@@ -87,7 +89,7 @@ const DRAFTS = [
     mvp: {
       kpi_direction: 'decrease',
       kpis: [['Cash at risk past 90 days', 'currency', 1900000, 1700000], ['Invoices likely to slip', 'percent', 7.4, 6.9], ['Overdue invoices', 'integer', 860, 812]],
-      trend: ['Cash at risk by month', 'Cash at risk', curve(1300000, 50000, 30000)],
+      trend: ['Cash at risk by month', 'Cash at risk', endingAt(1700000, 1900000, 35000, 20000)],
       byCategory: ['Where the cash at risk sits', 'Cash at risk', [['Wholesale', 640000], ['Franchise', 520000], ['Marketplace', 380000], ['Corporate', 240000], ['Other', 120000]]],
       mix: ['Cash at risk by terms over time', ['30 days', '60 days', '90 days']],
       pareto: 'How concentrated the cash at risk is',
@@ -488,8 +490,7 @@ const DRAFTS = [
     mvp: {
       kpi: 'Margin this month',
       labels: { revenue: 'Margin this month', prior: 'Margin last month', growth: 'Change on last month' },
-      kpis: { revenue: [4200000, 4600000], prior: [4600000], growth: [-8.7] },
-      trend: ['Margin by month', curve(4500000, -8000, 60000), curve(4300000, -2000, 40000)],
+      trend: ['Margin by month', endingAt(4600000, 4200000, -10000, 50000), endingAt(4480000, 4260000, -5000, 40000)],
       byRegion: [['North', 1050000, 1220000], ['East', 1100000, 1180000], ['South', 1000000, 1060000], ['West', 1050000, 1140000]],
       filters: { region: ['Region', ['North', 'South', 'East', 'West']], segment: ['Category', ['Footwear', 'Outerwear', 'Camping', 'Apparel']], channel: ['Driver', ['Volume', 'Price', 'Mix', 'Cost']] },
       rows: [
@@ -593,14 +594,14 @@ function decisionRows(u) {
 function decisionData(u, picked) {
   const m = u.mvp;
   const cats = m.byCategory[2].filter(([c]) => !picked?.category?.length || picked.category.includes(c));
-  const scale = cats.length / m.byCategory[2].length || 0;
   const series = m.mix[1];
   const total = cats.reduce((s, [, v]) => s + v, 0);
+  const scale = total / m.byCategory[2].reduce((s, [, v]) => s + v, 0) || 0;
   const [k1, k2, k3] = m.kpis;
   return {
-    kpis: { total_loss: { now: k1[2] * scale, before: k1[3] * scale }, loss_rate: { now: k2[2], before: k2[3] }, items: { now: Math.round(k3[2] * scale), before: Math.round(k3[3] * scale) } },
+    kpis: { total_loss: { now: total, before: Math.round(k1[3] * scale) }, loss_rate: { now: k2[2], before: k2[3] }, items: { now: Math.round(k3[2] * scale), before: Math.round(k3[3] * scale) } },
     charts: {
-      loss_trend: { columns: [], rows: m.trend[2].map(([x, y]) => ({ x, y0: y * scale })), truncated: false },
+      loss_trend: { columns: [], rows: m.trend[2].map(([x, y]) => ({ x, y0: Math.round(y * scale) })), truncated: false },
       by_category: { columns: [], rows: cats.map(([x, y0]) => ({ x, y0 })), truncated: false },
       channel_mix: { columns: [], rows: m.trend[2].flatMap(([x, y], i) => series.map((s, j) => ({ x, s, y0: Math.round((y * scale * (series.length - j + (i % 2))) / (series.length * 2)) }))), truncated: false },
       pareto: { columns: [], rows: cats.map(([x, y0]) => ({ x, y0, total })), truncated: false },
@@ -633,8 +634,9 @@ function forecastData(u) {
   const weeks = WEEKS(20);
   const fan = weeks.map((x, i) => (i < 12 ? { x, y0: 8600 + i * 120 + (i % 4 === 3 ? 700 : 0), y1: null, y2: null, y3: null }
     : { x, y0: null, y1: 10100 + (i - 12) * 260, y2: 9400 + (i - 12) * 220, y3: 10800 + (i - 12) * 300 }));
+  const total = (y) => fan.reduce((s, r) => s + (r[y] || 0), 0);
   return {
-    kpis: { next_forecast: { now: 84300 }, last_actual: { now: 116400 }, at_risk_n: { now: 14 }, orders_open: { now: u.mvp.orders.length } },
+    kpis: { next_forecast: { now: total('y1') }, last_actual: { now: total('y0') }, at_risk_n: { now: 14 }, orders_open: { now: u.mvp.orders.length } },
     charts: {
       fan: { columns: [], rows: fan, truncated: false },
       vs_capacity: { columns: [], rows: weeks.slice(12).map((x, i) => ({ x, y0: 10100 + i * 260, y1: 10800 + i * 300, y2: 11900 })), truncated: false },
@@ -963,9 +965,19 @@ function kept(rows, picked) {
   return { found, scale: rows.length ? found.length / rows.length : 0 };
 }
 const kpiData = (kpis, scale, scaled) => Object.fromEntries(Object.entries(kpis).map(([id, [now, before]]) => {
-  const s = scaled.includes(id) ? scale : 1;
-  return [id, before === undefined ? { now: now * s } : { now: now * s, before: before * s }];
+  const s = (v) => (scaled.includes(id) ? Math.round(v * scale) : v);
+  return [id, before === undefined ? { now: s(now) } : { now: s(now), before: s(before) }];
 }));
+const apportion = (values, total) => {
+  const whole = values.map(Math.floor);
+  let left = total - whole.reduce((s, v) => s + v, 0);
+  for (const [, i] of values.map((v, i) => [v - whole[i], i]).sort((a, b) => b[0] - a[0] || a[1] - b[1])) {
+    if (left <= 0) break;
+    whole[i] += 1;
+    left -= 1;
+  }
+  return whole;
+};
 const queueRow = (i, version, label, fields, action, reasons) => ({
   record_key: `K${i + 1}`, _inspire_key: `K${i + 1}`, _inspire_version: String(version + i), entity_id: label, entity_label: label, ...fields,
   priority_tier: TIERS[Math.min(2, Math.floor(i / 2))], rank: i + 1, recommended_action: action, top_reasons: reasons, as_of_date: AS_OF,
@@ -994,12 +1006,16 @@ const monitorRows = (u) => u.mvp.rows.map(([label, exception_rule, value, age_da
 function monitorData(u, picked) {
   const m = u.mvp;
   const { scale } = kept(monitorRows(u), picked);
+  const kpis = kpiData(m.kpis, scale, ['open_n', 'exposure', 'old_n']);
+  const rules = apportion(m.rules.map(([, n]) => n * scale), kpis.open_n.now);
+  const ageCounts = apportion(m.ages.map(([, n]) => n * scale), kpis.open_n.now);
+  const ageValues = apportion(m.ages.map(([, , v]) => v * scale), kpis.exposure.now);
   return {
-    kpis: kpiData(m.kpis, scale, ['open_n', 'exposure', 'old_n']),
+    kpis,
     charts: {
       signal: { columns: [], rows: m.signal.map(([x, ...ys]) => ({ x, ...Object.fromEntries(ys.map((y, i) => [`y${i}`, Math.round(y * scale)])) })), truncated: false },
-      by_rule: { columns: [], rows: m.rules.map(([x, y0]) => ({ x, y0: Math.round(y0 * scale) })), truncated: false },
-      by_age: { columns: [], rows: m.ages.map(([x, y0, y1]) => ({ x, y0: Math.round(y0 * scale), y1: Math.round(y1 * scale) })), truncated: false },
+      by_rule: { columns: [], rows: m.rules.map(([x], i) => ({ x, y0: rules[i] })), truncated: false },
+      by_age: { columns: [], rows: m.ages.map(([x], i) => ({ x, y0: ageCounts[i], y1: ageValues[i] })), truncated: false },
     },
     tables: {},
     errors: {},
@@ -1035,14 +1051,18 @@ const explainerRows = (u) => u.mvp.rows.map(([label, segment, variance, plan, ac
 function explainerData(u, picked) {
   const m = u.mvp;
   const { found, scale } = kept(explainerRows(u), picked);
-  const [, [start, from], steps, [end, to]] = m.walk;
-  const walk = [[start, from * scale], ...steps.map(([x, v]) => [x, v * scale]), [end, to * scale]];
+  const [, [start], raw, [end]] = m.walk;
+  const kpis = kpiData(m.kpis, scale, ['actual', 'plan', 'variance']);
+  kpis.variance.now = kpis.actual.now - kpis.plan.now;
+  const moved = apportion(raw.map(([, v]) => v * scale), kpis.variance.now);
+  const steps = raw.map(([x], i) => [x, moved[i]]);
+  const walk = [[start, kpis.plan.now], ...steps, [end, kpis.actual.now]];
   return {
-    kpis: { ...kpiData(m.kpis, scale, ['actual', 'plan', 'variance']), outside_n: { now: found.length, before: m.kpis.outside_n[1] } },
+    kpis: { ...kpis, outside_n: { now: found.length, before: m.kpis.outside_n[1] } },
     charts: {
-      walk: { columns: [], rows: walk.map(([x, y0]) => ({ x, y0: Math.round(y0) })), truncated: false },
+      walk: { columns: [], rows: walk.map(([x, y0]) => ({ x, y0 })), truncated: false },
       vs_peers: { columns: [], rows: found.map((r) => ({ x_label: r.entity_label, x: r.plan, y0: r.actual })), truncated: false },
-      drivers: { columns: [], rows: [...steps].sort((a, b) => Math.abs(b[1]) - Math.abs(a[1])).map(([x, v]) => ({ x, y0: Math.round(Math.min(v, 0) * scale), y1: Math.round(Math.max(v, 0) * scale) })), truncated: false },
+      drivers: { columns: [], rows: [...steps].sort((a, b) => Math.abs(b[1]) - Math.abs(a[1])).map(([x, v]) => ({ x, y0: Math.min(v, 0), y1: Math.max(v, 0) })), truncated: false },
     },
     tables: {
       peer_gaps: { columns: [], rows: found.map((r) => ({ unit_label: r.entity_label, peer_group: r.segment, metric: r.channel, peer_median: r.plan, gap: r.variance })), truncated: false },
@@ -1076,12 +1096,18 @@ const dashboardLines = (u) => u.mvp.rows.map(([entity_label, region, segment, ch
 
 function dashboardData(u, picked) {
   const m = u.mvp;
-  const { found, scale } = kept(dashboardLines(u), picked);
-  const regions = m.byRegion.filter(([x]) => !picked?.region?.length || picked.region.includes(x));
+  const { found } = kept(dashboardLines(u), picked);
+  const { scale } = kept(dashboardLines(u), { ...picked, region: [] });
+  const regions = m.byRegion.filter(([x]) => !picked?.region?.length || picked.region.includes(x)).map(([x, y0, y1]) => [x, Math.round(y0 * scale), Math.round(y1 * scale)]);
+  const now = regions.reduce((s, [, y0]) => s + y0, 0);
+  const prior = regions.reduce((s, [, , y1]) => s + y1, 0);
+  const share = prior / m.byRegion.reduce((s, [, , y1]) => s + y1, 0) || 0;
+  const last = m.trend[1].length - 1;
   return {
-    kpis: { revenue: { now: m.kpis.revenue[0] * scale, before: m.kpis.revenue[1] * scale }, prior: { now: m.kpis.prior[0] * scale }, growth: { now: m.kpis.growth[0] } },
+    kpis: { revenue: { now, before: prior }, prior: { now: prior }, growth: { now: prior ? Math.round(1000 * (now / prior - 1)) / 10 : null } },
     charts: {
-      trend: { columns: [], rows: m.trend[1].map(([x, y0], i) => ({ x, y0: Math.round(y0 * scale), y1: Math.round(m.trend[2][i][1] * scale) })), truncated: false },
+      trend: { columns: [], rows: m.trend[1].map(([x, y0], i) => ({ x, y0: i === last ? now : i === last - 1 ? prior : Math.round(y0 * share), y1: Math.round(m.trend[2][i][1] * share) })),
+        truncated: false },
       movers: { columns: [], rows: found.map(({ entity_label: x, change: y0 }) => ({ x, y0 })), truncated: false },
       by_region: { columns: [], rows: regions.map(([x, y0, y1]) => ({ x, y0, y1 })), truncated: false },
     },

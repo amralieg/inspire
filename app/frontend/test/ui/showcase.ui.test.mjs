@@ -45,7 +45,7 @@ const DEMO_ALERTS = {
   on: true, reason: '', built: '', unread: 0, caps: { used: 1, app: 20, mine: 1, person: 10 }, schedules: [{ id: 'daily', label: 'every day' }],
   operators: [{ id: '>=', label: 'is at least' }], baseline_operators: [], operator_words: {}, measures: [{ id: 'act_now', label: 'Act now rows' }],
   admin: false, filters: [], built_alert: null, person: 'owner@example.com', can_add: true, why: '',
-  alerts: [{ id: 'w1', name: 'Act now over 5', state: 'ok', kind: 'watch', rule: 'Act now rows is at least 5', scope: '', schedule: 'daily',
+  alerts: [{ id: 'w1', name: 'Act now over 5', state: 'ok', kind: 'watch', rule: 'Act now rows are at least 5', scope: '', schedule: 'daily',
     checked: '2026-10-31T09:00:00Z', email_count: 1, notify_on_ok: true, by: 'owner@example.com', can_change: true, url: '' }],
 };
 const STATE = {

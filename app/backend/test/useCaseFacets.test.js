@@ -15,7 +15,7 @@ test('a use case row carries the fields the drawer and the wizard header show', 
   const statusOf = (_uc, id) => (id === 'N01-U02' ? { label: 'MVP ready' } : null);
   const churn = f.catalogRow(withView(f, {
     id: 'N01-U01', Name: 'Predict churn', _domain: 'Customer', Subdomain: 'Retention', Priority: 'Very High', Quality: 'High',
-    'Analytics Technique': 'Classification', priority_score: '4.5', value_score: '4', feasibility_score: '5',
+    'Analytics Technique': 'Classification', priority_score: '4.5', inspire_score: '7.8', value_score: '4', feasibility_score: '5',
     has_genie_code: 'Y', best_of_best: 'Y', best_of_best_rank: '1', use_case_key: 'k1',
   }), 0, { statusOf, feedbackLatest: { k1: { status: 'Accepted' } } });
   const upsell = f.catalogRow(withView(f, { id: 'N01-U02', Name: 'Score upsell', Priority: '3.2', genie_instruction: 'draft' }), 1, { statusOf });
@@ -24,7 +24,8 @@ test('a use case row carries the fields the drawer and the wizard header show', 
     [churn.key, churn.id, churn.title, churn.domain, churn.subdomain, churn.technique, churn.quality, churn.priority],
     ['N01-U01#0', 'N01-U01', 'Predict churn', 'Customer', 'Retention', 'Classification', 'High', 'Very High'],
   );
-  assert.equal(churn.inspire, 4.5);
+  assert.equal(churn.inspire, 7.8, 'the Inspire Score, not the priority score of 4.5');
+  assert.equal(upsell.inspire, null, 'a priority alone is no Inspire Score (must-exclude)');
   assert.equal(churn.value, 4);
   assert.equal(churn.feasibility, 5);
   assert.ok(churn.bob);

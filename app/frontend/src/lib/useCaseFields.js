@@ -16,42 +16,20 @@ export function isNumericPriorityString(str) {
   return x !== '' && /^\d+(\.\d+)?$/.test(x);
 }
 
-function parseLooseScore(v) {
-  if (v == null || v === '') return null;
-  if (typeof v === 'number') return Number.isFinite(v) ? v : null;
-  const s = String(v).trim();
-  const m = s.match(/(\d+\.?\d*)/);
-  if (!m) return null;
-  const x = Number(m[1]);
-  return Number.isFinite(x) ? x : null;
-}
+export const INSPIRE_QUALITY_WEIGHT = 0.65;
+export const INSPIRE_PRIORITY_WEIGHT = 0.35;
+export const HIGH_PRIORITY_MIN_INSPIRE_SCORE = 3;
+
+const toTen = (x) => Math.min(10, Math.max(0, x));
 
 export function inspireScoreFromUc(uc) {
   if (!uc || typeof uc !== 'object') return null;
-  const num = (v) => {
-    const x = Number(v);
-    return Number.isFinite(x) ? x : null;
-  };
-  let s = num(uc.priority_score ?? uc.Priority_Score ?? uc.priorityScore);
-  const vs = num(uc.value_score ?? uc.Value_Score);
-  const fs = num(uc.feasibility_score ?? uc.Feasibility_Score);
-  if (s == null && vs != null && fs != null) s = (vs + fs) / 2;
-  else if (s == null && vs != null) s = vs;
-  else if (s == null && fs != null) s = fs;
-  const pr = String(uc.Priority ?? uc.priority ?? '').trim();
-  if (s == null && isNumericPriorityString(pr)) s = num(pr);
-  if (s == null) {
-    const pv = parseLooseScore(uc._value);
-    const pf = parseLooseScore(uc._feasibility);
-    if (pv != null && pf != null) s = (pv + pf) / 2;
-    else if (pv != null) s = pv;
-    else if (pf != null) s = pf;
-  }
-  if (s == null) {
-    const sa = num(uc.strategic_alignment);
-    if (sa != null) s = sa;
-  }
-  return s;
+  const stored = scoreOf(uc, 'inspire_score', 'Inspire Score');
+  if (stored != null) return stored;
+  const quality = scoreOf(uc, 'quality_score', 'Quality Score');
+  const priority = scoreOf(uc, 'priority_score', 'Priority Score', 'Priority');
+  if (quality == null || priority == null) return null;
+  return INSPIRE_QUALITY_WEIGHT * toTen(quality * 2) + INSPIRE_PRIORITY_WEIGHT * toTen(priority);
 }
 
 export function scoreOf(uc, ...fields) {
@@ -219,24 +197,9 @@ export function belowBarLabelFromUseCase(uc) {
   return '';
 }
 
-export const INSPIRE_QUALITY_WEIGHT = 0.65;
-export const INSPIRE_PRIORITY_WEIGHT = 0.35;
-export const HIGH_PRIORITY_MIN_INSPIRE_SCORE = 3;
-
-const toTen = (x) => Math.min(10, Math.max(0, x));
-
-export function inspireScoreOutOfFive(uc) {
-  const stored = scoreOf(uc, 'inspire_score', 'Inspire Score');
-  if (stored != null) return stored / 2;
-  const quality = scoreOf(uc, 'quality_score', 'Quality Score');
-  const priority = scoreOf(uc, 'priority_score', 'Priority Score', 'Priority');
-  if (quality == null || priority == null) return null;
-  return (INSPIRE_QUALITY_WEIGHT * toTen(quality * 2) + INSPIRE_PRIORITY_WEIGHT * toTen(priority)) / 2;
-}
-
 export function computeHighPriorityCount(list) {
   if (!Array.isArray(list)) return 0;
-  return list.filter((uc) => (inspireScoreOutOfFive(uc) ?? 0) >= HIGH_PRIORITY_MIN_INSPIRE_SCORE).length;
+  return list.filter((uc) => (inspireScoreFromUc(uc) ?? 0) / 2 >= HIGH_PRIORITY_MIN_INSPIRE_SCORE).length;
 }
 
 export function useCaseCountsText({ total, high, meets } = {}) {

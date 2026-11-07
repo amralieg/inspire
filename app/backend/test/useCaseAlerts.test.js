@@ -104,7 +104,7 @@ test('Add alert on a use case with no App plans the alert with the App shell rul
     const out = await send(base, 'save', newAlert());
     assert.equal(out.status, 200, JSON.stringify(out.data));
     assert.deepEqual([out.data.alert.by, out.data.alert.rule, out.data.alert.scope, out.data.alert.can_change, out.data.alert.emails],
-      [OWNER, 'Records on the list is at least 5', 'Tier: Act now', true, [OWNER, SAM]]);
+      [OWNER, 'Records on the list are at least 5', 'Tier: Act now', true, [OWNER, SAM]]);
     const mkdirs = ws.calls.findIndex((c) => c.path === '/api/2.0/workspace/mkdirs');
     const posted = ws.calls.findIndex((c) => c.method === 'POST' && c.path === '/api/2.0/alerts');
     assert.ok(mkdirs >= 0 && mkdirs < posted && ws.calls[mkdirs].token === SP && ws.calls[mkdirs].body.path === FOLDER);
@@ -113,13 +113,13 @@ test('Add alert on a use case with no App plans the alert with the App shell rul
     assert.equal(ws.alerts[out.data.alert.id].owner_user_name, OWNER);
     assert.deepEqual([body.parent_path, body.warehouse_id, body.evaluation.comparison_operator, body.evaluation.threshold],
       [FOLDER, 'wh1', 'GREATER_THAN_OR_EQUAL', { value: { double_value: 5 } }]);
-    assert.match(body.display_name, /^Records on the list is at least 5 \([0-9a-f]{6}\)$/, 'a blank name is the rule');
+    assert.match(body.display_name, /^Records on the list are at least 5 \([0-9a-f]{6}\)$/, 'a blank name is the rule');
     assert.deepEqual(body.evaluation.notification.subscriptions, [{ user_email: OWNER }, { user_email: SAM }]);
     assert.ok(body.query_text.includes("FROM `main`.`inspire`.`churn_out` WHERE is_current AND change_source <> 'delete'"), 'the latest run only');
     assert.ok(body.query_text.includes("CAST(`priority_tier` AS STRING) IN ('Act now')"));
     assert.deepEqual(body.schedule, { quartz_cron_schedule: '0 0 8 * * ?', timezone_id: 'UTC', pause_status: 'UNPAUSED' });
     const runbook = body.custom_description.split('\n');
-    assert.deepEqual(runbook.slice(0, 4), ['What fired: Records on the list on Predict churn is at least 5, counting only Tier: Act now.',
+    assert.deepEqual(runbook.slice(0, 4), ['What fired: Records on the list on Predict churn are at least 5, counting only Tier: Act now.',
       `Why this threshold: 5 is the number ${OWNER} set for this alert in the App.`, 'How often it checks: every day at 08:00 UTC.', 'What to do first:']);
     assert.ok(runbook.includes('2. Retention lead decides: Call at-risk customers.') && runbook.includes('3. How the use case acts on it: Call the riskiest accounts first.'),
       'what to do first comes from the use case row, never invented');

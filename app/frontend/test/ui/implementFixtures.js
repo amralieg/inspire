@@ -27,7 +27,7 @@ export const RESULTS = {
   domains: [
     { domain_name: 'Customer', use_cases: [
       uc('N01-U01', 'Predict churn', { Subdomain: 'Retention', Priority: 'Very High', Quality: 'High', 'Analytics Technique': 'Classification',
-        priority_score: '4.6', value_score: '4.8', feasibility_score: '4.4', Sponsor: 'Head of Retention', has_genie_code: 'Y',
+        priority_score: '4.6', quality_score: '4.0', inspire_score: '7.4', value_score: '4.8', feasibility_score: '4.4', Sponsor: 'Head of Retention', has_genie_code: 'Y',
         best_of_best: 'Y', best_of_best_rank: '1', strategy_alignment: JSON.stringify([{ id: 'S1', path: 'Grow > Keep customers', evidence: 'churn' }]),
         kpis: JSON.stringify([{ name: 'Churn rate', direction: 'decrease' }]), channels: JSON.stringify(['Email', 'SMS']),
         data_evidence: JSON.stringify({ tables: { 'main.s.orders': { rows: 1200, sampled: false } }, signal: { status: 'no_signal', check: 'outcome',

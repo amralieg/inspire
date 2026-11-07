@@ -31,7 +31,7 @@ EMAIL = re.compile(r"^[^@\s,;\"\\<>()]{1,64}@[^@\s,;\"\\<>()]{1,190}\.[A-Za-z0-9
 FOLDER = re.compile(r"^/[^\x00-\x1f]{1,999}$")
 STATES = {"OK": "ok", "TRIGGERED": "triggered", "ERROR": "error"}
 COMPARE = {">=": op.ge, ">": op.gt, "=": op.eq, "!=": op.ne, "<": op.lt, "<=": op.le}
-WORDS = {">=": "is at least", ">": "is more than", "=": "is equal to", "!=": "is not equal to", "<": "is less than", "<=": "is at most"}
+WORDS = {">=": "at least", ">": "more than", "=": "equal to", "!=": "not equal to", "<": "less than", "<=": "at most"}
 USER_REASON = ("This App shows each person only their own data, so it sends no alerts: an alert runs with one identity's access and "
                "would email what that identity can read.")
 UNREACHABLE = ("The App cannot reach its alerts folder, so it cannot show or keep alerts. Ask the person who built it to "
@@ -240,16 +240,23 @@ def scope_text(page: dict, watch: dict) -> str:
     return "; ".join(f"{filters.get(k, k)}: {', '.join(v)}" for k, v in (watch.get("filters") or {}).items())
 
 
-def rule_words(watch: dict) -> str:
+def counts_rows(measure: dict) -> bool:
+    return bool(COUNT_MEASURE.match(measure.get("expression") or ""))
+
+
+def rule_words(watch: dict, measure: dict) -> str:
+    plural = counts_rows(measure)
     if watch["basis"] == "baseline":
         rise = shell_sql.ALERT_BASELINE_DIRECTIONS[watch["operator"]] == "+"
-        return (f"{'rises above' if rise else 'falls below'} the usual range of up to {shell_sql.ALERT_BASELINE_RUNS} earlier runs "
+        return (f"{('rise above' if plural else 'rises above') if rise else ('fall below' if plural else 'falls below')} the usual range of up to "
+                f"{shell_sql.ALERT_BASELINE_RUNS} earlier runs "
                 f"({WORDS[watch['operator']]} {number_text(watch['threshold'])} until {shell_sql.ALERT_BASELINE_MIN_RUNS} earlier runs exist)")
-    return f"{WORDS[watch['operator']]} {number_text(watch['threshold'])}"
+    return f"{'are' if plural else 'is'} {WORDS[watch['operator']]} {number_text(watch['threshold'])}"
 
 
 def rule_text(page: dict, watch: dict) -> str:
-    return f"{measure_of(page, watch['what']).get('label') or watch['what']} {rule_words(watch)}"
+    measure = measure_of(page, watch["what"])
+    return f"{measure.get('label') or watch['what']} {rule_words(watch, measure)}"
 
 
 def alert_view(entry: dict, person: str, admin: bool, host: str, page: dict = None) -> dict:
@@ -280,7 +287,7 @@ def measure_list(page: dict, names, unreadable: str = "") -> list:
     for m in shell_sql.watch_measures(page):
         reach = [f for f in page.get("filters") or [] if f.get("type") == "multi_select" and m["dataset"] in (f.get("columns") or {})]
         problem = (unreadable or "Inspire could not read the result table") if not names else shell_sql.baseline_problem(page, m, names)
-        count = bool(COUNT_MEASURE.match(m["expression"]))
+        count = counts_rows(m)
         out.append(dict({k: m[k] for k in ("id", "label", "format", "currency")}, filters=[f["id"] for f in reach], baseline=not problem,
                         baseline_filters=[] if problem else [f["id"] for f in reach], baseline_note=problem,
                         min=0 if count else None, whole=count))
@@ -292,7 +299,7 @@ def page_listing(page: dict, entries: list, person: str, admin: bool, host: str,
     out = {"on": on, "reason": reason, "built": built or "", "alerts": [], "unread": 0,
            "caps": {"app": APP_CAP, "person": PERSON_CAP, "used": 0, "mine": 0},
            "schedules": [{"id": k, "label": label} for k, (_cron, label) in SCHEDULES.items()], "operators": list(shell_sql.ALERT_OPERATORS),
-           "baseline_operators": list(shell_sql.ALERT_BASELINE_DIRECTIONS), "operator_words": dict(WORDS), "measures": [], "admin": False}
+           "baseline_operators": list(shell_sql.ALERT_BASELINE_DIRECTIONS), "operator_words": {k: f"is {v}" for k, v in WORDS.items()}, "measures": [], "admin": False}
     if not on:
         return out
     watches = [e for e in entries if e["meta"]["kind"] == WATCH]
@@ -365,7 +372,8 @@ def page_guide(page: dict, link: str = "") -> dict:
 
 def watch_texts(page: dict, meta: dict, link: str, scoped: bool = False) -> tuple:
     watch = meta["watch"]
-    label, rule, scope = measure_of(page, watch["what"]).get("label") or watch["what"], rule_words(watch), scope_text(page, watch)
+    measure = measure_of(page, watch["what"])
+    label, rule, scope = measure.get("label") or watch["what"], rule_words(watch, measure), scope_text(page, watch)
     title = page.get("title") or page["id"]
     fired = f"{label} on {title} {rule}" + (f", counting only {scope}" if scope else "")
     first = ([runbook_rows_step(watch_tiers(page, watch), link)] if watch["what"] == shell_sql.ALERT_RECORDS

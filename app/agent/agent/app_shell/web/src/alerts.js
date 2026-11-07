@@ -1,6 +1,6 @@
 import { change, changeText, grouped } from './format.js';
 
-export const OPERATOR_WORDS = { '>=': 'is at least', '>': 'is more than', '=': 'is equal to', '!=': 'is not equal to', '<': 'is less than', '<=': 'is at most' };
+export const OPERATOR_WORDS = { '>=': 'at least', '>': 'more than', '=': 'equal to', '!=': 'not equal to', '<': 'less than', '<=': 'at most' };
 export const RISES = ['>=', '>'];
 export const BASELINE_MIN_RUNS = 5;
 
@@ -32,15 +32,16 @@ export function ruleText(watch, measures) {
   const measure = (measures || []).find((m) => m.id === watch.what);
   const label = measure?.label || watch.what;
   const number = shownNumber(watch.threshold);
+  const plural = !!measure?.whole;
   if (watch.basis === 'baseline') {
-    const way = RISES.includes(watch.operator) ? 'rises above' : 'falls below';
-    return `${label} ${way} the usual range of earlier runs`;
+    const way = RISES.includes(watch.operator) ? 'rise' : 'fall';
+    return `${label} ${plural ? way : `${way}s`} ${way === 'rise' ? 'above' : 'below'} the usual range of earlier runs`;
   }
-  return `${label} ${OPERATOR_WORDS[watch.operator] || watch.operator} ${number}`;
+  return `${label} ${plural ? 'are' : 'is'} ${OPERATOR_WORDS[watch.operator] || watch.operator} ${number}`;
 }
 
 export function operatorLabel(operator, basis) {
-  if (basis !== 'baseline') return OPERATOR_WORDS[operator] || operator;
+  if (basis !== 'baseline') return OPERATOR_WORDS[operator] ? `is ${OPERATOR_WORDS[operator]}` : operator;
   return `${RISES.includes(operator) ? 'rises above' : 'falls below'} the usual range, until then ${OPERATOR_WORDS[operator]} the number`;
 }
 

@@ -84,6 +84,8 @@ export function buildUseCaseList(results, usecases) {
         copyScore('priority_score');
         copyScore('value_score');
         copyScore('feasibility_score');
+        copyScore('quality_score');
+        copyScore('inspire_score');
         for (const field of ['quality', 'quality_mode', 'elite_status', 'elite_score', 'elite_assessment', 'selection_flags', 'selection_drop_reason', 'meets_quality_bar', 'below_bar_reason']) {
           if (row[field] != null && row[field] !== '' && (uc[field] == null || uc[field] === '')) uc[field] = row[field];
         }
@@ -116,6 +118,8 @@ export function buildUseCaseList(results, usecases) {
         copyScore2('priority_score');
         copyScore2('value_score');
         copyScore2('feasibility_score');
+        copyScore2('quality_score');
+        copyScore2('inspire_score');
         if (!uc.Priority && row.Priority) uc.Priority = row.Priority;
         if (!uc.Quality && row.Quality) uc.Quality = row.Quality;
         copyV130TrackingFields(uc, row);

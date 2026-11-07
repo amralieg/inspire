@@ -273,7 +273,8 @@ test('the insight cards stack at full width with no Strategy coverage card and n
 
     const steps = insight(page, 'Suggested build order').getByRole('list', { name: 'Suggested build order' }).getByRole('listitem');
     assert.equal(await steps.count(), 5, 'five steps before Show all');
-    assert.deepEqual((await steps.first().innerText()).split('\n').map((t) => t.trim()).filter(Boolean), ['1.', 'Predict churn', 'Customer', '4.6']);
+    assert.deepEqual((await steps.first().innerText()).split('\n').map((t) => t.trim()).filter(Boolean), ['1.', 'Predict churn', 'Customer', '7.4']);
+    assert.deepEqual((await steps.nth(1).innerText()).split('\n').map((t) => t.trim()).filter(Boolean), ['2.', 'Forecast stock', 'Supply'], 'a use case without a quality score shows no Inspire Score, not its priority (must-exclude)');
     await page.getByPlaceholder('Search use cases...').fill('no use case matches this');
     await page.getByText('No use cases match your filters.').waitFor();
     await insight(page, 'Suggested build order').getByRole('button', { name: 'Score upsell' }).click();

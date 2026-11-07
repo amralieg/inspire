@@ -100,7 +100,7 @@ const ALERTS = {
   on: true, reason: '', built: '', unread: 0, caps: { used: 1, app: 20, mine: 1, person: 10 }, schedules: [{ id: 'weekly', label: 'every week' }],
   operators: [{ id: '>=', label: 'is at least' }], baseline_operators: [], operator_words: {}, measures: [{ id: 'act_now', label: 'Act now rows' }],
   admin: false, filters: [], built_alert: null, person: DEMO_OWNER, can_add: true, why: '',
-  alerts: [{ id: 'w1', name: 'Act now over 5', state: 'ok', kind: 'watch', rule: 'Act now rows is at least 5', scope: '', schedule: 'weekly',
+  alerts: [{ id: 'w1', name: 'Act now over 5', state: 'ok', kind: 'watch', rule: 'Act now rows are at least 5', scope: '', schedule: 'weekly',
     checked: '2026-11-02T06:00:00Z', email_count: 1, notify_on_ok: true, by: DEMO_OWNER, can_change: true, url: '' }],
 };
 

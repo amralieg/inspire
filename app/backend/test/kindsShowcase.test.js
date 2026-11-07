@@ -278,3 +278,67 @@ test('the kinds demo tells one story about its counts, schedule and alerts: the 
   const before = { ok: true, name: '', state: '', checked_at: '', trashed: false };
   assert.notDeepEqual([before.state, Boolean(before.checked_at)], ['OK', true], 'an alert never read reads as not checked');
 });
+
+const HEADLINE_TIES = {
+  decision_queue: [['total_loss', 'now', 'loss_trend', ['y0'], 'last'], ['total_loss', 'before', 'loss_trend', ['y0'], 'previous'], ['total_loss', 'now', 'by_category', ['y0'], 'sum'],
+    ['total_loss', 'now', 'pareto', ['y0'], 'sum']],
+  monitor_triage: [['open_n', 'now', 'by_rule', ['y0'], 'sum'], ['open_n', 'now', 'by_age', ['y0'], 'sum'], ['exposure', 'now', 'by_age', ['y1'], 'sum']],
+  forecast_cockpit: [['next_forecast', 'now', 'fan', ['y1'], 'sum'], ['last_actual', 'now', 'fan', ['y0'], 'sum']],
+  performance_explainer: [['plan', 'now', 'walk', ['y0'], 'first'], ['actual', 'now', 'walk', ['y0'], 'last'], ['variance', 'now', 'drivers', ['y0', 'y1'], 'sum']],
+  segment_explorer: [['members', 'now', 'worth', ['y0'], 'sum']],
+  lift_readout: [['incremental', 'now', 'curves', ['y0'], 'sum'], ['incremental', 'now', 'waterfall', ['y0'], 'first']],
+  location_view: [['sites', 'now', 'density', ['y0'], 'sum'], ['demand', 'now', 'countries', ['y0'], 'sum'], ['demand', 'now', 'points', ['y0'], 'sum']],
+  dashboard: [['revenue', 'now', 'trend', ['y0'], 'last'], ['prior', 'now', 'trend', ['y0'], 'previous'], ['revenue', 'now', 'by_region', ['y0'], 'sum'],
+    ['prior', 'now', 'by_region', ['y1'], 'sum']],
+  planner: [], scenario_lab: [], recommendation_desk: [], process_flow: [], network_explorer: [], agent_chat: [],
+};
+
+function headlineGaps(layout, data) {
+  const gaps = [];
+  for (const [kpi, side, chart, series, how] of HEADLINE_TIES[layout]) {
+    const rows = (data.charts[chart]?.rows || []).filter((r) => series.some((y) => r[y] != null));
+    const value = (r) => series.reduce((s, y) => s + (Number(r[y]) || 0), 0);
+    const shown = { sum: () => rows.reduce((s, r) => s + value(r), 0), first: () => value(rows[0]), last: () => value(rows[rows.length - 1]), previous: () => value(rows[rows.length - 2]) }[how]();
+    const headline = data.kpis[kpi]?.[side];
+    if (!rows.length || Math.round(headline) !== Math.round(shown)) gaps.push(`${kpi}.${side} ${Math.round(headline)} but ${chart} ${how} ${Math.round(shown)}`);
+  }
+  return gaps;
+}
+
+test('on every demo page the headline figures equal the chart data they summarize, with and without a filter (must-exclude)', async () => {
+  const { DEMO_LAYOUTS, USE_CASES, mvpApi, mvpPage } = await kinds();
+  assert.deepEqual(Object.keys(HEADLINE_TIES).sort(), [...DEMO_LAYOUTS].sort(), 'every layout states which charts carry its headline figures');
+  const b = bundle();
+  const gaps = [];
+  let checked = 0;
+  for (const u of USE_CASES) {
+    const answers = Object.entries(b.mvps[u.no].api).filter(([key]) => key.startsWith('POST /api/page '));
+    assert.ok(answers.length > 0, `${u.no} recorded its page`);
+    for (const [key, answer] of answers) gaps.push(...headlineGaps(u.mvp.layout, answer.body).map((g) => `${u.no} ${key}: ${g}`));
+    const { routes } = mvpApi(u, { pages: [mvpPage(u)] });
+    const filters = Object.entries(b.mvps[u.no].api).find(([key]) => key.startsWith('GET /api/filters?'))?.[1].body.filters || [];
+    for (const f of filters.filter((x) => x.type === 'multi_select')) {
+      for (const option of f.options) {
+        gaps.push(...headlineGaps(u.mvp.layout, routes['POST page']({ filters: { [f.id]: [option] } })).map((g) => `${u.no} ${f.id}=${option}: ${g}`));
+        checked += 1;
+      }
+    }
+  }
+  assert.ok(checked > 20, `${checked} filtered views checked`);
+  assert.deepEqual(gaps, []);
+  const margin = USE_CASES.find((u) => u.no === 'N12-U01');
+  const page = mvpApi(margin, { pages: [mvpPage(margin)] }).routes['POST page']({});
+  const off = structuredClone(page);
+  off.charts.trend.rows.at(-1).y0 += 200000;
+  off.charts.by_region.rows[0].y1 -= 1;
+  assert.deepEqual(headlineGaps('dashboard', off), ['revenue.now 4200000 but trend last 4400000', 'prior.now 4600000 but by_region sum 4599999']);
+});
+
+test('every alert rule the kinds demo shows puts a plural count with are, never is (must-exclude)', () => {
+  const text = JSON.stringify(bundle());
+  const plural = /\b(rows|Records on the list) (is|are) (at least|more than|less than|at most|equal to|not equal to) \d/g;
+  const found = [...text.matchAll(plural)].map((m) => m[0]);
+  assert.ok(text.includes('Act now rows are at least 5'), 'the demo shows the Act now alert rule');
+  assert.deepEqual(found.filter((t) => / is /.test(t)), []);
+  assert.deepEqual(['Act now rows is at least 5'].filter((t) => !t.match(plural) || / is /.test(t)), ['Act now rows is at least 5']);
+});
