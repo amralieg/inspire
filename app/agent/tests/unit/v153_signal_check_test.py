@@ -243,7 +243,7 @@ def test_a_column_outside_the_table_is_never_read_and_the_use_case_is_kept_unche
 
 def test_a_personal_column_is_read_only_where_its_values_are_counted(agent_ns):
     ucs = [uc("N01-U01", "Classification"), uc("N01-U02", "Sentiment Analysis"), uc("N01-U03", "Classification"),
-           uc("N01-U04", "Trend Analysis"), uc("N01-U05", "Forecasting")]
+           uc("N01-U04", "Regression Analysis"), uc("N01-U05", "Forecasting")]
     answers = [{"results": [answer("N01-U01", {"outcome": "is_return", "signals": ["birth_year"]}),
                             answer("N01-U02", {"text": "customer_email"}),
                             answer("N01-U03", {"outcome": "is_return", "signals": ["birth_year", "quantity"]}),
@@ -273,7 +273,7 @@ def test_a_personal_column_is_read_only_where_its_values_are_counted(agent_ns):
 
 def test_a_key_or_a_code_is_never_read_as_a_number_and_is_still_counted_as_a_group(agent_ns):
     ucs = [uc("N01-U01", "Classification", tables=TRIPS), uc("N01-U02", "Classification"), uc("N01-U03", "Optimization"),
-           uc("N01-U04", "Anomaly Detection"), uc("N01-U05", "Trend Analysis", tables=TRIPS)]
+           uc("N01-U04", "Anomaly Detection"), uc("N01-U05", "Regression Analysis", tables=TRIPS)]
     answers = [{"results": [answer("N01-U01", {"outcome": "fare_amount", "signals": ["pickup_zip"]}, table=TRIPS),
                             answer("N01-U02", {"outcome": "is_return", "signals": ["item_sk", "quantity"]}),
                             answer("N01-U03", {"lever": "item_sk", "outcome": "quantity"}),

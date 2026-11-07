@@ -74,8 +74,8 @@ def test_text_that_does_not_read_as_dates_stays_unchecked_and_says_how_many_read
     assert len(spark.statements) == 1, "the series is never read on dates that do not parse"
 
 
-def test_a_text_date_on_a_trend_check_is_read_as_a_date_and_a_real_date_is_cast_as_before(agent_ns):
-    ucs = [uc("N01-U01", "Trend Analysis", tables=VISITS), uc("N01-U02", "Forecasting", tables=VISITS)]
+def test_a_text_date_on_a_group_check_is_read_as_a_date_and_a_real_date_is_cast_as_before(agent_ns):
+    ucs = [uc("N01-U01", "Regression Analysis", tables=VISITS), uc("N01-U02", "Forecasting", tables=VISITS)]
     answers = [{"results": [answer("N01-U01", {"group": "region", "time": "visit_date"}, table=VISITS),
                             answer("N01-U02", {"time": "visit_day"}, table=VISITS)]}]
     inst, spark = _inspire(agent_ns, answers, _probe(1900, {8: 1900}))
