@@ -58,7 +58,9 @@ export function todoSteps(page, list, { genie = false, modify = false, accept = 
     steps.push({ id: 'so_what', text: 'Read the “So what” line under each chart: it says what to do with it.', action: null });
     if (page.filters?.length) steps.push({ id: 'filters', text: 'Use the filters at the top to narrow every chart to the part you own.', action: null });
   } else if (first) {
-    steps.push({ id: 'first', text: `Start with ${entityName(first, label) || recordKeyOf(first)}: it is first in the list because it matters most.`, action: 'Show me', to });
+    const name = entityName(first, label) || recordKeyOf(first);
+    const value = ['Start with ', name, ': it is first in the list because it matters most.'];
+    steps.push({ id: 'first', text: value.join(''), value, action: 'Show me', to });
     if (page.plan && plan) steps.push({ id: 'plan', text: 'Take the ★ suggested line in the plan, or override it with a reason.', action: 'Open the plan', to });
     else if (page.plan) steps.push({ id: 'plan_read', text: 'Read each line of the plan next to its ★ suggested value, largest change first.', action: 'Open the plan', to });
     else if (accept) steps.push({ id: 'accept', text: 'Accept the suggested action where you agree: one row at a time, or select several and accept them together.', action: 'Show me', to });
@@ -90,7 +92,7 @@ export function TodoNow({ page, app, ready, nonce, onAsk, shared }) {
       <ol className="todo-steps">
         {steps.map((s) => (
           <li key={s.id} data-step={s.id}>
-            <span>{s.text}</span>
+            <span>{s.value ? <>{s.value[0]}<bdi>{s.value[1]}</bdi>{s.value[2]}</> : s.text}</span>
             {s.action && (
               <button type="button" className="btn btn--sm" onClick={() => (s.ask ? onAsk(`What should I do first on ${page.title}, and why?`) : scrollTo(s.to))}>
                 {s.ask && <GenieMark size={14} />}{s.action}
@@ -181,7 +183,7 @@ function PlanRow({ page, app, plan, row, actions, onDecided, onOpen }) {
         <tr className="plan-form"><td colSpan={cols}>
           <form onSubmit={(e) => { e.preventDefault(); decide('override'); }}>
             <label>Your value<input type="number" step="any" required value={value} onChange={(e) => setValue(e.target.value)} /></label>
-            <label className="grow">Why you override it<input required maxLength={300} value={reason} onChange={(e) => setReason(e.target.value)} /></label>
+            <label className="grow">Why you override it<input dir="auto" required maxLength={300} value={reason} onChange={(e) => setReason(e.target.value)} /></label>
             <button className="btn btn--sm btn--pri" type="submit" disabled={busy || !value || !reason.trim()}>Save override</button>
           </form>
         </td></tr>

@@ -10,8 +10,8 @@ function SheetPreview({ name, data }) {
   const { columns, rows } = useMemo(() => previewGrid(data), [data]);
   const read = rows.length;
   const gridColumns = useMemo(() => [
-    { key: '#', label: '#', fixed: true, headClassName: 'px-3 py-2 text-[9px] text-text-tertiary font-mono text-right border-b border-r border-border w-8',
-      className: 'px-3 py-1.5 text-[9px] text-text-tertiary font-mono text-right border-r border-border/50 w-8' },
+    { key: '#', label: '#', fixed: true, headClassName: 'px-3 py-2 text-[9px] text-text-tertiary font-mono text-end border-b border-e border-border w-8',
+      className: 'px-3 py-1.5 text-[9px] text-text-tertiary font-mono text-end border-e border-border/50 w-8' },
     ...columns.map((c) => ({
       key: c.key, label: c.label,
       className: (row) => {
@@ -41,7 +41,7 @@ function SheetPreview({ name, data }) {
       </div>
       <DataGrid label={`Preview of ${name}`} grid={`preview:${name}`} columns={gridColumns} rows={rows} rowKey={(row) => row['#']} pageSize={PREVIEW_PAGE_ROWS}
         scrollClassName="max-h-[400px] overflow-auto" tableClassName="w-full border-collapse" theadClassName="sticky top-0 z-10" headRowClassName="bg-bg-subtle"
-        headClassName="px-3 py-2 text-left text-[10px] text-text-primary font-semibold border-b border-border whitespace-nowrap"
+        headClassName="px-3 py-2 text-start text-[10px] text-text-primary font-semibold border-b border-border whitespace-nowrap"
         rowClassName={(_, i) => `${i % 2 === 0 ? 'bg-surface' : 'bg-bg-subtle/30'} hover:bg-db-red-50/30 transition-colors`} />
       {data.totalRows > read && (
         <div className="flex items-center justify-center gap-2 py-2.5 bg-bg-subtle border-t border-border text-[10px] text-text-tertiary">

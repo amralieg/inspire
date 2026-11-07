@@ -35,7 +35,7 @@ function PageItem({ page, on, onPick }) {
   return (
     <li>
       <button type="button" onClick={() => onPick(page)} aria-current={on ? 'true' : undefined} data-run-page={runKey(page)}
-        className={`w-full text-left rounded-lg border px-3 py-2 text-[12px] glow-focus ${on ? 'border-db-red/50 bg-db-red-50/40' : 'border-border hover:border-border-strong'}`}>
+        className={`w-full text-start rounded-lg border px-3 py-2 text-[12px] glow-focus ${on ? 'border-db-red/50 bg-db-red-50/40' : 'border-border hover:border-border-strong'}`}>
         <span className="flex items-center gap-1.5 font-semibold text-text-primary">
           {framed ? <PlayCircle size={13} aria-hidden /> : <AppWindow size={13} aria-hidden />} {page.name}
         </span>
@@ -56,7 +56,7 @@ function FrameStatus({ page, userAuthorization, note }) {
         <AlertTriangle size={14} className="mt-px shrink-0" aria-hidden /> {RUN_BANNER}
       </p>
       <p data-run-state={page.state} className={`text-[12px] ${STATE_TONE[page.state] || 'text-text-secondary'}`}>
-        {page.state === 'starting' && <Loader2 size={12} className="inline mr-1 motion-safe:animate-spin" aria-hidden />}
+        {page.state === 'starting' && <Loader2 size={12} className="inline me-1 motion-safe:animate-spin" aria-hidden />}
         {runStateText(page)}
       </p>
       {page.stderr && page.stderr.length > 0 && (
@@ -146,7 +146,7 @@ function RunControl({ page, pages, userAuthorization, note, onSwitch, onBack }) 
                   return (
                     <li key={runKey(other)}>
                       <button type="button" onClick={() => { setOpen(false); onSwitch(other); }} aria-current={on ? 'true' : undefined} data-run-switch={runKey(other)}
-                        className={`w-full text-left rounded-lg border px-2.5 py-1.5 text-[12px] ${on ? 'border-db-red/50 bg-db-red-50/40' : 'border-border hover:border-border-strong'}`}>
+                        className={`w-full text-start rounded-lg border px-2.5 py-1.5 text-[12px] ${on ? 'border-db-red/50 bg-db-red-50/40' : 'border-border hover:border-border-strong'}`}>
                         <span className="block font-semibold text-text-primary">{other.name}</span>
                         <span className="block text-text-secondary">{pageDetail(other)}</span>
                       </button>
@@ -197,7 +197,7 @@ function RunOutcome({ page, apiFetch, query }) {
     return () => { live = false; };
   }, [apiFetch, query, page.session_id, page.use_case_id]);
   if (error) return <p role="alert" data-run-outcome-error="" className="text-[12px] text-error-fg">Inspire could not read the last result of this MVP: {error}</p>;
-  if (!money) return <p className="text-[12px] text-text-secondary"><Loader2 size={12} className="inline mr-1 animate-spin" aria-hidden /> Reading the last result</p>;
+  if (!money) return <p className="text-[12px] text-text-secondary"><Loader2 size={12} className="inline me-1 animate-spin" aria-hidden /> Reading the last result</p>;
   const said = runOutcome(money, { owner: page.owner === true });
   return (
     <div data-run-outcome="" aria-label="Last result" className="space-y-0.5 rounded-lg bg-bg-subtle px-3 py-2">
@@ -299,7 +299,7 @@ export default function RunPage({ settings, focusId = null, onFocus = ignore, on
     return (
       <BodyPortal>
         <div data-run-opening="" className="fixed inset-0 z-[90] grid place-items-center bg-surface text-[12px] text-text-secondary">
-          <p><Loader2 size={12} className="inline mr-1 animate-spin" aria-hidden /> {RUN_OPENING}</p>
+          <p><Loader2 size={12} className="inline me-1 animate-spin" aria-hidden /> {RUN_OPENING}</p>
         </div>
       </BodyPortal>
     );
@@ -320,7 +320,7 @@ export default function RunPage({ settings, focusId = null, onFocus = ignore, on
       {notice && <p role="note" data-run-left-demo="" className="text-[12px] text-text-secondary">{notice}</p>}
       {error && <p role="alert" className="text-[12px] text-error-fg">Inspire cannot list the deployed use cases: {error}</p>}
       {missing && <p role="note" data-run-unknown="" className="text-[12px] text-warning-fg">{runUnknownText(asked)}</p>}
-      {!shown && !error && <p className="text-[12px] text-text-secondary"><Loader2 size={12} className="inline mr-1 animate-spin" aria-hidden /> Reading the deployed use cases</p>}
+      {!shown && !error && <p className="text-[12px] text-text-secondary"><Loader2 size={12} className="inline me-1 animate-spin" aria-hidden /> Reading the deployed use cases</p>}
       {shown && !pages.length && <p data-run-empty="" className={`${PANEL_CLASS} p-6 text-[12px] text-text-secondary`}>{RUN_EMPTY}</p>}
       {pages.length > 0 && (
         <div className="grid grid-cols-1 lg:grid-cols-[18rem_1fr] gap-4">

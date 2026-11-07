@@ -124,6 +124,13 @@ body {
   transition: background-color 0.25s ease, color 0.25s ease;
 }
 
+@layer base {
+  :where(p, li, dt, dd, h1, h2, h3, h4, h5, h6, td, th, caption, figcaption, blockquote, summary, legend, textarea) {
+    unicode-bidi: plaintext;
+    overflow-wrap: break-word;
+  }
+}
+
 /* Custom scrollbar */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }

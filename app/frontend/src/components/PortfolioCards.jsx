@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { PORTFOLIO_GROUPS, portfolioCardAction } from '../lib/reviewFigures';
 
 const GROUP_COLUMNS = { 5: 'sm:grid-cols-5', 6: 'sm:grid-cols-3 lg:grid-cols-6' };
-const CARD = 'flex h-full w-full min-w-0 flex-col items-start rounded-lg border px-3 py-2 text-left';
+const CARD = 'flex h-full w-full min-w-0 flex-col items-start rounded-lg border px-3 py-2 text-start';
 
 export function usePortfolio(apiFetch, inspireDatabase, warehouseId, tick = 0) {
   const [state, setState] = useState({ portfolio: null, error: '' });

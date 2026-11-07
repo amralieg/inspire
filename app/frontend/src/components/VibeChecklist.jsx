@@ -169,7 +169,7 @@ export function HeldVersion({ held, checklist, canPublish, readOnly, locked, loc
             Publish v{held.version} anyway?{open.length ? ` ${open.length === 1 ? 'This ask is' : `These ${open.length} asks are`} not met${unchecked ? ' or could not be checked' : ''}:` : ''}
           </p>
           {open.length > 0 && (
-            <ul aria-label="Asks not met" className="list-disc pl-5 text-text-primary">
+            <ul aria-label="Asks not met" className="list-disc ps-5 text-text-primary">
               {open.map((entry, i) => <li key={`${i}-${entry.n}`}>{asked(entry)}{entry.unchecked ? ' (Inspire could not check it)' : ''}</li>)}
             </ul>
           )}

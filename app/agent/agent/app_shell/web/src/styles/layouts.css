@@ -1,7 +1,7 @@
 .todo{margin:0 0 14px}
 .todo-bar{height:6px;margin:6px 16px 0;border-radius:4px;background:var(--well);overflow:hidden}
 .todo-bar i{display:block;height:100%;background:var(--green-ink)}
-.todo-steps{margin:10px 16px 14px;padding-left:20px;display:grid;gap:8px;font-size:13.5px}
+.todo-steps{margin:10px 16px 14px;padding-inline-start:20px;display:grid;gap:8px;font-size:13.5px}
 .todo-steps li{display:flex;align-items:center;gap:10px;justify-content:space-between}
 .btn--sm{height:28px;padding:0 10px;font-size:12.5px}
 .so-what{color:var(--ink)!important;font-size:12.5px}
@@ -10,8 +10,8 @@
 .seg-b.is-on{background:var(--brand-wash);color:var(--brand-ink);font-weight:650}
 .plan{margin:0 0 14px}
 .plan-t{width:100%;border-collapse:collapse;font-size:13px}
-.plan-t th,.plan-t td{padding:8px 12px;border-top:1px solid var(--line);text-align:left}
-.plan-t td.num{text-align:right;font-variant-numeric:tabular-nums}
+.plan-t th,.plan-t td{padding:8px 12px;border-top:1px solid var(--line);text-align:start}
+.plan-t td.num{text-align:end;font-variant-numeric:tabular-nums}
 .plan-t .plan-rec{font-weight:650;color:var(--brand-ink)}
 .plan-t .is-up{color:var(--green-ink)}
 .plan-t .is-down{color:var(--danger)}

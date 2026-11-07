@@ -41,7 +41,7 @@ export function Block({ block, tile = false, wide = false }) {
   const kind = ['text', 'html', 'image'].includes(block.kind) ? block.kind : 'none';
   const title = blockTitle(block);
   return (
-    <div className={`blk blk--${kind} blk--a-${align}${tile ? ' blk--tile' : ` blk--w-${width}`}${wide ? ' blk--span2' : ''}${fold.folded ? ' blk--folded' : ''}`}
+    <div className={`blk blk--${kind} blk--a-${ALIGNS.includes(block.align) ? align : 'start'}${tile ? ' blk--tile' : ` blk--w-${width}`}${wide ? ' blk--span2' : ''}${fold.folded ? ' blk--folded' : ''}`}
       data-block={block.id} data-kind={kind} data-width={width} data-align={align}>
       {fold.folded ? <p className="blk-sum" data-fold-sum>{title}</p> : body}
       {kind !== 'none' && <AskGenie kind="text" title={title} context={{ hint: blockText(block) }} />}

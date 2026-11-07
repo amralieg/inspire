@@ -32,7 +32,7 @@
 .choice-row{display:grid;grid-template-columns:1fr auto;gap:8px 12px;align-items:center;padding:8px 16px;border-top:1px solid var(--line)}
 .rec-entity .choice-row{padding:6px 0;border-top:0}
 .choice-main{display:grid;gap:4px;font-size:13px}
-.choice-open{border:0;background:none;padding:0;text-align:left;cursor:pointer;color:inherit;font:inherit}
+.choice-open{border:0;background:none;padding:0;text-align:start;cursor:pointer;color:inherit;font:inherit}
 .choice-open:hover b,.choice-open:focus-visible b{text-decoration:underline}
 .queue-all{display:flex;justify-content:flex-end;padding:8px 16px;border-top:1px solid var(--line)}
 .choice-cols{display:flex;flex-wrap:wrap;gap:12px;color:var(--muted);font-size:12px}

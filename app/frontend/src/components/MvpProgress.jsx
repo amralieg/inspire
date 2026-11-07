@@ -164,7 +164,7 @@ export default function MvpProgress({
       {!view.open ? (
         <div className="flex items-center gap-2 px-4 py-2.5 min-w-0">
           <button type="button" data-progress-toggle="" aria-expanded="false" aria-controls={bodyId} aria-label={toggleLabel} onClick={view.toggle}
-            className="flex min-w-0 flex-1 items-center gap-2.5 rounded-lg text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-db-red/40">
+            className="flex min-w-0 flex-1 items-center gap-2.5 rounded-lg text-start focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-db-red/40">
             <StatusMark active={summary.active} tone={chip?.tone} />
             <span className="min-w-0 flex-1">
               <span className="block text-[13px] font-bold text-text-primary">{title}</span>

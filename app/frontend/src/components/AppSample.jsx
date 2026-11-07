@@ -157,7 +157,7 @@ function Kpis({ look, s }) {
     return (
       <div className="grid grid-cols-4" style={{ borderTop: `1px solid ${pv('line')}`, borderBottom: `1px solid ${pv('line')}` }}>
         {kpis.map((k, i) => (
-          <div key={k.label} className="px-2 py-1" style={i ? { borderLeft: `1px solid ${pv('line')}` } : undefined}>
+          <div key={k.label} className="px-2 py-1" style={i ? { borderInlineStart: `1px solid ${pv('line')}` } : undefined}>
             <p className="text-[8.5px]" style={{ color: pv('muted') }}>{k.label}</p>
             <p className="text-[16px] font-semibold leading-tight" style={{ ...SERIF, color: pv(`${k.hue}-ink`) }}>{k.value}</p>
           </div>
@@ -186,12 +186,12 @@ function Kpis({ look, s }) {
 function Table({ look, title, head, rows }) {
   return (
     <Card look={{ ...look, style: look.style === 'c' ? 'a' : look.style }} title={title} hue="slate">
-      <table className="w-full table-fixed text-left">
+      <table className="w-full table-fixed text-start">
         <thead><tr>{head.map(([label, width]) => <th key={label} className="pb-0.5 text-[8px] font-medium" style={{ color: pv('muted'), width }}>{label}</th>)}</tr></thead>
         <tbody>
           {rows.map((cells, r) => (
             <tr key={r} style={{ borderTop: `1px solid ${pv('line')}` }}>
-              {cells.map((cell, c) => <td key={c} className="truncate py-[2px] pr-1 text-[8.5px]" style={{ color: pv('ink') }}>{cell}</td>)}
+              {cells.map((cell, c) => <td key={c} className="truncate py-[2px] pe-1 text-[8.5px]" style={{ color: pv('ink') }}>{cell}</td>)}
             </tr>
           ))}
         </tbody>
@@ -288,7 +288,7 @@ function Body({ look, view, title, charts, s }) {
 
 function GeniePanel() {
   return (
-    <div className="flex w-[38%] shrink-0 flex-col gap-1.5 p-2" style={{ background: pv('card'), borderLeft: `1px solid ${pv('line')}` }}>
+    <div className="flex w-[38%] shrink-0 flex-col gap-1.5 p-2" style={{ background: pv('card'), borderInlineStart: `1px solid ${pv('line')}` }}>
       <p className="text-[10px] font-semibold" style={{ color: pv('ink') }}>Ask Genie</p>
       <p className="self-end rounded-[8px] px-2 py-1 text-[8.5px]" style={{ background: pv('well'), color: pv('ink') }}>Why is R-1042 flagged?</p>
       <p className="rounded-[8px] px-2 py-1 text-[8.5px] leading-snug" style={{ border: `1px solid ${pv('line')}`, color: pv('ink') }}>
@@ -311,12 +311,12 @@ function TopBar({ look, appName, title, shared, impact }) {
         <span className="block text-[8px]" style={{ color: pv('muted') }}>1 use case · built by Inspire</span>
       </span>
       {look.layout === 'tabs' && (
-        <span className="ml-2 flex min-w-0 items-end gap-2 self-stretch">
+        <span className="ms-2 flex min-w-0 items-end gap-2 self-stretch">
           <span className="flex max-w-[160px] items-center truncate text-[9px] font-semibold" style={{ color: pv('ink'), borderBottom: `2px solid ${pv('brand')}` }}>{title}</span>
           {impact && <span className="flex items-center text-[9px]" style={{ color: pv('muted'), borderBottom: '2px solid transparent' }}>Impact</span>}
         </span>
       )}
-      <span className="ml-auto shrink-0 text-[8px]" style={{ color: pv('muted') }}>{shared ? 'Shared view' : 'Your view'}</span>
+      <span className="ms-auto shrink-0 text-[8px]" style={{ color: pv('muted') }}>{shared ? 'Shared view' : 'Your view'}</span>
       <span className="shrink-0 rounded-full px-1.5 text-[8.5px] leading-[15px]" style={{ border: `1px solid ${pv('line-strong')}`, color: pv('ink'), background: pv('card') }}>Ask Genie</span>
     </div>
   );
@@ -324,9 +324,9 @@ function TopBar({ look, appName, title, shared, impact }) {
 
 function SideNav({ look, title, impact }) {
   return (
-    <div className="flex w-[116px] shrink-0 flex-col gap-1 p-1.5" style={{ background: look.style === 'b' ? pv('panel') : pv('card'), borderRight: `1px solid ${pv('line')}` }}>
+    <div className="flex w-[116px] shrink-0 flex-col gap-1 p-1.5" style={{ background: look.style === 'b' ? pv('panel') : pv('card'), borderInlineEnd: `1px solid ${pv('line')}` }}>
       <p className="px-1 text-[8px] font-semibold uppercase tracking-wide" style={{ color: pv('muted') }}>Use case</p>
-      <div className="rounded-[5px] px-1.5 py-1" style={{ background: pv('brand-wash'), borderLeft: `2px solid ${pv('brand')}` }}>
+      <div className="rounded-[5px] px-1.5 py-1" style={{ background: pv('brand-wash'), borderInlineStart: `2px solid ${pv('brand')}` }}>
         <p className="truncate text-[9px] font-semibold" style={{ color: pv('ink') }}>{title}</p>
         <p className="text-[8px]" style={{ color: pv('muted') }}>128 to fix</p>
       </div>
@@ -364,7 +364,7 @@ export default function AppSample({ palette, look, appName, title, view = 'fix',
   return (
     <div role="img" aria-label={label} data-app-sample={view} data-sample-style={look.style} data-sample-layout={look.layout} data-sample-palette={look.palette} data-sample-theme={look.theme}
       data-sample-charts={charts.filter((id) => CHART_CARDS[id]).join(',')} data-sample-impact={impact ? 'on' : 'off'}
-      className="flex h-[296px] flex-col overflow-hidden rounded-lg text-left" style={{ ...vars, background: pv('bg'), border: `1px solid ${pv('line-strong')}`, colorScheme: look.theme }}>
+      className="flex h-[296px] flex-col overflow-hidden rounded-lg text-start" style={{ ...vars, background: pv('bg'), border: `1px solid ${pv('line-strong')}`, colorScheme: look.theme }}>
       <TopBar look={look} appName={appName} title={title} shared={shared} impact={impact} />
       <div className="flex min-h-0 flex-1">
         {look.layout === 'sidebar' && <SideNav look={look} title={title} impact={impact} />}

@@ -587,7 +587,7 @@ function validateImplementSpec(input, { shell = null, legacyAccess = '', impact 
     if (!retry.includes(id)) errors.push(`retry_asks names ${shownValue(id)}, which this version does not rebuild; list it in retry_outputs too`);
     else if (errors.length > shapeErrors) continue;
     else if (!asks.length) errors.push(`retry_asks.${id} must list at least one ask to try again`);
-    else if (asks.some((ask) => vibesLength(ask) > IMPLEMENT_VIBES_MAX)) errors.push(`each ask to try again on the ${label} must be at most ${IMPLEMENT_VIBES_MAX} characters`);
+    else if (asks.some((ask) => vibesLength(ask) > IMPLEMENT_VIBES_MAX)) errors.push(`each ask to try again on the ${label} must be at most ${IMPLEMENT_VIBES_MAX.toLocaleString('en-US')} characters`);
     else retryAsks[id] = asks;
   }
   if (Object.keys(retryAsks).length) out.retry_asks = retryAsks;
@@ -660,7 +660,7 @@ function vibesLength(text) {
 function vibesText(raw, field, label, errors) {
   const text = textField(raw, field, errors);
   const length = vibesLength(text);
-  if (length > IMPLEMENT_VIBES_MAX) errors.push(`the ${label} vibes are ${plural(length, 'character')}; at most ${IMPLEMENT_VIBES_MAX} are allowed`);
+  if (length > IMPLEMENT_VIBES_MAX) errors.push(`the ${label} vibes are ${plural(length, 'character')}; at most ${IMPLEMENT_VIBES_MAX.toLocaleString('en-US')} are allowed`);
   return text;
 }
 

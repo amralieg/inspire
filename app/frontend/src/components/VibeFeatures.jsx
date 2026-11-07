@@ -6,6 +6,7 @@ import { OPEN_ALL_SETTINGS, VIBES_MAX, VIBE_FEATURES_LABEL, VIBE_ROUTING, heldAs
 import { vibeLimitNotes } from '../lib/vibeLimits';
 import { REBUILD_WAITS, rebuildLabel, removingAsk } from '../lib/implementControl';
 import { capital } from '../lib/targetKpi';
+import { plural } from '../lib/plural';
 
 const PRIMARY_BUTTON = 'inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold text-white bg-db-red-solid hover:bg-db-red-solid-hover shadow-sm shadow-db-red/20';
 const GREYED = 'inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold bg-bg-subtle text-text-secondary border border-border cursor-not-allowed';
@@ -104,7 +105,7 @@ export default function VibeFeatures({
   const waiting = entries.filter((entry) => entry.kind === 'ask').map((entry) => entry.text);
   const own = vibesProblem('mvp', text, 'MVP');
   const length = vibesLength([...waiting, text.trim()].filter(Boolean).join('\n'));
-  const total = !own && text.trim() && length > VIBES_MAX ? `with the asks waiting, the MVP vibes would be ${length} characters; at most ${VIBES_MAX} are allowed` : '';
+  const total = !own && text.trim() && length > VIBES_MAX ? `with the asks waiting, the MVP vibes would be ${plural(length, 'character')}; at most ${VIBES_MAX.toLocaleString('en-US')} are allowed` : '';
   const add = () => {
     onAdd(text, replaces);
     setText('');
@@ -115,7 +116,7 @@ export default function VibeFeatures({
   const footer = (
     <>
       {onOpenSettings && (
-        <button type="button" onClick={onOpenSettings} className={`mr-auto ${OUTLINE_BUTTON}`}>
+        <button type="button" onClick={onOpenSettings} className={`me-auto ${OUTLINE_BUTTON}`}>
           <Settings2 size={12} /> Need more than words? {OPEN_ALL_SETTINGS}
         </button>
       )}

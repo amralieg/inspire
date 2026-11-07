@@ -48,7 +48,7 @@ export default function UcPermissionErrorHelp({ guidance }) {
             {guidance.adminBullets.map((line) => (
               <li
                 key={line}
-                className={line.startsWith('  ') ? 'font-mono text-[11px] text-text-primary pl-3' : 'list-disc ml-4'}
+                className={line.startsWith('  ') ? 'font-mono text-[11px] text-text-primary ps-3' : 'list-disc ms-4'}
               >
                 {line.startsWith('  ') ? line.trim() : line}
               </li>

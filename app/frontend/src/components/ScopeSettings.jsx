@@ -106,15 +106,15 @@ function GroupsPicker({ groups, picked, many, editable, onPick }) {
     onPick(scopeGroupsValue(many ? [...next, ...kept] : next));
   };
   return (
-    <div role="group" aria-label={SCOPE_LABELS[SCOPE_GROUPS]} className="ml-6 space-y-1">
+    <div role="group" aria-label={SCOPE_LABELS[SCOPE_GROUPS]} className="ms-6 space-y-1">
       {groups.length > FIRST_RUN_GROUPS_FIND_FROM && (
-        <input type="search" aria-label="Find a group" placeholder={`Find one of ${counted(groups.length, 'group')}`} className={`${NUMBER} w-64`}
+        <input dir="auto" type="search" aria-label="Find a group" placeholder={`Find one of ${counted(groups.length, 'group')}`} className={`${NUMBER} w-64`}
           value={find} onChange={(e) => setFind(e.target.value)} />
       )}
       <div className="max-h-64 space-y-1 overflow-y-auto">
         {shown.map((g) => (
           <label key={scopeGroupKey(g.parts)} data-scope-group={g.value} className="flex items-center gap-2">
-            <input type={many ? 'checkbox' : 'radio'} name="inspire-first-run-group" disabled={!editable} checked={isPicked(g)} onChange={(e) => toggle(g, e.target.checked)} />
+            <input dir="auto" type={many ? 'checkbox' : 'radio'} name="inspire-first-run-group" disabled={!editable} checked={isPicked(g)} onChange={(e) => toggle(g, e.target.checked)} />
             <span>{g.parts.length > 1 ? scopeGroupText(g.parts) : g.value}{GROUP_KIND_WORDS[g.kind] ? `, ${GROUP_KIND_WORDS[g.kind]}` : ''}{g.records != null ? ` · ${counted(g.records, 'record')}` : ''}</span>
           </label>
         ))}
@@ -170,26 +170,26 @@ function FirstRunPart({ values, onChange, profile, groupsState, settings, editab
             {current === c.id && c.scope === 'groups' && (groups.length ? (
               <GroupsPicker groups={groups} picked={picked} many={c.id === 'groups'} editable={editable} onPick={(v) => onChange(SCOPE_GROUPS, v)} />
             ) : (
-              <div className="ml-6 space-y-1">
+              <div className="ms-6 space-y-1">
                 <p data-first-run-run-picks="" className={NOTE}>{groupsPickedByRunText(values)}</p>
                 <label className="flex flex-wrap items-center gap-2">
                   <span>{SCOPE_LABELS[SCOPE_GROUPS]}</span>
-                  <input type="text" aria-label={SCOPE_LABELS[SCOPE_GROUPS]} disabled={!editable} className={`${NUMBER} w-56 max-w-full`} value={values[SCOPE_GROUPS]}
+                  <input dir="auto" type="text" aria-label={SCOPE_LABELS[SCOPE_GROUPS]} disabled={!editable} className={`${NUMBER} w-56 max-w-full`} value={values[SCOPE_GROUPS]}
                     onChange={(e) => onChange(SCOPE_GROUPS, e.target.value)} />
                 </label>
               </div>
             ))}
             {current === c.id && c.id === 'recent' && (
-              <label className="ml-6 flex items-center gap-2">
+              <label className="ms-6 flex items-center gap-2">
                 <span>{SCOPE_LABELS[SCOPE_DAYS]}</span>
-                <input type="text" inputMode="numeric" aria-label={SCOPE_LABELS[SCOPE_DAYS]} disabled={!editable} className={NUMBER} value={values[SCOPE_DAYS]}
+                <input dir="auto" type="text" inputMode="numeric" aria-label={SCOPE_LABELS[SCOPE_DAYS]} disabled={!editable} className={NUMBER} value={values[SCOPE_DAYS]}
                   onChange={(e) => onChange(SCOPE_DAYS, e.target.value)} />
               </label>
             )}
             {current === c.id && c.id === 'records' && (
-              <label className="ml-6 flex items-center gap-2">
+              <label className="ms-6 flex items-center gap-2">
                 <span>{SCOPE_LABELS[SCOPE_RECORDS]}</span>
-                <input type="text" inputMode="numeric" aria-label={SCOPE_LABELS[SCOPE_RECORDS]} disabled={!editable} className={NUMBER} value={values[SCOPE_RECORDS]}
+                <input dir="auto" type="text" inputMode="numeric" aria-label={SCOPE_LABELS[SCOPE_RECORDS]} disabled={!editable} className={NUMBER} value={values[SCOPE_RECORDS]}
                   onChange={(e) => onChange(SCOPE_RECORDS, e.target.value)} />
               </label>
             )}
@@ -270,7 +270,7 @@ export function ScopeSection({ settings, editable, scope = null, onSave, childre
         settings={list} editable={canEdit} unrecorded={unrecorded} everything={everything}>
         {canEdit && changed.length > 0 && (
           <div className="flex flex-wrap items-center gap-2">
-            <input aria-label={`Note for the ${meta.title} change`} placeholder="Why, for the history (optional)" maxLength={300}
+            <input dir="auto" aria-label={`Note for the ${meta.title} change`} placeholder="Why, for the history (optional)" maxLength={300}
               className={`${NUMBER} w-64`} value={note} onChange={(e) => setNote(e.target.value)} />
             <button type="button" disabled={saving || blocked} onClick={save}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-db-red-solid disabled:opacity-50">

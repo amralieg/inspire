@@ -43,7 +43,7 @@ export function ChoicePopover({ anchor, filter, selected, onChange, onClose, pag
     <Popover anchor={anchor} onClose={onClose} label={filter.label} width={260}>
       <div ref={body}>
         {searching && (
-          <label className="msel-search"><Icon name="search" size={13} /><input autoFocus value={query} onChange={(e) => setQuery(e.target.value)} placeholder={`Search ${filter.label.toLowerCase()}`} aria-label={`Search ${filter.label}`} maxLength={300} /></label>
+          <label className="msel-search"><Icon name="search" size={13} /><input dir="auto" autoFocus value={query} onChange={(e) => setQuery(e.target.value)} placeholder={`Search ${filter.label.toLowerCase()}`} aria-label={`Search ${filter.label}`} maxLength={300} /></label>
         )}
         {hint && <p className="msel-hint" role="status">{hint}</p>}
         <div className="msel-pop" role="listbox" aria-multiselectable="true" aria-label={filter.label}>

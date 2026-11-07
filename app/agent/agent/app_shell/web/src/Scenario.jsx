@@ -85,7 +85,7 @@ function SaveScenario({ page, app, result, onSaved }) {
   };
   return (
     <form className="scenario-save" onSubmit={submit} data-save>
-      <label>Name this scenario<input required maxLength={80} value={name} onChange={(e) => setName(e.target.value)} /></label>
+      <label>Name this scenario<input dir="auto" required maxLength={80} value={name} onChange={(e) => setName(e.target.value)} /></label>
       <button className="btn btn--sm btn--pri" type="submit" disabled={busy || !result || !name.trim()}>Save the scenario</button>
       {error && <p className="tile-err" role="alert"><Icon name="info" size={12} />{error}</p>}
     </form>

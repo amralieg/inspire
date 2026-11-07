@@ -45,7 +45,7 @@ function FilterPanel({ column, kind, choices, picked, onChange, onClose, at }) {
       <p className="font-semibold">{name}</p>
       {kind === 'text' ? (
         <>
-          <input type="search" autoFocus value={query} onChange={(e) => setQuery(e.target.value)} aria-label={`Search the ${name} choices`} placeholder="Type to search" className={FIELD} />
+          <input dir="auto" type="search" autoFocus value={query} onChange={(e) => setQuery(e.target.value)} aria-label={`Search the ${name} choices`} placeholder="Type to search" className={FIELD} />
           {hint && <p data-grid-hint="" className="text-[11px] text-text-secondary">{hint}</p>}
           <ul className="max-h-56 space-y-0.5 overflow-y-auto">
             {shown.map((choice) => (
@@ -64,7 +64,7 @@ function FilterPanel({ column, kind, choices, picked, onChange, onClose, at }) {
           {[[lo, 'From'], [hi, 'To']].map(([side, word]) => (
             <label key={side} className="space-y-0.5">
               <span className="block text-[11px] text-text-secondary">{word}</span>
-              <input type={kind === 'number' ? 'number' : 'date'} value={picked?.[side] ?? ''} onChange={edge(side)} aria-label={`${name} ${word.toLowerCase()}`} className={FIELD} />
+              <input dir="auto" type={kind === 'number' ? 'number' : 'date'} value={picked?.[side] ?? ''} onChange={edge(side)} aria-label={`${name} ${word.toLowerCase()}`} className={FIELD} />
             </label>
           ))}
         </div>
@@ -229,7 +229,7 @@ export default function DataGrid({
                         </button>
                       )}
                       {sortable ? (
-                        <button type="button" data-grid-sort="" className="inline-flex items-center gap-0.5 text-left hover:text-text-primary"
+                        <button type="button" data-grid-sort="" className="inline-flex items-center gap-0.5 text-start hover:text-text-primary"
                           onClick={() => { setSort((s) => nextSort(s, c.key, kinds[c.key])); setPage(0); }}>
                           {c.label}
                           {dir > 0 && <ArrowUp size={10} aria-hidden />}

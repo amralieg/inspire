@@ -256,7 +256,7 @@ function ListInput({ value, separator, onChange, multiline = false, ...props }) 
     setText(e.target.value);
     onChange(splitList(e.target.value, separator));
   };
-  return multiline ? <textarea {...props} value={shown} onChange={change} /> : <input {...props} value={shown} onChange={change} />;
+  return multiline ? <textarea dir="auto" {...props} value={shown} onChange={change} /> : <input dir="auto" {...props} value={shown} onChange={change} />;
 }
 
 function ProfileInput({ spec, path, onChange }) {
@@ -265,7 +265,7 @@ function ProfileInput({ spec, path, onChange }) {
   const problem = profileFieldProblem(path, value);
   return (
     <Field label={`${PROFILE_FIELDS[path].label} (${PROFILE_FIELDS[path].allowed})`}>
-      <input className={inputCls} value={value} onChange={(e) => onChange(section, { ...spec.config.profiles[section], [name]: e.target.value })} />
+      <input dir="auto" className={inputCls} value={value} onChange={(e) => onChange(section, { ...spec.config.profiles[section], [name]: e.target.value })} />
       {problem && <p className="text-[11px] text-error-fg">{problem}</p>}
     </Field>
   );
@@ -289,7 +289,7 @@ function WidgetInput({ widget, value, endpoints, onChange }) {
       </select>
     );
   } else {
-    input = <input className={inputCls} value={value ?? ''} placeholder={widget.default ?? ''} onChange={(e) => onChange(e.target.value)} />;
+    input = <input dir="auto" className={inputCls} value={value ?? ''} placeholder={widget.default ?? ''} onChange={(e) => onChange(e.target.value)} />;
   }
   return (
     <div className="space-y-1">
@@ -1114,14 +1114,14 @@ export default function ImplementWizard({
                 onPick={(ref) => setSpec((prev) => withEntityKey(prev, ref))}
               />
               <Field label="Goal sentence">
-                <textarea className={inputCls} rows={3} value={spec.use_case.goal} onChange={(e) => patch('use_case.goal', e.target.value)} />
+                <textarea dir="auto" className={inputCls} rows={3} value={spec.use_case.goal} onChange={(e) => patch('use_case.goal', e.target.value)} />
               </Field>
               <Field label="Decision owner">
-                <input className={inputCls} value={spec.use_case.decision_owner} onChange={(e) => { const owner = e.target.value; setSpec((prev) => withDecisionOwner(prev, owner)); }} />
+                <input dir="auto" className={inputCls} value={spec.use_case.decision_owner} onChange={(e) => { const owner = e.target.value; setSpec((prev) => withDecisionOwner(prev, owner)); }} />
               </Field>
               {[0, 1, 2].map((i) => (
                 <Field key={i} label={i === 0 ? 'Success measures' : `Measure ${i + 1} (optional)`}>
-                  <input
+                  <input dir="auto"
                     className={inputCls}
                     value={spec.use_case.success_measures[i] || ''}
                     onChange={(e) => {
@@ -1223,7 +1223,7 @@ export default function ImplementWizard({
                 </div>
               ))}
               <Field label="SQL warehouse id">
-                <input className={inputCls} value={spec.config.warehouse_id} onChange={(e) => patch('config.warehouse_id', e.target.value)} />
+                <input dir="auto" className={inputCls} value={spec.config.warehouse_id} onChange={(e) => patch('config.warehouse_id', e.target.value)} />
               </Field>
               <div className="space-y-3">
                 <h4 className="text-[10px] font-bold uppercase tracking-[0.18em] text-text-tertiary">Run profiles</h4>
@@ -1341,7 +1341,7 @@ export default function ImplementWizard({
                         </label>
                       </div>
                       {noAppAccess && outputCheck.app.offer && (
-                        <div className="pl-7 space-y-1.5 text-[11px]">
+                        <div className="ps-7 space-y-1.5 text-[11px]">
                           <GrantList label="Grant Inspire can run for new Apps" items={outputCheck.app.offer.grants} />
                           <button type="button" disabled={granting} onClick={grantNewApps}
                             className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-db-red-solid disabled:opacity-70">
@@ -1350,12 +1350,12 @@ export default function ImplementWizard({
                         </div>
                       )}
                       {item.id === 'app' && newAppsGrant && (
-                        <div role="status" aria-label="New Apps access result" className="pl-7 space-y-1 text-[11px] text-text-secondary">
+                        <div role="status" aria-label="New Apps access result" className="ps-7 space-y-1 text-[11px] text-text-secondary">
                           <p>{newAppsGrant.text}</p>
                           <GrantList label="Grants Inspire ran for new Apps" items={newAppsGrant.ran} />
                         </div>
                       )}
-                      {gone && <p className="pl-7 text-[11px] text-text-secondary">{goneAssetText(item.label, context.assets[item.id])}</p>}
+                      {gone && <p className="ps-7 text-[11px] text-text-secondary">{goneAssetText(item.label, context.assets[item.id])}</p>}
                       {mergeable && (
                         <MergeChoice
                           name={item.id}
@@ -1367,16 +1367,16 @@ export default function ImplementWizard({
                         />
                       )}
                       {on && item.id === 'alert' && (
-                        <p className="pl-7 text-[11px] text-text-secondary">
+                        <p className="ps-7 text-[11px] text-text-secondary">
                           {(spec.outputs.alert_recipients || []).length
                             ? `Emails ${spec.outputs.alert_recipients.join(', ')} when ${alertTriggerText(spec.outputs)}.`
                             : 'Nobody gets it yet: add an email under Advanced settings.'}
                         </p>
                       )}
                       {on && item.id === 'alert' && <DigestChoice outputs={spec.outputs} onChange={(checked) => setSpec((prev) => withDigest(prev, checked))} />}
-                      {tileChecks.map(([k, v]) => <div key={k} className="pl-7"><CheckLine check={v} label={PREFLIGHT_LABELS[k] || k} /></div>)}
+                      {tileChecks.map(([k, v]) => <div key={k} className="ps-7"><CheckLine check={v} label={PREFLIGHT_LABELS[k] || k} /></div>)}
                       {!on && context?.assets?.[item.id] && (
-                        <div className="pl-7 space-y-1 text-[11px]">
+                        <div className="ps-7 space-y-1 text-[11px]">
                           <p className="text-text-secondary">This use case already has {ASSET_NOUNS[item.id]}. What should happen to it?</p>
                           <div className="flex gap-3">
                             <label><input type="radio" checked={spec.removed_outputs[item.id] === 'delete'} onChange={() => patch('removed_outputs', { ...spec.removed_outputs, [item.id]: 'delete' })} /> {holding ? takeOutText(holding) : 'Delete it'}</label>
@@ -1400,7 +1400,7 @@ export default function ImplementWizard({
                     aria-pressed={freshness === option.id}
                     disabled={option.id === 'custom'}
                     onClick={() => setSpec((prev) => withFreshness(prev, option.id))}
-                    className={`px-4 py-1.5 text-xs font-medium border-r border-border last:border-r-0 ${freshness === option.id ? 'bg-db-red-solid text-white' : 'bg-surface text-text-secondary hover:text-text-primary'}`}
+                    className={`px-4 py-1.5 text-xs font-medium border-e border-border last:border-e-0 ${freshness === option.id ? 'bg-db-red-solid text-white' : 'bg-surface text-text-secondary hover:text-text-primary'}`}
                   >
                     {option.label}
                   </button>
@@ -1439,21 +1439,21 @@ export default function ImplementWizard({
               {spec.outputs.dashboard && (
                 <div className="space-y-2">
                   <h4 className="text-[10px] font-bold uppercase tracking-[0.18em] text-text-tertiary">Dashboard</h4>
-                  <input className={inputCls} placeholder="Dashboard name" value={spec.outputs.dashboard_name} onChange={(e) => patch('outputs.dashboard_name', e.target.value)} />
+                  <input dir="auto" className={inputCls} placeholder="Dashboard name" value={spec.outputs.dashboard_name} onChange={(e) => patch('outputs.dashboard_name', e.target.value)} />
                   <ListInput className={inputCls} placeholder="Filter widgets, comma separated" separator="," value={spec.outputs.dashboard_filters} onChange={(list) => patch('outputs.dashboard_filters', list)} />
                 </div>
               )}
               {spec.outputs.genie_space && (
                 <div className="space-y-2">
                   <h4 className="text-[10px] font-bold uppercase tracking-[0.18em] text-text-tertiary">Genie Agent</h4>
-                  <input className={inputCls} placeholder="Agent name" value={spec.outputs.genie_space_name} onChange={(e) => patch('outputs.genie_space_name', e.target.value)} />
+                  <input dir="auto" className={inputCls} placeholder="Agent name" value={spec.outputs.genie_space_name} onChange={(e) => patch('outputs.genie_space_name', e.target.value)} />
                   <ListInput multiline className={inputCls} rows={4} placeholder="Up to 5 questions, one per line" separator={'\n'} value={spec.outputs.genie_questions} onChange={(list) => patch('outputs.genie_questions', list.slice(0, 5))} />
                 </div>
               )}
               {spec.outputs.app && (
                 <div className="space-y-2">
                   <h4 className="text-[10px] font-bold uppercase tracking-[0.18em] text-text-tertiary">App</h4>
-                  <textarea className={inputCls} rows={3} placeholder="What the App should let people do" value={spec.outputs.app_purpose} onChange={(e) => patch('outputs.app_purpose', e.target.value)} />
+                  <textarea dir="auto" className={inputCls} rows={3} placeholder="What the App should let people do" value={spec.outputs.app_purpose} onChange={(e) => patch('outputs.app_purpose', e.target.value)} />
                   {!joinsApp(spec) && (
                     <>
                       <Field label={APP_OWNERS_LABEL}>
@@ -1467,7 +1467,7 @@ export default function ImplementWizard({
               {spec.outputs.alert && (
                 <div className="space-y-2">
                   <h4 className="text-[10px] font-bold uppercase tracking-[0.18em] text-text-tertiary">Alert</h4>
-                  <input className={inputCls} placeholder="Alert name" value={spec.outputs.alert_name} onChange={(e) => patch('outputs.alert_name', e.target.value)} />
+                  <input dir="auto" className={inputCls} placeholder="Alert name" value={spec.outputs.alert_name} onChange={(e) => patch('outputs.alert_name', e.target.value)} />
                   <div className="flex flex-wrap items-center gap-2 text-[12px] text-text-secondary">
                     <span>Fire when</span>
                     <select className={`${inputBase} w-auto`} value={spec.outputs.alert_tiers} onChange={(e) => patch('outputs.alert_tiers', e.target.value)}>
@@ -1493,7 +1493,7 @@ export default function ImplementWizard({
                     </select>
                   </div>
                   <p className="text-[11px] text-text-tertiary">Fires when {alertTriggerText(spec.outputs)}.</p>
-                  <textarea
+                  <textarea dir="auto"
                     className={inputCls}
                     rows={2}
                     placeholder="Optional: also fire when ... (plain words, for example 'refunds above 10 today'). Genie turns it into SQL that reads only this use case's tables."
@@ -1535,7 +1535,7 @@ export default function ImplementWizard({
               <div className="space-y-2">
                 <h4 className="text-[10px] font-bold uppercase tracking-[0.18em] text-text-tertiary">Schedule</h4>
                 <Field label="Cron (Quartz)">
-                  <input className={inputCls} value={spec.schedule.cron} onChange={(e) => patch('schedule.cron', e.target.value)} />
+                  <input dir="auto" className={inputCls} value={spec.schedule.cron} onChange={(e) => patch('schedule.cron', e.target.value)} />
                   {String(spec.schedule.cron || '').trim() && cronProblem(spec.schedule.cron) ? (
                     <p className="text-[11px] text-error-fg">Not a valid Quartz cron: {cronProblem(spec.schedule.cron)}</p>
                   ) : (
@@ -1543,7 +1543,7 @@ export default function ImplementWizard({
                   )}
                 </Field>
                 <Field label="Timezone">
-                  <input className={inputCls} value={spec.schedule.timezone} onChange={(e) => patch('schedule.timezone', e.target.value)} />
+                  <input dir="auto" className={inputCls} value={spec.schedule.timezone} onChange={(e) => patch('schedule.timezone', e.target.value)} />
                 </Field>
                 <Field label="Failure emails (comma separated; default: the decision owner)">
                   <ListInput className={inputCls} separator="," value={spec.schedule.failure_emails} onChange={(list) => patch('schedule.failure_emails', list)} />
@@ -1557,7 +1557,7 @@ export default function ImplementWizard({
               </div>
               <div className="space-y-2">
                 <Field label="Share with">
-                  <input className={inputCls} placeholder="Search users and groups" value={principalQ} onChange={(e) => setPrincipalQ(e.target.value)} />
+                  <input dir="auto" className={inputCls} placeholder="Search users and groups" value={principalQ} onChange={(e) => setPrincipalQ(e.target.value)} />
                 </Field>
                 <div className="flex flex-wrap gap-1">
                   {(spec.sharing.principals || []).map((p) => (
@@ -1788,7 +1788,7 @@ function SegmentButton({ on, disabled = false, onClick, children }) {
       aria-pressed={on}
       disabled={disabled}
       onClick={onClick}
-      className={`px-3 py-1 text-[11px] font-medium border-r border-border last:border-r-0 disabled:cursor-not-allowed ${on ? 'bg-db-red-solid text-white' : 'bg-surface text-text-secondary hover:text-text-primary'}`}
+      className={`px-3 py-1 text-[11px] font-medium border-e border-border last:border-e-0 disabled:cursor-not-allowed ${on ? 'bg-db-red-solid text-white' : 'bg-surface text-text-secondary hover:text-text-primary'}`}
     >
       {children}
     </button>
@@ -1822,7 +1822,7 @@ function AppNameField({ name, nameCheck, onName }) {
   return (
     <div className="space-y-1">
       <Field label="App name">
-        <input className={inputCls} value={name} onChange={(e) => onName(e.target.value.toLowerCase())} />
+        <input dir="auto" className={inputCls} value={name} onChange={(e) => onName(e.target.value.toLowerCase())} />
       </Field>
       {name && !APP_NAME_RE.test(name) ? (
         <p className="text-[11px] text-error-fg">3-30 lowercase letters, digits and dashes, starting with a letter</p>
@@ -1849,7 +1849,7 @@ function joinListText(targets, targetsError, choices, open) {
 function JoinedWarehouse({ target, warehouses }) {
   if (!target?.warehouse_id) return null;
   return (
-    <div data-app-warehouse="locked" className="pl-7 space-y-1">
+    <div data-app-warehouse="locked" className="ps-7 space-y-1">
       <Field label="SQL warehouse">
         <select className={inputCls} value={target.warehouse_id} disabled>
           <option value={target.warehouse_id}>{warehouseText(warehouses, target.warehouse_id)}</option>
@@ -1886,7 +1886,7 @@ function InsideInspireCard({ spec, on, lakebase, warehouses, warehousesError, wa
         </span>
       </label>
       {on && (
-        <div className="pl-7 space-y-1">
+        <div className="ps-7 space-y-1">
           {missing && <p data-inside-warehouse-missing="" className="text-[11px] text-error-fg">{INSIDE_WAREHOUSE_PROBLEM}</p>}
           <Advanced open={warehouseOpen || missing} onToggle={onWarehouseToggle}>
             <AppWarehouseField spec={spec} lakebase={lakebase} warehouses={warehouses} warehousesError={warehousesError} check={warehouseCheck}
@@ -1929,7 +1929,7 @@ function AppPlacementStep({ spec, targets, targetsError, heldApp, scope, warehou
               <input type="radio" name="app-place" value="held" className="mt-0.5" checked={!inside} onChange={onKeep} />
               <span className="text-sm font-semibold text-text-primary">Keep it in {heldApp}</span>
             </label>
-            {!inside && !joined && <div className="pl-7"><AppNameField name={name} nameCheck={nameCheck} onName={onName} /></div>}
+            {!inside && !joined && <div className="ps-7"><AppNameField name={name} nameCheck={nameCheck} onName={onName} /></div>}
             {!inside && joined && <JoinedWarehouse target={chosen?.target} warehouses={warehouses} />}
           </div>
           <InsideInspireCard spec={spec} on={inside} lakebase={lakebase} warehouses={warehouses} warehousesError={warehousesError}
@@ -1953,14 +1953,14 @@ function AppPlacementStep({ spec, targets, targetsError, heldApp, scope, warehou
             <span>
               <span className="block text-sm font-semibold text-text-primary">Add to an existing App</span>
               <span className="block text-[11px] text-text-secondary">
-                {targets === null && !targetsError && <Loader2 size={11} className="inline animate-spin mr-1" aria-hidden="true" />}
+                {targets === null && !targetsError && <Loader2 size={11} className="inline animate-spin me-1" aria-hidden="true" />}
                 {joinListText(targets, targetsError, choices, open)}
               </span>
             </span>
           </label>
           {choices.length > 0 && !inside && (
             <ul ref={listRef} aria-label="Apps Inspire built" data-app-list=""
-              className={`relative ml-7 space-y-1.5 overflow-y-auto rounded-md border border-border bg-surface px-2 py-1.5 ${APP_LIST_HEIGHT}`}>
+              className={`relative ms-7 space-y-1.5 overflow-y-auto rounded-md border border-border bg-surface px-2 py-1.5 ${APP_LIST_HEIGHT}`}>
               {choices.map((c) => (
                 <li key={c.target.id} data-app-target={c.target.id}>
                   <label className={`flex items-start gap-2 ${c.block && joined !== c.target.id ? '' : 'cursor-pointer'}`}>
@@ -1981,11 +1981,11 @@ function AppPlacementStep({ spec, targets, targetsError, heldApp, scope, warehou
             </ul>
           )}
           {chosen && !chosen.block && (
-            <p role="note" aria-label="The App this use case joins" className="pl-7 text-[11px] text-text-secondary">{joinedAppText(chosen.target)}</p>
+            <p role="note" aria-label="The App this use case joins" className="ps-7 text-[11px] text-text-secondary">{joinedAppText(chosen.target)}</p>
           )}
           {chosen && !chosen.block && <JoinedWarehouse target={chosen.target} warehouses={warehouses} />}
           {joined && !chosen && targets !== null && (
-            <p className="pl-7 text-[11px] text-error-fg">{joined} is not one Inspire built that you can open: pick another, or create a new App.</p>
+            <p className="ps-7 text-[11px] text-error-fg">{joined} is not one Inspire built that you can open: pick another, or create a new App.</p>
           )}
         </div>
         <div data-app-place="new" className={placeCard(fresh)}>
@@ -1995,13 +1995,13 @@ function AppPlacementStep({ spec, targets, targetsError, heldApp, scope, warehou
             <span className="block text-sm font-semibold text-text-primary">Create a new App</span>
           </label>
           {fresh && listing && (
-            <p data-app-new-waiting="" className="pl-7 text-[11px] text-text-secondary">
-              <Loader2 size={11} className="inline animate-spin mr-1" aria-hidden="true" />
+            <p data-app-new-waiting="" className="ps-7 text-[11px] text-text-secondary">
+              <Loader2 size={11} className="inline animate-spin me-1" aria-hidden="true" />
               A new App it is. Inspire names it once it has listed the Apps it built, so the name never takes one of theirs.
             </p>
           )}
           {fresh && !listing && (
-            <div className="pl-7 space-y-3">
+            <div className="ps-7 space-y-3">
               <div role="radiogroup" aria-label="How Inspire organizes Apps" className="space-y-1.5">
                 {APP_OWN_PLACEMENTS.map((p) => {
                   const off = newAppPlacementBlock(spec, targets, scope, p.id);
@@ -2035,7 +2035,7 @@ function MergeChoice({ name, label, chosen, targets, targetsError, onPick }) {
   const open = list[0] || null;
   const optionText = (t) => `${t.name} · holds ${mergeTargetText(t)}`;
   return (
-    <div className="pl-7 space-y-1.5" data-merge={name}>
+    <div className="ps-7 space-y-1.5" data-merge={name}>
       <div className="flex flex-wrap items-center gap-2">
         <div role="group" aria-label={`Where Genie builds the ${label}`} className="inline-flex rounded-md border border-border overflow-hidden">
           <SegmentButton on={!chosen} onClick={() => onPick(null)}>Create new</SegmentButton>
@@ -2072,7 +2072,7 @@ function ResultPlaceFields({ parts, catalogs, catalogsCut = false, catalogsError
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <Field label="Catalog">
           {typeCatalog ? (
-            <input className={inputCls} value={parts.catalog} onChange={(e) => set('catalog', e.target.value.trim())} />
+            <input dir="auto" className={inputCls} value={parts.catalog} onChange={(e) => set('catalog', e.target.value.trim())} />
           ) : (
             <CatalogPicker id="implement-result-table" value={parts.catalog} onChange={(name) => set('catalog', name)} catalogs={catalogs || []}
               truncated={catalogsCut} loading={catalogs === null} className={inputCls} />
@@ -2080,7 +2080,7 @@ function ResultPlaceFields({ parts, catalogs, catalogsCut = false, catalogsError
         </Field>
         <Field label="Schema">
           {typeSchema ? (
-            <input className={inputCls} value={parts.schema} onChange={(e) => set('schema', e.target.value.trim())} />
+            <input dir="auto" className={inputCls} value={parts.schema} onChange={(e) => set('schema', e.target.value.trim())} />
           ) : (
             <select className={inputCls} value={parts.schema} disabled={!parts.catalog} onChange={(e) => set('schema', e.target.value)}>
               {!parts.schema && <option value="">{parts.catalog ? 'Pick a schema' : 'Pick a catalog first'}</option>}
@@ -2109,7 +2109,7 @@ function ResultTableStep({ parts, table, defaultTable, outputCheck, onChange }) 
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <Field label="Table name">
-          <input className={inputCls} value={parts.table} onChange={(e) => set('table', e.target.value.trim())} />
+          <input dir="auto" className={inputCls} value={parts.table} onChange={(e) => set('table', e.target.value.trim())} />
         </Field>
       </div>
       <div className="rounded-lg border border-border bg-bg px-3 py-2.5 space-y-1" role="group" aria-label="Result table">
@@ -2182,7 +2182,7 @@ function SettingInput({ setting, value, problem, showChange, onChange }) {
             {choices.map((c) => <option key={c} value={c}>{c}</option>)}
           </select>
         ) : (
-          <input type="text" inputMode={setting.kind === 'choice' ? 'text' : 'decimal'} aria-label={setting.label} className={settingInputClass}
+          <input dir="auto" type="text" inputMode={setting.kind === 'choice' ? 'text' : 'decimal'} aria-label={setting.label} className={settingInputClass}
             value={value} onChange={(e) => onChange(e.target.value)} />
         )}
       </div>
@@ -2204,7 +2204,7 @@ function SettingsStep({ spec, settings, recorded, impact, onChange, onNote }) {
         <p data-settings-technical="" className="text-[11px] text-text-tertiary">{SETTINGS_TECHNICAL_NOTE}</p>
       </div>
       {!recorded && <p className="text-[11px] text-text-secondary">{SETTINGS_ASSUMPTIONS_LATER}</p>}
-      <div data-settings-list="" className="max-h-[31rem] space-y-2.5 overflow-y-auto pr-1">
+      <div data-settings-list="" className="max-h-[31rem] space-y-2.5 overflow-y-auto pe-1">
         {groups.map(([group, list]) => {
           const shared = list.every((s) => s.change === list[0].change) ? list[0].change : null;
           return (
@@ -2228,7 +2228,7 @@ function SettingsStep({ spec, settings, recorded, impact, onChange, onNote }) {
         <div data-settings-note="" className="space-y-0.5">
           <label className="flex items-center gap-2">
             <span className="shrink-0 text-[12px] text-text-primary">{SETTINGS_NOTE_LABEL}</span>
-            <input type="text" aria-label={SETTINGS_NOTE_LABEL} placeholder={SETTINGS_NOTE_PLACEHOLDER}
+            <input dir="auto" type="text" aria-label={SETTINGS_NOTE_LABEL} placeholder={SETTINGS_NOTE_PLACEHOLDER}
               className={`${inputFrame} min-w-0 flex-1 px-2 py-1 text-sm`} value={settingsNoteOf(spec)} onChange={(e) => onNote(e.target.value)} />
           </label>
           {settingsNoteProblem(spec) && <p className="text-[11px] leading-4 text-error-fg">{settingsNoteProblem(spec)}</p>}
@@ -2272,7 +2272,7 @@ function HoldoutSetting({ spec, onEnabled, children = null }) {
           <span className="text-[12px] font-medium text-text-primary">{HOLDOUT_LABEL}</span>. {HOLDOUT_BLURB}
         </span>
       </label>
-      {problem && <p className="ml-6 text-[11px] text-error-fg">{problem}</p>}
+      {problem && <p className="ms-6 text-[11px] text-error-fg">{problem}</p>}
     </fieldset>
   );
 }
@@ -2397,7 +2397,7 @@ function AppAccessStep({ spec, lakebase, warehouses, warehousesError, warehouseC
       </AppBackendChoice>
       <fieldset className="space-y-2">
         <legend className={LEGEND}>
-          What people can do in the App<span className="ml-2 normal-case tracking-normal font-normal text-[11px]">Record decisions starts on; the others stay off unless you turn them on.</span>
+          What people can do in the App<span className="ms-2 normal-case tracking-normal font-normal text-[11px]">Record decisions starts on; the others stay off unless you turn them on.</span>
         </legend>
         <div className="space-y-2.5 pt-1">
           {APP_OPTIONS.filter((o) => appOptionShown(spec, o.id)).map((o) => (
@@ -2409,7 +2409,7 @@ function AppAccessStep({ spec, lakebase, warehouses, warehousesError, warehouseC
                 </span>
               </label>
               {o.id === 'modify' && appOptionShown(spec, 'replace_edits') && (
-                <div role="radiogroup" aria-label={REPLACE_EDITS_QUESTION} className="ml-6 mt-2 border-l-2 border-border pl-3 space-y-1">
+                <div role="radiogroup" aria-label={REPLACE_EDITS_QUESTION} className="ms-6 mt-2 border-s-2 border-border ps-3 space-y-1">
                   <p className="text-[12px] font-medium text-text-primary">{REPLACE_EDITS_QUESTION}</p>
                   {REPLACE_EDITS_CHOICES.map((c) => (
                     <label key={String(c.id)} className="flex items-start gap-2 text-[11px] cursor-pointer">
@@ -2450,7 +2450,7 @@ function StylePreview({ style, palette, theme }) {
           <span className="block h-[6px] w-5 rounded-full" style={{ border: `1px solid ${pv('line-strong')}`, background: pv('card') }} />
         </span>
         <span className="grid grid-cols-3 gap-1">
-          {[0, 1, 2].map((i) => <span key={i} className="block h-[12px] rounded-[4px]" style={{ background: pv(`h${i}-bg`), border: `1px solid ${pv('line')}`, borderLeft: `3px solid ${pv(`h${i}-line`)}` }} />)}
+          {[0, 1, 2].map((i) => <span key={i} className="block h-[12px] rounded-[4px]" style={{ background: pv(`h${i}-bg`), border: `1px solid ${pv('line')}`, borderInlineStart: `3px solid ${pv(`h${i}-line`)}` }} />)}
         </span>
         <span className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[6px]" style={card}>
           <span className="block h-[5px] shrink-0" style={{ background: pv('h0-bg'), borderBottom: `1px solid ${pv('line')}` }} />
@@ -2465,7 +2465,7 @@ function StylePreview({ style, palette, theme }) {
         <span className="text-[13px] font-semibold leading-none" style={{ color: pv('ink'), fontFamily: 'Georgia, "Times New Roman", serif' }}>Aa</span>
         <span className="grid grid-cols-3" style={{ borderTop: `1px solid ${pv('line')}`, borderBottom: `1px solid ${pv('line')}` }}>
           {[0, 1, 2].map((i) => (
-            <span key={i} className="flex h-[12px] items-center px-1" style={i ? { borderLeft: `1px solid ${pv('line')}` } : undefined}>
+            <span key={i} className="flex h-[12px] items-center px-1" style={i ? { borderInlineStart: `1px solid ${pv('line')}` } : undefined}>
               <span className="block h-[5px] w-3/5 rounded-sm" style={{ background: pv(`h${i}-ink`) }} />
             </span>
           ))}
@@ -2517,8 +2517,8 @@ function LayoutPreview({ layout, palette, theme }) {
   }
   return (
     <span aria-hidden="true" data-preview="layout-sidebar" className="flex h-[52px] overflow-hidden rounded-md" style={frame}>
-      <span className="flex w-[30%] flex-col gap-1 p-1.5" style={{ background: pv('panel'), borderRight: `1px solid ${pv('line')}` }}>
-        {[0, 1, 2].map((i) => <span key={i} className="block h-[5px] rounded-sm" style={i ? { background: pv('line-strong') } : { background: pv('brand-wash'), borderLeft: `2px solid ${pv('brand')}` }} />)}
+      <span className="flex w-[30%] flex-col gap-1 p-1.5" style={{ background: pv('panel'), borderInlineEnd: `1px solid ${pv('line')}` }}>
+        {[0, 1, 2].map((i) => <span key={i} className="block h-[5px] rounded-sm" style={i ? { background: pv('line-strong') } : { background: pv('brand-wash'), borderInlineStart: `2px solid ${pv('brand')}` }} />)}
       </span>
       <span className="flex flex-1 flex-col gap-1 p-1.5">
         <span className="block h-[4px] w-1/2 rounded-sm" style={{ background: pv('ink') }} />
@@ -2535,7 +2535,7 @@ function LookCard({ name, value, checked, onChange, label, badge = '', blurb = '
       <span className="flex items-center gap-2">
         <input type="radio" name={name} value={value} checked={checked} onChange={onChange} />
         <span className="text-[12px] font-semibold text-text-primary">{label}</span>
-        {badge && <span className="ml-auto rounded-full border border-border bg-surface px-1.5 py-px text-[10px] text-text-secondary">{badge}</span>}
+        {badge && <span className="ms-auto rounded-full border border-border bg-surface px-1.5 py-px text-[10px] text-text-secondary">{badge}</span>}
       </span>
       {blurb && <span className="block text-[11px] leading-snug text-text-secondary">{blurb}</span>}
     </label>
@@ -2612,7 +2612,7 @@ function AppLookStep({ spec, look, lookError, palette, title, stake, dates = nul
                   type="button"
                   aria-pressed={chosen.theme === t.id}
                   onClick={() => onLook('theme', t.id)}
-                  className={`px-4 py-1.5 text-xs font-medium border-r border-border last:border-r-0 ${chosen.theme === t.id ? 'bg-db-red-solid text-white' : 'bg-surface text-text-secondary hover:text-text-primary'}`}
+                  className={`px-4 py-1.5 text-xs font-medium border-e border-border last:border-e-0 ${chosen.theme === t.id ? 'bg-db-red-solid text-white' : 'bg-surface text-text-secondary hover:text-text-primary'}`}
                 >
                   {t.label}
                 </button>
@@ -2672,7 +2672,7 @@ function AppLookStep({ spec, look, lookError, palette, title, stake, dates = nul
               return (
                 <div key={p.id} data-app-page={p.id} className={`rounded-lg border p-2 ${shownPage === p.id ? 'border-db-red bg-db-red-50' : 'border-border'}`}>
                   <button type="button" aria-pressed={shownPage === p.id} disabled={!p.on} onClick={() => setPageId(p.id)}
-                    className="block w-full text-left text-[12px] font-semibold text-text-primary disabled:text-text-tertiary glow-focus">
+                    className="block w-full text-start text-[12px] font-semibold text-text-primary disabled:text-text-tertiary glow-focus">
                     {p.label}
                   </button>
                   {p.fixed ? <p className="mt-1 text-[11px] text-text-tertiary">{APP_ALWAYS_ON}</p> : (

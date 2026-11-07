@@ -51,7 +51,7 @@ export default function UseCaseCard({
         <button
           type="button"
           onClick={(e) => { e.stopPropagation(); onToggleFavorite(); }}
-          className={`pl-3 pr-1 py-4 shrink-0 transition-smooth ${isFavorite ? 'text-db-red-fg' : 'text-text-disabled hover:text-db-red-fg'}`}
+          className={`ps-3 pe-1 py-4 shrink-0 transition-smooth ${isFavorite ? 'text-db-red-fg' : 'text-text-disabled hover:text-db-red-fg'}`}
           aria-pressed={isFavorite}
           title={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
         >
@@ -69,13 +69,13 @@ export default function UseCaseCard({
               onToggle();
             }
           }}
-          className="flex-1 flex items-center gap-3 px-3 py-4 text-left hover:bg-bg-subtle transition-smooth cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-db-red/25"
+          className="flex-1 flex items-center gap-3 px-3 py-4 text-start hover:bg-bg-subtle transition-smooth cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-db-red/25"
         >
           <div className="flex-1 min-w-0">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-                  <h3 className="text-lg sm:text-xl font-bold text-text-primary leading-snug">
+                  <h3 dir="auto" className="text-lg sm:text-xl font-bold text-text-primary leading-snug">
                     {titlePlain}
                   </h3>
                   {v130?.bestOfBest && (
@@ -90,7 +90,7 @@ export default function UseCaseCard({
                   <QualityBarChip uc={u} />
                 </div>
                 {subtitleText && (
-                  <p className="text-xs sm:text-sm text-text-secondary mt-1.5 leading-snug line-clamp-2">
+                  <p dir="auto" className="text-xs sm:text-sm text-text-secondary mt-1.5 leading-snug line-clamp-2">
                     {subtitleText}
                   </p>
                 )}
@@ -123,6 +123,7 @@ export default function UseCaseCard({
               {kind && technique && (
                 <span
                   data-technique-chip={technique}
+                  dir="auto"
                   className="text-[10px] px-2 py-0.5 rounded-full border leading-none text-text-secondary border-border"
                   style={kindChipStyle(kind.color)}
                 >
@@ -132,13 +133,15 @@ export default function UseCaseCard({
               <StrategyChip info={v130} strategy={detailProps.strategy} />
               <FeedbackChip status={feedbackCurrent?.status || v130?.feedbackStatus} />
               {showPriorityPill && (
-                <span className={`text-[10px] px-2 py-0.5 rounded-full border font-semibold ${priorityPillClass(priority)}`}>
+                <span dir="auto" className={`text-[10px] px-2 py-0.5 rounded-full border font-semibold ${priorityPillClass(priority)}`}>
                   {priority}
                 </span>
               )}
             </div>
-            <div className="text-[10px] text-text-tertiary mt-1.5 leading-snug">
-              {[domain || 'Unknown', subdomain, (kind ? '' : technique) || ucType].filter(Boolean).join(' · ')}
+            <div data-use-case-meta="" className="text-[10px] text-text-tertiary mt-1.5 leading-snug break-words">
+              {[domain || 'Unknown', subdomain, (kind ? '' : technique) || ucType].filter(Boolean).map((part, i) => (
+                <span key={i}>{i > 0 && ' · '}<bdi>{part}</bdi></span>
+              ))}
             </div>
           </div>
         </div>

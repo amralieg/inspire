@@ -16,7 +16,7 @@ import { buildUseCaseList } from '../lib/useCaseList';
 import { workspaceJobUrl, workspaceNotebookUrl } from '../lib/workspaceLinks';
 import { reducedMotion } from '../lib/motion';
 import { formatWhen } from '../lib/formatWhen';
-import { plural } from '../lib/plural';
+import { plural, shown } from '../lib/plural';
 import ImplementStatusBadge from '../components/ImplementStatusBadge';
 import ImplementWizard from './ImplementWizard';
 import { AssetPanel, AssetTile, BuildControls, ConfirmDialog, NotebookPanel } from '../components/ImplementControlTower';
@@ -97,7 +97,7 @@ function PageHeader({ summary, loading, query, onQuery }) {
       </div>
       <label className="relative">
         <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-tertiary" aria-hidden />
-        <input
+        <input dir="auto"
           type="search"
           aria-label="Search use cases"
           placeholder="Search by name, id or domain"
@@ -121,7 +121,7 @@ function SummaryBanner({ summary }) {
     line = building.map((item) => `${item.id}${shownStatusMessage(item.latest) ? `: ${shownStatusMessage(item.latest)}` : ''}`).join(' · ');
   } else if (summary.mvps) {
     mark = summary.failed || summary.held || summary.unmet ? { icon: AlertTriangle, tone: 'warning' } : { icon: CheckCircle2, tone: 'success' };
-    title = `${summary.ready} of ${plural(summary.mvps, 'MVP')} ready`;
+    title = `${shown(summary.ready)} of ${plural(summary.mvps, 'MVP')} ready`;
     const open = [
       summary.failed ? `${summary.failed} failed or stopped. Open one to see why.` : '',
       summary.held ? `${summary.held} not published, because a vibe was not met. Open one to rephrase, try again or publish anyway.` : '',
@@ -168,7 +168,7 @@ function SummaryBanner({ summary }) {
       </div>
       {summary.delivered.length > 0 && (
         <div className="flex flex-wrap items-center gap-2 px-5 py-2.5 border-t border-border bg-bg-subtle/60">
-          <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-text-secondary mr-1">Delivered so far</span>
+          <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-text-secondary me-1">Delivered so far</span>
           {summary.delivered.map((entry) => {
             const Icon = OUTPUT_ICONS[entry.id];
             return (
@@ -248,7 +248,7 @@ function RailProgress({ item, progress }) {
 function Rail({ groups, listLoading, query, asset, mvp = '', assetLabel, shownId, progress = {}, onSelect }) {
   const mvpWords = mvp === 'live' ? 'a live MVP' : 'an MVP';
   return (
-    <nav aria-label="Use cases" className="flex-1 min-h-0 space-y-3 overflow-y-auto pr-1">
+    <nav aria-label="Use cases" className="flex-1 min-h-0 space-y-3 overflow-y-auto pe-1">
       {listLoading && (
         <p className="flex items-center gap-2 px-1 text-[12px] text-text-secondary"><Loader2 size={14} className="animate-spin" /> Loading the use cases…</p>
       )}
@@ -282,7 +282,7 @@ function Rail({ groups, listLoading, query, asset, mvp = '', assetLabel, shownId
                     aria-current={on ? 'true' : undefined}
                     data-building={building ? '' : undefined}
                     onClick={() => onSelect(item.id)}
-                    className={`w-full text-left px-3 py-2.5 rounded-lg border transition-smooth ${on ? 'bg-db-red-50 border-db-red/25' : 'border-transparent hover:bg-bg-subtle'} ${
+                    className={`w-full text-start px-3 py-2.5 rounded-lg border transition-smooth ${on ? 'bg-db-red-50 border-db-red/25' : 'border-transparent hover:bg-bg-subtle'} ${
                       building ? 'rail-building' : ''}`}
                   >
                     <div className={`text-[12.5px] font-semibold leading-snug line-clamp-2 ${on ? 'text-db-red-fg' : 'text-text-primary'}`}>{item.name}</div>
@@ -580,7 +580,7 @@ function VersionRow({ card, version, locked, lockedReason, pending, confirming, 
         <span className="font-semibold text-text-primary">Version {version.version}</span>
         {version.at && <span className="text-text-secondary">· {formatWhen(version.at, version.at)}</span>}
         <span className="rounded-full border border-border px-1.5 py-px text-[10px] text-text-secondary">{statusChip(version.status).label}</span>
-        <button type="button" disabled={locked || confirming} title={lockedReason || undefined} onClick={onAsk} aria-label={`Roll back to ${name}`} className={`ml-auto ${OUTLINE_BUTTON}`}>
+        <button type="button" disabled={locked || confirming} title={lockedReason || undefined} onClick={onAsk} aria-label={`Roll back to ${name}`} className={`ms-auto ${OUTLINE_BUTTON}`}>
           <History size={12} /> Roll back
         </button>
       </div>
@@ -696,7 +696,7 @@ function AssetVersions({ asset, locked, lockedReason, onRollback }) {
           <li data-version={asset.live.version} data-live-version="" className="flex flex-wrap items-center gap-x-2 gap-y-1 py-2.5">
             <span className="font-semibold text-text-primary">Version {asset.live.version}</span>
             {asset.live.at && <span className="text-text-secondary">· {formatWhen(asset.live.at, asset.live.at)}</span>}
-            <span className="ml-auto"><AssetPill state={{ tone: 'success' }}>Live</AssetPill></span>
+            <span className="ms-auto"><AssetPill state={{ tone: 'success' }}>Live</AssetPill></span>
             <p className="w-full truncate text-text-secondary" title={asset.vibes || undefined}>{asset.vibes ? `“${vibesPreview(asset.vibes)}”` : 'no vibes'}</p>
           </li>
         )}
@@ -1165,7 +1165,7 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
           {genie.questions.length > 0 && (
             <div>
               <p className="font-medium text-text-primary">{genie.source === 'space' ? 'Sample questions in the Genie Agent' : 'Questions you asked for'}</p>
-              <ul className="list-disc pl-5">{genie.questions.map((question, i) => (
+              <ul className="list-disc ps-5">{genie.questions.map((question, i) => (
                 <li key={question}>
                   <span>{question}</span>
                   {genie.notes[i] && <p className="text-text-secondary">{genie.notes[i]}</p>}
@@ -1243,7 +1243,7 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
       {failure?.rounds?.length > 0 && (
         <div aria-label={FAILURE_ROUNDS_HEADING} className="space-y-1 text-error-fg">
           <p className="font-semibold">{FAILURE_ROUNDS_HEADING}</p>
-          <ol className="list-decimal pl-5 space-y-1">
+          <ol className="list-decimal ps-5 space-y-1">
             {failure.rounds.map((round) => (
               <li key={round.attempt}>
                 <span>Attempt {round.attempt}{round.error ? ` failed: ${round.error}` : ' failed'}. </span>
@@ -1356,7 +1356,7 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
                     {w.choices.map((choice) => <option key={String(choice)} value={String(choice)}>{String(choice)}</option>)}
                   </select>
                 ) : (
-                  <input
+                  <input dir="auto"
                     className="mt-0.5 w-full px-2 py-1 border border-border rounded-lg bg-surface"
                     disabled={readOnly}
                     title={lockedReason || undefined}
@@ -1412,7 +1412,7 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
             aria-expanded={historyOpen}
             aria-controls={`${viewId}-history`}
             onClick={() => setHistoryOpen((open) => !open)}
-            className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left bg-gradient-to-r from-db-red-50 to-surface"
+            className="w-full flex items-center justify-between gap-3 px-4 py-3 text-start bg-gradient-to-r from-db-red-50 to-surface"
           >
             <span className="flex items-center gap-2.5 min-w-0">
               <IconChip icon={History} size="sm" />

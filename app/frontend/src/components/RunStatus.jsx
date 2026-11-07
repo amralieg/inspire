@@ -139,7 +139,7 @@ export default function RunStatus({ runId, onNewRun, apiFetch }) {
                   onClick={handleCancel}
                   className="px-4 py-2 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-sm font-medium hover:bg-red-500/20 transition-all"
                 >
-                  <StopCircle className="w-4 h-4 inline mr-1.5" />
+                  <StopCircle className="w-4 h-4 inline me-1.5" />
                   Cancel
                 </button>
               )}
@@ -150,7 +150,7 @@ export default function RunStatus({ runId, onNewRun, apiFetch }) {
                   rel="noopener noreferrer"
                   className="px-4 py-2 rounded-xl bg-db-red/10 border border-db-red/30 text-db-red-fg text-sm font-medium hover:bg-db-red/20 transition-all"
                 >
-                  <ExternalLink className="w-4 h-4 inline mr-1.5" />
+                  <ExternalLink className="w-4 h-4 inline me-1.5" />
                   View in Databricks
                 </a>
               )}

@@ -14,8 +14,8 @@ function Field({ field, value, meta, problem, options, required, onChange }) {
     <label className={`in ${spec.wide ? 'in--wide' : ''}`}>
       <span>{columnLabel(field.name, meta)}{required ? ' *' : ''}{spec.hint && <small> · {spec.hint}</small>}</span>
       {spec.tag === 'select' && <select {...common}><option value="">Not set</option><option value="true">Yes</option><option value="false">No</option></select>}
-      {spec.tag === 'textarea' && <textarea {...common} rows={spec.rows} />}
-      {spec.tag === 'input' && <input {...common} type={spec.type} step={spec.step} inputMode={spec.inputMode} list={list} autoComplete="off" />}
+      {spec.tag === 'textarea' && <textarea dir="auto" {...common} rows={spec.rows} />}
+      {spec.tag === 'input' && <input dir="auto" {...common} type={spec.type} step={spec.step} inputMode={spec.inputMode} list={list} autoComplete="off" />}
       {list && <datalist id={list}>{options.map((v) => <option key={v} value={v} />)}</datalist>}
       {problem && <small className="in-err">{problem}</small>}
     </label>

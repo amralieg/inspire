@@ -459,7 +459,7 @@ export default function MonitorPage({ settings, update, sessionId, runId, onComp
           <button
             type="button"
             onClick={() => setShowFilters(!showFilters)}
-            className="w-full flex items-center gap-3 px-5 py-4 text-left hover:bg-bg-subtle/50 transition-smooth"
+            className="w-full flex items-center gap-3 px-5 py-4 text-start hover:bg-bg-subtle/50 transition-smooth"
           >
             <div className="w-8 h-8 rounded-lg bg-bg-subtle flex items-center justify-center">
               <Layers size={16} className="text-text-secondary" />
@@ -499,7 +499,7 @@ export default function MonitorPage({ settings, update, sessionId, runId, onComp
                 {/* All stages option */}
                 <button
                   onClick={() => setStageFilter('all')}
-                  className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-left transition-smooth ${
+                  className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-start transition-smooth ${
                     stageFilter === 'all'
                       ? 'bg-db-red-50 border border-db-red/20'
                       : 'hover:bg-bg-subtle border border-transparent'
@@ -536,7 +536,7 @@ export default function MonitorPage({ settings, update, sessionId, runId, onComp
                     <button
                       key={name}
                       onClick={() => setStageFilter(active ? 'all' : name)}
-                      className={`w-full flex items-start gap-2.5 px-3 py-2.5 rounded-lg text-left transition-smooth ${
+                      className={`w-full flex items-start gap-2.5 px-3 py-2.5 rounded-lg text-start transition-smooth ${
                         active
                           ? 'bg-db-red-50 border border-db-red/20'
                           : 'hover:bg-bg-subtle border border-transparent'
@@ -599,7 +599,7 @@ export default function MonitorPage({ settings, update, sessionId, runId, onComp
                 {/* Search */}
                 <div className="relative flex-1">
                   <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-tertiary" />
-                  <input
+                  <input dir="auto"
                     type="text"
                     placeholder="Search steps, messages..."
                     value={searchQuery}
@@ -696,7 +696,7 @@ export default function MonitorPage({ settings, update, sessionId, runId, onComp
                     <div key={stageName} className="bg-surface border border-border rounded-xl overflow-hidden shadow-sm">
                       <button
                         onClick={() => toggleStage(stageName)}
-                        className="w-full px-4 py-3 border-b border-border bg-panel flex items-center gap-3 hover:bg-bg-subtle transition-smooth text-left"
+                        className="w-full px-4 py-3 border-b border-border bg-panel flex items-center gap-3 hover:bg-bg-subtle transition-smooth text-start"
                       >
                         <div className={`transition-transform duration-200 ${collapsed ? '' : 'rotate-180'}`}>
                           <ChevronDown size={14} className="text-text-tertiary" />
@@ -775,9 +775,9 @@ export default function MonitorPage({ settings, update, sessionId, runId, onComp
           <div className="px-4 py-3 border-b border-border bg-gradient-to-r from-db-red-50 to-surface flex items-center gap-2">
             <BarChart3 size={14} className="text-db-red-fg" />
             <span className="text-xs font-bold text-text-primary">Use Cases Discovered</span>
-            <span className="text-[10px] text-text-tertiary ml-auto">
+            <span className="text-[10px] text-text-tertiary ms-auto">
               <span data-testid="live-use-case-count">{liveCountText(liveUseCases.length)}</span>
-              {isRunning && <span className="ml-1 inline-block w-1.5 h-1.5 rounded-full bg-db-red animate-pulse" />}
+              {isRunning && <span className="ms-1 inline-block w-1.5 h-1.5 rounded-full bg-db-red animate-pulse" />}
             </span>
           </div>
           <div className="max-h-72 overflow-y-auto divide-y divide-border">
@@ -1001,7 +1001,7 @@ function StepRow({ step, live, searchQuery }) {
 
       {/* Expanded details */}
       {expanded && hasDetails && (
-        <div className="px-4 pb-3 pl-11 space-y-1.5">
+        <div className="px-4 pb-3 ps-11 space-y-1.5">
           {step.sub_step_name && (
             <p className="text-xs text-text-secondary">
               <span className="text-text-tertiary">Sub-step:</span> {step.sub_step_name}

@@ -281,7 +281,7 @@ export default function SetupWizard({ settings, update, onComplete }) {
             <div className="space-y-4">
               <div>
                 <label className="text-xs font-medium text-text-secondary mb-1.5 block">Databricks Workspace URL</label>
-                <input
+                <input dir="auto"
                   type="text"
                   value={databricksHost}
                   onChange={(e) => update('databricksHost', normalizeDatabricksHost(e.target.value))}
@@ -326,7 +326,7 @@ export default function SetupWizard({ settings, update, onComplete }) {
                   {authMode === 'pat' ? (
                     <div>
                       <label className="text-xs font-medium text-text-secondary mb-1.5 block">Personal Access Token (PAT)</label>
-                      <input
+                      <input dir="auto"
                         type="password"
                         value={token}
                         onChange={(e) => update('token', e.target.value)}
@@ -341,17 +341,17 @@ export default function SetupWizard({ settings, update, onComplete }) {
                     <div className="space-y-3">
                       <div>
                         <label className="text-xs font-medium text-text-secondary mb-1 block">Client ID</label>
-                        <input type="text" value={settings.spClientId} onChange={(e) => update('spClientId', e.target.value)}
+                        <input dir="auto" type="text" value={settings.spClientId} onChange={(e) => update('spClientId', e.target.value)}
                           className="w-full px-4 py-2.5 rounded-xl border border-border bg-surface text-text-primary text-sm font-mono focus:border-db-red outline-none" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" />
                       </div>
                       <div>
                         <label className="text-xs font-medium text-text-secondary mb-1 block">Client Secret</label>
-                        <input type="password" value={settings.spClientSecret} onChange={(e) => update('spClientSecret', e.target.value)}
+                        <input dir="auto" type="password" value={settings.spClientSecret} onChange={(e) => update('spClientSecret', e.target.value)}
                           className="w-full px-4 py-2.5 rounded-xl border border-border bg-surface text-text-primary text-sm font-mono focus:border-db-red outline-none" placeholder="dose..." />
                       </div>
                       <div>
                         <label className="text-xs font-medium text-text-secondary mb-1 block">Tenant ID (Azure)</label>
-                        <input type="text" value={settings.spTenantId} onChange={(e) => update('spTenantId', e.target.value)}
+                        <input dir="auto" type="text" value={settings.spTenantId} onChange={(e) => update('spTenantId', e.target.value)}
                           className="w-full px-4 py-2.5 rounded-xl border border-border bg-surface text-text-primary text-sm font-mono focus:border-db-red outline-none" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" />
                       </div>
                     </div>
@@ -381,7 +381,7 @@ export default function SetupWizard({ settings, update, onComplete }) {
                     <button
                       key={wh.id}
                       onClick={() => update('warehouseId', wh.id)}
-                      className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl border text-left transition-all ${
+                      className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl border text-start transition-all ${
                         warehouseId === wh.id ? 'border-db-red bg-db-red-50' : 'border-border hover:border-border-strong bg-surface'
                       }`}
                     >
@@ -420,7 +420,7 @@ export default function SetupWizard({ settings, update, onComplete }) {
                 </div>
                 <div>
                   <label className="text-xs font-medium text-text-secondary mb-1 block">Schema</label>
-                  <input
+                  <input dir="auto"
                     type="text"
                     value={inspireDatabase?.split('.')[1] || ''}
                     onChange={(e) => update('inspireDatabase', `${selectedCatalog}.${e.target.value}`)}
@@ -437,7 +437,7 @@ export default function SetupWizard({ settings, update, onComplete }) {
               {inspireDatabase && inspireDatabase.includes('.') && (
                 <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-info-bg text-info-fg text-xs">
                   <Database size={14} /> Will use <span className="font-mono font-bold">{inspireDatabase}</span>
-                  {creatingDb && <Loader2 size={12} className="animate-spin ml-1" />}
+                  {creatingDb && <Loader2 size={12} className="animate-spin ms-1" />}
                 </div>
               )}
             </div>

@@ -39,7 +39,7 @@ export default function DrawerShell({ label, closeLabel, focusKey = null, onClos
           aria-modal="true"
           aria-label={label}
           className={`relative flex w-full flex-col bg-surface shadow-elevated outline-none ${
-            center ? 'max-h-[92dvh] max-w-[44rem] rounded-xl border border-border' : 'h-full max-w-[46rem] border-l border-border'}`}
+            center ? 'max-h-[92dvh] max-w-[44rem] rounded-xl border border-border' : 'h-full max-w-[46rem] border-s border-border'}`}
         >
           <div className="shrink-0 border-b border-border px-6 pt-5 pb-4">
             <div className="flex items-start gap-3">

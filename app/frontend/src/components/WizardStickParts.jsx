@@ -24,7 +24,7 @@ export function TeamCapacity({ spec, suggestion, inputClass, onType, onSuggest }
       <legend className="text-sm font-semibold text-text-primary">Team capacity</legend>
       <label className="flex flex-wrap items-center gap-2 text-[12px] text-text-secondary">
         {CAPACITY_LABEL}
-        <input
+        <input dir="auto"
           type="text"
           inputMode="numeric"
           aria-label={CAPACITY_LABEL}
@@ -104,7 +104,7 @@ function AlertEmailChoice({ outputs, label, blurb, on, onChange, className }) {
 }
 
 export function DigestChoice({ outputs, onChange }) {
-  return <AlertEmailChoice className="pl-7" outputs={outputs} label={DIGEST_LABEL} blurb={DIGEST_BLURB} on={digestOn} onChange={onChange} />;
+  return <AlertEmailChoice className="ps-7" outputs={outputs} label={DIGEST_LABEL} blurb={DIGEST_BLURB} on={digestOn} onChange={onChange} />;
 }
 
 export function ClearsChoice({ outputs, onChange }) {

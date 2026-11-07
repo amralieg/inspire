@@ -558,7 +558,7 @@ def explain_rows_line(shown: int, total: int) -> str:
         return f"The chart drew {shell_sql.plural(total, 'row')}, too many to list here."
     if shown == total:
         return f"The chart drew {total} row:" if total == 1 else f"The chart drew these {shell_sql.plural(total, 'row')}:"
-    return f"The chart drew {shell_sql.plural(total, 'row')}; here are the first {shown}:"
+    return f"The chart drew {shell_sql.plural(total, 'row')}; here are the first {shell_sql.shown_number(shown)}:"
 
 
 def explain_rows(context: dict) -> tuple:
@@ -645,9 +645,9 @@ def record_explain_parts(title: str, context: dict) -> tuple:
         head.append(f"Recommended action: {action}.")
     head += level_lines(context.get("confidence"), context.get("facts"))
     shown = list(fields.items())[:EXPLAIN_FIELDS]
-    describe_fields = lambda n, total: (None if not total else "Its fields:" if n == total else f"Its fields (first {n} of {total}):")
+    describe_fields = lambda n, total: (None if not total else "Its fields:" if n == total else f"Its fields (first {shell_sql.shown_number(n)} of {shell_sql.shown_number(total)}):")
     describe_history = lambda n, total: (None if not total else f"Its history ({shell_sql.plural(total, 'version')}):" if n == total
-                                         else f"Its history (first {n} of {shell_sql.plural(total, 'version')}):")
+                                         else f"Its history (first {shell_sql.shown_number(n)} of {shell_sql.plural(total, 'version')}):")
     return head, [[describe_fields, [], [f"- {explain_cell(k)}: {explain_cell(v)}" for k, v in shown], len(fields)],
                   [describe_history, [], [f"- {explain_entry(v)}" for v in history[:EXPLAIN_HISTORY]], len(history)]]
 
@@ -1383,7 +1383,7 @@ def public_fields(fields: list) -> list:
 def preview_text(moves: list) -> str:
     if not moves:
         return "No record would change tier at the next run."
-    parts = [f"{m['n']} record{'' if m['n'] == 1 else 's'} from {m['from']} to {m['to']}" for m in moves]
+    parts = [f"{shell_sql.plural(m['n'], 'record')} from {m['from']} to {m['to']}" for m in moves]
     return "If the next run used this value, " + ", ".join(parts[:-1]) + (" and " if len(parts) > 1 else "") + parts[-1] + " would move."
 
 
@@ -2940,7 +2940,7 @@ class Shell:
         counted = (done[("list", "keys")].get("rows") or [{}])[0]
         rows_seen, keys_seen = int(counted.get("n") or 0), int(counted.get("k") or 0)
         if keys_seen < rows_seen:
-            problems.append((CHECK_DESIGN, f"{where}: the decision list repeats keys: {rows_seen} rows carry {keys_seen} distinct keys, so "
+            problems.append((CHECK_DESIGN, f"{where}: the decision list repeats keys: {shell_sql.shown_number(rows_seen)} rows carry {shell_sql.shown_number(keys_seen)} distinct keys, so "
                              f"the page cannot tell its rows apart and their history and edits fail; select record_key, the result "
                              f"table's key for one record, in the {shell_sql.RECORDS_DATASET} dataset"))
         return problems
@@ -3173,7 +3173,7 @@ class Shell:
     def genie_ask(self, headers: dict, data: dict) -> dict:
         question = str(data.get("question") or "").strip()
         if not question or len(question) > ASK_CHARS:
-            raise HttpError(400, f"ask a question of at most {ASK_CHARS} characters")
+            raise HttpError(400, f"ask a question of at most {shell_sql.shown_number(ASK_CHARS)} characters")
         if data.get("record_key") is None:
             return self.genie_send(headers, self.genie_page(data.get("page")), question, data.get("conversation_id"))
         page = self.page(data.get("page"))
@@ -3240,10 +3240,10 @@ class Shell:
             raise HttpError(400, f"name what to explain in at most {EXPLAIN_TITLE_CHARS} characters")
         context = data.get("context")
         if not isinstance(context, dict) or len(json.dumps(context, ensure_ascii=False, separators=(",", ":"))) > EXPLAIN_CONTEXT_CHARS:
-            raise HttpError(400, f"send what to explain as an object of at most {EXPLAIN_CONTEXT_CHARS} characters of JSON")
+            raise HttpError(400, f"send what to explain as an object of at most {shell_sql.shown_number(EXPLAIN_CONTEXT_CHARS)} characters of JSON")
         own = data.get("question")
         if own is not None and (not isinstance(own, str) or len(own) > ASK_CHARS):
-            raise HttpError(400, f"ask a question of at most {ASK_CHARS} characters")
+            raise HttpError(400, f"ask a question of at most {shell_sql.shown_number(ASK_CHARS)} characters")
         ident = str(data.get("page") or "")
         hub = kind in HUB_KINDS and ident in HUB_SCREENS and ident not in self.by_id
         asked = self.genie_page(ident) if hub else self.page(data.get("page"))
@@ -3407,7 +3407,7 @@ class Shell:
         sql, params = shell_pg.overlay_query(table, columns, column, values, self.sources.get(table, ""))
         result = self.execute(self.service(), sql, params, shell_pg.OVERLAY_ROWS, delta=True)
         if result.get("truncated"):
-            raise QueryError(f"more than {shell_pg.OVERLAY_ROWS} rows of {table} changed")
+            raise QueryError(f"more than {shell_sql.plural(shell_pg.OVERLAY_ROWS, 'row')} of {table} changed")
         return result["rows"]
 
     def act_target(self, data: dict) -> tuple:

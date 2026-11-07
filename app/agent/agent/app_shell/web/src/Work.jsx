@@ -87,7 +87,7 @@ export function NoteField({ name, value, onChange, label = 'Note' }) {
   return (
     <label className="in">
       <span>{label}<small> · optional · {String(value).trim().length}/{NOTE_CHARS}</small></span>
-      <textarea name={name} rows={2} maxLength={NOTE_CHARS} value={value} onChange={(e) => onChange(e.target.value)} />
+      <textarea dir="auto" name={name} rows={2} maxLength={NOTE_CHARS} value={value} onChange={(e) => onChange(e.target.value)} />
     </label>
   );
 }
@@ -156,7 +156,7 @@ export function BulkBar({ picked, matching, total, capped = false, allOnPage, ow
           <form className="bulk-pop" onSubmit={submit({ action_status: 'Dismissed', dismiss_reason: reason.trim() })}>
             <label className="in">
               <span>Why are these not issues? *</span>
-              <textarea name="bulk_dismiss_reason" autoFocus rows={2} maxLength={REASON_CHARS} value={reason} onChange={(e) => setReason(e.target.value)} aria-invalid={why ? true : undefined} />
+              <textarea dir="auto" name="bulk_dismiss_reason" autoFocus rows={2} maxLength={REASON_CHARS} value={reason} onChange={(e) => setReason(e.target.value)} aria-invalid={why ? true : undefined} />
               {why && <small className="in-err">{why}</small>}
             </label>
             {note500}
@@ -167,7 +167,7 @@ export function BulkBar({ picked, matching, total, capped = false, allOnPage, ow
       {open === 'assign' && (
         <Popover anchor={anchors.assign.current} onClose={close} label="Assign the selected records" width={300}>
           <form className="bulk-pop" onSubmit={submit({ action_owner: owner.trim() })}>
-            <label className="in"><span>Owner</span><input name="bulk_owner" autoFocus value={owner} onChange={(e) => setOwner(e.target.value)} list="owners-bulk" maxLength={254} autoComplete="off" /></label>
+            <label className="in"><span>Owner</span><input dir="auto" name="bulk_owner" autoFocus value={owner} onChange={(e) => setOwner(e.target.value)} list="owners-bulk" maxLength={254} autoComplete="off" /></label>
             <datalist id="owners-bulk">{owners.map((o) => <option key={o} value={o} />)}</datalist>
             {note500}
             <button type="submit" className="btn btn--pri" disabled={!owner.trim()}>Assign {what}</button>
@@ -181,7 +181,7 @@ export function BulkBar({ picked, matching, total, capped = false, allOnPage, ow
             {status === 'Dismissed' && (
               <label className="in">
                 <span>Why are these not issues? *</span>
-                <textarea name="bulk_reason" rows={2} maxLength={REASON_CHARS} value={reason} onChange={(e) => setReason(e.target.value)} aria-invalid={problem ? true : undefined} />
+                <textarea dir="auto" name="bulk_reason" rows={2} maxLength={REASON_CHARS} value={reason} onChange={(e) => setReason(e.target.value)} aria-invalid={problem ? true : undefined} />
                 {problem && <small className="in-err">{problem}</small>}
               </label>
             )}
@@ -275,7 +275,7 @@ export function SimilarDialog({ similar, onClose, onApply }) {
         <label className="in"><span>Status</span><select name="similar_status" value={status} onChange={(e) => setStatus(e.target.value)}>{STATUSES.map((s) => <option key={s} value={s}>{statusLabel(s)}</option>)}</select></label>
         {status === 'Dismissed' && (
           <label className="in"><span>Why are these not issues? *</span>
-            <textarea name="similar_reason" rows={2} maxLength={REASON_CHARS} value={reason} onChange={(e) => setReason(e.target.value)} aria-invalid={problem ? true : undefined} />
+            <textarea dir="auto" name="similar_reason" rows={2} maxLength={REASON_CHARS} value={reason} onChange={(e) => setReason(e.target.value)} aria-invalid={problem ? true : undefined} />
             {problem && <small className="in-err">{problem}</small>}
           </label>
         )}

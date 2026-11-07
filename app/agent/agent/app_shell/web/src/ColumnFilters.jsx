@@ -13,7 +13,7 @@ function RangePopover({ anchor, filter, value, onChange, onClose }) {
   const problem = rangeProblem(filter.type, form.low, form.high);
   const field = (edge, label) => (
     <label className="in"><span>{label}</span>
-      <input type={dates ? 'date' : 'number'} step={dates ? undefined : 'any'} inputMode={dates ? undefined : 'decimal'} value={form[edge]}
+      <input dir="auto" type={dates ? 'date' : 'number'} step={dates ? undefined : 'any'} inputMode={dates ? undefined : 'decimal'} value={form[edge]}
         autoFocus={edge === 'low'} aria-invalid={problem ? true : undefined} onChange={(e) => setForm((f) => ({ ...f, [edge]: e.target.value }))} />
     </label>
   );

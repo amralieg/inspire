@@ -70,10 +70,10 @@ function Editor({ pageId, a, onSaved, onCancel }) {
   return (
     <form className="edit" onSubmit={save} noValidate>
       <label className="in"><span>{label}{a.kind === 'percent' ? ' (%)' : a.kind === 'money' ? ' (money)' : ''}</span>
-        <input ref={input} name={`assumption_${a.name}`} inputMode="decimal" value={text} onChange={(e) => setText(e.target.value)} aria-invalid={problem ? true : undefined} />
+        <input dir="auto" ref={input} name={`assumption_${a.name}`} inputMode="decimal" value={text} onChange={(e) => setText(e.target.value)} aria-invalid={problem ? true : undefined} />
       </label>
       <label className="in"><span>Why it changed</span>
-        <input className="note" name="assumption_note" maxLength={NOTE_CHARS} value={note} onChange={(e) => setNote(e.target.value)} />
+        <input dir="auto" className="note" name="assumption_note" maxLength={NOTE_CHARS} value={note} onChange={(e) => setNote(e.target.value)} />
       </label>
       <button type="submit" className="btn btn--pri" disabled={saving || !!problem}><Icon name="check" size={14} />{saving ? 'Saving…' : 'Save'}</button>
       <button type="button" className="btn" onClick={onCancel} disabled={saving}>Cancel</button>

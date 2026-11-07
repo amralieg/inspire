@@ -1163,7 +1163,7 @@ export default function ResultsPage({
                         loadResults(s.session_id);
                       }}
                       className={`
-                        w-full text-left p-3.5 rounded-lg border transition-smooth flex items-center justify-between gap-3
+                        w-full text-start p-3.5 rounded-lg border transition-smooth flex items-center justify-between gap-3
                         ${
                           selected
                             ? 'bg-db-red-50 border-db-red/20 glow-active'
@@ -1262,7 +1262,7 @@ export default function ResultsPage({
               <Loader2 size={14} className="animate-spin text-warning-fg shrink-0" />
               <div className="flex-1">
                 <span className="text-sm font-semibold text-warning-fg">Live Preview</span>
-                <span className="text-xs text-text-secondary ml-2">
+                <span className="text-xs text-text-secondary ms-2">
                   <span data-testid="live-use-case-count">{liveCountText(allUseCases.length)}</span>, the same count as Monitor.
                   The final catalog keeps the ones that pass every check. Results will be enriched as the pipeline progresses. {START_MVP_LABEL} opens on each use case once the run has saved it.
                 </span>
@@ -1378,7 +1378,7 @@ export default function ResultsPage({
           {!isProgressive && generationPath && !showcase && (() => {
             // Recursive file tree renderer
             const renderFileTree = (files, depth = 0) => (
-              <div className={depth > 0 ? 'ml-4 border-l border-border/50 pl-2' : ''}>
+              <div className={depth > 0 ? 'ms-4 border-s border-border/50 ps-2' : ''}>
                 {files.map((f) => {
                   const isDir = f.is_directory;
                   const isOpen = expandedFolders[f.path];
@@ -1456,26 +1456,26 @@ export default function ResultsPage({
                       </div>
                       {/* Inline file preview */}
                       {!isDir && previewFile === f.path && (
-                        <div className="ml-6 mr-2 my-2">
+                        <div className="ms-6 me-2 my-2">
                           <FilePreview name={f.name} loading={previewLoading} data={previewData} />
                         </div>
                       )}
                       {isDir && isOpen && (
                         <div>
                           {folderData?.loading && (
-                            <div className="flex items-center gap-2 py-2 ml-6">
+                            <div className="flex items-center gap-2 py-2 ms-6">
                               <Loader2 size={10} className="animate-spin text-text-tertiary" />
                               <span className="text-[10px] text-text-secondary">Loading...</span>
                             </div>
                           )}
                           {folderData?.error && (
-                            <div className="ml-6 py-1">
+                            <div className="ms-6 py-1">
                               <span className="text-[10px] text-text-tertiary">{folderData.error}</span>
-                              <button type="button" onClick={(e) => { e.stopPropagation(); loadFolder(f.path); }} className="ml-2 text-[10px] text-db-red-fg hover:underline">Retry</button>
+                              <button type="button" onClick={(e) => { e.stopPropagation(); loadFolder(f.path); }} className="ms-2 text-[10px] text-db-red-fg hover:underline">Retry</button>
                             </div>
                           )}
                           {folderData && !folderData.loading && !folderData.error && folderData.files.length === 0 && (
-                            <div className="ml-6 py-1">
+                            <div className="ms-6 py-1">
                               <span className="text-[10px] text-text-tertiary italic">Empty folder</span>
                             </div>
                           )}
@@ -1497,7 +1497,7 @@ export default function ResultsPage({
                     setArtifactsExpanded(next);
                     if (next && !artifactsRootFiles && !artifactsLoading) loadArtifacts(generationPath);
                   }}
-                  className="w-full flex items-center gap-3 px-5 py-3 text-left hover:bg-bg-subtle/50 transition-smooth"
+                  className="w-full flex items-center gap-3 px-5 py-3 text-start hover:bg-bg-subtle/50 transition-smooth"
                 >
                   <div className="w-7 h-7 rounded-lg bg-info/10 flex items-center justify-center">
                     <FolderOpen size={14} className="text-info-fg" />
@@ -1603,7 +1603,7 @@ export default function ResultsPage({
                       <div key={f.path} className={`flex items-center gap-2 px-3 py-2 rounded-lg text-[11px] border transition-all shrink-0 ${isActive ? 'border-db-red/30 bg-db-red-50' : 'border-border bg-bg-subtle/50 hover:bg-bg-subtle'}`}>
                         <span className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded ${style.bg} ${style.text}`}>{ext}</span>
                         <span className="text-text-primary font-medium truncate max-w-[200px]">{f.name}</span>
-                        <div className="flex items-center gap-1.5 ml-1 border-l border-border pl-2">
+                        <div className="flex items-center gap-1.5 ms-1 border-s border-border ps-2">
                           <button type="button" className="text-[10px] text-info-fg hover:text-info-fg font-medium flex items-center gap-0.5 hover:underline" onClick={() => togglePreview(f.path, f.name)}>
                             {isActive ? <><EyeOff size={9} /> Hide</> : <><Eye size={9} /> Preview</>}
                           </button>
@@ -1658,7 +1658,7 @@ export default function ResultsPage({
                   aria-expanded={genieQuickAccessExpanded}
                   aria-controls="genie-quick-access-list"
                   id="genie-quick-access-toggle"
-                  className="flex w-full items-center justify-between gap-3 rounded-lg text-left outline-none transition-smooth hover:bg-bg-subtle/80 focus-visible:ring-2 focus-visible:ring-db-red/25 -mx-1 px-1 py-0.5"
+                  className="flex w-full items-center justify-between gap-3 rounded-lg text-start outline-none transition-smooth hover:bg-bg-subtle/80 focus-visible:ring-2 focus-visible:ring-db-red/25 -mx-1 px-1 py-0.5"
                 >
                   <h3 className="text-[10px] font-bold text-text-secondary uppercase tracking-[0.18em] flex items-center gap-2 min-w-0">
                     <Sparkles size={12} className="text-db-red-fg shrink-0" aria-hidden />
@@ -1694,7 +1694,7 @@ export default function ResultsPage({
                           const pathSeg = hashPath.startsWith('/') ? hashPath : `/${hashPath}`;
                           const href = origin ? `${origin}/#workspace${pathSeg}` : '';
                           const rowClass =
-                            'flex items-center gap-2.5 px-3 py-2.5 min-h-[2.75rem] text-left text-[11px] text-text-primary font-medium transition-colors hover:bg-db-red-50/40 dark:hover:bg-db-red-950/20';
+                            'flex items-center gap-2.5 px-3 py-2.5 min-h-[2.75rem] text-start text-[11px] text-text-primary font-medium transition-colors hover:bg-db-red-50/40 dark:hover:bg-db-red-950/20';
                           if (href) {
                             return (
                               <li key={f.path} className="min-w-0">
@@ -1778,10 +1778,10 @@ export default function ResultsPage({
           )}
 
           {/* ═══ Two-Column: sticky sidebar rail; use-case list scrolls independently in the right column ═══ */}
-          <div data-browse="" className="flex items-stretch gap-5 min-h-0">
+          <div data-browse="" className="flex flex-col md:flex-row md:items-stretch gap-5 min-h-0">
             {/* ── Left Sidebar: stays fixed in viewport while the card list scrolls (sticky + max height) ── */}
             <div
-              className={`sticky z-10 flex w-56 shrink-0 flex-col gap-3 self-start overflow-y-auto overscroll-y-contain pr-1 [-webkit-overflow-scrolling:touch] min-h-0 ${
+              className={`z-10 flex w-full shrink-0 flex-col gap-3 overflow-y-auto md:sticky md:w-56 md:self-start overscroll-y-contain pe-1 [-webkit-overflow-scrolling:touch] min-h-0 ${
                 embedded
                   ? 'top-4 max-h-[min(32rem,72vh)]'
                   : 'top-20 max-h-[calc(100dvh-5rem)]'
@@ -1791,7 +1791,7 @@ export default function ResultsPage({
                 <button
                   type="button"
                   onClick={() => setDomainPanelOpen((o) => !o)}
-                  className="flex w-full shrink-0 items-start gap-2 border-b border-border bg-gradient-to-b from-db-red-50 to-surface px-3 py-3 text-left transition-smooth hover:from-db-red-50/80"
+                  className="flex w-full shrink-0 items-start gap-2 border-b border-border bg-gradient-to-b from-db-red-50 to-surface px-3 py-3 text-start transition-smooth hover:from-db-red-50/80"
                 >
                   <ChevronRight
                     size={14}
@@ -1823,7 +1823,7 @@ export default function ResultsPage({
                   {/* All domains */}
                   <button
                     onClick={() => setFilterDomain('all')}
-                    className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-left transition-smooth ${
+                    className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-start transition-smooth ${
                       filterDomain === 'all'
                         ? 'bg-db-red-50 border border-db-red/20'
                         : 'hover:bg-bg-subtle border border-transparent'
@@ -1861,14 +1861,14 @@ export default function ResultsPage({
                           {hasSubs && (
                             <button
                               onClick={(e) => { e.stopPropagation(); setExpandedDomains(prev => ({ ...prev, [d]: !prev[d] })); }}
-                              className="p-0.5 mr-0.5 rounded hover:bg-bg-subtle transition-smooth"
+                              className="p-0.5 me-0.5 rounded hover:bg-bg-subtle transition-smooth"
                             >
                               <ChevronRight size={10} className={`text-text-tertiary transition-transform duration-200 ${isExpanded ? 'rotate-90' : ''}`} />
                             </button>
                           )}
                           <button
                             onClick={() => { setFilterDomain(active ? 'all' : d); setFilterSubdomain('all'); }}
-                            className={`flex-1 flex items-start gap-2 px-2 py-2 rounded-lg text-left transition-smooth ${
+                            className={`flex-1 flex items-start gap-2 px-2 py-2 rounded-lg text-start transition-smooth ${
                               active
                                 ? 'bg-db-red-50 border border-db-red/20'
                                 : 'hover:bg-bg-subtle border border-transparent'
@@ -1896,7 +1896,7 @@ export default function ResultsPage({
                         </div>
                         {/* Subdomain list */}
                         {isExpanded && hasSubs && (
-                          <div className="ml-7 mt-0.5 space-y-0.5">
+                          <div className="ms-7 mt-0.5 space-y-0.5">
                             {Object.entries(subs).map(([sd, sdCount]) => {
                               const sdActive = filterSubdomain === sd && filterDomain === d;
                               return (
@@ -1906,7 +1906,7 @@ export default function ResultsPage({
                                     setFilterDomain(d);
                                     setFilterSubdomain(sdActive ? 'all' : sd);
                                   }}
-                                  className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-left transition-smooth ${
+                                  className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-start transition-smooth ${
                                     sdActive
                                       ? 'bg-db-red-50/70 text-db-red-fg'
                                       : 'text-text-secondary hover:bg-bg-subtle'
@@ -2031,7 +2031,7 @@ export default function ResultsPage({
                   {/* Search */}
                   <div className="relative flex-1">
                     <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-tertiary" />
-                    <input
+                    <input dir="auto"
                       type="text"
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
@@ -2108,7 +2108,7 @@ export default function ResultsPage({
                     >
                       <option value="all">All Types</option>
                       {types.map((t) => (
-                        <option key={t} value={t}>{t}</option>
+                        <option dir="auto" key={t} value={t}>{t}</option>
                       ))}
                     </select>
                   )}
@@ -2122,7 +2122,7 @@ export default function ResultsPage({
                     >
                       <option value="all">All Techniques</option>
                       {techniques.map((t) => (
-                        <option key={t} value={t}>{t}</option>
+                        <option dir="auto" key={t} value={t}>{t}</option>
                       ))}
                     </select>
                   )}
@@ -2155,7 +2155,7 @@ export default function ResultsPage({
                     >
                       <option value="all">All Quality</option>
                       {qualities.map((q) => (
-                        <option key={q} value={q}>{q}</option>
+                        <option dir="auto" key={q} value={q}>{q}</option>
                       ))}
                     </select>
                   )}
@@ -2300,7 +2300,7 @@ export default function ResultsPage({
 
               {/* Use case cards — only this region scrolls; sidebar + filter bar stay visible */}
               <div
-                className={`overflow-y-auto overscroll-y-contain scroll-smooth pr-0.5 [-webkit-overflow-scrolling:touch] [scrollbar-width:thin] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border-strong/70 [&::-webkit-scrollbar-track]:bg-transparent ${
+                className={`overflow-y-auto overscroll-y-contain scroll-smooth pe-0.5 [-webkit-overflow-scrolling:touch] [scrollbar-width:thin] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border-strong/70 [&::-webkit-scrollbar-track]:bg-transparent ${
                   embedded
                     ? 'h-[min(28rem,60vh)]'
                     : 'h-[min(calc(100dvh-12rem),56rem)]'
@@ -2402,7 +2402,7 @@ function MvpTiles({ counts, active, onPick }) {
           aria-label={`${label}: ${counts[id]}`}
           title={active === id ? 'Show every use case' : `Show only: ${label}`}
           onClick={() => onPick(id)}
-          className={`text-left rounded-xl border p-3 transition-smooth focus:outline-none focus-visible:ring-2 focus-visible:ring-db-red/40 ${
+          className={`text-start rounded-xl border p-3 transition-smooth focus:outline-none focus-visible:ring-2 focus-visible:ring-db-red/40 ${
             active === id ? 'border-db-red/40 bg-db-red-50' : 'border-border bg-surface hover:border-db-red/25'
           }`}
         >

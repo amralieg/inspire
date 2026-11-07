@@ -46,7 +46,7 @@ export default function DocumentLanguagesMultiselect({
 
       <div className="relative mb-3">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-text-tertiary" />
-        <input
+        <input dir="auto"
           type="text"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
@@ -56,7 +56,7 @@ export default function DocumentLanguagesMultiselect({
         />
       </div>
 
-      <div className="max-h-44 overflow-y-auto pr-0.5">
+      <div className="max-h-44 overflow-y-auto pe-0.5">
         {filteredGroups.map((group) => (
           <div key={group.group} className="mb-3 last:mb-0">
             <p className="text-[10px] font-bold uppercase tracking-wider mb-1.5 text-text-tertiary">
@@ -77,7 +77,7 @@ export default function DocumentLanguagesMultiselect({
                         : 'border-border text-text-secondary hover:border-border-strong bg-surface'
                     }`}
                   >
-                    {sel && <Check className="w-2.5 h-2.5 inline mr-1 -mt-0.5" />}
+                    {sel && <Check className="w-2.5 h-2.5 inline me-1 -mt-0.5" />}
                     {lang}
                   </button>
                 );

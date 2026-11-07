@@ -454,7 +454,7 @@ export default function GeniePanel({ app, genie, page, pages, onPick, onClose })
         <div className="g-sugg">{questions.slice(0, 4).map((q) => <button key={q} className="sugg" onClick={() => ask(q)}>{q}</button>)}</div>
       )}
       <form className="g-in" onSubmit={submit}>
-        <input ref={input} value={text} onChange={(e) => setText(e.target.value)} placeholder={!home ? 'Pick a use case first' : !on ? 'Ask Genie is off' : about ? `Ask about ${about.label}` : 'Ask about the data in this use case'} aria-label="Your question" autoComplete="off" disabled={!on} maxLength={1000} />
+        <input dir="auto" ref={input} value={text} onChange={(e) => setText(e.target.value)} placeholder={!home ? 'Pick a use case first' : !on ? 'Ask Genie is off' : about ? `Ask about ${about.label}` : 'Ask about the data in this use case'} aria-label="Your question" autoComplete="off" disabled={!on} maxLength={1000} />
         <button className="btn btn--pri" type="submit" aria-label="Send" disabled={!on || busy || !text.trim()}><Icon name="send" size={15} /></button>
       </form>
     </aside>

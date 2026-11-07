@@ -78,7 +78,7 @@ export default function UseCaseDrawer({
         <>
           {(onPrev || onNext) && total > 1 && (
             <>
-              <span className="mr-1 text-[11px] tabular-nums text-text-tertiary">{position + 1} of {total}</span>
+              <span className="me-1 text-[11px] tabular-nums text-text-tertiary">{position + 1} of {total}</span>
               <button type="button" onClick={onPrev} disabled={!onPrev} className="rounded-md p-1.5 text-text-secondary hover:bg-bg-subtle disabled:opacity-40" aria-label="Previous use case" title="Previous (↑)">
                 <ChevronUp size={16} />
               </button>

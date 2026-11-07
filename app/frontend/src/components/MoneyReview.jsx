@@ -11,8 +11,8 @@ import { VIBE_FEATURES_LABEL } from '../lib/implementWizard';
 const setByText = (a) => (a.changed_by ? `${a.changed_by} in the App` : 'Genie, in the notebook');
 
 const assumptionColumns = (currency) => [
-  { key: 'name', label: 'Assumption', value: (a) => assumptionLabel(a.name), className: 'py-1 pr-3 text-text-primary' },
-  { key: 'value', label: 'Value', kind: 'number', value: (a) => a.value, render: (a) => amountText(a.value, a.kind, currency), className: 'py-1 pr-3 font-mono text-text-primary' },
+  { key: 'name', label: 'Assumption', value: (a) => assumptionLabel(a.name), className: 'py-1 pe-3 text-text-primary' },
+  { key: 'value', label: 'Value', kind: 'number', value: (a) => a.value, render: (a) => amountText(a.value, a.kind, currency), className: 'py-1 pe-3 font-mono text-text-primary' },
   { key: 'set_by', label: 'Set by', value: setByText, className: 'py-1 text-text-secondary' },
 ];
 
@@ -66,15 +66,15 @@ export default function MoneyReview({ money, error = '', impact = null, scope = 
       )}
       {model.assumptions.length > 0 && (
         <DataGrid label="Assumptions" grid="money:assumptions" columns={assumptionColumns(currency)} rows={model.assumptions} rowKey={(a) => a.name}
-          rowProps={(a) => ({ 'data-assumption': a.name })} rowClassName={() => 'border-t border-border'} tableClassName="w-full text-left"
-          headRowClassName="text-text-secondary" headClassName="py-1 pr-3 font-semibold" />
+          rowProps={(a) => ({ 'data-assumption': a.name })} rowClassName={() => 'border-t border-border'} tableClassName="w-full text-start"
+          headRowClassName="text-text-secondary" headClassName="py-1 pe-3 font-semibold" />
       )}
       {model.changed && <p className="text-text-primary">Owners changed an assumption in the App after the last run, so the next run uses the values above.</p>}
       {tiers && <p data-tiers="" className="text-text-secondary">{tiers}</p>}
       {sample && <p data-preview-sample="" className="text-text-secondary">{sample}</p>}
       {outcome && <p data-last-run="" className="text-text-secondary">{outcome}</p>}
       {capacity && <p data-capacity="" className="text-text-secondary">{capacity}</p>}
-      {lines.length > 0 && <ul aria-label="Assumption changes" className="list-disc pl-5 text-text-secondary">{lines.map((l, i) => <li key={i}>{l}</li>)}</ul>}
+      {lines.length > 0 && <ul aria-label="Assumption changes" className="list-disc ps-5 text-text-secondary">{lines.map((l, i) => <li key={i}>{l}</li>)}</ul>}
       <p data-change-how="" className="text-text-secondary">
         {model.assumptions.length > 0
           ? `${VIBE_TO_COUNT} Owners of the App can change the assumption values there.`

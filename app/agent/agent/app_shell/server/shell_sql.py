@@ -655,7 +655,7 @@ def _count_problem(key: str, items: list, low=None) -> list:
     floor, high = CAPS[key]
     low = floor if low is None else low
     if not low <= len(items) <= high:
-        return [f"the page has {len(items)} {key}; it needs {low} to {high}"]
+        return [f"the page has {shown_number(len(items))} {key}; it needs {shown_number(low)} to {shown_number(high)}"]
     return []
 
 
@@ -774,10 +774,10 @@ def _promised_problems(promised) -> list:
     problems = []
     value, benefits = promised.get("value", ""), promised.get("benefits", [])
     if not isinstance(value, str) or len(value) > CAPS["promised_chars"]:
-        problems.append(f"the page promised value must be text of at most {CAPS['promised_chars']} characters")
+        problems.append(f"the page promised value must be text of at most {shown_number(CAPS['promised_chars'])} characters")
     estimate = promised.get("estimate", "")
     if not isinstance(estimate, str) or len(estimate) > CAPS["promised_chars"]:
-        problems.append(f"the page promised estimate must be text of at most {CAPS['promised_chars']} characters")
+        problems.append(f"the page promised estimate must be text of at most {shown_number(CAPS['promised_chars'])} characters")
     if (not isinstance(benefits, list) or len(benefits) > CAPS["benefits"]
             or any(not isinstance(b, str) or len(b) > CAPS["value_chars"] for b in benefits)):
         problems.append(f"the page promised benefits must be at most {CAPS['benefits']} lines of at most {CAPS['value_chars']} characters")
@@ -919,7 +919,7 @@ def _table_problems(table: dict, names: set) -> list:
     if sort and not IDENT.match(str(sort.get("column") or "")):
         problems.append(f"{where} sort needs a column")
     if not _whole(table.get("limit", CAPS["table_rows"]), 1, CAPS["table_rows"]):
-        problems.append(f"{where} limit must be a whole number from 1 to {CAPS['table_rows']}")
+        problems.append(f"{where} limit must be a whole number from 1 to {shown_number(CAPS['table_rows'])}")
     return problems + column_filter_problems(where, table.get(COLUMN_FILTERS), table_shown(table))
 
 
@@ -1171,7 +1171,7 @@ def image_problems(where: str, content) -> list:
         problems.append(f"{where} content has {', '.join(extra)}; an image block takes {', '.join(IMAGE_FIELDS[:4])}")
     url = content.get("url")
     if not (isinstance(url, str) and (IMAGE_PATH.match(url.strip()) or _IMAGE_URL.match(url.strip())) and len(url) <= CAPS["url_chars"]):
-        problems.append(f"{where} url must be the /Workspace/... or /Volumes/... path of the image, at most {CAPS['url_chars']} "
+        problems.append(f"{where} url must be the /Workspace/... or /Volumes/... path of the image, at most {shown_number(CAPS['url_chars'])} "
                         f"characters")
     picked = content.get("file")
     if picked is not None and not (isinstance(picked, str) and BLOCK_FILE.match(picked)):
@@ -1659,7 +1659,7 @@ def row_problems(page: dict, counts: dict) -> list:
         have = counts.get(source)
         if have is not None and have < low:
             named = "the decision list" if source[0] == "records" else f"{source[0]} {source[1]}"
-            problems.append(f"the {section} section of a {page_layout(page)} page shows at least {low} rows; {named} returned {have} at the "
+            problems.append(f"the {section} section of a {page_layout(page)} page shows at least {shown_number(low)} rows; {named} returned {shown_number(have)} at the "
                             f"default filters, so widen what it selects: {section_words(section)}")
     if problems:
         print(f"[LAYOUT-ROWS FIRED] page={page.get('id')} short={len(problems)}", flush=True)
@@ -1745,7 +1745,7 @@ def scenario_problems(scenario, names: set, wanted: bool) -> list:
     levers = scenario.get("levers") if isinstance(scenario.get("levers"), list) else []
     low, high = SCENARIO_LEVERS
     if not low <= len(levers) <= high:
-        problems.append(f"the scenario needs {low} to {high} levers; it has {len(levers)}")
+        problems.append(f"the scenario needs {low} to {high} levers; it has {shown_number(len(levers))}")
     for lever in levers:
         where = f"scenario lever {(lever or {}).get('lever')}"
         if not isinstance(lever, dict) or not str(lever.get("lever") or "").strip():
@@ -2569,7 +2569,7 @@ def window_params(data: dict, now: datetime.datetime):
     if window not in WINDOWS:
         raise ValueError(f"window must be one of {', '.join(WINDOWS)}")
     if top is not None and not _whole(top, 1, CAPS["window_limit"]):
-        raise ValueError(f"window_limit must be a whole number from 1 to {CAPS['window_limit']}")
+        raise ValueError(f"window_limit must be a whole number from 1 to {shown_number(CAPS['window_limit'])}")
     return dict(window_bounds(window, now, zone if zoned else None), limit=top)
 
 
@@ -2692,7 +2692,7 @@ def _list_request(page: dict, data: dict, context: dict, allowed: list) -> dict:
         raise ValueError("sort dir must be asc or desc")
     offset, limit = data.get("offset", 0), data.get("limit", 25)
     if not _whole(offset, 0, CAPS["list_offset"]):
-        raise ValueError(f"offset must be a whole number from 0 to {CAPS['list_offset']}")
+        raise ValueError(f"offset must be a whole number from 0 to {shown_number(CAPS['list_offset'])}")
     if not _whole(limit, 1, CAPS["list_rows"]):
         raise ValueError(f"limit must be a whole number from 1 to {CAPS['list_rows']}")
     search = data.get("search") or ""
@@ -4691,7 +4691,7 @@ def _digest_count(number: str) -> str:
 
 
 def plural(n, one: str, many: str = "") -> str:
-    shown = f"{n:,}" if isinstance(n, int) and not isinstance(n, bool) else n
+    shown = shown_number(n) if isinstance(n, (int, float)) and not isinstance(n, bool) else n
     return f"{shown} {one if n == 1 else many or one + 's'}"
 
 
@@ -5097,7 +5097,7 @@ def field_value(field: dict, raw, params: _Params) -> str:
         return "NULL"
     if kind == "text":
         if not isinstance(raw, str) or len(raw.strip()) > CAPS["field_chars"]:
-            raise ValueError(f"{name} takes text of at most {CAPS['field_chars']} characters")
+            raise ValueError(f"{name} takes text of at most {shown_number(CAPS['field_chars'])} characters")
         return params.add(raw.strip())
     if kind == "boolean":
         text = ("true" if raw else "false") if isinstance(raw, bool) else str(raw).strip().lower()
@@ -5395,7 +5395,7 @@ def segments_problems(page: dict) -> list:
     treatments = block.get("treatments") if isinstance(block.get("treatments"), list) else []
     low, high = SEGMENT_TREATMENTS
     if not low <= len(treatments) <= high:
-        problems.append(f"the segments section needs {low} to {high} treatments; it has {len(treatments)}")
+        problems.append(f"the segments section needs {low} to {high} treatments; it has {shown_number(len(treatments))}")
     for treatment in treatments:
         problems += _text_problem("a segment treatment", treatment, "label")
     if len({str(t).strip().lower() for t in treatments}) != len(treatments):
@@ -5515,7 +5515,7 @@ def chat_problems(page: dict) -> list:
     questions = page.get("questions") if isinstance(page.get("questions"), list) else []
     low, high = CHAT_QUESTIONS
     if not low <= len(questions) <= high:
-        problems.append(f"a data agent page suggests {low} to {high} questions people can ask Genie; it has {len(questions)}")
+        problems.append(f"a data agent page suggests {low} to {high} questions people can ask Genie; it has {shown_number(len(questions))}")
     if any(not isinstance(q, str) or not q.strip() or len(q) > CAPS["value_chars"] for q in questions):
         problems.append(f"each suggested question is text of at most {CAPS['value_chars']} characters")
     elif len({q.strip().lower() for q in questions}) != len(questions):

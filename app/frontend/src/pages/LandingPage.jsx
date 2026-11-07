@@ -671,7 +671,7 @@ export default function LandingPage({ onStart, onOpenSetup }) {
                         <item.icon size={14} aria-hidden="true" className="text-db-red-fg" />
                         {item.mode}
                         {item.mode === DISCOVERY_RECOMMENDED && (
-                          <span className="ml-1 rounded-full bg-success-bg px-2 py-0.5 text-[10px] font-semibold text-success-fg">Recommended</span>
+                          <span className="ms-1 rounded-full bg-success-bg px-2 py-0.5 text-[10px] font-semibold text-success-fg">Recommended</span>
                         )}
                       </span>
                       <p className="mt-1 text-[12px] leading-snug" style={{ color: C.textMuted }}>{DISCOVERY_MODE_TEXT[item.mode]}</p>

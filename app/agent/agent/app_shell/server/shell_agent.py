@@ -159,7 +159,7 @@ def as_data(value, chars: int = 0) -> str:
 def clean_question(raw) -> str:
     text = " ".join(str(raw or "").split()) if isinstance(raw, str) else ""
     if not text or len(text) > QUESTION_CHARS:
-        raise HttpError(400, f"ask a question of at most {QUESTION_CHARS} characters")
+        raise HttpError(400, f"ask a question of at most {shell_sql.shown_number(QUESTION_CHARS)} characters")
     return text
 
 
@@ -182,7 +182,7 @@ def clean_view(raw) -> dict:
     if raw is None:
         return {}
     if not isinstance(raw, dict) or len(json.dumps(raw, ensure_ascii=False, default=str)) > CONTEXT_CHARS:
-        raise HttpError(400, f"send the view as an object of at most {CONTEXT_CHARS} characters of JSON")
+        raise HttpError(400, f"send the view as an object of at most {shell_sql.shown_number(CONTEXT_CHARS)} characters of JSON")
     return raw
 
 

@@ -16,7 +16,7 @@ export default function CatalogPicker({ id, value, onChange, catalogs, truncated
   const listId = `${id}-catalogs`;
   return (
     <>
-      <input
+      <input dir="auto"
         type="text"
         list={listId}
         value={value || ''}

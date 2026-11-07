@@ -206,18 +206,18 @@ function ActionPanel({ action, owners, pageId, reason, owner, closing, unit, kin
     <section className="sec dr-act" aria-label="Action">
       <h3><Icon name="users" size={13} />Action</h3>
       <form className="act-form" onSubmit={submit} noValidate>
-        <label className="in"><span>Owner</span><input ref={owner} name="action_owner" value={form.owner} onChange={set('owner')} list={`owners-${pageId}`} maxLength={254} autoComplete="off" /></label>
+        <label className="in"><span>Owner</span><input dir="auto" ref={owner} name="action_owner" value={form.owner} onChange={set('owner')} list={`owners-${pageId}`} maxLength={254} autoComplete="off" /></label>
         <OwnerList id={`owners-${pageId}`} owners={owners} />
         <label className="in"><span>Status</span><select name="action_status" value={form.status} onChange={set('status')}>{STATUSES.map((s) => <option key={s} value={s}>{statusLabel(s)}</option>)}</select></label>
         <label className="in"><span>Due</span><input type="date" name="action_due" value={form.due} onChange={set('due')} /></label>
-        <label className="in in--wide"><span>Note</span><textarea name="action_note" rows={2} value={form.note} onChange={set('note')} /></label>
+        <label className="in in--wide"><span>Note</span><textarea dir="auto" name="action_note" rows={2} value={form.note} onChange={set('note')} /></label>
         {closing && form.status === 'Done' && (
           <>
             <label className="in"><span>{cap(savedWords(unit, kind))}<small> · optional</small></span>
               <input type="number" min="0" step="any" inputMode="decimal" name="realized_value" value={form.saved} onChange={set('saved')} aria-invalid={problem ? true : undefined} />
             </label>
             <label className="in in--wide"><span>How you know<small> · optional · {String(form.how || '').trim().length}/{NOTE_CHARS}</small></span>
-              <textarea name="realized_note" rows={2} maxLength={NOTE_CHARS} value={form.how} onChange={set('how')} />
+              <textarea dir="auto" name="realized_note" rows={2} maxLength={NOTE_CHARS} value={form.how} onChange={set('how')} />
             </label>
             {problem && <small className="in-err in--wide">{problem}</small>}
           </>
@@ -225,7 +225,7 @@ function ActionPanel({ action, owners, pageId, reason, owner, closing, unit, kin
         {form.status === 'Dismissed' && (
           <label className="in in--wide">
             <span>Why is it not an issue? *<small> · {form.reason.trim().length}/{REASON_CHARS}</small></span>
-            <textarea ref={reason} name="dismiss_reason" rows={2} maxLength={REASON_CHARS} value={form.reason} onChange={set('reason')} aria-invalid={problem ? true : undefined} required />
+            <textarea dir="auto" ref={reason} name="dismiss_reason" rows={2} maxLength={REASON_CHARS} value={form.reason} onChange={set('reason')} aria-invalid={problem ? true : undefined} required />
             {problem && <small className="in-err">{problem}</small>}
           </label>
         )}
@@ -802,13 +802,14 @@ export default function Records({ meta, app, pageId, filters, ai, onFilter, hist
       render: (r) => {
         const why = aiValue('ai_explanation', null, r, aliases);
         const [segment, key] = addedParts(recordName(r, meta), [meta.sublabel ? r[meta.sublabel] : '', r[meta.key]]);
-        const sub = [key, segment].filter(Boolean).join(' · ');
+        const sub = [key, segment].filter(Boolean);
         return (
           <>
             <button className="cell-t" onClick={(e) => { e.stopPropagation(); setOpen(r); }}>
-              <b>{recordName(r, meta)}</b>{sub && <small>{sub}</small>}
+              <b dir="auto">{recordName(r, meta)}</b>
+              {sub.length > 0 && <small>{sub.map((part, i) => <span key={i}>{i > 0 && ' · '}<bdi>{part}</bdi></span>)}</small>}
             </button>
-            {why && <span className="cell-ai">{why}</span>}
+            {why && <span dir="auto" className="cell-ai">{why}</span>}
             {CHANGE_TAGS[r.change_source] && <span className="tag">{CHANGE_TAGS[r.change_source]}</span>}
             <Badge row={r} />
             {isOverdue(r._inspire_due, r._inspire_status, today) && <span className="chg-b chg-b--late">Overdue</span>}
@@ -869,7 +870,7 @@ export default function Records({ meta, app, pageId, filters, ai, onFilter, hist
         </div>
         <div className="tbar">
           <ColumnFilterStatus filters={metas} values={columnValues} onClear={onClearColumns} />
-          <label className="search"><Icon name="search" size={14} /><input ref={searchBox} value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search the list" aria-label="Search the list" maxLength={200} /></label>
+          <label className="search"><Icon name="search" size={14} /><input dir="auto" ref={searchBox} value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search the list" aria-label="Search the list" maxLength={200} /></label>
           {(tracker || mine) && <button className={`pick-i ${mine ? 'is-on' : ''}`} aria-pressed={mine} onClick={() => setMine(!mine)}><Icon name="users" size={13} />My actions</button>}
           {(data?.changes || changed) && <button className={`pick-i ${changed ? 'is-on' : ''}`} aria-pressed={changed} onClick={() => setChanged(!changed)}><Icon name="trend" size={13} />Changed since the last run</button>}
           {canModify && <button className="btn btn--pri" onClick={() => setForm({ mode: 'add' })}><Icon name="plus" size={14} />Add record</button>}

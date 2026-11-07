@@ -15,7 +15,7 @@ html[data-look="b"] .page,html[data-look="b"] .home{padding-top:26px}
 html[data-look="b"] .ph{padding:18px 20px;border-radius:16px;background:var(--hue-bg);border:1px solid var(--line)}
 html[data-look="b"] .fbar{background:var(--panel);border-radius:16px;border-style:dashed;border-color:var(--line-strong)}
 html[data-look="b"] .fld select,html[data-look="b"] .fld input,html[data-look="b"] .msel{border-radius:999px;padding:0 14px}
-html[data-look="b"] .kpi{background:var(--k-bg);border:1px solid var(--line);border-left:4px solid var(--k-line);border-radius:14px}
+html[data-look="b"] .kpi{background:var(--k-bg);border:1px solid var(--line);border-inline-start:4px solid var(--k-line);border-radius:14px}
 html[data-look="b"] .kpi-l{color:var(--k-ink);font-weight:650}
 html[data-look="b"] .kpi-v{color:var(--k-ink)}
 html[data-look="b"] .kpi-s{color:var(--muted)}
@@ -39,7 +39,7 @@ html[data-look="c"] .story{font-size:20px;line-height:1.45;margin-top:14px;max-w
 html[data-look="c"] .fbar{background:none;border:0;padding:0;border-radius:0}
 html[data-look="c"] .kpis{gap:0;margin:22px 0 26px;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
 html[data-look="c"] .kpi{background:none;border:0;border-radius:0;padding:18px 22px}
-html[data-look="c"] .kpi+.kpi{border-left:1px solid var(--line)}
+html[data-look="c"] .kpi+.kpi{border-inline-start:1px solid var(--line)}
 html[data-look="c"] .kpi-v{font-size:36px;color:var(--k-ink)}
 html[data-look="c"] .charts{gap:22px}
 html[data-look="c"] .card{border:0;border-radius:16px;background:var(--well)}
@@ -52,5 +52,5 @@ html[data-look="c"] .hcard::before{display:none}
 html[data-look="c"] .hcard-t{font-family:Newsreader,Georgia,serif;font-size:24px;font-weight:600}
 html[data-look="c"] .hcard-k b{font-size:26px;color:var(--hue-ink)}
 html[data-look="c"] .side{background:var(--card)}
-@container app (max-width: 1100px){html[data-look="c"] .kpi+.kpi{border-left:0}html[data-look="c"] .kpi:nth-child(even){border-left:1px solid var(--line)}}
+@container app (max-width: 1100px){html[data-look="c"] .kpi+.kpi{border-inline-start:0}html[data-look="c"] .kpi:nth-child(even){border-inline-start:1px solid var(--line)}}
 @container app (max-width: 560px){html[data-look="c"] .ph h1,html[data-look="c"] .home h1{font-size:28px}html[data-look="c"] .story{font-size:17px}html[data-look="c"] .kpi-v{font-size:26px}html[data-look="c"] .kpi{padding:12px}}

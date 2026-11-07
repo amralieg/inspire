@@ -128,7 +128,7 @@ export default function SettingsPanel({ settings, update, onClose }) {
       />
 
       {/* Panel */}
-      <div className="fixed top-0 right-0 h-full w-96 bg-surface border-l border-border shadow-xl z-50 flex flex-col">
+      <div className="fixed top-0 right-0 h-full w-96 bg-surface border-s border-border shadow-xl z-50 flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-border">
           <div className="flex items-center gap-2.5">
@@ -151,7 +151,7 @@ export default function SettingsPanel({ settings, update, onClose }) {
               <HOST_FIELD.icon size={12} />
               {HOST_FIELD.label}
             </label>
-            <input
+            <input dir="auto"
               type={HOST_FIELD.type}
               value={settings[HOST_FIELD.key] || ''}
               onChange={(e) => update(HOST_FIELD.key, normalizeDatabricksHost(e.target.value))}
@@ -206,7 +206,7 @@ export default function SettingsPanel({ settings, update, onClose }) {
                     <Icon size={12} />
                     {label}
                   </label>
-                  <input
+                  <input dir="auto"
                     type={type}
                     value={settings[key] || ''}
                     onChange={(e) => update(key, e.target.value)}
@@ -231,7 +231,7 @@ export default function SettingsPanel({ settings, update, onClose }) {
                   <Icon size={12} />
                   {label}
                 </label>
-                <input
+                <input dir="auto"
                   type={type}
                   value={settings[key] || ''}
                   onChange={(e) => update(key, e.target.value)}
@@ -251,7 +251,7 @@ export default function SettingsPanel({ settings, update, onClose }) {
               <DB_FIELD.icon size={12} />
               {DB_FIELD.label}
             </label>
-            <input
+            <input dir="auto"
               type={DB_FIELD.type}
               value={settings[DB_FIELD.key] || ''}
               onChange={(e) => update(DB_FIELD.key, e.target.value)}

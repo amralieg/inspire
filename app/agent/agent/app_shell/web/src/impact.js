@@ -49,7 +49,7 @@ export function wrongFigure(entry) {
   if (!closed) return none('Nobody has closed a record yet');
   const share = percentOf(wrong, closed);
   return { value: `${share}%`, amount: share, n: closed, formula: `${wrong} not an issue / ${closed} closed x 100 = ${share}%`,
-    how: `People marked ${wrong} of ${plural(closed, 'closed record')} not an issue, so ${100 - share}% were right` };
+    how: `People marked ${grouped(wrong)} of ${plural(closed, 'closed record')} not an issue, so ${100 - share}% were right` };
 }
 
 export function figuresOf(entry, currency, kind = '') {
@@ -72,7 +72,7 @@ export function totalWrong(rows) {
   if (!closed) return { value: NOT_MEASURED, sub: 'Nobody has closed a record yet' };
   const share = percentOf(wrong, closed);
   return { value: `${share}%`, formula: `${wrong} not an issue / ${closed} closed x 100 = ${share}%`,
-    sub: `People marked ${wrong} of ${plural(closed, 'closed record')} not an issue, so ${100 - share}% were right` };
+    sub: `People marked ${grouped(wrong)} of ${plural(closed, 'closed record')} not an issue, so ${100 - share}% were right` };
 }
 
 export function impactTiles(rows) {
@@ -114,7 +114,7 @@ export function holdoutView(entry) {
   if (!entry?.tracked || !entry.holdout) return null;
   const { shown, held } = entry.holdout;
   const rate = (arm) => (arm.n ? percentOf(arm.hits, arm.n) : null);
-  const line = (arm, who) => `${arm.hits} of ${plural(arm.n, 'flagged record')} ${who} left the list or stopped being flagged${arm.n ? ` (${rate(arm)}%)` : ''}`;
+  const line = (arm, who) => `${grouped(arm.hits)} of ${plural(arm.n, 'flagged record')} ${who} left the list or stopped being flagged${arm.n ? ` (${rate(arm)}%)` : ''}`;
   const lines = [line(shown, 'shown to people'), line(held, 'held back')];
   if (shown.n < MIN_ARM || held.n < MIN_ARM) return { lines, verdict: `Too few records to compare yet: it needs at least ${MIN_ARM} in each group` };
   const diff = rate(shown) - rate(held);

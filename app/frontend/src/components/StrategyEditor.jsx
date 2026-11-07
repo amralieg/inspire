@@ -114,7 +114,7 @@ function LevelEditor({ model, setModel }) {
         {levels.map((level, index) => (
           <div key={`level-${index}`} className="flex items-center gap-1">
             {index > 0 && <span className="text-[11px] text-text-tertiary">›</span>}
-            <input
+            <input dir="auto"
               value={level}
               onChange={(e) => rename(index, e.target.value)}
               aria-label={`Level ${index + 1} name`}
@@ -183,7 +183,7 @@ function PasteImport({ model, setModel, onDone }) {
         column per level. Lines that start with KPI:, Key result: or Sponsor: attach to the entry above them; a line such as
         {' '}<span className="font-mono">{levels[0]}: Customer</span> sets the level by name.
       </p>
-      <textarea
+      <textarea dir="auto"
         value={pasted}
         onChange={(e) => setPasted(e.target.value)}
         rows={7}
@@ -199,8 +199,8 @@ function PasteImport({ model, setModel, onDone }) {
           </p>
           <div className="max-h-48 overflow-y-auto space-y-0.5">
             {rows.map(({ entry, path }) => (
-              <p key={path.join('.')} className="text-[11px] text-text-secondary" style={{ marginLeft: `${(path.length - 1) * 0.875}rem` }}>
-                <span className="text-[9px] uppercase tracking-wider text-text-tertiary mr-1.5">{levelName(levels, path.length)}</span>
+              <p key={path.join('.')} className="text-[11px] text-text-secondary" style={{ marginInlineStart: `${(path.length - 1) * 0.875}rem` }}>
+                <span className="text-[9px] uppercase tracking-wider text-text-tertiary me-1.5">{levelName(levels, path.length)}</span>
                 {entry.name}
                 {entry.kpis.length > 0 && <span className="text-text-tertiary"> · KPI {entry.kpis.map((k) => k.name).join(', ')}</span>}
                 {entry.key_results.length > 0 && <span className="text-text-tertiary"> · {entry.key_results.length} key result{entry.key_results.length === 1 ? '' : 's'}</span>}
@@ -208,7 +208,7 @@ function PasteImport({ model, setModel, onDone }) {
             ))}
             {preview.sponsors.map((sponsor, index) => (
               <p key={`sponsor-${index}`} className="text-[11px] text-text-secondary">
-                <span className="text-[9px] uppercase tracking-wider text-text-tertiary mr-1.5">Sponsor</span>
+                <span className="text-[9px] uppercase tracking-wider text-text-tertiary me-1.5">Sponsor</span>
                 {sponsor.role}
                 {sponsor.reports_to && <span className="text-text-tertiary"> · reports to {sponsor.reports_to}</span>}
                 {sponsor.owns.length > 0 && <span className="text-text-tertiary"> · owns {sponsor.owns.join(', ')}</span>}
@@ -318,13 +318,13 @@ export default function StrategyEditor({ value, onChange, onProblems, domains = 
                   className={`rounded-md px-1.5 py-1.5 border cursor-pointer transition-smooth space-y-1 ${
                     active ? 'bg-db-red-50 border-db-red/20' : 'border-transparent hover:bg-bg-subtle'
                   }`}
-                  style={{ marginLeft: `${(depth - 1) * 0.875}rem` }}
+                  style={{ marginInlineStart: `${(depth - 1) * 0.875}rem` }}
                 >
                   <div className="flex items-center gap-1">
                     <span className={`text-[9px] uppercase tracking-wider ${active ? 'text-db-red-fg' : 'text-text-tertiary'}`}>
                       {layerName(depth)}
                     </span>
-                    <span className="ml-auto flex items-center gap-1">
+                    <span className="ms-auto flex items-center gap-1">
                       {depth < maxDepth && (
                         <button
                           type="button"
@@ -351,7 +351,7 @@ export default function StrategyEditor({ value, onChange, onProblems, domains = 
                       </button>
                     </span>
                   </div>
-                  <input
+                  <input dir="auto"
                     value={entry.name}
                     onFocus={() => setSelected(path)}
                     onChange={(e) => editEntry(path, (en) => ({ ...en, name: e.target.value }))}
@@ -387,7 +387,7 @@ export default function StrategyEditor({ value, onChange, onProblems, domains = 
             current.kpis.map((kpi, k) => (
               <div key={`kpi-${k}`} className="rounded-md border border-border bg-surface p-1.5 space-y-1.5">
                 <div className="flex gap-1.5">
-                  <input
+                  <input dir="auto"
                     value={kpi.name}
                     onChange={(e) => editCurrent({ kpis: replaceAt(current.kpis, k, { ...kpi, name: e.target.value }) })}
                     placeholder="KPI name, e.g. Repeat purchase rate"
@@ -403,7 +403,7 @@ export default function StrategyEditor({ value, onChange, onProblems, domains = 
                   </button>
                 </div>
                 <div className="grid grid-cols-2 gap-1.5">
-                  <input
+                  <input dir="auto"
                     value={kpi.unit}
                     onChange={(e) => editCurrent({ kpis: replaceAt(current.kpis, k, { ...kpi, unit: e.target.value }) })}
                     placeholder="Unit, e.g. %"
@@ -420,7 +420,7 @@ export default function StrategyEditor({ value, onChange, onProblems, domains = 
                     ))}
                   </select>
                 </div>
-                <input
+                <input dir="auto"
                   value={kpi.definition}
                   onChange={(e) => editCurrent({ kpis: replaceAt(current.kpis, k, { ...kpi, definition: e.target.value }) })}
                   placeholder="Definition (optional)"
@@ -454,7 +454,7 @@ export default function StrategyEditor({ value, onChange, onProblems, domains = 
             current.key_results.map((result, r) => (
               <div key={`kr-${r}`} className="rounded-md border border-border bg-surface p-1.5 space-y-1.5">
                 <div className="flex gap-1.5">
-                  <input
+                  <input dir="auto"
                     value={result.statement}
                     onChange={(e) =>
                       editCurrent({ key_results: replaceAt(current.key_results, r, { ...result, statement: e.target.value }) })
@@ -499,19 +499,19 @@ export default function StrategyEditor({ value, onChange, onProblems, domains = 
         <div className="space-y-1.5">
           {model.sponsors.map((sponsor, index) => (
             <div key={`sponsor-${index}`} className="grid grid-cols-12 gap-1.5">
-              <input
+              <input dir="auto"
                 value={sponsor.role}
                 onChange={(e) => setModel((m) => ({ ...m, sponsors: replaceAt(m.sponsors, index, { ...sponsor, role: e.target.value }) }))}
                 placeholder="Role, e.g. Chief Customer Officer"
                 className={`${inputClass} col-span-3`}
               />
-              <input
+              <input dir="auto"
                 value={sponsor.name}
                 onChange={(e) => setModel((m) => ({ ...m, sponsors: replaceAt(m.sponsors, index, { ...sponsor, name: e.target.value }) }))}
                 placeholder="Name (optional)"
                 className={`${inputClass} col-span-2`}
               />
-              <input
+              <input dir="auto"
                 value={sponsor.reports_to}
                 onChange={(e) =>
                   setModel((m) => ({ ...m, sponsors: replaceAt(m.sponsors, index, { ...sponsor, reports_to: e.target.value }) }))
@@ -521,7 +521,7 @@ export default function StrategyEditor({ value, onChange, onProblems, domains = 
                 className={`${inputClass} col-span-3`}
               />
               <div className="col-span-3 flex gap-1">
-                <input
+                <input dir="auto"
                   value={sponsor.owns.join(', ')}
                   onChange={(e) =>
                     setModel((m) => ({

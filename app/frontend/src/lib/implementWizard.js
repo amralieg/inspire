@@ -425,7 +425,7 @@ export function vibesLength(text) {
 
 export function vibesProblem(id, text, label = '') {
   const length = vibesLength(text);
-  return length > VIBES_MAX ? `the ${label || assetLabel(id)} vibes are ${plural(length, 'character')}; at most ${VIBES_MAX} are allowed` : '';
+  return length > VIBES_MAX ? `the ${label || assetLabel(id)} vibes are ${plural(length, 'character')}; at most ${VIBES_MAX.toLocaleString('en-US')} are allowed` : '';
 }
 
 export function vibesPreview(text, max = 80) {

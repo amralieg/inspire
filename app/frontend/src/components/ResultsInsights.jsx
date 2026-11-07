@@ -37,7 +37,7 @@ export function SidebarFilterPanel({ title, subtitle, icon, open, onToggle, allL
       <button
         type="button"
         onClick={onToggle}
-        className="flex w-full shrink-0 items-start gap-2 border-b border-border bg-gradient-to-b from-db-red-50 to-surface px-3 py-3 text-left transition-smooth hover:from-db-red-50/80"
+        className="flex w-full shrink-0 items-start gap-2 border-b border-border bg-gradient-to-b from-db-red-50 to-surface px-3 py-3 text-start transition-smooth hover:from-db-red-50/80"
       >
         <ChevronRight
           size={14}
@@ -59,7 +59,7 @@ export function SidebarFilterPanel({ title, subtitle, icon, open, onToggle, allL
           <button
             type="button"
             onClick={() => onChange('all')}
-            className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-left transition-smooth ${
+            className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-start transition-smooth ${
               allActive ? 'bg-db-red-50 border border-db-red/20' : 'hover:bg-bg-subtle border border-transparent'
             }`}
           >
@@ -79,8 +79,8 @@ export function SidebarFilterPanel({ title, subtitle, icon, open, onToggle, allL
                 type="button"
                 onClick={() => onChange(active ? 'all' : o.value)}
                 title={o.title || o.label}
-                style={o.depth ? { paddingLeft: `${0.75 + o.depth * 0.75}rem` } : undefined}
-                className={`w-full flex items-start gap-2 px-3 py-2 rounded-lg text-left transition-smooth ${
+                style={o.depth ? { paddingInlineStart: `${0.75 + o.depth * 0.75}rem` } : undefined}
+                className={`w-full flex items-start gap-2 px-3 py-2 rounded-lg text-start transition-smooth ${
                   active ? 'bg-db-red-50 border border-db-red/20' : 'hover:bg-bg-subtle border border-transparent'
                 }`}
               >
@@ -171,10 +171,10 @@ export function DataAccessBadge({ results }) {
 }
 
 function UseCaseLink({ entry, onOpen }) {
-  if (!entry.useCase || !onOpen) return <span className="min-w-0 break-words text-text-primary">{entry.name}</span>;
+  if (!entry.useCase || !onOpen) return <span dir="auto" className="min-w-0 break-words text-text-primary">{entry.name}</span>;
   return (
-    <button type="button" onClick={() => onOpen(entry.useCase)} title={`Open ${entry.name} in the list`}
-      className="min-w-0 text-left break-words text-text-primary hover:text-db-red-fg hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-db-red/30 rounded">
+    <button type="button" dir="auto" onClick={() => onOpen(entry.useCase)} title={`Open ${entry.name} in the list`}
+      className="min-w-0 text-start break-words text-text-primary hover:text-db-red-fg hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-db-red/30 rounded">
       {entry.name}
     </button>
   );
@@ -192,7 +192,7 @@ function BuildOrder({ order, describe, onOpenUseCase }) {
               <span className="font-mono text-[10px] text-text-secondary tabular-nums">{i + 1}.</span>
               <span className="min-w-0">
                 <UseCaseLink entry={entry} onOpen={onOpenUseCase} />
-                {entry.domain && <span className="block text-[10px] text-text-secondary">{entry.domain}</span>}
+                {entry.domain && <span dir="auto" className="block text-[10px] text-text-secondary">{entry.domain}</span>}
               </span>
               <span className="font-mono text-[10px] text-text-secondary tabular-nums" title="Inspire Score">{scoreText(entry.score)}</span>
             </li>
@@ -230,9 +230,9 @@ function nowText(t) {
 }
 
 const TRACKING_COLUMNS = [
-  { key: 'title', label: 'Use case', className: 'py-1 pr-2 text-text-primary' },
+  { key: 'title', label: 'Use case', className: 'py-1 pe-2 text-text-primary' },
   {
-    key: 'kpi', label: 'KPI', className: 'py-1 pr-2 text-text-secondary',
+    key: 'kpi', label: 'KPI', className: 'py-1 pe-2 text-text-secondary',
     render: (t) => {
       const note = trackedKpiNote(t);
       return <>{t.kpi}{note && <span data-tracking-note="" className="block text-[10px] text-text-secondary">{note}</span>}</>;
@@ -315,8 +315,8 @@ export function FeedbackPanel({ results, feedback }) {
           <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-text-tertiary mb-1">Value of implemented use cases</p>
           <DataGrid label="Value of implemented use cases" grid="results:value_tracking" columns={TRACKING_COLUMNS} rows={tracking}
             rowKey={(t, i) => `${t.use_case_key}-${i}`} rowProps={(t) => ({ 'data-tracking-status': t.status || '' })} tableClassName="w-full text-[11px]"
-            headRowClassName="text-left text-[9px] uppercase tracking-[0.14em] text-text-tertiary" headClassName="py-1 pr-2 font-semibold" rowClassName={() => 'border-t border-border align-top'}
-            cellClassName="py-1 pr-2 font-mono text-text-secondary" />
+            headRowClassName="text-start text-[9px] uppercase tracking-[0.14em] text-text-tertiary" headClassName="py-1 pe-2 font-semibold" rowClassName={() => 'border-t border-border align-top'}
+            cellClassName="py-1 pe-2 font-mono text-text-secondary" />
           {tracking.some((t) => t.status === 'query_only' && t.query) && (
             <div className="mt-2 space-y-1">
               <p className="text-[10px] text-text-tertiary">A Standard run never reads data. Run these queries to measure the KPIs now.</p>
