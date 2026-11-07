@@ -102,7 +102,7 @@ export function useGenie(app, current, onOpen, view = null) {
       const msg = await genieAnswer(k, started, { onStep: (step) => update(k, n, { step }), alive: () => alive.current });
       if (msg) update(k, n, { state: 'done', answer: msg, ids: started, shown: reducedMotion() ? Infinity : 0 });
     } catch (error) {
-      update(k, n, { state: 'failed', error: error.message });
+      update(k, n, { state: 'failed', error: error.message, calm: !!error.calm });
     }
   }, []);
 
@@ -138,7 +138,7 @@ export function useGenie(app, current, onOpen, view = null) {
         confirm: turn.confirm ? { ...turn.confirm, state: 'ask' } : null, answer: agentAnswer(turn),
         ids: turn.genie ? { conversation_id: turn.genie.conversation_id, message_id: turn.genie.message_id } : null, shown: reducedMotion() ? Infinity : 0 });
     } catch (error) {
-      update(k, n, { state: 'failed', error: error.message });
+      update(k, n, { state: 'failed', error: error.message, calm: !!error.calm });
     }
   }, [send]);
 
@@ -385,7 +385,7 @@ export default function GeniePanel({ app, genie, page, pages, onPick, onClose })
   const on = Boolean(home) && info.enabled;
   const entity = String(app.pages.find((p) => p.id === about?.pageId)?.records?.label_title || 'record').toLowerCase();
   const asked = thread.filter((m) => m.who === 'you').map((m) => m.text);
-  const questions = home ? (agent ? suggestions(home, null, String(home.records?.label_title || 'record').toLowerCase(), asked) : home.questions || []) : [];
+  const questions = home ? (agent ? suggestions(home, null, String(home.records?.label_title || 'record').toLowerCase(), asked) : (home.questions || []).filter((q) => !asked.includes(q))) : [];
   const answering = pages.filter((p) => p.genie.enabled);
   const submit = (e) => { e.preventDefault(); if (on && text.trim() && !busy) { ask(text); setText(''); } };
   const who = app.auth === 'user' ? 'with your permissions' : "with the App's permissions";
@@ -432,7 +432,7 @@ export default function GeniePanel({ app, genie, page, pages, onPick, onClose })
           <div key={m.n} className="msg msg--genie">
             <span className="msg-av"><GenieMark size={14} /></span>
             {m.state === 'running' && <div className="msg-b"><AgentSteps steps={m.steps} /><span className="g-step"><span className="dots"><i /><i /><i /></span>{m.step}…</span><Pace since={m.n} /></div>}
-            {m.state === 'failed' && <div className="msg-b"><p className="g-err">{m.error}</p></div>}
+            {m.state === 'failed' && <div className="msg-b">{m.calm ? <p className="note" role="status" data-calm>{m.error}</p> : <p className="g-err">{m.error}</p>}</div>}
             {m.state === 'done' && <Answer message={m} url={info.url} onTick={tick} genie={genie} />}
           </div>
         )))}
@@ -450,8 +450,8 @@ export default function GeniePanel({ app, genie, page, pages, onPick, onClose })
           {(agent ? suggestions(home, about, entity) : recordQuestions(entity)).map((q) => <button key={q} className="sugg" onClick={() => ask(q)} disabled={busy}>{q}</button>)}
         </div>
       )}
-      {on && !about && questions.length > 0 && thread.length === 0 && (
-        <div className="g-sugg">{questions.slice(0, 4).map((q) => <button key={q} className="sugg" onClick={() => ask(q)}>{q}</button>)}</div>
+      {on && !about && questions.length > 0 && (thread.length === 0 || (thread.at(-1)?.state === 'failed' && thread.at(-1)?.calm)) && (
+        <div className="g-sugg">{questions.slice(0, 4).map((q) => <button key={q} className="sugg" onClick={() => ask(q)} disabled={busy}>{q}</button>)}</div>
       )}
       <form className="g-in" onSubmit={submit}>
         <input dir="auto" ref={input} value={text} onChange={(e) => setText(e.target.value)} placeholder={!home ? 'Pick a use case first' : !on ? 'Ask Genie is off' : about ? `Ask about ${about.label}` : 'Ask about the data in this use case'} aria-label="Your question" autoComplete="off" disabled={!on} maxLength={1000} />

@@ -9,7 +9,7 @@ import { REVIEW_PORTFOLIO, REVIEW_SESSIONS, REVIEW_STATE } from './reviewFixture
 import { closeAsset, closeBrowser, expandBuild, openAsset, openUi, until } from './uiSupport.mjs';
 import { apiWatch, keepToOrigins, openShowcase, readOnlyInspire, recordMvpApp, routeInspireDemo, tabButton, walkInspireDemo, walkMvpViews, watchOffline } from '../../../scripts/showcaseRecorder.mjs';
 import { DEMO_READS, DEMO_READS_WHEN, routeOf, unrecorded } from '../../../scripts/showcaseRoutes.mjs';
-import { SHOWCASE_BUTTON, SHOWCASE_DASHBOARD_NOTE, SHOWCASE_GENIE_NOTE, SHOWCASE_NOTE, SHOWCASE_OPEN_APP, SHOWCASE_PAGES } from '../../src/lib/showcase.js';
+import { SHOWCASE_ALERT_NOTE, SHOWCASE_BUTTON, SHOWCASE_DASHBOARD_NOTE, SHOWCASE_GENIE_NOTE, SHOWCASE_NOTE, SHOWCASE_OPEN_APP, SHOWCASE_PAGES } from '../../src/lib/showcase.js';
 import { START_MVP_LABEL } from '../../src/lib/implementWizard.js';
 import { APP_TABS } from '../../src/lib/tabs.js';
 import { PORTFOLIO_GROUPS } from '../../src/lib/reviewFigures.js';
@@ -254,6 +254,9 @@ test('the demo replays every view from the bundle with no workspace call, refuse
     await page.locator('[data-asset-tiles]').waitFor();
     await settle();
     assert.equal((await page.locator('[data-pinned-name] h2').textContent()).trim(), 'Predict churn');
+    const alertChip = page.locator('[data-asset-filter="alert"]');
+    assert.match((await alertChip.innerText()).replace(/\s+/g, ' ').trim(), /^Alert [1-9]\d*$/, 'the demo counts its built alert, never Alert 0');
+    assert.equal(await alertChip.isDisabled(), false);
     await page.locator('[data-mvp-progress]').waitFor();
     assert.equal(await page.locator('[data-mvp-panel]').count(), 0, 'a ready MVP opens on its tiles and its Build progress, with no drawer open');
     for (const name of ['Vibe/Add/Remove Features (0)', 'Uninstall all', START_MVP_LABEL]) assert.equal(await page.getByRole('button', { name, exact: true }).count(), 0, name);
@@ -306,8 +309,9 @@ test('the demo replays every view from the bundle with no workspace call, refuse
     assert.deepEqual(tabs, MVP_VIEW_IDS, 'the demo shows Build progress and every asset of the MVP');
     assert.deepEqual(toMvp, ['dashboard', 'genie_space'], 'the Dashboard and the Agent drawers open the MVP App');
     assert.ok(vibeCards > 0, 'the part vibe cards show, read-only');
-    assert.match(alertFacts, /Fires when: Act now rows in the latest run >= 1/, 'the demo shows what fires the alert though its link is blanked');
+    assert.match(alertFacts, /Fires when: Act now rows in the latest run are at least 1/, 'the demo shows what fires the alert though its link is blanked');
     assert.match(alertFacts, /Notifies: owner@example\.com/);
+    assert.ok(alertFacts.includes(SHOWCASE_ALERT_NOTE), 'the demo says why the alert has no link to open');
     assert.doesNotMatch(alertFacts, /No alert on this version/);
 
     await showView(page, 'job');
@@ -350,7 +354,7 @@ test('the demo replays every view from the bundle with no workspace call, refuse
     await startRun.waitFor();
     assert.equal(await page.locator('main [data-run]').count(), 1, 'Start lists the demo run alone');
     assert.equal(await startRun.locator('[data-latest-run]').count(), 1, 'Start marks the demo run as the latest run of its business');
-    assert.equal(await page.getByTitle('Delete experiment').count(), 0, 'the demo offers no delete on Start');
+    assert.equal(await page.getByTitle('Delete run').count(), 0, 'the demo offers no delete on Start');
     const startTotals = page.getByRole('region', { name: 'Across all runs' });
     await startTotals.locator('[data-portfolio-card="runs"] [data-card-value]', { hasText: '1' }).waitFor();
     assert.deepEqual(await startTotals.locator('[data-portfolio-card]').evaluateAll((els) => Object.fromEntries(els.map((el) => [el.getAttribute('data-portfolio-card'),
@@ -396,7 +400,9 @@ test('the demo replays every view from the bundle with no workspace call, refuse
     await page.getByText('Score the use cases', { exact: true }).click();
     await page.getByText('3 use cases', { exact: true }).waitFor();
     assert.equal(await page.getByText('Forecast stock', { exact: true }).count(), named + 1, 'a step recorded with only the fields Monitor shows still names its use cases');
-    await page.getByText('Use cases of run 42').waitFor();
+    const heading = page.getByText(/^Use cases of /);
+    await heading.waitFor();
+    assert.doesNotMatch(await heading.innerText(), /\b42\b|\brun \d/, 'the use cases are named by the business and start, never by the internal run number');
     await page.getByText('Pipeline completed successfully').waitFor();
     await settle();
     await demoBar(page).getByText(SHOWCASE_NOTE).waitFor();

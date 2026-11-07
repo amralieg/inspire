@@ -547,8 +547,8 @@ def test_a_baseline_with_no_history_falls_back_to_the_number_set_in_the_wizard(a
     inst.spark = described
     fields = inst._implement_alert(_output_context(agent_ns, **BASELINE), None)
     assert fields["_asset"]["baseline"]["threshold_basis"] == "fixed"
-    assert fields["_asset"]["trigger"] == ("Act now rows in the latest run rise above the mean + 2 standard deviations of up to 30 "
-                                           "earlier runs (>= 1 until 5 earlier runs exist)")
+    assert fields["_asset"]["trigger"] == ("Act now rows in the latest run rise above the mean plus 2 standard deviations of up to 30 "
+                                           "earlier runs (at least 1 until 5 earlier runs exist)")
     assert inst.logger.matching("threshold now fixed at 1.0 from 0 earlier runs; No earlier run to compare")
     [(alert, _q)] = _calls_to(calls, "POST", "/api/2.0/alerts")
     assert alert["evaluation"]["source"]["name"] == "alert_value" and "history AS (" in alert["query_text"]
@@ -577,20 +577,20 @@ def test_the_alert_runbook_says_what_it_means_what_to_do_and_when_it_clears(agen
     _s, text = texts(shell_alerts, "N01-U01", use_case, _outputs(agent_ns, **BASELINE), "https://h/d", "https://h/genie/rooms/s9",
                      {"cron": "0 0 6 ? * MON", "timezone": "Asia/Dubai", "enabled": True})
     lines = text.splitlines()
-    assert lines[0] == ("What fired: Act now rows in the latest run rise above the mean + 2 standard deviations "
-                        "of up to 30 earlier runs (>= 1 until 5 earlier runs exist).")
+    assert lines[0] == ("What fired: Act now rows in the latest run rise above the mean plus 2 standard deviations "
+                        "of up to 30 earlier runs (at least 1 until 5 earlier runs exist).")
     assert "5. Ask the Genie Agent (https://h/genie/rooms/s9) why a row is on the list or how it compares with earlier runs." in lines
     assert ["Where to look:", "Dashboard: https://h/d", "Genie Agent: https://h/genie/rooms/s9"] == lines[lines.index("Where to look:"):][:3]
     assert "When it clears: you get one more email when it returns to OK." in lines
     threshold = next(line for line in lines if line.startswith("Why this threshold: "))
     assert threshold.startswith("Why this threshold: the mean plus 2 standard deviations of the Act now rows of up to 30 earlier runs")
     assert "a percentile of so few runs is one of the top runs" in threshold
-    assert "With fewer than 5 earlier runs the alert uses the number set in the wizard (Act now rows >= 1)" in threshold
-    assert ("How often it checks: after each scheduled run of the job (0 0 6 ? * MON, Asia/Dubai), once its notebook task has written the "
+    assert "With fewer than 5 earlier runs the alert uses the number set in the wizard (Act now rows are at least 1)" in threshold
+    assert ("How often it checks: after each scheduled run of the job (at 06:00 every Monday, Asia/Dubai), once its notebook task has written the "
             "results.") in lines
     cadence = agent_ns["implement_alert_cadence_text"]
     assert cadence({"cron": "0 0 6 ? * MON", "timezone": "UTC", "enabled": False}) == (
-        "after each run of the job; its schedule (0 0 6 ? * MON, UTC) is paused, so only when someone runs the job")
+        "after each run of the job; its schedule (at 06:00 every Monday, UTC) is paused, so only when someone runs the job")
     assert cadence({}) == "after each run of the job; the job has no schedule, so only when someone runs it"
     falling = agent_ns["implement_alert_threshold_reason"](_outputs(agent_ns, **BASELINE, alert_operator="<="))
     assert falling.startswith("the mean minus 2 standard deviations")
@@ -602,7 +602,7 @@ def test_the_alert_schedule_follows_the_job_and_stays_paused_for_the_job_task(ag
     inst._implement_alert(_output_context(agent_ns, **ALERT), None)
     [(alert, _q)] = _calls_to(calls, "POST", "/api/2.0/alerts")
     assert alert["schedule"] == {"quartz_cron_schedule": "0 0 6 ? * MON", "timezone_id": "Asia/Dubai", "pause_status": "PAUSED"}
-    assert "How often it checks: after each scheduled run of the job (0 0 6 ? * MON, Asia/Dubai)" in alert["custom_description"]
+    assert "How often it checks: after each scheduled run of the job (at 06:00 every Monday, Asia/Dubai)" in alert["custom_description"]
     inst, calls, _q = _alert_inspire(agent_ns, tmp_path)
     job = types.SimpleNamespace(settings=types.SimpleNamespace(schedule=types.SimpleNamespace(quartz_cron_expression="0 30 7 * * ?")))
     inst.w_client.jobs = types.SimpleNamespace(get=lambda job_id: job)
@@ -611,7 +611,7 @@ def test_the_alert_schedule_follows_the_job_and_stays_paused_for_the_job_task(ag
     inst._implement_alert(context, None)
     [(alert, _q)] = _calls_to(calls, "POST", "/api/2.0/alerts")
     assert alert["schedule"] == {"quartz_cron_schedule": "0 30 7 * * ?", "timezone_id": "UTC", "pause_status": "PAUSED"}
-    assert "its schedule (0 30 7 * * ?, UTC) is paused" in alert["custom_description"]
+    assert "its schedule (at 07:30 every day, UTC) is paused" in alert["custom_description"]
     inst, calls, _q = _alert_inspire(agent_ns, tmp_path)
     inst._implement_alert(context, None)
     [(alert, _q)] = _calls_to(calls, "POST", "/api/2.0/alerts")

@@ -196,9 +196,9 @@ test('the control tower shows the holdout on the job row, and nothing when no re
   const live = { targets: { job: '77' }, assets: { job: { ok: true, schedule: { cron: '0 0 6 * * ?', timezone: 'UTC', paused: false }, active_runs: [] } } };
   const latest = (holdout) => ({ spec_version: 2, status: 'ready', spec_json: { schedule: { enabled: true }, ...(holdout ? { holdout } : {}) } });
   const job = (holdout) => v.controlRows(live, latest(holdout)).find((r) => r.id === 'job');
-  assert.equal(job({ enabled: true, share: 0.1 }).detail, 'Scheduled: 0 0 6 * * ? (UTC). Holds back 10% of the records to measure impact');
-  assert.equal(job(null).detail, 'Scheduled: 0 0 6 * * ? (UTC)');
-  assert.equal(job({ enabled: false, share: 0.1 }).detail, 'Scheduled: 0 0 6 * * ? (UTC)');
+  assert.equal(job({ enabled: true, share: 0.1 }).detail, 'Scheduled: every day at 06:00 (UTC). Holds back 10% of the records to measure impact');
+  assert.equal(job(null).detail, 'Scheduled: every day at 06:00 (UTC)');
+  assert.equal(job({ enabled: false, share: 0.1 }).detail, 'Scheduled: every day at 06:00 (UTC)');
   const unread = v.controlRows({ targets: { job: '77' }, assets: { job: { ok: false, error: 'no access' } } }, latest({ enabled: true, share: 0.2 }))
     .find((r) => r.id === 'job');
   assert.match(unread.detail, /Holds back 20% of the records to measure impact$/, 'the setting shows even while the job cannot be read');

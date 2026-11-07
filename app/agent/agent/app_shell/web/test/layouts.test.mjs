@@ -295,8 +295,8 @@ test('the gantt spans each line from start to end and the sankey keeps sources a
   }, [P, SCHEDULE, FLOWS]);
   assert.deepEqual(out.axis, ['time', 'value']);
   assert.deepEqual(out.names, ['Oat bar', 'Rye loaf', 'Seed roll'], 'a line with no end is left off');
-  assert.deepEqual(out.first, [0, Date.parse('2026-11-02'), Date.parse('2026-11-09')]);
-  assert.deepEqual(out.counted, [[0, 3, 7]]);
+  assert.deepEqual(out.first, { value: [0, Date.parse('2026-11-02'), Date.parse('2026-11-09')], pick: 'Oat bar' });
+  assert.deepEqual(out.counted, [{ value: [0, 3, 7], pick: 'Week plan' }]);
   assert.deepEqual(out.nodes, ['before|North plant', 'now|Store', 'now|Web', 'before|South plant', 'before|Store', 'now|North plant']);
   assert.equal(out.links, 4, 'a flow of zero is left out, and a flow back to a source does not loop');
   assert.equal(out.label, 'North plant');

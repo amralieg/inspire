@@ -284,9 +284,9 @@ def test_people_create_list_edit_pause_and_delete_their_own_alerts_as_the_servic
     assert meta == {"v": 1, "kind": "watch", "page": "n01_u05", "by": PERSON, "name": "Category A grows", "watch": dict(WATCH, threshold=2.0),
                     "schedule": "daily", "token": meta["token"], "notify_on_ok": True}
     assert body["display_name"] == f"Category A grows ({meta['token']})"
-    assert body["custom_summary"] == "Category A grows: Records on the list is at or above 2"
+    assert body["custom_summary"] == "Category A grows: Records on the list is at least 2"
     assert body["custom_description"].splitlines() == [
-        "What fired: Records on the list on Desk n01_u05 is at or above 2, counting only Category: A.",
+        "What fired: Records on the list on Desk n01_u05 is at least 2, counting only Category: A.",
         f"Why this threshold: 2 is the number {PERSON} set for this alert in the App.", "How often it checks: every day at 08:00 UTC.",
         "What to do first:", "1. Open the decision list (https://loss-desk-1.example.com/?open=n01_u05) and work its rows by rank, top "
         "first; each row's recommended action says what to do with it.", "Where to look:", "App: https://loss-desk-1.example.com/?open=n01_u05",

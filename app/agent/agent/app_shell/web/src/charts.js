@@ -187,7 +187,7 @@ function ganttOption({ chart, rows, P, valueFmt, axisFmt, width }) {
     xAxis: { type: timed ? 'time' : 'value', scale: true, axisLabel: label(P, timed ? {} : { formatter: axisFmt(0) }), splitLine: split(P) },
     yAxis: { type: 'category', inverse: true, data: bars.map((b) => b.name), axisLabel: label(P, cats.axisLabel), axisLine: axisLine(P), axisTick: { show: false } },
     series: [{
-      type: 'custom', name: chart.y[0].label, encode: { x: [1, 2], y: 0 }, data: bars.map((b, i) => [i, b.start, b.end]),
+      type: 'custom', name: chart.y[0].label, encode: { x: [1, 2], y: 0 }, data: bars.map((b, i) => ({ value: [i, b.start, b.end], pick: b.name })),
       renderItem: (params, api) => {
         const a = api.coord([api.value(1), api.value(0)]);
         const b = api.coord([api.value(2), api.value(0)]);
@@ -196,6 +196,23 @@ function ganttOption({ chart, rows, P, valueFmt, axisFmt, width }) {
       },
     }],
   };
+}
+
+const CLICK_PARTS = { donut: 'slice', scatter: 'dot', map_points: 'dot', line: 'point', area: 'point', stacked_area: 'point', band: 'point', control: 'point',
+  heatmap: 'cell', treemap: 'block', map_regions: 'region', graph: 'circle', flow: 'step', sankey: 'step', radar: '' };
+
+export function clickPart(type) {
+  return Object.hasOwn(CLICK_PARTS, type) ? CLICK_PARTS[type] : 'bar';
+}
+
+export function clickPick(type, event) {
+  const key = type === 'scatter' ? event?.data?.[2] : event?.data?.pick ?? event?.name;
+  return key == null || key === '' || key === 'Other' || key === 'Unknown' ? null : key;
+}
+
+export function clickHint(chart, folded = false) {
+  const part = chart?.click_filter && !folded ? clickPart(chart.type) : '';
+  return part ? ` Click a ${part} to filter the page.` : '';
 }
 
 const LAYOUT_CHARTS = { band: bandOption, control: controlOption, tornado: tornadoOption, bridge: bridgeOption, bullet: bulletOption,
@@ -244,11 +261,11 @@ export function chartOption(given, rows, P, { reduced = false, width = CHART_WID
     const rowsSide = categoryLabels(ys, { width, side: true });
     return base(P, reduced, {
       grid: { left: rowsSide.left, right: 16, top: 12, bottom: 54 },
-      tooltip: { formatter: (p) => `${ys[p.data[1]]} · ${xLabel(xs[p.data[0]])}<br><b>${valueFmt(0)(p.data[2])}</b>` },
+      tooltip: { formatter: (p) => `${ys[p.value[1]]} · ${xLabel(xs[p.value[0]])}<br><b>${valueFmt(0)(p.value[2])}</b>` },
       xAxis: { type: 'category', data: xs.map(xLabel), axisLabel: label(P, categoryLabels(xs.map(xLabel), { width, left: rowsSide.left }).axisLabel), axisLine: axisLine(P), axisTick: { show: false } },
       yAxis: { type: 'category', data: ys, axisLabel: label(P, rowsSide.axisLabel), axisLine: axisLine(P), axisTick: { show: false } },
       visualMap: { show: false, min: Math.min(0, ...values), max: Math.max(1e-9, ...values), inRange: { color: [P.well, P.series[1]] } },
-      series: [{ type: 'heatmap', data: rows.map((r) => [xs.indexOf(keyOf(r.x)), ys.indexOf(keyOf(r.s)), r.y0]), itemStyle: { borderColor: P.card, borderWidth: 2, borderRadius: 4 } }],
+      series: [{ type: 'heatmap', data: rows.map((r) => ({ value: [xs.indexOf(keyOf(r.x)), ys.indexOf(keyOf(r.s)), r.y0], pick: keyOf(r.x) })), itemStyle: { borderColor: P.card, borderWidth: 2, borderRadius: 4 } }],
     });
   }
 
@@ -380,6 +397,6 @@ export function sankeyOption({ rows, P, valueFmt }) {
     series: [{ type: 'sankey', animation: false, left: 8, right: 96, top: 12, bottom: 12, nodeAlign: 'justify', emphasis: { focus: 'adjacency' },
       label: { color: P.ink, fontSize: 11, formatter: (p) => truncate(shown(p.name), 18) },
       lineStyle: { color: 'gradient', opacity: 0.35 },
-      data: names.map((name) => ({ name, itemStyle: { color: colorOf(name) } })), links }],
+      data: names.map((name) => ({ name, pick: shown(name), itemStyle: { color: colorOf(name) } })), links }],
   };
 }

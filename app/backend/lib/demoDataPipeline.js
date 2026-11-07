@@ -126,7 +126,7 @@ async function ensureDemoPipelineNotebookPublished(
   if (!loaded) {
     throw new Error(
       `Demo pipeline notebook not found at ${GENERATE_NOTEBOOK_DEST} and no local/bundled copy. ` +
-        'Run inspire_installer.py (publishes to /Shared/inspire-ai/) or redeploy with npm run deploy.',
+        'Run inspire_installer.py again; it publishes the notebook to /Shared/inspire-ai/.',
     );
   }
 

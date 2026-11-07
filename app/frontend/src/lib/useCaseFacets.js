@@ -11,9 +11,9 @@ import {
 } from './useCaseFields.js';
 
 export const GENIE_LABELS = Object.freeze({
-  shipped: 'Has Genie code',
-  draft: 'Draft Genie instruction',
-  none: 'No Genie code',
+  shipped: 'Genie Code instruction written',
+  draft: 'Draft Genie Code instruction',
+  none: 'No Genie Code instruction',
 });
 
 export function catalogRow(uc, index, ctx = {}) {

@@ -904,7 +904,7 @@ export default function MonitorPage({ settings, update, sessionId, runId, onComp
             <div className="border border-border rounded-xl overflow-hidden shadow-sm bg-surface">
               <div className="px-4 py-3 border-b border-border bg-panel flex items-center gap-2">
                 <BarChart3 size={14} className="text-db-red-fg" />
-                <span className="text-xs font-bold text-text-primary">Use cases of run {sessionId}</span>
+                <span className="text-xs font-bold text-text-primary">Use cases of {runTitle(runInfo, session?.business_name)}</span>
               </div>
               <ResultsPage settings={settings} update={update} sessionId={sessionId} embedded onSessionChange={onResultsSession} onOpenImplement={onOpenImplement} />
             </div>
@@ -1181,7 +1181,7 @@ function RunSetupSummary({ widgetValues }) {
     <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px]">
       {discovery && (
         <span className="px-2 py-0.5 rounded-full border border-border bg-bg-subtle text-text-secondary">
-          {aiSeesAggregates(discovery) ? `${discovery}: the AI sees the aggregates` : `${discovery}: aggregates kept from the AI`}
+          {aiSeesAggregates(discovery) ? `${discovery}: the AI sees the summary figures` : `${discovery}: summary figures kept from the AI`}
         </span>
       )}
       <span className="px-2 py-0.5 rounded-full border border-border bg-bg-subtle text-text-secondary" title={parsed.error || ''}>

@@ -16,6 +16,7 @@ const yaml = require('js-yaml');
 const { stripAiDemoDisclaimerHtml, stripDisclaimerDeep } = require('./stripAiDisclaimer');
 const { TEMPLATE_META } = require('./lib/demoDataService');
 const { triggerDemoDataPipeline } = require('./lib/demoDataPipeline');
+const { unreachableMessage } = require('./lib/unreachable');
 const { resolveInspireAppServicePrincipalId } = require('./lib/inspireSpGrants');
 const {
   INSPIRE_AGENT_VERSION,
@@ -300,12 +301,7 @@ async function dbFetch(host, token, apiPath, options = {}) {
       },
     });
   } catch (e) {
-    const cause = e.cause?.message || e.cause?.code || '';
-    const hint =
-      'Check DATABRICKS_HOST in .env (no trailing slash), VPN/network, and run: npm run verify:databricks';
-    throw new Error(
-      `Cannot reach Databricks at ${host} (${e.message}${cause ? `; ${cause}` : ''}). ${hint}`,
-    );
+    throw new Error(unreachableMessage(host, e, policyEnforced()));
   }
   return resp;
 }

@@ -141,7 +141,7 @@ def test_the_inspire_app_alert_on_a_use_case_with_no_app_takes_its_steps_from_th
                                "dashboard": "https://h/d"}
     planned = ok("save", dict(save_args(page, watch=dict(WATCH, filters={"tier": ["Act now"]})), link="https://inspire.example.com/"))
     lines = planned["body"]["custom_description"].splitlines()
-    assert lines[:4] == ["What fired: Records on the list on Desk is at or above 2, counting only Tier: Act now.",
+    assert lines[:4] == ["What fired: Records on the list on Desk is at least 2, counting only Tier: Act now.",
                          f"Why this threshold: 2 is the number {PERSON} set for this alert in the App.", "How often it checks: every day at 08:00 UTC.",
                          "What to do first:"]
     assert lines[4].startswith("1. Open the decision list (https://inspire.example.com/) and work the Act now rows by rank")

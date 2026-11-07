@@ -96,7 +96,7 @@ def test_every_check_code_the_pipeline_can_report_has_a_readable_name(agent_ns):
     codes = _failed_gate_codes()
     assert {"verification", "red_team", "value_tier", "judge_verdict", "second_opinion_reject",
             "second_opinion_average_below_bar", "second_opinion_unavailable", "second_opinion_unjudged", "Q1", "Q5",
-            "SPONSOR_CANONICAL", "G2_column_grounding"} <= codes
+            "SPONSOR_CANONICAL", "G2_catchall_technique"} <= codes
     codes |= {f"score:{d}" for d in agent_ns["ULTRA_HIGH_DIMENSIONS"]}
     codes |= set(agent_ns["ULTRA_HIGH_FATAL_FLAW_CATEGORIES"]) | {agent_ns["ULTRA_HIGH_RESIDUAL_RISK"]}
     codes |= {f"D{i}" for i in range(1, 20)}

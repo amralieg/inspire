@@ -104,7 +104,7 @@ test('Add alert on a use case with no App plans the alert with the App shell rul
     const out = await send(base, 'save', newAlert());
     assert.equal(out.status, 200, JSON.stringify(out.data));
     assert.deepEqual([out.data.alert.by, out.data.alert.rule, out.data.alert.scope, out.data.alert.can_change, out.data.alert.emails],
-      [OWNER, 'Records on the list is at or above 5', 'Tier: Act now', true, [OWNER, SAM]]);
+      [OWNER, 'Records on the list is at least 5', 'Tier: Act now', true, [OWNER, SAM]]);
     const mkdirs = ws.calls.findIndex((c) => c.path === '/api/2.0/workspace/mkdirs');
     const posted = ws.calls.findIndex((c) => c.method === 'POST' && c.path === '/api/2.0/alerts');
     assert.ok(mkdirs >= 0 && mkdirs < posted && ws.calls[mkdirs].token === SP && ws.calls[mkdirs].body.path === FOLDER);
@@ -113,13 +113,13 @@ test('Add alert on a use case with no App plans the alert with the App shell rul
     assert.equal(ws.alerts[out.data.alert.id].owner_user_name, OWNER);
     assert.deepEqual([body.parent_path, body.warehouse_id, body.evaluation.comparison_operator, body.evaluation.threshold],
       [FOLDER, 'wh1', 'GREATER_THAN_OR_EQUAL', { value: { double_value: 5 } }]);
-    assert.match(body.display_name, /^Records on the list is at or above 5 \([0-9a-f]{6}\)$/, 'a blank name is the rule');
+    assert.match(body.display_name, /^Records on the list is at least 5 \([0-9a-f]{6}\)$/, 'a blank name is the rule');
     assert.deepEqual(body.evaluation.notification.subscriptions, [{ user_email: OWNER }, { user_email: SAM }]);
     assert.ok(body.query_text.includes("FROM `main`.`inspire`.`churn_out` WHERE is_current AND change_source <> 'delete'"), 'the latest run only');
     assert.ok(body.query_text.includes("CAST(`priority_tier` AS STRING) IN ('Act now')"));
     assert.deepEqual(body.schedule, { quartz_cron_schedule: '0 0 8 * * ?', timezone_id: 'UTC', pause_status: 'UNPAUSED' });
     const runbook = body.custom_description.split('\n');
-    assert.deepEqual(runbook.slice(0, 4), ['What fired: Records on the list on Predict churn is at or above 5, counting only Tier: Act now.',
+    assert.deepEqual(runbook.slice(0, 4), ['What fired: Records on the list on Predict churn is at least 5, counting only Tier: Act now.',
       `Why this threshold: 5 is the number ${OWNER} set for this alert in the App.`, 'How often it checks: every day at 08:00 UTC.', 'What to do first:']);
     assert.ok(runbook.includes('2. Retention lead decides: Call at-risk customers.') && runbook.includes('3. How the use case acts on it: Call the riskiest accounts first.'),
       'what to do first comes from the use case row, never invented');
@@ -161,7 +161,7 @@ test('edit, pause, resume and delete go to Databricks with the person token, and
 
 test('the person turns off the email an alert sends when it clears, an edit keeps what they chose, and the built alert shows its own choice', { skip }, async () => {
   const built = builtRow({ alert_id: 'al-1', alert_url: 'https://workspace.example.com/sql/alerts-v2/al-1', outputs: { alert: true, alert_name: 'Churn rows' },
-    assets: { alert: { state: 'ready', spec_version: 3, trigger: 'Act now rows in the latest run >= 1' } } });
+    assets: { alert: { state: 'ready', spec_version: 3, trigger: 'Act now rows in the latest run are at least 1' } } });
   await withAlerts({ history: [built] }, async (base, _made, ws) => {
     ws.alerts['al-1'] = { id: 'al-1', display_name: 'Churn rows', lifecycle_state: 'ACTIVE', parent_path: MVP,
       evaluation: { state: 'OK', notification: { notify_on_ok: false, subscriptions: [] } }, schedule: { pause_status: 'UNPAUSED' } };
@@ -299,7 +299,7 @@ test('a use case with its own App lists the alerts people set up in that App and
     assert.deepEqual(first.data.measures.map((m) => m.id), ['records', 'at_stake'], 'the measures of the App page, not a second guess');
     const [row] = first.data.alerts;
     assert.deepEqual([row.id, row.by, row.can_change, row.emails, row.owner_user_name, row.rule, row.scope],
-      [theirs.id, SAM, false, [], 'app-sp', 'At stake is above 1,000', 'Region: West']);
+      [theirs.id, SAM, false, [], 'app-sp', 'At stake is more than 1,000', 'Region: West']);
     const out = await send(base, 'save', newAlert({ watch: { what: 'records', filters: {}, operator: '>=', threshold: 1, basis: 'fixed' } }));
     assert.equal(out.status, 200, JSON.stringify(out.data));
     const body = ws.alerts[out.data.alert.id];
@@ -482,10 +482,10 @@ test('the folder of a use case is the App folder when its App sends alerts, else
   assert.equal(A.appAlertFolder({ options: { alerts: false }, alert_folder: APP_FOLDER }), '');
   assert.throws(() => A.alertBase([], 'N01-U01'), (err) => err.statusCode === 409 && err.message === A.ALERT_TEXT.notBuilt);
   const base = A.alertBase([I.parseImplementRow(builtRow({ alert_id: 'al-1', alert_url: 'https://workspace.example.com/sql/alerts-v2/al-1',
-    outputs: { alert: true, alert_name: 'Churn rows' }, assets: { alert: { state: 'ready', spec_version: 3, trigger: 'Act now rows in the latest run >= 1' } } }))],
+    outputs: { alert: true, alert_name: 'Churn rows' }, assets: { alert: { state: 'ready', spec_version: 3, trigger: 'Act now rows in the latest run are at least 1' } } }))],
   'N01-U01');
   assert.deepEqual(base.built, { id: 'al-1', url: 'https://workspace.example.com/sql/alerts-v2/al-1', name: 'Churn rows',
-    trigger: 'Act now rows in the latest run >= 1' });
+    trigger: 'Act now rows in the latest run are at least 1' });
   assert.deepEqual([base.segments, base.owners, base.warehouse, base.mvp], [['region'], [OWNER], 'wh1', MVP]);
   assert.deepEqual(A.personOf({ headers: { 'x-forwarded-access-token': 'Bearer abc', 'x-forwarded-email': ` ${OWNER} ` } }), { token: 'abc', email: OWNER });
 });

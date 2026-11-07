@@ -19,7 +19,7 @@ TEXT = ("_id", "label", "lever", "driver", "segment", "name", "tier", "reason", 
 DATES = ("period", "date", "as_of", "start", "end", "week", "ts", "time")
 QUEUE_DASHBOARD_SHA = "2a8274feb37e528ecdaec89a10f4ded3723e63f955b948ada79657fedaa6aa28"
 QUEUE_ABOUT_DASHBOARD_SHA = "2b04126ed53861b20898e2d813271989aea2ff080834d339f5ab3af02bd7bce0"
-QUEUE_ALERT_SHA = "8262a3ba5d680bb374ee662b08b718eb405ea702b45e3c6b5ddf99f75ceb54fd"
+QUEUE_ALERT_SHA = "7f733f497737e35344172189c9b9775470f27586a0cc5d97422202d2aafa3233"
 QUEUE_GENIE_SHA = "e7f6dc6c4e423941bf068c51de2d22d9ab8c2af11af8ccd6a8f22a0616512909"
 QUEUE_USE_CASE = {"Name": "Predict churn", "Statement": "Customers leave", "use_case_kind": "risk_propensity",
                   "Analytics Technique": "Classification"}
@@ -413,7 +413,7 @@ def test_a_kind_alert_ors_its_rule_into_the_tier_alert(agent_ns, tmp_path):
 def test_a_kind_alert_rule_that_fails_falls_back_to_the_tier_alert(agent_ns, tmp_path):
     inst, calls, queries = _alert_inspire(agent_ns, tmp_path, rows=[{"triggered": None, "tier_rows": 0}])
     fields = inst._implement_alert(_kind_context(agent_ns, _spec(agent_ns, "forecast"), **ALERT), None)
-    assert fields["_asset"]["condition_sql"] == "" and fields["_asset"]["trigger"] == "Act now rows in the latest run >= 1"
+    assert fields["_asset"]["condition_sql"] == "" and fields["_asset"]["trigger"] == "Act now rows in the latest run are at least 1"
     assert any(lv == "WARNING" and "the kind rule did not run" in m for lv, m in inst.logger.records)
 
 

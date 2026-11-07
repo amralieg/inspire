@@ -31,7 +31,7 @@ EMAIL = re.compile(r"^[^@\s,;\"\\<>()]{1,64}@[^@\s,;\"\\<>()]{1,190}\.[A-Za-z0-9
 FOLDER = re.compile(r"^/[^\x00-\x1f]{1,999}$")
 STATES = {"OK": "ok", "TRIGGERED": "triggered", "ERROR": "error"}
 COMPARE = {">=": op.ge, ">": op.gt, "=": op.eq, "!=": op.ne, "<": op.lt, "<=": op.le}
-WORDS = {">=": "is at or above", ">": "is above", "=": "equals", "!=": "is not", "<": "is below", "<=": "is at or below"}
+WORDS = {">=": "is at least", ">": "is more than", "=": "is equal to", "!=": "is not equal to", "<": "is less than", "<=": "is at most"}
 USER_REASON = ("This App shows each person only their own data, so it sends no alerts: an alert runs with one identity's access and "
                "would email what that identity can read.")
 UNREACHABLE = ("The App cannot reach its alerts folder, so it cannot show or keep alerts. Ask the person who built it to "

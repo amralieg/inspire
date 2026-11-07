@@ -102,7 +102,7 @@ def test_an_alert_the_inspire_app_made_as_the_person_is_listed_and_changed_in_th
     listed = call(s, "GET", "alerts", {"page": "n01_u05"}, headers=ME)[1]
     [row] = listed["alerts"]
     assert (row["id"], row["by"], row["can_change"], row["owner_user_name"]) == (mine["id"], PERSON, True, PERSON)
-    assert row["rule"] == "Records on the list is at or above 2" and row["scope"] == ""
+    assert row["rule"] == "Records on the list is at least 2" and row["scope"] == ""
     assert call(s, "POST", "alerts/pause", headers=ME, body={"id": mine["id"], "paused": True})[0] == 200
     assert call(s, "POST", "alerts/pause", headers={"x-forwarded-email": SAM}, body={"id": mine["id"], "paused": False})[0] == 403
     made_in_app = save(s, headers={"x-forwarded-email": SAM}, name="Sam watches", emails=[SAM])[1]["alert"]
@@ -128,14 +128,14 @@ def test_the_listing_keeps_this_pages_live_alerts_and_hands_over_the_segment_que
     listing = out["listing"]
     [row] = listing["alerts"]
     assert (row["id"], row["state"], row["checked"], row["can_change"], row["emails"]) == ("1", "triggered", "2026-10-31T08:00:00Z", False, [])
-    assert row["rule"] == "Records on the list is above 3" and row["scope"] == "Tier: Act now, Review"
+    assert row["rule"] == "Records on the list is more than 3" and row["scope"] == "Tier: Act now, Review"
     assert row["url"] == f"{HOST}/sql/alerts-v2/1" and listing["unread"] == 1
     assert listing["caps"]["used"] == 2, "an App counts every alert in its folder, on every page"
     records = next(m for m in listing["measures"] if m["id"] == "records")
     assert (records["min"], records["whole"], records["filters"], records["baseline"]) == (0, True, ["tier", "segment_category"], True)
     total = next(m for m in listing["measures"] if m["id"] == "total_value_at_stake")
     assert (total["min"], total["whole"]) == (None, False)
-    assert listing["operator_words"][">="] == "is at or above"
+    assert listing["operator_words"][">="] == "is at least"
     assert [f["id"] for f in out["filters"]] == ["tier", "segment_category"]
     assert out["filters"][0]["sql"].startswith("SELECT v FROM (SELECT DISTINCT CAST(`priority_tier` AS STRING) AS v FROM (SELECT * FROM")
     assert "LIMIT" in out["filters"][0]["sql"] and out["filters"][0]["params"] == []
@@ -197,8 +197,8 @@ def test_the_caps_and_recipients_are_checked_before_anything_is_saved():
 def test_a_blank_name_is_named_after_its_rule_only_when_the_inspire_app_asks_and_the_app_shell_still_refuses_it(tmp_path):
     page = made_page()
     named = ok("save", dict(save_args(page, name="  "), name_from_rule=True))
-    assert named["meta"]["name"] == "Records on the list is at or above 2"
-    assert named["body"]["display_name"] == f"Records on the list is at or above 2 ({named['meta']['token']})"
+    assert named["meta"]["name"] == "Records on the list is at least 2"
+    assert named["body"]["display_name"] == f"Records on the list is at least 2 ({named['meta']['token']})"
     assert refused("save", save_args(page, name="")) == (400, "name the alert in 1 to 100 characters")
     s, ws = alerts_shell(tmp_path)
     status, out = save(s, name="")
@@ -244,5 +244,5 @@ def test_the_hub_app_rows_now_say_the_rule_and_who_owns_the_alert_in_databricks(
     s, ws = alerts_shell(tmp_path, rows=ROWS)
     assert save(s)[0] == 200
     [row] = call(s, "GET", "alerts", {"page": "n01_u05"}, headers=ME)[1]["alerts"]
-    assert row["rule"] == "Records on the list is at or above 2" and row["scope"] == "Category: A" and row["owner_user_name"] == "app-sp"
+    assert row["rule"] == "Records on the list is at least 2" and row["scope"] == "Category: A" and row["owner_user_name"] == "app-sp"
     assert ws.posted()[0]["evaluation"]["notification"]["subscriptions"] == [{"user_email": PERSON}]

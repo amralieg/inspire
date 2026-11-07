@@ -138,10 +138,10 @@ export function DataAccessBadge({ results }) {
       <summary className="flex cursor-pointer items-start gap-2 px-3 py-2.5 text-[11px] text-text-secondary">
         <Eye size={13} className="mt-0.5 shrink-0 text-db-red-fg" />
         <span>
-          <span className="font-semibold text-text-primary">{access.type}:</span> read aggregates from{' '}
+          <span className="font-semibold text-text-primary">{access.type}:</span> read summary figures (counts and totals) from{' '}
           {plural(access.tablesReadCount, 'table')} in {plural(access.statements, 'statement')}.{' '}
           {access.piiColumnsExcluded > 0 && `${plural(access.piiColumnsExcluded, 'personal column')} counted only. `}
-          {access.aiSeesAggregates ? 'The AI also saw these aggregates' : 'None of these aggregates was sent to the AI'};{' '}
+          {access.aiSeesAggregates ? 'The AI also saw these summary figures' : 'None of these summary figures was sent to the AI'};{' '}
           {plural(access.rowsSentToAi, 'data row')} sent to the AI.
         </span>
       </summary>

@@ -115,7 +115,7 @@ test('Review heads the open run with its catalog, business and date, shows each 
       return seen;
     });
     assert.deepEqual(runScope, { 'Use Cases': 1, Domains: 1, 'High Priority': 1 },
-      'above the use case browser, the Execution Complete strip no longer repeats the run cards');
+      'above the use case browser, the Run finished strip no longer repeats the run cards');
     assert.equal(await page.getByText('Every step of the run finished.').count(), 1);
     const summary = page.locator('[data-executive-summary]');
     assert.deepEqual(await summary.locator('p').allInnerTexts(), RUN_SUMMARY.paragraphs, 'the summary results_json holds, in its paragraphs');
@@ -208,7 +208,7 @@ test('Start lists the runs with Latest Run only on the newest run of a business 
     await choose.page.getByText('Beta Foods', { exact: true }).first().waitFor();
     assert.equal(await choose.page.locator('button button').count(), 0, 'no button sits inside another button');
     await choose.page.locator('[data-run="42"]').waitFor();
-    await choose.page.getByRole('button', { name: /Show 1 more experiment/ }).click();
+    await choose.page.getByRole('button', { name: /Show 1 more run/ }).click();
     await choose.page.locator('[data-run="61"]').waitFor();
     assert.deepEqual(await read(choose.page, choose.page), want);
     assert.equal(await choose.page.locator('button button').count(), 0, 'and none after Show more either');

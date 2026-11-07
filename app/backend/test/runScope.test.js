@@ -229,7 +229,10 @@ test('the scope reads as the agent writes it, and counts carry thousands separat
   assert.equal(P.counted(48210, 'record'), '48,210 records');
   assert.equal(P.counted(1, 'record'), '1 record');
   assert.equal(S.profileHeldText(PROFILE), 'main.sales.orders holds 48,210 records, so Inspire suggests a smaller first run to show results sooner.');
-  assert.equal(S.profileHeldText({ ...PROFILE, records: 800, default_scope: 'all' }), 'main.sales.orders holds 800 records, so a first run of about 1,000 records covers all of it.');
+  assert.equal(S.profileHeldText({ ...PROFILE, records: 800, default_scope: 'all' }), 'main.sales.orders holds 800 records, so the first run covers all of it.');
+  assert.equal(S.profileHeldText({ ...PROFILE, records: 1, default_scope: 'all' }), 'main.sales.orders holds 1 record, so the first run covers all of it.');
+  assert.equal(S.profileHeldText({ ...PROFILE, records: 0, default_scope: 'all' }), 'main.sales.orders holds no records yet, so a first run has nothing to read until data arrives.');
+  assert.doesNotMatch(S.profileHeldText({ ...PROFILE, records: 0, default_scope: 'all' }), /0 records|about/, 'an empty table never promises a first run of records (must-exclude)');
 });
 
 test('the wizard shows Grouping only when the profile says it applies, First run whenever the table was read or the read failed, and each step names only its own problems', async () => {

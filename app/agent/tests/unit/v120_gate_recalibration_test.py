@@ -418,6 +418,8 @@ class TestQ3Relevance:
                                   "Minimize `hvac_kwh` per `store_id` across opening hours.")
         one_real = U("N03-U15", "Forecast Hourly Fares", "Forecasting", "main.shop.trips",
                      "Forecast hourly `fare` with Prophet and publish the result.")
+        o._implement_llm_object = lambda *a, **k: {"checks": [
+            {"use_case": "N03-U14", "name": "hvac_kwh", "verdict": "invented_source_column", "reason": "read as stored"}]}
         kept, dropped = o._phaseQ3_validate_relevance([bare, invented, one_real_one_invented, one_real], SCHEMA)
         assert ids(kept) == ["N01-U03", "N03-U15"]
         assert reasons(dropped)["N03-U09"] == "Q3_R13_SOLUTION_UNDER_GROUNDED:0"
@@ -542,26 +544,29 @@ class TestGGates:
         assert ids(kept) == ["N01-U02"]
         assert kept[0]["Analytics Technique"] == "Classification"
 
-    def test_column_grounding_stays_advisory(self, ns):
+    def test_g_runner_has_no_second_invented_column_detector(self, ns):
         o = make(ns)
         u = strong_corpus()[0]
         u["Solution"] += " Also uses `ghost_column`."
-        out = o._phaseG_validate_column_grounding([u], SCHEMA)
+        out = o._phaseG_run_quality_gates([u], SCHEMA)
         assert ids(out) == ["N01-U01"]
+        ledger = o.processing_honesty["gate_ledger"]
+        assert "G2_catchall_technique" in ledger and "G2_column_grounding" not in ledger
+        assert not hasattr(o, "_phaseG_validate_column_grounding") and not hasattr(o, "_ungrounded_identifiers")
 
     def test_g_runner_survives_a_raising_gate_and_marks_unverified(self, ns, caplog):
         o = make(ns)
 
         def boom(ucs, *a):
             raise ValueError("synthetic G failure")
-        o._phaseG_validate_column_grounding = boom
+        o._phaseG_validate_no_catchall_technique = boom
         corpus = strong_corpus()[:2]
         with caplog.at_level(logging.WARNING, logger="v120_recal"):
             out = o._phaseG_run_quality_gates(corpus, SCHEMA)
         assert ids(out) == ["N01-U01", "N01-U02"]
-        assert all("G2_column_grounding" in u["gate_unverified"] for u in out)
+        assert all("G2_catchall_technique" in u["gate_unverified"] for u in out)
         msgs = [r.getMessage() for r in caplog.records if r.levelno == logging.WARNING]
-        assert any("G2_column_grounding" in m and "ValueError" in m and "synthetic G failure" in m for m in msgs)
+        assert any("G2_catchall_technique" in m and "ValueError" in m and "synthetic G failure" in m for m in msgs)
 
 
 class TestQRunner:
@@ -676,7 +681,7 @@ class TestPhaseL:
         corpus[0]["Solution"] += " It joins `orders`, `order_items`, `stores` and `products` and reads `main.shop.stores`."
         o._phaseL_final_gate(corpus, SCHEMA)
         assert o.processing_honesty["phase_L_production_ready_count"] == 1
-        corpus[0]["Solution"] += " It also scores `churn_index`, `loyalty_band` and `margin_rank`."
+        corpus[0]["Solution"] += " It also reads `churn_index`, `loyalty_band` and `margin_rank`."
         o._phaseL_final_gate(corpus, SCHEMA)
         assert o.processing_honesty["phase_L_production_ready_count"] == 0
 

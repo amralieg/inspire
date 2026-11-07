@@ -281,12 +281,12 @@ def test_a_live_alert_built_to_read_the_settings_makes_the_threshold_editable(ag
 
 def test_a_failed_alert_step_keeps_the_state_of_the_alert_that_stays_live(agent_ns):
     kept = agent_ns["implement_kept_asset"]
-    before = {"state": "ready", "threshold_setting": True, "digest_id": "dg-1", "trigger": "Act now rows >= 3"}
+    before = {"state": "ready", "threshold_setting": True, "digest_id": "dg-1", "trigger": "Act now rows are at least 3"}
     failed = dict(kept(before), state="failed", error="the alert could not be saved", spec_version=4)
     assert failed == {"digest_id": "dg-1", "threshold_setting": True, "state": "failed", "error": "the alert could not be saved",
                       "spec_version": 4}
     assert agent_ns["implement_alert_reads_setting"]({"alert": failed}) is True, "the earlier alert still reads the App's settings"
-    older = dict(kept({"state": "ready", "trigger": "Act now rows >= 3"}), state="failed")
+    older = dict(kept({"state": "ready", "trigger": "Act now rows are at least 3"}), state="failed")
     assert agent_ns["implement_alert_reads_setting"]({"alert": older}) is False
 
 
