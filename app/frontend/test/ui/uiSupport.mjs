@@ -116,6 +116,20 @@ export async function holdClock(page) {
   await page.clock.pauseAt(await page.evaluate(() => Date.now() + 1000));
 }
 
+export async function watchScrolls(page) {
+  await page.addInitScript(() => {
+    window.__scrolls = [];
+    for (const name of ['scrollIntoView', 'scrollTo']) {
+      const real = Element.prototype[name];
+      Element.prototype[name] = function watched(...args) {
+        window.__scrolls.push(args[0] && typeof args[0] === 'object' ? args[0].behavior || 'auto' : 'auto');
+        return real.apply(this, args);
+      };
+    }
+  });
+  return () => page.evaluate(() => window.__scrolls.splice(0));
+}
+
 export async function steadyBox(locator, { loaded = false, timeout = 15000 } = {}) {
   const end = Date.now() + timeout;
   await locator.waitFor({ state: 'attached', timeout });
@@ -138,6 +152,12 @@ export async function steadyBox(locator, { loaded = false, timeout = 15000 } = {
     if (box) return box;
   }
   throw new Error(`the layout of ${locator} did not settle in ${timeout} ms`);
+}
+
+export async function finiteAnimationsDone(page) {
+  await page.evaluate(() => Promise.all(document.getAnimations()
+    .filter((a) => a.effect && a.effect.getComputedTiming().iterations !== Infinity)
+    .map((a) => a.finished.catch(() => null))));
 }
 
 export async function pollNow(page, route = '/api/inspire/implement/status', every = 10000) {

@@ -4,7 +4,7 @@ import { readFileSync, statSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
-import { actBody, DECIDE, ROWS, SRC, TABLE, appInfo, bundleEntry, openApp, openBundle, serveDist, steadyBox, tracked } from './harness.mjs';
+import { actBody, DECIDE, ROWS, SRC, TABLE, appInfo, bundleEntry, openApp, openBundle, scrollsAsked, serveDist, steadyBox, tracked, watchScrolls } from './harness.mjs';
 import { dashboardRoutes, evaluated, explainerRoutes, fanRows, forecastRoutes, monitorRoutes, plannerRoutes, scenarioRoutes } from './exampleRoutes.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -165,6 +165,19 @@ test('a plan with no decisions shows its suggestions with no accept, no override
     assert.equal(await row.locator('td').count(), 5, 'the row keeps its values, status and Ask Genie with no empty decide cell');
     assert.equal(await page.locator('[data-step="plan"]').count(), 0);
     assert.match(await page.locator('[data-step="plan_read"]').innerText(), /Read each line of the plan next to its ★ suggested value/);
+    assert.deepEqual(seen.errors, []);
+    await context.close();
+  }
+});
+
+test('Show me on What to do now jumps to the list for a person who asked for less motion, and glides there otherwise', async () => {
+  for (const [motion, behavior] of [['reduce', 'auto'], ['no-preference', 'smooth']]) {
+    const info = appInfo(DECIDE, 1, {}, 'examples/planner.json');
+    const { page, seen, context } = await openApp(browser, base, info, { routes: plannerRoutes([], [], { keep: true }), watch: watchScrolls(motion) });
+    await page.locator('[data-plan-row="K1"]').waitFor();
+    await scrollsAsked(page);
+    await page.locator('[data-step="first"]').getByRole('button', { name: 'Show me' }).click();
+    assert.deepEqual(await scrollsAsked(page), [behavior], `${motion}: the jump to the list`);
     assert.deepEqual(seen.errors, []);
     await context.close();
   }

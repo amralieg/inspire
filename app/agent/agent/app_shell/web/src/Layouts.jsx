@@ -10,6 +10,7 @@ import { AskGenie } from './AskGenie.jsx';
 import { RowGenie } from './DataTable.jsx';
 import { tableContext } from './explain.js';
 import { KIND_PARTS, KindReady } from './KindLayouts.jsx';
+import { reducedMotion } from './theme.js';
 
 const ScenarioPanel = lazy(() => import('./Scenario.jsx'));
 
@@ -21,7 +22,7 @@ export const decides = pageDecides;
 const PLAN_ROWS = 50;
 const TODO_ROWS = 5;
 
-const scrollTo = (section) => document.querySelector(`[data-section="${section}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+const scrollTo = (section) => document.querySelector(`[data-section="${section}"]`)?.scrollIntoView({ behavior: reducedMotion() ? 'auto' : 'smooth', block: 'start' });
 
 export function useList(pageId, filters, ready, nonce, limit, on = true, view = null) {
   const [state, setState] = useState({ data: null, error: '' });

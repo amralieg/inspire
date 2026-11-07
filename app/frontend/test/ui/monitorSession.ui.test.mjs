@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { closeBrowser, openUi, until } from './uiSupport.mjs';
+import { closeBrowser, openUi, until, watchScrolls } from './uiSupport.mjs';
 
 test.after(closeBrowser);
 
@@ -160,6 +160,36 @@ test('while the run is live, a step with only its start recorded is still counte
     await ui.close();
   }
 });
+
+for (const [motion, behavior] of [['reduce', 'auto'], ['no-preference', 'smooth']]) {
+  test(`the steps list follows new steps with a ${behavior} scroll when the person's motion setting is ${motion}`, async () => {
+    const backend = sessionBackend({
+      session: () => ({ processing_status: 'ready', completed_percent: 40, completed_on: null, last_updated: ago(MINUTE) }), steps: OPEN_MARKERS,
+    });
+    let scrolls;
+    let polls = 0;
+    const mount = (app) => {
+      app.get('/api/inspire/steps', (req, res) => {
+        polls += 1;
+        res.json({ steps: req.query.since ? [step(10 + polls, 'started', 'Final Gate', 'Inspire is working on more checks', 'In progress: started', new Date().toISOString())] : OPEN_MARKERS });
+      });
+      backend.mount(app);
+    };
+    const ui = await openUi('monitor', {}, '&run=none', {
+      mount,
+      init: async (page) => { await page.emulateMedia({ reducedMotion: motion }); scrolls = await watchScrolls(page); },
+    });
+    try {
+      await detailLine(ui.page);
+      await ui.page.getByRole('button', { name: /Detailed Steps/ }).click();
+      let seen = [];
+      await until(async () => { seen = seen.concat(await scrolls()); return seen.length > 0; }, 'the steps list followed the new steps', 10000);
+      assert.deepEqual([...new Set(seen)], [behavior]);
+    } finally {
+      await ui.close();
+    }
+  });
+}
 
 for (const [label, withEventAt] of [['by the time of each event', true], ['when two rows share one flush time', false]]) {
   test(`a step whose end arrives before its start in one answer still shows its end, ${label}`, async () => {

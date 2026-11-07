@@ -89,6 +89,24 @@ export async function resizeTo(page, width, height = 900) {
   await page.evaluate(() => { delete window.__inspireSettle; });
 }
 
+export function watchScrolls(motion) {
+  return async (page) => {
+    await page.emulateMedia({ reducedMotion: motion });
+    await page.addInitScript(() => {
+      window.__scrolls = [];
+      for (const name of ['scrollIntoView', 'scrollTo']) {
+        const real = Element.prototype[name];
+        Element.prototype[name] = function watched(...args) {
+          window.__scrolls.push(args[0] && typeof args[0] === 'object' ? args[0].behavior || 'auto' : 'auto');
+          return real.apply(this, args);
+        };
+      }
+    });
+  };
+}
+
+export const scrollsAsked = (page) => page.evaluate(() => window.__scrolls.splice(0));
+
 export async function holdClock(page) {
   await page.clock.pauseAt(await page.evaluate(() => Date.now() + 1000));
 }

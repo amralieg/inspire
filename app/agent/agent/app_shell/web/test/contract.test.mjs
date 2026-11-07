@@ -1,7 +1,7 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
-import { actBody, CONTRACT as C, CURRENT, DECIDE, HISTORY, NO_RUNS, PERSON, ROWS, SILENT, SUMMARY, TABLE, appInfo, lister, openApp, prefsFirst, serveDist, until } from './harness.mjs';
+import { actBody, CONTRACT as C, CURRENT, DECIDE, HISTORY, NO_RUNS, PERSON, ROWS, SILENT, SUMMARY, TABLE, appInfo, lister, openApp, prefsFirst, scrollsAsked, serveDist, until, watchScrolls } from './harness.mjs';
 
 let served;
 let browser;
@@ -86,6 +86,19 @@ test('an opened run lists how long each step took from the contract run fields, 
   assert.equal(await page.locator('.runs-steps').count(), 0, 'a run that recorded no steps shows no step list');
   assert.deepEqual(seen.errors, []);
   await context.close();
+});
+
+test('a link to what changed jumps to the list for a person who asked for less motion, and glides there otherwise', async () => {
+  for (const [motion, behavior] of [['reduce', 'auto'], ['no-preference', 'smooth']]) {
+    const { routes } = contractRoutes(keyed(3));
+    const { page, seen, context } = await openApp(browser, served.base, appInfo(DECIDE, 1, TABLE),
+      { routes, clock: CLOCK, timezone: 'Asia/Dubai', hash: `#/${PAGE}?changed=1`, watch: watchScrolls(motion) });
+    await waitList(page);
+    await page.waitForFunction(() => window.__scrolls.length > 0);
+    assert.deepEqual([...new Set(await scrollsAsked(page))], [behavior], `${motion}: the jump to what changed`);
+    assert.deepEqual(seen.errors, []);
+    await context.close();
+  }
 });
 
 test('a window and a limit in My view send exactly the contract records request, and the reply that shows all of them says nothing is held back', async () => {

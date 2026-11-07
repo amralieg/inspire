@@ -1,7 +1,7 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
-import { TABLE, appInfo, openApp, serveDist } from './harness.mjs';
+import { FILTERS, TABLE, appInfo, openApp, serveDist } from './harness.mjs';
 
 let served;
 let browser;
@@ -50,6 +50,28 @@ for (const layout of ['sidebar', 'home']) {
     await context.close();
   });
 }
+
+test('a page whose filters load after the person moved to Impact leaves the address on Impact and Impact shows', async () => {
+  const info = appInfo({}, 3, TABLE);
+  let release;
+  const held = new Promise((r) => { release = r; });
+  const routes = {
+    impact: ({ json }) => json(200, IMPACT), summary: ({ json }) => json(200, SUMMARY),
+    filters: async ({ json, url }) => { if (url.searchParams.get('page') === 'n02_u01') await held; return json(200, FILTERS); },
+  };
+  const { page, seen, context } = await openApp(browser, served.base, info, { routes, ready: '.kpi-v, .hcard, .pg-h h1' });
+  await page.goto(`${served.base}#/n02_u01`);
+  await page.locator('.ph h1', { hasText: 'Second desk 1' }).waitFor();
+  await page.evaluate(() => window.history.pushState(window.history.state, '', '#/impact'));
+  release();
+  await page.locator('.fbar', { hasText: 'Category' }).waitFor();
+  await page.evaluate(() => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done))));
+  assert.equal(await page.evaluate(() => window.location.hash), '#/impact', 'the page that loaded late never rewrites an address that left it (must-exclude)');
+  await page.evaluate(() => window.dispatchEvent(new HashChangeEvent('hashchange')));
+  await page.locator('.imp-page').waitFor();
+  assert.deepEqual(seen.errors, []);
+  await context.close();
+});
 
 test('a page inside Inspire opens the use case on Inspire\'s Review tab in the same window, never a new tab', async () => {
   const info = appInfo({ host: 'inspire', auth: 'user' }, 1, { ...TABLE, review: review('N01-U05') });

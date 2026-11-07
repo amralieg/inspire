@@ -113,6 +113,8 @@ test('the kinds demo names every use case in the kinds style on Review, with its
     const bundle = COMMITTED[KINDS_DEMO.id];
     assert.equal(await cardsOf(ui.page).count(), USE_CASES.length);
     const text = await ui.page.getByRole('region', { name: 'Use case list' }).innerText();
+    assert.equal(await ui.page.getByRole('region', { name: 'Use case list' }).evaluate((el) => getComputedStyle(el).scrollBehavior), 'auto',
+      'the list scrolls a card into view at once, so a card never glides away from the pointer (must-exclude: scroll-smooth)');
     for (const u of useCasesOf(bundle)) {
       assert.equal(u.name_with_technique, `${u.Name} using ${u['Analytics Technique'].toLowerCase()}`, `${u.id} keeps the technique out of the name and shows it once`);
       assert.ok(text.includes(u.name_with_technique), `${u.id} shows ${u.name_with_technique}`);
