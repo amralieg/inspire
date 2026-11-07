@@ -91,11 +91,10 @@ def test_a_doable_ask_the_notebook_missed_goes_back_to_genie_with_the_ask_and_wh
     assert outcome["notebook_vibes"]["resend"] == {} and judge.calls == [1, 2]
 
 
-def test_a_judge_reply_of_impossible_is_no_verdict_so_the_ask_goes_back_to_genie_and_nothing_stores_it(agent_ns):
+def test_a_judge_reply_of_impossible_is_no_verdict_so_the_judge_is_asked_again_and_nothing_stores_it(agent_ns):
     outcome, runner, judge, inst, spec, vibes = _notebook_round(agent_ns, [_preview("r-1"), _preview("r-2")], [NOTES_IMPOSSIBLE, DONE])
-    assert len(runner.prompts) == 2 and judge.calls == [1, 2]
-    assert "1. for the notebook, 'Hold out the last 8 weeks': the check gave no answer for this ask." in runner.prompts[1]
-    assert "The person is an expert who knows what they ask for: do every ask exactly as asked" in runner.prompts[1]
+    assert len(runner.prompts) == 1 and judge.calls == [1, 1], "an unusable verdict is asked again, never sent to Genie as a miss"
+    assert inst.logger.matching("[IMPLEMENT-VIBES-JUDGE-RETRY FIRED]")
     [check] = outcome["notebook_vibes"]["checks"]["notebook"]
     assert check == {"ask": NOTES, "status": "done", "evidence": "holdout=holdout_weeks"}
     warnings, context = _recorded(inst, spec, vibes, outcome)
@@ -188,14 +187,13 @@ def test_a_genie_agent_that_missed_a_doable_ask_goes_back_before_anything_is_sav
     assert _space_warnings(inst, context, fields) == [] and judge.calls == [1, 2]
 
 
-def test_a_genie_agent_ask_the_judge_calls_impossible_goes_back_to_genie_before_anything_is_saved(agent_ns, tmp_path):
+def test_a_genie_agent_ask_the_judge_calls_impossible_is_judged_again_before_anything_is_saved(agent_ns, tmp_path):
     impossible = {SPACE_ASK: ("impossible", "a Genie space cannot run a stored procedure")}
     done = {SPACE_ASK: ("done", "Rank 1 is the most urgent.")}
     fields, runner, judge, inst, calls, context = _space_round(agent_ns, tmp_path, [impossible, done])
-    assert len(runner.prompts) == 2 and judge.calls == [1, 2]
-    assert "'Always explain rank 1': the check gave no answer for this ask" in runner.prompts[1]
+    assert len(runner.prompts) == 1 and judge.calls == [1, 1]
     assert len(_calls_to(calls, "POST", "/api/2.0/genie/spaces")) == 1
-    assert _space_warnings(inst, context, fields) == [] and judge.calls == [1, 2]
+    assert _space_warnings(inst, context, fields) == [] and judge.calls == [1, 1]
     assert "doable" not in json.dumps(context["asset_status"]) and "impossible" not in json.dumps(context["asset_status"])
 
 
@@ -214,7 +212,7 @@ def test_a_genie_agent_round_where_every_ask_is_done_sends_nothing_and_judges_on
     assert inst.logger.matching("[IMPLEMENT-VIBES] N01-U01 Genie Agent round 1/3: 1 judge call for 1 ask of 1 part in ")
 
 
-@pytest.mark.parametrize("verdict,status,evidence", [("impossible", "missing", "the check gave no answer for this ask"),
+@pytest.mark.parametrize("verdict,status,evidence", [("impossible", "missing", "IMPLEMENT_VIBES_NO_ANSWER"),
                                                      ("missing", "missing", "no cell holds it out"), ("done", "done", "holdout=holdout_weeks")])
 def test_the_judge_has_only_done_and_missing_and_keeps_the_user_directive_rule(agent_ns, verdict, status, evidence):
     assert agent_ns["IMPLEMENT_VIBES_JUDGE_SCHEMA"]["properties"]["checks"]["items"]["properties"]["status"]["enum"] == ["done", "missing", "no_data"]
@@ -231,4 +229,4 @@ def test_the_judge_has_only_done_and_missing_and_keeps_the_user_directive_rule(a
     said = {"done": "holdout=holdout_weeks", "missing": "no cell holds it out", "impossible": "no table holds weeks"}[verdict]
     judged = agent_ns["implement_vibes_judged"]({"checks": [{"n": 7, "status": verdict, "evidence": said, "where": ""}]},
                                                 [{"ask": NOTES}], seen("notebook", CELL), "notebook", numbers=[7])
-    assert judged[7] == (status, evidence)
+    assert judged[7] == (status, agent_ns.get(evidence, evidence))

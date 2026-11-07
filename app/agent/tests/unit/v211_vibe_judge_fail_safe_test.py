@@ -33,14 +33,11 @@ def test_a_judge_that_fails_once_is_asked_again_with_the_same_prompt_and_its_ver
     assert held == {agent_ns["IMPLEMENT_NOTEBOOK"]: {ASK: agent_ns["IMPLEMENT_VIBES_NO_DATA"] + REASON}}
 
 
-def test_a_judge_that_fails_twice_holds_each_ask_it_could_not_check_and_never_lets_it_reach_genie(agent_ns):
+def test_a_judge_that_fails_twice_holds_nothing_so_genie_builds_every_ask(agent_ns):
     held, judged = _hold(agent_ns, [ASK, LACKING, VALID], 2)
-    assert len(judged) == 2
-    unchecked = agent_ns["IMPLEMENT_VIBES_HOLD_UNCHECKED"]
-    assert held == {agent_ns["IMPLEMENT_NOTEBOOK"]: {ASK: unchecked, LACKING: unchecked}}
-    assert unchecked.startswith(agent_ns["IMPLEMENT_VIBES_UNCHECKED"])
+    assert len(judged) == 2 and held == {}, "a hold needs the check to say the data is missing, and a failed check says nothing"
     text = agent_ns["implement_choices_markdown"]({"data": {"notes": ASK}, "config": {}, "outputs": {}}, held=held)
-    assert f"1. {ASK} ({unchecked})" in text and "Never build them" in text
+    assert ASK in text and "Never build them" not in text
 
 
 def test_an_ask_whose_words_the_source_holds_is_never_held_when_the_judge_fails(agent_ns):
@@ -51,7 +48,7 @@ def test_an_ask_whose_words_the_source_holds_is_never_held_when_the_judge_fails(
 def test_a_held_unchecked_ask_shows_as_could_not_be_checked_and_is_never_resent(agent_ns):
     inst = _inspire(agent_ns, FakeSpark())
     inst._implement_vibes_llm, calls = _judge_llm([ASK], 0, [])
-    unchecked = agent_ns["IMPLEMENT_VIBES_HOLD_UNCHECKED"]
+    unchecked = f"{agent_ns['IMPLEMENT_VIBES_UNCHECKED']} against the source data before the build"
     item = {"asset": agent_ns["IMPLEMENT_NOTEBOOK"], "text": ASK, "artifact": CLEAN, "sources": SOURCES,
             "held_terms": _held(agent_ns), "held_asks": {ASK: unchecked}}
     found = inst._implement_vibes_round({}, [item], "N02-U05 notebook round 1/3")

@@ -6,7 +6,7 @@ import pytest
 
 import _agentload
 from v120_artifacts_support import FakeSpark
-from v140_implement_test import (NB_PATH, VALID, _FakeRunner, _FileRunner, _calls_to, _churn_page, _claim, _fill, _inspire, _left_by,
+from v140_implement_test import (NB_PATH, SHELL_SQL, VALID, _FakeRunner, _FileRunner, _calls_to, _churn_page, _claim, _fill, _inspire, _left_by,
                                  _output_context, _spec)
 from v142_dash_test import _doc, _flow, _published, _runner as _pages
 from v142_genie_test import _definition, _deploy_inspire as _space_inspire, _rich_space
@@ -959,6 +959,7 @@ def _chart_run(agent_ns, built, before):
     inst._implement_app = _built("app", built)
     inst._implement_previous_artifact = lambda context, name, record: json.loads(json.dumps(before))
     inst._implement_vibe_chart_types = lambda name: ("bar", "horizontal_bar", "line")
+    inst._implement_app_shell = lambda: (None, {"shell_sql": SHELL_SQL})
     _part_llm(inst)
     status = _run(inst, _vibed(previous, ["app:page:n01_u01"], **{"app:page:n01_u01_vibes": WIDGET_VIBES}))
     final = inst.updates[-1]["asset_status"]
