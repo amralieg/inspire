@@ -209,7 +209,7 @@ def test_an_ask_whose_data_exists_still_goes_to_genie(agent_ns):
     held, _asked = _hold(agent_ns, [VALID, ASK], [{"status": "no_data", "evidence": REASON, "where": ""}])
     assert VALID not in held.get(agent_ns["IMPLEMENT_NOTEBOOK"], {})
     held, _asked = _hold(agent_ns, [ASK], fails=True)
-    assert held == {agent_ns["IMPLEMENT_NOTEBOOK"]: {ASK: agent_ns["IMPLEMENT_VIBES_HOLD_UNCHECKED"]}}
+    assert held == {}, "a check that fails holds nothing: Genie tries and the check after the build judges it"
 
 
 def test_genie_is_told_to_leave_a_held_ask_out_and_nothing_when_none_is_held(agent_ns):

@@ -1,6 +1,7 @@
 import pytest
 
 from v120_artifacts_support import FakeSpark
+from v140_implement_test import _inspire
 from v218_vibe_judge_test import _hold, _verdict
 
 TPCH = {
@@ -95,38 +96,111 @@ def _ask(text, draws):
     return {"ask": text, "check": None, "keep": False, "where": "", "draws": draws}
 
 
-def _corpus_hold(agent_ns, text, draws, tables=TPCH):
-    return _hold(agent_ns, [_ask(text, draws)], [_verdict("missing", "the chart is not built yet")], sources=tables,
-                 spark=_tpch(tables), real_sources=True)
+NOT_BUILT = _verdict("missing", "the chart is not built yet")
+NO_DATA = _verdict("no_data", "no column holds it")
+LEDGER = {"main.fin.ledger": {"comment": "", "columns": [("acct_id", ""), ("rev", ""), ("post_dt", "")]}}
+INCOME = "Add a KPI for total income"
+EARNINGS = "Add a KPI for total earnings"
+
+
+def _corpus_hold(agent_ns, text, draws, tables=TPCH, replies=(NOT_BUILT,)):
+    return _hold(agent_ns, [_ask(text, draws)], list(replies), sources=tables, spark=_tpch(tables), real_sources=True)
+
+
+def _found_by_the_matcher(agent_ns, text, draws):
+    return bool(agent_ns["implement_vibes_checkable"](_ask(text, draws)))
 
 
 @pytest.mark.parametrize("text,draws", FOUND)
 def test_an_ask_whose_data_exists_under_another_name_is_never_held(agent_ns, text, draws):
-    held, _judged, inst = _corpus_hold(agent_ns, text, draws)
+    found = _found_by_the_matcher(agent_ns, text, draws)
+    held, judged, inst = _corpus_hold(agent_ns, text, draws, replies=(NO_DATA if found else NOT_BUILT,))
     assert held == {}, held
     assert not inst.logger.matching("[IMPLEMENT-VIBES-NO-COLUMN FIRED]")
+    if found:
+        assert judged == [], "data the matcher finds needs no check by the model, so even a model that says no_data is never asked"
 
 
 @pytest.mark.parametrize("text,draws,missing", MISSING)
-def test_an_ask_for_data_no_table_holds_is_held_before_genie_with_no_judge_call(agent_ns, text, draws, missing):
-    held, judged, inst = _corpus_hold(agent_ns, text, draws)
+def test_an_ask_for_data_no_table_holds_is_held_only_when_the_model_agrees(agent_ns, text, draws, missing):
+    held, judged, inst = _corpus_hold(agent_ns, text, draws, replies=(NO_DATA,))
     reason = held[agent_ns["IMPLEMENT_NOTEBOOK"]][text]
     assert reason.startswith(agent_ns["IMPLEMENT_VIBES_NO_DATA"]) and f"holds {missing};" in reason, reason
     assert all(table in reason for table in TPCH) and "column names and descriptions" in reason
-    assert judged == []
+    assert judged == ["judge"]
     assert inst.logger.matching("[IMPLEMENT-VIBES-NO-COLUMN FIRED] N02-U05")
+    assert inst.logger.matching("[IMPLEMENT-VIBES-HOLD FIRED] N02-U05")
+
+
+@pytest.mark.parametrize("text,draws,missing", MISSING)
+def test_a_missing_verdict_of_the_matcher_alone_never_holds_an_ask(agent_ns, text, draws, missing):
+    held, judged, _inst = _corpus_hold(agent_ns, text, draws)
+    assert held == {} and judged == ["judge"]
 
 
 @pytest.mark.parametrize("text,draws", FOUND_TERSE)
 def test_an_ask_whose_data_sits_in_an_abbreviated_column_with_no_description_is_never_held(agent_ns, text, draws):
-    held, _judged, inst = _corpus_hold(agent_ns, text, draws, TERSE)
+    found = _found_by_the_matcher(agent_ns, text, draws)
+    held, judged, inst = _corpus_hold(agent_ns, text, draws, TERSE, replies=(NO_DATA if found else NOT_BUILT,))
     assert held == {} and not inst.logger.matching("[IMPLEMENT-VIBES-NO-COLUMN FIRED]"), held
+    assert judged == [] or not found
 
 
 @pytest.mark.parametrize("text,draws,missing", MISSING_TERSE)
 def test_an_abbreviated_schema_still_holds_data_it_truly_lacks(agent_ns, text, draws, missing):
-    held, judged, _inst = _corpus_hold(agent_ns, text, draws, TERSE)
-    assert f"holds {missing};" in held[agent_ns["IMPLEMENT_NOTEBOOK"]][text] and judged == []
+    held, judged, _inst = _corpus_hold(agent_ns, text, draws, TERSE, replies=(NO_DATA,))
+    assert f"holds {missing};" in held[agent_ns["IMPLEMENT_NOTEBOOK"]][text] and judged == ["judge"]
+
+
+def test_earnings_kept_only_in_a_column_named_rev_is_unfound_by_the_matcher_alone(agent_ns):
+    vocabulary = agent_ns["implement_vibes_held_terms"]({"main.fin.ledger": ["acct_id", "rev", "post_dt"]})
+    assert agent_ns["implement_vibes_unfound"](_ask(EARNINGS, "kpi"), vocabulary) == ["earnings"]
+
+
+@pytest.mark.parametrize("text", [INCOME, EARNINGS])
+def test_a_synonym_kept_in_a_column_named_rev_is_never_held_when_the_model_finds_it(agent_ns, text):
+    held, judged, inst = _corpus_hold(agent_ns, text, "kpi", LEDGER, replies=(_verdict("missing", "rev holds it"),))
+    assert held == {} and judged == ["judge"]
+    assert not inst.logger.matching("[IMPLEMENT-VIBES-HOLD FIRED]")
+
+
+@pytest.mark.parametrize("text,named", [(INCOME, ""), (EARNINGS, "holds earnings;")])
+def test_a_synonym_the_model_also_finds_missing_is_held(agent_ns, text, named):
+    held, judged, _inst = _corpus_hold(agent_ns, text, "kpi", LEDGER, replies=(NO_DATA,))
+    reason = held[agent_ns["IMPLEMENT_NOTEBOOK"]][text]
+    assert reason.startswith(agent_ns["IMPLEMENT_VIBES_NO_DATA"]) and named in reason
+    assert judged == ["judge"]
+    if named:
+        assert "main.fin.ledger" in reason, "a hold the matcher found names the tables it checked"
+
+
+@pytest.mark.parametrize("text", [INCOME, EARNINGS])
+@pytest.mark.parametrize("replies", [(RuntimeError("model endpoint 503"), RuntimeError("model endpoint 503")),
+                                     ({"checks": []}, {"checks": []})])
+def test_a_check_that_fails_twice_lets_genie_build_the_ask_and_logs_it(agent_ns, text, replies):
+    held, judged, inst = _corpus_hold(agent_ns, text, "kpi", LEDGER, replies=replies)
+    assert held == {} and judged == ["judge", "judge"], "the check is asked once more past the cache, then Genie tries"
+    assert inst.logger.matching("[IMPLEMENT-VIBES-JUDGE-RETRY FIRED] N02-U05 before the build")
+    assert inst.logger.matching("[IMPLEMENT-VIBES-HOLD-SKIPPED FIRED] N02-U05")
+    shown = agent_ns["implement_choices_markdown"]({"data": {"notes": text}, "config": {}, "outputs": {}}, held=held)
+    assert text in shown and "Never build them" not in shown, "Genie gets the ask with nothing held"
+
+
+def test_the_check_before_the_build_sees_the_descriptions_and_that_names_can_differ(agent_ns):
+    inst, prompts = _inspire(agent_ns, _tpch()), []
+
+    def llm(kind, prompt, schema, skip_cache=False):
+        if kind == "split":
+            return {"asks": [_ask("Add a KPI for average rainfall", "kpi")]}
+        prompts.append(prompt)
+        return NO_DATA
+    inst._implement_vibes_llm = llm
+    inst._genie_involved_tables = lambda uc: list(TPCH)
+    inst._implement_vibes_hold("N02-U05", {"use_case": "Review suppliers"}, {"data": {"notes": "rainfall"}, "outputs": {}}, {})
+    [prompt] = prompts
+    assert "How those tables and their columns are described:\n<<<\n" in prompt
+    assert "samples.tpch.supplier: Vendors who sell parts to the business; Vendor name as printed on invoices" in prompt
+    assert "a column rev can hold income" in prompt and "s_acctbal" in prompt
 
 
 def test_the_corpus_is_big_enough_to_guard_over_refusal():
@@ -139,9 +213,9 @@ def test_a_word_only_a_table_description_holds_is_never_held(agent_ns):
     held, _judged, _inst = _corpus_hold(agent_ns, "Add a chart of late lines by country", "chart")
     assert held == {}
     plain = {t: dict(e, comment="") for t, e in TPCH.items()}
-    held, judged, _inst = _corpus_hold(agent_ns, "Add a chart of late lines by country", "chart", plain)
+    held, judged, _inst = _corpus_hold(agent_ns, "Add a chart of late lines by country", "chart", plain, replies=(NO_DATA,))
     assert held[agent_ns["IMPLEMENT_NOTEBOOK"]]["Add a chart of late lines by country"].startswith(agent_ns["IMPLEMENT_VIBES_NO_DATA"])
-    assert judged == []
+    assert judged == ["judge"]
 
 
 def test_table_descriptions_are_read_with_the_columns_and_the_plain_schema_is_unchanged(agent_ns):

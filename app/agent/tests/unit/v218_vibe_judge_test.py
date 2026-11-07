@@ -79,12 +79,12 @@ DESCRIBED = {"samples.tpch.lineitem": [(c, "") for c in SOURCES["samples.tpch.li
              "samples.tpch.nation": [(c, "") for c in SOURCES["samples.tpch.nation"]]}
 
 
-def test_an_ask_grouped_by_data_no_table_holds_is_held_before_genie_without_a_judge_call(agent_ns):
-    held, judged, inst = _hold(agent_ns, [WEATHER], [_verdict("missing", "the chart is not built yet")])
+def test_an_ask_grouped_by_data_no_table_holds_is_held_before_genie_when_the_check_agrees(agent_ns):
+    held, judged, inst = _hold(agent_ns, [WEATHER], [_verdict("no_data", "no column holds the weather")])
     reason = held[agent_ns["IMPLEMENT_NOTEBOOK"]][WEATHER]
     assert reason.startswith(agent_ns["IMPLEMENT_VIBES_NO_DATA"]) and "weather" in reason
     assert all(table in reason for table in SOURCES), reason
-    assert judged == []
+    assert judged == ["judge"]
     assert inst.logger.matching("[IMPLEMENT-VIBES-NO-COLUMN FIRED] N02-U05")
     shown = agent_ns["implement_checklist_texts"](reason)
     assert shown["evidence"].endswith(agent_ns["IMPLEMENT_NO_DATA_CHOICES"])
@@ -215,10 +215,10 @@ def test_an_ask_that_could_not_be_checked_holds_the_version_and_says_the_check_c
     assert "gave no usable answer" in reason
 
 
-def test_a_pre_build_judge_reply_that_answers_no_ask_holds_the_ask_as_could_not_check(agent_ns):
-    held, judged, _inst = _hold(agent_ns, [UNSURE, VALID], [NO_ANSWER, NO_ANSWER])
-    unchecked = agent_ns["IMPLEMENT_VIBES_HOLD_UNCHECKED"]
-    assert held == {agent_ns["IMPLEMENT_NOTEBOOK"]: {UNSURE: unchecked}} and judged == ["judge", "judge"]
+def test_a_pre_build_judge_reply_that_answers_no_ask_lets_genie_try_and_logs_it(agent_ns):
+    held, judged, inst = _hold(agent_ns, [UNSURE, VALID], [NO_ANSWER, NO_ANSWER])
+    assert held == {} and judged == ["judge", "judge"]
+    assert inst.logger.matching("[IMPLEMENT-VIBES-HOLD-SKIPPED FIRED] N02-U05")
 
 
 def test_a_pre_build_judge_that_says_the_data_exists_lets_the_ask_reach_genie(agent_ns):
