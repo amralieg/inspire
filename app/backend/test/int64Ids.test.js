@@ -49,9 +49,9 @@ test('the Choose page overview names each 19-digit session exactly, so its count
       { session_id: '17', business_name: 'Beta', completed_percent: 100, create_at: '2026-10-01T10:00:00Z', business_runs: 1, business_rank: 1 },
     ],
     usecases: [
-      { session_id: MAX, use_case: 'Forecast demand by zone', priority_score: 8.4, business_domain: 'Operations' },
-      { session_id: MAX, use_case: 'Reduce churn', priority_score: 2, business_domain: 'Customer' },
-      { session_id: HALF, use_case: 'Price basket mix', priority_score: 9, business_domain: 'Sales' },
+      { session_id: MAX, use_case: 'Forecast demand by zone', inspire_score: 8.4, business_domain: 'Operations' },
+      { session_id: MAX, use_case: 'Reduce churn', inspire_score: 2, business_domain: 'Customer' },
+      { session_id: HALF, use_case: 'Price basket mix', inspire_score: 9, business_domain: 'Sales' },
       { session_id: NEIGHBOUR, use_case: 'A neighbouring run that must not leak in', priority_score: 5, business_domain: 'Other' },
     ],
   });
@@ -68,23 +68,28 @@ test('the Choose page overview names each 19-digit session exactly, so its count
   for (const c of asked) assert.ok(c.statement.includes(`IN (${MAX},${HALF},17)`), c.statement);
 });
 
-test('the Choose page counts high priority as in rc.3, every use case scored 3 or more, and counts the ones that meet the bar on their own', async () => {
-  S.reset({
-    sessionList: [{ session_id: MAX, business_name: 'Acme', completed_percent: 100, create_at: '2026-11-02T10:00:00Z', business_runs: 1, business_rank: 1 }],
-    usecases: [
-      { session_id: MAX, use_case: 'Above the bar and strong', priority_score: 8.6, business_domain: 'Sales' },
-      { session_id: MAX, use_case: 'Below the bar but strong', priority_score: 9.1, elite_status: 'FALLBACK_BELOW_BAR', business_domain: 'Sales' },
-      { session_id: MAX, use_case: 'Coverage pick', priority_score: 7.5, elite_status: 'domain_coverage_pick', business_domain: 'Ops' },
-      { session_id: MAX, use_case: 'Above the bar, middling', priority_score: 3.5, business_domain: 'Ops' },
-    ],
-  });
+test('the Choose page counts high priority by one rule, Inspire Score of 3 or more out of 5, the same count the frontend gives, and counts the ones that meet the bar on their own', async () => {
+  const { computeHighPriorityCount } = await import('../../frontend/src/lib/useCaseFields.js');
+  const usecases = [
+    { session_id: MAX, use_case: 'Stored Inspire Score 7 of 10', inspire_score: '7', priority_score: '8.6', business_domain: 'Sales' },
+    { session_id: MAX, use_case: 'Stored Inspire Score exactly 6 of 10', inspire_score: '6', priority_score: '1', business_domain: 'Sales' },
+    { session_id: MAX, use_case: 'High priority score, low Inspire Score', inspire_score: '5', priority_score: '9.1', elite_status: 'FALLBACK_BELOW_BAR', business_domain: 'Sales' },
+    { session_id: MAX, use_case: 'No stored score, strong quality', quality_score: '4', priority_score: '7.5', elite_status: 'domain_coverage_pick', business_domain: 'Ops' },
+    { session_id: MAX, use_case: 'No stored score, weak quality', quality_score: '2', priority_score: '3.5', business_domain: 'Ops' },
+    { session_id: MAX, use_case: 'Scores past the scale', quality_score: '5', priority_score: '20', business_domain: 'Ops' },
+    { session_id: MAX, use_case: 'Unscored, priority only', priority_score: '9', business_domain: 'Ops' },
+    { session_id: MAX, use_case: 'Very High label, low scores', Priority: 'Very High', quality_score: '1', priority_score: '2', business_domain: 'Ops' },
+  ];
+  S.reset({ sessionList: [{ session_id: MAX, business_name: 'Acme', completed_percent: 100, create_at: '2026-11-02T10:00:00Z', business_runs: 1, business_rank: 1 }], usecases });
   const got = await S.request('GET', LIST, { person: 'reader@example.com' });
   assert.equal(got.status, 200, got.text.slice(0, 300));
   const { total, high, meets } = got.data.sessions[0].usecase_overview;
-  assert.deepEqual({ total, high, meets }, { total: 4, high: 4, meets: 2 });
+  assert.deepEqual({ total, high, meets }, { total: 8, high: 4, meets: 6 });
+  assert.equal(computeHighPriorityCount(usecases), high, 'the frontend gives the same count on the same rows');
+  assert.equal(usecases.filter((u) => Number(u.priority_score) >= 3).length, 6, 'the old score-of-3 rule counted 6 of these, the new rule counts 4 (must-exclude)');
   const statement = S.state.calls.find((c) => c.statement.includes('AS usecase_count')).statement;
-  assert.ok(statement.includes('WHEN COALESCE(priority_score, 0) >= 3 THEN'), statement);
-  assert.equal(statement.includes('>= 7'), false, 'no 7-of-10 cut (must-exclude)');
+  assert.ok(statement.includes('COALESCE(inspire_score, 0.65 * LEAST(10, GREATEST(0, quality_score * 2)) + 0.35 * LEAST(10, GREATEST(0, priority_score))) / 2'), statement);
+  assert.equal(statement.includes('COALESCE(priority_score, 0) >= 3'), false, 'no priority-only cut (must-exclude)');
 });
 
 test('a session id beyond 63 bits is left out of the overview query instead of naming a rounded neighbour (must-exclude)', async () => {

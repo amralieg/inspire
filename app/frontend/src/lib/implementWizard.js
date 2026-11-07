@@ -532,6 +532,7 @@ export const ALERT_TIER_OPTIONS = [
 ];
 
 export const ALERT_OPERATORS = ['>=', '>', '=', '!=', '<', '<='];
+export const ALERT_OPERATOR_WORDS = Object.freeze({ '>=': 'at least', '>': 'more than', '=': 'equal to', '!=': 'not equal to', '<': 'less than', '<=': 'at most' });
 
 export const ALERT_THRESHOLD_BASES = [
   { id: 'fixed', label: 'a fixed count' },
@@ -1388,11 +1389,11 @@ export function alertTriggerText(outputs) {
   const tiers = (ALERT_TIER_OPTIONS.find((t) => t.id === outputs?.alert_tiers) || ALERT_TIER_OPTIONS[0]).label;
   const threshold = outputs?.alert_threshold === '' || outputs?.alert_threshold == null ? 1 : outputs.alert_threshold;
   const operator = outputs?.alert_operator || '>=';
-  const rule = `${operator} ${numberText(threshold)}`;
-  let text = `${tiers} rows in the latest run ${rule}`;
+  const rule = `${ALERT_OPERATOR_WORDS[operator] || operator} ${numberText(threshold)}`;
+  let text = `${tiers} rows in the latest run are ${rule}`;
   if (outputs?.alert_threshold_basis === 'baseline') {
     const rise = ALERT_BASELINE_DIRECTIONS[operator] === '+';
-    text = `${tiers} rows in the latest run ${rise ? 'rise above' : 'fall below'} the mean ${rise ? '+' : '-'} `
+    text = `${tiers} rows in the latest run ${rise ? 'rise above' : 'fall below'} the mean ${rise ? 'plus' : 'minus'} `
       + `${ALERT_BASELINE.sigmas} standard deviations of up to ${ALERT_BASELINE.runs} earlier runs `
       + `(${rule} until ${ALERT_BASELINE.minRuns} earlier runs exist)`;
   }

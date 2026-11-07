@@ -55,7 +55,7 @@ import { SETTINGS_ROUTES, settingsViewSaved } from '../lib/useCaseSettings';
 import UseCaseAlerts from '../components/UseCaseAlerts';
 import UseCaseTables from '../components/UseCaseTables';
 import { liveImpact, rowImpact, targetKpiView, trackedKpiOf } from '../lib/targetKpi';
-import { SHOWCASE_DASHBOARD_NOTE, SHOWCASE_GENIE_NOTE, SHOWCASE_NO_MVP, SHOWCASE_OPEN_APP, readOnlyReason } from '../lib/showcase';
+import { SHOWCASE_ALERT_NOTE, SHOWCASE_DASHBOARD_NOTE, SHOWCASE_GENIE_NOTE, SHOWCASE_NO_MVP, SHOWCASE_OPEN_APP, readOnlyReason } from '../lib/showcase';
 import { buildFilterText } from '../lib/reviewFigures';
 import ValueEstimateLine from '../components/ValueEstimateLine';
 
@@ -1192,6 +1192,7 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
     if (!latest?.alert_url && !alertAsset.trigger) return <p className="text-text-secondary">No alert on this version.</p>;
     return (
       <>
+        {readOnly && <p data-showcase-alert-note="" className="text-text-secondary">{SHOWCASE_ALERT_NOTE}</p>}
         <p>Fires when: {alertAsset.trigger || 'not recorded'}</p>
         {alertAsset.condition_sql && <pre className="text-[10px] font-mono text-text-secondary whitespace-pre-wrap border border-border rounded-lg bg-bg-subtle p-2">{alertAsset.condition_sql}</pre>}
         <p>Notifies: {spec.outputs?.alert_recipients?.join(', ') || 'no email recipients'}

@@ -24,10 +24,17 @@ test('the Choose step says in plain words what each choice does to an MVP that a
 });
 
 test('a use case with no MVP yet shows no note about an existing one (must-exclude)', async () => {
-  const ui = await openUi('wizard', { me: ME });
+  let loaded;
+  const ui = await openUi('wizard', { me: ME }, '', {
+    init: async (page) => { loaded = page.waitForResponse((r) => r.url().includes('/api/inspire/implement/context?'), { timeout: 15000 }); },
+  });
   const { page, pageErrors } = ui;
   try {
+    const context = await loaded;
+    assert.equal(context.status(), 200);
+    assert.equal((await context.json()).latest ?? null, null, 'the use case has no MVP yet');
     await onStep(page, 'Choose');
+    await page.locator('input[name="implement-mode"][value="mvp"]:checked').waitFor({ timeout: 15000 });
     assert.equal(await page.locator('[data-editing-note]').count(), 0);
     assert.deepEqual(pageErrors, []);
   } finally {

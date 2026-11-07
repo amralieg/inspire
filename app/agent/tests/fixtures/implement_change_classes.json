@@ -9066,7 +9066,7 @@
   "alert_triggers": [
     [
       {},
-      "Act now rows in the latest run >= 1"
+      "Act now rows in the latest run are at least 1"
     ],
     [
       {
@@ -9074,7 +9074,7 @@
         "alert_operator": ">=",
         "alert_threshold": 1
       },
-      "Act now rows in the latest run >= 1"
+      "Act now rows in the latest run are at least 1"
     ],
     [
       {
@@ -9083,63 +9083,63 @@
         "alert_threshold": "5",
         "alert_condition_text": "refunds above 10 today"
       },
-      "Act now or Review rows in the latest run > 5, or refunds above 10 today"
+      "Act now or Review rows in the latest run are more than 5, or refunds above 10 today"
     ],
     [
       {
         "alert_threshold": 1000000
       },
-      "Act now rows in the latest run >= 1000000"
+      "Act now rows in the latest run are at least 1000000"
     ],
     [
       {
         "alert_threshold": "2.50"
       },
-      "Act now rows in the latest run >= 2.5"
+      "Act now rows in the latest run are at least 2.5"
     ],
     [
       {
         "alert_threshold": " 3 "
       },
-      "Act now rows in the latest run >= 3"
+      "Act now rows in the latest run are at least 3"
     ],
     [
       {
         "alert_threshold": "1e3"
       },
-      "Act now rows in the latest run >= 1000"
+      "Act now rows in the latest run are at least 1000"
     ],
     [
       {
         "alert_threshold": ".5",
         "alert_operator": "<"
       },
-      "Act now rows in the latest run < 0.5"
+      "Act now rows in the latest run are less than 0.5"
     ],
     [
       {
         "alert_threshold": "-0"
       },
-      "Act now rows in the latest run >= 0"
+      "Act now rows in the latest run are at least 0"
     ],
     [
       {
         "alert_threshold": ""
       },
-      "Act now rows in the latest run >= 1"
+      "Act now rows in the latest run are at least 1"
     ],
     [
       {
         "alert_threshold_basis": "fixed",
         "alert_operator": "<="
       },
-      "Act now rows in the latest run <= 1"
+      "Act now rows in the latest run are at most 1"
     ],
     [
       {
         "alert_threshold_basis": "baseline"
       },
-      "Act now rows in the latest run rise above the mean + 2 standard deviations of up to 30 earlier runs (>= 1 until 5 earlier runs exist)"
+      "Act now rows in the latest run rise above the mean plus 2 standard deviations of up to 30 earlier runs (at least 1 until 5 earlier runs exist)"
     ],
     [
       {
@@ -9147,14 +9147,14 @@
         "alert_operator": ">",
         "alert_threshold": 2.5
       },
-      "Act now rows in the latest run rise above the mean + 2 standard deviations of up to 30 earlier runs (> 2.5 until 5 earlier runs exist)"
+      "Act now rows in the latest run rise above the mean plus 2 standard deviations of up to 30 earlier runs (more than 2.5 until 5 earlier runs exist)"
     ],
     [
       {
         "alert_threshold_basis": "baseline",
         "alert_operator": "<="
       },
-      "Act now rows in the latest run fall below the mean - 2 standard deviations of up to 30 earlier runs (<= 1 until 5 earlier runs exist)"
+      "Act now rows in the latest run fall below the mean minus 2 standard deviations of up to 30 earlier runs (at most 1 until 5 earlier runs exist)"
     ],
     [
       {
@@ -9164,7 +9164,21 @@
         "alert_tiers": "act_now_review",
         "alert_condition_text": "refunds above 10 today"
       },
-      "Act now or Review rows in the latest run fall below the mean - 2 standard deviations of up to 30 earlier runs (< 3 until 5 earlier runs exist), or refunds above 10 today"
+      "Act now or Review rows in the latest run fall below the mean minus 2 standard deviations of up to 30 earlier runs (less than 3 until 5 earlier runs exist), or refunds above 10 today"
+    ],
+    [
+      {
+        "alert_operator": "=",
+        "alert_threshold": 0
+      },
+      "Act now rows in the latest run are equal to 0"
+    ],
+    [
+      {
+        "alert_operator": "!=",
+        "alert_threshold": 4
+      },
+      "Act now rows in the latest run are not equal to 4"
     ]
   ],
   "stopped_states": [

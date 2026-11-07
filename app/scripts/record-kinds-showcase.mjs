@@ -91,7 +91,7 @@ function historyRow(u, uc, i) {
     asset_status: JSON.stringify({
       genie_space: { state: 'ready', sample_questions: questions, question_notes: [], check_question: questions[0], check_sql: u.genie[0].sql || `SELECT * FROM ${result} LIMIT 10` },
       app: { state: 'ready', health: 'running', spec_version: 1 },
-      alert: { state: 'ready', trigger: 'Act now rows in the latest run >= 1', check_state: 'OK', subscribers: 1 },
+      alert: { state: 'ready', trigger: 'Act now rows in the latest run are at least 1', check_state: 'OK', subscribers: 1 },
     }),
   });
 }

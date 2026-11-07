@@ -1,6 +1,6 @@
 import { change, changeText, grouped } from './format.js';
 
-export const OPERATOR_WORDS = { '>=': 'is at or above', '>': 'is above', '=': 'equals', '!=': 'is not', '<': 'is below', '<=': 'is at or below' };
+export const OPERATOR_WORDS = { '>=': 'is at least', '>': 'is more than', '=': 'is equal to', '!=': 'is not equal to', '<': 'is less than', '<=': 'is at most' };
 export const RISES = ['>=', '>'];
 export const BASELINE_MIN_RUNS = 5;
 

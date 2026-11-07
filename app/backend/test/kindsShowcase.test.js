@@ -220,7 +220,9 @@ test('the demo plan lines take decisions: Accept, Override with a reason and Tak
 
 test('the kinds demo answers the App\'s own question, what to do first, for every list, with the first record by name', async () => {
   const { FIRST_QUESTION } = await kinds();
-  const lists = Object.entries(bundle().mvps).filter(([, mvp]) => Object.entries(mvp.api).some(([k, v]) => k.startsWith('POST /api/records ') && (v.body?.rows || []).length > 0));
+  const lists = Object.entries(bundle().mvps).filter(([, mvp]) => Object.keys(mvp.api).some((k) => k.startsWith('POST /api/records ')));
+  const empty = lists.flatMap(([slug, mvp]) => Object.entries(mvp.api).filter(([k, v]) => k.startsWith('POST /api/records ') && !(v.body?.rows || []).length).map(([k]) => `${slug} ${k}`));
+  assert.deepEqual(empty, [], 'every list in the demo shows its records');
   assert.ok(lists.length >= 3, `${lists.length} lists`);
   for (const [slug, mvp] of lists) {
     const ask = Object.entries(mvp.api).find(([k]) => k.startsWith('POST /api/genie/ask ') && FIRST_QUESTION.test(JSON.parse(k.slice('POST /api/genie/ask '.length)).question || ''));

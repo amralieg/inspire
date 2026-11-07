@@ -9,7 +9,7 @@ import { REVIEW_PORTFOLIO, REVIEW_SESSIONS, REVIEW_STATE } from './reviewFixture
 import { closeAsset, closeBrowser, expandBuild, openAsset, openUi, until } from './uiSupport.mjs';
 import { apiWatch, keepToOrigins, openShowcase, readOnlyInspire, recordMvpApp, routeInspireDemo, tabButton, walkInspireDemo, walkMvpViews, watchOffline } from '../../../scripts/showcaseRecorder.mjs';
 import { DEMO_READS, DEMO_READS_WHEN, routeOf, unrecorded } from '../../../scripts/showcaseRoutes.mjs';
-import { SHOWCASE_BUTTON, SHOWCASE_DASHBOARD_NOTE, SHOWCASE_GENIE_NOTE, SHOWCASE_NOTE, SHOWCASE_OPEN_APP, SHOWCASE_PAGES } from '../../src/lib/showcase.js';
+import { SHOWCASE_ALERT_NOTE, SHOWCASE_BUTTON, SHOWCASE_DASHBOARD_NOTE, SHOWCASE_GENIE_NOTE, SHOWCASE_NOTE, SHOWCASE_OPEN_APP, SHOWCASE_PAGES } from '../../src/lib/showcase.js';
 import { START_MVP_LABEL } from '../../src/lib/implementWizard.js';
 import { APP_TABS } from '../../src/lib/tabs.js';
 import { PORTFOLIO_GROUPS } from '../../src/lib/reviewFigures.js';
@@ -254,6 +254,9 @@ test('the demo replays every view from the bundle with no workspace call, refuse
     await page.locator('[data-asset-tiles]').waitFor();
     await settle();
     assert.equal((await page.locator('[data-pinned-name] h2').textContent()).trim(), 'Predict churn');
+    const alertChip = page.locator('[data-asset-filter="alert"]');
+    assert.match((await alertChip.innerText()).replace(/\s+/g, ' ').trim(), /^Alert [1-9]\d*$/, 'the demo counts its built alert, never Alert 0');
+    assert.equal(await alertChip.isDisabled(), false);
     await page.locator('[data-mvp-progress]').waitFor();
     assert.equal(await page.locator('[data-mvp-panel]').count(), 0, 'a ready MVP opens on its tiles and its Build progress, with no drawer open');
     for (const name of ['Vibe/Add/Remove Features (0)', 'Uninstall all', START_MVP_LABEL]) assert.equal(await page.getByRole('button', { name, exact: true }).count(), 0, name);
@@ -306,8 +309,9 @@ test('the demo replays every view from the bundle with no workspace call, refuse
     assert.deepEqual(tabs, MVP_VIEW_IDS, 'the demo shows Build progress and every asset of the MVP');
     assert.deepEqual(toMvp, ['dashboard', 'genie_space'], 'the Dashboard and the Agent drawers open the MVP App');
     assert.ok(vibeCards > 0, 'the part vibe cards show, read-only');
-    assert.match(alertFacts, /Fires when: Act now rows in the latest run >= 1/, 'the demo shows what fires the alert though its link is blanked');
+    assert.match(alertFacts, /Fires when: Act now rows in the latest run are at least 1/, 'the demo shows what fires the alert though its link is blanked');
     assert.match(alertFacts, /Notifies: owner@example\.com/);
+    assert.ok(alertFacts.includes(SHOWCASE_ALERT_NOTE), 'the demo says why the alert has no link to open');
     assert.doesNotMatch(alertFacts, /No alert on this version/);
 
     await showView(page, 'job');

@@ -64,8 +64,6 @@ export function scoreOf(uc, ...fields) {
   return null;
 }
 
-const HIGH_TIER_IDX = PRIORITY_ORDER.indexOf('High');
-
 export function expandWorkspaceListCandidates(p) {
   const n = normalizeDatabricksFsPath(p);
   if (!n.startsWith('/')) return [];
@@ -153,18 +151,6 @@ export function trackingIdOf(uc) {
   return String(uc.id ?? uc.No ?? uc['No'] ?? '').trim();
 }
 
-function isHighTierLabel(uc) {
-  if (!uc || typeof uc !== 'object') return false;
-  for (const fld of [uc.Priority, uc.priority, uc.Quality, uc.quality]) {
-    const i = PRIORITY_ORDER.indexOf(String(fld || '').trim());
-    if (i !== -1 && HIGH_TIER_IDX !== -1 && i <= HIGH_TIER_IDX) return true;
-  }
-  const lab = `${uc.Priority || ''} ${uc.Quality || ''}`.toLowerCase();
-  if (/\b(ultra high|very high)\b/.test(lab)) return true;
-  if (/\bhigh\b/.test(lab) && !/\b(low|medium)\b/.test(lab)) return true;
-  return false;
-}
-
 function selectionFlagsOf(uc) {
   let flags = uc.selection_flags ?? uc.selectionFlags;
   if (typeof flags === 'string') {
@@ -233,23 +219,24 @@ export function belowBarLabelFromUseCase(uc) {
   return '';
 }
 
+export const INSPIRE_QUALITY_WEIGHT = 0.65;
+export const INSPIRE_PRIORITY_WEIGHT = 0.35;
+export const HIGH_PRIORITY_MIN_INSPIRE_SCORE = 3;
+
+const toTen = (x) => Math.min(10, Math.max(0, x));
+
+export function inspireScoreOutOfFive(uc) {
+  const stored = scoreOf(uc, 'inspire_score', 'Inspire Score');
+  if (stored != null) return stored / 2;
+  const quality = scoreOf(uc, 'quality_score', 'Quality Score');
+  const priority = scoreOf(uc, 'priority_score', 'Priority Score', 'Priority');
+  if (quality == null || priority == null) return null;
+  return (INSPIRE_QUALITY_WEIGHT * toTen(quality * 2) + INSPIRE_PRIORITY_WEIGHT * toTen(priority)) / 2;
+}
+
 export function computeHighPriorityCount(list) {
-  if (!Array.isArray(list) || list.length === 0) return 0;
-  const tier = list.filter(isHighTierLabel).length;
-  const abs = list.filter((u) => {
-    const s = inspireScoreFromUc(u);
-    return s != null && s >= 3;
-  }).length;
-  const scores = list.map(inspireScoreFromUc).filter((s) => s != null && Number.isFinite(s));
-  if (scores.length === 0) return Math.max(tier, abs);
-  const sorted = [...scores].sort((a, b) => a - b);
-  const cutIdx = Math.max(0, Math.floor((sorted.length - 1) * (2 / 3)));
-  const cutoff = sorted[cutIdx];
-  const topThird = list.filter((u) => {
-    const s = inspireScoreFromUc(u);
-    return s != null && s >= cutoff;
-  }).length;
-  return Math.max(tier, abs, topThird);
+  if (!Array.isArray(list)) return 0;
+  return list.filter((uc) => (inspireScoreOutOfFive(uc) ?? 0) >= HIGH_PRIORITY_MIN_INSPIRE_SCORE).length;
 }
 
 export function useCaseCountsText({ total, high, meets } = {}) {

@@ -191,7 +191,10 @@ export function controlRows(live, latest) {
 const DELIVERED_WORDS = { dashboard: ['dashboard', 'dashboards'], genie_space: ['Genie Agent', 'Genie Agents'], app: ['App', 'Apps'], alert: ['alert', 'alerts'] };
 
 export function deliveredOutputs(latest) {
-  return IMPLEMENT_OUTPUTS.filter((output) => latest?.[OUTPUT_URLS[output.id]]).map((output) => output.id);
+  const assets = latest?.asset_status || {};
+  return IMPLEMENT_OUTPUTS
+    .filter((output) => latest?.[OUTPUT_URLS[output.id]] || (latest?.[OUTPUT_IDS[output.id]] && assets[output.id]?.state === 'ready'))
+    .map((output) => output.id);
 }
 
 export function buildSummary(items) {

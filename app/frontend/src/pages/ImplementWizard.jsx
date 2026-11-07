@@ -19,6 +19,7 @@ import {
   IMPLEMENT_OUTPUTS,
   ALERT_TIER_OPTIONS,
   ALERT_OPERATORS,
+  ALERT_OPERATOR_WORDS,
   ALERT_THRESHOLD_BASES,
   ALERT_BASELINE_DIRECTIONS,
   baselineOperatorOk,
@@ -1475,7 +1476,7 @@ export default function ImplementWizard({
                     </select>
                     <span>rows in the latest run are</span>
                     <select className={`${inputBase} w-auto`} value={spec.outputs.alert_operator} onChange={(e) => patch('outputs.alert_operator', e.target.value)}>
-                      {(spec.outputs.alert_threshold_basis === 'baseline' ? Object.keys(ALERT_BASELINE_DIRECTIONS) : ALERT_OPERATORS).map((op) => <option key={op} value={op}>{op}</option>)}
+                      {(spec.outputs.alert_threshold_basis === 'baseline' ? Object.keys(ALERT_BASELINE_DIRECTIONS) : ALERT_OPERATORS).map((op) => <option key={op} value={op}>{ALERT_OPERATOR_WORDS[op]}</option>)}
                     </select>
                     <input type="number" min="0" step="1" className={`${inputBase} w-24`} value={spec.outputs.alert_threshold} onChange={(e) => patch('outputs.alert_threshold', e.target.value)} />
                     <span>compared with</span>

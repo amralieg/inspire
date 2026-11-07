@@ -4,7 +4,7 @@ import { buildAgainHint, DATA_STOP_HINT, GENIE_CODE_OFF_TITLE, lostTablesText, M
 import {
   HARNESS_USE_CASE, HARNESS_SETTINGS, HARNESS_SESSION_ID, MVP_JOB, OWNER, RESULT_TABLE, STUDIO_STATE, built, builtSpec,
 } from './implementFixtures.js';
-import { closeAsset, closeBrowser, dataToResults, expandBuild, FAKE_CLOCK, lowContrast, onStep, openAsset, openFeatures, openSettings, openUi, painted, pollNow, setDark, settled, shot, startMvp, stepsAre, toAppAccess, toVibes, until } from './uiSupport.mjs';
+import { closeAsset, closeBrowser, dataToResults, openAdvanced, expandBuild, FAKE_CLOCK, lowContrast, onStep, openAsset, openFeatures, openSettings, openUi, painted, pollNow, setDark, settled, shot, startMvp, stepsAre, toAppAccess, toVibes, until } from './uiSupport.mjs';
 
 const GONE = '[TABLE_OR_VIEW_NOT_FOUND] The table or view `main`.`s`.`returns` cannot be found. Verify the spelling. SQLSTATE: 42P01';
 
@@ -101,7 +101,12 @@ test('the wizard starts with the dashboard, Genie Agent and App ticked, drops Ap
     await stepsAre(page, withApp);
     assert.equal(await page.getByLabel('App name').count(), 0, 'the App name waits for App placement');
     await page.getByRole('checkbox', { name: /^Alert/ }).check();
-    await page.getByText(`Emails ${OWNER} when Act now rows in the latest run >= 1.`).waitFor();
+    await page.getByText(`Emails ${OWNER} when Act now rows in the latest run are at least 1.`).waitFor();
+    await openAdvanced(page);
+    const comparison = page.locator('select:has(option[value=">="])');
+    assert.deepEqual(await comparison.locator('option').allInnerTexts(), ['at least', 'more than', 'equal to', 'not equal to', 'less than', 'at most'],
+      'the alert comparison reads in words, never a symbol');
+    await openAdvanced(page);
     const fresh = page.getByRole('group', { name: 'Keep it fresh' });
     assert.equal(await fresh.getByRole('button', { name: 'Off' }).getAttribute('aria-pressed'), 'true', 'Keep it fresh starts Off');
     await fresh.getByRole('button', { name: 'Weekly' }).click();
@@ -634,7 +639,7 @@ test('the Build page shows one row of tiles in a fixed order, each tile opens it
 
     await openAsset(page, 'alert');
     const alertFacts = page.locator('[data-asset-facts="alert"]');
-    await alertFacts.getByText('Fires when: Act now rows in the latest run >= 1').waitFor();
+    await alertFacts.getByText('Fires when: Act now rows in the latest run are at least 1').waitFor();
     await alertFacts.getByText(`Notifies: ${OWNER}`).waitFor();
     await alertFacts.getByText('Subscribers on the job task: 1').waitFor();
     await alertFacts.getByText('Last check: OK').waitFor();
@@ -1219,7 +1224,7 @@ test('the Alert drawer shows what fires the alert when it has a link or a trigge
   const assets = JSON.parse(built().asset_status);
   const noLink = { alert_id: null, alert_url: null };
   for (const [row, shown, gone] of [
-    [built(noLink), ['Fires when: Act now rows in the latest run >= 1', `Notifies: ${OWNER}`, 'Last check: OK'], 'No alert on this version.'],
+    [built(noLink), ['Fires when: Act now rows in the latest run are at least 1', `Notifies: ${OWNER}`, 'Last check: OK'], 'No alert on this version.'],
     [built({ ...noLink, asset_status: JSON.stringify({ ...assets, alert: { state: 'ready' } }) }), ['No alert on this version.'], 'Fires when:'],
   ]) {
     const ui = await openUi('implement', { ...STUDIO_STATE, history: [row] });

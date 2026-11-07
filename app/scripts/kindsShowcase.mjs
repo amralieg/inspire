@@ -173,6 +173,12 @@ const DRAFTS = [
       base: 4200000, target: 4000000, sd: 220000,
       levers: [['price', 'Price change, %', 0.09], ['volume', 'Volume change, %', 0.04], ['unit_cost', 'Unit cost change, %', -0.07]],
       scenarios: [['base', 4200000, 3920000, 4480000, 82], ['upside', 4560000, 4270000, 4850000, 96], ['downside', 3730000, 3450000, 4010000, 14]],
+      exposures: [
+        ['Private-label snacks', 'North', 310000, 'Hold the 2% price rise on private-label snacks', ['Unit cost rose 6% last quarter', 'The largest margin swing under the cost lever']],
+        ['Fresh produce', 'South', 240000, 'Agree next quarter\'s produce cost with the two main growers', ['Unit cost swung 9% a quarter over 3 years', 'The thinnest margin per unit']],
+        ['Household cleaning', 'West', 180000, 'Cut the deepest promotion on household cleaning', ['Promotion cost rose 12%', 'Volume barely moved on promotion']],
+        ['Frozen meals', 'East', 120000, 'Test a 1% price rise on frozen meals', ['Price adds the most margin here', 'Little price sensitivity in 3 years of sales']],
+      ],
     },
   },
   {
@@ -702,6 +708,13 @@ export function scenarioEvaluate(u, values = {}) {
   };
 }
 
+function scenarioRows(u) {
+  return u.mvp.exposures.map(([label, region, value, action, reasons], i) => ({
+    record_key: `K${i + 1}`, _inspire_key: `K${i + 1}`, _inspire_version: String(700 + i), entity_id: label, entity_label: label, region, channel: 'All',
+    priority_tier: TIERS[Math.min(2, Math.floor((i * 3) / u.mvp.exposures.length))], rank: i + 1, value, recommended_action: action, top_reasons: reasons, as_of_date: AS_OF,
+  }));
+}
+
 function scenarioData(u) {
   const m = u.mvp;
   return {
@@ -1084,7 +1097,7 @@ const LAYOUTS = {
   dashboard: { page: dashboardPage, rows: () => [], data: dashboardData },
   forecast_cockpit: { page: forecastPage, rows: forecastRows, data: forecastData, plan: true },
   planner: { page: plannerPage, rows: plannerRows, data: plannerData, plan: true },
-  scenario_lab: { page: scenarioPage, rows: () => [], data: scenarioData },
+  scenario_lab: { page: scenarioPage, rows: scenarioRows, data: scenarioData },
   segment_explorer: { page: segmentPage, rows: segmentRows, data: segmentData },
   recommendation_desk: { page: recsPage, rows: recsRows, data: recsData },
   lift_readout: { page: liftPage, rows: liftRows, data: liftData },
