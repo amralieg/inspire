@@ -2,6 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+const { fileNames } = require('./support/sourceFiles');
 const { int64Id, isInt64Id, requireInt64Id, jsonWithInt64Ids } = require('../lib/int64Id');
 const C = require('../lib/implementControl');
 const L = require('../lib/launchLedger');
@@ -174,7 +175,7 @@ test('session id checks across the App take 19-digit ids and refuse ids beyond 6
 test('no backend source passes a session, run or job id through Number, parseInt, parseFloat or a bare digit check', () => {
   const root = path.join(__dirname, '..');
   const files = [path.join(root, 'server.js'), path.join(root, 'implementRoutes.js'),
-    ...fs.readdirSync(path.join(root, 'lib')).filter((f) => f.endsWith('.js')).map((f) => path.join(root, 'lib', f))];
+    ...fileNames(path.join(root, 'lib')).filter((f) => f.endsWith('.js')).map((f) => path.join(root, 'lib', f))];
   const lossy = /\b(Number|parseInt|parseFloat)\(\s*[^)]*\b(session_?id|sessionId|sid|run_?id|runId|job_?id|jobId|id)\b/;
   const bare = /\/\^\\d\+\$\/\.test\([^)]*(session|sid|run_?id|runId|job)/i;
   const allowed = [['lib/showcaseRecord.js', 'const parsed = Number(sessionId);', 'the showcase scrub also replaces the rounded form JSON already wrote']];

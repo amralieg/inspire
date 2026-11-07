@@ -18,8 +18,9 @@ function textsOf(file) {
 function walk(dir) {
   return fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
     const full = path.join(dir, entry.name);
-    if (entry.isDirectory()) return SKIPPED.has(entry.name) ? [] : walk(full);
-    return [full];
+    if (SKIPPED.has(entry.name)) return [];
+    if (entry.isDirectory()) return walk(full);
+    return entry.isFile() ? [full] : [];
   });
 }
 
@@ -37,6 +38,26 @@ test('the installer is inspire_installer.py at the repo root and no file names i
   const files = walk(REPO);
   assert.ok(files.some((file) => file.endsWith(path.join('frontend', 'dist', 'index.html'))), 'the built frontend is scanned too');
   assert.deepEqual(oldNameSites(files), []);
+});
+
+test('the scan skips node_modules and .git when they are symlinks, as worktrees link them', () => {
+  const dir = fs.mkdtempSync(path.join(require('node:os').tmpdir(), 'inspire-name-'));
+  const target = fs.mkdtempSync(path.join(require('node:os').tmpdir(), 'inspire-name-target-'));
+  const old = ['installer', 'workspace'].join('_');
+  fs.mkdirSync(path.join(target, 'pkg'));
+  fs.writeFileSync(path.join(target, 'pkg', `${old}.js`), `${old}\n`);
+  fs.mkdirSync(path.join(dir, 'app'));
+  fs.symlinkSync(target, path.join(dir, 'app', 'node_modules'), 'dir');
+  fs.symlinkSync(target, path.join(dir, '.git'), 'dir');
+  fs.writeFileSync(path.join(dir, 'app', 'kept.txt'), 'fine\n');
+  try {
+    const files = walk(dir).map((file) => path.relative(dir, file));
+    assert.deepEqual(files, [path.join('app', 'kept.txt')]);
+    assert.deepEqual(oldNameSites(walk(dir)), []);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+    fs.rmSync(target, { recursive: true, force: true });
+  }
 });
 
 test('the old-name scan finds the old name in a file name, a line of text and a built bundle', () => {

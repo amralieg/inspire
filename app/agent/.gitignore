@@ -82,4 +82,4 @@ service-account*.json
 secrets*
 
 # Inspire App shell build tree
-agent/app_shell/web/node_modules/
+agent/app_shell/web/node_modules

@@ -12,7 +12,7 @@ function files(dir, keep) {
     const full = path.join(dir, entry.name);
     if (entry.isDirectory()) {
       if (!['node_modules', 'test', 'dist', 'build'].includes(entry.name)) out.push(...files(full, keep));
-    } else if (keep.test(entry.name)) out.push(full);
+    } else if (entry.isFile() && keep.test(entry.name)) out.push(full);
   }
   return out;
 }

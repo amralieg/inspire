@@ -4,6 +4,7 @@ const fs = require('fs');
 const http = require('http');
 const os = require('os');
 const path = require('path');
+const { fileNames } = require('./support/sourceFiles');
 const zlib = require('zlib');
 const express = require('express');
 const { listen } = require('./support/implementApp');
@@ -11,7 +12,7 @@ const { startInspire } = require('./support/serverProcess');
 const A = require('../lib/assetTypes');
 
 const DIST = path.resolve(__dirname, '..', '..', 'frontend', 'dist');
-const BUNDLE = fs.readdirSync(path.join(DIST, 'assets')).filter((n) => n.endsWith('.js'))
+const BUNDLE = fileNames(path.join(DIST, 'assets')).filter((n) => n.endsWith('.js'))
   .sort((a, b) => fs.statSync(path.join(DIST, 'assets', b)).size - fs.statSync(path.join(DIST, 'assets', a)).size)[0];
 const BUNDLE_BYTES = fs.readFileSync(path.join(DIST, 'assets', BUNDLE));
 
@@ -84,7 +85,7 @@ test('the page, images and any unhashed file revalidate (no-cache) and are never
     const page = await raw(`${srv.url}/`, { 'accept-encoding': 'gzip, br' });
     assert.equal(page.status, 200);
     assert.equal(page.headers['cache-control'], 'no-cache');
-    for (const name of fs.readdirSync(DIST).filter((n) => /\.(png|jpe?g)$/.test(n))) {
+    for (const name of fileNames(DIST).filter((n) => /\.(png|jpe?g)$/.test(n))) {
       const r = await raw(`${srv.url}/${name}`, { 'accept-encoding': 'gzip, br' });
       assert.equal(r.status, 200, name);
       assert.equal(r.headers['cache-control'], 'no-cache', name);

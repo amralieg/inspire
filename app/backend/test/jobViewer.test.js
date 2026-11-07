@@ -2,6 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
+const { fileNames } = require('./support/sourceFiles');
 const { fakeWorkspace, startInspire } = require('./support/serverProcess');
 const { JOB_VIEW_LEVEL, NO_LAUNCHER_VIEW, REMEMBERED_RUNS, grantJobViewer, rememberViewer, viewerNoteOf } = require('../lib/jobViewer');
 const { triggerDemoDataPipeline } = require('../lib/demoDataPipeline');
@@ -174,7 +175,7 @@ test('the demo-data pipeline job gives its launcher view too', async () => {
 
 test('every place the App creates or starts a job grants its launcher view through grantJobViewer', () => {
   const backend = path.join(__dirname, '..');
-  const sources = ['server.js', 'implementRoutes.js', ...fs.readdirSync(path.join(backend, 'lib')).map((n) => path.join('lib', n))]
+  const sources = ['server.js', 'implementRoutes.js', ...fileNames(path.join(backend, 'lib')).map((n) => path.join('lib', n))]
     .map((rel) => [rel, fs.readFileSync(path.join(backend, rel), 'utf8')]);
   const starters = sources.filter(([, text]) => /'\/api\/2\.1\/jobs\/(create|run-now)'|'\/api\/2\.\d\/jobs\/runs\/submit'/.test(text));
   assert.deepEqual(starters.map(([rel]) => rel).sort(), ['implementRoutes.js', path.join('lib', 'demoDataPipeline.js'), 'server.js'].sort());

@@ -271,6 +271,7 @@ def main():
     parser.add_argument("--defer-from", default="", help="a release tag; files with a sha256 on it wait for a server-side fill")
     parser.add_argument("--target", default="", help="the full commit SHA the new tag points at; defaults to main")
     args = parser.parse_args()
+    rc_settings.require_tools(S, files=("leak_scan",), commands=("net_wait",))
     if args.target and not re.fullmatch(r"[0-9a-f]{40}", args.target):
         raise SystemExit(f"rc_release: --target {args.target} is not a full commit SHA")
     for tag in (args.tag, args.compare_to, args.defer_from):

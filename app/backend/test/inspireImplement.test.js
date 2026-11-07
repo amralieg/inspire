@@ -1,6 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const path = require('node:path');
+const { fileNames } = require('./support/sourceFiles');
 const fs = require('node:fs');
 const I = require('../lib/inspireImplement');
 
@@ -486,7 +487,7 @@ test('information schema filters keep the name column bare and lower the name as
 
 test('no backend statement filters the information schema on a lowered name column or an unlowered name', () => {
   const dir = path.join(__dirname, '..', 'lib');
-  for (const file of fs.readdirSync(dir).filter((f) => f.endsWith('.js'))) {
+  for (const file of fileNames(dir).filter((f) => f.endsWith('.js'))) {
     const source = fs.readFileSync(path.join(dir, file), 'utf8');
     assert.doesNotMatch(source, new RegExp(`lower\\(${INFO_SCHEMA_NAMES}\\) =`), file);
     assert.doesNotMatch(source, new RegExp(`\\b${INFO_SCHEMA_NAMES} = :`), file);

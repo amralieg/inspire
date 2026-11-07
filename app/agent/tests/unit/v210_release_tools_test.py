@@ -211,6 +211,79 @@ def test_rc_release_refuses_bad_arguments_before_doing_anything(release_tool, mo
         release.main()
 
 
+_ARGV = ["rc_release.py", "v1.4.0-rc.7", "app", "agent", "--assets", "assets", "--dry-run"]
+
+
+def _stop_at_build(release, monkeypatch):
+    built = []
+
+    def build(args, work):
+        built.append(work)
+        raise RuntimeError("build reached")
+    monkeypatch.setattr(release, "build", build)
+    monkeypatch.setattr(sys, "argv", _ARGV)
+    return built
+
+
+def test_rc_release_stops_before_the_build_when_the_leak_scan_file_is_gone(release_tool, monkeypatch):
+    release_tool.settings["leak_scan"] = str(release_tool.root / "gone" / "leak_scan.py")
+    release = release_tool.load("rc_release")
+    built = _stop_at_build(release, monkeypatch)
+    with pytest.raises(SystemExit, match=r"names helper files that are not there: leak_scan .*gone/leak_scan\.py"):
+        release.main()
+    assert built == []
+
+
+@pytest.mark.parametrize("command, named", [
+    (["{python}", "{root}/gone/net_wait.py"], r"net_wait file .*gone/net_wait\.py"),
+    (["no-such-python-here", "{root}/net_wait.py"], r"net_wait program no-such-python-here"),
+    ("{root}/gone/net_wait.sh", r"net_wait program .*gone/net_wait\.sh"),
+])
+def test_rc_release_stops_before_the_build_when_the_net_wait_command_is_gone(release_tool, monkeypatch, command, named):
+    (release_tool.root / "net_wait.py").write_text("print('up')\n", encoding="utf-8")
+    fill = lambda part: part.format(python=sys.executable, root=release_tool.root)
+    release_tool.settings["net_wait"] = fill(command) if isinstance(command, str) else [fill(p) for p in command]
+    release = release_tool.load("rc_release")
+    built = _stop_at_build(release, monkeypatch)
+    with pytest.raises(SystemExit, match=named):
+        release.main()
+    assert built == []
+
+
+def test_rc_release_names_every_missing_helper_at_once(release_tool, monkeypatch):
+    release_tool.settings["leak_scan"] = str(release_tool.root / "gone" / "leak_scan.py")
+    release_tool.settings["net_wait"] = [sys.executable, str(release_tool.root / "gone" / "net_wait.py")]
+    release = release_tool.load("rc_release")
+    _stop_at_build(release, monkeypatch)
+    with pytest.raises(SystemExit) as stop:
+        release.main()
+    assert "leak_scan" in str(stop.value) and "net_wait file" in str(stop.value)
+
+
+@pytest.mark.parametrize("net_wait", [None, ["{python}", "{root}/net_wait.py"], ["{python}", "-c", "print(1)"]])
+def test_rc_release_goes_on_to_the_build_when_the_helpers_are_there(release_tool, monkeypatch, net_wait):
+    (release_tool.root / "net_wait.py").write_text("print('up')\n", encoding="utf-8")
+    if net_wait:
+        release_tool.settings["net_wait"] = [p.format(python=sys.executable, root=release_tool.root) for p in net_wait]
+    release = release_tool.load("rc_release")
+    built = _stop_at_build(release, monkeypatch)
+    with pytest.raises(RuntimeError, match="build reached"):
+        release.main()
+    assert len(built) == 1
+
+
+def test_rc_install_stops_at_the_start_when_the_net_wait_script_is_gone(release_tool, monkeypatch):
+    release_tool.settings["net_wait"] = [sys.executable, str(release_tool.root / "gone" / "net_wait.py")]
+    install = release_tool.load("rc_install")
+    monkeypatch.setattr(sys, "argv", ["rc_install.py", "v1.4.0-rc.7", "verify"])
+    with pytest.raises(SystemExit, match=r"net_wait file .*gone/net_wait\.py"):
+        install.main()
+    release_tool.settings["net_wait"] = [sys.executable, "-c", "print(1)"]
+    install = release_tool.load("rc_install")
+    with pytest.raises(SystemExit, match="holds no built release"):
+        install.main()
+
+
 def _snapshot(grants, paths):
     return {"apps": {}, "lakebase": {}, "folders": {"/Shared/kept": [[p, "FILE", 1, 0, 0] for p in paths]}, "trees": {},
             "acl": {}, "grants": {"catalog:kept_cat": grants}, "own_sp": ["sp-scratch", "scratch-app SP"]}

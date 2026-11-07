@@ -38,6 +38,7 @@
         for (const b of document.querySelectorAll('nav.side button')) b.toggleAttribute('aria-current', b.dataset.to === route);
         for (const b of document.querySelectorAll('nav.side button[aria-current]')) b.setAttribute('aria-current', 'page');
         main.innerHTML = '';
+        main.setAttribute('aria-busy', 'false');
         if (route === '#/chat') {
           main.insertAdjacentHTML('beforeend', '<h1>Questions</h1>');
           main.insertAdjacentHTML('beforeend', '<nav class="views"><button type="button" role="tab" data-view="ask">Ask</button><button type="button" role="tab" data-view="runs">Runs</button></nav><div class="chat-log"></div><div class="chat-sugg"></div>');
@@ -55,9 +56,15 @@
         }
         if (route === '#/detail') {
           main.insertAdjacentHTML('beforeend', '<h1>Detail</h1>');
-          table('detail', (n) => { seen('detail', n); drawer(`detail record ${n}`, true); });
-          const rec = new URLSearchParams(query || '').get('rec');
-          if (rec !== null) drawer(`record ${rec}`, false);
+          main.setAttribute('aria-busy', 'true');
+          const drawn = location.hash;
+          setTimeout(() => {
+            if (location.hash !== drawn) return;
+            table('detail', (n) => { seen('detail', n); drawer(`detail record ${n}`, true); });
+            const rec = new URLSearchParams(query || '').get('rec');
+            if (rec !== null) drawer(`record ${rec}`, false);
+            main.setAttribute('aria-busy', 'false');
+          }, 2000);
           return;
         }
         main.insertAdjacentHTML('beforeend', '<h1>Overview</h1><nav class="views"><button type="button" role="tab">Today</button></nav>');

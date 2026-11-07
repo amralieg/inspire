@@ -42,7 +42,7 @@ function shippedFiles(dir = repoRoot, out = []) {
     const full = path.join(dir, entry.name);
     if (entry.isDirectory()) {
       if (!SKIPPED_DIRS.has(entry.name) && !entry.name.startsWith('.')) shippedFiles(full, out);
-    } else if (TEXT_FILES.test(entry.name) && !SKIPPED_FILES.has(entry.name)) {
+    } else if (entry.isFile() && TEXT_FILES.test(entry.name) && !SKIPPED_FILES.has(entry.name)) {
       out.push(full);
     }
   }
