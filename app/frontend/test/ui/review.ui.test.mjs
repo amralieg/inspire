@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
-import { closeBrowser, lowContrast, openUi, setDark, settled, until } from './uiSupport.mjs';
+import { closeBrowser, lowContrast, openUi, setDark, settled, steadyBox, until } from './uiSupport.mjs';
 import { REVIEW_RESULTS, REVIEW_SESSIONS, REVIEW_STATE, RUN_SUMMARY } from './reviewFixtures.js';
 import { LATEST_RUN_LABEL } from '../../src/lib/reviewFigures.js';
 import * as V from '../../src/lib/v130UseCase.js';
@@ -213,7 +213,7 @@ test('Start lists the runs with Latest Run only on the newest run of a business 
     assert.deepEqual(await read(choose.page, choose.page), want);
     assert.equal(await choose.page.locator('button button').count(), 0, 'and none after Show more either');
     const opened = () => choose.page.locator('output[aria-label="Opened runs"]').textContent();
-    const box = await choose.page.locator('[data-run="42"]').boundingBox();
+    const box = await steadyBox(choose.page.locator('[data-run="42"]'));
     await choose.page.mouse.click(box.x + box.width - 10, box.y + box.height / 2);
     assert.equal(await opened(), '42', 'a click anywhere on the row opens the run, its chevron edge too');
     await choose.page.locator('[data-run="51"]').getByRole('button', { name: 'Quick View' }).click();

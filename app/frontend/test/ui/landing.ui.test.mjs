@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { closeBrowser, openUi, painted } from './uiSupport.mjs';
+import { closeBrowser, finiteAnimationsDone, holdClock, openUi, painted, watchScrolls } from './uiSupport.mjs';
 import { APP_TABS } from '../../src/lib/tabs.js';
 import { SHOWCASE_BUTTON } from '../../src/lib/showcase.js';
 import { DISCOVERY_MODE_TEXT } from '../../src/lib/discoveryType.js';
@@ -35,6 +35,40 @@ test('the home page offers one call to action, Get Started, in the hero and at t
     assert.equal(await clicks(page).textContent(), 'start,start');
     assert.match(await page.locator('body').innerText(), /Point Inspire at your catalog to find your use cases\./);
     assert.doesNotMatch(await page.locator('body').innerText(), /demo/i);
+    assert.deepEqual(ui.pageErrors, []);
+  } finally {
+    await ui.close();
+  }
+});
+
+test('the hero types each of its words without moving Get Started, and a section link jumps without animation for a person who asked for less motion', async () => {
+  let scrolls;
+  const ui = await openUi('landing', {}, '', { init: async (page) => { await page.clock.install(); scrolls = await watchScrolls(page); } });
+  const { page } = ui;
+  try {
+    await page.getByText('Scroll to explore').waitFor();
+    await finiteAnimationsDone(page);
+    await holdClock(page);
+    const cta = groups(page).first().getByRole('button', { name: 'Get Started', exact: true });
+    const typed = page.locator('h1 .bg-clip-text').first();
+    const at = new Set();
+    const words = new Set();
+    for (let ms = 0; ms < 16000; ms += 80) {
+      await page.clock.runFor(80);
+      const box = await cta.boundingBox();
+      at.add(`${box.x},${box.y}`);
+      words.add(await typed.textContent());
+    }
+    await page.clock.resume();
+    for (const word of ['Use Cases', 'Business Value', 'Data Strategy', 'AI Insights']) assert.ok(words.has(word), `the hero typed ${word} in full`);
+    assert.deepEqual([...at], [[...at][0]], 'Get Started stays where it is while the words are typed and deleted (must-exclude: a word that wraps moved it)');
+    scrolls();
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.locator('nav').getByRole('button', { name: 'Analyze', exact: true }).click();
+    assert.deepEqual(await scrolls(), ['auto'], 'less motion: the section link jumps');
+    await page.emulateMedia({ reducedMotion: 'no-preference' });
+    await page.locator('nav').getByRole('button', { name: 'Discover', exact: true }).click();
+    assert.deepEqual(await scrolls(), ['smooth'], 'otherwise it glides');
     assert.deepEqual(ui.pageErrors, []);
   } finally {
     await ui.close();

@@ -5,7 +5,7 @@ import { createRequire } from 'node:module';
 import path from 'node:path';
 import { defaultSpecFromUseCase } from '../../src/lib/implementWizard.js';
 import { HARNESS_USE_CASE, HARNESS_SETTINGS, HARNESS_SESSION_ID } from './implementFixtures.js';
-import { clippedExamples, closeAsset, closeBrowser, dataToResults, expandBuild, featuresBox, featuresHeld, featuresText, lowContrast, onStep, openAsset, openFeatures, openSettings, openUi, setDark, startMvp, toAppAccess, toVibes, until, wizardFits } from './uiSupport.mjs';
+import { clippedExamples, closeAsset, closeBrowser, dataToResults, expandBuild, featuresBox, featuresHeld, featuresText, lowContrast, onStep, openAsset, openFeatures, openSettings, openUi, setDark, startMvp, steadyBox, toAppAccess, toVibes, until, wizardFits } from './uiSupport.mjs';
 
 const OWNER = ['owner', 'example.com'].join('@');
 const SHOTS = process.env.VIBES_SHOTS || '';
@@ -136,7 +136,7 @@ test('the one box on the Vibes step takes the full width, is 8 lines tall and gr
       panel: el.closest('section').getBoundingClientRect().width }));
     assert.deepEqual([size.rows, size.resize], [8, 'vertical'], 'the box is 8 lines tall and the person can make it taller');
     assert.ok(size.width >= size.panel - 2, `the box takes the full width of the step (${size.width} of ${size.panel})`);
-    const before = await box.boundingBox();
+    const before = await steadyBox(box);
     await page.mouse.move(before.x + before.width - 3, before.y + before.height - 3);
     await page.mouse.down();
     await page.mouse.move(before.x + before.width - 3, before.y + before.height + 120, { steps: 6 });

@@ -30,6 +30,7 @@ import StopRunControl from '../components/StopRunControl';
 import { nameOfUseCase } from '../lib/useCaseFields';
 import { runOutcomeOf } from '../lib/runOutcome';
 import { liveCountText, liveUseCasesOf } from '../lib/liveUseCases';
+import { reducedMotion } from '../lib/motion';
 
 // Run lifecycle phases
 const PHASE_PENDING = 'PENDING';
@@ -170,7 +171,7 @@ export default function MonitorPage({ settings, update, sessionId, runId, onComp
   // Auto-scroll to bottom when new steps arrive
   useEffect(() => {
     if (autoScroll && stepsEndRef.current) {
-      stepsEndRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      stepsEndRef.current.scrollIntoView({ behavior: reducedMotion() ? 'auto' : 'smooth', block: 'nearest' });
     }
   }, [steps, autoScroll]);
 

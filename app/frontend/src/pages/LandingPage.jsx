@@ -15,6 +15,7 @@ import DatabricksLogo from '../components/DatabricksLogo';
 import { useTheme } from '../ThemeContext';
 import { Sun, Moon } from 'lucide-react';
 import { APP_TABS } from '../lib/tabs';
+import { reducedMotion } from '../lib/motion';
 import { DISCOVERY_AI_ENHANCED, DISCOVERY_MODE_TEXT, DISCOVERY_RECOMMENDED, DISCOVERY_STANDARD } from '../lib/discoveryType';
 
 const DISCOVERY_MODES = [{ mode: DISCOVERY_STANDARD, icon: Lock }, { mode: DISCOVERY_AI_ENHANCED, icon: Sparkles }];
@@ -600,7 +601,7 @@ export default function LandingPage({ onStart, onOpenSetup }) {
                 type="button"
                 onClick={() => {
                   const el = scrollContainerRef.current;
-                  if (el) el.scrollTo({ top: i * el.clientHeight, behavior: 'smooth' });
+                  if (el) el.scrollTo({ top: i * el.clientHeight, behavior: reducedMotion() ? 'auto' : 'smooth' });
                 }}
                 className="px-3 py-1.5 rounded-full text-[11px] font-medium transition-all duration-300"
                 style={{
@@ -629,7 +630,6 @@ export default function LandingPage({ onStart, onOpenSetup }) {
       <div
         ref={scrollContainerRef}
         className="h-full overflow-y-auto snap-y snap-mandatory scrollbar-hide"
-        style={{ scrollBehavior: 'smooth' }}
       >
 
         {/* ═══ SECTION 1: Hero ═══ */}
@@ -653,8 +653,15 @@ export default function LandingPage({ onStart, onOpenSetup }) {
 
                 <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold leading-[1.08] tracking-[-0.04em] mb-6">
                   Discover{' '}
-                  <span className="bg-gradient-to-r from-db-red-fg to-db-red bg-clip-text text-transparent">{typedText}</span>
-                  <span className="text-db-red-fg animate-cursor-blink">|</span>
+                  <span className="inline-grid">
+                    {HERO_WORDS.map((word) => (
+                      <span key={word} aria-hidden="true" className="invisible col-start-1 row-start-1">{word}|</span>
+                    ))}
+                    <span className="col-start-1 row-start-1">
+                      <span className="bg-gradient-to-r from-db-red-fg to-db-red bg-clip-text text-transparent">{typedText}</span>
+                      <span className="text-db-red-fg animate-cursor-blink">|</span>
+                    </span>
+                  </span>
                   <br />
                   <span style={{ color: C.textMuted }}>from your data.</span>
                 </h1>

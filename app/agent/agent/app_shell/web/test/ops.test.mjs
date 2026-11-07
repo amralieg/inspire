@@ -1,7 +1,7 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
-import { FILTERS, LOST, NO_JOB, SILENT, TABLE, appInfo, openApp, serveDist, until } from './harness.mjs';
+import { FILTERS, LOST, NO_JOB, SILENT, TABLE, appInfo, openApp, serveDist, steadyBox, until } from './harness.mjs';
 import {
   BUSY, RUN_STATES, activeState, agoText, bannerText, couldSaveRunFormula, coveredText, errorText, foundText, groupingText, lastRunNote, lastRunText, lastedText,
   progressText, runBars, runFlag, runState, runsPageText, spanText, stampText, toastTone, triggerText,
@@ -597,8 +597,8 @@ test('the Runs tab starts with a To fix per run chart: oldest run on the left, n
   assert.equal(await chart.locator('.cb').getAttribute('aria-label'), 'To fix per run: Oct 4, 06:00 AM UTC 10, Oct 25, 06:00 AM UTC 5');
   const heights = await chart.locator('.vb-c i').evaluateAll((els) => els.map((e) => e.getBoundingClientRect().height));
   assert.ok(heights[0] > heights[1], `the run with more to fix has the taller bar: ${heights}`);
-  const drawn = await chart.boundingBox();
-  const table = await page.locator('section.runs').boundingBox();
+  const drawn = await steadyBox(page, chart);
+  const table = await steadyBox(page, page.locator('section.runs'));
   assert.ok(drawn.y + drawn.height < table.y, 'the chart sits above the runs table, with space between them');
   assert.doesNotMatch(await chart.innerText(), /[\u2013\u2014]/);
   assert.deepEqual(seen.errors, []);
@@ -820,7 +820,7 @@ test('on a phone the Runs tab scrolls its own table, never the page', async () =
     wrap: document.querySelector('.runs .tbl-wrap').scrollWidth > document.querySelector('.runs .tbl-wrap').clientWidth }));
   assert.equal(fit.scroll, 0);
   assert.equal(fit.wrap, true, 'the wide table scrolls inside its card');
-  const views = await page.locator('.top-runs').boundingBox();
+  const views = await steadyBox(page, page.locator('.top-runs'));
   assert.ok(views.x >= 0 && views.x + views.width <= 376);
   assert.deepEqual(seen.errors, []);
   await context.close();

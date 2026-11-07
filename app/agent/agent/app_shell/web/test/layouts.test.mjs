@@ -4,7 +4,7 @@ import { readFileSync, statSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
-import { actBody, DECIDE, ROWS, SRC, TABLE, appInfo, bundleEntry, openApp, openBundle, serveDist, tracked } from './harness.mjs';
+import { actBody, DECIDE, ROWS, SRC, TABLE, appInfo, bundleEntry, openApp, openBundle, scrollsAsked, serveDist, steadyBox, tracked, watchScrolls } from './harness.mjs';
 import { dashboardRoutes, evaluated, explainerRoutes, fanRows, forecastRoutes, monitorRoutes, plannerRoutes, scenarioRoutes } from './exampleRoutes.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -170,6 +170,19 @@ test('a plan with no decisions shows its suggestions with no accept, no override
   }
 });
 
+test('Show me on What to do now jumps to the list for a person who asked for less motion, and glides there otherwise', async () => {
+  for (const [motion, behavior] of [['reduce', 'auto'], ['no-preference', 'smooth']]) {
+    const info = appInfo(DECIDE, 1, {}, 'examples/planner.json');
+    const { page, seen, context } = await openApp(browser, base, info, { routes: plannerRoutes([], [], { keep: true }), watch: watchScrolls(motion) });
+    await page.locator('[data-plan-row="K1"]').waitFor();
+    await scrollsAsked(page);
+    await page.locator('[data-step="first"]').getByRole('button', { name: 'Show me' }).click();
+    assert.deepEqual(await scrollsAsked(page), [behavior], `${motion}: the jump to the list`);
+    assert.deepEqual(seen.errors, []);
+    await context.close();
+  }
+});
+
 test('every plan line can be accepted, overridden with a reason or taken all at once, and a reload keeps each decision', async () => {
   const info = appInfo(DECIDE, 1, {}, 'examples/planner.json');
   const decided = [];
@@ -188,8 +201,8 @@ test('every plan line can be accepted, overridden with a reason or taken all at 
   await line('K1').locator('[data-decided]').waitFor();
   assert.equal(await line('K1').locator('[data-decided]').innerText(), 'Accepted the recommended 90');
   assert.equal(await page.locator('[data-said="K1"]').innerText(), 'Accepted the suggested line', 'the success message shows next to the line, not only in a toast');
-  const below = await page.locator('[data-said="K1"]').boundingBox();
-  const row = await line('K1').boundingBox();
+  const below = await steadyBox(page, page.locator('[data-said="K1"]'));
+  const row = await steadyBox(page, line('K1'));
   assert.ok(below.y >= row.y + row.height - 1 && below.y - (row.y + row.height) < 40, 'the message sits right under its line');
   await waits('5 of 6 waiting for you');
   assert.equal(await line('K1').getByRole('button', { name: 'Accept' }).count(), 0, 'a decided line offers no second accept');

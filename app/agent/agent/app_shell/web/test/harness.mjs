@@ -89,6 +89,28 @@ export async function resizeTo(page, width, height = 900) {
   await page.evaluate(() => { delete window.__inspireSettle; });
 }
 
+export function watchScrolls(motion) {
+  return async (page) => {
+    await page.emulateMedia({ reducedMotion: motion });
+    await page.addInitScript(() => {
+      window.__scrolls = [];
+      for (const name of ['scrollIntoView', 'scrollTo']) {
+        const real = Element.prototype[name];
+        Element.prototype[name] = function watched(...args) {
+          window.__scrolls.push(args[0] && typeof args[0] === 'object' ? args[0].behavior || 'auto' : 'auto');
+          return real.apply(this, args);
+        };
+      }
+    });
+  };
+}
+
+export const scrollsAsked = (page) => page.evaluate(() => window.__scrolls.splice(0));
+
+export async function holdClock(page) {
+  await page.clock.pauseAt(await page.evaluate(() => Date.now() + 1000));
+}
+
 export const toastSays = (page, text) => page.waitForFunction((t) => document.querySelector('.toast .toast-t')?.textContent === t, text);
 
 export function prefsFirst(key, person, prefs) {
@@ -229,6 +251,28 @@ export async function serveDist({ prefix = '/', headers = () => ({}) } = {}) {
   return { base: `${origin}${prefix}`, origin, close: () => server.close() };
 }
 
+const ANSWERING = new WeakMap();
+const API_QUIET_MS = 200;
+
+export async function steadyBox(page, locator, timeout = 15000) {
+  await locator.waitFor({ timeout });
+  const api = ANSWERING.get(page);
+  const end = Date.now() + timeout;
+  while (Date.now() < end) {
+    const box = await locator.evaluate((el) => new Promise((done) => {
+      const read = () => { const r = el.getBoundingClientRect(); return { x: r.x, y: r.y, width: r.width, height: r.height }; };
+      const first = read();
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        const next = read();
+        done(Object.keys(first).every((k) => first[k] === next[k]) ? next : null);
+      }));
+    }));
+    if (box && (!api || (api.open === 0 && Date.now() - api.at >= API_QUIET_MS))) return box;
+    await new Promise((r) => setTimeout(r, 50));
+  }
+  throw new Error(`${locator} did not stop moving in ${timeout} ms`);
+}
+
 export async function openApp(browser, base, info, { width = 1440, height = 900, scheme = 'light', errors = {}, routes = {}, clock, watch, ready = '.kpi-v, .hcard',
   timezone, hash = '' } = {}) {
   const context = await browser.newContext({ viewport: { width, height }, colorScheme: scheme, acceptDownloads: true, ...(timezone ? { timezoneId: timezone } : {}) });
@@ -238,7 +282,9 @@ export async function openApp(browser, base, info, { width = 1440, height = 900,
   page.on('console', (m) => { if (m.type() === 'error') seen.errors.push(m.text()); });
   if (watch) await watch(page);
   let polls = 0;
-  await page.route('**/api/**', async (route) => {
+  const api = { open: 0, at: Date.now() };
+  ANSWERING.set(page, api);
+  const answer = async (route) => {
     const url = new URL(route.request().url());
     const path = url.pathname.replace(/^.*?\/api\//, '');
     const json = (status, data) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(data) });
@@ -278,6 +324,15 @@ export async function openApp(browser, base, info, { width = 1440, height = 900,
         columns: [{ name: 'category', type: 'STRING' }, { name: 'loss', type: 'DOUBLE' }], rows: [{ category: 'Books', loss: 300000 }], truncated: false });
     }
     return json(404, { error: 'no route' });
+  };
+  await page.route('**/api/**', async (route) => {
+    api.open += 1;
+    try {
+      return await answer(route);
+    } finally {
+      api.open -= 1;
+      api.at = Date.now();
+    }
   });
   if (clock) await page.clock.install({ time: clock });
   await page.goto(`${base}${hash}`);

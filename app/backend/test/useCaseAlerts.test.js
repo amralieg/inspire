@@ -432,6 +432,48 @@ test('the alert steps run in a plain Python process with no token in its environ
   await assert.rejects(old.run('listing', {}), (err) => err.statusCode === 503 && err.message === A.ALERT_TEXT.noRules);
 });
 
+test('the alert steps compile their rules once when Inspire copies them, so later steps load the bytecode and never compile the source again', async () => {
+  const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'alert-rules-compiled-'));
+  const compiled = [];
+  try {
+    const options = {
+      files: () => ({ 'shell_alerts.py': 'import json, shell_sql\n\ndef cli():\n    print(json.dumps({"ok": True, "result": shell_sql.WHERE}))\n    return 0\n',
+        'shell_sql.py': 'import os\nWHERE = os.path.dirname(__file__)\n', 'shell_facts.py': '', 'shell_db.py': '', 'shell_redact.py': '' }),
+      tmpRoot, env: { PATH: '/usr/bin:/bin' }, pickPython: async () => '/usr/bin/python3',
+      compile: async (python, stage, dir) => {
+        compiled.push([python, path.dirname(stage) === tmpRoot && stage.endsWith('.partial'), dir]);
+        return A.compileRules(python, stage, dir);
+      },
+    };
+    const dir = await A.createAlertRules(options).run('listing', {});
+    assert.deepEqual(compiled, [['/usr/bin/python3', true, dir]], 'compiled once, by the Python that runs the steps, before the folder is marked ready');
+    assert.equal(path.dirname(dir), tmpRoot, 'the bytecode names the ready folder, never the partial one');
+    const cached = fs.readdirSync(path.join(dir, '__pycache__'));
+    assert.ok(A.ALERT_RULE_FILES.every((name) => cached.some((file) => file.startsWith(`${name.replace(/\.py$/, '')}.`) && file.endsWith('.pyc'))), cached.join(', '));
+    for (const name of A.ALERT_RULE_FILES) fs.chmodSync(path.join(dir, name), 0o000);
+    assert.equal(await A.createAlertRules(options).run('listing', {}), dir, 'the next step runs from the bytecode even when the source cannot be read');
+    assert.equal(compiled.length, 1, 'a step on a ready folder compiles nothing');
+  } finally {
+    for (const name of fs.readdirSync(tmpRoot, { recursive: true })) fs.chmodSync(path.join(tmpRoot, name), 0o700);
+    fs.rmSync(tmpRoot, { recursive: true, force: true });
+  }
+});
+
+test('a staged rules folder whose compile fails still runs its steps from the source', async () => {
+  const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'alert-rules-nocompile-'));
+  try {
+    const rules = A.createAlertRules({
+      files: () => ({ 'shell_alerts.py': 'import json\n\ndef cli():\n    print(json.dumps({"ok": True, "result": "ran"}))\n    return 0\n',
+        'shell_sql.py': '', 'shell_facts.py': '', 'shell_db.py': '', 'shell_redact.py': '' }),
+      tmpRoot, env: { PATH: '/usr/bin:/bin' }, pickPython: async () => '/usr/bin/python3', compile: async () => false,
+    });
+    assert.equal(await rules.run('listing', {}), 'ran');
+    assert.equal(fs.readdirSync(tmpRoot).filter((name) => !name.endsWith('.partial')).length, 1);
+  } finally {
+    fs.rmSync(tmpRoot, { recursive: true, force: true });
+  }
+});
+
 test('the folder of a use case is the App folder when its App sends alerts, else the alerts folder next to the MVP versions', () => {
   assert.equal(A.mvpDir({ notebook_path: `${MVP}/v12/N01-U01 Predict churn` }, null), MVP);
   assert.equal(A.mvpDir({ notebook_path: '/odd/path' }, { source: `${MVP}/apps/n01-u01-42/v3` }), MVP);

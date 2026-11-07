@@ -14,12 +14,15 @@ export function usePageAddress({ page, meta, state, onState, view, onView, views
   const toast = useToast();
   const ready = !!meta && !!state && !meta.error;
   const taken = useRef(false);
+  const openedAt = useRef(parseHash(window.location.hash).route);
   const apply = (next, stale) => {
     if (next.dropped) toast(stale);
     onState(next.state);
     if (next.view !== view) onView(next.view);
   };
   const write = () => {
+    const route = parseHash(window.location.hash).route;
+    if (route !== page.id && route !== openedAt.current) return;
     const next = buildHash(page.id, view, state, meta.filters, parseHash(window.location.hash).rec, meta.columns);
     if (next !== window.location.hash) window.history.replaceState(window.history.state, '', next);
   };

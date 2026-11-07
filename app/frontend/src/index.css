@@ -431,7 +431,9 @@ textarea::placeholder {
     transform: none !important;
   }
   .animate-ping,
-  .animate-schema-float {
+  .animate-schema-float,
+  .page-enter,
+  .page-exit {
     animation: none !important;
   }
   .rail-building {

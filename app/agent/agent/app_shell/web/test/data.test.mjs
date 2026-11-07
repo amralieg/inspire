@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
 import { build } from 'vite';
 import react from '@vitejs/plugin-react';
-import { actBody, CURRENT, DECIDE, F, FIELDS, FILTERS, HISTORY, LABEL, OTHER, PERSON, ROWS, SUMMARY, TABLE, appInfo, lister, openApp, serveDist, tracked, until }
+import { actBody, CURRENT, DECIDE, F, FIELDS, FILTERS, HISTORY, LABEL, OTHER, PERSON, ROWS, SUMMARY, TABLE, appInfo, holdClock, lister, openApp, serveDist, tracked, until }
   from './harness.mjs';
 import { actOutcome, actedText, actionForm, actionProblem, actionValues, changeBadge, explainContext, impactText, leftText, pageText, recordRef, undoText }
   from '../src/records.js';
@@ -153,7 +153,7 @@ test('search waits 300 ms, asks the server once, and a late answer never replace
   };
   const { page, seen, context } = await open(appInfo(), routes, { clock: Date.parse('2026-10-27T09:30:00Z') });
   await page.waitForFunction(() => document.querySelector('.card--table tbody .cell-t'));
-  await page.clock.pauseAt(await page.evaluate(() => Date.now() + 1000));
+  await holdClock(page);
   const box = page.getByLabel('Search the list');
   const asked = () => seen.records.map((b) => b.search);
   await box.pressSequentially('i');
@@ -215,13 +215,20 @@ test('a filter with 500 choices searches the server and keeps the picked values 
       return json(200, { filter: 'category', q: url.searchParams.get('q'), options: ['zz-first', 'zz-second'] });
     },
   };
-  const { page, seen, context } = await open(appInfo(), routes);
+  const { page, seen, context } = await open(appInfo(), routes, { clock: Date.parse('2026-10-27T09:30:00Z') });
   await page.getByRole('button', { name: /^All/ }).first().click();
   const pop = page.getByRole('dialog', { name: 'Category' });
   assert.equal(await pop.locator('.msel-hint').innerText(), 'Showing the first 500 choices. Type to search all of them.');
   await page.getByRole('listbox', { name: 'Category' }).getByText('v001').click();
   const box = page.getByLabel('Search Category');
-  await box.pressSequentially('zz', { delay: 30 });
+  await holdClock(page);
+  await box.pressSequentially('z');
+  await page.clock.runFor(200);
+  await box.pressSequentially('z');
+  await page.clock.runFor(200);
+  assert.deepEqual(asked, [], 'no request while each key comes within the typing pause of the last');
+  await page.clock.runFor(50);
+  await page.clock.resume();
   await page.waitForFunction(() => [...document.querySelectorAll('.msel-pop .opt span')].some((s) => s.textContent === 'zz-first'));
   assert.deepEqual(asked, [{ page: 'n01_u05', filter: 'category', q: 'zz' }], 'one request after the typing pause');
   assert.deepEqual(await page.locator('.msel-pop .opt span').allInnerTexts(), ['v001', 'zz-first', 'zz-second']);

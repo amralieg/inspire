@@ -1,7 +1,7 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
-import { ASK_GROUPS, TABLE, appInfo, askAudit, openApp, pageData, serveDist, until } from './harness.mjs';
+import { ASK_GROUPS, TABLE, appInfo, askAudit, openApp, pageData, serveDist, steadyBox, until } from './harness.mjs';
 import { amountText, moneyOf, recordFormula, ruleText, sumFormula } from '../src/money.js';
 import { nothingReason, nothingText } from '../src/hub.js';
 
@@ -77,6 +77,7 @@ const INFO = (extra = {}) => appInfo({ business: 'Contoso Retail', ...extra }, 3
 });
 
 async function tipOf(page, target) {
+  await steadyBox(page, target);
   await target.hover();
   const id = await target.getAttribute('aria-describedby');
   await page.waitForFunction((tip) => document.getElementById(tip)?.classList.contains('is-on'), id);

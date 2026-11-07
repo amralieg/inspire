@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { defaultSpecFromUseCase } from '../../src/lib/implementWizard.js';
 import { HARNESS_INSPIRE_URL, HARNESS_USE_CASE, HARNESS_SETTINGS, HARNESS_SESSION_ID, MVP_JOB } from './implementFixtures.js';
-import { closeAsset, closeBrowser, expandBuild, featuresBox, featuresHeld, featuresText, lowContrast, openAsset, openFeatures, openSettings, openUi, painted, setDark, shot, until } from './uiSupport.mjs';
+import { closeAsset, closeBrowser, expandBuild, featuresBox, featuresHeld, featuresText, lowContrast, openAsset, openFeatures, openSettings, openUi, painted, setDark, shot, steadyBox, until } from './uiSupport.mjs';
 
 const OWNER = ['owner', 'example.com'].join('@');
 const PAGE = 'app:page:decisions';
@@ -1136,7 +1136,7 @@ test('the name and the tiles stay in view while the Genie feed scrolls inside Bu
     assert.equal(await width(), 352, 'the arrow keys resize it in 16 px steps');
     await page.keyboard.press('End');
     assert.equal(await width(), 520, 'never wider than 520 px');
-    const grip = await handle.boundingBox();
+    const grip = await steadyBox(handle);
     await page.mouse.move(grip.x + grip.width / 2, grip.y + 40);
     await page.mouse.down();
     await page.mouse.move(grip.x + grip.width / 2 - 600, grip.y + 40, { steps: 6 });

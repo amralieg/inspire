@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
 import { createRequire } from 'node:module';
@@ -12,44 +13,107 @@ import { expandBuild } from '../../../scripts/showcaseRecorder.mjs';
 export { expandBuild };
 
 const frontend = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
-const { makeApp, listen } = createRequire(import.meta.url)('../../../backend/test/support/implementApp.js');
+const { makeApp } = createRequire(import.meta.url)('../../../backend/test/support/implementApp.js');
 export const CURRENT_BUILD = createRequire(import.meta.url)('../../../backend/lib/appShell.js').bundledBuildStamp();
 const UNKNOWN_BUILD = { version: '', shell: '' };
 
+export const PREBUNDLED_ENV = 'INSPIRE_UI_PREBUNDLED';
+
+export function viteOptions(cacheDir) {
+  return { root: frontend, configFile: path.join(frontend, 'vite.config.js'), cacheDir, logLevel: 'error', clearScreen: false };
+}
+
 export const VITE_CACHE_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'inspire-ui-vite-'));
 process.once('exit', () => fs.rmSync(VITE_CACHE_DIR, { recursive: true, force: true }));
+const prebundled = process.env[PREBUNDLED_ENV] ? path.join(process.env[PREBUNDLED_ENV], 'deps') : '';
+if (prebundled && fs.existsSync(path.join(prebundled, '_metadata.json'))) fs.cpSync(prebundled, path.join(VITE_CACHE_DIR, 'deps'), { recursive: true });
 
 let browser;
+let servers = null;
+let lastUi = 0;
+const backends = new Map();
+export const UI_HEADER = 'x-inspire-ui-test';
+
+function backendFor(id) {
+  if (id !== undefined) return backends.get(String(id)) || null;
+  return backends.size === 1 ? [...backends.values()][0] : null;
+}
+
+function dispatch(req, res) {
+  const id = req.headers[UI_HEADER];
+  delete req.headers[UI_HEADER];
+  const app = backendFor(id);
+  if (app) return app(req, res);
+  res.statusCode = 503;
+  res.end(id === undefined ? `a request without ${UI_HEADER} reached ${backends.size} open UI tests` : `no open UI test ${id}`);
+}
+
+async function startServers() {
+  const backend = http.createServer(dispatch);
+  await new Promise((resolve) => backend.listen(0, '127.0.0.1', resolve));
+  const url = `http://127.0.0.1:${backend.address().port}`;
+  try {
+    const vite = await createServer({
+      ...viteOptions(VITE_CACHE_DIR),
+      server: { host: '127.0.0.1', port: 0, proxy: { '/api': url, '/showcase': url, '/run': url }, hmr: false },
+    });
+    try {
+      await vite.listen();
+    } catch (e) {
+      await vite.close();
+      throw e;
+    }
+    return { backend, vite, origin: `http://127.0.0.1:${vite.httpServer.address().port}` };
+  } catch (e) {
+    backend.closeAllConnections();
+    await new Promise((resolve) => backend.close(resolve));
+    throw e;
+  }
+}
+
+function sharedServers() {
+  if (!servers) servers = startServers().catch((e) => { servers = null; throw e; });
+  return servers;
+}
 
 export async function closeBrowser() {
+  const started = servers;
+  servers = null;
   if (browser) await browser.close();
   browser = null;
+  const up = started && await started.catch(() => null);
+  if (!up) return;
+  await up.vite.close();
+  up.backend.closeAllConnections();
+  await new Promise((resolve) => up.backend.close(resolve));
 }
 
 export async function openUi(open, overrides = {}, query = '', { mount, init } = {}) {
   if (!browser) browser = await chromium.launch();
   const made = makeApp({ useCase: HARNESS_USE_CASE, buildStamp: UNKNOWN_BUILD, ...overrides }, { mount });
-  const backend = await listen(made.app);
-  const vite = await createServer({
-    root: frontend,
-    configFile: path.join(frontend, 'vite.config.js'),
-    cacheDir: VITE_CACHE_DIR,
-    logLevel: 'error',
-    clearScreen: false,
-    server: { host: '127.0.0.1', port: 0, proxy: { '/api': backend.url, '/showcase': backend.url, '/run': backend.url }, hmr: false },
-  });
-  await vite.listen();
-  const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
-  const pageErrors = [];
-  page.on('pageerror', (e) => pageErrors.push(e.message));
-  page.on('console', (m) => { if (m.type() === 'error') pageErrors.push(m.text()); });
-  const origin = `http://127.0.0.1:${vite.httpServer.address().port}`;
-  if (init) await init(page, origin);
-  await page.goto(`${origin}/test/ui/implement.html?open=${open}${query}`);
-  return {
-    made, page, pageErrors, origin,
-    close: async () => { await page.unrouteAll({ behavior: 'ignoreErrors' }); await page.close(); await vite.close(); await backend.close(); },
+  const opened = [];
+  const close = async () => {
+    const failed = [];
+    for (const stop of opened.splice(0).reverse()) await stop().catch((e) => failed.push(e));
+    if (failed.length) throw failed[0];
   };
+  try {
+    const id = String(++lastUi);
+    backends.set(id, made.app);
+    opened.push(async () => { backends.delete(id); });
+    const { origin } = await sharedServers();
+    const page = await browser.newPage({ viewport: { width: 1440, height: 1000 }, extraHTTPHeaders: { [UI_HEADER]: id } });
+    opened.push(async () => { await page.unrouteAll({ behavior: 'ignoreErrors' }); await page.close(); });
+    const pageErrors = [];
+    page.on('pageerror', (e) => pageErrors.push(e.message));
+    page.on('console', (m) => { if (m.type() === 'error') pageErrors.push(m.text()); });
+    if (init) await init(page, origin);
+    await page.goto(`${origin}/test/ui/implement.html?open=${open}${query}`);
+    return { made, page, pageErrors, origin, close };
+  } catch (e) {
+    await close().catch(() => null);
+    throw e;
+  }
 }
 
 export async function openBuild(state, { init } = {}) {
@@ -100,6 +164,54 @@ export async function openSettings(page) {
 }
 
 export const FAKE_CLOCK = { init: (page) => page.clock.install() };
+
+export async function holdClock(page) {
+  await page.clock.pauseAt(await page.evaluate(() => Date.now() + 1000));
+}
+
+export async function watchScrolls(page) {
+  await page.addInitScript(() => {
+    window.__scrolls = [];
+    for (const name of ['scrollIntoView', 'scrollTo']) {
+      const real = Element.prototype[name];
+      Element.prototype[name] = function watched(...args) {
+        window.__scrolls.push(args[0] && typeof args[0] === 'object' ? args[0].behavior || 'auto' : 'auto');
+        return real.apply(this, args);
+      };
+    }
+  });
+  return () => page.evaluate(() => window.__scrolls.splice(0));
+}
+
+export async function steadyBox(locator, { loaded = false, timeout = 15000 } = {}) {
+  const end = Date.now() + timeout;
+  await locator.waitFor({ state: 'attached', timeout });
+  while (Date.now() < end) {
+    const box = await locator.evaluate((el, skeletons) => new Promise((done) => {
+      if (skeletons && el.querySelector('.animate-pulse')) {
+        done(null);
+        return;
+      }
+      const read = () => {
+        const r = el.getBoundingClientRect();
+        return [r.x, r.y, r.width, r.height, el.scrollHeight, el.scrollWidth, el.scrollTop, el.scrollLeft];
+      };
+      const first = read();
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        const next = read();
+        done(next.every((v, i) => v === first[i]) ? { x: next[0], y: next[1], width: next[2], height: next[3] } : null);
+      }));
+    }), loaded);
+    if (box) return box;
+  }
+  throw new Error(`the layout of ${locator} did not settle in ${timeout} ms`);
+}
+
+export async function finiteAnimationsDone(page) {
+  await page.evaluate(() => Promise.all(document.getAnimations()
+    .filter((a) => a.effect && a.effect.getComputedTiming().iterations !== Infinity)
+    .map((a) => a.finished.catch(() => null))));
+}
 
 export async function pollNow(page, route = '/api/inspire/implement/status', every = 10000) {
   const asked = page.waitForRequest((r) => r.url().includes(route), { timeout: 15000 });
@@ -170,25 +282,8 @@ export async function startMvp(page) {
   await page.getByRole('button', { name: 'Start MVP', exact: true }).click();
 }
 
-export async function settled(page, selector, { loaded = false, timeout = 15000 } = {}) {
-  const end = Date.now() + timeout;
-  while (Date.now() < end) {
-    const steady = await page.evaluate(({ sel, skeletons }) => new Promise((done) => {
-      const el = document.querySelector(sel);
-      if (!el || (skeletons && el.querySelector('.animate-pulse'))) {
-        done(false);
-        return;
-      }
-      const box = () => {
-        const r = el.getBoundingClientRect();
-        return [r.top, r.left, r.width, r.height, el.scrollHeight, el.scrollWidth, el.scrollTop, el.scrollLeft].join();
-      };
-      const first = box();
-      requestAnimationFrame(() => requestAnimationFrame(() => done(box() === first)));
-    }), { sel: selector, skeletons: loaded });
-    if (steady) return;
-  }
-  throw new Error(`the layout of ${selector} did not settle in ${timeout} ms`);
+export function settled(page, selector, { loaded = false, timeout = 15000 } = {}) {
+  return steadyBox(page.locator(selector).first(), { loaded, timeout });
 }
 
 export async function shot(page, name, fullPage = true) {

@@ -1,7 +1,7 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
-import { TABLE, appInfo, openApp, serveDist, until } from './harness.mjs';
+import { TABLE, appInfo, openApp, serveDist, steadyBox, until } from './harness.mjs';
 
 let served;
 let base;
@@ -241,14 +241,14 @@ test('on a phone the views and the edit form fit without sideways scroll', async
   const { routes } = recorder();
   const { page, seen, context } = await open(appInfo(MODIFY, 1, TABLE), routes, { width: 390, height: 844 });
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1));
-  const views = await page.locator('.top-runs').boundingBox();
+  const views = await steadyBox(page, page.locator('.top-runs'));
   assert.ok(views.x >= 0 && views.x + views.width <= 391);
   await page.getByRole('button', { name: 'Add record' }).click();
   const dialog = page.locator('dialog.dialog');
   await dialog.locator('.fgrid').waitFor();
   const columns = await dialog.locator('.fgrid').evaluate((el) => getComputedStyle(el).gridTemplateColumns.split(' ').length);
   assert.equal(columns, 1);
-  const box = await dialog.locator('.dlg').boundingBox();
+  const box = await steadyBox(page, dialog.locator('.dlg'));
   assert.ok(box.x >= 0 && box.x + box.width <= 391, JSON.stringify(box));
   assert.deepEqual(seen.errors, []);
   await context.close();

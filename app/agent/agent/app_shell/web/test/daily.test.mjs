@@ -1,7 +1,7 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
-import { TABLE, appInfo, chartsDrawn, openApp, serveDist, toastSays, until } from './harness.mjs';
+import { TABLE, appInfo, chartsDrawn, openApp, serveDist, steadyBox, toastSays, until } from './harness.mjs';
 import { LINK_STALE, UNKNOWN_PAGE, VIEWS_KEY, VIEW_STALE, decodeFilters, encodeFilters, parseHash } from '../src/links.js';
 
 let served;
@@ -415,7 +415,7 @@ test('on a phone the page tools shrink to labelled icons and the page still fits
   assert.ok(tools.every((t) => t.width >= 40 && t.width <= (t.name.startsWith('Runs') ? 64 : 44) && t.label === 'none' && t.inView), JSON.stringify(tools));
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth));
   await page.getByRole('button', { name: 'Views', exact: true }).click();
-  const pop = await page.getByRole('dialog', { name: 'Saved views' }).boundingBox();
+  const pop = await steadyBox(page, page.getByRole('dialog', { name: 'Saved views' }));
   assert.ok(pop.x >= 0 && pop.x + pop.width <= 375, JSON.stringify(pop));
   assert.deepEqual(seen.errors, []);
   await context.close();

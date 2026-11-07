@@ -11,7 +11,7 @@ import { withRecord, withoutRecord } from './links.js';
 import { addCounts, addedParts, cap, compareValues, dayLabel, entityName, formatValue, integer, kindOf, plainText, savedWords, shownUnit, unitOf } from './format.js';
 
 export const recordName = (row, meta) => entityName(row, meta?.label);
-import { hueVars } from './theme.js';
+import { hueVars, reducedMotion } from './theme.js';
 import { Failure, Popover, Skeleton, useDebounced, useDialog, useToast } from './ui.jsx';
 import { failureOf, getRecords, toneOf } from './api.js';
 import { HistoryList, useHistory } from './History.jsx';
@@ -708,7 +708,7 @@ export default function Records({ meta, app, pageId, filters, ai, onFilter, hist
     handled.current = seeChanged;
     if (data.changes) {
       setChanged(true);
-      card.current?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+      card.current?.scrollIntoView({ block: 'start', behavior: reducedMotion() ? 'auto' : 'smooth' });
     } else onShowRuns?.();
   }, [seeChanged, data]);
   const keys = useRef(null);
