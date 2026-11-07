@@ -8,7 +8,7 @@
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "test:ui": "node --test 'test/ui/*.test.mjs'"
+    "test:ui": "node --test --test-global-setup=test/ui/prebundle.mjs 'test/ui/*.test.mjs'"
   },
   "dependencies": {
     "canvas-confetti": "1.9.4",

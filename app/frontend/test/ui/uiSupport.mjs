@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
 import { createRequire } from 'node:module';
@@ -12,18 +13,79 @@ import { expandBuild } from '../../../scripts/showcaseRecorder.mjs';
 export { expandBuild };
 
 const frontend = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
-const { makeApp, listen } = createRequire(import.meta.url)('../../../backend/test/support/implementApp.js');
+const { makeApp } = createRequire(import.meta.url)('../../../backend/test/support/implementApp.js');
 export const CURRENT_BUILD = createRequire(import.meta.url)('../../../backend/lib/appShell.js').bundledBuildStamp();
 const UNKNOWN_BUILD = { version: '', shell: '' };
 
+export const PREBUNDLED_ENV = 'INSPIRE_UI_PREBUNDLED';
+
+export function viteOptions(cacheDir) {
+  return { root: frontend, configFile: path.join(frontend, 'vite.config.js'), cacheDir, logLevel: 'error', clearScreen: false };
+}
+
 export const VITE_CACHE_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'inspire-ui-vite-'));
 process.once('exit', () => fs.rmSync(VITE_CACHE_DIR, { recursive: true, force: true }));
+const prebundled = process.env[PREBUNDLED_ENV] ? path.join(process.env[PREBUNDLED_ENV], 'deps') : '';
+if (prebundled && fs.existsSync(path.join(prebundled, '_metadata.json'))) fs.cpSync(prebundled, path.join(VITE_CACHE_DIR, 'deps'), { recursive: true });
 
 let browser;
+let servers = null;
+let lastUi = 0;
+const backends = new Map();
+export const UI_HEADER = 'x-inspire-ui-test';
+
+function backendFor(id) {
+  if (id !== undefined) return backends.get(String(id)) || null;
+  return backends.size === 1 ? [...backends.values()][0] : null;
+}
+
+function dispatch(req, res) {
+  const id = req.headers[UI_HEADER];
+  delete req.headers[UI_HEADER];
+  const app = backendFor(id);
+  if (app) return app(req, res);
+  res.statusCode = 503;
+  res.end(id === undefined ? `a request without ${UI_HEADER} reached ${backends.size} open UI tests` : `no open UI test ${id}`);
+}
+
+async function startServers() {
+  const backend = http.createServer(dispatch);
+  await new Promise((resolve) => backend.listen(0, '127.0.0.1', resolve));
+  const url = `http://127.0.0.1:${backend.address().port}`;
+  try {
+    const vite = await createServer({
+      ...viteOptions(VITE_CACHE_DIR),
+      server: { host: '127.0.0.1', port: 0, proxy: { '/api': url, '/showcase': url, '/run': url }, hmr: false },
+    });
+    try {
+      await vite.listen();
+    } catch (e) {
+      await vite.close();
+      throw e;
+    }
+    return { backend, vite, origin: `http://127.0.0.1:${vite.httpServer.address().port}` };
+  } catch (e) {
+    backend.closeAllConnections();
+    await new Promise((resolve) => backend.close(resolve));
+    throw e;
+  }
+}
+
+function sharedServers() {
+  if (!servers) servers = startServers().catch((e) => { servers = null; throw e; });
+  return servers;
+}
 
 export async function closeBrowser() {
+  const started = servers;
+  servers = null;
   if (browser) await browser.close();
   browser = null;
+  const up = started && await started.catch(() => null);
+  if (!up) return;
+  await up.vite.close();
+  up.backend.closeAllConnections();
+  await new Promise((resolve) => up.backend.close(resolve));
 }
 
 export async function openUi(open, overrides = {}, query = '', { mount, init } = {}) {
@@ -36,24 +98,15 @@ export async function openUi(open, overrides = {}, query = '', { mount, init } =
     if (failed.length) throw failed[0];
   };
   try {
-    const backend = await listen(made.app);
-    opened.push(() => backend.close());
-    const vite = await createServer({
-      root: frontend,
-      configFile: path.join(frontend, 'vite.config.js'),
-      cacheDir: VITE_CACHE_DIR,
-      logLevel: 'error',
-      clearScreen: false,
-      server: { host: '127.0.0.1', port: 0, proxy: { '/api': backend.url, '/showcase': backend.url, '/run': backend.url }, hmr: false },
-    });
-    opened.push(() => vite.close());
-    await vite.listen();
-    const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
+    const id = String(++lastUi);
+    backends.set(id, made.app);
+    opened.push(async () => { backends.delete(id); });
+    const { origin } = await sharedServers();
+    const page = await browser.newPage({ viewport: { width: 1440, height: 1000 }, extraHTTPHeaders: { [UI_HEADER]: id } });
     opened.push(async () => { await page.unrouteAll({ behavior: 'ignoreErrors' }); await page.close(); });
     const pageErrors = [];
     page.on('pageerror', (e) => pageErrors.push(e.message));
     page.on('console', (m) => { if (m.type() === 'error') pageErrors.push(m.text()); });
-    const origin = `http://127.0.0.1:${vite.httpServer.address().port}`;
     if (init) await init(page, origin);
     await page.goto(`${origin}/test/ui/implement.html?open=${open}${query}`);
     return { made, page, pageErrors, origin, close };
