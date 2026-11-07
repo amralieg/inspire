@@ -262,7 +262,7 @@ def test_a_build_keeps_the_record_of_the_service_principal_grants_its_app_deploy
     inst._implement_app = lambda context, runner: {"app_name": "churn-desk", "app_url": "https://churn-desk.example",
                                                    "_grants": {"name": "sp-1", "sql": ran, "genie": []}}
     inst._implement_dashboard = inst._implement_genie_space = inst._implement_alert = lambda c, r: pytest.fail("only the App is retried")
-    inst._implement_share = lambda uc, table, spec, assets, job_id, asset_status=None: []
+    inst._implement_share = lambda uc, table, spec, assets, job_id, asset_status=None, sources=(): []
     inst._implement_one_locked({"session_id": 5150, "use_case_id": "N01-U01", "spec_version": 3,
                                 "spec_json": dict(previous, retry_outputs=["app"])}, (5150, "N01-U01", 3))
     final = inst.updates[-1]

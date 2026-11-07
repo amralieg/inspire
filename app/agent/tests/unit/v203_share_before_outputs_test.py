@@ -46,7 +46,10 @@ def test_the_people_a_build_is_shared_with_can_read_its_tables_before_the_genie_
              for grant in (GRANT_CATALOG, GRANT_SCHEMA, GRANT_SELECT, GRANT_SUMMARY, GRANT_REASONS, GRANT_ASSUMPTIONS)]
     assert seen["genie_space"] == early, "the Genie Agent's sample questions read the result table as the people it is shared with"
     assert seen["app"] == early
-    assert _grants(inst.spark.statements) == early + early, "the Sharing step grants every table of the read list again"
+    sources = {name: [f"GRANT USE SCHEMA ON SCHEMA `main`.`s` TO `{name}`", f"GRANT SELECT ON TABLE `main`.`s`.`orders_v2` TO `{name}`",
+                      f"GRANT SELECT ON TABLE `main`.`s`.`returns` TO `{name}`"] for name in ("amr@x", "planners")}
+    assert _grants(inst.spark.statements) == early + early[:6] + sources["amr@x"] + early[6:] + sources["planners"], (
+        "the Sharing step grants every table of the read list again, then the source tables the dashboard reads as each viewer")
 
 
 def test_a_grant_that_fails_before_the_outputs_is_a_warning_once_and_the_outputs_still_build(agent_ns):
