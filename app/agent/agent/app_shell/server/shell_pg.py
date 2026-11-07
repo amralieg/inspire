@@ -128,6 +128,14 @@ def _indexed_problem(name: str, entry: dict) -> list:
     names = {c["name"] for c in entry["columns"]}
     if not isinstance(indexed, list) or any(not isinstance(c, str) or c not in names for c in indexed):
         return [f"the Lakebase copy of {name} must name as indexed only its own columns that an index leads with"]
+    prefixed = entry.get("prefixed", {})
+    if not isinstance(prefixed, dict) or any(c not in names or isinstance(n, bool) or not isinstance(n, int) or n < 1
+                                             for c, n in prefixed.items()):
+        return [f"the Lakebase copy of {name} must name as prefixed only its own columns that an index leads with on their first "
+                f"characters, each with that number of characters"]
+    ordered = entry.get("prefix_ordered", [])
+    if not isinstance(ordered, list) or any(not isinstance(c, str) or c not in prefixed for c in ordered):
+        return [f"the Lakebase copy of {name} must name as prefix_ordered only its prefixed columns whose text sorts by code point"]
     return []
 
 
@@ -650,10 +658,13 @@ def _distinct_column(select, tables: dict, held, overlays):
         return None
     key = ".".join(p for p in (table.catalog, table.db, table.name) if p).lower()
     entry = tables.get(key)
-    if entry is None or key in held or (overlays or {}).get(key) or column.name not in (entry.get("indexed") or ()):
+    if entry is None or key in held or (overlays or {}).get(key):
+        return None
+    prefix = (entry.get("prefixed") or {}).get(column.name) if isinstance(entry.get("prefixed"), dict) else None
+    if column.name not in (entry.get("indexed") or ()) and not prefix:
         return None
     kind = next((str(c.get("type") or "").upper() for c in entry["columns"] if c["name"] == column.name), "")
-    return None if kind in JSON_TYPES else (table, column)
+    return None if kind in JSON_TYPES else (table, column, None if column.name in (entry.get("indexed") or ()) else int(prefix))
 
 
 def _index_distinct(tree, tables: dict, held, overlays):
@@ -663,21 +674,25 @@ def _index_distinct(tree, tables: dict, held, overlays):
         found = _distinct_column(select, tables, held, overlays)
         if found is None:
             continue
-        table, column = found
+        table, column, prefix = found
         source = ".".join(quoted(p) for p in (table.catalog, table.db, table.name) if p)
         c, s, v, n = quoted(column.name), quoted("_inspire_s"), quoted("_inspire_v"), quoted("_inspire_n")
+        k = f"LEFT({c}, {prefix})" if prefix else c
         named = select.expressions[0]
         inner = named.this if isinstance(named, exp.Alias) else named
         value = exp.column("_inspire_v", quoted=True)
         shown = exp.alias_(exp.Cast(this=value, to=inner.to.copy()) if isinstance(inner, exp.Cast) else value, named.alias_or_name,
                            quoted=True)
-        first = f"SELECT {c} FROM {source} WHERE {c} IS NOT NULL ORDER BY {c} ASC NULLS LAST LIMIT 1"
-        after = f"SELECT {c} FROM {source} WHERE {c} > {s}.{v} ORDER BY {c} ASC NULLS LAST LIMIT 1"
+        first = f"SELECT {k} FROM {source} WHERE {k} IS NOT NULL ORDER BY {k} ASC NULLS LAST LIMIT 1"
+        after = f"SELECT {k} FROM {source} WHERE {k} > {s}.{v} ORDER BY {k} ASC NULLS LAST LIMIT 1"
+        w = quoted("_inspire_w")
+        whole = (f" AND LENGTH({v}) < {prefix} UNION SELECT {w}.{c} FROM {s}, LATERAL (SELECT DISTINCT {c} FROM {source} WHERE {k} = "
+                 f"{s}.{v}) AS {w} WHERE LENGTH({s}.{v}) >= {prefix}" if prefix else "")
         walked = sqlglot.parse_one(
             f"SELECT 1 FROM (WITH RECURSIVE {s} AS (SELECT ({first}) AS {v}, 1 AS {n} UNION ALL SELECT ({after}), {s}.{n} + 1 FROM {s} "
-            f"WHERE {s}.{v} IS NOT NULL AND {s}.{n} < {DISTINCT_STEPS}) SELECT {v} FROM {s} WHERE {v} IS NOT NULL "
+            f"WHERE {s}.{v} IS NOT NULL AND {s}.{n} < {DISTINCT_STEPS}) SELECT {v} FROM {s} WHERE {v} IS NOT NULL{whole} "
             f"UNION SELECT {c} FROM {source} WHERE EXISTS (SELECT 1 FROM {s} WHERE {s}.{n} >= {DISTINCT_STEPS}) "
-            f"UNION SELECT NULL WHERE EXISTS (SELECT 1 FROM {source} WHERE {c} IS NULL)) AS {quoted('_inspire_d')}", read="databricks")
+            f"UNION SELECT NULL WHERE EXISTS (SELECT 1 FROM {source} WHERE {k} IS NULL)) AS {quoted('_inspire_d')}", read="databricks")
         walked.set("expressions", [shown])
         if select is tree:
             tree = walked
@@ -693,6 +708,77 @@ def _date_extremes(tree, kinds: dict) -> None:
         if (isinstance(cast, exp.Cast) and cast.to.is_type(exp.DataType.Type.DATE) and isinstance(cast.this, exp.Column)
                 and kinds.get(cast.this.name.lower()) in DATED_TYPES and not isinstance(total.parent, (exp.Window, exp.Filter))):
             total.replace(exp.Cast(this=type(total)(this=cast.this.copy()), to=cast.to.copy()))
+
+
+def _prefix_keys(tables: dict, read) -> tuple:
+    kinds = column_kinds(tables[k] for k in read)
+    prefixed, ordered, unordered = {}, set(), set()
+    for key in read:
+        entry = tables[key]
+        lengths = entry.get("prefixed") or {}
+        sorts = {str(c).lower() for c in entry.get("prefix_ordered") or ()}
+        for name, length in lengths.items():
+            low = str(name).lower()
+            prefixed[low] = length if prefixed.get(low, length) == length else 0
+        for column in entry["columns"]:
+            low = str(column["name"]).lower()
+            (ordered if low in sorts else unordered).add(low)
+    prefixed = {name: n for name, n in prefixed.items() if n and kinds.get(name) == "STRING"}
+    return prefixed, {name: prefixed[name] for name in ordered - unordered if name in prefixed}
+
+
+def _prefixed_column(node, prefixed: dict):
+    from sqlglot import exp
+    inner = node.this if isinstance(node, exp.Cast) and node.to.is_type(exp.DataType.Type.TEXT, exp.DataType.Type.VARCHAR) else node
+    if isinstance(inner, exp.Column) and inner.name.lower() in prefixed:
+        return prefixed[inner.name.lower()]
+    return None
+
+
+def _prefix_value(node) -> bool:
+    from sqlglot import exp
+    return isinstance(node, exp.Placeholder) or (isinstance(node, exp.Literal) and node.is_string)
+
+
+def _prefix_filters(tree, prefixed: dict) -> None:
+    from sqlglot import exp
+    for node in list(tree.find_all(exp.EQ, exp.In)):
+        if not isinstance(node.find_ancestor(exp.Where, exp.Select), exp.Where):
+            continue
+        if isinstance(node, exp.In):
+            key, values = node.this, node.expressions
+            if node.args.get("query") or node.args.get("unnest") or not values or not all(_prefix_value(v) for v in values):
+                continue
+        else:
+            key, values = (node.this, [node.expression]) if _prefix_value(node.expression) else (node.expression, [node.this])
+            if not _prefix_value(values[0]):
+                continue
+        length = _prefixed_column(key, prefixed)
+        if not length:
+            continue
+        cut = lambda e: exp.Left(this=e.copy(), expression=exp.Literal.number(length))
+        node.replace(exp.paren(exp.and_(node.copy(), exp.In(this=cut(key), expressions=[cut(v) for v in values]))))
+
+
+def _prefix_sorts(tree, ordered: dict) -> None:
+    from sqlglot import exp
+    for order in list(tree.find_all(exp.Order)):
+        select = order.parent
+        if not isinstance(select, exp.Select) or select.args.get("distinct"):
+            continue
+        shown = {e.alias_or_name.lower(): e for e in select.expressions}
+        terms = []
+        for term in order.expressions:
+            column = term.this
+            name = column.name.lower() if isinstance(column, exp.Column) else ""
+            alias = shown.get(name)
+            if (name in ordered and not term.args.get("with_fill")
+                    and (alias is None or (isinstance(alias, exp.Column) and alias.name.lower() == name))):
+                lead = term.copy()
+                lead.set("this", exp.Left(this=column.copy(), expression=exp.Literal.number(ordered[name])))
+                terms.append(lead)
+            terms.append(term)
+        order.set("expressions", terms)
 
 
 def render(sql: str, params, tables: dict, held=(), overlays=None) -> tuple:
@@ -731,6 +817,9 @@ def render(sql: str, params, tables: dict, held=(), overlays=None) -> tuple:
             table.replace(body.subquery(alias))
         read.add(key)
     kinds = column_kinds(tables[k] for k in read)
+    prefixed, ordered = _prefix_keys(tables, read)
+    _prefix_filters(tree, prefixed)
+    _prefix_sorts(tree, ordered)
     _date_extremes(tree, kinds)
     _truncate_integer_casts(tree, kinds)
     _bigint_sums(tree, kinds)

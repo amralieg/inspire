@@ -308,7 +308,9 @@ REVIEWED = {
         ('signal_sql', 'check'),
     },
     'composed': {
+        ('_implement_genie_loop', 'denied'),
         ('_implement_genie_loop', 'genie_exit_reason(result, prompt)'),
+        ('_implement_page_spec', 'denied'),
         ('_require_asset_package', 'error'),
         ('_download_cli', 'installed'),
         ('_download_cli', 'why'),

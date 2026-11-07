@@ -17,6 +17,7 @@ EXAMPLE = os.path.join(HERE, "example_page.json")
 EXAMPLES = os.path.join(HERE, "examples")
 PALETTES = os.path.join(WEB, "src", "palettes.json")
 KINDS = os.path.join(HERE, "kinds.json")
+TRANSLATIONS = os.path.join(HERE, "translations.json")
 SHELL = os.path.join(HERE, "app_shell.b64")
 CELL = 1
 VERSION = 1
@@ -26,7 +27,8 @@ WEB_INPUTS = ("index.html", "package.json", "package-lock.json", "vite.config.js
 BINARY_SUFFIXES = (".woff2",)
 CONSTANT = "INSPIRE_NOTEBOOK_ASSETS = "
 LEGACY_CONSTANTS = ("_INSPIRE_APP_SHELL = ", "_INSPIRE_KINDS = ")
-ASSETS = {"app_shell": ("notebook/app_shell.b64", SHELL), "kinds": ("notebook/kinds.json", KINDS)}
+ASSETS = {"app_shell": ("notebook/app_shell.b64", SHELL), "kinds": ("notebook/kinds.json", KINDS),
+          "translations": ("notebook/translations.json", TRANSLATIONS)}
 
 
 def _walk(base: str, relative: str) -> list:

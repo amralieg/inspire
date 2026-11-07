@@ -3289,7 +3289,7 @@ def test_a_build_creates_the_reasons_view_and_hands_it_to_every_output_it_builds
     inst._implement_genie_space = lambda c, r: seen.append(c) or {"genie_space_id": "g1", "genie_space_url": "https://h/genie/rooms/g1"}
     inst._implement_app = lambda c, r: seen.append(c) or {"app_name": "churn-desk", "app_url": "https://churn-desk.example",
                                                           "app_health": "running"}
-    inst._implement_share = lambda uc, table, spec, assets, job_id, asset_status=None: shared.append(table) or []
+    inst._implement_share = lambda uc, table, spec, assets, job_id, asset_status=None, sources=(): shared.append(table) or []
     assert inst._implement_one_locked({"session_id": 5150, "use_case_id": "N01-U01", "spec_version": 3, "spec_json": dict(VALID)},
                                       (5150, "N01-U01", 3)) == "ready"
     assert [s for s in inst.spark.statements if s.startswith("CREATE VIEW")] == [
@@ -3311,7 +3311,7 @@ def test_a_build_creates_the_run_summary_table_the_app_reads_and_hands_it_to_the
     inst._implement_genie_space = lambda c, r: {"genie_space_id": "g1", "genie_space_url": "https://h/genie/rooms/g1"}
     inst._implement_app = lambda c, r: seen.append(c) or {"app_name": "churn-desk", "app_url": "https://churn-desk.example",
                                                           "app_health": "running"}
-    inst._implement_share = lambda uc, table, spec, assets, job_id, asset_status=None: shared.append(table) or []
+    inst._implement_share = lambda uc, table, spec, assets, job_id, asset_status=None, sources=(): shared.append(table) or []
     assert inst._implement_one_locked({"session_id": 5150, "use_case_id": "N01-U01", "spec_version": 3, "spec_json": dict(VALID)},
                                       (5150, "N01-U01", 3)) == "ready"
     assert agent_ns["inspire_ai_summary_create_sql"]("main.inspire.churn_out") in inst.spark.statements, \
@@ -3488,7 +3488,7 @@ def test_a_retry_only_edit_rebuilds_just_the_alert_without_genie_or_a_preview(ag
 
     inst._implement_alert = alert
     inst._implement_dashboard = inst._implement_genie_space = inst._implement_app = lambda c, r: pytest.fail("only the alert is retried")
-    inst._implement_share = lambda uc, table, spec, assets, job_id, asset_status=None: shared.append((dict(assets), job_id)) or []
+    inst._implement_share = lambda uc, table, spec, assets, job_id, asset_status=None, sources=(): shared.append((dict(assets), job_id)) or []
     status = inst._implement_one_locked({"session_id": 5150, "use_case_id": "N01-U01", "spec_version": 3,
                                          "spec_json": dict(previous, retry_outputs=["alert"])}, (5150, "N01-U01", 3))
     assert status == "ready" and inst.updates[0]["change_classes"] == "retry"
@@ -3615,7 +3615,7 @@ def test_an_app_that_runs_behind_sign_in_is_ready_and_only_other_health_results_
     inst._implement_schedule = lambda *a: pytest.fail("a retry leaves the schedule alone")
     inst._implement_app = lambda context, runner: {"app_name": "churn-desk", "app_url": "https://churn-desk.example", "app_health": health}
     inst._implement_dashboard = inst._implement_genie_space = inst._implement_alert = lambda c, r: pytest.fail("only the App is retried")
-    inst._implement_share = lambda uc, table, spec, assets, job_id, asset_status=None: []
+    inst._implement_share = lambda uc, table, spec, assets, job_id, asset_status=None, sources=(): []
     got = inst._implement_one_locked({"session_id": 5150, "use_case_id": "N01-U01", "spec_version": 3,
                                       "spec_json": dict(previous, retry_outputs=["app"])}, (5150, "N01-U01", 3))
     final = inst.updates[-1]
@@ -3682,7 +3682,7 @@ def test_the_ready_message_counts_the_rows_of_a_preview_only_when_one_ran(agent_
     inst._implement_dashboard = lambda c, r: pytest.fail("the dashboard did not change")
     inst._implement_genie_space = lambda c, r: {"genie_space_id": "g1", "genie_space_url": "https://h/genie/rooms/g1"}
     inst._implement_app = lambda c, r: {"app_name": "churn-desk", "app_url": "https://churn-desk.example", "app_health": "running"}
-    inst._implement_share = lambda uc, table, spec, assets, job_id, asset_status=None: []
+    inst._implement_share = lambda uc, table, spec, assets, job_id, asset_status=None, sources=(): []
     got = inst._implement_one_locked({"session_id": 5150, "use_case_id": "N01-U01", "spec_version": 3, "spec_json": dict(VALID)},
                                      (5150, "N01-U01", 3))
     assert got == "ready" and previews == [False], "new outputs with no earlier preview run one preview without a refill"
@@ -3936,7 +3936,7 @@ def test_a_use_case_whose_latest_run_has_nobody_to_act_on_ends_ready_with_a_note
     inst._implement_dashboard = lambda c, r: pytest.fail("the dashboard did not change")
     inst._implement_genie_space = lambda c, r: {"genie_space_id": "g1", "genie_space_url": "https://h/genie/rooms/g1"}
     inst._implement_app = lambda c, r: {"app_name": "churn-desk", "app_url": "https://churn-desk.example", "app_health": "running"}
-    inst._implement_share = lambda uc, table, spec, assets, job_id, asset_status=None: []
+    inst._implement_share = lambda uc, table, spec, assets, job_id, asset_status=None, sources=(): []
     inst._implement_tier_counts = lambda table: tables.append(table) or dict(counts)
     if preview:
         previous = dict(VALID, outputs={**VALID["outputs"], "genie_space": False, "app": False})
@@ -4010,7 +4010,7 @@ def _probe_inspire(ns, responder, carried_status):
     inst._genie_widget_names = lambda instruction, spec: ["result_table"]
     inst._genie_involved_tables = lambda uc: ["main.s.orders", "main.s.returns"]
     inst._implement_schedule = lambda *a: None
-    inst._implement_share = lambda uc, table, spec, assets, job_id, asset_status=None: []
+    inst._implement_share = lambda uc, table, spec, assets, job_id, asset_status=None, sources=(): []
     return inst
 
 
@@ -4186,7 +4186,7 @@ def test_a_question_note_makes_the_run_ready_with_warnings_and_is_recorded_on_th
                                                 "_asset": {"sample_questions": [ASKED], "question_notes": [{"question": ASKED, "note": "n"}]},
                                                 "_warnings": [warning]}
     inst._implement_app = lambda c, r: {"app_name": "churn-desk", "app_url": "https://churn-desk.example", "app_health": "running"}
-    inst._implement_share = lambda uc, table, spec, assets, job_id, asset_status=None: []
+    inst._implement_share = lambda uc, table, spec, assets, job_id, asset_status=None, sources=(): []
     got = inst._implement_one_locked({"session_id": 5150, "use_case_id": "N01-U01", "spec_version": 3, "spec_json": dict(VALID)},
                                      (5150, "N01-U01", 3))
     assert got == "ready_with_warnings"
@@ -4413,7 +4413,7 @@ def test_a_build_that_writes_the_missing_instruction_uses_the_wizards_table_ever
     inst._implement_genie_space = lambda c, r: {"genie_space_id": "g1", "genie_space_url": "https://h/genie/rooms/g1"}
     inst._implement_app = lambda c, r: {"app_name": "churn-desk", "app_url": "https://churn-desk.example", "app_health": "running"}
     inst._implement_schedule = lambda *a: None
-    inst._implement_share = lambda uc, table, spec, assets, job_id, asset_status=None: keep("shared", table, [])
+    inst._implement_share = lambda uc, table, spec, assets, job_id, asset_status=None, sources=(): keep("shared", table, [])
     got = inst._implement_one_locked({"session_id": 5150, "use_case_id": "N01-U01", "spec_version": 1, "spec_json": dict(VALID)},
                                      (5150, "N01-U01", 1))
     assert got == "ready", inst.updates[-1]
@@ -5267,7 +5267,8 @@ def test_genie_gets_the_apps_own_page_checker_and_is_told_to_run_it(agent_ns, tm
     inst._implement_input_has_dates = lambda context: True
     inst._implement_app(context, None)
     payload, _modules = _app_shell(agent_ns, tmp_path / "shell")
-    assert seen["tools"] == agent_ns["implement_app_check_files"](payload["files"], True, ["trend", "bars", "pareto"])
+    assert seen["tools"] == agent_ns["implement_app_check_files"](payload["files"], True, ["trend", "bars", "pareto"],
+                                                       agent_ns["implement_page_many_sides"](context["result_table"], context.get("artifacts")))
     assert sorted(seen["tools"]) == [".inspire_check/check_page.py", ".inspire_check/kinds.json", ".inspire_check/shell_facts.py",
                                      ".inspire_check/shell_redact.py", ".inspire_check/shell_sql.py"]
     assert "run `python .inspire_check/check_page.py` in your working folder: it runs those same checks on page.json and must " \
@@ -5415,7 +5416,7 @@ def test_every_failed_step_that_raises_to_the_build_leaves_its_one_error_to_the_
                     raising += 1
                     flagged += any(kw.arg == "error_logged_elsewhere" and getattr(kw.value, "value", None) is True
                                    for kw in call.keywords)
-    assert raising == 14 and flagged == raising, (raising, flagged)
+    assert raising == 15 and flagged == raising, (raising, flagged)
     failed = source[source.index("    def _implement_failed("):]
     failed = failed[:failed.index("\n    def ", 10)]
     assert failed.count("self.logger.error(") == 2 and "error_logged_elsewhere=True" in failed

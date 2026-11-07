@@ -14,6 +14,7 @@ BUNDLED = os.path.join(APP, "dbx_inspire_ai_agent.ipynb")
 BUNDLE_JS = os.path.join(APP, "backend", "notebook_bundle.js")
 LEGACY = ("_INSPIRE_APP_SHELL", "_INSPIRE_KINDS")
 NOTEBOOK_BYTES_CAP = 6_000_000
+TRANSLATIONS_BEFORE_THE_MOVE_SHA256 = "66c436fa5cb74d084d505dc988d3617a7d7f8e6e9eecb7933c828b5642daaf24"
 IMPORT_BYTES_CAP = 8_000_000
 
 
@@ -74,7 +75,7 @@ def test_no_notebook_copy_holds_the_app_shell_or_the_kind_registry_and_each_stay
 def test_every_notebook_copy_pins_the_repo_build_of_each_asset(agent_ns):
     embed = _embed()
     pins = agent_ns["INSPIRE_NOTEBOOK_ASSETS"]
-    assert set(pins) == {"app_shell", "kinds"}
+    assert set(pins) == {"app_shell", "kinds", "translations"}
     assert pins == embed.pins()
     for label, text in _texts().items():
         line = next(item for item in json.loads(text)["cells"][1]["source"] if item.startswith("INSPIRE_NOTEBOOK_ASSETS = "))
@@ -194,3 +195,47 @@ def test_embed_check_finds_an_asset_still_embedded_or_pinned_at_another_build_an
     path.write_text(json.dumps(stale), encoding="utf-8")
     held = embed.notebook_pins(str(path))
     assert held["kinds"] != embed.pins()["kinds"] and held["app_shell"] == embed.pins()["app_shell"]
+
+
+def test_the_curated_translations_load_from_the_assets_exactly_as_the_notebook_held_them_before_the_move(agent_ns):
+    fallbacks = agent_ns["TranslationService"].TRANSLATION_FALLBACKS
+    assert isinstance(fallbacks, agent_ns["InspireTranslationFallbacks"])
+    held = json.dumps(dict(fallbacks), ensure_ascii=False)
+    assert hashlib.sha256(held.encode("utf-8")).hexdigest() == TRANSLATIONS_BEFORE_THE_MOVE_SHA256
+    assert dict(fallbacks) == json.loads(_repo_bytes(agent_ns, "translations"))
+    assert len(fallbacks) == 22 and fallbacks["Arabic"]["domain"] and "English" not in fallbacks
+    assert fallbacks.get("Klingon", {}) == {} and {**fallbacks}.keys() == set(fallbacks)
+    for label, text in _texts().items():
+        assert "TRANSLATION_FALLBACKS = {" not in text and "TRANSLATION_FALLBACKS = InspireTranslationFallbacks()" in text, label
+
+
+def test_the_curated_translations_read_the_asset_once_and_refuse_one_that_does_not_decode_or_has_the_wrong_shape(fresh_ns, monkeypatch):
+    calls = []
+    good = _repo_bytes(fresh_ns, "translations").decode("utf-8")
+    monkeypatch.setitem(fresh_ns, "inspire_notebook_asset", lambda name: calls.append(name) or good)
+    fallbacks = fresh_ns["InspireTranslationFallbacks"]()
+    assert fallbacks["German"] == json.loads(good)["German"] and len(fallbacks) == 22 and sorted(fallbacks) == sorted(json.loads(good))
+    assert calls == ["translations"]
+    cases = (("{not json", "do not decode"), ("{}", "no usable curated translations"), ("[]", "no usable curated translations"),
+             ('{"Arabic": ["a"]}', "no usable curated translations"), ('{"Arabic": {"domain": 1}}', "no usable curated translations"),
+             ('{"Arabic": {"domain": "x"}, "German": null}', "no usable curated translations"))
+    for text, words in cases:
+        monkeypatch.setitem(fresh_ns, "inspire_notebook_asset", lambda name, text=text: text)
+        broken = fresh_ns["InspireTranslationFallbacks"]()
+        with pytest.raises(RuntimeError, match=words):
+            broken["Arabic"]
+        assert broken._labels is None, text
+
+
+def test_on_databricks_the_curated_translations_come_only_from_the_installed_copy_and_a_missing_one_names_the_installer(fresh_ns, monkeypatch, tmp_path):
+    data = _repo_bytes(fresh_ns, "translations")
+    installed = _install(fresh_ns, tmp_path / "installed", "translations", data)
+    monkeypatch.setattr(fresh_ns["InspireAssets"], "shared", classmethod(lambda cls, root="": installed))
+    monkeypatch.setenv("DATABRICKS_RUNTIME_VERSION", "client.4.0")
+    fresh_ns["_INSPIRE_NOTEBOOK_ASSET_TEXT"].clear()
+    assert dict(fresh_ns["InspireTranslationFallbacks"]()) == json.loads(data)
+    fresh_ns["_INSPIRE_NOTEBOOK_ASSET_TEXT"].clear()
+    unlisted = _install(fresh_ns, tmp_path / "unlisted", "translations", data, listed=False)
+    monkeypatch.setattr(fresh_ns["InspireAssets"], "shared", classmethod(lambda cls, root="": unlisted))
+    with pytest.raises(fresh_ns["InspireAssetError"], match="lists no notebook/translations.json"):
+        fresh_ns["InspireTranslationFallbacks"]()["Arabic"]

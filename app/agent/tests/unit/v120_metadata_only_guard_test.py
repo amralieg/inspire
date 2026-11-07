@@ -332,6 +332,8 @@ def classify_target(target):
     plain = re.sub(r"\s+", "", target.replace("`", ""))
     if re.search(r"(^|\.)information_schema\.", plain, re.I):
         return "information_schema"
+    if re.match(r"^pg_catalog\.pg_[a-z_]+$", plain, re.I):
+        return "pg_catalog"
     if re.search(r"(^|\.)system\.access\.table_lineage$", plain, re.I):
         return "system_lineage"
     if OWNED_PLACEHOLDER.search(target):
@@ -987,3 +989,18 @@ def test_guard_accepts_a_result_read_and_a_zero_row_probe_only_implement_code_re
     assert {entry[3] for entry in accepted["implement"] if entry[-1] == "inspire_guard_probe"} == PROBE_TARGETS
     refused = runtime_audit(_inject(source, (PLAIN_CALLER_ANCHOR, "        inspire_guard_probe(self.spark, table, table)\n")))
     assert PROBE_TARGETS <= _bad_targets(refused), refused["bad"]
+
+
+@pytest.mark.parametrize("target,expected", [
+    ("pg_catalog.pg_class", "pg_catalog"),
+    ("pg_catalog . pg_index", "pg_catalog"),
+    ("`pg_catalog`.`pg_collation`", "pg_catalog"),
+    ("pg_class", None),
+    ("pg_catalog.orders", None),
+    ("pg_catalog_x.pg_class", None),
+    ("public.pg_class", None),
+    ("cat.pg_catalog.pg_class", None),
+])
+def test_only_qualified_postgres_catalog_reads_count_as_metadata(target, expected):
+    assert classify_target(target) == expected
+    assert violations_in(f"SELECT 1 FROM {target}") == ([] if expected else [("read", target)])

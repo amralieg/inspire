@@ -146,7 +146,8 @@ def test_the_check_keeps_what_failed_to_run_apart_from_what_the_page_shows(tmp_p
     ws = ShapedWorkspace(shape)
     s = shell_core.Shell(app_dir(tmp_path, pages=[_queue_page()]), env={"DATABRICKS_WAREHOUSE_ID": "wh1"}, sp_factory=lambda: ws,
                          user_factory=lambda h, t: ws)
-    failed, design = s.check_split({})
+    found = s.checked({})
+    failed, design = ([t for k, t in found if k == shell_core.CHECK_FAILED], [t for k, t in found if k == shell_core.CHECK_DESIGN])
     assert "page n01_u05: records:records failed: relation does not exist" in failed
     assert [p for p in design if "nearly every bar is one record" in p] and not [p for p in failed if "nearly every bar" in p]
     assert not [p for p in design if " failed: " in p]
@@ -255,7 +256,8 @@ def test_a_column_filter_that_does_not_fit_its_values_is_a_page_problem_and_one_
             return super().answer(sql, params)
 
     s, _ws, _made = column_shell(tmp_path, ws=Failing(listed=listed))
-    failed, design = s.check_split(EDITOR)
+    found = s.checked(EDITOR)
+    failed, design = ([t for k, t in found if k == shell_core.CHECK_FAILED], [t for k, t in found if k == shell_core.CHECK_DESIGN])
     unfit = [p for p in design if "column filter value_at_stake is a number_range, but value_at_stake holds STRING" in p]
     assert unfit and not [p for p in failed if "holds STRING values" in p]
     assert "page n09_u03: the decision list column filter priority_tier failed: PERMISSION_DENIED" in failed

@@ -1086,6 +1086,20 @@ def test_a_result_table_with_a_run_log_also_copies_the_latest_run_of_its_log_and
     assert agent_ns["implement_lakebase_pg_table"]({"page": "n01_u01", "dataset": "", "role": "changes"}, []).startswith("n01_u01__c_")
 
 
+def _index_on(agent_ns, copies, page):
+    for i, copy in enumerate(copies):
+        copy.setdefault("key", f"main.inspire.copy_{i}")
+    wanted = agent_ns["implement_lakebase_index_columns"](copies, [page], shell_sql)
+    planned, skipped = agent_ns["implement_lakebase_index_plan"](wanted, {c["key"]: {n["name"]: 12 for n in c["columns"]} for c in copies})
+    assert skipped == []
+    texts = [agent_ns["implement_lakebase_index_sql"](copy, kept).as_string(None) for copy, kept in planned]
+    return texts, [t.split(" ON ", 1)[1] for t in texts]
+
+
+def _left(*columns):
+    return "(" + ", ".join(f'(left("{c}", 256))' for c in columns) + ")"
+
+
 def test_the_copies_are_indexed_on_the_record_key_and_on_each_sort_of_the_decision_list(agent_ns):
     page = {"id": "n01_u01", "result_table": "main.inspire.churn_out", "records": {"key": "entity_id", "rank": "rank", "label": "entity_label",
                                                                                    "tier": "priority_tier", "columns": [{"column": "region"}]}}
@@ -1094,12 +1108,11 @@ def test_the_copies_are_indexed_on_the_record_key_and_on_each_sort_of_the_decisi
               {"page": "n01_u01", "dataset": "records", "pg": "churn_desk.n01_u01__d_records_b",
                "columns": [column(n) for n in ("record_key", "rank", "entity_label", "region")]},
               {"page": "n01_u01", "dataset": "trend", "pg": "churn_desk.n01_u01__d_trend_c", "columns": [column("region")]}]
-    texts = [s.as_string(None) if hasattr(s, "as_string") else str(s) for s in agent_ns["implement_lakebase_index_sql"](copies, [page], shell_sql)]
-    on = [t.split(" ON ", 1)[1] for t in texts]
-    assert on == ['"churn_desk"."n01_u01__t_a" ("record_key")', '"churn_desk"."n01_u01__d_records_b" ("record_key")',
-                  '"churn_desk"."n01_u01__d_records_b" ("rank", "record_key")',
-                  '"churn_desk"."n01_u01__d_records_b" ("entity_label", "record_key")',
-                  '"churn_desk"."n01_u01__d_records_b" ("region", "record_key")'], "a tier the copy lacks is not indexed"
+    texts, on = _index_on(agent_ns, copies, page)
+    assert on == ['"churn_desk"."n01_u01__t_a" ' + _left("record_key"), '"churn_desk"."n01_u01__d_records_b" ' + _left("record_key"),
+                  '"churn_desk"."n01_u01__d_records_b" ' + _left("rank", "record_key"),
+                  '"churn_desk"."n01_u01__d_records_b" ' + _left("entity_label", "record_key"),
+                  '"churn_desk"."n01_u01__d_records_b" ' + _left("region", "record_key")], "a tier the copy lacks is not indexed"
     assert all(t.startswith('CREATE INDEX IF NOT EXISTS "ix_') for t in texts), "an index a later sync kept is never built twice"
 
 
@@ -1116,13 +1129,12 @@ def test_every_copy_is_indexed_on_each_column_a_page_filter_reads_from_it_once(a
               {"page": "n01_u01", "dataset": "activity", "pg": "churn_desk.n01_u01__d_activity_c", "columns": [column(n) for n in ("region", "store", "channel")]},
               {"page": "n01_u01", "dataset": "stores", "pg": "churn_desk.n01_u01__d_stores_d", "columns": [column(n) for n in ("store", "region")]},
               {"page": "n01_u02", "dataset": "activity", "pg": "churn_desk.n01_u02__d_activity_e", "columns": [column("region")]}]
-    texts = [s.as_string(None) if hasattr(s, "as_string") else str(s) for s in agent_ns["implement_lakebase_index_sql"](copies, [page], shell_sql)]
-    on = [t.split(" ON ", 1)[1] for t in texts]
-    assert on == ['"churn_desk"."n01_u01__t_a" ("record_key")', '"churn_desk"."n01_u01__d_records_b" ("record_key")',
-                  '"churn_desk"."n01_u01__d_records_b" ("rank", "record_key")', '"churn_desk"."n01_u01__d_records_b" ("region", "record_key")',
-                  '"churn_desk"."n01_u01__d_records_b" ("as_of_date")', '"churn_desk"."n01_u01__d_records_b" ("store")',
-                  '"churn_desk"."n01_u01__d_activity_c" ("region")', '"churn_desk"."n01_u01__d_activity_c" ("store")',
-                  '"churn_desk"."n01_u01__d_activity_c" ("channel")', '"churn_desk"."n01_u01__d_stores_d" ("region")'], (
+    texts, on = _index_on(agent_ns, copies, page)
+    assert on == ['"churn_desk"."n01_u01__t_a" ' + _left("record_key"), '"churn_desk"."n01_u01__d_records_b" ' + _left("record_key"),
+                  '"churn_desk"."n01_u01__d_records_b" ' + _left("rank", "record_key"), '"churn_desk"."n01_u01__d_records_b" ' + _left("region", "record_key"),
+                  '"churn_desk"."n01_u01__d_records_b" ' + _left("as_of_date"), '"churn_desk"."n01_u01__d_records_b" ' + _left("store"),
+                  '"churn_desk"."n01_u01__d_activity_c" ' + _left("region"), '"churn_desk"."n01_u01__d_activity_c" ' + _left("store"),
+                  '"churn_desk"."n01_u01__d_activity_c" ' + _left("channel"), '"churn_desk"."n01_u01__d_stores_d" ' + _left("region")], (
         "a filter column is indexed on each copy that holds it, a column an index already leads with is not indexed again, a column the "
         "copy lacks is skipped, the current copy is not a dataset, and a copy of a page with no filters gets none")
     assert len(set(texts)) == len(texts)

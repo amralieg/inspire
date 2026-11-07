@@ -127,7 +127,7 @@ def test_a_version_that_shares_hands_sharing_the_result_table_whose_read_list_ho
     inst._implement_genie_space = lambda c, r: {"genie_space_id": "g1", "genie_space_url": "https://h/genie/rooms/g1"}
     inst._implement_app = lambda c, r: {"app_name": "churn-desk", "app_url": "https://churn-desk.example", "app_health": "running"}
     shared = []
-    inst._implement_share = lambda uc, table, spec, assets, job_id, asset_status=None: shared.append(table) or []
+    inst._implement_share = lambda uc, table, spec, assets, job_id, asset_status=None, sources=(): shared.append(table) or []
     assert inst._implement_one_locked({"session_id": 5150, "use_case_id": "N01-U01", "spec_version": 3, "spec_json": dict(VALID)},
                                       (5150, "N01-U01", 3)) == "ready"
     assert shared == ["main.inspire.churn_out"] and ASSUMPTIONS_TABLE in agent_ns["implement_app_result_reads"](shared[0])
