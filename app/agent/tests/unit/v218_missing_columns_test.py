@@ -12,6 +12,7 @@
 """
 import logging
 import os
+import re
 import sys
 
 import pytest
@@ -165,10 +166,30 @@ DRIVER_SCHEMA = list(SCHEMA) + [
 ]
 
 
-def _r13(ns, *ucs):
+def _invented_judge(verdict="invented_source_column"):
+    calls = []
+
+    def judge(prompt_name, display_name, prompt, schema, skip_cache=False):
+        calls.append({"prompt_name": prompt_name, "prompt": prompt, "skip_cache": skip_cache})
+        if isinstance(verdict, Exception):
+            raise verdict
+        checks = []
+        for block in prompt.split("\n### ")[1:]:
+            uc_id = block.split(":", 1)[0].strip()
+            names = re.search(r"Names to judge: (.*)", block).group(1).split(", ")
+            checks += [{"use_case": uc_id, "name": name, "verdict": verdict(uc_id, name) if callable(verdict) else verdict,
+                        "reason": "read as stored" if verdict == "invented_source_column" else "the use case computes it"}
+                       for name in names]
+        return {"checks": checks}
+    judge.calls = calls
+    return judge
+
+
+def _r13(ns, *ucs, judge=None):
     o = make(ns, schema=DRIVER_SCHEMA)
     o.data_category_map = dict(o.data_category_map, **{"main.shop.drivers": "MASTER"})
     o.global_table_names = set(o.global_table_names) | {"main.shop.drivers"}
+    o._implement_llm_object = judge or _invented_judge()
     return o, o._phaseQ3_validate_relevance(list(ucs), DRIVER_SCHEMA)
 
 
@@ -203,8 +224,9 @@ def test_r13_keeps_a_computed_alias_the_use_case_defines(agent_ns):
         _trend("N09-U30", "Trend `fare` over `pickup_ts`; `tip_pct` is the share of `fare` paid as `tip`."),
         _trend("N09-U31", "Trend `fare` and `tip` over `pickup_ts` with `tip_per_fare` (`tip` / `fare`) per zone."),
     ]
-    _o, (kept, dropped) = _r13(agent_ns, *defined)
+    o, (kept, dropped) = _r13(agent_ns, *defined)
     assert ids(kept) == ["N09-U04", "N09-U05", "N09-U06", "N09-U07", "N09-U08", "N09-U30", "N09-U31"], reasons(dropped)
+    assert o._implement_llm_object.calls == []
 
 
 def test_r13_keeps_real_columns_and_names_that_are_not_source_columns(agent_ns):
@@ -244,3 +266,73 @@ def test_r13_moves_a_column_to_the_one_cited_table_that_has_it(agent_ns):
 def test_r13_must_exclude_a_name_that_only_looks_defined(agent_ns, solution):
     _o, (kept, dropped) = _r13(agent_ns, _trend("N09-U15", solution))
     assert ids(kept) == [] and reasons(dropped)["N09-U15"].startswith("Q3_R13_INVENTED_COLUMN:")
+
+
+UNUSUAL = "Trend weekly `fare` and `tip` over `pickup_ts`, then rank zones by `earnings_momentum` week over week."
+
+
+def test_r13_keeps_an_unusual_alias_the_judge_reads_as_derived(agent_ns, caplog):
+    judge = _invented_judge("derived")
+    with caplog.at_level(logging.INFO):
+        _o, (kept, dropped) = _r13(agent_ns, _trend("N09-U40", UNUSUAL), judge=judge)
+    assert ids(kept) == ["N09-U40"], reasons(dropped)
+    [call] = judge.calls
+    assert call["prompt_name"] == "q3_r13_invented_columns" and "Names to judge: earnings_momentum" in call["prompt"]
+    assert "fare" in call["prompt"] and "pickup_ts" in call["prompt"]
+    assert any("R13-JUDGE-DERIVED FIRED" in r.getMessage() and "earnings_momentum" in r.getMessage() for r in caplog.records)
+
+
+def test_r13_drops_an_unusual_name_the_judge_confirms_is_invented(agent_ns, caplog):
+    with caplog.at_level(logging.WARNING):
+        _o, (kept, dropped) = _r13(agent_ns, _trend("N09-U41", UNUSUAL))
+    assert ids(kept) == [] and reasons(dropped)["N09-U41"] == "Q3_R13_INVENTED_COLUMN:earnings_momentum"
+    assert any("R13-INVENTED-COLUMN FIRED" in r.getMessage() and "drops N09-U41" in r.getMessage() for r in caplog.records)
+
+
+def test_r13_judges_only_the_names_it_names_per_use_case(agent_ns):
+    judge = _invented_judge(lambda uc_id, name: "derived" if name == "earnings_momentum" else "invented_source_column")
+    _o, (kept, dropped) = _r13(agent_ns, _trend("N09-U42", UNUSUAL),
+                               _trend("N09-U43", "Trend weekly `fare` and `tip` over `pickup_ts` per `driver_name`."), judge=judge)
+    assert ids(kept) == ["N09-U42"] and reasons(dropped) == {"N09-U43": "Q3_R13_INVENTED_COLUMN:driver_name"}
+    assert len(judge.calls) == 1
+
+
+def test_r13_keeps_and_logs_when_the_judge_fails(agent_ns, caplog):
+    judge = _invented_judge(RuntimeError("serving endpoint unavailable"))
+    with caplog.at_level(logging.WARNING):
+        _o, (kept, dropped) = _r13(agent_ns, _trend("N09-U44", UNUSUAL), judge=judge)
+    assert ids(kept) == ["N09-U44"], reasons(dropped)
+    assert [c["skip_cache"] for c in judge.calls] == [False, True]
+    messages = [r.getMessage() for r in caplog.records]
+    assert any("R13-JUDGE-RETRY FIRED" in m for m in messages)
+    assert any("R13-JUDGE-UNCHECKED FIRED" in m and "N09-U44" in m and "earnings_momentum" in m and "unavailable" in m for m in messages)
+    assert not any("R13-INVENTED-COLUMN FIRED" in m and "drops" in m for m in messages)
+
+
+def test_r13_skips_the_judge_when_the_use_case_names_no_real_column(agent_ns):
+    judge = _invented_judge(RuntimeError("serving endpoint unavailable"))
+    _o, (kept, dropped) = _r13(agent_ns, _trend("N09-U45", "Rank zones by `earnings_momentum` and `driver_name`."), judge=judge)
+    assert ids(kept) == [] and reasons(dropped)["N09-U45"] == "Q3_R13_SOLUTION_UNDER_GROUNDED:0"
+    assert judge.calls == []
+
+
+def test_j3_counts_names_through_the_one_invented_column_detector(agent_ns):
+    o = make(agent_ns, schema=DRIVER_SCHEMA)
+    invented = _trend("N09-U46", "Trend `fare` over `pickup_ts` per `driver_name`, `driver_rank` and `shift_code`.")
+    defined = _trend("N09-U47", "Trend `fare` over `pickup_ts`; compute `late_rate` = late / all, `tip_pct` = tip / fare and "
+                                "`peak_flag` = hour in 7-9.")
+    for uc in (invented, defined):
+        uc.update({"Primary Table": "main.shop.trips", "result_table": "main.inspire.r", "Inspire Score": 7.5})
+    seen = len(agent_ns["NEXT_ACTIONS"].snapshot())
+    o._phaseL_final_gate([invented, defined], DRIVER_SCHEMA)
+    j3 = {a["evidence"].split(":", 1)[0]: a["evidence"] for a in agent_ns["NEXT_ACTIONS"].snapshot()[seen:]
+          if a["rule_id"] == "UC_PRODUCTION_READINESS" and "J3_" in a["evidence"]}
+    assert list(j3) == ["UC N09-U46"] and "J3_ungrounded_cols:3" in j3["UC N09-U46"]
+
+
+def test_the_invented_column_check_is_a_registered_inline_prompt(agent_ns):
+    registered = {p["prompt_name"]: p for p in agent_ns["TECHNICAL_CONTEXT"]["prompts_models"]}
+    assert registered["q3_r13_invented_columns"]["model_type"] == "worker"
+    assert registered["q3_r13_invented_columns"]["temperature"] == 0.0
+    assert "q3_r13_invented_columns" in agent_ns["INLINE_PROMPT_NAMES"]
+    assert "q3_r13_invented_columns" not in agent_ns["PROMPT_TEMPLATES"]
