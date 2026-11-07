@@ -90,6 +90,30 @@ const OUTPUT_URLS = { dashboard: 'dashboard_url', genie_space: 'genie_space_url'
 const OUTPUT_IDS = { dashboard: 'dashboard_id', genie_space: 'genie_space_id', app: 'app_name', alert: 'alert_id' };
 const OUTPUT_NAMES = { dashboard: (a) => a?.name, genie_space: (a) => a?.title, app: (a) => a?.name, alert: (a) => a?.name };
 
+const CRON_DAYS = { SUN: 'Sunday', MON: 'Monday', TUE: 'Tuesday', WED: 'Wednesday', THU: 'Thursday', FRI: 'Friday', SAT: 'Saturday' };
+const CRON_DAY_NUMBERS = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+const ANY = ['*', '?'];
+
+function cronDay(part) {
+  const key = /^[1-7]$/.test(part) ? CRON_DAY_NUMBERS[Number(part) - 1] : String(part).toUpperCase();
+  return CRON_DAYS[key] || '';
+}
+
+export function scheduleWords(cron) {
+  const raw = String(cron || '').trim();
+  const fields = raw.split(/\s+/);
+  if (fields.length < 6 || fields.length > 7) return raw;
+  const [sec, min, hour, dom, month, dow] = fields;
+  if (!/^\d{1,2}$/.test(hour) || !/^\d{1,2}$/.test(min) || sec !== '0' || month !== '*' || (fields[6] && fields[6] !== '*')) return raw;
+  const at = `at ${hour.padStart(2, '0')}:${min.padStart(2, '0')}`;
+  if (ANY.includes(dom) && ANY.includes(dow)) return `every day ${at}`;
+  if (dom !== '?') return raw;
+  const days = dow.split(',').map(cronDay);
+  if (!days.length || days.some((d) => !d)) return raw;
+  const named = joinWords(days);
+  return `every ${named} ${at}`;
+}
+
 function jobRow(entry, spec) {
   const scheduled = Boolean(spec?.schedule?.enabled);
   const schedule = { label: scheduled ? 'Pause the schedule' : 'Resume the schedule', on: scheduled };
@@ -99,7 +123,7 @@ function jobRow(entry, spec) {
     return { ...row, detail: withHoldout(row.detail), schedule };
   }
   const plan = withHoldout(entry.schedule
-    ? `${entry.schedule.paused ? 'Schedule paused' : 'Scheduled'}: ${entry.schedule.cron} (${entry.schedule.timezone})`
+    ? `${entry.schedule.paused ? 'Schedule paused' : 'Scheduled'}: ${scheduleWords(entry.schedule.cron)} (${entry.schedule.timezone})`
     : 'No schedule');
   const runs = entry.active_runs;
   if (runs == null) {

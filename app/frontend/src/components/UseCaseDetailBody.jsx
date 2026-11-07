@@ -340,7 +340,7 @@ export default function UseCaseDetailBody({
 
           {!shippedGenie && notebookPath && (
             <p className="text-[10px] text-text-tertiary mb-2 leading-relaxed">
-              Skeleton or partial Genie text. To write the full Genie instruction, use <span className="font-semibold">{START_MVP_LABEL}</span> and choose {NOTEBOOK_MODE_LABEL}. Preview shows notebook cells / instruction text when available.
+              This notebook holds an outline or part of the instruction. To write the full Genie Code instruction, use <span className="font-semibold">{START_MVP_LABEL}</span> and choose {NOTEBOOK_MODE_LABEL}. Preview shows the notebook cells or the instruction text when there are some.
             </p>
           )}
 

@@ -248,7 +248,7 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
           }
         } else {
           const errText = await resp.text().catch(() => '');
-          setError(errText || `Could not load sessions (${resp.status})`);
+          setError(errText || `Could not load runs (${resp.status})`);
         }
       } catch (err) {
         setError(err.message);
@@ -323,7 +323,7 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
             Welcome back
           </h1>
           <p className="text-sm text-text-secondary max-w-md mx-auto">
-            Pick up where you left off or start a fresh experiment.
+            Pick up where you left off or start a new run.
           </p>
         </div>
 
@@ -336,7 +336,7 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
         {/* ── Previous Experiments ── */}
         <div className="space-y-3">
           <div className="flex items-center justify-between px-1">
-            <h2 className="text-xs font-semibold text-text-secondary uppercase tracking-[0.1em]">Previous Experiments</h2>
+            <h2 className="text-xs font-semibold text-text-secondary uppercase tracking-[0.1em]">Previous runs</h2>
             <button
               onClick={() => onViewResults(null)}
               className="text-[11px] text-text-tertiary hover:text-db-red-fg transition-colors flex items-center gap-1"
@@ -549,7 +549,7 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
                         <button
                           onClick={(e) => { e.stopPropagation(); setConfirmDelete(session.session_id); }}
                           className="relative z-10 p-1.5 rounded-lg text-text-tertiary opacity-0 group-hover:opacity-100 focus-visible:opacity-100 hover:text-error-fg hover:bg-error-bg transition-all"
-                          title="Delete experiment"
+                          title="Delete run"
                         >
                           <Trash2 size={14} />
                         </button>
@@ -650,7 +650,7 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
                 {showAll ? (
                   <><ChevronUp size={14} /> Show less</>
                 ) : (
-                  <><ChevronDown size={14} /> Show {sessions.length - 5} more experiment{sessions.length - 5 !== 1 ? 's' : ''}</>
+                  <><ChevronDown size={14} /> Show {sessions.length - 5} more run{sessions.length - 5 !== 1 ? 's' : ''}</>
                 )}
               </button>
             )}
@@ -661,7 +661,7 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
           <div className="flex flex-col items-center gap-1 text-xs text-warning-fg justify-center pt-2 px-4 text-center">
             <div className="flex items-center gap-2">
               <AlertCircle size={13} />
-              <span>Could not load all runs. You can still start a new experiment.</span>
+              <span>Could not load all runs. You can still start a new run.</span>
             </div>
             {typeof error === 'string' && error.trim() && error !== 'false' && (
               <span className="text-[10px] text-text-tertiary font-mono break-all max-w-xl">{error}</span>

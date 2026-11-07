@@ -47,7 +47,7 @@ export default function GenerateDataPage({ settings, onBack, onLaunched }) {
     e.preventDefault();
     if (!businessName.trim()) return setError('Business name is required.');
     if (!description.trim()) return setError('Describe the data you want to create.');
-    if (!inspireDatabase) return setError('Inspire database not configured. Set INSPIRE_DATABASE in .env or Workspace setup.');
+    if (!inspireDatabase) return setError('The Inspire database is not set yet. Set it in Workspace setup.');
 
     setSubmitting(true);
     setError('');
@@ -89,10 +89,9 @@ export default function GenerateDataPage({ settings, onBack, onLaunched }) {
         <div>
           <h1 className="text-2xl font-bold text-text-primary tracking-tight">I don&apos;t have data</h1>
           <p className="text-sm text-text-secondary mt-1 leading-relaxed">
-            Describe the demo you need. A Foundation Model writes Python code, runs it on your cluster,
-            and stores <strong>five Delta tables</strong> with Unity Catalog descriptions in your existing UC catalog (same catalog as{' '}
-            <code className="font-mono text-xs">{inspireDatabase?.split('.')[0] || 'INSPIRE_DATABASE'}</code>
-            ). Inspire then discovers use cases from that metadata. No template fallback.
+            Describe the demo you need. Inspire writes and runs the code that builds <strong>five tables</strong> of made-up data, each
+            with a description, in the catalog of your Inspire database{inspireDatabase ? <> (<code className="font-mono text-xs">{inspireDatabase.split('.')[0]}</code>)</> : ''}.
+            Inspire then finds use cases in those tables.
           </p>
         </div>
       </div>
@@ -101,8 +100,7 @@ export default function GenerateDataPage({ settings, onBack, onLaunched }) {
         <div className="mb-6 p-4 rounded-lg border border-warning/30 bg-warning-bg flex gap-3">
           <AlertCircle size={18} className="text-warning-fg shrink-0 mt-0.5" />
           <p className="text-sm text-text-secondary">
-            Connect your workspace first: set <code className="text-xs">DATABRICKS_HOST</code> and{' '}
-            <code className="text-xs">DATABRICKS_TOKEN</code> in <code className="text-xs">.env</code>, or use the Setup Wizard.
+            Connect your workspace first in Workspace setup.
           </p>
         </div>
       )}

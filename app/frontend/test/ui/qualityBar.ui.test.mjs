@@ -55,7 +55,7 @@ test('a run where nothing meets the bar still lists every use case found, each m
     const done = page.locator('[data-testid="execution-complete"]');
     await done.waitFor();
     assert.equal(await done.getAttribute('data-status'), 'warning');
-    assert.match(await done.innerText(), /Execution Complete, with a warning/);
+    assert.match(await done.innerText(), /Run finished, with a warning/);
     assert.match(await page.locator('[data-testid="quality-bar-counts"]').innerText(), /^6 found, 0 meet your quality bar$/);
     assert.match(await page.locator('[data-testid="execution-outcome"]').innerText(), /^None of the 6 use cases found meets your High bar/);
     assert.equal(await page.locator('[data-testid="quality-bar-next-step"]').innerText(),

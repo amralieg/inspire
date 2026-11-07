@@ -350,7 +350,7 @@ test('the demo replays every view from the bundle with no workspace call, refuse
     await startRun.waitFor();
     assert.equal(await page.locator('main [data-run]').count(), 1, 'Start lists the demo run alone');
     assert.equal(await startRun.locator('[data-latest-run]').count(), 1, 'Start marks the demo run as the latest run of its business');
-    assert.equal(await page.getByTitle('Delete experiment').count(), 0, 'the demo offers no delete on Start');
+    assert.equal(await page.getByTitle('Delete run').count(), 0, 'the demo offers no delete on Start');
     const startTotals = page.getByRole('region', { name: 'Across all runs' });
     await startTotals.locator('[data-portfolio-card="runs"] [data-card-value]', { hasText: '1' }).waitFor();
     assert.deepEqual(await startTotals.locator('[data-portfolio-card]').evaluateAll((els) => Object.fromEntries(els.map((el) => [el.getAttribute('data-portfolio-card'),
@@ -396,7 +396,9 @@ test('the demo replays every view from the bundle with no workspace call, refuse
     await page.getByText('Score the use cases', { exact: true }).click();
     await page.getByText('3 use cases', { exact: true }).waitFor();
     assert.equal(await page.getByText('Forecast stock', { exact: true }).count(), named + 1, 'a step recorded with only the fields Monitor shows still names its use cases');
-    await page.getByText('Use cases of run 42').waitFor();
+    const heading = page.getByText(/^Use cases of /);
+    await heading.waitFor();
+    assert.doesNotMatch(await heading.innerText(), /\b42\b|\brun \d/, 'the use cases are named by the business and start, never by the internal run number');
     await page.getByText('Pipeline completed successfully').waitFor();
     await settle();
     await demoBar(page).getByText(SHOWCASE_NOTE).waitFor();

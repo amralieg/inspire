@@ -2004,7 +2004,7 @@ test('each output drawer shows its asset live, the App drawer stops the App thro
     await assetPanel(page, 'app').getByText('Running', { exact: true }).waitFor();
     await showView(page, 'job');
     const job = page.getByRole('region', { name: 'Build and job' }).locator('[data-control="job"]');
-    await job.getByText('Scheduled: 0 0 6 * * ? (UTC)').waitFor();
+    await job.getByText('Scheduled: every day at 06:00 (UTC)').waitFor();
     assert.equal(await viewOf(page, 'job').locator('[data-asset-panel]').count(), 0, 'the outputs live in their own drawers');
     const kinds = {};
     for (const id of ['app', 'dashboard', 'alert', 'genie_space']) {
@@ -2057,7 +2057,7 @@ test('the job row in the Job drawer shows the share of records the built version
   try {
     await showView(page, 'job');
     const job = page.getByRole('region', { name: 'Build and job' }).locator('[data-control="job"]');
-    await job.getByText('Scheduled: 0 0 6 * * ? (UTC). Holds back 15% of the records to measure impact', { exact: true }).waitFor();
+    await job.getByText('Scheduled: every day at 06:00 (UTC). Holds back 15% of the records to measure impact', { exact: true }).waitFor();
     assert.deepEqual(ui.pageErrors, []);
   } finally {
     await ui.close();

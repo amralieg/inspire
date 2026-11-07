@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { closeBrowser, openUi } from './uiSupport.mjs';
+import { closeBrowser, openUi, until } from './uiSupport.mjs';
 
 test.after(closeBrowser);
 
@@ -46,6 +46,32 @@ test('the Setup catalog list shows system and hive_metastore next to every other
     assert.equal(await page.locator('button[title="samples"]').count(), 1);
     assert.equal(await page.locator('button[title="system"]').count(), 1);
     assert.equal(await page.locator('button[title="hive_metastore"]').count(), 1);
+  } finally {
+    await ui.close();
+  }
+});
+
+test('a Get Started that cannot start yet says what is missing next to it, and the note goes once everything is set (must-exclude)', async () => {
+  const ui = await openUi('launch', { catalogs: ['main'], schemas: { main: ['s'] }, tables: { 'main.s': ['orders'] } });
+  const { page, pageErrors, made } = ui;
+  try {
+    const start = page.getByRole('button', { name: 'Get Started' });
+    const note = page.locator('[data-launch-block]');
+    await page.locator('button[title="main"]').waitFor({ timeout: 15000 });
+    assert.equal(await start.isDisabled(), true);
+    assert.equal(await note.innerText(), 'Enter a Business Name to get started.');
+    assert.equal(await start.getAttribute('aria-describedby'), 'launch-block');
+    await page.getByPlaceholder('e.g. Contoso, Acme Corp, Retail Division').fill('Acme');
+    assert.equal(await note.innerText(), 'Pick at least one catalog, schema or table under Unity Catalog Metadata to get started.');
+    await page.locator('button[title="main"]').click();
+    await page.locator('button[title="s"]').click();
+    await page.locator('button[title="orders"]').click();
+    await note.waitFor({ state: 'detached' });
+    await until(async () => !(await start.isDisabled()));
+    assert.equal(await start.getAttribute('aria-describedby'), null);
+    await start.click();
+    await until(() => made.launches.length === 1);
+    assert.deepEqual(pageErrors.filter((line) => !/status of 40[13]/.test(line)), []);
   } finally {
     await ui.close();
   }

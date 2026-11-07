@@ -619,7 +619,7 @@ test('the dashboard, Genie Agent, alert and job rows read their live state and o
   assert.deepEqual(one('alert', { ok: true, state: 'OK' }).actions, []);
   const running = one('job', { ok: true, schedule: { cron: '0 0 6 * * ?', timezone: 'UTC', paused: true }, active_runs: [{ run_id: 5, url: 'https://w/run/5' }] });
   assert.deepEqual([running.state, running.detail, running.url, actionsOf(running), running.removable],
-    [{ label: '1 running', tone: 'busy' }, 'Schedule paused: 0 0 6 * * ? (UTC)', 'https://w/run/5', ['job:cancel'], false]);
+    [{ label: '1 running', tone: 'busy' }, 'Schedule paused: every day at 06:00 (UTC)', 'https://w/run/5', ['job:cancel'], false]);
   assert.deepEqual(running.schedule, { label: 'Pause the schedule', on: true }, 'the schedule button follows the spec the agent applies');
   const idle = one('job', { ok: true, schedule: null, active_runs: [] }, { ...LATEST, spec_json: { ...LATEST.spec_json, schedule: { enabled: false } } });
   assert.deepEqual([idle.state.label, idle.detail, idle.actions, idle.schedule.label], ['Idle', 'No schedule', [], 'Resume the schedule']);

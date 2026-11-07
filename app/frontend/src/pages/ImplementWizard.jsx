@@ -1027,8 +1027,8 @@ export default function ImplementWizard({
                 </div>
               )}
               {editing && (
-                <p className="text-[11px] text-text-tertiary">
-                  This use case has an MVP (v{context.latest.spec_version}). {MVP_MODE_LABEL} edits it; {NOTEBOOK_MODE_LABEL} leaves it as it is.
+                <p data-editing-note="" className="text-[11px] text-text-tertiary">
+                  This use case already has an MVP (version {context.latest.spec_version}). Pick “{MVP_MODE_LABEL}” to update that MVP, or “{NOTEBOOK_MODE_LABEL}” to leave it unchanged.
                 </p>
               )}
             </fieldset>

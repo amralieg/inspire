@@ -142,7 +142,7 @@ test('Businesses, Runs and the use case cards filter the runs list in place with
       assert.equal(await chip(page).locator('p').innerText(), text);
       assert.equal(await card(page, key).getAttribute('aria-pressed'), 'true');
       assert.deepEqual(await rows(page), want, key);
-      assert.equal(await page.getByRole('button', { name: /Show \d+ more experiment/ }).count(), 0, `${key} shows every run it keeps`);
+      assert.equal(await page.getByRole('button', { name: /Show \d+ more run/ }).count(), 0, `${key} shows every run it keeps`);
       assert.equal(await page.getByRole('heading', { name: 'Build', exact: true }).count(), 0, `${key} stays on Start`);
     }
     assert.equal(await card(page, 'businesses').getAttribute('aria-pressed'), 'false', 'one filter at a time');

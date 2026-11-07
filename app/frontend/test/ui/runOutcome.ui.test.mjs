@@ -56,7 +56,7 @@ test('Results: a run stopped for want of a model shows the reason, never "Every 
     assert.match(await done.innerText(), /No AI model available/);
     assert.equal(await page.locator('[data-testid="execution-failure"]').innerText(), NO_MODEL);
     assert.equal(await page.getByText('Every step of the run finished.').count(), 0);
-    assert.doesNotMatch(await done.innerText(), /Execution Complete/);
+    assert.doesNotMatch(await done.innerText(), /Run finished/);
     assert.deepEqual(ui.pageErrors, []);
   } finally {
     await ui.close();

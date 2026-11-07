@@ -217,8 +217,8 @@ export const HOLDOUT_PERCENT_PROBLEM = `the share of records to hold back must b
 
 export const APP_LOOK_DEFAULT = { style: 'a', layout: 'sidebar', palette: 'default', theme: 'light' };
 export const APP_STYLES = [
-  { id: 'a', label: 'Style A', blurb: 'Flat cards with a colour line under each KPI.' },
-  { id: 'b', label: 'Style B', blurb: 'Tinted headers, rounded controls, KPIs with a colour edge.' },
+  { id: 'a', label: 'Style A', blurb: 'Flat cards with a color line under each KPI.' },
+  { id: 'b', label: 'Style B', blurb: 'Tinted headers, rounded controls, KPIs with a color edge.' },
   { id: 'c', label: 'Style C', blurb: 'Serif headlines, large KPIs on a ruled strip.' },
 ];
 export const LAKEVIEW_STYLE_NOTE = 'Only style A matches the Lakeview dashboard look.';

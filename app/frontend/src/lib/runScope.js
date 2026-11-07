@@ -563,6 +563,7 @@ export function profileHeldText(profile) {
   const table = text(profile?.table);
   if (records == null || !table) return '';
   const goal = Number(SCOPE_DEFAULTS[SCOPE_RECORDS]);
-  if (records <= goal) return `${table} holds ${counted(records, 'record')}, so a first run of about ${counted(goal, 'record')} covers all of it.`;
+  if (records === 0) return `${table} holds no records yet, so a first run has nothing to read until data arrives.`;
+  if (records <= goal) return `${table} holds ${counted(records, 'record')}, so the first run covers all of it.`;
   return `${table} holds ${counted(records, 'record')}, so Inspire suggests a smaller first run to show results sooner.`;
 }

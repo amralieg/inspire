@@ -314,7 +314,7 @@ test('a technique Data groups do not apply to asks only for the first run, and a
     await toStep(page, 'First run');
     assert.deepEqual(await stepBar(page), ['1. Choose', '2. Data', '3. First run', '4. Results', '5. Delivery', '6. App placement', '7. App access', '8. App look',
       '9. Settings', '10. Vibes']);
-    assert.equal(await page.locator('[data-first-run-held]').textContent(), 'main.sales.orders holds 800 records, so a first run of about 1,000 records covers all of it.');
+    assert.equal(await page.locator('[data-first-run-held]').textContent(), 'main.sales.orders holds 800 records, so the first run covers all of it.');
     assert.deepEqual(await checkedChoice(page, 'data-first-run-choice'), ['records'], 'a profile that still says all is never the default');
     assert.equal(await page.locator('[data-first-run-covers]').textContent(), 'The first run covers all 800 records of main.sales.orders, since it holds no more than 1,000 records.');
     assert.deepEqual(await page.locator('[data-first-run-choice]').evaluateAll((rows) => rows.map((r) => r.dataset.firstRunChoice)), ['records', 'recent', 'all'],

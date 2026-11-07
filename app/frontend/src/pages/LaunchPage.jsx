@@ -343,7 +343,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
         else setAllCreatedUcs(allUcPayload.usecases || []);
       } catch (e) {
         if (!cancelled) {
-          setOverviewError(e.message || 'Could not load experiments');
+          setOverviewError(e.message || 'Could not load runs');
           setSessionsList([]);
         }
       } finally {
@@ -674,14 +674,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
 
   // Launch
   const handleLaunch = async () => {
-    if (!params['00_business_name'])
-      return setLaunchError('Business name is required.');
-    if (!params['02_inspire_database'] && !inspireDatabase)
-      return setLaunchError('Inspire Database is required. Set it in Settings.');
-    if (!params['01_uc_metadata'])
-      return setLaunchError('Select at least one catalog, schema, or table for UC Metadata.');
-    if (strategyProblems.length)
-      return setLaunchError(`Fix the strategy first, under Strategy (optional): ${strategyProblems[0]}`);
+    if (launchBlock) return setLaunchError(launchBlock);
     if (!outputCheck.ready)
       return setLaunchError(outputCheck.text || 'Wait until Inspire has checked that you can write to the output folder.');
 
@@ -758,7 +751,12 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
   const effectiveDb = params['02_inspire_database'] || inspireDatabase;
   const bestOfBestText = String(params['16_best_of_best_count'] ?? '').trim();
   const bestOfBestInvalid = bestOfBestText !== '' && (!/^\d{1,3}$/.test(bestOfBestText) || Number(bestOfBestText) > 100);
-  const canLaunch = params['00_business_name'] && effectiveDb && params['01_uc_metadata'] && strategyProblems.length === 0 && !bestOfBestInvalid;
+  const launchBlock = !params['00_business_name'] ? 'Enter a Business Name to get started.'
+    : !effectiveDb ? 'Set the Inspire Database in Advanced Settings to get started.'
+      : !params['01_uc_metadata'] ? 'Pick at least one catalog, schema or table under Unity Catalog Metadata to get started.'
+        : strategyProblems.length ? `Fix the strategy first, under Strategy (optional): ${strategyProblems[0]}`
+          : bestOfBestInvalid ? 'Fix Best of Best stars in Advanced Settings: use a whole number from 0 to 100, or leave it empty.' : '';
+  const canLaunch = !launchBlock;
 
   const launchErrorGuidance = useMemo(
     () => (launchError
@@ -878,8 +876,8 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                 {overviewLoading
                   ? 'Loading your recent runs…'
                   : sessionsList.length > 0
-                    ? `${sessionsList.length} experiment${sessionsList.length === 1 ? '' : 's'} · use Quick view to see use cases created in each run`
-                    : 'No experiments yet. Launch a run to see it listed here.'}
+                    ? `${sessionsList.length} run${sessionsList.length === 1 ? '' : 's'} · use Quick view to see the use cases each run found`
+                    : 'No runs yet. Start one to see it listed here.'}
               </p>
             </div>
             <ChevronDown
@@ -1192,9 +1190,9 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                         searchPlaceholder="Search catalogs..."
                         emptyText={
                           !databricksHost
-                            ? 'Set DATABRICKS_HOST in .env or Workspace setup'
+                            ? 'Connect a workspace first in Workspace setup'
                             : !token && !serverEnvHasPat
-                              ? 'No server auth: make sure app.yaml declares the service principal, then run npm run deploy from the repo'
+                              ? 'Inspire cannot sign in to the workspace. Ask whoever installed Inspire to run inspire_installer.py again.'
                               : loadingCatalogs
                                 ? 'Loading...'
                                 : 'No catalogs found'
@@ -1510,7 +1508,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
             <div className="px-6 pb-6 pt-2 border-t border-border space-y-6">
 
               {/* Inspire Database */}
-              <Field label="Inspire Database" icon={Database} hint="catalog.schema format: where Inspire stores its session tracking tables">
+              <Field label="Inspire Database" icon={Database} hint="catalog.schema format: where Inspire keeps its record of each run">
                 <input dir="auto"
                   type="text"
                   placeholder="e.g. my_catalog._inspire"
@@ -1520,7 +1518,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                 />
               </Field>
 
-              <FieldSection label="Operation" hint="Discover finds use cases; Generate writes the Genie instructions again for flagged use cases only">
+              <FieldSection label="Operation" hint="Discover finds use cases; Generate writes the Genie Code instructions again for flagged use cases only">
                 <GlowSelect
                   value={params['15_operation']}
                   onChange={(v) => updateParam('15_operation', v)}
@@ -1643,7 +1641,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                 <Field
                   label="Auto-Genie scope"
                   icon={Bot}
-                  hint="In Discover, 0 (the default) writes outline notebooks only; all, or a number such as 5, also writes full Genie instructions for that many top use cases."
+                  hint="In Discover, 0 (the default) writes outline notebooks only; all, or a number such as 5, also writes full Genie Code instructions for that many top use cases."
                 >
                   <input dir="auto"
                     type="text"
@@ -1738,7 +1736,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
         <button
           onClick={handleLaunch}
           disabled={launching || !canLaunch || !outputCheck.ready}
-          aria-describedby={outputCheck.ready ? undefined : 'output-folder-check-launch'}
+          aria-describedby={launchBlock ? 'launch-block' : outputCheck.ready ? undefined : 'output-folder-check-launch'}
           className="w-full py-3.5 bg-linear-to-r from-db-red-solid to-db-red-solid-hover text-white text-sm font-bold rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-smooth flex items-center justify-center gap-2.5 hover:-translate-y-0.5"
           style={{ boxShadow: '0 0 0 1px rgba(255,54,33,0.3), 0 4px 12px rgba(255,54,33,0.2), 0 8px 30px rgba(255,54,33,0.15), 0 20px 60px rgba(255,54,33,0.1)' }}
         >
@@ -1754,6 +1752,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
             </>
           )}
         </button>
+        {launchBlock && !launching && <p id="launch-block" data-launch-block="" role="status" className="text-xs text-text-secondary mt-2 text-center">{launchBlock}</p>}
 
         <p data-admin-footer="" className="text-xs text-text-tertiary mt-3 text-center">
           Notebook: <span className="font-mono text-text-secondary">{notebookPath || 'not set'}</span>
