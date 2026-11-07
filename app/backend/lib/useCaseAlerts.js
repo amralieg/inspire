@@ -49,6 +49,13 @@ function canRunRules(file) {
   });
 }
 
+function compileRules(python, stage, dir) {
+  return new Promise((resolve) => {
+    childProcess.execFile(python, ['-B', '-E', '-s', '-m', 'compileall', '-q', '-d', dir, stage], { timeout: ALERT_RULES_TIMEOUT_MS, env: { PATH: '/usr/bin:/bin', LANG: 'C.UTF-8' } },
+      (err) => resolve(!err));
+  });
+}
+
 function bundledRuleFiles() {
   return appShellPayload(bundledAppShellText()).files;
 }
@@ -58,6 +65,7 @@ function createAlertRules(options = {}) {
     files = bundledRuleFiles,
     pickPython = () => pythonFor(process.env.PATH, process.cwd(), canRunRules),
     spawn = childProcess.spawn,
+    compile = compileRules,
     tmpRoot = ALERT_RULES_TMP,
     env = process.env,
     timeoutMs = ALERT_RULES_TIMEOUT_MS,
@@ -76,16 +84,17 @@ function createAlertRules(options = {}) {
     const digest = crypto.createHash('sha256');
     for (const name of ALERT_RULE_FILES) digest.update(`${name}\0${shell[name]}\0`);
     const dir = path.join(tmpRoot, digest.digest('hex').slice(0, 16));
+    const python = await pickPython();
+    if (!python) throw coded(503, ALERT_TEXT.noPython);
     if (!fs.existsSync(path.join(dir, '.ready'))) {
       const stage = `${dir}.${process.pid}.${crypto.randomBytes(4).toString('hex')}.partial`;
       fs.mkdirSync(stage, { recursive: true });
       for (const name of ALERT_RULE_FILES) fs.writeFileSync(path.join(stage, name), shell[name]);
+      await compile(python, stage, dir);
       fs.writeFileSync(path.join(stage, '.ready'), '');
       fs.rmSync(dir, { recursive: true, force: true });
       fs.renameSync(stage, dir);
     }
-    const python = await pickPython();
-    if (!python) throw coded(503, ALERT_TEXT.noPython);
     return { dir, python };
   }
 
@@ -408,6 +417,7 @@ module.exports = {
   ALERTS_DIR,
   alertBase,
   appAlertFolder,
+  compileRules,
   createAlertRules,
   createUseCaseAlerts,
   inspireLink,
