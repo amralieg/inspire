@@ -4,7 +4,7 @@ import { readFileSync, statSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
-import { actBody, DECIDE, ROWS, SRC, TABLE, appInfo, bundleEntry, openApp, openBundle, serveDist, tracked } from './harness.mjs';
+import { actBody, DECIDE, ROWS, SRC, TABLE, appInfo, bundleEntry, openApp, openBundle, serveDist, steadyBox, tracked } from './harness.mjs';
 import { dashboardRoutes, evaluated, explainerRoutes, fanRows, forecastRoutes, monitorRoutes, plannerRoutes, scenarioRoutes } from './exampleRoutes.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -188,8 +188,8 @@ test('every plan line can be accepted, overridden with a reason or taken all at 
   await line('K1').locator('[data-decided]').waitFor();
   assert.equal(await line('K1').locator('[data-decided]').innerText(), 'Accepted the recommended 90');
   assert.equal(await page.locator('[data-said="K1"]').innerText(), 'Accepted the suggested line', 'the success message shows next to the line, not only in a toast');
-  const below = await page.locator('[data-said="K1"]').boundingBox();
-  const row = await line('K1').boundingBox();
+  const below = await steadyBox(page, page.locator('[data-said="K1"]'));
+  const row = await steadyBox(page, line('K1'));
   assert.ok(below.y >= row.y + row.height - 1 && below.y - (row.y + row.height) < 40, 'the message sits right under its line');
   await waits('5 of 6 waiting for you');
   assert.equal(await line('K1').getByRole('button', { name: 'Accept' }).count(), 0, 'a decided line offers no second accept');

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { closeBrowser, openUi } from './uiSupport.mjs';
+import { closeBrowser, openUi, steadyBox } from './uiSupport.mjs';
 
 test.after(closeBrowser);
 
@@ -119,8 +119,8 @@ test('a person moves a column with the keyboard and by dragging, the order stays
     assert.deepEqual(await heads(page), ['id', 'name', 'domain', 'score', 'due', 'pick']);
     assert.equal(await page.locator('[data-grid-reset]').count(), 0, 'the first order offers no reset');
 
-    const from = await grip('Due').boundingBox();
-    const to = await grid(page).locator('th[data-col="name"]').boundingBox();
+    const from = await steadyBox(grip('Due'));
+    const to = await steadyBox(grid(page).locator('th[data-col="name"]'));
     await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
     await page.mouse.down();
     await page.mouse.move(to.x + 10, to.y + to.height / 2, { steps: 6 });

@@ -2,8 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { closeBrowser, openUi, until } from './uiSupport.mjs';
-import { OUTPUT_CHECK_URL, outputCheckRequest, outputCheckVerdict } from '../../src/lib/outputFolderCheck.js';
+import { FAKE_CLOCK, closeBrowser, holdClock, openUi, until } from './uiSupport.mjs';
+import { OUTPUT_CHECK_DELAY_MS, OUTPUT_CHECK_URL, outputCheckRequest, outputCheckVerdict } from '../../src/lib/outputFolderCheck.js';
 
 test.after(closeBrowser);
 
@@ -51,13 +51,16 @@ const nearLaunch = (page) => page.locator('#output-folder-check-launch');
 
 async function setPath(page, value) {
   const field = page.getByLabel('Generation Path');
+  await holdClock(page);
   await field.fill('');
-  await field.pressSequentially(value, { delay: 15 });
+  await field.pressSequentially(value);
+  await page.clock.runFor(OUTPUT_CHECK_DELAY_MS);
+  await page.clock.resume();
 }
 
 test('a folder the person cannot write keeps Get Started off and shows the refusal next to it, and a folder they can write turns it on', async () => {
   const { calls, mount } = folderBackend();
-  const ui = await openUi('launch', {}, '', { mount });
+  const ui = await openUi('launch', {}, '', { mount, ...FAKE_CLOCK });
   try {
     const { page } = ui;
     await readyToLaunch(page);
@@ -104,13 +107,14 @@ test('a folder the person cannot write keeps Get Started off and shows the refus
 
 test('changing a passed folder turns Get Started off at once, and a check that cannot finish keeps it off with the reason', async () => {
   const { calls, mount } = folderBackend();
-  const ui = await openUi('launch', {}, '', { mount });
+  const ui = await openUi('launch', {}, '', { mount, ...FAKE_CLOCK });
   try {
     const { page } = ui;
     await readyToLaunch(page);
     await page.getByRole('button', { name: /Advanced Settings/ }).click();
     await setPath(page, MINE);
     await until(async () => !(await launchButton(page).isDisabled()), 'Get Started on for a folder the person can write');
+    await holdClock(page);
     await page.getByLabel('Generation Path').press('Backspace');
     assert.equal(await launchButton(page).isDisabled(), true, 'a stale pass never keeps Get Started on (must-exclude)');
     assert.equal(await page.locator('#output-folder-check-field').getAttribute('data-output-check'), 'checking');

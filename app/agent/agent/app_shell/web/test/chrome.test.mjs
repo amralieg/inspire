@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
-import { TABLE, appInfo, bundleEntry, chartsDrawn, openApp, openBundle, pageData, resizeTo, serveDist, until } from './harness.mjs';
+import { TABLE, appInfo, bundleEntry, chartsDrawn, openApp, openBundle, pageData, resizeTo, serveDist, steadyBox, until } from './harness.mjs';
 import { ratio } from './contrast.test.mjs';
 import { SERIES_TOKENS, themeTokens } from '../src/tokens.js';
 import { EXPLAIN_CONTEXT_CHARS, EXPLAIN_ROWS, chartContext, chartRow, cutText, explainBody, filterWords } from '../src/explain.js';
@@ -339,7 +339,7 @@ test('the Genie window resizes by drag, keys, double-click and the maximize butt
   assert.deepEqual([await now(), await width()], ['864', 864]);
   await handle.dblclick();
   assert.deepEqual([await now(), await width()], ['400', 400]);
-  const box = await handle.boundingBox();
+  const box = await steadyBox(page, handle);
   await page.mouse.move(box.x + box.width / 2, box.y + 200);
   await page.mouse.down();
   assert.equal(await handle.getAttribute('class'), 'g-resize is-dragging');

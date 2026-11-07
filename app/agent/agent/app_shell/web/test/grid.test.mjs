@@ -1,7 +1,7 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
-import { DECIDE, TABLE, appInfo, openApp, serveDist, tracked, until } from './harness.mjs';
+import { DECIDE, TABLE, appInfo, openApp, serveDist, steadyBox, tracked, until } from './harness.mjs';
 import { filterRows, localFilters, localKind, moveKey, orderColumns, passes, savedOrder } from '../src/grid.js';
 import { CHOICES_SHOWN, choicesHint, searchHint, withValue } from '../src/filters.js';
 import { DEFAULT_PREFS, GRID_CAPS, MY_KEY, cleanPrefs, columnOrder, setColumnOrder } from '../src/prefs.js';
@@ -114,8 +114,8 @@ test('a person moves a column with the keyboard and by dragging, the order stays
   const saved = (await stored(page)).find((c) => c['page:n01_u05:records']);
   assert.deepEqual(saved['page:n01_u05:records'].slice(0, 2), [second, first]);
   const third = movable[2];
-  const from = await LIST(page).locator(`th[data-col="${third}"] .th-move`).boundingBox();
-  const to = await LIST(page).locator(`th[data-col="${second}"]`).boundingBox();
+  const from = await steadyBox(page, LIST(page).locator(`th[data-col="${third}"] .th-move`));
+  const to = await steadyBox(page, LIST(page).locator(`th[data-col="${second}"]`));
   await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
   await page.mouse.down();
   await page.mouse.move(to.x + 4, to.y + to.height / 2, { steps: 6 });

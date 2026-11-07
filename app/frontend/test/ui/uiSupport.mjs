@@ -29,27 +29,38 @@ export async function closeBrowser() {
 export async function openUi(open, overrides = {}, query = '', { mount, init } = {}) {
   if (!browser) browser = await chromium.launch();
   const made = makeApp({ useCase: HARNESS_USE_CASE, buildStamp: UNKNOWN_BUILD, ...overrides }, { mount });
-  const backend = await listen(made.app);
-  const vite = await createServer({
-    root: frontend,
-    configFile: path.join(frontend, 'vite.config.js'),
-    cacheDir: VITE_CACHE_DIR,
-    logLevel: 'error',
-    clearScreen: false,
-    server: { host: '127.0.0.1', port: 0, proxy: { '/api': backend.url, '/showcase': backend.url, '/run': backend.url }, hmr: false },
-  });
-  await vite.listen();
-  const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
-  const pageErrors = [];
-  page.on('pageerror', (e) => pageErrors.push(e.message));
-  page.on('console', (m) => { if (m.type() === 'error') pageErrors.push(m.text()); });
-  const origin = `http://127.0.0.1:${vite.httpServer.address().port}`;
-  if (init) await init(page, origin);
-  await page.goto(`${origin}/test/ui/implement.html?open=${open}${query}`);
-  return {
-    made, page, pageErrors, origin,
-    close: async () => { await page.unrouteAll({ behavior: 'ignoreErrors' }); await page.close(); await vite.close(); await backend.close(); },
+  const opened = [];
+  const close = async () => {
+    const failed = [];
+    for (const stop of opened.splice(0).reverse()) await stop().catch((e) => failed.push(e));
+    if (failed.length) throw failed[0];
   };
+  try {
+    const backend = await listen(made.app);
+    opened.push(() => backend.close());
+    const vite = await createServer({
+      root: frontend,
+      configFile: path.join(frontend, 'vite.config.js'),
+      cacheDir: VITE_CACHE_DIR,
+      logLevel: 'error',
+      clearScreen: false,
+      server: { host: '127.0.0.1', port: 0, proxy: { '/api': backend.url, '/showcase': backend.url, '/run': backend.url }, hmr: false },
+    });
+    opened.push(() => vite.close());
+    await vite.listen();
+    const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
+    opened.push(async () => { await page.unrouteAll({ behavior: 'ignoreErrors' }); await page.close(); });
+    const pageErrors = [];
+    page.on('pageerror', (e) => pageErrors.push(e.message));
+    page.on('console', (m) => { if (m.type() === 'error') pageErrors.push(m.text()); });
+    const origin = `http://127.0.0.1:${vite.httpServer.address().port}`;
+    if (init) await init(page, origin);
+    await page.goto(`${origin}/test/ui/implement.html?open=${open}${query}`);
+    return { made, page, pageErrors, origin, close };
+  } catch (e) {
+    await close().catch(() => null);
+    throw e;
+  }
 }
 
 export async function openBuild(state, { init } = {}) {
@@ -100,6 +111,34 @@ export async function openSettings(page) {
 }
 
 export const FAKE_CLOCK = { init: (page) => page.clock.install() };
+
+export async function holdClock(page) {
+  await page.clock.pauseAt(await page.evaluate(() => Date.now() + 1000));
+}
+
+export async function steadyBox(locator, { loaded = false, timeout = 15000 } = {}) {
+  const end = Date.now() + timeout;
+  await locator.waitFor({ state: 'attached', timeout });
+  while (Date.now() < end) {
+    const box = await locator.evaluate((el, skeletons) => new Promise((done) => {
+      if (skeletons && el.querySelector('.animate-pulse')) {
+        done(null);
+        return;
+      }
+      const read = () => {
+        const r = el.getBoundingClientRect();
+        return [r.x, r.y, r.width, r.height, el.scrollHeight, el.scrollWidth, el.scrollTop, el.scrollLeft];
+      };
+      const first = read();
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        const next = read();
+        done(next.every((v, i) => v === first[i]) ? { x: next[0], y: next[1], width: next[2], height: next[3] } : null);
+      }));
+    }), loaded);
+    if (box) return box;
+  }
+  throw new Error(`the layout of ${locator} did not settle in ${timeout} ms`);
+}
 
 export async function pollNow(page, route = '/api/inspire/implement/status', every = 10000) {
   const asked = page.waitForRequest((r) => r.url().includes(route), { timeout: 15000 });
@@ -170,25 +209,8 @@ export async function startMvp(page) {
   await page.getByRole('button', { name: 'Start MVP', exact: true }).click();
 }
 
-export async function settled(page, selector, { loaded = false, timeout = 15000 } = {}) {
-  const end = Date.now() + timeout;
-  while (Date.now() < end) {
-    const steady = await page.evaluate(({ sel, skeletons }) => new Promise((done) => {
-      const el = document.querySelector(sel);
-      if (!el || (skeletons && el.querySelector('.animate-pulse'))) {
-        done(false);
-        return;
-      }
-      const box = () => {
-        const r = el.getBoundingClientRect();
-        return [r.top, r.left, r.width, r.height, el.scrollHeight, el.scrollWidth, el.scrollTop, el.scrollLeft].join();
-      };
-      const first = box();
-      requestAnimationFrame(() => requestAnimationFrame(() => done(box() === first)));
-    }), { sel: selector, skeletons: loaded });
-    if (steady) return;
-  }
-  throw new Error(`the layout of ${selector} did not settle in ${timeout} ms`);
+export function settled(page, selector, { loaded = false, timeout = 15000 } = {}) {
+  return steadyBox(page.locator(selector).first(), { loaded, timeout });
 }
 
 export async function shot(page, name, fullPage = true) {
