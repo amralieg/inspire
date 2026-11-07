@@ -432,7 +432,7 @@ def test_the_judge_must_quote_the_build_and_every_ask_gets_an_answer(agent_ns):
         1: ("done", "Customers at RISK"),
         2: ("missing", "the check gave no words of the built App page n01_u01 that show this ask (it quoted 'a map', which the built "
                        "App page n01_u01 does not hold)"),
-        3: ("missing", "the check gave no answer for this ask"), 4: ("missing", "the check gave no answer for this ask")}
+        3: ("missing", agent_ns["IMPLEMENT_VIBES_NO_ANSWER"]), 4: ("missing", agent_ns["IMPLEMENT_VIBES_NO_ANSWER"])}
     prompt = agent_ns["implement_vibes_judge_prompt"]("app:page:n01_u01", asks[1:2], seen, ["Add a map: no table holds a location"])
     assert "The customer's asks are explicit user directives" in prompt
     assert "<<<\n[page] Churn desk page:\n- Churn desk\n- Who is about to leave?\n[filters] page filter bar:\n- Region\n" in prompt
