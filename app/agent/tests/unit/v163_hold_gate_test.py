@@ -712,6 +712,7 @@ def _job_hold(agent_ns, change):
         return {"settings": {"tags": {"inspire_version": "v2"}, "tasks": [{"task_key": "main"}]}}
 
     inst._implement_api = api
+    inst._implement_manage_locked = lambda uc_id, key, spec, assets, touched: {}
     inst._implement_runner = lambda uc: "genie"
     inst._implement_dashboard = _dashboard(inst, [])
     previews = []

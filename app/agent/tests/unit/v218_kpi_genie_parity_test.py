@@ -140,7 +140,7 @@ def test_the_reason_ask_must_quote_the_users_words(agent_ns):
     assert fewer(page, "reason_charts", "please chart the queue by its reasons", *args) == []
     assert fewer(page, "reason_charts", "show the top ten records", *args)[0].startswith(
         "reason_charts quotes 'chart the queue by its reasons', which is not in the customer's asks")
-    assert ("problems += implement_fewer_problems(page, shell_sql.REASON_CHARTS, vibes, label, \"a chart grouped by reason\","
+    assert ("found += implement_fewer_problems(page, shell_sql.REASON_CHARTS, vibes, label, \"a chart grouped by reason\","
             in _notebook_source())
 
 

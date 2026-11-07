@@ -720,7 +720,7 @@ function scenarioData(u) {
   return {
     kpis: { base_p50: { now: m.base }, base_chance: { now: m.scenarios[0][4] }, last_margin: { now: 4050000, before: 3980000 } },
     charts: { swing: { columns: [], rows: [['Unit cost', 350000], ['Price', 450000], ['Volume', 200000]].map(([x, d]) => ({ x, y0: -d, y1: d })), truncated: false } },
-    tables: { scenarios: { columns: [], rows: m.scenarios.map(([scenario_id, p50, p10, p90, prob_target]) => ({ scenario_id, p10, p50, p90, prob_target })), truncated: false } },
+    tables: { scenarios: { columns: [], rows: m.scenarios.map(([scenario_id, p50, p10, p90, chance]) => ({ scenario_id, p10, p50, p90, prob_target: chance / 100, chance_pct: chance })), truncated: false } },
     errors: {},
   };
 }

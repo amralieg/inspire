@@ -299,7 +299,7 @@ test('a use case with its own App lists the alerts people set up in that App and
     assert.deepEqual(first.data.measures.map((m) => m.id), ['records', 'at_stake'], 'the measures of the App page, not a second guess');
     const [row] = first.data.alerts;
     assert.deepEqual([row.id, row.by, row.can_change, row.emails, row.owner_user_name, row.rule, row.scope],
-      [theirs.id, SAM, false, [], 'app-sp', 'At stake is above 1,000', 'Region: West']);
+      [theirs.id, SAM, false, [], 'app-sp', 'At stake is more than 1,000', 'Region: West']);
     const out = await send(base, 'save', newAlert({ watch: { what: 'records', filters: {}, operator: '>=', threshold: 1, basis: 'fixed' } }));
     assert.equal(out.status, 200, JSON.stringify(out.data));
     const body = ws.alerts[out.data.alert.id];

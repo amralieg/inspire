@@ -233,6 +233,27 @@ test('the kinds demo answers the App\'s own question, what to do first, for ever
   }
 });
 
+test('every table and list in the kinds demo carries each column its page shows, so no cell reads Not recorded for a missing column (must-exclude)', () => {
+  const missing = [];
+  for (const [slug, mvp] of Object.entries(bundle().mvps)) {
+    const page = mvp.api['GET /api/app'].body.pages[0];
+    for (const [key, answer] of Object.entries(mvp.api)) {
+      if (key.startsWith('POST /api/page ')) {
+        for (const table of page.tables || []) {
+          for (const row of answer.body?.tables?.[table.id]?.rows || []) {
+            for (const { column } of table.columns) if (!(column in row)) missing.push(`${slug} table ${table.id}.${column}`);
+          }
+        }
+      }
+      if (key.startsWith('POST /api/records ') && page.records) {
+        const wanted = [page.records.key, page.records.label, ...(page.records.columns || []).map((c) => c.column)].filter(Boolean);
+        for (const row of answer.body?.rows || []) for (const column of wanted) if (!(column in row)) missing.push(`${slug} list ${column}`);
+      }
+    }
+  }
+  assert.deepEqual([...new Set(missing)], []);
+});
+
 test('the kinds demo tells one story about its counts, schedule and alerts: the high count is the one the pages compute, each job runs on the schedule its MVP states, and each alert has been checked (must-exclude)', async () => {
   const b = bundle();
   const { computeHighPriorityCount } = await import('../../frontend/src/lib/useCaseFields.js');

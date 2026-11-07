@@ -105,7 +105,8 @@ def test_a_chart_no_section_draws_is_still_refused_and_the_way_out_is_one_genie_
     page["charts"].append({"id": "corridor_plan", "type": "gantt", "section": "charts"})
     found = [p for p in shell_sql.layout_problems(page, set()) if "corridor_plan" in p]
     assert found == ["chart corridor_plan is a gantt, which no section of a network_explorer page draws, and Inspire sets the "
-                     "network_explorer layout from the use case's kind: draw what it shows as another type, or remove it from this page"]
+                     "network_explorer layout from the use case's kind: draw what it shows as one of the types this layout holds (graph, bar, "
+                     "horizontal_bar, stacked_bar, line, area, stacked_area, pareto, scatter, donut, heatmap), or remove it from this page"]
 
 
 def test_an_asked_line_in_the_graph_section_is_still_refused():
