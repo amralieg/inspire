@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import echarts from './echarts.js';
-import { HORIZONS, chartIsEmpty, chartOption } from './charts.js';
+import { HORIZONS, chartIsEmpty, chartOption, clickHint, clickPart, clickPick } from './charts.js';
 import { countOf, largestFirst, numberOf } from './format.js';
 import { chartPalette, hueVars, reducedMotion } from './theme.js';
 import { Icon } from './icons.jsx';
@@ -114,10 +114,10 @@ export default function ChartCard({ chart, wide, result, error, loading, themeKe
 
   useEffect(() => {
     const i = inst.current;
-    if (!i || !chart.click_filter || !onPick) return undefined;
+    if (!i || !chart.click_filter || !clickPart(chart.type) || !onPick) return undefined;
     const handler = (e) => {
-      const key = chart.type === 'scatter' ? e.data?.[2] : e.data?.pick ?? e.name;
-      if (key != null && key !== 'Other' && key !== 'Unknown') onPick(chart.click_filter, key);
+      const key = clickPick(chart.type, e);
+      if (key != null) onPick(chart.click_filter, key);
     };
     i.on('click', handler);
     return () => i.off('click', handler);
@@ -150,7 +150,7 @@ export default function ChartCard({ chart, wide, result, error, loading, themeKe
     <article className={`card ${wide ? 'card--wide' : ''} ${fold.folded ? 'card--folded' : ''}`} data-card={chart.id} data-rows={option ? rows.length : undefined}>
       <header className="card-h">
         <div>
-          <h2>{chart.title}</h2>{chart.hint && <p>{chart.hint}{!fold.folded && chart.click_filter ? ' Click a bar or slice to filter the page.' : ''}</p>}
+          <h2>{chart.title}</h2>{chart.hint && <p>{chart.hint}{clickHint(chart, fold.folded)}</p>}
           <SoWhat text={chart.so_what} />
         </div>
         {chart.type === 'band' && !fold.folded && (
