@@ -320,6 +320,7 @@ def main():
     parser.add_argument("--tag-links", action="store_true", help="with --online, download from this tag's links instead of the latest release")
     parser.add_argument("--catalog", default=CATALOG, help="the catalog the installer puts the Inspire Database in (<catalog>._inspire)")
     args = parser.parse_args()
+    rc_settings.require_tools(S, commands=("net_wait",))
     CATALOG = args.catalog
     if args.remote_stage and (args.online or args.whole or args.unzip):
         raise SystemExit("--remote-stage is an offline install of its own")

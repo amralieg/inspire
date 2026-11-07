@@ -1,6 +1,7 @@
 import json
 import os
 import pathlib
+import shutil
 import subprocess
 import sys
 import time
@@ -34,6 +35,21 @@ def need(settings, key):
 
 def path(settings, key):
     return pathlib.Path(need(settings, key))
+
+
+def require_tools(settings, files=(), commands=()):
+    missing = [f"{key} {need(settings, key)}" for key in files if not path(settings, key).is_file()]
+    for key in commands:
+        command = settings.get(key)
+        if not command:
+            continue
+        parts = [command] if isinstance(command, str) else [str(p) for p in command]
+        if not shutil.which(parts[0]):
+            missing.append(f"{key} program {parts[0]}")
+        missing += [f"{key} file {p}" for p in parts[1:] if (p.startswith("/") or p.endswith(".py")) and not pathlib.Path(p).is_file()]
+    if missing:
+        raise SystemExit(f"{os.environ.get(ENV)} names helper files that are not there: {'; '.join(missing)}; "
+                         f"restore them or point the settings at their copies")
 
 
 def wait_for_network(settings):
