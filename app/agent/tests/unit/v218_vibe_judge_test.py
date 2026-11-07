@@ -9,6 +9,7 @@ from v218_keep_rest_live_test import GENIE, KEEP, SPLIT, V4, V5, VIBE, _copy, _s
 
 WEATHER = "Add a bar chart of late lines by weather"
 LACKING = "Add a KPI tile of each supplier's ESG score"
+UNSURE = "Add a KPI tile that flags suppliers with poor ESG ratings"
 DONE_QUOTE = "late_rate = late_lines / total_lines"
 NO_ANSWER = {"checks": []}
 
@@ -215,13 +216,13 @@ def test_an_ask_that_could_not_be_checked_holds_the_version_and_says_the_check_c
 
 
 def test_a_pre_build_judge_reply_that_answers_no_ask_holds_the_ask_as_could_not_check(agent_ns):
-    held, judged, _inst = _hold(agent_ns, [LACKING, VALID], [NO_ANSWER, NO_ANSWER])
+    held, judged, _inst = _hold(agent_ns, [UNSURE, VALID], [NO_ANSWER, NO_ANSWER])
     unchecked = agent_ns["IMPLEMENT_VIBES_HOLD_UNCHECKED"]
-    assert held == {agent_ns["IMPLEMENT_NOTEBOOK"]: {LACKING: unchecked}} and judged == ["judge", "judge"]
+    assert held == {agent_ns["IMPLEMENT_NOTEBOOK"]: {UNSURE: unchecked}} and judged == ["judge", "judge"]
 
 
 def test_a_pre_build_judge_that_says_the_data_exists_lets_the_ask_reach_genie(agent_ns):
-    held, judged, _inst = _hold(agent_ns, [LACKING], [_verdict("missing", "the chart is not built yet")])
+    held, judged, _inst = _hold(agent_ns, [UNSURE], [_verdict("missing", "the chart is not built yet")])
     assert held == {} and judged == ["judge"]
 
 
