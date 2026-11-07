@@ -160,7 +160,7 @@ function PlanRow({ page, app, plan, row, actions, onDecided, onOpen }) {
   return (
     <>
       <tr data-plan-row={key}>
-        <th scope="row"><button type="button" className="choice-open" onClick={() => onOpen(row)} data-open-row={key} aria-label={`Open ${lineName(page, row)}`}>{lineName(page, row)}</button></th>
+        <th scope="row"><button type="button" className="choice-open" onClick={() => onOpen(row)} data-open-row={key} aria-label={`Open ${lineName(page, row)}`}><bdi>{lineName(page, row)}</bdi></button></th>
         <td className="num">{fmt(row[plan.current])}</td>
         <td className="num plan-rec"><span aria-hidden="true">★ </span>{fmt(row[plan.recommended])}</td>
         <td className={`num ${delta > 0 ? 'is-up' : delta < 0 ? 'is-down' : ''}`}>{delta == null ? '' : `${delta > 0 ? '+' : ''}${fmt(delta)}`}</td>

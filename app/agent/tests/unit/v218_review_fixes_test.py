@@ -221,7 +221,7 @@ def _redeploy(agent_ns, tmp_path, new, held, lakebase_problems=(), work_name="ap
 
 @pytest.mark.parametrize("work_name", ["app_restyle", "app_repoint"])
 def test_a_redeploy_keeps_a_saved_page_whose_problems_it_already_had_and_says_so(agent_ns, tmp_path, work_name):
-    later = SINGLE.replace("2 segment", "1 segment")
+    later = SINGLE.replace("2 segment", "3 segment")
     inst, (fields, problems, _lakebase), checks, deployed = _redeploy(agent_ns, tmp_path, [PROBLEM, later], [PROBLEM, SINGLE],
                                                                       work_name=work_name)
     assert problems == [] and len(deployed) == 1, "the redeploy changed nothing these problems come from, so no Genie rebuild"

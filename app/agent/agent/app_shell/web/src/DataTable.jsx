@@ -19,7 +19,7 @@ export function columnOf(c, onFilter) {
     render: (row) => {
       const text = cellText(row[c.column], { ...c, format: c.format || 'text' });
       if (c.filter && onFilter && row[c.column] != null) {
-        return <button className="link" style={{ padding: 0 }} onClick={(e) => { e.stopPropagation(); onFilter(c.filter, row[c.column]); }} title={`Filter the page to ${text}`}>{text}</button>;
+        return <button className="link" style={{ padding: 0 }} onClick={(e) => { e.stopPropagation(); onFilter(c.filter, row[c.column]); }} title={`Filter the page to ${text}`}>{num ? text : <bdi>{text}</bdi>}</button>;
       }
       return text;
     },
@@ -72,6 +72,8 @@ function useColumnOrder(columns, grid) {
   };
   return { ordered: orderColumns(columns, saved), order, moved: !sameOrder(order, natural), keep };
 }
+
+const isolated = (c, v) => (!c.num && typeof v === 'string' && v ? <bdi>{v}</bdi> : v);
 
 const cellClass = (c, row) => [c.num ? 'num' : '', c.className || '', row && c.cellClass ? c.cellClass(row) : ''].filter(Boolean).join(' ') || undefined;
 
@@ -210,7 +212,7 @@ export default function DataTable({ columns: given, rows: all, initialSort, rowK
                     {columns.map((c) => (
                       <td key={c.key} className={cellClass(c, row)}>
                         {c.bar && isAmount(row[c.key] ?? 0) && <span className="bar"><i style={{ width: `${((Math.abs(numberOf(row[c.key])) / max[c.key]) * 100).toFixed(1)}%` }} /></span>}
-                        {c.render ? c.render(row) : plainText(row[c.key])}
+                        {isolated(c, c.render ? c.render(row) : plainText(row[c.key]))}
                       </td>
                     ))}
                   </tr>

@@ -806,10 +806,10 @@ export default function Records({ meta, app, pageId, filters, ai, onFilter, hist
         return (
           <>
             <button className="cell-t" onClick={(e) => { e.stopPropagation(); setOpen(r); }}>
-              <b dir="auto">{recordName(r, meta)}</b>
+              <b><bdi>{recordName(r, meta)}</bdi></b>
               {sub.length > 0 && <small>{sub.map((part, i) => <span key={i}>{i > 0 && ' · '}<bdi>{part}</bdi></span>)}</small>}
             </button>
-            {why && <span dir="auto" className="cell-ai">{why}</span>}
+            {why && <span className="cell-ai"><bdi>{why}</bdi></span>}
             {CHANGE_TAGS[r.change_source] && <span className="tag">{CHANGE_TAGS[r.change_source]}</span>}
             <Badge row={r} />
             {isOverdue(r._inspire_due, r._inspire_status, today) && <span className="chg-b chg-b--late">Overdue</span>}

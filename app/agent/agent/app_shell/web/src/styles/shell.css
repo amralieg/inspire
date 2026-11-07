@@ -1,7 +1,10 @@
 *{box-sizing:border-box}
 html,body{margin:0;height:100%}
 body{font:14px/1.5 Inter,-apple-system,'Segoe UI',system-ui,sans-serif;-webkit-font-smoothing:antialiased;background:var(--bg)}
-:where(p,li,dt,dd,h1,h2,h3,h4,h5,h6,td,th,caption,figcaption,blockquote,summary,legend,textarea){unicode-bidi:plaintext;overflow-wrap:break-word}
+:where(p,li,dt,dd,h1,h2,h3,h4,h5,h6,caption,figcaption,blockquote,summary,legend,textarea){unicode-bidi:plaintext;overflow-wrap:break-word}
+:where(td,th){unicode-bidi:isolate;overflow-wrap:break-word}
+:where(td.num,th.num){unicode-bidi:isolate;direction:ltr}
+:where(code,pre,kbd,samp){unicode-bidi:isolate;direction:ltr}
 button,input,select,textarea{font:inherit;color:inherit}
 .i{flex:none;vertical-align:-3px}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}

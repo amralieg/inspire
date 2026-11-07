@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowDown, ArrowUp, Funnel, GripVertical } from 'lucide-react';
 import BodyPortal from './BodyPortal';
 import {
-  cellOf, choicesHint, choicesOf, columnKind, columnName, filterOn, filterRows, filterText, filterable, filtersOn, loadColumnOrder, movableKeys, moveKey,
+  cellOf, choicesHint, choicesOf, columnKind, columnName, numericColumn, filterOn, filterRows, filterText, filterable, filtersOn, loadColumnOrder, movableKeys, moveKey,
   narrowChoices, nextSort, orderColumns, present, sameOrder, saveColumnOrder, savedOrder, sortRows, toggleChoice,
 } from '../lib/dataGrid';
 
@@ -123,6 +123,7 @@ export default function DataGrid({
   const focusKey = useRef('');
   const head = useRef(null);
   const kinds = useMemo(() => Object.fromEntries(given.map((c) => [c.key, columnKind(c, rows)])), [given, rows]);
+  const nums = useMemo(() => Object.fromEntries(given.map((c) => [c.key, !c.render && numericColumn(c, rows, kinds[c.key])])), [given, rows, kinds]);
   const choices = useMemo(() => Object.fromEntries(given.filter((c) => filterable(c) && kinds[c.key] === 'text').map((c) => [c.key, choicesOf(rows, c)])), [given, rows, kinds]);
   const kept = useMemo(() => filterRows(rows, given, kinds, filters), [rows, given, kinds, filters]);
   const sorted = useMemo(() => {
@@ -218,7 +219,7 @@ export default function DataGrid({
                 const canFilter = filterable(c) && (kinds[c.key] !== 'text' || choices[c.key]?.length > 0);
                 const dir = sort?.key === c.key ? sort.dir : 0;
                 return (
-                  <th key={c.key} data-col={c.key} scope="col" aria-sort={dir ? (dir > 0 ? 'ascending' : 'descending') : undefined}
+                  <th key={c.key} data-col={c.key} data-num={nums[c.key] ? '' : undefined} scope="col" aria-sort={dir ? (dir > 0 ? 'ascending' : 'descending') : undefined}
                     className={`${c.headClassName ?? headClassName} ${over === c.key && drag !== c.key ? 'bg-db-red-50' : ''}`.trim()}>
                     <span className="inline-flex max-w-full flex-wrap items-center gap-0.5 align-middle">
                       {!c.fixed && (
@@ -252,8 +253,8 @@ export default function DataGrid({
                   {ordered.map((c) => {
                     const value = cellOf(c)(row);
                     return (
-                      <td key={c.key} className={typeof c.className === 'function' ? c.className(row) : (c.className ?? cellClassName)}>
-                        {c.render ? c.render(row) : present(value) ? String(value) : ''}
+                      <td key={c.key} data-num={nums[c.key] ? '' : undefined} className={typeof c.className === 'function' ? c.className(row) : (c.className ?? cellClassName)}>
+                        {c.render ? c.render(row) : !present(value) ? '' : nums[c.key] ? String(value) : <bdi>{String(value)}</bdi>}
                       </td>
                     );
                   })}
