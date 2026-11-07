@@ -92,7 +92,7 @@ test('no backend source reads the forwarded token header except the one helper',
       if (['node_modules', 'test', 'dist', 'build'].includes(entry.name)) continue;
       const full = path.join(dir, entry.name);
       if (entry.isDirectory()) walk(full);
-      else if (/\.(c?js|mjs)$/.test(entry.name)) {
+      else if (entry.isFile() && /\.(c?js|mjs)$/.test(entry.name)) {
         for (const match of fs.readFileSync(full, 'utf8').matchAll(reads)) found.push(`${path.relative(root, full)}: ${match[0]}`);
       }
     }

@@ -2,6 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+const { fileNames } = require('./support/sourceFiles');
 const { pathToFileURL } = require('node:url');
 const I = require('../lib/inspireImplement');
 const C = require('../lib/implementControl');
@@ -89,7 +90,7 @@ test('the Build page asks the shared confirm only for an App or dashboard that o
 
 test('the backend joins every list through joinAnd and keeps no copy of its own', () => {
   const root = path.resolve(__dirname, '..');
-  const files = ['.', 'lib'].flatMap((dir) => fs.readdirSync(path.join(root, dir)).filter((f) => f.endsWith('.js')).map((f) => path.join(dir, f)));
+  const files = ['.', 'lib'].flatMap((dir) => fileNames(path.join(root, dir)).filter((f) => f.endsWith('.js')).map((f) => path.join(dir, f)));
   const read = (file) => fs.readFileSync(path.join(root, file), 'utf8');
   const copies = files.flatMap((file) => [...read(file).matchAll(/\.slice\(0, -1\)\.join\(', '\)/g)].map(() => file));
   assert.deepEqual(copies, [path.join('lib', 'inspireImplement.js')], 'every list joins through joinAnd');
@@ -98,7 +99,8 @@ test('the backend joins every list through joinAnd and keeps no copy of its own'
 
 test('the frontend says which part of a shared output it means from the one part-word list', () => {
   const root = path.resolve(__dirname, '..', '..', 'frontend', 'src');
-  const files = fs.readdirSync(root, { recursive: true }).filter((f) => /\.(js|jsx)$/.test(f));
+  const files = fs.readdirSync(root, { recursive: true, withFileTypes: true }).filter((e) => e.isFile() && /\.(js|jsx)$/.test(e.name))
+    .map((e) => path.relative(root, path.join(e.parentPath, e.name)));
   const holding = (pattern) => files.filter((f) => pattern.test(fs.readFileSync(path.join(root, f), 'utf8')));
   assert.deepEqual(holding(/tables, instructions and sample questions/), [path.join('lib', 'implementControl.js')]);
   assert.deepEqual(holding(/this use case's pages|holds the pages of|hold pages in|the pages of \$\{/), [], 'every shared sentence takes its part word from SHARED_PART_WORDS');

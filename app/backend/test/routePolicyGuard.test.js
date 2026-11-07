@@ -4,6 +4,7 @@ const fs = require('node:fs');
 const http = require('node:http');
 const { execFileSync } = require('node:child_process');
 const path = require('node:path');
+const { fileNames } = require('./support/sourceFiles');
 const express = require('express');
 const P = require('../lib/routePolicy');
 const S = require('./support/serverApp');
@@ -11,7 +12,7 @@ const { SAMPLES } = require('./support/routeSamples');
 
 const realFetch = globalThis.fetch;
 const backend = path.join(__dirname, '..');
-const sources = ['server.js', 'implementRoutes.js', ...fs.readdirSync(path.join(backend, 'lib')).filter((f) => f.endsWith('.js')).map((f) => `lib/${f}`)];
+const sources = ['server.js', 'implementRoutes.js', ...fileNames(path.join(backend, 'lib')).filter((f) => f.endsWith('.js')).map((f) => `lib/${f}`)];
 const sourceText = (rel) => fs.readFileSync(path.join(backend, rel), 'utf8');
 const scannedRoutes = () => sources.flatMap((rel) => P.changingRoutesInSource(sourceText(rel)).map((r) => ({ ...r, file: rel })));
 const everyRoute = () => sources.flatMap((rel) => P.routesInSource(sourceText(rel)).map((r) => ({ ...r, file: rel })));

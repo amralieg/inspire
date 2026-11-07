@@ -102,36 +102,71 @@ const controlsOf = (page) => page.evaluate(() => [...document.querySelectorAll('
 
 let demoDir = '';
 
-test('recording the demo walks every Results and Build view through the read-only guard and changes nothing', async (t) => {
+const LATE_MS = 2000;
+const startReadsLate = (page) => page.addInitScript((ms) => {
+  const real = window.fetch.bind(window);
+  window.fetch = (input, init) => {
+    const at = new URL(typeof input === 'string' ? input : input.url, window.location.href);
+    if (!at.pathname.startsWith('/api/')) return real(input, init);
+    return new Promise((resolve) => { setTimeout(resolve, ms); }).then(() => real(input, init));
+  };
+}, LATE_MS);
+
+async function recordDemo({ late = false } = {}) {
   const exchanges = [];
   const blocked = [];
   const summary = { ...DEMO, session_id: '42', mvps: [] };
   const ui = await openUi('app', STATE, '', {
     mount: serveDefaults,
-    init: (page, origin) => routeInspireDemo(page, {
-      origin, summary, real: { inspire_database: DEFAULTS.inspireDatabase, warehouse_id: DEFAULTS.warehouseId }, exchanges, blocked,
-    }),
+    init: async (page, origin) => {
+      if (late) await startReadsLate(page);
+      await routeInspireDemo(page, {
+        origin, summary, real: { inspire_database: DEFAULTS.inspireDatabase, warehouse_id: DEFAULTS.warehouseId }, exchanges, blocked,
+      });
+    },
   });
+  return { ui, exchanges, blocked };
+}
+
+function assertWalkSawEverything(walk) {
+  assert.deepEqual([...walk.tabs].sort(), APP_TABS.map((t) => t.id).sort(), 'the walk visits every tab of the App');
+  assert.equal(walk.start.totals, PORTFOLIO_GROUPS.flatMap((g) => g.cards).length, 'the walk saw every total across all runs on Start');
+  assert.equal(walk.runs, 1, 'the walk saw only the demo run under Change run, never the other runs of the workspace');
+  assert.equal(walk.results, 6, 'the walk opened every use case on the Results page');
+  assert.equal(walk.build.length, 6, 'the walk opened every use case on the Build page');
+  assert.deepEqual(walk.build.filter((b) => b.tabs.length).map(({ name, tabs }) => ({ name, tabs })), [{ name: 'Predict churn', tabs: MVP_VIEW_IDS }],
+    'the walk opened Build progress and every asset of the one MVP, and a use case with no MVP has none');
+  assert.deepEqual([...walk.build.find((b) => b.tabs.length).panels].sort(),
+    ['Alerts of this use case', 'Build and job', 'History', 'Run and schedule', 'Settings', 'Target KPI'],
+    'the walk saw the Settings and Alerts panels and every Build panel of the MVP');
+  assert.equal(walk.run, 0, 'the walk opens the Run tab, which lists the MVP Apps of the demo file, so a recording has none there yet and reads nothing');
+  assert.deepEqual({ runs: walk.start.runs, quick: walk.start.quick }, { runs: 1, quick: 1 }, 'the walk saw the demo run on Start and opened its quick view');
+  assert.equal(walk.start.cards.length, 11, 'the walk clicked every card on Start');
+  assert.deepEqual(walk.monitor, { steps: true }, 'the walk saw the steps of the run on Monitor');
+}
+
+test('the recording walk waits for what a slow page draws late: with every read of the App starting 2 s late it still sees every view, panel, card and step', async () => {
+  const { ui, exchanges, blocked } = await recordDemo({ late: true });
+  try {
+    const walk = await walkInspireDemo(ui.page, { settle: apiWatch(ui.page) });
+    assertWalkSawEverything(walk);
+    assert.deepEqual(blocked, [], 'viewing the demo sends no write');
+    assert.deepEqual(unrecorded(exchanges, { ...DEMO_READS, ...DEMO_READS_WHEN }), [], 'the slow walk still recorded every read the demo answers');
+    assert.deepEqual(besidesRefusals(ui.pageErrors), []);
+  } finally {
+    await ui.close();
+  }
+});
+
+test('recording the demo walks every Results and Build view through the read-only guard and changes nothing', async (t) => {
+  const { ui, exchanges, blocked } = await recordDemo();
   const { page, made } = ui;
   try {
     const settle = apiWatch(page);
     const walk = await walkInspireDemo(page, { settle });
     assert.deepEqual(blocked, [], 'viewing the demo sends no write');
-    assert.deepEqual([...walk.tabs].sort(), APP_TABS.map((t) => t.id).sort(), 'the walk visits every tab of the App');
+    assertWalkSawEverything(walk);
     assert.deepEqual([...SHOWCASE_PAGES].sort(), APP_TABS.map((t) => t.id).sort(), 'every tab of the App stays in the demo');
-    assert.equal(walk.start.totals, PORTFOLIO_GROUPS.flatMap((g) => g.cards).length, 'the walk saw every total across all runs on Start');
-    assert.equal(walk.runs, 1, 'the walk saw only the demo run under Change run, never the other runs of the workspace');
-    assert.equal(walk.results, 6, 'the walk opened every use case on the Results page');
-    assert.equal(walk.build.length, 6, 'the walk opened every use case on the Build page');
-    assert.deepEqual(walk.build.filter((b) => b.tabs.length).map(({ name, tabs }) => ({ name, tabs })), [{ name: 'Predict churn', tabs: MVP_VIEW_IDS }],
-      'the walk opened Build progress and every asset of the one MVP, and a use case with no MVP has none');
-    assert.deepEqual([...walk.build.find((b) => b.tabs.length).panels].sort(),
-      ['Alerts of this use case', 'Build and job', 'History', 'Run and schedule', 'Settings', 'Target KPI'],
-      'the walk saw the Settings and Alerts panels and every Build panel of the MVP');
-    assert.equal(walk.run, 0, 'the walk opens the Run tab, which lists the MVP Apps of the demo file, so a recording has none there yet and reads nothing');
-    assert.deepEqual({ runs: walk.start.runs, quick: walk.start.quick }, { runs: 1, quick: 1 }, 'the walk saw the demo run on Start and opened its quick view');
-    assert.equal(walk.start.cards.length, 11, 'the walk clicked every card on Start');
-    assert.deepEqual(walk.monitor, { steps: true }, 'the walk saw the steps of the run on Monitor');
     assert.deepEqual(unrecorded(exchanges, { ...DEMO_READS, ...DEMO_READS_WHEN }), [], 'the walk recorded every read the demo answers');
     assert.deepEqual(exchanges.filter((x) => /[?&]session_id=(?!42(&|$))/.test(x.url)).map((x) => routeOf(x.method, x.url)), [],
       'the walk read no other run of the workspace');
@@ -643,7 +678,7 @@ test('the recorder fetches nothing from a host outside the App and its MVP Apps:
   }
 });
 
-test('the MVP walk notices a table row that is a link to another screen, returns to the screen it walks before the next row, and never counts on Escape to close what the row opened', async () => {
+test('the MVP walk notices a table row that is a link to another screen, returns to the screen it walks before the next row, never counts on Escape to close what the row opened, and waits for a busy screen to draw its rows', async () => {
   const ui = await openUi('landing');
   try {
     const exchanges = [];

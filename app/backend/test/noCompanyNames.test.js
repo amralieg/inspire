@@ -83,12 +83,12 @@ function shellTexts(base64) {
   return Object.entries(payload.files).map(([name, text]) => [`${SHELL_PAYLOAD}!${name}`, String(text)]);
 }
 
-function productFiles() {
+function productFiles(repo = REPO) {
   const run = spawnSync('git', ['ls-files', '-z', '--cached', '--others', '--exclude-standard', '--', 'app', 'inspire_installer.py'],
-    { cwd: REPO, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
+    { cwd: repo, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
   assert.equal(run.status, 0, `git ls-files failed: ${run.stderr}`);
   return [...new Set(run.stdout.split('\0').filter(Boolean))]
-    .filter((rel) => rel !== SELF && !SKIPPED.some((rule) => rule.test(rel)) && fs.existsSync(path.join(REPO, rel)));
+    .filter((rel) => rel !== SELF && !SKIPPED.some((rule) => rule.test(rel)) && Boolean(fs.lstatSync(path.join(repo, rel), { throwIfNoEntry: false })?.isFile()));
 }
 
 function readText(rel) {
@@ -178,6 +178,30 @@ test('the scan reads every file inside the compressed App shell payload', () => 
 test('the bundled demo notebook is read as the text it embeds', () => {
   const bundle = readText('app/backend/demo_notebook_bundle.js');
   assert.equal(bundle, fs.readFileSync(path.join(REPO, 'app', 'dbx_generate_demo_data.py'), 'utf8'));
+});
+
+test('the scan lists only real files: an untracked symlinked node_modules folder, a symlink to a file and a listed path that is gone are left out', () => {
+  const repo = fs.mkdtempSync(path.join(require('node:os').tmpdir(), 'inspire-names-'));
+  const target = fs.mkdtempSync(path.join(require('node:os').tmpdir(), 'inspire-names-target-'));
+  try {
+    assert.equal(spawnSync('git', ['init', '-q'], { cwd: repo }).status, 0);
+    fs.mkdirSync(path.join(repo, 'app', 'web'), { recursive: true });
+    fs.writeFileSync(path.join(repo, 'app', 'kept.js'), 'const fine = 1;\n');
+    fs.writeFileSync(path.join(target, 'brand.js'), 'const brand = "Vodafone";\n');
+    fs.symlinkSync(target, path.join(repo, 'app', 'web', 'node_modules'), 'dir');
+    fs.symlinkSync(path.join(target, 'brand.js'), path.join(repo, 'app', 'linked.js'));
+    fs.writeFileSync(path.join(repo, 'app', 'gone.js'), 'const gone = 1;\n');
+    assert.equal(spawnSync('git', ['add', 'app/gone.js'], { cwd: repo }).status, 0);
+    fs.rmSync(path.join(repo, 'app', 'gone.js'));
+    const listed = spawnSync('git', ['ls-files', '--others', '--', 'app'], { cwd: repo, encoding: 'utf8' }).stdout.split('\n').filter(Boolean).sort();
+    assert.deepEqual(listed, ['app/kept.js', 'app/linked.js', 'app/web/node_modules'], 'git lists the symlinks as untracked paths, so the scan must sort them out');
+    const files = productFiles(repo);
+    assert.deepEqual(files, ['app/kept.js']);
+    assert.deepEqual(files.map((rel) => fs.readFileSync(path.join(repo, rel), 'utf8')), ['const fine = 1;\n']);
+  } finally {
+    fs.rmSync(repo, { recursive: true, force: true });
+    fs.rmSync(target, { recursive: true, force: true });
+  }
 });
 
 test('no product file under app/ names a real company as an example, outside the demo fixtures', () => {

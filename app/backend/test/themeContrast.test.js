@@ -98,7 +98,7 @@ function sourceLines(match) {
     for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
       const p = path.join(dir, e.name);
       if (e.isDirectory()) walk(p);
-      else if (/\.(js|jsx)$/.test(e.name)) {
+      else if (e.isFile() && /\.(js|jsx)$/.test(e.name)) {
         fs.readFileSync(p, 'utf8').split('\n').forEach((line, i) => {
           if (match(line)) hits.push(`${path.relative(SRC, p)}:${i + 1}`);
         });

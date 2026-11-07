@@ -446,7 +446,7 @@ test('the recording keeps the use case fields a screen reads and leaves out the 
     'foreign_key_relationships', 'table_joins', 'technique_implementation_guidance', 'verified_tables', 'high_level_design', 'High Level Design', 'Technical Design']);
   const frontend = path.join(__dirname, '..', '..', 'frontend', 'src');
   const source = (dir) => fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? source(path.join(dir, e.name))
-    : /\.(jsx?|mjs)$/.test(e.name) ? [fs.readFileSync(path.join(dir, e.name), 'utf8')] : []));
+    : e.isFile() && /\.(jsx?|mjs)$/.test(e.name) ? [fs.readFileSync(path.join(dir, e.name), 'utf8')] : []));
   const text = source(frontend).join('\n');
   assert.deepEqual(R.UNREAD_USE_CASE_FIELDS.filter((k) => text.includes(k)), [], 'no screen of the App names a field the recording leaves out');
 });

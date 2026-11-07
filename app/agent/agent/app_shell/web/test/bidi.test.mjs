@@ -1,9 +1,9 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { readdirSync, readFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { chromium } from 'playwright';
-import { SRC, appInfo, openApp, pageData, resizeTo, serveDist } from './harness.mjs';
+import { SRC, appInfo, fileNames, openApp, pageData, resizeTo, serveDist } from './harness.mjs';
 
 let served;
 let browser;
@@ -120,10 +120,10 @@ function physicalRules(source) {
 }
 
 test('every text box in the App sets dir, and no style aligns or spaces text by a physical side except a side the page owner picked', () => {
-  const jsx = readdirSync(SRC).filter((f) => f.endsWith('.jsx'));
+  const jsx = fileNames(SRC).filter((f) => f.endsWith('.jsx'));
   assert.ok(jsx.length > 20);
   assert.deepEqual(jsx.flatMap((f) => boxesWithoutDir(readFileSync(join(SRC, f), 'utf8')).map((line) => `${f}:${line}`)), []);
-  const css = readdirSync(join(SRC, 'styles')).filter((f) => f.endsWith('.css'));
+  const css = fileNames(join(SRC, 'styles')).filter((f) => f.endsWith('.css'));
   assert.deepEqual(css.flatMap((f) => physicalRules(readFileSync(join(SRC, 'styles', f), 'utf8')).map((hit) => `${f}:${hit}`)), []);
 });
 

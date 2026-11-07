@@ -114,7 +114,7 @@ test('the backend and the App name the same way to all settings, so no text poin
   assert.ok(I.IMPLEMENT_ALL_SETTINGS.includes(W.OPEN_ALL_SETTINGS), I.IMPLEMENT_ALL_SETTINGS);
   assert.ok(I.IMPLEMENT_SETTINGS_NO_APP.includes(I.IMPLEMENT_ALL_SETTINGS));
   const fs = require('node:fs');
-  const files = (dir) => fs.readdirSync(dir, { withFileTypes: true }).flatMap((d) => (d.isDirectory() ? files(path.join(dir, d.name)) : [path.join(dir, d.name)]));
+  const files = (dir) => fs.readdirSync(dir, { withFileTypes: true }).flatMap((d) => (d.isDirectory() ? files(path.join(dir, d.name)) : d.isFile() ? [path.join(dir, d.name)] : []));
   const agent = path.resolve(__dirname, '..', '..', 'agent', 'agent');
   const sources = [
     ...files(path.resolve(__dirname, '..', '..', 'frontend', 'src')), ...files(path.resolve(__dirname, '..', 'lib')),

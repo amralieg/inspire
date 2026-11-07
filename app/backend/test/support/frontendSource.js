@@ -8,7 +8,7 @@ function sourceFiles(dir, exts) {
   return fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
     const full = path.join(dir, entry.name);
     if (entry.isDirectory()) return sourceFiles(full, exts);
-    return exts.includes(path.extname(entry.name)) ? [full] : [];
+    return entry.isFile() && exts.includes(path.extname(entry.name)) ? [full] : [];
   });
 }
 

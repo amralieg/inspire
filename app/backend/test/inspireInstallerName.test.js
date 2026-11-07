@@ -20,7 +20,7 @@ function walk(dir) {
     const full = path.join(dir, entry.name);
     if (SKIPPED.has(entry.name)) return [];
     if (entry.isDirectory()) return walk(full);
-    return [full];
+    return entry.isFile() ? [full] : [];
   });
 }
 

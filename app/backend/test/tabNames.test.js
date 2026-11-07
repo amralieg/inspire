@@ -2,6 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+const { fileNames } = require('./support/sourceFiles');
 const { pathToFileURL } = require('node:url');
 
 const APP = path.resolve(__dirname, '..', '..');
@@ -14,13 +15,13 @@ function sources() {
     for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
       const full = path.join(dir, entry.name);
       if (entry.isDirectory()) walk(full, ext);
-      else if (ext.test(entry.name)) files.push(full);
+      else if (entry.isFile() && ext.test(entry.name)) files.push(full);
     }
   };
   walk(path.join(APP, 'frontend', 'src'), /\.(jsx?|mjs)$/);
   walk(path.join(APP, 'backend', 'lib'), /\.js$/);
   walk(path.join(APP, 'scripts'), /\.(mjs|js)$/);
-  for (const name of fs.readdirSync(path.join(APP, 'backend'))) if (name.endsWith('.js')) files.push(path.join(APP, 'backend', name));
+  for (const name of fileNames(path.join(APP, 'backend'))) if (name.endsWith('.js')) files.push(path.join(APP, 'backend', name));
   return files;
 }
 

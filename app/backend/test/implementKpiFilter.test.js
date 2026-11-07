@@ -110,7 +110,7 @@ test('no App source formats a KPI filter except the one helper the agent text is
       if (['node_modules', 'dist', 'build', 'test', 'fixtures'].includes(entry.name)) continue;
       const full = path.join(dir, entry.name);
       if (entry.isDirectory()) walk(full);
-      else if (/\.(c?js|mjs|jsx)$/.test(entry.name) && entry.name !== 'notebook_bundle.js'
+      else if (entry.isFile() && /\.(c?js|mjs|jsx)$/.test(entry.name) && entry.name !== 'notebook_bundle.js'
         && /\bfilter_(?:value|column|op|type)\b/.test(fs.readFileSync(full, 'utf8'))) found.push(path.relative(APP, full));
     }
   };

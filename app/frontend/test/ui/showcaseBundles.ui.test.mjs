@@ -17,7 +17,7 @@ const { appShellFiles, appShellPayload, bundledAppShellText } = require('../../.
 test.after(closeBrowser);
 
 const COMMITTED = loadShowcases();
-const FILES = fs.readdirSync(SHOWCASE_DIR).filter((n) => /\.json(\.gz)?$/.test(n)).sort();
+const FILES = fs.readdirSync(SHOWCASE_DIR, { withFileTypes: true }).filter((e) => e.isFile() && /\.json(\.gz)?$/.test(e.name)).map((e) => e.name).sort();
 const DEFAULTS = {
   envSkipsSetupWizard: true, isDatabricksApp: true, databricksHost: 'https://workspace.example.com',
   warehouseId: 'wh1', inspireDatabase: 'main.inspire', notebookPath: '/Shared/inspire_ai',

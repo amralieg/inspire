@@ -1,5 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const { fileNames } = require('./support/sourceFiles');
 
 const {
   INSPIRE_AGENT_VERSION,
@@ -307,7 +308,7 @@ test('every job the App creates takes its tags from inspireJobTags', () => {
   const path = require('path');
   const backend = path.join(__dirname, '..');
   const sources = [path.join(backend, 'server.js')].concat(
-    fs.readdirSync(path.join(backend, 'lib')).map((name) => path.join(backend, 'lib', name)),
+    fileNames(path.join(backend, 'lib')).map((name) => path.join(backend, 'lib', name)),
   );
   const creators = sources.filter((file) => fs.readFileSync(file, 'utf8').includes("'/api/2.1/jobs/create'"));
   assert.deepEqual(creators.map((file) => path.basename(file)).sort(), ['demoDataPipeline.js', 'server.js']);

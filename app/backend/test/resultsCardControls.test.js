@@ -26,7 +26,7 @@ test('nothing in the App still opens the Use Case Studio', () => {
     for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
       const full = path.join(dir, entry.name);
       if (entry.isDirectory()) walk(full);
-      else if (/\.(jsx?|mjs)$/.test(entry.name)) files.push(full);
+      else if (entry.isFile() && /\.(jsx?|mjs)$/.test(entry.name)) files.push(full);
     }
   };
   walk(frontend);

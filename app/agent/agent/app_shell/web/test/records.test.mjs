@@ -5,9 +5,10 @@ import {
   historyChanges, initials, inputOf, recordRef, recordView, savingText, suggestions, toInput, valueText, whenText, whoText,
 } from '../src/records.js';
 import { dayLabel, formatValue } from '../src/format.js';
-import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, lstatSync, readdirSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { fileNames } from './harness.mjs';
 
 process.env.TZ = 'Asia/Kolkata';
 const SRC = join(dirname(fileURLToPath(import.meta.url)), '..', 'src');
@@ -19,8 +20,9 @@ function sourcesUnder(dir, skip) {
   if (!existsSync(dir)) return '';
   return readdirSync(dir).map((name) => {
     const path = join(dir, name);
-    if (statSync(path).isDirectory()) return sourcesUnder(path, skip);
-    return /\.jsx?$/.test(name) && path !== skip ? readFileSync(path, 'utf8') : '';
+    const kind = lstatSync(path);
+    if (kind.isDirectory()) return sourcesUnder(path, skip);
+    return kind.isFile() && /\.jsx?$/.test(name) && path !== skip ? readFileSync(path, 'utf8') : '';
   }).join('\n');
 }
 
@@ -40,7 +42,7 @@ function unusedExports(files, callers = {}) {
 }
 
 test('every helper the App exports has a caller in the App, and the check catches one that has none', () => {
-  const files = Object.fromEntries(readdirSync(SRC).filter((f) => /\.jsx?$/.test(f)).map((f) => [f, readFileSync(join(SRC, f), 'utf8')]));
+  const files = Object.fromEntries(fileNames(SRC).filter((f) => /\.jsx?$/.test(f)).map((f) => [f, readFileSync(join(SRC, f), 'utf8')]));
   assert.ok(Object.keys(files).length > 30);
   const callers = Object.fromEntries(Object.entries(SHARED).map(([file, relay]) => [file, sourcesUnder(FRONTEND, join(FRONTEND, relay))]));
   assert.deepEqual(unusedExports(files, callers), []);
