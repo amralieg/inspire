@@ -374,6 +374,9 @@ def test_the_agent_setting_is_checked_with_the_app_files():
     ({"type": "chart", "chart": "loss_trend", "series": ["Profit"]}, "series takes some of"),
     ({"type": "sort", "target": "records", "key": "secret"}, "sort key is one of"),
     ({"type": "navigate", "page": "elsewhere"}, "navigate takes a page id"),
+    ({"type": "navigate", "page": "overview"}, r"navigate takes a page id \(n01_u05\)$"),
+    ({"type": "navigate", "page": "mywork"}, r"navigate takes a page id \(n01_u05\)$"),
+    ({"type": "navigate", "page": "impact"}, r"navigate takes a page id \(n01_u05\)$"),
     ({"type": "drop_table"}, "each view change has a type"),
 ])
 def test_every_view_change_is_checked_against_the_page(raw, fragment):
@@ -385,10 +388,10 @@ def test_valid_view_changes_pass_and_say_what_they_did():
     page = edit_page()
     done = [shell_agent.view_action(page, [page], raw) for raw in (
         {"type": "range", "filter": "run_date", "preset": "3m"}, {"type": "chart", "chart": "loss_trend", "chart_type": "area"},
-        {"type": "chart", "chart": "loss_trend", "series": ["Loss"]}, {"type": "navigate", "page": "overview"},
+        {"type": "chart", "chart": "loss_trend", "series": ["Loss"]}, {"type": "navigate", "page": page["id"]},
         {"type": "open_record", "record_key": "k1"}, {"type": "clear_filters"})]
     assert [shell_agent.view_text(a) for a in done] == ["Set Run date to 3m", "Changed Loss to discounts by month: as area",
-                                                        "Changed Loss to discounts by month: showing Loss", "Opened overview",
+                                                        "Changed Loss to discounts by month: showing Loss", f"Opened {page['title']}",
                                                         "Opened record k1", "Cleared the filters"]
     assert done[1]["chart_type"] == "area" and done[2]["series"] == ["Loss"]
 

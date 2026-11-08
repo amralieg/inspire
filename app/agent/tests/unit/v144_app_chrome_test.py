@@ -153,18 +153,24 @@ def test_the_explain_route_sends_one_question_in_the_same_conversation_and_retur
 WEB_SRC = os.path.join(ROOT, "agent", "app_shell", "web", "src")
 
 
-def test_a_chart_on_the_overview_or_the_impact_page_explains_without_a_use_case_page(tmp_path):
+OLD_SCREENS = ("overview", "mywork", "impact")
+
+
+def refused(screen):
+    return 404, {"error": f"the App has no page '{screen}'"}
+
+
+@pytest.mark.parametrize("kind", ["chart", "kpi", "text", "controls", "table", "record"])
+def test_the_old_hub_screens_are_refused_like_any_page_the_app_does_not_have(tmp_path, kind):
     s, sp_ws, _user, _made = shell(tmp_path)
-    for screen, title in shell_core.HUB_SCREENS.items():
-        status, out = call(s, "POST", "genie/explain", body=explain_body(page=screen, title="Could save, by use case"))
-        assert status == 200 and out["question"].startswith(
-            f'Explain a chart from the App "Pricing desk", on the page "{title}".\n' + NOTE + 'The chart "Could save, by use case" is a horizontal bar chart.')
-        assert "The page answers" not in out["question"] and out["question"].endswith(ASK)
-    record = explain_body(page="overview", kind="record", title="Item number 1", context=copy.deepcopy(RECORD))
-    assert call(s, "POST", "genie/explain", body=record) == (404, {"error": "the App has no page 'overview'"}), "a record always has its page"
-    assert call(s, "POST", "genie/explain", body=explain_body(page="home")) == (404, {"error": "the App has no page 'home'"})
+    body = explain_body(page=None, kind=kind, title="Could save, by use case", context=copy.deepcopy(RECORD if kind == "record" else CHART))
+    for screen in OLD_SCREENS:
+        assert call(s, "POST", "genie/explain", body=dict(body, page=screen)) == refused(screen)
+    assert call(s, "POST", "genie/explain", body=explain_body(page="home")) == refused("home")
     assert call(s, "POST", "genie/explain", body=explain_body(page=None)) == (404, {"error": "the App has no page None"})
-    assert len(sp_ws.genie) == len(shell_core.HUB_SCREENS)
+    status, out = call(s, "POST", "genie/explain", body=explain_body(page="n01_u05", title="Could save, by use case"))
+    assert status == 200 and out["question"].startswith('Explain a chart from the App "Pricing desk", on the page "')
+    assert len(sp_ws.genie) == 1
 
 
 def test_a_use_case_page_named_like_a_hub_screen_keeps_its_own_explain(tmp_path):

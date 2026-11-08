@@ -134,7 +134,6 @@ DRAFT_NO_MODEL = f"No chat model is available to this App, {DRAFT_FALLBACK}."
 
 ACTIONS = {"done": "Mark done", "not_an_issue": "Mark not an issue", "snooze": "Snooze", "assign": "Assign", "reopen": "Reopen"}
 VIEW_KINDS = ("filter", "range", "clear_filters", "column_filter", "sort", "chart", "navigate", "open_record")
-HUB_SCREENS = ("overview", "mywork", "impact")
 SWAPPABLE = ("bar", "horizontal_bar", "stacked_bar", "line", "area", "stacked_area")
 TIME_ONLY = ("line", "area", "stacked_area")
 
@@ -907,9 +906,9 @@ def view_action(page: dict, pages: list, raw) -> dict:
     if kind == "navigate":
         target = raw.get("page")
         titles = {p.get("id"): p.get("title") for p in pages}
-        if target not in titles and target not in HUB_SCREENS:
-            raise ValueError(f"navigate takes a page id ({', '.join(titles)}) or one of {', '.join(HUB_SCREENS)}")
-        return {"type": kind, "page": target, "title": titles.get(target) or target}
+        if target not in titles:
+            raise ValueError(f"navigate takes a page id ({', '.join(titles)})")
+        return {"type": kind, "page": target, "title": titles[target]}
     if not page.get("records"):
         raise ValueError("open_record needs a page with a decision list")
     return {"type": kind, "page": page["id"], "record_key": record_key_of(raw.get("record_key"))}
