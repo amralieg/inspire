@@ -3,6 +3,7 @@ const { IMPLEMENT_RUN_ID_PARAM, parseMaybeJson, withInspireInstallParams } = req
 const { parseExactJson } = require('./exactJson');
 const { int64Id } = require('./int64Id');
 const { plural } = require('./plural');
+const { USE_CASE_ID_SHAPE } = require('./sqlInputs');
 const {
   RUN_SCOPE, RUN_SCOPE_OLD_APP, customSqlProblem, customSqlProblems, recordedRunScope, runScopeDeclared, runScopeSetting,
 } = require('../../frontend/src/lib/runScope.js');
@@ -1916,6 +1917,10 @@ function previousBuilt(history) {
   return row && row.status !== IMPLEMENT_UNINSTALLED ? row : null;
 }
 
+function withVibePreviousDefault(history, spec) {
+  return spec.vibes && !spec.vibe_previous && previousBuilt(history) ? { ...spec, vibe_previous: IMPLEMENT_VIBE_PREVIOUS[0] } : spec;
+}
+
 function mvpActionProblems(history, spec) {
   const rows = [...(history || [])].sort((a, b) => (b.spec_version || 0) - (a.spec_version || 0));
   const built = Object.keys(carriedAssets(rows)).length > 0;
@@ -3127,10 +3132,17 @@ function appsLimit(host) {
 }
 
 function appsQuotaCheck(count, limit, creates) {
+  if (count == null) return { ok: true, detail: 'Inspire could not count the Apps in this workspace', warn: 'Build still runs; if the workspace is full, the App step says so.' };
   if (!creates) return { ok: true, detail: `no new App is needed (${count} of ${limit} Apps used)` };
   return count < limit
     ? { ok: true, detail: `${count} of ${limit} Apps used; one more fits` }
     : { ok: false, detail: `this workspace already has ${count} of its ${limit} Apps; delete one or untick the App` };
+}
+
+function shareCheck(grant) {
+  if (!grant) return { ok: true, detail: 'not checked yet', warn: 'Build still runs; if Inspire cannot share the result table, it skips the sharing and says so.' };
+  if (grant.ok) return grant;
+  return { ok: true, detail: grant.detail, warn: [grant.warn, 'Build still runs, without the sharing. Share the result table once you can.'].filter(Boolean).join(' ') };
 }
 
 function executionFamily(mandate) {
@@ -3207,9 +3219,17 @@ function useCaseRowStatement(table, sessionId, useCaseId) {
   };
 }
 
+function useCaseTablesStatement(table, sessionId, useCaseIds) {
+  const ids = (useCaseIds || []).map((id, i) => ({ name: `uc${i}`, value: String(id), type: 'STRING' }));
+  return {
+    sql: `SELECT id, tables_involved, primary_table FROM ${table} WHERE session_id = :sid AND id IN (${ids.map((p) => `:${p.name}`).join(', ')})`,
+    parameters: [{ name: 'sid', value: String(sessionId), type: 'BIGINT' }, ...ids],
+  };
+}
+
 function validateUseCaseId(value) {
   const id = str(value).trim();
-  if (!id || !IMPLEMENT_USE_CASE_ID_RE.test(id)) throw badRequest('use_case_id must match /^[a-zA-Z0-9_.-]+$/.');
+  if (!id || !IMPLEMENT_USE_CASE_ID_RE.test(id)) throw badRequest(USE_CASE_ID_SHAPE);
   return id;
 }
 
@@ -3246,6 +3266,7 @@ module.exports = {
   IMPLEMENT_VIBE_PREVIOUS,
   keptAssets,
   mvpActionProblems,
+  withVibePreviousDefault,
   previousBuilt,
   IMPLEMENT_OUTPUTS,
   IMPLEMENT_OUTPUT_LABELS,
@@ -3412,6 +3433,7 @@ module.exports = {
   rerunWidgets,
   rerunOverrides,
   sourceTables,
+  sourcePicks,
   checkedSourceTables,
   IMPLEMENT_TABLES_NO_SIGN_IN,
   IMPLEMENT_SWAPS_NO_SIGN_IN,
@@ -3468,6 +3490,7 @@ module.exports = {
   appNameCheck,
   appsLimit,
   appsQuotaCheck,
+  shareCheck,
   IMPLEMENT_ALL_USERS,
   accessPlan,
   grantSql,
@@ -3496,6 +3519,7 @@ module.exports = {
   parseEvidence,
   badRequest,
   useCaseRowStatement,
+  useCaseTablesStatement,
   useCaseTables,
   primaryTableOf,
   removedTableProblems,

@@ -851,9 +851,10 @@ test('a model name set in another schema is checked in that schema, not next to 
 test('preflight checks the grant only when sharing, and names a warehouse that cannot run statements', async () => {
   await withApp({ access: EXISTING, columns: KEY_COLUMNS }, async (url) => {
     const shared = await call(url, `/api/inspire/implement/preflight?${Q}&${OUT}&share=1`);
-    assert.equal(shared.data.ok, false);
+    assert.equal(shared.data.ok, true, 'a share the person cannot make does not stop the build');
     assert.equal(shared.data.checks.output.ok, true);
     assert.match(shared.data.checks.result_grant.detail, /you cannot share main.inspire.churn_out/);
+    assert.equal(shared.data.checks.result_grant.warn, 'Build still runs, without the sharing. Share the result table once you can.');
     const solo = await call(url, `/api/inspire/implement/preflight?${Q}&${OUT}`);
     assert.equal(solo.data.ok, true, JSON.stringify(solo.data));
     assert.equal(solo.data.checks.result_grant, undefined);

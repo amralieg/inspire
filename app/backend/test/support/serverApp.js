@@ -224,6 +224,7 @@ function writableBy(parent, token) {
   const [, top, catalog, schema, volume] = parent.split('/');
   const grant = top === 'Volumes' ? (state.volumes[`${catalog}.${schema}.${volume}`] || {}).writers : (state.folders[parent] || {}).writers;
   if (grant === '*') return true;
+  if (token === APP_TOKEN) return Array.isArray(grant) && grant.includes(APP_SP);
   if (token !== PERSON_TOKEN || !Array.isArray(grant)) return false;
   const reached = new Set([String(state.person || '').toLowerCase()]);
   let level = state.personGroups.map((g) => `group:${g}`);
@@ -278,4 +279,4 @@ async function stopServer() {
   started = null;
 }
 
-module.exports = { APP_NAME, APP_SP, APP_DB, APP_WAREHOUSE, PERSON_TOKEN, state, reset, request, startServer, stopServer };
+module.exports = { APP_NAME, APP_SP, APP_TOKEN, APP_DB, APP_WAREHOUSE, PERSON_TOKEN, state, reset, request, startServer, stopServer };

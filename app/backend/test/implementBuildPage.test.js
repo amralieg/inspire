@@ -92,8 +92,8 @@ test('Rebuild sends the waiting vibes as the next version, and asks what happens
   assert.equal(next.retry_outputs, undefined, 'one-version keys never carry over');
   assert.deepEqual(W.vibesProblems(next, 3), []);
   const unchosen = C.rebuildSpec(latest, entries, 3, '');
-  assert.equal(unchosen.vibe_previous, undefined, 'the choice of the last version never carries over');
-  assert.equal(W.vibesProblems(unchosen, 3).length, 1, 'Rebuild refuses to send a vibe without the choice');
+  assert.equal(unchosen.vibe_previous, 'keep', 'no choice keeps the built version live');
+  assert.deepEqual(W.vibesProblems(unchosen, 3), [], 'Rebuild never waits on the keep or remove choice');
   const removalOnly = C.rebuildSpec(latest, entries.slice(1), 3, 'keep');
   assert.equal(removalOnly.vibe_previous, undefined, 'taking an ask out sends no vibe, so no choice is sent');
   assert.equal(String(removalOnly.vibes ?? ''), '');

@@ -66,10 +66,12 @@ test('a run launched against the shared fake workspace passes the write check wh
   const allowed = await launchOn();
   assert.equal(allowed.status, 200, JSON.stringify(allowed.data));
   const probes = allowed.workspace.calls.filter((c) => c.path === '/api/2.0/workspace/mkdirs');
-  assert.equal(probes.length, 1);
-  assert.equal(probes[0].token, PERSON, 'the probe is made with the person\u2019s own token');
-  assert.match(probes[0].body.path, new RegExp(`^/Shared/${PROBE_PREFIX}`));
-  assert.deepEqual([allowed.workspace.model.created, allowed.workspace.model.deleted], [[], [probes[0].body.path]], 'the probe is deleted again');
+  const mine = probes.filter((c) => c.token === PERSON);
+  assert.equal(mine.length, 1, 'one probe with the person\u2019s own token');
+  assert.ok(probes.every((c) => c.token === PERSON || c === probes.find((p) => p.token !== PERSON)), 'at most one more, the App checking the folder it writes to');
+  assert.match(mine[0].body.path, new RegExp(`^/Shared/${PROBE_PREFIX}`));
+  assert.deepEqual(allowed.workspace.model.created, [], 'every probe is deleted again');
+  assert.ok(allowed.workspace.model.deleted.includes(mine[0].body.path));
   assert.equal(allowed.workspace.calls.filter((c) => c.path === '/api/2.1/jobs/create').length, 1);
 
   const refused = await launchOn({ '/Shared': { writers: ['someone-else'] } });

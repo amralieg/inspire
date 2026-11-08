@@ -14,6 +14,7 @@ const launch = (generationPath, options = {}) => S.request('POST', '/api/run', {
   person: options.person || ME, signedIn: options.signedIn, userToken: options.userToken,
   body: { params: { '00_business_name': 'Acme', '02_inspire_database': S.APP_DB, '14_session_id': '1001', ...(generationPath === undefined ? {} : { '11_generation_path': generationPath }) } },
 });
+const APP_CANT = (folder) => `The Inspire App can't write to ${folder}, so the run saves no files there. Ask an App manager to give the App CAN MANAGE on it.`;
 const submitted = () => S.state.calls.filter((c) => c.path.startsWith('/api/2.1/jobs/'));
 const probes = () => S.state.calls.filter((c) => c.path === '/api/2.0/workspace/mkdirs' || (c.path.startsWith('/api/2.0/fs/directories/') && c.method === 'PUT'));
 
@@ -47,8 +48,8 @@ test('a run launch into a folder the person can edit is submitted, the probe is 
     assert.equal(S.state.launches[0].output_folder, folder, label);
     assert.equal(S.state.launches[0].output_checked, 'passed', label);
     assert.equal(S.state.created.length, 0, `${label}: the probe was deleted`);
-    assert.equal(S.state.deleted.length, 1, label);
-    assert.match(S.state.deleted[0].split('/').pop(), new RegExp(`^${W().PROBE_PREFIX.replace('.', '\\.')}[0-9a-f]{32}$`), label);
+    assert.ok(S.state.deleted.length >= 1, label);
+    for (const gone of S.state.deleted) assert.match(gone.split('/').pop(), new RegExp(`^${W().PROBE_PREFIX.replace('.', '\\.')}[0-9a-f]{32}$`), label);
   }
 });
 
@@ -120,7 +121,8 @@ test('a volume needs a probe the platform lets the person create, read with the 
     if (status === 403) assert.match(got.data.error, /ask an owner of the volume main\.sales\.files for WRITE VOLUME on it\.$/, label);
     if (status === 200) assert.deepEqual([S.state.launches[0].output_folder, S.state.created.length], ['/Volumes/main/sales/files/out', 0], label);
     const reads = S.state.calls.filter((c) => c.path.startsWith('/api/2.0/fs/'));
-    assert.ok(reads.length && reads.every((c) => c.token === S.PERSON_TOKEN), `${label}: volume calls use the person token`);
+    assert.ok(reads.some((c) => c.token === S.PERSON_TOKEN), `${label}: the person check uses the person token`);
+    assert.ok(reads.every((c) => [S.PERSON_TOKEN, S.APP_TOKEN].includes(c.token)), `${label}: any other volume call is the App checking its own write`);
   }
 });
 
@@ -130,7 +132,7 @@ test('an App manager skips the write check, the launch record says manager, and 
   const boss = await launch(`${HOME}/inspire_out`, { person: BOSS });
   assert.equal(boss.status, 200, boss.text);
   assert.deepEqual([S.state.launches[0].output_folder, S.state.launches[0].output_checked], [`${HOME}/inspire_out`, 'manager']);
-  assert.deepEqual(probes(), [], 'no probe for a manager');
+  assert.deepEqual([...new Set(probes().map((c) => c.token))], [S.APP_TOKEN], 'no person probe for a manager, only the App checking the folder it writes to');
   S.reset({ notebookPresent: true, managers: [BOSS], folders });
   const person = await launch(`${HOME}/inspire_out`);
   assert.equal(person.status, 403, person.text);
@@ -143,7 +145,7 @@ test('CAN MANAGE on the App through a nested group, which the person sign-in lis
   const nested = await launch(`${HOME}/inspire_out`);
   assert.equal(nested.status, 200, nested.text);
   assert.equal(S.state.launches[0].output_checked, 'manager');
-  assert.deepEqual(probes(), []);
+  assert.ok(probes().every((c) => c.token === S.APP_TOKEN), 'no person probe');
   S.reset({ notebookPresent: true, managerGroups: ['app-admins'], personGroups: ['analysts'], groupParents: { analysts: ['data'] }, folders });
   const outside = await launch(`${HOME}/inspire_out`);
   assert.equal(outside.status, 403, `a group that does not reach the App managers grants nothing (must-exclude): ${outside.text}`);
@@ -165,12 +167,12 @@ test('the output folder check answers the same verdict without launching anythin
   S.reset({ folders, managers: [BOSS] });
   const mine = await ask(OWNER);
   assert.equal(mine.status, 200, mine.text);
-  assert.deepEqual(mine.data, { allowed: true, folder: `${HOME}/inspire_out`, checked: 'passed' });
+  assert.deepEqual(mine.data, { allowed: true, folder: `${HOME}/inspire_out`, checked: 'passed', warnings: [APP_CANT(`${HOME}/inspire_out`)] });
   assert.deepEqual(S.state.created, [], 'the probe was deleted');
   S.reset({ folders: { ...folders, '/Shared/demos': { id: 7, writers: '*' } }, managers: [BOSS] });
   for (const path of ['./../demos/', '']) {
     const fallback = await ask(OWNER, path);
-    assert.deepEqual([fallback.status, fallback.data], [200, { allowed: true, folder: '/Shared/demos', checked: 'passed' }], `${JSON.stringify(path)}: ${fallback.text}`);
+    assert.deepEqual([fallback.status, fallback.data], [200, { allowed: true, folder: '/Shared/demos', checked: 'passed', warnings: [] }], `${JSON.stringify(path)}: ${fallback.text}`);
   }
   const old = await S.request('GET', `/api/output-folder/check?generation_path=${encodeURIComponent('./../demos/')}`, { person: OWNER });
   assert.equal(old.status, 404, 'the check is a POST, so no generation path ever travels in a request URL');
@@ -194,9 +196,47 @@ test('a launched run opens its output folder with the App token, for a passed ch
 });
 
 test('the write targets come from the generation path, resolved like the notebook resolves it', () => {
-  assert.deepEqual(W().discoverWrites({}, '/Shared/x/nb'), { folders: ['/Shared/demos'] });
-  assert.deepEqual(W().discoverWrites({ '11_generation_path': '  ' }, '/Shared/x/nb'), { folders: ['/Shared/demos'] });
-  assert.deepEqual(W().discoverWrites({ '11_generation_path': '/Workspace/Users/a/out/' }, ''), { folders: ['/Users/a/out'] });
-  assert.deepEqual(W().discoverWrites({ '11_generation_path': 'out' }, ''), { folders: ['out'] });
-  assert.deepEqual(W().discoverWrites({ '11_generation_path': 'dbfs:/tmp/out' }, '/Shared/x/nb'), { folders: ['dbfs:/tmp/out'] });
+  assert.deepEqual(W().discoverWrites({}, '/Shared/x/nb'), { folders: ['/Shared/demos'], defaulted: true });
+  assert.deepEqual(W().discoverWrites({ '11_generation_path': '  ' }, '/Shared/x/nb'), { folders: ['/Shared/demos'], defaulted: true });
+  assert.deepEqual(W().discoverWrites({ '11_generation_path': './../demos/' }, '/Shared/x/nb'), { folders: ['/Shared/demos'], defaulted: true });
+  assert.deepEqual(W().discoverWrites({ '11_generation_path': '/Workspace/Users/someone@example.com/out/' }, ''), { folders: ['/Users/someone@example.com/out'], defaulted: false });
+  assert.deepEqual(W().discoverWrites({ '11_generation_path': 'out' }, ''), { folders: ['out'], defaulted: false });
+  assert.deepEqual(W().discoverWrites({ '11_generation_path': 'dbfs:/tmp/out' }, '/Shared/x/nb'), { folders: ['dbfs:/tmp/out'], defaulted: false });
+});
+
+test('a locked default folder falls back to the person\u2019s own inspire_output and says so, while a locked folder the person typed is still refused (must-exclude)', async () => {
+  const mine = `/Users/${ME}`;
+  const locked = { notebookPresent: true, folders: { '/Shared/demos': { id: 7, writers: [] }, [mine]: { id: 12, writers: [ME, S.APP_SP] } } };
+  for (const asked of [undefined, './../demos/']) {
+    S.reset(locked);
+    const got = await launch(asked);
+    assert.equal(got.status, 200, `${JSON.stringify(asked)}: ${got.text}`);
+    assert.deepEqual(got.data.warnings, [`/Shared/demos is locked, so Inspire saves to ${mine}/inspire_output.`]);
+    assert.equal(S.state.createdJob.tasks[0].notebook_task.base_parameters['11_generation_path'], `/Workspace${mine}/inspire_output`);
+    assert.equal(S.state.launches[0].output_folder, `${mine}/inspire_output`);
+  }
+  S.reset(locked);
+  const check = await S.request('POST', '/api/output-folder/check', { person: ME, body: { generation_path: './../demos/' } });
+  assert.deepEqual([check.status, check.data], [200, { allowed: true, folder: `${mine}/inspire_output`, checked: 'passed',
+    warnings: [`/Shared/demos is locked, so Inspire saves to ${mine}/inspire_output.`], generation_path: `/Workspace${mine}/inspire_output` }]);
+  S.reset(locked);
+  const typed = await launch('/Shared/demos/');
+  assert.equal(typed.status, 403, `a folder the person typed is never swapped: ${typed.text}`);
+  assert.deepEqual(submitted(), []);
+  S.reset({ notebookPresent: true, folders: { '/Shared/demos': { id: 7, writers: [] }, [mine]: { id: 12, writers: [OWNER] } } });
+  const nowhere = await launch(undefined);
+  assert.equal(nowhere.status, 403, `a fallback no better than the default changes nothing: ${nowhere.text}`);
+  assert.deepEqual(nowhere.data.unwritable, ['/Shared/demos']);
+});
+
+test('the App writes the run\u2019s files, so a folder only the person can write warns up front, for a manager too, and a folder the App can write says nothing', async () => {
+  S.reset({ notebookPresent: true, managers: [BOSS], folders: { [HOME]: { id: 11, writers: [OWNER] } } });
+  const boss = await launch(`${HOME}/inspire_out`, { person: BOSS });
+  assert.equal(boss.status, 200, boss.text);
+  assert.deepEqual(boss.data.warnings, [APP_CANT(`${HOME}/inspire_out`)]);
+  S.reset({ notebookPresent: true, managers: [BOSS], folders: { [HOME]: { id: 11, writers: [OWNER, S.APP_SP] } } });
+  const granted = await launch(`${HOME}/inspire_out`, { person: BOSS });
+  assert.equal(granted.status, 200, granted.text);
+  assert.equal(granted.data.warnings, undefined);
+  assert.ok(probes().some((c) => c.token === S.APP_TOKEN), 'the App checked its own write');
 });

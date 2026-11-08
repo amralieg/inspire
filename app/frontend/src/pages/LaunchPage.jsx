@@ -42,7 +42,7 @@ import LatestRunBadge from '../components/LatestRunBadge';
 import { runBusiness } from '../lib/reviewFigures';
 import OutputFolderCheck from '../components/OutputFolderCheck';
 import { useOutputFolderCheck } from '../lib/outputFolderCheck';
-import { parseDocumentLanguages, formatDocumentLanguages } from '../constants/documentLanguages';
+import { DEFAULT_DOCUMENT_LANGUAGE, parseDocumentLanguages, formatDocumentLanguages, launchDocLanguages, needsDocumentLanguage } from '../constants/documentLanguages';
 import { interpretUcPermissionError, parseApiErrorMessage } from '../lib/ucPermissionErrors';
 import { formatWhen } from '../lib/formatWhen';
 import { sessionFailed, sessionFinished } from '../lib/monitorState';
@@ -593,7 +593,8 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
         if (!discoveryTouched && storedDiscovery) {
           next['03_discovery_type'] = storedDiscovery;
         }
-        const prefillStrategy = !strategyTouched && wv.strategic_context ? String(wv.strategic_context) : '';
+        const savedStrategy = !strategyTouched && wv.strategic_context ? String(wv.strategic_context) : '';
+        const prefillStrategy = savedStrategy && !validateStrategicContextText(savedStrategy).length ? savedStrategy : '';
         if (Object.keys(next).length || prefillStrategy) {
           if (Object.keys(next).length) setParams((p) => ({ ...p, ...next }));
           if (prefillStrategy) {
@@ -630,21 +631,10 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
     if (!outputCheck.ready)
       return setLaunchError(outputCheck.text || 'Wait until Inspire has checked that you can write to the output folder.');
 
-    const genOpts = params['09_generation_options'] || '';
-    const needsDocLang =
-      genOpts.includes('PDF') || genOpts.includes('Presentation');
-    if (needsDocLang && parseDocumentLanguages(params['12_documents_languages']).length === 0) {
-      return setLaunchError(
-        'Select at least one document language (Advanced → Document Languages) for PDF or Presentation.',
-      );
-    }
-
     setLaunching(true);
     setLaunchError('');
     const finalParams = { ...params };
-    finalParams['12_documents_languages'] = formatDocumentLanguages(
-      params['12_documents_languages'],
-    );
+    finalParams['12_documents_languages'] = formatDocumentLanguages(launchDocLanguages(params));
     // Always auto-generate session ID
     finalParams['14_session_id'] =
       String(Date.now()) + String(Math.floor(Math.random() * 1e6));
@@ -659,7 +649,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
         }),
       });
       update('inspireDatabase', finalParams['02_inspire_database']);
-      onLaunched?.(finalParams['14_session_id'], data.run_id);
+      onLaunched?.(finalParams['14_session_id'], data.run_id, Array.isArray(data.warnings) ? data.warnings : []);
     } catch (err) {
       setLaunchError(parseApiErrorMessage(err.message));
     } finally {
@@ -679,9 +669,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
   const filteredTables = tables.filter(
     (t) => !tableSearch || t.full_name.toLowerCase().includes(tableSearch.toLowerCase())
   );
-  const needsLanguage =
-    params['09_generation_options'].includes('PDF') ||
-    params['09_generation_options'].includes('Presentation');
+  const needsLanguage = needsDocumentLanguage(params['09_generation_options']);
   const selectedDocLanguages = useMemo(
     () => parseDocumentLanguages(params['12_documents_languages']),
     [params['12_documents_languages']],
@@ -707,7 +695,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
     : !effectiveDb ? 'Set the Inspire Database in Advanced Settings to get started.'
       : !params['01_uc_metadata'] ? 'Pick at least one catalog, schema or table under Unity Catalog Metadata to get started.'
         : strategyProblems.length ? `Fix the strategy first, in Advanced Settings under Strategy (optional): ${strategyProblems[0]}`
-          : bestOfBestInvalid ? 'Fix Best of Best stars in Advanced Settings: use a whole number from 0 to 100, or leave it empty.' : '';
+          : bestOfBestInvalid ? 'Best of Best stars takes a whole number from 0 to 100. Fix it in Advanced Settings.' : '';
   const canLaunch = !launchBlock;
   const advancedProblem = !effectiveDb ? 'Set the Inspire Database.'
     : strategyProblems.length ? `Fix the strategy: ${strategyProblems[0]}`
@@ -1548,12 +1536,11 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
 
                 <Field
                   label="Document Languages"
-                  required={needsLanguage}
                   icon={Globe2}
                   hint={
                     needsLanguage
-                      ? 'Required for PDF and Presentation'
-                      : 'Optional unless PDF or Presentation is selected'
+                      ? `Used for PDF and Presentation. ${DEFAULT_DOCUMENT_LANGUAGE} unless you pick others`
+                      : 'Used only when PDF or Presentation is selected'
                   }
                 >
                   <DocumentLanguagesMultiselect
@@ -1561,8 +1548,8 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                     onChange={(v) => updateParam('12_documents_languages', v)}
                   />
                   {needsLanguage && selectedDocLanguages.length === 0 && (
-                    <p className="text-[11px] text-db-red-fg mt-2 font-medium">
-                      Select at least one language before launching.
+                    <p data-doc-language-default className="text-[11px] text-text-tertiary mt-2">
+                      {`No language picked, so the documents are in ${DEFAULT_DOCUMENT_LANGUAGE}.`}
                     </p>
                   )}
                 </Field>

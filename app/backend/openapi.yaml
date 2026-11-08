@@ -1043,21 +1043,30 @@ paths:
             application/json:
               schema:
                 type: object
-                required: [allowed, folder, checked]
+                required: [allowed, folder, checked, warnings]
                 properties:
                   allowed: { type: boolean, enum: [true] }
                   folder: { type: string }
                   checked: { type: string, enum: [passed, manager] }
+                  warnings:
+                    type: array
+                    items: { type: string }
+                    description: What the run does differently, such as a locked default folder or a folder the App cannot write
+                  generation_path:
+                    type: string
+                    description: The folder the run saves to when the default folder is locked
               example:
                 allowed: true
                 folder: /Users/someone@example.com/inspire_output
                 checked: passed
+                warnings: ['/Shared/demos is locked, so Inspire saves to /Users/someone@example.com/inspire_output.']
+                generation_path: /Workspace/Users/someone@example.com/inspire_output
         '401':
           $ref: '#/components/responses/PersonSignInRequired'
         '403':
           $ref: '#/components/responses/PolicyRefused'
         '502':
-          description: Inspire could not finish the check, so it says why and starts nothing
+          description: Inspire could not finish the check and says why; the App lets the run go on and the run checks again
           content:
             application/json:
               schema:

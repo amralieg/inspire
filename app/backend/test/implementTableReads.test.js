@@ -95,10 +95,10 @@ test('the swap lookup keeps its own no-sign-in reason', () => {
   assert.equal(I.IMPLEMENT_SWAPS_NO_SIGN_IN, NO_SIGN_IN);
 });
 
-const RUN_NO_SIGN_IN = 'Inspire checks with your own sign-in that you can read every table and file a run reads, and this request carries none, '
-  + 'so it starts no run';
-const cannotRead = (names) => `You cannot read ${names} with your own sign-in, and Inspire never reads for you what you cannot read: `
-  + 'choose only tables and files you can read, or ask their owner for access';
+const { RUN_NO_SIGN_IN } = require('../lib/ucReads');
+const cannotRead = (names) => `You can't read ${names}. Pick tables and files you can read, or ask their owner for access`;
+const insertedSpec = (made) => JSON.parse(made.sqlCalls.find((c) => /^INSERT/.test(String(c.sql)) && String(c.sql).includes('__inspire_implement'))
+  .parameters.find((p) => p.name === 'spec').value);
 const DB = { inspire_database: 'main.inspire', warehouse_id: 'wh1', session_id: '42' };
 const tableChecks = (made) => made.fetches.filter((f) => f.path.startsWith('/api/2.1/unity-catalog/tables/'));
 const wrote = (made) => made.sqlCalls.some((c) => /^(INSERT|UPDATE)/.test(String(c.sql)));
@@ -107,15 +107,27 @@ const ruleOut = (made) => {
   assert.equal(made.jobs.length, 0, 'no MVP run starts');
 };
 
-test('an MVP run starts only when the person can read every source table with their own token, and is refused naming the others', async () => {
+test('an MVP build drops a secondary table the person cannot read, says so, and is refused only when the primary table is unreadable (must-exclude)', async () => {
   const mine = { readableTables: { [PERSON_TOKEN]: ['main.s.orders'], tok: ['main.s.orders', 'main.s.returns_v2'] } };
   await withApp({ history: [], ...mine }, async (url, made) => {
+    const plan = await call(url, '/api/inspire/implement/plan', { method: 'POST', body: { ...DB, spec: SPEC } });
+    assert.equal(plan.status, 200, JSON.stringify(plan.data));
+    assert.deepEqual(plan.data.warnings, ["Building without a table you can't read: main.s.returns_v2."]);
     const got = await call(url, '/api/inspire/implement/submit', { method: 'POST', body: { ...DB, spec: SPEC } });
-    assert.deepEqual([got.status, got.data], [403, { unreadable: ['main.s.returns_v2'], error: cannotRead('main.s.returns_v2') }]);
+    assert.equal(got.status, 200, JSON.stringify(got.data));
+    assert.deepEqual(got.data.warnings, ["Building without a table you can't read: main.s.returns_v2."]);
+    assert.equal(made.jobs.length, 1);
+    const sent = insertedSpec(made);
+    assert.deepEqual(sent.data.removed_tables, ['main.s.returns'], 'the original name of the swapped table is what the build leaves out');
+    assert.deepEqual(sent.data.tables, {}, 'its swap is gone with it');
+    assert.ok(tableChecks(made).every((f) => f.token === PERSON_TOKEN), 'checked as the person');
+    assert.ok(tableChecks(made).some((f) => f.path === '/api/2.1/unity-catalog/tables/main.s.returns_v2'), 'the swapped table is checked in place of the one it replaces');
+  });
+  await withApp({ history: [], readableTables: { [PERSON_TOKEN]: ['main.s.returns_v2'] } }, async (url, made) => {
+    const got = await call(url, '/api/inspire/implement/submit', { method: 'POST', body: { ...DB, spec: SPEC } });
+    assert.deepEqual([got.status, got.data.unreadable], [403, ['main.s.orders']]);
+    assert.equal(got.data.error, `${cannotRead('main.s.orders')}. It is the primary table, so Inspire cannot build without it.`);
     ruleOut(made);
-    assert.deepEqual(tableChecks(made).map((f) => `${f.token} ${f.path}`).sort(),
-      [`${PERSON_TOKEN} /api/2.1/unity-catalog/tables/main.s.orders`, `${PERSON_TOKEN} /api/2.1/unity-catalog/tables/main.s.returns_v2`],
-      'the swapped table is checked in place of the one it replaces, as the person');
   });
   await withApp({ history: [], readableTables: { [PERSON_TOKEN]: ['main.s.orders', 'MAIN.S.RETURNS_V2'] } }, async (url, made) => {
     const got = await call(url, '/api/inspire/implement/submit', { method: 'POST', body: { ...DB, spec: SPEC } });
@@ -134,7 +146,8 @@ test('a re-run and Publish anyway are refused the same way, before run-now or a 
   const built = { ...BUILT, job_id: 77, genie_widgets: JSON.stringify([{ name: 'top_k', type: 'text', default: '25', allowed: 'whole number, at least 1' }]) };
   await withApp({ history: [built], readableTables: { [PERSON_TOKEN]: ['main.s.orders'] } }, async (url, made) => {
     const got = await call(url, `/api/inspire/implement/rerun?${Q}`, { method: 'POST', body: { overrides: {} } });
-    assert.deepEqual([got.status, got.data.error, got.data.unreadable], [403, cannotRead('main.s.returns_v2'), ['main.s.returns_v2']]);
+    assert.deepEqual([got.status, got.data.error, got.data.unreadable], [403, cannotRead('main.s.returns_v2'), ['main.s.returns_v2']],
+      'a re-run runs the built job as it is, so it cannot leave a table out');
     assert.ok(!made.fetches.some((f) => f.path === '/api/2.1/jobs/run-now'));
   });
   await withApp({ history: [built], readableTables: { [PERSON_TOKEN]: ['main.s.orders', 'main.s.returns_v2'] } }, async (url, made) => {
@@ -143,20 +156,26 @@ test('a re-run and Publish anyway are refused the same way, before run-now or a 
     assert.ok(made.fetches.some((f) => f.path === '/api/2.1/jobs/run-now'));
   });
   const held = { ...BUILT, spec_version: 2, status: 'vibe_not_met' };
-  await withApp({ history: [held, BUILT], readableTables: { [PERSON_TOKEN]: ['main.s.orders'] } }, async (url, made) => {
+  await withApp({ history: [held, BUILT], readableTables: { [PERSON_TOKEN]: ['main.s.returns_v2'] } }, async (url, made) => {
     const spec = { ...SPEC, publish_held: 2, based_on_version: 2 };
     const got = await call(url, '/api/inspire/implement/publish?use_case_id=N01-U01', { method: 'POST', body: { ...DB, spec } });
-    assert.deepEqual([got.status, got.data.unreadable], [403, ['main.s.returns_v2']], JSON.stringify(got.data));
+    assert.deepEqual([got.status, got.data.unreadable], [403, ['main.s.orders']], JSON.stringify(got.data));
     ruleOut(made);
   });
 });
 
-test('a Genie Code notebook run reads the session\u2019s UC Metadata, so it starts only when the person can read it, before any flag is written', async () => {
+test('a Genie Code notebook run checks only the chosen use cases\u2019 tables, not the whole Discover scope, before any flag is written (must-exclude)', async () => {
   const body = { ...DB, use_case_ids: ['N01-U01'], notebook_path: '/Shared/nb' };
   const generate = (url) => call(url, '/api/inspire/generate-genie', { method: 'POST', body });
-  await withApp({ ucMetadata: 'main.s.orders,main.hr.salaries', readableTables: { [PERSON_TOKEN]: ['main.s.orders'] } }, async (url, made) => {
+  await withApp({ ucMetadata: 'main.s.orders,main.hr.salaries', readableTables: { [PERSON_TOKEN]: ['main.s.orders', 'main.s.returns'] } }, async (url, made) => {
     const got = await generate(url);
-    assert.deepEqual([got.status, got.data], [403, { error: cannotRead('main.hr.salaries'), unreadable: ['main.hr.salaries'] }]);
+    assert.equal(got.status, 200, `a table elsewhere in the scope does not stop it: ${JSON.stringify(got.data)}`);
+    assert.ok(!tableChecks(made).some((f) => f.path.includes('main.hr.salaries')), 'the rest of the scope is not checked');
+    assert.deepEqual(tableChecks(made).map((f) => f.path).sort(), ['/api/2.1/unity-catalog/tables/main.s.orders', '/api/2.1/unity-catalog/tables/main.s.returns']);
+  });
+  await withApp({ ucMetadata: 'main.s.orders', readableTables: { [PERSON_TOKEN]: ['main.s.orders'] } }, async (url, made) => {
+    const got = await generate(url);
+    assert.deepEqual([got.status, got.data], [403, { error: cannotRead('main.s.returns'), unreadable: ['main.s.returns'] }]);
     assert.deepEqual([made.flagged, made.jobs], [[], []]);
   });
   await withApp({ ucMetadata: 'main.s.orders', ...APP_ONLY }, async (url, made) => {
@@ -164,7 +183,7 @@ test('a Genie Code notebook run reads the session\u2019s UC Metadata, so it star
     assert.deepEqual([got.status, got.data], [401, { error: RUN_NO_SIGN_IN, unreadable: [] }]);
     assert.deepEqual([made.flagged, made.jobs], [[], []]);
   });
-  await withApp({ ucMetadata: 'main.s.orders', readableTables: { [PERSON_TOKEN]: ['main.s.orders'] } }, async (url, made) => {
+  await withApp({ ucMetadata: 'main.s.orders', readableTables: { [PERSON_TOKEN]: ['main.s.orders', 'main.s.returns'] } }, async (url, made) => {
     const got = await generate(url);
     assert.equal(got.status, 200, JSON.stringify(got.data));
     assert.equal(made.jobs.length, 1);

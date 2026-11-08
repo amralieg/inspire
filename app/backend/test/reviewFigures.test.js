@@ -169,7 +169,7 @@ test('GET /api/inspire/portfolio answers from three aggregate reads however many
     for (const bad of ['', 'main', 'a.b.c']) {
       const refused = await get(srv.url, `/api/inspire/portfolio?inspire_database=${encodeURIComponent(bad)}&warehouse_id=wh1`);
       assert.equal(refused.status, 400, bad);
-      assert.match(refused.data.error, /inspire_database must be exactly catalog\.schema/);
+      assert.equal(refused.data.error, 'Pick catalog.schema for the Inspire database, for example main.inspire, in Settings.');
     }
     assert.equal((await get(srv.url, '/api/inspire/portfolio?inspire_database=main.inspire')).status, 400, 'a warehouse is required');
     assert.equal(sqlCalls.length, 3, 'a refused request reads nothing');

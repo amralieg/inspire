@@ -1,5 +1,5 @@
 import { useId, useLayoutEffect, useRef } from 'react';
-import { VIBES_MAX, partOf, vibesLabel, vibesLength, vibesProblem } from '../lib/implementWizard';
+import { VIBES_MAX, VIBE_PREVIOUS_DEFAULT, partOf, vibesLabel, vibesLength, vibesProblem } from '../lib/implementWizard';
 
 const PLACEHOLDERS = {
   mvp: 'For example: put the rows to act on first on the App, answer in euros in the Genie Agent, and count returns by week',
@@ -32,8 +32,9 @@ function heightOfText(el, text) {
   return Math.min(need, most);
 }
 
-export function VibePrevious({ built, choices, value, onPick }) {
+export function VibePrevious({ built, choices, value: picked, onPick }) {
   if (!choices.length) return null;
+  const value = picked || VIBE_PREVIOUS_DEFAULT;
   return (
     <fieldset data-vibe-previous="" className="space-y-2">
       <legend className="text-[13px] font-semibold text-text-primary">What happens to v{built}?</legend>
