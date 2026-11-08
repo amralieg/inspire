@@ -40,6 +40,7 @@ export const FIRST_RUN_GROUPS_MAX_SHOWN = 50;
 export const FIRST_RUN_GROUPS_FIND_FROM = 10;
 export const FIRST_RUN_GROUPS_READING = 'Inspire is reading the groups of the Data groups you chose.';
 export const FIRST_RUN_COVERS = `The ${FIRST_RUN_LABEL} covers`;
+export const SPREAD_WORDS = 'spread across the whole table, picked by a stable hash of each record';
 export const GROUPING_JOINED_NOTE = 'Each run reads it from that table through this join.';
 
 const isMap = (value) => Boolean(value) && typeof value === 'object' && !Array.isArray(value);
@@ -423,13 +424,13 @@ export function groupsPickedByRunText(values) {
 export function recordGroupsText(profile, values) {
   const picked = recordGroups(profile, values);
   const goal = whole(values?.[SCOPE_RECORDS]) ?? Number(SCOPE_DEFAULTS[SCOPE_RECORDS]);
-  if (!picked && oneGroupChosen(profile, values)) return `The first ${counted(goal, 'record')} of the whole data, which is one group`;
+  if (!picked && oneGroupChosen(profile, values)) return `${counted(goal, 'record')} ${SPREAD_WORDS}, the whole data being one group`;
   if (!picked && isMap(profile) && profile.standalone !== true && !wholeColumnRead(profile, values?.[GROUP_BY])) {
     return `About ${counted(goal, 'record')}, in whole groups of ${wholeGroupColumn(values?.[GROUP_BY])} so no group is cut`;
   }
-  if (!picked) return `The first ${counted(goal, 'record')}`;
+  if (!picked) return `${counted(goal, 'record')} ${SPREAD_WORDS}`;
   if (!picked.length) {
-    return `The first ${counted(goal, 'record')}; this technique reads records together and no column groups them, so a group may be cut in this ${FIRST_RUN_LABEL}`;
+    return `${counted(goal, 'record')} ${SPREAD_WORDS}; this technique reads records together and no column groups them, so a group may be cut in this ${FIRST_RUN_LABEL}`;
   }
   const column = finestGroupColumn(profile);
   const total = picked.reduce((sum, g) => sum + g.records, 0);

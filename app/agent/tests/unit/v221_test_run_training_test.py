@@ -22,8 +22,10 @@ COARSE = {"mode": "columns", "group_by": ["region"], "minimum": 30, "levels": [{
 def test_a_training_read_is_never_narrowed_by_the_mvp_test_run_and_a_scoring_read_is(fresh_ns):
     fresh_ns["INSPIRE_SCOPE"] = dict(RECORDS)
     fresh_ns["INSPIRE_RUN_LOG"] = {}
+    fresh_ns["_inspire_spread_expr"] = lambda spread: spread
     read = fresh_ns["inspire_read_source"]
-    assert read(ORDERS, spark=Session(COLUMNS)).steps == [("orderBy", "order_id"), ("limit", 1000)]
+    assert read(ORDERS, spark=Session(COLUMNS)).steps == [("orderBy", "xxhash64(CAST(`order_id` AS STRING), CAST(`region` AS STRING))"),
+                                                          ("limit", 1000)]
     assert read(ORDERS, spark=Session(COLUMNS), purpose="training").steps == [], "the training profile reads the full history"
     fresh_ns["INSPIRE_SCOPE"] = {"scope": "groups", "table": ORDERS, "column": "region", "values": ["EMEA"]}
     assert read(ORDERS, spark=Session(COLUMNS), purpose="training").steps == []
@@ -194,7 +196,8 @@ def test_only_a_live_app_without_the_banner_counts_as_trusted(agent_ns):
 def test_the_run_page_says_the_model_trained_on_the_full_history_and_the_scope_limited_only_scoring():
     import shell_core
     import shell_sql
-    scope = {"scope": "records", "table": ORDERS, "records": 1000, "key": "records:x", "text": "the first 1,000 records of main.sales.orders"}
+    scope = {"scope": "records", "table": ORDERS, "records": 1000, "key": "records:x", "text": ("1,000 records of main.sales.orders spread across the whole table, "
+                                                                                                    "picked by a stable hash of each record")}
     trained = [{"table": ORDERS, "rows": 1000, "rows_total": 48000, "scoped": True, "training_read": True, "training_rows": 48000}]
     facts = shell_sql.scope_facts(scope, trained, 240, 20000)
     assert facts["trained"] == ("The model trained on a sample of 20,000 records from the full history; the MVP Test Run limited only "
@@ -225,7 +228,7 @@ def test_the_run_summary_is_told_what_the_model_trained_on_and_what_it_scored(fr
     fresh_ns["INSPIRE_RUN_LOG"] = dict(NARROWED, training_reads={ORDERS: {"where": "", "limit": None}})
     write()
     assert ("Training and scoring: the model trained on a sample of 20,000 records from the full history; it scored the MVP Test Run "
-            "scope, the first 1,000 records of main.sales.orders.") in asked[0].replace("''", "'")
+            "scope, 1,000 records of main.sales.orders spread across the whole table, picked by a stable hash of each record.") in asked[0].replace("''", "'")
     fresh_ns["INSPIRE_RUN_LOG"] = dict(NARROWED)
     write()
     assert "Training and scoring" not in asked[1], "no training read, no training claim"

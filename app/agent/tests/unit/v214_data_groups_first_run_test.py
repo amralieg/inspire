@@ -106,7 +106,8 @@ def _scope(widgets, spec=None, run_scope=None, **values):
 def test_the_whole_data_as_one_group_takes_the_first_records_and_says_so(agent_ns):
     chosen = agent_ns["inspire_scope_choice"](scope=_scope({"group_by": "all"}, run_scope="records", scope_records="500"))
     assert chosen == {"scope": "records", "table": "main.sales.orders", "records": 500, "key": "order_id", "one_group": True}
-    assert agent_ns["inspire_scope_text"](chosen) == "the first 500 records of main.sales.orders, the whole data being one group"
+    assert agent_ns["inspire_scope_text"](chosen) == ("500 records of main.sales.orders spread across the whole table, picked by a stable hash "
+                                                           "of each record, the whole data being one group")
     grouped = agent_ns["inspire_scope_choice"](scope=_scope({"group_by": "region"}, run_scope="records"))
     assert grouped.get("whole_groups") is True and "one_group" not in grouped, "a chosen grouping still takes whole groups (must-exclude)"
     unset = agent_ns["inspire_scope_choice"](scope=_scope({}, run_scope="records"))

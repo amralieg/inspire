@@ -335,8 +335,8 @@ def draft_template(page: dict, items: list) -> tuple:
         parts = [p for p in (draft_action(page, item["values"]), draft_amount(item["values"])) if p]
         owner = draft_text(item["values"].get("action_owner"))
         rows.append(f"- {item['name']}" + (f": {', '.join(parts)}" if parts else "") + (f" (with {owner})" if owner else ""))
-    return (cut(f"Action needed on {len(items)} records: {title}", DRAFT_SUBJECT_CHARS),
-            "\n\n".join([DRAFT_GREETING, f"These {len(items)} records on {title} need action:", "\n".join(rows),
+    return (cut(f"Action needed on {shell_sql.plural(len(items), 'record')}: {title}", DRAFT_SUBJECT_CHARS),
+            "\n\n".join([DRAFT_GREETING, f"These {shell_sql.plural(len(items), 'record')} on {title} need action:", "\n".join(rows),
                          "Could you take these on and tell me when they are done?"]))
 
 
@@ -408,7 +408,7 @@ def draft_parse(content) -> tuple:
     data = json.loads(text[start:end + 1])
     if not isinstance(data, dict):
         raise ValueError("did not come back as a subject and a body")
-    dashless = lambda s: re.sub(r"\s*[—–]\s*", ", ", s)
+    dashless = lambda s: re.sub(r"\s*[\u2013\u2014]\s*", ", ", s)
     subject = dashless(" ".join(str(data.get("subject") or "").split()))
     body = "\n".join(line.rstrip() for line in str(data.get("body") or "").strip().splitlines())
     return subject, dashless(re.sub(r"\n{3,}", "\n\n", body))
@@ -754,7 +754,7 @@ class Agent:
         facts = {"app": self.shell.app_title(), "use_case": page.get("title"), "question": page.get("question"),
                  "list": (page.get("records") or {}).get("title"), "brief": cut(self.shell.use_case_brief(headers, page), shell_sql.CAPS["field_chars"]),
                  "record_count": len(items), "records": items}
-        system = DRAFT_SYSTEM.format(what=f"{len(items)} records" if many else "one record", title=page.get("title") or page["id"],
+        system = DRAFT_SYSTEM.format(what=shell_sql.plural(len(items), "record") if many else "one record", title=page.get("title") or page["id"],
                                      app=self.shell.app_title(), data_note=DATA_NOTE, greeting=DRAFT_GREETING, shape=DRAFT_LIST if many else DRAFT_SINGLE)
         turn, note = Turn(who, page["id"]), ""
         try:

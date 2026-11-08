@@ -22,6 +22,7 @@ STAR = [("ss_sold_date_sk", "int"), ("ss_item_sk", "int"), ("ss_customer_sk", "i
 class Frame:
     def __init__(self, columns, steps=()):
         self.columns, self.steps = list(columns), list(steps)
+        self.dtypes = [(column, "string") for column in self.columns]
 
     def where(self, condition):
         return Frame(self.columns, self.steps + [("where", condition)])
@@ -305,12 +306,15 @@ def test_with_no_column_to_group_by_the_first_run_takes_the_first_records_with_a
     chosen = fresh_ns["inspire_scope_choice"](scope=_scope({"group_column": "", "records": 718931}, run_scope="records"))
     assert chosen == {"scope": "records", "table": "main.sales.orders", "records": 1000, "key": "order_id", "cut": "Anomaly Detection"}
     fresh_ns["INSPIRE_SCOPE"], fresh_ns["INSPIRE_RUN_LOG"] = chosen, {}
+    fresh_ns["_inspire_spread_expr"] = lambda spread: spread
     frame = fresh_ns["inspire_read_source"]("main.sales.orders", spark=Session(["order_id", "region"]))
-    assert frame.steps == [("orderBy", "order_id"), ("limit", 1000)]
-    assert fresh_ns["inspire_scope_text"](chosen) == ("the first 1,000 records of main.sales.orders; Anomaly Detection reads records together and "
-                                                      "main.sales.orders has no column to take whole groups of, so a group may be cut in this MVP Test Run")
+    assert frame.steps == [("orderBy", "xxhash64(CAST(`order_id` AS STRING), CAST(`region` AS STRING))"), ("limit", 1000)]
+    assert fresh_ns["inspire_scope_text"](chosen) == ("1,000 records of main.sales.orders spread across the whole table, picked by a stable hash of "
+                                                      "each record; Anomaly Detection reads records together and main.sales.orders has no column "
+                                                      "to take whole groups of, so a group may be cut in this MVP Test Run")
     reason = fresh_ns["inspire_scope_settings"](dict(SPEC, group_column="", default="records", records=718931))[0]["reason"]
-    assert reason.endswith("the first 1,000 records; Anomaly Detection reads records together and no column groups them, so a group may be cut")
+    assert reason.endswith("1,000 records spread across the whole table, picked by a stable hash of each record; Anomaly Detection reads "
+                           "records together and no column groups them, so a group may be cut")
 
 
 def test_with_no_group_of_30_records_the_whole_groups_fall_back_to_the_first_records_with_a_note(fresh_ns):

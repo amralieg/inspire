@@ -48,6 +48,26 @@ def test_health_index_assets_and_api(tmp_path, monkeypatch):
     assert r.status_code == 200 and r.json()["kpis"]["total_loss"]["now"] == 120.0
 
 
+def test_the_tab_title_is_the_use_case_name_from_the_first_byte_never_the_placeholder(tmp_path, monkeypatch):
+    c = client(tmp_path, monkeypatch)
+    (tmp_path / "static" / "index.html").write_text("<!doctype html><head><title>Inspire App</title></head><div id=root></div>")
+    for path in ("/", "/index.html"):
+        page = c.get(path).text
+        assert f"<title>{PAGE['title']} · Pricing desk</title>" in page, path
+        assert "Inspire App" not in page, "the placeholder title never reaches a browser tab (must-exclude)"
+
+
+def test_a_use_case_name_with_markup_is_escaped_in_the_tab_title(tmp_path, monkeypatch):
+    c = client(tmp_path, monkeypatch)
+    (tmp_path / "static" / "index.html").write_text("<!doctype html><head><title>Inspire App</title></head>")
+    served = next(r.endpoint.__globals__ for r in c.app.routes if getattr(r, "path", "") == "/")
+    served["shell"].pages[0]["title"] = "Reduce <b>reads</b> & misses"
+    assert "<title>Reduce &lt;b&gt;reads&lt;/b&gt; &amp; misses · Pricing desk</title>" in c.get("/").text
+    served["shell"].pages.append(dict(PAGE, id="n02"))
+    assert "<title>Pricing desk</title>" in c.get("/").text, "an App of several use cases is titled by its hub"
+    assert served["titled_index"]("<p>no head</p>", "A & B") == "<title>A &amp; B</title><p>no head</p>"
+
+
 def test_every_api_answer_says_how_long_the_app_spent_on_it_so_network_time_can_be_told_apart(tmp_path, monkeypatch):
     c = client(tmp_path, monkeypatch)
     for r in (c.get("/api/app"), c.post("/api/page", json={"page": "n01_u05", "filters": {}}), c.get("/api/nope")):

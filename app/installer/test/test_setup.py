@@ -959,7 +959,7 @@ class LakebaseSetupTest(unittest.TestCase):
         self.assertEqual(grants, INSPIRE_GRANTS)
         note = self.ctx["LAKEBASE_NOTE"]
         self.assertIn(f"Databricks refused to create the catalog `{LAKEBASE['catalog']}` on the Lakebase project {LAKEBASE['project']} for you "
-                      "(403 {\"error_code\":\"PERMISSION_DENIED\",\"message\":\"User does not have CREATE CATALOG on Metastore\"}): "
+                      "(403 PERMISSION_DENIED: User does not have CREATE CATALOG on Metastore): "
                       "creating a catalog needs CREATE CATALOG on the metastore. A metastore admin can run GRANT CREATE CATALOG ON METASTORE "
                       "TO `someone@example.com`, then you run this installer again; until then the Apps that Implement builds read Delta tables",
                       note)
@@ -999,6 +999,24 @@ class LakebaseSetupTest(unittest.TestCase):
         ready, said = self.setup_only(None, lakebase=None)
         self.assertEqual((ready, said), (False, "Inspire knows no Lakebase project or catalog to set up: until then the Apps that Implement "
                                                 "builds read Delta tables"))
+
+    def test_a_full_catalog_quota_is_shown_whole_with_the_real_next_step_not_run_again(self):
+        quota = ('{"error_code":"QUOTA_EXCEEDED","message":"Cannot create 1 Catalog(s) in Metastore 5a7903e7-8a04-4b13-987d-bfa7f6b5e906 '
+                 '(estimated count: 1000, limit: 1000).","details":[{"@type":"type.googleapis.com/google.rpc.ErrorInfo","reason":"QUOTA",'
+                 '"domain":"unity-catalog"}]}')
+        api, _calls = lakebase_api(make_catalog=(400, {}, quota))
+        ready, said = self.setup_only(api)
+        self.assertFalse(ready)
+        self.assertEqual(said, f"Databricks did not create the catalog `{LAKEBASE['catalog']}` (400 QUOTA_EXCEEDED: Cannot create 1 Catalog(s) in "
+                               "Metastore 5a7903e7-8a04-4b13-987d-bfa7f6b5e906 (estimated count: 1000, limit: 1000).): the metastore already "
+                               "holds as many catalogs as Databricks allows, so it creates no more: a metastore admin can drop the catalogs no "
+                               "one uses, or ask Databricks support to raise the limit, then you run this installer again; until then the Apps "
+                               "that Implement builds read Delta tables")
+        self.assertNotIn("Run this installer again;", said, "running again alone cannot help while the metastore is full (must-exclude)")
+        self.assertNotIn("details", said)
+        long = '{"error_code":"INVALID_STATE","message":"' + "x" * 300 + ' end"}'
+        api, _calls = lakebase_api(make_catalog=(400, {}, long))
+        self.assertIn("x" * 300 + " end)", self.setup_only(api)[1], "a reason longer than 160 characters is no longer cut off")
 
     def test_an_endpoint_or_catalog_that_never_gets_ready_stops_after_the_polls_and_says_so(self):
         slept = []

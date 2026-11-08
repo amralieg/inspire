@@ -138,7 +138,7 @@ test('First run offers one group, several groups of the chosen Data groups, abou
   assert.equal(week[3].label, 'The last 7 days of order_date');
   const standalone = S.firstRunChoices({ ...PROFILE, standalone: true, time_column: null, recent: null }, { ...values, scope_records: '500' });
   assert.deepEqual(standalone.map((c) => [c.id, c.available]), [['one', true], ['groups', true], ['records', true], ['recent', false], ['all', true]]);
-  assert.equal(standalone[2].label, 'The first 500 records');
+  assert.equal(standalone[2].label, '500 records spread across the whole table, picked by a stable hash of each record');
   assert.equal(standalone[2].records, 500);
   const via = { ...PROFILE, records: 718931, suggested_groups: [], first_run: { all: 718931, groups: null, recent: 21000, records: null }, default_scope: 'recent',
     time_column: 'ws_ship_date_sk', time_via: { table: 'samples.tpcds_sf1.date_dim', key: 'd_date_sk', date: 'd_date' }, recent: { days: 30, records: 21000 } };
@@ -149,7 +149,7 @@ test('First run offers one group, several groups of the chosen Data groups, abou
   const dated = S.firstRunChoices(via, viaValues);
   assert.deepEqual(dated.filter((c) => c.available).map((c) => [c.id, c.records]), [['records', 1000], ['recent', 21000], ['all', 718931]],
     'the whole data as one group has no group to pick (must-exclude)');
-  assert.equal(dated[2].label, 'The first 1,000 records of the whole data, which is one group');
+  assert.equal(dated[2].label, '1,000 records spread across the whole table, picked by a stable hash of each record, the whole data being one group');
   assert.equal(dated[3].label, 'The last 30 days of d_date in samples.tpcds_sf1.date_dim, through ws_ship_date_sk');
 });
 
@@ -539,12 +539,12 @@ test('above 1,000 records every default is a number of records, never everything
   const values = S.withScopeDefaults(S.scopeValues(() => undefined), bare);
   assert.equal(values.run_scope, 'records');
   const records = S.firstRunChoices(bare, values).find((c) => c.id === 'records');
-  assert.equal(records.label, 'The first 1,000 records; this technique reads records together and no column groups them, so a group may be cut in this MVP Test Run');
+  assert.equal(records.label, '1,000 records spread across the whole table, picked by a stable hash of each record; this technique reads records together and no column groups them, so a group may be cut in this MVP Test Run');
   assert.equal(records.available, true);
   assert.deepEqual(S.scopeProblems(values, 'first_run'), []);
   assert.deepEqual(S.scopeProblems({ ...values, run_scope: 'all' }, 'first_run'), [], 'everything is still a choice someone can make');
   const standalone = { ...bare, standalone: true };
-  assert.equal(S.firstRunChoices(standalone, values).find((c) => c.id === 'records').label, 'The first 1,000 records');
+  assert.equal(S.firstRunChoices(standalone, values).find((c) => c.id === 'records').label, '1,000 records spread across the whole table, picked by a stable hash of each record');
 });
 
 test('a custom first run is refused on the First run step only, and is never described as a run Inspire can do', async () => {
@@ -563,7 +563,7 @@ test('a first run on records of a grouping technique takes whole groups, and fal
   const values = { ...S.scopeValues(() => undefined), group_by: 'ss_store_sk, item.i_category', run_scope: 'records', scope_records: '1000000' };
   assert.deepEqual(S.recordGroups(STAR_PROFILE, values), [{ value: '1', records: 490000 }, { value: '7', records: 470000 }]);
   assert.equal(S.recordGroups(STAR_PROFILE, { ...values, group_by: 'all' }), null, 'the whole data as one group has no group to keep whole');
-  assert.equal(S.recordGroupsText(STAR_PROFILE, { ...values, group_by: 'all' }), 'The first 1,000,000 records of the whole data, which is one group');
+  assert.equal(S.recordGroupsText(STAR_PROFILE, { ...values, group_by: 'all' }), '1,000,000 records spread across the whole table, picked by a stable hash of each record, the whole data being one group');
   assert.equal(S.recordGroups(STAR_PROFILE, { ...values, group_by: 'ss_sold_date_sk' }), null,
     'whole groups of another column than the profiled one are not counted until they are read (must-exclude)');
   assert.equal(S.recordGroups(STAR_PROFILE, { ...values, group_by: 'item.i_category, ss_store_sk' }).length, 2, 'the finest column of the main table decides, whatever the joined one');
@@ -571,7 +571,7 @@ test('a first run on records of a grouping technique takes whole groups, and fal
   assert.deepEqual(S.scopeProblems(values, 'first_run'), []);
   const none = { ...STAR_PROFILE, group_sizes: [] };
   assert.deepEqual(S.scopeProblems(values, 'first_run'), []);
-  assert.match(S.recordGroupsText(none, values), /^The first 1,000,000 records; this technique reads records together/);
+  assert.match(S.recordGroupsText(none, values), /^1,000,000 records spread across the whole table, picked by a stable hash of each record; this technique reads records together/);
 });
 
 test('a first run on about 1,000 records names the real count when every whole group is larger, and never calls it about 1,000 (must-exclude)', async () => {
@@ -582,7 +582,7 @@ test('a first run on about 1,000 records names the real count when every whole g
   assert.doesNotMatch(said, /About 1,000/);
   assert.equal(S.recordGroupsText({ ...profile, group_sizes: [{ value: 'A', records: 600 }, { value: 'B', records: 300 }] }, { scope_records: '1000' }),
     'About 1,000 records, in 2 whole groups so no group is cut: store = A, 600 records; store = B, 300 records');
-  assert.equal(S.recordGroupsText({ ...profile, standalone: true }, { scope_records: '1000' }), 'The first 1,000 records');
+  assert.equal(S.recordGroupsText({ ...profile, standalone: true }, { scope_records: '1000' }), '1,000 records spread across the whole table, picked by a stable hash of each record');
 });
 
 test('the wizard pre-selects Deep discovery\u2019s grouping, else the recommended grouping with a joined column by its table and column, and Global only when nothing qualifies (must-exclude)', async () => {

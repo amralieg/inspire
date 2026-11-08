@@ -147,7 +147,9 @@ def test_an_assumptions_table_inspire_cannot_manage_names_the_grants_to_ask_for(
                                      {"level": "schema", "privilege": "USE_SCHEMA", "principal": "account users", "mine": True,
                                       "me": "inspire-sp"},
                                      {"level": "table", "privilege": "OWNER", "principal": "data-eng", "mine": False,
-                                      "me": "inspire-sp"}]
+                                      "me": "inspire-sp"}] + ([] if str(t).endswith("_assumptions") else [
+                                     {"level": "table", "privilege": "SELECT", "principal": "account users", "mine": True,
+                                      "me": "inspire-sp"}])
     inst, fields = _deploy(agent_ns, spark, answers=[{"description": OURS_APP, "compute_status": {"state": "ACTIVE"},
                                                       "service_principal_client_id": "sp-1"}] + NEW_APP[2:])
     owners_warning = [w for w in fields["_warnings"] if "money at stake assumptions" in w]

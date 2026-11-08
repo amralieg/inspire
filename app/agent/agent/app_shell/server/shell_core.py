@@ -314,6 +314,17 @@ def page_genie(settings: dict, pages: list, page: dict) -> tuple:
     return None, JOINED_GENIE_NOTE
 
 
+def unread_hint(message: str, sql: str, unread: dict) -> str:
+    if not unread or not NO_ACCESS.search(message):
+        return message
+    query = str(sql or "").replace("`", "").lower()
+    named = [(table, grants) for table, grants in unread.items() if table.replace("`", "").lower() in query]
+    if not named:
+        return message
+    needs = "; ".join(f"{table}: {'; '.join(grants)}" for table, grants in named)
+    return f"{message}. The App cannot read this data until the table owner runs, for {needs}"
+
+
 def settings_problems(settings: dict, pages: list) -> list:
     if not isinstance(settings, dict):
         return ["the App settings are not a JSON object"]
@@ -370,6 +381,11 @@ def settings_problems(settings: dict, pages: list) -> list:
         problems += [f"the App settings name an alert for page {k}, which the App does not have" for k in alerts if k not in ids]
         problems += [f"the alert of page {k} must be an https link, not {v!r}" for k, v in alerts.items()
                      if not (isinstance(v, str) and v.startswith("https://") and len(v) <= 2000)]
+    unread = settings.get("unread")
+    if unread is not None and not (isinstance(unread, dict) and all(
+            isinstance(k, str) and isinstance(v, list) and v and all(isinstance(g, str) and g.startswith("GRANT ") for g in v)
+            for k, v in unread.items())):
+        problems.append("the App unread must be an object of table name to the GRANT statements its service principal still needs")
     if not isinstance(settings.get("admin"), str):
         problems.append("the App settings need admin, the user name of the person who built the App")
     use_case_owners = settings.get("use_case_owners")
@@ -1928,6 +1944,11 @@ class Shell:
         return {"enabled": bool(genie), "title": (genie or {}).get("title") or "",
                 "url": f"{host}/genie/rooms/{genie['space_id']}" if genie and host else "", "note": note}
 
+    def tab_title(self) -> str:
+        hub = " ".join(str(hub_title(self.settings) or "").split())
+        named = " ".join(str(self.pages[0].get("title") or "").split()) if len(self.pages) == 1 else ""
+        return f"{named} · {hub}" if named and hub else named or hub
+
     def app_info(self, headers: dict) -> dict:
         s = self.settings
         host = self.host()
@@ -2120,8 +2141,9 @@ class Shell:
             previous, failed = self.previous_datasets(ws, who, page), {}
         except (QueryError, HttpError) as error:
             previous, failed = {}, {key: getattr(error, "message", None) or str(error) for key in compared}
-        jobs = {}
+        jobs, sqls = {}, {}
         for kind, item_id, sql, params in shell_sql.page_queries(page, values or {}, tables, previous, types, sorts):
+            sqls[(kind, item_id)] = sql
             if (kind, item_id) not in failed:
                 limit = shell_sql.CAPS["kpi_rows" if kind == "kpi" else "table_rows" if kind == "table" else "chart_rows"]
                 jobs[(kind, item_id)] = (lambda s=sql, p=params, n=limit: self.run(ws, who, s, p, n))
@@ -2139,7 +2161,8 @@ class Shell:
                 out["kpis"][item_id] = {"now": by.get("now"), "before": by.get("before")}
             else:
                 out[f"{kind}s"][item_id] = result
-        out["errors"] = {f"{kind}:{item_id}": message for (kind, item_id), message in errors.items()}
+        out["errors"] = {f"{kind}:{item_id}": unread_hint(message, sqls.get((kind, item_id)), self.settings.get("unread"))
+                         for (kind, item_id), message in errors.items()}
         return out
 
     def previous_datasets(self, ws, who, page: dict) -> dict:

@@ -78,6 +78,7 @@ REVIEWED = {
         ('parse_strategic_context', 'json_error.colno'),
         ('parse_strategic_context', 'json_error.lineno'),
         ('parse_strategic_context', 'len(levels)'),
+        ('run', 'len(causes)'),
         ('safe_as_completed', 'len(remaining)'),
         ('safe_as_completed', 'timeout'),
     },
@@ -305,6 +306,7 @@ REVIEWED = {
         ('main', "', '.join(valid_table_elections)"),
         ('online', 'name'),
         ('parse_strategic_context', 'json_error.msg'),
+        ('run', 'label'),
         ('signal_sql', 'check'),
     },
     'composed': {
@@ -399,6 +401,7 @@ REVIEWED = {
         ('execute_parallel', 'msg'),
         ('implement_app_settings', "'; '.join(problems)"),
         ('read', 'problem'),
+        ('run', 'cause'),
         ('run', 'self._nothing_to_discover_message()'),
         ('run', "self._no_use_cases_message('every use case generation call failed or returned nothing')"),
         ('_stop_without_usable_model', 'message'),

@@ -22,6 +22,7 @@ FETCH_MODULES = {"requests", "httpx", "aiohttp", "urllib3"}
 WORKSPACE_ONLY = {
     "DatabricksInspire._implement_default_http_get": "calls the built App's own /health address on the workspace's Apps domain",
     "Workspace.__init__": "opens the App's session to its own workspace host",
+    "GenieCodeRelay.forward": "passes Genie Code's model calls from its localhost relay on to the workspace's own Unity Gateway",
 }
 INSTALL_TEXT_ALLOWED = {
     "IMPLEMENT_INSTALL_LINE_RE": "the pattern the build check uses to refuse a built notebook that installs a package",

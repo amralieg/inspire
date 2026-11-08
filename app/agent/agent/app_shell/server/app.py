@@ -1,10 +1,12 @@
+import html
 import os
+import re
 import time
 
 from fastapi import FastAPI, Request
 from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.gzip import GZipMiddleware
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from shell_core import Shell
@@ -54,9 +56,22 @@ async def api(path: str, request: Request):
     return JSONResponse(payload, status_code=status, headers={"Cache-Control": "no-store", "Server-Timing": f"app;dur={spent:.1f}"})
 
 
+TITLE_TAG = re.compile(r"<title>.*?</title>", re.IGNORECASE | re.DOTALL)
+
+
+def titled_index(text: str, title: str) -> str:
+    tag = f"<title>{html.escape(title)}</title>"
+    if TITLE_TAG.search(text):
+        return TITLE_TAG.sub(lambda _m: tag, text, count=1)
+    return re.sub(r"(<head[^>]*>)", lambda m: m.group(1) + tag, text, count=1, flags=re.IGNORECASE) if "<head" in text.lower() else tag + text
+
+
 @app.get("/")
+@app.get("/index.html")
 def index():
-    return FileResponse(os.path.join(STATIC, "index.html"), media_type=ASSET_TYPES[".html"], headers={"Cache-Control": "no-cache"})
+    with open(os.path.join(STATIC, "index.html"), encoding="utf-8") as f:
+        text = f.read()
+    return HTMLResponse(titled_index(text, shell.tab_title()), media_type=ASSET_TYPES[".html"], headers={"Cache-Control": "no-cache"})
 
 
 app.mount("/", Assets(directory=STATIC), name="static")

@@ -1217,8 +1217,27 @@ LAKEBASE_POLLS = 90
 LAKEBASE_POLL_S = 10
 
 
+LAKEBASE_QUOTA_STEP = ("the metastore already holds as many catalogs as Databricks allows, so it creates no more: a metastore admin "
+                       "can drop the catalogs no one uses, or ask Databricks support to raise the limit, then you run this installer again")
+
+
 def _lakebase_said(resp):
-    return f"{resp.status_code} {resp.text[:160]}"
+    body = None
+    for read in (resp.json, lambda: json.loads(resp.text or "")):
+        try:
+            body = read()
+        except Exception:
+            body = None
+        if isinstance(body, dict) and (body.get("message") or body.get("error_code")):
+            break
+    if isinstance(body, dict) and (body.get("message") or body.get("error_code")):
+        code, message = str(body.get("error_code") or ""), " ".join(str(body.get("message") or "").split())
+        return f"{resp.status_code} {code}: {message[:400]}" if code and message else f"{resp.status_code} {code or message[:400]}"
+    return f"{resp.status_code} {' '.join(str(resp.text or '').split())[:400]}"
+
+
+def _lakebase_quota(resp):
+    return resp.status_code in (400, 429) and "QUOTA_EXCEEDED" in str(resp.text or "")
 
 
 def _lakebase_wait(api, path, ready, sleep, polls=LAKEBASE_POLLS):
@@ -1270,6 +1289,9 @@ def _lakebase_setup(ctx, sleep=None):
             return False, (f"Databricks refused to create the catalog `{catalog}` on the Lakebase project {project} for you "
                            f"({_lakebase_said(made)}): creating a catalog needs CREATE CATALOG on the metastore. A metastore admin can run "
                            f"GRANT CREATE CATALOG ON METASTORE TO `{me}`, then you run this installer again; {LAKEBASE_DELTA}")
+        if _lakebase_quota(made):
+            return False, (f"Databricks did not create the catalog `{catalog}` ({_lakebase_said(made)}): {LAKEBASE_QUOTA_STEP}; "
+                           f"{LAKEBASE_DELTA}")
         if made.status_code not in (200, 201):
             return False, f"Databricks did not create the catalog `{catalog}` ({_lakebase_said(made)}). Run this installer again; {LAKEBASE_DELTA}"
         ready, held = _lakebase_wait(api, f"/api/2.0/postgres/catalogs/{catalog}", lambda found: True, sleep)

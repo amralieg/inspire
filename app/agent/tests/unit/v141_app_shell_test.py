@@ -755,6 +755,40 @@ def test_check_keeps_a_one_value_filter_when_three_others_slice(tmp_path):
     assert any(sql.startswith("SELECT v FROM") and "`action_level`" in sql for sql, _p, _l in ws.sql)
 
 
+UNREAD = {"main.pricing.items": ["GRANT SELECT ON TABLE `main`.`pricing`.`items` TO `sp-1`"]}
+
+
+def test_unread_settings_must_name_grant_statements():
+    assert shell_core.settings_problems(dict(SETTINGS, unread=UNREAD), [PAGE]) == []
+    for bad in ({"main.pricing.items": ["SELECT 1"]}, {"main.pricing.items": []}, ["GRANT SELECT"], {"main.pricing.items": "GRANT x"}):
+        assert any(p.startswith("the App unread must be") for p in shell_core.settings_problems(dict(SETTINGS, unread=bad), [PAGE])), bad
+
+
+def test_unread_hint_names_the_grants_only_for_a_no_access_error_on_a_table_the_query_reads():
+    sql = "SELECT * FROM `main`.`pricing`.`items` AS i"
+    hinted = shell_core.unread_hint("PERMISSION_DENIED: no SELECT", sql, UNREAD)
+    assert hinted == ("PERMISSION_DENIED: no SELECT. The App cannot read this data until the table owner runs, for main.pricing.items: "
+                      "GRANT SELECT ON TABLE `main`.`pricing`.`items` TO `sp-1`")
+    assert shell_core.unread_hint("warehouse stopped", sql, UNREAD) == "warehouse stopped", "a non-access error is left alone"
+    assert shell_core.unread_hint("PERMISSION_DENIED", "SELECT * FROM main.pricing.loss_trend", UNREAD) == "PERMISSION_DENIED"
+    assert shell_core.unread_hint("PERMISSION_DENIED", sql, None) == "PERMISSION_DENIED"
+
+
+def test_a_tile_whose_table_the_app_cannot_read_names_the_grant_and_other_tiles_still_load(tmp_path):
+    def shape(sql):
+        return shell_db.QueryError("PERMISSION_DENIED: no SELECT on main.pricing.items") if "main.pricing.items" in sql else None
+
+    ws = ShapedWorkspace(shape)
+    s = shell_core.Shell(app_dir(tmp_path, dict(SETTINGS, unread=UNREAD)), env={"DATABRICKS_WAREHOUSE_ID": "wh1"},
+                         sp_factory=lambda: ws, user_factory=lambda h, t: ws)
+    status, data = call(s, "POST", "page", body={"page": "n01_u05", "filters": {}})
+    assert status == 200
+    assert data["errors"]["chart:by_category"].endswith(
+        "The App cannot read this data until the table owner runs, for main.pricing.items: "
+        "GRANT SELECT ON TABLE `main`.`pricing`.`items` TO `sp-1`")
+    assert "chart:loss_trend" not in data["errors"] and data["charts"]["loss_trend"]["rows"]
+
+
 def test_check_flags_a_date_filter_with_no_dates_and_a_failed_filter(tmp_path):
     def shape(sql):
         if "low_0 AS low" in sql:

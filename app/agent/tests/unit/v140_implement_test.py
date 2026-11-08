@@ -3236,10 +3236,58 @@ def test_a_new_app_that_could_not_read_its_table_is_refused_before_anything_is_c
     assert _not_access_reads(inst.spark.statements) == []
 
 
-def test_an_existing_app_is_redeployed_and_unverifiable_access_is_a_warning(agent_ns, sdk_stub):
+def test_an_existing_app_whose_service_principal_cannot_read_its_tables_is_deployed_and_names_every_grant(agent_ns, sdk_stub):
     inst, context, calls, imported = _deploy_inspire(agent_ns, [
         {"description": OURS_APP, "compute_status": {"state": "ACTIVE"}, "service_principal_client_id": "sp-2"},
         {"deployment_id": "dep1", "status": {"state": "SUCCEEDED"}}, {"url": "https://churn-desk.example/"}], LIVE_ACCESS)
+    fields = inst._implement_deploy_app(context, "churn-desk", SHELL_FILES, READS, poll_s=0)
+    assert fields["app_url"] == "https://churn-desk.example", "a read Inspire cannot grant never stops the build"
+    result = [GRANT_CATALOG.format("sp-2"), GRANT_SCHEMA.format("sp-2")]
+    orders = [GRANT_CATALOG.format("sp-2"), "GRANT USE SCHEMA ON SCHEMA `main`.`s` TO `sp-2`"]
+    assert fields["_warnings"] == [
+        "App: its service principal sp-2 cannot read main.inspire.churn_out and main.s.orders, so the tiles that query them show no data "
+        "and name the grants they need, and Inspire could not grant them itself: for main.inspire.churn_out, ask amr@x to "
+        f"run: {'; '.join(result)}; for main.s.orders, ask amr@x to run: {'; '.join(orders)}"]
+    settings = json.loads(inst.uploads["/W/acme_implemented/Sales/apps/churn-desk/inspire_app.json"][0])
+    assert settings["unread"] == {ACCESS_TABLE: result, "main.s.orders": orders}, "the App's tiles name the exact grants"
+    assert ("POST", "/api/2.0/apps/churn-desk/deployments") in [c[:2] for c in calls]
+    assert inst.tagged == ["churn-desk"]
+
+
+def test_a_read_grant_the_platform_refuses_is_a_warning_with_the_exact_grant_and_the_app_still_ships(agent_ns, sdk_stub):
+    inst, context, calls, imported = _deploy_inspire(agent_ns, [
+        RuntimeError("RESOURCE_DOES_NOT_EXIST: app churn-desk"),
+        {"compute_status": {"state": "ACTIVE"}, "service_principal_client_id": "sp-1"},
+        {"deployment_id": "dep1", "status": {"state": "SUCCEEDED"}}, {"url": "https://churn-desk.example/"}])
+    context["spec"]["outputs"]["app_options"]["decisions"] = False
+
+    def respond(statement):
+        if statement.startswith("SELECT level, privilege, principal"):
+            return INSPIRE_OWNS
+        if statement == GRANT_ORDERS.format("sp-1"):
+            raise RuntimeError("PERMISSION_DENIED: User does not have MANAGE on Table 'main.s.orders'")
+        return None
+
+    inst.spark = FakeSpark(responder=respond)
+    fields = inst._implement_deploy_app(context, "churn-desk", SHELL_FILES, READS, poll_s=0)
+    assert fields["app_url"] == "https://churn-desk.example"
+    [warning] = fields["_warnings"]
+    assert warning.startswith("App: its service principal sp-1 cannot read main.s.orders, so the tiles that query it show no data")
+    assert (f"for main.s.orders ({GRANT_ORDERS.format('sp-1')} failed: PERMISSION_DENIED: User does not have MANAGE on Table "
+            f"'main.s.orders'), ask inspire-sp to run: {GRANT_ORDERS.format('sp-1')}") in warning
+    assert "main.inspire.churn_out" not in warning, "a table whose grant ran is not named (must-exclude)"
+    settings = json.loads(inst.uploads["/W/acme_implemented/Sales/apps/churn-desk/inspire_app.json"][0])
+    assert settings == {"unread": {"main.s.orders": [GRANT_ORDERS.format("sp-1")]}}
+    assert GRANT_SELECT.format("sp-1") in inst.spark.statements
+
+
+def test_an_existing_app_whose_service_principal_reads_through_a_group_is_redeployed(agent_ns, sdk_stub):
+    inst, context, calls, imported = _deploy_inspire(agent_ns, [
+        {"description": OURS_APP, "compute_status": {"state": "ACTIVE"}, "service_principal_client_id": "sp-2"},
+        {"deployment_id": "dep1", "status": {"state": "SUCCEEDED"}}, {"url": "https://churn-desk.example/"}],
+        LIVE_ACCESS + [_row("catalog", "USE_CATALOG", "app-readers"), _row("schema", "USE_SCHEMA", "app-readers")])
+    group = types.SimpleNamespace(groups=[types.SimpleNamespace(display="app-readers")])
+    inst.w_client.service_principals = types.SimpleNamespace(list=lambda filter: [group] if filter == 'applicationId eq "sp-2"' else [])
     fields = inst._implement_deploy_app(context, "churn-desk", SHELL_FILES, READS, poll_s=0)
     assert fields["app_url"] == "https://churn-desk.example"
     assert [c[:2] for c in calls] == [("GET", "/api/2.0/apps/churn-desk"), ("POST", "/api/2.0/apps/churn-desk/deployments"),
@@ -3247,12 +3295,7 @@ def test_an_existing_app_is_redeployed_and_unverifiable_access_is_a_warning(agen
     grants = [s for s in inst.spark.statements if s.startswith("GRANT")]
     assert grants == [GRANT_SELECT.format("sp-2"), GRANT_ORDERS.format("sp-2"), "GRANT MODIFY ON TABLE `main`.`inspire`.`churn_out` TO `sp-2`"], (
         "record decisions starts on, so the App may write its decisions to the result table")
-    gap = [dict(GAP_CATALOG), dict(GAP_SCHEMA, object="`main`.`s`")]
-    assert fields["_warnings"] == [
-        "App: " + agent_ns["implement_access_gap_message"]("sp-2", [GAP_CATALOG, GAP_SCHEMA]),
-        "App: " + agent_ns["implement_access_gap_message"]("sp-2", gap, "main.s.orders")]
-    assert "may not be able to read the result table" in fields["_warnings"][0]
-    assert "may not be able to read main.s.orders" in fields["_warnings"][1]
+    assert "_warnings" not in fields
     assert inst.tagged == ["churn-desk"], "a redeployed App gets its tags again, so a new spec version shows on it"
 
 

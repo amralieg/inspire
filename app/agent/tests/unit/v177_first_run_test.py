@@ -19,6 +19,7 @@ ORDERS, STORES = "main.sales.orders", "main.sales.stores"
 class Frame:
     def __init__(self, table, columns, steps=()):
         self.table, self.columns, self.steps = table, list(columns), list(steps)
+        self.dtypes = [(column, "string") for column in self.columns]
 
     def where(self, condition):
         return Frame(self.table, self.columns, self.steps + [("where", condition)])
@@ -174,7 +175,9 @@ def test_the_read_helper_narrows_every_source_read_to_the_scope(fresh_ns):
         ("where", "CAST(`order_date` AS DATE) >= DATE '2026-10-02'")]
     fresh_ns["INSPIRE_SCOPE"] = {"scope": "records", "table": ORDERS, "records": 1000, "key": "order_id"}
     columns = {"`main`.`sales`.`orders`": ["order_id"], "`main`.`sales`.`stores`": ["order_id"]}
-    assert fresh_ns["inspire_read_source"](ORDERS, spark=Session(columns)).steps == [("orderBy", "order_id"), ("limit", 1000)]
+    fresh_ns["_inspire_spread_expr"] = lambda spread: spread
+    assert fresh_ns["inspire_read_source"](ORDERS, spark=Session(columns)).steps == [
+        ("orderBy", "xxhash64(CAST(`order_id` AS STRING))"), ("limit", 1000)]
     assert fresh_ns["inspire_read_source"](STORES, spark=Session(columns)).steps == [], "only the main table is cut to N records"
     fresh_ns.pop("INSPIRE_SCOPE")
     assert fresh_ns["inspire_read_source"](ORDERS, spark=Session(columns)).steps == [], "with no scope the helper reads everything"
