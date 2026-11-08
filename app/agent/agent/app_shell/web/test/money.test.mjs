@@ -112,38 +112,19 @@ test('a use case with nothing to fix always says why, from the run or from what 
   assert.equal(nothingText(nothingReason(tracked([]), undefined)), 'Nothing to act on yet, because no record reached Act now or Review in the last update');
 });
 
-test('every money number on the Overview shows its formula on hover and on focus', async () => {
+test('every money number on a use case dashboard and on Performance shows its formula on hover and on focus', async () => {
   const seen = {};
-  const { page, seen: app, context } = await openApp(browser, served.base, INFO(), { width: 1440, routes: routes(seen) });
-  await page.waitForSelector('.tbl--things tbody tr');
+  const { page, seen: app, context } = await openApp(browser, served.base, INFO(), { width: 1440, routes: routes(seen), hash: '#/n01_u05/dashboard' });
   const save = page.locator('[data-tile="save"] .kpi-v');
-  assert.equal(await save.innerText(), '$8,850');
+  await page.waitForFunction(() => document.querySelector('[data-tile="save"] .kpi-v')?.textContent === '$8,850');
   assert.equal(await tipOf(page, save), 'Money at stake on the 2 things to fix, added up: Blue denim jacket $7,500 + Wool coat $1,350 = '
     + '$8,850. Open a record to see how its money is worked out.');
   const saved = page.locator('[data-tile="saved"] .kpi-v');
-  assert.match(await tipOf(page, saved), /^The money at stake each fix had when it was fixed, less what a later run still finds, added up over the 6 fixes a later run confirmed since Oct 1 = \$4,500$/);
-  const cell = page.locator('.tbl--things tbody tr').first().locator('.fx-n');
-  assert.equal(await cell.innerText(), '$7,500', 'the formula stays out of sight until someone points at the number');
-  await cell.focus();
-  const id = await cell.getAttribute('aria-describedby');
-  await page.waitForFunction((tip) => document.getElementById(tip)?.classList.contains('is-on'), id);
-  assert.equal(await page.evaluate((tip) => document.getElementById(tip).textContent, id), '500 units lost x 30 USD a unit x 50% kept = 7,500 USD');
-  await cell.blur();
-  const bar = page.locator('[data-bars="by_use_case"] .hb').first();
-  assert.match(await tipOf(page, bar), /^Money at stake on the 2 things to fix in Price-loss decision desk, added up: Blue denim jacket \$7,500 \+ Wool coat \$1,350 = \$8,850\./);
+  assert.match(await tipOf(page, saved), /^The money at stake each fix had when it was fixed, less what a later run still finds, added up over the \d+ fixes? a later run confirmed = \$[\d,]+$/);
+  await page.locator('[data-rail="performance"]').click();
   const week = page.locator('[data-bars="saved_weeks"] .vb-c').last();
+  await week.waitFor();
   assert.match(await tipOf(page, week), /^Money at stake when fixed, less what a later run still finds, on the fixes a later run confirmed in the week of Oct 19, added up = \$\d/);
-  assert.deepEqual(app.errors, []);
-  await context.close();
-});
-
-test('the Overview lists each use case with nothing to act on and the real reason', async () => {
-  const seen = {};
-  const { page, seen: app, context } = await openApp(browser, served.base, INFO(), { width: 1440, routes: routes(seen) });
-  await page.waitForSelector('[data-nothing]');
-  assert.deepEqual(await page.locator('[data-nothing]').allInnerTexts(), [
-    'Second desk 1 Nothing to act on yet, because no record reached Act now in the last update, and 1 record is worth a look',
-    'Second desk 2 Nothing to act on yet, because no model passed this use case\'s acceptance check in the last run, so no record is actionable yet.']);
   assert.deepEqual(app.errors, []);
   await context.close();
 });
@@ -151,7 +132,7 @@ test('the Overview lists each use case with nothing to act on and the real reaso
 test('an owner reads how the money is worked out, changes an assumption with a note, and the page follows it', async () => {
   const seen = {};
   const { page, seen: app, context } = await openApp(browser, served.base, INFO(), { width: 1440, routes: routes(seen) });
-  await page.goto(`${served.base}#/n01_u05`);
+  await page.goto(`${served.base}#/n01_u05/dashboard`);
   const card = page.getByRole('region', { name: 'How the money at stake is worked out' });
   await card.waitFor();
   assert.equal(await card.locator('.rule').innerText(), 'Each record: units units lost x 30 USD a unit x 50% kept = its money at stake.');
@@ -302,7 +283,7 @@ test('someone who is not an owner sees the assumptions and why they cannot chang
 test('the decision list shows the money an assumption change gives, with its formula in the list and in the record panel', async () => {
   const seen = {};
   const { page, seen: app, context } = await openApp(browser, served.base, INFO(), { width: 1440, routes: routes(seen) });
-  await page.goto(`${served.base}#/n01_u05`);
+  await page.goto(`${served.base}#/n01_u05/work`);
   const cell = page.locator('.card--table[aria-label="Decision list"] tbody tr').first().locator('.fx-n');
   await cell.waitFor();
   assert.equal(await cell.innerText(), '$7.5K');

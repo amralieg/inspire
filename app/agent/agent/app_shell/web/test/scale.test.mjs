@@ -34,7 +34,7 @@ test('the pager sends the cursor of the row it pages from, and the first page re
       return json(200, { rows, total: keys.length, offset, limit: body.limit, cursors, actions: false, changes: false, summary: null, errors: {} });
     },
   };
-  const { page, seen, context } = await openApp(browser, served.base, appInfo({}, 1, TABLE), { routes });
+  const { page, seen, context } = await openApp(browser, served.base, appInfo({}, 1, TABLE), { routes, hash: '#/n01_u05/work' });
   await page.locator('.pager-n').waitFor();
   const last = () => seen.records.at(-1);
   await page.getByRole('button', { name: 'Next page' }).click();
@@ -67,7 +67,7 @@ test('a list counted only up to the cap says more than the cap and still pages p
         changes: false, summary: null, errors: {} });
     },
   };
-  const { page, seen, context } = await openApp(browser, served.base, appInfo({}, 1, TABLE), { routes });
+  const { page, seen, context } = await openApp(browser, served.base, appInfo({}, 1, TABLE), { routes, hash: '#/n01_u05/work' });
   await page.locator('.pager-n').waitFor();
   assert.equal(await page.locator('.pager-n').textContent(), 'Showing 1 to 25 of more than 25');
   await page.getByText(/^More than 25 records/).waitFor();
@@ -89,19 +89,21 @@ test('the decision list and the page start with the stored default dates while t
       return json(200, { rows: [], total: 0, offset: 0, limit: body.limit, cursors: { next: null, prev: null }, actions: false, changes: false, summary: null, errors: {} });
     },
   };
-  const { page, seen, context } = await openApp(browser, served.base, appInfo({}, 1, TABLE), { routes });
+  const { page, seen, context } = await openApp(browser, served.base, appInfo({}, 1, TABLE), { routes, hash: '#/n01_u05/work' });
   await page.waitForFunction(() => !document.querySelector('.fbar .skel'));
   await page.waitForTimeout(500);
   assert.ok(seen.records.length >= 1 && seen.records[0].at < marks.filters, 'the list asked before the filter bar answered');
   assert.deepEqual(seen.records[0].filters, { run_date: { from: '2025-11-01', to: '2026-10-15' } });
-  assert.deepEqual(seen.pages[0].filters, { run_date: { from: '2025-11-01', to: '2026-10-15' } });
   assert.equal(seen.records.length, 1, 'the filter bar starts on the same dates, so nothing loads twice');
+  await page.locator('[data-rail="dashboard"]').click();
+  await page.waitForTimeout(500);
+  assert.deepEqual(seen.pages[0].filters, { run_date: { from: '2025-11-01', to: '2026-10-15' } });
   assert.equal(seen.pages.length, 1);
   assert.deepEqual(seen.errors.filter((e) => !/404/.test(e)), []);
   await context.close();
 });
 
-test('opening a use case page never asks for the overview of every use case, and the Overview asks for it once it opens', async () => {
+test('opening a use case page never asks for the overview of every use case, and Performance asks for it once it opens', async () => {
   const single = await openApp(browser, served.base, appInfo({}, 1, TABLE), { routes: counting() });
   await single.page.locator('.kpi-v').first().waitFor();
   await single.page.waitForTimeout(500);
@@ -109,17 +111,13 @@ test('opening a use case page never asks for the overview of every use case, and
   assert.ok((single.seen.hub || []).every((body) => body.page === 'n01_u05'), 'the page reads its own things to fix');
   await single.context.close();
   const hub = await openApp(browser, served.base, appInfo({ business: 'Contoso Retail' }, 2, TABLE), { routes: counting() });
-  assert.equal(overviews(hub.seen).length, 1, 'the Overview reads every use case when it opens');
-  hub.seen.hub = [];
-  await hub.page.goto(`${served.base}#/n01_u05`);
-  await hub.page.reload();
   await hub.page.locator('.kpi-v').first().waitFor();
   await hub.page.waitForTimeout(500);
-  assert.deepEqual(overviews(hub.seen), [], 'a page opened from a link never reads every use case');
-  await hub.page.locator('.side .nav-i', { hasText: 'Overview' }).click();
-  await hub.page.waitForFunction(() => document.querySelector('.side .nav-i.is-on .nav-t b')?.textContent === 'Overview');
+  assert.deepEqual(overviews(hub.seen), [], 'a use case dashboard never reads every use case');
+  await hub.page.locator('[data-rail="performance"]').click();
+  await hub.page.locator('[data-my-work]').waitFor();
   await hub.page.waitForTimeout(300);
-  assert.equal(overviews(hub.seen).length, 1, 'the Overview reads every use case once someone opens it');
+  assert.equal(overviews(hub.seen).length, 1, 'Performance reads every use case once someone opens it');
   assert.deepEqual(hub.seen.errors, []);
   await hub.context.close();
 });

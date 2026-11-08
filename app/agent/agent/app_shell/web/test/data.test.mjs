@@ -28,7 +28,7 @@ after(async () => {
   served?.close();
 });
 
-const open = (info, routes = {}, options = {}) => openApp(browser, base, info, { ...options, routes });
+const open = (info, routes = {}, options = {}) => openApp(browser, base, info, { hash: '#/n01_u05/work', ...options, routes });
 const rowsShown = (page) => page.locator('.card--table tbody tr').count();
 
 test('the list text, badges and impact line read like a person wrote them', () => {

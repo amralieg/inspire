@@ -1,7 +1,7 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
-import { DECIDE, NO_JOB, ROWS, SILENT, SUMMARY, TABLE, appInfo, lister, openApp, resizeTo, serveDist, until } from './harness.mjs';
+import { DECIDE, NO_JOB, ROWS, SUMMARY, TABLE, appInfo, lister, openApp, resizeTo, serveDist, until } from './harness.mjs';
 
 const NOW = Date.parse('2026-10-27T09:30:00Z');
 const JOB_URL = 'https://ws.example.com/jobs/4242';
@@ -31,7 +31,7 @@ function freshRoutes(first, more = {}) {
   };
 }
 
-const bar = (page, scope = '.top .fresh') => page.locator(`${scope} [role="progressbar"]`).first().evaluate((el) => ({
+const bar = (page, scope = '.ph .fresh') => page.locator(`${scope} [role="progressbar"]`).first().evaluate((el) => ({
   now: el.getAttribute('aria-valuenow'), width: el.querySelector('i').style.width, open: el.classList.contains('is-open'),
 }));
 
@@ -63,7 +63,7 @@ test('with no percent the bar moves with no width and no number, and with no ste
     await page.locator('.ph .fresh-d [data-progress]').waitFor();
     assert.equal(await page.locator('.ph .fresh-d [data-progress]').innerText(), text);
     assert.deepEqual(await bar(page), { now: null, width: '', open: true }, 'no percent from the server means no width and no value');
-    assert.doesNotMatch(`${await page.locator('.top .fresh').innerText()} ${await page.locator('.ph .fresh-d').innerText()}`, /%|\d+ min left/, 'no percent and no time left the server did not send');
+    assert.doesNotMatch(`${await page.locator('.ph .fresh').innerText()} ${await page.locator('.ph .fresh-d').innerText()}`, /%|\d+ min left/, 'no percent and no time left the server did not send');
     assert.deepEqual(seen.errors, []);
     await context.close();
   }
@@ -74,7 +74,7 @@ test('when the run finishes a toast says Refreshed, and See what changed turns o
   const { state, routes } = freshRoutes({ ...IDLE, active: STAGED, can_refresh: false, reason: 'busy' }, {
     records: lister(rows, { actions: true, changes: true, summary: SUMMARY }),
   });
-  const { page, seen, context } = await openApp(browser, served.base, appInfo(DECIDE, 1, TABLE), { routes, clock: NOW });
+  const { page, seen, context } = await openApp(browser, served.base, appInfo(DECIDE, 1, TABLE), { routes, clock: NOW, hash: '#/n01_u05/work' });
   await page.locator('.fresh-busy').waitFor();
   await page.waitForFunction(() => document.querySelector('.card--table tbody tr'));
   state.fresh = { ...IDLE, last_success: DONE, last_run: DONE };
@@ -85,51 +85,6 @@ test('when the run finishes a toast says Refreshed, and See what changed turns o
   await page.locator('.toast-a').getByRole('button', { name: 'See what changed' }).click();
   await until(() => seen.records.slice(asked).some((b) => b.changed === true));
   assert.equal(await page.getByRole('button', { name: 'Changed since the last run' }).getAttribute('aria-pressed'), 'true');
-  assert.deepEqual(seen.errors, []);
-  await context.close();
-});
-
-const hubEntry = (active) => ({
-  visible: true, tracked: true, money: false, actions: false, categories: [], served: 'delta', items: [], total: 0, truncated: false, weeks: [], window_note: '',
-  done: { fixed: 0, fixed_q: 0, dismissed: 0, dismissed_q: 0, saved_n: 0, saved: 0, saved_q_n: 0, saved_q: 0, first_fixed: null, first_saved: null },
-  runs: { updated: '2026-10-27T06:00:00Z', as_of: '2026-10-27', cadence_days: 1, next: '2026-10-28', stale: false, count: 3, failed: false, active },
-});
-const hubRuns = (actives) => ({ json }) => json(200, { today: '2026-10-27', quarter: '2026-10-01', since: '2026-08-03', errors: {},
-  window: { window: 'all', limit: null, today: '2026-10-27' }, pages: Object.fromEntries(['n01_u05', 'n02_u01', 'n02_u02'].map((id) => [id, hubEntry(actives[id] || null)])) });
-
-async function openOverview(routes) {
-  return openApp(browser, served.base, appInfo({ layout: 'sidebar' }, 3), { routes, clock: NOW, hash: '#/overview' });
-}
-
-test('the Overview lists each running refresh from the overview reply, asks only the use cases that run for news, and says when one finishes with a link to what changed', async () => {
-  const { state, routes } = freshRoutes((id) => (id === 'n02_u01' ? { ...IDLE, active: STAGED } : IDLE), { overview: hubRuns({ n02_u01: STAGED }) });
-  const { page, seen, context } = await openOverview(routes);
-  const running = page.getByRole('region', { name: 'Running now' });
-  await running.locator('[data-running]').first().waitFor();
-  assert.deepEqual(state.polls, {}, 'the overview reply already says what runs, so no use case is asked for its freshness');
-  assert.deepEqual(await running.locator('[data-running] b').allInnerTexts(), ['Second desk 1']);
-  assert.equal(await running.locator('[data-running="n02_u01"] [data-progress]').innerText(),
-    'Step 3 of 5: Scoring the records · 1,200,000 of 4,000,000 rows · about 6 min left');
-  assert.deepEqual(await bar(page, '[data-running="n02_u01"]'), { now: '30', width: '30%', open: false });
-  state.fresh = (id) => (id === 'n02_u01' ? { ...IDLE, last_success: DONE, last_run: DONE } : IDLE);
-  await page.clock.fastForward(10000);
-  await page.waitForFunction(() => document.querySelector('.toast.is-on .toast-t')?.textContent === 'Second desk 1: Refreshed');
-  assert.deepEqual(Object.keys(state.polls), ['n02_u01'], 'only the use case that runs is asked for news');
-  await running.waitFor({ state: 'detached' });
-  await page.locator('.toast-a').getByRole('button', { name: 'See what changed' }).click();
-  await page.waitForFunction(() => document.querySelector('.ph h1')?.textContent === 'Second desk 1');
-  assert.deepEqual(seen.errors, []);
-  await context.close();
-});
-
-test('the Overview shows a run the server says has gone quiet with the server note and no bar', async () => {
-  const { state, routes } = freshRoutes(() => ({ ...IDLE, active: SILENT }), { overview: hubRuns({ n02_u02: SILENT }) });
-  const { page, seen, context } = await openOverview(routes);
-  const item = page.getByRole('region', { name: 'Running now' }).locator('[data-running="n02_u02"]');
-  await item.waitFor();
-  assert.equal(await item.locator('[data-progress]').innerText(), SILENT.message);
-  assert.equal(await item.locator('[role="progressbar"]').count(), 0);
-  assert.deepEqual(state.polls, {});
   assert.deepEqual(seen.errors, []);
   await context.close();
 });

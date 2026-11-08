@@ -39,7 +39,7 @@ function routesFor(reply, more = {}) {
 }
 
 async function openList(routes, info = appInfo(DECIDE, 1, TABLE)) {
-  const opened = await openApp(browser, served.base, info, { routes, clock: CLOCK, timezone: 'Asia/Dubai' });
+  const opened = await openApp(browser, served.base, info, { routes, clock: CLOCK, timezone: 'Asia/Dubai', hash: '#/n01_u05/work' });
   await opened.page.waitForFunction(() => document.querySelectorAll('.card--table tbody tr').length > 0 && document.querySelector('.list-tools'));
   return opened;
 }
@@ -248,7 +248,7 @@ test('Start working shows one record at a time with k of N, Done and next and Sn
 test('the Undo toast in the record panel never covers the work buttons, the record title, its links or the count, on a phone, a laptop or a wide screen', async () => {
   const { routes } = routesFor({});
   for (const width of [390, 1024, 1440]) {
-    const opened = await openApp(browser, served.base, appInfo(DECIDE, 1, TABLE), { routes, clock: CLOCK, timezone: 'Asia/Dubai', width });
+    const opened = await openApp(browser, served.base, appInfo(DECIDE, 1, TABLE), { routes, clock: CLOCK, timezone: 'Asia/Dubai', width, hash: '#/n01_u05/work' });
     const { page, seen, context } = opened;
     await page.waitForFunction(() => document.querySelector('[data-start-work]'));
     await page.locator('[data-start-work]').click();

@@ -14,7 +14,7 @@
   html[data-theme="dark"],html[data-theme="dark"] body{-webkit-print-color-adjust:exact;print-color-adjust:exact}
   .stage{min-height:0}
   .top{position:static}
-  .top button:not(.mark),.top .tabs,.top .auth,.top .admin-link,.top .avatar,.top-page a,.side,.scrim,.genie,.toast,.pop,dialog,.crumb,.view-back,.fbar,.chips,.ask,.card-h .ibtn,.tbar,.cf-b,.th-move,.tbl-tools,.pager>:not(.pager-n),.decs,.card-x{display:none!important}
+  .top button:not(.mark),.top .tabs,.top .auth,.top .admin-link,.top .avatar,.ph-tools .btn,.side,.scrim,.genie,.toast,.pop,dialog,.crumb,.view-back,.fbar,.chips,.ask,.card-h .ibtn,.tbar,.cf-b,.th-move,.tbl-tools,.pager>:not(.pager-n),.decs,.card-x{display:none!important}
   .body{display:block}
   .page{max-width:none;padding:12px 0 0}
   .ph{display:flex;flex-wrap:wrap;align-items:baseline;column-gap:10px}

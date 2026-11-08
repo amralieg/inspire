@@ -73,6 +73,16 @@ function usePageHub(pageId, state, ready, nonce, on) {
   return out;
 }
 
+function radioKeys(e) {
+  const step = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[e.key];
+  if (!step) return;
+  e.preventDefault();
+  const all = [...e.currentTarget.querySelectorAll('[role="radio"]')];
+  const next = all[(all.indexOf(document.activeElement) + step + all.length) % all.length];
+  next.focus();
+  next.click();
+}
+
 export default function Page({ app, page, meta, state, onState, look = EMPTY_LOOK, onLook, themeKey, onAsk, onExplain, genieBusy, hubEntry, summary, view, onView, genie,
   section = 'dashboard', tab = '', chrome, onCounts }) {
   const ready = !!state;
@@ -102,7 +112,6 @@ export default function Page({ app, page, meta, state, onState, look = EMPTY_LOO
   const tabbed = work && listed && !!app.options?.decisions && pageDecides(page) && !!entry?.tracked;
   const tabNow = tabbed ? (WORK_TABS.some(([id]) => id === tab) ? tab : DEFAULT_TAB) : '';
   const [question, setQuestion] = useState('');
-  const [openKey] = useState(() => parseHash(window.location.hash).rec);
   const [seeChanged, setSeeChanged] = useState(() => (parseHash(window.location.hash).changed ? 1 : 0));
   const runsOn = sections.includes('runs');
   const go = (to, { tab: nextTab = '', state: next = state, sort } = {}) => {
@@ -174,7 +183,7 @@ export default function Page({ app, page, meta, state, onState, look = EMPTY_LOO
   const records = (extra = {}) => (page.records && !unreliable ? (
     <Records meta={page.records} app={app} pageId={page.id} filters={filters} ready={ready} nonce={nonce} onFilter={pick} history={!!page.history} onList={setQueue}
       similarBy={page.similar_by} keepsActions={hubEntry ? !!(hubEntry.tracked && hubEntry.actions) : undefined}
-      onChanged={() => setNonce((n) => n + 1)} onExplain={explain} genieBusy={genieBusy} ai={state?.ai} openKey={openKey}
+      onChanged={() => setNonce((n) => n + 1)} onExplain={explain} genieBusy={genieBusy} ai={state?.ai} openKey={parseHash(window.location.hash).rec}
       sort={look.sorts?.records || null} onSort={sortBy('records')}
       columnMeta={meta?.columns?.list} columnValues={columnValues(state, null)}
       onColumn={(column, value) => onState(setColumnValue(state, null, column, value))} onClearColumns={() => onState(clearColumnValues(state, null))}
@@ -190,6 +199,7 @@ export default function Page({ app, page, meta, state, onState, look = EMPTY_LOO
         <Icon name="bell" size={15} /><span>Notify me</span>
       </a>
     ) : null;
+  const colors = paletteItems(chrome?.palette, chrome?.built, chrome?.theme, chrome?.onPalette || (() => {}));
   const head = (
     <header className="ph">
       <div className="pg-h">
@@ -247,9 +257,10 @@ export default function Page({ app, page, meta, state, onState, look = EMPTY_LOO
       {shown === 'settings' && (
         <SettingsPanel pageId={page.id} data={settings} onData={setSettings} onChanged={() => setNonce((n) => n + 1)} onRunStarted={() => freshness.load()}>
           <SettingGroup id="look" title="Look" why="Only you see these, in this browser.">
-            <div className="set-row" role="radiogroup" aria-label="Colors">
-              {paletteItems(chrome?.palette, chrome?.built, chrome?.theme, chrome?.onPalette || (() => {})).map((item) => (
-                <button key={item.label} type="button" role="radio" aria-checked={!!item.checked} className={`btn set-pal ${item.checked ? 'is-on' : ''}`} onClick={item.run}>
+            <div className="set-row" role="radiogroup" aria-label="Colors" onKeyDown={radioKeys}>
+              {colors.map((item, i) => (
+                <button key={item.label} type="button" role="radio" aria-checked={!!item.checked} className={`btn set-pal ${item.checked ? 'is-on' : ''}`} onClick={item.run}
+                  tabIndex={item.checked || (i === 0 && !colors.some((c) => c.checked)) ? 0 : -1}>
                   {item.icon}<span>{item.label}</span>{item.note && <small>{item.note}</small>}
                 </button>
               ))}

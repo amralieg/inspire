@@ -150,14 +150,12 @@ function workRoutes(seen, { answer } = {}) {
   };
 }
 
-test('My work sits under the Overview in the side panel and shows the person\'s own numbers with their scope', async () => {
+test('My work sits in the Performance section and shows the person\'s own numbers with their scope', async () => {
   const seen = {};
   const { page, seen: app, context } = await openApp(browser, served.base, appInfo(DECIDE, 2, TABLE), { routes: workRoutes(seen), timezone: 'Asia/Dubai' });
-  const nav = await page.$$eval('nav.side .nav-i b', (els) => els.map((e) => e.textContent));
-  assert.deepEqual(nav.slice(0, 3), ['My work', 'Impact', 'Overview']);
-  await page.click('[data-my-work-open]');
+  await page.locator('[data-rail="performance"]').click();
   await page.waitForSelector('[data-activity]');
-  assert.equal(await page.evaluate(() => window.location.hash), '#/mywork');
+  assert.equal(await page.evaluate(() => window.location.hash), '#/n01_u05/performance');
   assert.deepEqual(seen.work[0], { window: 'week', time_zone: 'Asia/Dubai' });
   assert.equal(await page.locator('[data-scope]').first().innerText(),
     'Counts only the records you changed yourself, from Oct 19, 2026 to Oct 25, 2026, Asia/Dubai time, in the 1 use case that keeps actions. '
@@ -203,15 +201,14 @@ test('Genie writes the summary only with the person\'s own numbers, and an inven
   }
 });
 
-test('a single use case App lists My work above the use case, and the tabs layout shows it as a tab', async () => {
+test('a single use case App offers Performance in its rail, and the old My work link opens it', async () => {
   const { page, seen: app, context } = await openApp(browser, served.base, appInfo(DECIDE, 1, TABLE), { routes: workRoutes({}) });
-  const nav = await page.$$eval('nav.side .nav-i b', (els) => els.map((e) => e.textContent));
-  assert.deepEqual(nav, ['My work', 'Impact', 'Price-loss decision desk']);
+  assert.deepEqual(await page.locator('[data-rail]').evaluateAll((all) => all.map((r) => r.dataset.rail)), ['dashboard', 'work', 'performance', 'runs', 'settings']);
+  await page.goto(`${served.base}#/mywork`);
+  await page.waitForFunction(() => window.location.hash === '#/n01_u05/performance');
+  await page.waitForSelector('[data-my-work]');
   assert.deepEqual(app.errors, []);
   await context.close();
-  const tabs = await openApp(browser, served.base, appInfo({ ...DECIDE, layout: 'tabs' }, 2, TABLE), { routes: workRoutes({}) });
-  assert.deepEqual((await tabs.page.$$eval('nav.tabs .tab', (els) => els.map((e) => e.textContent))).slice(0, 3), ['My work', 'Impact', 'Overview']);
-  await tabs.context.close();
 });
 
 function askWork(seen) {
@@ -231,11 +228,11 @@ async function askBox(page, name, question) {
 test('every card, key number and row on My work shows a visible Ask Genie, and a use case row sends its own numbers to that use case Genie', async () => {
   const seen = {};
   const { page, seen: app, context } = await openApp(browser, served.base, appInfo(DECIDE, 2, TABLE), { routes: askWork(seen) });
-  await page.click('[data-my-work-open]');
+  await page.locator('[data-rail="performance"]').click();
   await page.waitForSelector('[data-activity] tbody tr');
   const found = await page.evaluate(askAudit, ASK_GROUPS);
   assert.deepEqual([found.missing, found.hidden], [[], []], 'My work: 0 missing, 0 hidden');
-  assert.ok(found.counts.row >= 51 && found.counts.kpi === 5, JSON.stringify(found.counts));
+  assert.ok(found.counts.row >= 51 && found.counts.kpi === 9, `5 key numbers on My work and 4 on Impact: ${JSON.stringify(found.counts)}`);
   assert.equal(await page.locator('[data-activity] tbody tr .row-ask').count(), 50, 'with Genie on, each change asks about its record');
   await askBox(page, 'Price-loss decision desk', 'Why so many notes?');
   await until(() => (seen.explain || []).length === 1);

@@ -135,7 +135,7 @@ test('a link and a saved view carry the column filters, and opening them narrows
   await dialog.getByRole('button', { name: 'Save view' }).click();
   await toastSays(page, 'Saved the view "Review only"');
   const stored = await page.evaluate((key) => JSON.parse(localStorage.getItem(key)), VIEWS_KEY);
-  assert.deepEqual(stored.n01_u05, [{ name: 'Review only', view: 'overview', filters: { c: { l: { priority_tier: ['Review'] } } } }]);
+  assert.deepEqual(stored.n01_u05, [{ name: 'Review only', view: 'work', filters: { c: { l: { priority_tier: ['Review'] } } } }]);
   await card(page, LIST).getByRole('button', { name: 'Clear filters' }).click();
   await until(() => !('column_filters' in lastList(seen)));
   await page.getByRole('button', { name: 'Views', exact: true }).click();

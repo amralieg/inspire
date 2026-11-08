@@ -167,8 +167,8 @@ test('the Impact page counts a productivity use case in hours and shows its targ
   const routes = { impact: ({ json }) => json(200, ENTRY), summary: ({ json }) => json(200, { run: HOURS_RUN, categories: {}, note: '' }) };
   const { page, seen, context } = await openApp(browser, served.base, info, { width: 1440, routes });
   await page.goto(`${served.base}#/impact`);
-  await page.waitForFunction(() => document.querySelector('.pg-h h1')?.textContent === 'Impact' && document.querySelector('.imp-kpi'));
-  await page.waitForFunction(() => !document.querySelector('.kpis .skel, .kpis .skeleton') && /hours/.test(document.querySelector('.kpi .kpi-v')?.innerText || ''));
+  await page.waitForFunction(() => [...document.querySelectorAll('.pg-h h1')].some((h) => h.textContent === 'Impact') && document.querySelector('.imp-kpi'));
+  await page.waitForFunction(() => !document.querySelector('.imp-page .kpis .skel, .imp-page .kpis .skeleton') && /hours/.test(document.querySelector('.imp-page .kpi .kpi-v')?.innerText || ''));
   const card = page.locator('.imp-kpi');
   const heading = await card.locator('h3').innerText();
   assert.ok(heading.startsWith('Target KPI: Analyst hours spent on manual review') && heading.endsWith('\u25bc Decrease'), heading);
@@ -205,7 +205,7 @@ test('the decision list and the record panel of a use case counted in hours with
       total: 1, offset: 0, limit: 25, actions: false, changes: false, summary: null, errors: {}, money: HOURS_MODEL }),
   };
   const { page, seen, context } = await openApp(browser, served.base, info, { width: 1440, routes });
-  await page.goto(`${served.base}#/${id}`);
+  await page.goto(`${served.base}#/${id}/work`);
   const row = page.locator('.card--table[aria-label="Decision list"] tbody tr').first();
   await row.waitFor();
   assert.ok((await row.innerText()).includes('40 hours'), await row.innerText());
@@ -232,7 +232,7 @@ test('a use case counted in FTE shows FTE on its decision list, record panel and
       total: 1, offset: 0, limit: 25, actions: false, changes: false, summary: null, errors: {}, money: fteModel }),
   };
   const { page, seen, context } = await openApp(browser, served.base, info, { width: 1440, routes });
-  await page.goto(`${served.base}#/${id}`);
+  await page.goto(`${served.base}#/${id}/work`);
   const row = page.locator('.card--table[aria-label="Decision list"] tbody tr').first();
   await row.waitFor();
   assert.ok((await row.innerText()).includes('40 FTE'), await row.innerText());
@@ -242,7 +242,7 @@ test('a use case counted in FTE shows FTE on its decision list, record panel and
   assert.equal(await panel.locator('.save').innerText(), '40 FTE');
   assert.ok(!/\$|FTE\s?\d|Money at stake/.test(await page.locator('dialog.drawer[open]').innerText()), 'FTE is never read as a currency code');
   await page.goto(`${served.base}#/impact`);
-  await page.waitForFunction(() => document.querySelector('.pg-h h1')?.textContent === 'Impact' && /FTE/.test(document.querySelector('.kpi .kpi-v')?.innerText || ''));
+  await page.waitForFunction(() => [...document.querySelectorAll('.pg-h h1')].some((h) => h.textContent === 'Impact') && /FTE/.test(document.querySelector('.imp-page .kpi .kpi-v')?.innerText || ''));
   const text = await page.locator('.imp-page').innerText();
   assert.ok(text.includes('150.5 FTE') && !text.includes('$') && !/FTE\s?\d/.test(text) && !/money at stake/i.test(text), text);
   assert.ok(text.includes('FTE at stake'), 'the Impact page names the stake in FTE');

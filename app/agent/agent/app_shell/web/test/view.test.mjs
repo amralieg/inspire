@@ -2,8 +2,9 @@ import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
 import {
-  CONTRACT, CURRENT, DECIDE, HISTORY, LABEL, OTHER, PERSON, ROWS, SUMMARY, TABLE, appInfo, chartsDrawn, lister, openApp, prefsFirst, resizeTo, serveDist, tracked, until,
+  CONTRACT, CURRENT, DECIDE, HISTORY, LABEL, OTHER, PERSON, ROWS, SUMMARY, TABLE, appInfo, chartsDrawn, lister, openApp, prefsFirst, resizeTo, serveDist, tracked, until, pickCase, goRail,
 } from './harness.mjs';
+import { monitorRoutes } from './exampleRoutes.mjs';
 import { encodeFilters } from '../src/links.js';
 
 let served;
@@ -25,7 +26,7 @@ const REFUSE_CLIPBOARD = () => {
   Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: () => Promise.reject(new DOMException('Write permission denied.', 'NotAllowedError')) } });
 };
 
-async function openWith(info, routes, { prefs, hash = '#/n01_u05', init, width } = {}) {
+async function openWith(info, routes, { prefs, hash = '#/n01_u05/work', init, width } = {}) {
   const watch = async (page) => {
     if (init) await page.addInitScript(init);
     if (prefs) await prefsFirst(MY, PERSON, prefs)(page);
@@ -71,11 +72,12 @@ test('My view is in Settings for everyone, the window chips follow it, it surviv
   await waitList(page);
   assert.deepEqual([seen.records[0].window, seen.records[0].time_zone, 'window_limit' in seen.records[0]], ['all', 'Asia/Dubai', false],
     'All open names its window from the first read, with no limit');
-  await page.click('[data-settings-open]');
+  await goRail(page, 'settings');
   await page.locator('[data-settings] [data-group="my_view"]').waitFor();
   assert.equal(await page.locator('select[name="my_window"]').inputValue(), 'all');
   assert.equal(await page.locator('select[name="my_limit"]').inputValue(), '0');
   await page.locator('select[name="my_window"]').selectOption('week');
+  await goRail(page, 'work');
   await until(() => seen.records.at(-1).window === 'week');
   assert.equal(seen.records.at(-1).time_zone, 'Asia/Dubai', 'the list says which week it means, here in Dubai time');
   const chips = page.getByRole('group', { name: 'Your window' });
@@ -88,8 +90,9 @@ test('My view is in Settings for everyone, the window chips follow it, it surviv
   assert.equal(seen.records[before].window, 'week', 'the first list request after a reload already asks for the window');
   await chips.getByRole('button', { name: 'Today' }).click();
   await until(() => seen.records.at(-1).window === 'today');
-  await page.click('[data-settings-open]');
+  await goRail(page, 'settings');
   assert.equal(await page.locator('select[name="my_window"]').inputValue(), 'today', 'the setting follows the chip');
+  await goRail(page, 'work');
   await chips.getByRole('button', { name: 'All open' }).click();
   await until(() => seen.records.at(-1).window === 'all');
   assert.deepEqual(seen.errors, []);
@@ -111,7 +114,7 @@ test('a window chip hides a record outside the window while an overdue record st
   await context.close();
 
   const items = [item('w', 'Due next week', '2026-11-04'), item('t', 'Due today', TODAY), item('o', 'Overdue one', '2026-10-21')];
-  const hub = await openWith(appInfo(DECIDE, 2, TABLE), { overview: hubOf(items) }, { hash: '#/overview' });
+  const hub = await openWith(appInfo(DECIDE, 2, TABLE), { overview: hubOf(items) }, { hash: '#/n01_u05/performance' });
   const work = hub.page.getByRole('region', { name: 'Your work' });
   await work.locator('tbody tr').first().waitFor();
   const firsts = () => work.locator('tbody tr td:first-child').allInnerTexts();
@@ -136,7 +139,7 @@ test('a limit shows the top N with a line that says how many more there are, on 
   assert.equal(await page.locator('.card--table [data-limit]').innerText(), 'Your limit shows the top 10 of 30. 20 more are not shown; change the limit in Settings.');
   await context.close();
   const items = Array.from({ length: 12 }, (_, i) => item(`k${i}`, `Mine ${i + 1}`, null, { money: 1000 - i }));
-  const hub = await openWith(appInfo(DECIDE, 2, TABLE), { overview: hubOf(items) }, { hash: '#/overview', prefs: { limit: 10 } });
+  const hub = await openWith(appInfo(DECIDE, 2, TABLE), { overview: hubOf(items) }, { hash: '#/n01_u05/performance', prefs: { limit: 10 } });
   const work = hub.page.getByRole('region', { name: 'Your work' });
   await work.locator('tbody tr').first().waitFor();
   assert.deepEqual(hub.seen.hub.at(-1), { window: 'all', window_limit: 10, time_zone: 'Asia/Dubai' });
@@ -145,7 +148,7 @@ test('a limit shows the top N with a line that says how many more there are, on 
   assert.equal(await work.locator('[data-limit]').innerText(), 'Your limit keeps the top 10 of 12 records in Price-loss decision desk. Change the limit in Settings.');
   assert.deepEqual([...seen.errors, ...hub.seen.errors], []);
   await hub.context.close();
-  const all = await openWith(appInfo(DECIDE, 2, TABLE), { overview: hubOf(items.slice(0, 8)) }, { hash: '#/overview', prefs: { limit: 10 } });
+  const all = await openWith(appInfo(DECIDE, 2, TABLE), { overview: hubOf(items.slice(0, 8)) }, { hash: '#/n01_u05/performance', prefs: { limit: 10 } });
   const sent = all.page.getByRole('region', { name: 'Your work' });
   await sent.locator('tbody tr').first().waitFor();
   assert.equal(await sent.locator('[data-limit]').count(), 0, 'the server sent every record in the window, so nothing is held back');
@@ -159,9 +162,11 @@ test('Compact density fits more rows, and it and the rows per page are kept for 
   await waitList(page);
   const pad = () => page.locator('.card--table tbody td').nth(1).evaluate((td) => getComputedStyle(td).paddingTop);
   assert.equal(await pad(), '9px');
-  await page.click('[data-settings-open]');
+  await goRail(page, 'settings');
   await page.locator('select[name="my_density"]').selectOption('compact');
   assert.equal(await page.locator('.app').getAttribute('data-density'), 'compact');
+  await goRail(page, 'work');
+  await waitList(page);
   assert.equal(await pad(), '5px');
   assert.equal((await mine(page)).density, 'compact');
   await page.getByLabel('Rows per page').selectOption('50');
@@ -176,7 +181,7 @@ test('Compact density fits more rows, and it and the rows per page are kept for 
 test('each chart, the key numbers and a block fold with a one-line summary, stay folded after a reload, and each page keeps its own', async () => {
   const info = appInfo({ layout: 'sidebar' }, 2);
   info.pages[0].blocks = [{ id: 'guide', kind: 'text', place: { where: 'top' }, width: 'full', align: 'left', content: '## How to read this page\nStart with the list.' }];
-  const { page, seen, context } = await openWith(info, {});
+  const { page, seen, context } = await openWith(info, {}, { hash: '#/n01_u05/dashboard' });
   await page.waitForFunction(chartsDrawn, 4);
   await page.getByRole('button', { name: 'Fold Loss to discounts by month' }).click();
   await page.getByRole('button', { name: 'Fold Key numbers' }).click();
@@ -195,12 +200,12 @@ test('each chart, the key numbers and a block fold with a one-line summary, stay
   await page.reload();
   await page.waitForFunction(chartsDrawn, 3);
   assert.deepEqual({ ...(await state()), sum: '' }, { ...folded, sum: '' }, 'the folds come back after a reload');
-  await page.locator('.side .nav-i', { hasText: 'Second desk 1' }).click();
+  await pickCase(page, 'Second desk 1');
   await page.waitForFunction(() => document.querySelector('.ph h1')?.textContent === 'Second desk 1');
   await page.waitForFunction(chartsDrawn, 4);
   assert.equal(await page.locator('.card--folded, .fold-s.is-folded').count(), 0, 'another page keeps its own folds');
   assert.equal(await page.getByRole('button', { name: 'Unfold Loss to discounts by month' }).count(), 0);
-  await page.locator('.side .nav-i', { hasText: 'Price-loss decision desk' }).click();
+  await pickCase(page, 'Price-loss decision desk');
   await page.waitForFunction(chartsDrawn, 3);
   await page.getByRole('button', { name: 'Unfold Loss to discounts by month' }).click();
   await page.waitForFunction(chartsDrawn, 4);
@@ -215,7 +220,7 @@ test('the money panel folds to its title, stays folded after a reload, and unfol
   const overview = ({ json }) => json(200, { today: TODAY, quarter: '2026-10-01', since: '2026-08-03', errors: {},
     pages: { n01_u05: { ...entry([item('a', 'Blue denim jacket', null)]), money_model: model } } });
   const { routes } = tracked({ overview, money: ({ json }) => json(200, { model, editable: false, why: 'Only the owners of this App can change its assumptions', history: [] }) });
-  const { page, seen, context } = await openWith(appInfo(DECIDE, 1, TABLE), routes);
+  const { page, seen, context } = await openWith(appInfo(DECIDE, 1, TABLE), routes, { hash: '#/n01_u05/dashboard' });
   const card = page.getByRole('region', { name: 'How the money at stake is worked out' });
   await card.locator('.rule').waitFor();
   await card.getByRole('button', { name: 'Fold How the money at stake is worked out' }).click();
@@ -231,20 +236,27 @@ test('the money panel folds to its title, stays folded after a reload, and unfol
   await context.close();
 });
 
-test('Focus on the list folds every chart and the key numbers at once, and pressing it again unfolds them', async () => {
+test('Focus on the list folds every chart and the key numbers of a page that shows both, and Work, which has no chart, offers no Focus', async () => {
   const { routes } = tracked();
-  const { page, seen, context } = await openWith(appInfo(DECIDE, 1, TABLE), routes);
-  await waitList(page);
-  await page.waitForFunction(chartsDrawn, 4);
+  const work = await openWith(appInfo(DECIDE, 1, TABLE), routes);
+  await waitList(work.page);
+  assert.equal(await work.page.getByRole('button', { name: 'Focus on the list' }).count(), 0, 'Work holds no chart or key number, so there is nothing to fold');
+  assert.deepEqual(work.seen.errors, []);
+  await work.context.close();
+  const info = appInfo(DECIDE, 1, {}, 'examples/monitor_triage.json');
+  const { page, seen, context } = await openApp(browser, served.base, info, { routes: monitorRoutes(), clock: CLOCK, timezone: 'Asia/Dubai' });
+  const drawn = () => page.evaluate(() => document.querySelectorAll('[data-section] canvas').length);
+  await page.waitForFunction(() => document.querySelectorAll('[data-section] canvas').length >= 3);
+  const charts = await drawn();
   const expanded = () => page.locator('[data-fold]').evaluateAll((els) => els.map((e) => e.getAttribute('aria-expanded')));
-  assert.ok((await expanded()).length >= 5 && (await expanded()).every((v) => v === 'true'));
+  assert.ok((await expanded()).length >= 4 && (await expanded()).every((v) => v === 'true'));
   const focus = page.getByRole('button', { name: 'Focus on the list' });
   await focus.click();
-  await page.waitForFunction(() => !document.querySelector('.charts canvas'));
+  await page.waitForFunction(() => !document.querySelector('[data-section] canvas'));
   assert.ok((await expanded()).every((v) => v === 'false'));
   assert.equal(await focus.getAttribute('aria-pressed'), 'true');
   await focus.click();
-  await page.waitForFunction(chartsDrawn, 4);
+  await page.waitForFunction((n) => document.querySelectorAll('[data-section] canvas').length === n, charts);
   assert.ok((await expanded()).every((v) => v === 'true'));
   assert.equal(await focus.getAttribute('aria-pressed'), 'false');
   assert.deepEqual(seen.errors, []);
@@ -260,7 +272,7 @@ test('Copy a link to a record copies an address that opens that record', async (
   await page.getByRole('button', { name: 'Copy a link to this record' }).click();
   await page.waitForFunction(() => document.querySelector('.toast .toast-t')?.textContent === 'Link to this record copied');
   const [copied] = await page.evaluate(() => window.__copied);
-  assert.equal(new URL(copied).hash, '#/n01_u05?rec=R001');
+  assert.equal(new URL(copied).hash, '#/n01_u05/work?rec=R001');
   const other = await openWith(appInfo(DECIDE, 1, TABLE), tracked().routes, { hash: new URL(copied).hash });
   await other.page.waitForFunction((t) => document.querySelector('dialog.drawer[open] h2')?.textContent === t, LABEL);
   assert.deepEqual([...seen.errors, ...other.seen.errors], []);
@@ -283,7 +295,7 @@ test('when the browser refuses the clipboard, the record link shows selected in 
       const input = document.querySelector('dialog[aria-label="Copy this link"] input');
       return { value: input.value, focused: document.activeElement === input, start: input.selectionStart, end: input.selectionEnd, readOnly: input.readOnly };
     });
-    const url = `${new URL(page.url()).origin}${new URL(page.url()).pathname}#/n01_u05?rec=R001`;
+    const url = `${new URL(page.url()).origin}${new URL(page.url()).pathname}#/n01_u05/work?rec=R001`;
     assert.deepEqual(field, { value: url, focused: true, start: 0, end: url.length, readOnly: true }, round);
     assert.notEqual(await page.evaluate(() => document.querySelector('.toast .toast-t')?.textContent || ''), 'Link to this record copied', round);
     await dialog.getByRole('button', { name: 'Done' }).click();
@@ -321,7 +333,7 @@ test('an empty list says what to do: all caught up in a window with Show all ope
   await waitList(page);
   assert.equal(await page.getByRole('group', { name: 'Your window' }).getByRole('button', { name: 'All open' }).getAttribute('aria-pressed'), 'true');
   await context.close();
-  const linked = await openWith(appInfo(DECIDE, 1, TABLE), routes, { hash: `#/n01_u05?f=${encodeFilters({ s: { category: ['Music'] } })}` });
+  const linked = await openWith(appInfo(DECIDE, 1, TABLE), routes, { hash: `#/n01_u05/work?f=${encodeFilters({ s: { category: ['Music'] } })}` });
   await linked.page.waitForFunction(() => document.querySelector('.card--table .more .empty-t')?.textContent === 'No record matches these filters.');
   assert.deepEqual(linked.seen.records.at(-1).filters.category, ['Music']);
   await linked.page.locator('.card--table .more').getByRole('button', { name: 'Clear filters' }).click();
@@ -379,7 +391,7 @@ test('the Overview says what you did today: assigned, overdue, due today and don
       pages: { n01_u05: counted(entry(items), mine), n02_u01: counted(entry([]), 1) } });
   };
   const routes = { overview, 'records/batches': ({ json, url }) => { asked.push(url.searchParams.get('page')); return json(200, { batches: [], limit: 20 }); } };
-  const { page, seen, context } = await openWith(appInfo(DECIDE, 2, TABLE), routes, { hash: '#/overview' });
+  const { page, seen, context } = await openWith(appInfo(DECIDE, 2, TABLE), routes, { hash: '#/n01_u05/performance' });
   const work = page.getByRole('region', { name: 'Your work' });
   await page.waitForFunction(() => /done today/.test(document.querySelector('[aria-label="Your work"] [data-today]')?.textContent || ''));
   assert.equal(await work.locator('[data-today]').innerText(), `3 assigned to you · 1 overdue · 1 due today · ${mine + 1} done today`);
@@ -390,7 +402,7 @@ test('the Overview says what you did today: assigned, overdue, due today and don
 
 function layoutCheck() {
   const shown = (el) => getComputedStyle(el).display !== 'none' && getComputedStyle(el).visibility !== 'hidden' && el.getBoundingClientRect().width > 0;
-  const bleed = [...document.querySelectorAll('.app *')].filter((el) => shown(el) && !el.closest('.tbl-wrap, .tabs, .side:not(.is-open)')
+  const bleed = [...document.querySelectorAll('.app *')].filter((el) => shown(el) && !el.closest('.tbl-wrap, .tabs, .work-tabs, .side:not(.is-open)')
     && (el.getBoundingClientRect().right > window.innerWidth + 1 || el.getBoundingClientRect().left < -1)).slice(0, 5)
     .map((el) => `${el.tagName.toLowerCase()}.${[...el.classList].join('.')}`);
   const overlap = (sel) => {
@@ -418,7 +430,7 @@ test('the list, its tools, the selection bar and the Overview fit 1440, 1024 and
   await page.getByRole('checkbox', { name: `Select ${label(1)}` }).check();
   for (const screen of ['list', 'overview']) {
     if (screen === 'overview') {
-      await page.goto(`${served.base}#/overview`);
+      await page.goto(`${served.base}#/n01_u05/performance`);
       await page.getByRole('region', { name: 'Your work' }).locator('tbody tr').first().waitFor();
     }
     for (const width of [1440, 1024, 390]) {
@@ -458,17 +470,17 @@ test('a window reaches only lists that keep actions: a list that keeps none read
   await waitList(page);
   assert.deepEqual([seen.records[0].page, seen.records[0].window, seen.records[0].window_limit], ['n01_u05', 'today', 10],
     'a list that keeps actions gets the window and the limit on its first read');
-  await page.goto(`${served.base}#/n02_u01`);
+  await page.goto(`${served.base}#/n02_u01/work`);
   await page.waitForFunction(() => document.querySelector('.ph h1')?.textContent === 'Second desk 1');
   await listed(page);
   assert.equal(refused.length, 1, 'the one refused read is asked again without the window');
   assert.equal(await page.locator('.card--table tbody tr').count(), 25, 'no limit applies to a list that keeps no actions');
   assert.equal(await page.locator('.tile-err').count(), 0, 'the refusal is not shown as an error');
   await until(() => !('window' in seen.records.at(-1)));
-  await page.goto(`${served.base}#/n01_u05`);
+  await page.goto(`${served.base}#/n01_u05/work`);
   await waitList(page);
   const back = seen.records.length;
-  await page.goto(`${served.base}#/n02_u01`);
+  await page.goto(`${served.base}#/n02_u01/work`);
   await page.waitForFunction(() => document.querySelector('.ph h1')?.textContent === 'Second desk 1');
   await listed(page);
   await until(() => seen.records.slice(back).some((b) => b.page === 'n02_u01'));
@@ -479,9 +491,9 @@ test('a window reaches only lists that keep actions: a list that keeps none read
 
   const hub = { today: TODAY, quarter: '2026-10-01', since: '2026-08-03', errors: {}, pages: { n01_u05: entry([]), n02_u01: { ...entry([]), actions: false, money: false } } };
   const known = await openWith(appInfo(DECIDE, 2, TABLE), tracked({ records, overview: ({ json }) => json(200, hub) }).routes,
-    { prefs: { window: 'today', limit: 10 }, hash: '#/overview' });
+    { prefs: { window: 'today', limit: 10 }, hash: '#/n01_u05/performance' });
   await known.page.getByRole('region', { name: 'Your work' }).waitFor();
-  await known.page.goto(`${served.base}#/n02_u01`);
+  await known.page.goto(`${served.base}#/n02_u01/work`);
   await listed(known.page);
   assert.deepEqual(known.seen.records.filter((b) => b.page === 'n02_u01' && ('window' in b || 'window_limit' in b)), [],
     'the Overview already said this use case keeps no actions, so its list is never asked with the window');
@@ -513,7 +525,7 @@ test('All open names its window to the Overview, and a use case that keeps no ac
   };
   for (const [prefs, said] of [[undefined, null], [{ window: 'week' }, 'Your window does not apply to Second desk 1, because it keeps no actions.'],
     [{ limit: 10 }, 'Your window does not apply to Second desk 1, because it keeps no actions.']]) {
-    const { page, seen, context } = await openWith(appInfo(DECIDE, 2, TABLE), { overview }, { hash: '#/overview', prefs });
+    const { page, seen, context } = await openWith(appInfo(DECIDE, 2, TABLE), { overview }, { hash: '#/n01_u05/performance', prefs });
     await page.getByRole('region', { name: 'Your work' }).locator('tbody tr').first().waitFor();
     if (!prefs) assert.deepEqual(seen.hub.at(-1), { window: 'all', time_zone: 'Asia/Dubai' }, 'the default asks for All open by name, in the time zone of the person');
     if (said) assert.equal(await page.locator('[data-window-note]').innerText(), said);
@@ -557,10 +569,11 @@ test('Everything shows the fixed and dismissed records All open hides, each with
   const { page, seen, context } = await openWith(appInfo(DECIDE, 1, TABLE), routes);
   await waitList(page);
   assert.deepEqual(await labels(page), [label(1)], 'All open shows the open record only');
-  await page.click('[data-settings-open]');
+  await goRail(page, 'settings');
   await page.locator('[data-settings] [data-group="my_view"]').waitFor();
   assert.deepEqual(await page.locator('select[name="my_window"] option').allInnerTexts(), ['This hour', 'Today', 'This week', 'This month', 'All open', 'Everything']);
   await page.locator('select[name="my_window"]').selectOption('everything');
+  await goRail(page, 'work');
   await until(() => !('window' in seen.records.at(-1)));
   assert.equal((await mine(page)).window, 'everything', 'the window is kept in this browser like the others');
   const before = seen.records.length;
@@ -699,7 +712,7 @@ test('Everything leaves the Overview counts as All open has them, with a limit o
   const items = [item('t', 'Due today', TODAY), item('w', 'Due next week', '2026-11-04')];
   const asked = {};
   for (const prefs of [{ window: 'all' }, { window: 'everything' }, { window: 'all', limit: 10 }, { window: 'everything', limit: 10 }]) {
-    const { page, seen, context } = await openWith(appInfo(DECIDE, 2, TABLE), { overview: hubOf(items) }, { hash: '#/overview', prefs });
+    const { page, seen, context } = await openWith(appInfo(DECIDE, 2, TABLE), { overview: hubOf(items) }, { hash: '#/n01_u05/performance', prefs });
     const work = page.getByRole('region', { name: 'Your work' });
     await work.locator('tbody tr').first().waitFor();
     asked[JSON.stringify(prefs)] = { body: seen.hub.at(-1), rows: await work.locator('tbody tr').allInnerTexts(), note: await page.locator('[data-window-note]').count() };

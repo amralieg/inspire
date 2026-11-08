@@ -11,13 +11,11 @@ button,input,select,textarea{font:inherit;color:inherit}
 .stage{container:app/inline-size;position:relative;min-height:100vh;background:var(--bg);color:var(--ink);margin:0 auto;transition:background .2s,color .2s}
 .app{display:flex;flex-direction:column;min-height:inherit}
 .top{position:sticky;top:0;z-index:30;display:flex;flex-wrap:nowrap;align-items:center;gap:10px;padding:10px 18px;background:var(--card);border-bottom:1px solid var(--line);white-space:nowrap}
-.top>*,.top-page>*{flex:none}
+.top>*{flex:none}
 .top>.mark{flex:0 2 auto;min-width:96px}
-.top-page{display:contents}
 .fresh-pt{display:none;align-items:flex-start;gap:6px;color:var(--muted);font-size:13px}
 .fresh-pt>svg{flex:none;margin-top:2px}
 .fresh-pt.is-late{color:var(--amber-ink)}
-.top-page>.fresh{flex:0 1 auto;min-width:110px;display:flex;align-items:center;margin:0;flex-wrap:nowrap}
 .top .fresh-t{display:flex;min-width:0;max-width:260px}
 .fresh-tx{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .top .fresh-busy{flex-wrap:nowrap;min-width:0;max-width:280px;overflow:hidden}
@@ -54,7 +52,7 @@ button,input,select,textarea{font:inherit;color:inherit}
 .scrim{display:none}
 .side.rail{width:212px;padding:14px 10px}
 .rail-i .nav-ic{width:28px;height:28px}
-.rail-i .rail-n{margin-left:auto;font-weight:700;font-size:11px;padding:0 7px;border-radius:999px;background:var(--well);color:var(--muted)}
+.rail-i .rail-n{margin-inline-start:auto;font-weight:700;font-size:11px;padding:0 7px;border-radius:999px;background:var(--well);color:var(--muted)}
 .rail-foot{border-top:1px solid var(--line);padding-top:8px}
 .switch{display:inline-flex;align-items:center;gap:9px;min-width:0;max-width:380px;flex:0 4 auto;padding:5px 10px;border-radius:10px;border:1px solid var(--line-strong);background:var(--card);cursor:pointer;text-align:start}
 .switch:hover:not(:disabled),.switch[aria-expanded="true"]{background:var(--well)}
@@ -367,6 +365,8 @@ button.hb:hover,button.hb.is-on{background:var(--well)}
   .top>.mark{min-width:0}
   .genie-btn span{display:none}
   .genie-btn{padding:7px 9px}
+  :is(.top,.ph-tools) :is(.top-ic,.top-ic2)>span{display:none}
+  :is(.top,.ph-tools) .btn:is(.top-ic,.top-ic2){min-width:40px;padding:0 9px;justify-content:center}
   .avatar{display:none}
   .page{padding:16px 14px 32px}
   .ph h1,.pg-h h1{font-size:22px}
