@@ -23,9 +23,11 @@ export async function dropCopies(region) {
   await region.evaluate((el) => el.querySelectorAll('[data-wheel-copy]').forEach((c) => c.remove()));
 }
 
-async function where(region) {
-  return region.evaluate((el) => {
-    const r = el.getBoundingClientRect();
+async function where(region, over) {
+  const aim = over ? await over.elementHandle() : null;
+  const found = await region.evaluate((el, target) => {
+    const view = { top: 0, bottom: window.innerHeight, left: 0, right: window.innerWidth };
+    const r = !target && el === document.scrollingElement ? view : (target || el).getBoundingClientRect();
     const top = Math.max(r.top, 0);
     const bottom = Math.min(r.bottom, window.innerHeight);
     const left = Math.max(r.left, 0);
@@ -38,7 +40,9 @@ async function where(region) {
       x, y, seen: bottom - top, top: Math.round(el.scrollTop), scroll: el.scrollHeight, client: el.clientHeight, overflow: s.overflowY,
       hit: !!hit && el.contains(hit), cover: hit && !el.contains(hit) ? `${hit.tagName.toLowerCase()}.${String(hit.className).slice(0, 60)}` : '',
     };
-  });
+  }, aim);
+  if (aim) await aim.dispose();
+  return found;
 }
 
 async function reach(page, region) {
@@ -55,16 +59,16 @@ async function reach(page, region) {
   }
 }
 
-export async function wheelToEnd(page, region, last, name) {
+export async function wheelToEnd(page, region, last, name, over = null) {
   await frames(page);
-  await reach(page, region);
-  const at = await where(region);
+  await reach(page, over || region);
+  const at = await where(region, over);
   assert.ok(at.scroll > at.client + 1, `${name}: the content does not overflow the region, so the wheel cannot be tested ${JSON.stringify(at)}`);
   assert.ok(at.seen >= 40, `${name}: the region shows ${at.seen} px on screen, too little to scroll ${JSON.stringify(at)}`);
   assert.ok(at.hit, `${name}: something covers the region where the pointer sits (${at.cover}) ${JSON.stringify(at)}`);
   await page.mouse.move(at.x, at.y);
-  for (let i = 0; i < 6 && (await region.evaluate((el) => el.scrollTop)) > 0; i += 1) {
-    await page.mouse.wheel(0, -100000);
+  for (let i = 0; i < 400 && (await region.evaluate((el) => el.scrollTop)) > 0; i += 1) {
+    await page.mouse.wheel(0, -1000);
     await frames(page);
   }
   const start = await region.evaluate((el) => el.scrollTop);
@@ -82,14 +86,14 @@ export async function wheelToEnd(page, region, last, name) {
     }
     before = now;
   }
-  const after = await where(region);
+  const after = await where(region, over);
   assert.ok(after.top > 0, `${name}: the mouse wheel over the region did not scroll it ${JSON.stringify(after)}`);
   assert.ok(after.scroll - after.client - after.top <= 2, `${name}: the mouse wheel stopped before the end of the region ${JSON.stringify(after)}`);
   await last.waitFor({ state: 'attached' });
   const box = await region.elementHandle();
   const look = () => last.evaluate((item, holder) => {
     const r = item.getBoundingClientRect();
-    const b = holder.getBoundingClientRect();
+    const b = holder === document.scrollingElement ? { top: 0, bottom: window.innerHeight } : holder.getBoundingClientRect();
     const floor = Math.min(b.bottom, window.innerHeight);
     const y = Math.max(Math.min(r.bottom, floor) - 3, r.top + 1);
     const x = r.left + Math.min(Math.max(r.width, 2), 40) / 2;
@@ -114,14 +118,14 @@ export async function wheelToEnd(page, region, last, name) {
   return after;
 }
 
-export async function wheelScrolls(page, region, last, { name, screens = WHEEL_SCREENS, fill, unfill } = {}) {
+export async function wheelScrolls(page, region, last, { name, screens = WHEEL_SCREENS, fill, unfill, over = null } = {}) {
   const results = [];
   for (const [width, height] of screens) {
     await page.setViewportSize({ width, height });
     await frames(page);
     if (fill) await fill();
     await frames(page);
-    results.push(await wheelToEnd(page, region, typeof last === 'function' ? last() : last, `${name} at ${width}x${height}`));
+    results.push(await wheelToEnd(page, region, typeof last === 'function' ? last() : last, `${name} at ${width}x${height}`, typeof over === 'function' ? over() : over));
     if (unfill) await unfill();
   }
   return results;
