@@ -9,7 +9,8 @@ import re
 import pytest
 
 from v140_implement_test import (GRANT_SELECT, INSPIRE_OWNS, OURS_APP, READS, SHELL_FILES, VALID, _access_spark, _app_flow, _app_shell,
-                                 _churn_page, _deploy_inspire, _inspire, _not_access_reads, _spec, sdk_stub)
+                                 _churn_page, _deploy_inspire, _feedback_refused, _inspire, _not_access_reads, _spec, _without_feedback,
+                                 sdk_stub)
 from v141_app_shell_test import PAGE, SETTINGS, call, shell
 from v120_artifacts_support import CapturingLogger
 import shell_core
@@ -174,11 +175,14 @@ def test_a_per_user_app_is_created_with_its_scopes_and_its_service_principal_rea
     read = dict(created, user_api_scopes=["sql:restricted-query", "genie"])
     inst, context, calls, _imported = _deploy_inspire(agent_ns, NEW_APP + [created, read] + DEPLOYED, access=[])
     fields = inst._implement_deploy_app(_user_context(agent_ns, context, decisions=False), "churn-desk", SHELL_FILES, READS, "g1", poll_s=0)
-    assert fields["app_url"] == "https://churn-desk.example" and "_warnings" not in fields
+    assert fields["app_url"] == "https://churn-desk.example"
+    assert len(fields["_warnings"]) == 1 and _feedback_refused(fields["_warnings"]) == fields["_warnings"], \
+        "Inspire holds nothing here, so the only gap is the feedback table it cannot grant"
     assert [c[:2] for c in calls] == [("GET", "/api/2.0/apps/churn-desk"), ("POST", "/api/2.0/apps"), ("GET", "/api/2.0/apps/churn-desk"),
                                       ("POST", "/api/2.0/apps/churn-desk/deployments"), ("GET", "/api/2.0/apps/churn-desk")]
     assert calls[1][2]["user_api_scopes"] == ["sql:restricted-query", "genie"]
-    assert _not_access_reads(inst.spark.statements) == [], "each viewer reads with their own grants, so the App's identity gets none"
+    assert _without_feedback(_not_access_reads(inst.spark.statements)) == [], \
+        "each viewer reads with their own grants, so the App's identity gets none beyond the feedback table"
     assert inst.genie_grants == []
 
 

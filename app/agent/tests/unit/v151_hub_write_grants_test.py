@@ -3,7 +3,7 @@ import json
 
 import pytest
 
-from v140_implement_test import READS, SHELL_FILES, _app_flow, _churn_page, _deploy_inspire, sdk_stub  # noqa: F401
+from v140_implement_test import FEEDBACK_SQL, READS, SHELL_FILES, _app_flow, _churn_page, _deploy_inspire, sdk_stub  # noqa: F401
 from v142_merge_test import OWN_SOURCE, _host_files, _host_page, _restyle_inspire
 from v150_app_owners_access_test import GRANT, NEW_APP, Catalog
 
@@ -33,14 +33,14 @@ def test_a_per_user_app_that_records_decisions_gets_read_and_modify_on_every_pag
         assert spark.statements.count(GRANT.format("SELECT", f"TABLE {table}")) == 1, table
         assert spark.statements.count(GRANT.format("MODIFY", f"TABLE {table}")) == 1, table
     granted = {s.split(" ON ", 1)[1].split(" TO ")[0] for s in spark.statements if s.startswith("GRANT") and " ON TABLE " in s}
-    assert granted == {"TABLE `main`.`inspire`.`churn_out`", "TABLE `main`.`inspire`.`sales_out`"}, \
-        "a per-user App reads its other tables as the viewer, so its service principal gets only the decision tables"
+    assert granted == {"TABLE `main`.`inspire`.`churn_out`", "TABLE `main`.`inspire`.`sales_out`", f"TABLE {FEEDBACK_SQL}"}, \
+        "a per-user App reads its other tables as the viewer, so its service principal gets only the decision and feedback tables"
     assert "_warnings" not in fields
 
 
 def test_a_per_user_app_that_records_no_decisions_gets_no_table_grant(agent_ns, sdk_stub):
     spark, _fields = _deploy(agent_ns, {"modify": True, "decisions": False}, ["main.inspire.churn_out", OTHER], access="user")
-    assert not any(s.startswith("GRANT") and " ON TABLE " in s for s in spark.statements)
+    assert {s.split(" ON TABLE ", 1)[1].split(" TO ")[0] for s in spark.statements if s.startswith("GRANT") and " ON TABLE " in s} == {FEEDBACK_SQL}
 
 
 @pytest.mark.parametrize("options", [{"modify": False, "decisions": True}, {"modify": True, "decisions": False}])

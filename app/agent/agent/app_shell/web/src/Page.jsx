@@ -34,6 +34,7 @@ import ModeView from './ModeView.jsx';
 import { SECTION_TITLES, pageMode, sectionTitle } from './modes.js';
 import TrendCards, { useTrends } from './Trends.jsx';
 import { pageCurrency, pageKind } from './hub.js';
+import { FeedbackButton, FeedbackForm, FeedbackList, useFeedback } from './Feedback.jsx';
 
 export { SECTION_TITLES };
 
@@ -121,6 +122,7 @@ export default function Page({ app, page, meta, state, onState, look = EMPTY_LOO
   useEffect(() => {
     if (rec && shown === 'work') window.dispatchEvent(new CustomEvent(AGENT_OPEN, { detail: { pageId: page.id, recordKey: rec } }));
   }, [rec, shown, page.id]);
+  const [opened, setOpened] = useState(() => parseHash(window.location.hash).rec || '');
   const [seeChanged, setSeeChanged] = useState(() => (parseHash(window.location.hash).changed ? 1 : 0));
   const runsOn = sections.includes('runs');
   const go = (to, { tab: nextTab = '', state: next = state, sort, focus: only = '' } = {}) => {
@@ -199,7 +201,8 @@ export default function Page({ app, page, meta, state, onState, look = EMPTY_LOO
       sort={look.sorts?.records || null} onSort={sortBy('records')}
       columnMeta={meta?.columns?.list} columnValues={columnValues(state, null)}
       onColumn={(column, value) => onState(setColumnValue(state, null, column, value))} onClearColumns={() => onState(clearColumnValues(state, null))}
-      onClearFilters={() => onState(clearColumnValues({ ...clearSelections(state), ai: {} }, null))} seeChanged={seeChanged} onShowRuns={showRuns} {...extra} />
+      onClearFilters={() => onState(clearColumnValues({ ...clearSelections(state), ai: {} }, null))} seeChanged={seeChanged} onShowRuns={showRuns}
+      onOpen={setOpened} {...extra} />
   ) : null);
   const hubCharts = (bars) => chartCards(trendChart ? [trendChart] : [], [{ key: 'by_reason', item: { id: 'by_reason' }, span: 1, node: bars }], true);
   const review = reviewItem(page, app);
@@ -212,6 +215,9 @@ export default function Page({ app, page, meta, state, onState, look = EMPTY_LOO
       </a>
     ) : null;
   const colors = paletteItems(chrome?.palette, chrome?.built, chrome?.theme, chrome?.onPalette || (() => {}));
+  const reporting = !!page.history;
+  const feedback = useFeedback(page.id, reporting && shown === 'settings');
+  const report = { section: shown, filters: describeFilters(state, meta?.filters, meta?.columns), recordKey: opened };
   const head = (
     <header className="ph">
       <div className="pg-h">
@@ -219,6 +225,7 @@ export default function Page({ app, page, meta, state, onState, look = EMPTY_LOO
         <div className="ph-tools" data-section-tools>
           <FreshBar freshness={freshness}>
             <PageLink pageId={page.id} meta={meta} state={state} view={shown} address={address} />
+            {reporting && (shown === 'dashboard' || shown === 'work') && <FeedbackButton pageId={page.id} context={report} sections={sections} />}
           </FreshBar>
         </div>
       </div>
@@ -307,6 +314,12 @@ export default function Page({ app, page, meta, state, onState, look = EMPTY_LOO
               : <p className="auth" data-auth="app"><Icon name="users" size={13} /><b>Shared view.</b> Everyone sees the same data. The App reads it with its own service principal.</p>}
             {app.is_owner === true && <AdminLink />}
           </SettingGroup>
+          {reporting && (
+            <SettingGroup id="feedback" title="App Feedback" why="Tell the owners of this use case what is wrong or what you would change. They see it on its Build page in Inspire.">
+              <FeedbackForm pageId={page.id} context={{ ...report, section: 'settings' }} sections={sections} onSent={(out) => feedback.setData(out)} />
+              <FeedbackList data={feedback.data} failure={feedback.failure} />
+            </SettingGroup>
+          )}
         </SettingsPanel>
       )}
     </div>

@@ -503,7 +503,7 @@ function emptyState({ search, mine, changed, fresh, windowed, narrowedAny, range
 }
 
 export default function Records({ meta, app, pageId, filters, ai, onFilter, history = false, onChanged, nonce = 0, ready = true, onExplain, genieBusy, openKey,
-  columnMeta, columnValues, onColumn, onClearColumns, onClearFilters, seeChanged = 0, onShowRuns, similarBy, keepsActions, onList, section, sort: lookSort, onSort: onLookSort,
+  columnMeta, columnValues, onColumn, onClearColumns, onClearFilters, seeChanged = 0, onShowRuns, similarBy, keepsActions, onList, onOpen, section, sort: lookSort, onSort: onLookSort,
   tab, focus: only, docked = false }) {
   const { prefs, update } = useMyView();
   const [query, setQuery] = useState('');
@@ -606,6 +606,8 @@ export default function Records({ meta, app, pageId, filters, ai, onFilter, hist
     if (next !== window.location.hash) window.history.replaceState(window.history.state, '', next);
   }, []);
   const found = open ? rows.find((r) => keyOf(r) === keyOf(open)) : null;
+  const openedKey = open ? keyOf(open) : '';
+  useEffect(() => { onOpen?.(openedKey); }, [openedKey]);
   const shown = found && recordKeyOf(found) == null && recordKeyOf(open) != null ? { ...found, record_key: recordKeyOf(open) } : found || open;
   const edit = (r) => setForm({ mode: 'edit', target: recordRef(meta, r) });
   const saved = (out) => {

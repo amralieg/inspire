@@ -425,7 +425,8 @@ CAPS = {"kpis": (3, 6), "charts": (3, 8), "tables": (0, 3), "filters": (1, 8), "
         "act_match_user": 10000, "note_chars": 500, "snooze_days": 365, "conflicts_shown": 20, "similar_sample": 5, "similar_by": 3, "batches": 20,
         "exclude_keys": 50, "window_limit": 1000, "due_within_days": 31, "act_history": 200, "closers_today": 200, "my_work_rows": 50, "my_work_deepest": 10000,
         "my_work_days": 366, "my_work_overdue": 20, "my_work_weeks": 53, "scenario_rows": 200, "scenario_events": 2000, "scenarios_per_person": 100,
-        "trend_runs": 20, "trend_weeks": 12, "trend_reasons": 8}
+        "trend_runs": 20, "trend_weeks": 12, "trend_reasons": 8, "feedback_chars": 2000, "feedback_filters": 1000, "feedback_rows": 50,
+        "feedback_per_hour": 10}
 TREND_COLUMNS = (("k", "STRING"), ("at", "TIMESTAMP"), ("n", "BIGINT"), ("m", "BIGINT"), ("overdue", "BIGINT"), ("unowned", "BIGINT"),
                  ("fresh", "BIGINT"), ("month", "BIGINT"), ("older", "BIGINT"), ("money", "DOUBLE"), ("secs", "DOUBLE"))
 AGE_DAYS = (7, 30)
@@ -4760,6 +4761,31 @@ def scenario_library(rows: list, person: str) -> dict:
                               "at": row.get("changed_at")})
     shown = [s for s in saved.values() if s["shared"] or s["mine"]]
     return {"scenarios": shown[::-1], "decisions": decisions[::-1], "mine": sum(1 for s in saved.values() if s["mine"])}
+
+
+FEEDBACK_SUFFIX = "_feedback"
+FEEDBACK_NEW = "new"
+FEEDBACK_COLUMNS = ("feedback_id", "section", "record_key", "text", "filters", "reported_by", "reported_at", "status", "vibe_text", "handled_by",
+                    "handled_at")
+
+
+def feedback_table(page: dict) -> str:
+    return table_name(str(page["result_table"]).strip() + FEEDBACK_SUFFIX)
+
+
+def feedback_write(page: dict, feedback_id: str, section: str, record_key: str, text: str, reporter: str, filters: str) -> tuple:
+    params = _Params()
+    cells = [params.add(feedback_id), params.add(str(page.get("use_case_id") or "")), params.add(section), params.add(record_key or None),
+             params.add(text), params.add(reporter), "current_timestamp()", params.add(FEEDBACK_NEW), params.add(filters or None)]
+    return (f"INSERT INTO {feedback_table(page)} (`feedback_id`, `use_case_id`, `section`, `record_key`, `text`, `reported_by`, `reported_at`, "
+            f"`status`, `filters`) VALUES ({', '.join(cells)})", params.items)
+
+
+def feedback_query(page: dict, reporter=None, limit: int = 50) -> tuple:
+    params = _Params()
+    mine = f" AND lower(`reported_by`) = {params.add(str(reporter).lower())}" if reporter is not None else ""
+    return (f"SELECT {', '.join(f'`{c}`' for c in FEEDBACK_COLUMNS)} FROM {feedback_table(page)} WHERE `use_case_id` = "
+            f"{params.add(str(page.get('use_case_id') or ''))}{mine} ORDER BY `reported_at` DESC LIMIT {int(limit)}", params.items)
 
 
 SETTING_GROUPS = ("impact", "flagging", "scope", "alerts")

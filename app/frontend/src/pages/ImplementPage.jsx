@@ -28,6 +28,7 @@ import Celebration from '../components/Celebration';
 import GenieLogo from '../components/GenieLogo';
 import DrawerShell from '../components/DrawerShell';
 import VibeFeatures from '../components/VibeFeatures';
+import ReportedIssues, { useReportedIssues } from '../components/ReportedIssues';
 import VibeChecklist, { HeldVersion } from '../components/VibeChecklist';
 import TabStrip, { tabPanel } from '../components/TabStrip';
 import { Counter, CounterDivider, IconChip, PANEL_CLASS, SectionTitle } from '../components/BuildUi';
@@ -879,6 +880,7 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
   const uninstalled = latest?.status === IMPLEMENT_UNINSTALLED;
   const built = hasMvp && !uninstalled;
   const moneyKey = `${latest?.spec_version ?? ''}:${latest?.status ?? ''}`;
+  const issues = useReportedIssues({ apiFetch, apiPostJson, qBase, useCaseId, on: built && !readOnly, refreshKey: `${moneyKey}:${refreshKey}` });
   useEffect(() => {
     if (!hasMvp) return undefined;
     let live = true;
@@ -978,6 +980,13 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
   const openFeatures = (seed = null) => {
     setRebuildError('');
     setFeatures((prev) => ({ at: (prev?.at || 0) + 1, seed }));
+  };
+  const addFeature = (text, replaces) => {
+    addAsk(text, replaces);
+    const reported = features?.seed?.feedback;
+    if (!reported) return;
+    setFeatures((prev) => (prev ? { ...prev, seed: { ...prev.seed, feedback: null } } : prev));
+    issues.setStatus(reported, 'vibe', text.trim()).catch((e) => setError(`The vibe is added, but Inspire could not mark the reported issue: ${e.message}`));
   };
   const closeFeatures = () => setFeatures(null);
   const openSettings = () => {
@@ -1701,6 +1710,7 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
           {error && !cardFailed && !features && !drawerTile && <p className={`${ERROR_BOX} shrink-0`}>{error}</p>}
           {collectError && <p className={`${ERROR_BOX} shrink-0`}>{collectError}</p>}
           {tileRow}
+          {!readOnly && <ReportedIssues issues={issues} locked={locked ? lockedReason || 'Wait for this run to finish' : ''} onDraft={openFeatures} />}
           <MvpProgress stages={stages} summary={progress} chip={chip} reason={reason} toneClass={toneClass} version={latest?.spec_version} sorted={sorted}
             stop={stop} boxRef={boxRef} logRef={logRef} view={progressView} warnings={statusWarnings(latest).length} attention={needsAttention ? attention : null}>
             <VibeChecklist checklist={checklist} assets={latest?.asset_status} readOnly={readOnly} locked={locked} lockedReason={lockedReason} busy={submitBusy}
@@ -1731,7 +1741,7 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
       {features && !readOnly && built && (
         <VibeFeatures key={features.at} name={item.name} entries={vibes} assets={pickable} seed={features.seed} active={active} busy={submitBusy}
           error={rebuildError || error} built={builtOn} choices={choices} previous={previous} blocked={rebuildBlocked}
-          onPrevious={setPrevious} onAdd={addAsk} onDrop={dropAsk} onRemoveAsk={removeAsk} onRebuild={rebuild} onOpenSettings={onEdit ? openSettings : null} onClose={closeFeatures} />
+          onPrevious={setPrevious} onAdd={addFeature} onDrop={dropAsk} onRemoveAsk={removeAsk} onRebuild={rebuild} onOpenSettings={onEdit ? openSettings : null} onClose={closeFeatures} />
       )}
     </div>
   );

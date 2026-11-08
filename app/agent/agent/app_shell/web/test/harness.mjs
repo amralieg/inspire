@@ -247,6 +247,7 @@ export const NO_TRENDS = { visible: true, tracked: true, actions: false, note: '
 export const NO_MONEY = { model: null, history: [], editable: false, why: 'this page puts no amount at stake on its records' };
 export const NO_SETTINGS = { settings: [], history: [], editable: false, why: 'Only the owners of this use case can change its settings', can_run: false };
 export const NO_IMPACT = { visible: true, tracked: false, empty: true, note: 'no run of this use case has written its results yet', promised: null };
+export const NO_FEEDBACK = { items: [], everyone: false, missing: false, limit: 2000 };
 
 export async function serveDist({ prefix = '/', headers = () => ({}) } = {}) {
   let origin = '';
@@ -317,6 +318,7 @@ export async function openApp(browser, base, info, { width = 1440, height = 900,
     if (path === 'settings') return json(200, NO_SETTINGS);
     if (path === 'impact') return json(200, NO_IMPACT);
     if (path === 'my_work') return json(200, NO_MY_WORK);
+    if (path === 'feedback') return json(200, NO_FEEDBACK);
     if (path === 'records/batches') return json(200, { ...CONTRACT.batches.response, batches: [] });
     if (path === 'agent/status') return json(200, GENIE_ONLY);
     if (path === 'page') {
