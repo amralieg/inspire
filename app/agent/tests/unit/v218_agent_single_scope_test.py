@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import sys
 
 import pytest
@@ -56,21 +57,50 @@ def test_the_guard_is_the_one_scope_decision_and_unrelated_never_reaches_the_mai
     assert llm.main_calls() == [] and len(llm.bodies) == 1 and llm.bodies[0]["max_tokens"] == shell_agent.TOPIC_TOKENS
 
 
+def guard_data(llm):
+    content = llm.bodies[0]["messages"][1]["content"]
+    return json.loads(content[len("<data>\n"):-len("\n</data>")])
+
+
 def sees_the_subject(body):
     data = json.loads(body["messages"][1]["content"][len("<data>\n"):-len("\n</data>")])
     shown = json.dumps({k: v for k, v in data.items() if k not in ("person_asks", "earlier_turns")}).lower()
-    return all(word in shown for word in ("revenue", "items"))
+    asked = set(re.findall(r"[a-z]+", data["person_asks"].lower()))
+    return bool(asked & {"revenue", "discounts"}) and all(word in shown for word in ("revenue", "items"))
 
 
-@pytest.mark.xfail(strict=True, reason="shell_agent.py on_topic builds the guard's data from the page outline only, so the tables and "
-                                       "columns the use case reads never reach the check that TOPIC_SYSTEM tells to treat them as in scope")
 def test_a_question_about_the_source_data_the_page_does_not_show_reaches_the_check_with_that_source_data(tmp_path):
     llm = FakeLLM([said("Revenue by item is in the source table.")], related=sees_the_subject)
     s, _ws, _made = agent_shell(tmp_path, ws=AgentWorkspace(llm=llm))
     turn = ask(s, "Which items had the largest discounts compared with their revenue across every channel?")
     assert llm.bodies[0]["max_tokens"] == shell_agent.TOPIC_TOKENS
     assert turn["refused"] is False, "a question about a column the use case reads is answered, not refused as off topic"
+    sources = {d["dataset"]: d for d in guard_data(llm)["source_data"]}
+    assert sources["records"]["tables"] == ["main.pricing.items", "main.pricing.loss_desk_out"]
+    assert {"revenue", "discounts"} <= set(sources["trend"]["columns"]) and {"region", "entity_label"} <= set(sources["records"]["columns"])
+    assert "SELECT" not in json.dumps(sources) and "is_current" in sources["records"]["columns"]
 
+
+def test_the_source_data_the_check_sees_is_names_only_and_bounded():
+    wide = ", ".join(f"c{n}" for n in range(500))
+    tables = " JOIN ".join(f"main.s.t{n} AS a{n} ON a{n}.k = a0.k" if n else "main.s.t0 AS a0" for n in range(30))
+    page = {"datasets": [{"name": f"d{n}", "sql": f"SELECT {wide} FROM {tables}"} for n in range(20)]
+            + [{"name": "broken", "sql": "SELECT FROM WHERE ((("}, "not a dataset"]}
+    seen = shell_agent.page_sources(page)
+    assert len(seen) == shell_agent.TOPIC_SOURCES and all(len(d["columns"]) == shell_agent.TOPIC_SOURCE_COLUMNS for d in seen)
+    assert all(len(d["tables"]) == shell_agent.TOPIC_SOURCE_TABLES for d in seen)
+    assert len(json.dumps(seen)) < 12000
+    assert shell_agent.page_sources({"datasets": [{"name": "broken", "sql": "SELECT FROM WHERE((("}]}) == [{"dataset": "broken"}]
+    assert shell_agent.page_sources({"datasets": [{"name": "x" * 500, "sql": "SELECT a FROM main.s.t"}]})[0]["dataset"].endswith("…")
+    assert shell_agent.page_sources({}) == [] and shell_agent.page_sources({"datasets": None}) == []
+
+
+@pytest.mark.parametrize("question", ["Tell me about the history of the Roman empire", "What is the tallest mountain on Earth?"])
+def test_source_data_never_turns_an_off_topic_question_on_topic(tmp_path, question):
+    llm = FakeLLM([said("A has 4.")], related=sees_the_subject)
+    s, _ws, _made = agent_shell(tmp_path, ws=AgentWorkspace(llm=llm))
+    turn = ask(s, question)
+    assert turn == dict(turn, state="done", answer=shell_agent.OFF_TOPIC, refused=True) and llm.main_calls() == []
 
 
 def test_an_injection_question_is_still_refused_on_the_guard_path(tmp_path):

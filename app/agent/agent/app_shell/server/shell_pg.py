@@ -1,5 +1,6 @@
 import datetime
 import decimal
+import functools
 import json
 import queue
 import re
@@ -832,18 +833,35 @@ def render(sql: str, params, tables: dict, held=(), overlays=None) -> tuple:
     return escape_percent(text), values, read
 
 
-def dataset_reads(sql: str):
+def _parsed(sql: str):
     try:
         import sqlglot
         from sqlglot import exp
         from sqlglot.errors import SqlglotError
     except ImportError:
-        return None
+        return None, None
     try:
-        tree = sqlglot.parse_one(str(sql or ""), read="databricks")
+        return sqlglot.parse_one(str(sql or ""), read="databricks"), exp
     except SqlglotError:
-        return None
+        return None, None
+
+
+def _tables_of(tree, exp) -> set:
     return {".".join(p for p in (t.catalog, t.db, t.name) if p).lower() for t in tree.find_all(exp.Table) if t.db}
+
+
+def dataset_reads(sql: str):
+    tree, exp = _parsed(sql)
+    return None if tree is None else _tables_of(tree, exp)
+
+
+@functools.lru_cache(maxsize=256)
+def dataset_outline(sql: str):
+    tree, exp = _parsed(sql)
+    if tree is None:
+        return None
+    columns = {c.name for c in tree.find_all(exp.Column) if c.name} | {a.alias for a in tree.find_all(exp.Alias) if a.alias}
+    return tuple(sorted(_tables_of(tree, exp))), tuple(sorted(columns, key=str.lower))
 
 
 def derived_copies(page: dict, backend: dict) -> set:
