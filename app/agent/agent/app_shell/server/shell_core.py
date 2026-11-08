@@ -3695,6 +3695,9 @@ class Shell:
                 raise HttpError(404, shell_sql.error_text(error)) from error
             if data.get("seen") != version["status"]:
                 raise HttpError(409, f"{version['label']} is {version['status']} now, not {data.get('seen')}; check it and try again")
+            busy = next((v for v in versions if v["editable"] and v["plan_id"] != version["plan_id"]), None)
+            if action == "reopen" and busy is not None:
+                raise HttpError(409, f"{busy['label']} is still {busy['status']}; finish it before you reopen {version['label']}")
             try:
                 status = shell_sql.plan_next_status(version["status"], action)
             except ValueError as error:

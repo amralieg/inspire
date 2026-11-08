@@ -181,6 +181,16 @@ def test_a_plan_move_without_its_reason_or_out_of_order_writes_nothing(tmp_path,
     assert ws.inserted_plans() == []
 
 
+def test_an_older_version_cannot_be_reopened_while_a_newer_one_is_open(tmp_path):
+    ws = PlanWorkspace(plans=[plan_row(PID1, "status", "Approved", "2026-11-01 09:00:00"), plan_row(PID2, "status", "Draft", "2026-11-02 09:00:00")])
+    s, ws, _made = planner_shell(tmp_path, ws=ws)
+    status, out = move(s, "reopen", PID1, "Approved", "Wrong numbers")
+    assert status == 409 and "Version 2 is still Draft; finish it before you reopen Version 1" in out["error"]
+    assert ws.inserted_plans() == []
+    status, out = move(s, "publish", PID1, "Approved", "Ship the approved one")
+    assert status == 200 and [v["status"] for v in out["versions"]] == ["Draft", "Published"]
+
+
 def test_an_injection_reason_is_saved_as_text_through_a_parameter(tmp_path):
     ws = PlanWorkspace(plans=[plan_row(PID1, "status", "Draft", "2026-11-01 09:00:00")])
     s, ws, _made = planner_shell(tmp_path, ws=ws)
