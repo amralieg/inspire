@@ -229,7 +229,7 @@ def test_the_bridge_chart_reads_its_steps_in_their_order():
 def test_the_public_page_carries_the_layout_its_sections_the_plan_and_each_so_what_line():
     public = shell_core.public_page(FORECAST)
     assert public["layout"] == {"id": "forecast_cockpit", "label": "Forecast cockpit", "tab_label": "Forecast",
-                                "sections": layout("forecast_cockpit")["sections"], "decides": True, "informational": False,
+                                "contract": "forecast", "sections": layout("forecast_cockpit")["sections"], "decides": True, "informational": False,
                                 "holds": {"todo": "todo", "kpis": "kpis", "horizon_selector": "horizon", "at_risk_series": "plan"}}
     assert public["plan"]["recommended"] == "recommended_order" and public["scenario"] is None
     fan = next(c for c in public["charts"] if c["id"] == "fan")

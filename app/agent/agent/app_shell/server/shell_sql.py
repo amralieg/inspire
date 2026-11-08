@@ -323,6 +323,13 @@ SCENARIO_POINTS = 41
 SCENARIO_BASE = "base"
 SCENARIO_SWING = 0.1
 SCENARIO_SAVE = ("name", "levers", "outcome")
+SCENARIOS_SUFFIX = "_scenarios"
+SCENARIO_ACTIONS = ("save", "share", "unshare", "choose")
+SCENARIO_NAME_CHARS = 80
+SCENARIO_ID = re.compile(r"^[0-9a-f]{32}$")
+SCENARIO_COLUMNS = ("event_id", "use_case_id", "scenario_id", "action", "name", "lever_values", "p10", "p50", "p90", "prob_target", "target",
+                    "note", "changed_by", "changed_at")
+SCENARIO_NUMBERS = ("p10", "p50", "p90", "prob_target", "target")
 DRAWN_CHARTS = {"scenario": 2, "target": 1}
 SO_WHAT_LAYOUTS = ("dashboard",)
 ASKED_SECTIONS = ("charts", "tables")
@@ -414,7 +421,7 @@ CAPS = {"kpis": (3, 6), "charts": (3, 8), "tables": (0, 3), "filters": (1, 8), "
         "act_match_user": 10000, "note_chars": 500, "snooze_days": 365, "conflicts_shown": 20, "similar_sample": 5, "similar_by": 3, "batches": 20,
         "exclude_keys": 50, "window_limit": 1000, "act_history": 200, "closers_today": 200, "my_work_rows": 50, "my_work_deepest": 10000,
         "my_work_days": 366, "scenario_rows": 200, "feedback_chars": 2000, "feedback_filters": 1000,
-        "feedback_rows": 50, "feedback_per_hour": 10}
+        "feedback_rows": 50, "feedback_per_hour": 10, "scenario_events": 2000, "scenarios_per_person": 100}
 MY_WORK_DEFAULT = "week"
 MY_WORK_CUSTOM = "custom"
 MY_WORK_MINUTES = "minutes_per_record"
@@ -1976,7 +1983,7 @@ def public_layout(page: dict) -> dict:
     ident = page_layout(page)
     layout = layouts().get(ident) or {}
     return {"id": ident, "label": layout.get("label") or ident, "tab_label": layout.get("tab_label") or "",
-            "sections": layout_sections(ident, page),
+            "contract": layout.get("contract") or "", "sections": layout_sections(ident, page),
             "holds": {str(s): SECTIONS[s]["holds"] for s in layout_sections(ident, page) if (SECTIONS.get(s) or {}).get("holds")},
             "decides": page_decides(page), "informational": not layout_decides(ident)}
 
@@ -4389,6 +4396,61 @@ def feedback_query(page: dict, reporter=None, limit: int = 50) -> tuple:
     mine = f" AND lower(`reported_by`) = {params.add(str(reporter).lower())}" if reporter is not None else ""
     return (f"SELECT {', '.join(f'`{c}`' for c in FEEDBACK_COLUMNS)} FROM {feedback_table(page)} WHERE `use_case_id` = "
             f"{params.add(str(page.get('use_case_id') or ''))}{mine} ORDER BY `reported_at` DESC LIMIT {int(limit)}", params.items)
+
+
+def scenarios_table(page: dict) -> str:
+    return table_name(str(page["result_table"]).strip() + SCENARIOS_SUFFIX)
+
+
+def scenario_events_query(page: dict, limit: int = CAPS["scenario_events"]) -> tuple:
+    params = _Params()
+    return (f"SELECT {', '.join(f'`{c}`' for c in SCENARIO_COLUMNS)} FROM {scenarios_table(page)} WHERE `use_case_id` = "
+            f"{params.add(str(page.get('use_case_id') or ''))} ORDER BY `changed_at` DESC, `event_id` DESC LIMIT {int(limit)}", params.items)
+
+
+def scenario_event_write(page: dict, event: dict) -> tuple:
+    if event.get("action") not in SCENARIO_ACTIONS:
+        raise ValueError(f"a scenario event is one of {', '.join(SCENARIO_ACTIONS)}")
+    params = _Params()
+    cells = []
+    for column in SCENARIO_COLUMNS:
+        value = event.get(column)
+        if column == "use_case_id":
+            cells.append(params.add(str(page.get("use_case_id") or "")))
+        elif column == "changed_at":
+            cells.append("current_timestamp()")
+        elif column in SCENARIO_NUMBERS:
+            cells.append("CAST(NULL AS DOUBLE)" if value is None else params.add(repr(float(value)), "DOUBLE"))
+        else:
+            cells.append("CAST(NULL AS STRING)" if value is None else params.add(str(value)))
+    return (f"INSERT INTO {scenarios_table(page)} ({', '.join(f'`{c}`' for c in SCENARIO_COLUMNS)}) VALUES ({', '.join(cells)})",
+            params.items)
+
+
+def _scenario_levers(text) -> dict:
+    try:
+        found = json.loads(text or "{}")
+    except (TypeError, ValueError):
+        return {}
+    return {str(k): v for k, v in found.items() if isinstance(v, (int, float)) and not isinstance(v, bool)} if isinstance(found, dict) else {}
+
+
+def scenario_library(rows: list, person: str) -> dict:
+    me = str(person or "").strip().lower()
+    saved, decisions = {}, []
+    for row in sorted(rows or [], key=lambda r: (str(r.get("changed_at") or ""), str(r.get("event_id") or ""))):
+        action, ident, by = row.get("action"), str(row.get("scenario_id") or ""), str(row.get("changed_by") or "")
+        if action == "save" and ident not in saved:
+            saved[ident] = {"id": ident, "name": str(row.get("name") or ""), "levers": _scenario_levers(row.get("lever_values")),
+                            "outcome": {k: as_number(row.get(k)) for k in SCENARIO_NUMBERS}, "note": str(row.get("note") or ""),
+                            "by": by, "at": row.get("changed_at"), "shared": False, "mine": by.strip().lower() == me}
+        elif action in ("share", "unshare") and ident in saved and saved[ident]["by"].strip().lower() == by.strip().lower():
+            saved[ident]["shared"] = action == "share"
+        elif action == "choose" and ident in saved:
+            decisions.append({"scenario_id": ident, "name": saved[ident]["name"], "note": str(row.get("note") or ""), "by": by,
+                              "at": row.get("changed_at")})
+    shown = [s for s in saved.values() if s["shared"] or s["mine"]]
+    return {"scenarios": shown[::-1], "decisions": decisions[::-1], "mine": sum(1 for s in saved.values() if s["mine"])}
 
 
 SETTING_GROUPS = ("impact", "flagging", "scope", "alerts")

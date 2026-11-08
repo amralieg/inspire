@@ -34,9 +34,15 @@ function localNames(text, file, name) {
     .flatMap((m) => m[1].split(',').map((part) => part.trim().split(/\s+as\s+/)).filter(([imported]) => imported === name).map((pair) => pair[pair.length - 1]));
 }
 
+function lazyNames(text, file) {
+  return [...text.matchAll(/import\('\.\/([^']+)'\)\.then\(\(([\w$]+)\) => [^\n]*/g)].filter((m) => stem(m[1]) === stem(file))
+    .flatMap((m) => [...m[0].matchAll(new RegExp(`\\b${m[2]}\\.([A-Za-z_]\\w*)`, 'g'))].map((hit) => hit[1]));
+}
+
 function unusedExports(files, callers = {}) {
   const used = (file, name) => count(files[file], name) >= 2 || count(callers[file] || '', name) >= 2
-    || Object.entries(files).some(([other, text]) => other !== file && localNames(text, file, name).some((local) => count(text, local) >= 2));
+    || Object.entries(files).some(([other, text]) => other !== file && (localNames(text, file, name).some((local) => count(text, local) >= 2)
+      || lazyNames(text, file).includes(name)));
   return Object.entries(files).flatMap(([file, text]) => [...text.matchAll(/^export (?:async )?(?:const|function|class) ([A-Za-z_]\w*)/gm)]
     .map((m) => m[1]).filter((name) => !used(file, name)).map((name) => `${file}: ${name}`));
 }
@@ -58,6 +64,11 @@ test('every helper the App exports has a caller in the App, and the check catche
     'a file that imports the helper, even under another name, is its caller');
   assert.deepEqual(unusedExports({ ...twin, 'c.js': "import { pick } from './a.js';\nexport const one = 1;\nconst again = one;\n" }), ['a.js: pick'],
     'an import that is never used is not a caller');
+  const lazyTwin = { 'a.js': 'export const pick = 1;\nexport const left = 2;\n' };
+  assert.deepEqual(unusedExports({ ...lazyTwin, 'c.js': "const Pick = lazy(() => import('./a.js').then((m) => ({ default: m.pick })));\n" }), ['a.js: left'],
+    'a lazy import that reads the helper is its caller, and only for the helper it reads');
+  assert.deepEqual(unusedExports({ ...lazyTwin, 'c.js': "const Pick = lazy(() => import('./b.js').then((m) => ({ default: m.pick })));\n" }).sort(),
+    ['a.js: left', 'a.js: pick'], 'a lazy import of another file is not a caller');
 });
 
 const F = (name, kind, extra = {}) => ({ name, kind, type: 'STRING', role: 'business', editable: true, ...extra });
