@@ -3115,7 +3115,8 @@ def _deploy_inspire(ns, answers, access=None):
         return types.SimpleNamespace(content=base64.b64encode(inst.uploads[path][0].encode("utf-8")).decode())
 
     inst.w_client = types.SimpleNamespace(workspace=types.SimpleNamespace(mkdirs=lambda p: None, export=export),
-                                          config=types.SimpleNamespace(host="https://h"))
+                                          config=types.SimpleNamespace(host="https://h"),
+                                          service_principals=types.SimpleNamespace(list=lambda filter=None: []))
     inst._implement_grant = lambda kind, object_id, principals, level: inst.genie_grants.append((kind, object_id, principals, level))
     inst._implement_notebook_paths = lambda uc, key: ("/W/acme_implemented/Sales", "/W/acme_implemented/Sales/N01-U01")
     inst._implement_app_health = lambda app_name, deployment_id, url, path, deadline, poll_s: f"passed {app_name} {deployment_id} {url}{path}"
