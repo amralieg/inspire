@@ -1073,8 +1073,8 @@ test('a notebook Try again that would read a swapped primary table that is gone 
     await card.getByRole('button', { name: 'Try again with the missing thing', exact: true }).click();
     const alert = card.getByRole('alert');
     await alert.waitFor();
-    assert.equal((await alert.textContent()).trim(), 'the preview cannot run because these source tables are missing or not readable: main.s.orders_old (not found). '
-      + 'Open Edit, Data step, to swap each for a table with the same role or remove it');
+    assert.equal((await alert.textContent()).trim(), 'the preview cannot run because these source tables are missing or not readable: main.s.orders_old (the primary table, '
+      + 'not found). Open Edit, Data step, to swap main.s.orders_old for a table with the same role, because the primary table can be swapped, not removed');
     assert.equal(made.jobs.length, 0);
     assert.deepEqual(insertsOf(made), []);
   } finally {

@@ -245,6 +245,35 @@ def test_a_relay_that_cannot_start_leaves_genie_calling_the_gateway_directly(age
     assert "127.0.0.1" in env["NO_PROXY"] and "localhost" in env["no_proxy"]
 
 
+def test_the_codex_route_calls_the_gateway_directly_and_never_starts_the_relay(agent_ns, tmp_path):
+    codex = agent_ns["GenieCodeRoute"]("gpt-5.6-sol", agent_ns["GENIE_CODE_GATEWAYS"][0])
+    runner = _runner(agent_ns, tmp_path, "https://workspace.example.com", _scripted_genie([(0, "")], []), route_obj=codex)
+    started = []
+    runner.relay_factory = lambda host, logger: started.append(host)
+    assert runner.run("build it", str(tmp_path / "w"))["exit"] == 0
+    assert started == [] and runner.relay is None
+    base = tomllib.loads(runner.config_toml())["model_providers"]["databricks"]["base_url"]
+    assert base == "https://workspace.example.com" + agent_ns["GENIE_CODE_GATEWAYS"][0]["base"]
+    claude = _runner(agent_ns, tmp_path, "https://workspace.example.com", _scripted_genie([(0, "")], []))
+    claude.relay_factory = lambda host, logger: types.SimpleNamespace(base="http://127.0.0.1:9", stop=lambda: None)
+    claude.run("build it", str(tmp_path / "w"))
+    assert tomllib.loads(claude.config_toml())["model_providers"]["databricks"]["base_url"].startswith("http://127.0.0.1:9/"), (
+        "the Claude route still goes through the relay that repairs its resends (must-include)")
+
+
+@pytest.mark.parametrize("upstream", ["workspace.example.com", "http://127.0.0.1:1"])
+def test_a_relay_that_cannot_reach_the_gateway_answers_with_the_reason_and_logs_it(agent_ns, upstream):
+    logger = CapturingLogger()
+    relay = agent_ns["GenieCodeRelay"](upstream, logger)
+    relay.start()
+    try:
+        status, text = _post(f"{relay.base}/ai-gateway/mlflow/v1/responses", {"model": "m", "input": [USER]})
+    finally:
+        relay.stop()
+    assert status == 502 and "the relay could not reach Unity Gateway" in text
+    assert any("[GENIE-RELAY FIRED]" in line and "/ai-gateway/mlflow/v1/responses" in line for _level, line in logger.records)
+
+
 def _wrapped(ns):
     try:
         try:

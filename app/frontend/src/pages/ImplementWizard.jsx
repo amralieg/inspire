@@ -543,7 +543,8 @@ export default function ImplementWizard({
         const chosenOf = (t) => ((next.data.removed_tables || []).some((r) => same(r, t)) ? ''
           : next.data.tables[Object.keys(next.data.tables).find((k) => same(k, t))] || t);
         const lost = tablesOf(row).filter((t) => chosenOf(t) && missing.some((m) => same(m.table, chosenOf(t))));
-        const stillLost = missing.filter((m) => lost.some((t) => same(chosenOf(t), m.table)));
+        const stillLost = missing.filter((m) => lost.some((t) => same(chosenOf(t), m.table)))
+          .map((m) => (same(chosenOf(primaryTableOf(row)), m.table) ? { ...m, primary: true } : m));
         setNotice([revertedSwapsText(reverted), lostTablesText(stillLost)].filter(Boolean).join(' '));
         setCollectedNote(collectedVibesText(collected));
         if (lost.length) {

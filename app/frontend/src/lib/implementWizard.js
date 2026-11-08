@@ -2582,10 +2582,21 @@ export function appGrantText(got) {
   return got?.app_unreadable ? `${head}, and the App still cannot read every table` : `${head}, and the App can now read these tables`;
 }
 
+export function lostTablesList(missing) {
+  return (missing || []).map((m) => `${m.table} (${m.primary ? `the primary table, ${m.reason}` : m.reason})`).join(', ');
+}
+
+export function lostTablesAction(missing) {
+  const primary = (missing || []).find((m) => m.primary);
+  if (!primary) return 'swap each for a table with the same role or remove it';
+  const rest = (missing || []).length > 1 ? ', and swap or remove the others' : '';
+  return `swap ${primary.table} for a table with the same role, because the primary table can be swapped, not removed${rest}`;
+}
+
 export function lostTablesText(missing) {
   if (!missing?.length) return '';
-  return `These source tables are missing or not readable: ${missing.map((m) => `${m.table} (${m.reason})`).join(', ')}. `
-    + 'Swap each for a table with the same role, or remove it.';
+  const action = lostTablesAction(missing);
+  return `These source tables are missing or not readable: ${lostTablesList(missing)}. ${action[0].toUpperCase()}${action.slice(1)}.`;
 }
 
 export function initialStepIndex(focus, mode = 'mvp', spec = null, scope = NO_SCOPE_STEPS) {

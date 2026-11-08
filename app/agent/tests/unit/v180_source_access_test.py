@@ -86,6 +86,31 @@ def test_the_preview_stops_on_an_unreadable_table_naming_the_run_identity_and_ke
                                                                                     ("main.s.b", "no read access")]
 
 
+def test_a_gone_primary_table_asks_only_for_a_swap_because_the_data_step_cannot_remove_it(agent_ns):
+    def responder(statement):
+        for name in ("pax_gone", "c"):
+            if statement == f"SELECT * FROM `main`.`s`.`{name}` LIMIT 0":
+                raise RuntimeError(f"[TABLE_OR_VIEW_NOT_FOUND] The table or view `main`.`s`.`{name}` cannot be found.")
+
+    inst = make_inspire(agent_ns, spark=FakeSpark(responder=responder))
+    inst.updates = []
+    inst._implement_update = lambda key, **fields: inst.updates.append(fields)
+    inst._genie_involved_tables = lambda use_case: ["main.s.pax", "main.s.c", "main.s.ok"]
+    inst._implement_builder = lambda: APP_ID
+    inst._implement_builder_label = lambda: "inspire-app"
+    status = {}
+    spec = {"data": {"tables": {"main.s.pax": "main.s.pax_gone"}}}
+    with pytest.raises(agent_ns["ImplementBlocked"]) as raised:
+        inst._implement_source_checks((5150, "N01-U01", 1), spec, {"primary_table": "main.s.pax"}, status)
+    assert str(raised.value) == (
+        "the preview cannot run because the primary table main.s.pax_gone is missing, so open Edit, Data step, and swap it for a table "
+        "with the same role; the primary table can be swapped, not removed, and this source table is missing: main.s.c, so open Edit, "
+        "Data step, and swap it for a table with the same role or remove it")
+    assert [(m["table"], m.get("primary", False)) for m in status["data"]["missing_tables"]] == [("main.s.pax_gone", True), ("main.s.c", False)]
+    alone = agent_ns["implement_missing_tables_message"]([{"table": "main.s.pax_gone", "reason": "not found", "primary": True}])
+    assert "remove" not in alone.replace("swapped, not removed", "")
+
+
 def test_discover_names_who_cannot_read_a_table_and_keeps_going_for_the_readable_ones(agent_ns):
     def responder(statement):
         if statement.startswith("SELECT COUNT(*) AS n FROM `main`.`s`.`customers`"):

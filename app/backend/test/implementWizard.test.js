@@ -792,7 +792,13 @@ test('the Implement page shows lost tables from a refused re-run first, else onl
   assert.deepEqual(w.lostTables(null, { missing_tables: [] }), []);
   assert.deepEqual(w.lostTables(undefined, undefined), []);
   assert.equal(w.lostTablesText(lost), 'These source tables are missing or not readable: main.s.returns (not found). '
-    + 'Swap each for a table with the same role, or remove it.');
+    + 'Swap each for a table with the same role or remove it.');
+  assert.equal(w.lostTablesText([{ table: 'main.s.pax', reason: 'not found', primary: true }]),
+    'These source tables are missing or not readable: main.s.pax (the primary table, not found). '
+    + 'Swap main.s.pax for a table with the same role, because the primary table can be swapped, not removed.');
+  assert.equal(w.lostTablesText([{ table: 'main.s.pax', reason: 'not found', primary: true }, ...lost]),
+    'These source tables are missing or not readable: main.s.pax (the primary table, not found), main.s.returns (not found). '
+    + 'Swap main.s.pax for a table with the same role, because the primary table can be swapped, not removed, and swap or remove the others.');
   assert.equal(w.lostTablesText([]), '');
   assert.equal(w.lostTablesText(undefined), '');
 });

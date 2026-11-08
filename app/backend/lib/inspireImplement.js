@@ -14,8 +14,8 @@ const {
 const { specVibeAsks, vibeRefusalText, vibeRefusals } = require('../../frontend/src/lib/vibeLimits.js');
 const { PERSONAL_KEY_REASON, personalColumn } = require('../../frontend/src/lib/personalColumns.js');
 const {
-  defaultResultTable: defaultUseCaseResultTable, inspireDatabaseKey, isAppUpdate, liveAppVersion, ownSchemaAllTakenNote, ownSchemaClashNote,
-  ownSchemaFallbackNote, ownSchemaReuseNote, rowKeyOf, USE_CASE_SCHEMA_CLASH_LIMIT,
+  defaultResultTable: defaultUseCaseResultTable, inspireDatabaseKey, isAppUpdate, liveAppVersion, lostTablesAction, lostTablesList,
+  ownSchemaAllTakenNote, ownSchemaClashNote, ownSchemaFallbackNote, ownSchemaReuseNote, rowKeyOf, USE_CASE_SCHEMA_CLASH_LIMIT,
 } = require('../../frontend/src/lib/implementWizard.js');
 const { quotedIdent } = require('../../frontend/src/lib/tableName.js');
 
@@ -2501,13 +2501,12 @@ function isReadDenied(message) {
 function blockingMissingTables(missing, spec, useCase) {
   const primary = sourceTables(spec, [primaryTableOf(useCase)].filter(Boolean))[0] || '';
   if (!primary) return missing || [];
-  return (missing || []).some((m) => plainTable(m.table).toLowerCase() === primary.toLowerCase()) ? missing : [];
+  const marked = (missing || []).map((m) => (plainTable(m.table).toLowerCase() === primary.toLowerCase() ? { ...m, primary: true } : m));
+  return marked.some((m) => m.primary) ? marked : [];
 }
 
 function missingTablesMessage(missing) {
-  return 'the preview cannot run because these source tables are missing or not readable: '
-    + missing.map((m) => `${m.table} (${m.reason})`).join(', ')
-    + '. Open Edit, Data step, to swap each for a table with the same role or remove it';
+  return `the preview cannot run because these source tables are missing or not readable: ${lostTablesList(missing)}. Open Edit, Data step, to ${lostTablesAction(missing)}`;
 }
 
 const APP_OWNER_RE = /^Inspire use case (\S+) \(session (\d+)\)(?::\s*([\s\S]*))?/;

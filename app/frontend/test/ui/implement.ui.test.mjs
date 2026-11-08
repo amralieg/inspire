@@ -1516,14 +1516,18 @@ test('a version saved while the App offered downloads retries its App and opens 
 test('a dropped primary table stops the re-run with its name, and Edit opens the Data step with that table marked and its Change open', async () => {
   const ui = await openUi('implement', { ...STUDIO_STATE, probeErrors: { '`main`.`s`.`orders`': gone('`main`.`s`.`orders`') } });
   const { page, made } = ui;
-  const missing = [{ table: 'main.s.orders', reason: 'not found' }];
+  const missing = [{ table: 'main.s.orders', reason: 'not found', primary: true }];
   try {
     await page.getByRole('heading', { name: 'Build', exact: true }).waitFor();
     await statusLoaded(page);
     await showView(page, 'job');
     await runPane(page).getByRole('button', { name: 'Preview re-run' }).click();
     await page.getByText(lostTablesText(missing)).waitFor();
-    await page.getByText('the preview cannot run because these source tables are missing or not readable: main.s.orders (not found).', { exact: false }).waitFor();
+    await page.getByText('These source tables are missing or not readable: main.s.orders (the primary table, not found). Swap main.s.orders for a table '
+      + 'with the same role, because the primary table can be swapped, not removed.', { exact: true }).waitFor();
+    await page.getByText('the preview cannot run because these source tables are missing or not readable: main.s.orders (the primary table, not found). '
+      + 'Open Edit, Data step, to swap main.s.orders for a table with the same role, because the primary table can be swapped, not removed', { exact: false }).waitFor();
+    assert.equal(await page.getByText('or remove it', { exact: false }).count(), 0, 'the Data step cannot remove a primary table, so no text asks for it');
     assert.equal(await page.getByText('409:', { exact: false }).count(), 0, 'no HTTP status code reaches the screen');
     assert.ok(!made.fetches.some((f) => f.path === '/api/2.1/jobs/run-now'));
 
@@ -1622,7 +1626,8 @@ test('Edit of a version whose swapped primary table and own table are both gone 
   const { page, made } = ui;
   try {
     await toData(page);
-    await page.getByRole('dialog').getByText(lostTablesText([{ table: 'main.s.orders_old', reason: 'not found' }])).waitFor();
+    await page.getByRole('dialog').getByText('These source tables are missing or not readable: main.s.orders_old (the primary table, not found). '
+      + 'Swap main.s.orders_old for a table with the same role, because the primary table can be swapped, not removed.', { exact: true }).waitFor();
     const row = page.locator('[data-table="main.s.orders"]');
     await row.getByText('not found', { exact: true }).waitFor();
     await page.getByLabel('Table to use for main.s.orders').waitFor();
@@ -1630,7 +1635,8 @@ test('Edit of a version whose swapped primary table and own table are both gone 
     await toAppAccess(page);
     await goToStep(page, 'App look');
     await toSummary(page);
-    const named = 'the preview cannot run because these source tables are missing or not readable: main.s.orders_old (not found).';
+    const named = 'the preview cannot run because these source tables are missing or not readable: main.s.orders_old (the primary table, not found). '
+      + 'Open Edit, Data step, to swap main.s.orders_old for a table with the same role, because the primary table can be swapped, not removed';
     await page.waitForFunction((text) => [...document.querySelectorAll('[role="alert"] p')].some((p) => p.textContent.includes(text)), named, { timeout: 15000 });
     assert.equal(await page.getByRole('button', { name: 'All Good, Build it Now', exact: true }).isDisabled(), true);
     assert.equal(made.jobs.length, 0);

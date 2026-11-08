@@ -1144,11 +1144,15 @@ test('a missing secondary table never blocks the preview; a missing primary tabl
   const secondary = [{ table: 'main.s.returns', reason: 'not found' }];
   assert.deepEqual(I.blockingMissingTables(secondary, {}, useCase), []);
   const primary = [{ table: '`main`.`s`.`orders`', reason: 'no read access' }, ...secondary];
-  assert.deepEqual(I.blockingMissingTables(primary, {}, useCase), primary, 'the primary table missing blocks (must-exclude)');
+  assert.deepEqual(I.blockingMissingTables(primary, {}, useCase), [{ ...primary[0], primary: true }, ...secondary], 'the primary table missing blocks (must-exclude)');
   const swapped = { data: { tables: { 'main.s.orders': 'main.s.orders_v2' } } };
   assert.deepEqual(I.blockingMissingTables([{ table: 'main.s.orders', reason: 'not found' }], swapped, useCase), [],
     'the swapped-out original is not the primary any more');
-  assert.equal(I.blockingMissingTables([{ table: 'main.s.orders_v2', reason: 'not found' }], swapped, useCase).length, 1);
+  assert.deepEqual(I.blockingMissingTables([{ table: 'main.s.orders_v2', reason: 'not found' }], swapped, useCase),
+    [{ table: 'main.s.orders_v2', reason: 'not found', primary: true }], 'the swapped-in primary is marked so the message never asks to remove it');
+  assert.equal(I.missingTablesMessage(I.blockingMissingTables([{ table: 'main.s.orders_v2', reason: 'not found' }], swapped, useCase)),
+    'the preview cannot run because these source tables are missing or not readable: main.s.orders_v2 (the primary table, not found). '
+    + 'Open Edit, Data step, to swap main.s.orders_v2 for a table with the same role, because the primary table can be swapped, not removed');
   assert.deepEqual(I.blockingMissingTables(secondary, {}, {}), secondary, 'with no primary table known, every missing table blocks');
   assert.deepEqual(I.blockingMissingTables(undefined, {}, useCase), []);
 });
