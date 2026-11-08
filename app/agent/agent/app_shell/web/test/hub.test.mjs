@@ -295,8 +295,8 @@ test('a use case dashboard leads with its area, title, AI summary, four tiles, t
     ['Fixed so far', '12', 'since Sep 1'], ['Saved so far', '$9,750', 'Money at stake when fixed, less what a later run still finds, on 9 fixes a later run confirmed']]);
   assert.equal(await page.locator('.fbar .fld > span').first().innerText(), 'REASON (FROM AI)');
   assert.deepEqual(await page.locator('.fbar .fld > span').allInnerTexts(), ['REASON (FROM AI)', 'RUN DATE', 'CATEGORY', 'CHANNEL', 'REGION', 'OWNER', 'SHOW']);
-  assert.deepEqual(await page.locator('[data-bars="by_reason"] .hb').allInnerTexts(), ['Discount too deep\n$8,400', 'Price below cost\n$7,200',
-    'Stock in the wrong store\n$6,000']);
+  assert.deepEqual(await page.locator('[data-bars="by_reason"] .hb').allInnerTexts(), ['Discount too deep\n$8,400 on 1 record', 'Price below cost\n$7,200 on 1 record',
+    'Stock in the wrong store\n$6,000 on 1 record']);
   await page.waitForFunction(chartsDrawn, 4);
   assert.deepEqual(await page.locator('section.charts:not(.charts--more) > *').evaluateAll((cards) => cards.map((c) => c.dataset.bars || c.dataset.card)),
     ['by_reason', 'loss_trend'], 'the reasons sit next to the page trend chart');
@@ -402,7 +402,7 @@ test('a click on a reason bar filters the use case page by that AI reason and a 
   assert.deepEqual(seen.hub.at(-1).ai, { ai_cat_driver: ['Price below cost'] });
   assert.equal(seen.hub.at(-1).page, 'n01_u05');
   assert.equal(await page.locator('.chip').innerText(), 'Reason (from AI): Price below cost');
-  assert.equal(await page.locator('[data-bars="by_reason"] .hb.is-on').innerText(), 'Price below cost\n$7,200');
+  assert.equal(await page.locator('[data-bars="by_reason"] .hb.is-on').innerText(), 'Price below cost\n$7,200 on 1 record');
   await page.locator('[data-bars="by_reason"] .hb.is-on').click();
   await page.waitForFunction(() => document.querySelector('[data-tile="fix"] .kpi-v')?.textContent === '3');
   assert.deepEqual(seen.hub.at(-1).ai, {});
@@ -730,7 +730,7 @@ test('Explain on the reasons chart sends the page filters, the Owner and Show fi
   assert.deepEqual(calls.explain[0], { kind: 'chart', page: 'n01_u05', title: 'Could save, by reason', conversation_id: '', context: {
     hint: 'The AI groups each item by reason.', type: 'horizontal_bar', x: 'Reason (from AI)', measures: ['Could save'], row_count: 1, truncated: false,
     filters: 'Run date: Nov 1, 2025 to Oct 15, 2026; Owner: Everyone; Show: To fix; Reason (from AI): Price below cost',
-    rows: [{ 'Reason (from AI)': 'Price below cost', 'Could save': 7200, 'Shown as': '$7,200' }] } });
+    rows: [{ 'Reason (from AI)': 'Price below cost', 'Could save': 7200, 'Shown as': '$7,200 on 1 record' }] } });
   assert.equal(await page.locator('[data-bars="by_reason"] .card-h p').innerText(), 'The AI groups each item by reason. Click a bar to filter.');
   assert.deepEqual(seen.errors, []);
   await context.close();

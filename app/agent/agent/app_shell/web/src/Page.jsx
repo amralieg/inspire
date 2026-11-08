@@ -28,7 +28,6 @@ import { GenieScope } from './AskGenie.jsx';
 import { reasonFilters, useCaseState } from './hub.js';
 import Dashboard, { NO_SLOTS, TableCard, chartSlots, hubChartsOnTop } from './Dashboard.jsx';
 import WorkPage from './WorkPage.jsx';
-import { pageCurrency, pageKind } from './hub.js';
 import { Skeleton } from './ui.jsx';
 
 const Runs = lazy(() => import('./Runs.jsx'));
@@ -256,7 +255,7 @@ export default function Page({ app, page, meta, state, onState, look = EMPTY_LOO
           trends={hubPage && trendsOn ? (
             <Suspense fallback={<Waiting />}>
               <TrendCards trends={trends.data} impact={trends.impact} error={trends.error} latest={counted.current.latest} page={page} app={app} themeKey={themeKey}
-                currency={pageCurrency(page, summary)} kind={pageKind(page, summary)} onFix={tabbed ? fix : null} onRuns={showRuns} onFeedback={() => go('settings')}
+                onFix={tabbed ? fix : null} onRuns={showRuns} onFeedback={() => go('settings')}
                 onExplain={explain} genieBusy={genieBusy} />
             </Suspense>
           ) : null} />
@@ -276,7 +275,7 @@ export default function Page({ app, page, meta, state, onState, look = EMPTY_LOO
       )}
       {shown === 'alerts' && <Suspense fallback={<Waiting />}><Alerts app={app} page={page} meta={meta} compose={compose} onComposed={composed} /></Suspense>}
       {shown === 'settings' && (
-        <SettingsPanel pageId={page.id} data={settings} onData={setSettings} onChanged={() => setNonce((n) => n + 1)} onRunStarted={() => freshness.load()}>
+        <SettingsPanel pageId={page.id} data={settings} onData={setSettings} onChanged={() => setNonce((n) => n + 1)} onRun={freshness.ask} running={freshness.busy}>
           <SettingGroup id="look" title="Look" why="Only you see these, in this browser.">
             <div className="set-row" role="radiogroup" aria-label="Colors" onKeyDown={radioKeys}>
               {colors.map((item, i) => (

@@ -15,7 +15,7 @@ import { LayoutSections, TodoNow } from './Layouts.jsx';
 import { backendNotes } from './freshness.js';
 import { AskGenie } from './AskGenie.jsx';
 import {
-  NOT_MEASURED, capacityText, couldSaveFormula, couldSaveText, isMine, moneyText, nothingReason, nothingText, pageCurrency, pageKind, pickReason,
+  NOT_MEASURED, capacityText, couldSaveFormula, couldSaveText, isMine, moneyText, nothingReason, nothingText, pageCurrency, pageKind, pickReason, plural,
   reasonFilters, reliableText, savedTile, shortDay, totals, useCaseState, viewRows, viewWords,
 } from './hub.js';
 
@@ -63,12 +63,13 @@ function hubTiles(page, entry, summary, fix, user, stale, onFix) {
 function reasonBars(rows, page) {
   const by = new Map();
   rows.forEach((r) => {
-    const at = by.get(r.reason) || { key: r.reason, label: r.reason, hue: page.hue || 'blue', value: 0, currency: r.currency, kind: r.kind };
+    const at = by.get(r.reason) || { key: r.reason, label: r.reason, hue: page.hue || 'blue', value: 0, n: 0, currency: r.currency, kind: r.kind };
     at.value = addCounts([at.value, r.money]);
+    at.n += 1;
     by.set(r.reason, at);
   });
   return [...by.values()].sort((a, b) => largestFirst(a.value, b.value)).map((b) => ({
-    ...b, text: wholeMoney(b.value, b.currency, b.kind), formula: couldSaveFormula(rows.filter((r) => r.reason === b.key), ` the AI groups as ${b.label}`),
+    ...b, text: `${wholeMoney(b.value, b.currency, b.kind)} on ${plural(b.n, 'record')}`, formula: couldSaveFormula(rows.filter((r) => r.reason === b.key), ` the AI groups as ${b.label}`),
   }));
 }
 

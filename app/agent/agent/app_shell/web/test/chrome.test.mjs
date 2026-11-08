@@ -334,25 +334,24 @@ test('the resize grip shows at rest and turns the brand color on hover and focus
   const { page, seen, context } = await open(appInfo(), { width: 1440, height: 900 });
   await page.getByRole('button', { name: 'Ask Genie', exact: true }).click();
   const handle = page.getByRole('separator', { name: 'Resize Ask Genie' });
-  const look = () => page.evaluate(() => {
+  const read = (want) => {
     const solid = (c) => c.replace(/^rgba\((\d+), (\d+), (\d+), 1\)$/, 'rgb($1, $2, $3)');
     const grip = getComputedStyle(document.querySelector('.g-grip'));
-    return { edge: solid(grip.borderTopColor), fill: solid(grip.backgroundColor), dots: solid(grip.backgroundImage.match(/rgba?\([^)]+\)/)[0]),
+    const got = { edge: solid(grip.borderTopColor), fill: solid(grip.backgroundColor), dots: solid(grip.backgroundImage.match(/rgba?\([^)]+\)/)[0]),
       line: solid(getComputedStyle(document.querySelector('.g-resize'), '::before').backgroundColor),
       behind: [getComputedStyle(document.querySelector('.stage')).backgroundColor, getComputedStyle(document.querySelector('.g-log')).backgroundColor] };
-  });
-  const settle = (edge, line) => page.waitForFunction(([e, l]) => {
-    const solid = (c) => c.replace(/^rgba\((\d+), (\d+), (\d+), 1\)$/, 'rgb($1, $2, $3)');
-    return solid(getComputedStyle(document.querySelector('.g-grip')).borderTopColor) === e
-      && solid(getComputedStyle(document.querySelector('.g-resize'), '::before').backgroundColor) === l;
-  }, [edge, line]);
+    return !want || JSON.stringify([got.edge, got.fill, got.dots, got.line]) === JSON.stringify(want) ? got : false;
+  };
+  const settled = async (want, label) => {
+    const got = await page.waitForFunction(read, want, { timeout: 3000 }).then((h) => h.jsonValue()).catch(() => page.evaluate(read, null));
+    assert.deepEqual([got.edge, got.fill, got.dots, got.line], want, label);
+    return got;
+  };
   for (const theme of ['light', 'dark']) {
     if (theme === 'dark') await darkTheme(page);
     await page.mouse.move(20, 600);
     await handle.evaluate((el) => el.blur());
-    await settle(rgbOf(theme, 'faint'), 'rgba(0, 0, 0, 0)');
-    const rest = await look();
-    assert.deepEqual([rest.edge, rest.fill, rest.dots, rest.line], [rgbOf(theme, 'faint'), rgbOf(theme, 'card'), rgbOf(theme, 'muted'), 'rgba(0, 0, 0, 0)'], theme);
+    const rest = await settled([rgbOf(theme, 'faint'), rgbOf(theme, 'card'), rgbOf(theme, 'muted'), 'rgba(0, 0, 0, 0)'], theme);
     for (const bg of rest.behind) assert.ok(ratio(hexOf(rest.edge), hexOf(bg)) >= 3, `${theme}: the grip edge ${rest.edge} on ${bg}`);
     assert.ok(ratio(hexOf(rest.dots), hexOf(rest.fill)) >= 3, `${theme}: the grip dots`);
     for (const how of ['hover', 'focus']) {
@@ -362,9 +361,7 @@ test('the resize grip shows at rest and turns the brand color on hover and focus
         await page.keyboard.press('Shift');
         await handle.focus();
       }
-      await settle(rgbOf(theme, 'btn-bg'), rgbOf(theme, 'brand'));
-      const on = await look();
-      assert.deepEqual([on.edge, on.fill, on.dots, on.line], [rgbOf(theme, 'btn-bg'), rgbOf(theme, 'btn-bg'), rgbOf(theme, 'btn-fg'), rgbOf(theme, 'brand')], `${theme} ${how}`);
+      const on = await settled([rgbOf(theme, 'btn-bg'), rgbOf(theme, 'btn-bg'), rgbOf(theme, 'btn-fg'), rgbOf(theme, 'brand')], `${theme} ${how}`);
       for (const bg of on.behind) {
         assert.ok(ratio(hexOf(on.fill), hexOf(bg)) >= 3, `${theme} ${how}: the grip ${on.fill} on ${bg}`);
         assert.ok(ratio(hexOf(on.line), hexOf(bg)) >= 3, `${theme} ${how}: the edge line ${on.line} on ${bg}`);

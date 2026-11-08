@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { runSettingsNow, saveSetting } from './api.js';
+import { saveSetting } from './api.js';
 import { formatValue, integer, kindOf, unitOf } from './format.js';
 import Fx from './Fx.jsx';
 import { Icon } from './icons.jsx';
@@ -17,7 +17,7 @@ import { timelineChart } from './trends.js';
 function RunNow({ onRun, running }) {
   return (
     <div className="runs-now" data-runs-now>
-      <button type="button" className="btn btn--pri" onClick={onRun} disabled={running} aria-busy={running}>
+      <button type="button" className="btn btn--pri" onClick={() => onRun()} disabled={running} aria-busy={running}>
         <Icon name="undo" size={14} />{running ? 'Running' : 'Run now'}
       </button>
       <p className="note">Runs this use case again on all its data. Only its owners can start a run.</p>
@@ -99,15 +99,15 @@ function runColumns(isOpen, toggle) {
   ];
 }
 
-function ScopeFacts({ page, run }) {
+function ScopeFacts({ page, run, onRun, running }) {
   const [busy, setBusy] = useState(false);
   const [said, setSaid] = useState('');
   const everything = async () => {
     setBusy(true);
     try {
       await saveSetting({ page: page.id, name: 'run_scope', value: 'all', was: run.scope?.scope || '', note: 'Run on everything' });
-      const started = await runSettingsNow(page.id);
-      setSaid(`The run on everything is ${started.state || 'starting'}; schedules now cover all the records too.`);
+      setSaid('');
+      await onRun((started) => `The run on everything is ${started.state || 'starting'}; schedules now cover all the records too.`);
     } catch (err) {
       setSaid(err.message);
     } finally {
@@ -119,7 +119,7 @@ function ScopeFacts({ page, run }) {
       <p>{run.facts.covered}</p>
       {run.facts.everything && <p>{run.facts.everything}</p>}
       {run.facts.trained && <p>{run.facts.trained}</p>}
-      <button className="btn" onClick={everything} disabled={busy}>Run on everything</button>
+      <button className="btn" onClick={everything} disabled={busy || running}>Run on everything</button>
       {said && <p role="status">{said}</p>}
     </section>
   );
@@ -159,7 +159,7 @@ export default function Runs({ page, runs, offset, onOffset, onExplain, genieBus
           loading={busy && !data} bars={runBars(list)} empty="No run listed below wrote a count of things to fix." x="Run" measure="To fix"
           onExplain={onExplain} genieBusy={genieBusy} />
       )}
-      {scoped && <ScopeFacts page={page} run={scoped} />}
+      {scoped && onRun && <ScopeFacts page={page} run={scoped} onRun={onRun} running={running} />}
       <section className="card card--table runs" aria-label="Runs" aria-busy={busy}>
         <header className="card-h">
           <div>

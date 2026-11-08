@@ -30,6 +30,8 @@ export function RunBar({ active, label }) {
   );
 }
 
+export const startedText = (run) => `The run is ${run.state || 'starting'}; the page shows its progress at the top.`;
+
 export function useFreshness({ page, onRefreshed, onRun, onSeeChanged, showThrough = true }) {
   const toast = useToast();
   const [fresh, setFresh] = useState(null);
@@ -79,11 +81,11 @@ export function useFreshness({ page, onRefreshed, onRun, onSeeChanged, showThrou
     onRefreshed?.();
   }, [fresh]);
 
-  const ask = () => {
+  const ask = (said = startedText) => {
     setAsking(true);
-    refreshPage(page.id)
-      .then((run) => { watched.current = run.run_id; })
-      .catch((error) => toast(error.message, toneOf(error)))
+    return refreshPage(page.id)
+      .then((run) => { watched.current = run.run_id; toast(said(run)); return run; })
+      .catch((error) => { toast(error.message, toneOf(error)); return null; })
       .finally(() => load().finally(() => setAsking(false)));
   };
 
@@ -110,7 +112,7 @@ export function FreshBar({ freshness, children }) {
         )}
       </span>
       {children}
-      <button className="btn fresh-btn top-ic2" onClick={ask} disabled={busy || !fresh.can_refresh} title="Run this use case again on all its data"
+      <button className="btn fresh-btn top-ic2" onClick={() => ask()} disabled={busy || !fresh.can_refresh} title="Run this use case again on all its data"
         aria-label="Refresh now" aria-describedby={busy || reason ? why : undefined}>
         <Icon name="undo" size={15} /><span>Refresh now</span>
       </button>

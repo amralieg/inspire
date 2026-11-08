@@ -1,4 +1,4 @@
-import { grouped, integer, percentOf, wholeMoney } from './format.js';
+import { grouped, integer, percentOf } from './format.js';
 import { NOT_MEASURED, plural, shortDay } from './hub.js';
 import { holdoutOffText, holdoutView } from './impact.js';
 import { STOPPED, latestRunText, runFlag, stampText } from './freshness.js';
@@ -64,18 +64,13 @@ export function ageBars(trends, hue) {
   return AGES.map(([key, label]) => ({ key, label, hue, fix: key === 'over_30', value: trends.open.ages[key], text: integer(trends.open.ages[key]) }));
 }
 
-export function stakeBars(trends, hue, currency, kind) {
-  return (trends.stake || []).map((s) => ({ key: s.reason, label: s.reason, hue, value: s.money ?? 0,
-    text: s.money == null ? `${plural(s.n, 'record')}, ${NOT_MEASURED.toLowerCase()}` : `${wholeMoney(s.money, currency, kind)} on ${plural(s.n, 'record')}` }));
-}
-
 export function alarmBars(trends, hue) {
   return (trends.false_alarms?.reasons || []).map((r) => ({ key: r.reason, label: r.reason, hue, value: Math.round((r.rate || 0) * 100),
     text: `${rateText(r.rate)} of ${grouped(r.closed)}` }));
 }
 
 export const EMPTY = { open: { n: 0, overdue: 0, unassigned: 0, ages: { '0-7': 0, '8-30': 0, over_30: 0 }, money: null },
-  false_alarms: { closed: 0, dismissed: 0, rate: null, reasons: [] }, first_action: { n: 0, median_hours: null, waiting: 0 }, weeks: [], backlog: [], stake: [] };
+  false_alarms: { closed: 0, dismissed: 0, rate: null, reasons: [] }, first_action: { n: 0, median_hours: null, waiting: 0 }, weeks: [], backlog: [] };
 
 export function timelineChart(runs, trends) {
   const counts = new Map((trends?.backlog || []).map((r) => [String(r.run_id), r]));

@@ -145,7 +145,7 @@ IDENTITY_HEADERS = ("x-forwarded-email", "x-forwarded-preferred-username")
 OVERVIEW_LIMIT = shell_sql.CAPS["overview_rows"] + shell_sql.OVERVIEW_RUNS + OVERVIEW_WEEKS * 7 + 6 + shell_sql.CAPS["closers_today"]
 IMPACT_LIMIT = shell_sql.CAPS["impact_rows"] + shell_sql.IMPACT_REASONS + 20
 TREND_WEEKS = shell_sql.CAPS["trend_weeks"]
-TRENDS_LIMIT = shell_sql.CAPS["trend_runs"] + 2 * TREND_WEEKS + 2 * shell_sql.CAPS["trend_reasons"] + 4
+TRENDS_LIMIT = shell_sql.CAPS["trend_runs"] + 2 * TREND_WEEKS + shell_sql.CAPS["trend_reasons"] + 4
 FACT_ROWS = 50
 MY_WORK_SIGN_IN = "sign in so the App can show the work you did"
 MY_WORK_NO_EXPORT = "the App offers no download of your work, so send no export"
@@ -1392,7 +1392,6 @@ def trends_view(rows: list, since: datetime.date, weeks: int) -> dict:
             "open": {"n": whole(opened.get("n")), "overdue": whole(opened.get("overdue")), "unassigned": whole(opened.get("unowned")),
                      "ages": {"0-7": whole(opened.get("fresh")), "8-30": whole(opened.get("month")), "over_30": whole(opened.get("older"))},
                      "money": shell_sql.as_number(opened.get("money"))},
-            "stake": [{"reason": r.get("k"), "n": whole(r.get("n")), "money": shell_sql.as_number(r.get("money"))} for r in by.get("stake", [])],
             "false_alarms": {"closed": whole(alarms.get("n")), "dismissed": whole(alarms.get("m")),
                              "rate": share(whole(alarms.get("m")), whole(alarms.get("n"))),
                              "reasons": [{"reason": r.get("k"), "closed": whole(r.get("n")), "dismissed": whole(r.get("m")),

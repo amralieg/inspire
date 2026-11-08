@@ -4897,12 +4897,9 @@ def trends_query(page: dict, names: set, now: datetime.datetime, since: datetime
     branches.append(f"{_overview_select('alarms', {'n': 'COUNT(*)', 'm': _count(gone)}, TREND_COLUMNS)} FROM kl")
     if category:
         label = f"COALESCE(`_t_reason`, {sql_text(AI_UNEXPLAINED)})"
-        ctes["ks"] = (f"SELECT `_t_k`, COUNT(*) AS `_t_n`, SUM(`_t_money`) AS `_t_m` FROM (SELECT {label} AS `_t_k`, `_t_money` FROM ko) AS s "
-                      f"GROUP BY `_t_k` ORDER BY `_t_m` DESC NULLS LAST, `_t_n` DESC, `_t_k` ASC LIMIT {CAPS['trend_reasons']}")
         ctes["ka"] = (f"SELECT `_t_k`, COUNT(*) AS `_t_n`, {_count(gone)} AS `_t_m` FROM (SELECT {label} AS `_t_k`, `_t_raw` FROM kl) AS a "
                       f"GROUP BY `_t_k` ORDER BY `_t_n` DESC, `_t_k` ASC LIMIT {CAPS['trend_reasons']}")
-        branches += [f"{_overview_select('stake', {'k': '`_t_k`', 'n': '`_t_n`', 'money': '`_t_m`'}, TREND_COLUMNS)} FROM ks",
-                     f"{_overview_select('alarm', {'k': '`_t_k`', 'n': '`_t_n`', 'm': '`_t_m`'}, TREND_COLUMNS)} FROM ka"]
+        branches.append(f"{_overview_select('alarm', {'k': '`_t_k`', 'n': '`_t_n`', 'm': '`_t_m`'}, TREND_COLUMNS)} FROM ka")
     week = lambda stamp: f"CAST((unix_micros({stamp}) - {since_us}) / {WEEK_US} AS BIGINT)"
     ctes["kw"] = (f"SELECT `_t_w`, COUNT(*) AS `_t_n` FROM (SELECT {week('`_t_first`')} AS `_t_w` FROM kv WHERE `_t_nth` = 1 AND "
                   f"unix_micros(`_t_first`) >= {since_us}) AS w GROUP BY `_t_w`")

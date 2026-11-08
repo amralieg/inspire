@@ -1,9 +1,9 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
-import { DECIDE, FILTERS, NO_RUNS, TABLE, appInfo, openApp, serveDist, until } from './harness.mjs';
+import { DECIDE, FILTERS, NO_RUNS, TABLE, appInfo, openApp, serveDist, toastSays, until } from './harness.mjs';
 import { FOCUSES, buildHash, canonicalHash, fixThis, parseHash } from '../src/links.js';
-import { ageBars, alarmBars, backlogChart, flowChart, hoursText, rateText, stakeBars, trendTiles } from '../src/trends.js';
+import { ageBars, alarmBars, backlogChart, flowChart, hoursText, rateText, trendTiles } from '../src/trends.js';
 import { timelineChart } from '../src/trends.js';
 import { NOT_MEASURED } from '../src/hub.js';
 
@@ -26,7 +26,6 @@ const TRENDS = {
   visible: true, tracked: true, actions: true, money: true, reason: 'ai_cat_driver', holds: false, served: 'delta', since: '2026-08-03', weeks: WEEKS,
   backlog: [{ run_id: 'r1', at: '2026-10-13T06:00:00Z', open: 9, new: 9, cleared: null }, { run_id: 'r2', at: '2026-10-20T06:00:00Z', open: 7, new: 2, cleared: 4 }],
   open: { n: 7, overdue: 2, unassigned: 3, ages: { '0-7': 2, '8-30': 4, over_30: 1 }, money: 4200 },
-  stake: [{ reason: 'Discount too deep', n: 4, money: 3000 }, { reason: 'Not explained yet', n: 3, money: null }],
   false_alarms: { closed: 10, dismissed: 4, rate: 0.4, reasons: [{ reason: 'Discount too deep', closed: 8, dismissed: 4, rate: 0.5 }] },
   first_action: { n: 5, median_hours: 30.5, waiting: 2 },
 };
@@ -101,7 +100,6 @@ test('the trend charts and bars carry every week, run, age and reason, with null
   assert.equal(flow.result.rows.length, 12);
   assert.deepEqual(flow.chart.y.map((y) => y.label), ['New', 'Cleared']);
   assert.deepEqual(ageBars(TRENDS, 'blue').map((b) => [b.key, b.value]), [['0-7', 2], ['8-30', 4], ['over_30', 1]]);
-  assert.deepEqual(stakeBars(TRENDS, 'blue', 'USD', 'money').map((b) => b.text), ['$3,000 on 4 records', '3 records, not measured yet']);
   assert.deepEqual(alarmBars(TRENDS, 'amber').map((b) => [b.key, b.value, b.text]), [['Discount too deep', 50, '50% of 8']]);
   assert.equal(hoursText(null), NOT_MEASURED);
   assert.equal(hoursText(0.2), '12 min');
@@ -140,8 +138,10 @@ test('the dashboard shows the trend cards, and Fix this on Overdue opens Work on
   await page.locator('[data-card="trend_flow"] canvas').waitFor();
   await page.locator('[data-card="trend_backlog"] canvas').waitFor();
   assert.equal(await page.locator('[data-bars="trend_ages"] .hb').count(), 3);
-  await page.locator('[data-bars="trend_stake"] [data-fix-reason]').first().waitFor();
-  assert.equal(await page.locator('[data-bars="trend_stake"] [data-fix-reason]').count(), 2);
+  await page.locator('[data-bars="by_reason"] [data-fix-reason]').first().waitFor();
+  assert.equal(await page.locator('[data-bars="trend_stake"]').count(), 0, 'money by reason shows once, in Could save, by reason');
+  assert.deepEqual(await page.locator('[data-bars] .card-h h2').allInnerTexts().then((t) => t.filter((x) => / by reason$/.test(x) && !/Not an issue/.test(x))),
+    ['Could save, by reason']);
   assert.deepEqual(await page.locator('[data-bars="trend_ages"] [data-fix-reason]').evaluateAll((els) => els.map((e) => e.dataset.fixReason)), ['over_30'],
     'only the over 30 days bar has a matching filter');
   assert.equal(calls.trends, 1, 'the cards cost one request');
@@ -162,13 +162,13 @@ test('the dashboard shows the trend cards, and Fix this on Overdue opens Work on
   await context.close();
 });
 
-test('Fix this on the over 30 days bar and on a stake reason pre-filter Work', async () => {
+test('Fix this on the over 30 days bar and on a Could save reason pre-filter Work', async () => {
   const { routes: r } = routes();
   const { page, seen, context } = await openApp(browser, served.base, appInfo(DECIDE, 1, TABLE), { routes: r, ready: '[data-bars="trend_ages"] [data-fix-reason="over_30"]' });
   await page.locator('[data-bars="trend_ages"] [data-fix-reason="over_30"]').click();
   await until(() => seen.records.at(-1)?.focus === 'older');
   await page.evaluate(() => { window.location.hash = '#/n01_u05/dashboard'; });
-  await page.locator('[data-bars="trend_stake"] [data-fix-reason="Discount too deep"]').click();
+  await page.locator('[data-bars="by_reason"] [data-fix-reason="Discount too deep"]').click();
   await until(() => (seen.records.at(-1)?.ai?.ai_cat_driver || [])[0] === 'Discount too deep');
   assert.equal(seen.records.at(-1).focus, undefined);
   assert.deepEqual(seen.errors, []);
@@ -199,6 +199,7 @@ test('Runs shows the timeline and Run now for an owner, and Run now starts one r
   await page.getByRole('button', { name: 'Run now' }).click();
   await until(() => calls.refresh.length === 1);
   assert.deepEqual(calls.refresh[0], { page: 'n01_u05' });
+  await toastSays(page, 'The run is pending; the page shows its progress at the top.');
   assert.deepEqual(seen.errors, []);
   await context.close();
 });

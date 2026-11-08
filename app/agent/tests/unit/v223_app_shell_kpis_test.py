@@ -80,10 +80,11 @@ def test_the_trends_query_counts_open_overdue_unassigned_ages_and_money_over_cur
         "a deleted record or a closed one is never open, a blank owner is unassigned, and joined_at wins over the first version for age"
 
 
-def test_the_trends_query_ranks_money_at_stake_by_reason_and_names_the_unexplained():
-    got, _sql, _params = _run(ROWS)
-    assert got["stake"] == [{"reason": "Volume", "n": 1, "money": 200.0}, {"reason": "Price", "n": 1, "money": 100.0},
-                            {"reason": shell_sql.AI_UNEXPLAINED, "n": 1, "money": None}]
+def test_the_trends_query_leaves_money_by_reason_to_the_could_save_card():
+    got, sql, _params = _run(ROWS)
+    assert "stake" not in got, "the Could save, by reason card is the one place money is split by reason"
+    assert "SUM(`_t_money`) AS `_t_m`" not in sql and "'stake'" not in sql
+    assert got["open"]["money"] == 300.0, "the open total still carries the money"
 
 
 def test_the_false_alarm_rate_is_the_dismissed_share_of_closed_records_per_reason():
@@ -129,7 +130,7 @@ def test_an_empty_table_gives_zeros_and_no_rates():
     assert got["open"] == {"n": 0, "overdue": 0, "unassigned": 0, "ages": {"0-7": 0, "8-30": 0, "over_30": 0}, "money": None}
     assert got["false_alarms"] == {"closed": 0, "dismissed": 0, "rate": None, "reasons": []}
     assert got["first_action"] == {"n": 0, "median_hours": None, "waiting": 0}
-    assert got["backlog"] == [] and got["stake"] == [] and all(w["new"] == w["cleared"] == 0 for w in got["weeks"])
+    assert got["backlog"] == [] and all(w["new"] == w["cleared"] == 0 for w in got["weeks"])
 
 
 def test_a_table_without_versioned_history_or_actions_columns_still_runs():
@@ -137,7 +138,7 @@ def test_a_table_without_versioned_history_or_actions_columns_still_runs():
     got, sql, _params = _run(ROWS, names=lean, category=None)
     assert "`action_due`" not in sql and "`joined_at`" not in sql and "`value_at_stake`" not in sql and "`action_owner`" not in sql
     assert got["open"]["n"] == 3 and got["open"]["overdue"] == 0 and got["open"]["unassigned"] == 3 and got["open"]["money"] is None
-    assert got["stake"] == [] and got["false_alarms"]["reasons"] == [], "no reason column means no per-reason cards"
+    assert got["false_alarms"]["reasons"] == [], "no reason column means no per-reason cards"
 
 
 def test_one_version_per_record_leaves_no_first_action_and_every_open_record_waiting():
@@ -153,7 +154,7 @@ def test_large_counts_stay_whole_numbers_and_the_reasons_and_runs_stay_capped():
         r["valid_from"] = f"2026-10-{10 + int(r['run_id'][1:]):02d} 06:00:00"
     got, sql, _params = _run(rows)
     assert got["open"]["n"] == 600 and isinstance(got["open"]["n"], int)
-    assert len(got["stake"]) == shell_sql.CAPS["trend_reasons"] and f"LIMIT {shell_sql.CAPS['trend_runs']}" in sql
+    assert f"LIMIT {shell_sql.CAPS['trend_reasons']}" in sql and f"LIMIT {shell_sql.CAPS['trend_runs']}" in sql
     assert sum(r["new"] for r in got["backlog"]) == 600
 
 
