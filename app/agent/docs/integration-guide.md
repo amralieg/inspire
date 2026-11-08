@@ -1938,7 +1938,7 @@ The user copies cell 2 into Genie Code. Genie Code reads only the instruction, a
 | D | Recommendation: checked against popularity on a time-based holdout, registered when accepted | Recommendation |
 | E | Forecasting: single run, backtested against the seasonal naive forecast, nothing registered | Forecasting, Lifetime Value |
 | F | Analytical refresh: effect sizes with corrected significance | Trend Analysis, Correlation Analysis, Pareto Analysis, Cohort Analysis, Funnel Analysis, Regression Analysis, Geospatial Analysis, Network Analysis, AI Analysis, Decomposition, Peer Benchmarking |
-| G | AI text processing: only rows newer than the latest as-of date in the output table, Databricks AI functions | Sentiment Analysis, Document Processing, Extraction |
+| G | AI text processing: the newest rows up to the as-of date, rewritten on every run, Databricks AI functions | Sentiment Analysis, Document Processing, Extraction |
 | H | Optimization and simulation | Optimization, Simulation, Threshold Optimization |
 | I | Impact measurement: effects with confidence intervals and corrected significance against a control or pre-period, nothing registered | Causal Impact, Uplift Modeling, Marketing Mix Modeling |
 | J | Process and sequence analysis: paths, transitions and waits from event rows, nothing registered | Process Mining, Sequence Analysis, Queueing |

@@ -1,4 +1,5 @@
 import json
+import re
 
 import pytest
 
@@ -206,3 +207,11 @@ def test_the_snippet_check_accepts_every_aggregate_shape_and_a_bare_row_count_ov
             "COUNT(`table`.`key column`) so Genie knows which table it counts"], sql
     assert _snippet_problems(agent_ns, "SUM(1)", one) == ["the measure 'A measure' names no column: name each column as `table`.`column`"]
     assert _snippet_problems(agent_ns, "COUNT(*)", two)[0].startswith("the measure"), "a bare row count over two tables stays a problem"
+
+
+def test_no_family_or_technique_tells_genie_to_process_only_rows_a_previous_run_left_unprocessed(agent_ns):
+    texts = {f"family {family}": spec["pattern"] for family, spec in agent_ns["GENIE_FAMILY_SPECS"].items()}
+    texts.update({f"technique {name}": text for name, text in agent_ns["TECHNIQUE_IMPLEMENTATION_GUIDANCE"].items()})
+    incremental = re.compile(r"watermark|newer than the latest|since the last run|already in the business output", re.IGNORECASE)
+    assert [name for name, text in texts.items() if incremental.search(text)] == []
+    assert "writes the same rows" in agent_ns["GENIE_FAMILY_SPECS"]["G"]["pattern"]
