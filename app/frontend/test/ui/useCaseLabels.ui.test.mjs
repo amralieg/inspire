@@ -10,7 +10,7 @@ const ago = (ms) => new Date(Date.now() - ms).toISOString();
 
 test('Choose shows each run preview as the name with its technique, and a use case without one keeps its Name', async () => {
   const sessions = [{ session_id: '42', business_name: 'Acme Retail', completed_percent: 100, processing_status: 'done', create_at: ago(60000),
-    usecase_overview: { total: 5, high: 2, domains: 1, preview_use_cases: [LABELLED, PLAIN] } }];
+    usecase_overview: { total: 5, high: 2, meets: 5, below: 0, domains: 1, unread: {}, preview_use_cases: [LABELLED, PLAIN] } }];
   const ui = await openUi('choose', { sessions });
   try {
     const row = ui.page.locator('[data-run="42"]').first();
@@ -64,18 +64,20 @@ test('Monitor lists the use cases so far by the name with its technique, and one
   }
 });
 
-test('Choose says a run where nothing meets the quality bar has none that meets it, and never calls such use cases high priority (must-exclude)', async () => {
+test('Start counts a run where nothing meets the quality bar as all low quality, and never calls such use cases high quality or high priority (must-exclude)', async () => {
   const sessions = [
     { session_id: '42', business_name: 'Below Bar Retail', completed_percent: 100, processing_status: 'done', create_at: ago(60000),
-      usecase_overview: { total: 67, high: 0, meets: 0, domains: 3, preview_use_cases: [PLAIN] } },
+      usecase_overview: { total: 67, high: 0, meets: 0, below: 67, domains: 3, unread: {}, preview_use_cases: [PLAIN] } },
     { session_id: '43', business_name: 'Strong Retail', completed_percent: 100, processing_status: 'done', create_at: ago(120000),
-      usecase_overview: { total: 20, high: 6, meets: 18, domains: 2, preview_use_cases: [LABELLED] } }];
+      usecase_overview: { total: 20, high: 6, meets: 18, below: 2, domains: 2, unread: {}, preview_use_cases: [LABELLED] } }];
   const ui = await openUi('choose', { sessions });
   try {
-    const below = ui.page.locator('[data-run="42"] [data-testid="run-use-case-counts"]').first();
-    await below.waitFor({ timeout: 10000 });
-    assert.equal(await below.innerText(), '67 use cases · none meets your quality bar');
-    assert.equal(await ui.page.locator('[data-run="43"] [data-testid="run-use-case-counts"]').first().innerText(), '20 use cases · 6 high priority');
+    const counts = (sid) => ui.page.locator(`[data-run="${sid}"] [data-run-counts] [data-run-count]`)
+      .evaluateAll((els) => els.map((el) => el.textContent.replace(/\s+/g, ' ').trim()));
+    await ui.page.locator('[data-run="42"] [data-run-counts]').first().waitFor({ timeout: 10000 });
+    const below = await counts('42');
+    assert.deepEqual(below.slice(0, 5), ['67 use cases', '0 high quality', '67 low quality', '0 high priority', '3 domains']);
+    assert.deepEqual((await counts('43')).slice(0, 5), ['20 use cases', '18 high quality', '2 low quality', '6 high priority', '2 domains']);
     assert.deepEqual(ui.pageErrors, []);
   } finally {
     await ui.close();

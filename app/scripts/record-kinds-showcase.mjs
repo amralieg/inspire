@@ -14,7 +14,7 @@ import { CONTRACT, NO_HUB, NO_IMPACT, NO_MONEY, NO_RUNS, NO_SETTINGS, NO_SUMMARY
 import { closeBrowser, openUi } from '../frontend/test/ui/uiSupport.mjs';
 import { STUDIO_STATE, built } from '../frontend/test/ui/implementFixtures.js';
 import { defaultSpecFromUseCase } from '../frontend/src/lib/implementWizard.js';
-import { computeHighPriorityCount } from '../frontend/src/lib/useCaseFields.js';
+import { computeHighPriorityCount, qualityBarCountsOf } from '../frontend/src/lib/useCaseFields.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const require = createRequire(import.meta.url);
@@ -109,16 +109,17 @@ function inspireState(useCases) {
   const rows = Object.fromEntries(useCases.map((uc) => [uc.No, snakeRow(uc)]));
   const history = USE_CASES.map((u, i) => historyRow(u, useCases[i], i));
   const tables = [...new Set(useCases.flatMap((uc) => uc['Tables Involved'].split(', ')))];
+  const bar = qualityBarCountsOf(useCases);
   const run = {
     session_id: sid, processing_status: 'ready', completed_percent: 100, create_at: '2026-11-02T05:00:00Z', last_updated: '2026-11-02T05:58:00Z',
     completed_on: '2026-11-02T05:58:00Z', business_name: KINDS_DEMO.business, inspire_database_name: INSPIRE_DATABASE, operation_mode: 'Discover Use Cases',
     generation_path: '/Workspace/Users/person@example.com/inspire/retail', business_domains: '', catalogs: 'main', business_runs: 1, business_rank: 1,
     widget_values: { business: KINDS_DEMO.business, '00_business_name': KINDS_DEMO.business, inspire_database: INSPIRE_DATABASE, operation_mode: 'Discover Use Cases' },
-    usecase_overview: { total: useCases.length, high: computeHighPriorityCount(useCases), meets: useCases.length, domains: domains.length,
+    usecase_overview: { total: useCases.length, high: computeHighPriorityCount(useCases), meets: bar.meets, below: bar.below, domains: domains.length, unread: {},
       preview_use_cases: useCases.slice(0, 4).map((uc) => ({ Name: uc.Name, name_with_technique: uc.name_with_technique || null })) },
   };
   const counts = { use_cases: String(useCases.length), domains: String(domains.length), subdomains: String(new Set(useCases.map((uc) => uc.Subdomain)).size), best_of_best: String(useCases.length) };
-  const mvps = { mvps_started: String(history.length), mvps_live: String(history.length), apps: String(history.length), dashboards: String(history.length), genie_spaces: String(history.length), alerts: String(history.length) };
+  const mvps = { mvps_started: String(history.length), mvps_live: String(history.length), mvps_building: '0', mvps_failed: '0', apps: String(history.length), dashboards: String(history.length), genie_spaces: String(history.length), alerts: String(history.length) };
   return {
     session: { business_name: KINDS_DEMO.business, discovery_type: 'Deep', catalogs: 'main', schemas_str: 'retail', tables_str: tables.join(','), generation_path: run.generation_path, inspire_database_name: INSPIRE_DATABASE },
     useCase: null,

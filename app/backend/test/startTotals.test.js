@@ -135,16 +135,30 @@ test('the totals live on Start alone: Review renders no portfolio cards and Star
   assert.doesNotMatch(read('pages/ResultsPage.jsx'), /all: '1'/, 'Review keeps its short run list');
 });
 
-test('each Start run row counts the MVPs of that run from the same portfolio figures, and says nothing for a run with none', async () => {
-  const { runMvpText } = await lib('reviewFigures.js');
-  assert.equal(runMvpText(SESSIONS[0], PORTFOLIO), '1 MVP built, 1 more started');
-  assert.equal(runMvpText(SESSIONS[1], PORTFOLIO), '1 MVP started');
-  assert.equal(runMvpText(SESSIONS[2], PORTFOLIO), '', 'a run with no MVP shows no count');
-  assert.equal(runMvpText(SESSIONS[3], PORTFOLIO), '', 'a run the portfolio does not list shows no count');
-  assert.equal(runMvpText(SESSIONS[0], null), '', 'no count before the portfolio loads');
-  const many = { sessions: { 42: { mvps_started: 1500, mvps_live: 1200 } } };
-  assert.equal(runMvpText(SESSIONS[0], many), '1,200 MVPs built, 300 more started');
-  assert.equal(runMvpText(SESSIONS[0], { sessions: { 42: { mvps_started: 2, mvps_live: 2 } } }), '2 MVPs built');
-  assert.equal(runMvpText(SESSIONS[0], { sessions: { 42: { mvps_started: 0, mvps_live: 3 } } }), '3 MVPs built', 'a live MVP always counts as started');
-  assert.equal(runMvpText(SESSIONS[0], { sessions: { 42: { mvps_started: 'x', mvps_live: null } } }), '');
+test('each Start run row counts its use cases, quality, priority and MVPs, numbers first, and says why a count is missing', async () => {
+  const { runCounts } = await lib('reviewFigures.js');
+  const shown = (c) => c.items.map((i) => `${i.n} ${i.label}`);
+  const overview = { total: 8, high: 3, meets: 6, below: 2, domains: 1, unread: {} };
+  const portfolio = { sessions: { 42: { mvps_started: 4, mvps_live: 1, mvps_building: 2, mvps_failed: 1 } } };
+  assert.deepEqual(shown(runCounts(overview, portfolio, SESSIONS[0])),
+    ['8 use cases', '6 high quality', '2 low quality', '3 high priority', '1 domain', '1 MVP built', '2 building', '1 failed']);
+  assert.deepEqual(runCounts(overview, portfolio, SESSIONS[0]).why, []);
+  assert.deepEqual(shown(runCounts(overview, portfolio, SESSIONS[2])).slice(-3), ['0 MVPs built', '0 building', '0 failed'], 'a run with no MVP counts zero');
+  assert.deepEqual(shown(runCounts(overview, null, SESSIONS[0])).length, 5, 'no MVP counts before the portfolio loads');
+  assert.equal(shown(runCounts(overview, portfolio, SESSIONS[0], { running: true }))[0], '8 use cases so far');
+  assert.deepEqual(runCounts({ total: 1, high: 0, meets: 0, below: 1, domains: 1 }, null, SESSIONS[0]).items.map((i) => i.n), [1, 0, 1, 0, 1],
+    'a use case below the bar is low quality, never high quality');
+  assert.deepEqual(runCounts({ total: 0 }, portfolio, SESSIONS[0], { running: true }), { items: [], note: 'No use cases yet', why: [] });
+  assert.deepEqual(shown(runCounts({ total: 0 }, null, SESSIONS[0])), ['0 use cases'], 'a finished run with no use cases says 0, not nothing');
+  const denied = runCounts({ error: 'PERMISSION_DENIED on table' }, portfolio, SESSIONS[0]);
+  assert.deepEqual(shown(denied), ['1 MVP built', '2 building', '1 failed'], 'no made-up use case zero, and the MVPs still count');
+  assert.deepEqual(denied.why, ['Use cases are not counted: PERMISSION_DENIED on table']);
+  const older = runCounts({ total: 5, high: 2, meets: null, below: null, domains: 3, unread: { quality: 'the use case table has no elite_status column' } }, null, SESSIONS[0]);
+  assert.deepEqual(older.items.map((i) => i.n), [5, null, null, 2, 3], 'an unreadable count is null, never 0');
+  assert.deepEqual(older.why, ['Quality is not counted: the use case table has no elite_status column.']);
+  const noMvps = runCounts(overview, portfolio, SESSIONS[0], { mvpError: 'the MVP table cannot be read' });
+  assert.deepEqual(noMvps.items.at(-1), { key: 'mvps_built', n: null, label: 'MVPs built' });
+  assert.deepEqual(noMvps.why, ['MVPs are not counted: the MVP table cannot be read']);
+  assert.deepEqual(shown(runCounts(null, portfolio, SESSIONS[0])), ['1 MVP built', '2 building', '1 failed'], 'a run without use case figures still counts its MVPs');
+  assert.deepEqual(runCounts(null, null, SESSIONS[0]), { items: [], note: '', why: [] });
 });

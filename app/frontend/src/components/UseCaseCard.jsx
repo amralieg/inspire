@@ -152,7 +152,6 @@ export default function UseCaseCard({
       {expanded && (
         <UseCaseDetailBody
           uc={u}
-          active
           className="border-t border-border px-5 py-5 bg-panel space-y-4"
           v130={v130}
           feedbackCurrent={feedbackCurrent}

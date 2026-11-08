@@ -1,15 +1,11 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { Check, Copy, Loader2 } from 'lucide-react';
-import GenieMarkdownPreview from './GenieMarkdownPreview';
+import { useState } from 'react';
+import { Check, Copy, ExternalLink } from 'lucide-react';
 import { BestOfBestDetail, FeedbackControls, UseCaseStrategyDetail } from './UseCaseStrategyDetail';
 import { workspaceNotebookUrl } from '../lib/workspaceLinks';
 import { placeholderWords } from '../lib/placeholderWords';
-import { requestHeaders } from '../lib/apiClient';
 import { NOTEBOOK_MODE_LABEL, START_MVP_LABEL } from '../lib/implementWizard';
 import { KIND_INFORMATIONAL_LABEL, kindChipStyle } from '../lib/useCaseKind';
-import { beneficiaryFromUc, expandWorkspaceListCandidates, fieldOf, hasShippedGenieCode, notebookPathOf, sponsorFromUc } from '../lib/useCaseFields';
-
-const notebookCache = new Map();
+import { beneficiaryFromUc, fieldOf, hasShippedGenieCode, notebookPathOf, sponsorFromUc } from '../lib/useCaseFields';
 
 const s = (v) => (v == null ? '' : String(v));
 const stripHtml = (v) => (v == null ? '' : placeholderWords(String(v).replace(/<[^>]*>/g, ' ')).replace(/\s{2,}/g, ' ').trim());
@@ -54,12 +50,9 @@ export function CopyButton({ text }) {
 
 export default function UseCaseDetailBody({
   uc,
-  active = true,
   className = 'space-y-4',
   resolveTable = (t) => t,
-  token,
   databricksHost,
-  showcase = '',
   allNotebookFiles = [],
   v130 = null,
   knownPriorities: priorityList = [],
@@ -75,14 +68,6 @@ export default function UseCaseDetailBody({
 }) {
   const u = uc && typeof uc === 'object' ? uc : {};
   const notebookPath = notebookPathOf(u, allNotebookFiles);
-  const genieInstruction = s(u.genie_instruction);
-  const cacheKey = notebookPath ? `${showcase ? `showcase:${showcase}` : databricksHost || ''}|${notebookPath}` : '';
-  const [notebookContent, setNotebookContent] = useState(() => (cacheKey && notebookCache.get(cacheKey)) || null);
-  const [notebookLoading, setNotebookLoading] = useState(false);
-  const [notebookError, setNotebookError] = useState('');
-  const [showNotebook, setShowNotebook] = useState(false);
-  const pathPreviewTriedRef = useRef('');
-
   const statement = stripHtml(fieldOf(u, 'Statement', 'statement') || u.description || u.problem_statement);
   const solution = stripHtml(fieldOf(u, 'Solution', 'solution'));
   const businessValue = stripHtml(fieldOf(u, 'Business Value', 'business_value') || u.business_impact);
@@ -95,85 +80,7 @@ export default function UseCaseDetailBody({
   const resultTable = s(u.result_table);
   const tablesInvolved = s(fieldOf(u, 'Tables Involved', 'tables_involved'));
   const shippedGenie = hasShippedGenieCode(u);
-  const hasNotebook = !!(notebookPath || genieInstruction.trim());
   const kind = v130?.kind || null;
-
-  const loadNotebookPreview = useCallback(async () => {
-    if (notebookContent) {
-      setShowNotebook(true);
-      return;
-    }
-    const gi = genieInstruction.trim();
-    if (gi) {
-      setNotebookContent(genieInstruction);
-      setShowNotebook(true);
-      return;
-    }
-    if (!notebookPath) return;
-    setNotebookLoading(true);
-    setNotebookError('');
-    try {
-      const headers = requestHeaders(token, databricksHost, {}, showcase);
-      let resp = null;
-      let refused = '';
-      for (const pth of expandWorkspaceListCandidates(notebookPath)) {
-        const r = await fetch(`/api/workspace/export?path=${encodeURIComponent(pth)}`, { headers });
-        if (r.ok) {
-          resp = r;
-          break;
-        }
-        if (showcase && !refused) refused = (await r.json().catch(() => ({}))).error || '';
-      }
-      if (resp && resp.ok) {
-        const ct = resp.headers.get('content-type') || '';
-        let content = '';
-        if (ct.includes('application/json')) {
-          const data = await resp.json();
-          content = data.content || '';
-          if (data.content && data.file_type !== 'text') {
-            try {
-              content = atob(data.content);
-            } catch {
-              /* already decoded */
-            }
-          }
-        } else {
-          content = await resp.text();
-        }
-        if (cacheKey) notebookCache.set(cacheKey, content);
-        setNotebookContent(content);
-        setShowNotebook(true);
-      } else {
-        setNotebookError(
-          refused || 'Could not load the notebook because the export failed. Check the workspace path, the token scope, and that the file exists under /Workspace.',
-        );
-      }
-    } catch (err) {
-      setNotebookError(err.message || 'Failed to fetch');
-    }
-    setNotebookLoading(false);
-  }, [notebookContent, genieInstruction, notebookPath, token, databricksHost, showcase, cacheKey]);
-
-  useEffect(() => {
-    if (!active) {
-      pathPreviewTriedRef.current = '';
-      return;
-    }
-    if (!hasNotebook) return;
-    if (genieInstruction.trim()) {
-      setNotebookContent(genieInstruction);
-      setShowNotebook(true);
-      return;
-    }
-    if (notebookContent) {
-      setShowNotebook(true);
-      return;
-    }
-    if (notebookPath && pathPreviewTriedRef.current !== notebookPath && !notebookLoading) {
-      pathPreviewTriedRef.current = notebookPath;
-      void loadNotebookPreview();
-    }
-  }, [active, hasNotebook, genieInstruction, notebookPath, notebookContent, notebookLoading, loadNotebookPreview]);
 
   const workspaceNotebookHref = workspaceNotebookUrl(databricksHost, notebookPath);
 
@@ -284,84 +191,29 @@ export default function UseCaseDetailBody({
         </div>
       )}
 
-      {hasNotebook && (
-        <div>
-          <div className="flex items-center justify-between mb-2">
-            <h4 className="text-[10px] font-bold text-db-red-fg uppercase tracking-[0.18em]">
+      {workspaceNotebookHref && (
+        <div data-use-case-notebook="">
+          <div className="flex items-center justify-between gap-2">
+            <h4 className="min-w-0 text-[10px] font-bold text-db-red-fg uppercase tracking-[0.18em]">
               {shippedGenie ? 'Genie Code Instruction' : 'Use case notebook'}
-              {notebookPath && (
-                <span className="text-text-tertiary font-normal normal-case ms-1 font-mono text-[9px] truncate max-w-[300px] inline-block align-bottom">
-                  {notebookPath.split('/').pop()}
-                </span>
-              )}
+              <span className="text-text-tertiary font-normal normal-case ms-1 font-mono text-[9px] truncate max-w-[300px] inline-block align-bottom">
+                {notebookPath.split('/').pop()}
+              </span>
             </h4>
-            <div className="flex items-center gap-2">
-              {notebookPath && workspaceNotebookHref && (
-                <a
-                  href={workspaceNotebookHref}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-[10px] font-medium text-db-red-fg hover:underline transition-colors"
-                  title="Open notebook in Databricks workspace"
-                >
-                  Open in workspace
-                </a>
-              )}
-              <button
-                type="button"
-                onClick={showNotebook ? () => setShowNotebook(false) : loadNotebookPreview}
-                disabled={notebookLoading}
-                className="text-[10px] font-medium text-text-tertiary hover:text-db-red-fg flex items-center gap-1 transition-colors disabled:opacity-50"
-              >
-                {notebookLoading ? (
-                  <span className="inline-flex items-center gap-1"><Loader2 size={10} className="animate-spin shrink-0" aria-hidden /> Loading…</span>
-                ) : showNotebook ? (
-                  'Hide'
-                ) : (
-                  'Preview'
-                )}
-              </button>
-              {notebookContent && <CopyButton text={notebookContent} />}
-              {notebookContent && (
-                <div className="relative group">
-                  <span className="text-[10px] text-text-tertiary hover:text-db-red-fg cursor-help border border-border rounded px-1.5 py-0.5 transition-colors" tabIndex={0}>Help</span>
-                  <div className="invisible opacity-0 group-hover:visible group-hover:opacity-100 transition-all duration-200 absolute bottom-full right-0 mb-2 z-50 min-w-[280px] bg-surface border border-border rounded-lg shadow-xl p-3 text-[10px] text-text-secondary leading-relaxed whitespace-pre-line">
-                    <div className="font-bold text-text-primary mb-1.5">HOW TO USE:</div>
-                    <div>1. Open Genie Code in your Databricks workspace (side panel in any notebook)</div>
-                    <div>2. Copy the ENTIRE content of the instruction below</div>
-                    <div>3. Paste it into Genie Code and let Genie generate the implementation</div>
-                    <div>4. Genie writes the complete code. Review it, iterate, and run it</div>
-                    <div className="absolute bottom-[-5px] right-3 w-2.5 h-2.5 bg-surface border-b border-e border-border rotate-45" />
-                  </div>
-                </div>
-              )}
-            </div>
+            <a
+              href={workspaceNotebookHref}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex shrink-0 items-center gap-1 text-[10px] font-medium text-db-red-fg hover:underline transition-colors"
+              title="Open the notebook in your Databricks workspace"
+            >
+              Open notebook <ExternalLink size={10} aria-hidden />
+            </a>
           </div>
-
-          {!shippedGenie && notebookPath && (
-            <p className="text-[10px] text-text-tertiary mb-2 leading-relaxed">
-              This notebook holds an outline or part of the instruction. To write the full Genie Code instruction, use <span className="font-semibold">{START_MVP_LABEL}</span> and choose {NOTEBOOK_MODE_LABEL}. Preview shows the notebook cells or the instruction text when there are some.
+          {!shippedGenie && (
+            <p className="mt-2 text-[10px] text-text-tertiary leading-relaxed">
+              This notebook holds an outline or part of the instruction. To write the full Genie Code instruction, use <span className="font-semibold">{START_MVP_LABEL}</span> and choose {NOTEBOOK_MODE_LABEL}.
             </p>
-          )}
-
-          {notebookError && (
-            <p className="text-[11px] text-error-fg">{notebookError}</p>
-          )}
-
-          {notebookLoading && !notebookContent && (
-            <div className="flex items-center gap-2 py-4 text-[11px] text-text-tertiary">
-              <Loader2 size={14} className="animate-spin shrink-0" aria-hidden />
-              Loading notebook preview…
-            </div>
-          )}
-
-          {showNotebook && notebookContent && (
-            <div className="relative rounded-lg border border-db-red/20 overflow-hidden">
-              <div className="absolute left-0 top-0 bottom-0 w-1 bg-db-red/30 rounded-s-lg" />
-              <div className="bg-bg p-4 ps-5 overflow-x-auto max-h-[500px] overflow-y-auto">
-                <GenieMarkdownPreview content={notebookContent} />
-              </div>
-            </div>
           )}
         </div>
       )}

@@ -39,7 +39,7 @@ const {
   discoverReads, discoverWrites, listCatalogs, listSchemas, listTables, runReadRefusal, runWriteRefusal, writeRefusalBody,
 } = require('./lib/ucReads');
 const { registerShowcaseRoutes, showcaseWriteGuard } = require('./lib/showcase');
-const { HIGH_PRIORITY_SQL, MEETS_BAR_SQL, loadSessionList, loadSessionPreviews, sessionListCap } = require('./lib/reviewFigures');
+const { loadSessionList, loadSessionOverviews, sessionListCap } = require('./lib/reviewFigures');
 const { LIVE_STEP_STATUSES, liveDomainsOf, liveUseCasesOf } = require('../frontend/src/lib/liveUseCases.js');
 const { executiveSummaryOf, parseResultsJson, runResultsStatement } = require('./lib/runSummary');
 const { isReadDenied } = require('./lib/inspireImplement');
@@ -953,42 +953,21 @@ async function attachSessionUsecaseOverviews(host, token, warehouseId, catalog, 
   const ucTable = `\`${catalog}\`.\`${schema}\`.\`__inspire_usecases\``;
   const safeIds = [...new Set(sessions.map((s) => int64Id(s.session_id)).filter(Boolean))];
   if (safeIds.length === 0) return;
-  const idList = safeIds.join(',');
   try {
-    const aggSql = `SELECT session_id,
-        CAST(COUNT(*) AS INT) AS usecase_count,
-        CAST(SUM(CASE WHEN ${HIGH_PRIORITY_SQL} THEN 1 ELSE 0 END) AS INT) AS high_priority_count,
-        CAST(SUM(CASE WHEN ${MEETS_BAR_SQL} THEN 1 ELSE 0 END) AS INT) AS meets_bar_count,
-        CAST(COUNT(DISTINCT NULLIF(TRIM(business_domain), '')) AS INT) AS domain_count
-      FROM ${ucTable}
-      WHERE session_id IN (${idList})
-      GROUP BY session_id`;
-    const aggRows = sqlResultToObjects(await executeSql(host, token, warehouseId, aggSql));
-    const previewsBySid = await loadSessionPreviews(
+    const bySid = await loadSessionOverviews(
       async (statement) => sqlResultToObjects(await executeSql(host, token, warehouseId, statement.sql, statement.parameters)),
       ucTable,
       safeIds,
     );
-    const map = {};
-    for (const r of aggRows) {
-      const sid = int64Id(r.session_id);
-      if (!sid) continue;
-      map[sid] = {
-        total: Number(r.usecase_count) || 0,
-        high: Number(r.high_priority_count) || 0,
-        meets: Number(r.meets_bar_count) || 0,
-        domains: Number(r.domain_count) || 0,
-        preview_use_cases: previewsBySid[sid] || [],
-      };
-    }
     for (const s of sessions) {
       const sid = int64Id(s.session_id);
-      s.usecase_overview = (sid && map[sid]) || { total: 0, high: 0, meets: 0, domains: 0, preview_use_cases: [] };
+      if (sid) s.usecase_overview = bySid[sid];
     }
   } catch (e) {
-    console.warn('attachSessionUsecaseOverviews:', e.message || e);
+    const why = String(e.message || e);
+    console.warn('attachSessionUsecaseOverviews:', why);
     for (const s of sessions) {
-      s.usecase_overview = null;
+      if (int64Id(s.session_id)) s.usecase_overview = { error: why };
     }
   }
 }

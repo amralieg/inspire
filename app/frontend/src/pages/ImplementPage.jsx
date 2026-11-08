@@ -1661,7 +1661,7 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
       </header>
       {detailsOpen && row && (
         <UseCaseDrawer row={row} onClose={() => setDetailsOpen(false)}>
-          <UseCaseDetailBody uc={item.uc} v130={item.uc._v130 || null} token={settings.token} databricksHost={databricksHost} showcase={settings.showcase || ''} />
+          <UseCaseDetailBody uc={item.uc} v130={item.uc._v130 || null} databricksHost={databricksHost} />
         </UseCaseDrawer>
       )}
       {!built && notebook && <NotebookPanel notebook={notebook} />}

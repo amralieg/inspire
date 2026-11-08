@@ -345,27 +345,62 @@ test('Start offers three unmistakable ways in: your own data, sample data Inspir
   }
 });
 
-test('each Start run row says how many MVPs were built for that run, from the same portfolio read, and a run with none says nothing', async () => {
+test('each Start run row counts its use cases, quality, priority and MVPs built, building and failed, numbers first, from the same portfolio read', async () => {
   const state = {
     ...REVIEW_STATE,
     portfolioMvps: [
-      { sid: null, is_total: '1', mvps_started: '5', mvps_live: '3', apps: '1', dashboards: '2', genie_spaces: '2', alerts: '1' },
-      { sid: '42', is_total: '0', mvps_started: '3', mvps_live: '2', apps: '1', dashboards: '1', genie_spaces: '1', alerts: '1' },
-      { sid: '41', is_total: '0', mvps_started: '1', mvps_live: '1', apps: '0', dashboards: '1', genie_spaces: '1', alerts: '0' },
-      { sid: '50', is_total: '0', mvps_started: '0', mvps_live: '0', apps: '0', dashboards: '0', genie_spaces: '0', alerts: '0' },
+      { sid: null, is_total: '1', mvps_started: '7', mvps_live: '3', mvps_building: '2', mvps_failed: '1', apps: '1', dashboards: '2', genie_spaces: '2', alerts: '1' },
+      { sid: '42', is_total: '0', mvps_started: '5', mvps_live: '2', mvps_building: '2', mvps_failed: '1', apps: '1', dashboards: '1', genie_spaces: '1', alerts: '1' },
+      { sid: '41', is_total: '0', mvps_started: '1', mvps_live: '1', mvps_building: '0', mvps_failed: '0', apps: '0', dashboards: '1', genie_spaces: '1', alerts: '0' },
     ],
   };
   const ui = await openStart(state);
   const { page } = ui;
   try {
-    const mvps = (sid) => page.locator(`[data-run="${sid}"] [data-run-mvps]`);
-    await mvps('42').waitFor({ timeout: 20000 });
-    assert.equal((await mvps('42').innerText()).trim(), '2 MVPs built, 1 more started');
-    assert.equal((await mvps('41').innerText()).trim(), '1 MVP built');
-    assert.equal(await mvps('50').count(), 0, 'a run with no MVP shows no count (must-exclude)');
-    const all = await page.locator('[data-run]').evaluateAll((els) => els.map((el) => [el.getAttribute('data-run'), Boolean(el.querySelector('[data-run-mvps]'))]));
-    assert.deepEqual(all.filter(([, shown]) => shown).map(([sid]) => sid), ['42', '41']);
+    const counts = (sid) => page.locator(`[data-run="${sid}"] [data-run-counts] [data-run-count]`)
+      .evaluateAll((els) => els.map((el) => [el.getAttribute('data-run-count'), el.textContent.replace(/\s+/g, ' ').trim()]));
+    await page.locator('[data-run="42"] [data-run-count="mvps_built"]').waitFor({ timeout: 20000 });
+    const mvps = async (sid) => Object.fromEntries((await counts(sid)).filter(([key]) => key.startsWith('mvps_')));
+    assert.deepEqual(await mvps('42'), { mvps_built: '2 MVPs built', mvps_building: '2 building', mvps_failed: '1 failed' });
+    assert.deepEqual(await mvps('41'), { mvps_built: '1 MVP built', mvps_building: '0 building', mvps_failed: '0 failed' });
+    const first = (await page.locator('[data-run="42"] [data-run-count="mvps_built"]').first().evaluate((el) => el.firstElementChild?.textContent));
+    assert.equal(first, '2', 'the number comes first');
+    assert.equal(await page.locator('[data-run-mvps]').count(), 0, 'the old MVP sentence is gone');
     assert.deepEqual(ui.pageErrors, []);
+  } finally {
+    await ui.close();
+  }
+});
+
+test('a Start run row says why it has no counts: still running with none yet, the use cases cannot be read, an older table, or the MVPs cannot be read', async () => {
+  const at = new Date().toISOString();
+  const sessions = [
+    { session_id: '70', business_name: 'Running', completed_percent: 30, processing_status: 'running', create_at: at, last_updated: at, business_runs: 1, business_rank: 1,
+      usecase_overview: { total: 0, high: 0, meets: 0, below: 0, domains: 0, unread: {}, preview_use_cases: [] } },
+    { session_id: '71', business_name: 'Hidden', completed_percent: 100, processing_status: 'done', create_at: at, business_runs: 1, business_rank: 1,
+      usecase_overview: { error: '[INSUFFICIENT_PERMISSIONS] User does not have SELECT on Table' } },
+    { session_id: '72', business_name: 'Older', completed_percent: 100, processing_status: 'done', create_at: at, business_runs: 1, business_rank: 1,
+      usecase_overview: { total: 4, high: 1, meets: null, below: null, domains: 2, preview_use_cases: [],
+        unread: { quality: 'the use case table has no elite_status column, which holds the quality bar' } } },
+  ];
+  const ui = await openUi('app', { ...REVIEW_STATE, sessions, sqlErrors: { mvps_started: '[INSUFFICIENT_PERMISSIONS] the MVP table cannot be read' } }, '', { mount });
+  const { page } = ui;
+  try {
+    await page.getByRole('button', { name: 'Get Started', exact: true }).first().click();
+    await page.locator('[data-run="72"] [data-run-counts]').first().waitFor({ timeout: 20000 });
+    assert.equal(await page.locator('[data-run="70"] [data-run-counts-note]').first().innerText(), 'No use cases yet');
+    assert.equal(await page.locator('[data-run="70"] [data-run-counts]').count(), 0, 'a running run with none yet shows no zero counts');
+    assert.match(await page.locator('[data-run="71"] [data-run-counts-why]').first().innerText(), /^Use cases are not counted: \[INSUFFICIENT_PERMISSIONS\]/);
+    assert.equal(await page.locator('[data-run="71"] [data-run-count="use_cases"]').count(), 0, 'no made-up zero when the use cases cannot be read');
+    const older = page.locator('[data-run="72"]').first();
+    assert.equal((await older.locator('[data-run-count="high_quality"]').innerText()).trim(), 'high quality not counted');
+    assert.equal(await older.locator('[data-run-count="high_quality"][data-count-off]').count(), 1);
+    assert.equal((await older.locator('[data-run-count="high_priority"]').innerText()).replace(/\s+/g, ' ').trim(), '1 high priority');
+    const why = await older.locator('[data-run-counts-why]').allInnerTexts();
+    assert.ok(why.includes('Quality is not counted: the use case table has no elite_status column, which holds the quality bar.'), why.join(' | '));
+    assert.ok(why.some((line) => /^MVPs are not counted: /.test(line)), why.join(' | '));
+    assert.equal((await older.locator('[data-run-count="mvps_built"]').innerText()).trim(), 'MVPs built not counted');
+    assert.deepEqual(ui.pageErrors.filter((e) => !/status of 500/.test(e)), []);
   } finally {
     await ui.close();
   }

@@ -38,7 +38,7 @@ function reset(overrides = {}) {
   Object.assign(state, {
     managers: [], managerGroups: [], personGroups: [], aclStatus: 200, personAppsScope: true, launchers: {}, sessionLaunchers: {}, history: [], calls: [],
     launches: [], knownSessions: [], ledgerSessions: [], nextRunId: 501, sessionRows: {}, groupParents: {}, indirectGroups: [], conflictOn: null,
-    createdJob: null, runJobs: {}, runStates: null, sessionList: [], usecases: [],
+    createdJob: null, runJobs: {}, runStates: null, sessionList: [], usecases: [], usecaseColumns: null,
     ...folderModel({ folders: { '/Shared/demos': { id: 7, writers: '*' } } }),
   }, overrides);
 }
@@ -52,6 +52,7 @@ function paramOf(body, name) {
   return ((body.parameters || []).find((p) => p.name === name) || {}).value;
 }
 
+const USECASE_RULE_COLUMNS = ['inspire_score', 'quality_score', 'priority_score', 'elite_status', 'business_domain'];
 const HISTORY_COLUMNS = ['session_id', 'use_case_id', 'spec_version', 'status', 'created_by', 'spec_json'];
 
 function answerSql(body) {
@@ -103,17 +104,28 @@ function answerSql(body) {
     const columns = ['session_id', 'business_name', 'completed_percent', 'create_at', 'business_runs', 'business_rank'];
     return sqlResult(columns, state.sessionList.map((s) => columns.map((c) => (s[c] == null ? null : String(s[c])))));
   }
+  if (/^\s*DESCRIBE TABLE\b/i.test(sql) && sql.includes('__inspire_usecases') && state.usecaseColumns) {
+    return sqlResult(['col_name', 'data_type'], state.usecaseColumns.map((name) => [name, 'string']));
+  }
   if (/^\s*SELECT session_id,/.test(sql) && sql.includes('__inspire_usecases')) {
+    const lacking = (state.usecaseColumns ? USECASE_RULE_COLUMNS.filter((c) => !state.usecaseColumns.includes(c) && new RegExp(`\\b${c}\\b`).test(sql)) : []);
+    if (lacking.length) return { statement_id: 's1', status: { state: 'FAILED', error: { message: `[UNRESOLVED_COLUMN] A column with name \`${lacking[0]}\` cannot be resolved.` } } };
     const asked = new Set(((/WHERE session_id IN \(([^)]*)\)/.exec(sql) || [])[1] || '').split(',').map((t) => t.trim()).filter(Boolean));
     const rows = state.usecases.filter((u) => asked.has(u.session_id));
     if (sql.includes('AS usecase_count')) {
-      if (!sql.includes(`WHEN ${HIGH_PRIORITY_SQL} THEN`) || !sql.includes(`WHEN ${MEETS_BAR_SQL} THEN`)) throw new Error(`overview counts are not the shared rule: ${sql}`);
+      const ruleOf = (name) => (new RegExp(`CASE WHEN ((?:(?!CASE WHEN).)+?) THEN 1 ELSE 0 END\\) AS INT\\) AS ${name}\\b`).exec(sql) || [])[1] || null;
+      const highRule = ruleOf('high_priority_count');
+      const meetsRule = ruleOf('meets_bar_count');
+      if (!state.usecaseColumns && (highRule !== HIGH_PRIORITY_SQL || meetsRule !== MEETS_BAR_SQL)) throw new Error(`overview counts are not the shared rule: ${sql}`);
+      if (meetsRule && meetsRule !== MEETS_BAR_SQL) throw new Error(`the quality count is not the shared rule: ${sql}`);
+      const counted = (name) => !new RegExp(`CAST\\(NULL AS INT\\) AS ${name}\\b`).test(sql);
       const sids = [...new Set(rows.map((u) => u.session_id))];
       return sqlResult(['session_id', 'usecase_count', 'high_priority_count', 'meets_bar_count', 'domain_count'], sids.map((sid) => {
         const mine = rows.filter((u) => u.session_id === sid);
         const meets = mine.filter((u) => !BELOW_BAR_ELITE_STATUSES.includes(String(u.elite_status || '').trim().toUpperCase()));
-        const high = rowsMatching(HIGH_PRIORITY_SQL, mine);
-        return [sid, String(mine.length), String(high.length), String(meets.length), String(new Set(mine.map((u) => u.business_domain)).size)];
+        const high = highRule ? rowsMatching(highRule, mine) : null;
+        return [sid, String(mine.length), high ? String(high.length) : null, meetsRule ? String(meets.length) : null,
+          counted('domain_count') ? String(new Set(mine.map((u) => u.business_domain)).size) : null];
       }));
     }
     if (sql.includes(' AS Name,')) {

@@ -64,13 +64,41 @@ export function runsOfCard(key, sessions, portfolio) {
   return keep ? (Array.isArray(sessions) ? sessions : []).filter((session) => keep(session, portfolio)) : [];
 }
 
-export function runMvpText(session, portfolio) {
-  const built = figureOf(portfolio, session, 'mvps_live');
-  const started = Math.max(figureOf(portfolio, session, 'mvps_started'), built);
-  if (!started) return '';
-  const more = started - built;
-  if (!built) return `${counted(more, { one: 'MVP', many: 'MVPs' })} started`;
-  return `${counted(built, { one: 'MVP', many: 'MVPs' })} built${more ? `, ${more.toLocaleString('en-US')} more started` : ''}`;
+const countOf = (value) => (value == null || value === '' || !Number.isFinite(Number(value)) ? null : Math.max(0, Math.floor(Number(value))));
+const UNREAD_LABELS = { quality: 'Quality', high: 'High priority', domains: 'Domains' };
+
+export function runCounts(overview, portfolio, session, { running = false, mvpError = '' } = {}) {
+  const item = (key, n, one, many = one) => ({ key, n, label: n === 1 ? one : many });
+  const items = [];
+  const why = [];
+  let note = '';
+  if (overview?.error) {
+    why.push(`Use cases are not counted: ${overview.error}`);
+  } else if (overview) {
+    const total = countOf(overview.total) || 0;
+    if (!total && running) return { items: [], note: 'No use cases yet', why: [] };
+    if (!total) {
+      items.push(item('use_cases', 0, 'use case', 'use cases'));
+    } else {
+      items.push(
+        item('use_cases', total, running ? 'use case so far' : 'use case', running ? 'use cases so far' : 'use cases'),
+        item('high_quality', countOf(overview.meets), 'high quality'),
+        item('low_quality', countOf(overview.below), 'low quality'),
+        item('high_priority', countOf(overview.high), 'high priority'),
+        item('domains', countOf(overview.domains), 'domain', 'domains'),
+      );
+      why.push(...Object.entries(overview.unread || {}).filter(([key, text]) => UNREAD_LABELS[key] && text).map(([key, text]) => `${UNREAD_LABELS[key]} is not counted: ${text}.`));
+    }
+  }
+  if (mvpError) {
+    items.push(item('mvps_built', null, 'MVPs built'));
+    why.push(`MVPs are not counted: ${mvpError}`);
+  } else if (portfolio?.sessions) {
+    items.push(item('mvps_built', figureOf(portfolio, session, 'mvps_live'), 'MVP built', 'MVPs built'),
+      item('mvps_building', figureOf(portfolio, session, 'mvps_building'), 'building'),
+      item('mvps_failed', figureOf(portfolio, session, 'mvps_failed'), 'failed'));
+  }
+  return { items, note, why };
 }
 
 export function buildRunsOfCard(key, sessions, portfolio) {

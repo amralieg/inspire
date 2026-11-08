@@ -31,7 +31,7 @@ const withUseCase = (results, no, extra) => ({
 });
 const CHURN_KEY = { use_case_key: 'acme:predict-churn' };
 const DEMO_RESULTS = withUseCase(withUseCase(RESULTS, 'N01-U03', { notebook_path: NOTEBOOK }), 'N01-U01', { ...CHURN_KEY, tables_involved: 'main.s.orders' });
-const DEMO_RUN = { ...REVIEW_SESSIONS[0], usecase_overview: { total: 6, high: 2, domains: 2, preview_use_cases: [{ Name: 'Predict churn' }, { Name: 'Forecast stock' }] } };
+const DEMO_RUN = { ...REVIEW_SESSIONS[0], usecase_overview: { total: 6, high: 2, meets: 6, below: 0, domains: 2, unread: {}, preview_use_cases: [{ Name: 'Predict churn' }, { Name: 'Forecast stock' }] } };
 const RUN_STEPS = [
   { step_id: '1', stage_name: 'Discovery', step_name: 'Read the tables', status: 'ended_success', last_updated: '2026-10-31T09:10:00Z', message: 'Read 4 tables', progress_increment: 20 },
   { step_id: '2', stage_name: 'Use Case Generation', step_name: 'Write the use cases', status: 'ended_success', last_updated: '2026-10-31T09:40:00Z',
@@ -193,7 +193,7 @@ test('recording the demo walks every Results and Build view through the read-onl
     assert.deepEqual(step.result_json.use_cases.map((u) => Object.keys(u).sort().join()), ['Name,No', 'Name,No', 'Name,No']);
     t.diagnostic(`the walk recorded ${Buffer.byteLength(showcaseText(bundle))} bytes, under the cap of ${SHOWCASE_MAX_BYTES}`);
     const notebook = Object.entries(bundle.inspire).filter(([key, answer]) => key.startsWith('GET /api/workspace/export?') && answer.status === 200);
-    assert.deepEqual(notebook.map(([, answer]) => [answer.text, answer.body]), [[true, NOTEBOOK_TEXT]], 'the notebook preview is kept as the text the App sent');
+    assert.deepEqual(notebook, [], 'a use case card opens its notebook in the workspace, so the demo records no notebook text');
     const text = JSON.stringify(bundle);
     assert.ok(!text.includes(new URL(MVP_URL).host), 'the MVP App host is gone');
     assert.ok(text.includes(`"app_url":"${HOSTED}"`), 'the App link points at the MVP hosted in Inspire');
@@ -416,8 +416,10 @@ test('the demo replays every view from the bundle with no workspace call, refuse
     assert.match(await runCards.first().locator('[data-run-figures]').innerText(), /^6 use cases · 2 domains/, 'the run card shows the recorded figures');
     await runCards.first().click();
     await cards.filter({ hasText: 'Segment shoppers' }).click();
-    await list(page).getByText('SUM(amount) FROM main.s.orders', { exact: false }).waitFor();
+    await list(page).locator('[data-use-case-text="statement"]').first().waitFor();
     await settle();
+    assert.equal(await list(page).getByText('SUM(amount) FROM main.s.orders', { exact: false }).count(), 0, 'the card shows no notebook preview');
+    assert.equal(await list(page).getByRole('button', { name: /^Preview$/ }).count(), 0);
 
     assert.equal(made.sqlCalls.length - read.sql, 0, 'the demo reads nothing from the warehouse; only Start read the runs before it opened');
     assert.equal(made.fetches.length - read.fetches, 0, 'the demo calls no workspace API');

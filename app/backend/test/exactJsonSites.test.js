@@ -45,7 +45,6 @@ const BROWSER_ALLOWED = [
   ['lib/apiClient.js', 'JSON.parse(errText)', 'an error answer of the App, read for its message'],
   ['lib/ucPermissionErrors.js', 'JSON.parse(raw)', 'an error answer of the App, read for its message'],
   ['lib/strategyContext.js', 'JSON.parse(raw)', 'the strategy text the person types in the widget'],
-  ['components/GenieMarkdownPreview.jsx', 'JSON.parse(t)', 'an exported notebook file, read for its cells'],
   ['lib/implementControl.js', 'JSON.parse(storage?.getItem(COLLECTED_VIBES_KEY)', 'the vibes this browser stored itself'],
   ['lib/useCaseFields.js', 'JSON.parse(rawFp)', 'the favorites this browser stored itself'],
   ['lib/useCaseFields.js', "JSON.parse(storage.getItem('inspire_favorites')", 'the favorites this browser stored itself'],

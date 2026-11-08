@@ -658,6 +658,41 @@ components:
         widget_values:
           type: object
           description: Minimal widget values for display
+        usecase_overview:
+          type: object
+          description: |
+            Counts across every use case of the run, read in one query for the whole list. A count the use case table cannot hold
+            is null, and unread says why. When the use cases cannot be read at all, only error is set.
+          properties:
+            total:
+              type: integer
+            high:
+              type: integer
+              nullable: true
+              description: High priority, an Inspire Score of 3 or more out of 5
+            meets:
+              type: integer
+              nullable: true
+              description: High quality, use cases that meet the quality bar
+            below:
+              type: integer
+              nullable: true
+              description: Low quality, use cases below the quality bar
+            domains:
+              type: integer
+              nullable: true
+            preview_use_cases:
+              type: array
+              items:
+                type: object
+            unread:
+              type: object
+              description: For each of high, quality and domains that cannot be counted, the reason
+              additionalProperties:
+                type: string
+            error:
+              type: string
+              description: Why the use cases of the run cannot be counted
 
     RunFigures:
       type: object
@@ -680,6 +715,12 @@ components:
         mvps_live:
           type: integer
           description: Use cases whose newest MVP version is ready or ready with warnings
+        mvps_building:
+          type: integer
+          description: Use cases whose newest MVP version is still being built (queued, filling, previewing, building outputs or checking)
+        mvps_failed:
+          type: integer
+          description: Use cases whose newest MVP version failed
         apps:
           type: integer
           description: Apps of built MVPs, an App Inside Inspire included
