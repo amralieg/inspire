@@ -133,7 +133,10 @@ function makeApp(overrides = {}, { mount } = {}) {
         const steps = state.steps || [];
         return { rows: since ? steps.filter((s) => Date.parse(s.last_updated) > Date.parse(since.value)) : steps };
       }
-      if (sql.startsWith('SELECT COUNT(*) AS row_count')) return { rows: state.readinessRows || [{ row_count: '1200' }] };
+      if (sql.startsWith('SELECT COUNT(*) AS row_count')) {
+        const named = Object.entries(state.readinessByTable || {}).find(([t]) => sql.includes(t.split('.').map((p) => `\`${p}\``).join('.')));
+        return { rows: named ? [{ row_count: named[1] }] : state.readinessRows || [{ row_count: '1200' }] };
+      }
       for (const [table, message] of Object.entries(state.probeErrors || {})) {
         if (sql === `SELECT * FROM ${table} LIMIT 0`) throw new Error(message);
       }

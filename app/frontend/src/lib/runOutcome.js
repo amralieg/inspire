@@ -55,6 +55,7 @@ export function runOutcomeOf(results, counts = null) {
     below: Math.max(0, found - meets),
     mode: String(bar?.mode || ''),
     emptyTables,
+    allTablesEmpty: emptyTables.length > 0 && bar?.all_tables_empty === true,
     message: runMessage || outcomeMessage(bar) || (empty ? NO_USE_CASES_MESSAGE : failed ? RUN_FAILED_MESSAGE : ''),
     barMessage: outcomeMessage(bar),
     notes,

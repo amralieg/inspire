@@ -204,3 +204,24 @@ test('the wizard keeps an empty App warehouse for the build one, labels the fiel
     ['the SQL warehouse wh7 is not one you can use: pick another for the App']);
   assert.equal(w.PREFLIGHT_LABELS.app_warehouse, 'App SQL warehouse');
 });
+
+test('the build SQL warehouse is picked by name from the list, keeps a saved id the list lacks, shows each state, and falls back to a typed id only when the list is empty or fails', async () => {
+  const w = await load();
+  const listed = [{ id: 'wh1', name: 'Shared SQL', state: 'RUNNING' }, { id: 'wh2', name: 'Finance SQL', state: 'STOPPED' },
+    { id: 'wh3', name: 'Old SQL', state: 'DELETED' }];
+  assert.deepEqual(w.warehouseOptions(listed, ['wh1']).map((o) => o.id), ['wh1', 'wh2', 'wh3'], 'a listed id adds no extra option');
+  assert.deepEqual(w.warehouseOptions(listed, ['wh7', ' wh7 ', 'wh1', '']).map((o) => [o.id, Boolean(o.missing)]),
+    [['wh7', true], ['wh1', false], ['wh2', false], ['wh3', false]], 'a saved id the list lacks stays first, once');
+  assert.deepEqual(w.warehouseOptions(null, ['wh7']), [{ id: 'wh7', missing: true }], 'while the list loads the saved id still shows');
+  assert.equal(w.warehouseOptionText(listed, { id: 'wh2' }), 'Finance SQL (STOPPED)', 'the name and its state show, never the bare id');
+  assert.equal(w.warehouseOptionText(listed, { id: 'wh7', missing: true }), 'wh7 (not in your list of SQL warehouses)');
+  assert.equal(w.warehouseOptionText(null, { id: 'wh7', missing: true }), 'wh7', 'no list yet, so nothing is called missing (must-exclude)');
+  assert.equal(w.warehouseStateNote(listed, 'wh1'), '', 'a running warehouse needs no note (must-exclude)');
+  assert.equal(w.warehouseStateNote(listed, 'wh2'), 'Finance SQL is stopped; it starts when the run uses it, which can take a few minutes.');
+  assert.equal(w.warehouseStateNote(listed, 'wh3'), 'Old SQL is deleted; pick another SQL warehouse.');
+  assert.equal(w.warehouseStateNote(listed, 'wh7'), '');
+  assert.equal(w.warehouseListNote(listed, ''), '', 'a listed set needs no note and no typed fallback (must-exclude)');
+  assert.equal(w.warehouseListNote(null, ''), '', 'still loading is not an empty list (must-exclude)');
+  assert.equal(w.warehouseListNote([], ''), 'Inspire found no SQL warehouse you can use. Type the warehouse id, or ask an admin for CAN USE on one.');
+  assert.equal(w.warehouseListNote(null, 'HTTP 403'), 'Inspire could not list the SQL warehouses (HTTP 403). Type the warehouse id instead.');
+});

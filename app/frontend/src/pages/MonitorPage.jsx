@@ -362,7 +362,9 @@ export default function MonitorPage({ settings, update, sessionId, runId, onComp
               )}
               {isComplete && outcome.emptyTables.length > 0 && (
                 <p className="text-xs mt-0.5 text-warning-fg" data-testid="monitor-empty-tables">
-                  {outcome.emptyTables.length === 1 ? 'This table has' : 'These tables have'} no rows yet: {outcome.emptyTables.slice(0, 10).join(', ')}
+                  {outcome.allTablesEmpty ? 'Every table you picked is empty, so no use case can be grounded in rows: '
+                    : `${outcome.emptyTables.length === 1 ? 'This table has' : 'These tables have'} no rows yet: `}
+                  {outcome.emptyTables.slice(0, 10).join(', ')}
                   {outcome.emptyTables.length > 10 ? ` and ${outcome.emptyTables.length - 10} more` : ''}.{' '}
                   {onGenerateData
                     ? <button type="button" onClick={onGenerateData} className="font-semibold underline">Add sample rows on the Generate data page</button>

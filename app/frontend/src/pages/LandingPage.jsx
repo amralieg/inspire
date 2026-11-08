@@ -5,10 +5,8 @@ import {
   BarChart3,
   Globe2,
   ChevronDown,
-  Lock,
   PlayCircle,
   Rocket,
-  Sparkles,
   Wrench,
 } from 'lucide-react';
 import DatabricksLogo from '../components/DatabricksLogo';
@@ -16,9 +14,6 @@ import { useTheme } from '../ThemeContext';
 import { Sun, Moon } from 'lucide-react';
 import { APP_TABS } from '../lib/tabs';
 import { reducedMotion } from '../lib/motion';
-import { DISCOVERY_AI_ENHANCED, DISCOVERY_MODE_TEXT, DISCOVERY_RECOMMENDED, DISCOVERY_STANDARD } from '../lib/discoveryType';
-
-const DISCOVERY_MODES = [{ mode: DISCOVERY_STANDARD, icon: Lock }, { mode: DISCOVERY_AI_ENHANCED, icon: Sparkles }];
 
 /* ═══════════════════════════════════════════════════
    DATA
@@ -669,22 +664,6 @@ export default function LandingPage({ onStart, onOpenSetup }) {
                 <p className="text-base sm:text-lg mb-10 max-w-lg leading-relaxed" style={{ color: C.textMuted }}>
                   Inspire reads your Unity Catalog metadata, counts your data to check that each use case can be built, and writes use cases ranked for your business and your goals. Genie then builds an MVP for each one you pick.
                 </p>
-
-                <ul aria-label="Discovery modes" data-landing-discovery="" className="mb-8 grid max-w-lg grid-cols-1 gap-2.5 sm:grid-cols-2">
-                  {DISCOVERY_MODES.map((item) => (
-                    <li key={item.mode} data-landing-discovery-mode={item.mode} className="rounded-xl px-3.5 py-3"
-                      style={{ background: C.cardBg, border: `1px solid ${item.mode === DISCOVERY_RECOMMENDED ? 'rgba(255,54,33,0.35)' : C.cardBorder}` }}>
-                      <span className="flex items-center gap-1.5 text-sm font-semibold" style={{ color: C.text }}>
-                        <item.icon size={14} aria-hidden="true" className="text-db-red-fg" />
-                        {item.mode}
-                        {item.mode === DISCOVERY_RECOMMENDED && (
-                          <span className="ms-1 rounded-full bg-success-bg px-2 py-0.5 text-[10px] font-semibold text-success-fg">Recommended</span>
-                        )}
-                      </span>
-                      <p className="mt-1 text-[12px] leading-snug" style={{ color: C.textMuted }}>{DISCOVERY_MODE_TEXT[item.mode]}</p>
-                    </li>
-                  ))}
-                </ul>
 
                 <LandingActions onStart={onStart} />
 

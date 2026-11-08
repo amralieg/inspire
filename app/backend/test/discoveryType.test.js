@@ -5,7 +5,8 @@ const D = require('../../frontend/src/lib/discoveryType.js');
 test('the two discovery modes, their legacy values and the recommended default', () => {
   assert.deepEqual(D.DISCOVERY_TYPE_VALID, ['Standard Discovery', 'AI Enhanced Discovery']);
   assert.equal(D.DISCOVERY_TYPE_DEFAULT, 'Standard Discovery');
-  assert.equal(D.DISCOVERY_RECOMMENDED, 'Standard Discovery');
+  assert.equal(D.DISCOVERY_RECOMMENDED, 'AI Enhanced Discovery', 'Get Started recommends and preselects AI Enhanced Discovery');
+  assert.notEqual(D.DISCOVERY_RECOMMENDED, D.DISCOVERY_TYPE_DEFAULT, 'a run that names no mode still reads as Standard Discovery (must-exclude)');
   for (const [stored, mode] of [['Standard', 'Standard Discovery'], ['deep', 'AI Enhanced Discovery'], ['Deep Discovery', 'AI Enhanced Discovery'],
     [' ai enhanced discovery ', 'AI Enhanced Discovery'], ['STANDARD DISCOVERY', 'Standard Discovery']]) {
     assert.equal(D.discoveryTypeOf(stored), mode, stored);

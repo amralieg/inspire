@@ -171,20 +171,16 @@ test('the home page walks through the five tabs as they work now and keeps none 
   }
 });
 
-test('the home page highlights both discovery modes, and only Standard Discovery is marked recommended', async () => {
+test('the home page shows no discovery type choice: Standard and AI Enhanced Discovery are picked in Get Started only (must-exclude)', async () => {
   const ui = await openUi('landing');
   const { page } = ui;
   try {
-    const modes = page.locator('[data-landing-discovery-mode]');
-    await modes.first().waitFor();
-    assert.deepEqual(await modes.evaluateAll((els) => els.map((el) => el.getAttribute('data-landing-discovery-mode'))),
-      ['Standard Discovery', 'AI Enhanced Discovery']);
-    const standard = await modes.nth(0).innerText();
-    const enhanced = await modes.nth(1).innerText();
-    assert.match(standard, /Recommended/);
-    assert.doesNotMatch(enhanced, /Recommended/, 'AI Enhanced Discovery is never marked recommended');
-    assert.ok(standard.includes(DISCOVERY_MODE_TEXT['Standard Discovery']));
-    assert.ok(enhanced.includes(DISCOVERY_MODE_TEXT['AI Enhanced Discovery']));
+    await page.locator('[data-landing-actions]').first().waitFor();
+    assert.equal(await page.locator('[data-landing-discovery], [data-landing-discovery-mode]').count(), 0);
+    assert.equal(await page.getByRole('list', { name: 'Discovery modes' }).count(), 0);
+    const body = await page.locator('body').innerText();
+    for (const mode of ['Standard Discovery', 'AI Enhanced Discovery']) assert.doesNotMatch(body, new RegExp(mode), `${mode} is not on Home`);
+    for (const text of Object.values(DISCOVERY_MODE_TEXT)) assert.equal(body.includes(text), false, 'no mode description on Home');
     assert.deepEqual(ui.pageErrors, []);
   } finally {
     await ui.close();

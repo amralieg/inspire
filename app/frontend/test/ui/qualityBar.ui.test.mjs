@@ -158,6 +158,21 @@ test('the Monitor shows an amber Completed with a warning when no use case meets
   }
 });
 
+test('the Monitor warns, never fails, when every table the run read is empty, and says no use case can be grounded in rows', async () => {
+  const allEmpty = { ...NONE_MEET, quality_bar: { ...NONE_MEET.quality_bar, all_tables_empty: true } };
+  const ui = await openUi('monitor', { results: allEmpty, useCases: [] }, '&run=none', { mount: monitorBackend(allEmpty) });
+  const { page } = ui;
+  try {
+    const card = page.locator('[data-testid="monitor-status"]');
+    await card.getByText('Completed with a warning', { exact: true }).waitFor({ timeout: 10000 });
+    assert.equal(await card.getAttribute('data-status'), 'warning', 'an all-empty run is a warning (must-exclude: never failed)');
+    assert.match(await card.locator('[data-testid="monitor-empty-tables"]').innerText(),
+      /^Every table you picked is empty, so no use case can be grounded in rows: airline\.passenger\.bookings, airline\.passenger\.flights\. Add sample rows on the Generate data page, then run again\.$/);
+  } finally {
+    await ui.close();
+  }
+});
+
 test('the Monitor stays green when the bar is met, and still shows how many were found and met it', async () => {
   const ui = await openUi('monitor', { results: MIXED, useCases: [] }, '&run=none', { mount: monitorBackend(MIXED) });
   const { page } = ui;

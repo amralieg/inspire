@@ -776,7 +776,7 @@ export function readinessScope(spec, uc) {
 }
 
 export function readinessText(readiness, scope) {
-  if (!readiness || readiness.skipped) return '';
+  if (!readiness || readiness.skipped || Number(readiness.row_count) === 0) return '';
   const found = `Inspire found ${(Number(readiness.row_count) || 0).toLocaleString('en-US')} rows to work with in ${scope.table}.`;
   const left = scope.uncounted || [];
   if (!left.length) return found;
@@ -790,15 +790,31 @@ export function scopeNarrowing(scope) {
   return parts;
 }
 
-export function emptyScopeError(scope) {
+export function otherScopeTables(scope, sourceTables) {
+  if (scopeNarrowing(scope).length) return [];
+  return (sourceTables || []).filter((t, i, all) => t && !sameTable(t, scope.table) && all.findIndex((o) => sameTable(o, t)) === i);
+}
+
+export function allEmptyTables(scope, others, counts) {
+  if (scopeNarrowing(scope).length) return [];
+  const empty = (c) => Boolean(c) && !c.skipped && Number(c.row_count) === 0;
+  return (others || []).every((_t, i) => empty((counts || [])[i])) ? [scope.table, ...(others || [])] : [];
+}
+
+export function emptyScopeWarning(scope, allEmpty = []) {
   const parts = scopeNarrowing(scope);
-  if (!parts.length) return `No rows to work with: ${scope.table} is empty. Change it to a table with rows.`;
+  if (!parts.length) {
+    if (!allEmpty.length) return `Warning: ${scope.table} is empty, so the first run may write no rows. You can go on.`;
+    const which = allEmpty.length === 1 ? `${allEmpty[0]}, the only table you picked, is empty`
+      : `every table you picked is empty (${allEmpty.join(', ')})`;
+    return `Warning: ${which}, so no use case can be grounded in rows. You can go on.`;
+  }
   const where = {
     window: 'inside the date window you picked',
     filters: 'that pass the filters you picked',
     'window,filters': 'inside the date window that pass the filters you picked',
   }[parts.join(',')];
-  return `No rows to work with: ${scope.table} has no rows ${where}. Widen or clear ${parts.join() === 'window' ? 'it' : 'them'} under Advanced settings.`;
+  return `Warning: ${scope.table} has no rows ${where}. You can go on, or widen or clear ${parts.join() === 'window' ? 'it' : 'them'} under Advanced settings on Data.`;
 }
 
 export function resultTableMoveNote(summary) {
@@ -1655,6 +1671,32 @@ export function warehouseText(warehouses, id) {
   const found = (warehouses || []).find((w) => w.id === id);
   if (!found) return id;
   return found.state ? `${found.name || id} (${found.state})` : found.name || id;
+}
+
+export function warehouseOptions(warehouses, ids) {
+  const listed = warehouses || [];
+  const missing = [...new Set((ids || []).map((id) => String(id || '').trim()))]
+    .filter((id) => id && !listed.some((w) => w.id === id));
+  return [...missing.map((id) => ({ id, missing: true })), ...listed];
+}
+
+export function warehouseOptionText(warehouses, option) {
+  if (option.missing && Array.isArray(warehouses)) return `${option.id} (not in your list of SQL warehouses)`;
+  return warehouseText(warehouses, option.id);
+}
+
+export function warehouseStateNote(warehouses, id) {
+  const found = (warehouses || []).find((w) => w.id === id);
+  const state = String(found?.state || '').toUpperCase();
+  if (!found || !state || ['RUNNING', 'STARTING'].includes(state)) return '';
+  if (['DELETED', 'DELETING'].includes(state)) return `${found.name || id} is ${state.toLowerCase()}; pick another SQL warehouse.`;
+  return `${found.name || id} is ${state.toLowerCase()}; it starts when the run uses it, which can take a few minutes.`;
+}
+
+export function warehouseListNote(warehouses, error) {
+  if (error) return `Inspire could not list the SQL warehouses (${error}). Type the warehouse id instead.`;
+  if (Array.isArray(warehouses) && !warehouses.length) return 'Inspire found no SQL warehouse you can use. Type the warehouse id, or ask an admin for CAN USE on one.';
+  return '';
 }
 
 export function buildWarehouseNote(warehouses, id) {

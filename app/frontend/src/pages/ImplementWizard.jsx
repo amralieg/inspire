@@ -39,8 +39,9 @@ import {
   setFilterValues,
   readinessScope,
   readinessText,
-  scopeNarrowing,
-  emptyScopeError,
+  emptyScopeWarning,
+  otherScopeTables,
+  allEmptyTables,
   planLines,
   sharedHolding,
   sharedSource,
@@ -89,6 +90,10 @@ import {
   appWarehouseOf,
   withAppWarehouse,
   warehouseText,
+  warehouseOptions,
+  warehouseOptionText,
+  warehouseStateNote,
+  warehouseListNote,
   buildWarehouseNote,
   joinedWarehouseText,
   APP_OPTIONS,
@@ -637,12 +642,15 @@ export default function ImplementWizard({
             filters: scope.filters,
             window: scope.window,
           });
-          setReadiness({ ...counted, scope });
-          if (!counted.skipped && counted.row_count === 0) {
-            setErrors([emptyScopeError(scope)]);
-            if (scopeNarrowing(scope).length) setAdvanced((prev) => ({ ...prev, data: true }));
-            return;
+          let warning = '';
+          if (!counted.skipped && Number(counted.row_count) === 0) {
+            const others = otherScopeTables(scope, sourceTables);
+            const counts = await Promise.all(others.map((table) => apiPostJson(`/api/inspire/implement/readiness?${q}`, {
+              table, discovery_type: discoveryType, columns: [], filters: [], window: {},
+            }).catch(() => null)));
+            warning = emptyScopeWarning(scope, allEmptyTables(scope, others, counts));
           }
+          setReadiness({ ...counted, scope, warning });
         }
       }
       if (stepId === 'results') {
@@ -795,7 +803,8 @@ export default function ImplementWizard({
   }, [spec.outputs.app, look, lookError, apiFetch]);
 
   useEffect(() => {
-    if (!spec.outputs.app || !['app_place', 'app_access'].includes(stepId) || warehouses !== null || warehousesError) return undefined;
+    const wanted = stepId === 'data' || (spec.outputs.app && ['app_place', 'app_access'].includes(stepId));
+    if (!wanted || warehouses !== null || warehousesError) return undefined;
     let cancelled = false;
     apiFetch('/api/warehouses')
       .then((data) => { if (!cancelled) setWarehouses(data.warehouses || []); })
@@ -1223,9 +1232,8 @@ export default function ImplementWizard({
                   )}
                 </div>
               ))}
-              <Field label="SQL warehouse id">
-                <input dir="auto" className={inputCls} value={spec.config.warehouse_id} onChange={(e) => patch('config.warehouse_id', e.target.value)} />
-              </Field>
+              <BuildWarehouseField value={spec.config.warehouse_id} warehouses={warehouses} warehousesError={warehousesError}
+                onChange={(value) => patch('config.warehouse_id', value)} />
               <div className="space-y-3">
                 <h4 className="text-[10px] font-bold uppercase tracking-[0.18em] text-text-tertiary">Run profiles</h4>
                 <div className="space-y-1">
@@ -1728,6 +1736,10 @@ export default function ImplementWizard({
         {lastStep && moveNote && (
           <p role="note" aria-label="Before you start" data-plan-move-note=""
             className="bg-warning-bg border border-warning/30 rounded-md px-3 py-2 text-xs font-medium text-warning-fg">{moveNote}</p>
+        )}
+        {readiness?.warning && (
+          <p role="note" aria-label="Rows to work with" data-empty-table-warning=""
+            className="bg-warning-bg border border-warning/30 rounded-md px-3 py-2 text-xs font-medium text-warning-fg">{readiness.warning}</p>
         )}
         {footerErrors.length > 0 && (
           <div role="alert" className="bg-error-bg border border-error/20 rounded-md px-3 py-2 space-y-0.5">
@@ -2324,12 +2336,38 @@ function AppBackendChoice({ spec, lakebase, onBackend, children = null }) {
   );
 }
 
+function BuildWarehouseField({ value, warehouses, warehousesError, onChange }) {
+  const id = String(value || '');
+  const note = warehouseListNote(warehouses, warehousesError);
+  const typed = Boolean(warehousesError) || (Array.isArray(warehouses) && !warehouses.length);
+  const state = warehouseStateNote(warehouses, id);
+  return (
+    <div data-build-warehouse={typed ? 'typed' : 'pick'} className="space-y-1">
+      {typed ? (
+        <Field label="SQL warehouse id">
+          <input dir="auto" className={inputCls} value={id} onChange={(e) => onChange(e.target.value.trim())} />
+        </Field>
+      ) : (
+        <Field label="SQL warehouse">
+          <select className={inputCls} value={id} disabled={warehouses === null} onChange={(e) => onChange(e.target.value)}>
+            {!id && <option value="">Pick a SQL warehouse</option>}
+            {warehouseOptions(warehouses, [id]).map((w) => (
+              <option key={w.id} value={w.id}>{warehouseOptionText(warehouses, w)}</option>
+            ))}
+          </select>
+        </Field>
+      )}
+      {note && <p data-build-warehouse-note="" className="text-[11px] text-warning-fg">{note}</p>}
+      {!note && state && <p data-build-warehouse-state="" className="text-[11px] text-text-tertiary">{state}</p>}
+    </div>
+  );
+}
+
 function AppWarehouseField({ spec, lakebase, warehouses, warehousesError, check, onWarehouse, label = '' }) {
   const build = String(spec.config.warehouse_id || '');
   const chosen = appWarehouseOf(spec);
   const listed = warehouses || [];
-  const options = [...(listed.some((w) => w.id === build) ? [] : [{ id: build }]),
-    ...(chosen !== build && !listed.some((w) => w.id === chosen) ? [{ id: chosen }] : []), ...listed].filter((w) => w.id);
+  const options = warehouseOptions(listed, [build, chosen]);
   return (
     <div data-app-warehouse="pick" className="space-y-0.5">
       <label className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
