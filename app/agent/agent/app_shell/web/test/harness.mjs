@@ -169,7 +169,7 @@ export const FILTERS = {
 
 export const NO_JOB = {
   has_job: false, source: 'table', last_success: null, last_run: null, active: null, overdue: false, cadence_days: null, data_through: null,
-  can_refresh: false, reason: 'This page has no job of its own, so the App cannot refresh it', run_url: '',
+  can_refresh: false, reason: 'The App does not refresh this page: it shows its tables as they are', run_url: '',
 };
 
 export const PERSON = ['pat.lee', 'example.com'].join('@');

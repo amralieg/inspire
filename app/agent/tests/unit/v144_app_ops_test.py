@@ -351,7 +351,7 @@ def test_freshness_falls_back_to_the_result_table_when_the_page_has_no_job(tmp_p
     s, _sp, _now = ops_shell(tmp_path, sp, settings=ops_settings(jobs={}))
     out = call(s, "GET", "freshness", query={"page": "n01_u05"}, headers=signed(DANA))[1]
     assert out["has_job"] is False and out["can_refresh"] is False and out["source"] == "table"
-    assert out["reason"] == "This page has no job of its own, so the App cannot refresh it"
+    assert out["reason"] == "The App does not refresh this page: it shows its tables as they are"
     assert out["last_success"] == {"run_id": "u3", "started": "2026-10-25T06:04:00.000Z", "ended": None, "trigger": None, "by": None}
     assert out["data_through"] == "2026-10-25" and out["run_url"] == "" and sp.calls == [] and out["typical_s"] is None
 
@@ -566,7 +566,7 @@ def test_refresh_refuses_the_anonymous_and_starts_for_a_signed_in_owner(tmp_path
 def test_refresh_needs_a_page_with_a_job_and_reports_a_refused_jobs_call(tmp_path):
     s, sp, _now = ops_shell(tmp_path, JobsWorkspace(), settings=ops_settings(jobs={}))
     status, out = call(s, "POST", "refresh", headers=signed(DANA), body={"page": "n01_u05"})
-    assert status == 409 and "no job of its own" in out["error"] and sp.calls == []
+    assert status == 409 and "does not refresh this page" in out["error"] and sp.calls == []
     assert call(s, "POST", "refresh", headers=signed(DANA), body={"page": "nope"})[0] == 404
     (tmp_path / "refused").mkdir()
     refused = shell_db.QueryError("GET /api/2.2/jobs/runs/list answered HTTP 403: the App may not view this job")

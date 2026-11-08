@@ -22,6 +22,7 @@ import {
   measured, moneyText, myWork, myWorkText, nothingReason, nothingText, ownerName, pageCurrency, pageKind, plural, reliableText, savedTile, scopeNoteText, scopedPages, tickOf, totals,
   useCaseState, viewIsDefault, viewRows, viewWords, visiblePages, weekBars, windowNoteText,
 } from './hub.js';
+import { PlainNote } from './ui.jsx';
 
 export const REVIEW_LABEL = 'Open in Inspire Review';
 
@@ -254,7 +255,7 @@ export default function Home({ app, hub, hubError, summaries, view, onView, onOp
       </div>
       {settingsOpen && <SettingsPanel pageId={null} data={null} onClose={() => setSettingsOpen(false)} />}
       <RunningNow pages={app.pages} hub={hub} onSeeChanged={onChanges} />
-      {hubError && <p className="tile-err" role="alert"><Icon name="info" size={14} />The Overview could not load: {hubError}</p>}
+      {hubError && <PlainNote text={hubError} prefix="The Overview could not load: " icon={<Icon name="info" size={14} />} className="tile-err" role="alert" />}
       {problems.map(([title, message]) => <p key={title} className="tile-err" role="alert"><Icon name="info" size={14} />{title} could not load: {message}</p>)}
       <Tiles tiles={tiles} loading={loading} />
       <ScopeNote pages={pages} summaries={summaries} />

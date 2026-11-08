@@ -4,7 +4,7 @@ import { applyTheme, hueVars, rememberPalette, storedPalette } from './theme.js'
 import { apiValues, initialFilterState } from './filters.js';
 import { AGENT_OPEN, EMPTY_LOOK, applyActions, changesView, visibleOf } from './agentView.js';
 import { GenieMark, Icon } from './icons.jsx';
-import { ToastProvider } from './ui.jsx';
+import { PlainNote, ToastProvider } from './ui.jsx';
 import Page from './Page.jsx';
 import { tabLabel } from './Layouts.jsx';
 import Home, { hubToday } from './Home.jsx';
@@ -53,7 +53,7 @@ function Fatal({ error }) {
     <div className="fatal" role="alert">
       <span className="mark-tile"><Icon name="info" size={18} /></span>
       <h1>{error.status === 401 ? 'Sign in to see this App' : 'This App could not start'}</h1>
-      <p>{error.message}</p>
+      <PlainNote text={error.message} />
     </div>
   );
 }

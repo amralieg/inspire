@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { getFreshness, refreshPage, toneOf } from './api.js';
 import { Icon } from './icons.jsx';
-import { useToast } from './ui.jsx';
+import { useToast, PlainNote } from './ui.jsx';
 import { runWrite, useWrite } from './saving.jsx';
 import { UNDO_MS } from './records.js';
 import {
@@ -138,7 +138,7 @@ export function FreshDetail({ freshness }) {
           {until && <span className="fresh-asof">{until}</span>}
         </span>
       )}
-      {reason && <small className="fresh-why" id={why}>{fresh.reason}</small>}
+      {reason && <PlainNote text={fresh.reason} as="small" className="fresh-why" id={why} />}
       {last && (
         <span className="fresh-note" data-last-run={last.result} data-tone={last.tone}><Icon name="info" size={13} />{last.text}</span>
       )}

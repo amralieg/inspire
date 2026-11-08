@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { draftMessage } from './api.js';
 import { Icon } from './icons.jsx';
 import { DRAFT_ATTEMPTS, DRAFT_COPIED, DRAFT_FAILED, DRAFT_MANUAL, recordsText } from './records.js';
-import { Skeleton, useDialog, useToast } from './ui.jsx';
+import { PlainNote, Skeleton, useDialog, useToast } from './ui.jsx';
 
 export async function copyText(text, box) {
   try {
@@ -63,7 +63,7 @@ export function DraftDialog({ pageId, keys, label, onClose }) {
         </header>
         {busy && !draft && <div style={{ display: 'grid', gap: 8 }} aria-busy="true" data-draft-busy><Skeleton height={18} /><Skeleton height={18} /><Skeleton height={18} width="60%" /></div>}
         {busy && draft && <p className="note note--flat" role="status" data-draft-busy>Writing a new draft…</p>}
-        {error && <p className="hint hint--box" role="alert" data-draft-error><Icon name="info" size={14} /><span>{DRAFT_FAILED}: {error}</span></p>}
+        {error && <PlainNote text={error} prefix={`${DRAFT_FAILED}: `} icon={<Icon name="info" size={14} />} as="p" className="hint hint--box" role="alert" data-draft-error />}
         {draft?.note && !busy && <p className="note note--flat" role="status" data-draft-note><Icon name="info" size={14} />{draft.note}</p>}
         {draft && (
           <label className="in"><span>Message</span>

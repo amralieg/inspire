@@ -3,7 +3,7 @@ import { actRecords, getBatches, getSimilar, toneOf, undoRecords } from './api.j
 import { withNotice } from './alerts.js';
 import { compareValues, countOf, integer, plainText } from './format.js';
 import { Icon } from './icons.jsx';
-import { Popover, SaidNote, useDialog, useToast } from './ui.jsx';
+import { Popover, SaidNote, useDialog, useToast, PlainNote } from './ui.jsx';
 import { SaveButton, runWrite, useWrite } from './saving.jsx';
 import { localDay, nextDay } from './prefs.js';
 import {
@@ -171,7 +171,7 @@ export function BulkBar({ picked, matching, total, capped = false, allOnPage, ow
             <label className="in">
               <span>Why are these not issues? *</span>
               <textarea dir="auto" name="bulk_dismiss_reason" autoFocus rows={2} maxLength={REASON_CHARS} value={reason} onChange={(e) => setReason(e.target.value)} aria-invalid={why ? true : undefined} />
-              {why && <small className="in-err">{why}</small>}
+              {why && <PlainNote text={why} as="small" className="in-err" />}
             </label>
             {note500}
             <SaveButton write="bulk:dismiss" type="submit" className="btn btn--pri" disabled={!!why}>Mark {what} not an issue</SaveButton>
@@ -196,7 +196,7 @@ export function BulkBar({ picked, matching, total, capped = false, allOnPage, ow
               <label className="in">
                 <span>Why are these not issues? *</span>
                 <textarea dir="auto" name="bulk_reason" rows={2} maxLength={REASON_CHARS} value={reason} onChange={(e) => setReason(e.target.value)} aria-invalid={problem ? true : undefined} />
-                {problem && <small className="in-err">{problem}</small>}
+                {problem && <PlainNote text={problem} as="small" className="in-err" />}
               </label>
             )}
             {note500}
@@ -284,7 +284,7 @@ export function SimilarDialog({ similar, onClose, onApply }) {
         {status === 'Dismissed' && (
           <label className="in"><span>Why are these not issues? *</span>
             <textarea dir="auto" name="similar_reason" rows={2} maxLength={REASON_CHARS} value={reason} onChange={(e) => setReason(e.target.value)} aria-invalid={problem ? true : undefined} />
-            {problem && <small className="in-err">{problem}</small>}
+            {problem && <PlainNote text={problem} as="small" className="in-err" />}
           </label>
         )}
         <NoteField name="similar_note" value={note} onChange={setNote} />
@@ -321,7 +321,7 @@ export function BatchesDialog({ pageId, onClose, onUndo, labelOf }) {
         </header>
         <div className="dlg-b">
           {state.busy && <p className="more">Loading the changes…</p>}
-          {state.error && <p className="tile-err" role="alert"><Icon name="info" size={14} />The changes could not load: {state.error}</p>}
+          {state.error && <PlainNote text={state.error} prefix="The changes could not load: " icon={<Icon name="info" size={14} />} className="tile-err" role="alert" />}
           {!state.busy && !state.error && !state.list.length && <p className="more">No change recorded on this list yet.</p>}
           {state.list.length > 0 && (
             <ul className="batches">

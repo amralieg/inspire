@@ -11,6 +11,7 @@ import { GENIE_ASK, genieAnswer, genieKey, genieOf, genieOn, paceText } from './
 import { AGENT_CHANGED, suggestions } from './agentView.js';
 import { AgentExtras, AgentSteps, confirmWrite } from './AgentParts.jsx';
 import { runWrite } from './saving.jsx';
+import { PlainNote } from './ui.jsx';
 
 const WORDS_PER_SECOND = 14;
 const AGENT_POLL_MS = 1000;
@@ -439,7 +440,7 @@ export default function GeniePanel({ app, genie, page, pages, onPick, onClose })
           <div key={m.n} className="msg msg--genie">
             <span className="msg-av"><GenieMark size={14} /></span>
             {m.state === 'running' && <div className="msg-b"><AgentSteps steps={m.steps} /><span className="g-step"><span className="dots"><i /><i /><i /></span>{m.step}…</span><Pace since={m.n} /></div>}
-            {m.state === 'failed' && <div className="msg-b">{m.calm ? <p className="note" role="status" data-calm>{m.error}</p> : <p className="g-err">{m.error}</p>}</div>}
+            {m.state === 'failed' && <div className="msg-b">{m.calm ? <PlainNote text={m.error} className="note" role="status" data-calm /> : <PlainNote text={m.error} className="g-err" />}</div>}
             {m.state === 'done' && <Answer message={m} url={info.url} onTick={tick} genie={genie} />}
           </div>
         )))}

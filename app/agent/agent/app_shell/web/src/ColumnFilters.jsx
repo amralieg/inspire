@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState } from 'react';
 import { Icon } from './icons.jsx';
-import { Popover } from './ui.jsx';
+import { Popover, PlainNote } from './ui.jsx';
 import { ChoicePopover } from './FilterBar.jsx';
 import { RANGE_EDGES, columnFilterOn, columnFilterText, columnFiltersOn, rangeProblem, rangeValue } from './filters.js';
 
@@ -28,7 +28,7 @@ function RangePopover({ anchor, filter, value, onChange, onClose }) {
       <form className="cf-form" onSubmit={submit} noValidate>
         {field('low', 'From')}
         {field('high', 'To')}
-        {problem && <small className="in-err" role="alert">{problem}</small>}
+        {problem && <PlainNote text={problem} as="small" className="in-err" role="alert" />}
         <div className="cf-acts">
           <button type="button" className="link" onClick={() => { onChange(null); onClose(); }}>Clear</button>
           <button type="submit" className="btn btn--pri" disabled={!!problem}>Apply</button>

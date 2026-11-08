@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { failureOf, getSettings, previewSetting, runSettingsNow, saveSetting, toneOf } from './api.js';
 import { dayLabel } from './format.js';
 import { Icon } from './icons.jsx';
-import { Failure, useToast } from './ui.jsx';
+import { Failure, useToast, PlainNote } from './ui.jsx';
 import { SaveButton, runWrite, useWrite } from './saving.jsx';
 import { groupsOf, historyLines, inputText, ownerSettings, savedText, settingProblem, storedText, valueText } from './settings.js';
 import { MyViewGroup } from './MyView.jsx';
@@ -92,7 +92,7 @@ function Editor({ pageId, setting, onSaved, onCancel }) {
       </label>
       <SaveButton write={`setting:${setting.name}`} type="submit" className="btn btn--pri" disabled={!!problem}><Icon name="check" size={14} />Save</SaveButton>
       <button type="button" className="btn" onClick={onCancel} disabled={saving}>Cancel</button>
-      {problem && text.trim() !== '' && <p className="err" role="alert">{problem}</p>}
+      {problem && text.trim() !== '' && <PlainNote text={problem} className="err" role="alert" />}
       {preview && <p className="preview" role="status" data-preview>{preview}</p>}
       <Failure failure={failure} className="err">{failure?.text}</Failure>
     </form>

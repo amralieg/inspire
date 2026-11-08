@@ -4,7 +4,7 @@ import {
   addedValues, changedValues, columnLabel, editableFields, formProblems, formValues, inputOf, isStaleRecord, suggestions, whenText, whoText,
 } from './records.js';
 import { Icon } from './icons.jsx';
-import { Failure, Skeleton, useDialog, useToast } from './ui.jsx';
+import { Failure, Skeleton, useDialog, useToast, PlainNote } from './ui.jsx';
 import { SaveButton, runWrite, useWrite } from './saving.jsx';
 
 function Field({ field, value, meta, problem, options, required, onChange }) {
@@ -18,7 +18,7 @@ function Field({ field, value, meta, problem, options, required, onChange }) {
       {spec.tag === 'textarea' && <textarea dir="auto" {...common} rows={spec.rows} />}
       {spec.tag === 'input' && <input dir="auto" {...common} type={spec.type} step={spec.step} inputMode={spec.inputMode} list={list} autoComplete="off" />}
       {list && <datalist id={list}>{options.map((v) => <option key={v} value={v} />)}</datalist>}
-      {problem && <small className="in-err">{problem}</small>}
+      {problem && <PlainNote text={problem} as="small" className="in-err" />}
     </label>
   );
 }
@@ -85,7 +85,7 @@ export default function RecordForm({ mode, target, meta, pageId, rows, onClose, 
         </header>
         <div className="dlg-b">
           {load.busy && <div className="fgrid">{[1, 2, 3, 4].map((i) => <Skeleton key={i} height={52} />)}</div>}
-          {load.error && <p className="tile-err" role="alert"><Icon name="info" size={14} />{load.error}</p>}
+          {load.error && <PlainNote text={load.error} icon={<Icon name="info" size={14} />} className="tile-err" role="alert" />}
           {gone && <p className="tile-err" role="alert"><Icon name="info" size={14} />{data.current ? `${whoText(data.current)} deleted this record on ${whenText(data.current.valid_from)}.` : 'This record is no longer current.'}</p>}
           {data && !gone && !fields.length && <p className="more">The result table has no column people can change here.</p>}
           {data && !gone && fields.length > 0 && (
@@ -147,7 +147,7 @@ export function DeleteDialog({ target, pageId, label, onClose, onSaved }) {
           <p>The record leaves the decision list. Its history keeps every version, with your name on the deletion.</p>
           {data?.current && !gone && <p className="dlg-meta"><Icon name="history" size={13} />Last change by {whoText(data.current)} on {whenText(data.current.valid_from)}</p>}
         </header>
-        {load.error && <p className="tile-err" role="alert"><Icon name="info" size={14} />{load.error}</p>}
+        {load.error && <PlainNote text={load.error} icon={<Icon name="info" size={14} />} className="tile-err" role="alert" />}
         {gone && <p className="tile-err" role="alert"><Icon name="info" size={14} />This record is already deleted.</p>}
         <Failure failure={failure} as="div" className="hint hint--box">
           <Icon name="info" size={14} /><span>{failure?.text}</span>

@@ -6,7 +6,7 @@ import { axisValue, formatValue, numberOf } from './format.js';
 import { chartPalette, reducedMotion } from './theme.js';
 import { Icon } from './icons.jsx';
 import { categoryLabels } from './layout.js';
-import { Skeleton, useDebounced, useToast } from './ui.jsx';
+import { Skeleton, useDebounced, useToast, PlainNote } from './ui.jsx';
 import { SaveButton, runWrite } from './saving.jsx';
 import { AskGenie } from './AskGenie.jsx';
 
@@ -86,7 +86,7 @@ function SaveScenario({ page, app, result, onSaved }) {
     <form className="scenario-save" onSubmit={submit} data-save>
       <label>Name this scenario<input dir="auto" required maxLength={80} value={name} onChange={(e) => setName(e.target.value)} /></label>
       <SaveButton write="scenario:save" className="btn btn--sm btn--pri" type="submit" disabled={!result || !name.trim()}>Save the scenario</SaveButton>
-      {error && <p className="tile-err" role="alert"><Icon name="info" size={12} />{error}</p>}
+      {error && <PlainNote text={error} icon={<Icon name="info" size={12} />} className="tile-err" role="alert" />}
     </form>
   );
 }
@@ -122,7 +122,7 @@ export default function ScenarioPanel({ page, app, ready, order, onSaved }) {
           <button type="button" className="btn btn--sm" onClick={() => setValues({})} disabled={!Object.keys(values).length}>Back to the base case</button>
           <AskGenie kind="scenario" title={scenario.title} context={{ hint: scenario.hint || '', fields: { ...levers, ...outcomeFields(result) } }} />
         </header>
-        {error && <p className="tile-err" role="alert"><Icon name="info" size={14} />{error}</p>}
+        {error && <PlainNote text={error} icon={<Icon name="info" size={14} />} className="tile-err" role="alert" />}
         {!result && !error && <div style={{ padding: 16 }}><Skeleton height={120} /></div>}
         {result && (
           <div className="levers">
