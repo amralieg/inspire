@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal, flushSync } from 'react-dom';
 import DataTable, { columnOf } from './DataTable.jsx';
 import { GenieMark, Icon } from './icons.jsx';
@@ -43,6 +43,9 @@ const NONE = new Map();
 const NO_ALIASES = {};
 const KEPT = new Map();
 const NO_PICKS = {};
+const FOOTER_CELLS = 6;
+const NARROW_FOOTER = 470;
+const NARROW_KEEP = ['done', 'dismiss', 'cannot'];
 const SOMEONE_ELSE = ' someone else';
 const SAVED = 'Action saved. The earlier version stays in the history.';
 const SAVE_WRITE = 'drawer:save';
@@ -298,7 +301,24 @@ function Drawer({ meta, row: given, onClose, history, canModify, tracker, owners
   const readOnly = closed && !!closedReadOnly;
   const [undoAsk, setUndoAsk] = useState(false);
   const [drafting, setDrafting] = useState(false);
+  const [more, setMore] = useState(false);
+  const [foot, setFoot] = useState(null);
+  const [narrow, setNarrow] = useState(false);
+  useLayoutEffect(() => {
+    if (!foot) return undefined;
+    const read = () => setNarrow(foot.getBoundingClientRect().width < NARROW_FOOTER);
+    read();
+    const watch = new ResizeObserver(read);
+    watch.observe(foot);
+    return () => watch.disconnect();
+  }, [foot]);
   useEffect(() => { setUndoAsk(false); }, [linkKey, undoBatch]);
+  useEffect(() => { setMore(false); }, [linkKey]);
+  const modify = canModify && !deleted && !readOnly;
+  const modifyButtons = [
+    <button key="delete" className="btn" onClick={() => onDelete(row)}><Icon name="trash" size={14} />Delete</button>,
+    <button key="edit" className={`btn ${acting && !closed ? '' : 'btn--pri'}`} onClick={() => onEdit(row)}><Icon name="edit" size={14} />Edit</button>,
+  ];
   useEffect(() => { setDrafting(false); }, [linkKey]);
   const closing = (log.data?.fields || []).some((f) => f.name === 'realized_value');
   const unit = unitOf(model);
@@ -413,30 +433,44 @@ function Drawer({ meta, row: given, onClose, history, canModify, tracker, owners
               </section>
             )}
           </div>
-          <footer className="panel-f dr-f" data-toast-host>
+          <footer ref={setFoot} className="panel-f dr-f" data-toast-host data-narrow={narrow || undefined}>
             <Failure failure={action.failure} as="div" className="hint hint--box">
               <Icon name="info" size={14} /><span>{action.failure?.text}</span>
               {action.failure?.stale && <button type="button" className="link" onClick={() => log.reload().catch(() => {})}><Icon name="undo" size={13} />Reload the record</button>}
             </Failure>
             {work && <WorkBar key={linkKey} work={work} action={action} tomorrow={tomorrow} canAct={acting} />}
-            {acting && !work && !closed && (
-              <>
-                <SaveButton write="drawer:done" className="btn btn--pri" onClick={() => action.save({ ...action.form, status: 'Done' }, 'Marked done. The next run checks whether it worked.', 'drawer:done')}
-                  data-key="d" data-act="done"><Icon name="check" size={15} />Mark done</SaveButton>
-                <button className="btn" onClick={dismiss} disabled={action.saving} data-act="dismiss">Not an issue</button>
-                <SaveButton write="drawer:cannot" onClick={() => action.save({ ...action.form, status: 'Could not fix' }, 'Marked as could not fix. The next run still checks it.', 'drawer:cannot')}
-                  >Could not fix</SaveButton>
-                <select className="btn" aria-label="Give to someone" value="" onChange={giveTo} disabled={action.saving} aria-busy={action.mine(GIVE_WRITE) || undefined}>
-                  <option value="">{action.mine(GIVE_WRITE) ? savingLabel(action.slow) : owner ? `With ${owner}` : 'Give to someone'}</option>
-                  {person && person !== owner && <option value={person}>Give to me</option>}
-                  {owners.filter((o) => o !== owner && o !== person).map((o) => <option key={o} value={o}>Give to {o}</option>)}
-                  <option value={SOMEONE_ELSE}>Someone else…</option>
-                </select>
-                <SnoozeButton action={action} tomorrow={tomorrow} />
-                <button type="button" className="btn" onClick={() => setDrafting(true)} data-act="draft"><Icon name="send" size={14} />{DRAFT_LABEL}</button>
-                {genieOn(app, pageId) && <button type="button" className="btn" onClick={() => ask(fixQuestion(title))} data-act="genie"><GenieMark size={14} />Ask Genie to fix</button>}
-              </>
-            )}
+            {acting && !work && !closed && (() => {
+              const cells = [
+                <SaveButton key="done" write="drawer:done" className="btn btn--pri" onClick={() => action.save({ ...action.form, status: 'Done' }, 'Marked done. The next run checks whether it worked.', 'drawer:done')}
+                  data-key="d" data-act="done"><Icon name="check" size={15} />Mark done</SaveButton>,
+                <button key="dismiss" className="btn" onClick={dismiss} disabled={action.saving} data-act="dismiss">Not an issue</button>,
+                <SaveButton key="cannot" write="drawer:cannot" onClick={() => action.save({ ...action.form, status: 'Could not fix' }, 'Marked as could not fix. The next run still checks it.', 'drawer:cannot')}
+                  >Could not fix</SaveButton>,
+                <SnoozeButton key="snooze" action={action} tomorrow={tomorrow} />,
+                <button key="draft" type="button" className="btn" onClick={() => setDrafting(true)} data-act="draft"><Icon name="send" size={14} />{DRAFT_LABEL}</button>,
+                genieOn(app, pageId) && <button key="genie" type="button" className="btn" onClick={() => ask(fixQuestion(title))} data-act="genie"><GenieMark size={14} />Ask Genie to fix</button>,
+                ...(modify ? modifyButtons : []),
+              ].filter(Boolean);
+              const folded = narrow ? cells.length > NARROW_KEEP.length + 1 : cells.length > FOOTER_CELLS;
+              const draft = narrow && cells.find((c) => c.key === 'draft');
+              const kept = !folded ? cells : narrow ? cells.filter((c) => NARROW_KEEP.includes(c.key)) : cells.slice(0, FOOTER_CELLS - 1);
+              const rest = cells.filter((c) => !kept.includes(c) && c !== draft);
+              return (
+                <>
+                  {kept.slice(0, 2)}
+                  <select className="btn" aria-label="Give to someone" value="" onChange={giveTo} disabled={action.saving} aria-busy={action.mine(GIVE_WRITE) || undefined}>
+                    <option value="">{action.mine(GIVE_WRITE) ? savingLabel(action.slow) : owner ? `With ${owner}` : 'Give to someone'}</option>
+                    {person && person !== owner && <option value={person}>Give to me</option>}
+                    {owners.filter((o) => o !== owner && o !== person).map((o) => <option key={o} value={o}>Give to {o}</option>)}
+                    <option value={SOMEONE_ELSE}>Someone else…</option>
+                  </select>
+                  {kept.slice(2)}
+                  {folded && <button type="button" className="btn" aria-expanded={more} onClick={() => setMore(!more)} data-act="more"><Icon name="dots" size={14} />{more ? 'Fewer' : 'More'}</button>}
+                  {folded && draft}
+                  {folded && more && rest}
+                </>
+              );
+            })()}
             {undoBatch && !work && !undoAsk && (
               <button type="button" className="btn" onClick={() => setUndoAsk(true)} data-undo-close><Icon name="undo" size={14} />Undo this change</button>
             )}
@@ -448,13 +482,8 @@ function Drawer({ meta, row: given, onClose, history, canModify, tracker, owners
               </div>
             )}
             <span className="sp" />
-            {canModify && !deleted && !readOnly && (
-              <>
-                <button className="btn" onClick={() => onDelete(row)}><Icon name="trash" size={14} />Delete</button>
-                <button className={`btn ${acting && !closed ? '' : 'btn--pri'}`} onClick={() => onEdit(row)}><Icon name="edit" size={14} />Edit</button>
-              </>
-            )}
-            {!(canModify && !deleted && !readOnly) && !(acting && !closed) && <button className="btn" onClick={onClose}>Close</button>}
+            {modify && !(acting && !work && !closed) && modifyButtons}
+            {!modify && !(acting && !closed) && <button className="btn" onClick={onClose}>Close</button>}
           </footer>
         </div>
       )}

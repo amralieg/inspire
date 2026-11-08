@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
 import { build } from 'vite';
 import react from '@vitejs/plugin-react';
-import { CURRENT, DECIDE, F, FIELDS, FILTERS, HISTORY, LABEL, OTHER, PERSON, ROWS, SUMMARY, TABLE, actBody, appInfo, holdClock, idle, lister, openApp, serveDist, tracked, until } from './harness.mjs';
+import { CURRENT, DECIDE, F, FIELDS, FILTERS, HISTORY, LABEL, OTHER, PERSON, ROWS, SUMMARY, TABLE, actBody, appInfo, holdClock, idle, lister, openApp, serveDist, tracked, until, footerActions } from './harness.mjs';
 import { actOutcome, actedText, actionForm, actionProblem, actionValues, changeBadge, explainContext, impactText, leftText, pageText, recordRef, undoText }
   from '../src/records.js';
 import { matching, searchHint } from '../src/filters.js';
@@ -726,7 +726,7 @@ test('the record panel shows the saving with its formula, why the AI flagged it,
   assert.deepEqual(await panel.locator('.panel-b > section h3').allInnerTexts(),
     ['Could save', 'Why it is flagged', 'How sure the AI is', 'Next best action', 'Action', 'Add a note', 'Ask Genie about this', 'Details', 'History']);
   assert.match(await panel.locator('.hist-i').first().innerText(), /No value changed\./, 'a new AI reason is never shown as a business change');
-  assert.deepEqual(await panel.locator('.panel-f > button').allInnerTexts(), ['Mark done', 'Not an issue', 'Could not fix', 'Snooze…', 'Draft Message to Someone', 'Ask Genie to fix']);
+  assert.deepEqual(await footerActions(panel), ['Mark done', 'Not an issue', 'Could not fix', 'Snooze…', 'Draft Message to Someone', 'Ask Genie to fix'].sort(), 'every drawer action can be reached');
   assert.deepEqual(await panel.getByLabel('Give to someone').locator('option').allInnerTexts(),
     [`With ${PERSON}`, `Give to ${OTHER}`, 'Someone else…']);
   const ask = panel.getByRole('region', { name: 'Ask Genie about this' });
