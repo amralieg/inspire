@@ -163,9 +163,9 @@ def test_a_service_principal_without_modify_says_who_must_grant_it(tmp_path):
 
 def test_the_feedback_queries_bind_every_value():
     page = {"result_table": "main.pricing.loss_desk_out", "use_case_id": "N01-U05"}
-    sql, params = shell_sql.feedback_query(page, "Pat@X.com", 50)
+    sql, params = shell_sql.feedback_query(page, SAM.upper(), 50)
     assert sql.endswith("WHERE `use_case_id` = :p1 AND lower(`reported_by`) = :p0 ORDER BY `reported_at` DESC LIMIT 50")
-    assert ":p0" in sql and ":p1" in sql and "pat@x.com" not in sql and {p["value"] for p in params} == {"pat@x.com", "N01-U05"}
+    assert ":p0" in sql and ":p1" in sql and SAM not in sql and {p["value"] for p in params} == {SAM, "N01-U05"}
     with pytest.raises(ValueError):
         shell_sql.feedback_table({"result_table": "main.pricing.x` ; DROP TABLE y; --"})
     assert shell_sql.feedback_table({"result_table": "main.pricing.x; DROP TABLE y"}) == "`main`.`pricing`.`x; DROP TABLE y_feedback`"
