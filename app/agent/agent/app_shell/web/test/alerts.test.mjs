@@ -284,7 +284,8 @@ test('Notify me in Settings opens the Alerts section when alerts are on, the rai
   await page.getByRole('button', { name: 'Notify me' }).click();
   await page.locator('section.alerts').waitFor();
   assert.equal(new URL(page.url()).hash, '#/n01_u05/alerts');
-  assert.equal(await page.locator('[data-rail="alerts"]').getAttribute('aria-current'), 'page');
+  assert.equal(await page.locator('[data-rail="alerts"]').count(), 0, 'the alerts sit under Runs, so the rail has no Alerts item');
+  assert.equal(await page.locator('[data-rail="runs"]').getAttribute('aria-current'), 'page');
   await page.locator('[data-rail="dashboard"]').click();
   await page.locator('section.alerts').waitFor({ state: 'detached' });
   assert.equal(new URL(page.url()).hash, '#/n01_u05/dashboard');
