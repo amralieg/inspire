@@ -400,3 +400,19 @@ def test_feedback_on_an_answer_that_used_genie_goes_to_the_genie_agent(tmp_path)
     status, out = call(s, "POST", "agent/feedback", headers=EDITOR, body={"turn_id": turn["turn_id"], "rating": "NEGATIVE"})
     assert status == 200 and out == {"rating": "NEGATIVE", "genie": True} and ws.feedback == [("01f0aa11bb22cc33", "c1", "m1", "NEGATIVE")]
     assert call(s, "POST", "agent/feedback", headers=EDITOR, body={"turn_id": turn["turn_id"], "rating": "GREAT"})[0] == 400
+
+
+def test_the_agent_is_told_a_view_change_lasts_until_the_page_reloads(tmp_path):
+    llm = FakeLLM([tool_call("change_view", {"actions": [{"type": "sort", "target": "records", "key": "value", "dir": "desc"}]}),
+                   said("Sorted by value, largest first, until the page reloads.")], related=topic_of)
+    s, ws, _made = agent_shell(tmp_path, ws=AgentWorkspace(llm=llm))
+    turn = ask(s, "Always show this list sorted by value, and keep it that way next time I open the page.")
+    assert turn["state"] == "done"
+    last = llm.main_calls()[-1]
+    system = last["messages"][0]["content"]
+    assert "lasts until the page reloads: never say it stays, is remembered or becomes the default" in system
+    assert "Save this view under Saved views" in system
+    tool = [m for m in last["messages"] if m["role"] == "tool"][0]["content"]
+    assert "they last until the page reloads" in tool and "Save this view under Saved views keeps them" in tool
+    view_tool = [t for t in llm.main_calls()[0]["tools"] if t["function"]["name"] == "change_view"][0]
+    assert "lasts until the page reloads" in view_tool["function"]["description"]
