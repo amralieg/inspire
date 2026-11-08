@@ -1,27 +1,17 @@
 import { useState } from 'react';
-import { BarsCard } from './ChartCard.jsx';
-import { RunningNow } from './Freshness.jsx';
-import { TopTools } from './TopBar.jsx';
-import { Tiles } from './Kpis.jsx';
-import FilterBar from './FilterBar.jsx';
 import DataTable, { RowGenie } from './DataTable.jsx';
 import { fieldsOf, tableContext } from './explain.js';
 import { AskGenie } from './AskGenie.jsx';
 import { genieOn } from './genieAsk.js';
 import { hueVars } from './theme.js';
-import { addCounts, compact, compareValues, countOf, integer, largestFirst, money, stakeName, wholeMoney } from './format.js';
+import { compact, compareValues, countOf, integer, money, stakeName, wholeMoney } from './format.js';
 import { Icon } from './icons.jsx';
 import { NOT_IN_RUN, missingSince, statusClass, statusLabel } from './records.js';
 import Fx from './Fx.jsx';
 import { moneyOf } from './money.js';
-import { FoldScope, WindowChips, useMyView } from './MyView.jsx';
+import { WindowChips, useMyView } from './MyView.jsx';
 import { pickedWindow } from './prefs.js';
-import SettingsPanel, { SettingsButton } from './Settings.jsx';
-import {
-  DEFAULT_VIEW, NOT_MEASURED, REVIEW, WORK_SHOWN, couldSaveFormula, couldSaveText, doneDay, doneTodayOf, dueText, hubItems, limitText, initialsOf, isMine, isOverdue,
-  measured, moneyText, myWork, myWorkText, nothingReason, nothingText, ownerName, pageCurrency, pageKind, plural, reliableText, savedTile, scopeNoteText, scopedPages, tickOf, totals,
-  useCaseState, viewIsDefault, viewRows, viewWords, visiblePages, weekBars, windowNoteText,
-} from './hub.js';
+import { NOT_MEASURED, REVIEW, WORK_SHOWN, doneDay, doneTodayOf, dueText, hubItems, limitText, initialsOf, isMine, measured, myWork, myWorkText, ownerName, pageCurrency, pageKind, scopeNoteText, scopedPages, tickOf, visiblePages, weekBars, windowNoteText } from './hub.js';
 
 export const REVIEW_LABEL = 'Open in Inspire Review';
 
@@ -87,28 +77,6 @@ export function weekCard(pairs, pages, summaries, loading, hint) {
     })),
     empty: currencies.size > 1 ? 'The use cases save in different currencies or units, so the weeks are not added up.' : NOT_MEASURED,
   };
-}
-
-function useCaseBars(rows) {
-  const by = new Map();
-  rows.forEach((r) => {
-    const at = by.get(r.page.id) || { key: r.page.id, label: r.page.title, hue: r.page.hue || 'blue', value: 0, currency: r.currency, kind: r.kind, priced: false };
-    if (r.money != null) at.priced = true;
-    at.value = addCounts([at.value, r.money]);
-    by.set(r.page.id, at);
-  });
-  return [...by.values()].filter((b) => b.priced).sort((a, b) => largestFirst(a.value, b.value)).map((b) => ({
-    ...b, text: wholeMoney(b.value, b.currency, b.kind), formula: couldSaveFormula(rows.filter((r) => r.page.id === b.key), ` in ${b.label}`),
-  }));
-}
-
-function quietUseCases(pages, hub, summaries) {
-  return pages.map((page) => {
-    const entry = hub?.pages?.[page.id];
-    const state = useCaseState(entry, summaries?.[page.id]);
-    if (state.unreliable) return { page, text: reliableText(state.reason) };
-    return { page, text: ['fix', 'wait'].includes(state.kind) ? nothingText(nothingReason(entry, summaries?.[page.id])) : '' };
-  }).filter((q) => q.text);
 }
 
 function ThingMoney({ r }) {
@@ -218,76 +186,4 @@ export function YourWork({ items, user, today, loading, failed, owners, partial,
       )}
     </section>
   );
-}
-
-export default function Home({ app, hub, hubError, summaries, view, onView, onOpen, onRecord, onChanges, onMyWork }) {
-  const [settingsOpen, setSettingsOpen] = useState(false);
-  const pages = visiblePages(app.pages, hub);
-  const entries = pages.map((p) => hub?.pages?.[p.id]).filter(Boolean);
-  const pairs = pages.filter((p) => hub?.pages?.[p.id]).map((p) => [p.id, hub.pages[p.id]]);
-  const items = hubItems(pages, hub, summaries);
-  const { owned, fix, shown } = viewRows(items, view, app.user);
-  const today = hubToday(hub);
-  const loading = !hub && !hubError;
-  const priced = entries.some((e) => e.tracked && e.money);
-  const tracked = entries.some((e) => e.tracked);
-  const mine = fix.filter((i) => isMine(i.owner, app.user)).length;
-  const late = owned.filter((i) => isOverdue(i, today)).length;
-  const tiles = [
-    { id: 'fix', label: 'To fix', value: integer(fix.length), sub: fix.length ? `${mine} of them ${mine === 1 ? 'is' : 'are'} yours` : 'Nothing to fix right now' },
-    { id: 'save', label: 'Could save', value: priced ? moneyText(totals(fix)) : NOT_MEASURED, sub: priced ? couldSaveText(fix) : 'No use case puts an amount at stake on its records yet', tone: priced ? 'green' : '',
-      formula: priced ? couldSaveFormula(fix) : '' },
-    { id: 'late', label: 'Overdue', value: tracked ? integer(late) : NOT_MEASURED, sub: tracked ? 'past their due date' : 'No use case keeps due dates yet', tone: late ? 'red' : '' },
-    { id: 'saved', label: 'Saved this quarter', ...savedTile(pairs, pages, summaries, 'saved_q', hub?.quarter) },
-  ];
-  const weeks = weekCard(pairs, pages, summaries, loading, 'Measured on fixes a later run confirmed, by week');
-  const problems = Object.entries(hub?.errors || {}).map(([id, message]) => [app.pages.find((p) => p.id === id)?.title || id, message]);
-  const cut = pairs.filter(([, e]) => e.truncated).map(([id, e]) => [app.pages.find((p) => p.id === id)?.title || id, e]);
-  const quiet = loading ? [] : quietUseCases(pages, hub, summaries);
-  const body = (
-    <div className="page hub">
-      <TopTools more={[{ label: 'Settings', icon: <Icon name="sliders" size={14} />, run: () => setSettingsOpen((o) => !o), more: 'narrow' }]}>
-        <SettingsButton open={settingsOpen} onOpen={setSettingsOpen} owned={false} />
-      </TopTools>
-      <div className="pg-h">
-        <div><h1>Overview</h1><p>Everything across your use cases, yours first, then the biggest saving.</p></div>
-      </div>
-      {settingsOpen && <SettingsPanel pageId={null} data={null} onClose={() => setSettingsOpen(false)} />}
-      <RunningNow pages={app.pages} hub={hub} onSeeChanged={onChanges} />
-      {hubError && <p className="tile-err" role="alert"><Icon name="info" size={14} />The Overview could not load: {hubError}</p>}
-      {problems.map(([title, message]) => <p key={title} className="tile-err" role="alert"><Icon name="info" size={14} />{title} could not load: {message}</p>)}
-      <Tiles tiles={tiles} loading={loading} />
-      <ScopeNote pages={pages} summaries={summaries} />
-      <YourWork {...yourWorkProps(app, hub, hubError, summaries)} onRecord={onRecord} onMore={onMyWork} />
-      <FilterBar view={view} onView={onView} />
-      <section className="charts">
-        <BarsCard id="by_use_case" title="Could save, by use case" action="Click a bar to open the use case" loading={loading} onPick={onOpen}
-          bars={priced ? useCaseBars(fix) : []} empty={priced ? 'Nothing to fix for these filters.' : NOT_MEASURED}
-          x="Use case" measure="Could save" filters={viewWords(view)} />
-        <BarsCard {...weeks} />
-      </section>
-      <HubExplainNote app={app} />
-      <section className="card card--table" aria-label="Things to fix">
-        <header className="card-h">
-          <div><h2>Things to fix</h2><p>Click one to see why it was flagged and what to do</p></div>
-          <AskGenie kind="table" title="Things to fix" context={tableContext('The records to fix across the use cases, for these filters.', shown, (r) => fieldsOf(r, thingColumns(today, false)))} />
-        </header>
-        {cut.map(([title, e]) => <p key={title} className="more">Showing the {integer(e.items.length)} biggest of {e.total_more ? 'at least ' : ''}{integer(e.total)} in {title}.</p>)}
-        {loading ? <p className="more">Loading the things to fix…</p>
-          : <Things rows={shown} today={today} user={app.user} onRecord={onRecord} genie={(id) => genieOn(app, id)} filtered={!viewIsDefault(view)} onClear={() => onView(DEFAULT_VIEW)} />}
-      </section>
-      {quiet.length > 0 && (
-        <section className="card card--table" aria-label="Nothing to act on yet">
-          <header className="card-h">
-            <div><h2>Nothing to act on yet</h2><p>{plural(quiet.length, 'use case')} with nothing to fix, and why</p></div>
-            <AskGenie kind="table" title="Nothing to act on yet" context={tableContext('The use cases with nothing to fix, and why.', quiet, (q) => ({ 'Use case': q.page.title, Why: q.text }))} />
-          </header>
-          <div className="nothing">
-            {quiet.map(({ page, text }) => <p key={page.id} data-nothing={page.id}><UseCaseName page={page} /> {text}</p>)}
-          </div>
-        </section>
-      )}
-    </div>
-  );
-  return <FoldScope pageId="overview">{body}</FoldScope>;
 }

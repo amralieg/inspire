@@ -13,7 +13,7 @@ const META = [
   { id: 'category', type: 'multi_select', label: 'Category', options: ['Books', 'Music', 'Home', 'Garden', 'Toys', 'Sports', 'مكتبة'] },
   { id: 'region', type: 'multi_select', label: 'Region', options: ['North', 'South'] },
 ];
-const VIEWS = ['overview', 'runs', 'alerts'];
+const VIEWS = ['dashboard', 'runs', 'alerts'];
 const b64 = (text) => Buffer.from(text, 'utf8').toString('base64url');
 const store = (initial) => {
   const data = new Map(initial == null ? [] : [[VIEWS_KEY, initial]]);
@@ -22,9 +22,11 @@ const store = (initial) => {
 const picked = (sel, range = { run_date: { preset: '12m', from: '2025-11-01', to: '2026-10-15' } }) => ({ range, sel });
 
 test('the hash splits into the page, its view and its filters, and old links keep only the page', () => {
-  assert.deepEqual(parseHash('#/n01_u05'), { route: 'n01_u05', v: null, f: null, rec: null, changed: false, present: false });
-  assert.deepEqual(parseHash('#/n01_u05?v=runs&f=abc'), { route: 'n01_u05', v: 'runs', f: 'abc', rec: null, changed: false, present: true });
-  assert.deepEqual(parseHash('#n01_u05?f=x'), { route: 'n01_u05', v: null, f: 'x', rec: null, changed: false, present: true });
+  assert.deepEqual(parseHash('#/n01_u05'), { route: 'n01_u05', section: '', tab: '', v: null, f: null, rec: null, changed: false, present: false });
+  assert.deepEqual(parseHash('#/n01_u05?v=runs&f=abc'), { route: 'n01_u05', section: '', tab: '', v: 'runs', f: 'abc', rec: null, changed: false, present: true });
+  assert.deepEqual(parseHash('#n01_u05?f=x'), { route: 'n01_u05', section: '', tab: '', v: null, f: 'x', rec: null, changed: false, present: true });
+  assert.deepEqual(parseHash('#/n01_u05/work?tab=done&f=x'), { route: 'n01_u05', section: 'work', tab: 'done', v: null, f: 'x', rec: null, changed: false, present: true });
+  assert.equal(parseHash('#/n01_u05/runs').present, false, 'a section alone keeps the filters already picked');
   assert.equal(parseHash('').route, '');
   assert.equal(parseHash(undefined).route, '');
   assert.equal(parseHash('#/home').route, 'home');
@@ -59,10 +61,12 @@ test('the compact state keeps only what differs from the defaults', () => {
 test('a link round trips through the hash', () => {
   const state = picked({ category: ['Music', 'مكتبة'] }, { run_date: { preset: 'custom', from: '2025-02-01', to: '2025-04-30' } });
   const hash = buildHash('n01_u05', 'alerts', state, META);
-  assert.match(hash, /^#\/n01_u05\?v=alerts&f=[A-Za-z0-9_-]+$/);
+  assert.match(hash, /^#\/n01_u05\/alerts\?f=[A-Za-z0-9_-]+$/);
   assert.deepEqual(readLink(parseHash(hash), META, VIEWS), { state, view: 'alerts', dropped: false });
-  assert.equal(buildHash('n01_u05', 'overview', initialFilterState(META), META), '#/n01_u05');
-  assert.equal(buildHash('n01_u05', 'runs', initialFilterState(META), META), '#/n01_u05?v=runs');
+  assert.equal(buildHash('n01_u05', 'overview', initialFilterState(META), META), '#/n01_u05/dashboard', 'the old Overview view is the dashboard');
+  assert.equal(buildHash('n01_u05', 'runs', initialFilterState(META), META), '#/n01_u05/runs');
+  assert.equal(buildHash('n01_u05', 'work', initialFilterState(META), META, null, undefined, 'done'), '#/n01_u05/work?tab=done');
+  assert.equal(buildHash('n01_u05', 'runs', initialFilterState(META), META, null, undefined, 'done'), '#/n01_u05/runs', 'only Work keeps a tab');
 });
 
 test('a link to one record keeps its key next to the view and filters', () => {
@@ -72,7 +76,7 @@ test('a link to one record keeps its key next to the view and filters', () => {
   assert.equal(back.rec, 'R 7/&x');
   assert.equal(back.route, 'n01_u05');
   assert.deepEqual(readLink(back, META, VIEWS), { state, view: 'runs', dropped: false });
-  assert.equal(buildHash('n01_u05', 'overview', null, [], 'k1'), '#/n01_u05?rec=k1');
+  assert.equal(buildHash('n01_u05', 'overview', null, [], 'k1'), '#/n01_u05/dashboard?rec=k1');
   assert.equal(parseHash('#/n01_u05?rec=').rec, '');
   assert.equal(parseHash('#/n01_u05?v=runs').present, true);
   assert.equal(parseHash('#/n01_u05?rec=k1').present, false);
@@ -120,25 +124,25 @@ test('a link that is not an object or names an unknown view falls back to the de
   assert.deepEqual(restoreFilters(null, META), { state: initialFilterState(META), dropped: true });
   assert.deepEqual(restoreFilters([1], META), { state: initialFilterState(META), dropped: true });
   assert.deepEqual(restoreView('runs', VIEWS), { view: 'runs', dropped: false });
-  assert.deepEqual(restoreView(null, VIEWS), { view: 'overview', dropped: false });
-  assert.deepEqual(restoreView('pivot', VIEWS), { view: 'overview', dropped: true });
-  assert.deepEqual(restoreView('runs', ['overview']), { view: 'overview', dropped: true });
-  assert.deepEqual(restoreView('trend', VIEWS), { view: 'overview', dropped: true }, 'the Trend tab is gone, so an old link to it opens Things to fix');
-  assert.deepEqual(readLink(parseHash('#/p?f=%%%'), META, VIEWS), { state: initialFilterState(META), view: 'overview', dropped: true });
+  assert.deepEqual(restoreView(null, VIEWS), { view: 'dashboard', dropped: false });
+  assert.deepEqual(restoreView('pivot', VIEWS), { view: 'dashboard', dropped: true });
+  assert.deepEqual(restoreView('runs', ['dashboard']), { view: 'dashboard', dropped: true });
+  assert.deepEqual(restoreView('trend', VIEWS), { view: 'dashboard', dropped: true }, 'the Trend tab is gone, so an old link to it opens Things to fix');
+  assert.deepEqual(readLink(parseHash('#/p?f=%%%'), META, VIEWS), { state: initialFilterState(META), view: 'dashboard', dropped: true });
   assert.deepEqual(readLink(parseHash(`#/p?f=${b64('[1]')}`), META, VIEWS).dropped, true);
-  assert.deepEqual(readLink(parseHash('#/p?v='), META, VIEWS).dropped, true);
+  assert.deepEqual(readLink(parseHash('#/p?v='), META, VIEWS).dropped, false, 'an empty view is the dashboard');
   assert.deepEqual(readLink(parseHash('#/p?v=runs'), META, VIEWS), { state: initialFilterState(META), view: 'runs', dropped: false });
   assert.deepEqual(readLink(parseHash(`#/p?v=trend&f=${encodeFilters({ s: { region: ['South'] } })}`), META, VIEWS),
-    { state: picked({ region: ['South'] }), view: 'overview', dropped: true }, 'an old Trend link keeps its filters and opens Things to fix');
+    { state: picked({ region: ['South'] }), view: 'dashboard', dropped: true }, 'an old Trend link keeps its filters and opens Things to fix');
 });
 
 test('a saved view restores through the same checks as a link', () => {
   assert.deepEqual(readSaved({ name: 'Mine', view: 'runs', filters: { s: { region: ['South'] } } }, META, VIEWS), { state: picked({ region: ['South'] }), view: 'runs', dropped: false });
   assert.equal(readSaved({ name: 'Old', view: 'runs', filters: { s: { region: ['West'] } } }, META, VIEWS).dropped, true);
   assert.deepEqual(readSaved({ name: 'Old trend', view: 'trend', filters: { s: { region: ['South'] } } }, META, VIEWS),
-    { state: picked({ region: ['South'] }), view: 'overview', dropped: true }, 'a view saved on the Trend tab opens Things to fix with its filters');
-  assert.ok(sameView({ view: 'overview', filters: { s: { region: ['South'] } } }, { view: undefined, filters: { s: { region: ['South'] } } }));
-  assert.ok(!sameView({ view: 'runs', filters: {} }, { view: 'overview', filters: {} }));
+    { state: picked({ region: ['South'] }), view: 'dashboard', dropped: true }, 'a view saved on the Trend tab opens Things to fix with its filters');
+  assert.ok(sameView({ view: 'dashboard', filters: { s: { region: ['South'] } } }, { view: undefined, filters: { s: { region: ['South'] } } }));
+  assert.ok(!sameView({ view: 'runs', filters: {} }, { view: 'dashboard', filters: {} }));
 });
 
 test('the filters read as words for print', () => {
@@ -184,7 +188,7 @@ test('corrupt saved views in storage are ignored safely', () => {
     q: 'not a list',
     r: [],
   });
-  assert.deepEqual(readViews(store(mixed)), { p: [{ name: 'Good', view: 'runs', filters: { s: { region: ['North'] } } }, { name: 'Bare', view: 'overview', filters: {} }] });
+  assert.deepEqual(readViews(store(mixed)), { p: [{ name: 'Good', view: 'runs', filters: { s: { region: ['North'] } } }, { name: 'Bare', view: 'dashboard', filters: {} }] });
   const many = JSON.stringify({ p: Array.from({ length: 25 }, (_, i) => ({ name: `V${i}` })) });
   assert.equal(readViews(store(many)).p.length, 20);
 });

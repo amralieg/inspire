@@ -4,35 +4,27 @@ import { applyTheme, hueVars, rememberPalette, storedPalette } from './theme.js'
 import { apiValues, initialFilterState } from './filters.js';
 import { AGENT_OPEN, EMPTY_LOOK, applyActions, changesView, visibleOf } from './agentView.js';
 import { GenieMark, Icon } from './icons.jsx';
-import { ToastProvider } from './ui.jsx';
-import Page from './Page.jsx';
-import { tabLabel } from './Layouts.jsx';
-import Home, { hubToday } from './Home.jsx';
+import { ToastProvider, useToast } from './ui.jsx';
+import Page, { SECTION_TITLES } from './Page.jsx';
+import { isQueue, pageSections } from './Layouts.jsx';
 import Impact from './Impact.jsx';
 import MyWorkPage from './MyWorkPage.jsx';
 import { MY_WORK_ROUTE } from './mywork.js';
-import Admin, { AdminLink } from './Admin.jsx';
+import Admin from './Admin.jsx';
 import { ADMIN_ROUTE } from './admin.js';
 import GeniePanel, { useGenie } from './Genie.jsx';
 import { GenieScope, GenieState } from './AskGenie.jsx';
-import { buildHash, parseHash } from './links.js';
-import { useUnknownPageNotice } from './PageLink.jsx';
-import PaletteButton, { paletteItems } from './Palette.jsx';
-import { TopMore, TopProvider, useTopFit } from './TopBar.jsx';
+import { DockContext, DockTabs, RecordDock } from './Dock.jsx';
+import Switcher from './Switcher.jsx';
+import { UNKNOWN_PAGE, canonicalHash, parseHash, sectionHash, unknownRoute, withRecord } from './links.js';
 import { MyViewProvider, useMyView } from './MyView.jsx';
 import { windowParams } from './prefs.js';
-import { DEFAULT_VIEW, hubTimes, useCaseState, visiblePages } from './hub.js';
+import { DEFAULT_VIEW, visiblePages } from './hub.js';
 import logo from './databricks-logo.png?inline';
 
 const THEME_KEY = 'inspire-app-theme';
-const HUB_ROUTES = ['home', 'overview', MY_WORK_ROUTE, 'impact', 'results', ADMIN_ROUTE];
-const IMPACT_ROUTES = ['impact', 'results'];
-const TONES = { stale: 'bad', error: 'bad', wait: 'warn' };
-const HUB_SCOPES = { overview: { page: 'overview', filters: '' }, mywork: { page: MY_WORK_ROUTE, filters: '' }, impact: { page: 'impact', filters: '' } };
-
-function readRoute() {
-  return parseHash(window.location.hash).route;
-}
+const RAIL_ICONS = { dashboard: 'grid', work: 'check', performance: 'trend', runs: 'history', alerts: 'bell', settings: 'sliders' };
+const HUB_SCOPES = { mywork: { page: MY_WORK_ROUTE, filters: '' }, impact: { page: 'impact', filters: '' } };
 
 function initials(user) {
   const source = user?.name || user?.email || '';
@@ -55,15 +47,6 @@ function Fatal({ error }) {
       <h1>{error.status === 401 ? 'Sign in to see this App' : 'This App could not start'}</h1>
       <p>{error.message}</p>
     </div>
-  );
-}
-
-function NavItem({ on, icon, title, small, tone, hue, onClick }) {
-  return (
-    <button className={`nav-i ${on ? 'is-on' : ''}`} onClick={onClick} style={hueVars(hue)} aria-current={on ? 'page' : undefined}>
-      <span className="nav-ic"><Icon name={icon} size={15} /></span>
-      <span className="nav-t"><b>{title}</b>{small && <small className={tone || ''}>{small}</small>}</span>
-    </button>
   );
 }
 
@@ -90,12 +73,55 @@ function useHub(pages, asked) {
   return { hub, error, summaries, load };
 }
 
+function SectionRail({ sections, on, onGo, open, page }) {
+  const top = sections.filter((s) => s !== 'settings');
+  const item = (s) => (
+    <button key={s} type="button" className={`nav-i rail-i ${on === s ? 'is-on' : ''}`} onClick={() => onGo(s)} aria-current={on === s ? 'page' : undefined} data-rail={s}>
+      <span className="nav-ic"><Icon name={RAIL_ICONS[s]} size={15} /></span>
+      <span className="nav-t"><b>{SECTION_TITLES[s]}</b></span>
+    </button>
+  );
+  return (
+    <nav className={`side rail ${open ? 'is-open' : ''}`} aria-label={page ? `Sections of ${page.title}` : 'Sections'} style={hueVars(page?.hue || 'blue')}>
+      {top.map(item)}
+      <span className="sp" />
+      {sections.includes('settings') && <div className="rail-foot">{item('settings')}</div>}
+    </nav>
+  );
+}
+
+function Performance({ app, hub, hubError, summaries, onRecord, onOpen, onExplain, genieBusy }) {
+  return (
+    <div className="perf" data-performance>
+      <GenieScope.Provider value={HUB_SCOPES.mywork}><MyWorkPage app={app} hub={hub} hubError={hubError} summaries={summaries} onRecord={onRecord} /></GenieScope.Provider>
+      {app.screens?.impact !== false && (
+        <GenieScope.Provider value={HUB_SCOPES.impact}>
+          <Impact app={app} hub={hub} hubError={hubError} summaries={summaries} onOpen={onOpen} onExplain={onExplain} genieBusy={genieBusy} />
+        </GenieScope.Provider>
+      )}
+    </div>
+  );
+}
+
 function Shell({ app }) {
   const [theme, setTheme] = useState(() => {
     try { return localStorage.getItem(THEME_KEY) || app.theme; } catch { return app.theme; }
   });
   const [palette, setPalette] = useState(() => storedPalette(app.palette));
-  const [route, setRoute] = useState(readRoute);
+  const { prefs, update } = useMyView();
+  const pages = app.pages;
+  const known = useRef({ pages, last: prefs.last });
+  known.current = { pages, last: prefs.last };
+  const missed = useRef('');
+  const resolve = useCallback(() => {
+    const now = parseHash(window.location.hash);
+    if (unknownRoute(now.route, known.current.pages)) missed.current = now.route;
+    const next = canonicalHash(window.location.hash, { pages: known.current.pages, last: known.current.last, queue: isQueue, performance: true });
+    if (next) window.history.replaceState(window.history.state, '', next);
+    return parseHash(window.location.hash);
+  }, []);
+  const [link, setLink] = useState(resolve);
+  const route = link.route;
   const [metas, setMetas] = useState({});
   const [states, setStates] = useState({});
   const [looks, setLooks] = useState({});
@@ -128,36 +154,43 @@ function Shell({ app }) {
   }), []);
   const [navOpen, setNavOpen] = useState(false);
   const [genieOpen, setGenieOpen] = useState(false);
+  const [dockSlot, setDockSlot] = useState(null);
+  const [showing, setShowing] = useState(false);
   const [view, setView] = useState(DEFAULT_VIEW);
-  const { prefs } = useMyView();
-  const [topRef, fit] = useTopFit();
-  const [slot, setSlot] = useState(null);
-  const pageMore = useRef([]);
-  const pages = app.pages;
-  const single = pages.length === 1;
-  const routed = pages.find((p) => p.id === route);
-  const impactOn = app.screens?.impact !== false;
-  const screen = route === ADMIN_ROUTE ? 'admin' : routed ? 'page' : route === MY_WORK_ROUTE ? 'mywork'
-    : impactOn && IMPACT_ROUTES.includes(route) ? 'impact' : single ? 'page' : 'overview';
-  const page = screen === 'page' ? routed || pages[0] : null;
-  const genie = useGenie(app, page ? page.id : screen, () => setGenieOpen(true), agentView);
+  const admin = route === ADMIN_ROUTE;
+  const page = pages.find((p) => p.id === route) || (admin ? pages.find((p) => p.id === prefs.last) || pages[0] : null);
+  const section = admin ? '' : link.section;
+  const sections = page ? pageSections(app, page) : [];
+  const rail = page ? [...sections.slice(0, isQueue(page) ? 2 : 1), 'performance', ...sections.slice(isQueue(page) ? 2 : 1)] : [];
+  const working = !admin && section === 'work';
+  const dock = working ? prefs.dock : '';
+  const setDock = useCallback((next) => update((p) => ({ ...p, dock: next })), [update]);
+  const openGenie = () => (working ? setDock('genie') : setGenieOpen(true));
+  const genie = useGenie(app, page ? page.id : 'overview', openGenie, agentView);
   const genieState = useMemo(() => ({ app, busy: genie.busy }), [app, genie.busy]);
   const { hub, error: hubError, summaries, load: loadHub } = useHub(pages, JSON.stringify(windowParams(prefs)));
   const shown = visiblePages(pages, hub);
+  const toast = useToast();
 
   useFavicon();
   useLayoutEffect(() => { applyTheme(palette, theme, app.style); }, [palette, app.style, theme]);
   useEffect(() => {
-    const onHash = () => setRoute(readRoute());
-    window.addEventListener('hashchange', onHash);
-    return () => window.removeEventListener('hashchange', onHash);
-  }, []);
+    const onHash = () => setLink(resolve());
+    window.addEventListener('hashchange', onHash, true);
+    return () => window.removeEventListener('hashchange', onHash, true);
+  }, [resolve]);
   useEffect(() => {
-    const named = { impact: 'Impact', admin: 'Admin', mywork: 'My work' }[screen];
-    document.title = page ? `${page.title} · ${app.title}` : named ? `${named} · ${app.title}` : app.title;
-  }, [page, screen, app.title]);
-  useEffect(() => { if (screen !== 'page') loadHub(); }, [screen, loadHub]);
-  useUnknownPageNotice(route, pages, HUB_ROUTES);
+    if (!missed.current) return;
+    missed.current = '';
+    toast(UNKNOWN_PAGE);
+  }, [link, toast]);
+  useEffect(() => {
+    if (page && !admin && prefs.last !== page.id) update((p) => ({ ...p, last: page.id }));
+  }, [page?.id, admin]);
+  useEffect(() => {
+    document.title = admin ? `Admin · ${app.title}` : page ? `${page.title} · ${app.title}` : app.title;
+  }, [page, admin, app.title]);
+  useEffect(() => { if (section === 'performance') loadHub(); }, [section, loadHub]);
   useEffect(() => {
     if (!navOpen) return undefined;
     const key = (e) => { if (e.key === 'Escape') setNavOpen(false); };
@@ -182,8 +215,9 @@ function Shell({ app }) {
   useEffect(() => { if (page) loadMeta(page.id); }, [page, loadMeta]);
 
   const leave = () => { setNavOpen(false); document.querySelector('.main')?.focus(); };
-  const go = (id) => { window.location.hash = `#/${id}`; leave(); };
-  const openRecord = (pageId, key) => { window.location.hash = buildHash(pageId, 'overview', null, [], key); leave(); };
+  const go = (id) => { window.location.hash = `#/${encodeURIComponent(id)}`; leave(); };
+  const goSection = (s) => { if (page) window.location.hash = sectionHash(page.id, s); leave(); };
+  const openRecord = (pageId, key) => { window.location.hash = withRecord(`#/${encodeURIComponent(pageId)}`, key); leave(); };
   const restyle = (nextPalette, nextTheme) => {
     applyTheme(nextPalette, nextTheme, app.style);
     setPalette(nextPalette);
@@ -195,89 +229,56 @@ function Shell({ app }) {
     restyle(palette, next);
     try { localStorage.setItem(THEME_KEY, next); } catch { /* private mode keeps the choice for this visit */ }
   };
-  const ask = (q) => { setGenieOpen(true); genie.ask(q); };
-  const explain = (request) => { setGenieOpen(true); genie.explain(request); };
+  const ask = (q) => { openGenie(); genie.ask(q); };
+  const explain = (request) => { openGenie(); genie.explain(request); };
   const setPageState = (id) => (next) => setStates((s) => ({ ...s, [id]: next }));
   const setPageLook = (id) => (change) => setLooks((l) => ({ ...l, [id]: change(l[id] || EMPTY_LOOK) }));
   const themeKey = `${palette}:${theme}:${app.style}`;
-  const times = hubTimes(shown.map((p) => hub?.pages?.[p.id]), hubToday(hub));
-  const state = (p) => useCaseState(hub?.pages?.[p.id], summaries[p.id]);
-  const impactTab = <button className={`tab ${screen === 'impact' ? 'is-on' : ''}`} onClick={() => go('impact')} aria-current={screen === 'impact' ? 'page' : undefined}><Icon name="trend" size={14} />Impact</button>;
-  const impactItem = <NavItem on={screen === 'impact'} icon="trend" title="Impact" small={single ? 'What the use case delivered' : 'What the use cases delivered'} hue="green" onClick={() => go('impact')} />;
-  const workTab = <button className={`tab ${screen === 'mywork' ? 'is-on' : ''}`} onClick={() => go(MY_WORK_ROUTE)} aria-current={screen === 'mywork' ? 'page' : undefined}><Icon name="check" size={14} />My work</button>;
-  const workItem = <NavItem on={screen === 'mywork'} icon="check" title="My work" small="What you did, and when" hue="teal" onClick={() => go(MY_WORK_ROUTE)} />;
   const crumb = page ? [[page.domain, page.subdomain].filter(Boolean).join(' › '), page.use_case_id].filter(Boolean).join(' · ') : '';
-  const darkNext = theme === 'dark' ? 'light' : 'dark';
-  const moreItems = [
-    { label: 'Change the colors', icon: <Icon name="palette" size={14} />, sub: () => ({ label: 'Colors', items: paletteItems(palette, app.palette, theme, choosePalette) }) },
-    { label: `Switch to ${darkNext} theme`, icon: <Icon name={theme === 'dark' ? 'sun' : 'moon'} size={14} />, run: toggleTheme },
-    ...(app.is_owner === true ? [{ label: 'Admin', icon: <Icon name="lock" size={14} />, run: () => go(ADMIN_ROUTE) }] : []),
-  ];
+  const chrome = { palette, built: app.palette, theme, onPalette: choosePalette, onTheme: toggleTheme };
+  const genieShown = working ? dock === 'genie' : genieOpen;
+  const toggleGenie = () => (working ? setDock(dock === 'genie' ? '' : 'genie') : setGenieOpen(!genieOpen));
+  const dockValue = useMemo(() => (working ? { slot: dockSlot, tab: dock, onTab: setDock, onShowing: setShowing } : null), [working, dockSlot, dock, setDock]);
+  const tabs = working ? <DockTabs tab={dock} onTab={setDock} /> : null;
+  const genieProps = { app, genie, page, pages: shown, onPick: go };
 
   return (
     <GenieState.Provider value={genieState}>
+    <DockContext.Provider value={dockValue}>
     <div className="stage">
       <div className="app" data-layout={app.layout} data-density={prefs.density}>
-        <header className="top" ref={topRef} data-fit={fit}>
-          <button className="ibtn menu-btn" onClick={() => setNavOpen(!navOpen)} aria-label="Open the use case list" aria-expanded={navOpen}><Icon name="menu" size={18} /></button>
-          <button className="mark" onClick={() => go(single ? pages[0].id : 'overview')} aria-label={`${app.title}, home`} title={crumb ? `${app.title}\n${crumb}` : app.title}>
+        <header className="top">
+          <button className="ibtn menu-btn" onClick={() => setNavOpen(!navOpen)} aria-label="Open the sections" aria-expanded={navOpen}><Icon name="menu" size={18} /></button>
+          <button className="mark" onClick={() => go('')} aria-label={`${app.title}, home`} title={crumb ? `${app.title}\n${crumb}` : app.title}>
             <span className="mark-tile logo"><img src={logo} alt="Databricks" width="22" height="22" /></span>
-            <span className="mark-t"><b>{app.title}</b><small>{crumb || times || app.subtitle || `${pages.length} use case${single ? '' : 's'} · built by Inspire`}</small></span>
+            <span className="mark-t"><b>{app.title}</b><small>{crumb || app.subtitle || `${pages.length} use case${pages.length === 1 ? '' : 's'} · built by Inspire`}</small></span>
           </button>
-          {app.layout === 'tabs' && (
-            <nav className="tabs" aria-label="Use cases">
-              {workTab}
-              {impactOn && impactTab}
-              {!single && <button className={`tab ${screen === 'overview' ? 'is-on' : ''}`} onClick={() => go('overview')} aria-current={screen === 'overview' ? 'page' : undefined}><Icon name="home" size={14} />Overview</button>}
-              {shown.map((p) => <button key={p.id} className={`tab ${page?.id === p.id ? 'is-on' : ''}`} onClick={() => go(p.id)} aria-current={page?.id === p.id ? 'page' : undefined}><Icon name={p.icon} size={14} />{p.title}</button>)}
-            </nav>
-          )}
+          <Switcher pages={shown} page={page} hub={hub} summaries={summaries} onPick={go} onOpen={loadHub} />
           <span className="sp" />
-          <div className="top-page" ref={setSlot} />
-          {app.auth === 'user'
-            ? <span className="auth top-ic" role="img" aria-label="Your view" title="Each person sees only the rows and columns their Unity Catalog grants allow. The App queries as you."><Icon name="lock" size={13} /><span>Your view</span></span>
-            : <span className="auth top-ic" role="img" aria-label="Shared view" title="Everyone sees the same data. The App reads it with its own service principal."><Icon name="users" size={13} /><span>Shared view</span></span>}
-          <button className="genie-btn" onClick={() => setGenieOpen(!genieOpen)} aria-expanded={genieOpen} aria-label="Ask Genie"><GenieMark size={15} /><span>Ask Genie</span></button>
-          <PaletteButton palette={palette} built={app.palette} theme={theme} onChoose={choosePalette} />
-          <button className="ibtn" data-more="tight" onClick={toggleTheme} aria-label={`Switch to ${darkNext} theme`}><Icon name={theme === 'dark' ? 'sun' : 'moon'} size={17} /></button>
-          {app.is_owner === true && <AdminLink on={screen === 'admin'} />}
-          <TopMore fit={fit} items={moreItems} pageMore={pageMore} />
+          <button className="genie-btn" onClick={toggleGenie} aria-expanded={genieShown} aria-label="Ask Genie"><GenieMark size={15} /><span>Ask Genie</span></button>
           {(app.user.email || app.user.name) && <span className="avatar" title={app.user.email || app.user.name} aria-hidden="true">{initials(app.user)}</span>}
         </header>
         <div className="body">
-          <nav className={`side ${navOpen ? 'is-open' : ''}`} aria-label="Use cases">
-            {workItem}
-            {impactOn && impactItem}
-            <div className="side-sep" />
-            <div className="side-h">{single ? 'Use case' : 'Use cases'}</div>
-            {!single && <NavItem on={screen === 'overview'} icon="home" title="Overview" small="All use cases" hue="slate" onClick={() => go('overview')} />}
-            {shown.map((p) => (
-              <NavItem key={p.id} on={page?.id === p.id} icon={p.icon} title={p.title} hue={p.hue || 'blue'} onClick={() => go(p.id)}
-                small={state(p).text || [tabLabel(p, ''), p.use_case_id, p.domain].filter(Boolean).join(' · ')} tone={TONES[state(p).kind]} />
-            ))}
-          </nav>
+          {page && <SectionRail sections={rail} on={section} onGo={goSection} open={navOpen} page={page} />}
           {navOpen && <div className="scrim" onClick={() => setNavOpen(false)} />}
-          <TopProvider slot={slot} fit={fit} pageMore={pageMore}>
           <main className="main" tabIndex={-1}>
-            {screen === 'overview' && <GenieScope.Provider value={HUB_SCOPES.overview}><Home app={app} hub={hub} hubError={hubError} summaries={summaries} view={view} onView={setView} onOpen={go} onRecord={openRecord}
-              onChanges={(id) => { window.location.hash = `#/${encodeURIComponent(id)}?changed=1`; leave(); }} onMyWork={() => go(MY_WORK_ROUTE)} /></GenieScope.Provider>}
-            {screen === 'mywork' && <GenieScope.Provider value={HUB_SCOPES.mywork}><MyWorkPage app={app} hub={hub} hubError={hubError} summaries={summaries} onRecord={openRecord} /></GenieScope.Provider>}
-            {screen === 'impact' && (
-              <GenieScope.Provider value={HUB_SCOPES.impact}>
-                <Impact app={app} hub={hub} hubError={hubError} summaries={summaries} onOpen={go} onExplain={explain} genieBusy={genie.busy} />
-              </GenieScope.Provider>
+            {admin && <Admin />}
+            {!admin && section === 'performance' && (
+              <Performance app={app} hub={hub} hubError={hubError} summaries={summaries} onRecord={openRecord} onOpen={go} onExplain={explain} genieBusy={genie.busy} />
             )}
-            {screen === 'admin' && <Admin />}
-            {page && (
-              <Page key={page.id} app={app} page={page} meta={metas[page.id]} state={states[page.id]} onState={setPageState(page.id)} look={looks[page.id] || EMPTY_LOOK} onLook={setPageLook(page.id)} themeKey={themeKey}
-                onAsk={ask} onExplain={explain} genieBusy={genie.busy} hubEntry={hub?.pages?.[page.id]} summary={summaries[page.id]} view={view} onView={setView} genie={genie} />
+            {!admin && page && section !== 'performance' && (
+              <Page key={page.id} app={app} page={page} meta={metas[page.id]} state={states[page.id]} onState={setPageState(page.id)} look={looks[page.id] || EMPTY_LOOK}
+                onLook={setPageLook(page.id)} themeKey={themeKey} onAsk={ask} onExplain={explain} genieBusy={genie.busy} hubEntry={hub?.pages?.[page.id]}
+                summary={summaries[page.id]} view={view} onView={setView} genie={genie} section={section} tab={link.tab} chrome={chrome} />
             )}
           </main>
-          </TopProvider>
-          {genieOpen && <GeniePanel app={app} genie={genie} page={page} pages={shown} onPick={go} onClose={() => setGenieOpen(false)} />}
+          {working && dock === 'genie' && <GeniePanel {...genieProps} tabs={tabs} onClose={() => setDock('')} />}
+          {working && dock === 'record' && <RecordDock tabs={tabs} onSlot={setDockSlot} onClose={() => setDock('')} empty={!showing} />}
+          {!working && genieOpen && <GeniePanel {...genieProps} onClose={() => setGenieOpen(false)} />}
         </div>
       </div>
     </div>
+    </DockContext.Provider>
     </GenieState.Provider>
   );
 }
