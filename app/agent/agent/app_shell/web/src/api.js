@@ -104,7 +104,6 @@ export const changeAssumption = (body) => json('POST', 'money/assumption', body)
 export const getSettings = (page) => json('GET', `settings?page=${encodeURIComponent(page)}`);
 export const previewSetting = (body) => json('POST', 'settings/preview', body);
 export const saveSetting = (body) => json('POST', 'settings/save', body);
-export const runSettingsNow = (page) => json('POST', 'settings/run', { page });
 export const getImpact = (page) => json('GET', `impact?page=${encodeURIComponent(page)}`);
 export const getTrends = (page) => json('GET', `trends?page=${encodeURIComponent(page)}`);
 export const getUsage = () => json('GET', 'admin/usage');

@@ -251,7 +251,7 @@ export default function Page({ app, page, meta, state, onState, look = EMPTY_LOO
           hubEntry={hubEntry} live={live} summary={summary} latestRun={latestRun} onRuns={showRuns} data={data} error={error} plan={plan} topSlots={topSlots}
           moreSlots={moreSlots} more={more} kpisCard={kpisOf(page.kpis)} kpisOf={kpisOf} chartCards={chartCards} hubCharts={hubCharts} tableCard={tableCard}
           recordsCard={laidOut ? records() : null} explain={explain} genieBusy={genieBusy} nonce={nonce} onChanged={() => setNonce((n) => n + 1)} onAsk={onAsk}
-          genie={genie} ready={ready} filters={filters} onPick={pick} onFix={fix} onWork={() => go('work')}
+          genie={genie} ready={ready} filters={filters} onPick={pick} onFix={fix} onWork={() => go('work')} onRun={freshness.ask} running={freshness.busy}
           trends={hubPage && trendsOn ? (
             <Suspense fallback={<Waiting />}>
               <TrendCards trends={trends.data} impact={trends.impact} error={trends.error} latest={counted.current.latest} page={page} app={app} themeKey={themeKey}

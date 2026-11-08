@@ -74,9 +74,9 @@ export function plannerRoutes(decided, solved, { keep = false, actions = true } 
       if (line) Object.assign(line, { _inspire_status: 'Done', _inspire_closed_note: planNote(body), _inspire_version: String(Number(line._inspire_version) + 100) });
       return json(200, { written: [body.record_key], conflicts: [], conflicts_count: 0, left_out: 0, batch_id: 'b1', decision: body.decision, edited: false });
     },
-    'settings/run': ({ route, json }) => {
+    refresh: ({ route, json }) => {
       solved.push(route.request().postDataJSON());
-      return json(200, { run_id: 77, started: true });
+      return json(200, { run_id: '77', state: 'pending' });
     },
   };
 }

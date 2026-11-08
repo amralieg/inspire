@@ -181,7 +181,7 @@ function HubBody({ app, page, entry, live, summary, state, onState, view, onView
 
 export default function Dashboard({ app, page, meta, state, onState, view, onView, hubPage, laidOut, work, hubEntry, live, summary, latestRun, onRuns, data, error,
   plan, topSlots, moreSlots, more, kpisCard, kpisOf, chartCards, hubCharts, tableCard, recordsCard, explain, genieBusy, nonce, onChanged, onAsk, genie, ready, filters,
-  onPick, onFix, onWork, trends }) {
+  onPick, onFix, onWork, trends, onRun, running }) {
   return (
     <>
       {backendNotes(app.backend, data).map((n) => <p key={n} className="note" role="status" data-backend-note><Icon name="info" size={14} />{n}</p>)}
@@ -203,7 +203,8 @@ export default function Dashboard({ app, page, meta, state, onState, view, onVie
       {error && <p className="tile-err" role="alert"><Icon name="info" size={14} />{error}</p>}
       {laidOut && (
         <LayoutSections page={page} app={app} ready={ready} nonce={nonce} filters={filters} onChanged={onChanged} onAsk={onAsk}
-          kpisOf={kpisOf} records={recordsCard} chartCards={(charts) => chartCards(charts)} tableCard={tableCard} data={data} onPick={onPick} genie={genie} />
+          kpisOf={kpisOf} records={recordsCard} chartCards={(charts) => chartCards(charts)} tableCard={tableCard} data={data} onPick={onPick} genie={genie}
+          onRun={onRun} running={running} />
       )}
       {!hubPage && !laidOut && <Placed slots={slotsOf(plan, 'kpis')}>{kpisCard}</Placed>}
       {!hubPage && !laidOut && <Placed slots={moreSlots}><section className="charts">{chartCards(page.charts.filter((c) => !c.driver))}</section></Placed>}

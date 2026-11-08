@@ -1,5 +1,5 @@
 import { Suspense, lazy, useEffect, useState } from 'react';
-import { decidePlan, getRecords, runSettingsNow } from './api.js';
+import { decidePlan, getRecords } from './api.js';
 import { entityName, formatValue, integer, numberOf } from './format.js';
 import { canDecide, noDecisionText, pageDecides, recordKeyOf } from './records.js';
 import { Icon, GenieMark } from './icons.jsx';
@@ -200,24 +200,11 @@ function PlanRow({ page, app, plan, row, actions, onDecided, onOpen }) {
 
 const planDecides = (app, plan, list) => canDecide(app, list) || !!(plan.override && app.options?.modify);
 
-function Resolve({ page }) {
-  const [state, setState] = useState({ busy: false, said: '' });
-  const toast = useToast();
-  const run = async () => {
-    setState({ busy: true, said: '' });
-    try {
-      await runSettingsNow(page.id);
-      toast('Started a new solve: the plan updates when the run ends');
-      setState({ busy: false, said: '' });
-    } catch (e) {
-      setState({ busy: false, said: e.message });
-    }
-  };
+function Resolve({ onRun, running }) {
   return (
-    <>
-      <button type="button" className="btn btn--sm" disabled={state.busy} onClick={run} data-resolve><Icon name="sliders" size={14} />Re-solve the plan</button>
-      {state.said && <p className="tile-err" role="alert"><Icon name="info" size={12} />{state.said}</p>}
-    </>
+    <button type="button" className="btn btn--sm" disabled={running} aria-busy={running} onClick={() => onRun(() => 'Started a new solve: the plan updates when the run ends')} data-resolve>
+      <Icon name="sliders" size={14} />Re-solve the plan
+    </button>
   );
 }
 
@@ -279,7 +266,7 @@ export function PlanTable({ page, app, filters, ready, nonce, onChanged }) {
 
 const SCENARIO_HOLDS = ['levers', 'scenario', 'target'];
 
-export function LayoutSections({ page, app, ready, nonce, filters, onChanged, onAsk, kpisOf, records, chartCards, tableCard, data, onPick, genie }) {
+export function LayoutSections({ page, app, ready, nonce, filters, onChanged, onAsk, kpisOf, records, chartCards, tableCard, data, onPick, genie, onRun, running }) {
   const sections = page.layout?.sections || [];
   const holds = page.layout?.holds || {};
   const placed = new Set();
@@ -298,7 +285,7 @@ export function LayoutSections({ page, app, ready, nonce, filters, onChanged, on
       if (page.plan) return <div key={section} data-section={section}>{plan(section)}</div>;
       return records ? <div key={section} data-section={section}>{records}</div> : null;
     }
-    if (hold === 'resolve') return page.plan ? <div key={section} className="resolve" data-section={section}><Resolve page={page} /></div> : null;
+    if (hold === 'resolve') return page.plan && onRun ? <div key={section} className="resolve" data-section={section}><Resolve onRun={onRun} running={running} /></div> : null;
     if (SCENARIO_HOLDS.includes(hold)) return page.scenario ? hold : null;
     if (hold) return null;
     const charts = page.charts.filter((c) => c.section === section);
