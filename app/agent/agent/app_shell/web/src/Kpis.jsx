@@ -83,6 +83,7 @@ function Tile({ t, loading }) {
         <>
           <div className={`kpi-v ${t.tone || ''}`} tabIndex={t.formula ? 0 : undefined} {...props}>{t.value}{tip}</div>
           <div className="kpi-s">{t.sub || '\u00a0'}</div>
+          {t.action && <button type="button" className="lnk kpi-fix" onClick={t.action.run} data-fix={t.id}><Icon name="right" size={12} />{t.action.label}</button>}
           <AskGenie kind="kpi" title={t.label} context={{ hint: t.formula || '', fields: { Now: t.value, ...(t.sub ? { Note: t.sub } : {}) } }} />
         </>
       )}

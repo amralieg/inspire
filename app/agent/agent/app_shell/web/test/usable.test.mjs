@@ -38,10 +38,12 @@ test('no request names a fixed utc_offset_min, which the server refuses; every w
 
 test('My view starts at All open with no limit, drops what storage holds that it does not know, and keeps each person apart', () => {
   assert.deepEqual(cleanPrefs(null), DEFAULT_PREFS);
-  assert.deepEqual(DEFAULT_PREFS, { window: 'all', limit: 0, density: 'comfortable', rows: 25, folds: {}, seen: {}, columns: {} });
+  assert.deepEqual(DEFAULT_PREFS, { window: 'all', limit: 0, density: 'comfortable', rows: 25, folds: {}, seen: {}, columns: {}, dock: '', last: '' });
   assert.deepEqual(cleanPrefs({ window: 'decade', limit: 7, density: 'tiny', rows: 30, folds: { p: { a: true, b: 'yes', c: false }, q: 3, r: {} }, seen: { p: -1, q: 'x', r: 5 },
-    columns: { g: ['b', 'a', 'b', 7, ''], h: 'a', i: [] } }),
-  { window: 'all', limit: 0, density: 'comfortable', rows: 25, folds: { p: { a: true } }, seen: { r: 5 }, columns: { g: ['b', 'a'] } });
+    columns: { g: ['b', 'a', 'b', 7, ''], h: 'a', i: [] }, dock: 'sideways', last: 7 }),
+  { window: 'all', limit: 0, density: 'comfortable', rows: 25, folds: { p: { a: true } }, seen: { r: 5 }, columns: { g: ['b', 'a'] }, dock: '', last: '' });
+  assert.deepEqual([cleanPrefs({ dock: 'genie' }).dock, cleanPrefs({ dock: 'record' }).dock, cleanPrefs({ last: 'n01_u05' }).last], ['genie', 'record', 'n01_u05']);
+  assert.equal(cleanPrefs({ last: 'x'.repeat(500) }).last, '', 'an overlong use case id is not kept');
   assert.equal(cleanPrefs({ rows: 100 }).rows, 100);
   const store = memory();
   assert.equal(writePrefs(store, ME, { ...DEFAULT_PREFS, window: 'week', limit: 25 }), true);

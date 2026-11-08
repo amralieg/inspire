@@ -9,6 +9,8 @@ export const DEFAULT_VIEW = { owner: 'all', show: 'fix' };
 export const OWNER_CHOICES = [['all', 'Everyone'], ['me', 'Me'], ['none', 'Nobody yet']];
 export const SHOW_CHOICES = [['fix', 'To fix'], ['all', 'To fix and worth a look']];
 const SHOWN_TIERS = { fix: [ACT_NOW], all: [ACT_NOW, REVIEW] };
+export const MONEY_COLUMN = 'value_at_stake';
+export const shownTiers = (show) => SHOWN_TIERS[show] || SHOWN_TIERS.fix;
 const DAY_MS = 86400000;
 const BAR_TICKS = 8;
 const SHORT_DAY = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
@@ -41,8 +43,6 @@ export function dueText(due, today) {
   if (days < 0) return { text: `${plural(-days, 'day')} late`, late: true };
   return { text: WEEKDAY.format(asDate(dayOf(due))), late: false };
 }
-
-export const isOverdue = (item, today) => !!item.due && daysBetween(today, item.due) < 0;
 
 export const WORK_SHOWN = 8;
 
@@ -83,7 +83,7 @@ export function doneTodayOf(entries, zone = null) {
 }
 
 export function pageCurrency(page, summary) {
-  const listed = [...(page?.records?.columns || []), ...(page?.records?.detail || [])].find((c) => c.column === 'value_at_stake');
+  const listed = [...(page?.records?.columns || []), ...(page?.records?.detail || [])].find((c) => c.column === MONEY_COLUMN);
   const run = summary?.run;
   if (run && !isMoney(unitOf(run), kindOf(run))) return unitOf(run);
   return (run ? unitOf(run) : '') || listed?.currency || '';
@@ -172,14 +172,6 @@ export function weekBars(entries) {
   const sums = new Map();
   counted.forEach((e) => (e.weeks || []).forEach((w) => sums.set(w.week, addCounts([sums.get(w.week), w.saved]))));
   return [...sums.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([week, v]) => ({ key: week, label: shortDay(week), value: v }));
-}
-
-export function hubTimes(entries, today) {
-  const runs = entries.filter((e) => e?.tracked && e.runs?.updated).map((e) => e.runs);
-  if (!runs.length) return '';
-  const updated = runs.map((r) => r.updated).sort().at(-1);
-  const next = runs.map((r) => r.next).filter((d) => d && dayOf(d) >= dayOf(today)).sort()[0];
-  return `Updated ${shortDay(updated)}${next ? ` · next update ${shortDay(next)}` : ''}`;
 }
 
 export function useCaseState(entry, summary) {
@@ -273,5 +265,14 @@ export function reasonFilters(entry, summary) {
     const label = i === 0 ? 'Reason (from AI)' : `${meaning ? meaning.charAt(0).toUpperCase() + meaning.slice(1) : `Reason ${i + 1}`} (from AI)`;
     const options = [...new Set([...(spec?.values || []), ...(i === 0 ? reasons : []), UNEXPLAINED])];
     return { name, label, options };
+  });
+}
+
+export function switcherMatches(pages, text) {
+  const words = String(text || '').trim().toLowerCase().split(/\s+/).filter(Boolean);
+  if (!words.length) return pages;
+  return pages.filter((p) => {
+    const said = [p.title, p.use_case_id, p.domain, p.subdomain].filter(Boolean).join(' ').toLowerCase();
+    return words.every((w) => said.includes(w));
   });
 }

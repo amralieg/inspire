@@ -1,4 +1,7 @@
-import { RANGE_EDGES, columnFilterOn, columnFilterText, columnValues, initialFilterState, rangeLabel } from './filters.js';
+import { RANGE_EDGES, columnFilterOn, columnFilterText, columnValues, initialFilterState, rangeLabel, setColumnValue } from './filters.js';
+import { MONEY_COLUMN, setReason, shownTiers } from './hub.js';
+import { ADMIN_ROUTE } from './admin.js';
+import { MY_WORK_ROUTE } from './mywork.js';
 
 export const VIEWS_KEY = 'inspire-app-views';
 export const VIEW_NAME_MAX = 60;
@@ -16,13 +19,73 @@ function decodePart(text) {
   try { return decodeURIComponent(text); } catch { return text; }
 }
 
+export const SECTIONS = ['dashboard', 'work', 'performance', 'runs', 'alerts', 'settings'];
+export const DEFAULT_SECTION = 'dashboard';
+export const WORK_TABS = [['new', 'New'], ['in-progress', 'In progress'], ['done', 'Done'], ['not-an-issue', 'Not an issue'], ['could-not-fix', 'Could not fix'],
+  ['mine', 'Mine'], ['all', 'All']];
+export const TAB_STATUS = { new: 'New', 'in-progress': 'In progress', done: 'Done', 'not-an-issue': 'Dismissed', 'could-not-fix': 'Could not fix' };
+export const DEFAULT_TAB = 'new';
+const LEGACY_VIEWS = { overview: DEFAULT_SECTION };
+const HUB_HOME = ['', 'home', 'overview'];
+const HUB_PERFORMANCE = [MY_WORK_ROUTE, 'impact', 'results'];
+export const HUB_PATHS = [...HUB_HOME, ...HUB_PERFORMANCE, ADMIN_ROUTE];
+export const unknownRoute = (route, pages) => !HUB_PATHS.includes(route) && !(pages || []).some((p) => p.id === route);
+
 export function parseHash(hash) {
   const body = String(hash || '').replace(/^#\/?/, '');
   const cut = body.indexOf('?');
   const query = new URLSearchParams(cut < 0 ? '' : body.slice(cut + 1));
   const v = query.get('v');
   const f = query.get('f');
-  return { route: decodePart(cut < 0 ? body : body.slice(0, cut)), v, f, rec: query.get('rec'), changed: query.get('changed') === '1', present: v != null || f != null };
+  const [route = '', section = ''] = (cut < 0 ? body : body.slice(0, cut)).split('/').map(decodePart);
+  return { route, section, tab: query.get('tab') || '', v, f, rec: query.get('rec'), changed: query.get('changed') === '1', present: v != null || f != null };
+}
+
+export const sectionOfView = (view) => LEGACY_VIEWS[view] || view || DEFAULT_SECTION;
+
+export function fixThis(page, listColumns, state, view, { reason = null, money = false } = {}) {
+  const tier = page?.records?.tier;
+  const filter = tier ? (listColumns || []).find((f) => f.column === tier && f.type === 'multi_select') : null;
+  const tiers = (shownTiers(view?.show)).filter((t) => !Array.isArray(filter?.options) || filter.options.includes(t));
+  let next = state || { range: {}, sel: {} };
+  if (filter && tiers.length) next = setColumnValue(next, null, tier, tiers);
+  if (reason?.name && reason.value != null) next = setReason(next, reason.name, [reason.value]);
+  const ranked = money && [...(page?.records?.columns || [])].some((c) => c.column === MONEY_COLUMN);
+  return { tab: view?.owner === 'me' ? 'mine' : DEFAULT_TAB, state: next, sort: ranked ? { key: MONEY_COLUMN, dir: 'desc' } : null };
+}
+
+function withQuery(path, query) {
+  const text = query.toString();
+  return `#/${path}${text ? `?${text}` : ''}`;
+}
+
+export function sectionHash(pageId, section, query = new URLSearchParams()) {
+  return withQuery(`${encodeURIComponent(pageId)}/${section}`, query);
+}
+
+export function canonicalHash(hash, { pages = [], last = '', queue = () => true, performance = false } = {}) {
+  const link = parseHash(hash);
+  const body = String(hash || '').replace(/^#\/?/, '');
+  const cut = body.indexOf('?');
+  const query = new URLSearchParams(cut < 0 ? '' : body.slice(cut + 1));
+  const start = pages.find((p) => p.id === last) || pages[0];
+  if (!start) return null;
+  if (link.route === ADMIN_ROUTE) return null;
+  if (HUB_HOME.includes(link.route)) return sectionHash(start.id, DEFAULT_SECTION);
+  if (HUB_PERFORMANCE.includes(link.route)) {
+    if (performance) return sectionHash(start.id, 'performance');
+    return link.route === MY_WORK_ROUTE && queue(start) ? sectionHash(start.id, 'work', new URLSearchParams({ tab: 'mine' })) : sectionHash(start.id, DEFAULT_SECTION);
+  }
+  const page = pages.find((p) => p.id === link.route);
+  if (!page) return sectionHash(start.id, DEFAULT_SECTION);
+  const legacy = link.v != null ? sectionOfView(link.v) : '';
+  query.delete('v');
+  const asked = link.section || legacy || ((link.rec || link.changed) && queue(page) ? 'work' : DEFAULT_SECTION);
+  const known = SECTIONS.includes(asked) && (asked !== 'work' || queue(page)) && (asked !== 'performance' || performance);
+  const section = known ? asked : DEFAULT_SECTION;
+  if (section !== 'work') query.delete('tab');
+  const next = sectionHash(page.id, section, query);
+  return next === hash ? null : next;
 }
 
 export const OPEN_PARAM = 'open';
@@ -241,8 +304,9 @@ export function restoreFilters(compact, filters, columns) {
 }
 
 export function restoreView(value, allowed) {
-  if (value == null) return { view: 'overview', dropped: false };
-  return allowed.includes(value) ? { view: value, dropped: false } : { view: 'overview', dropped: true };
+  if (value == null || value === '') return { view: DEFAULT_SECTION, dropped: false };
+  const view = sectionOfView(value);
+  return allowed.includes(view) ? { view, dropped: false } : { view: DEFAULT_SECTION, dropped: true };
 }
 
 function combine(filters, view) {
@@ -251,21 +315,20 @@ function combine(filters, view) {
 
 export function readLink(link, filters, views, columns) {
   const compact = link.f == null ? {} : decodeFilters(link.f);
-  return combine(restoreFilters(compact, filters, columns), restoreView(link.v, views));
+  return combine(restoreFilters(compact, filters, columns), restoreView(link.section || link.v, views));
 }
 
 export function readSaved(entry, filters, views, columns) {
   return combine(restoreFilters(entry.filters, filters, columns), restoreView(entry.view, views));
 }
 
-export function buildHash(pageId, view, state, filters, rec, columns) {
+export function buildHash(pageId, section, state, filters, rec, columns, tab) {
   const query = new URLSearchParams();
-  if (view && view !== 'overview') query.set('v', view);
+  if (tab && section === 'work') query.set('tab', tab);
   const compact = compactState(state, filters, columns);
   if (Object.keys(compact).length) query.set('f', encodeFilters(compact));
   if (rec) query.set('rec', rec);
-  const text = query.toString();
-  return `#/${encodeURIComponent(pageId)}${text ? `?${text}` : ''}`;
+  return sectionHash(pageId, sectionOfView(section), query);
 }
 
 export function listText(values, total = values.length) {
@@ -294,11 +357,11 @@ export function describeFilters(state, filters, columns) {
   return parts.length ? parts.join('; ') : 'none';
 }
 
-export const sameView = (a, b) => (a.view || 'overview') === (b.view || 'overview') && JSON.stringify(a.filters || {}) === JSON.stringify(b.filters || {});
+export const sameView = (a, b) => sectionOfView(a.view) === sectionOfView(b.view) && JSON.stringify(a.filters || {}) === JSON.stringify(b.filters || {});
 
 function cleanEntry(entry) {
   if (!isObject(entry) || typeof entry.name !== 'string' || !entry.name.trim()) return null;
-  return { name: entry.name, view: typeof entry.view === 'string' ? entry.view : 'overview', filters: isObject(entry.filters) ? entry.filters : {} };
+  return { name: entry.name, view: typeof entry.view === 'string' ? sectionOfView(entry.view) : DEFAULT_SECTION, filters: isObject(entry.filters) ? entry.filters : {} };
 }
 
 function cleanList(list) {
@@ -348,7 +411,7 @@ export function addView(all, pageId, entry) {
   const list = all[pageId] || [];
   const problem = nameProblem(entry.name, list);
   if (problem) return { all, problem };
-  return { all: { ...all, [pageId]: [...list, { name: entry.name.trim(), view: entry.view || 'overview', filters: entry.filters || {} }] }, problem: '' };
+  return { all: { ...all, [pageId]: [...list, { name: entry.name.trim(), view: sectionOfView(entry.view), filters: entry.filters || {} }] }, problem: '' };
 }
 
 export function removeView(all, pageId, name) {
@@ -357,4 +420,11 @@ export function removeView(all, pageId, name) {
   if (list.length) next[pageId] = list;
   else delete next[pageId];
   return next;
+}
+
+export function tabCount(counts, id) {
+  if (!counts) return null;
+  if (id === 'mine') return counts.mine ?? null;
+  if (id === 'all') return counts.all ?? null;
+  return counts.statuses?.[TAB_STATUS[id]] ?? null;
 }

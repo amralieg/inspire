@@ -97,16 +97,7 @@ function Editor({ pageId, setting, onSaved, onCancel }) {
   );
 }
 
-export function SettingsButton({ open, onOpen, owned }) {
-  return (
-    <button className={`btn top-ic ${open ? 'is-on' : ''}`} data-more="narrow" onClick={() => onOpen((o) => !o)} aria-expanded={open} data-settings-open aria-label="Settings"
-      title={owned ? 'Change how this use case works out its impact and flags its records, and what the lists show you' : 'Choose what the lists show you'}>
-      <Icon name="sliders" size={15} /><span>Settings</span>
-    </button>
-  );
-}
-
-export default function SettingsPanel({ pageId, data, onData, onChanged, onRunStarted, onClose }) {
+export default function SettingsPanel({ pageId, data, onData, onChanged, onRunStarted, onClose, children }) {
   const [editing, setEditing] = useState('');
   const [running, setRunning] = useState(false);
   const toast = useToast();
@@ -137,9 +128,10 @@ export default function SettingsPanel({ pageId, data, onData, onChanged, onRunSt
       <div className="set-head">
         <h2>Settings</h2>
         {owned && data.can_run && <button type="button" className="btn" onClick={run} disabled={running} data-run-now><Icon name="trend" size={14} />{running ? 'Starting…' : 'Run now'}</button>}
-        <button type="button" className="btn" onClick={onClose} aria-label="Close the settings"><Icon name="x" size={14} /></button>
+        {onClose && <button type="button" className="btn" onClick={onClose} aria-label="Close the settings"><Icon name="x" size={14} /></button>}
       </div>
       <MyViewGroup />
+      {children}
       {owned && <p className="why">A saved value applies at the next run of this use case. Every change keeps its note and who made it.</p>}
       {owned && groupsOf(data.settings).map(([group, title, list]) => (
         <div key={group} className="tbl-wrap" data-group={group}>
@@ -165,5 +157,15 @@ export default function SettingsPanel({ pageId, data, onData, onChanged, onRunSt
       ))}
       {lines.length > 0 && <div className="hist"><b>Changes</b><ul>{lines.map((l, i) => <li key={i}>{l}</li>)}</ul></div>}
     </section>
+  );
+}
+
+export function SettingGroup({ id, title, why, children }) {
+  return (
+    <div className="tbl-wrap set-group" data-group={id}>
+      <h3>{title}</h3>
+      {why && <p className="why">{why}</p>}
+      <div className="set-items">{children}</div>
+    </div>
   );
 }

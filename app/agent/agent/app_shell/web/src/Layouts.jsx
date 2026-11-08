@@ -18,6 +18,9 @@ export const DEFAULT_LAYOUT = 'decision_queue';
 export const layoutOf = (page) => page?.layout?.id || DEFAULT_LAYOUT;
 export const isLaidOut = (page) => layoutOf(page) !== DEFAULT_LAYOUT;
 export const tabLabel = (page, fallback) => (isLaidOut(page) && page.layout?.tab_label) || fallback;
+export const isQueue = (page) => !!page?.records && !isLaidOut(page);
+export const pageSections = (app, page) => ['dashboard', ...(isQueue(page) ? ['work'] : []), ...(app?.screens?.runs !== false ? ['runs'] : []),
+  ...(app?.alerting?.on ? ['alerts'] : []), 'settings'];
 export const decides = pageDecides;
 const PLAN_ROWS = 50;
 const TODO_ROWS = 5;
@@ -71,7 +74,7 @@ export function todoSteps(page, list, { genie = false, modify = false, accept = 
   return steps;
 }
 
-export function TodoNow({ page, app, ready, nonce, onAsk, shared }) {
+export function TodoNow({ page, app, ready, nonce, onAsk, shared, onRecords }) {
   const decided = decides(page);
   const fetched = useList(page.id, {}, ready, nonce, TODO_ROWS, decided && shared === undefined);
   const list = shared === undefined ? fetched : shared || {};
@@ -95,7 +98,7 @@ export function TodoNow({ page, app, ready, nonce, onAsk, shared }) {
           <li key={s.id} data-step={s.id}>
             <span>{s.value ? <>{s.value[0]}<bdi>{s.value[1]}</bdi>{s.value[2]}</> : s.text}</span>
             {s.action && (
-              <button type="button" className="btn btn--sm" onClick={() => (s.ask ? onAsk(`What should I do first on ${page.title}, and why?`) : scrollTo(s.to))}>
+              <button type="button" className="btn btn--sm" onClick={() => (s.ask ? onAsk(`What should I do first on ${page.title}, and why?`) : s.to === 'records' && onRecords ? onRecords() : scrollTo(s.to))}>
                 {s.ask && <GenieMark size={14} />}{s.action}
               </button>
             )}
