@@ -462,7 +462,7 @@ def test_the_build_adapts_and_tells_the_user_what_changed(agent_ns):
     assert outcome["status"] == "written"
     assert outcome["genie_changes"] == [
         "Genie found 11 past examples of the outcome, fewer than the 200 the first method needs, so it used a rules-based score "
-        "instead. Results will be less precise; Rebuild after more history arrives to use gradient boosted trees."]
+        "instead. Results will be less precise; Rebuild once the data meets that minimum to use gradient boosted trees."]
 
 
 def decision(value, **extra):

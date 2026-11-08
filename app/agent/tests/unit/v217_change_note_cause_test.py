@@ -46,13 +46,32 @@ def test_changes_genie_did_not_tie_to_the_data_keep_the_plain_wording_even_while
     assert notes == PLAIN[1:]
 
 
-def test_a_shortfall_driven_method_change_still_tells_the_user_to_rebuild_after_more_history(agent_ns):
+def test_a_shortfall_driven_method_change_tells_the_user_to_rebuild_once_the_data_meets_the_minimum(agent_ns):
     short = _short(agent_ns, "History holds too few past examples of the outcome (11); at least 200 are needed to learn from.")
     fill = _with([{"method_was": "gradient boosted trees", "method_now": "a rules-based score", "why": "11 outcomes are too few",
                    "cause": "data_shortfall"}], [{"check": "positives", "measured": "11"}])
     assert agent_ns["implement_genie_change_notes"](fill, short) == [
         "Genie found 11 past examples of the outcome, fewer than the 200 the first method needs, so it used a rules-based score instead. "
-        "Results will be less precise; Rebuild after more history arrives to use gradient boosted trees."]
+        "Results will be less precise; Rebuild once the data meets that minimum to use gradient boosted trees."]
+
+
+def test_one_join_shortfall_reworded_by_genie_in_many_changes_gives_one_note_that_never_asks_for_more_history(agent_ns):
+    short = agent_ns["implement_readiness_shortfall"](
+        "Only 0% of rows match along the verified join path; at least 80% must match.", "B")
+    fill = _with([{"method_was": "T1-T6 and Benford T7", "method_now": "T1-T5 and Benford T7; T6 unavailable", "why": "w",
+                   "cause": "data_shortfall"},
+                  {"method_was": "Require the full join path", "method_now": "Measure coverage, run T1-T2 on matched rows",
+                   "why": "v", "cause": "data_shortfall"},
+                  {"method_was": "Run controls T1 through T7", "method_now": "Run T1 through T5 and T7", "why": "u",
+                   "cause": "data_shortfall"},
+                  {"method_was": "Inner join", "method_now": "Left join", "why": "coverage counts all rows", "cause": "rule"}],
+                 [{"check": "join coverage", "measured": "0.000155"}])
+    notes = agent_ns["implement_genie_change_notes"](fill, short)
+    assert len(notes) == 2 and notes[1] == "Genie used Left join instead of Inner join: coverage counts all rows."
+    assert notes[0].startswith("Genie found 0.000155 join coverage, fewer than the ")
+    assert notes[0].endswith("so it used T1-T5 and Benford T7; T6 unavailable instead. Results will be less precise; "
+                             "Rebuild once the data meets that minimum to use T1-T6 and Benford T7.")
+    assert not any("history" in note for note in notes)
 
 
 def test_the_shortfall_takes_the_count_the_same_build_measured_when_it_is_still_short(agent_ns):

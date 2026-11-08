@@ -10,7 +10,7 @@ UC, KEY, PATH, NAMES = "N01-U01", (5150, "N01-U01", 1), "/W/nb", ["result_table"
 SHORT_D = "There are too few past interactions (743); at least 1,000 are needed to learn preferences."
 SHORT_A = "History holds too few past examples of the outcome (11); at least 200 are needed to learn from."
 NOTE_D = ("Genie found 743 past interactions, fewer than the 1,000 the first method needs, so it used item co-occurrence shrunk toward "
-          "popularity instead. Results will be less precise; Rebuild after more history arrives to use matrix factorization.")
+          "popularity instead. Results will be less precise; Rebuild once the data meets that minimum to use matrix factorization.")
 
 
 def _family(inst, family):
