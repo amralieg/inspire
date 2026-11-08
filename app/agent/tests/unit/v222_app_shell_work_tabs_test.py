@@ -48,7 +48,8 @@ def test_the_status_counts_count_every_current_record_by_status_and_owner_on_a_s
     page = _page()
     context = _context(page)
     got = _counts(page, context, {}, "pat")
-    assert got == {"statuses": {"New": 2, "In progress": 1, "Done": 1, "Dismissed": 1, "Could not fix": 0}, "mine": 2, "all": 5}, \
+    assert got == {"statuses": {"New": 2, "In progress": 1, "Done": 1, "Dismissed": 1, "Could not fix": 0},
+                   "choices": {"new": 2, "in-progress": 1, "done": 1, "not-an-issue": 1, "could-not-fix": 0}, "open": 3, "mine": 2, "all": 5}, \
         "an old version or a deleted record is never counted, a record without a status is New, and the owner match ignores case"
     assert _counts(page, context, {}, "")["mine"] == 0, "nobody signed in owns nothing"
 
@@ -98,7 +99,8 @@ def test_the_list_returns_status_counts_only_when_asked(tmp_path):
     s, ws, _made = shell(tmp_path, ws=Counting())
     status, out = records(s, status_counts=True)
     assert status == 200 and out["status_counts"] == {
-        "statuses": {"New": 3, "In progress": 0, "Done": 2, "Dismissed": 0, "Could not fix": 0}, "mine": 1, "all": 5}
+        "statuses": {"New": 3, "In progress": 0, "Done": 2, "Dismissed": 0, "Could not fix": 0},
+        "choices": {"new": 0, "in-progress": 0, "done": 0, "not-an-issue": 0, "could-not-fix": 0}, "open": 3, "mine": 1, "all": 5}
     (_sql, params), = ws.queries(COUNTED)
     assert any(p["value"] == EDITOR["x-forwarded-email"] for p in params), "Mine counts the signed-in person"
     status, out = records(s)

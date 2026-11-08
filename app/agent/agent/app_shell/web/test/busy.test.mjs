@@ -1,8 +1,10 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { chromium } from 'playwright';
-import { CURRENT, DECIDE, HISTORY, ROWS, SUMMARY, TABLE, actBody, appInfo, idle, lister, openApp, sent, serveDist, tracked, until } from './harness.mjs';
+import { CURRENT, DECIDE, HISTORY, OWN_STATUSES, PERSON, ROWS, SUMMARY, TABLE, actBody, appInfo, idle, lister, openApp, sent, serveDist, tracked, until } from './harness.mjs';
+import { CASES, kindRoutes } from './exampleRoutes.mjs';
 
 let served;
 let browser;
@@ -47,8 +49,8 @@ function listRoutes(writes) {
   }).routes;
 }
 
-async function openList(routes) {
-  const opened = await openApp(browser, served.base, appInfo(DECIDE, 1, TABLE), { routes, clock: CLOCK, timezone: 'Asia/Dubai', hash: '#/n01_u05/work' });
+async function openList(routes, page = TABLE) {
+  const opened = await openApp(browser, served.base, appInfo(DECIDE, 1, page), { routes, clock: CLOCK, timezone: 'Asia/Dubai', hash: '#/n01_u05/work' });
   await opened.page.waitForFunction(() => document.querySelectorAll('.card--table tbody tr').length > 0 && document.querySelector('.list-tools'));
   return opened;
 }
@@ -88,7 +90,7 @@ test('a drawer action shows Saving… with a spinner at once, locks the other wr
     assert.equal(await drawer.getByRole('button', { name, exact: true }).isDisabled(), true, `${name} waits for the save`);
   }
   assert.equal(await drawer.getByRole('combobox', { name: 'Give to someone' }).isDisabled(), true);
-  assert.equal(await drawer.locator('select[name="action_status"]').isDisabled(), true, 'the record form is locked while it saves');
+  assert.equal(await drawer.locator('select[name="action_choice"]').isDisabled(), true, 'the record form is locked while it saves');
   assert.equal(await drawer.locator('.panel-b').getAttribute('aria-busy'), 'true');
   await shot(page, 'drawer_saving');
   await page.keyboard.press('d');
@@ -102,6 +104,80 @@ test('a drawer action shows Saving… with a spinner at once, locks the other wr
   assert.equal(await drawer.getByRole('button', { name: 'Could not fix' }).isDisabled(), false);
   assert.equal(writes.writes.length, 1);
   assert.deepEqual(seen.errors, []);
+  await context.close();
+});
+
+test('a closing choice of the page\'s own statuses saves through the same busy state: Saving… at once, one write on a double click, and a failure keeps the choice to press again', async () => {
+  const writes = holder();
+  const { page, seen, context } = await openList(listRoutes(writes), OWN_STATUSES);
+  const drawer = page.locator('dialog.drawer');
+  await page.locator('.cell-t').first().click();
+  await drawer.locator('[data-act="choice-drop"]').waitFor();
+  assert.deepEqual(await drawer.locator('button[data-act^="choice-"]').evaluateAll((b) => b.map((x) => x.dataset.choice)), ['keep', 'drop', 'wrong']);
+  const hold = writes.hold();
+  hold.fail = { status: 502, error: 'The warehouse is busy' };
+  const ms = await spinnerWithin(page, 'dialog.drawer [data-act="choice-drop"]');
+  assert.ok(ms < 100, `the spinner showed after ${ms} ms`);
+  assert.equal(await drawer.locator('[data-act="choice-drop"]').getAttribute('aria-busy'), 'true');
+  for (const act of ['choice-keep', 'choice-wrong']) {
+    assert.equal(await drawer.locator(`[data-act="${act}"]`).isDisabled(), true, `${act} waits for the save`);
+  }
+  assert.equal(await drawer.locator('select[name="action_choice"]').isDisabled(), true);
+  await page.keyboard.press('d');
+  assert.equal(writes.writes.length, 1, 'a double click and the d key while saving send no second write');
+  assert.deepEqual(writes.writes[0].values, { action_owner: PERSON, action_status: 'Done', action_choice: 'drop' });
+  hold.open();
+  await page.waitForFunction(() => !document.querySelector('[data-saving]'));
+  await drawer.locator('.fail, [role="alert"]').first().waitFor();
+  assert.equal(await drawer.locator('[data-act="choice-drop"]').innerText(), 'Drop the item');
+  assert.equal(await drawer.locator('[data-act="choice-drop"]').isDisabled(), false, 'the failed choice can be pressed again');
+  await drawer.locator('[data-act="choice-drop"]').click();
+  await until(() => writes.writes.length === 2);
+  assert.deepEqual(writes.writes[1].values, writes.writes[0].values, 'the retry sends the same choice');
+  await page.waitForFunction(() => document.querySelector('.toast .toast-t')?.textContent?.startsWith('Marked Drop the item'));
+  assert.deepEqual(seen.errors.filter((e) => !/502/.test(e)), []);
+  await context.close();
+});
+
+test('a choice row of a custom layout saves through the same busy state: Saving… at once, one write on a double click, and a failure keeps the choice and its reason', async () => {
+  const writes = holder();
+  const id = 'recommendation_desk';
+  const spec = JSON.parse(readFileSync(new URL(`../../examples/${id}.json`, import.meta.url), 'utf8'));
+  const acts = [];
+  const routes = kindRoutes(CASES[id].data(), CASES[id].rows.map((row) => ({ ...row })), acts, spec, { 'records/act': ({ route, json }) => writes.route(route, json, written) });
+  const { page, seen, context } = await openApp(browser, served.base, appInfo(DECIDE, 1, {}, `examples/${id}.json`), { routes, clock: CLOCK });
+  const first = page.locator('[data-choice-row="K1"]');
+  await first.locator('[data-choice="send"]').waitFor();
+  const hold = writes.hold();
+  hold.fail = { status: 502, error: 'The warehouse is busy' };
+  const ms = await spinnerWithin(page, '[data-choice-row="K1"] [data-choice="send"]');
+  assert.ok(ms < 100, `the spinner showed after ${ms} ms`);
+  assert.equal(await first.locator('[data-choice="send"]').getAttribute('aria-busy'), 'true');
+  assert.equal(await page.locator('[data-choice-row="K3"] [data-choice="skip"]').isDisabled(), true, 'the other rows wait for the save');
+  assert.equal(writes.writes.length, 1, 'a double click sends one write');
+  assert.deepEqual(writes.writes[0].values, { action_status: 'Done', action_choice: 'send', note: 'Send' });
+  hold.open();
+  await page.waitForFunction(() => !document.querySelector('[data-saving]'));
+  assert.equal(await first.locator('[data-choice="send"]').textContent(), '★ Send', 'the failed choice stays on the row');
+  assert.equal(await first.locator('[data-choice="send"]').isDisabled(), false);
+  await first.locator('[data-choice="send"]').click();
+  await page.waitForFunction(() => document.querySelector('.toast .toast-t')?.textContent === 'Send: Travel card');
+  assert.deepEqual(writes.writes[1].values, writes.writes[0].values, 'the retry sends the same choice');
+  const third = page.locator('[data-choice-row="K3"]');
+  await third.locator('[data-choice="skip"]').click();
+  const reasonFail = writes.hold();
+  reasonFail.fail = { status: 502, error: 'The warehouse is busy' };
+  const chip = '[data-choice-row="K3"] .choice-why .chip';
+  assert.ok(await spinnerWithin(page, chip) < 100, 'the reason shows Saving… at once');
+  assert.equal(writes.writes.length, 3, 'a double click on a reason sends one write');
+  assert.deepEqual(writes.writes[2].values, { action_status: 'Dismissed', action_choice: 'skip', dismiss_reason: 'Skip: Not a fit for them' });
+  reasonFail.open();
+  await page.waitForFunction(() => !document.querySelector('[data-saving]'));
+  assert.equal(await third.getByRole('button', { name: 'Not a fit for them' }).isVisible(), true, 'a failed skip keeps its reasons to press again');
+  await third.getByRole('button', { name: 'Not a fit for them' }).click();
+  await page.waitForFunction(() => document.querySelector('.toast .toast-t')?.textContent === 'Skip: Phone upgrade');
+  assert.equal(writes.writes.length, 4);
+  assert.deepEqual(seen.errors.filter((e) => !/502/.test(e)), []);
   await context.close();
 });
 

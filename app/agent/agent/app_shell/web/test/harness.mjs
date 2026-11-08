@@ -58,6 +58,10 @@ print(json.dumps(shell.app_info({"x-forwarded-email": "pat.lee@example.com", "x-
 `;
 
 export const TABLE = { result_table: 'main.pricing.loss_desk_out' };
+export const OWN_CHOICES = [{ id: 'reprice', label: 'Reprice', status: 'In progress' }, { id: 'keep', label: 'Keep the price', status: 'Done' },
+  { id: 'drop', label: 'Drop the item', status: 'Done' }, { id: 'wrong', label: 'Wrong flag', status: 'Dismissed', reasons: ['Data error', 'Seasonal'] }];
+const EXAMPLE_PAGE = JSON.parse(readFileSync(join(REPO, 'agent', 'app_shell', 'example_page.json'), 'utf8'));
+export const OWN_STATUSES = { ...TABLE, records: { ...EXAMPLE_PAGE.records, choices: OWN_CHOICES } };
 export const GENIE_ONLY = { mode: 'genie', note: '', genie: true, model: '' };
 
 export function appInfo(overrides = {}, pages = 1, pageChanges = {}, example = 'example_page.json') {

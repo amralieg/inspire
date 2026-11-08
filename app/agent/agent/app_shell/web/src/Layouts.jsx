@@ -1,7 +1,7 @@
 import { Suspense, lazy, useEffect, useState } from 'react';
 import { decidePlan, getRecords, runSettingsNow } from './api.js';
 import { entityName, formatValue, integer, numberOf } from './format.js';
-import { canDecide, noDecisionText, pageDecides, recordKeyOf } from './records.js';
+import { canDecide, choiceLabel, noDecisionText, pageDecides, recordKeyOf, statusChoices } from './records.js';
 import { Icon, GenieMark } from './icons.jsx';
 import { SaidNote, Skeleton, useToast } from './ui.jsx';
 import { genieOn } from './genieAsk.js';
@@ -120,7 +120,7 @@ const lineName = (page, row) => String(row[page.records.label] ?? recordKeyOf(ro
 
 function planFields(page, plan, row) {
   return { [page.records.label_title || 'Line']: lineName(page, row), Now: row[plan.current], Suggested: row[plan.recommended], Change: planDelta(plan, row),
-    Status: row._inspire_status || row.action_status || 'New' };
+    Status: choiceLabel(statusChoices(page), row) };
 }
 
 export async function decidePlanLine(page, plan, row, decision, reason = '', value = null) {
@@ -140,7 +140,6 @@ function PlanRow({ page, app, plan, row, actions, onDecided, onOpen }) {
   const key = recordKeyOf(row);
   const fmt = (v) => formatValue(v, plan.format, plan.currency);
   const delta = planDelta(plan, row);
-  const status = row._inspire_status || row.action_status;
   const decided = isClosed(row);
   const decide = (decision) => runWrite(`plan:${key}:${decision}`, async () => {
     setError('');
@@ -165,10 +164,10 @@ function PlanRow({ page, app, plan, row, actions, onDecided, onOpen }) {
         <td className="num">{fmt(row[plan.current])}</td>
         <td className="num plan-rec"><span aria-hidden="true">★ </span>{fmt(row[plan.recommended])}</td>
         <td className={`num ${delta > 0 ? 'is-up' : delta < 0 ? 'is-down' : ''}`}>{delta == null ? '' : `${delta > 0 ? '+' : ''}${fmt(delta)}`}</td>
-        <td>{status || 'New'}</td>
+        <td>{choiceLabel(statusChoices(page), row)}</td>
         {actions && (
           <td className="plan-act">
-            {decided && <span className="choice-done" data-decided><Icon name="check" size={13} />{decidedText(row)}</span>}
+            {decided && <span className="choice-done" data-decided><Icon name="check" size={13} />{decidedText(row, statusChoices(page))}</span>}
             {can && (
               <>
                 <SaveButton write={`plan:${key}:accept`} className="btn btn--sm btn--pri" onClick={() => decide('accept')}>Accept</SaveButton>

@@ -5,7 +5,7 @@ import { apiTables, apiValues, clearColumnValues, clearSelections, columnValues,
 import { dayLabel } from './format.js';
 import { filterWords } from './explain.js';
 import { hueVars } from './theme.js';
-import { DEFAULT_TAB, WORK_TABS, buildHash, describeFilters, fixThis, parseHash } from './links.js';
+import { DEFAULT_TAB, buildHash, describeFilters, fixThis, parseHash, workTabs } from './links.js';
 import { Block } from './Blocks.jsx';
 import { blockPlan, gridSpans, slotsOf, withBlocks } from './blocks.js';
 import { GenieMark, Icon } from './icons.jsx';
@@ -25,7 +25,7 @@ import { AdminLink } from './Admin.jsx';
 import { FoldScope, useMyView } from './MyView.jsx';
 import { isLaidOut, isQueue, pageSections } from './Layouts.jsx';
 import { windowParams } from './prefs.js';
-import { pageDecides } from './records.js';
+import { pageDecides, statusChoices } from './records.js';
 import { GenieScope } from './AskGenie.jsx';
 import { reasonFilters, useCaseState } from './hub.js';
 import Dashboard, { NO_SLOTS, TableCard, chartSlots, hubChartsOnTop } from './Dashboard.jsx';
@@ -110,7 +110,8 @@ export default function Page({ app, page, meta, state, onState, look = EMPTY_LOO
   const hubPage = !laidOut && listed && !!(live.data?.tracked || live.data?.empty || hubEntry?.tracked || hubEntry?.empty || !live.done);
   const entry = live.data || hubEntry;
   const tabbed = work && listed && !!app.options?.decisions && pageDecides(page) && !!entry?.tracked;
-  const tabNow = tabbed ? (WORK_TABS.some(([id]) => id === tab) ? tab : DEFAULT_TAB) : '';
+  const choices = statusChoices(page);
+  const tabNow = tabbed ? (workTabs(choices).some(([id]) => id === tab) ? tab : DEFAULT_TAB) : '';
   const [question, setQuestion] = useState('');
   const [seeChanged, setSeeChanged] = useState(() => (parseHash(window.location.hash).changed ? 1 : 0));
   const runsOn = sections.includes('runs');
@@ -247,7 +248,7 @@ export default function Page({ app, page, meta, state, onState, look = EMPTY_LOO
           genie={genie} ready={ready} filters={filters} onPick={pick} onFix={fix} onWork={() => go('work')} />
       )}
       {shown === 'work' && (
-        <WorkPage meta={meta} state={state} onState={onState} pageId={page.id} reasons={reasonFilters(entry, summary)} plan={plan} tab={tabNow}
+        <WorkPage meta={meta} state={state} onState={onState} pageId={page.id} reasons={reasonFilters(entry, summary)} plan={plan} tab={tabNow} choices={choices}
           counts={queue?.data?.status_counts} onTab={(id) => go('work', { tab: id })}>
           {records({ ready: ready && (!listed || live.done), tab: tabNow || undefined, docked: true, section: 'records' })}
         </WorkPage>

@@ -8,7 +8,7 @@ import { askGenieAbout, fixQuestion, genieOn } from './genieAsk.js';
 import { BUSY_TITLE, fieldsOf, tableContext } from './explain.js';
 import { AskGenie } from './AskGenie.jsx';
 import { DraftDialog } from './Draft.jsx';
-import { TAB_STATUS, withRecord, withoutRecord } from './links.js';
+import { OPEN_TAB, tabChoice, withRecord, withoutRecord } from './links.js';
 import { useDock } from './Dock.jsx';
 import { MONEY_COLUMN as MONEY } from './hub.js';
 import { addCounts, addedParts, cap, compareValues, dayLabel, entityName, formatValue, integer, kindOf, plainText, savedWords, shownUnit, unitOf } from './format.js';
@@ -27,9 +27,9 @@ import { ColumnFilterStatus, withColumnFilters } from './ColumnFilters.jsx';
 import { useCopyLink } from './PageLink.jsx';
 import { WindowChips, useFocusList, useMyView } from './MyView.jsx';
 import { EVERYTHING, listLimit, listWindow, localDay, markVisit, narrowWindow, nextDay, visitedAt, windowLabel } from './prefs.js';
-import { BatchesDialog, BulkBar, CaughtUp, ConflictNote, HelpDialog, NoteField, SimilarDialog, isTyping, useActs } from './Work.jsx';
+import { BatchesDialog, BulkBar, CaughtUp, ChoiceSelect, ConflictNote, HelpDialog, NoteField, SimilarDialog, isTyping, useActs } from './Work.jsx';
 import {
-  DRAFT_LABEL, ACT_LIMIT, CLOSED_STATUSES, HELD, NOTE_CHARS, PAGE_SIZES, REASON_CHARS, STATUSES, UNEXPLAINED, actionForm, actionProblem, actionValues,
+  DRAFT_LABEL, ACT_LIMIT, CHOICE_COLUMN, CLOSED_STATUSES, DONE, HELD, NOTE_CHARS, PAGE_SIZES, REASON_CHARS, UNEXPLAINED, actionForm, actionProblem, actionValues, pageChoices, pickChoice, statusKind, OPEN_STATUSES, isOpenStatus, choiceLabel, closingChoices, isDefaultChoice, QUICK_CLOSE,
   aiValue, askQuestions, changeBadge, doneText, dueText, explainContext, heldBack, heldText, impactText, initials, isOverdue, keptText, leftText, matchOf,
   missingSince, NOT_IN_RUN, notInRunText, overdueFirst, pageText, recordCurrency, recordKeyOf, recordRef, recordView, recordsText, savingText, statusClass,
   statusLabel, actError, withoutWindow, NO_AS_OF, listAsOf,
@@ -49,6 +49,7 @@ const SAVE_WRITE = 'drawer:save';
 const NOTE_WRITE = 'drawer:note';
 const SNOOZE_WRITE = 'drawer:snooze';
 const GIVE_WRITE = 'drawer:give';
+const closeWrite = (choice) => `drawer:close:${choice.id}`;
 const NO_FORMULA = 'How this amount is counted is not recorded for this record.';
 const LATER = 'An assumption changed since the last update, so this record shows the amount the update wrote until it runs again.';
 
@@ -108,14 +109,14 @@ function OwnerList({ id, owners }) {
   return <datalist id={id}>{owners.map((o) => <option key={o} value={o} />)}</datalist>;
 }
 
-function useAction(data, person, acts, label) {
+function useAction(data, person, acts, label, choices) {
   const toast = useToast();
   const current = data?.current || null;
-  const [form, setForm] = useState(() => actionForm(current, person));
+  const [form, setForm] = useState(() => actionForm(current, person, choices));
   const [failure, setFailure] = useState(null);
   const gate = useWrite();
   const saving = gate.busy;
-  useEffect(() => { setForm(actionForm(current, person)); setFailure(null); }, [current, person]);
+  useEffect(() => { setForm(actionForm(current, person, choices)); setFailure(null); }, [current, person, choices]);
   const send = async (values, said, key) => {
     if (!current || gate.busy) return null;
     setFailure(null);
@@ -129,14 +130,14 @@ function useAction(data, person, acts, label) {
   };
   const save = async (next, said, key) => {
     if (!current || actionProblem(next)) return null;
-    const values = actionValues(current, next);
+    const values = actionValues(current, next, choices);
     if (!Object.keys(values).length) {
       toast('Nothing changed');
       return null;
     }
     return send(values, said, key);
   };
-  return { form, setForm, failure, saving, slow: gate.slow, mine: gate.mine, save, send };
+  return { form, setForm, failure, saving, slow: gate.slow, mine: gate.mine, save, send, choices };
 }
 
 function AddNote({ action }) {
@@ -166,7 +167,7 @@ function WorkBar({ work, action, tomorrow, canAct }) {
   return (
     <div className="work-f" role="group" aria-label="Work through the list">
       <span className="work-k" data-work-k>{work.text}</span>
-      <SaveButton write="work:done" className="btn btn--pri" onClick={() => run('done', { action_status: 'Done' })} disabled={!canAct} data-key="d"><Icon name="check" size={15} />Done and next</SaveButton>
+      <SaveButton write="work:done" className="btn btn--pri" onClick={() => run('done', { action_status: DONE })} disabled={!canAct} data-key="d"><Icon name="check" size={15} />Done and next</SaveButton>
       <label className="work-snz"><span className="sr">Snooze until</span><input type="date" name="work_snooze" min={tomorrow} value={until} onChange={(e) => setUntil(e.target.value)} /></label>
       <SaveButton write="work:snoozed" onClick={() => run('snoozed', { snooze_until: until })} disabled={!canAct || !until || until < tomorrow} data-key="s">Snooze and next</SaveButton>
       <button className="btn" onClick={() => run('skipped', null)} disabled={action.saving} data-key="skip">Skip</button>
@@ -214,10 +215,10 @@ function ActionPanel({ action, owners, pageId, reason, owner, closing, unit, kin
         <fieldset className="act-fs" disabled={saving}>
         <label className="in"><span>Owner</span><input dir="auto" ref={owner} name="action_owner" value={form.owner} onChange={set('owner')} list={`owners-${pageId}`} maxLength={254} autoComplete="off" /></label>
         <OwnerList id={`owners-${pageId}`} owners={owners} />
-        <label className="in"><span>Status</span><select name="action_status" value={form.status} onChange={set('status')}>{STATUSES.map((s) => <option key={s} value={s}>{statusLabel(s)}</option>)}</select></label>
+        <label className="in"><span>Status</span><ChoiceSelect name={CHOICE_COLUMN} choices={action.choices} value={form.choice} status={form.status} onChange={(id) => setForm((f) => pickChoice(f, action.choices, id))} /></label>
         <label className="in"><span>Due</span><input type="date" name="action_due" value={form.due} onChange={set('due')} /></label>
         <label className="in in--wide"><span>Note</span><textarea dir="auto" name="action_note" rows={2} value={form.note} onChange={set('note')} /></label>
-        {closing && form.status === 'Done' && (
+        {closing && statusKind(form.status) === 'done' && (
           <>
             <label className="in"><span>{cap(savedWords(unit, kind))}<small> · optional</small></span>
               <input type="number" min="0" step="any" inputMode="decimal" name="realized_value" value={form.saved} onChange={set('saved')} aria-invalid={problem ? true : undefined} />
@@ -228,7 +229,7 @@ function ActionPanel({ action, owners, pageId, reason, owner, closing, unit, kin
             {problem && <small className="in-err in--wide">{problem}</small>}
           </>
         )}
-        {form.status === 'Dismissed' && (
+        {statusKind(form.status) === 'dismissed' && (
           <label className="in in--wide">
             <span>Why is it not an issue? *<small> · {form.reason.trim().length}/{REASON_CHARS}</small></span>
             <textarea dir="auto" ref={reason} name="dismiss_reason" rows={2} maxLength={REASON_CHARS} value={form.reason} onChange={set('reason')} aria-invalid={problem ? true : undefined} required />
@@ -282,7 +283,8 @@ function Drawer({ meta, row: given, onClose, history, canModify, tracker, owners
   const row = given && current && given[meta.label] == null ? { ...current, ...given } : given;
   const deleted = !!log.data?.deleted;
   const title = (row && recordName(row, meta)) || 'This record';
-  const action = useAction(log.data, person, acts, title);
+  const choices = pageChoices(app, pageId);
+  const action = useAction(log.data, person, acts, title, choices);
   const reason = useRef(null);
   const ownerInput = useRef(null);
   const link = useCopyLink('Link to this record', 'Link to this record copied');
@@ -315,8 +317,8 @@ function Drawer({ meta, row: given, onClose, history, canModify, tracker, owners
     onClose();
     askGenieAbout({ pageId, recordKey, label: title }, question);
   };
-  const dismiss = () => {
-    flushSync(() => action.setForm((f) => ({ ...f, status: 'Dismissed' })));
+  const dismiss = (choice) => {
+    flushSync(() => action.setForm((f) => pickChoice(f, choices, choice.id)));
     reason.current?.focus();
   };
   const giveTo = (e) => {
@@ -364,7 +366,7 @@ function Drawer({ meta, row: given, onClose, history, canModify, tracker, owners
             {held && <div className="held" role="status"><Icon name="info" size={14} />{heldText(app.held_meaning)}</div>}
             {!deleted && missingSince(row) && <div className="kept" role="status"><Icon name="info" size={14} />{notInRunText(missingSince(row))}</div>}
             {closed && (
-              <div className="done" role="status">{doneText(current, shownUnit(unit, recordCurrency(meta, current, row), kind), kind)}{closedBy && <small className="done-by" data-closed-by>{closedBy}</small>}
+              <div className="done" role="status">{doneText(current, shownUnit(unit, recordCurrency(meta, current, row), kind), kind, choices)}{closedBy && <small className="done-by" data-closed-by>{closedBy}</small>}
                 {readOnly && <small className="done-by" data-read-only>{undoBatch ? READ_ONLY : theirs ? READ_ONLY_THEIRS : READ_ONLY_KEPT}</small>}</div>
             )}
             {saving && (
@@ -421,11 +423,20 @@ function Drawer({ meta, row: given, onClose, history, canModify, tracker, owners
             {work && <WorkBar key={linkKey} work={work} action={action} tomorrow={tomorrow} canAct={acting} />}
             {acting && !work && !closed && (
               <>
-                <SaveButton write="drawer:done" className="btn btn--pri" onClick={() => action.save({ ...action.form, status: 'Done' }, 'Marked done. The next run checks whether it worked.', 'drawer:done')}
-                  data-key="d" data-act="done"><Icon name="check" size={15} />Mark done</SaveButton>
-                <button className="btn" onClick={dismiss} disabled={action.saving} data-act="dismiss">Not an issue</button>
-                <SaveButton write="drawer:cannot" onClick={() => action.save({ ...action.form, status: 'Could not fix' }, 'Marked as could not fix. The next run still checks it.', 'drawer:cannot')}
-                  >Could not fix</SaveButton>
+                {closingChoices(choices).map((c, i) => {
+                  const [text, act] = isDefaultChoice(c) ? QUICK_CLOSE[statusKind(c.status)] : [c.label, `choice-${c.id}`];
+                  const done = statusKind(c.status) === 'done';
+                  const shape = { className: `btn ${i === 0 ? 'btn--pri' : ''}`, 'data-act': act, 'data-choice': c.id, ...(i === 0 && done ? { 'data-key': 'd' } : {}) };
+                  const face = <>{done && i === 0 && <Icon name="check" size={15} />}{text}</>;
+                  if (statusKind(c.status) === 'dismissed') return <button key={c.id} {...shape} disabled={action.saving} onClick={() => dismiss(c)}>{face}</button>;
+                  const write = closeWrite(c);
+                  return (
+                    <SaveButton key={c.id} write={write} {...shape}
+                      onClick={() => action.save(pickChoice(action.form, choices, c.id), doneText({ action_status: c.status, [CHOICE_COLUMN]: c.id }, '', '', choices), write)}>
+                      {face}
+                    </SaveButton>
+                  );
+                })}
                 <select className="btn" aria-label="Give to someone" value="" onChange={giveTo} disabled={action.saving} aria-busy={action.mine(GIVE_WRITE) || undefined}>
                   <option value="">{action.mine(GIVE_WRITE) ? savingLabel(action.slow) : owner ? `With ${owner}` : 'Give to someone'}</option>
                   {person && person !== owner && <option value={person}>Give to me</option>}
@@ -475,6 +486,7 @@ export function RecordPanel({ meta, app, pageId, row, list, onClose, onChanged, 
   const acts = useActs({ pageId, similarBy, onActed: acted, labelOf });
   const toast = useToast();
   const decides = !!app?.options?.decisions && pageDecides((app.pages || []).find((p) => p.id === pageId) || { records: meta });
+  const choices = pageChoices(app, pageId);
   return (
     <>
       <Drawer meta={meta} row={row} onClose={onClose} history canModify={false} tracker={!!(decides && list?.actions)} owners={list?.summary?.owners || []} app={app}
@@ -482,7 +494,7 @@ export function RecordPanel({ meta, app, pageId, row, list, onClose, onChanged, 
         work={null} tomorrow={nextDay(today)} today={today} />
       <ConflictNote conflicts={acts.conflicts} labelOf={labelOf} onClose={acts.clearConflicts} />
       {acts.similar && (
-        <SimilarDialog similar={acts.similar} onClose={acts.closeSimilar}
+        <SimilarDialog similar={acts.similar} onClose={acts.closeSimilar} choices={choices}
           onApply={(values, key) => acts.act({ match: acts.similar.match }, values, { key }).catch((err) => { toast(actError(err), toneOf(err)); return null; })} />
       )}
     </>
@@ -511,7 +523,9 @@ export default function Records({ meta, app, pageId, filters, ai, onFilter, hist
   const size = prefs.rows;
   const setSize = (rows) => update((p) => ({ ...p, rows }));
   const [ownMine, setMine] = useState(false);
-  const tabStatus = tab ? TAB_STATUS[tab] || null : null;
+  const choices = pageChoices(app, pageId);
+  const tabPick = tab ? tabChoice(choices, tab) : null;
+  const tabOpen = tab === OPEN_TAB;
   const mine = tab ? tab === 'mine' : ownMine;
   const dockNow = useDock();
   const dock = docked ? dockNow : null;
@@ -528,8 +542,8 @@ export default function Records({ meta, app, pageId, filters, ai, onFilter, hist
   const cap = noActions || tab ? 0 : listLimit(prefs);
   const windowed = noActions || tab ? {} : listWindow(prefs);
   const aiPicks = ai || NO_PICKS;
-  const narrowed = tabStatus ? { ...apiColumns(columnValues), action_status: [tabStatus] } : apiColumns(columnValues);
-  const scope = JSON.stringify({ filters, ai: aiPicks, search, mine, changed, columns: narrowed, ...windowed });
+  const narrowed = tabOpen ? { ...apiColumns(columnValues), action_status: OPEN_STATUSES } : apiColumns(columnValues);
+  const scope = JSON.stringify({ filters, ai: aiPicks, search, mine, changed, columns: narrowed, choice: tabPick?.id || '', ...windowed });
   const pageScope = JSON.stringify([scope, sort, size, cap]);
   const [paging, setPaging] = useState({ scope: pageScope, offset: 0, cursor: null });
   const offset = paging.scope === pageScope ? paging.offset : 0;
@@ -538,7 +552,7 @@ export default function Records({ meta, app, pageId, filters, ai, onFilter, hist
   const picked = picks.scope === scope ? picks.keys : NONE;
   const matching = picks.scope === scope ? picks.all : null;
   const inWindow = windowed.window ? { window: windowed.window, ...(windowed.time_zone ? { time_zone: windowed.time_zone } : {}) } : {};
-  const listed = { page: pageId, filters, ai: aiPicks, search, mine, changed, ...(Object.keys(narrowed).length ? { column_filters: narrowed } : {}), ...inWindow,
+  const listed = { page: pageId, filters, ai: aiPicks, search, mine, changed, ...(Object.keys(narrowed).length ? { column_filters: narrowed } : {}), ...(tabPick ? { choice: tabPick.id } : {}), ...inWindow,
     ...(tab ? { status_counts: true } : {}) };
   const room = cap ? Math.max(1, Math.min(size, cap - offset)) : size;
   const asked = { ...listed, ...(cap ? { window_limit: cap } : {}), ...(sort ? { sort } : {}), offset, limit: room, ...(cursor ? { cursor } : {}) };
@@ -580,7 +594,7 @@ export default function Records({ meta, app, pageId, filters, ai, onFilter, hist
   }, [pageId]);
   const aliases = data?.ai?.columns || NO_ALIASES;
   const tracker = !!(history && decides && data?.actions);
-  const everything = tab ? !['New', 'In progress'].includes(tabStatus) : prefs.window === EVERYTHING;
+  const everything = tab ? !(tabOpen || (tabPick && isOpenStatus(tabPick.status))) : prefs.window === EVERYTHING;
   const owners = data?.summary?.owners || [];
   const person = app.user?.email || '';
   const canModify = !!(history && app.options.modify);
@@ -794,7 +808,7 @@ export default function Records({ meta, app, pageId, filters, ai, onFilter, hist
       }
       if (e.key === 'd') {
         e.preventDefault();
-        if (!drawer || !press('d')) k.quick(row, { action_status: 'Done' });
+        if (!drawer || !press('d')) k.quick(row, { action_status: DONE });
       } else if (e.key === 's') {
         e.preventDefault();
         if (!drawer || !press('s')) k.quick(row, { snooze_until: k.tomorrow });
@@ -860,7 +874,7 @@ export default function Records({ meta, app, pageId, filters, ai, onFilter, hist
         key: 'action_status', label: 'Status', className: 'wrap',
         render: (r) => {
           const by = closedText(r);
-          return <>{r._inspire_status ? <><span className={statusClass(r._inspire_status)}>{statusLabel(r._inspire_status)}</span>{by && <small className="closed-by" data-closed-by>{by}</small>}</> : ''}{acts.saidAt(keyOf(r))}</>;
+          return <>{r._inspire_status ? <><span className={statusClass(r._inspire_status)}>{choiceLabel(choices, r)}</span>{by && <small className="closed-by" data-closed-by>{by}</small>}</> : ''}{acts.saidAt(keyOf(r))}</>;
         },
       },
       ...(meta.action ? [{
@@ -942,7 +956,7 @@ export default function Records({ meta, app, pageId, filters, ai, onFilter, hist
       )}
       <ConflictNote conflicts={acts.conflicts} labelOf={labelOf} onClose={acts.clearConflicts} />
       {(picked.size > 0 || matching) && (
-        <BulkBar picked={picked} matching={matching} total={shownTotal} capped={capped} allOnPage={allPicked} owners={owners} person={person} tomorrow={tomorrow}
+        <BulkBar choices={choices} picked={picked} matching={matching} total={shownTotal} capped={capped} allOnPage={allPicked} owners={owners} person={person} tomorrow={tomorrow}
           canMatch={!everything} onAct={actOn} onAll={selectAll} onClear={clearPicks} onAccept={meta.action && !matching ? acceptPicked : null}
           onSimilar={similarBy?.length ? () => acts.findSimilar([...picked.keys()], { label: `the ${recordsText(picked.size)} you selected` }) : null}
           onDraft={() => setDrafted([...picked.keys()])} />
@@ -956,7 +970,7 @@ export default function Records({ meta, app, pageId, filters, ai, onFilter, hist
           {quiet && <div className="quiet-n" role="status" data-quiet-list><Icon name="info" size={13} /><div><b>{quiet.title}</b>{quiet.why && <p>{quiet.why}</p>}<p>{quiet.raise}</p></div></div>}
           {late.late > 0 && <p className="late-n" data-overdue><Icon name="calendar" size={13} />Overdue: {recordsText(late.late)} on this page, shown first.</p>}
           <DataTable label={meta.title} columns={columns} rows={tableRows} rowKey={keyOf} onRow={setOpen} paged={false} filtering="server" grid={`page:${pageId}:records`}
-            empty={emptyState({ search, mine, changed, fresh, windowed: !tab && narrowWindow(prefs) ? windowLabel(prefs.window) : '', narrowedAny, status: tabStatus ? statusLabel(tabStatus) : '',
+            empty={emptyState({ search, mine, changed, fresh, windowed: !tab && narrowWindow(prefs) ? windowLabel(prefs.window) : '', narrowedAny, status: tabPick ? tabPick.label : tabOpen ? 'Open' : '',
               ranged: Object.values(filters || {}).some((v) => v && typeof v === 'object' && !Array.isArray(v)), onClear: clearAll,
               onWide: () => update((p) => ({ ...p, window: 'all' })) })}
             sort={shownSort ? { key: shownSort.key, dir: shownSort.dir === 'desc' ? -1 : 1 } : null} onSort={(s) => setSort({ key: s.key, dir: s.dir > 0 ? 'asc' : 'desc' })}
@@ -988,10 +1002,10 @@ export default function Records({ meta, app, pageId, filters, ai, onFilter, hist
       {form && <RecordForm mode={form.mode} target={form.target} meta={meta} pageId={pageId} rows={rows} onClose={() => setForm(null)} onSaved={saved} />}
       {doomed && <DeleteDialog target={recordRef(meta, doomed)} label={recordName(doomed, meta) || 'this record'} pageId={pageId} onClose={() => setDoomed(null)} onSaved={saved} />}
       {acts.similar && (
-        <SimilarDialog similar={acts.similar} onClose={acts.closeSimilar}
+        <SimilarDialog similar={acts.similar} onClose={acts.closeSimilar} choices={choices}
           onApply={(values, key) => acts.act({ match: acts.similar.match }, values, { key }).catch((err) => { toast(actError(err), toneOf(err)); return null; })} />
       )}
-      {dialog === 'batches' && <BatchesDialog pageId={pageId} onClose={() => setDialog('')} onUndo={acts.undo} labelOf={labelOf} />}
+      {dialog === 'batches' && <BatchesDialog choices={choices} pageId={pageId} onClose={() => setDialog('')} onUndo={acts.undo} labelOf={labelOf} />}
       {dialog === 'help' && <HelpDialog onClose={() => setDialog('')} />}
       {drafted && <DraftDialog pageId={pageId} keys={drafted} label={recordsText(drafted.length)} onClose={() => setDrafted(null)} />}
       {work?.ended && <CaughtUp work={work} onClose={() => setWork(null)} />}

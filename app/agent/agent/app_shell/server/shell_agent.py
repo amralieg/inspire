@@ -126,7 +126,6 @@ DRAFT_SCALE = {"k": 1e3, "m": 1e6, "b": 1e9, "bn": 1e9}
 DRAFT_DIGITS = re.compile(r"\d+(?:[.,]\d+)*")
 DRAFT_FALLBACK = "so this draft is built from the record fields"
 DRAFT_NO_MODEL = f"No chat model is available to this App, {DRAFT_FALLBACK}."
-DRAFT_STATUS = {"Dismissed": "Not an issue"}
 
 ACTIONS = {"done": "Mark done", "not_an_issue": "Mark not an issue", "snooze": "Snooze", "assign": "Assign", "reopen": "Reopen"}
 VIEW_KINDS = ("filter", "range", "clear_filters", "column_filter", "sort", "chart", "navigate", "open_record")
@@ -717,7 +716,7 @@ def draft_template(page: dict, items: list) -> tuple:
     if len(items) == 1:
         item, values = items[0], items[0]["values"]
         amount, action, owner = draft_amount(values), draft_action(page, values), draft_text(values.get("action_owner"))
-        status = DRAFT_STATUS.get(values.get("action_status"), draft_text(values.get("action_status")) or "New")
+        status = draft_text(shell_sql.status_text(page, values))
         due = draft_text(values.get("action_due"))[:10]
         lines = [draft_sentence(f"{item['name']} is flagged on {title}"), draft_sentence(cut(draft_text(values.get("ai_explanation")), DRAFT_EXPLAIN_CHARS) or "")]
         lines += [f"The amount at stake is {amount}." if amount else "", f"The recommended action is: {action}." if action else "",
@@ -926,12 +925,12 @@ def action_values(action: str, raw: dict) -> dict:
     note = raw.get("note")
     extra = {"note": cut(note, shell_sql.CAPS["note_chars"])} if isinstance(note, str) and note.strip() else {}
     if action == "done":
-        return dict({"action_status": "Done"}, **extra)
+        return dict({"action_status": shell_sql.DONE}, **extra)
     if action == "not_an_issue":
         reason = raw.get("reason")
         if not isinstance(reason, str) or not reason.strip():
             raise ValueError("marking records not an issue needs the person's reason; ask them for it")
-        return dict({"action_status": "Dismissed", "dismiss_reason": reason.strip()}, **extra)
+        return dict({"action_status": shell_sql.DISMISSED, "dismiss_reason": reason.strip()}, **extra)
     if action == "snooze":
         until = raw.get("until")
         if not isinstance(until, str) or not DATE.match(until):
@@ -1498,9 +1497,9 @@ class Agent:
             missing = [k for k in keys if k not in current]
             if missing:
                 raise ValueError(f"these records are not on the list you can read: {', '.join(missing[:5])}")
-            shell_sql.action_values(values, self.shell.now().date())
+            shell_sql.action_values(values, self.shell.now().date(), shell_sql.status_choices(page))
             rows = [{"record_key": k, "label": cut(current[k].get((page.get("records") or {}).get("label")) or k),
-                     "status": current[k].get("action_status") or "New"} for k in keys]
+                     "status": shell_sql.status_text(page, current[k])} for k in keys]
             confirm = {"action": action, "label": ACTIONS[action], "route": "records/act", "rows": rows, "values": values,
                        "body": {"page": page["id"], "record_keys": keys, "seen": {k: current[k]["valid_from_us"] for k in keys}, "values": values}}
         turn.confirm = confirm

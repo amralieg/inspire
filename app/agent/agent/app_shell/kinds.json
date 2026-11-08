@@ -212,7 +212,13 @@
     {
      "id": "skip",
      "label": "Skip",
-     "status": "Dismissed"
+     "status": "Dismissed",
+     "reasons": [
+      "Not a fit for them",
+      "They already have it",
+      "Bad timing",
+      "Too many offers already"
+     ]
     }
    ]
   },

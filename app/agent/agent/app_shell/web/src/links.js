@@ -21,10 +21,10 @@ function decodePart(text) {
 
 export const SECTIONS = ['dashboard', 'work', 'performance', 'runs', 'alerts', 'settings'];
 export const DEFAULT_SECTION = 'dashboard';
-export const WORK_TABS = [['new', 'New'], ['in-progress', 'In progress'], ['done', 'Done'], ['not-an-issue', 'Not an issue'], ['could-not-fix', 'Could not fix'],
-  ['mine', 'Mine'], ['all', 'All']];
-export const TAB_STATUS = { new: 'New', 'in-progress': 'In progress', done: 'Done', 'not-an-issue': 'Dismissed', 'could-not-fix': 'Could not fix' };
-export const DEFAULT_TAB = 'new';
+export const OPEN_TAB = 'open';
+export const workTabs = (choices) => [[OPEN_TAB, 'Open'], ...(choices || []).map((c) => [c.id, c.label]), ['mine', 'Mine'], ['all', 'All']];
+export const tabChoice = (choices, tab) => (choices || []).find((c) => c.id === tab) || null;
+export const DEFAULT_TAB = OPEN_TAB;
 const LEGACY_VIEWS = { overview: DEFAULT_SECTION };
 const HUB_HOME = ['', 'home', 'overview'];
 const HUB_PERFORMANCE = [MY_WORK_ROUTE, 'impact', 'results'];
@@ -434,5 +434,6 @@ export function tabCount(counts, id) {
   if (!counts) return null;
   if (id === 'mine') return counts.mine ?? null;
   if (id === 'all') return counts.all ?? null;
-  return counts.statuses?.[TAB_STATUS[id]] ?? null;
+  if (id === OPEN_TAB) return counts.open ?? null;
+  return counts.choices?.[id] ?? null;
 }

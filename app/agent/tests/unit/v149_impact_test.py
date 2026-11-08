@@ -263,11 +263,11 @@ def test_the_impact_statement_runs_on_a_real_postgres(postgres, tmp_path):  # no
 
 def test_a_fix_takes_the_money_it_saved_and_only_a_fix_does():
     values = shell_sql.action_values({"action_status": "Done", "realized_value": "1250.5", "realized_note": "  Repriced "})
-    assert values == {"action_status": "Done", "dismiss_reason": None, "realized_value": 1250.5, "realized_note": "Repriced",
+    assert values == {"action_status": "Done", "action_choice": None, "dismiss_reason": None, "realized_value": 1250.5, "realized_note": "Repriced",
                       "snooze_until": None}
     assert shell_sql.action_values({"action_status": "Done", "realized_value": "", "realized_note": ""}) == \
-        {"action_status": "Done", "dismiss_reason": None, "realized_value": None, "realized_note": None, "snooze_until": None}
-    assert shell_sql.action_values({"action_status": "In progress"}) == {"action_status": "In progress", "dismiss_reason": None,
+        {"action_status": "Done", "action_choice": None, "dismiss_reason": None, "realized_value": None, "realized_note": None, "snooze_until": None}
+    assert shell_sql.action_values({"action_status": "In progress"}) == {"action_status": "In progress", "action_choice": None, "dismiss_reason": None,
                                                                           "realized_value": None, "realized_note": None,
                                                                           "snooze_until": None}, \
         "reopening a fix clears the money it saved"

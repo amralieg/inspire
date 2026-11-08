@@ -1,7 +1,7 @@
 import { Suspense, lazy, useEffect, useState } from 'react';
 import { getRecords } from './api.js';
 import { cellText, formatValue, integer, isKeyColumn, numberOf } from './format.js';
-import { CLOSED_STATUSES, actError, canDecide, listAsOf, matchOf, noDecisionText, pageDecides, recordKeyOf, statusLabel } from './records.js';
+import { IN_PROGRESS, NEW, isClosed, statusKind, actError, canDecide, choiceLabel, choiceValues, listAsOf, matchOf, noDecisionText, pageDecides, recordKeyOf, statusChoices } from './records.js';
 import { QueueBulk, useActs } from './Work.jsx';
 import { RecordPanel } from './Records.jsx';
 import { useList } from './Layouts.jsx';
@@ -20,9 +20,8 @@ export const SEGMENT_CARDS = 12;
 export const EFFECT_CARDS = 6;
 export const SIGNIFICANT = 0.05;
 export const LAZY_CHARTS = ['treemap', 'radar', 'sankey', 'gantt'];
-export const SKIP_REASONS = ['Not a fit for them', 'They already have it', 'Bad timing', 'Too many offers already'];
 export const TREATMENT_NOTE = 'Treatment';
-export const UNTREATED = { column_filters: { action_status: ['New'] } };
+export const UNTREATED = { column_filters: { action_status: [NEW] } };
 const TREATMENTS_UNREAD = 'The treatment counts could not be read. Reload the page to see them.';
 
 const ExtraCharts = lazy(() => import('./echartsKinds.js').then(() => ({ default: ({ children }) => children })));
@@ -41,13 +40,8 @@ export function suggestedChoice(choices, text) {
   return found.length ? found[0][0] : null;
 }
 
-export function choiceValues(choice, detail = '') {
-  const note = detail ? `${choice.label}: ${detail}` : choice.label;
-  return choice.status === 'Dismissed' ? { action_status: 'Dismissed', dismiss_reason: note } : { action_status: choice.status, note };
-}
-
 export function treatmentValues(treatment) {
-  return { action_status: 'In progress', note: `${TREATMENT_NOTE}: ${treatment}` };
+  return { action_status: IN_PROGRESS, note: `${TREATMENT_NOTE}: ${treatment}` };
 }
 
 export function groupByEntity(rows, entity, rank, perEntity) {
@@ -88,8 +82,8 @@ function PickButton({ filter, value, label, filters, onPick, what }) {
   );
 }
 
-export const isClosed = (row) => CLOSED_STATUSES.includes(row._inspire_status || row.action_status);
-export const decidedText = (row) => row._inspire_closed_note || row._inspire_closed_reason || statusLabel(row._inspire_status || row.action_status);
+export { isClosed };
+export const decidedText = (row, choices) => row._inspire_closed_note || row._inspire_closed_reason || choiceLabel(choices, row);
 const columnsOf = (table) => Object.fromEntries((table?.columns || []).map((c) => [c.column, c]));
 const shown = (meta, value) => (isKeyColumn(meta?.column) ? cellText(value, meta) : formatValue(value, meta?.format, meta?.currency));
 const reasonsOf = (value) => (Array.isArray(value) ? value : value ? String(value).split(/\s*[;|]\s*/) : []).filter(Boolean).slice(0, 3);
@@ -155,10 +149,10 @@ function ChoiceRow({ page, app, row, choices, suggested, canAct, onChoose, onOpe
         {children}
       </div>
       <div className="choice-act" role="group" aria-label={`Decide ${row[page.records?.label] ?? key}`}>
-        {closed && <span className="choice-done" data-decided><Icon name="check" size={13} />{decidedText(row)}</span>}
+        {closed && <span className="choice-done" data-decided><Icon name="check" size={13} />{decidedText(row, statusChoices(page))}</span>}
         {!closed && canAct && choices.map((c) => (
           <SaveButton key={c.id} write={`choice:${key}:${c.id}`} className={`btn btn--sm ${suggested?.id === c.id ? 'btn--pri' : ''}`} data-choice={c.id}
-            onClick={() => (c.status === 'Dismissed' ? setSkipping(c) : onChoose(row, c))}>
+            onClick={() => (statusKind(c.status) === 'dismissed' ? setSkipping(c) : onChoose(row, c))}>
             {suggested?.id === c.id && <span aria-hidden="true">★ </span>}{c.label}
           </SaveButton>
         ))}
@@ -169,7 +163,7 @@ function ChoiceRow({ page, app, row, choices, suggested, canAct, onChoose, onOpe
       {skipping && (
         <div className="choice-why" role="group" aria-label={`Why ${skipping.label.toLowerCase()}`}>
           <span>Why?</span>
-          {(skipping.reasons || SKIP_REASONS).map((r) => (
+          {(skipping.reasons || []).map((r) => (
             <SaveButton key={r} write={`choice:${key}:${skipping.id}`} className="chip" onClick={async () => { if (await onChoose(row, skipping, r)) setSkipping(null); }}>{r}</SaveButton>
           ))}
           <button type="button" className="link" onClick={() => setSkipping(null)}>Cancel</button>
@@ -187,7 +181,7 @@ export function useOpenRow() {
 export function RowPanel({ page, app, list, opened, filters, view, onChanged }) {
   return (
     <>
-      {canDecide(app, list) && <QueueBulk pageId={page.id} list={list} asked={{ page: page.id, filters: filters || {}, ...(view || {}) }} person={app.user?.email || ''}
+      {canDecide(app, list) && <QueueBulk choices={statusChoices(page)} pageId={page.id} list={list} asked={{ page: page.id, filters: filters || {}, ...(view || {}) }} person={app.user?.email || ''}
         onChanged={onChanged} />}
       <RecordPanel meta={page.records} app={app} pageId={page.id} row={opened.row} list={list} onClose={opened.close} onChanged={onChanged} similarBy={page.similar_by} />
     </>
