@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { closeBrowser, lowContrast, openUi, setDark } from './uiSupport.mjs';
-import { REVIEW_PORTFOLIO, REVIEW_STATE } from './reviewFixtures.js';
+import { RAW_PORTFOLIO_TABLES, REVIEW_PORTFOLIO, REVIEW_STATE } from './reviewFixtures.js';
+import { rawWarehouse } from './rawWarehouse.mjs';
 import { PORTFOLIO_GROUPS } from '../../src/lib/reviewFigures.js';
 
 test.after(closeBrowser);
@@ -68,6 +69,26 @@ test('a run still starting shows on Start as Starting, and opening it follows th
     assert.deepEqual(ui.pageErrors, []);
   } finally {
     await ui.close();
+  }
+});
+
+test('Start counts its totals from the raw run, use case and MVP rows through the real aggregate statements', async () => {
+  const warehouse = rawWarehouse(RAW_PORTFOLIO_TABLES);
+  const { portfolioRuns, portfolioUseCases, portfolioMvps, ...rest } = REVIEW_STATE;
+  const raw = (sql, parameters) => warehouse.run(sql, parameters);
+  const ui = await openStart({ ...rest, statements: { 'AS businesses FROM': raw, 'GROUP BY ROLLUP': raw } });
+  try {
+    const shown = {};
+    for (const group of PORTFOLIO_GROUPS) {
+      const box = totals(ui.page).getByRole('group', { name: group.label });
+      for (const c of group.cards) shown[c.key] = (await box.locator(`[data-portfolio-card="${c.key}"] [data-card-value]`).innerText()).trim();
+    }
+    assert.deepEqual(shown, TOTALS);
+    assert.equal(ui.made.sqlCalls.filter((c) => c.sql.includes('GROUP BY ROLLUP') || c.sql.includes('AS businesses FROM')).length >= 3, true);
+    assert.deepEqual(ui.pageErrors, []);
+  } finally {
+    await ui.close();
+    warehouse.close();
   }
 });
 

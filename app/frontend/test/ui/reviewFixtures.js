@@ -58,3 +58,29 @@ export const REVIEW_PORTFOLIO = {
 };
 
 export const REVIEW_STATE = { results: REVIEW_RESULTS, useCases: [], sessions: REVIEW_SESSIONS, history: [built()], ...REVIEW_PORTFOLIO };
+
+const ucRows = (sid, n, domains, stars) => Array.from({ length: n }, (_, i) => ({ session_id: sid, use_case_id: `${sid}-${i + 1}`,
+  business_domain: domains[i % domains.length], subdomain: `Area ${i % 3}`, best_of_best: stars[i] || 'N' }));
+const mvp = (sid, uc, version, status, ids = {}) => ({ session_id: sid, use_case_id: uc, spec_version: version, status, app_name: null, dashboard_id: null,
+  genie_space_id: null, alert_id: null, asset_status: null, ...ids });
+
+export const RAW_PORTFOLIO_TABLES = {
+  __inspire_session: [
+    { session_id: '42', business_name: 'Acme Retail' }, { session_id: '41', business_name: '  acme retail ' }, { session_id: '50', business_name: 'Beta Foods' },
+    { session_id: '51', business_name: 'Gamma' }, { session_id: '60', business_name: '' }, { session_id: '61', business_name: null },
+  ],
+  __inspire_usecases: [
+    ...ucRows('42', 6, ['Sales', ' Sales', 'Supply'], ['Y', ' y ']),
+    ...ucRows('41', 5, ['Supply', 'Finance', ''], ['Y']),
+    ...ucRows('50', 4, ['Finance', null], []),
+    ...ucRows('51', 3, ['Sales '], []),
+  ],
+  __inspire_implement: [
+    mvp('42', '42-1', 1, 'ready', { app_name: 'acme-app', dashboard_id: 'd1', genie_space_id: 'g1', alert_id: 'a1' }),
+    mvp('41', '41-1', 1, 'ready_with_warnings', { dashboard_id: 'd2', genie_space_id: 'g2' }),
+    mvp('41', '41-1', 2, 'building_outputs'),
+    mvp('50', '50-1', 1, 'failed', { dashboard_id: 'd9' }),
+    mvp('50', '50-2', 1, 'ready', { dashboard_id: 'd8', app_name: 'gone-app' }),
+    mvp('50', '50-2', 2, 'uninstalled'),
+  ],
+};
