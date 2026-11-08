@@ -169,6 +169,16 @@ const fits = (locator) => locator.evaluate((b) => {
   return { label, clipped: b.scrollWidth > b.clientWidth + 1, inside: r.left >= 0 && r.right <= window.innerWidth + 0.5, lines, tall: r.height > line * 2.6 };
 });
 
+const footer = (drawer) => drawer.locator('footer.dr-f').evaluate((f) => {
+  const cells = [...f.children].filter((c) => c.matches('.btn') && c.getBoundingClientRect().height > 0).map((c) => {
+    const r = c.getBoundingClientRect();
+    return { text: c.matches('select') ? 'select' : c.textContent.trim(), top: Math.round(r.top), w: Math.round(r.width), h: Math.round(r.height), clipped: c.scrollWidth > c.clientWidth + 1 };
+  });
+  const rows = Object.values(Object.groupBy(cells, (c) => c.top)).map((row) => row.map((c) => [c.text, c.w]));
+  return { rows, heights: [...new Set(cells.map((c) => c.h))], clipped: cells.filter((c) => c.clipped).map((c) => c.text), share: f.getBoundingClientRect().height / window.innerHeight, inner: f.clientWidth - parseFloat(getComputedStyle(f).paddingLeft) - parseFloat(getComputedStyle(f).paddingRight) };
+});
+const evenRows = (layout) => layout.rows.map((row) => row.length === 1 ? (row[0][0] === 'select' ? 'full' : 'one') : new Set(row.map(([, w]) => w)).size === 1 ? `${row.length} even` : 'uneven');
+
 for (const [width, height] of [[390, 844], [1280, 800]]) {
   test(`the Draft Message to Someone button shows its whole label on one line in the drawer and the bulk bar at ${width}x${height}`, async () => {
     const { routes } = tracked({ 'records/draft': drafting([FIRST]).route });
@@ -200,7 +210,49 @@ for (const [width, height] of [[390, 844], [1280, 800]]) {
     });
     assert.deepEqual(owner, { text: 'With pat.lee@example.com', shows: true, inside: true }, 'the owner menu shows the whole owner');
     if (shots) await page.screenshot({ path: `${shots}/drawer_draft_${width}x${height}.png` });
+    const layout = await footer(drawer);
+    const phone = width < 560;
+    assert.deepEqual(layout.rows.map((row) => row.map(([text]) => text)), phone
+      ? [['Mark done', 'Not an issue'], ['select'], ['Could not fix', 'More'], ['Draft Message to Someone']]
+      : [['Mark done', 'Not an issue'], ['select'], ['Could not fix', 'Snooze…'], ['Draft Message to Someone', 'Ask Genie to fix']], 'two to a row, the owner menu on its own row');
+    assert.deepEqual(evenRows(layout), ['2 even', 'full', '2 even', phone ? 'one' : '2 even'], JSON.stringify(layout.rows));
+    if (phone) {
+      assert.equal(layout.rows[3][0][1], Math.round(layout.inner), 'the draft button spans the footer on a phone');
+      await drawer.getByRole('button', { name: 'More', exact: true }).click();
+      const open = await footer(drawer);
+      assert.deepEqual(open.rows.map((row) => row.map(([text]) => text)), [['Mark done', 'Not an issue'], ['select'], ['Could not fix', 'Fewer'], ['Draft Message to Someone'], ['Snooze…', 'Ask Genie to fix']], 'More shows every action');
+      assert.deepEqual(evenRows(open), ['2 even', 'full', '2 even', 'one', '2 even']);
+      if (shots) await page.screenshot({ path: `${shots}/drawer_more_${width}x${height}.png` });
+      await drawer.getByRole('button', { name: 'Fewer', exact: true }).click();
+    }
+    assert.equal(layout.rows[1][0][1], Math.round(layout.inner), 'the owner menu spans the footer');
+    assert.equal(layout.heights.length, 1, `one button height: ${layout.heights}`);
+    assert.deepEqual(layout.clipped, []);
+    assert.ok(layout.share <= 0.25, `the footer takes ${Math.round(layout.share * 100)}% of the screen`);
     assert.deepEqual(seen.errors, []);
     await context.close();
   });
 }
+
+test('on a phone with Edit and Delete too, the drawer footer keeps four rows and More shows every action', async () => {
+  const { routes } = tracked({ 'records/draft': drafting([FIRST]).route });
+  const { page, seen, context } = await openApp(browser, served.base, appInfo({ ...DECIDE, options: { ...DECIDE.options, modify: true } }, 1, TABLE), { routes, width: 390, height: 844 });
+  await page.locator('.cell-t').first().click();
+  const drawer = page.locator('dialog.drawer');
+  await drawer.locator('.dr-act').waitFor();
+  const folded = await footer(drawer);
+  assert.deepEqual(folded.rows.map((row) => row.map(([text]) => text)), [['Mark done', 'Not an issue'], ['select'], ['Could not fix', 'More'], ['Draft Message to Someone']]);
+  assert.deepEqual(evenRows(folded), ['2 even', 'full', '2 even', 'one']);
+  assert.ok(folded.share <= 0.25, `folded, the footer takes ${Math.round(folded.share * 100)}% of the screen`);
+  const more = drawer.getByRole('button', { name: 'More', exact: true });
+  assert.equal(await more.getAttribute('aria-expanded'), 'false');
+  await more.click();
+  const open = await footer(drawer);
+  assert.deepEqual(open.rows.map((row) => row.map(([text]) => text)), [['Mark done', 'Not an issue'], ['select'], ['Could not fix', 'Fewer'], ['Draft Message to Someone'], ['Snooze…', 'Ask Genie to fix'], ['Delete', 'Edit']]);
+  assert.deepEqual(evenRows(open), ['2 even', 'full', '2 even', 'one', '2 even', '2 even']);
+  assert.equal(await drawer.getByRole('button', { name: 'Fewer', exact: true }).getAttribute('aria-expanded'), 'true');
+  await drawer.getByRole('button', { name: 'Edit', exact: true }).click();
+  await page.getByRole('dialog', { name: /Edit/ }).first().waitFor();
+  assert.deepEqual(seen.errors, []);
+  await context.close();
+});
