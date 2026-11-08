@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { AlertCircle, Check, Copy } from 'lucide-react';
+import TechnicalDetails from './TechnicalDetails';
 
 /**
  * Rich error panel when a failure is likely missing UC / workspace permissions.
@@ -67,14 +68,7 @@ export default function UcPermissionErrorHelp({ guidance }) {
           </button>
         )}
 
-        {guidance.technicalDetail && (
-          <details className="text-[11px] text-text-tertiary">
-            <summary className="cursor-pointer hover:text-text-secondary">Technical details</summary>
-            <pre className="mt-2 p-2 rounded-lg bg-surface border border-border text-[10px] text-text-secondary whitespace-pre-wrap break-words font-mono">
-              {guidance.technicalDetail}
-            </pre>
-          </details>
-        )}
+        <TechnicalDetails items={guidance.technicalDetail} />
       </div>
     </div>
   );

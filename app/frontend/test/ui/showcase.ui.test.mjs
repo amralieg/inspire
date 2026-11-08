@@ -389,8 +389,8 @@ test('the demo replays every view from the bundle with no workspace call, refuse
     await demoBar(page).getByText(SHOWCASE_NOTE).waitFor();
 
     await tabButton(page, 'monitor').click();
-    await page.getByRole('heading', { name: 'Pipeline Monitor' }).waitFor();
-    await page.getByText('Pipeline finished successfully.').waitFor();
+    await page.getByRole('heading', { name: 'Monitor', exact: true }).waitFor();
+    await page.getByText('Inspire finished this run.').waitFor();
     await page.getByRole('heading', { name: 'Detailed Steps' }).waitFor();
     assert.match(await page.locator('main').innerText(), /2 stages · 3 steps/, 'Monitor lists the recorded steps of the run');
     await page.getByRole('button', { name: /Detailed Steps/ }).click();

@@ -274,7 +274,7 @@ async function walkStart(page, settle) {
 
 async function walkMonitor(page, settle) {
   await openTab(page, settle, 'monitor');
-  await page.getByRole('heading', { name: 'Pipeline Monitor' }).waitFor({ timeout: 120000 });
+  await page.getByRole('heading', { name: 'Monitor', exact: true }).waitFor({ timeout: 120000 });
   await settle();
   const steps = await shown(page.getByRole('heading', { name: 'Detailed Steps' }));
   if (steps) await settle();

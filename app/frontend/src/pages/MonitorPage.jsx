@@ -48,6 +48,8 @@ const STATUS_FILTERS = [
   { key: 'open', label: 'No end recorded', color: 'text-text-secondary' },
 ];
 
+const MONITOR_NO_PROGRESS = 'Inspire has saved no progress for this run yet. Each step shows here as soon as it is saved.';
+
 export default function MonitorPage({ settings, update, sessionId, runId, launchNotes = [], onComplete, onResultsSession, onOpenImplement, onGenerateData }) {
   const { databricksHost, token, warehouseId, inspireDatabase, showcase = '' } = settings;
 
@@ -201,11 +203,12 @@ export default function MonitorPage({ settings, update, sessionId, runId, launch
 
   let statusLabel = 'Initializing';
   let statusDetail = '';
-  if (isPending) { statusLabel = 'Starting'; statusDetail = 'Provisioning compute resources...'; }
-  else if (isRunning) { statusLabel = 'Running'; statusDetail = isStaleSession || !session ? 'Notebook is initializing...' : `${Math.round(percent)}% complete`; }
+  if (isPending && sessionOnly) { statusLabel = 'Waiting'; statusDetail = MONITOR_NO_PROGRESS; }
+  else if (isPending) { statusLabel = 'Starting'; statusDetail = 'Databricks is starting the run...'; }
+  else if (isRunning) { statusLabel = 'Running'; statusDetail = isStaleSession || !session ? 'Inspire is getting ready...' : `${Math.round(percent)}% complete`; }
   else if (isQuiet) { statusLabel = 'Quiet'; statusDetail = quietLine(quietSince, now); }
   else if (isWarning) { statusLabel = 'Completed with a warning'; statusDetail = outcome.message || 'The run finished with a warning.'; }
-  else if (isComplete) { statusLabel = 'Completed'; statusDetail = 'Pipeline finished successfully.'; }
+  else if (isComplete) { statusLabel = 'Completed'; statusDetail = 'Inspire finished this run.'; }
   else if (isFailed) {
     statusLabel = outcome.failed ? outcome.failureTitle : 'Failed';
     const failedTask = runInfo?.tasks?.find((t) => t.result_state === 'FAILED');
@@ -315,9 +318,9 @@ export default function MonitorPage({ settings, update, sessionId, runId, launch
             <Activity size={20} className="text-white" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-text-primary">Pipeline Monitor</h1>
+            <h1 className="text-2xl font-bold text-text-primary">Monitor</h1>
             <p className="text-sm text-text-secondary">
-              Real-time tracking of the Inspire AI pipeline.
+              Follow Inspire as it reads your data and writes your use cases.
             </p>
           </div>
         </div>
@@ -459,13 +462,13 @@ export default function MonitorPage({ settings, update, sessionId, runId, launch
       </div>
 
       {/* Pending info */}
-      {isPending && (
+      {isPending && !sessionOnly && (
         <div className="bg-info-bg border border-info/20 rounded-xl p-5 mb-6 flex items-start gap-3">
           <Clock size={16} className="text-info-fg mt-0.5 shrink-0" />
           <div>
-            <p className="text-sm font-semibold text-text-primary">Job is queued</p>
+            <p className="text-sm font-semibold text-text-primary">Your run is waiting to start</p>
             <p className="text-xs text-text-secondary mt-1">
-              The Databricks cluster is being provisioned. This may take 1-3 minutes for serverless, or longer for standard clusters.
+              Databricks usually starts it within 1 to 3 minutes.
             </p>
           </div>
         </div>
@@ -779,10 +782,10 @@ export default function MonitorPage({ settings, update, sessionId, runId, launch
         <div className="bg-surface border border-border rounded-xl p-10 text-center shadow-sm">
           <Loader2 size={24} className="animate-spin text-db-red-fg mx-auto mb-3" />
           <p className="text-sm font-medium text-text-primary">
-            {isPending ? 'Waiting for cluster to start...' : 'Waiting for pipeline steps...'}
+            {isPending && sessionOnly ? 'No step yet' : isPending ? 'Waiting for the run to start...' : 'Waiting for the first step...'}
           </p>
           <p className="text-xs text-text-tertiary mt-1">
-            Steps will appear here as the notebook executes.
+            Each step shows here as Inspire works.
           </p>
         </div>
       ) : null}

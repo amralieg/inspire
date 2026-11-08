@@ -51,7 +51,7 @@ import { placeholderWords } from '../lib/placeholderWords';
 import { inspireScoreFromUc, nameOfUseCase } from '../lib/useCaseFields';
 import { counted } from '../lib/plural';
 import { catalogListNote, typedCatalog } from '../lib/catalogList';
-import { DISCOVERY_AI_ENHANCED, DISCOVERY_MODE_TEXT, DISCOVERY_RECOMMENDED, DISCOVERY_STANDARD, discoveryTypeOf } from '../lib/discoveryType';
+import { DISCOVERY_AI_ENHANCED, DISCOVERY_MODE_TEXT, DISCOVERY_BADGE, DISCOVERY_RECOMMENDED, DISCOVERY_STANDARD, discoveryTypeOf } from '../lib/discoveryType';
 
 /* ─── Constants — notebook v1.2.0 widget `05_use_cases_quality` ─── */
 const QUALITY_OPTIONS = ['Good', 'High', 'Ultra High'];
@@ -67,7 +67,7 @@ const DISCOVERY_OPTIONS = [
     icon: Sparkles,
     desc: DISCOVERY_MODE_TEXT[DISCOVERY_AI_ENHANCED],
   },
-].map((opt) => (opt.key === DISCOVERY_RECOMMENDED ? { ...opt, badge: 'Recommended' } : opt));
+].map((opt) => (opt.key === DISCOVERY_RECOMMENDED ? { ...opt, badge: DISCOVERY_BADGE } : opt));
 const DISCOVERY_PANEL = [
   {
     key: 'why',

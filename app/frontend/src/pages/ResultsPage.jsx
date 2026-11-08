@@ -92,7 +92,7 @@ import { kindFilterLabel, kindFilterOptions, matchesKindFilter } from '../lib/us
 import { MVP_FILTERS, START_MVP_LABEL, implementState, mvpCounts, mvpFilterMatches, notebookRunEnded, notebookStatus, versionActive } from '../lib/implementWizard';
 import { buildUseCaseList } from '../lib/useCaseList';
 import { makeApiFetch, makeApiPostJson, requestHeaders } from '../lib/apiClient';
-import { reviewLinkText } from '../lib/runPages';
+import { RESULTS_PENDING_TEXT, noResultsText, reviewLinkText } from '../lib/runPages';
 import { sessionFailed, sessionFinished, sessionSucceeded } from '../lib/monitorState';
 import { placeholderWords } from '../lib/placeholderWords';
 import { reducedMotion } from '../lib/motion';
@@ -417,7 +417,7 @@ export default function ResultsPage({
         if (target) {
           setSelectedSessionId(target.session_id);
           // Don't await — let it run and update loading/results independently
-          loadResults(target.session_id);
+          loadResults(target.session_id, target);
         }
       }
     } catch (err) {
@@ -428,7 +428,7 @@ export default function ResultsPage({
     }
   };
 
-  const loadResults = async (sid) => {
+  const loadResults = async (sid, run = sessions.find((s) => String(s.session_id) === String(sid))) => {
     setLoading(true);
     setError('');
     setResults(null);
@@ -482,7 +482,7 @@ export default function ResultsPage({
         return 'found';
       }
 
-      setError('No results found yet. The pipeline may still be starting.');
+      setError(noResultsText(run));
       return 'pending';
     } catch (err) {
       if (sid && err.status === 403) {
@@ -1020,7 +1020,7 @@ export default function ResultsPage({
               </h1>
               {!results && (
                 <p className="mt-1 text-sm text-text-secondary sm:text-base">
-                  Explore your AI-generated data strategy.
+                  Read the use cases Inspire found for your business.
                 </p>
               )}
             </div>
@@ -1158,7 +1158,7 @@ export default function ResultsPage({
                       data-run={String(s.session_id)}
                       onClick={() => {
                         setSelectedSessionId(s.session_id);
-                        loadResults(s.session_id);
+                        loadResults(s.session_id, s);
                       }}
                       className={`
                         w-full text-start p-3.5 rounded-lg border transition-smooth flex items-center justify-between gap-3
@@ -1245,9 +1245,9 @@ export default function ResultsPage({
 
       {/* Error */}
       {error && (
-        <div data-results-error="" className="flex items-center gap-2 p-3 bg-error-bg border border-error/20 rounded-lg mb-6">
-          <AlertCircle size={14} className="text-error-fg shrink-0" />
-          <span className="text-sm text-error-fg">{error}</span>
+        <div data-results-error="" data-tone={error === RESULTS_PENDING_TEXT ? 'info' : 'error'} className={`flex items-center gap-2 p-3 border rounded-lg mb-6 ${error === RESULTS_PENDING_TEXT ? 'bg-bg-subtle border-border' : 'bg-error-bg border-error/20'}`}>
+          {error === RESULTS_PENDING_TEXT ? <Loader2 size={14} className="text-text-tertiary shrink-0 animate-spin" /> : <AlertCircle size={14} className="text-error-fg shrink-0" />}
+          <span className={`text-sm ${error === RESULTS_PENDING_TEXT ? 'text-text-secondary' : 'text-error-fg'}`}>{error}</span>
         </div>
       )}
 

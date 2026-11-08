@@ -2314,7 +2314,7 @@ app.get('/api/inspire/session', requireToken, async (req, res) => {
   } catch (err) {
     // Table might not exist yet — return null session
     if (err.message.includes('TABLE_OR_VIEW_NOT_FOUND') || err.message.includes('does not exist')) {
-      return res.json({ session: null, message: 'Session table not yet created. Notebook is initializing...' });
+      return res.json({ session: null, message: 'Inspire is getting ready...' });
     }
     res.status(500).json({ error: err.message });
   }

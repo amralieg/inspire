@@ -1,11 +1,11 @@
-import { APP_INSIDE, APP_INSIDE_PLACEMENT, OPEN_ALL_SETTINGS, VIBE_FEATURES_LABEL } from './implementWizard.js';
+import { APP_INSIDE } from './implementWizard.js';
+import { sessionFailed, sessionFinished } from './monitorState.js';
 import { SHOWCASE_BUTTON } from './showcase.js';
 import { HOME_TAB } from './tabs.js';
 
 export const RUN_TAB = 'run';
 export const RUN_BANNER = 'Inside Inspire, only for testing. Give it its own App for real use.';
-export const RUN_EMPTY = `No use case is deployed yet. To try a page Inside Inspire, open the use case in Build, press ${VIBE_FEATURES_LABEL}, then ${OPEN_ALL_SETTINGS}, `
-  + `and on App placement pick ${APP_INSIDE_PLACEMENT.label}. Use cases with an App of their own show up here too.`;
+export const RUN_EMPTY = 'No MVP is deployed yet. Start one from Build, and it shows here once its App is built.';
 export const RUN_NO_DOMAIN = 'No domain';
 export const RUN_OPEN_APP = 'Open App';
 export const RUN_REBUILD = 'Open its Build page to rebuild';
@@ -145,6 +145,15 @@ export function reviewLinkText(link, inspireDatabase, outcome) {
   if (outcome === 'denied') return `You cannot read run ${link.sessionId}: your sign-in has no read access to ${where}. Ask its owner for SELECT on it.`;
   if (outcome === 'no_use_case') return `Run ${link.sessionId} has no use case ${String(link.useCaseId).slice(0, 80)}, so Review shows every use case of the run.`;
   return '';
+}
+
+export const RESULTS_PENDING_TEXT = 'Inspire is still writing the use cases of this run. They show here as soon as the first one is saved.';
+
+export function noResultsText(session) {
+  if (!session) return 'No use case is saved for this run yet.';
+  if (sessionFailed(session)) return 'This run stopped before it saved a use case. Open it in Monitor to see why.';
+  if (sessionFinished(session)) return 'This run finished without saving a use case. Open it in Monitor to see why.';
+  return RESULTS_PENDING_TEXT;
 }
 
 export function runUnknownText(id) {

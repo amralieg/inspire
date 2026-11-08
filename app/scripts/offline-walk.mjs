@@ -169,7 +169,7 @@ try {
   })} pages`);
   await section('Monitor', async () => {
     await tabButton(page, 'monitor').click();
-    await page.getByRole('heading', { name: 'Pipeline Monitor' }).waitFor({ timeout: 120000 });
+    await page.getByRole('heading', { name: 'Monitor', exact: true }).waitFor({ timeout: 120000 });
     await settle();
     return 'opened';
   });
