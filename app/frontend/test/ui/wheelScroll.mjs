@@ -81,7 +81,7 @@ export async function wheelToEnd(page, region, last, name, over = null) {
     const end = await region.evaluate((el) => el.scrollHeight - el.clientHeight - el.scrollTop <= 2);
     if (end) break;
     if (now === before) {
-      await frames(page);
+      await page.waitForTimeout(500);
       if ((await region.evaluate((el) => el.scrollTop)) === now) break;
     }
     before = now;
@@ -116,6 +116,52 @@ export async function wheelToEnd(page, region, last, name, over = null) {
   await box.dispose();
   assert.ok(seen.bottom <= seen.floor + 2 && seen.bottom > seen.boxTop && seen.hit, `${name}: the last item is not visible after wheeling to the end ${JSON.stringify(seen)}`);
   return after;
+}
+
+export async function markScrollRegions(root) {
+  return root.evaluate((top) => {
+    const all = [top, ...top.querySelectorAll('*')].filter((el) => {
+      if (el === document.documentElement || el === document.body) return false;
+      const s = getComputedStyle(el);
+      const cls = String(el.className);
+      if (/\boverflow-x-(auto|scroll)\b/.test(cls) && !/\boverflow-(y-)?(auto|scroll)\b/.test(cls)) return false;
+      return /(auto|scroll)/.test(s.overflowY) && el.clientHeight >= 24 && el.getClientRects().length > 0;
+    });
+    return all.map((el, i) => {
+      el.setAttribute('data-wheel-region', String(i));
+      return { i, tag: el.tagName.toLowerCase(), label: el.getAttribute('aria-label') || '', cls: String(el.className).slice(0, 80) };
+    });
+  });
+}
+
+async function fillRegion(region, copies) {
+  return region.evaluate((el, n) => {
+    const sample = [...el.children].reverse().find((c) => c.getBoundingClientRect().height > 0) || null;
+    for (let i = 0; i < n; i += 1) {
+      const copy = sample ? sample.cloneNode(true) : document.createElement('div');
+      if (!sample) copy.textContent = el.textContent.split('\n').filter(Boolean).pop() || 'line';
+      copy.setAttribute('data-wheel-copy', String(i));
+      copy.removeAttribute('id');
+      copy.removeAttribute('data-wheel-region');
+      copy.querySelectorAll('[data-wheel-region]').forEach((c) => c.removeAttribute('data-wheel-region'));
+      if (sample) sample.after(copy); else el.append(copy);
+    }
+  }, copies);
+}
+
+export async function wheelEveryRegion(page, root, name, { min = 1, copies = 40, screens = WHEEL_SCREENS } = {}) {
+  const found = await markScrollRegions(root);
+  assert.ok(found.length >= min, `${name}: found ${found.length} scroll regions, expected at least ${min} ${JSON.stringify(found)}`);
+  const names = [];
+  for (const r of found) {
+    const region = page.locator(`[data-wheel-region="${r.i}"]`);
+    const label = `${name} ${r.label || `${r.tag}.${r.cls}`}`;
+    await wheelScrolls(page, region, () => region.locator(':scope > [data-wheel-copy]').last(), {
+      name: label, screens, fill: () => fillRegion(region, copies), unfill: () => dropCopies(region),
+    });
+    names.push(label);
+  }
+  return names;
 }
 
 export async function wheelScrolls(page, region, last, { name, screens = WHEEL_SCREENS, fill, unfill, over = null } = {}) {

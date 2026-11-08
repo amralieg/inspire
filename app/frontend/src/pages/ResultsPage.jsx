@@ -1779,7 +1779,7 @@ export default function ResultsPage({
           <div data-browse="" className="flex flex-col md:flex-row md:items-stretch gap-5 min-h-0">
             {/* ── Left Sidebar: stays fixed in viewport while the card list scrolls (sticky + max height) ── */}
             <div
-              className={`z-10 flex w-full shrink-0 flex-col gap-3 overflow-y-auto md:sticky md:w-56 md:self-start overscroll-y-contain pe-1 [-webkit-overflow-scrolling:touch] min-h-0 ${
+              className={`z-10 flex w-full shrink-0 flex-col gap-3 overflow-y-auto md:sticky md:w-56 md:self-start pe-1 [-webkit-overflow-scrolling:touch] min-h-0 ${
                 embedded
                   ? 'top-4 max-h-[min(32rem,72vh)]'
                   : 'top-20 max-h-[calc(100dvh-5rem)]'
