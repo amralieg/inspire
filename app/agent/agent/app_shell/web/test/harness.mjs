@@ -239,6 +239,7 @@ export const NO_HUB = { today: '2026-10-24', quarter: '2026-10-01', since: '2026
 export const NO_SUMMARY = { run: null, categories: {}, note: 'no run of this use case has written its summary yet' };
 export const NO_MY_WORK = { person: '', period: { window: 'week', zone: 'UTC', today: '2026-10-24', start_day: '2026-10-19', end_day: '2026-10-26' }, errors: {}, offset: 0, size: 50, total: 0, pages: {}, activity: [] };
 export const NO_RUNS = { runs: [], total: 0, offset: 0, limit: 20, job: null, errors: {} };
+export const NO_TRENDS = { visible: true, tracked: true, actions: false, note: 'this use case keeps no actions, so it has no work of yours to show' };
 export const NO_MONEY = { model: null, history: [], editable: false, why: 'this page puts no amount at stake on its records' };
 export const NO_SETTINGS = { settings: [], history: [], editable: false, why: 'Only the owners of this use case can change its settings', can_run: false };
 export const NO_IMPACT = { visible: true, tracked: false, empty: true, note: 'no run of this use case has written its results yet', promised: null };
@@ -307,6 +308,7 @@ export async function openApp(browser, base, info, { width = 1440, height = 900,
     if (path === 'overview') return json(200, NO_HUB);
     if (path === 'summary') return json(200, NO_SUMMARY);
     if (path === 'runs') return json(200, NO_RUNS);
+    if (path === 'trends') return json(200, NO_TRENDS);
     if (path === 'money') return json(200, NO_MONEY);
     if (path === 'settings') return json(200, NO_SETTINGS);
     if (path === 'impact') return json(200, NO_IMPACT);

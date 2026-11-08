@@ -496,7 +496,7 @@ function emptyState({ search, mine, changed, fresh, windowed, narrowedAny, range
 
 export default function Records({ meta, app, pageId, filters, ai, onFilter, history = false, onChanged, nonce = 0, ready = true, onExplain, genieBusy, openKey,
   columnMeta, columnValues, onColumn, onClearColumns, onClearFilters, seeChanged = 0, onShowRuns, similarBy, keepsActions, onList, section, sort: lookSort, onSort: onLookSort,
-  tab, docked = false }) {
+  tab, focus: only, docked = false }) {
   const { prefs, update } = useMyView();
   const [query, setQuery] = useState('');
   const search = useDebounced(query.trim(), 300);
@@ -524,7 +524,7 @@ export default function Records({ meta, app, pageId, filters, ai, onFilter, hist
   const windowed = noActions || tab ? {} : listWindow(prefs);
   const aiPicks = ai || NO_PICKS;
   const narrowed = tabStatus ? { ...apiColumns(columnValues), action_status: [tabStatus] } : apiColumns(columnValues);
-  const scope = JSON.stringify({ filters, ai: aiPicks, search, mine, changed, columns: narrowed, ...windowed });
+  const scope = JSON.stringify({ filters, ai: aiPicks, search, mine, changed, columns: narrowed, focus: only || '', ...windowed });
   const pageScope = JSON.stringify([scope, sort, size, cap]);
   const [paging, setPaging] = useState({ scope: pageScope, offset: 0, cursor: null });
   const offset = paging.scope === pageScope ? paging.offset : 0;
@@ -534,7 +534,7 @@ export default function Records({ meta, app, pageId, filters, ai, onFilter, hist
   const matching = picks.scope === scope ? picks.all : null;
   const inWindow = windowed.window ? { window: windowed.window, ...(windowed.time_zone ? { time_zone: windowed.time_zone } : {}) } : {};
   const listed = { page: pageId, filters, ai: aiPicks, search, mine, changed, ...(Object.keys(narrowed).length ? { column_filters: narrowed } : {}), ...inWindow,
-    ...(tab ? { status_counts: true } : {}) };
+    ...(tab ? { status_counts: true } : {}), ...(only ? { focus: only } : {}) };
   const room = cap ? Math.max(1, Math.min(size, cap - offset)) : size;
   const asked = { ...listed, ...(cap ? { window_limit: cap } : {}), ...(sort ? { sort } : {}), offset, limit: room, ...(cursor ? { cursor } : {}) };
   const list = useList(asked, ready, `${nonce}:${refresh}`, windowed.window ? { ...withoutWindow(asked), limit: size } : null);

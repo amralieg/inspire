@@ -4,7 +4,7 @@ import FilterBar from './FilterBar.jsx';
 import { Icon } from './icons.jsx';
 import { Skeleton } from './ui.jsx';
 import { integer } from './format.js';
-import { WORK_TABS, tabCount } from './links.js';
+import { FOCUSES, WORK_TABS, tabCount } from './links.js';
 
 export function WorkTabs({ tab, counts, onTab }) {
   return (
@@ -21,12 +21,20 @@ export function WorkTabs({ tab, counts, onTab }) {
   );
 }
 
-export default function WorkPage({ meta, state, onState, pageId, reasons, plan, tab, counts, onTab, children }) {
+export default function WorkPage({ meta, state, onState, pageId, reasons, plan, tab, counts, onTab, focus, onClearFocus, children }) {
   return (
     <section className="work-sec" aria-label="Work" data-work>
       {!meta && <section className="fbar"><Skeleton height={34} width="70%" /></section>}
       <FilterBar meta={meta?.filters} state={state || { range: {}, sel: {} }} onState={onState} pageId={pageId} reasons={reasons} />
       {meta?.error && <p className="tile-err" role="alert"><Icon name="info" size={14} />The filters could not load, so the list shows all its records: {meta.error}</p>}
+      {focus && FOCUSES[focus] && (
+        <p className="work-focus" role="status" data-focus={focus}>
+          <span>Only open records {FOCUSES[focus].toLowerCase()}</span>
+          <button type="button" className="chip" onClick={onClearFocus} aria-label={`Show every record, not only ${FOCUSES[focus].toLowerCase()}`}>
+            Show every record<Icon name="x" size={12} />
+          </button>
+        </p>
+      )}
       {tab && <WorkTabs tab={tab} counts={counts} onTab={onTab} />}
       <Placed slots={slotsOf(plan, 'records')}>{children}</Placed>
     </section>

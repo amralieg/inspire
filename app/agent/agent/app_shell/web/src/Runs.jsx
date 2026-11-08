@@ -4,14 +4,25 @@ import { formatValue, integer, kindOf, unitOf } from './format.js';
 import Fx from './Fx.jsx';
 import { Icon } from './icons.jsx';
 import { Skeleton } from './ui.jsx';
-import { BarsCard } from './ChartCard.jsx';
+import ChartCard, { BarsCard } from './ChartCard.jsx';
 import DataTable from './DataTable.jsx';
 import { fieldsOf, tableContext } from './explain.js';
 import { AskGenie } from './AskGenie.jsx';
 import {
-  RUNS_PAGE, STOPPED, couldSaveRunFormula, coveredText, errorText, foundText, groupingText, lastedText, runBars, runFlag, runKey, runsPageText, stampText, stepsText,
+  RUNS_PAGE, STOPPED, couldSaveRunFormula, coveredText, errorText, foundText, groupingText, lastedText, runBars, runFlag, runKey, runsPageText, stampText, stepsText, timelineChart,
   triggerText,
 } from './freshness.js';
+
+function RunNow({ onRun, running }) {
+  return (
+    <div className="runs-now" data-run-now>
+      <button type="button" className="btn btn--pri" onClick={onRun} disabled={running} aria-busy={running}>
+        <Icon name="undo" size={14} />{running ? 'Running' : 'Run now'}
+      </button>
+      <p className="note">Runs this use case again on all its data. Only its owners can start a run.</p>
+    </div>
+  );
+}
 
 const slug = (text) => String(text).toLowerCase().replace(/[^a-z0-9]+/g, '-');
 const None = () => <span className="none">none</span>;
@@ -140,7 +151,7 @@ function emptyText(page, job) {
   return page.history ? 'This use case has not recorded a run yet.' : 'This use case has no job and keeps no results table, so it has no runs to show.';
 }
 
-export default function Runs({ page, runs, offset, onOffset, onExplain, genieBusy }) {
+export default function Runs({ page, runs, offset, onOffset, onExplain, genieBusy, trends, themeKey, app, onRun, running }) {
   const [open, setOpen] = useState(() => new Set());
   const { data, error, busy } = runs;
   const list = data?.runs || [];
@@ -157,8 +168,13 @@ export default function Runs({ page, runs, offset, onOffset, onExplain, genieBus
     return next;
   });
   const columns = runColumns(isOpen, toggle);
+  const timeline = timelineChart(list, trends);
   return (
     <>
+      {data?.can_run && onRun && <RunNow onRun={onRun} running={running} />}
+      {data && timeline.result.rows.length > 0 && (
+        <ChartCard chart={timeline.chart} result={timeline.result} themeKey={themeKey} app={app || {}} pageId={page.id} onExplain={onExplain} genieBusy={genieBusy} />
+      )}
       {((busy && !data) || list.length > 0) && (
         <BarsCard id="to_fix_runs" title="To fix per run" hint="Each bar is a run listed below, oldest on the left." vertical hue={page.hue || 'blue'}
           loading={busy && !data} bars={runBars(list)} empty="No run listed below wrote a count of things to fix." x="Run" measure="To fix"

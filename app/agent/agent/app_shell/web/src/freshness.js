@@ -240,3 +240,22 @@ export function backendNotes(backend, data) {
   if (data?.catching_up) out.push('Showing your latest changes from Delta tables until Lakebase syncs them, usually within a few minutes');
   return out;
 }
+
+export function timelineChart(runs, trends) {
+  const counts = new Map((trends?.backlog || []).map((r) => [String(r.run_id), r]));
+  const listed = [...(runs || [])].filter((r) => r.run_id || STOPPED.includes(r.status)).reverse();
+  const failed = listed.filter((r) => r.status === 'failed').length;
+  const rows = listed.map((r) => {
+    const counted = counts.get(String(r.run_id)) || {};
+    const day = stampText(r.started) || 'Not recorded';
+    return { x: r.status === 'failed' ? `${day} (failed)` : day, y0: r.records ?? null, y1: counted.new ?? null, y2: counted.cleared ?? null };
+  });
+  const hint = `Rows each run wrote, the records new in it and the records cleared since the run before, oldest on the left.${
+    failed ? ` ${failed} of ${listed.length} runs failed.` : ''}`;
+  return {
+    chart: { id: 'run_timeline', type: 'bar', title: 'Run timeline', hint, x: { kind: 'category', label: 'Run' },
+      y: [{ label: 'Rows written', format: 'number' }, { label: 'New', format: 'number' }, { label: 'Cleared', format: 'number' }] },
+    result: { rows },
+    failed,
+  };
+}
