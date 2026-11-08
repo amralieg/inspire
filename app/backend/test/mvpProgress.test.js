@@ -333,7 +333,10 @@ test('the Build progress box holds the stages and Genie\'s messages in one scrol
   assert.match(box, /<GenieFeed [^>]*scroller=\{logRef\}/);
   assert.doesNotMatch(box, /<pre|steps \|\| \[\]\)\.map/);
   const progress = src('components/MvpProgress.jsx');
-  assert.match(progress, /<div ref=\{logRef\} data-build-log="" className="min-h-0 flex-1 overflow-y-auto/, 'the box scrolls, not the page');
+  assert.match(progress, /<div ref=\{logRef\} data-build-log="" className=\{`\$\{logClass\(view, summary\.active\)\} overflow-y-auto/, 'the box scrolls, not the page');
+  const logClass = progress.slice(progress.indexOf('function logClass'), progress.indexOf('export default function MvpProgress'));
+  assert.doesNotMatch(logClass, /min-h-0/, 'the log never shrinks to nothing under a tall header');
+  assert.equal((logClass.match(/'[^']*min-h-(?:\d+|\[)[^']*'/g) || []).length, 3, 'every open size keeps a minimum log height');
   const feed = src('components/GenieFeed.jsx');
   assert.doesNotMatch(feed, /overflow-y-auto|resize-y|max-h-|scrollTop|scrollIntoView/, 'the feed has no scroll box of its own and never scrolls the page');
   assert.match(feed, /new IntersectionObserver\([\s\S]*\{ root, rootMargin/, 'its end is watched inside the box');

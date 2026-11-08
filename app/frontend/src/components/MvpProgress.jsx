@@ -146,7 +146,12 @@ const TOGGLE_CLASS = 'shrink-0 inline-flex h-7 w-7 items-center justify-center r
 function sizeClass(view, active) {
   if (!view.open) return 'shrink-0';
   if (view.large) return 'min-h-[40rem] md:min-h-[80vh]';
-  return active ? 'min-h-[32rem] md:min-h-[28rem] md:flex-1' : 'min-h-[24rem] md:min-h-[14rem] md:flex-1';
+  return `${active ? 'min-h-[32rem]' : 'min-h-[24rem]'} md:min-h-min md:flex-1`;
+}
+
+function logClass(view, active) {
+  if (view.large) return 'min-h-[28rem] md:min-h-[70vh] flex-1';
+  return `${active ? 'min-h-40 md:min-h-72' : 'min-h-40'} flex-1 md:basis-40`;
 }
 
 export default function MvpProgress({
@@ -209,7 +214,7 @@ export default function MvpProgress({
           {sorted && <p data-sorted-to="" className="text-[12px] font-medium text-text-primary">{sorted.text}</p>}
         </div>
       )}
-      <div ref={logRef} data-build-log="" className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4 space-y-4" id={bodyId} hidden={!view.open}>
+      <div ref={logRef} data-build-log="" className={`${logClass(view, summary.active)} overflow-y-auto overscroll-contain p-4 space-y-4`} id={bodyId} hidden={!view.open}>
         {view.open && attention}
         {children}
       </div>

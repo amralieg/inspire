@@ -1349,6 +1349,58 @@ test('a build that finished with warnings folds to one line with its status, ver
   }
 });
 
+test('on a short screen a build that finished with a long warning and many stages keeps about eight lines of log in view, and the last Genie message scrolls into view (must-exclude: the header never squeezes the log to nothing)', async () => {
+  const long = `${WARNED}; Not published: the App is not published until a run can be trusted, so fix what it names, then build again with Vibe/Add/Remove Features`;
+  const steps = [...doneSteps(), stepRow('Genie Agent', 'started', 9, { spec_version: 4 }), stepRow('Genie Agent', 'ended_success', 7, { spec_version: 4 }),
+    stepRow('App', 'started', 6, { spec_version: 4 }), stepRow('App', 'ended_success', 4, { spec_version: 4 })];
+  const said = (i) => `Step ${i}: I checked the notebook instructions and the Databricks workflow before I built the dashboard.`;
+  const last = 'Last I checked the alert query against the latest run.';
+  const line = (second, words) => `${agoIso(300 - second).slice(0, 19).replace('T', ' ')} - inspire - INFO - [GENIE N01-U01] [build] Genie: ${words}`;
+  const liveLog = `${[...Array.from({ length: 30 }, (_, i) => line(i, said(i))), line(40, last)].join('\n')}\n`;
+  const ui = await openTower({ ...STATE, history: [finished('ready_with_warnings', long), ...HISTORY], steps, liveLog });
+  const { page } = ui;
+  try {
+    const progress = page.locator('[data-mvp-progress]');
+    const log = progress.locator('[data-build-log]');
+    const end = log.getByText(last, { exact: true });
+    await end.waitFor({ state: 'attached', timeout: 20000 });
+    assert.ok((await stagesOf(page)).length >= 6, `many stages ${JSON.stringify(await stagesOf(page))}`);
+    for (const [width, height] of [[1024, 600], [1280, 720], [1024, 480]]) {
+      await page.setViewportSize({ width, height });
+      await painted(page);
+      assert.equal(await progress.getAttribute('data-progress-open'), 'true');
+      const client = await log.evaluate((el) => el.clientHeight);
+      assert.ok(client >= 120, `at ${width}x${height} the log keeps room for about eight lines (${client} px)`);
+      const room = await page.evaluate(() => ({ list: document.querySelector('nav[aria-label="Use cases"]').clientHeight, page: document.scrollingElement.scrollHeight - window.innerHeight }));
+      assert.ok(room.list >= 120, `at ${width}x${height} the use case list keeps room too (${room.list} px)`);
+      assert.ok(room.page <= 1, `at ${width}x${height} the page itself never scrolls (${room.page} px)`);
+      await shot(page, `build-warnings-short-${width}x${height}`, false);
+      await end.scrollIntoViewIfNeeded();
+      await painted(page);
+      const seen = await end.evaluate((el) => {
+        const box = el.getBoundingClientRect();
+        const inside = (outer) => {
+          const r = outer.getBoundingClientRect();
+          return box.top >= r.top - 1 && box.bottom <= r.bottom + 1;
+        };
+        return { log: inside(el.closest('[data-build-log]')), pane: inside(el.closest('section[aria-label="Use case"]')), screen: box.top >= 0 && box.bottom <= window.innerHeight, h: box.height };
+      });
+      assert.deepEqual(seen, { log: true, pane: true, screen: true, h: seen.h }, `at ${width}x${height} the last Genie message scrolls into view`);
+      assert.ok(seen.h > 0);
+      await shot(page, `build-warnings-short-${width}x${height}-end`, false);
+      await page.evaluate(() => { document.querySelector('section[aria-label="Use case"]').scrollTop = 0; document.querySelector('[data-build-log]').scrollTop = 0; });
+    }
+    const larger = progress.getByRole('button', { name: 'Make the build progress larger', exact: true });
+    const before = await log.evaluate((el) => el.clientHeight);
+    await larger.click();
+    await painted(page);
+    assert.ok(await log.evaluate((el) => el.clientHeight) > before + 100, 'Larger still gives the log more room');
+    assert.deepEqual(ui.pageErrors, []);
+  } finally {
+    await ui.close();
+  }
+});
+
 test('a failed build folds too but keeps what you must act on in view', async () => {
   const failSteps = [stepRow('Plan', 'started', 300, { spec_version: 4 }), stepRow('Plan', 'ended_error', 280, { spec_version: 4 }, 'the warehouse is stopped')];
   const ui = await openTower({ ...STATE, history: [finished('failed', 'the warehouse is stopped'), ...HISTORY], steps: failSteps }, { expand: false });

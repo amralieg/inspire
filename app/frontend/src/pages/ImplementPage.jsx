@@ -248,7 +248,7 @@ function RailProgress({ item, progress }) {
 function Rail({ groups, listLoading, query, asset, mvp = '', assetLabel, shownId, progress = {}, onSelect }) {
   const mvpWords = mvp === 'live' ? 'a live MVP' : 'an MVP';
   return (
-    <nav aria-label="Use cases" className="flex-1 min-h-0 space-y-3 overflow-y-auto pe-1">
+    <nav aria-label="Use cases" className="relative flex-1 min-h-32 space-y-3 overflow-y-auto pe-1">
       {listLoading && (
         <p className="flex items-center gap-2 px-1 text-[12px] text-text-secondary"><Loader2 size={14} className="animate-spin" /> Loading the use cases…</p>
       )}
@@ -526,13 +526,13 @@ export default function ImplementPage({ settings, sessionId, focusId = null, onF
       {railError && <p className={ERROR_BOX}>{railError}</p>}
       <div className="flex flex-col md:flex-row gap-4 md:gap-2 md:flex-1 md:min-h-0">
         <div data-implement-rail="" style={{ '--rail-w': `${railPx}px` }}
-          className="w-full md:w-(--rail-w) shrink-0 flex flex-col gap-3 max-h-[50dvh] md:max-h-none md:min-h-0">
+          className="w-full md:w-(--rail-w) shrink-0 flex flex-col gap-3 max-h-[50dvh] overflow-y-auto md:max-h-none md:min-h-0">
           {!listLoading && <AssetFilters counts={assetCounts} asset={assetFilter} onAsset={pickAsset} />}
           <Rail groups={groups} listLoading={listLoading} query={query} asset={assetFilter} mvp={mvpFilter}
             assetLabel={assetCounts.find((entry) => entry.id === assetFilter)?.label || ''} shownId={shownId} progress={progress} onSelect={select} />
         </div>
         <RailResizer width={railPx} onWidth={(width) => setRailPx(railWidth(width))} />
-        <section ref={paneRef} aria-label="Use case" className="flex-1 min-w-0 space-y-4 md:self-stretch md:min-h-0 md:overflow-y-auto">
+        <section ref={paneRef} aria-label="Use case" className="relative flex-1 min-w-0 space-y-4 md:self-stretch md:min-h-0 md:overflow-y-auto">
           {selected ? (
             <UseCaseDetail
               key={selected.id}
