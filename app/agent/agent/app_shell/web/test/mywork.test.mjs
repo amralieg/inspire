@@ -150,31 +150,31 @@ function workRoutes(seen, { answer } = {}) {
   };
 }
 
-test('My work sits in the Performance section and shows the person\'s own numbers with their scope', async () => {
+test('Performance shows the person\'s own numbers for the use case with their scope, and pages the activity without any export', async () => {
   const seen = {};
-  const { page, seen: app, context } = await openApp(browser, served.base, appInfo(DECIDE, 2, TABLE), { routes: workRoutes(seen), timezone: 'Asia/Dubai' });
-  await page.locator('[data-rail="performance"]').click();
-  await page.waitForSelector('[data-activity]');
-  assert.equal(await page.evaluate(() => window.location.hash), '#/n01_u05/performance');
-  assert.deepEqual(seen.work[0], { window: 'week', time_zone: 'Asia/Dubai' });
+  const { page, seen: app, context } = await openApp(browser, served.base, appInfo(DECIDE, 2, TABLE), { routes: workRoutes(seen), timezone: 'Asia/Dubai',
+    hash: '#/n01_u05/performance', ready: '[data-activity]' });
+  assert.deepEqual(seen.work[0], { page: 'n01_u05', window: 'week', time_zone: 'Asia/Dubai' });
   assert.equal(await page.locator('[data-scope]').first().innerText(),
     'Counts only the records you changed yourself, from Oct 19, 2026 to Oct 25, 2026, Asia/Dubai time, in the 1 use case that keeps actions. '
     + 'Money stays in each use case\'s own unit and is never added across units.');
-  const tiles = await page.$$eval('[data-my-work] .kpi-v', (els) => els.map((e) => e.textContent));
-  assert.deepEqual(tiles, ['6', '900', '500', '3,000', '0.6 h'], 'the example page names no currency, so its amounts carry none');
-  assert.match((await page.locator('[data-best]').textContent()).replace(/\s+/g, ' '), /Your largest closed record is Item a1 in Price-loss decision desk: 900 measured\./);
-  assert.match(await page.locator('[data-by-use-case]').innerText(), /1\.5 records per active hour/);
-  assert.match(await page.locator('[data-quiet="n02_u01"]').innerText(), /keeps no actions/);
+  const tiles = await page.$$eval('[data-performance] .kpi-v', (els) => els.map((e) => e.textContent));
+  assert.deepEqual(tiles.slice(0, 3), ['900', '500', '3,000'], 'the example page names no currency, so its amounts carry none');
+  assert.match((await page.locator('[data-best]').textContent()).replace(/\s+/g, ' '), /Your best win is Item a1: 900 measured\./);
   assert.equal(await page.locator('[data-activity] tbody tr').count(), 50);
   await page.click('[data-my-work-more]');
   await until(() => (seen.work || []).length === 2);
   await page.waitForFunction(() => document.querySelectorAll('[data-activity] tbody tr').length === 60);
-  assert.equal(seen.work[1].offset, 50);
+  assert.deepEqual([seen.work[1].offset, seen.work[1].page], [50, 'n01_u05']);
   assert.equal(await page.locator('[data-my-work-more]').count(), 0, 'nothing more to load once every change is shown');
-  assert.equal(await page.locator('[data-my-work] button, [data-my-work] a').filter({ hasText: /download|csv|export/i }).count(), 0,
-    'My work offers no download of the activity');
+  assert.equal(await page.locator('[data-performance] button, [data-performance] a').filter({ hasText: /download|csv|export/i }).count(), 0,
+    'Performance offers no download of the activity');
   assert.equal(await page.locator('a[download], [data-my-work-csv]').count(), 0);
   assert.ok(seen.work.every((body) => !('export' in body)), 'the page never asks the server for an export');
+  await page.evaluate(() => { window.location.hash = '#/n02_u01/performance'; });
+  await page.locator('[data-quiet="n02_u01"]').waitFor();
+  assert.match(await page.locator('[data-quiet="n02_u01"]').innerText(), /keeps no actions/);
+  assert.equal(seen.work.at(-1).page, 'n02_u01');
   assert.deepEqual(app.errors, []);
   await context.close();
 });
@@ -186,6 +186,7 @@ test('Genie writes the summary only with the person\'s own numbers, and an inven
     const { page, seen: app, context } = await openApp(browser, served.base, appInfo(DECIDE, 2, TABLE), { routes: workRoutes(seen, { answer }) });
     await page.evaluate(() => { window.location.hash = '#/mywork'; });
     await page.waitForSelector('[data-summary-ai]');
+    assert.equal(await page.evaluate(() => window.location.hash), '#/n01_u05/performance', 'the old My work link opens Performance');
     const plain = await page.locator('[data-summary-text]').innerText();
     assert.match(plain, /^From Oct 19, 2026 to Oct 25, 2026, Asia\/Dubai time, you fixed 2 records/);
     await page.click('[data-summary-ai]');
@@ -199,16 +200,6 @@ test('Genie writes the summary only with the person\'s own numbers, and an inven
     assert.deepEqual(app.errors, []);
     await context.close();
   }
-});
-
-test('a single use case App offers Performance in its rail, and the old My work link opens it', async () => {
-  const { page, seen: app, context } = await openApp(browser, served.base, appInfo(DECIDE, 1, TABLE), { routes: workRoutes({}) });
-  assert.deepEqual(await page.locator('[data-rail]').evaluateAll((all) => all.map((r) => r.dataset.rail)), ['dashboard', 'work', 'performance', 'runs', 'settings']);
-  await page.goto(`${served.base}#/mywork`);
-  await page.waitForFunction(() => window.location.hash === '#/n01_u05/performance');
-  await page.waitForSelector('[data-my-work]');
-  assert.deepEqual(app.errors, []);
-  await context.close();
 });
 
 function askWork(seen) {
@@ -225,35 +216,18 @@ async function askBox(page, name, question) {
   await page.locator('form.ask-box button[type="submit"]').click();
 }
 
-test('every card, key number and row on My work shows a visible Ask Genie, and a use case row sends its own numbers to that use case Genie', async () => {
+test('every card, key number and row on Performance shows a visible Ask Genie, and a key number asks this use case', async () => {
   const seen = {};
-  const { page, seen: app, context } = await openApp(browser, served.base, appInfo(DECIDE, 2, TABLE), { routes: askWork(seen) });
-  await page.locator('[data-rail="performance"]').click();
-  await page.waitForSelector('[data-activity] tbody tr');
+  const { page, seen: app, context } = await openApp(browser, served.base, appInfo(DECIDE, 2, TABLE), { routes: askWork(seen), hash: '#/n01_u05/performance',
+    ready: '[data-activity] tbody tr' });
   const found = await page.evaluate(askAudit, ASK_GROUPS);
-  assert.deepEqual([found.missing, found.hidden], [[], []], 'My work: 0 missing, 0 hidden');
-  assert.ok(found.counts.row >= 51 && found.counts.kpi === 9, `5 key numbers on My work and 4 on Impact: ${JSON.stringify(found.counts)}`);
+  assert.deepEqual([found.missing, found.hidden], [[], []], 'Performance: 0 missing, 0 hidden');
+  assert.ok(found.counts.row >= 50 && found.counts.kpi === 8, JSON.stringify(found.counts));
   assert.equal(await page.locator('[data-activity] tbody tr .row-ask').count(), 50, 'with Genie on, each change asks about its record');
-  await askBox(page, 'Price-loss decision desk', 'Why so many notes?');
-  await until(() => (seen.explain || []).length === 1);
-  const sent = seen.explain[0];
-  assert.deepEqual([sent.kind, sent.page, sent.title, sent.question, sent.context.hint], ['record', 'n01_u05', 'Price-loss decision desk', 'Why so many notes?', 'What you did in this use case.']);
-  assert.deepEqual([sent.context.fields.Changed, sent.context.fields.Fixed, sent.context.fields['Could not fix'], sent.context.fields['Largest closed']], [6, 2, 1, 'Item a1, 900 measured']);
-  await page.locator('aside.genie .msg-sql').waitFor({ timeout: 15000 });
-  assert.match(await page.locator('aside.genie .g-h small').innerText(), /^Answers from the Genie Agent/, 'the panel shows the answer of that use case');
-  assert.deepEqual(app.errors, []);
-  await context.close();
-});
-
-test('in a single use case App a My work number asks the My work screen, which the server answers with that use case Genie', async () => {
-  const seen = {};
-  const { page, seen: app, context } = await openApp(browser, served.base, appInfo(DECIDE, 1, TABLE), { routes: askWork(seen) });
-  await page.evaluate(() => { window.location.hash = '#/mywork'; });
-  await page.waitForSelector('[data-my-work] .kpi .ask-genie');
-  const name = (await page.locator('[data-my-work] .kpi .ask-genie').first().getAttribute('aria-label')).replace('Ask Genie about ', '');
+  const name = (await page.locator('[data-performance] .kpi .ask-genie').first().getAttribute('aria-label')).replace('Ask Genie about ', '');
   await askBox(page, name, 'Is this a lot?');
   await until(() => (seen.explain || []).length === 1);
-  assert.deepEqual([seen.explain[0].kind, seen.explain[0].page], ['kpi', 'mywork']);
+  assert.deepEqual([seen.explain[0].kind, seen.explain[0].page], ['kpi', 'n01_u05'], 'a number on Performance asks the Genie of its use case');
   await page.locator('aside.genie .msg-sql').waitFor({ timeout: 15000 });
   assert.deepEqual(app.errors, []);
   await context.close();

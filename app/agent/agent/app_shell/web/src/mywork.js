@@ -1,5 +1,5 @@
-import { asDate, dayLabel, grouped, wholeMoney } from './format.js';
-import { moneyText, ownerName, pageCurrency, pageKind, plural, totals } from './hub.js';
+import { asDate, dayLabel, grouped, percentOf, wholeMoney } from './format.js';
+import { moneyText, ownerName, pageCurrency, pageKind, plural, shortDay, tickOf, totals } from './hub.js';
 import { browserZone } from './prefs.js';
 
 export const MY_WORK_ROUTE = 'mywork';
@@ -78,14 +78,6 @@ export function workFacts(data, pages, summaries) {
   };
 }
 
-export function rateText(row) {
-  return row.perHour === null ? 'no active hour' : `${grouped(Math.round(row.perHour * 10) / 10)} records per active hour`;
-}
-
-export function closeText(row) {
-  return row.close?.n ? `${hoursText(row.close.median_hours)} median from first seen to your close, over ${plural(row.close.n, 'close')}` : 'nothing closed';
-}
-
 export function scopeText(facts) {
   const uses = `${plural(facts.rows.length, 'use case')} that ${facts.rows.length === 1 ? 'keeps' : 'keep'} actions`;
   return `Counts only the records you changed yourself, ${facts.period}, in the ${uses}. Money stays in each use case's own unit and is never added across units.`;
@@ -156,6 +148,85 @@ export function answerProblem(answer, facts) {
 
 export function checkedAnswer(answer, facts) {
   return answerProblem(answer, facts) ? '' : String(answer).trim();
+}
+
+export const OUTCOMES = [['fixed', 'Fixed'], ['dismissed', 'Not an issue'], ['could_not', 'Could not fix']];
+export const FOUND = [['left', 'Left the list'], ['missing', 'Not in the latest run'], ['resolved', 'No longer flagged'], ['flagged', 'Still flagged'],
+  ['unchecked', 'Not checked by a run yet']];
+const closedOf = (counts) => OUTCOMES.reduce((n, [k]) => n + (Number(counts?.[k]) || 0), 0);
+
+export function shareFact(entry) {
+  const mine = closedOf(entry?.worked);
+  const team = Number(entry?.team?.total) || 0;
+  const people = Number(entry?.team?.people) || 0;
+  if (!team) return { mine, team, share: null, text: 'Nobody closed an item in this period' };
+  const share = percentOf(mine, team);
+  const crew = people <= 1 ? (mine ? 'you were the only person closing items' : 'one person closed them all')
+    : `${plural(people, 'person', 'people')} closed items`;
+  return { mine, team, share, text: `${grouped(mine)} of the ${plural(team, 'item')} the team closed; ${crew}`,
+    formula: `${grouped(mine)} you closed / ${grouped(team)} the team closed x 100 = ${share}%` };
+}
+
+export function falseAlarmFact(counts) {
+  const closed = closedOf(counts);
+  if (!closed) return { share: null, closed: 0, text: 'Nothing closed yet' };
+  const wrong = Number(counts.dismissed) || 0;
+  const share = percentOf(wrong, closed);
+  return { share, closed, text: `${grouped(wrong)} of ${plural(closed, 'closed item')} marked not an issue`,
+    formula: `${grouped(wrong)} not an issue / ${grouped(closed)} closed x 100 = ${share}%` };
+}
+
+const hoursOf = (close) => (close?.n ? close.median_hours : null);
+
+export function closeCompare(mine, team) {
+  const [me, them] = [hoursOf(mine), hoursOf(team)];
+  if (me == null) return { value: 'None', sub: them == null ? 'Nobody closed an item in this period' : `Team median ${hoursText(them)}` };
+  if (them == null || team.n === mine.n) return { value: hoursText(me), sub: `Over ${plural(mine.n, 'close')}; nobody else closed an item, so the team median is yours` };
+  const gap = Math.round((me - them) * 10) / 10;
+  const said = gap === 0 ? 'the same as the team median' : `${hoursText(Math.abs(gap))} ${gap < 0 ? 'faster' : 'slower'} than the team median of ${hoursText(them)}`;
+  return { value: hoursText(me), sub: `Over ${plural(mine.n, 'close')}, ${said}` };
+}
+
+export function weekTrend(weeks) {
+  return (weeks || []).map((w, i, all) => ({ key: w.week, label: shortDay(w.week), value: w.n, text: grouped(w.n), tick: tickOf(shortDay(w.week), i, all.length),
+    formula: `Items you closed in the week of ${shortDay(w.week)} that are still closed = ${grouped(w.n)}` }));
+}
+
+export function outcomeMix(entry) {
+  const closed = OUTCOMES.map(([k, label]) => ({ key: k, label, value: Number(entry?.worked?.[k]) || 0 }));
+  const found = FOUND.map(([k, label]) => ({ key: k, label, value: Number(entry?.outcomes?.[k]) || 0 }));
+  const bar = (b) => ({ ...b, text: grouped(b.value) });
+  return { closed: closed.filter((b) => b.value).map(bar), found: found.filter((b) => b.value).map(bar) };
+}
+
+function moneyTile(id, label, line, sub) {
+  return { id, label, value: line ? line.text : 'None', sub: line ? `${sub} on ${plural(line.n, 'fix', 'fixes')}` : `No fix of yours ${sub} in this period`,
+    tone: line && id === 'measured' ? 'green' : '' };
+}
+
+export function performanceTiles(facts, entry) {
+  const share = shareFact(entry);
+  const mine = falseAlarmFact(entry.worked);
+  const team = falseAlarmFact(entry.team?.closed);
+  const close = closeCompare(entry.close, entry.team?.close);
+  const overdue = entry.overdue || { n: 0, items: [] };
+  const tiles = [
+    moneyTile('measured', 'Measured', facts.money.measured, 'confirmed by a later run'),
+    moneyTile('reported', 'Reported', facts.money.reported, 'as people reported it'),
+    moneyTile('estimated', 'Estimated', facts.money.estimated, 'at stake when you fixed it'),
+    { id: 'cleared', label: 'Items you cleared', value: share.share == null ? grouped(share.mine) : `${grouped(share.mine)} (${share.share}%)`, sub: share.text,
+      formula: share.formula },
+    { id: 'close', label: 'Median time to close', ...close },
+    { id: 'false_alarm', label: 'Your false-alarm rate', value: mine.share == null ? 'None' : `${mine.share}%`, formula: mine.formula,
+      sub: `${mine.text}${team.share == null ? '' : `; the team: ${team.share}%`}` },
+    { id: 'overdue', label: 'Overdue items you own', value: grouped(overdue.n), tone: overdue.n ? 'red' : '',
+      sub: overdue.n ? `Past their due day and still open${overdue.n > overdue.items.length ? `; the earliest ${grouped(overdue.items.length)} are listed` : ''}` : 'Nothing of yours is past due' },
+  ];
+  if (facts.saved) {
+    tiles.push({ id: 'saved', label: 'Time saved, estimated', value: `${grouped(Math.round(facts.saved.hours * 10) / 10)} h`,
+      sub: 'records you changed times the minutes per record the owners set' });
+  }
+  return tiles;
 }
 
 export function whenText(at, zone = browserZone()) {

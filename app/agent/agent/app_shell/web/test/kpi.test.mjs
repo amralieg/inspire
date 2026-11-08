@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
 import { TABLE, appInfo, openApp, serveDist } from './harness.mjs';
 import { formatValue, isMoney, money, savedWords, stakeName, stakeNameOf, stakeWords, unitOf, wholeMoney } from '../src/format.js';
-import { estimatedFigure, impactTiles, measuredFigure, figuresOf, reportedFigure, targetKpiView } from '../src/impact.js';
+import { estimatedFigure, measuredFigure, figuresOf, reportedFigure, targetKpiView } from '../src/impact.js';
 import { couldSaveText, moneyText, pageCurrency, pageKind, savedTile, totals } from '../src/hub.js';
 import { recordFormula, savedFormula, sumFormula } from '../src/money.js';
 import { actionProblem, columnLabel, doneText, recordView, savingText } from '../src/records.js';
@@ -111,17 +111,10 @@ test('a use case counted in hours never shows money, and a money use case still 
   const measured = measuredFigure(ENTRY, 'hours');
   assert.equal(measured.value, '18 hours');
   assert.ok(measured.how.startsWith('Hours at stake when fixed') && measured.formula.includes('hours at stake when fixed minus'));
-  const rows = [{ page: { title: 'Review desk' }, currency: 'hours', figures: figuresOf(ENTRY, 'hours') }];
-  const tiles = impactTiles(rows);
-  assert.equal(tiles[0].value, '150.5 hours');
-  assert.equal(tiles[0].sub, 'Hours at stake on the 10 open records flagged Act now or Review across 1 use case, added up');
-  for (const text of [JSON.stringify(hours), JSON.stringify(measured), JSON.stringify(tiles)]) {
+  for (const text of [JSON.stringify(hours), JSON.stringify(measured), JSON.stringify(figuresOf(ENTRY, 'hours'))]) {
     assert.ok(!/\$|[Mm]oney at stake/.test(text), 'a productivity use case is never priced in money');
   }
   assert.equal(estimatedFigure(ENTRY, 'USD').how, 'Money at stake on the 10 open records flagged Act now or Review, added up');
-  const mixed = impactTiles([...rows, { page: { title: 'Price desk' }, currency: 'USD', figures: figuresOf(ENTRY, 'USD') }]);
-  assert.equal(mixed[0].value, '150.5 hours + $151');
-  assert.ok(mixed[0].sub.startsWith('At stake on the 20 open records'), 'two units are named for neither');
 });
 
 test('the page unit comes from the run summary, the things to fix and the saved tile follow it, and the runs say it too', () => {
@@ -162,19 +155,19 @@ test('the target KPI shows its baseline, latest value and target, and says not m
   assert.equal(targetKpiView({ currency: 'USD' }), null, 'a run from before the KPI step shows no KPI card');
 });
 
-test('the Impact page counts a productivity use case in hours and shows its target KPI', async () => {
+const NO_WORK = { my_work: ({ json }) => json(200, { period: null, pages: {}, activity: [], total: 0, errors: {} }) };
+
+test('Performance counts a productivity use case in hours and shows its target KPI', async () => {
   const info = appInfo({}, 1, { ...TABLE, promised: null });
-  const routes = { impact: ({ json }) => json(200, ENTRY), summary: ({ json }) => json(200, { run: HOURS_RUN, categories: {}, note: '' }) };
-  const { page, seen, context } = await openApp(browser, served.base, info, { width: 1440, routes });
-  await page.goto(`${served.base}#/impact`);
-  await page.waitForFunction(() => [...document.querySelectorAll('.pg-h h1')].some((h) => h.textContent === 'Impact') && document.querySelector('.imp-kpi'));
-  await page.waitForFunction(() => !document.querySelector('.imp-page .kpis .skel, .imp-page .kpis .skeleton') && /hours/.test(document.querySelector('.imp-page .kpi .kpi-v')?.innerText || ''));
+  const routes = { ...NO_WORK, impact: ({ json }) => json(200, ENTRY), summary: ({ json }) => json(200, { run: HOURS_RUN, categories: {}, note: '' }) };
+  const { page, seen, context } = await openApp(browser, served.base, info, { width: 1440, routes, hash: `#/${info.pages[0].id}/performance`, ready: '.imp-kpi' });
+  await page.waitForFunction(() => /hours/.test(document.querySelector('[data-figure="estimated"] b')?.innerText || ''));
   const card = page.locator('.imp-kpi');
   const heading = await card.locator('h3').innerText();
   assert.ok(heading.startsWith('Target KPI: Analyst hours spent on manual review') && heading.endsWith('\u25bc Decrease'), heading);
   assert.deepEqual(await card.locator('dl > div').evaluateAll((all) => all.map((d) => [d.querySelector('dt').innerText, d.querySelector('dd').innerText])),
     [['Baseline', '1,200 hours\nMeasured Oct 1'], ['Latest', '1,100 hours\nMeasured Oct 28'], ['Target', '900 hours']]);
-  const pageText = await page.locator('.imp-page').innerText();
+  const pageText = await page.locator('[data-promised-delivered]').innerText();
   assert.ok(pageText.includes('150.5 hours') && !pageText.includes('$'), 'every amount on the page is in hours');
   assert.ok(!/[\u2013\u2014]/.test(pageText), 'the page has no en or em dash');
   assert.deepEqual(seen.errors, []);
@@ -218,12 +211,13 @@ test('the decision list and the record panel of a use case counted in hours with
   await context.close();
 });
 
-test('a use case counted in FTE shows FTE on its decision list, record panel and Impact page, never a currency', async () => {
+test('a use case counted in FTE shows FTE on its decision list, record panel and Performance, never a currency', async () => {
   const fteRun = { ...HOURS_RUN, unit: 'FTE', impact_kind: 'number', impact_unit: 'FTE', kpi_unit: 'FTE' };
   const fteModel = { ...HOURS_MODEL, unit: 'FTE', impact_kind: 'number', problem: 'the FTE at stake formula of this use case names no assumption' };
   const info = appInfo({}, 1, { ...TABLE, records: USD_LIST });
   const id = info.pages[0].id;
   const routes = {
+    ...NO_WORK,
     summary: ({ json }) => json(200, { run: fteRun, categories: {}, note: '' }),
     impact: ({ json }) => json(200, ENTRY),
     'records/history': ({ json, url }) => json(200, { record_key: url.searchParams.get('record_key'), fields: [], versions: [], current: null,
@@ -241,11 +235,11 @@ test('a use case counted in FTE shows FTE on its decision list, record panel and
   await panel.waitFor();
   assert.equal(await panel.locator('.save').innerText(), '40 FTE');
   assert.ok(!/\$|FTE\s?\d|Money at stake/.test(await page.locator('dialog.drawer[open]').innerText()), 'FTE is never read as a currency code');
-  await page.goto(`${served.base}#/impact`);
-  await page.waitForFunction(() => [...document.querySelectorAll('.pg-h h1')].some((h) => h.textContent === 'Impact') && /FTE/.test(document.querySelector('.imp-page .kpi .kpi-v')?.innerText || ''));
-  const text = await page.locator('.imp-page').innerText();
+  await page.goto(`${served.base}#/${id}/performance`);
+  await page.waitForFunction(() => /FTE/.test(document.querySelector('[data-figure="estimated"] b')?.innerText || ''));
+  const text = await page.locator('[data-promised-delivered]').innerText();
   assert.ok(text.includes('150.5 FTE') && !text.includes('$') && !/FTE\s?\d/.test(text) && !/money at stake/i.test(text), text);
-  assert.ok(text.includes('FTE at stake'), 'the Impact page names the stake in FTE');
+  assert.ok(text.includes('FTE at stake'), 'Performance names the stake in FTE');
   assert.deepEqual(seen.errors, []);
   await context.close();
 });
@@ -259,10 +253,8 @@ test('a baseline taken on a table the person swapped is flagged with the reason 
   assert.equal(view.baselineFlagged, true);
   assert.equal(targetKpiView(HOURS_RUN).baselineFlagged, false, 'a baseline on the table it is measured on is not flagged');
   const info = appInfo({}, 1, { ...TABLE, promised: null });
-  const routes = { impact: ({ json }) => json(200, ENTRY), summary: ({ json }) => json(200, { run: { ...HOURS_RUN, kpi_reason: reason }, categories: {}, note: '' }) };
-  const { page, seen, context } = await openApp(browser, served.base, info, { width: 1440, routes });
-  await page.goto(`${served.base}#/impact`);
-  await page.waitForFunction(() => document.querySelector('.imp-kpi .imp-kpi-note'));
+  const routes = { ...NO_WORK, impact: ({ json }) => json(200, ENTRY), summary: ({ json }) => json(200, { run: { ...HOURS_RUN, kpi_reason: reason }, categories: {}, note: '' }) };
+  const { page, seen, context } = await openApp(browser, served.base, info, { width: 1440, routes, hash: `#/${info.pages[0].id}/performance`, ready: '.imp-kpi .imp-kpi-note' });
   const card = page.locator('.imp-kpi');
   assert.equal(await card.locator('.imp-kpi-note').innerText(), view.note);
   assert.equal(await card.locator('dd.is-flagged').count(), 1, 'the baseline itself is marked');

@@ -120,7 +120,7 @@ test('a list nobody owns offers one click to take its open records, and never wh
   assert.equal(claimTarget([row('a'), row('b'), row('c')], 'me@x.com', 2).record_keys.length, 2);
   assert.match(claimText(48), /Take the 48 on this page/);
   assert.match(src('Records.jsx'), /actOn\(\{ action_owner: person \}/);
-  assert.match(src('Home.jsx'), /Assign them to me/);
+  assert.match(src('Records.jsx'), /Assign them to me/);
 });
 
 test('the demo says why Genie has no answer, and only a refused change reads as the read-only note', async () => {

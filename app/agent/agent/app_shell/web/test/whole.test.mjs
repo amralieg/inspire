@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import * as format from '../src/format.js';
 import { formatValue, integer, wholeMoney } from '../src/format.js';
 import { pageText, recordsText, valueText, actOutcome, undoText, batchText } from '../src/records.js';
-import { capacityText, limitText, myWorkText, plural } from '../src/hub.js';
+import { capacityText, plural } from '../src/hub.js';
 import { usageView } from '../src/admin.js';
 import { heldShare, targetKpiView } from '../src/impact.js';
 
@@ -35,8 +35,6 @@ test('a whole number sent as text shows with every digit wherever the App writes
   assert.equal(pageText(0, 25, COUNT), `Showing 1 to 25 of ${COUNT_SHOWN}`);
   assert.equal(recordsText(COUNT), `${COUNT_SHOWN} records`);
   assert.equal(plural(COUNT, 'record'), `${COUNT_SHOWN} records`);
-  assert.equal(limitText([['Prices', 20, COUNT]]), `Your limit keeps the top 20 of ${COUNT_SHOWN} records in Prices. Change the limit in Settings.`);
-  assert.equal(myWorkText({ rows: [1, 2], late: COUNT, today: 0 }), `2 assigned to you · ${COUNT_SHOWN} overdue`);
   assert.match(capacityText({ over_capacity_records: COUNT, act_now_capacity: 50 }), new RegExp(`^${COUNT_SHOWN} more records would qualify`));
   assert.equal(usageView({ pages: [{ id: 'p', counts: { edit: COUNT }, total: COUNT, people: 2 }] }).pages[0].total, COUNT_SHOWN);
   assert.equal(targetKpiView({ kpi_name: 'Late shipments', kpi_unit: 'shipments', kpi_status: 'measured', kpi_latest: COUNT }).latest, `${COUNT_SHOWN} shipments`);

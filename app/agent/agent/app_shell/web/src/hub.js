@@ -1,4 +1,4 @@
-import { addCounts, asDate, compareValues, countOf, grouped, isAmount, isMoney, kindOf, largestFirst, stakeNameOf, sumOf, unitOf, wholeMoney } from './format.js';
+import { addCounts, asDate, countOf, grouped, isAmount, isMoney, kindOf, largestFirst, stakeNameOf, sumOf, unitOf, wholeMoney } from './format.js';
 import { savedFormula, sumFormula } from './money.js';
 
 export const NOT_MEASURED = 'Not measured yet';
@@ -33,8 +33,6 @@ export function ownerName(owner) {
   return text.split('@')[0].split(/[._-]+/).filter(Boolean).map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') || text;
 }
 
-export const initialsOf = (name) => String(name || '').split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
-
 export function dueText(due, today) {
   if (!due) return { text: 'No date', late: false, none: true };
   const days = daysBetween(today, due);
@@ -42,44 +40,6 @@ export function dueText(due, today) {
   if (days === 1) return { text: 'Tomorrow', late: false };
   if (days < 0) return { text: `${plural(-days, 'day')} late`, late: true };
   return { text: WEEKDAY.format(asDate(dayOf(due))), late: false };
-}
-
-export const WORK_SHOWN = 8;
-
-export function myWork(items, user, today) {
-  const when = (item) => (item.due ? Math.sign(daysBetween(today, item.due)) + 1 : 3);
-  const rows = items.filter((i) => isMine(i.owner, user)).sort((a, b) => when(a) - when(b) || dayOf(a.due).localeCompare(dayOf(b.due))
-    || largestFirst(a.money, b.money) || String(a.label ?? '').localeCompare(String(b.label ?? '')));
-  return { rows, late: rows.filter((i) => when(i) === 0).length, today: rows.filter((i) => when(i) === 1).length };
-}
-
-export function limitText(cuts) {
-  const n = (v) => grouped(v);
-  const parts = (cuts || []).filter(([title, shown, total]) => title && compareValues(countOf(total), countOf(shown)) > 0)
-    .map(([title, shown, total], i) => `the top ${n(shown)} of ${n(total)}${i ? '' : ' records'} in ${title}`);
-  if (!parts.length) return '';
-  const list = parts.length === 1 ? parts[0] : `${parts.slice(0, -1).join(', ')} and ${parts.at(-1)}`;
-  return `Your limit keeps ${list}. Change the limit in Settings.`;
-}
-
-export function windowNoteText(titles) {
-  const names = (titles || []).filter(Boolean);
-  if (!names.length) return '';
-  const list = names.length === 1 ? names[0] : `${names.slice(0, -1).join(', ')} and ${names.at(-1)}`;
-  return `Your window does not apply to ${list}, because ${names.length === 1 ? 'it keeps' : 'they keep'} no actions.`;
-}
-
-export const doneDay = (done) => (done?.utc ? 'today (UTC)' : 'today');
-
-export function myWorkText({ rows, late, today }, done = null) {
-  const n = (v) => grouped(v);
-  return [`${n(rows.length)} assigned to you`, late ? `${n(late)} overdue` : '', today ? `${n(today)} due today` : '',
-    done?.n ? `${n(done.n)} done ${doneDay(done)}` : ''].filter(Boolean).join(' · ');
-}
-
-export function doneTodayOf(entries, zone = null) {
-  const counts = (entries || []).map((e) => e?.done?.mine_today).filter(isAmount);
-  return counts.length ? { n: sumOf(counts), utc: zone?.sent === false } : null;
 }
 
 export function pageCurrency(page, summary) {
@@ -113,16 +73,6 @@ export const isToFix = (item) => item.tier === ACT_NOW;
 export function sortThings(rows, user) {
   return [...rows].sort((a, b) => (Number(isMine(b.owner, user)) - Number(isMine(a.owner, user)))
     || largestFirst(a.money, b.money) || String(a.label ?? '').localeCompare(String(b.label ?? '')));
-}
-
-export function hubItems(pages, hub, summaries) {
-  return pages.flatMap((page) => {
-    const entry = hub?.pages?.[page.id];
-    if (!entry?.tracked) return [];
-    const currency = pageCurrency(page, summaries?.[page.id]);
-    const kind = pageKind(page, summaries?.[page.id]);
-    return entry.items.map((item) => ({ ...item, page, currency, kind, model: entry.money_model || null }));
-  });
 }
 
 export const visiblePages = (pages, hub) => pages.filter((p) => hub?.pages?.[p.id]?.visible !== false);
@@ -166,14 +116,6 @@ export function savedTile(entries, pages, summaries, key, since) {
       rows.length === 1 ? rows[0].kind : '') };
 }
 
-export function weekBars(entries) {
-  const counted = measured(entries);
-  if (!counted.length) return null;
-  const sums = new Map();
-  counted.forEach((e) => (e.weeks || []).forEach((w) => sums.set(w.week, addCounts([sums.get(w.week), w.saved]))));
-  return [...sums.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([week, v]) => ({ key: week, label: shortDay(week), value: v }));
-}
-
 export function useCaseState(entry, summary) {
   if (!entry) return { kind: 'loading', text: '' };
   if (entry.error) return { kind: 'error', text: 'Could not load', reason: entry.error };
@@ -210,15 +152,6 @@ export function nothingReason(entry, summary) {
   const review = (entry.items || []).filter((i) => i.tier === REVIEW).length;
   if (review) return `no record reached Act now in the last update, and ${plural(review, 'record')} ${review === 1 ? 'is' : 'are'} worth a look`;
   return 'no record reached Act now or Review in the last update';
-}
-
-export function scopedPages(pages, summaries) {
-  return (pages || []).map((page) => [page, String(summaries?.[page.id]?.run?.scope_text || '').trim()]).filter(([, text]) => text);
-}
-
-export function scopeNoteText(scoped) {
-  if (!scoped?.length) return '';
-  return `${scoped.map(([page, text]) => `${page.title} counts only its ${text}`).join('; ')}. Run on everything from ${scoped.length === 1 ? 'its' : 'each'} Runs tab.`;
 }
 
 export function reliableText(reason) {

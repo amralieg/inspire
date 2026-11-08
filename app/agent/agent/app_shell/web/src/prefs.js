@@ -108,7 +108,6 @@ export const listWindow = (prefs, zone = browserZone()) => (prefs.window === EVE
 
 export const listLimit = (prefs) => (prefs.window === EVERYTHING ? 0 : prefs.limit || 0);
 
-export const pickedWindow = (prefs) => openWindow(prefs) !== DEFAULT_PREFS.window || prefs.limit > 0;
 
 export const narrowWindow = (prefs) => ![DEFAULT_PREFS.window, EVERYTHING].includes(prefs.window);
 
