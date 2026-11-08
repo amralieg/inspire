@@ -5,7 +5,7 @@ import path from 'node:path';
 import { createRequire } from 'node:module';
 import { defaultSpecFromUseCase } from '../../src/lib/implementWizard.js';
 import { HARNESS_INSPIRE_URL, HARNESS_USE_CASE, HARNESS_SETTINGS, HARNESS_SESSION_ID, MVP_JOB } from './implementFixtures.js';
-import { closeAsset, closeBrowser, closeBuild, expandBuild, featuresBox, featuresHeld, featuresText, lowContrast, openAsset, openFeatures, openSettings, openUi, painted, setDark, shot, steadyBox, until } from './uiSupport.mjs';
+import { closeAsset, closeBrowser, closeBuild, expandBuild, featuresBox, featuresHeld, featuresText, lowContrast, openAsset, openFeatures, openSettings, openUi, painted, setDark, shot, steadyBox, until, wheelScrolls } from './uiSupport.mjs';
 
 const OWNER = ['owner', 'example.com'].join('@');
 const PAGE = 'app:page:decisions';
@@ -1114,14 +1114,10 @@ test('the name and the tiles stay in view while the Genie feed scrolls inside Bu
     const log = page.locator('[data-mvp-progress] [data-build-log]');
     await painted(page);
     const before = await Promise.all([name, tiles, rail].map(async (el) => (await el.boundingBox()).y));
-    const room = await log.evaluate((el) => {
-      el.append(Object.assign(document.createElement('div'), { style: 'height:2000px' }));
-      el.scrollTop = 600;
-      return { top: el.scrollTop, page: document.scrollingElement.scrollHeight - window.innerHeight, overflow: getComputedStyle(el).overflowY };
-    });
-    await painted(page);
-    assert.deepEqual([room.top, room.overflow], [600, 'auto'], 'the feed scrolls inside Build progress');
-    assert.ok(room.page <= 1, `the page itself never grows a second scrollbar (${room.page})`);
+    await log.evaluate((el) => el.append(Object.assign(document.createElement('div'), { style: 'height:2000px' })));
+    await wheelScrolls(page, log, { delta: 600 });
+    const room = await log.evaluate((el) => document.scrollingElement.scrollHeight - window.innerHeight);
+    assert.ok(room <= 1, `the page itself never grows a second scrollbar (${room})`);
     const after = await Promise.all([name, tiles, rail].map(async (el) => (await el.boundingBox()).y));
     assert.deepEqual(after, before, 'the name, the tiles and the use case list stay where they are');
     assert.equal(await name.locator('h2').evaluate((el) => el.scrollWidth <= el.clientWidth + 1), true, 'the name keeps to one line');
@@ -1388,13 +1384,9 @@ test('Build progress opens as a full-height side panel whose 500-line log scroll
       assert.ok(box.width >= 540, `at ${width}x${height} the panel is wide (${box.width} px)`);
       const room = await log.evaluate((el) => ({ scroll: el.scrollHeight, client: el.clientHeight, overflow: getComputedStyle(el).overflowY,
         page: document.scrollingElement.scrollHeight - window.innerHeight }));
-      assert.ok(room.scroll > room.client && room.client >= 200 && room.overflow === 'auto', `at ${width}x${height} the log scrolls inside the panel ${JSON.stringify(room)}`);
+      assert.ok(room.scroll > room.client && room.overflow === 'auto', `at ${width}x${height} the log scrolls inside the panel ${JSON.stringify(room)}`);
       assert.ok(room.page <= 1, `at ${width}x${height} the page never grows with the log (${room.page} px)`);
-      await log.evaluate((el) => { el.scrollTop = 0; });
-      const lb = await log.boundingBox();
-      await page.mouse.move(lb.x + lb.width / 2, lb.y + lb.height / 2);
-      await page.mouse.wheel(0, 1200);
-      await page.waitForFunction(() => document.querySelector('[data-mvp-progress] [data-build-log]').scrollTop > 0);
+      await wheelScrolls(page, log, { lines: '[data-feed-kind]', readable: 4 });
       const pane = page.locator('section[aria-label="Use case"]');
       await pane.evaluate((el) => { el.scrollTop = 0; });
       const behind = await pane.evaluate((el) => ({ scroll: el.scrollHeight, client: el.clientHeight }));
@@ -1429,6 +1421,21 @@ test('Build progress opens as a full-height side panel whose 500-line log scroll
     await card.waitFor({ timeout: 20000 });
     assert.equal(await panel.count(), 0, 'a closed panel stays closed after a reload');
     assert.deepEqual(ui.pageErrors, []);
+  } finally {
+    await ui.close();
+  }
+});
+
+test('nothing the person reads about a not-reliable run, card or panel, tells them to fix what it names', { todo: 'frontend/src/lib/implementWizard.js UNRELIABLE_REBUILD_NOTE still says Fix what it names' }, async () => {
+  const ui = await openTower({ ...STATE, history: [unreliable(), ...HISTORY], steps: doneSteps(), moneySummary: [{ not_reliable: UNRELIABLE, updated_at: new Date().toISOString() }] }, { expand: false });
+  const { page } = ui;
+  try {
+    const card = page.locator('[data-progress-card]');
+    await card.locator('[data-build-summary-reason]').waitFor({ timeout: 15000 });
+    await card.getByRole('button', { name: 'Show progress', exact: true }).click();
+    const panel = page.locator('[data-mvp-progress]');
+    await panel.getByRole('dialog').waitFor();
+    for (const where of [card, panel]) assert.doesNotMatch(await where.innerText(), /fix what it names/i);
   } finally {
     await ui.close();
   }

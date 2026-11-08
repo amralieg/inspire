@@ -4,7 +4,7 @@ import { buildAgainHint, DATA_STOP_HINT, GENIE_CODE_OFF_TITLE, lostTablesText, M
 import {
   HARNESS_USE_CASE, HARNESS_SETTINGS, HARNESS_SESSION_ID, MVP_JOB, OWNER, RESULT_TABLE, STUDIO_STATE, built, builtSpec,
 } from './implementFixtures.js';
-import { BUILD_IT, closeAsset, closeBrowser, closeBuild, dataToResults, openAdvanced, expandBuild, FAKE_CLOCK, lowContrast, onStep, openAsset, openFeatures, openSettings, openUi, painted, pollNow, setDark, settled, shot, startMvp, stepsAre, toAppAccess, toVibes, until, goToStep, toSummary } from './uiSupport.mjs';
+import { BUILD_IT, closeAsset, closeBrowser, closeBuild, dataToResults, openAdvanced, expandBuild, FAKE_CLOCK, lowContrast, onStep, openAsset, openFeatures, openSettings, openUi, painted, pollNow, setDark, settled, shot, startMvp, stepsAre, toAppAccess, toVibes, until, goToStep, toSummary, wheelScrolls } from './uiSupport.mjs';
 
 const gone = (table) => `[TABLE_OR_VIEW_NOT_FOUND] The table or view ${table} cannot be found. Verify the spelling. SQLSTATE: 42P01`;
 const GONE = gone('`main`.`s`.`returns`');
@@ -963,6 +963,8 @@ test('the Build progress box scrolls Genie\'s messages itself: the page never gr
       feed: getComputedStyle(el.querySelector('[role="log"]')).overflowY }));
     assert.deepEqual([own.overflow, own.feed], ['auto', 'visible'], 'one scroll box: the Build progress box, never the feed inside it');
     assert.ok(own.scroll > own.client, `the messages scroll inside the box (${own.scroll} in ${own.client})`);
+    await wheelScrolls(page, log, { lines: '[data-feed-kind]', readable: 3, delta: 200 });
+    await log.evaluate((el) => { el.scrollTop = el.scrollHeight; });
     await atEnd();
     assert.equal(await jump.count(), 0, 'nothing to jump to while the box follows');
 

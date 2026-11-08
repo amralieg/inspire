@@ -342,6 +342,25 @@ export async function painted(page) {
   await page.evaluate(() => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done))));
 }
 
+export async function wheelScrolls(page, box, { lines = '', readable = 3, delta = 1200 } = {}) {
+  await box.evaluate((el) => { el.scrollTop = 0; });
+  await painted(page);
+  const at = await box.boundingBox();
+  assert.ok(at && at.width > 0 && at.height > 0, `the scroll box is on screen ${JSON.stringify(at)}`);
+  const [x, y] = [at.x + at.width / 2, at.y + at.height / 2];
+  assert.ok(await box.evaluate((el, [px, py]) => el.contains(document.elementFromPoint(px, py)), [x, y]), 'the scroll box is what the pointer lands on, nothing covers it');
+  await page.mouse.move(x, y);
+  await page.mouse.wheel(0, delta);
+  await page.waitForFunction((el) => el.scrollTop > 0, await box.elementHandle(), { timeout: 5000 });
+  if (!lines) return;
+  await painted(page);
+  const seen = await box.evaluate((el, sel) => {
+    const r = el.getBoundingClientRect();
+    return [...el.querySelectorAll(sel)].filter((n) => { const b = n.getBoundingClientRect(); return b.height > 0 && b.top >= r.top - 1 && b.bottom <= r.bottom + 1; }).length;
+  }, lines);
+  assert.ok(seen >= readable, `the person reads at least ${readable} whole lines in the box after scrolling, not ${seen}`);
+}
+
 export async function setDark(page, dark) {
   await page.evaluate((on) => document.documentElement.classList.toggle('dark', on), dark);
   await page.evaluate(() => Promise.all(document.getAnimations().filter((a) => a instanceof CSSTransition).map((a) => a.finished.catch(() => null))));
