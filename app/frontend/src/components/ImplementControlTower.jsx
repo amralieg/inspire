@@ -12,6 +12,7 @@ import { controlTiles, controlActionText, removeConfirmed, sharedControlAsks, sh
 import { formatWhen } from '../lib/formatWhen';
 import { readOnlyReason } from '../lib/showcase';
 import { RUN_LINK_LABEL } from '../lib/implementWizard';
+import { PlainMessage } from './TechnicalDetails';
 
 const ACTION_ICONS = { stop: Square, start: Play, unpublish: EyeOff, publish: Eye, cancel: Ban };
 const ASSET_ICONS = { build: Hammer, job: Briefcase, dashboard: LayoutDashboard, genie_space: GenieLogo, app: AppWindow, alert: Bell, notebook: NotebookPen };
@@ -481,7 +482,7 @@ export function BuildControls({
           </button>
         )}
       />
-      {liveError && <p className="px-4 pt-3 text-[12px] text-error-fg">Inspire cannot read the live status: {liveError}</p>}
+      {liveError && <PlainMessage text={`Inspire cannot read the live status: ${liveError}`} className="px-4 pt-3 text-[12px] text-error-fg" />}
       {live && !strips.length && <p className="px-4 py-3 text-[12px] text-text-secondary">This MVP has no job yet.</p>}
       {strips.length > 0 && (
         <ul className="divide-y divide-border border-b border-border">

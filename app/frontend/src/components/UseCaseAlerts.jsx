@@ -12,6 +12,7 @@ import {
   blankAlertForm, capText, capped, measureOf, operatorChoices, previewLine, reachableFilters, scheduleLabel, thresholdHint,
 } from '../lib/useCaseAlerts';
 import { OPEN_ALL_SETTINGS } from '../lib/implementWizard';
+import { PlainMessage } from './TechnicalDetails';
 
 const BUTTON = 'inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium disabled:opacity-50';
 const PRIMARY = `${BUTTON} font-semibold text-white bg-db-red-solid hover:opacity-90`;
@@ -273,7 +274,7 @@ export default function UseCaseAlerts({ apiFetch, apiPostJson, qBase, useCaseId,
       <SectionTitle icon={BellRing} title="Alerts" hint={ALERTS_HINT} right={addButton} />
       {readOnly && <DemoNote className="m-4" />}
       {!listing && !loadError && <p className="px-4 py-3 text-[12px] text-text-secondary">Reading the alerts of this use case</p>}
-      {loadError && <p role="alert" className={`m-4 ${ERROR}`}>The alerts could not load: {loadError}</p>}
+      {loadError && <PlainMessage text={`The alerts could not load: ${loadError}`} role="alert" className={`m-4 ${ERROR}`} />}
       {listing && !listing.can_add && listing.why && <p className={`m-4 ${NOTE}`}>{listing.why}</p>}
       {listing && listing.can_add && !(listing.measures || []).length && <p className={`m-4 ${NOTE}`}>{ALERTS_NOTHING}</p>}
       {notice && <p role="status" className={`m-4 ${NOTE}`}>{notice}</p>}

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { PORTFOLIO_GROUPS, portfolioCardAction } from '../lib/reviewFigures';
+import { PlainMessage } from './TechnicalDetails';
 
 const GROUP_COLUMNS = { 5: 'sm:grid-cols-5', 6: 'sm:grid-cols-3 lg:grid-cols-6' };
 const CARD = 'flex h-full w-full min-w-0 flex-col items-start rounded-lg border px-3 py-2 text-start';
@@ -38,7 +39,7 @@ export default function PortfolioCards({ portfolio, error, sessions, active = ''
         {portfolio?.truncated && <p className="text-[11px] text-text-secondary">The run list holds 1,000 runs; the totals count every run.</p>}
       </div>
       {error ? (
-        <p role="alert" className="px-4 py-3 text-[12px] text-error-fg">Inspire could not count across the runs: {error}</p>
+        <PlainMessage text={`Inspire could not count across the runs: ${error}`} role="alert" className="px-4 py-3 text-[12px] text-error-fg" />
       ) : (
         <div className="divide-y divide-border">
           {PORTFOLIO_GROUPS.map((group) => (

@@ -41,3 +41,14 @@ test('noResultsText says a finished or failed run saved no use case, and only a 
   assert.equal(noResultsText(undefined), 'No use case is saved for this run yet.', 'an unknown run claims neither finished nor still writing');
   for (const text of [finished, RESULTS_PENDING_TEXT]) assert.doesNotMatch(text, /pipeline|starting/i, 'no pipeline wording (must-exclude)');
 });
+
+test('splitTechnical unwraps a raw JSON error body and moves the Databricks error code and SQLSTATE to Details, but keeps a setting name in a sentence (must-exclude)', async () => {
+  const { splitTechnical } = await lib('plainText.js');
+  const body = JSON.stringify({ error: 'PERMISSION_DENIED: User does not have USE SCHEMA on Schema main._inspire.' });
+  assert.deepEqual(splitTechnical(`Could not load: ${body}`), { plain: 'Could not load: User does not have USE SCHEMA on Schema main._inspire.', details: ['PERMISSION_DENIED'] });
+  assert.deepEqual(splitTechnical('[TABLE_OR_VIEW_NOT_FOUND] The table or view `main`.`s`.`t` cannot be found. SQLSTATE: 42P01'),
+    { plain: 'The table or view `main`.`s`.`t` cannot be found.', details: ['TABLE_OR_VIEW_NOT_FOUND', 'SQLSTATE: 42P01'] });
+  for (const text of ["WEEKS_LEFT is '60'; allowed: 1 to 52", 'the run ended (CANCELED: Run cancelled)', 'not JSON {"x": 1}']) {
+    assert.deepEqual(splitTechnical(text), { plain: text, details: [] }, `"${text}" stays as it is`);
+  }
+});

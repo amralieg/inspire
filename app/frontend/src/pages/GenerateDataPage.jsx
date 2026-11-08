@@ -14,6 +14,7 @@ import { plural } from '../lib/plural';
 import { DEMO_GENERATED_TABLES, DEMO_KIND_SIGNAL_TABLES, demoSchemaError, demoTablesTotal } from '../lib/demoData';
 import { DISCOVERY_BADGE, DISCOVERY_MODE_TEXT, DISCOVERY_RECOMMENDED, DISCOVERY_TYPE_VALID } from '../lib/discoveryType';
 import TechnicalDetails from '../components/TechnicalDetails';
+import { PlainMessage } from '../components/TechnicalDetails';
 
 function demoTablesLine(tables) {
   if (!tables) return 'Write the demo Delta tables with UC table and column comments';
@@ -192,7 +193,7 @@ export default function GenerateDataPage({ settings, onBack, onLaunched }) {
         {error && (
           <div className="p-3 rounded-lg border border-error/30 bg-error-bg text-sm text-error-fg flex gap-2">
             <AlertCircle size={16} className="shrink-0" />
-            <span>{error}</span>
+            <PlainMessage text={error} as="span" />
           </div>
         )}
 

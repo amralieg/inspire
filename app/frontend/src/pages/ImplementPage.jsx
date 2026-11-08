@@ -517,14 +517,14 @@ export default function ImplementPage({ settings, sessionId, focusId = null, onF
       <PageHeader summary={summary} loading={listLoading} query={query} onQuery={setQuery} />
       {!listLoading && !listError && <SummaryBanner summary={summary} />}
       {filter && <BuildFilterStrip filter={filter} sessionId={sessionId} onPickRun={onPickRun} onClear={clearFilter} />}
-      {listError && <p className={ERROR_BOX}>{listError}</p>}
+      {listError && <PlainMessage text={listError} className={ERROR_BOX} />}
       {buildNotes.length > 0 && (
         <ul role="note" aria-label="What Inspire changed to start this build" data-build-notes=""
           className="rounded-lg border border-warning/30 bg-warning-bg px-3 py-2 space-y-0.5 text-xs text-warning-fg">
           {buildNotes.map((note) => <li key={note}>{note}</li>)}
         </ul>
       )}
-      {railError && <p className={ERROR_BOX}>{railError}</p>}
+      {railError && <PlainMessage text={railError} className={ERROR_BOX} />}
       <div className="flex flex-col md:flex-row gap-4 md:gap-2 md:flex-1 md:min-h-0">
         <div data-implement-rail="" style={{ '--rail-w': `${railPx}px` }}
           className="w-full md:w-(--rail-w) shrink-0 flex flex-col gap-3 max-h-[50dvh] overflow-y-auto md:max-h-none md:min-h-0">
@@ -789,7 +789,7 @@ function AssetCard({ asset, locked, lockedReason, active, error, money = null, m
               {asset.warnings.map((w) => <li key={w} className="flex items-start gap-1.5 text-[11px] text-warning-fg"><AlertTriangle size={12} className="mt-px shrink-0" aria-hidden />{w}</li>)}
             </ul>
           )}
-          {error && <p role="alert" className={ERROR_BOX}>{error}</p>}
+          {error && <PlainMessage text={error} role="alert" className={ERROR_BOX} />}
         </div>
       </article>
       <AssetVersions asset={asset} locked={locked} lockedReason={lockedReason} onRollback={onRollback} />
@@ -1690,12 +1690,12 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
           <p>The result tables, the history and any notebook Discover wrote for this use case stay. An App, dashboard or Genie Agent that other use cases share stays for them, and Inspire takes this use case&apos;s part out of it.</p>
         </ConfirmDialog>
       )}
-      {error && !built && <p className={ERROR_BOX}>{error}</p>}
+      {error && !built && <PlainMessage text={error} className={ERROR_BOX} />}
       {notice && <p role="status" className={`${NOTE_BOX} shrink-0`}>{notice}</p>}
       {built && (
         <>
-          {error && !cardFailed && !features && !drawerTile && <p className={`${ERROR_BOX} shrink-0`}>{error}</p>}
-          {collectError && <p className={`${ERROR_BOX} shrink-0`}>{collectError}</p>}
+          {error && !cardFailed && !features && !drawerTile && <PlainMessage text={error} className={`${ERROR_BOX} shrink-0`} />}
+          {collectError && <PlainMessage text={collectError} className={`${ERROR_BOX} shrink-0`} />}
           {tileRow}
           <MvpProgress stages={stages} summary={progress} chip={chip} reason={reason} toneClass={toneClass} version={latest?.spec_version} sorted={sorted}
             stop={stop} logRef={logRef} view={progressView} warnings={statusWarnings(latest).length} attention={needsAttention ? attention : null}>
@@ -1719,7 +1719,7 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
             </>
           )}>
           <div className="space-y-4">
-            {error && !cardFailed && <p className={ERROR_BOX}>{error}</p>}
+            {error && !cardFailed && <PlainMessage text={error} className={ERROR_BOX} />}
             {drawerBody()}
           </div>
         </DrawerShell>

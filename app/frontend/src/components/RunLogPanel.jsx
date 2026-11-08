@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { FileText, Loader2, RefreshCw } from 'lucide-react';
+import { PlainMessage } from './TechnicalDetails';
 
 export function runLogQuery({ inspireDatabase, warehouseId, sessionId }) {
   return `/api/inspire/log?${new URLSearchParams({ inspire_database: inspireDatabase, warehouse_id: warehouseId, session_id: String(sessionId) })}`;
@@ -41,7 +42,7 @@ export default function RunLogPanel({ inspireDatabase, warehouseId, sessionId, a
           </button>
         )}
       </div>
-      {open && error && <p role="alert" className="mt-2 text-xs text-error-fg">{error}</p>}
+      {open && error && <PlainMessage text={error} role="alert" className="mt-2 text-xs text-error-fg" />}
       {open && log && !log.found && <p role="status" className="mt-2 text-xs text-text-secondary">The run has not written its log yet. Refresh in a minute.</p>}
       {open && log && log.found && (
         <>

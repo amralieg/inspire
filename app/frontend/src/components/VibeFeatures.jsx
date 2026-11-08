@@ -7,6 +7,7 @@ import { vibeLimitNotes } from '../lib/vibeLimits';
 import { REBUILD_WAITS, rebuildLabel, removingAsk } from '../lib/implementControl';
 import { capital } from '../lib/targetKpi';
 import { plural } from '../lib/plural';
+import { PlainMessage } from './TechnicalDetails';
 
 const PRIMARY_BUTTON = 'inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold text-white bg-db-red-solid hover:bg-db-red-solid-hover shadow-sm shadow-db-red/20';
 const GREYED = 'inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold bg-bg-subtle text-text-secondary border border-border cursor-not-allowed';
@@ -157,7 +158,7 @@ export default function VibeFeatures({
         {active && <p data-rebuild-waits="" className="rounded-lg border border-border bg-bg-subtle px-3 py-2 text-[12px] font-medium text-text-primary">{REBUILD_WAITS}</p>}
         {!active && blocked && <p data-rebuild-blocked="" className="text-[12px] text-text-secondary">{blocked}</p>}
         {notice && <p role="status" className="text-[12px] text-text-secondary">{notice}</p>}
-        {error && <p role="alert" className="text-xs text-error-fg bg-error-bg border border-error/20 rounded-lg px-3 py-2">{error}</p>}
+        {error && <PlainMessage text={error} role="alert" className="text-xs text-error-fg bg-error-bg border border-error/20 rounded-lg px-3 py-2" />}
       </div>
     </DrawerShell>
   );

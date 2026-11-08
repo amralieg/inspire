@@ -286,6 +286,7 @@ function makeApp(overrides = {}, { mount } = {}) {
     res.status(status).json(data);
   });
 
+  app.get('/api/run/:runId', (req, res, next) => (state.runRead ? res.status(state.runRead.status || 200).json(state.runRead.body || {}) : next()));
   app.post('/api/run', (req, res) => {
     launches.push(req.body);
     const [status, data] = state.runAnswer || [200, { run_id: 99 }];

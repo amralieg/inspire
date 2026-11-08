@@ -10,6 +10,7 @@ import { buildFilterOf, portfolioCard, runBusiness, runCounts, runFilterText, ru
 import { sessionStatus, sessionSucceeded } from '../lib/monitorState';
 import { SHOWCASE_BUTTON } from '../lib/showcase';
 import { compareUseCaseRank, computeHighPriorityCount, nameOfUseCase, qualityBarCountsOf } from '../lib/useCaseFields';
+import TechnicalDetails from '../components/TechnicalDetails';
 
 const STATUS_CONFIG = {
   finished: { label: 'Completed', bg: 'bg-success-bg', text: 'text-success-fg', dot: 'bg-success' },
@@ -667,9 +668,7 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
               <AlertCircle size={13} />
               <span>Could not load all runs. You can still start a new run.</span>
             </div>
-            {typeof error === 'string' && error.trim() && error !== 'false' && (
-              <span className="text-[10px] text-text-tertiary font-mono break-all max-w-xl">{error}</span>
-            )}
+            {typeof error === 'string' && error.trim() && error !== 'false' && <TechnicalDetails items={error} />}
           </div>
         )}
       </div>

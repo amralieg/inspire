@@ -32,6 +32,7 @@ import { nameOfUseCase } from '../lib/useCaseFields';
 import { runOutcomeOf } from '../lib/runOutcome';
 import { liveCountText, liveUseCasesOf } from '../lib/liveUseCases';
 import { reducedMotion } from '../lib/motion';
+import { PlainMessage } from '../components/TechnicalDetails';
 
 // Run lifecycle phases
 const PHASE_PENDING = 'PENDING';
@@ -55,6 +56,7 @@ export default function MonitorPage({ settings, update, sessionId, runId, launch
 
   // Run-level state
   const [runInfo, setRunInfo] = useState(null);
+  const [runReadError, setRunReadError] = useState('');
   const [runPhase, setRunPhase] = useState(PHASE_PENDING);
 
   // Session/step state
@@ -111,7 +113,9 @@ export default function MonitorPage({ settings, update, sessionId, runId, launch
           }
           if (lcs === 'INTERNAL_ERROR' || lcs === 'SKIPPED') { setPolling(false); return; }
           if (lcs === 'TERMINATED' && (ri.result_state === 'FAILED' || ri.result_state === 'CANCELED')) { setPolling(false); return; }
-        } catch { /* keep polling */ }
+        } catch (e) {
+          if (e.status === 403) { setRunReadError(e.message); setPolling(false); return; }
+        }
       }
 
       if (warehouseId && inspireDatabase) {
@@ -191,9 +195,10 @@ export default function MonitorPage({ settings, update, sessionId, runId, launch
   const finished = sessionOnly
     ? sessionSucceeded(session)
     : (!runFailed && !isStaleSession && runPhase === PHASE_TERMINATED && runInfo?.result_state === 'SUCCESS' && sessionSucceeded(session));
-  const isFailed = runFailed || (finished && outcome.failed);
+  const cannotRead = Boolean(runReadError) && !session;
+  const isFailed = cannotRead || runFailed || (finished && outcome.failed);
   const isComplete = finished && !outcome.failed;
-  const isPending = sessionOnly ? (!session) : (runPhase === PHASE_PENDING);
+  const isPending = !cannotRead && (sessionOnly ? (!session) : (runPhase === PHASE_PENDING));
   const isRunning = sessionOnly
     ? (Boolean(session) && !isComplete && !isQuiet && !isFailed)
     : (runPhase === PHASE_RUNNING && !isComplete && !isFailed);
@@ -209,6 +214,7 @@ export default function MonitorPage({ settings, update, sessionId, runId, launch
   else if (isQuiet) { statusLabel = 'Quiet'; statusDetail = quietLine(quietSince, now); }
   else if (isWarning) { statusLabel = 'Completed with a warning'; statusDetail = outcome.message || 'The run finished with a warning.'; }
   else if (isComplete) { statusLabel = 'Completed'; statusDetail = 'Inspire finished this run.'; }
+  else if (cannotRead) { statusLabel = 'Cannot read this run'; statusDetail = `Inspire cannot read this run with your sign-in: ${runReadError}`; }
   else if (isFailed) {
     statusLabel = outcome.failed ? outcome.failureTitle : 'Failed';
     const failedTask = runInfo?.tasks?.find((t) => t.result_state === 'FAILED');
@@ -219,10 +225,10 @@ export default function MonitorPage({ settings, update, sessionId, runId, launch
       runInfo?.state_message ||
       (failedTask
         ? `Task "${failedTask.task_key}" failed${failedTask.notebook_path ? ` (${failedTask.notebook_path})` : ''}.`
-        : 'Pipeline execution failed.');
+        : 'The run failed.');
   }
   else if (isStopped) { statusLabel = 'Stopped'; statusDetail = 'The run was stopped. What it already wrote stays.'; }
-  else if (runPhase === PHASE_TERMINATED && runInfo?.result_state === 'SUCCESS' && !session?.completed_on) { statusLabel = 'Finalizing'; statusDetail = 'Run completed, waiting for results...'; }
+  else if (runPhase === PHASE_TERMINATED && runInfo?.result_state === 'SUCCESS' && !session?.completed_on) { statusLabel = 'Finishing'; statusDetail = 'The run ended. Inspire is saving the use cases...'; }
 
   const elapsed = runInfo?.execution_duration ? formatDuration(runInfo.execution_duration) : null;
 
@@ -366,11 +372,9 @@ export default function MonitorPage({ settings, update, sessionId, runId, launch
                 {statusLabel}
               </span>
               {statusDetail && (
-                <p className={`text-xs mt-0.5 ${
+                <PlainMessage className={`text-xs mt-0.5 ${
                   isWarning ? 'text-warning-fg' : isComplete ? 'text-success-fg' : isFailed ? 'text-error-fg' : 'text-text-secondary'
-                }`}>
-                  {statusDetail}
-                </p>
+                }`} text={statusDetail} />
               )}
               {isComplete && outcome.found > 0 && (
                 <p className="text-xs mt-0.5 text-text-secondary" data-testid="monitor-bar-counts">

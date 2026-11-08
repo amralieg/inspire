@@ -292,7 +292,7 @@ test('a run whose notebook refused its inputs shows the reason on the Monitor, n
     try {
       const card = await statusCard(ui.page);
       await card.getByText(expected).first().waitFor({ timeout: 10000 });
-      assert.equal(await card.getByText('Run completed, waiting for results...').count(), 0);
+      assert.equal(await card.getByText('The run ended. Inspire is saving the use cases...').count(), 0);
       if (error) assert.equal(await card.getByText(platform).count(), 0, 'the platform line gives way to the reason the notebook gave');
       assert.deepEqual(ui.pageErrors, []);
     } finally {

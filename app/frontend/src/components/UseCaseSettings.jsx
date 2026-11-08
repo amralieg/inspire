@@ -4,6 +4,7 @@ import { PANEL_CLASS, SectionTitle } from './BuildUi';
 import { ScopeSections } from './ScopeSettings';
 import { SETTINGS_NEXT_RUN, SETTINGS_SAVED, SETTING_GROUPS, settingGroupTitle, settingHistoryLine, settingValueText } from '../lib/useCaseSettings';
 import { isScopeSetting } from '../lib/runScope';
+import { PlainMessage } from './TechnicalDetails';
 
 const BUTTON = 'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold disabled:opacity-50';
 const INPUT = 'px-2 py-1 text-[12px] border border-border rounded-md bg-surface text-text-primary w-28';
@@ -58,7 +59,7 @@ export default function UseCaseSettings({ view, error = '', readOnly = false, im
     if (readOnly) return null;
     return (
       <section role="region" aria-label="Settings" className={`${PANEL_CLASS} p-4 space-y-3 text-[12px]`}>
-        <p className="text-error-fg">Inspire could not read the settings: {error}</p>
+        <PlainMessage text={`Inspire could not read the settings: ${error}`} className="text-error-fg" />
         {children}
       </section>
     );
