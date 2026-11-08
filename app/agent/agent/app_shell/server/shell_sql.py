@@ -413,7 +413,8 @@ CAPS = {"kpis": (3, 6), "charts": (3, 8), "tables": (0, 3), "filters": (1, 8), "
         "image_height": (40, 1200), "url_chars": 2000, "kpi_rows": 2, "count_cap": 10000, "changed_keys": 500, "act_match": 100000,
         "act_match_user": 10000, "note_chars": 500, "snooze_days": 365, "conflicts_shown": 20, "similar_sample": 5, "similar_by": 3, "batches": 20,
         "exclude_keys": 50, "window_limit": 1000, "act_history": 200, "closers_today": 200, "my_work_rows": 50, "my_work_deepest": 10000,
-        "my_work_days": 366, "scenario_rows": 200}
+        "my_work_days": 366, "scenario_rows": 200, "feedback_chars": 2000, "feedback_filters": 1000,
+        "feedback_rows": 50, "feedback_per_hour": 10}
 MY_WORK_DEFAULT = "week"
 MY_WORK_CUSTOM = "custom"
 MY_WORK_MINUTES = "minutes_per_record"
@@ -4363,6 +4364,31 @@ def assumption_write(page: dict, name: str, value, editor: str, note: str, text=
               "current_timestamp()", params.add(note)] + ([] if text is None else [params.add(str(text))])
     return (f"INSERT INTO {assumptions_table(page)} (`use_case_id`, `name`, `value`, `changed_by`, `changed_at`, `note`"
             f"{'' if text is None else ', `text_value`'}) VALUES ({', '.join(cells)})", params.items)
+
+
+FEEDBACK_SUFFIX = "_feedback"
+FEEDBACK_NEW = "new"
+FEEDBACK_COLUMNS = ("feedback_id", "section", "record_key", "text", "filters", "reported_by", "reported_at", "status", "vibe_text", "handled_by",
+                    "handled_at")
+
+
+def feedback_table(page: dict) -> str:
+    return table_name(str(page["result_table"]).strip() + FEEDBACK_SUFFIX)
+
+
+def feedback_write(page: dict, feedback_id: str, section: str, record_key: str, text: str, reporter: str, filters: str) -> tuple:
+    params = _Params()
+    cells = [params.add(feedback_id), params.add(str(page.get("use_case_id") or "")), params.add(section), params.add(record_key or None),
+             params.add(text), params.add(reporter), "current_timestamp()", params.add(FEEDBACK_NEW), params.add(filters or None)]
+    return (f"INSERT INTO {feedback_table(page)} (`feedback_id`, `use_case_id`, `section`, `record_key`, `text`, `reported_by`, `reported_at`, "
+            f"`status`, `filters`) VALUES ({', '.join(cells)})", params.items)
+
+
+def feedback_query(page: dict, reporter=None, limit: int = 50) -> tuple:
+    params = _Params()
+    mine = f" AND lower(`reported_by`) = {params.add(str(reporter).lower())}" if reporter is not None else ""
+    return (f"SELECT {', '.join(f'`{c}`' for c in FEEDBACK_COLUMNS)} FROM {feedback_table(page)} WHERE `use_case_id` = "
+            f"{params.add(str(page.get('use_case_id') or ''))}{mine} ORDER BY `reported_at` DESC LIMIT {int(limit)}", params.items)
 
 
 SETTING_GROUPS = ("impact", "flagging", "scope", "alerts")

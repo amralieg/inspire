@@ -30,6 +30,7 @@ import { GenieScope } from './AskGenie.jsx';
 import { reasonFilters, useCaseState } from './hub.js';
 import Dashboard, { NO_SLOTS, TableCard, chartSlots, hubChartsOnTop } from './Dashboard.jsx';
 import WorkPage from './WorkPage.jsx';
+import { FeedbackButton, FeedbackForm, FeedbackList, useFeedback } from './Feedback.jsx';
 
 export const SECTION_TITLES = { dashboard: 'Dashboard', work: 'Work', performance: 'Performance', runs: 'Runs', alerts: 'Alerts', settings: 'Settings' };
 
@@ -112,6 +113,7 @@ export default function Page({ app, page, meta, state, onState, look = EMPTY_LOO
   const tabbed = work && listed && !!app.options?.decisions && pageDecides(page) && !!entry?.tracked;
   const tabNow = tabbed ? (WORK_TABS.some(([id]) => id === tab) ? tab : DEFAULT_TAB) : '';
   const [question, setQuestion] = useState('');
+  const [opened, setOpened] = useState(() => parseHash(window.location.hash).rec || '');
   const [seeChanged, setSeeChanged] = useState(() => (parseHash(window.location.hash).changed ? 1 : 0));
   const runsOn = sections.includes('runs');
   const go = (to, { tab: nextTab = '', state: next = state, sort } = {}) => {
@@ -187,7 +189,8 @@ export default function Page({ app, page, meta, state, onState, look = EMPTY_LOO
       sort={look.sorts?.records || null} onSort={sortBy('records')}
       columnMeta={meta?.columns?.list} columnValues={columnValues(state, null)}
       onColumn={(column, value) => onState(setColumnValue(state, null, column, value))} onClearColumns={() => onState(clearColumnValues(state, null))}
-      onClearFilters={() => onState(clearColumnValues({ ...clearSelections(state), ai: {} }, null))} seeChanged={seeChanged} onShowRuns={showRuns} {...extra} />
+      onClearFilters={() => onState(clearColumnValues({ ...clearSelections(state), ai: {} }, null))} seeChanged={seeChanged} onShowRuns={showRuns}
+      onOpen={setOpened} {...extra} />
   ) : null);
   const hubCharts = (bars) => chartCards(trendChart ? [trendChart] : [], [{ key: 'by_reason', item: { id: 'by_reason' }, span: 1, node: bars }], true);
   const review = reviewItem(page, app);
@@ -200,6 +203,9 @@ export default function Page({ app, page, meta, state, onState, look = EMPTY_LOO
       </a>
     ) : null;
   const colors = paletteItems(chrome?.palette, chrome?.built, chrome?.theme, chrome?.onPalette || (() => {}));
+  const reporting = !!page.history;
+  const feedback = useFeedback(page.id, reporting && shown === 'settings');
+  const report = { section: shown, filters: describeFilters(state, meta?.filters, meta?.columns), recordKey: opened };
   const head = (
     <header className="ph">
       <div className="pg-h">
@@ -207,6 +213,7 @@ export default function Page({ app, page, meta, state, onState, look = EMPTY_LOO
         <div className="ph-tools" data-section-tools>
           <FreshBar freshness={freshness}>
             <PageLink pageId={page.id} meta={meta} state={state} view={shown} address={address} />
+            {reporting && (shown === 'dashboard' || shown === 'work') && <FeedbackButton pageId={page.id} context={report} sections={sections} />}
           </FreshBar>
         </div>
       </div>
@@ -282,6 +289,12 @@ export default function Page({ app, page, meta, state, onState, look = EMPTY_LOO
               : <p className="auth" data-auth="app"><Icon name="users" size={13} /><b>Shared view.</b> Everyone sees the same data. The App reads it with its own service principal.</p>}
             {app.is_owner === true && <AdminLink />}
           </SettingGroup>
+          {reporting && (
+            <SettingGroup id="feedback" title="App Feedback" why="Tell the owners of this use case what is wrong or what you would change. They see it on its Build page in Inspire.">
+              <FeedbackForm pageId={page.id} context={{ ...report, section: 'settings' }} sections={sections} onSent={(out) => feedback.setData(out)} />
+              <FeedbackList data={feedback.data} failure={feedback.failure} />
+            </SettingGroup>
+          )}
         </SettingsPanel>
       )}
     </div>

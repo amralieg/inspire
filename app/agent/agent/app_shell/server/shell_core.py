@@ -112,6 +112,9 @@ NO_LIST = "this page names no result table, so it has nothing to fix"
 OWNERS_MAX = 50
 USE_CASE_OWNERS_MAX = OWNERS_MAX + 1
 NOTE_CHARS = 300
+FEEDBACK_SECTIONS = ("dashboard", "work", "performance", "runs", "alerts", "settings")
+FEEDBACK_WINDOW_S = 3600.0
+NO_FEEDBACK = "this page names no result table, so the App has nowhere to keep reported issues"
 NO_MONEY = f"this page puts no {shell_sql.stake_words(None)} on its records"
 NO_SETTINGS = "this use case has no settings the App can change"
 PREVIEW_UNACCEPTED = ("The next run works out which records this moves: no model passed acceptance in the last run, so every "
@@ -1477,6 +1480,7 @@ class Shell:
         self.hub_pool = ThreadPoolExecutor(max_workers=HUB_WORKERS)
         self.warehouse = str(self.env.get("DATABRICKS_WAREHOUSE_ID") or "")
         self.job_locks, self.job_locks_guard = {}, threading.Lock()
+        self.reports, self.reports_lock = {}, threading.Lock()
         self.started = {}
         self.alerts = shell_alerts.Alerts(self)
         self.agent = shell_agent.Agent(self, clock=clock)
@@ -1913,6 +1917,10 @@ class Shell:
                 return 200, self.money(headers, query.get("page"))
             if route == ("POST", "money/assumption"):
                 return 200, self.change_assumption(headers, data)
+            if route == ("GET", "feedback"):
+                return 200, self.feedback_list(headers, query.get("page"))
+            if route == ("POST", "feedback"):
+                return 200, self.feedback_report(headers, data)
             if route == ("GET", "settings"):
                 return 200, self.settings_view(headers, query.get("page"))
             if route == ("POST", "settings/preview"):
@@ -2812,6 +2820,70 @@ class Shell:
             raise
         self.forget()
         return self.settings_view(headers, page["id"])
+
+    def feedback_page(self, ident) -> dict:
+        page = self.page(ident)
+        if not page.get("result_table"):
+            raise HttpError(409, NO_FEEDBACK)
+        return page
+
+    def feedback_missing(self, page: dict, error) -> HttpError:
+        return HttpError(409, f"Nothing was saved: {shell_sql.feedback_table(page)} does not exist yet ({error}). Ask the person who built "
+                              f"the App to {shell_sql.rebuild_action()}, so Inspire creates it")
+
+    def feedback_list(self, headers: dict, ident) -> dict:
+        page = self.feedback_page(ident)
+        editor = self.editor(headers)
+        everyone = bool(self.signed_in(headers) & self.page_editors(page))
+        ws, _who = self.workspace(headers)
+        sql, params = shell_sql.feedback_query(page, None if everyone else editor, shell_sql.CAPS["feedback_rows"])
+        try:
+            rows = self.execute(self.decision_writer(ws), sql, params, shell_sql.CAPS["feedback_rows"], delta=True)["rows"]
+        except QueryError as error:
+            if NO_TABLE.search(str(error)):
+                return {"items": [], "everyone": everyone, "missing": True, "limit": shell_sql.CAPS["feedback_chars"]}
+            raise
+        return {"items": rows, "everyone": everyone, "missing": False, "limit": shell_sql.CAPS["feedback_chars"]}
+
+    def feedback_allowed(self, editor: str) -> None:
+        now, cap = self.timer(), shell_sql.CAPS["feedback_per_hour"]
+        with self.reports_lock:
+            sent = [at for at in self.reports.get(editor.lower(), []) if now - at < FEEDBACK_WINDOW_S]
+            if len(sent) >= cap:
+                wait = max(1, math.ceil((FEEDBACK_WINDOW_S - (now - sent[0])) / 60))
+                raise HttpError(429, f"you reported {shell_sql.plural(cap, 'issue')} in the last hour, the most the App takes from one person; "
+                                     f"try again in {shell_sql.plural(wait, 'minute')}")
+            self.reports[editor.lower()] = sent + [now]
+
+    def feedback_report(self, headers: dict, data: dict) -> dict:
+        page = self.feedback_page(data.get("page"))
+        editor = self.editor(headers)
+        text, section = data.get("text"), data.get("section")
+        record, filters = data.get("record_key") or "", data.get("filters") or ""
+        if not isinstance(text, str) or not text.strip():
+            raise HttpError(400, "say what is wrong or what you would change")
+        if len(text.strip()) > shell_sql.CAPS["feedback_chars"]:
+            raise HttpError(400, f"keep the report to {shell_sql.CAPS['feedback_chars']:,} characters; it has {len(text.strip()):,}")
+        if section not in FEEDBACK_SECTIONS:
+            raise HttpError(400, f"send section as one of: {', '.join(FEEDBACK_SECTIONS)}")
+        if not isinstance(record, str) or len(record) > RECORD_KEY_CHARS:
+            raise HttpError(400, f"send record_key as text of at most {RECORD_KEY_CHARS} characters")
+        if not isinstance(filters, str) or len(filters) > shell_sql.CAPS["feedback_filters"]:
+            raise HttpError(400, f"send filters as text of at most {shell_sql.CAPS['feedback_filters']:,} characters")
+        ws, _who = self.workspace(headers)
+        writer = self.decision_writer(ws)
+        self.feedback_allowed(editor)
+        feedback_id = uuid.uuid4().hex
+        try:
+            self.execute(writer, *shell_sql.feedback_write(page, feedback_id, section, record.strip(), text.strip(), editor, filters.strip()), 1,
+                         delta=True)
+        except QueryError as error:
+            if NOT_ALLOWED.search(str(error)):
+                raise self.write_refused(shell_sql.feedback_table(page), error, as_app=self.settings["auth"] == "user") from error
+            if NO_TABLE.search(str(error)):
+                raise self.feedback_missing(page, error) from error
+            raise
+        return dict(self.feedback_list(headers, page["id"]), sent=feedback_id)
 
     def run_now(self, headers: dict, data: dict) -> dict:
         return self.refresh(headers, data.get("page"))

@@ -1,0 +1,107 @@
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { failureOf, getFeedback, sendFeedback } from './api.js';
+import { dayLabel } from './format.js';
+import { Icon } from './icons.jsx';
+import { Failure, Popover, useToast } from './ui.jsx';
+import { FEEDBACK_CHARS, FEEDBACK_SECTIONS, feedbackChars, feedbackProblem, feedbackStatusText } from './feedback.js';
+
+export function useFeedback(pageId, on = true) {
+  const [data, setData] = useState(null);
+  const [failure, setFailure] = useState(null);
+  const load = useCallback(() => {
+    if (!on) return;
+    getFeedback(pageId).then((d) => { setData(d); setFailure(null); }).catch((e) => setFailure(failureOf(e)));
+  }, [pageId, on]);
+  useEffect(() => { load(); }, [load]);
+  return { data, failure, setData, load };
+}
+
+export function FeedbackForm({ pageId, context, sections, onSent, autoFocus = false }) {
+  const [text, setText] = useState('');
+  const [about, setAbout] = useState(context.section);
+  const [failure, setFailure] = useState(null);
+  const [sending, setSending] = useState(false);
+  const box = useRef(null);
+  const toast = useToast();
+  useEffect(() => { if (autoFocus) box.current?.focus(); }, [autoFocus]);
+  const problem = feedbackProblem(text);
+  const picks = (sections || []).filter((s) => FEEDBACK_SECTIONS.includes(s));
+  const send = async (e) => {
+    e.preventDefault();
+    if (problem || sending) return;
+    setSending(true);
+    setFailure(null);
+    try {
+      const out = await sendFeedback({ page: pageId, section: about, text: text.trim(), record_key: context.recordKey || '', filters: context.filters || '' });
+      setText('');
+      toast('Thanks. The owners of this use case see your report on its Build page in Inspire.');
+      onSent?.(out);
+    } catch (err) {
+      setFailure(failureOf(err));
+    } finally {
+      setSending(false);
+    }
+  };
+  return (
+    <form className="fb-form" onSubmit={send} data-feedback-form>
+      {picks.length > 1 && context.section === 'settings' && (
+        <label className="fb-about">About
+          <select value={about} onChange={(e) => setAbout(e.target.value)} name="feedback_section">
+            {picks.map((s) => <option key={s} value={s}>{s[0].toUpperCase() + s.slice(1)}</option>)}
+          </select>
+        </label>
+      )}
+      <textarea ref={box} dir="auto" name="feedback_text" rows={4} value={text} onChange={(e) => setText(e.target.value)} aria-label="What is wrong, or what would you change?"
+        placeholder="What is wrong, or what would you change?" aria-invalid={!!problem} />
+      <p className={`fb-count ${problem ? 'is-over' : ''}`} data-feedback-count>{feedbackChars(text).toLocaleString('en-US')} / {FEEDBACK_CHARS.toLocaleString('en-US')}</p>
+      {problem && <p className="err" role="alert">{problem}</p>}
+      <p className="why" data-feedback-context>
+        Sent with: the {about} section{context.filters && context.filters !== 'none' ? `, filters ${context.filters}` : ''}{context.recordKey ? `, record ${context.recordKey}` : ''}.
+      </p>
+      <Failure failure={failure} className="err">{failure?.text}</Failure>
+      <button type="submit" className="btn btn--pri" disabled={!text.trim() || !!problem || sending} data-feedback-send>
+        <Icon name="send" size={14} />{sending ? 'Sending…' : 'Send'}
+      </button>
+    </form>
+  );
+}
+
+export function FeedbackList({ data, failure }) {
+  if (failure?.text) return <Failure failure={failure} className="err">{failure.text}</Failure>;
+  if (!data) return null;
+  if (data.missing) return <p className="why" data-feedback-missing>This App was built before it kept reported issues. Ask an owner to rebuild it from the Build page in Inspire.</p>;
+  if (!data.items?.length) return null;
+  return (
+    <div className="fb-list" data-feedback-list>
+      <b>{data.everyone ? 'Reported issues' : 'Your reports'}</b>
+      <ul>
+        {data.items.map((item) => (
+          <li key={item.feedback_id} data-feedback-item={item.feedback_id}>
+            <span dir="auto">{item.text}</span>
+            <small>{[item.section, data.everyone ? item.reported_by : '', item.reported_at ? dayLabel(String(item.reported_at).slice(0, 10)) : '',
+              feedbackStatusText(item.status)].filter(Boolean).join(' · ')}</small>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+export function FeedbackButton({ pageId, context, sections }) {
+  const [open, setOpen] = useState(false);
+  const anchor = useRef(null);
+  const close = useCallback(() => setOpen(false), []);
+  return (
+    <>
+      <button ref={anchor} type="button" className="btn" onClick={() => setOpen(!open)} aria-expanded={open} data-feedback-open
+        title="Tell the owners of this use case what is wrong or what you would change">
+        <Icon name="info" size={15} /><span>Report an issue</span>
+      </button>
+      {open && (
+        <Popover anchor={anchor.current} onClose={close} label="Report an issue" width={340}>
+          <FeedbackForm pageId={pageId} context={context} sections={sections} onSent={close} autoFocus />
+        </Popover>
+      )}
+    </>
+  );
+}
