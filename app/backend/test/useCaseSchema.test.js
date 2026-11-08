@@ -157,6 +157,20 @@ test('create-schema tags the use case schema and lets the identity Inspire build
   });
 });
 
+test('create-schema on the person route, where the request carries the person token, still lets the App service principal that builds write there', async () => {
+  const grants = [];
+  const statements = { ...schemaRows([RIGHT]), 'GRANT ': (sql, _p, token) => { grants.push([sql, token]); return { rows: [] }; } };
+  const workspace = ({ token, path }) => (path.startsWith('/api/2.0/preview/scim/v2/Me')
+    ? [token === 'sp-tok' ? { userName: 'inspire-app', applicationId: 'app-sp-1' } : { userName: 'amr@x' }] : undefined);
+  await withApp({ forwardedToken: PERSON_TOKEN, dbToken: PERSON_TOKEN, appToken: 'sp-tok', workspace, statements }, async (url) => {
+    const body = { catalog: 'main', schema: '_inspire_acme_n01_u01_42', tags: w.useCaseSchemaTags({ sessionId: '42', useCaseId: 'N01-U01', businessName: 'Acme' }) };
+    const got = await call(url, `/api/inspire/implement/create-schema?${Q}`, { method: 'POST', body });
+    assert.equal(got.status, 200, JSON.stringify(got.data));
+    assert.deepEqual(got.data.warnings, []);
+    assert.deepEqual(grants, [['GRANT USE SCHEMA, CREATE TABLE, SELECT, MODIFY, MANAGE ON SCHEMA `main`.`_inspire_acme_n01_u01_42` TO `app-sp-1`', PERSON_TOKEN]]);
+  });
+});
+
 test('create-schema refuses a schema whose session tag names another session and creates nothing', async () => {
   const held = [{ kind: 'exists', schema_name: '_inspire_acme_n01_u01_42', value: '' }, { kind: 'session', schema_name: '_inspire_acme_n01_u01_42', value: '1000042' }];
   await withApp({ forwardedToken: PERSON_TOKEN, statements: schemaRows(held) }, async (url, made) => {

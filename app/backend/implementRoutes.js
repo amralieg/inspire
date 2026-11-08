@@ -140,7 +140,7 @@ function registerImplementRoutes(app, deps) {
   const fetchJsonFor = (req) => (path) => jsonOf(dbFetch, req.dbHost, req.dbToken, path);
 
   const readMeFor = (req) => (token) => jsonOf(dbFetch, req.dbHost, token, P.SCIM_ME_PATH);
-  const { accessRowsOf, grantSourceAccess, runPersonGrants, sourceAccess } = SA.createSourceAccess({ executeSql, sqlResultToObjects, dbFetch, appToken });
+  const { accessRowsOf, appTokenOf, grantSourceAccess, runPersonGrants, sourceAccess } = SA.createSourceAccess({ executeSql, sqlResultToObjects, dbFetch, appToken });
 
   async function loadTokenPrincipal(req) {
     const got = await readMeFor(req)(req.dbToken);
@@ -156,9 +156,14 @@ function registerImplementRoutes(app, deps) {
     throw Object.assign(I.badRequest(error, 401), { details });
   }
 
-  function buildsAsAnother(req) {
+  async function buildsAsAnother(req) {
     const person = P.personTokenOf(req);
-    return Boolean(person && person !== req.dbToken);
+    return Boolean(person && person !== await appTokenOf(req));
+  }
+
+  async function loadBuilderPrincipal(req) {
+    const got = await readMeFor(req)(await appTokenOf(req));
+    return got.ok ? got.data : {};
   }
 
   async function readColumnTags(req, token, warehouseId, tables) {
@@ -321,7 +326,7 @@ function registerImplementRoutes(app, deps) {
       loadResultTableHolder(req, warehouseId, catalog, schema, table),
     ]);
     const person = P.personTokenOf(req);
-    const builder = buildsAsAnother(req);
+    const builder = await buildsAsAnother(req);
     const access = I.outputAccess(rows, table, { builder });
     const model = I.trainsModel(useCase) ? I.modelAccess(elsewhere ? modelRows : rows, modelName, { builder }) : null;
     const warehouse = await appWarehouseCheck(req, warehouseId, access.identity, options.warehouseName);
@@ -979,8 +984,8 @@ function registerImplementRoutes(app, deps) {
         await executeSql(req.dbHost, token, warehouseId, tagged)
           .catch((err) => warnings.push(`Inspire could not tag ${catalog}.${schema}: ${String((err && err.message) || err).slice(0, 200)}`));
       }
-      if (buildsAsAnother(req)) {
-        const builder = await loadTokenPrincipal(req);
+      if (await buildsAsAnother(req)) {
+        const builder = await loadBuilderPrincipal(req);
         const grant = I.useCaseSchemaBuilderGrant(catalog, schema, builder.applicationId || builder.userName);
         const { failed } = grant ? await runPersonGrants(req, token, warehouseId, [grant]) : { failed: ['the identity Inspire builds as could not be read'] };
         if (failed.length) {
@@ -1200,9 +1205,10 @@ function registerImplementRoutes(app, deps) {
     }
     if (!output.ok) throw I.badRequest(output.write.ok ? output.safety.detail : output.write.detail, 403);
     if (output.grant.ok || !planned.sharing.principals.length) return { spec: planned, warnings: [] };
+    const who = (await buildsAsAnother(req)) ? 'it' : 'you';
     return {
       spec: { ...planned, sharing: { ...planned.sharing, principals: [] } },
-      warnings: [`Built without sharing: ${output.grant.detail}. Share ${output.table} once ${buildsAsAnother(req) ? 'it' : 'you'} can.`],
+      warnings: [`Built without sharing: ${output.grant.detail}. Share ${output.table} once ${who} can.`],
     };
   }
 
