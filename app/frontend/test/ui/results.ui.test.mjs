@@ -331,28 +331,35 @@ test('value tracking shows a KPI the agent did not measure as Not measured with 
   }
 });
 
-test('a use case whose notebook cannot be exported asks once for each path, says why, and asks again only when the person presses Preview', async () => {
+test('a use case card offers only Open notebook for its notebook: no preview, no instruction text, and no export is asked', async () => {
   const notebook = ['', 'Users', ['owner', 'example.com'].join('@'), 'inspire', 'Acme', 'N01-U03'].join('/');
-  const results = { ...RESULTS, domains: RESULTS.domains.map((d) => ({ ...d, use_cases: d.use_cases.map((u) => (u.No === 'N01-U03' ? { ...u, notebook_path: notebook } : u)) })) };
-  const ui = await openUi('results', { ...STATE, results }, '', FAKE_CLOCK);
-  const { page } = ui;
-  const exports = watchAsks(page, (r) => new URL(r.url()).pathname === '/api/workspace/export');
-  const paths = () => exports.sent.map((r) => new URL(r.url()).searchParams.get('path'));
-  const quiet = () => exports.quiet(1000);
-  try {
-    await ready(page);
-    await card(page, 'Segment shoppers').click();
-    const failed = page.getByText('Could not load the notebook because the export failed.', { exact: false });
-    await failed.waitFor({ timeout: 15000 });
-    assert.deepEqual(paths(), [notebook, `/Workspace${notebook}`], 'each path the notebook may live at is asked once');
-    await quiet();
-    assert.equal(exports.sent.length, 2, `a failed export is never asked again on its own: ${exports.sent.length} asks`);
-    await page.getByRole('button', { name: 'Preview', exact: true }).click();
-    await until(() => exports.sent.length === 4, 'the asks Preview sends');
-    await failed.waitFor({ timeout: 15000 });
-    await quiet();
-    assert.equal(exports.sent.length, 4, 'Preview asks each path once more and stops');
-  } finally {
-    await ui.close();
+  const instruction = `# Segment shoppers instruction\n${'Build the segments from the orders table. '.repeat(6)}`;
+  const withNotebook = (extra) => ({ ...RESULTS, domains: RESULTS.domains.map((d) => ({ ...d,
+    use_cases: d.use_cases.map((u) => (u.No === 'N01-U03' ? { ...u, notebook_path: notebook, ...extra } : u)) })) });
+  const kinds = [['outline notebook', {}, 'Use case notebook'], ['Genie Code notebook', { genie_instruction: instruction, has_genie_code: 'Y' }, 'Genie Code Instruction']];
+  for (const [label, extra, heading] of kinds) {
+    const ui = await openUi('results', { ...STATE, results: withNotebook(extra) }, '', FAKE_CLOCK);
+    const { page } = ui;
+    const exports = watchAsks(page, (r) => new URL(r.url()).pathname === '/api/workspace/export');
+    try {
+      await ready(page);
+      await card(page, 'Segment shoppers').click();
+      const section = page.locator('[data-use-case-notebook]');
+      await section.waitFor({ timeout: 15000 });
+      assert.match(await section.innerText(), new RegExp(`^${heading}`, 'i'), label);
+      const open = section.getByRole('link', { name: 'Open notebook' });
+      assert.equal(await open.count(), 1, `${label}: Open notebook is offered`);
+      assert.equal(await open.getAttribute('href'), `https://workspace.example.com/#workspace/Workspace${notebook}`);
+      assert.equal(await open.getAttribute('target'), '_blank');
+      assert.deepEqual((await section.locator('a, button').allInnerTexts()).map((x) => x.trim()), ['Open notebook'], `${label}: Open notebook is the only option`);
+      for (const name of ['Preview', 'Hide', 'Copy', 'Help']) assert.equal(await section.getByText(name, { exact: true }).count(), 0, `${label}: no ${name} (must-exclude)`);
+      assert.equal(await section.locator('pre, table, h1, h2, h3').count(), 0, `${label}: no notebook preview renders (must-exclude)`);
+      assert.equal(await page.getByText('Segment shoppers instruction').count(), 0, `${label}: the instruction text never renders on the card (must-exclude)`);
+      await exports.quiet(1000);
+      assert.equal(exports.sent.length, 0, `${label}: the card asks no export`);
+      assert.deepEqual(ui.pageErrors.filter((e) => !/status of (404|500)/.test(e)), []);
+    } finally {
+      await ui.close();
+    }
   }
 });

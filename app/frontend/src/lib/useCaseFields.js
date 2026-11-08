@@ -202,13 +202,6 @@ export function computeHighPriorityCount(list) {
   return list.filter((uc) => (inspireScoreFromUc(uc) ?? 0) / 2 >= HIGH_PRIORITY_MIN_INSPIRE_SCORE).length;
 }
 
-export function useCaseCountsText({ total, high, meets } = {}) {
-  const n = Number(total) || 0;
-  const found = `${n} use case${n === 1 ? '' : 's'}`;
-  if (n > 0 && meets != null && Number(meets) === 0) return `${found} · none meets your quality bar`;
-  return `${found} · ${Number(high) || 0} high priority`;
-}
-
 export function displayCleanText(s) {
   if (s == null) return '';
   let t = String(s).replace(/<[^>]*>/g, ' ');

@@ -60,9 +60,9 @@ test('the Choose page overview names each 19-digit session exactly, so its count
   const bySid = Object.fromEntries(got.data.sessions.map((s) => [s.session_id, s.usecase_overview]));
   assert.deepEqual(got.data.sessions.map((s) => s.session_id), [MAX, HALF, '17']);
   const preview = (...names) => names.map((Name) => ({ Name, name_with_technique: null }));
-  assert.deepEqual(bySid[MAX], { total: 2, high: 1, meets: 2, domains: 2, preview_use_cases: preview('Forecast demand by zone', 'Reduce churn') });
-  assert.deepEqual(bySid[HALF], { total: 1, high: 1, meets: 1, domains: 1, preview_use_cases: preview('Price basket mix') });
-  assert.deepEqual(bySid['17'], { total: 0, high: 0, meets: 0, domains: 0, preview_use_cases: [] }, 'a run with no use cases stays at zero');
+  assert.deepEqual(bySid[MAX], { total: 2, high: 1, meets: 2, below: 0, domains: 2, unread: {}, preview_use_cases: preview('Forecast demand by zone', 'Reduce churn') });
+  assert.deepEqual(bySid[HALF], { total: 1, high: 1, meets: 1, below: 0, domains: 1, unread: {}, preview_use_cases: preview('Price basket mix') });
+  assert.deepEqual(bySid['17'], { total: 0, high: 0, meets: 0, below: 0, domains: 0, unread: {}, preview_use_cases: [] }, 'a run with no use cases stays at zero');
   const asked = S.state.calls.filter((c) => c.statement.includes('__inspire_usecases'));
   assert.equal(asked.length, 2);
   for (const c of asked) assert.ok(c.statement.includes(`IN (${MAX},${HALF},17)`), c.statement);
@@ -101,6 +101,60 @@ test('a session id beyond 63 bits is left out of the overview query instead of n
   assert.equal(got.status, 200, got.text.slice(0, 300));
   assert.equal(got.data.sessions[0].usecase_overview, undefined);
   assert.deepEqual(S.state.calls.filter((c) => c.statement.includes('__inspire_usecases')), []);
+});
+
+const ONE_RUN = [{ session_id: MAX, business_name: 'Acme', completed_percent: 100, create_at: '2026-11-02T10:00:00Z', business_runs: 1, business_rank: 1 }];
+const usecaseReads = () => S.state.calls.filter((c) => (c.statement || '').includes('__inspire_usecases'));
+
+test('each Start run counts a use case below the quality bar as low quality and never as high quality, even with a high Inspire Score', async () => {
+  S.reset({ sessionList: ONE_RUN, usecases: [
+    { session_id: MAX, use_case: 'Strong and above the bar', inspire_score: '9', elite_status: 'ELITE', business_domain: 'Sales' },
+    { session_id: MAX, use_case: 'Strong score, below the bar', inspire_score: '9', elite_status: 'FALLBACK_BELOW_BAR', business_domain: 'Sales' },
+    { session_id: MAX, use_case: 'Coverage pick', inspire_score: '2', elite_status: ' domain_coverage_pick ', business_domain: 'Ops' },
+    { session_id: MAX, use_case: 'No status yet', inspire_score: '1', business_domain: 'Ops' },
+  ] });
+  const got = await S.request('GET', LIST, { person: 'reader@example.com' });
+  assert.equal(got.status, 200, got.text.slice(0, 300));
+  const { total, high, meets, below, unread } = got.data.sessions[0].usecase_overview;
+  assert.deepEqual({ total, high, meets, below, unread }, { total: 4, high: 2, meets: 2, below: 2, unread: {} });
+  assert.equal(meets + below, total);
+});
+
+test('an older use case table without the quality or score columns still lists its runs, counts what it can and says why for the rest', async () => {
+  const usecases = [
+    { session_id: MAX, use_case: 'Forecast demand', quality_score: '5', priority_score: '9', business_domain: 'Sales' },
+    { session_id: MAX, use_case: 'Reduce churn', quality_score: '1', priority_score: '2', business_domain: 'Sales' },
+  ];
+  S.reset({ sessionList: ONE_RUN, usecases, usecaseColumns: ['session_id', 'use_case', 'quality_score', 'priority_score', 'business_domain'] });
+  const got = await S.request('GET', LIST, { person: 'reader@example.com' });
+  assert.equal(got.status, 200, got.text.slice(0, 300));
+  const overview = got.data.sessions[0].usecase_overview;
+  assert.deepEqual([overview.total, overview.high, overview.meets, overview.below, overview.domains], [2, 1, null, null, 1]);
+  assert.deepEqual(Object.keys(overview.unread), ['quality']);
+  assert.match(overview.unread.quality, /no elite_status column/);
+  assert.equal(overview.preview_use_cases.length, 2);
+  assert.equal(usecaseReads().filter((c) => /^\s*DESCRIBE TABLE/.test(c.statement)).length, 1, 'the columns are read once for the whole list');
+  assert.equal(usecaseReads().filter((c) => c.statement.includes('AS usecase_count')).length, 2, 'the full count, then the one the table can hold');
+
+  S.reset({ sessionList: ONE_RUN, usecases, usecaseColumns: ['session_id', 'use_case'] });
+  const bare = (await S.request('GET', LIST, { person: 'reader@example.com' })).data.sessions[0].usecase_overview;
+  assert.deepEqual([bare.total, bare.high, bare.meets, bare.below, bare.domains], [2, null, null, null, null], 'a count it cannot read is null, never 0');
+  assert.deepEqual(Object.keys(bare.unread).sort(), ['domains', 'high', 'quality']);
+  assert.match(bare.unread.high, /no inspire_score column/);
+});
+
+test('a use case table that cannot be read gives every run the reason, and a table not made yet counts zero', async () => {
+  S.reset({ sessionList: ONE_RUN, usecases: [{ session_id: MAX, use_case: 'Hidden', inspire_score: '9' }] });
+  S.state.conflictOn = (sql) => (sql.includes('__inspire_usecases') ? '[INSUFFICIENT_PERMISSIONS] User does not have SELECT on Table' : '');
+  const denied = await S.request('GET', LIST, { person: 'reader@example.com' });
+  assert.equal(denied.status, 200, 'the run list still loads');
+  assert.match(denied.data.sessions[0].usecase_overview.error, /INSUFFICIENT_PERMISSIONS/);
+  assert.equal(denied.data.sessions[0].usecase_overview.total, undefined, 'no made-up zero');
+
+  S.reset({ sessionList: ONE_RUN, usecases: [] });
+  S.state.conflictOn = (sql) => (sql.includes('__inspire_usecases') ? '[TABLE_OR_VIEW_NOT_FOUND] The table or view `__inspire_usecases` cannot be found.' : '');
+  const fresh = (await S.request('GET', LIST, { person: 'reader@example.com' })).data.sessions[0].usecase_overview;
+  assert.deepEqual(fresh, { total: 0, high: 0, meets: 0, below: 0, domains: 0, unread: {}, preview_use_cases: [] });
 });
 
 test('cancelling a run with a 19-digit run id sends the exact id to the Jobs API', async () => {

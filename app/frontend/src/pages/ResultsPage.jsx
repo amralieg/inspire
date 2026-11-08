@@ -36,7 +36,6 @@ import {
   AlertTriangle,
   XCircle,
 } from 'lucide-react';
-import GenieMarkdownPreview from '../components/GenieMarkdownPreview';
 import GlassCard from '../components/GlassCard';
 import DomainSunburst from '../components/DomainSunburst';
 import PriorityHeatmap from '../components/PriorityHeatmap';
@@ -971,9 +970,7 @@ export default function ResultsPage({
     const key = uc?._v130?.useCaseKey;
     return {
       resolveTable,
-      token,
       databricksHost,
-      showcase,
       allNotebookFiles,
       knownPriorities: bizPriorities,
       strategy,

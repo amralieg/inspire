@@ -6,10 +6,10 @@ import { SkeletonCard } from '../components/SkeletonLoader';
 import LatestRunBadge from '../components/LatestRunBadge';
 import PortfolioCards, { usePortfolio } from '../components/PortfolioCards';
 import { makeApiFetch, requestHeaders } from '../lib/apiClient';
-import { buildFilterOf, portfolioCard, runBusiness, runFilterText, runMvpText, runsOfCard } from '../lib/reviewFigures';
+import { buildFilterOf, portfolioCard, runBusiness, runCounts, runFilterText, runsOfCard } from '../lib/reviewFigures';
 import { sessionStatus, sessionSucceeded } from '../lib/monitorState';
 import { SHOWCASE_BUTTON } from '../lib/showcase';
-import { computeHighPriorityCount, nameOfUseCase, qualityBarCountsOf, useCaseCountsText } from '../lib/useCaseFields';
+import { computeHighPriorityCount, nameOfUseCase, qualityBarCountsOf } from '../lib/useCaseFields';
 
 const STATUS_CONFIG = {
   finished: { label: 'Completed', bg: 'bg-success-bg', text: 'text-success-fg', dot: 'bg-success' },
@@ -64,7 +64,8 @@ function getSessionSummary(session) {
     }
   }
   if (useCases.length === 0) return null;
-  return { total: useCases.length, high: computeHighPriorityCount(useCases), meets: qualityBarCountsOf(useCases).meets, domains: domains.size, domainNames: [...domains], useCases };
+  const { meets, below } = qualityBarCountsOf(useCases);
+  return { total: useCases.length, high: computeHighPriorityCount(useCases), meets, below, domains: domains.size, domainNames: [...domains], useCases };
 }
 
 const CHOICE = 'group flex w-full items-start gap-4 rounded-2xl border px-5 py-4 text-start transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-db-red/40';
@@ -138,12 +139,17 @@ function buildSummaryFromUclist(ucs) {
  */
 function getListRowOverview(session) {
   const api = session.usecase_overview;
-  if (api && typeof api.total === 'number' && api.total > 0) {
+  if (api && typeof api === 'object' && api.error) return { error: String(api.error), total: 0, previewTitles: [] };
+  const fromApi = api && typeof api === 'object' && typeof api.total === 'number';
+  if (fromApi && api.total > 0) {
+    const meets = api.meets == null ? null : Number(api.meets) || 0;
     return {
       total: api.total,
-      high: Number(api.high) || 0,
-      meets: api.meets == null ? null : Number(api.meets) || 0,
-      domains: Number(api.domains) || 0,
+      high: api.high == null ? null : Number(api.high) || 0,
+      meets,
+      below: api.below != null ? Number(api.below) || 0 : meets == null ? null : Math.max(0, api.total - meets),
+      domains: api.domains == null ? null : Number(api.domains) || 0,
+      unread: api.unread && typeof api.unread === 'object' ? api.unread : {},
       previewTitles: Array.isArray(api.preview_use_cases) ? api.preview_use_cases.map(nameOfUseCase).filter(Boolean) : [],
     };
   }
@@ -158,10 +164,13 @@ function getListRowOverview(session) {
       total: legacy.total,
       high: legacy.high,
       meets: legacy.meets,
+      below: legacy.below,
       domains: legacy.domains,
+      unread: {},
       previewTitles,
     };
   }
+  if (fromApi) return { total: 0, unread: {}, previewTitles: [] };
   return null;
 }
 
@@ -375,7 +384,7 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
               const listOverview = getListRowOverview(session);
               const panelSummary = legacySummary || buildSummaryFromUclist(quickViewUcsBySession[sidStr]);
               const canQuickView = !!(legacySummary || listOverview?.total > 0);
-              const mvpText = runMvpText(session, portfolio);
+              const counts = runCounts(listOverview, portfolio, session, { running: status === 'running' || status === 'quiet', mvpError: portfolioError });
 
               // Build a short text description from domain names and catalog
               const description = (() => {
@@ -452,21 +461,25 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
                         <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${cfg.bg} ${cfg.text}`}>
                           {cfg.label}
                         </span>
-                        {mvpText && (
-                          <span data-run-mvps="" className="text-[10px] px-1.5 py-0.5 rounded font-medium bg-db-red-50 text-db-red-fg">{mvpText}</span>
-                        )}
                       </div>
-                      {listOverview && (
-                        <>
-                          <p className="text-[11px] text-text-secondary mt-1.5">
-                            <span data-testid="run-use-case-counts">{useCaseCountsText(listOverview)}</span>
-                            {' · '}
-                            {listOverview.domains} domain{listOverview.domains !== 1 ? 's' : ''}
-                            {isCompleted && session.completed_on
-                              ? ` · Completed ${formatCompletedDate(session.completed_on)}`
-                              : ''}
-                          </p>
-                          {listOverview.previewTitles.length > 0 && (
+                      <>
+                          {counts.items.length > 0 && (
+                            <ul data-run-counts="" aria-label="Counts for this run" className="mt-1.5 flex flex-wrap items-baseline gap-x-3 gap-y-0.5 text-[11px] text-text-secondary">
+                              {counts.items.map((item) => (
+                                <li key={item.key} data-run-count={item.key} data-count-off={item.n == null ? '' : undefined}>
+                                  {item.n == null ? `${item.label} not counted` : (
+                                    <><span className="font-semibold tabular-nums text-text-primary">{item.n.toLocaleString('en-US')}</span> {item.label}</>
+                                  )}
+                                </li>
+                              ))}
+                              {isCompleted && session.completed_on && <li className="text-text-tertiary">Completed {formatCompletedDate(session.completed_on)}</li>}
+                            </ul>
+                          )}
+                          {counts.note && <p data-run-counts-note="" className="mt-1.5 text-[11px] text-text-secondary">{counts.note}</p>}
+                          {counts.why.map((line) => (
+                            <p key={line} data-run-counts-why="" className="mt-0.5 text-[10px] leading-snug text-text-secondary">{line}</p>
+                          ))}
+                          {listOverview?.previewTitles.length > 0 && (
                             <p className="text-[10px] text-text-tertiary mt-1 line-clamp-2 leading-snug">
                               {listOverview.previewTitles.join(' · ')}
                               {listOverview.total > listOverview.previewTitles.length && (
@@ -477,8 +490,7 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
                               )}
                             </p>
                           )}
-                        </>
-                      )}
+                      </>
                     </div>
 
                   </button>

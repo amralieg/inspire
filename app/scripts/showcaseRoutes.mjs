@@ -19,7 +19,6 @@ export const DEMO_MVP_READS = {
 };
 
 export const DEMO_READS_WHEN = {
-  'GET /api/workspace/export': 'Review and Build preview the notebook of a use case that has a notebook and no Genie instruction',
   ...DEMO_MVP_READS,
 };
 
@@ -44,6 +43,7 @@ export const NOT_IN_DEMO = {
   'GET /api/run/pages': 'the demo Run tab lists the MVP Apps the demo carries, never the deployed pages of this workspace',
   'GET /api/inspire/implement/runs': 'the Run tab and the Build page read the last runs of a deployed use case from its App outside the demo only; the demo is read only and shows its recorded MVP Apps',
   'GET /api/workspace/list': 'Review lists the files a run wrote only outside the demo; the demo hides the files panel',
+  'GET /api/workspace/export': 'Review previews and downloads the files a run wrote only outside the demo, where the demo hides the files panel; a use case card opens its notebook in the workspace and never previews it',
   'GET /api/inspire/step-results': 'the demo run is complete, so Review reads its final results and never the results of a run still in progress',
   'GET /api/demo-data/templates': 'the App check script reads it from a live App to confirm the backend is current; no page of the demo calls it',
   'GET /api/inspire/implement/context': 'the Start MVP wizard reads it; the demo offers no new build',
