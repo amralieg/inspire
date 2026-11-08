@@ -49,7 +49,7 @@ test('a run that turns unreliable after the build shows on the Build page with t
   try {
     const banner = page.locator('[data-rebuild-note]');
     await banner.waitFor({ timeout: 15000 });
-    assert.match(await banner.textContent(), /The newest run says its results are not reliable yet\. Fix what it names, then rebuild\./);
+    assert.match(await banner.textContent(), /The newest run says its results are not reliable yet\. Next step: change the data or the method so the run passes what it missed, then build again with Vibe\/Add\/Remove Features\./);
     await until(async () => (await page.getByText('MVP built, results not trusted yet').count()) > 0, 'the tile to say results are not trusted', 15000);
   } finally {
     await ui.close();

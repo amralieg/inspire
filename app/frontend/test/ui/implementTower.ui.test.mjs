@@ -1426,7 +1426,7 @@ test('Build progress opens as a full-height side panel whose 500-line log scroll
   }
 });
 
-test('nothing the person reads about a not-reliable run, card or panel, tells them to fix what it names', { todo: 'frontend/src/lib/implementWizard.js UNRELIABLE_REBUILD_NOTE still says Fix what it names' }, async () => {
+test('nothing the person reads about a not-reliable run, card or panel, tells them to fix what it names', async () => {
   const ui = await openTower({ ...STATE, history: [unreliable(), ...HISTORY], steps: doneSteps(), moneySummary: [{ not_reliable: UNRELIABLE, updated_at: new Date().toISOString() }] }, { expand: false });
   const { page } = ui;
   try {

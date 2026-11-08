@@ -58,7 +58,8 @@ test('a scheduled run that turns unreliable after the build shows on the Build t
     assert.doesNotMatch(W.statusReason(latest), /not published/, 'this App was published before the run turned unreliable');
     assert.equal(rebuilt(got.made), false, 'reading the status never rebuilds');
   }
-  assert.match(W.UNRELIABLE_REBUILD_NOTE, /not reliable yet.*rebuild/i);
+  assert.equal(W.UNRELIABLE_REBUILD_NOTE, 'The newest run says its results are not reliable yet. Next step: change the data or the method so the run passes what it missed, then build again with Vibe/Add/Remove Features.');
+  assert.doesNotMatch(W.UNRELIABLE_REBUILD_NOTE, /fix what it names/i);
 });
 
 test('a later reliable run clears a build-time hold, a missing summary holds nothing, and an unreadable summary keeps the build-time record', async () => {

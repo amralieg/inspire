@@ -2671,7 +2671,7 @@ export function undeliveredOutputs(latest) {
     .map((entry) => ({ output: String(entry.output).trim(), label: String(entry.label ?? entry.output).trim(), reason: String(entry.reason ?? '').trim() }));
 }
 
-export const UNRELIABLE_REBUILD_NOTE = 'The newest run says its results are not reliable yet. Fix what it names, then rebuild.';
+export const UNRELIABLE_REBUILD_NOTE = `The newest run says its results are not reliable yet. Next step: ${UNRELIABLE_FIX}, then build again with ${VIBE_FEATURES_LABEL}.`;
 
 export function newestRunUnreliable(latest) {
   const run = latest?.latest_run;
