@@ -911,7 +911,9 @@ function registerImplementRoutes(app, deps) {
   }
 
   async function refuseMissingSources(req, warehouseId, spec, useCase) {
-    const { missing, app_unreadable: appUnreadable } = await sourceAccess(req, warehouseId, I.sourceTables(spec, I.useCaseTables(useCase)));
+    const access = await sourceAccess(req, warehouseId, I.sourceTables(spec, I.useCaseTables(useCase)));
+    const { app_unreadable: appUnreadable } = access;
+    const missing = I.blockingMissingTables(access.missing, spec, useCase);
     if (!missing.length && !appUnreadable) return;
     const err = I.badRequest([missing.length ? I.missingTablesMessage(missing) : '', appUnreadable ? appUnreadable.text : ''].filter(Boolean).join('. '), 409);
     err.details = { missing_tables: missing, app_unreadable: appUnreadable };

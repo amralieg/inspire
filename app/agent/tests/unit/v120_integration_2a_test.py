@@ -488,7 +488,7 @@ def test_real_label_drift_is_still_flagged(ns):
           "Group stores with k-means on `total_amount` and `order_date` and publish the store groups.",
           hld="K-Means with silhouette-based k.")
     kept, _ = o._phaseQ5_decision_readiness([u], [])
-    assert [f for f in kept[0]["gate_flags"] if not f.startswith("Q5_R20_NAME_STYLE:")] == ["Q5_R18_TECHNIQUE_LABEL_DRIFT:forecasting"]
+    assert [f for f in kept[0]["gate_flags"] if not f.startswith("Q5_R25_NAME_STYLE:")] == ["Q5_R18_TECHNIQUE_LABEL_DRIFT:forecasting"]
 
 
 # ---------------------------------------------------------------- 7. elite judge context is never fabricated

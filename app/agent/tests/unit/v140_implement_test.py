@@ -1310,7 +1310,7 @@ def test_run_short_circuits_to_implement_mode():
     src = ast.unparse(method_node("DatabricksInspire", "run"))
     assert "if getattr(self, 'operation', '') == IMPLEMENT_OPERATION:" in src and "self._run_implement_mode()" in src
     main = ast.unparse(top_level_defs()["main"])
-    assert "is REQUIRED for Implement Use Cases" in main
+    assert "is required for Implement Use Cases" in main and "REQUIRED" not in main and "(02_inspire_database)" not in main
 
 
 def test_no_implement_code_names_a_customer_profile_or_caches(agent_ns):

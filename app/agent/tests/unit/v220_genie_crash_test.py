@@ -261,8 +261,8 @@ def test_a_lost_connection_is_a_platform_error_inspire_retries_at_every_classifi
     assert agent_ns["implement_failure_origin"](error) == "platform", "never a person error (must-exclude)"
     assert agent_ns["implement_known_repair"](error, str(error))["kind"] == "retry"
     assert agent_ns["implement_transient"](error) is True
-    assert agent_ns["implement_failure_origin"](agent_ns["ImplementStopped"]("the readiness gate stopped the run")) == "person", (
-        "a real stop is still a person error")
+    assert agent_ns["implement_failure_origin"](agent_ns["ImplementStopped"]("the readiness gate stopped the run")) == "refusal", (
+        "a real stop is still a refusal")
     assert agent_ns["_classify_runtime_error"](DROPPED) == "server"
     assert agent_ns["implement_known_repair"](RuntimeError(DROPPED), DROPPED)["kind"] == "retry"
 

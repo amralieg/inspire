@@ -185,9 +185,9 @@ def _bar(agent_ns, unreadable, read=()):
 def test_the_bar_never_says_a_use_case_meets_it_on_data_it_did_not_read(agent_ns):
     _obj, outcome = _bar(agent_ns, ["c.s.a"])
     assert outcome["message"] == ("2 of 3 use cases found meet your Good bar on table metadata only: Discover could not read "
-                                  "1 table, so 1 of them was not checked against its data")
+                                  "1 table, so 1 use case was not checked against its data")
     _obj, outcome = _bar(agent_ns, ["c.s.a", "c.s.b"])
-    assert outcome["message"].endswith("could not read 2 tables, so 2 of them were not checked against their data")
+    assert outcome["message"].endswith("could not read 2 tables, so 2 use cases were not checked against their data")
     _obj, outcome = _bar(agent_ns, [])
     assert outcome["message"] == "2 of 3 use cases found meet your Good bar"
 

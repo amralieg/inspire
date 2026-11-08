@@ -171,7 +171,8 @@ def test_build_refuses_in_standard_when_the_column_types_alone_show_the_gap(agen
                                                                              table="main.s.stock")]}], loader=UndatedLoader())
     with pytest.raises(agent_ns["ImplementBlocked"]) as raised:
         build._implement_data_minimum(KEY, {}, forecast, {})
-    assert "so there is no history to forecast" in str(raised.value) and spark.statements == []
+    assert "so there is no history to forecast" in str(raised.value)
+    assert [s for s in spark.statements if "information_schema" not in s] == [], "the column types alone decide, no data is read"
 
 
 def test_build_uses_the_minimum_the_user_set_in_the_wizard(agent_ns):

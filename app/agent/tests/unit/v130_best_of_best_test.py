@@ -322,7 +322,7 @@ def test_the_widget_reaches_the_inner_job_and_a_bad_value_stops_the_run(agent_ns
     src = agent_source()
     assert "16_best_of_best_count" in agent_ns["_NOTEBOOK_WIDGET_NAMES"]
     assert 'dbutils.widgets.text("16_best_of_best_count", "", "16. Best of Best Count")' in src
-    assert "validation_errors.append(f\"\u274c 'Best of Best Count' (16_best_of_best_count): {redact_error(_best_of_best_err)}\")" in src
+    assert "validation_errors.append(f\"\u274c Best of Best Count: {redact_error(_best_of_best_err)}\")" in src
     assert '"best_of_best_count": best_of_best_count_str,' in src
     assert 'parse_best_of_best_count(kwargs.get("best_of_best_count"))' in src
 

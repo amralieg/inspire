@@ -48,7 +48,9 @@ V113_PLACEHOLDERS = {
                                     "strategic_goals", "strategic_initiative", "use_case_markdown", "value_chain"},
 }
 
-ALLOWED_ADDITIONS = {"BEST_OF_BEST_SCORING_PROMPT": {"schema_details", "strategic_initiative", "value_chain", "revenue_model"},
+ALLOWED_ADDITIONS = {"BUSINESS_CONTEXT_WORKER_PROMPT": {"data_scope"},
+                     "SUMMARY_GEN_PROMPT": {"quality_bar_section"},
+                     "BEST_OF_BEST_SCORING_PROMPT": {"schema_details", "strategic_initiative", "value_chain", "revenue_model"},
                      "BASE_USE_CASE_GEN_PROMPT": {"industry", "kinds_checklist_section"},
                      "GENERAL_INSTRUCTION_INTERPRETER_PROMPT": {"kind_ids"},
                      "USE_CASE_GENIE_CODE_INSTRUCTION_GEN_PROMPT": {"beneficiary", "sponsor", "decision", "decision_owner", "cadence", "kpi",

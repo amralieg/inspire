@@ -121,7 +121,7 @@ def test_q5_keeps_the_rebuilt_use_cases_below_the_bar_with_a_plain_reason(agent_
     assert [uc["No"] for uc in kept] == ["U1", "U2"] and removed == [] and len(below) == 2
     assert kept[1]["below_bar_reason"].startswith(
         "its main table already holds what its technique would build (lower_bound, upper_bound)")
-    assert "Q5" in kept[1]["below_bar_reason"]
+    assert kept[1]["below_bar_reason"].endswith("; decision readiness check")
 
 
 def test_a_use_case_the_instructions_ask_for_may_rebuild_the_output(agent_ns):

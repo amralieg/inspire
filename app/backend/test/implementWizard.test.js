@@ -1867,8 +1867,11 @@ test('personal or card-number columns are never offered or accepted as the key o
   const check = w.grainCheck(spec, uc, columns, ['main.s.payments']);
   assert.equal(check.state, 'personal');
   assert.equal(check.suggest.ref, 'main.s.payments.payment_id');
-  assert.equal(w.grainText(check), `main.s.payments.cardNumber cannot be the key of the result: ${P.PERSONAL_KEY_REASON}.`);
+  assert.equal(w.grainText(check), "Inspire's own key main.s.payments.cardNumber holds personal details, so the build keys the result on "
+    + 'another key of its table, or on a hashed copy when there is none. Pick the entity key below to choose it yourself.');
   const picked = w.withEntityKey(spec, 'main.s.payments.cardNumber');
+  assert.equal(w.grainText(w.grainCheck(picked, uc, columns, ['main.s.payments'])),
+    `main.s.payments.cardNumber cannot be the key of the result: ${P.PERSONAL_KEY_REASON}.`, 'a key the user picked is refused');
   assert.deepEqual(w.columnRoleProblems(picked.data.column_roles, columns), [`entity id main.s.payments.cardNumber: ${P.PERSONAL_KEY_REASON}`]);
   assert.equal(w.grainCheck(w.withEntityKey(spec, 'main.s.payments.payment_id'), uc, columns, ['main.s.payments']).state === 'personal', false);
 });
@@ -1920,7 +1923,9 @@ test('a column Data Classification tagged class.* with no value is never the res
   assert.equal(check.state, 'personal', 'the auto-picked classified key is flagged on the wizard default');
   assert.equal(check.suggest.ref, 'main.s.members.member_id');
   const tags = { 'main.s.members.contact_ref': classified };
-  assert.equal(I.personalKeyOf(spec, uc, tags), `column role entity_id main.s.members.contact_ref: ${P.PERSONAL_KEY_REASON}`);
+  assert.equal(I.personalKeyOf(spec, uc, tags), '', "Inspire's own classified key never blocks the build: the build keys on another key");
+  assert.equal(I.personalKeyOf(w.withEntityKey(spec, 'main.s.members.contact_ref'), uc, tags),
+    `column role entity_id main.s.members.contact_ref: ${P.PERSONAL_KEY_REASON}`, 'a classified key the user picked is refused (must-exclude)');
   assert.equal(I.personalKeyOf(w.withEntityKey(spec, 'main.s.members.member_id'), uc, tags), '', 'the chosen unclassified key passes the submit check');
 });
 

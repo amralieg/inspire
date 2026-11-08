@@ -15,9 +15,10 @@ PERSONAL_JS = os.path.join(REPO, "app", "frontend", "src", "lib", "personalColum
 
 
 class TagSpark:
-    def __init__(self, tags=None, fail=False):
+    def __init__(self, tags=None, fail=False, columns=None):
         self.tags = tags or {}
         self.fail = fail
+        self.columns = columns or {}
         self.calls = []
 
     def sql(self, statement, args=None, **_kwargs):
@@ -25,8 +26,13 @@ class TagSpark:
         if self.fail:
             raise PermissionError("User does not have USE SCHEMA on information_schema")
         ref = (args or {})
-        rows = self.tags.get(f"{ref.get('s')}.{ref.get('t')}.{ref.get('c')}".lower(), [])
-        return type("Rows", (), {"collect": lambda _self: [{"tag_name": n, "tag_value": v} for n, v in rows]})()
+        table = f"{ref.get('s')}.{ref.get('t')}".lower()
+        if "information_schema`.`columns`" in statement:
+            rows = [{"column_name": c, "data_type": "string"} for c in self.columns.get(table, [])]
+        else:
+            rows = [{"column_name": key.rsplit(".", 1)[1], "tag_name": n, "tag_value": v}
+                    for key, tags in self.tags.items() if key.rsplit(".", 1)[0] == table for n, v in tags]
+        return type("Rows", (), {"collect": lambda _self: rows})()
 
 
 def _inspire(agent_ns, spark):
@@ -39,20 +45,35 @@ def _auto(column):
     return {"elite_assessment": {"entity_key_column": column}}
 
 
-def test_an_auto_picked_key_with_a_pii_tag_is_refused_before_any_build(agent_ns):
-    spark = TagSpark({"s.orders.ref_code": [("Data_Class", "PII")]})
+def test_an_auto_picked_key_with_a_pii_tag_is_swapped_for_a_safe_key_of_its_table_and_never_blocks(agent_ns):
+    spark = TagSpark({"s.orders.ref_code": [("Data_Class", "PII")], "s.orders.buyer_email_id": [("Data_Class", "PII")]},
+                     columns={"s.orders": ["ref_code", "amount", "buyer_email_id", "order_id"]})
     inst = _inspire(agent_ns, spark)
-    reason = inst._implement_personal_key("UC-1", {"data": {}}, _auto("main.s.orders.ref_code"))
-    assert reason.startswith("result key main.s.orders.ref_code: ") and "never the key of the result" in reason
+    use_case = _auto("main.s.orders.ref_code")
+    assert inst._implement_personal_key("UC-1", {"data": {}}, use_case) == ""
+    assert use_case["elite_assessment"]["entity_key_column"] == "main.s.orders.order_id"
+    assert use_case["_implement_key_note"] == agent_ns["IMPLEMENT_KEY_SWAPPED"].format(ref="main.s.orders.ref_code", key="main.s.orders.order_id")
     statement, args = spark.calls[0]
     assert "FROM system.information_schema.column_tags WHERE catalog_name = lower(:k)" in statement
-    assert args == {"k": "main", "s": "s", "t": "orders", "c": "ref_code"}
+    assert args == {"k": "main", "s": "s", "t": "orders"}
+    assert agent_ns["implement_result_key"]({"data": {}}, use_case["elite_assessment"]) == "main.s.orders.order_id"
 
 
-def test_an_auto_picked_personal_name_is_refused_even_when_the_tags_cannot_be_read(agent_ns):
+def test_an_auto_picked_personal_key_with_no_other_key_is_hashed_even_when_the_tags_cannot_be_read(agent_ns):
     inst = _inspire(agent_ns, TagSpark(fail=True))
-    assert "never the key of the result" in inst._implement_personal_key("UC-1", {"data": {}}, _auto("main.s.payments.cardNumber"))
+    use_case = _auto("main.s.payments.cardNumber")
+    assert inst._implement_personal_key("UC-1", {"data": {}}, use_case) == ""
+    assert use_case["_implement_key_note"] == agent_ns["IMPLEMENT_KEY_HASHED"].format(ref="main.s.payments.cardNumber", column="cardNumber")
+    assert "sha2(CAST(cardNumber AS STRING), 256)" in use_case["_implement_key_note"]
     assert any(level == "WARNING" and "[IMPLEMENT-PERSONAL-KEY]" in m and "only its name is checked" in m for level, m in inst.logger.records)
+
+
+def test_a_personal_key_the_user_picked_is_refused(agent_ns):
+    inst = _inspire(agent_ns, TagSpark(columns={"s.payments": ["cardNumber", "payment_id"]}))
+    use_case = _auto("main.s.payments.payment_id")
+    spec = {"data": {"column_roles": {"entity_id": "main.s.payments.cardNumber"}}}
+    assert inst._implement_personal_key("UC-1", spec, use_case).startswith("result key main.s.payments.cardNumber: ")
+    assert "_implement_key_note" not in use_case
 
 
 def test_an_untagged_ordinary_auto_picked_key_is_kept(agent_ns):
@@ -71,11 +92,16 @@ def test_the_users_chosen_key_wins_over_the_auto_pick_and_follows_a_swapped_tabl
         == "main.s.returns_v2.order_id"
     assert key({}, {"entity_key_column": "main.s.returns.order_id"}) == "main.s.returns.order_id"
     assert key({}, "not a dict") == ""
-    spark = TagSpark({"s.returns_v2.card_no": [("x", "y")]})
+    spark = TagSpark({"s.returns_v2.card_no": [("x", "y")]}, columns={"s.returns_v2": ["card_no", "return_id"]})
     inst = _inspire(agent_ns, spark)
-    assert "never the key" in inst._implement_personal_key("UC-1", {"data": {"tables": {"main.s.returns": "main.s.returns_v2"}}},
-                                                           _auto("main.s.returns.card_no"))
-    assert spark.calls[0][1] == {"k": "main", "s": "s", "t": "returns_v2", "c": "card_no"}
+    swapped = _auto("main.s.returns.card_no")
+    assert inst._implement_personal_key("UC-1", {"data": {"tables": {"main.s.returns": "main.s.returns_v2"}}}, swapped) == ""
+    assert spark.calls[0][1] == {"k": "main", "s": "s", "t": "returns_v2"}
+    assert swapped["elite_assessment"]["entity_key_column"] == "main.s.returns.return_id"
+    assert key({"data": {"tables": {"main.s.returns": "main.s.returns_v2"}}}, swapped["elite_assessment"]) == "main.s.returns_v2.return_id"
+    assert "never the key" in inst._implement_personal_key(
+        "UC-1", {"data": {"tables": {"main.s.returns": "main.s.returns_v2"}, "column_roles": {"entity_id": "main.s.returns_v2.card_no"}}},
+        _auto("main.s.returns.return_id"))
 
 
 def test_the_build_refuses_the_key_before_the_source_checks_and_any_build_step():

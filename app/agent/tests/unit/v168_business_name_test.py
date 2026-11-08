@@ -26,7 +26,7 @@ def test_a_padded_business_name_reaches_the_run_trimmed(agent_ns, monkeypatch, g
 def test_a_blank_business_name_never_starts_a_run(agent_ns, monkeypatch, given):
     with pytest.raises(NotebookExit) as exc:
         run_main(agent_ns, monkeypatch, True, **{"00_business_name": given})
-    assert "'Business Name' (00_business_name) is REQUIRED" in str(exc.value)
+    assert "Business Name is required" in str(exc.value) and "00_business_name" not in str(exc.value)
 
 
 def test_the_session_row_takes_the_business_name_from_the_widget_even_when_migration_columns_are_missing(agent_ns, tmp_path, monkeypatch):

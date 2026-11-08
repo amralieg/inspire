@@ -125,7 +125,7 @@ def test_main_unknown_quality_fails_with_valid_options_and_legacy_labels(agent_n
     with pytest.raises(NotebookExit) as exc:
         run_main(agent_ns, monkeypatch, True, **{"05_use_cases_quality": "Premium"})
     message = str(exc.value)
-    assert "05_use_cases_quality" in message and "'Premium'" in message
+    assert "Use Cases Quality" in message and "05_use_cases_quality" not in message and "'Premium'" in message
     for mode in ("Good", "High", "Ultra High"):
         assert repr(mode) in message
     for legacy in LEGACY:

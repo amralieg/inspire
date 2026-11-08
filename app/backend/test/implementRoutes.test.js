@@ -1237,17 +1237,23 @@ const BUILT = (extra = {}) => ({ spec_version: 2, status: 'ready', use_case_id: 
   notebook_path: '/W/impl/N01-U01', asset_status: JSON.stringify({ notebook: { state: 'ready', spec_version: 1, result_history: 1 } }),
   genie_widgets: JSON.stringify([{ name: 'top_k', type: 'text', default: '25', allowed: 'whole number, at least 1' }]), ...extra });
 
-test('an Implement page re-run whose source table was dropped names the exact table and never calls run-now', async () => {
+test('an Implement page re-run runs without a dropped secondary table and refuses only when the primary table is gone', async () => {
   const gone = '[TABLE_OR_VIEW_NOT_FOUND] The table or view `main`.`s`.`returns` cannot be found. Verify the spelling. SQLSTATE: 42P01';
   await withApp({ history: [BUILT()], useCase: TWO_TABLES, probeErrors: { '`main`.`s`.`returns`': gone } }, async (url, made) => {
     const got = await call(url, `/api/inspire/implement/rerun?${Q}`, { method: 'POST', body: { overrides: {} } });
-    assert.equal(got.status, 409);
-    assert.equal(got.data.error, 'the preview cannot run because these source tables are missing or not readable: main.s.returns '
-      + '(not found). Open Edit, Data step, to swap each for a table with the same role or remove it');
-    assert.deepEqual(got.data.missing_tables, [{ table: 'main.s.returns', reason: 'not found', error: gone }]);
-    assert.ok(!made.fetches.some((f) => f.path === '/api/2.1/jobs/run-now'));
+    assert.equal(got.status, 200, JSON.stringify(got.data));
+    assert.ok(made.fetches.some((f) => f.path === '/api/2.1/jobs/run-now'), 'the notebook drops the secondary table and warns');
     assert.deepEqual(made.sqlCalls.filter((c) => c.sql.endsWith('LIMIT 0')).map((c) => c.sql).sort(),
       ['SELECT * FROM `main`.`s`.`orders` LIMIT 0', 'SELECT * FROM `main`.`s`.`returns` LIMIT 0']);
+  });
+  const lost = '[TABLE_OR_VIEW_NOT_FOUND] The table or view `main`.`s`.`orders` cannot be found. Verify the spelling. SQLSTATE: 42P01';
+  await withApp({ history: [BUILT()], useCase: TWO_TABLES, probeErrors: { '`main`.`s`.`orders`': lost } }, async (url, made) => {
+    const got = await call(url, `/api/inspire/implement/rerun?${Q}`, { method: 'POST', body: { overrides: {} } });
+    assert.equal(got.status, 409);
+    assert.equal(got.data.error, 'the preview cannot run because these source tables are missing or not readable: main.s.orders '
+      + '(not found). Open Edit, Data step, to swap each for a table with the same role or remove it');
+    assert.deepEqual(got.data.missing_tables, [{ table: 'main.s.orders', reason: 'not found', error: lost }]);
+    assert.ok(!made.fetches.some((f) => f.path === '/api/2.1/jobs/run-now'));
   });
   const denied = "[INSUFFICIENT_PERMISSIONS] Insufficient privileges: User does not have SELECT on Table 'main.s.orders'.";
   await withApp({ history: [BUILT()], useCase: TWO_TABLES, probeErrors: { '`main`.`s`.`orders`': denied } }, async (url, made) => {
@@ -1278,20 +1284,36 @@ const LOST_HISTORY = [
 ];
 const probesOf = (made) => made.sqlCalls.filter((c) => String(c.sql).endsWith('LIMIT 0')).map((c) => c.sql).sort();
 
-test('plan and submit refuse a rebuild that inherits a swap to a dropped table, name the table, and never write a version or start a job', async () => {
+const LOST_PRIMARY = { ...SPEC, data: { tables: { 'main.s.orders': 'main.s.orders_old' } } };
+const GONE_PRIMARY = '[TABLE_OR_VIEW_NOT_FOUND] The table or view `main`.`s`.`orders_old` cannot be found. Verify the spelling. SQLSTATE: 42P01';
+const LOST_PRIMARY_HISTORY = [
+  BUILT({ spec_version: 2, status: 'failed', spec_json: JSON.stringify({ ...LOST_PRIMARY, data: { ...LOST_PRIMARY.data, notes: 'try again' } }) }),
+  BUILT({ spec_version: 1, status: 'ready_with_warnings', spec_json: JSON.stringify(LOST_PRIMARY) }),
+];
+
+test('plan and submit refuse a rebuild that inherits a swap of the primary table to a dropped table, name it, and never write or start a job', async () => {
+  await withApp({ history: LOST_PRIMARY_HISTORY, useCase: TWO_TABLES, probeErrors: { '`main`.`s`.`orders_old`': GONE_PRIMARY } }, async (url, made) => {
+    const spec = { ...LOST_PRIMARY, based_on_version: 2, data: { ...LOST_PRIMARY.data, notes: 'try again' } };
+    for (const route of ['plan', 'submit']) {
+      const got = await call(url, `/api/inspire/implement/${route}`, { method: 'POST', body: { ...SUBMIT, spec } });
+      assert.equal(got.status, 409, `${route}: ${JSON.stringify(got.data)}`);
+      assert.equal(got.data.error, 'the preview cannot run because these source tables are missing or not readable: main.s.orders_old '
+        + '(not found). Open Edit, Data step, to swap each for a table with the same role or remove it');
+      assert.deepEqual(got.data.missing_tables, [{ table: 'main.s.orders_old', reason: 'not found', error: GONE_PRIMARY }]);
+    }
+    assert.equal(made.sqlCalls.some((c) => /INSERT INTO/.test(String(c.sql))), false, 'no version row is written');
+    assert.equal(made.jobs.length, 0, 'no job starts');
+  });
+});
+
+test('a rebuild that inherits a swap of a secondary table to a dropped table plans and starts, and the notebook drops that table', async () => {
   await withApp({ history: LOST_HISTORY, useCase: TWO_TABLES, probeErrors: { '`main`.`s`.`returns_old`': GONE_OLD } }, async (url, made) => {
     const spec = { ...LOST_SWAP, based_on_version: 2, data: { ...LOST_SWAP.data, notes: 'try again' } };
     for (const route of ['plan', 'submit']) {
       const got = await call(url, `/api/inspire/implement/${route}`, { method: 'POST', body: { ...SUBMIT, spec } });
-      assert.equal(got.status, 409, `${route}: ${JSON.stringify(got.data)}`);
-      assert.equal(got.data.error, 'the preview cannot run because these source tables are missing or not readable: main.s.returns_old '
-        + '(not found). Open Edit, Data step, to swap each for a table with the same role or remove it');
-      assert.deepEqual(got.data.missing_tables, [{ table: 'main.s.returns_old', reason: 'not found', error: GONE_OLD }]);
+      assert.equal(got.status, 200, `${route}: ${JSON.stringify(got.data)}`);
     }
-    assert.deepEqual(probesOf(made), ['SELECT * FROM `main`.`s`.`orders` LIMIT 0', 'SELECT * FROM `main`.`s`.`orders` LIMIT 0',
-      'SELECT * FROM `main`.`s`.`returns_old` LIMIT 0', 'SELECT * FROM `main`.`s`.`returns_old` LIMIT 0']);
-    assert.equal(made.sqlCalls.some((c) => /INSERT INTO/.test(String(c.sql))), false, 'no version row is written');
-    assert.equal(made.jobs.length, 0, 'no job starts');
+    assert.equal(made.jobs.length, 1, 'the submit starts one job');
   });
 });
 

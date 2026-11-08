@@ -6,7 +6,8 @@ import {
 } from './implementFixtures.js';
 import { BUILD_IT, closeAsset, closeBrowser, dataToResults, openAdvanced, expandBuild, FAKE_CLOCK, lowContrast, onStep, openAsset, openFeatures, openSettings, openUi, painted, pollNow, setDark, settled, shot, startMvp, stepsAre, toAppAccess, toVibes, until, goToStep, toSummary } from './uiSupport.mjs';
 
-const GONE = '[TABLE_OR_VIEW_NOT_FOUND] The table or view `main`.`s`.`returns` cannot be found. Verify the spelling. SQLSTATE: 42P01';
+const gone = (table) => `[TABLE_OR_VIEW_NOT_FOUND] The table or view ${table} cannot be found. Verify the spelling. SQLSTATE: 42P01`;
+const GONE = gone('`main`.`s`.`returns`');
 
 test.after(closeBrowser);
 
@@ -1497,17 +1498,17 @@ test('a version saved while the App offered downloads retries its App and opens 
   }
 });
 
-test('a dropped source table stops the re-run with its name, and Edit opens the Data step with that table marked and its Change open', async () => {
-  const ui = await openUi('implement', { ...STUDIO_STATE, probeErrors: { '`main`.`s`.`returns`': GONE } });
+test('a dropped primary table stops the re-run with its name, and Edit opens the Data step with that table marked and its Change open', async () => {
+  const ui = await openUi('implement', { ...STUDIO_STATE, probeErrors: { '`main`.`s`.`orders`': gone('`main`.`s`.`orders`') } });
   const { page, made } = ui;
-  const missing = [{ table: 'main.s.returns', reason: 'not found' }];
+  const missing = [{ table: 'main.s.orders', reason: 'not found' }];
   try {
     await page.getByRole('heading', { name: 'Build', exact: true }).waitFor();
     await statusLoaded(page);
     await showView(page, 'job');
     await runPane(page).getByRole('button', { name: 'Preview re-run' }).click();
     await page.getByText(lostTablesText(missing)).waitFor();
-    await page.getByText('the preview cannot run because these source tables are missing or not readable: main.s.returns (not found).', { exact: false }).waitFor();
+    await page.getByText('the preview cannot run because these source tables are missing or not readable: main.s.orders (not found).', { exact: false }).waitFor();
     assert.equal(await page.getByText('409:', { exact: false }).count(), 0, 'no HTTP status code reaches the screen');
     assert.ok(!made.fetches.some((f) => f.path === '/api/2.1/jobs/run-now'));
 
@@ -1516,14 +1517,14 @@ test('a dropped source table stops the re-run with its name, and Edit opens the 
     await onStep(page, 'Data');
     const wizard = page.getByRole('dialog');
     await wizard.getByText(lostTablesText(missing)).waitFor();
-    const lostRow = wizard.locator('[data-table="main.s.returns"]');
+    const lostRow = wizard.locator('[data-table="main.s.orders"]');
     await lostRow.getByText('not found', { exact: true }).waitFor();
     assert.match(await lostRow.getAttribute('class'), /border-error\/50/);
-    await page.getByLabel('Table to use for main.s.returns').waitFor();
-    const primaryRow = wizard.locator('[data-table="main.s.orders"]');
-    await primaryRow.getByText('Primary', { exact: true }).waitFor();
-    assert.doesNotMatch(await primaryRow.getAttribute('class'), /border-error/);
-    assert.equal(await page.getByLabel('Table to use for main.s.orders').count(), 0, 'only the lost table opens its Change');
+    await lostRow.getByText('Primary', { exact: true }).waitFor();
+    await page.getByLabel('Table to use for main.s.orders').waitFor();
+    const otherRow = wizard.locator('[data-table="main.s.returns"]');
+    assert.doesNotMatch(await otherRow.getAttribute('class'), /border-error/);
+    assert.equal(await page.getByLabel('Table to use for main.s.returns').count(), 0, 'only the lost table opens its Change');
     assert.equal(made.sqlCalls.some((c) => /FROM `main`\.`inspire`\.`n01_u01_s42_out` WHERE as_of_date/.test(String(c.sql))), false, 'no result rows are read');
     assert.equal(made.jobs.length, 0);
     assert.deepEqual(ui.pageErrors, ['Failed to load resource: the server responded with a status of 409 (Conflict)'], 'the refused re-run is the only error');
@@ -1565,9 +1566,9 @@ test('Edit of a use case whose own App no longer exists says so and puts the use
 });
 
 const GONE_OLD = '[TABLE_OR_VIEW_NOT_FOUND] The table or view `main`.`s`.`returns_old` cannot be found. Verify the spelling. SQLSTATE: 42P01';
-const lostSwapVersions = () => {
+const lostSwapVersions = (table = 'main.s.returns') => {
   const saved = builtSpec();
-  const spec = { ...saved, outputs: { ...saved.outputs, app_access: 'sp' }, data: { ...saved.data, tables: { 'main.s.returns': 'main.s.returns_old' } } };
+  const spec = { ...saved, outputs: { ...saved.outputs, app_access: 'sp' }, data: { ...saved.data, tables: { [table]: `${table}_old` } } };
   return [
     built({ spec_version: 2, status: 'failed', status_message: 'the preview cannot run', spec_json: JSON.stringify({ ...spec, data: { ...spec.data, notes: 'try again' } }) }),
     built({ spec_json: JSON.stringify(spec) }),
@@ -1600,7 +1601,31 @@ test('Edit of a version whose swapped table is gone goes back to the use case\'s
   }
 });
 
-test('Edit of a version whose swapped table and own table are both gone marks the table, and Start stays off with the table named', async () => {
+test('Edit of a version whose swapped primary table and own table are both gone marks the table, and Start stays off with the table named', async () => {
+  const ui = await openUi('wizard', { me: { userName: OWNER, displayName: 'Owner' }, history: lostSwapVersions('main.s.orders'),
+    probeErrors: { '`main`.`s`.`orders_old`': gone('`main`.`s`.`orders_old`'), '`main`.`s`.`orders`': gone('`main`.`s`.`orders`') } });
+  const { page, made } = ui;
+  try {
+    await toData(page);
+    await page.getByRole('dialog').getByText(lostTablesText([{ table: 'main.s.orders_old', reason: 'not found' }])).waitFor();
+    const row = page.locator('[data-table="main.s.orders"]');
+    await row.getByText('not found', { exact: true }).waitFor();
+    await page.getByLabel('Table to use for main.s.orders').waitFor();
+    await toDelivery(page);
+    await toAppAccess(page);
+    await goToStep(page, 'App look');
+    await toSummary(page);
+    const named = 'the preview cannot run because these source tables are missing or not readable: main.s.orders_old (not found).';
+    await page.waitForFunction((text) => [...document.querySelectorAll('[role="alert"] p')].some((p) => p.textContent.includes(text)), named, { timeout: 15000 });
+    assert.equal(await page.getByRole('button', { name: 'All Good, Build it Now', exact: true }).isDisabled(), true);
+    assert.equal(made.jobs.length, 0);
+    assert.equal(made.sqlCalls.some((c) => /INSERT INTO/.test(String(c.sql))), false);
+  } finally {
+    await ui.close();
+  }
+});
+
+test('Edit of a version whose swapped secondary table and own table are both gone marks the table, and Start stays on because the build leaves that table out', async () => {
   const ui = await openUi('wizard', { me: { userName: OWNER, displayName: 'Owner' }, history: lostSwapVersions(),
     probeErrors: { '`main`.`s`.`returns_old`': GONE_OLD, '`main`.`s`.`returns`': GONE } });
   const { page, made } = ui;
@@ -1614,11 +1639,10 @@ test('Edit of a version whose swapped table and own table are both gone marks th
     await toAppAccess(page);
     await goToStep(page, 'App look');
     await toSummary(page);
-    const named = 'the preview cannot run because these source tables are missing or not readable: main.s.returns_old (not found).';
-    await page.waitForFunction((text) => [...document.querySelectorAll('[role="alert"] p')].some((p) => p.textContent.includes(text)), named, { timeout: 15000 });
-    assert.equal(await page.getByRole('button', { name: 'All Good, Build it Now', exact: true }).isDisabled(), true);
-    assert.equal(made.jobs.length, 0);
-    assert.equal(made.sqlCalls.some((c) => /INSERT INTO/.test(String(c.sql))), false);
+    const start = page.getByRole('button', { name: 'All Good, Build it Now', exact: true });
+    await page.waitForFunction(() => [...document.querySelectorAll('button')].some((b) => b.textContent.trim() === 'All Good, Build it Now' && !b.disabled), null, { timeout: 15000 });
+    assert.equal(await start.isDisabled(), false, 'a lost secondary table never blocks the build (must-exclude)');
+    assert.equal(await page.getByText('the preview cannot run because', { exact: false }).count(), 0);
   } finally {
     await ui.close();
   }

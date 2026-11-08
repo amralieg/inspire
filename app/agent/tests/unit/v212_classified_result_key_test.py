@@ -13,7 +13,11 @@ def test_a_data_classification_tag_with_no_value_marks_the_column_personal(agent
 def test_an_auto_picked_key_data_classification_tagged_is_refused_and_an_unclassified_one_is_kept(agent_ns):
     spark = TagSpark({"s.members.contact_ref": [("class.email_address", "")], "s.members.member_id": [("class", "internal")]})
     inst = _inspire(agent_ns, spark)
-    reason = inst._implement_personal_key("UC-1", {"data": {}}, _auto("main.s.members.contact_ref"))
+    picked = _auto("main.s.members.contact_ref")
+    assert inst._implement_personal_key("UC-1", {"data": {}}, picked) == ""
+    assert picked["_implement_key_note"].startswith("Inspire's own key main.s.members.contact_ref holds personal details")
+    spec = {"data": {"column_roles": {"entity_id": "main.s.members.contact_ref"}}}
+    reason = inst._implement_personal_key("UC-1", spec, _auto("main.s.members.member_id"))
     assert reason == f"result key main.s.members.contact_ref: {agent_ns['IMPLEMENT_PERSONAL_KEY_REASON']}"
     assert inst._implement_personal_key("UC-1", {"data": {}}, _auto("main.s.members.member_id")) == ""
 

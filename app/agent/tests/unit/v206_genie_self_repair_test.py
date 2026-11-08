@@ -62,15 +62,28 @@ def test_a_data_repair_does_not_use_the_rounds_the_heavy_steps_need(agent_ns):
     assert outcome["status"] == "failed" and len(runner.prompts) == 4
 
 
+def test_an_11_outcome_stop_with_no_valid_method_builds_the_simplest_method_marked_not_reliable_yet(agent_ns):
+    inst = _family(_flow_inspire(agent_ns, [({"status": "written", "rows_written": 40}, 11, 101)]), "A")
+    runner = _FakeRunner([{"exit": 0, "final": _stopped(SHORT_A)}, {"exit": 0, "final": _stopped(SHORT_A)}, {"exit": 0, "final": _fill()}])
+    outcome, _job, _f = _run(agent_ns, inst, runner, _spec(agent_ns))
+    assert len(runner.prompts) == 3 and "valid at 11 past examples of the outcome" in runner.prompts[1]
+    assert agent_ns["implement_unreliable_note"](SHORT_A, "A") in runner.prompts[2]
+    assert "accepted=False" in runner.prompts[2] and "Not reliable yet" in runner.prompts[2]
+    assert outcome == {"status": "written", "rows_written": 40}
+    assert any("[NOT-RELIABLE-FALLBACK FIRED]" in m for _level, m in inst.logger.records)
+    rounds = {e["result_json"].get("rounds") for e in inst.emitted if e["step_name"] == "Genie build" and e["result_json"].get("rounds")}
+    assert rounds == {6}, "the round counter keeps one total while the data rounds are spent"
+
+
 def test_an_11_outcome_stop_with_no_valid_method_ends_with_what_data_would_make_it_buildable(agent_ns):
     inst = _family(_flow_inspire(agent_ns, []), "A")
-    runner = _FakeRunner([{"exit": 0, "final": _stopped(SHORT_A)}, {"exit": 0, "final": _stopped(SHORT_A)}])
+    runner = _FakeRunner([{"exit": 0, "final": _stopped(SHORT_A)}] * 3)
     spec = _spec(agent_ns)
     outcome, _job, _f = _run(agent_ns, inst, runner, spec)
-    assert len(runner.prompts) == 2 and "valid at 11 past examples of the outcome" in runner.prompts[1]
+    assert len(runner.prompts) == 3 and "valid at 11 past examples of the outcome" in runner.prompts[1]
     assert outcome["status"] == "stopped" and outcome["stopped_by"] == "genie" and "genie_changes" not in outcome
     assert outcome["buildable"] == ("Genie found no method that is valid at 11 past examples of the outcome, so this use case becomes "
-                                    "buildable once the data has at least 200 past examples of the outcome; Rebuild then")
+                                    "buildable once the data has at least 200 past examples of the outcome")
     message = agent_ns["implement_stop_message"](outcome, spec)
     assert message.startswith("Genie stopped the build: " + SHORT_A.rstrip(".") + ". Genie found no method that is valid at 11")
 
@@ -82,7 +95,7 @@ def test_a_minimum_the_user_set_is_not_changed_and_the_user_is_asked(agent_ns):
     outcome, _job, _f = _run(agent_ns, inst, runner, spec)
     assert len(runner.prompts) == 1 and outcome["status"] == "stopped"
     assert outcome["ask_user"] == ("Minimum interactions is set to 1,000 in the wizard and the data has 743 past interactions, so Inspire "
-                                   "kept your setting: lower it in the settings, or Rebuild once the data reaches it")
+                                   "kept your setting. Lower it in the settings, or rebuild once the data reaches it")
     assert outcome["ask_user"] in agent_ns["implement_stop_message"](outcome, spec)
 
 

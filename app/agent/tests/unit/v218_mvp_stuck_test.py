@@ -162,13 +162,12 @@ def test_the_build_counts_the_lead_again_when_discovery_recorded_the_group_check
     inst = build_inspire(agent_ns)
     use_case = dict(lead_uc("N02-U01"), data_signal=dict(GROUPS_PASSED))
     status = {}
-    with pytest.raises(agent_ns["ImplementBlocked"]) as stopped:
-        inst._implement_data_minimum((5150, "N02-U01", 3), {"config": {"widgets": {}}}, use_case, status)
+    inst._implement_data_minimum((5150, "N02-U01", 3), {"config": {"widgets": {}}}, use_case, status)
     assert inst.counted == ["fresh"], "the stored group count is not reused for a lead"
-    said = str(stopped.value)
-    assert said.startswith(agent_ns["IMPLEMENT_DATA_MINIMUM_LEAD"]) and SHORT_FAIL in said
-    assert said.endswith("Your choices: Rebuild once the data has the minimum above, or build another use case the data supports.")
-    assert status["data"]["state"] == "failed" and status["data"]["data_minimum"] == SHORT_FAIL
+    assert status["data"]["state"] == "unreliable" and status["data"]["data_minimum"] == SHORT_FAIL
+    told = use_case["_implement_measured_short"]
+    assert told["feedback"] == agent_ns["implement_unreliable_note"](SHORT_FAIL, "F") and told["repaired"]["unreliable"] == 1
+    assert any("[NOT-RELIABLE-FALLBACK FIRED]" in line for _level, line in inst.logger.records)
 
 
 def test_the_build_reuses_the_discovery_spec_when_the_check_has_not_changed(agent_ns):

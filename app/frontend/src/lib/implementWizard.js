@@ -2313,6 +2313,10 @@ export function grainCheck(spec, uc, columnsByTable, tables) {
 
 export function grainText(check) {
   if (!check || check.state === 'unknown') return '';
+  if (check.state === 'personal' && !check.row.chosen) {
+    return `Inspire's own key ${check.row.ref} holds personal details, so the build keys the result on another key of its table, or on a `
+      + `hashed copy when there is none. Pick the entity key below to choose it yourself.`;
+  }
   if (check.state === 'personal') return `${check.row.ref} cannot be the key of the result: ${PERSONAL_KEY_REASON}.`;
   const subject = check.subject.noun;
   if (check.state === 'ok') return `One row of the result is one ${subject} (${check.row.ref}).`;

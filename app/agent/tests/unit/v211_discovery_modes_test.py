@@ -442,7 +442,8 @@ def test_the_build_starts_with_the_measured_shortfall_and_ends_buildable_when_ge
     outcome, _job, _f = inst._implement_fill_and_preview("N01-U01", (5150, "N01-U01", 1), use_case, spec, None, "/W/nb",
                                                          ["result_table", "run_profile"], runner, True)
     assert "Inspire measured the data before you started: History holds too few past examples of the outcome (11)" in runner.prompts[0]
-    assert len(runner.prompts) == 1 and outcome["status"] == "stopped"
+    assert len(runner.prompts) == 2 and outcome["status"] == "stopped"
+    assert "Build the simplest method the data supports" in runner.prompts[1] and "accepted=False" in runner.prompts[1]
     assert outcome["buildable"].startswith("Genie found no method that is valid at 11 past examples of the outcome")
     assert "_implement_measured_short" not in use_case
 

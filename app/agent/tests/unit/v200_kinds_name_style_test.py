@@ -89,10 +89,10 @@ def test_q5_r20_flags_an_old_style_name_and_never_drops_it(agent_ns, caplog):
     caplog.set_level("INFO")
     _obj, kept, dropped = _q5(agent_ns, _uc("N01-U01", OLD_STYLE_NAMES[0]), _uc("N01-U02", WIREFRAME_NAMES[0]))
     assert dropped == [] and set(kept) == {"N01-U01", "N01-U02"}
-    flags = [f for f in kept["N01-U01"].get("gate_flags") or [] if f.startswith("Q5_R20_NAME_STYLE:")]
+    flags = [f for f in kept["N01-U01"].get("gate_flags") or [] if f.startswith("Q5_R25_NAME_STYLE:")]
     assert len(flags) == 1 and "deliverable_tail" in flags[0] and "method_verb:forecast" in flags[0]
     assert not any(f.startswith("Q5_R20") for f in kept["N01-U02"].get("gate_flags") or [])
-    assert any("[NAME-CHECK FIRED] Q5 R20 flagged 1 of 2 names" in r.getMessage() for r in caplog.records)
+    assert any("[NAME-CHECK FIRED] Q5 R25 flagged 1 of 2 names" in r.getMessage() for r in caplog.records)
 
 
 def test_q5_r20_skips_itself_when_the_user_set_a_naming_rule(agent_ns, caplog):
@@ -100,7 +100,7 @@ def test_q5_r20_skips_itself_when_the_user_set_a_naming_rule(agent_ns, caplog):
     _obj, kept, _dropped = _q5(agent_ns, _uc("N01-U01", OLD_STYLE_NAMES[0]),
                                instructions={"naming_rules": "Names in Title Case ending with the deliverable"})
     assert not any(f.startswith("Q5_R20") for f in kept["N01-U01"].get("gate_flags") or [])
-    assert any("[NAME-CHECK FIRED] Q5 R20 skipped" in r.getMessage() for r in caplog.records)
+    assert any("[NAME-CHECK FIRED] Q5 R25 skipped" in r.getMessage() for r in caplog.records)
 
 
 def test_r15_no_longer_marks_review_as_an_observational_verb(agent_ns):

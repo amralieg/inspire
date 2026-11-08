@@ -95,10 +95,15 @@ def test_incident_replay_keeps_all_48_below_the_high_bar_and_warns(agent_ns):
     assert outcome["message"].startswith("None of the 48 use cases found meets your High bar. Here is what we found")
     assert outcome["empty_tables"] == sorted(EMPTY) and outcome["all_tables_empty"] is False
     assert "grounded in rows" not in outcome["message"]
-    assert "Generate data page" in outcome["message"] and EMPTY[0] in outcome["message"]
+    assert outcome["message"].endswith("12 tables have no rows yet (airline_std.passenger.table_00, airline_std.passenger.table_01, "
+                                       "airline_std.passenger.table_02 +9 more). Add sample rows on the Generate data page of the "
+                                       "Inspire App, then run again")
+    assert EMPTY[3] not in outcome["message"] and len(outcome["message"]) < 350
     warning = obj._quality_bar_warning()
-    assert warning.startswith("0 of 48 use cases meet your High bar; 12 tables have no rows yet: ")
-    assert "and 2 more" in warning
+    assert warning == ("0 of 48 use cases meet your High bar; 12 tables have no rows yet (airline_std.passenger.table_00, "
+                       "airline_std.passenger.table_01, airline_std.passenger.table_02 +9 more); add sample rows on the Generate data "
+                       "page of the Inspire App, then run again")
+    assert warning.count("no rows yet") == 1
     steps = [e for e in obj.emitted if e.get("step_name") == "Quality Bar"]
     assert steps and steps[-1]["status"] == "ended_warning"
     assert obj._selection_is_fallback is True
@@ -111,7 +116,8 @@ def test_incident_replay_exit_value_and_results_carry_the_warning(agent_ns):
     obj.failed_steps, obj.translation_gaps = [], {}
     obj._metadata_unavailable_report = lambda: {"tables": []}
     exit_value = obj.run_exit_value()
-    assert exit_value.startswith("Completed: 0 of 48 use cases meet your High bar; 2 tables have no rows yet")
+    assert exit_value == ("Completed: 0 of 48 use cases meet your High bar; 2 tables have no rows yet (airline_std.passenger.table_00, "
+                          "airline_std.passenger.table_01); add sample rows on the Generate data page of the Inspire App, then run again")
     results = obj._merge_run_outcome_into_results()
     assert results["run_status"] == "warning" and results["run_message"] == exit_value
     assert obj._v130_results_keys()["quality_bar"]["meets"] == 0
@@ -288,8 +294,8 @@ def test_run_ends_as_a_warning_naming_the_empty_tables_only_when_none_meets_the_
     message = obj.atomic_writer.finals[0]["message"]
     results = obj.final_inspire_results_json
     if status == "ended_warning":
-        assert message.startswith("Completed: 0 of 4 use cases meet your High bar; 2 tables have no rows yet: "
-                                  "cat.sch.items, cat.sch.orders; add sample rows on the Generate data page")
+        assert message == ("Completed: 0 of 4 use cases meet your High bar; 2 tables have no rows yet (cat.sch.items, cat.sch.orders); "
+                           "add sample rows on the Generate data page of the Inspire App, then run again")
         assert results["run_status"] == "warning" and results["run_message"] == message
         assert results["quality_bar"]["empty_tables"] == ["cat.sch.items", "cat.sch.orders"]
         assert all("below the High bar" in u["fallback_reason"] for u in final)

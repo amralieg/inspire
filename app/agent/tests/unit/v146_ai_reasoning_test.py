@@ -176,7 +176,7 @@ def test_a_run_with_a_bad_level_or_a_flagged_row_without_facts_is_refused(agent_
     spark = FakeSpark(responder=lambda s: _describe(staged) if s == f"DESCRIBE TABLE {QUOTED_STAGE}" else [])
     with pytest.raises(ValueError, match="the rows have no confidence_level column, and every row needs it"):
         agent_ns["inspire_merge_run"](spark, TABLE, STAGE, out=lambda *_a: None, ai=_ai(agent_ns))
-    responses = {f"DESCRIBE TABLE {QUOTED_STAGE}": _describe(staged)}
+    responses = {f"DESCRIBE TABLE {QUOTED_STAGE}": _describe(staged), f"DESCRIBE TABLE {QUOTED}": _describe(staged)}
     quiet = FakeSpark(responder=lambda s: responses.get(s) or ([dict(GOOD_PROFILE, row_count=0)] if s.startswith("SELECT COUNT(*)") else []))
     assert agent_ns["inspire_merge_run"](quiet, TABLE, STAGE, out=lambda *_a: None, ai=None) == 0, \
         "without AI the level is not required"

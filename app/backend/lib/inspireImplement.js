@@ -312,7 +312,9 @@ function resultKeyRef(spec, useCase) {
 }
 
 function personalKeyOf(spec, useCase, tags) {
-  const ref = resultKeyRef(spec, useCase);
+  const row = rowKeyOf(spec, useCase);
+  if (!row || !row.chosen) return '';
+  const ref = str(row.ref).replace(/`/g, '');
   if (!ref) return '';
   return personalColumn(ref.split('.').pop(), tags[ref.toLowerCase()] || {}) ? personalKeyProblem(ref) : '';
 }
@@ -2495,6 +2497,12 @@ function isReadDenied(message) {
   return IMPLEMENT_TABLE_DENIED_RE.test(str(message));
 }
 
+function blockingMissingTables(missing, spec, useCase) {
+  const primary = sourceTables(spec, [primaryTableOf(useCase)].filter(Boolean))[0] || '';
+  if (!primary) return missing || [];
+  return (missing || []).some((m) => plainTable(m.table).toLowerCase() === primary.toLowerCase()) ? missing : [];
+}
+
 function missingTablesMessage(missing) {
   return 'the preview cannot run because these source tables are missing or not readable: '
     + missing.map((m) => `${m.table} (${m.reason})`).join(', ')
@@ -3421,6 +3429,7 @@ module.exports = {
   appShellUpdateRefusal,
   personalKeyOf,
   resultKeyRef,
+  blockingMissingTables,
   personalKeyProblem,
   IMPLEMENT_OPERATION,
   IMPLEMENT_TABLE,

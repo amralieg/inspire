@@ -374,7 +374,7 @@ def test_an_inspire_step_that_crashes_is_tried_once_more_with_no_genie_rebuild_a
     assert "Inspire tried 2 times and could not build it" in errors[0]
     assert [line for level, line in inst.logger.records if level == "WARNING" and "· Implement: Inspire tried 2 times" in line], \
         "the step status still carries the give-up text, as a warning"
-    assert "Traceback (most recent call last)" in logged[0] and "in _implement_carried" in logged[0] and "internal error" in logged[0]
+    assert "Traceback (most recent call last)" in logged[0] and "in _implement_carried" in logged[0] and "failed with an Inspire error" in logged[0]
     assert TOKEN not in logged[0] and "adb-42.example.net" not in logged[0], "the traceback never carries a token or a host"
     assert "<redacted>" in logged[0] and "https://<host>/api/2.2/jobs/get" in logged[0]
 
@@ -392,14 +392,14 @@ def test_a_failure_of_what_genie_built_still_gets_the_repair_picker_with_its_reb
     assert asked == [["retry", "rebuild_with_error", "smaller_query", "stop"]], "a notebook failure is offered every repair"
     assert len(seen) == 2 and outcome["error"] in seen[1]["note"], "Genie rebuilds the notebook with the error in its instructions"
     logged = [line for level, line in inst.logger.records if level == "WARNING" and "[IMPLEMENT-ERROR]" in line]
-    assert len(logged) == 1 and "notebook error" in logged[0] and "ImplementNotebookFailed" in logged[0]
+    assert len(logged) == 1 and "failed in the notebook" in logged[0] and "ImplementNotebookFailed" in logged[0]
     assert [line for level, line in inst.logger.records if level == "ERROR"] == [], "a build that recovers logs no error"
 
 
 def test_each_exception_the_build_loop_sees_has_one_origin(agent_ns):
     origin = agent_ns["implement_failure_origin"]
-    assert origin(agent_ns["ImplementBlocked"]("widget values are out of range")) == "person"
-    assert origin(agent_ns["ImplementStopped"]("Genie stopped the build")) == "person"
+    assert origin(agent_ns["ImplementBlocked"]("widget values are out of range")) == "refusal"
+    assert origin(agent_ns["ImplementStopped"]("Genie stopped the build")) == "refusal"
     assert origin(agent_ns["ImplementNotebookFailed"]("the preview run did not write usable rows")) == "notebook"
     for error in (AttributeError("x"), KeyError("segment"), TypeError("x"), IndexError("x"), NameError("x"),
                   agent_ns["ImplementCandidate"]("app", {}), agent_ns["ImplementAsksMissed"]("feedback", "missed")):

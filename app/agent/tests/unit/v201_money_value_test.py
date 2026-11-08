@@ -57,7 +57,7 @@ def test_no_measured_baseline_says_not_measured_yet_and_never_shows_a_number(ns)
         assert estimate["status"] == "not measured yet" and "value_low" not in estimate and "value_high" not in estimate
         assert estimate["text"].startswith("Value not measured yet: measure ")
         assert not re.search(r"\d", estimate["text"]), estimate["text"]
-    assert "Weekly sales value with its KPI query" in estimate_of(ns, money_uc(ns, kpi(ns, value=None)))["text"]
+    assert "measure Weekly sales value by running its KPI query" in estimate_of(ns, money_uc(ns, kpi(ns, value=None)))["text"]
     assert "sum of a revenue or cost column in c.s.orders" in estimate_of(ns, money_uc(ns, kpi(ns, name="Late orders", unit="orders")))["text"]
     assert "money value per unit of order count" in estimate_of(ns, money_uc(ns, kpi(ns, name="Order count", unit="orders", aggregation="COUNT")))["text"]
 

@@ -1139,6 +1139,20 @@ test('a probe error counts as a lost table only when it says so and names that t
   assert.equal(I.tableAccessReason('', '[TABLE_OR_VIEW_NOT_FOUND] cannot be found'), '');
 });
 
+test('a missing secondary table never blocks the preview; a missing primary table blocks it with every missing table named', () => {
+  const useCase = { primary_table: 'main.s.orders' };
+  const secondary = [{ table: 'main.s.returns', reason: 'not found' }];
+  assert.deepEqual(I.blockingMissingTables(secondary, {}, useCase), []);
+  const primary = [{ table: '`main`.`s`.`orders`', reason: 'no read access' }, ...secondary];
+  assert.deepEqual(I.blockingMissingTables(primary, {}, useCase), primary, 'the primary table missing blocks (must-exclude)');
+  const swapped = { data: { tables: { 'main.s.orders': 'main.s.orders_v2' } } };
+  assert.deepEqual(I.blockingMissingTables([{ table: 'main.s.orders', reason: 'not found' }], swapped, useCase), [],
+    'the swapped-out original is not the primary any more');
+  assert.equal(I.blockingMissingTables([{ table: 'main.s.orders_v2', reason: 'not found' }], swapped, useCase).length, 1);
+  assert.deepEqual(I.blockingMissingTables(secondary, {}, {}), secondary, 'with no primary table known, every missing table blocks');
+  assert.deepEqual(I.blockingMissingTables(undefined, {}, useCase), []);
+});
+
 test('the lost-table message names every table and its reason, and the probe reads no rows', () => {
   assert.equal(I.missingTablesMessage([{ table: 'main.s.a', reason: 'not found' }, { table: 'main.s.b', reason: 'no read access' }]),
     'the preview cannot run because these source tables are missing or not readable: main.s.a (not found), main.s.b (no read access). '
