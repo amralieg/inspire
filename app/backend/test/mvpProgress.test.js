@@ -110,7 +110,7 @@ test('a stage Genie runs again resets the later stages until they run again', as
   assert.equal(stages[4].elapsed, '');
   const summary = mvpProgressSummary(stages, latestOf('filling'), { now: at('10:12:05') });
   assert.equal(summary.headline, 'Genie is building the notebook…');
-  assert.equal(summary.detail, 'Round 2 of 3: Genie is fixing what failed in round 1');
+  assert.equal(summary.detail, 'Round 2 of up to 3: Genie is fixing what failed in round 1');
   assert.equal(summary.percent, 43);
   const failed = mvpStages(retried, latestOf('failed'));
   assert.deepEqual(states(failed).slice(3, 5), [['Genie build', 'error'], ['Preview run', 'error']], 'a finished build keeps what happened');
@@ -127,7 +127,7 @@ test('a retried output round is still running, names the next round, and never h
   assert.deepEqual(states(stages).slice(6), [['App', 'running'], ['Done', 'waiting']]);
   const summary = mvpProgressSummary(stages, latestOf('building_outputs', outputs), { now: at('10:20:30') });
   assert.equal(summary.headline, 'Genie is building the App…');
-  assert.equal(summary.detail, 'Round 2 of 3: Genie is fixing what failed in round 1');
+  assert.equal(summary.detail, 'Round 2 of up to 3: Genie is fixing what failed in round 1');
   const genie = mvpStages([...base, row('Genie Agent', 'started', '10:15:02')], latestOf('building_outputs', { dashboard: true, genie_space: true }), { now: at('10:16:00') });
   assert.equal(mvpProgressSummary(genie, latestOf('building_outputs', { dashboard: true, genie_space: true }), { now: at('10:16:00') }).headline,
     'Genie is building the Genie Agent…');
@@ -421,7 +421,7 @@ test('the attempt and the Genie round read as one line while both apply', async 
   const latest = latestOf('filling');
   const stages = mvpStages(steps, latest, { now: at('10:12:30') });
   assert.equal(mvpProgressSummary(stages, latest, { now: at('10:12:30'), repair: mvpRepairOf(steps, latest) }).detail,
-    `Attempt 2 of 3: Inspire is fixing it: ${BUSY}. Round 2 of 3: Genie is fixing what failed in round 1`);
+    `Attempt 2 of 3: Inspire is fixing it: ${BUSY}. Round 2 of up to 3: Genie is fixing what failed in round 1`);
 });
 
 test('progressPercent: a ready version reads 100% even when a stage was skipped; anything else reads the stage count', async () => {

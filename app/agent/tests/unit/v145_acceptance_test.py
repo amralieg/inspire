@@ -383,7 +383,7 @@ def test_a_genie_stop_on_a_failed_acceptance_goes_back_to_genie_to_write_the_bas
             "acceptance rule") in runner.prompts[1]
     assert "writes the baseline's rows" in runner.prompts[1] and "return status 'written'" in runner.prompts[1]
     sent = [e for e in inst.emitted if e["step_name"] == "Genie build" and (e.get("result_json") or {}).get("failure")]
-    assert len(sent) == 1 and sent[0]["status"] == "started" and sent[0]["message"].startswith("round 1/3: the run stopped with")
+    assert len(sent) == 1 and sent[0]["status"] == "started" and sent[0]["message"].startswith("round 1 of up to 6: the run stopped with")
 
 
 def test_a_genie_that_keeps_stopping_on_acceptance_ends_the_build_with_the_reason(agent_ns):
@@ -461,7 +461,7 @@ def test_a_genie_stop_on_an_ask_of_a_notebook_that_wrote_rows_goes_back_to_genie
     assert agent_ns["IMPLEMENT_ASK_STOP_REPAIR"] in runner.prompts[1]
     assert "an ask that cannot be done is never a reason to stop the run or write nothing" in runner.prompts[1]
     sent = [e for e in inst.emitted if e["step_name"] == "Genie build" and (e.get("result_json") or {}).get("failure")]
-    assert len(sent) == 1 and sent[0]["message"].startswith("round 1/3: the run stopped, but this notebook ran and wrote its rows")
+    assert len(sent) == 1 and sent[0]["message"].startswith("round 1 of up to 6: the run stopped, but this notebook ran and wrote its rows")
 
 
 @pytest.mark.parametrize("notes,state,outputs", [

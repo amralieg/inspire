@@ -572,7 +572,7 @@ def test_a_rollback_with_nothing_saved_fails_only_that_output_and_the_others_sti
     current = dict(previous, outputs={**ALL, "genie_space_vibes": VIBES}, rollback_outputs={"dashboard": 1, "alert": 3})
     assert _run(inst, current) == "ready_with_warnings"
     final = inst.updates[-1]
-    assert final["status_message"] == "Dashboard: v1 has no saved Dashboard to roll back to; Alert: v3 has no saved Alert to roll back to"
+    assert final["status_message"] == "Dashboard not published: v1 has no saved Dashboard to roll back to; Alert not set up: v3 has no saved Alert to roll back to"
     assert final["asset_status"]["dashboard"] == {"state": "failed", "error": "v1 has no saved Dashboard to roll back to", "spec_version": 3}
     assert final["asset_status"]["alert"] == {"state": "failed", "error": "v3 has no saved Alert to roll back to", "spec_version": 3}
     space_status = final["asset_status"]["genie_space"]
@@ -626,7 +626,7 @@ def test_a_rollback_of_a_gone_dashboard_whose_new_build_fails_says_both(agent_ns
     assert _run(inst, dict(previous, rollback_outputs={"dashboard": 1})) == "ready_with_warnings", inst.updates[-1]
     assert waits == [60, 60], "a stopped warehouse starts on the next query, so each retry waits a minute for it"
     final = inst.updates[-1]
-    assert final["status_message"] == f"{GONE_WARNING}; Dashboard: Inspire tried 3 times and could not build it: the warehouse is stopped"
+    assert final["status_message"] == f"Dashboard not published: Inspire tried 3 times and could not build it: the warehouse is stopped; {GONE_WARNING}"
     assert final["asset_status"]["dashboard"]["state"] == "failed"
 
 

@@ -1220,9 +1220,9 @@ def test_a_genie_build_round_sent_back_stays_running_on_one_step(agent_ns):
     assert outcome["status"] == "written" and len(runner.prompts) == 2
     build = [e for e in inst.emitted if e["step_name"] == "Genie build"]
     assert [(e["status"], e["step_id"]) for e in build] == [("started", None), ("started", 1), ("started", 1), ("ended_success", 1)]
-    assert build[1]["message"] == "round 1/3 failed, sent back to Genie: the KPI tile prints 1234567 as a raw number"
+    assert build[1]["message"] == "round 1 of up to 6 failed, sent back to Genie: the KPI tile prints 1234567 as a raw number"
     assert {k: build[1]["result_json"][k] for k in ("round", "rounds", "failure")} == {
-        "round": 1, "rounds": 3, "failure": "the KPI tile prints 1234567 as a raw number"}
+        "round": 1, "rounds": 6, "failure": "the KPI tile prints 1234567 as a raw number"}
     assert build[2]["result_json"]["round"] == 2 and "failure" not in build[2]["result_json"]
 
 
@@ -2123,10 +2123,10 @@ def test_each_genie_round_starts_clean_then_from_the_last_attempt(agent_ns, tmp_
     assert runner.seen == [[], ["dashboard.lvdash.json"]], "round 1 starts clean; round 2 starts from round 1's files"
     assert "UNRESOLVED_COLUMN rank" in runner.prompts[1]
     assert "Your files from that attempt are in your working folder: fix them rather than starting over" in runner.prompts[1]
-    assert inst.updates == [{"status_message": "Dashboard: Genie round 1/3"}, {"status_message": "Dashboard: Genie round 2/3"}]
+    assert inst.updates == [{"status_message": "Dashboard: Genie round 1 of up to 4"}, {"status_message": "Dashboard: Genie round 2 of up to 4"}]
     messages = [e["message"] for e in inst.emitted]
-    assert messages[1] == "round 1/3 failed, sent back to Genie: dataset decision_list failed: UNRESOLVED_COLUMN rank"
-    assert messages[2] == "round 2/3: Genie is writing the Dashboard from its last attempt (1 file)"
+    assert messages[1] == "round 1 of up to 4 failed, sent back to Genie: dataset decision_list failed: UNRESOLVED_COLUMN rank"
+    assert messages[2] == "round 2 of up to 4: Genie is writing the Dashboard from its last attempt (1 file)"
     assert "_asset" not in inst.emitted[-1]["result_json"] and inst.emitted[-1]["result_json"]["dashboard_id"] == "d1"
 
 
@@ -2144,7 +2144,7 @@ def test_an_output_round_sent_back_to_genie_stays_running_on_one_step(agent_ns, 
     assert inst._implement_genie_loop(LOOP_CONTEXT, runner, "App", "write it", deploy) == {"app_name": "a"}
     assert [(e["status"], e["step_id"]) for e in inst.emitted] == [("started", None), ("started", 1), ("started", 1), ("ended_success", 1)]
     assert {k: inst.emitted[1]["result_json"][k] for k in ("round", "rounds", "failure")} == {
-        "round": 1, "rounds": 3, "failure": "app.yaml: command not found"}
+        "round": 1, "rounds": 4, "failure": "app.yaml: command not found"}
     assert inst.emitted[2]["result_json"]["round"] == 2
     assert not [e for e in inst.emitted if e["status"] == "ended_warning"], "a round Genie gets back has not ended"
 
@@ -2175,7 +2175,7 @@ def test_a_blocked_output_is_not_sent_back_to_genie(agent_ns, tmp_path):
         inst._implement_genie_loop(LOOP_CONTEXT, runner, "App", "write it",
                                    lambda work: (_ for _ in ()).throw(blocked("QUOTA_EXCEEDED: 50 apps")))
     assert len(runner.prompts) == 1
-    assert "round 1/3 failed for a reason Genie cannot fix: QUOTA_EXCEEDED" in inst.emitted[-1]["message"]
+    assert "round 1 of up to 4 failed for a reason Genie cannot fix: QUOTA_EXCEEDED" in inst.emitted[-1]["message"]
 
 
 def test_a_leaked_token_and_a_failed_preview_both_reach_genie(agent_ns):
@@ -3612,14 +3612,18 @@ def test_a_genie_code_install_failure_fails_only_the_outputs_genie_builds(agent_
     assert inst.updates[0]["status"] == "filling" and inst.updates[0]["asset_status"] == dict(live, notebook=notebook), \
         "the version records the live outputs' state before it builds, so a failure part-way never hides them"
     final = inst.updates[-1]
-    assert final["status"] == "ready_with_warnings" and final["status_message"] == f"Genie Agent: {reason}; Dashboard: {reason}"
+    assert final["status"] == "ready_with_warnings" and final["status_message"] == (f"Genie Agent not built: {agent_ns['implement_short_reason'](reason)}; "
+                                                                      f"Dashboard not published: {agent_ns['implement_short_reason'](reason)}")
     assert final["asset_status"].pop("target_kpi")["source"] == "evaluated", "the version records the KPI it tracks"
     assert final["asset_status"].pop("built_with") == agent_ns["implement_build_stamp"](), "the version records the release it was built with"
     assert final["asset_status"] == {"dashboard": {"state": "failed", "error": reason, "spec_version": 3},
                                      "genie_space": {"state": "failed", "error": reason, "spec_version": 3},
                                      "app": {"state": "ready", "spec_version": 2},
                                      "alert": {"check_state": "OK", "state": "ready", "spec_version": 3, "title": "N01-U01 Predict churn"},
-                                     "notebook": notebook}
+                                     "notebook": notebook,
+                                     "delivery": {"delivered": ["alert", "app"], "spec_version": 3, "not_delivered": [
+                                         {"output": "genie_space", "label": "Genie Agent", "reason": agent_ns["implement_short_reason"](reason)},
+                                         {"output": "dashboard", "label": "Dashboard", "reason": agent_ns["implement_short_reason"](reason)}]}}
     assert ("Dashboard", "ended_warning") in emitted and ("Genie Agent", "ended_warning") in emitted and emitted[-1] == ("Done", "ended_warning")
 
 
@@ -5389,7 +5393,7 @@ def test_the_tools_inspire_gives_genie_are_in_every_round_and_never_count_as_its
     assert inst._implement_genie_loop(LOOP_CONTEXT, runner, "App", "write it", deploy, tools={tool: "print('ok')\n"}) == {"app_name": "a"}
     assert runner.seen == [[".inspire_check"], [".inspire_check", "page.json"]]
     assert texts == ["tampered", "print('ok')\n"], "each round starts from Inspire's own copy of the tool, whatever Genie did to it"
-    assert [e["message"] for e in inst.emitted][2] == "round 2/3: Genie is writing the App from its last attempt (1 file)"
+    assert [e["message"] for e in inst.emitted][2] == "round 2 of up to 4: Genie is writing the App from its last attempt (1 file)"
 
 
 @pytest.mark.parametrize("error,message", [

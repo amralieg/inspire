@@ -388,7 +388,7 @@ export function mvpProgressSummary(stages, latest, { now = Date.now(), stalled =
   else if (active && current) headline = `${current.working}…`;
   else if (active) headline = 'Inspire is working…';
   const round = active && current?.state === 'running' && current.round > 1 ? current.round : null;
-  const rounds = round ? `Round ${round}${current.rounds ? ` of ${current.rounds}` : ''}: Genie is fixing what failed in round ${round - 1}` : '';
+  const rounds = round ? `Round ${round}${current.rounds ? ` of up to ${current.rounds}` : ''}: Genie is fixing what failed in round ${round - 1}` : '';
   const fixing = stalled ? '' : repairLine(repair, status);
   return {
     active,

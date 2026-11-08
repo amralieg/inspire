@@ -202,7 +202,9 @@ def test_the_agent_context_carries_the_page_kpis_at_the_persons_filters(tmp_path
     assert turn["state"] == "done" and turn["steps"] == [] and ws.genie == []
     context = json.loads(llm.main_calls()[0]["messages"][1]["content"].split("<data>\n", 1)[1].rsplit("\n</data>", 1)[0])
     numbers = {k["id"]: k for k in context["key_numbers"]}
-    assert numbers["items"] == {"id": "items", "label": "Items on the list", "format": "integer", "value": 120.0}
+    assert {k: v for k, v in numbers["items"].items() if k != "scope"} == {"id": "items", "label": "Items on the list", "format": "integer",
+                                                                          "value": 120.0}
+    assert "East" in numbers["items"]["scope"], "each KPI states the rows it counts"
     assert {"total_loss", "loss_rate"} <= set(numbers)
     kpi_sql = [(sql, params) for sql, params, _limit in ws.sql if "'now' AS period" in sql and "COUNT(*) AS value" in sql]
     assert kpi_sql and "East" in json.dumps(kpi_sql[-1][1]), "the KPI is read at the person's filters, as the page shows it"

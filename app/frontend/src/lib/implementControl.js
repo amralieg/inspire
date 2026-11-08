@@ -1,7 +1,7 @@
 import {
   BUILT_ASSET_STATES, GENIE_FOR_APP_NOTE, IMPLEMENT_DONE_STATUSES, IMPLEMENT_OUTPUTS, IMPLEMENT_UNINSTALLED, IMPLEMENT_VIBE_NOT_MET, assetLabel, builtVersion, heldAsks,
   holderNames, holdersText, holdoutText, joinWords, partAsks, partLabel, partOf, rebuildableOutputs, statusChip, versionActive, vibesKey, VIBE_NOT_MET_FIRST,
-  APP_INSIDE_PLACEMENT, VIBE_FEATURES_LABEL, VIBE_PREVIOUS_DEFAULT, insideInspire, isAppUpdate, mvpFilterMatches, nextSpecFrom, openVibeAsks, withCollectedVibes,
+  APP_INSIDE_PLACEMENT, VIBE_FEATURES_LABEL, VIBE_PREVIOUS_DEFAULT, insideInspire, isAppUpdate, mvpFilterMatches, nextSpecFrom, openVibeAsks, undeliveredOutputs, withCollectedVibes,
 } from './implementWizard.js';
 import { formatWhen } from './formatWhen.js';
 import { plural } from './plural.js';
@@ -177,7 +177,7 @@ export function controlRows(live, latest) {
       id: output.id,
       label: output.label,
       name: OUTPUT_NAMES[output.id](entry) || String(targets[output.id]),
-      url: latest?.[OUTPUT_URLS[output.id]] || entry?.url || '',
+      url: undeliveredOutputs(latest).some((item) => item.output === output.id) ? '' : latest?.[OUTPUT_URLS[output.id]] || entry?.url || '',
       removable: true,
       warnings: builtWarnings(latest, output.id),
       notes: assetNotes(latest, output.id),
@@ -192,7 +192,9 @@ const DELIVERED_WORDS = { dashboard: ['dashboard', 'dashboards'], genie_space: [
 
 export function deliveredOutputs(latest) {
   const assets = latest?.asset_status || {};
+  const missing = new Set(undeliveredOutputs(latest).map((entry) => entry.output));
   return IMPLEMENT_OUTPUTS
+    .filter((output) => !missing.has(output.id))
     .filter((output) => latest?.[OUTPUT_URLS[output.id]] || (latest?.[OUTPUT_IDS[output.id]] && assets[output.id]?.state === 'ready'))
     .map((output) => output.id);
 }

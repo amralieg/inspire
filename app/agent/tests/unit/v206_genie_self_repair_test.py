@@ -50,7 +50,7 @@ def test_a_743_of_1000_interactions_stop_goes_back_with_the_counts_and_builds_an
     assert SHORT_D in sent and "valid at 743 past interactions" in sent and "item co-occurrence shrunk toward popularity" in sent
     assert "lower `min_interactions` within its allowed range (whole number, at least 1)" in sent and "Never fabricate data" in sent
     build = [e for e in inst.emitted if e["step_name"] == "Genie build"]
-    assert build[1]["message"].startswith("round 1/4: Genie stopped, sent back to repair it: There are too few past interactions (743)")
+    assert build[1]["message"].startswith("round 1 of up to 6: Genie stopped, sent back to repair it: There are too few past interactions (743)")
     assert inst.logger.matching("[GENIE-SELF-REPAIR FIRED] N01-U01: data shortfall interactions = 743 against 1,000")
 
 
@@ -101,7 +101,7 @@ def test_a_declared_minimum_above_the_measured_count_is_sent_back_before_the_pre
     assert ("you declared `min_interactions` = 1000, and the readiness step measured `interactions` = 743, so the run would stop at "
             "that check") in runner.prompts[1]
     build = [e for e in inst.emitted if e["step_name"] == "Genie build"]
-    assert build[1]["message"].startswith("round 1/4 failed, sent back to Genie: you declared `min_interactions` = 1000")
+    assert build[1]["message"].startswith("round 1 of up to 6 failed, sent back to Genie: you declared `min_interactions` = 1000")
 
 
 def test_declared_settings_the_counts_support_or_the_user_set_are_not_sent_back(agent_ns):

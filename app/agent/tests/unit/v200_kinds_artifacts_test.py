@@ -20,7 +20,7 @@ DATES = ("period", "date", "as_of", "start", "end", "week", "ts", "time")
 QUEUE_DASHBOARD_SHA = "2a8274feb37e528ecdaec89a10f4ded3723e63f955b948ada79657fedaa6aa28"
 QUEUE_ABOUT_DASHBOARD_SHA = "2b04126ed53861b20898e2d813271989aea2ff080834d339f5ab3af02bd7bce0"
 QUEUE_ALERT_SHA = "7f733f497737e35344172189c9b9775470f27586a0cc5d97422202d2aafa3233"
-QUEUE_GENIE_SHA = "e7f6dc6c4e423941bf068c51de2d22d9ab8c2af11af8ccd6a8f22a0616512909"
+QUEUE_GENIE_SHA = "94ebab939154c7c79d5a46313fc7abef3ee44fd913a48a090047c92d79b94940"
 QUEUE_USE_CASE = {"Name": "Predict churn", "Statement": "Customers leave", "use_case_kind": "risk_propensity",
                   "Analytics Technique": "Classification"}
 LAYOUT_KINDS = sorted({(k.get("decision_layout") or k["layout"]): k["id"] for k in json.load(open(KINDS, encoding="utf-8"))["kinds"]
@@ -331,15 +331,16 @@ def test_companion_tables_need_no_join_spec_but_an_input_table_still_does(agent_
     series = f"{RESULT}__series"
     columns = {RESULT.lower(): [(c, t, "") for c, t in agent_ns["INSPIRE_CORE_COLUMNS"]],
                series.lower(): [(c, _type(c), "") for c in _registry(agent_ns)["contracts"]["forecast"]["suffixes"]["__series"]],
-               "main.s.orders": [("order_id", "string", "")]}
+               "main.s.orders": [("order_id", "string", "")], "main.s.items": [("item_id", "string", "")]}
 
     def joins(*identifiers):
         space = {"data_sources": {"tables": [{"identifier": t} for t in identifiers]}, "instructions": {}}
-        return [p for p in grounding(space, columns, RESULT, [RESULT, series, "main.s.orders"]) if "joins no other table" in p
-                or "join no other table" in p]
+        return [p for p in grounding(space, columns, RESULT, [RESULT, series, "main.s.orders", "main.s.items"])
+                if "joins no other table" in p or "join no other table" in p]
 
     assert joins(RESULT, series) == []
-    assert any("main.s.orders" in p for p in joins(RESULT, series, "main.s.orders"))
+    assert joins(RESULT, series, "main.s.orders") == [], "one input table needs no join spec"
+    assert any("main.s.orders" in p and "main.s.items" in p for p in joins(RESULT, series, "main.s.orders", "main.s.items"))
 
 
 def _genie_build(ns, tmp_path, context):

@@ -6,14 +6,20 @@ import datetime as _redact_datetime
 INSPIRE_SECRET_TOKEN_RE = _redact_re.compile(r"\bdapi[0-9a-f]{16,}\b|\beyJ[\w-]{8,}\.[\w-]{8,}\.[\w-]+|(?<=Bearer )[\w.~+/=-]{8,}", _redact_re.IGNORECASE)
 INSPIRE_SECRET_HOST_RE = _redact_re.compile(r"(https?://)[^\s/'\"<>]*[^\s/'\"<>.,;:!?)]", _redact_re.IGNORECASE)
 INSPIRE_SECRET_EMAIL_RE = _redact_re.compile(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+")
+INSPIRE_ANSI_RE = _redact_re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]|\x1b[@-Z\\-_]")
 
 
-def inspire_redact_secrets(text, secrets=(), keep=()) -> str:
-    text = str(text or "")
+def inspire_strip_ansi(text) -> str:
+    return INSPIRE_ANSI_RE.sub("", str(text or ""))
+
+
+def inspire_redact_secrets(text, secrets=(), keep=(), marks=("<redacted>", "<host>", "<email>")) -> str:
+    redacted, host, email = marks
+    text = inspire_strip_ansi(text)
     for secret in sorted({str(s) for s in secrets if s and len(str(s)) >= 6}, key=len, reverse=True):
-        text = text.replace(secret, "<redacted>")
-    text = INSPIRE_SECRET_HOST_RE.sub(r"\1<host>", INSPIRE_SECRET_TOKEN_RE.sub("<redacted>", text))
-    return INSPIRE_SECRET_EMAIL_RE.sub(lambda found: found.group(0) if found.group(0) in keep else "<email>", text)
+        text = text.replace(secret, redacted)
+    text = INSPIRE_SECRET_HOST_RE.sub(lambda found: found.group(1) + host, INSPIRE_SECRET_TOKEN_RE.sub(redacted, text))
+    return INSPIRE_SECRET_EMAIL_RE.sub(lambda found: found.group(0) if found.group(0) in keep else email, text)
 
 
 _REDACT_DENIAL_RE = _redact_re.compile(
@@ -32,6 +38,9 @@ _REDACT_SQL_TYPE_RE = _redact_re.compile(r"(?i)(tinyint|smallint|int|integer|big
                                  r"array|map|struct|variant)(\s*[(<][^\n]{0,80}[)>])?")
 _REDACT_SPARK_SETTING_RE = _redact_re.compile(r"(?i)true|false|spark\.[\w.]+")
 _REDACT_FRAME_RE = _redact_re.compile(r'^[ \t]*File "([^"\n]+)", line \d+[^\n]*(?:\n[ \t]+(?![ \t]*File ")([^\n]+))?', _redact_re.M)
+_REDACT_AT_FRAME_RE = _redact_re.compile(r"(?:\(at |; )[A-Za-z_]\w* line \d+: ((?:(?!; [A-Za-z_]\w* line \d+\b)[^\n|]){1,200}?)(?=; [A-Za-z_]\w* line \d+\b|\)(?:\s|$)|$)", _redact_re.M)
+_REDACT_CODE_QUOTED_RE = _redact_re.compile(r"(?<!\w)'([^'\n]{1,80})'(?!\w)|(?<!\w)\"([^\"\n]{1,80})\"(?!\w)")
+_REDACT_VALUE_CHAR_RE = _redact_re.compile(r"[^\W_]")
 _REDACT_PY_NAME_RE = _redact_re.compile(r"'([\w.]+)' object\b|\battribute '(\w+)'|\bname '(\w+)' is not defined|"
                                 r"\bNo module named '([\w.]+)'|type[(]s[)] for [^:\n]{1,8}: '(\w+)' and '(\w+)'|"
                                 r"\[Errno \d+\] [^:'\n]{1,80}: '([^'\n]{1,400})'(?: -> '([^'\n]{1,400})')?|"
@@ -122,11 +131,24 @@ def _redact_in_text(value: str, text: str) -> bool:
 _REDACT_CODE_WORDS = {}
 
 
+def _redact_strings(value, depth: int = 2) -> list:
+    if isinstance(value, str):
+        return [value]
+    if depth <= 0:
+        return []
+    if isinstance(value, dict):
+        return [s for k, v in value.items() for s in _redact_strings(k, depth - 1) + _redact_strings(v, depth - 1)]
+    if isinstance(value, (tuple, list, set, frozenset)):
+        return [s for item in value for s in _redact_strings(item, depth - 1)]
+    return []
+
+
 def _redact_code_words() -> frozenset:
     scope = globals()
     if _REDACT_CODE_WORDS.get("size") != len(scope):
         words, codes, seen = set(), [], set()
         for value in list(scope.values()):
+            words.update(_redact_strings(value))
             for member in (list(vars(value).values()) if isinstance(value, type) else [value]):
                 member = member.__func__ if isinstance(member, (staticmethod, classmethod)) else (
                     member.fget if isinstance(member, property) else member)
@@ -138,8 +160,17 @@ def _redact_code_words() -> frozenset:
                 seen.add(id(code))
                 words.update(const for const in code.co_consts if isinstance(const, str))
                 codes.extend(const for const in code.co_consts if hasattr(const, "co_consts"))
-        _REDACT_CODE_WORDS.update(size=len(scope), words=frozenset(words))
+        quoted = {part for word in words if "'" in word or '"' in word
+                  for found in _REDACT_CODE_QUOTED_RE.finditer(word) for part in found.groups() if part}
+        _REDACT_CODE_WORDS.update(size=len(scope), words=frozenset(words), quoted=frozenset(quoted))
     return _REDACT_CODE_WORDS["words"]
+
+
+def _redact_code_value(value: str) -> bool:
+    if not _REDACT_VALUE_CHAR_RE.search(value) or value in inspire_redact_secrets.__defaults__[-1]:
+        return True
+    _redact_code_words()
+    return value in _REDACT_CODE_WORDS["quoted"]
 
 
 INSPIRE_ISO_TIME_RE = _redact_re.compile(r"(\d{4})-(\d{2})-(\d{2})(?:[Tt ](\d{2}):(\d{2})(?::(\d{2})(?:[.,](\d+))?)?)?"
@@ -173,7 +204,7 @@ def inspire_redact_text(text, seen, known: str, secrets=()) -> str:
     text = str(text or "")
     named = [found.group(name) for found in _REDACT_DENIAL_RE.finditer(text) for name in ("who", "quoted") if found.group(name)]
     text = inspire_redact_secrets(text, secrets, named)
-    known = "\n".join([str(known or ""), *named, *(part for pattern in (_REDACT_FRAME_RE, _REDACT_PY_NAME_RE, _REDACT_SPARK_NAME_RE)
+    known = "\n".join([str(known or ""), *named, *(part for pattern in (_REDACT_FRAME_RE, _REDACT_AT_FRAME_RE, _REDACT_PY_NAME_RE, _REDACT_SPARK_NAME_RE)
                                                    for found in pattern.finditer(text) for part in found.groups() if part),
                        *(found.group(1) for found in _REDACT_KEY_ERROR_RE.finditer(text) if found.group(1) in _redact_code_words())])
 
@@ -183,7 +214,8 @@ def inspire_redact_text(text, seen, known: str, secrets=()) -> str:
             start, end = match.span(group)
             value = match.group(group)
             mark = value[0] if len(value) > 1 and value[0] == value[-1] and value[0] in "'\"" else ""
-            out += [match.string[last:start], value if _redact_in_text(value.strip("'\"`"), known)
+            bare = value.strip("'\"`")
+            out += [match.string[last:start], value if _redact_in_text(bare, known) or _redact_code_value(bare)
                     else f"{mark}{INSPIRE_REDACTED_VALUE}{mark}"]
             last = end
         return "".join(out) + match.string[last:match.end()]
@@ -195,14 +227,15 @@ def inspire_redact_text(text, seen, known: str, secrets=()) -> str:
         mark, inner = match.group(0)[0], match.group(1)
         if not inner.strip() or _redact_in_text(inner, known) or (mark == '"' and (
                 _REDACT_SQL_TYPE_RE.fullmatch(inner.strip()) or _REDACT_SPARK_SETTING_RE.fullmatch(inner.strip())
-                or any(start <= match.start() < end for start, end in messages))):
+                or any(start <= match.start() < end for start, end in messages))) or _redact_code_value(inner):
             return match.group(0)
         return f"{mark}{INSPIRE_REDACTED_VALUE}{mark}"
 
     text = _REDACT_SINGLE_QUOTED_RE.sub(quoted, text)
     messages = [found.span() for found in _REDACT_SPARK_MESSAGE_RE.finditer(text)]
     text = _REDACT_DOUBLE_QUOTED_RE.sub(quoted, text)
-    hidden = [v for v in seen if v in text and not _redact_in_text(v, known) and not _redact_in_text(v, INSPIRE_REDACTED_VALUE)]
+    hidden = [v for v in seen if v in text and not _redact_in_text(v, known) and not _redact_in_text(v, INSPIRE_REDACTED_VALUE)
+              and not _redact_code_value(v)]
     for value in sorted(hidden, key=len, reverse=True):
         if len(value) >= 4 or (len(value) >= 2 and not value.replace(".", "").replace("-", "").isdigit()):
             text = _redact_re.sub(rf"(?<!\w){_redact_re.escape(value)}(?!\w)", INSPIRE_REDACTED_VALUE, text)

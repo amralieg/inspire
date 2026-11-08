@@ -2556,6 +2556,16 @@ export const NOT_RELIABLE_RECORD = 'not_reliable';
 export const UNTRUSTED_APP_PUBLISHED = 'published';
 export const UNTRUSTED_BANNER = 'Results not trusted yet';
 export const UNRELIABLE_LABEL = 'MVP built, results not trusted yet';
+export const DELIVERY_RECORD = 'delivery';
+export const UNDELIVERED_LABEL = 'MVP incomplete';
+
+export function undeliveredOutputs(latest) {
+  const record = latest?.asset_status?.[DELIVERY_RECORD];
+  if (!record || typeof record !== 'object' || String(record.spec_version ?? '') !== String(latest?.spec_version ?? '')) return [];
+  return (Array.isArray(record.not_delivered) ? record.not_delivered : [])
+    .filter((entry) => entry && typeof entry === 'object' && String(entry.output ?? '').trim())
+    .map((entry) => ({ output: String(entry.output).trim(), label: String(entry.label ?? entry.output).trim(), reason: String(entry.reason ?? '').trim() }));
+}
 
 export const UNRELIABLE_REBUILD_NOTE = 'The newest run says its results are not reliable yet. Fix what it names, then rebuild.';
 
@@ -2599,6 +2609,7 @@ export function implementState(latest, notebook = null) {
   }
   if (s) {
     if (['ready', 'ready_with_warnings'].includes(s) && unreliableHold(latest)) return { group: 'held', label: UNRELIABLE_LABEL, tone: 'warning', kind: 'mvp' };
+    if (['ready', 'ready_with_warnings'].includes(s) && undeliveredOutputs(latest).length) return { group: 'held', label: UNDELIVERED_LABEL, tone: 'warning', kind: 'mvp' };
     if (['ready', 'ready_with_warnings'].includes(s) && openVibeAsks(latest).length) return { group: 'unmet', label: 'MVP vibes not met', tone: 'warning', kind: 'mvp' };
     if (s === 'ready') return { group: 'ready', label: 'MVP ready', tone: 'success', kind: 'mvp' };
     if (s === 'ready_with_warnings') return { group: 'ready', label: 'MVP ready with warnings', tone: 'warning', kind: 'mvp' };

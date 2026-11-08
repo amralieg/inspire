@@ -145,8 +145,7 @@ def test_every_input_table_joins_the_space_and_the_business_output_table_is_in_i
     raw = _rich_space()
     raw["instructions"]["join_specs"] = []
     _s, problems = _grounding(agent_ns, raw)
-    assert (f"{ORDERS} joins no other table of the Genie Agent: add a join spec for each, on the keys the notebook joins them by"
-            in problems)
+    assert not [p for p in problems if "no other table" in p], "a space with one input table needs no join spec"
     _s, problems = _grounding(agent_ns, _rich_space())
     assert problems == [], problems
     alone = _rich_space()

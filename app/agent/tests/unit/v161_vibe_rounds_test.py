@@ -155,7 +155,7 @@ def test_the_judge_is_called_at_most_once_per_round_for_every_notebook_part(agen
     assert sorted(outcome["notebook_vibes"]["resend"]) == ["ai_reasoning", "notebook", "value_formula"]
     _recorded(inst, spec, vibes, outcome)
     assert len(judge.calls) == 3, "recording the build reuses the last round's verdict"
-    assert inst.logger.matching("[IMPLEMENT-VIBES] N01-U01 notebook round 3/3: 1 judge call for 3 asks of 3 parts in ")
+    assert inst.logger.matching("[IMPLEMENT-VIBES] N01-U01 notebook round 3/6: 1 judge call for 3 asks of 3 parts in ")
 
 
 def _space_round(ns, tmp_path, judge_rounds, rounds=3):

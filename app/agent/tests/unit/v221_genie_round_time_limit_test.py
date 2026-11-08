@@ -41,8 +41,8 @@ def test_a_build_round_cut_off_with_files_resumes_from_them_and_is_not_counted(a
     assert "That round is not counted as a failed round" in second and "Resume from that work rather than starting over" in second
     assert "Genie exited with code -9" not in second and "Genie returned no JSON result" in second
     messages = [e["message"] for e in inst.emitted]
-    assert any(m.startswith("round 1/4 reached the time limit, resumed from its work: your last round") for m in messages)
-    assert {"status": "filling", "status_message": "Genie build round 2/4"} in inst.updates
+    assert any(m.startswith("round 1 of up to 6 reached the time limit, resumed from its work: your last round") for m in messages)
+    assert {"status": "filling", "status_message": "Genie build round 2 of up to 6"} in inst.updates
     assert any("[GENIE-TIMEOUT-RESUME FIRED] N01-U01" in msg for _level, msg in inst.logger.records)
 
 
@@ -84,7 +84,7 @@ def test_an_output_round_cut_off_with_work_resumes_and_gets_one_more_round(agent
     assert runner.seen[1] == ["dashboard.lvdash.json"]
     assert "Inspire checked your last attempt: your last round reached the 45-minute time limit" in runner.prompts[1]
     assert "wrote 1 file in its working folder (dashboard.lvdash.json)" in runner.prompts[1]
-    assert inst.updates[:2] == [{"status_message": "Dashboard: Genie round 1/3"}, {"status_message": "Dashboard: Genie round 2/4"}]
+    assert inst.updates[:2] == [{"status_message": "Dashboard: Genie round 1 of up to 4"}, {"status_message": "Dashboard: Genie round 2 of up to 4"}]
 
 
 def test_an_output_round_cut_off_with_only_the_files_inspire_wrote_is_a_failed_round(agent_ns, tmp_path):
@@ -93,7 +93,7 @@ def test_an_output_round_cut_off_with_only_the_files_inspire_wrote_is_a_failed_r
     tools = {"tools/check.py": "print(1)"}
     inst._implement_genie_loop(LOOP_CONTEXT, runner, "App", "write it", lambda work: {"app_name": "a"}, tools=tools)
     assert "Genie exited with code -9 after the time limit" in runner.prompts[1] and "time limit and Inspire stopped" not in runner.prompts[1]
-    assert inst.updates[1] == {"status_message": "App: Genie round 2/3"}
+    assert inst.updates[1] == {"status_message": "App: Genie round 2 of up to 4"}
 
 
 def test_the_round_edits_are_what_changed_during_the_round(agent_ns, tmp_path):

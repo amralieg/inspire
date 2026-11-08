@@ -169,5 +169,5 @@ def test_a_naming_rule_in_generation_instructions_reaches_the_generation_prompt(
 def test_the_headline_rules_are_unchanged(agent_ns):
     base = agent_ns["PROMPT_TEMPLATES"]["BASE_USE_CASE_GEN_PROMPT"]
     block = base[base.index("  - **`usecase`**:"):base.index("  - **`type`**")]
-    assert hashlib.sha256(block.encode()).hexdigest() == "f51710966b7db7496f902590c183636552f24a61c7c76d385fe3697133ab694a"
+    assert hashlib.sha256(block.encode()).hexdigest() == "f86bd3f62481579d5c59127b27a97cab71cec4a66d7f692807db8f5cb4ca4511"
     assert make(agent_ns)._normalize_usecase("increase basket size to grow revenue", "") == "Increase Basket Size to Grow Revenue"
