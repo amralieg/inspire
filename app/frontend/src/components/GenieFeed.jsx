@@ -66,6 +66,10 @@ export default function GenieFeed({ feed, arrivals, active, working, scroller })
     if (pinned && active) scrollToEnd(scroller.current, 'auto');
   }, [count, now, pinned, active, scroller]);
 
+  useEffect(() => {
+    if (active) scrollToEnd(scroller.current, 'auto');
+  }, [scroller]);
+
   const jump = () => {
     scrollToEnd(scroller.current, reduced ? 'auto' : 'smooth');
     setPinned(true);

@@ -181,18 +181,20 @@ export async function routeInspireDemo(page, { origin, distDir = '', summary, re
 }
 
 export async function expandBuild(page) {
-  const progress = page.locator('[data-mvp-progress]');
-  await progress.waitFor({ timeout: 15000 });
-  if (await progress.getAttribute('data-progress-open') === 'false') await progress.locator('[data-progress-toggle]').click();
-  await page.locator('[data-mvp-progress][data-progress-open="true"]').waitFor({ timeout: 15000 });
+  const card = page.locator('[data-progress-card]');
+  await card.waitFor({ timeout: 15000 });
+  if (await card.getAttribute('data-progress-open') === 'false') await card.locator('[data-progress-show]').click();
+  await page.locator('[data-mvp-progress]').waitFor({ timeout: 15000 });
 }
 
 export async function walkMvpViews(page, settle, visit = async () => {}) {
-  const progress = page.locator('[data-mvp-progress]');
-  if (!(await progress.count())) return [];
+  if (!(await page.locator('[data-progress-card]').count())) return [];
   await settle();
   await expandBuild(page);
+  const progress = page.locator('[data-mvp-progress]');
   await visit('build', progress);
+  await page.keyboard.press('Escape');
+  await progress.waitFor({ state: 'detached' });
   const seen = ['build'];
   const ids = await page.locator('[data-asset-tiles] [data-asset-tile]')
     .evaluateAll((tiles) => tiles.filter((tile) => tile.querySelector('[data-tile-versions]')).map((tile) => tile.dataset.assetTile));

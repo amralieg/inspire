@@ -1,9 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
 import { createRequire } from 'node:module';
 import { defaultSpecFromUseCase } from '../../src/lib/implementWizard.js';
 import { HARNESS_INSPIRE_URL, HARNESS_USE_CASE, HARNESS_SETTINGS, HARNESS_SESSION_ID, MVP_JOB } from './implementFixtures.js';
-import { closeAsset, closeBrowser, expandBuild, featuresBox, featuresHeld, featuresText, lowContrast, openAsset, openFeatures, openSettings, openUi, painted, setDark, shot, steadyBox, until } from './uiSupport.mjs';
+import { closeAsset, closeBrowser, closeBuild, expandBuild, featuresBox, featuresHeld, featuresText, lowContrast, openAsset, openFeatures, openSettings, openUi, painted, setDark, shot, steadyBox, until } from './uiSupport.mjs';
 
 const OWNER = ['owner', 'example.com'].join('@');
 const PAGE = 'app:page:decisions';
@@ -136,7 +138,7 @@ test('the build page has one tile per asset in a fixed order; each asset opens a
     assert.deepEqual(await page.locator('[data-asset-tiles] [data-asset-tile]').evaluateAll((tiles) => tiles.map((t) => t.dataset.assetTile)), TILE_ORDER);
     assert.equal(await page.getByRole('tablist', { name: 'MVP views' }).count(), 0, 'the tiles replace the tabs');
     assert.equal(await panel(page).count(), 0, 'no drawer until a tile opens one');
-    assert.equal(await page.getByRole('dialog').count(), 0);
+    assert.equal(await page.locator('[role="dialog"][aria-modal="true"]').count(), 0);
     await showAsset(page, 'app');
     assert.deepEqual(await partsOf(page).getByRole('tab').evaluateAll((items) => items.map((b) => [b.dataset.tab, b.getAttribute('aria-label'), b.getAttribute('aria-selected')])), [
       ['app', 'The whole App, Ready', 'true'], [PAGE, 'Page: Decisions, Ready', 'false'], ['app:page:detail', 'Page: Row detail, Ready', 'false'],
@@ -647,14 +649,14 @@ test('the use case list sits on the left; on the right the name, then Use case d
       const buttons = await Promise.all(['Use case details', 'Vibe/Add/Remove Features (0)', 'Uninstall all']
         .map((label) => name.getByRole('button', { name: label, exact: true }).boundingBox()));
       assert.equal(await pane.getByRole('button', { name: /^Edit MVP/ }).count(), 0, 'Vibe/Add/Remove Features replaces Edit MVP');
-      const [heading, tiles, progress] = await Promise.all([name.locator('h2'), pane.locator('[data-asset-tiles]'), pane.locator('[data-mvp-progress]')].map((el) => el.boundingBox()));
+      const [heading, tiles, progress] = await Promise.all([name.locator('h2'), pane.locator('[data-asset-tiles]'), pane.locator('[data-progress-card]')].map((el) => el.boundingBox()));
       assert.ok(buttons.every((b) => Math.abs(b.y - buttons[0].y) <= 1), 'the three buttons share one row');
       assert.ok(buttons[0].x < buttons[1].x && buttons[1].x < buttons[2].x, 'in the order Use case details, Vibe/Add/Remove Features, Uninstall all');
       assert.ok(heading.y < tiles.y && buttons[0].y + buttons[0].height <= tiles.y, 'the tiles sit below the header');
       const rows = new Set(await pane.locator('[data-asset-tile]').evaluateAll((items) => items.map((li) => Math.round(li.getBoundingClientRect().top))));
       assert.equal(rows.size, 1, `the six tiles share one row at ${width}`);
       assert.ok(tiles.y + tiles.height <= progress.y, 'Build progress sits below the tiles');
-      assert.ok(Math.abs(progress.y + progress.height - (right.y + right.height)) <= 2, `Build progress fills the rest of the pane (${Math.round(progress.y + progress.height)} vs ${Math.round(right.y + right.height)})`);
+      assert.ok(progress.y + progress.height <= right.y + right.height + 1, `the Build progress card sits inside the pane (${Math.round(progress.y + progress.height)} vs ${Math.round(right.y + right.height)})`);
       assert.equal(await page.evaluate(() => document.scrollingElement.scrollHeight <= window.innerHeight + 1), true, `no second page scrollbar at ${width}`);
     }
     assert.deepEqual(ui.pageErrors, []);
@@ -1134,6 +1136,7 @@ test('the name and the tiles stay in view while the Genie feed scrolls inside Bu
     assert.equal(await width(), 352, 'the arrow keys resize it in 16 px steps');
     await page.keyboard.press('End');
     assert.equal(await width(), 520, 'never wider than 520 px');
+    await closeBuild(page);
     const grip = await steadyBox(handle);
     await page.mouse.move(grip.x + grip.width / 2, grip.y + 40);
     await page.mouse.down();
@@ -1249,15 +1252,15 @@ test('while the plan runs, the Job card alone glows with a moving border and a s
     assert.equal(still.name, 'none', 'no animation for a person who asked for less motion');
     assert.equal(still.spin, 'none');
     assert.notEqual(still.glow, 'none', 'but the building card still stands out');
-    assert.equal(await progress.getAttribute('data-progress-open'), 'true', 'a running build shows its progress open');
-    assert.equal(await progress.locator('[data-progress-toggle]').getAttribute('aria-expanded'), 'true');
+    assert.equal(await page.locator('[data-progress-card]').getAttribute('data-progress-open'), 'true', 'Show progress opened the panel');
+    assert.equal(await page.locator('[data-progress-show]').getAttribute('aria-expanded'), 'true');
     assert.deepEqual(ui.pageErrors, []);
   } finally {
     await ui.close();
   }
 });
 
-test('while Genie rebuilds the App, the App card animates and the Job and Notebook cards do not; Larger gives the log more room', async () => {
+test('while Genie rebuilds the App, the App card animates and the Job and Notebook cards do not', async () => {
   const steps = [
     stepRow('Vibe', 'ended_success', 86, { spec_version: 4 }),
     stepRow('Plan', 'started', 85, { spec_version: 4 }), stepRow('Plan', 'ended_success', 80, { spec_version: 4, plan: APP_PLAN }),
@@ -1279,15 +1282,7 @@ test('while Genie rebuilds the App, the App card animates and the Job and Notebo
     assert.equal(await page.locator('[data-asset-tile="app"] [data-tile-state]').textContent(), 'Building', 'a card that read fine says Building');
     assert.equal(await page.locator('[data-asset-tile="app"]').getAttribute('data-tile-building'), 'now', 'and its tile says Genie is on it now, from the same step');
     for (const id of ['job', 'notebook', 'dashboard', 'genie_space']) assert.doesNotMatch(await tileClass(page, id), /asset-building/, id);
-    const log = progress.locator('[data-build-log]');
-    const before = (await log.boundingBox()).height;
-    const larger = progress.getByRole('button', { name: 'Make the build progress larger', exact: true });
-    await larger.click();
-    assert.equal(await progress.getByRole('button', { name: 'Make the build progress smaller', exact: true }).getAttribute('aria-pressed'), 'true');
-    await painted(page);
-    const after = (await log.boundingBox()).height;
-    assert.ok(after > before + 100, `the log grows (${before} -> ${after})`);
-    await shot(page, 'build-app-running-larger');
+    await shot(page, 'build-app-running');
     assert.deepEqual(ui.pageErrors, []);
   } finally {
     await ui.close();
@@ -1309,113 +1304,172 @@ const doneSteps = () => [
   stepRow('Dashboard', 'started', 19, { spec_version: 4 }), stepRow('Dashboard', 'ended_success', 10, { spec_version: 4 }),
 ];
 
-test('a build that finished with warnings folds to one line with its status, version, time, warning count and the warning, and one click opens it again through every poll', async () => {
+const SHOTS_DIR = process.env.FX_PROGRESS_SHOTS || '';
+const panelShot = async (page, name) => {
+  if (!SHOTS_DIR) return;
+  fs.mkdirSync(SHOTS_DIR, { recursive: true });
+  await painted(page);
+  await page.screenshot({ path: path.join(SHOTS_DIR, `${name}.png`) });
+};
+const UNRELIABLE = "No model passed this use case's acceptance check in the last run: Minimum AUC to accept a model is 0.7, and this run measured 0.58";
+const unreliable = () => versionRow(4, {
+  status: 'ready_with_warnings', status_message: WARNED, implement_run_id: '5555555555555555', updated_at: new Date().toISOString(), change_classes: 'outputs',
+  outputs: V3_OUTPUTS, assets: { ...V3_ASSETS, not_reliable: { reason: UNRELIABLE, spec_version: 4 } }, created_at: agoIso(400),
+});
+
+test('a finished build shows a compact card with its status, version, time, warning count, the reason and the stage chips, and Show progress opens the rest in a side panel through every poll', async () => {
   const ui = await openTower({ ...STATE, history: [finished('ready_with_warnings', WARNED), ...HISTORY], steps: doneSteps() }, { expand: false });
   const { page } = ui;
   try {
-    const progress = page.locator('[data-mvp-progress]');
-    await page.waitForFunction(() => document.querySelector('[data-mvp-progress]')?.dataset.progressOpen === 'false', null, { timeout: 15000 });
-    const toggle = progress.locator('[data-progress-toggle]');
-    assert.equal(await toggle.getAttribute('aria-expanded'), 'false');
-    assert.equal(await toggle.evaluate((el) => el.tagName), 'BUTTON');
-    assert.equal(await progress.getByRole('list', { name: 'Build stages' }).count(), 0, 'no stage chips on the folded line');
-    assert.equal(await progress.locator('[data-build-log]').isVisible(), false, 'the log is folded away');
-    const line = progress.locator('[data-build-summary]');
-    assert.match(await text(line), /^Warnings · Took \d+m \d+s · 2 warnings\s*·\s*Notebook: no candidate passed acceptance/);
-    assert.match(await text(progress), /Build progress · v4/);
-    const reason = progress.locator('[data-build-summary-reason]');
-    assert.equal(await reason.getAttribute('title'), WARNED, 'the full warning on hover');
-    assert.deepEqual(await reason.evaluate((el) => [getComputedStyle(el).whiteSpace, getComputedStyle(el).textOverflow, el.scrollWidth > el.clientWidth]), ['nowrap', 'ellipsis', true],
-      'one line, cut with an ellipsis');
-    assert.ok((await progress.boundingBox()).height < 90, 'one summary line');
-    assert.equal(await animatedTiles(page).then((t) => t.length), 0, 'nothing animates on a finished build');
-    await shot(page, 'build-warnings-folded');
-    await toggle.focus();
+    const card = page.locator('[data-progress-card]');
+    await page.waitForFunction(() => document.querySelector('[data-progress-card]')?.dataset.progressOpen === 'false', null, { timeout: 15000 });
+    const show = card.locator('[data-progress-show]');
+    assert.equal(await show.getAttribute('aria-expanded'), 'false');
+    assert.equal(await text(show), 'Show progress');
+    assert.equal(await page.locator('[data-mvp-progress]').count(), 0, 'the panel is closed');
+    assert.match(await text(card.locator('[data-build-headline]')), /^Warnings · Took \d+m \d+s · 2 warnings$/);
+    assert.match(await text(card), /Build progress · v4/);
+    assert.equal(await card.locator('[data-build-summary-reason]').getAttribute('title'), WARNED, 'the full warning on hover');
+    assert.deepEqual(await card.locator('[aria-label="Build stages"] > li').evaluateAll((items) => items.map((li) => li.dataset.stage)),
+      ['Job', 'Notebook', 'Dashboard', 'Finish'], 'the stage chips stay on the card');
+    await show.focus();
     await page.keyboard.press('Enter');
-    await page.waitForFunction(() => document.querySelector('[data-mvp-progress]')?.dataset.progressOpen === 'true');
-    assert.equal(await progress.locator('[data-progress-toggle]').getAttribute('aria-expanded'), 'true');
-    assert.equal(await text(progress.locator('[data-build-reason]')), WARNED, 'the full warning once opened');
+    const panel = page.locator('[data-mvp-progress]');
+    await panel.waitFor();
+    assert.equal(await panel.getByRole('dialog', { name: 'Build progress · v4' }).getAttribute('aria-modal'), 'false', 'the page behind stays usable');
+    assert.equal(await text(panel.locator('[data-build-reason]')), WARNED, 'the full warning in the panel');
     assert.deepEqual((await stagesOf(page)).map(([id, , state]) => [id, state]), [['Job', 'done'], ['Notebook', 'done'], ['Dashboard', 'done'], ['Finish', 'warning']]);
-    assert.match(await text(progress.locator('[data-stage="Job"]')), /^Job3m 0s/, 'Job = 1m of planning + 2m of preview run');
-    await shot(page, 'build-warnings-open');
+    assert.match(await text(panel.locator('[data-stage="Job"]')), /^Job3m 0s/, 'Job = 1m of planning + 2m of preview run');
+    assert.equal(await card.locator('[aria-label="Build stages"]').count(), 0, 'the chips show once, in the panel');
     await page.waitForResponse((r) => r.url().includes('/implement/status'), { timeout: 15000 });
     await painted(page);
-    assert.equal(await progress.getAttribute('data-progress-open'), 'true', 'it stays open through a status poll');
-    await progress.locator('[data-progress-toggle]').click();
-    assert.equal(await progress.getAttribute('data-progress-open'), 'false');
+    assert.equal(await panel.count(), 1, 'it stays open through a status poll');
+    await panel.getByRole('button', { name: 'Close', exact: true }).click();
+    await panel.waitFor({ state: 'detached' });
+    assert.equal(await card.getAttribute('data-progress-open'), 'false');
     assert.deepEqual(ui.pageErrors, []);
   } finally {
     await ui.close();
   }
 });
 
-test('on a short screen a build that finished with a long warning and many stages keeps about eight lines of log in view, and the last Genie message scrolls into view (must-exclude: the header never squeezes the log to nothing)', async () => {
-  const long = `${WARNED}; Not published: the App is not published until a run can be trusted, so fix what it names, then build again with Vibe/Add/Remove Features`;
-  const steps = [...doneSteps(), stepRow('Genie Agent', 'started', 9, { spec_version: 4 }), stepRow('Genie Agent', 'ended_success', 7, { spec_version: 4 }),
-    stepRow('App', 'started', 6, { spec_version: 4 }), stepRow('App', 'ended_success', 4, { spec_version: 4 })];
+test('Build progress opens as a full-height side panel whose 500-line log scrolls on its own, the page behind keeps its own scroll, Esc and X close it, a reload keeps it open, and the reason names the threshold the run missed (must-exclude: the log never grows the page)', async () => {
   const said = (i) => `Step ${i}: I checked the notebook instructions and the Databricks workflow before I built the dashboard.`;
+  const line = (i, words) => `${agoIso(390 - Math.floor(i * 0.7)).slice(0, 19).replace('T', ' ')} - inspire - INFO - [GENIE N01-U01] [build] Genie: ${words}`;
   const last = 'Last I checked the alert query against the latest run.';
-  const line = (second, words) => `${agoIso(300 - second).slice(0, 19).replace('T', ' ')} - inspire - INFO - [GENIE N01-U01] [build] Genie: ${words}`;
-  const liveLog = `${[...Array.from({ length: 30 }, (_, i) => line(i, said(i))), line(40, last)].join('\n')}\n`;
-  const ui = await openTower({ ...STATE, history: [finished('ready_with_warnings', long), ...HISTORY], steps, liveLog });
+  const liveLog = `${[...Array.from({ length: 500 }, (_, i) => line(i, said(i))), line(600, last)].join('\n')}\n`;
+  const ui = await openTower({ ...STATE, history: [unreliable(), ...HISTORY], steps: doneSteps(), liveLog, moneySummary: [{ not_reliable: UNRELIABLE, updated_at: new Date().toISOString() }] }, { expand: false });
   const { page } = ui;
   try {
-    const progress = page.locator('[data-mvp-progress]');
-    const log = progress.locator('[data-build-log]');
-    const end = log.getByText(last, { exact: true });
-    await end.waitFor({ state: 'attached', timeout: 20000 });
-    assert.ok((await stagesOf(page)).length >= 6, `many stages ${JSON.stringify(await stagesOf(page))}`);
-    for (const [width, height] of [[1024, 600], [1280, 720], [1024, 480]]) {
+    const card = page.locator('[data-progress-card]');
+    const reason = card.locator('[data-build-summary-reason]');
+    await reason.waitFor({ timeout: 15000 });
+    assert.match(await reason.getAttribute('title'), /Minimum AUC to accept a model is 0\.7, and this run measured 0\.58/, 'the reason names the threshold, its bar and the measured value');
+    assert.doesNotMatch(await reason.getAttribute('title'), /fix what it names/);
+    for (const [width, height] of [[1280, 800], [1024, 700]]) {
+      await page.setViewportSize({ width, height });
+      await panelShot(page, `progress-closed-${width}x${height}`);
+    }
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await card.getByRole('button', { name: 'Show progress', exact: true }).click();
+    const panel = page.locator('[data-mvp-progress]');
+    const log = panel.locator('[data-build-log]');
+    await log.getByText(last, { exact: true }).waitFor({ state: 'attached', timeout: 30000 });
+    assert.equal(await log.locator('[data-feed-kind]').count(), 300, 'the panel holds the newest 300 of the 501 messages');
+    assert.equal(await log.getByText(said(499), { exact: true }).count(), 1);
+    assert.equal(await log.getByText(said(0), { exact: true }).count(), 0, 'the oldest messages past the cap are not in the panel');
+    assert.match(new URL(page.url()).search, /[?&]progress=N01-U01(&|$)/, 'the address names the open panel');
+    const dialog = panel.getByRole('dialog');
+    for (const [width, height] of [[1280, 800], [1024, 700]]) {
       await page.setViewportSize({ width, height });
       await painted(page);
-      assert.equal(await progress.getAttribute('data-progress-open'), 'true');
-      const client = await log.evaluate((el) => el.clientHeight);
-      assert.ok(client >= 120, `at ${width}x${height} the log keeps room for about eight lines (${client} px)`);
-      const room = await page.evaluate(() => ({ list: document.querySelector('nav[aria-label="Use cases"]').clientHeight, page: document.scrollingElement.scrollHeight - window.innerHeight }));
-      assert.ok(room.list >= 120, `at ${width}x${height} the use case list keeps room too (${room.list} px)`);
-      assert.ok(room.page <= 1, `at ${width}x${height} the page itself never scrolls (${room.page} px)`);
-      await shot(page, `build-warnings-short-${width}x${height}`, false);
-      await end.scrollIntoViewIfNeeded();
-      await painted(page);
-      const seen = await end.evaluate((el) => {
-        const box = el.getBoundingClientRect();
-        const inside = (outer) => {
-          const r = outer.getBoundingClientRect();
-          return box.top >= r.top - 1 && box.bottom <= r.bottom + 1;
-        };
-        return { log: inside(el.closest('[data-build-log]')), pane: inside(el.closest('section[aria-label="Use case"]')), screen: box.top >= 0 && box.bottom <= window.innerHeight, h: box.height };
-      });
-      assert.deepEqual(seen, { log: true, pane: true, screen: true, h: seen.h }, `at ${width}x${height} the last Genie message scrolls into view`);
-      assert.ok(seen.h > 0);
-      await shot(page, `build-warnings-short-${width}x${height}-end`, false);
-      await page.evaluate(() => { document.querySelector('section[aria-label="Use case"]').scrollTop = 0; document.querySelector('[data-build-log]').scrollTop = 0; });
+      const box = await dialog.boundingBox();
+      assert.ok(Math.abs(box.height - height) <= 1 && Math.abs(box.x + box.width - width) <= 1, `at ${width}x${height} the panel is full height on the right ${JSON.stringify(box)}`);
+      assert.ok(box.width >= 540, `at ${width}x${height} the panel is wide (${box.width} px)`);
+      const room = await log.evaluate((el) => ({ scroll: el.scrollHeight, client: el.clientHeight, overflow: getComputedStyle(el).overflowY,
+        page: document.scrollingElement.scrollHeight - window.innerHeight }));
+      assert.ok(room.scroll > room.client && room.client >= 200 && room.overflow === 'auto', `at ${width}x${height} the log scrolls inside the panel ${JSON.stringify(room)}`);
+      assert.ok(room.page <= 1, `at ${width}x${height} the page never grows with the log (${room.page} px)`);
+      await log.evaluate((el) => { el.scrollTop = 0; });
+      const lb = await log.boundingBox();
+      await page.mouse.move(lb.x + lb.width / 2, lb.y + lb.height / 2);
+      await page.mouse.wheel(0, 1200);
+      await page.waitForFunction(() => document.querySelector('[data-mvp-progress] [data-build-log]').scrollTop > 0);
+      const pane = page.locator('section[aria-label="Use case"]');
+      await pane.evaluate((el) => { el.scrollTop = 0; });
+      const behind = await pane.evaluate((el) => ({ scroll: el.scrollHeight, client: el.clientHeight }));
+      const pb = await pane.boundingBox();
+      if (behind.scroll > behind.client + 1) {
+        await page.mouse.move(pb.x + 40, pb.y + pb.height / 2);
+        await page.mouse.wheel(0, 400);
+        await page.waitForFunction(() => document.querySelector('section[aria-label="Use case"]').scrollTop > 0);
+      }
+      const list = page.getByRole('navigation', { name: 'Use cases' });
+      await list.evaluate((el) => el.append(Object.assign(document.createElement('div'), { style: 'height:3000px' })));
+      const nb = await list.boundingBox();
+      await page.mouse.move(nb.x + 20, nb.y + Math.min(nb.height, 200) / 2);
+      await page.mouse.wheel(0, 300);
+      await page.waitForFunction(() => document.querySelector('nav[aria-label="Use cases"]').scrollTop > 0, null, { timeout: 5000 });
+      assert.ok(await log.evaluate((el) => el.scrollTop > 0), 'scrolling the page behind leaves the log where it was');
+      await page.evaluate(() => { const el = document.querySelector('nav[aria-label="Use cases"]'); el.lastChild.remove(); el.scrollTop = 0; });
+      await log.evaluate((el) => { el.scrollTop = el.scrollHeight; });
+      await panelShot(page, `progress-open-${width}x${height}`);
     }
-    const larger = progress.getByRole('button', { name: 'Make the build progress larger', exact: true });
-    const before = await log.evaluate((el) => el.clientHeight);
-    await larger.click();
-    await painted(page);
-    assert.ok(await log.evaluate((el) => el.clientHeight) > before + 100, 'Larger still gives the log more room');
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.reload();
+    await panel.waitFor({ timeout: 20000 });
+    assert.equal(await card.getAttribute('data-progress-open'), 'true', 'a reload keeps the panel open');
+    await page.keyboard.press('Escape');
+    await panel.waitFor({ state: 'detached' });
+    assert.doesNotMatch(new URL(page.url()).search, /progress=/, 'closing drops the link');
+    await card.getByRole('button', { name: 'Show progress', exact: true }).click();
+    await panel.getByRole('button', { name: 'Close', exact: true }).click();
+    await panel.waitFor({ state: 'detached' });
+    await page.reload();
+    await card.waitFor({ timeout: 20000 });
+    assert.equal(await panel.count(), 0, 'a closed panel stays closed after a reload');
     assert.deepEqual(ui.pageErrors, []);
   } finally {
     await ui.close();
   }
 });
 
-test('a failed build folds too but keeps what you must act on in view', async () => {
+test('Esc on a dialog over the Build progress panel closes that dialog first and leaves the panel open', async () => {
+  const ui = await openTower();
+  const { page } = ui;
+  try {
+    const panel = page.locator('[data-mvp-progress]');
+    await panel.waitFor();
+    await openAsset(page, 'job');
+    await page.evaluate(() => document.querySelector('[data-progress-show]').click());
+    await panel.waitFor();
+    await page.keyboard.press('Escape');
+    await page.locator('[data-mvp-panel]').waitFor({ state: 'detached' });
+    assert.equal(await panel.count(), 1, 'the panel under the asset drawer stays');
+    await page.keyboard.press('Escape');
+    await panel.waitFor({ state: 'detached' });
+    assert.deepEqual(ui.pageErrors, []);
+  } finally {
+    await ui.close();
+  }
+});
+
+test('a failed build keeps what you must act on in view on the card, and the panel shows it once', async () => {
   const failSteps = [stepRow('Plan', 'started', 300, { spec_version: 4 }), stepRow('Plan', 'ended_error', 280, { spec_version: 4 }, 'the warehouse is stopped')];
   const ui = await openTower({ ...STATE, history: [finished('failed', 'the warehouse is stopped'), ...HISTORY], steps: failSteps }, { expand: false });
   const { page } = ui;
   try {
-    const progress = page.locator('[data-mvp-progress]');
-    await page.waitForFunction(() => document.querySelector('[data-mvp-progress]')?.dataset.progressOpen === 'false', null, { timeout: 15000 });
-    await progress.locator('[data-build-attention]').getByRole('region', { name: 'Build failed' }).waitFor();
+    const card = page.locator('[data-progress-card]');
+    await page.waitForFunction(() => document.querySelector('[data-progress-card]')?.dataset.progressOpen === 'false', null, { timeout: 15000 });
+    await card.locator('[data-build-attention]').getByRole('region', { name: 'Build failed' }).waitFor();
     await shot(page, 'build-failed-folded');
-    await progress.locator('[data-progress-toggle]').click();
+    await card.locator('[data-progress-show]').click();
+    const progress = page.locator('[data-mvp-progress]');
     const job = progress.locator('[data-stage="Job"]');
     assert.equal(await job.getAttribute('data-stage-state'), 'error', 'a failed plan fails the Job');
     assert.equal(await job.locator('[title]').getAttribute('title'), 'Plan, Preview run: the warehouse is stopped', 'with the plan message');
-    assert.equal(await progress.locator('[data-build-attention]').count(), 0);
-    assert.equal(await progress.getByRole('region', { name: 'Build failed' }).count(), 1, 'the banner moves into the open log, shown once');
+    assert.equal(await card.locator('[data-build-attention]').count(), 0);
+    assert.equal(await page.getByRole('region', { name: 'Build failed' }).count(), 1, 'the banner moves into the open panel, shown once');
     assert.deepEqual(ui.pageErrors, []);
   } finally {
     await ui.close();
@@ -1473,7 +1527,7 @@ test('a Build page with short content ends where its content ends: the list and 
       await page.getByRole('region', { name: 'Use case', exact: true }).locator('[data-pinned-name]').waitFor({ timeout: 15000 });
       if (state.history) {
         await page.locator('[data-asset-tiles]').waitFor({ timeout: 15000 });
-        assert.equal(await page.locator('[data-mvp-progress]').getAttribute('data-progress-open'), 'false', `${name}: the progress starts folded`);
+        assert.equal(await page.locator('[data-progress-card]').getAttribute('data-progress-open'), 'false', `${name}: the progress panel starts closed`);
       }
       for (const [width, height] of [[1440, 900], [1920, 1080]]) {
         await page.setViewportSize({ width, height });

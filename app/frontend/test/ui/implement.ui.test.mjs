@@ -4,7 +4,7 @@ import { buildAgainHint, DATA_STOP_HINT, GENIE_CODE_OFF_TITLE, lostTablesText, M
 import {
   HARNESS_USE_CASE, HARNESS_SETTINGS, HARNESS_SESSION_ID, MVP_JOB, OWNER, RESULT_TABLE, STUDIO_STATE, built, builtSpec,
 } from './implementFixtures.js';
-import { BUILD_IT, closeAsset, closeBrowser, dataToResults, openAdvanced, expandBuild, FAKE_CLOCK, lowContrast, onStep, openAsset, openFeatures, openSettings, openUi, painted, pollNow, setDark, settled, shot, startMvp, stepsAre, toAppAccess, toVibes, until, goToStep, toSummary } from './uiSupport.mjs';
+import { BUILD_IT, closeAsset, closeBrowser, closeBuild, dataToResults, openAdvanced, expandBuild, FAKE_CLOCK, lowContrast, onStep, openAsset, openFeatures, openSettings, openUi, painted, pollNow, setDark, settled, shot, startMvp, stepsAre, toAppAccess, toVibes, until, goToStep, toSummary } from './uiSupport.mjs';
 
 const gone = (table) => `[TABLE_OR_VIEW_NOT_FOUND] The table or view ${table} cannot be found. Verify the spelling. SQLSTATE: 42P01`;
 const GONE = gone('`main`.`s`.`returns`');
@@ -27,6 +27,7 @@ const viewOf = (page, id) => page.locator(viewSelector(id));
 async function showView(page, id) {
   if (id !== 'build') return openAsset(page, id);
   if (await page.locator('[data-mvp-panel]').count()) await closeAsset(page);
+  await expandBuild(page);
   return viewOf(page, 'build').waitFor();
 }
 
@@ -627,7 +628,7 @@ test('the Build page shows one row of tiles in a fixed order, each tile opens it
     assert.equal(await page.getByRole('region', { name: 'Control tower' }).count(), 0, 'the Control Tower view is gone');
     assert.equal(await page.locator('[data-mvp-panel]').count(), 0, 'no asset drawer is open until Versions is clicked');
     assert.equal(await page.getByRole('region', { name: 'Build failed' }).count(), 0, 'a ready build has no failed banner');
-    await page.locator('[data-mvp-progress]').waitFor();
+    await page.locator('[data-progress-card]').waitFor();
     await shot(page, 'build-page-ready');
 
     const open = (id) => tile(page, id).locator('[data-tile-open="asset"]');
@@ -833,6 +834,7 @@ test('a version whose run stopped reads as Stopped with the reason and the run, 
   const busy = await openUi('implement', { ...STUDIO_STATE, history: [stopped, built()],
     implementRun: { run_id: 5555555555555555, state: { life_cycle_state: 'RUNNING' } } });
   try {
+    await expandBuild(busy.page);
     await busy.page.locator('[data-mvp-progress] [data-stop-build]').waitFor();
     await busy.page.getByRole('navigation', { name: 'Use cases' }).getByRole('region', { name: 'Building' }).getByText('MVP running', { exact: true }).waitFor();
     const features = await openFeatures(busy.page);
@@ -871,6 +873,7 @@ test('while Genie builds, a log read mid-copy never empties the message box or s
   const twoPolls = async () => { await polled(); await polled(); await painted(page); };
   try {
     await page.emulateMedia({ reducedMotion: 'reduce' });
+    await expandBuild(page);
     await box.getByText(said(5)).waitFor();
     made.state.liveLog = '';
     await twoPolls();
@@ -900,6 +903,7 @@ test('while Genie builds, a log the agent swaps for a copy with only its newest 
   const newest = 'Now I am publishing the dashboard with the weekly totals.';
   try {
     await page.emulateMedia({ reducedMotion: 'reduce' });
+    await expandBuild(page);
     await box.getByText(said(5)).waitFor();
     made.state.liveLog = logText([first[4], first[5], genieLogLine(30, newest)]);
     await box.getByText(newest).waitFor({ timeout: 20000 });
@@ -935,6 +939,7 @@ test('the Build progress box scrolls Genie\'s messages itself: the page never gr
   }, null, { timeout: 10000 });
   try {
     await page.getByRole('heading', { name: 'Build', exact: true }).waitFor();
+    await expandBuild(page);
     await box.getByText('Built the dashboard and checked every tile.').waitFor();
     await page.locator('[data-stage="Job"][data-stage-state="done"]').waitFor();
     await page.locator('[data-stage="Notebook"][data-stage-state="running"]').waitFor();
@@ -1182,7 +1187,7 @@ test('a build that finishes bursts confetti from the bundled package, never for 
     await page.getByRole('progressbar', { name: 'Build progress' }).waitFor();
     made.state.history = [built({ spec_version: 2 }), built()];
     await pollNow(page);
-    await page.locator('[data-mvp-progress][data-progress-open="false"] [data-build-summary]', { hasText: /^Ready/ }).waitFor({ timeout: 15000 });
+    await page.locator('[data-progress-card][data-progress-open="false"] [data-build-headline]', { hasText: /^Ready/ }).waitFor({ timeout: 15000 });
     await page.clock.runFor(800);
     assert.equal(await canvases(), 0, 'no burst for a person who asked for less motion');
 
@@ -1295,6 +1300,7 @@ test('a failed output offers its own retry, which submits the next version that 
   const { page, made } = ui;
   try {
     await page.getByRole('heading', { name: 'Build', exact: true }).waitFor();
+    await closeBuild(page);
     const agentTile = tile(page, 'genie_space');
     await agentTile.locator('[data-tile-state]').getByText('Failed', { exact: true }).waitFor({ timeout: 20000 });
     assert.equal(await agentTile.getAttribute('title'), 'space create 403', 'the tile says why it failed');
@@ -1316,7 +1322,7 @@ test('a failed output offers its own retry, which submits the next version that 
     assert.equal(await viewOf(page, 'app').getByText(/failed on v/).count(), 0, 'only the failed output\'s drawer shows its failure');
     assert.equal(await viewOf(page, 'app').getByText('space create 403', { exact: false }).count(), 0);
 
-    await showView(page, 'build');
+    await closeAsset(page);
     await agentTile.locator('[data-tile-open="reason"]').click();
     await viewOf(page, 'genie_space').getByText('The Genie Agent failed on v1: space create 403', { exact: true }).waitFor();
     assert.equal(made.jobs.length, 0);
@@ -2127,7 +2133,7 @@ test('while its status loads, the Build page shows the built version from the ra
   const { page } = ui;
   try {
     await page.getByRole('heading', { name: 'Build', exact: true }).waitFor();
-    await viewOf(page, 'build').waitFor();
+    await page.locator('[data-progress-card]').waitFor();
     assert.equal(await page.locator('[data-mvp-panel]').count(), 0, 'the built version from the rail opens on Build progress, no drawer');
     const kinds = {};
     let added = 0;

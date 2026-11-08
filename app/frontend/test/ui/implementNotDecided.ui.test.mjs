@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { defaultSpecFromUseCase } from '../../src/lib/implementWizard.js';
 import { HARNESS_USE_CASE, HARNESS_SETTINGS, HARNESS_SESSION_ID } from './implementFixtures.js';
-import { closeBrowser, lowContrast, openUi, until } from './uiSupport.mjs';
+import { closeBrowser, expandBuild, lowContrast, openUi, until } from './uiSupport.mjs';
 
 const NOT_DECIDED = createRequire(import.meta.url)('../../../backend/test/fixtures/implement_not_decided_cases.json');
 
@@ -34,7 +34,8 @@ test('a vibe the router could not place reads Not decided with the agent reason,
   const ui = await openUi('implement', STATE);
   const { page, made } = ui;
   try {
-    await page.locator('[data-mvp-progress]').waitFor({ timeout: 15000 });
+    await page.locator('[data-progress-card]').waitFor({ timeout: 15000 });
+    await expandBuild(page);
     const box = region(page);
     await box.waitFor({ timeout: 15000 });
     const headline = box.locator('[data-checklist-headline]');

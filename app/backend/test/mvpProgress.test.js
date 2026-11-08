@@ -333,15 +333,18 @@ test('the Build progress box holds the stages and Genie\'s messages in one scrol
   assert.match(box, /<GenieFeed [^>]*scroller=\{logRef\}/);
   assert.doesNotMatch(box, /<pre|steps \|\| \[\]\)\.map/);
   const progress = src('components/MvpProgress.jsx');
-  assert.match(progress, /<div ref=\{logRef\} data-build-log="" className=\{`\$\{logClass\(view, summary\.active\)\} overflow-y-auto/, 'the box scrolls, not the page');
-  const logClass = progress.slice(progress.indexOf('function logClass'), progress.indexOf('export default function MvpProgress'));
-  assert.doesNotMatch(logClass, /min-h-0/, 'the log never shrinks to nothing under a tall header');
-  assert.equal((logClass.match(/'[^']*min-h-(?:\d+|\[)[^']*'/g) || []).length, 3, 'every open size keeps a minimum log height');
+  assert.match(progress, /<DrawerShell side [^>]*data-mvp-progress="" data-progress-panel=""\s+bodyRef=\{logRef\} bodyProps=\{\{ 'data-build-log': '', className: 'min-h-0 flex-1 overflow-y-auto overscroll-contain/,
+    'the whole progress sits in the side panel, whose body is the one scroll box');
+  assert.doesNotMatch(progress, /function (logClass|sizeClass)|min-h-\[/, 'no height floor: the panel is as tall as the window');
+  assert.match(progress, /data-progress-show="" aria-expanded=\{view\.open\}/, 'the card opens and closes the panel');
+  const drawer = src('components/DrawerShell.jsx');
+  assert.match(drawer, /\{!side && <button type="button" aria-label=\{closeLabel\} className="absolute inset-0 bg-black\/40/, 'a side panel has no backdrop, so the page behind keeps scrolling');
+  assert.match(drawer, /if \(side && document\.querySelector\('\[aria-modal="true"\]'\)\) return;/, 'Esc closes a dialog on top first');
   const feed = src('components/GenieFeed.jsx');
   assert.doesNotMatch(feed, /overflow-y-auto|resize-y|max-h-|scrollTop|scrollIntoView/, 'the feed has no scroll box of its own and never scrolls the page');
   assert.match(feed, /new IntersectionObserver\([\s\S]*\{ root, rootMargin/, 'its end is watched inside the box');
   assert.match(feed, /if \(pinned && active\) scrollToEnd\(scroller\.current, 'auto'\)/, 'it follows new messages only while a build runs and its end is in view');
-  assert.match(progress, /\{stagesRecorded\(stages\) && <StageArrows /);
+  assert.match(progress, /stagesRecorded\(stages\) \? <StageArrows /);
   assert.match(feed, /role="log"/);
   assert.match(feed, /<GenieLogo /);
   const routes = fs.readFileSync(path.resolve(__dirname, '..', 'implementRoutes.js'), 'utf8');
@@ -693,4 +696,19 @@ test('the settings Genie changed to repair a data shortfall are noted under the 
   }
   const older = mvpStages(steps, latestAt('ready', 3, changes), { now: at('10:30:00') }).find((s) => s.id === 'Genie build');
   assert.deepEqual(older.notes, [], 'a change Genie made on an earlier version is not noted on this one');
+});
+
+test('the Build progress panel is linked from the address, one use case at a time, and closing it drops only its own link', async () => {
+  const { PROGRESS_QUERY, progressLink, progressLinked } = await import(pathToFileURL(path.resolve(__dirname, '..', '..', 'frontend', 'src', 'lib', 'progressView.js')).href);
+  assert.equal(PROGRESS_QUERY, 'progress');
+  assert.equal(progressLinked('N01-U01', '?a=1&progress=N01-U01'), true);
+  assert.equal(progressLinked('N01-U02', '?progress=N01-U01'), false, 'another use case keeps its panel closed');
+  assert.equal(progressLinked('N01-U01', ''), false);
+  assert.equal(progressLinked(null, '?progress=null'), false);
+  const href = 'https://h.example/app/?a=1#/build/123/N01-U01';
+  assert.equal(progressLink('N01-U01', true, href), '/app/?a=1&progress=N01-U01#/build/123/N01-U01', 'the hash route stays as it is');
+  assert.equal(progressLink('N01-U01', false, 'https://h.example/app/?a=1&progress=N01-U01#/build/1/N01-U01'), '/app/?a=1#/build/1/N01-U01');
+  assert.equal(progressLink('N01-U02', false, 'https://h.example/?progress=N01-U01#/b'), '/?progress=N01-U01#/b', 'closing never drops another link');
+  assert.equal(progressLink('N 1&x', true, 'https://h.example/'), '/?progress=N+1%26x');
+  assert.equal(progressLinked('N 1&x', '?progress=N+1%26x'), true, 'an id with spaces or & round-trips');
 });

@@ -110,7 +110,7 @@ test('a held version says what stays live, and its checklist shows every entry w
     assert.equal(await rows.nth(1).getByRole('list', { name: 'What Genie tried' }).getByRole('listitem').count(), 3);
 
     const sizes = await page.evaluate(() => {
-      const pane = document.querySelector('[aria-label="Use case"]').getBoundingClientRect();
+      const pane = document.querySelector('[data-progress-panel] [role="dialog"]').getBoundingClientRect();
       const boxes = ['[aria-label="v5 is held"]', '[aria-label="Vibe checklist of v5"]'].map((sel) => {
         const el = document.querySelector(sel);
         const r = el.getBoundingClientRect();

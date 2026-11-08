@@ -127,9 +127,17 @@ export async function openBuild(state, { init } = {}) {
   }
 }
 
+export async function closeBuild(page) {
+  const panel = page.locator('[data-progress-panel]');
+  if (!(await panel.count())) return;
+  await panel.getByRole('button', { name: 'Close', exact: true }).click();
+  await panel.waitFor({ state: 'detached' });
+}
+
 export async function openAsset(page, id) {
   const drawer = page.locator(`[data-mvp-panel="${id}"]`);
   if (await drawer.count()) return drawer;
+  await closeBuild(page);
   if (await page.locator('[data-mvp-panel]').count()) await closeAsset(page);
   await page.locator(`[data-asset-tile="${id}"] [data-tile-versions]`).click();
   await drawer.waitFor({ timeout: 15000 });
@@ -144,6 +152,7 @@ export async function closeAsset(page) {
 export async function openFeatures(page) {
   const dialog = page.locator('[data-vibe-features-dialog]');
   if (await dialog.count()) return dialog;
+  await closeBuild(page);
   if (await page.locator('[data-mvp-panel]').count()) await closeAsset(page);
   await page.locator('[data-vibe-features]').click();
   await dialog.waitFor({ timeout: 15000 });

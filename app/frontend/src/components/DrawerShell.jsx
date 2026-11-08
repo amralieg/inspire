@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import { X } from 'lucide-react';
 import BodyPortal from './BodyPortal';
 
-export default function DrawerShell({ label, closeLabel, focusKey = null, onClose, title, actions = null, below = null, footer = null, center = false, children, ...rest }) {
+export default function DrawerShell({ label, closeLabel, focusKey = null, onClose, title, actions = null, below = null, footer = null, center = false, side = false, bodyRef = null, bodyProps = {}, children, ...rest }) {
   const panelRef = useRef(null);
   const openerRef = useRef(null);
 
@@ -21,25 +21,27 @@ export default function DrawerShell({ label, closeLabel, focusKey = null, onClos
   useEffect(() => {
     const onKey = (e) => {
       if (e.key !== 'Escape') return;
+      if (side && document.querySelector('[aria-modal="true"]')) return;
       e.preventDefault();
       onClose?.();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
+  }, [onClose, side]);
 
   return (
     <BodyPortal>
-      <div className={`fixed inset-0 z-[70] flex ${center ? 'items-center justify-center p-4' : 'justify-end'}`} {...rest}>
-        <button type="button" aria-label={closeLabel} className="absolute inset-0 bg-black/40 cursor-default" onClick={onClose} />
+      <div className={`fixed inset-0 flex ${side ? 'z-[45] pointer-events-none' : 'z-[70]'} ${center ? 'items-center justify-center p-4' : 'justify-end'}`} {...rest}>
+        {!side && <button type="button" aria-label={closeLabel} className="absolute inset-0 bg-black/40 cursor-default" onClick={onClose} />}
         <div
           ref={panelRef}
           tabIndex={-1}
           role="dialog"
-          aria-modal="true"
+          aria-modal={side ? 'false' : 'true'}
           aria-label={label}
-          className={`relative flex w-full flex-col bg-surface shadow-elevated outline-none ${
-            center ? 'max-h-[92dvh] max-w-[44rem] rounded-xl border border-border' : 'h-full max-w-[46rem] border-s border-border'}`}
+          className={`relative flex w-full flex-col bg-surface shadow-elevated outline-none ${side ? 'pointer-events-auto' : ''} ${
+            center ? 'max-h-[92dvh] max-w-[44rem] rounded-xl border border-border'
+              : `h-full border-s border-border ${side ? 'md:w-[max(34rem,56vw)] md:max-w-[64rem]' : 'max-w-[46rem]'}`}`}
         >
           <div className="shrink-0 border-b border-border px-6 pt-5 pb-4">
             <div className="flex items-start gap-3">
@@ -54,7 +56,7 @@ export default function DrawerShell({ label, closeLabel, focusKey = null, onClos
             {below}
           </div>
 
-          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 py-5">
+          <div ref={bodyRef} className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 py-5" {...bodyProps}>
             {children}
           </div>
 

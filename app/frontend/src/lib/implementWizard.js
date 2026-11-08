@@ -2502,6 +2502,8 @@ export function statusChip(status, stalled = null) {
   return { label: s || 'New', tone: 'idle' };
 }
 
+export const UNRELIABLE_FIX = 'change the data or the method so the run passes what it missed';
+
 export function statusReason(latest, stalled = null) {
   const s = String(latest?.status || '');
   if (runStopped(s, stalled)) {
@@ -2515,10 +2517,10 @@ export function statusReason(latest, stalled = null) {
     const heldAtBuild = latest?.asset_status?.[NOT_RELIABLE_RECORD];
     const appHeld = heldAtBuild && typeof heldAtBuild === 'object' && String(heldAtBuild.spec_version ?? '') === String(latest?.spec_version ?? '');
     const app = appHeld && heldAtBuild.app === UNTRUSTED_APP_PUBLISHED
-      ? `The App is published with a ${UNTRUSTED_BANNER} banner${heldAtBuild.monitor === true ? ' and every row in Monitor' : ''} until a run can be trusted.`
-      : appHeld ? 'The App is not published until a run can be trusted.' : `Its App pages show ${UNTRUSTED_BANNER} until a run can be trusted.`;
-    return `The latest run marked its results not reliable: ${unreliable.replace(/[.\s]+$/, '')}. ${app} `
-      + `Next step: fix what it names, then build again with ${VIBE_FEATURES_LABEL}.`;
+      ? `The App is published with a ${UNTRUSTED_BANNER} banner${heldAtBuild.monitor === true ? ' and every row in Monitor' : ''} until a run passes.`
+      : appHeld ? 'The App is not published until a run passes.' : `Its App pages show ${UNTRUSTED_BANNER} until a run passes.`;
+    return `The latest run's results are not reliable yet: ${unreliable.replace(/[.\s]+$/, '')}. ${app} `
+      + `Next step: ${UNRELIABLE_FIX}, then build again with ${VIBE_FEATURES_LABEL}.`;
   }
   if (!['ready_with_warnings', 'failed'].includes(s)) return '';
   return String(latest?.status_message || '').trim();

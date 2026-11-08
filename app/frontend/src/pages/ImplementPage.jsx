@@ -809,7 +809,6 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
   const useCaseId = item.id;
   const hasMvp = Boolean(item.latest);
   const viewId = useId();
-  const boxRef = useRef(null);
   const logRef = useRef(null);
   const [status, setStatus] = useState(null);
   const [drawer, setDrawer] = useState(null);
@@ -988,11 +987,7 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
     setCardFailed(false);
     setDrawer(id);
   };
-  const showBuild = () => {
-    progressView.expand();
-    boxRef.current?.scrollIntoView?.({ block: 'nearest', behavior: reducedMotion() ? 'auto' : 'smooth' });
-    boxRef.current?.focus({ preventScroll: true });
-  };
+  const showBuild = () => progressView.show();
 
   const rerun = async () => {
     setRerunBusy(true);
@@ -1085,7 +1080,7 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
   const kept = keptVersions(history);
   const checklist = useMemo(() => vibeChecklist(status?.steps, latest), [status?.steps, latest]);
   const held = heldVersion(latest, status?.history ?? null);
-  const progressView = useProgressView(useCaseId, progress.active, progress.active || Boolean(held) || Boolean(checklist?.notDecided));
+  const progressView = useProgressView(useCaseId, Boolean(held) || Boolean(checklist?.notDecided));
   const heldAction = (kind, run) => async () => {
     setHeldBusy(kind);
     const ok = await run();
@@ -1702,7 +1697,7 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
           {collectError && <p className={`${ERROR_BOX} shrink-0`}>{collectError}</p>}
           {tileRow}
           <MvpProgress stages={stages} summary={progress} chip={chip} reason={reason} toneClass={toneClass} version={latest?.spec_version} sorted={sorted}
-            stop={stop} boxRef={boxRef} logRef={logRef} view={progressView} warnings={statusWarnings(latest).length} attention={needsAttention ? attention : null}>
+            stop={stop} logRef={logRef} view={progressView} warnings={statusWarnings(latest).length} attention={needsAttention ? attention : null}>
             <VibeChecklist checklist={checklist} assets={latest?.asset_status} readOnly={readOnly} locked={locked} lockedReason={lockedReason} busy={submitBusy}
               onSendAgain={buildAgain && !terminal ? () => sendAgain() : undefined} onEdit={onEdit ? () => openFeatures() : undefined} />
             <StageNotes stages={stages} />

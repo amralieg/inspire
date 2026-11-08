@@ -1,5 +1,6 @@
 import { useId } from 'react';
-import { AlertTriangle, ArrowRight, Check, CheckCircle2, ChevronDown, Circle, Loader2, Maximize2, Minimize2, X, XCircle } from 'lucide-react';
+import { AlertTriangle, ArrowRight, Check, CheckCircle2, Circle, Loader2, PanelRightOpen, X, XCircle } from 'lucide-react';
+import DrawerShell from './DrawerShell';
 import GenieLogo from './GenieLogo';
 import { IconChip, PANEL_CLASS } from './BuildUi';
 import { progressPercent, stageSteps, stagesRecorded } from '../lib/mvpProgress';
@@ -141,83 +142,62 @@ export function ScopeNotes({ scope }) {
   );
 }
 
-const TOGGLE_CLASS = 'shrink-0 inline-flex h-7 w-7 items-center justify-center rounded-lg border border-border bg-surface text-text-secondary hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-db-red/40';
+const SHOW_CLASS = 'shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border border-border bg-surface text-text-primary hover:bg-bg-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-db-red/40';
 
-function sizeClass(view, active) {
-  if (!view.open) return 'shrink-0';
-  if (view.large) return 'min-h-[40rem] md:min-h-[80vh]';
-  return `${active ? 'min-h-[32rem]' : 'min-h-[24rem]'} md:min-h-min md:flex-1`;
-}
-
-function logClass(view, active) {
-  if (view.large) return 'min-h-[28rem] md:min-h-[70vh] flex-1';
-  return `${active ? 'min-h-40 md:min-h-72' : 'min-h-40'} flex-1 md:basis-40`;
+function Heading({ title, active, tone, line, lineClass }) {
+  return (
+    <div className="flex min-w-0 flex-1 items-center gap-2.5">
+      <StatusMark active={active} tone={tone} />
+      <div className="min-w-0">
+        <h3 className="text-[13px] font-bold text-text-primary">{title}</h3>
+        <p data-build-headline="" className={`text-[12px] truncate ${lineClass}`}>{line}</p>
+      </div>
+    </div>
+  );
 }
 
 export default function MvpProgress({
-  stages, summary, chip, reason, toneClass, version, sorted = null, stop = null, boxRef = null, logRef = null, view, warnings = 0, attention = null, children,
+  stages, summary, chip, reason, toneClass, version, sorted = null, stop = null, logRef = null, view, warnings = 0, attention = null, children,
 }) {
-  const bodyId = useId();
+  const panelId = useId();
   const headline = summary.headline || chip?.label || '';
   const title = `Build progress${version ? ` · v${version}` : ''}`;
   const line = [headline, summary.span, warnings ? plural(warnings, 'warning') : ''].filter(Boolean).join(' · ');
-  const toggleLabel = view.open ? 'Collapse the build progress' : 'Expand the build progress';
+  const lineClass = summary.headline ? 'text-text-secondary' : toneClass(chip?.tone);
+  const chips = stagesRecorded(stages) ? <StageArrows stages={stages} /> : null;
   return (
-    <section ref={boxRef} tabIndex={-1} aria-label="Build progress" data-mvp-progress="" data-progress-open={view.open ? 'true' : 'false'}
-      data-progress-large={view.large ? 'true' : undefined}
-      className={`${PANEL_CLASS} flex flex-col ${sizeClass(view, summary.active)} focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-db-red/40`}>
-      {!view.open ? (
-        <div className="flex items-center gap-2 px-4 py-2.5 min-w-0">
-          <button type="button" data-progress-toggle="" aria-expanded="false" aria-controls={bodyId} aria-label={toggleLabel} onClick={view.toggle}
-            className="flex min-w-0 flex-1 items-center gap-2.5 rounded-lg text-start focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-db-red/40">
-            <StatusMark active={summary.active} tone={chip?.tone} />
-            <span className="min-w-0 flex-1">
-              <span className="block text-[13px] font-bold text-text-primary">{title}</span>
-              <span data-build-summary="" className="flex min-w-0 items-baseline gap-1.5 text-[12px]">
-                <span className={`shrink-0 ${summary.headline ? 'text-text-secondary' : toneClass(chip?.tone)}`}>{line}</span>
-                {reason && <span data-build-summary-reason="" title={reason} className={`min-w-0 truncate ${toneClass(chip?.tone)}`}>· {reason}</span>}
-              </span>
-            </span>
-            <ChevronDown size={14} aria-hidden className="shrink-0 text-text-secondary" />
+    <>
+      <section aria-label="Build progress" data-progress-card="" data-progress-open={view.open ? 'true' : 'false'}
+        className={`${PANEL_CLASS} shrink-0 px-4 py-3 space-y-3`}>
+        <div className="flex flex-wrap items-center gap-2">
+          <Heading title={title} active={summary.active} tone={chip?.tone} line={line} lineClass={lineClass} />
+          {!view.open && stop}
+          <button type="button" data-progress-show="" aria-expanded={view.open} aria-controls={view.open ? panelId : undefined}
+            onClick={view.open ? view.close : view.show} className={SHOW_CLASS}>
+            <PanelRightOpen size={13} aria-hidden /> {view.open ? 'Hide progress' : 'Show progress'}
           </button>
-          {stop}
         </div>
-      ) : null}
-      {!view.open && attention && <div data-build-attention="" className="px-4 pb-3 space-y-3">{attention}</div>}
+        {!view.open && reason && <p data-build-summary-reason="" title={reason} className={`text-[12px] line-clamp-2 ${toneClass(chip?.tone)}`}>{reason}</p>}
+        {!view.open && chips}
+        {!view.open && attention && <div data-build-attention="" className="space-y-3">{attention}</div>}
+      </section>
       {view.open && (
-        <div className="shrink-0 px-4 pt-3 pb-3 space-y-3 border-b border-border">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="flex items-center gap-2.5 min-w-0">
-              <StatusMark active={summary.active} tone={chip?.tone} />
-              <div className="min-w-0">
-                <h3 className="text-[13px] font-bold text-text-primary">{title}</h3>
-                <p data-build-headline="" className={`text-[12px] truncate ${summary.headline ? 'text-text-secondary' : toneClass(chip?.tone)}`}>
-                  {headline}{summary.span ? ` · ${summary.span}` : ''}
-                </p>
-              </div>
+        <DrawerShell side label={title} onClose={view.close} id={panelId} data-mvp-progress="" data-progress-panel=""
+          bodyRef={logRef} bodyProps={{ 'data-build-log': '', className: 'min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-4 space-y-4' }}
+          title={<Heading title={title} active={summary.active} tone={chip?.tone} line={`${headline}${summary.span ? ` · ${summary.span}` : ''}`} lineClass={lineClass} />}
+          actions={stop}
+          below={(
+            <div className="mt-3 space-y-3">
+              {summary.detail && <p className="text-[12px] text-text-secondary">{summary.detail}</p>}
+              {reason && <p data-build-reason="" className={`text-[12px] ${toneClass(chip?.tone)}`}>{reason}</p>}
+              {chips}
+              {sorted && <p data-sorted-to="" className="text-[12px] font-medium text-text-primary">{sorted.text}</p>}
             </div>
-            <div className="flex items-center gap-1.5">
-              {stop}
-              <button type="button" data-progress-enlarge="" aria-pressed={view.large} aria-label={view.large ? 'Make the build progress smaller' : 'Make the build progress larger'}
-                title={view.large ? 'Smaller' : 'Larger'} onClick={view.enlarge} className={TOGGLE_CLASS}>
-                {view.large ? <Minimize2 size={13} aria-hidden /> : <Maximize2 size={13} aria-hidden />}
-              </button>
-              <button type="button" data-progress-toggle="" aria-expanded="true" aria-controls={bodyId} aria-label={toggleLabel} title="Collapse" onClick={view.toggle}
-                className={TOGGLE_CLASS}>
-                <ChevronDown size={14} aria-hidden className="rotate-180" />
-              </button>
-            </div>
-          </div>
-          {summary.detail && <p className="text-[12px] text-text-secondary">{summary.detail}</p>}
-          {reason && <p data-build-reason="" className={`text-[12px] ${toneClass(chip?.tone)}`}>{reason}</p>}
-          {stagesRecorded(stages) && <StageArrows stages={stages} />}
-          {sorted && <p data-sorted-to="" className="text-[12px] font-medium text-text-primary">{sorted.text}</p>}
-        </div>
+          )}>
+          {attention}
+          {children}
+        </DrawerShell>
       )}
-      <div ref={logRef} data-build-log="" className={`${logClass(view, summary.active)} overflow-y-auto overscroll-contain p-4 space-y-4`} id={bodyId} hidden={!view.open}>
-        {view.open && attention}
-        {children}
-      </div>
-    </section>
+    </>
   );
 }

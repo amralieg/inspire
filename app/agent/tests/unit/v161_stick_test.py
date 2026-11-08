@@ -160,7 +160,11 @@ def test_a_run_whose_model_missed_acceptance_writes_no_actionable_row_and_says_i
 
 
 @pytest.mark.parametrize("found,accepted,given,reason", [
-    ({"records": 4}, False, "", "No model passed this use case's acceptance check in the last run."),
+    ({"records": 4}, False, "", "No model passed this use case's acceptance check in the last run; the run did not say which threshold "
+     "the model missed or what it measured, so build the notebook again with Vibe/Add/Remove Features on the Build page so it names them."),
+    ({"records": 4}, False, "the candidate did not clear the out-of-time acceptance thresholds",
+     "the candidate did not clear the out-of-time acceptance thresholds; the run did not say which threshold the model missed or what it "
+     "measured, so build the notebook again with Vibe/Add/Remove Features on the Build page so it names them."),
     ({"records": 4}, False, "  AUC 0.55 is below 0.60.  ", "AUC 0.55 is below 0.60."),
     ({"records": 3, "flagged_records": 3, "top_flag": "data ends 2026-08-31"}, None, "",
      "Every record has a data quality issue, most often: data ends 2026-08-31."),
@@ -181,6 +185,52 @@ def test_the_write_hands_the_run_s_acceptance_to_the_merge(fresh_ns):
     for accepted in (None, True, False):
         assert fresh_ns["inspire_write_result"](frame, TABLE, spark_session=FakeSpark(), out=lambda *_a: None, accepted=accepted) == 3
     assert seen == [None, True, False]
+
+
+def _write_missed(fresh_ns, widgets, **kw):
+    seen = []
+    fresh_ns["INSPIRE_SETTINGS_APPLIED"] = widgets
+    fresh_ns["inspire_merge_run"] = lambda spark, table, stage, **given: seen.append(given.get("nothing_to_act")) or 3
+    frame = types.SimpleNamespace(schema=types.SimpleNamespace(fields=[]), write=types.SimpleNamespace(
+        mode=lambda *_a: types.SimpleNamespace(option=lambda *_b: types.SimpleNamespace(saveAsTable=lambda *_c: None))))
+    fresh_ns["inspire_write_result"](frame, TABLE, spark_session=FakeSpark(), out=lambda *_a: None, **kw)
+    return seen[0]
+
+
+def test_a_run_that_missed_acceptance_names_each_threshold_it_missed_with_the_bar_and_the_measured_value(fresh_ns):
+    said = _write_missed(fresh_ns, {"min_auc": "0.7", "max_mase": "1"}, accepted=False, missed={"min_auc": 0.58, "max_mase": 1.25},
+                         nothing_to_act="the candidate did not clear the out-of-time acceptance thresholds")
+    assert said == ("No model passed this use case's acceptance check in the last run: Minimum AUC to accept a model is 0.7, and this "
+                    "run measured 0.58; Maximum MASE to accept a forecast is 1, and this run measured 1.25.")
+    assert fresh_ns["inspire_not_reliable"]({"records": 4}, False, said) == said
+    assert _write_missed(fresh_ns, {}, accepted=False, nothing_to_act="AUC 0.55 is below 0.60.") == "AUC 0.55 is below 0.60."
+
+
+@pytest.mark.parametrize("widgets,kw,error", [
+    ({"min_auc": "0.7"}, {"accepted": True, "missed": {"min_auc": 0.58}}, "takes missed= only with accepted=False"),
+    ({"min_auc": "0.7"}, {"accepted": False, "missed": {}}, "takes missed={<threshold widget>: <measured value>}"),
+    ({"min_auc": "0.7"}, {"accepted": False, "missed": {"auc": 0.58}}, "keyed by a threshold widget"),
+    ({"min_auc": "0.7"}, {"accepted": False, "missed": {"min_auc": "0.58"}}, "with a number, not '0.58'"),
+    ({"min_auc": "0.7"}, {"accepted": False, "missed": {"min_auc": float("nan")}}, "with a number"),
+    ({}, {"accepted": False, "missed": {"min_auc": 0.58}}, "has no min_auc widget holding a number"),
+    ({"min_auc": "0.7"}, {"accepted": False, "missed": {"min_auc": 0.71}}, "it measured 0.71 and the bar is 0.7, which it meets"),
+    ({"max_mase": "1"}, {"accepted": False, "missed": {"max_mase": 0.9}}, "it measured 0.9 and the bar is 1, which it meets"),
+])
+def test_a_missed_threshold_the_run_cannot_back_with_a_bar_and_a_failing_value_stops_the_write(fresh_ns, widgets, kw, error):
+    with pytest.raises(ValueError, match=re.escape(error)):
+        _write_missed(fresh_ns, widgets, **kw)
+
+
+def test_the_threshold_labels_come_from_the_widget_labels_and_ship_in_the_run_controls(agent_ns):
+    labels = agent_ns["INSPIRE_THRESHOLD_LABELS"]
+    assert labels["min_auc"] == agent_ns["GENIE_WIDGET_LABELS"]["min_auc"] and "result_table" not in labels
+    assert all(name.startswith(("min_", "max_")) for name in labels) and len(labels) >= 20
+    source = agent_ns["IMPLEMENT_RESULT_HISTORY_SOURCE"]
+    assert "INSPIRE_THRESHOLD_LABELS = {}" in source, "a run without the labels still loads"
+    for rule in (agent_ns["GENIE_PREDICTED_ACCEPTED_RULE"], agent_ns["GENIE_MEASURED_TIER_RULE"]):
+        assert "missed={'min_auc': 0.58}" in rule and "the metrics that missed" not in rule
+    note = agent_ns["IMPLEMENT_UNRELIABLE_NOTE"].format(reason="r.", method="m")
+    assert "inspire_write_result(..., accepted=False, missed={<threshold widget>: <measured value>})" in note
 
 
 def test_a_stopped_run_records_why_it_is_not_reliable_yet_for_the_app_the_alert_and_the_email(agent_ns):

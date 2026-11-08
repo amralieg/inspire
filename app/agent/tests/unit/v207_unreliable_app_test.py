@@ -47,7 +47,7 @@ def test_an_app_whose_run_is_not_reliable_is_not_published_and_says_why_and_the_
     assert final["asset_status"][agent_ns["IMPLEMENT_NOT_RELIABLE"]] == {"reason": REASON, "spec_version": 3}
     said = agent_ns["implement_unreliable_app_text"](REASON)
     assert final["status_message"].startswith(f"App not published: {agent_ns['implement_short_reason'](REASON)}")
-    assert said in final["status_message"] and said.startswith("App: not published, because the latest run marked its results not reliable")
+    assert said in final["status_message"] and said.startswith("App: not published, because the latest run's results are not reliable yet")
     assert said.endswith("build it again with Vibe/Add/Remove Features on the Build page")
     assert any("[UNRELIABLE-HOLD FIRED]" in str(e.get("message") or e.get("result_json") or e) for e in emitted if e.get("step_name") == "App")
     assert status != "ready"

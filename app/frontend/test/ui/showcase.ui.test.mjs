@@ -85,8 +85,7 @@ const demoWrite = (page, pathname) => page.evaluate(async ([to, header, id]) => 
   const r = await fetch(to, { method: 'POST', headers: { [header]: id, 'Content-Type': 'application/json' }, body: '{}' });
   return { status: r.status, error: (await r.json()).error };
 }, [pathname, SHOWCASE_HEADER, DEMO.id]);
-const READ_CONTROLS = ['Use case details', 'Check the live status now', 'Jump to latest', 'Search use cases', 'Close', 'Expand the build progress', 'Collapse the build progress',
-  'Make the build progress larger', 'Make the build progress smaller'];
+const READ_CONTROLS = ['Use case details', 'Check the live status now', 'Jump to latest', 'Search use cases', 'Close', 'Show progress', 'Hide progress'];
 const READ_NAMES = [/^Versions of the /, /^Close the /, /\. Show (why|the build progress)$/];
 const READ_PLACES = ['tab', 'use case list', 'asset filter', 'History'];
 const readsOnly = (c) => READ_PLACES.includes(c.place) || READ_CONTROLS.includes(c.name) || READ_NAMES.some((name) => name.test(c.name));
@@ -257,7 +256,7 @@ test('the demo replays every view from the bundle with no workspace call, refuse
     const alertChip = page.locator('[data-asset-filter="alert"]');
     assert.match((await alertChip.innerText()).replace(/\s+/g, ' ').trim(), /^Alert [1-9]\d*$/, 'the demo counts its built alert, never Alert 0');
     assert.equal(await alertChip.isDisabled(), false);
-    await page.locator('[data-mvp-progress]').waitFor();
+    await page.locator('[data-progress-card]').waitFor();
     assert.equal(await page.locator('[data-mvp-panel]').count(), 0, 'a ready MVP opens on its tiles and its Build progress, with no drawer open');
     for (const name of ['Vibe/Add/Remove Features (0)', 'Uninstall all', START_MVP_LABEL]) assert.equal(await page.getByRole('button', { name, exact: true }).count(), 0, name);
     assert.equal(await page.locator('[data-vibe-features]').count(), 0, 'no Vibe/Add/Remove Features, with or without vibes waiting');
@@ -535,8 +534,8 @@ test('the demo disables every control that writes in Build progress, on every ti
     await showView(page, 'notebook');
     assert.equal(await page.locator('[data-mvp-panel="notebook"]').getByRole('region', { name: 'Target KPI', exact: true }).locator('p').textContent(),
       'No target KPI yet: this version was built before Inspire tracked one. The next version Inspire builds picks one.', 'the demo never points at Vibe/Add/Remove Features, which it hides');
-    assert.deepEqual([...reads].sort(), ['Check the live status now', 'Close', 'Close the asset', 'Collapse the build progress', 'Genie Agent: Failed. Show why', 'History',
-      'Make the build progress larger', 'Search use cases', 'Use case details', 'Versions of the asset', 'asset filter', 'use case list'], 'the controls left enabled are the ones that read');
+    assert.deepEqual([...reads].sort(), ['Check the live status now', 'Close', 'Close the asset', 'Genie Agent: Failed. Show why', 'Hide progress', 'History',
+      'Search use cases', 'Show progress', 'Use case details', 'Versions of the asset', 'asset filter', 'use case list'], 'the controls left enabled are the ones that read');
     await showView(page, 'dashboard');
     const card = page.locator('[data-vibe-card="dashboard"]');
     assert.equal(await card.count(), 1, 'the dashboard card still shows what was asked and how it was checked');
@@ -555,7 +554,7 @@ test('the demo disables every control that writes in Build progress, on every ti
     [[EDITED_NOTEBOOK, built()], 'Rebuild and overwrite the edits']]) {
     const failed = await openDemoBuild(history);
     try {
-      await failed.page.locator('[data-mvp-progress]').waitFor();
+      await failed.page.locator('[data-progress-card]').waitFor();
       await failed.page.getByRole('button', { name: write }).waitFor();
       assert.equal(await failed.page.getByRole('button', { name: write }).isDisabled(), true, `${write} waits outside the demo`);
       await sweepView(failed.page, `build (${write})`);

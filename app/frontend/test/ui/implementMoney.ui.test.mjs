@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { defaultSpecFromUseCase, inspireSchemaResultTable } from '../../src/lib/implementWizard.js';
 import { HARNESS_USE_CASE, HARNESS_SETTINGS, HARNESS_SESSION_ID } from './implementFixtures.js';
-import { closeBrowser, expandBuild, lowContrast, openAsset, openUi } from './uiSupport.mjs';
+import { closeAsset, closeBrowser, expandBuild, lowContrast, openAsset, openUi } from './uiSupport.mjs';
 
 const OWNER = ['owner', 'example.com'].join('@');
 
@@ -28,6 +28,13 @@ const SUMMARY = {
 };
 const EDITS = [{ name: 'PRICE', value: '30', changed_by: OWNER, changed_at: '2026-10-23T09:00:00Z', note: 'list price' },
   { name: 'PRICE', value: '25', changed_by: OWNER, changed_at: '2026-10-22T09:00:00Z', note: '' }];
+
+async function inBuild(page, locator) {
+  await closeAsset(page);
+  await expandBuild(page);
+  await locator.waitFor();
+  return locator;
+}
 
 async function openMoney(state) {
   const ui = await openUi('implement', { history: [BUILT], ...state });
@@ -78,8 +85,7 @@ test('the Money at stake part shows the formula Genie proposed, its assumptions 
 test('an MVP whose last run has nothing to act on says so in a plain card with the run reason, and one with records to act on shows no card', async () => {
   const ui = await openMoney({ moneySummary: [SUMMARY], moneyEdits: [] });
   try {
-    const card = ui.page.getByRole('status').filter({ hasText: 'Nothing to act on yet' });
-    await card.waitFor();
+    const card = await inBuild(ui.page, ui.page.getByRole('status').filter({ hasText: 'Nothing to act on yet' }));
     assert.equal(await card.textContent(), 'Nothing to act on yet, because no record has 1,000 USD or more at stake, the amount this use case reviews from; the most at stake on '
       + 'one record is 812.5 USD.');
     assert.deepEqual(ui.pageErrors, []);
@@ -95,19 +101,19 @@ test('an MVP whose last run has nothing to act on says so in a plain card with t
   }
   const predicted = await openMoney({ moneySummary: [{ ...SUMMARY, decision_basis: 'predicted', accepted: false, nothing_to_act: null }] });
   try {
-    await predicted.page.getByText('Nothing to act on yet, because no record reached Act now or Review in the last run').waitFor();
     assert.equal(await predicted.card.locator('[data-tiers]').textContent(),
       'No model passed this use case\u2019s acceptance check in the last run, so no row is actionable yet.');
+    await inBuild(predicted.page, predicted.page.getByText('Nothing to act on yet, because no record reached Act now or Review in the last run'));
   } finally {
     await predicted.close();
   }
   const held = await openMoney({ moneySummary: [{ ...SUMMARY, decision_basis: 'predicted', accepted: true,
     nothing_to_act: 'The test flags every series, so every record stays at Monitor' }] });
   try {
-    await held.page.getByText('Nothing to act on yet, because the test flags every series, so every record stays at Monitor').waitFor();
     const tiers = await held.card.locator('[data-tiers]').textContent();
     assert.equal(tiers, 'A model passed this use case\u2019s acceptance check in the last run, so acceptance no longer holds its rows at Monitor.');
     assert.ok(!tiers.includes('can be acted on'), 'a passed acceptance check never says rows can be acted on while every row is held at Monitor');
+    await inBuild(held.page, held.page.getByText('Nothing to act on yet, because the test flags every series, so every record stays at Monitor'));
   } finally {
     await held.close();
   }
@@ -188,8 +194,7 @@ test('a run that is not reliable yet says so first with its reason, in a card na
   for (const extra of [{}, { act_now_records: '12', review_records: '4', nothing_to_act: null }]) {
     const ui = await openMoney({ moneySummary: [{ ...SUMMARY, ...extra, not_reliable: UNRELIABLE }], moneyEdits: [] });
     try {
-      const card = ui.page.getByRole('status', { name: 'Not reliable yet' });
-      await card.waitFor();
+      const card = await inBuild(ui.page, ui.page.getByRole('status', { name: 'Not reliable yet' }));
       assert.equal((await card.textContent()).trim(), `Not reliable yet: ${UNRELIABLE}`, JSON.stringify(extra));
       assert.equal(await ui.page.getByRole('status', { name: 'Nothing to act on yet' }).count(), 0);
       assert.equal(await ui.page.getByText('Nothing to act on yet', { exact: false }).count(), 0, 'the reason is never the nothing-to-act one');

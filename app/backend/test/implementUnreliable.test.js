@@ -14,8 +14,8 @@ test('a build whose run is not reliable is never shown as ready, and says why an
     assert.deepEqual(state, { group: 'held', label: W.UNRELIABLE_LABEL, tone: 'warning', kind: 'mvp' }, status);
     assert.doesNotMatch(state.label, /ready/i);
     const said = W.statusReason(row(status, { reason: REASON, spec_version: 3 }));
-    assert.equal(said, `The latest run marked its results not reliable: ${REASON}. The App is not published until a run can be trusted. `
-      + 'Next step: fix what it names, then build again with Vibe/Add/Remove Features.');
+    assert.equal(said, `The latest run's results are not reliable yet: ${REASON}. The App is not published until a run passes. `
+      + 'Next step: change the data or the method so the run passes what it missed, then build again with Vibe/Add/Remove Features.');
   }
   const groups = W.implementGroups([{ id: 'N01-U01', Name: 'x' }], [row('ready_with_warnings', { reason: REASON, spec_version: 3 })], null);
   assert.equal(groups.find((g) => g.id === 'attention').items.length, 1, 'it sits under Needs attention, not Ready');
@@ -25,14 +25,14 @@ test('a build whose run is not reliable is never shown as ready, and says why an
 test('a first build whose run is not reliable says the App is published with the banner, and an App held back says so (must-exclude)', async () => {
   const W = await lib('implementWizard.js');
   const said = W.statusReason(row('ready_with_warnings', { reason: REASON, spec_version: 3, app: W.UNTRUSTED_APP_PUBLISHED, monitor: true }));
-  assert.equal(said, `The latest run marked its results not reliable: ${REASON}. The App is published with a Results not trusted yet banner `
-    + 'and every row in Monitor until a run can be trusted. Next step: fix what it names, then build again with Vibe/Add/Remove Features.');
+  assert.equal(said, `The latest run's results are not reliable yet: ${REASON}. The App is published with a Results not trusted yet banner `
+    + 'and every row in Monitor until a run passes. Next step: change the data or the method so the run passes what it missed, then build again with Vibe/Add/Remove Features.');
   assert.doesNotMatch(said, /not published/);
   const stopped = W.statusReason(row('ready_with_warnings', { reason: REASON, spec_version: 3, app: W.UNTRUSTED_APP_PUBLISHED }));
-  assert.match(stopped, /The App is published with a Results not trusted yet banner until a run can be trusted/);
+  assert.match(stopped, /The App is published with a Results not trusted yet banner until a run passes/);
   assert.doesNotMatch(stopped, /Monitor/, 'no claim about the rows when the run did not show they are all Monitor');
   const held = W.statusReason(row('ready_with_warnings', { reason: REASON, spec_version: 3 }));
-  assert.match(held, /The App is not published until a run can be trusted/);
+  assert.match(held, /The App is not published until a run passes/);
   assert.equal(W.UNTRUSTED_BANNER, 'Results not trusted yet');
   assert.equal(W.UNTRUSTED_APP_PUBLISHED, 'published', 'the agent writes this value');
 });
