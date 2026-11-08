@@ -161,7 +161,7 @@ function serveDist(route, distDir, pathname) {
   return route.fulfill({ status: 200, contentType: TYPES[path.extname(found)] || 'application/octet-stream', body: fs.readFileSync(found) });
 }
 
-export async function routeInspireDemo(page, { origin, distDir = '', summary, real, authHeaders = {}, exchanges, blocked }) {
+export async function routeInspireDemo(page, { origin, distDir = '', summary, real, authHeaders = {}, exchanges, blocked, passed = () => {} }) {
   for (const k of REAL_KEYS) if (!real[k]) throw new Error(`the Inspire App has no ${k}, so the demo cannot be recorded`);
   await page.route((u) => u.origin === origin, async (route) => {
     const request = route.request();
@@ -173,8 +173,10 @@ export async function routeInspireDemo(page, { origin, distDir = '', summary, re
       const { [SHOWCASE_HEADER]: demo, ...headers } = request.headers();
       if (!demo) return route.continue({ headers: { ...headers, ...authHeaders } });
       if (!showcaseCanRead(request.method(), url.pathname)) return refuse(route, blocked, request.method(), url.pathname);
-      return passOn(route, exchanges, { ...withReal(request.url(), request.postData(), real), headers: { ...headers, ...authHeaders } },
+      const sending = passOn(route, exchanges, { ...withReal(request.url(), request.postData(), real), headers: { ...headers, ...authHeaders } },
         (body) => demoView(request.method(), request.url(), body, summary.session_id));
+      sending.then(() => passed({ path: url.pathname, error: null }), (error) => passed({ path: url.pathname, error }));
+      return sending;
     }
     return distDir ? serveDist(route, distDir, url.pathname) : route.continue();
   });

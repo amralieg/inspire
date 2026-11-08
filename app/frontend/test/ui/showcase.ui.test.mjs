@@ -649,18 +649,22 @@ test('a page closed while the recorder still passes a read on leaves no stray er
   };
   const exchanges = [];
   const blocked = [];
+  let late;
+  const lateDone = new Promise((resolve) => { late = resolve; });
   const ui = await openUi('app', STATE, '', {
     mount: slow,
     init: (page, origin) => routeInspireDemo(page, {
       origin, summary: { ...DEMO, session_id: '42', mvps: [] }, real: { inspire_database: DEFAULTS.inspireDatabase, warehouse_id: DEFAULTS.warehouseId },
-      exchanges, blocked,
+      exchanges, blocked, passed: (outcome) => { if (outcome.path === '/api/slow-read') late(outcome); },
     }),
   });
   try {
     await ui.page.evaluate(() => { fetch('/api/slow-read', { headers: { 'X-Inspire-Showcase': 'acme' } }).catch(() => null); });
     await reached;
     await ui.close();
-    await new Promise((resolve) => { setTimeout(resolve, 2500); });
+    const outcome = await lateDone;
+    await new Promise((resolve) => { setImmediate(resolve); });
+    assert.ok(outcome.error, 'the recorder could not hand the late answer to the closed page');
     assert.deepEqual(stray, []);
     assert.deepEqual(exchanges, [], 'a read the closed page never got is not recorded (must-exclude)');
   } finally {
