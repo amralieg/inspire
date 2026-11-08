@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { closeBrowser, openUi, until } from './uiSupport.mjs';
-import { replayWatch, openShowcase, tabButton, walkInspireDemo } from '../../../scripts/showcaseRecorder.mjs';
+import { WALK_PARTS, apiWatch, openShowcase, tabButton, walkInspireDemo } from '../../../scripts/showcaseRecorder.mjs';
 import { DEMO_LAYOUTS, DEMO_RECORDED, KINDS_DEMO, USE_CASES } from '../../../scripts/kindsShowcase.mjs';
 import { SHOWCASE_NOTE } from '../../src/lib/showcase.js';
 import { RUN_BACK } from '../../src/lib/runPages.js';
@@ -59,6 +59,7 @@ async function openDemoApp(dir, shellFiles = SHELL) {
   return { ...ui, made, missing, outside, framed };
 }
 
+const WALK_BUDGET_MS = 60000;
 const KINDS_FILE = `${KINDS_DEMO.id}.json.gz`;
 const REAL_SHELL = appShellFiles(appShellPayload(bundledAppShellText()));
 
@@ -131,7 +132,7 @@ test('Build shows Open MVP on every use case of the kinds demo, and each opens i
   const ui = await openKindsDemo();
   const { page } = ui;
   try {
-    const settle = replayWatch(page);
+    const settle = apiWatch(page);
     const layouts = new Set();
     for (const u of USE_CASES) {
       const frame = await openMvpFromBuild(page, settle, u);
@@ -185,7 +186,7 @@ test('Genie in a kinds demo MVP App answers a suggested question with the record
   const ui = await openKindsDemo();
   const { page } = ui;
   try {
-    const settle = replayWatch(page);
+    const settle = apiWatch(page);
     const u = USE_CASES[0];
     const frame = await openMvpFromBuild(page, settle, u);
     await frame.locator('header.top button.genie-btn').click();
@@ -203,43 +204,87 @@ test('Genie in a kinds demo MVP App answers a suggested question with the record
   }
 });
 
-for (const name of FILES) {
-  test(`See Demo opens ${name} and every view the recorder walked replays from the file, with no call to the workspace`, async (t) => {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'inspire-demo-'));
-    fs.copyFileSync(path.join(SHOWCASE_DIR, name), path.join(dir, name));
-    const bundle = Object.values(loadShowcases(dir))[0];
-    const ui = await openDemoApp(dir);
-    try {
-      const settle = replayWatch(ui.page);
-      const walk = await walkInspireDemo(ui.page, { settle, mvps: Object.keys(bundle.mvps).length > 0 });
-      const n = useCasesOf(bundle).length;
-      t.diagnostic(`${name}: ${fs.statSync(path.join(dir, name)).size} bytes, ${n} use cases`);
-      await demoBar(ui.page).locator('p').getByText(bundle.title, { exact: true }).waitFor();
-      assert.equal(walk.runs, 1, 'Review lists the demo run alone');
-      assert.equal(walk.results, n, 'Review shows every use case of the run');
-      assert.equal(walk.build.length, n, 'Build lists every use case of the run');
-      if (Object.keys(bundle.mvps).length) assert.deepEqual(walk.build.filter((b) => !b.tabs.length), [], 'every use case of a demo with MVP Apps is built');
-      else assert.deepEqual(walk.build.filter((b) => b.tabs.length), [], 'no use case of a results-only demo opens an MVP');
-      assert.equal(walk.start.runs, 1, 'Start lists the demo run alone');
-      assert.deepEqual(walk.monitor, { steps: true }, 'Monitor shows the steps of the run');
-      assert.deepEqual(ui.missing, [], 'every view the walk opened has a saved answer');
-      assert.deepEqual(ui.outside, [], 'every request in the demo was a demo request');
-      assert.equal(ui.made.sqlCalls.length, 0);
-      assert.equal(ui.made.fetches.length, 0);
-      assert.equal(ui.made.jobs.length, 0);
-      assert.deepEqual(ui.pageErrors.filter((e) => !/status of 40[34]/.test(e)), []);
-    } finally {
-      await ui.close();
-      fs.rmSync(dir, { recursive: true, force: true });
+const VIEWS_PER_TEST = 20;
+
+function demoWalks(name) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'inspire-demo-'));
+  fs.copyFileSync(path.join(SHOWCASE_DIR, name), path.join(dir, name));
+  const bundle = Object.values(loadShowcases(dir))[0];
+  fs.rmSync(dir, { recursive: true, force: true });
+  const n = useCasesOf(bundle).length;
+  const mvps = Object.keys(bundle.mvps).length > 0;
+  const walks = [{ label: 'Run', parts: ['run'] }, { label: 'Start and Monitor', parts: ['start', 'monitor'] }];
+  const groups = (part, label, per) => {
+    for (let from = 0; from < n; from += per) {
+      const to = Math.min(n, from + per);
+      walks.push({ label: `${label} use cases ${from + 1} to ${to} of ${n}`, parts: [part], useCases: [from, to] });
     }
+  };
+  groups('review', 'Review', VIEWS_PER_TEST);
+  groups('build', 'Build', Math.max(1, Math.floor(VIEWS_PER_TEST / (mvps ? MVP_VIEW_COUNT : 1))));
+  return { bundle, n, mvps, walks };
+}
+
+const MVP_VIEW_COUNT = 7;
+
+for (const name of FILES) {
+  const { bundle, n, mvps, walks } = demoWalks(name);
+  test(`the See Demo walks of ${name} cover every part of the App and every use case on Review and Build exactly once`, () => {
+    assert.deepEqual([...new Set(walks.flatMap((w) => w.parts))].sort(), [...WALK_PARTS].sort());
+    for (const part of ['review', 'build']) {
+      const covered = walks.filter((w) => w.parts.includes(part)).flatMap((w) => Array.from({ length: w.useCases[1] - w.useCases[0] }, (_, k) => w.useCases[0] + k));
+      assert.deepEqual(covered, Array.from({ length: n }, (_, k) => k), `${part} walks every use case exactly once`);
+    }
+    assert.ok(n > 0, `${name} has use cases`);
   });
+  for (const walkOf of walks) {
+    test(`See Demo opens ${name}: ${walkOf.label} replay from the file, with no call to the workspace`, async (t) => {
+      const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'inspire-demo-'));
+      fs.copyFileSync(path.join(SHOWCASE_DIR, name), path.join(dir, name));
+      const ui = await openDemoApp(dir);
+      try {
+        const settle = apiWatch(ui.page);
+        const started = Date.now();
+        const walk = await walkInspireDemo(ui.page, { settle, mvps, parts: walkOf.parts, useCases: walkOf.useCases });
+        const walked = Date.now() - started;
+        t.diagnostic(`${name}: ${walkOf.label} walked in ${walked} ms`);
+        assert.ok(walked < WALK_BUDGET_MS, `${walkOf.label} of ${name} replays in ${walked} ms, within ${WALK_BUDGET_MS} ms`);
+        await demoBar(ui.page).locator('p').getByText(bundle.title, { exact: true }).waitFor();
+        if (walkOf.parts.includes('build')) {
+          const [from, to] = walkOf.useCases;
+          assert.equal(walk.listed, n, 'Build lists every use case of the run');
+          assert.equal(walk.build.length, to - from, `Build opened use cases ${from + 1} to ${to}`);
+          assert.equal(new Set(walk.build.map((b) => b.name)).size, to - from, 'each use case opened is a different one');
+          if (mvps) assert.deepEqual(walk.build.filter((b) => !b.tabs.length), [], 'every use case of a demo with MVP Apps is built');
+          else assert.deepEqual(walk.build.filter((b) => b.tabs.length), [], 'no use case of a results-only demo opens an MVP');
+        }
+        if (walkOf.parts.includes('review')) {
+          assert.equal(walk.runs, 1, 'Review lists the demo run alone');
+          assert.equal(walk.results, n, 'Review shows every use case of the run');
+          assert.equal(walk.reviewed, walkOf.useCases[1] - walkOf.useCases[0], `Review opened use cases ${walkOf.useCases[0] + 1} to ${walkOf.useCases[1]}`);
+        }
+        if (walkOf.parts.includes('run')) assert.equal(walk.run, mvps ? n : 0, 'Run lists an MVP App for each use case of a demo with MVP Apps');
+        if (walkOf.parts.includes('start')) assert.equal(walk.start.runs, 1, 'Start lists the demo run alone');
+        if (walkOf.parts.includes('monitor')) assert.deepEqual(walk.monitor, { steps: true }, 'Monitor shows the steps of the run');
+        assert.deepEqual(ui.missing, [], 'every view the walk opened has a saved answer');
+        assert.deepEqual(ui.outside, [], 'every request in the demo was a demo request');
+        assert.equal(ui.made.sqlCalls.length, 0);
+        assert.equal(ui.made.fetches.length, 0);
+        assert.equal(ui.made.jobs.length, 0);
+        assert.deepEqual(ui.pageErrors.filter((e) => !/status of 40[34]/.test(e)), []);
+      } finally {
+        await ui.close();
+        fs.rmSync(dir, { recursive: true, force: true });
+      }
+    });
+  }
 }
 
 test('with more than one demo, the demo bar lists them and switches to the use cases of the one picked, and back', async () => {
   const ui = await openDemoApp(SHOWCASE_DIR);
   const { page } = ui;
   try {
-    const settle = replayWatch(page);
+    const settle = apiWatch(page);
     const [first, second] = Object.values(COMMITTED);
     const titles = Object.values(COMMITTED).map((b) => b.title);
     await openShowcase(page);
@@ -296,7 +341,7 @@ test('a kinds demo plan takes Accept, Override with a reason, refuses an Overrid
     assert.deepEqual([...new Set(plans.map((c) => c.mvp.layout))].sort(), ['forecast_cockpit', 'planner'], 'the demo carries both plan layouts');
     for (const u of plans) {
     decided.length = 0;
-    let frame = await openMvpFromBuild(page, replayWatch(page), u);
+    let frame = await openMvpFromBuild(page, apiWatch(page), u);
     const plan = () => frame.locator('section.plan');
     const rows = () => plan().locator('tbody tr[data-plan-row]');
     await rows().first().waitFor({ timeout: 60000 });
@@ -342,7 +387,7 @@ test('a kinds demo plan takes Accept, Override with a reason, refuses an Overrid
 
     await page.reload();
     await demoBar(page).getByText(SHOWCASE_NOTE).waitFor({ timeout: 60000 });
-    frame = await openMvpFromBuild(page, replayWatch(page), u);
+    frame = await openMvpFromBuild(page, apiWatch(page), u);
     await rows().first().waitFor({ timeout: 60000 });
     await until(async () => (await plan().locator('[data-decided]').count()) === keys.length, 'the decisions are still there after a refresh');
     assert.match((await line(keys[1]).locator('[data-decided]').innerText()).trim(), /^Override to 7 instead of .+: Store event this week$/);
@@ -350,7 +395,7 @@ test('a kinds demo plan takes Accept, Override with a reason, refuses an Overrid
     assert.equal(await takeAll().count(), 0, 'after a refresh Take all offers no line already decided');
     await waits(total - keys.length);
     assert.equal(decided.length, keys.length, 'the refresh decided nothing again');
-    await backToRun(page, replayWatch(page));
+    await backToRun(page, apiWatch(page));
     }
     assert.deepEqual(ui.missing, []);
     assert.deepEqual(ui.outside, []);

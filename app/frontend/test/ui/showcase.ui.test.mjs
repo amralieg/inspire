@@ -7,7 +7,7 @@ import { createRequire } from 'node:module';
 import { MVP_JOB, RESULTS, STUDIO_STATE, built, builtSpec } from './implementFixtures.js';
 import { REVIEW_PORTFOLIO, REVIEW_SESSIONS, REVIEW_STATE } from './reviewFixtures.js';
 import { closeAsset, closeBrowser, expandBuild, openAsset, openUi, until } from './uiSupport.mjs';
-import { replayWatch, keepToOrigins, openShowcase, readOnlyInspire, recordMvpApp, routeInspireDemo, tabButton, walkInspireDemo, walkMvpViews, watchOffline } from '../../../scripts/showcaseRecorder.mjs';
+import { apiWatch, keepToOrigins, openShowcase, readOnlyInspire, recordMvpApp, routeInspireDemo, tabButton, walkInspireDemo, walkMvpViews, watchOffline } from '../../../scripts/showcaseRecorder.mjs';
 import { DEMO_READS, DEMO_READS_WHEN, routeOf, unrecorded } from '../../../scripts/showcaseRoutes.mjs';
 import { SHOWCASE_ALERT_NOTE, SHOWCASE_BUTTON, SHOWCASE_DASHBOARD_NOTE, SHOWCASE_GENIE_NOTE, SHOWCASE_NOTE, SHOWCASE_OPEN_APP, SHOWCASE_PAGES } from '../../src/lib/showcase.js';
 import { START_MVP_LABEL } from '../../src/lib/implementWizard.js';
@@ -147,7 +147,7 @@ function assertWalkSawEverything(walk) {
 test('the recording walk waits for what a slow page draws late: with every read of the App starting 2 s late it still sees every view, panel, card and step', async () => {
   const { ui, exchanges, blocked } = await recordDemo({ late: true });
   try {
-    const walk = await walkInspireDemo(ui.page, { settle: replayWatch(ui.page) });
+    const walk = await walkInspireDemo(ui.page, { settle: apiWatch(ui.page) });
     assertWalkSawEverything(walk);
     assert.deepEqual(blocked, [], 'viewing the demo sends no write');
     assert.deepEqual(unrecorded(exchanges, { ...DEMO_READS, ...DEMO_READS_WHEN }), [], 'the slow walk still recorded every read the demo answers');
@@ -161,7 +161,7 @@ test('recording the demo walks every Results and Build view through the read-onl
   const { ui, exchanges, blocked } = await recordDemo();
   const { page, made } = ui;
   try {
-    const settle = replayWatch(page);
+    const settle = apiWatch(page);
     const walk = await walkInspireDemo(page, { settle });
     assert.deepEqual(blocked, [], 'viewing the demo sends no write');
     assertWalkSawEverything(walk);
@@ -224,7 +224,7 @@ test('the demo replays every view from the bundle with no workspace call, refuse
     const p = new URL(r.url()).pathname;
     if (p.startsWith('/api/') && p !== '/api/showcase') sent.push({ path: p, demo: Boolean(r.headers()[SHOWCASE_HEADER]) });
   });
-  const settle = replayWatch(page);
+  const settle = apiWatch(page);
   try {
     await page.getByRole('button', { name: 'Get Started', exact: true }).first().click();
     await page.getByRole('button', { name: SHOWCASE_BUTTON, exact: true }).first().waitFor();
@@ -488,7 +488,7 @@ async function openDemoBuild(history) {
       exchanges: [], blocked,
     }),
   });
-  const settle = replayWatch(ui.page);
+  const settle = apiWatch(ui.page);
   try {
     await openShowcase(ui.page);
     await demoBar(ui.page).getByText(SHOWCASE_NOTE).waitFor();

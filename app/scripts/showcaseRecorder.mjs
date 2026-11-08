@@ -33,27 +33,118 @@ export async function idle(page, timeout = SHOWN_WAIT_MS) {
   await page.locator('[aria-busy="true"]').first().waitFor({ state: 'detached', timeout });
 }
 
-const REPLAY_QUIET_MS = 300;
+const READ_QUIET_MS = 300;
+const WATCHED = new WeakMap();
 
-export function apiWatch(page, { quiet: base = 1500 } = {}) {
-  let inflight = 0;
-  let last = Date.now();
+function countReads() {
+  if (window.__inspireReadsCounted) return;
+  window.__inspireReadsCounted = true;
+  window.__inspireRead('fresh');
+  const real = window.fetch;
+  window.fetch = function counted(input, init) {
+    let at;
+    try {
+      at = new URL(typeof input === 'string' || input instanceof URL ? String(input) : input.url, window.location.href);
+    } catch {
+      return real.call(this, input, init);
+    }
+    if (!at.pathname.includes('/api/')) return real.call(this, input, init);
+    window.__inspireRead('start');
+    let sent;
+    try {
+      sent = Promise.resolve(real.call(this, input, init));
+    } catch (e) {
+      window.__inspireRead('end');
+      throw e;
+    }
+    sent.then(() => window.__inspireRead('end'), () => window.__inspireRead('end'));
+    return sent;
+  };
+}
+
+async function watchReads(page) {
+  if (WATCHED.has(page)) return WATCHED.get(page);
+  const state = { calls: 0, inflight: 0, last: Date.now(), waiters: [], byFrame: new Map(), open: new Set() };
+  const recount = () => { state.calls = [...state.byFrame.values()].reduce((a, b) => a + b, 0); };
+  const moved = () => {
+    state.last = Date.now();
+    if (state.calls === 0 && state.inflight === 0) for (const wake of state.waiters.splice(0)) wake();
+  };
+  const ready = (async () => {
+    await page.exposeBinding('__inspireRead', (source, step) => {
+      const n = step === 'fresh' ? 0 : (state.byFrame.get(source.frame) || 0) + (step === 'start' ? 1 : -1);
+      state.byFrame.set(source.frame, Math.max(0, n));
+      recount();
+      moved();
+    });
+    await page.addInitScript(countReads);
+    await Promise.all(page.frames().map((frame) => frame.evaluate(countReads).catch(() => undefined)));
+  })();
   const mine = (request) => new URL(request.url()).pathname.includes('/api/');
-  page.on('request', (r) => { if (mine(r)) { inflight += 1; last = Date.now(); } });
-  const done = (r) => { if (mine(r)) { inflight = Math.max(0, inflight - 1); last = Date.now(); } };
+  const gone = (r) => {
+    try {
+      return r.frame().isDetached();
+    } catch {
+      return true;
+    }
+  };
+  const count = () => { state.inflight = state.open.size; moved(); };
+  page.on('request', (r) => { if (mine(r)) { state.open.add(r); count(); } });
+  const done = (r) => { if (state.open.delete(r)) count(); };
   page.on('requestfinished', done);
   page.on('requestfailed', done);
-  return async ({ quiet = base, max = 90000 } = {}) => {
+  const forget = (frame) => {
+    state.byFrame.delete(frame);
+    for (const r of state.open) if (gone(r)) state.open.delete(r);
+    recount();
+    count();
+  };
+  page.on('framedetached', forget);
+  const watched = { state, ready, prune: () => forget(null) };
+  WATCHED.set(page, watched);
+  return watched;
+}
+
+export function apiWatch(page) {
+  const watching = watchReads(page);
+  const quietFor = (ms) => new Promise((resolve) => { setTimeout(resolve, ms); });
+  const drained = (state, ms) => {
+    if (state.calls === 0 && state.inflight === 0) return Promise.resolve(true);
+    return new Promise((resolve) => {
+      const timer = setTimeout(() => resolve(false), ms);
+      state.waiters.push(() => { clearTimeout(timer); resolve(true); });
+    });
+  };
+  const busyFrame = async () => {
+    for (const frame of page.frames()) {
+      if (await frame.locator('[aria-busy="true"]').count().catch(() => 0)) return frame;
+    }
+    return null;
+  };
+  const painted = () => page.evaluate(() => new Promise((resolve) => { requestAnimationFrame(() => requestAnimationFrame(resolve)); })).catch(() => undefined);
+  return async ({ quiet = READ_QUIET_MS, max = 90000 } = {}) => {
+    const { state, ready, prune } = await watching;
+    await ready;
+    prune();
     const end = Date.now() + max;
     while (Date.now() < end) {
-      if (inflight === 0 && Date.now() - last >= quiet) return true;
-      await page.waitForTimeout(200);
+      if (!(await drained(state, end - Date.now()))) return false;
+      const busy = await busyFrame();
+      if (busy) {
+        await busy.locator('[aria-busy="true"]').first().waitFor({ state: 'detached', timeout: Math.max(1, end - Date.now()) }).catch(() => undefined);
+        continue;
+      }
+      await painted();
+      const still = quiet - (Date.now() - state.last);
+      if (still > 0) {
+        await quietFor(Math.min(still, end - Date.now()));
+        continue;
+      }
+      if (state.calls === 0 && state.inflight === 0) return true;
     }
     return false;
   };
 }
-
-export const replayWatch = (page) => apiWatch(page, { quiet: REPLAY_QUIET_MS });
 
 const parsed = (text) => {
   try {
@@ -325,57 +416,72 @@ export async function openShowcase(page) {
   await demo.first().click();
 }
 
-export async function walkInspireDemo(page, { settle, log = () => {}, mvps = true }) {
+export const WALK_PARTS = ['review', 'build', 'run', 'start', 'monitor'];
+
+export async function walkInspireDemo(page, { settle, log = () => {}, mvps = true, parts = WALK_PARTS, useCases = [0, Infinity] }) {
+  const doing = new Set(parts);
   await openShowcase(page);
   const list = page.getByRole('region', { name: 'Use case list' });
   const cards = list.locator('[aria-expanded]');
   await cards.first().waitFor({ timeout: 180000 });
   await settle();
-  const runs = await walkReviewRuns(page, settle);
-  log(`Review: opened ${runs} run cards`);
-  await cards.first().waitFor({ timeout: 180000 });
-  const n = await cards.count();
-  for (let i = 0; i < n; i += 1) {
-    await cards.nth(i).click();
-    await settle();
-  }
-  log(`Review: opened ${n} use cases`);
-  const open = list.getByRole('button', { name: 'Open MVP' });
-  if (mvps ? await shown(open) : await open.count()) await open.first().click();
-  else if (mvps) throw new Error('the demo session has no MVP on the Review page');
-  else await tabButton(page, 'implement').click();
-  const rail = page.locator('nav[aria-label="Use cases"] section button');
-  await rail.first().waitFor({ timeout: 120000 });
-  await settle();
-  const m = await rail.count();
-  const build = [];
-  for (let i = 0; i < m; i += 1) {
-    await rail.nth(i).click();
-    await settle();
-    const name = (await page.locator('[data-pinned-name] h2').textContent()).trim();
-    const panels = new Set();
-    const tabs = await walkMvpViews(page, settle, async (id) => {
-      for (const region of VIEW_PANELS[id] || []) await shown(page.getByRole('region', { name: region, exact: true }));
-      for (const region of BUILD_PANELS) if (await page.getByRole('region', { name: region, exact: true }).count()) panels.add(region);
-    });
-    if (tabs.length) log(`Build: ${name}: ${tabs.join(', ')}${panels.size ? `; panels ${[...panels].join(', ')}` : ''}`);
-    build.push({ name, tabs, panels: [...panels] });
-    const details = page.getByRole('button', { name: 'Use case details' });
-    if (await details.count()) {
-      await details.first().click();
+  let runs = null;
+  let n = null;
+  let reviewed = null;
+  if (doing.has('review')) {
+    runs = await walkReviewRuns(page, settle);
+    log(`Review: opened ${runs} run cards`);
+    await cards.first().waitFor({ timeout: 180000 });
+    n = await cards.count();
+    let opened = 0;
+    for (let i = Math.max(0, useCases[0]); i < Math.min(n, useCases[1]); i += 1) {
+      await cards.nth(i).click();
       await settle();
-      await page.keyboard.press('Escape');
-      await settle();
+      opened += 1;
     }
+    reviewed = opened;
+    log(`Review: opened ${opened} of ${n} use cases`);
   }
-  log(`Build: opened ${m} use cases`);
-  const run = await walkRun(page, settle);
-  log(`Run: opened ${run} MVP Apps`);
-  const start = await walkStart(page, settle);
-  log(`Start: ${start.runs} runs, ${start.quick} quick views, ${start.totals} totals, ${start.cards.length} cards${start.cards.length ? ` (${start.cards.join(', ')})` : ''}`);
-  const monitor = await walkMonitor(page, settle);
-  log(`Monitor: ${monitor.steps ? 'the steps of the run' : 'no steps'}`);
-  return { results: n, runs, build, run, start, monitor, tabs: ['results', 'implement', 'run', 'choose', 'monitor'] };
+  const build = [];
+  let listed = null;
+  if (doing.has('build')) {
+    const open = list.getByRole('button', { name: 'Open MVP' });
+    if (mvps ? await shown(open) : await open.count()) await open.first().click();
+    else if (mvps) throw new Error('the demo session has no MVP on the Review page');
+    else await tabButton(page, 'implement').click();
+    const rail = page.locator('nav[aria-label="Use cases"] section button');
+    await rail.first().waitFor({ timeout: 120000 });
+    await settle();
+    const m = await rail.count();
+    listed = m;
+    for (let i = Math.max(0, useCases[0]); i < Math.min(m, useCases[1]); i += 1) {
+      await rail.nth(i).click();
+      await settle();
+      const name = (await page.locator('[data-pinned-name] h2').textContent()).trim();
+      const panels = new Set();
+      const tabs = await walkMvpViews(page, settle, async (id) => {
+        for (const region of VIEW_PANELS[id] || []) await shown(page.getByRole('region', { name: region, exact: true }));
+        for (const region of BUILD_PANELS) if (await page.getByRole('region', { name: region, exact: true }).count()) panels.add(region);
+      });
+      if (tabs.length) log(`Build: ${name}: ${tabs.join(', ')}${panels.size ? `; panels ${[...panels].join(', ')}` : ''}`);
+      build.push({ name, tabs, panels: [...panels] });
+      const details = page.getByRole('button', { name: 'Use case details' });
+      if (await details.count()) {
+        await details.first().click();
+        await settle();
+        await page.keyboard.press('Escape');
+        await settle();
+      }
+    }
+    log(`Build: opened ${build.length} of ${m} use cases`);
+  }
+  const run = doing.has('run') ? await walkRun(page, settle) : null;
+  if (run !== null) log(`Run: opened ${run} MVP Apps`);
+  const start = doing.has('start') ? await walkStart(page, settle) : null;
+  if (start) log(`Start: ${start.runs} runs, ${start.quick} quick views, ${start.totals} totals, ${start.cards.length} cards${start.cards.length ? ` (${start.cards.join(', ')})` : ''}`);
+  const monitor = doing.has('monitor') ? await walkMonitor(page, settle) : null;
+  if (monitor) log(`Monitor: ${monitor.steps ? 'the steps of the run' : 'no steps'}`);
+  return { results: n, reviewed, runs, build, listed, run, start, monitor, tabs: ['results', 'implement', 'run', 'choose', 'monitor'] };
 }
 
 async function askEach(page, settle, buttons, max, log, where) {
