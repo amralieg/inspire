@@ -123,6 +123,8 @@ PREVIEW_AT_RUN = ("The next run works out which records this moves: the setting 
 ASSUMPTION_WORDS = ("Sign in so the App can record who changed the assumption",
                     f"No one can change the assumptions of this use case, because the App names no owner of it; {shell_sql.rebuild_action()}",
                     "Only the owners of this use case can change its assumptions")
+PLAN_ACTION_WORDS = {"new": "a new version", "submit": "sending it for review", "reopen": "reopening it",
+                     "approve": "an approval or sign-off", "publish": "publishing it"}
 SETTING_WORDS = ("Sign in so the App can record who changed the setting",
                  f"No one can change the settings of this use case, because the App names no owner of it; {shell_sql.rebuild_action()}",
                  "Only the owners of this use case can change its settings")
@@ -1871,6 +1873,18 @@ class Shell:
                 return 200, self.agent.draft(headers, data)
             if route == ("POST", "plan/decide"):
                 return 200, self.plan_decide(headers, data)
+            if route == ("GET", "plans"):
+                return 200, self.plans_view(headers, query.get("page"))
+            if route == ("POST", "plans/version"):
+                return 200, self.plan_move(headers, data)
+            if route == ("GET", "plans/performance"):
+                return 200, self.plan_results(headers, query.get("page"))
+            if route == ("GET", "forecast/review"):
+                return 200, self.forecast_review(headers, query.get("page"))
+            if route == ("POST", "forecast/override"):
+                return 200, self.forecast_override(headers, data)
+            if route == ("GET", "forecast/accuracy"):
+                return 200, self.forecast_accuracy(headers, query.get("page"))
             if route == ("POST", "scenario/evaluate"):
                 return 200, self.scenario_evaluate(headers, data)
             if route == ("GET", "scenario/saved"):
@@ -3558,6 +3572,12 @@ class Shell:
             values = shell_sql.plan_decision(plan, data.get("decision"), data.get("reason"), data.get("value"), data.get("recommended"))
         except ValueError as error:
             raise HttpError(400, shell_sql.error_text(error)) from error
+        version, ws = None, None
+        if data.get("plan_id") is not None:
+            if shell_sql.plan_contract(page) is None:
+                raise HttpError(400, f"page {page['id']} keeps no plan versions, so send no plan_id")
+            ws, _who = self.workspace(headers)
+            version = self.open_version(ws, page, data.get("plan_id"))
         edited = None
         if editable and (data.get("decision") == "override" or not decisions):
             chosen = data.get("value") if data.get("decision") == "override" else data.get("recommended")
@@ -3567,7 +3587,196 @@ class Shell:
         print(f"[PLAN-DECIDE FIRED] page={page['id']} decision={data.get('decision')} edited={edited is not None}", flush=True)
         out = (self.record_act(headers, {"page": page["id"], "record_keys": [key], "seen": {key: seen}, "values": values}) if decisions else
                {"written": [key], "conflicts": [], "conflicts_count": 0, "left_out": 0, "batch_id": None})
-        return dict(out, decision=data.get("decision"), edited=edited is not None)
+        if version is not None:
+            override = data.get("decision") == "override"
+            try:
+                self.write_plan(ws, page, shell_sql.plan_entry_write(page, version["plan_id"], "line", data.get("decision"), self.editor(headers),
+                                                                    " ".join(str(data.get("reason") or "").split()), line_key=key,
+                                                                    value=data.get("value") if override else data.get("recommended"),
+                                                                    recommended=data.get("recommended")))
+            except HttpError as error:
+                raise HttpError(error.status, f"The decision on {key} was saved, but {version['label']} did not record it: {error.message}") from error
+            print(f"[PLAN-LINE FIRED] page={page['id']} version={version['label']} line={key} decision={data.get('decision')}", flush=True)
+        return dict(out, decision=data.get("decision"), edited=edited is not None, **({"plan_id": version["plan_id"]} if version else {}))
+
+    def planned_page(self, ident, contract: str = None) -> dict:
+        page = self.page(ident)
+        found = shell_sql.plan_contract(page)
+        if not page.get("result_table") or found is None or (contract and found != contract):
+            raise HttpError(404, f"page {page['id']} has no {contract or 'plan or forecast'} to work on")
+        return page
+
+    @staticmethod
+    def plans_missing(page: dict) -> str:
+        return (f"the plan versions table {shell_sql.plans_table(page)} does not exist yet, so the App cannot keep plan versions, overrides "
+                f"or sign-offs; {shell_sql.rebuild_action()}")
+
+    def plan_rows(self, ws, page: dict, strict: bool = False) -> tuple:
+        try:
+            return self.execute(ws, *shell_sql.plans_query(page), shell_sql.PLAN_CAPS["rows"], delta=True)["rows"], ""
+        except QueryError as error:
+            if not NO_TABLE.search(str(error)):
+                raise
+            if strict:
+                raise HttpError(409, self.plans_missing(page)) from error
+            return [], self.plans_missing(page)
+
+    def plan_owner_refusal(self, headers: dict, page: dict) -> str:
+        owners = self.page_editors(page)
+        if owners and not self.signed_in(headers) & owners:
+            return "Only the owners of this use case can approve, sign off or publish its plan"
+        return ""
+
+    def plan_editor(self, headers: dict, page: dict, action: str = "") -> str:
+        editor = self.editor(headers)
+        if not (self.decides(page) or self.plan_editable(page)):
+            raise HttpError(403, self.undecided_text(page))
+        refusal = self.plan_owner_refusal(headers, page) if action in shell_sql.PLAN_OWNED else ""
+        if refusal:
+            raise HttpError(403, refusal)
+        return editor
+
+    def write_plan(self, ws, page: dict, statement: tuple) -> None:
+        try:
+            self.execute(self.decision_writer(ws), *statement, 1, delta=True)
+        except QueryError as error:
+            if NO_TABLE.search(str(error)):
+                raise HttpError(409, self.plans_missing(page)) from error
+            if NOT_ALLOWED.search(str(error)):
+                raise self.write_refused(shell_sql.plans_table(page), error, as_app=self.settings["auth"] == "user") from error
+            raise
+        self.forget()
+
+    def open_version(self, ws, page: dict, plan_id) -> dict:
+        try:
+            version = shell_sql.plan_version(shell_sql.plan_versions(self.plan_rows(ws, page, strict=True)[0]), plan_id)
+        except KeyError as error:
+            raise HttpError(404, shell_sql.error_text(error)) from error
+        if not version["editable"]:
+            raise HttpError(409, f"{version['label']} is {version['status']}, so it takes no more changes; start a new one to change it")
+        return version
+
+    def plan_access(self, headers: dict, page: dict) -> dict:
+        can = bool(self.signed_in(headers)) and (self.decides(page) or self.plan_editable(page))
+        why = "" if can else ("Sign in so the App can record who made the change" if not self.signed_in(headers) else self.undecided_text(page))
+        owned = self.plan_owner_refusal(headers, page)
+        return {"can_decide": can, "can_approve": can and not owned, "why": why, "approve_why": why or owned}
+
+    @staticmethod
+    def public_version(version) -> dict:
+        return None if version is None else {k: v for k, v in version.items() if k != "lines"}
+
+    def plans_view(self, headers: dict, ident) -> dict:
+        page = self.planned_page(ident)
+        ws, who = self.workspace(headers)
+        rows, missing = self.plan_rows(ws, page)
+        out = dict(self.plan_access(headers, page), contract=shell_sql.plan_contract(page), states=list(shell_sql.PLAN_STATES),
+                   versions=[self.public_version(v) for v in shell_sql.plan_versions(rows)], missing=missing, constraints=[], constraints_error="")
+        if out["contract"] == "plan":
+            try:
+                out["constraints"] = self.run(ws, who, *shell_sql.constraints_query(page), shell_sql.PLAN_CAPS["constraints"])["rows"]
+            except QueryError as error:
+                out["constraints_error"] = shell_sql.error_text(error)
+        return out
+
+    def plan_move(self, headers: dict, data: dict) -> dict:
+        page = self.planned_page(data.get("page"))
+        action = data.get("action")
+        if action != shell_sql.PLAN_NEW and action not in shell_sql.PLAN_MOVES:
+            raise HttpError(400, f"action is {shell_sql.PLAN_NEW}, {', '.join(shell_sql.PLAN_MOVES)}, not {action!r}")
+        editor = self.plan_editor(headers, page, action)
+        try:
+            reason = shell_sql.plan_reason(data.get("reason"), action in shell_sql.PLAN_REASONED, PLAN_ACTION_WORDS[action])
+        except ValueError as error:
+            raise HttpError(400, shell_sql.error_text(error)) from error
+        ws, _who = self.workspace(headers)
+        versions = shell_sql.plan_versions(self.plan_rows(ws, page, strict=True)[0])
+        if action == shell_sql.PLAN_NEW:
+            busy = next((v for v in versions if v["editable"]), None)
+            if busy is not None:
+                raise HttpError(409, f"{busy['label']} is still {busy['status']}; finish it before you start a new one")
+            plan_id, status = uuid.uuid4().hex, shell_sql.PLAN_STATES[0]
+        else:
+            try:
+                version = shell_sql.plan_version(versions, data.get("plan_id"))
+            except KeyError as error:
+                raise HttpError(404, shell_sql.error_text(error)) from error
+            if data.get("seen") != version["status"]:
+                raise HttpError(409, f"{version['label']} is {version['status']} now, not {data.get('seen')}; check it and try again")
+            busy = next((v for v in versions if v["editable"] and v["plan_id"] != version["plan_id"]), None)
+            if action == "reopen" and busy is not None:
+                raise HttpError(409, f"{busy['label']} is still {busy['status']}; finish it before you reopen {version['label']}")
+            newer = next((v for v in versions if v["status"] == "Published" and v["number"] > version["number"]), None)
+            if action == "publish" and newer is not None:
+                raise HttpError(409, f"{newer['label']} is already published and is newer than {version['label']}")
+            try:
+                status = shell_sql.plan_next_status(version["status"], action)
+            except ValueError as error:
+                raise HttpError(409, shell_sql.error_text(error)) from error
+            plan_id = version["plan_id"]
+        self.write_plan(ws, page, shell_sql.plan_entry_write(page, plan_id, "status", status, editor, reason))
+        print(f"[PLAN-VERSION FIRED] page={page['id']} action={action} status={status}", flush=True)
+        return self.plans_view(headers, page["id"])
+
+    def plan_results(self, headers: dict, ident) -> dict:
+        page = self.planned_page(ident, "plan")
+        if not isinstance(page.get("plan"), dict):
+            raise HttpError(404, f"page {page['id']} has no plan to compare with its actuals")
+        ws, who = self.workspace(headers)
+        rows, missing = self.plan_rows(ws, page)
+        versions = shell_sql.plan_versions(rows)
+        chosen = next((v for v in versions if v["status"] == "Published"), None) or next((v for v in versions if v["status"] == "Approved"), None)
+        lines = self.run(ws, who, *shell_sql.plan_lines_query(page), shell_sql.PLAN_CAPS["lines"])["rows"] if chosen else []
+        return dict(shell_sql.plan_performance(page["plan"], chosen, lines, (page.get("records") or {}).get("label")), missing=missing)
+
+    def forecast_review(self, headers: dict, ident) -> dict:
+        page = self.planned_page(ident, "forecast")
+        ws, who = self.workspace(headers)
+        rows, missing = self.plan_rows(ws, page)
+        versions = shell_sql.plan_versions(rows)
+        cycle = versions[0] if versions else None
+        series = shell_sql.forecast_queue(self.run(ws, who, *shell_sql.forecast_review_query(page), shell_sql.PLAN_CAPS["series"])["rows"], cycle)
+        return dict(self.plan_access(headers, page), cycle=self.public_version(cycle), cycles=len(versions), series=series,
+                    at_risk=sum(1 for s in series if s["at_risk"]), missing=missing, states=list(shell_sql.PLAN_STATES))
+
+    def forecast_override(self, headers: dict, data: dict) -> dict:
+        page = self.planned_page(data.get("page"), "forecast")
+        editor = self.plan_editor(headers, page)
+        series, period, value = data.get("series_id"), data.get("period"), data.get("value")
+        if not isinstance(series, str) or not series or len(series) > shell_sql.PLAN_KEY_CHARS:
+            raise HttpError(400, f"name the series_id you override, as text of at most {shell_sql.PLAN_KEY_CHARS} characters")
+        if not isinstance(period, str) or not period or len(period) > shell_sql.PLAN_PERIOD_CHARS:
+            raise HttpError(400, f"name the period you override, as text of at most {shell_sql.PLAN_PERIOD_CHARS} characters")
+        if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or abs(value) >= shell_sql.CAPS["assumption_limit"]:
+            raise HttpError(400, "send value, your forecast for that period, as a number")
+        try:
+            reason = shell_sql.plan_reason(data.get("reason"), True, "an override of the forecast")
+        except ValueError as error:
+            raise HttpError(400, shell_sql.error_text(error)) from error
+        ws, _who = self.workspace(headers)
+        version = self.open_version(ws, page, data.get("plan_id"))
+        found = self.execute(ws, *shell_sql.forecast_point_query(page, series, period), 2, delta=True)["rows"]
+        if len(found) != 1 or shell_sql.as_number(found[0].get("forecast")) is None:
+            raise HttpError(404 if not found else 409, f"series {series} has {'no' if not found else 'more than one'} future forecast for {period}; "
+                                                       "refresh the list and try again")
+        model = shell_sql.as_number(found[0]["forecast"])
+        self.write_plan(ws, page, shell_sql.plan_entry_write(page, version["plan_id"], "line", "override", editor, reason, line_key=series,
+                                                            period=period, value=float(value), recommended=model))
+        print(f"[FORECAST-OVERRIDE FIRED] page={page['id']} cycle={version['label']} series={series} period={period}", flush=True)
+        return self.forecast_review(headers, page["id"])
+
+    def forecast_accuracy(self, headers: dict, ident) -> dict:
+        page = self.planned_page(ident, "forecast")
+        ws, who = self.workspace(headers)
+        row = (self.run(ws, who, *shell_sql.forecast_accuracy_query(page), 1)["rows"] or [None])[0]
+        lift, note = None, ""
+        try:
+            lift = (self.execute(ws, *shell_sql.override_lift_query(page), 1, delta=True)["rows"] or [None])[0]
+        except QueryError as error:
+            if not NO_TABLE.search(str(error)):
+                raise
+            note = self.plans_missing(page)
+        return dict(shell_sql.forecast_accuracy(row, lift), lift_note=note)
 
     def scenario_evaluate(self, headers: dict, data: dict, probe=None) -> dict:
         page = self.page(data.get("page"))

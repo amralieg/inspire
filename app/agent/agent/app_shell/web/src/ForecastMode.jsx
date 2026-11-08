@@ -1,5 +1,2 @@
-import { ModePending } from './ModeParts.jsx';
-
-export function Work(props) {
-  return <ModePending mode="forecast" {...props} />;
-}
+export { default as Work } from './ReviewSection.jsx';
+export { default as Performance } from './AccuracyPanel.jsx';
