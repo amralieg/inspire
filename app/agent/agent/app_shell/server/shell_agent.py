@@ -44,6 +44,9 @@ TABLE_ROWS = 6
 REWRITE_WORDS = 120
 REWRITE_PROBLEMS = 3
 FOLLOW_UP_WORDS = 8
+SAME_SHARE = 0.005
+SCOPE_FILTERS = 3
+NAMED_DIGITS = 3
 TURN_TOKENS = 60000
 VIEW_ACTIONS = 6
 ACT_ROWS = 50
@@ -113,7 +116,7 @@ The brief in the data comes from the use case's owners: follow what it asks abou
 Reply with only a JSON object: {{"subject": "...", "body": "..."}}"""
 DRAFT_SINGLE = "3 to 6 sentences."
 DRAFT_LIST = "one sentence on what the records have in common, one short line per record starting with \"- \", and one sentence with the ask."
-DRAFT_SLOP = re.compile(r"hope this (?:message|email|note) finds you|feel free|do not hesitate|don't hesitate|\bdelve|circle back|touch base|\bleverage|"
+SLOP = re.compile(r"hope this (?:message|email|note) finds you|feel free|do not hesitate|don't hesitate|\bdelve|circle back|touch base|\bleverage|"
                         r"\bseamless|\bsynerg", re.I)
 DRAFT_NUMBER = re.compile(r"(?<![\w.])[-+]?\d[\d,]*(?:\.\d+)?(?:\s?(%|percent\b|bn\b|[kmb]\b))?", re.I)
 DRAFT_CODE = re.compile(r"(?<![\w.-])(?=[\w-]*[A-Za-z])(?=[\w-]*\d)[\w-]+\b")
@@ -343,6 +346,8 @@ def answer_problems(text: str) -> tuple:
         problems.append(f"{shell_sql.plural(inline, 'bullet')} written inside a sentence instead of one per line")
     if any(DASH.search(line) for line in raw.split("\n") if "|" not in line):
         problems.append("dashes such as -- between words")
+    if SLOP.search(raw):
+        problems.append("filler wording such as feel free or do not hesitate")
     if any(closing(s) for s in lead[1:]) or any(SIGN_OFF.match(plain_start(s["text"])) for s in lead[:1]) or any(
             closing(s) for u in items for s in sentences_of(u["text"])[1:]):
         problems.append("a closing summary or sign-off")
@@ -438,6 +443,117 @@ def shape_answer(text) -> str:
         out.append(text)
         last, shown_at = kind, index
     return cut_lines("".join(out), ANSWER_CHARS)
+
+
+RUN_NAMES = "|".join(re.escape(c) for c in (*shell_sql.RUN_COLUMNS, shell_sql.RUN_COLUMN))
+LATEST_RUN = re.compile(rf"\bmax\s*\(\s*[`\"]?(?:{RUN_NAMES})[`\"]?\s*\)|[`\"]?{re.escape(shell_sql.RUN_COLUMN)}[`\"]?\s*=\s*'"
+                        rf"{shell_sql.RUN_LATEST}'", re.I)
+PICKED_RUN = re.compile(rf"(?<![\w.])[`\"]?(?:\w+\.)?[`\"]?(?:{RUN_NAMES})[`\"]?\s*(?:=|<|>|\bin\b|\bbetween\b)", re.I)
+WHERE = re.compile(r"\bwhere\b(.+?)(?=\bgroup\s+by\b|\border\s+by\b|\bhaving\b|\blimit\b|\bunion\b|\bqualify\b|$)", re.I | re.S)
+PREDICATE = re.compile(r"[`\"]?([A-Za-z_]\w*)[`\"]?\s*(<>|!=|>=|<=|=|>|<|\bnot\s+in\b|\bin\b|\bnot\s+like\b|\blike\b)\s*"
+                       r"('(?:[^']|'')*'|\([^()]*\)|-?\d[\w.]*)", re.I)
+CURRENT_FLAG = shell_sql.CURRENT_ROWS.split()[0]
+CURRENT_ROW = re.compile(rf"(?<![\w.])[`\"]?(?:\w+\.)?[`\"]?{CURRENT_FLAG}\b[`\"]?(?!\s*(?:=\s*false|is\s+(?:not\s+true|false)))", re.I)
+SCOPE_SET = frozenset(c.lower() for c in (*shell_sql.RUN_COLUMNS, shell_sql.RUN_COLUMN, *shell_sql.HISTORY_COLUMNS))
+
+
+def run_scope(sql) -> str:
+    wheres = WHERE.findall(str(sql or ""))
+    run = ("the latest run" if any(LATEST_RUN.search(w) for w in wheres) else "the runs it picked" if any(PICKED_RUN.search(w) for w in wheres)
+           else "")
+    current = "the current rows" if any(CURRENT_ROW.search(where) for where in wheres) else ""
+    return " of ".join(p for p in (current, run) if p) or "every row of every run"
+
+
+def sql_filters(sql) -> list:
+    out = []
+    for where in WHERE.findall(str(sql or "")):
+        for column, op, value in PREDICATE.findall(where):
+            shown = f"{column} {' '.join(op.lower().split())} {cut(value, 40)}"
+            if column.lower() not in SCOPE_SET and shown not in out:
+                out.append(shown)
+    return out[:SCOPE_FILTERS]
+
+
+def sql_scope(sql) -> str:
+    filters = sql_filters(sql)
+    return run_scope(sql) + (f", where {', '.join(filters)}" if filters else ", with no filter")
+
+
+def number_of(value):
+    if isinstance(value, bool) or value is None:
+        return None
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    return number if math.isfinite(number) else None
+
+
+def same_number(a: float, b: float) -> bool:
+    return abs(a - b) <= SAME_SHARE * max(abs(a), abs(b)) + 1e-9
+
+
+def kpi_shown(item: dict, value: float) -> str:
+    if item.get("format") == "percent":
+        return f"{shell_sql.shown_number(round(value * 100, 2))}%"
+    text = shell_sql.shown_number(round(value, 2))
+    return f"{item['currency']} {text}" if item.get("format") == "currency" and item.get("currency") else text
+
+
+def genie_value(result: dict):
+    rows = result.get("rows") or []
+    if len(rows) != 1 or not isinstance(rows[0], dict):
+        return None
+    found = [n for n in (number_of(v) for v in rows[0].values()) if n is not None]
+    return found[0] if len(found) == 1 else None
+
+
+def states(text: str, value: float, label: str) -> bool:
+    named = not label or label.casefold() in text.casefold()
+    for match in DRAFT_NUMBER.finditer(text):
+        figure = match.group(0)
+        if (named or len(digits_of(figure)[0].replace(".", "")) >= NAMED_DIGITS) and draft_figure_held(
+                figure, (match.group(1) or "").lower(), [abs(value)]):
+            return True
+    return False
+
+
+def number_scopes(answer: str, question: str, key_numbers: list, genie: list) -> tuple:
+    clashes, notes, stated = [], [], []
+    for item in key_numbers or []:
+        value, label = number_of(item.get("value")), str(item.get("label") or item.get("id") or "").strip()
+        if value is None or not label:
+            continue
+        page_scope = f"{item.get('counts') or 'every row of every run'}; {item.get('scope') or 'every row the page reads, with no filter'}"
+        asked = " ".join([question, answer] + [str(g.get("question") or "") for g in genie]).casefold()
+        clash = None
+        for result in reversed(genie if label.casefold() in asked else []):
+            counted = genie_value(result)
+            if counted is not None and not same_number(counted, value) and states(answer, counted, label):
+                clash = (result, counted)
+                break
+        if clash:
+            clashes.append(f"The page shows {label} {kpi_shown(item, value)} for {page_scope}; Genie counted "
+                           f"{kpi_shown(item, clash[1])} for {sql_scope(clash[0].get('sql'))}.")
+        elif states(answer, value, label) and page_scope.casefold() not in answer.casefold():
+            stated.append((label.casefold() in answer.casefold(), f"{label} {kpi_shown(item, value)} counts {page_scope}."))
+    named = [note for by_name, note in stated if by_name]
+    notes = named or ([stated[0][1]] if len(stated) == 1 else [])
+    counted = genie_note(answer, genie[-1]) if genie and not clashes and not notes else ""
+    return clashes, notes + ([counted] if counted else [])
+
+
+def genie_note(answer: str, result: dict) -> str:
+    value = genie_value(result)
+    if value is None or not states(answer, value, ""):
+        return ""
+    return f"Genie counted {kpi_shown({}, value)} for {sql_scope(result.get('sql'))}."
+
+
+def with_scopes(answer: str, clashes: list, notes: list) -> str:
+    parts = ["\n".join(clashes), answer, "\n".join(notes)]
+    return "\n\n".join(p for p in parts if p.strip())
 
 
 INJECTION = re.compile(r"\b(?:ignore|disregard|forget|override|bypass)\b[^.?!]{0,40}\b(?:your|previous|prior|above|earlier|all|these|those|system)\b"
@@ -657,11 +773,11 @@ def draft_problem(subject: str, body: str, held: str, numbers: list, many: bool)
         return "was longer than a short message"
     if not many:
         prose = body[len(DRAFT_GREETING):] if body.startswith(DRAFT_GREETING) else body
-        sentences = [s for s in re.split(r"(?<=[.!?])\s+", prose.strip()) if s.strip()]
+        sentences = sentences_of(prose)
         if not DRAFT_SENTENCES[0] <= len(sentences) <= DRAFT_SENTENCES[1]:
             return "was not 3 to 6 sentences long"
     text, known = f"{subject}\n{body}", held.casefold()
-    if DRAFT_SLOP.search(text):
+    if SLOP.search(text):
         return "used filler wording"
     for link in DRAFT_LINK.findall(text):
         if link.rstrip(".,;:)").casefold() not in known:
@@ -686,10 +802,9 @@ def draft_parse(content) -> tuple:
     data = json.loads(text[start:end + 1])
     if not isinstance(data, dict):
         raise ValueError("did not come back as a subject and a body")
-    dashless = lambda s: re.sub(r"\s*[\u2013\u2014]\s*", ", ", s)
     subject = dashless(" ".join(str(data.get("subject") or "").split()))
-    body = "\n".join(line.rstrip() for line in str(data.get("body") or "").strip().splitlines())
-    return subject, dashless(re.sub(r"\n{3,}", "\n\n", body))
+    body = "\n".join(dashless(line.rstrip()) for line in str(data.get("body") or "").strip().splitlines())
+    return subject, re.sub(r"\n{3,}", "\n\n", body)
 
 
 def chart_types(chart: dict) -> list:
@@ -1156,6 +1271,7 @@ class Agent:
             item["scope"] = self.kpi_scope(page, kpi, values)
             try:
                 sql, params = shell_sql.kpi_query(page, kpi["id"], values)
+                item["counts"] = run_scope(sql)
                 rows = self.shell.run(ws, who, sql, params, shell_sql.CAPS["kpi_rows"])["rows"]
                 item["value"] = next((r.get("value") for r in rows if r.get("period") == "now"), None)
             except (HttpError, QueryError, ValueError, KeyError) as error:
@@ -1199,7 +1315,9 @@ class Agent:
         names = self.tools_for(page)
         system = SYSTEM.format(app=self.shell.app_title(), title=page.get("title") or page["id"], data_note=DATA_NOTE, brief=BRIEF,
                                table_rows=TABLE_ROWS)
-        messages = [{"role": "system", "content": system}, {"role": "user", "content": "Context of this page:\n" + as_data(self.context(job, ws, who))}]
+        context = self.context(job, ws, who)
+        job["key_numbers"], job["genie"] = context.get("key_numbers") or [], []
+        messages = [{"role": "system", "content": system}, {"role": "user", "content": "Context of this page:\n" + as_data(context)}]
         for item in job["history"]:
             messages += [{"role": "user", "content": item["question"]}, {"role": "assistant", "content": item["answer"] or "(no answer)"}]
         messages.append({"role": "user", "content": question})
@@ -1211,7 +1329,7 @@ class Agent:
             message = self.complete(ws, who, turn, body)
             calls = [c for c in message.get("tool_calls") or [] if isinstance(c, dict)]
             if stop or not calls:
-                turn.answer = self.final_answer(ws, who, turn, messages, cut_lines(message.get("content") or "", ANSWER_CHARS)) or (
+                turn.answer = self.final_answer(ws, who, turn, job, messages, cut_lines(message.get("content") or "", ANSWER_CHARS)) or (
                     stop or "Genie had nothing to add.")
                 turn.refused = turn.answer.strip() == OFF_TOPIC
                 if stop and stop not in turn.answer:
@@ -1234,7 +1352,7 @@ class Agent:
             if stop:
                 messages.append({"role": "user", "content": FINAL_NOTE})
 
-    def final_answer(self, ws, who: str, turn: Turn, messages: list, content: str) -> str:
+    def final_answer(self, ws, who: str, turn: Turn, job: dict, messages: list, content: str) -> str:
         problems, far = answer_problems(content)
         rewritten = False
         if far and turn.tokens < TURN_TOKENS:
@@ -1248,9 +1366,10 @@ class Agent:
             if shorter:
                 content, rewritten = shorter, True
         shaped = shape_answer(content)
+        clashes, notes = number_scopes(shaped, job.get("question") or "", job.get("key_numbers"), job.get("genie") or [])
         print(f"[AGENT-ANSWER-SHAPE FIRED] page={turn.page_id} problems={len(problems)} rewritten={rewritten} "
-              f"words={words_of(content)}->{words_of(shaped)}", flush=True)
-        return shaped
+              f"words={words_of(content)}->{words_of(shaped)} scoped={len(notes)} clashes={len(clashes)}", flush=True)
+        return with_scopes(shaped, clashes, notes) if shaped else shaped
 
     def use_tool(self, turn: Turn, job: dict, names: list, name: str, raw_args) -> dict:
         try:
@@ -1287,6 +1406,7 @@ class Agent:
             self.sleep(GENIE_POLL_S)
         if message.get("state") == "failed":
             return {"error": message.get("error") or "Genie could not answer"}
+        job.setdefault("genie", []).append({"question": question, "sql": message.get("sql") or "", "rows": (message.get("rows") or [])[:GENIE_ROWS]})
         turn.genie = {"conversation_id": turn.conversation_id, "message_id": started.get("message_id"), "sql": message.get("sql") or "",
                       "columns": message.get("columns") or [], "rows": (message.get("rows") or [])[:GENIE_ROWS],
                       "truncated": bool(message.get("truncated"))}
