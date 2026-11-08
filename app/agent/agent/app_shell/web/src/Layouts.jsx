@@ -11,15 +11,13 @@ import { RowGenie } from './DataTable.jsx';
 import { tableContext } from './explain.js';
 import { KIND_PARTS, KindReady } from './KindLayouts.jsx';
 import { reducedMotion } from './theme.js';
+import { DEFAULT_LAYOUT, hasWork, isLaidOut, isQueue, layoutOf } from './modes.js';
 
 const ScenarioPanel = lazy(() => import('./Scenario.jsx'));
 
-export const DEFAULT_LAYOUT = 'decision_queue';
-export const layoutOf = (page) => page?.layout?.id || DEFAULT_LAYOUT;
-export const isLaidOut = (page) => layoutOf(page) !== DEFAULT_LAYOUT;
+export { DEFAULT_LAYOUT, layoutOf, isLaidOut, isQueue };
 export const tabLabel = (page, fallback) => (isLaidOut(page) && page.layout?.tab_label) || fallback;
-export const isQueue = (page) => !!page?.records && !isLaidOut(page);
-export const pageSections = (app, page) => ['dashboard', ...(isQueue(page) ? ['work'] : []), ...(app?.screens?.runs !== false ? ['runs'] : []),
+export const pageSections = (app, page) => ['dashboard', ...(hasWork(page) ? ['work'] : []), ...(app?.screens?.runs !== false ? ['runs'] : []),
   ...(app?.alerting?.on ? ['alerts'] : []), 'settings'];
 export const decides = pageDecides;
 const PLAN_ROWS = 50;

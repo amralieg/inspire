@@ -30,8 +30,10 @@ import { GenieScope } from './AskGenie.jsx';
 import { reasonFilters, useCaseState } from './hub.js';
 import Dashboard, { NO_SLOTS, TableCard, chartSlots, hubChartsOnTop } from './Dashboard.jsx';
 import WorkPage from './WorkPage.jsx';
+import ModeView from './ModeView.jsx';
+import { SECTION_TITLES, pageMode, sectionTitle } from './modes.js';
 
-export const SECTION_TITLES = { dashboard: 'Dashboard', work: 'Work', performance: 'Performance', runs: 'Runs', alerts: 'Alerts', settings: 'Settings' };
+export { SECTION_TITLES };
 
 export function usePageData(pageId, state, ready, nonce = 0, sorts = null) {
   const [data, setData] = useState(null);
@@ -105,6 +107,7 @@ export default function Page({ app, page, meta, state, onState, look = EMPTY_LOO
   const live = usePageHub(page.id, state, ready, nonce, listed);
   const laidOut = isLaidOut(page);
   const work = isQueue(page);
+  const mode = pageMode(page);
   const sections = pageSections(app, page);
   const shown = sections.includes(section) ? section : 'dashboard';
   const hubPage = !laidOut && listed && !!(live.data?.tracked || live.data?.empty || hubEntry?.tracked || hubEntry?.empty || !live.done);
@@ -210,7 +213,7 @@ export default function Page({ app, page, meta, state, onState, look = EMPTY_LOO
           </FreshBar>
         </div>
       </div>
-      {shown !== 'dashboard' && <p className="ph-sec" data-section-title>{SECTION_TITLES[shown]}</p>}
+      {shown !== 'dashboard' && <p className="ph-sec" data-section-title>{sectionTitle(page, shown)}</p>}
       {shown === 'dashboard' && !hubPage && <p className="ph-q">{page.question}</p>}
       {shown === 'dashboard' && !hubPage && page.promised?.estimate && <p className="ph-value" data-value-estimate="">{page.promised.estimate}</p>}
       {shown === 'dashboard' && !hubPage && data && <Story page={page} data={data.kpis} />}
@@ -246,7 +249,11 @@ export default function Page({ app, page, meta, state, onState, look = EMPTY_LOO
           recordsCard={laidOut ? records() : null} explain={explain} genieBusy={genieBusy} nonce={nonce} onChanged={() => setNonce((n) => n + 1)} onAsk={onAsk}
           genie={genie} ready={ready} filters={filters} onPick={pick} onFix={fix} onWork={() => go('work')} />
       )}
-      {shown === 'work' && (
+      {shown === 'work' && !mode.queue && (
+        <ModeView mode={mode.id} part="Work" app={app} page={page} meta={meta} state={state} onState={onState} ready={ready} tableCard={tableCard} genie={genie}
+          views={<PageLink pageId={page.id} meta={meta} state={state} view={shown} address={address} />} notify={notifyButton} onGo={(to) => go(to)} />
+      )}
+      {shown === 'work' && mode.queue && (
         <WorkPage meta={meta} state={state} onState={onState} pageId={page.id} reasons={reasonFilters(entry, summary)} plan={plan} tab={tabNow}
           counts={queue?.data?.status_counts} onTab={(id) => go('work', { tab: id })}>
           {records({ ready: ready && (!listed || live.done), tab: tabNow || undefined, docked: true, section: 'records' })}

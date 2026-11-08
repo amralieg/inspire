@@ -8,6 +8,7 @@ import { canonicalHash, fixThis, parseHash, sectionHash, staleSection, tabCount 
 import { switcherMatches } from '../src/hub.js';
 import { MY_KEY } from '../src/prefs.js';
 import { evaluated } from './exampleRoutes.mjs';
+import { hasWork, pageMode } from '../src/modes.js';
 
 let served;
 let browser;
@@ -253,6 +254,7 @@ test('the Work dock switches between the record and Genie, and remembers the cho
 test('every example layout renders its dashboard, rail and settings with no error', async () => {
   const examples = readdirSync(join(HERE, '..', '..', 'examples')).filter((f) => f.endsWith('.json')).sort();
   assert.equal(examples.length, 13);
+  const worked = [];
   for (const file of examples) {
     const info = appInfo(DECIDE, 1, {}, `examples/${file}`);
     const { page, seen, context } = await openApp(browser, served.base, info, { ready: '.ph h1', watch: prefsFirst(MY_KEY, PERSON, {}),
@@ -260,10 +262,14 @@ test('every example layout renders its dashboard, rail and settings with no erro
     const rail = (await railOf(page)).map(([id]) => id);
     assert.equal(rail[0], 'dashboard', `${file}: the rail starts with Dashboard`);
     assert.equal(rail.at(-1), 'settings', `${file}: Settings sits at the bottom`);
-    assert.ok(!rail.includes('work'), `${file}: a laid-out page keeps its list on the dashboard, so it has no Work`);
+    const mode = pageMode(info.pages[0]);
+    assert.equal(rail.includes('work'), hasWork(info.pages[0]), `${file}: a laid-out queue keeps its list on the dashboard, and every other mode has its own work section`);
+    assert.equal(rail.includes('work'), !mode.queue, `${file}: only the ${mode.id} mode decides whether there is a work section`);
+    if (rail.includes('work')) worked.push(`${file}:${mode.id}`);
     await page.locator('[data-rail="settings"]').click();
     await page.locator('[data-group="look"]').waitFor();
     assert.deepEqual(seen.errors, [], `${file}: no error`);
     await context.close();
   }
+  assert.deepEqual(worked, ['agent_chat.json:ask', 'dashboard.json:explore', 'forecast_cockpit.json:forecast', 'planner.json:plan', 'scenario_lab.json:scenarios'], 'every non-queue mode gets a work section; every laid-out queue keeps its list on the dashboard');
 });

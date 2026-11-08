@@ -14,6 +14,7 @@ import './styles/alerts.css';
 import './styles/blocks.css';
 import './styles/work.css';
 import './styles/layouts.css';
+import './styles/modes.css';
 import App from './App.jsx';
 import { openedLink } from './links.js';
 
