@@ -1,17 +1,18 @@
 import { counted } from './plural.js';
 import { firstRunDefault, groupingBest, groupingCount, profileRecords } from './runScope.js';
 import {
-  APP_OWN_PLACEMENTS, IMPLEMENT_OUTPUTS, REMOVED_OUTPUT_DEFAULT, VIBE_PREVIOUS_DEFAULT, appBackendDefault, appPagesOf, insideInspire, newAppPlacementBlock, placementTarget,
+  APP_OWN_PLACEMENTS, IMPLEMENT_OUTPUTS, NONE_WORKS, affordable, blockOf, REMOVED_OUTPUT_DEFAULT, VIBE_PREVIOUS_DEFAULT, appBackendDefault, appPagesOf, insideInspire, newAppPlacementBlock, placementTarget,
 } from './implementWizard.js';
 
 export const HIGHLY_RECOMMENDED = 'Highly Recommended';
+export { NONE_WORKS, affordable };
 
 const OUTPUT_ORDER = ['app', 'genie_space', 'dashboard', 'alert'];
 const OUTPUT_REASONS = {
   app: 'People act on each flagged record in one place.',
-  genie_space: 'Apps are off here, so people ask about the results in plain words.',
-  dashboard: 'Apps and Genie Agents are off here, so a dashboard shows the results.',
-  alert: 'Only alerts are on here, so people get an email when records need action.',
+  genie_space: 'The App cannot be built here, so people ask about the results in plain words.',
+  dashboard: 'The App and the Genie Agent cannot be built here, so a dashboard shows the results.',
+  alert: 'Only alerts can be built here, so people get an email when records need action.',
 };
 const POLICY_REASONS = {
   domain: (scope) => `Use cases of ${scope.domain || 'the same domain'} share one App.`,
@@ -32,10 +33,13 @@ export function bestMode({ genieOff = null } = {}) {
     : pick('mvp', 'You see it run end to end.');
 }
 
+function blocksOf(given) {
+  return Array.isArray(given) ? Object.fromEntries(given.map((id) => [id, { why: 'off' }])) : given || {};
+}
+
 export function bestOutput(unavailable = []) {
-  const off = new Set(unavailable || []);
-  const id = OUTPUT_ORDER.find((o) => !off.has(o) && IMPLEMENT_OUTPUTS.some((x) => x.id === o));
-  return id ? pick(id, OUTPUT_REASONS[id]) : null;
+  const order = OUTPUT_ORDER.filter((o) => IMPLEMENT_OUTPUTS.some((x) => x.id === o));
+  return affordable(order, blocksOf(unavailable), (id) => OUTPUT_REASONS[id]).best;
 }
 
 export function bestGrouping(profile, choices) {
@@ -65,6 +69,22 @@ export function bestFirstRun(profile, choices = []) {
   return pick(found.id, reasons[found.id] || '');
 }
 
+export const RESULT_PLACE_ORDER = ['own', 'inspire', 'pick'];
+
+export function resultPlaceBlocks(ownSchema, ownTable, inspireTable, catalog = '') {
+  const blocks = {};
+  if (!ownTable || ownSchema?.place === 'inspire') {
+    blocks.own = blockOf(ownTable ? 'Inspire cannot create a schema of its own here.' : 'There is no schema of its own to name here.',
+      ownSchema?.note || (catalog ? `GRANT CREATE SCHEMA ON CATALOG \`${catalog}\` TO <you>` : ''));
+  }
+  if (!inspireTable) blocks.inspire = blockOf('There is no Inspire database to hold it.');
+  return blocks;
+}
+
+export function bestResultPlace(blocks, catalog = '') {
+  return affordable(RESULT_PLACE_ORDER, blocks, (id) => (id === 'own' ? bestResultTable('own').reason : bestResultTable(id, catalog)?.reason || '')).best;
+}
+
 export function bestResultTable(place, catalog = '') {
   if (place === 'own') return pick('own', 'A schema of its own keeps this use case\'s tables apart from every other use case.');
   return place ? pick(place, `It is where you can write today${catalog ? `; a schema of its own needs CREATE SCHEMA on ${catalog}` : ''}.`) : null;
@@ -72,7 +92,7 @@ export function bestResultTable(place, catalog = '') {
 
 export function bestFreshness(spec) {
   return spec?.outputs?.alert ? pick('daily', 'The alert checks fresh records each day.')
-    : pick('off', 'Check the MVP Test Run before you pay for runs on a schedule.');
+    : pick('daily', 'Fresh results every morning, so people act on today\u2019s records.');
 }
 
 export function bestHoldout() {
@@ -101,9 +121,13 @@ export function bestHeldApp(name) {
   return name ? pick('held', `People already open ${name}.`) : null;
 }
 
+export function appPolicyBlocks(spec, targets, scope) {
+  return Object.fromEntries(APP_OWN_PLACEMENTS.map((p) => [p.id, newAppPlacementBlock(spec, targets, scope, p.id)])
+    .filter(([, why]) => why).map(([id, why]) => [id, blockOf(why)]));
+}
+
 export function bestAppPolicy(spec, targets, scope) {
-  const open = APP_OWN_PLACEMENTS.find((p) => !newAppPlacementBlock(spec, targets, scope, p.id));
-  return open ? pick(open.id, POLICY_REASONS[open.id](scope)) : null;
+  return affordable(APP_OWN_PLACEMENTS.map((p) => p.id), appPolicyBlocks(spec, targets, scope), (id) => POLICY_REASONS[id](scope)).best;
 }
 
 export function bestAppAccess({ inside = false, personal = '' } = {}) {

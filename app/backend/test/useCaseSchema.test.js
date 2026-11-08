@@ -181,3 +181,27 @@ test('create-schema refuses a schema whose session tag names another session and
     assert.equal(made.sqlCalls.some((c) => /^(CREATE|ALTER) /.test(c.sql)), false);
   });
 });
+
+test('create-schema on a schema that already exists grants the identity Inspire builds as and never creates or re-tags it', async () => {
+  const held = [{ kind: 'exists', schema_name: '_inspire_acme_n01_u01_42', value: '' }, { kind: 'session', schema_name: '_inspire_acme_n01_u01_42', value: '42' }];
+  const grants = [];
+  const statements = { ...schemaRows(held), 'GRANT ': (sql, _p, token) => { grants.push([sql, token]); return { rows: [] }; } };
+  await withApp({ forwardedToken: PERSON_TOKEN, tokenKind: 'app', me: { userName: 'inspire-app', applicationId: 'app-sp-1' }, statements }, async (url, made) => {
+    const body = { catalog: 'main', schema: '_inspire_acme_n01_u01_42', tags: w.useCaseSchemaTags({ sessionId: '42', useCaseId: 'N01-U01', businessName: 'Acme' }) };
+    const got = await call(url, `/api/inspire/implement/create-schema?${Q}`, { method: 'POST', body });
+    assert.equal(got.status, 200, JSON.stringify(got.data));
+    assert.equal(got.data.existed, true);
+    assert.deepEqual(made.sqlCalls.filter((c) => /^(CREATE|ALTER) /.test(c.sql)), [], 'an existing, tagged schema is neither created nor tagged again');
+    assert.deepEqual(grants, [['GRANT USE SCHEMA, CREATE TABLE, SELECT, MODIFY, MANAGE ON SCHEMA `main`.`_inspire_acme_n01_u01_42` TO `app-sp-1`', PERSON_TOKEN]],
+      'the builder grant lands on an existing schema, the case that left the build identity without USE SCHEMA and CREATE TABLE');
+  });
+});
+
+test('the ensure plan creates only a missing schema and tags only one not yet tagged with this session', () => {
+  const tags = { inspire_session_id: '42' };
+  assert.deepEqual(I.useCaseSchemaEnsure({}, tags), { create: true, tag: true });
+  assert.deepEqual(I.useCaseSchemaEnsure({ exists: true }, tags), { create: false, tag: true });
+  assert.deepEqual(I.useCaseSchemaEnsure({ exists: true, session: '42' }, tags), { create: false, tag: false });
+  assert.deepEqual(I.useCaseSchemaEnsure({ exists: true, session: '42' }, null), { create: false, tag: false });
+  assert.deepEqual(I.useCaseSchemaEnsure(null, null), { create: true, tag: false });
+});

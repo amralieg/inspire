@@ -26,7 +26,7 @@ test.after(closeBrowser);
 
 const next = (page) => page.getByRole('button', { name: 'Next' }).click();
 
-test('the wizard groups the rows by the use case\'s subject, suggests a team capacity the person can override, and keeps the weekly email on until it is turned off', async () => {
+test('the wizard groups the rows by the use case\'s subject, asks no team capacity (the App\'s Settings holds it), and keeps the weekly email on until it is turned off', async () => {
   const ui = await openUi('wizard', { me: { userName: OWNER, displayName: 'Owner' }, useCase: USE_CASE, columns: COLUMNS });
   const { page, pageErrors } = ui;
   const sent = [];
@@ -45,17 +45,8 @@ test('the wizard groups the rows by the use case\'s subject, suggests a team cap
     await grain.getByText('One row of the result is one customer (main.s.orders.customer_id).').waitFor();
     assert.equal(await grain.getByRole('combobox', { name: 'Entity key' }).inputValue(), 'main.s.orders.customer_id');
     await dataToResults(page);
-    await goToStep(page, 'Settings');
-    const capacity = page.getByRole('group', { name: 'Team capacity' });
-    const box = capacity.getByRole('textbox', { name: 'Rows the team can act on each run' });
-    assert.equal(await box.inputValue(), '50', 'a weekly run over 12,400 rows gets the suggested 50');
-    assert.match(await capacity.locator('[data-capacity-basis]').innerText(),
-      /^Inspire suggests 50: about 10 rows a working day for the decision owner, over the 5 working days between runs\. main\.s\.orders has 12,400 rows to rank/);
-    await box.fill('25');
-    assert.equal(await capacity.locator('[data-capacity-summary]').innerText(),
-      'Act now holds at most 25 rows a run; the next ones by rank wait in Review, and the App says how many.');
-    assert.match(await capacity.locator('[data-capacity-basis]').innerText(), /^Your number wins over Inspire\u2019s suggestion\. /);
-    await capacity.getByRole('button', { name: 'Use Inspire\u2019s suggestion: 50' }).waitFor();
+    assert.equal(await page.getByRole('group', { name: 'Team capacity' }).count(), 0, 'the wizard asks no team capacity (must-exclude)');
+    assert.equal(await page.getByLabel('Rows the team can act on each run').count(), 0);
     await goToStep(page, 'Delivery');
     await page.getByRole('checkbox', { name: /^Alert/ }).check();
     const digest = page.getByRole('checkbox', { name: /^Send a weekly value email to the alert recipients/ });
@@ -70,7 +61,7 @@ test('the wizard groups the rows by the use case\'s subject, suggests a team cap
     await startMvp(page);
     const { spec } = JSON.parse((await submitted).postData());
     assert.equal(sent.length, 1);
-    assert.deepEqual(spec.capacity, { act_now: 25, source: 'user' });
+    assert.equal(spec.capacity, undefined, 'a new MVP sends no cap; the App\u2019s Settings sets it');
     assert.equal(spec.data.column_roles.entity_id, 'main.s.orders.customer_id');
     assert.equal(spec.outputs.alert_digest, false);
     assert.equal(spec.outputs.alert_notify_on_ok, false);
@@ -78,7 +69,7 @@ test('the wizard groups the rows by the use case\'s subject, suggests a team cap
     const saved = JSON.parse(ui.made.sqlCalls.find((c) => String(c.sql).includes('INSERT INTO') && (c.parameters || []).some((p) => p.name === 'spec'))
       .parameters.find((p) => p.name === 'spec').value);
     assert.deepEqual([saved.capacity, saved.outputs.alert_digest, saved.outputs.alert_notify_on_ok, saved.data.column_roles.entity_id],
-      [{ act_now: 25, source: 'user' }, false, false, 'main.s.orders.customer_id'], 'the backend keeps what the person chose, so the agent builds it');
+      [undefined, false, false, 'main.s.orders.customer_id'], 'the backend keeps what the person chose, so the agent builds it');
     assert.deepEqual(pageErrors, []);
   } finally {
     await ui.close();
@@ -144,7 +135,7 @@ test('Open all settings on the Build page hands the wizard its live check, so a 
     await page.locator('[data-asset-tile="app"] [data-tile-versions]').waitFor({ timeout: 15000 });
     await (await openAsset(page, 'app')).getByRole('button', { name: 'Remove from churn-desk' }).waitFor({ timeout: 15000 });
     await openSettings(page);
-    for (let i = 0; i < 9 && await page.locator('[aria-current="step"]', { hasText: 'Delivery' }).count() === 0; i += 1) {
+    for (let i = 0; i < 13 && await page.locator('[aria-current="step"]', { hasText: 'Delivery' }).count() === 0; i += 1) {
       const from = await page.locator('[aria-current="step"]').innerText();
       await page.getByRole('button', { name: 'Back', exact: true }).click();
       await page.waitForFunction((was) => document.querySelector('[aria-current="step"]')?.innerText !== was, from, { timeout: 15000 });

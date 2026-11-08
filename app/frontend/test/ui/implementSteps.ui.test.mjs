@@ -7,7 +7,7 @@ test.after(closeBrowser);
 
 const OWNER = ['owner', 'example.com'].join('@');
 const ME = { me: { userName: OWNER, displayName: 'Owner' } };
-const FULL_MVP_STEPS = ['Delivery consumption', 'Data', 'MVP Test Run', 'Results', 'App placement', 'App access', 'App look', 'Settings', 'Vibes', 'Summary'];
+const FULL_MVP_STEPS = ['Delivery consumption', 'Data', 'MVP Test Run', 'Results', 'Measure impact', 'Keep it fresh', 'App placement', 'App access', 'App look', 'Settings', 'Vibes', 'Summary'];
 const next = (page) => page.getByRole('button', { name: 'Next' }).click();
 const startButton = (page) => page.getByRole('button', { name: BUILD_IT, exact: true });
 const stepLabels = async (page) => (await page.locator('[data-wizard-header] ol li').allTextContents()).map((l) => l.replace(/^\d+\. /, ''));
@@ -41,7 +41,7 @@ test('a fresh Inspire builds the MVP shows every step in the step bar, with no s
   }
 });
 
-test('Data, Results, App placement and App access show the business settings and keep the technical ones under Advanced settings until it is opened', async () => {
+test('Data, Results, Measure impact, Keep it fresh, App placement and App access show the business settings and keep the technical ones under Advanced settings until it is opened', async () => {
   const ui = await openUi('wizard', ME);
   const { page } = ui;
   const field = (label) => page.getByLabel(new RegExp(`^${label.replace(/[()]/g, '\\$&')}`));
@@ -59,11 +59,17 @@ test('Data, Results, App placement and App access show the business settings and
       await onStep(page, step);
     }
     for (const label of ['Table name', 'Catalog', 'Schema']) await shown(label);
-    await page.getByRole('group', { name: 'Keep it fresh' }).waitFor();
+    assert.equal(await page.getByRole('group', { name: 'Keep it fresh' }).count(), 0, 'Results holds only where the result table lives');
+    assert.equal(await page.getByRole('group', { name: 'Measure impact' }).count(), 0, 'Results holds only where the result table lives');
+    await goToStep(page, 'Measure impact');
     await page.getByRole('checkbox', { name: /^Hold back/ }).check();
-    for (const label of ['Share of records held back', 'Cron (Quartz)', 'Timezone', 'Rows the team can act on each run']) await hidden(label);
+    await hidden('Share of records held back');
     await open();
-    for (const label of ['Share of records held back', 'Cron (Quartz)', 'Timezone']) await shown(label);
+    await shown('Share of records held back');
+    await goToStep(page, 'Keep it fresh');
+    for (const label of ['Cron (Quartz)', 'Timezone']) await hidden(label);
+    await open();
+    for (const label of ['Cron (Quartz)', 'Timezone']) await shown(label);
     await hidden('Rows the team can act on each run');
     const picker = page.locator('[data-app-warehouse="pick"]');
     await goToStep(page, 'App placement');
@@ -94,7 +100,10 @@ test('Summary is the last step, lists every pick with a Change link that jumps t
     await summary(page).waitFor();
     const rows = await summary(page).locator('[data-picked-row]').evaluateAll((items) => items.map((r) => r.dataset.pickedRow));
     for (const id of ['outputs', 'data', 'first_run', 'result', 'kpi', 'holdout', 'schedule', 'app', 'app_access', 'app_look', 'capacity', 'vibes']) assert.ok(rows.includes(id), id);
-    assert.equal(await summary(page).locator('[data-picked-change]').count(), rows.length, 'every row has a Change link');
+    assert.equal(await summary(page).locator('[data-picked-change]').count(), rows.length - 1, 'every row but Team capacity has a Change link');
+    assert.equal(await summary(page).locator('[data-picked-row="capacity"] [data-picked-change]').count(), 0, 'Team capacity is set in the App, not in the wizard');
+    assert.match(await summary(page).locator('[data-picked-row="outputs"] [data-picked-value]').innerText(), /^The MVP: /);
+    assert.match(await summary(page).locator('[data-picked-row="schedule"] [data-picked-value]').innerText(), /^Daily, runs every day at /);
     const result = await summary(page).locator('[data-picked-row="result"] [data-picked-value]').innerText();
     await summary(page).getByRole('button', { name: 'Change Result table' }).click();
     await onStep(page, 'Results');

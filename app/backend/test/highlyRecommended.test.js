@@ -23,7 +23,8 @@ test('each choice has exactly one Highly Recommended option, with a reason, pick
   assert.equal(H.bestMode({ genieOff: 'off' }).id, 'notebook');
   one(H.bestFreshness({ outputs: { alert: false } }), W.FRESHNESS_OPTIONS.map((o) => o.id));
   assert.equal(H.bestFreshness({ outputs: { alert: true } }).id, 'daily');
-  assert.equal(H.bestFreshness({ outputs: { alert: false } }).id, 'off');
+  assert.equal(H.bestFreshness({ outputs: { alert: false } }).id, 'daily', 'Keep it fresh is Highly Recommended on Daily, with or without an alert');
+  assert.notEqual(H.bestFreshness({ outputs: { alert: false } }).reason, H.bestFreshness({ outputs: { alert: true } }).reason);
   one(H.bestHoldout(), [true, false]);
   assert.equal(H.bestKpi([{ name: 'Churn rate' }], { record: { name: 'churn rate' } }).id, 'churn rate');
   assert.equal(H.bestKpi([{ name: 'Churn rate' }], { record: { name: 'Revenue' } }).id, '', 'a tracked KPI not in the list is not recommended (must-exclude)');

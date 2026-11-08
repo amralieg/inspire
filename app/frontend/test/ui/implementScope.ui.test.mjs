@@ -81,11 +81,11 @@ test('a first build asks Data groups after Data with the reason and the columns 
   const { page, made } = ui;
   try {
     await toStep(page, 'Data groups');
-    assert.deepEqual(await stepBar(page), ['1. Delivery consumption', '2. Data', '3. Data groups', '4. MVP Test Run', '5. Results', '6. App placement', '7. App access', '8. App look', '9. Settings', '10. Vibes', '11. Summary']);
+    assert.deepEqual(await stepBar(page), ['1. Delivery consumption', '2. Data', '3. Data groups', '4. MVP Test Run', '5. Results', '6. Measure impact', '7. Keep it fresh', '8. App placement', '9. App access', '10. App look', '11. Settings', '12. Vibes', '13. Summary']);
     await page.setViewportSize({ width: 1440, height: 900 });
     assert.deepEqual(await page.locator('[data-wizard-header] ol').evaluate((ol) => ({ overflow: ol.scrollWidth > ol.clientWidth + 1,
       rows: new Set([...ol.children].map((li) => Math.round(li.getBoundingClientRect().top))).size })), { overflow: false, rows: 1 },
-    'all eleven steps on one line at 1440x900');
+    'all thirteen steps on one line at 1440x900');
     assert.ok(calls.length >= 1 && calls.every((c) => JSON.stringify(c) === JSON.stringify(calls[0])), JSON.stringify(calls));
     assert.deepEqual(Object.keys(calls[0]).sort(), ['inspire_database', 'session_id', 'use_case_id', 'warehouse_id']);
     assert.deepEqual([calls[0].inspire_database, calls[0].use_case_id, calls[0].warehouse_id],
@@ -135,7 +135,7 @@ test('a first build asks Data groups after Data with the reason and the columns 
     await firstRun.locator('[data-scope-group="EMEA / Malta"] input').check();
     assert.equal(await firstRun.locator('[data-first-run-covers]').textContent(), 'The MVP Test Run covers 1 group of region, then country: region = EMEA and country = Malta, '
       + '40 records. Every other group waits for a run on everything.');
-    await firstRun.getByText('Schedules keep this scope until someone presses Run on everything.', { exact: true }).waitFor();
+    await firstRun.getByText('Only the first run uses this test scope. Every later run, scheduled or not, covers all the records in the Data groups.', { exact: true }).waitFor();
     const contrast = await lowContrast(page, ['[data-scope-step="first_run"]']);
     assert.ok(contrast.checked >= 8, `measured ${contrast.checked}`);
     assert.deepEqual(contrast.low, []);
@@ -231,7 +231,7 @@ test('Next on Data waits for a slow read and lands on Data groups, and a first r
   try {
     await onStep(page, 'Delivery consumption');
     await goToStep(page, 'Data');
-    assert.deepEqual(await stepBar(page), ['1. Delivery consumption', '2. Data', '3. Results', '4. App placement', '5. App access', '6. App look', '7. Settings', '8. Vibes', '9. Summary'], 'the table is still being read');
+    assert.deepEqual(await stepBar(page), ['1. Delivery consumption', '2. Data', '3. Results', '4. Measure impact', '5. Keep it fresh', '6. App placement', '7. App access', '8. App look', '9. Settings', '10. Vibes', '11. Summary'], 'the table is still being read');
     await next(page);
     await page.getByRole('button', { name: /Reading the table/ }).waitFor({ timeout: 8000 });
     await onStep(page, 'Data groups');
@@ -369,7 +369,7 @@ test('a technique Data groups do not apply to asks only for the first run, and a
   const { page } = ui;
   try {
     await toStep(page, 'MVP Test Run');
-    assert.deepEqual(await stepBar(page), ['1. Delivery consumption', '2. Data', '3. MVP Test Run', '4. Results', '5. App placement', '6. App access', '7. App look', '8. Settings', '9. Vibes', '10. Summary']);
+    assert.deepEqual(await stepBar(page), ['1. Delivery consumption', '2. Data', '3. MVP Test Run', '4. Results', '5. Measure impact', '6. Keep it fresh', '7. App placement', '8. App access', '9. App look', '10. Settings', '11. Vibes', '12. Summary']);
     assert.equal(await page.locator('[data-first-run-held]').textContent(), 'main.sales.orders holds 800 records, so the MVP Test Run covers all of it.');
     assert.deepEqual(await checkedChoice(page, 'data-first-run-choice'), ['records'], 'a profile that still says all is never the default');
     assert.equal(await page.locator('[data-first-run-covers]').textContent(), 'The MVP Test Run covers all 800 records of main.sales.orders, since it holds no more than 1,000 records.');

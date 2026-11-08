@@ -3217,6 +3217,12 @@ function useCaseSchemaFacts(rows) {
   return facts;
 }
 
+function useCaseSchemaEnsure(found, tags) {
+  const held = isPlainObject(found) ? found : {};
+  const sid = isPlainObject(tags) ? str(tags.inspire_session_id).trim() : '';
+  return { create: !held.exists, tag: Boolean(tags) && !(held.exists && sid && held.session === sid) };
+}
+
 function useCaseSchemaPlace({ inspireDatabase, useCaseId, sessionId, businessName, rows = null, unchecked = '' }) {
   const own = defaultUseCaseResultTable(inspireDatabase, useCaseId, sessionId, businessName);
   if (!own) return null;
@@ -3661,6 +3667,7 @@ module.exports = {
   USE_CASE_SCHEMA_TAGS,
   USE_CASE_SCHEMA_BUILDER_PRIVILEGES,
   useCaseSchemaStatement,
+  useCaseSchemaEnsure,
   useCaseSchemaFacts,
   useCaseSchemaPlace,
   useCaseSchemaTagsSql,

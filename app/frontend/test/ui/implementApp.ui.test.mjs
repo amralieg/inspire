@@ -461,8 +461,15 @@ test('Where results live offers its own schema, falls back to the Inspire databa
     await schema.locator('option[value="mvp"]').waitFor({ state: 'attached' });
     await schema.selectOption('mvp');
     await goToStep(page, 'Delivery');
+    await page.locator('[data-blocked-reason="app"]').waitFor({ timeout: 15000 });
+    await until(async () => !(await page.getByRole('checkbox', { name: /^App / }).isChecked()), 'the App Inspire cannot build is turned off on Delivery, in view');
+    assert.equal(await page.getByRole('checkbox', { name: /^App / }).isDisabled(), true);
+    await toSummary(page);
+    await page.locator('[data-picked-row="dropped"]').getByText(/^App: /).waitFor();
+    assert.deepEqual((await footerErrors(page)).filter((e) => /^App /.test(e)), [], 'a check of the dropped App never shows on the Summary (must-exclude)');
     await startWhenReady(page);
     assert.equal(submittedSpec(made).config.result_table, 'sales.mvp.n01_u01_s42_out');
+    assert.equal(submittedSpec(made).outputs.app, false);
     assert.deepEqual(ui.pageErrors, []);
   } finally {
     await ui.close();
@@ -829,11 +836,18 @@ test('every wizard step fits a 1440x900 screen with nothing to scroll, the App s
     await page.getByRole('region', { name: 'Where the result table lives' }).getByLabel('Table name').waitFor();
     await fits('3-results');
     await readable('results');
+    await goToStep(page, 'Measure impact');
     const holdout = page.getByRole('group', { name: 'Measure impact' }).getByRole('checkbox', { name: /^Hold back a share of records/ });
-    await holdout.check();
-    await fits('3-results-holdout');
-    await readable('results with the holdout on');
+    await holdout.waitFor();
+    await fits('3-measure');
+    await readable('measure impact');
     await holdout.uncheck();
+    await fits('3-measure-holdout-off');
+    await holdout.check();
+    await goToStep(page, 'Keep it fresh');
+    await page.getByRole('group', { name: 'Keep it fresh' }).waitFor();
+    await fits('3-fresh');
+    await readable('keep it fresh');
     await goToStep(page, 'Delivery');
     for (const name of [/^Dashboard/, /^App /, /^Alert/]) await page.getByRole('checkbox', { name }).check();
     await page.locator('[data-merge="dashboard"]').getByRole('button', { name: 'Create new' }).waitFor();

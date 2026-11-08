@@ -57,10 +57,12 @@ def test_the_four_first_run_settings_follow_the_contract_and_reach_the_run(agent
     assert run_scope["choices"] == ["all", "groups", "recent", "records"] and run_scope["default"] == "groups"
     assert groups["many"] and groups["optional"] and days["default"] == "30" and records["default"] == "1000"
     model = agent_ns["inspire_settings_model"]({"family": "B", "decision_basis": "measured", "first_run": dict(FIXTURE["spec"])}, [])
-    assert [s["name"] for s in model] == ["run_scope", "scope_groups", "scope_days", "scope_records"]
+    assert [s["name"] for s in model] == ["act_now_capacity", "run_scope", "scope_groups", "scope_days", "scope_records"]
     run = agent_ns["inspire_run_settings_model"](model)
-    assert [s["name"] for s in run] == ["run_scope", "scope_groups", "scope_days", "scope_records"] and run[1]["optional"] is True
-    assert agent_ns["inspire_settings_model"]({"family": "B", "decision_basis": "measured"}, []) == [], "no main table, no First run"
+    assert [s["name"] for s in run] == ["act_now_capacity", "run_scope", "scope_groups", "scope_days", "scope_records"]
+    assert run[0]["optional"] is True and run[2]["optional"] is True
+    assert [s["name"] for s in agent_ns["inspire_settings_model"]({"family": "B", "decision_basis": "measured"}, [])] == ["act_now_capacity"], \
+        "no main table, no MVP Test Run"
 
 
 def test_an_empty_scope_groups_is_allowed_and_any_other_empty_choice_is_not(agent_ns):
@@ -246,7 +248,7 @@ def test_each_run_records_its_scope_and_the_records_it_read_per_table(fresh_ns):
     assert all(s.startswith("SELECT COUNT(*) AS n FROM") for s in capped.statements if s.startswith("SELECT"))
 
 
-def test_schedules_keep_the_scope_until_someone_chooses_all(fresh_ns):
+def test_the_app_s_mvp_test_run_choice_reaches_the_run_s_scope_choice(fresh_ns):
     run = {"scope": dict(FIXTURE["spec"], default="groups"), "settings": fresh_ns["inspire_run_settings_model"](
         fresh_ns["inspire_scope_settings"](dict(FIXTURE["spec"], default="groups"))), "settings_read": False}
     for saved, expected in (([], "groups"), ([("run_scope", "groups")], "groups"), ([("run_scope", "all")], "all")):

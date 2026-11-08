@@ -144,14 +144,14 @@ test('the wizard holdout starts on at 10% for a new use case, off for a saved on
   const old = w.specFromLatest({ spec_version: 1, spec_json: Object.fromEntries(Object.entries(fresh).filter(([k]) => k !== 'holdout')) }, fresh);
   assert.deepEqual(old.holdout, { enabled: false, share: 0.1 }, 'a saved version without a holdout stays without one (must-exclude)');
   assert.equal(w.holdoutPercentText(fresh), '10');
-  assert.deepEqual(w.stepErrors('results', fresh), []);
+  assert.deepEqual(w.stepErrors('measure', fresh), []);
   const on = w.withHoldout(fresh, true);
   assert.deepEqual(on.holdout, { enabled: true, share: 0.1 });
   const quarter = w.withHoldoutPercent(on, '25');
   assert.deepEqual(quarter.holdout, { enabled: true, share: 0.25 });
   assert.equal(w.holdoutPercentText(quarter), '25');
   assert.equal(w.holdoutPercentText(w.withHoldoutPercent(on, '29')), '29', 'the percent reads back as typed, with no float noise');
-  assert.deepEqual(w.stepErrors('results', quarter), []);
+  assert.deepEqual(w.stepErrors('measure', quarter), []);
   assert.equal(w.holdoutText(quarter), 'Holds back 25% of the records to measure impact');
   assert.equal(w.holdoutText(w.withHoldout(fresh, false)), '');
   const sent = I.validateImplementSpec(I.withInspireUrl(quarter, 'https://inspire.example.com'));
@@ -159,10 +159,10 @@ test('the wizard holdout starts on at 10% for a new use case, off for a saved on
   assert.deepEqual(sent.spec.holdout, { enabled: true, share: 0.25 });
   for (const text of ['0', '0.5', '51', '', 'ten', '-5']) {
     const bad = w.withHoldoutPercent(on, text);
-    assert.deepEqual(w.stepErrors('results', bad), [w.HOLDOUT_PERCENT_PROBLEM], JSON.stringify(text));
+    assert.deepEqual(w.stepErrors('measure', bad), [w.HOLDOUT_PERCENT_PROBLEM], JSON.stringify(text));
     const off = w.withHoldout(bad, false);
     assert.deepEqual(off.holdout, { enabled: false, share: 0.1 }, `switching off resets a bad share ${JSON.stringify(text)} so a hidden field never blocks`);
-    assert.deepEqual(w.stepErrors('results', off), []);
+    assert.deepEqual(w.stepErrors('measure', off), []);
     assert.deepEqual(I.validateImplementSpec(I.withInspireUrl(off, 'https://inspire.example.com')).errors, []);
   }
   assert.deepEqual(w.withHoldout(quarter, false).holdout, { enabled: false, share: 0.25 }, 'switching off keeps a good share for next time');

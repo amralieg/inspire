@@ -17,6 +17,7 @@ import {
   wizardSteps,
   contextSettings,
   IMPLEMENT_OUTPUTS,
+  ALERT_TIER_HELP,
   ALERT_TIER_OPTIONS,
   ALERT_OPERATORS,
   ALERT_OPERATOR_WORDS,
@@ -29,7 +30,7 @@ import {
   nameOrEmpty,
   RESULT_PLACES,
   resultPlaceOf,
-  useCaseSchemaTags,
+  useCaseSchemaTags as schemaTagsOf,
   ownSchemaFallbackNote,
   defaultSpecFromUseCase,
   caseNameOf,
@@ -75,6 +76,7 @@ import {
   profileEstimate,
   costHint,
   PREFLIGHT_LABELS,
+  checksFor,
   PROFILE_FIELDS,
   APP_NAME_RE,
   START_MVP_LABEL,
@@ -190,12 +192,11 @@ import {
   holdoutProblems,
   withHoldout,
   withHoldoutPercent,
-  unavailableOutputs,
+  outputBlocks,
+  droppedOutputs,
   withoutUnavailableOutputs,
-  capacitySuggestion,
-  withCapacity,
-  withCapacityDefault,
-  withSuggestedCapacity,
+  FRESH_HELP,
+  FRESH_LABEL,
   withClears,
   withDigest,
   grainCheck,
@@ -220,13 +221,13 @@ import {
 import {
   bestAppAccess, bestAppBackend, bestHeldApp, bestAppOption, bestAppPlace, bestAppPolicy, bestAppTarget, bestFreshness, bestHoldout, bestKpi, bestLook, bestMerge,
   bestMode, bestOutput, bestRemoved, bestReplaceEdits, isBest,
-  bestResultTable,
+  bestResultPlace, resultPlaceBlocks,
 } from '../lib/highlyRecommended';
 import HighlyRecommended, { BestOf } from '../components/HighlyRecommended';
 import { counted } from '../lib/plural';
 import { personalColumn } from '../lib/personalColumns';
 import { PLACE_RIGHTS, placeNameProblem } from '../lib/tableName';
-import { ClearsChoice, DigestChoice, RowSubjectCheck, TeamCapacity } from '../components/WizardStickParts';
+import { BlockedReason, ClearsChoice, DigestChoice, RowSubjectCheck } from '../components/WizardStickParts';
 import { placeholderWords } from '../lib/placeholderWords';
 import {
   KPI_CHANGE_NOTE, KPI_INSPIRE_PICKS, KPI_NONE_YET, KPI_PICK_RULE, kpiKey, kpiOptionLabel, kpiTargetOf, kpiTargetOptions, kpiTargetProblems, trackedKpiOf,
@@ -394,6 +395,7 @@ export default function ImplementWizard({
   const [preflightError, setPreflightError] = useState('');
   const [checksBusy, setChecksBusy] = useState(false);
   const [outputCheck, setOutputCheck] = useState(null);
+  const [dropped, setDropped] = useState([]);
   const [busy, setBusy] = useState(false);
   const [plan, setPlan] = useState(null);
   const [planError, setPlanError] = useState('');
@@ -456,7 +458,8 @@ export default function ImplementWizard({
     && !(isFirstRunSetting(s) && scope.firstRun)), [everySetting]);
   const profileRead = scopeProfile.state === 'ready';
   const settingsList = useMemo(() => settingsFor(scopeSteps, profileRead), [settingsFor, scopeSteps.grouping, scopeSteps.firstRun, profileRead]); // eslint-disable-line react-hooks/exhaustive-deps
-  const steps = wizardSteps(mode, spec, scopeSteps);
+  const stepScope = useMemo(() => ({ ...scopeSteps, settings: settingsList.length > 0 }), [scopeSteps.grouping, scopeSteps.firstRun, settingsList.length]); // eslint-disable-line react-hooks/exhaustive-deps
+  const steps = wizardSteps(mode, spec, stepScope);
   const stepIndex = stepIndexOf(steps, step);
   const stepId = steps[stepIndex].id;
   const lastStep = stepIndex === steps.length - 1;
@@ -516,15 +519,22 @@ export default function ImplementWizard({
         });
         if (data.own_schema?.table) fallback.config.result_table = data.own_schema.table;
         setOwnSchema(data.own_schema || null);
+        if (data.own_schema?.place === 'own' && !data.own_schema.create && data.own_schema.table) {
+          const own = resultTableParts(data.own_schema.table);
+          apiPostJson(`/api/inspire/implement/create-schema?${q}`, {
+            catalog: own.catalog, schema: own.schema, tags: schemaTagsOf({ sessionId, useCaseId: fallback.use_case_id, businessName: data.business_name }),
+          }).then((made) => {
+            if (cancelled) return;
+            if ((made.warnings || []).length) setPlaceNote((made.warnings || []).join(' '));
+            setGrantRound((n) => n + 1);
+          }).catch(() => {});
+        }
         setPlaceNote(data.latest ? '' : data.own_schema?.note || '');
         const missing = [...(focus?.missingTables || []), ...(data.missing_tables || [])]
           .filter((m, i, all) => all.findIndex((o) => String(o.table).toLowerCase() === String(m.table).toLowerCase()) === i);
         const { spec: kept, reverted } = revertLostSwaps(specFromLatest(data.latest, fallback, data.assets), row, missing);
         const collected = withCollectedVibes(kept, focus?.collected);
-        const firstTable = primaryTableOf(row);
-        const next = withCapacityDefault(collected.spec, {
-          latest: data.latest, evidence: data.evidence, table: collected.spec.data.tables?.[firstTable] || firstTable, editing: Boolean(data.latest),
-        });
+        const next = collected.spec;
         if (!next.config.warehouse_id) next.config.warehouse_id = warehouseId;
         setSpec(next);
         setMissingTables(missing);
@@ -600,8 +610,10 @@ export default function ImplementWizard({
   const chosenKpi = kpiTargetOf(spec);
   const sampleStake = trackedKpi && (!chosenKpi || kpiKey(chosenKpi) === kpiKey(trackedKpi.record.name)) ? trackedKpi.impact : null;
   const placeSettled = !spec.outputs.app || (targets !== null && (placeSet === 'default' || placeSet === 'person'));
+  const features = preflight?.features || context?.features || ALL_FEATURES;
+  const blocks = useMemo(() => outputBlocks(features, outputCheck, context?.assets, preflight), [features, outputCheck, context?.assets, preflight]);
   const extras = { columnsByTable, widgets: context?.widgets || [], trainsModel, mergeTargets: targets, held: context?.assets || {}, appLook: look, built, placeSettled,
-    lakebase, warehouses, kpiOptions, settings: settingsList, sourceTables, scopeSteps, scopeProfile: scopeProfile.profile };
+    lakebase, warehouses, kpiOptions, settings: settingsList, sourceTables, scopeSteps: stepScope, scopeProfile: scopeProfile.profile, outputBlocks: blocks };
   const chartDates = appInputDates(columnsByTable, sourceTables);
   const ownErrors = stepErrors(stepId, spec, extras, mode);
 
@@ -616,13 +628,6 @@ export default function ImplementWizard({
     dataWindow: spec.data.window,
     ...more,
   }).text;
-
-  const capacityInputs = { latest: context?.latest, evidence: context?.evidence, table: primaryChosen, editing: Boolean(context?.latest) };
-  const capacityCron = spec.schedule.cron;
-  useEffect(() => {
-    if (!context || context.latest) return;
-    setSpec((prev) => withCapacityDefault(prev, { evidence: context.evidence, table: primaryChosen }));
-  }, [capacityCron, context, primaryChosen]);
 
   const setProfile = (section, value) => patch(`config.profiles.${section}`, value);
 
@@ -694,12 +699,12 @@ export default function ImplementWizard({
           setReadiness({ ...counted, scope, warning });
         }
       }
-      if (stepId === 'results' && resultPlace === 'own' && !(ownSchema?.place === 'own' && !ownSchema.create)) {
+      if (stepId === 'results' && resultPlace === 'own') {
         setChecking('Creating the use case schema');
         const own = resultTableParts(ownTable);
         try {
           const made = await apiPostJson(`/api/inspire/implement/create-schema?${q}`, {
-            catalog: own.catalog, schema: own.schema, tags: useCaseSchemaTags({ sessionId, useCaseId: spec.use_case_id, businessName: context?.business_name }),
+            catalog: own.catalog, schema: own.schema, tags: schemaTagsOf({ sessionId, useCaseId: spec.use_case_id, businessName: context?.business_name }),
           });
           setOwnSchema((prev) => ({ ...(prev || {}), own_table: ownTable, table: ownTable, place: 'own', create: false }));
           setPlaceNote((made.warnings || []).join(' '));
@@ -731,7 +736,7 @@ export default function ImplementWizard({
         setChecking(PROFILE_WAITING);
         const done = await scopeProfile.wait();
         const doneSteps = scopeStepsOf(done.state, done.profile, builtFirstRun);
-        list = wizardSteps(mode, spec, doneSteps);
+        list = wizardSteps(mode, spec, { ...doneSteps, settings: settingsFor(doneSteps, done.state === 'ready').length > 0 });
         profile = done.profile;
       }
       const next = list[stepIndexOf(list, nextStepAfter(list, stepId, { backToSummary, visited }))];
@@ -901,6 +906,7 @@ export default function ImplementWizard({
   const ownTable = ownSchema?.own_table ?? nameOrEmpty(() => defaultResultTable(inspireDatabase, spec.use_case_id, sessionId, context?.business_name));
   const inspireTable = inspireSchemaResultTable(inspireDatabase, spec.use_case_id, sessionId);
   const resultPlace = resultPlaceOf(spec.config.result_table, ownTable, inspireTable);
+  const placeBlocks = resultPlaceBlocks(ownSchema, ownTable, inspireTable, ownSchema?.catalog || resultTableParts(ownTable).catalog);
   useEffect(() => {
     if (stepId !== 'results' || catalogs !== null) return undefined;
     let cancelled = false;
@@ -1023,20 +1029,22 @@ export default function ImplementWizard({
   }, [principalQ, apiFetch, q]);
 
   const title = caseNameOf(uc) || spec.use_case_name || spec.use_case_id;
-  const features = preflight?.features || context?.features || ALL_FEATURES;
   const genieOff = genieCodeOff(features);
-  const unavailable = unavailableOutputs(features, outputCheck, context?.assets);
+  const unavailable = Object.keys(blocks);
   const unavailableKey = unavailable.join(',');
 
   useEffect(() => {
-    if (loading || !unavailableKey) return;
+    if (loading || !unavailableKey || stepId !== 'delivery') return;
     const off = unavailableKey.split(',');
     setSpec((prev) => {
       const next = withoutUnavailableOutputs(prev, off, context?.assets);
-      const top = bestOutput(off);
-      return top && !IMPLEMENT_OUTPUTS.some((o) => next.outputs[o.id]) ? withOutput(next, top.id, true, context?.assets) : next;
+      const top = bestOutput(blocks);
+      const kept = top && !IMPLEMENT_OUTPUTS.some((o) => next.outputs[o.id]) ? withOutput(next, top.id, true, context?.assets) : next;
+      const lost = droppedOutputs(prev, kept, blocks);
+      if (lost.length) setDropped((was) => [...was.filter((d) => !lost.some((l) => l.id === d.id)), ...lost]);
+      return kept;
     });
-  }, [loading, unavailableKey, context?.assets]);
+  }, [loading, unavailableKey, context?.assets, stepId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const personal = sourceTables.flatMap((t) => columnsByTable[t] || []).find((c) => personalColumn(c?.name, c?.tags))?.name || '';
   useEffect(() => {
@@ -1056,7 +1064,7 @@ export default function ImplementWizard({
   }
 
   const chosenDestinations = spec.outputs.alert_destinations || [];
-  const checkEntries = Object.entries(preflight?.checks || {});
+  const checkEntries = checksFor(preflight?.checks, spec.outputs);
   const generalChecks = checkEntries.filter(([k]) => !TILE_CHECK_KEYS.includes(k));
   const freshness = freshnessOf(spec.schedule);
   const checkStepOf = (k) => {
@@ -1081,12 +1089,12 @@ export default function ImplementWizard({
   ].filter(Boolean))];
   const unchanged = lastStep && !checksBusy && Boolean(plan?.unchanged);
   const implementBlocked = busy || checksBusy || !placeSettled || Boolean(plan?.unchanged)
-    || (!ownErrors.length && (!preflight || !preflight.ok || !plan || Boolean(planError)));
+    || (!ownErrors.length && (!preflight || !checkEntries.every(([, c]) => c.ok) || !plan || Boolean(planError)));
   const palette = (look?.palette_colors || []).find((p) => p.id === spec.outputs.app_look.palette) || null;
   const best = {
     mode: bestMode({ genieOff }),
-    output: bestOutput(unavailable),
-    result: bestResultTable(ownTable && ownSchema?.place !== 'inspire' ? 'own' : inspireTable ? 'inspire' : '', ownSchema?.catalog || resultTableParts(ownTable).catalog),
+    output: bestOutput(blocks),
+    result: bestResultPlace(placeBlocks, ownSchema?.catalog || resultTableParts(ownTable).catalog),
     freshness: bestFreshness(spec),
     holdout: bestHoldout(),
     kpi: bestKpi(kpiOptions, trackedKpi),
@@ -1109,6 +1117,7 @@ export default function ImplementWizard({
     grouping: scopeSteps.grouping && groupingPicked ? `${groupingPicked.label} · ${groupingCountText(groupingCount(groupingPicked, scopeProfile.firstRun?.profile || scopeProfile.profile))}` : '',
     firstRun: scopeSteps.firstRun ? scopeText(sentScope, scopeProfile.profile).replace(`${FIRST_RUN_LABEL}: `, '') : '',
     settings: settingsList.length ? counted(settingsList.length, 'setting') : '',
+    dropped: dropped.filter((d) => !spec.outputs[d.id]),
   }).filter((row) => steps.some((s) => s.id === row.step));
   const changeStep = (id) => { setErrors([]); setBackToSummary(true); setStep(id); };
   const nextIsSummary = backToSummary && nextStepAfter(steps, stepId, { backToSummary, visited }) === SUMMARY_STEP.id;
@@ -1419,6 +1428,7 @@ export default function ImplementWizard({
               outputCheck={outputCheck}
               onChange={(parts) => { setSpec((prev) => withResultTable(prev, parts)); setOutputCheck(null); }}
               best={best.result}
+              blocks={placeBlocks}
             >
               <ResultPlaceFields
                 parts={resultParts}
@@ -1430,6 +1440,11 @@ export default function ImplementWizard({
                 onCreate={createPlace}
               />
             </ResultTableStep>
+          </>
+        )}
+
+        {stepId === 'measure' && (
+          <>
             <HoldoutSetting spec={spec} best={best.holdout} onEnabled={(on) => setSpec((prev) => withHoldout(prev, on))}>
               <KpiTargetSetting
                 spec={spec}
@@ -1440,8 +1455,17 @@ export default function ImplementWizard({
                 onPick={(name) => setSpec((prev) => withKpiTarget(prev, name))}
               />
             </HoldoutSetting>
+            <Advanced open={advanced.measure} onToggle={() => toggleAdvanced('measure')}>
+              <HoldoutPercent spec={spec} onPercent={(text) => setSpec((prev) => withHoldoutPercent(prev, text))} />
+            </Advanced>
+          </>
+        )}
+
+        {stepId === 'fresh' && (
+          <>
             <section className="space-y-2">
-              <h3 className="text-sm font-semibold text-text-primary">Keep it fresh</h3>
+              <h3 className="text-sm font-semibold text-text-primary">{FRESH_LABEL}</h3>
+              <p className="text-[11px] text-text-secondary">{FRESH_HELP}</p>
               <div data-choice="freshness" className="space-y-2">
               <div role="group" aria-label="Keep it fresh" className="inline-flex rounded-lg border border-border overflow-hidden">
                 {[...FRESHNESS_OPTIONS, ...(freshness === 'custom' ? [{ id: 'custom', label: 'Custom' }] : [])].map((option) => (
@@ -1462,13 +1486,12 @@ export default function ImplementWizard({
               </div>
               <p className="text-[11px] text-text-tertiary">
                 {freshness === 'off'
-                  ? 'Genie runs it once now. Turn this on later to refresh it on a schedule.'
-                  : `Refreshes ${cronInWords(spec.schedule.cron, spec.schedule.timezone)}, after the first successful run. Cost: ${costHint(spec)}`}
+                  ? 'It runs once now. Turn this on later to keep the results current.'
+                  : `Runs ${cronInWords(spec.schedule.cron, spec.schedule.timezone)}, after the first run works. Cost: ${costHint(spec)}`}
               </p>
             </section>
 
-            <Advanced open={advanced.results} onToggle={() => toggleAdvanced('results')}>
-              <HoldoutPercent spec={spec} onPercent={(text) => setSpec((prev) => withHoldoutPercent(prev, text))} />
+            <Advanced open={advanced.fresh} onToggle={() => toggleAdvanced('fresh')}>
               <div className="space-y-2">
                 <h4 className="text-[10px] font-bold uppercase tracking-[0.18em] text-text-tertiary">Schedule</h4>
                 <Field label="Cron (Quartz)">
@@ -1508,7 +1531,8 @@ export default function ImplementWizard({
                   const Icon = ICONS[item.id];
                   const on = spec.outputs[item.id];
                   const noAppAccess = item.id === 'app' && !context?.assets?.app && outputCheck?.app?.ok === false;
-                  const cannot = unavailable.includes(item.id);
+                  const block = blocks[item.id];
+                  const cannot = Boolean(block);
                   const tileChecks = (TILE_CHECKS[item.id] || []).map((k) => [k, preflight?.checks?.[k]])
                     .filter(([, v]) => v && !v.ok && on);
                   const locked = item.id === 'genie_space' && spec.outputs.app;
@@ -1516,7 +1540,7 @@ export default function ImplementWizard({
                   const gone = on && (context?.gone_assets || []).includes(item.id);
                   const holding = sharedHolding(item.id, shared, live);
                   return (
-                    <div key={item.id} data-output={item.id} className={`border rounded-lg p-3 space-y-2 ${on ? 'border-db-red/50 bg-db-red-50/40' : 'border-border'}`}>
+                    <div key={item.id} data-output={item.id} data-blocked={cannot ? '' : undefined} className={`border rounded-lg p-3 space-y-2 ${on ? 'border-db-red/50 bg-db-red-50/40' : 'border-border'} ${cannot && !on ? 'border-dashed bg-bg cursor-not-allowed' : ''}`}>
                       <div className="relative">
                         <label className={`flex items-start gap-3 ${locked ? '' : 'cursor-pointer'}`}>
                           <input type="checkbox" value={item.id} className="mt-0.5" checked={on} disabled={(cannot && !on) || locked} onChange={(e) => toggleOutput(item.id, e.target.checked)} />
@@ -1525,16 +1549,16 @@ export default function ImplementWizard({
                               <Icon size={14} /> {item.label}
                               {locked && <Lock size={12} className="text-text-tertiary" aria-hidden="true" />}
                             </span>
-                            <span className={`block text-[11px] mt-1 ${cannot ? 'text-error-fg' : 'text-text-secondary'}`}>
-                              {!cannot && (locked ? GENIE_FOR_APP_NOTE : item.blurb)}
+                            <span className="block text-[11px] mt-1 text-text-secondary">
+                              {locked ? GENIE_FOR_APP_NOTE : item.blurb}
                               {!cannot && item.id === 'app' && ` ${APP_NEXT_NOTE}`}
-                              {cannot && noAppAccess && `Inspire cannot create this App: ${outputCheck.app.detail}.${on ? ' Turn it off, or fix the access and check again.' : ''}`}
-                              {cannot && !noAppAccess && (on ? 'You cannot create this in this workspace any more. Turn it off, or ask a workspace admin.' : 'You cannot create this in this workspace.')}
                             </span>
+                            {cannot && on && <span className="block text-[11px] mt-1 text-error-fg">It cannot be built, so turn it off.</span>}
                             <span className="block mt-1"><HighlyRecommended best={best.output} id={item.id} /></span>
                           </span>
                         </label>
                       </div>
+                      {cannot && <div className="ps-7"><BlockedReason block={block} id={item.id} /></div>}
                       {noAppAccess && outputCheck.app.offer && (
                         <div className="ps-7 space-y-1.5 text-[11px]">
                           <GrantList label="Grant Inspire can run for new Apps" items={outputCheck.app.offer.grants} />
@@ -1644,7 +1668,7 @@ export default function ImplementWizard({
                         {ALERT_THRESHOLD_BASES.map((b) => <option key={b.id} value={b.id}>{b.label}</option>)}
                       </select>
                     </div>
-                    <p className="text-[11px] text-text-tertiary">Fires when {alertTriggerText(spec.outputs)}.</p>
+                    <p className="text-[11px] text-text-tertiary">Fires when {alertTriggerText(spec.outputs)}. {ALERT_TIER_HELP}</p>
                     <textarea dir="auto"
                       className={inputCls}
                       rows={2}
@@ -1793,13 +1817,6 @@ export default function ImplementWizard({
                 onNote={(text) => setSpec((prev) => withSettingsNote(prev, text))}
               />
             )}
-            <TeamCapacity
-              spec={spec}
-              suggestion={capacitySuggestion(spec, capacityInputs)}
-              inputClass={inputBase}
-              onType={(typed) => setSpec((prev) => withCapacity(prev, typed))}
-              onSuggest={() => setSpec((prev) => withSuggestedCapacity(prev, capacityInputs))}
-            />
           </>
         )}
 
@@ -1827,8 +1844,8 @@ export default function ImplementWizard({
                     <dt className="text-text-tertiary">{row.label}</dt>
                     <dd data-picked-value="" className="text-text-primary break-words">{row.value}</dd>
                     <dd>
-                      <button type="button" data-picked-change={row.step} className="text-[11px] font-medium text-db-red-fg hover:underline glow-focus"
-                        aria-label={`Change ${row.label}`} onClick={() => changeStep(row.step)}>Change</button>
+                      {row.step !== SUMMARY_STEP.id && <button type="button" data-picked-change={row.step} className="text-[11px] font-medium text-db-red-fg hover:underline glow-focus"
+                        aria-label={`Change ${row.label}`} onClick={() => changeStep(row.step)}>Change</button>}
                     </dd>
                   </div>
                 ))}
@@ -2340,7 +2357,7 @@ function NewPlace({ catalog, onCreate }) {
   );
 }
 
-function ResultTableStep({ table, ownTable, inspireTable, place, note = '', outputCheck, onChange, best = null, children = null }) {
+function ResultTableStep({ table, ownTable, inspireTable, place, note = '', outputCheck, onChange, best = null, blocks = {}, children = null }) {
   const named = { own: ownTable, inspire: inspireTable };
   return (
     <section className="space-y-2" aria-label="Where the result table lives">
@@ -2350,13 +2367,17 @@ function ResultTableStep({ table, ownTable, inspireTable, place, note = '', outp
       </div>
       <div role="radiogroup" aria-label="Where the tables go" data-choice="result-table" className="flex flex-wrap gap-x-5 gap-y-1">
         {RESULT_PLACES.map((option) => (
-          <label key={option.id} data-option={option.id} className="flex items-baseline gap-x-1.5 text-[12px] text-text-primary">
-            <input type="radio" name="result-place" value={option.id} checked={place === option.id} disabled={option.id !== 'pick' && !named[option.id]}
-              onChange={() => onChange(named[option.id] ? resultTableParts(named[option.id]) : { ...resultTableParts(table), schema: '' })} />
-            <span className="font-medium">{option.label}</span>
-            {option.id === 'own' && ownTable && <span className="font-mono text-[11px] text-text-secondary break-all">{ownTable}</span>}
-            <HighlyRecommended best={best} id={option.id} />
-          </label>
+          <div key={option.id} data-option={option.id} data-blocked={blocks[option.id] ? '' : undefined} className={blocks[option.id] ? 'cursor-not-allowed text-text-secondary' : ''}>
+            <label className="flex items-baseline gap-x-1.5 text-[12px] text-text-primary">
+              <input type="radio" name="result-place" value={option.id} checked={place === option.id}
+                disabled={Boolean(blocks[option.id]) || (option.id !== 'pick' && !named[option.id])}
+                onChange={() => onChange(named[option.id] ? resultTableParts(named[option.id]) : { ...resultTableParts(table), schema: '' })} />
+              <span className="font-medium">{option.label}</span>
+              {option.id === 'own' && ownTable && <span className="font-mono text-[11px] text-text-secondary break-all">{ownTable}</span>}
+              <HighlyRecommended best={best} id={option.id} />
+            </label>
+            <div className="ps-5"><BlockedReason block={blocks[option.id]} id={option.id} /></div>
+          </div>
         ))}
       </div>
       {note && <p role="note" aria-label="Where the tables go note" data-place-note="" className="text-[11px] text-text-secondary">{note}</p>}
@@ -3041,7 +3062,7 @@ function Overlay({ title, uc, steps, step, onClose, children }) {
   return (
     <BodyPortal>
       <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" data-implement-overlay="">
-        <div role="dialog" aria-modal="true" aria-label={title ? `${START_MVP_LABEL}: ${title}` : START_MVP_LABEL} className="bg-surface border border-border rounded-xl shadow-elevated w-full max-w-5xl max-h-full flex flex-col overflow-hidden">
+        <div role="dialog" aria-modal="true" aria-label={title ? `${START_MVP_LABEL}: ${title}` : START_MVP_LABEL} className="bg-surface border border-border rounded-xl shadow-elevated w-full max-w-6xl max-h-full flex flex-col overflow-hidden">
           <header className="px-6 pt-4 pb-3 border-b border-border space-y-3" data-wizard-header="">
             <div className="flex items-start justify-between gap-4">
               <div className="min-w-0">
@@ -3063,12 +3084,12 @@ function Overlay({ title, uc, steps, step, onClose, children }) {
                 <X size={16} />
               </button>
             </div>
-            <ol ref={stepsRef} className="flex flex-nowrap items-center gap-1 overflow-x-auto text-[11px] [scrollbar-width:none]">
+            <ol ref={stepsRef} className="flex flex-nowrap items-center gap-0.5 overflow-x-auto text-[11px] [scrollbar-width:none]">
               {steps.map((item, i) => (
                 <li
                   key={item.id}
                   aria-current={i === step ? 'step' : undefined}
-                  className={`shrink-0 whitespace-nowrap px-1.5 py-1 rounded-full ${i === step ? 'bg-db-red-50 text-db-red-fg font-semibold' : i < step ? 'text-text-primary' : 'text-text-tertiary'}`}
+                  className={`shrink-0 whitespace-nowrap px-1 py-1 rounded-full ${i === step ? 'bg-db-red-50 text-db-red-fg font-semibold' : i < step ? 'text-text-primary' : 'text-text-tertiary'}`}
                 >
                   {i + 1}. {item.label}
                 </li>

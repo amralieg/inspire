@@ -199,7 +199,7 @@ test('the Settings step fits 1440x900 with nothing to scroll at the most setting
   }
 });
 
-test('the step bar keeps all ten steps on one line: at 1440x900 every step shows, and on a phone the bar scrolls so the current step is in view', async () => {
+test('the step bar keeps all twelve steps on one line: at 1440x900 every step shows, and on a phone the bar scrolls so the current step is in view', async () => {
   const ui = await openUi('wizard', { me: ME });
   const { page } = ui;
   try {
@@ -212,7 +212,7 @@ test('the step bar keeps all ten steps on one line: at 1440x900 every step shows
     });
     await page.setViewportSize({ width: 1440, height: 900 });
     await toVibes(page);
-    assert.equal(await bar.locator('li').count(), 10);
+    assert.equal(await bar.locator('li').count(), 12);
     assert.deepEqual(await shown(), { overflow: false, rows: 1, inView: true }, 'every step on one line at 1440x900');
     await page.setViewportSize({ width: 390, height: 844 });
     await page.getByRole('button', { name: 'Back' }).click();

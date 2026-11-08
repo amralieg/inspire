@@ -970,16 +970,18 @@ function registerImplementRoutes(app, deps) {
       const bad = G.placeNameProblem(catalog, 'catalog') || (schema ? G.placeNameProblem(schema, 'schema') : '');
       if (bad) throw I.badRequest(bad);
       const tags = schema && req.body && req.body.tags && typeof req.body.tags === 'object' ? req.body.tags : null;
+      let found = {};
       if (tags) {
         const { rows } = await useCaseSchemaRows(req, warehouseId, catalog, [schema]);
-        const held = (I.useCaseSchemaFacts(rows).schemas[schema.toLowerCase()] || {}).session;
+        found = I.useCaseSchemaFacts(rows).schemas[schema.toLowerCase()] || {};
         const sid = String(tags.inspire_session_id ?? '').trim();
-        if (held && held !== sid) throw I.badRequest(ownSchemaClashNote(schema, held), 409);
+        if (found.session && found.session !== sid) throw I.badRequest(ownSchemaClashNote(schema, found.session), 409);
       }
-      await executeSql(req.dbHost, token, warehouseId, G.createPlaceSql(catalog, schema));
+      const ensure = I.useCaseSchemaEnsure(found, tags);
+      if (ensure.create) await executeSql(req.dbHost, token, warehouseId, G.createPlaceSql(catalog, schema));
       if (!tags) return res.json({ catalog, schema });
       const warnings = [];
-      const tagged = I.useCaseSchemaTagsSql(catalog, schema, tags);
+      const tagged = ensure.tag ? I.useCaseSchemaTagsSql(catalog, schema, tags) : '';
       if (tagged) {
         await executeSql(req.dbHost, token, warehouseId, tagged)
           .catch((err) => warnings.push(`Inspire could not tag ${catalog}.${schema}: ${String((err && err.message) || err).slice(0, 200)}`));
@@ -993,7 +995,7 @@ function registerImplementRoutes(app, deps) {
             + `${I.USE_CASE_SCHEMA_BUILDER_PRIVILEGES} on it: ${failed.join('; ')}`);
         }
       }
-      res.json({ catalog, schema, warnings });
+      res.json({ catalog, schema, warnings, existed: Boolean(found.exists) });
     } catch (err) {
       sendError(res, err);
     }
