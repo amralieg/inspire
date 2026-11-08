@@ -1581,10 +1581,19 @@ def asked_section_items(page: dict) -> list:
             if isinstance(item, dict) and item.get("section") in ASKED_SECTIONS and item.get("section") not in native]
 
 
+def native_homes(page: dict, group: str, types) -> list:
+    ident = page_layout(page)
+    if ident == DEFAULT_LAYOUT:
+        return []
+    return [s for s in layout_sections(ident) if any(_section_fits(s, group, t) for t in types)]
+
+
 def unasked_part_problem(page: dict, word: str, item: dict) -> str:
+    ident, homes = page_layout(page), native_homes(page, f"{word}s", [item.get("type")])
     return (f"{word} {item.get('id')} sits in the {item.get('section')} section, which holds only the charts and tables the "
             f"customer asks for, and no ask for this page names it (a chart by its type and what it shows, a table by its "
-            f"name): put it in a section of the {page_layout(page)} layout or leave it out")
+            f"name): " + (f"move it to the {' or '.join(homes)} section of the {ident} layout" if homes else
+                          f"leave it out, because no section of the {ident} layout holds it"))
 
 
 def kind_problems(page: dict, kinds, skipped=()) -> tuple:
@@ -1595,7 +1604,9 @@ def kind_problems(page: dict, kinds, skipped=()) -> tuple:
         print(f"[LAYOUT-KINDS SKIPPED] page={page.get('id')} layout={page_layout(page)} kinds={','.join(held)}: no section of the "
               "layout holds them", flush=True)
     missing = [k for k in kinds if k in CHART_KIND_TYPES and k not in held and not drawn & set(CHART_KIND_TYPES[k])]
+    homes = {k: native_homes(page, "charts", CHART_KIND_TYPES[k]) for k in missing}
     return ([f"the page draws no {CHART_KIND_LABELS[k].lower()} chart: add one of type {' or '.join(CHART_KIND_TYPES[k])}"
+             + (f" in the {' or '.join(homes[k])} section" if homes[k] else "")
              for k in missing if k not in skipped], [k for k in missing if k in skipped])
 
 

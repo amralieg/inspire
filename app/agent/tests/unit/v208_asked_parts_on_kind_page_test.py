@@ -136,9 +136,10 @@ def test_the_genie_brief_names_the_asked_sections_only_when_the_customer_asked_f
 def test_an_unasked_chart_or_table_in_an_asked_section_is_refused_and_each_asked_one_is_kept(agent_ns):
     page = corridor_watch(example("network_explorer"))
     found = agent_ns["implement_unasked_part_problems"](page, shell_sql, [])
+    way_out = {"chart": "leave it out, because no section of the network_explorer layout holds it",
+               "table": "move it to the neighbors or match_pairs section of the network_explorer layout"}
     assert found == [f"{word} {ident} sits in the {section} section, which holds only the charts and tables the customer asks for, "
-                     f"and no ask for this page names it (a chart by its type and what it shows, a table by its name): put it in a "
-                     f"section of the network_explorer layout or leave it out"
+                     f"and no ask for this page names it (a chart by its type and what it shows, a table by its name): {way_out[word]}"
                      for word, ident, section in (("chart", "fare_by_hour", "charts"), ("chart", "trips_per_corridor", "charts"),
                                                   ("chart", "average_fare_by_pickup", "charts"), ("table", "all_corridors", "tables"))]
     assert unasked(agent_ns, page, CORRIDOR_ASKS) == []
@@ -174,3 +175,20 @@ def test_a_page_is_asked_for_parts_by_its_vibes_or_the_app_purpose(agent_ns):
     assert asks({"app_purpose": "Add a page called Corridor Watch, with a line chart of fare by hour."}, "app") == [
         "Add a page called Corridor Watch", "with a line chart of fare by hour"]
     assert asks({"app_purpose": "Add a page called Corridor Watch"}, "dashboard") == []
+
+
+def test_an_unasked_trend_on_a_monitor_page_is_moved_to_its_own_section_never_dropped_and_then_asked_for(agent_ns):
+    page = copy.deepcopy(example("monitor_triage"))
+    trend = dict(copy.deepcopy(next(c for c in page["charts"] if c.get("section") == "signal_band")), id="break_origin_trend",
+                 type="line", section="charts")
+    page["charts"] = [c for c in page["charts"] if c.get("section") != "signal_band"] + [trend]
+    found = agent_ns["implement_unasked_part_problems"](page, shell_sql, [])
+    assert found and all("leave it out" not in p for p in found), found
+    assert found[0].endswith("move it to the signal_band section of the monitor_triage layout"), found
+    page["charts"].remove(trend)
+    assert shell_sql.kind_problems(page, ["trend"])[0] == [
+        "the page draws no trend over time chart: add one of type line or area or stacked_area in the signal_band section"]
+    trend["section"] = "signal_band"
+    page["charts"].append(trend)
+    assert agent_ns["implement_unasked_part_problems"](page, shell_sql, []) == []
+    assert shell_sql.kind_problems(page, ["trend"])[0] == []
