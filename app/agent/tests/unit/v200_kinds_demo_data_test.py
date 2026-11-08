@@ -386,6 +386,9 @@ def test_plant_stops_before_writing_when_a_signal_check_fails(gen):
 
 
 def test_the_app_names_the_table_counts_the_notebook_writes(bundle):
+    pipeline = (APP / "backend" / "lib" / "demoDataPipeline.js").read_text(encoding="utf-8")
+    assert re.search(r"const \{[^}]*\bDEMO_GENERATED_TABLES\b[^}]*\bDEMO_KIND_SIGNAL_TABLES\b[^}]*\} = require\('\.\./\.\./frontend/src/lib/demoData\.js'\)", pipeline)
+    assert not re.search(r"^const DEMO_\w+_TABLES = ", pipeline, re.M), "the counts live in one place"
     source = (APP / "frontend" / "src" / "lib" / "demoData.js").read_text(encoding="utf-8")
     counts = {name: int(value) for name, value in re.findall(r"^export const (DEMO_\w+_TABLES) = (\d+);", source, re.M)}
     notebook = int(re.search(r"^NUM_DEMO_TABLES = (\d+)$", DEMO.read_text(encoding="utf-8"), re.M).group(1))

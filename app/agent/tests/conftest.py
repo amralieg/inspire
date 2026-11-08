@@ -84,6 +84,19 @@ def agent_ns():
     return _agentload.load_agent_namespace()
 
 
+@pytest.fixture(autouse=True)
+def _restore_shared_agent_ns(request):
+    if "agent_ns" not in request.fixturenames:
+        yield
+        return
+    ns = request.getfixturevalue("agent_ns")
+    saved = dict(ns)
+    yield
+    for name in [name for name in ns if name not in saved]:
+        del ns[name]
+    ns.update(saved)
+
+
 @pytest.fixture
 def fresh_ns():
     """An unshared agent namespace for tests that mutate module globals."""

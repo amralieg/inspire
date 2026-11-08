@@ -357,15 +357,15 @@ def test_the_grouping_stop_still_reads_as_before(agent_ns):
                                                           "on the Run page of this use case in the Inspire App")
 
 
-def test_a_grouping_that_names_a_joined_column_stops_the_run_and_never_groups_globally(agent_ns):
+def test_a_grouping_that_names_a_joined_column_stops_the_run_and_never_groups_globally(fresh_ns):
     pd = pytest.importorskip("pandas")
     records = pd.DataFrame({"ss_item_sk": [1, 2, 3] * 20, "ss_store_sk": [1, 2] * 30, "ss_net_paid": [1.5] * 60})
-    agent_ns.pop("INSPIRE_RUN_GROUPING", None)
-    with pytest.raises(agent_ns["InspireRunStop"], match=r"names item\.i_category, a column of another table, but this run's plan carries no join to that table, so the records have no item\.i_category to group by, so this run stopped before it scored any record"):
-        agent_ns["inspire_group_records"](records, group_by="ss_store_sk, item.i_category", out=lambda *_a: None)
-    assert "INSPIRE_RUN_GROUPING" not in agent_ns
-    grouped = agent_ns["inspire_group_records"](records, group_by="ss_store_sk", out=lambda *_a: None)
-    assert agent_ns["INSPIRE_RUN_GROUPING"]["group_by"] == ["ss_store_sk"] and len(grouped) == 60
+    fresh_ns.pop("INSPIRE_RUN_GROUPING", None)
+    with pytest.raises(fresh_ns["InspireRunStop"], match=r"names item\.i_category, a column of another table, but this run's plan carries no join to that table, so the records have no item\.i_category to group by, so this run stopped before it scored any record"):
+        fresh_ns["inspire_group_records"](records, group_by="ss_store_sk, item.i_category", out=lambda *_a: None)
+    assert "INSPIRE_RUN_GROUPING" not in fresh_ns
+    grouped = fresh_ns["inspire_group_records"](records, group_by="ss_store_sk", out=lambda *_a: None)
+    assert fresh_ns["INSPIRE_RUN_GROUPING"]["group_by"] == ["ss_store_sk"] and len(grouped) == 60
 
 
 class FakeRows:

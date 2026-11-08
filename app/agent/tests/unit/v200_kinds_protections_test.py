@@ -209,6 +209,7 @@ def test_a_kind_the_instructions_ask_for_is_kept_below_the_bar_and_labelled(ns, 
     p = next(uc for uc in out if uc["No"] == "P0")
     assert (p["elite_status"], p["fallback_kind"], p["selection_basis"]) == ("FALLBACK_BELOW_BAR", "kind_request", "user_request")
     assert "flagged: its tables have too few columns for its technique" in p["fallback_reason"]
+    assert "Q3_" not in p["fallback_reason"] and "R14" not in p["fallback_reason"]
     assert id(p) in inst._user_protected_use_cases(out)
 
 
