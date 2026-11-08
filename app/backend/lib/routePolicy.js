@@ -146,6 +146,7 @@ const ROUTE_POLICY = {
   'GET /api/inspire/implement/merge-targets': tracked('list what a build can join'),
   'GET /api/inspire/implement/status': tracked('read the build status of a use case'),
   'GET /api/inspire/implement/money': tracked('read the cost of a build'),
+  'GET /api/inspire/implement/feedback': tracked('read the issues people reported in its App'),
   'GET /api/inspire/implement/live': tracked('read what a build runs now'),
   'GET /api/inspire/portfolio': tracked('read the portfolio of a database'),
   'GET /api/inspire/implement/tables': tracked('read whether its tables can change'),
@@ -170,6 +171,8 @@ const ROUTE_POLICY = {
   'POST /api/inspire/implement/alerts/pause': owners('pause its alert'),
   'POST /api/inspire/implement/alerts/delete': owners('delete its alert'),
   'POST /api/inspire/implement/table-change': owners('change its tables'),
+  'POST /api/inspire/implement/feedback/status': owners('change the status of an issue reported in its App'),
+  'POST /api/inspire/implement/feedback/vibe': owners('draft a vibe from an issue reported in its App'),
   'POST /api/grouping/profile': tracked('read the main table of a use case for its Data groups',
     'reads the use case record from the Inspire tracking tables in the App database, and reads the use case table only with your own sign-in'),
 };

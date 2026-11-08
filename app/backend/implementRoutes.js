@@ -6,6 +6,8 @@ const { genieNotebookJobName, latestGenieNotebookRun } = require('./lib/genieNot
 const C = require('./lib/implementControl');
 const { appShellCatalog, bundledBuildStamp } = require('./lib/appShell');
 const { moneyStatements, moneyView } = require('./lib/implementMoney');
+const FB = require('./lib/appFeedback');
+const { specVibeAsks } = require('../frontend/src/lib/vibeLimits.js');
 const { HOSTED_NO_TOKEN } = require('./lib/hostedRun');
 const { inspireJobEnvironmentChange, inspireJobEnvironmentWarning, inspireJobTestTagChange, inspireJobTestTagWarning } = require('./lib/inspireJobParams');
 const R = require('./lib/reviewFigures');
@@ -1428,6 +1430,101 @@ function registerImplementRoutes(app, deps) {
       const summary = (await optionalRows(req, warehouseId, statements.summary))[0] || null;
       const edits = summary && summary.value_assumptions ? await optionalRows(req, warehouseId, statements.edits) : [];
       return res.json({ ...moneyView(summary, edits), result_table: table });
+    } catch (err) {
+      return sendError(res, err);
+    }
+  });
+
+  async function feedbackContext(req) {
+    const sid = sessionIdOf(req);
+    const warehouseId = warehouseOf(req);
+    const { catalog, schema } = dbOf(req, splitInspireDatabase);
+    const useCaseId = I.validateUseCaseId(q(req, 'use_case_id'));
+    const [history, person] = await Promise.all([loadHistory(req.dbHost, req.dbToken, warehouseId, catalog, schema, sid, useCaseId), personOf(req)]);
+    const table = String(history[0]?.spec_json?.config?.result_table || '').trim();
+    const before = I.previousBuilt(history);
+    const refused = before ? I.implementSettingsOwnerRefusal(before, person.username) : { status: 409, message: I.IMPLEMENT_SETTINGS_NOT_BUILT };
+    return { sid, warehouseId, catalog, schema, useCaseId, history, person, table, before, refused };
+  }
+
+  function feedbackOwnerOnly(ctx) {
+    if (!ctx.table) throw I.badRequest('this use case has no result table yet, so its App keeps no reported issues', 409);
+    if (ctx.refused) throw I.badRequest(ctx.refused.message, ctx.refused.status);
+  }
+
+  app.get('/api/inspire/implement/feedback', requireToken, async (req, res) => {
+    try {
+      const ctx = await feedbackContext(req);
+      const owner = { editable: !ctx.refused, why: ctx.refused ? ctx.refused.message : '' };
+      if (!ctx.table) return res.json({ ...FB.feedbackView([], owner), result_table: '', missing: true });
+      let rows;
+      try {
+        rows = await sqlRows(req.dbHost, req.dbToken, ctx.warehouseId, FB.feedbackListStatement(ctx.table, ctx.useCaseId));
+      } catch (err) {
+        if (!isMissingTableError(err)) throw err;
+        return res.json({ ...FB.feedbackView([], owner), result_table: ctx.table, missing: true });
+      }
+      return res.json({ ...FB.feedbackView(rows, owner), result_table: ctx.table, missing: false });
+    } catch (err) {
+      return sendError(res, err);
+    }
+  });
+
+  async function oneFeedback(req, ctx, id) {
+    const rows = await sqlRows(req.dbHost, req.dbToken, ctx.warehouseId, FB.feedbackOneStatement(ctx.table, ctx.useCaseId, id));
+    if (!rows[0]) throw I.badRequest(`No reported issue ${id} for ${ctx.useCaseId}.`, 404);
+    return rows[0];
+  }
+
+  app.post('/api/inspire/implement/feedback/status', requireToken, async (req, res) => {
+    try {
+      const change = FB.feedbackStatusChange(req.body);
+      const ctx = await feedbackContext(req);
+      feedbackOwnerOnly(ctx);
+      await oneFeedback(req, ctx, change.feedback_id);
+      await sqlRows(req.dbHost, req.dbToken, ctx.warehouseId, FB.feedbackStatusStatement(ctx.table, ctx.useCaseId, change, ctx.person.username));
+      const rows = await sqlRows(req.dbHost, req.dbToken, ctx.warehouseId, FB.feedbackListStatement(ctx.table, ctx.useCaseId));
+      return res.json({ ...FB.feedbackView(rows, { editable: true }), result_table: ctx.table, missing: false, changed: change.feedback_id });
+    } catch (err) {
+      return sendError(res, err);
+    }
+  });
+
+  async function feedbackPage(req, ctx) {
+    const target = I.implementSettingsTarget(ctx.history, ctx.useCaseId);
+    if (!target || !I.implementAppUrlOk(target.url) || !P.forwardedTokenOf(req)) return null;
+    try {
+      const got = await callApp(req, target, 'GET', '/api/app');
+      return got.ok ? (got.data.pages || []).find((p) => p && p.id === target.page) || null : null;
+    } catch (err) {
+      console.warn(`implement: the App page of ${ctx.useCaseId} could not be read for a vibe draft: ${err.message}`);
+      return null;
+    }
+  }
+
+  app.post('/api/inspire/implement/feedback/vibe', requireToken, async (req, res) => {
+    try {
+      const id = FB.feedbackId(req.body?.feedback_id);
+      const ctx = await feedbackContext(req);
+      feedbackOwnerOnly(ctx);
+      const token = personReadToken(req);
+      const feedback = await oneFeedback(req, ctx, id);
+      const spec = ctx.before.spec_json || {};
+      const listed = await jsonOf(dbFetch, req.dbHost, token, '/api/2.0/serving-endpoints');
+      if (!listed.ok) throw I.badRequest(`Inspire could not list the serving endpoints with your sign-in: ${listed.data.message || listed.data.error || `HTTP ${listed.status}`}`, listed.status);
+      const endpoint = FB.chatEndpoint(spec, (listed.data.endpoints || []).map((e) => ({ name: e.name, state: e.state, task: e.task })));
+      if (!endpoint) throw I.badRequest('no chat model you can use is ready on this workspace, so Inspire cannot draft a vibe; write it yourself', 409);
+      const [useCase, page] = await Promise.all([
+        loadUseCase(req.dbHost, req.dbToken, ctx.warehouseId, ctx.catalog, ctx.schema, ctx.sid, ctx.useCaseId).catch(() => null),
+        feedbackPage(req, ctx),
+      ]);
+      const statuses = Object.fromEntries(Object.entries(ctx.before.asset_status || {}).map(([k, v]) => [k, v && typeof v === 'object' ? v.state || v.status || '' : v]));
+      const messages = FB.vibePrompt({ useCaseId: ctx.useCaseId, useCase, page, vibes: specVibeAsks(spec), statuses, feedback });
+      const got = await jsonOf(dbFetch, req.dbHost, token, `/serving-endpoints/${encodeURIComponent(endpoint)}/invocations`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ messages, max_tokens: FB.VIBE_MAX_TOKENS, temperature: 0 }),
+      });
+      if (!got.ok) throw I.badRequest(`the model ${endpoint} did not answer: ${got.data.message || got.data.error || `HTTP ${got.status}`}`, 502);
+      return res.json({ ...FB.vibeDraftOf(got.data), feedback_id: id, model: endpoint });
     } catch (err) {
       return sendError(res, err);
     }
