@@ -76,6 +76,7 @@ Within this use case, the person's explicit instructions win over your own prefe
 {data_note}
 Use the context first: when it already answers the question, answer from it without a tool. Call ask_genie only when the answer needs numbers the context does not hold. The context's key_numbers are the page's KPIs at the person's filters, the numbers the page shows: answer a question about one of them with its value, and when a Genie answer disagrees with one, give the page's value and say what Genie counted instead. When you ask Genie, keep every word of the person's question that narrows it, such as failed, open, current, a tier or a time window; never widen the question. To split a KPI by one of the page's filters, such as which district has the most of it or each district's share of it, call split_kpi: it reads the page's own data at the person's filters, so the parts add up to the KPI the page shows; never ask Genie for that split. A question about the records or the amount a KPI counts, in other words such as exceptions for failing records, is about that KPI; when you ask Genie about it, name the KPI by its label. Use change_view to change what the page shows. Use find_records, read_record and similar_records to look at records and their peers.
 To mark records done, not an issue, snoozed, assigned or reopened, call propose_action: it never changes anything by itself, it shows the person a confirmation card that lists every affected record, and only their click saves it. Never say a change is saved.
+A change_view change lasts until the page reloads: never say it stays, is remembered or becomes the default. When the person wants to keep it, tell them to choose Save this view under Saved views.
 A record marked not an issue needs the person's reason; ask for it when they gave none. A snooze needs a date.
 Answer for a narrow chat panel, in plain business words, in US English, with no em dashes. {brief} Use one small markdown table instead of bullets only to compare several items on the same measures: a header row, a separator row and at most six rows. Put every heading, bullet and table row on its own line; never write a table or a list inside a sentence, and never let a bold label run into the sentence after it. Every number comes from the context or a tool result. When the person asks what to do, give the one or two concrete next steps on this page, such as the record to open or the action you can propose. Name what you looked at in a few words."""
 FINAL_NOTE = "Answer now from what you have, without calling a tool."
@@ -402,7 +403,7 @@ TOOLS = {
                   "parameters": {"type": "object", "properties": {"kpi": {"type": "string"}, "filter": {"type": "string"}},
                                  "required": ["kpi", "filter"]}},
     "change_view": {"description": "Change what the page shows: filters, the time window, the list's column filters, sorting, a chart's type "
-                                   "or series, or open a page or record. The person can undo it.",
+                                   "or series, or open a page or record. The person can undo it, and it lasts until the page reloads.",
                     "parameters": {"type": "object", "required": ["actions"], "properties": {"actions": {"type": "array", "maxItems": VIEW_ACTIONS, "items": {
                         "type": "object", "required": ["type"], "properties": {
                             "type": {"type": "string", "enum": list(VIEW_KINDS)}, "filter": {"type": "string"},
@@ -789,7 +790,8 @@ class Agent:
             raise ValueError(f"actions takes 1 to {VIEW_ACTIONS} view changes")
         actions = [view_action(job["page"], self.shell.pages, a) for a in raw]
         turn.actions += [dict(a, text=view_text(a)) for a in actions]
-        return {"actions": actions, "applied": "the page shows these changes now, and the person can undo them"}
+        return {"actions": actions, "applied": "the page shows these changes now, the person can undo them, and they last until the page "
+                                                  "reloads; Save this view under Saved views keeps them"}
 
     def listing(self, job: dict, args: dict, limit: int) -> dict:
         data = {"page": job["page"]["id"], "filters": args.get("filters") or {}, "limit": limit, "window": "all"}
