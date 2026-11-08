@@ -63,7 +63,7 @@ def test_throttled_call_halves_the_manager_limit(agent_ns, monkeypatch):
             raise RuntimeError("429 Too Many Requests: REQUEST_LIMIT_EXCEEDED")
         return "ok"
     agent = agent_ns["AIAgent"](spark=LlmSpark(responder=responder), logger=logging.getLogger("v130_aimd"),
-                                worker_llm_config="x", judge_llm_config="x", prompt_templates={"T": "{x}"},
+                                prompt_templates={"T": "{x}"},
                                 default_timeout_seconds=30, max_retry_attempts=1)
     before = agent._manager._semaphore.limit
     assert agent._call_ai_query("hi", "T") == "ok"

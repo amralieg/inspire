@@ -11,6 +11,8 @@ import {
 } from 'lucide-react';
 import { responseError } from '../lib/apiClient';
 import { plural } from '../lib/plural';
+import { DEMO_GENERATED_TABLES, DEMO_KIND_SIGNAL_TABLES, demoSchemaError, demoTablesTotal } from '../lib/demoData';
+import { DISCOVERY_MODE_TEXT, DISCOVERY_RECOMMENDED, DISCOVERY_TYPE_VALID } from '../lib/discoveryType';
 
 function demoTablesLine(tables) {
   if (!tables) return 'Write the demo Delta tables with UC table and column comments';
@@ -24,6 +26,8 @@ export default function GenerateDataPage({ settings, onBack, onLaunched }) {
 
   const [description, setDescription] = useState('');
   const [businessName, setBusinessName] = useState('');
+  const [discoveryType, setDiscoveryType] = useState(DISCOVERY_RECOMMENDED);
+  const [demoSchema, setDemoSchema] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [lastResult, setLastResult] = useState(null);
@@ -48,6 +52,7 @@ export default function GenerateDataPage({ settings, onBack, onLaunched }) {
     if (!businessName.trim()) return setError('Business name is required.');
     if (!description.trim()) return setError('Describe the data you want to create.');
     if (!inspireDatabase) return setError('The Inspire database is not set yet. Set it in Workspace setup.');
+    if (demoSchemaError(demoSchema)) return setError(demoSchemaError(demoSchema));
 
     setSubmitting(true);
     setError('');
@@ -60,6 +65,8 @@ export default function GenerateDataPage({ settings, onBack, onLaunched }) {
           description: description.trim(),
           business_name: businessName.trim(),
           inspire_database: inspireDatabase,
+          discovery_type: discoveryType,
+          demo_schema: demoSchema.trim(),
         }),
       });
       setLastResult(data);
@@ -89,8 +96,8 @@ export default function GenerateDataPage({ settings, onBack, onLaunched }) {
         <div>
           <h1 className="text-2xl font-bold text-text-primary tracking-tight">I don&apos;t have data</h1>
           <p className="text-sm text-text-secondary mt-1 leading-relaxed">
-            Describe the demo you need. Inspire writes and runs the code that builds <strong>five tables</strong> of made-up data, each
-            with a description, in the catalog of your Inspire database{inspireDatabase ? <> (<code className="font-mono text-xs">{inspireDatabase.split('.')[0]}</code>)</> : ''}.
+            Describe the demo you need. Inspire writes and runs the code that builds <strong>{plural(demoTablesTotal(), 'table')}</strong> of
+            made-up data, each with a description, in the catalog of your Inspire database{inspireDatabase ? <> (<code className="font-mono text-xs">{inspireDatabase.split('.')[0]}</code>)</> : ''}.
             Inspire then finds use cases in those tables.
           </p>
         </div>
@@ -137,11 +144,47 @@ export default function GenerateDataPage({ settings, onBack, onLaunched }) {
             required
           />
           <p className="text-[11px] text-text-tertiary mt-1.5">
-            Genie-style: your prompt becomes the code, 5 tables and their column descriptions, which then run on Spark. Tables land in{' '}
-            <code className="font-mono">{inspireDatabase?.split('.')[0] || 'catalog'}.inspire_demo_*</code>;
+            Your prompt becomes the code for {plural(DEMO_GENERATED_TABLES, 'table')} and their column descriptions, which then run on Spark; Inspire
+            adds {plural(DEMO_KIND_SIGNAL_TABLES, 'table')} that carry the data of every use-case kind. Tables land in{' '}
+            <code className="font-mono">{inspireDatabase?.split('.')[0] || 'catalog'}.{demoSchema.trim() || 'inspire_demo_*'}</code>;
             tracking in <code className="font-mono">{inspireDatabase || 'catalog._inspire'}</code>.
           </p>
         </div>
+
+        <div>
+          <label htmlFor="demo-schema" className="flex items-center gap-2 text-xs font-bold text-text-primary mb-2">
+            <Database size={14} className="text-text-tertiary" />
+            Schema name
+          </label>
+          <input dir="auto" id="demo-schema"
+            type="text"
+            value={demoSchema}
+            onChange={(e) => setDemoSchema(e.target.value)}
+            placeholder="inspire_demo_<business>_<run>"
+            aria-invalid={Boolean(demoSchemaError(demoSchema))}
+            className="w-full px-4 py-2.5 text-sm font-mono border border-border rounded-lg bg-surface text-text-primary glow-focus transition-smooth"
+          />
+          <p className={`text-[11px] mt-1.5 ${demoSchemaError(demoSchema) ? 'text-error-fg' : 'text-text-tertiary'}`}>
+            {demoSchemaError(demoSchema) || 'Leave it empty and Inspire names a new schema after the business and the run.'}
+          </p>
+        </div>
+
+        <fieldset>
+          <legend className="text-xs font-bold text-text-primary mb-2">Discovery Type</legend>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+            {DISCOVERY_TYPE_VALID.map((mode) => (
+              <label key={mode} data-demo-discovery={mode}
+                className={`p-3 rounded-xl border cursor-pointer transition-smooth ${discoveryType === mode ? 'border-db-red/30 bg-db-red-50' : 'border-border hover:border-border-strong'}`}>
+                <span className="flex items-center gap-2 text-xs font-semibold text-text-primary">
+                  <input type="radio" name="demo-discovery" value={mode} checked={discoveryType === mode} onChange={() => setDiscoveryType(mode)} />
+                  {mode}
+                  {mode === DISCOVERY_RECOMMENDED && <span className="text-[10px] font-normal text-text-tertiary">(recommended)</span>}
+                </span>
+                <span className="block text-[10px] text-text-tertiary leading-snug mt-1">{DISCOVERY_MODE_TEXT[mode]}</span>
+              </label>
+            ))}
+          </div>
+        </fieldset>
 
         <div className="flex flex-wrap gap-2 text-[11px] text-text-tertiary">
           <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-bg-subtle border border-border">
@@ -167,9 +210,10 @@ export default function GenerateDataPage({ settings, onBack, onLaunched }) {
               <li>{demoTablesLine(lastResult.pipeline?.demo_tables)}</li>
               <li>
                 Run Inspire discovery →{' '}
-                {lastResult.pipeline?.inspire_agent_notebook || '/Shared/inspire-ai/dbx_inspire_ai_agent'}
+                {lastResult.pipeline?.discovery_type || discoveryType} with {lastResult.pipeline?.inspire_agent_notebook || '/Shared/inspire-ai/dbx_inspire_ai_agent'}
               </li>
             </ol>
+            {(lastResult.warnings || []).map((w) => <p key={w} className="text-xs mt-1">{w}</p>)}
             {lastResult.job_run_url && (
               <a
                 href={lastResult.job_run_url}

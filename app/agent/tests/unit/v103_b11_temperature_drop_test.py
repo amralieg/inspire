@@ -73,8 +73,8 @@ def test_sql_construction_consults_cache(ns):
     import logging
     fresh = fresh_agent_namespace()
     fresh["LLM_ENDPOINT_HEALTH"].mark_temperature_unsupported("databricks-x")
-    agent = fresh["AIAgent"](spark=_CapturingSpark(), logger=logging.getLogger("b11"), worker_llm_config="x",
-                             judge_llm_config="x", prompt_templates={"T": "{x}"})
+    agent = fresh["AIAgent"](spark=_CapturingSpark(), logger=logging.getLogger("b11"),
+                             prompt_templates={"T": "{x}"})
     rejecting = {"llm_endpoint_name": "databricks-x", "llm_output_context_tokens_count": 1000}
     accepting = {"llm_endpoint_name": "databricks-y", "llm_output_context_tokens_count": 1000}
     assert agent._llm_request_params(rejecting, "SUMMARY_GEN_PROMPT")[1] is None

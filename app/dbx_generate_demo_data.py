@@ -18,6 +18,7 @@ dbutils.widgets.text("demo_schema", "", "6. Demo schema name (under inspire_cata
 dbutils.widgets.text("warehouse_id", "", "7. SQL warehouse (SP CAN_USE)")
 dbutils.widgets.text("app_sp_application_id", "", "8. Inspire App service principal applicationId")
 dbutils.widgets.text("plant_kind_signals", "yes", "9. Add the tables that show every use-case kind (yes or no)")
+dbutils.widgets.text("chat_model", "", "10. Chat model to try first (empty: the best one this workspace serves)")
 
 user_description = (dbutils.widgets.get("user_description") or "").strip()
 inspire_catalog = (dbutils.widgets.get("inspire_catalog") or "").strip()
@@ -28,6 +29,7 @@ demo_schema = (dbutils.widgets.get("demo_schema") or "").strip()
 warehouse_id = (dbutils.widgets.get("warehouse_id") or "").strip()
 app_sp_application_id = (dbutils.widgets.get("app_sp_application_id") or "").strip()
 plant_kind_signals = (dbutils.widgets.get("plant_kind_signals") or "yes").strip().lower() not in ("no", "false", "0", "off")
+chat_model = (dbutils.widgets.get("chat_model") or "").strip()
 
 if not user_description:
     raise ValueError("user_description is required")
@@ -1190,6 +1192,102 @@ def _plant_kind_signals(catalog, schema, taken):
 # COMMAND ----------
 
 import json
+import random
+import re
+import time
+
+CHAT_TASK = "llm/v1/chat"
+NOT_CHAT_MODEL = re.compile(r"embed|\bbge\b|\bgte\b|rerank|whisper|\btts\b|image|moderation|guard", re.I)
+CHAT_UNUSABLE_STATUS = (400, 401, 403, 404)
+CHAT_BUSY_STATUS = (429, 503)
+CHAT_BUSY_ATTEMPTS = 5
+CHAT_BUSY_BASE_S = 10.0
+CHAT_BUSY_MAX_S = 120.0
+CHAT_TOKEN_STEPS = (65536, 32768, 16384)
+
+
+def _chat_model_order(name):
+    low = name.lower()
+    family = 0 if "claude" in low else 1 if re.search(r"gpt|gemini|llama|qwen", low) else 2
+    tail = low.split("claude", 1)[1] if "claude" in low else low
+    version = [int(n) for n in re.findall(r"\d+", tail) if len(n) <= 2][:3]
+    return (family, 0 if "sonnet" in low else 1 if "opus" in low else 2, [-n for n in version], low)
+
+
+def _listed_chat_models(host, token, http):
+    resp = http.get(f"{host}/api/2.0/serving-endpoints", headers={"Authorization": f"Bearer {token}"}, timeout=60)
+    if resp.status_code >= 400:
+        raise RuntimeError(f"Listing the serving endpoints answered HTTP {resp.status_code}: {resp.text[:300]}")
+    names = []
+    for endpoint in resp.json().get("endpoints") or []:
+        name = str((endpoint or {}).get("name") or "")
+        if not name or str(endpoint.get("task") or "") != CHAT_TASK or NOT_CHAT_MODEL.search(name):
+            continue
+        if str((endpoint.get("state") or {}).get("ready") or "READY") != "READY":
+            continue
+        names.append(name)
+    return sorted(dict.fromkeys(names), key=_chat_model_order)
+
+
+def _busy_wait(attempt, retry_after=""):
+    try:
+        asked = float(str(retry_after or "").strip())
+    except ValueError:
+        asked = -1.0
+    if asked >= 0:
+        return min(asked, CHAT_BUSY_MAX_S)
+    wait = min(CHAT_BUSY_BASE_S * 2 ** (attempt - 1), CHAT_BUSY_MAX_S)
+    return min(wait + random.uniform(0, wait * 0.25), CHAT_BUSY_MAX_S)
+
+
+def _post_chat(http, url, headers, payload, sleep=time.sleep):
+    for attempt in range(1, CHAT_BUSY_ATTEMPTS + 1):
+        resp = http.post(url, headers=headers, data=json.dumps(payload), timeout=300)
+        if resp.status_code not in CHAT_BUSY_STATUS or attempt == CHAT_BUSY_ATTEMPTS:
+            return resp
+        wait = _busy_wait(attempt, (getattr(resp, "headers", None) or {}).get("Retry-After"))
+        print(f"[CHAT-BUSY FIRED] {payload['model']} answered HTTP {resp.status_code}; asking again in {wait:.0f}s "
+              f"(attempt {attempt + 1}/{CHAT_BUSY_ATTEMPTS})")
+        sleep(wait)
+    return resp
+
+
+def _complete_with_chat_model(host, token, prompt, preferred="", http=None, sleep=time.sleep):
+    if http is None:
+        import requests as http
+    listed = _listed_chat_models(host, token, http)
+    models = list(dict.fromkeys(([preferred] if preferred else []) + listed))
+    if not models:
+        raise RuntimeError("No chat model is served to this run: the workspace lists no ready serving endpoint for chat "
+                           f"({CHAT_TASK}). Ask a workspace admin to enable a Foundation Model API chat model, or name a "
+                           "chat endpoint in the chat_model widget.")
+    url = f"{host}/serving-endpoints/chat/completions"
+    headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+    tried = []
+    for model in models:
+        for max_tokens in CHAT_TOKEN_STEPS:
+            resp = _post_chat(http, url, headers, {"model": model, "messages": [{"role": "user", "content": prompt}],
+                                                   "max_tokens": max_tokens}, sleep)
+            if resp.status_code == 400 and "token" in resp.text.lower() and max_tokens != CHAT_TOKEN_STEPS[-1]:
+                continue
+            break
+        if resp.status_code >= 400:
+            tried.append(f"{model} (HTTP {resp.status_code}: {resp.text[:160]})")
+            continue
+        data = resp.json()
+        raw = ((((data.get("choices") or [{}])[0] or {}).get("message") or {}).get("content") or "").strip()
+        if not raw:
+            tried.append(f"{model} (empty answer)")
+            continue
+        print(f"[CHAT-MODEL FIRED] the demo data was written by {model}"
+              + (f", after {'; '.join(tried)}" if tried else ""))
+        return raw
+    raise RuntimeError("No chat model could write the demo data. Tried: " + "; ".join(tried))
+
+
+# COMMAND ----------
+
+import json
 import re
 
 
@@ -1273,33 +1371,8 @@ def _call_foundation_model(user_intent, catalog_name, schema_name):
     if not host or not token:
         raise RuntimeError("Could not resolve Databricks workspace host/token from notebook context")
 
-    import requests
-
     prompt = _build_genie_prompt(user_intent, catalog_name, schema_name, NUM_DEMO_TABLES)
-    url = f"{host}/serving-endpoints/chat/completions"
-    payload = {
-        "model": "databricks-claude-sonnet-4",
-        "messages": [{"role": "user", "content": prompt}],
-        "max_tokens": 65536,
-    }
-    resp = requests.post(
-        url,
-        headers={
-            "Authorization": f"Bearer {token}",
-            "Content-Type": "application/json",
-        },
-        data=json.dumps(payload),
-        timeout=300,
-    )
-    if resp.status_code >= 400:
-        raise RuntimeError(f"Foundation model error {resp.status_code}: {resp.text[:800]}")
-
-    data = resp.json()
-    raw = (
-        (((data.get("choices") or [{}])[0].get("message") or {}).get("content")) or ""
-    ).strip()
-    if not raw:
-        raise RuntimeError("Foundation model returned empty content")
+    raw = _complete_with_chat_model(host, token, prompt, chat_model)
 
     print(raw)
 

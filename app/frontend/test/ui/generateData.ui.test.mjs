@@ -39,3 +39,29 @@ test('the started pipeline names only the generated tables when the kind tables 
 test('the started pipeline names no table count when the backend sends none', async () => {
   assert.equal(await startedLine(started(null)), 'Write the demo Delta tables with UC table and column comments');
 });
+
+test('the page counts every table the demo writes and sends the chosen discovery mode and schema name', async () => {
+  const ui = await openUi('generate', { demoAnswer: started({ generated: 5, kind_signal: 13 }) });
+  const { page, pageErrors, made } = ui;
+  try {
+    await page.getByText(/builds\s+18 tables/).first().waitFor({ timeout: 20000 });
+    assert.equal(await page.getByText(/five tables/).count(), 0);
+    assert.equal(await page.locator('[data-demo-discovery="AI Enhanced Discovery"] input').isChecked(), true);
+    await page.getByPlaceholder(/./).first().fill('Acme');
+    await page.locator('textarea').fill('A retailer with stores and an online shop');
+    await page.locator('#demo-schema').fill('bad name');
+    await page.locator('button[type="submit"]').click();
+    await page.getByText(/letters, digits and underscores/).first().waitFor({ timeout: 20000 });
+    assert.equal(made.launches.length, 0, 'a bad schema name starts nothing');
+    await page.locator('#demo-schema').fill('retail_demo');
+    await page.locator('[data-demo-discovery="Standard Discovery"]').click();
+    await page.locator('button[type="submit"]').click();
+    await page.getByText('Pipeline started').waitFor({ timeout: 20000 });
+    assert.equal(made.launches.length, 1);
+    assert.equal(made.launches[0].discovery_type, 'Standard Discovery');
+    assert.equal(made.launches[0].demo_schema, 'retail_demo');
+    assert.deepEqual(pageErrors, []);
+  } finally {
+    await ui.close();
+  }
+});

@@ -373,8 +373,9 @@ USER_SCOPE_CONSTANTS = ("IMPLEMENT_APP_EDIT_SCOPES", "IMPLEMENT_APP_READ_SCOPES"
 LAKEBASE_CONSTANTS = ("IMPLEMENT_LAKEBASE_PROJECT", "IMPLEMENT_LAKEBASE_PROJECT_SPEC", "IMPLEMENT_LAKEBASE_BRANCH", "IMPLEMENT_LAKEBASE_ENDPOINT",
                       "IMPLEMENT_LAKEBASE_DATABASE", "IMPLEMENT_LAKEBASE_CATALOG")
 GENIE_CODE_CONSTANTS = ("UNITY_GATEWAY_CODEX_PATH", "UNITY_GATEWAY_ANTHROPIC_PATH", "UNITY_GATEWAY_MLFLOW_PATH", "GENIE_CODE_MODEL",
-                        "GENIE_CODE_MODEL_CHECK", "GENIE_CODE_ADMIN_FIX")
+                        "GENIE_CODE_MODEL_CHECK", "GENIE_CODE_ADMIN_FIX", "GENIE_CODE_UNFIT_MODEL_PATTERN")
 GENIE_CODE_CHECK_TIMEOUT_S = 10
+GENIE_CODE_CODEX_PROBES = 3
 INSPIRE_APP_OWN_SCOPES = ("apps", "catalog.catalogs:read", "catalog.schemas:read", "catalog.tables:read", "files", "model-serving", "sql",
                           "workspace.workspace")
 USER_SCOPES_REFUSED = ("Inspire was installed without user authorization, so it lists no catalogs, schemas or tables, starts no run "
@@ -481,9 +482,12 @@ def genie_code_install_check(api, notebook_text, person):
         return f"⚠️ not checked: the bundled agent notebook does not say how Genie Code reaches a model ({_error_words(exc)})"
     timeout = GENIE_CODE_CHECK_TIMEOUT_S
     try:
+        first = k["GENIE_CODE_MODEL"]
+        codex = [m for m in _gateway_listed(api("GET", f"{k['UNITY_GATEWAY_CODEX_PATH']}/models", timeout=timeout))
+                 if not m.lower().endswith(first.lower()) and not re.search(k["GENIE_CODE_UNFIT_MODEL_PATTERN"], m, re.IGNORECASE)]
         claude = sorted((m for m in _gateway_listed(api("GET", f"{k['UNITY_GATEWAY_ANTHROPIC_PATH']}/models", timeout=timeout))
                          if re.search(r"claude-(?:sonnet|opus)", m, re.IGNORECASE)), reverse=True)
-        tried = [("Codex route", k["UNITY_GATEWAY_CODEX_PATH"], k["GENIE_CODE_MODEL"])] + [
+        tried = [("Codex route", k["UNITY_GATEWAY_CODEX_PATH"], m) for m in ([first] + codex)[:GENIE_CODE_CODEX_PROBES]] + [
             ("Anthropic route", k["UNITY_GATEWAY_MLFLOW_PATH"], m) for m in claude[:1]]
         refused = []
         for route, base, model in tried:

@@ -42,6 +42,24 @@ def conflict_attempts() -> int:
 
 
 CONFLICT_ATTEMPTS = conflict_attempts()
+BUSY_ATTEMPTS = 4
+BUSY_BASE_DELAY_S = 2.0
+BUSY_MAX_DELAY_S = 30.0
+
+
+def busy_delay(attempt: int, retry_after="", rng=random.random) -> float:
+    try:
+        asked = float(str(retry_after or "").strip())
+    except ValueError:
+        asked = -1.0
+    if asked >= 0:
+        return min(asked, BUSY_MAX_DELAY_S)
+    ceiling = min(BUSY_MAX_DELAY_S, BUSY_BASE_DELAY_S * 2 ** (attempt - 1))
+    return min(BUSY_MAX_DELAY_S, ceiling + rng() * ceiling * 0.25)
+
+
+def busy_status(method: str, status: int) -> bool:
+    return status == 429 or (status == 503 and method == "GET")
 
 
 class QueryError(RuntimeError):
@@ -140,13 +158,17 @@ class Workspace:
         self.session = session
 
     def call(self, method: str, path: str, body=None, params=None, timeout: int = 60) -> dict:
-        headers = dict(self.auth_headers())
-        headers["Content-Type"] = "application/json"
-        try:
-            response = self.session.request(method, f"{self.host}{path}", headers=headers, params=params,
-                                            data=None if body is None else json.dumps(body), timeout=timeout)
-        except OSError as error:
-            raise QueryError(f"{method} {path.split('?')[0]} did not answer: {error_text(error, self.secrets)}") from error
+        for attempt in range(1, BUSY_ATTEMPTS + 1):
+            headers = dict(self.auth_headers())
+            headers["Content-Type"] = "application/json"
+            try:
+                response = self.session.request(method, f"{self.host}{path}", headers=headers, params=params,
+                                                data=None if body is None else json.dumps(body), timeout=timeout)
+            except OSError as error:
+                raise QueryError(f"{method} {path.split('?')[0]} did not answer: {error_text(error, self.secrets)}") from error
+            if attempt == BUSY_ATTEMPTS or not busy_status(method, response.status_code):
+                break
+            self.sleep(busy_delay(attempt, (getattr(response, "headers", None) or {}).get("Retry-After")))
         if response.status_code >= 400:
             try:
                 detail = response.json()

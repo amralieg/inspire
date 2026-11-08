@@ -48,8 +48,7 @@ class FakeSpark:
 
 def _agent(ns, spark, logger_name="v120_runtime"):
     logger = logging.getLogger(logger_name)
-    return ns["AIAgent"](spark=spark, logger=logger, worker_llm_config="x", judge_llm_config="x",
-                         prompt_templates={"T": "{x}"}, default_timeout_seconds=30, max_retry_attempts=0)
+    return ns["AIAgent"](spark=spark, logger=logger, prompt_templates={"T": "{x}"}, default_timeout_seconds=30, max_retry_attempts=0)
 
 
 def _wait_until(predicate, timeout=8.0):
@@ -350,8 +349,8 @@ def test_C23_status_emitter_failure_is_logged_once(fresh_ns, caplog):
     def broken_emitter(**kw):
         raise RuntimeError("emitter down")
 
-    agent = fresh_ns["AIAgent"](spark=FakeSpark(), logger=logging.getLogger("v120_c23"), worker_llm_config="x",
-                                judge_llm_config="x", prompt_templates={"T": "x"}, status_emitter=broken_emitter)
+    agent = fresh_ns["AIAgent"](spark=FakeSpark(), logger=logging.getLogger("v120_c23"),
+                                prompt_templates={"T": "x"}, status_emitter=broken_emitter)
     with caplog.at_level(logging.DEBUG, logger="v120_c23"):
         agent._emit_status("P", "S", "started", "m")
         agent._emit_status("P", "S", "ended_success", "m")

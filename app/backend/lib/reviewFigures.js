@@ -133,10 +133,12 @@ const whole = (value) => {
   return Number.isInteger(n) && n > 0 ? n : 0;
 };
 
-function sessionPreviewStatement(table, sessionIds, { withTechnique = true, byPriority = true } = {}) {
+function sessionPreviewStatement(table, sessionIds, { withTechnique = true, byBar = true, has = everyColumn } = {}) {
   const ids = sessionIds.filter((id) => /^\d+$/.test(String(id))).join(',');
   const label = withTechnique ? 'name_with_technique' : 'CAST(NULL AS STRING) AS name_with_technique';
-  const order = byPriority ? 'COALESCE(priority_score, 0) DESC, use_case' : 'use_case';
+  const scored = ['inspire_score', 'quality_score', 'priority_score'].some(has);
+  const order = [byBar ? `CASE WHEN ${MEETS_BAR_SQL} THEN 0 ELSE 1 END` : '', scored ? `COALESCE(${inspireScoreSql(has)}, 0) DESC` : '', 'use_case']
+    .filter(Boolean).join(', ');
   return {
     sql: 'SELECT session_id, Name, name_with_technique, rn FROM ('
       + `SELECT session_id, COALESCE(NULLIF(TRIM(use_case), ''), CONCAT('Use case ', CAST(id AS STRING))) AS Name, ${label}, `
@@ -149,13 +151,14 @@ function sessionPreviewStatement(table, sessionIds, { withTechnique = true, byPr
 async function loadSessionPreviews(run, table, sessionIds, existing = null) {
   let rows;
   if (existing) {
-    rows = await run(sessionPreviewStatement(table, sessionIds, { withTechnique: existing.has('name_with_technique'), byPriority: existing.has('priority_score') }));
+    rows = await run(sessionPreviewStatement(table, sessionIds, { withTechnique: existing.has('name_with_technique'), byBar: existing.has('elite_status'),
+      has: (name) => existing.has(name) }));
   } else {
     try {
       rows = await run(sessionPreviewStatement(table, sessionIds));
     } catch (err) {
       if (!isMissingColumnError(err)) throw err;
-      rows = await run(sessionPreviewStatement(table, sessionIds, { withTechnique: false }));
+      rows = await run(sessionPreviewStatement(table, sessionIds, { withTechnique: false, byBar: false, has: (name) => name === 'priority_score' }));
     }
   }
   const bySession = {};

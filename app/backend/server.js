@@ -36,13 +36,15 @@ const {
   APP_TOKEN, FROM_FORWARDED_TOKEN, FROM_HEADERS, FROM_REQUEST_TOKEN, PERSON_TOKEN, SCIM_ME_PATH, forwardedTokenOf, meResponse, personTokenOf, requestPerson,
 } = require('./lib/requestPerson');
 const {
-  discoverReads, discoverWrites, listCatalogs, listSchemas, listTables, outputPlan, runReadPlan, writeRefusalBody,
+  discoverReads, discoverWrites, listCatalogs, listSchemas, listTables, outputPlan, runReadPlan, scopeTables, ucMetadataParts, writeRefusalBody,
 } = require('./lib/ucReads');
+const { createSourceAccess } = require('./lib/sourceAccess');
+const { withBusyRetry } = require('./lib/busyRetry');
 const { registerShowcaseRoutes, showcaseWriteGuard } = require('./lib/showcase');
 const { loadSessionList, loadSessionOverviews, sessionListCap } = require('./lib/reviewFigures');
 const { LIVE_STEP_STATUSES, liveDomainsOf, liveUseCasesOf } = require('../frontend/src/lib/liveUseCases.js');
 const { executiveSummaryOf, parseResultsJson, runResultsStatement } = require('./lib/runSummary');
-const { isReadDenied, liveLogPath } = require('./lib/inspireImplement');
+const { discoverGrantedText, discoverUnreadText, isReadDenied, liveLogPath } = require('./lib/inspireImplement');
 const { keepLongInteger, parseExactJson } = require('./lib/exactJson');
 const { int64Id, isInt64Id, jsonWithInt64Ids } = require('./lib/int64Id');
 const {
@@ -292,14 +294,14 @@ async function dbFetch(host, token, apiPath, options = {}) {
   const url = `${host}${apiPath}`;
   let resp;
   try {
-    resp = await fetch(url, {
+    resp = await withBusyRetry(() => fetch(url, {
       ...options,
       headers: {
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json',
         ...options.headers,
       },
-    });
+    }), { method: options.method || 'GET', signal: options.signal });
   } catch (e) {
     throw new Error(unreachableMessage(host, e, policyEnforced()));
   }
@@ -1954,6 +1956,9 @@ app.post('/api/demo-data/start', requireToken, async (req, res) => {
       inspire_database: bodyInspireDb,
       cluster_id,
       session_id: bodySessionId,
+      discovery_type: discoveryType = '',
+      demo_schema: demoSchema = '',
+      generation_path: askedGenerationPath = '',
     } = req.body || {};
 
     const businessName = String(business_name || '').trim();
@@ -1976,6 +1981,10 @@ app.post('/api/demo-data/start', requireToken, async (req, res) => {
       `${Date.now()}${Math.floor(Math.random() * 1e6)}`;
 
     console.log(`\n📦 Demo pipeline (Genie generator → Inspire): tracking ${inspireDb}`);
+
+    const writes = discoverWrites({ '11_generation_path': String(askedGenerationPath || '') }, cachedNotebookPath || DEFAULT_NOTEBOOK_PATH);
+    const output = await outputWriteVerdict(req, writes);
+    if (output.refused) return res.status(output.refused.status).json(writeRefusalBody(req.policyKey, output.refused));
 
     const pipelineClusterId =
       String(cluster_id || process.env.INSPIRE_CLUSTER_ID || process.env.INSPIRE_DEPLOY_CLUSTER_ID || '').trim() ||
@@ -2009,6 +2018,9 @@ app.post('/api/demo-data/start', requireToken, async (req, res) => {
         warehouse_id: pipelineWarehouseId,
         app_sp_application_id: appSpApplicationId,
         plantKindSignals: req.body?.plant_kind_signals !== false,
+        discoveryType: String(discoveryType || ''),
+        demoSchema: String(demoSchema || ''),
+        generationPath: output.generationPath || String(askedGenerationPath || '').trim(),
         ensureInspireNotebookPublished: ensureNotebookPublished,
         resolveWorkspaceNotebookObjectPath,
         launchedBy: RP.forwardedPerson(req.headers),
@@ -2024,6 +2036,7 @@ app.post('/api/demo-data/start', requireToken, async (req, res) => {
       job_run_url: pipelineRun.job_run_url,
       viewer_granted: pipelineRun.viewer_granted,
       ...(pipelineRun.viewer_note ? { viewer_note: pipelineRun.viewer_note } : {}),
+      ...(output.warnings && output.warnings.length ? { warnings: output.warnings } : {}),
       steps: [
         { key: 'generate_demo_data', label: 'Generate & store demo data', notebook: pipelineRun.pipeline.step1_notebook },
         {
@@ -2051,6 +2064,7 @@ app.post('/api/run', requireToken, async (req, res) => {
     const reads = await runReadPlan(dbFetch, req, discoverReads(params));
     if (reads.refusal) return res.status(reads.refusal.status).json({ error: reads.refusal.message, unreadable: reads.refusal.unreadable });
     if (reads.scope) params['01_uc_metadata'] = reads.scope;
+    const access = await discoverAppAccess(req, params['01_uc_metadata']);
     const out = await triggerInspireNotebookJob(req.dbHost, req.dbToken, {
       params,
       notebook_path,
@@ -2059,7 +2073,7 @@ app.post('/api/run', requireToken, async (req, res) => {
       launchedBy: RP.forwardedPerson(req.headers),
       writeCheck: (writes) => outputWriteVerdict(req, writes),
     });
-    const warnings = [...reads.warnings, ...(out.warnings || [])];
+    const warnings = [...reads.warnings, ...access, ...(out.warnings || [])];
     res.json({ ...out, ...(warnings.length ? { warnings } : {}), ...(reads.skipped.length ? { skipped_tables: reads.skipped } : {}) });
   } catch (err) {
     if (err.writeRefusal) return res.status(err.writeRefusal.status).json(writeRefusalBody(req.policyKey, err.writeRefusal));
@@ -2067,6 +2081,35 @@ app.post('/api/run', requireToken, async (req, res) => {
     res.status(code).json({ error: err.message });
   }
 });
+
+const discoverAccess = createSourceAccess({ executeSql, sqlResultToObjects, dbFetch, appToken: appOwnToken });
+
+async function discoverAppAccess(req, scope) {
+  const person = personTokenOf(req);
+  const { catalogs, schemas, tables: picked } = ucMetadataParts(scope);
+  const entries = [...picked, ...schemas, ...catalogs];
+  if (!entries.length || !person || !DEFAULT_WAREHOUSE_ID) return [];
+  try {
+    const { tables, more } = await scopeTables(dbFetch, req.dbHost, person, entries);
+    if (!tables.length) return [];
+    let found = await discoverAccess.sourceAccess(req, DEFAULT_WAREHOUSE_ID, tables, 'discover');
+    const warnings = [];
+    if (found.app_unreadable && found.app_unreadable.can_grant) {
+      const offer = found.app_unreadable;
+      const { ran, failed } = await discoverAccess.runPersonGrants(req, person, DEFAULT_WAREHOUSE_ID, offer.grants);
+      if (ran.length) warnings.push(discoverGrantedText(offer.tables, ran));
+      if (failed.length) warnings.push(`Inspire could not grant with your sign-in: ${failed.join('; ')}`);
+      found = await discoverAccess.sourceAccess(req, DEFAULT_WAREHOUSE_ID, tables, 'discover');
+    }
+    if (found.app_unreadable) warnings.push(discoverUnreadText(found.app_unreadable));
+    if (found.missing.length) warnings.push(`Discover runs as the App, and the App cannot read ${found.missing.map((m) => `${m.table} (${m.reason})`).join(', ')}`);
+    if (more) warnings.push(`Inspire checked that the App can read the first ${tables.length} tables you picked, not the rest`);
+    return warnings;
+  } catch (err) {
+    console.warn(`discover read check: ${err.message || err}`);
+    return [`Inspire could not check that the App can read the tables you picked (${String(err.message || err).slice(0, 200)}), so Discover reads them as picked`];
+  }
+}
 
 async function outputWriteVerdict(req, writes) {
   const manager = await routePolicy.managerOf(req).catch(() => ({ manager: false }));

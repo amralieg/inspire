@@ -57,7 +57,7 @@ function makeApp(overrides = {}, { mount } = {}) {
     ...(state.buildStamp ? { buildStamp: () => state.buildStamp } : {}),
     requireToken: (req, _res, next) => {
       req.dbHost = 'https://workspace.example.com';
-      req.dbToken = 'tok';
+      req.dbToken = state.dbToken || 'tok';
       if (state.tokenKind) req.dbTokenKind = state.tokenKind;
       next();
     },

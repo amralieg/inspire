@@ -25,6 +25,7 @@ const { int64Id, isInt64Id, requireInt64Id, jsonWithInt64Ids } = require('./lib/
 const { parseExactJson } = require('./lib/exactJson');
 const { grantJobViewer, rememberViewer } = require('./lib/jobViewer');
 const GC = require('./lib/genieCodeCheck');
+const SA = require('./lib/sourceAccess');
 
 function sendError(res, err) {
   const code = err && Number.isFinite(err.statusCode) ? err.statusCode : 500;
@@ -137,6 +138,7 @@ function registerImplementRoutes(app, deps) {
   const fetchJsonFor = (req) => (path) => jsonOf(dbFetch, req.dbHost, req.dbToken, path);
 
   const readMeFor = (req) => (token) => jsonOf(dbFetch, req.dbHost, token, P.SCIM_ME_PATH);
+  const { accessRowsOf, grantSourceAccess, runPersonGrants, sourceAccess } = SA.createSourceAccess({ executeSql, sqlResultToObjects, dbFetch, appToken });
 
   async function loadTokenPrincipal(req) {
     const got = await readMeFor(req)(req.dbToken);
@@ -875,55 +877,12 @@ function registerImplementRoutes(app, deps) {
     return names.filter((_name, i) => got[i] && got[i].status === 404);
   }
 
-  async function appIdentity(req) {
-    const me = await loadTokenPrincipal(req);
-    const id = String(me.applicationId || me.userName || '').trim();
-    return { name: String(me.displayName || '').trim() || id, id };
-  }
-
-  const accessRowsOf = (req, token, warehouseId, table) => Promise.resolve()
-    .then(() => sqlRows(req.dbHost, token, warehouseId, I.outputAccessStatement(table)))
-    .catch(() => []);
-
-  async function sourceAccess(req, warehouseId, tables) {
-    const probes = await Promise.all(tables.map((table) => sqlRows(req.dbHost, req.dbToken, warehouseId, I.tableProbeStatement(table))
-      .then(() => null)
-      .catch((err) => {
-        const reason = I.tableAccessReason(table, err && err.message);
-        return reason ? { table, reason, error: String(err.message || '').slice(0, 300) } : null;
-      })));
-    const lost = probes.filter(Boolean);
-    const person = P.personTokenOf(req);
-    if (!lost.length || !person || person === req.dbToken) return { missing: lost, app_unreadable: null };
-    const readable = await Promise.all(lost.map((m) => sqlRows(req.dbHost, person, warehouseId, I.tableProbeStatement(m.table))
-      .then(() => true).catch(() => false)));
-    const appOnly = lost.filter((_m, i) => readable[i]).map((m) => m.table);
-    if (!appOnly.length) return { missing: lost, app_unreadable: null };
-    const [app, rows] = await Promise.all([appIdentity(req), Promise.all(appOnly.map((t) => accessRowsOf(req, person, warehouseId, t)))]);
-    const offer = I.appReadGrantsOffer(appOnly, appOnly.map((t, i) => I.accessPlan(t, rows[i], app.id)), app);
-    return { missing: lost.filter((m) => !appOnly.includes(m.table)), app_unreadable: { ...offer, text: I.appUnreadableMessage(offer) } };
-  }
-
   async function refuseMissingSources(req, warehouseId, spec, useCase) {
     const { missing, app_unreadable: appUnreadable } = await sourceAccess(req, warehouseId, I.sourceTables(spec, I.useCaseTables(useCase)));
     if (!missing.length && !appUnreadable) return;
     const err = I.badRequest([missing.length ? I.missingTablesMessage(missing) : '', appUnreadable ? appUnreadable.text : ''].filter(Boolean).join('. '), 409);
     err.details = { missing_tables: missing, app_unreadable: appUnreadable };
     throw err;
-  }
-
-  async function runPersonGrants(req, token, warehouseId, statements) {
-    const ran = [];
-    const failed = [];
-    for (const sql of statements) {
-      try {
-        await executeSql(req.dbHost, token, warehouseId, sql);
-        ran.push(sql);
-      } catch (err) {
-        failed.push(`${sql}: ${String((err && err.message) || err).slice(0, 200)}`);
-      }
-    }
-    return { ran, failed };
   }
 
   async function grantNewAppsAccess(req, token, warehouseId, table) {
@@ -937,20 +896,6 @@ function registerImplementRoutes(app, deps) {
     const { ran, failed } = decided.decision === 'grant' ? await runPersonGrants(req, token, warehouseId, [I.newAppsCatalogGrant(catalog)]) : { ran: [], failed: [] };
     if (failed.length) throw I.badRequest(`Inspire could not grant with your sign-in: ${failed.join('; ')}`, 403);
     return { ...decided, ran, detail: I.newAppsAccessText(catalog, decided.decision, decided.real) };
-  }
-
-  async function grantSourceAccess(req, token, warehouseId, tables) {
-    const before = await sourceAccess(req, warehouseId, tables);
-    const offer = before.app_unreadable;
-    if (!offer) return { granted: 0, ran: [], failed: [], missing_tables: before.missing, app_unreadable: null };
-    if (!offer.can_grant) {
-      const err = I.badRequest(offer.text, 403);
-      err.details = { app_unreadable: offer };
-      throw err;
-    }
-    const { ran, failed } = await runPersonGrants(req, token, warehouseId, offer.grants);
-    const after = await sourceAccess(req, warehouseId, tables);
-    return { granted: ran.length, ran, failed, missing_tables: after.missing, app_unreadable: after.app_unreadable };
   }
 
   app.post('/api/inspire/implement/grant-access', requireToken, async (req, res) => {

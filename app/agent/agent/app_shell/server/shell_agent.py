@@ -14,7 +14,6 @@ GATEWAY_MODELS = "/ai-gateway/openai/v1/models"
 SERVING_CHAT = "/serving-endpoints/chat/completions"
 SERVING_LIST = "/api/2.0/serving-endpoints"
 ROUTES = {"gateway": GATEWAY_CHAT, "serving": SERVING_CHAT}
-DEFAULT_MODELS = (("gateway", "system.ai.claude-sonnet-4-6"), ("serving", "databricks-claude-sonnet-4-6"))
 NOT_CHAT = re.compile(r"embed|\bbge\b|\bgte\b|rerank|whisper|\btts\b|image|moderation", re.I)
 MODEL_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$")
 MODELS_CAP = 10
@@ -651,8 +650,9 @@ class Agent:
         held = self.models_seen.get(who)
         if held and held[0] > self.clock():
             return held[1]
-        ranked = rank_models(listed_models(ws), self.configured()) or list(DEFAULT_MODELS)
-        self.models_seen[who] = (self.clock() + MODELS_TTL_S, ranked)
+        ranked = rank_models(listed_models(ws), self.configured())
+        if ranked:
+            self.models_seen[who] = (self.clock() + MODELS_TTL_S, ranked)
         return ranked
 
     def drop_model(self, who: str, candidate) -> None:

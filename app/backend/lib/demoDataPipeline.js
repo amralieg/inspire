@@ -10,12 +10,15 @@ const {
   inspireTaskCompute,
 } = require('./inspireJobParams');
 
-const GENERATE_NOTEBOOK_DEST = '/Shared/inspire-ai/dbx_generate_demo_data';
-const DEMO_GENERATED_TABLES = 5;
-const DEMO_KIND_SIGNAL_TABLES = 13;
+const { DEMO_GENERATED_TABLES, DEMO_KIND_SIGNAL_TABLES, demoSchemaError, demoTablesPlanned } = require('../../frontend/src/lib/demoData.js');
+const { DISCOVERY_RECOMMENDED, discoveryTypeOf } = require('../../frontend/src/lib/discoveryType.js');
 
-function demoTablesPlanned(plantKindSignals) {
-  return { generated: DEMO_GENERATED_TABLES, kind_signal: plantKindSignals ? DEMO_KIND_SIGNAL_TABLES : 0 };
+const GENERATE_NOTEBOOK_NAME = 'dbx_generate_demo_data';
+
+function generateNotebookDest(inspireNotebookPath) {
+  const folder = String(inspireNotebookPath || '').replace(/\/[^/]*$/, '');
+  if (!folder.startsWith('/')) throw new Error(`Inspire cannot tell which folder holds the agent notebook (${inspireNotebookPath || 'no path'})`);
+  return `${folder}/${GENERATE_NOTEBOOK_NAME}`;
 }
 
 /** Paths where dbx_generate_demo_data.py may exist (App cwd varies). */
@@ -96,9 +99,10 @@ async function ensureDemoPipelineNotebookPublished(
   host,
   token,
   resolveWorkspaceNotebookObjectPath,
+  destPath,
 ) {
   if (resolveWorkspaceNotebookObjectPath) {
-    const verified = await resolveWorkspaceNotebookObjectPath(host, token, GENERATE_NOTEBOOK_DEST);
+    const verified = await resolveWorkspaceNotebookObjectPath(host, token, destPath);
     if (verified) {
       console.log(`📓 Demo pipeline notebook already in workspace: ${verified}`);
       return verified;
@@ -108,13 +112,13 @@ async function ensureDemoPipelineNotebookPublished(
       const check = await dbFetch(
         host,
         token,
-        `/api/2.0/workspace/get-status?path=${encodeURIComponent(GENERATE_NOTEBOOK_DEST)}`,
+        `/api/2.0/workspace/get-status?path=${encodeURIComponent(destPath)}`,
       );
       if (check.ok) {
         const data = await check.json();
         if (data.object_type === 'NOTEBOOK') {
-          console.log(`📓 Demo pipeline notebook already in workspace: ${GENERATE_NOTEBOOK_DEST}`);
-          return GENERATE_NOTEBOOK_DEST;
+          console.log(`📓 Demo pipeline notebook already in workspace: ${destPath}`);
+          return destPath;
         }
       }
     } catch (_) {
@@ -125,14 +129,14 @@ async function ensureDemoPipelineNotebookPublished(
   const loaded = loadDemoNotebookBase64();
   if (!loaded) {
     throw new Error(
-      `Demo pipeline notebook not found at ${GENERATE_NOTEBOOK_DEST} and no local/bundled copy. ` +
-        'Run inspire_installer.py again; it publishes the notebook to /Shared/inspire-ai/.',
+      `Demo pipeline notebook not found at ${destPath} and no local/bundled copy. ` +
+        'Run inspire_installer.py again; it publishes the notebook next to the agent notebook.',
     );
   }
 
-  console.log(`📦 Publishing demo pipeline notebook from ${loaded.source} → ${GENERATE_NOTEBOOK_DEST}`);
-  await publishPipelineNotebookContent(dbFetch, host, token, loaded.base64, GENERATE_NOTEBOOK_DEST);
-  return GENERATE_NOTEBOOK_DEST;
+  console.log(`📦 Publishing demo pipeline notebook from ${loaded.source} → ${destPath}`);
+  await publishPipelineNotebookContent(dbFetch, host, token, loaded.base64, destPath);
+  return destPath;
 }
 
 async function resolveInspireNotebookPath(host, token, { ensureInspireNotebookPublished, resolveWorkspaceNotebookObjectPath }) {
@@ -190,6 +194,9 @@ async function triggerDemoDataPipeline(
     warehouse_id,
     app_sp_application_id,
     plantKindSignals = true,
+    discoveryType = '',
+    demoSchema: askedSchema = '',
+    generationPath = '',
     ensureInspireNotebookPublished,
     resolveWorkspaceNotebookObjectPath,
     launchedBy = '',
@@ -207,20 +214,25 @@ async function triggerDemoDataPipeline(
     throw new Error('inspire_database must be catalog._inspire');
   }
 
+  const discovery = String(discoveryType || '').trim() ? discoveryTypeOf(discoveryType) : DISCOVERY_RECOMMENDED;
+  if (!discovery) throw Object.assign(new Error(`discovery_type must be one of Standard Discovery or AI Enhanced Discovery, not ${discoveryType}`), { statusCode: 400 });
+  const schemaError = demoSchemaError(askedSchema);
+  if (schemaError) throw Object.assign(new Error(schemaError), { statusCode: 400 });
   const [catalog] = inspireDb.split('.');
-  const demoSchema = buildDemoSchemaName(business, sid);
+  const demoSchema = String(askedSchema || '').trim() || buildDemoSchemaName(business, sid);
+
+  const inspireNotebookPath = await resolveInspireNotebookPath(host, token, {
+    ensureInspireNotebookPublished,
+    resolveWorkspaceNotebookObjectPath,
+  });
 
   const generateNotebookPath = await ensureDemoPipelineNotebookPublished(
     dbFetch,
     host,
     token,
     resolveWorkspaceNotebookObjectPath,
+    generateNotebookDest(inspireNotebookPath),
   );
-
-  const inspireNotebookPath = await resolveInspireNotebookPath(host, token, {
-    ensureInspireNotebookPublished,
-    resolveWorkspaceNotebookObjectPath,
-  });
 
   const resolvedClusterId = await resolvePipelineClusterId(dbFetch, host, token, cluster_id);
   const clusterSpec = inspireTaskCompute(resolvedClusterId);
@@ -228,6 +240,8 @@ async function triggerDemoDataPipeline(
   const inspireParams = buildDemoInspireDiscoveryParams({
     inspireDatabase: inspireDb,
     sessionId: sid,
+    discoveryType: discovery,
+    generationPath,
   });
 
   const createPayload = {
@@ -314,6 +328,7 @@ async function triggerDemoDataPipeline(
       inspire_database: inspireDb,
       demo_schema_planned: `${catalog}.${demoSchema}`,
       demo_tables: demoTablesPlanned(plantKindSignals),
+      discovery_type: discovery,
       catalog,
       cluster_id: resolvedClusterId || null,
     },
@@ -321,6 +336,8 @@ async function triggerDemoDataPipeline(
 }
 
 module.exports = {
+  GENERATE_NOTEBOOK_NAME,
+  generateNotebookDest,
   DEMO_GENERATED_TABLES,
   DEMO_KIND_SIGNAL_TABLES,
   triggerDemoDataPipeline,

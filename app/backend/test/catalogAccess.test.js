@@ -193,6 +193,31 @@ test('Let Inspire read these tables grants with the person token only, re-probes
   });
 });
 
+test('on a route that runs as the person, Let Inspire read these tables probes as the App, grants and the plan then passes', async () => {
+  const grants = [];
+  const { overrides } = split(PERSON_OWNS, { onGrant: (sql, token) => grants.push([sql, token]) });
+  const asPerson = { ...overrides, dbToken: PERSON_TOKEN, tokenKind: 'person', appToken: APP_TOKEN };
+  await withApp(asPerson, async (url, made) => {
+    const got = await call(url, `/api/inspire/implement/grant-access?${Q}&kind=source_tables`, { method: 'POST', body: { tables: ['main.s.orders'] } });
+    assert.equal(got.status, 200, JSON.stringify(got.data));
+    assert.deepEqual(grants, [['GRANT USE SCHEMA ON SCHEMA `main`.`s` TO `app-sp-id`', PERSON_TOKEN], ['GRANT SELECT ON TABLE `main`.`s`.`orders` TO `app-sp-id`', PERSON_TOKEN]]);
+    assert.equal(got.data.granted, 2);
+    assert.equal(got.data.app_unreadable, null);
+    assert.ok(made.sqlCalls.some((c) => c.sql.includes('LIMIT 0') && c.token === APP_TOKEN), 'the read probe runs as the App');
+    const SPEC = { use_case_id: 'N01-U01', use_case_name: 'Predict churn', config: { warehouse_id: 'wh1', result_table: 'main.inspire.churn_out' },
+      outputs: { dashboard: true } };
+    const plan = await call(url, '/api/inspire/implement/plan', { method: 'POST', body: { inspire_database: 'main.inspire', warehouse_id: 'wh1', session_id: '42', spec: SPEC } });
+    assert.notEqual(plan.status, 409, JSON.stringify(plan.data));
+    assert.doesNotMatch(JSON.stringify(plan.data), /cannot read main\.s\.orders/);
+  });
+});
+
+test('Discover names its own job when the App cannot read a table', () => {
+  const offer = I.appReadGrantsOffer(['main.s.orders'], [I.accessPlan('main.s.orders', PERSON_READS, 'app-sp-id')], { name: 'inspire', id: 'app-sp-id' });
+  assert.match(I.appUnreadableMessage(offer, 'discover'), /^Discover cannot read main\.s\.orders: Discover runs as the App service principal inspire/);
+  assert.match(I.appUnreadableMessage(offer), /^the build cannot read/);
+});
+
 test('Let Inspire read these tables refuses with 403 and grants nothing when the person cannot grant', async () => {
   const grants = [];
   const { overrides } = split(PERSON_READS, { onGrant: (sql, token) => grants.push([sql, token]) });

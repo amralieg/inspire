@@ -183,8 +183,7 @@ def build(ns, tmp, mode):
     obj._phaseQ_run_integrity_gates = lambda ucs, schema: ucs
     spark = FakeConnectSpark(respond)
     logger = logging.getLogger("v120_speed_profile")
-    obj.ai_agent = ns["AIAgent"](spark=spark, logger=logger, worker_llm_config="x", judge_llm_config="x",
-                                 prompt_templates=dict(ns["PROMPT_TEMPLATES"]), default_timeout_seconds=60,
+    obj.ai_agent = ns["AIAgent"](spark=spark, logger=logger, prompt_templates=dict(ns["PROMPT_TEMPLATES"]), default_timeout_seconds=60,
                                  max_retry_attempts=1)
     obj.llm_timeout_seconds = 60
 

@@ -77,6 +77,20 @@ test('the run previews read the name with its technique next to the Name, and a 
     'any other error is not hidden behind the fallback');
 });
 
+test('the run previews list the use cases that meet the bar first, then by Inspire Score, never a below-bar one ahead (must-exclude)', async () => {
+  const UC = '`main`.`inspire`.`__inspire_usecases`';
+  const fresh = R.sessionPreviewStatement(UC, ['42']).sql;
+  const order = /ORDER BY (.*)\) AS rn/.exec(fresh)[1];
+  assert.ok(order.startsWith("CASE WHEN UPPER(TRIM(COALESCE(elite_status, ''))) NOT IN ('FALLBACK_BELOW_BAR', 'DOMAIN_COVERAGE_PICK') THEN 0 ELSE 1 END, "), order);
+  assert.match(order, /, COALESCE\(COALESCE\(inspire_score, 0\.65 \* LEAST/);
+  assert.ok(order.endsWith(', use_case'));
+  assert.doesNotMatch(order, /COALESCE\(priority_score, 0\) DESC/);
+  const sent = [];
+  await R.loadSessionPreviews(async (statement) => { sent.push(statement.sql); return []; }, UC, ['42'], new Set(['use_case', 'priority_score']));
+  assert.doesNotMatch(sent[0], /elite_status|inspire_score|quality_score/, 'a table without those columns is never asked for them');
+  assert.match(sent[0], /COALESCE\(COALESCE\(CAST\(NULL AS DOUBLE\)/);
+});
+
 test('the portfolio reads each table with one aggregate that rolls up per run and in total, bounded and parameterized', () => {
   const uc = R.portfolioUseCaseStatement('`c`.`s`.`__inspire_usecases`');
   assert.match(uc.sql, /GROUP BY ROLLUP \(session_id\) ORDER BY is_total DESC, sid DESC LIMIT 1002$/);

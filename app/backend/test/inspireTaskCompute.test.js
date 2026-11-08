@@ -66,6 +66,28 @@ test('the demo job plants the kind tables unless the caller switches them off, a
   assert.deepEqual(off.result.pipeline.demo_tables, { generated: DEMO_GENERATED_TABLES, kind_signal: 0 });
 });
 
+test('the demo job keeps the person\u2019s discovery choice, schema name and output folder, and its generator sits next to the agent notebook', async () => {
+  const published = [];
+  const resolve = async (host, token, p) => (p.endsWith('/dbx_inspire_ai_agent') ? '/Shared/acme-inspire/dbx_inspire_ai_agent' : (published.push(p), p));
+  const chosen = await demoRun('', { discoveryType: 'Standard Discovery', demoSchema: 'retail_demo', generationPath: '/Workspace/Users/pat/out',
+    resolveWorkspaceNotebookObjectPath: resolve });
+  const [generate, discover] = chosen.payload.tasks;
+  assert.equal(generate.notebook_task.notebook_path, '/Shared/acme-inspire/dbx_generate_demo_data');
+  assert.deepEqual(published, ['/Shared/acme-inspire/dbx_generate_demo_data']);
+  assert.ok(!JSON.stringify(chosen.payload).includes('/Shared/inspire-ai/'), 'no fixed shared folder');
+  assert.equal(generate.notebook_task.base_parameters.demo_schema, 'retail_demo');
+  assert.equal(discover.notebook_task.base_parameters['03_discovery_type'], 'Standard Discovery');
+  assert.equal(discover.notebook_task.base_parameters['11_generation_path'], '/Workspace/Users/pat/out');
+  assert.equal(chosen.result.pipeline.demo_schema_planned, 'main.retail_demo');
+  const unset = await demoRun('', { resolveWorkspaceNotebookObjectPath: resolve });
+  assert.equal(unset.payload.tasks[1].notebook_task.base_parameters['03_discovery_type'], 'AI Enhanced Discovery', 'no choice gets the recommended mode the Launch page starts on');
+  assert.match(unset.payload.tasks[0].notebook_task.base_parameters.demo_schema, /^inspire_demo_acme_retail_/);
+  for (const [extra, why] of [[{ discoveryType: 'Quick' }, /discovery_type must be one of/], [{ demoSchema: 'bad-name;drop' }, /letters, digits and underscores/],
+    [{ demoSchema: 'information_schema' }, /system schema/]]) {
+    await assert.rejects(demoRun('', { ...extra, resolveWorkspaceNotebookObjectPath: resolve }), why);
+  }
+});
+
 test('a serverless Inspire task runs once, without the automatic serverless retries', () => {
   for (const none of ['', null, undefined]) {
     assert.deepEqual(inspireTaskCompute(none), SERVERLESS);

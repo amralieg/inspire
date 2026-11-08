@@ -175,3 +175,18 @@ test('a reason from an older run reads in plain words, with every internal check
   assert.equal(f.belowBarLabelFromUseCase(uc), 'failed the decision readiness check');
   assert.doesNotMatch(f.belowBarLabelFromUseCase({ meets_quality_bar: false, fallback_reason: 'hard veto on gate Analytical Depth (D9)' }), /D9/);
 });
+
+test('the run cards rank the use cases that meet the bar first, then by Inspire Score, never by priority tier alone (must-exclude)', async () => {
+  const f = await load();
+  const ucs = [
+    { Name: 'Below high', inspire_score: 8.4, elite_status: 'FALLBACK_BELOW_BAR', meets_quality_bar: 'N', Priority: 'Ultra High' },
+    { Name: 'Meets low', inspire_score: 6.1, meets_quality_bar: 'Y', Priority: 'Medium' },
+    { Name: 'Meets high', inspire_score: 7.9, meets_quality_bar: 'Y', Priority: 'High' },
+    { Name: 'Below low', inspire_score: 5, meets_quality_bar: 'N', Priority: 'Ultra High' },
+    { Name: 'Unscored', meets_quality_bar: 'Y' },
+  ];
+  assert.deepEqual([...ucs].sort(f.compareUseCaseRank).map((u) => u.Name), ['Meets high', 'Meets low', 'Unscored', 'Below high', 'Below low']);
+  const page = require('node:fs').readFileSync(path.resolve(__dirname, '..', '..', 'frontend', 'src', 'pages', 'ChoosePage.jsx'), 'utf8');
+  assert.equal((page.match(/\.sort\(compareUseCaseRank\)/g) || []).length, 2);
+  assert.doesNotMatch(page, /priorityTierIndex/);
+});

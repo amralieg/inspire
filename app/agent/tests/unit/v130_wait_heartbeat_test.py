@@ -63,8 +63,8 @@ def test_split_retry_scoring_logs_the_heartbeat_with_its_stage_label(agent_ns, m
 def test_a_single_long_model_call_writes_its_wait_to_the_run_log_once_a_minute(agent_ns, monkeypatch):
     from v120_runtime_llm_client_test import FakeSpark
     log = RecordingLogger()
-    agent = agent_ns["AIAgent"](spark=FakeSpark(responder=lambda query, args: "ok"), logger=log, worker_llm_config="x",
-                                judge_llm_config="x", prompt_templates={"T": "{x}"}, default_timeout_seconds=30,
+    agent = agent_ns["AIAgent"](spark=FakeSpark(responder=lambda query, args: "ok"), logger=log,
+                                prompt_templates={"T": "{x}"}, default_timeout_seconds=30,
                                 max_retry_attempts=0)
     real = agent_ns["_run_tagged_spark_work"]
 

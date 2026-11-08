@@ -9,7 +9,7 @@ import { makeApiFetch, requestHeaders } from '../lib/apiClient';
 import { buildFilterOf, portfolioCard, runBusiness, runCounts, runFilterText, runsOfCard } from '../lib/reviewFigures';
 import { sessionStatus, sessionSucceeded } from '../lib/monitorState';
 import { SHOWCASE_BUTTON } from '../lib/showcase';
-import { computeHighPriorityCount, nameOfUseCase, qualityBarCountsOf } from '../lib/useCaseFields';
+import { compareUseCaseRank, computeHighPriorityCount, nameOfUseCase, qualityBarCountsOf } from '../lib/useCaseFields';
 
 const STATUS_CONFIG = {
   finished: { label: 'Completed', bg: 'bg-success-bg', text: 'text-success-fg', dot: 'bg-success' },
@@ -105,14 +105,6 @@ function StartChoices({ onNewExperiment, onNoData, onDemo }) {
   );
 }
 
-const PRIORITY_SORT_ORDER = ['Ultra High', 'Very High', 'High', 'Medium', 'Low', 'Very Low'];
-
-function priorityTierIndex(uc) {
-  const p = uc.Priority || uc.priority || '';
-  const i = PRIORITY_SORT_ORDER.indexOf(p);
-  return i === -1 ? 99 : i;
-}
-
 /** Full quick-view shape from __inspire_usecases API rows */
 function buildSummaryFromUclist(ucs) {
   if (!ucs || !ucs.length) return null;
@@ -156,7 +148,7 @@ function getListRowOverview(session) {
   const legacy = getSessionSummary(session);
   if (legacy) {
     const previewTitles = [...legacy.useCases]
-      .sort((a, b) => priorityTierIndex(a) - priorityTierIndex(b))
+      .sort(compareUseCaseRank)
       .slice(0, 4)
       .map((uc) => nameOfUseCase(uc) || uc.usecase || '')
       .filter(Boolean);
@@ -605,8 +597,8 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
                       {/* Top use cases list */}
                       <div className="space-y-1.5">
                         <p className="text-[10px] font-bold text-text-secondary uppercase tracking-wider">Top Use Cases</p>
-                        {panelSummary.useCases
-                          .sort((a, b) => priorityTierIndex(a) - priorityTierIndex(b))
+                        {[...panelSummary.useCases]
+                          .sort(compareUseCaseRank)
                           .slice(0, 8)
                           .map((uc, i) => {
                             const ucName = nameOfUseCase(uc) || uc.usecase || `Use Case ${i + 1}`;

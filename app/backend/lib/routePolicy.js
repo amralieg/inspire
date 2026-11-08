@@ -104,7 +104,7 @@ const ROUTE_POLICY = {
   'POST /api/notebook/republish': managers('republish the agent notebook'),
   'POST /api/publish': managers('publish the agent notebook to a workspace path'),
   'POST /api/publish/upload': managers('upload and publish a notebook'),
-  'POST /api/demo-data/start': managers('start a demo data run'),
+  'POST /api/demo-data/start': { ...managers('start a demo data run'), outputWrite: true, scopes: OUTPUT_WRITE_SCOPES },
   'GET /api/workspace/list': yours('list a workspace or volume folder', ['workspace.workspace:read', 'files'], { sessionOutput: SESSION_OUTPUT }),
   'GET /api/workspace/export': yours('download a workspace or volume file', ['workspace.workspace:read', 'files'], { sessionOutput: SESSION_OUTPUT }),
   'GET /api/workspace/status': yours('check a workspace path', ['workspace.workspace:read']),

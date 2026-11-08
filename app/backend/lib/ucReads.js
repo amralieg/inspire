@@ -208,6 +208,30 @@ async function readPlan(dbFetch, host, tokens, reads) {
   };
 }
 
+const APP_READ_PROBES = 100;
+
+async function scopeTables(dbFetch, host, token, entries, limit = APP_READ_PROBES) {
+  const tables = [];
+  let more = false;
+  for (const entry of entries) {
+    const [catalog, schema, table] = entry.split('.');
+    if (table) {
+      tables.push(entry);
+      continue;
+    }
+    const schemas = schema ? [schema] : (await listSchemas(dbFetch, host, token, catalog)).items
+      .map((s) => String(s.name || '')).filter((name) => name && name.toLowerCase() !== SYSTEM_SCHEMA);
+    for (const name of schemas) {
+      if (tables.length >= limit) break;
+      const listed = await listTables(dbFetch, host, token, catalog, name);
+      more = more || listed.truncated;
+      tables.push(...listed.items.map((t) => fullName(catalog, name, t)));
+    }
+  }
+  const unique = I.uniqueTables(tables);
+  return { tables: unique.slice(0, limit), more: more || unique.length > limit };
+}
+
 async function unreadableReads(dbFetch, host, tokens, reads) {
   const plan = await readPlan(dbFetch, host, tokens, reads);
   return plan.unreadable.concat(plan.files);
@@ -451,6 +475,8 @@ module.exports = {
   listCatalogs,
   listSchemas,
   listTables,
+  APP_READ_PROBES,
+  scopeTables,
   tableReadable,
   fileReadable,
   ucMetadataParts,

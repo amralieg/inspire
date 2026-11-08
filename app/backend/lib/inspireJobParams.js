@@ -185,14 +185,14 @@ function withInspireInstallParams(params) {
 }
 
 /** Static + task-value parameters for demo pipeline task 2 (Inspire discovery). */
-function buildDemoInspireDiscoveryParams({ inspireDatabase, sessionId, generateTaskKey = 'generate_demo_data' }) {
+function buildDemoInspireDiscoveryParams({ inspireDatabase, sessionId, generateTaskKey = 'generate_demo_data', discoveryType = DISCOVERY_TYPE_DEFAULT, generationPath = '' }) {
   const tk = generateTaskKey;
   const raw = {
     '15_operation': 'Discover Use Cases',
     '00_business_name': `{{tasks.${tk}.values.display_name}}`,
     '01_uc_metadata': `{{tasks.${tk}.values.uc_metadata}}`,
     '02_inspire_database': inspireDatabase,
-    '03_discovery_type': DISCOVERY_TYPE_DEFAULT,
+    '03_discovery_type': discoveryType || DISCOVERY_TYPE_DEFAULT,
     '04_table_election': 'All Tables',
     '05_use_cases_quality': USE_CASES_QUALITY_DEFAULT,
     '06_business_domains': '',
@@ -200,7 +200,7 @@ function buildDemoInspireDiscoveryParams({ inspireDatabase, sessionId, generateT
     '08_generation_instructions': `{{tasks.${tk}.values.user_description}}`,
     '09_generation_options': 'PDF Catalog',
     '10_strategic_context': '',
-    '11_generation_path': DEFAULT_GENERATION_PATH,
+    '11_generation_path': String(generationPath || '').trim() || DEFAULT_GENERATION_PATH,
     '12_documents_languages': 'English',
     '13_generate_genie_code_for': GENIE_CODE_DEFAULT_COUNT,
     '14_session_id': sessionId,

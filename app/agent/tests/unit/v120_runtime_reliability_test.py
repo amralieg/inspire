@@ -129,8 +129,7 @@ def use_roster(ns, *endpoints):
 
 
 def make_agent(ns, spark, logger, retries=1, timeout=30):
-    return ns["AIAgent"](spark=spark, logger=logger, worker_llm_config="x", judge_llm_config="x",
-                         prompt_templates=dict(ns["PROMPT_TEMPLATES"]), default_timeout_seconds=timeout,
+    return ns["AIAgent"](spark=spark, logger=logger, prompt_templates=dict(ns["PROMPT_TEMPLATES"]), default_timeout_seconds=timeout,
                          max_retry_attempts=retries)
 
 

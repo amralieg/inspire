@@ -118,7 +118,7 @@ def test_retry_on_the_same_model_is_a_new_attempt(agent_ns, recorder, monkeypatc
             raise RuntimeError("503 Service Unavailable: temporarily unavailable")
         return "ok"
     agent = agent_ns["AIAgent"](spark=LlmSpark(responder=responder), logger=logging.getLogger("v130_ailogs"),
-                                worker_llm_config="x", judge_llm_config="x", prompt_templates={"T": "{x}"},
+                                prompt_templates={"T": "{x}"},
                                 default_timeout_seconds=30, max_retry_attempts=1)
     assert agent._call_ai_query("hi", "T") == "ok"
     assert [(r["attempt"], r["status"]) for r in recorder.rows] == [(1, "failed"), (2, "success")]

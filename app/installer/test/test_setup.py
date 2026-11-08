@@ -1554,7 +1554,7 @@ class GenieCodeInstallCheckTest(unittest.TestCase):
     TEXT = AGENT_NOTEBOOK.read_text(encoding="utf-8")
     K = setup.agent_constants(TEXT, setup.GENIE_CODE_CONSTANTS)
 
-    def gateway(self, codex=(200, ""), claude_models=(), claude=(200, ""), raises=None):
+    def gateway(self, codex=(200, ""), claude_models=(), claude=(200, ""), raises=None, codex_models=(), codex_by_model=None):
         calls = []
 
         def api(method, path, body=None, timeout=None):
@@ -1563,8 +1563,11 @@ class GenieCodeInstallCheckTest(unittest.TestCase):
                 raise raises
             if path == f"{self.K['UNITY_GATEWAY_ANTHROPIC_PATH']}/models":
                 return Resp(200, {"data": [{"id": m} for m in claude_models]})
+            if path == f"{self.K['UNITY_GATEWAY_CODEX_PATH']}/models":
+                return Resp(200, {"models": [{"slug": m} for m in codex_models]})
             if path == f"{self.K['UNITY_GATEWAY_CODEX_PATH']}/responses":
-                return Resp(codex[0], text=codex[1])
+                got = (codex_by_model or {}).get((body or {}).get("model"), codex)
+                return Resp(got[0], text=got[1])
             if path == f"{self.K['UNITY_GATEWAY_MLFLOW_PATH']}/responses":
                 return Resp(claude[0], text=claude[1])
             return Resp(404)
@@ -1599,6 +1602,16 @@ class GenieCodeInstallCheckTest(unittest.TestCase):
         self.assertIn("I will build it myself", said)
         self.assertIn(self.K["GENIE_CODE_ADMIN_FIX"], said)
         self.assertNotRegex(said.lower(), r"contact|ticket|support")
+
+    def test_codex_refusing_its_first_model_tries_the_models_the_codex_route_lists(self):
+        first = self.K["GENIE_CODE_MODEL"]
+        api, calls = self.gateway(codex_models=(first, "gpt-oss-120b", "gpt-9-codex"),
+                                  codex_by_model={first: (404, "model not found"), "gpt-9-codex": (200, "")})
+        said = self.check(api)
+        self.assertTrue(said.startswith("✅"), said)
+        self.assertIn("gpt-9-codex through the Codex route", said)
+        probed = [c[2] for c in calls if c[0] == "POST"]
+        self.assertEqual(probed, [first, "gpt-9-codex"])
 
     def test_a_busy_or_silent_gateway_is_not_a_verdict(self):
         api, _ = self.gateway(codex=(503, "busy"))

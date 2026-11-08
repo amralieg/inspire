@@ -105,7 +105,7 @@ def test_discover_names_who_cannot_read_a_table_and_keeps_going_for_the_readable
     assert access["tables_skipped"] == {"main.s.customers": "denied"}
     assert access["tables_unreadable"] == ["main.s.customers"] and access["unreadable_reason"] == reason
     assert obj.logger.matching(f"this table stays Standard: {reason}", level="WARNING")
-    assert any(reason in w and "the readable tables went ahead" in w for w in obj._run_outcome_warnings())
+    assert any(reason in w and "the evidence covers only the 1 table it could read" in w for w in obj._run_outcome_warnings())
 
 
 def test_discover_adds_no_reason_when_a_table_fails_for_another_cause(agent_ns):

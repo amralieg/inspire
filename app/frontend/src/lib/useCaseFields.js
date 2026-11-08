@@ -179,6 +179,12 @@ export function compareMeetsQualityBarFirst(a, b) {
   return (meetsQualityBarOf(a) === false ? 1 : 0) - (meetsQualityBarOf(b) === false ? 1 : 0);
 }
 
+export function compareUseCaseRank(a, b) {
+  const meetsFirst = compareMeetsQualityBarFirst(a, b);
+  if (meetsFirst !== 0) return meetsFirst;
+  return (inspireScoreFromUc(b) ?? -Infinity) - (inspireScoreFromUc(a) ?? -Infinity);
+}
+
 export function qualityBarCountsOf(list) {
   const items = Array.isArray(list) ? list.filter((uc) => uc && typeof uc === 'object') : [];
   const below = items.filter((uc) => meetsQualityBarOf(uc) === false).length;

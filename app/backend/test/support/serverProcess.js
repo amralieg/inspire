@@ -33,11 +33,11 @@ async function fakeWorkspace(answer, { folders = SHARED_FOLDERS } = {}) {
     const url = new URL(`http://x${req.url}`);
     const missing = url.pathname === '/api/2.0/workspace/get-status'
       ? [404, { error_code: 'RESOURCE_DOES_NOT_EXIST', message: `${url.searchParams.get('path')} does not exist` }] : null;
-    const [status, data] = answer(call)
+    const [status, data, headers] = answer(call)
       || folderAnswer(model, { method: req.method, pathname: url.pathname, searchParams: url.searchParams, body, token: call.token }, writable)
       || missing
       || [404, { error_code: 'NOT_FOUND', message: `not mocked ${req.method} ${req.url}` }];
-    res.writeHead(status, { 'Content-Type': 'application/json' });
+    res.writeHead(status, { 'Content-Type': 'application/json', ...(headers || {}) });
     res.end(JSON.stringify(data));
   });
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));

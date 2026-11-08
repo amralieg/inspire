@@ -2936,13 +2936,29 @@ function appReadGrantsOffer(tables, plans, app) {
   };
 }
 
-function appUnreadableMessage(offer) {
+const APP_READ_JOBS = {
+  build: { who: 'the build', runs: 'builds run', grant: 'Use Let Inspire read these tables to run' },
+  discover: { who: 'Discover', runs: 'Discover runs', grant: 'Run with your sign-in' },
+};
+
+function discoverGrantedText(tables, ran) {
+  return `Inspire granted the App read on ${joinAnd(tables)} with your sign-in, because Discover runs as the App: ${ran.join('; ')}`;
+}
+
+function discoverUnreadText(offer) {
+  const one = offer.tables.length === 1;
+  const it = one ? 'that table' : 'those tables';
+  return `${offer.text}. Until then Discover runs on the table descriptions of ${it} only, and no use case is checked against ${one ? "that table's" : "those tables'"} data`;
+}
+
+function appUnreadableMessage(offer, job = 'build') {
+  const words = APP_READ_JOBS[job] || APP_READ_JOBS.build;
   const one = offer.tables.length === 1;
   const app = offer.app.name && offer.app.name !== offer.app.id ? `${offer.app.name} (application id ${offer.app.id})` : `with application id ${offer.app.id}`;
-  const head = `the build cannot read ${joinAnd(offer.tables)}: builds run as the App service principal ${app}, and you can read `
+  const head = `${words.who} cannot read ${joinAnd(offer.tables)}: ${words.runs} as the App service principal ${app}, and you can read `
     + `${one ? 'this table' : 'these tables'} but the App cannot`;
   if (!offer.grants.length) return `${head}, and Inspire finds no missing grant to name: ask the table owner why the App cannot read ${one ? 'it' : 'them'}`;
-  return `${head}. ${offer.can_grant ? 'Use Let Inspire read these tables to run' : 'Ask the owner to run'}: ${offer.grants.join('; ')}`;
+  return `${head}. ${offer.can_grant ? words.grant : 'Ask the owner to run'}: ${offer.grants.join('; ')}`;
 }
 
 function gapList(gaps) {
@@ -3508,6 +3524,8 @@ module.exports = {
   newAppsAccessText,
   appReadGrantsOffer,
   appUnreadableMessage,
+  discoverGrantedText,
+  discoverUnreadText,
   shareWarnings,
   shareWarehouseWarnings,
   warehouseManageCheck,
