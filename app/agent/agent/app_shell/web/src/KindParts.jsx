@@ -7,6 +7,7 @@ import { RecordPanel } from './Records.jsx';
 import { useList } from './Layouts.jsx';
 import { Icon } from './icons.jsx';
 import { Skeleton } from './ui.jsx';
+import { SaveButton, runWrite } from './saving.jsx';
 import { genieOn } from './genieAsk.js';
 import { plural } from './hub.js';
 import { AskGenie } from './AskGenie.jsx';
@@ -107,25 +108,22 @@ function choiceFields(page, row) {
 function useChoices(page, onChanged) {
   const labelOf = (s) => String(s?.label ?? s?.record_key ?? '');
   const acts = useActs({ pageId: page.id, similarBy: [], onActed: onChanged, labelOf });
-  const [busy, setBusy] = useState('');
   const [error, setError] = useState('');
-  const run = async (key, body, values, said) => {
-    setBusy(key);
+  const run = async (key, body, values, said, inside = false) => {
     setError('');
     try {
-      await acts.act(body, values, { said });
+      return await acts.act(body, values, { said, key: `choice:${key}`, inside });
     } catch (e) {
       setError(actError(e));
-    } finally {
-      setBusy('');
+      return null;
     }
   };
   const choose = (row, choice, detail = '') => {
     const key = String(recordKeyOf(row));
-    return run(key, { record_keys: [key], seen: { [key]: String(row._inspire_version) } }, choiceValues(choice, detail),
+    return run(`${key}:${choice.id}`, { record_keys: [key], seen: { [key]: String(row._inspire_version) } }, choiceValues(choice, detail),
       `${choice.label}: ${row[page.records?.label] ?? key}`);
   };
-  const takeAll = async (rows, suggest) => {
+  const takeAll = (rows, suggest) => runWrite(TAKE_ALL, async () => {
     const byChoice = new Map();
     rows.forEach((r) => {
       const choice = suggest(r);
@@ -136,14 +134,14 @@ function useChoices(page, onChanged) {
     });
     for (const { choice, picked } of byChoice.values()) {
       const keys = picked.map((r) => String(recordKeyOf(r)));
-      await run('all', { record_keys: keys, seen: Object.fromEntries(picked.map((r) => [String(recordKeyOf(r)), String(r._inspire_version)])) },
-        choiceValues(choice, 'the ★ suggestion'), `${choice.label} on ${plural(keys.length, '★ suggestion')}`);
+      if (!(await run('all', { record_keys: keys, seen: Object.fromEntries(picked.map((r) => [String(recordKeyOf(r)), String(r._inspire_version)])) },
+        choiceValues(choice, 'the ★ suggestion'), `${choice.label} on ${plural(keys.length, '★ suggestion')}`, true))) return;
     }
-  };
-  return { choose, takeAll, busy, error, run };
+  });
+  return { choose, takeAll, error, run };
 }
 
-function ChoiceRow({ page, app, row, choices, suggested, canAct, busy, onChoose, onOpen, detail, ask, children }) {
+function ChoiceRow({ page, app, row, choices, suggested, canAct, onChoose, onOpen, detail, ask, children }) {
   const [skipping, setSkipping] = useState(null);
   const key = String(recordKeyOf(row));
   const closed = isClosed(row);
@@ -159,10 +157,10 @@ function ChoiceRow({ page, app, row, choices, suggested, canAct, busy, onChoose,
       <div className="choice-act" role="group" aria-label={`Decide ${row[page.records?.label] ?? key}`}>
         {closed && <span className="choice-done" data-decided><Icon name="check" size={13} />{decidedText(row)}</span>}
         {!closed && canAct && choices.map((c) => (
-          <button key={c.id} type="button" className={`btn btn--sm ${suggested?.id === c.id ? 'btn--pri' : ''}`} disabled={!!busy} data-choice={c.id}
+          <SaveButton key={c.id} write={`choice:${key}:${c.id}`} className={`btn btn--sm ${suggested?.id === c.id ? 'btn--pri' : ''}`} data-choice={c.id}
             onClick={() => (c.status === 'Dismissed' ? setSkipping(c) : onChoose(row, c))}>
             {suggested?.id === c.id && <span aria-hidden="true">★ </span>}{c.label}
-          </button>
+          </SaveButton>
         ))}
         {!closed && !canAct && suggested && <span className="muted" data-suggested><span aria-hidden="true">★ </span>Suggested: {suggested.label}</span>}
         <RowGenie about={!ask && genieOn(app, page.id) ? { pageId: page.id, recordKey: key, label: nameOf(page, row) } : null}
@@ -172,7 +170,7 @@ function ChoiceRow({ page, app, row, choices, suggested, canAct, busy, onChoose,
         <div className="choice-why" role="group" aria-label={`Why ${skipping.label.toLowerCase()}`}>
           <span>Why?</span>
           {(skipping.reasons || SKIP_REASONS).map((r) => (
-            <button key={r} type="button" className="chip" disabled={!!busy} onClick={() => { setSkipping(null); onChoose(row, skipping, r); }}>{r}</button>
+            <SaveButton key={r} write={`choice:${key}:${skipping.id}`} className="chip" onClick={async () => { if (await onChoose(row, skipping, r)) setSkipping(null); }}>{r}</SaveButton>
           ))}
           <button type="button" className="link" onClick={() => setSkipping(null)}>Cancel</button>
         </div>
@@ -212,9 +210,11 @@ function ListShell({ page, app, title, hint, section, list, empty, actions, erro
   );
 }
 
-export function TakeAll({ count, busy, onClick }) {
+export const TAKE_ALL = 'take-all';
+
+export function TakeAll({ count, onClick }) {
   if (!count) return null;
-  return <button type="button" className="btn btn--sm btn--pri" disabled={!!busy} onClick={onClick} data-take-all>{count === 1 ? 'Take the ★ suggestion' : `Take all ${integer(count)} ★ suggestions`}</button>;
+  return <SaveButton write={TAKE_ALL} className="btn btn--sm btn--pri" onClick={onClick} data-take-all>{count === 1 ? 'Take the ★ suggestion' : `Take all ${integer(count)} ★ suggestions`}</SaveButton>;
 }
 
 function Lookup({ label, value, onLook }) {
@@ -250,13 +250,13 @@ export function RecList({ page, app, filters, ready, nonce, onChanged }) {
     <ListShell page={page} app={app} title={meta.title || 'Recommendations'} hint={meta.hint} section="rec_list" list={list} error={decide.error}
       filters={filters} view={view} onChanged={onChanged} opened={opened}
       empty={search ? `Nothing matches ${search}.` : 'No recommendations for these filters.'}
-      actions={<><Lookup label={who} value={search} onLook={setSearch} />{can && <TakeAll count={open} busy={decide.busy} onClick={() => decide.takeAll(shownRows, suggest)} />}</>}>
+      actions={<><Lookup label={who} value={search} onLook={setSearch} />{can && <TakeAll count={open} onClick={() => decide.takeAll(shownRows, suggest)} />}</>}>
       {groups.map(([entity, items]) => (
         <div key={entity} className="rec-entity" data-rec-entity={entity}>
           <h3>{entity}<AskGenie kind="recommendation" title={entity} context={tableContext(`The top offers for ${entity}, best first.`, items, (row) => choiceFields(page, row))} /></h3>
           <ol className="choice-list">
             {items.map((row) => (
-              <ChoiceRow key={recordKeyOf(row)} page={page} app={app} row={row} choices={choices} suggested={suggest(row)} canAct={can} busy={decide.busy}
+              <ChoiceRow key={recordKeyOf(row)} page={page} app={app} row={row} choices={choices} suggested={suggest(row)} canAct={can}
                 onChoose={decide.choose} onOpen={opened.open}
                 detail={row[recs.score] != null && <span className="choice-score">{scoreMeta?.label || 'Score'} {shown(scoreMeta || { format: 'number' }, row[recs.score])}</span>}>
                 {reasonsOf(row[meta.reasons]).length > 0 && <div className="reasons">{reasonsOf(row[meta.reasons]).map((t) => <span key={t} className="chip chip--static">{t}</span>)}</div>}
@@ -282,10 +282,10 @@ export function ChoiceList({ page, app, filters, ready, nonce, onChanged, sectio
   return (
     <ListShell page={page} app={app} title={meta.title || 'Decide each one'} hint={meta.hint} section={section} list={list} error={decide.error}
       filters={filters} onChanged={onChanged} opened={opened}
-      empty="Nothing to decide for these filters." actions={can && <TakeAll count={open} busy={decide.busy} onClick={() => decide.takeAll(rows, suggest)} />}>
+      empty="Nothing to decide for these filters." actions={can && <TakeAll count={open} onClick={() => decide.takeAll(rows, suggest)} />}>
       <ol className="choice-list">
         {rows.map((row) => (
-          <ChoiceRow key={recordKeyOf(row)} page={page} app={app} row={row} choices={choices} suggested={suggest(row)} canAct={can} busy={decide.busy}
+          <ChoiceRow key={recordKeyOf(row)} page={page} app={app} row={row} choices={choices} suggested={suggest(row)} canAct={can}
             onChoose={decide.choose} onOpen={opened.open} ask={ITEM_KINDS[section]}
             detail={<span className="choice-cols">{(meta.columns || []).slice(0, 4).map((c) => <span key={c.column}>{c.label} <b>{shown(c, row[c.column])}</b></span>)}</span>}>
             {row[meta.action] && <p className="choice-why-text">{row[meta.action]}</p>}
@@ -342,13 +342,14 @@ export function SegmentCards({ page, app, ready, nonce, filters, onChanged, onPi
   const can = !!app?.options?.decisions && pageDecides(page);
   const counted = ids.filter((id) => counts[id] && !counts[id].error && counts[id].waiting != null);
   const off = !can || (counted.length > 0 && !counted.some((id) => counts[id].actions));
-  const choose = async (row, treatment) => {
+  const choose = async (row, treatment, inside = false) => {
     const id = String(row.segment_id);
     const c = counts[id] || {};
-    if (!c.asOf || !c.waiting) return;
-    setPicked((all) => ({ ...all, [id]: treatment }));
-    await decide.run(`seg:${id}`, { match: matchOf({ ...c.view, filters: { [block.filter]: [id] } }, c.asOf), treatment }, treatmentValues(treatment),
-      `${treatment} chosen for ${integer(c.waiting)} members of ${row.label}`);
+    if (!c.asOf || !c.waiting) return null;
+    const out = await decide.run(`seg:${id}:${treatment}`, { match: matchOf({ ...c.view, filters: { [block.filter]: [id] } }, c.asOf), treatment }, treatmentValues(treatment),
+      `${treatment} chosen for ${integer(c.waiting)} members of ${row.label}`, inside);
+    if (out) setPicked((all) => ({ ...all, [id]: treatment }));
+    return out;
   };
   const suggestedOf = (row) => (block.suggest && (block.treatments || []).find((t) => t.toLowerCase() === String(row[block.suggest] ?? '').toLowerCase())) || null;
   const waiting = rows.filter((r) => suggestedOf(r) && counts[String(r.segment_id)]?.actions && (counts[String(r.segment_id)]?.waiting || 0) > 0
@@ -359,7 +360,7 @@ export function SegmentCards({ page, app, ready, nonce, filters, onChanged, onPi
         <header className="card-h"><div><h2>{table?.title || 'Segments'}</h2>
           {off ? <p className="muted" data-no-decisions>{noDecisionText(app, page)}</p>
             : <p>{table?.hint || 'Choose a treatment for each segment once: every member of the segment gets it.'}</p>}</div>
-          {can && waiting.length > 0 && <TakeAll count={waiting.length} busy={decide.busy} onClick={async () => { for (const r of waiting) await choose(r, suggestedOf(r)); }} />}
+          {can && waiting.length > 0 && <TakeAll count={waiting.length} onClick={() => runWrite(TAKE_ALL, async () => { for (const r of waiting) if (!(await choose(r, suggestedOf(r), true))) return; })} />}
           <AskGenie kind="table" title={table?.title || 'Segments'} context={tableContext(table?.hint || '', rows, (row) => specFields(row, table?.columns))} />
         </header>
         {!result && !failed && <div style={{ padding: 16 }}><Skeleton height={90} /></div>}
@@ -397,8 +398,8 @@ export function SegmentCards({ page, app, ready, nonce, filters, onChanged, onPi
                 {can && c.actions && (
                   <div className="seg-act" role="group" aria-label={`Treatment for ${row.label}`}>
                     {(block.treatments || []).map((t) => (
-                      <button key={t} type="button" className={`btn btn--sm ${star === t ? 'btn--pri' : ''}`} disabled={!!decide.busy || !c.asOf || !c.waiting}
-                        data-treatment={t} onClick={() => choose(row, t)}>{star === t && <span aria-hidden="true">★ </span>}{t}</button>
+                      <SaveButton key={t} write={`choice:seg:${id}:${t}`} className={`btn btn--sm ${star === t ? 'btn--pri' : ''}`} disabled={!c.asOf || !c.waiting}
+                        data-treatment={t} onClick={() => choose(row, t)}>{star === t && <span aria-hidden="true">★ </span>}{t}</SaveButton>
                     ))}
                   </div>
                 )}

@@ -47,7 +47,6 @@ export const agentTurn = (turnId) => json('GET', `agent/turn?turn_id=${encodeURI
 export const agentFeedback = (turnId, rating) => json('POST', 'agent/feedback', { turn_id: turnId, rating });
 export const getHistory = (page, ref) => json('GET', `records/history?${new URLSearchParams({ page, ...ref })}`);
 export const getFields = (page) => json('GET', `records/fields?page=${encodeURIComponent(page)}`);
-export const writeRecord = (kind, body) => json('POST', `records/${kind}`, body);
 const DEMO_DECIDED = 'inspire-demo-decisions';
 const demoStore = () => { try { return window.sessionStorage; } catch { return null; } };
 const demoKey = (page) => `${DEMO_DECIDED}:${typeof location === 'undefined' ? '' : location.pathname}:${page}`;
@@ -81,6 +80,7 @@ export const actRecords = async (body) => {
     return json('POST', 'records/act', sent);
   }
 };
+export const writeRecord = (kind, body) => (kind === 'act' ? actRecords(body) : json('POST', `records/${kind}`, body));
 export const decidePlan = async (body) => {
   const got = await json('POST', 'plan/decide', body);
   if (got?.showcase === true && got.saved === false && got.row && body?.record_key != null) rememberDemo(body.page, String(body.record_key), got.row);

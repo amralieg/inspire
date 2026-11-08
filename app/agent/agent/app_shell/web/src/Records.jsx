@@ -16,6 +16,7 @@ import { hueVars, reducedMotion } from './theme.js';
 import { Failure, Popover, Skeleton, useDebounced, useDialog, useToast } from './ui.jsx';
 import { failureOf, getRecords, toneOf } from './api.js';
 import { HistoryList, useHistory } from './History.jsx';
+import { SaveButton, savingLabel, useWrite } from './saving.jsx';
 import RecordForm, { DeleteDialog } from './RecordForm.jsx';
 import Fx from './Fx.jsx';
 import { moneyOf } from './money.js';
@@ -42,6 +43,10 @@ const KEPT = new Map();
 const NO_PICKS = {};
 const SOMEONE_ELSE = ' someone else';
 const SAVED = 'Action saved. The earlier version stays in the history.';
+const SAVE_WRITE = 'drawer:save';
+const NOTE_WRITE = 'drawer:note';
+const SNOOZE_WRITE = 'drawer:snooze';
+const GIVE_WRITE = 'drawer:give';
 const NO_FORMULA = 'How this amount is counted is not recorded for this record.';
 const MONEY = 'value_at_stake';
 const LATER = 'An assumption changed since the last update, so this record shows the amount the update wrote until it runs again.';
@@ -107,32 +112,30 @@ function useAction(data, person, acts, label) {
   const current = data?.current || null;
   const [form, setForm] = useState(() => actionForm(current, person));
   const [failure, setFailure] = useState(null);
-  const [saving, setSaving] = useState(false);
+  const gate = useWrite();
+  const saving = gate.busy;
   useEffect(() => { setForm(actionForm(current, person)); setFailure(null); }, [current, person]);
-  const send = async (values, said) => {
-    if (!current) return null;
-    setSaving(true);
+  const send = async (values, said, key) => {
+    if (!current || gate.busy) return null;
     setFailure(null);
     try {
       return await acts.act({ record_keys: [data.record_key], seen: { [data.record_key]: current.valid_from_us } }, values,
-        { said, about: { record_key: data.record_key, label } });
+        { said, about: { record_key: data.record_key, label }, key });
     } catch (err) {
       setFailure({ ...failureOf(err), stale: isStaleRecord(err) });
       return null;
-    } finally {
-      setSaving(false);
     }
   };
-  const save = async (next, said) => {
+  const save = async (next, said, key) => {
     if (!current || actionProblem(next)) return null;
     const values = actionValues(current, next);
     if (!Object.keys(values).length) {
       toast('Nothing changed');
       return null;
     }
-    return send(values, said);
+    return send(values, said, key);
   };
-  return { form, setForm, failure, saving, save, send };
+  return { form, setForm, failure, saving, slow: gate.slow, mine: gate.mine, save, send };
 }
 
 function AddNote({ action }) {
@@ -140,14 +143,14 @@ function AddNote({ action }) {
   const submit = async (e) => {
     e.preventDefault();
     if (!note.trim()) return;
-    if (await action.send({ note: note.trim() }, 'Note added. The status stays as it was.')) setNote('');
+    if (await action.send({ note: note.trim() }, 'Note added. The status stays as it was.', NOTE_WRITE)) setNote('');
   };
   return (
     <section className="sec" aria-label="Add a note">
       <h3><Icon name="edit" size={13} />Add a note</h3>
       <form className="note-f" onSubmit={submit}>
         <NoteField name="record_note" value={note} onChange={setNote} label="Note for the history" />
-        <button type="submit" className="btn" disabled={action.saving || !note.trim()}>Add note</button>
+        <SaveButton write={NOTE_WRITE} type="submit" disabled={!note.trim()}>Add note</SaveButton>
       </form>
     </section>
   );
@@ -156,15 +159,15 @@ function AddNote({ action }) {
 function WorkBar({ work, action, tomorrow, canAct }) {
   const [until, setUntil] = useState(tomorrow);
   const run = async (kind, values) => {
-    if (values && !(await action.send(values))) return;
+    if (values && !(await action.send(values, undefined, `work:${kind}`))) return;
     work.next(kind);
   };
   return (
     <div className="work-f" role="group" aria-label="Work through the list">
       <span className="work-k" data-work-k>{work.text}</span>
-      <button className="btn btn--pri" onClick={() => run('done', { action_status: 'Done' })} disabled={action.saving || !canAct} data-key="d"><Icon name="check" size={15} />Done and next</button>
+      <SaveButton write="work:done" className="btn btn--pri" onClick={() => run('done', { action_status: 'Done' })} disabled={!canAct} data-key="d"><Icon name="check" size={15} />Done and next</SaveButton>
       <label className="work-snz"><span className="sr">Snooze until</span><input type="date" name="work_snooze" min={tomorrow} value={until} onChange={(e) => setUntil(e.target.value)} /></label>
-      <button className="btn" onClick={() => run('snoozed', { snooze_until: until })} disabled={action.saving || !canAct || !until || until < tomorrow} data-key="s">Snooze and next</button>
+      <SaveButton write="work:snoozed" onClick={() => run('snoozed', { snooze_until: until })} disabled={!canAct || !until || until < tomorrow} data-key="s">Snooze and next</SaveButton>
       <button className="btn" onClick={() => run('skipped', null)} disabled={action.saving} data-key="skip">Skip</button>
     </div>
   );
@@ -178,16 +181,16 @@ function SnoozeButton({ action, tomorrow }) {
   const submit = async (e) => {
     e.preventDefault();
     close();
-    await action.send({ snooze_until: until });
+    await action.send({ snooze_until: until }, undefined, SNOOZE_WRITE);
   };
   return (
     <>
-      <button ref={anchor} className="btn" onClick={() => setOpen(!open)} aria-expanded={open} disabled={action.saving}>Snooze…</button>
+      <SaveButton write={SNOOZE_WRITE} ref={anchor} onClick={() => setOpen(!open)} aria-expanded={open}>Snooze…</SaveButton>
       {open && (
         <Popover anchor={anchor.current} onClose={close} label="Snooze this record" width={260}>
           <form className="bulk-pop" onSubmit={submit}>
             <label className="in"><span>Snooze until</span><input type="date" name="record_snooze" autoFocus min={tomorrow} value={until} onChange={(e) => setUntil(e.target.value)} required /></label>
-            <button type="submit" className="btn btn--pri" disabled={!until || until < tomorrow}>Snooze until {until ? dayLabel(until) : 'the date'}</button>
+            <SaveButton write={SNOOZE_WRITE} type="submit" className="btn btn--pri" disabled={!until || until < tomorrow}>Snooze until {until ? dayLabel(until) : 'the date'}</SaveButton>
           </form>
         </Popover>
       )}
@@ -201,12 +204,13 @@ function ActionPanel({ action, owners, pageId, reason, owner, closing, unit, kin
   const problem = actionProblem(form, unit, kind);
   const submit = (e) => {
     e.preventDefault();
-    action.save(form, SAVED);
+    action.save(form, SAVED, SAVE_WRITE);
   };
   return (
     <section className="sec dr-act" aria-label="Action">
       <h3><Icon name="users" size={13} />Action</h3>
       <form className="act-form" onSubmit={submit} noValidate>
+        <fieldset className="act-fs" disabled={saving}>
         <label className="in"><span>Owner</span><input dir="auto" ref={owner} name="action_owner" value={form.owner} onChange={set('owner')} list={`owners-${pageId}`} maxLength={254} autoComplete="off" /></label>
         <OwnerList id={`owners-${pageId}`} owners={owners} />
         <label className="in"><span>Status</span><select name="action_status" value={form.status} onChange={set('status')}>{STATUSES.map((s) => <option key={s} value={s}>{statusLabel(s)}</option>)}</select></label>
@@ -232,8 +236,9 @@ function ActionPanel({ action, owners, pageId, reason, owner, closing, unit, kin
         )}
         <div className="act-btns in--wide">
           <span className="sp" />
-          <button type="submit" className="btn btn--pri" disabled={saving || !!problem}><Icon name="check" size={14} />{saving ? 'Saving…' : 'Save action'}</button>
+          <SaveButton write={SAVE_WRITE} type="submit" className="btn btn--pri" disabled={!!problem}><Icon name="check" size={14} />Save action</SaveButton>
         </div>
+        </fieldset>
       </form>
     </section>
   );
@@ -317,7 +322,7 @@ function Drawer({ meta, row: given, onClose, history, canModify, tracker, owners
       ownerInput.current?.focus();
       ownerInput.current?.select();
     } else if (who) {
-      action.save({ ...action.form, owner: who }, `Given to ${who}. The earlier version stays in the history.`);
+      action.save({ ...action.form, owner: who }, `Given to ${who}. The earlier version stays in the history.`, GIVE_WRITE);
     }
   };
   useEffect(() => {
@@ -351,7 +356,7 @@ function Drawer({ meta, row: given, onClose, history, canModify, tracker, owners
             {link.dialog}
             {drafting && linkKey && <DraftDialog pageId={pageId} keys={[linkKey]} label={title} onClose={() => setDrafting(false)} />}
           </header>
-          <div className="panel-b">
+          <div className={`panel-b ${action.saving ? 'is-saving' : ''}`} aria-busy={action.saving || undefined}>
             {held && <div className="held" role="status"><Icon name="info" size={14} />{heldText(app.held_meaning)}</div>}
             {!deleted && missingSince(row) && <div className="kept" role="status"><Icon name="info" size={14} />{notInRunText(missingSince(row))}</div>}
             {closed && (
@@ -412,13 +417,13 @@ function Drawer({ meta, row: given, onClose, history, canModify, tracker, owners
             {work && <WorkBar key={linkKey} work={work} action={action} tomorrow={tomorrow} canAct={acting} />}
             {acting && !work && !closed && (
               <>
-                <button className="btn btn--pri" onClick={() => action.save({ ...action.form, status: 'Done' }, 'Marked done. The next run checks whether it worked.')}
-                  disabled={action.saving} data-key="d" data-act="done"><Icon name="check" size={15} />Mark done</button>
+                <SaveButton write="drawer:done" className="btn btn--pri" onClick={() => action.save({ ...action.form, status: 'Done' }, 'Marked done. The next run checks whether it worked.', 'drawer:done')}
+                  data-key="d" data-act="done"><Icon name="check" size={15} />Mark done</SaveButton>
                 <button className="btn" onClick={dismiss} disabled={action.saving} data-act="dismiss">Not an issue</button>
-                <button className="btn" onClick={() => action.save({ ...action.form, status: 'Could not fix' }, 'Marked as could not fix. The next run still checks it.')}
-                  disabled={action.saving}>Could not fix</button>
-                <select className="btn" aria-label="Give to someone" value="" onChange={giveTo} disabled={action.saving}>
-                  <option value="">{owner ? `With ${owner}` : 'Give to someone'}</option>
+                <SaveButton write="drawer:cannot" onClick={() => action.save({ ...action.form, status: 'Could not fix' }, 'Marked as could not fix. The next run still checks it.', 'drawer:cannot')}
+                  >Could not fix</SaveButton>
+                <select className="btn" aria-label="Give to someone" value="" onChange={giveTo} disabled={action.saving} aria-busy={action.mine(GIVE_WRITE) || undefined}>
+                  <option value="">{action.mine(GIVE_WRITE) ? savingLabel(action.slow) : owner ? `With ${owner}` : 'Give to someone'}</option>
                   {person && person !== owner && <option value={person}>Give to me</option>}
                   {owners.filter((o) => o !== owner && o !== person).map((o) => <option key={o} value={o}>Give to {o}</option>)}
                   <option value={SOMEONE_ELSE}>Someone else…</option>
@@ -434,7 +439,7 @@ function Drawer({ meta, row: given, onClose, history, canModify, tracker, owners
             {undoBatch && undoAsk && (
               <div className="note note--flat undo-ask" role="group" aria-label="Undo this change">
                 <span>{UNDO_CLOSE}</span>
-                <button type="button" className="btn btn--pri" onClick={() => { setUndoAsk(false); acts.undo(undoBatch); }}>Undo it</button>
+                <SaveButton write="drawer:undo" className="btn btn--pri" onClick={async () => { if (await acts.undo(undoBatch, 'drawer:undo')) setUndoAsk(false); }}>Undo it</SaveButton>
                 <button type="button" className="btn" onClick={() => setUndoAsk(false)}>Keep it</button>
               </div>
             )}
@@ -472,7 +477,7 @@ export function RecordPanel({ meta, app, pageId, row, list, onClose, onChanged, 
       <ConflictNote conflicts={acts.conflicts} labelOf={labelOf} onClose={acts.clearConflicts} />
       {acts.similar && (
         <SimilarDialog similar={acts.similar} onClose={acts.closeSimilar}
-          onApply={(values) => acts.act({ match: acts.similar.match }, values).catch((err) => toast(actError(err), toneOf(err)))} />
+          onApply={(values, key) => acts.act({ match: acts.similar.match }, values, { key }).catch((err) => { toast(actError(err), toneOf(err)); return null; })} />
       )}
     </>
   );
@@ -536,7 +541,7 @@ export default function Records({ meta, app, pageId, filters, ai, onFilter, hist
   const [form, setForm] = useState(null);
   const [doomed, setDoomed] = useState(null);
   const [drawerNonce, setDrawerNonce] = useState(0);
-  const [acting, setActing] = useState(false);
+  const gate = useWrite();
   const [cursorKey, setCursorKey] = useState('');
   const [ownerFocus, setOwnerFocus] = useState(false);
   const [dialog, setDialog] = useState('');
@@ -628,17 +633,16 @@ export default function Records({ meta, app, pageId, filters, ai, onFilter, hist
     }
     setPicks({ scope, keys: picked, all: { total: shownTotal, capped, as_of_us: asOf } });
   };
-  const actOn = async (values, said, body = null) => {
-    setActing(true);
+  const actOn = async (values, { said, body = null, key } = {}) => {
     try {
-      await acts.act(body || (matching ? { match: matchOf(asked, matching.as_of_us) } : { record_keys: [...picked.keys()], seen: Object.fromEntries(picked) }), values,
-        { said });
+      const out = await acts.act(body || (matching ? { match: matchOf(asked, matching.as_of_us) } : { record_keys: [...picked.keys()], seen: Object.fromEntries(picked) }), values,
+        { said, key });
+      if (out) clearPicks();
+      return out;
     } catch (err) {
       toast(actError(err), toneOf(err));
       acted();
-    } finally {
-      setActing(false);
-      clearPicks();
+      return null;
     }
   };
   const acceptPicked = () => {
@@ -648,9 +652,9 @@ export default function Records({ meta, app, pageId, filters, ai, onFilter, hist
       toast(acceptedText(0, picked.size));
       return;
     }
-    actOn(ACCEPTED, acceptedText(keys.length, picked.size - keys.length), { record_keys: keys, seen: Object.fromEntries(keys.map((k) => [k, picked.get(k)])) });
+    actOn(ACCEPTED, { said: acceptedText(keys.length, picked.size - keys.length), body: { record_keys: keys, seen: Object.fromEntries(keys.map((k) => [k, picked.get(k)])) }, key: 'bulk:accept' });
   };
-  const quick = async (row, values, said) => {
+  const quick = async (row, values, said, write = `quick:${recordKeyOf(row)}`) => {
     const key = recordKeyOf(row);
     if (isClosed(row)) {
       toast(skippedText(1));
@@ -659,7 +663,7 @@ export default function Records({ meta, app, pageId, filters, ai, onFilter, hist
     if (key == null || !row._inspire_version) return;
     try {
       await acts.act({ record_keys: [String(key)], seen: { [String(key)]: String(row._inspire_version) } }, values,
-        { said, about: { record_key: String(key), label: recordName(row, meta) || String(key) } });
+        { said, about: { record_key: String(key), label: recordName(row, meta) || String(key) }, key: write });
     } catch (err) {
       toast(err.message, toneOf(err));
     }
@@ -794,10 +798,10 @@ export default function Records({ meta, app, pageId, filters, ai, onFilter, hist
   const columns = withColumnFilters([
     ...(tracker ? [{
       key: '_pick', fixed: true, className: 'pick-c',
-      label: <input type="checkbox" checked={allPicked || !!matching} onChange={() => pickRows(!allPicked, allPicked ? pickable : actable)} aria-label="Select every record on this page" disabled={!pickable.length} />,
+      label: <input type="checkbox" checked={allPicked || !!matching} onChange={() => pickRows(!allPicked, allPicked ? pickable : actable)} aria-label="Select every record on this page" disabled={!pickable.length || gate.busy} />,
       render: (r) => (
         <label className="pick-l" onClick={(e) => e.stopPropagation()}>
-          <input type="checkbox" checked={(!!matching && !isClosed(r)) || picked.has(String(recordKeyOf(r)))} disabled={!r._inspire_version || !!matching || isClosed(r)}
+          <input type="checkbox" checked={(!!matching && !isClosed(r)) || picked.has(String(recordKeyOf(r)))} disabled={!r._inspire_version || !!matching || isClosed(r) || gate.busy}
             onChange={() => pickRows(!picked.has(String(recordKeyOf(r))), [r])} aria-label={`Select ${recordName(r, meta)}`} title={isClosed(r) ? CLOSED_PICK : undefined} />
         </label>
       ),
@@ -839,8 +843,8 @@ export default function Records({ meta, app, pageId, filters, ai, onFilter, hist
       ...(meta.action ? [{
         key: '_accept', label: 'Suggested action', hideLabel: true, fixed: true, className: 'nowrap',
         render: (r) => (acceptable(meta, r) ? (
-          <button type="button" className="btn btn--sm" data-accept={keyOf(r)} onClick={stop(() => quick(r, ACCEPTED, acceptedText(1)))}
-            aria-label={`Accept the suggested action on ${recordName(r, meta)}`}><Icon name="check" size={13} />Accept</button>
+          <SaveButton write={`accept:${keyOf(r)}`} className="btn btn--sm" data-accept={keyOf(r)} onClick={stop(() => quick(r, ACCEPTED, acceptedText(1), `accept:${keyOf(r)}`))}
+            aria-label={`Accept the suggested action on ${recordName(r, meta)}`}><Icon name="check" size={13} />Accept</SaveButton>
         ) : ''),
       }] : []),
     ] : []),
@@ -915,7 +919,7 @@ export default function Records({ meta, app, pageId, filters, ai, onFilter, hist
       )}
       <ConflictNote conflicts={acts.conflicts} labelOf={labelOf} onClose={acts.clearConflicts} />
       {(picked.size > 0 || matching) && (
-        <BulkBar picked={picked} matching={matching} total={shownTotal} capped={capped} allOnPage={allPicked} owners={owners} person={person} busy={acting} tomorrow={tomorrow}
+        <BulkBar picked={picked} matching={matching} total={shownTotal} capped={capped} allOnPage={allPicked} owners={owners} person={person} tomorrow={tomorrow}
           canMatch={!everything} onAct={actOn} onAll={selectAll} onClear={clearPicks} onAccept={meta.action && !matching ? acceptPicked : null}
           onSimilar={similarBy?.length ? () => acts.findSimilar([...picked.keys()], { label: `the ${recordsText(picked.size)} you selected` }) : null}
           onDraft={() => setDrafted([...picked.keys()])} />
@@ -925,7 +929,7 @@ export default function Records({ meta, app, pageId, filters, ai, onFilter, hist
       {data && (
         <>
           {claim && <div className="quiet-n" data-claim><Icon name="info" size={13} /><div><p>{claimText(claim.record_keys.length)}</p>
-            <button type="button" className="btn btn--sm" disabled={acting} onClick={() => actOn({ action_owner: person }, `Assigned ${recordsText(claim.record_keys.length)} to you`, claim)}>Assign them to me</button></div></div>}
+            <SaveButton write="claim" className="btn btn--sm" onClick={() => actOn({ action_owner: person }, { said: `Assigned ${recordsText(claim.record_keys.length)} to you`, body: claim, key: 'claim' })}>Assign them to me</SaveButton></div></div>}
           {quiet && <div className="quiet-n" role="status" data-quiet-list><Icon name="info" size={13} /><div><b>{quiet.title}</b>{quiet.why && <p>{quiet.why}</p>}<p>{quiet.raise}</p></div></div>}
           {late.late > 0 && <p className="late-n" data-overdue><Icon name="calendar" size={13} />Overdue: {recordsText(late.late)} on this page, shown first.</p>}
           <DataTable label={meta.title} columns={columns} rows={tableRows} rowKey={keyOf} onRow={setOpen} paged={false} filtering="server" grid={`page:${pageId}:records`}
@@ -933,7 +937,7 @@ export default function Records({ meta, app, pageId, filters, ai, onFilter, hist
               ranged: Object.values(filters || {}).some((v) => v && typeof v === 'object' && !Array.isArray(v)), onClear: clearAll,
               onWide: () => update((p) => ({ ...p, window: 'all' })) })}
             sort={shownSort ? { key: shownSort.key, dir: shownSort.dir === 'desc' ? -1 : 1 } : null} onSort={(s) => setSort({ key: s.key, dir: s.dir > 0 ? 'asc' : 'desc' })}
-            rowClass={(r) => [picked.has(String(recordKeyOf(r))) || matching ? 'is-picked' : '', keyOf(r) === cursorKey ? 'is-cursor' : '',
+            rowClass={(r) => [picked.has(String(recordKeyOf(r))) || matching ? 'is-picked' : '', keyOf(r) === cursorKey ? 'is-cursor' : '', gate.holds(keyOf(r)) || (matching && gate.busy) ? 'is-saving' : '',
               isOverdue(r._inspire_due, r._inspire_status, today) ? 'is-late' : ''].filter(Boolean).join(' ')}
             askAbout={genieOn(app, pageId) && history ? (r) => ({ pageId, recordKey: keyOf(r), label: recordName(r, meta) || keyOf(r) }) : undefined}
             askRow={(r) => ({ title: recordName(r, meta) || keyOf(r), context: { hint: meta.hint || '', fields: shownFields(r) } })} />
@@ -962,7 +966,7 @@ export default function Records({ meta, app, pageId, filters, ai, onFilter, hist
       {doomed && <DeleteDialog target={recordRef(meta, doomed)} label={recordName(doomed, meta) || 'this record'} pageId={pageId} onClose={() => setDoomed(null)} onSaved={saved} />}
       {acts.similar && (
         <SimilarDialog similar={acts.similar} onClose={acts.closeSimilar}
-          onApply={(values) => acts.act({ match: acts.similar.match }, values).catch((err) => toast(actError(err), toneOf(err)))} />
+          onApply={(values, key) => acts.act({ match: acts.similar.match }, values, { key }).catch((err) => { toast(actError(err), toneOf(err)); return null; })} />
       )}
       {dialog === 'batches' && <BatchesDialog pageId={pageId} onClose={() => setDialog('')} onUndo={acts.undo} labelOf={labelOf} />}
       {dialog === 'help' && <HelpDialog onClose={() => setDialog('')} />}

@@ -9,7 +9,8 @@ import { BUSY_TITLE, explainBody } from './explain.js';
 import { GENIE_DEFAULT, GENIE_MIN, clampGenie, genieMax, keyWidth, rememberGenieWidth, storedGenieWidth } from './genieWidth.js';
 import { GENIE_ASK, genieAnswer, genieKey, genieOf, genieOn, paceText } from './genieAsk.js';
 import { AGENT_CHANGED, suggestions } from './agentView.js';
-import { AgentExtras, AgentSteps } from './AgentParts.jsx';
+import { AgentExtras, AgentSteps, confirmWrite } from './AgentParts.jsx';
+import { runWrite } from './saving.jsx';
 
 const WORDS_PER_SECOND = 14;
 const AGENT_POLL_MS = 1000;
@@ -165,29 +166,33 @@ export function useGenie(app, current, onOpen, view = null) {
   }, [send, sendAgent]);
 
   const changed = (pageId) => window.dispatchEvent(new CustomEvent(AGENT_CHANGED, { detail: { pageId } }));
-  const confirm = useCallback(async (k, n) => {
+  const confirm = useCallback((k, n) => {
     const c = find(k, n)?.confirm;
-    if (!c || c.state !== 'ask') return;
-    update(k, n, (m) => ({ confirm: { ...m.confirm, state: 'saving' } }));
-    try {
-      const result = await writeRecord(c.route.split('/')[1], c.body);
-      changed(c.body.page);
-      update(k, n, (m) => ({ confirm: { ...m.confirm, state: c.route === 'records/undo' ? 'undone' : 'saved', result } }));
-    } catch (error) {
-      update(k, n, (m) => ({ confirm: { ...m.confirm, state: 'failed', error: error.message } }));
-    }
+    if (!c || c.state !== 'ask') return undefined;
+    return runWrite(confirmWrite(k, n), async () => {
+      update(k, n, (m) => ({ confirm: { ...m.confirm, state: 'saving', error: '' } }));
+      try {
+        const result = await writeRecord(c.route.split('/')[1], c.body);
+        changed(c.body.page);
+        update(k, n, (m) => ({ confirm: { ...m.confirm, state: c.route === 'records/undo' ? 'undone' : 'saved', result } }));
+      } catch (error) {
+        update(k, n, (m) => ({ confirm: { ...m.confirm, state: 'ask', error: error.message } }));
+      }
+    }, { rows: c.body?.record_keys || [] });
   }, []);
   const cancel = useCallback((k, n) => update(k, n, (m) => ({ confirm: { ...m.confirm, state: 'cancelled' } })), []);
-  const undoSaved = useCallback(async (k, n) => {
+  const undoSaved = useCallback((k, n) => {
     const c = find(k, n)?.confirm;
-    if (!c?.result?.batch_id) return;
-    try {
-      await undoRecords({ page: c.body.page, batch_id: c.result.batch_id });
-      changed(c.body.page);
-      update(k, n, (m) => ({ confirm: { ...m.confirm, state: 'undone' } }));
-    } catch (error) {
-      update(k, n, (m) => ({ confirm: { ...m.confirm, state: 'failed', error: error.message } }));
-    }
+    if (!c?.result?.batch_id) return undefined;
+    return runWrite(`${confirmWrite(k, n)}:undo`, async () => {
+      try {
+        await undoRecords({ page: c.body.page, batch_id: c.result.batch_id });
+        changed(c.body.page);
+        update(k, n, (m) => ({ confirm: { ...m.confirm, state: 'undone', error: '' } }));
+      } catch (error) {
+        update(k, n, (m) => ({ confirm: { ...m.confirm, error: error.message } }));
+      }
+    });
   }, []);
   const undoView = useCallback((k, n) => {
     const m = find(k, n);
@@ -195,15 +200,17 @@ export function useGenie(app, current, onOpen, view = null) {
     m.undo();
     update(k, n, { undo: null, viewUndone: true });
   }, []);
-  const rate = useCallback(async (k, n, rating) => {
+  const rate = useCallback((k, n, rating) => {
     const m = find(k, n);
-    if (!m?.turn_id) return;
-    try {
-      await agentFeedback(m.turn_id, rating);
-      update(k, n, { rated: rating, rateError: '' });
-    } catch (error) {
-      update(k, n, { rateError: error.message });
-    }
+    if (!m?.turn_id) return undefined;
+    return runWrite(`rate:${m.turn_id}:${rating}`, async () => {
+      try {
+        await agentFeedback(m.turn_id, rating);
+        update(k, n, { rated: rating, rateError: '' });
+      } catch (error) {
+        update(k, n, { rateError: error.message });
+      }
+    });
   }, []);
 
   useEffect(() => {

@@ -5,7 +5,8 @@ import { canDecide, noDecisionText, pageDecides, recordKeyOf } from './records.j
 import { Icon, GenieMark } from './icons.jsx';
 import { SaidNote, Skeleton, useToast } from './ui.jsx';
 import { genieOn } from './genieAsk.js';
-import { ChartsReady, RowPanel, SECTION_PARTS, TakeAll, decidedText, isClosed, useOpenRow } from './KindParts.jsx';
+import { ChartsReady, RowPanel, SECTION_PARTS, TAKE_ALL, TakeAll, decidedText, isClosed, useOpenRow } from './KindParts.jsx';
+import { SaveButton, runWrite } from './saving.jsx';
 import { AskGenie } from './AskGenie.jsx';
 import { RowGenie } from './DataTable.jsx';
 import { tableContext } from './explain.js';
@@ -130,7 +131,6 @@ function PlanRow({ page, app, plan, row, actions, onDecided, onOpen }) {
   const [open, setOpen] = useState(false);
   const [value, setValue] = useState('');
   const [reason, setReason] = useState('');
-  const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [said, setSaid] = useState('');
   const toast = useToast();
@@ -139,8 +139,7 @@ function PlanRow({ page, app, plan, row, actions, onDecided, onOpen }) {
   const delta = planDelta(plan, row);
   const status = row._inspire_status || row.action_status;
   const decided = isClosed(row);
-  const decide = async (decision) => {
-    setBusy(true);
+  const decide = (decision) => runWrite(`plan:${key}:${decision}`, async () => {
     setError('');
     setSaid('');
     try {
@@ -152,10 +151,8 @@ function PlanRow({ page, app, plan, row, actions, onDecided, onOpen }) {
       onDecided();
     } catch (e) {
       setError(e.message);
-    } finally {
-      setBusy(false);
     }
-  };
+  }, { rows: [key] });
   const can = actions && planOpen(row);
   const cols = actions ? 7 : 6;
   return (
@@ -171,8 +168,8 @@ function PlanRow({ page, app, plan, row, actions, onDecided, onOpen }) {
             {decided && <span className="choice-done" data-decided><Icon name="check" size={13} />{decidedText(row)}</span>}
             {can && (
               <>
-                <button type="button" className="btn btn--sm btn--pri" disabled={busy} onClick={() => decide('accept')}>Accept</button>
-                <button type="button" className="btn btn--sm" disabled={busy} aria-expanded={open} onClick={() => setOpen(!open)}>Override</button>
+                <SaveButton write={`plan:${key}:accept`} className="btn btn--sm btn--pri" onClick={() => decide('accept')}>Accept</SaveButton>
+                <SaveButton write={`plan:${key}:override`} className="btn btn--sm" aria-expanded={open} onClick={() => setOpen(!open)}>Override</SaveButton>
               </>
             )}
           </td>
@@ -185,7 +182,7 @@ function PlanRow({ page, app, plan, row, actions, onDecided, onOpen }) {
           <form onSubmit={(e) => { e.preventDefault(); decide('override'); }}>
             <label>Your value<input type="number" step="any" required value={value} onChange={(e) => setValue(e.target.value)} /></label>
             <label className="grow">Why you override it<input dir="auto" required maxLength={300} value={reason} onChange={(e) => setReason(e.target.value)} /></label>
-            <button className="btn btn--sm btn--pri" type="submit" disabled={busy || !value || !reason.trim()}>Save override</button>
+            <SaveButton write={`plan:${key}:override`} className="btn btn--sm btn--pri" type="submit" disabled={!value || !reason.trim()}>Save override</SaveButton>
           </form>
         </td></tr>
       )}
@@ -197,23 +194,24 @@ function PlanRow({ page, app, plan, row, actions, onDecided, onOpen }) {
 
 const planDecides = (app, plan, list) => canDecide(app, list) || !!(plan.override && app.options?.modify);
 
+const RESOLVE = 'plan:resolve';
+
 function Resolve({ page }) {
-  const [state, setState] = useState({ busy: false, said: '' });
+  const [said, setSaid] = useState('');
   const toast = useToast();
-  const run = async () => {
-    setState({ busy: true, said: '' });
+  const run = () => runWrite(RESOLVE, async () => {
+    setSaid('');
     try {
       await runSettingsNow(page.id);
       toast('Started a new solve: the plan updates when the run ends');
-      setState({ busy: false, said: '' });
     } catch (e) {
-      setState({ busy: false, said: e.message });
+      setSaid(e.message);
     }
-  };
+  });
   return (
     <>
-      <button type="button" className="btn btn--sm" disabled={state.busy} onClick={run} data-resolve><Icon name="sliders" size={14} />Re-solve the plan</button>
-      {state.said && <p className="tile-err" role="alert"><Icon name="info" size={12} />{state.said}</p>}
+      <SaveButton write={RESOLVE} className="btn btn--sm" onClick={run} data-resolve><Icon name="sliders" size={14} />Re-solve the plan</SaveButton>
+      {said && <p className="tile-err" role="alert"><Icon name="info" size={12} />{said}</p>}
     </>
   );
 }
@@ -224,13 +222,11 @@ export function PlanTable({ page, app, filters, ready, nonce, onChanged }) {
   const opened = useOpenRow();
   const rows = list.data?.rows || [];
   const can = planDecides(app, plan, list.data);
-  const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [said, setSaid] = useState('');
   const toast = useToast();
   const open = can ? rows.filter(planOpen) : [];
-  const acceptAll = async () => {
-    setBusy(true);
+  const acceptAll = () => runWrite(TAKE_ALL, async () => {
     setError('');
     setSaid('');
     let done = 0;
@@ -247,16 +243,15 @@ export function PlanTable({ page, app, filters, ready, nonce, onChanged }) {
     } catch (e) {
       setError(done ? `Accepted ${integer(done)} of ${integer(open.length)} lines, then: ${e.message}` : e.message);
     } finally {
-      setBusy(false);
       if (done) onChanged();
     }
-  };
+  }, { rows: open.map((r) => String(recordKeyOf(r))) });
   return (
     <section className="card card--table plan" aria-label={plan.title}>
       <header className="card-h"><div><h2>{plan.title}</h2>
         {list.data && !can ? <p className="muted" data-no-decisions>{noDecisionText(app, page)}</p> : plan.hint && <p>{plan.hint}</p>}
       </div>
-      {open.length > 0 && <TakeAll count={open.length} busy={busy} onClick={acceptAll} />}
+      {open.length > 0 && <TakeAll count={open.length} onClick={acceptAll} />}
       <AskGenie kind="table" title={plan.title} context={tableContext(plan.hint || '', rows, (row) => planFields(page, plan, row), list.data?.total)} /></header>
       {!list.data && !list.error && <div style={{ padding: 16 }}><Skeleton height={22} /></div>}
       {list.error && <p className="tile-err"><Icon name="info" size={14} />The plan could not load: {list.error}</p>}

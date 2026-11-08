@@ -100,3 +100,11 @@
 }
 .runs-steps{grid-column:1/-1}
 .runs-steps ol{margin:0;padding-inline-start:20px;font-size:13.5px;line-height:1.6}
+.saving-ring{display:inline-block;width:12px;height:12px;flex:none;border-radius:50%;border:2px solid currentColor;border-inline-end-color:transparent;animation:spin .8s linear infinite;margin-inline-end:6px;vertical-align:-2px}
+[data-saving]{cursor:progress}
+.btn:disabled:not([data-saving]){opacity:.5;cursor:not-allowed}
+tr.is-saving{opacity:.55}
+tr.is-saving td{pointer-events:none}
+.panel-b.is-saving{opacity:.7}
+.act-fs{display:contents;border:0;margin:0;padding:0;min-width:0}
+@media (prefers-reduced-motion:reduce){.saving-ring{animation-duration:2.4s}}

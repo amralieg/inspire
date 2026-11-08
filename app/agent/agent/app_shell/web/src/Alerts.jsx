@@ -5,6 +5,7 @@ import { stampText } from './freshness.js';
 import { plural } from './hub.js';
 import { Icon } from './icons.jsx';
 import { Failure, Skeleton, useToast } from './ui.jsx';
+import { SaveButton, runWrite, useWrite } from './saving.jsx';
 import DataTable from './DataTable.jsx';
 import { AskGenie } from './AskGenie.jsx';
 import { fieldsOf, tableContext } from './explain.js';
@@ -44,7 +45,7 @@ function FilterPicks({ filter, picked, onPick }) {
 function AlertForm({ listing, meta, page, start, onDone, onCancel }) {
   const toast = useToast();
   const [form, setForm] = useState(start);
-  const [saving, setSaving] = useState(false);
+  const saving = useWrite().busy;
   const [failure, setFailure] = useState(null);
   const [preview, setPreview] = useState(null);
   const [checking, setChecking] = useState(false);
@@ -69,18 +70,17 @@ function AlertForm({ listing, meta, page, start, onDone, onCancel }) {
   const submit = async (e) => {
     e.preventDefault();
     if (problem) return;
-    setSaving(true);
     setFailure(null);
-    try {
-      await saveAlert({ page: page.id, ...(form.id ? { id: form.id } : {}), name: form.name.trim() || defaultName(listing, form), watch: watchOf(listing, form),
-        schedule: form.schedule, emails: parseEmails(form.emails), paused: form.paused, notify_on_ok: form.notify });
-      toast(form.id ? 'Alert saved.' : 'Alert set up. It checks on its schedule.');
-      onDone();
-    } catch (err) {
-      setFailure(failureOf(err));
-    } finally {
-      setSaving(false);
-    }
+    await runWrite('alert:save', async () => {
+      try {
+        await saveAlert({ page: page.id, ...(form.id ? { id: form.id } : {}), name: form.name.trim() || defaultName(listing, form), watch: watchOf(listing, form),
+          schedule: form.schedule, emails: parseEmails(form.emails), paused: form.paused, notify_on_ok: form.notify });
+        toast(form.id ? 'Alert saved.' : 'Alert set up. It checks on its schedule.');
+        onDone();
+      } catch (err) {
+        setFailure(failureOf(err));
+      }
+    });
   };
   return (
     <form className="alert-form" onSubmit={submit} aria-label={form.id ? 'Change the alert' : 'New alert'}>
@@ -142,7 +142,7 @@ function AlertForm({ listing, meta, page, start, onDone, onCancel }) {
         <button type="button" className="btn" onClick={check} disabled={!!problem || checking}><Icon name="search" size={14} />{checking ? 'Checking' : 'Check the value now'}</button>
         <span className="sp" />
         <button type="button" className="btn" onClick={onCancel}>Cancel</button>
-        <button type="submit" className="btn btn--pri" disabled={!!problem || saving}><Icon name="check" size={14} />{saving ? 'Saving' : form.id ? 'Save the alert' : 'Set up the alert'}</button>
+        <SaveButton write="alert:save" type="submit" className="btn btn--pri" disabled={!!problem}><Icon name="check" size={14} />{form.id ? 'Save the alert' : 'Set up the alert'}</SaveButton>
       </div>
     </form>
   );
@@ -150,18 +150,17 @@ function AlertForm({ listing, meta, page, start, onDone, onCancel }) {
 
 function AlertActions({ alert, onEdit, onChanged }) {
   const toast = useToast();
-  const [busy, setBusy] = useState(false);
-  const run = async (action, said) => {
-    setBusy(true);
-    try {
-      await action();
-      toast(said);
-      onChanged();
-    } catch (err) {
-      toast(err.message, toneOf(err));
-    } finally {
-      setBusy(false);
-    }
+  const busy = useWrite().busy;
+  const run = async (action, said, key) => {
+    await runWrite(key, async () => {
+      try {
+        await action();
+        toast(said);
+        onChanged();
+      } catch (err) {
+        toast(err.message, toneOf(err));
+      }
+    });
   };
   const paused = alert.state === 'paused';
   return (
@@ -170,16 +169,16 @@ function AlertActions({ alert, onEdit, onChanged }) {
           <button className="link" onClick={() => onEdit(alert)} disabled={busy} aria-label={`Change ${alert.name}`}><Icon name="edit" size={13} />Change</button>
         )}
         {alert.can_change && (
-          <button className="link" disabled={busy} aria-label={`${paused ? 'Resume' : 'Pause'} ${alert.name}`}
-            onClick={() => run(() => pauseAlert({ id: alert.id, paused: !paused }), paused ? 'Alert resumed.' : 'Alert paused. It sends nothing until you resume it.')}>
+          <SaveButton write={`alert:${alert.id}:pause`} className="link" aria-label={`${paused ? 'Resume' : 'Pause'} ${alert.name}`}
+            onClick={() => run(() => pauseAlert({ id: alert.id, paused: !paused }), paused ? 'Alert resumed.' : 'Alert paused. It sends nothing until you resume it.', `alert:${alert.id}:pause`)}>
             {paused ? 'Resume' : 'Pause'}
-          </button>
+          </SaveButton>
         )}
         {alert.can_change && (
-          <button className="link link--danger" disabled={busy} aria-label={`Delete ${alert.name}`}
-            onClick={() => { if (window.confirm(`Delete the alert ${alert.name}? It stops sending emails.`)) run(() => deleteAlert({ id: alert.id }), 'Alert deleted.'); }}>
+          <SaveButton write={`alert:${alert.id}:delete`} className="link link--danger" aria-label={`Delete ${alert.name}`}
+            onClick={() => { if (window.confirm(`Delete the alert ${alert.name}? It stops sending emails.`)) run(() => deleteAlert({ id: alert.id }), 'Alert deleted.', `alert:${alert.id}:delete`); }}>
             <Icon name="trash" size={13} />Delete
-          </button>
+          </SaveButton>
         )}
     </>
   );

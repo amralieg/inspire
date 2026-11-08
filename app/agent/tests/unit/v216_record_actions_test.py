@@ -1,6 +1,7 @@
 import json
 import os
 import sys
+import threading
 
 import pytest
 
@@ -179,3 +180,37 @@ def test_without_a_request_id_every_act_gets_a_fresh_batch_and_no_replay_lookup(
     status, out = act_with(s, request=None)
     assert status == 200 and out["batch_id"] != REQUEST and "replayed" not in out
     assert not [sql for sql, _p, _l in ws.sql if sql.startswith("SELECT b.`action_batch` AS `batch_id`")]
+
+
+class SlowWrite(Replaying):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.writing, self.release = threading.Event(), threading.Event()
+
+    def answer(self, sql, params):
+        if sql.startswith("MERGE INTO"):
+            self.writing.set()
+            assert self.release.wait(10), "the test never let the write finish"
+        return super().answer(sql, params)
+
+
+def test_reads_answer_while_a_slow_write_is_still_open_and_the_write_lands_after(tmp_path):
+    s, ws, _made = shell(tmp_path, ws=SlowWrite())
+    done = {}
+    writer = threading.Thread(target=lambda: done.update(act=act_with(s)))
+    writer.start()
+    try:
+        assert ws.writing.wait(5), "the act never reached its MERGE"
+        reads = {}
+        reader = threading.Thread(target=lambda: reads.update(list=records(s), again=records(s, offset=0, limit=25)))
+        reader.start()
+        reader.join(5)
+        assert not reader.is_alive(), "a records read waited on the open write"
+        assert reads["list"][0] == 200 and reads["again"][0] == 200
+        assert "act" not in done, "the write is still open while the reads answered"
+    finally:
+        ws.release.set()
+        writer.join(10)
+    status, out = done["act"]
+    assert status == 200 and out["batch_id"] == REQUEST
+    assert len(ws.queries("MERGE INTO")) == 1

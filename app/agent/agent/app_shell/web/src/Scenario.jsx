@@ -7,6 +7,7 @@ import { chartPalette, reducedMotion } from './theme.js';
 import { Icon } from './icons.jsx';
 import { categoryLabels } from './layout.js';
 import { Skeleton, useDebounced, useToast } from './ui.jsx';
+import { SaveButton, runWrite } from './saving.jsx';
 import { AskGenie } from './AskGenie.jsx';
 
 const STEPS = 100;
@@ -63,30 +64,28 @@ function outcomeFields(result) {
 function SaveScenario({ page, app, result, onSaved }) {
   const save = page.scenario.save;
   const [name, setName] = useState('');
-  const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const toast = useToast();
   if (!save || !app?.options?.modify) return null;
   const submit = async (e) => {
     e.preventDefault();
-    setBusy(true);
     setError('');
-    try {
-      const levers = Object.fromEntries(result.levers.map((l) => [l.lever, l.value]));
-      await writeRecord('add', { page: page.id, values: { [save.name]: name.trim(), [save.levers]: JSON.stringify(levers), [save.outcome]: result.outcome.p50 } });
-      toast(`Saved the scenario ${name.trim()}`);
-      setName('');
-      onSaved?.();
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setBusy(false);
-    }
+    await runWrite('scenario:save', async () => {
+      try {
+        const levers = Object.fromEntries(result.levers.map((l) => [l.lever, l.value]));
+        await writeRecord('add', { page: page.id, values: { [save.name]: name.trim(), [save.levers]: JSON.stringify(levers), [save.outcome]: result.outcome.p50 } });
+        toast(`Saved the scenario ${name.trim()}`);
+        setName('');
+        onSaved?.();
+      } catch (err) {
+        setError(err.message);
+      }
+    });
   };
   return (
     <form className="scenario-save" onSubmit={submit} data-save>
       <label>Name this scenario<input dir="auto" required maxLength={80} value={name} onChange={(e) => setName(e.target.value)} /></label>
-      <button className="btn btn--sm btn--pri" type="submit" disabled={busy || !result || !name.trim()}>Save the scenario</button>
+      <SaveButton write="scenario:save" className="btn btn--sm btn--pri" type="submit" disabled={!result || !name.trim()}>Save the scenario</SaveButton>
       {error && <p className="tile-err" role="alert"><Icon name="info" size={12} />{error}</p>}
     </form>
   );

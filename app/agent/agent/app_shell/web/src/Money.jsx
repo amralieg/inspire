@@ -3,6 +3,7 @@ import { changeAssumption, failureOf, getMoney } from './api.js';
 import { dayLabel, kindOf, stakeWords, unitOf, wholeMoney } from './format.js';
 import { Icon } from './icons.jsx';
 import { Failure, useToast } from './ui.jsx';
+import { SaveButton, runWrite, useWrite } from './saving.jsx';
 import { amountText, assumptionLabel, columnWords, ruleText } from './money.js';
 import { AskGenie } from './AskGenie.jsx';
 import { settingProblem } from './settings.js';
@@ -47,7 +48,7 @@ function Editor({ pageId, a, onSaved, onCancel }) {
   const [text, setText] = useState(shownInput(a.value, a.kind));
   const [note, setNote] = useState('');
   const [failure, setFailure] = useState(null);
-  const [saving, setSaving] = useState(false);
+  const saving = useWrite().busy;
   const input = useRef(null);
   useEffect(() => { input.current?.focus(); }, []);
   const read = parsed(text, a.kind);
@@ -56,15 +57,14 @@ function Editor({ pageId, a, onSaved, onCancel }) {
   const save = async (e) => {
     e.preventDefault();
     if (problem) return;
-    setSaving(true);
     setFailure(null);
-    try {
-      onSaved(await changeAssumption({ page: pageId, name: a.name, value, was: a.value, note: note.trim() }), value);
-    } catch (err) {
-      setFailure(failureOf(err));
-    } finally {
-      setSaving(false);
-    }
+    await runWrite(`money:${a.name}`, async () => {
+      try {
+        onSaved(await changeAssumption({ page: pageId, name: a.name, value, was: a.value, note: note.trim() }), value);
+      } catch (err) {
+        setFailure(failureOf(err));
+      }
+    });
   };
   const label = assumptionLabel(a.name);
   return (
@@ -75,7 +75,7 @@ function Editor({ pageId, a, onSaved, onCancel }) {
       <label className="in"><span>Why it changed</span>
         <input dir="auto" className="note" name="assumption_note" maxLength={NOTE_CHARS} value={note} onChange={(e) => setNote(e.target.value)} />
       </label>
-      <button type="submit" className="btn btn--pri" disabled={saving || !!problem}><Icon name="check" size={14} />{saving ? 'Saving…' : 'Save'}</button>
+      <SaveButton write={`money:${a.name}`} type="submit" className="btn btn--pri" disabled={!!problem}><Icon name="check" size={14} />Save</SaveButton>
       <button type="button" className="btn" onClick={onCancel} disabled={saving}>Cancel</button>
       {problem && text.trim() !== '' && <p className="err" role="alert">{problem}</p>}
       <Failure failure={failure} className="err">{failure?.text}</Failure>

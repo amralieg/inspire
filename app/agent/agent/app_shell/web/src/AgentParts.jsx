@@ -1,5 +1,6 @@
 import { Icon } from './icons.jsx';
 import { confirmText } from './agentView.js';
+import { SaveButton } from './saving.jsx';
 import './styles/agent.css';
 
 export const RATINGS = [{ id: 'POSITIVE', label: 'Helpful' }, { id: 'NEGATIVE', label: 'Not helpful' }];
@@ -19,7 +20,9 @@ function savedText(result) {
   return `Saved ${written} ${written === 1 ? 'record' : 'records'}${conflicts ? `; ${conflicts} changed meanwhile and were left as they are` : ''}.`;
 }
 
-export function ConfirmCard({ confirm, onConfirm, onCancel, onUndo }) {
+export const confirmWrite = (k, n) => `confirm:${k}:${n}`;
+
+export function ConfirmCard({ confirm, write, onConfirm, onCancel, onUndo }) {
   if (!confirm) return null;
   const asking = confirm.state === 'ask' || confirm.state === 'saving';
   const values = Object.entries(confirm.values || {}).map(([k, v]) => `${k.replace(/_/g, ' ')}: ${v}`).join(' · ');
@@ -30,17 +33,17 @@ export function ConfirmCard({ confirm, onConfirm, onCancel, onUndo }) {
       <ul className="ag-rows">{(confirm.rows || []).map((r) => <li key={r.record_key} data-row={r.record_key}>{r.label}{r.label !== r.record_key ? <small> · {r.record_key}</small> : null}</li>)}</ul>
       {asking && (
         <div className="ag-act">
-          <button type="button" className="btn btn--pri btn--sm" disabled={confirm.state === 'saving'} onClick={onConfirm}>{confirm.state === 'saving' ? 'Saving…' : 'Confirm'}</button>
+          <SaveButton write={write} className="btn btn--pri btn--sm" onClick={onConfirm}>Confirm</SaveButton>
           <button type="button" className="btn btn--sm" disabled={confirm.state === 'saving'} onClick={onCancel}>Cancel</button>
         </div>
       )}
       {confirm.state === 'saved' && (
         <p className="ag-done" role="status">{savedText(confirm.result)}
-          {confirm.result?.batch_id && <button type="button" className="link" onClick={onUndo}>Undo</button>}</p>
+          {confirm.result?.batch_id && <SaveButton write={`${write}:undo`} className="link" onClick={onUndo}>Undo</SaveButton>}</p>
       )}
       {confirm.state === 'undone' && <p className="ag-done" role="status">Undone. The records are back as they were.</p>}
       {confirm.state === 'cancelled' && <p className="ag-done">Cancelled. Nothing changed.</p>}
-      {confirm.state === 'failed' && <p className="g-err" role="alert">{confirm.error}</p>}
+      {confirm.error && confirm.state !== 'saving' && <p className="g-err" role="alert">{confirm.error}</p>}
     </div>
   );
 }
@@ -60,8 +63,8 @@ export function Rate({ message, onRate, disabled }) {
   return (
     <span className="ag-rate" role="group" aria-label="Rate this answer">
       {RATINGS.map((r) => (
-        <button key={r.id} type="button" className={`btn btn--sm ${message.rated === r.id ? 'btn--pri' : ''}`} aria-pressed={message.rated === r.id} data-rating={r.id}
-          disabled={disabled} onClick={() => onRate(r.id)}>{r.label}</button>
+        <SaveButton key={r.id} write={`rate:${message.turn_id}:${r.id}`} className={`btn btn--sm ${message.rated === r.id ? 'btn--pri' : ''}`} aria-pressed={message.rated === r.id} data-rating={r.id}
+          disabled={disabled} onClick={() => onRate(r.id)}>{r.label}</SaveButton>
       ))}
       {message.rateError && <small className="g-err">{message.rateError}</small>}
     </span>
@@ -74,7 +77,7 @@ export function AgentExtras({ message, genie, rating = true }) {
   return (
     <>
       <ViewUndo message={message} onUndo={() => genie.undoView(k, message.n)} />
-      <ConfirmCard confirm={message.confirm} onConfirm={() => genie.confirm(k, message.n)} onCancel={() => genie.cancel(k, message.n)}
+      <ConfirmCard confirm={message.confirm} write={confirmWrite(k, message.n)} onConfirm={() => genie.confirm(k, message.n)} onCancel={() => genie.cancel(k, message.n)}
         onUndo={() => genie.undoSaved(k, message.n)} />
       {rating && <Rate message={message} onRate={(r) => genie.rate(k, message.n, r)} />}
     </>

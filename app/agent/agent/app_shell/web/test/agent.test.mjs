@@ -1,7 +1,7 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
-import { DECIDE, appInfo, openApp, serveDist, tracked, until } from './harness.mjs';
+import { DECIDE, actBody, appInfo, openApp, serveDist, tracked, until } from './harness.mjs';
 import { EMPTY_LOOK, applyActions, changesView, lookChart, routeOf, suggestions } from '../src/agentView.js';
 import { initialFilterState } from '../src/filters.js';
 
@@ -96,7 +96,7 @@ function agentRoutes(turn = DONE_TURN, extra = {}) {
   const { calls: acted, routes } = tracked({
     'records/undo': ({ route, json }) => { calls.undos.push(route.request().postDataJSON()); return json(200, { undone: ['R001', 'R002'] }); },
     'records/act': ({ route, json }) => {
-      const body = route.request().postDataJSON();
+      const body = actBody(route);
       acted.acts.push(body);
       return json(200, { written: body.record_keys, conflicts: [], conflicts_count: 0, left_out: 0, batch_id: 'b'.repeat(32) });
     },

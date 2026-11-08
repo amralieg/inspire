@@ -8,6 +8,7 @@ import { ChoiceList } from './KindParts.jsx';
 import { KIND_LAZY } from './kindCharts.js';
 import { GenieMark, Icon } from './icons.jsx';
 import { Skeleton } from './ui.jsx';
+import { SaveButton, runWrite } from './saving.jsx';
 import './styles/kindlayouts.css';
 
 export const CHAT_QUESTIONS = 12;
@@ -128,7 +129,7 @@ function Feedback({ page, app, genie }) {
   const [sent, setSent] = useState({});
   const [error, setError] = useState('');
   const done = pairs.filter((p) => p.answer.state === 'done' && !p.answer.refused && (p.answer.turn_id || p.answer.ids?.message_id));
-  const rate = async (answer, rating) => {
+  const rate = (answer, rating) => runWrite(`rate:${answer.n}:${rating}`, async () => {
     setError('');
     try {
       if (answer.turn_id) await agentFeedback(answer.turn_id, rating);
@@ -137,7 +138,7 @@ function Feedback({ page, app, genie }) {
     } catch (e) {
       setError(e.message);
     }
-  };
+  });
   return (
     <section className="card" aria-label="Rate the answers" data-part="feedback">
       <header className="card-h"><div><h2>Rate the answers</h2><p>Your mark goes to the Genie Agent, so its owner can see which answers to fix.</p></div>
@@ -150,8 +151,8 @@ function Feedback({ page, app, genie }) {
             <span>{question?.text || 'Answer'}</span>
             <span role="group" aria-label={`Rate the answer to ${question?.text || 'this question'}`}>
               {RATINGS.map((r) => (
-                <button key={r.id} type="button" className={`btn btn--sm ${sent[answer.n] === r.id ? 'btn--pri' : ''}`} disabled={!on} aria-pressed={sent[answer.n] === r.id}
-                  data-rating={r.id} onClick={() => rate(answer, r.id)}>{r.label}</button>
+                <SaveButton key={r.id} write={`rate:${answer.n}:${r.id}`} className={`btn btn--sm ${sent[answer.n] === r.id ? 'btn--pri' : ''}`} disabled={!on} aria-pressed={sent[answer.n] === r.id}
+                  data-rating={r.id} onClick={() => rate(answer, r.id)}>{r.label}</SaveButton>
               ))}
             </span>
           </li>

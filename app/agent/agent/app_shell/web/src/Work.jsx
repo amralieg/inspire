@@ -4,6 +4,7 @@ import { withNotice } from './alerts.js';
 import { compareValues, countOf, integer, plainText } from './format.js';
 import { Icon } from './icons.jsx';
 import { Popover, SaidNote, useDialog, useToast } from './ui.jsx';
+import { SaveButton, runWrite, useWrite } from './saving.jsx';
 import { localDay, nextDay } from './prefs.js';
 import {
   DRAFT_RECORDS, NOTE_CHARS, NO_AS_OF, NO_SIMILAR, REASON_CHARS, actError, listAsOf, matchOf, SIMILAR_KEYS, SIMILAR_SHOWN, STATUSES, UNDO_MS, actOutcome, actedText, actionProblem, asOfText, batchText, byWords, conflictText,
@@ -29,13 +30,15 @@ export function useActs({ pageId, similarBy, onActed, labelOf }) {
   const [conflicts, setConflicts] = useState(null);
   const [similar, setSimilar] = useState(null);
   const [said, setSaid] = useState(null);
-  const undo = useCallback(async (batch) => {
+  const told = useRef(0);
+  const undo = useCallback(async (batch, key = `undo:${batch}`) => {
     if (!batch) {
       toast('Nothing to undo yet');
       return null;
     }
     try {
-      const out = await undoRecords({ page: pageId, batch_id: batch });
+      const out = await runWrite(key, () => undoRecords({ page: pageId, batch_id: batch }));
+      if (!out) return null;
       if (last.current === batch) last.current = '';
       const text = undoText(out, names.current);
       setSaid({ key: 'all', text });
@@ -47,24 +50,28 @@ export function useActs({ pageId, similarBy, onActed, labelOf }) {
       return null;
     }
   }, [pageId, onActed, toast]);
-  const act = async (body, values, { said, about } = {}) => {
+  const write = async (body, values, { said, about } = {}) => {
     const out = await actRecords({ page: pageId, ...body, values });
     const outcome = actOutcome(out);
     if (outcome.batch) last.current = outcome.batch;
     setConflicts(outcome.conflicts ? outcome : null);
-    const by = (similarBy || []).map((b) => b?.filter).filter(Boolean);
-    const found = about && by.length ? await getSimilar(pageId, about.record_key, by).catch(() => null) : null;
-    const actions = [
-      ...(outcome.batch ? [{ label: 'Undo', run: () => undo(outcome.batch) }] : []),
-      ...(compareValues(countOf(found?.count), 0) > 0 && found.match ? [{ label: `Apply to ${integer(found.count)} similar`, run: () => setSimilar({ ...found, values, about }) }] : []),
-    ];
+    const undoing = outcome.batch ? [{ label: 'Undo', run: () => undo(outcome.batch) }] : [];
     const text = withNotice(said && !outcome.conflicts && !outcome.leftOut ? said : actedText(outcome, values), out);
     const one = about?.record_key ?? (body.record_keys?.length === 1 ? body.record_keys[0] : null);
+    const mine = ++told.current;
     setSaid({ key: one == null ? 'all' : String(one), text });
-    toast(text, 'info', { actions, ms: UNDO_MS });
+    toast(text, 'info', { actions: undoing, ms: UNDO_MS });
     onActed();
+    const by = (similarBy || []).map((b) => b?.filter).filter(Boolean);
+    if (about && by.length) {
+      getSimilar(pageId, about.record_key, by).then((found) => {
+        if (told.current !== mine || !(compareValues(countOf(found?.count), 0) > 0 && found.match)) return;
+        toast(text, 'info', { actions: [...undoing, { label: `Apply to ${integer(found.count)} similar`, run: () => setSimilar({ ...found, values, about }) }], ms: UNDO_MS });
+      }).catch(() => {});
+    }
     return outcome;
   };
+  const act = (body, values, { key = 'act', inside = false, ...opts } = {}) => runWrite(key, () => write(body, values, opts), { rows: body?.record_keys || [], inside });
   const findSimilar = async (keys, about) => {
     const by = (similarBy || []).map((b) => b?.filter).filter(Boolean);
     if (!by.length || !keys.length) return null;
@@ -106,8 +113,9 @@ export function ConflictNote({ conflicts, labelOf, onClose }) {
   );
 }
 
-export function BulkBar({ picked, matching, total, capped = false, allOnPage, owners, person, busy, tomorrow, canMatch = true, onAct, onAll, onClear, onAccept = null,
+export function BulkBar({ picked, matching, total, capped = false, allOnPage, owners, person, tomorrow, canMatch = true, onAct, onAll, onClear, onAccept = null,
   onSimilar = null, onDraft = null }) {
+  const { busy } = useWrite();
   const anchors = { done: useRef(null), dismiss: useRef(null), assign: useRef(null), status: useRef(null), snooze: useRef(null) };
   const [open, setOpen] = useState('');
   const [owner, setOwner] = useState(person);
@@ -121,9 +129,9 @@ export function BulkBar({ picked, matching, total, capped = false, allOnPage, ow
   const what = `${over}${recordsText(n)}`;
   const problem = actionProblem({ status, reason });
   const why = actionProblem({ status: 'Dismissed', reason });
-  const submit = (values) => (e) => {
+  const submit = (name, values) => async (e) => {
     e.preventDefault();
-    onAct(withNote(values, note));
+    if (!(await onAct(withNote(values, note), { key: `bulk:${name}` }))) return;
     setNote('');
     close();
   };
@@ -132,12 +140,12 @@ export function BulkBar({ picked, matching, total, capped = false, allOnPage, ow
   return (
     <div className="bulk" role="region" aria-label="Selected records">
       {matching ? <b>All {over}{integer(matching.total)} matching records selected</b> : <b>{n} selected:</b>}
-      {onAccept && <button className="btn btn--pri" onClick={onAccept} disabled={busy} data-accept-picked><Icon name="check" size={14} />Accept the suggestions</button>}
-      <button ref={anchors.done} className="btn" onClick={toggle('done')} aria-expanded={open === 'done'} disabled={busy} data-bulk="done"><Icon name="check" size={14} />{matching ? 'Mark all done…' : 'Mark done…'}</button>
-      <button ref={anchors.dismiss} className="btn" onClick={toggle('dismiss')} aria-expanded={open === 'dismiss'} disabled={busy} data-bulk="dismiss">{matching ? 'Not an issue for all…' : 'Not an issue…'}</button>
-      <button ref={anchors.assign} className="btn" onClick={toggle('assign')} aria-expanded={open === 'assign'} disabled={busy}>Assign to…</button>
-      <button ref={anchors.status} className="btn" onClick={toggle('status')} aria-expanded={open === 'status'} disabled={busy}>Set status…</button>
-      <button ref={anchors.snooze} className="btn" onClick={toggle('snooze')} aria-expanded={open === 'snooze'} disabled={busy} data-bulk="snooze">{matching ? 'Snooze all…' : 'Snooze…'}</button>
+      {onAccept && <SaveButton write="bulk:accept" className="btn btn--pri" onClick={onAccept} data-accept-picked><Icon name="check" size={14} />Accept the suggestions</SaveButton>}
+      <SaveButton write="bulk:done" ref={anchors.done} onClick={toggle('done')} aria-expanded={open === 'done'} data-bulk="done"><Icon name="check" size={14} />{matching ? 'Mark all done…' : 'Mark done…'}</SaveButton>
+      <SaveButton write="bulk:dismiss" ref={anchors.dismiss} onClick={toggle('dismiss')} aria-expanded={open === 'dismiss'} data-bulk="dismiss">{matching ? 'Not an issue for all…' : 'Not an issue…'}</SaveButton>
+      <SaveButton write="bulk:assign" ref={anchors.assign} onClick={toggle('assign')} aria-expanded={open === 'assign'}>Assign to…</SaveButton>
+      <SaveButton write="bulk:status" ref={anchors.status} onClick={toggle('status')} aria-expanded={open === 'status'}>Set status…</SaveButton>
+      <SaveButton write="bulk:snooze" ref={anchors.snooze} onClick={toggle('snooze')} aria-expanded={open === 'snooze'} data-bulk="snooze">{matching ? 'Snooze all…' : 'Snooze…'}</SaveButton>
       {onSimilar && !matching && picked.size <= SIMILAR_KEYS && <button className="btn" onClick={onSimilar} disabled={busy} data-bulk="similar">Apply to similar…</button>}
       {onDraft && !matching && (
         <button className="btn" onClick={onDraft} disabled={picked.size > DRAFT_RECORDS} data-bulk="draft"
@@ -151,38 +159,38 @@ export function BulkBar({ picked, matching, total, capped = false, allOnPage, ow
       {matching && <small className="bulk-asof">As of {asOfText(matching.as_of_us)}. A record that changes after that is left as it is.</small>}
       {open === 'done' && (
         <Popover anchor={anchors.done.current} onClose={close} label="Mark the selected records done" width={300}>
-          <form className="bulk-pop" onSubmit={submit({ action_status: 'Done' })}>
+          <form className="bulk-pop" onSubmit={submit('done', { action_status: 'Done' })}>
             {note500}
-            <button type="submit" className="btn btn--pri"><Icon name="check" size={14} />Mark {what} done</button>
+            <SaveButton write="bulk:done" type="submit" className="btn btn--pri"><Icon name="check" size={14} />Mark {what} done</SaveButton>
           </form>
         </Popover>
       )}
       {open === 'dismiss' && (
         <Popover anchor={anchors.dismiss.current} onClose={close} label="Mark the selected records not an issue" width={300}>
-          <form className="bulk-pop" onSubmit={submit({ action_status: 'Dismissed', dismiss_reason: reason.trim() })}>
+          <form className="bulk-pop" onSubmit={submit('dismiss', { action_status: 'Dismissed', dismiss_reason: reason.trim() })}>
             <label className="in">
               <span>Why are these not issues? *</span>
               <textarea dir="auto" name="bulk_dismiss_reason" autoFocus rows={2} maxLength={REASON_CHARS} value={reason} onChange={(e) => setReason(e.target.value)} aria-invalid={why ? true : undefined} />
               {why && <small className="in-err">{why}</small>}
             </label>
             {note500}
-            <button type="submit" className="btn btn--pri" disabled={!!why}>Mark {what} not an issue</button>
+            <SaveButton write="bulk:dismiss" type="submit" className="btn btn--pri" disabled={!!why}>Mark {what} not an issue</SaveButton>
           </form>
         </Popover>
       )}
       {open === 'assign' && (
         <Popover anchor={anchors.assign.current} onClose={close} label="Assign the selected records" width={300}>
-          <form className="bulk-pop" onSubmit={submit({ action_owner: owner.trim() })}>
+          <form className="bulk-pop" onSubmit={submit('assign', { action_owner: owner.trim() })}>
             <label className="in"><span>Owner</span><input dir="auto" name="bulk_owner" autoFocus value={owner} onChange={(e) => setOwner(e.target.value)} list="owners-bulk" maxLength={254} autoComplete="off" /></label>
             <datalist id="owners-bulk">{owners.map((o) => <option key={o} value={o} />)}</datalist>
             {note500}
-            <button type="submit" className="btn btn--pri" disabled={!owner.trim()}>Assign {what}</button>
+            <SaveButton write="bulk:assign" type="submit" className="btn btn--pri" disabled={!owner.trim()}>Assign {what}</SaveButton>
           </form>
         </Popover>
       )}
       {open === 'status' && (
         <Popover anchor={anchors.status.current} onClose={close} label="Set the status of the selected records" width={300}>
-          <form className="bulk-pop" onSubmit={submit(status === 'Dismissed' ? { action_status: status, dismiss_reason: reason.trim() } : { action_status: status })}>
+          <form className="bulk-pop" onSubmit={submit('status', status === 'Dismissed' ? { action_status: status, dismiss_reason: reason.trim() } : { action_status: status })}>
             <label className="in"><span>Status</span><select name="bulk_status" value={status} onChange={(e) => setStatus(e.target.value)}>{STATUSES.map((s) => <option key={s} value={s}>{statusLabel(s)}</option>)}</select></label>
             {status === 'Dismissed' && (
               <label className="in">
@@ -192,16 +200,16 @@ export function BulkBar({ picked, matching, total, capped = false, allOnPage, ow
               </label>
             )}
             {note500}
-            <button type="submit" className="btn btn--pri" disabled={!!problem}>Set status of {what}</button>
+            <SaveButton write="bulk:status" type="submit" className="btn btn--pri" disabled={!!problem}>Set status of {what}</SaveButton>
           </form>
         </Popover>
       )}
       {open === 'snooze' && (
         <Popover anchor={anchors.snooze.current} onClose={close} label="Snooze the selected records" width={300}>
-          <form className="bulk-pop" onSubmit={submit({ snooze_until: until })}>
+          <form className="bulk-pop" onSubmit={submit('snooze', { snooze_until: until })}>
             <label className="in"><span>Snooze until</span><input type="date" name="bulk_snooze" min={tomorrow} value={until} onChange={(e) => setUntil(e.target.value)} required /></label>
             {note500}
-            <button type="submit" className="btn btn--pri" disabled={!until || until < tomorrow}>Snooze {what}</button>
+            <SaveButton write="bulk:snooze" type="submit" className="btn btn--pri" disabled={!until || until < tomorrow}>Snooze {what}</SaveButton>
           </form>
         </Popover>
       )}
@@ -213,21 +221,20 @@ const NO_PICKS = new Map();
 
 export function QueueBulk({ pageId, list, asked, person = '', onChanged }) {
   const [on, setOn] = useState(false);
-  const [busy, setBusy] = useState(false);
+  const { busy } = useWrite();
   const toast = useToast();
   const acts = useActs({ pageId, similarBy: [], onActed: () => onChanged?.(), labelOf: (c) => plainText(c?.label ?? c?.record_key ?? '') });
   const total = countOf(list?.total);
   const asOf = listAsOf(list);
   if (!list?.actions || !(compareValues(total, 0) > 0)) return null;
-  const act = async (values) => {
-    setBusy(true);
+  const act = async (values, { key } = {}) => {
     try {
-      await acts.act({ match: matchOf(asked, asOf) }, values);
+      const out = await acts.act({ match: matchOf(asked, asOf) }, values, { key });
+      if (out) setOn(false);
+      return out;
     } catch (err) {
       toast(actError(err), toneOf(err));
-    } finally {
-      setBusy(false);
-      setOn(false);
+      return null;
     }
   };
   if (!on) {
@@ -241,29 +248,24 @@ export function QueueBulk({ pageId, list, asked, person = '', onChanged }) {
   }
   return (
     <BulkBar picked={NO_PICKS} matching={{ total, capped: !!list.total_more, as_of_us: asOf }} total={total} capped={!!list.total_more} allOnPage owners={list.summary?.owners || []}
-      person={person} busy={busy} tomorrow={nextDay(localDay())} onAct={act} onAll={() => {}} onClear={() => setOn(false)} />
+      person={person} tomorrow={nextDay(localDay())} onAct={act} onAll={() => {}} onClear={() => setOn(false)} />
   );
 }
+
+const SIMILAR_WRITE = 'similar';
 
 export function SimilarDialog({ similar, onClose, onApply }) {
   const ref = useDialog(true, onClose);
   const [status, setStatus] = useState(similar.values?.action_status || 'Done');
   const [reason, setReason] = useState(similar.values?.dismiss_reason || '');
   const [note, setNote] = useState(similar.values?.note || '');
-  const [saving, setSaving] = useState(false);
   const n = countOf(similar.count);
   const sample = (similar.sample || []).slice(0, SIMILAR_SHOWN);
   const problem = actionProblem({ status, reason });
   const said = byWords(similar.by);
   const apply = async (e) => {
     e.preventDefault();
-    setSaving(true);
-    try {
-      await onApply(withNote(status === 'Dismissed' ? { action_status: status, dismiss_reason: reason.trim() } : { action_status: status }, note));
-      onClose();
-    } finally {
-      setSaving(false);
-    }
+    if (await onApply(withNote(status === 'Dismissed' ? { action_status: status, dismiss_reason: reason.trim() } : { action_status: status }, note), SIMILAR_WRITE)) onClose();
   };
   return (
     <dialog ref={ref} className="dialog" aria-label="Apply to similar records" onClick={(e) => { if (e.target === ref.current) onClose(); }}>
@@ -288,7 +290,7 @@ export function SimilarDialog({ similar, onClose, onApply }) {
         <NoteField name="similar_note" value={note} onChange={setNote} />
         <footer>
           <button type="button" className="btn" onClick={onClose}>Cancel</button>
-          <button type="submit" className="btn btn--pri" disabled={saving || !!problem || !n || !similar.match}>{saving ? 'Applying…' : `Apply to ${recordsText(n)}`}</button>
+          <SaveButton write={SIMILAR_WRITE} type="submit" className="btn btn--pri" disabled={!!problem || !n || !similar.match}>{`Apply to ${recordsText(n)}`}</SaveButton>
         </footer>
       </form>
     </dialog>
@@ -307,9 +309,8 @@ export function BatchesDialog({ pageId, onClose, onUndo, labelOf }) {
     return () => { live = false; };
   }, [pageId]);
   const undo = async (batch) => {
-    setUndone((u) => ({ ...u, [batch]: 'Undoing…' }));
     const out = await onUndo(batch);
-    setUndone((u) => ({ ...u, [batch]: out ? undoText(out, labelOf) : '' }));
+    if (out) setUndone((u) => ({ ...u, [batch]: undoText(out, labelOf) }));
   };
   return (
     <dialog ref={ref} className="dialog" aria-label="Recent changes" onClick={(e) => { if (e.target === ref.current) onClose(); }}>
@@ -329,7 +330,7 @@ export function BatchesDialog({ pageId, onClose, onUndo, labelOf }) {
                   <span>{batchText(b)}</span>
                   {b.undone ? <small className="faint">Undone</small> : undone[b.batch_id] ? <small role="status">{undone[b.batch_id]}</small>
                     : !b.undoes && (b.can_undo
-                      ? <button type="button" className="btn" onClick={() => undo(b.batch_id)}><Icon name="undo" size={13} />Undo</button>
+                      ? <SaveButton write={`undo:${b.batch_id}`} onClick={() => undo(b.batch_id)}><Icon name="undo" size={13} />Undo</SaveButton>
                       : <small className="faint" data-undo-theirs>{UNDO_THEIRS}</small>)}
                 </li>
               ))}

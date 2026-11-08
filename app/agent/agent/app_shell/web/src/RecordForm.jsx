@@ -5,6 +5,7 @@ import {
 } from './records.js';
 import { Icon } from './icons.jsx';
 import { Failure, Skeleton, useDialog, useToast } from './ui.jsx';
+import { SaveButton, runWrite, useWrite } from './saving.jsx';
 
 function Field({ field, value, meta, problem, options, required, onChange }) {
   const spec = inputOf(field, value);
@@ -29,7 +30,7 @@ export default function RecordForm({ mode, target, meta, pageId, rows, onClose, 
   const [form, setForm] = useState({});
   const [problems, setProblems] = useState({});
   const [failure, setFailure] = useState(null);
-  const [saving, setSaving] = useState(false);
+  const saving = useWrite().busy;
   const adding = mode === 'add';
   const targetKey = JSON.stringify(target || {});
 
@@ -61,17 +62,16 @@ export default function RecordForm({ mode, target, meta, pageId, rows, onClose, 
       return;
     }
     const body = adding ? { page: pageId, values } : { page: pageId, record_key: data.record_key, valid_from_us: data.current.valid_from_us, values };
-    setSaving(true);
     setFailure(null);
-    try {
-      const saved = await writeRecord(mode, body);
-      toast(adding ? 'Record added. Its history starts here.' : 'Saved as a new version. The earlier one stays in the history.');
-      onSaved(saved);
-    } catch (err) {
-      setFailure({ ...failureOf(err), stale: isStaleRecord(err) && !adding });
-    } finally {
-      setSaving(false);
-    }
+    await runWrite(`record:${mode}`, async () => {
+      try {
+        const saved = await writeRecord(mode, body);
+        toast(adding ? 'Record added. Its history starts here.' : 'Saved as a new version. The earlier one stays in the history.');
+        onSaved(saved);
+      } catch (err) {
+        setFailure({ ...failureOf(err), stale: isStaleRecord(err) && !adding });
+      }
+    });
   };
 
   const title = adding ? 'Add a record' : `Edit ${data?.current ? String(data.current[meta.label] ?? data.record_key) : 'record'}`;
@@ -103,9 +103,9 @@ export default function RecordForm({ mode, target, meta, pageId, rows, onClose, 
         </div>
         <footer>
           <button type="button" className="btn" onClick={onClose}>Cancel</button>
-          <button type="submit" className="btn btn--pri" disabled={saving || load.busy || !data || gone || !fields.length}>
-            {saving ? 'Saving…' : adding ? <><Icon name="plus" size={14} />Add record</> : <><Icon name="check" size={14} />Save</>}
-          </button>
+          <SaveButton write={`record:${mode}`} type="submit" className="btn btn--pri" disabled={load.busy || !data || gone || !fields.length}>
+            {adding ? <><Icon name="plus" size={14} />Add record</> : <><Icon name="check" size={14} />Save</>}
+          </SaveButton>
         </footer>
       </form>
     </dialog>
@@ -117,7 +117,7 @@ export function DeleteDialog({ target, pageId, label, onClose, onSaved }) {
   const toast = useToast();
   const [load, setLoad] = useState({ busy: true, error: '', data: null });
   const [failure, setFailure] = useState(null);
-  const [saving, setSaving] = useState(false);
+  const saving = useWrite().busy;
   const targetKey = JSON.stringify(target);
   const fetchRecord = useCallback(() => {
     setLoad({ busy: true, error: '', data: null });
@@ -128,16 +128,15 @@ export function DeleteDialog({ target, pageId, label, onClose, onSaved }) {
   const { data } = load;
   const confirm = async (e) => {
     e.preventDefault();
-    setSaving(true);
-    try {
-      const saved = await writeRecord('delete', { page: pageId, record_key: data.record_key, valid_from_us: data.current.valid_from_us });
-      toast('Record deleted. Its history is kept.');
-      onSaved(saved);
-    } catch (err) {
-      setFailure(failureOf(err));
-    } finally {
-      setSaving(false);
-    }
+    await runWrite('record:delete', async () => {
+      try {
+        const saved = await writeRecord('delete', { page: pageId, record_key: data.record_key, valid_from_us: data.current.valid_from_us });
+        toast('Record deleted. Its history is kept.');
+        onSaved(saved);
+      } catch (err) {
+        setFailure(failureOf(err));
+      }
+    });
   };
   const gone = data && (!data.current || data.deleted);
   return (
@@ -156,7 +155,7 @@ export function DeleteDialog({ target, pageId, label, onClose, onSaved }) {
         </Failure>
         <footer>
           <button type="button" className="btn" onClick={onClose}>Cancel</button>
-          <button type="submit" className="btn btn--danger" disabled={saving || load.busy || !data || gone}><Icon name="trash" size={14} />{saving ? 'Deleting…' : 'Delete'}</button>
+          <SaveButton write="record:delete" type="submit" className="btn btn--danger" disabled={load.busy || !data || gone}><Icon name="trash" size={14} />Delete</SaveButton>
         </footer>
       </form>
     </dialog>

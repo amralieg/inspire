@@ -3,6 +3,7 @@ import { failureOf, getSettings, previewSetting, runSettingsNow, saveSetting, to
 import { dayLabel } from './format.js';
 import { Icon } from './icons.jsx';
 import { Failure, useToast } from './ui.jsx';
+import { SaveButton, runWrite, useWrite } from './saving.jsx';
 import { groupsOf, historyLines, inputText, ownerSettings, savedText, settingProblem, storedText, valueText } from './settings.js';
 import { MyViewGroup } from './MyView.jsx';
 
@@ -18,6 +19,8 @@ export function useSettings(pageId, nonce = 0) {
   }, [pageId, nonce]);
   return [data, setData];
 }
+
+const RUN_NOW = 'run-now';
 
 function Choice({ setting, text, onText }) {
   if (!setting.many) {
@@ -47,7 +50,7 @@ function Editor({ pageId, setting, onSaved, onCancel }) {
   const [text, setText] = useState(inputText(setting, setting.value));
   const [note, setNote] = useState('');
   const [failure, setFailure] = useState(null);
-  const [saving, setSaving] = useState(false);
+  const saving = useWrite().busy;
   const [preview, setPreview] = useState('');
   const input = useRef(null);
   useEffect(() => { input.current?.focus(); }, []);
@@ -66,15 +69,14 @@ function Editor({ pageId, setting, onSaved, onCancel }) {
   const save = async (e) => {
     e.preventDefault();
     if (problem) return;
-    setSaving(true);
     setFailure(null);
-    try {
-      onSaved(await saveSetting({ page: pageId, name: setting.name, value, was: setting.value, note: note.trim() }), value);
-    } catch (err) {
-      setFailure(failureOf(err));
-    } finally {
-      setSaving(false);
-    }
+    await runWrite(`setting:${setting.name}`, async () => {
+      try {
+        onSaved(await saveSetting({ page: pageId, name: setting.name, value, was: setting.value, note: note.trim() }), value);
+      } catch (err) {
+        setFailure(failureOf(err));
+      }
+    });
   };
   const unit = setting.kind === 'percent' ? ' (%)' : setting.unit ? ` (${setting.unit})` : '';
   return (
@@ -88,7 +90,7 @@ function Editor({ pageId, setting, onSaved, onCancel }) {
       <label className="in"><span>Why it changed</span>
         <input dir="auto" className="note" name="setting_note" maxLength={NOTE_CHARS} value={note} onChange={(e) => setNote(e.target.value)} />
       </label>
-      <button type="submit" className="btn btn--pri" disabled={saving || !!problem}><Icon name="check" size={14} />{saving ? 'Saving…' : 'Save'}</button>
+      <SaveButton write={`setting:${setting.name}`} type="submit" className="btn btn--pri" disabled={!!problem}><Icon name="check" size={14} />Save</SaveButton>
       <button type="button" className="btn" onClick={onCancel} disabled={saving}>Cancel</button>
       {problem && text.trim() !== '' && <p className="err" role="alert">{problem}</p>}
       {preview && <p className="preview" role="status" data-preview>{preview}</p>}
@@ -108,7 +110,6 @@ export function SettingsButton({ open, onOpen, owned }) {
 
 export default function SettingsPanel({ pageId, data, onData, onChanged, onRunStarted, onClose }) {
   const [editing, setEditing] = useState('');
-  const [running, setRunning] = useState(false);
   const toast = useToast();
   const owned = ownerSettings(data);
   const saved = (next, value) => {
@@ -119,16 +120,15 @@ export default function SettingsPanel({ pageId, data, onData, onChanged, onRunSt
     onChanged?.();
   };
   const run = async () => {
-    setRunning(true);
-    try {
-      const started = await runSettingsNow(pageId);
-      toast(`The run is ${started.state || 'starting'}; the page shows its progress at the top.`);
-      onRunStarted?.();
-    } catch (err) {
-      toast(err.message, toneOf(err));
-    } finally {
-      setRunning(false);
-    }
+    await runWrite(RUN_NOW, async () => {
+      try {
+        const started = await runSettingsNow(pageId);
+        toast(`The run is ${started.state || 'starting'}; the page shows its progress at the top.`);
+        onRunStarted?.();
+      } catch (err) {
+        toast(err.message, toneOf(err));
+      }
+    });
   };
   const lines = owned ? historyLines(data.history, data.settings) : [];
   const last = Object.fromEntries([...(data?.history || [])].reverse().map((h) => [h.name, h]));
@@ -136,7 +136,7 @@ export default function SettingsPanel({ pageId, data, onData, onChanged, onRunSt
     <section className="money settings" aria-label="Settings" data-settings>
       <div className="set-head">
         <h2>Settings</h2>
-        {owned && data.can_run && <button type="button" className="btn" onClick={run} disabled={running} data-run-now><Icon name="trend" size={14} />{running ? 'Starting…' : 'Run now'}</button>}
+        {owned && data.can_run && <SaveButton write={RUN_NOW} onClick={run} data-run-now><Icon name="trend" size={14} />Run now</SaveButton>}
         <button type="button" className="btn" onClick={onClose} aria-label="Close the settings"><Icon name="x" size={14} /></button>
       </div>
       <MyViewGroup />

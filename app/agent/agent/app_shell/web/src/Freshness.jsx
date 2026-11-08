@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { getFreshness, refreshPage, toneOf } from './api.js';
 import { Icon } from './icons.jsx';
 import { useToast } from './ui.jsx';
+import { runWrite, useWrite } from './saving.jsx';
 import { UNDO_MS } from './records.js';
 import {
   CHECK_AGAIN, POLL_MS, RUN_STATES, activeState, bannerText, isQuiet, lastRunNote, lastRunText, progressShare, runState, stepText, toastTone, untilText,
@@ -79,13 +80,13 @@ export function useFreshness({ page, onRefreshed, onRun, onSeeChanged, showThrou
     onRefreshed?.();
   }, [fresh]);
 
-  const ask = () => {
+  const ask = () => runWrite('refresh', () => {
     setAsking(true);
-    refreshPage(page.id)
+    return refreshPage(page.id)
       .then((run) => { watched.current = run.run_id; })
       .catch((error) => toast(error.message, toneOf(error)))
       .finally(() => load().finally(() => setAsking(false)));
-  };
+  });
 
   const busy = !!fresh?.active || asking;
   return { fresh, now, busy, ask, load, showThrough, why: `fresh-why-${page.id}`, reason: !!fresh && !busy && !fresh.can_refresh && fresh.reason };
@@ -93,6 +94,7 @@ export function useFreshness({ page, onRefreshed, onRun, onSeeChanged, showThrou
 
 export function FreshBar({ freshness, children }) {
   const { fresh, now, busy, ask, showThrough, why, reason } = freshness;
+  const writing = useWrite().busy;
   const text = bannerText(fresh, now, showThrough);
   if (!fresh || !text) return children;
   const state = fresh.active ? activeState(fresh.active) : runState('queued');
@@ -110,7 +112,7 @@ export function FreshBar({ freshness, children }) {
         )}
       </span>
       {children}
-      <button className="btn fresh-btn top-ic2" onClick={ask} disabled={busy || !fresh.can_refresh} title="Run this use case again on all its data"
+      <button className="btn fresh-btn top-ic2" onClick={ask} disabled={busy || writing || !fresh.can_refresh} title="Run this use case again on all its data"
         aria-label="Refresh now" aria-describedby={busy || reason ? why : undefined}>
         <Icon name="undo" size={15} /><span>Refresh now</span>
       </button>

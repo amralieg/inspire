@@ -295,6 +295,7 @@ test('the keyboard moves through the list, opens, marks done, snoozes, selects a
   await page.keyboard.press('u');
   await until(() => seen.undos?.length === 1);
   assert.deepEqual(seen.undos[0], { page: 'n01_u05', batch_id: 'b-1' });
+  await page.waitForFunction(() => document.querySelector('.toast .toast-t')?.textContent !== '1 record marked done.');
   await page.keyboard.press('s');
   await until(() => seen.acts?.length === 2);
   assert.deepEqual(seen.acts[1].values, { snooze_until: TOMORROW });

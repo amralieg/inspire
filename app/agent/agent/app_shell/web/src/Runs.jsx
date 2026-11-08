@@ -4,6 +4,7 @@ import { formatValue, integer, kindOf, unitOf } from './format.js';
 import Fx from './Fx.jsx';
 import { Icon } from './icons.jsx';
 import { Skeleton } from './ui.jsx';
+import { SaveButton, runWrite } from './saving.jsx';
 import { BarsCard } from './ChartCard.jsx';
 import DataTable from './DataTable.jsx';
 import { fieldsOf, tableContext } from './explain.js';
@@ -110,26 +111,24 @@ function runColumns(isOpen, toggle) {
 }
 
 function ScopeFacts({ page, run }) {
-  const [busy, setBusy] = useState(false);
   const [said, setSaid] = useState('');
   const everything = async () => {
-    setBusy(true);
-    try {
-      await saveSetting({ page: page.id, name: 'run_scope', value: 'all', was: run.scope?.scope || '', note: 'Run on everything' });
-      const started = await runSettingsNow(page.id);
-      setSaid(`The run on everything is ${started.state || 'starting'}; schedules now cover all the records too.`);
-    } catch (err) {
-      setSaid(err.message);
-    } finally {
-      setBusy(false);
-    }
+    await runWrite('run-everything', async () => {
+      try {
+        await saveSetting({ page: page.id, name: 'run_scope', value: 'all', was: run.scope?.scope || '', note: 'Run on everything' });
+        const started = await runSettingsNow(page.id);
+        setSaid(`The run on everything is ${started.state || 'starting'}; schedules now cover all the records too.`);
+      } catch (err) {
+        setSaid(err.message);
+      }
+    });
   };
   return (
     <section className="card runs-scope" aria-label="MVP Test Run">
       <p>{run.facts.covered}</p>
       {run.facts.everything && <p>{run.facts.everything}</p>}
       {run.facts.trained && <p>{run.facts.trained}</p>}
-      <button className="btn" onClick={everything} disabled={busy}>Run on everything</button>
+      <SaveButton write="run-everything" onClick={everything}>Run on everything</SaveButton>
       {said && <p role="status">{said}</p>}
     </section>
   );
