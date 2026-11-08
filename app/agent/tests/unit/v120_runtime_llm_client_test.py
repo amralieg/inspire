@@ -467,6 +467,28 @@ def test_A11_clean_json_response_plain_objects_unchanged(agent_ns):
     assert json.loads(clean('```json\n{"a": {"b": 1}}\n```')) == {"a": {"b": 1}}
 
 
+@pytest.mark.parametrize("raw,expected", [
+    ('[asks to keep it as it is] is done.\n{"checks": [{"n": 1, "status": "done"}]}',
+     {"checks": [{"n": 1, "status": "done"}]}),
+    ('Ask 2 [names chart_3] needs the chart.\n```json\n{"checks": []}\n```', {"checks": []}),
+    ('Note [x]: [{"n": 1}] follows', [{"n": 1}]),
+    ('[1, 2] then {"a": 1}', [1, 2]),
+    ('[ "a" ] text', ["a"]),
+    ('[] and {"a": 1}', []),
+    ('[true, null]', [True, None]),
+    ('[-1]', [-1]),
+])
+def test_clean_json_response_skips_bracketed_prose_before_the_json(agent_ns, raw, expected):
+    import json
+    assert json.loads(agent_ns["clean_json_response"](raw)) == expected
+
+
+def test_clean_json_response_keeps_first_bracket_when_no_json_starts(agent_ns):
+    clean = agent_ns["clean_json_response"]
+    assert clean("[see note] and [another]") == "[see note]"
+    assert clean("no json here") == "no json here"
+
+
 def test_A13_duplicate_filter_never_suppresses_errors(agent_ns):
     F = agent_ns["DuplicateMessageFilter"]
     f = F(window_seconds=60)
