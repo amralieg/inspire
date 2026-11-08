@@ -517,7 +517,8 @@ test('the To fix per run chart explains the runs it drew, oldest first, without 
   const { page, seen, context } = await open(appInfo({}, 1, TABLE), { routes, clock: Date.parse('2026-10-27T09:30:00Z') });
   await page.locator('[data-rail="runs"]').click();
   await page.locator('[data-bars="to_fix_runs"] .vb-c').first().waitFor();
-  assert.deepEqual(await page.locator('.explain-btn').evaluateAll((els) => els.map((e) => e.getAttribute('aria-label'))), ['Explain To fix per run']);
+  await page.locator('[data-card="run_timeline"] canvas').waitFor();
+  assert.deepEqual(await page.locator('.explain-btn').evaluateAll((els) => els.map((e) => e.getAttribute('aria-label'))), ['Explain Run timeline', 'Explain To fix per run']);
   await page.getByRole('button', { name: 'Explain To fix per run' }).click();
   await until(() => calls.explain.length === 1);
   assert.deepEqual(calls.explain[0], { kind: 'chart', page: 'n01_u05', title: 'To fix per run', conversation_id: '', context: {

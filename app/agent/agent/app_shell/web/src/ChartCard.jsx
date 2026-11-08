@@ -49,7 +49,7 @@ function HBar({ b, max, onPick, picked, onFix }) {
     ? <button type="button" className={`hb ${picked === b.key ? 'is-on' : ''}`} style={hueVars(b.hue)} onClick={() => onPick(b.key)}
         aria-pressed={picked === undefined ? undefined : picked === b.key} title={b.formula ? undefined : `Show ${b.label}`} {...props}>{body}</button>
     : <div className="hb" style={hueVars(b.hue)} tabIndex={b.formula ? 0 : undefined} {...props}>{body}</div>;
-  if (!onFix) return bar;
+  if (!onFix || b.fix === false) return bar;
   return (
     <div className="hb-row">
       {bar}

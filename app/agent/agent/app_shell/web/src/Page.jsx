@@ -32,6 +32,8 @@ import Dashboard, { NO_SLOTS, TableCard, chartSlots, hubChartsOnTop } from './Da
 import WorkPage from './WorkPage.jsx';
 import ModeView from './ModeView.jsx';
 import { SECTION_TITLES, pageMode, sectionTitle } from './modes.js';
+import TrendCards, { useTrends } from './Trends.jsx';
+import { pageCurrency, pageKind } from './hub.js';
 
 export { SECTION_TITLES };
 
@@ -86,7 +88,7 @@ function radioKeys(e) {
 }
 
 export default function Page({ app, page, meta, state, onState, look = EMPTY_LOOK, onLook, themeKey, onAsk, onExplain, genieBusy, hubEntry, summary, view, onView, genie,
-  section = 'dashboard', tab = '', chrome, onCounts }) {
+  section = 'dashboard', tab = '', focus = '', chrome, onCounts }) {
   const ready = !!state;
   const [nonce, setNonce] = useState(0);
   const [queue, setQueue] = useState(null);
@@ -118,14 +120,17 @@ export default function Page({ app, page, meta, state, onState, look = EMPTY_LOO
   const [question, setQuestion] = useState('');
   const [seeChanged, setSeeChanged] = useState(() => (parseHash(window.location.hash).changed ? 1 : 0));
   const runsOn = sections.includes('runs');
-  const go = (to, { tab: nextTab = '', state: next = state, sort } = {}) => {
+  const go = (to, { tab: nextTab = '', state: next = state, sort, focus: only = '' } = {}) => {
     if (next !== state) onState(next);
     if (sort) onLook?.((l) => ({ ...l, sorts: { ...l.sorts, records: sort } }));
-    window.location.hash = buildHash(page.id, to, next, meta?.filters, null, meta?.columns, nextTab);
+    window.location.hash = buildHash(page.id, to, next, meta?.filters, null, meta?.columns, nextTab, only);
   };
   const showRuns = runsOn ? () => go('runs') : null;
   const seeWhatChanged = page.records ? () => { go(work ? 'work' : 'dashboard'); setSeeChanged((n) => n + 1); } : showRuns;
   const runs = useRuns(page.id, runOffset, `${nonce}:${runNonce}`, runsOn);
+  const trendsOn = listed && !!app.options?.decisions && pageDecides(page) && ['dashboard', 'runs'].includes(shown);
+  const trends = useTrends(page.id, `${nonce}:${runNonce}`, trendsOn);
+  const focused = tabbed ? focus : '';
   const counted = useRef({});
   if (runs.data?.offset === 0) counted.current = runCounts(runs.data);
   const runTotal = counted.current.runs;
@@ -151,7 +156,7 @@ export default function Page({ app, page, meta, state, onState, look = EMPTY_LOO
     : null;
   const fix = work ? (opts) => {
     const next = fixThis(page, meta?.columns?.list, state, view, opts);
-    go('work', { tab: tabbed ? next.tab : '', state: next.state, sort: next.sort });
+    go('work', { tab: tabbed ? next.tab : '', state: next.state, sort: next.sort, focus: tabbed ? next.focus : '' });
   } : null;
   const trendChart = page.charts.find((c) => c.x?.kind === 'time') || page.charts[0];
   const onTop = hubPage && hubChartsOnTop(hubEntry, live, summary);
@@ -248,7 +253,12 @@ export default function Page({ app, page, meta, state, onState, look = EMPTY_LOO
           hubEntry={hubEntry} live={live} summary={summary} latestRun={latestRun} onRuns={showRuns} data={data} error={error} plan={plan} topSlots={topSlots}
           moreSlots={moreSlots} more={more} kpisCard={kpisOf(page.kpis)} kpisOf={kpisOf} chartCards={chartCards} hubCharts={hubCharts} tableCard={tableCard}
           recordsCard={laidOut ? records() : null} explain={explain} genieBusy={genieBusy} nonce={nonce} onChanged={() => setNonce((n) => n + 1)} onAsk={onAsk}
-          genie={genie} ready={ready} filters={filters} onPick={pick} onFix={fix} onWork={() => go('work')} />
+          genie={genie} ready={ready} filters={filters} onPick={pick} onFix={fix} onWork={() => go('work')}
+          trends={hubPage && trendsOn ? (
+            <TrendCards trends={trends.data} impact={trends.impact} error={trends.error} latest={counted.current.latest} page={page} app={app} themeKey={themeKey}
+              currency={pageCurrency(page, summary)} kind={pageKind(page, summary)} onFix={tabbed ? fix : null} onRuns={showRuns} onFeedback={() => go('settings')}
+              onExplain={explain} genieBusy={genieBusy} />
+          ) : null} />
       )}
       {shown === 'work' && !mode.queue && (
         <ModeView mode={mode.id} part="Work" app={app} page={page} meta={meta} state={state} onState={onState} ready={ready} tableCard={tableCard} genie={genie}
@@ -256,11 +266,15 @@ export default function Page({ app, page, meta, state, onState, look = EMPTY_LOO
       )}
       {shown === 'work' && mode.queue && (
         <WorkPage meta={meta} state={state} onState={onState} pageId={page.id} reasons={reasonFilters(entry, summary)} plan={plan} tab={tabNow} choices={choices}
-          counts={queue?.data?.status_counts} onTab={(id) => go('work', { tab: id })}>
-          {records({ ready: ready && (!listed || live.done), tab: tabNow || undefined, docked: true, section: 'records' })}
+          counts={queue?.data?.status_counts} onTab={(id) => go('work', { tab: id, focus: focused })} focus={focused} onClearFocus={() => go('work', { tab: tabNow })}>
+          {records({ ready: ready && (!listed || live.done), tab: tabNow || undefined, focus: focused || undefined, docked: true, section: 'records' })}
         </WorkPage>
       )}
-      {shown === 'runs' && <Runs page={page} runs={runs} offset={runOffset} onOffset={setRunOffset} onExplain={hubExplain(app, onExplain, page.id)} genieBusy={genieBusy} />}
+      {shown === 'runs' && (
+        <Runs page={page} runs={runs} offset={runOffset} onOffset={setRunOffset} onExplain={hubExplain(app, onExplain, page.id)} genieBusy={genieBusy}
+          trends={trends.data} themeKey={themeKey} app={app} onRun={freshness.ask} running={freshness.busy} />
+      )}
+      {shown === 'runs' && app.alerting?.on && <Alerts app={app} page={page} meta={meta} compose={false} onComposed={composed} />}
       {shown === 'alerts' && <Alerts app={app} page={page} meta={meta} compose={compose} onComposed={composed} />}
       {shown === 'settings' && (
         <SettingsPanel pageId={page.id} data={settings} onData={setSettings} onChanged={() => setNonce((n) => n + 1)} onRunStarted={() => freshness.load()}>

@@ -141,6 +141,10 @@ def versions_source(table: str, history: dict, keys: str = "", runs=None) -> str
             f"WHERE g.`_g_nth` = 1)")
 
 
+def close_event(status: str = "`action_status`", was: str = "`_inspire_was`", closed: str = "") -> str:
+    return f"`change_source` = 'action' AND {status} IN ({closed or sql_list(CLOSED_STATUSES)}) AND COALESCE({was}, '') <> {status}"
+
+
 def closing_ctes(table: str, names: set, label=None, scope: str = "", history=None, source: str = "", closed: str = "") -> dict:
     if closed:
         live = closing_ctes(table, names, label, source="avd")
@@ -157,8 +161,7 @@ def closing_ctes(table: str, names: set, label=None, scope: str = "", history=No
     batch = (f"CAST(`{BATCH_COLUMN}` AS STRING) AS `_inspire_batch`, NULLIF(TRIM(`{BATCH_NOTE}`), '') AS `_inspire_batch_note`, "
              f"COALESCE(`{BATCH_VALUES}` LIKE '%\"{UNDO_KEY}\"%', FALSE) AS `_inspire_batch_undo`" if all(n in names for n in BATCH_TYPES) else
              "CAST(NULL AS STRING) AS `_inspire_batch`, CAST(NULL AS STRING) AS `_inspire_batch_note`, FALSE AS `_inspire_batch_undo`")
-    closes = (f"`change_source` = 'action' AND `action_status` IN ({sql_list(CLOSED_STATUSES)}) AND COALESCE(`_inspire_was`, '') <> "
-              f"`action_status`")
+    closes = close_event()
     last = lambda cell: f"MAX(CASE WHEN `_inspire_nth` = 1 THEN {cell} END)"
     at_close = lambda cell: f"MAX(CASE WHEN `_inspire_closes` = 1 AND `valid_from` = `_inspire_closed` THEN {cell} END)"
     ran = lambda cell: f"MAX(CASE WHEN `change_source` = 'run' AND `valid_from` = `_inspire_ran` THEN {cell} END)"

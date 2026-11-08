@@ -173,7 +173,8 @@ function Shell({ app }) {
   const admin = route === ADMIN_ROUTE;
   const page = pages.find((p) => p.id === route) || (admin ? pages.find((p) => p.id === prefs.last) || pages[0] : null);
   const section = admin ? '' : link.section;
-  const rail = page ? railOf(app, page) : [];
+  const sectionsHere = page ? railOf(app, page) : [];
+  const rail = sectionsHere.includes('runs') ? sectionsHere.filter((s) => s !== 'alerts') : sectionsHere;
   const mode = pageMode(page);
   const working = !admin && section === 'work' && !!page && mode.queue;
   const fullChat = !admin && section === 'work' && !!page && mode.id === 'ask';
@@ -278,7 +279,8 @@ function Shell({ app }) {
           {(app.user.email || app.user.name) && <span className="avatar" title={app.user.email || app.user.name} aria-hidden="true">{initials(app.user)}</span>}
         </header>
         <div className="body">
-          {page && <SectionRail sections={rail} on={section} onGo={goSection} open={navOpen} page={page} counts={railCounts.page === page.id ? railCounts : {}} />}
+          {page && <SectionRail sections={rail} on={section === 'alerts' && !rail.includes('alerts') ? 'runs' : section} onGo={goSection} open={navOpen} page={page}
+            counts={railCounts.page === page.id ? railCounts : {}} />}
           {navOpen && <div className="scrim" onClick={() => setNavOpen(false)} />}
           <main className="main" tabIndex={-1}>
             {admin && <Admin />}
@@ -289,7 +291,8 @@ function Shell({ app }) {
             {!admin && page && section !== 'performance' && (
               <Page key={page.id} app={app} page={page} meta={metas[page.id]} state={states[page.id]} onState={setPageState(page.id)} look={looks[page.id] || EMPTY_LOOK}
                 onLook={setPageLook(page.id)} themeKey={themeKey} onAsk={ask} onExplain={explain} genieBusy={genie.busy} hubEntry={hub?.pages?.[page.id]}
-                summary={summaries[page.id]} view={view} onView={setView} genie={genie} section={section} tab={link.tab} chrome={chrome} onCounts={setRailCounts} />
+                summary={summaries[page.id]} view={view} onView={setView} genie={genie} section={section} tab={link.tab} focus={link.focus} chrome={chrome}
+                onCounts={setRailCounts} />
             )}
           </main>
           {working && dock === 'genie' && <GeniePanel {...genieProps} tabs={tabs} onClose={() => setDock('')} />}

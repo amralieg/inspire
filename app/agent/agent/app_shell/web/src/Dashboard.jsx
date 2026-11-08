@@ -180,7 +180,7 @@ function HubBody({ app, page, entry, live, summary, state, onState, view, onView
 
 export default function Dashboard({ app, page, meta, state, onState, view, onView, hubPage, laidOut, work, hubEntry, live, summary, latestRun, onRuns, data, error,
   plan, topSlots, moreSlots, more, kpisCard, kpisOf, chartCards, hubCharts, tableCard, recordsCard, explain, genieBusy, nonce, onChanged, onAsk, genie, ready, filters,
-  onPick, onFix, onWork }) {
+  onPick, onFix, onWork, trends }) {
   return (
     <>
       {backendNotes(app.backend, data).map((n) => <p key={n} className="note" role="status" data-backend-note><Icon name="info" size={14} />{n}</p>)}
@@ -190,6 +190,7 @@ export default function Dashboard({ app, page, meta, state, onState, view, onVie
         <HubBody app={app} page={page} entry={hubEntry} live={live} summary={summary} state={state} onState={onState} view={view} onView={onView} meta={meta}
           pageId={page.id} charts={hubCharts} explain={explain} genieBusy={genieBusy} nonce={nonce} onChanged={onChanged} plan={plan} topSlots={topSlots} onFix={onFix} />
       )}
+      {trends}
       {!hubPage && slotsOf(plan, '@top').after.map((b) => <Block key={b.id} block={b} />)}
       {!hubPage && !meta && <section className="fbar"><Skeleton height={34} width="70%" /></section>}
       {!hubPage && (

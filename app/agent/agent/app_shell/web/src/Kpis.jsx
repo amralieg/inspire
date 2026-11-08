@@ -91,8 +91,8 @@ function Tile({ t, loading }) {
   );
 }
 
-export function Tiles({ tiles, loading, label = 'Key numbers' }) {
-  const fold = useFold('kpis');
+export function Tiles({ tiles, loading, label = 'Key numbers', fold: foldId = 'kpis' }) {
+  const fold = useFold(foldId);
   return (
     <FoldStrip fold={fold} title={label} summary={loading ? '' : tiles.map((t) => `${t.label} ${t.value}`).join(' · ')}>
       <section className="kpis" aria-label={label} data-n={tiles.length}>

@@ -97,7 +97,7 @@ export function impactText(summary) {
 export const UNDO_MS = 15000;
 export const SIMILAR_SHOWN = 5;
 export const CONFLICTS_SHOWN = 20;
-const VIEW_KEYS = ['ai', 'search', 'mine', 'changed', 'column_filters', 'window', 'window_limit', 'time_zone'];
+const VIEW_KEYS = ['ai', 'search', 'mine', 'changed', 'column_filters', 'window', 'window_limit', 'time_zone', 'focus'];
 const WINDOW_KEYS = ['window', 'window_limit', 'time_zone'];
 
 export const withoutWindow = (body) => Object.fromEntries(Object.entries(body).filter(([k]) => !WINDOW_KEYS.includes(k)));

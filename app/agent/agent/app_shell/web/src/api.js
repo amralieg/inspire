@@ -116,6 +116,7 @@ export const previewSetting = (body) => json('POST', 'settings/preview', body);
 export const saveSetting = (body) => json('POST', 'settings/save', body);
 export const runSettingsNow = (page) => json('POST', 'settings/run', { page });
 export const getImpact = (page) => json('GET', `impact?page=${encodeURIComponent(page)}`);
+export const getTrends = (page) => json('GET', `trends?page=${encodeURIComponent(page)}`);
 export const getUsage = () => json('GET', 'admin/usage');
 export const getAlerts = (page) => json('GET', `alerts?page=${encodeURIComponent(page)}`);
 export const previewAlert = (body) => json('POST', 'alerts/preview', body);

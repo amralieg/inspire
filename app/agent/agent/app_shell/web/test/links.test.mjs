@@ -22,10 +22,10 @@ const store = (initial) => {
 const picked = (sel, range = { run_date: { preset: '12m', from: '2025-11-01', to: '2026-10-15' } }) => ({ range, sel });
 
 test('the hash splits into the page, its view and its filters, and old links keep only the page', () => {
-  assert.deepEqual(parseHash('#/n01_u05'), { route: 'n01_u05', section: '', tab: '', v: null, f: null, rec: null, changed: false, present: false });
-  assert.deepEqual(parseHash('#/n01_u05?v=runs&f=abc'), { route: 'n01_u05', section: '', tab: '', v: 'runs', f: 'abc', rec: null, changed: false, present: true });
-  assert.deepEqual(parseHash('#n01_u05?f=x'), { route: 'n01_u05', section: '', tab: '', v: null, f: 'x', rec: null, changed: false, present: true });
-  assert.deepEqual(parseHash('#/n01_u05/work?tab=done&f=x'), { route: 'n01_u05', section: 'work', tab: 'done', v: null, f: 'x', rec: null, changed: false, present: true });
+  assert.deepEqual(parseHash('#/n01_u05'), { route: 'n01_u05', section: '', tab: '', focus: '', v: null, f: null, rec: null, changed: false, present: false });
+  assert.deepEqual(parseHash('#/n01_u05?v=runs&f=abc'), { route: 'n01_u05', section: '', tab: '', focus: '', v: 'runs', f: 'abc', rec: null, changed: false, present: true });
+  assert.deepEqual(parseHash('#n01_u05?f=x'), { route: 'n01_u05', section: '', tab: '', focus: '', v: null, f: 'x', rec: null, changed: false, present: true });
+  assert.deepEqual(parseHash('#/n01_u05/work?tab=done&f=x'), { route: 'n01_u05', section: 'work', tab: 'done', focus: '', v: null, f: 'x', rec: null, changed: false, present: true });
   assert.equal(parseHash('#/n01_u05/runs').present, false, 'a section alone keeps the filters already picked');
   assert.equal(parseHash('').route, '');
   assert.equal(parseHash(undefined).route, '');
