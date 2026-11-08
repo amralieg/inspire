@@ -1,5 +1,5 @@
 """First run (decisions 5B and 6A): a use case whose main table holds more than 1,000 records runs first on a scope, chosen with
-run settings that need no rebuild, one read helper in the Run controls cell narrows every source read to that scope, the build
+run settings that need no rebuild, one read helper in the Run controls cell narrows the main table's read to that scope, the build
 refuses code that reads a source table any other way, each run records its scope and the records it read per table, and
 schedules keep the scope until someone chooses all, offline."""
 import json
@@ -160,14 +160,14 @@ def test_the_scope_key_carries_the_grouping_hash_so_runs_grouped_another_way_are
     assert json.loads(values["run_segments"][1:-1].replace("''", "'"))[0]["key"] == "all|grouping:" + "d" * 16
 
 
-def test_the_read_helper_narrows_every_source_read_to_the_scope(fresh_ns):
+def test_the_read_helper_narrows_the_main_table_read_to_the_scope(fresh_ns):
     fresh_ns["INSPIRE_SCOPE"] = {"scope": "groups", "table": ORDERS, "column": "region", "values": ["EMEA", "APAC"]}
     fresh_ns["INSPIRE_RUN_LOG"] = {}
     session = Session({"`main`.`sales`.`orders`": ["order_id", "Region", "amount"], "`main`.`sales`.`stores`": ["store_id", "city"]})
     orders = fresh_ns["inspire_read_source"](ORDERS, spark=session)
     stores = fresh_ns["inspire_read_source"]("`main`.`sales`.`stores`", spark=session)
     assert orders.steps == [("where", "CAST(`Region` AS STRING) IN ('EMEA', 'APAC')")]
-    assert stores.steps == [], "a table without the grouping column is read whole, and the join narrows it"
+    assert stores.steps == [], "a table other than the main table is read whole, and the join narrows it"
     assert fresh_ns["INSPIRE_RUN_LOG"]["reads"] == {"main.sales.orders": {"where": "CAST(`Region` AS STRING) IN ('EMEA', 'APAC')", "limit": None},
                                                     "main.sales.stores": {"where": "", "limit": None}}
     fresh_ns["INSPIRE_SCOPE"] = {"scope": "recent", "table": ORDERS, "column": "order_date", "since": "2026-10-02"}
