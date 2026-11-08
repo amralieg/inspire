@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { chromium } from 'playwright';
-import { DECIDE, FILTERS, PERSON, TABLE, appInfo, openApp, prefsFirst, serveDist, toastSays, until } from './harness.mjs';
+import { DECIDE, FILTERS, OWN_STATUSES, PERSON, TABLE, appInfo, openApp, prefsFirst, serveDist, toastSays, until } from './harness.mjs';
 import { canonicalHash, fixThis, parseHash, sectionHash, staleSection, tabCount } from '../src/links.js';
 import { switcherMatches } from '../src/hub.js';
 import { MY_KEY } from '../src/prefs.js';
@@ -35,9 +35,10 @@ const CATEGORIES = { ai_cat_driver: { meaning: 'why the item is on the list', va
 const HUB = { today: '2026-10-24', quarter: '2026-10-01', since: '2026-08-03', errors: {}, pages: { n01_u05: TRACKED } };
 const SUMMARY = { run: { summary: null, nothing_to_act: null, decision_basis: 'measured', currency: 'USD', as_of_date: '2026-10-20' }, categories: CATEGORIES, note: '' };
 const TIER_FILTERS = { ...FILTERS, columns: { list: [{ column: 'priority_tier', label: 'Priority', type: 'multi_select', options: ['Act now', 'Review', 'Monitor'] }] } };
-const COUNTS = { statuses: { New: 7, 'In progress': 3, Done: 4, Dismissed: 1, 'Could not fix': 0 }, mine: 2, all: 15 };
+const COUNTS = { statuses: { New: 7, 'In progress': 3, Done: 4, Dismissed: 1, 'Could not fix': 0 },
+  choices: { new: 7, 'in-progress': 3, done: 4, 'not-an-issue': 1, 'could-not-fix': 0 }, open: 10, mine: 2, all: 15 };
 
-function trackedRoutes(extra = {}) {
+function trackedRoutes(extra = {}, counts = COUNTS) {
   return {
     overview: ({ json }) => json(200, HUB),
     summary: ({ json }) => json(200, SUMMARY),
@@ -48,7 +49,7 @@ function trackedRoutes(extra = {}) {
       const rows = [1, 2, 3].map((i) => ({ entity_id: `R00${i}`, record_key: `R00${i}`, _inspire_key: `R00${i}`, _inspire_version: String(100 + i),
         entity_label: `Item number ${i}`, priority_tier: 'Act now', rank: i, category: 'Books', recommended_action: 'Cut the standing discount to 10%' }));
       return json(200, { rows, total: rows.length, offset: 0, limit: body.limit || 25, actions: true, changes: false, summary: null, errors: {},
-        ...(body.status_counts ? { status_counts: COUNTS } : {}) });
+        ...(body.status_counts ? { status_counts: counts } : {}) });
     },
     ...extra,
   };
@@ -99,7 +100,7 @@ test('Fix this narrows Work to the shown tiers and the reason, sorts by money wh
   const list = [{ column: 'priority_tier', type: 'multi_select', options: ['Act now', 'Review', 'Monitor'] }];
   const state = { range: { run_date: '12m' }, sel: {} };
   const plain = fixThis(page, list, state, { owner: 'all', show: 'act' }, {});
-  assert.equal(plain.tab, 'new');
+  assert.equal(plain.tab, 'open');
   assert.deepEqual(plain.state.range, state.range, 'the page filters stay');
   assert.ok(JSON.stringify(plain.state.columns).includes('Act now'), 'the tier filter is set to the tiers the tiles count');
   assert.ok(!JSON.stringify(plain.state.columns).includes('Monitor'), 'a tier the tiles do not count stays out');
@@ -122,6 +123,7 @@ test('the switcher finds a use case by any of its words, and tab counts read the
   assert.deepEqual(switcherMatches(pages, 'finance invoices').map((p) => p.id), ['p2']);
   assert.deepEqual(switcherMatches(pages, 'price finance'), [], 'every word must match');
   assert.equal(tabCount(null, 'new'), null);
+  assert.equal(tabCount(COUNTS, 'open'), 10);
   assert.equal(tabCount(COUNTS, 'new'), 7);
   assert.equal(tabCount(COUNTS, 'not-an-issue'), 1);
   assert.equal(tabCount(COUNTS, 'could-not-fix'), 0);
@@ -187,30 +189,51 @@ test('old record, My work and Impact links open their new sections in the browse
 
 test('Work shows status tabs with their counts, each tab asks for its status, and Mine and All ask for no status', async () => {
   const { page, seen, context } = await openApp(browser, served.base, appInfo(DECIDE, 1, TABLE), { hash: '#/n01_u05/work', routes: trackedRoutes(), ready: '[data-tab]' });
-  await page.waitForFunction(() => document.querySelector('[data-tab="new"] [data-count]')?.textContent === '7');
+  await page.waitForFunction(() => document.querySelector('[data-tab="open"] [data-count]')?.textContent === '10');
   assert.deepEqual(await page.locator('[data-tab]').evaluateAll((tabs) => tabs.map((t) => [t.dataset.tab, t.querySelector('[data-count]')?.textContent || '',
-    t.getAttribute('aria-selected')])), [['new', '7', 'true'], ['in-progress', '3', 'false'], ['done', '4', 'false'], ['not-an-issue', '1', 'false'],
-    ['could-not-fix', '0', 'false'], ['mine', '2', 'false'], ['all', '15', 'false']]);
+    t.getAttribute('aria-selected')])), [['open', '10', 'true'], ['new', '7', 'false'], ['in-progress', '3', 'false'], ['done', '4', 'false'],
+    ['not-an-issue', '1', 'false'], ['could-not-fix', '0', 'false'], ['mine', '2', 'false'], ['all', '15', 'false']]);
   const last = () => seen.records.at(-1);
-  assert.deepEqual(last().column_filters, { action_status: ['New'] });
+  assert.deepEqual(last().column_filters, { action_status: ['New', 'In progress'] });
+  assert.equal(last().choice, undefined);
   assert.equal(last().status_counts, true);
   assert.equal(last().mine, false);
   await page.locator('[data-tab="done"]').click();
   await page.waitForFunction(() => window.location.hash.includes('tab=done'));
-  await until(() => last().column_filters?.action_status?.[0] === 'Done');
+  await until(() => last().choice === 'done' && !last().column_filters?.action_status);
   await page.locator('[data-tab="mine"]').click();
-  await until(() => last().mine === true && !last().column_filters?.action_status);
+  await until(() => last().mine === true && !last().column_filters?.action_status && !last().choice);
   await page.locator('[data-tab="all"]').click();
-  await until(() => last().mine === false && !last().column_filters?.action_status);
+  await until(() => last().mine === false && !last().column_filters?.action_status && !last().choice);
   assert.equal(await page.locator('[data-tab="all"]').getAttribute('aria-selected'), 'true');
   assert.deepEqual(seen.errors, []);
   await context.close();
 });
 
-test('Fix this on the To fix tile and on a reason bar opens Work on the New tab with the tiers and the reason picked', async () => {
+test('a page with its own statuses gets one Work tab per choice with its count, and each tab asks for its choice', async () => {
+  const counts = { statuses: { New: 2, 'In progress': 1, Done: 5, Dismissed: 1, 'Could not fix': 0 },
+    choices: { reprice: 1, keep: 3, drop: 2, wrong: 1 }, open: 3, mine: 1, all: 9 };
+  const { page, seen, context } = await openApp(browser, served.base, appInfo(DECIDE, 1, OWN_STATUSES),
+    { hash: '#/n01_u05/work', routes: trackedRoutes({}, counts), ready: '[data-tab]' });
+  await page.waitForFunction(() => document.querySelector('[data-tab="open"] [data-count]')?.textContent === '3');
+  assert.deepEqual(await page.locator('[data-tab]').evaluateAll((tabs) => tabs.map((t) => [t.dataset.tab, t.querySelector('[data-count]')?.textContent || ''])),
+    [['open', '3'], ['reprice', '1'], ['keep', '3'], ['drop', '2'], ['wrong', '1'], ['mine', '1'], ['all', '9']]);
+  assert.match(await page.locator('[data-tab="keep"]').innerText(), /Keep the price/);
+  const last = () => seen.records.at(-1);
+  assert.deepEqual(last().column_filters, { action_status: ['New', 'In progress'] });
+  await page.locator('[data-tab="keep"]').click();
+  await page.waitForFunction(() => window.location.hash.includes('tab=keep'));
+  await until(() => last().choice === 'keep' && !last().column_filters?.action_status);
+  await page.locator('[data-tab="wrong"]').click();
+  await until(() => last().choice === 'wrong');
+  assert.deepEqual(seen.errors, []);
+  await context.close();
+});
+
+test('Fix this on the To fix tile and on a reason bar opens Work on the Open tab with the tiers and the reason picked', async () => {
   const { page, seen, context } = await openApp(browser, served.base, appInfo(DECIDE, 1, TABLE), { routes: trackedRoutes(), ready: '[data-fix]' });
   await page.locator('[data-fix="fix"]').click();
-  await page.waitForFunction(() => window.location.hash.startsWith('#/n01_u05/work') && window.location.hash.includes('tab=new'));
+  await page.waitForFunction(() => window.location.hash.startsWith('#/n01_u05/work') && window.location.hash.includes('tab=open'));
   await until(() => JSON.stringify(seen.records.at(-1)?.column_filters || {}).includes('Act now'));
   assert.equal(seen.records.at(-1).column_filters.action_status[0], 'New');
   await page.locator('[data-rail="dashboard"]').click();

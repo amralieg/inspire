@@ -167,7 +167,7 @@ test('acting on picked records sends the contract act and snooze bodies, and Und
   await waitList(page);
   await page.getByRole('checkbox', { name: `Select ${label(1)}` }).check();
   await page.getByRole('button', { name: 'Set status…' }).click();
-  await page.locator('select[name="bulk_status"]').selectOption(C.act_keys.request.body.values.action_status);
+  await page.locator('select[name="bulk_choice"]').selectOption(C.act_keys.request.body.values.action_status);
   await page.locator('textarea[name="bulk_note"]').fill(C.act_keys.request.body.values.note);
   await page.getByRole('button', { name: 'Set status of 1 record' }).click();
   await until(() => asked.acts.length === 1);

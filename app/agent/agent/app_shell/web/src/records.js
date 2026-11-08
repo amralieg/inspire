@@ -8,10 +8,41 @@ const STAMP = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric',
 export const SOURCES = { run: 'Written by the job', edit: 'Edited', add: 'Added', delete: 'Deleted', action: 'Action recorded' };
 export const ACTION_LABELS = { action_owner: 'Owner', action_status: 'Status', action_due: 'Due', action_note: 'Note', dismiss_reason: 'Why it is wrong',
   action_outcome: 'Outcome', realized_note: 'How you know' };
-export const STATUSES = ['New', 'In progress', 'Done', 'Dismissed', 'Could not fix'];
-export const STATUS_LABELS = { Dismissed: 'Not an issue' };
+export const NEW = 'New';
+export const IN_PROGRESS = 'In progress';
+export const DONE = 'Done';
+export const DISMISSED = 'Dismissed';
+export const COULD_NOT = 'Could not fix';
+export const STATUS_KINDS = { [NEW]: 'open', [IN_PROGRESS]: 'open', [DONE]: 'done', [DISMISSED]: 'dismissed', [COULD_NOT]: 'could_not' };
+export const STATUSES = Object.keys(STATUS_KINDS);
+export const statusesOf = (...kinds) => STATUSES.filter((s) => kinds.includes(STATUS_KINDS[s]));
+export const statusKind = (status) => STATUS_KINDS[status || NEW] || '';
+export const STATUS_LABELS = { [DISMISSED]: 'Not an issue' };
 export const statusLabel = (status) => STATUS_LABELS[status] || status;
-export const CLOSED_STATUSES = ['Done', 'Dismissed', 'Could not fix'];
+export const OPEN_STATUSES = statusesOf('open');
+export const CLOSED_STATUSES = STATUSES.filter((s) => !OPEN_STATUSES.includes(s));
+export const isOpenStatus = (status) => OPEN_STATUSES.includes(status || NEW);
+export const CHOICE_COLUMN = 'action_choice';
+export const choiceId = (label) => String(label).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+export const DEFAULT_CHOICES = STATUSES.map((s) => ({ id: choiceId(statusLabel(s)), label: statusLabel(s), status: s }));
+export const pageChoices = (app, pageId) => statusChoices((app?.pages || []).find((p) => p.id === pageId));
+export const statusChoices = (page) => (Array.isArray(page?.statuses) && page.statuses.length ? page.statuses : DEFAULT_CHOICES);
+export function choiceOf(choices, status, id) {
+  const same = (choices || []).filter((c) => c.status === (status || NEW));
+  return same.find((c) => c.id === id) || (same.length === 1 ? same[0] : null);
+}
+export const rowChoice = (choices, row) => choiceOf(choices, row?._inspire_status || row?.action_status, row?._inspire_choice ?? row?.[CHOICE_COLUMN]);
+export const choiceLabel = (choices, row) => rowChoice(choices, row)?.label || statusLabel(row?._inspire_status || row?.action_status || NEW);
+export const closingChoices = (choices) => (choices || []).filter((c) => !isOpenStatus(c.status));
+export const QUICK_CLOSE = { done: ['Mark done', 'done'], dismissed: ['Not an issue', 'dismiss'], could_not: ['Could not fix', 'could-not-fix'] };
+export const writesChoice = (choices) => !(choices?.length === DEFAULT_CHOICES.length && choices.every(isDefaultChoice));
+export function choiceValues(choice, detail = '', choices = [choice]) {
+  const custom = writesChoice(choices);
+  const said = !custom ? detail : detail ? `${choice.label}: ${detail}` : choice.label;
+  const base = { action_status: choice.status, ...(custom ? { [CHOICE_COLUMN]: choice.id } : {}) };
+  if (statusKind(choice.status) === 'dismissed') return { ...base, dismiss_reason: said };
+  return said ? { ...base, note: said } : base;
+}
 export const canDecide = (app, list) => !!(app?.options?.decisions && list?.actions);
 export const pageDecides = (page) => !!page?.records && page?.layout?.decides !== false;
 export const NO_DECISIONS = 'This App does not record decisions, so this list shows its suggestions only.';
@@ -32,7 +63,6 @@ export const NOTE_CHARS = 500;
 const AMOUNT = /^\d+(\.\d+)?$/;
 export const UNEXPLAINED = 'Not explained yet';
 export const CONFIDENCE_LEVELS = ['High', 'Medium', 'Low'];
-const OPEN_STATUSES = ['New', 'In progress'];
 const EXPLAIN_FIELDS = 40;
 const EXPLAIN_VERSIONS = 10;
 const EXPLAIN_FACTS = 1000;
@@ -71,14 +101,17 @@ const VIEW_KEYS = ['ai', 'search', 'mine', 'changed', 'column_filters', 'window'
 const WINDOW_KEYS = ['window', 'window_limit', 'time_zone'];
 
 export const withoutWindow = (body) => Object.fromEntries(Object.entries(body).filter(([k]) => !WINDOW_KEYS.includes(k)));
-const STATUS_WORDS = { Done: 'marked done', Dismissed: 'marked as not an issue', 'Could not fix': 'marked as could not fix' };
+const KIND_WORDS = { done: 'marked done', dismissed: 'marked as not an issue', could_not: 'marked as could not fix' };
+export const isDefaultChoice = (choice) => !!choice && DEFAULT_CHOICES.some((d) => d.id === choice.id && d.label === choice.label && d.status === choice.status);
 const howMany = (v) => (Array.isArray(v) ? v.length : countOf(v));
 
 export const recordsText = (n) => `${count(n)} ${n === 1 ? 'record' : 'records'}`;
 
-export function changeWords(values) {
+export function changeWords(values, choices = DEFAULT_CHOICES) {
   const parts = [];
-  if (values?.action_status) parts.push(STATUS_WORDS[values.action_status] || `set to ${statusLabel(values.action_status)}`);
+  const choice = values?.action_status ? choiceOf(choices, values.action_status, values[CHOICE_COLUMN]) : null;
+  if (choice && !isDefaultChoice(choice)) parts.push(`marked ${choice.label}`);
+  else if (values?.action_status) parts.push(KIND_WORDS[statusKind(values.action_status)] || `set to ${statusLabel(values.action_status)}`);
   if (values?.action_owner != null) parts.push(values.action_owner ? `given to ${values.action_owner}` : 'given to nobody');
   if (values?.snooze_until) parts.push(`snoozed until ${dayLabel(values.snooze_until)}`);
   if (values?.action_due) parts.push(`due ${dayLabel(values.action_due)}`);
@@ -153,17 +186,17 @@ export function byWords(by) {
   return (Array.isArray(by) ? by : []).filter((b) => b && (b.label || b.filter)).map((b) => `${String(b.label || b.filter)} ${plainText(b.value)}`.trim()).join(', ');
 }
 
-export function batchText(batch) {
+export function batchText(batch, choices = DEFAULT_CHOICES) {
   const who = String(batch?.editor || '').trim() || 'someone';
   const note = String(batch?.note || '').trim();
   const n = recordsText(countOf(batch?.count));
-  const did = batch?.undoes ? `undid an earlier change on ${n}` : `${n} ${changeWords(batch?.values)}`;
+  const did = batch?.undoes ? `undid an earlier change on ${n}` : `${n} ${changeWords(batch?.values, choices)}`;
   return `${whenText(batch?.at)}, ${who}: ${did}${note ? `. Note: ${note}` : ''}`;
 }
 
 export const asOfText = (us) => (Number(us) > 0 ? whenText(new Date(Math.floor(Number(us) / 1000)).toISOString()) : '');
 
-export const isOverdue = (due, status, today) => !!due && String(due).slice(0, 10) < today && OPEN_STATUSES.includes(status || 'New');
+export const isOverdue = (due, status, today) => !!due && String(due).slice(0, 10) < today && isOpenStatus(status);
 
 export function overdueFirst(rows, today) {
   const late = rows.filter((r) => isOverdue(r._inspire_due, r._inspire_status, today));
@@ -184,42 +217,52 @@ export function changeBadge(row) {
   return null;
 }
 
-export function actionForm(current, person) {
-  return { owner: current?.action_owner || person || '', status: current?.action_status || 'New', due: String(current?.action_due || '').slice(0, 10),
+export function actionForm(current, person, choices = DEFAULT_CHOICES) {
+  const status = current?.action_status || NEW;
+  return { owner: current?.action_owner || person || '', status, choice: choiceOf(choices, status, current?.[CHOICE_COLUMN])?.id || '', due: String(current?.action_due || '').slice(0, 10),
     note: current?.action_note || '', reason: current?.dismiss_reason || '', saved: current?.realized_value == null ? '' : String(current.realized_value),
     how: current?.realized_note || '' };
 }
 
 const sameAmount = (text, stored) => (text === '' ? stored == null || stored === '' : stored != null && stored !== '' && Number(text) === Number(stored));
 
-export function actionValues(current, form) {
+export function pickChoice(form, choices, id) {
+  const choice = (choices || []).find((c) => c.id === id);
+  return choice ? { ...form, choice: choice.id, status: choice.status } : form;
+}
+
+export function actionValues(current, form, choices = DEFAULT_CHOICES) {
   const was = (name) => String(current?.[name] ?? '').trim();
   const out = {};
   if (form.owner.trim() !== was('action_owner')) out.action_owner = form.owner.trim();
   if (form.status !== was('action_status')) out.action_status = form.status;
+  const before = choiceOf(choices, current?.action_status || NEW, current?.[CHOICE_COLUMN])?.id || '';
+  const chosen = choiceOf(choices, form.status, form.choice)?.id || '';
+  if (chosen && chosen !== before) out.action_status = form.status;
   if (form.due !== was('action_due').slice(0, 10)) out.action_due = form.due;
   if (form.note.trim() !== was('action_note')) out.action_note = form.note.trim();
-  if (form.status === 'Dismissed' && (out.action_status || form.reason.trim() !== was('dismiss_reason'))) {
-    out.action_status = 'Dismissed';
+  if (statusKind(form.status) === 'dismissed' && (out.action_status || form.reason.trim() !== was('dismiss_reason'))) {
+    out.action_status = form.status;
     out.dismiss_reason = form.reason.trim();
   }
   const saved = String(form.saved ?? '').trim();
   const how = String(form.how ?? '').trim();
-  if (form.status === 'Done' && (!sameAmount(saved, current?.realized_value) || how !== was('realized_note'))) {
-    out.action_status = 'Done';
+  if (statusKind(form.status) === 'done' && (!sameAmount(saved, current?.realized_value) || how !== was('realized_note'))) {
+    out.action_status = form.status;
     out.realized_value = saved === '' ? null : Number(saved);
     out.realized_note = how;
   }
+  if (out.action_status && chosen && writesChoice(choices)) out[CHOICE_COLUMN] = chosen;
   return out;
 }
 
 export function actionProblem(form, unit = '', kind = '') {
-  if (form.status === 'Done') {
+  if (statusKind(form.status) === 'done') {
     const saved = String(form.saved ?? '').trim();
     if (saved && !AMOUNT.test(saved)) return `Enter the ${savedWords(unit, kind)} as a number, 0 or more`;
     return String(form.how ?? '').trim().length > NOTE_CHARS ? `Keep how you know to ${NOTE_CHARS} characters` : '';
   }
-  if (form.status !== 'Dismissed') return '';
+  if (statusKind(form.status) !== 'dismissed') return '';
   if (!form.reason.trim()) return 'Say why it is not an issue';
   return form.reason.trim().length > REASON_CHARS ? `Keep the reason to ${REASON_CHARS} characters` : '';
 }
@@ -314,12 +357,20 @@ export function initials(who) {
 export function dueText(due, status, today = new Date().toISOString().slice(0, 10)) {
   const day = String(due ?? '').slice(0, 10);
   if (!day) return null;
-  return { text: `Due ${dayLabel(day)}`, late: day < today && OPEN_STATUSES.includes(status || 'New') };
+  return { text: `Due ${dayLabel(day)}`, late: day < today && isOpenStatus(status) };
 }
 
-export function doneText(current, currency = '', kind = '') {
+export function doneText(current, currency = '', kind = '', choices = DEFAULT_CHOICES) {
   const outcome = String(current?.action_outcome ?? '').trim();
-  if (current?.action_status === 'Done') {
+  const choice = choiceOf(choices, current?.action_status, current?.[CHOICE_COLUMN]);
+  const marked = choice && !isDefaultChoice(choice) ? `Marked ${choice.label}` : '';
+  const text = doneWords(current, currency, kind, outcome);
+  return marked && text ? text.replace(/^Marked (done|as not an issue|as could not fix)/, marked) : text;
+}
+
+function doneWords(current, currency, kind, outcome) {
+  const status = statusKind(current?.action_status);
+  if (status === 'done') {
     const amount = current.realized_value;
     const reported = !isAmount(amount) ? ''
       : ` People reported it ${savedVerb(currency, kind)} ${savingText(amount, currency, kind)}${String(current.realized_note ?? '').trim() ? `: ${String(current.realized_note).trim()}` : ''}.`;
@@ -327,12 +378,12 @@ export function doneText(current, currency = '', kind = '') {
     if (outcome === 'Still flagged') return `Marked done, but a later run still flags it.${reported}`;
     return (outcome ? `Marked done. A later run says: ${outcome}` : 'Marked done. The next run checks whether it worked.') + reported;
   }
-  if (current?.action_status === 'Could not fix') {
+  if (status === 'could_not') {
     if (outcome === 'Resolved') return 'Marked as could not fix. A later run found it resolved anyway.';
     if (outcome === 'Still flagged') return 'Marked as could not fix. A later run still flags it.';
     return 'Marked as could not fix. The next run still checks it.';
   }
-  if (current?.action_status === 'Dismissed') {
+  if (status === 'dismissed') {
     const reason = String(current.dismiss_reason ?? '').trim();
     return reason ? `Marked as not an issue. Reason: ${reason}` : 'Marked as not an issue.';
   }
@@ -484,11 +535,11 @@ export const UNDO_THEIRS = 'Only the person who made this change or an owner of 
 
 export const UNDO_CLOSE = 'Undo puts back every record this change touched, as they were before it, and keeps both versions in their history.';
 
-export const isClosed = (row) => CLOSED_STATUSES.includes(row?._inspire_status);
+export const isClosed = (row) => CLOSED_STATUSES.includes(row?._inspire_status || row?.action_status);
 
-export const ACCEPTED = { action_status: 'In progress', note: 'Accepted the suggested action' };
+export const ACCEPTED = { action_status: IN_PROGRESS, note: 'Accepted the suggested action' };
 export const suggestionOf = (meta, row) => (meta?.action ? plainText(row?.[meta.action]).trim() : '');
-export const acceptable = (meta, row) => !!suggestionOf(meta, row) && !!row?._inspire_version && (row._inspire_status || 'New') === 'New';
+export const acceptable = (meta, row) => !!suggestionOf(meta, row) && !!row?._inspire_version && (row._inspire_status || NEW) === NEW;
 export function acceptedText(n, left = 0) {
   const kept = left ? ` Left ${recordsText(left)} as they are: no suggested action, or already started or closed.` : '';
   return n ? `Accepted the suggested action on ${recordsText(n)}.${kept}` : `None of the selected records has a suggested action to accept.${kept}`;

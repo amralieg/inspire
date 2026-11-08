@@ -14,17 +14,17 @@ from v142_scd_test import (CORE, FACTS_LINE, HISTORY, LAYOUT_LINE, LOGGED, NOW, 
                            _Tables)
 import shell_sql
 
-ACTIONS = [("action_owner", "string"), ("action_status", "string"), ("action_due", "date"), ("action_note", "string"),
-           ("dismiss_reason", "string"), ("action_outcome", "string"), ("realized_value", "double"), ("realized_note", "string"),
+ACTIONS = [("action_owner", "string"), ("action_status", "string"), ("action_choice", "string"), ("action_due", "date"),
+           ("action_note", "string"), ("dismiss_reason", "string"), ("action_outcome", "string"), ("realized_value", "double"), ("realized_note", "string"),
            ("snooze_until", "date"), ("action_batch", "string"), ("action_batch_note", "string"), ("action_batch_values", "string"),
            ("joined_at", "timestamp")]
-ACTION_LIST = ("action_owner, action_status, action_due, action_note, dismiss_reason, action_outcome, realized_value, realized_note, "
+ACTION_LIST = ("action_owner, action_status, action_choice, action_due, action_note, dismiss_reason, action_outcome, realized_value, realized_note, "
                "snooze_until, action_batch, action_batch_note, action_batch_values, joined_at")
 REPLACEABLE = "change_source IN ('run', 'action')"
 UNEDITED = " AND NOT COALESCE({a}.edited_by_person, FALSE)"
 LATEST = (f"FROM {QUOTED} AS r WHERE r.use_case_id = 'N01-U01' QUALIFY ROW_NUMBER() OVER (PARTITION BY r.record_key ORDER BY "
           "r.is_current DESC, r.valid_from DESC) = 1")
-CARRIED_VALUES = ("u.`action_owner`, u.`action_status`, u.`action_due`, u.`action_note`, u.`dismiss_reason`, CASE WHEN "
+CARRIED_VALUES = ("u.`action_owner`, u.`action_status`, u.`action_choice`, u.`action_due`, u.`action_note`, u.`dismiss_reason`, CASE WHEN "
                   "u.`action_status` IN ('Done', 'Could not fix') AND u.`priority_tier` IN ('Act now', 'Review') THEN 'Still flagged' "
                   "WHEN u.`action_status` IN ('Done', 'Could not fix') THEN 'Resolved' ELSE u.`action_outcome` END, u.`realized_value`, "
                   "u.`realized_note`, u.`snooze_until`, CAST(NULL AS STRING), CAST(NULL AS STRING), CAST(NULL AS STRING), CASE WHEN "
@@ -65,12 +65,12 @@ def test_every_new_run_version_carries_the_actions_from_the_record_s_latest_vers
     _tables, sql, _printed = _merge(agent_ns)
     assert sql.count(LATEST) == 1, "the record's latest version is read once, for the comparison and for the new version"
     assert f"FROM {QUOTED_STAGE} AS s LEFT JOIN (SELECT * {LATEST}) AS p ON p.record_key = CAST(s.`entity_id` AS STRING)" in sql
-    assert ("p.`action_owner`, p.`action_status`, p.`action_due`, p.`action_note`, p.`dismiss_reason`, p.`action_outcome`, "
+    assert ("p.`action_owner`, p.`action_status`, p.`action_choice`, p.`action_due`, p.`action_note`, p.`dismiss_reason`, p.`action_outcome`, "
             "p.`realized_value`, p.`realized_note`, p.`snooze_until`, p.`action_batch`, p.`action_batch_note`, p.`action_batch_values`, "
             "p.`joined_at`, COALESCE(p.is_current, FALSE) AS _inspire_was_current") in sql
     insert = sql.split("WHEN NOT MATCHED THEN INSERT (", 1)[1]
     assert insert.startswith("`as_of_date`, `entity_id`, `entity_label`, `segment_or_item`, `rank`, `priority_tier`, `top_reasons`, "
-                             "`explanation`, `run_id`, `use_case_id`, `action_owner`, `action_status`, `action_due`, `action_note`, "
+                             "`explanation`, `run_id`, `use_case_id`, `action_owner`, `action_status`, `action_choice`, `action_due`, `action_note`, "
                              "`dismiss_reason`, `action_outcome`, `realized_value`, `realized_note`, `snooze_until`, `action_batch`, "
                              "`action_batch_note`, `action_batch_values`, `joined_at`, record_key, valid_from")
     assert f"u.`rank`, {DISMISSED_TIER}, u.`top_reasons`" in insert, "a dismissed record is written as Monitor"
@@ -112,7 +112,7 @@ def test_a_first_run_creates_the_action_columns_with_their_types(agent_ns):
     first = _Tables(agent_ns, target=None)
     first.run()
     create = [s for s in first.spark.statements if s.startswith("CREATE TABLE")][0]
-    assert ("s.`use_case_id`, CAST(NULL AS STRING) AS `action_owner`, CAST(NULL AS STRING) AS `action_status`, CAST(NULL AS DATE) AS "
+    assert ("s.`use_case_id`, CAST(NULL AS STRING) AS `action_owner`, CAST(NULL AS STRING) AS `action_status`, CAST(NULL AS STRING) AS `action_choice`, CAST(NULL AS DATE) AS "
             "`action_due`, CAST(NULL AS STRING) AS `action_note`, CAST(NULL AS STRING) AS `dismiss_reason`, CAST(NULL AS STRING) AS "
             "`action_outcome`, CAST(NULL AS DOUBLE) AS `realized_value`, CAST(NULL AS STRING) AS `realized_note`, CAST(NULL AS DATE) AS "
             "`snooze_until`, CAST(NULL AS STRING) AS `action_batch`, CAST(NULL AS STRING) AS `action_batch_note`, CAST(NULL AS STRING) AS "
@@ -306,7 +306,7 @@ def test_a_table_from_before_the_action_columns_gets_them_on_a_sql_engine(agent_
         spark.rows(f"ALTER TABLE {RESULT_TABLE} DROP COLUMN {name}")
     _stage(spark, 2, [("a", "Act now"), ("b", "Act now")])
     printed = _run(agent_ns, spark)
-    assert any(p.startswith("Actions: added action_owner, action_status, action_due") for p in printed)
+    assert any(p.startswith("Actions: added action_owner, action_status, action_choice, action_due") for p in printed)
     now = _current(spark)
     assert {k: (r["run_id"], r["action_status"]) for k, r in now.items()} == {"a": ("r-2", None), "b": ("r-2", None)}
 

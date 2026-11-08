@@ -1,7 +1,7 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
-import { actBody, ASK_GROUPS, TABLE, appInfo, askAudit, openApp, pageData, serveDist, toastSays, until } from './harness.mjs';
+import { actBody, ASK_GROUPS, OWN_CHOICES, TABLE, appInfo, askAudit, openApp, pageData, serveDist, toastSays, until } from './harness.mjs';
 import { closedRows, estimatedFigure, figuresOf, heldShare, holdoutOffText, holdoutView, impactTiles, measuredFigure, promisedView, reportedFigure, wrongFigure } from '../src/impact.js';
 import { actionForm, actionProblem, actionValues, doneText, statusLabel } from '../src/records.js';
 
@@ -107,6 +107,16 @@ test('promised reads the catalog business value and benefits, and each closed re
       note: 'Repriced on Monday', closed: 'Oct 6', amounts: { measured: 1100, reported: 900, closed: '2026-10-06T06:00:00.000Z' } },
     { key: 'k6', label: 'Linen trousers', outcome: 'Not an issue', state: 'The store closed', measured: '', reported: '', note: '', closed: 'Oct 5',
       amounts: { measured: null, reported: null, closed: '2026-10-05T09:00:00.000Z' } }]);
+});
+
+test('a closed record shows the choice people picked, a record with no stored choice its status, and the five statuses read as before', () => {
+  const outcomes = (records, ...rest) => closedRows({ records }, 'USD', ...rest).map((r) => r.outcome);
+  assert.deepEqual(outcomes([{ key: 'a', status: 'Done', choice: 'drop' }, { key: 'b', status: 'Done', choice: 'keep' }, { key: 'c', status: 'Dismissed', choice: 'wrong' }],
+    '', OWN_CHOICES), ['Drop the item', 'Keep the price', 'Wrong flag']);
+  assert.deepEqual(outcomes([{ key: 'a', status: 'Done' }, { key: 'b', status: 'Done', choice: null }, { key: 'c', status: 'Done', choice: 'gone' }], '', OWN_CHOICES),
+    ['Done', 'Done', 'Done'], 'a row kept before the choice column, or with a choice the page no longer has, shows its status');
+  assert.deepEqual(outcomes([{ key: 'a', status: 'Done' }, { key: 'b', status: 'Dismissed' }, { key: 'c', status: 'Could not fix', choice: null }]),
+    ['Done', 'Not an issue', 'Could not fix']);
 });
 
 test('closing a record as fixed can carry the money it saved and how you know, and only a fix does', () => {
@@ -238,7 +248,7 @@ test('the record panel closes a record as fixed, not an issue or could not fix, 
   await drawer.locator('.dr-act').waitFor();
   assert.deepEqual(await drawer.locator('.panel-f > button').allInnerTexts(), ['Mark done', 'Not an issue', 'Could not fix', 'Snooze…', 'Draft message', 'Ask Genie to fix']);
   assert.equal(await drawer.locator('input[name="realized_value"]').count(), 0, 'the amount shows only for a fix');
-  await drawer.locator('select[name="action_status"]').selectOption('Done');
+  await drawer.locator('select[name="action_choice"]').selectOption('Done');
   await drawer.locator('input[name="realized_value"]').fill('-3');
   assert.equal(await drawer.locator('.in-err').innerText(), 'Enter the money it saved as a number, 0 or more');
   assert.equal(await drawer.getByRole('button', { name: 'Save action' }).isDisabled(), true);
@@ -248,7 +258,7 @@ test('the record panel closes a record as fixed, not an issue or could not fix, 
   await until(() => calls.acts.length === 1);
   assert.deepEqual(calls.acts[0], { page: 'n01_u05', record_keys: ['R001'], values: { action_status: 'Done', realized_value: 1250, realized_note: 'Repriced the coat on Monday' },
     seen: { R001: '102' } });
-  await page.waitForFunction(() => document.querySelector('dialog.drawer select[name="action_status"]')?.value === 'New');
+  await page.waitForFunction(() => document.querySelector('dialog.drawer select[name="action_choice"]')?.value === 'new');
   await drawer.getByRole('button', { name: 'Could not fix' }).click();
   await until(() => calls.acts.length === 2);
   assert.deepEqual(calls.acts[1].values, { action_status: 'Could not fix' });
@@ -293,7 +303,7 @@ test('a table without the close amount offers the outcomes but no money field', 
   await page.locator('.cell-t').first().click();
   const drawer = page.locator('dialog.drawer');
   await drawer.locator('.dr-act').waitFor();
-  await drawer.locator('select[name="action_status"]').selectOption('Done');
+  await drawer.locator('select[name="action_choice"]').selectOption('Done');
   assert.equal(await drawer.locator('input[name="realized_value"]').count(), 0);
   assert.deepEqual(seen.errors, []);
   await context.close();

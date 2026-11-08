@@ -6,7 +6,7 @@ import { genieOn } from './genieAsk.js';
 import { hueVars } from './theme.js';
 import { compact, compareValues, countOf, integer, money, stakeName, wholeMoney } from './format.js';
 import { Icon } from './icons.jsx';
-import { NOT_IN_RUN, missingSince, statusClass, statusLabel } from './records.js';
+import { NEW, NOT_IN_RUN, missingSince, statusClass, statusLabel } from './records.js';
 import Fx from './Fx.jsx';
 import { moneyOf } from './money.js';
 import { WindowChips, useMyView } from './MyView.jsx';
@@ -94,7 +94,7 @@ function thingColumns(today, mine, genie) {
     },
     { key: 'use_case', label: 'Use case', className: 'c-uc', sortValue: (r) => r.page.title, render: (r) => <UseCaseName page={r.page} wrap /> },
     mine
-      ? { key: 'status', label: 'Status', className: 'nw c-status', sortValue: (r) => statusLabel(r.status || 'New'), render: (r) => <span className={statusClass(r.status || 'New')}>{statusLabel(r.status || 'New')}</span> }
+      ? { key: 'status', label: 'Status', className: 'nw c-status', sortValue: (r) => statusLabel(r.status || NEW), render: (r) => <span className={statusClass(r.status || NEW)}>{statusLabel(r.status || NEW)}</span> }
       : { key: 'owner', label: 'Owner', className: 'nw c-owner', sortValue: (r) => ownerName(r.owner) || 'Nobody yet', render: (r) => <Owner owner={r.owner} /> },
     {
       key: 'due', label: 'Due', date: true, className: 'nw c-due', cellClass: (r) => { const due = dueText(r.due, today); return [due.late ? 'late' : '', due.none ? 'faint' : ''].filter(Boolean).join(' '); },

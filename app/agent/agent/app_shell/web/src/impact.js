@@ -1,7 +1,7 @@
 import { cap, countOf, grouped, percentOf, stakeName, stakeNameOf, stakeWords, sumOf, wholeMoney } from './format.js';
 import { NOT_MEASURED, moneyText, plural, shortDay, totals } from './hub.js';
 import { hasUnsetTarget, placeholderWords } from './placeholders.js';
-import { NOT_IN_RUN, statusLabel } from './records.js';
+import { DEFAULT_CHOICES, NOT_IN_RUN, choiceLabel, statusKind } from './records.js';
 
 export const MIN_ARM = 5;
 export const STATES = { left: 'Left the list', missing: NOT_IN_RUN, resolved: 'No longer flagged', flagged: 'Still flagged', unchecked: 'Not checked by a run yet' };
@@ -150,9 +150,10 @@ export function measuredText(record, currency, kind = '') {
   return `${wholeMoney(record.at_close, currency, kind)} when fixed minus ${wholeMoney(record.now ?? 0, currency, kind)} now = ${wholeMoney(record.measured, currency, kind)}`;
 }
 
-export function closedRows(entry, currency, kind = '') {
+export function closedRows(entry, currency, kind = '', choices = DEFAULT_CHOICES) {
   return (entry?.records || []).map((r) => ({
-    key: r.key, label: r.label || r.key, outcome: statusLabel(r.status), state: r.status === 'Dismissed' ? (r.reason || 'No reason given') : STATES[r.state] || '',
+    key: r.key, label: r.label || r.key, outcome: choiceLabel(choices, { action_status: r.status, action_choice: r.choice }),
+    state: statusKind(r.status) === 'dismissed' ? (r.reason || 'No reason given') : STATES[r.state] || '',
     measured: measuredText(r, currency, kind), reported: r.reported == null ? '' : wholeMoney(r.reported, currency, kind), note: r.note || '', closed: shortDay(r.closed),
     amounts: { measured: r.measured ?? null, reported: r.reported ?? null, closed: r.closed ?? null },
   }));

@@ -3,7 +3,7 @@ import re
 
 IDENT = re.compile(r"^[A-Za-z_][A-Za-z0-9_]{0,62}$")
 TABLE_PART = re.compile(r"^[^`.\x00-\x1f]{1,255}$")
-FACTS_VERSION = 4
+FACTS_VERSION = 5
 FACTS_COLUMN = "run_facts"
 ACTED_SUFFIX = "_acted"
 RUN_LOG_SUFFIX = "_run_log"
@@ -13,11 +13,33 @@ CHANGES_SUFFIX = "_run_changes"
 PLANS_SUFFIX = "_plans"
 COMPANION_SUFFIXES = ("_summary", "_assumptions", RUN_LOG_SUFFIX, ACTED_SUFFIX, CLOSED_SUFFIX, CHANGES_SUFFIX, CLOSES_SUFFIX, PLANS_SUFFIX)
 FLAGGED_TIERS = ("Act now", "Review")
-OPEN_STATUSES = ("New", "In progress")
+NEW = "New"
+IN_PROGRESS = "In progress"
 DONE = "Done"
 DISMISSED = "Dismissed"
 COULD_NOT = "Could not fix"
-CLOSED_STATUSES = (DONE, DISMISSED, COULD_NOT)
+STATUS_KINDS = {NEW: "open", IN_PROGRESS: "open", DONE: "done", DISMISSED: "dismissed", COULD_NOT: "could_not"}
+STATUS_LABELS = {DISMISSED: "Not an issue"}
+ACTION_STATUSES = tuple(STATUS_KINDS)
+CHOICE_COLUMN = "action_choice"
+
+
+def statuses_of(*kinds) -> tuple:
+    return tuple(status for status, kind in STATUS_KINDS.items() if kind in kinds)
+
+
+def status_label(status) -> str:
+    return STATUS_LABELS.get(status, str(status or NEW))
+
+
+def choice_id(label: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "-", str(label).lower()).strip("-")
+
+
+OPEN_STATUSES = statuses_of("open")
+CLOSED_STATUSES = tuple(s for s in ACTION_STATUSES if s not in OPEN_STATUSES)
+MEASURED_STATUSES = statuses_of("done", "could_not")
+DEFAULT_CHOICES = tuple({"id": choice_id(status_label(s)), "label": status_label(s), "status": s} for s in ACTION_STATUSES)
 RESOLVED = "Resolved"
 STILL_FLAGGED = "Still flagged"
 MONEY_COLUMN = "value_at_stake"
@@ -31,7 +53,7 @@ BATCH_VALUES = "action_batch_values"
 BATCH_TYPES = (BATCH_COLUMN, BATCH_NOTE, BATCH_VALUES)
 UNDO_KEY = "undo"
 ACTED_COLUMNS = ("record_key", "use_case_id", "run_id", "valid_from", "valid_to", "is_current", "change_source", "changed_by",
-                 "action_status", "action_outcome", "action_owner", "action_due", "action_note", "dismiss_reason", MONEY_COLUMN,
+                 "action_status", CHOICE_COLUMN, "action_outcome", "action_owner", "action_due", "action_note", "dismiss_reason", MONEY_COLUMN,
                  KEPT_SINCE) + tuple(CLOSE_TYPES) + BATCH_TYPES
 WEIGHT = "_inspire_w"
 PEOPLE_MAX = 200
@@ -131,6 +153,7 @@ def closing_ctes(table: str, names: set, label=None, scope: str = "", history=No
     stake = stake_of(names)
     named = f"CAST({quote(label)} AS STRING)" if label and label in names else "CAST(NULL AS STRING)"
     comment = "CAST(`action_note` AS STRING)" if "action_note" in names else "CAST(NULL AS STRING)"
+    choice = f"CAST({quote(CHOICE_COLUMN)} AS STRING)" if CHOICE_COLUMN in names else "CAST(NULL AS STRING)"
     batch = (f"CAST(`{BATCH_COLUMN}` AS STRING) AS `_inspire_batch`, NULLIF(TRIM(`{BATCH_NOTE}`), '') AS `_inspire_batch_note`, "
              f"COALESCE(`{BATCH_VALUES}` LIKE '%\"{UNDO_KEY}\"%', FALSE) AS `_inspire_batch_undo`" if all(n in names for n in BATCH_TYPES) else
              "CAST(NULL AS STRING) AS `_inspire_batch`, CAST(NULL AS STRING) AS `_inspire_batch_note`, FALSE AS `_inspire_batch_undo`")
@@ -145,7 +168,7 @@ def closing_ctes(table: str, names: set, label=None, scope: str = "", history=No
     return {
         "hx": (f"SELECT `record_key`, `is_current`, `change_source`, `changed_by`, `action_status`, `action_outcome`, `valid_from`, "
                f"`valid_to`, {stake} AS `_inspire_stake`, CAST(`realized_value` AS DOUBLE) AS `_inspire_realized`, CAST(`realized_note` AS "
-               f"STRING) AS `_inspire_note`, CAST(`dismiss_reason` AS STRING) AS `_inspire_reason`, {comment} AS `_inspire_comment`, {batch}, "
+               f"STRING) AS `_inspire_note`, CAST(`dismiss_reason` AS STRING) AS `_inspire_reason`, {comment} AS `_inspire_comment`, {choice} AS `_inspire_choice`, {batch}, "
                f"{named} AS `_inspire_label`, CAST({quote(KEPT_SINCE)} AS TIMESTAMP) AS `_inspire_missing`, ROW_NUMBER() OVER (PARTITION BY `record_key` ORDER BY `valid_from` DESC) "
                f"AS `_inspire_nth`, LAG(`action_status`) OVER (PARTITION BY `record_key` ORDER BY `valid_from`) AS `_inspire_was` "
                f"FROM {versions} WHERE {within}`record_key` IN ({acted})"),
@@ -159,7 +182,7 @@ def closing_ctes(table: str, names: set, label=None, scope: str = "", history=No
                f"OVER (PARTITION BY `record_key`) AS `_inspire_closed` FROM hx"),
         "hu": f"SELECT hw.*, MAX(CASE WHEN {after} THEN `valid_from` END) OVER (PARTITION BY `record_key`) AS `_inspire_ran` FROM hw",
         "ho": (f"SELECT `record_key` AS `_inspire_k`, {last('`_inspire_label`')} AS `_inspire_label`, {last('`action_status`')} AS "
-               f"`_inspire_status`, MAX(`_inspire_closed`) AS `_inspire_closed`, {at_close('`changed_by`')} AS `_inspire_closer`, "
+               f"`_inspire_status`, {last('`_inspire_choice`')} AS `_inspire_choice`, MAX(`_inspire_closed`) AS `_inspire_closed`, {at_close('`changed_by`')} AS `_inspire_closer`, "
                f"{at_close('`_inspire_stake`')} AS `_inspire_at_close`, "
                f"{last('`_inspire_realized`')} AS `_inspire_realized`, NULLIF(TRIM({last('`_inspire_note`')}), '') AS `_inspire_note`, "
                f"NULLIF(TRIM({last('`_inspire_reason`')}), '') AS `_inspire_reason`, CASE WHEN {gone} THEN 'left' WHEN {absent} THEN "
@@ -178,7 +201,8 @@ def closing_ctes(table: str, names: set, label=None, scope: str = "", history=No
 
 CLOSING_ORDER = ("avd", "hx", "hw", "hu", "ho", "hmd", "hm")
 CHANGED_ACTED = "SELECT * FROM av WHERE `record_key` IN (SELECT `_q_key` FROM qk)"
-CLOSED_COLUMNS = (("_inspire_k", "STRING"), ("_inspire_label", "STRING"), ("_inspire_status", "STRING"), ("_inspire_closed", "TIMESTAMP"),
+CLOSED_COLUMNS = (("_inspire_k", "STRING"), ("_inspire_label", "STRING"), ("_inspire_status", "STRING"), ("_inspire_choice", "STRING"),
+                  ("_inspire_closed", "TIMESTAMP"),
                   ("_inspire_closer", "STRING"), ("_inspire_at_close", "DOUBLE"), ("_inspire_realized", "DOUBLE"), ("_inspire_note", "STRING"), ("_inspire_reason", "STRING"),
                   ("_inspire_state", "STRING"), ("_inspire_now", "DOUBLE"), ("_inspire_seen", "TIMESTAMP"), ("_inspire_measured_ok", "INT"),
                   ("_inspire_measured", "DOUBLE"))
@@ -277,7 +301,7 @@ def estimated_cell(names: set, tier, alias: str, stake: str) -> tuple:
     if not tier or tier not in names:
         return None, None, None
     shown = f"CAST({alias}.{quote(tier)} AS STRING)"
-    opened = f" AND COALESCE({alias}.`action_status`, 'New') IN ({sql_list(OPEN_STATUSES)})" if "action_status" in names else ""
+    opened = f" AND COALESCE({alias}.`action_status`, '{NEW}') IN ({sql_list(OPEN_STATUSES)})" if "action_status" in names else ""
     counted = (f"COALESCE({alias}.`is_current` AND {alias}.`change_source` <> 'delete' AND {shown} IN ({sql_list(FLAGGED_TIERS)}){opened}, "
                f"FALSE)")
     return shown, f"CASE WHEN {counted} THEN 1 ELSE 0 END", f"CASE WHEN {counted} THEN {stake} END"
@@ -388,7 +412,7 @@ def floors_sql(rows: str, names: set, depths=FLOOR_DEPTHS) -> str:
     if MONEY_COLUMN not in names:
         return ""
     live = "c.`is_current` AND c.`change_source` <> 'delete'"
-    opened = f" AND COALESCE(c.`action_status`, 'New') IN ({sql_list(OPEN_STATUSES)})" if "action_status" in names else ""
+    opened = f" AND COALESCE(c.`action_status`, '{NEW}') IN ({sql_list(OPEN_STATUSES)})" if "action_status" in names else ""
     kept = " AND NOT COALESCE(c.`held_back`, FALSE)" if "held_back" in names else ""
     deepest, picked = max(depths), ", ".join(str(int(k)) for k in depths)
     branch = lambda name, extra: (f"SELECT '{name}' AS `set`, `n` AS `k`, `s` AS `x` FROM (SELECT `s`, ROW_NUMBER() OVER (ORDER BY `s` DESC) AS "

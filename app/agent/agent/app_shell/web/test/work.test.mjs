@@ -95,7 +95,7 @@ test('every status takes a note, a dismissal still needs its reason, and Snooze 
   };
   await pick();
   await page.getByRole('button', { name: 'Set status…' }).click();
-  await page.locator('select[name="bulk_status"]').selectOption('In progress');
+  await page.locator('select[name="bulk_choice"]').selectOption('In progress');
   await page.locator('textarea[name="bulk_note"]').fill('Called both stores');
   await page.getByRole('button', { name: 'Set status of 2 records' }).click();
   await until(() => seen.acts?.length === 1);
@@ -104,7 +104,7 @@ test('every status takes a note, a dismissal still needs its reason, and Snooze 
   await page.waitForFunction(() => !document.querySelector('.bulk'));
   await pick();
   await page.getByRole('button', { name: 'Set status…' }).click();
-  await page.locator('select[name="bulk_status"]').selectOption('Dismissed');
+  await page.locator('select[name="bulk_choice"]').selectOption('Not an issue');
   assert.equal(await page.getByRole('button', { name: 'Set status of 2 records' }).isDisabled(), true, 'a dismissal still needs its reason');
   await page.keyboard.press('Escape');
   await page.getByRole('button', { name: 'Snooze…' }).click();
@@ -149,7 +149,7 @@ test('Apply to similar shows the count and five of the records the server found,
   assert.match(await dialog.locator('header p').innerText(), /^These 12 open records share Category Books, Region South\. Nothing changes until you apply\.$/);
   assert.deepEqual(await dialog.locator('.sim li').allInnerTexts(), sample.slice(0, 5).map((s) => s.label));
   assert.equal(await dialog.locator('.sim b').innerText(), '5 of the 12');
-  assert.equal(await dialog.locator('select[name="similar_status"]').inputValue(), 'Done', 'the dialog starts from what was just applied');
+  assert.equal(await dialog.locator('select[name="similar_choice"]').inputValue(), 'done', 'the dialog starts from what was just applied');
   await page.waitForTimeout(300);
   assert.equal(seen.acts.length, 1, 'opening the preview writes nothing');
   await dialog.getByRole('button', { name: 'Cancel' }).click();
@@ -164,7 +164,7 @@ test('Apply to similar shows the count and five of the records the server found,
   await page.waitForFunction(() => [...document.querySelectorAll('.toast.is-on .toast-a button')].some((b) => b.textContent === 'Apply to 12 similar'));
   await page.locator('.toast-a').getByRole('button', { name: 'Apply to 12 similar' }).click();
   await dialog.waitFor();
-  assert.equal(await dialog.locator('select[name="similar_status"]').inputValue(), 'Could not fix');
+  assert.equal(await dialog.locator('select[name="similar_choice"]').inputValue(), 'could-not-fix');
   await dialog.locator('textarea[name="similar_note"]').fill('Same store, same supplier');
   await dialog.getByRole('button', { name: 'Apply to 12 records' }).click();
   await until(() => seen.acts?.length === 3);

@@ -86,7 +86,7 @@ RECORD_STAKE = "value_at_stake"
 NO_ACCESS = re.compile(r"INSUFFICIENT_PERMISSIONS|PERMISSION_DENIED|permission denied|TABLE_OR_VIEW_NOT_FOUND|answered HTTP 403", re.I)
 VERSION_US = re.compile(r"^\d{1,19}$")
 RECORD_KEY_CHARS = 512
-MATCH_VIEW = ("search", "mine", "changed", "ai", "column_filters", "window", "window_limit", "time_zone", "exclude")
+MATCH_VIEW = ("search", "mine", "changed", "ai", "column_filters", "window", "window_limit", "time_zone", "exclude", "choice")
 RANKED_SORT = "stake"
 BOUNDS_KEY = ("bounds", "dates")
 STALE_LIST, UNKNOWN_COPY, NO_MATCH, OVER_CAP, STALE_RECORD = "stale_list", "unknown_copy", "no_match", "over_cap", "stale_record"
@@ -283,8 +283,8 @@ def treatment_of(page: dict, data: dict, values: dict):
         raise HttpError(400, f"page {page['id']} has no segment treatments, so an action on it names none")
     if treatment not in named:
         raise HttpError(400, f"treatment must be one of this page's segment treatments: {', '.join(named)}")
-    if values.get("action_status") != "In progress":
-        raise HttpError(400, "a treatment starts work on its members, so it goes with action_status In progress")
+    if values.get("action_status") != shell_sql.IN_PROGRESS:
+        raise HttpError(400, f"a treatment starts work on its members, so it goes with action_status {shell_sql.IN_PROGRESS}")
     return treatment
 
 
@@ -1337,7 +1337,7 @@ def impact_view(rows: list) -> dict:
             "outcomes": {state: outcomes.get(state, 0) for state in (*shell_sql.GONE_STATES, "flagged", "unchecked")},
             "reasons": [{"reason": r.get("reason"), "n": whole(r.get("n"))} for r in by.get("reason", [])],
             "holdout": {arm: arms.get(arm) or {"n": 0, "hits": 0} for arm in ("shown", "held")} if arms else None,
-            "records": [{"key": r.get("k"), "label": r.get("label"), "status": r.get("status"), "state": r.get("state"),
+            "records": [{"key": r.get("k"), "label": r.get("label"), "status": r.get("status"), "choice": r.get("choice"), "state": r.get("state"),
                          "reason": r.get("reason"), "note": r.get("note"), "at_close": r.get("before"), "now": r.get("after"),
                          "measured": r.get("money"), "reported": r.get("reported"), "closed": r.get("at")} for r in by.get("record", [])]}
 
@@ -2352,7 +2352,7 @@ class Shell:
                 "window": {"window": window["window"], "limit": window.get("limit"), "shown": shown, "more": total - shown,
                            "today": window["today"]} if window else None,
                 "as_of_us": self.as_of_us(served_by(done), read_at),
-                **({"status_counts": shell_sql.status_counts_of(done[("list", "statuses")].get("rows"))
+                **({"status_counts": shell_sql.status_counts_of(done[("list", "statuses")].get("rows"), shell_sql.status_choices(page))
                     if ("list", "statuses") in done else None} if counting else {}),
                 **({"treatments": [{"segment": r.get("s"), "treatment": r.get("v"), "n": int(r.get("n") or 0)}
                                    for r in done[("list", "treatments")].get("rows") or []] if ("list", "treatments") in done else None}
@@ -2941,7 +2941,7 @@ class Shell:
                     served=result.get("served"))
 
     def changed_closing(self, ws, who, page: dict, facts, names: set):
-        if not facts or not all(n in names for n in shell_sql.ACTION_TYPES):
+        if not facts or not all(n in names for n in shell_sql.ACTION_TYPES if n != shell_sql.CHOICE_COLUMN):
             return None
         if self.page_state(ws, who, page).get("changed") == 0:
             return []
@@ -3512,7 +3512,7 @@ class Shell:
         page = self.deciding_page(data.get("page"))
         editor = self.editor(headers)
         keys, seen, match = self.act_target(data)
-        values = shell_sql.action_values(data.get("values"), self.now().date())
+        values = shell_sql.action_values(data.get("values"), self.now().date(), shell_sql.status_choices(page))
         treatment = treatment_of(page, data, values)
         request = data.get("request_id")
         if request is not None and not shell_sql.BATCH_ID.match(str(request)):
