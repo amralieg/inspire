@@ -2439,7 +2439,9 @@ export function statusReason(latest, stalled = null) {
   if (unreliable) {
     const heldAtBuild = latest?.asset_status?.[NOT_RELIABLE_RECORD];
     const appHeld = heldAtBuild && typeof heldAtBuild === 'object' && String(heldAtBuild.spec_version ?? '') === String(latest?.spec_version ?? '');
-    const app = appHeld ? 'The App is not published until a run can be trusted.' : 'Its App pages show Not reliable yet until a run can be trusted.';
+    const app = appHeld && heldAtBuild.app === UNTRUSTED_APP_PUBLISHED
+      ? `The App is published with a ${UNTRUSTED_BANNER} banner${heldAtBuild.monitor === true ? ' and every row in Monitor' : ''} until a run can be trusted.`
+      : appHeld ? 'The App is not published until a run can be trusted.' : `Its App pages show ${UNTRUSTED_BANNER} until a run can be trusted.`;
     return `The latest run marked its results not reliable: ${unreliable.replace(/[.\s]+$/, '')}. ${app} `
       + `Next step: fix what it names, then build again with ${VIBE_FEATURES_LABEL}.`;
   }
@@ -2551,6 +2553,8 @@ export const IMPLEMENT_GROUPS = [
 const NOTEBOOK_GROUP = { running: 'in_progress', ready: 'ready', failed: 'failed', requested: 'not_started' };
 
 export const NOT_RELIABLE_RECORD = 'not_reliable';
+export const UNTRUSTED_APP_PUBLISHED = 'published';
+export const UNTRUSTED_BANNER = 'Results not trusted yet';
 export const UNRELIABLE_LABEL = 'MVP built, results not trusted yet';
 
 export const UNRELIABLE_REBUILD_NOTE = 'The newest run says its results are not reliable yet. Fix what it names, then rebuild.';

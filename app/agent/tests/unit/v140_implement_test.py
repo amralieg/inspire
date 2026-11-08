@@ -1037,7 +1037,7 @@ def _flow_inspire(ns, previews):
     queue = list(previews)
     inst._implement_preview = lambda *a: queue.pop(0)
     inst.number_reports = []
-    inst._implement_cell_problems = lambda path, training_sample=False, grouping=None, sources=(): inst.number_reports.pop(0) if inst.number_reports else []
+    inst._implement_cell_problems = lambda path, training_sample=False, grouping=None, sources=(), training_read=False: inst.number_reports.pop(0) if inst.number_reports else []
     return inst
 
 

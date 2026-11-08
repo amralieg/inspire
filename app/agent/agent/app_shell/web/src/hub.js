@@ -2,7 +2,7 @@ import { addCounts, asDate, compareValues, countOf, grouped, isAmount, isMoney, 
 import { savedFormula, sumFormula } from './money.js';
 
 export const NOT_MEASURED = 'Not measured yet';
-export const NOT_RELIABLE = 'Not reliable yet';
+export const NOT_RELIABLE = 'Results not trusted yet';
 export const ACT_NOW = 'Act now';
 export const REVIEW = 'Review';
 export const DEFAULT_VIEW = { owner: 'all', show: 'fix' };

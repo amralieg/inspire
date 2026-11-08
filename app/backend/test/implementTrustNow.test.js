@@ -53,7 +53,7 @@ test('a scheduled run that turns unreliable after the build shows on the Build t
       + 'WHERE use_case_id = :uc ORDER BY updated_at DESC NULLS LAST LIMIT 1', 'the same newest summary row the App and the build hold read');
     assert.deepEqual(read.parameters, [{ name: 'uc', value: 'N01-U01', type: 'STRING' }]);
     assert.deepEqual(W.implementState(latest), { group: 'held', label: W.UNRELIABLE_LABEL, tone: 'warning', kind: 'mvp' });
-    assert.equal(W.statusReason(latest), `The latest run marked its results not reliable: ${LATER}. Its App pages show Not reliable yet until a run can be trusted. `
+    assert.equal(W.statusReason(latest), `The latest run marked its results not reliable: ${LATER}. Its App pages show Results not trusted yet until a run can be trusted. `
       + 'Next step: fix what it names, then build again with Vibe/Add/Remove Features.');
     assert.doesNotMatch(W.statusReason(latest), /not published/, 'this App was published before the run turned unreliable');
     assert.equal(rebuilt(got.made), false, 'reading the status never rebuilds');

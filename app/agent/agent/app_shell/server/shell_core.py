@@ -1032,7 +1032,8 @@ def run_tables(value):
     if items is None:
         return None
     out = [{"table": str(t["table"]).strip(), "rows": count_of(t.get("rows")), "rows_total": count_of(t.get("rows_total")),
-            "scoped": t.get("scoped") is True, "updated_at": str(t.get("updated_at") or "") or None}
+            "scoped": t.get("scoped") is True, "updated_at": str(t.get("updated_at") or "") or None,
+            **({"training_read": True, "training_rows": count_of(t.get("training_rows"))} if t.get("training_read") is True else {})}
            for t in items if isinstance(t, dict) and str(t.get("table") or "").strip()]
     return None if items and not out else out
 
@@ -1098,7 +1099,8 @@ def run_view(entry: dict, summary, page: dict) -> dict:
     scope, tables = shell_sql.run_scope(json_list(s.get("run_segments"))), run_tables(s.get("run_tables"))
     lasted = j["duration_s"] if j.get("duration_s") is not None else span_s(s.get("run_started_at"), s.get("run_ended_at"))
     return {"run_id": entry.get("run_id"), "job_run_id": j.get("run_id"), "url": j.get("url") or "",
-            "scope": scope, "scope_text": shell_sql.scope_text(scope) if scope else "", "facts": shell_sql.scope_facts(scope, tables, lasted),
+            "scope": scope, "scope_text": shell_sql.scope_text(scope) if scope else "",
+            "facts": shell_sql.scope_facts(scope, tables, lasted, count_of(s.get("preview_sample_entities"))),
             "started": j.get("started") or s.get("run_started_at") or seen_at(entry), "ended": j.get("ended") or s.get("run_ended_at"),
             "duration_s": j["duration_s"] if j.get("duration_s") is not None else span_s(s.get("run_started_at"), s.get("run_ended_at")),
             "status": status, "trigger": run_trigger(job, s), "by": j["by"] if job and j["by"] not in (BY_SCHEDULE, BY_BUILD) else "",

@@ -9,10 +9,10 @@ const why = "The best candidate's out-of-time AUC was 0.58 and this use case nee
 test('a run that is not reliable yet says so with its reason and never shows a list to fix', () => {
   const state = useCaseState(tracked, { run: { decision_basis: 'measured', not_reliable: why, nothing_to_act: why } });
   assert.deepEqual(state, { kind: 'wait', text: NOT_RELIABLE, title: NOT_RELIABLE, reason: why, unreliable: true, next: '2026-10-27' });
-  assert.equal(reliableText(state.reason), `Not reliable yet: ${why}`);
+  assert.equal(reliableText(state.reason), `Results not trusted yet: ${why}`);
   assert.equal(reliableText('  '), '');
   const empty = useCaseState({ visible: true, tracked: false, empty: true }, { run: { not_reliable: 'No usable rows were found.' } });
-  assert.equal(empty.text, 'Not reliable yet', 'a first run that stopped says why instead of waiting for results');
+  assert.equal(empty.text, 'Results not trusted yet', 'a first run that stopped says why instead of waiting for results');
   assert.equal(useCaseState({ ...tracked, runs: { ...RUNS, failed: true } }, { run: { not_reliable: why } }).kind, 'stale',
     'a failed job after it is the newer truth');
   assert.equal(useCaseState(tracked, { run: { not_reliable: '' } }).text, '1 to fix');

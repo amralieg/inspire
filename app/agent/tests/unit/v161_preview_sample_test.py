@@ -327,7 +327,7 @@ def test_the_build_round_checks_the_sample_call_only_when_no_user_directive_can_
     spec = _spec(agent_ns, **changes)
     inst = _flow_inspire(agent_ns, [({"status": "written", "rows_written": 40}, 11, 102)])
     asked = []
-    inst._implement_cell_problems = lambda path, training_sample=False, grouping=None, sources=(): asked.append(training_sample) or []
+    inst._implement_cell_problems = lambda path, training_sample=False, grouping=None, sources=(), training_read=False: asked.append(training_sample) or []
     runner = _FakeRunner([{"exit": 0, "final": _fill()}])
     use_case = {"_implement_preview_training": agent_ns["implement_preview_training_cap"](spec, trains)}
     inst._implement_fill_and_preview("N01-U01", (5150, "N01-U01", 1), use_case, spec, None, "/W/nb", ["result_table", "run_profile"],

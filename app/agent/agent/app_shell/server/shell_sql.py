@@ -5459,11 +5459,23 @@ def scope_note(latest, previous) -> str:
 SCOPE_ESTIMATE_MAX_SCALE = 10
 
 
-def scope_facts(scope, tables, duration_s) -> dict:
+def training_fact(tables, sampled) -> str:
+    if not any(isinstance(t, dict) and t.get("training_read") for t in tables or []):
+        return ""
+    trained = f"a sample of {plural(sampled, 'record')} from the full history" if sampled else "the full history"
+    return f"The model trained on {trained}; the MVP Test Run limited only the records it scored."
+
+
+def scope_facts(scope, tables, duration_s, sampled=None) -> dict:
     if not isinstance(scope, dict) or not scope.get("scope"):
         return {}
     if scope["scope"] == "all":
         return {"covered": "", "everything": ""}
+    trained = training_fact(tables, sampled)
+    return {**_scope_facts(scope, tables, duration_s), **({"trained": trained} if trained else {})}
+
+
+def _scope_facts(scope, tables, duration_s) -> dict:
     main = str(scope.get("table") or "").lower()
     entry = next((t for t in tables or [] if str(t.get("table") or "").lower() == main), None)
     read, total = (entry or {}).get("rows"), (entry or {}).get("rows_total")
