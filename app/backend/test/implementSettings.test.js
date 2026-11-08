@@ -71,7 +71,7 @@ const editOf = (config) => ({ ...BASE, based_on_version: 1, outputs: { dashboard
 
 test('the change classes and plans of a notebook built with settings are the agent fixture rows, so only a value-only change of a setting it reads skips the rebuild', () => {
   const rows = FIXTURE.cases.filter((c) => Object.hasOwn(c, 'built_settings') || c.name === 'the same widget value change on an older notebook');
-  assert.equal(rows.length, 9);
+  assert.equal(rows.length, 11);
   for (const c of rows) {
     const previous = c.previous ? I.validateImplementSpec(c.previous).spec : null;
     assert.deepEqual(I.classifyImplementChange(previous, I.validateImplementSpec(c.current).spec, c.built_settings), c.classes, c.name);

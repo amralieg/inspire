@@ -5,7 +5,8 @@ const { int64Id } = require('./int64Id');
 const { plural } = require('./plural');
 const { USE_CASE_ID_SHAPE } = require('./sqlInputs');
 const {
-  RUN_SCOPE, RUN_SCOPE_OLD_APP, customSqlProblem, customSqlProblems, recordedRunScope, runScopeDeclared, runScopeSetting,
+  FIRST_RUN_OWN_SETTING, RUN_SCOPE, RUN_SCOPE_OLD_APP, customSqlProblem, customSqlProblems, firstRunContradictions, recordedRunScope, runScopeDeclared,
+  runScopeSetting,
 } = require('../../frontend/src/lib/runScope.js');
 const {
   allowedRule, allowedText, numberText, settingProblem: implementSettingProblem, widgetProblems, widgetSetProblems, widgetValueProblem,
@@ -17,6 +18,7 @@ const { isAppUpdate, liveAppVersion, rowKeyOf } = require('../../frontend/src/li
 const IMPLEMENT_OPERATION = 'Implement Use Cases';
 const IMPLEMENT_TABLE = '__inspire_implement';
 const IMPLEMENT_UNINSTALLED = 'uninstalled';
+const FIRST_RUN_CARRIED = 'The version before this one already saved this, so Inspire builds on its MVP Test Run choice: ';
 const IMPLEMENT_VIBE_NOT_MET = 'vibe_not_met';
 const IMPLEMENT_STATUSES = ['queued', 'filling', 'previewing', 'building_outputs', 'checking', 'ready', 'ready_with_warnings', 'failed',
   IMPLEMENT_VIBE_NOT_MET, IMPLEMENT_UNINSTALLED];
@@ -928,11 +930,21 @@ function widgetsOf(spec) {
   return isPlainObject(widgets) ? widgets : {};
 }
 
+const FIRST_RUN_OWNED = Object.values(FIRST_RUN_OWN_SETTING);
+
+function firstRunScopeIssues(history, spec) {
+  const asked = firstRunContradictions(widgetsOf(spec));
+  if (!asked.length) return { refused: [], carried: [] };
+  const row = (history || []).find((r) => r && r.spec_json);
+  const held = row ? firstRunContradictions(widgetsOf(validateImplementSpec(row.spec_json).spec)) : [];
+  return { refused: asked.filter((p) => !held.includes(p)), carried: asked.filter((p) => held.includes(p)) };
+}
+
 function implementWidgetChangeClass(previous, current, built = null) {
   const before = widgetsOf(previous);
   const after = widgetsOf(current);
   if (sortedJson(before) === sortedJson(after)) return '';
-  const removed = Object.keys(before).filter((name) => !Object.prototype.hasOwnProperty.call(after, name));
+  const removed = Object.keys(before).filter((name) => !Object.prototype.hasOwnProperty.call(after, name) && !FIRST_RUN_OWNED.includes(name));
   const changed = Object.keys(after).filter((name) => before[name] !== after[name]);
   return Array.isArray(built) && built.length && !removed.length && changed.every((name) => built.includes(name)) ? 'settings' : 'config';
 }
@@ -3401,6 +3413,8 @@ module.exports = {
   implementSettingProblem,
   customSqlProblem,
   customSqlProblems,
+  FIRST_RUN_CARRIED,
+  firstRunScopeIssues,
   implementAppSettings,
   implementAssumptionSetting,
   implementBuiltSettings,

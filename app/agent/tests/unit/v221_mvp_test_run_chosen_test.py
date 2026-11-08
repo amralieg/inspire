@@ -26,8 +26,10 @@ def _held(ns, spec, group_by="all"):
 
 def test_the_wizard_widgets_become_the_chosen_scope_and_values_it_cannot_mean_are_dropped(agent_ns):
     chosen = agent_ns["implement_scope_chosen"]
-    widgets = {"run_scope": "Groups", "scope_groups": json.dumps(JOINED), "scope_days": "14", "scope_records": 500, "group_by": "all"}
-    assert chosen(widgets) == {"run_scope": "groups", "scope_groups": json.dumps(JOINED), "scope_days": 14, "scope_records": 500}
+    widgets = {"run_scope": "Groups", "scope_groups": json.dumps(JOINED), "group_by": "all"}
+    assert chosen(widgets) == {"run_scope": "groups", "scope_groups": json.dumps(JOINED)}
+    assert chosen({"run_scope": "recent", "scope_days": "14"}) == {"run_scope": "recent", "scope_days": 14}
+    assert chosen({"run_scope": "records", "scope_records": 500}) == {"run_scope": "records", "scope_records": 500}
     assert chosen({"run_scope": "custom", "scope_groups": "  ", "scope_days": "0", "scope_records": "-3"}) == {}
     assert chosen({"run_scope": "5", "scope_days": "ten", "scope_records": True}) == {}
     assert chosen(None) == {} and chosen({}) == {}
@@ -93,3 +95,30 @@ def test_the_build_carries_the_wizard_choice_into_the_run_controls(agent_ns):
     template = agent_ns["GENIE_RUN_CONTROLS_TEMPLATE"]
     assert 'INSPIRE_SCOPE_VALUES = inspire_scope_start_values(INSPIRE_RUN.get("scope"))' in template
     assert agent_ns["inspire_scope_start_values"](first)["run_scope"] == "groups"
+
+
+def test_a_saved_choice_never_brings_in_the_setting_of_another_choice(agent_ns):
+    chosen, stale = agent_ns["implement_scope_chosen"], agent_ns["implement_scope_stale"]
+    widgets = {"run_scope": "recent", "scope_groups": json.dumps(JOINED), "scope_days": "14", "scope_records": 500}
+    assert stale(widgets) == ["scope_groups", "scope_records"]
+    assert chosen(widgets) == {"run_scope": "recent", "scope_days": 14}
+    assert chosen({"run_scope": "groups", "scope_groups": json.dumps(JOINED), "scope_days": "14"}) == {"run_scope": "groups", "scope_groups": json.dumps(JOINED)}
+    assert chosen({"scope_groups": json.dumps(JOINED), "scope_records": 500}) == {}, "with no choice, no choice setting is baked in"
+    for ok in ({"run_scope": "groups", "scope_groups": json.dumps(JOINED)}, {"run_scope": "recent", "scope_days": "14"},
+               {"run_scope": "records", "scope_records": 500}, {"run_scope": "all"}, {"run_scope": "custom", "scope_days": "3"}, {}, None):
+        assert stale(ok) == [], ok
+    spec = dict(SPEC, chosen=chosen(widgets))
+    picked = agent_ns["inspire_scope_choice"](scope=_held(agent_ns, spec), out=lambda *_a: None)
+    assert picked["scope"] == "recent" and picked["days"] == 14 and "groups" not in picked
+
+
+def test_genie_is_never_told_the_setting_of_a_choice_the_spec_did_not_pick(agent_ns):
+    spec = {"use_case_id": "N01-U01", "config": {"widgets": {"run_scope": "recent", "scope_days": "14", "scope_groups": json.dumps(JOINED),
+                                                            "act_now_share": "0.1"}}}
+    text = "\n".join(agent_ns["_implement_choice_lines"](spec))
+    assert "Default of widget `run_scope`: `recent`" in text and "Default of widget `scope_days`: `14`" in text
+    assert "Default of widget `act_now_share`: `0.1`" in text
+    assert "scope_groups" not in text and "autopay_enrolled" not in text
+    source = agent_source()
+    flow = source.index('stale_scope = implement_scope_stale(spec["config"].get("widgets"))')
+    assert "[MVP-TEST-RUN-STALE FIRED]" in source[flow:flow + 600]

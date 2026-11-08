@@ -1022,6 +1022,8 @@ function registerImplementRoutes(app, deps) {
     const { sid, warehouseId, inspire_database, catalog, schema, raw, history, legacyAccess, asked } = await askedSpec(req);
     const changed = I.publishHeldDifference(history, asked, legacyAccess);
     if (changed) throw I.badRequest(changed, 409);
+    const scopeIssues = I.firstRunScopeIssues(history, asked);
+    if (scopeIssues.refused.length) throw I.badRequest(scopeIssues.refused.join('; '));
     const { spec: kept, warning: asksWarning } = withoutSkippedVibes(I.rollbackSpec(history, asked));
     const rolled = I.withVibePreviousDefault(history, kept);
     const useCaseId = I.validateUseCaseId(rolled.use_case_id);
@@ -1062,7 +1064,7 @@ function registerImplementRoutes(app, deps) {
     if (tables.change) plan.summary.table_change = tables.change;
     if (tables.error) plan.summary.table_change_error = tables.error;
     if (plan.summary.refill || (tables.change && tables.change.class === 'settings')) await refuseMissingSources(req, warehouseId, spec, useCase);
-    const warnings = [asksWarning, ...readWarnings, empty].filter(Boolean);
+    const warnings = [asksWarning, ...readWarnings, empty, ...scopeIssues.carried.map((p) => `${I.FIRST_RUN_CARRIED}${p}.`)].filter(Boolean);
     return { sid, warehouseId, inspire_database, catalog, schema, spec: plan.spec, useCaseId, useCase, session, history, plan, person, warnings };
   }
 

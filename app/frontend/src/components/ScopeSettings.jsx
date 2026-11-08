@@ -189,8 +189,9 @@ function FirstRunPart({ values, onChange, profile, groupsState, settings, editab
   const saved = firstRunChoiceOf(values);
   const [mode, setMode] = useState(saved);
   const current = (mode === 'one' || mode === 'groups') && values[RUN_SCOPE] === 'groups' ? mode : saved;
+  const waiting = (c) => Boolean(profile) && !c.available && c.id !== current && c.scope === 'groups' && groupsState === 'loading';
   const choices = firstRunChoices(profile, values, everything)
-    .filter((c) => allowed.includes(c.scope) && (c.id === current || (profile ? c.available : true)));
+    .filter((c) => allowed.includes(c.scope) && (c.id === current || (profile ? c.available : true) || waiting(c)));
   const listed = groupingGroupsOf(profile, values[GROUP_BY]);
   const groups = listed || (groupingProfiled(values, profile) ? suggestedGroups(profile) : []);
   const picked = scopeGroupsOf(values[SCOPE_GROUPS], scopeGroupsColumn(profile, values));
@@ -216,9 +217,9 @@ function FirstRunPart({ values, onChange, profile, groupsState, settings, editab
       )}
       <div className="space-y-1.5" data-choice="first-run">
         {choices.map((c) => (
-          <div key={c.id} data-first-run-choice={c.id} className={`${ROW} flex-col`}>
-            <label className={`flex items-start gap-2 ${editable ? 'cursor-pointer' : ''}`}>
-              <input type="radio" name="inspire-first-run" value={c.id} className="mt-0.5" checked={current === c.id} disabled={!editable} onChange={() => pick(c)} />
+          <div key={c.id} data-first-run-choice={c.id} data-first-run-waiting={waiting(c) ? '' : undefined} className={`${ROW} flex-col`}>
+            <label className={`flex items-start gap-2 ${editable && !waiting(c) ? 'cursor-pointer' : ''}`}>
+              <input type="radio" name="inspire-first-run" value={c.id} className="mt-0.5" checked={current === c.id} disabled={!editable || waiting(c)} onChange={() => pick(c)} />
               <span className="min-w-0">
                 <span className="font-medium">{c.label}</span>
                 {c.records != null && <span data-first-run-records="" className="text-text-secondary"> · {counted(c.records, 'record')}</span>}

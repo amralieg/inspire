@@ -3939,6 +3939,167 @@
       ]
     },
     {
+      "name": "switching the MVP Test Run choice drops the other choice's setting without a rebuild",
+      "previous": {
+        "use_case_id": "N01-U01",
+        "data": {
+          "tables": {},
+          "filters": [],
+          "run_profile": "preview",
+          "notes": ""
+        },
+        "config": {
+          "widgets": {
+            "act_now_share": "0.05",
+            "run_scope": "groups",
+            "scope_groups": "[[{\"column\":\"plan\",\"value\":\"basic\"}]]"
+          },
+          "result_table": "",
+          "ai_endpoint": "",
+          "warehouse_id": "wh1"
+        },
+        "schedule": {
+          "enabled": false,
+          "cron": "0 0 6 ? * MON",
+          "timezone": "UTC"
+        },
+        "outputs": {
+          "dashboard": true,
+          "genie_space": false,
+          "app": false,
+          "app_name": ""
+        },
+        "removed_outputs": {},
+        "sharing": {
+          "principals": []
+        }
+      },
+      "current": {
+        "use_case_id": "N01-U01",
+        "data": {
+          "tables": {},
+          "filters": [],
+          "run_profile": "preview",
+          "notes": ""
+        },
+        "config": {
+          "widgets": {
+            "act_now_share": "0.05",
+            "run_scope": "recent",
+            "scope_days": "30"
+          },
+          "result_table": "",
+          "ai_endpoint": "",
+          "warehouse_id": "wh1"
+        },
+        "schedule": {
+          "enabled": false,
+          "cron": "0 0 6 ? * MON",
+          "timezone": "UTC"
+        },
+        "outputs": {
+          "dashboard": true,
+          "genie_space": false,
+          "app": false,
+          "app_name": ""
+        },
+        "removed_outputs": {},
+        "sharing": {
+          "principals": []
+        }
+      },
+      "classes": [
+        "settings"
+      ],
+      "built_settings": [
+        "act_now_share",
+        "run_scope",
+        "scope_groups",
+        "scope_days",
+        "scope_records"
+      ]
+    },
+    {
+      "name": "removing a setting that is not an MVP Test Run setting still rebuilds",
+      "previous": {
+        "use_case_id": "N01-U01",
+        "data": {
+          "tables": {},
+          "filters": [],
+          "run_profile": "preview",
+          "notes": ""
+        },
+        "config": {
+          "widgets": {
+            "act_now_share": "0.05",
+            "run_scope": "recent",
+            "scope_days": "30"
+          },
+          "result_table": "",
+          "ai_endpoint": "",
+          "warehouse_id": "wh1"
+        },
+        "schedule": {
+          "enabled": false,
+          "cron": "0 0 6 ? * MON",
+          "timezone": "UTC"
+        },
+        "outputs": {
+          "dashboard": true,
+          "genie_space": false,
+          "app": false,
+          "app_name": ""
+        },
+        "removed_outputs": {},
+        "sharing": {
+          "principals": []
+        }
+      },
+      "current": {
+        "use_case_id": "N01-U01",
+        "data": {
+          "tables": {},
+          "filters": [],
+          "run_profile": "preview",
+          "notes": ""
+        },
+        "config": {
+          "widgets": {
+            "run_scope": "recent",
+            "scope_days": "30"
+          },
+          "result_table": "",
+          "ai_endpoint": "",
+          "warehouse_id": "wh1"
+        },
+        "schedule": {
+          "enabled": false,
+          "cron": "0 0 6 ? * MON",
+          "timezone": "UTC"
+        },
+        "outputs": {
+          "dashboard": true,
+          "genie_space": false,
+          "app": false,
+          "app_name": ""
+        },
+        "removed_outputs": {},
+        "sharing": {
+          "principals": []
+        }
+      },
+      "classes": [
+        "config"
+      ],
+      "built_settings": [
+        "act_now_share",
+        "run_scope",
+        "scope_groups",
+        "scope_days",
+        "scope_records"
+      ]
+    },
+    {
       "name": "a first value for a widget a notebook built with settings reads",
       "previous": {
         "use_case_id": "N01-U01",

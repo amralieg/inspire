@@ -552,6 +552,30 @@ export function firstRunProblems(values) {
   return problems;
 }
 
+export const FIRST_RUN_OWN_SETTING = { groups: SCOPE_GROUPS, recent: SCOPE_DAYS, records: SCOPE_RECORDS };
+const FIRST_RUN_OWNER_WORDS = { groups: `${FIRST_RUN_ONE_LABEL} or ${FIRST_RUN_SEVERAL_LABEL}`, recent: 'a recent period', records: 'about a number of records' };
+
+function firstRunStale(values) {
+  const scope = text(values?.[RUN_SCOPE]).toLowerCase();
+  if (scope && !RUN_SCOPES.includes(scope)) return [];
+  return Object.entries(FIRST_RUN_OWN_SETTING).filter(([owner, name]) => owner !== scope && text(values?.[name])).map(([owner, name]) => ({ owner, name }));
+}
+
+export function firstRunSaved(values) {
+  const stale = firstRunStale(values).map((s) => s.name);
+  return Object.fromEntries(Object.entries(isMap(values) ? values : {}).filter(([name]) => !stale.includes(name)));
+}
+
+export function firstRunContradictions(values) {
+  const scope = text(values?.[RUN_SCOPE]).toLowerCase();
+  const said = scope ? `${FIRST_RUN_LABEL} is ${scope}` : `${FIRST_RUN_LABEL} is not chosen`;
+  return firstRunStale(values).map(({ owner, name }) => {
+    const value = name === SCOPE_GROUPS ? scopeGroupsOf(values[name]).map(scopeGroupText).join('; ') || text(values[name]) : text(values[name]);
+    return `${said}, but ${SCOPE_LABELS[name]} holds ${value}; a run covers only its ${FIRST_RUN_LABEL} choice, so it would not use ${value}. `
+      + `Choose ${FIRST_RUN_OWNER_WORDS[owner]} as the ${FIRST_RUN_LABEL} to run on it, or clear ${SCOPE_LABELS[name]}`;
+  });
+}
+
 export function scopeProblems(values, part = 'both') {
   if (part === 'grouping') return groupingProblems(values);
   return part === 'first_run' ? firstRunProblems(values) : [...firstRunProblems(values), ...groupingProblems(values)];

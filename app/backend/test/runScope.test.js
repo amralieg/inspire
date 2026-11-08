@@ -722,3 +722,27 @@ test('every grouping card says how many groups it makes, the whole data is 1 gro
   assert.deepEqual(S.groupingLead(WIDE, choices), { label: 'region', groups: 4 });
   assert.equal(S.groupingLead({ ...WIDE, recommended: [], applies: false, columns: [] }), null, 'whole data has no lead column');
 });
+
+test('a saved MVP Test Run keeps only the setting of the choice that was picked, and a setting of another choice is named as a contradiction', async () => {
+  const S = await lib('runScope.js');
+  const W = await lib('implementWizard.js');
+  const group = '[[{"column":"plan","value":"basic"}]]';
+  const stale = { run_scope: 'recent', scope_groups: group, scope_days: '30', act_now_share: '0.1' };
+  assert.deepEqual(S.firstRunSaved(stale), { run_scope: 'recent', scope_days: '30', act_now_share: '0.1' });
+  assert.deepEqual(S.firstRunSaved({ run_scope: 'groups', scope_groups: group, scope_records: '1000' }), { run_scope: 'groups', scope_groups: group });
+  assert.deepEqual(S.firstRunSaved({ scope_days: '7', top_k: '5' }), { top_k: '5' }, 'with no choice, no choice setting is saved');
+  assert.deepEqual(S.firstRunContradictions(stale), [
+    "MVP Test Run is recent, but Groups to run on holds plan = basic; a run covers only its MVP Test Run choice, so it would not use plan = basic. "
+      + 'Choose One group or Several groups as the MVP Test Run to run on it, or clear Groups to run on']);
+  assert.match(S.firstRunContradictions({ scope_records: '500' })[0], /^MVP Test Run is not chosen, but Records to run on holds 500;/);
+  for (const ok of [{ run_scope: 'groups', scope_groups: group }, { run_scope: 'recent', scope_days: '30' }, { run_scope: 'records', scope_records: '1000' },
+    { run_scope: 'all' }, {}, { run_scope: 'custom', scope_days: '3' }, { run_scope: 'groups', scope_groups: '', scope_days: '' }]) {
+    assert.deepEqual(S.firstRunContradictions(ok), [], `consistent ${JSON.stringify(ok)} passes (must-exclude)`);
+    assert.deepEqual(S.firstRunSaved(ok), ok, `consistent ${JSON.stringify(ok)} is saved as it is`);
+  }
+  const spec = { use_case_id: 'N01-U01', config: { widgets: stale } };
+  assert.deepEqual(W.withFirstRunSaved(spec).config.widgets, { run_scope: 'recent', scope_days: '30', act_now_share: '0.1' });
+  const same = { config: { widgets: { run_scope: 'groups', scope_groups: group } } };
+  assert.equal(W.withFirstRunSaved(same), same, 'a consistent spec is sent unchanged');
+  assert.deepEqual(W.withFirstRunSaved({ config: {} }), { config: {} });
+});

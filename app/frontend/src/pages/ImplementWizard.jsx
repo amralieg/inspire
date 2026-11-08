@@ -709,7 +709,7 @@ export default function ImplementWizard({
         groupingDefaulted.current = true;
         setSpec((prev) => withProfileDefaults(prev, profile, withGroupingDefault));
       }
-      if (next.id === 'first_run' && !context?.latest) setSpec((prev) => withProfileDefaults(prev, profile));
+      if (next.id === 'first_run') setSpec((prev) => withProfileDefaults(prev, profile));
       setStep(next.id);
     } catch (e) {
       setErrors([e.message]);
@@ -719,6 +719,7 @@ export default function ImplementWizard({
   };
 
   const sent = useMemo(() => sentSpec(spec, lakebase, built, targets, placeScope), [spec, lakebase, built, targets, placeScope]);
+  const sentScope = withGroupingDefault(scopeValues((name) => sent.config.widgets?.[name]), scopeProfile.profile, sent.config.widgets?.[GROUP_BY]);
   const specKey = JSON.stringify(sent);
   const ownErrorsKey = ownErrors.join('|');
   const buildStep = BUILD_STEP_IDS.includes(stepId);
@@ -1071,7 +1072,7 @@ export default function ImplementWizard({
   const groupingPicked = groupingChoices(scopeProfile.profile).find((c) => sameGrouping(c.value, groupingNow));
   const summaryRows = pickedSummary(spec, sourceTables, {
     grouping: scopeSteps.grouping && groupingPicked ? `${groupingPicked.label} · ${groupingCountText(groupingCount(groupingPicked, scopeProfile.firstRun?.profile || scopeProfile.profile))}` : '',
-    firstRun: scopeSteps.firstRun ? scopeText(scopeShown, scopeProfile.profile).replace(`${FIRST_RUN_LABEL}: `, '') : '',
+    firstRun: scopeSteps.firstRun ? scopeText(sentScope, scopeProfile.profile).replace(`${FIRST_RUN_LABEL}: `, '') : '',
     settings: settingsList.length ? counted(settingsList.length, 'setting') : '',
   }).filter((row) => steps.some((s) => s.id === row.step));
   const changeStep = (id) => { setErrors([]); setBackToSummary(true); setStep(id); };
