@@ -2848,13 +2848,16 @@ def _list_request(page: dict, data: dict, context: dict, allowed: list) -> dict:
     treated = data.get("treatments", False)
     if not isinstance(treated, bool):
         raise ValueError("treatments takes true or false")
+    statuses = data.get("status_counts", False)
+    if not isinstance(statuses, bool):
+        raise ValueError("status_counts takes true or false")
     if mine and not context["actions"]:
         raise ValueError("this decision list keeps no action owners, so it cannot show your actions")
     if changed and not context["changes"]:
         raise ValueError("this decision list keeps no runs to compare, so it cannot show what changed since the last run")
     return {"sort": key, "dir": direction, "offset": offset, "limit": limit, "search": search.strip(), "mine": mine, "changed": changed,
             "ai": ai_request(data.get("ai"), context), "columns": data.get(COLUMN_FILTERS) or {}, "cursor": list_cursor_value(data.get("cursor")),
-            "ai_counts": counts, "treatments": treated}
+            "ai_counts": counts, "treatments": treated, "status_counts": statuses}
 
 
 def _cursor_cell(value) -> bool:
@@ -3773,6 +3776,26 @@ def list_match_query(page: dict, values: dict, request: dict, context: dict, edi
     head = _with(ctes, counted)
     return {"keys": f"{head} SELECT DISTINCT `_inspire_key` FROM {source} WHERE `_inspire_key` IS NOT NULL", "params": params,
             "total": f"{head} SELECT COUNT(DISTINCT `_inspire_key`) AS total FROM {source} WHERE `_inspire_key` IS NOT NULL"}
+
+
+def status_counts_query(page: dict, values: dict, request: dict, context: dict, editor: str = "") -> tuple:
+    params = _Params()
+    columns = {k: v for k, v in (request.get("columns") or {}).items() if k != "action_status"}
+    plan = _list_plan(page, values, dict(request, columns=columns, mine=False, window=None, exclude=[]), context, editor, params, current=True)
+    status = "COALESCE(f.`_inspire_status`, 'New')"
+    mine = f"lower(f.`_inspire_owner`) = lower({params.add(editor)})" if editor else "FALSE"
+    return (f"{_with(plan['ctes'], plan['counted'])} SELECT {status} AS v, COUNT(*) AS n, COALESCE(SUM(CASE WHEN {mine} THEN 1 ELSE 0 END), 0) "
+            f"AS m FROM f GROUP BY {status}", params.items)
+
+
+def status_counts_of(rows) -> dict:
+    statuses = dict.fromkeys(ACTION_STATUSES, 0)
+    mine = 0
+    for row in rows or []:
+        name, n = row.get("v") or "New", int(row.get("n") or 0)
+        statuses[name] = statuses.get(name, 0) + n
+        mine += int(row.get("m") or 0)
+    return {"statuses": statuses, "mine": mine, "all": sum(statuses.values())}
 
 
 def _list_plan(page: dict, values: dict, request: dict, context: dict, editor: str, params, current: bool = False) -> dict:
