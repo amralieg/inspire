@@ -289,7 +289,7 @@ def test_the_my_work_statement_parses_as_databricks_sql_and_renders_for_lakebase
     sqlglot.parse_one(re.sub(r":p\d+", "'x'", sql), read="databricks")
     held = {TABLE: {"pg": "app.loss_desk_out", "columns": [{"name": c} for c in COLUMNS]}}
     text, values, read = shell_pg.render(sql, params, held)
-    assert read == {TABLE} and sql.count(" UNION ALL ") == 4 and PERSON in values.values()
+    assert read == {TABLE} and sql.count(" UNION ALL ") == 10 and PERSON in values.values()
     everything = shell_sql.my_work_query(page, set(COLUMNS), PERSON, shell_sql.window_bounds("all", datetime.datetime(2026, 10, 24)), 50)[0]
     assert "unix_micros(`valid_from`) >=" not in everything
 

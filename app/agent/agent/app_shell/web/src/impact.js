@@ -1,5 +1,5 @@
-import { cap, countOf, grouped, percentOf, stakeName, stakeNameOf, stakeWords, sumOf, wholeMoney } from './format.js';
-import { NOT_MEASURED, moneyText, plural, shortDay, totals } from './hub.js';
+import { cap, countOf, grouped, percentOf, stakeName, stakeWords, sumOf, wholeMoney } from './format.js';
+import { NOT_MEASURED, plural, shortDay } from './hub.js';
 import { hasUnsetTarget, placeholderWords } from './placeholders.js';
 import { DEFAULT_CHOICES, NOT_IN_RUN, choiceLabel, statusKind } from './records.js';
 
@@ -55,38 +55,6 @@ export function wrongFigure(entry) {
 export function figuresOf(entry, currency, kind = '') {
   return { estimated: estimatedFigure(entry, currency, kind), reported: reportedFigure(entry, currency, kind), measured: measuredFigure(entry, currency, kind),
     wrong: wrongFigure(entry) };
-}
-
-export function totalFigure(rows, key, how) {
-  const counted = rows.filter((r) => r.figures[key].amount != null);
-  if (!counted.length) return { value: NOT_MEASURED, sub: rows[0]?.figures[key].how || 'No use case measures this yet' };
-  const n = sumOf(counted, (r) => r.figures[key].n);
-  const value = moneyText(totals(counted.map((r) => ({ money: r.figures[key].amount, currency: r.currency, kind: r.kind }))));
-  return { value, sub: how(n, counted.length), formula: `${counted.map((r) => `${r.page?.title || 'A use case'} ${r.figures[key].value}`).join(' + ')} = ${value}` };
-}
-
-export function totalWrong(rows) {
-  const counted = rows.filter((r) => r.entry?.tracked);
-  const closed = sumOf(counted, (r) => sumOf(Object.values(r.entry.closed || {}), (c) => c.n));
-  const wrong = sumOf(counted, (r) => r.entry.closed?.Dismissed?.n);
-  if (!closed) return { value: NOT_MEASURED, sub: 'Nobody has closed a record yet' };
-  const share = percentOf(wrong, closed);
-  return { value: `${share}%`, formula: `${wrong} not an issue / ${closed} closed x 100 = ${share}%`,
-    sub: `People marked ${grouped(wrong)} of ${plural(closed, 'closed record')} not an issue, so ${100 - share}% were right` };
-}
-
-export function impactTiles(rows) {
-  const across = (pages) => ` across ${plural(pages, 'use case')}`;
-  const stake = (key) => {
-    const counted = rows.filter((r) => r.figures[key].amount != null);
-    return stakeNameOf(counted.map((r) => r.currency), counted.map((r) => r.kind));
-  };
-  return [
-    { id: 'estimated', label: 'Estimated', ...totalFigure(rows, 'estimated', (n, p) => `${stake('estimated')} on the ${plural(n, 'open record')} flagged Act now or Review${across(p)}, added up`) },
-    { id: 'reported', label: 'Reported', ...totalFigure(rows, 'reported', (n, p) => `Amounts people entered when they marked ${plural(n, 'record')} fixed${across(p)}`), tone: 'green' },
-    { id: 'measured', label: 'Measured', ...totalFigure(rows, 'measured', (n, p) => `${stake('measured')} when fixed, less what a later run still finds, on ${plural(n, 'fix', 'fixes')}${across(p)}`), tone: 'green' },
-    { id: 'wrong', label: 'Said wrong', ...totalWrong(rows) },
-  ];
 }
 
 const KPI_DIRECTIONS = { increase: '\u25b2 Increase', decrease: '\u25bc Decrease', maintain: '\u25a0 Maintain' };

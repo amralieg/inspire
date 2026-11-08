@@ -234,37 +234,6 @@ test('Recent changes reads the contract batches, and Undo on one sends the contr
   await context.close();
 });
 
-const DONE = { fixed: 0, fixed_q: 0, dismissed: 0, dismissed_q: 0, saved_n: 0, saved: 0, saved_q_n: 0, saved_q: 0, first_fixed: null, first_saved: null };
-const entry = (actions, note) => ({
-  visible: true, tracked: true, money: actions, actions, categories: [], served: 'delta', items: [], total: 0, truncated: false, done: DONE, weeks: [],
-  runs: { updated: '2026-10-27T06:00:00Z', as_of: '2026-10-27', cadence_days: 7, next: '2026-11-03', stale: false, count: 3, failed: false },
-  window_note: note,
-});
-
-test('My work asks for the contract window and names the use case it does not apply to, and names none when every use case keeps actions', async () => {
-  const NOTE = 'this use case keeps no actions, so the window does not apply to it';
-  for (const [second, said] of [
-    [entry(false, NOTE), 'Your window does not apply to Second desk 1, because it keeps no actions.'],
-    [entry(true, C.overview_window.page_fields.window_note), null],
-  ]) {
-    const hub = [];
-    const overview = ({ route, json }) => {
-      hub.push(route.request().postDataJSON());
-      return json(200, { today: '2026-10-27', quarter: '2026-10-01', since: '2026-08-03', errors: {}, window: C.overview_window.response_fields.window,
-        pages: { [PAGE]: entry(true, C.overview_window.page_fields.window_note), n02_u01: second } });
-    };
-    const { page, seen, context } = await openWith(appInfo(DECIDE, 2, TABLE), { overview }, { prefs: { window: 'week', limit: 10 }, hash: `#/${PAGE}/performance` });
-    await page.getByRole('region', { name: 'Your work' }).waitFor();
-    await page.waitForFunction(() => !/Loading your work/.test(document.querySelector('[aria-label="Your work"]')?.textContent || ''));
-    assert.ok(hub.length > 0, 'My work asked for the work');
-    assert.deepEqual(hub, hub.map(() => C.overview_window.request.body), 'every work request carries the window, the first load included');
-    if (said) assert.equal(await page.locator('[data-window-note]').innerText(), said);
-    else assert.equal(await page.locator('[data-window-note]').count(), 0, 'no use case to name, so no line');
-    assert.deepEqual(seen.errors, []);
-    await context.close();
-  }
-});
-
 test('Select all refuses with a plain reload note when the list did not say when the server read it, and never uses the browser clock', async () => {
   for (const sent of [{}, { as_of_us: '0' }]) {
     const { asked, routes } = contractRoutes(keyed(30), { listed: sent });

@@ -2,7 +2,7 @@ import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
 import { actBody, ASK_GROUPS, OWN_CHOICES, TABLE, appInfo, askAudit, openApp, pageData, serveDist, toastSays, until } from './harness.mjs';
-import { closedRows, estimatedFigure, figuresOf, heldShare, holdoutOffText, holdoutView, impactTiles, measuredFigure, promisedView, reportedFigure, wrongFigure } from '../src/impact.js';
+import { closedRows, estimatedFigure, figuresOf, heldShare, holdoutOffText, holdoutView, measuredFigure, promisedView, reportedFigure, wrongFigure } from '../src/impact.js';
 import { actionForm, actionProblem, actionValues, doneText, statusLabel } from '../src/records.js';
 
 let served;
@@ -30,6 +30,7 @@ const ENTRY = {
       reported: null, closed: '2026-10-05T09:00:00.000Z' },
   ],
 };
+const NO_WORK = { my_work: ({ json }) => json(200, { period: null, pages: {}, activity: [], total: 0, errors: {} }) };
 const PROMISED = { value: 'The Pricing Manager recovers margin lost to standing discounts.', benefits: ['Recover margin on discounted items [ESTIMATE: depends on value]'] };
 
 test('each figure shows its number with the formula behind it, and the three amounts are never added together', () => {
@@ -42,13 +43,6 @@ test('each figure shows its number with the formula behind it, and the three amo
     how: 'Money at stake when fixed, less what a later run still finds, on 2 fixes a later run confirmed. 2 fixes a later run still flags' });
   assert.deepEqual(wrongFigure(ENTRY), { value: '25%', amount: 25, n: 8, formula: '2 not an issue / 8 closed x 100 = 25%',
     how: 'People marked 2 of 8 closed records not an issue, so 75% were right' });
-  const tiles = impactTiles([{ page: { title: 'Price desk' }, entry: ENTRY, currency: 'USD', figures: figuresOf(ENTRY, 'USD') },
-    { page: { title: 'Euro desk' }, entry: ENTRY, currency: 'EUR', figures: figuresOf(ENTRY, 'EUR') }]);
-  assert.deepEqual(tiles.map((t) => [t.label, t.value]), [['Estimated', '$15,000 + €15,000'], ['Reported', '$2,500 + €2,500'], ['Measured', '$1,800 + €1,800'],
-    ['Said wrong', '25%']], 'amounts add up per figure and per currency, never across figures');
-  assert.equal(tiles[2].sub, 'Money at stake when fixed, less what a later run still finds, on 4 fixes across 2 use cases');
-  assert.deepEqual(tiles.map((t) => t.formula), ['Price desk $15,000 + Euro desk \u20ac15,000 = $15,000 + \u20ac15,000', 'Price desk $2,500 + Euro desk \u20ac2,500 = $2,500 + \u20ac2,500',
-    'Price desk $1,800 + Euro desk \u20ac1,800 = $1,800 + \u20ac1,800', '4 not an issue / 16 closed x 100 = 25%'], 'every tile shows the arithmetic behind it');
 });
 
 test('a use case without money says Not measured yet with why and never shows a number, and every use case keeps actions', () => {
@@ -61,8 +55,7 @@ test('a use case without money says Not measured yet with why and never shows a 
   assert.deepEqual(wrongFigure({ ...ENTRY, closed: closed(0, 0, 0) }), { value: 'Not measured yet', amount: null, n: 0, how: 'Nobody has closed a record yet' });
   assert.equal(estimatedFigure({ tracked: false, note: 'no run of this use case has written its results yet' }).how, 'no run of this use case has written its results yet');
   assert.equal(estimatedFigure({ tracked: false, error: 'PERMISSION_DENIED' }).how, 'Could not load: PERMISSION_DENIED');
-  const tiles = impactTiles([{ entry: { tracked: false }, currency: 'USD', figures: figuresOf({ tracked: false }, 'USD') }]);
-  assert.deepEqual(tiles.map((t) => t.value), ['Not measured yet', 'Not measured yet', 'Not measured yet', 'Not measured yet']);
+  assert.deepEqual(Object.values(figuresOf({ tracked: false }, 'USD')).map((f) => f.value), ['Not measured yet', 'Not measured yet', 'Not measured yet', 'Not measured yet']);
 });
 
 test('the holdout compares the share of flagged records that left the list among those shown and those held back', () => {
@@ -81,11 +74,10 @@ test('the holdout compares the share of flagged records that left the list among
   assert.equal(heldShare({ current: { records: 200, held: 0 } }), '');
 });
 
-test('with holdout off the Impact page says plainly that nothing is held back, and shows no comparison', async () => {
+test('with holdout off Performance says plainly that nothing is held back, and shows no comparison', async () => {
   const off = { ...ENTRY, holdout: null, holds: false, current: { records: 200, held: 0 } };
-  const routes = { impact: ({ json }) => json(200, off), summary: ({ json }) => json(200, SUMMARY) };
-  const { page, seen, context } = await openApp(browser, served.base, appInfo({}, 1, { ...TABLE, promised: PROMISED }), { width: 1440, routes });
-  await page.goto(`${served.base}#/impact`);
+  const routes = { ...NO_WORK, impact: ({ json }) => json(200, off), summary: ({ json }) => json(200, SUMMARY) };
+  const { page, seen, context } = await openApp(browser, served.base, appInfo({}, 1, { ...TABLE, promised: PROMISED }), { width: 1440, routes, hash: '#/n01_u05/performance', ready: '.imp' });
   const card = page.locator('.imp').first();
   await card.locator('.imp-hold-off').waitFor();
   assert.equal(await card.locator('.imp-hold-off').innerText(),
@@ -145,23 +137,16 @@ const tile = (page) => page.locator('.imp-page .kpi').evaluateAll((tiles) => til
   t.querySelector('.kpi-s').innerText]));
 const SUMMARY = { run: { currency: 'USD', decision_basis: 'measured', as_of_date: '2026-10-20' }, categories: {}, note: '' };
 
-test('the Impact page shows estimated, reported and measured apart, promised against delivered, the holdout and the closed records', async () => {
+test('Performance shows estimated, reported and measured apart, promised against delivered, the holdout and the closed records of its own use case', async () => {
   const info = appInfo({}, 2, { ...TABLE, promised: PROMISED });
   const asked = [];
   const routes = {
+    ...NO_WORK,
     impact: ({ json, url }) => { asked.push(url.searchParams.get('page')); return json(200, url.searchParams.get('page') === 'n01_u05' ? ENTRY : { visible: true, tracked: false, note: 'no run of this use case has written its results yet', promised: null }); },
     summary: ({ json }) => json(200, SUMMARY),
   };
-  const { page, seen, context } = await openApp(browser, served.base, info, { width: 1440, routes });
-  await page.goto(`${served.base}#/impact`);
-  await page.waitForFunction(() => [...document.querySelectorAll('.pg-h h1')].some((h) => h.textContent === 'Impact') && document.querySelectorAll('.imp').length === 2);
-  await page.waitForFunction(() => !document.querySelector('.imp-page .kpis .skel, .imp-page .kpis .skeleton'));
-  assert.deepEqual(await tile(page), [
-    ['Estimated', '$15,000', 'Money at stake on the 10 open records flagged Act now or Review across 1 use case, added up'],
-    ['Reported', '$2,500', 'Amounts people entered when they marked 3 records fixed across 1 use case'],
-    ['Measured', '$1,800', 'Money at stake when fixed, less what a later run still finds, on 2 fixes across 1 use case'],
-    ['Said wrong', '25%', 'People marked 2 of 8 closed records not an issue, so 75% were right']]);
-  assert.deepEqual(asked.sort(), ['n01_u05', 'n02_u01'], 'each use case reads its own impact once');
+  const { page, seen, context } = await openApp(browser, served.base, info, { width: 1440, routes, hash: '#/n01_u05/performance', ready: '.imp .imp-verdict' });
+  assert.deepEqual(asked, ['n01_u05'], 'Performance reads the impact of its own use case only');
   const card = page.locator('.imp[data-page="n01_u05"]');
   assert.equal(await card.locator('.imp-promised p').innerText(), PROMISED.value);
   assert.deepEqual(await card.locator('.imp-figs > div').evaluateAll((all) => all.map((d) => [d.dataset.figure, d.querySelector('b').innerText])),
@@ -173,44 +158,15 @@ test('the Impact page shows estimated, reported and measured apart, promised aga
   assert.deepEqual(await card.locator('.imp-reasons li').allInnerTexts(), ['The store closed\n2']);
   const rows = await card.locator('.tbl--closed tbody tr').evaluateAll((trs) => trs.map((tr) => [...tr.querySelectorAll('td')].map((td) => td.innerText)));
   assert.deepEqual(rows[0], ['Wool coat, store 4', 'Done', 'No longer flagged', '$1,200 when fixed minus $100 now = $1,100', '$900\nRepriced on Monday', 'Oct 6', 'Ask Genie']);
-  const other = page.locator('.imp[data-page="n02_u01"]');
-  assert.equal(await other.locator('.card-h p').innerText(), 'no run of this use case has written its results yet');
-  assert.deepEqual(await other.locator('.imp-figs b').allInnerTexts(), Array(4).fill('Not measured yet'));
-  assert.equal(await other.locator('.imp-hold').count(), 0);
-  const text = await page.locator('.imp-page').innerText();
+  const text = await page.locator('[data-performance]').innerText();
   assert.ok(!/[\u2013\u2014]/.test(text), 'the page has no en or em dash');
   assert.equal(await page.locator('[data-rail="performance"]').getAttribute('aria-current'), 'page');
-  await card.locator('.card-h .lnk').click();
-  await page.waitForFunction(() => window.location.hash === '#/n01_u05/dashboard');
-  assert.deepEqual(seen.errors, []);
-  await context.close();
-});
-
-test('a one use case App opens on its dashboard, Performance shows its Impact, and the old Impact links open Performance', async () => {
-  const routes = { impact: ({ json }) => json(200, ENTRY), summary: ({ json }) => json(200, SUMMARY) };
-  const { page, seen, context } = await openApp(browser, served.base, appInfo({}, 1, { ...TABLE, promised: PROMISED }), { width: 1440, routes });
-  await page.waitForFunction(() => document.querySelector('.pg-h h1')?.textContent === 'Price-loss decision desk');
-  assert.equal(await page.locator('[data-rail="dashboard"]').getAttribute('aria-current'), 'page');
-  assert.ok(await page.locator('[data-switcher]').isDisabled());
-  await page.locator('[data-rail="performance"]').click();
-  await page.waitForFunction(() => document.querySelectorAll('.imp').length === 1);
-  assert.equal(await page.evaluate(() => window.location.hash), '#/n01_u05/performance');
-  await page.locator('[data-rail="dashboard"]').click();
-  await page.waitForFunction(() => document.querySelector('.pg-h h1')?.textContent === 'Price-loss decision desk');
-  for (const old of ['#/impact', '#/results']) {
-    await page.goto(`${served.base}${old}`);
-    await page.waitForFunction(() => window.location.hash === '#/n01_u05/performance');
-    await page.locator('.imp').waitFor();
-  }
-  assert.deepEqual(seen.errors, []);
-  await context.close();
-});
-
-test('the old Results link opens the Impact page', async () => {
-  const { page, seen, context } = await openApp(browser, served.base, appInfo({}, 2, TABLE), { width: 1280 });
-  await page.goto(`${served.base}#/results`);
-  await page.waitForFunction(() => [...document.querySelectorAll('.pg-h h1')].some((h) => h.textContent === 'Impact'));
-  assert.equal(await page.evaluate(() => window.location.hash), '#/n01_u05/performance');
+  await page.evaluate(() => { window.location.hash = '#/n02_u01/performance'; });
+  const other = page.locator('.imp[data-page="n02_u01"]');
+  await other.waitFor();
+  assert.equal(await other.locator('.card-h p').first().innerText(), 'no run of this use case has written its results yet');
+  assert.deepEqual(await other.locator('.imp-figs b').allInnerTexts(), Array(4).fill('Not measured yet'));
+  assert.equal(await other.locator('.imp-hold').count(), 0);
   assert.deepEqual(seen.errors, []);
   await context.close();
 });
@@ -327,30 +283,29 @@ test('a held back record says why and offers no action, so the comparison stays 
   await context.close();
 });
 
-test('the weekly email link ?open=impact opens Performance after sign-in, and the address becomes its Performance section so a reload stays there', async () => {
-  const routes = { impact: ({ json }) => json(200, ENTRY), summary: ({ json }) => json(200, SUMMARY) };
+test('the weekly email link ?open=impact opens Performance after sign-in, and a reload stays there', async () => {
+  const routes = { ...NO_WORK, impact: ({ json }) => json(200, ENTRY), summary: ({ json }) => json(200, SUMMARY) };
   const { page, seen, context } = await openApp(browser, `${served.base}?open=impact`, appInfo({}, 1, { ...TABLE, promised: PROMISED }), { width: 1440, routes, ready: '.imp' });
-  await page.waitForFunction(() => [...document.querySelectorAll('.pg-h h1')].some((h) => h.textContent === 'Impact') && document.querySelectorAll('.imp').length === 1);
   assert.deepEqual(await page.evaluate(() => [window.location.search, window.location.hash]), ['', '#/n01_u05/performance']);
   await page.reload();
-  await page.waitForFunction(() => [...document.querySelectorAll('.pg-h h1')].some((h) => h.textContent === 'Impact'));
+  await page.locator('.imp').waitFor();
+  assert.equal(await page.evaluate(() => window.location.hash), '#/n01_u05/performance');
   assert.deepEqual(seen.errors, []);
   await context.close();
 });
 
-test('every card, key number and closed record on Impact shows a visible Ask Genie, and a closed record sends its own figures to its use case Genie', async () => {
+test('every card and closed record on Performance shows a visible Ask Genie, and a closed record sends its own figures to its use case Genie', async () => {
   const explained = [];
   const routes = {
+    ...NO_WORK,
     impact: ({ json, url }) => json(200, url.searchParams.get('page') === 'n01_u05' ? ENTRY : { visible: true, tracked: false, note: 'no run of this use case has written its results yet', promised: null }),
     summary: ({ json }) => json(200, SUMMARY),
     'genie/explain': ({ route, json }) => { explained.push(route.request().postDataJSON()); return json(200, { conversation_id: 'c1', message_id: 'm1', question: 'Sent.' }); },
     'genie/message': ({ json }) => json(200, { state: 'done', text: 'Genie answered.', sql: 'SELECT 1', columns: [], rows: [], truncated: false }),
   };
-  const { page, seen, context } = await openApp(browser, served.base, appInfo({}, 2, { ...TABLE, promised: PROMISED }), { width: 1440, routes });
-  await page.goto(`${served.base}#/impact`);
-  await page.waitForSelector('.tbl--closed tbody tr');
+  const { page, seen, context } = await openApp(browser, served.base, appInfo({}, 2, { ...TABLE, promised: PROMISED }), { width: 1440, routes, hash: '#/n01_u05/performance', ready: '.tbl--closed tbody tr' });
   const found = await page.evaluate(askAudit, ASK_GROUPS);
-  assert.deepEqual([found.missing, found.hidden], [[], []], 'Impact: 0 missing, 0 hidden');
+  assert.deepEqual([found.missing, found.hidden], [[], []], 'Performance: 0 missing, 0 hidden');
   assert.equal(found.counts.row, 2);
   await page.getByRole('button', { name: 'Ask Genie about Wool coat, store 4', exact: true }).click();
   await page.getByLabel('Your question about Wool coat, store 4').fill('Did the fix hold?');
@@ -362,7 +317,7 @@ test('every card, key number and closed record on Impact shows a visible Ask Gen
     Closed: '2026-10-06T06:00:00.000Z' });
   await page.locator('aside.genie .msg-sql').waitFor({ timeout: 15000 });
   assert.match(await page.locator('aside.genie .g-h small').innerText(), /^Answers from the Genie Agent/);
-  assert.equal(found.counts.card >= 4, true, `the use case cards are audited: ${JSON.stringify(found.counts)}`);
+  assert.equal(found.counts.card >= 1, true, `the use case card is audited: ${JSON.stringify(found.counts)}`);
   const card = page.locator('section.imp[data-page="n01_u05"]');
   await card.getByRole('button', { name: 'Ask Genie about The impact of Price-loss decision desk', exact: true }).click();
   await page.locator('form.ask-box .sugg').first().click();

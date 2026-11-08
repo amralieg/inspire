@@ -4,7 +4,7 @@ import { chromium } from 'playwright';
 import { ASK_GROUPS, TABLE, appInfo, askAudit, chartsDrawn, openApp, serveDist, until, pickCase, goRail } from './harness.mjs';
 import { wholeMoney } from '../src/format.js';
 import {
-  DEFAULT_VIEW, WORK_SHOWN, dueText, isMine, moneyText, myWork, myWorkText, nothingText, ownerName, pickReason, reasonFilters,
+  DEFAULT_VIEW, dueText, isMine, moneyText, nothingText, ownerName, pickReason, reasonFilters,
   sortThings, totals, useCaseState, viewRows, viewWords,
 } from '../src/hub.js';
 
@@ -513,102 +513,10 @@ test('nothing to act on reads as one plain sentence', () => {
   assert.equal(nothingText(''), '');
 });
 
-test('my work is what is assigned to me, overdue first, then due today, then by date, and the filters read as words', () => {
-  const user = { email: ME };
-  const rows = [item('n', 'No date', 'Act now', 900, { owner: ME }), item('l2', 'Late two', 'Review', 10, { owner: ME, due: '2026-10-20' }),
-    item('t', 'Today', 'Act now', 5, { owner: ME, due: TODAY }), item('s', 'Sam', 'Act now', 99999, { owner: SAM, due: '2026-10-01' }),
-    item('l1', 'Late one', 'Monitor', 20, { owner: ` ${ME.toUpperCase()} `, due: '2026-10-23' }), item('w', 'Next week', 'Act now', 1, { owner: ME, due: '2026-10-31' }),
-    item('w2', 'Next week too', 'Act now', 3, { owner: ME, due: '2026-10-31' }), item('u', 'Nobody', 'Act now', 50, { due: '2026-10-01' })];
-  const work = myWork(rows, user, TODAY);
-  assert.deepEqual(work.rows.map((r) => r.key), ['l2', 'l1', 't', 'w2', 'w', 'n']);
-  assert.deepEqual([work.late, work.today], [2, 1]);
-  assert.equal(myWorkText(work), '6 assigned to you · 2 overdue · 1 due today');
-  assert.equal(myWorkText(myWork([rows[0]], user, TODAY)), '1 assigned to you');
-  assert.deepEqual(rows.map((r) => r.key), ['n', 'l2', 't', 's', 'l1', 'w', 'w2', 'u'], 'the hub items keep their order');
-  assert.deepEqual(myWork(rows, { email: '' }, TODAY).rows, [], 'an unsigned viewer has no work');
+test('the filters read as words', () => {
   assert.equal(viewWords(DEFAULT_VIEW), 'Owner: Everyone; Show: To fix');
   assert.equal(viewWords({ owner: 'me', show: 'all' }, [{ name: 'ai_cat_driver', label: 'Reason (from AI)' }, { name: 'ai_cat_fix', label: 'Fix (from AI)' }],
     { ai: { ai_cat_driver: ['Price below cost', 'Seasonal'] } }), 'Owner: Me; Show: To fix and worth a look; Reason (from AI): Price below cost, Seasonal');
-});
-
-const workRows = (page) => page.locator('.tbl--mine tbody tr').evaluateAll((trs) => trs.map((tr) => [...tr.querySelectorAll('td')].map((td) => td.innerText)));
-
-test('Your work lists what is assigned to me, overdue first, with its status and due date, and opens a record in Work on a click', async () => {
-  const { page, seen, context } = await open(INFO(), { hash: '#/n01_u05/performance' });
-  const work = page.getByRole('region', { name: 'Your work' });
-  await work.locator('tbody tr').first().waitFor();
-  assert.equal(await work.locator('.card-h p').innerText(), '3 assigned to you · 1 overdue · 1 due today');
-  assert.deepEqual(await work.locator('thead th').allTextContents(), ['What', 'Use case', 'Status', 'Due', 'Could save', 'Ask Genie']);
-  assert.deepEqual(await workRows(page), [
-    ['Supplier 3381, invoice 77188', 'Second desk 1', 'New', '2 days late', '$6,950', 'Ask Genie'],
-    [`Blue denim jacket, store 12\n${DESK[0].why}`, 'Price-loss decision desk', 'In progress', 'Today', '$8,400', 'Ask Genie'],
-    ['Leather boots, store 2', 'Price-loss decision desk', 'New', 'Fri, Oct 30', '$6,000', 'Ask Genie']]);
-  assert.equal(await work.locator('td.c-due.late').innerText(), '2 days late');
-  assert.equal(await work.locator('.status--in-progress').innerText(), 'In progress');
-  assert.equal(await work.getByRole('button', { name: /^Ask Genie/ }).count(), 4, 'the table and each of its 3 records have their own Ask Genie');
-  await work.locator('tbody tr').first().click();
-  await page.waitForFunction(() => document.querySelector('.ph h1')?.textContent === 'Second desk 1');
-  await page.waitForFunction(() => location.hash === '#/n02_u01/work?rec=c');
-  assert.deepEqual(seen.errors, []);
-  await context.close();
-});
-
-test('Your work keeps an overdue Monitor record that is mine, shows eight at first and says when a use case sent only its biggest records', async () => {
-  const mine = Array.from({ length: 10 }, (_, i) => item(`k${i}`, `Mine ${i}`, i ? 'Act now' : 'Monitor', 100 + i, { owner: ME, due: i ? null : '2026-10-23' }));
-  const hub = { ...HUB, pages: { ...HUB.pages, n01_u05: entry(mine, { truncated: true, total: 900 }), n02_u01: entry([]) } };
-  const { page, seen, context } = await open(INFO(), { hub, hash: '#/n01_u05/performance' });
-  const work = page.getByRole('region', { name: 'Your work' });
-  await work.locator('tbody tr').first().waitFor();
-  assert.equal(await work.locator('tbody tr').count(), WORK_SHOWN);
-  assert.equal(await work.locator('tbody tr td:first-child').first().innerText(), 'Mine 0', 'an overdue Monitor record is still your work');
-  await work.getByRole('button', { name: 'Show all 10' }).click();
-  assert.equal(await work.locator('tbody tr').count(), 10);
-  await work.getByRole('button', { name: 'Show fewer' }).click();
-  assert.equal(await work.locator('tbody tr').count(), WORK_SHOWN);
-  assert.equal(await work.locator('.more').last().innerText(),
-    'Each use case sends My work its biggest open records only. Open the use case, go to Work and pick Mine to see all of yours.');
-  assert.deepEqual(seen.errors, []);
-  await context.close();
-  const whole = await open(INFO(), { hash: '#/n01_u05/performance' });
-  await whole.page.getByRole('region', { name: 'Your work' }).locator('tbody tr').first().waitFor();
-  assert.equal(await whole.page.getByRole('region', { name: 'Your work' }).locator('.more').count(), 0, 'a whole list needs no note and no Show all');
-  await whole.context.close();
-});
-
-test('Your work says plainly why it is empty: loading, nothing mine, a use case that failed, no results yet, not signed in, the hub failed', async () => {
-  const samOnly = { ...HUB, pages: { ...HUB.pages, n01_u05: entry(DESK.map((i) => ({ ...i, owner: SAM }))), n02_u01: entry([]) } };
-  const { n02_u01: _dropped, ...rest } = HUB.pages;
-  const failedOne = { ...HUB, errors: { n02_u01: 'PERMISSION_DENIED: no SELECT' }, pages: { ...rest, n01_u05: entry(DESK.map((i) => ({ ...i, owner: SAM }))) } };
-  const noOwners = JSON.parse(JSON.stringify(HUB));
-  Object.values(noOwners.pages).forEach((e) => { Object.assign(e, { tracked: false, items: [] }); });
-  const unsigned = { ...INFO(), user: { email: '', name: '' } };
-  const cases = [[samOnly, INFO(), 'Nothing is assigned to you right now.'], [failedOne, INFO(), 'Nothing is assigned to you in the use cases that loaded.'],
-    [noOwners, INFO(), 'Nobody owns a record yet, so nothing is assigned to you. Open a use case list and press Assign them to me to take the records you will work on.'], [HUB, unsigned, 'Sign in to see what is assigned to you.']];
-  for (const [hub, info, said] of cases) {
-    const { page, seen, context } = await open(info, { hub, hash: '#/n01_u05/performance' });
-    const work = page.getByRole('region', { name: 'Your work' });
-    await work.locator('.nomatch').waitFor();
-    assert.equal(await work.locator('.nomatch').innerText(), said);
-    assert.equal(await work.locator('table').count(), 0, said);
-    assert.equal(await work.locator('.card-h p').innerText(), 'Things assigned to you, overdue and due today first');
-    assert.deepEqual(seen.errors.filter((e) => !/status of 403/.test(e)), []);
-    await context.close();
-  }
-  let hold = false;
-  const routes = hubRoutes();
-  const overview = routes.overview;
-  routes.overview = (args) => (hold ? new Promise(() => {}) : overview(args));
-  const slow = await openApp(browser, served.base, INFO(), { width: 1440, routes, hash: '#/n01_u05/performance' });
-  hold = true;
-  await slow.page.reload();
-  await slow.page.getByRole('region', { name: 'Your work' }).locator('.more').waitFor();
-  assert.equal(await slow.page.getByRole('region', { name: 'Your work' }).locator('.more').innerText(), 'Loading your work…');
-  await slow.context.close();
-  const down = await openApp(browser, served.base, INFO(), { width: 1440, routes: { ...hubRoutes(), overview: ({ json }) => json(500, { error: 'the warehouse is stopped' }) }, hash: '#/n01_u05/performance' });
-  const failed = down.page.getByRole('region', { name: 'Your work' });
-  await failed.locator('.nomatch').waitFor();
-  assert.equal(await failed.locator('.nomatch').innerText(), 'Your work could not load.');
-  await down.context.close();
 });
 
 function explainHub() {

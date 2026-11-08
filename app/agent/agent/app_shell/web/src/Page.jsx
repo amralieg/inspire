@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AGENT_CHANGED, EMPTY_LOOK, lookChart } from './agentView.js';
+import { AGENT_CHANGED, AGENT_OPEN, EMPTY_LOOK, lookChart } from './agentView.js';
 import { getOverview, getPage } from './api.js';
 import { apiTables, apiValues, clearColumnValues, clearSelections, columnValues, setColumnValue, toggleValue } from './filters.js';
 import { dayLabel } from './format.js';
@@ -88,7 +88,7 @@ function radioKeys(e) {
 }
 
 export default function Page({ app, page, meta, state, onState, look = EMPTY_LOOK, onLook, themeKey, onAsk, onExplain, genieBusy, hubEntry, summary, view, onView, genie,
-  section = 'dashboard', tab = '', focus = '', chrome, onCounts }) {
+  section = 'dashboard', tab = '', focus = '', rec = null, chrome, onCounts }) {
   const ready = !!state;
   const [nonce, setNonce] = useState(0);
   const [queue, setQueue] = useState(null);
@@ -118,6 +118,9 @@ export default function Page({ app, page, meta, state, onState, look = EMPTY_LOO
   const choices = statusChoices(page);
   const tabNow = tabbed ? (workTabs(choices).some(([id]) => id === tab) ? tab : DEFAULT_TAB) : '';
   const [question, setQuestion] = useState('');
+  useEffect(() => {
+    if (rec && shown === 'work') window.dispatchEvent(new CustomEvent(AGENT_OPEN, { detail: { pageId: page.id, recordKey: rec } }));
+  }, [rec, shown, page.id]);
   const [seeChanged, setSeeChanged] = useState(() => (parseHash(window.location.hash).changed ? 1 : 0));
   const runsOn = sections.includes('runs');
   const go = (to, { tab: nextTab = '', state: next = state, sort, focus: only = '' } = {}) => {

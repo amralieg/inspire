@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as F from '../src/format.js';
-import { estimatedFigure, totalFigure, totalWrong, wrongFigure } from '../src/impact.js';
-import { doneTodayOf, limitText, moneyText, savedTile, totals, weekBars } from '../src/hub.js';
+import { estimatedFigure, wrongFigure } from '../src/impact.js';
+import { moneyText, savedTile, totals } from '../src/hub.js';
 import { amountText, shownAmount, sumFormula } from '../src/money.js';
 import { recordView, savingText } from '../src/records.js';
 import { barsContext } from '../src/explain.js';
@@ -34,23 +34,9 @@ test('a count that arrives as text is added as a number, never joined as digits'
   const wrong = wrongFigure({ tracked: true, closed: { Dismissed: { n: 1 }, Done: { n: COUNT } } });
   assert.equal(wrong.n, (EDGE + 2n).toString());
   assert.equal(wrongFigure({ tracked: true, closed: { Dismissed: { n: 1 }, Done: { n: 3 } } }).value, '25%');
-
-  const rows = [
-    { figures: { estimated: { amount: 5, n: COUNT, value: '$5' } }, currency: 'USD', kind: '', page: { title: 'A' } },
-    { figures: { estimated: { amount: ID, n: 4, value: 'x' } }, currency: 'USD', kind: '', page: { title: 'B' } },
-  ];
-  const total = totalFigure(rows, 'estimated', (n) => String(n));
-  assert.equal(total.sub, (EDGE + 5n).toString());
-  assert.equal(total.value, `$${g(BigInt(ID) + 5n)}`);
-  const said = totalWrong([{ entry: { tracked: true, closed: { Dismissed: { n: COUNT }, Done: { n: 2 } } } }]);
-  assert.ok(said.sub.includes(`of ${g(EDGE + 3n)} closed records`), said.sub);
 });
 
 test('the Hub adds counts and money that arrive as text without losing digits', () => {
-  assert.deepEqual(doneTodayOf([{ done: { mine_today: COUNT } }, { done: { mine_today: 2 } }]), { n: (EDGE + 3n).toString(), utc: false });
-  assert.deepEqual(doneTodayOf([{ done: { mine_today: 3 } }, { done: { mine_today: 2 } }]), { n: 5, utc: false });
-  assert.equal(doneTodayOf([{ done: { mine_today: '' } }, { done: { mine_today: null } }]), null);
-
   const tile = savedTile([['a', { tracked: true, money: true, done: { saved: ID, saved_n: COUNT } }], ['b', { tracked: true, money: true, done: { saved: 5, saved_n: 1 } }]],
     [{ id: 'a' }, { id: 'b' }], {}, 'saved', null);
   assert.equal(tile.value, g(BigInt(ID) + 5n));
@@ -58,12 +44,6 @@ test('the Hub adds counts and money that arrive as text without losing digits', 
 
   assert.equal(moneyText(totals([{ money: ID, currency: 'USD' }, { money: 1, currency: 'USD' }, { money: 'abc', currency: 'USD' }])), `$${g(BigInt(ID) + 1n)}`);
   assert.equal(moneyText(totals([{ money: 5, currency: 'EUR' }, { money: ID, currency: 'USD' }])), `$${g(BigInt(ID))} + €5`);
-  assert.deepEqual(weekBars([{ tracked: true, money: true, weeks: [{ week: '2026-10-05', saved: ID }] },
-    { tracked: true, money: true, weeks: [{ week: '2026-10-05', saved: 3 }] }]).map((b) => b.value), [(BigInt(ID) + 3n).toString()]);
-
-  assert.equal(limitText([['Orders', EDGE.toString(), COUNT]]),
-    `Your limit keeps the top ${g(EDGE)} of ${g(EDGE + 1n)} records in Orders. Change the limit in Settings.`);
-  assert.equal(limitText([['Orders', 5, 5]]), '');
 });
 
 test('every money amount is formatted the one way wholeMoney formats it, and sums keep every digit', () => {

@@ -423,9 +423,9 @@ CAPS = {"kpis": (3, 6), "charts": (3, 8), "tables": (0, 3), "filters": (1, 8), "
         "range_number": 10 ** 15, "blocks": (0, 8), "block_text": 4000, "block_html": 20000, "image_bytes": 2 * 1024 * 1024,
         "image_height": (40, 1200), "url_chars": 2000, "kpi_rows": 2, "count_cap": 10000, "changed_keys": 500, "act_match": 100000,
         "act_match_user": 10000, "note_chars": 500, "snooze_days": 365, "conflicts_shown": 20, "similar_sample": 5, "similar_by": 3, "batches": 20,
-        "exclude_keys": 50, "window_limit": 1000, "act_history": 200, "closers_today": 200, "my_work_rows": 50, "my_work_deepest": 10000,
-        "my_work_days": 366, "scenario_rows": 200, "scenario_events": 2000, "scenarios_per_person": 100, "trend_runs": 20, "trend_weeks": 12,
-        "trend_reasons": 8}
+        "exclude_keys": 50, "window_limit": 1000, "due_within_days": 31, "act_history": 200, "closers_today": 200, "my_work_rows": 50, "my_work_deepest": 10000,
+        "my_work_days": 366, "my_work_overdue": 20, "my_work_weeks": 53, "scenario_rows": 200, "scenario_events": 2000, "scenarios_per_person": 100,
+        "trend_runs": 20, "trend_weeks": 12, "trend_reasons": 8}
 TREND_COLUMNS = (("k", "STRING"), ("at", "TIMESTAMP"), ("n", "BIGINT"), ("m", "BIGINT"), ("overdue", "BIGINT"), ("unowned", "BIGINT"),
                  ("fresh", "BIGINT"), ("month", "BIGINT"), ("older", "BIGINT"), ("money", "DOUBLE"), ("secs", "DOUBLE"))
 AGE_DAYS = (7, 30)
@@ -2712,16 +2712,18 @@ def zone_data() -> bool:
     return bool(zoneinfo.available_timezones())
 
 
-def time_zone_of(data: dict) -> tuple:
+def time_zone_of(data: dict, lenient: bool = False) -> tuple:
     name = data.get("time_zone")
     if name is None or name == "":
         return datetime.timezone.utc, "UTC", False
     if not isinstance(name, str) or not ZONE_NAME.match(name):
+        if lenient:
+            return datetime.timezone.utc, "UTC", False
         raise ValueError("time_zone takes the name of a time zone, such as Asia/Dubai")
     try:
         return zoneinfo.ZoneInfo(name), name, True
     except (zoneinfo.ZoneInfoNotFoundError, ValueError):
-        if not zone_data():
+        if lenient or not zone_data():
             return datetime.timezone.utc, "UTC", False
         raise ValueError(f"time_zone {name} is not a time zone the App knows; send its name, such as Asia/Dubai") from None
 
@@ -2786,7 +2788,7 @@ def zone_micros(stamp: datetime.datetime, zone) -> int:
 def period_params(data: dict, now: datetime.datetime) -> dict:
     if "utc_offset_min" in data:
         raise ValueError(FIXED_OFFSET_GONE)
-    zone, name, zoned = time_zone_of(data)
+    zone, name, zoned = time_zone_of(data, lenient=True)
     zone = zone if zoned else None
     first, last = data.get("from"), data.get("to")
     if first is None and last is None:
@@ -2809,6 +2811,23 @@ def period_params(data: dict, now: datetime.datetime) -> dict:
     stamp = lambda day: zone_micros(datetime.datetime.combine(day, datetime.time()), zone)
     return {"window": MY_WORK_CUSTOM, "zone": name, "today": window_bounds("today", now, zone)["today"], "start_day": start.isoformat(),
             "end_day": (end + datetime.timedelta(days=1)).isoformat(), "start_us": stamp(start), "end_us": stamp(end + datetime.timedelta(days=1))}
+
+
+def week_edges(bounds: dict, weeks: int) -> list:
+    name = bounds.get("zone") or "UTC"
+    zone = datetime.timezone.utc if name == "UTC" else zoneinfo.ZoneInfo(name)
+    monday = lambda day: day - datetime.timedelta(days=day.weekday())
+    if not bounds.get("end_day") and not bounds.get("today"):
+        return []
+    last = monday(_date(bounds["end_day"]) - datetime.timedelta(days=1) if bounds.get("end_day") else _date(bounds["today"]))
+    first = last - datetime.timedelta(weeks=weeks - 1)
+    if bounds.get("start_day"):
+        first = max(first, monday(_date(bounds["start_day"])))
+    out, day = [], last
+    while day >= first:
+        out.append((day.isoformat(), zone_micros(datetime.datetime.combine(day, datetime.time()), zone)))
+        day -= datetime.timedelta(weeks=1)
+    return out
 
 
 WINDOW_EXTRA = ("CAST(`action_due` AS DATE) AS `_inspire_due`", f"CAST(`{SNOOZE_COLUMN}` AS DATE) AS `_inspire_snooze`",
@@ -2845,9 +2864,19 @@ def list_request(page: dict, data: dict, context: dict, now: datetime.datetime =
         raise ValueError(f"exclude takes a list of at most {CAPS['exclude_keys']} record keys")
     if exclude and not context["join"]:
         raise ValueError("this decision list is not joined to the result table, so it cannot leave out records by key")
+    unowned, within = data.get("unowned", False), data.get("due_within")
+    if not isinstance(unowned, bool):
+        raise ValueError("unowned takes true or false")
+    if unowned and data.get("mine"):
+        raise ValueError("send mine or unowned, not both")
+    if unowned and not context["actions"]:
+        raise ValueError("this decision list keeps no action owners, so it cannot show the records nobody owns")
+    if within is not None and (not window or not _whole(within, 0, CAPS["due_within_days"])):
+        raise ValueError(f"due_within goes with a window and takes a whole number of days from 0 to {CAPS['due_within_days']}")
     allowed = list_columns(page) + (list(ACTION_SORTS) if context["actions"] else [])
     ranked = bool(window) and not sort
     return dict(_list_request(page, data, context, allowed), window=window, ranked=ranked, exclude=list(dict.fromkeys(exclude)),
+                unowned=unowned, due_within=within,
                 focus=focus_request(data, context, now or datetime.datetime.now(datetime.timezone.utc)))
 
 
@@ -3892,6 +3921,12 @@ def _list_plan(page: dict, values: dict, request: dict, context: dict, editor: s
     if request.get("choice") is not None:
         conditions.append(f"c.`_inspire_choice` = {params.add(request['choice'])}")
         early.add("c")
+    if request.get("unowned"):
+        conditions.append("NULLIF(TRIM(c.`_inspire_owner`), '') IS NULL")
+        early.add("c")
+    if window and request.get("due_within") is not None:
+        last = (_date(window["today"]) + datetime.timedelta(days=int(request["due_within"]))).isoformat()
+        conditions.append(f"c.`_inspire_due` <= {params.add(last, 'DATE')}")
     money_sort = request["sort"] == MONEY_COLUMN and bool(context.get("money"))
     if money:
         early.add("c")
@@ -3940,7 +3975,7 @@ def counted_total(row) -> tuple:
 
 def unfiltered(values: dict, request: dict) -> bool:
     return (not any(v not in (None, "", [], {}) for v in (values or {}).values()) and not request["search"] and not request["mine"]
-            and not request["changed"] and not request["ai"] and not request["columns"] and not request.get("window")
+            and not request.get("unowned") and request.get("due_within") is None and not request["changed"] and not request["ai"] and not request["columns"] and not request.get("window")
             and not request.get("exclude") and request.get("choice") is None)
 
 
@@ -3960,7 +3995,7 @@ def list_floor(page: dict, request: dict, context: dict, facts, model, filtered:
     live = bool(priced and model and model.get("recomputes") and model.get("changed"))
     scaled = live and ready and money_scale(model) is not None
     if live and by_money and not scaled:
-        selective = (request["mine"] or request["changed"] or request["ai"] or request.get("ranked") or request.get("choice") is not None
+        selective = (request["mine"] or request.get("unowned") or request["changed"] or request["ai"] or request.get("ranked") or request.get("choice") is not None
                      or MONEY_COLUMN in (request.get("columns") or {}))
         if selective or context["join"] != "record_key":
             return None
@@ -5119,7 +5154,26 @@ def _changed(now: str, was: str) -> str:
     return f"COALESCE({was}, '') <> COALESCE({now}, '')"
 
 
-MY_WORK_ORDER = (*CLOSING_ORDER, "wv", "wa", "wp", "wy", "wq", "wb", "wl")
+MY_WORK_ORDER = (*CLOSING_ORDER, "wv", "wa", "wp", "wy", "wq", "wb", "wl", "wt", "wr", "wd", "wo")
+
+
+def _median_cte(source: str) -> str:
+    secs = "(unix_micros(p.`_inspire_closed`) - unix_micros(y.`_w_first`)) / 1000000.0"
+    return (f"SELECT `_w_secs`, ROW_NUMBER() OVER (ORDER BY `_w_secs`) AS `_w_rn`, COUNT(*) OVER () AS `_w_n` FROM (SELECT {secs} AS "
+            f"`_w_secs` FROM {source} AS p JOIN wy AS y ON y.`_w_k` = p.`_inspire_k`) AS q")
+
+
+def _median_branch(kind: str, source: str) -> str:
+    return (f"{_overview_select(kind, {'n': 'MAX(`_w_n`)', 'secs': 'AVG(`_w_secs`)'}, MY_WORK_COLUMNS)} FROM {source} WHERE "
+            f"`_w_rn` * 2 >= `_w_n` AND `_w_rn` * 2 <= `_w_n` + 2")
+
+
+def _overdue_cte(table: str, names: set, within: str, who: str, today: str, label_cell: str) -> str:
+    snoozed = f" AND (`{SNOOZE_COLUMN}` IS NULL OR CAST(`{SNOOZE_COLUMN}` AS DATE) <= {today})" if SNOOZE_COLUMN in names else ""
+    due = "CAST(`action_due` AS DATE)"
+    return (f"SELECT `record_key`, {label_cell} AS `_w_label`, {due} AS `_w_due`, COUNT(*) OVER () AS `_w_n` FROM {table} WHERE {within}"
+            f"{CURRENT_ROWS} AND lower(CAST(`action_owner` AS STRING)) = {who} AND COALESCE(CAST(`action_status` AS STRING), 'New') IN "
+            f"({_sql_list(OPEN_STATUSES)}) AND {due} < {today}{snoozed} ORDER BY {due} ASC, `record_key` ASC LIMIT {CAPS['my_work_overdue']}")
 
 
 def my_work_query(page: dict, names: set, person: str, bounds: dict, rows: int, history=None) -> tuple:
@@ -5132,7 +5186,7 @@ def my_work_query(page: dict, names: set, person: str, bounds: dict, rows: int, 
     inside = lambda stamp: f" AND unix_micros({stamp}) >= {start} AND unix_micros({stamp}) < {end}" if timed else ""
     touched = (f"SELECT `record_key` FROM {table} WHERE {within}`change_source` = 'action' AND lower(`changed_by`) = {who}"
                f"{inside('`valid_from`')}")
-    ctes = closing_ctes(table, names, label, f"{within}`record_key` IN ({touched})", history)
+    ctes = closing_ctes(table, names, label, scope, history)
     text = lambda name: f"CAST({quote(name)} AS STRING)" if name and name in names else "CAST(NULL AS STRING)"
     owner, note = text("action_owner"), f"NULLIF(TRIM({text('action_note')}), '')"
     lagged = lambda value: f"LAG({value}) OVER (PARTITION BY `record_key` ORDER BY `valid_from`)"
@@ -5149,9 +5203,17 @@ def my_work_query(page: dict, names: set, person: str, bounds: dict, rows: int, 
                   f"`change_source` = 'action' AND lower(`changed_by`) = {who}{inside('`valid_from`')}")
     ctes["wp"] = f"SELECT * FROM hm AS v WHERE lower(v.`_inspire_closer`) = {who}{inside('v.`_inspire_closed`')}"
     ctes["wy"] = "SELECT `record_key` AS `_w_k`, MIN(`valid_from`) AS `_w_first` FROM hx GROUP BY `record_key`"
-    secs = "(unix_micros(p.`_inspire_closed`) - unix_micros(y.`_w_first`)) / 1000000.0"
-    ctes["wq"] = (f"SELECT `_w_secs`, ROW_NUMBER() OVER (ORDER BY `_w_secs`) AS `_w_rn`, COUNT(*) OVER () AS `_w_n` FROM (SELECT {secs} AS "
-                  f"`_w_secs` FROM wp AS p JOIN wy AS y ON y.`_w_k` = p.`_inspire_k`) AS q")
+    ctes["wq"] = _median_cte("wp")
+    ctes["wt"] = f"SELECT * FROM hm AS v WHERE v.`_inspire_closer` IS NOT NULL{inside('v.`_inspire_closed`')}"
+    ctes["wr"] = _median_cte("wt")
+    edges = week_edges(bounds, CAPS["my_work_weeks"])
+    week = (f"CASE {' '.join(f'WHEN unix_micros(`_inspire_closed`) >= {int(us)} THEN {sql_text(label)}' for label, us in edges)} END"
+            if edges else "CAST(NULL AS STRING)")
+    ctes["wd"] = (f"SELECT `_w_day`, COUNT(*) AS `_w_n` FROM (SELECT {week} AS `_w_day` FROM wp) AS w WHERE `_w_day` IS NOT NULL "
+                  f"GROUP BY `_w_day` ORDER BY `_w_day` DESC LIMIT {CAPS['my_work_weeks']}")
+    owned = all(n in names for n in ("action_owner", "action_due"))
+    if owned:
+        ctes["wo"] = _overdue_cte(table, names, within, who, params.add(bounds["today"], "DATE"), text(label))
     ok, fixed = "`_inspire_measured_ok` = 1", f"`_inspire_status` = '{DONE}'"
     worth = f"CASE WHEN {ok} THEN `_inspire_measured` ELSE `_inspire_realized` END"
     ctes["wb"] = (f"SELECT *, {worth} AS `_w_worth` FROM wp WHERE {fixed} AND {worth} IS NOT NULL ORDER BY `_w_worth` DESC, "
@@ -5168,10 +5230,18 @@ def my_work_query(page: dict, names: set, person: str, bounds: dict, rows: int, 
               "owner": "`_w_owner`", "at": "`valid_from`"}
     branches = [f"{_overview_select('tally', tally, MY_WORK_COLUMNS)} FROM wa",
                 f"{_overview_select('closed', closed, MY_WORK_COLUMNS)} FROM wp GROUP BY `_inspire_status`",
-                f"{_overview_select('median', {'n': 'MAX(`_w_n`)', 'secs': 'AVG(`_w_secs`)'}, MY_WORK_COLUMNS)} FROM wq WHERE "
-                f"`_w_rn` * 2 >= `_w_n` AND `_w_rn` * 2 <= `_w_n` + 2",
+                _median_branch("median", "wq"),
                 f"{_overview_select('best', best, MY_WORK_COLUMNS)} FROM wb",
-                f"{_overview_select('act', listed, MY_WORK_COLUMNS)} FROM wl"]
+                f"{_overview_select('act', listed, MY_WORK_COLUMNS)} FROM wl",
+                f"{_overview_select('team', {'what': '`_inspire_status`', 'n': 'COUNT(*)'}, MY_WORK_COLUMNS)} FROM wt GROUP BY `_inspire_status`",
+                f"{_overview_select('people', {'n': 'COUNT(DISTINCT lower(`_inspire_closer`))'}, MY_WORK_COLUMNS)} FROM wt",
+                _median_branch("team_median", "wr"),
+                f"{_overview_select('day', {'label': 'CAST(`_w_day` AS STRING)', 'n': '`_w_n`'}, MY_WORK_COLUMNS)} FROM wd",
+                f"{_overview_select('outcome', {'what': '`_inspire_state`', 'n': 'COUNT(*)'}, MY_WORK_COLUMNS)} FROM wp WHERE {fixed} "
+                f"GROUP BY `_inspire_state`"]
+    if owned:
+        due = {"k": "`record_key`", "label": "`_w_label`", "at": "CAST(`_w_due` AS TIMESTAMP)", "n": "`_w_n`"}
+        branches.append(f"{_overview_select('overdue', due, MY_WORK_COLUMNS)} FROM wo")
     return f"{_with(ctes, MY_WORK_ORDER)} {' UNION ALL '.join(branches)}", params.items
 
 

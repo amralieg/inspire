@@ -67,6 +67,8 @@ export function sectionHash(pageId, section, query = new URLSearchParams()) {
   return withQuery(`${encodeURIComponent(pageId)}/${section}`, query);
 }
 
+export const workRecordHash = (pageId, key) => sectionHash(pageId, 'work', new URLSearchParams({ tab: 'all', rec: String(key) }));
+
 export function canonicalHash(hash, { pages = [], last = '', sectionsOf = () => SECTIONS, queueOf = () => true } = {}) {
   const link = parseHash(hash);
   const body = String(hash || '').replace(/^#\/?/, '');
