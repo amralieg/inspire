@@ -142,7 +142,7 @@ const DRAFTS = [
     serve: 'A forecast cockpit for replenishment: the coming weeks\' demand per item and store with its range, and the order to place, which planners accept or override.',
     how: 'Forecasting: one exponential smoothing model per series learns trend, weekly seasonality and holiday effects from 2 years of sales, and must beat a seasonal naive forecast before it is used.',
     value: 'Fewer stockouts and less overstock: lost margin avoided plus holding cost saved, from sales_qty, on_hand and unit_margin.',
-    story: 'Demand rises 6% over the next 4 weeks. 7 store-items will run past shelf capacity unless orders change.',
+    story: 'Demand rises 6% over the next 4 weeks, and the top of the range runs above capacity in 2 of the next 8 weeks.',
     stake: '$2.4M a year', tables: ['store_sales', 'inventory', 'item', 'date_dim'], result: 'demand_forecast', app: 'store-orders', title: 'Store order cockpit',
     genie: [
       g('Why does Store 12 jump in week 48?', 'Week 48 holds the holiday weekend. Sales rose 34% and 31% that week in the last 2 years, and the model carries that effect forward.', "SELECT period, actual, forecast, lower, upper FROM demand_forecast__series WHERE series_id = 'store_12' AND period BETWEEN 44 AND 50"),
@@ -154,11 +154,10 @@ const DRAFTS = [
       orders: [['Item 4471 at Store 12', 'Outerwear', 140, 620, 'Raise the order', ['Holiday weekend ahead', 'Demand up 18%']], ['Item 1209 at Store 31', 'Footwear', 380, 410, 'Raise the order a little', ['Demand rising']],
         ['Item 7781 at Store 12', 'Camping', 40, 300, 'Raise the order', ['Local event last year', 'Forecast range wide']], ['Item 3306 at Store 7', 'Bags', 210, 260, 'Raise the order a little', ['Demand rising']],
         ['Item 5120 at Store 44', 'Kids', 180, 150, 'Cut the order', ['Stock above forecast']], ['Item 2290 at Store 19', 'Home', 90, 80, 'Keep the order', ['On track']]],
-      accuracy: [['Store 12', 0.62], ['Store 31', 0.71], ['Store 7', 0.84], ['Store 44', 1.06]],
-      series: [['Item 4471 at Store 12', 'Outerwear', 0.62, 620, 480], ['Item 1209 at Store 31', 'Footwear', 0.71, 410, 360], ['Item 7781 at Store 12', 'Camping', 1.24, 300, 220],
-        ['Item 3306 at Store 7', 'Bags', 0.84, 260, 240], ['Item 5120 at Store 44', 'Kids', 1.06, 150, 200], ['Item 2290 at Store 19', 'Home', 1.09, 80, 120], ['Item 6610 at Store 12', 'Outerwear', 0.69, 540, 450],
-        ['Item 9015 at Store 31', 'Camping', 1.12, 190, 210], ['Item 4471 at Store 31', 'Outerwear', 0.74, 380, 320], ['Item 1209 at Store 7', 'Footwear', 0.81, 290, 300],
-        ['Item 8820 at Store 44', 'Home', 1.18, 130, 150], ['Item 3306 at Store 12', 'Bags', 0.88, 310, 260]],
+      series: [['Item 4471 at Store 12', 'Outerwear', 0.62, 620], ['Item 1209 at Store 31', 'Footwear', 0.71, 410], ['Item 7781 at Store 12', 'Camping', 1.24, 300],
+        ['Item 3306 at Store 7', 'Bags', 0.84, 260], ['Item 5120 at Store 44', 'Kids', 1.06, 150], ['Item 2290 at Store 19', 'Home', 1.09, 80], ['Item 6610 at Store 12', 'Outerwear', 0.69, 540],
+        ['Item 9015 at Store 31', 'Camping', 1.12, 190], ['Item 4471 at Store 31', 'Outerwear', 0.74, 380], ['Item 1209 at Store 7', 'Footwear', 0.81, 290],
+        ['Item 8820 at Store 44', 'Home', 1.18, 130], ['Item 3306 at Store 12', 'Bags', 0.88, 310]],
     },
   },
   {
@@ -171,13 +170,13 @@ const DRAFTS = [
     stake: 'base $4.20M a quarter', tables: ['store_sales', 'item', 'promotion', 'date_dim'], result: 'margin_scenarios', app: 'margin-lab', title: 'Margin scenario lab',
     genie: [
       g('What has to be true to hit the $4.0M target?', 'From the 2,400 simulated scenarios: with price up 2% and unit cost flat, the chance is 95%. Volume matters less: each 1% adds about $40K.', 'SELECT price_pct, cost_pct, p50, prob_target FROM margin_scenarios__scenarios WHERE prob_target >= 0.9 ORDER BY ABS(price_pct) + ABS(cost_pct) LIMIT 5'),
-      g('Which assumption is the riskiest?', 'Unit cost: its range moves margin by plus or minus $0.35M, more than any other lever, and it swung 6% a quarter over the last 3 years.', 'SELECT lever, low, high, delta FROM margin_scenarios__sensitivity ORDER BY delta DESC'),
+      g('Which assumption is the riskiest?', 'Unit cost: it swung 5% a quarter over the last 3 years, and that swing moves margin by plus or minus $0.35M, more than any other lever.', 'SELECT lever, low, high, delta FROM margin_scenarios__sensitivity ORDER BY delta DESC'),
       g('Compare the base and the downside cases', 'Downside (cost up 5%, volume down 3%) lands at $3.73M P50 with an 11% chance of target, against $4.20M and 82% for the base case.', "SELECT scenario_id, p10, p50, p90, prob_target FROM margin_scenarios__scenarios WHERE scenario_id IN ('base','downside')"),
     ],
     mvp: {
       kpi: 'Chance of the $4.0M margin target',
       base: 4200000, target: 4000000, sd: 220000,
-      levers: [['price', 'Price change, %', 0.09], ['volume', 'Volume change, %', 0.04], ['unit_cost', 'Unit cost change, %', -0.07]],
+      levers: [['price', 'Price change, %', 0.09, 'Price', 3], ['volume', 'Volume change, %', 0.04, 'Volume', 5], ['unit_cost', 'Unit cost change, %', -0.07, 'Unit cost', 5]],
       scenarios: [['base', {}], ['upside', { price: 4 }], ['downside', { unit_cost: 5, volume: -3 }]],
       exposures: [
         ['Private-label snacks', 'North', 310000, 'Hold the 2% price rise on private-label snacks', ['Unit cost rose 6% last quarter', 'The largest margin swing under the cost lever']],
@@ -618,10 +617,10 @@ function decisionData(u, picked) {
 function forecastPage(u, spec) {
   return {
     ...base(u, spec),
-    story: `${u.story} The next weeks need {next_forecast} units; ${u.mvp.series.filter(([, , mase]) => mase > 1).length} store-items carry a forecast error above the naive benchmark.`,
-    kpis: byId(spec.kpis, { at_risk_n: { label: 'Store-items at risk' }, orders_open: { label: 'Orders to decide' } }),
-    tables: textOf(spec.tables, { at_risk: { title: 'Store-items at risk', hint: 'Store-items whose forecast is worse than naive or whose demand runs past the shelf.',
-      columns: textOf(spec.tables.find((t) => t.id === 'at_risk').columns, { series_label: { label: 'Store-item' }, upside: { label: 'Units past the shelf' } }) } }),
+    story: `${u.story} The next weeks need {next_forecast} units; {at_risk_n} store-items carry a forecast error above the naive benchmark.`,
+    kpis: byId(spec.kpis, { at_risk_n: { label: 'Store-items worse than naive' }, orders_open: { label: 'Orders to decide' } }),
+    tables: textOf(spec.tables, { at_risk: { title: 'Store-items worse than naive', hint: 'Store-items whose backtest error is above a naive forecast (MASE above 1).',
+      columns: textOf(spec.tables.find((t) => t.id === 'at_risk').columns, { series_label: { label: 'Store-item' } }) } }),
     records: { ...spec.records, title: 'Store orders to place', hint: 'Store-items from the latest run, ranked by the stock at risk.' },
     plan: { ...spec.plan, title: 'Order plan', hint: 'The suggested order for each store-item from the forecast. Accept it, or override it with a reason.' },
     filters: filterText(spec, { category: ['Category'], region: ['Store'], channel: ['Channel'] }),
@@ -641,15 +640,15 @@ function forecastData(u) {
   const fan = weeks.map((x, i) => (i < 12 ? { x, y0: 8600 + i * 120 + (i % 4 === 3 ? 700 : 0), y1: null, y2: null, y3: null }
     : { x, y0: null, y1: 10100 + (i - 12) * 260, y2: 9400 + (i - 12) * 220, y3: 10800 + (i - 12) * 300 }));
   const total = (y) => fan.reduce((s, r) => s + (r[y] || 0), 0);
-  const atRisk = u.mvp.series.filter(([, , mase, next, shelf]) => mase > 1 || next > shelf);
+  const atRisk = u.mvp.series.filter(([, , mase]) => mase > 1);
   return {
     kpis: { next_forecast: { now: total('y1') }, last_actual: { now: total('y0') }, at_risk_n: { now: atRisk.length }, orders_open: { now: u.mvp.orders.length } },
     charts: {
       fan: { columns: [], rows: fan, truncated: false },
-      vs_capacity: { columns: [], rows: weeks.slice(12).map((x, i) => ({ x, y0: 10100 + i * 260, y1: 10800 + i * 300, y2: 11900 })), truncated: false },
-      accuracy: { columns: [], rows: u.mvp.accuracy.map(([x, y0]) => ({ x, y0 })), truncated: false },
+      vs_capacity: { columns: [], rows: weeks.slice(12).map((x, i) => ({ x, y0: 10100 + i * 260, y1: 10800 + i * 300, y2: 12300 })), truncated: false },
+      accuracy: { columns: [], rows: [...u.mvp.series].sort((a, b) => b[2] - a[2]).slice(0, 15).map(([x, , y0]) => ({ x, y0 })), truncated: false },
     },
-    tables: { at_risk: { columns: [], rows: atRisk.map(([series_label, category, backtest_mase, next_forecast, shelf]) => ({ series_label, category, backtest_mase, next_forecast, upside: Math.max(0, next_forecast - shelf) })), truncated: false } },
+    tables: { at_risk: { columns: [], rows: atRisk.map(([series_label, category, backtest_mase, next_forecast]) => ({ series_label, category, backtest_mase, next_forecast, upside: Math.round(next_forecast * 0.18) })), truncated: false } },
     errors: {},
   };
 }
@@ -695,6 +694,7 @@ function scenarioPage(u, spec) {
     ...base(u, spec),
     story: `${u.story} The base case earns {base_p50} next quarter, with a {base_chance} chance of reaching the target.`,
     kpis: byId(spec.kpis, { base_chance: { label: 'Chance of the $4.0M target' }, last_margin: { label: 'Margin last quarter' } }),
+    charts: textOf(spec.charts, { swing: { hint: 'Margin change from the base case when each lever moves down or up by its usual quarterly swing.' } }),
     scenario: {
       ...spec.scenario, title: 'Move the levers', hint: 'Each lever moves up to 10% either way from the base case.',
       levers: m.levers.map(([lever, label]) => ({ lever, label, format: 'number', step: 1 })),
@@ -717,6 +717,13 @@ export function scenarioEvaluate(u, values = {}) {
   };
 }
 
+export function scenarioSwing(u) {
+  const m = u.mvp;
+  const shift = (lever, value) => scenarioEvaluate(u, { [lever]: value }).outcome.p50 - m.base;
+  return m.levers.map(([lever, , , x, move]) => ({ x, y0: shift(lever, -move), y1: shift(lever, move) }))
+    .sort((a, b) => Math.max(Math.abs(b.y0), Math.abs(b.y1)) - Math.max(Math.abs(a.y0), Math.abs(a.y1)));
+}
+
 function scenarioRows(u) {
   return u.mvp.exposures.map(([label, region, value, action, reasons], i) => ({
     record_key: `K${i + 1}`, _inspire_key: `K${i + 1}`, _inspire_version: String(700 + i), entity_id: label, entity_label: label, region, channel: 'All',
@@ -732,7 +739,7 @@ function scenarioData(u) {
   });
   return {
     kpis: { base_p50: { now: rows[0].p50 }, base_chance: { now: rows[0].chance_pct }, last_margin: { now: 4050000, before: 3980000 } },
-    charts: { swing: { columns: [], rows: [['Unit cost', 350000], ['Price', 270000], ['Volume', 200000]].map(([x, d]) => ({ x, y0: -d, y1: d })), truncated: false } },
+    charts: { swing: { columns: [], rows: scenarioSwing(u), truncated: false } },
     tables: { scenarios: { columns: [], rows, truncated: false } },
     errors: {},
   };

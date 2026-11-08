@@ -335,7 +335,7 @@ test('on every demo page the headline figures equal the chart data they summariz
   const forecast = USE_CASES.find((u) => u.no === 'N03-U01');
   const risk = structuredClone(mvpApi(forecast, { pages: [mvpPage(forecast)] }).routes['POST page']({}));
   risk.tables.at_risk.rows.pop();
-  assert.deepEqual(headlineGaps('forecast_cockpit', risk), ['at_risk_n.now 11 but at_risk count 10']);
+  assert.deepEqual(headlineGaps('forecast_cockpit', risk), ['at_risk_n.now 5 but at_risk count 4']);
 });
 
 function scenarioGaps(u, data, scenarioEvaluate) {
@@ -348,10 +348,17 @@ function scenarioGaps(u, data, scenarioEvaluate) {
     const expected = { p10: model.p10, p50: model.p50, p90: model.p90, prob_target: model.prob_target, chance_pct: Math.round(model.prob_target * 100) };
     for (const [field, value] of Object.entries(expected)) if (row?.[field] !== value) gaps.push(`${id} ${field} ${row?.[field]} but the model gives ${value}`);
   }
+  const bars = data.charts.swing?.rows || [];
+  if (bars.length !== u.mvp.levers.length) gaps.push(`shows ${bars.length} swing bars but the model has ${u.mvp.levers.length} levers`);
+  for (const [lever, , , name, move] of u.mvp.levers) {
+    const bar = bars.find((r) => r.x === name);
+    const shift = (value) => scenarioEvaluate(u, { [lever]: value }).outcome.p50 - u.mvp.base;
+    for (const [field, value] of [['y0', shift(-move)], ['y1', shift(move)]]) if (bar?.[field] !== value) gaps.push(`swing ${name} ${field} ${bar?.[field]} but the model gives ${value}`);
+  }
   return gaps;
 }
 
-test('every scenario the demo shows states the chance, P10, P50 and P90 the scenario model gives for its levers (must-exclude)', async () => {
+test('every scenario and swing bar the demo shows states what the scenario model gives for its levers (must-exclude)', async () => {
   const { USE_CASES, mvpApi, mvpPage, scenarioEvaluate } = await kinds();
   const labs = USE_CASES.filter((u) => u.mvp.layout === 'scenario_lab');
   assert.ok(labs.length > 0, 'the demo has a scenario lab');
@@ -367,6 +374,12 @@ test('every scenario the demo shows states the chance, P10, P50 and P90 the scen
   const off = structuredClone(mvpApi(lab, { pages: [mvpPage(lab)] }).routes['POST page']({}));
   off.tables.scenarios.rows.find((r) => r.scenario_id === 'upside').chance_pct = 96;
   assert.deepEqual(scenarioGaps(lab, off, scenarioEvaluate), ['upside chance_pct 96 but the model gives 99']);
+  off.charts.swing.rows.find((r) => r.x === 'Price').y1 = 450000;
+  assert.deepEqual(scenarioGaps(lab, off, scenarioEvaluate), ['upside chance_pct 96 but the model gives 99', 'swing Price y1 450000 but the model gives 270000']);
+  off.charts.swing.rows.find((r) => r.x === 'Price').y1 = 270000;
+  off.charts.swing.rows.find((r) => r.x === 'Unit cost').y0 = -350000;
+  assert.deepEqual(scenarioGaps(lab, off, scenarioEvaluate), ['upside chance_pct 96 but the model gives 99', 'swing Unit cost y0 -350000 but the model gives 350000']);
+  off.charts.swing.rows.find((r) => r.x === 'Unit cost').y0 = 350000;
   off.tables.scenarios.rows.pop();
   assert.deepEqual(scenarioGaps(lab, off, scenarioEvaluate), ['shows 2 scenarios but the model sets 3', 'upside chance_pct 96 but the model gives 99', 'downside p10 undefined but the model gives 3448400',
     'downside p50 undefined but the model gives 3730000', 'downside p90 undefined but the model gives 4011600', 'downside prob_target undefined but the model gives 0.11', 'downside chance_pct undefined but the model gives 11']);
@@ -425,7 +438,7 @@ const PROSE_FIGURES = {
         const fan = d.chart('fan');
         return pct(sumOf(fan.filter((r) => r.y1 != null).slice(0, 4), (r) => r.y1), sumOf(fan.filter((r) => r.y0 != null).slice(-4), (r) => r.y0)) - 100;
       },
-      7: (d) => d.tables.at_risk.rows.filter((r) => r.upside > 0).length, 5: (d) => d.tables.at_risk.rows.filter((r) => r.backtest_mase > 1).length, ...out('4'),
+      2: (d) => d.chart('vs_capacity').filter((r) => r.y1 > r.y2).length, 8: (d) => d.chart('vs_capacity').length, ...out('4'),
     },
     'genie 1': out('34%', '31%', '2'),
     'genie 2': out('80%', '9,100', '10,400', '7%', '13', '6%', '9%'),
@@ -435,7 +448,7 @@ const PROSE_FIGURES = {
     story: { '$4.20M': [kpi('base_p50'), BASE], '82%': [kpi('base_chance'), BASE_CHANCE], '$4.0M': (d) => d.page.scenario.outcome.target },
     hint: { '10%': (d) => d.evaluate({ price: 99 }).levers[0].value },
     'genie 1': { '95%': evaluated({ price: 2 }, 'prob_target'), '$40K': (d) => evaluated({ volume: 1 }, 'p50')(d) - BASE(d), ...out('2,400', '2%', '1%') },
-    'genie 2': { '$0.35M': (d) => { const [top] = [...d.chart('swing')].sort((a, b) => b.y1 - a.y1); return top.x === 'Unit cost' ? top.y1 : NaN; }, ...out('6%', '3') },
+    'genie 2': { '$0.35M': (d) => { const [top] = d.chart('swing'); return top.x === 'Unit cost' ? Math.max(Math.abs(top.y0), Math.abs(top.y1)) : NaN; }, '5%': (d) => d.u.mvp.levers.find(([lever]) => lever === 'unit_cost')[4], ...out('3') },
     'genie 3': {
       '$3.73M': [evaluated(DOWNSIDE, 'p50'), scenarioRow('downside', 'p50')], '11%': [evaluated(DOWNSIDE, 'prob_target'), scenarioRow('downside', 'chance_pct')],
       '$4.20M': [kpi('base_p50'), BASE], '82%': [kpi('base_chance'), BASE_CHANCE], ...out('5%', '3%'),
@@ -631,7 +644,7 @@ test('the prose figure check fails on a wrong figure, a figure nobody classified
   };
   assert.deepEqual(restated('N03-U01', '6%', '18%'), ['story says 18% but the data gives 5.799']);
   assert.deepEqual(restated('N03-U01', '6%', '5%'), ['story says 5% but the data gives 5.799']);
-  assert.deepEqual(restated('N03-U01', '7', '14'), ['story says 14 but the data gives 7']);
+  assert.deepEqual(restated('N03-U01', '2', '3'), ['story says 3 but the data gives 2']);
   assert.deepEqual(restated('N10-U03', '$186K', '$86K'), ['story says $86K but the data gives at least 110000']);
   assert.deepEqual(restated('N07-U03', '$1.05M', '$1.0M'), ['story says $1.0M but the data gives 1050000']);
   assert.deepEqual(restated('N07-U03', '$1.05M', '$1.1M'), ['story says $1.1M but the data gives 1050000']);

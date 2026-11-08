@@ -31,7 +31,7 @@
     },
     {
       "name": "at_risk",
-      "sql": "SELECT i.item_label AS series_label, i.category, i.region, i.channel, MAX(s.backtest_mase) AS backtest_mase, SUM(CASE WHEN s.is_future THEN s.upper - s.forecast END) AS upside, SUM(CASE WHEN s.is_future THEN s.forecast END) AS next_forecast FROM main.supply.demand_out__series AS s JOIN main.supply.items AS i ON i.item_id = s.series_id GROUP BY i.item_label, i.category, i.region, i.channel HAVING MAX(s.backtest_mase) > 1 OR SUM(CASE WHEN s.is_future THEN s.upper - s.forecast END) > 0"
+      "sql": "SELECT i.item_label AS series_label, i.category, i.region, i.channel, MAX(s.backtest_mase) AS backtest_mase, SUM(CASE WHEN s.is_future THEN s.upper - s.forecast END) AS upside, SUM(CASE WHEN s.is_future THEN s.forecast END) AS next_forecast FROM main.supply.demand_out__series AS s JOIN main.supply.items AS i ON i.item_id = s.series_id GROUP BY i.item_label, i.category, i.region, i.channel HAVING MAX(s.backtest_mase) > 1"
     }
   ],
   "filters": [
@@ -98,7 +98,7 @@
     },
     {
       "id": "at_risk_n",
-      "label": "Items at risk",
+      "label": "Items worse than naive",
       "dataset": "at_risk",
       "expression": "COUNT(*)",
       "format": "integer",
@@ -209,8 +209,8 @@
     {
       "id": "at_risk",
       "section": "accuracy_by_series",
-      "title": "Items at risk",
-      "hint": "Items whose forecast is weak or whose range runs high.",
+      "title": "Items worse than naive",
+      "hint": "Items whose backtest error is above a naive forecast (MASE above 1).",
       "so_what": "Check these items first: their order is the least certain.",
       "dataset": "at_risk",
       "columns": [

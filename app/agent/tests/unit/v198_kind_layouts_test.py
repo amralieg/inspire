@@ -123,6 +123,46 @@ def test_a_forecast_page_without_its_decision_list_is_refused():
     assert any("at_risk_series section" in p for p in shell_sql.spec_problems(page))
 
 
+def forecast_count_problems(page, kinds):
+    kpi = next(k for k in page["kpis"] if k["id"] == "at_risk_n")
+    sql = next(d["sql"] for d in page["datasets"] if d["name"] == kpi["dataset"])
+    having = sql.split(" HAVING ", 1)[1] if " HAVING " in sql else ""
+    problems = []
+    if not re.fullmatch(r"MAX\(\s*(?:\w+\.)?backtest_mase\s*\)\s*>\s*1", having.strip()):
+        problems.append(f"the count selects {having!r}, not only the series whose forecast is worse than naive")
+    table = next(t for t in page["tables"] if t["dataset"] == kpi["dataset"])
+    story = next((s for s in re.split(r"(?<=[.;])\s+", page["story"]) if "{at_risk_n}" in s), "")
+    for where, text in (("KPI label", kpi["label"]), ("table title", table["title"]), ("table hint", table["hint"]), ("story", story)):
+        if "naive" not in text.lower():
+            problems.append(f"the {where} {text!r} does not say it counts the series worse than naive")
+    for kind in kinds["kinds"]:
+        if kind["layout"] != "forecast_cockpit":
+            continue
+        texts = [kind["question"], kind["serving_template"]] + [w["title"] for w in kind["dashboard"]["widgets"]]
+        problems += [f"kind {kind['id']} says {text!r}" for text in texts if re.search(r"at[ -]risk", text, re.I)]
+    return problems
+
+
+def test_the_forecast_at_risk_count_has_one_meaning_and_every_label_says_what_it_counts():
+    assert forecast_count_problems(FORECAST, KINDS) == []
+    old = copy.deepcopy(FORECAST)
+    at_risk = next(d for d in old["datasets"] if d["name"] == "at_risk")
+    at_risk["sql"] += " OR SUM(CASE WHEN s.is_future THEN s.upper - s.forecast END) > 0"
+    next(k for k in old["kpis"] if k["id"] == "at_risk_n")["label"] = "Items at risk"
+    table = next(t for t in old["tables"] if t["id"] == "at_risk")
+    table.update(title="Items at risk", hint="Items whose forecast is weak or whose range runs high.")
+    old_kinds = copy.deepcopy(KINDS)
+    forecast = next(k for k in old_kinds["kinds"] if k["id"] == "forecast")
+    forecast["dashboard"]["widgets"][2]["title"] = "At-risk series"
+    found = forecast_count_problems(old, old_kinds)
+    assert found == ["the count selects 'MAX(s.backtest_mase) > 1 OR SUM(CASE WHEN s.is_future THEN s.upper - s.forecast END) > 0', "
+                     "not only the series whose forecast is worse than naive",
+                     "the KPI label 'Items at risk' does not say it counts the series worse than naive",
+                     "the table title 'Items at risk' does not say it counts the series worse than naive",
+                     "the table hint 'Items whose forecast is weak or whose range runs high.' does not say it counts the series worse than naive",
+                     "kind forecast says 'At-risk series'"]
+
+
 @pytest.mark.parametrize("change, fragment", [
     ({"y": FORECAST["charts"][0]["y"][:3]}, "4 measures"),
     ({"series": {"column": "category", "top": 3}}, "cannot split into series"),
@@ -365,7 +405,7 @@ def test_a_section_counted_in_rows_needs_its_minimum_rows_at_the_default_filters
     assert shell_sql.row_minimums(FORECAST) == [("at_risk_series", 5, ("records", "records"))]
     found = shell_sql.row_problems(FORECAST, {("records", "records"): 3})
     assert found == ["the at_risk_series section of a forecast_cockpit page shows at least 5 rows; the decision list returned 3 at the default "
-                     "filters, so widen what it selects: the series at risk, to accept or override"]
+                     "filters, so widen what it selects: the order for each series, to accept or override"]
     assert "[LAYOUT-ROWS FIRED] page=n02_u03 short=1" in capsys.readouterr().out
     assert shell_sql.row_problems(FORECAST, {("records", "records"): 5}) == []
     assert shell_sql.row_problems(PAGE, {("records", "records"): 1}) == []

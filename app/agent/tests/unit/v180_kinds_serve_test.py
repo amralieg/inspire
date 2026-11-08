@@ -41,7 +41,7 @@ def test_lines_fill_the_registry_templates_from_the_elite_assessment(ns):
     assert (uc["use_case_kind"], uc["kind_family"], uc["app_layout"]) == ("forecast", "predict", "forecast_cockpit")
     assert (uc["kind_label"], uc["kind_family_label"]) == ("Forecast", "Predict")
     assert uc["serving_summary"] == ("A forecast cockpit for Regional supply planner that shows the expected Stock-out rate per store "
-                                     "with its range, and flags the ones at risk: app, dashboard, Genie room, alert.")
+                                     "with its range, and flags the ones whose forecast is worse than a naive one: app, dashboard, Genie room, alert.")
     assert uc["method_summary"].startswith("Forecasting: past values of Stock-out rate in `units_sold`, `sale_date` project")
     assert uc["value_source"].startswith("Better orders or staffing") and "`units_sold`, `sale_date`" in uc["value_source"]
     assert "current estimate" not in uc["value_source"], "no value at stake yet, so the estimate clause is left out"

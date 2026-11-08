@@ -1166,7 +1166,7 @@
    "num": 5,
    "family": "predict",
    "label": "Forecast",
-   "question": "What will the measure be per series next periods, with what range, and which series are at risk?",
+   "question": "What will the measure be per series next periods, with what range, and where is the forecast worse than a naive one?",
    "informational": false,
    "layout": "forecast_cockpit",
    "decision_layout": null,
@@ -1190,7 +1190,7 @@
    "value_lever": "cost",
    "value_from_kpi": true,
    "value_formula": "better orders or staffing from a forecast that beats the seasonal naive one: error reduction × {kpi} at stake, from {signal_columns}; current estimate {value_at_stake}",
-   "serving_template": "A forecast cockpit for {owner} that shows the expected {kpi} per {objects} with its range, and flags the ones at risk: app, dashboard, Genie room, alert.",
+   "serving_template": "A forecast cockpit for {owner} that shows the expected {kpi} per {objects} with its range, and flags the ones whose forecast is worse than a naive one: app, dashboard, Genie room, alert.",
    "method_plain": {
     "Forecasting": "Forecasting: past values of {kpi} in {signal_columns} project the next periods with a range, checked against a seasonal naive forecast."
    },
@@ -1238,7 +1238,7 @@
      {
       "widget": "bar",
       "source": "__series",
-      "title": "At-risk series"
+      "title": "Forecast by series"
      },
      {
       "widget": "counter",
@@ -2246,7 +2246,7 @@
    "contract": "forecast",
    "value_lever": "capital",
    "value_formula": "cost of capacity added on time against shortfall or idle capacity, from {signal_columns}; current estimate {value_at_stake}",
-   "serving_template": "A forecast cockpit for {owner} that shows the expected {kpi} per {objects} with its range, and flags the ones at risk: app, dashboard, Genie room, alert.",
+   "serving_template": "A forecast cockpit for {owner} that shows the expected {kpi} per {objects} with its range, and flags the ones whose forecast is worse than a naive one: app, dashboard, Genie room, alert.",
    "method_plain": {
     "Forecasting": "Forecasting: past values of {kpi} in {signal_columns} project the next periods with a range, checked against a seasonal naive forecast.",
     "Simulation": "Simulation: many draws of the uncertain inputs in {signal_columns} give the range of {kpi} and the chance of hitting target.",
@@ -2285,17 +2285,17 @@
      {
       "widget": "table",
       "source": "__series",
-      "title": "Sites at risk"
+      "title": "Forecast by site and period"
      },
      {
       "widget": "bar",
       "source": "__series",
-      "title": "Utilization"
+      "title": "Forecast by site"
      },
      {
       "widget": "counter",
       "source": "__series",
-      "title": "Weeks until full"
+      "title": "Backtest error (MASE)"
      }
     ]
    },

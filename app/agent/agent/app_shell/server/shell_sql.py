@@ -259,7 +259,7 @@ SECTIONS = {
     "horizon_selector": {"holds": "horizon", "words": "the horizon picker on the band chart"},
     "forecast_vs_capacity": {"charts": ("band",) + TRENDS + BARS, "words": "the forecast against the plan or the capacity"},
     "accuracy_by_series": {"charts": BARS, "tables": True, "suffix": "__series", "words": "the accuracy of each series"},
-    "at_risk_series": {"holds": "plan", "unit": "rows", "words": "the series at risk, to accept or override"},
+    "at_risk_series": {"holds": "plan", "unit": "rows", "words": "the order for each series, to accept or override"},
     "small_multiples": {"charts": TRENDS, "words": "small multiples of the series"},
     "lever_sliders": {"holds": "levers", "suffix": "__scenario_model", "words": "the levers people move"},
     "outcome_distribution": {"holds": "scenario", "words": "the outcome distribution"},
