@@ -53,8 +53,8 @@ function lister({ route, json, seen }) {
 
 const routes = (columns) => ({ filters: ({ json }) => json(200, { ...FILTERS, columns }), records: lister });
 
-async function openList(hash = '', columns = COLUMNS, info = appInfo({}, 1, { records: RECORDS })) {
-  const opened = await openApp(browser, base, info, { routes: routes(columns), hash, ready: hash ? '.kpi-v' : undefined });
+async function openList(hash = '#/n01_u05/work', columns = COLUMNS, info = appInfo({}, 1, { records: RECORDS })) {
+  const opened = await openApp(browser, base, info, { routes: routes(columns), hash });
   await card(opened.page, LIST).locator('tbody tr').first().waitFor();
   return opened;
 }
@@ -123,7 +123,7 @@ test('a range on the loss refuses a From above its To, then narrows the list, an
 
 test('a link and a saved view carry the column filters, and opening them narrows the list again', async () => {
   const f = encodeFilters({ c: { l: { priority_tier: ['Review'] } } });
-  const { page, seen, context } = await openList(`#/n01_u05?f=${f}`);
+  const { page, seen, context } = await openList(`#/n01_u05/work?f=${f}`);
   await until(() => JSON.stringify(lastList(seen)?.column_filters) === JSON.stringify({ priority_tier: ['Review'] }));
   await page.waitForFunction(() => /^10 records/.test(document.querySelector('section.card--table .card-h p')?.textContent || ''));
   assert.deepEqual([...new Set(await shownTiers(page))], ['Review']);
@@ -144,7 +144,7 @@ test('a link and a saved view carry the column filters, and opening them narrows
   await until(() => JSON.stringify(lastList(seen).column_filters) === JSON.stringify({ priority_tier: ['Review'] }));
   assert.equal(await card(page, LIST).locator('.cf-n').innerText(), '1 column filter on');
   const stale = encodeFilters({ c: { l: { priority_tier: ['Gone'] } } });
-  await page.evaluate((h) => { location.hash = h; }, `#/n01_u05?f=${stale}`);
+  await page.evaluate((h) => { location.hash = h; }, `#/n01_u05/work?f=${stale}`);
   await toastSays(page, 'Some filters in this link no longer apply');
   await until(() => !('column_filters' in lastList(seen)));
   assert.deepEqual(seen.errors, []);
@@ -152,7 +152,7 @@ test('a link and a saved view carry the column filters, and opening them narrows
 });
 
 test('a page whose tables carry no column filters draws no filter control and sends no column filter', async () => {
-  const { page, seen, context } = await openList('', { list: [], tables: {} }, appInfo());
+  const { page, seen, context } = await openList(undefined, { list: [], tables: {} }, appInfo());
   const list = card(page, LIST);
   await page.waitForTimeout(300);
   assert.equal(await list.locator('.cf-b').count(), 0);

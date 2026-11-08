@@ -16,11 +16,12 @@ import GeniePanel, { useGenie } from './Genie.jsx';
 import { GenieScope, GenieState } from './AskGenie.jsx';
 import { DockContext, DockTabs, RecordDock } from './Dock.jsx';
 import Switcher from './Switcher.jsx';
-import { UNKNOWN_PAGE, canonicalHash, parseHash, sectionHash, unknownRoute, withRecord } from './links.js';
+import { LINK_STALE, UNKNOWN_PAGE, canonicalHash, parseHash, sectionHash, staleSection, unknownRoute, withRecord } from './links.js';
 import { MyViewProvider, useMyView } from './MyView.jsx';
 import { windowParams } from './prefs.js';
 import { DEFAULT_VIEW, visiblePages } from './hub.js';
 import logo from './databricks-logo.png?inline';
+import { integer } from './format.js';
 
 const THEME_KEY = 'inspire-app-theme';
 const RAIL_ICONS = { dashboard: 'grid', work: 'check', performance: 'trend', runs: 'history', alerts: 'bell', settings: 'sliders' };
@@ -73,12 +74,20 @@ function useHub(pages, asked) {
   return { hub, error, summaries, load };
 }
 
-function SectionRail({ sections, on, onGo, open, page }) {
+function railOf(app, page) {
+  const sections = pageSections(app, page);
+  const at = isQueue(page) ? 2 : 1;
+  return [...sections.slice(0, at), 'performance', ...sections.slice(at)];
+}
+
+function SectionRail({ sections, on, onGo, open, page, counts = {} }) {
   const top = sections.filter((s) => s !== 'settings');
   const item = (s) => (
-    <button key={s} type="button" className={`nav-i rail-i ${on === s ? 'is-on' : ''}`} onClick={() => onGo(s)} aria-current={on === s ? 'page' : undefined} data-rail={s}>
+    <button key={s} type="button" className={`nav-i rail-i ${on === s ? 'is-on' : ''}`} onClick={() => onGo(s)} aria-current={on === s ? 'page' : undefined} data-rail={s}
+      aria-label={counts[s] != null ? `${SECTION_TITLES[s]} (${integer(counts[s])})` : undefined}>
       <span className="nav-ic"><Icon name={RAIL_ICONS[s]} size={15} /></span>
       <span className="nav-t"><b>{SECTION_TITLES[s]}</b></span>
+      {counts[s] != null && <small className="rail-n" data-count>{integer(counts[s])}</small>}
     </button>
   );
   return (
@@ -114,10 +123,11 @@ function Shell({ app }) {
   known.current = { pages, last: prefs.last };
   const missed = useRef('');
   const resolve = useCallback(() => {
-    const now = parseHash(window.location.hash);
-    if (unknownRoute(now.route, known.current.pages)) missed.current = now.route;
-    const next = canonicalHash(window.location.hash, { pages: known.current.pages, last: known.current.last, queue: isQueue, performance: true });
+    const before = window.location.hash;
+    if (unknownRoute(parseHash(before).route, known.current.pages)) missed.current = UNKNOWN_PAGE;
+    const next = canonicalHash(before, { pages: known.current.pages, last: known.current.last, sectionsOf: (p) => railOf(app, p) });
     if (next) window.history.replaceState(window.history.state, '', next);
+    if (next && staleSection(before, next)) missed.current = LINK_STALE;
     return parseHash(window.location.hash);
   }, []);
   const [link, setLink] = useState(resolve);
@@ -153,6 +163,7 @@ function Shell({ app }) {
     },
   }), []);
   const [navOpen, setNavOpen] = useState(false);
+  const [railCounts, setRailCounts] = useState({});
   const [genieOpen, setGenieOpen] = useState(false);
   const [dockSlot, setDockSlot] = useState(null);
   const [showing, setShowing] = useState(false);
@@ -160,8 +171,7 @@ function Shell({ app }) {
   const admin = route === ADMIN_ROUTE;
   const page = pages.find((p) => p.id === route) || (admin ? pages.find((p) => p.id === prefs.last) || pages[0] : null);
   const section = admin ? '' : link.section;
-  const sections = page ? pageSections(app, page) : [];
-  const rail = page ? [...sections.slice(0, isQueue(page) ? 2 : 1), 'performance', ...sections.slice(isQueue(page) ? 2 : 1)] : [];
+  const rail = page ? railOf(app, page) : [];
   const working = !admin && section === 'work';
   const dock = working ? prefs.dock : '';
   const setDock = useCallback((next) => update((p) => ({ ...p, dock: next })), [update]);
@@ -181,8 +191,9 @@ function Shell({ app }) {
   }, [resolve]);
   useEffect(() => {
     if (!missed.current) return;
+    const said = missed.current;
     missed.current = '';
-    toast(UNKNOWN_PAGE);
+    toast(said);
   }, [link, toast]);
   useEffect(() => {
     if (page && !admin && prefs.last !== page.id) update((p) => ({ ...p, last: page.id }));
@@ -216,7 +227,11 @@ function Shell({ app }) {
 
   const leave = () => { setNavOpen(false); document.querySelector('.main')?.focus(); };
   const go = (id) => { window.location.hash = `#/${encodeURIComponent(id)}`; leave(); };
-  const goSection = (s) => { if (page) window.location.hash = sectionHash(page.id, s); leave(); };
+  const goSection = (s) => {
+    const f = parseHash(window.location.hash).f;
+    if (page) window.location.hash = sectionHash(page.id, s, new URLSearchParams(f && link.route === page.id ? { f } : {}));
+    leave();
+  };
   const openRecord = (pageId, key) => { window.location.hash = withRecord(`#/${encodeURIComponent(pageId)}`, key); leave(); };
   const restyle = (nextPalette, nextTheme) => {
     applyTheme(nextPalette, nextTheme, app.style);
@@ -259,7 +274,7 @@ function Shell({ app }) {
           {(app.user.email || app.user.name) && <span className="avatar" title={app.user.email || app.user.name} aria-hidden="true">{initials(app.user)}</span>}
         </header>
         <div className="body">
-          {page && <SectionRail sections={rail} on={section} onGo={goSection} open={navOpen} page={page} />}
+          {page && <SectionRail sections={rail} on={section} onGo={goSection} open={navOpen} page={page} counts={railCounts.page === page.id ? railCounts : {}} />}
           {navOpen && <div className="scrim" onClick={() => setNavOpen(false)} />}
           <main className="main" tabIndex={-1}>
             {admin && <Admin />}
@@ -269,7 +284,7 @@ function Shell({ app }) {
             {!admin && page && section !== 'performance' && (
               <Page key={page.id} app={app} page={page} meta={metas[page.id]} state={states[page.id]} onState={setPageState(page.id)} look={looks[page.id] || EMPTY_LOOK}
                 onLook={setPageLook(page.id)} themeKey={themeKey} onAsk={ask} onExplain={explain} genieBusy={genie.busy} hubEntry={hub?.pages?.[page.id]}
-                summary={summaries[page.id]} view={view} onView={setView} genie={genie} section={section} tab={link.tab} chrome={chrome} />
+                summary={summaries[page.id]} view={view} onView={setView} genie={genie} section={section} tab={link.tab} chrome={chrome} onCounts={setRailCounts} />
             )}
           </main>
           {working && dock === 'genie' && <GeniePanel {...genieProps} tabs={tabs} onClose={() => setDock('')} />}

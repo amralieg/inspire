@@ -43,7 +43,7 @@ function contractRoutes(rows, { listed = {}, acts = [], undo = C.undo.response, 
   return { asked, routes };
 }
 
-async function openWith(info, routes, { prefs, hash = `#/${PAGE}` } = {}) {
+async function openWith(info, routes, { prefs, hash = `#/${PAGE}/work` } = {}) {
   return openApp(browser, served.base, info, { routes, clock: CLOCK, timezone: 'Asia/Dubai', hash, watch: prefs && prefsFirst(MY, PERSON, prefs) });
 }
 
@@ -58,9 +58,9 @@ test('a running refresh shows the step, rows, percent and time left the contract
     const { page, seen, context } = await openApp(browser, served.base, appInfo(), { routes, clock: CLOCK });
     await page.locator('.ph .fresh-d [data-progress]').waitFor();
     assert.equal(await page.locator('.ph .fresh-d [data-progress]').innerText(), text);
-    const bar = await page.locator('.top .fresh [role="progressbar"]').first().evaluate((el) => [el.getAttribute('aria-valuenow'), el.querySelector('i').style.width]);
+    const bar = await page.locator('.ph .fresh [role="progressbar"]').first().evaluate((el) => [el.getAttribute('aria-valuenow'), el.querySelector('i').style.width]);
     assert.deepEqual(bar, [percent, `${percent}%`]);
-    if (active.eta_s == null) assert.doesNotMatch(`${await page.locator('.top .fresh').innerText()} ${await page.locator('.ph .fresh-d').innerText()}`, /left/, 'no time left that the server did not send');
+    if (active.eta_s == null) assert.doesNotMatch(`${await page.locator('.ph .fresh').innerText()} ${await page.locator('.ph .fresh-d').innerText()}`, /left/, 'no time left that the server did not send');
     assert.deepEqual(seen.errors, []);
     await context.close();
   }
@@ -73,7 +73,7 @@ test('an opened run lists how long each step took from the contract run fields, 
     { ...base, run_id: 'u1', started: '2026-10-20T06:00:00Z', duration_s: 280 }];
   const routes = { runs: ({ json }) => json(200, { ...NO_RUNS, runs, total: 2 }) };
   const { page, seen, context } = await openApp(browser, served.base, appInfo({}, 1, TABLE), { routes, clock: CLOCK });
-  await page.locator('.top-runs').click();
+  await page.locator('[data-rail="runs"]').click();
   const rows = page.locator('.runs-tbl > tbody > tr:not(.runs-d)');
   await rows.first().waitFor();
   await rows.nth(0).locator('.runs-tog').click();
@@ -241,7 +241,7 @@ const entry = (actions, note) => ({
   window_note: note,
 });
 
-test('the Overview asks for the contract window and names the use case it does not apply to, and names none when every use case keeps actions', async () => {
+test('My work asks for the contract window and names the use case it does not apply to, and names none when every use case keeps actions', async () => {
   const NOTE = 'this use case keeps no actions, so the window does not apply to it';
   for (const [second, said] of [
     [entry(false, NOTE), 'Your window does not apply to Second desk 1, because it keeps no actions.'],
@@ -253,11 +253,11 @@ test('the Overview asks for the contract window and names the use case it does n
       return json(200, { today: '2026-10-27', quarter: '2026-10-01', since: '2026-08-03', errors: {}, window: C.overview_window.response_fields.window,
         pages: { [PAGE]: entry(true, C.overview_window.page_fields.window_note), n02_u01: second } });
     };
-    const { page, seen, context } = await openWith(appInfo(DECIDE, 2, TABLE), { overview }, { prefs: { window: 'week', limit: 10 }, hash: '#/overview' });
+    const { page, seen, context } = await openWith(appInfo(DECIDE, 2, TABLE), { overview }, { prefs: { window: 'week', limit: 10 }, hash: `#/${PAGE}/performance` });
     await page.getByRole('region', { name: 'Your work' }).waitFor();
     await page.waitForFunction(() => !/Loading your work/.test(document.querySelector('[aria-label="Your work"]')?.textContent || ''));
-    assert.ok(hub.length > 0, 'the Overview asked for the work');
-    assert.deepEqual(hub, hub.map(() => C.overview_window.request.body), 'every Overview request carries the window, the first load included');
+    assert.ok(hub.length > 0, 'My work asked for the work');
+    assert.deepEqual(hub, hub.map(() => C.overview_window.request.body), 'every work request carries the window, the first load included');
     if (said) assert.equal(await page.locator('[data-window-note]').innerText(), said);
     else assert.equal(await page.locator('[data-window-note]').count(), 0, 'no use case to name, so no line');
     assert.deepEqual(seen.errors, []);
@@ -307,9 +307,9 @@ test('a run the server says has gone quiet shows the server note, with no bar, n
     const { page, seen, context } = await openApp(browser, served.base, appInfo(), { routes, clock: CLOCK });
     await page.locator('.ph .fresh-d [data-progress]').waitFor();
     assert.equal(await page.locator('.ph .fresh-d [data-progress]').innerText(), SILENT.message);
-    assert.equal(await page.locator('.top .fresh [role="progressbar"]').count(), 0, 'no bar, moving or not');
-    assert.equal(await page.locator('.top .fresh .fresh-dots').count(), 0, 'no moving dots');
-    assert.doesNotMatch(`${await page.locator('.top .fresh').innerText()} ${await page.locator('.ph .fresh-d').innerText()}`, /running for|left|%/);
+    assert.equal(await page.locator('.ph .fresh [role="progressbar"]').count(), 0, 'no bar, moving or not');
+    assert.equal(await page.locator('.ph .fresh .fresh-dots').count(), 0, 'no moving dots');
+    assert.doesNotMatch(`${await page.locator('.ph .fresh').innerText()} ${await page.locator('.ph .fresh-d').innerText()}`, /running for|left|%/);
     assert.deepEqual(seen.errors, []);
     await context.close();
   }

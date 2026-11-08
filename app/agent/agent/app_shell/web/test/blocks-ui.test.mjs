@@ -60,12 +60,6 @@ test('each block shows at the place the page names, the image from the App\u2019
   const driverRow = await page.locator('[data-drivers] .charts').evaluate((el) => [...el.children].map((c) => c.dataset.block || c.dataset.card));
   assert.deepEqual(driverRow, ['by_category', 'by_chart'], 'the chart block sits in the grid of its chart, the Drivers section');
   assert.ok(chartRow.length === 3, chartRow.join());
-  const beside = page.locator('.blk-beside');
-  assert.equal(await beside.locator('[data-block="beside_list"]').count(), 1);
-  assert.equal(await beside.locator('.blk-main').count(), 1);
-  const [main, side] = await beside.evaluate((el) => [el.querySelector('.blk-main').getBoundingClientRect(), el.querySelector('[data-block="beside_list"]').getBoundingClientRect()]
-    .map((r) => ({ left: r.left, width: r.width })));
-  assert.ok(side.left > main.left && Math.abs(side.width * 2 - main.width) < 40, `the narrow block takes a third, on the right: ${JSON.stringify([main, side])}`);
   const image = page.locator('[data-block="mascot"] img');
   await until(() => image.evaluate((img) => img.complete && img.naturalWidth === 1));
   assert.equal(await image.getAttribute('src'), FILE);
@@ -75,7 +69,8 @@ test('each block shows at the place the page names, the image from the App\u2019
   const [box, block] = await page.evaluate(() => ['.main', '[data-block="mascot"]'].map((s) => document.querySelector(s).getBoundingClientRect())
     .map((r) => ({ left: r.left, width: r.width })));
   assert.ok(Math.abs(block.left + block.width / 2 - (box.left + box.width / 2)) < 40, 'a centered narrow block sits in the middle of the page');
-  assert.ok(await follows(page, 'section.card--records, .records, [data-block="beside_list"]', '[data-block="end"]'));
+  assert.ok(await follows(page, 'section.charts', '[data-block="end"]'), 'the bottom block closes the dashboard');
+  assert.equal(await page.locator('.blk-beside').count(), 0, 'the list and its side block live in Work, not on the dashboard');
   const end = page.locator('[data-block="end"]');
   assert.equal(await end.locator('h3').innerText(), 'Read me');
   assert.equal(await end.locator('strong').innerText(), 'this');
@@ -86,6 +81,15 @@ test('each block shows at the place the page names, the image from the App\u2019
   assert.ok((await end.innerText()).includes('but not that'));
   const html = await page.content();
   assert.ok(!html.includes(URL_SEEN), 'the page never loads or names the image\u2019s web address');
+  await page.click('[data-rail="work"]');
+  await page.waitForSelector('.blk-beside .blk-main');
+  const beside = page.locator('.blk-beside');
+  assert.equal(await beside.locator('[data-block="beside_list"]').count(), 1);
+  assert.equal(await beside.locator('.blk-main').count(), 1);
+  const [main, side] = await beside.evaluate((el) => [el.querySelector('.blk-main').getBoundingClientRect(), el.querySelector('[data-block="beside_list"]').getBoundingClientRect()]
+    .map((r) => ({ left: r.left, width: r.width })));
+  assert.ok(side.left > main.left && Math.abs(side.width * 2 - main.width) < 40, `the narrow block takes a third, on the right: ${JSON.stringify([main, side])}`);
+  assert.equal(await page.locator('[data-block="end"]').count(), 0, 'the bottom block stays on the dashboard');
   assert.deepEqual(seen.errors, []);
   await context.close();
 });
@@ -194,10 +198,12 @@ test('on a page that tracks its decision list the blocks sit by the tiles, the c
   assert.equal(await page.locator('section.charts [data-block="trend_note"]').count(), 1, 'the trend chart\u2019s block sits in its chart grid');
   assert.equal(await page.locator('section.charts').first().locator('.card--wide').count(), 0,
     'the trend chart keeps its half of the row beside the reason bars, as it did before blocks');
+  assert.ok(await follows(page, 'section.charts', '[data-block="end"]'));
+  await page.click('[data-rail="work"]');
+  await page.waitForSelector('.blk-beside .blk-main');
   assert.equal(await page.locator('.blk-beside [data-block="by_list"]').count(), 1);
   const order = await page.locator('.blk-beside').evaluate((el) => [...el.children].map((c) => c.dataset.block || c.className));
   assert.deepEqual(order, ['by_list', 'blk-main'], 'a block aligned left sits left of the list');
-  assert.ok(await follows(page, '.blk-beside', '[data-block="end"]'));
   assert.deepEqual(seen.errors, []);
   await context.close();
 });

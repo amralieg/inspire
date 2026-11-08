@@ -3,10 +3,11 @@ import assert from 'node:assert/strict';
 import { readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { chromium } from 'playwright';
-import { DECIDE, FILTERS, PERSON, appInfo, openApp, prefsFirst, serveDist, toastSays, until } from './harness.mjs';
-import { canonicalHash, fixThis, parseHash, sectionHash, tabCount } from '../src/links.js';
+import { DECIDE, FILTERS, PERSON, TABLE, appInfo, openApp, prefsFirst, serveDist, toastSays, until } from './harness.mjs';
+import { canonicalHash, fixThis, parseHash, sectionHash, staleSection, tabCount } from '../src/links.js';
 import { switcherMatches } from '../src/hub.js';
 import { MY_KEY } from '../src/prefs.js';
+import { evaluated } from './exampleRoutes.mjs';
 
 let served;
 let browser;
@@ -15,7 +16,11 @@ after(async () => { await browser?.close(); served?.close(); });
 
 const HERE = new URL('.', import.meta.url).pathname;
 const PAGES = [{ id: 'a', queue: true }, { id: 'b', queue: false }];
-const canon = (hash, extra = {}) => canonicalHash(hash, { pages: PAGES, last: '', queue: (p) => p.queue, performance: true, ...extra });
+const QUEUE_RAIL = ['dashboard', 'work', 'performance', 'runs', 'alerts', 'settings'];
+const LAID_RAIL = ['dashboard', 'performance', 'runs', 'settings'];
+const railFor = (p) => (p.queue ? QUEUE_RAIL : LAID_RAIL);
+const withoutPerformance = (p) => railFor(p).filter((s) => s !== 'performance');
+const canon = (hash, extra = {}) => canonicalHash(hash, { pages: PAGES, last: '', sectionsOf: railFor, ...extra });
 const hashOf = (page) => page.evaluate(() => window.location.hash);
 const railOf = (page) => page.locator('[data-rail]').evaluateAll((items) => items.map((i) => [i.dataset.rail, i.getAttribute('aria-current') || '']));
 const RUNS = { updated: '2026-10-20T06:00:00Z', as_of: '2026-10-20', cadence_days: 7, next: '2026-10-27', stale: false, count: 6, failed: false };
@@ -64,11 +69,14 @@ test('old links and unknown sections settle on one canonical section address', (
   assert.equal(canon('#/a/nope'), '#/a/dashboard');
   assert.equal(canon('#/b/work'), '#/b/dashboard', 'only a queue has Work');
   assert.equal(canon('#/a/dashboard?tab=done'), '#/a/dashboard', 'a tab only belongs to Work');
-  assert.equal(canon('#/a/performance', { performance: false }), '#/a/dashboard');
+  assert.equal(canon('#/a/performance', { sectionsOf: withoutPerformance }), '#/a/dashboard');
+  assert.equal(canon('#/b/alerts'), '#/b/dashboard', 'a section the use case does not have opens its dashboard');
+  assert.equal(canon('#/b?v=alerts'), '#/b/dashboard');
   assert.equal(canon('#/mywork'), '#/a/performance');
   assert.equal(canon('#/impact'), '#/a/performance');
-  assert.equal(canon('#/mywork', { performance: false }), '#/a/work?tab=mine');
-  assert.equal(canon('#/impact', { performance: false }), '#/a/dashboard');
+  assert.equal(canon('#/mywork', { sectionsOf: withoutPerformance }), '#/a/work?tab=mine');
+  assert.equal(canon('#/impact', { sectionsOf: withoutPerformance }), '#/a/dashboard');
+  assert.equal(canon('#/mywork', { last: 'b', sectionsOf: withoutPerformance }), '#/b/dashboard', 'My work on a laid-out page with no Work opens the dashboard');
   assert.equal(canon('#/nope'), '#/a/dashboard', 'an unknown use case opens the dashboard of the first');
   for (const kept of ['#/a/dashboard', '#/a/work?tab=done', '#/a/runs', '#/a/settings', '#/b/dashboard', '#/admin']) {
     assert.equal(canon(kept), null, `${kept} is already canonical`);
@@ -77,6 +85,12 @@ test('old links and unknown sections settle on one canonical section address', (
   const parsed = parseHash('#/a/work?tab=mine&rec=R9');
   assert.deepEqual([parsed.route, parsed.section, parsed.tab, parsed.rec], ['a', 'work', 'mine', 'R9']);
   assert.equal(sectionHash('a b', 'runs'), '#/a%20b/runs');
+  assert.equal(staleSection('#/a?v=trend', '#/a/dashboard'), true, 'a removed view says the link no longer applies');
+  assert.equal(staleSection('#/b/alerts', '#/b/dashboard'), true);
+  assert.equal(staleSection('#/a?v=overview', '#/a/dashboard'), false, 'the old Overview view maps to the dashboard without a notice');
+  assert.equal(staleSection('#/a?v=runs', '#/a/runs'), false);
+  assert.equal(staleSection('#/a?rec=R1', '#/a/work?rec=R1'), false, 'no section asked, so nothing is stale');
+  assert.equal(staleSection('#/mywork', '#/a/performance'), false, 'an App-wide address is not a section');
 });
 
 test('Fix this narrows Work to the shown tiers and the reason, sorts by money when asked, and opens Mine for my view', () => {
@@ -171,7 +185,7 @@ test('old record, My work and Impact links open their new sections in the browse
 });
 
 test('Work shows status tabs with their counts, each tab asks for its status, and Mine and All ask for no status', async () => {
-  const { page, seen, context } = await openApp(browser, served.base, appInfo(DECIDE), { hash: '#/n01_u05/work', routes: trackedRoutes(), ready: '[data-tab]' });
+  const { page, seen, context } = await openApp(browser, served.base, appInfo(DECIDE, 1, TABLE), { hash: '#/n01_u05/work', routes: trackedRoutes(), ready: '[data-tab]' });
   await page.waitForFunction(() => document.querySelector('[data-tab="new"] [data-count]')?.textContent === '7');
   assert.deepEqual(await page.locator('[data-tab]').evaluateAll((tabs) => tabs.map((t) => [t.dataset.tab, t.querySelector('[data-count]')?.textContent || '',
     t.getAttribute('aria-selected')])), [['new', '7', 'true'], ['in-progress', '3', 'false'], ['done', '4', 'false'], ['not-an-issue', '1', 'false'],
@@ -193,7 +207,7 @@ test('Work shows status tabs with their counts, each tab asks for its status, an
 });
 
 test('Fix this on the To fix tile and on a reason bar opens Work on the New tab with the tiers and the reason picked', async () => {
-  const { page, seen, context } = await openApp(browser, served.base, appInfo(DECIDE), { routes: trackedRoutes(), ready: '[data-fix]' });
+  const { page, seen, context } = await openApp(browser, served.base, appInfo(DECIDE, 1, TABLE), { routes: trackedRoutes(), ready: '[data-fix]' });
   await page.locator('[data-fix="fix"]').click();
   await page.waitForFunction(() => window.location.hash.startsWith('#/n01_u05/work') && window.location.hash.includes('tab=new'));
   await until(() => JSON.stringify(seen.records.at(-1)?.column_filters || {}).includes('Act now'));
@@ -241,7 +255,8 @@ test('every example layout renders its dashboard, rail and settings with no erro
   assert.equal(examples.length, 13);
   for (const file of examples) {
     const info = appInfo(DECIDE, 1, {}, `examples/${file}`);
-    const { page, seen, context } = await openApp(browser, served.base, info, { ready: '.ph h1', watch: prefsFirst(MY_KEY, PERSON, {}) });
+    const { page, seen, context } = await openApp(browser, served.base, info, { ready: '.ph h1', watch: prefsFirst(MY_KEY, PERSON, {}),
+      routes: { 'scenario/evaluate': ({ route, json }) => json(200, evaluated(route.request().postDataJSON().values || {})) } });
     const rail = (await railOf(page)).map(([id]) => id);
     assert.equal(rail[0], 'dashboard', `${file}: the rail starts with Dashboard`);
     assert.equal(rail.at(-1), 'settings', `${file}: Settings sits at the bottom`);

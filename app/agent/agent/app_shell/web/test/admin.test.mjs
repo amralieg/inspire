@@ -89,22 +89,23 @@ test('Admin says when the usage could not load, and when nobody changed anything
   await quiet.context.close();
 });
 
-test('an owner sees the Admin link the server allows and it opens Admin, while the menu still never lists Admin', async () => {
+test('an owner sees the Admin link in Settings and it opens Admin, while the top bar and the rail never list Admin', async () => {
   const owner = appInfo({ use_case_owners: { n01_u05: [PERSON] } }, 2, TABLE);
   assert.equal(owner.is_owner, true, 'the server signed the person in as an owner');
   assert.ok(!('admin' in owner), 'the App info never carries the owner it names');
   const asked = [];
-  const { page, seen, context } = await openApp(browser, served.base, owner, { routes: usageRoute(200, USAGE, asked) });
+  const { page, seen, context } = await openApp(browser, served.base, owner, { routes: usageRoute(200, USAGE, asked), hash: '#/n01_u05/settings' });
   const link = page.locator('a.admin-link');
   await link.waitFor();
   assert.equal(await link.textContent(), 'Admin');
   assert.equal(await link.getAttribute('href'), `#/${ADMIN_ROUTE}`);
-  assert.equal(await page.locator('.top a.admin-link').count(), 1, 'one link, in the top bar');
-  assert.ok(!/Admin/.test(await page.locator('nav.side').innerText()), 'the use case menu never lists Admin');
+  assert.equal(await page.locator('[data-settings] a.admin-link').count(), 1, 'one link, in Settings');
+  assert.equal(await page.locator('.top a.admin-link').count(), 0, 'the top bar never lists Admin');
+  assert.ok(!/Admin/.test(await page.locator('nav.side').innerText()), 'the rail never lists Admin');
   await link.click();
   await page.waitForFunction(() => document.querySelector('.pg-h h1')?.textContent === 'Admin');
   await page.locator('.tbl--usage').first().waitFor();
-  assert.equal(await link.getAttribute('aria-current'), 'page');
+  assert.equal(await page.evaluate(() => window.location.hash), `#/${ADMIN_ROUTE}`);
   assert.deepEqual(asked, [200]);
   assert.deepEqual(seen.errors, []);
   await context.close();
@@ -114,9 +115,9 @@ test('someone who is not an owner never sees the Admin link, so Admin stays hidd
   const other = appInfo({}, 2, TABLE);
   assert.equal(other.is_owner, false, 'the server did not sign this person in as an owner');
   for (const info of [other, { ...other, is_owner: undefined }, { ...other, is_owner: 'true', admin: true }]) {
-    const { page, context } = await openApp(browser, served.base, info);
+    const { page, context } = await openApp(browser, served.base, info, { hash: '#/n01_u05/settings' });
     await page.locator('.top .mark').waitFor();
-    await page.waitForFunction(() => document.querySelector('.genie-btn'));
+    await page.locator('[data-settings] [data-auth]').waitFor();
     assert.equal(await page.locator('a.admin-link').count(), 0);
     assert.ok(!/Admin/.test(await page.locator('.top').innerText()), 'nothing in the top bar names Admin');
     assert.ok(!/Admin/.test(await page.locator('nav.side').innerText()));

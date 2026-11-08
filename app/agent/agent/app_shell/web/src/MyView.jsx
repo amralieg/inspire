@@ -118,7 +118,7 @@ export function MyViewGroup() {
         <thead><tr><th>Setting</th><th>Value</th></tr></thead>
         <tbody>
           <tr data-my="window">
-            <td><b>Window</b><br /><small>Show the records that are due, or that joined the list, in this window. Overdue records always show on top. Everything shows every record, the fixed and dismissed ones too, and never changes the Overview counts.</small></td>
+            <td><b>Window</b><br /><small>Show the records that are due, or that joined the list, in this window. Overdue records always show on top. Everything shows every record, the fixed and dismissed ones too, and never changes the dashboard counts.</small></td>
             <td>
               <select name="my_window" aria-label="Window" value={prefs.window} onChange={pick('window', update)}>
                 {WINDOWS.map(([id, text]) => <option key={id} value={id}>{text}</option>)}

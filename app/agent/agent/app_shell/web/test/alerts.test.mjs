@@ -278,47 +278,48 @@ test('the owner changes, pauses and deletes an alert, and a full App offers no n
   await second.context.close();
 });
 
-test('Notify me opens the alerts when alerts are on, Back returns to Things to fix, and an App without alerts shows no Notify me', async () => {
+test('Notify me in Settings opens the Alerts section when alerts are on, the rail returns to the dashboard, and an App without alerts shows no Notify me', async () => {
   const { routes } = alertRoutes();
-  const { page, context } = await open(appInfo(ON, 1, TABLE), routes);
-  await page.goto(`${served.base}#/n01_u05`);
+  const { page, context } = await open(appInfo(ON, 1, TABLE), routes, { hash: '#/n01_u05/settings' });
   await page.getByRole('button', { name: 'Notify me' }).click();
   await page.locator('section.alerts').waitFor();
-  assert.match(new URL(page.url()).hash, /[?&]v=alerts/);
-  await page.getByRole('button', { name: 'Back to things to fix' }).click();
+  assert.equal(new URL(page.url()).hash, '#/n01_u05/alerts');
+  assert.equal(await page.locator('[data-rail="alerts"]').getAttribute('aria-current'), 'page');
+  await page.locator('[data-rail="dashboard"]').click();
   await page.locator('section.alerts').waitFor({ state: 'detached' });
-  assert.equal(new URL(page.url()).hash, '#/n01_u05');
+  assert.equal(new URL(page.url()).hash, '#/n01_u05/dashboard');
   await context.close();
   const off = await open(appInfo({}, 1, TABLE), {});
   await off.page.goto(`${served.base}#/n01_u05?v=alerts`);
-  await off.page.locator('.top-runs').waitFor();
-  await off.page.waitForFunction(() => location.hash === '#/n01_u05');
+  await off.page.waitForFunction(() => location.hash === '#/n01_u05/dashboard');
   assert.equal(await off.page.locator('section.alerts').count(), 0, 'an App built without alerts opens no alerts, even from an old link');
+  assert.equal(await off.page.locator('[data-rail="alerts"]').count(), 0, 'the rail has no Alerts section');
+  await off.page.locator('[data-rail="settings"]').click();
+  await off.page.locator('[data-settings] [data-auth]').waitFor();
   assert.equal(await off.page.getByRole('button', { name: 'Notify me' }).count(), 0);
   await off.context.close();
 });
 
 test('Notify me opens a new alert ready to fill in, a link to the alerts alone does not, and a full App opens none (must-exclude)', async () => {
   const empty = alertRoutes({ ...LISTING, alerts: [], caps: { ...LISTING.caps, used: 0, mine: 0 } });
-  const { page, context, seen } = await open(appInfo(ON, 1, TABLE), empty.routes);
-  await page.goto(`${served.base}#/n01_u05`);
+  const { page, context, seen } = await open(appInfo(ON, 1, TABLE), empty.routes, { hash: '#/n01_u05/settings' });
   await page.getByRole('button', { name: 'Notify me' }).click();
   const form = page.getByRole('form', { name: 'New alert' });
   await form.waitFor();
   assert.equal(await page.getByText('No alerts on this page yet.').count(), 0, 'the person lands on the form, not on an empty list');
   await form.getByRole('button', { name: 'Cancel' }).click();
   await page.getByText('No alerts on this page yet.').waitFor();
-  await page.goto(`${served.base}#/n01_u05?v=alerts`);
+  await page.goto(`${served.base}#/n01_u05/alerts`);
   await page.reload();
   await page.getByText('No alerts on this page yet.').waitFor();
   assert.equal(await form.count(), 0, 'opening the alerts from a link shows the list');
+  await page.locator('[data-rail="settings"]').click();
   await page.getByRole('button', { name: 'Notify me' }).click();
   await form.waitFor();
   assert.deepEqual(seen.errors, []);
   await context.close();
   const full = alertRoutes({ ...LISTING, caps: { app: 2, person: 10, used: 2, mine: 1 } });
-  const capped = await open(appInfo(ON, 1, TABLE), full.routes);
-  await capped.page.goto(`${served.base}#/n01_u05`);
+  const capped = await open(appInfo(ON, 1, TABLE), full.routes, { hash: '#/n01_u05/settings' });
   await capped.page.getByRole('button', { name: 'Notify me' }).click();
   await capped.page.getByRole('table', { name: 'Alerts of this use case' }).waitFor();
   assert.equal(await capped.page.getByRole('form', { name: 'New alert' }).count(), 0, 'no form opens when the App already holds its most alerts');
@@ -338,10 +339,13 @@ test('an App where each person signs in as themselves shows no Alerts tab and no
   const { page, seen, context } = await open(info, routes);
   await page.goto(`${served.base}#/n01_u05?v=alerts`);
   await page.locator('.kpi-l', { hasText: 'To fix' }).waitFor();
+  assert.equal(new URL(page.url()).hash, '#/n01_u05/dashboard');
   assert.equal(await page.locator('section.alerts').count(), 0);
-  assert.equal(await page.locator('[role="tab"]').count(), 0);
+  assert.equal(await page.locator('[data-rail="alerts"]').count(), 0);
+  await page.locator('[data-rail="settings"]').click();
+  await page.locator('[data-settings] [data-auth]').waitFor();
   assert.equal(await page.getByText('Notify me').count(), 0, 'neither the Alerts button nor the link to the built alert');
-  await page.locator('.top-runs').click();
+  await page.locator('[data-rail="runs"]').click();
   await page.locator('section.runs').waitFor();
   assert.equal(await page.getByText('Notify me').count(), 0);
   assert.equal(await page.locator('section.alerts').count(), 0);
@@ -364,7 +368,7 @@ test('assigning records tells the person who assigned them that the owner gets a
     },
     'records/act': ({ route, json }) => { const body = actBody(route); acts.push(body); return json(200, { written: body.record_keys, conflicts: [], notice }); },
   };
-  const { page, seen, context } = await open(appInfo(ON, 1, TABLE), routes);
+  const { page, seen, context } = await open(appInfo(ON, 1, TABLE), routes, { hash: '#/n01_u05/work' });
   await page.waitForFunction(() => document.querySelectorAll('.card--table tbody input[type="checkbox"]').length === 25);
   await page.getByRole('checkbox', { name: 'Select Item number 1 with a long descriptive name' }).check();
   await page.getByRole('button', { name: 'Assign to…' }).click();

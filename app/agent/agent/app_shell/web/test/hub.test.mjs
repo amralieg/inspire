@@ -721,7 +721,7 @@ test('Your work keeps an overdue Monitor record that is mine, shows eight at fir
   await work.getByRole('button', { name: 'Show fewer' }).click();
   assert.equal(await work.locator('tbody tr').count(), WORK_SHOWN);
   assert.equal(await work.locator('.more').last().innerText(),
-    'Each use case sends the Overview its biggest open records only. Open a use case and pick My actions to see all of yours.');
+    'Each use case sends My work its biggest open records only. Open the use case, go to Work and pick Mine to see all of yours.');
   assert.deepEqual(seen.errors, []);
   await context.close();
   const whole = await open(INFO());
