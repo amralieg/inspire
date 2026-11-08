@@ -86,7 +86,7 @@ const stored = (page) => page.evaluate((key) => Object.values(JSON.parse(localSt
 
 test('a person moves a column with the keyboard and by dragging, the order stays after a reload, and Reset puts it back', async () => {
   const { routes } = tracked();
-  const { page, seen, context } = await openApp(browser, served.base, appInfo({ ...DECIDE, options: { ...DECIDE.options, modify: true } }, 1, TABLE), { routes });
+  const { page, seen, context } = await openApp(browser, served.base, appInfo({ ...DECIDE, options: { ...DECIDE.options, modify: true } }, 1, TABLE), { routes, hash: '#/n01_u05/work' });
   await LIST(page).locator('tbody tr').first().waitFor();
   const before = await heads(page);
   assert.equal(before[0], '_pick');
@@ -135,7 +135,7 @@ test('a person moves a column with the keyboard and by dragging, the order stays
 
 test('an order saved before a run changed the columns still shows every column once', async () => {
   const { routes } = tracked();
-  const { page, seen, context } = await openApp(browser, served.base, appInfo(DECIDE, 1, TABLE), { routes });
+  const { page, seen, context } = await openApp(browser, served.base, appInfo(DECIDE, 1, TABLE), { routes, hash: '#/n01_u05/work' });
   await LIST(page).locator('tbody tr').first().waitFor();
   const natural = (await heads(page)).filter((k) => !k.startsWith('_'));
   await page.evaluate(([key, order]) => {
@@ -219,7 +219,7 @@ test('a choice list the server fills on demand loads its first choices when it o
       return json(200, { options: ['Books', 'Music', 'Toys'].filter((v) => v.toLowerCase().includes(q.toLowerCase())) });
     },
   };
-  const { page, seen, context } = await openApp(browser, served.base, appInfo(), { routes });
+  const { page, seen, context } = await openApp(browser, served.base, appInfo(), { routes, hash: '#/n01_u05/work' });
   await LIST(page).locator('tbody tr').first().waitFor();
   await LIST(page).getByRole('button', { name: 'Filter Category' }).click();
   const list = page.getByRole('listbox', { name: 'Category' });

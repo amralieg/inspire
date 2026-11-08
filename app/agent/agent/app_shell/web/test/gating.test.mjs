@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { chromium } from 'playwright';
-import { SRC, TABLE, appInfo, fileNames, chartsDrawn, openApp, serveDist } from './harness.mjs';
+import { SRC, TABLE, appInfo, fileNames, chartsDrawn, goRail, openApp, serveDist } from './harness.mjs';
 
 const ALL_ON = { modify: true, replace_edits: true, decisions: true };
 const DATA_DOWNLOAD = /csv|download (the )?(data|answer)/i;
@@ -43,8 +43,12 @@ test('a per-user App shows no download and no chart export anywhere', async () =
   assert.equal(await page.getByRole('button', { name: /^Export / }).count(), 0);
   await askOnce(page);
   assert.equal(await page.getByRole('button', { name: DATA_DOWNLOAD }).count(), 0);
+  await goRail(page, 'work');
+  await page.locator('[data-work] .card--table tbody tr').first().waitFor();
+  assert.equal(await page.getByRole('button', { name: /Download/ }).count(), 0, 'the list on Work offers no download either');
   assert.deepEqual(asked, []);
-  assert.match(await page.locator('.auth').textContent(), /Your view/);
+  await goRail(page, 'settings');
+  assert.match(await page.locator('[data-settings] .auth').textContent(), /Your view/);
   assert.deepEqual(seen.errors, []);
   await context.close();
 });

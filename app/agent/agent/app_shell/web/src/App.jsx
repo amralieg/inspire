@@ -230,7 +230,7 @@ function Shell({ app }) {
   const goSection = (s) => {
     const f = parseHash(window.location.hash).f;
     if (page) window.location.hash = sectionHash(page.id, s, new URLSearchParams(f && link.route === page.id ? { f } : {}));
-    leave();
+    if (navOpen) leave();
   };
   const openRecord = (pageId, key) => { window.location.hash = withRecord(`#/${encodeURIComponent(pageId)}`, key); leave(); };
   const restyle = (nextPalette, nextTheme) => {

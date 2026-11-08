@@ -158,6 +158,14 @@ test('Settings lists the 13 palettes with their series colors, marks the one in 
   await colors(page).getByRole('radio', { name: /^Pop/ }).focus();
   await page.keyboard.press('Enter');
   assert.equal(await colors(page).getByRole('radio', { name: /^Pop/ }).getAttribute('aria-checked'), 'true', 'the keyboard picks a palette');
+  const tabbable = () => items.evaluateAll((els) => els.filter((e) => e.tabIndex === 0).map((e) => e.textContent.trim()));
+  assert.deepEqual(await tabbable(), ['Pop'], 'only the checked palette takes Tab');
+  const at = ORDER.indexOf('pop');
+  await page.keyboard.press('ArrowRight');
+  assert.equal(await items.nth((at + 1) % ORDER.length).getAttribute('aria-checked'), 'true', 'an arrow key moves to the next palette and picks it');
+  assert.equal(await page.evaluate(() => document.activeElement.getAttribute('aria-checked')), 'true');
+  await page.keyboard.press('ArrowLeft');
+  assert.equal(await items.nth(at).getAttribute('aria-checked'), 'true', 'the other arrow moves back');
   assert.deepEqual(seen.errors, []);
   await context.close();
 });
@@ -382,7 +390,7 @@ const sideways = (page) => page.evaluate(() => {
 });
 
 test('with Genie at its widest the page beside it reflows with nothing cut off, and keeps its own layout while Genie is closed or laid over it', async () => {
-  for (const [vw, layout, genie] of [[1440, 'sidebar', 864], [1280, 'sidebar', 704], [1920, 'sidebar', 1152], [1440, 'tabs', 864]]) {
+  for (const [vw, layout, genie] of [[1440, 'sidebar', 864], [1280, 'sidebar', 768], [1920, 'sidebar', 1152], [1440, 'tabs', 864]]) {
     const where = `${vw} ${layout}`;
     const { page, seen, context } = await open(appInfo({ layout }, 2, TABLE), { width: vw, height: 900 });
     await page.goto(`${served.base}#/n01_u05`);

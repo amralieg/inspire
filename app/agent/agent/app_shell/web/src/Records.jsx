@@ -338,7 +338,7 @@ function Drawer({ meta, row: given, onClose, history, canModify, tracker, owners
   const shown = (
     <dialog ref={ref} className={`drawer panel ${dock ? 'drawer--docked' : ''}`} aria-label={row ? title : 'Record'} data-closed={closed ? '' : undefined}
       open={dock ? !!row : undefined} onClick={(e) => { if (!dock && e.target === ref.current) onClose(); }}
-      onKeyDown={dock ? (e) => { if (e.key === 'Escape' && !e.defaultPrevented) { e.preventDefault(); onClose(); } } : undefined}>
+      onKeyDown={dock ? (e) => { if (e.key === 'Escape' && !e.defaultPrevented && e.target.closest('dialog') === e.currentTarget) { e.preventDefault(); onClose(); } } : undefined}>
       {row && (
         <div className="dr">
           <header className="panel-h">
@@ -741,7 +741,7 @@ export default function Records({ meta, app, pageId, filters, ai, onFilter, hist
     } else onShowRuns?.();
   }, [seeChanged, data]);
   const keys = useRef(null);
-  keys.current = { rows: tableRows, cursorKey, open: shown, work, tracker, keyOf, quick, tomorrow, pickRows, picked, acts, skip: () => toast(skippedText(1)) };
+  keys.current = { rows: tableRows, cursorKey, open: shown, work, tracker, keyOf, quick, tomorrow, pickRows, picked, acts, skip: () => toast(skippedText(1)), close: work ? stopWork : close };
   useEffect(() => {
     const onKey = (e) => {
       const k = keys.current;
@@ -757,7 +757,11 @@ export default function Records({ meta, app, pageId, filters, ai, onFilter, hist
       if (e.key === '?') { e.preventDefault(); setDialog('help'); return; }
       if (e.key === 'u') { e.preventDefault(); k.acts.undoLast(); return; }
       if (e.key === '/' && !drawer) { e.preventDefault(); searchBox.current?.focus(); return; }
-      if (e.key === 'Escape' && !drawer) { setCursorKey(''); return; }
+      if (e.key === 'Escape') {
+        if (!drawer) setCursorKey('');
+        else if (drawer.classList.contains('drawer--docked')) { e.preventDefault(); k.close(); }
+        return;
+      }
       const at = k.rows.findIndex((r) => k.keyOf(r) === (drawer && k.open ? k.keyOf(k.open) : k.cursorKey));
       const step = { j: 1, ArrowDown: 1, k: -1, ArrowUp: -1 }[e.key];
       if (step) {

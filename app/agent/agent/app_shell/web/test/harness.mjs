@@ -111,6 +111,16 @@ export async function holdClock(page) {
   await page.clock.pauseAt(await page.evaluate(() => Date.now() + 1000));
 }
 
+export async function goRail(page, id) {
+  const menu = page.getByRole('button', { name: 'Open the sections' });
+  if (await menu.isVisible()) await menu.click();
+  await page.locator(`[data-rail="${id}"]`).click();
+}
+
+export async function pickCase(page, title) {
+  await page.locator('[data-switcher]').click();
+  await page.locator('[data-case]', { hasText: title }).click();
+}
 export const toastSays = (page, text) => page.waitForFunction((t) => document.querySelector('.toast .toast-t')?.textContent === t, text);
 
 export function prefsFirst(key, person, prefs) {

@@ -60,7 +60,6 @@ test('the forecast cockpit opens with What to do now and draws every section of 
     const n = await itemsIn(page, section);
     assert.ok(n >= low, `${section} holds ${n}, needs ${low}`);
   }
-  assert.equal((await page.locator('nav.side .nav-i.is-on small').innerText()).split(' · ')[0], 'Forecast', 'the use case item in the left panel takes the layout label');
   assert.equal(await page.locator('[data-todo-count]').innerText(), '7 of 10 waiting for you');
   assert.match(await page.locator('[data-so-what]').first().innerText(), /So what: Order to the forecast line/);
   assert.deepEqual(seen.errors, []);
@@ -133,7 +132,6 @@ test('the planner opens with What to do now, draws the plan, its limits and what
     const n = await itemsIn(page, section);
     assert.ok(n >= low, `${section} holds ${n}, needs ${low}`);
   }
-  assert.equal((await page.locator('nav.side .nav-i.is-on small').innerText()).split(' · ')[0], 'Plan');
   assert.equal(await itemsIn(page, 'constraint_bars'), 1);
   assert.equal(await itemsIn(page, 'sensitivity_tornado'), 2);
   assert.match(await page.locator('[data-section="objective_kpi"]').innerText(), /Plan margin/);
@@ -318,7 +316,6 @@ test('the scenario lab opens with What to do now, moves the outcome with each le
   assert.equal(await page.locator('[data-lever]').count(), 3);
   assert.ok(await page.locator('[data-section="scenario_table"] tbody tr').count() >= layout.min_items.scenario_table);
   assert.ok(await page.locator('[data-lever]').count() >= layout.min_items.lever_sliders);
-  assert.equal((await page.locator('nav.side .nav-i.is-on small').innerText()).split(' · ')[0], 'Scenarios');
   assert.match(await page.locator('[data-section="kpis"]').innerText(), /Chance of the target\s+31(\.0)?%/);
   assert.match(await page.locator('[data-section="scenario_table"]').innerText(), /31(\.0)?%/);
   assert.match(await page.locator('[data-step="levers"]').innerText(), /Move the levers and watch the quarter margin/);
@@ -363,7 +360,6 @@ test('the monitor opens with What to do now, draws the signal with its range, th
     const n = await itemsIn(page, section);
     assert.ok(n >= low, `${section} holds ${n}, needs ${low}`);
   }
-  assert.equal((await page.locator('nav.side .nav-i.is-on small').innerText()).split(' · ')[0], 'Triage');
   assert.equal(await page.locator('[data-todo-count]').innerText(), '24 of 24 waiting for you');
   assert.match(await page.locator('[data-step="first"]').innerText(), /Start with Account 1/);
   assert.match(await page.locator('[data-section="signal_band"] [data-so-what]').innerText(), /outside the range are the exceptions/);
@@ -385,7 +381,6 @@ test('the explainer opens with What to do now, draws the variance list, the brid
     const n = section === 'bridge' ? Number(await page.locator('[data-section="bridge"] [data-card]').getAttribute('data-rows')) : await itemsIn(page, section);
     assert.ok(n >= low, `${section} holds ${n}, needs ${low}`);
   }
-  assert.equal((await page.locator('nav.side .nav-i.is-on small').innerText()).split(' · ')[0], 'Explain');
   assert.match(await page.locator('[data-section="variance_table"]').innerText(), /Unit 1/);
   assert.match(await page.locator('[data-section="quote_cards"]').innerText(), /shipped two weeks late/);
   assert.match(await page.locator('[data-section="bridge"] [data-so-what]').innerText(), /biggest step/);
@@ -408,7 +403,6 @@ test('the dashboard is read only: What to do now, a So what line and Ask Genie o
     const n = await itemsIn(page, section);
     assert.ok(n >= low, `${section} holds ${n}, needs ${low}`);
   }
-  assert.equal((await page.locator('nav.side .nav-i.is-on small').innerText()).split(' · ')[0], 'Overview');
   assert.match(await page.locator('[data-section="kpis"]').innerText(), /Growth\s+7\.7%/);
   const widgets = info.pages[0].charts.length + info.pages[0].tables.length;
   assert.equal(await page.locator('[data-section="charts"] [data-so-what], [data-section="tables"] [data-so-what]').count(), widgets);
@@ -435,12 +429,23 @@ test('the dashboard is read only: What to do now, a So what line and Ask Genie o
   await context.close();
 });
 
-test('the decision queue page opens with What to do now and adds no layout label to its left-panel item', async () => {
+test('the use case switcher names each layout by its tab label, and the decision queue by its use case id with no layout label', async () => {
+  for (const [example, label] of [['examples/scenario_lab.json', 'Scenarios'], ['examples/monitor_triage.json', 'Triage'], ['examples/performance_explainer.json', 'Explain'],
+    ['examples/dashboard.json', 'Overview'], ['example_page.json', null]]) {
+    const info = appInfo(DECIDE, 2, {}, example);
+    const { page, context } = await openApp(browser, base, info, { ready: '[data-switcher]' });
+    await page.locator('[data-switcher]').click();
+    const note = await page.locator(`[data-case="${info.pages[0].id}"] small`).innerText();
+    assert.equal(note.split(' · ')[0], label || info.pages[0].use_case_id, example);
+    await context.close();
+  }
+});
+
+test('the decision queue page opens with What to do now', async () => {
   const info = appInfo();
   assert.equal(info.pages[0].layout.id, 'decision_queue');
   const { page, seen, context } = await openApp(browser, base, info);
   await page.locator('[data-section="todo"] [data-step="first"]').waitFor();
-  assert.equal((await page.locator('nav.side .nav-i.is-on small').innerText()).split(' · ')[0], info.pages[0].use_case_id, 'the default layout keeps Things to fix as its view and names no layout on the item (must-exclude)');
   assert.match(await page.locator('[data-step="first"]').innerText(), /Start with Item number 1/);
   assert.equal(await page.locator('[data-step="accept"]').count(), 0, 'an App that keeps no decisions offers no accept');
   assert.equal(await page.locator('[data-accept]').count(), 0);
@@ -455,6 +460,7 @@ test('accepting a suggested action takes one click on a row, or one click for th
   const { page, seen, context } = await openApp(browser, base, info, { routes });
   await page.locator('[data-step="accept"]').waitFor();
   assert.match(await page.locator('[data-step="accept"]').innerText(), /Accept the suggested action where you agree/);
+  await page.locator('[data-rail="work"]').click();
   await page.locator('[data-accept="R001"]').waitFor();
   assert.equal(await page.locator('[data-accept="R002"]').count(), 0, 'a record already in progress has nothing left to accept');
   await page.locator('[data-accept="R001"]').click();
@@ -498,7 +504,7 @@ test('a records-list row action says its result in the row, a bulk action and Un
     const rows = ROWS.slice(body.offset, body.offset + body.limit);
     return ctx.json(200, { rows, total: ROWS.length, offset: body.offset, limit: body.limit, actions: true, changes: true, summary: summary(), errors: {} });
   };
-  const { page, seen, context } = await openApp(browser, base, info, { routes });
+  const { page, seen, context } = await openApp(browser, base, info, { routes, hash: `#/${info.pages[0].id}/work` });
   const impact = (text) => page.waitForFunction((t) => document.querySelector('.impact')?.textContent === t, text, { timeout: 10000 })
     .catch(async () => assert.fail(`impact is "${await page.locator('.impact').innerText().catch(() => 'none')}", not "${text}"`));
   await impact(`Actions: ${n} open · 0 done`);

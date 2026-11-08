@@ -35,7 +35,7 @@ function drafting(answers) {
 async function openDrawer(answers, options = {}) {
   const draft = drafting(answers);
   const { calls, routes } = tracked({ 'records/draft': draft.route });
-  const { page, seen, context } = await openApp(browser, served.base, appInfo(DECIDE, 1, TABLE), { routes, ...options });
+  const { page, seen, context } = await openApp(browser, served.base, appInfo(DECIDE, 1, TABLE), { hash: '#/n01_u05/work', routes, ...options });
   await page.locator('.cell-t').first().click();
   const drawer = page.locator('dialog.drawer');
   await drawer.locator('.dr-act').waitFor();
@@ -126,7 +126,7 @@ test('a failed draft says why and tries again, and a template draft says it was 
 test('a selection drafts one message for up to ten records, and an informational drawer offers no draft', async () => {
   const draft = drafting([reply('Two records need action', 'Hi [name],\n\n- Item 1\n- Item 2\nCould you take these on?', { records: 2 })]);
   const { calls, routes } = tracked({ 'records/draft': draft.route });
-  const { page, seen, context } = await openApp(browser, served.base, appInfo(DECIDE, 1, TABLE), { routes });
+  const { page, seen, context } = await openApp(browser, served.base, appInfo(DECIDE, 1, TABLE), { routes, hash: '#/n01_u05/work' });
   const boxes = page.locator('.card--table tbody .pick-l input:not([disabled])');
   await boxes.first().waitFor();
   await boxes.nth(0).check();
@@ -149,7 +149,7 @@ test('a selection drafts one message for up to ten records, and an informational
   assert.deepEqual(calls.acts, []);
   assert.deepEqual(seen.errors, []);
   await context.close();
-  const plain = await openApp(browser, served.base, appInfo({}, 1, TABLE), { routes: tracked().routes });
+  const plain = await openApp(browser, served.base, appInfo({}, 1, TABLE), { routes: tracked().routes, hash: '#/n01_u05/work' });
   await plain.page.locator('.cell-t').first().click();
   await plain.page.locator('dialog.drawer[open]').waitFor();
   assert.equal(await plain.page.getByRole('button', { name: 'Draft Message to Someone' }).count(), 0, 'a row with no action to take has no message to draft');

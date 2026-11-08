@@ -154,7 +154,7 @@ export function yourWorkProps(app, hub, hubError, summaries) {
   };
 }
 
-export function YourWork({ items, user, today, loading, failed, owners, partial, cut, done, unwindowed, capped, genie, onRecord, onMore }) {
+export function YourWork({ items, user, today, loading, failed, owners, partial, cut, done, unwindowed, capped, genie, onRecord }) {
   const [all, setAll] = useState(false);
   const { prefs } = useMyView();
   const work = myWork(items, user, today);
@@ -165,7 +165,6 @@ export function YourWork({ items, user, today, loading, failed, owners, partial,
         <div><h2>Your work</h2><p data-today>{work.rows.length ? myWorkText(work, done) : 'Things assigned to you, overdue and due today first'}</p></div>
         <div className="tbar">
           {owners && signedIn && <WindowChips />}
-          {onMore && <button type="button" className="btn" onClick={onMore} data-my-work-open><Icon name="right" size={14} />See all your work</button>}
           <AskGenie kind="table" title="Your work" context={tableContext('The records assigned to you, overdue and due today first.', work.rows, (r) => fieldsOf(r, thingColumns(today, true)))} />
         </div>
       </header>

@@ -1,7 +1,7 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
-import { ASK_GROUPS, TABLE, appInfo, askAudit, chartsDrawn, openApp, serveDist, until } from './harness.mjs';
+import { ASK_GROUPS, TABLE, appInfo, askAudit, chartsDrawn, openApp, serveDist, until, pickCase, goRail } from './harness.mjs';
 import { wholeMoney } from '../src/format.js';
 import {
   DEFAULT_VIEW, WORK_SHOWN, dueText, isMine, moneyText, myWork, myWorkText, nothingText, ownerName, pickReason, reasonFilters,
@@ -91,97 +91,32 @@ const HISTORY_FIELDS = [field('entity_id', 'text', 'id'), field('entity_label', 
 const open = (info, options = {}) => openApp(browser, served.base, info, { width: 1440, routes: hubRoutes(options.hub, options.summaries), ...options });
 const tileTexts = (page) => page.locator('.kpi').evaluateAll((tiles) => tiles.map((t) => [t.querySelector('.kpi-l').innerText, t.querySelector('.kpi-v').innerText,
   t.querySelector('.kpi-s').innerText]));
-const whatColumn = (page) => page.locator('.tbl--things tbody tr .it b').evaluateAll((cells) => cells.map((b) => b.firstChild.textContent));
 const hashOf = (page) => page.evaluate(() => window.location.hash);
 
-test('the header carries the Databricks logo, the hub title and when the use cases update', async () => {
+test('the header carries the Databricks logo, the hub title and where the open use case sits', async () => {
   const { page, seen, context } = await open(INFO());
   assert.equal(await page.locator('.mark-t b').innerText(), 'Contoso Retail - Databricks Inspire Use Cases Hub');
-  await page.waitForFunction(() => document.querySelector('.mark-t small').textContent.startsWith('Updated'));
-  assert.equal(await page.locator('.mark-t small').innerText(), 'Updated Oct 20 · next update Oct 27');
+  assert.equal(await page.locator('.mark-t small').innerText(), 'Pricing › Markdown control · N01-U05');
   const logo = await page.locator('.mark-tile.logo img').getAttribute('src');
   assert.match(logo, /^data:image\/png;base64,/);
   assert.equal(await page.evaluate(() => document.querySelector('link[rel="icon"]').href), logo);
-  assert.equal(await page.evaluate(() => document.title), 'Contoso Retail - Databricks Inspire Use Cases Hub');
+  assert.equal(await page.evaluate(() => document.title), 'Price-loss decision desk · Contoso Retail - Databricks Inspire Use Cases Hub');
   assert.deepEqual(seen.errors, []);
   await context.close();
 });
 
-test('the side menu lists My work, the Impact page, then the Overview and each use case with its status, and hides a use case the viewer may not read', async () => {
+test('the switcher lists each use case with its status and hides a use case the viewer may not read, and the rail lists the sections', async () => {
   const { page, seen, context } = await open(INFO());
-  await page.waitForFunction(() => document.querySelector('.nav-t small.warn'));
-  const items = await page.locator('.side .nav-t').evaluateAll((all) => all.map((t) => [t.querySelector('b').innerText, t.querySelector('small')?.innerText,
+  await page.locator('[data-switcher]').click();
+  await page.waitForFunction(() => document.querySelector('.switch-i small.warn'));
+  const items = await page.locator('.switch-i .switch-t').evaluateAll((all) => all.map((t) => [t.querySelector('b').innerText, t.querySelector('small')?.innerText,
     t.querySelector('small')?.className || '']));
-  assert.deepEqual(items, [['My work', 'What you did, and when', ''], ['Impact', 'What the use cases delivered', ''], ['Overview', 'All use cases', ''],
-    ['Price-loss decision desk', '3 to fix', ''], ['Second desk 1', '2 to fix', ''], ['Second desk 2', 'Not updated', 'bad'], ['Second desk 3', 'Not ready yet', 'warn']],
-    'My work first, then Impact, then the use cases under their label');
-  assert.equal(await page.locator('.side .side-h').innerText(), 'USE CASES');
-  assert.equal(await page.locator('.side .nav-i.is-on .nav-t b').innerText(), 'Overview');
+  assert.deepEqual(items, [['Price-loss decision desk', '3 to fix', ''], ['Second desk 1', '2 to fix', ''], ['Second desk 2', 'Not updated', 'bad'], ['Second desk 3', 'Not ready yet', 'warn']]);
+  assert.equal(await page.locator('.switch-i[aria-selected="true"] .switch-t b').innerText(), 'Price-loss decision desk');
+  await page.keyboard.press('Escape');
+  assert.deepEqual(await page.locator('[data-rail]').evaluateAll((all) => all.map((r) => r.dataset.rail)), ['dashboard', 'work', 'performance', 'runs', 'settings']);
   const zone = await page.evaluate(() => Intl.DateTimeFormat().resolvedOptions().timeZone);
-  assert.deepEqual(seen.hub[0], { window: 'all', time_zone: zone }, 'the hub reads every use case in one request, in the All open window and the time zone of the browser');
-  assert.deepEqual(seen.errors, []);
-  await context.close();
-});
-
-test('the Overview tiles count the things to fix, their money with its formula, the overdue ones and the measured savings', async () => {
-  const { page, seen, context } = await open(INFO());
-  assert.equal(await page.locator('.pg-h h1').innerText(), 'Overview');
-  assert.deepEqual(await tileTexts(page), [
-    ['To fix', '5', '3 of them are yours'],
-    ['Could save', '$33,850', 'Money at stake on the 5 things to fix, added up'],
-    ['Overdue', '2', 'past their due date'],
-    ['Saved this quarter', '$7,100', 'Money at stake when fixed, less what a later run still finds, on 6 fixes a later run confirmed since Oct 1']]);
-  assert.equal(await page.locator('[data-tile="late"] .kpi-v').evaluate((el) => el.classList.contains('red')), true);
-  assert.deepEqual(await whatColumn(page), ['Blue denim jacket, store 12', 'Supplier 3381, invoice 77188', 'Leather boots, store 2', 'Wool coat, store 4',
-    'Supplier 1150, invoice 66102'], 'mine first, then the biggest saving');
-  const first = page.locator('.tbl--things tbody tr').first();
-  assert.deepEqual(await first.locator('td').allInnerTexts(), [
-    'Blue denim jacket, store 12\nIt has been 40% off for 6 weeks and is not selling more, so each week loses about $1,400 of margin.',
-    'Price-loss decision desk', 'PL\nPat Lee', 'Today', '$8,400', 'Ask Genie']);
-  assert.equal(await page.locator('.tbl--things tbody tr').nth(1).locator('td.late').innerText(), '2 days late');
-  assert.equal(await page.locator('.tbl--things tbody tr').nth(3).locator('.owner.is-none').innerText(), 'Nobody yet');
-  assert.deepEqual(seen.errors, []);
-  await context.close();
-});
-
-test('the Owner and Show filters narrow the tiles and the list, and Clear filters brings them back', async () => {
-  const { page, seen, context } = await open(INFO());
-  await page.getByRole('combobox', { name: 'Owner' }).selectOption('me');
-  assert.deepEqual((await tileTexts(page)).slice(0, 2), [['To fix', '3', '3 of them are yours'], ['Could save', '$21,350', 'Money at stake on the 3 things to fix, added up']]);
-  assert.deepEqual(await whatColumn(page), ['Blue denim jacket, store 12', 'Supplier 3381, invoice 77188', 'Leather boots, store 2']);
-  await page.getByRole('combobox', { name: 'Owner' }).selectOption('none');
-  await page.getByRole('combobox', { name: 'Show' }).selectOption('all');
-  assert.deepEqual(await whatColumn(page), ['Wool coat, store 4', 'Supplier 1150, invoice 66102', 'Linen trousers, store 12']);
-  assert.equal(await page.locator('.tbl--things .look').innerText(), 'worth a look');
-  await page.getByRole('button', { name: 'Clear filters' }).click();
-  assert.equal(await page.locator('.tbl--things tbody tr').count(), 5);
-  assert.equal(await page.getByRole('button', { name: 'Clear filters' }).count(), 0);
-  assert.deepEqual(seen.hub.length, 1, 'owner and show filter what the page already read');
-  assert.deepEqual(seen.errors, []);
-  await context.close();
-});
-
-test('the Overview charts rank the money by use case and open it on a click, and show the savings by week', async () => {
-  const { page, seen, context } = await open(INFO());
-  const bars = page.locator('[data-bars="by_use_case"] .hb');
-  assert.deepEqual(await bars.allInnerTexts(), ['Price-loss decision desk\n$21,600', 'Second desk 1\n$12,250']);
-  const weeks = await page.locator('[data-bars="saved_weeks"] .vb-c b').allInnerTexts();
-  assert.equal(weeks.length, 12);
-  assert.deepEqual(weeks.slice(-3), ['$4K', '$8K', '$12K'], 'the weeks of every measured use case add up');
-  await bars.nth(1).click();
-  await page.waitForFunction(() => document.querySelector('.ph h1')?.textContent === 'Second desk 1');
-  assert.equal(await hashOf(page), '#/n02_u01');
-  assert.deepEqual(seen.errors, []);
-  await context.close();
-});
-
-test('a click on a thing to fix opens that record on its use case page', async () => {
-  const { page, seen, context } = await open(INFO());
-  await page.locator('.tbl--things tbody tr').nth(1).click();
-  await page.waitForFunction(() => document.querySelector('.ph h1')?.textContent === 'Second desk 1');
-  assert.equal(await hashOf(page), '#/n02_u01?rec=c');
-  await page.waitForTimeout(500);
-  assert.match(await hashOf(page), /[?&]rec=c(&|$)/, 'the page keeps the record in its link once its filters load');
+  assert.deepEqual(seen.hub.find((body) => !body.page), { window: 'all', time_zone: zone }, 'the hub reads every use case in one request, in the All open window and the time zone of the browser');
   assert.deepEqual(seen.errors, []);
   await context.close();
 });
@@ -189,6 +124,7 @@ test('a click on a thing to fix opens that record on its use case page', async (
 test('a record link opens that record on its use case page, and closing it takes the record out of the link', async () => {
   const { page, seen, context } = await openApp(browser, served.base, INFO(), { width: 1440, routes: hubRoutes() });
   await page.goto(`${served.base}#/n01_u05?rec=R002`);
+  await page.waitForFunction(() => /^#\/n01_u05\/work\?.*rec=R002/.test(location.hash));
   const panel = page.locator('dialog.drawer[open]');
   await page.waitForFunction(() => document.querySelector('dialog.drawer[open] h2')?.textContent === 'Item number 2 with a long descriptive name');
   await panel.locator('.panel-h [aria-label="Close"]').click();
@@ -204,32 +140,6 @@ test('a record link opens that record on its use case page, and closing it takes
   await context.close();
 });
 
-test('the Genie button on a thing to fix asks Genie about that record by click or Enter, and the Overview stays open', async () => {
-  const { page, seen, context } = await open(INFO());
-  const things = page.getByRole('table', { name: 'Things to fix' });
-  assert.equal(await things.getByRole('button', { name: 'Ask Genie about Supplier 3381, invoice 77188' }).innerText(), 'Ask Genie', 'the button reads Ask Genie');
-  await things.getByRole('button', { name: 'Ask Genie about Supplier 3381, invoice 77188' }).focus();
-  await page.keyboard.press('Enter');
-  await page.locator('aside.genie').waitFor();
-  assert.equal(await page.locator('.g-chip-t').innerText(), 'About: Supplier 3381, invoice 77188');
-  assert.match(await page.locator('aside.genie .g-h small').innerText(), /^Answers from the Genie Agent/, 'the record use case answers on the Overview');
-  await page.locator('aside.genie .g-sugg .sugg').first().click();
-  await until(() => seen.asks.length === 1);
-  assert.deepEqual([seen.asks[0].page, seen.asks[0].record_key], ['n02_u01', 'c']);
-  await page.locator('aside.genie .msg--genie').waitFor();
-  await page.waitForTimeout(300);
-  assert.equal(await page.locator('.pg-h h1').innerText(), 'Overview', 'Enter on the Genie button does not open the record');
-  assert.doesNotMatch(await hashOf(page), /rec=/);
-  await things.getByRole('button', { name: 'Ask Genie about Wool coat, store 4' }).click();
-  assert.equal(await page.locator('.g-chip-t').innerText(), 'About: Wool coat, store 4');
-  assert.equal(await page.locator('aside.genie .msg').count(), 0, 'a record of another use case opens that use case chat');
-  await page.getByRole('button', { name: 'Stop asking about Wool coat, store 4' }).click();
-  assert.ok(await page.locator('aside.genie .g-pick-list').isVisible(), 'with no record picked the Overview offers the use cases again');
-  assert.equal(await page.locator('.pg-h h1').innerText(), 'Overview');
-  assert.deepEqual(seen.errors, []);
-  await context.close();
-});
-
 test('on a use case page the AI reason narrows the list too, a row asks Genie about its record, and the panel questions wait while Genie answers', async () => {
   const routes = hubRoutes();
   let hold = true;
@@ -237,13 +147,17 @@ test('on a use case page the AI reason narrows the list too, a row asks Genie ab
   routes['genie/message'] = ({ json }) => json(200, hold ? { state: 'running', step: 'Writing the SQL' }
     : { state: 'done', text: 'Genie answered.', sql: 'SELECT 1', columns: [], rows: [], truncated: false });
   const { page, seen, context } = await openApp(browser, served.base, INFO(), { width: 1440, routes });
-  await page.goto(`${served.base}#/n01_u05`);
-  await page.waitForFunction(() => document.querySelectorAll('[data-bars="by_reason"] .hb').length === 3 && document.querySelectorAll('.card--table tbody tr').length);
+  await page.goto(`${served.base}#/n01_u05/dashboard`);
+  await page.waitForFunction(() => document.querySelectorAll('[data-bars="by_reason"] .hb').length === 3);
   await page.locator('[data-bars="by_reason"] .hb', { hasText: 'Price below cost' }).click();
+  await page.locator('[data-rail="work"]').click();
   await until(() => seen.records.at(-1)?.ai?.ai_cat_driver?.[0] === 'Price below cost');
   assert.deepEqual(seen.records.at(-1).ai, { ai_cat_driver: ['Price below cost'] });
+  await page.locator('[data-rail="dashboard"]').click();
   await page.locator('[data-bars="by_reason"] .hb.is-on').click();
+  await page.locator('[data-rail="work"]').click();
   await until(() => Object.keys(seen.records.at(-1)?.ai || { x: 1 }).length === 0);
+  await page.waitForFunction(() => document.querySelectorAll('[data-work] .card--table tbody tr').length);
   const list = page.locator('.card--table');
   await list.getByRole('button', { name: 'Ask Genie about Item number 2 with a long descriptive name' }).click();
   await page.locator('aside.genie').waitFor();
@@ -303,34 +217,6 @@ test("Genie's answer table shows each zip code as written and each count in full
   await context.close();
 });
 
-test('on the Overview Ask Genie lists only the use cases that answer and that the viewer may read, and picking one opens it with Ask Genie open', async () => {
-  const info = withJoined();
-  const { page, seen, context } = await openApp(browser, served.base, info, { width: 1440, routes: pageGenie() });
-  await page.locator('[data-bars="by_use_case"] .hb').first().waitFor();
-  await page.getByRole('button', { name: 'Ask Genie', exact: true }).click();
-  const panel = page.locator('aside.genie');
-  await panel.waitFor();
-  assert.equal(await panel.locator('.g-h small').innerText(), 'Each use case has its own Genie Agent');
-  assert.equal(await panel.locator('.g-pick p').innerText(), HUB_NOTE);
-  const shownTitles = await page.locator('.side .nav-t b').allInnerTexts();
-  const expected = info.pages.filter((p) => p.genie.enabled && shownTitles.includes(p.title)).map((p) => `${p.use_case_id} · ${p.title}`);
-  assert.deepEqual(await panel.locator('.g-pick-list .sugg').allInnerTexts(), expected);
-  assert.ok(!expected.some((t) => t.endsWith('Second desk 2')), 'a page with Ask Genie off is not offered');
-  assert.ok(!expected.some((t) => t.endsWith('Second desk 4')), 'a use case the viewer may not read is not offered');
-  assert.equal(await page.getByLabel('Your question').isDisabled(), true);
-  assert.equal(await page.getByLabel('Your question').getAttribute('placeholder'), 'Pick a use case first');
-  await panel.locator('.g-pick-list .sugg', { hasText: 'Second desk 1' }).click();
-  await page.waitForFunction(() => document.querySelector('.ph h1')?.textContent === 'Second desk 1');
-  assert.equal(await panel.isVisible(), true, 'Ask Genie stays open on the picked use case');
-  assert.equal(await page.getByLabel('Your question').getAttribute('placeholder'), 'Ask about the data in this use case');
-  await page.getByLabel('Your question').fill('Which invoices repeat?');
-  await page.getByRole('button', { name: 'Send' }).click();
-  await until(() => seen.asks.length === 1);
-  assert.deepEqual(seen.asks[0], { question: 'Which invoices repeat?', conversation_id: '', page: 'n02_u01' });
-  assert.deepEqual(seen.errors, []);
-  await context.close();
-});
-
 test('each use case keeps its own Genie chat with its own Genie Agent, and a page that joined the hub earlier has Ask Genie off with the reason', async () => {
   const { page, seen, context } = await openApp(browser, served.base, withJoined(), { width: 1440, routes: pageGenie() });
   await page.goto(`${served.base}#/n01_u05`);
@@ -339,19 +225,19 @@ test('each use case keeps its own Genie chat with its own Genie Agent, and a pag
   const ask = async (text) => { await page.getByLabel('Your question').fill(text); await page.getByRole('button', { name: 'Send' }).click(); };
   await ask('Which items lose the most?');
   await page.locator('.msg--genie', { hasText: 'Answer from n01_u05' }).waitFor({ timeout: 15000 });
-  await page.locator('.side .nav-i', { hasText: 'Second desk 1' }).click();
+  await pickCase(page, 'Second desk 1');
   await page.waitForFunction(() => document.querySelector('.ph h1')?.textContent === 'Second desk 1');
   assert.equal(await page.locator('aside.genie .msg').count(), 0, 'another use case starts its own chat');
   await ask('Which invoices repeat?');
   await page.locator('.msg--genie', { hasText: 'Answer from n02_u01' }).waitFor({ timeout: 15000 });
   assert.deepEqual(seen.asks.map((a) => [a.page, a.conversation_id]), [['n01_u05', ''], ['n02_u01', '']], 'a new use case starts a new Genie conversation');
-  await page.locator('.side .nav-i', { hasText: 'Price-loss decision desk' }).click();
+  await pickCase(page, 'Price-loss decision desk');
   await page.waitForFunction(() => document.querySelector('.ph h1')?.textContent === 'Price-loss decision desk');
   assert.deepEqual(await page.locator('aside.genie .msg--you p').allInnerTexts(), ['Which items lose the most?'], 'coming back shows this use case chat only');
   await ask('And last month?');
   await until(() => seen.asks.length === 3);
   assert.deepEqual([seen.asks[2].page, seen.asks[2].conversation_id], ['n01_u05', 'c-n01_u05'], 'the chat goes on in the same Genie conversation');
-  await page.locator('.side .nav-i', { hasText: 'Second desk 2' }).click();
+  await pickCase(page, 'Second desk 2');
   await page.waitForFunction(() => document.querySelector('.ph h1')?.textContent === 'Second desk 2');
   await page.locator('aside.genie .g-off').waitFor();
   assert.equal(await page.locator('aside.genie .g-off span').innerText(), JOINED_NOTE);
@@ -365,50 +251,25 @@ test('each use case keeps its own Genie chat with its own Genie Agent, and a pag
 });
 
 const tableFit = (page) => page.evaluate(() => {
-  const wrap = document.querySelector('.tbl--things').closest('.tbl-wrap');
+  const wrap = document.querySelector('.tbl--mine').closest('.tbl-wrap');
   const edge = wrap.getBoundingClientRect().right + 1;
   return {
     scroll: wrap.scrollWidth - wrap.clientWidth, page: document.documentElement.scrollWidth - document.documentElement.clientWidth,
-    money: [...document.querySelectorAll('.tbl--things td.c-money')].every((td) => td.getBoundingClientRect().right <= edge && td.offsetWidth > 40),
-    ask: [...document.querySelectorAll('.tbl--things .row-ask')].every((b) => b.getBoundingClientRect().right <= b.closest('td').getBoundingClientRect().right + 0.5),
+    money: [...document.querySelectorAll('.tbl--mine td.c-money')].every((td) => td.getBoundingClientRect().right <= edge && td.offsetWidth > 40),
+    ask: [...document.querySelectorAll('.tbl--mine .row-ask')].every((b) => b.getBoundingClientRect().right <= b.closest('td').getBoundingClientRect().right + 0.5),
   };
 });
 
 for (const [width, label] of [[1440, 'Ask Genie'], [1024, 'Ask Genie'], [390, '']]) {
-  test(`the money of every thing to fix stays in view without a sideways scroll at ${width} px`, async () => {
-    const { page, seen, context } = await open(INFO(), { width });
+  test(`the money of every record in Your work stays in view without a sideways scroll at ${width} px`, async () => {
+    const { page, seen, context } = await open(INFO(), { width, hash: '#/n01_u05/performance' });
+    await page.locator('.tbl--mine tbody tr').first().waitFor();
     assert.deepEqual(await tableFit(page), { scroll: 0, page: 0, money: true, ask: true });
-    assert.deepEqual(new Set(await page.locator('.tbl--things .row-ask').allInnerTexts()), new Set([label]));
+    assert.deepEqual(new Set(await page.locator('.tbl--mine .row-ask').allInnerTexts()), new Set([label]));
     assert.deepEqual(seen.errors, []);
     await context.close();
   });
 }
-
-test('a wide Genie window narrows the Overview to one chart column and 2 by 2 tiles, and nothing scrolls sideways', async () => {
-  const { page, seen, context } = await open(INFO(), { width: 1440 });
-  await page.getByRole('button', { name: 'Ask Genie', exact: true }).click();
-  await page.locator('.genie').waitFor();
-  await page.addStyleTag({ content: '.genie{width:760px!important;max-width:none!important}' });
-  await page.waitForFunction(() => document.querySelector('.main').getBoundingClientRect().width < 760);
-  const shape = await page.evaluate(() => ({
-    charts: getComputedStyle(document.querySelector('.charts')).gridTemplateColumns.split(' ').length,
-    tiles: getComputedStyle(document.querySelector('.kpis')).gridTemplateColumns.split(' ').length,
-  }));
-  assert.deepEqual(shape, { charts: 1, tiles: 2 });
-  assert.deepEqual(await tableFit(page), { scroll: 0, page: 0, money: true, ask: true });
-  assert.deepEqual(seen.errors, []);
-  await context.close();
-});
-
-test('the things to fix end with a column the Genie row button fills, its header read only by screen readers, and long use case names wrap', async () => {
-  const { page, seen, context } = await open(INFO());
-  assert.equal(await page.locator('.tbl--things thead th:last-child .sr').textContent(), 'Ask Genie');
-  assert.equal(await page.locator('.tbl--things thead th:last-child .sr').evaluate((el) => el.getBoundingClientRect().width <= 1), true);
-  assert.equal(await page.locator('.tbl--things tbody tr td:last-child.c-ask').count(), 5);
-  assert.equal(await page.locator('.tbl--things td.c-uc .ucn').first().evaluate((el) => getComputedStyle(el).whiteSpace), 'normal');
-  assert.deepEqual(seen.errors, []);
-  await context.close();
-});
 
 test('a use case counted in late shipments names its tiles in that unit and its saved tile with its verb, never money', async () => {
   const counted = { ...SUMMARIES, n01_u05: { ...SUMMARIES.n01_u05, run: run({ currency: '', unit: 'late shipments', impact_kind: 'count' }) } };
@@ -423,14 +284,11 @@ test('a use case counted in late shipments names its tiles in that unit and its 
   await context.close();
 });
 
-test('a use case page leads with its area, title, Notify me, AI summary, four tiles, the AI reason filter and two charts', async () => {
+test('a use case dashboard leads with its area, title, AI summary, four tiles, the AI reason filter and its charts, and Notify me sits in Settings', async () => {
   const { page, seen, context } = await openApp(browser, served.base, INFO(), { width: 1440, routes: hubRoutes() });
   await page.goto(`${served.base}#/n01_u05`);
   await page.waitForFunction(() => document.querySelector('.ph h1')?.textContent === 'Price-loss decision desk' && document.querySelectorAll('.kpi-v').length === 4);
   assert.equal(await page.locator('.top .mark-t small').innerText(), 'Pricing › Markdown control · N01-U05');
-  const notify = page.getByRole('link', { name: 'Notify me' });
-  assert.equal(await notify.getAttribute('href'), 'https://example.com/sql/alerts');
-  assert.equal(await notify.getAttribute('target'), '_blank');
   assert.match(await page.locator('.sum').innerText(), /^AI summary\s+Deep discounts on winter wear are losing margin without selling more\.\s+Ask Genie$/);
   assert.deepEqual(await tileTexts(page), [
     ['To fix', '3', '2 of them are yours'], ['Could save', '$21,600', 'Money at stake on the 3 things to fix, added up'],
@@ -445,11 +303,13 @@ test('a use case page leads with its area, title, Notify me, AI summary, four ti
   assert.deepEqual(await page.locator('[data-drivers] [data-card]').evaluateAll((cards) => cards.map((c) => c.dataset.card)), ['by_category'],
     'the Drivers chart sits under its heading');
   assert.deepEqual(await page.locator('.charts--more [data-card]').evaluateAll((cards) => cards.map((c) => c.dataset.card)), ['channel_mix', 'pareto']);
-  assert.ok(await page.evaluate(() => ['.charts--more', '[data-drivers]'].every((s) => document.querySelector(s).getBoundingClientRect().bottom
-    <= document.querySelector('.card--table').getBoundingClientRect().top)), 'every chart, the Drivers section with them, sits above the things to fix');
-  assert.ok(await page.evaluate(() => document.querySelector('main .page').lastElementChild.matches('.card--table')), 'the table is the last part of the page');
+  assert.equal(await page.locator('[data-page-section="dashboard"] .card--list').count(), 0, 'the records sit in Work, not on the dashboard');
   assert.equal(await page.locator('.story').count(), 0);
   assert.equal(await page.locator('.ph-q').count(), 0);
+  await page.locator('[data-rail="settings"]').click();
+  const notify = page.locator('[data-settings]').getByRole('link', { name: 'Notify me' });
+  assert.equal(await notify.getAttribute('href'), 'https://example.com/sql/alerts');
+  assert.equal(await notify.getAttribute('target'), '_blank');
   assert.deepEqual(seen.errors, []);
   await context.close();
 });
@@ -460,7 +320,7 @@ const pageOrder = (page) => page.evaluate(() => {
   const seen = (el) => box(el).height > 0 && getComputedStyle(el).display !== 'none';
   const charts = [...main.querySelectorAll('[data-card], [data-bars]')].filter(seen);
   const tables = [...main.querySelectorAll('.card--table')].filter((el) => seen(el) && el.getAttribute('aria-label') !== 'Your work');
-  const parts = [...main.children].filter(seen);
+  const parts = [...main.children].flatMap((el) => (el.matches('[data-work]') ? [...el.children] : [el])).filter(seen);
   const lowest = Math.max(...parts.map((el) => box(el).bottom));
   return {
     charts: charts.length, tables: tables.length,
@@ -474,22 +334,20 @@ const orderRun = (id, started, toFix) => ({ run_id: id, job_run_id: null, url: '
   segments: null, tables: null, records: 40, to_fix: toFix, could_save: null, currency: '', summary: '', nothing_to_act: '', error: '' });
 const ORDER_RUNS = { runs: [orderRun('u2', '2026-10-20T06:00:00Z', 3), orderRun('u1', '2026-10-13T06:00:00Z', 5)], total: 2, offset: 0, limit: 20, job: null, errors: {} };
 
-test('charts sit on top and the table is always last: on the Overview, on a use case page and its Runs view, wide, narrow and in the tabs layout', async () => {
-  for (const [width, layout] of [[1440, 'side'], [375, 'side'], [1440, 'tabs']]) {
-    const info = layout === 'tabs' ? appInfo({ business: 'Contoso Retail', layout: 'tabs' }, 5, TABLE) : INFO();
-    const { page, seen, context } = await open(info, { width, routes: { ...hubRoutes(), runs: ({ json }) => json(200, ORDER_RUNS) } });
-    const where = `${width} px, ${layout} layout`;
-    await page.waitForFunction(() => document.querySelectorAll('[data-bars="by_use_case"] .hb').length === 2 && document.querySelector('.tbl--things tbody tr'));
-    const overview = await pageOrder(page);
-    assert.ok(overview.charts >= 2 && overview.above, `${where}: the Overview charts sit above the things to fix`);
-    assert.ok(overview.last, `${where}: the Overview ends with a table, not ${overview.label}`);
-    await page.goto(`${served.base}#/n01_u05`);
-    await page.waitForFunction(() => document.querySelector('.ph h1')?.textContent === 'Price-loss decision desk' && document.querySelector('.card--table'));
+test('charts sit on the dashboard and the records table is the last part of Work and Runs, wide and narrow', async () => {
+  for (const width of [1440, 375]) {
+    const { page, seen, context } = await open(INFO(), { width, routes: { ...hubRoutes(), runs: ({ json }) => json(200, ORDER_RUNS) } });
+    const where = `${width} px`;
+    await page.goto(`${served.base}#/n01_u05/dashboard`);
+    await page.waitForFunction(() => document.querySelector('.ph h1')?.textContent === 'Price-loss decision desk');
     await page.waitForFunction(chartsDrawn, 4);
-    const usecase = await pageOrder(page);
-    assert.ok(usecase.charts >= 5 && usecase.above, `${where}: every chart of the use case page sits above its table`);
-    assert.ok(usecase.last, `${where}: the use case page ends with its table, not ${usecase.label}`);
-    await page.locator('.top-runs').click();
+    const dashboard = await pageOrder(page);
+    assert.ok(dashboard.charts >= 5, `${where}: the dashboard shows every chart of the use case`);
+    await goRail(page, 'work');
+    await page.waitForSelector('[data-work] .card--table tbody tr');
+    const work = await pageOrder(page);
+    assert.ok(work.tables >= 1 && work.last, `${where}: Work ends with its records table, not ${work.label}`);
+    await goRail(page, 'runs');
     await page.waitForSelector('[data-bars="to_fix_runs"] .vb-c');
     const runs = await pageOrder(page);
     assert.ok(runs.charts >= 1 && runs.above, `${where}: the To fix per run chart sits above the runs table`);
@@ -502,11 +360,13 @@ test('charts sit on top and the table is always last: on the Overview, on a use 
     if (!history) info.pages[0].history = null;
     const { page, seen, context } = await open(info, { width });
     const where = `${width} px, a one use case App ${history ? 'with' : 'without'} record history`;
-    await page.waitForFunction(() => document.querySelector('.ph h1')?.textContent === 'Price-loss decision desk' && document.querySelector('.card--table'));
+    await page.waitForFunction(() => document.querySelector('.ph h1')?.textContent === 'Price-loss decision desk');
     await page.waitForFunction(chartsDrawn, 4);
-    const single = await pageOrder(page);
-    assert.ok(single.charts >= 4 && single.above, `${where}: every chart sits above its table`);
-    assert.ok(single.last, `${where}: the page ends with its table, not ${single.label}`);
+    assert.ok((await pageOrder(page)).charts >= 4, `${where}: the dashboard shows the charts`);
+    await goRail(page, 'work');
+    await page.waitForSelector('[data-work] .card--table');
+    const work = await pageOrder(page);
+    assert.ok(work.last, `${where}: Work ends with its table, not ${work.label}`);
     assert.deepEqual(seen.errors, []);
     await context.close();
   }
@@ -569,9 +429,9 @@ test('a use case that is not updated or not ready says so in plain words, and on
   assert.deepEqual(await page.locator('.charts--more [data-card], [data-drivers] [data-card]').evaluateAll((cards) => cards.map((c) => c.dataset.card)),
     ['loss_trend', 'channel_mix', 'pareto', 'by_category'], 'every chart of the page still shows, the trend first and the Drivers chart under its heading');
   assert.ok(await page.evaluate(() => {
-    const [bar, charts, table] = ['.ph ~ .fbar', '.charts--more', '.card--table'].map((s) => document.querySelector(s).getBoundingClientRect());
-    return bar.bottom <= charts.top && charts.bottom <= table.top && document.querySelector('main .page').lastElementChild.matches('.card--table');
-  }), 'the filters come first, then the charts, and the table is last, so the table can be filtered');
+    const [bar, charts] = ['.ph ~ .fbar', '.charts--more'].map((s) => document.querySelector(s).getBoundingClientRect());
+    return bar.bottom <= charts.top;
+  }), 'the filters come first, then the charts');
   await page.goto(`${served.base}#/n02_u01`);
   await page.waitForSelector('[data-nothing-fix] [data-nothing]');
   assert.equal(await page.locator('[data-nothing-fix] [data-nothing]').innerText(), 'Nothing to act on yet, because no record has 5,000 USD or more at stake, the amount this use case reviews from.');
@@ -580,23 +440,14 @@ test('a use case that is not updated or not ready says so in plain words, and on
   await context.close();
 });
 
-test('a hub with no money recorded says Not measured yet instead of an amount, and still counts what is overdue', async () => {
+test('a use case with no money recorded says Not measured yet instead of an amount, and still counts what is to fix', async () => {
   const bare = JSON.parse(JSON.stringify(HUB));
   Object.values(bare.pages).forEach((e) => { if (e.tracked) Object.assign(e, { money: false, weeks: [] }); e.items?.forEach((i) => { i.money = null; }); });
-  const { page, seen, context } = await open(INFO(), { hub: bare });
-  assert.deepEqual((await tileTexts(page)).map((t) => t[1]), ['5', 'Not measured yet', '2', 'Not measured yet']);
-  assert.equal(await page.locator('[data-bars="saved_weeks"] .empty').innerText(), 'Not measured yet');
-  assert.equal(await page.locator('[data-bars="by_use_case"] .empty').innerText(), 'Not measured yet');
-  assert.deepEqual(await page.locator('.tbl--things td.c-money').allInnerTexts(), Array(5).fill('Not measured yet'));
-  assert.deepEqual(seen.errors, []);
-  await context.close();
-});
-
-test('the tabs layout puts My work first, then the Impact page, then the Overview and the use cases', async () => {
-  const { page, seen, context } = await open(appInfo({ layout: 'tabs' }, 3, TABLE));
-  assert.deepEqual(await page.locator('.tabs .tab').allInnerTexts(), ['My work', 'Impact', 'Overview', 'Price-loss decision desk', 'Second desk 1', 'Second desk 2']);
-  await page.locator('.tabs .tab', { hasText: 'Impact' }).click();
-  await page.waitForFunction(() => document.querySelector('.pg-h h1')?.textContent === 'Impact');
+  const { page, seen, context } = await open(INFO(), { hub: bare, hash: '#/n01_u05/dashboard' });
+  await page.waitForFunction(() => document.querySelectorAll('.kpi-v').length === 4);
+  const tiles = (await tileTexts(page)).map((t) => t[1]);
+  assert.deepEqual([tiles[0], tiles[1], tiles[3]], ['3', 'Not measured yet', 'Not measured yet']);
+  assert.equal(await page.locator('[data-bars="by_reason"] .empty').innerText(), 'Not measured yet');
   assert.deepEqual(seen.errors, []);
   await context.close();
 });
@@ -682,8 +533,8 @@ test('my work is what is assigned to me, overdue first, then due today, then by 
 
 const workRows = (page) => page.locator('.tbl--mine tbody tr').evaluateAll((trs) => trs.map((tr) => [...tr.querySelectorAll('td')].map((td) => td.innerText)));
 
-test('Your work lists what is assigned to me, overdue first, with its status and due date, ignores the filters and opens a record on a click', async () => {
-  const { page, seen, context } = await open(INFO());
+test('Your work lists what is assigned to me, overdue first, with its status and due date, and opens a record in Work on a click', async () => {
+  const { page, seen, context } = await open(INFO(), { hash: '#/n01_u05/performance' });
   const work = page.getByRole('region', { name: 'Your work' });
   await work.locator('tbody tr').first().waitFor();
   assert.equal(await work.locator('.card-h p').innerText(), '3 assigned to you · 1 overdue · 1 due today');
@@ -695,14 +546,9 @@ test('Your work lists what is assigned to me, overdue first, with its status and
   assert.equal(await work.locator('td.c-due.late').innerText(), '2 days late');
   assert.equal(await work.locator('.status--in-progress').innerText(), 'In progress');
   assert.equal(await work.getByRole('button', { name: /^Ask Genie/ }).count(), 4, 'the table and each of its 3 records have their own Ask Genie');
-  assert.ok(await page.evaluate(() => Boolean(document.querySelector('[aria-label="Your work"]').compareDocumentPosition(document.querySelector('.fbar'))
-    & Node.DOCUMENT_POSITION_FOLLOWING)), 'your work comes before the filters');
-  await page.getByRole('combobox', { name: 'Owner' }).selectOption('none');
-  await page.getByRole('combobox', { name: 'Show' }).selectOption('all');
-  assert.equal(await work.locator('tbody tr').count(), 3, 'the Owner and Show filters narrow the things to fix, not your work');
   await work.locator('tbody tr').first().click();
   await page.waitForFunction(() => document.querySelector('.ph h1')?.textContent === 'Second desk 1');
-  assert.equal(await hashOf(page), '#/n02_u01?rec=c');
+  await page.waitForFunction(() => location.hash === '#/n02_u01/work?rec=c');
   assert.deepEqual(seen.errors, []);
   await context.close();
 });
@@ -710,12 +556,11 @@ test('Your work lists what is assigned to me, overdue first, with its status and
 test('Your work keeps an overdue Monitor record that is mine, shows eight at first and says when a use case sent only its biggest records', async () => {
   const mine = Array.from({ length: 10 }, (_, i) => item(`k${i}`, `Mine ${i}`, i ? 'Act now' : 'Monitor', 100 + i, { owner: ME, due: i ? null : '2026-10-23' }));
   const hub = { ...HUB, pages: { ...HUB.pages, n01_u05: entry(mine, { truncated: true, total: 900 }), n02_u01: entry([]) } };
-  const { page, seen, context } = await open(INFO(), { hub });
+  const { page, seen, context } = await open(INFO(), { hub, hash: '#/n01_u05/performance' });
   const work = page.getByRole('region', { name: 'Your work' });
   await work.locator('tbody tr').first().waitFor();
   assert.equal(await work.locator('tbody tr').count(), WORK_SHOWN);
   assert.equal(await work.locator('tbody tr td:first-child').first().innerText(), 'Mine 0', 'an overdue Monitor record is still your work');
-  assert.equal(await page.locator('.tbl--things tbody tr', { hasText: 'Mine 0' }).count(), 0, 'the things to fix keep only the tiers they show');
   await work.getByRole('button', { name: 'Show all 10' }).click();
   assert.equal(await work.locator('tbody tr').count(), 10);
   await work.getByRole('button', { name: 'Show fewer' }).click();
@@ -724,13 +569,13 @@ test('Your work keeps an overdue Monitor record that is mine, shows eight at fir
     'Each use case sends My work its biggest open records only. Open the use case, go to Work and pick Mine to see all of yours.');
   assert.deepEqual(seen.errors, []);
   await context.close();
-  const whole = await open(INFO());
+  const whole = await open(INFO(), { hash: '#/n01_u05/performance' });
   await whole.page.getByRole('region', { name: 'Your work' }).locator('tbody tr').first().waitFor();
   assert.equal(await whole.page.getByRole('region', { name: 'Your work' }).locator('.more').count(), 0, 'a whole list needs no note and no Show all');
   await whole.context.close();
 });
 
-test('Your work says plainly why it is empty: loading, nothing mine, a use case that failed, no results yet, not signed in, the Overview failed', async () => {
+test('Your work says plainly why it is empty: loading, nothing mine, a use case that failed, no results yet, not signed in, the hub failed', async () => {
   const samOnly = { ...HUB, pages: { ...HUB.pages, n01_u05: entry(DESK.map((i) => ({ ...i, owner: SAM }))), n02_u01: entry([]) } };
   const { n02_u01: _dropped, ...rest } = HUB.pages;
   const failedOne = { ...HUB, errors: { n02_u01: 'PERMISSION_DENIED: no SELECT' }, pages: { ...rest, n01_u05: entry(DESK.map((i) => ({ ...i, owner: SAM }))) } };
@@ -740,7 +585,7 @@ test('Your work says plainly why it is empty: loading, nothing mine, a use case 
   const cases = [[samOnly, INFO(), 'Nothing is assigned to you right now.'], [failedOne, INFO(), 'Nothing is assigned to you in the use cases that loaded.'],
     [noOwners, INFO(), 'Nobody owns a record yet, so nothing is assigned to you. Open a use case list and press Assign them to me to take the records you will work on.'], [HUB, unsigned, 'Sign in to see what is assigned to you.']];
   for (const [hub, info, said] of cases) {
-    const { page, seen, context } = await open(info, { hub });
+    const { page, seen, context } = await open(info, { hub, hash: '#/n01_u05/performance' });
     const work = page.getByRole('region', { name: 'Your work' });
     await work.locator('.nomatch').waitFor();
     assert.equal(await work.locator('.nomatch').innerText(), said);
@@ -753,13 +598,13 @@ test('Your work says plainly why it is empty: loading, nothing mine, a use case 
   const routes = hubRoutes();
   const overview = routes.overview;
   routes.overview = (args) => (hold ? new Promise(() => {}) : overview(args));
-  const slow = await openApp(browser, served.base, INFO(), { width: 1440, routes });
+  const slow = await openApp(browser, served.base, INFO(), { width: 1440, routes, hash: '#/n01_u05/performance' });
   hold = true;
   await slow.page.reload();
   await slow.page.getByRole('region', { name: 'Your work' }).locator('.more').waitFor();
   assert.equal(await slow.page.getByRole('region', { name: 'Your work' }).locator('.more').innerText(), 'Loading your work…');
   await slow.context.close();
-  const down = await openApp(browser, served.base, INFO(), { width: 1440, routes: { ...hubRoutes(), overview: ({ json }) => json(500, { error: 'the warehouse is stopped' }) } });
+  const down = await openApp(browser, served.base, INFO(), { width: 1440, routes: { ...hubRoutes(), overview: ({ json }) => json(500, { error: 'the warehouse is stopped' }) }, hash: '#/n01_u05/performance' });
   const failed = down.page.getByRole('region', { name: 'Your work' });
   await failed.locator('.nomatch').waitFor();
   assert.equal(await failed.locator('.nomatch').innerText(), 'Your work could not load.');
@@ -786,28 +631,24 @@ async function askRow(page, calls, scope, name, question) {
   return calls.explain.pop();
 }
 
-test('every card, key number, row and the filter bar on the Overview and on a Runs view shows a visible Ask Genie, and each row sends Genie its own record', async () => {
+test('every card, key number and row on Performance and on a Runs view shows a visible Ask Genie, and each row sends Genie its own record', async () => {
   const { calls, routes, release } = explainHub();
   release();
-  const { page, seen, context } = await open(INFO(), { routes: { ...routes, runs: ({ json }) => json(200, ORDER_RUNS) } });
-  await page.locator('.tbl--things tbody tr').first().waitFor();
+  const { page, seen, context } = await open(INFO(), { routes: { ...routes, runs: ({ json }) => json(200, ORDER_RUNS) }, hash: '#/n01_u05/performance' });
   await page.locator('.tbl--mine tbody tr').first().waitFor();
-  const overview = await page.evaluate(askAudit, ASK_GROUPS);
-  assert.deepEqual([overview.missing, overview.hidden], [[], []], 'the Overview: 0 missing, 0 hidden');
-  assert.ok(overview.counts.row === 8 && overview.counts.card >= 4 && overview.counts.kpi === 4, JSON.stringify(overview.counts));
+  const perf = await page.evaluate(askAudit, ASK_GROUPS);
+  assert.deepEqual([perf.missing, perf.hidden], [[], []], 'Performance: 0 missing, 0 hidden');
+  assert.ok(perf.counts.row >= 3, JSON.stringify(perf.counts));
   const work = page.getByRole('region', { name: 'Your work' });
   assert.equal(await work.locator('tbody .row-ask').count(), 3, 'with Genie on, each of your records asks about itself, like a thing to fix');
   await work.getByRole('button', { name: 'Ask Genie about Leather boots, store 2', exact: true }).click();
   assert.equal(await page.locator('.g-chip-t').innerText(), 'About: Leather boots, store 2');
   assert.match(await page.locator('aside.genie .g-h small').innerText(), /^Answers from the Genie Agent/);
   await page.getByRole('button', { name: 'Stop asking about Leather boots, store 2' }).click();
-  await page.getByRole('region', { name: 'Things to fix' }).getByRole('button', { name: 'Ask Genie about Things to fix', exact: true }).click();
-  await page.locator('aside.genie .g-pick-list').waitFor();
-  assert.equal(await page.locator('form.ask-box').count(), 0, 'a table across use cases has no Genie Agent, so it opens the use case picker');
   assert.equal(calls.explain.length, 0);
-  await page.goto(`${served.base}#/n01_u05`);
+  await page.goto(`${served.base}#/n01_u05/dashboard`);
   await page.waitForFunction(() => document.querySelector('.ph h1')?.textContent === 'Price-loss decision desk');
-  await page.locator('.top-runs').click();
+  await page.locator('[data-rail="runs"]').click();
   await page.locator('.runs-tbl tbody tr').first().waitFor();
   const runs = await page.evaluate(askAudit, ASK_GROUPS);
   assert.deepEqual([runs.missing, runs.hidden, runs.counts.row], [[], [], 2], 'the Runs view: 0 missing, 0 hidden');
@@ -819,11 +660,11 @@ test('every card, key number, row and the filter bar on the Overview and on a Ru
   await context.close();
 });
 
-test('a record of a use case with Ask Genie off still shows Ask Genie on the Overview, and it opens the panel on why with nothing sent', async () => {
+test('a record of a use case with Ask Genie off still shows Ask Genie on Performance, and it opens the panel on why with nothing sent', async () => {
   const { calls, routes } = explainHub();
   const info = INFO();
   info.pages[0].genie = { enabled: false, title: '', url: '', note: 'The Genie Agent of this use case did not build.' };
-  const { page, seen, context } = await open(info, { routes });
+  const { page, seen, context } = await open(info, { routes, hash: '#/n02_u01/performance' });
   await page.locator('.tbl--mine tbody tr').first().waitFor();
   const found = await page.evaluate(askAudit, ASK_GROUPS);
   assert.deepEqual([found.missing, found.hidden], [[], []]);
@@ -839,12 +680,8 @@ test('a record of a use case with Ask Genie off still shows Ask Genie on the Ove
 
 const HUB_NOTE = 'Each use case has its own Genie Agent. Open a use case to ask Genie about it or to explain its charts.';
 
-test('with several use cases the Overview and Impact charts have no Explain and say where to explain them, and with one use case Impact explains its charts', async () => {
-  const many = await open(INFO());
-  await many.page.locator('[data-bars="by_use_case"] .hb').first().waitFor();
-  assert.equal(await many.page.locator('.explain-btn').count(), 0, 'no use case Genie Agent explains a chart across use cases');
-  assert.equal(await many.page.locator('.charts + .note').innerText(), HUB_NOTE);
-  await many.page.goto(`${served.base}#/impact`);
+test('with several use cases the Impact charts have no Explain and say where to explain them, and with one use case Impact explains its charts', async () => {
+  const many = await open(INFO(), { hash: '#/n01_u05/performance' });
   await many.page.getByRole('heading', { name: 'Impact', exact: true }).waitFor();
   await many.page.locator('[data-bars="saved_weeks"] .vb').waitFor();
   assert.equal(await many.page.locator('.explain-btn').count(), 0);
@@ -899,18 +736,15 @@ test('Explain on the reasons chart sends the page filters, the Owner and Show fi
   await context.close();
 });
 
-test('a hub whose Impact screen is off lists no Impact page and its link opens the Overview', async () => {
+test('a hub whose Impact screen is off shows no Impact on Performance and its old link opens Performance', async () => {
   const info = appInfo({ business: 'Contoso Retail', screens: { impact: false } }, 5, TABLE);
   assert.deepEqual(info.screens, { runs: true, impact: false });
   const { page, seen, context } = await open(info);
-  await page.waitForFunction(() => document.querySelector('.nav-t small.warn'));
-  assert.deepEqual(await page.locator('.side .nav-t b').allInnerTexts(),
-    ['My work', 'Overview', 'Price-loss decision desk', 'Second desk 1', 'Second desk 2', 'Second desk 3']);
   await page.goto(`${served.base}#/impact`);
-  await page.waitForFunction(() => document.querySelector('.pg-h h1')?.textContent === 'Overview');
-  assert.equal(await page.locator('.side .nav-i.is-on .nav-t b').innerText(), 'Overview');
+  await page.waitForFunction(() => location.hash === '#/n01_u05/performance');
+  await page.locator('[data-my-work]').waitFor();
+  assert.equal(await page.locator('[data-rail="performance"]').getAttribute('aria-current'), 'page');
   assert.equal(await page.locator('.imp').count(), 0);
-  assert.equal(await page.evaluate(() => document.title), 'Contoso Retail - Databricks Inspire Use Cases Hub');
   assert.deepEqual(seen.errors, []);
   await context.close();
 });
@@ -921,9 +755,9 @@ test('a use case whose Runs screen is off shows only Things to fix and never ask
   const asked = [];
   page.on('request', (r) => { if (new URL(r.url()).pathname === '/api/runs') asked.push(r.url()); });
   await page.goto(`${served.base}#/n01_u05?v=runs`);
-  await page.waitForFunction(() => location.hash === '#/n01_u05');
+  await page.waitForFunction(() => location.hash === '#/n01_u05/dashboard');
   assert.equal(await page.locator('[role="tab"]').count(), 0);
-  assert.equal(await page.locator('.top-runs').count(), 0, 'no Runs button when the Runs screen is off');
+  assert.equal(await page.locator('[data-rail="runs"]').count(), 0, 'no Runs section when the Runs screen is off');
   assert.equal(await page.locator('section.runs').count(), 0);
   assert.deepEqual(asked, []);
   assert.deepEqual(seen.errors, []);

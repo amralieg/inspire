@@ -131,7 +131,7 @@ test('closing a record as fixed can carry the money it saved and how you know, a
   assert.deepEqual(['Done', 'Dismissed', 'Could not fix', 'In progress'].map(statusLabel), ['Done', 'Not an issue', 'Could not fix', 'In progress']);
 });
 
-const tile = (page) => page.locator('.kpi').evaluateAll((tiles) => tiles.map((t) => [t.querySelector('.kpi-l').innerText, t.querySelector('.kpi-v').innerText,
+const tile = (page) => page.locator('.imp-page .kpi').evaluateAll((tiles) => tiles.map((t) => [t.querySelector('.kpi-l').innerText, t.querySelector('.kpi-v').innerText,
   t.querySelector('.kpi-s').innerText]));
 const SUMMARY = { run: { currency: 'USD', decision_basis: 'measured', as_of_date: '2026-10-20' }, categories: {}, note: '' };
 
@@ -144,8 +144,8 @@ test('the Impact page shows estimated, reported and measured apart, promised aga
   };
   const { page, seen, context } = await openApp(browser, served.base, info, { width: 1440, routes });
   await page.goto(`${served.base}#/impact`);
-  await page.waitForFunction(() => document.querySelector('.pg-h h1')?.textContent === 'Impact' && document.querySelectorAll('.imp').length === 2);
-  await page.waitForFunction(() => !document.querySelector('.kpis .skel, .kpis .skeleton'));
+  await page.waitForFunction(() => [...document.querySelectorAll('.pg-h h1')].some((h) => h.textContent === 'Impact') && document.querySelectorAll('.imp').length === 2);
+  await page.waitForFunction(() => !document.querySelector('.imp-page .kpis .skel, .imp-page .kpis .skeleton'));
   assert.deepEqual(await tile(page), [
     ['Estimated', '$15,000', 'Money at stake on the 10 open records flagged Act now or Review across 1 use case, added up'],
     ['Reported', '$2,500', 'Amounts people entered when they marked 3 records fixed across 1 use case'],
@@ -169,39 +169,29 @@ test('the Impact page shows estimated, reported and measured apart, promised aga
   assert.equal(await other.locator('.imp-hold').count(), 0);
   const text = await page.locator('.imp-page').innerText();
   assert.ok(!/[\u2013\u2014]/.test(text), 'the page has no en or em dash');
-  assert.equal(await page.locator('.side .nav-i.is-on .nav-t b').innerText(), 'Impact');
+  assert.equal(await page.locator('[data-rail="performance"]').getAttribute('aria-current'), 'page');
   await card.locator('.card-h .lnk').click();
-  await page.waitForFunction(() => window.location.hash === '#/n01_u05');
+  await page.waitForFunction(() => window.location.hash === '#/n01_u05/dashboard');
   assert.deepEqual(seen.errors, []);
   await context.close();
 });
 
-test('a one use case App opens on its page, and its menu offers My work, the Impact page and that page with no Overview', async () => {
+test('a one use case App opens on its dashboard, Performance shows its Impact, and the old Impact links open Performance', async () => {
   const routes = { impact: ({ json }) => json(200, ENTRY), summary: ({ json }) => json(200, SUMMARY) };
   const { page, seen, context } = await openApp(browser, served.base, appInfo({}, 1, { ...TABLE, promised: PROMISED }), { width: 1440, routes });
   await page.waitForFunction(() => document.querySelector('.pg-h h1')?.textContent === 'Price-loss decision desk');
-  assert.deepEqual(await page.locator('.side .nav-t b').allInnerTexts(), ['My work', 'Impact', 'Price-loss decision desk']);
-  assert.equal(await page.locator('.side .side-h').innerText(), 'USE CASE');
-  assert.equal(await page.locator('.side .nav-i.is-on .nav-t b').innerText(), 'Price-loss decision desk');
-  await page.locator('.side .nav-i', { hasText: 'Impact' }).click();
-  await page.waitForFunction(() => document.querySelector('.pg-h h1')?.textContent === 'Impact' && document.querySelectorAll('.imp').length === 1);
-  assert.equal(await page.evaluate(() => window.location.hash), '#/impact');
-  assert.equal(await page.evaluate(() => document.title), 'Impact · Pricing desk');
-  await page.locator('.side .nav-i', { hasText: 'Price-loss decision desk' }).click();
+  assert.equal(await page.locator('[data-rail="dashboard"]').getAttribute('aria-current'), 'page');
+  assert.ok(await page.locator('[data-switcher]').isDisabled());
+  await page.locator('[data-rail="performance"]').click();
+  await page.waitForFunction(() => document.querySelectorAll('.imp').length === 1);
+  assert.equal(await page.evaluate(() => window.location.hash), '#/n01_u05/performance');
+  await page.locator('[data-rail="dashboard"]').click();
   await page.waitForFunction(() => document.querySelector('.pg-h h1')?.textContent === 'Price-loss decision desk');
-  await page.goto(`${served.base}#/results`);
-  await page.waitForFunction(() => document.querySelector('.pg-h h1')?.textContent === 'Impact');
-  assert.deepEqual(seen.errors, []);
-  await context.close();
-});
-
-test('a one use case App in the tabs layout has a tab for My work, one for Impact and one for its page', async () => {
-  const routes = { impact: ({ json }) => json(200, ENTRY), summary: ({ json }) => json(200, SUMMARY) };
-  const { page, seen, context } = await openApp(browser, served.base, appInfo({ layout: 'tabs' }, 1, TABLE), { width: 1440, routes });
-  await page.waitForFunction(() => document.querySelector('.pg-h h1')?.textContent === 'Price-loss decision desk');
-  assert.deepEqual(await page.locator('.tabs .tab').allInnerTexts(), ['My work', 'Impact', 'Price-loss decision desk']);
-  await page.locator('.tabs .tab', { hasText: 'Impact' }).click();
-  await page.waitForFunction(() => document.querySelector('.pg-h h1')?.textContent === 'Impact');
+  for (const old of ['#/impact', '#/results']) {
+    await page.goto(`${served.base}${old}`);
+    await page.waitForFunction(() => window.location.hash === '#/n01_u05/performance');
+    await page.locator('.imp').waitFor();
+  }
   assert.deepEqual(seen.errors, []);
   await context.close();
 });
@@ -209,8 +199,8 @@ test('a one use case App in the tabs layout has a tab for My work, one for Impac
 test('the old Results link opens the Impact page', async () => {
   const { page, seen, context } = await openApp(browser, served.base, appInfo({}, 2, TABLE), { width: 1280 });
   await page.goto(`${served.base}#/results`);
-  await page.waitForFunction(() => document.querySelector('.pg-h h1')?.textContent === 'Impact');
-  assert.equal(await page.evaluate(() => document.title), 'Impact · Pricing desk');
+  await page.waitForFunction(() => [...document.querySelectorAll('.pg-h h1')].some((h) => h.textContent === 'Impact'));
+  assert.equal(await page.evaluate(() => window.location.hash), '#/n01_u05/performance');
   assert.deepEqual(seen.errors, []);
   await context.close();
 });
@@ -242,7 +232,7 @@ function drawerRoutes(fields, current, calls) {
 test('the record panel closes a record as fixed, not an issue or could not fix, and a fix can carry the money it saved', async () => {
   const calls = { acts: [] };
   const { page, seen, context } = await openApp(browser, served.base, appInfo(DECIDE, 1, TABLE), { routes: drawerRoutes(CLOSE_FIELDS, {}, calls) });
-  await page.goto(`${served.base}#/n01_u05`);
+  await page.goto(`${served.base}#/n01_u05/work`);
   await page.locator('.cell-t').first().click();
   const drawer = page.locator('dialog.drawer');
   await drawer.locator('.dr-act').waitFor();
@@ -278,9 +268,10 @@ test('closing a record from its panel reloads the things to fix, so the tab coun
       money: false, categories: [], served: 'delta', items, total: items.length, truncated: false } } });
   };
   const { page, seen, context } = await openApp(browser, served.base, appInfo(DECIDE, 1, TABLE), { routes: { ...drawerRoutes(CLOSE_FIELDS, {}, calls), overview } });
-  await page.goto(`${served.base}#/n01_u05`);
+  await page.goto(`${served.base}#/n01_u05/dashboard`);
   const count = page.locator('[data-tile="fix"] .kpi-v');
   await count.filter({ hasText: /^2$/ }).waitFor();
+  await page.locator('[data-rail="work"]').click();
   await page.locator('.cell-t').first().click();
   const drawer = page.locator('dialog.drawer');
   await drawer.locator('.dr-act').waitFor();
@@ -289,6 +280,7 @@ test('closing a record from its panel reloads the things to fix, so the tab coun
   await until(() => calls.acts.length === 1);
   await until(() => hub.length > loads);
   assert.ok(hub.length > loads, 'a close reloads the things to fix');
+  await page.locator('[data-rail="dashboard"]').click();
   await count.filter({ hasText: /^1$/ }).waitFor({ timeout: 5000 });
   assert.deepEqual(seen.errors, []);
   await context.close();
@@ -297,7 +289,7 @@ test('closing a record from its panel reloads the things to fix, so the tab coun
 test('a table without the close amount offers the outcomes but no money field', async () => {
   const calls = { acts: [] };
   const { page, seen, context } = await openApp(browser, served.base, appInfo(DECIDE, 1, TABLE), { routes: drawerRoutes(BASE_FIELDS, {}, calls) });
-  await page.goto(`${served.base}#/n01_u05`);
+  await page.goto(`${served.base}#/n01_u05/work`);
   await page.locator('.cell-t').first().click();
   const drawer = page.locator('dialog.drawer');
   await drawer.locator('.dr-act').waitFor();
@@ -312,7 +304,7 @@ test('a held back record says why and offers no action, so the comparison stays 
   const info = appInfo(DECIDE, 1, TABLE);
   const { page, seen, context } = await openApp(browser, served.base, info,
     { routes: drawerRoutes(CLOSE_FIELDS, { held_back: true, run_tier: 'Act now', priority_tier: 'Held back' }, calls) });
-  await page.goto(`${served.base}#/n01_u05`);
+  await page.goto(`${served.base}#/n01_u05/work`);
   await page.locator('.cell-t').first().click();
   const drawer = page.locator('dialog.drawer');
   await drawer.locator('.held').waitFor();
@@ -325,13 +317,13 @@ test('a held back record says why and offers no action, so the comparison stays 
   await context.close();
 });
 
-test('the weekly email link ?open=impact opens the Impact page after sign-in, and the address becomes #/impact so a reload stays there', async () => {
+test('the weekly email link ?open=impact opens Performance after sign-in, and the address becomes its Performance section so a reload stays there', async () => {
   const routes = { impact: ({ json }) => json(200, ENTRY), summary: ({ json }) => json(200, SUMMARY) };
   const { page, seen, context } = await openApp(browser, `${served.base}?open=impact`, appInfo({}, 1, { ...TABLE, promised: PROMISED }), { width: 1440, routes, ready: '.imp' });
-  await page.waitForFunction(() => document.querySelector('.pg-h h1')?.textContent === 'Impact' && document.querySelectorAll('.imp').length === 1);
-  assert.deepEqual(await page.evaluate(() => [window.location.search, window.location.hash]), ['', '#/impact']);
+  await page.waitForFunction(() => [...document.querySelectorAll('.pg-h h1')].some((h) => h.textContent === 'Impact') && document.querySelectorAll('.imp').length === 1);
+  assert.deepEqual(await page.evaluate(() => [window.location.search, window.location.hash]), ['', '#/n01_u05/performance']);
   await page.reload();
-  await page.waitForFunction(() => document.querySelector('.pg-h h1')?.textContent === 'Impact');
+  await page.waitForFunction(() => [...document.querySelectorAll('.pg-h h1')].some((h) => h.textContent === 'Impact'));
   assert.deepEqual(seen.errors, []);
   await context.close();
 });

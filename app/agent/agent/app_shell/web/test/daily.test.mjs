@@ -1,7 +1,7 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
-import { TABLE, appInfo, chartsDrawn, openApp, serveDist, steadyBox, toastSays, until } from './harness.mjs';
+import { TABLE, appInfo, chartsDrawn, openApp, serveDist, steadyBox, toastSays, until, pickCase } from './harness.mjs';
 import { LINK_STALE, UNKNOWN_PAGE, VIEWS_KEY, VIEW_STALE, decodeFilters, encodeFilters, parseHash } from '../src/links.js';
 
 let served;
@@ -63,7 +63,7 @@ test('a link restores the filters once the filter list has loaded, and the first
   assert.deepEqual(seen.pages.map((p) => p.filters), [{ run_date: { from: '2026-08-01', to: '2026-10-15' }, category: ['Music', 'Books'] }]);
   assert.deepEqual(await page.locator('.chip').allInnerTexts(), ['Category: Music', 'Category: Books']);
   assert.equal(await page.locator('.fld--range select').inputValue(), '3m');
-  assert.equal(hashOf(page), `#/n01_u05?f=${f}`);
+  assert.equal(hashOf(page), `#/n01_u05/dashboard?f=${f}`);
   assert.equal(await page.locator('.toast').count(), 0);
   assert.deepEqual(seen.errors, []);
   await context.close();
@@ -143,40 +143,36 @@ test('a malformed link opens the page with its defaults and the same notice, nev
     await until(() => seen.pages.length > 0);
     await page.waitForSelector('.kpi-v');
     assert.deepEqual(seen.pages.at(-1).filters, TWELVE, label);
-    assert.equal(hashOf(page), '#/n01_u05', label);
+    assert.equal(hashOf(page), '#/n01_u05/dashboard', label);
     assert.equal(await page.locator('.chip').count(), 0, label);
     assert.deepEqual(seen.errors, [], label);
     await context.close();
   }
 });
 
-test('old links and the sidebar, tabs and home layouts keep working, and #/home opens the Overview', async () => {
-  for (const layout of ['sidebar', 'tabs']) {
+test('old links work under every layout setting, and #/home opens the dashboard of the last used use case with its filters after a reload', async () => {
+  for (const layout of ['sidebar', 'tabs', 'home']) {
     const { page, seen, context } = await openAt('#/n02_u01', appInfo({ layout }, 2));
     await page.waitForFunction(() => document.querySelector('.ph h1')?.textContent === 'Second desk 1');
     await until(() => seen.pages.some((p) => p.page === 'n02_u01'));
     await page.waitForTimeout(300);
-    assert.equal(hashOf(page), '#/n02_u01', layout);
+    assert.equal(hashOf(page), '#/n02_u01/dashboard', layout);
     assert.equal(await page.locator('.toast').count(), 0, layout);
     assert.deepEqual(seen.errors, [], layout);
     await context.close();
   }
-  const { page, seen, context } = await openAt('#/home', appInfo({ layout: 'home' }, 2), { ready: '.pg-h h1' });
-  await page.waitForTimeout(500);
-  assert.equal(hashOf(page), '#/home');
-  assert.equal(await page.locator('.main h1').innerText(), 'Overview');
+  const { page, seen, context } = await openAt('#/home', appInfo({ layout: 'home' }, 2));
+  await page.waitForFunction(() => location.hash === '#/n01_u05/dashboard');
   assert.equal(await page.locator('.toast').count(), 0);
-  await page.locator('.side .nav-i', { hasText: 'Second desk 1' }).click();
+  await pickCase(page, 'Second desk 1');
   await page.waitForFunction(() => document.querySelector('.ph h1')?.textContent === 'Second desk 1');
   await page.locator('.fld--range select').selectOption('3m');
-  await page.waitForFunction(() => location.hash.startsWith('#/n02_u01?f='));
+  await page.waitForFunction(() => location.hash.startsWith('#/n02_u01/dashboard?f='));
   await page.reload();
   await page.waitForSelector('.kpi-v');
   await page.waitForFunction(() => document.querySelector('.fld--range select')?.value === '3m');
-  await page.getByRole('button', { name: 'All use cases' }).click();
-  await page.waitForFunction(() => document.querySelector('.main h1')?.textContent === 'Overview');
-  await page.waitForTimeout(300);
-  assert.equal(hashOf(page), '#/overview');
+  await page.evaluate(() => { location.hash = '#/home'; });
+  await page.waitForFunction(() => location.hash.startsWith('#/n02_u01/dashboard'));
   assert.deepEqual(seen.errors, []);
   await context.close();
 });
@@ -191,15 +187,15 @@ test('a new link pasted into the open page applies, and Back returns to the filt
   await page.waitForTimeout(300);
   assert.deepEqual(seen.pages.at(-1).filters, { run_date: { from: '2026-05-01', to: '2026-10-15' }, region: ['North'] });
   await page.evaluate(() => { location.hash = '#/n01_u05'; });
-  await page.waitForFunction((h) => location.hash === h, `#/n01_u05?f=${f}`);
+  await page.waitForFunction((h) => location.hash === h, `#/n01_u05/dashboard?f=${f}`);
   assert.equal(await page.locator('.chip').count(), 1, 'a bare link to the open page keeps its filters');
-  await page.locator('.side .nav-i', { hasText: 'Second desk 1' }).click();
+  await pickCase(page, 'Second desk 1');
   await page.waitForFunction(() => document.querySelector('.ph h1')?.textContent === 'Second desk 1');
-  await page.waitForFunction(() => location.hash === '#/n02_u01');
+  await page.waitForFunction(() => location.hash === '#/n02_u01/dashboard');
   await page.goBack();
   await page.waitForFunction(() => document.querySelector('.ph h1')?.textContent === 'Price-loss decision desk');
   await page.waitForFunction(() => document.querySelector('.fld--range select')?.value === '6m');
-  assert.equal(hashOf(page), `#/n01_u05?f=${f}`);
+  assert.equal(hashOf(page), `#/n01_u05/dashboard?f=${f}`);
   assert.deepEqual(await page.locator('.chip').allInnerTexts(), ['Region: North']);
   assert.equal(await page.locator('.toast').count(), 0);
   assert.deepEqual(seen.errors, []);
@@ -210,20 +206,21 @@ test('a link to an unknown page opens the App with a notice instead of breaking'
   const f = encodeFilters({ s: { category: ['Music'] } });
   let { page, seen, context } = await openAt(`#/gone_page?f=${f}`, appInfo({ layout: 'sidebar' }, 2), { ready: '.pg-h h1' });
   await toastSays(page, UNKNOWN_PAGE);
-  assert.equal(await page.locator('.main h1').innerText(), 'Overview');
-  assert.equal(await page.locator('.side .nav-i').count(), 5);
+  await page.waitForFunction(() => location.hash === '#/n01_u05/dashboard');
+  assert.equal(await page.locator('.main h1').innerText(), 'Price-loss decision desk');
+  assert.equal(await page.locator('[data-rail]').count(), 5);
   assert.deepEqual(seen.errors, []);
   await context.close();
 
   ({ page, seen, context } = await openAt('#/gone_page', appInfo({ layout: 'home' }, 2), { ready: '.pg-h h1' }));
   await toastSays(page, UNKNOWN_PAGE);
-  assert.equal(await page.locator('.main h1').innerText(), 'Overview');
+  await page.waitForFunction(() => location.hash === '#/n01_u05/dashboard');
   assert.deepEqual(seen.errors, []);
   await context.close();
 
   ({ page, seen, context } = await openAt('#/gone_page', appInfo({ layout: 'sidebar' }, 1), {}));
   await toastSays(page, UNKNOWN_PAGE);
-  await page.waitForFunction(() => location.hash === '#/n01_u05');
+  await page.waitForFunction(() => location.hash === '#/n01_u05/dashboard');
   assert.equal(await page.locator('.ph h1').innerText(), 'Price-loss decision desk');
   assert.deepEqual(seen.errors, []);
   await context.close();
@@ -239,12 +236,12 @@ test('save this view, apply it from the Views menu with the address following, a
   const dialog = await saveAs(page, '  Music last quarter ');
   await dialog.waitFor({ state: 'hidden' });
   await toastSays(page, 'Saved the view "Music last quarter"');
-  const view = { name: 'Music last quarter', view: 'overview', filters: { r: { run_date: '3m' }, s: { category: ['Music'] } } };
+  const view = { name: 'Music last quarter', view: 'dashboard', filters: { r: { run_date: '3m' }, s: { category: ['Music'] } } };
   assert.deepEqual(await stored(page), { n01_u05: [view] });
 
   await page.getByRole('button', { name: 'Clear filters' }).click();
   await page.locator('.fld--range select').selectOption('12m');
-  await page.waitForFunction(() => location.hash === '#/n01_u05');
+  await page.waitForFunction(() => location.hash === '#/n01_u05/dashboard');
   await page.getByRole('button', { name: 'Views', exact: true }).focus();
   await page.keyboard.press('Enter');
   pop = page.getByRole('dialog', { name: 'Saved views' });
@@ -332,7 +329,7 @@ test('corrupt saved views in storage are ignored safely and a new save repairs t
   await seed(page, '{not json');
   const dialog = await saveAs(page, 'Fresh');
   await dialog.waitFor({ state: 'hidden' });
-  assert.deepEqual(await stored(page), { n01_u05: [{ name: 'Fresh', view: 'overview', filters: {} }] });
+  assert.deepEqual(await stored(page), { n01_u05: [{ name: 'Fresh', view: 'dashboard', filters: {} }] });
   pop = await openViews(page);
   await pop.getByRole('button', { name: 'Fresh', exact: true }).click();
   await toastSays(page, 'Showing the view "Fresh"');
@@ -366,14 +363,13 @@ test('the browser print keeps the title, the filters in words and the data date 
   await page.waitForTimeout(500);
   const report = await page.evaluate(() => {
     const shown = (el) => getComputedStyle(el).display !== 'none' && el.getBoundingClientRect().height > 0;
-    const hiddenAll = (sel) => [...document.querySelectorAll(sel)].length > 0 && [...document.querySelectorAll(sel)].every((el) => !shown(el));
+    const hiddenAll = (sel) => ([...document.querySelectorAll(sel)].length ? [...document.querySelectorAll(sel)].every((el) => !shown(el)) : 'absent');
     const top = (sel) => document.querySelector(sel).getBoundingClientRect().top;
     const grid = document.querySelector('.charts');
     const cards = [...document.querySelectorAll('.charts > [data-card]')];
     return {
-      hidden: Object.fromEntries(['.genie', '.top-page .btn', '.top .genie-btn', '.top .ibtn', '.side', '.toast', '.fbar', '.chips', '.tbar', '.pager select', '.pager button']
+      hidden: Object.fromEntries(['.genie', '.ph-tools .btn', '.top .genie-btn', '.top .ibtn', '.side', '.toast', '.fbar', '.chips', '.tbar', '.pager select', '.pager button']
         .map((s) => [s, hiddenAll(s)])),
-      rows: shown(document.querySelector('.pager-n')) && document.querySelector('.pager-n').textContent,
       title: shown(document.querySelector('.ph h1')) && document.querySelector('.ph h1').textContent,
       app: shown(document.querySelector('.top .mark')),
       words: shown(document.querySelector('.print-filters')) && document.querySelector('.print-filters').textContent,
@@ -385,10 +381,10 @@ test('the browser print keeps the title, the filters in words and the data date 
       fits: cards.every((c) => { const cv = c.querySelector('canvas'); return cv && cv.getBoundingClientRect().width <= c.getBoundingClientRect().width + 1; }),
     };
   });
-  assert.deepEqual(report.hidden, Object.fromEntries(Object.keys(report.hidden).map((k) => [k, true])));
+  assert.ok(Object.values(report.hidden).every((v) => v === true || v === 'absent'), JSON.stringify(report.hidden));
+  assert.ok(['.genie', '.ph-tools .btn', '.side', '.fbar', '.chips'].every((k) => report.hidden[k] === true), JSON.stringify(report.hidden));
   assert.equal(report.title, 'Price-loss decision desk');
   assert.equal(report.app, true);
-  assert.equal(report.rows, 'Showing 1 to 25 of 30', 'paper says the list shows a slice of its rows');
   assert.equal(report.words, 'Filters: Run date: last 12 months; Category: Music');
   assert.equal(report.through, true);
   assert.equal(report.order, true, 'title, data date, then the filters in words, all above the KPIs');
@@ -398,7 +394,9 @@ test('the browser print keeps the title, the filters in words and the data date 
   assert.equal(report.fits, true);
 
   await page.emulateMedia({ media: 'screen' });
+  await page.locator('[data-rail="settings"]').click();
   await page.getByRole('button', { name: 'Switch to dark theme' }).click();
+  await page.locator('[data-rail="dashboard"]').click();
   await page.emulateMedia({ media: 'print' });
   const adjust = await page.evaluate(() => { const cs = getComputedStyle(document.documentElement); return cs.printColorAdjust || cs.webkitPrintColorAdjust; });
   assert.equal(adjust, 'exact', 'a dark page prints its own colours instead of light text on white paper');
@@ -410,12 +408,12 @@ test('on a phone the page tools shrink to labelled icons and the page still fits
   const { page, seen, context } = await openApp(browser, base, appInfo({ layout: 'tabs' }, 2), { width: 375 });
   await page.goto(`${base}#/n01_u05`);
   await page.waitForFunction(chartsDrawn, 4);
-  const tools = await page.evaluate(() => [...document.querySelectorAll('.top-page .btn')].filter((b) => getComputedStyle(b).display !== 'none').map((b) => {
+  const tools = await page.evaluate(() => [...document.querySelectorAll('.ph-tools .btn')].filter((b) => getComputedStyle(b).display !== 'none').map((b) => {
     const r = b.getBoundingClientRect();
     return { name: b.getAttribute('aria-label'), width: Math.round(r.width), label: getComputedStyle(b.querySelector('span')).display, inView: r.left >= 0 && r.right <= window.innerWidth };
   }));
-  assert.deepEqual(tools.map((t) => t.name), ['Runs (0)', 'Views', 'Refresh now']);
-  assert.ok(tools.every((t) => t.width >= 40 && t.width <= (t.name.startsWith('Runs') ? 64 : 44) && t.label === 'none' && t.inView), JSON.stringify(tools));
+  assert.deepEqual(tools.map((t) => t.name), ['Views', 'Refresh now']);
+  assert.ok(tools.every((t) => t.width >= 40 && t.width <= 44 && t.label === 'none' && t.inView), JSON.stringify(tools));
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth));
   await page.getByRole('button', { name: 'Views', exact: true }).click();
   const pop = await steadyBox(page, page.getByRole('dialog', { name: 'Saved views' }));

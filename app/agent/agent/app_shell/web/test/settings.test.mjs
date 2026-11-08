@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
-import { TABLE, appInfo, openApp, serveDist, toastSays, until } from './harness.mjs';
+import { TABLE, appInfo, goRail, openApp, serveDist, toastSays, until } from './harness.mjs';
 import { CUSTOM_SQL_REFUSED, groupsOf, historyLines, inputText, settingProblem, storedText, valueText } from '../src/settings.js';
 import { dayLabel } from '../src/format.js';
 
@@ -77,9 +77,10 @@ function routes(seen) {
 test('an owner changes a cutoff with a live preview and a note, and starts a run', async () => {
   const seen = {};
   const { page, seen: app, context } = await openApp(browser, served.base, appInfo({}, 1, TABLE), { routes: routes(seen) });
-  await page.click('[data-settings-open]');
-  await page.waitForSelector('[data-settings]');
-  assert.deepEqual(await page.$$eval('[data-settings] [data-group]', (els) => els.map((e) => e.dataset.group)), ['my_view', 'impact', 'flagging', 'scope', 'alerts']);
+  await goRail(page, 'settings');
+  await page.waitForSelector('[data-settings] [data-group="impact"]');
+  assert.deepEqual(await page.$$eval('[data-settings] [data-group]', (els) => els.map((e) => e.dataset.group)),
+    ['my_view', 'look', 'share', 'access', 'impact', 'flagging', 'scope', 'alerts']);
   assert.match(await page.locator('[data-setting="alert_threshold"]').innerText(), /Change it on the Build page of the Inspire App/);
   await page.click('[data-setting="act_now_amount"] button');
   const input = page.locator('input[name="setting_act_now_amount"]');
@@ -109,11 +110,11 @@ test('an owner changes a cutoff with a live preview and a note, and starts a run
 
 test('a viewer who is not an owner gets Settings with only their own My view, and no use-case setting or Run now', async () => {
   const { page, seen: app, context } = await openApp(browser, served.base, appInfo({}, 1, TABLE));
-  await page.waitForSelector('.top-page [data-settings-open]');
-  assert.equal(await page.locator('[data-settings]').count(), 0);
-  await page.click('[data-settings-open]');
-  await page.waitForSelector('[data-settings]');
-  assert.deepEqual(await page.$$eval('[data-settings] [data-group]', (els) => els.map((e) => e.dataset.group)), ['my_view']);
+  await page.waitForSelector('[data-rail="settings"]');
+  assert.equal(await page.locator('[data-settings]').count(), 0, 'Settings shows only on its own section');
+  await goRail(page, 'settings');
+  await page.waitForSelector('[data-settings] [data-group="access"]');
+  assert.deepEqual(await page.$$eval('[data-settings] [data-group]', (els) => els.map((e) => e.dataset.group)), ['my_view', 'look', 'share', 'access']);
   assert.equal(await page.locator('[data-settings] [data-setting]').count(), 0);
   assert.equal(await page.locator('[data-run-now]').count(), 0);
   assert.deepEqual(app.errors, []);
@@ -127,8 +128,8 @@ test('an owner changes the alert threshold when the alert reads the App settings
   const state = { view: { ...VIEW, settings: editable } };
   r.settings = ({ json }) => json(200, state.view);
   const { page, seen: app, context } = await openApp(browser, served.base, appInfo({}, 1, TABLE), { routes: r });
-  await page.click('[data-settings-open]');
-  await page.waitForSelector('[data-settings]');
+  await goRail(page, 'settings');
+  await page.waitForSelector('[data-settings] [data-setting="alert_threshold"]');
   assert.doesNotMatch(await page.locator('[data-setting="alert_threshold"]').innerText(), /Build page/);
   await page.click('[data-setting="alert_threshold"] button');
   await page.fill('input[name="setting_alert_threshold"]', '-1');

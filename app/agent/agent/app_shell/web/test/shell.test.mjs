@@ -2,7 +2,7 @@ import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { chromium } from 'playwright';
-import { appInfo, chartsDrawn, openApp, pageData, serveDist, until } from './harness.mjs';
+import { appInfo, chartsDrawn, goRail, openApp, pageData, pickCase, serveDist, until } from './harness.mjs';
 
 let served;
 let base;
@@ -35,10 +35,11 @@ test('the page renders KPIs, four charts, the story and the decision list', asyn
   assert.match(await page.locator('.story').innerText(), /Discounts cost \$1\.23M in the selected period; the list holds 48 items, with no earlier run to compare\./);
   await page.waitForFunction(chartsDrawn, 4);
   assert.deepEqual(await page.locator('.charts > .card').evaluateAll((cards) => cards.map((c) => c.classList.contains('card--wide'))), [true, false, false, true]);
-  await page.waitForFunction(() => document.querySelectorAll('.card--table tbody tr').length === 25);
+  await page.locator('[data-rail="work"]').click();
+  await page.waitForFunction(() => document.querySelectorAll('[data-work] .card--table tbody tr').length === 25);
   assert.equal(await page.locator('.pager-n').innerText(), 'Showing 1 to 25 of 30');
   assert.deepEqual(seen.pages[0].filters, { run_date: { from: '2025-11-01', to: '2026-10-15' } });
-  assert.deepEqual(seen.records[0], { page: 'n01_u05', filters: { run_date: { from: '2025-11-01', to: '2026-10-15' } }, ai: {}, search: '',
+  assert.deepEqual(seen.records.find((r) => r.limit === 25), { page: 'n01_u05', filters: { run_date: { from: '2025-11-01', to: '2026-10-15' } }, ai: {}, search: '',
     offset: 0, limit: 25, mine: false, changed: false }, 'no sort until the person picks one');
   assert.deepEqual(seen.errors, []);
   await context.close();
@@ -57,6 +58,7 @@ test('filters change the request, chips clear them, and a record opens its drawe
   assert.deepEqual(seen.pages.at(-1).filters.run_date, { from: '2026-08-01', to: '2026-10-15' });
   await page.getByRole('button', { name: 'Clear filters' }).click();
   await until(() => seen.pages.at(-1)?.filters.category === undefined);
+  await page.locator('[data-rail="work"]').click();
   await page.locator('.cell-t').first().click();
   const drawer = page.locator('dialog.drawer');
   await drawer.waitFor({ state: 'visible' });
@@ -83,7 +85,7 @@ test('a decision list whose rows share a key shows only the rows of the latest a
       return json(200, { rows: rows.slice(body.offset, body.offset + body.limit), total: rows.length, offset: body.offset, limit: body.limit, errors: {} });
     },
   };
-  const { page, seen, context } = await open(appInfo(), { routes });
+  const { page, seen, context } = await open(appInfo(), { routes, hash: '#/n01_u05/work' });
   const labels = () => page.locator('.card--table tbody tr .cell-t').allInnerTexts();
   await page.waitForFunction(() => document.querySelectorAll('.card--table tbody tr').length === 25);
   await page.getByRole('button', { name: /^All/ }).first().click();
@@ -150,7 +152,8 @@ test('image export follows the auth mode and the App offers no data download', a
 
   ({ page, context } = await open(appInfo({ auth: 'user' })));
   assert.equal(await page.getByRole('button', { name: /^Export / }).count(), 0);
-  assert.match(await page.locator('.auth').textContent(), /Your view/);
+  await page.locator('[data-rail="settings"]').click();
+  assert.match(await page.locator('[data-settings] .auth').textContent(), /Your view/);
   await context.close();
 });
 
@@ -181,8 +184,11 @@ test('the three styles and dark mode apply their tokens', async () => {
     assert.equal(await page.evaluate(() => document.documentElement.dataset.look), style);
     assert.equal(await page.locator('form.ask').count(), style === 'c' ? 1 : 0);
     const light = await page.evaluate(() => getComputedStyle(document.querySelector('.kpi')).backgroundColor);
+    await goRail(page, 'settings');
     await page.getByRole('button', { name: 'Switch to dark theme' }).click();
     assert.equal(await page.evaluate(() => document.documentElement.dataset.theme), 'dark');
+    await goRail(page, 'dashboard');
+    await page.waitForSelector('.kpi-v');
     const dark = await page.evaluate(() => getComputedStyle(document.querySelector('.kpi')).backgroundColor);
     if (style !== 'c') assert.notEqual(light, dark);
     await page.reload();
@@ -193,21 +199,19 @@ test('the three styles and dark mode apply their tokens', async () => {
   }
 });
 
-test('layouts: sidebar, top tabs and home open on the Overview and navigate between use cases', async () => {
-  for (const layout of ['sidebar', 'tabs', 'home']) {
-    const { page, seen, context } = await open(appInfo({ layout }, 2));
-    if (layout === 'home') await page.goto(`${base}#/home`);
-    await page.waitForFunction(() => document.querySelector('.main h1')?.textContent === 'Overview');
-    assert.equal(await page.locator('.hcard, .crumb').count(), 0);
-    const item = page.locator(layout === 'tabs' ? '.tab' : '.side .nav-i', { hasText: 'Second desk 1' });
-    await item.click();
-    await page.waitForFunction(() => document.querySelector('.ph h1')?.textContent === 'Second desk 1');
-    await until(() => seen.pages.some((p) => p.page === 'n02_u01'));
-    assert.equal(seen.pages.at(-1).page, 'n02_u01');
-    assert.match(page.url(), /#\/n02_u01$/);
-    assert.deepEqual(seen.errors, []);
-    await context.close();
-  }
+test('the App opens on the first use case dashboard, #/home opens the last one used, and the switcher moves between use cases', async () => {
+  const { page, seen, context } = await open(appInfo({}, 2));
+  await page.waitForFunction(() => location.hash === '#/n01_u05/dashboard' && document.querySelector('.ph h1')?.textContent === 'Price-loss decision desk');
+  assert.equal(await page.locator('.hcard, .crumb').count(), 0);
+  await pickCase(page, 'Second desk 1');
+  await page.waitForFunction(() => document.querySelector('.ph h1')?.textContent === 'Second desk 1');
+  await until(() => seen.pages.some((p) => p.page === 'n02_u01'));
+  assert.equal(seen.pages.at(-1).page, 'n02_u01');
+  assert.match(page.url(), /#\/n02_u01\/dashboard$/);
+  await page.goto(`${base}#/home`);
+  await page.waitForFunction(() => location.hash === '#/n02_u01/dashboard');
+  assert.deepEqual(seen.errors, []);
+  await context.close();
 });
 
 test('a phone screen has no sideways scroll and stacks the charts', async () => {
@@ -218,7 +222,7 @@ test('a phone screen has no sideways scroll and stacks the charts', async () => 
   const columns = await page.evaluate(() => getComputedStyle(document.querySelector('.charts')).gridTemplateColumns.split(' ').length);
   assert.equal(columns, 1);
   assert.equal(await page.locator('.side').evaluate((el) => el.getBoundingClientRect().right <= 0), true);
-  await page.getByRole('button', { name: 'Open the use case list' }).click();
+  await page.getByRole('button', { name: 'Open the sections' }).click();
   await page.waitForFunction(() => document.querySelector('.side').getBoundingClientRect().left >= 0);
   assert.deepEqual(seen.errors, []);
   await context.close();

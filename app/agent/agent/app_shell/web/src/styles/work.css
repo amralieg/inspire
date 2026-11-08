@@ -83,7 +83,7 @@
 @media (prefers-reduced-motion: reduce){.fold-b svg{transition:none}.run-bar.is-open{animation:none;background:var(--brand-wash)}}
 @media print{.fold-b,.wchips,.toast-a{display:none!important}}
 @container app (max-width: 560px){
-  .btn,.pick-i,select.btn{min-height:40px}
+  .btn,.pick-i,select.btn,.work-t{min-height:40px}
   .ibtn,.ibtn--sm{min-width:40px;min-height:40px}
   .top .btn:is(.top-ic,.top-ic2){min-width:40px}
   .pager select,.search{min-height:40px}

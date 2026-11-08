@@ -21,7 +21,7 @@ test('an App of its own shows Open in Inspire Review on its page, and it opens t
   const info = appInfo({}, 1, { ...TABLE, review: review('N01-U05') });
   assert.equal(info.inside, false);
   assert.equal(info.pages[0].review, review('N01-U05'));
-  const { page, seen, context } = await openApp(browser, served.base, info);
+  const { page, seen, context } = await openApp(browser, served.base, info, { hash: '#/n01_u05/settings', ready: '[data-settings]' });
   await stub(context);
   assert.deepEqual(await links(page), [{ page: 'n01_u05', href: review('N01-U05'), target: '_blank', rel: 'noopener noreferrer', text: LABEL }]);
   const [tab] = await Promise.all([context.waitForEvent('page'), page.locator('[data-review]').click()]);
@@ -39,9 +39,9 @@ for (const layout of ['sidebar', 'home']) {
     const routes = { impact: ({ json }) => json(200, IMPACT), summary: ({ json }) => json(200, SUMMARY) };
     const { page, seen, context } = await openApp(browser, served.base, info, { routes, ready: '.kpi-v, .hcard, .pg-h h1' });
     for (const p of info.pages) {
-      await page.goto(`${served.base}#/${p.id}`);
-      await page.waitForFunction((id) => document.querySelector(`.top [data-review="${id}"]`), p.id);
-      assert.deepEqual(await links(page.locator('.top')), [{ page: p.id, href: p.review, target: '_blank', rel: 'noopener noreferrer', text: LABEL }]);
+      await page.goto(`${served.base}#/${p.id}/settings`);
+      await page.waitForFunction((id) => document.querySelector(`[data-settings] [data-review="${id}"]`), p.id);
+      assert.deepEqual(await links(page.locator('[data-settings]')), [{ page: p.id, href: p.review, target: '_blank', rel: 'noopener noreferrer', text: LABEL }]);
     }
     await page.goto(`${served.base}#/impact`);
     await page.waitForFunction(() => document.querySelectorAll('.imp [data-review]').length === 3);
@@ -51,7 +51,7 @@ for (const layout of ['sidebar', 'home']) {
   });
 }
 
-test('a page whose filters load after the person moved to Impact leaves the address on Impact and Impact shows', async () => {
+test('a page whose filters load after the person moved to Performance leaves the address on Performance and Impact shows', async () => {
   const info = appInfo({}, 3, TABLE);
   let release;
   const held = new Promise((r) => { release = r; });
@@ -62,11 +62,11 @@ test('a page whose filters load after the person moved to Impact leaves the addr
   const { page, seen, context } = await openApp(browser, served.base, info, { routes, ready: '.kpi-v, .hcard, .pg-h h1' });
   await page.goto(`${served.base}#/n02_u01`);
   await page.locator('.ph h1', { hasText: 'Second desk 1' }).waitFor();
-  await page.evaluate(() => window.history.pushState(window.history.state, '', '#/impact'));
+  await page.evaluate(() => window.history.pushState(window.history.state, '', '#/n02_u01/performance'));
   release();
   await page.locator('.fbar', { hasText: 'Category' }).waitFor();
   await page.evaluate(() => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done))));
-  assert.equal(await page.evaluate(() => window.location.hash), '#/impact', 'the page that loaded late never rewrites an address that left it (must-exclude)');
+  assert.equal(await page.evaluate(() => window.location.hash), '#/n02_u01/performance', 'the page that loaded late never rewrites an address that left it (must-exclude)');
   await page.evaluate(() => window.dispatchEvent(new HashChangeEvent('hashchange')));
   await page.locator('.imp-page').waitFor();
   assert.deepEqual(seen.errors, []);
@@ -76,12 +76,12 @@ test('a page whose filters load after the person moved to Impact leaves the addr
 test('a page inside Inspire opens the use case on Inspire\'s Review tab in the same window, never a new tab', async () => {
   const info = appInfo({ host: 'inspire', auth: 'user' }, 1, { ...TABLE, review: review('N01-U05') });
   assert.equal(info.inside, true);
-  const { page, seen, context } = await openApp(browser, served.base, info);
+  const { page, seen, context } = await openApp(browser, served.base, info, { hash: '#/n01_u05/settings', ready: '[data-settings]' });
   assert.deepEqual(await links(page), [{ page: 'n01_u05', href: review('N01-U05'), target: '_top', rel: null, text: LABEL }]);
   await stub(context);
   const runTab = `${served.origin}/run-tab`;
   await context.route(runTab, (route) => route.fulfill({ status: 200, contentType: 'text/html',
-    body: `<!doctype html><title>Run tab</title><iframe title="page" src="${served.base}" style="width:1200px;height:800px"></iframe>` }));
+    body: `<!doctype html><title>Run tab</title><iframe title="page" src="${served.base}#/n01_u05/settings" style="width:1200px;height:800px"></iframe>` }));
   await page.goto(runTab);
   const framed = page.frameLocator('iframe');
   await framed.locator('[data-review]').waitFor();
@@ -95,14 +95,14 @@ test('a page inside Inspire opens the use case on Inspire\'s Review tab in the s
 test('a page with no review link, or with no use case id, shows no link at all', async () => {
   const info = appInfo({}, 1, TABLE);
   assert.equal(info.pages[0].review, '');
-  const bare = await openApp(browser, served.base, info);
-  await bare.page.locator('.ph h1').waitFor();
+  const bare = await openApp(browser, served.base, info, { hash: '#/n01_u05/settings', ready: '[data-settings]' });
+  await bare.page.locator('[data-settings] .auth').waitFor();
   assert.equal(await bare.page.locator('[data-review]').count(), 0);
   assert.equal(await bare.page.getByText(LABEL).count(), 0);
   assert.deepEqual(bare.seen.errors, []);
   await bare.context.close();
-  const { page, seen, context } = await openApp(browser, served.base, { ...appInfo({}, 1, TABLE), pages: appInfo({}, 1, TABLE).pages.map((p) => ({ ...p, review: review('N01-U05'), use_case_id: '' })) });
-  await page.locator('.ph h1').waitFor();
+  const { page, seen, context } = await openApp(browser, served.base, { ...appInfo({}, 1, TABLE), pages: appInfo({}, 1, TABLE).pages.map((p) => ({ ...p, review: review('N01-U05'), use_case_id: '' })) }, { hash: '#/n01_u05/settings', ready: '[data-settings]' });
+  await page.locator('[data-settings] .auth').waitFor();
   assert.equal(await page.locator('[data-review]').count(), 0, 'the App itself never shows a link that names no use case');
   assert.deepEqual(seen.errors, []);
   await context.close();

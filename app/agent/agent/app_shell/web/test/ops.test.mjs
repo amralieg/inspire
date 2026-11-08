@@ -1,7 +1,7 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
-import { FILTERS, LOST, NO_JOB, SILENT, TABLE, appInfo, openApp, serveDist, steadyBox, until } from './harness.mjs';
+import { FILTERS, LOST, NO_JOB, SILENT, TABLE, appInfo, openApp, serveDist, steadyBox, until, goRail } from './harness.mjs';
 import {
   BUSY, RUN_STATES, activeState, agoText, bannerText, couldSaveRunFormula, coveredText, errorText, foundText, groupingText, lastRunNote, lastRunText, lastedText,
   progressText, runBars, runFlag, runState, runsPageText, spanText, stampText, toastTone, triggerText,
@@ -42,7 +42,7 @@ function jobRoutes(first, onRefresh) {
 }
 
 const open = (routes, options = {}, info = appInfo()) => openApp(browser, served.base, info, { clock: NOW, ...options, routes });
-const banner = (page) => page.locator('.top .fresh');
+const banner = (page) => page.locator('.ph .fresh');
 const detail = (page) => page.locator('.ph .fresh-d');
 const throughs = async (page) => (`${await page.locator('.top').innerText()} ${await page.locator('.ph').innerText()}`.match(/data through/gi) || []).length;
 
@@ -173,8 +173,8 @@ test('an overdue use case says Overdue in amber next to when it was updated', as
   const { page, seen, context } = await open(routes);
   await banner(page).waitFor();
   assert.equal(await banner(page).evaluate((el) => el.classList.contains('fresh--late')), true);
-  assert.equal(await page.locator('.top .fresh-flag').innerText(), 'Overdue');
-  const colors = await page.locator('.top .fresh-flag').evaluate((el) => {
+  assert.equal(await page.locator('.ph .fresh .fresh-flag').innerText(), 'Overdue');
+  const colors = await page.locator('.ph .fresh .fresh-flag').evaluate((el) => {
     const probe = document.createElement('span');
     probe.style.background = 'var(--amber-bg)';
     el.appendChild(probe);
@@ -508,7 +508,7 @@ async function openRuns(data, info = appInfo({}, 1, TABLE), options = {}) {
   const asked = { offsets: [] };
   const routes = { runs: ({ json, url }) => { asked.offsets.push(url.searchParams.get('offset')); return json(200, typeof data === 'function' ? data(url) : data); }, ...options.routes };
   const opened = await openApp(browser, served.base, info, { ...options, routes });
-  await opened.page.locator('.top-runs').click();
+  await goRail(opened.page, 'runs');
   await opened.page.locator('.runs .runs-tbl').waitFor();
   return { ...opened, asked };
 }
@@ -520,7 +520,7 @@ test('the Runs tab lists each run: when, how it ended, who started it, what it c
   const { page, seen, context, asked } = await openRuns(history());
   assert.deepEqual(asked.offsets, ['0'], 'the page reads the runs once, and the tab reuses them');
   assert.equal(await page.locator('[role="tab"]').count(), 0);
-  assert.deepEqual(await texts(page.locator('.top-runs small')), ['3'], 'there are 3 runs');
+  assert.deepEqual(await texts(page.locator('[data-rail="runs"] small')), ['3'], 'there are 3 runs');
   assert.equal(await page.locator('.runs .card-h p').innerText(), 'Newest first. Click a run to see the tables it used. Refresh now updates all the data.');
   assert.deepEqual(await texts(page.locator('.runs-tbl > thead th')), ['Details', 'When', 'Status', 'Started by', 'What it covered', 'Records', 'To fix', 'Could save', 'Ask Genie']);
   assert.equal(await mainRows(page).count(), 3);
@@ -609,7 +609,7 @@ test('the To fix per run chart shows a placeholder while the runs load, says whe
   let release;
   const held = new Promise((resolve) => { release = resolve; });
   const slow = await openApp(browser, served.base, appInfo({}, 1, TABLE), { clock: NOW, routes: { runs: async ({ json }) => { await held; return json(200, history()); } } });
-  await slow.page.locator('.top-runs').click();
+  await slow.page.locator('[data-rail="runs"]').click();
   await slow.page.locator(`${TO_FIX} .chart-skel`).waitFor();
   assert.equal(await slow.page.locator(`${TO_FIX} .explain-btn`).count(), 0, 'nothing to explain while it loads');
   release();
@@ -728,7 +728,7 @@ test('the Runs tab pages twenty runs at a time, newest first', async () => {
   await newer.click();
   await page.waitForFunction(() => document.querySelector('.runs .pager-n')?.textContent === 'Runs 21 to 40 of 45');
   assert.deepEqual(asked.offsets, ['0', '20', '40', '20']);
-  assert.deepEqual(await texts(page.locator('.top-runs small')), ['45'], 'the Runs button keeps the count from the newest runs while you page');
+  assert.deepEqual(await texts(page.locator('[data-rail="runs"] small')), ['45'], 'the Runs button keeps the count from the newest runs while you page');
   assert.deepEqual(seen.errors, []);
   await context.close();
 });
@@ -748,11 +748,11 @@ test('the Runs tab says what could not load and still lists what it has', async 
 test('before the first run the Runs tab says so, and a page with no job and no results table says why it has no runs', async () => {
   let opened = await openRuns(history({ runs: [], total: 0 }));
   assert.equal(await opened.page.locator('.runs .more').innerText(), 'The job has not run yet.');
-  assert.deepEqual(await texts(opened.page.locator('.top-runs small')), ['0']);
+  assert.deepEqual(await texts(opened.page.locator('[data-rail="runs"] small')), ['0']);
   assert.deepEqual(opened.seen.errors, []);
   await opened.context.close();
   opened = await openRuns(history({ runs: [], total: 0, job: null }), appInfo());
-  assert.equal(await opened.page.locator('.top-runs').getAttribute('aria-pressed'), 'true');
+  assert.equal(await opened.page.locator('[data-rail="runs"]').getAttribute('aria-current'), 'page');
   assert.equal(await opened.page.locator('.runs .more').innerText(), 'This use case has no job and keeps no results table, so it has no runs to show.');
   assert.deepEqual(opened.seen.errors, []);
   await opened.context.close();
@@ -774,7 +774,7 @@ test('Refresh now shows the new run in the Runs tab when it starts and again whe
   await until(() => asked.offsets.length === 2);
   await page.waitForFunction(() => document.querySelectorAll('.runs-tbl > tbody > tr').length === 2);
   assert.match(await mainRows(page).first().innerText(), /waiting for under a minute\s+Waiting to start\s+Refresh now/);
-  assert.deepEqual(await texts(page.locator('.top-runs small')), ['2']);
+  assert.deepEqual(await texts(page.locator('[data-rail="runs"] small')), ['2']);
   const loads = seen.pages.length;
   const ended = { ...queued, state: 'terminated', result: 'failed', message: 'Cluster did not start', ended: '2026-10-27T09:31:00Z' };
   live.runs = [run({ job_run_id: '9000', status: 'failed', trigger: 'refresh', by: ME, started: queued.started, duration_s: 60, error: ended.message, error_code: 'no_compute' }), SCHEDULED];
@@ -791,23 +791,23 @@ test('Refresh now shows the new run in the Runs tab when it starts and again whe
   await context.close();
 });
 
-test('the view is part of the link: a link opens the Runs and Back to things to fix clears it', async () => {
+test('the section is part of the link: the Runs rail item writes it, Dashboard clears it, and an old ?v=runs link opens Runs', async () => {
   const { page, seen, context } = await openRuns(history());
-  await page.waitForFunction(() => location.hash === '#/n01_u05?v=runs');
-  await page.getByRole('button', { name: 'Back to things to fix' }).click();
-  await page.waitForFunction(() => location.hash === '#/n01_u05');
+  await page.waitForFunction(() => location.hash === '#/n01_u05/runs');
+  await page.locator('[data-rail="dashboard"]').click();
+  await page.waitForFunction(() => location.hash === '#/n01_u05/dashboard');
   await page.locator('.kpi-v').first().waitFor();
   await page.evaluate(() => { location.hash = '#/n01_u05?v=runs'; });
-  await page.waitForFunction(() => document.querySelector('.top-runs')?.getAttribute('aria-pressed') === 'true');
+  await page.waitForFunction(() => location.hash === '#/n01_u05/runs' && document.querySelector('[data-rail="runs"]')?.getAttribute('aria-current') === 'page');
   await page.locator('.runs .runs-tbl').waitFor();
   assert.deepEqual(seen.errors, []);
   await context.close();
   const plain = await openRuns(history({ job: null }), appInfo());
-  await plain.page.waitForFunction(() => location.hash === '#/n01_u05?v=runs');
+  await plain.page.waitForFunction(() => location.hash === '#/n01_u05/runs');
   await plain.page.evaluate(() => { location.hash = '#/n01_u05?v=trend'; });
   await plain.page.locator('.toast.is-on').waitFor();
   assert.equal(await plain.page.locator('.toast').innerText(), 'Some filters in this link no longer apply');
-  await plain.page.waitForFunction(() => document.querySelector('.top-runs')?.getAttribute('aria-pressed') === 'false');
+  await plain.page.waitForFunction(() => location.hash === '#/n01_u05/dashboard' && document.querySelector('[data-rail="runs"]')?.getAttribute('aria-current') !== 'page');
   assert.deepEqual(plain.seen.errors, []);
   await plain.context.close();
 });
@@ -820,7 +820,7 @@ test('on a phone the Runs tab scrolls its own table, never the page', async () =
     wrap: document.querySelector('.runs .tbl-wrap').scrollWidth > document.querySelector('.runs .tbl-wrap').clientWidth }));
   assert.equal(fit.scroll, 0);
   assert.equal(fit.wrap, true, 'the wide table scrolls inside its card');
-  const views = await steadyBox(page, page.locator('.top-runs'));
+  const views = await steadyBox(page, page.getByRole('button', { name: 'Views', exact: true }));
   assert.ok(views.x >= 0 && views.x + views.width <= 376);
   assert.deepEqual(seen.errors, []);
   await context.close();

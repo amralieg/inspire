@@ -1,7 +1,7 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
-import { TABLE, appInfo, openApp, pageData, serveDist } from './harness.mjs';
+import { PERSON, TABLE, appInfo, openApp, pageData, serveDist } from './harness.mjs';
 import { NOT_IN_RUN, changeBadge, keptText, missingSince, notInRunText } from '../src/records.js';
 import { STATES, closedRows } from '../src/impact.js';
 
@@ -59,7 +59,7 @@ test('one rule names a record the runs no longer list, and only that record', ()
 });
 
 test('the list tags the kept record, counts it beside the records that left, and its panel says why it stays', async () => {
-  const { page, seen, context } = await openApp(browser, served.base, appInfo(DECIDE, 1, TABLE), { routes: routes() });
+  const { page, seen, context } = await openApp(browser, served.base, appInfo(DECIDE, 1, TABLE), { routes: routes(), hash: '#/n01_u05/work' });
   await page.locator('.left-n').waitFor();
   assert.equal(await page.locator('.left-n').innerText(), '3 records left the list since the last run · 1 record not in the latest run, kept because people changed it');
   const rows = page.locator('.card--table tbody tr');
@@ -78,18 +78,18 @@ test('the list tags the kept record, counts it beside the records that left, and
   await context.close();
 });
 
-test('Today tags the kept record among the things to fix and leaves the others as they are', async () => {
-  const items = [{ key: 'e1', label: 'Wool coat, store 4', tier: 'Act now', money: 400, why: null, owner: null, status: null, reason: null, due: null, not_listed_since: LEFT },
-    { key: 'a1', label: 'Blue denim jacket, store 12', tier: 'Act now', money: 1000, why: null, owner: null, status: null, reason: null, due: null, not_listed_since: null }];
+test('Your work tags the kept record and leaves the others as they are', async () => {
+  const items = [{ key: 'e1', label: 'Wool coat, store 4', tier: 'Act now', money: 400, why: null, owner: PERSON, status: null, reason: null, due: null, not_listed_since: LEFT },
+    { key: 'a1', label: 'Blue denim jacket, store 12', tier: 'Act now', money: 1000, why: null, owner: PERSON, status: null, reason: null, due: null, not_listed_since: null }];
   const entry = { visible: true, tracked: true, money: true, categories: [], served: 'delta', items, total: 2, truncated: false,
     done: { fixed: 0, fixed_q: 0, dismissed: 0, dismissed_q: 0, saved_n: 0, saved: null, saved_q_n: 0, saved_q: null }, weeks: [],
     runs: { updated: '2026-10-20T06:00:00Z', as_of: '2026-10-20', cadence_days: 7, next: '2026-10-27', stale: false, count: 3, failed: false } };
   const hub = { today: '2026-10-24', quarter: '2026-10-01', since: '2026-08-03', errors: {}, pages: { n01_u05: entry, n02_u01: { ...entry, items: [], total: 0 } } };
   const summary = { run: { currency: 'USD', decision_basis: 'measured', as_of_date: '2026-10-20' }, categories: {}, note: '' };
   const { page, seen, context } = await openApp(browser, served.base, appInfo(DECIDE, 2, TABLE), {
-    routes: { overview: ({ json }) => json(200, hub), summary: ({ json }) => json(200, summary) } });
-  await page.locator('.tbl--things tbody tr').nth(1).waitFor();
-  const cells = await page.locator('.tbl--things tbody tr .it b').evaluateAll((all) => all.map((b) => [b.firstChild.textContent, b.querySelector('.chg-b')?.textContent || '']));
+    routes: { overview: ({ json }) => json(200, hub), summary: ({ json }) => json(200, summary) }, hash: '#/n01_u05/performance' });
+  await page.locator('.tbl--mine tbody tr').nth(1).waitFor();
+  const cells = await page.locator('.tbl--mine tbody tr .it b').evaluateAll((all) => all.map((b) => [b.firstChild.textContent, b.querySelector('.chg-b')?.textContent || '']));
   assert.deepEqual(cells, [['Blue denim jacket, store 12', ''], ['Wool coat, store 4', NOT_IN_RUN]]);
   assert.deepEqual(seen.errors, []);
   await context.close();

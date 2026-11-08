@@ -74,9 +74,9 @@ for (const layout of ['sidebar', 'tabs', 'home']) {
       assert.equal(m.chartColumns, width >= 1280 ? 2 : 1, `${at} chart columns`);
       assert.ok(m.chartsFit, `${at} draws a chart wider than its card`);
       assert.equal(m.menu, width < 860, `${at} menu button`);
-      assert.equal(m.drawerOpen, width >= 860 && layout !== 'tabs', `${at} use case list`);
-      assert.equal(m.tabs, layout === 'tabs' && width >= 860, `${at} tab strip`);
-      assert.equal(m.sideInline, layout !== 'tabs' && width >= 860, `${at} inline sidebar`);
+      assert.equal(m.drawerOpen, width >= 860, `${at} section rail`);
+      assert.equal(m.tabs, false, `${at} tab strip`);
+      assert.equal(m.sideInline, width >= 860, `${at} inline rail`);
     }
     assert.ok(widths[375][0] < widths[768][0] && widths[768][0] <= widths[1600][0], `charts resize with the screen: ${JSON.stringify(widths)}`);
     assert.deepEqual(seen.errors, []);
@@ -84,31 +84,35 @@ for (const layout of ['sidebar', 'tabs', 'home']) {
   });
 }
 
-for (const layout of ['sidebar', 'tabs']) {
-  test(`on a phone the ${layout} layout lists every use case behind the menu`, async () => {
-    const { page, seen, context } = await openPage(appInfo({ layout }, 6), 375);
-    await page.waitForFunction(chartsDrawn, 4);
-    assert.equal(await page.locator('.side').isVisible(), false);
-    await page.getByRole('button', { name: 'Open the use case list' }).click();
-    await page.waitForTimeout(300);
-    const m = await snapshot(page);
-    assert.ok(m.drawerOpen, 'the menu opens the use case list on screen');
-    assert.equal(await page.locator('.side .nav-i').count(), 9);
-    assert.deepEqual(await page.locator('.side .nav-i .nav-t b').allInnerTexts(), ['My work', 'Impact', 'Overview', 'Price-loss decision desk', 'Second desk 1',
-      'Second desk 2', 'Second desk 3', 'Second desk 4', 'Second desk 5']);
-    await page.locator('.side .nav-i', { hasText: 'Second desk 3' }).click();
-    await page.waitForFunction(() => document.querySelector('.ph h1')?.textContent === 'Second desk 3');
-    await page.waitForTimeout(300);
-    assert.equal((await snapshot(page)).drawerOpen, false, 'picking a use case closes the list');
-    await page.getByRole('button', { name: 'Open the use case list' }).click();
-    await page.waitForTimeout(300);
-    await page.keyboard.press('Escape');
-    await page.waitForTimeout(300);
-    assert.equal((await snapshot(page)).drawerOpen, false, 'Escape closes the list');
-    assert.deepEqual(seen.errors, []);
-    await context.close();
-  });
-}
+const sideOpen = (page) => page.evaluate(() => {
+  const el = document.querySelector('.side');
+  const r = el.getBoundingClientRect();
+  return getComputedStyle(el).display !== 'none' && getComputedStyle(el).visibility !== 'hidden' && r.width > 0 && r.left >= -1 && r.right <= window.innerWidth + 1;
+});
+
+test('on a phone the sections sit behind the menu and the switcher lists every use case', async () => {
+  const { page, seen, context } = await openPage(appInfo({}, 6), 375);
+  await page.waitForFunction(chartsDrawn, 4);
+  assert.equal(await page.locator('.side').isVisible(), false);
+  await page.getByRole('button', { name: 'Open the sections' }).click();
+  await page.waitForTimeout(300);
+  assert.ok(await sideOpen(page), 'the menu opens the sections on screen');
+  assert.deepEqual(await page.locator('[data-rail]').evaluateAll((all) => all.map((r) => r.dataset.rail)), ['dashboard', 'work', 'performance', 'runs', 'settings']);
+  await page.locator('[data-rail="runs"]').click();
+  await page.waitForTimeout(300);
+  assert.equal(await sideOpen(page), false, 'picking a section closes the menu');
+  await page.getByRole('button', { name: 'Open the sections' }).click();
+  await page.waitForTimeout(300);
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(300);
+  assert.equal(await sideOpen(page), false, 'Escape closes the menu');
+  await page.locator('[data-switcher]').click();
+  assert.equal(await page.locator('[data-case]').count(), 6);
+  await page.locator('[data-case]', { hasText: 'Second desk 3' }).click();
+  await page.waitForFunction(() => document.querySelector('.ph h1')?.textContent === 'Second desk 3');
+  assert.deepEqual(seen.errors, []);
+  await context.close();
+});
 
 test('the three styles and the open Genie panel stay on a phone screen', async () => {
   for (const style of ['a', 'b', 'c']) {
