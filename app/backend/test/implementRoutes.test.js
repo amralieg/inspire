@@ -603,6 +603,16 @@ const EXISTING = [...NOT_MINE_SCHEMA,
 const KEY_COLUMNS = ['use_case_id', 'run_id', 'as_of_date', 'score'].map((column_name) => ({ column_name }));
 const CHECK = `/api/inspire/implement/output-check?${Q}&table=main.inspire.churn_out`;
 
+test('in the App the output check names the identity Inspire builds as, not the signed-in person', async () => {
+  const spRows = NOT_MINE_SCHEMA.map((r) => ({ ...r, me: 'sp-1234' }));
+  await withApp({ access: spRows, forwardedToken: 'person-token', forwardedEmail: 'amr@x' }, async (url) => {
+    const got = await call(url, CHECK);
+    assert.equal(got.data.ok, false);
+    assert.equal(got.data.write.detail,
+      'sp-1234, the identity Inspire builds as, needs USE SCHEMA on main.inspire and CREATE TABLE on main.inspire to create main.inspire.churn_out');
+  });
+});
+
 test('the output check passes a new table the user can create and names what is missing otherwise', async () => {
   await withApp({}, async (url) => {
     const got = await call(url, CHECK);

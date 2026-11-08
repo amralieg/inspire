@@ -629,6 +629,24 @@ test('an existing output table needs MODIFY and SELECT, and sharing it needs own
   assert.deepEqual(reader.write, { ok: false, detail: 'you need MODIFY on main.s.out to write to main.s.out' });
 });
 
+test('when Inspire checks with its own identity, the access text names that identity instead of the person', () => {
+  const sp = (level, privilege, principal, mine) => ({ ...grant(level, privilege, principal, mine), me: '5eb8-sp' });
+  const owned = [sp('catalog', 'OWNER', 'amr@x', false), sp('schema', 'OWNER', 'amr@x', false), sp('catalog', 'SELECT', '5eb8-sp', true),
+    sp('catalog', 'USE SCHEMA', '5eb8-sp', true), sp('catalog', 'USE CATALOG', 'account users', true)];
+  const built = outputAccess(owned, 'main.s.out', { builder: true });
+  assert.deepEqual(built.write, { ok: false, detail: '5eb8-sp, the identity Inspire builds as, needs CREATE TABLE on main.s to create main.s.out' });
+  assert.equal(built.grant.detail, '5eb8-sp, the identity Inspire builds as, cannot share main.s.out: it needs to own it, its schema or its catalog, or hold MANAGE on one of them');
+  assert.ok(!/\byou\b/.test(built.write.detail + built.grant.detail), 'the person is never told they lack a privilege they hold');
+  const creator = outputAccess([...owned, sp('schema', 'CREATE TABLE', '5eb8-sp', true)], 'main.s.out', { builder: true });
+  assert.deepEqual([creator.write.detail, creator.grant.detail],
+    ['5eb8-sp, the identity Inspire builds as, can create main.s.out', '5eb8-sp, the identity Inspire builds as, will own main.s.out, so it can share it']);
+  assert.equal(modelAccess(owned, 'main.s.out_model', { builder: true }).detail,
+    '5eb8-sp, the identity Inspire builds as, needs CREATE MODEL on main.s to register the model main.s.out_model');
+  assert.equal(outputAccess(owned, 'main.s.out').write.detail, 'you need CREATE TABLE on main.s to create main.s.out', 'checked as the person, it still says you');
+  assert.equal(outputAccess([...owned].map((r) => ({ ...r, me: '' })), 'main.s.out', { builder: true }).write.detail,
+    'the identity Inspire builds as needs CREATE TABLE on main.s to create main.s.out');
+});
+
 test('a missing catalog or schema is named instead of a privilege list', () => {
   assert.deepEqual(outputAccess([], 'main.s.out').write, { ok: false, detail: 'catalog main does not exist or you have no access to it' });
   assert.deepEqual(outputAccess([grant('catalog', 'OWNER', 'admins', false)], 'main.s.out').write,

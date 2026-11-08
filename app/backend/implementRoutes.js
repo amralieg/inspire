@@ -313,8 +313,10 @@ function registerImplementRoutes(app, deps) {
       elsewhere ? sqlRows(req.dbHost, req.dbToken, warehouseId, I.outputAccessStatement(modelName)) : null,
       loadResultTableHolder(req, warehouseId, catalog, schema, table),
     ]);
-    const access = I.outputAccess(rows, table);
-    const model = I.trainsModel(useCase) ? I.modelAccess(elsewhere ? modelRows : rows, modelName) : null;
+    const person = P.personTokenOf(req);
+    const builder = Boolean(person && person !== req.dbToken);
+    const access = I.outputAccess(rows, table, { builder });
+    const model = I.trainsModel(useCase) ? I.modelAccess(elsewhere ? modelRows : rows, modelName, { builder }) : null;
     const warehouse = await appWarehouseCheck(req, warehouseId, access.identity, options.warehouseName);
     const own = Boolean(options.appWarehouse) && options.appWarehouse !== warehouseId;
     const appWarehouse = own ? await appWarehouseCheck(req, options.appWarehouse, access.identity, '', true) : warehouse;
@@ -323,8 +325,7 @@ function registerImplementRoutes(app, deps) {
     if (warnings.length) access.grant = { ...access.grant, warn: warnings.join(' ') };
     access.app = I.appAccessCheck(access.app, own ? null : warehouse);
     const appGaps = I.accessPlan(table, rows).gaps;
-    const person = P.personTokenOf(req);
-    if (appGaps.length && person && person !== req.dbToken) {
+    if (appGaps.length && builder) {
       const offer = I.newAppsAccessOffer(table, await accessRowsOf(req, person, warehouseId, table), appGaps);
       if (offer) access.app = { ...access.app, offer };
     }
