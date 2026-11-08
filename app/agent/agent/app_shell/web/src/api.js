@@ -93,6 +93,10 @@ export const getPlanResults = (page) => json('GET', `plans/performance?page=${en
 export const getForecastReview = (page) => json('GET', `forecast/review?page=${encodeURIComponent(page)}`);
 export const overrideForecast = (body) => json('POST', 'forecast/override', body);
 export const getForecastAccuracy = (page) => json('GET', `forecast/accuracy?page=${encodeURIComponent(page)}`);
+export const getSavedScenarios = (page) => json('GET', `scenario/saved?page=${encodeURIComponent(page)}`);
+export const saveScenario = (body) => json('POST', 'scenario/save', body);
+export const shareScenario = (body) => json('POST', 'scenario/share', body);
+export const chooseScenario = (body) => json('POST', 'scenario/choose', body);
 export const undoRecords = (body) => json('POST', 'records/undo', body);
 export const draftMessage = (body) => json('POST', 'records/draft', body);
 export const getBatches = (page) => json('GET', `records/batches?page=${encodeURIComponent(page)}`);

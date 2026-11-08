@@ -5,8 +5,10 @@ import { apiValues, initialFilterState } from './filters.js';
 import { AGENT_OPEN, EMPTY_LOOK, applyActions, changesView, visibleOf } from './agentView.js';
 import { GenieMark, Icon } from './icons.jsx';
 import { ToastProvider, useToast } from './ui.jsx';
-import Page, { SECTION_TITLES } from './Page.jsx';
+import Page from './Page.jsx';
 import { isQueue, pageSections } from './Layouts.jsx';
+import { hasWork, pageMode, sectionTitle } from './modes.js';
+import ModeView from './ModeView.jsx';
 import Impact from './Impact.jsx';
 import MyWorkPage from './MyWorkPage.jsx';
 import { MY_WORK_ROUTE } from './mywork.js';
@@ -78,7 +80,7 @@ function SectionRail({ sections, on, onGo, open, page }) {
   const item = (s) => (
     <button key={s} type="button" className={`nav-i rail-i ${on === s ? 'is-on' : ''}`} onClick={() => onGo(s)} aria-current={on === s ? 'page' : undefined} data-rail={s}>
       <span className="nav-ic"><Icon name={RAIL_ICONS[s]} size={15} /></span>
-      <span className="nav-t"><b>{SECTION_TITLES[s]}</b></span>
+      <span className="nav-t"><b>{sectionTitle(page, s)}</b></span>
     </button>
   );
   return (
@@ -116,7 +118,7 @@ function Shell({ app }) {
   const resolve = useCallback(() => {
     const now = parseHash(window.location.hash);
     if (unknownRoute(now.route, known.current.pages)) missed.current = now.route;
-    const next = canonicalHash(window.location.hash, { pages: known.current.pages, last: known.current.last, queue: isQueue, performance: true });
+    const next = canonicalHash(window.location.hash, { pages: known.current.pages, last: known.current.last, queue: isQueue, work: hasWork, performance: true });
     if (next) window.history.replaceState(window.history.state, '', next);
     return parseHash(window.location.hash);
   }, []);
@@ -161,11 +163,14 @@ function Shell({ app }) {
   const page = pages.find((p) => p.id === route) || (admin ? pages.find((p) => p.id === prefs.last) || pages[0] : null);
   const section = admin ? '' : link.section;
   const sections = page ? pageSections(app, page) : [];
-  const rail = page ? [...sections.slice(0, isQueue(page) ? 2 : 1), 'performance', ...sections.slice(isQueue(page) ? 2 : 1)] : [];
-  const working = !admin && section === 'work';
+  const lead = sections.includes('work') ? 2 : 1;
+  const rail = page ? [...sections.slice(0, lead), 'performance', ...sections.slice(lead)] : [];
+  const mode = pageMode(page);
+  const working = !admin && section === 'work' && !!page && mode.queue;
+  const fullChat = !admin && section === 'work' && !!page && mode.id === 'ask';
   const dock = working ? prefs.dock : '';
   const setDock = useCallback((next) => update((p) => ({ ...p, dock: next })), [update]);
-  const openGenie = () => (working ? setDock('genie') : setGenieOpen(true));
+  const openGenie = () => (fullChat ? null : working ? setDock('genie') : setGenieOpen(true));
   const genie = useGenie(app, page ? page.id : 'overview', openGenie, agentView);
   const genieState = useMemo(() => ({ app, busy: genie.busy }), [app, genie.busy]);
   const { hub, error: hubError, summaries, load: loadHub } = useHub(pages, JSON.stringify(windowParams(prefs)));
@@ -236,8 +241,8 @@ function Shell({ app }) {
   const themeKey = `${palette}:${theme}:${app.style}`;
   const crumb = page ? [[page.domain, page.subdomain].filter(Boolean).join(' › '), page.use_case_id].filter(Boolean).join(' · ') : '';
   const chrome = { palette, built: app.palette, theme, onPalette: choosePalette, onTheme: toggleTheme };
-  const genieShown = working ? dock === 'genie' : genieOpen;
-  const toggleGenie = () => (working ? setDock(dock === 'genie' ? '' : 'genie') : setGenieOpen(!genieOpen));
+  const genieShown = fullChat || (working ? dock === 'genie' : genieOpen);
+  const toggleGenie = () => (fullChat ? document.querySelector('[data-genie-full] .g-in input')?.focus() : working ? setDock(dock === 'genie' ? '' : 'genie') : setGenieOpen(!genieOpen));
   const dockValue = useMemo(() => (working ? { slot: dockSlot, tab: dock, onTab: setDock, onShowing: setShowing } : null), [working, dockSlot, dock, setDock]);
   const tabs = working ? <DockTabs tab={dock} onTab={setDock} /> : null;
   const genieProps = { app, genie, page, pages: shown, onPick: go };
@@ -264,7 +269,8 @@ function Shell({ app }) {
           <main className="main" tabIndex={-1}>
             {admin && <Admin />}
             {!admin && section === 'performance' && (
-              <Performance app={app} hub={hub} hubError={hubError} summaries={summaries} onRecord={openRecord} onOpen={go} onExplain={explain} genieBusy={genie.busy} />
+              <ModeView key={page?.id} mode={mode.id} part="Performance" app={app} page={page} genie={genie}
+                fallback={<Performance app={app} hub={hub} hubError={hubError} summaries={summaries} onRecord={openRecord} onOpen={go} onExplain={explain} genieBusy={genie.busy} />} />
             )}
             {!admin && page && section !== 'performance' && (
               <Page key={page.id} app={app} page={page} meta={metas[page.id]} state={states[page.id]} onState={setPageState(page.id)} look={looks[page.id] || EMPTY_LOOK}
@@ -274,7 +280,7 @@ function Shell({ app }) {
           </main>
           {working && dock === 'genie' && <GeniePanel {...genieProps} tabs={tabs} onClose={() => setDock('')} />}
           {working && dock === 'record' && <RecordDock tabs={tabs} onSlot={setDockSlot} onClose={() => setDock('')} empty={!showing} />}
-          {!working && genieOpen && <GeniePanel {...genieProps} onClose={() => setGenieOpen(false)} />}
+          {!working && !fullChat && genieOpen && <GeniePanel {...genieProps} onClose={() => setGenieOpen(false)} />}
         </div>
       </div>
     </div>

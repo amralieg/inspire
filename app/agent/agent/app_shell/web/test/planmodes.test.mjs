@@ -2,7 +2,7 @@ import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
 import { chromium } from 'playwright';
-import { DECIDE, PERSON, SRC, appInfo, bundleEntry, openBundle } from './harness.mjs';
+import { DECIDE, PERSON, SRC, appInfo, bundleEntry, openApp, openBundle, serveDist } from './harness.mjs';
 import { forecastRoutes, plannerRoutes } from './exampleRoutes.mjs';
 
 const STYLES = ['shell', 'looks', 'app', 'edits', 'daily', 'data', 'chrome', 'layouts'].map((s) => `import ${JSON.stringify(join(SRC, 'styles', `${s}.css`))};`).join('\n');
@@ -11,11 +11,12 @@ import { createElement as h } from 'react';
 import { createRoot } from 'react-dom/client';
 ${STYLES}
 import { ToastProvider } from ${JSON.stringify(join(SRC, 'ui.jsx'))};
-import { PLAN_MODE, FORECAST_MODE } from ${JSON.stringify(join(SRC, 'planModes.js'))};
+import * as PlanMode from ${JSON.stringify(join(SRC, 'PlanMode.jsx'))};
+import * as ForecastMode from ${JSON.stringify(join(SRC, 'ForecastMode.jsx'))};
+import { MODES, pageMode } from ${JSON.stringify(join(SRC, 'modes.js'))};
 const { app, which, part } = window.props;
-const mode = which === 'plan' ? PLAN_MODE : FORECAST_MODE;
-window.labels = { plan: [PLAN_MODE.work.label, PLAN_MODE.perf.label], forecast: [FORECAST_MODE.work.label, FORECAST_MODE.perf.label] };
-const View = mode[part].Component;
+window.labels = { plan: [MODES.plan.work, MODES.plan.performance], forecast: [MODES.forecast.work, MODES.forecast.performance], mode: pageMode(app.pages[0]).id };
+const View = (which === 'plan' ? PlanMode : ForecastMode)[part === 'work' ? 'Work' : 'Performance'];
 createRoot(document.getElementById('root')).render(h(ToastProvider, null, h('main', { className: 'main' }, h(View, { app, page: app.pages[0] }))));
 `;
 const PID = 'a'.repeat(32);
@@ -24,14 +25,17 @@ const LIMITS = [{ name: 'Oven hours', limit: 100, used: 100, slack: 0, shadow_pr
 
 let browser;
 let host;
+let served;
 
 before(async () => {
+  served = await serveDist();
   browser = await chromium.launch();
   host = await bundleEntry(HOST);
 });
 
 after(async () => {
   await browser?.close();
+  served?.close();
 });
 
 const MOVES = { submit: 'In review', approve: 'Approved', reopen: 'Draft', publish: 'Published' };
@@ -66,7 +70,7 @@ const toastIs = (page, text) => page.waitForFunction((t) => document.querySelect
 test('the plan and forecast modes name their work and performance sections Plan, Performance, Review and Accuracy', async () => {
   const { page, context, errors } = await open('plan', 'work', { ...plannerRoutes([], []), ...versionRoutes('plan').routes });
   await page.locator('[data-plan-section]').waitFor();
-  assert.deepEqual(await page.evaluate(() => window.labels), { plan: ['Plan', 'Performance'], forecast: ['Review', 'Accuracy'] });
+  assert.deepEqual(await page.evaluate(() => window.labels), { plan: ['Plan', 'Performance'], forecast: ['Review', 'Accuracy'], mode: 'plan' });
   assert.deepEqual(errors, []);
   await context.close();
 });
@@ -255,4 +259,42 @@ test('Accuracy shows forecast error, bias, error against naive and the lift of o
   await bare.page.locator('[data-plans-missing]').waitFor();
   assert.match(await bare.page.locator('[data-stat="lift"]').innerText(), /Not recorded\s+no override has an actual to check yet/);
   await bare.context.close();
+});
+
+const railText = (page) => page.locator('nav.rail [data-rail]').evaluateAll((els) => els.map((e) => [e.dataset.rail, e.textContent.trim()]));
+
+test('in the App a planner page names its rail Plan and Performance and opens the plan versions, its lines and the plan against actuals', async () => {
+  const versions = versionRoutes('plan');
+  const results = { version: null, lines: [], missing: '' };
+  const { page, seen, context } = await openApp(browser, served.base, INFO.plan, { routes: { ...plannerRoutes([], []), ...versions.routes,
+    'plans/performance': ({ json }) => json(200, results) } });
+  await page.locator('nav.rail [data-rail="work"]').waitFor();
+  const rail = Object.fromEntries(await railText(page));
+  assert.equal(rail.work, 'Plan');
+  assert.equal(rail.performance, 'Performance');
+  await page.locator('nav.rail [data-rail="work"]').click();
+  await page.locator('[data-plan-section] [data-move="new"]').waitFor();
+  await page.locator('[data-plan-row="K1"]').waitFor();
+  assert.equal(await page.locator('[data-mode-pending]').count(), 0);
+  await page.locator('nav.rail [data-rail="performance"]').click();
+  await page.locator('[data-plan-performance] [data-no-plan]').waitFor();
+  assert.deepEqual(seen.errors, []);
+  await context.close();
+});
+
+test('in the App a forecast page names its rail Review and Accuracy and opens the review queue and the accuracy panel', async () => {
+  const accuracy = { points: 4, series: 1, error: 0.2, bias: 0.1, mase: 1.3, overrides: 0, helped: 0, hurt: 0, lift: null, lift_note: '' };
+  const { page, seen, context } = await openApp(browser, served.base, INFO.forecast, { routes: { ...forecastRoutes([]), ...reviewRoutes(null, []),
+    'forecast/accuracy': ({ json }) => json(200, accuracy) } });
+  await page.locator('nav.rail [data-rail="work"]').waitFor();
+  const rail = Object.fromEntries(await railText(page));
+  assert.equal(rail.work, 'Review');
+  assert.equal(rail.performance, 'Accuracy');
+  await page.locator('nav.rail [data-rail="work"]').click();
+  await page.locator('[data-review-section] [data-series="S1"]').waitFor();
+  await page.locator('nav.rail [data-rail="performance"]').click();
+  await page.locator('[data-accuracy] [data-stat="error"]').waitFor();
+  assert.match(await page.locator('[data-stat="error"]').innerText(), /20\.0%/);
+  assert.deepEqual(seen.errors, []);
+  await context.close();
 });

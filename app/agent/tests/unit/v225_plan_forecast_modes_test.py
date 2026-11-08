@@ -409,24 +409,20 @@ def _grants(spark):
     return [s for s in spark.statements if s.startswith("GRANT") and " ON TABLE " in s]
 
 
-def test_the_app_service_principal_gets_select_and_modify_on_the_plans_table_only_for_plan_pages(agent_ns):
+def test_the_app_service_principal_gets_select_and_modify_on_the_plans_table(agent_ns, caplog):
     from v150_app_owners_access_test import Catalog
     from v140_implement_test import _inspire
     spark = Catalog(schema=[("entity_id", "string")])
     inst = _inspire(agent_ns, spark)
     ran = []
-    warnings = inst._implement_app_write_grants("main.inspire.churn_out", "sp-7", {}, [], ran, plans=True)
-    assert warnings == []
+    assert inst._implement_app_plan_grants("main.inspire.churn_out", "sp-7", ran) == []
     assert any(s.startswith("CREATE TABLE IF NOT EXISTS `main`.`inspire`.`churn_out_plans`") for s in spark.statements)
     assert _grants(spark) == ["GRANT SELECT ON TABLE `main`.`inspire`.`churn_out_plans` TO `sp-7`",
                               "GRANT MODIFY ON TABLE `main`.`inspire`.`churn_out_plans` TO `sp-7`"]
     assert {g["table"] for g in ran if g.get("level") == "table"} == {"main.inspire.churn_out_plans"}
     spark.statements.clear()
     inst._implement_app_write_grants("main.inspire.churn_out", "sp-7", {}, [], [])
-    assert not [s for s in spark.statements if "churn_out_plans" in s]
-    spark.statements.clear()
-    assert inst._implement_app_write_grants("main.inspire.churn_out", "sp-7", {}, [], [], per_user=True, plans=True) == []
-    assert any("churn_out_plans" in s and s.startswith("CREATE") for s in spark.statements) and _grants(spark) == []
+    assert not [s for s in spark.statements if "churn_out_plans" in s], "a page without a plan or forecast gets no plans table"
 
 
 def test_a_plans_table_the_notebook_cannot_create_becomes_a_named_warning(agent_ns):
@@ -434,6 +430,12 @@ def test_a_plans_table_the_notebook_cannot_create_becomes_a_named_warning(agent_
     from v140_implement_test import _inspire
     spark = Catalog(schema=[("entity_id", "string")], fail={"CREATE TABLE IF NOT EXISTS `main`.`inspire`.`churn_out_plans`": RuntimeError("no CREATE")})
     inst = _inspire(agent_ns, spark)
-    warnings = inst._implement_app_write_grants("main.inspire.churn_out", "sp-7", {}, [], [], plans=True)
+    warnings = inst._implement_app_plan_grants("main.inspire.churn_out", "sp-7", [])
     assert len(warnings) == 1 and "churn_out_plans" in warnings[0] and "could not create it" in warnings[0]
     assert agent_ns["IMPLEMENT_PLANS_REFUSED"] in warnings[0] and _grants(spark) == []
+
+
+def test_the_app_build_grants_the_plans_table_for_plan_and_forecast_pages_in_both_access_modes(agent_ns):
+    source = "\n".join("".join(c["source"]) for c in __import__("json").load(open(os.path.join(ROOT, "agent", "dbx_inspire_ai_agent.ipynb")))["cells"])
+    assert source.count("planned = implement_app_planned_tables(files)") == 2
+    assert source.count("warnings += self._implement_app_plan_grants(table, client_id, ran) if table in planned else []") == 2

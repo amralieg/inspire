@@ -1887,6 +1887,14 @@ class Shell:
                 return 200, self.forecast_accuracy(headers, query.get("page"))
             if route == ("POST", "scenario/evaluate"):
                 return 200, self.scenario_evaluate(headers, data)
+            if route == ("GET", "scenario/saved"):
+                return 200, self.scenario_saved(headers, query.get("page"))
+            if route == ("POST", "scenario/save"):
+                return 200, self.scenario_save(headers, data)
+            if route == ("POST", "scenario/share"):
+                return 200, self.scenario_mark(headers, data, "share" if data.get("shared") is True else "unshare" if data.get("shared") is False else "")
+            if route == ("POST", "scenario/choose"):
+                return 200, self.scenario_mark(headers, data, "choose")
             if route == ("GET", "records/batches"):
                 return 200, self.batches(headers, query.get("page"))
             if route == ("GET", "records/similar"):
@@ -3793,6 +3801,98 @@ class Shell:
             raise HttpError(400, shell_sql.error_text(error)) from error
         print(f"[SCENARIO-EVAL FIRED] page={page['id']} levers={len(out['levers'])} clamped={len(out['clamped'])} p50={shell_sql.shown_number(out['outcome']['p50'])}", flush=True)
         return out
+
+    def scenario_page(self, ident) -> dict:
+        page = self.page(ident)
+        if not isinstance(page.get("scenario"), dict):
+            raise HttpError(404, f"page {page['id']} has no scenario to save")
+        if not page.get("result_table"):
+            raise HttpError(409, "this page names no result table, so the App has nowhere to keep its scenarios")
+        return page
+
+    def scenario_rows(self, ws, page: dict) -> tuple:
+        try:
+            return self.execute(ws, *shell_sql.scenario_events_query(page), shell_sql.CAPS["scenario_events"], delta=True)["rows"], ""
+        except QueryError as error:
+            if NO_TABLE.search(str(error)):
+                return [], (f"This App keeps saved scenarios in {shell_sql.scenarios_table(page)}, which does not exist yet; "
+                            f"{shell_sql.rebuild_action('the use case')}")
+            raise
+
+    def scenario_saved(self, headers: dict, ident) -> dict:
+        page = self.scenario_page(ident)
+        ws, _who = self.workspace(headers)
+        rows, missing = self.scenario_rows(ws, page)
+        return dict(shell_sql.scenario_library(rows, str(headers.get("x-forwarded-email") or "")), note=missing)
+
+    def scenario_write(self, ws, page: dict, event: dict) -> None:
+        try:
+            self.execute(ws, *shell_sql.scenario_event_write(page, dict(event, event_id=uuid.uuid4().hex)), 1, delta=True)
+        except QueryError as error:
+            if NOT_ALLOWED.search(str(error)):
+                raise self.write_refused(shell_sql.scenarios_table(page), error) from error
+            raise
+
+    def scenario_library_for(self, ws, page: dict, editor: str) -> dict:
+        rows, missing = self.scenario_rows(ws, page)
+        if missing:
+            raise HttpError(409, f"Nothing was saved: {missing[:1].lower()}{missing[1:]}")
+        return shell_sql.scenario_library(rows, editor)
+
+    def scenario_save(self, headers: dict, data: dict) -> dict:
+        page = self.scenario_page(data.get("page"))
+        editor = self.editor(headers)
+        name, note, values = data.get("name"), data.get("note") or "", data.get("values")
+        if not isinstance(name, str) or not " ".join(name.split()):
+            raise HttpError(400, "name the scenario")
+        name = " ".join(name.split())
+        if len(name) > shell_sql.SCENARIO_NAME_CHARS:
+            raise HttpError(400, f"keep the scenario name to {shell_sql.SCENARIO_NAME_CHARS} characters")
+        if not isinstance(note, str) or len(note.strip()) > NOTE_CHARS:
+            raise HttpError(400, f"keep the note to {NOTE_CHARS} characters")
+        if not isinstance(values, dict) or len(values) > shell_sql.SCENARIO_LEVERS[1]:
+            raise HttpError(400, f"send values as an object of at most {shell_sql.SCENARIO_LEVERS[1]} levers to numbers")
+        for lever, value in values.items():
+            if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or abs(value) >= shell_sql.CAPS["range_number"]:
+                raise HttpError(400, f"send lever {str(lever)[:80]!r} as a finite number")
+        ws, _who = self.workspace(headers)
+        library = self.scenario_library_for(ws, page, editor)
+        cap = shell_sql.CAPS["scenarios_per_person"]
+        if library["mine"] >= cap:
+            raise HttpError(409, f"you saved {cap} scenarios on this use case, the most the App keeps per person")
+        if any(s["mine"] and s["name"].lower() == name.lower() for s in library["scenarios"]):
+            raise HttpError(409, f"you already saved a scenario named {name!r}; pick another name")
+        out = self.scenario_evaluate(headers, {"page": page["id"], "values": values})
+        levers = {str(l["lever"]): l["value"] for l in out["levers"]}
+        self.scenario_write(ws, page, {"scenario_id": uuid.uuid4().hex, "action": "save", "name": name, "note": note.strip(),
+                                       "lever_values": json.dumps(levers, sort_keys=True), "changed_by": editor,
+                                       **{k: out["outcome"].get(k) for k in shell_sql.SCENARIO_NUMBERS}})
+        print(f"[SCENARIO-SAVE FIRED] page={page['id']} levers={len(levers)}", flush=True)
+        return self.scenario_saved(headers, page["id"])
+
+    def scenario_mark(self, headers: dict, data: dict, action: str) -> dict:
+        page = self.scenario_page(data.get("page"))
+        editor = self.editor(headers)
+        if action not in shell_sql.SCENARIO_ACTIONS[1:]:
+            raise HttpError(400, "send shared as true or false")
+        ident, note = str(data.get("scenario_id") or ""), data.get("note") or ""
+        if not shell_sql.SCENARIO_ID.match(ident):
+            raise HttpError(400, "send the scenario_id of a saved scenario")
+        if not isinstance(note, str) or len(note.strip()) > NOTE_CHARS:
+            raise HttpError(400, f"keep the note to {NOTE_CHARS} characters")
+        ws, _who = self.workspace(headers)
+        library = self.scenario_library_for(ws, page, editor)
+        held = next((s for s in library["scenarios"] if s["id"] == ident), None)
+        if held is None:
+            raise HttpError(404, "no saved scenario you can see has that id")
+        if action != "choose" and not held["mine"]:
+            raise HttpError(403, f"only {held['by']}, who saved the scenario, can share it or stop sharing it")
+        if action != "choose" and held["shared"] == (action == "share"):
+            return dict(library, note="")
+        self.scenario_write(ws, page, {"scenario_id": ident, "action": action, "note": note.strip() if action == "choose" else None,
+                                       "changed_by": editor})
+        print(f"[SCENARIO-{action.upper()} FIRED] page={page['id']}", flush=True)
+        return self.scenario_saved(headers, page["id"])
 
     def act_on_keys(self, ws, writer, page: dict, fields: list, keys: list, seen: dict, editor: str, values: dict, batch: dict) -> dict:
         as_app, left_out = self.settings["auth"] == "user", []
