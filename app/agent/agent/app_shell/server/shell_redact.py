@@ -40,7 +40,7 @@ _REDACT_SPARK_SETTING_RE = _redact_re.compile(r"(?i)true|false|spark\.[\w.]+")
 _REDACT_FRAME_RE = _redact_re.compile(r'^[ \t]*File "([^"\n]+)", line \d+[^\n]*(?:\n[ \t]+(?![ \t]*File ")([^\n]+))?', _redact_re.M)
 _REDACT_NUMBERED_FRAME_RE = _redact_re.compile(r"^[ \t]*File [^\n]*?(?::\d+, in [^\n]*|, line \d+[^\n]*)\n((?:[ \t]*(?:-*>[ \t]*)?\d+ [^\n]*(?:\n|$))+)", _redact_re.M)
 _REDACT_NAME_LIST = r"((?:'[^'\n]{1,200}'(?:, )?)+)"
-_REDACT_NAME_POSITION_RE = _redact_re.compile(rf"\[{_REDACT_NAME_LIST}\] (?:not in index|not found in axis)|Column\(s\) \[{_REDACT_NAME_LIST}\] do not exist|"
+_REDACT_NAME_POSITION_RE = _redact_re.compile(rf"\[{_REDACT_NAME_LIST}\] (?:not in index|not found in axis)|Column[(]s[)] \[{_REDACT_NAME_LIST}\] do not exist|"
                                       rf"None of \[Index\(\[{_REDACT_NAME_LIST}\], dtype='(\w+)'\)\] are in the \[columns\]|"
                                       r"\bcolumns? '([^'\n]{1,200})'|\bcolumns? \"([^\"\n]{1,200})\"|\bdtype='(\w+)'", _redact_re.IGNORECASE)
 _REDACT_NAME_SHAPE_RE = _redact_re.compile(r"[A-Za-z_][\w.$#-]{0,199}")
@@ -247,7 +247,7 @@ def inspire_redact_text(text, seen, known: str, secrets=()) -> str:
     text = _REDACT_SINGLE_QUOTED_RE.sub(quoted, text)
     messages = [found.span() for found in _REDACT_SPARK_MESSAGE_RE.finditer(text)]
     text = _REDACT_DOUBLE_QUOTED_RE.sub(quoted, text)
-    hidden = [v for v in seen if v in text and not _redact_in_text(v, known) and not _redact_in_text(v, INSPIRE_REDACTED_VALUE)
+    hidden = [v for v in set(seen) if v in text and not _redact_in_text(v, known) and not _redact_in_text(v, INSPIRE_REDACTED_VALUE)
               and not _redact_code_value(v)]
     for value in sorted(hidden, key=len, reverse=True):
         if len(value) >= 4 or (len(value) >= 2 and not value.replace(".", "").replace("-", "").isdigit()):

@@ -1060,18 +1060,18 @@ test('a roll back of a dashboard that no longer exists says Genie builds a new o
   }
 });
 
-test('a notebook Try again that would read a swapped table that is gone is refused on its card with the table named, and nothing is written or started', async () => {
-  const gone = '[TABLE_OR_VIEW_NOT_FOUND] The table or view `main`.`s`.`returns_old` cannot be found. Verify the spelling. SQLSTATE: 42P01';
+test('a notebook Try again that would read a swapped primary table that is gone is refused on its card with the table named, and nothing is written or started', async () => {
+  const gone = '[TABLE_OR_VIEW_NOT_FOUND] The table or view `main`.`s`.`orders_old` cannot be found. Verify the spelling. SQLSTATE: 42P01';
   const assets = { ...V3_ASSETS, ai_reasoning: ready(3, { vibes_checks: checks(['One sentence per decision', 'missing', 'Some reasons run to three sentences']) }) };
-  const lost = versionRow(3, { outputs: V3_OUTPUTS, assets, status: 'ready_with_warnings', top: { data: { ...builtSpec().data, tables: { 'main.s.returns': 'main.s.returns_old' } } } });
-  const ui = await openTower({ ...STATE, history: [lost, ...HISTORY.slice(1)], probeErrors: { '`main`.`s`.`returns_old`': gone } });
+  const lost = versionRow(3, { outputs: V3_OUTPUTS, assets, status: 'ready_with_warnings', top: { data: { ...builtSpec().data, tables: { 'main.s.orders': 'main.s.orders_old' } } } });
+  const ui = await openTower({ ...STATE, history: [lost, ...HISTORY.slice(1)], probeErrors: { '`main`.`s`.`orders_old`': gone } });
   const { page, made } = ui;
   try {
     const card = await pick(page, 'ai_reasoning');
     await card.getByRole('button', { name: 'Try again with the missing thing', exact: true }).click();
     const alert = card.getByRole('alert');
     await alert.waitFor();
-    assert.equal((await alert.textContent()).trim(), 'the preview cannot run because these source tables are missing or not readable: main.s.returns_old (not found). '
+    assert.equal((await alert.textContent()).trim(), 'the preview cannot run because these source tables are missing or not readable: main.s.orders_old (not found). '
       + 'Open Edit, Data step, to swap each for a table with the same role or remove it');
     assert.equal(made.jobs.length, 0);
     assert.deepEqual(insertsOf(made), []);

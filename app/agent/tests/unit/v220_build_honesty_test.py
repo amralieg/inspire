@@ -91,6 +91,37 @@ def test_genie_exhaustion_is_a_genie_failure_not_a_platform_one(agent_ns):
     assert agent_ns["implement_failure_origin"](RuntimeError("timeout")) == "platform"
 
 
+def test_every_failure_origin_has_the_text_the_failure_log_names_it_by(agent_ns):
+    body = re.search(r"def implement_failure_origin\(error\) -> str:\n((?:    .*\n)+)", agent_source()).group(1)
+    origins = set(re.findall(r'return "(\w+)"', body))
+    assert "genie" in origins and len(origins) >= 5
+    assert origins <= set(agent_ns["IMPLEMENT_ORIGIN_TEXT"]), origins - set(agent_ns["IMPLEMENT_ORIGIN_TEXT"])
+
+
+def test_a_genie_exhaustion_is_logged_with_its_own_origin_and_never_as_a_key_error(agent_ns, caplog):
+    obj = inspire(agent_ns)
+    obj._implement_redacted = lambda text, known="": text
+    with caplog.at_level(logging.WARNING, logger="v220"):
+        obj._implement_log_failure("N01-U01", "the Alert", 3, agent_ns["ImplementGenieExhausted"]("Alert", 3, "bad join"))
+    assert "failed in the Genie build rounds" in caplog.text and "KeyError" not in caplog.text
+
+
+class _GrowingRows(set):
+    def __iter__(self):
+        for value in set.__iter__(self):
+            self.add(f"{value}-later")
+            yield value
+
+
+@pytest.mark.parametrize("where", ["notebook", "app_shell"])
+def test_a_row_value_set_that_grows_while_an_error_is_redacted_never_breaks_the_redaction(agent_ns, where):
+    import shell_redact
+    redact = agent_ns["inspire_redact_text"] if where == "notebook" else shell_redact.inspire_redact_text
+    seen = _GrowingRows({"Acme Corp"})
+    assert redact("the App check stopped on Acme Corp", seen, "") == \
+        f"the App check stopped on {agent_ns['INSPIRE_REDACTED_VALUE']}"
+
+
 def test_a_single_source_table_needs_no_join_but_two_sources_still_must_join(agent_ns):
     check = agent_ns["_implement_genie_join_problems"]
     tables = {"c.s.result": "c.s.result", "c.s.a": "c.s.a", "c.s.b": "c.s.b"}
