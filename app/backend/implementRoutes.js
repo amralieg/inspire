@@ -18,7 +18,7 @@ const GR = require('./lib/groupingRule');
 const GP = require('./lib/groupingProfile');
 const { TAGS_UNREAD_NOTE, personalColumn } = require('../frontend/src/lib/personalColumns.js');
 const {
-  clearedText, defaultResultTable, emptyScopeWarningOf, nextAppName, ownSchemaClashNote, readinessScope, removeTable, skippedAsksText, withoutSkippedAsks,
+  clearedText, emptyScopeWarningOf, nextAppName, ownSchemaClashNote, readinessScope, removeTable, skippedAsksText, withoutSkippedAsks,
 } = require('../frontend/src/lib/implementWizard.js');
 const { canonicalDiscoveryType } = require('../frontend/src/lib/discoveryType.js');
 const { runWithRequestDeadline } = require('./lib/sqlStatements');
@@ -562,7 +562,7 @@ function registerImplementRoutes(app, deps) {
   async function useCaseSchemaOf(req, warehouseId, inspireDatabase, sid, useCaseId, businessName) {
     let names;
     try {
-      names = [false, true].map((wholeSid) => defaultResultTable(inspireDatabase, useCaseId, sid, businessName, { wholeSid }));
+      names = I.useCaseSchemaCandidates(inspireDatabase, useCaseId, sid, businessName);
     } catch {
       return null;
     }
@@ -974,8 +974,10 @@ function registerImplementRoutes(app, deps) {
       if (tags) {
         const { rows } = await useCaseSchemaRows(req, warehouseId, catalog, [schema]);
         found = I.useCaseSchemaFacts(rows).schemas[schema.toLowerCase()] || {};
-        const sid = String(tags.inspire_session_id ?? '').trim();
-        if (found.session && found.session !== sid) throw I.badRequest(ownSchemaClashNote(schema, found.session), 409);
+        const who = { inspireDatabase: dbOf(req, splitInspireDatabase).inspire_database, useCaseId: String(tags.inspire_use_case_id ?? '').trim() };
+        if (I.useCaseSchemaOwner(found, { ...who, sessionId: String(tags.inspire_session_id ?? '').trim() }) === 'foreign') {
+          throw I.badRequest(ownSchemaClashNote(schema, found, '', who), 409);
+        }
       }
       const ensure = I.useCaseSchemaEnsure(found, tags);
       if (ensure.create) await executeSql(req.dbHost, token, warehouseId, G.createPlaceSql(catalog, schema));

@@ -23,7 +23,7 @@ def _plain(name):
 def test_python_names_every_shared_case_exactly_like_the_app(agent_ns, case):
     got = agent_ns["compute_result_table_name"](case["use_case_id"], "Predict churn", "", case["inspire_database"],
                                                 session_id=case["session_id"], business_name=case["business_name"],
-                                                whole_sid=case["whole_sid"])
+                                                clash=case["clash"])
     assert _plain(got) == case["table"]
     assert len(_plain(got).split(".")[1]) <= 255
 
@@ -48,6 +48,23 @@ def test_a_result_table_is_in_its_own_schema_only_when_it_carries_this_use_case_
     assert not own("main._inspire_acme_bank_n01_u02_48213.n01_u02_results", "N01-U01", "Acme Bank", 1234567848213, "main.inspire")
     assert not own("main._inspire_acme_bank_n01_u01_48213.n01_u01_results", "N01-U01", "Acme Bank", None, "main.inspire")
     assert not own("", "N01-U01", "Acme Bank", 1234567848213, "main.inspire")
+
+
+def test_the_own_schema_is_the_plain_name_a_clash_name_or_an_older_build_name_and_never_another_use_cases(agent_ns):
+    own = agent_ns["implement_is_own_schema"]
+    sid = 1234567848213
+    for schema in ("_inspire_acme_bank_n01_u01", "_inspire_acme_bank_n01_u01__2", "_inspire_acme_bank_n01_u01__9",
+                   "_inspire_acme_bank_n01_u01_48213", "_inspire_acme_bank_n01_u01_1234567848213"):
+        assert own(("main", schema), "N01-U01", "Acme Bank", sid, "main.inspire"), schema
+    for schema in ("_inspire_acme_bank_n01_u01__1", "_inspire_acme_bank_n01_u01__0", "_inspire_acme_bank_n01_u01_2",
+                   "_inspire_acme_bank_n01_u01_99999", "_inspire_acme_bank_n01_u02", "_inspire_other_n01_u01", "inspire"):
+        assert not own(("main", schema), "N01-U01", "Acme Bank", sid, "main.inspire"), schema
+    assert not own(("sales", "_inspire_acme_bank_n01_u01"), "N01-U01", "Acme Bank", sid, "main.inspire"), "another catalog is not its own"
+    assert own(("main", "_inspire_acme_bank_n01_u01_2"), "N01-U01-2", "Acme Bank", sid, "main.inspire")
+    assert not own(("main", "_inspire_acme_bank_n01_u01_2"), "N01-U01", "Acme Bank", sid, "main.inspire"), \
+        "use case N01-U01-2's plain schema is never N01-U01's clash schema"
+    assert agent_ns["implement_in_own_schema"]("main._inspire_acme_bank_n01_u01.n01_u01_results_s1234567848213", "N01-U01", "Acme Bank", sid,
+                                               "main.inspire"), "a re-run's session table in the reused schema is in its own schema"
 
 
 def test_the_app_gets_schema_level_use_select_and_modify_on_its_own_schema_when_the_builder_manages_it(agent_ns):

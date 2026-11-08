@@ -522,7 +522,7 @@ export default function ImplementWizard({
         if (data.own_schema?.place === 'own' && !data.own_schema.create && data.own_schema.table) {
           const own = resultTableParts(data.own_schema.table);
           apiPostJson(`/api/inspire/implement/create-schema?${q}`, {
-            catalog: own.catalog, schema: own.schema, tags: schemaTagsOf({ sessionId, useCaseId: fallback.use_case_id, businessName: data.business_name }),
+            catalog: own.catalog, schema: own.schema, tags: schemaTagsOf({ sessionId, useCaseId: fallback.use_case_id, businessName: data.business_name, inspireDatabase }),
           }).then((made) => {
             if (cancelled) return;
             if ((made.warnings || []).length) setPlaceNote((made.warnings || []).join(' '));
@@ -704,7 +704,7 @@ export default function ImplementWizard({
         const own = resultTableParts(ownTable);
         try {
           const made = await apiPostJson(`/api/inspire/implement/create-schema?${q}`, {
-            catalog: own.catalog, schema: own.schema, tags: schemaTagsOf({ sessionId, useCaseId: spec.use_case_id, businessName: context?.business_name }),
+            catalog: own.catalog, schema: own.schema, tags: schemaTagsOf({ sessionId, useCaseId: spec.use_case_id, businessName: context?.business_name, inspireDatabase }),
           });
           setOwnSchema((prev) => ({ ...(prev || {}), own_table: ownTable, table: ownTable, place: 'own', create: false }));
           setPlaceNote((made.warnings || []).join(' '));

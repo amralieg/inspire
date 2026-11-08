@@ -979,26 +979,28 @@ export function inspireSchemaResultTable(inspireDatabase, useCaseId, sessionId) 
 }
 
 export const USE_CASE_SCHEMA_PREFIX = '_inspire';
-export const USE_CASE_SCHEMA_SID_DIGITS = 5;
+export const USE_CASE_SCHEMA_CLASH_MARK = '__';
+export const USE_CASE_SCHEMA_CLASH_LIMIT = 9;
 const UC_NAME_LIMIT = 255;
 
-export function useCaseSchemaName(businessName, useCaseId, sessionId, { wholeSid = false } = {}) {
+export function useCaseSchemaName(businessName, useCaseId, sessionId, { clash = 0 } = {}) {
   const sid = String(sessionId ?? '').trim();
   if (!/^\d+$/.test(sid)) throw new Error('a numeric session id is needed to name the use case schema');
   const uc = slugOf(useCaseId);
   if (!uc) throw new Error('a use case id is needed to name the use case schema');
-  const tail = `${uc}_${wholeSid ? sid : sid.slice(-USE_CASE_SCHEMA_SID_DIGITS)}`;
+  const tail = `${uc}${clash > 1 ? `${USE_CASE_SCHEMA_CLASH_MARK}${Math.trunc(clash)}` : ''}`;
   const room = Math.max(0, UC_NAME_LIMIT - USE_CASE_SCHEMA_PREFIX.length - tail.length - 2);
   const business = String(businessName ?? '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '')
     .slice(0, room).replace(/_+$/, '');
   return [USE_CASE_SCHEMA_PREFIX, business, tail].filter(Boolean).join('_');
 }
 
-export function defaultResultTable(inspireDatabase, useCaseId, sessionId, businessName = '', { wholeSid = false } = {}) {
+export function defaultResultTable(inspireDatabase, useCaseId, sessionId, businessName = '', { clash = 0, ofSession = false } = {}) {
   const catalog = String(inspireDatabase ?? '').split('.')[0].replace(/`/g, '').trim();
   const uc = slugOf(useCaseId);
   if (!catalog || !uc) return '';
-  return `${catalog}.${useCaseSchemaName(businessName, useCaseId, sessionId, { wholeSid })}.${uc}_results`;
+  const schema = useCaseSchemaName(businessName, useCaseId, sessionId, { clash });
+  return `${catalog}.${schema}.${uc}_results${ofSession ? `_s${String(sessionId).trim()}` : ''}`;
 }
 
 export function nameOrEmpty(make) {
@@ -1022,8 +1024,17 @@ export function resultPlaceOf(table, ownTable, inspireTable) {
   return 'pick';
 }
 
-export function useCaseSchemaTags({ sessionId, useCaseId, businessName }) {
-  return { inspire_session_id: String(sessionId ?? '').trim(), inspire_use_case_id: String(useCaseId ?? '').trim(), inspire_business: String(businessName ?? '').trim() };
+export function inspireDatabaseKey(inspireDatabase) {
+  return String(inspireDatabase ?? '').replace(/`/g, '').trim().toLowerCase();
+}
+
+export function useCaseSchemaTags({ sessionId, useCaseId, businessName, inspireDatabase }) {
+  return {
+    inspire_session_id: String(sessionId ?? '').trim(),
+    inspire_use_case_id: String(useCaseId ?? '').trim(),
+    inspire_business: String(businessName ?? '').trim(),
+    inspire_database: inspireDatabaseKey(inspireDatabase),
+  };
 }
 
 export function ownSchemaFallbackNote(catalog, me = '') {
@@ -1032,8 +1043,28 @@ export function ownSchemaFallbackNote(catalog, me = '') {
     + `ask the owner of ${catalog} to run GRANT CREATE SCHEMA ON CATALOG \`${catalog}\` TO ${who}, then pick Its own schema again.`;
 }
 
-export function ownSchemaClashNote(schema, otherSession) {
-  return `${schema} already holds the tables of session ${otherSession}, so this use case's own schema carries the full session id instead.`;
+export function ownSchemaHolderText(holder = {}, { useCaseId = '', inspireDatabase = '' } = {}) {
+  const uc = String(holder.useCase || '').trim();
+  const db = String(holder.database || '').trim();
+  const sid = String(holder.session || '').trim();
+  if (uc && uc.toLowerCase() !== String(useCaseId).trim().toLowerCase()) return `it holds use case ${uc}`;
+  if (db && db !== inspireDatabaseKey(inspireDatabase)) return `it belongs to the Inspire database ${db}`;
+  if (sid && !db) return `it holds session ${sid}`;
+  return 'Inspire did not create it for this use case';
+}
+
+export function ownSchemaClashNote(schema, holder, chosen = '', who = {}) {
+  const taken = `${schema} already exists and is not this use case's schema (${ownSchemaHolderText(holder, who)})`;
+  return chosen ? `${taken}, so this use case's own schema is ${chosen}.` : `${taken}.`;
+}
+
+export function ownSchemaReuseNote(schema, otherSession, table) {
+  return `${schema} is this use case's schema from session ${otherSession} of this Inspire database, so Inspire uses it again; `
+    + `this session's results go to ${table} so session ${otherSession} keeps its rows.`;
+}
+
+export function ownSchemaAllTakenNote(first, last) {
+  return `${first} through ${last} already exist and none is this use case's schema, so this use case's tables go to the Inspire database schema.`;
 }
 
 export function defaultSpecFromUseCase(uc, { warehouseId, inspireDatabase, sessionId, owner, businessName } = {}) {

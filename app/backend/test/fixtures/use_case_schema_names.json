@@ -3,11 +3,20 @@
     {
       "name": "plain business",
       "inspire_database": "main.inspire",
+      "business_name": "Airline",
+      "use_case_id": "N01-U01",
+      "session_id": "1234567848213",
+      "clash": 0,
+      "table": "main._inspire_airline_n01_u01.n01_u01_results"
+    },
+    {
+      "name": "a business of two words",
+      "inspire_database": "main.inspire",
       "business_name": "Acme Bank",
       "use_case_id": "N01-U01",
       "session_id": "1234567848213",
-      "whole_sid": false,
-      "table": "main._inspire_acme_bank_n01_u01_48213.n01_u01_results"
+      "clash": 0,
+      "table": "main._inspire_acme_bank_n01_u01.n01_u01_results"
     },
     {
       "name": "non-ASCII business",
@@ -15,17 +24,17 @@
       "business_name": "Café Ünïon — مصرف الإمارات",
       "use_case_id": "N01-U01",
       "session_id": "1234567848213",
-      "whole_sid": false,
-      "table": "main._inspire_caf_n_on_n01_u01_48213.n01_u01_results"
+      "clash": 0,
+      "table": "main._inspire_caf_n_on_n01_u01.n01_u01_results"
     },
     {
       "name": "a letter whose lowercase is ASCII",
       "inspire_database": "main.inspire",
-      "business_name": "Kelvin & Co.",
+      "business_name": "Kelvin & Co.",
       "use_case_id": "N02-U03",
       "session_id": "1234567848213",
-      "whole_sid": false,
-      "table": "main._inspire_kelvin_co_n02_u03_48213.n02_u03_results"
+      "clash": 0,
+      "table": "main._inspire_kelvin_co_n02_u03.n02_u03_results"
     },
     {
       "name": "a business with no a-z or 0-9",
@@ -33,8 +42,8 @@
       "business_name": "مصرف",
       "use_case_id": "N01-U01",
       "session_id": "1234567848213",
-      "whole_sid": false,
-      "table": "main._inspire_n01_u01_48213.n01_u01_results"
+      "clash": 0,
+      "table": "main._inspire_n01_u01.n01_u01_results"
     },
     {
       "name": "an empty business",
@@ -42,44 +51,44 @@
       "business_name": "",
       "use_case_id": "N01-U01",
       "session_id": "1234567848213",
-      "whole_sid": false,
-      "table": "main._inspire_n01_u01_48213.n01_u01_results"
+      "clash": 0,
+      "table": "main._inspire_n01_u01.n01_u01_results"
     },
     {
-      "name": "a session id shorter than 5 digits",
+      "name": "the session id never shows in the name",
       "inspire_database": "main.inspire",
       "business_name": "Acme Bank",
       "use_case_id": "N01-U01",
       "session_id": "42",
-      "whole_sid": false,
-      "table": "main._inspire_acme_bank_n01_u01_42.n01_u01_results"
+      "clash": 0,
+      "table": "main._inspire_acme_bank_n01_u01.n01_u01_results"
     },
     {
-      "name": "a session id of exactly 5 digits",
-      "inspire_database": "main.inspire",
-      "business_name": "Acme Bank",
-      "use_case_id": "N01-U01",
-      "session_id": "48213",
-      "whole_sid": false,
-      "table": "main._inspire_acme_bank_n01_u01_48213.n01_u01_results"
-    },
-    {
-      "name": "the full session id after a tag clash",
+      "name": "the second name after a clash",
       "inspire_database": "main.inspire",
       "business_name": "Acme Bank",
       "use_case_id": "N01-U01",
       "session_id": "1234567848213",
-      "whole_sid": true,
-      "table": "main._inspire_acme_bank_n01_u01_1234567848213.n01_u01_results"
+      "clash": 2,
+      "table": "main._inspire_acme_bank_n01_u01__2.n01_u01_results"
     },
     {
-      "name": "a 63-bit session id",
+      "name": "the last clash name",
       "inspire_database": "main.inspire",
       "business_name": "Acme Bank",
       "use_case_id": "N01-U01",
       "session_id": "9223372036854775807",
-      "whole_sid": true,
-      "table": "main._inspire_acme_bank_n01_u01_9223372036854775807.n01_u01_results"
+      "clash": 9,
+      "table": "main._inspire_acme_bank_n01_u01__9.n01_u01_results"
+    },
+    {
+      "name": "clash 1 is the plain name",
+      "inspire_database": "main.inspire",
+      "business_name": "Acme Bank",
+      "use_case_id": "N01-U01",
+      "session_id": "1234567848213",
+      "clash": 1,
+      "table": "main._inspire_acme_bank_n01_u01.n01_u01_results"
     },
     {
       "name": "a long business is trimmed to stay within 255 characters",
@@ -87,17 +96,26 @@
       "business_name": "Global Retail Global Retail Global Retail Global Retail Global Retail Global Retail Global Retail Global Retail Global Retail Global Retail Global Retail Global Retail Global Retail Global Retail Global Retail Global Retail Global Retail Global Retail Global Retail Global Retail Global Retail Global Retail Global Retail Global Retail Global Retail Global Retail Global Retail Global Retail Global Retail Global Retail Global Retail Global Retail Global Retail Global Retail Global Retail Global Retail Global Retail Global Retail Global Retail Global Retail ",
       "use_case_id": "N01-U01",
       "session_id": "1234567848213",
-      "whole_sid": true,
-      "table": "main._inspire_global_retail_global_retail_global_retail_global_retail_global_retail_global_retail_global_retail_global_retail_global_retail_global_retail_global_retail_global_retail_global_retail_global_retail_global_retail_global_retail_n01_u01_1234567848213.n01_u01_results"
+      "clash": 0,
+      "table": "main._inspire_global_retail_global_retail_global_retail_global_retail_global_retail_global_retail_global_retail_global_retail_global_retail_global_retail_global_retail_global_retail_global_retail_global_retail_global_retail_global_retail_global_retail_n01_u01.n01_u01_results"
+    },
+    {
+      "name": "a long business keeps room for the clash mark",
+      "inspire_database": "main.inspire",
+      "business_name": "Global Retail Global Retail Global Retail Global Retail Global Retail Global Retail Global Retail Global Retail Global Retail Global Retail Global Retail Global Retail Global Retail Global Retail Global Retail Global Retail Global Retail Global Retail Global Retail Global Retail Global Retail Global Retail Global Retail Global Retail Global Retail Global Retail Global Retail Global Retail Global Retail Global Retail Global Retail Global Retail Global Retail Global Retail Global Retail Global Retail Global Retail Global Retail Global Retail Global Retail ",
+      "use_case_id": "N01-U01",
+      "session_id": "1234567848213",
+      "clash": 2,
+      "table": "main._inspire_global_retail_global_retail_global_retail_global_retail_global_retail_global_retail_global_retail_global_retail_global_retail_global_retail_global_retail_global_retail_global_retail_global_retail_global_retail_global_retail_global_reta_n01_u01__2.n01_u01_results"
     },
     {
       "name": "a business trimmed onto an underscore drops it",
       "inspire_database": "main.inspire",
-      "business_name": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa bcd",
+      "business_name": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa bcd",
       "use_case_id": "N01-U01",
       "session_id": "9223372036854775807",
-      "whole_sid": true,
-      "table": "main._inspire_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa_n01_u01_9223372036854775807.n01_u01_results"
+      "clash": 0,
+      "table": "main._inspire_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa_n01_u01.n01_u01_results"
     },
     {
       "name": "a long use case id is capped at 40 characters",
@@ -105,8 +123,8 @@
       "business_name": "Acme",
       "use_case_id": "N01-U01-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
       "session_id": "1234567848213",
-      "whole_sid": false,
-      "table": "main._inspire_acme_n01_u01_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx_48213.n01_u01_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx_results"
+      "clash": 0,
+      "table": "main._inspire_acme_n01_u01_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.n01_u01_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx_results"
     },
     {
       "name": "runs of other characters become one underscore",
@@ -114,8 +132,8 @@
       "business_name": "  --Acme!!!Bank__Group--  ",
       "use_case_id": "n01__u01",
       "session_id": "1234567848213",
-      "whole_sid": false,
-      "table": "main._inspire_acme_bank_group_n01_u01_48213.n01_u01_results"
+      "clash": 0,
+      "table": "main._inspire_acme_bank_group_n01_u01.n01_u01_results"
     },
     {
       "name": "a quoted catalog with a hyphen",
@@ -123,8 +141,8 @@
       "business_name": "Acme",
       "use_case_id": "N01-U01",
       "session_id": "1234567848213",
-      "whole_sid": false,
-      "table": "team-lake._inspire_acme_n01_u01_48213.n01_u01_results"
+      "clash": 0,
+      "table": "team-lake._inspire_acme_n01_u01.n01_u01_results"
     }
   ],
   "errors": [
@@ -134,8 +152,8 @@
       "business_name": "Acme",
       "use_case_id": "N01-U01",
       "session_id": null,
-      "whole_sid": false,
-      "error": "session id"
+      "error": "session id",
+      "clash": 0
     },
     {
       "name": "an empty session id",
@@ -143,8 +161,8 @@
       "business_name": "Acme",
       "use_case_id": "N01-U01",
       "session_id": "",
-      "whole_sid": false,
-      "error": "session id"
+      "error": "session id",
+      "clash": 0
     },
     {
       "name": "a session id with letters",
@@ -152,8 +170,8 @@
       "business_name": "Acme",
       "use_case_id": "N01-U01",
       "session_id": "12a45",
-      "whole_sid": false,
-      "error": "session id"
+      "error": "session id",
+      "clash": 0
     },
     {
       "name": "a negative session id",
@@ -161,8 +179,8 @@
       "business_name": "Acme",
       "use_case_id": "N01-U01",
       "session_id": "-48213",
-      "whole_sid": false,
-      "error": "session id"
+      "error": "session id",
+      "clash": 0
     },
     {
       "name": "non-ASCII digits",
@@ -170,8 +188,8 @@
       "business_name": "Acme",
       "use_case_id": "N01-U01",
       "session_id": "٤٨٢١٣",
-      "whole_sid": false,
-      "error": "session id"
+      "error": "session id",
+      "clash": 0
     }
   ]
 }
