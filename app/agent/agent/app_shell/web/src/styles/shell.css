@@ -185,6 +185,8 @@ button,input,select,textarea{font:inherit;color:inherit}
 .msg-b li{margin:2px 0}
 .msg-b code{padding:0 4px;border:1px solid var(--line);border-radius:4px;font-size:.92em}
 .msg-b .msg-h{font-weight:650}
+.msg-b .msg-t+p,.msg-b .msg-t+ul,.msg-b .msg-t+ol,.msg-b .msg-t+.msg-h{margin-top:8px}
+.msg-hr{margin:8px 0;border:0;border-top:1px solid var(--line)}
 .cursor{display:inline-block;width:7px;height:14px;margin-inline-start:2px;background:var(--brand);vertical-align:-2px;animation:blink 1s steps(2) infinite}
 @keyframes blink{50%{opacity:0}}
 .msg-t{margin-top:8px;overflow-x:auto;border:1px solid var(--line);border-radius:8px}

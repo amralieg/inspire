@@ -34,13 +34,61 @@ export function linkParts(text) {
   return out;
 }
 
+const TABLE_RULE = /^\s*\|?\s*:?-+:?\s*(?:\|\s*:?-+:?\s*)*\|?\s*$/;
+const RULE = /^\s{0,3}([-*_])(?:\s*\1){2,}\s*$/;
+
+export function tableCells(line) {
+  const cells = [''];
+  const source = String(line || '').trim();
+  for (let i = 0; i < source.length; i += 1) {
+    if (source[i] === '\\' && source[i + 1] === '|') {
+      cells[cells.length - 1] += '|';
+      i += 1;
+    } else if (source[i] === '|') {
+      cells.push('');
+    } else {
+      cells[cells.length - 1] += source[i];
+    }
+  }
+  if (source.startsWith('|')) cells.shift();
+  if (cells.length > 1 && source.endsWith('|') && !source.endsWith('\\|')) cells.pop();
+  return cells.map((cell) => cell.trim());
+}
+
+const isTableRule = (line) => line.includes('|') && TABLE_RULE.test(line);
+
+function cellAlign(rule) {
+  const left = rule.startsWith(':');
+  const right = rule.endsWith(':');
+  return left && right ? 'center' : right ? 'right' : left ? 'left' : '';
+}
+
+const fitRow = (cells, n) => Array.from({ length: n }, (_, i) => cells[i] ?? '');
+
 export function markdownBlocks(text) {
   const blocks = [];
   let open = null;
-  for (const line of String(text || '').replace(/\r\n?/g, '\n').split('\n')) {
+  const lines = String(text || '').replace(/\r\n?/g, '\n').split('\n');
+  for (let at = 0; at < lines.length; at += 1) {
+    const line = lines[at];
+    if (open && open.type === 'table' && line.includes('|') && line.trim()) {
+      open.rows.push(fitRow(tableCells(line), open.head.length));
+      continue;
+    }
+    if (line.includes('|') && at + 1 < lines.length && isTableRule(lines[at + 1]) && !isTableRule(line)) {
+      const head = tableCells(line);
+      const align = fitRow(tableCells(lines[at + 1]).map(cellAlign), head.length);
+      open = { type: 'table', head, align, rows: [] };
+      blocks.push(open);
+      at += 1;
+      continue;
+    }
     const heading = /^\s{0,3}#{1,6}\s+(.*?)\s*#*\s*$/.exec(line);
     const item = /^\s*(?:([-*•])|(\d{1,3})[.)])\s+(.*)$/.exec(line);
-    if (heading) {
+    if (RULE.test(line)) {
+      blocks.push({ type: 'hr' });
+      open = null;
+    } else if (heading) {
       blocks.push({ type: 'h', text: heading[1] });
       open = null;
     } else if (item) {
