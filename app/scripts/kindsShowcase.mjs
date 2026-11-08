@@ -142,7 +142,7 @@ const DRAFTS = [
     serve: 'A forecast cockpit for replenishment: the coming weeks\' demand per item and store with its range, and the order to place, which planners accept or override.',
     how: 'Forecasting: one exponential smoothing model per series learns trend, weekly seasonality and holiday effects from 2 years of sales, and must beat a seasonal naive forecast before it is used.',
     value: 'Fewer stockouts and less overstock: lost margin avoided plus holding cost saved, from sales_qty, on_hand and unit_margin.',
-    story: 'Demand rises 6% over the next 4 weeks. 14 store-items will run past shelf capacity unless orders change.',
+    story: 'Demand rises 6% over the next 4 weeks. 7 store-items will run past shelf capacity unless orders change.',
     stake: '$2.4M a year', tables: ['store_sales', 'inventory', 'item', 'date_dim'], result: 'demand_forecast', app: 'store-orders', title: 'Store order cockpit',
     genie: [
       g('Why does Store 12 jump in week 48?', 'Week 48 holds the holiday weekend. Sales rose 34% and 31% that week in the last 2 years, and the model carries that effect forward.', "SELECT period, actual, forecast, lower, upper FROM demand_forecast__series WHERE series_id = 'store_12' AND period BETWEEN 44 AND 50"),
@@ -155,6 +155,10 @@ const DRAFTS = [
         ['Item 7781 at Store 12', 'Camping', 40, 300, 'Raise the order', ['Local event last year', 'Forecast range wide']], ['Item 3306 at Store 7', 'Bags', 210, 260, 'Raise the order a little', ['Demand rising']],
         ['Item 5120 at Store 44', 'Kids', 180, 150, 'Cut the order', ['Stock above forecast']], ['Item 2290 at Store 19', 'Home', 90, 80, 'Keep the order', ['On track']]],
       accuracy: [['Store 12', 0.62], ['Store 31', 0.71], ['Store 7', 0.84], ['Store 44', 1.06]],
+      series: [['Item 4471 at Store 12', 'Outerwear', 0.62, 620, 480], ['Item 1209 at Store 31', 'Footwear', 0.71, 410, 360], ['Item 7781 at Store 12', 'Camping', 1.24, 300, 220],
+        ['Item 3306 at Store 7', 'Bags', 0.84, 260, 240], ['Item 5120 at Store 44', 'Kids', 1.06, 150, 200], ['Item 2290 at Store 19', 'Home', 1.09, 80, 120], ['Item 6610 at Store 12', 'Outerwear', 0.69, 540, 450],
+        ['Item 9015 at Store 31', 'Camping', 1.12, 190, 210], ['Item 4471 at Store 31', 'Outerwear', 0.74, 380, 320], ['Item 1209 at Store 7', 'Footwear', 0.81, 290, 300],
+        ['Item 8820 at Store 44', 'Home', 1.18, 130, 150], ['Item 3306 at Store 12', 'Bags', 0.88, 310, 260]],
     },
   },
   {
@@ -174,7 +178,7 @@ const DRAFTS = [
       kpi: 'Chance of the $4.0M margin target',
       base: 4200000, target: 4000000, sd: 220000,
       levers: [['price', 'Price change, %', 0.09], ['volume', 'Volume change, %', 0.04], ['unit_cost', 'Unit cost change, %', -0.07]],
-      scenarios: [['base', 4200000, 3920000, 4480000, 82], ['upside', 4560000, 4270000, 4850000, 96], ['downside', 3730000, 3450000, 4010000, 11]],
+      scenarios: [['base', {}], ['upside', { price: 4 }], ['downside', { unit_cost: 5, volume: -3 }]],
       exposures: [
         ['Private-label snacks', 'North', 310000, 'Hold the 2% price rise on private-label snacks', ['Unit cost rose 6% last quarter', 'The largest margin swing under the cost lever']],
         ['Fresh produce', 'South', 240000, 'Agree next quarter\'s produce cost with the two main growers', ['Unit cost swung 9% a quarter over 3 years', 'The thinnest margin per unit']],
@@ -614,8 +618,10 @@ function decisionData(u, picked) {
 function forecastPage(u, spec) {
   return {
     ...base(u, spec),
-    story: `${u.story} The next weeks need {next_forecast} units; {at_risk_n} store-items carry a forecast error above the naive benchmark.`,
+    story: `${u.story} The next weeks need {next_forecast} units; ${u.mvp.series.filter(([, , mase]) => mase > 1).length} store-items carry a forecast error above the naive benchmark.`,
     kpis: byId(spec.kpis, { at_risk_n: { label: 'Store-items at risk' }, orders_open: { label: 'Orders to decide' } }),
+    tables: textOf(spec.tables, { at_risk: { title: 'Store-items at risk', hint: 'Store-items whose forecast is worse than naive or whose demand runs past the shelf.',
+      columns: textOf(spec.tables.find((t) => t.id === 'at_risk').columns, { series_label: { label: 'Store-item' }, upside: { label: 'Units past the shelf' } }) } }),
     records: { ...spec.records, title: 'Store orders to place', hint: 'Store-items from the latest run, ranked by the stock at risk.' },
     plan: { ...spec.plan, title: 'Order plan', hint: 'The suggested order for each store-item from the forecast. Accept it, or override it with a reason.' },
     filters: filterText(spec, { category: ['Category'], region: ['Store'], channel: ['Channel'] }),
@@ -635,14 +641,15 @@ function forecastData(u) {
   const fan = weeks.map((x, i) => (i < 12 ? { x, y0: 8600 + i * 120 + (i % 4 === 3 ? 700 : 0), y1: null, y2: null, y3: null }
     : { x, y0: null, y1: 10100 + (i - 12) * 260, y2: 9400 + (i - 12) * 220, y3: 10800 + (i - 12) * 300 }));
   const total = (y) => fan.reduce((s, r) => s + (r[y] || 0), 0);
+  const atRisk = u.mvp.series.filter(([, , mase, next, shelf]) => mase > 1 || next > shelf);
   return {
-    kpis: { next_forecast: { now: total('y1') }, last_actual: { now: total('y0') }, at_risk_n: { now: 14 }, orders_open: { now: u.mvp.orders.length } },
+    kpis: { next_forecast: { now: total('y1') }, last_actual: { now: total('y0') }, at_risk_n: { now: atRisk.length }, orders_open: { now: u.mvp.orders.length } },
     charts: {
       fan: { columns: [], rows: fan, truncated: false },
       vs_capacity: { columns: [], rows: weeks.slice(12).map((x, i) => ({ x, y0: 10100 + i * 260, y1: 10800 + i * 300, y2: 11900 })), truncated: false },
       accuracy: { columns: [], rows: u.mvp.accuracy.map(([x, y0]) => ({ x, y0 })), truncated: false },
     },
-    tables: { at_risk: { columns: [], rows: u.mvp.orders.slice(0, 4).map(([label, category, current, recommended]) => ({ series_label: label, category, backtest_mase: 0.7, next_forecast: recommended, upside: Math.round(recommended * 0.18) })), truncated: false } },
+    tables: { at_risk: { columns: [], rows: atRisk.map(([series_label, category, backtest_mase, next_forecast, shelf]) => ({ series_label, category, backtest_mase, next_forecast, upside: Math.max(0, next_forecast - shelf) })), truncated: false } },
     errors: {},
   };
 }
@@ -719,10 +726,14 @@ function scenarioRows(u) {
 
 function scenarioData(u) {
   const m = u.mvp;
+  const rows = m.scenarios.map(([scenario_id, values]) => {
+    const { p10, p50, p90, prob_target } = scenarioEvaluate(u, values).outcome;
+    return { scenario_id, p10, p50, p90, prob_target, chance_pct: Math.round(prob_target * 100) };
+  });
   return {
-    kpis: { base_p50: { now: m.base }, base_chance: { now: m.scenarios[0][4] }, last_margin: { now: 4050000, before: 3980000 } },
+    kpis: { base_p50: { now: rows[0].p50 }, base_chance: { now: rows[0].chance_pct }, last_margin: { now: 4050000, before: 3980000 } },
     charts: { swing: { columns: [], rows: [['Unit cost', 350000], ['Price', 270000], ['Volume', 200000]].map(([x, d]) => ({ x, y0: -d, y1: d })), truncated: false } },
-    tables: { scenarios: { columns: [], rows: m.scenarios.map(([scenario_id, p50, p10, p90, chance]) => ({ scenario_id, p10, p50, p90, prob_target: chance / 100, chance_pct: chance })), truncated: false } },
+    tables: { scenarios: { columns: [], rows, truncated: false } },
     errors: {},
   };
 }

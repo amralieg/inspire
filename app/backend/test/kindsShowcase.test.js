@@ -283,7 +283,7 @@ const HEADLINE_TIES = {
   decision_queue: [['total_loss', 'now', 'loss_trend', ['y0'], 'last'], ['total_loss', 'before', 'loss_trend', ['y0'], 'previous'], ['total_loss', 'now', 'by_category', ['y0'], 'sum'],
     ['total_loss', 'now', 'pareto', ['y0'], 'sum']],
   monitor_triage: [['open_n', 'now', 'by_rule', ['y0'], 'sum'], ['open_n', 'now', 'by_age', ['y0'], 'sum'], ['exposure', 'now', 'by_age', ['y1'], 'sum']],
-  forecast_cockpit: [['next_forecast', 'now', 'fan', ['y1'], 'sum'], ['last_actual', 'now', 'fan', ['y0'], 'sum']],
+  forecast_cockpit: [['next_forecast', 'now', 'fan', ['y1'], 'sum'], ['last_actual', 'now', 'fan', ['y0'], 'sum'], ['at_risk_n', 'now', 'at_risk', ['series_label'], 'count']],
   performance_explainer: [['plan', 'now', 'walk', ['y0'], 'first'], ['actual', 'now', 'walk', ['y0'], 'last'], ['variance', 'now', 'drivers', ['y0', 'y1'], 'sum']],
   segment_explorer: [['members', 'now', 'worth', ['y0'], 'sum']],
   lift_readout: [['incremental', 'now', 'curves', ['y0'], 'sum'], ['incremental', 'now', 'waterfall', ['y0'], 'first']],
@@ -296,9 +296,9 @@ const HEADLINE_TIES = {
 function headlineGaps(layout, data) {
   const gaps = [];
   for (const [kpi, side, chart, series, how] of HEADLINE_TIES[layout]) {
-    const rows = (data.charts[chart]?.rows || []).filter((r) => series.some((y) => r[y] != null));
+    const rows = (data.charts[chart]?.rows || data.tables?.[chart]?.rows || []).filter((r) => series.some((y) => r[y] != null));
     const value = (r) => series.reduce((s, y) => s + (Number(r[y]) || 0), 0);
-    const shown = { sum: () => rows.reduce((s, r) => s + value(r), 0), first: () => value(rows[0]), last: () => value(rows[rows.length - 1]), previous: () => value(rows[rows.length - 2]) }[how]();
+    const shown = { sum: () => rows.reduce((s, r) => s + value(r), 0), first: () => value(rows[0]), last: () => value(rows[rows.length - 1]), previous: () => value(rows[rows.length - 2]), count: () => rows.length }[how]();
     const headline = data.kpis[kpi]?.[side];
     if (!rows.length || Math.round(headline) !== Math.round(shown)) gaps.push(`${kpi}.${side} ${Math.round(headline)} but ${chart} ${how} ${Math.round(shown)}`);
   }
@@ -332,6 +332,44 @@ test('on every demo page the headline figures equal the chart data they summariz
   off.charts.trend.rows.at(-1).y0 += 200000;
   off.charts.by_region.rows[0].y1 -= 1;
   assert.deepEqual(headlineGaps('dashboard', off), ['revenue.now 4200000 but trend last 4400000', 'prior.now 4600000 but by_region sum 4599999']);
+  const forecast = USE_CASES.find((u) => u.no === 'N03-U01');
+  const risk = structuredClone(mvpApi(forecast, { pages: [mvpPage(forecast)] }).routes['POST page']({}));
+  risk.tables.at_risk.rows.pop();
+  assert.deepEqual(headlineGaps('forecast_cockpit', risk), ['at_risk_n.now 11 but at_risk count 10']);
+});
+
+function scenarioGaps(u, data, scenarioEvaluate) {
+  const gaps = [];
+  const rows = data.tables.scenarios?.rows || [];
+  if (rows.length !== u.mvp.scenarios.length) gaps.push(`shows ${rows.length} scenarios but the model sets ${u.mvp.scenarios.length}`);
+  for (const [id, values] of u.mvp.scenarios) {
+    const row = rows.find((r) => r.scenario_id === id);
+    const model = scenarioEvaluate(u, values).outcome;
+    const expected = { p10: model.p10, p50: model.p50, p90: model.p90, prob_target: model.prob_target, chance_pct: Math.round(model.prob_target * 100) };
+    for (const [field, value] of Object.entries(expected)) if (row?.[field] !== value) gaps.push(`${id} ${field} ${row?.[field]} but the model gives ${value}`);
+  }
+  return gaps;
+}
+
+test('every scenario the demo shows states the chance, P10, P50 and P90 the scenario model gives for its levers (must-exclude)', async () => {
+  const { USE_CASES, mvpApi, mvpPage, scenarioEvaluate } = await kinds();
+  const labs = USE_CASES.filter((u) => u.mvp.layout === 'scenario_lab');
+  assert.ok(labs.length > 0, 'the demo has a scenario lab');
+  const b = bundle();
+  const gaps = [];
+  for (const u of labs) {
+    const answers = Object.entries(b.mvps[u.no].api).filter(([key]) => key.startsWith('POST /api/page '));
+    assert.ok(answers.length > 0, `${u.no} recorded its page`);
+    for (const [key, answer] of answers) gaps.push(...scenarioGaps(u, answer.body, scenarioEvaluate).map((g) => `${u.no} ${key}: ${g}`));
+  }
+  assert.deepEqual(gaps, []);
+  const lab = labs[0];
+  const off = structuredClone(mvpApi(lab, { pages: [mvpPage(lab)] }).routes['POST page']({}));
+  off.tables.scenarios.rows.find((r) => r.scenario_id === 'upside').chance_pct = 96;
+  assert.deepEqual(scenarioGaps(lab, off, scenarioEvaluate), ['upside chance_pct 96 but the model gives 99']);
+  off.tables.scenarios.rows.pop();
+  assert.deepEqual(scenarioGaps(lab, off, scenarioEvaluate), ['shows 2 scenarios but the model sets 3', 'upside chance_pct 96 but the model gives 99', 'downside p10 undefined but the model gives 3448400',
+    'downside p50 undefined but the model gives 3730000', 'downside p90 undefined but the model gives 4011600', 'downside prob_target undefined but the model gives 0.11', 'downside chance_pct undefined but the model gives 11']);
 });
 
 const OUT = null;
@@ -387,7 +425,7 @@ const PROSE_FIGURES = {
         const fan = d.chart('fan');
         return pct(sumOf(fan.filter((r) => r.y1 != null).slice(0, 4), (r) => r.y1), sumOf(fan.filter((r) => r.y0 != null).slice(-4), (r) => r.y0)) - 100;
       },
-      14: kpi('at_risk_n'), ...out('4'),
+      7: (d) => d.tables.at_risk.rows.filter((r) => r.upside > 0).length, 5: (d) => d.tables.at_risk.rows.filter((r) => r.backtest_mase > 1).length, ...out('4'),
     },
     'genie 1': out('34%', '31%', '2'),
     'genie 2': out('80%', '9,100', '10,400', '7%', '13', '6%', '9%'),
@@ -593,12 +631,13 @@ test('the prose figure check fails on a wrong figure, a figure nobody classified
   };
   assert.deepEqual(restated('N03-U01', '6%', '18%'), ['story says 18% but the data gives 5.799']);
   assert.deepEqual(restated('N03-U01', '6%', '5%'), ['story says 5% but the data gives 5.799']);
+  assert.deepEqual(restated('N03-U01', '7', '14'), ['story says 14 but the data gives 7']);
   assert.deepEqual(restated('N10-U03', '$186K', '$86K'), ['story says $86K but the data gives at least 110000']);
   assert.deepEqual(restated('N07-U03', '$1.05M', '$1.0M'), ['story says $1.0M but the data gives 1050000']);
   assert.deepEqual(restated('N07-U03', '$1.05M', '$1.1M'), ['story says $1.1M but the data gives 1050000']);
   const forecast = USE_CASES.find((u) => u.no === 'N03-U01');
-  const extra = { ...forecast, story: `${forecast.story} 7 more store-items are late.` };
-  assert.deepEqual(proseGaps(extra, proseData(extra, mvpApi, mvpPage, scenarioEvaluate)), ['story states 7, which is neither checked nor listed as not derivable']);
+  const extra = { ...forecast, story: `${forecast.story} 9 more store-items are late.` };
+  assert.deepEqual(proseGaps(extra, proseData(extra, mvpApi, mvpPage, scenarioEvaluate)), ['story states 9, which is neither checked nor listed as not derivable']);
   const dropped = { ...forecast, story: forecast.story.replace('6%', 'a little') };
   assert.deepEqual(proseGaps(dropped, proseData(dropped, mvpApi, mvpPage, scenarioEvaluate)), ['story no longer states 6%']);
 });
