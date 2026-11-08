@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { closeBrowser, openUi, until } from './uiSupport.mjs';
+import { closeBrowser, idle, openUi, until } from './uiSupport.mjs';
 import { staysInShowcase } from '../../src/lib/showcase.js';
 
 test.after(closeBrowser);
@@ -58,7 +58,7 @@ test('a double click on Stop the run sends one request', async () => {
     await ui.page.getByRole('button', { name: 'Stop this run' }).click();
     await ui.page.getByRole('button', { name: 'Stop the run' }).dblclick();
     await ui.page.getByText('Stopped', { exact: true }).waitFor({ timeout: 10000 });
-    await new Promise((resolve) => setTimeout(resolve, 300));
+    await idle(ui.page);
     assert.equal(calls.posts, 1);
   } finally {
     await ui.close();

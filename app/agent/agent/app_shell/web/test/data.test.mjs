@@ -5,8 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
 import { build } from 'vite';
 import react from '@vitejs/plugin-react';
-import { actBody, CURRENT, DECIDE, F, FIELDS, FILTERS, HISTORY, LABEL, OTHER, PERSON, ROWS, SUMMARY, TABLE, appInfo, holdClock, lister, openApp, serveDist, tracked, until }
-  from './harness.mjs';
+import { CURRENT, DECIDE, F, FIELDS, FILTERS, HISTORY, LABEL, OTHER, PERSON, ROWS, SUMMARY, TABLE, actBody, appInfo, holdClock, idle, lister, openApp, serveDist, tracked, until } from './harness.mjs';
 import { actOutcome, actedText, actionForm, actionProblem, actionValues, changeBadge, explainContext, impactText, leftText, pageText, recordRef, undoText }
   from '../src/records.js';
 import { matching, searchHint } from '../src/filters.js';
@@ -167,7 +166,7 @@ test('search waits 300 ms, asks the server once, and a late answer never replace
   await page.clock.runFor(300);
   await page.waitForFunction(() => document.querySelector('.card--table tbody .cell-t b')?.textContent === 'Fresh answer');
   await until(() => answered.includes('it'));
-  await page.waitForTimeout(200);
+  await idle(page);
   assert.equal(await page.locator('.card--table tbody .cell-t b').innerText(), 'Fresh answer');
   assert.deepEqual(asked(), ['', 'it', 'ite'], 'one request per pause in typing, none for the single i');
   await box.fill('');
@@ -335,7 +334,7 @@ test('a table without the action columns hides the tracker even with decisions o
   const { page, seen, context } = await open(appInfo(DECIDE, 1, TABLE), routes);
   assert.equal(calls.fields, 0, 'the list answer says whether people can act, so no second request');
   await page.waitForFunction(() => document.querySelector('.card--table tbody .cell-t'));
-  await page.waitForTimeout(200);
+  await idle(page);
   assert.equal(await page.getByRole('button', { name: 'Owner' }).count(), 0);
   assert.equal(await page.locator('.impact').count(), 0);
   assert.deepEqual(seen.errors, []);

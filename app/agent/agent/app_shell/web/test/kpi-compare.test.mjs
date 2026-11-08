@@ -1,7 +1,7 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
-import { appInfo, openApp, pageData, serveDist } from './harness.mjs';
+import { appInfo, idle, openApp, pageData, serveDist } from './harness.mjs';
 
 let served;
 let browser;
@@ -40,7 +40,7 @@ test('a compared KPI reads its change against the previous run, whatever run dat
   assert.equal(await itemsTile(page), `\u25b2 20.0% ${VS}`);
   assert.equal(await page.locator('.kpi .delta.is-bad').count(), 1, 'more items on the list is bad when the KPI says down');
   await page.locator('.fld--range select').selectOption('3m');
-  await page.waitForTimeout(300);
+  await idle(page);
   assert.deepEqual(seen.pages.at(-1).filters.run_date, { from: '2026-08-01', to: '2026-10-15' });
   assert.equal(await itemsTile(page), `\u25b2 20.0% ${VS}`, 'the comparison never names the picked dates');
   assert.equal(await page.locator('.kpi').first().locator('.kpi-s').innerText(), '\u00a0', 'a KPI without compare shows no change');

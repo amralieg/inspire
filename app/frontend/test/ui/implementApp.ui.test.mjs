@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
-import { assertFitsScreen, assertOneBadgeOnDefault, choicesShown, closeBrowser, dataToResults, lowContrast, onStep, openAdvanced, openUi, setDark, settled, startMvp, toAppAccess, toSummary, toVibes, until, watchAsks, wizardFit, goToStep } from './uiSupport.mjs';
+import { assertFitsScreen, assertOneBadgeOnDefault, choicesShown, closeBrowser, dataToResults, lowContrast, idle, onStep, openAdvanced, openUi, setDark, settled, startMvp, toAppAccess, toSummary, toVibes, until, watchAsks, wizardFit, goToStep } from './uiSupport.mjs';
 import { MVP_MODE_LABEL, NOTEBOOK_MODE_LABEL } from '../../src/lib/implementWizard.js';
 import { wheelScrolls } from './wheelScroll.mjs';
 
@@ -765,7 +765,7 @@ test('with the App list still loading the wizard opened on Summary keeps Start M
     const waiting = page.getByRole('button', { name: 'Listing the Apps…', exact: true });
     await waiting.waitFor();
     assert.equal(await waiting.isDisabled(), true, 'Start MVP stays off while where the App goes is not settled');
-    await page.waitForTimeout(1500);
+    await idle(page, { held: (r) => new URL(r.url()).pathname === '/api/inspire/implement/merge-targets' });
     assert.equal(await waiting.isDisabled(), true);
     assert.deepEqual(plans, [], 'no plan is asked for a placement that is not settled');
     assert.equal(await page.locator('[role="alert"]').getByText(PLACE_WAITING, { exact: false }).count(), 0, 'waiting is not shown as a mistake');

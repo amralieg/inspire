@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { closeBrowser, openUi, until } from './uiSupport.mjs';
+import { closeBrowser, idle, openUi, until } from './uiSupport.mjs';
 
 test.after(closeBrowser);
 
@@ -29,7 +29,7 @@ test('a table the person picked stays picked when a later listing of its schema 
     failListing = true;
     await page.locator('button[title="t"]').click();
     await page.locator('button[title="t.stock"]').waitFor();
-    await page.waitForTimeout(500);
+    await idle(page);
     await page.getByRole('button', { name: 'Get Started' }).click();
     await until(() => made.launches.length === 1, 'the launch was sent once');
     assert.equal(made.launches[0].params['01_uc_metadata'], 'main.s.salaries', 'a failed re-listing never drops a table the person picked');
@@ -56,13 +56,13 @@ test('a discovery type the person picks while the last session is still being re
   const { page, made } = ui;
   try {
     await until(() => listed >= 1, 'the sessions are listed');
-    await page.waitForTimeout(300);
+    await idle(page);
     await page.getByPlaceholder(BUSINESS).fill('Acme');
     await until(() => asked.length === 1, 'the last session is asked');
     await page.getByRole('button', { name: /^Standard Discovery/ }).click();
     first.open();
     await page.getByText("Prefilled from this business's last session (6001).").waitFor({ timeout: 20000 });
-    await page.waitForTimeout(500);
+    await idle(page);
     await page.locator('button[title="main"]').click();
     await page.locator('button[title="s"]').click();
     await page.locator('button[title="orders"]').click();
@@ -93,7 +93,7 @@ test('a workspace URL the person types while the App defaults load is kept, and 
     defaults.open();
     const settings = page.getByLabel('Setup settings');
     await until(async () => JSON.parse(await settings.textContent()).warehouseId === 'wh-env', 'the defaults fill what the person left empty');
-    await page.waitForTimeout(300);
+    await idle(page);
     assert.equal(await host.inputValue(), 'https://typed.example.com', 'the defaults never replace what the person typed');
     assert.equal(JSON.parse(await settings.textContent()).databricksHost, 'https://typed.example.com');
   } finally {

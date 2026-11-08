@@ -1,7 +1,7 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
-import { TABLE, appInfo, chartsDrawn, openApp, serveDist, steadyBox, toastSays, until } from './harness.mjs';
+import { appInfo, chartsDrawn, framed, idle, moved, openApp, serveDist, steadyBox, TABLE, toastSays, until } from './harness.mjs';
 import { LINK_STALE, UNKNOWN_PAGE, VIEWS_KEY, VIEW_STALE, decodeFilters, encodeFilters, parseHash } from '../src/links.js';
 
 let served;
@@ -59,7 +59,7 @@ test('a link restores the filters once the filter list has loaded, and the first
   const { page, seen, context } = await openAt(`#/n01_u05?f=${f}`);
   await page.waitForFunction(() => document.querySelectorAll('.chip').length === 2);
   await until(() => seen.pages.length > 0);
-  await page.waitForTimeout(400);
+  await idle(page);
   assert.deepEqual(seen.pages.map((p) => p.filters), [{ run_date: { from: '2026-08-01', to: '2026-10-15' }, category: ['Music', 'Books'] }]);
   assert.deepEqual(await page.locator('.chip').allInnerTexts(), ['Category: Music', 'Category: Books']);
   assert.equal(await page.locator('.fld--range select').inputValue(), '3m');
@@ -123,7 +123,7 @@ test('stale values in a link are dropped with one notice, and the address keeps 
   await toastSays(page, LINK_STALE);
   await page.waitForFunction(() => document.querySelectorAll('.chip').length === 1);
   await until(() => seen.pages.length > 0);
-  await page.waitForTimeout(400);
+  await idle(page);
   assert.deepEqual(await page.locator('.chip').allInnerTexts(), ['Category: Music']);
   assert.deepEqual(seen.pages.map((p) => p.filters), [{ ...TWELVE, category: ['Music'] }]);
   assert.deepEqual(linkOf(page), { s: { category: ['Music'] } });
@@ -152,14 +152,14 @@ test('old links and the sidebar, tabs and home layouts keep working, and #/home 
     const { page, seen, context } = await openAt('#/n02_u01', appInfo({ layout }, 2));
     await page.waitForFunction(() => document.querySelector('.ph h1')?.textContent === 'Second desk 1');
     await until(() => seen.pages.some((p) => p.page === 'n02_u01'));
-    await page.waitForTimeout(300);
+    await idle(page);
     assert.equal(hashOf(page), '#/n02_u01', layout);
     assert.equal(await page.locator('.toast').count(), 0, layout);
     assert.deepEqual(seen.errors, [], layout);
     await context.close();
   }
   const { page, seen, context } = await openAt('#/home', appInfo({ layout: 'home' }, 2), { ready: '.pg-h h1' });
-  await page.waitForTimeout(500);
+  await idle(page);
   assert.equal(hashOf(page), '#/home');
   assert.equal(await page.locator('.main h1').innerText(), 'Overview');
   assert.equal(await page.locator('.toast').count(), 0);
@@ -172,7 +172,7 @@ test('old links and the sidebar, tabs and home layouts keep working, and #/home 
   await page.waitForFunction(() => document.querySelector('.fld--range select')?.value === '3m');
   await page.getByRole('button', { name: 'All use cases' }).click();
   await page.waitForFunction(() => document.querySelector('.main h1')?.textContent === 'Overview');
-  await page.waitForTimeout(300);
+  await idle(page);
   assert.equal(hashOf(page), '#/overview');
   assert.deepEqual(seen.errors, []);
   await context.close();
@@ -185,7 +185,7 @@ test('a new link pasted into the open page applies, and Back returns to the filt
   await page.evaluate((h) => { location.hash = h; }, `#/n01_u05?f=${f}`);
   await page.waitForFunction(() => document.querySelector('.fld--range select')?.value === '6m');
   await page.waitForFunction(() => document.querySelectorAll('.chip').length === 1);
-  await page.waitForTimeout(300);
+  await idle(page);
   assert.deepEqual(seen.pages.at(-1).filters, { run_date: { from: '2026-05-01', to: '2026-10-15' }, region: ['North'] });
   await page.evaluate(() => { location.hash = '#/n01_u05'; });
   await page.waitForFunction((h) => location.hash === h, `#/n01_u05?f=${f}`);
@@ -257,7 +257,7 @@ test('save this view, apply it from the Views menu with the address following, a
   assert.equal(await page.locator('.fld--range select').inputValue(), '3m');
   await page.waitForFunction(() => location.hash.includes('f='));
   assert.deepEqual(linkOf(page), view.filters);
-  await page.waitForTimeout(300);
+  await idle(page);
   assert.deepEqual(seen.pages.at(-1).filters, { run_date: { from: '2026-08-01', to: '2026-10-15' }, category: ['Music'] });
   pop = await openViews(page);
   assert.equal(await pop.getByRole('button', { name: 'Music last quarter', exact: true }).getAttribute('aria-current'), 'true');
@@ -360,7 +360,8 @@ test('the browser print keeps the title, the filters in words and the data date 
   assert.equal(await page.getByRole('button', { name: 'Print' }).count(), 0, 'printing is the browser\'s own command');
 
   await page.emulateMedia({ media: 'print' });
-  await page.waitForTimeout(500);
+  await framed(page);
+  await moved(page);
   const report = await page.evaluate(() => {
     const shown = (el) => getComputedStyle(el).display !== 'none' && el.getBoundingClientRect().height > 0;
     const hiddenAll = (sel) => [...document.querySelectorAll(sel)].length > 0 && [...document.querySelectorAll(sel)].every((el) => !shown(el));

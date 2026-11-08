@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { closeBrowser, openUi } from './uiSupport.mjs';
+import { closeBrowser, idle, openUi } from './uiSupport.mjs';
 import { REVIEW_STATE } from './reviewFixtures.js';
 import { NAV_TABS } from '../../src/lib/tabs.js';
 
@@ -68,7 +68,7 @@ test('every page change adds one history entry, Back and Forward walk them in or
     assert.equal(await depth(page), start + 3, 'three page changes, three entries');
 
     await tab(page, 'Build').click();
-    await page.waitForTimeout(600);
+    await idle(page);
     assert.equal(await depth(page), start + 3, 'opening the page already shown adds no entry');
     assert.equal(await hash(page), '#/build/42');
 

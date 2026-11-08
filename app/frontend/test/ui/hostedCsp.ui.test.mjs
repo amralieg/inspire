@@ -76,6 +76,7 @@ test('a page Inside Inspire renders under its strict CSP, reads as the viewer, a
     tab.on('response', (r) => { if (r.url().endsWith('.woff2')) fonts.push({ url: r.url(), status: r.status(), type: r.headers()['content-type'] }); });
     const documentResponse = tab.waitForResponse((r) => r.url() === `${inspire.base}/run/${ID}/`);
     const appCall = tab.waitForResponse((r) => r.url().endsWith(`/run/${ID}/api/app`), { timeout: 90000 });
+    const pageCall = tab.waitForResponse((r) => r.url().endsWith(`/run/${ID}/api/page`), { timeout: 90000 });
     await tab.goto(`${inspire.base}/run/${ID}/#/${inspire.page.id}`, { timeout: 90000 });
     const doc = await documentResponse;
     assert.equal(doc.headers()['content-security-policy'], H.hostedCsp(inspire.base, ID));
@@ -90,10 +91,8 @@ test('a page Inside Inspire renders under its strict CSP, reads as the viewer, a
       'a page Inside Inspire signs viewers in as themselves, so it offers no chart image download, the only blob: use in the shell, and no policy needs blob:');
     await tab.getByText('Hosted CSP test', { exact: false }).first().waitFor({ timeout: 60000 });
     await tab.waitForFunction(() => document.querySelectorAll('#root *').length > 20, null, { timeout: 60000 });
-    const queried = await (async () => {
-      for (let i = 0; i < 100 && !warehouse.calls.some((c) => c.url === '/api/2.0/sql/statements'); i += 1) await tab.waitForTimeout(100);
-      return warehouse.calls.filter((c) => c.url === '/api/2.0/sql/statements');
-    })();
+    await pageCall;
+    const queried = warehouse.calls.filter((c) => c.url === '/api/2.0/sql/statements');
     assert.ok(queried.length > 0, 'the page ran its queries');
     assert.ok(queried.every((c) => c.authorization === 'Bearer viewer-token'), 'every query reads as the viewer, never as the service principal');
     await tab.waitForFunction(() => [...document.fonts].some((f) => f.family === 'Inter' && f.status === 'loaded'), null, { timeout: 30000 });
@@ -119,7 +118,8 @@ test('a page Inside Inspire renders under its strict CSP, reads as the viewer, a
       const own = ownApi ? await fetch(ownApi).then((r) => r.status) : null;
       const image = new Image();
       image.src = '/api/secret?via=image';
-      await new Promise((r) => { setTimeout(r, 500); });
+      const settled = (img) => new Promise((r) => { if (img.complete) r(); else { img.addEventListener('load', r); img.addEventListener('error', r); } });
+      await Promise.all([settled(image), settled(document.getElementById('pwn'))]);
       return { inline: window.__inline, handler: window.__handler, timer: window.__timer, fetchResult, own, violations: (window.__violations || []).slice(before) };
     };
     const injected = await tab.evaluate(inject, './api/app');

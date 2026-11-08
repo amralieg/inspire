@@ -61,10 +61,18 @@ test('the App loads Inter and Newsreader from its own assets under a font-src li
     const link = document.createElement('link');
     link.rel = 'stylesheet';
     link.href = 'https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap';
+    const linked = new Promise((r) => { link.onload = r; link.onerror = r; });
     document.head.appendChild(link);
     const face = new FontFace('Elsewhere', 'url(https://fonts.gstatic.com/s/inter/v1/elsewhere.woff2)');
     await face.load().catch(() => {});
-    await new Promise((r) => { setTimeout(r, 300); });
+    await linked;
+    await new Promise((done) => {
+      const check = () => {
+        if (face.status === 'loaded' || window.__violations.some((v) => v.blocked.startsWith('https://fonts.gstatic.com'))) done();
+        else document.addEventListener('securitypolicyviolation', check, { once: true });
+      };
+      check();
+    });
     return { violations: window.__violations.map((v) => v.directive).sort(), face: face.status };
   });
   assert.deepEqual(blocked.violations, ['font-src', 'style-src-elem'], 'the same policy blocks the Google Fonts the App used to load');

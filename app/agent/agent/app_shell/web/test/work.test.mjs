@@ -1,7 +1,7 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
-import { actBody, CURRENT, DECIDE, HISTORY, LABEL, OTHER, ROWS, SUMMARY, TABLE, appInfo, lister, openApp, serveDist, tracked, until } from './harness.mjs';
+import { actBody, appInfo, CURRENT, DECIDE, HISTORY, LABEL, lister, moved, openApp, OTHER, ROWS, sent, serveDist, SUMMARY, TABLE, tracked, until } from './harness.mjs';
 
 let served;
 let browser;
@@ -150,11 +150,11 @@ test('Apply to similar shows the count and five of the records the server found,
   assert.deepEqual(await dialog.locator('.sim li').allInnerTexts(), sample.slice(0, 5).map((s) => s.label));
   assert.equal(await dialog.locator('.sim b').innerText(), '5 of the 12');
   assert.equal(await dialog.locator('select[name="similar_status"]').inputValue(), 'Done', 'the dialog starts from what was just applied');
-  await page.waitForTimeout(300);
+  await sent(page);
   assert.equal(seen.acts.length, 1, 'opening the preview writes nothing');
   await dialog.getByRole('button', { name: 'Cancel' }).click();
   await dialog.waitFor({ state: 'hidden' });
-  await page.waitForTimeout(300);
+  await sent(page);
   assert.equal(seen.acts.length, 1, 'Cancel writes nothing');
   await page.keyboard.press('Escape');
   await page.locator('.cell-t').nth(1).click();
@@ -255,7 +255,7 @@ test('the Undo toast in the record panel never covers the work buttons, the reco
     await page.locator('dialog.drawer .work-f').waitFor();
     await page.locator('dialog.drawer').getByRole('button', { name: 'Done and next' }).click();
     await page.waitForFunction(() => document.querySelector('.toast.is-on .toast-a button'));
-    await page.waitForTimeout(400);
+    await moved(page);
     const hit = await page.evaluate(() => {
       const t = document.querySelector('.toast.is-on').getBoundingClientRect();
       return [...document.querySelectorAll('dialog.drawer .work-f button, dialog.drawer .work-f input, dialog.drawer .panel-h h2, dialog.drawer .panel-h button, dialog.drawer [data-work-k]')].filter((b) => {
@@ -315,7 +315,7 @@ test('the keyboard moves through the list, opens, marks done, snoozes, selects a
   const acts = seen.acts.length;
   const undos = seen.undos.length;
   for (const key of ['d', 's', 'x', 'u', 'j', 'a', '?']) await page.keyboard.press(key);
-  await page.waitForTimeout(400);
+  await sent(page);
   assert.equal(await page.getByLabel('Search the list').inputValue(), 'dsxuja?', 'every key went into the box');
   assert.deepEqual([seen.acts.length, seen.undos.length], [acts, undos], 'no shortcut fired while typing');
   assert.equal(await page.locator('.bulk').count(), 0);

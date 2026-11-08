@@ -1,7 +1,7 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
-import { ASK_GROUPS, TABLE, appInfo, askAudit, chartsDrawn, openApp, serveDist, until } from './harness.mjs';
+import { ASK_GROUPS, TABLE, appInfo, askAudit, chartsDrawn, idle, openApp, serveDist, until } from './harness.mjs';
 import { wholeMoney } from '../src/format.js';
 import {
   DEFAULT_VIEW, WORK_SHOWN, dueText, hubTimes, isMine, moneyText, myWork, myWorkText, nothingText, ownerName, pickReason, reasonFilters,
@@ -180,7 +180,7 @@ test('a click on a thing to fix opens that record on its use case page', async (
   await page.locator('.tbl--things tbody tr').nth(1).click();
   await page.waitForFunction(() => document.querySelector('.ph h1')?.textContent === 'Second desk 1');
   assert.equal(await hashOf(page), '#/n02_u01?rec=c');
-  await page.waitForTimeout(500);
+  await idle(page);
   assert.match(await hashOf(page), /[?&]rec=c(&|$)/, 'the page keeps the record in its link once its filters load');
   assert.deepEqual(seen.errors, []);
   await context.close();
@@ -195,7 +195,7 @@ test('a record link opens that record on its use case page, and closing it takes
   await panel.waitFor({ state: 'detached' });
   assert.match(await hashOf(page), /^#\/n01_u05/);
   assert.doesNotMatch(await hashOf(page), /rec=/);
-  await page.waitForTimeout(300);
+  await idle(page);
   assert.equal(await page.locator('dialog.drawer[open]').count(), 0, 'the closed record stays closed');
   await page.goto(`${served.base}#/n02_u01?rec=c`);
   await page.waitForFunction(() => document.querySelector('dialog.drawer[open] h2')?.textContent === 'Supplier 3381, invoice 77188');
@@ -217,7 +217,7 @@ test('the Genie button on a thing to fix asks Genie about that record by click o
   await until(() => seen.asks.length === 1);
   assert.deepEqual([seen.asks[0].page, seen.asks[0].record_key], ['n02_u01', 'c']);
   await page.locator('aside.genie .msg--genie').waitFor();
-  await page.waitForTimeout(300);
+  await idle(page);
   assert.equal(await page.locator('.pg-h h1').innerText(), 'Overview', 'Enter on the Genie button does not open the record');
   assert.doesNotMatch(await hashOf(page), /rec=/);
   await things.getByRole('button', { name: 'Ask Genie about Wool coat, store 4' }).click();

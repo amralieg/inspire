@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
-import { FILTERS, appInfo, openApp, pageData, serveDist, toastSays, until } from './harness.mjs';
+import { appInfo, FILTERS, idle, openApp, pageData, serveDist, toastSays, until } from './harness.mjs';
 import { VIEWS_KEY, decodeFilters, encodeFilters, parseHash } from '../src/links.js';
 
 let served;
@@ -154,7 +154,7 @@ test('a link and a saved view carry the column filters, and opening them narrows
 test('a page whose tables carry no column filters draws no filter control and sends no column filter', async () => {
   const { page, seen, context } = await openList('', { list: [], tables: {} }, appInfo());
   const list = card(page, LIST);
-  await page.waitForTimeout(300);
+  await idle(page);
   assert.equal(await list.locator('.cf-b').count(), 0);
   assert.equal(await list.locator('.cf-n').count(), 0);
   assert.equal(await list.getByRole('button', { name: 'Clear filters' }).count(), 0);

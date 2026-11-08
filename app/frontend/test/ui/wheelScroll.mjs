@@ -77,7 +77,7 @@ export async function wheelToEnd(page, region, last, name) {
     const end = await region.evaluate((el) => el.scrollHeight - el.clientHeight - el.scrollTop <= 2);
     if (end) break;
     if (now === before) {
-      await page.waitForTimeout(60);
+      await frames(page);
       if ((await region.evaluate((el) => el.scrollTop)) === now) break;
     }
     before = now;

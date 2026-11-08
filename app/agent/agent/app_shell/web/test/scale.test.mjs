@@ -1,7 +1,7 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
-import { FILTERS, TABLE, appInfo, openApp, serveDist } from './harness.mjs';
+import { appInfo, FILTERS, idle, openApp, serveDist, TABLE } from './harness.mjs';
 
 let served;
 let browser;
@@ -91,7 +91,7 @@ test('the decision list and the page start with the stored default dates while t
   };
   const { page, seen, context } = await openApp(browser, served.base, appInfo({}, 1, TABLE), { routes });
   await page.waitForFunction(() => !document.querySelector('.fbar .skel'));
-  await page.waitForTimeout(500);
+  await idle(page);
   assert.ok(seen.records.length >= 1 && seen.records[0].at < marks.filters, 'the list asked before the filter bar answered');
   assert.deepEqual(seen.records[0].filters, { run_date: { from: '2025-11-01', to: '2026-10-15' } });
   assert.deepEqual(seen.pages[0].filters, { run_date: { from: '2025-11-01', to: '2026-10-15' } });
@@ -104,7 +104,7 @@ test('the decision list and the page start with the stored default dates while t
 test('opening a use case page never asks for the overview of every use case, and the Overview asks for it once it opens', async () => {
   const single = await openApp(browser, served.base, appInfo({}, 1, TABLE), { routes: counting() });
   await single.page.locator('.kpi-v').first().waitFor();
-  await single.page.waitForTimeout(500);
+  await idle(single.page);
   assert.deepEqual(overviews(single.seen), [], 'a one use case App never reads every use case');
   assert.ok((single.seen.hub || []).every((body) => body.page === 'n01_u05'), 'the page reads its own things to fix');
   await single.context.close();
@@ -114,11 +114,11 @@ test('opening a use case page never asks for the overview of every use case, and
   await hub.page.goto(`${served.base}#/n01_u05`);
   await hub.page.reload();
   await hub.page.locator('.kpi-v').first().waitFor();
-  await hub.page.waitForTimeout(500);
+  await idle(hub.page);
   assert.deepEqual(overviews(hub.seen), [], 'a page opened from a link never reads every use case');
   await hub.page.locator('.side .nav-i', { hasText: 'Overview' }).click();
   await hub.page.waitForFunction(() => document.querySelector('.side .nav-i.is-on .nav-t b')?.textContent === 'Overview');
-  await hub.page.waitForTimeout(300);
+  await idle(hub.page);
   assert.equal(overviews(hub.seen).length, 1, 'the Overview reads every use case once someone opens it');
   assert.deepEqual(hub.seen.errors, []);
   await hub.context.close();

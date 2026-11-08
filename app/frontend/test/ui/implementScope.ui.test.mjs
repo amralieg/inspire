@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { HARNESS_SETTINGS, HARNESS_USE_CASE, OWNER, built } from './implementFixtures.js';
 import { FIRST_RUN_TITLE, GROUPING_JOINED_NOTE, GROUPING_PLAIN, GROUPING_TITLE, RUN_SCOPE_UNRECORDED, RUN_SCOPE_UNRECORDED_HIDDEN } from '../../src/lib/runScope.js';
-import { closeBrowser, lowContrast, onStep, openAsset, openBuild, openSettings, openUi, toVibes, until, goToStep, toSummary } from './uiSupport.mjs';
+import { closeBrowser, goToStep, idle, lowContrast, onStep, openAsset, openBuild, openSettings, openUi, toSummary, toVibes, until } from './uiSupport.mjs';
 
 test.after(closeBrowser);
 
@@ -562,7 +562,7 @@ test('the Build page states the scope of the last run next to its numbers, and t
   try {
     const card = (await openAsset(quiet.page, 'notebook')).getByRole('region', { name: 'Target KPI', exact: true });
     await card.locator('h4').waitFor({ timeout: 30000 });
-    await quiet.page.waitForTimeout(1500);
+    await idle(quiet.page);
     assert.equal(await card.locator('[data-run-scope-last]').count(), 0, 'a run on every record after another one on every record adds no line');
   } finally {
     await quiet.close();
