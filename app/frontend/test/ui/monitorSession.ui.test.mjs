@@ -278,3 +278,25 @@ test('a refused view grant shows on the Monitor in one plain sentence, and a gra
     }
   }
 });
+
+test('a run whose notebook refused its inputs shows the reason on the Monitor, not the platform line, and a failure with no reason keeps the platform line (must-exclude)', async () => {
+  const reason = 'Validation failed with 1 error:\n\u274c Generation Path is required';
+  const platform = 'Workload failed, see run output for details';
+  for (const [error, expected] of [[reason, /Generation Path is required/], ['', new RegExp(platform)]]) {
+    const backend = sessionBackend({
+      session: () => ({ processing_status: 'ready', completed_percent: 0, completed_on: null, last_updated: ago(MINUTE) }),
+      run: { life_cycle_state: 'TERMINATED', result_state: 'FAILED', run_name: 'Inspire AI - Acme Retail', tasks: [
+        { task_key: 'inspire_notebook', life_cycle_state: 'TERMINATED', result_state: 'FAILED', state_message: platform, run_id: 9, ...(error ? { error } : {}) }] },
+    });
+    const ui = await openMonitor(backend, { sessionOnly: false });
+    try {
+      const card = await statusCard(ui.page);
+      await card.getByText(expected).first().waitFor({ timeout: 10000 });
+      assert.equal(await card.getByText('Run completed, waiting for results...').count(), 0);
+      if (error) assert.equal(await card.getByText(platform).count(), 0, 'the platform line gives way to the reason the notebook gave');
+      assert.deepEqual(ui.pageErrors, []);
+    } finally {
+      await ui.close();
+    }
+  }
+});

@@ -211,6 +211,7 @@ export default function MonitorPage({ settings, update, sessionId, runId, launch
     const failedTask = runInfo?.tasks?.find((t) => t.result_state === 'FAILED');
     statusDetail =
       (outcome.failed && outcome.message) ||
+      failedTask?.error ||
       failedTask?.state_message ||
       runInfo?.state_message ||
       (failedTask

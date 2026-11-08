@@ -96,6 +96,20 @@ def run_main(agent_ns, monkeypatch, is_job, **over):
     return captured
 
 
+@pytest.mark.parametrize("over,needed", [({"11_generation_path": ""}, "Generation Path is required"),
+                                         ({"01_uc_metadata": ""}, "UC Metadata is required")])
+def test_refused_inputs_fail_the_run_instead_of_ending_it_as_a_success(agent_ns, monkeypatch, over, needed):
+    with pytest.raises(ValueError) as exc:
+        run_main(agent_ns, monkeypatch, True, **over)
+    assert not isinstance(exc.value, NotebookExit)
+    assert str(exc.value).startswith("Validation failed with 1 error") and needed in str(exc.value)
+
+
+def test_valid_inputs_never_raise_the_refusal(agent_ns, monkeypatch):
+    captured = run_main(agent_ns, monkeypatch, True)
+    assert captured["inspire"][0]["generation_path"] == "/Workspace/Users/someone/inspire_out"
+
+
 @pytest.mark.parametrize("legacy,mapped", sorted(LEGACY.items()))
 def test_main_passes_the_canonical_value_for_legacy_labels(agent_ns, monkeypatch, legacy, mapped):
     captured = run_main(agent_ns, monkeypatch, True, **{"05_use_cases_quality": legacy})
@@ -122,7 +136,7 @@ def test_blank_genie_code_widget_writes_no_instruction_and_an_explicit_value_win
 
 
 def test_main_unknown_quality_fails_with_valid_options_and_legacy_labels(agent_ns, monkeypatch):
-    with pytest.raises(NotebookExit) as exc:
+    with pytest.raises(ValueError) as exc:
         run_main(agent_ns, monkeypatch, True, **{"05_use_cases_quality": "Premium"})
     message = str(exc.value)
     assert "Use Cases Quality" in message and "05_use_cases_quality" not in message and "'Premium'" in message
