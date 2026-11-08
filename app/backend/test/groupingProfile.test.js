@@ -291,7 +291,7 @@ test('a built use case is profiled on the table its build swapped in, and bad in
     assert.ok(tableReads(swapped.sqlCalls).filter((c) => c.sql.includes('approx_count_distinct')).every((c) => c.sql.includes('`orders_v2`')));
   });
   for (const [body, said] of [[{ ...ASK, scope_days: 0 }, /^scope_days must be/], [{ ...ASK, scope_days: 'x' }, /^scope_days must be/],
-    [{ ...ASK, session_id: 'abc' }, /^session_id must be/], [{ ...ASK, use_case_id: 'a b' }, /^use_case_id must match/]]) {
+    [{ ...ASK, session_id: 'abc' }, /^session_id must be/], [{ ...ASK, use_case_id: 'a b' }, /^That use case id is not one Inspire made/]]) {
     const made = profiled();
     await withApp(made, async (srv) => {
       const got = await post(srv, body);

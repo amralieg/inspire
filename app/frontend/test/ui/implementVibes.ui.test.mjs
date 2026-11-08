@@ -517,11 +517,7 @@ test('a notebook ask the notes hold is removed in Vibe/Add/Remove Features and b
     await choice.getByRole('radio', { name: /^Keep v3 live/ }).waitFor();
     await choice.getByText('v3 stays as it is. Inspire builds each changed part again next to it, named v4, so you can compare them. Remove v3 later on the Build page. '
       + 'The alert is changed in place.', { exact: true }).waitFor();
-    await page.getByRole('button', { name: 'Start MVP', exact: true }).click();
-    await page.locator('[role="alert"]').waitFor();
-    assert.deepEqual(await footerErrors(page), ['choose what happens to v3, the version before this vibe: keep it live or remove it'], 'a rebuild without the choice is refused');
-    assert.equal(made.jobs.length, 0);
-    await choice.getByRole('radio', { name: /^Keep v3 live/ }).check();
+    assert.equal(await choice.getByRole('radio', { name: /^Keep v3 live/ }).isChecked(), true, 'keep live is the choice until another is made');
     await page.getByRole('button', { name: 'Start MVP', exact: true }).click();
     await until(() => made.jobs.length === 1, 'the notebook build');
     const [built] = insertsOf(made);

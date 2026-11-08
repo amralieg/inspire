@@ -50,7 +50,7 @@ const HISTORIES = [
   ['a history read out of order', [row(1), row(3, 'failed'), row(2, 'ready')], 2],
 ];
 
-test('a first build takes a vibe with no choice for the version before, and a rebuild needs keep or remove, in the backend and the wizard alike', async () => {
+test('a first build takes a vibe with no choice for the version before, and a rebuild with no choice keeps the built version live', async () => {
   const W = await lib('implementWizard.js');
   const vibe = 'Put the riskiest customers first';
   const first = I.validateImplementSpec({ ...JSON.parse(JSON.stringify(BASE)), vibes: vibe });
@@ -70,8 +70,11 @@ test('a first build takes a vibe with no choice for the version before, and a re
       assert.deepEqual(W.sectionErrors('vibes', { ...asked }, { built }), [], `wizard: ${name}`);
     } else {
       assert.throws(() => I.planSubmission(settled, asked), (err) => err.statusCode === 400 && err.message === REBUILD_NEEDS_CHOICE, `backend refuses: ${name}`);
-      assert.deepEqual(W.sectionErrors('vibes', { ...asked }, { built }), [`choose what happens to v${built}, the version before this vibe: keep it live or remove it`],
-        `wizard refuses: ${name}`);
+      assert.deepEqual(W.sectionErrors('vibes', { ...asked }, { built }), [], `wizard never waits on the choice: ${name}`);
+      const defaulted = I.withVibePreviousDefault(history, asked);
+      assert.equal(defaulted.vibe_previous, 'keep', `the route keeps v${built} live when no choice came: ${name}`);
+      assert.doesNotThrow(() => I.planSubmission(settled, defaulted), `the defaulted ask builds: ${name}`);
+      assert.equal(I.withVibePreviousDefault(history, { ...asked, vibe_previous: 'remove' }).vibe_previous, 'remove', `a choice made is kept: ${name}`);
       for (const choice of ['keep', 'remove']) {
         assert.doesNotThrow(() => I.planSubmission(settled, { ...clean({ vibes: vibe, vibe_previous: choice }), based_on_version: based }), `${choice}: ${name}`);
         assert.deepEqual(W.sectionErrors('vibes', { ...asked, vibe_previous: choice }, { built }), [], `wizard ${choice}: ${name}`);

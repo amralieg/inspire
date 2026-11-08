@@ -206,7 +206,7 @@ test('the build page has one tile per asset in a fixed order; each asset opens a
   }
 });
 
-test('the Features drawer says plainly which waiting ask Inspire will not build, which is too vague and which two conflict, and Rebuild sends nothing while an unsafe ask waits', async () => {
+test('the Features drawer says plainly which waiting ask Inspire will not build, which is too vague and which two conflict, and Rebuild builds without the skipped asks and says so', async () => {
   const ui = await openTower();
   const { page, made } = ui;
   try {
@@ -228,9 +228,12 @@ test('the Features drawer says plainly which waiting ask Inspire will not build,
     const choice = dialog(page).locator('[data-vibe-previous] input');
     if (await choice.count()) await choice.first().check();
     await rebuildButton(page).click();
-    await dialog(page).getByRole('alert').filter({ hasText: /^Rebuild needs one more thing: take out the 2 asks Inspire does not build first: / }).waitFor();
-    assert.equal(made.jobs.length, 0, 'nothing starts');
-    assert.deepEqual(insertsOf(made), [], 'and nothing is written');
+    await until(() => made.jobs.length === 1, 'the build without the skipped asks');
+    const [built] = insertsOf(made);
+    const sent = String(built.spec.vibes).split('\n');
+    for (const ask of ['make it better', 'Put the rows to act on first']) assert.ok(sent.includes(ask), `${ask} is sent`);
+    for (const ask of [asks[0], asks[1], asks[3], asks[4]]) assert.ok(!sent.includes(ask), `${ask} is not sent`);
+    await page.getByRole('status').filter({ hasText: /Inspire builds without these 4 asks: / }).first().waitFor();
   } finally {
     await ui.close();
   }
@@ -323,12 +326,7 @@ test('the asks you add and the held asks you remove survive a reload; Rebuild wi
       ['removing', 'Dashboard: “Arabic labels”, taken out on the next build']]);
     assert.equal(await text(rebuildButton(page)), 'Rebuild with 3 vibes');
     const choice = dialog(page).getByRole('group', { name: 'What happens to v3?' });
-    await choice.getByRole('radio', { name: /^Keep v3 live/ }).waitFor();
-    await rebuildButton(page).click();
-    const problem = dialog(page).getByRole('alert');
-    await problem.waitFor();
-    assert.equal(await text(problem), 'Rebuild needs one more thing: choose what happens to v3, the version before this vibe: keep it live or remove it.');
-    assert.equal(made.jobs.length, 0, 'nothing is built until the choice is made');
+    assert.equal(await choice.getByRole('radio', { name: /^Keep v3 live/ }).isChecked(), true, 'keep live is the choice until another is made');
     await choice.getByRole('radio', { name: /^Remove v3 once v4 is ready/ }).check();
     await rebuildButton(page).click();
     await until(() => made.jobs.length === 1, 'the build with every ask');

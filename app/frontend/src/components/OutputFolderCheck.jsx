@@ -1,5 +1,19 @@
 import { AlertTriangle, CheckCircle2, Loader2 } from 'lucide-react';
 
+function Notes({ items }) {
+  if (!items.length) return null;
+  return (
+    <ul data-output-check-notes className="mt-1 space-y-0.5 text-xs text-warning-fg">
+      {items.map((note) => (
+        <li key={note} className="flex items-start gap-1.5">
+          <AlertTriangle size={12} className="shrink-0 mt-0.5" />
+          <span className="break-words min-w-0">{note}</span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 export default function OutputFolderCheck({ check, where = '', id }) {
   if (check.state === 'checking') {
     return (
@@ -11,13 +25,24 @@ export default function OutputFolderCheck({ check, where = '', id }) {
   }
   if (check.state === 'passed') {
     return (
-      <p id={id} role="status" data-output-check="passed" className="flex items-start gap-1.5 text-xs text-success-fg mt-2">
-        <CheckCircle2 size={12} className="shrink-0 mt-0.5" />
-        <span className="break-words min-w-0">
-          {check.checked === 'manager'
-            ? `You manage this App, so Inspire skips the write check for ${check.folder}.`
-            : `You can write to ${check.folder}.`}
-        </span>
+      <div id={id} role="status" data-output-check="passed" className="mt-2">
+        <p className="flex items-start gap-1.5 text-xs text-success-fg">
+          <CheckCircle2 size={12} className="shrink-0 mt-0.5" />
+          <span className="break-words min-w-0">
+            {check.checked === 'manager'
+              ? `You manage this App, so Inspire skips the write check for ${check.folder}.`
+              : `You can write to ${check.folder}.`}
+          </span>
+        </p>
+        <Notes items={check.warnings || []} />
+      </div>
+    );
+  }
+  if (check.state === 'unchecked') {
+    return (
+      <p id={id} role="status" data-output-check="unchecked" className="flex items-start gap-1.5 text-xs text-warning-fg mt-2">
+        <AlertTriangle size={12} className="shrink-0 mt-0.5" />
+        <span className="break-words min-w-0">{check.text}</span>
       </p>
     );
   }

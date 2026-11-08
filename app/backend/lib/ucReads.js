@@ -5,15 +5,14 @@ const RP = require('./routePolicy');
 const { DEFAULT_GENERATION_PATH } = require('./inspireJobParams');
 const { fsApiPath } = require('./workspacePaths');
 
-const RUN_NO_SIGN_IN = 'Inspire checks with your own sign-in that you can read every table and file a run reads, and this request carries none, '
-  + 'so it starts no run';
+const RUN_NO_SIGN_IN = "Inspire needs your sign-in to check what you can read. Reload the App and try again.";
 const UNREADABLE_SHOWN = 10;
 const SCHEMAS_AT_ONCE = 8;
 const SYSTEM_SCHEMA = 'information_schema';
 const UC = '/api/2.1/unity-catalog';
-const WRITE_NO_SIGN_IN = 'Inspire checks with your own sign-in that you can write to the output folder a run writes to, and this request carries none, '
-  + 'so it starts no run';
+const WRITE_NO_SIGN_IN = "Inspire needs your sign-in to check the output folder. Reload the App and try again.";
 const PROBE_PREFIX = '.inspire_write_check_';
+const FALLBACK_FOLDER = 'inspire_output';
 const SWEEP_LIMIT = 20;
 const SCOPE_RE = /does not have required scopes|required scope/i;
 const SCOPE_VERDICT = {
@@ -62,10 +61,13 @@ async function pages(dbFetch, host, token, path, params, key, maxPages) {
   return { items, truncated: true };
 }
 
+function cutText(what, listed, noun) {
+  return `${what} holds more ${noun} than the ${listed.toLocaleString('en-US')} Inspire can list`;
+}
+
 function whole(listed, what, noun) {
   if (!listed.truncated) return listed.items;
-  throw Object.assign(new Error(`${what} holds more ${noun} than the ${listed.items.length.toLocaleString('en-US')} Inspire can list, so it could not check every one`),
-    { status: 502 });
+  throw Object.assign(new Error(cutText(what, listed.items.length, noun)), { status: 502, cut: true });
 }
 
 function listCatalogs(dbFetch, host, token) {
@@ -141,66 +143,122 @@ async function atMost(limit, items, run) {
 
 const fullName = (catalog, schema, table) => String(table.full_name || `${catalog}.${schema}.${table.name}`);
 
-async function schemaUnreadable(dbFetch, host, tokens, catalog, schema) {
+const kept = (entry) => ({ entries: [entry], unreadable: [], unchecked: [] });
+const unsure = (entry, why) => ({ entries: [entry], unreadable: [], unchecked: [`${entry} (${why})`] });
+const whyOf = (err) => String((err && err.message) || err);
+
+async function schemaPlan(dbFetch, host, tokens, catalog, schema) {
+  const name = `${catalog}.${schema}`;
   let run;
   try {
-    run = whole(await listTables(dbFetch, host, tokens.app, catalog, schema, { browse: true }), `${catalog}.${schema}`, 'tables');
+    run = whole(await listTables(dbFetch, host, tokens.app, catalog, schema, { browse: true }), name, 'tables');
   } catch (err) {
-    if (unseen(err)) return [];
-    throw err;
+    return unseen(err) ? kept(name) : unsure(name, whyOf(err));
   }
   let readable = [];
   try {
-    readable = whole(await listTables(dbFetch, host, tokens.person, catalog, schema), `${catalog}.${schema}`, 'tables');
+    readable = whole(await listTables(dbFetch, host, tokens.person, catalog, schema), name, 'tables');
   } catch (err) {
-    if (!unseen(err)) throw err;
+    if (!unseen(err)) return unsure(name, whyOf(err));
   }
   const own = new Set(readable.map((t) => fullName(catalog, schema, t).toLowerCase()));
-  return run.map((t) => fullName(catalog, schema, t)).filter((name) => !own.has(name.toLowerCase()));
+  const all = run.map((t) => fullName(catalog, schema, t));
+  const unreadable = all.filter((t) => !own.has(t.toLowerCase()));
+  return { entries: unreadable.length ? all.filter((t) => own.has(t.toLowerCase())) : [name], unreadable, unchecked: [] };
 }
 
-async function catalogUnreadable(dbFetch, host, tokens, catalog) {
+function merged(plans) {
+  return { entries: plans.flatMap((p) => p.entries), unreadable: plans.flatMap((p) => p.unreadable), unchecked: plans.flatMap((p) => p.unchecked) };
+}
+
+async function catalogPlan(dbFetch, host, tokens, catalog) {
   let schemas;
   try {
     schemas = whole(await listSchemas(dbFetch, host, tokens.app, catalog), catalog, 'schemas');
   } catch (err) {
-    if (unseen(err)) return [];
-    throw err;
+    return unseen(err) ? kept(catalog) : unsure(catalog, whyOf(err));
   }
   const names = schemas.map((s) => String(s.name || '')).filter((name) => name && name.toLowerCase() !== SYSTEM_SCHEMA);
-  return (await atMost(SCHEMAS_AT_ONCE, names, (name) => schemaUnreadable(dbFetch, host, tokens, catalog, name))).flat();
+  const plan = merged(await atMost(SCHEMAS_AT_ONCE, names, (name) => schemaPlan(dbFetch, host, tokens, catalog, name)));
+  return plan.unreadable.length ? plan : { ...plan, entries: [catalog] };
+}
+
+async function onePlan(entry, check) {
+  try {
+    return (await check()) ? kept(entry) : { entries: [], unreadable: [entry], unchecked: [] };
+  } catch (err) {
+    return unsure(entry, whyOf(err));
+  }
+}
+
+async function readPlan(dbFetch, host, tokens, reads) {
+  const tables = await atMost(SCHEMAS_AT_ONCE, reads.tables || [], (t) => onePlan(t, () => tableReadable(dbFetch, host, tokens.person, t)));
+  const schemas = await atMost(SCHEMAS_AT_ONCE, reads.schemas || [], (s) => {
+    const [catalog, schema] = s.split('.');
+    return schemaPlan(dbFetch, host, tokens, catalog, schema);
+  });
+  const catalogs = await atMost(SCHEMAS_AT_ONCE, reads.catalogs || [], (c) => catalogPlan(dbFetch, host, tokens, c));
+  const files = merged(await atMost(SCHEMAS_AT_ONCE, reads.files || [], (f) => onePlan(f, () => fileReadable(dbFetch, host, tokens.person, f))));
+  const scope = merged([...catalogs, ...schemas, ...tables]);
+  return {
+    entries: I.uniqueTables(scope.entries),
+    unreadable: I.uniqueTables(scope.unreadable),
+    files: files.unreadable,
+    unchecked: [...scope.unchecked, ...files.unchecked],
+  };
 }
 
 async function unreadableReads(dbFetch, host, tokens, reads) {
-  const tables = await atMost(SCHEMAS_AT_ONCE, reads.tables || [], async (t) => ((await tableReadable(dbFetch, host, tokens.person, t)) ? [] : [t]));
-  const files = await atMost(SCHEMAS_AT_ONCE, reads.files || [], async (f) => ((await fileReadable(dbFetch, host, tokens.person, f)) ? [] : [f]));
-  const schemas = await atMost(SCHEMAS_AT_ONCE, reads.schemas || [], (s) => {
-    const [catalog, schema] = s.split('.');
-    return schemaUnreadable(dbFetch, host, tokens, catalog, schema);
-  });
-  const catalogs = await atMost(SCHEMAS_AT_ONCE, reads.catalogs || [], (c) => catalogUnreadable(dbFetch, host, tokens, c));
-  return I.uniqueTables([...tables, ...schemas, ...catalogs].flat()).concat(files.flat());
+  const plan = await readPlan(dbFetch, host, tokens, reads);
+  return plan.unreadable.concat(plan.files);
+}
+
+function shownNames(names) {
+  const shown = names.slice(0, UNREADABLE_SHOWN);
+  const more = names.length - shown.length;
+  return I.joinAnd(more ? [...shown, `${more} more`] : shown);
 }
 
 function runUnreadableText(names) {
-  const shown = names.slice(0, UNREADABLE_SHOWN);
-  const more = names.length - shown.length;
-  return `You cannot read ${I.joinAnd(more ? [...shown, `${more} more`] : shown)} with your own sign-in, and Inspire never reads for you what you `
-    + 'cannot read: choose only tables and files you can read, or ask their owner for access';
+  return `You can't read ${shownNames(names)}. Pick tables and files you can read, or ask their owner for access`;
+}
+
+function skippedTablesText(names) {
+  return `Skipped ${names.length} ${names.length === 1 ? 'table' : 'tables'} you can't read: ${shownNames(names)}.`;
+}
+
+function uncheckedText(items) {
+  return `Inspire could not check that you can read ${shownNames(items)}, so the run reads ${items.length === 1 ? 'it' : 'them'} as picked.`;
+}
+
+async function runReadPlan(dbFetch, req, reads) {
+  const none = { refusal: null, skipped: [], unchecked: [], scope: null, warnings: [], uncheckedWarnings: [] };
+  const asked = ['tables', 'schemas', 'catalogs', 'files'].some((key) => (reads[key] || []).length);
+  if (!asked) return none;
+  const person = P.personTokenOf(req);
+  if (!person) return { ...none, refusal: { status: 401, message: RUN_NO_SIGN_IN, unreadable: [] } };
+  const plan = await readPlan(dbFetch, req.dbHost, { person, app: req.dbToken }, reads);
+  if (plan.unchecked.length) console.warn(`run read check: not checked: ${plan.unchecked.join('; ')}`);
+  const warnings = plan.unchecked.length ? [uncheckedText(plan.unchecked)] : [];
+  if (plan.files.length) return { ...none, refusal: { status: 403, message: runUnreadableText(plan.files), unreadable: plan.files } };
+  if (plan.unreadable.length && !plan.entries.length) {
+    return { ...none, refusal: { status: 403, message: runUnreadableText(plan.unreadable), unreadable: plan.unreadable } };
+  }
+  if (!plan.unreadable.length) return { ...none, unchecked: plan.unchecked, warnings, uncheckedWarnings: warnings };
+  return {
+    refusal: null,
+    skipped: plan.unreadable,
+    unchecked: plan.unchecked,
+    scope: plan.entries.join(','),
+    warnings: [skippedTablesText(plan.unreadable), ...warnings],
+    uncheckedWarnings: warnings,
+  };
 }
 
 async function runReadRefusal(dbFetch, req, reads) {
-  const asked = ['tables', 'schemas', 'catalogs', 'files'].some((key) => (reads[key] || []).length);
-  if (!asked) return null;
-  const person = P.personTokenOf(req);
-  if (!person) return { status: 401, message: RUN_NO_SIGN_IN, unreadable: [] };
-  let names;
-  try {
-    names = await unreadableReads(dbFetch, req.dbHost, { person, app: req.dbToken }, reads);
-  } catch (err) {
-    return { status: 502, message: `Inspire could not check that you can read every table and file this run reads, so it starts no run: ${err.message}`, unreadable: [] };
-  }
-  return names.length ? { status: 403, message: runUnreadableText(names), unreadable: names } : null;
+  const plan = await runReadPlan(dbFetch, req, reads);
+  if (plan.refusal) return plan.refusal;
+  return plan.skipped.length ? { status: 403, message: runUnreadableText(plan.skipped), unreadable: plan.skipped } : null;
 }
 
 const scopeMissing = (got) => SCOPE_RE.test(String(got.data.message || got.data.error || ''));
@@ -213,7 +271,7 @@ function discoverWrites(params, notebookPath) {
   const values = params && typeof params === 'object' ? params : {};
   const asked = String(values['11_generation_path'] == null ? '' : values['11_generation_path']).trim() || DEFAULT_GENERATION_PATH;
   const folder = /^[a-z][a-z0-9+.-]*:/i.test(asked) ? '' : RP.outputFolderOf(asked, notebookPath);
-  return { folders: [folder || asked] };
+  return { folders: [folder || asked], defaulted: asked === DEFAULT_GENERATION_PATH };
 }
 
 async function removeProbe(remove, path) {
@@ -317,21 +375,62 @@ function runUnwritableText(unwritable) {
   return `You cannot write to ${I.joinAnd(named)} with your own sign-in, and Inspire never writes for you where you cannot write: ${fixes.join('; ')}.`;
 }
 
-async function runWriteRefusal(dbFetch, req, writes) {
-  const folders = ((writes && writes.folders) || []).filter(Boolean);
-  if (!folders.length) return null;
+async function personWrites(dbFetch, req, folder) {
   const token = P.personTokenOf(req);
-  if (!token) return { status: 401, message: WRITE_NO_SIGN_IN, unwritable: [] };
-  const unwritable = [];
+  if (!token) return { refused: { status: 401, message: WRITE_NO_SIGN_IN, unwritable: [] }, unchecked: '' };
   try {
-    for (const folder of folders) {
-      const verdict = await folderVerdict(dbFetch, req.dbHost, token, folder);
-      if (verdict) unwritable.push({ folder, ...verdict });
-    }
+    const verdict = await folderVerdict(dbFetch, req.dbHost, token, folder);
+    return { refused: verdict ? { status: 403, message: runUnwritableText([{ folder, ...verdict }]), unwritable: [folder] } : null, unchecked: '' };
   } catch (err) {
-    return { status: 502, message: `Inspire could not check that you can write to ${I.joinAnd(folders)}, so it starts no run: ${err.message}`, unwritable: [] };
+    return { refused: null, unchecked: whyOf(err) };
   }
-  return unwritable.length ? { status: 403, message: runUnwritableText(unwritable), unwritable: unwritable.map((u) => u.folder) } : null;
+}
+
+async function appWrites(dbFetch, req, folder, appToken) {
+  if (!appToken || appToken === P.personTokenOf(req)) return { verdict: null, unchecked: '' };
+  try {
+    return { verdict: await folderVerdict(dbFetch, req.dbHost, appToken, folder), unchecked: '' };
+  } catch (err) {
+    return { verdict: null, unchecked: whyOf(err) };
+  }
+}
+
+async function folderPlan(dbFetch, req, folder, { manager, appToken }) {
+  const person = manager ? { refused: null, unchecked: '' } : await personWrites(dbFetch, req, folder);
+  if (person.refused) return { folder, refused: person.refused, personUnchecked: '', app: { verdict: null, unchecked: '' } };
+  return { folder, refused: null, personUnchecked: person.unchecked, app: await appWrites(dbFetch, req, folder, appToken) };
+}
+
+const folderScore = (plan) => (plan.refused ? 0 : plan.app.verdict ? 1 : 2);
+
+function folderWarnings(plan) {
+  const out = [];
+  if (plan.personUnchecked) {
+    console.warn(`output write check: not checked for the person on ${plan.folder}: ${plan.personUnchecked}`);
+    out.push(`Inspire could not check that you can write to ${plan.folder}. The run tries anyway.`);
+  }
+  if (plan.app.verdict) out.push(`The Inspire App can't write to ${plan.folder}, so the run saves no files there. Ask an App manager to give the App CAN MANAGE on it.`);
+  if (plan.app.unchecked) {
+    console.warn(`output write check: not checked for the App on ${plan.folder}: ${plan.app.unchecked}`);
+    out.push(`Inspire could not check that the App can write to ${plan.folder}. The run tries anyway.`);
+  }
+  return out;
+}
+
+const planVerdict = (plan, extra = []) => (plan.refused
+  ? { refused: plan.refused, folder: plan.folder, generationPath: '', warnings: [] }
+  : { refused: null, folder: plan.folder, generationPath: '', warnings: [...extra, ...folderWarnings(plan)] });
+
+async function outputPlan(dbFetch, req, writes, { manager = false, appToken = '' } = {}) {
+  const folders = ((writes && writes.folders) || []).filter(Boolean);
+  if (!folders.length) return { refused: null, folder: '', generationPath: '', warnings: [] };
+  const first = await folderPlan(dbFetch, req, folders[0], { manager, appToken });
+  const me = RP.forwardedPerson(req.headers);
+  if (folderScore(first) === 2 || !writes.defaulted || !me || first.refused?.status === 401) return planVerdict(first);
+  const home = `/Users/${me}/${FALLBACK_FOLDER}`;
+  const second = await folderPlan(dbFetch, req, home, { manager, appToken });
+  if (folderScore(second) <= folderScore(first)) return planVerdict(first);
+  return { ...planVerdict(second, [`${first.folder} is locked, so Inspire saves to ${home}.`]), generationPath: `/Workspace${home}` };
 }
 
 function writeRefusalBody(key, refused) {
@@ -354,10 +453,12 @@ module.exports = {
   discoverReads,
   unreadableReads,
   runUnreadableText,
+  skippedTablesText,
+  runReadPlan,
   runReadRefusal,
   discoverWrites,
   folderVerdict,
   runUnwritableText,
-  runWriteRefusal,
+  outputPlan,
   writeRefusalBody,
 };

@@ -1,7 +1,7 @@
 import {
   BUILT_ASSET_STATES, GENIE_FOR_APP_NOTE, IMPLEMENT_DONE_STATUSES, IMPLEMENT_OUTPUTS, IMPLEMENT_UNINSTALLED, IMPLEMENT_VIBE_NOT_MET, assetLabel, builtVersion, heldAsks,
   holderNames, holdersText, holdoutText, joinWords, partAsks, partLabel, partOf, rebuildableOutputs, statusChip, versionActive, vibesKey, VIBE_NOT_MET_FIRST,
-  APP_INSIDE_PLACEMENT, VIBE_FEATURES_LABEL, insideInspire, mvpFilterMatches, nextSpecFrom, openVibeAsks, withCollectedVibes,
+  APP_INSIDE_PLACEMENT, VIBE_FEATURES_LABEL, VIBE_PREVIOUS_DEFAULT, insideInspire, mvpFilterMatches, nextSpecFrom, openVibeAsks, withCollectedVibes,
 } from './implementWizard.js';
 import { formatWhen } from './formatWhen.js';
 import { plural } from './plural.js';
@@ -747,7 +747,7 @@ export function unmetAsks(latest) {
 export function rebuildSpec(latest, entries, built = null, previous = '') {
   const carried = unmetAsks(latest).map(asked);
   const { vibe_previous: _previous, ...spec } = withCollectedVibes(nextSpecFrom(latest, {}), [...carried, ...(entries || [])]).spec;
-  return String(spec.vibes ?? '').trim() && built != null && previous ? { ...spec, vibe_previous: previous } : spec;
+  return String(spec.vibes ?? '').trim() && built != null ? { ...spec, vibe_previous: previous || VIBE_PREVIOUS_DEFAULT } : spec;
 }
 
 export const RAIL_WIDTH = { min: 240, max: 520, start: 320, step: 16 };

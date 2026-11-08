@@ -192,6 +192,12 @@ import {
   withEntityKey,
   keptDefaultsText,
   genieNotebookRequest,
+  checkCallRefused,
+  skippedAsksText,
+  withAppLookDefaults,
+  withoutMissingRoles,
+  uncountedReadiness,
+  outputUncheckedText,
 } from '../lib/implementWizard';
 import { ClearsChoice, DigestChoice, RowSubjectCheck, TeamCapacity } from '../components/WizardStickParts';
 import { placeholderWords } from '../lib/placeholderWords';
@@ -382,6 +388,7 @@ export default function ImplementWizard({
   const [swapsWhy, setSwapsWhy] = useState({});
   const [values, setValues] = useState({});
   const [readiness, setReadiness] = useState(null);
+  const [checkNotes, setCheckNotes] = useState({});
   const [principalQ, setPrincipalQ] = useState('');
   const [principals, setPrincipals] = useState([]);
   const [endpoints, setEndpoints] = useState([]);
@@ -636,7 +643,11 @@ export default function ImplementWizard({
             columns: scope.columns,
             filters: scope.filters,
             window: scope.window,
+          }).catch((e) => {
+            if (checkCallRefused(e)) throw e;
+            return uncountedReadiness(scope);
           });
+          setCheckNotes((prev) => ({ ...prev, data: counted.unchecked || '' }));
           setReadiness({ ...counted, scope });
           if (!counted.skipped && counted.row_count === 0) {
             setErrors([emptyScopeError(scope)]);
@@ -647,8 +658,12 @@ export default function ImplementWizard({
       }
       if (stepId === 'results') {
         setChecking('Checking you can write the result table');
-        const check = await apiFetch(outputCheckPath());
-        setOutputCheck(check);
+        const check = await apiFetch(outputCheckPath()).catch((e) => {
+          if (checkCallRefused(e)) throw e;
+          return { ok: true, unchecked: outputUncheckedText(spec.config.result_table, e) };
+        });
+        setOutputCheck(check.unchecked ? null : check);
+        setCheckNotes((prev) => ({ ...prev, results: check.unchecked || '' }));
         if (!check.ok) {
           const failed = [check.write, check.safety, check.model].find((c) => c && !c.ok);
           setErrors([failed?.detail].filter(Boolean));
@@ -793,6 +808,17 @@ export default function ImplementWizard({
       .catch((e) => { if (!cancelled) setLookError(e.message); });
     return () => { cancelled = true; };
   }, [spec.outputs.app, look, lookError, apiFetch]);
+
+  useEffect(() => {
+    if (look) setSpec((prev) => withAppLookDefaults(prev, look));
+  }, [look, spec.outputs.app, spec.outputs.app_look]);
+
+  useEffect(() => {
+    const dropped = withoutMissingRoles(spec, columnsByTable);
+    if (!dropped.note) return;
+    setSpec((prev) => withoutMissingRoles(prev, columnsByTable).spec);
+    setNotice((prev) => [prev, dropped.note].filter(Boolean).join(' '));
+  }, [columnsByTable, spec]);
 
   useEffect(() => {
     if (!spec.outputs.app || !['app_place', 'app_access'].includes(stepId) || warehouses !== null || warehousesError) return undefined;
@@ -1592,6 +1618,7 @@ export default function ImplementWizard({
                     {plan.based_on_version ? `Version ${plan.spec_version}, edited from version ${plan.based_on_version}` : `Version ${plan.spec_version}`}
                   </h4>
                   {planLines(plan.summary, { shared, live }).map((line) => <p key={line} className="text-[12px] text-text-secondary">{line}</p>)}
+                  {(plan.warnings || []).map((line) => <p key={line} data-plan-warning="" className="text-[12px] text-warning-fg">{line}</p>)}
                 </div>
               )}
               {checkEntries.length > 0 && (
@@ -1729,6 +1756,9 @@ export default function ImplementWizard({
           <p role="note" aria-label="Before you start" data-plan-move-note=""
             className="bg-warning-bg border border-warning/30 rounded-md px-3 py-2 text-xs font-medium text-warning-fg">{moveNote}</p>
         )}
+        {Object.values(checkNotes).filter(Boolean).map((note) => (
+          <p key={note} role="note" data-check-note="" className="bg-warning-bg border border-warning/30 rounded-md px-3 py-2 text-xs text-warning-fg">{note}</p>
+        ))}
         {footerErrors.length > 0 && (
           <div role="alert" className="bg-error-bg border border-error/20 rounded-md px-3 py-2 space-y-0.5">
             {footerErrors.map((e) => <p key={e} className="text-xs text-error-fg">{e}</p>)}
@@ -1800,6 +1830,7 @@ function VibesPanel({ spec, built, next, onChange, onPrevious }) {
   const asked = String(spec.vibes ?? '').trim() !== '';
   const choices = built != null && asked ? vibePreviousChoices(built, next, Boolean(spec.outputs?.alert)) : [];
   const skipped = vibesSkippedText(spec);
+  const skippedAsks = skippedAsksText(spec);
   return (
     <section aria-label="Vibes" className="space-y-3">
       <div>
@@ -1811,6 +1842,7 @@ function VibesPanel({ spec, built, next, onChange, onPrevious }) {
       </div>
       <VibePrevious built={built} choices={choices} value={spec.vibe_previous} onPick={onPrevious} />
       {skipped && <p data-vibes-skipped="" className="text-[11px] text-text-secondary">{skipped}</p>}
+      {skippedAsks && <p role="note" data-vibes-skipped-asks="" className="text-[11px] text-warning-fg">{skippedAsks}</p>}
     </section>
   );
 }

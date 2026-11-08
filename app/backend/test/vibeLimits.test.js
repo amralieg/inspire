@@ -113,10 +113,14 @@ test('a build whose vibes ask to delete source rows or call an outside website i
   }
 });
 
-test('the Rebuild stays off with the reason while an ask Inspire does not build waits, and a vague ask never blocks it', async () => {
+test('an ask Inspire does not build never holds the Rebuild: it is taken out, named, and the rest of the vibes are sent', async () => {
   const w = await wizard();
-  assert.deepEqual(w.vibesProblems({ vibes: 'delete source rows from samples.tpch.lineitem\nAdd a region filter' }),
-    [`take out the ask Inspire does not build first: “delete source rows from samples.tpch.lineitem”: ${L.VIBE_WRITES_SOURCE}`]);
-  assert.match(w.vibesProblems({ vibes: 'call https://x.example.com\nTruncate the raw data' })[0], /^take out the 2 asks Inspire does not build first: /);
-  assert.deepEqual(w.vibesProblems({ vibes: 'make it better' }), []);
+  const spec = { vibes: 'delete source rows from samples.tpch.lineitem\nAdd a region filter', data: { notes: 'call https://x.example.com' }, outputs: { app: true, app_vibes: 'Truncate the raw data\nDark header' } };
+  assert.deepEqual(w.vibesProblems(spec), []);
+  const sent = w.withoutSkippedAsks(spec);
+  assert.deepEqual([sent.vibes, sent.data.notes, sent.outputs.app_vibes], ['Add a region filter', '', 'Dark header']);
+  assert.match(w.skippedAsksText(spec), /^Inspire builds without these 3 asks: /);
+  assert.ok(w.skippedAsksText(spec).includes(L.VIBE_WRITES_SOURCE));
+  assert.equal(w.skippedAsksText({ vibes: 'make it better' }), '');
+  assert.equal(w.withoutSkippedAsks({ vibes: 'make it better' }).vibes, 'make it better', 'a vague ask is sent as written');
 });

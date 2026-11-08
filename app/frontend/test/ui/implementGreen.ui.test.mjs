@@ -113,7 +113,7 @@ test('a business with an App for all its use cases joins it, cannot create a sec
     await policy.getByRole('radio', { name: /^One App per use case/ }).check();
     await page.getByLabel('App name').fill('inspire-hub-acme-03');
     await next();
-    await page.locator('[role="alert"] p', { hasText: /^App names that start with inspire-hub- are kept/ }).first().waitFor();
+    await page.locator('[role="alert"] p', { hasText: /^Names starting inspire-hub- are for the shared business App\. Pick another App name/ }).first().waitFor();
     await onStep(page, 'App placement');
     assert.deepEqual(ui.pageErrors, []);
   } finally {

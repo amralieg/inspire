@@ -451,6 +451,21 @@ test('Next stops when the data to work with has no rows and says what to widen, 
   }
 });
 
+test('a row count the warehouse cannot finish never holds Next: the wizard goes on and says the preview run checks the data', async () => {
+  const ui = await openUi('wizard', { sqlErrors: { 'SELECT COUNT(*) AS row_count': 'warehouse stopped' }, me: { userName: OWNER, displayName: 'Owner' } });
+  const { page, made } = ui;
+  try {
+    await toData(page);
+    await toDelivery(page);
+    await page.locator('[data-check-note]').filter({ hasText: 'Inspire could not count the rows in main.s.orders. You can go on; the preview run checks the data.' }).waitFor();
+    assert.ok(made.sqlCalls.some((c) => String(c.sql).startsWith('SELECT COUNT(*) AS row_count')), 'the count was tried');
+    assert.equal(made.jobs.length, 0);
+    assert.deepEqual(ui.pageErrors.filter((e) => !/status of 5\d\d/.test(e)), []);
+  } finally {
+    await ui.close();
+  }
+});
+
 test('what blocks a step shows in the footer, opens Advanced on the field to fix, and clears as it is fixed', async () => {
   const ui = await openUi('wizard', { useCase: { ...HARNESS_USE_CASE, statement: '', sponsor: '' }, me: { userName: '', displayName: '' } });
   const { page, made } = ui;

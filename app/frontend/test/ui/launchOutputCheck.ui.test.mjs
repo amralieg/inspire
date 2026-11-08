@@ -105,7 +105,7 @@ test('a folder the person cannot write keeps Get Started off and shows the refus
   }
 });
 
-test('changing a passed folder turns Get Started off at once, and a check that cannot finish keeps it off with the reason', async () => {
+test('changing a passed folder turns Get Started off at once, and a check that cannot finish leaves it on with a note', async () => {
   const { calls, mount } = folderBackend();
   const ui = await openUi('launch', {}, '', { mount, ...FAKE_CLOCK });
   try {
@@ -119,10 +119,11 @@ test('changing a passed folder turns Get Started off at once, and a check that c
     assert.equal(await launchButton(page).isDisabled(), true, 'a stale pass never keeps Get Started on (must-exclude)');
     assert.equal(await page.locator('#output-folder-check-field').getAttribute('data-output-check'), 'checking');
     await setPath(page, '/Workspace/broken');
-    await until(async () => (await nearLaunch(page).getAttribute('data-output-check')) === 'error', 'the error next to Get Started');
-    assert.match(await nearLaunch(page).innerText(), /Inspire could not check that you can write to \/broken, so it starts no run: upstream timeout/);
-    assert.match(await nearLaunch(page).innerText(), /Change Generation Path in Advanced Settings above\./);
-    assert.equal(await launchButton(page).isDisabled(), true);
+    const field = page.locator('#output-folder-check-field');
+    await until(async () => (await field.getAttribute('data-output-check')) === 'unchecked', 'the note under the field');
+    assert.equal(await nearLaunch(page).count(), 0, 'nothing holds Get Started');
+    assert.match(await field.innerText(), /^Inspire could not check the output folder \(.*upstream timeout\)\. Get Started still works, and the run checks the folder again\.$/);
+    assert.equal(await launchButton(page).isDisabled(), false, 'a check that could not answer never holds Get Started');
     await setPath(page, BOSS_FOLDER);
     await until(async () => (await page.locator('#output-folder-check-field').getAttribute('data-output-check')) === 'passed', 'the manager skip');
     assert.equal(await page.locator('#output-folder-check-field').innerText(), 'You manage this App, so Inspire skips the write check for /Shared/team_out.');
@@ -134,7 +135,7 @@ test('changing a passed folder turns Get Started off at once, and a check that c
   }
 });
 
-test('only an allowed answer passes the check; a refusal, a missing sign-in, a check that cannot finish and an unclear answer all keep Get Started off', () => {
+test('an allowed answer passes, a refusal or a missing sign-in holds Get Started, and a check that cannot finish or an unclear answer goes on with a note (must-exclude)', () => {
   assert.equal(OUTPUT_CHECK_URL, '/api/output-folder/check');
   for (const [asked, sent] of [['./../demos/', './../demos/'], ['../x/../y', '../x/../y'], ['/Workspace/Users/a/out', '/Workspace/Users/a/out'], [undefined, ''], [null, '']]) {
     const request = outputCheckRequest(asked);
@@ -143,19 +144,19 @@ test('only an allowed answer passes the check; a refusal, a missing sign-in, a c
   }
   assert.doesNotMatch(OUTPUT_CHECK_URL, /\.\.|%2E%2E/i, 'the Databricks Apps front door refuses a request URL that holds ..');
   const fail = (status, message) => Object.assign(new Error(message), { status });
-  assert.deepEqual(outputCheckVerdict('/x', { allowed: true, folder: '/Users/a/x', checked: 'passed' }, null),
-    { path: '/x', state: 'passed', text: '', folder: '/Users/a/x', checked: 'passed' });
+  assert.deepEqual(outputCheckVerdict('/x', { allowed: true, folder: '/Users/someone@example.com/x', checked: 'passed' }, null),
+    { path: '/x', state: 'passed', text: '', folder: '/Users/someone@example.com/x', checked: 'passed', warnings: [] });
   assert.equal(outputCheckVerdict('/x', { allowed: true, checked: 'manager' }, null).checked, 'manager');
   assert.equal(outputCheckVerdict('/x', null, fail(403, REFUSAL)).state, 'refused');
   assert.equal(outputCheckVerdict('/x', null, fail(403, REFUSAL)).text, REFUSAL);
+  assert.equal(outputCheckVerdict('/x', null, fail(401, 'Inspire checks with your own sign-in')).state, 'refused', 'no sign-in');
   for (const [label, data, err] of [
-    ['no sign-in', null, fail(401, 'Inspire checks with your own sign-in')],
     ['a check that cannot finish', null, fail(502, 'upstream timeout')],
     ['a route that is not there', null, fail(404, 'not found')],
     ['allowed false', { allowed: false }, null],
     ['allowed as a string', { allowed: 'true' }, null],
     ['an empty answer', {}, null],
   ]) {
-    assert.equal(outputCheckVerdict('/x', data, err).state, 'error', label);
+    assert.equal(outputCheckVerdict('/x', data, err).state, 'unchecked', label);
   }
 });

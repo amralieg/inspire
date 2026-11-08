@@ -47,7 +47,7 @@ const STATUS_FILTERS = [
   { key: 'open', label: 'No end recorded', color: 'text-text-secondary' },
 ];
 
-export default function MonitorPage({ settings, update, sessionId, runId, onComplete, onResultsSession, onOpenImplement, onGenerateData }) {
+export default function MonitorPage({ settings, update, sessionId, runId, launchNotes = [], onComplete, onResultsSession, onOpenImplement, onGenerateData }) {
   const { databricksHost, token, warehouseId, inspireDatabase, showcase = '' } = settings;
 
   // Run-level state
@@ -331,6 +331,18 @@ export default function MonitorPage({ settings, update, sessionId, runId, onComp
           </a>
         )}
       </div>
+
+      {launchNotes.length > 0 && (
+        <ul role="note" aria-label="What Inspire changed to start this run" data-testid="launch-notes"
+          className="mb-6 rounded-xl border border-warning/30 bg-warning-bg px-4 py-3 space-y-1 text-sm text-warning-fg">
+          {launchNotes.map((note) => (
+            <li key={note} className="flex items-start gap-2">
+              <AlertTriangle size={14} className="shrink-0 mt-0.5" aria-hidden="true" />
+              <span className="break-words min-w-0">{note}</span>
+            </li>
+          ))}
+        </ul>
+      )}
 
       {/* ═══ Status Card ═══ */}
       <div data-testid="monitor-status" data-status={isWarning ? 'warning' : isCleanComplete ? 'success' : isFailed ? 'failed' : 'active'} className={`border rounded-xl p-5 mb-6 shadow-sm ${

@@ -1364,8 +1364,33 @@ test('the Data step names each column role that does not fit and leaves unset ro
   assert.ok(!w.sectionErrors('data', fits, { columnsByTable, trainsModel: true }).includes(hint), 'a role that fits needs no reset');
   assert.deepEqual(w.defaultSpecFromUseCase(ROW, {}).data.column_roles, {});
   const gone = specWith(w, { column_roles: { measure: 'samples.tpcds_sf1.web_sales.ws_gone' } });
-  assert.deepEqual(w.sectionErrors('data', gone, { columnsByTable }).filter((e) => e.includes('ws_gone')),
-    ['measure samples.tpcds_sf1.web_sales.ws_gone: samples.tpcds_sf1.web_sales has no column ws_gone']);
+  assert.deepEqual(w.sectionErrors('data', gone, { columnsByTable }).filter((e) => e.includes('ws_gone')), [],
+    'a saved role on a column that is gone never blocks the Data step');
+  const dropped = w.withoutMissingRoles(specWith(w, { column_roles: {
+    measure: 'samples.tpcds_sf1.web_sales.ws_gone', label: 'samples.tpcds_sf1.customer.c_first_name',
+    segment: 'samples.other.t.col' } }), columnsByTable);
+  assert.deepEqual(dropped.spec.data.column_roles, { label: 'samples.tpcds_sf1.customer.c_first_name', segment: 'samples.other.t.col' },
+    'only the role on a missing column of a known table is dropped');
+  assert.equal(dropped.note, 'Dropped measure samples.tpcds_sf1.web_sales.ws_gone: that column no longer exists. Pick another one if you need it.');
+  const kept = specWith(w, { column_roles: { measure: 'samples.tpcds_sf1.web_sales.ws_quantity' } });
+  assert.deepEqual(w.withoutMissingRoles(kept, columnsByTable), { spec: kept, note: '' });
+  assert.deepEqual(w.withoutMissingRoles(gone, {}), { spec: gone, note: '' }, 'columns not read yet drop nothing');
+});
+
+test('a saved App look not in the bundle lists falls back to the first option, and a look that fits is kept', async () => {
+  const w = await load();
+  const look = Object.fromEntries(Object.values(w.APP_LOOK_LISTS).map((list) => [list, [`${list}-a`, `${list}-b`]]));
+  const [key, list] = Object.entries(w.APP_LOOK_LISTS)[0];
+  const [otherKey, otherList] = Object.entries(w.APP_LOOK_LISTS)[1] || [key, list];
+  const spec = { outputs: { app: true, app_look: { [key]: 'gone-theme', [otherKey]: `${otherList}-b` } } };
+  const fixed = w.withAppLookDefaults(spec, look);
+  assert.equal(fixed.outputs.app_look[key], `${list}-a`);
+  assert.equal(fixed.outputs.app_look[otherKey], `${otherList}-b`);
+  const fits = w.withAppLookDefaults(fixed, look);
+  assert.equal(w.withAppLookDefaults(fits, look), fits, 'a look that fits is returned unchanged');
+  const noApp = { outputs: { app: false, app_look: { [key]: 'gone-theme' } } };
+  assert.equal(w.withAppLookDefaults(noApp, look), noApp);
+  assert.equal(w.withAppLookDefaults(spec, null), spec, 'no bundle lists yet, nothing changes');
 });
 
 test('the wizard never fills a column role on its own', () => {

@@ -7,14 +7,15 @@ const { pathToFileURL } = require('node:url');
 const lib = (name) => import(pathToFileURL(path.resolve(__dirname, '..', '..', 'frontend', 'src', 'lib', name)).href);
 const PAIR = ['Make the App header dark green.', 'Make the App header bright orange, never green.'];
 
-test('Try again on a failed version whose asks conflict is held by the same limits check as Rebuild', async () => {
+test('Try again on a failed version whose asks conflict builds without the two asks and names them', async () => {
   const W = await lib('implementWizard.js');
-  const failed = { spec_version: 3, status: 'failed', spec_json: { use_case_id: 'N01-U01', outputs: { app: true }, data: {}, vibes: PAIR.join('\n'), vibe_previous: 'keep' } };
-  const problems = W.vibesProblems(W.nextSpecFrom(failed, W.buildAgainChanges(failed)), 2);
-  assert.equal(problems.length, 1);
-  assert.match(problems[0], /^settle the asks that ask for opposite things first: “Make the App header dark green\.” and “Make the App header bright orange, never green\.” ask for opposite things/);
+  const failed = { spec_version: 3, status: 'failed', spec_json: { use_case_id: 'N01-U01', outputs: { app: true }, data: {}, vibes: [...PAIR, 'Sort the rows by risk.'].join('\n'), vibe_previous: 'keep' } };
+  const next = W.nextSpecFrom(failed, W.buildAgainChanges(failed));
+  assert.deepEqual(W.vibesProblems(next, 2), []);
+  assert.equal(W.withoutSkippedAsks(next).vibes, 'Sort the rows by risk.');
+  assert.match(W.skippedAsksText(next), /^Inspire builds without these 2 asks: “Make the App header dark green\.” and “Make the App header bright orange, never green\.” ask for opposite things\.$/);
   const fine = { ...failed, spec_json: { ...failed.spec_json, vibes: 'Make the App header dark green.\nSort the rows by risk.' } };
-  assert.deepEqual(W.vibesProblems(W.nextSpecFrom(fine, W.buildAgainChanges(fine)), 2), []);
+  assert.equal(W.skippedAsksText(W.nextSpecFrom(fine, W.buildAgainChanges(fine))), '');
 });
 
 test('an ask that rules a value out conflicts only with an ask that sets that value on the same thing', async () => {

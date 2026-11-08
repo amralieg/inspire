@@ -1,5 +1,5 @@
 const { isMissingTableError } = require('./lib/inspireFeedback');
-const { stepsStatement } = require('./lib/sqlInputs');
+const { INSPIRE_DB_SHAPE, USE_CASE_ID_SHAPE, noSessionText, stepsStatement } = require('./lib/sqlInputs');
 const I = require('./lib/inspireImplement');
 const { createGenieJobGuard } = require('./lib/genieJobGuard');
 const { genieNotebookJobName, latestGenieNotebookRun } = require('./lib/genieNotebookJob');
@@ -17,7 +17,7 @@ const G = require('../frontend/src/lib/tableName.js');
 const GR = require('./lib/groupingRule');
 const GP = require('./lib/groupingProfile');
 const { TAGS_UNREAD_NOTE, personalColumn } = require('../frontend/src/lib/personalColumns.js');
-const { nextAppName } = require('../frontend/src/lib/implementWizard.js');
+const { clearedText, emptyScopeError, nextAppName, readinessScope, removeTable, skippedAsksText, withoutSkippedAsks } = require('../frontend/src/lib/implementWizard.js');
 const { canonicalDiscoveryType } = require('../frontend/src/lib/discoveryType.js');
 const { runWithRequestDeadline } = require('./lib/sqlStatements');
 const { fsApiPath } = require('./lib/workspacePaths');
@@ -73,7 +73,7 @@ function dbOf(req, splitInspireDatabase) {
   const inspire_database = q(req, 'inspire_database');
   const parsed = splitInspireDatabase(inspire_database);
   if (!parsed) {
-    const err = new Error(inspire_database ? 'inspire_database must be exactly catalog.schema (one dot).' : I.IMPLEMENT_NOT_AVAILABLE);
+    const err = new Error(inspire_database ? INSPIRE_DB_SHAPE : I.IMPLEMENT_NOT_AVAILABLE);
     err.statusCode = 400;
     throw err;
   }
@@ -226,10 +226,16 @@ function registerImplementRoutes(app, deps) {
     return rows[0] || null;
   }
 
+  async function useCasesTables(req, warehouseId, catalog, schema, sid, useCaseIds) {
+    const table = `\`${catalog}\`.\`${schema}\`.\`__inspire_usecases\``;
+    const rows = await sqlRows(req.dbHost, req.dbToken, warehouseId, I.useCaseTablesStatement(table, sid, useCaseIds));
+    return I.uniqueTables(rows.flatMap((row) => I.useCaseTables(row)));
+  }
+
   async function loadSession(host, token, warehouseId, catalog, schema, sid) {
     const session = await fetchInspireSessionWidgetRow(host, token, warehouseId, catalog, schema, sid);
     if (!session) {
-      const err = new Error(`No __inspire_session row for session_id=${sid}.`);
+      const err = new Error(noSessionText(sid));
       err.statusCode = 404;
       throw err;
     }
@@ -252,7 +258,8 @@ function registerImplementRoutes(app, deps) {
       jsonOf(dbFetch, req.dbHost, req.dbToken, '/api/2.0/alerts?page_size=1'),
       loadGenieCode(req),
     ]);
-    return { apps: apps.ok, genie_spaces: spaces.ok, alerts: alerts.ok, genie_code: genieCode };
+    const appsUnchecked = !apps.ok && apps.status >= 500;
+    return { apps: apps.ok || appsUnchecked, ...(appsUnchecked ? { apps_unchecked: true } : {}), genie_spaces: spaces.ok, alerts: alerts.ok, genie_code: genieCode };
   }
 
   async function requireGenieCode(req) {
@@ -337,6 +344,8 @@ function registerImplementRoutes(app, deps) {
     return { ...access, safety, ...(model ? { model } : {}), ok: access.write.ok && safety.ok && (!model || model.ok) };
   }
 
+  const PREFLIGHT_RECHECK = 'Build still runs, and the build checks this again.';
+
   async function countApps(req, limit) {
     let count = 0;
     let pageToken = '';
@@ -395,13 +404,13 @@ function registerImplementRoutes(app, deps) {
       const safeIds = use_case_ids.filter((id) => /^[a-zA-Z0-9_.\-]+$/.test(id));
       if (safeIds.length !== use_case_ids.length) {
         return res.status(400).json({
-          error: 'Each use_case_id must match /^[a-zA-Z0-9_.\\-]+$/ (Inspire tracking table id / No).',
+          error: USE_CASE_ID_SHAPE,
         });
       }
 
       const parsedDb = splitInspireDatabase(inspire_database);
       if (!parsedDb) {
-        return res.status(400).json({ error: 'inspire_database must be exactly catalog.schema (one dot).' });
+        return res.status(400).json({ error: INSPIRE_DB_SHAPE });
       }
       const { catalog, schema } = parsedDb;
 
@@ -414,7 +423,7 @@ function registerImplementRoutes(app, deps) {
         sidStr,
       );
       if (!session) {
-        return res.status(404).json({ error: `No __inspire_session row for session_id=${sidStr}.` });
+        return res.status(404).json({ error: noSessionText(sidStr) });
       }
 
       const params = notebookParamsFromSessionForGenerateRun(session, sidStr);
@@ -427,7 +436,7 @@ function registerImplementRoutes(app, deps) {
             'This session has no UC metadata (catalogs/schemas/tables or docs-only JSON path) stored on __inspire_session. Run Discover from this app first, or set metadata manually.',
         });
       }
-      const refused = await U.runReadRefusal(dbFetch, req, U.discoverReads(params));
+      const refused = await U.runReadRefusal(dbFetch, req, { tables: await useCasesTables(req, warehouse_id, catalog, schema, sidStr, safeIds) });
       if (refused) return res.status(refused.status).json({ error: refused.message, unreadable: refused.unreadable });
 
       const lastRun = await latestGenieNotebookRun(fetchJsonFor(req), sidStr);
@@ -565,7 +574,7 @@ function registerImplementRoutes(app, deps) {
     try {
       const warehouseId = warehouseOf(req);
       const parsed = splitInspireDatabase(q(req, 'inspire_database'));
-      if (!parsed) throw I.badRequest('inspire_database must be exactly catalog.schema (one dot).');
+      if (!parsed) throw I.badRequest(INSPIRE_DB_SHAPE);
       const at = (name) => `\`${parsed.catalog}\`.\`${parsed.schema}\`.\`${name}\``;
       const [session, useCases, implement] = R.PORTFOLIO_TABLES.map(at);
       const read = (table, statementFor) => describedRows(req.dbHost, req.dbToken, warehouseId, table, statementFor);
@@ -803,16 +812,20 @@ function registerImplementRoutes(app, deps) {
         outputError = err.message || String(err);
       }
       const outputDetail = output && (output.write.ok ? `${output.write.detail}; ${output.safety.detail}` : output.write.detail);
+      const denied = !output && I.isReadDenied(outputError);
+      const unchecked = denied
+        ? { ok: false, detail: 'not checked, because the warehouse could not run the access check' }
+        : { ok: true, detail: 'not checked yet', warn: PREFLIGHT_RECHECK };
       const checks = {
         warehouse: output
           ? { ok: true, detail: `${warehouseName} ran the access check for you` }
-          : { ok: false, detail: `${warehouseName} could not run a statement for you: ${outputError}` },
+          : { ok: !denied, detail: `${warehouseName} could not run a statement for you: ${outputError}`, ...(denied ? {} : { warn: PREFLIGHT_RECHECK }) },
         output: output
           ? { ok: output.write.ok && output.safety.ok, detail: moved ? `${moved.detail}; ${outputDetail}` : outputDetail }
-          : { ok: false, detail: 'not checked, because the warehouse could not run the access check' },
+          : unchecked,
       };
       if (output && output.model) checks.model = output.model;
-      if (shares) checks.result_grant = output ? output.grant : { ok: false, detail: 'not checked' };
+      if (shares) checks.result_grant = I.shareCheck(output ? output.grant : null);
       if (appName) {
         const name = I.appNameCheck(appName, existingApp && existingApp.ok ? existingApp.data : null, { useCaseId, sessionId: sid });
         if (!name.ok) {
@@ -820,21 +833,19 @@ function registerImplementRoutes(app, deps) {
           if (free) Object.assign(name, { name: appName, suggested: free });
         }
         checks.app_name = name;
-        if (name.creates) checks.app_access = output ? output.app : { ok: false, detail: 'not checked, because the warehouse could not run the access check' };
+        if (name.creates) checks.app_access = output ? output.app : unchecked;
         const swaps = !name.creates && I.appWarehouseMoves(existingApp && existingApp.ok ? existingApp.data : null, appWarehouse || warehouseId);
         if ((name.creates && appWarehouse && appWarehouse !== warehouseId) || swaps) {
-          checks.app_warehouse = output ? output.app_warehouse : { ok: false, detail: 'not checked, because the warehouse could not run the access check' };
+          checks.app_warehouse = output ? output.app_warehouse : unchecked;
         }
         if (!features.apps) checks.apps = { ok: false, detail: 'this workspace cannot create Databricks Apps' };
         else {
           const limit = I.appsLimit(req.dbHost);
-          const count = name.creates ? await countApps(req, limit) : 0;
-          checks.apps = count == null
-            ? { ok: false, detail: 'the Apps list is not available to you, so the App quota cannot be checked' }
-            : I.appsQuotaCheck(count, limit, name.creates);
+          const count = !name.creates ? 0 : features.apps_unchecked ? null : await countApps(req, limit);
+          checks.apps = I.appsQuotaCheck(count, limit, name.creates);
         }
       } else if (mergeApp) {
-        checks.app_access = output ? output.app : { ok: false, detail: 'not checked, because the warehouse could not run the access check' };
+        checks.app_access = output ? output.app : unchecked;
       }
       checks.genie_code = GC.genieCodeLine(features.genie_code);
       if (wantsGenie) {
@@ -1060,18 +1071,20 @@ function registerImplementRoutes(app, deps) {
     const { sid, warehouseId, inspire_database, catalog, schema, raw, history, legacyAccess, asked } = await askedSpec(req);
     const changed = I.publishHeldDifference(history, asked, legacyAccess);
     if (changed) throw I.badRequest(changed, 409);
-    const rolled = I.rollbackSpec(history, asked);
+    const { spec: kept, warning: asksWarning } = withoutSkippedVibes(I.rollbackSpec(history, asked));
+    const rolled = I.withVibePreviousDefault(history, kept);
     const useCaseId = I.validateUseCaseId(rolled.use_case_id);
     const moved = await movedResultTable(req, warehouseId, useCaseId, rolled.config.result_table, history);
-    const spec = moved ? I.withResultTable(rolled, moved.to) : rolled;
+    const chosen = moved ? I.withResultTable(rolled, moved.to) : rolled;
     const [session, useCase, person] = await Promise.all([
       loadSession(req.dbHost, req.dbToken, warehouseId, catalog, schema, sid),
       loadUseCase(req.dbHost, req.dbToken, warehouseId, catalog, schema, sid, useCaseId),
       personOf(req),
     ]);
     if (!useCase) throw I.badRequest(`No use case ${useCaseId} in this session.`, 404);
-    const problems = I.removedTableProblems(spec, I.useCaseTables(useCase), I.primaryTableOf(useCase));
+    const problems = I.removedTableProblems(chosen, I.useCaseTables(useCase), I.primaryTableOf(useCase));
     if (problems.length) throw I.badRequest(problems.join('; '));
+    const { spec, warnings: readWarnings } = await dropPersonUnreadable(req, chosen, useCase);
     const kpiIssues = I.implementKpiTargetProblems(raw, I.implementKpiOptions(useCase, history), history);
     if (kpiIssues.length) throw I.badRequest(kpiIssues.join('; '));
     const keyRef = I.resultKeyRef(spec, useCase);
@@ -1091,42 +1104,103 @@ function registerImplementRoutes(app, deps) {
       const mergeIssues = I.mergeProblems(spec, targets, I.carriedAssets(history));
       if (mergeIssues.length) throw I.badRequest(mergeIssues.join('; '));
     }
-    const [stalled, tables] = await Promise.all([stalledOf(req, history[0]), ownerTableChange(req, warehouseId, history, spec, useCase, person)]);
+    const [stalled, tables, empty] = await Promise.all([stalledOf(req, history[0]), ownerTableChange(req, warehouseId, history, spec, useCase, person),
+      emptyDataWarning(req, warehouseId, spec, useCase)]);
     const plan = I.planSubmission(history, spec, stalled, { requester: person.username, tableChange: tables.change });
     if (moved) plan.summary.result_table_moved = moved;
     if (tables.change) plan.summary.table_change = tables.change;
     if (tables.error) plan.summary.table_change_error = tables.error;
     if (plan.summary.refill || (tables.change && tables.change.class === 'settings')) await refuseMissingSources(req, warehouseId, spec, useCase);
-    return { sid, warehouseId, inspire_database, catalog, schema, spec: plan.spec, useCaseId, useCase, session, history, plan, person };
+    const warnings = [asksWarning, ...readWarnings, empty].filter(Boolean);
+    return { sid, warehouseId, inspire_database, catalog, schema, spec: plan.spec, useCaseId, useCase, session, history, plan, person, warnings };
+  }
+
+  function withoutSkippedVibes(spec) {
+    const warning = skippedAsksText(spec);
+    if (!warning) return { spec, warning: '' };
+    const { vibe_previous: previous, ...kept } = withoutSkippedAsks(spec);
+    return { spec: String(kept.vibes ?? '').trim() ? { ...kept, ...(previous ? { vibe_previous: previous } : {}) } : kept, warning };
+  }
+
+  function unreadableRefusal(message, status, unreadable) {
+    const err = I.badRequest(message, status);
+    err.details = { unreadable };
+    return err;
   }
 
   async function refusePersonUnreadable(req, spec, useCase) {
     const refused = await U.runReadRefusal(dbFetch, req, { tables: I.sourceTables(spec, I.useCaseTables(useCase)) });
-    if (!refused) return;
-    const err = I.badRequest(refused.message, refused.status);
-    err.details = { unreadable: refused.unreadable };
-    throw err;
+    if (refused) throw unreadableRefusal(refused.message, refused.status, refused.unreadable);
+  }
+
+  async function dropPersonUnreadable(req, spec, useCase) {
+    const involved = I.useCaseTables(useCase);
+    const reads = await U.runReadPlan(dbFetch, req, { tables: I.sourceTables(spec, involved) });
+    if (reads.refusal) throw unreadableRefusal(reads.refusal.message, reads.refusal.status, reads.refusal.unreadable);
+    if (!reads.skipped.length) return { spec, warnings: reads.uncheckedWarnings };
+    const gone = new Set(reads.skipped.map((t) => t.toLowerCase()));
+    const picks = I.sourcePicks(spec, involved).filter((p) => gone.has(p.chosen.toLowerCase()));
+    const primary = I.primaryTableOf(useCase).toLowerCase();
+    const main = picks.find((p) => p.original.toLowerCase() === primary);
+    if (main) throw unreadableRefusal(`${U.runUnreadableText([main.chosen])}. It is the primary table, so Inspire cannot build without it.`, 403, [main.chosen]);
+    let next = spec;
+    const notes = [];
+    for (const pick of picks) {
+      const removed = removeTable(next, pick.original);
+      next = removed.spec;
+      const what = clearedText(removed.cleared);
+      notes.push(what ? `${pick.chosen} (cleared ${what})` : pick.chosen);
+    }
+    return { spec: next, warnings: [`Building without ${notes.length === 1 ? 'a table' : `${notes.length} tables`} you can't read: ${I.joinAnd(notes)}.`, ...reads.uncheckedWarnings] };
+  }
+
+  async function emptyDataWarning(req, warehouseId, spec, useCase) {
+    const scope = readinessScope(spec, useCase);
+    if (!scope.table || !P.personTokenOf(req)) return '';
+    try {
+      const statement = I.readinessStatement(scope.table, { columns: scope.columns, filters: scope.filters, window: scope.window });
+      const rows = await sqlRows(req.dbHost, P.personTokenOf(req), warehouseId, statement);
+      return I.readinessFromRow(rows[0] || {}, statement.columns).row_count === 0 ? emptyScopeError(scope) : '';
+    } catch (err) {
+      console.warn(`implement row count failed for ${scope.table}: ${err.message || err}`);
+      return `Inspire could not count the rows in ${scope.table}. The build checks the data itself.`;
+    }
   }
 
   app.post('/api/inspire/implement/plan', requireToken, async (req, res) => {
     try {
-      const { sid, warehouseId, catalog, schema, useCaseId, plan } = await prepareSubmission(req);
+      const { sid, warehouseId, catalog, schema, useCaseId, plan, warnings } = await prepareSubmission(req);
       const sharing = plan.summary.delete.some((name) => I.IMPLEMENT_MERGE_OUTPUTS.includes(name))
         ? await sharedOf(req, { sid, warehouseId, catalog, schema, useCaseId }) : {};
       res.json({ use_case_id: useCaseId, spec_version: plan.nextVersion, based_on_version: plan.built ? plan.built.spec_version : null,
-        summary: plan.summary, unchanged: plan.unchanged, ...sharing });
+        summary: plan.summary, unchanged: plan.unchanged, warnings, ...sharing });
     } catch (err) {
       sendError(res, err);
     }
   });
 
-  async function startVersion(req, { sid, warehouseId, inspire_database, catalog, schema, spec, useCaseId, useCase, session, plan, person }) {
-    I.refuseUnchanged(plan);
-    await refusePersonUnreadable(req, spec, useCase);
-    if (spec.config.result_table) {
-      const output = await checkOutput(req, warehouseId, spec.config.result_table, useCaseId);
-      if (!output.ok) throw I.badRequest(output.write.ok ? output.safety.detail : output.write.detail, 403);
+  async function outputBeforeBuild(req, warehouseId, planned, useCaseId) {
+    if (!planned.config.result_table) return { spec: planned, warnings: [] };
+    let output;
+    try {
+      output = await checkOutput(req, warehouseId, planned.config.result_table, useCaseId);
+    } catch (err) {
+      if ((err.statusCode && err.statusCode < 500) || I.isReadDenied(err.message)) throw err;
+      console.warn(`implement output check failed for ${planned.config.result_table}: ${err.message || err}`);
+      return { spec: planned, warnings: [`Inspire could not check the result table: ${err.message || err}. The build checks it again.`] };
     }
+    if (!output.ok) throw I.badRequest(output.write.ok ? output.safety.detail : output.write.detail, 403);
+    if (output.grant.ok || !planned.sharing.principals.length) return { spec: planned, warnings: [] };
+    return {
+      spec: { ...planned, sharing: { ...planned.sharing, principals: [] } },
+      warnings: [`Built without sharing: ${output.grant.detail}. Share ${output.table} once you can.`],
+    };
+  }
+
+  async function startVersion(req, { sid, warehouseId, inspire_database, catalog, schema, spec: planned, useCaseId, session, plan, person, warnings: noted = [] }) {
+    I.refuseUnchanged(plan);
+    const { spec, warnings: outputWarnings } = await outputBeforeBuild(req, warehouseId, planned, useCaseId);
+    const warnings = [...noted, ...outputWarnings];
     const params = I.implementJobParams(notebookParamsFromSessionForGenerateRun(session, sid), useCaseId, plan.nextVersion);
     if (!params['02_inspire_database']) params['02_inspire_database'] = inspire_database;
     if (!params['01_uc_metadata']) {
@@ -1181,6 +1255,7 @@ function registerImplementRoutes(app, deps) {
       spec_version: plan.nextVersion,
       summary: plan.summary,
       ...out,
+      warnings: [...warnings, ...(out.warnings || [])],
     };
   }
 

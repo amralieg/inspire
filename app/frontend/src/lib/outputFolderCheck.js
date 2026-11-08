@@ -3,19 +3,23 @@ import { useEffect, useState } from 'react';
 export const OUTPUT_CHECK_DELAY_MS = 500;
 export const OUTPUT_CHECK_URL = '/api/output-folder/check';
 
-const CHECKING = { state: 'checking', text: '', folder: '', checked: '' };
+const CHECKING = { state: 'checking', text: '', folder: '', checked: '', warnings: [] };
+const UNCHECKED_TAIL = 'Get Started still works, and the run checks the folder again.';
 
 export function outputCheckRequest(generationPath) {
   return { method: 'POST', body: JSON.stringify({ generation_path: String(generationPath ?? '') }) };
 }
 
 export function outputCheckVerdict(path, data, err) {
-  if (err) {
-    const text = String(err.message || 'Inspire could not check the output folder.');
-    return { path, state: err.status === 403 ? 'refused' : 'error', text, folder: '', checked: '' };
+  if (err && (err.status === 401 || err.status === 403)) {
+    return { path, state: 'refused', text: String(err.message || 'You cannot write to the output folder.'), folder: '', checked: '', warnings: [] };
   }
-  if (data && data.allowed === true) return { path, state: 'passed', text: '', folder: String(data.folder || path), checked: String(data.checked || '') };
-  return { path, state: 'error', text: 'Inspire got no clear answer from the output folder check.', folder: '', checked: '' };
+  if (!err && data && data.allowed === true) {
+    const warnings = Array.isArray(data.warnings) ? data.warnings.map(String).filter(Boolean) : [];
+    return { path, state: 'passed', text: '', folder: String(data.folder || path), checked: String(data.checked || ''), warnings };
+  }
+  const why = err ? String(err.message || 'the check did not answer') : 'the check gave no clear answer';
+  return { path, state: 'unchecked', text: `Inspire could not check the output folder (${why}). ${UNCHECKED_TAIL}`, folder: '', checked: '', warnings: [] };
 }
 
 export function useOutputFolderCheck(apiFetch, generationPath) {
@@ -38,5 +42,5 @@ export function useOutputFolderCheck(apiFetch, generationPath) {
     };
   }, [apiFetch, path]);
   const current = check.path === path ? check : { path, ...CHECKING };
-  return { ...current, ready: current.state === 'passed' };
+  return { ...current, ready: current.state === 'passed' || current.state === 'unchecked' };
 }

@@ -28,7 +28,7 @@ const {
   normalizeV130UseCaseFields,
 } = require('./lib/inspireJobParams');
 const { notebookParamsFromSessionForGenerateRun } = require('./lib/inspireSessionParams');
-const { splitInspireDatabase, isTimestampText, stepsStatement } = require('./lib/sqlInputs');
+const { INSPIRE_DB_SHAPE, USE_CASE_ID_SHAPE, splitInspireDatabase, isTimestampText, stepsStatement } = require('./lib/sqlInputs');
 const { createExecuteSql, runWithRequestDeadline } = require('./lib/sqlStatements');
 const { plural } = require('./lib/plural');
 const { jsonOf, registerImplementRoutes } = require('./implementRoutes');
@@ -36,7 +36,7 @@ const {
   APP_TOKEN, FROM_FORWARDED_TOKEN, FROM_HEADERS, FROM_REQUEST_TOKEN, PERSON_TOKEN, SCIM_ME_PATH, forwardedTokenOf, meResponse, personTokenOf, requestPerson,
 } = require('./lib/requestPerson');
 const {
-  discoverReads, discoverWrites, listCatalogs, listSchemas, listTables, runReadRefusal, runWriteRefusal, writeRefusalBody,
+  discoverReads, discoverWrites, listCatalogs, listSchemas, listTables, outputPlan, runReadPlan, writeRefusalBody,
 } = require('./lib/ucReads');
 const { registerShowcaseRoutes, showcaseWriteGuard } = require('./lib/showcase');
 const { HIGH_PRIORITY_SQL, MEETS_BAR_SQL, loadSessionList, loadSessionPreviews, sessionListCap } = require('./lib/reviewFigures');
@@ -860,10 +860,15 @@ async function triggerInspireNotebookJob(host, token, { params, notebook_path, c
 
   const writes = writeCheck ? discoverWrites(params, resolvedPath) : null;
   let outputChecked = '';
+  let outputFolder = writes ? writes.folders[0] : '';
+  const warnings = [];
   if (writes) {
     const verdict = await writeCheck(writes);
     if (verdict.refused) throw Object.assign(new Error(verdict.refused.message), { statusCode: verdict.refused.status, writeRefusal: verdict.refused });
     outputChecked = verdict.checked;
+    if (verdict.generationPath) params['11_generation_path'] = verdict.generationPath;
+    if (verdict.folder) outputFolder = verdict.folder;
+    warnings.push(...verdict.warnings);
   }
 
   const businessName = params['00_business_name'] || 'Run';
@@ -931,7 +936,7 @@ async function triggerInspireNotebookJob(host, token, { params, notebook_path, c
   console.log(`✅ Run submitted: ${runId}, job_id=${job_id}, notebook: ${resolvedPath}`);
   const launch = launchedBy
     ? await recordLaunch(host, { runId, jobId: job_id, runType: inspireRunType, inspireDatabase: launchDatabase, sessionId: launchSession, openedSession, launchedBy,
-      outputFolder: writes ? writes.folders[0] : '', outputChecked })
+      outputFolder, outputChecked })
     : { recorded: false, note: 'no signed-in person launched this run, so only App managers can cancel it' };
   return {
     run_id: runId,
@@ -942,6 +947,7 @@ async function triggerInspireNotebookJob(host, token, { params, notebook_path, c
     ...(launch.note ? { launcher_note: launch.note } : {}),
     viewer_granted: viewer.granted,
     ...(viewer.note ? { viewer_note: viewer.note } : {}),
+    ...(warnings.length ? { warnings } : {}),
   };
 }
 
@@ -1981,7 +1987,7 @@ app.post('/api/demo-data/start', requireToken, async (req, res) => {
 
     const inspireDb = String(bodyInspireDb || DEFAULT_INSPIRE_DB || '').trim();
     if (!inspireDb || !inspireDb.includes('.')) {
-      return res.status(400).json({ error: 'inspire_database must be catalog._inspire (e.g. mehdi_wissad._inspire)' });
+      return res.status(400).json({ error: INSPIRE_DB_SHAPE });
     }
     const [catalog] = inspireDb.split('.');
 
@@ -2062,8 +2068,9 @@ app.post('/api/run', requireToken, async (req, res) => {
   try {
     const { cluster_id, notebook_path } = req.body;
     const params = (req.body.params && typeof req.body.params === 'object') ? { ...req.body.params } : {};
-    const refused = await runReadRefusal(dbFetch, req, discoverReads(params));
-    if (refused) return res.status(refused.status).json({ error: refused.message, unreadable: refused.unreadable });
+    const reads = await runReadPlan(dbFetch, req, discoverReads(params));
+    if (reads.refusal) return res.status(reads.refusal.status).json({ error: reads.refusal.message, unreadable: reads.refusal.unreadable });
+    if (reads.scope) params['01_uc_metadata'] = reads.scope;
     const out = await triggerInspireNotebookJob(req.dbHost, req.dbToken, {
       params,
       notebook_path,
@@ -2072,7 +2079,8 @@ app.post('/api/run', requireToken, async (req, res) => {
       launchedBy: RP.forwardedPerson(req.headers),
       writeCheck: (writes) => outputWriteVerdict(req, writes),
     });
-    res.json(out);
+    const warnings = [...reads.warnings, ...(out.warnings || [])];
+    res.json({ ...out, ...(warnings.length ? { warnings } : {}), ...(reads.skipped.length ? { skipped_tables: reads.skipped } : {}) });
   } catch (err) {
     if (err.writeRefusal) return res.status(err.writeRefusal.status).json(writeRefusalBody(req.policyKey, err.writeRefusal));
     const code = err.statusCode && Number.isFinite(err.statusCode) ? err.statusCode : 500;
@@ -2082,15 +2090,16 @@ app.post('/api/run', requireToken, async (req, res) => {
 
 async function outputWriteVerdict(req, writes) {
   const manager = await routePolicy.managerOf(req).catch(() => ({ manager: false }));
-  if (manager.manager) return { refused: null, checked: 'manager' };
-  return { refused: await runWriteRefusal(dbFetch, req, writes), checked: 'passed' };
+  const plan = await outputPlan(dbFetch, req, writes, { manager: manager.manager, appToken: await appOwnToken() });
+  return { ...plan, checked: manager.manager ? 'manager' : 'passed' };
 }
 
 app.post('/api/output-folder/check', requireToken, async (req, res) => {
   const writes = discoverWrites({ '11_generation_path': String((req.body || {}).generation_path || '') }, cachedNotebookPath || DEFAULT_NOTEBOOK_PATH);
   const verdict = await outputWriteVerdict(req, writes);
   if (verdict.refused) return res.status(verdict.refused.status).json(writeRefusalBody(req.policyKey, verdict.refused));
-  res.json({ allowed: true, folder: writes.folders[0], checked: verdict.checked });
+  res.json({ allowed: true, folder: verdict.folder || writes.folders[0], checked: verdict.checked, warnings: verdict.warnings,
+    ...(verdict.generationPath ? { generation_path: verdict.generationPath } : {}) });
 });
 
 // ═══════════════════════════════════════════════════
@@ -2191,7 +2200,7 @@ app.get('/api/inspire/session', requireToken, async (req, res) => {
 
     const parsedDb = splitInspireDatabase(inspire_database);
     if (!parsedDb) {
-      return res.status(400).json({ error: 'inspire_database must be exactly catalog.schema (one dot).' });
+      return res.status(400).json({ error: INSPIRE_DB_SHAPE });
     }
     const { catalog, schema } = parsedDb;
     const table = `\`${catalog}\`.\`${schema}\`.\`__inspire_session\``;
@@ -2288,7 +2297,7 @@ app.get('/api/inspire/steps', requireToken, async (req, res) => {
 
     const parsedDb = splitInspireDatabase(inspire_database);
     if (!parsedDb) {
-      return res.status(400).json({ error: 'inspire_database must be exactly catalog.schema (one dot).' });
+      return res.status(400).json({ error: INSPIRE_DB_SHAPE });
     }
     const { catalog, schema } = parsedDb;
     const table = `\`${catalog}\`.\`${schema}\`.\`__inspire_step\``;
@@ -2325,7 +2334,7 @@ app.get('/api/inspire/step-results', requireToken, async (req, res) => {
 
     const parsedDb = splitInspireDatabase(inspire_database);
     if (!parsedDb) {
-      return res.status(400).json({ error: 'inspire_database must be exactly catalog.schema (one dot).' });
+      return res.status(400).json({ error: INSPIRE_DB_SHAPE });
     }
     const { catalog, schema } = parsedDb;
     const stepTable = `\`${catalog}\`.\`${schema}\`.\`__inspire_step\``;
@@ -2393,7 +2402,7 @@ app.get('/api/inspire/usecases', requireToken, async (req, res) => {
     }
     const parsedDb = splitInspireDatabase(inspire_database);
     if (!parsedDb) {
-      return res.status(400).json({ error: 'inspire_database must be exactly catalog.schema (one dot).' });
+      return res.status(400).json({ error: INSPIRE_DB_SHAPE });
     }
     const { catalog, schema } = parsedDb;
     const table = `\`${catalog}\`.\`${schema}\`.\`__inspire_usecases\``;
@@ -2473,7 +2482,7 @@ app.post('/api/inspire/ack', requireToken, async (req, res) => {
 
     const parsedDb = splitInspireDatabase(inspire_database);
     if (!parsedDb) {
-      return res.status(400).json({ error: 'inspire_database must be exactly catalog.schema (one dot).' });
+      return res.status(400).json({ error: INSPIRE_DB_SHAPE });
     }
     const { catalog, schema } = parsedDb;
     const table = `\`${catalog}\`.\`${schema}\`.\`__inspire_session\``;
@@ -2572,12 +2581,12 @@ app.post('/api/inspire/sync-genie-flags', requireToken, async (req, res) => {
     const safeIds = use_case_ids.filter((id) => /^[a-zA-Z0-9_.\-]+$/.test(id));
     if (safeIds.length !== use_case_ids.length && use_case_ids.length > 0) {
       return res.status(400).json({
-        error: 'Each use_case_id must match /^[a-zA-Z0-9_.\\-]+$/ (Inspire tracking table id / No).',
+        error: USE_CASE_ID_SHAPE,
       });
     }
     const parsedDb = splitInspireDatabase(inspire_database);
     if (!parsedDb) {
-      return res.status(400).json({ error: 'inspire_database must be exactly catalog.schema (one dot).' });
+      return res.status(400).json({ error: INSPIRE_DB_SHAPE });
     }
     const { catalog, schema } = parsedDb;
     await runRoute1GenieFlagUpdates(req.dbHost, req.dbToken, warehouse_id, catalog, schema, sidStr, safeIds);
@@ -2619,7 +2628,7 @@ app.get('/api/inspire/genie-progress', requireToken, async (req, res) => {
     }
     const parsedDb = splitInspireDatabase(String(inspire_database));
     if (!parsedDb) {
-      return res.status(400).json({ error: 'inspire_database must be exactly catalog.schema (one dot).' });
+      return res.status(400).json({ error: INSPIRE_DB_SHAPE });
     }
     const { catalog, schema } = parsedDb;
     const ucTable = `\`${catalog}\`.\`${schema}\`.\`__inspire_usecases\``;
@@ -2680,7 +2689,7 @@ app.get('/api/inspire/results', requireToken, async (req, res) => {
 
     const parsedDb = splitInspireDatabase(inspire_database);
     if (!parsedDb) {
-      return res.status(400).json({ error: 'inspire_database must be exactly catalog.schema (one dot).' });
+      return res.status(400).json({ error: INSPIRE_DB_SHAPE });
     }
     const { catalog, schema } = parsedDb;
     const table = `\`${catalog}\`.\`${schema}\`.\`__inspire_session\``;
@@ -2738,7 +2747,7 @@ app.get('/api/inspire/sessions', requireToken, async (req, res) => {
     const parsed = splitInspireDatabase(inspire_database);
     if (!parsed) {
       return res.status(400).json({
-        error: 'inspire_database must be exactly catalog.schema (one dot), e.g. workspace._inspire',
+        error: INSPIRE_DB_SHAPE,
       });
     }
     const { catalog, schema } = parsed;
@@ -2808,7 +2817,7 @@ app.delete('/api/inspire/session', requireToken, async (req, res) => {
     }
     const parsedDb = splitInspireDatabase(inspire_database);
     if (!parsedDb) {
-      return res.status(400).json({ error: 'inspire_database must be exactly catalog.schema (one dot).' });
+      return res.status(400).json({ error: INSPIRE_DB_SHAPE });
     }
     const { catalog, schema } = parsedDb;
     const sessionTable = `\`${catalog}\`.\`${schema}\`.\`__inspire_session\``;

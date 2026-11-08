@@ -162,7 +162,37 @@ export function specWithBackend(spec, offer) {
 function withVibeChoice(spec, built) {
   const { vibes, vibe_previous: previous, ...rest } = spec;
   if (!String(vibes ?? '').trim()) return rest;
-  return { ...rest, vibes, ...(built != null && previous ? { vibe_previous: previous } : {}) };
+  return { ...rest, vibes, ...(built != null ? { vibe_previous: previous || VIBE_PREVIOUS_DEFAULT } : {}) };
+}
+
+const askKey = (text) => String(text ?? '').replace(/\s+/g, ' ').trim().toLowerCase();
+
+export function skippedVibeAsks(spec) {
+  const asks = specVibeAsks(spec);
+  const refused = vibeRefusals(asks);
+  const conflicts = vibeConflicts(asks);
+  return { refused, conflicts, keys: new Set([...refused.map((n) => askKey(n.ask)), ...conflicts.flatMap((c) => c.asks.map(askKey))]) };
+}
+
+const keptAsks = (text, keys) => String(text ?? '').split(/\r?\n/).filter((line) => !keys.has(askKey(line))).join('\n').trim();
+
+export function withoutSkippedAsks(spec) {
+  const { keys } = skippedVibeAsks(spec);
+  if (!keys.size) return spec;
+  const outputs = Object.fromEntries(Object.entries(spec.outputs || {}).map(([key, value]) => [key, key.endsWith('_vibes') ? keptAsks(value, keys) : value]));
+  return {
+    ...spec,
+    ...(spec.vibes != null ? { vibes: keptAsks(spec.vibes, keys) } : {}),
+    ...(spec.data ? { data: { ...spec.data, ...(spec.data.notes != null ? { notes: keptAsks(spec.data.notes, keys) } : {}) } } : {}),
+    ...(spec.outputs ? { outputs } : {}),
+  };
+}
+
+export function skippedAsksText(spec) {
+  const { refused, conflicts } = skippedVibeAsks(spec);
+  const parts = [...(refused.length ? [vibeRefusalText(refused)] : []), ...conflicts.map((c) => `“${c.asks[0]}” and “${c.asks[1]}” ask for opposite things`)];
+  const count = refused.length + new Set(conflicts.flatMap((c) => c.asks.map(askKey))).size;
+  return parts.length ? `Inspire builds without ${count === 1 ? 'this ask' : `these ${count} asks`}: ${parts.join('; ')}.` : '';
 }
 
 export function sentSpec(spec, offer, built = null, targets = null, scope = {}) {
@@ -367,6 +397,7 @@ export const VIBES_STEP_NOTE = `${VIBES_HELP} There is one box for the whole MVP
 export const IMPLEMENT_DONE_STATUSES = ['ready', 'ready_with_warnings'];
 export const BUILT_ASSET_STATES = IMPLEMENT_DONE_STATUSES;
 export const VIBE_PREVIOUS_CHOICES = ['keep', 'remove'];
+export const VIBE_PREVIOUS_DEFAULT = 'keep';
 
 export function builtVersion(history) {
   const rows = [...(history || [])].sort((a, b) => (b?.spec_version || 0) - (a?.spec_version || 0));
@@ -442,22 +473,13 @@ export function vibesSkippedText(spec) {
 
 export function vibePreviousProblem(spec, built) {
   if (built == null || !String(spec?.vibes ?? '').trim()) return '';
-  if (VIBE_PREVIOUS_CHOICES.includes(String(spec.vibe_previous ?? '').trim().toLowerCase())) return '';
+  const picked = String(spec.vibe_previous ?? '').trim().toLowerCase();
+  if (!picked || VIBE_PREVIOUS_CHOICES.includes(picked)) return '';
   return `choose what happens to v${built}, the version before this vibe: keep it live or remove it`;
 }
 
-export function vibesRefusedProblem(spec) {
-  const refused = vibeRefusals(specVibeAsks(spec));
-  return refused.length ? `take out ${refused.length === 1 ? 'the ask Inspire does not build' : `the ${refused.length} asks Inspire does not build`} first: ${vibeRefusalText(refused)}` : '';
-}
-
-export function vibesConflictProblem(spec) {
-  const conflicts = vibeConflicts(specVibeAsks(spec));
-  return conflicts.length ? `settle the asks that ask for opposite things first: ${conflicts.map((c) => c.note).join('; ')}` : '';
-}
-
 export function vibesProblems(spec, built = null) {
-  return [vibesProblem('mvp', spec?.vibes, 'MVP'), vibesRefusedProblem(spec), vibesConflictProblem(spec), vibePreviousProblem(spec, built)].filter(Boolean);
+  return [vibesProblem('mvp', spec?.vibes, 'MVP'), vibePreviousProblem(spec, built)].filter(Boolean);
 }
 
 export function heldAsks(text) {
@@ -576,8 +598,7 @@ export function appNameOf(name, id) {
 }
 
 export const HUB_APP_PREFIX = 'inspire-hub';
-export const HUB_NAME_KEPT = `App names that start with ${HUB_APP_PREFIX}- are kept for the App of all use cases of a business: pick another `
-  + 'name for an App of its own';
+export const HUB_NAME_KEPT = `Names starting ${HUB_APP_PREFIX}- are for the shared business App. Pick another App name`;
 
 export function hubNameKept(spec, held = {}) {
   const name = String(spec?.outputs?.app_name || '');
@@ -775,7 +796,20 @@ export function readinessScope(spec, uc) {
   };
 }
 
+export function checkCallRefused(err) {
+  return err?.status === 401 || err?.status === 403;
+}
+
+export function uncountedReadiness(scope) {
+  return { skipped: true, unchecked: `Inspire could not count the rows in ${scope.table}. You can go on; the preview run checks the data.` };
+}
+
+export function outputUncheckedText(table, err) {
+  return `Inspire could not check that you can write ${table} (${err?.message || 'no answer'}). You can go on; the build checks it again.`;
+}
+
 export function readinessText(readiness, scope) {
+  if (readiness?.unchecked) return readiness.unchecked;
   if (!readiness || readiness.skipped) return '';
   const found = `Inspire found ${(Number(readiness.row_count) || 0).toLocaleString('en-US')} rows to work with in ${scope.table}.`;
   const left = scope.uncounted || [];
@@ -1074,19 +1108,49 @@ export function columnRoleProblem(role, column, type, { trainsModel = true, tags
 
 export const RESET_ROLES_LABEL = "Reset roles to Inspire's choice";
 
+function roleColumn(ref, columnsByTable) {
+  const table = tableOfRef(ref);
+  const column = columnOfRef(ref);
+  const columns = Object.entries(columnsByTable || {}).find(([t]) => sameTable(t, table))?.[1];
+  if (!columns) return { known: false, found: null };
+  return { known: true, found: columns.find((c) => String(c.column_name).toLowerCase() === column.toLowerCase()) || null };
+}
+
 export function columnRoleProblems(roles, columnsByTable, options = {}) {
   const problems = [];
   for (const [role, ref] of Object.entries(roles || {})) {
     if (!ref) continue;
-    const table = tableOfRef(ref);
-    const column = columnOfRef(ref);
-    const columns = Object.entries(columnsByTable || {}).find(([t]) => sameTable(t, table))?.[1];
-    if (!columns) continue;
-    const found = columns.find((c) => String(c.column_name).toLowerCase() === column.toLowerCase());
-    const why = found ? columnRoleProblem(role, found.column_name, found.data_type, { ...options, tags: found.tags }) : `${table} has no column ${column}`;
+    const { found } = roleColumn(ref, columnsByTable);
+    const why = found ? columnRoleProblem(role, found.column_name, found.data_type, { ...options, tags: found.tags }) : '';
     if (why) problems.push(`${role.replace('_', ' ')} ${ref}: ${why}`);
   }
   return problems;
+}
+
+export function withoutMissingRoles(spec, columnsByTable) {
+  const roles = spec?.data?.column_roles || {};
+  const gone = Object.entries(roles).filter(([, ref]) => {
+    if (!ref) return false;
+    const { known, found } = roleColumn(ref, columnsByTable);
+    return known && !found;
+  });
+  if (!gone.length) return { spec, note: '' };
+  const kept = Object.fromEntries(Object.entries(roles).filter(([role]) => !gone.some(([g]) => g === role)));
+  const listed = gone.map(([role, ref]) => `${role.replace('_', ' ')} ${ref}`);
+  return {
+    spec: { ...spec, data: { ...spec.data, column_roles: kept } },
+    note: `Dropped ${joinWords(listed)}: that column no longer exists. Pick another one if you need it.`,
+  };
+}
+
+export function withAppLookDefaults(spec, look) {
+  if (!look || !spec?.outputs?.app) return spec;
+  const current = spec.outputs.app_look || {};
+  const fixed = Object.fromEntries(Object.entries(APP_LOOK_LISTS).flatMap(([key, list]) => {
+    const options = Array.isArray(look[list]) ? look[list] : [];
+    return options.length && !options.includes(current[key]) ? [[key, options[0]]] : [];
+  }));
+  return Object.keys(fixed).length ? { ...spec, outputs: { ...spec.outputs, app_look: { ...current, ...fixed } } } : spec;
 }
 
 const DAY_CODES = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
@@ -1542,7 +1606,7 @@ export function advancedErrors(step, spec, extras = {}, mode = 'mvp') {
   return stepOf(step, mode, spec, extras.settings, extras.scopeSteps).advanced.flatMap((section) => sectionErrors(section, spec, extras));
 }
 
-const APP_LOOK_LISTS = { style: 'styles', layout: 'layouts', palette: 'palettes', theme: 'themes' };
+export const APP_LOOK_LISTS = { style: 'styles', layout: 'layouts', palette: 'palettes', theme: 'themes' };
 
 export function resultTableProblems(table) {
   const parts = String(table || '').split('.');

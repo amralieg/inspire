@@ -386,6 +386,7 @@ export default function ImplementPage({ settings, sessionId, focusId = null, onF
   const [discoveryType, setDiscoveryType] = useState('');
   const [listLoading, setListLoading] = useState(true);
   const [listError, setListError] = useState('');
+  const [buildNotes, setBuildNotes] = useState([]);
   const [rail, setRail] = useState(NO_RAIL);
   const [railError, setRailError] = useState('');
   const [query, setQuery] = useState('');
@@ -501,6 +502,7 @@ export default function ImplementPage({ settings, sessionId, focusId = null, onF
   };
 
   const onImplemented = (data) => {
+    setBuildNotes(Array.isArray(data?.warnings) ? data.warnings : []);
     if (wizard?.focus?.collected?.length && data?.use_case_id) saveCollectedVibes(scopeOf(data.use_case_id), []);
     setWizard(null);
     if (data?.use_case_id) select(data.use_case_id);
@@ -515,6 +517,12 @@ export default function ImplementPage({ settings, sessionId, focusId = null, onF
       {!listLoading && !listError && <SummaryBanner summary={summary} />}
       {filter && <BuildFilterStrip filter={filter} sessionId={sessionId} onPickRun={onPickRun} onClear={clearFilter} />}
       {listError && <p className={ERROR_BOX}>{listError}</p>}
+      {buildNotes.length > 0 && (
+        <ul role="note" aria-label="What Inspire changed to start this build" data-build-notes=""
+          className="rounded-lg border border-warning/30 bg-warning-bg px-3 py-2 space-y-0.5 text-xs text-warning-fg">
+          {buildNotes.map((note) => <li key={note}>{note}</li>)}
+        </ul>
+      )}
       {railError && <p className={ERROR_BOX}>{railError}</p>}
       <div className="flex flex-col md:flex-row gap-4 md:gap-2 md:flex-1 md:min-h-0">
         <div data-implement-rail="" style={{ '--rail-w': `${railPx}px` }}
@@ -1010,7 +1018,7 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
     setNotice('');
     try {
       const data = await apiPostJson(path, body);
-      setNotice(resultTableMoveNote(data?.summary));
+      setNotice([resultTableMoveNote(data?.summary), ...(Array.isArray(data?.warnings) ? data.warnings : [])].filter(Boolean).join(' '));
       await loadStatus();
       return true;
     } catch (e) {

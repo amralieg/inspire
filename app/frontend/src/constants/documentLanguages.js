@@ -54,3 +54,15 @@ export function parseDocumentLanguages(value) {
 export function formatDocumentLanguages(languages) {
   return parseDocumentLanguages(languages).join(',');
 }
+
+export const DEFAULT_DOCUMENT_LANGUAGE = 'English';
+
+export function needsDocumentLanguage(generationOptions) {
+  const options = String(generationOptions ?? '');
+  return options.includes('PDF') || options.includes('Presentation');
+}
+
+export function launchDocLanguages(params) {
+  const picked = parseDocumentLanguages(params['12_documents_languages']);
+  return picked.length || !needsDocumentLanguage(params['09_generation_options']) ? picked : [DEFAULT_DOCUMENT_LANGUAGE];
+}

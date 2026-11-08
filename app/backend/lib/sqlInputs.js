@@ -2,6 +2,10 @@
 const UNSAFE_IDENTIFIER_RE = /[`\u0000-\u001f\u007f]/;
 const SINCE_RE = /^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(\.\d{1,9})?(Z|[+-]\d{2}:?\d{2})?$/;
 
+const INSPIRE_DB_SHAPE = 'Pick catalog.schema for the Inspire database, for example main.inspire, in Settings.';
+const USE_CASE_ID_SHAPE = 'That use case id is not one Inspire made. Pick the use case again in Review.';
+const noSessionText = (sid) => `Inspire has no run ${sid} in this Inspire database. Pick a run in Review.`;
+
 function splitInspireDatabase(inspire_database) {
   if (!inspire_database || typeof inspire_database !== 'string') return null;
   const parts = inspire_database.trim().split('.');
@@ -30,4 +34,4 @@ function stepsStatement(table, sessionId, since) {
   return { sql: `SELECT ${STEP_COLUMNS} FROM ${table} ORDER BY last_updated DESC, step_id DESC LIMIT 100`, parameters: null };
 }
 
-module.exports = { splitInspireDatabase, isTimestampText, stepsStatement };
+module.exports = { INSPIRE_DB_SHAPE, USE_CASE_ID_SHAPE, noSessionText, splitInspireDatabase, isTimestampText, stepsStatement };
