@@ -151,7 +151,15 @@ test('each request keeps its own deadline across awaits, and none leaks into the
 
 test('a failed statement still throws the warehouse message, and chunked results are joined in order', async () => {
   const failed = warehouse(['RUNNING', 'FAILED']);
-  await assert.rejects(failed.executeSql('h', 't', 'wh', 'SELECT 1'), /TABLE_OR_VIEW_NOT_FOUND x/);
+  const warned = [];
+  const warn = console.warn;
+  console.warn = (line) => warned.push(String(line));
+  try {
+    await assert.rejects(failed.executeSql('h', 't', 'wh', 'SELECT 1'), /TABLE_OR_VIEW_NOT_FOUND x/);
+  } finally {
+    console.warn = warn;
+  }
+  assert.ok(warned.some((line) => line.includes('SQL failed: TABLE_OR_VIEW_NOT_FOUND x')), 'the App log says why a statement failed');
   const chunks = [];
   const dbFetch = async (_h, _t, apiPath) => {
     chunks.push(apiPath);

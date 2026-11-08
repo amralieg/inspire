@@ -3127,16 +3127,10 @@ function appNameCheck(appName, existing, { useCaseId, sessionId } = {}) {
     : { ok: false, detail: `'${appName}' is used by another App in this workspace; pick another name`, creates: true };
 }
 
-function appsLimit(host) {
-  return /\.gcp\.databricks\.com/i.test(str(host)) ? 50 : 100;
-}
-
-function appsQuotaCheck(count, limit, creates) {
-  if (count == null) return { ok: true, detail: 'Inspire could not count the Apps in this workspace', warn: 'Build still runs; if the workspace is full, the App step says so.' };
-  if (!creates) return { ok: true, detail: `no new App is needed (${count} of ${limit} Apps used)` };
-  return count < limit
-    ? { ok: true, detail: `${count} of ${limit} Apps used; one more fits` }
-    : { ok: false, detail: `this workspace already has ${count} of its ${limit} Apps; delete one or untick the App` };
+function appsRoomCheck(creates) {
+  return creates
+    ? { ok: true, detail: 'Inspire creates a new App; if Databricks has no room for it, the build stops with the reason Databricks gives' }
+    : { ok: true, detail: 'no new App is needed' };
 }
 
 function shareCheck(grant) {
@@ -3245,7 +3239,13 @@ function quoteColumn(name) {
   return `\`${col}\``;
 }
 
+function implementJobName(useCaseId, useCaseName, specVersion) {
+  const name = String(useCaseName ?? '').replace(/\s+/g, ' ').trim().slice(0, 80);
+  return ['Inspire AI - MVP', [String(useCaseId ?? '').trim(), name].filter(Boolean).join(' '), `v${Number(specVersion) || 1}`].filter(Boolean).join(' - ');
+}
+
 module.exports = {
+  implementJobName,
   IMPLEMENT_RUN_STARTED_MESSAGE,
   RUN_SUMMARY_SUFFIX,
   IMPLEMENT_BUILT_WITH,
@@ -3488,8 +3488,7 @@ module.exports = {
   withResultTable,
   appOwnerTag,
   appNameCheck,
-  appsLimit,
-  appsQuotaCheck,
+  appsRoomCheck,
   shareCheck,
   IMPLEMENT_ALL_USERS,
   accessPlan,

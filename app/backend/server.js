@@ -42,7 +42,7 @@ const { registerShowcaseRoutes, showcaseWriteGuard } = require('./lib/showcase')
 const { loadSessionList, loadSessionOverviews, sessionListCap } = require('./lib/reviewFigures');
 const { LIVE_STEP_STATUSES, liveDomainsOf, liveUseCasesOf } = require('../frontend/src/lib/liveUseCases.js');
 const { executiveSummaryOf, parseResultsJson, runResultsStatement } = require('./lib/runSummary');
-const { isReadDenied } = require('./lib/inspireImplement');
+const { isReadDenied, liveLogPath } = require('./lib/inspireImplement');
 const { keepLongInteger, parseExactJson } = require('./lib/exactJson');
 const { int64Id, isInt64Id, jsonWithInt64Ids } = require('./lib/int64Id');
 const {
@@ -909,7 +909,8 @@ async function triggerInspireNotebookJob(host, token, { params, notebook_path, c
     throw err;
   }
 
-  const { job_id } = parseExactJson(await createResp.text());
+  const created = parseExactJson(await createResp.text());
+  const job_id = int64Id(created.job_id) ?? String(created.job_id);
   console.log(`✅ Job created: ${job_id}`);
   const viewer = await grantJobViewer(dbFetch, host, token, job_id, launchedBy);
   if (viewer.note) console.warn(`⚠️ ${viewer.note}`);
@@ -930,7 +931,7 @@ async function triggerInspireNotebookJob(host, token, { params, notebook_path, c
   }
 
   const data = parseExactJson(await response.text());
-  const runId = data.run_id;
+  const runId = int64Id(data.run_id) ?? String(data.run_id);
   rememberViewer(runId, viewer);
   const jobRunUrl = databricksJobRunUrl(host, job_id, runId);
   console.log(`✅ Run submitted: ${runId}, job_id=${job_id}, notebook: ${resolvedPath}`);
@@ -1601,7 +1602,7 @@ app.get('/api/catalogs', requireToken, async (req, res) => {
     }
     const byName = new Map();
     for (const c of raw) {
-      if (c && c.name) {
+      if (c && c.name && !String(c.name).startsWith('__')) {
         byName.set(c.name, {
           name: c.name,
           comment: c.comment || '',
@@ -1610,10 +1611,10 @@ app.get('/api/catalogs', requireToken, async (req, res) => {
       }
     }
     const countAfterRest = byName.size;
-    if (warehouseId) {
+    if (warehouseId && (restErr || restCut || !raw.length)) {
       const sqlNames = await listCatalogNamesSql(req.dbHost, token, warehouseId);
       for (const name of sqlNames) {
-        if (!byName.has(name)) {
+        if (!byName.has(name) && !String(name).startsWith('__')) {
           byName.set(name, { name, comment: '', owner: '' });
         }
       }
@@ -2813,6 +2814,47 @@ app.delete('/api/inspire/session', requireToken, async (req, res) => {
       `DELETE FROM ${sessionTable} WHERE session_id = ${session_id}`);
 
     res.json({ success: true, message: `Session ${session_id} deleted.` });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+const RUN_LOG_TAIL_BYTES = 512 * 1024;
+
+async function readLogTail(host, token, logPath, maxBytes = RUN_LOG_TAIL_BYTES) {
+  const apiPath = fsApiPath('files', logPath);
+  const head = await dbFetch(host, token, apiPath, { method: 'HEAD' });
+  if (!head.ok) return { status: head.status };
+  const size = Number(head.headers.get('content-length')) || 0;
+  const from = size > maxBytes ? size - maxBytes : 0;
+  const resp = await dbFetch(host, token, apiPath, from ? { headers: { Range: `bytes=${from}-` } } : {});
+  if (!resp.ok) return { status: resp.status };
+  const text = await resp.text();
+  const cut = from > 0 && resp.status === 206;
+  const tail = cut ? text.slice(text.indexOf('\n') + 1) : text.slice(-maxBytes);
+  return { status: 200, size, truncated: from > 0, text: tail };
+}
+
+app.get('/api/inspire/log', requireToken, async (req, res) => {
+  try {
+    const { inspire_database, warehouse_id, session_id } = req.query;
+    if (!inspire_database || !warehouse_id || !session_id) {
+      return res.status(400).json({ error: 'inspire_database, warehouse_id, and session_id required.' });
+    }
+    if (invalidSessionId(session_id)) return res.status(400).json({ error: 'session_id must be numeric.' });
+    const parsedDb = splitInspireDatabase(inspire_database);
+    if (!parsedDb) return res.status(400).json({ error: INSPIRE_DB_SHAPE });
+    const { catalog, schema } = parsedDb;
+    const rows = sqlResultToObjects(await executeSql(req.dbHost, req.dbToken, warehouse_id,
+      `SELECT business_name FROM \`${catalog}\`.\`${schema}\`.\`__inspire_session\` WHERE session_id = ${session_id} LIMIT 1`));
+    if (!rows.length) return res.status(404).json({ error: `Session ${session_id} is not in ${catalog}.${schema}.` });
+    const logPath = liveLogPath(`${catalog}.${schema}`, rows[0].business_name, session_id);
+    const got = await readLogTail(req.dbHost, req.dbToken, logPath);
+    if (got.status === 404) return res.json({ log_path: logPath, found: false, text: '', truncated: false, size: 0 });
+    if (got.status !== 200) {
+      return res.status(502).json({ error: `Inspire could not read the run log at ${logPath} (HTTP ${got.status}).`, log_path: logPath });
+    }
+    res.json({ log_path: logPath, found: true, text: got.text, truncated: got.truncated, size: got.size });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

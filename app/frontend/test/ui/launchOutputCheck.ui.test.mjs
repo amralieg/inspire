@@ -71,7 +71,7 @@ test('a folder the person cannot write keeps Get Started off and shows the refus
     assert.match(await nearLaunch(page).innerText(), /Get Started stays off until the output folder check passes\. Change Generation Path in Advanced Settings above\./);
     assert.equal(await page.getByRole('button', { name: /Advanced Settings/ }).getAttribute('aria-expanded'), 'true', 'the refusal opens Advanced Settings');
     assert.equal(await launchButton(page).isDisabled(), true, 'Get Started is off while the folder is refused');
-    assert.deepEqual(calls.checks, ['./../demos/'], 'the default folder is checked once');
+    assert.deepEqual(calls.checks, [''], 'the default folder is checked once, left blank so the App picks the person\'s own folder');
     assert.deepEqual(calls.urls, ['/api/output-folder/check'], 'the default path travels in the body, never in the URL');
     for (const [width, height] of [[1440, 1000], [390, 900]]) {
       await page.setViewportSize({ width, height });

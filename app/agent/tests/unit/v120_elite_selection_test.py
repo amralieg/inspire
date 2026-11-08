@@ -255,7 +255,7 @@ def test_bob_prescreen_drops_unscored_hard_veto_and_below_minimum_with_full_cont
     assert [u["No"] for u in survivors] == ["OK"]
     assert ledger(obj, "elite_bob_prescreen")["drops"] == {"bob_unscored": 1, "hard_veto": 1, "below_prescreen_min": 1}
     assert pool[2]["selection_drop_reason"] == "bob_score 4.0 is below the Ultra High prescreen minimum 5.0"
-    assert pool[1]["selection_drop_reason"] == "hard veto on gate Design-Schema Match (D7)"
+    assert pool[1]["selection_drop_reason"] == "hard veto on gate Design-Schema Match"
     bob_vars = obj.ai_agent.prompts(BOB)[0]["vars"]
     for key, value in (("business_context", "A multi-region operator"), ("strategic_initiative", "Customer analytics"),
                        ("value_chain", "Order to delivery"), ("revenue_model", "Order revenue")):
@@ -390,8 +390,8 @@ def test_failed_verification_and_bar_gates_are_recorded_in_the_near_miss_ledger(
     assert [u["No"] for u in final][:2] == ["TIER", "LOWV"] and {u["No"] for u in final[2:]} == {"BADCOL", "FATAL"}
     assert all(u["elite_status"] == "FALLBACK_BELOW_BAR" and u["meets_quality_bar"] == "N"
                and u["fallback_bar"] == "Ultra High" for u in final)
-    assert "failed check: value tier (value_tier)" in final[0]["fallback_reason"]
-    assert "failed check: business value score (score:business_value)" in final[1]["fallback_reason"]
+    assert "failed check: value tier" in final[0]["fallback_reason"]
+    assert "failed check: business value score" in final[1]["fallback_reason"]
     assert all(u["fallback_reason"] for u in final[2:])
     assert not {u["No"] for u in rejected} & {"BADCOL", "FATAL"}
     assert ledger(obj, "elite_verification")["drops"] == {"verification": 1, "red_team": 1, "value_tier": 1,
@@ -532,7 +532,7 @@ def test_pool_is_assigned_to_user_domains_before_judging_and_empty_domain_gets_a
     assert by["S1"]["elite_status"] == "ELITE" and by["S1"]["Business Domain"] == "Sales"
     assert by["O1"]["elite_status"] == "DOMAIN_COVERAGE_PICK" and by["O1"]["Business Domain"] == "Operations"
     assert "Domain coverage pick, below bar" in by["O1"]["coverage_pick_reason"]
-    assert "score:actionability" in by["O1"]["coverage_pick_reason"]
+    assert "actionability score" in by["O1"]["coverage_pick_reason"]
     assert obj.elite_outcome["message"] == "1 use case met the Ultra High bar; 1 domain coverage pick ships labelled below bar"
     assert all(u is not ucs[0] for u in final), "the elite stage keeps working on the assigned copies"
 

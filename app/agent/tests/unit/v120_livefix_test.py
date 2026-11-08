@@ -195,8 +195,8 @@ def test_the_drop_reason_names_the_fatal_flaws(agent_ns):
     reason = agent_ns["DatabricksInspire"]._elite_drop_reason({
         "failed_gates": ["red_team", "judge_verdict"], "verification": {"failures": []},
         "fatal_flaws": [{"category": "NO_DECISION_CHANGED", "explanation": "The output only reports"}]})
-    assert reason == ("below the Ultra High bar: red team review (red_team), judge verdict (judge_verdict); "
-                      "fatal flaws: no decision changed (NO_DECISION_CHANGED): The output only reports")
+    assert reason == ("below the Ultra High bar: red team review, judge verdict; "
+                      "fatal flaws: no decision changed: The output only reports")
 
 
 # ---------------------------------------------------------------- A2 label leakage and tautology

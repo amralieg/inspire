@@ -1051,15 +1051,15 @@ paths:
                   warnings:
                     type: array
                     items: { type: string }
-                    description: What the run does differently, such as a locked default folder or a folder the App cannot write
+                    description: What the run does differently, such as a default that falls back to the shared folder or a folder the App cannot write
                   generation_path:
                     type: string
-                    description: The folder the run saves to when the default folder is locked
+                    description: The folder the run saves to when no folder was typed, the person's own inspire_output
               example:
                 allowed: true
                 folder: /Users/someone@example.com/inspire_output
                 checked: passed
-                warnings: ['/Shared/demos is locked, so Inspire saves to /Users/someone@example.com/inspire_output.']
+                warnings: []
                 generation_path: /Workspace/Users/someone@example.com/inspire_output
         '401':
           $ref: '#/components/responses/PersonSignInRequired'
@@ -1239,6 +1239,56 @@ paths:
                 $ref: '#/components/schemas/Error'
         '401':
           $ref: '#/components/responses/PersonSignInRequired'
+
+  /api/inspire/log:
+    get:
+      tags: [Monitor]
+      summary: Read the live run log of a session
+      description: |
+        Returns the last 512 KB of the session's live log. The App reads the log with its own
+        sign-in, because the App owns the log folder, and only the person who launched the
+        session or an App manager may read it.
+      parameters:
+        - $ref: '#/components/parameters/DatabricksHost'
+        - $ref: '#/components/parameters/InspireDatabase'
+        - $ref: '#/components/parameters/WarehouseId'
+        - $ref: '#/components/parameters/SessionId'
+      responses:
+        '200':
+          description: The log tail, or found false when the run has not written its log yet
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  log_path:
+                    type: string
+                  found:
+                    type: boolean
+                  text:
+                    type: string
+                  truncated:
+                    type: boolean
+                  size:
+                    type: integer
+        '400':
+          description: Missing or invalid query parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: The caller neither launched the session nor manages the App
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: The session is not in the Inspire database
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 
   /api/inspire/steps:
     get:

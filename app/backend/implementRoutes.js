@@ -133,6 +133,7 @@ function registerImplementRoutes(app, deps) {
   const sqlRows = (host, token, warehouseId, statement) =>
     rowsOf(executeSql, sqlResultToObjects, host, token, warehouseId, statement);
   const liveCache = C.createLiveCache();
+  const missingControlLogs = new Map();
   const fetchJsonFor = (req) => (path) => jsonOf(dbFetch, req.dbHost, req.dbToken, path);
 
   const readMeFor = (req) => (token) => jsonOf(dbFetch, req.dbHost, token, P.SCIM_ME_PATH);
@@ -259,7 +260,7 @@ function registerImplementRoutes(app, deps) {
       loadGenieCode(req),
     ]);
     const appsUnchecked = !apps.ok && apps.status >= 500;
-    return { apps: apps.ok || appsUnchecked, ...(appsUnchecked ? { apps_unchecked: true } : {}), genie_spaces: spaces.ok, alerts: alerts.ok, genie_code: genieCode };
+    return { apps: apps.ok || appsUnchecked, genie_spaces: spaces.ok, alerts: alerts.ok, genie_code: genieCode };
   }
 
   async function requireGenieCode(req) {
@@ -345,20 +346,6 @@ function registerImplementRoutes(app, deps) {
   }
 
   const PREFLIGHT_RECHECK = 'Build still runs, and the build checks this again.';
-
-  async function countApps(req, limit) {
-    let count = 0;
-    let pageToken = '';
-    for (let page = 0; page < 10 && count <= limit; page += 1) {
-      const got = await jsonOf(dbFetch, req.dbHost, req.dbToken,
-        `/api/2.0/apps?page_size=100${pageToken ? `&page_token=${encodeURIComponent(pageToken)}` : ''}`);
-      if (!got.ok) return null;
-      count += (got.data.apps || []).length;
-      pageToken = String(got.data.next_page_token || '');
-      if (!pageToken) break;
-    }
-    return count;
-  }
 
   /**
    * Route 1: set generate_genie_code_instruction = 'Yes' for selected UC ids, then submit
@@ -839,11 +826,7 @@ function registerImplementRoutes(app, deps) {
           checks.app_warehouse = output ? output.app_warehouse : unchecked;
         }
         if (!features.apps) checks.apps = { ok: false, detail: 'this workspace cannot create Databricks Apps' };
-        else {
-          const limit = I.appsLimit(req.dbHost);
-          const count = !name.creates ? 0 : features.apps_unchecked ? null : await countApps(req, limit);
-          checks.apps = I.appsQuotaCheck(count, limit, name.creates);
-        }
+        else checks.apps = I.appsRoomCheck(name.creates);
       } else if (mergeApp) {
         checks.app_access = output ? output.app : unchecked;
       }
@@ -1231,6 +1214,7 @@ function registerImplementRoutes(app, deps) {
         notebook_path: req.body?.notebook_path,
         cluster_id: req.body?.cluster_id,
         jobType: 'implement',
+        jobName: I.implementJobName(useCaseId, spec.use_case_name, plan.nextVersion),
         useCaseIds: [useCaseId],
         launchedBy: createdBy,
       });
@@ -1767,11 +1751,15 @@ function registerImplementRoutes(app, deps) {
         const names = Object.keys(paths);
         const got = await Promise.all(names.map((name) => jsonOf(dbFetch, req.dbHost, req.dbToken, paths[name])));
         let actions = [];
-        try {
-          actions = await sqlRows(req.dbHost, req.dbToken, ctx.warehouseId,
-            C.controlLogSelect(ctx.logTable, { sessionId: ctx.sid, useCaseId: ctx.useCaseId }));
-        } catch (err) {
-          if (!isMissingTableError(err)) throw err;
+        if (!((missingControlLogs.get(ctx.logTable) || 0) > Date.now())) {
+          try {
+            actions = await sqlRows(req.dbHost, req.dbToken, ctx.warehouseId,
+              C.controlLogSelect(ctx.logTable, { sessionId: ctx.sid, useCaseId: ctx.useCaseId }));
+            missingControlLogs.delete(ctx.logTable);
+          } catch (err) {
+            if (!isMissingTableError(err)) throw err;
+            missingControlLogs.set(ctx.logTable, Date.now() + C.CONTROL_LOG_MISSING_MS);
+          }
         }
         const { shared, shared_error: sharedError } = await sharedOf(req, ctx);
         return {
@@ -1830,6 +1818,7 @@ function registerImplementRoutes(app, deps) {
       const spec = latest.spec_json ? I.validateImplementSpec(latest.spec_json).spec : null;
       const request = C.controlRequest(asset, action, id, { warehouseId: spec && spec.config.warehouse_id });
       await executeSql(req.dbHost, req.dbToken, ctx.warehouseId, C.controlLogCreateSql(ctx.logTable));
+      missingControlLogs.delete(ctx.logTable);
       const ownerError = await alignControlLogOwner(req, ctx);
       const got = await jsonOf(dbFetch, req.dbHost, req.dbToken, request.path,
         { method: request.method, ...(request.body ? { body: jsonWithInt64Ids(request.body, request.int64 || []) } : {}) });

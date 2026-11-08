@@ -60,22 +60,25 @@ test('an access check the warehouse could not finish lets Build go on with a war
   });
 });
 
-test('an Apps list the workspace could not answer is not a full quota: Build goes on and says so, while a full or missing Apps service still blocks (must-exclude)', async () => {
+test('Build never blocks on a guessed Apps limit: an unanswered list, a long list and a workspace with Apps all go on, and only a workspace without Apps says no (must-exclude)', async () => {
+  const room = I.appsRoomCheck(true);
   await withApp({ responses: { 'GET /api/2.0/apps': [{ message: 'upstream unavailable' }, 503] } }, async (url) => {
     const got = await preflight(url, '&app_name=churn-desk');
     assert.equal(got.status, 200, JSON.stringify(got.data));
     assert.equal(got.data.ok, true, JSON.stringify(got.data.checks));
-    assert.deepEqual(got.data.checks.apps, I.appsQuotaCheck(null, 100, true));
+    assert.deepEqual(got.data.checks.apps, room);
     assert.equal(got.data.features.apps, true);
+    assert.equal(got.data.features.apps_unchecked, undefined);
   });
   await withApp({ appsOk: false }, async (url) => {
     const got = await preflight(url, '&app_name=churn-desk');
     assert.deepEqual([got.data.ok, got.data.checks.apps.ok], [false, false], 'a workspace without Apps still says no');
   });
-  const full = { apps: Array.from({ length: 100 }, (_, i) => ({ name: `app-${i}` })) };
-  await withApp({ appsList: full }, async (url) => {
+  const many = { apps: Array.from({ length: 163 }, (_, i) => ({ name: `app-${i}` })) };
+  await withApp({ appsList: many }, async (url) => {
     const got = await preflight(url, '&app_name=churn-desk');
-    assert.deepEqual([got.data.ok, got.data.checks.apps.ok], [false, false], 'a full workspace still says no');
+    assert.deepEqual([got.data.ok, got.data.checks.apps], [true, room], '163 Apps is not a full workspace');
+    assert.doesNotMatch(JSON.stringify(got.data.checks), /of its \d+ Apps/);
   });
 });
 

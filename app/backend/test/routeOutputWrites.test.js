@@ -14,6 +14,8 @@ const launch = (generationPath, options = {}) => S.request('POST', '/api/run', {
   person: options.person || ME, signedIn: options.signedIn, userToken: options.userToken,
   body: { params: { '00_business_name': 'Acme', '02_inspire_database': S.APP_DB, '14_session_id': '1001', ...(generationPath === undefined ? {} : { '11_generation_path': generationPath }) } },
 });
+const SHARED_ONLY = (person, why = 'the Inspire App cannot write there; give the App CAN MANAGE on it to keep your runs private') =>
+  `Inspire cannot save to your folder /Users/${person}/inspire_output (${why}), so it saves to /Shared/demos, which everyone in the workspace can read.`;
 const APP_CANT = (folder) => `The Inspire App can't write to ${folder}, so the run saves no files there. Ask an App manager to give the App CAN MANAGE on it.`;
 const submitted = () => S.state.calls.filter((c) => c.path.startsWith('/api/2.1/jobs/'));
 const probes = () => S.state.calls.filter((c) => c.path === '/api/2.0/workspace/mkdirs' || (c.path.startsWith('/api/2.0/fs/directories/') && c.method === 'PUT'));
@@ -172,7 +174,7 @@ test('the output folder check answers the same verdict without launching anythin
   S.reset({ folders: { ...folders, '/Shared/demos': { id: 7, writers: '*' } }, managers: [BOSS] });
   for (const path of ['./../demos/', '']) {
     const fallback = await ask(OWNER, path);
-    assert.deepEqual([fallback.status, fallback.data], [200, { allowed: true, folder: '/Shared/demos', checked: 'passed', warnings: [] }], `${JSON.stringify(path)}: ${fallback.text}`);
+    assert.deepEqual([fallback.status, fallback.data], [200, { allowed: true, folder: '/Shared/demos', checked: 'passed', warnings: [SHARED_ONLY(OWNER)] }], `${JSON.stringify(path)}: ${fallback.text}`);
   }
   const old = await S.request('GET', `/api/output-folder/check?generation_path=${encodeURIComponent('./../demos/')}`, { person: OWNER });
   assert.equal(old.status, 404, 'the check is a POST, so no generation path ever travels in a request URL');
@@ -185,7 +187,7 @@ test('the output folder check answers the same verdict without launching anythin
 });
 
 test('a launched run opens its output folder with the App token, for a passed check and for a manager skip of that exact folder', async () => {
-  for (const [person, seed] of [[ME, {}], [BOSS, { managers: [BOSS], folders: { '/Shared/demos': { id: 7, writers: [] } } }]]) {
+  for (const [person, seed] of [[ME, {}], [BOSS, { managers: [BOSS], folders: { '/Shared/demos': { id: 7, writers: [S.APP_SP] } } }]]) {
     S.reset({ notebookPresent: true, sessionRows: { [S.APP_DB]: [{ session_id: '1001', generation_path: './../demos/' }] }, ...seed });
     assert.equal((await launch(undefined, { person })).status, 200, person);
     S.state.calls.length = 0;
@@ -204,29 +206,42 @@ test('the write targets come from the generation path, resolved like the noteboo
   assert.deepEqual(W().discoverWrites({ '11_generation_path': 'dbfs:/tmp/out' }, '/Shared/x/nb'), { folders: ['dbfs:/tmp/out'], defaulted: false });
 });
 
-test('a locked default folder falls back to the person\u2019s own inspire_output and says so, while a locked folder the person typed is still refused (must-exclude)', async () => {
+test('the default output folder is the person\u2019s own inspire_output, a locked or App-less home falls back to the shared folder and says everyone can read it, and a typed folder is never swapped (must-exclude)', async () => {
   const mine = `/Users/${ME}`;
-  const locked = { notebookPresent: true, folders: { '/Shared/demos': { id: 7, writers: [] }, [mine]: { id: 12, writers: [ME, S.APP_SP] } } };
-  for (const asked of [undefined, './../demos/']) {
-    S.reset(locked);
+  const private_ = { notebookPresent: true, folders: { '/Shared/demos': { id: 7, writers: '*' }, [mine]: { id: 12, writers: [ME, S.APP_SP] } } };
+  for (const asked of [undefined, '', './../demos/']) {
+    S.reset(private_);
     const got = await launch(asked);
     assert.equal(got.status, 200, `${JSON.stringify(asked)}: ${got.text}`);
-    assert.deepEqual(got.data.warnings, [`/Shared/demos is locked, so Inspire saves to ${mine}/inspire_output.`]);
+    assert.equal(got.data.warnings, undefined, `${JSON.stringify(asked)}: the person\u2019s own folder needs no warning`);
     assert.equal(S.state.createdJob.tasks[0].notebook_task.base_parameters['11_generation_path'], `/Workspace${mine}/inspire_output`);
     assert.equal(S.state.launches[0].output_folder, `${mine}/inspire_output`);
   }
-  S.reset(locked);
-  const check = await S.request('POST', '/api/output-folder/check', { person: ME, body: { generation_path: './../demos/' } });
+  S.reset(private_);
+  const check = await S.request('POST', '/api/output-folder/check', { person: ME, body: { generation_path: '' } });
   assert.deepEqual([check.status, check.data], [200, { allowed: true, folder: `${mine}/inspire_output`, checked: 'passed',
-    warnings: [`/Shared/demos is locked, so Inspire saves to ${mine}/inspire_output.`], generation_path: `/Workspace${mine}/inspire_output` }]);
-  S.reset(locked);
+    warnings: [], generation_path: `/Workspace${mine}/inspire_output` }]);
+  S.reset(private_);
   const typed = await launch('/Shared/demos/');
-  assert.equal(typed.status, 403, `a folder the person typed is never swapped: ${typed.text}`);
-  assert.deepEqual(submitted(), []);
+  assert.equal(typed.status, 200, typed.text);
+  assert.equal(S.state.createdJob.tasks[0].notebook_task.base_parameters['11_generation_path'], '/Shared/demos/', 'a folder the person typed is never swapped');
+  S.reset({ notebookPresent: true, folders: { '/Shared/demos': { id: 7, writers: '*' }, [mine]: { id: 12, writers: [ME] } } });
+  const appless = await launch(undefined);
+  assert.equal(appless.status, 200, appless.text);
+  assert.deepEqual(appless.data.warnings, [SHARED_ONLY(ME)]);
+  assert.equal(S.state.launches[0].output_folder, '/Shared/demos');
+  S.reset({ notebookPresent: true, folders: { '/Shared/demos': { id: 7, writers: '*' } } });
+  const nohome = await launch(undefined);
+  assert.deepEqual(nohome.data.warnings, [SHARED_ONLY(ME, 'you cannot write there')]);
+  S.reset({ notebookPresent: true, folders: { '/Shared/demos': { id: 7, writers: [] }, [mine]: { id: 12, writers: [ME, S.APP_SP] } } });
+  const locked = await launch(undefined);
+  assert.equal(locked.status, 200, locked.text);
+  assert.equal(S.state.launches[0].output_folder, `${mine}/inspire_output`);
   S.reset({ notebookPresent: true, folders: { '/Shared/demos': { id: 7, writers: [] }, [mine]: { id: 12, writers: [OWNER] } } });
   const nowhere = await launch(undefined);
-  assert.equal(nowhere.status, 403, `a fallback no better than the default changes nothing: ${nowhere.text}`);
+  assert.equal(nowhere.status, 403, `neither folder takes the run: ${nowhere.text}`);
   assert.deepEqual(nowhere.data.unwritable, ['/Shared/demos']);
+  assert.deepEqual(submitted(), []);
 });
 
 test('the App writes the run\u2019s files, so a folder only the person can write warns up front, for a manager too, and a folder the App can write says nothing', async () => {

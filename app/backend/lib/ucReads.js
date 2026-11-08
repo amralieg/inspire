@@ -71,7 +71,7 @@ function whole(listed, what, noun) {
 }
 
 function listCatalogs(dbFetch, host, token) {
-  return pages(dbFetch, host, token, `${UC}/catalogs`, [['max_results', '200']], 'catalogs', 40);
+  return pages(dbFetch, host, token, `${UC}/catalogs`, [['max_results', '1000']], 'catalogs', 40);
 }
 
 function listSchemas(dbFetch, host, token, catalog) {
@@ -424,13 +424,17 @@ const planVerdict = (plan, extra = []) => (plan.refused
 async function outputPlan(dbFetch, req, writes, { manager = false, appToken = '' } = {}) {
   const folders = ((writes && writes.folders) || []).filter(Boolean);
   if (!folders.length) return { refused: null, folder: '', generationPath: '', warnings: [] };
-  const first = await folderPlan(dbFetch, req, folders[0], { manager, appToken });
   const me = RP.forwardedPerson(req.headers);
-  if (folderScore(first) === 2 || !writes.defaulted || !me || first.refused?.status === 401) return planVerdict(first);
+  if (!writes.defaulted || !me) return planVerdict(await folderPlan(dbFetch, req, folders[0], { manager, appToken }));
   const home = `/Users/${me}/${FALLBACK_FOLDER}`;
-  const second = await folderPlan(dbFetch, req, home, { manager, appToken });
-  if (folderScore(second) <= folderScore(first)) return planVerdict(first);
-  return { ...planVerdict(second, [`${first.folder} is locked, so Inspire saves to ${home}.`]), generationPath: `/Workspace${home}` };
+  const inHome = (plan, extra) => ({ ...planVerdict(plan, extra), generationPath: plan.refused ? '' : `/Workspace${home}` });
+  const own = await folderPlan(dbFetch, req, home, { manager, appToken });
+  if (folderScore(own) === 2 || own.refused?.status === 401) return inHome(own);
+  const shared = await folderPlan(dbFetch, req, folders[0], { manager, appToken });
+  if (shared.refused) return own.refused ? planVerdict(shared) : inHome(own);
+  if (folderScore(shared) <= folderScore(own)) return inHome(own);
+  const why = own.refused ? 'you cannot write there' : 'the Inspire App cannot write there; give the App CAN MANAGE on it to keep your runs private';
+  return planVerdict(shared, [`Inspire cannot save to your folder ${home} (${why}), so it saves to ${shared.folder}, which everyone in the workspace can read.`]);
 }
 
 function writeRefusalBody(key, refused) {

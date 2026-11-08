@@ -40,8 +40,7 @@ const {
   otherUseCaseRowsStatement,
   appOwnerTag,
   appNameCheck,
-  appsLimit,
-  appsQuotaCheck,
+  appsRoomCheck,
   executionFamily,
   parseEvidence,
   implementWidgets,
@@ -818,13 +817,10 @@ test('an App name taken by another App is refused, while this use case\'s own Ap
   assert.equal(appNameCheck('churn-desk', { description: appOwnerTag('N01-U01', '43') }, ctx).ok, false);
 });
 
-test('the Apps quota is 50 on GCP and 100 on every other host, and only a new App needs room', () => {
-  assert.equal(appsLimit('https://adb-1.14.azuredatabricks.net'), 100);
-  assert.equal(appsLimit('https://workspace.example.com'), 100);
-  assert.equal(appsLimit('https://1234.5.gcp.databricks.com'), 50);
-  assert.deepEqual(appsQuotaCheck(99, 100, true), { ok: true, detail: '99 of 100 Apps used; one more fits' });
-  assert.deepEqual(appsQuotaCheck(100, 100, true), { ok: false, detail: 'this workspace already has 100 of its 100 Apps; delete one or untick the App' });
-  assert.equal(appsQuotaCheck(100, 100, false).ok, true);
+test('the Apps check guesses no limit: a new App always goes ahead and names who refuses it, an existing App needs no room', () => {
+  assert.deepEqual(appsRoomCheck(true), { ok: true, detail: 'Inspire creates a new App; if Databricks has no room for it, the build stops with the reason Databricks gives' });
+  assert.deepEqual(appsRoomCheck(false), { ok: true, detail: 'no new App is needed' });
+  assert.doesNotMatch(JSON.stringify([appsRoomCheck(true), appsRoomCheck(false)]), /\d+ of \d+|quota/i);
 });
 
 test('discovery evidence parses from the stored JSON and drops what it cannot use', () => {
@@ -1192,4 +1188,11 @@ test('an empty run list from a job Inspire cannot see says so instead of claimin
   assert.deepEqual(I.jobRunsFrom(empty, null), { ok: true, runs: [] });
   assert.deepEqual(I.jobRunsFrom({ ok: false, status: 500, data: { message: 'list broke' } }, { ok: false, status: 403, data: {} }),
     { ok: false, error: 'list broke', runs: [] });
+});
+
+test('each MVP job is named for its use case and version, so two MVPs never share a job name', () => {
+  assert.equal(I.implementJobName('N01-U01', 'Predict  churn\n', 2), 'Inspire AI - MVP - N01-U01 Predict churn - v2');
+  assert.notEqual(I.implementJobName('N01-U01', 'Predict churn', 1), I.implementJobName('N02-U03', 'Predict churn', 1));
+  assert.equal(I.implementJobName('N01-U01', 'x'.repeat(200), 1).length, 'Inspire AI - MVP - N01-U01 '.length + 80 + ' - v1'.length);
+  assert.equal(I.implementJobName('', '', null), 'Inspire AI - MVP - v1');
 });

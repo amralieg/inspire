@@ -151,12 +151,20 @@ export function meetsQualityBarOf(uc) {
   return null;
 }
 
+const CHECK_CODE_IN_PARENS = /\s*\((?:score:[a-z_]+|[A-Z]{1,2}\d{1,2}|[a-z]+(?:_[a-z]+)+|[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+)\)/g;
+const RAW_CHECK_CODE = /:?\s*\bQ\d_[RT]\d+_[A-Z_]+(?::[^\s;,]*)?/g;
+
+export function plainReason(text) {
+  return String(text ?? '').replace(CHECK_CODE_IN_PARENS, '').replace(RAW_CHECK_CODE, '')
+    .replace(/\s{2,}/g, ' ').replace(/\s+([,;:])/g, '$1').replace(/(?:[,;:]\s*)+$/, '').replace(/\bby$/, 'by a quality check').trim();
+}
+
 export function belowBarReasonOf(uc) {
   if (!uc || typeof uc !== 'object') return '';
   const flags = selectionFlagsOf(uc) || {};
   for (const v of [uc.fallback_reason, uc.below_bar_reason, uc['Below Bar Reason'], flags.fallback_reason,
     uc.coverage_pick_reason, flags.coverage_pick_reason]) {
-    if (v != null && typeof v !== 'object' && String(v).trim()) return String(v).trim();
+    if (v != null && typeof v !== 'object' && plainReason(v)) return plainReason(v);
   }
   return '';
 }
@@ -186,14 +194,14 @@ export function belowBarLabelFromUseCase(uc) {
   if (flags) {
     for (const key of ['elite_fallback_pick', 'elite_fallback_near_miss', 'elite_coverage_pick', 'label', 'reason']) {
       const v = flags[key];
-      if (v != null && String(v).trim()) return String(v).trim();
+      if (v != null && plainReason(v)) return plainReason(v);
     }
     for (const v of Object.values(flags)) {
-      if (typeof v === 'string' && /below the /i.test(v)) return v.trim();
+      if (typeof v === 'string' && /below the /i.test(v)) return plainReason(v);
     }
   }
   const reason = uc.selection_drop_reason || uc.selectionDropReason;
-  if (reason && /below the /i.test(String(reason))) return String(reason).trim();
+  if (reason && /below the /i.test(String(reason))) return plainReason(reason);
   return '';
 }
 

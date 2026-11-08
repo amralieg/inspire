@@ -160,7 +160,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
     '08_generation_instructions': '',
     '09_generation_options': 'PDF Catalog',
     '10_strategic_context': '',
-    '11_generation_path': './../demos/',
+    '11_generation_path': '',
     '12_documents_languages': 'English',
     '13_generate_genie_code_for': '0',
     '14_session_id': '',
@@ -1527,6 +1527,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                     type="text"
                     value={params['11_generation_path']}
                     onChange={(e) => updateParam('11_generation_path', e.target.value)}
+                    placeholder="Your own folder: /Users/<you>/inspire_output"
                     aria-label="Generation Path"
                     aria-describedby="output-folder-check-field"
                     className="w-full pl-10 pr-4 py-2.5 text-sm border border-border rounded-lg bg-surface text-text-primary glow-focus transition-smooth font-mono"

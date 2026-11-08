@@ -114,6 +114,7 @@ function createExecuteSql(dbFetch, { now = Date.now, sleep = (ms) => new Promise
 
     if (result.status?.state === 'FAILED') {
       const errMsg = result.status?.error?.message || 'SQL statement execution failed';
+      console.warn(`   ⚠️ SQL failed: ${errMsg.substring(0, 300)}`);
       throw new Error(errMsg);
     }
 

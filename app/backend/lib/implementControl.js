@@ -204,6 +204,8 @@ function createLiveCache(ttlMs = CONTROL_CACHE_MS, now = () => Date.now()) {
   };
 }
 
+const CONTROL_LOG_MISSING_MS = 5 * 60 * 1000;
+
 function controlLogTableName(catalog, schema) {
   return `\`${catalog}\`.\`${schema}\`.\`${CONTROL_LOG_TABLE}\``;
 }
@@ -275,6 +277,7 @@ module.exports = {
   CONTROL_CACHE_MS,
   CONTROL_LOG_TABLE,
   controlAction,
+  CONTROL_LOG_MISSING_MS,
   controlLogCreateSql,
   controlLogInsert,
   controlLogOwnerFix,

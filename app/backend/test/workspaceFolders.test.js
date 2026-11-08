@@ -53,7 +53,7 @@ async function launchOn(folders) {
     const resp = await fetch(`${inspire.url}/api/run`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-forwarded-access-token': PERSON, 'x-forwarded-email': EMAIL },
-      body: JSON.stringify({ params: { '00_business_name': 'Acme', '02_inspire_database': 'main._inspire', '01_uc_metadata': 'main.s.orders' } }),
+      body: JSON.stringify({ params: { '00_business_name': 'Acme', '02_inspire_database': 'main._inspire', '01_uc_metadata': 'main.s.orders', '11_generation_path': '/Shared/demos' } }),
     });
     return { status: resp.status, data: await resp.json(), workspace };
   } finally {

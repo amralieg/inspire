@@ -292,6 +292,27 @@ test('stopping a build cancels the run of the version that builds', async () => 
   });
 });
 
+test('a control log that does not exist yet is not read again on every poll, and is read again once an action creates it (must-exclude)', async () => {
+  const notFound = '[TABLE_OR_VIEW_NOT_FOUND] The table or view `main`.`inspire`.`__inspire_control_log` cannot be found.';
+  await withApp({ history: [BUILT], controlLogError: notFound, responses: { 'GET /api/2.0/apps/churn-desk': [APP_OURS], 'POST /api/2.0/apps/churn-desk/stop': [{}] } },
+    async (url, made) => {
+      const reads = () => made.sqlCalls.filter((c) => String(c.sql).includes('FROM `main`.`inspire`.`__inspire_control_log`')).length;
+      for (const uc of ['N01-U01', 'N01-U02', 'N01-U03']) {
+        const got = await call(url, `/api/inspire/implement/live?${Q.replace('N01-U01', uc)}`);
+        assert.equal(got.status, 200, JSON.stringify(got.data));
+        assert.equal(got.data.cached, false);
+        assert.deepEqual(got.data.actions, []);
+      }
+      assert.equal(reads(), 1, 'three fresh polls read the missing log once');
+      made.state.controlLogError = '';
+      made.state.controlLog = [];
+      const acted = await call(url, `/api/inspire/implement/control?${Q}`, { method: 'POST', body: { asset: 'app', action: 'stop' } });
+      assert.equal(acted.status, 200, JSON.stringify(acted.data));
+      await call(url, `/api/inspire/implement/live?${Q}`);
+      assert.equal(reads(), 2, 'the log the action created is read on the next poll');
+    });
+});
+
 test('live status lists the latest control actions, tolerates a missing control log and fails on any other error', async () => {
   const done = { asset: 'app', asset_id: 'churn-desk', action: 'stop', result: 'done', message: 'Stop the App: done', acted_by: 'amr@x', acted_at: '2026-10-26T10:00:00.000Z' };
   await withApp({ history: [BUILT], controlLog: [done], responses: { 'GET /api/2.0/apps/churn-desk': [APP_OURS] } }, async (url) => {

@@ -151,7 +151,7 @@ test('a run launched with the person\u2019s own token, so they own the job, make
 test('a refused grant still starts the run and tells the caller why', async () => {
   const run = await launch([403, { message: 'no CAN_MANAGE on job' }]);
   assert.equal(run.status, 200, JSON.stringify(run.body));
-  assert.equal(run.body.run_id, 99);
+  assert.equal(run.body.run_id, '99');
   assert.equal(run.body.viewer_granted, false);
   assert.equal(run.body.viewer_note, `Inspire could not let ${PERSON} view job 1111111111111111 in Databricks: no CAN_MANAGE on job`);
   assert.equal(run.run.viewer_note, run.body.viewer_note, 'the Monitor read of the run carries the same note, so the refusal is never silent');

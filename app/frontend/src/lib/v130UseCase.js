@@ -1,4 +1,4 @@
-import { fieldOf, isBlankField } from './useCaseFields.js';
+import { fieldOf, isBlankField, plainReason } from './useCaseFields.js';
 import { KPI_BASELINE_MISMATCH, KPI_FILTER_MISMATCH_TEXT, kpiFilterMismatch, kpiFilterShown } from './kpiFilter.js';
 import { placeholderWords } from './placeholderWords.js';
 import { useCaseKindView } from './useCaseKind.js';
@@ -62,7 +62,7 @@ function bestOfBestOf(u) {
   return {
     rank: Number.isFinite(rank) ? rank : null,
     score: Number.isFinite(score) ? score : null,
-    reason: String(u.best_of_best_reason ?? '').trim(),
+    reason: plainReason(u.best_of_best_reason),
   };
 }
 
@@ -174,7 +174,7 @@ export function v130View(uc) {
     useCaseKey: String(u.use_case_key ?? '').trim(),
     feedbackStatus: String(u['Feedback Status'] ?? '').trim().toLowerCase(),
     bestOfBest: bestOfBestOf(u),
-    notStarredReason: String(u.best_of_best ?? '').trim().toUpperCase() === 'N' ? String(u.best_of_best_reason ?? '').trim() : '',
+    notStarredReason: String(u.best_of_best ?? '').trim().toUpperCase() === 'N' ? plainReason(u.best_of_best_reason) : '',
     hasValue: (valueEstimate ? 1 : 0) + kpis.length + keyResults.length + measures.length + financial.length + nonFinancial.length > 0,
     kind: useCaseKindView(u),
   };
