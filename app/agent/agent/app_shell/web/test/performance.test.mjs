@@ -1,7 +1,7 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
-import { DECIDE, TABLE, appInfo, openApp, serveDist, tracked, until } from './harness.mjs';
+import { DECIDE, TABLE, WORKED, WORK_TEAM as TEAM, WORK_WEEK as WEEK, appInfo, openApp, serveDist, tracked, until, workEntry as entry, workMoney as money } from './harness.mjs';
 import { closeCompare, falseAlarmFact, outcomeMix, performanceTiles, shareFact, weekTrend, workFacts } from '../src/mywork.js';
 
 let served;
@@ -9,17 +9,6 @@ let browser;
 before(async () => { served = await serveDist(); browser = await chromium.launch(); });
 after(async () => { await browser?.close(); served?.close(); });
 
-const WEEK = { window: 'week', zone: 'UTC', today: '2026-10-24', start_day: '2026-10-19', end_day: '2026-10-26' };
-const WORKED = { fixed: 2, dismissed: 1, could_not: 1, assigned: 1, notes: 1, changes: 9, records: 6 };
-const money = (m, r, e) => ({ measured: { n: m ? 1 : 0, money: m }, reported: { n: r ? 1 : 0, money: r }, estimated: { n: e ? 2 : 0, money: e } });
-const TEAM = { closed: { fixed: 6, dismissed: 3, could_not: 1 }, total: 10, people: 3, close: { n: 10, median_hours: 60 } };
-const entry = (over = {}) => ({
-  visible: true, tracked: true, priced: true, worked: WORKED, active_hours: 4, money: money(900, 500, 3000), close: { n: 4, median_hours: 53 },
-  best: { key: 'R002', label: 'Item R002', basis: 'measured', money: 900, closed: '2026-10-22T06:00:00Z' }, activity: [], minutes: null, served: 'delta',
-  team: TEAM, weeks: [{ week: '2026-10-12', n: 1 }, { week: '2026-10-19', n: 3 }],
-  outcomes: { left: 1, missing: 0, resolved: 1, flagged: 0, unchecked: 0 },
-  overdue: { n: 3, items: [{ key: 'R001', label: 'Item R001', due: '2026-10-20' }, { key: 'R003', label: 'Item R003', due: '2026-10-22' }] }, ...over,
-});
 const PAGE = { id: 'n01_u05', title: 'Pricing desk', records: { columns: [{ column: 'value_at_stake', currency: 'USD' }] } };
 const facts = (e = entry()) => workFacts({ period: WEEK, pages: { n01_u05: e } }, [PAGE], {});
 const tile = (tiles, id) => tiles.find((t) => t.id === id);

@@ -30,7 +30,6 @@ const ENTRY = {
       reported: null, closed: '2026-10-05T09:00:00.000Z' },
   ],
 };
-const NO_WORK = { my_work: ({ json }) => json(200, { period: null, pages: {}, activity: [], total: 0, errors: {} }) };
 const PROMISED = { value: 'The Pricing Manager recovers margin lost to standing discounts.', benefits: ['Recover margin on discounted items [ESTIMATE: depends on value]'] };
 
 test('each figure shows its number with the formula behind it, and the three amounts are never added together', () => {
@@ -76,7 +75,7 @@ test('the holdout compares the share of flagged records that left the list among
 
 test('with holdout off Performance says plainly that nothing is held back, and shows no comparison', async () => {
   const off = { ...ENTRY, holdout: null, holds: false, current: { records: 200, held: 0 } };
-  const routes = { ...NO_WORK, impact: ({ json }) => json(200, off), summary: ({ json }) => json(200, SUMMARY) };
+  const routes = { impact: ({ json }) => json(200, off), summary: ({ json }) => json(200, SUMMARY) };
   const { page, seen, context } = await openApp(browser, served.base, appInfo({}, 1, { ...TABLE, promised: PROMISED }), { width: 1440, routes, hash: '#/n01_u05/performance', ready: '.imp' });
   const card = page.locator('.imp').first();
   await card.locator('.imp-hold-off').waitFor();
@@ -129,7 +128,6 @@ test('Performance shows estimated, reported and measured apart, promised against
   const info = appInfo({}, 2, { ...TABLE, promised: PROMISED });
   const asked = [];
   const routes = {
-    ...NO_WORK,
     impact: ({ json, url }) => { asked.push(url.searchParams.get('page')); return json(200, url.searchParams.get('page') === 'n01_u05' ? ENTRY : { visible: true, tracked: false, note: 'no run of this use case has written its results yet', promised: null }); },
     summary: ({ json }) => json(200, SUMMARY),
   };
@@ -160,7 +158,7 @@ test('Performance shows estimated, reported and measured apart, promised against
 });
 
 test('a one use case App opens on its dashboard, Performance shows its Impact, and the old Impact links open Performance', async () => {
-  const routes = { ...NO_WORK, impact: ({ json }) => json(200, ENTRY), summary: ({ json }) => json(200, SUMMARY) };
+  const routes = { impact: ({ json }) => json(200, ENTRY), summary: ({ json }) => json(200, SUMMARY) };
   const { page, seen, context } = await openApp(browser, served.base, appInfo({}, 1, { ...TABLE, promised: PROMISED }), { width: 1440, routes });
   await page.waitForFunction(() => document.querySelector('.pg-h h1')?.textContent === 'Price-loss decision desk');
   assert.equal(await page.locator('[data-rail="dashboard"]').getAttribute('aria-current'), 'page');
@@ -292,7 +290,7 @@ test('a held back record says why and offers no action, so the comparison stays 
 });
 
 test('the weekly email link ?open=impact opens Performance after sign-in, and a reload stays there', async () => {
-  const routes = { ...NO_WORK, impact: ({ json }) => json(200, ENTRY), summary: ({ json }) => json(200, SUMMARY) };
+  const routes = { impact: ({ json }) => json(200, ENTRY), summary: ({ json }) => json(200, SUMMARY) };
   const { page, seen, context } = await openApp(browser, `${served.base}?open=impact`, appInfo({}, 1, { ...TABLE, promised: PROMISED }), { width: 1440, routes, ready: '.imp' });
   assert.deepEqual(await page.evaluate(() => [window.location.search, window.location.hash]), ['', '#/n01_u05/performance']);
   await page.reload();
@@ -305,7 +303,6 @@ test('the weekly email link ?open=impact opens Performance after sign-in, and a 
 test('every card and closed record on Performance shows a visible Ask Genie, and a closed record sends its own figures to its use case Genie', async () => {
   const explained = [];
   const routes = {
-    ...NO_WORK,
     impact: ({ json, url }) => json(200, url.searchParams.get('page') === 'n01_u05' ? ENTRY : { visible: true, tracked: false, note: 'no run of this use case has written its results yet', promised: null }),
     summary: ({ json }) => json(200, SUMMARY),
     'genie/explain': ({ route, json }) => { explained.push(route.request().postDataJSON()); return json(200, { conversation_id: 'c1', message_id: 'm1', question: 'Sent.' }); },

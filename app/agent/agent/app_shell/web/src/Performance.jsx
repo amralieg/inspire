@@ -229,15 +229,15 @@ function Reasons({ entry }) {
 
 const CLOSED_COLUMNS = [
   { key: 'label', label: 'Record' },
-  { key: 'outcome', label: 'Outcome', className: 'nw' },
-  { key: 'state', label: 'What a later run found' },
+  { key: 'outcome', label: 'Outcome', className: 'nw c-outcome' },
+  { key: 'state', label: 'What a later run found', className: 'c-state' },
   { key: 'measured', label: 'Measured', num: true, sortValue: (r) => r.amounts.measured, render: (r) => r.measured || '\u00a0' },
   { key: 'reported', label: 'Reported', num: true, sortValue: (r) => r.amounts.reported, render: (r) => <>{r.reported}{r.note && <small>{r.note}</small>}</> },
-  { key: 'closed', label: 'Closed', date: true, className: 'nw', sortValue: (r) => r.amounts.closed },
+  { key: 'closed', label: 'Closed', date: true, className: 'nw c-closed', sortValue: (r) => r.amounts.closed },
 ];
 
-function Closed({ entry, currency, kind, pageId }) {
-  const rows = closedRows(entry, currency, kind);
+function Closed({ entry, currency, kind, pageId, choices }) {
+  const rows = closedRows(entry, currency, kind, choices);
   if (!rows.length) return null;
   return <DataTable label="Closed records" tableClass="tbl--closed" columns={CLOSED_COLUMNS} rows={rows} rowKey={(r) => r.key} grid={`impact:${pageId}:closed`}
     askRow={(r) => ({ title: String(r.label || r.key), page: pageId, context: { hint: 'A closed record of this use case.', fields: fieldsOf(r, CLOSED_COLUMNS) } })} />;
@@ -309,7 +309,7 @@ export function PromisedDelivered({ app, page, summary }) {
       <TargetKpi run={run} />
       <Holdout entry={entry} meaning={app.held_meaning} />
       <Reasons entry={entry} />
-      <Closed entry={entry} currency={currency} kind={kind} pageId={page.id} />
+      <Closed entry={entry} currency={currency} kind={kind} pageId={page.id} choices={page.statuses} />
     </section>
   );
 }
@@ -357,7 +357,7 @@ export default function Performance({ app, page, summary, onRecord, onExplain, g
   const problemText = data?.errors?.[page.id];
   const today = data?.period?.today || new Date().toISOString().slice(0, 10);
   return (
-    <div className="page hub perf" data-performance data-page={page.id}>
+    <div className="page hub perf" data-performance data-page={page.id} data-page-section="performance">
       <div className="pg-h">
         <div><h1>Performance</h1><p>{`What you did yourself in ${page.title}, read from its change history, next to what the whole team did.`}</p></div>
       </div>

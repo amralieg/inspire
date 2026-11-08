@@ -5,6 +5,7 @@ import { Popover } from './ui.jsx';
 import { shortDay } from './hub.js';
 import { visitedAt } from './prefs.js';
 import { useMyView } from './MyView.jsx';
+import { NOT_IN_RUN } from './records.js';
 import { INBOX_GROUPS, badgeText, inboxAsks, inboxCount, inboxGroups } from './inbox.js';
 
 const EMPTY = { changed: 'Nothing changed since your last visit.', assigned: 'You own no open item.', due: 'Nothing of yours is due soon.', due_owner: 'Nothing of yours, and nothing nobody owns, is due soon.' };
@@ -21,8 +22,13 @@ function useInbox(page, lastVisit) {
   const load = useCallback(() => {
     const mine = ++seq.current;
     const asks = inboxAsks(page);
-    Promise.all([getRecords(asks.changed), getRecords(asks.mine), asks.unowned ? getRecords(asks.unowned) : null]).then(([changed, owned, nobody]) => {
+    getRecords(asks.changed).then((changed) => (changed?.actions === false ? [changed]
+      : Promise.all([changed, getRecords(asks.mine), asks.unowned ? getRecords(asks.unowned) : null]))).then(([changed, owned, nobody]) => {
       if (mine !== seq.current) return;
+      if (changed?.actions === false) {
+        setState({ loading: false, error: '', groups: null, none: true });
+        return;
+      }
       const today = owned?.window?.today || new Date().toISOString().slice(0, 10);
       setState({ loading: false, error: '', groups: inboxGroups({ changed: changed?.rows, mine: owned?.rows, unowned: nobody?.rows, meta: page.records, lastVisit, today }) });
     }).catch((e) => { if (mine === seq.current) setState({ loading: false, error: e.message, groups: null }); });
@@ -35,7 +41,7 @@ function Item({ item, onOpen }) {
   return (
     <li>
       <button type="button" className="inbox-i" onClick={() => onOpen(item.key)} data-inbox-item={item.key} aria-label={`Open ${item.label} in Work`}>
-        <span className="inbox-t"><b><bdi>{item.label}</bdi></b>{item.fresh && <span className="chg-b chg-b--you">New</span>}</span>
+        <span className="inbox-t"><b><bdi>{item.label}</bdi></b>{item.fresh && <span className="chg-b chg-b--you">New</span>}{item.kept && <span className="chg-b chg-b--missing">{NOT_IN_RUN}</span>}</span>
         <small>{[item.status, item.due ? `${item.late ? 'Overdue since' : 'Due'} ${shortDay(item.due)}` : '', item.unowned ? 'Nobody owns it yet' : ''].filter(Boolean).join(' · ')}</small>
       </button>
     </li>
@@ -55,6 +61,7 @@ function Inbox({ page, onOpen }) {
   };
   useEffect(() => { if (open && inbox.groups) setSeen((s) => new Set([...s, ...inbox.groups.keys])); }, [open, inbox.groups]);
   const pick = (key) => { setOpen(false); onOpen(page.id, key); };
+  if (inbox.none) return null;
   const since = lastVisit > 0 ? `Your last visit to Work was ${shortDay(new Date(lastVisit).toISOString().slice(0, 10))}.` : 'This is your first visit to Work on this device, so nothing counts as new yet.';
   return (
     <>
