@@ -151,7 +151,7 @@ try {
     for (let i = 0; i < 10; i += 1) {
       const step = (await page.locator('[aria-current="step"]').first().innerText().catch(() => '?')).trim().replace(/^\d+\.\s*/, '');
       seen.push(step);
-      if (/^(Data groups|First run)$/.test(step)) {
+      if (/^(Data groups|MVP Test Run)$/.test(step)) {
         for (const c of await checkScope(dialog.first(), scopeProfile.profile, { part: step === 'Data groups' ? 'grouping' : 'first_run' })) scope.push({ where: `wizard ${step}`, ...c });
       }
       const next = page.getByRole('button', { name: 'Next', exact: true });

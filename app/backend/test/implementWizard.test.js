@@ -834,27 +834,27 @@ const ACME = { business: 'Acme', domain: 'Customer' };
 const holder = (use_case_id, business, domain, extra = {}) => ({ session_id: '42', use_case_id, name: use_case_id, business, domain, placement: 'domain', updated_at: '2026-10-20T00:00:00Z', ...extra });
 const appTarget = (id, useCases, extra = {}) => ({ id, name: id, access: 'sp', per_user_block: `${id} signs everyone in with its own service principal`, use_cases: useCases, ...extra });
 
-test('an App is Recommended only when it holds this business and domain, flags other domains, and is Not recommended for another business or an unknown one', async () => {
+test('an App fits only when it holds this business and domain, flags other domains, and does not fit another business or an unknown one', async () => {
   const w = await load();
   const fit = (target, placement = 'domain', scope = ACME) => w.appPlacementFit(target, { ...scope, placement });
-  assert.deepEqual(fit(appTarget('a', [holder('N01-U01', 'Acme', 'Customer')])), { fit: 'recommended', label: 'Recommended', reason: '' });
+  assert.deepEqual(fit(appTarget('a', [holder('N01-U01', 'Acme', 'Customer')])), { fit: 'recommended', reason: '' });
   assert.equal(fit(appTarget('a', [holder('N01-U01', ' acme ', 'CUSTOMER ')])).fit, 'recommended', 'names match without case or spaces');
   assert.deepEqual(fit(appTarget('a', [holder('N01-U01', 'Acme', 'Customer'), holder('N02-U01', 'Acme', 'Finance'), holder('N03-U01', 'Acme', 'Risk')])),
-    { fit: 'other_domains', label: 'Also holds Finance and Risk', reason: 'People who open it for Customer also see its Finance and Risk use cases.' });
-  assert.deepEqual(fit(appTarget('a', [holder('N02-U01', 'Acme', 'Finance')])), { fit: 'not_recommended', label: 'Not recommended',
+    { fit: 'other_domains', reason: 'People who open it for Customer also see its Finance and Risk use cases.' });
+  assert.deepEqual(fit(appTarget('a', [holder('N02-U01', 'Acme', 'Finance')])), { fit: 'not_recommended',
     reason: "It holds only Finance use cases, not Customer, so the people who use it could see another domain's data or use cases unrelated to their work." });
   assert.equal(fit(appTarget('a', [holder('N02-U01', 'Acme', 'Finance')]), 'business').fit, 'recommended', 'one App for all use cases takes every domain of the business');
-  assert.deepEqual(fit(appTarget('a', [holder('N01-U01', 'Acme', 'Customer'), holder('N09-U01', 'Globex', 'Customer')]), 'business'), { fit: 'not_recommended', label: 'Not recommended',
+  assert.deepEqual(fit(appTarget('a', [holder('N01-U01', 'Acme', 'Customer'), holder('N09-U01', 'Globex', 'Customer')]), 'business'), { fit: 'not_recommended',
     reason: "It holds use cases of Globex, another business, so the people who use it could see that business's data." });
   assert.equal(fit(appTarget('a', [holder('N09-U01', '', 'Customer')])).reason,
     "It holds use cases of an unnamed business, another business, so the people who use it could see that business's data.");
-  const unknown = { fit: 'not_recommended', label: 'Not recommended', reason: 'Inspire cannot tell which business and domain its use cases belong to, so it cannot tell who should use it.' };
+  const unknown = { fit: 'not_recommended', reason: 'Inspire cannot tell which business and domain its use cases belong to, so it cannot tell who should use it.' };
   assert.deepEqual(fit(appTarget('a', [holder('N01-U01', null, null)])), unknown, 'a use case Inspire cannot place is never Recommended');
   assert.deepEqual(fit(appTarget('a', [holder('N01-U01', 'Acme', 'Customer'), holder('N01-U02', 'Acme', null)])), unknown);
   assert.deepEqual(fit(appTarget('a', [])), unknown);
   assert.deepEqual(fit(null), unknown);
   assert.equal(fit(appTarget('a', [holder('N01-U01', 'Acme', '')]), 'domain', { business: 'Acme', domain: '' }).fit, 'recommended');
-  assert.equal(fit(appTarget('a', [holder('N01-U01', 'Acme', 'Customer')]), 'domain', { business: 'Acme', domain: '' }).label, 'Not recommended');
+  assert.equal(fit(appTarget('a', [holder('N01-U01', 'Acme', 'Customer')]), 'domain', { business: 'Acme', domain: '' }).fit, 'not_recommended');
 });
 
 test('the Apps to join list Recommended first, then Apps with other domains, then Not recommended, and say which ones a per-user use case cannot join', async () => {
@@ -1944,9 +1944,9 @@ test('Summary lists every chosen option with the step that changes it, and Chang
     outputs: { ...spec.outputs, dashboard: true, genie_space: true, app: false, alert: false }, schedule: { enabled: true, cron: '0 0 6 * * ?' } };
   assert.deepEqual(w.pickedSummary(picked, ['main.s.orders', 'main.s.returns']).map((r) => [r.id, r.value, r.step]), [
     ['outputs', 'Notebook, Dashboard, Genie Agent', 'delivery'], ['data', 'main.s.orders, main.s.returns', 'data'], ['result', 'main.inspire.churn_out', 'results'],
-    ['kpi', 'Inspire picks', 'results'], ['holdout', 'Off', 'results'], ['schedule', 'Daily', 'results'], ['capacity', 'No cap', 'settings'], ['vibes', 'none', 'vibes']]);
+    ['kpi', 'Inspire picks', 'results'], ['holdout', 'On, 10% held out', 'results'], ['schedule', 'Daily', 'results'], ['capacity', 'No cap', 'settings'], ['vibes', 'none', 'vibes']]);
   const bare = w.pickedSummary({ ...picked, config: { ...picked.config, result_table: '' }, schedule: { enabled: true, cron: '0 15 3 * * ?' } }, []);
-  assert.deepEqual(bare.map((r) => r.value), ['Notebook, Dashboard, Genie Agent', 'none', 'not named yet', 'Inspire picks', 'Off', '0 15 3 * * ?', 'No cap', 'none']);
+  assert.deepEqual(bare.map((r) => r.value), ['Notebook, Dashboard, Genie Agent', 'none', 'not named yet', 'Inspire picks', 'On, 10% held out', '0 15 3 * * ?', 'No cap', 'none']);
   assert.equal(w.pickedSummary({ ...picked, schedule: { enabled: false } }).find((r) => r.id === 'schedule').value, 'Off');
   assert.equal(w.pickedSummary(w.withCapacity(picked, '25')).find((r) => r.id === 'capacity').value, '25 rows a run');
   const withApp = { ...picked, outputs: { ...picked.outputs, app: true, app_name: 'churn-desk-2' } };

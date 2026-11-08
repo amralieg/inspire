@@ -88,7 +88,8 @@ test('the wizard opens on Delivery consumption with the App and Genie Agent tick
     for (const name of [/^Genie Agent/, /^App /]) assert.equal(await page.getByRole('checkbox', { name }).isChecked(), true, String(name));
     for (const name of [/^Dashboard/, /^Alert/]) assert.equal(await page.getByRole('checkbox', { name }).isChecked(), false, `${name} starts off but stays a choice`);
     assert.equal(await page.locator('[data-output="app"] [data-highly-recommended]').count(), 1, 'the App tile is Highly Recommended');
-    assert.equal(await page.locator('[data-output] [data-highly-recommended]').count(), 1, 'exactly one tile is Highly Recommended');
+    assert.equal(await page.locator('[data-choice="outputs"]').evaluate((g) => [...g.querySelectorAll('[data-highly-recommended]')].filter((b) => b.closest('[data-choice]') === g).length),
+      1, 'exactly one tile is Highly Recommended');
     await page.getByRole('checkbox', { name: /^App / }).uncheck();
     await stepsAre(page, ['1. Delivery consumption', '2. Data', '3. MVP Test Run', '4. Results', '5. Settings', '6. Vibes', '7. Summary']);
     await page.getByRole('checkbox', { name: /^App / }).check();
@@ -107,7 +108,7 @@ test('the wizard opens on Delivery consumption with the App and Genie Agent tick
     assert.equal(await page.getByLabel('Goal sentence').count(), 0, 'every other setting waits under Advanced settings');
     await dataToResults(page);
     const fresh = page.getByRole('group', { name: 'Keep it fresh' });
-    assert.equal(await fresh.getByRole('button', { name: 'Off' }).getAttribute('aria-pressed'), 'true', 'Keep it fresh starts Off');
+    assert.equal(await fresh.getByRole('button', { name: 'Daily' }).getAttribute('aria-pressed'), 'true', 'an alert turns Keep it fresh to Daily');
     await fresh.getByRole('button', { name: 'Weekly' }).click();
     assert.equal(await fresh.getByRole('button', { name: 'Weekly' }).getAttribute('aria-pressed'), 'true');
     assert.equal(made.jobs.length, 0);
@@ -1084,7 +1085,7 @@ test('a build that failed the same way twice lists what Inspire tried, drops Try
       await setDark(page, dark);
       assert.deepEqual((await lowContrast(page, ['section[aria-label="Build failed"]'])).low, [], dark ? 'dark banner' : 'light banner');
     }
-    await banner.getByRole('button', { name: 'Build a smaller first run' }).click();
+    await banner.getByRole('button', { name: 'Build a smaller MVP Test Run' }).click();
     await until(() => made.jobs.length === 1, 'the smaller run');
     const insert = made.sqlCalls.filter((c) => String(c.sql).includes('INSERT INTO'))[0];
     const sent = JSON.parse(insert.parameters.find((p) => p.name === 'spec').value);

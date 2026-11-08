@@ -481,3 +481,29 @@ export async function lowContrastThroughAnimations(page, selectors, fractions = 
   await page.evaluate(() => document.getAnimations().forEach((a) => a.play()));
   return { checked, animations, low: [...low] };
 }
+
+export function choicesShown(page) {
+  return page.evaluate(() => [...document.querySelectorAll('[data-choice]')].filter((g) => g.getClientRects().length).map((g) => {
+    const own = (el) => el.closest('[data-choice]') === g;
+    const inside = (sel) => [...g.querySelectorAll(sel)].filter(own);
+    const selected = [
+      ...inside('input[type="radio"][value]:checked, input[type="checkbox"][value]:checked').map((i) => i.value),
+      ...inside('[data-option][aria-pressed="true"]').map((b) => b.dataset.option),
+      ...inside('select').map((s) => s.value),
+      ...(g.hasAttribute('data-choice-value') ? [g.dataset.choiceValue] : []),
+    ];
+    return { choice: g.dataset.choice, multi: g.hasAttribute('data-choice-multi'), selected, badges: inside('[data-highly-recommended]').map((b) => b.dataset.highlyRecommended) };
+  }));
+}
+
+export async function settleChoices(page) {
+  await page.waitForFunction(() => !document.querySelector('[data-wizard-body] .animate-spin, [role="dialog"] .animate-spin, [role="status"].animate-pulse'), null, { timeout: 15000 });
+}
+
+export function assertOneBadgeOnDefault(shown, where) {
+  for (const { choice, multi, selected, badges } of shown) {
+    assert.equal(badges.length, 1, `${where}: ${choice} has exactly one Highly Recommended badge, has ${JSON.stringify(badges)}`);
+    if (multi) assert.ok(selected.includes(badges[0]), `${where}: ${choice} starts with its badged option ${badges[0]} ticked, ticked ${JSON.stringify(selected)}`);
+    else assert.deepEqual(selected, [badges[0]], `${where}: ${choice} starts on its badged option`);
+  }
+}

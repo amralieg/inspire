@@ -53,8 +53,8 @@ def test_the_old_word_lists_are_gone_and_the_labels_say_data_groups(agent_ns):
     assert agent_ns["INSPIRE_GROUP_LABEL"] == "Data groups"
     assert agent_ns["GENIE_WIDGET_LABELS"]["group_by"] == "Data groups (columns coarse to fine, or all)"
     assert "custom" not in agent_ns["GENIE_WIDGET_LABELS"]["group_by"]
-    assert agent_ns["INSPIRE_CUSTOM_SQL_REFUSED"] == ("Inspire does not run SQL typed into Data groups or First run; choose columns for "
-                                                      "Data groups and one of the first run choices instead")
+    assert agent_ns["INSPIRE_CUSTOM_SQL_REFUSED"] == ("Inspire does not run SQL typed into Data groups or MVP Test Run; choose columns for "
+                                                      "Data groups and one of the MVP Test Run choices instead")
 
 
 def test_the_built_notebook_carries_the_registry_table_so_it_never_needs_the_agent(agent_ns):
@@ -91,7 +91,7 @@ def test_the_first_run_is_never_everything_by_default(agent_ns, records):
 
 def test_a_small_table_says_a_first_run_of_about_1000_records_covers_all_of_it(agent_ns):
     reason = agent_ns["inspire_scope_settings"](dict(SPEC, records=400))[0]["reason"]
-    assert reason == "Inspire's default: the main table holds 400 records, so a first run of about 1,000 records covers all of it"
+    assert reason == "Inspire's default: the main table holds 400 records, so an MVP Test Run of about 1,000 records covers all of it"
     assert "covers all of them" not in reason
 
 

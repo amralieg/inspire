@@ -248,7 +248,7 @@ test('the wizard locks an App Inside Inspire to per-user access, Delta tables an
   const start = W.defaultSpecFromUseCase({ id: 'N01-U01', primary_table: 'main.s.orders', tables_involved: 'main.s.orders', business_domain: 'Retention' },
     { warehouseId: 'wh1', inspireDatabase: 'main.inspire', owner: OWNER, businessName: 'Acme' });
   const placement = W.APP_PLACEMENTS.find((p) => p.id === 'inspire');
-  assert.deepEqual([placement.label, placement.tag], ['Inside Inspire', 'Not recommended, only for testing']);
+  assert.deepEqual([placement.label, placement.note], ['Inside Inspire', 'For trying a page only.']);
   assert.equal(placement.blurb, 'Inspire runs the page in its Run tab, with no App of its own. Each viewer sees only the data they may read. Use it to try a page, then give it its own App.');
   assert.deepEqual(W.APP_PLACEMENT_IDS, I.IMPLEMENT_APP_PLACEMENTS, 'the wizard offers what the validator accepts');
   assert.deepEqual(W.APP_OWN_PLACEMENTS.map((p) => p.id), ['domain', 'use_case', 'business']);

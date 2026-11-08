@@ -1,5 +1,7 @@
 import { useId, useLayoutEffect, useRef } from 'react';
 import { VIBES_MAX, VIBE_PREVIOUS_DEFAULT, partOf, vibesLabel, vibesLength, vibesProblem } from '../lib/implementWizard';
+import { bestVibePrevious } from '../lib/highlyRecommended';
+import HighlyRecommended from './HighlyRecommended';
 
 const PLACEHOLDERS = {
   mvp: 'For example: put the rows to act on first on the App, answer in euros in the Genie Agent, and count returns by week',
@@ -36,7 +38,7 @@ export function VibePrevious({ built, choices, value: picked, onPick }) {
   if (!choices.length) return null;
   const value = picked || VIBE_PREVIOUS_DEFAULT;
   return (
-    <fieldset data-vibe-previous="" className="space-y-2">
+    <fieldset data-vibe-previous="" data-choice="vibe-previous" className="space-y-2">
       <legend className="text-[13px] font-semibold text-text-primary">What happens to v{built}?</legend>
       {choices.map((choice) => (
         <label key={choice.id}
@@ -45,6 +47,7 @@ export function VibePrevious({ built, choices, value: picked, onPick }) {
           <span className="min-w-0">
             <span className="block font-semibold text-text-primary">{choice.label}</span>
             <span className="block text-text-secondary">{choice.text}</span>
+            <HighlyRecommended best={bestVibePrevious(built)} id={choice.id} />
           </span>
         </label>
       ))}

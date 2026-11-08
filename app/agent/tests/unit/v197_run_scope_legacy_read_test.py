@@ -1,5 +1,5 @@
 """A run of a notebook whose App holds a First run that is a number or another word reads it with the rule the App's runScope.js uses,
-from one shared cases fixture, and logs one plain line when the earlier build did not record which first run it meant, offline."""
+from one shared cases fixture, and logs one plain line when the earlier build did not record which MVP Test Run it meant, offline."""
 import json
 import os
 
@@ -10,7 +10,7 @@ from v120_artifacts_support import FakeSpark
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 LEGACY = json.load(open(os.path.join(ROOT, "tests", "fixtures", "run_scope_legacy_cases.json"), encoding="utf-8"))
 SPEC = json.load(open(os.path.join(ROOT, "tests", "fixtures", "implement_grouping_cases.json"), encoding="utf-8"))["first_run"]["spec"]
-UNRECORDED = "First run: the earlier build of this notebook did not record which first run it meant"
+UNRECORDED = "MVP Test Run: the earlier build of this notebook did not record which MVP Test Run it meant"
 
 
 def _declared(declared):
@@ -55,7 +55,7 @@ def test_a_first_run_that_cannot_be_known_runs_on_the_table_default_or_everythin
     if given is None:
         assert "could not read how many records main.sales.orders holds" in logs[0], logs[0]
     elif given == case["run_scope"]:
-        assert "the first run Inspire suggests for main.sales.orders" in logs[0], logs[0]
+        assert "the MVP Test Run Inspire suggests for main.sales.orders" in logs[0], logs[0]
 
 
 @pytest.mark.parametrize("run_scope", ["all", "groups", "recent", "records", "", None])

@@ -329,7 +329,7 @@ function registerImplementRoutes(app, deps) {
       if (offer) access.app = { ...access.app, offer };
     }
     access.app_warehouse = appWarehouse;
-    let safety = { ok: true, detail: access.exists ? `${access.table} holds only this use case's rows` : `${access.table} is new; the first run creates it` };
+    let safety = { ok: true, detail: access.exists ? `${access.table} holds only this use case's rows` : `${access.table} is new; the MVP Test Run creates it` };
     const held = I.resultTableHolderProblem(table, holder, sid, useCaseId);
     if (held) safety = { ok: false, detail: held };
     else if (access.exists && access.write.ok) {

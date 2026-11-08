@@ -1,6 +1,8 @@
 import { counted } from './plural.js';
 import { firstRunDefault, groupingBest, groupingCount, profileRecords } from './runScope.js';
-import { APP_OWN_PLACEMENTS, IMPLEMENT_OUTPUTS, appPagesOf, newAppPlacementBlock, placementTarget } from './implementWizard.js';
+import {
+  APP_OWN_PLACEMENTS, IMPLEMENT_OUTPUTS, REMOVED_OUTPUT_DEFAULT, VIBE_PREVIOUS_DEFAULT, appBackendDefault, appPagesOf, insideInspire, newAppPlacementBlock, placementTarget,
+} from './implementWizard.js';
 
 export const HIGHLY_RECOMMENDED = 'Highly Recommended';
 
@@ -69,7 +71,7 @@ export function bestResultTable(defaultTable) {
 
 export function bestFreshness(spec) {
   return spec?.outputs?.alert ? pick('daily', 'The alert checks fresh records each day.')
-    : pick('weekly', 'Fresh each Monday at a low cost.');
+    : pick('off', 'Check the MVP Test Run before you pay for runs on a schedule.');
 }
 
 export function bestHoldout() {
@@ -80,6 +82,11 @@ export function bestKpi(options = [], tracked = null) {
   const name = tracked?.record?.name || '';
   if (name && (options || []).some((o) => String(o.name).toLowerCase() === String(name).toLowerCase())) return pick(name, 'It is the KPI this use case already tracks.');
   return pick('', 'Inspire picks your strategy\u2019s KPI, else the first it can compute.');
+}
+
+export function bestAppTarget(spec, targets, scope) {
+  const target = targets ? placementTarget(spec, targets, { ...scope, placement: 'domain' }) : null;
+  return target ? pick(target.id, `It already holds ${scope.domain || 'this domain'} use cases.`) : null;
 }
 
 export function bestAppPlace(spec, targets, scope) {
@@ -104,13 +111,29 @@ export function bestAppAccess({ inside = false, personal = '' } = {}) {
     : pick('sp', 'No column looks personal, so everyone can see the same rows.');
 }
 
-export function bestAppBackend(lakebase, block = '') {
-  if (block || lakebase?.state === 'absent') return pick('delta', 'Lakebase is not open to this App, so it reads Delta tables.');
-  return pick('lakebase', 'Pages open at once.');
+export function bestAppBackend(spec, lakebase) {
+  if (!spec?.outputs?.app) return null;
+  if (appBackendDefault(spec, lakebase) === 'lakebase') return pick('lakebase', 'Pages open at once.');
+  if (insideInspire(spec) || spec.outputs.app_access === 'user') return pick('delta', 'Lakebase does not apply here, so it reads Delta tables.');
+  if (spec.outputs.merge?.app) return pick('delta', 'The App it joins reads Delta tables.');
+  return lakebase?.state === 'absent' ? pick('delta', 'Lakebase is not open to this App, so it reads Delta tables.')
+    : pick('delta', 'Inspire could not check Lakebase, so it reads Delta tables.');
 }
 
 export function bestAppOption() {
   return pick('decisions', 'Owners track each flagged record to the end.');
+}
+
+export function bestMerge(label, list = []) {
+  return pick('', (list || []).length ? `A new ${label} holds only this use case.` : 'Inspire has built none yet.');
+}
+
+export function bestRemoved() {
+  return pick(REMOVED_OUTPUT_DEFAULT, 'Nothing is deleted.');
+}
+
+export function bestVibePrevious(live) {
+  return pick(VIBE_PREVIOUS_DEFAULT, `You can compare v${live} with the new version.`);
 }
 
 export function bestReplaceEdits() {

@@ -80,11 +80,11 @@ function GroupingPart({ values, onChange, profile, settings, editable, chosenBy 
           {chosenBy === 'deep' && <p data-grouping-chosen-by="deep">{GROUPING_DEEP_PICKED}</p>}
         </div>
       </details>
-      <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2" data-grouping-cards="">
+      <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2" data-grouping-cards="" data-choice="grouping">
         {shownCards.map((c) => (
           <label key={c.value} data-grouping-choice={c.value} data-grouping-joined={c.note ? '' : undefined}
             className={`${ROW} ${editable ? 'cursor-pointer' : ''} ${pickedOf(c) ? 'border-db-red bg-db-red-50' : ''}`}>
-            <input type="radio" name="inspire-grouping" className="mt-0.5" checked={pickedOf(c)} disabled={!editable}
+            <input type="radio" name="inspire-grouping" value={c.value} className="mt-0.5" checked={pickedOf(c)} disabled={!editable}
               onChange={() => onChange(GROUP_BY, c.value)}
               onClick={() => { if (chosenBy === 'deep' && c.deep && pickedOf(c)) onChange(GROUP_BY, c.value); }} />
             <span className="min-w-0 flex-1 space-y-0.5">
@@ -214,11 +214,11 @@ function FirstRunPart({ values, onChange, profile, groupsState, settings, editab
       {groupsState === 'loading' && (
         <p data-first-run-groups-reading="" className={`${NOTE} inline-flex items-center gap-1.5`}><Loader2 size={12} className="animate-spin" aria-hidden /> {FIRST_RUN_GROUPS_READING}</p>
       )}
-      <div className="space-y-1.5">
+      <div className="space-y-1.5" data-choice="first-run">
         {choices.map((c) => (
           <div key={c.id} data-first-run-choice={c.id} className={`${ROW} flex-col`}>
             <label className={`flex items-start gap-2 ${editable ? 'cursor-pointer' : ''}`}>
-              <input type="radio" name="inspire-first-run" className="mt-0.5" checked={current === c.id} disabled={!editable} onChange={() => pick(c)} />
+              <input type="radio" name="inspire-first-run" value={c.id} className="mt-0.5" checked={current === c.id} disabled={!editable} onChange={() => pick(c)} />
               <span className="min-w-0">
                 <span className="font-medium">{c.label}</span>
                 {c.records != null && <span data-first-run-records="" className="text-text-secondary"> · {counted(c.records, 'record')}</span>}

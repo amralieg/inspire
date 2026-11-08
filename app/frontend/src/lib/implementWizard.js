@@ -92,7 +92,7 @@ export const APP_PLACEMENTS = [
   { id: 'domain', label: 'One App per business domain', blurb: 'Use cases of the same domain share one App, so the people of that domain find them in one place.' },
   { id: 'use_case', label: 'One App per use case', blurb: 'Each use case gets an App of its own.' },
   { id: 'business', label: 'One App for all use cases', blurb: 'Every use case of this business goes into one App, whatever its domain.' },
-  { id: 'inspire', label: 'Inside Inspire', tag: 'Not recommended, only for testing',
+  { id: 'inspire', label: 'Inside Inspire', note: 'For trying a page only.',
     blurb: 'Inspire runs the page in its Run tab, with no App of its own. Each viewer sees only the data they may read. Use it to try a page, then give it its own App.' },
 ];
 export const APP_PLACEMENT_IDS = APP_PLACEMENTS.map((p) => p.id);
@@ -134,6 +134,7 @@ export const APP_ACCESS_CHOICES = [
     blurb: 'Each person sees only the rows their own access allows.' },
 ];
 export const APP_ACCESS_DEFAULT = 'sp';
+export const REMOVED_OUTPUT_DEFAULT = 'keep';
 export const APP_ACCESS_NOTE = 'Inspire starts with the App\'s own service principal, so its pages load at once from Lakebase. '
   + 'Pick per-user when each person must see only the rows their own access allows; that App reads Delta tables.';
 
@@ -147,14 +148,18 @@ export const LAKEBASE_PER_USER_REASON = 'Each person signs in as themselves, and
   + 'or grants to each viewer, so this App reads Delta tables.';
 export const LAKEBASE_CHECKING = 'Inspire is still checking whether this workspace has Lakebase';
 
+export function appBackendDefault(spec, offer) {
+  const outputs = spec?.outputs || {};
+  if (!outputs.app) return '';
+  return insideInspire(spec) || outputs.merge?.app || outputs.app_access === 'user' || offer?.state !== 'available' ? 'delta' : 'lakebase';
+}
+
 export function appBackendOf(spec, offer) {
   const outputs = spec?.outputs || {};
   if (!outputs.app) return '';
   const picked = APP_BACKENDS.includes(outputs.app_backend) ? outputs.app_backend : '';
-  if (insideInspire(spec)) return 'delta';
-  if (outputs.merge?.app) return picked || 'delta';
-  if (outputs.app_access === 'user' || offer?.state === 'absent') return 'delta';
-  return picked || (offer?.state === 'available' ? 'lakebase' : 'delta');
+  if (insideInspire(spec) || outputs.app_access === 'user' || offer?.state === 'absent') return 'delta';
+  return picked || appBackendDefault(spec, offer);
 }
 
 export function lakebaseBlock(spec, offer) {
@@ -1033,6 +1038,7 @@ export function defaultSpecFromUseCase(uc, { warehouseId, inspireDatabase, sessi
       alert_digest: true,
       alert_notify_on_ok: true,
     },
+    holdout: { enabled: true, share: HOLDOUT_SHARE_DEFAULT },
     removed_outputs: {},
     sharing: { principals: ownerPrincipals(decisionOwner) },
   };
@@ -1085,6 +1091,7 @@ export function specFromLatest(latest, fallback, assets = {}) {
     config: { ...fallback.config, ...(parsed.config || {}), profiles: { ...fallback.config.profiles, ...((parsed.config || {}).profiles || {}) } },
     schedule: { ...fallback.schedule, ...(parsed.schedule || {}) },
     outputs,
+    holdout: parsed.holdout ?? { ...fallback.holdout, enabled: false },
     sharing: { ...fallback.sharing, ...(parsed.sharing || {}) },
     removed_outputs: parsed.removed_outputs || {},
   };
@@ -1696,8 +1703,12 @@ export function withOutput(spec, id, checked, assets = {}) {
   if (id === 'alert' && checked && !(outputs.alert_recipients || []).length) outputs.alert_recipients = defaultAlertRecipients(spec);
   if (id === 'app' && checked) outputs.genie_space = true;
   const removed = { ...spec.removed_outputs };
-  if (!checked && assets?.[id]) delete removed[id];
-  return { ...spec, outputs, removed_outputs: removed };
+  if (assets?.[id]) {
+    if (checked) delete removed[id];
+    else removed[id] = REMOVED_OUTPUT_DEFAULT;
+  }
+  const next = { ...spec, outputs, removed_outputs: removed };
+  return id === 'alert' && checked && !spec.schedule?.enabled ? withFreshness(next, 'daily') : next;
 }
 
 export function withAppAccess(spec, access) {
@@ -1833,21 +1844,21 @@ function distinctScopes(values) {
 export function appPlacementFit(target, { business, domain, placement }) {
   const uses = target?.use_cases || [];
   if (!uses.length || uses.some((u) => u.business == null || (placement !== 'business' && u.domain == null))) {
-    return { fit: 'not_recommended', label: 'Not recommended',
+    return { fit: 'not_recommended',
       reason: 'Inspire cannot tell which business and domain its use cases belong to, so it cannot tell who should use it.' };
   }
   const others = distinctScopes(uses.map((u) => u.business).filter((b) => scopeKey(b) !== scopeKey(business)));
   if (others.length) {
-    return { fit: 'not_recommended', label: 'Not recommended',
+    return { fit: 'not_recommended',
       reason: `It holds use cases of ${joinWords(others.map((b) => b || 'an unnamed business'))}, another business, so the people who use it could see that business's data.` };
   }
   const outside = distinctScopes(uses.map((u) => u.domain).filter((d) => scopeKey(d) !== scopeKey(domain))).map((d) => d || 'no domain');
-  if (placement === 'business' || !outside.length) return { fit: 'recommended', label: 'Recommended', reason: '' };
+  if (placement === 'business' || !outside.length) return { fit: 'recommended', reason: '' };
   const here = domain || 'no domain';
   if (uses.some((u) => scopeKey(u.domain) === scopeKey(domain))) {
-    return { fit: 'other_domains', label: `Also holds ${joinWords(outside)}`, reason: `People who open it for ${here} also see its ${joinWords(outside)} use cases.` };
+    return { fit: 'other_domains', reason: `People who open it for ${here} also see its ${joinWords(outside)} use cases.` };
   }
-  return { fit: 'not_recommended', label: 'Not recommended',
+  return { fit: 'not_recommended',
     reason: `It holds only ${joinWords(outside)} use cases, not ${here}, so the people who use it could see another domain's data or use cases unrelated to their work.` };
 }
 
@@ -2368,7 +2379,7 @@ export function failureChoices(latest, { technique = '', notebookUrl = '' } = {}
   if (Number.isInteger(cap) && cap > 1) {
     const smaller = Math.max(1, Math.floor(cap / SMALLER_RUN_SHARE));
     const profiles = { ...(spec.config?.profiles || {}), preview: { ...(spec.config?.profiles?.preview || {}), entity_cap: smaller } };
-    choices.push({ id: 'smaller', label: 'Build a smaller first run', detail: `The preview run reads ${smaller} entities instead of ${cap}.`,
+    choices.push({ id: 'smaller', label: 'Build a smaller MVP Test Run', detail: `The preview run reads ${smaller} entities instead of ${cap}.`,
       changes: { config: { ...(spec.config || {}), profiles } } });
   }
   const using = String(technique || '').trim();

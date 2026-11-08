@@ -38,7 +38,7 @@ async function throughApp(page) {
   await goToStep(page, 'App look');
 }
 
-test('a build left alone sends no holdout and no App owners', async () => {
+test('a build left alone holds back 10% to measure impact and sends no App owners', async () => {
   const ui = await openUi('wizard', { me: { userName: OWNER, displayName: 'Owner' } });
   const { page, made } = ui;
   try {
@@ -46,7 +46,7 @@ test('a build left alone sends no holdout and no App owners', async () => {
     await goToStep(page, 'Delivery');
     await startWhenReady(page);
     const spec = submittedSpec(made);
-    assert.equal(Object.prototype.hasOwnProperty.call(spec, 'holdout'), false, 'the agent reads no holdout when the person never turned it on');
+    assert.deepEqual(spec.holdout, { enabled: true, share: 0.1 }, 'the holdout starts on, where its Highly Recommended badge sits');
     assert.deepEqual(spec.outputs.app_owners, []);
     assert.deepEqual(ui.pageErrors, []);
   } finally {
@@ -54,15 +54,17 @@ test('a build left alone sends no holdout and no App owners', async () => {
   }
 });
 
-test('Measure impact on Results is off until ticked, takes a share from 1% to 50% at 10% by default, and sends what the person typed', async () => {
+test('Measure impact on Results starts ticked with its badge, takes a share from 1% to 50% at 10% by default, and sends what the person typed', async () => {
   const ui = await openUi('wizard', { me: { userName: OWNER, displayName: 'Owner' } });
   const { page, made } = ui;
   try {
     await toResults(page);
     const impact = page.getByRole('group', { name: 'Measure impact' });
     const box = impact.getByRole('checkbox', { name: /^Hold back a share of records to measure impact\./ });
-    assert.equal(await box.isChecked(), false, 'nothing is held back unless the person asks');
+    assert.equal(await box.isChecked(), true, 'it starts on, where its Highly Recommended badge sits');
+    assert.equal(await impact.locator('label:has(input[type="checkbox"]) [data-highly-recommended]').count(), 1);
     await impact.getByText('Inspire leaves the held-back records alone, so it can compare their results with the records people acted on.', { exact: false }).waitFor();
+    await box.uncheck();
     assert.equal(await impact.getByRole('spinbutton').count(), 0, 'no share to type while it is off');
     await box.check();
     await openAdvanced(page);

@@ -19,7 +19,7 @@ export const GROUP_CUSTOM = 'custom';
 export const RUN_SCOPES = ['all', 'groups', 'recent', 'records'];
 export const CUSTOM_SQL_SETTINGS = ['group_sql', 'group_sql_tables', 'group_sql_hash', 'group_sql_checked_by', 'group_sql_checked_at',
   'scope_sql', 'scope_sql_tables', 'scope_sql_hash', 'scope_sql_checked_by', 'scope_sql_checked_at'];
-export const CUSTOM_SQL_REFUSED = 'Inspire does not run SQL typed into Data groups or First run; choose columns for Data groups and one of the first run choices instead';
+export const CUSTOM_SQL_REFUSED = 'Inspire does not run SQL typed into Data groups or MVP Test Run; choose columns for Data groups and one of the MVP Test Run choices instead';
 export const RUN_SCOPE_ALLOWED = RUN_SCOPES.join(', ');
 export const SCOPE_DEFAULTS = { [SCOPE_DAYS]: '30', [SCOPE_RECORDS]: '1000' };
 export const GROUPING_TITLE = 'How is the data split into groups?';

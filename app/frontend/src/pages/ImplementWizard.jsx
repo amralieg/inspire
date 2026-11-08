@@ -210,7 +210,8 @@ import {
   APP_LOOK_DEFAULT,
 } from '../lib/implementWizard';
 import {
-  bestAppAccess, bestAppBackend, bestHeldApp, bestAppOption, bestAppPlace, bestAppPolicy, bestFreshness, bestHoldout, bestKpi, bestLook, bestMode, bestOutput, bestReplaceEdits, isBest,
+  bestAppAccess, bestAppBackend, bestHeldApp, bestAppOption, bestAppPlace, bestAppPolicy, bestAppTarget, bestFreshness, bestHoldout, bestKpi, bestLook, bestMerge,
+  bestMode, bestOutput, bestRemoved, bestReplaceEdits, isBest,
   bestResultTable,
 } from '../lib/highlyRecommended';
 import HighlyRecommended, { BestOf } from '../components/HighlyRecommended';
@@ -427,6 +428,7 @@ export default function ImplementWizard({
   const [schemas, setSchemas] = useState({});
   const bodyRef = useRef(null);
   const groupingDefaulted = useRef(false);
+  const accessDefaulted = useRef(false);
   const appNameTyped = useRef(false);
   const [appRenamed, setAppRenamed] = useState(null);
   const [lastNameShown, setLastNameShown] = useState(false);
@@ -992,8 +994,20 @@ export default function ImplementWizard({
 
   useEffect(() => {
     if (loading || !unavailableKey) return;
-    setSpec((prev) => withoutUnavailableOutputs(prev, unavailableKey.split(','), context?.assets));
+    const off = unavailableKey.split(',');
+    setSpec((prev) => {
+      const next = withoutUnavailableOutputs(prev, off, context?.assets);
+      const top = bestOutput(off);
+      return top && !IMPLEMENT_OUTPUTS.some((o) => next.outputs[o.id]) ? withOutput(next, top.id, true, context?.assets) : next;
+    });
   }, [loading, unavailableKey, context?.assets]);
+
+  const personal = sourceTables.flatMap((t) => columnsByTable[t] || []).find((c) => personalColumn(c?.name, c?.tags))?.name || '';
+  useEffect(() => {
+    if (loading || !personal || context?.latest || accessDefaulted.current) return;
+    accessDefaulted.current = true;
+    setSpec((prev) => (prev.outputs.app_access === 'user' ? prev : withAppAccess(prev, 'user')));
+  }, [loading, personal, context?.latest]);
 
   if (loading) {
     return (
@@ -1033,7 +1047,6 @@ export default function ImplementWizard({
   const implementBlocked = busy || checksBusy || !placeSettled || Boolean(plan?.unchanged)
     || (!ownErrors.length && (!preflight || !preflight.ok || !plan || Boolean(planError)));
   const palette = (look?.palette_colors || []).find((p) => p.id === spec.outputs.app_look.palette) || null;
-  const personal = sourceTables.flatMap((t) => columnsByTable[t] || []).find((c) => personalColumn(c?.name, c?.tags))?.name || '';
   const best = {
     mode: bestMode({ genieOff }),
     output: bestOutput(unavailable),
@@ -1042,10 +1055,11 @@ export default function ImplementWizard({
     holdout: bestHoldout(),
     kpi: bestKpi(kpiOptions, trackedKpi),
     appPlace: bestAppPlace(spec, targets, placeScope),
+    appTarget: bestAppTarget(spec, targets, placeScope),
     heldApp: bestHeldApp(held.app || ''),
     appPolicy: bestAppPolicy(spec, targets, placeScope),
     appAccess: bestAppAccess({ inside: insideInspire(spec), personal }),
-    appBackend: bestAppBackend(lakebase, lakebaseBlock(spec, lakebase)),
+    appBackend: bestAppBackend(spec, lakebase),
     appOption: bestAppOption(),
     replaceEdits: bestReplaceEdits(),
     style: bestLook('style', spec),
@@ -1095,7 +1109,7 @@ export default function ImplementWizard({
                 ))}
               </dl>
             </section>
-            <fieldset className="space-y-2">
+            <fieldset data-choice="mode" className="space-y-2">
               <legend className="text-[10px] font-bold uppercase tracking-[0.18em] text-text-tertiary mb-1">What to build</legend>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {IMPLEMENT_MODES.map((m) => {
@@ -1389,11 +1403,13 @@ export default function ImplementWizard({
             </HoldoutSetting>
             <section className="space-y-2">
               <h3 className="text-sm font-semibold text-text-primary">Keep it fresh</h3>
+              <div data-choice="freshness" className="space-y-2">
               <div role="group" aria-label="Keep it fresh" className="inline-flex rounded-lg border border-border overflow-hidden">
                 {[...FRESHNESS_OPTIONS, ...(freshness === 'custom' ? [{ id: 'custom', label: 'Custom' }] : [])].map((option) => (
                   <button
                     key={option.id}
                     type="button"
+                    data-option={option.id}
                     aria-pressed={freshness === option.id}
                     disabled={option.id === 'custom'}
                     onClick={() => setSpec((prev) => withFreshness(prev, option.id))}
@@ -1404,6 +1420,7 @@ export default function ImplementWizard({
                 ))}
               </div>
               <BestOf best={best.freshness} label={FRESHNESS_OPTIONS.find((o) => o.id === best.freshness.id)?.label} />
+              </div>
               <p className="text-[11px] text-text-tertiary">
                 {freshness === 'off'
                   ? 'Genie runs it once now. Turn this on later to refresh it on a schedule.'
@@ -1447,7 +1464,7 @@ export default function ImplementWizard({
                 <h3 className="text-sm font-semibold text-text-primary">{DELIVERY_QUESTION}</h3>
                 <p className="text-[11px] text-text-tertiary">Pick one or more. Genie builds each one for you.</p>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div data-choice="outputs" data-choice-multi="" className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {IMPLEMENT_OUTPUTS.map((item) => {
                   const Icon = ICONS[item.id];
                   const on = spec.outputs[item.id];
@@ -1463,7 +1480,7 @@ export default function ImplementWizard({
                     <div key={item.id} data-output={item.id} className={`border rounded-lg p-3 space-y-2 ${on ? 'border-db-red/50 bg-db-red-50/40' : 'border-border'}`}>
                       <div className="relative">
                         <label className={`flex items-start gap-3 ${locked ? '' : 'cursor-pointer'}`}>
-                          <input type="checkbox" className="mt-0.5" checked={on} disabled={(cannot && !on) || locked} onChange={(e) => toggleOutput(item.id, e.target.checked)} />
+                          <input type="checkbox" value={item.id} className="mt-0.5" checked={on} disabled={(cannot && !on) || locked} onChange={(e) => toggleOutput(item.id, e.target.checked)} />
                           <span className="flex-1">
                             <span className="flex items-center gap-2 text-sm font-semibold text-text-primary">
                               <Icon size={14} /> {item.label}
@@ -1517,9 +1534,10 @@ export default function ImplementWizard({
                       {!on && context?.assets?.[item.id] && (
                         <div className="ps-7 space-y-1 text-[11px]">
                           <p className="text-text-secondary">This use case already has {ASSET_NOUNS[item.id]}. What should happen to it?</p>
-                          <div className="flex gap-3">
-                            <label><input type="radio" checked={spec.removed_outputs[item.id] === 'delete'} onChange={() => patch('removed_outputs', { ...spec.removed_outputs, [item.id]: 'delete' })} /> {holding ? takeOutText(holding) : 'Delete it'}</label>
-                            <label><input type="radio" checked={spec.removed_outputs[item.id] === 'keep'} onChange={() => patch('removed_outputs', { ...spec.removed_outputs, [item.id]: 'keep' })} /> Keep it unmanaged</label>
+                          <div data-choice={`removed-${item.id}`} className="flex flex-wrap items-baseline gap-3">
+                            <label><input type="radio" value="delete" checked={spec.removed_outputs[item.id] === 'delete'} onChange={() => patch('removed_outputs', { ...spec.removed_outputs, [item.id]: 'delete' })} /> {holding ? takeOutText(holding) : 'Delete it'}</label>
+                            <label><input type="radio" value="keep" checked={spec.removed_outputs[item.id] !== 'delete'} onChange={() => patch('removed_outputs', { ...spec.removed_outputs, [item.id]: 'keep' })} /> Keep it unmanaged</label>
+                            <HighlyRecommended best={bestRemoved()} id="keep" />
                           </div>
                         </div>
                       )}
@@ -1686,7 +1704,7 @@ export default function ImplementWizard({
             onWarehouseToggle={() => toggleAdvanced('app_place')}
             moveNote={moveNote}
             onKeep={() => { setPlaceSet('person'); setSpec((prev) => withHeldApp(prev, savedOutputs)); }}
-            best={{ place: best.appPlace, policy: best.appPolicy, held: best.heldApp }}
+            best={{ place: best.appPlace, target: best.appTarget, policy: best.appPolicy, held: best.heldApp }}
           />
         )}
 
@@ -1909,10 +1927,11 @@ export default function ImplementWizard({
 const LEGEND = 'text-[10px] font-bold uppercase tracking-[0.18em] text-text-tertiary';
 const ACCESS_SHORT = { user: 'each person signs in', sp: 'its own service principal' };
 
-function SegmentButton({ on, disabled = false, onClick, children }) {
+function SegmentButton({ on, disabled = false, onClick, option, children }) {
   return (
     <button
       type="button"
+      data-option={option}
       aria-pressed={on}
       disabled={disabled}
       onClick={onClick}
@@ -1944,7 +1963,6 @@ function VibesPanel({ spec, built, next, onChange, onPrevious }) {
   );
 }
 
-const FIT_TONE = { recommended: 'text-success-fg', other_domains: 'text-warning-fg', not_recommended: 'text-error-fg' };
 const APP_LIST_HEIGHT = 'h-48';
 const placeCard = (on) => `border rounded-lg p-3 space-y-2 ${on ? 'border-db-red/50 bg-db-red-50/40' : 'border-border'}`;
 
@@ -2008,9 +2026,7 @@ function InsideInspireCard({ spec, on, lakebase, warehouses, warehousesError, wa
         <span className="space-y-0.5">
           <span className="flex flex-wrap items-center gap-2">
             <span className="text-sm font-semibold text-text-primary">{APP_INSIDE_PLACEMENT.label}</span>
-            <span data-placement-tag="" className="rounded-full bg-warning-bg px-2 py-px text-[10px] font-semibold uppercase tracking-[0.08em] text-warning-fg ring-1 ring-inset ring-warning/30">
-              {APP_INSIDE_PLACEMENT.tag}
-            </span>
+            <span className="text-[11px] text-text-tertiary">{APP_INSIDE_PLACEMENT.note}</span>
           </span>
           {on && <span data-placement-blurb="" className="block text-[11px] text-text-secondary">{APP_INSIDE_PLACEMENT.blurb}</span>}
         </span>
@@ -2053,7 +2069,7 @@ function AppPlacementStep({ spec, targets, targetsError, heldApp, scope, warehou
               : `This use case already has its App, ${heldApp}, so Genie rebuilds it there.`}
           </p>
         </div>
-        <div role="radiogroup" aria-label="Where the App goes" className="space-y-3">
+        <div role="radiogroup" aria-label="Where the App goes" data-choice="app-place" className="space-y-3">
           <div data-app-place="held" className={placeCard(!inside)}>
             <label className="flex items-start gap-2.5 cursor-pointer">
               <input type="radio" name="app-place" value="held" className="mt-0.5" checked={!inside} onChange={onKeep} />
@@ -2078,7 +2094,7 @@ function AppPlacementStep({ spec, targets, targetsError, heldApp, scope, warehou
         <h3 className="text-sm font-semibold text-text-primary">Where does the App of this use case go?</h3>
         <p className="text-[11px] text-text-tertiary">Add it to an App Inspire built, or create a new one.{memory && ` ${memory}`}</p>
       </div>
-      <div role="radiogroup" aria-label="Where the App goes" aria-busy={listing} className="space-y-3">
+      <div role="radiogroup" aria-label="Where the App goes" aria-busy={listing} data-choice="app-place" className="space-y-3">
         <div data-app-place="join" className={placeCard(Boolean(joined))}>
           <label className="flex items-start gap-2.5 cursor-pointer">
             <input type="radio" name="app-place" value="join" className="mt-0.5" checked={Boolean(joined)} disabled={!joined && !open.length}
@@ -2093,7 +2109,7 @@ function AppPlacementStep({ spec, targets, targetsError, heldApp, scope, warehou
             </span>
           </label>
           {choices.length > 0 && !inside && (
-            <ul ref={listRef} aria-label="Apps Inspire built" data-app-list=""
+            <ul ref={listRef} aria-label="Apps Inspire built" data-app-list="" data-choice="app-target"
               className={`relative ms-7 space-y-1.5 overflow-y-auto rounded-md border border-border bg-surface px-2 py-1.5 ${APP_LIST_HEIGHT}`}>
               {choices.map((c) => (
                 <li key={c.target.id} data-app-target={c.target.id}>
@@ -2102,8 +2118,8 @@ function AppPlacementStep({ spec, targets, targetsError, heldApp, scope, warehou
                       disabled={Boolean(c.block) && joined !== c.target.id} onChange={() => onJoin(c.target)} />
                     <span className="space-y-0.5">
                       <span className="flex flex-wrap items-center gap-2">
-                        <span className="text-[12px] font-medium text-text-primary">{c.target.name}</span>
-                        <span data-fit={c.fit} className={`text-[10px] font-semibold uppercase tracking-[0.08em] ${FIT_TONE[c.fit]}`}>{c.label}</span>
+                        <span data-fit={c.fit} className="text-[12px] font-medium text-text-primary">{c.target.name}</span>
+                        <HighlyRecommended best={best?.target} id={c.target.id} why={false} />
                       </span>
                       <span className="block text-[11px] text-text-secondary">Holds {mergeTargetText(c.target)} · {ACCESS_SHORT[c.target.access]}</span>
                       {c.reason && <span className="block text-[11px] text-text-secondary">{c.reason}</span>}
@@ -2139,7 +2155,7 @@ function AppPlacementStep({ spec, targets, targetsError, heldApp, scope, warehou
           )}
           {fresh && !listing && (
             <div className="ps-7 space-y-3">
-              <div role="radiogroup" aria-label="How Inspire organizes Apps" className="space-y-1.5">
+              <div role="radiogroup" aria-label="How Inspire organizes Apps" data-choice="app-policy" className="space-y-1.5">
                 {APP_OWN_PLACEMENTS.map((p) => {
                   const off = newAppPlacementBlock(spec, targets, scope, p.id);
                   return (
@@ -2175,9 +2191,12 @@ function MergeChoice({ name, label, chosen, targets, targetsError, onPick }) {
   return (
     <div className="ps-7 space-y-1.5" data-merge={name}>
       <div className="flex flex-wrap items-center gap-2">
-        <div role="group" aria-label={`Where Genie builds the ${label}`} className="inline-flex rounded-md border border-border overflow-hidden">
-          <SegmentButton on={!chosen} onClick={() => onPick(null)}>Create new</SegmentButton>
-          <SegmentButton on={Boolean(chosen)} disabled={!chosen && !open} onClick={() => { if (!chosen) onPick(open); }}>Add to an existing one</SegmentButton>
+        <div data-choice={`merge-${name}`} className="flex flex-wrap items-center gap-2">
+          <div role="group" aria-label={`Where Genie builds the ${label}`} className="inline-flex rounded-md border border-border overflow-hidden">
+            <SegmentButton option="" on={!chosen} onClick={() => onPick(null)}>Create new</SegmentButton>
+            <SegmentButton option="existing" on={Boolean(chosen)} disabled={!chosen && !open} onClick={() => { if (!chosen) onPick(open); }}>Add to an existing one</SegmentButton>
+          </div>
+          {targets !== null && <HighlyRecommended best={bestMerge(label, list)} id="" why={false} />}
         </div>
         {!chosen && targets === null && <span className="text-[11px] text-text-tertiary"><Loader2 size={11} className="inline animate-spin" /> Finding the ones Inspire built</span>}
         {!chosen && targets !== null && !targetsError && !list.length && <span className="text-[11px] text-text-tertiary">Inspire has built none yet</span>}
@@ -2290,7 +2309,7 @@ function ResultTableStep({ table, defaultTable, outputCheck, onChange, best = nu
         <p className="text-[11px] text-text-tertiary">Genie writes this MVP&apos;s results to this table, and Inspire writes nowhere else. Next checks live that you can create or write it.</p>
       </div>
       {children}
-      <div className="rounded-lg border border-border bg-bg px-3 py-2.5 space-y-1" role="group" aria-label="Result table">
+      <div className="rounded-lg border border-border bg-bg px-3 py-2.5 space-y-1" role="group" aria-label="Result table" data-choice="result-table" data-choice-value={table}>
         <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
           <span className="font-mono text-[12px] text-text-primary break-all">{table || 'catalog.schema.table'}</span>
           {defaultTable && table === defaultTable && <HighlyRecommended best={best} id={defaultTable} />}
@@ -2326,7 +2345,7 @@ function KpiTargetSetting({ spec, options, tracked, before, onPick, best = null 
   const changed = before != null && kpiKey(value) !== kpiKey(before);
   const shown = tracked ? trackedKpiText(tracked.record, tracked.impact) : options.length ? KPI_PICK_RULE : KPI_NONE_YET;
   return (
-    <div role="group" aria-label="Target KPI" className="space-y-1.5">
+    <div role="group" aria-label="Target KPI" data-choice="kpi" className="space-y-1.5">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-start">
         <span className="shrink-0 text-[12px] font-medium text-text-primary sm:w-20 sm:pt-2">Target KPI</span>
         <select aria-label="Target KPI" className={`${inputBase} w-full sm:w-56 shrink-0`} value={listed ? listed.name : value} onChange={(e) => onPick(e.target.value)}>
@@ -2448,8 +2467,8 @@ function HoldoutSetting({ spec, onEnabled, children = null, best = null }) {
     <fieldset className="space-y-2" aria-label="Measure impact">
       <legend className="text-sm font-semibold text-text-primary">Measure impact</legend>
       {children}
-      <label className="flex items-start gap-2.5 cursor-pointer pt-1">
-        <input type="checkbox" className="mt-0.5" checked={enabled} onChange={(e) => onEnabled(e.target.checked)} />
+      <label data-choice="holdout" className="flex items-start gap-2.5 cursor-pointer pt-1">
+        <input type="checkbox" value="true" className="mt-0.5" checked={enabled} onChange={(e) => onEnabled(e.target.checked)} />
         <span className="text-[11px] text-text-secondary">
           <span className="text-[12px] font-medium text-text-primary">{HOLDOUT_LABEL}</span>. {HOLDOUT_BLURB}
           <span className="block mt-1"><HighlyRecommended best={best} id /></span>
@@ -2475,7 +2494,7 @@ function AppBackendChoice({ spec, lakebase, onBackend, children = null, best = n
         </p>
       ) : (
         <>
-          <div className="flex flex-wrap gap-x-6 gap-y-1.5 pt-1">
+          <div data-choice="app-backend" className="flex flex-wrap gap-x-6 gap-y-1.5 pt-1">
             {APP_BACKEND_CHOICES.map((choice) => {
               const off = loading || (choice.id === 'lakebase' && Boolean(block));
               const checked = !loading && backend === choice.id;
@@ -2568,7 +2587,7 @@ function AppAccessStep({ spec, lakebase, warehouses, warehousesError, warehouseC
   const inside = insideInspire(spec);
   return (
     <section className="space-y-4" aria-label="App access">
-      <fieldset className="space-y-2">
+      <fieldset data-choice="app-access" className="space-y-2">
         <legend className="text-sm font-semibold text-text-primary">Who does the App sign people in as?</legend>
         <p className="text-[11px] text-text-tertiary" {...(inside ? { role: 'note', 'aria-label': 'Why each person signs in as themselves' } : {})}>
           {inside ? `${INSIDE_ACCESS_REASON}.` : APP_ACCESS_NOTE}
@@ -2611,21 +2630,21 @@ function AppAccessStep({ spec, lakebase, warehouses, warehousesError, warehouseC
         <legend className={LEGEND}>
           What people can do in the App<span className="ms-2 normal-case tracking-normal font-normal text-[11px]">Record decisions starts on; the others stay off unless you turn them on.</span>
         </legend>
-        <div className="space-y-2.5 pt-1">
+        <div data-choice="app-options" data-choice-multi="" className="space-y-2.5 pt-1">
           {APP_OPTIONS.filter((o) => appOptionShown(spec, o.id)).map((o) => (
             <div key={o.id}>
               <label className="flex items-start gap-2.5 cursor-pointer">
-                <input type="checkbox" className="mt-0.5" checked={Boolean(options[o.id])} onChange={(e) => onOption(o.id, e.target.checked)} />
+                <input type="checkbox" value={o.id} className="mt-0.5" checked={Boolean(options[o.id])} onChange={(e) => onOption(o.id, e.target.checked)} />
                 <span className="text-[11px] text-text-secondary">
                   <span className="text-[12px] font-medium text-text-primary">{o.label}</span>. {o.blurb} <HighlyRecommended best={best.option} id={o.id} />
                 </span>
               </label>
               {o.id === 'modify' && appOptionShown(spec, 'replace_edits') && (
-                <div role="radiogroup" aria-label={REPLACE_EDITS_QUESTION} className="ms-6 mt-2 border-s-2 border-border ps-3 space-y-1">
+                <div role="radiogroup" aria-label={REPLACE_EDITS_QUESTION} data-choice="replace-edits" className="ms-6 mt-2 border-s-2 border-border ps-3 space-y-1">
                   <p className="text-[12px] font-medium text-text-primary">{REPLACE_EDITS_QUESTION}</p>
                   {REPLACE_EDITS_CHOICES.map((c) => (
                     <label key={String(c.id)} className="flex items-start gap-2 text-[11px] cursor-pointer">
-                      <input type="radio" name="replace-edits" className="mt-0.5" checked={Boolean(options.replace_edits) === c.id} onChange={() => onOption('replace_edits', c.id)} />
+                      <input type="radio" name="replace-edits" value={String(c.id)} className="mt-0.5" checked={Boolean(options.replace_edits) === c.id} onChange={() => onOption('replace_edits', c.id)} />
                       <span>
                         <span className="font-medium text-text-primary">{c.label}</span>
                         <span className="text-text-secondary">: {c.blurb}</span> <HighlyRecommended best={best.replace} id={c.id} />
@@ -2783,7 +2802,7 @@ function AppLookStep({ spec, look, lookError, palette, title, stake, dates = nul
       <div {...panel('style')}>
         <fieldset className="space-y-2">
           <legend className={LEGEND}>Style</legend>
-          <div className="grid grid-cols-3 gap-3 pt-1">
+          <div data-choice="app-style" className="grid grid-cols-3 gap-3 pt-1">
             {APP_STYLES.map((s) => (
               <LookCard key={s.id} name="app-style" value={s.id} checked={chosen.style === s.id} onChange={() => onLook('style', s.id)}
                 label={s.label} best={best.style} blurb={s.blurb}>
@@ -2796,7 +2815,7 @@ function AppLookStep({ spec, look, lookError, palette, title, stake, dates = nul
       </div>
       <div {...panel('palette')}>
         <div className="grid grid-cols-[1fr_auto] items-start gap-5">
-          <fieldset className="space-y-2">
+          <fieldset data-choice="app-palette" className="space-y-2">
             <legend className={LEGEND}>Palette</legend>
             <div className="grid grid-cols-7 gap-1.5 pt-1">
               {(palettes.length ? palettes : (look?.palettes || [])).map((p) => {
@@ -2818,13 +2837,14 @@ function AppLookStep({ spec, look, lookError, palette, title, stake, dates = nul
             </div>
             <BestOf best={best.palette} label={best.palette && lookLabel('palette', best.palette.id)} />
           </fieldset>
-          <fieldset className="space-y-2">
+          <fieldset data-choice="app-theme" className="space-y-2">
             <legend className={LEGEND}>Mode</legend>
             <div role="group" aria-label="Light or dark" className="inline-flex rounded-lg border border-border overflow-hidden mt-1">
               {APP_THEMES.map((t) => (
                 <button
                   key={t.id}
                   type="button"
+                  data-option={t.id}
                   aria-pressed={chosen.theme === t.id}
                   onClick={() => onLook('theme', t.id)}
                   className={`px-4 py-1.5 text-xs font-medium border-e border-border last:border-e-0 ${chosen.theme === t.id ? 'bg-db-red-solid text-white' : 'bg-surface text-text-secondary hover:text-text-primary'}`}
@@ -2840,7 +2860,7 @@ function AppLookStep({ spec, look, lookError, palette, title, stake, dates = nul
       <div {...panel('layout')}>
         <fieldset className="space-y-2">
           <legend className={LEGEND}>Layout</legend>
-          <div className="grid grid-cols-3 gap-3 pt-1">
+          <div data-choice="app-layout" className="grid grid-cols-3 gap-3 pt-1">
             {APP_LAYOUTS.map((l) => (
               <LookCard key={l.id} name="app-layout" value={l.id} checked={chosen.layout === l.id} onChange={() => onLook('layout', l.id)} label={l.label} best={best.layout} blurb={l.blurb}>
                 <LayoutPreview layout={l.id} palette={palette} theme={chosen.theme} />

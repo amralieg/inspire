@@ -190,7 +190,8 @@ test('the wizard offers Inside Inspire as not recommended, then locks per-user a
     await goToStep(page, 'App placement');
     await page.getByText('Finding the Apps Inspire built').waitFor({ state: 'detached' });
     const card = page.locator('[data-app-place="inspire"]');
-    assert.equal((await card.locator('[data-placement-tag]').textContent()).trim(), 'Not recommended, only for testing');
+    await card.getByText('For trying a page only.', { exact: true }).waitFor();
+    assert.equal(await card.getByText(/Not recommended/).count(), 0, 'no Not recommended tag: the badge sits on the best place');
     assert.equal(await page.getByLabel('App name').count(), 1, 'a new App asks for its name');
     await page.getByRole('radio', { name: /^Inside Inspire/ }).check();
     await openAdvanced(page);

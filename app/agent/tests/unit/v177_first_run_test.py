@@ -235,7 +235,7 @@ def test_each_run_records_its_scope_and_the_records_it_read_per_table(fresh_ns):
     recent = {"scope": "recent", "table": ORDERS, "column": "order_date", "days": 30}
     assert fresh_ns["inspire_scope_key"](dict(recent, since="2026-10-01")) == fresh_ns["inspire_scope_key"](dict(recent, since="2026-10-08")), \
         "a recent period keeps its scope as its dates move on"
-    assert printed[-1].endswith("its First run covering the 1 group EMEA of region")
+    assert printed[-1].endswith("its MVP Test Run covering the 1 group EMEA of region")
     log["reads"] = {"main.sales.orders": {"where": "", "limit": 1000}}
     capped = FakeSpark(responder=respond)
     first = fresh_ns["inspire_run_tables"](capped, fresh_ns["INSPIRE_RUN"])[0]

@@ -125,7 +125,7 @@ function ScopeFacts({ page, run }) {
     }
   };
   return (
-    <section className="card runs-scope" aria-label="First run">
+    <section className="card runs-scope" aria-label="MVP Test Run">
       <p>{run.facts.covered}</p>
       {run.facts.everything && <p>{run.facts.everything}</p>}
       <button className="btn" onClick={everything} disabled={busy}>Run on everything</button>

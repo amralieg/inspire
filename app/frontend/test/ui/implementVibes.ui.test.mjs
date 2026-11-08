@@ -5,7 +5,7 @@ import { createRequire } from 'node:module';
 import path from 'node:path';
 import { defaultSpecFromUseCase } from '../../src/lib/implementWizard.js';
 import { HARNESS_USE_CASE, HARNESS_SETTINGS, HARNESS_SESSION_ID } from './implementFixtures.js';
-import { clippedExamples, closeAsset, closeBrowser, dataToResults, expandBuild, featuresBox, featuresHeld, featuresText, lowContrast, onStep, openAsset, openFeatures, openSettings, openUi, toSummary, setDark, startMvp, steadyBox, toAppAccess, toVibes, until, wizardFits, goToStep } from './uiSupport.mjs';
+import { assertOneBadgeOnDefault, choicesShown, clippedExamples, closeAsset, closeBrowser, dataToResults, expandBuild, featuresBox, featuresHeld, featuresText, lowContrast, onStep, openAsset, openFeatures, openSettings, openUi, toSummary, setDark, startMvp, steadyBox, toAppAccess, toVibes, until, wizardFits, goToStep } from './uiSupport.mjs';
 
 const OWNER = ['owner', 'example.com'].join('@');
 const SHOTS = process.env.VIBES_SHOTS || '';
@@ -521,6 +521,25 @@ test('a notebook ask the notes hold is removed in Vibe/Add/Remove Features and b
     const [built] = insertsOf(made);
     assert.deepEqual([built.spec.data.notes, built.spec.vibes, built.spec.vibe_previous],
       ['Score on the last 90 days', 'Score every model on the same held-out baskets', 'keep'], 'the removed ask leaves the notes and the new ask goes to the router');
+    assert.deepEqual(ui.pageErrors, []);
+  } finally {
+    await ui.close();
+  }
+});
+
+test('a rebuild badges keeping the live version and keeping an output turned off, and both start chosen', async () => {
+  const ui = await openVibes();
+  const { page } = ui;
+  try {
+    const wizard = await openSettings(page);
+    await wizardBox(page).fill('Put the rows to act on first');
+    await wizard.locator('[data-choice="vibe-previous"]').waitFor();
+    assertOneBadgeOnDefault((await choicesShown(page)).filter((c) => c.choice === 'vibe-previous'), 'Vibes on a rebuild');
+    await goToStep(page, 'Delivery consumption');
+    await wizard.getByRole('checkbox', { name: /^Dashboard/ }).uncheck();
+    await wizard.locator('[data-choice="removed-dashboard"]').waitFor();
+    assertOneBadgeOnDefault((await choicesShown(page)).filter((c) => c.choice === 'removed-dashboard'), 'Delivery with the dashboard turned off');
+    assert.equal(await wizard.getByRole('radio', { name: 'Keep it unmanaged' }).isChecked(), true);
     assert.deepEqual(ui.pageErrors, []);
   } finally {
     await ui.close();

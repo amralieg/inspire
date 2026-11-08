@@ -21,18 +21,29 @@ test('each choice has exactly one Highly Recommended option, with a reason, pick
   assert.equal(H.bestOutput(['app', 'genie_space', 'dashboard', 'alert']), null, 'nothing to recommend when nothing can be built (must-exclude)');
   one(H.bestMode(), ['mvp', 'notebook']);
   assert.equal(H.bestMode({ genieOff: 'off' }).id, 'notebook');
-  one(H.bestFreshness({ outputs: { alert: false } }), ['daily', 'weekly']);
+  one(H.bestFreshness({ outputs: { alert: false } }), W.FRESHNESS_OPTIONS.map((o) => o.id));
   assert.equal(H.bestFreshness({ outputs: { alert: true } }).id, 'daily');
-  assert.equal(H.bestFreshness({ outputs: { alert: false } }).id, 'weekly');
+  assert.equal(H.bestFreshness({ outputs: { alert: false } }).id, 'off');
   one(H.bestHoldout(), [true, false]);
   assert.equal(H.bestKpi([{ name: 'Churn rate' }], { record: { name: 'churn rate' } }).id, 'churn rate');
   assert.equal(H.bestKpi([{ name: 'Churn rate' }], { record: { name: 'Revenue' } }).id, '', 'a tracked KPI not in the list is not recommended (must-exclude)');
   one(H.bestAppAccess(), ['user', 'sp']);
   assert.equal(H.bestAppAccess({ personal: 'owner_email' }).id, 'user');
   assert.equal(H.bestAppAccess({ inside: true }).id, 'user');
-  assert.equal(H.bestAppBackend({ state: 'available' }).id, 'lakebase');
-  assert.equal(H.bestAppBackend({ state: 'absent' }).id, 'delta');
-  assert.equal(H.bestAppBackend({ state: 'available' }, 'blocked').id, 'delta');
+  const app = { outputs: { app: true, app_access: 'sp', merge: {} } };
+  assert.equal(H.bestAppBackend(app, { state: 'available' }).id, 'lakebase');
+  assert.equal(H.bestAppBackend(app, { state: 'absent' }).id, 'delta');
+  for (const offer of [null, { state: 'unknown', detail: 'timeout' }, { state: 'denied', detail: 'no' }]) {
+    assert.equal(H.bestAppBackend(app, offer).id, 'delta', `Lakebase Inspire could not check is never recommended (must-exclude) ${JSON.stringify(offer)}`);
+  }
+  assert.equal(H.bestAppBackend({ outputs: { ...app.outputs, app_access: 'user' } }, { state: 'available' }).id, 'delta');
+  assert.equal(H.bestAppBackend({ outputs: { app: false } }, { state: 'available' }), null);
+  one(H.bestRemoved(), ['delete', 'keep']);
+  assert.equal(H.bestRemoved().id, W.REMOVED_OUTPUT_DEFAULT);
+  one(H.bestVibePrevious(3), W.vibePreviousChoices(3, 4).map((c) => c.id));
+  assert.equal(H.bestVibePrevious(3).id, W.VIBE_PREVIOUS_DEFAULT);
+  one(H.bestMerge('dashboard', []), ['', 'existing']);
+  assert.equal(H.bestMerge('dashboard', [{ id: 'd1' }]).reason, 'A new dashboard holds only this use case.');
   one(H.bestReplaceEdits(), [false, true]);
   assert.equal(H.bestHeldApp(''), null);
   assert.equal(H.bestResultTable(''), null);
@@ -71,4 +82,30 @@ test('Data groups recommends the column the profile picks with its group count, 
   assert.equal(firstRun.id, 'records');
   assert.match(firstRun.reason, /48,210 records/);
   assert.equal(H.bestFirstRun({}, []), null);
+});
+
+test('every Highly Recommended pick is the option the wizard starts on', async () => {
+  const H = await lib('highlyRecommended.js');
+  const W = await lib('implementWizard.js');
+  const uc = { id: 'N01-U01', primary_table: 'main.s.orders', tables_involved: 'main.s.orders', business_domain: 'Customer' };
+  const spec = W.defaultSpecFromUseCase(uc, { warehouseId: 'wh1', inspireDatabase: 'main.inspire', businessName: 'Acme' });
+  assert.equal(H.bestFreshness(spec).id, W.freshnessOf(spec.schedule), 'Keep it fresh starts on its badge');
+  const alerted = W.withOutput(spec, 'alert', true);
+  assert.equal(H.bestFreshness(alerted).id, 'daily');
+  assert.equal(W.freshnessOf(alerted.schedule), 'daily', 'ticking the alert moves the schedule to the badge');
+  const weekly = W.withOutput(W.withFreshness(spec, 'weekly'), 'alert', true);
+  assert.equal(W.freshnessOf(weekly.schedule), 'weekly', 'a schedule someone set stays (must-exclude)');
+  assert.equal(H.bestHoldout().id, W.holdoutOf(spec).enabled);
+  assert.equal(H.bestReplaceEdits().id, Boolean(spec.outputs.app_options.replace_edits));
+  assert.equal(H.bestAppAccess().id, spec.outputs.app_access);
+  assert.equal(H.bestMode().id, 'mvp');
+  assert.ok(spec.outputs[H.bestOutput([]).id]);
+  for (const offer of [null, { state: 'available' }, { state: 'absent' }, { state: 'unknown' }, { state: 'denied', detail: 'x' }]) {
+    assert.equal(H.bestAppBackend(spec, offer).id, W.appBackendOf(spec, offer), JSON.stringify(offer));
+  }
+  for (const kind of ['style', 'layout', 'theme', 'palette']) assert.equal(H.bestLook(kind, spec).id, spec.outputs.app_look[kind], kind);
+  const assets = { dashboard: 'd1' };
+  const removed = W.withOutput({ ...spec, outputs: { ...spec.outputs, dashboard: true } }, 'dashboard', false, assets);
+  assert.equal(removed.removed_outputs.dashboard, H.bestRemoved().id, 'an output turned off keeps its asset, as Highly Recommended');
+  assert.equal(W.withOutput(removed, 'dashboard', true, assets).removed_outputs.dashboard, undefined);
 });

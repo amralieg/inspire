@@ -133,14 +133,16 @@ test('a change of App owners refreshes the App and nothing else', () => {
   assert.deepEqual(I.planSubmission(named, { ...spec([]), based_on_version: 1 }).summary.refresh, ['app'], 'removing the last owner is a change too');
 });
 
-test('the wizard holdout starts unsent, ticks on at 10%, takes a percent from 1 to 50, and the backend accepts what it sends', async () => {
+test('the wizard holdout starts on at 10% for a new use case, off for a saved one without it, takes a percent from 1 to 50, and the backend accepts what it sends', async () => {
   const w = await frontendLib('implementWizard.js');
   assert.equal(w.HOLDOUT_SHARE_DEFAULT, I.IMPLEMENT_HOLDOUT_SHARE);
   assert.equal(w.HOLDOUT_MAX_PERCENT / 100, I.IMPLEMENT_HOLDOUT_MAX_SHARE);
   assert.equal(w.HOLDOUT_MIN_PERCENT, 1);
   const fresh = w.defaultSpecFromUseCase(UC, { warehouseId: 'wh1', inspireDatabase: 'main.inspire', sessionId: '42' });
-  assert.equal(Object.prototype.hasOwnProperty.call(fresh, 'holdout'), false, 'a new spec sends no holdout');
-  assert.deepEqual(w.holdoutOf(fresh), { enabled: false, share: 0.1 });
+  assert.deepEqual(fresh.holdout, { enabled: true, share: 0.1 }, 'a new spec holds back 10%, as Highly Recommended');
+  assert.deepEqual(I.validateImplementSpec(I.withInspireUrl(fresh, 'https://inspire.example.com')).spec.holdout, { enabled: true, share: 0.1 });
+  const old = w.specFromLatest({ spec_version: 1, spec_json: Object.fromEntries(Object.entries(fresh).filter(([k]) => k !== 'holdout')) }, fresh);
+  assert.deepEqual(old.holdout, { enabled: false, share: 0.1 }, 'a saved version without a holdout stays without one (must-exclude)');
   assert.equal(w.holdoutPercentText(fresh), '10');
   assert.deepEqual(w.stepErrors('results', fresh), []);
   const on = w.withHoldout(fresh, true);
@@ -151,7 +153,7 @@ test('the wizard holdout starts unsent, ticks on at 10%, takes a percent from 1 
   assert.equal(w.holdoutPercentText(w.withHoldoutPercent(on, '29')), '29', 'the percent reads back as typed, with no float noise');
   assert.deepEqual(w.stepErrors('results', quarter), []);
   assert.equal(w.holdoutText(quarter), 'Holds back 25% of the records to measure impact');
-  assert.equal(w.holdoutText(fresh), '');
+  assert.equal(w.holdoutText(w.withHoldout(fresh, false)), '');
   const sent = I.validateImplementSpec(I.withInspireUrl(quarter, 'https://inspire.example.com'));
   assert.deepEqual(sent.errors, []);
   assert.deepEqual(sent.spec.holdout, { enabled: true, share: 0.25 });

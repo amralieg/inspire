@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
-import { assertFitsScreen, closeBrowser, dataToResults, lowContrast, onStep, openAdvanced, openUi, setDark, settled, startMvp, toAppAccess, toVibes, until, watchAsks, wizardFit, goToStep } from './uiSupport.mjs';
+import { assertFitsScreen, assertOneBadgeOnDefault, choicesShown, closeBrowser, dataToResults, lowContrast, onStep, openAdvanced, openUi, setDark, settled, startMvp, toAppAccess, toVibes, until, watchAsks, wizardFit, goToStep } from './uiSupport.mjs';
 import { MVP_MODE_LABEL, NOTEBOOK_MODE_LABEL } from '../../src/lib/implementWizard.js';
 
 const { appShellCatalog } = createRequire(import.meta.url)('../../../backend/lib/appShell.js');
@@ -501,7 +501,8 @@ const PLACE_SCOPE = [
   { session_id: '77', use_case_id: 'N04-U01', business: 'Globex', domain: 'Customer' },
 ];
 const placeStep = (page) => page.getByRole('region', { name: 'App placement' });
-const placeTargets = (page) => placeStep(page).locator('[data-app-target]').evaluateAll((items) => items.map((li) => [li.dataset.appTarget, li.querySelector('[data-fit]').textContent]));
+const placeTargets = (page) => placeStep(page).locator('[data-app-target]').evaluateAll((items) => items.map((li) => [li.dataset.appTarget,
+  li.querySelector('[data-fit]').dataset.fit, li.querySelector('[data-highly-recommended]')?.textContent || '']));
 const policy = (page, name) => placeStep(page).getByRole('radiogroup', { name: 'How Inspire organizes Apps' }).getByRole('radio', { name });
 const targetRadio = (page, id) => placeStep(page).locator(`[data-app-target="${id}"] input[type="radio"]`);
 
@@ -523,8 +524,9 @@ test('the App is picked on its own App placement step: Delivery only ticks it, a
     assert.ok((await stepLabels(page)).some((s) => /App placement/.test(s)));
     await goToStep(page, 'App placement');
     await placeStep(page).locator('[data-app-target]').first().waitFor();
-    assert.deepEqual(await placeTargets(page), [['ops-desk', 'Recommended'], ['care-desk', 'Not recommended']],
-      'only Apps Inspire built, the best fit first, never one whose description is not an Inspire owner tag');
+    assert.deepEqual(await placeTargets(page), [['ops-desk', 'recommended', 'Highly Recommended'], ['care-desk', 'not_recommended', '']],
+      'only Apps Inspire built, the best fit first and the only one badged, never one whose description is not an Inspire owner tag');
+    assert.equal(await placeStep(page).getByText(/^(Recommended|Not recommended)/).count(), 0, 'no Recommended or Not recommended tag next to the badge');
     assert.match(await placeStep(page).locator('[data-app-target="care-desk"]').textContent(),
       /It holds only Finance use cases, not Customer, so the people who use it could see another domain's data or use cases unrelated to their work\./);
     await placeStep(page).getByRole('note', { name: JOIN_NOTE }).waitFor();
@@ -575,7 +577,7 @@ test('the App is picked on its own App placement step: Delivery only ticks it, a
   }
 });
 
-test('a new use case joins the App made for its domain by default, Create new stays put once chosen, and another business or domain is marked Not recommended', async () => {
+test('a new use case joins the App made for its domain by default, the badge sits on it, Create new stays put once chosen, and another business or domain says why it does not fit', async () => {
   const domainLook = { style: 'c', layout: 'home', palette: 'earth', theme: 'dark' };
   const domainState = {
     ...MERGE_STATE,
@@ -602,9 +604,12 @@ test('a new use case joins the App made for its domain by default, Create new st
       /^It keeps the look of inspire-acme-customer \(Style C, Home cards, the Earth palette and Dark mode\), its sign-in and its data source/);
     assert.match(await placeStep(page).textContent(), /Last time for Acme: One App per business domain\./);
     const fits = await placeTargets(page);
-    const rank = { Recommended: 0, 'Not recommended': 2 };
-    assert.deepEqual(fits.map(([, fit]) => rank[fit] ?? 1), [...fits.map(([, fit]) => rank[fit] ?? 1)].sort(), `best fit first: ${JSON.stringify(fits)}`);
-    assert.deepEqual(Object.fromEntries(fits), { 'inspire-acme-customer': 'Recommended', 'ops-desk': 'Recommended', 'care-desk': 'Not recommended', 'globex-desk': 'Not recommended' });
+    const rank = { recommended: 0, other_domains: 1, not_recommended: 2 };
+    assert.deepEqual(fits.map(([, fit]) => rank[fit]), [...fits.map(([, fit]) => rank[fit])].sort(), `best fit first: ${JSON.stringify(fits)}`);
+    assert.deepEqual(Object.fromEntries(fits.map(([id, fit]) => [id, fit])),
+      { 'inspire-acme-customer': 'recommended', 'ops-desk': 'recommended', 'care-desk': 'not_recommended', 'globex-desk': 'not_recommended' });
+    assert.deepEqual(fits.filter(([, , badge]) => badge).map(([id]) => id), ['inspire-acme-customer'], 'the badge sits on the App joined by default');
+    assertOneBadgeOnDefault((await choicesShown(page)).filter((c) => ['app-place', 'app-target'].includes(c.choice)), 'App placement with Apps to join');
     assert.match(await placeStep(page).locator('[data-app-target="globex-desk"]').textContent(),
       /It holds use cases of Globex, another business, so the people who use it could see that business's data\./);
     await page.clock.install();
