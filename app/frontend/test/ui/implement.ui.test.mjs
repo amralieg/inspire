@@ -456,6 +456,8 @@ test('Next warns, without stopping, when the data to work with has no rows and s
 test('an empty main table warns and moves on, and when every picked table is empty the warning says no use case can be grounded in rows', async () => {
   const ui = await openUi('wizard&discovery=Deep', { readinessByTable: { 'main.s.orders': '0', 'main.s.returns': '40' }, me: { userName: OWNER, displayName: 'Owner' } });
   const { page, made } = ui;
+  const counted = [];
+  page.on('request', (r) => { if (r.url().includes('/api/inspire/implement/readiness')) counted.push(JSON.parse(r.postData() || '{}').table); });
   try {
     await toData(page);
     await goToStep(page, 'MVP Test Run');
@@ -463,8 +465,8 @@ test('an empty main table warns and moves on, and when every picked table is emp
       'Warning: main.s.orders is empty, so the MVP Test Run may write no rows. You can go on.');
     assert.doesNotMatch(await page.locator('[data-empty-table-warning]').innerText(), /grounded/, 'one other table has rows (must-exclude)');
     assert.deepEqual(await footerErrors(page), []);
-    const counted = made.sqlCalls.filter((c) => String(c.sql).startsWith('SELECT COUNT(*) AS row_count'));
-    assert.equal(counted.length, 2, 'the other picked table is counted too');
+    assert.deepEqual(counted, ['main.s.orders', 'main.s.returns'], 'Next on Data counts the main table, then the other picked table once');
+    assert.ok(made.sqlCalls.some((c) => String(c.sql) === 'SELECT COUNT(*) AS row_count FROM `main`.`s`.`returns`'), 'the other table is counted on the warehouse');
 
     await page.getByRole('button', { name: 'Back' }).click();
     await onStep(page, 'Data');
