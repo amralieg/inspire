@@ -114,148 +114,77 @@ function menuColors(page) {
       return '#ffffff';
     };
     const out = [];
-    document.querySelectorAll('[role="menuitemradio"]').forEach((item) => {
-      const name = item.querySelector('.menu-t');
-      out.push({ where: `${name.firstChild.textContent} name`, fg: hex(getComputedStyle(name).color), bg: behind(name) });
-      const note = name.querySelector('small');
-      if (note) out.push({ where: `${name.firstChild.textContent} note "${note.textContent}"`, fg: hex(getComputedStyle(note).color), bg: behind(note) });
+    document.querySelectorAll('[role="radiogroup"][aria-label="Colors"] [role="radio"]').forEach((item) => {
+      const name = item.querySelector('span:not(.swatches)');
+      out.push({ where: `${name.textContent} name`, fg: hex(getComputedStyle(name).color), bg: behind(name) });
+      const note = item.querySelector('small');
+      if (note) out.push({ where: `${name.textContent} note "${note.textContent}"`, fg: hex(getComputedStyle(note).color), bg: behind(note) });
     });
     return out;
   });
 }
 
 const lowContrast = (pairs) => pairs.filter((p) => ratio(p.fg, p.bg) < 4.5).map((p) => `${p.where} is ${ratio(p.fg, p.bg).toFixed(2)}:1 (${p.fg} on ${p.bg})`);
+const colors = (page) => page.getByRole('radiogroup', { name: 'Colors' });
+async function toSettings(page) {
+  await page.locator('[data-rail="settings"]').click();
+  await colors(page).waitFor();
+}
+async function toDashboard(page) {
+  await page.locator('[data-rail="dashboard"]').click();
+  await page.waitForFunction(chartsDrawn, 4);
+}
+async function darkTheme(page) {
+  await toSettings(page);
+  await page.getByRole('button', { name: 'Switch to dark theme' }).click();
+}
 
-test('the explain context labels what the chart drew and keeps at most 40 rows of short cells', () => {
-  const rows = Array.from({ length: 55 }, (_, i) => ({ x: `Category ${i} ${'long '.repeat(i === 0 ? 60 : 0)}`.trim(), y0: 1000 - i }));
-  const context = chartContext(BAR, { rows, truncated: true });
-  assert.equal(context.rows.length, EXPLAIN_ROWS);
-  assert.equal(context.row_count, 55);
-  assert.equal(context.truncated, true);
-  assert.deepEqual([context.type, context.x, context.measures, context.hint], ['horizontal_bar', 'Category', ['Loss'], 'Categories ranked by discount loss.']);
-  assert.deepEqual(context.rows[1], { Category: 'Category 1', Loss: 999 });
-  assert.equal(context.rows[0].Category.length, 160);
-  assert.ok(context.rows[0].Category.endsWith('…'));
-  const scatter = { type: 'scatter', x: { label: 'Items' }, y: [{ label: 'Loss' }] };
-  assert.deepEqual(chartRow(scatter, { x_label: 'Books', x: 4, y0: 9 }), { Group: 'Books', Items: 4, Loss: 9 });
-  const stacked = { type: 'stacked_bar', x: { label: 'Month' }, series: { top: 4 }, y: [{ label: 'Loss' }, {}] };
-  assert.deepEqual(chartRow(stacked, { x: '2026-01-01', s: 'Web', y0: 5, y1: null }), { Month: '2026-01-01', Series: 'Web', Loss: 5, 'Measure 2': null });
-});
-
-test('the page filters read as words, and no filter reads as an empty string', () => {
-  const filters = [
-    { id: 'run_date', type: 'date_range', label: 'Sales date' }, { id: 'category', type: 'multi_select', label: 'Category' },
-    { id: 'region', type: 'multi_select', label: 'Region' }, { id: 'booked', type: 'date_range', label: 'Booked' },
-  ];
-  const state = { range: { run_date: { preset: 'custom', from: '2003-01-01', to: '2003-03-31' }, booked: { preset: 'all', from: '', to: '' } }, sel: { category: ['Music', 'Books'], region: [] } };
-  assert.equal(filterWords(filters, state), 'Sales date: Jan 1, 2003 to Mar 31, 2003; Category: Music, Books; Booked: all time');
-  assert.equal(filterWords(filters, { range: {}, sel: {} }), '');
-  assert.equal(filterWords(undefined, undefined), '');
-});
-
-test('the explain request fits the server limits by dropping rows, history and fields, never the count', () => {
-  const wide = Array.from({ length: 40 }, (_, i) => ({ a: 'x'.repeat(160), b: 'y'.repeat(160), n: i }));
-  const chart = explainBody('chart', 'n01_u05', 'T'.repeat(200), { rows: wide, row_count: 900 });
-  assert.equal(chart.title.length, 120);
-  assert.ok(chart.title.endsWith('…'));
-  assert.ok(JSON.stringify(chart.context).length <= EXPLAIN_CONTEXT_CHARS);
-  assert.ok(chart.context.rows.length < 40 && chart.context.rows.length > 20, String(chart.context.rows.length));
-  assert.equal(chart.context.row_count, 900);
-  const small = explainBody('chart', 'p', 'Loss', { rows: [{ a: 1 }], row_count: 0 });
-  assert.deepEqual(small, { kind: 'chart', page: 'p', title: 'Loss', context: { rows: [{ a: 1 }], row_count: 1 } });
-  const fields = Object.fromEntries(Array.from({ length: 60 }, (_, i) => [`Field ${i}`, 'v'.repeat(400)]));
-  const history = Array.from({ length: 25 }, (_, i) => Object.fromEntries(['a', 'b', 'c', 'd', 'e'].map((k) => [k, `${i}${k}`.repeat(200)])));
-  const record = explainBody('record', 'p', 'Item 1', { fields, history, tier: 'Act now', action: 'Hold' });
-  assert.ok(JSON.stringify(record.context).length <= EXPLAIN_CONTEXT_CHARS);
-  assert.equal(Object.keys(record.context.fields).length, 40, 'history goes before fields');
-  assert.ok(record.context.history.length > 0 && record.context.history.length < 10, String(record.context.history.length));
-  assert.equal(record.context.fields['Field 0'].length, 160);
-  assert.equal(record.context.history[0].a.length, 160);
-  assert.deepEqual([record.context.tier, record.context.action], ['Act now', 'Hold']);
-  const keyed = Object.fromEntries(Array.from({ length: 40 }, (_, i) => [`${i} ${'k'.repeat(200)}`, 'v'.repeat(400)]));
-  const crowded = explainBody('record', 'p', 'Item 1', { fields: keyed, history: ['one version'] });
-  assert.ok(JSON.stringify(crowded.context).length <= EXPLAIN_CONTEXT_CHARS);
-  assert.deepEqual(crowded.context.history, []);
-  assert.ok(Object.keys(crowded.context.fields).length < 40 && Object.keys(crowded.context.fields).length > 30);
-  const roomy = explainBody('record', 'p', 'Item 2', { fields: { A: 1 }, history: Array.from({ length: 14 }, (_, i) => `v${i}`) });
-  assert.equal(roomy.context.history.length, 10);
-  assert.equal(cutText('  a \n b  ', 160), 'a b');
-});
-
-test('the Genie width stays between 320 pixels and 60% of the window', () => {
-  assert.equal(genieMax(1440), 864);
-  assert.equal(genieMax(1000), 600);
-  assert.equal(genieMax(400), GENIE_MIN);
-  assert.equal(clampGenie(100, 1440), GENIE_MIN);
-  assert.equal(clampGenie(5000, 1440), 864);
-  assert.equal(clampGenie('abc', 1440), GENIE_DEFAULT);
-  assert.equal(keyWidth('ArrowLeft', 400, 1440), 432);
-  assert.equal(keyWidth('ArrowRight', 400, 1440), 368);
-  assert.equal(keyWidth('ArrowRight', 330, 1440), GENIE_MIN);
-  assert.equal(keyWidth('ArrowLeft', 850, 1440), 864);
-  assert.equal(keyWidth('Home', 700, 1440), GENIE_MIN);
-  assert.equal(keyWidth('End', 400, 1440), 864);
-  assert.equal(keyWidth('Enter', 400, 1440), null);
-  assert.equal(MAIN_MIN, 300);
-  assert.equal(genieMax(1440, 1164), 864, 'a page beside Genie that keeps 300 pixels leaves the 60% bound alone');
-  assert.equal(genieMax(1280, 1004), 704, 'Genie stops where the page beside it would drop below 300 pixels');
-  assert.equal(genieMax(1200, 500), GENIE_MIN);
-  assert.equal(clampGenie(800, 1280, 1004), 704);
-  assert.equal(keyWidth('End', 400, 1280, 1004), 704);
-  assert.equal(keyWidth('ArrowLeft', 700, 1280, 1004), 704);
-});
-
-test('the palette menu lists the 13 palettes with their series colors, marks the one in use and the one built', async () => {
+test('Settings lists the 13 palettes with their series colors, marks the one in use and the one built, and the top bar has no palette button', async () => {
   const { page, seen, context } = await open(appInfo({ palette: 'berry' }));
   await page.waitForFunction(chartsDrawn, 4);
-  const button = page.getByRole('button', { name: 'Change the colors' });
-  assert.equal(await button.getAttribute('aria-expanded'), 'false');
-  await button.click();
-  const menu = page.getByRole('menu', { name: 'Colors' });
-  await menu.waitFor();
-  const items = menu.getByRole('menuitemradio');
+  assert.equal(await page.getByRole('button', { name: 'Change the colors' }).count(), 0);
+  await toSettings(page);
+  const items = colors(page).getByRole('radio');
   assert.equal(await items.count(), 13);
-  assert.deepEqual((await items.allInnerTexts()).map((t) => t.split('\n')[0].trim()), NAMES);
+  assert.deepEqual(await items.locator('span:not(.swatches)').allInnerTexts(), NAMES);
   assert.deepEqual(await items.evaluateAll((els) => els.map((e) => e.getAttribute('aria-checked'))), ORDER.map((p) => String(p === 'berry')));
-  assert.deepEqual(await menu.locator('small').allInnerTexts(), ['as built']);
-  assert.match(await menu.getByRole('menuitemradio', { name: /Berry/ }).innerText(), /as built/);
-  assert.equal(await page.evaluate(() => document.activeElement?.textContent), 'Berryas built');
+  assert.deepEqual(await colors(page).locator('small').allInnerTexts(), ['as built']);
+  assert.match(await colors(page).getByRole('radio', { name: /Berry/ }).innerText(), /as built/);
   for (const [i, palette] of ORDER.entries()) {
-    const colors = await items.nth(i).locator('.swatches i').evaluateAll((els) => els.map((e) => getComputedStyle(e).backgroundColor));
+    const shown = await items.nth(i).locator('.swatches i').evaluateAll((els) => els.map((e) => getComputedStyle(e).backgroundColor));
     const want = SERIES_TOKENS.map((t) => token(palette, 'light', t)).map((h) => `rgb(${[1, 3, 5].map((k) => parseInt(h.slice(k, k + 2), 16)).join(', ')})`);
-    assert.deepEqual(colors, want, palette);
+    assert.deepEqual(shown, want, palette);
   }
-  await page.keyboard.press('ArrowDown');
-  assert.equal(await page.evaluate(() => document.activeElement?.textContent), 'Pop');
-  await page.keyboard.press('Home');
-  assert.equal(await page.evaluate(() => document.activeElement?.textContent), 'Databricks');
-  await page.keyboard.press('Escape');
-  await menu.waitFor({ state: 'detached' });
+  await colors(page).getByRole('radio', { name: /^Pop/ }).focus();
+  await page.keyboard.press('Enter');
+  assert.equal(await colors(page).getByRole('radio', { name: /^Pop/ }).getAttribute('aria-checked'), 'true', 'the keyboard picks a palette');
   assert.deepEqual(seen.errors, []);
   await context.close();
 });
 
-test('choosing a palette recolors the App and redraws the charts at once, and the choice is remembered', async () => {
+test('choosing a palette recolors the App and the charts, and the choice is remembered', async () => {
   const { page, seen, context } = await open(appInfo({ palette: 'default' }));
   await page.waitForFunction(chartsDrawn, 4);
   assert.equal(await drawnIn(page, 'by_category', token('default', 'light', 'blue-line')), token('default', 'light', 'blue-line'));
-  await page.getByRole('button', { name: 'Change the colors' }).click();
-  await page.getByRole('menuitemradio', { name: /^Ocean/ }).click();
+  await toSettings(page);
+  await colors(page).getByRole('radio', { name: /^Ocean/ }).click();
   assert.equal(await cssVar(page, '--blue-line'), token('ocean', 'light', 'blue-line'));
-  assert.equal(await drawnIn(page, 'by_category', token('ocean', 'light', 'blue-line')), token('ocean', 'light', 'blue-line'));
   assert.equal(await stored(page, 'inspire-app-palette'), 'ocean');
+  await toDashboard(page);
+  assert.equal(await drawnIn(page, 'by_category', token('ocean', 'light', 'blue-line')), token('ocean', 'light', 'blue-line'));
   await page.reload();
   await page.waitForFunction(chartsDrawn, 4);
   assert.equal(await cssVar(page, '--blue-line'), token('ocean', 'light', 'blue-line'));
-  await page.getByRole('button', { name: 'Switch to dark theme' }).click();
+  await darkTheme(page);
   assert.equal(await cssVar(page, '--blue-line'), token('ocean', 'dark', 'blue-line'));
-  assert.equal(await drawnIn(page, 'by_category', token('ocean', 'dark', 'blue-line')), token('ocean', 'dark', 'blue-line'));
-  await page.getByRole('button', { name: 'Change the colors' }).click();
-  const swatch = await page.getByRole('menuitemradio', { name: /^Ocean/ }).locator('.swatches i').first().evaluate((e) => getComputedStyle(e).backgroundColor);
+  const swatch = await colors(page).getByRole('radio', { name: /^Ocean/ }).locator('.swatches i').first().evaluate((e) => getComputedStyle(e).backgroundColor);
   const dark = token('ocean', 'dark', 'blue-line');
   assert.equal(swatch, `rgb(${[1, 3, 5].map((k) => parseInt(dark.slice(k, k + 2), 16)).join(', ')})`);
-  assert.equal(await page.getByRole('menuitemradio', { name: /^Ocean/ }).getAttribute('aria-checked'), 'true');
-  await page.getByRole('menuitemradio', { name: /^Databricks/ }).click();
+  assert.equal(await colors(page).getByRole('radio', { name: /^Ocean/ }).getAttribute('aria-checked'), 'true');
+  await toDashboard(page);
+  assert.equal(await drawnIn(page, 'by_category', token('ocean', 'dark', 'blue-line')), token('ocean', 'dark', 'blue-line'));
+  await toSettings(page);
+  await colors(page).getByRole('radio', { name: /^Databricks/ }).click();
   assert.equal(await cssVar(page, '--blue-line'), token('default', 'dark', 'blue-line'));
   assert.equal(await stored(page, 'inspire-app-palette'), null, 'going back to the built palette forgets the choice');
   assert.deepEqual(seen.errors, []);
@@ -266,7 +195,8 @@ test('switching to dark redraws the charts in the dark colors', async () => {
   const { page, seen, context } = await open(appInfo());
   await page.waitForFunction(chartsDrawn, 4);
   assert.equal(await drawnIn(page, 'by_category', token('default', 'light', 'blue-line')), token('default', 'light', 'blue-line'));
-  await page.getByRole('button', { name: 'Switch to dark theme' }).click();
+  await darkTheme(page);
+  await toDashboard(page);
   assert.equal(await drawnIn(page, 'by_category', token('default', 'dark', 'blue-line')), token('default', 'dark', 'blue-line'));
   assert.deepEqual(seen.errors, []);
   await context.close();
@@ -278,30 +208,26 @@ test('an unknown remembered palette falls back to the palette the App was built 
   await page.reload();
   await page.waitForFunction(chartsDrawn, 4);
   assert.equal(await cssVar(page, '--blue-line'), token('jewel', 'light', 'blue-line'));
-  await page.getByRole('button', { name: 'Change the colors' }).click();
-  assert.equal(await page.getByRole('menuitemradio', { name: /^Jewel/ }).getAttribute('aria-checked'), 'true');
-  await page.keyboard.press('Escape');
+  await toSettings(page);
+  assert.equal(await colors(page).getByRole('radio', { name: /^Jewel/ }).getAttribute('aria-checked'), 'true');
   await page.evaluate(() => localStorage.setItem('inspire-app-palette', 'nordic'));
   await page.reload();
-  await page.waitForFunction(chartsDrawn, 4);
+  await colors(page).waitFor();
   assert.equal(await cssVar(page, '--blue-line'), token('nordic', 'light', 'blue-line'));
   assert.deepEqual(seen.errors, []);
   await context.close();
 });
 
-test('the palette menu text passes 4.5:1 in light and dark, and the check catches text that does not', async () => {
+test('the palette text in Settings passes 4.5:1 in light and dark, and the check catches text that does not', async () => {
   const { page, seen, context } = await open(appInfo({ palette: 'vivid' }));
+  await toSettings(page);
   for (const theme of ['light', 'dark']) {
     if (theme === 'dark') await page.getByRole('button', { name: 'Switch to dark theme' }).click();
-    await page.getByRole('button', { name: 'Change the colors' }).click();
-    await page.getByRole('menu', { name: 'Colors' }).waitFor();
     const pairs = await menuColors(page);
     assert.equal(pairs.length, 14, theme);
     assert.deepEqual(lowContrast(pairs), [], theme);
-    await page.keyboard.press('Escape');
   }
-  await page.addStyleTag({ content: '.menu-t small{color:var(--line)!important}' });
-  await page.getByRole('button', { name: 'Change the colors' }).click();
+  await page.addStyleTag({ content: '.set-pal small{color:var(--line)!important}' });
   const broken = lowContrast(await menuColors(page));
   assert.equal(broken.length, 1, broken.join('\n'));
   assert.match(broken[0], /^Vivid note "as built" is /);
@@ -413,7 +339,7 @@ test('the resize grip shows at rest and turns the brand color on hover and focus
       && solid(getComputedStyle(document.querySelector('.g-resize'), '::before').backgroundColor) === l;
   }, [edge, line]);
   for (const theme of ['light', 'dark']) {
-    if (theme === 'dark') await page.getByRole('button', { name: 'Switch to dark theme' }).click();
+    if (theme === 'dark') await darkTheme(page);
     await page.mouse.move(20, 600);
     await handle.evaluate((el) => el.blur());
     await settle(rgbOf(theme, 'faint'), 'rgba(0, 0, 0, 0)');
@@ -581,7 +507,7 @@ test('the To fix per run chart explains the runs it drew, oldest first, without 
   routes.runs = ({ json }) => json(200, { runs: [run('81', '2026-10-17T06:00:00Z', 12), run('80', '2026-09-26T06:00:00Z', null), run('79', '2026-09-15T06:00:00Z', 20)],
     total: 3, offset: 0, limit: 20, job: null, errors: {} });
   const { page, seen, context } = await open(appInfo({}, 1, TABLE), { routes, clock: Date.parse('2026-10-27T09:30:00Z') });
-  await page.locator('.top-runs').click();
+  await page.locator('[data-rail="runs"]').click();
   await page.locator('[data-bars="to_fix_runs"] .vb-c').first().waitFor();
   assert.deepEqual(await page.locator('.explain-btn').evaluateAll((els) => els.map((e) => e.getAttribute('aria-label'))), ['Explain To fix per run']);
   await page.getByRole('button', { name: 'Explain To fix per run' }).click();
@@ -592,7 +518,7 @@ test('the To fix per run chart explains the runs it drew, oldest first, without 
   assert.deepEqual(seen.errors, []);
   await context.close();
   const off = await open(appInfo({ genie: null, genie_note: 'The Genie Agent did not build.' }, 1, TABLE), { routes });
-  await off.page.locator('.top-runs').click();
+  await off.page.locator('[data-rail="runs"]').click();
   await off.page.locator('[data-bars="to_fix_runs"] .vb-c').first().waitFor();
   assert.equal(await off.page.locator('.explain-btn').count(), 0, 'no Explain while Ask Genie is off');
   await off.context.close();

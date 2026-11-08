@@ -54,6 +54,7 @@ button,input,select,textarea{font:inherit;color:inherit}
 .scrim{display:none}
 .side.rail{width:212px;padding:14px 10px}
 .rail-i .nav-ic{width:28px;height:28px}
+.rail-i .rail-n{margin-left:auto;font-weight:700;font-size:11px;padding:0 7px;border-radius:999px;background:var(--well);color:var(--muted)}
 .rail-foot{border-top:1px solid var(--line);padding-top:8px}
 .switch{display:inline-flex;align-items:center;gap:9px;min-width:0;max-width:380px;flex:0 4 auto;padding:5px 10px;border-radius:10px;border:1px solid var(--line-strong);background:var(--card);cursor:pointer;text-align:start}
 .switch:hover:not(:disabled),.switch[aria-expanded="true"]{background:var(--well)}

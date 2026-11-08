@@ -69,25 +69,28 @@ test('a link restores the filters once the filter list has loaded, and the first
   await context.close();
 });
 
-test('the view in a link opens it, and the Runs button and filters update the address without adding history entries', async () => {
+test('an old view link opens its section, the rail keeps the filters in the address, and filters update the address without adding history entries', async () => {
   const { page, seen, context } = await openAt('#/n01_u05?v=runs', appInfo({}, 1, TABLE));
   await page.locator('.runs .runs-tbl').waitFor();
-  assert.equal(await page.locator('.top-runs').getAttribute('aria-pressed'), 'true');
-  assert.equal(hashOf(page), '#/n01_u05?v=runs');
-  const entries = await page.evaluate(() => history.length);
-  await page.locator('.top-runs').click();
+  assert.equal(await page.locator('[data-rail="runs"]').getAttribute('aria-current'), 'page');
+  assert.equal(hashOf(page), '#/n01_u05/runs');
+  await page.locator('[data-rail="dashboard"]').click();
   await page.locator('.kpi-v').first().waitFor();
-  assert.equal(hashOf(page), '#/n01_u05');
+  assert.equal(hashOf(page), '#/n01_u05/dashboard');
   await until(() => seen.pages.length > 0);
   assert.deepEqual(seen.pages[0].filters, TWELVE);
+  const entries = await page.evaluate(() => history.length);
   await pickCategory(page, 'Music');
   await page.locator('.fld--range select').selectOption('6m');
   await page.waitForFunction(() => location.hash.includes('f='));
   assert.deepEqual(linkOf(page), { r: { run_date: '6m' }, s: { category: ['Music'] } });
-  await page.locator('.top-runs').click();
-  await page.waitForFunction(() => location.hash.startsWith('#/n01_u05?v=runs&f='));
+  assert.equal(await page.evaluate(() => history.length), entries, 'filters add no history entry');
+  await page.locator('[data-rail="runs"]').click();
+  await page.waitForFunction(() => location.hash.startsWith('#/n01_u05/runs?f='));
   assert.deepEqual(linkOf(page), { r: { run_date: '6m' }, s: { category: ['Music'] } });
-  assert.equal(await page.evaluate(() => history.length), entries);
+  await page.goBack();
+  await page.waitForFunction(() => location.hash.startsWith('#/n01_u05/dashboard?f='));
+  await page.locator('.kpi-v').first().waitFor();
   assert.deepEqual(seen.errors, []);
   await context.close();
 });
@@ -99,7 +102,7 @@ test('an old link or a saved view that names the removed Trend tab opens Things 
   const { page, seen, context } = await openAt(`#/n01_u05?v=trend&f=${f}`, appInfo({}, 1, TABLE), { routes });
   await toastSays(page, LINK_STALE);
   assert.equal(await page.locator('[role="tab"]').count(), 0);
-  assert.equal(await page.locator('.top-runs').getAttribute('aria-pressed'), 'false');
+  assert.equal(await page.locator('[data-rail="dashboard"]').getAttribute('aria-current'), 'page');
   await page.waitForFunction(() => document.querySelectorAll('.chip').length === 1);
   assert.deepEqual(await page.locator('.chip').allInnerTexts(), ['Category: Music']);
   await page.waitForFunction(() => !location.hash.includes('v='));
@@ -110,7 +113,7 @@ test('an old link or a saved view that names the removed Trend tab opens Things 
   await pop.getByRole('button', { name: 'Old trend', exact: true }).click();
   await toastSays(page, VIEW_STALE);
   await page.waitForFunction(() => [...document.querySelectorAll('.chip')].map((c) => c.textContent).join() === 'Category: Books');
-  assert.equal(await page.locator('.top-runs').getAttribute('aria-pressed'), 'false');
+  assert.equal(await page.locator('[data-rail="dashboard"]').getAttribute('aria-current'), 'page');
   assert.deepEqual(linkOf(page), { s: { category: ['Books'] } });
   assert.deepEqual(asked, [], 'nothing asks for the removed trend');
   assert.deepEqual(seen.errors, []);

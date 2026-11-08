@@ -182,7 +182,7 @@ export function YourWork({ items, user, today, loading, failed, owners, partial,
       {!loading && capped && <p className="more" data-limit>{capped}</p>}
       {!loading && owners && unwindowed?.length > 0 && pickedWindow(prefs) && <p className="more" data-window-note>{windowNoteText(unwindowed)}</p>}
       {!loading && cut && owners && (
-        <p className="more">Each use case sends the Overview its biggest open records only. Open a use case and pick My actions to see all of yours.</p>
+        <p className="more">Each use case sends My work its biggest open records only. Open the use case, go to Work and pick Mine to see all of yours.</p>
       )}
     </section>
   );

@@ -48,7 +48,11 @@ function genieRoutes() {
 
 const open = (info, options) => openApp(browser, served.base, info, options);
 const ready = (page) => page.waitForFunction((n) => [...document.querySelectorAll('[data-card]')].filter((c) => c.querySelector('canvas')).length === n
-  && document.querySelectorAll('section.card--table tbody tr').length >= 2 && document.querySelectorAll('.card--list tbody tr').length > 0, 4);
+  && document.querySelectorAll('section.card--table tbody tr').length >= 2, 4);
+const readyWork = async (page) => {
+  await page.locator('[data-rail="work"]').click();
+  await page.waitForFunction(() => document.querySelectorAll('[data-work] .card--list tbody tr').length > 0);
+};
 const askButton = (within, name) => within.getByRole('button', { name: `Ask Genie about ${name}`, exact: true });
 
 async function ask(page, calls, name, typed, within = page) {
@@ -96,8 +100,12 @@ test('every card, key number, row, text block and the filter bar on the example 
     const { routes } = genieRoutes();
     const { page, seen, context } = await open(appInfo(settings, 1, CHANGES), { routes });
     await ready(page);
-    await auditEvery(page, settings.genie === null ? 'Genie off' : 'Genie on', { card: 6, kpi: 3, text: 2, controls: 1, row: 12 });
+    const at = settings.genie === null ? 'Genie off' : 'Genie on';
+    await auditEvery(page, `${at} dashboard`, { card: 5, kpi: 3, text: 2, controls: 1, row: 2 });
     assert.equal(await page.locator('.kpi').count(), 3);
+    await resizeTo(page, 1440);
+    await readyWork(page);
+    await auditEvery(page, `${at} work`, { card: 1, controls: 1, row: 10 });
     assert.deepEqual(seen.errors, []);
     await context.close();
   }
@@ -368,13 +376,6 @@ test('each element kind opens a small box and sends Genie its own data, the page
   assert.deepEqual([row.kind, row.title, row.context.fields], ['record', 'Books', { Category: 'Books', Loss: 300000, Comment: 'Steady' }]);
   assert.equal(await page.locator('dialog[open]').count(), 0, 'asking about a row never opens it');
 
-  const listed = pageData({}).records.rows[0];
-  const record = await ask(page, calls, listed.entity_label, 'Is it a repeat?');
-  assert.equal(record.kind, 'record');
-  assert.equal(record.title, listed.entity_label);
-  assert.deepEqual([record.context.fields.Item, record.context.fields.Category, record.context.fields.Loss, record.context.fields.Channel, record.context.fields.Region],
-    [listed.entity_label, listed.category, listed.value, listed.channel, listed.region]);
-
   const controls = await ask(page, calls, 'Filters', 'What do these leave out?');
   assert.equal(controls.kind, 'controls');
   assert.deepEqual([controls.context.fields.Category, controls.context.fields.Channel, controls.context.fields.Region], ['All', 'All', 'All']);
@@ -387,7 +388,16 @@ test('each element kind opens a small box and sends Genie its own data, the page
   const note = await ask(page, calls, 'How to read this page', 'Where do I start?');
   assert.deepEqual([note.kind, note.context.hint], ['text', 'How to read this page Start with the biggest loss.']);
 
-  assert.deepEqual(calls.explain.map((c) => c.kind), ['kpi', 'kpi', 'chart', 'table', 'record', 'record', 'controls', 'text', 'text']);
+  await readyWork(page);
+  const listed = pageData({}).records.rows[0];
+  const record = await ask(page, calls, listed.entity_label, 'Is it a repeat?');
+  assert.equal(record.kind, 'record');
+  assert.equal(record.title, listed.entity_label);
+  assert.equal(record.conversation_id, 'c1', 'Work goes on in the same Genie conversation');
+  assert.deepEqual([record.context.fields.Item, record.context.fields.Category, record.context.fields.Loss, record.context.fields.Channel, record.context.fields.Region],
+    [listed.entity_label, listed.category, listed.value, listed.channel, listed.region]);
+
+  assert.deepEqual(calls.explain.map((c) => c.kind), ['kpi', 'kpi', 'chart', 'table', 'record', 'controls', 'text', 'text', 'record']);
   assert.ok(calls.explain.every((c) => c.page === 'n01_u05' && JSON.stringify(c.context).length <= 12000));
   assert.deepEqual(seen.asks, [], 'nothing goes through the plain ask route');
   assert.deepEqual(seen.errors, []);

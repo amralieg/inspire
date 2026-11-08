@@ -74,7 +74,7 @@ function usePageHub(pageId, state, ready, nonce, on) {
 }
 
 export default function Page({ app, page, meta, state, onState, look = EMPTY_LOOK, onLook, themeKey, onAsk, onExplain, genieBusy, hubEntry, summary, view, onView, genie,
-  section = 'dashboard', tab = '', chrome }) {
+  section = 'dashboard', tab = '', chrome, onCounts }) {
   const ready = !!state;
   const [nonce, setNonce] = useState(0);
   const [queue, setQueue] = useState(null);
@@ -115,6 +115,8 @@ export default function Page({ app, page, meta, state, onState, look = EMPTY_LOO
   const runs = useRuns(page.id, runOffset, `${nonce}:${runNonce}`, runsOn);
   const counted = useRef({});
   if (runs.data?.offset === 0) counted.current = runCounts(runs.data);
+  const runTotal = counted.current.runs;
+  useEffect(() => { onCounts?.({ page: page.id, runs: runTotal }); }, [page.id, runTotal, onCounts]);
   const unreliable = hubPage && !!useCaseState(entry, summary).unreliable;
   const loading = !data;
   const pick = (filterId, value) => onState(toggleValue(state, filterId, value));

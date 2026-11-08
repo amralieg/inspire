@@ -63,7 +63,7 @@ export function sectionHash(pageId, section, query = new URLSearchParams()) {
   return withQuery(`${encodeURIComponent(pageId)}/${section}`, query);
 }
 
-export function canonicalHash(hash, { pages = [], last = '', queue = () => true, performance = false } = {}) {
+export function canonicalHash(hash, { pages = [], last = '', sectionsOf = () => SECTIONS } = {}) {
   const link = parseHash(hash);
   const body = String(hash || '').replace(/^#\/?/, '');
   const cut = body.indexOf('?');
@@ -73,19 +73,27 @@ export function canonicalHash(hash, { pages = [], last = '', queue = () => true,
   if (link.route === ADMIN_ROUTE) return null;
   if (HUB_HOME.includes(link.route)) return sectionHash(start.id, DEFAULT_SECTION);
   if (HUB_PERFORMANCE.includes(link.route)) {
-    if (performance) return sectionHash(start.id, 'performance');
-    return link.route === MY_WORK_ROUTE && queue(start) ? sectionHash(start.id, 'work', new URLSearchParams({ tab: 'mine' })) : sectionHash(start.id, DEFAULT_SECTION);
+    const has = sectionsOf(start);
+    if (has.includes('performance')) return sectionHash(start.id, 'performance');
+    return link.route === MY_WORK_ROUTE && has.includes('work') ? sectionHash(start.id, 'work', new URLSearchParams({ tab: 'mine' })) : sectionHash(start.id, DEFAULT_SECTION);
   }
   const page = pages.find((p) => p.id === link.route);
   if (!page) return sectionHash(start.id, DEFAULT_SECTION);
   const legacy = link.v != null ? sectionOfView(link.v) : '';
   query.delete('v');
-  const asked = link.section || legacy || ((link.rec || link.changed) && queue(page) ? 'work' : DEFAULT_SECTION);
-  const known = SECTIONS.includes(asked) && (asked !== 'work' || queue(page)) && (asked !== 'performance' || performance);
-  const section = known ? asked : DEFAULT_SECTION;
+  const has = sectionsOf(page);
+  const asked = link.section || legacy || ((link.rec || link.changed) && has.includes('work') ? 'work' : DEFAULT_SECTION);
+  const section = has.includes(asked) ? asked : DEFAULT_SECTION;
   if (section !== 'work') query.delete('tab');
   const next = sectionHash(page.id, section, query);
   return next === hash ? null : next;
+}
+
+export function staleSection(before, after) {
+  const was = parseHash(before);
+  const now = parseHash(after);
+  const asked = was.section || (was.v != null ? sectionOfView(was.v) : '');
+  return !!asked && !HUB_PATHS.includes(was.route) && was.route === now.route && now.section !== asked;
 }
 
 export const OPEN_PARAM = 'open';

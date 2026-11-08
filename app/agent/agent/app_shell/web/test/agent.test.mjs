@@ -125,7 +125,7 @@ const lastFilters = (seen) => seen.records[seen.records.length - 1]?.filters || 
 
 test('the agent chat shows its steps, applies its view change with an undo, and writes only after the person confirms', async () => {
   const { calls, acted, routes } = agentRoutes();
-  const { page, seen, context } = await openApp(browser, served.base, appInfo({ ...DECIDE }), { routes });
+  const { page, seen, context } = await openApp(browser, served.base, appInfo({ ...DECIDE }), { routes, hash: '#/n01_u05/work' });
   try {
     await askAgent(page, 'Which region lost the most? Mark its critical ones done.');
     await page.getByText('North lost the most', { exact: false }).waitFor();

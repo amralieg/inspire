@@ -64,7 +64,7 @@ function layout() {
 }
 
 test('Arabic records read right to left inside every cell and value, the column keeps one alignment for Arabic and English rows, and every text box sets dir (must-exclude)', async () => {
-  const { page, seen } = await openApp(browser, served.base, appInfo(), { routes: ROUTES });
+  const { page, seen } = await openApp(browser, served.base, appInfo(), { routes: ROUTES, hash: '#/n01_u05/work' });
   try {
     const cell = page.locator('td', { hasText: new RegExp(`^${AR.label} 1(?!\\d)`) }).first();
     await cell.waitFor();
@@ -145,7 +145,7 @@ function columns() {
 }
 
 test('a table mixing Arabic and English rows keeps one alignment per column, lines up its numbers, and never reorders SQL (must-exclude)', async () => {
-  const { page, seen } = await openApp(browser, served.base, mixedInfo(), { routes: MIXED });
+  const { page, seen } = await openApp(browser, served.base, mixedInfo(), { routes: MIXED, hash: '#/n01_u05/work' });
   try {
     await page.locator('td', { hasText: new RegExp(`^${AR.label} 1(?!\\d)`) }).first().waitFor();
     const got = await page.evaluate(columns);
@@ -186,7 +186,7 @@ test('the style sheet isolates every table cell instead of letting each pick its
 });
 
 test('on a phone the Arabic records page does not run past the screen', async () => {
-  const { page, seen } = await openApp(browser, served.base, appInfo(), { routes: ROUTES, width: 375 });
+  const { page, seen } = await openApp(browser, served.base, appInfo(), { routes: ROUTES, width: 375, hash: '#/n01_u05/work' });
   try {
     await page.locator('td', { hasText: new RegExp(`^${AR.label} 1(?!\\d)`) }).first().waitFor();
     await resizeTo(page, 375);
