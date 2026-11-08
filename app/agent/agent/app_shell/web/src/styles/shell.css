@@ -347,7 +347,7 @@ button.hb:hover,button.hb.is-on{background:var(--well)}
 :focus-visible{outline:2px solid var(--brand);outline-offset:2px}
 @container app (max-width: 1100px){
   .kpis{grid-template-columns:repeat(2,minmax(0,1fr))}
-  .genie{position:absolute;right:0;top:0;bottom:0;height:auto;z-index:40;box-shadow:-20px 0 50px -20px rgba(0,0,0,.4)}
+  .genie{margin-inline-start:calc(-1 * var(--genie-w,400px));z-index:40;box-shadow:-20px 0 50px -20px rgba(0,0,0,.4)}
 }
 @container app (max-width: 860px){
   .menu-btn{display:inline-grid}
@@ -376,7 +376,7 @@ button.hb:hover,button.hb.is-on{background:var(--well)}
   .fld{min-width:0;flex:1 1 140px}
   .msel,.fld select{min-width:0;width:100%}
   .chart,.card--wide .chart{height:240px}
-  .genie{width:100%}
+  .genie{width:100%;margin-inline-start:-100%}
   .tbar{width:100%}
   .search{flex:1}
   .search input{width:100%}
