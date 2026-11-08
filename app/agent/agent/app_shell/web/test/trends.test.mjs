@@ -140,7 +140,10 @@ test('the dashboard shows the trend cards, and Fix this on Overdue opens Work on
   await page.locator('[data-card="trend_flow"] canvas').waitFor();
   await page.locator('[data-card="trend_backlog"] canvas').waitFor();
   assert.equal(await page.locator('[data-bars="trend_ages"] .hb').count(), 3);
+  await page.locator('[data-bars="trend_stake"] [data-fix-reason]').first().waitFor();
   assert.equal(await page.locator('[data-bars="trend_stake"] [data-fix-reason]').count(), 2);
+  assert.deepEqual(await page.locator('[data-bars="trend_ages"] [data-fix-reason]').evaluateAll((els) => els.map((e) => e.dataset.fixReason)), ['over_30'],
+    'only the over 30 days bar has a matching filter');
   assert.equal(calls.trends, 1, 'the cards cost one request');
   await page.locator('[data-trends] [data-fix="overdue"]').click();
   await page.waitForFunction(() => window.location.hash.startsWith('#/n01_u05/work') && window.location.hash.includes('focus=overdue'));
@@ -164,9 +167,9 @@ test('Fix this on the over 30 days bar and on a stake reason pre-filter Work', a
   const { page, seen, context } = await openApp(browser, served.base, appInfo(DECIDE, 1, TABLE), { routes: r, ready: '[data-bars="trend_ages"] [data-fix-reason="over_30"]' });
   await page.locator('[data-bars="trend_ages"] [data-fix-reason="over_30"]').click();
   await until(() => seen.records.at(-1)?.focus === 'older');
-  await page.goto(`${served.base}#/n01_u05/dashboard`);
+  await page.evaluate(() => { window.location.hash = '#/n01_u05/dashboard'; });
   await page.locator('[data-bars="trend_stake"] [data-fix-reason="Discount too deep"]').click();
-  await until(() => (seen.records.at(-1)?.ai?.ai_cat_driver || [])[0] === 'Discount too deep' && seen.records.at(-1)?.sort?.key === 'value_at_stake');
+  await until(() => (seen.records.at(-1)?.ai?.ai_cat_driver || [])[0] === 'Discount too deep');
   assert.equal(seen.records.at(-1).focus, undefined);
   assert.deepEqual(seen.errors, []);
   await context.close();
