@@ -225,7 +225,6 @@ HEADING = re.compile(r"^\s{0,3}#{1,6}\s+\S|^\s*\*\*[^*\n]+\*\*:?\s*$")
 SENTENCE_END = re.compile(r"[.!?](?:\*\*|[\"')\]])*(?=\s+[^\sa-z])")
 ABBREVIATIONS = frozenset("e.g i.e vs etc approx incl no mr ms dr inc ltd co st jan feb mar apr jun jul aug sep sept oct nov dec u.s".split())
 CLAUSE = re.compile(r"[,;:](?=\s)|\s(?=\()")
-DIGITS = re.compile(r"\d+(?:[.,]\d+)*")
 OPENER_PREFIX = re.compile(r"^(?:sure|certainly|of course|absolutely|great question|good question|happy to help)\b[,.!:]?\s*", re.I)
 OPENER = re.compile(r"^(?:here(?:'s| is| are)|let me (?:explain|break|walk))\b", re.I)
 CLOSER = re.compile(r"^(?:in short|in summary|to summari[sz]e|to sum (?:it )?up|(?:the )?bottom line|overall|in conclusion|all in all|"
@@ -238,7 +237,7 @@ def words_of(text: str) -> int:
 
 
 def digits_of(text: str) -> list:
-    return [d.replace(",", "") for d in DIGITS.findall(text)]
+    return [d.replace(",", "") for d in DRAFT_DIGITS.findall(text)]
 
 
 def sentences_of(text: str) -> list:
