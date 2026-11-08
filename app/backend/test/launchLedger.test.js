@@ -61,7 +61,8 @@ test('a launch records who launched it, so that person may cancel the run and de
   S.reset({ notebookPresent: true, managers: ['manager@example.com'] });
   const launched = await S.request('POST', '/api/run', { person: 'Launcher@Example.com', body: runParams('5001') });
   assert.equal(launched.status, 200, launched.text.slice(0, 300));
-  assert.equal(launched.data.run_id, 501);
+  assert.equal(launched.data.run_id, '501');
+  assert.equal(launched.data.job_id, '5');
   assert.equal(launched.data.launcher_recorded, true, launched.text.slice(0, 300));
   assert.equal(S.state.launches.length, 1);
   assert.deepEqual([S.state.launches[0].launched_by, S.state.launches[0].session_id, S.state.launches[0].opened_session, S.state.launches[0].run_type],
@@ -91,4 +92,16 @@ test('a launch with no signed-in person is refused before anything is submitted 
   assert.equal(got.status, 401, got.text);
   assert.equal(S.state.launches.length, 0);
   assert.deepEqual(S.state.calls.filter((c) => c.path.startsWith('/api/2.1/jobs/')), []);
+});
+
+test('a launch answers with the run and job ids as strings, small or past 2^53, so the App never sees one id in two types', async () => {
+  S.reset({ notebookPresent: true });
+  S.state.createdJobIdText = '9007199254740993';
+  const big = await S.request('POST', '/api/run', { person: 'launcher@example.com', body: runParams('5002') });
+  assert.equal(big.status, 200, big.text.slice(0, 300));
+  assert.deepEqual([big.data.job_id, big.data.run_id], ['9007199254740993', '501']);
+  assert.match(big.text, /"job_id":"9007199254740993"/, 'the id keeps every digit');
+  S.reset({ notebookPresent: true });
+  const small = await S.request('POST', '/api/run', { person: 'launcher@example.com', body: runParams('5003') });
+  assert.deepEqual([typeof small.data.job_id, typeof small.data.run_id], ['string', 'string']);
 });

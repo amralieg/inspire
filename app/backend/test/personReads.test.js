@@ -33,7 +33,7 @@ function answer(call, broken = {}) {
   const sees = SEES[call.token];
   if (call.path === '/oidc/v1/token') return [200, { access_token: SP_TOKEN, expires_in: 3600 }];
   if (call.path.startsWith('/api/2.0/preview/scim/v2/Me')) return [200, call.token === SP_TOKEN ? { userName: 'sp', applicationId: 'sp' } : { userName: PERSON_EMAIL }];
-  if (broken[url.pathname]) return broken[url.pathname];
+  if (broken[url.pathname]) return typeof broken[url.pathname] === 'function' ? broken[url.pathname](call) : broken[url.pathname];
   if (!sees) return [401, { message: 'Invalid access token' }];
   if (url.pathname === '/api/2.1/unity-catalog/catalogs') return [200, { catalogs: sees.catalogs.map((name) => ({ name })) }];
   if (url.pathname === '/api/2.1/unity-catalog/schemas') {
@@ -93,7 +93,7 @@ async function get(url, path, headers = signedIn) {
 }
 async function launch(url, params, headers = signedIn) {
   const resp = await fetch(`${url}/api/run`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...headers },
-    body: JSON.stringify({ params: { '00_business_name': 'Acme', '02_inspire_database': 'main._inspire', ...params } }) });
+    body: JSON.stringify({ params: { '00_business_name': 'Acme', '02_inspire_database': 'main._inspire', '11_generation_path': '/Shared/demos', ...params } }) });
   return { status: resp.status, data: await resp.json() };
 }
 const ucCalls = (workspace) => workspace.calls.filter((c) => c.path.startsWith('/api/2.1/unity-catalog') || c.path === '/api/2.0/sql/statements');
@@ -111,7 +111,7 @@ test('the Launch pickers list catalogs, schemas and tables with the person\u2019
     const hidden = await get(url, '/api/catalogs/hr/schemas');
     assert.deepEqual([hidden.status, hidden.data.schemas], [502, undefined], 'a catalog only the App can see answers what the person\u2019s own sign-in got');
     const calls = ucCalls(workspace);
-    assert.ok(calls.length >= 7, `${calls.length} reads`);
+    assert.ok(calls.length >= 6, `${calls.length} reads`);
     assert.deepEqual([...new Set(calls.map((c) => c.token))], [PERSON], 'every listing read is the person\u2019s');
     assert.ok(!calls.some((c) => c.path.includes('include_browse')), 'a picker never asks for tables the person may only browse');
   });
@@ -142,7 +142,7 @@ test('a run skips a chosen table the person cannot read and says so, is refused 
     assert.deepEqual(launched(workspace), [], 'no job is created');
     const ok = await launch(url, { '01_uc_metadata': ' main.s.orders ,\u3000main.s.returns\x85' });
     assert.equal(ok.status, 200, JSON.stringify(ok.data));
-    assert.equal(ok.data.run_id, 99);
+    assert.equal(ok.data.run_id, '99');
     const reads = workspace.calls.filter((c) => /^\/api\/2\.1\/unity-catalog\/tables\//.test(c.path));
     assert.deepEqual(reads.map((c) => `${c.token} ${c.path}`).sort(), [
       `${PERSON} /api/2.1/unity-catalog/tables/hr.p.salaries`,
@@ -259,4 +259,27 @@ test('a picker list Unity Catalog cuts says it was cut, unless the warehouse lis
     const whole = await get(url, '/api/catalogs');
     assert.equal(whole.data.truncated, false, 'a list that ends is never called cut');
   });
+});
+
+test('a whole catalog list reads in pages of 1,000, skips the warehouse when Unity Catalog answered in full, and hides the internal __ catalogs (must-exclude)', async () => {
+  const many = Array.from({ length: 2500 }, (_, i) => ({ name: `c${String(i).padStart(4, '0')}` }));
+  const paged = (call) => {
+    const url = new URL(`http://x${call.path}`);
+    const size = Number(url.searchParams.get('max_results'));
+    const from = Number(url.searchParams.get('page_token') || 0);
+    const rows = [{ name: '__databricks_internal' }, ...many].slice(from, from + size);
+    const next = from + size < many.length + 1 ? String(from + size) : '';
+    return [200, { catalogs: rows, ...(next ? { next_page_token: next } : {}) }];
+  };
+  await withInspire(async (url, workspace) => {
+    const got = await get(url, '/api/catalogs?warehouse_id=wh');
+    assert.equal(got.status, 200, JSON.stringify(got.data).slice(0, 300));
+    assert.equal(got.data.catalogs.length, 2500);
+    assert.ok(!got.data.catalogs.some((c) => c.name.startsWith('__')), 'no internal catalog in the picker');
+    assert.deepEqual([got.data.truncated, got.data.source], [false, 'rest']);
+    const listed = workspace.calls.filter((c) => c.path.startsWith('/api/2.1/unity-catalog/catalogs'));
+    assert.equal(listed.length, 3, 'three pages of 1,000');
+    assert.ok(listed.every((c) => c.path.includes('max_results=1000')));
+    assert.equal(workspace.calls.filter((c) => c.path === '/api/2.0/sql/statements').length, 0, 'a full list never waits on the warehouse');
+  }, { '/api/2.1/unity-catalog/catalogs': paged });
 });

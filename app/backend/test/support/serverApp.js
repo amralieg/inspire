@@ -38,7 +38,7 @@ function reset(overrides = {}) {
   Object.assign(state, {
     managers: [], managerGroups: [], personGroups: [], aclStatus: 200, personAppsScope: true, launchers: {}, sessionLaunchers: {}, history: [], calls: [],
     launches: [], knownSessions: [], ledgerSessions: [], nextRunId: 501, sessionRows: {}, groupParents: {}, indirectGroups: [], conflictOn: null,
-    createdJob: null, runJobs: {}, runStates: null, sessionList: [], usecases: [], usecaseColumns: null,
+    createdJob: null, runJobs: {}, runStates: null, sessionList: [], usecases: [], usecaseColumns: null, files: {}, sessionBusiness: {},
     ...folderModel({ folders: { '/Shared/demos': { id: 7, writers: '*' } } }),
   }, overrides);
 }
@@ -66,6 +66,10 @@ function answerSql(body) {
     state.ledgerSessions.push(row.session_id);
     if (row.opened_session === 'true') state.sessionLaunchers[row.session_id] = row.launched_by;
     return sqlResult(['num_inserted_rows'], [['1']]);
+  }
+  if (/^\s*SELECT business_name FROM\b/i.test(sql) && sql.includes('__inspire_session')) {
+    const sid = (/session_id = (\d+)/.exec(sql) || [])[1];
+    return sqlResult(['business_name'], Object.hasOwn(state.sessionBusiness, sid) ? [[state.sessionBusiness[sid]]] : []);
   }
   if (/^\s*SELECT 1 AS seen\b/i.test(sql) && sql.includes('__inspire_session')) {
     return sqlResult(['seen'], state.knownSessions.includes(paramOf(body, 'session_id')) ? [['1']] : []);
@@ -194,6 +198,16 @@ async function stubFetch(url, opts = {}) {
   }
   if (u.pathname === '/api/2.0/sql/statements') return json(answerSql(body));
   if (u.pathname === '/api/2.0/workspace/import') return json({ message: 'stubbed import refused' }, 400);
+  const file = u.pathname.startsWith('/api/2.0/fs/files/') ? decodeURIComponent(u.pathname.slice('/api/2.0/fs/files'.length)) : '';
+  if (file && Object.hasOwn(state.files, file)) {
+    if (state.files[file] == null) return json({ error_code: 'NOT_FOUND', message: 'not found' }, 404);
+    if (token !== APP_TOKEN) return json({ error_code: 'PERMISSION_DENIED', message: 'no READ VOLUME' }, 403);
+    const whole = Buffer.from(state.files[file]);
+    const range = /^bytes=(\d+)-$/.exec(String(headers.Range || headers.range || ''));
+    const part = range ? whole.subarray(Number(range[1])) : whole;
+    return { ok: true, status: range ? 206 : 200, headers: new Map([['content-length', String(method === 'HEAD' ? whole.length : part.length)]]),
+      json: async () => JSON.parse(part.toString()), text: async () => (method === 'HEAD' ? '' : part.toString()), arrayBuffer: async () => part };
+  }
   const folder = folderAnswer(state, { method, pathname: u.pathname, searchParams: u.searchParams, body, token }, writableBy);
   if (folder) return json(folder[1], folder[0]);
   if (u.pathname === '/api/2.0/workspace/get-status') return json({});
@@ -205,6 +219,7 @@ async function stubFetch(url, opts = {}) {
   }
   if (u.pathname === '/api/2.1/jobs/create') {
     state.createdJob = body;
+    if (state.createdJobIdText) return { ...json({}), text: async () => `{"job_id": ${state.createdJobIdText}}` };
     return json({ job_id: 5 });
   }
   if (u.pathname === '/api/2.1/jobs/run-now') {

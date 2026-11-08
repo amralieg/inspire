@@ -77,6 +77,7 @@ const yours = (action, scopes, extra = {}) => ({ rule: 'any', action, identity: 
 const owners = (action, extra = {}) => ({ rule: 'owners', action, target: useCaseTarget, identity: 'app', why: GATED, ...extra });
 const builders = (action, extra = {}) => owners(action, { firstBuildOpen: true, ...extra });
 const runTarget = (req) => ({ kind: 'run', runId: str(req.params.runId), label: `run ${str(req.params.runId)}` });
+const sessionTarget = (req) => ({ kind: 'session', inspireDatabase: field(req, 'inspire_database'), sessionId: field(req, 'session_id'), label: `session ${field(req, 'session_id') || '(none named)'}` });
 const recorded = (action, why) => ({ rule: 'recorded', action, target: runTarget, identity: 'app', why });
 
 const ROUTE_POLICY = {
@@ -135,7 +136,8 @@ const ROUTE_POLICY = {
   'POST /api/inspire/ack': tracked('acknowledge a step'),
   'POST /api/inspire/feedback': tracked('send feedback'),
   'POST /api/inspire/sync-genie-flags': managers('change the Genie flags of use cases'),
-  'DELETE /api/inspire/session': { rule: 'launcher', action: 'delete it', target: (req) => ({ kind: 'session', inspireDatabase: field(req, 'inspire_database'), sessionId: field(req, 'session_id'), label: `session ${field(req, 'session_id') || '(none named)'}` }), identity: 'app', why: GATED },
+  'DELETE /api/inspire/session': { rule: 'launcher', action: 'delete it', target: sessionTarget, identity: 'app', why: GATED },
+  'GET /api/inspire/log': { rule: 'launcher', action: 'read its run log', target: sessionTarget, identity: 'app', why: GATED },
   'POST /api/inspire/generate-genie': owners('add a Genie Code instruction', { target: genieTarget, launcherOwnsUnbuilt: true }),
   'POST /api/inspire/generate_genie': owners('add a Genie Code instruction', { target: genieTarget, launcherOwnsUnbuilt: true }),
   'GET /api/inspire/implement/context': tracked('read the build context of a use case'),

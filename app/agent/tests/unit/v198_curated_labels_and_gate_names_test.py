@@ -110,13 +110,16 @@ def test_the_quality_gate_names_match_the_scoring_prompt(agent_ns):
     assert {code: listed.get(code) for code in agent_ns["INSPIRE_QUALITY_GATE_NAMES"]} == agent_ns["INSPIRE_QUALITY_GATE_NAMES"]
 
 
-def test_a_check_code_is_shown_after_its_name_and_an_unknown_code_is_kept(agent_ns):
+def test_a_check_shows_only_its_plain_name_and_an_unknown_code_reads_as_words(agent_ns):
     label = agent_ns["inspire_gate_label"]
-    assert label("score:business_value") == "business value score (score:business_value)"
-    assert label("judge_verdict") == "judge verdict (judge_verdict)"
-    assert label("D7") == "Design-Schema Match (D7)"
-    assert label("NO_DECISION_CHANGED") == "no decision changed (NO_DECISION_CHANGED)"
-    assert label("something_new") == "something_new"
+    assert label("score:business_value") == "business value score"
+    assert label("judge_verdict") == "judge verdict"
+    assert label("D7") == "Design-Schema Match"
+    assert label("NO_DECISION_CHANGED") == "no decision changed"
+    assert label("something_new") == "something new"
+    assert label("Q9_NEW_CODE") == "q9 new code"
+    assert label("plain words") == "plain words"
+    assert label("Q9") == "quality check" and label("D42") == "quality check"
     assert label(None) == "" and label("  ") == ""
 
 
@@ -125,14 +128,13 @@ def test_the_live_reason_names_every_check_it_failed(agent_ns):
         "failed_gates": ["score:business_value", "score:implementability", "score:actionability", "judge_verdict",
                          "second_opinion_reject"],
         "evidence_repair": {"outcome": "passed"}}, prefix="did not pass: ")
-    assert reason == ("did not pass: business value score (score:business_value), implementability score "
-                      "(score:implementability), actionability score (score:actionability), judge verdict (judge_verdict), "
-                      "second opinion (second_opinion_reject); evidence repair passed")
+    assert reason == ("did not pass: business value score, implementability score, actionability score, judge verdict, "
+                      "second opinion; evidence repair passed")
 
 
 def test_a_hard_veto_and_an_unverified_gate_name_the_gate(agent_ns):
     source = agent_source()
-    assert source.count("f\"hard veto on gate {inspire_gate_label(uc.get('bob_hard_veto_gate'))}\"") == 3
+    assert source.count("f\"hard veto on gate {inspire_gate_label(uc.get('bob_hard_veto_gate'))}\"") == 4
     assert "', '.join(inspire_gate_label(g) for g in uc['gate_unverified'])" in source
     assert "main = inspire_gate_label(failed[0]) if failed else" in source
 

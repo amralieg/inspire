@@ -1,4 +1,5 @@
 import base64, difflib, hashlib, json, os, re, requests, shutil, tarfile, tempfile, time, urllib.parse, zipfile
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from databricks.sdk import WorkspaceClient
 from databricks.sdk.service.sql import StatementState
 
@@ -13,6 +14,11 @@ SCAN_NONE_SAID = ("The Inspire App reads no catalog of yours yet, only `{catalog
                   'installer to the catalogs it may read, such as ["main", "sales"], and run the installer again.')
 SCAN_SKIPPED = ("samples", "system", "__databricks_internal", "information_schema")
 SCAN_GRANTS = ("USE_CATALOG", "USE_SCHEMA", "SELECT", "BROWSE")
+SCAN_RIGHTS_WORKERS = 16
+SCAN_GRANT_WORKERS = 8
+SCAN_PROGRESS_FROM = 50
+SCAN_PROGRESS_STEPS = 10
+SCAN_SHOWN = 10
 NEW_APPS_ACCOUNT_USERS = "account users"
 NEW_APPS_OFF = "off"
 SYSTEM_SCHEMA = "information_schema"
@@ -560,20 +566,6 @@ def _list_apps(api_get):
             return apps
 
 
-def _implemented_use_case_job(api_get, sp_app_id):
-    token = ""
-    while True:
-        page = api_get("/api/2.1/jobs/list?limit=100" + (f"&page_token={token}" if token else ""))
-        for job in page.get("jobs", []):
-            tags = (job.get("settings") or {}).get("tags") or {}
-            if job.get("creator_user_name") == sp_app_id and tags.get("dbx_inspire_ai_run_type") == "implement" \
-                    and tags.get("dbx_inspire_ai_usecase"):
-                return job
-        token = page.get("next_page_token") or ""
-        if not token:
-            return None
-
-
 def _error_words(exc, limit=160):
     response = getattr(exc, "response", None)
     if isinstance(exc, requests.exceptions.HTTPError) and response is not None:
@@ -594,22 +586,6 @@ def _rights_unread(exc, name, person):
         return (f"you cannot see who can grant on catalog `{name}` (HTTP 403). A catalog owner can run "
                 f"GRANT MANAGE ON CATALOG `{name}` TO `{person}`")
     return f"your rights on catalog `{name}` could not be read ({_error_words(exc)})"
-
-
-def _app_kept_reason(api, api_get, app_name):
-    try:
-        resp = api("GET", f"/api/2.0/apps/{app_name}")
-        if resp.status_code == 404:
-            return ""
-        resp.raise_for_status()
-        sp_app_id = resp.json().get("service_principal_client_id")
-        job = _implemented_use_case_job(api_get, sp_app_id) if sp_app_id else None
-    except Exception as exc:
-        return f"it could not be checked ({_error_words(exc)}), so the use cases it may run are kept"
-    if not job:
-        return ""
-    name = (job.get("settings") or {}).get("name") or ""
-    return f"it runs implemented use cases, for example job {job.get('job_id')} {name}".rstrip()
 
 
 def _app_service_principal_ids(api_get):
@@ -793,40 +769,17 @@ def step_cleanup(ctx):
     sp_name = ctx["SP_NAME"]
 
     print("Cleaning up...")
-    kept = _app_kept_reason(api, api_get, app_name)
-    if kept:
-        print(f"  Keeping app '{app_name}' and its service principal: {kept}")
-    else:
-        try:
-            resp = api("DELETE", f"/api/2.0/apps/{app_name}")
-            if resp.status_code == 404:
-                print("  No existing app")
-            elif resp.status_code >= 400:
-                print(f"  ⚠️ Deleting app '{app_name}' returned {resp.status_code}: {resp.text[:200]}")
-            else:
-                print(f"  Deleted app '{app_name}', waiting for deletion to complete...")
-                for _ in range(60):  # up to 5 minutes
-                    resp = api("GET", f"/api/2.0/apps/{app_name}")
-                    if resp.status_code == 404:
-                        print("  App gone ✅")
-                        break
-                    state = resp.json().get("compute_status", {}).get("state", "?")
-                    print(f"  Still {state}, waiting...")
-                    time.sleep(5)
-                else:
-                    print(f"  ⚠️ App '{app_name}' still exists; it is redeployed and its service principal is kept")
-        except Exception as exc:
-            print(f"  ⚠️ Could not delete app '{app_name}': {_error_words(exc)}")
-
     try:
         in_use = _app_service_principal_ids(api_get)
     except Exception as exc:
         print(f"  ⚠️ Could not list apps ({_error_words(exc)}); no service principal is deleted")
         in_use = None
+    seen = set()
     for search in dict.fromkeys([app_name, sp_name, app_name.replace("-", "_")]):
         try:
             sps = api_get(f"/api/2.0/preview/scim/v2/ServicePrincipals?filter=displayName co \"{search}\"")
-            resources = sps.get("Resources", [])
+            resources = [sp for sp in sps.get("Resources", []) if sp.get("id") not in seen]
+            seen.update(sp.get("id") for sp in resources)
             for sp in resources:
                 if _is_own_service_principal(sp.get("displayName", ""), app_name, sp_name) and \
                         in_use is not None and sp.get("applicationId") in in_use:
@@ -966,6 +919,7 @@ def _deploy_once(api, api_get, app_name, source_folder, app_url):
     if resp.status_code not in (200, 201):
         raise RuntimeError(f"Deploy failed: {resp.text[:300]}")
     deploy_id = resp.json().get("deployment_id", "")
+    said = ""
     for _ in range(30):
         data = api_get(f"/api/2.0/apps/{app_name}")
         pending, active = data.get("pending_deployment", {}), data.get("active_deployment", {})
@@ -975,7 +929,9 @@ def _deploy_once(api, api_get, app_name, source_folder, app_url):
             else pending or active
         )
         state = deployment.get("status", {}).get("state", "?")
-        print(f"  Deploy: {state}")
+        if state != said:
+            print(f"  Deploy: {state}")
+            said = state
         app_url = _noted_app_url(app_url, data)
         if state == "SUCCEEDED":
             return deploy_id, app_url
@@ -1034,6 +990,7 @@ def step_deploy_and_find_sp(ctx):
 
     compute_ready = False
     start_requested = False
+    said = ""
     for _ in range(30):
         info = api_get(f"/api/2.0/apps/{app_name}")
         app_url = _noted_app_url(app_url, info)
@@ -1047,7 +1004,9 @@ def step_deploy_and_find_sp(ctx):
             api("POST", f"/api/2.0/apps/{app_name}/start")
             start_requested = True
             continue
-        print(f"  Compute: {state}")
+        if state != said:
+            print(f"  Compute: {state}")
+            said = state
         time.sleep(10)
 
     if not compute_ready:
@@ -1369,30 +1328,95 @@ def _scan_label(scan, catalog):
 def _scan_split(ctx, catalog, scan, visible):
     if scan != SCAN_ALL:
         return list(scan), []
-    grantable, skipped = [], []
-    for cat in sorted(set(visible) - set(SCAN_SKIPPED) - {catalog}):
+    names = sorted(n for n in set(visible) - set(SCAN_SKIPPED) - {catalog} if not n.startswith("__"))
+    _metastore_admin(ctx)
+
+    def verdict(cat):
         try:
             full, held = _catalog_privileges(ctx, cat)
-            if _can_grant(_person_privileges(full, held)):
-                grantable.append(cat)
-            else:
-                skipped.append((cat, _grant_refusal(cat, ctx["USER_EMAIL"], held)))
+            return cat, "" if _can_grant(_person_privileges(full, held)) else _grant_refusal(cat, ctx["USER_EMAIL"], held)
         except Exception as exc:
-            skipped.append((cat, _rights_unread(exc, cat, ctx["USER_EMAIL"])))
-    return grantable, skipped
+            return cat, _rights_unread(exc, cat, ctx["USER_EMAIL"])
+
+    if len(names) >= SCAN_PROGRESS_FROM:
+        print(f"  Checking your rights on {_plural(len(names), 'catalog')}...")
+    with ThreadPoolExecutor(max_workers=SCAN_RIGHTS_WORKERS) as pool:
+        checked = list(pool.map(verdict, names))
+    return [cat for cat, why in checked if not why], [(cat, why) for cat, why in checked if why]
+
+
+def _shown(names, limit=SCAN_SHOWN):
+    names = list(names)
+    head = ", ".join(f"`{n}`" for n in names[:limit])
+    return head + (f" and {len(names) - limit} more" if len(names) > limit else "")
+
+
+def _grant_error(w, warehouse_id, sql):
+    try:
+        _run_statement(w, warehouse_id, sql)
+        return ""
+    except Exception as exc:
+        return _error_words(exc, None)
+
+
+def _scan_grant(sp, cat):
+    return f"GRANT {', '.join(SCAN_GRANTS)} ON CATALOG `{cat}` TO `{sp}`"
+
+
+def _run_scan_grants(w, warehouse_id, grants):
+    failed, done = {}, 0
+    step = max(1, -(-len(grants) // SCAN_PROGRESS_STEPS))
+    with ThreadPoolExecutor(max_workers=SCAN_GRANT_WORKERS) as pool:
+        running = {pool.submit(_grant_error, w, warehouse_id, sql): sql for sql in grants}
+        for future in as_completed(running):
+            done += 1
+            error = future.result()
+            if error:
+                failed[running[future]] = error
+            if len(grants) >= SCAN_PROGRESS_FROM and (done % step == 0 or done == len(grants)):
+                print(f"  Catalog grants: {done:,} of {len(grants):,}")
+    return {sql: failed[sql] for sql in grants if sql in failed}
+
+
+def _grant_scan_catalogs(ctx, sp, visible):
+    w, warehouse_id, catalog = ctx["w"], ctx["WAREHOUSE_ID"], ctx["CATALOG"]
+    scan = ctx.get("SCAN_CATALOGS", SCAN_ALL)
+    scanned, skipped = _scan_split(ctx, catalog, scan, visible)
+    targets = [cat for cat in scanned if cat != catalog]
+    grants = [_scan_grant(sp, cat) for cat in targets]
+    print(f"Catalog grants for {sp}: {_plural(len(grants), 'catalog')} (SCAN_CATALOGS = {_scan_label(scan, catalog)}), "
+          f"each GRANT {', '.join(SCAN_GRANTS)}")
+    if targets:
+        print(f"  Catalogs: {_shown(targets)}")
+    for name, reason in skipped[:SCAN_SHOWN]:
+        print(f"  Skipped catalog `{name}`, so the Inspire App will not read it: {reason}. Run this installer again once you can grant on it.")
+    if len(skipped) > SCAN_SHOWN:
+        rest = [name for name, _ in skipped[SCAN_SHOWN:]]
+        print(f"  Skipped {_plural(len(rest), 'more catalog')} you cannot grant on, so the Inspire App will not read them: {_shown(rest)}. "
+              "Run this installer again once you can grant on them.")
+    if not scan:
+        print(f"  {SCAN_NONE_SAID.format(catalog=catalog)}")
+    if scan == SCAN_ALL and not targets:
+        print(f"  Note: you can grant on no catalog besides `{catalog}`, so the Inspire App reads only `{catalog}` for now. "
+              "Run this installer again once you can grant on the catalogs to scan.")
+    failed = _run_scan_grants(w, warehouse_id, grants)
+    for sql, error in list(failed.items())[:SCAN_SHOWN]:
+        print(f"  ⚠️ {sql}: {error}")
+    if len(failed) > SCAN_SHOWN:
+        print(f"  ⚠️ {_plural(len(failed) - SCAN_SHOWN, 'more catalog grant')} failed the same way or another")
+    if grants:
+        print(f"  Catalog grants: {len(grants) - len(failed):,} of {len(grants):,} ran {'✅' if not failed else '⚠️'}")
+    return failed
 
 
 def _lakebase_grant(sp, lakebase_catalog):
     return f"GRANT ALL PRIVILEGES ON CATALOG `{lakebase_catalog}` TO `{sp}`"
 
 
-def _grant_plan(sp, catalog, schema, scanned, visible, lakebase_catalog=""):
+def _grant_plan(sp, catalog, schema, visible, lakebase_catalog=""):
     plan = [f"GRANT {p} ON CATALOG `{catalog}` TO `{sp}`" for p in ("USE_CATALOG", "BROWSE", "CREATE SCHEMA")]
     plan += [f"GRANT {p} ON SCHEMA `{catalog}`.`{schema}` TO `{sp}`"
              for p in ("USE_SCHEMA", "CREATE_TABLE", "SELECT", "MODIFY", "CREATE MODEL", "CREATE VOLUME", "READ VOLUME", "WRITE VOLUME", "MANAGE")]
-    for cat in scanned:
-        if cat != catalog:
-            plan += [f"GRANT {p} ON CATALOG `{cat}` TO `{sp}`" for p in SCAN_GRANTS]
     if lakebase_catalog and lakebase_catalog in visible and lakebase_catalog != catalog:
         plan.append(_lakebase_grant(sp, lakebase_catalog))
     return plan
@@ -1405,55 +1429,9 @@ def step_grant_permissions(ctx):
     catalog = ctx["CATALOG"]
     schema = ctx["SCHEMA"]
     api = ctx["api"]
-    scan = ctx.get("SCAN_CATALOGS", SCAN_ALL)
 
     if new_sp_app_id and warehouse_id:
         sp = new_sp_app_id
-        visible = set(ctx["available_catalogs"])
-        try:
-            visible.update(cat.name for cat in w.catalogs.list())
-        except Exception:
-            pass
-        lakebase = ctx.get("LAKEBASE") or {}
-        lakebase_ready, lakebase_said = _lakebase_setup(ctx)
-        print(f"  {'' if lakebase_ready else '⚠️ '}{lakebase_said}")
-        if lakebase_ready:
-            visible.add(lakebase["catalog"])
-        else:
-            ctx["LAKEBASE_NOTE"] = lakebase_said
-        scanned, skipped = _scan_split(ctx, catalog, scan, visible)
-        grants = _grant_plan(sp, catalog, schema, scanned, visible, lakebase.get("catalog", ""))
-        print(f"Grant plan for {sp}: {_plural(len(grants), 'statement')} (SCAN_CATALOGS = {_scan_label(scan, catalog)})")
-        for sql in grants:
-            print(f"  {sql}")
-        for name, reason in skipped:
-            print(f"  Skipped catalog `{name}`, so the Inspire App will not read it: {reason}. Run this installer again once you can grant on it.")
-        if not scan:
-            print(f"  {SCAN_NONE_SAID.format(catalog=catalog)}")
-        if scan == SCAN_ALL and not [cat for cat in scanned if cat != catalog]:
-            print(f"  Note: you can grant on no catalog besides `{catalog}`, so the Inspire App reads only `{catalog}` for now. "
-                  "Run this installer again once you can grant on the catalogs to scan.")
-
-        failed = {}
-        for sql in grants:
-            try:
-                stmt = w.statement_execution.execute_statement(
-                    warehouse_id=warehouse_id, statement=sql, wait_timeout="15s"
-                )
-                if not (stmt.status and stmt.status.state == StatementState.SUCCEEDED):
-                    failed[sql] = stmt.status.error.message[:120] if stmt.status and stmt.status.error else str(stmt.status)
-                    print(f"  ⚠️ {sql}: {failed[sql]}")
-            except Exception as exc:
-                failed[sql] = _error_words(exc, None)
-                print(f"  ⚠️ {sql}: {failed[sql]}")
-        print(f"  Grants: {len(grants) - len(failed)} of {len(grants)} ran {'✅' if not failed else '⚠️'}")
-        lakebase_sql = _lakebase_grant(sp, lakebase["catalog"]) if lakebase else ""
-        if lakebase_ready and lakebase_sql in failed:
-            ctx["LAKEBASE_NOTE"] = (f"{sp} cannot use the catalog `{lakebase['catalog']}`, because {lakebase_sql} failed "
-                                    f"({str(failed[lakebase_sql])[:160]}). Its owner can run that grant, or run this installer again; {LAKEBASE_DELTA}")
-            print(f"  ⚠️ {ctx['LAKEBASE_NOTE']}")
-
-        print(f"  {_catalog_access_for_new_apps(ctx, sp)}")
         resp = api(
             "PATCH",
             f"/api/2.0/permissions/sql/warehouses/{warehouse_id}",
@@ -1463,6 +1441,42 @@ def step_grant_permissions(ctx):
             "  CAN_MANAGE on warehouse, so Implement can attach it to the Apps it creates: "
             f"{'✅' if resp.status_code == 200 else '⚠️ ' + resp.text[:100]}"
         )
+        visible, owners = set(ctx["available_catalogs"]), {}
+        try:
+            for cat in w.catalogs.list():
+                visible.add(cat.name)
+                if getattr(cat, "owner", None):
+                    owners[cat.name] = cat.owner
+        except Exception:
+            pass
+        ctx["CATALOG_OWNERS"] = owners
+        lakebase = ctx.get("LAKEBASE") or {}
+        lakebase_ready, lakebase_said = _lakebase_setup(ctx)
+        print(f"  {'' if lakebase_ready else '⚠️ '}{lakebase_said}")
+        if lakebase_ready:
+            visible.add(lakebase["catalog"])
+        else:
+            ctx["LAKEBASE_NOTE"] = lakebase_said
+        grants = _grant_plan(sp, catalog, schema, visible, lakebase.get("catalog", ""))
+        lakebase_sql = _lakebase_grant(sp, lakebase["catalog"]) if lakebase else ""
+        print(f"Grant plan for {sp}: {_plural(len(grants), 'statement')} on `{catalog}`.`{schema}`"
+              f"{' and the Lakebase catalog' if lakebase_sql in grants else ''}")
+        for sql in grants:
+            print(f"  {sql}")
+
+        failed = {}
+        for sql in grants:
+            error = _grant_error(w, warehouse_id, sql)
+            if error:
+                failed[sql] = error
+                print(f"  ⚠️ {sql}: {error}")
+        print(f"  Grants: {len(grants) - len(failed)} of {len(grants)} ran {'✅' if not failed else '⚠️'}")
+        if lakebase_ready and lakebase_sql in failed:
+            ctx["LAKEBASE_NOTE"] = (f"{sp} cannot use the catalog `{lakebase['catalog']}`, because {lakebase_sql} failed "
+                                    f"({str(failed[lakebase_sql])[:160]}). Its owner can run that grant, or run this installer again; {LAKEBASE_DELTA}")
+            print(f"  ⚠️ {ctx['LAKEBASE_NOTE']}")
+
+        print(f"  {_catalog_access_for_new_apps(ctx, sp)}")
         if lakebase:
             granted, granted_said = _lakebase_project_access(api, sp, lakebase["project"])
             print(f"  {'' if granted else '⚠️ '}{granted_said}")
@@ -1472,6 +1486,7 @@ def step_grant_permissions(ctx):
                                    f"Apps that Implement builds read Lakebase: project {lakebase['project']}, catalog `{lakebase['catalog']}` ✅")
         print(f"  {_app_folder_access(api, ctx['APP_NAME'], sp)}")
         print(f"  {_assets_folder_access(api, ctx.get('ASSETS_PATH'), sp)}")
+        _grant_scan_catalogs(ctx, sp, visible)
     elif not new_sp_app_id:
         print("⚠️ Skipped: SP not found. Grant manually after checking /api/health.")
     elif not warehouse_id:
@@ -1635,19 +1650,27 @@ def _wait_statement(w, stmt, limit_s=120, sleep=time.sleep):
     return stmt
 
 
+def _metastore_admin(ctx):
+    if "METASTORE_ADMIN" not in ctx:
+        try:
+            ctx["METASTORE_ADMIN"] = str(ctx["api_get"]("/api/2.1/unity-catalog/metastore_summary").get("owner") or "").lower()
+        except Exception:
+            ctx["METASTORE_ADMIN"] = ""
+    return ctx["METASTORE_ADMIN"]
+
+
 def _catalog_privileges(ctx, catalog):
     w, api_get = ctx["w"], ctx["api_get"]
     mine = {ctx["USER_EMAIL"].lower(), *[str(g).lower() for g in ctx.get("USER_GROUPS") or [] if g]}
-    owner = str(getattr(w.catalogs.get(catalog), "owner", "") or "").lower()
-    try:
-        admin = str(api_get("/api/2.1/unity-catalog/metastore_summary").get("owner") or "").lower()
-    except Exception:
-        admin = ""
+    owners = ctx.get("CATALOG_OWNERS") or {}
+    owner = str((owners[catalog] if catalog in owners else getattr(w.catalogs.get(catalog), "owner", "")) or "").lower()
+    admin = _metastore_admin(ctx)
+    if owner in mine or (admin and admin in mine):
+        return True, set()
     principal = urllib.parse.quote(ctx["USER_EMAIL"])
     data = api_get(f"/api/2.1/unity-catalog/effective-permissions/catalog/{urllib.parse.quote(catalog)}?principal={principal}")
     held = {str(p.get("privilege") or "").upper() for a in data.get("privilege_assignments") or [] for p in a.get("privileges") or []}
-    full = owner in mine or bool(admin and admin in mine)
-    return full, held
+    return False, held
 
 
 def _catalog_rights(ctx):

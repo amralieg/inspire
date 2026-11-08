@@ -22,6 +22,8 @@ const SAMPLES = [
   { key: 'POST /api/run/:runId/cancel', rule: 'launcher', method: 'POST', path: '/api/run/77/cancel', body: {}, launcher: { run: '77' } },
   { key: 'DELETE /api/inspire/session', rule: 'launcher', method: 'DELETE',
     path: `/api/inspire/session?${qs({ inspire_database: DB, warehouse_id: WH, session_id: '1001' })}`, launcher: { session: '1001' } },
+  { key: 'GET /api/inspire/log', rule: 'launcher', method: 'GET',
+    path: `/api/inspire/log?${qs({ inspire_database: DB, warehouse_id: WH, session_id: '1001' })}`, launcher: { session: '1001' } },
   { key: 'POST /api/inspire/generate-genie', rule: 'owners', method: 'POST', path: '/api/inspire/generate-genie',
     body: { inspire_database: DB, warehouse_id: WH, session_id: '1001', use_case_ids: ['N01-U01'] } },
   { key: 'POST /api/inspire/generate_genie', rule: 'owners', method: 'POST', path: '/api/inspire/generate_genie',

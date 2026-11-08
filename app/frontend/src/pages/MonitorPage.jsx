@@ -27,6 +27,7 @@ import { aiSeesAggregates, discoveryTypeOf } from '../lib/discoveryType';
 import { mergeSteps, quietLine, runTitle, viewerLine, sessionFailed, sessionFinished, sessionQuietSince, sessionSucceeded, stepCategory } from '../lib/monitorState';
 import { requestHeaders, responseError } from '../lib/apiClient';
 import StopRunControl from '../components/StopRunControl';
+import RunLogPanel from '../components/RunLogPanel';
 import { nameOfUseCase } from '../lib/useCaseFields';
 import { runOutcomeOf } from '../lib/runOutcome';
 import { liveCountText, liveUseCasesOf } from '../lib/liveUseCases';
@@ -431,6 +432,7 @@ export default function MonitorPage({ settings, update, sessionId, runId, launch
           />
         </div>
         {!showcase && runId && runInfo && (isPending || isRunning) && <StopRunControl runId={runId} business={session?.business_name} apiFetch={apiFetch} />}
+        {!showcase && <RunLogPanel inspireDatabase={inspireDatabase} warehouseId={warehouseId} sessionId={session?.session_id || sessionId} apiFetch={apiFetch} />}
 
         {/* Latest activity line */}
         {latestStep && isRunning && (

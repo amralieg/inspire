@@ -69,6 +69,7 @@ test('submit writes the spec then launches an implement job', async () => {
     assert.equal(jobs[0].params['15_operation'], 'Implement Use Cases');
     assert.equal(jobs[0].params.inspire_implement_use_case, 'N01-U01');
     assert.deepEqual(jobs[0].useCaseIds, ['N01-U01'], 'the implement job is tagged with the use case it builds');
+    assert.match(jobs[0].jobName, /^Inspire AI - MVP - N01-U01 \S.* - v1$/, 'the MVP job names the use case it builds');
     assert.ok(sqlCalls.some((c) => String(c.sql).includes('CREATE TABLE IF NOT EXISTS')));
     assert.ok(sqlCalls.some((c) => String(c.sql).includes('INSERT INTO')));
   } finally {
@@ -873,7 +874,7 @@ test('preflight checks the grant only when sharing, and names a warehouse that c
   });
 });
 
-test('preflight refuses an App name used by another App, updates this use case\'s App, and checks the quota only for a new App', async () => {
+test('preflight refuses an App name used by another App, updates this use case\'s App, and never blocks a new App on a guessed Apps limit', async () => {
   await withApp({ appExists: true, app: { name: 'churn-desk', description: 'Finance team tool' } }, async (url) => {
     const got = await call(url, `/api/inspire/implement/preflight?${Q}&${OUT}&app_name=churn-desk`);
     assert.equal(got.data.ok, false);
@@ -885,12 +886,13 @@ test('preflight refuses an App name used by another App, updates this use case\'
     assert.match(got.data.checks.apps.detail, /no new App is needed/);
     assert.ok(!made.fetches.some((f) => f.path.includes('/api/2.0/apps?page_size=100')), 'no quota count for an App that exists');
   });
-  const full = { apps: Array.from({ length: 100 }, (_, i) => ({ name: `app-${i}` })) };
-  await withApp({ appsList: full }, async (url) => {
+  const many = { apps: Array.from({ length: 163 }, (_, i) => ({ name: `app-${i}` })) };
+  await withApp({ appsList: many }, async (url, made) => {
     const got = await call(url, `/api/inspire/implement/preflight?${Q}&${OUT}&app_name=churn-desk`);
     assert.equal(got.data.checks.app_name.ok, true);
-    assert.deepEqual(got.data.checks.apps, { ok: false, detail: 'this workspace already has 100 of its 100 Apps; delete one or untick the App' });
-    assert.equal(got.data.ok, false);
+    assert.deepEqual(got.data.checks.apps, { ok: true, detail: 'Inspire creates a new App; if Databricks has no room for it, the build stops with the reason Databricks gives' });
+    assert.equal(got.data.ok, true, 'no guessed Apps limit blocks a workspace that already holds 163 Apps');
+    assert.ok(!made.fetches.some((f) => f.path.includes('/api/2.0/apps?page_size=100')), 'Inspire never counts the Apps against a guessed limit');
   });
   await withApp({ spacesOk: false }, async (url) => {
     const asked = await call(url, `/api/inspire/implement/preflight?${Q}&${OUT}&genie=1`);

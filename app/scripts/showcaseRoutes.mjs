@@ -40,6 +40,7 @@ export const NOT_IN_DEMO = {
   'GET /api/run/:p': 'Monitor and Launch follow a job run they started; the demo run started no job in this workspace',
   'GET /api/run/:p/output': 'the run status panel reads the output of a job run it started; the demo starts none',
   'GET /api/run/:p/cancel': 'Monitor asks whether you may stop a job run only while it follows one; the demo hands Monitor no run, so it offers no Stop',
+  'GET /api/inspire/log': 'Monitor reads the live run log only outside the demo; the demo Monitor page offers no run log',
   'GET /api/run/pages': 'the demo Run tab lists the MVP Apps the demo carries, never the deployed pages of this workspace',
   'GET /api/inspire/implement/runs': 'the Run tab and the Build page read the last runs of a deployed use case from its App outside the demo only; the demo is read only and shows its recorded MVP Apps',
   'GET /api/workspace/list': 'Review lists the files a run wrote only outside the demo; the demo hides the files panel',

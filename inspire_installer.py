@@ -9,7 +9,7 @@
 # MAGIC
 # MAGIC After the first run, pick or type the **SQL warehouse** and the **Inspire catalog** in the widgets at the top, then run it again.
 # MAGIC
-# MAGIC **SCAN_CATALOGS** in the next cell picks the catalogs the Inspire App may read besides the Inspire catalog, with USE CATALOG, USE SCHEMA, SELECT and BROWSE, because builds run as the App and read their source tables: `"all"` grants it every catalog you can see and grant on (you own it, hold MANAGE on it, or are a metastore admin) and names each catalog it skips, and a list such as `["main", "sales"]` grants only those and stops before any change if you cannot grant on one. The installer prints every grant before it runs one.
+# MAGIC **SCAN_CATALOGS** in the next cell picks the catalogs the Inspire App may read besides the Inspire catalog, with USE CATALOG, USE SCHEMA, SELECT and BROWSE, because builds run as the App and read their source tables: `"all"` grants it every catalog you can see and grant on (you own it, hold MANAGE on it, or are a metastore admin) and names the catalogs it skips (the first ten, then a count), and a list such as `["main", "sales"]` grants only those and stops before any change if you cannot grant on one. The installer gives the App the warehouse and the Inspire catalog first, then runs one grant per catalog, several at a time, and prints how far it got.
 # MAGIC
 # MAGIC **NEW_APPS_CATALOG_ACCESS** lets the Apps that Implement builds read their results: `"account users"` grants account users USE CATALOG on the Inspire catalog when nothing below it is granted to them, so it opens no data by itself, and `"off"` grants nothing and prints the statement for a catalog owner.
 

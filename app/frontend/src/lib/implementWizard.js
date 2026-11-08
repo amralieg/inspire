@@ -1409,7 +1409,7 @@ export const PREFLIGHT_LABELS = {
   app_name: 'App name',
   app_access: 'App reads the data',
   app_warehouse: 'App SQL warehouse',
-  apps: 'Apps quota',
+  apps: 'New App',
   genie_spaces: 'Genie Agents',
   alerts: 'Alerts',
 };

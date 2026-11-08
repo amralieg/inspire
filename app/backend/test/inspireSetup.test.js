@@ -125,7 +125,9 @@ def run(catalog_grants, owner="amr@x", show_fails=False, lakebase=(200, ""), lak
         if "/permissions/directories/" in url:
             return types.SimpleNamespace(status_code=folder_grant[0], text=folder_grant[1])
         return types.SimpleNamespace(status_code=200, text="")
-    ns = {"StatementState": StatementState, "time": time, "json": json, "urllib": urllib, "_catalog_privileges": lambda ctx, catalog: (catalog in grantable, set())}
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+    ns = {"StatementState": StatementState, "time": time, "json": json, "urllib": urllib, "ThreadPoolExecutor": ThreadPoolExecutor, "as_completed": as_completed,
+          "_catalog_privileges": lambda ctx, catalog: (catalog in grantable, set())}
     load_installer(tree, module.body, ns, path)
     ctx = {"LAKEBASE": LAKEBASE, "NEW_SP_APP_ID": "SP", "APP_NAME": "inspire-ai", "WAREHOUSE_ID": "wh", "CATALOG": "main", "SCHEMA": "_inspire", "available_catalogs": ["main"],
            "USER_EMAIL": "amr@x",
@@ -146,7 +148,7 @@ assert volume == sorted(f"GRANT {p} VOLUME ON SCHEMA \x60main\x60.\x60_inspire\x
 assert "GRANT MODIFY ON SCHEMA \x60main\x60.\x60_inspire\x60 TO \x60SP\x60" in executed, executed
 assert "GRANT CREATE MODEL ON SCHEMA \x60main\x60.\x60_inspire\x60 TO \x60SP\x60" in executed, executed
 assert "GRANT MANAGE ON SCHEMA \x60main\x60.\x60_inspire\x60 TO \x60SP\x60" in executed, executed
-assert [s for s in executed if "\x60sales\x60" in s] == [f"GRANT {p} ON CATALOG \x60sales\x60 TO \x60SP\x60" for p in ("USE_CATALOG", "USE_SCHEMA", "SELECT", "BROWSE")], executed
+assert [s for s in executed if "\x60sales\x60" in s] == ["GRANT USE_CATALOG, USE_SCHEMA, SELECT, BROWSE ON CATALOG \x60sales\x60 TO \x60SP\x60"], executed
 assert not [s for s in executed if "samples" in s], executed
 assert not [s for s in executed if "\x60account users\x60" in s], executed
 assert not [s for s in executed if s.startswith("GRANT MANAGE ON CATALOG")], executed
@@ -161,8 +163,8 @@ refused_sql, _, refused_said = run([], grantable=())
 assert not [s for s in refused_sql if "\x60sales\x60" in s], refused_sql
 assert "sales" in refused_said and "you are not its owner or a metastore admin" in refused_said, refused_said
 lakebase_sql = [s for s in run([], lakebase_catalog=True, grantable=("sales", "inspire_lakebase"))[0] if "inspire_lakebase" in s]
-assert lakebase_sql == [f"GRANT {p} ON CATALOG \x60inspire_lakebase\x60 TO \x60SP\x60" for p in
-                        ("USE_CATALOG", "USE_SCHEMA", "SELECT", "BROWSE", "ALL PRIVILEGES")], lakebase_sql
+assert lakebase_sql == ["GRANT ALL PRIVILEGES ON CATALOG \x60inspire_lakebase\x60 TO \x60SP\x60",
+                        "GRANT USE_CATALOG, USE_SCHEMA, SELECT, BROWSE ON CATALOG \x60inspire_lakebase\x60 TO \x60SP\x60"], lakebase_sql
 manage = {"access_control_list": [{"service_principal_name": "SP", "permission_level": "CAN_MANAGE"}]}
 assert [(m, u) for m, u, b in patched if "/postgres/" in u] == [
     ("GET", f"/api/2.0/postgres/projects/{LAKEBASE['project']}"), ("GET", f"/api/2.0/postgres/catalogs/{LAKEBASE['catalog']}"),
@@ -344,77 +346,49 @@ const CLEANUP_PROBE = String.raw`${INSTALLER_LOADER}
 import ast, sys, types
 path = sys.argv[1]
 tree = ast.parse(open(path, encoding="utf-8").read())
-wanted = {"step_cleanup", "_is_own_service_principal", "_list_apps", "_app_service_principal_ids", "_deletable_service_principals",
-          "_implemented_use_case_job", "_app_kept_reason"}
+wanted = {"step_cleanup", "_is_own_service_principal", "_list_apps", "_app_service_principal_ids", "_deletable_service_principals"}
 module = ast.Module(body=[n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name in wanted], type_ignores=[])
 printed = []
 ns = {"print": lambda *a, **k: printed.append(" ".join(str(x) for x in a)), "time": types.SimpleNamespace(sleep=lambda s: None)}
 load_installer(tree, module.body, ns, path)
+assert "_app_kept_reason" not in ns and "_implemented_use_case_job" not in ns, sorted(ns)
 class Resp:
     def __init__(self, code, payload=None):
         self.status_code, self.payload, self.text = code, payload or {}, ""
     def json(self):
         return self.payload
-    def raise_for_status(self):
-        if self.status_code >= 400:
-            raise RuntimeError(f"HTTP {self.status_code}")
-def job(job_id, creator, **tags):
-    return {"job_id": job_id, "creator_user_name": creator, "settings": {"name": f"job {job_id}", "tags": tags}}
-USE_CASE = {"dbx_inspire_ai_run_type": "implement", "dbx_inspire_ai_usecase": "basket"}
-LAUNCHER = {"dbx_inspire_ai_run_type": "implement", "dbx_inspire_ai_usecases": "0"}
 APP = "/api/2.0/apps/inspire-ai-implement"
-def run(pages=None, app_status=200, sp="SPAPP", jobs_error=None):
-    calls, state = [], {"app": app_status}
+def run(app_there=True, sp="SPAPP", stale=False, apps_error=None):
+    calls = []
     def api(method, url, body=None):
         calls.append((method, url))
-        if url == APP and method == "DELETE":
-            if state["app"] == 404:
-                return Resp(404)
-            state["app"] = 404
-            return Resp(200)
-        if url == APP:
-            return Resp(state["app"], {"name": "inspire-ai-implement", "service_principal_client_id": sp, "compute_status": {"state": "ACTIVE"}})
         return Resp(200)
     def api_get(url):
         calls.append(("GET", url))
-        if url.startswith("/api/2.1/jobs/list"):
-            if jobs_error:
-                raise RuntimeError(jobs_error)
-            token = url.split("page_token=")[1] if "page_token=" in url else ""
-            return (pages or {}).get(token, {"jobs": []})
         if url.startswith("/api/2.0/apps"):
-            return {"apps": [{"name": "inspire-ai-implement", "service_principal_client_id": sp}] if state["app"] == 200 else []}
+            if apps_error:
+                raise RuntimeError(apps_error)
+            return {"apps": [{"name": "inspire-ai-implement", "service_principal_client_id": sp}] if app_there else []}
         if url.startswith("/api/2.0/preview/scim/v2/ServicePrincipals"):
-            return {"Resources": [{"id": "77", "displayName": "inspire-ai-implement-sp", "applicationId": sp}]}
+            found = [{"id": "77", "displayName": "inspire-ai-implement-sp", "applicationId": sp}]
+            return {"Resources": found + ([{"id": "88", "displayName": "inspire-ai-implement-sp", "applicationId": "OLD"}] if stale else [])}
         return {}
     printed.clear()
     ns["step_cleanup"]({"api": api, "api_get": api_get, "APP_NAME": "inspire-ai-implement", "SP_NAME": "inspire-ai-implement-sp"})
     return calls, list(printed)
-deleted_app = lambda calls: ("DELETE", APP) in calls
-listed_jobs = lambda calls: [u for m, u in calls if u.startswith("/api/2.1/jobs/list")]
-on_page_two = {"": {"jobs": [job(1, "someone", **USE_CASE), job(2, "SPAPP", **LAUNCHER)], "next_page_token": "p2"},
-               "p2": {"jobs": [job(3, "SPAPP", **USE_CASE)]}}
-calls, out = run(on_page_two)
-assert not deleted_app(calls), calls
-assert not any(m == "DELETE" and "ServicePrincipals" in u for m, u in calls), calls
-assert any("Keeping app 'inspire-ai-implement' and its service principal" in line and "job 3" in line for line in out), out
-assert len(listed_jobs(calls)) == 2, calls
-calls, out = run({"": {"jobs": [job(1, "someone", **USE_CASE), job(2, "SPAPP", **LAUNCHER),
-                               job(4, "SPAPP", dbx_inspire_ai_run_type="discovery", dbx_inspire_ai_usecase="basket")]}})
-assert deleted_app(calls), calls
-assert not any("Keeping app" in line for line in out), out
-calls, out = run({"": {"jobs": [job(3, "SPAPP", **USE_CASE)], "next_page_token": "p2"}, "p2": {"jobs": []}})
-assert not deleted_app(calls) and len(listed_jobs(calls)) == 1, calls
-calls, out = run(jobs_error="jobs list forbidden")
-assert not deleted_app(calls), calls
-assert any("could not be checked" in line and "jobs list forbidden" in line for line in out), out
-calls, out = run(app_status=500)
-assert not deleted_app(calls) and not listed_jobs(calls), calls
-calls, out = run(on_page_two, app_status=404)
-assert deleted_app(calls) and not listed_jobs(calls), calls
-assert any("No existing app" in line for line in out), out
-calls, out = run(on_page_two, sp=None)
-assert deleted_app(calls) and not listed_jobs(calls), calls
+deletes = lambda calls: [u for m, u in calls if m == "DELETE"]
+calls, out = run()
+assert not [c for c in calls if c[1] == APP], calls
+assert deletes(calls) == [], calls
+assert not [u for m, u in calls if u.startswith("/api/2.1/jobs/list")], calls
+assert len([line for line in out if "Keeping SP: inspire-ai-implement-sp (AppID: SPAPP)" in line]) == 1, out
+calls, out = run(stale=True)
+assert deletes(calls) == ["/api/2.0/preview/scim/v2/ServicePrincipals/88"], calls
+calls, out = run(app_there=False)
+assert deletes(calls) == ["/api/2.0/preview/scim/v2/ServicePrincipals/77"], calls
+calls, out = run(apps_error="apps list forbidden", stale=True)
+assert deletes(calls) == [], calls
+assert any("no service principal is deleted" in line and "apps list forbidden" in line for line in out), out
 print("ok")
 `;
 
@@ -501,7 +475,7 @@ for (const [name, probe] of [
   ['a reinstall never removes a bundle folder an app still runs from, and removes none when the apps cannot be listed', IN_USE_BUNDLE_PROBE],
   ['the deploy step removes only the older bundles that no app runs from', DEPLOY_PROBE],
   ['an incomplete install shows its banner and fails the job', MAIN_PROBE],
-  ['a reinstall keeps the app and its service principal while they run implemented use cases, and cleans up otherwise', CLEANUP_PROBE],
+  ['a reinstall never deletes the App, so its service principal stays, and only service principals no App uses are removed', CLEANUP_PROBE],
   ['a kept app whose compute is stopped is started before the new bundle is deployed', START_PROBE],
 ]) {
   test(name, (t) => {

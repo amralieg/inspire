@@ -158,3 +158,20 @@ test('Review shows the Best of Best, High Priority and Avg Inspire score tiles a
   assert.equal(/!noneMeetsBar && <StatCard|!noneMeetsBar && <InsightsGrid|\{!noneMeetsBar && \(\s*<StatCard/.test(page), false, 'no tile or panel hidden by the bar (must-exclude)');
   assert.match(page, /label="High Priority"[\s\S]{0,120}renderValue=\{noneMeetsBar \? 'n\/a' : undefined\}/, 'High Priority claims no count when none meets the bar');
 });
+
+test('a reason from an older run reads in plain words, with every internal check code taken out (must-exclude)', async () => {
+  const f = await load();
+  assert.equal(f.plainReason('hard veto on gate Analytical Depth (D9)'), 'hard veto on gate Analytical Depth');
+  assert.equal(f.plainReason('failed the decision readiness check (Q5): Q5_T4_NO_MEASURABLE_OUTCOME'), 'failed the decision readiness check');
+  assert.equal(f.plainReason('did not pass: red team review (red_team), business value score (score:business_value), value tier (value_tier)'),
+    'did not pass: red team review, business value score, value tier');
+  assert.equal(f.plainReason('fatal flaws: no decision changed (NO_DECISION_CHANGED): The output only reports'), 'fatal flaws: no decision changed: The output only reports');
+  assert.equal(f.plainReason('flagged by Q3_R22_MOSTLY_NULL_SIGNAL:amount, Q5_R19_GENERIC_TITLE'), 'flagged by a quality check');
+  assert.equal(f.plainReason('scored Low, below the Good bar'), 'scored Low, below the Good bar');
+  assert.equal(f.plainReason('the data shows no signal: History covers 2.4 weeks (of daily totals)'), 'the data shows no signal: History covers 2.4 weeks (of daily totals)');
+  assert.equal(f.plainReason(null), '');
+  const uc = { meets_quality_bar: false, below_bar_reason: 'failed the decision readiness check (Q5): Q5_T4_ONE_OFF' };
+  assert.equal(f.belowBarReasonOf(uc), 'failed the decision readiness check');
+  assert.equal(f.belowBarLabelFromUseCase(uc), 'failed the decision readiness check');
+  assert.doesNotMatch(f.belowBarLabelFromUseCase({ meets_quality_bar: false, fallback_reason: 'hard veto on gate Analytical Depth (D9)' }), /D9/);
+});
