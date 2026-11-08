@@ -9,12 +9,12 @@ const APP_DIR = path.resolve(__dirname, '..', '..');
 const { APP_FILES } = require('../lib/appPaths');
 const G = require('../../scripts/offline-gate');
 const { startInspire } = require('./support/serverProcess');
+const { loadShowcases } = require('../lib/showcase');
 
 const PACKAGE = path.join(APP_DIR, 'scripts', 'package-for-workspace.sh');
 const TRACKED_OUTPUTS = ['backend/notebook_bundle.js', 'backend/demo_notebook_bundle.js', 'backend/dbx_generate_demo_data.py'];
 const SHOWCASE_DIR = path.join(APP_DIR, 'backend', 'showcase');
-const RECORDING_ID = `offline-check-${process.pid}`;
-const RECORDING = { version: 1, id: RECORDING_ID, title: 'Offline check', business: 'Offline check', session_id: '1001', inspire: {}, mvps: {} };
+const RECORDINGS = spawnSync('git', ['ls-files', '--', 'backend/showcase'], { cwd: APP_DIR, encoding: 'utf8' }).stdout.split('\n').filter(Boolean);
 const work = fs.mkdtempSync(path.join(os.tmpdir(), 'inspire_offline_'));
 const NO_INTERNET = {
   HTTP_PROXY: 'http://127.0.0.1:9', HTTPS_PROXY: 'http://127.0.0.1:9', http_proxy: 'http://127.0.0.1:9', https_proxy: 'http://127.0.0.1:9',
@@ -28,17 +28,9 @@ function packApp() {
   const zip = path.join(work, 'app.zip');
   const stamp = () => TRACKED_OUTPUTS.map((file) => fs.statSync(path.join(APP_DIR, file)).mtimeMs);
   const before = stamp();
-  const madeDir = !fs.existsSync(SHOWCASE_DIR);
-  const recording = path.join(SHOWCASE_DIR, `${RECORDING_ID}.json`);
-  fs.mkdirSync(SHOWCASE_DIR, { recursive: true });
-  fs.writeFileSync(recording, JSON.stringify(RECORDING));
-  let run;
-  try {
-    run = spawnSync('bash', [PACKAGE], { cwd: APP_DIR, env: { ...process.env, SKIP_BUILD: '1', ARTIFACT_ZIP: zip }, encoding: 'utf8' });
-  } finally {
-    fs.rmSync(recording, { force: true });
-    if (madeDir) fs.rmSync(SHOWCASE_DIR, { recursive: true, force: true });
-  }
+  const shown = fs.readdirSync(SHOWCASE_DIR).sort();
+  const run = spawnSync('bash', [PACKAGE], { cwd: APP_DIR, env: { ...process.env, SKIP_BUILD: '1', ARTIFACT_ZIP: zip }, encoding: 'utf8' });
+  assert.deepEqual(fs.readdirSync(SHOWCASE_DIR).sort(), shown, 'packaging adds and removes nothing in the App demo folder');
   packed = { zip, run, before, after: stamp() };
   return packed;
 }
@@ -84,11 +76,10 @@ test('the packaged App zip has no install step, no outside host and fits the wor
   assert.deepEqual(G.checkZip(zip), []);
   const names = G.zipEntries(zip).map((e) => e.name);
   for (const item of APP_FILES) assert.ok(names.some((name) => name === item || name.startsWith(`${item}/`)), `${item} ships`);
-  for (const name of [G.BUNDLE, 'backend/build/THIRD_PARTY_NOTICES', 'backend/build/swagger-ui/LICENSE', 'backend/build/swagger-ui/NOTICE',
-    `backend/showcase/${RECORDING_ID}.json`]) {
+  assert.ok(RECORDINGS.length > 0, 'the App carries demo recordings in backend/showcase');
+  for (const name of [G.BUNDLE, 'backend/build/THIRD_PARTY_NOTICES', 'backend/build/swagger-ui/LICENSE', 'backend/build/swagger-ui/NOTICE', ...RECORDINGS]) {
     assert.ok(names.includes(name), `${name} ships`);
   }
-  assert.equal(fs.existsSync(path.join(SHOWCASE_DIR, `${RECORDING_ID}.json`)), false, 'the test recording is gone from the App folder');
   const notShipped = /^backend\/(lib\/|test\/|server\.js$|implementRoutes\.js$|package)|^scripts\/|^frontend\/(src|test|public|package)|^(package|README|deployment|databricks)/;
   assert.deepEqual(names.filter((n) => notShipped.test(n)), [], 'no source, test, package file, doc or build script ships');
   assert.ok(fs.statSync(zip).size < G.IMPORT_LIMIT, `${fs.statSync(zip).size} bytes`);
@@ -125,7 +116,7 @@ test('start.sh runs the bundle with no node_modules and no internet, and every f
     assert.match(JSON.parse(spec.body).openapi, /^3\./);
     const demos = JSON.parse((await read(app.url, '/api/showcase')).body);
     assert.equal(demos.error, undefined);
-    assert.ok(demos.showcases.some((s) => s.id === RECORDING_ID), 'a demo recording in backend/showcase ships and is listed');
+    assert.deepEqual(demos.showcases.map((s) => s.id).sort(), Object.keys(loadShowcases(SHOWCASE_DIR)).sort(), 'every demo recording in backend/showcase ships and is listed');
     assert.match(app.output(), /Inspire AI starting from .* with node v\d+/);
   } finally {
     await app.stop();
