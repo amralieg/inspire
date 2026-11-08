@@ -150,9 +150,7 @@ def test_the_explain_route_sends_one_question_in_the_same_conversation_and_retur
     assert sp_ws.genie[-1] == ("01f0aa11bb22cc33", "Why?", "c9")
 
 
-HOME_JSX = os.path.join(ROOT, "agent", "app_shell", "web", "src", "Home.jsx")
-IMPACT_JSX = os.path.join(ROOT, "agent", "app_shell", "web", "src", "Impact.jsx")
-APP_JSX = os.path.join(ROOT, "agent", "app_shell", "web", "src", "App.jsx")
+WEB_SRC = os.path.join(ROOT, "agent", "app_shell", "web", "src")
 
 
 def test_a_chart_on_the_overview_or_the_impact_page_explains_without_a_use_case_page(tmp_path):
@@ -176,19 +174,16 @@ def test_a_use_case_page_named_like_a_hub_screen_keeps_its_own_explain(tmp_path)
     assert status == 200 and out["question"].startswith(INTRO)
 
 
-def test_the_hub_screens_the_browser_explains_from_are_the_ones_the_server_knows():
-    sent, notes = {}, {}
-    for name, path in (("overview", HOME_JSX), ("impact", IMPACT_JSX)):
-        with open(path, encoding="utf-8") as handle:
-            text = handle.read()
-        sent[name] = set(re.findall(r"hubExplain\(app, onExplain, '([a-z]+)'\)", text))
-        notes[name] = "<HubExplainNote app={app} />" in text
-    with open(APP_JSX, encoding="utf-8") as handle:
-        routes_text = re.search(r"const HUB_SCOPES = \{(.+)\};", handle.read()).group(1)
-    routes = set(re.findall(r"([a-z]+): \{ page: ", routes_text))
-    assert set(shell_core.HUB_SCREENS) == {"overview", "mywork", "impact"} and routes == {"mywork", "impact"} and "MY_WORK_ROUTE" in routes_text and "page: 'impact'" in routes_text
-    assert sent == {"overview": set(), "impact": {"impact"}}, "only Impact explains, since a one-page App shows Impact but never the Overview"
-    assert notes == {"overview": False, "impact": True}, "the Overview is gone, so only Impact shows the explain note"
+def test_the_browser_explains_every_chart_from_its_use_case_page_never_from_a_hub_screen():
+    calls = {}
+    for name in sorted(os.listdir(WEB_SRC)):
+        if name.endswith((".js", ".jsx")):
+            with open(os.path.join(WEB_SRC, name), encoding="utf-8") as handle:
+                text = handle.read()
+            for arg in re.findall(r"(?<!function )hubExplain\(app, onExplain, ([^)]+)\)", text):
+                calls.setdefault(arg.strip(), set()).add(name)
+    assert calls == {"page.id": {"Page.jsx", "Performance.jsx"}}, calls
+    assert not os.path.exists(os.path.join(WEB_SRC, "Impact.jsx"))
 
 
 def test_the_typed_question_cap_stays_1000_while_an_explain_may_be_longer(tmp_path):

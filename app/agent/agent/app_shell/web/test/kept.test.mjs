@@ -78,19 +78,20 @@ test('the list tags the kept record, counts it beside the records that left, and
   await context.close();
 });
 
-test('Your work tags the kept record and leaves the others as they are', async () => {
-  const items = [{ key: 'e1', label: 'Wool coat, store 4', tier: 'Act now', money: 400, why: null, owner: PERSON, status: null, reason: null, due: null, not_listed_since: LEFT },
-    { key: 'a1', label: 'Blue denim jacket, store 12', tier: 'Act now', money: 1000, why: null, owner: PERSON, status: null, reason: null, due: null, not_listed_since: null }];
-  const entry = { visible: true, tracked: true, money: true, categories: [], served: 'delta', items, total: 2, truncated: false,
-    done: { fixed: 0, fixed_q: 0, dismissed: 0, dismissed_q: 0, saved_n: 0, saved: null, saved_q_n: 0, saved_q: null }, weeks: [],
-    runs: { updated: '2026-10-20T06:00:00Z', as_of: '2026-10-20', cadence_days: 7, next: '2026-10-27', stale: false, count: 3, failed: false } };
-  const hub = { today: '2026-10-24', quarter: '2026-10-01', since: '2026-08-03', errors: {}, pages: { n01_u05: entry, n02_u01: { ...entry, items: [], total: 0 } } };
-  const summary = { run: { currency: 'USD', decision_basis: 'measured', as_of_date: '2026-10-20' }, categories: {}, note: '' };
-  const { page, seen, context } = await openApp(browser, served.base, appInfo(DECIDE, 2, TABLE), {
-    routes: { overview: ({ json }) => json(200, hub), summary: ({ json }) => json(200, summary) }, hash: '#/n01_u05/performance' });
-  await page.locator('.tbl--mine tbody tr').nth(1).waitFor();
-  const cells = await page.locator('.tbl--mine tbody tr .it b').evaluateAll((all) => all.map((b) => [b.firstChild.textContent, b.querySelector('.chg-b')?.textContent || '']));
-  assert.deepEqual(cells, [['Blue denim jacket, store 12', ''], ['Wool coat, store 4', NOT_IN_RUN]]);
+test('the inbox tags the kept record you own and leaves the others as they are', async () => {
+  const base = routes();
+  const owned = [{ ...ROWS[0], _inspire_owner: PERSON, entity_label: 'Wool coat, store 4' }, { ...ROWS[2], _inspire_owner: PERSON, _inspire_missing: null, entity_label: 'Blue denim jacket, store 12' }];
+  const records = (call) => {
+    const body = call.route.request().postDataJSON();
+    if (body.mine) return call.json(200, { rows: owned, total: owned.length, offset: 0, limit: body.limit, actions: true, changes: false, summary: null, errors: {} });
+    return base.records(call);
+  };
+  const { page, seen, context } = await openApp(browser, served.base, appInfo(DECIDE, 1, TABLE), { routes: { ...base, records }, hash: '#/n01_u05/work' });
+  await page.locator('[data-inbox]').click();
+  const assigned = page.locator('[data-inbox-group="assigned"] [data-inbox-item]');
+  await assigned.nth(1).waitFor();
+  const tags = await assigned.evaluateAll((all) => all.map((b) => [b.querySelector('bdi').textContent, b.querySelector('.chg-b--missing')?.textContent || '']));
+  assert.deepEqual(tags, [['Wool coat, store 4', NOT_IN_RUN], ['Blue denim jacket, store 12', '']]);
   assert.deepEqual(seen.errors, []);
   await context.close();
 });

@@ -229,11 +229,11 @@ function Reasons({ entry }) {
 
 const CLOSED_COLUMNS = [
   { key: 'label', label: 'Record' },
-  { key: 'outcome', label: 'Outcome', className: 'nw' },
-  { key: 'state', label: 'What a later run found' },
+  { key: 'outcome', label: 'Outcome', className: 'nw c-outcome' },
+  { key: 'state', label: 'What a later run found', className: 'c-state' },
   { key: 'measured', label: 'Measured', num: true, sortValue: (r) => r.amounts.measured, render: (r) => r.measured || '\u00a0' },
   { key: 'reported', label: 'Reported', num: true, sortValue: (r) => r.amounts.reported, render: (r) => <>{r.reported}{r.note && <small>{r.note}</small>}</> },
-  { key: 'closed', label: 'Closed', date: true, className: 'nw', sortValue: (r) => r.amounts.closed },
+  { key: 'closed', label: 'Closed', date: true, className: 'nw c-closed', sortValue: (r) => r.amounts.closed },
 ];
 
 function Closed({ entry, currency, kind, pageId, choices }) {
@@ -357,7 +357,7 @@ export default function Performance({ app, page, summary, onRecord, onExplain, g
   const problemText = data?.errors?.[page.id];
   const today = data?.period?.today || new Date().toISOString().slice(0, 10);
   return (
-    <div className="page hub perf" data-performance data-page={page.id}>
+    <div className="page hub perf" data-performance data-page={page.id} data-page-section="performance">
       <div className="pg-h">
         <div><h1>Performance</h1><p>{`What you did yourself in ${page.title}, read from its change history, next to what the whole team did.`}</p></div>
       </div>

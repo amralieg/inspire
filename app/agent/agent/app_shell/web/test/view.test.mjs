@@ -2,7 +2,7 @@ import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
 import {
-  CONTRACT, CURRENT, DECIDE, HISTORY, LABEL, OTHER, PERSON, ROWS, SUMMARY, TABLE, appInfo, chartsDrawn, lister, openApp, prefsFirst, resizeTo, serveDist, tracked, until, pickCase, goRail,
+  CONTRACT, CURRENT, DECIDE, HISTORY, LABEL, OTHER, PERSON, ROWS, SUMMARY, TABLE, appInfo, chartsDrawn, isInboxAsk, lister, myWorkOf, openApp, prefsFirst, resizeTo, serveDist, tracked, until, pickCase, goRail,
 } from './harness.mjs';
 import { monitorRoutes } from './exampleRoutes.mjs';
 import { encodeFilters } from '../src/links.js';
@@ -34,6 +34,7 @@ async function openWith(info, routes, { prefs, hash = '#/n01_u05/work', init, wi
   return openApp(browser, served.base, info, { routes, clock: CLOCK, width, timezone: 'Asia/Dubai', hash, watch });
 }
 
+const lists = (seen) => seen.records.filter((b) => !isInboxAsk(b));
 const waitList = (page) => page.waitForFunction(() => document.querySelectorAll('.card--table tbody tr').length > 0 && document.querySelector('.list-tools'));
 
 function dueList(rows) {
@@ -43,7 +44,8 @@ function dueList(rows) {
     const dated = body.window ? rows : rows.map(({ _inspire_due, _inspire_snooze, ...r }) => r);
     const shown = body.window === 'today' ? dated.filter((r) => !r._inspire_due || r._inspire_due <= TODAY) : dated;
     const narrowed = body.filters?.category?.length ? [] : shown;
-    return json(200, { rows: narrowed.slice(body.offset, body.offset + body.limit), total: narrowed.length, offset: body.offset, limit: body.limit, actions: true,
+    const from = body.offset || 0;
+    return json(200, { rows: narrowed.slice(from, from + body.limit), total: narrowed.length, offset: from, limit: body.limit, actions: true,
       changes: false, summary: SUMMARY, errors: {} });
   };
 }
@@ -54,23 +56,11 @@ const entry = (items) => ({
   done: { fixed: 0, fixed_q: 0, dismissed: 0, dismissed_q: 0, saved_n: 0, saved: 0, saved_q_n: 0, saved_q: 0, first_fixed: null, first_saved: null },
   weeks: [], runs: { updated: '2026-10-27T06:00:00Z', as_of: '2026-10-27', cadence_days: 7, next: '2026-11-03', stale: false, count: 3, failed: false },
 });
-function hubOf(items) {
-  return ({ route, json, seen }) => {
-    const body = route.request().postDataJSON();
-    (seen.hub ||= []).push(body);
-    const shown = body.window === 'today' ? items.filter((i) => !i.due || i.due <= TODAY) : items;
-    const top = body.window_limit ? shown.slice(0, body.window_limit) : shown;
-    return json(200, { today: TODAY, quarter: '2026-10-01', since: '2026-08-03', errors: {},
-      window: body.window ? { window: body.window, limit: body.window_limit ?? null, today: TODAY } : null,
-      pages: { n01_u05: { ...entry(top), total: shown.length, truncated: shown.length > top.length }, n02_u01: entry([]) } });
-  };
-}
-
 test('My view is in Settings for everyone, the window chips follow it, it survives a reload, and the list asks the server for that window', async () => {
   const { routes } = tracked();
   const { page, seen, context } = await openWith(appInfo(DECIDE, 1, TABLE), routes);
   await waitList(page);
-  assert.deepEqual([seen.records[0].window, seen.records[0].time_zone, 'window_limit' in seen.records[0]], ['all', 'Asia/Dubai', false],
+  assert.deepEqual([lists(seen)[0].window, lists(seen)[0].time_zone, 'window_limit' in lists(seen)[0]], ['all', 'Asia/Dubai', false],
     'All open names its window from the first read, with no limit');
   await goRail(page, 'settings');
   await page.locator('[data-settings] [data-group="my_view"]').waitFor();
@@ -78,28 +68,28 @@ test('My view is in Settings for everyone, the window chips follow it, it surviv
   assert.equal(await page.locator('select[name="my_limit"]').inputValue(), '0');
   await page.locator('select[name="my_window"]').selectOption('week');
   await goRail(page, 'work');
-  await until(() => seen.records.at(-1).window === 'week');
-  assert.equal(seen.records.at(-1).time_zone, 'Asia/Dubai', 'the list says which week it means, here in Dubai time');
+  await until(() => lists(seen).at(-1).window === 'week');
+  assert.equal(lists(seen).at(-1).time_zone, 'Asia/Dubai', 'the list says which week it means, here in Dubai time');
   const chips = page.getByRole('group', { name: 'Your window' });
   assert.deepEqual(await chips.locator('button').allInnerTexts(), ['This hour', 'Today', 'This week', 'This month', 'All open', 'Everything']);
   assert.equal(await chips.getByRole('button', { name: 'This week' }).getAttribute('aria-pressed'), 'true');
   assert.equal((await mine(page)).window, 'week');
-  const before = seen.records.length;
+  const before = lists(seen).length;
   await page.reload();
   await waitList(page);
-  assert.equal(seen.records[before].window, 'week', 'the first list request after a reload already asks for the window');
+  assert.equal(lists(seen)[before].window, 'week', 'the first list request after a reload already asks for the window');
   await chips.getByRole('button', { name: 'Today' }).click();
-  await until(() => seen.records.at(-1).window === 'today');
+  await until(() => lists(seen).at(-1).window === 'today');
   await goRail(page, 'settings');
   assert.equal(await page.locator('select[name="my_window"]').inputValue(), 'today', 'the setting follows the chip');
   await goRail(page, 'work');
   await chips.getByRole('button', { name: 'All open' }).click();
-  await until(() => seen.records.at(-1).window === 'all');
+  await until(() => lists(seen).at(-1).window === 'all');
   assert.deepEqual(seen.errors, []);
   await context.close();
 });
 
-test('a window chip hides a record outside the window while an overdue record stays, first, on the list and in Your work', async () => {
+test('a window chip hides a record outside the window while an overdue record stays, first, on the list and in the inbox', async () => {
   const rows = [{ ...ROWS[0], _inspire_due: TODAY }, { ...ROWS[1], _inspire_due: '2026-11-04' }, { ...ROWS[2], _inspire_due: '2026-10-20', _inspire_status: null }];
   const { routes } = tracked({ records: dueList(rows) });
   const { page, seen, context } = await openWith(appInfo(DECIDE, 1, TABLE), routes);
@@ -111,24 +101,16 @@ test('a window chip hides a record outside the window while an overdue record st
   await page.waitForFunction(() => document.querySelectorAll('.card--table tbody tr').length === 2);
   assert.deepEqual(await labels(page), [label(3), label(1)]);
   assert.ok(!(await labels(page)).includes(label(2)), 'the record due next week is outside Today');
+  await page.locator('[data-inbox]').click();
+  const due = page.locator('[data-inbox-group="due"] [data-inbox-item]');
+  await due.first().waitFor();
+  assert.deepEqual(await due.locator('bdi').allInnerTexts(), [label(3), label(1)], 'the inbox lists the overdue record first and leaves out the one due next week');
+  assert.match(await due.first().locator('small').innerText(), /Overdue since/);
+  assert.deepEqual(seen.errors, []);
   await context.close();
-
-  const items = [item('w', 'Due next week', '2026-11-04'), item('t', 'Due today', TODAY), item('o', 'Overdue one', '2026-10-21')];
-  const hub = await openWith(appInfo(DECIDE, 2, TABLE), { overview: hubOf(items) }, { hash: '#/n01_u05/performance' });
-  const work = hub.page.getByRole('region', { name: 'Your work' });
-  await work.locator('tbody tr').first().waitFor();
-  const firsts = () => work.locator('tbody tr td:first-child').allInnerTexts();
-  assert.deepEqual(await firsts(), ['Overdue one', 'Due today', 'Due next week']);
-  assert.equal(await work.locator('tbody tr').first().getAttribute('class').then((c) => c.includes('is-late')), true);
-  await work.getByRole('group', { name: 'Your window' }).getByRole('button', { name: 'Today' }).click();
-  await until(() => hub.seen.hub?.at(-1)?.window === 'today');
-  await hub.page.waitForFunction(() => document.querySelectorAll('[aria-label="Your work"] tbody tr').length === 2);
-  assert.deepEqual(await firsts(), ['Overdue one', 'Due today']);
-  assert.deepEqual([...seen.errors, ...hub.seen.errors], []);
-  await hub.context.close();
 });
 
-test('a limit shows the top N with a line that says how many more there are, on the list and in Your work, and asks the Overview for it', async () => {
+test('a limit shows the top N on the list with a line that says how many more there are', async () => {
   const { routes } = tracked();
   const { page, seen, context } = await openWith(appInfo(DECIDE, 1, TABLE), routes, { prefs: { limit: 10 } });
   await waitList(page);
@@ -137,23 +119,8 @@ test('a limit shows the top N with a line that says how many more there are, on 
   assert.equal(await page.locator('.pager-n').innerText(), 'Showing 1 to 10 of 10');
   assert.equal(await page.getByRole('button', { name: 'Next page' }).isDisabled(), true);
   assert.equal(await page.locator('.card--table [data-limit]').innerText(), 'Your limit shows the top 10 of 30. 20 more are not shown; change the limit in Settings.');
+  assert.deepEqual(seen.errors, []);
   await context.close();
-  const items = Array.from({ length: 12 }, (_, i) => item(`k${i}`, `Mine ${i + 1}`, null, { money: 1000 - i }));
-  const hub = await openWith(appInfo(DECIDE, 2, TABLE), { overview: hubOf(items) }, { hash: '#/n01_u05/performance', prefs: { limit: 10 } });
-  const work = hub.page.getByRole('region', { name: 'Your work' });
-  await work.locator('tbody tr').first().waitFor();
-  assert.deepEqual(hub.seen.hub.at(-1), { window: 'all', window_limit: 10, time_zone: 'Asia/Dubai' });
-  await work.getByRole('button', { name: 'Show all 10' }).click();
-  assert.equal(await work.locator('tbody tr').count(), 10, 'Your work shows what the server kept under the limit');
-  assert.equal(await work.locator('[data-limit]').innerText(), 'Your limit keeps the top 10 of 12 records in Price-loss decision desk. Change the limit in Settings.');
-  assert.deepEqual([...seen.errors, ...hub.seen.errors], []);
-  await hub.context.close();
-  const all = await openWith(appInfo(DECIDE, 2, TABLE), { overview: hubOf(items.slice(0, 8)) }, { hash: '#/n01_u05/performance', prefs: { limit: 10 } });
-  const sent = all.page.getByRole('region', { name: 'Your work' });
-  await sent.locator('tbody tr').first().waitFor();
-  assert.equal(await sent.locator('[data-limit]').count(), 0, 'the server sent every record in the window, so nothing is held back');
-  assert.deepEqual(all.seen.errors, []);
-  await all.context.close();
 });
 
 test('Compact density fits more rows, and it and the rows per page are kept for the person', async () => {
@@ -380,22 +347,23 @@ test('New since your last visit marks the records that changed between visits an
   await context.close();
 });
 
-test('the Overview says what you did today: assigned, overdue, due today and done today from the overview reply, with no read of any use case changes', async () => {
-  const items = [item('t', 'Due today', TODAY), item('o', 'Overdue one', '2026-10-21'), item('n', 'Later', '2026-11-20')];
-  const mine = CONTRACT.overview_window.page_fields.done.mine_today;
+test('Performance says what you did today: the Today chip asks for today in your time zone and shows what you closed, with no read of any use case changes', async () => {
   const asked = [];
-  const overview = ({ route, json, seen }) => {
-    (seen.hub ||= []).push(route.request().postDataJSON());
-    const counted = (e, n) => ({ ...e, done: { ...e.done, mine_today: n } });
-    return json(200, { today: TODAY, quarter: '2026-10-01', since: '2026-08-03', errors: {}, window: { window: 'all', limit: null, today: TODAY },
-      pages: { n01_u05: counted(entry(items), mine), n02_u01: counted(entry([]), 1) } });
+  const routes = {
+    my_work: ({ route, json, seen }) => {
+      (seen.work ||= []).push(route.request().postDataJSON());
+      return json(200, { ...myWorkOf('n01_u05'), period: { window: 'today', zone: 'Asia/Dubai', today: TODAY, start_day: TODAY, end_day: '2026-10-28' } });
+    },
+    'records/batches': ({ json, url }) => { asked.push(url.searchParams.get('page')); return json(200, { batches: [], limit: 20 }); },
   };
-  const routes = { overview, 'records/batches': ({ json, url }) => { asked.push(url.searchParams.get('page')); return json(200, { batches: [], limit: 20 }); } };
   const { page, seen, context } = await openWith(appInfo(DECIDE, 2, TABLE), routes, { hash: '#/n01_u05/performance' });
-  const work = page.getByRole('region', { name: 'Your work' });
-  await page.waitForFunction(() => /done today/.test(document.querySelector('[aria-label="Your work"] [data-today]')?.textContent || ''));
-  assert.equal(await work.locator('[data-today]').innerText(), `3 assigned to you · 1 overdue · 1 due today · ${mine + 1} done today`);
-  assert.deepEqual(asked, [], 'the Overview reply already counts it, so no use case is asked for its changes');
+  await page.locator('[data-performance] .kpi').first().waitFor();
+  await page.locator('[data-period]').getByRole('button', { name: 'Today' }).click();
+  await until(() => seen.work?.at(-1)?.window === 'today');
+  assert.deepEqual(seen.work.at(-1), { page: 'n01_u05', window: 'today', time_zone: 'Asia/Dubai' });
+  await page.locator('[data-performance] .kpi').first().waitFor();
+  assert.equal(await page.locator('[data-performance] [data-tile="cleared"] .kpi-v').innerText(), '4 (40%)', 'the 4 items you closed today show');
+  assert.deepEqual(asked, [], 'my_work already counts it, so no use case is asked for its changes');
   assert.deepEqual(seen.errors, []);
   await context.close();
 });
@@ -422,16 +390,15 @@ function layoutCheck() {
     chips: overlap('.wchips > button'), small, title: head ? head.getBoundingClientRect().width >= Math.min(260, head.parentElement.clientWidth - 32) : true };
 }
 
-test('the list, its tools, the selection bar and the Overview fit 1440, 1024 and 390 pixels, and every control is 40 pixels or more on a phone', async () => {
-  const items = [item('t', 'Due today', TODAY), item('o', 'Overdue one', '2026-10-21')];
-  const { routes } = tracked({ overview: hubOf(items) });
+test('the list, its tools, the selection bar and Performance fit 1440, 1024 and 390 pixels, and every control is 40 pixels or more on a phone', async () => {
+  const { routes } = tracked({ my_work: ({ json }) => json(200, myWorkOf('n01_u05')) });
   const { page, seen, context } = await openWith(appInfo(DECIDE, 2, TABLE), routes, { width: 1440 });
   await waitList(page);
   await page.getByRole('checkbox', { name: `Select ${label(1)}` }).check();
-  for (const screen of ['list', 'overview']) {
-    if (screen === 'overview') {
+  for (const screen of ['list', 'performance']) {
+    if (screen === 'performance') {
       await page.goto(`${served.base}#/n01_u05/performance`);
-      await page.getByRole('region', { name: 'Your work' }).locator('tbody tr').first().waitFor();
+      await page.locator('[data-performance] [data-overdue-row]').first().waitFor();
     }
     for (const width of [1440, 1024, 390]) {
       await resizeTo(page, width);
@@ -450,7 +417,7 @@ test('the list, its tools, the selection bar and the Overview fit 1440, 1024 and
   await context.close();
 });
 
-test('a window reaches only lists that keep actions: a list that keeps none reads in full, is refused at most once, and never when the Overview already says so', async () => {
+test('a window reaches only lists that keep actions: a list that keeps none reads in full, is refused at most once, and is remembered after that', async () => {
   const refusal = 'this decision list keeps no actions, so it has no window of actions to show';
   const refused = [];
   const records = ({ route, json, seen }) => {
@@ -468,12 +435,15 @@ test('a window reaches only lists that keep actions: a list that keeps none read
   const listed = (page) => page.waitForFunction(() => document.querySelectorAll('.card--table tbody tr').length > 0);
   const { page, seen, context } = await openWith(appInfo(DECIDE, 2, TABLE), tracked({ records }).routes, { prefs: { window: 'today', limit: 10 } });
   await waitList(page);
-  assert.deepEqual([seen.records[0].page, seen.records[0].window, seen.records[0].window_limit], ['n01_u05', 'today', 10],
+  await page.locator('[data-inbox]').waitFor();
+  assert.deepEqual([lists(seen)[0].page, lists(seen)[0].window, lists(seen)[0].window_limit], ['n01_u05', 'today', 10],
     'a list that keeps actions gets the window and the limit on its first read');
   await page.goto(`${served.base}#/n02_u01/work`);
   await page.waitForFunction(() => document.querySelector('.ph h1')?.textContent === 'Second desk 1');
   await listed(page);
   assert.equal(refused.length, 1, 'the one refused read is asked again without the window');
+  await until(() => seen.records.some((b) => b.page === 'n02_u01' && b.changed));
+  assert.equal(await page.locator('[data-inbox]').count(), 0, 'a list that keeps no actions has no inbox and never asks it for your records');
   assert.equal(await page.locator('.card--table tbody tr').count(), 25, 'no limit applies to a list that keeps no actions');
   assert.equal(await page.locator('.tile-err').count(), 0, 'the refusal is not shown as an error');
   await until(() => !('window' in seen.records.at(-1)));
@@ -489,18 +459,6 @@ test('a window reaches only lists that keep actions: a list that keeps none read
   assert.deepEqual(fetchErrors(seen.errors), []);
   await context.close();
 
-  const hub = { today: TODAY, quarter: '2026-10-01', since: '2026-08-03', errors: {}, pages: { n01_u05: entry([]), n02_u01: { ...entry([]), actions: false, money: false } } };
-  const known = await openWith(appInfo(DECIDE, 2, TABLE), tracked({ records, overview: ({ json }) => json(200, hub) }).routes,
-    { prefs: { window: 'today', limit: 10 }, hash: '#/n01_u05/performance' });
-  await known.page.getByRole('region', { name: 'Your work' }).waitFor();
-  await known.page.goto(`${served.base}#/n02_u01/work`);
-  await listed(known.page);
-  assert.deepEqual(known.seen.records.filter((b) => b.page === 'n02_u01' && ('window' in b || 'window_limit' in b)), [],
-    'the Overview already said this use case keeps no actions, so its list is never asked with the window');
-  assert.equal(refused.length, 1);
-  assert.deepEqual(known.seen.errors, []);
-  await known.context.close();
-
   const plain = await openWith(appInfo({}, 1, TABLE), {}, { prefs: { window: 'today', limit: 10 } });
   await listed(plain.page);
   assert.deepEqual(plain.seen.records.filter((b) => 'window' in b || 'window_limit' in b), [], 'a page that tracks no decisions never sends the window');
@@ -514,25 +472,6 @@ test('a window reaches only lists that keep actions: a list that keeps none read
   assert.deepEqual(board.seen.records.filter((b) => 'window' in b || 'window_limit' in b), [], 'an informational page tracks no decisions, so it never sends the window');
   assert.deepEqual(board.seen.errors, []);
   await board.context.close();
-});
-
-test('All open names its window to the Overview, and a use case that keeps no actions is called out only once you pick a window or a limit', async () => {
-  const note = 'this use case keeps no actions, so the window does not apply to it';
-  const overview = ({ route, json, seen }) => {
-    (seen.hub ||= []).push(route.request().postDataJSON());
-    return json(200, { today: TODAY, quarter: '2026-10-01', since: '2026-08-03', errors: {}, window: { window: 'all', limit: null, today: TODAY },
-      pages: { n01_u05: { ...entry([item('t', 'Due today', TODAY)]), window_note: '' }, n02_u01: { ...entry([]), actions: false, money: false, window_note: note } } });
-  };
-  for (const [prefs, said] of [[undefined, null], [{ window: 'week' }, 'Your window does not apply to Second desk 1, because it keeps no actions.'],
-    [{ limit: 10 }, 'Your window does not apply to Second desk 1, because it keeps no actions.']]) {
-    const { page, seen, context } = await openWith(appInfo(DECIDE, 2, TABLE), { overview }, { hash: '#/n01_u05/performance', prefs });
-    await page.getByRole('region', { name: 'Your work' }).locator('tbody tr').first().waitFor();
-    if (!prefs) assert.deepEqual(seen.hub.at(-1), { window: 'all', time_zone: 'Asia/Dubai' }, 'the default asks for All open by name, in the time zone of the person');
-    if (said) assert.equal(await page.locator('[data-window-note]').innerText(), said);
-    else assert.equal(await page.locator('[data-window-note]').count(), 0, 'nobody picked a window, so none is called out');
-    assert.deepEqual(seen.errors, []);
-    await context.close();
-  }
 });
 
 const BATCH_DONE = 'a'.repeat(32);
@@ -708,19 +647,3 @@ test('in Everything the keys and the selection skip closed records and say how m
   await context.close();
 });
 
-test('Everything leaves the Overview counts as All open has them, with a limit or without, and names no window note', async () => {
-  const items = [item('t', 'Due today', TODAY), item('w', 'Due next week', '2026-11-04')];
-  const asked = {};
-  for (const prefs of [{ window: 'all' }, { window: 'everything' }, { window: 'all', limit: 10 }, { window: 'everything', limit: 10 }]) {
-    const { page, seen, context } = await openWith(appInfo(DECIDE, 2, TABLE), { overview: hubOf(items) }, { hash: '#/n01_u05/performance', prefs });
-    const work = page.getByRole('region', { name: 'Your work' });
-    await work.locator('tbody tr').first().waitFor();
-    asked[JSON.stringify(prefs)] = { body: seen.hub.at(-1), rows: await work.locator('tbody tr').allInnerTexts(), note: await page.locator('[data-window-note]').count() };
-    assert.deepEqual(seen.errors, []);
-    await context.close();
-  }
-  assert.deepEqual(asked['{"window":"everything"}'], asked['{"window":"all"}']);
-  assert.deepEqual(asked['{"window":"everything","limit":10}'], asked['{"window":"all","limit":10}']);
-  assert.deepEqual(asked['{"window":"everything"}'].body, { window: 'all', time_zone: 'Asia/Dubai' });
-  assert.equal(asked['{"window":"everything"}'].note, 0);
-});

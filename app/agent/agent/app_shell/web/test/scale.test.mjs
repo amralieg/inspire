@@ -1,7 +1,7 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
-import { appInfo, FILTERS, idle, openApp, serveDist, TABLE } from './harness.mjs';
+import { appInfo, FILTERS, idle, NO_MY_WORK, openApp, serveDist, TABLE } from './harness.mjs';
 
 let served;
 let browser;
@@ -16,6 +16,10 @@ function counting() {
       const body = route.request().postDataJSON();
       (seen.hub ||= []).push(body);
       return json(200, { today: '2026-10-24', quarter: '2026-10-01', since: '2026-08-03', errors: {}, pages: {} });
+    },
+    my_work: ({ route, json, seen }) => {
+      (seen.work ||= []).push(route.request().postDataJSON());
+      return json(200, NO_MY_WORK);
     },
   };
 }
@@ -103,7 +107,7 @@ test('the decision list and the page start with the stored default dates while t
   await context.close();
 });
 
-test('opening a use case page never asks for the overview of every use case, and Performance asks for it once it opens', async () => {
+test('opening a use case page never asks for the overview of every use case or for Performance, and Performance asks for its own use case once it opens', async () => {
   const single = await openApp(browser, served.base, appInfo({}, 1, TABLE), { routes: counting() });
   await single.page.locator('.kpi-v').first().waitFor();
   await idle(single.page);
@@ -113,11 +117,12 @@ test('opening a use case page never asks for the overview of every use case, and
   const hub = await openApp(browser, served.base, appInfo({ business: 'Contoso Retail' }, 2, TABLE), { routes: counting() });
   await hub.page.locator('.kpi-v').first().waitFor();
   await hub.page.waitForTimeout(500);
-  assert.deepEqual(overviews(hub.seen), [], 'a use case dashboard never reads every use case');
+  assert.deepEqual([overviews(hub.seen), hub.seen.work || []], [[], []], 'a use case dashboard never reads every use case, nor Performance');
   await hub.page.locator('[data-rail="performance"]').click();
-  await hub.page.locator('[data-my-work]').waitFor();
+  await hub.page.locator('[data-performance]').waitFor();
   await hub.page.waitForTimeout(300);
-  assert.equal(overviews(hub.seen).length, 1, 'Performance reads every use case once someone opens it');
+  assert.deepEqual(overviews(hub.seen), [], 'Performance never reads every use case');
+  assert.deepEqual(hub.seen.work.map((b) => b.page), ['n01_u05'], 'Performance reads its own use case once someone opens it');
   assert.deepEqual(hub.seen.errors, []);
   await hub.context.close();
 });

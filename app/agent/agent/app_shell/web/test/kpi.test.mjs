@@ -155,11 +155,10 @@ test('the target KPI shows its baseline, latest value and target, and says not m
   assert.equal(targetKpiView({ currency: 'USD' }), null, 'a run from before the KPI step shows no KPI card');
 });
 
-const NO_WORK = { my_work: ({ json }) => json(200, { period: null, pages: {}, activity: [], total: 0, errors: {} }) };
 
 test('Performance counts a productivity use case in hours and shows its target KPI', async () => {
   const info = appInfo({}, 1, { ...TABLE, promised: null });
-  const routes = { ...NO_WORK, impact: ({ json }) => json(200, ENTRY), summary: ({ json }) => json(200, { run: HOURS_RUN, categories: {}, note: '' }) };
+  const routes = { impact: ({ json }) => json(200, ENTRY), summary: ({ json }) => json(200, { run: HOURS_RUN, categories: {}, note: '' }) };
   const { page, seen, context } = await openApp(browser, served.base, info, { width: 1440, routes, hash: `#/${info.pages[0].id}/performance`, ready: '.imp-kpi' });
   await page.waitForFunction(() => /hours/.test(document.querySelector('[data-figure="estimated"] b')?.innerText || ''));
   const card = page.locator('.imp-kpi');
@@ -217,7 +216,6 @@ test('a use case counted in FTE shows FTE on its decision list, record panel and
   const info = appInfo({}, 1, { ...TABLE, records: USD_LIST });
   const id = info.pages[0].id;
   const routes = {
-    ...NO_WORK,
     summary: ({ json }) => json(200, { run: fteRun, categories: {}, note: '' }),
     impact: ({ json }) => json(200, ENTRY),
     'records/history': ({ json, url }) => json(200, { record_key: url.searchParams.get('record_key'), fields: [], versions: [], current: null,
@@ -253,7 +251,7 @@ test('a baseline taken on a table the person swapped is flagged with the reason 
   assert.equal(view.baselineFlagged, true);
   assert.equal(targetKpiView(HOURS_RUN).baselineFlagged, false, 'a baseline on the table it is measured on is not flagged');
   const info = appInfo({}, 1, { ...TABLE, promised: null });
-  const routes = { ...NO_WORK, impact: ({ json }) => json(200, ENTRY), summary: ({ json }) => json(200, { run: { ...HOURS_RUN, kpi_reason: reason }, categories: {}, note: '' }) };
+  const routes = { impact: ({ json }) => json(200, ENTRY), summary: ({ json }) => json(200, { run: { ...HOURS_RUN, kpi_reason: reason }, categories: {}, note: '' }) };
   const { page, seen, context } = await openApp(browser, served.base, info, { width: 1440, routes, hash: `#/${info.pages[0].id}/performance`, ready: '.imp-kpi .imp-kpi-note' });
   const card = page.locator('.imp-kpi');
   assert.equal(await card.locator('.imp-kpi-note').innerText(), view.note);

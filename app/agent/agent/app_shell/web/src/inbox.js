@@ -1,5 +1,5 @@
 import { entityName } from './format.js';
-import { NEW, isClosed, isOverdue, recordKeyOf, statusLabel } from './records.js';
+import { NEW, isClosed, isOverdue, missingSince, recordKeyOf, statusLabel } from './records.js';
 
 export const DUE_DAYS = 3;
 export const INBOX_ROWS = 50;
@@ -23,7 +23,7 @@ function itemOf(row, meta, today) {
   const status = row._inspire_status || NEW;
   const due = row._inspire_due ? String(row._inspire_due).slice(0, 10) : '';
   return { key: String(key), label: entityName(row, meta?.label) || String(key), status: statusLabel(status), due,
-    late: isOverdue(due, status, today) };
+    late: isOverdue(due, status, today), kept: !!missingSince(row) };
 }
 
 export function inboxGroups({ changed = [], mine = [], unowned = [], meta, lastVisit = 0, today }) {

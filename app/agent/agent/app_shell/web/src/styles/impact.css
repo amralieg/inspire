@@ -30,6 +30,8 @@
 .imp-kpi dd.is-flagged{color:var(--amber-ink)}
 .imp-reasons li{display:flex;gap:8px;justify-content:space-between}
 .tbl--closed td small{display:block;font-size:11.5px;color:var(--muted);white-space:normal}
+@container main (max-width: 820px){.tbl--closed .c-state{display:none}}
+@container main (max-width: 600px){.tbl--closed .c-outcome,.tbl--closed .c-closed{display:none}.tbl--closed td.num{white-space:normal}}
 .tier--held-back{background:var(--blue-bg);color:var(--blue-ink);border-color:var(--blue-bd)}
 .status--could-not-fix{background:var(--amber-bg);color:var(--amber-ink);border-color:var(--amber-bd)}
 .panel .held{display:flex;gap:8px;align-items:flex-start;padding:14px 16px;border-radius:12px;background:var(--blue-bg);border:1px solid var(--blue-bd);color:var(--blue-ink);font-size:14.5px}

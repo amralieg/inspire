@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { build } from 'vite';
 import react from '@vitejs/plugin-react';
 import { ensureDist } from './freshDist.mjs';
+import { INBOX_ROWS } from '../src/inbox.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const DIST = join(HERE, '..', 'dist');
@@ -242,6 +243,19 @@ export function tracked(overrides = {}) {
 export const NO_HUB = { today: '2026-10-24', quarter: '2026-10-01', since: '2026-08-03', pages: {}, errors: {} };
 export const NO_SUMMARY = { run: null, categories: {}, note: 'no run of this use case has written its summary yet' };
 export const NO_MY_WORK = { person: '', period: { window: 'week', zone: 'UTC', today: '2026-10-24', start_day: '2026-10-19', end_day: '2026-10-26' }, errors: {}, offset: 0, size: 50, total: 0, pages: {}, activity: [] };
+export const WORK_WEEK = NO_MY_WORK.period;
+export const WORKED = { fixed: 2, dismissed: 1, could_not: 1, assigned: 1, notes: 1, changes: 9, records: 6 };
+export const workMoney = (m, r, e) => ({ measured: { n: m ? 1 : 0, money: m }, reported: { n: r ? 1 : 0, money: r }, estimated: { n: e ? 2 : 0, money: e } });
+export const WORK_TEAM = { closed: { fixed: 6, dismissed: 3, could_not: 1 }, total: 10, people: 3, close: { n: 10, median_hours: 60 } };
+export const workEntry = (over = {}) => ({
+  visible: true, tracked: true, priced: true, worked: WORKED, active_hours: 4, money: workMoney(900, 500, 3000), close: { n: 4, median_hours: 53 },
+  best: { key: 'R002', label: 'Item R002', basis: 'measured', money: 900, closed: '2026-10-22T06:00:00Z' }, activity: [], minutes: null, served: 'delta',
+  team: WORK_TEAM, weeks: [{ week: '2026-10-12', n: 1 }, { week: '2026-10-19', n: 3 }],
+  outcomes: { left: 1, missing: 0, resolved: 1, flagged: 0, unchecked: 0 },
+  overdue: { n: 3, items: [{ key: 'R001', label: 'Item R001', due: '2026-10-20' }, { key: 'R003', label: 'Item R003', due: '2026-10-22' }] }, ...over,
+});
+export const myWorkOf = (pageId, over = {}, activity = []) => ({ ...NO_MY_WORK, person: PERSON, pages: { [pageId]: workEntry(over) }, activity, total: activity.length });
+export const isInboxAsk = (body) => !!body && (body.changed === true || ((body.mine === true || body.unowned === true) && body.window === 'all' && body.limit === INBOX_ROWS && !body.offset));
 export const NO_RUNS = { runs: [], total: 0, offset: 0, limit: 20, job: null, errors: {} };
 export const NO_MONEY = { model: null, history: [], editable: false, why: 'this page puts no amount at stake on its records' };
 export const NO_SETTINGS = { settings: [], history: [], editable: false, why: 'Only the owners of this use case can change its settings', can_run: false };

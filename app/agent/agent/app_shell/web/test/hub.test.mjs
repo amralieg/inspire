@@ -1,7 +1,7 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
-import { appInfo, ASK_GROUPS, askAudit, chartsDrawn, goRail, idle, openApp, pickCase, serveDist, TABLE, until } from './harness.mjs';
+import { appInfo, ASK_GROUPS, askAudit, chartsDrawn, goRail, idle, myWorkOf, openApp, pickCase, serveDist, TABLE, until } from './harness.mjs';
 import { wholeMoney } from '../src/format.js';
 import {
   DEFAULT_VIEW, dueText, isMine, moneyText, nothingText, ownerName, pickReason, reasonFilters,
@@ -80,8 +80,35 @@ function hubRoutes(hub = HUB, summaries = SUMMARIES) {
         valid_from: '2026-10-20T06:00:00.000Z', valid_to: null, is_current: true, change_source: 'run', changed_by: 'run 7', valid_from_us: '101' };
       return json(200, { record_key: key, fields: HISTORY_FIELDS, versions: [current], current, deleted: false, truncated: false });
     },
+    my_work: ({ route, json, seen }) => {
+      const body = route.request().postDataJSON();
+      (seen.work ||= []).push(body);
+      const items = OVERDUE[body.page] || [];
+      return json(200, myWorkOf(body.page, { overdue: { n: items.length, items } }));
+    },
+    impact: ({ json, url, seen }) => {
+      (seen.impact ||= []).push(url.searchParams.get('page'));
+      return json(200, IMPACT);
+    },
   };
 }
+
+const OVERDUE = {
+  n01_u05: [{ key: 'a', label: 'Blue denim jacket, store 12', due: '2026-10-20' }, { key: 'd', label: 'Leather boots, store 2', due: '2026-10-21' },
+    { key: 'b', label: 'Wool coat, store 4', due: '2026-10-22' }],
+  n02_u01: [{ key: 'c', label: 'Supplier 3381, invoice 77188', due: '2026-10-22' }],
+};
+const closedRecord = (key, label, measured, reported) => ({ key, label, status: 'Done', state: 'left', reason: null, note: null, at_close: measured || reported, now: 0,
+  measured, reported, closed: '2026-10-21T06:00:00Z' });
+const IMPACT = {
+  visible: true, tracked: true, money: true, holds: false, since: '2026-10-01', served: 'delta', current: { records: 20, held: 0 },
+  estimated: { 'Act now': { n: 2, money: 15600 }, Review: { n: 1, money: 1800 } }, reported: { n: 1, n_since: 1, money: 2400, money_since: 2400 },
+  measured: { n: 2, n_since: 2, money: 13550, money_since: 13550 },
+  closed: { Done: { n: 3, n_since: 3 }, Dismissed: { n: 0, n_since: 0 }, 'Could not fix': { n: 0, n_since: 0 } },
+  outcomes: { left: 3, missing: 0, resolved: 0, flagged: 0, unchecked: 0 }, reasons: [], holdout: null,
+  records: [closedRecord('g1', 'Rain jacket with a long descriptive name, store 7', 8400, null), closedRecord('g2', 'Supplier 2207, invoice 51120', 5150, null),
+    closedRecord('g3', 'Canvas tote, store 3', null, 2400)],
+};
 
 const field = (name, kind, role = 'business', type = 'STRING') => ({ name, kind, role, type, editable: false });
 const HISTORY_FIELDS = [field('entity_id', 'text', 'id'), field('entity_label', 'text'), field('priority_tier', 'text'), field('record_key', 'text', 'history'),
@@ -252,21 +279,23 @@ test('each use case keeps its own Genie chat with its own Genie Agent, and a pag
 });
 
 const tableFit = (page) => page.evaluate(() => {
-  const wrap = document.querySelector('.tbl--mine').closest('.tbl-wrap');
+  const wrap = document.querySelector('.tbl--closed').closest('.tbl-wrap');
   const edge = wrap.getBoundingClientRect().right + 1;
+  const money = [...document.querySelectorAll('.tbl--closed tbody td.num')];
   return {
     scroll: wrap.scrollWidth - wrap.clientWidth, page: document.documentElement.scrollWidth - document.documentElement.clientWidth,
-    money: [...document.querySelectorAll('.tbl--mine td.c-money')].every((td) => td.getBoundingClientRect().right <= edge && td.offsetWidth > 40),
-    ask: [...document.querySelectorAll('.tbl--mine .row-ask')].every((b) => b.getBoundingClientRect().right <= b.closest('td').getBoundingClientRect().right + 0.5),
+    money: money.length === 6 && money.every((td) => td.getBoundingClientRect().right <= edge && td.offsetWidth > 40),
+    ask: [...document.querySelectorAll('.tbl--closed tbody .ask-genie')].every((b) => b.getBoundingClientRect().right <= b.closest('td').getBoundingClientRect().right + 0.5),
   };
 });
 
-for (const [width, label] of [[1440, 'Ask Genie'], [1024, 'Ask Genie'], [390, '']]) {
-  test(`the money of every record in Your work stays in view without a sideways scroll at ${width} px`, async () => {
+for (const width of [1440, 1024, 390]) {
+  test(`the money of every closed record on Performance stays in view without a sideways scroll at ${width} px`, async () => {
     const { page, seen, context } = await open(INFO(), { width, hash: '#/n01_u05/performance' });
-    await page.locator('.tbl--mine tbody tr').first().waitFor();
+    await page.locator('.tbl--closed tbody tr').nth(2).waitFor();
     assert.deepEqual(await tableFit(page), { scroll: 0, page: 0, money: true, ask: true });
-    assert.deepEqual(new Set(await page.locator('.tbl--mine .row-ask').allInnerTexts()), new Set([label]));
+    assert.equal(await page.locator('.tbl--closed tbody .ask-genie').count(), 3, 'each closed record keeps its Ask Genie in view');
+    assert.deepEqual(await page.locator('.tbl--closed tbody td.num').allInnerTexts().then((t) => t.filter((x) => x.trim()).length), 3);
     assert.deepEqual(seen.errors, []);
     await context.close();
   });
@@ -545,13 +574,14 @@ test('every card, key number and row on Performance and on a Runs view shows a v
   const { calls, routes, release } = explainHub();
   release();
   const { page, seen, context } = await open(INFO(), { routes: { ...routes, runs: ({ json }) => json(200, ORDER_RUNS) }, hash: '#/n01_u05/performance' });
-  await page.locator('.tbl--mine tbody tr').first().waitFor();
+  await page.locator('[data-overdue-row]').first().waitFor();
+  await page.locator('.tbl--closed tbody tr').first().waitFor();
   const perf = await page.evaluate(askAudit, ASK_GROUPS);
   assert.deepEqual([perf.missing, perf.hidden], [[], []], 'Performance: 0 missing, 0 hidden');
-  assert.ok(perf.counts.row >= 3, JSON.stringify(perf.counts));
-  const work = page.getByRole('region', { name: 'Your work' });
-  assert.equal(await work.locator('tbody .row-ask').count(), 3, 'with Genie on, each of your records asks about itself, like a thing to fix');
-  await work.getByRole('button', { name: 'Ask Genie about Leather boots, store 2', exact: true }).click();
+  assert.ok(perf.counts.row >= 6, JSON.stringify(perf.counts));
+  const overdue = page.getByRole('region', { name: 'Overdue items you own' });
+  assert.equal(await overdue.locator('tbody .row-ask').count(), 3, 'with Genie on, each overdue record asks about itself, like a thing to fix');
+  await overdue.getByRole('button', { name: 'Ask Genie about Leather boots, store 2', exact: true }).click();
   assert.equal(await page.locator('.g-chip-t').innerText(), 'About: Leather boots, store 2');
   assert.match(await page.locator('aside.genie .g-h small').innerText(), /^Answers from the Genie Agent/);
   await page.getByRole('button', { name: 'Stop asking about Leather boots, store 2' }).click();
@@ -574,57 +604,50 @@ test('a record of a use case with Ask Genie off still shows Ask Genie on Perform
   const { calls, routes } = explainHub();
   const info = INFO();
   info.pages[0].genie = { enabled: false, title: '', url: '', note: 'The Genie Agent of this use case did not build.' };
-  const { page, seen, context } = await open(info, { routes, hash: '#/n02_u01/performance' });
-  await page.locator('.tbl--mine tbody tr').first().waitFor();
+  const { page, seen, context } = await open(info, { routes, hash: '#/n01_u05/performance' });
+  await page.locator('[data-overdue-row]').first().waitFor();
   const found = await page.evaluate(askAudit, ASK_GROUPS);
   assert.deepEqual([found.missing, found.hidden], [[], []]);
-  const work = page.getByRole('region', { name: 'Your work' });
-  assert.deepEqual([await work.locator('tbody .row-ask').count(), await work.locator('tbody .ask-genie').count()], [1, 2], 'its 2 records keep a visible Ask Genie');
-  await work.getByRole('button', { name: 'Ask Genie about Leather boots, store 2', exact: true }).click();
+  const overdue = page.getByRole('region', { name: 'Overdue items you own' });
+  assert.deepEqual([await overdue.locator('tbody .row-ask').count(), await overdue.locator('tbody .ask-genie').count()], [0, 3], 'its 3 records keep a visible Ask Genie');
+  await overdue.getByRole('button', { name: 'Ask Genie about Leather boots, store 2', exact: true }).click();
   await page.locator('aside.genie').waitFor();
   assert.equal(await page.locator('form.ask-box').count(), 0);
   assert.equal(calls.explain.length, 0);
   assert.deepEqual(seen.errors, []);
   await context.close();
+  const on = await open(info, { routes, hash: '#/n02_u01/performance' });
+  await on.page.locator('[data-overdue-row]').first().waitFor();
+  assert.equal(await on.page.getByRole('region', { name: 'Overdue items you own' }).locator('tbody .row-ask').count(), 1, 'a use case with Genie on asks about its record');
+  assert.deepEqual(on.seen.errors, []);
+  await on.context.close();
 });
 
-const HUB_NOTE = 'Each use case has its own Genie Agent. Open a use case to ask Genie about it or to explain its charts.';
-
-test('with several use cases the Impact charts have no Explain and say where to explain them, and with one use case Impact explains its charts', async () => {
-  const many = await open(INFO(), { hash: '#/n01_u05/performance' });
-  await many.page.getByRole('heading', { name: 'Impact', exact: true }).waitFor();
-  await many.page.locator('[data-bars="saved_weeks"] .vb').waitFor();
-  assert.equal(await many.page.locator('.explain-btn').count(), 0);
-  assert.equal(await many.page.locator('.charts + .note').innerText(), HUB_NOTE);
-  assert.deepEqual(many.seen.errors, []);
-  await many.context.close();
-
+test('the Performance charts explain with the Genie of their own use case, wait while it answers, and have no Explain while Ask Genie is off', async () => {
   const { calls, routes, release } = explainHub();
-  const { page, seen, context } = await openApp(browser, served.base, appInfo({ business: 'Contoso Retail' }, 1, TABLE), { width: 1440, routes });
-  await page.goto(`${served.base}#/impact`);
-  await page.getByRole('heading', { name: 'Impact', exact: true }).waitFor();
-  await page.locator('[data-bars="saved_weeks"] .vb').waitFor();
-  assert.equal(await page.locator('.note', { hasText: HUB_NOTE }).count(), 0, 'one use case answers about its own Impact charts');
+  const { page, seen, context } = await open(INFO(), { routes, hash: '#/n01_u05/performance' });
+  await page.locator('[data-bars="weekly_closed"] .vb').first().waitFor();
   const buttons = page.locator('.charts .explain-btn');
   assert.ok(await buttons.count() >= 1);
-  await page.locator('[data-bars="saved_weeks"] .explain-btn').click();
+  await page.locator('[data-bars="weekly_closed"] .explain-btn').click();
   await until(() => calls.explain.length === 1);
   const weeks = calls.explain[0];
-  assert.deepEqual([weeks.kind, weeks.page, weeks.title, weeks.context.type, weeks.context.x, weeks.context.measures, weeks.context.row_count, weeks.context.filters, weeks.context.hint],
-    ['chart', 'impact', 'Saved per week', 'bar', 'Week', ['Saved'], 12, '', 'Measured on fixes a later run confirmed, by week']);
-  assert.deepEqual([weeks.context.rows.at(-1).Week, weeks.context.rows.at(-1).Saved], ['Oct 19', 3000]);
+  assert.deepEqual([weeks.kind, weeks.page, weeks.title, weeks.context.x, weeks.context.measures],
+    ['chart', 'n01_u05', 'Items you closed, by week', 'Week', ['Items']]);
   await page.locator('aside.genie .g-step').waitFor();
-  assert.equal(await page.locator('.msg--you').last().locator('p').innerText(), 'Explain \u201cSaved per week\u201d');
+  assert.equal(await page.locator('.msg--you').last().locator('p').innerText(), 'Explain \u201cItems you closed, by week\u201d');
   assert.ok((await buttons.evaluateAll((els) => els.map((e) => [e.disabled, e.title]))).every(([d, t]) => d && t === 'Genie is still answering'));
   release();
   await page.locator('.msg-sql').waitFor({ timeout: 15000 });
   assert.ok((await buttons.evaluateAll((els) => els.map((e) => e.disabled))).every((d) => !d));
   assert.deepEqual(seen.errors, []);
   await context.close();
-  const off = await open(appInfo({ business: 'Contoso Retail', genie: null, genie_note: 'The Genie Agent did not build.' }, 1, TABLE));
-  await off.page.goto(`${served.base}#/impact`);
-  await off.page.locator('[data-bars="saved_weeks"] .vb').waitFor();
+  const info = INFO();
+  info.pages[0].genie = { enabled: false, title: '', url: '', note: 'The Genie Agent of this use case did not build.' };
+  const off = await open(info, { hash: '#/n01_u05/performance' });
+  await off.page.locator('[data-bars="weekly_closed"] .vb').first().waitFor();
   assert.equal(await off.page.locator('.explain-btn').count(), 0, 'no Explain while Ask Genie is off');
+  assert.deepEqual(off.seen.errors, []);
   await off.context.close();
 });
 
@@ -652,9 +675,10 @@ test('a hub whose Impact screen is off shows no Impact on Performance and its ol
   const { page, seen, context } = await open(info);
   await page.goto(`${served.base}#/impact`);
   await page.waitForFunction(() => location.hash === '#/n01_u05/performance');
-  await page.locator('[data-my-work]').waitFor();
+  await page.locator('[data-performance] [data-overdue-row]').first().waitFor();
   assert.equal(await page.locator('[data-rail="performance"]').getAttribute('aria-current'), 'page');
   assert.equal(await page.locator('.imp').count(), 0);
+  assert.deepEqual(seen.impact || [], [], 'the Impact screen is off, so Performance never asks for it');
   assert.deepEqual(seen.errors, []);
   await context.close();
 });

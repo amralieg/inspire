@@ -114,7 +114,11 @@ test('a use case with nothing to fix always says why, from the run or from what 
 
 test('every money number on a use case dashboard and on Performance shows its formula on hover and on focus', async () => {
   const seen = {};
-  const { page, seen: app, context } = await openApp(browser, served.base, INFO(), { width: 1440, routes: routes(seen), hash: '#/n01_u05/dashboard' });
+  const impact = { visible: true, tracked: true, money: true, holds: false, since: '2026-10-01', served: 'delta', current: { records: 20, held: 0 },
+    estimated: { 'Act now': { n: 0, money: 0 }, Review: { n: 0, money: 0 } }, reported: { n: 0, n_since: 0, money: null, money_since: null },
+    measured: { n: 2, n_since: 2, money: 13550, money_since: 13550 }, closed: { Done: { n: 2, n_since: 2 }, Dismissed: { n: 0, n_since: 0 }, 'Could not fix': { n: 0, n_since: 0 } },
+    outcomes: { left: 2, missing: 0, resolved: 0, flagged: 0, unchecked: 0 }, reasons: [], holdout: null, records: [] };
+  const { page, seen: app, context } = await openApp(browser, served.base, INFO(), { width: 1440, routes: { ...routes(seen), impact: ({ json }) => json(200, impact) }, hash: '#/n01_u05/dashboard' });
   const save = page.locator('[data-tile="save"] .kpi-v');
   await page.waitForFunction(() => document.querySelector('[data-tile="save"] .kpi-v')?.textContent === '$8,850');
   assert.equal(await tipOf(page, save), 'Money at stake on the 2 things to fix, added up: Blue denim jacket $7,500 + Wool coat $1,350 = '
@@ -122,9 +126,9 @@ test('every money number on a use case dashboard and on Performance shows its fo
   const saved = page.locator('[data-tile="saved"] .kpi-v');
   assert.match(await tipOf(page, saved), /^The money at stake each fix had when it was fixed, less what a later run still finds, added up over the \d+ fixes? a later run confirmed = \$[\d,]+$/);
   await page.locator('[data-rail="performance"]').click();
-  const week = page.locator('[data-bars="saved_weeks"] .vb-c').last();
-  await week.waitFor();
-  assert.match(await tipOf(page, week), /^Money at stake when fixed, less what a later run still finds, on the fixes a later run confirmed in the week of Oct 19, added up = \$\d/);
+  const measured = page.locator('[data-promised-delivered] [data-figure="measured"] .fx-n');
+  await measured.waitFor();
+  assert.match(await tipOf(page, measured), /^On each of the 2 fixes a later run confirmed: \S.* at stake when fixed minus what that run still finds, added up = \$13,550$/);
   assert.deepEqual(app.errors, []);
   await context.close();
 });
