@@ -33,11 +33,20 @@ def follows_the_conversation(body):
 
 
 @pytest.mark.parametrize("question", FOLLOW_UPS)
-def test_a_short_follow_up_is_judged_with_the_conversation_and_the_record_on_screen(tmp_path, question):
-    llm = FakeLLM([said("Reconcile the payments on Bill 1133 and assign an owner.")], related=follows_the_conversation)
+def test_a_short_follow_up_with_no_other_subject_is_related_without_the_check(tmp_path, question):
+    llm = FakeLLM([said("Reconcile the payments on Bill 1133 and assign an owner.")], related=lambda body: False)
     s, _ws, _made = agent_shell(tmp_path, ws=AgentWorkspace(llm=llm))
     turn = ask(s, question, history=FLAGGED, record_key="k1", view={"element": {"kind": "chart", "title": "Age and status of billing breaks"}})
     assert turn["refused"] is False and turn["answer"].startswith("Reconcile"), turn
+    assert len(llm.main_calls()) == len(llm.bodies) == 1, "a follow-up anchored to the record never waits on the check"
+
+
+def test_an_anchored_question_with_its_own_subject_is_judged_with_the_conversation_and_the_item_on_screen(tmp_path):
+    question = "how does this compare with the Roman empire's tax collection?"
+    llm = FakeLLM([said("Reconcile the payments on Bill 1133.")], related=follows_the_conversation)
+    s, _ws, _made = agent_shell(tmp_path, ws=AgentWorkspace(llm=llm))
+    turn = ask(s, question, history=FLAGGED, record_key="k1", view={"element": {"kind": "chart", "title": "Age and status of billing breaks"}})
+    assert turn["refused"] is False
     data = guard_data(llm)
     assert data["person_asks"] == question
     assert data["earlier_turns"] == [{"question": "Why is Bill 1133 flagged?",
@@ -49,7 +58,8 @@ def test_the_guard_sees_only_the_last_turns_cut_short():
     long_answer = "x" * 2000
     history = [{"question": f"q{i}", "answer": long_answer} for i in range(6)]
     llm = FakeLLM([said("ok")], related=lambda body: True)
-    job = {"page": {"id": "p", "title": "T"}, "view": {}, "selected": None, "history": history, "question": "why?"}
+    job = {"page": {"id": "p", "title": "T"}, "view": {}, "selected": None, "history": history,
+           "question": "How does the discount policy compare with what the regional teams reported last quarter?"}
 
     class Shell:
         def app_title(self):
@@ -77,10 +87,8 @@ def test_off_topic_and_prompt_probes_are_refused_even_after_an_on_topic_conversa
     s, ws, _made = agent_shell(tmp_path, ws=AgentWorkspace(llm=llm))
     turn = ask(s, question, history=FLAGGED, record_key="k1")
     assert turn == dict(turn, state="done", answer=shell_agent.OFF_TOPIC, refused=True, steps=[], actions=[], confirm=None)
-    assert llm.main_calls() == [] and len(llm.bodies) == 1, "an on-topic history never lets a question skip the guard"
+    assert llm.bodies == [], "an on-topic history and a record on screen never let a probe past the rule"
     assert ws.queries("MERGE INTO") == []
-    data = guard_data(llm)
-    assert data["person_asks"] == question and data["earlier_turns"][0]["question"] == FLAGGED[0]["question"]
 
 
 def test_the_guard_prompt_lets_follow_ups_in_and_keeps_off_topic_and_prompt_probes_out():
@@ -113,10 +121,11 @@ def test_cut_lines_caps_the_text_and_never_returns_more_than_asked():
 
 
 def test_a_long_answer_is_cut_at_the_cap(tmp_path):
-    llm = FakeLLM([said("line\n" * 3000)], related=lambda body: True)
+    llm = FakeLLM([said("line\n" * 3000), said("word " * 3000)], related=lambda body: True)
     s, _ws, _made = agent_shell(tmp_path, ws=AgentWorkspace(llm=llm))
     answer = ask(s, "List them")["answer"]
-    assert len(answer) == shell_agent.ANSWER_CHARS and answer.endswith("…") and "\n" in answer
+    assert len(answer) == shell_agent.ANSWER_CHARS and answer.endswith("…")
+    assert shell_agent.shape_answer("line\n" * 3000) == "line\nline"
 
 
 def test_the_main_prompt_asks_for_a_short_direct_formatted_answer_with_numbers_from_tools(tmp_path):
@@ -125,8 +134,8 @@ def test_the_main_prompt_asks_for_a_short_direct_formatted_answer_with_numbers_f
     ask(s, "Which cause leads?")
     system = llm.main_calls()[0]["messages"][0]["content"]
     assert shell_agent.BRIEF in system and "{brief}" not in system
-    for phrase in ("direct answer in one or two sentences", "at most four short bullets", "never restate the question", "Here is",
-                   "Bottom line", "generic advice", "one small markdown table", "at most six rows", "on its own line",
+    for phrase in ("direct answer in one or two sentences", "at most 4 bullets of at most 20 words", "never restate the question", "Here is",
+                   "Bottom line", "generic advice", "one small markdown table", "at most 6 rows", "on its own line",
                    "never write a table or a list inside a sentence", "never let a bold label run into the sentence after it",
                    "Every number comes from the context or a tool result", "one or two concrete next steps"):
         assert phrase in system, phrase

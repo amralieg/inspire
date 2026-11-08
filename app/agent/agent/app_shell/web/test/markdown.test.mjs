@@ -94,3 +94,14 @@ test('pipes without a separator row, a lone rule and a horizontal rule are not t
   assert.deepEqual(markdownBlocks('Above\n\n---\n\nBelow'), [{ type: 'p', text: 'Above' }, { type: 'hr' }, { type: 'p', text: 'Below' }]);
   assert.deepEqual(markdownBlocks('- - -'), [{ type: 'hr' }]);
 });
+
+const SHAPED_ROW = ['This row is for **franchise 3000046**, showing a sale of **$450 across 3 transactions** on **May 12, 2024** for **Golden Gate Ginger** (paid by Amex, in the Current 7-day window). It appears in this weekly sales driver review because:',
+  '', '- It falls within the **current 7-day sales window** being reviewed (May 4-17, 2024).', '- Its **main sales driver is Volume**.', '- It is tagged **Action tier: Monitor**.'].join('\n');
+
+test('a shaped answer with bold labels in its bullets reads as one paragraph and one list', () => {
+  const blocks = markdownBlocks(SHAPED_ROW);
+  assert.deepEqual(blocks.map((b) => b.type), ['p', 'ul']);
+  assert.deepEqual(blocks[1].items, ['It falls within the **current 7-day sales window** being reviewed (May 4-17, 2024).',
+    'Its **main sales driver is Volume**.', 'It is tagged **Action tier: Monitor**.']);
+  assert.deepEqual(inlineParts(blocks[1].items[2]), [{ kind: 'text', text: 'It is tagged ' }, { kind: 'strong', text: 'Action tier: Monitor' }, { kind: 'text', text: '.' }]);
+});

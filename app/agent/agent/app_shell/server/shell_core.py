@@ -3303,7 +3303,10 @@ class Shell:
         space = self.genie_space(self.genie_page(query.get("page")))
         conversation, message = genie_ids(query)
         ws, _who = self.workspace(headers)
-        return ws.genie_message(space, conversation, message, row_limit=GENIE_PREVIEW_ROWS)
+        out = ws.genie_message(space, conversation, message, row_limit=GENIE_PREVIEW_ROWS)
+        if out.get("state") == "done" and out.get("text"):
+            out = dict(out, text=shell_agent.shape_answer(out["text"]))
+        return out
 
     def genie_feedback(self, headers: dict, data: dict) -> dict:
         page = self.genie_page(data.get("page"))

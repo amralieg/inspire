@@ -228,3 +228,25 @@ test('an answer with a heading, bullets and a markdown table renders as those el
     await context.close();
   }
 });
+
+test('a multi-bullet answer renders as a list with bold labels, never as bullets run into a sentence', async () => {
+  const answer = ['This row is for **franchise 3000046**, showing a sale of **$450 across 3 transactions** on **May 12, 2024** for **Golden Gate Ginger** (paid by Amex, in the Current 7-day window). It appears in this weekly sales driver review because:',
+    '', '- It falls within the **current 7-day sales window** being reviewed (May 4-17, 2024).', '- Its **main sales driver is Volume**.', '- It is tagged **Action tier: Monitor**.'].join('\n');
+  const { routes } = agentRoutes({ ...DONE_TURN, answer, actions: [], confirm: null, steps: [], genie: null });
+  const { page, seen, context } = await openApp(browser, served.base, appInfo(), { routes });
+  try {
+    await askAgent(page, 'Why is this row here?');
+    const reply = page.locator('.genie .msg-b').last();
+    await reply.locator('li').nth(2).waitFor();
+    await reply.locator('.cursor').waitFor({ state: 'detached' });
+    assert.deepEqual(await reply.locator('ul > li').allInnerTexts(), ['It falls within the current 7-day sales window being reviewed (May 4-17, 2024).',
+      'Its main sales driver is Volume.', 'It is tagged Action tier: Monitor.']);
+    assert.deepEqual(await reply.locator('li strong').allInnerTexts(), ['current 7-day sales window', 'main sales driver is Volume', 'Action tier: Monitor']);
+    assert.equal(await reply.locator('p').count(), 1);
+    assert.ok(!(await reply.locator('p').innerText()).includes(' - '));
+    assert.ok(!(await reply.innerText()).includes('**'));
+    assert.deepEqual(seen.errors, []);
+  } finally {
+    await context.close();
+  }
+});

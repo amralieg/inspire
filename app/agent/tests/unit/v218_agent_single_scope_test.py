@@ -66,10 +66,7 @@ def test_an_injection_question_is_still_refused_on_the_guard_path(tmp_path):
     s, ws, _made = agent_shell(tmp_path, ws=AgentWorkspace(llm=llm))
     turn = ask(s, question)
     assert turn["refused"] is True and turn["answer"] == shell_agent.OFF_TOPIC and turn["confirm"] is None
-    assert llm.main_calls() == [] and ws.queries("MERGE INTO") == []
-    check = llm.bodies[0]["messages"]
-    assert check[0]["content"] == shell_agent.TOPIC_SYSTEM
-    assert check[1]["content"].startswith("<data>") and check[1]["content"].count("</data>") == 1
+    assert llm.bodies == [] and ws.queries("MERGE INTO") == []
 
 
 def test_the_injection_defenses_stay_in_the_main_prompt(tmp_path):
